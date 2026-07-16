@@ -1,0 +1,46 @@
+{
+  "match": {
+    "home": "Karacabey Bld", "home_code": "KARBLD",
+    "away": "Bucaspor 1928", "away_code": "BUCA",
+    "score": "3-3",
+    "date": "2022-04-30", "time": "Afternoon",
+    "competition": "2. League White Group",
+    "stadium": "Karacabey Mustafa Fehmi Gerceker Stadyumu",
+    "attendance": 975,
+    "scorers_home": [
+      {"name": "Devrim Taskaya", "mins": [12, 89]},
+      {"name": "Harun Kavaklidere", "mins": [36], "note": "injured/red-cross icon"},
+      {"name": "Ata Kurtulus", "mins": [76]}
+    ],
+    "scorers_away": [
+      {"name": "Cuma Menize", "mins": [23]},
+      {"name": "Murat Behram", "mins": [69], "note": "penalty"},
+      {"name": "Mustafa Seyhan", "mins": [93]}
+    ],
+    "team_stats": {
+      "possession": {"home": 48, "away": 52},
+      "shots": {"home": 11, "away": 8},
+      "clear_cut_chances": {"home": 3, "away": 1},
+      "shots_on_target": {"home": 5, "away": 4},
+      "team_rating": {"home": 6.6, "away": 6.7},
+      "flag_stat_1": {"home": 2, "away": 2},
+      "flag_stat_2": {"home": 4, "away": 9}
+    }
+  },
+  "_columns": "PaA PaC Key Ass TaA TaW Int HeA HeW CrA CrC Dri Mis MiG ShA ShO Con% Rating",
+  "bucaspor_players": [
+    {"pos": "GK",  "name": "Demir",    "PaA":17,"PaC":6, "Key":0,"Ass":0,"TaA":0,"TaW":0,"Int":0, "HeA":0, "HeW":0,"CrA":0,"CrC":0,"Dri":0,"Mis":0,"MiG":0,"ShA":0,"ShO":0,"Con":96,"Rating":6},
+    {"pos": "DR",  "name": "Duruk",    "PaA":28,"PaC":17,"Key":2,"Ass":0,"TaA":5,"TaW":5,"Int":8, "HeA":3, "HeW":1,"CrA":7,"CrC":1,"Dri":2,"Mis":2,"MiG":0,"ShA":0,"ShO":0,"Con":79,"Rating":7},
+    {"pos": "DL",  "name": "Balikuv",  "PaA":6, "PaC":3, "Key":0,"Ass":0,"TaA":2,"TaW":2,"Int":2, "HeA":3, "HeW":3,"CrA":0,"CrC":0,"Dri":0,"Mis":3,"MiG":1,"ShA":0,"ShO":0,"Con":87,"Rating":4,"note":"subbed off"},
+    {"pos": "DC",  "name": "Ozcan",    "PaA":17,"PaC":12,"Key":0,"Ass":0,"TaA":3,"TaW":3,"Int":12,"HeA":10,"HeW":8,"CrA":0,"CrC":0,"Dri":0,"Mis":4,"MiG":0,"ShA":0,"ShO":0,"Con":83,"Rating":7},
+    {"pos": "DC",  "name": "Koseoglu", "PaA":18,"PaC":12,"Key":0,"Ass":0,"TaA":1,"TaW":1,"Int":4, "HeA":6, "HeW":2,"CrA":0,"CrC":0,"Dri":0,"Mis":0,"MiG":0,"ShA":0,"ShO":0,"Con":87,"Rating":6},
+    {"pos": "DMC", "name": "Yuksel",   "PaA":8, "PaC":6, "Key":0,"Ass":0,"TaA":0,"TaW":0,"Int":5, "HeA":0, "HeW":0,"CrA":0,"CrC":0,"Dri":0,"Mis":0,"MiG":0,"ShA":0,"ShO":0,"Con":89,"Rating":6,"note":"yellow card"},
+    {"pos": "MC",  "name": "Menize",   "PaA":27,"PaC":22,"Key":1,"Ass":1,"TaA":6,"TaW":5,"Int":0, "HeA":1, "HeW":1,"CrA":1,"CrC":0,"Dri":2,"Mis":5,"MiG":0,"ShA":1,"ShO":1,"Con":76,"Rating":9,"note":"goal 23, MOTM"},
+    {"pos": "MC",  "name": "Findikci", "PaA":13,"PaC":12,"Key":0,"Ass":0,"TaA":1,"TaW":0,"Int":1, "HeA":1, "HeW":0,"CrA":0,"CrC":0,"Dri":0,"Mis":0,"MiG":0,"ShA":0,"ShO":0,"Con":86,"Rating":6,"note":"subbed off"},
+    {"pos": "AMR", "name": "Sun",      "PaA":17,"PaC":13,"Key":2,"Ass":1,"TaA":0,"TaW":0,"Int":1, "HeA":0, "HeW":0,"CrA":8,"CrC":0,"Dri":1,"Mis":0,"MiG":0,"ShA":2,"ShO":0,"Con":82,"Rating":8},
+    {"pos": "AML", "name": "Biyik",    "PaA":17,"PaC":11,"Key":1,"Ass":1,"TaA":0,"TaW":0,"Int":3, "HeA":1, "HeW":0,"CrA":2,"CrC":0,"Dri":0,"Mis":1,"MiG":0,"ShA":2,"ShO":1,"Con":86,"Rating":8},
+    {"pos": "FC",  "name": "Behram",   "PaA":8, "PaC":4, "Key":0,"Ass":0,"TaA":0,"TaW":0,"Int":0, "HeA":2, "HeW":1,"CrA":0,"CrC":0,"Dri":0,"Mis":1,"MiG":0,"ShA":2,"ShO":1,"Con":86,"Rating":8,"note":"goal 69 pen, subbed off"},
+    {"pos": "S1",  "name": "Atas",     "note":"unused sub, all dashes"},
+    {"pos": "S2",  "name": "Aktas",    "PaA":0,"PaC":0,"Key":0,"Ass":0,"TaA":0,"TaW":0,"Int":0,"HeA":0,"HeW":0,"CrA":0,"CrC":0,"Dri":0,"Mis":0,"MiG":0,"ShA":0,"ShO":0,"Con":99,"Rating":6,"note":"subbed on"}
+  ]
+}

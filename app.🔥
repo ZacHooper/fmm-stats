@@ -1,0 +1,178 @@
+fn read_bytes_to_string(file: FileHandle, length: Int) raises -> String:
+    var bytes = file.read_bytes(length)
+    var string: String = ""
+    for i in bytes:
+        string += chr(int(i[]))
+    return string
+
+
+fn string_to_hex(value: String) -> String:
+    var hex_string: String = ""
+    for i in value:
+        hex_string += hex(ord(i))[2:]
+    return hex_string
+
+
+fn hex_to_little_endian(value: String) -> String:
+    # Ensure the hex string has an even length
+    var padded_value: String = value
+    if len(value) % 2 != 0:
+        padded_value = "0" + value
+
+    # Reverse the hex string in pairs
+    var reversed_value: String = ""
+    for i in range(0, len(padded_value), 2):
+        reversed_value = padded_value[i : i + 2] + reversed_value
+
+    return reversed_value
+
+
+fn little_endian_to_hex(value: String) -> String:
+    # Reverse the hex string in pairs
+    var reversed_value: String = ""
+    for i in range(0, len(value), 2):
+        reversed_value = value[i : i + 2] + reversed_value
+
+    # Remove any leading zeros
+    var index = 0
+    for i in range(0, len(reversed_value)):
+        if reversed_value[i] != "0":
+            index = i
+            break
+
+    return reversed_value[index:]
+
+
+fn search_hex_in_file(savefile: FileHandle, target_hex: String) raises -> Int:
+    var lower_target_hex = target_hex.lower()
+    var chunk_size = 4
+
+    position = 0
+    while chunk := savefile.read_bytes(chunk_size):
+        b1 = hex_to_little_endian(hex(int(chunk[0]), prefix=""))
+        b2 = hex_to_little_endian(hex(int(chunk[1]), prefix=""))
+        b3 = hex_to_little_endian(hex(int(chunk[2]), prefix=""))
+        b4 = hex_to_little_endian(hex(int(chunk[3]), prefix=""))
+        hex_chunk = b1 + b2 + b3 + b4
+        print(hex_chunk)
+        if hex_chunk == lower_target_hex:
+            print("Found " + lower_target_hex + " at position " + str(position))
+            return position
+        position += chunk_size
+
+    print(lower_target_hex + " not found in the file.")
+    return -1
+
+
+fn byte_chunk_to_hex(chunk: List[SIMD[DType.uint8, 1]]) -> String:
+    var chunk_size = len(chunk)
+    var hex_chunk: String = ""
+    for i in range(chunk_size):
+        var hex_value = hex(int(chunk[i]), prefix="")
+        # Pad the hex value with a leading zero if it's only one character long
+        if len(hex_value) == 1:
+            hex_value = "0" + hex_value
+        hex_chunk += hex_value
+    return hex_chunk
+
+
+fn search_two_hex_in_chunk_in_file(
+    savefile: FileHandle,
+    target_hex_a: String,
+    target_hex_b: String,
+    chunk_size: Int,
+) raises -> Int:
+    """See if either of the two hex strings are in the same chunk in the file. Helpful to find IDs of two different things together. Eg Player TID and Team TID.
+    Returns the position of the chunk in the file where the hex strings are found.
+    """
+    var lower_target_hex_a = target_hex_a.lower()
+    var lower_target_hex_b = target_hex_b.lower()
+
+    position = 0
+    while chunk := savefile.read_bytes(chunk_size):
+        if position % 1000000 == 0:
+            print(position)
+        var hex_chunk = byte_chunk_to_hex(chunk)
+        if lower_target_hex_a in hex_chunk and lower_target_hex_b in hex_chunk:
+            # if lower_target_hex_a in hex_chunk:
+            print(
+                "Found "
+                + lower_target_hex_a
+                + " and "
+                + lower_target_hex_b
+                + " at position "
+                + str(position)
+            )
+            # return position
+        position += chunk_size
+
+    print(
+        lower_target_hex_a
+        + " or "
+        + lower_target_hex_b
+        + " not found in the file."
+    )
+    return -1
+
+
+fn main() raises:
+    print("Reading save file...")
+    var savefile = open("CQN - 24-25", "r")
+
+    var match_delimiter = "242255150A000000212255150A000000212255150A000000212255150A000000212255150A000000212255150A000000212255150A000000212255150A000000212255150A000000212255150A000000212255150A00000012121212121212121212"
+
+    print("Searching for hex in file...")
+    var arena_tid = "8B5D0000"
+    var team_tid = "0F720000"
+    var offset = search_two_hex_in_chunk_in_file(
+        savefile, arena_tid, team_tid, 100
+    )
+    # var offset = 72569382
+    # _ = savefile.seek(offset)
+    # var random_bytes = savefile.read_bytes(100)
+    # print(byte_chunk_to_hex(random_bytes))
+    # var byte_string = byte_chunk_to_hex(random_bytes)
+    # print(len(byte_string))
+    # print(len(arena_tid))
+
+    # print("Converting hex string to bytes")
+    # var hex_string: String = "0D000000"
+    # var bytes = List[SIMD[DType.uint8, 1]]()
+    # for i in range(0, len(hex_string), 2):
+    #     bytes.append(int(hex_string[i : i + 2], 16))
+
+    # # print("Converting bytes to hex string")
+    # print(byte_chunk_to_hex(bytes))
+
+    # var x = 2023
+    # print(hex(x, prefix=""))
+    # print(hex_to_little_endian(hex(x, prefix="")))
+
+    # var y = "436F6E6E"
+    # print(string_to_hex(y))
+    # print(hex_to_little_endian(string_to_hex(y)))
+
+    # var z = hex_to_little_endian(hex(x, prefix=""))
+    # print(z)
+    # # Go back to normal big endian
+    # print(little_endian_to_hex(z))
+
+    # var offset = search_hex_in_file(savefile, "4D616C63")
+    # _ = savefile.seek(offset)
+    # var team_name_length = int(savefile.read_bytes(4)[0])
+    # var team_name = read_bytes_to_string(savefile, team_name_length)
+    # print(team_name)
+
+    # var team_name_length = int(savefile.read_bytes(4)[0])
+    # var team_name = read_bytes_to_string(savefile, team_name_length)
+    # print(team_name)
+    # var offset = 4 + team_name_length
+    # _ = savefile.seek(offset)
+    # var team_location_length = int(savefile.read_bytes(4)[0])
+    # var team_location = read_bytes_to_string(savefile, team_location_length)
+    # print(team_location)
+    # offset += 4 + team_location_length
+    # _ = savefile.seek(offset)
+    # var team_code_length = int(savefile.read_bytes(4)[0])
+    # var team_code = read_bytes_to_string(savefile, team_code_length)
+    # print(team_code)

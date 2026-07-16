@@ -1,0 +1,9 @@
+# Save files — large, personal, never commit
+*.fms
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store

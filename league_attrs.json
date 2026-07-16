@@ -1,0 +1,12564 @@
+{
+ "1285": {
+  "sid": "85000000",
+  "P": 4087725,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 115,
+  "reputation": 3877,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 8,
+   "Strength": 10,
+   "Stamina": 6,
+   "Technique": 8,
+   "Aggression": 16,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "1296": {
+  "sid": "8b000000",
+  "P": 4088193,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 110,
+  "reputation": 3679,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 9,
+   "Pace": 9,
+   "Strength": 10,
+   "Stamina": 6,
+   "Technique": 12,
+   "Aggression": 5,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "2023": {
+  "sid": "ae010000",
+  "P": 4110891,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 105,
+  "pa": 145,
+  "reputation": 4968,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 10,
+   "Pace": 9,
+   "Strength": 9,
+   "Stamina": 11,
+   "Technique": 7,
+   "Aggression": 13,
+   "Leadership": 13,
+   "Agility": 11
+  }
+ },
+ "5002": {
+  "sid": "cb050000",
+  "P": 4193025,
+  "positions": {
+   "DR": 7,
+   "ML": 15,
+   "MC": 20,
+   "MR": 15,
+   "AML": 14,
+   "AMC": 19,
+   "AMR": 14,
+   "ST": 7
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 115,
+  "reputation": 4223,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 13,
+   "Pace": 9,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 13,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "5032": {
+  "sid": "dc050000",
+  "P": 4194351,
+  "positions": {
+   "DC": 20,
+   "DMC": 10
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 77,
+  "pa": 130,
+  "reputation": 4131,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 13,
+   "Pace": 8,
+   "Strength": 10,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 12,
+   "Leadership": 16,
+   "Agility": 8
+  }
+ },
+ "5078": {
+  "sid": "e1050000",
+  "P": 4194741,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 14,
+   "right": 20
+  },
+  "ca": 77,
+  "pa": 110,
+  "reputation": 4019,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 9,
+   "Technique": 11,
+   "Aggression": 5,
+   "Leadership": 8,
+   "Agility": 8
+  }
+ },
+ "5079": {
+  "sid": "e2050000",
+  "P": 4194819,
+  "positions": {
+   "DL": 14,
+   "DC": 10,
+   "DR": 20,
+   "DMC": 5,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 82,
+  "pa": 120,
+  "reputation": 4814,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 16,
+   "Pace": 8,
+   "Strength": 10,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 10,
+   "Leadership": 13,
+   "Agility": 10
+  }
+ },
+ "5089": {
+  "sid": "e8050000",
+  "P": 4195287,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 3387,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 11,
+   "Pace": 6,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 9,
+   "Aggression": 6,
+   "Leadership": 10,
+   "Agility": 10
+  }
+ },
+ "5125": {
+  "sid": "f2050000",
+  "P": 4196067,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4661,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 5,
+   "Strength": 11,
+   "Stamina": 7,
+   "Technique": 8,
+   "Aggression": 5,
+   "Leadership": 11,
+   "Agility": 10
+  }
+ },
+ "5150": {
+  "sid": "fc050000",
+  "P": 4196847,
+  "positions": {
+   "DL": 8,
+   "DR": 20,
+   "DMR": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4673,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 12,
+   "Leadership": 16,
+   "Agility": 10
+  }
+ },
+ "5151": {
+  "sid": "fd050000",
+  "P": 4196925,
+  "positions": {
+   "DL": 19,
+   "DC": 10,
+   "DR": 20,
+   "DML": 10,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 14,
+   "right": 20
+  },
+  "ca": 64,
+  "pa": 123,
+  "reputation": 4233,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 14,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 8,
+   "Technique": 10,
+   "Aggression": 13,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "5315": {
+  "sid": "42060000",
+  "P": 4202307,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 112,
+  "reputation": 4810,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 13,
+   "Pace": 7,
+   "Strength": 16,
+   "Stamina": 8,
+   "Technique": 7,
+   "Aggression": 12,
+   "Leadership": 12,
+   "Agility": 14
+  }
+ },
+ "5353": {
+  "sid": "5c060000",
+  "P": 4204335,
+  "positions": {
+   "DC": 15,
+   "DMC": 20,
+   "MC": 16,
+   "AMC": 11
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 74,
+  "pa": 91,
+  "reputation": 3877,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 11,
+   "Pace": 13,
+   "Strength": 11,
+   "Stamina": 8,
+   "Technique": 9,
+   "Aggression": 11,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "5588": {
+  "sid": "16070000",
+  "P": 4218843,
+  "positions": {
+   "DMC": 20,
+   "MC": 18
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 105,
+  "pa": 105,
+  "reputation": 4373,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 11,
+   "Technique": 15,
+   "Aggression": 15,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "5641": {
+  "sid": "4a070000",
+  "P": 4222899,
+  "positions": {
+   "AML": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 120,
+  "pa": 142,
+  "reputation": 4892,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 11,
+   "Pace": 12,
+   "Strength": 14,
+   "Stamina": 14,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 13,
+   "Agility": 11
+  }
+ },
+ "6002": {
+  "sid": "91080000",
+  "P": 4248405,
+  "positions": {
+   "MC": 20,
+   "MR": 10,
+   "AMC": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 1732,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "6033": {
+  "sid": "b0080000",
+  "P": 4250823,
+  "positions": {
+   "MC": 20,
+   "AMC": 18
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 94,
+  "reputation": 2477,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 7,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 13,
+   "Agility": 11
+  }
+ },
+ "6067": {
+  "sid": "d0080000",
+  "P": 4253319,
+  "positions": {
+   "DMC": 15,
+   "MC": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 81,
+  "pa": 97,
+  "reputation": 2655,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 14,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 8
+  }
+ },
+ "6178": {
+  "sid": "3b090000",
+  "P": 4261665,
+  "positions": {
+   "AMC": 20,
+   "ST": 19
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 79,
+  "reputation": 3810,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 5,
+   "Leadership": 15,
+   "Agility": 8
+  }
+ },
+ "6558": {
+  "sid": "960a0000",
+  "P": 4288731,
+  "positions": {
+   "DL": 20,
+   "DC": 14,
+   "DMC": 14,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 119,
+  "pa": 125,
+  "reputation": 5513,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 13,
+   "Strength": 13,
+   "Stamina": 11,
+   "Technique": 9,
+   "Aggression": 11,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "8516": {
+  "sid": "92110000",
+  "P": 4428195,
+  "positions": {
+   "DC": 10,
+   "DMC": 20,
+   "MC": 18
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 107,
+  "pa": 125,
+  "reputation": 5315,
+  "attributes": {
+   "Aerial": 16,
+   "Teamwork": 17,
+   "Pace": 8,
+   "Strength": 15,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 13,
+   "Leadership": 14,
+   "Agility": 8
+  }
+ },
+ "8584": {
+  "sid": "c2110000",
+  "P": 4431939,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 82,
+  "pa": 105,
+  "reputation": 4116,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 12,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "8585": {
+  "sid": "c3110000",
+  "P": 4432017,
+  "positions": {
+   "MC": 14,
+   "AML": 10,
+   "AMC": 20,
+   "AMR": 10,
+   "ST": 10
+  },
+  "feet": {
+   "left": 13,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 105,
+  "reputation": 3621,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 7,
+   "Pace": 8,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 14,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "8586": {
+  "sid": "c4110000",
+  "P": 4432095,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4269,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 8,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 7,
+   "Aggression": 6,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "8596": {
+  "sid": "ce110000",
+  "P": 4432875,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3550,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 5,
+   "Technique": 5,
+   "Aggression": 6,
+   "Leadership": 11,
+   "Agility": 15
+  }
+ },
+ "8599": {
+  "sid": "d1110000",
+  "P": 4433109,
+  "positions": {
+   "DC": 20,
+   "DR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 1824,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 11,
+   "Pace": 8,
+   "Strength": 13,
+   "Stamina": 9,
+   "Technique": 8,
+   "Aggression": 11,
+   "Leadership": 11,
+   "Agility": 8
+  }
+ },
+ "8600": {
+  "sid": "d2110000",
+  "P": 4433187,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 105,
+  "reputation": 4244,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 14,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "8603": {
+  "sid": "d5110000",
+  "P": 4433421,
+  "positions": {
+   "DL": 15,
+   "DC": 20,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 90,
+  "reputation": 1696,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 9,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 9,
+   "Aggression": 14,
+   "Leadership": 12,
+   "Agility": 10
+  }
+ },
+ "11029": {
+  "sid": "091a0000",
+  "P": 4597221,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 77,
+  "pa": 95,
+  "reputation": 4000,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 10,
+   "Pace": 10,
+   "Strength": 14,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 8,
+   "Leadership": 12,
+   "Agility": 10
+  }
+ },
+ "11151": {
+  "sid": "551a0000",
+  "P": 4603149,
+  "positions": {
+   "ML": 15,
+   "MC": 8,
+   "MR": 16,
+   "AML": 18,
+   "AMC": 13,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 3944,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 8,
+   "Pace": 9,
+   "Strength": 3,
+   "Stamina": 9,
+   "Technique": 12,
+   "Aggression": 8,
+   "Leadership": 5,
+   "Agility": 15
+  }
+ },
+ "11197": {
+  "sid": "791a0000",
+  "P": 4605957,
+  "positions": {
+   "AML": 16,
+   "AMC": 18,
+   "AMR": 16,
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 120,
+  "reputation": 4382,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 13,
+   "Pace": 9,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 14,
+   "Leadership": 5,
+   "Agility": 11
+  }
+ },
+ "14037": {
+  "sid": "3e240000",
+  "P": 4801035,
+  "positions": {
+   "DL": 15,
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 100,
+  "pa": 105,
+  "reputation": 3909,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 12,
+   "Pace": 7,
+   "Strength": 14,
+   "Stamina": 11,
+   "Technique": 8,
+   "Aggression": 12,
+   "Leadership": 10,
+   "Agility": 6
+  }
+ },
+ "14043": {
+  "sid": "44240000",
+  "P": 4801503,
+  "positions": {
+   "ML": 14,
+   "MR": 14,
+   "AML": 18,
+   "AMC": 10,
+   "AMR": 20,
+   "ST": 14
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 107,
+  "pa": 120,
+  "reputation": 4759,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 8,
+   "Pace": 15,
+   "Strength": 8,
+   "Stamina": 12,
+   "Technique": 14,
+   "Aggression": 11,
+   "Leadership": 4,
+   "Agility": 15
+  }
+ },
+ "14114": {
+  "sid": "89240000",
+  "P": 4806885,
+  "positions": {
+   "ML": 12,
+   "MC": 16,
+   "MR": 12,
+   "AML": 14,
+   "AMC": 20,
+   "AMR": 14,
+   "ST": 17
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4271,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 8,
+   "Leadership": 8,
+   "Agility": 9
+  }
+ },
+ "14250": {
+  "sid": "0c250000",
+  "P": 4817103,
+  "positions": {
+   "DC": 16,
+   "DMC": 20,
+   "ML": 9,
+   "MC": 17,
+   "MR": 9,
+   "AMC": 11
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 120,
+  "pa": 126,
+  "reputation": 4505,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 17,
+   "Pace": 12,
+   "Strength": 14,
+   "Stamina": 14,
+   "Technique": 10,
+   "Aggression": 16,
+   "Leadership": 12,
+   "Agility": 12
+  }
+ },
+ "14960": {
+  "sid": "ae270000",
+  "P": 4869675,
+  "positions": {
+   "AML": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 125,
+  "pa": 125,
+  "reputation": 5241,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 13,
+   "Pace": 15,
+   "Strength": 15,
+   "Stamina": 16,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 5,
+   "Agility": 15
+  }
+ },
+ "15441": {
+  "sid": "77290000",
+  "P": 4905321,
+  "positions": {
+   "DMC": 7,
+   "MC": 20,
+   "MR": 10,
+   "AMC": 18,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 94,
+  "pa": 100,
+  "reputation": 3632,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "15733": {
+  "sid": "932a0000",
+  "P": 4927473,
+  "positions": {
+   "DC": 20,
+   "DR": 13,
+   "DMC": 13,
+   "MC": 10,
+   "MR": 10,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 88,
+  "reputation": 3552,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 3,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 12,
+   "Technique": 7,
+   "Aggression": 11,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "16030": {
+  "sid": "802b0000",
+  "P": 4945959,
+  "positions": {
+   "AMC": 5,
+   "ST": 20
+  },
+  "feet": {
+   "left": 13,
+   "right": 20
+  },
+  "ca": 102,
+  "pa": 121,
+  "reputation": 4595,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 8,
+   "Pace": 6,
+   "Strength": 10,
+   "Stamina": 6,
+   "Technique": 14,
+   "Aggression": 5,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "16197": {
+  "sid": "012c0000",
+  "P": 4956021,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 84,
+  "pa": 123,
+  "reputation": 4988,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 7,
+   "Pace": 8,
+   "Strength": 10,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 16,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "17352": {
+  "sid": "bc2f0000",
+  "P": 5030511,
+  "positions": {
+   "DL": 20,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 87,
+  "pa": 90,
+  "reputation": 4223,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 14,
+   "Technique": 7,
+   "Aggression": 6,
+   "Leadership": 14,
+   "Agility": 14
+  }
+ },
+ "17829": {
+  "sid": "67310000",
+  "P": 5063817,
+  "positions": {
+   "DL": 15,
+   "DR": 20,
+   "MR": 18,
+   "AMC": 14,
+   "AMR": 19,
+   "DMR": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 86,
+  "pa": 88,
+  "reputation": 4155,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 13,
+   "Technique": 8,
+   "Aggression": 5,
+   "Leadership": 1,
+   "Agility": 12
+  }
+ },
+ "20399": {
+  "sid": "613a0000",
+  "P": 5243061,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 120,
+  "reputation": 4180,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 4,
+   "Strength": 12,
+   "Stamina": 9,
+   "Technique": 9,
+   "Aggression": 13,
+   "Leadership": 15,
+   "Agility": 12
+  }
+ },
+ "20400": {
+  "sid": "623a0000",
+  "P": 5243139,
+  "positions": {
+   "AML": 12,
+   "AMC": 15,
+   "AMR": 12,
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 110,
+  "pa": 120,
+  "reputation": 5222,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 14,
+   "Aggression": 12,
+   "Leadership": 12,
+   "Agility": 12
+  }
+ },
+ "20404": {
+  "sid": "663a0000",
+  "P": 5243451,
+  "positions": {
+   "DMC": 18,
+   "MC": 20,
+   "AMC": 12
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 62,
+  "pa": 105,
+  "reputation": 1683,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 13,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 15,
+   "Leadership": 5,
+   "Agility": 11
+  }
+ },
+ "20412": {
+  "sid": "6e3a0000",
+  "P": 5244075,
+  "positions": {
+   "DL": 20,
+   "DC": 19,
+   "DMC": 7
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 80,
+  "pa": 115,
+  "reputation": 4199,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 10,
+   "Pace": 9,
+   "Strength": 11,
+   "Stamina": 8,
+   "Technique": 9,
+   "Aggression": 15,
+   "Leadership": 10,
+   "Agility": 10
+  }
+ },
+ "20416": {
+  "sid": "723a0000",
+  "P": 5244387,
+  "positions": {
+   "DL": 14,
+   "DC": 20
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 80,
+  "reputation": 3682,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 8,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "20428": {
+  "sid": "7d3a0000",
+  "P": 5245245,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 105,
+  "reputation": 4888,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 13,
+   "Pace": 5,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 8,
+   "Aggression": 9,
+   "Leadership": 12,
+   "Agility": 10
+  }
+ },
+ "20431": {
+  "sid": "7f3a0000",
+  "P": 5245401,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4569,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 10,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 10,
+   "Technique": 7,
+   "Aggression": 13,
+   "Leadership": 12,
+   "Agility": 10
+  }
+ },
+ "20433": {
+  "sid": "813a0000",
+  "P": 5245557,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 110,
+  "reputation": 3907,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 9,
+   "Technique": 10,
+   "Aggression": 13,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "20465": {
+  "sid": "963a0000",
+  "P": 5247195,
+  "positions": {
+   "DMC": 18,
+   "MC": 20
+  },
+  "feet": {
+   "left": 11,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 110,
+  "reputation": 3214,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 13,
+   "Pace": 8,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 14,
+   "Aggression": 10,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "20473": {
+  "sid": "9b3a0000",
+  "P": 5247585,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 105,
+  "reputation": 5080,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 10,
+   "Pace": 8,
+   "Strength": 10,
+   "Stamina": 8,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "20482": {
+  "sid": "a03a0000",
+  "P": 5247975,
+  "positions": {
+   "DMC": 14,
+   "ML": 10,
+   "MC": 20,
+   "MR": 13,
+   "AML": 11,
+   "AMC": 15,
+   "AMR": 13
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 62,
+  "pa": 100,
+  "reputation": 1605,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 13,
+   "Pace": 7,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 14,
+   "Agility": 13
+  }
+ },
+ "20484": {
+  "sid": "a23a0000",
+  "P": 5248131,
+  "positions": {
+   "DMC": 17,
+   "MC": 20,
+   "MR": 7,
+   "AMC": 12
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 77,
+  "pa": 105,
+  "reputation": 4524,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 13,
+   "Pace": 9,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 12,
+   "Agility": 10
+  }
+ },
+ "20509": {
+  "sid": "b13a0000",
+  "P": 5249301,
+  "positions": {
+   "DL": 20,
+   "DR": 7,
+   "ML": 8,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 110,
+  "reputation": 3973,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "20542": {
+  "sid": "c23a0000",
+  "P": 5250627,
+  "positions": {
+   "DL": 20,
+   "DMC": 14,
+   "ML": 15,
+   "MC": 14,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 95,
+  "reputation": 4021,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 13,
+   "Stamina": 11,
+   "Technique": 9,
+   "Aggression": 12,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "20546": {
+  "sid": "c53a0000",
+  "P": 5250861,
+  "positions": {
+   "AMC": 10,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 115,
+  "reputation": 4143,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 14,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "20550": {
+  "sid": "c93a0000",
+  "P": 5251173,
+  "positions": {
+   "DR": 10,
+   "DMC": 12,
+   "ML": 10,
+   "MC": 17,
+   "MR": 12,
+   "AML": 13,
+   "AMC": 20,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 13,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 105,
+  "reputation": 3549,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 9,
+   "Pace": 9,
+   "Strength": 4,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 14
+  }
+ },
+ "20560": {
+  "sid": "d23a0000",
+  "P": 5251875,
+  "positions": {
+   "DMC": 10,
+   "ML": 8,
+   "MC": 20,
+   "MR": 8,
+   "AMC": 16
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 3629,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 9,
+   "Pace": 9,
+   "Strength": 5,
+   "Stamina": 5,
+   "Technique": 14,
+   "Aggression": 4,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "20567": {
+  "sid": "d63a0000",
+  "P": 5252187,
+  "positions": {
+   "DMC": 8,
+   "MC": 16,
+   "MR": 10,
+   "AML": 10,
+   "AMC": 20,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 4027,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 10,
+   "Pace": 7,
+   "Strength": 5,
+   "Stamina": 6,
+   "Technique": 15,
+   "Aggression": 5,
+   "Leadership": 9,
+   "Agility": 12
+  }
+ },
+ "20568": {
+  "sid": "d73a0000",
+  "P": 5252265,
+  "positions": {
+   "ML": 14,
+   "MC": 19,
+   "MR": 10,
+   "AML": 14,
+   "AMC": 20,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 105,
+  "pa": 115,
+  "reputation": 4916,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 14,
+   "Pace": 10,
+   "Strength": 6,
+   "Stamina": 10,
+   "Technique": 15,
+   "Aggression": 6,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "20574": {
+  "sid": "da3a0000",
+  "P": 5252499,
+  "positions": {
+   "ML": 12,
+   "MC": 12,
+   "MR": 6,
+   "AML": 15,
+   "AMC": 20,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 75,
+  "pa": 90,
+  "reputation": 3434,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 9,
+   "Strength": 8,
+   "Stamina": 13,
+   "Technique": 14,
+   "Aggression": 5,
+   "Leadership": 12,
+   "Agility": 7
+  }
+ },
+ "20600": {
+  "sid": "eb3a0000",
+  "P": 5253825,
+  "positions": {
+   "DMC": 15,
+   "ML": 7,
+   "MC": 20,
+   "MR": 7,
+   "AMC": 13
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 105,
+  "reputation": 3392,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 13,
+   "Pace": 7,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 14,
+   "Leadership": 13,
+   "Agility": 13
+  }
+ },
+ "20601": {
+  "sid": "ec3a0000",
+  "P": 5253903,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 105,
+  "reputation": 4716,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 13,
+   "Stamina": 11,
+   "Technique": 7,
+   "Aggression": 13,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "20605": {
+  "sid": "ef3a0000",
+  "P": 5254137,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 85,
+  "reputation": 4000,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 9,
+   "Pace": 6,
+   "Strength": 12,
+   "Stamina": 6,
+   "Technique": 8,
+   "Aggression": 5,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "20640": {
+  "sid": "fe3a0000",
+  "P": 5255307,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 100,
+  "reputation": 3706,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 8,
+   "Strength": 13,
+   "Stamina": 9,
+   "Technique": 8,
+   "Aggression": 14,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "20648": {
+  "sid": "033b0000",
+  "P": 5255697,
+  "positions": {
+   "AML": 13,
+   "ST": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 3808,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 10
+  }
+ },
+ "20674": {
+  "sid": "0b3b0000",
+  "P": 5256321,
+  "positions": {
+   "DL": 20,
+   "ML": 13,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 95,
+  "pa": 100,
+  "reputation": 4504,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 14,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "20678": {
+  "sid": "0f3b0000",
+  "P": 5256633,
+  "positions": {
+   "DC": 20,
+   "DR": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4569,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 13,
+   "Stamina": 9,
+   "Technique": 7,
+   "Aggression": 15,
+   "Leadership": 5,
+   "Agility": 10
+  }
+ },
+ "20681": {
+  "sid": "123b0000",
+  "P": 5256867,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 85,
+  "reputation": 3766,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 6,
+   "Pace": 12,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 1,
+   "Aggression": 8,
+   "Leadership": 9,
+   "Agility": 14
+  }
+ },
+ "20685": {
+  "sid": "163b0000",
+  "P": 5257179,
+  "positions": {
+   "DL": 20,
+   "DC": 10,
+   "ML": 15,
+   "MR": 12,
+   "AML": 14,
+   "AMR": 14,
+   "DML": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 90,
+  "reputation": 3385,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 8,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "20688": {
+  "sid": "193b0000",
+  "P": 5257413,
+  "positions": {
+   "ML": 12,
+   "MR": 15,
+   "AML": 20,
+   "AMR": 15,
+   "ST": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 100,
+  "reputation": 3514,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 4,
+   "Agility": 14
+  }
+ },
+ "20720": {
+  "sid": "263b0000",
+  "P": 5258427,
+  "positions": {
+   "ML": 3,
+   "MR": 13,
+   "AML": 20,
+   "AMC": 10,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 13,
+   "right": 20
+  },
+  "ca": 92,
+  "pa": 120,
+  "reputation": 4596,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 15,
+   "Aggression": 8,
+   "Leadership": 8,
+   "Agility": 14
+  }
+ },
+ "20722": {
+  "sid": "273b0000",
+  "P": 5258505,
+  "positions": {
+   "DL": 12,
+   "DC": 20,
+   "DR": 18
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 100,
+  "reputation": 4319,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 13,
+   "Stamina": 11,
+   "Technique": 9,
+   "Aggression": 13,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "20729": {
+  "sid": "2d3b0000",
+  "P": 5258973,
+  "positions": {
+   "DC": 20,
+   "DR": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 77,
+  "pa": 90,
+  "reputation": 4053,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 13,
+   "Pace": 7,
+   "Strength": 13,
+   "Stamina": 11,
+   "Technique": 7,
+   "Aggression": 11,
+   "Leadership": 16,
+   "Agility": 8
+  }
+ },
+ "20730": {
+  "sid": "2e3b0000",
+  "P": 5259051,
+  "positions": {
+   "DL": 9,
+   "ML": 15,
+   "MR": 15,
+   "AML": 20,
+   "AMR": 15,
+   "ST": 12
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 110,
+  "reputation": 3083,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 5,
+   "Pace": 7,
+   "Strength": 5,
+   "Stamina": 12,
+   "Technique": 14,
+   "Aggression": 6,
+   "Leadership": 14,
+   "Agility": 8
+  }
+ },
+ "20738": {
+  "sid": "363b0000",
+  "P": 5259675,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 105,
+  "pa": 120,
+  "reputation": 5185,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 8,
+   "Aggression": 13,
+   "Leadership": 11,
+   "Agility": 13
+  }
+ },
+ "20770": {
+  "sid": "3e3b0000",
+  "P": 5260299,
+  "positions": {
+   "DR": 20,
+   "MC": 5,
+   "MR": 5,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 100,
+  "reputation": 3584,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 9,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "20772": {
+  "sid": "403b0000",
+  "P": 5260455,
+  "positions": {
+   "DL": 13,
+   "DR": 20,
+   "MR": 7,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 4288,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 16,
+   "Leadership": 8,
+   "Agility": 14
+  }
+ },
+ "20774": {
+  "sid": "423b0000",
+  "P": 5260611,
+  "positions": {
+   "DMC": 20,
+   "MC": 17,
+   "AMC": 8
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 72,
+  "pa": 95,
+  "reputation": 3830,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 7,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 5,
+   "Agility": 8
+  }
+ },
+ "20777": {
+  "sid": "453b0000",
+  "P": 5260845,
+  "positions": {
+   "AML": 12,
+   "AMR": 13,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 105,
+  "reputation": 4950,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 14,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 14,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "20778": {
+  "sid": "463b0000",
+  "P": 5260923,
+  "positions": {
+   "DL": 5,
+   "DR": 12,
+   "DMC": 20,
+   "ML": 5,
+   "MC": 16,
+   "MR": 14,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 80,
+  "reputation": 3571,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 12
+  }
+ },
+ "20779": {
+  "sid": "473b0000",
+  "P": 5261001,
+  "positions": {
+   "ML": 14,
+   "MR": 14,
+   "AML": 17,
+   "AMR": 20,
+   "ST": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 85,
+  "pa": 90,
+  "reputation": 4381,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 8,
+   "Technique": 14,
+   "Aggression": 5,
+   "Leadership": 4,
+   "Agility": 11
+  }
+ },
+ "20781": {
+  "sid": "493b0000",
+  "P": 5261157,
+  "positions": {
+   "DC": 10,
+   "DR": 20,
+   "MR": 13,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 95,
+  "reputation": 3447,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 8,
+   "Aggression": 13,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "20791": {
+  "sid": "533b0000",
+  "P": 5261937,
+  "positions": {
+   "DC": 20,
+   "DR": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 100,
+  "reputation": 4484,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 13,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 16,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "20796": {
+  "sid": "553b0000",
+  "P": 5262093,
+  "positions": {
+   "DC": 8,
+   "DMC": 20,
+   "MC": 17,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 105,
+  "reputation": 3955,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 13,
+   "Pace": 8,
+   "Strength": 9,
+   "Stamina": 8,
+   "Technique": 15,
+   "Aggression": 10,
+   "Leadership": 13,
+   "Agility": 12
+  }
+ },
+ "20797": {
+  "sid": "563b0000",
+  "P": 5262171,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 105,
+  "reputation": 4596,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 11,
+   "Pace": 7,
+   "Strength": 13,
+   "Stamina": 6,
+   "Technique": 11,
+   "Aggression": 11,
+   "Leadership": 3,
+   "Agility": 15
+  }
+ },
+ "20799": {
+  "sid": "583b0000",
+  "P": 5262327,
+  "positions": {
+   "AML": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 95,
+  "pa": 110,
+  "reputation": 4667,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 5,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "20802": {
+  "sid": "5b3b0000",
+  "P": 5262561,
+  "positions": {
+   "DL": 20,
+   "DC": 18,
+   "DR": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3520,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 10,
+   "Stamina": 13,
+   "Technique": 5,
+   "Aggression": 15,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "20803": {
+  "sid": "5c3b0000",
+  "P": 5262639,
+  "positions": {
+   "DL": 12,
+   "DR": 8,
+   "ML": 20,
+   "MR": 12,
+   "AML": 18,
+   "AMC": 7,
+   "AMR": 12,
+   "ST": 8,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 4611,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 11,
+   "Pace": 14,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "20808": {
+  "sid": "613b0000",
+  "P": 5263029,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 3618,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 9,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 9,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "20837": {
+  "sid": "693b0000",
+  "P": 5263653,
+  "positions": {
+   "DL": 20,
+   "ML": 12,
+   "DML": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3700,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "20838": {
+  "sid": "6a3b0000",
+  "P": 5263731,
+  "positions": {
+   "DL": 10,
+   "DC": 10,
+   "DR": 18,
+   "DMC": 20,
+   "ML": 4,
+   "MC": 15,
+   "MR": 8,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 105,
+  "reputation": 4782,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 13,
+   "Technique": 12,
+   "Aggression": 11,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "20840": {
+  "sid": "6b3b0000",
+  "P": 5263809,
+  "positions": {
+   "DC": 20,
+   "DR": 8,
+   "DMC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 1699,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 8,
+   "Aggression": 17,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "20843": {
+  "sid": "6e3b0000",
+  "P": 5264043,
+  "positions": {
+   "DL": 15,
+   "DC": 20,
+   "DR": 17,
+   "DMC": 17,
+   "ML": 7,
+   "MC": 14,
+   "MR": 10,
+   "AML": 7,
+   "AMR": 7,
+   "DML": 12,
+   "DMR": 12
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 4200,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 8,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 13,
+   "Leadership": 11,
+   "Agility": 10
+  }
+ },
+ "20892": {
+  "sid": "703b0000",
+  "P": 5264199,
+  "positions": {
+   "MC": 17,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 95,
+  "reputation": 4732,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 13,
+   "Pace": 7,
+   "Strength": 9,
+   "Stamina": 8,
+   "Technique": 14,
+   "Aggression": 5,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "20896": {
+  "sid": "733b0000",
+  "P": 5264433,
+  "positions": {
+   "DC": 20,
+   "DMC": 10,
+   "ST": 7
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 4516,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 11,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 13,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "20899": {
+  "sid": "763b0000",
+  "P": 5264667,
+  "positions": {
+   "DC": 20,
+   "DR": 15,
+   "DMC": 14
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4311,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 11,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "20907": {
+  "sid": "7d3b0000",
+  "P": 5265213,
+  "positions": {
+   "DR": 20,
+   "MR": 14,
+   "DMR": 14
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 95,
+  "reputation": 3932,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 9,
+   "Pace": 14,
+   "Strength": 8,
+   "Stamina": 7,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 11,
+   "Agility": 14
+  }
+ },
+ "20915": {
+  "sid": "853b0000",
+  "P": 5265837,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 95,
+  "reputation": 4388,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 9,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 10,
+   "Technique": 5,
+   "Aggression": 14,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "20945": {
+  "sid": "8e3b0000",
+  "P": 5266539,
+  "positions": {
+   "DC": 20,
+   "DR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 100,
+  "reputation": 3922,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 3,
+   "Aggression": 12,
+   "Leadership": 4,
+   "Agility": 12
+  }
+ },
+ "20947": {
+  "sid": "903b0000",
+  "P": 5266695,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4435,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 6,
+   "Strength": 10,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 14,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "20948": {
+  "sid": "913b0000",
+  "P": 5266773,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4166,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 14,
+   "Pace": 10,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 10,
+   "Aggression": 5,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "20950": {
+  "sid": "933b0000",
+  "P": 5266929,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4790,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 7,
+   "Aggression": 18,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "20951": {
+  "sid": "943b0000",
+  "P": 5267007,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3642,
+  "attributes": {
+   "Aerial": 15,
+   "Teamwork": 14,
+   "Pace": 12,
+   "Strength": 14,
+   "Stamina": 8,
+   "Technique": 9,
+   "Aggression": 14,
+   "Leadership": 6,
+   "Agility": 9
+  }
+ },
+ "20953": {
+  "sid": "963b0000",
+  "P": 5267163,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 6
+  },
+  "ca": 100,
+  "pa": 105,
+  "reputation": 4378,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 13,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "20954": {
+  "sid": "973b0000",
+  "P": 5267241,
+  "positions": {
+   "DMC": 16,
+   "MC": 20,
+   "MR": 10,
+   "AMC": 13
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 110,
+  "reputation": 3528,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 11,
+   "Pace": 6,
+   "Strength": 12,
+   "Stamina": 6,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "20961": {
+  "sid": "993b0000",
+  "P": 5267397,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 105,
+  "reputation": 4640,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 8,
+   "Strength": 9,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 12,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "20962": {
+  "sid": "9a3b0000",
+  "P": 5267475,
+  "positions": {
+   "DMC": 16,
+   "MC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 110,
+  "pa": 120,
+  "reputation": 4606,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 15,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 13,
+   "Technique": 9,
+   "Aggression": 14,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "20974": {
+  "sid": "a43b0000",
+  "P": 5268255,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 82,
+  "pa": 90,
+  "reputation": 4388,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 13,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 9,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 4,
+   "Agility": 11
+  }
+ },
+ "20979": {
+  "sid": "a63b0000",
+  "P": 5268411,
+  "positions": {
+   "DL": 20,
+   "ML": 14,
+   "MR": 12,
+   "AML": 14,
+   "AMC": 10,
+   "AMR": 12,
+   "DML": 18
+  },
+  "feet": {
+   "left": 20,
+   "right": 15
+  },
+  "ca": 100,
+  "pa": 110,
+  "reputation": 4823,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 2,
+   "Agility": 11
+  }
+ },
+ "21003": {
+  "sid": "ac3b0000",
+  "P": 5268879,
+  "positions": {
+   "ML": 13,
+   "MR": 10,
+   "AML": 20,
+   "AMC": 8,
+   "AMR": 17
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 110,
+  "pa": 120,
+  "reputation": 5403,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 10,
+   "Pace": 16,
+   "Strength": 6,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 8,
+   "Agility": 15
+  }
+ },
+ "21008": {
+  "sid": "b13b0000",
+  "P": 5269269,
+  "positions": {
+   "DC": 20,
+   "DR": 13,
+   "DMC": 14
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 85,
+  "reputation": 3178,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 6,
+   "Aggression": 13,
+   "Leadership": 12,
+   "Agility": 10
+  }
+ },
+ "21013": {
+  "sid": "b63b0000",
+  "P": 5269659,
+  "positions": {
+   "DL": 20,
+   "DC": 12,
+   "DMC": 15,
+   "ML": 15,
+   "MC": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 3911,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 13,
+   "Technique": 9,
+   "Aggression": 7,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "21017": {
+  "sid": "ba3b0000",
+  "P": 5269971,
+  "positions": {
+   "DR": 15,
+   "DMC": 10,
+   "ML": 10,
+   "MC": 18,
+   "MR": 20,
+   "AML": 10,
+   "AMC": 15,
+   "AMR": 13
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 94,
+  "pa": 110,
+  "reputation": 4234,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "21021": {
+  "sid": "be3b0000",
+  "P": 5270283,
+  "positions": {
+   "DR": 12,
+   "DMC": 20,
+   "ML": 4,
+   "MC": 16,
+   "MR": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 105,
+  "reputation": 3170,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 13,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "21023": {
+  "sid": "c03b0000",
+  "P": 5270439,
+  "positions": {
+   "DR": 8,
+   "ML": 10,
+   "MR": 13,
+   "AML": 17,
+   "AMR": 20,
+   "ST": 13
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 120,
+  "reputation": 4905,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 11,
+   "Pace": 14,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21027": {
+  "sid": "c43b0000",
+  "P": 5270751,
+  "positions": {
+   "DR": 8,
+   "ML": 12,
+   "MR": 14,
+   "AML": 20,
+   "AMC": 10,
+   "AMR": 18
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 3715,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "21029": {
+  "sid": "c63b0000",
+  "P": 5270907,
+  "positions": {
+   "DL": 10,
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 89,
+  "pa": 105,
+  "reputation": 4397,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 12,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "21032": {
+  "sid": "c83b0000",
+  "P": 5271063,
+  "positions": {
+   "DL": 14,
+   "DMC": 18,
+   "MC": 20,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 4037,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 14,
+   "Pace": 8,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 14,
+   "Aggression": 6,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "21035": {
+  "sid": "cb3b0000",
+  "P": 5271297,
+  "positions": {
+   "DL": 12,
+   "DC": 20,
+   "DR": 5,
+   "DMC": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4070,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 8,
+   "Pace": 10,
+   "Strength": 14,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21037": {
+  "sid": "cd3b0000",
+  "P": 5271453,
+  "positions": {
+   "ML": 15,
+   "MR": 18,
+   "AML": 15,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 1856,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 5,
+   "Stamina": 13,
+   "Technique": 9,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 14
+  }
+ },
+ "21052": {
+  "sid": "d23b0000",
+  "P": 5271843,
+  "positions": {
+   "ML": 8,
+   "MC": 12,
+   "MR": 12,
+   "AML": 10,
+   "AMC": 19,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 130,
+  "reputation": 3837,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 8,
+   "Stamina": 9,
+   "Technique": 14,
+   "Aggression": 7,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "21057": {
+  "sid": "d73b0000",
+  "P": 5272233,
+  "positions": {
+   "DL": 20,
+   "DC": 15,
+   "MR": 12,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 90,
+  "pa": 105,
+  "reputation": 3431,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 12,
+   "Stamina": 14,
+   "Technique": 6,
+   "Aggression": 11,
+   "Leadership": 12,
+   "Agility": 14
+  }
+ },
+ "21083": {
+  "sid": "e13b0000",
+  "P": 5273013,
+  "positions": {
+   "DMC": 15,
+   "ML": 10,
+   "MC": 20,
+   "AMC": 8
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 100,
+  "pa": 105,
+  "reputation": 4688,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 14,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 16,
+   "Leadership": 10,
+   "Agility": 14
+  }
+ },
+ "21096": {
+  "sid": "e93b0000",
+  "P": 5273637,
+  "positions": {
+   "ML": 20,
+   "MR": 20,
+   "AML": 10,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 90,
+  "reputation": 1698,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 8,
+   "Stamina": 14,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 14
+  }
+ },
+ "21099": {
+  "sid": "ec3b0000",
+  "P": 5273871,
+  "positions": {
+   "DC": 20,
+   "DR": 14
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 100,
+  "reputation": 4614,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 10,
+   "Pace": 9,
+   "Strength": 10,
+   "Stamina": 9,
+   "Technique": 7,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "21100": {
+  "sid": "ed3b0000",
+  "P": 5273949,
+  "positions": {
+   "DL": 20,
+   "DR": 7,
+   "ML": 16,
+   "MR": 11,
+   "AML": 20,
+   "AMR": 15,
+   "DML": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 12
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 1772,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 13,
+   "Pace": 10,
+   "Strength": 7,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "21103": {
+  "sid": "f03b0000",
+  "P": 5274183,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 90,
+  "reputation": 3567,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 6,
+   "Aggression": 11,
+   "Leadership": 8,
+   "Agility": 14
+  }
+ },
+ "21111": {
+  "sid": "f83b0000",
+  "P": 5274807,
+  "positions": {
+   "DMC": 15,
+   "MC": 20,
+   "MR": 15,
+   "AMC": 14
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4454,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 15,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 6,
+   "Agility": 14
+  }
+ },
+ "21113": {
+  "sid": "fa3b0000",
+  "P": 5274963,
+  "positions": {
+   "DL": 20,
+   "DR": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 3477,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21115": {
+  "sid": "fc3b0000",
+  "P": 5275119,
+  "positions": {
+   "DMC": 16,
+   "MC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 11
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4410,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 15,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 13,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 12
+  }
+ },
+ "21124": {
+  "sid": "053c0000",
+  "P": 5275821,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4550,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 9,
+   "Pace": 7,
+   "Strength": 14,
+   "Stamina": 10,
+   "Technique": 8,
+   "Aggression": 15,
+   "Leadership": 12,
+   "Agility": 12
+  }
+ },
+ "21125": {
+  "sid": "063c0000",
+  "P": 5275899,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4263,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 12,
+   "Leadership": 11,
+   "Agility": 10
+  }
+ },
+ "21143": {
+  "sid": "183c0000",
+  "P": 5277303,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 3997,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 8,
+   "Pace": 8,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 2,
+   "Aggression": 5,
+   "Leadership": 12,
+   "Agility": 10
+  }
+ },
+ "21194": {
+  "sid": "2b3c0000",
+  "P": 5278785,
+  "positions": {
+   "DR": 20,
+   "MR": 15,
+   "AMR": 12,
+   "DMR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 105,
+  "reputation": 4587,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 14,
+   "Strength": 9,
+   "Stamina": 14,
+   "Technique": 10,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "21198": {
+  "sid": "2f3c0000",
+  "P": 5279097,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 90,
+  "reputation": 4277,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 8,
+   "Aggression": 12,
+   "Leadership": 12,
+   "Agility": 9
+  }
+ },
+ "21199": {
+  "sid": "303c0000",
+  "P": 5279175,
+  "positions": {
+   "AML": 14,
+   "AMR": 20,
+   "ST": 18
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 105,
+  "reputation": 1703,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 13,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 9,
+   "Aggression": 14,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "21204": {
+  "sid": "353c0000",
+  "P": 5279565,
+  "positions": {
+   "DL": 20,
+   "ML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 75,
+  "pa": 105,
+  "reputation": 3692,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 11,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 10,
+   "Agility": 14
+  }
+ },
+ "21205": {
+  "sid": "363c0000",
+  "P": 5279643,
+  "positions": {
+   "DC": 8,
+   "DMC": 17,
+   "MC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4701,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 13,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "21207": {
+  "sid": "383c0000",
+  "P": 5279799,
+  "positions": {
+   "DR": 20,
+   "MR": 7,
+   "AMR": 7,
+   "DMR": 13
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4558,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 13,
+   "Pace": 15,
+   "Strength": 13,
+   "Stamina": 14,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "21210": {
+  "sid": "3b3c0000",
+  "P": 5280033,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 100,
+  "pa": 110,
+  "reputation": 4504,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 9,
+   "Technique": 12,
+   "Aggression": 7,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "21213": {
+  "sid": "3e3c0000",
+  "P": 5280267,
+  "positions": {
+   "AML": 20,
+   "AMR": 18,
+   "ST": 13
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 110,
+  "reputation": 4683,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 11,
+   "Agility": 12
+  }
+ },
+ "21217": {
+  "sid": "423c0000",
+  "P": 5280579,
+  "positions": {
+   "DL": 20,
+   "DR": 10,
+   "ML": 13,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 70,
+  "pa": 90,
+  "reputation": 3736,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "21222": {
+  "sid": "433c0000",
+  "P": 5280657,
+  "positions": {
+   "AML": 16,
+   "AMR": 16,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4023,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 12,
+   "Technique": 8,
+   "Aggression": 13,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "21227": {
+  "sid": "483c0000",
+  "P": 5281047,
+  "positions": {
+   "DL": 20,
+   "DR": 18,
+   "DMC": 13,
+   "ML": 10,
+   "MC": 10,
+   "MR": 8,
+   "DML": 10,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 15
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4944,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 16,
+   "Leadership": 6,
+   "Agility": 15
+  }
+ },
+ "21245": {
+  "sid": "593c0000",
+  "P": 5282373,
+  "positions": {
+   "DL": 20,
+   "DR": 10,
+   "ML": 15,
+   "MR": 5,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 4590,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 5,
+   "Agility": 14
+  }
+ },
+ "21247": {
+  "sid": "5b3c0000",
+  "P": 5282529,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 85,
+  "reputation": 3399,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 5,
+   "Technique": 1,
+   "Aggression": 7,
+   "Leadership": 3,
+   "Agility": 6
+  }
+ },
+ "21248": {
+  "sid": "5c3c0000",
+  "P": 5282607,
+  "positions": {
+   "DC": 10,
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 94,
+  "pa": 105,
+  "reputation": 4636,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 9,
+   "Strength": 11,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 14,
+   "Leadership": 13,
+   "Agility": 11
+  }
+ },
+ "21251": {
+  "sid": "5f3c0000",
+  "P": 5282841,
+  "positions": {
+   "DR": 20,
+   "AMR": 12,
+   "DMR": 18
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 95,
+  "reputation": 3546,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 5,
+   "Agility": 11
+  }
+ },
+ "21263": {
+  "sid": "6b3c0000",
+  "P": 5283777,
+  "positions": {
+   "ML": 17,
+   "MR": 16,
+   "AML": 20,
+   "AMR": 16
+  },
+  "feet": {
+   "left": 11,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4668,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 13,
+   "Technique": 14,
+   "Aggression": 8,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "21272": {
+  "sid": "6d3c0000",
+  "P": 5283933,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 85,
+  "pa": 110,
+  "reputation": 4361,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 10,
+   "Pace": 10,
+   "Strength": 14,
+   "Stamina": 8,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "21274": {
+  "sid": "6f3c0000",
+  "P": 5284089,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 115,
+  "reputation": 4268,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 8,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "21290": {
+  "sid": "7b3c0000",
+  "P": 5285025,
+  "positions": {
+   "DMC": 15,
+   "MC": 20,
+   "AMC": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 3761,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 4,
+   "Stamina": 10,
+   "Technique": 14,
+   "Aggression": 9,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "21293": {
+  "sid": "7e3c0000",
+  "P": 5285259,
+  "positions": {
+   "DL": 20,
+   "ML": 5,
+   "DML": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 6
+  },
+  "ca": 85,
+  "pa": 105,
+  "reputation": 4358,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "21297": {
+  "sid": "823c0000",
+  "P": 5285571,
+  "positions": {
+   "DC": 8,
+   "DR": 20,
+   "MR": 13,
+   "AMR": 11,
+   "DMR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 85,
+  "reputation": 3765,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 13,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 13,
+   "Agility": 14
+  }
+ },
+ "21305": {
+  "sid": "8a3c0000",
+  "P": 5286195,
+  "positions": {
+   "DR": 20,
+   "MR": 13,
+   "AMR": 10,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 110,
+  "pa": 115,
+  "reputation": 5442,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 13,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 13,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 9,
+   "Agility": 15
+  }
+ },
+ "21306": {
+  "sid": "8b3c0000",
+  "P": 5286273,
+  "positions": {
+   "DL": 15,
+   "DR": 20,
+   "ML": 19,
+   "MR": 15,
+   "AML": 10,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 4072,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 15
+  }
+ },
+ "21319": {
+  "sid": "8e3c0000",
+  "P": 5286507,
+  "positions": {
+   "DL": 12,
+   "DC": 20,
+   "DMC": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 95,
+  "pa": 95,
+  "reputation": 3574,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "21321": {
+  "sid": "903c0000",
+  "P": 5286663,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 80,
+  "reputation": 1623,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 8,
+   "Pace": 10,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 2,
+   "Agility": 10
+  }
+ },
+ "21342": {
+  "sid": "a13c0000",
+  "P": 5287989,
+  "positions": {
+   "DMC": 5,
+   "ML": 14,
+   "MC": 16,
+   "AML": 14,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 11,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 110,
+  "reputation": 4623,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 12,
+   "Pace": 13,
+   "Strength": 10,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 11,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "21345": {
+  "sid": "a43c0000",
+  "P": 5288223,
+  "positions": {
+   "ML": 20,
+   "MC": 15,
+   "MR": 12,
+   "AML": 15,
+   "AMC": 15,
+   "AMR": 13,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 75,
+  "pa": 95,
+  "reputation": 3921,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "21354": {
+  "sid": "ad3c0000",
+  "P": 5288925,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4825,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 15,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 13,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21357": {
+  "sid": "b03c0000",
+  "P": 5289159,
+  "positions": {
+   "DL": 20,
+   "ML": 10,
+   "AML": 10,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 9
+  },
+  "ca": 85,
+  "pa": 115,
+  "reputation": 4628,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 11,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 11,
+   "Technique": 8,
+   "Aggression": 8,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "21365": {
+  "sid": "b83c0000",
+  "P": 5289783,
+  "positions": {
+   "DL": 10,
+   "DC": 20,
+   "DR": 13,
+   "DMC": 13
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 105,
+  "reputation": 4302,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 7,
+   "Aggression": 17,
+   "Leadership": 12,
+   "Agility": 9
+  }
+ },
+ "21367": {
+  "sid": "ba3c0000",
+  "P": 5289939,
+  "positions": {
+   "DL": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 90,
+  "reputation": 3787,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 14,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 15,
+   "Technique": 9,
+   "Aggression": 14,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "21373": {
+  "sid": "c03c0000",
+  "P": 5290407,
+  "positions": {
+   "DMC": 14,
+   "ML": 5,
+   "MC": 20,
+   "AML": 5,
+   "AMC": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 12
+  },
+  "ca": 100,
+  "pa": 110,
+  "reputation": 4910,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 13,
+   "Pace": 10,
+   "Strength": 7,
+   "Stamina": 9,
+   "Technique": 14,
+   "Aggression": 13,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "21378": {
+  "sid": "c53c0000",
+  "P": 5290797,
+  "positions": {
+   "ML": 14,
+   "MC": 20,
+   "MR": 14,
+   "AML": 14,
+   "AMC": 16,
+   "AMR": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 9
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3457,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 7,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "21380": {
+  "sid": "c73c0000",
+  "P": 5290953,
+  "positions": {
+   "DC": 12,
+   "DMC": 20,
+   "MC": 18,
+   "AMC": 5
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 4385,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 10,
+   "Stamina": 9,
+   "Technique": 14,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "21382": {
+  "sid": "c93c0000",
+  "P": 5291109,
+  "positions": {
+   "MC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 85,
+  "reputation": 1640,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 10,
+   "Aggression": 8,
+   "Leadership": 13,
+   "Agility": 14
+  }
+ },
+ "21404": {
+  "sid": "db3c0000",
+  "P": 5292513,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 100,
+  "reputation": 4284,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 10,
+   "Pace": 8,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 9,
+   "Aggression": 6,
+   "Leadership": 5,
+   "Agility": 10
+  }
+ },
+ "21410": {
+  "sid": "dd3c0000",
+  "P": 5292669,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 90,
+  "reputation": 4620,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 11,
+   "Pace": 8,
+   "Strength": 12,
+   "Stamina": 8,
+   "Technique": 7,
+   "Aggression": 16,
+   "Leadership": 8,
+   "Agility": 10
+  }
+ },
+ "21413": {
+  "sid": "e03c0000",
+  "P": 5292903,
+  "positions": {
+   "ML": 15,
+   "MR": 16,
+   "AML": 17,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 115,
+  "reputation": 4821,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 10,
+   "Pace": 15,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 14
+  }
+ },
+ "21414": {
+  "sid": "e13c0000",
+  "P": 5292981,
+  "positions": {
+   "DL": 20,
+   "ML": 12,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 100,
+  "pa": 115,
+  "reputation": 4812,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 15,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 14,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "21415": {
+  "sid": "e23c0000",
+  "P": 5293059,
+  "positions": {
+   "ML": 15,
+   "MR": 18,
+   "AML": 16,
+   "AMC": 8,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 105,
+  "reputation": 4122,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 7,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "21425": {
+  "sid": "e93c0000",
+  "P": 5293605,
+  "positions": {
+   "AML": 20,
+   "AMR": 15,
+   "ST": 12
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 3843,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "21441": {
+  "sid": "f83c0000",
+  "P": 5294775,
+  "positions": {
+   "DL": 20,
+   "DC": 10,
+   "DR": 8,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 90,
+  "reputation": 4064,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 9,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "21442": {
+  "sid": "f93c0000",
+  "P": 5294853,
+  "positions": {
+   "DMC": 20,
+   "MC": 17,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 90,
+  "reputation": 2339,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 14,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 13,
+   "Agility": 10
+  }
+ },
+ "21444": {
+  "sid": "fb3c0000",
+  "P": 5295009,
+  "positions": {
+   "DMC": 15,
+   "MC": 20,
+   "AMC": 8
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 4312,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 8,
+   "Stamina": 12,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 5,
+   "Agility": 11
+  }
+ },
+ "21446": {
+  "sid": "fd3c0000",
+  "P": 5295165,
+  "positions": {
+   "DMC": 10,
+   "ML": 15,
+   "MC": 20,
+   "AML": 16,
+   "AMC": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 95,
+  "reputation": 3750,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 5,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 6,
+   "Agility": 14
+  }
+ },
+ "21449": {
+  "sid": "003d0000",
+  "P": 5295399,
+  "positions": {
+   "ML": 18,
+   "MR": 16,
+   "AML": 20,
+   "AMC": 14,
+   "AMR": 16
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 105,
+  "reputation": 1689,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 4,
+   "Stamina": 8,
+   "Technique": 14,
+   "Aggression": 5,
+   "Leadership": 7,
+   "Agility": 15
+  }
+ },
+ "21452": {
+  "sid": "033d0000",
+  "P": 5295633,
+  "positions": {
+   "DMC": 10,
+   "MC": 15,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 4600,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 13,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "21456": {
+  "sid": "073d0000",
+  "P": 5295945,
+  "positions": {
+   "ML": 12,
+   "MR": 12,
+   "AML": 15,
+   "AMC": 10,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 105,
+  "reputation": 4087,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21457": {
+  "sid": "083d0000",
+  "P": 5296023,
+  "positions": {
+   "ML": 14,
+   "MR": 14,
+   "AML": 18,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4480,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 13,
+   "Pace": 14,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 5,
+   "Leadership": 4,
+   "Agility": 13
+  }
+ },
+ "21463": {
+  "sid": "0e3d0000",
+  "P": 5296491,
+  "positions": {
+   "DL": 20,
+   "DC": 12,
+   "MR": 12,
+   "DML": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 88,
+  "reputation": 3798,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 14,
+   "Technique": 7,
+   "Aggression": 11,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "21464": {
+  "sid": "0f3d0000",
+  "P": 5296569,
+  "positions": {
+   "AML": 15,
+   "AMR": 20,
+   "ST": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 95,
+  "reputation": 3755,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 11,
+   "Pace": 13,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21469": {
+  "sid": "143d0000",
+  "P": 5296959,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 83,
+  "reputation": 3330,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 5,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 4,
+   "Technique": 5,
+   "Aggression": 9,
+   "Leadership": 13,
+   "Agility": 12
+  }
+ },
+ "21471": {
+  "sid": "163d0000",
+  "P": 5297115,
+  "positions": {
+   "DL": 20,
+   "DR": 10,
+   "DML": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 80,
+  "pa": 110,
+  "reputation": 3739,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 8,
+   "Agility": 14
+  }
+ },
+ "21485": {
+  "sid": "1f3d0000",
+  "P": 5297817,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4619,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "21486": {
+  "sid": "203d0000",
+  "P": 5297895,
+  "positions": {
+   "DMC": 20,
+   "MC": 15,
+   "MR": 12,
+   "AMC": 12
+  },
+  "feet": {
+   "left": 1,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 80,
+  "reputation": 3262,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 9,
+   "Technique": 11,
+   "Aggression": 5,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "21491": {
+  "sid": "253d0000",
+  "P": 5298285,
+  "positions": {
+   "ML": 10,
+   "MC": 8,
+   "MR": 12,
+   "AML": 15,
+   "AMC": 15,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 95,
+  "pa": 100,
+  "reputation": 4042,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 8,
+   "Technique": 14,
+   "Aggression": 5,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "21496": {
+  "sid": "2a3d0000",
+  "P": 5298675,
+  "positions": {
+   "ML": 15,
+   "MR": 16,
+   "AML": 20,
+   "AMR": 19
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 90,
+  "reputation": 3959,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 4,
+   "Agility": 11
+  }
+ },
+ "21500": {
+  "sid": "2e3d0000",
+  "P": 5298987,
+  "positions": {
+   "DMC": 14,
+   "MC": 20,
+   "AMC": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 13
+  },
+  "ca": 75,
+  "pa": 95,
+  "reputation": 1763,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 8,
+   "Strength": 11,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "21506": {
+  "sid": "313d0000",
+  "P": 5299221,
+  "positions": {
+   "ML": 8,
+   "MR": 8,
+   "AML": 15,
+   "AMR": 20,
+   "ST": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 105,
+  "reputation": 4477,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21508": {
+  "sid": "333d0000",
+  "P": 5299377,
+  "positions": {
+   "DL": 20,
+   "DR": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 70,
+  "pa": 93,
+  "reputation": 1612,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 14,
+   "Strength": 6,
+   "Stamina": 13,
+   "Technique": 6,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "21561": {
+  "sid": "383d0000",
+  "P": 5299767,
+  "positions": {
+   "ML": 15,
+   "MC": 16,
+   "MR": 18,
+   "AML": 15,
+   "AMC": 16,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 115,
+  "reputation": 4760,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "21563": {
+  "sid": "3a3d0000",
+  "P": 5299923,
+  "positions": {
+   "DL": 11,
+   "DC": 14,
+   "DR": 11,
+   "DMC": 20,
+   "MC": 18
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 105,
+  "reputation": 4345,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "21572": {
+  "sid": "433d0000",
+  "P": 5300625,
+  "positions": {
+   "DL": 7,
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 55,
+  "pa": 78,
+  "reputation": 2637,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 8,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 3,
+   "Aggression": 12,
+   "Leadership": 13,
+   "Agility": 6
+  }
+ },
+ "21576": {
+  "sid": "473d0000",
+  "P": 5300937,
+  "positions": {
+   "MC": 18,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 117,
+  "reputation": 1692,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 13,
+   "Technique": 13,
+   "Aggression": 9,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "21580": {
+  "sid": "4b3d0000",
+  "P": 5301249,
+  "positions": {
+   "DMC": 5,
+   "ML": 13,
+   "MC": 20,
+   "AML": 12,
+   "AMC": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 74,
+  "pa": 74,
+  "reputation": 1732,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 14,
+   "Aggression": 5,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "21596": {
+  "sid": "573d0000",
+  "P": 5302185,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 90,
+  "reputation": 3460,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 8,
+   "Pace": 10,
+   "Strength": 7,
+   "Stamina": 4,
+   "Technique": 1,
+   "Aggression": 6,
+   "Leadership": 6,
+   "Agility": 7
+  }
+ },
+ "21602": {
+  "sid": "5d3d0000",
+  "P": 5302653,
+  "positions": {
+   "AML": 12,
+   "AMR": 12,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 4136,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 4,
+   "Stamina": 4,
+   "Technique": 14,
+   "Aggression": 11,
+   "Leadership": 7,
+   "Agility": 9
+  }
+ },
+ "21604": {
+  "sid": "5f3d0000",
+  "P": 5302809,
+  "positions": {
+   "DC": 20,
+   "DR": 15,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 68,
+  "reputation": 2748,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 5,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 5,
+   "Technique": 3,
+   "Aggression": 12,
+   "Leadership": 14,
+   "Agility": 12
+  }
+ },
+ "21606": {
+  "sid": "613d0000",
+  "P": 5302965,
+  "positions": {
+   "DL": 12,
+   "DC": 12,
+   "DR": 19,
+   "DMC": 20,
+   "MC": 13,
+   "AMR": 14
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 85,
+  "reputation": 3583,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 8,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 13,
+   "Leadership": 8,
+   "Agility": 7
+  }
+ },
+ "21609": {
+  "sid": "643d0000",
+  "P": 5303199,
+  "positions": {
+   "ML": 12,
+   "MR": 12,
+   "AML": 18,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 104,
+  "reputation": 4127,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 7,
+   "Pace": 14,
+   "Strength": 5,
+   "Stamina": 8,
+   "Technique": 10,
+   "Aggression": 8,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "21610": {
+  "sid": "653d0000",
+  "P": 5303277,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 77,
+  "reputation": 1593,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 8,
+   "Strength": 5,
+   "Stamina": 5,
+   "Technique": 4,
+   "Aggression": 13,
+   "Leadership": 11,
+   "Agility": 15
+  }
+ },
+ "21630": {
+  "sid": "753d0000",
+  "P": 5304525,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3886,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 11,
+   "Technique": 8,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21635": {
+  "sid": "7a3d0000",
+  "P": 5304915,
+  "positions": {
+   "ML": 18,
+   "MC": 15,
+   "MR": 15,
+   "AML": 20,
+   "AMC": 15,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 75,
+  "pa": 110,
+  "reputation": 4106,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 7,
+   "Pace": 9,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 15,
+   "Aggression": 5,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "21636": {
+  "sid": "7b3d0000",
+  "P": 5304993,
+  "positions": {
+   "DL": 12,
+   "ML": 18,
+   "MC": 14,
+   "AML": 20,
+   "AMC": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 80,
+  "reputation": 3818,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 9,
+   "Stamina": 13,
+   "Technique": 11,
+   "Aggression": 15,
+   "Leadership": 2,
+   "Agility": 13
+  }
+ },
+ "21638": {
+  "sid": "7d3d0000",
+  "P": 5305149,
+  "positions": {
+   "DL": 20,
+   "DR": 10,
+   "ML": 8,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4544,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 13,
+   "Technique": 10,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 14
+  }
+ },
+ "21646": {
+  "sid": "853d0000",
+  "P": 5305773,
+  "positions": {
+   "DL": 20,
+   "ML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 65,
+  "pa": 70,
+  "reputation": 3165,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 13,
+   "Technique": 8,
+   "Aggression": 5,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "21649": {
+  "sid": "883d0000",
+  "P": 5306007,
+  "positions": {
+   "DL": 12,
+   "DR": 20,
+   "MR": 10,
+   "DMR": 15
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 4290,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 13,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21650": {
+  "sid": "893d0000",
+  "P": 5306085,
+  "positions": {
+   "DMC": 20,
+   "MC": 16,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 3685,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "21654": {
+  "sid": "8d3d0000",
+  "P": 5306397,
+  "positions": {
+   "DL": 10,
+   "ML": 10,
+   "MC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 100,
+  "reputation": 3973,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 10,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "21655": {
+  "sid": "8e3d0000",
+  "P": 5306475,
+  "positions": {
+   "DL": 20,
+   "ML": 15,
+   "AML": 15,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 72,
+  "pa": 72,
+  "reputation": 3821,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 13,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "21670": {
+  "sid": "9d3d0000",
+  "P": 5307645,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 90,
+  "reputation": 1687,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 9,
+   "Technique": 2,
+   "Aggression": 15,
+   "Leadership": 13,
+   "Agility": 13
+  }
+ },
+ "21716": {
+  "sid": "a23d0000",
+  "P": 5308035,
+  "positions": {
+   "DL": 10,
+   "DC": 20,
+   "DMC": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 81,
+  "reputation": 3464,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 7,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 5,
+   "Technique": 7,
+   "Aggression": 15,
+   "Leadership": 4,
+   "Agility": 10
+  }
+ },
+ "21717": {
+  "sid": "a33d0000",
+  "P": 5308113,
+  "positions": {
+   "DMC": 8,
+   "MC": 20,
+   "AMC": 16
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 114,
+  "reputation": 4381,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 14,
+   "Pace": 10,
+   "Strength": 6,
+   "Stamina": 11,
+   "Technique": 15,
+   "Aggression": 8,
+   "Leadership": 4,
+   "Agility": 13
+  }
+ },
+ "21724": {
+  "sid": "aa3d0000",
+  "P": 5308659,
+  "positions": {
+   "DR": 5,
+   "DMC": 10,
+   "MC": 20,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 96,
+  "reputation": 4413,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 14,
+   "Pace": 9,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 14,
+   "Agility": 11
+  }
+ },
+ "21754": {
+  "sid": "b73d0000",
+  "P": 5309673,
+  "positions": {
+   "DC": 10,
+   "DMC": 20,
+   "MC": 13
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 105,
+  "pa": 122,
+  "reputation": 4826,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 16,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "21764": {
+  "sid": "c13d0000",
+  "P": 5310453,
+  "positions": {
+   "ML": 12,
+   "MR": 12,
+   "AML": 20,
+   "AMC": 10,
+   "AMR": 16
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3751,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 10,
+   "Pace": 10,
+   "Strength": 2,
+   "Stamina": 8,
+   "Technique": 15,
+   "Aggression": 5,
+   "Leadership": 4,
+   "Agility": 16
+  }
+ },
+ "21765": {
+  "sid": "c23d0000",
+  "P": 5310531,
+  "positions": {
+   "AML": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 80,
+  "reputation": 1656,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 7,
+   "Leadership": 10,
+   "Agility": 10
+  }
+ },
+ "21766": {
+  "sid": "c33d0000",
+  "P": 5310609,
+  "positions": {
+   "DC": 20,
+   "DR": 14,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 105,
+  "reputation": 4004,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 9,
+   "Aggression": 13,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "21770": {
+  "sid": "c73d0000",
+  "P": 5310921,
+  "positions": {
+   "DR": 20,
+   "MR": 16,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 105,
+  "reputation": 4000,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 11,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 5,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "21772": {
+  "sid": "c83d0000",
+  "P": 5310999,
+  "positions": {
+   "DMC": 10,
+   "ML": 12,
+   "MC": 20,
+   "MR": 12,
+   "AMC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 82,
+  "reputation": 3125,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 13,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 10,
+   "Aggression": 14,
+   "Leadership": 11,
+   "Agility": 10
+  }
+ },
+ "21780": {
+  "sid": "d03d0000",
+  "P": 5311623,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 83,
+  "reputation": 4127,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 9,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 13,
+   "Leadership": 6,
+   "Agility": 10
+  }
+ },
+ "21782": {
+  "sid": "d23d0000",
+  "P": 5311779,
+  "positions": {
+   "DR": 20,
+   "DMR": 13
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 87,
+  "reputation": 3496,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "21793": {
+  "sid": "dd3d0000",
+  "P": 5312637,
+  "positions": {
+   "DR": 20,
+   "MR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 68,
+  "pa": 75,
+  "reputation": 1690,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 14,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 14
+  }
+ },
+ "21809": {
+  "sid": "e63d0000",
+  "P": 5313339,
+  "positions": {
+   "ML": 15,
+   "MR": 15,
+   "AML": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 86,
+  "reputation": 3749,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 9,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "21812": {
+  "sid": "e93d0000",
+  "P": 5313573,
+  "positions": {
+   "ML": 12,
+   "MR": 14,
+   "AML": 16,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 12
+  },
+  "ca": 100,
+  "pa": 118,
+  "reputation": 5053,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 7,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "21819": {
+  "sid": "f03d0000",
+  "P": 5314119,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 11
+  },
+  "ca": 89,
+  "pa": 109,
+  "reputation": 4271,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 15,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 14,
+   "Leadership": 6,
+   "Agility": 14
+  }
+ },
+ "21823": {
+  "sid": "f43d0000",
+  "P": 5314431,
+  "positions": {
+   "ML": 16,
+   "MC": 14,
+   "AML": 17,
+   "AMC": 18,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 58,
+  "pa": 58,
+  "reputation": 2531,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 9,
+   "Leadership": 1,
+   "Agility": 12
+  }
+ },
+ "21825": {
+  "sid": "f63d0000",
+  "P": 5314587,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 70,
+  "pa": 75,
+  "reputation": 2953,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 5,
+   "Technique": 3,
+   "Aggression": 6,
+   "Leadership": 9,
+   "Agility": 15
+  }
+ },
+ "21832": {
+  "sid": "fd3d0000",
+  "P": 5315133,
+  "positions": {
+   "DC": 10,
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 75,
+  "pa": 95,
+  "reputation": 1645,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 14,
+   "Pace": 7,
+   "Strength": 13,
+   "Stamina": 8,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 9
+  }
+ },
+ "21836": {
+  "sid": "013e0000",
+  "P": 5315445,
+  "positions": {
+   "MC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 75,
+  "reputation": 3347,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 9,
+   "Strength": 6,
+   "Stamina": 14,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 2,
+   "Agility": 9
+  }
+ },
+ "21840": {
+  "sid": "053e0000",
+  "P": 5315757,
+  "positions": {
+   "DMC": 20,
+   "MC": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 4031,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 10,
+   "Stamina": 7,
+   "Technique": 11,
+   "Aggression": 11,
+   "Leadership": 13,
+   "Agility": 14
+  }
+ },
+ "21853": {
+  "sid": "0c3e0000",
+  "P": 5316303,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 93,
+  "reputation": 3829,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 6,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 8
+  }
+ },
+ "21856": {
+  "sid": "0f3e0000",
+  "P": 5316537,
+  "positions": {
+   "DL": 15,
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4512,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 8,
+   "Leadership": 12,
+   "Agility": 12
+  }
+ },
+ "21860": {
+  "sid": "133e0000",
+  "P": 5316849,
+  "positions": {
+   "DR": 15,
+   "ML": 15,
+   "MR": 16,
+   "AML": 18,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 117,
+  "reputation": 4707,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 13,
+   "Pace": 15,
+   "Strength": 12,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 8,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "21871": {
+  "sid": "153e0000",
+  "P": 5317005,
+  "positions": {
+   "DL": 16,
+   "ML": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 65,
+  "pa": 85,
+  "reputation": 3576,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 12,
+   "Leadership": 12,
+   "Agility": 13
+  }
+ },
+ "21875": {
+  "sid": "193e0000",
+  "P": 5317317,
+  "positions": {
+   "DMC": 12,
+   "MC": 20,
+   "AMC": 16
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 104,
+  "reputation": 3403,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 6,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "21886": {
+  "sid": "243e0000",
+  "P": 5318175,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 65,
+  "pa": 65,
+  "reputation": 2750,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 4,
+   "Pace": 10,
+   "Strength": 2,
+   "Stamina": 3,
+   "Technique": 2,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 8
+  }
+ },
+ "21889": {
+  "sid": "273e0000",
+  "P": 5318409,
+  "positions": {
+   "AML": 12,
+   "AMR": 20,
+   "ST": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 75,
+  "reputation": 3186,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 3,
+   "Stamina": 9,
+   "Technique": 11,
+   "Aggression": 5,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "21905": {
+  "sid": "2f3e0000",
+  "P": 5319033,
+  "positions": {
+   "ML": 10,
+   "MC": 20,
+   "MR": 10,
+   "AML": 12,
+   "AMC": 18,
+   "AMR": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 11
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3523,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 9,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "21907": {
+  "sid": "313e0000",
+  "P": 5319189,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 110,
+  "reputation": 4326,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "21913": {
+  "sid": "373e0000",
+  "P": 5319657,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 110,
+  "reputation": 4448,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 14,
+   "Pace": 8,
+   "Strength": 13,
+   "Stamina": 11,
+   "Technique": 8,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 9
+  }
+ },
+ "21915": {
+  "sid": "393e0000",
+  "P": 5319813,
+  "positions": {
+   "DL": 5,
+   "DC": 14,
+   "DMC": 20,
+   "MC": 14
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 125,
+  "reputation": 4853,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 7,
+   "Agility": 9
+  }
+ },
+ "21919": {
+  "sid": "3d3e0000",
+  "P": 5320125,
+  "positions": {
+   "ML": 12,
+   "MC": 10,
+   "MR": 12,
+   "AML": 17,
+   "AMC": 12,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 90,
+  "pa": 118,
+  "reputation": 4557,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 13,
+   "Pace": 10,
+   "Strength": 7,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "21938": {
+  "sid": "4e3e0000",
+  "P": 5321451,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 74,
+  "reputation": 2150,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 9,
+   "Pace": 14,
+   "Strength": 9,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "21939": {
+  "sid": "4f3e0000",
+  "P": 5321529,
+  "positions": {
+   "DC": 20,
+   "DMC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 61,
+  "pa": 66,
+  "reputation": 3306,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 5,
+   "Pace": 8,
+   "Strength": 6,
+   "Stamina": 4,
+   "Technique": 2,
+   "Aggression": 9,
+   "Leadership": 11,
+   "Agility": 8
+  }
+ },
+ "21940": {
+  "sid": "503e0000",
+  "P": 5321607,
+  "positions": {
+   "ML": 18,
+   "MR": 15,
+   "AML": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 107,
+  "reputation": 4579,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 7,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "21941": {
+  "sid": "513e0000",
+  "P": 5321685,
+  "positions": {
+   "DR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 96,
+  "reputation": 4378,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 6,
+   "Aggression": 15,
+   "Leadership": 4,
+   "Agility": 13
+  }
+ },
+ "21966": {
+  "sid": "653e0000",
+  "P": 5323245,
+  "positions": {
+   "AML": 15,
+   "AMC": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 80,
+  "reputation": 2970,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 9,
+   "Technique": 5,
+   "Aggression": 9,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "21969": {
+  "sid": "683e0000",
+  "P": 5323479,
+  "positions": {
+   "DC": 20,
+   "DMC": 15
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 109,
+  "reputation": 3768,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 8,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "21981": {
+  "sid": "6f3e0000",
+  "P": 5324025,
+  "positions": {
+   "DL": 20,
+   "DR": 15,
+   "DML": 12,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 15
+  },
+  "ca": 73,
+  "pa": 78,
+  "reputation": 3197,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 8,
+   "Stamina": 14,
+   "Technique": 9,
+   "Aggression": 9,
+   "Leadership": 1,
+   "Agility": 14
+  }
+ },
+ "21992": {
+  "sid": "7a3e0000",
+  "P": 5324883,
+  "positions": {
+   "DMC": 15,
+   "MC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 103,
+  "reputation": 3517,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 13,
+   "Pace": 10,
+   "Strength": 7,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "21997": {
+  "sid": "7f3e0000",
+  "P": 5325273,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 107,
+  "reputation": 4498,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 8,
+   "Aggression": 13,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "22003": {
+  "sid": "833e0000",
+  "P": 5325585,
+  "positions": {
+   "DR": 13,
+   "DMC": 20,
+   "MC": 16,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 85,
+  "reputation": 3014,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 13,
+   "Technique": 10,
+   "Aggression": 10,
+   "Leadership": 11,
+   "Agility": 13
+  }
+ },
+ "22005": {
+  "sid": "853e0000",
+  "P": 5325741,
+  "positions": {
+   "DMC": 20,
+   "MC": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 89,
+  "reputation": 1679,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 9,
+   "Pace": 9,
+   "Strength": 7,
+   "Stamina": 9,
+   "Technique": 9,
+   "Aggression": 8,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "22006": {
+  "sid": "863e0000",
+  "P": 5325819,
+  "positions": {
+   "MC": 20,
+   "AMC": 18
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 3865,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 9,
+   "Pace": 15,
+   "Strength": 11,
+   "Stamina": 3,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "22012": {
+  "sid": "8c3e0000",
+  "P": 5326287,
+  "positions": {
+   "DL": 13,
+   "ML": 15,
+   "MR": 13,
+   "AML": 20,
+   "AMR": 14,
+   "DML": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 9
+  },
+  "ca": 85,
+  "pa": 85,
+  "reputation": 3020,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 11,
+   "Pace": 13,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "22079": {
+  "sid": "933e0000",
+  "P": 5326833,
+  "positions": {
+   "DC": 15,
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 98,
+  "reputation": 3706,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 13,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 8,
+   "Aggression": 15,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "22080": {
+  "sid": "943e0000",
+  "P": 5326911,
+  "positions": {
+   "ML": 16,
+   "MC": 18,
+   "AML": 16,
+   "AMC": 20,
+   "ST": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 80,
+  "pa": 88,
+  "reputation": 3933,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 9,
+   "Pace": 14,
+   "Strength": 10,
+   "Stamina": 5,
+   "Technique": 15,
+   "Aggression": 7,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "22082": {
+  "sid": "963e0000",
+  "P": 5327067,
+  "positions": {
+   "AML": 13,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 75,
+  "pa": 75,
+  "reputation": 1604,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 4,
+   "Technique": 11,
+   "Aggression": 6,
+   "Leadership": 9,
+   "Agility": 12
+  }
+ },
+ "22087": {
+  "sid": "9b3e0000",
+  "P": 5327457,
+  "positions": {
+   "MC": 20,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 79,
+  "pa": 79,
+  "reputation": 1720,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 12,
+   "Technique": 9,
+   "Aggression": 7,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "22090": {
+  "sid": "9e3e0000",
+  "P": 5327691,
+  "positions": {
+   "ML": 13,
+   "MR": 15,
+   "AML": 15,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 98,
+  "reputation": 1711,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 6,
+   "Agility": 14
+  }
+ },
+ "22101": {
+  "sid": "a93e0000",
+  "P": 5328549,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 90,
+  "reputation": 2905,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 6,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "22103": {
+  "sid": "ab3e0000",
+  "P": 5328705,
+  "positions": {
+   "DR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 91,
+  "reputation": 2874,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 11,
+   "Technique": 7,
+   "Aggression": 11,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "22110": {
+  "sid": "b23e0000",
+  "P": 5329251,
+  "positions": {
+   "ML": 14,
+   "MR": 12,
+   "AML": 20,
+   "AMR": 15,
+   "ST": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 105,
+  "reputation": 4552,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 10,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 13,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "22114": {
+  "sid": "b63e0000",
+  "P": 5329563,
+  "positions": {
+   "AMC": 10,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 12
+  },
+  "ca": 110,
+  "pa": 118,
+  "reputation": 5463,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 10,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "22115": {
+  "sid": "b73e0000",
+  "P": 5329641,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 77,
+  "reputation": 3464,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 2,
+   "Technique": 1,
+   "Aggression": 10,
+   "Leadership": 3,
+   "Agility": 6
+  }
+ },
+ "22116": {
+  "sid": "b83e0000",
+  "P": 5329719,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 40,
+  "pa": 58,
+  "reputation": 2298,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 4,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 8,
+   "Technique": 8,
+   "Aggression": 8,
+   "Leadership": 14,
+   "Agility": 12
+  }
+ },
+ "22117": {
+  "sid": "b93e0000",
+  "P": 5329797,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 100,
+  "pa": 104,
+  "reputation": 4798,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "22124": {
+  "sid": "c03e0000",
+  "P": 5330343,
+  "positions": {
+   "MC": 20,
+   "AML": 10,
+   "AMC": 19,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 94,
+  "reputation": 4145,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 10,
+   "Pace": 13,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 14,
+   "Aggression": 10,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "22150": {
+  "sid": "ce3e0000",
+  "P": 5331435,
+  "positions": {
+   "AML": 10,
+   "AMC": 12,
+   "AMR": 10,
+   "ST": 20
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 116,
+  "reputation": 4088,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "22151": {
+  "sid": "cf3e0000",
+  "P": 5331513,
+  "positions": {
+   "DL": 20,
+   "ML": 13,
+   "AML": 8,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 80,
+  "pa": 80,
+  "reputation": 3944,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 14,
+   "Strength": 6,
+   "Stamina": 12,
+   "Technique": 14,
+   "Aggression": 11,
+   "Leadership": 6,
+   "Agility": 14
+  }
+ },
+ "22157": {
+  "sid": "d53e0000",
+  "P": 5331981,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 11,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 4223,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 13,
+   "Stamina": 14,
+   "Technique": 8,
+   "Aggression": 12,
+   "Leadership": 11,
+   "Agility": 9
+  }
+ },
+ "22170": {
+  "sid": "e23e0000",
+  "P": 5332995,
+  "positions": {
+   "DR": 15,
+   "MR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 81,
+  "reputation": 1582,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 8,
+   "Pace": 15,
+   "Strength": 5,
+   "Stamina": 5,
+   "Technique": 10,
+   "Aggression": 12,
+   "Leadership": 10,
+   "Agility": 15
+  }
+ },
+ "22173": {
+  "sid": "e53e0000",
+  "P": 5333229,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 71,
+  "pa": 76,
+  "reputation": 3203,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 5,
+   "Pace": 9,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 2,
+   "Aggression": 15,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "22177": {
+  "sid": "e93e0000",
+  "P": 5333541,
+  "positions": {
+   "DMC": 10,
+   "MC": 20,
+   "AMC": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 100,
+  "pa": 109,
+  "reputation": 5223,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "22202": {
+  "sid": "f53e0000",
+  "P": 5334477,
+  "positions": {
+   "DC": 20,
+   "DR": 18
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 90,
+  "reputation": 1685,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 12,
+   "Technique": 6,
+   "Aggression": 6,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "22220": {
+  "sid": "003f0000",
+  "P": 5335335,
+  "positions": {
+   "DR": 15,
+   "DMC": 7,
+   "MR": 20,
+   "AMR": 18
+  },
+  "feet": {
+   "left": 1,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 117,
+  "reputation": 3711,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 5,
+   "Stamina": 14,
+   "Technique": 15,
+   "Aggression": 8,
+   "Leadership": 13,
+   "Agility": 14
+  }
+ },
+ "22221": {
+  "sid": "013f0000",
+  "P": 5335413,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 4,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 81,
+  "reputation": 2290,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 4,
+   "Technique": 1,
+   "Aggression": 5,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "22227": {
+  "sid": "073f0000",
+  "P": 5335881,
+  "positions": {
+   "DR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 82,
+  "reputation": 3393,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 5,
+   "Aggression": 9,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "22231": {
+  "sid": "0b3f0000",
+  "P": 5336193,
+  "positions": {
+   "DL": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 50,
+  "pa": 63,
+  "reputation": 2575,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 11,
+   "Technique": 2,
+   "Aggression": 11,
+   "Leadership": 9,
+   "Agility": 9
+  }
+ },
+ "22232": {
+  "sid": "0c3f0000",
+  "P": 5336271,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 119,
+  "reputation": 4587,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 15,
+   "Pace": 9,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 8,
+   "Aggression": 10,
+   "Leadership": 8,
+   "Agility": 9
+  }
+ },
+ "22234": {
+  "sid": "0e3f0000",
+  "P": 5336427,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 101,
+  "reputation": 3238,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 10,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "22237": {
+  "sid": "113f0000",
+  "P": 5336661,
+  "positions": {
+   "DR": 15,
+   "MC": 20,
+   "MR": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 55,
+  "reputation": 2439,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 6,
+   "Stamina": 9,
+   "Technique": 9,
+   "Aggression": 15,
+   "Leadership": 3,
+   "Agility": 12
+  }
+ },
+ "22242": {
+  "sid": "163f0000",
+  "P": 5337051,
+  "positions": {
+   "DMC": 15,
+   "MC": 20,
+   "AMC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 107,
+  "reputation": 4194,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 8,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 8,
+   "Aggression": 9,
+   "Leadership": 12,
+   "Agility": 8
+  }
+ },
+ "22246": {
+  "sid": "1a3f0000",
+  "P": 5337363,
+  "positions": {
+   "ML": 15,
+   "MC": 5,
+   "MR": 15,
+   "AML": 20,
+   "AMC": 10,
+   "AMR": 17
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 111,
+  "reputation": 4429,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 12,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 5,
+   "Agility": 14
+  }
+ },
+ "22247": {
+  "sid": "1b3f0000",
+  "P": 5337441,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 48,
+  "pa": 48,
+  "reputation": 1469,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 4,
+   "Pace": 10,
+   "Strength": 6,
+   "Stamina": 3,
+   "Technique": 2,
+   "Aggression": 6,
+   "Leadership": 12,
+   "Agility": 9
+  }
+ },
+ "22255": {
+  "sid": "233f0000",
+  "P": 5338065,
+  "positions": {
+   "ML": 15,
+   "MC": 18,
+   "AMC": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 77,
+  "pa": 77,
+  "reputation": 3853,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 11,
+   "Agility": 13
+  }
+ },
+ "22501": {
+  "sid": "303f0000",
+  "P": 5339079,
+  "positions": {
+   "DMC": 20,
+   "MC": 16
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 79,
+  "pa": 84,
+  "reputation": 3792,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 12,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 14,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 6,
+   "Agility": 9
+  }
+ },
+ "22519": {
+  "sid": "383f0000",
+  "P": 5339703,
+  "positions": {
+   "AMC": 5,
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 105,
+  "reputation": 4548,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 9
+  }
+ },
+ "22522": {
+  "sid": "3b3f0000",
+  "P": 5339937,
+  "positions": {
+   "DMC": 16,
+   "MC": 20,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 111,
+  "reputation": 4790,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "22530": {
+  "sid": "433f0000",
+  "P": 5340561,
+  "positions": {
+   "DC": 20,
+   "DMC": 17
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 121,
+  "reputation": 4649,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 14,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "22533": {
+  "sid": "463f0000",
+  "P": 5340795,
+  "positions": {
+   "DC": 20,
+   "DMC": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 86,
+  "reputation": 4284,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 4,
+   "Pace": 9,
+   "Strength": 12,
+   "Stamina": 9,
+   "Technique": 5,
+   "Aggression": 9,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "22543": {
+  "sid": "503f0000",
+  "P": 5341575,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 95,
+  "pa": 113,
+  "reputation": 4185,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 13,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 9,
+   "Aggression": 11,
+   "Leadership": 7,
+   "Agility": 8
+  }
+ },
+ "22544": {
+  "sid": "513f0000",
+  "P": 5341653,
+  "positions": {
+   "DMC": 15,
+   "MC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 105,
+  "reputation": 3772,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 13,
+   "Pace": 10,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "22552": {
+  "sid": "593f0000",
+  "P": 5342277,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 88,
+  "pa": 88,
+  "reputation": 4739,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 13,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 7,
+   "Leadership": 5,
+   "Agility": 11
+  }
+ },
+ "22559": {
+  "sid": "603f0000",
+  "P": 5342823,
+  "positions": {
+   "DL": 16,
+   "DC": 20,
+   "DR": 10,
+   "DMC": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 3842,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "22560": {
+  "sid": "613f0000",
+  "P": 5342901,
+  "positions": {
+   "ML": 13,
+   "MR": 20,
+   "AML": 13,
+   "AMR": 13
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 82,
+  "reputation": 3078,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 16,
+   "Pace": 6,
+   "Strength": 9,
+   "Stamina": 11,
+   "Technique": 14,
+   "Aggression": 7,
+   "Leadership": 7,
+   "Agility": 8
+  }
+ },
+ "22563": {
+  "sid": "643f0000",
+  "P": 5343135,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 56,
+  "reputation": 2979,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 6,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 4,
+   "Technique": 9,
+   "Aggression": 8,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "22566": {
+  "sid": "673f0000",
+  "P": 5343369,
+  "positions": {
+   "ML": 10,
+   "MC": 20,
+   "AML": 10,
+   "AMC": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 80,
+  "pa": 94,
+  "reputation": 3514,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 15,
+   "Pace": 9,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 13,
+   "Agility": 11
+  }
+ },
+ "22570": {
+  "sid": "6b3f0000",
+  "P": 5343681,
+  "positions": {
+   "DC": 20,
+   "DR": 10,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 115,
+  "reputation": 3817,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 11,
+   "Stamina": 12,
+   "Technique": 8,
+   "Aggression": 12,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "22587": {
+  "sid": "7c3f0000",
+  "P": 5345007,
+  "positions": {
+   "DC": 20,
+   "DR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 96,
+  "reputation": 1723,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 7,
+   "Pace": 14,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 7,
+   "Aggression": 15,
+   "Leadership": 2,
+   "Agility": 13
+  }
+ },
+ "22591": {
+  "sid": "803f0000",
+  "P": 5345319,
+  "positions": {
+   "DL": 20,
+   "ML": 10,
+   "DML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 80,
+  "pa": 85,
+  "reputation": 3647,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 12,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 10,
+   "Leadership": 4,
+   "Agility": 13
+  }
+ },
+ "22593": {
+  "sid": "823f0000",
+  "P": 5345475,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 63,
+  "pa": 73,
+  "reputation": 1624,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "22623": {
+  "sid": "8d3f0000",
+  "P": 5346333,
+  "positions": {
+   "MR": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 75,
+  "reputation": 1583,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 8,
+   "Technique": 6,
+   "Aggression": 11,
+   "Leadership": 11,
+   "Agility": 13
+  }
+ },
+ "22633": {
+  "sid": "953f0000",
+  "P": 5346957,
+  "positions": {
+   "DL": 20,
+   "DML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 15,
+  "pa": 45,
+  "reputation": 1740,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 4,
+   "Pace": 10,
+   "Strength": 2,
+   "Stamina": 6,
+   "Technique": 4,
+   "Aggression": 9,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "22637": {
+  "sid": "963f0000",
+  "P": 5347035,
+  "positions": {
+   "DC": 20,
+   "DR": 9
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 78,
+  "pa": 78,
+  "reputation": 3894,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 10,
+   "Pace": 10,
+   "Strength": 9,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 6,
+   "Leadership": 5,
+   "Agility": 8
+  }
+ },
+ "22641": {
+  "sid": "9a3f0000",
+  "P": 5347347,
+  "positions": {
+   "DMC": 20,
+   "ML": 10,
+   "MC": 16,
+   "AML": 6,
+   "AMC": 12
+  },
+  "feet": {
+   "left": 14,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 116,
+  "reputation": 4182,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 7,
+   "Leadership": 10,
+   "Agility": 10
+  }
+ },
+ "22653": {
+  "sid": "a63f0000",
+  "P": 5348283,
+  "positions": {
+   "AML": 18,
+   "AMR": 18,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 85,
+  "pa": 123,
+  "reputation": 4466,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 1,
+   "Agility": 13
+  }
+ },
+ "22656": {
+  "sid": "a93f0000",
+  "P": 5348517,
+  "positions": {
+   "DMC": 20,
+   "MC": 18
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 89,
+  "pa": 89,
+  "reputation": 4325,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 8,
+   "Stamina": 13,
+   "Technique": 8,
+   "Aggression": 13,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "22669": {
+  "sid": "b63f0000",
+  "P": 5349531,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 110,
+  "pa": 111,
+  "reputation": 5208,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 9,
+   "Strength": 9,
+   "Stamina": 8,
+   "Technique": 8,
+   "Aggression": 5,
+   "Leadership": 5,
+   "Agility": 10
+  }
+ },
+ "22670": {
+  "sid": "b73f0000",
+  "P": 5349609,
+  "positions": {
+   "DMC": 20,
+   "MC": 18
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 4477,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 13,
+   "Pace": 10,
+   "Strength": 10,
+   "Stamina": 12,
+   "Technique": 12,
+   "Aggression": 7,
+   "Leadership": 11,
+   "Agility": 9
+  }
+ },
+ "22677": {
+  "sid": "be3f0000",
+  "P": 5350155,
+  "positions": {
+   "DL": 12,
+   "DR": 20,
+   "DMR": 10
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 106,
+  "reputation": 3598,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 7,
+   "Aggression": 7,
+   "Leadership": 1,
+   "Agility": 13
+  }
+ },
+ "22684": {
+  "sid": "c53f0000",
+  "P": 5350701,
+  "positions": {
+   "MR": 17,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 95,
+  "reputation": 4461,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 7,
+   "Leadership": 11,
+   "Agility": 12
+  }
+ },
+ "22687": {
+  "sid": "c83f0000",
+  "P": 5350935,
+  "positions": {
+   "DL": 10,
+   "ML": 20,
+   "MR": 15,
+   "AML": 15,
+   "AMR": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 83,
+  "pa": 83,
+  "reputation": 3337,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 6,
+   "Technique": 14,
+   "Aggression": 12,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "22693": {
+  "sid": "ce3f0000",
+  "P": 5351403,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 79,
+  "reputation": 3759,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 6,
+   "Pace": 12,
+   "Strength": 6,
+   "Stamina": 5,
+   "Technique": 12,
+   "Aggression": 5,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "22694": {
+  "sid": "cf3f0000",
+  "P": 5351481,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 110,
+  "reputation": 4364,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 15,
+   "Stamina": 12,
+   "Technique": 7,
+   "Aggression": 12,
+   "Leadership": 5,
+   "Agility": 7
+  }
+ },
+ "22707": {
+  "sid": "d23f0000",
+  "P": 5351715,
+  "positions": {
+   "MC": 20,
+   "AMC": 18
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 55,
+  "pa": 82,
+  "reputation": 2495,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 5,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 6,
+   "Technique": 8,
+   "Aggression": 12,
+   "Leadership": 13,
+   "Agility": 13
+  }
+ },
+ "22711": {
+  "sid": "d63f0000",
+  "P": 5352027,
+  "positions": {
+   "ML": 12,
+   "MC": 20,
+   "MR": 12,
+   "AMC": 18
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 94,
+  "reputation": 3224,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 15,
+   "Aggression": 6,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "22719": {
+  "sid": "de3f0000",
+  "P": 5352651,
+  "positions": {
+   "DC": 18,
+   "DMC": 20,
+   "MC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 87,
+  "pa": 87,
+  "reputation": 3525,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 9,
+   "Leadership": 8,
+   "Agility": 13
+  }
+ },
+ "22723": {
+  "sid": "e23f0000",
+  "P": 5352963,
+  "positions": {
+   "ML": 15,
+   "MR": 14,
+   "AML": 20,
+   "AMR": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 86,
+  "pa": 86,
+  "reputation": 4354,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 3,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "22726": {
+  "sid": "e53f0000",
+  "P": 5353197,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 106,
+  "reputation": 3503,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 8,
+   "Pace": 9,
+   "Strength": 6,
+   "Stamina": 5,
+   "Technique": 4,
+   "Aggression": 6,
+   "Leadership": 2,
+   "Agility": 9
+  }
+ },
+ "22730": {
+  "sid": "e93f0000",
+  "P": 5353509,
+  "positions": {
+   "DL": 14,
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 75,
+  "pa": 82,
+  "reputation": 3498,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 13,
+   "Technique": 5,
+   "Aggression": 15,
+   "Leadership": 14,
+   "Agility": 11
+  }
+ },
+ "22736": {
+  "sid": "ef3f0000",
+  "P": 5353977,
+  "positions": {
+   "DL": 20,
+   "DML": 16
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 75,
+  "pa": 76,
+  "reputation": 3692,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 9,
+   "Aggression": 15,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "22746": {
+  "sid": "f93f0000",
+  "P": 5354757,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 90,
+  "pa": 90,
+  "reputation": 3722,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 7,
+   "Pace": 10,
+   "Strength": 6,
+   "Stamina": 5,
+   "Technique": 1,
+   "Aggression": 6,
+   "Leadership": 10,
+   "Agility": 6
+  }
+ },
+ "22747": {
+  "sid": "fa3f0000",
+  "P": 5354835,
+  "positions": {
+   "DR": 12,
+   "MC": 20,
+   "ST": 14
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 75,
+  "reputation": 3711,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 8,
+   "Pace": 15,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 7,
+   "Leadership": 10,
+   "Agility": 14
+  }
+ },
+ "22758": {
+  "sid": "05400000",
+  "P": 5355693,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 90,
+  "reputation": 3026,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 5,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 4,
+   "Technique": 1,
+   "Aggression": 15,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "22763": {
+  "sid": "0a400000",
+  "P": 5356083,
+  "positions": {
+   "DC": 20,
+   "DR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 104,
+  "reputation": 3361,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 8,
+   "Technique": 7,
+   "Aggression": 7,
+   "Leadership": 11,
+   "Agility": 8
+  }
+ },
+ "22765": {
+  "sid": "0c400000",
+  "P": 5356239,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 123,
+  "reputation": 3287,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 12,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "22769": {
+  "sid": "10400000",
+  "P": 5356551,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 80,
+  "reputation": 1700,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 5,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 14,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "22846": {
+  "sid": "14400000",
+  "P": 5356863,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 75,
+  "reputation": 3145,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 3,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "22847": {
+  "sid": "15400000",
+  "P": 5356941,
+  "positions": {
+   "MC": 20,
+   "MR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 63,
+  "pa": 63,
+  "reputation": 2932,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 13,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "22858": {
+  "sid": "20400000",
+  "P": 5357799,
+  "positions": {
+   "AMC": 20,
+   "ST": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 70,
+  "pa": 76,
+  "reputation": 3207,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 7,
+   "Technique": 12,
+   "Aggression": 11,
+   "Leadership": 13,
+   "Agility": 12
+  }
+ },
+ "22861": {
+  "sid": "23400000",
+  "P": 5358033,
+  "positions": {
+   "DMC": 20,
+   "MC": 16
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 87,
+  "reputation": 1513,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 6,
+   "Stamina": 6,
+   "Technique": 10,
+   "Aggression": 8,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "22907": {
+  "sid": "2d400000",
+  "P": 5358813,
+  "positions": {
+   "DC": 20,
+   "DR": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 102,
+  "reputation": 3636,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 7,
+   "Pace": 7,
+   "Strength": 11,
+   "Stamina": 7,
+   "Technique": 5,
+   "Aggression": 12,
+   "Leadership": 10,
+   "Agility": 9
+  }
+ },
+ "22950": {
+  "sid": "3f400000",
+  "P": 5360217,
+  "positions": {
+   "DL": 12,
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 87,
+  "pa": 92,
+  "reputation": 4468,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 8,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 8,
+   "Agility": 10
+  }
+ },
+ "22951": {
+  "sid": "40400000",
+  "P": 5360295,
+  "positions": {
+   "DC": 12,
+   "DMC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 92,
+  "reputation": 1529,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 7,
+   "Pace": 9,
+   "Strength": 5,
+   "Stamina": 7,
+   "Technique": 5,
+   "Aggression": 7,
+   "Leadership": 4,
+   "Agility": 9
+  }
+ },
+ "22952": {
+  "sid": "41400000",
+  "P": 5360373,
+  "positions": {
+   "DL": 20,
+   "DC": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 70,
+  "pa": 96,
+  "reputation": 3370,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 11,
+   "Technique": 7,
+   "Aggression": 14,
+   "Leadership": 6,
+   "Agility": 9
+  }
+ },
+ "22963": {
+  "sid": "4c400000",
+  "P": 5361231,
+  "positions": {
+   "DL": 20,
+   "ML": 15,
+   "DML": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 69,
+  "pa": 69,
+  "reputation": 3300,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 9,
+   "Technique": 8,
+   "Aggression": 9,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "22974": {
+  "sid": "57400000",
+  "P": 5362089,
+  "positions": {
+   "ML": 15,
+   "MR": 15,
+   "AML": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 92,
+  "pa": 92,
+  "reputation": 4712,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 9,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 4,
+   "Agility": 14
+  }
+ },
+ "22981": {
+  "sid": "5e400000",
+  "P": 5362635,
+  "positions": {
+   "ML": 20,
+   "MR": 14,
+   "AML": 18,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 70,
+  "pa": 85,
+  "reputation": 2726,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 2,
+   "Stamina": 8,
+   "Technique": 11,
+   "Aggression": 15,
+   "Leadership": 11,
+   "Agility": 14
+  }
+ },
+ "22984": {
+  "sid": "61400000",
+  "P": 5362869,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 67,
+  "pa": 67,
+  "reputation": 3260,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 3,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 3,
+   "Technique": 2,
+   "Aggression": 15,
+   "Leadership": 3,
+   "Agility": 12
+  }
+ },
+ "22985": {
+  "sid": "62400000",
+  "P": 5362947,
+  "positions": {
+   "DR": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 42,
+  "pa": 42,
+  "reputation": 1468,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 7,
+   "Pace": 7,
+   "Strength": 7,
+   "Stamina": 14,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 8
+  }
+ },
+ "23037": {
+  "sid": "93400000",
+  "P": 5366769,
+  "positions": {
+   "ML": 10,
+   "MC": 15,
+   "MR": 12,
+   "AML": 13,
+   "AMC": 20,
+   "AMR": 13
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 95,
+  "pa": 115,
+  "reputation": 3072,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 12,
+   "Technique": 14,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "23479": {
+  "sid": "15420000",
+  "P": 5396877,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 101,
+  "reputation": 3472,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 6,
+   "Pace": 9,
+   "Strength": 9,
+   "Stamina": 7,
+   "Technique": 11,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 8
+  }
+ },
+ "23631": {
+  "sid": "a6420000",
+  "P": 5408187,
+  "positions": {
+   "DC": 8,
+   "DR": 14,
+   "DMC": 18,
+   "MC": 20,
+   "MR": 14,
+   "DMR": 14
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 130,
+  "pa": 135,
+  "reputation": 5946,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 16,
+   "Pace": 13,
+   "Strength": 15,
+   "Stamina": 17,
+   "Technique": 9,
+   "Aggression": 19,
+   "Leadership": 7,
+   "Agility": 14
+  }
+ },
+ "23656": {
+  "sid": "bf420000",
+  "P": 5410137,
+  "positions": {
+   "AML": 11,
+   "AMR": 12,
+   "ST": 20
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 101,
+  "pa": 109,
+  "reputation": 4276,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 7,
+   "Pace": 15,
+   "Strength": 16,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 9,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "24505": {
+  "sid": "5c450000",
+  "P": 5462319,
+  "positions": {
+   "DMC": 19,
+   "ML": 12,
+   "MC": 20,
+   "MR": 12,
+   "AML": 10,
+   "AMC": 17,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 100,
+  "reputation": 4458,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 11,
+   "Pace": 8,
+   "Strength": 7,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 12,
+   "Leadership": 11,
+   "Agility": 8
+  }
+ },
+ "24552": {
+  "sid": "7c450000",
+  "P": 5464815,
+  "positions": {
+   "DL": 15,
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 110,
+  "reputation": 4592,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "24745": {
+  "sid": "1d460000",
+  "P": 5477373,
+  "positions": {
+   "AML": 15,
+   "AMR": 20,
+   "ST": 15
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 3902,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 6,
+   "Leadership": 8,
+   "Agility": 11
+  }
+ },
+ "24872": {
+  "sid": "87460000",
+  "P": 5485641,
+  "positions": {
+   "ML": 12,
+   "MR": 12,
+   "AML": 15,
+   "AMC": 14,
+   "AMR": 20,
+   "ST": 7
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 110,
+  "pa": 120,
+  "reputation": 5434,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 10,
+   "Technique": 15,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 12
+  }
+ },
+ "24999": {
+  "sid": "fa460000",
+  "P": 5494611,
+  "positions": {
+   "DMC": 11,
+   "MC": 16,
+   "MR": 10,
+   "AMC": 20,
+   "AMR": 15,
+   "ST": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 93,
+  "pa": 111,
+  "reputation": 4736,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 14,
+   "Technique": 10,
+   "Aggression": 7,
+   "Leadership": 2,
+   "Agility": 14
+  }
+ },
+ "25164": {
+  "sid": "90470000",
+  "P": 5506311,
+  "positions": {
+   "DMC": 14,
+   "MC": 15,
+   "AMC": 20,
+   "ST": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 110,
+  "reputation": 4718,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 12,
+   "Aggression": 5,
+   "Leadership": 11,
+   "Agility": 13
+  }
+ },
+ "25374": {
+  "sid": "5a480000",
+  "P": 5522067,
+  "positions": {
+   "DR": 20,
+   "DMC": 10,
+   "MC": 9,
+   "MR": 14,
+   "AMC": 8,
+   "AMR": 12,
+   "ST": 5,
+   "DMR": 15
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 86,
+  "reputation": 3652,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "25638": {
+  "sid": "4f490000",
+  "P": 5541177,
+  "positions": {
+   "DC": 20,
+   "DMC": 12
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 64,
+  "pa": 70,
+  "reputation": 2904,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 9,
+   "Pace": 9,
+   "Strength": 13,
+   "Stamina": 12,
+   "Technique": 9,
+   "Aggression": 8,
+   "Leadership": 14,
+   "Agility": 7
+  }
+ },
+ "25728": {
+  "sid": "a4490000",
+  "P": 5547807,
+  "positions": {
+   "DL": 10,
+   "DR": 15,
+   "DMC": 20,
+   "ML": 10,
+   "MC": 20,
+   "MR": 10,
+   "AML": 5,
+   "AMR": 7,
+   "DML": 10,
+   "DMR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 121,
+  "reputation": 4263,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 15,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 10,
+   "Leadership": 6,
+   "Agility": 13
+  }
+ },
+ "25939": {
+  "sid": "674a0000",
+  "P": 5563017,
+  "positions": {
+   "ML": 12,
+   "MR": 12,
+   "AML": 14,
+   "AMC": 10,
+   "AMR": 14,
+   "ST": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 88,
+  "pa": 90,
+  "reputation": 3973,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 12,
+   "Aggression": 9,
+   "Leadership": 14,
+   "Agility": 12
+  }
+ },
+ "26036": {
+  "sid": "ad4a0000",
+  "P": 5568477,
+  "positions": {
+   "ML": 10,
+   "MR": 10,
+   "AML": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 77,
+  "pa": 90,
+  "reputation": 1693,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 12,
+   "Technique": 6,
+   "Aggression": 9,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "26073": {
+  "sid": "cf4a0000",
+  "P": 5571129,
+  "positions": {
+   "DC": 8,
+   "DMC": 16,
+   "MC": 20,
+   "AMC": 16
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 85,
+  "reputation": 3524,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 9,
+   "Pace": 8,
+   "Strength": 6,
+   "Stamina": 5,
+   "Technique": 11,
+   "Aggression": 15,
+   "Leadership": 10,
+   "Agility": 9
+  }
+ },
+ "26090": {
+  "sid": "dd4a0000",
+  "P": 5572221,
+  "positions": {
+   "DL": 20,
+   "ML": 15,
+   "AML": 12,
+   "DML": 17
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 70,
+  "pa": 92,
+  "reputation": 1755,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 14,
+   "Strength": 6,
+   "Stamina": 11,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 8,
+   "Agility": 14
+  }
+ },
+ "26421": {
+  "sid": "004c0000",
+  "P": 5594919,
+  "positions": {
+   "ML": 10,
+   "MC": 20,
+   "MR": 16,
+   "AML": 15,
+   "AMC": 15,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 91,
+  "reputation": 3995,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 10,
+   "Leadership": 13,
+   "Agility": 10
+  }
+ },
+ "26801": {
+  "sid": "3a4d0000",
+  "P": 5619411,
+  "positions": {
+   "ML": 14,
+   "MC": 20,
+   "MR": 16,
+   "AML": 14,
+   "AMC": 18,
+   "AMR": 16,
+   "ST": 10
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 106,
+  "reputation": 4601,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 10,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 9,
+   "Leadership": 7,
+   "Agility": 8
+  }
+ },
+ "26829": {
+  "sid": "524d0000",
+  "P": 5621283,
+  "positions": {
+   "DMC": 12,
+   "MC": 20,
+   "AMC": 15
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 110,
+  "reputation": 3368,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 11,
+   "Pace": 10,
+   "Strength": 10,
+   "Stamina": 10,
+   "Technique": 15,
+   "Aggression": 10,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "26978": {
+  "sid": "bb4d0000",
+  "P": 5629473,
+  "positions": {
+   "DC": 15,
+   "DR": 20,
+   "DMC": 15,
+   "MC": 10,
+   "DMR": 12
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 86,
+  "pa": 101,
+  "reputation": 4305,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 12,
+   "Pace": 9,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 10
+  }
+ },
+ "27207": {
+  "sid": "6f4e0000",
+  "P": 5643513,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 75,
+  "reputation": 4215,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 11,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 7,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "27224": {
+  "sid": "7f4e0000",
+  "P": 5644761,
+  "positions": {
+   "DMC": 11,
+   "ML": 8,
+   "MC": 16,
+   "MR": 10,
+   "AML": 10,
+   "AMC": 20,
+   "AMR": 10,
+   "ST": 15
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 99,
+  "pa": 114,
+  "reputation": 4848,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 11,
+   "Pace": 12,
+   "Strength": 12,
+   "Stamina": 12,
+   "Technique": 14,
+   "Aggression": 8,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "27408": {
+  "sid": "fb4e0000",
+  "P": 5654433,
+  "positions": {
+   "ML": 18,
+   "MR": 18,
+   "AML": 20,
+   "AMR": 19,
+   "ST": 18
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 94,
+  "pa": 120,
+  "reputation": 5008,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 12,
+   "Aggression": 14,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "27441": {
+  "sid": "174f0000",
+  "P": 5656617,
+  "positions": {
+   "DL": 12,
+   "DC": 20,
+   "DR": 14
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 105,
+  "pa": 125,
+  "reputation": 5237,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 11,
+   "Stamina": 14,
+   "Technique": 13,
+   "Aggression": 9,
+   "Leadership": 11,
+   "Agility": 9
+  }
+ },
+ "27673": {
+  "sid": "da4f0000",
+  "P": 5671827,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 115,
+  "pa": 124,
+  "reputation": 4991,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 10,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 8,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 12,
+   "Agility": 12
+  }
+ },
+ "27756": {
+  "sid": "26500000",
+  "P": 5677755,
+  "positions": {
+   "DL": 5,
+   "DC": 20,
+   "DR": 12,
+   "DMC": 14,
+   "MC": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 99,
+  "pa": 108,
+  "reputation": 4541,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 16,
+   "Technique": 10,
+   "Aggression": 5,
+   "Leadership": 11,
+   "Agility": 12
+  }
+ },
+ "28144": {
+  "sid": "7b510000",
+  "P": 5704353,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 9
+  },
+  "ca": 85,
+  "pa": 116,
+  "reputation": 4162,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 3,
+   "Technique": 2,
+   "Aggression": 11,
+   "Leadership": 1,
+   "Agility": 14
+  }
+ },
+ "28146": {
+  "sid": "7d510000",
+  "P": 5704509,
+  "positions": {
+   "DMC": 12,
+   "MC": 20,
+   "AMC": 17
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 90,
+  "pa": 100,
+  "reputation": 4576,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 8,
+   "Technique": 11,
+   "Aggression": 11,
+   "Leadership": 10,
+   "Agility": 12
+  }
+ },
+ "28150": {
+  "sid": "81510000",
+  "P": 5704821,
+  "positions": {
+   "DMC": 10,
+   "MC": 20,
+   "AMC": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 92,
+  "pa": 92,
+  "reputation": 4449,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 5,
+   "Agility": 10
+  }
+ },
+ "28156": {
+  "sid": "87510000",
+  "P": 5705289,
+  "positions": {
+   "DL": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 75,
+  "pa": 88,
+  "reputation": 3297,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 15,
+   "Pace": 10,
+   "Strength": 6,
+   "Stamina": 10,
+   "Technique": 6,
+   "Aggression": 13,
+   "Leadership": 14,
+   "Agility": 10
+  }
+ },
+ "28423": {
+  "sid": "78520000",
+  "P": 5724087,
+  "positions": {
+   "DC": 10,
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 13,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 77,
+  "reputation": 1523,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 8,
+   "Aggression": 10,
+   "Leadership": 11,
+   "Agility": 8
+  }
+ },
+ "28443": {
+  "sid": "8c520000",
+  "P": 5725647,
+  "positions": {
+   "DR": 20,
+   "MR": 10,
+   "DMR": 12
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 113,
+  "reputation": 4945,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 14,
+   "Stamina": 13,
+   "Technique": 6,
+   "Aggression": 11,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "28458": {
+  "sid": "9b520000",
+  "P": 5726817,
+  "positions": {
+   "ML": 12,
+   "MC": 10,
+   "MR": 14,
+   "AML": 10,
+   "AMC": 17,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 100,
+  "pa": 155,
+  "reputation": 4961,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 10,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 14,
+   "Aggression": 8,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "28465": {
+  "sid": "a2520000",
+  "P": 5727363,
+  "positions": {
+   "ML": 10,
+   "MC": 8,
+   "MR": 16,
+   "AML": 16,
+   "AMC": 10,
+   "AMR": 20,
+   "ST": 10
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 115,
+  "reputation": 4953,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 11,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 9,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 9,
+   "Agility": 8
+  }
+ },
+ "28488": {
+  "sid": "b7520000",
+  "P": 5729001,
+  "positions": {
+   "DC": 20,
+   "MC": 12,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 95,
+  "reputation": 4062,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 5,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 8,
+   "Technique": 8,
+   "Aggression": 10,
+   "Leadership": 11,
+   "Agility": 14
+  }
+ },
+ "28512": {
+  "sid": "cc520000",
+  "P": 5730639,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 14,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 89,
+  "reputation": 2734,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 4,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 8,
+   "Technique": 4,
+   "Aggression": 5,
+   "Leadership": 3,
+   "Agility": 12
+  }
+ },
+ "28515": {
+  "sid": "cf520000",
+  "P": 5730873,
+  "positions": {
+   "ML": 18,
+   "MR": 15,
+   "AML": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 83,
+  "reputation": 3254,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 9,
+   "Leadership": 14,
+   "Agility": 10
+  }
+ },
+ "28517": {
+  "sid": "d1520000",
+  "P": 5731029,
+  "positions": {
+   "DL": 10,
+   "ML": 15,
+   "MR": 15,
+   "AML": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 91,
+  "pa": 91,
+  "reputation": 4504,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 9,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 14,
+   "Aggression": 12,
+   "Leadership": 4,
+   "Agility": 14
+  }
+ },
+ "28518": {
+  "sid": "d2520000",
+  "P": 5731107,
+  "positions": {
+   "DMC": 15,
+   "MC": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 57,
+  "reputation": 1518,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 6,
+   "Stamina": 10,
+   "Technique": 7,
+   "Aggression": 15,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "28525": {
+  "sid": "d9520000",
+  "P": 5731653,
+  "positions": {
+   "DMC": 15,
+   "MC": 20,
+   "AMC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 89,
+  "reputation": 2385,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 7,
+   "Pace": 10,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 15,
+   "Leadership": 8,
+   "Agility": 7
+  }
+ },
+ "28531": {
+  "sid": "df520000",
+  "P": 5732121,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 50,
+  "reputation": 2173,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 5,
+   "Pace": 4,
+   "Strength": 4,
+   "Stamina": 2,
+   "Technique": 1,
+   "Aggression": 14,
+   "Leadership": 6,
+   "Agility": 9
+  }
+ },
+ "28536": {
+  "sid": "e4520000",
+  "P": 5732511,
+  "positions": {
+   "MC": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 107,
+  "reputation": 4244,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 12,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 9,
+   "Leadership": 9,
+   "Agility": 12
+  }
+ },
+ "28541": {
+  "sid": "e9520000",
+  "P": 5732901,
+  "positions": {
+   "MR": 12,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 57,
+  "reputation": 2395,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 6,
+   "Pace": 15,
+   "Strength": 4,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 9,
+   "Agility": 13
+  }
+ },
+ "28546": {
+  "sid": "ee520000",
+  "P": 5733291,
+  "positions": {
+   "AMR": 20,
+   "ST": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 118,
+  "reputation": 3386,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 7,
+   "Pace": 9,
+   "Strength": 7,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 5,
+   "Leadership": 9,
+   "Agility": 12
+  }
+ },
+ "28547": {
+  "sid": "ef520000",
+  "P": 5733369,
+  "positions": {
+   "DR": 20,
+   "DMR": 16
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 100,
+  "reputation": 3600,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 10,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 6,
+   "Agility": 8
+  }
+ },
+ "28548": {
+  "sid": "f0520000",
+  "P": 5733447,
+  "positions": {
+   "AML": 15,
+   "AMC": 10,
+   "AMR": 20,
+   "ST": 12
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 83,
+  "reputation": 3247,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 5,
+   "Technique": 8,
+   "Aggression": 5,
+   "Leadership": 13,
+   "Agility": 13
+  }
+ },
+ "28551": {
+  "sid": "f3520000",
+  "P": 5733681,
+  "positions": {
+   "AML": 20,
+   "AMC": 12,
+   "AMR": 16,
+   "ST": 13
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 93,
+  "pa": 93,
+  "reputation": 4091,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 7,
+   "Leadership": 3,
+   "Agility": 14
+  }
+ },
+ "28552": {
+  "sid": "f4520000",
+  "P": 5733759,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 50,
+  "reputation": 2429,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 5,
+   "Pace": 14,
+   "Strength": 8,
+   "Stamina": 6,
+   "Technique": 4,
+   "Aggression": 5,
+   "Leadership": 4,
+   "Agility": 12
+  }
+ },
+ "28566": {
+  "sid": "01530000",
+  "P": 5734773,
+  "positions": {
+   "AML": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 64,
+  "reputation": 3077,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 5,
+   "Leadership": 12,
+   "Agility": 11
+  }
+ },
+ "28665": {
+  "sid": "4b530000",
+  "P": 5740545,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 35,
+  "pa": 61,
+  "reputation": 1830,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 4,
+   "Pace": 10,
+   "Strength": 4,
+   "Stamina": 3,
+   "Technique": 1,
+   "Aggression": 8,
+   "Leadership": 8,
+   "Agility": 10
+  }
+ },
+ "28704": {
+  "sid": "6f530000",
+  "P": 5743353,
+  "positions": {
+   "ML": 12,
+   "AML": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 5,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 118,
+  "reputation": 4748,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 10,
+   "Strength": 11,
+   "Stamina": 11,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 4,
+   "Agility": 12
+  }
+ },
+ "28756": {
+  "sid": "a3530000",
+  "P": 5747409,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 6
+  },
+  "ca": 15,
+  "pa": 51,
+  "reputation": 2083,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 4,
+   "Pace": 13,
+   "Strength": 3,
+   "Stamina": 8,
+   "Technique": 8,
+   "Aggression": 10,
+   "Leadership": 4,
+   "Agility": 9
+  }
+ },
+ "28771": {
+  "sid": "b2530000",
+  "P": 5748579,
+  "positions": {
+   "ML": 12,
+   "AML": 20,
+   "ST": 12
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 47,
+  "pa": 47,
+  "reputation": 2486,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 5,
+   "Pace": 12,
+   "Strength": 4,
+   "Stamina": 11,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 9,
+   "Agility": 9
+  }
+ },
+ "28775": {
+  "sid": "b6530000",
+  "P": 5748891,
+  "positions": {
+   "DMC": 15,
+   "MC": 20,
+   "AMC": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 9
+  },
+  "ca": 77,
+  "pa": 77,
+  "reputation": 3298,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 14,
+   "Pace": 11,
+   "Strength": 2,
+   "Stamina": 6,
+   "Technique": 11,
+   "Aggression": 11,
+   "Leadership": 11,
+   "Agility": 10
+  }
+ },
+ "28837": {
+  "sid": "eb530000",
+  "P": 5753025,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 68,
+  "reputation": 2229,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 3,
+   "Pace": 5,
+   "Strength": 6,
+   "Stamina": 6,
+   "Technique": 1,
+   "Aggression": 9,
+   "Leadership": 10,
+   "Agility": 8
+  }
+ },
+ "28868": {
+  "sid": "09540000",
+  "P": 5755365,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 110,
+  "pa": 145,
+  "reputation": 4030,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 12,
+   "Pace": 11,
+   "Strength": 10,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 14,
+   "Leadership": 11,
+   "Agility": 9
+  }
+ },
+ "29227": {
+  "sid": "43550000",
+  "P": 5779857,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 96,
+  "reputation": 3979,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 5,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 2,
+   "Technique": 1,
+   "Aggression": 10,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "29370": {
+  "sid": "c8550000",
+  "P": 5790231,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 85,
+  "reputation": 3258,
+  "attributes": {
+   "Aerial": 15,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 7,
+   "Stamina": 6,
+   "Technique": 11,
+   "Aggression": 15,
+   "Leadership": 7,
+   "Agility": 10
+  }
+ },
+ "29872": {
+  "sid": "0b570000",
+  "P": 5815425,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 58,
+  "reputation": 2460,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 4,
+   "Pace": 7,
+   "Strength": 7,
+   "Stamina": 13,
+   "Technique": 9,
+   "Aggression": 9,
+   "Leadership": 10,
+   "Agility": 9
+  }
+ },
+ "29873": {
+  "sid": "0c570000",
+  "P": 5815503,
+  "positions": {
+   "AML": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 7
+  },
+  "ca": 55,
+  "pa": 89,
+  "reputation": 3077,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 5,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 9,
+   "Technique": 9,
+   "Aggression": 12,
+   "Leadership": 13,
+   "Agility": 13
+  }
+ },
+ "29874": {
+  "sid": "0d570000",
+  "P": 5815581,
+  "positions": {
+   "DMC": 18,
+   "MC": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 120,
+  "reputation": 5041,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 12,
+   "Stamina": 13,
+   "Technique": 11,
+   "Aggression": 13,
+   "Leadership": 5,
+   "Agility": 9
+  }
+ },
+ "29878": {
+  "sid": "11570000",
+  "P": 5815893,
+  "positions": {
+   "AML": 20,
+   "AMR": 18,
+   "ST": 12
+  },
+  "feet": {
+   "left": 15,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 133,
+  "reputation": 4260,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 6,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 13,
+   "Technique": 12,
+   "Aggression": 13,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "29882": {
+  "sid": "15570000",
+  "P": 5816205,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 95,
+  "pa": 142,
+  "reputation": 3040,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 10,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 13,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "30115": {
+  "sid": "f3570000",
+  "P": 5833521,
+  "positions": {
+   "DMC": 11,
+   "MC": 16,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 72,
+  "pa": 72,
+  "reputation": 3597,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 8,
+   "Pace": 15,
+   "Strength": 7,
+   "Stamina": 8,
+   "Technique": 12,
+   "Aggression": 11,
+   "Leadership": 4,
+   "Agility": 13
+  }
+ },
+ "30436": {
+  "sid": "25590000",
+  "P": 5857389,
+  "positions": {
+   "DR": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 78,
+  "pa": 90,
+  "reputation": 3681,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 9,
+   "Technique": 6,
+   "Aggression": 7,
+   "Leadership": 10,
+   "Agility": 14
+  }
+ },
+ "30608": {
+  "sid": "bd590000",
+  "P": 5869245,
+  "positions": {
+   "DC": 15,
+   "DR": 20,
+   "DMR": 12
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 101,
+  "reputation": 4179,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 14,
+   "Strength": 9,
+   "Stamina": 10,
+   "Technique": 7,
+   "Aggression": 10,
+   "Leadership": 7,
+   "Agility": 13
+  }
+ },
+ "30609": {
+  "sid": "be590000",
+  "P": 5869323,
+  "positions": {
+   "DR": 20,
+   "MR": 10,
+   "DMR": 15
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 78,
+  "reputation": 3651,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 12,
+   "Technique": 6,
+   "Aggression": 6,
+   "Leadership": 13,
+   "Agility": 12
+  }
+ },
+ "30618": {
+  "sid": "c7590000",
+  "P": 5870025,
+  "positions": {
+   "DR": 20,
+   "MR": 12
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 85,
+  "reputation": 3078,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 5,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 9,
+   "Technique": 6,
+   "Aggression": 12,
+   "Leadership": 2,
+   "Agility": 13
+  }
+ },
+ "30624": {
+  "sid": "cd590000",
+  "P": 5870493,
+  "positions": {
+   "DC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 107,
+  "reputation": 1682,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 5,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 6,
+   "Technique": 5,
+   "Aggression": 5,
+   "Leadership": 9,
+   "Agility": 9
+  }
+ },
+ "30632": {
+  "sid": "d5590000",
+  "P": 5871117,
+  "positions": {
+   "DL": 20,
+   "DC": 15,
+   "ML": 10
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 55,
+  "pa": 64,
+  "reputation": 2784,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 8,
+   "Technique": 2,
+   "Aggression": 15,
+   "Leadership": 9,
+   "Agility": 12
+  }
+ },
+ "30640": {
+  "sid": "dd590000",
+  "P": 5871741,
+  "positions": {
+   "MC": 12,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 102,
+  "reputation": 4043,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 13,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 11,
+   "Aggression": 6,
+   "Leadership": 5,
+   "Agility": 10
+  }
+ },
+ "30669": {
+  "sid": "fa590000",
+  "P": 5874003,
+  "positions": {
+   "ML": 12,
+   "AML": 20,
+   "ST": 8
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 95,
+  "pa": 101,
+  "reputation": 3367,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 2,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 11,
+   "Leadership": 5,
+   "Agility": 11
+  }
+ },
+ "30700": {
+  "sid": "165a0000",
+  "P": 5876187,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 68,
+  "pa": 99,
+  "reputation": 2467,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 4,
+   "Pace": 5,
+   "Strength": 5,
+   "Stamina": 3,
+   "Technique": 9,
+   "Aggression": 12,
+   "Leadership": 4,
+   "Agility": 13
+  }
+ },
+ "30729": {
+  "sid": "325a0000",
+  "P": 5878371,
+  "positions": {
+   "AML": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 49,
+  "pa": 49,
+  "reputation": 2639,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 4,
+   "Pace": 14,
+   "Strength": 5,
+   "Stamina": 6,
+   "Technique": 5,
+   "Aggression": 8,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "30734": {
+  "sid": "375a0000",
+  "P": 5878761,
+  "positions": {
+   "DMC": 20,
+   "MC": 16
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 61,
+  "reputation": 2279,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 6,
+   "Pace": 7,
+   "Strength": 5,
+   "Stamina": 7,
+   "Technique": 6,
+   "Aggression": 7,
+   "Leadership": 1,
+   "Agility": 7
+  }
+ },
+ "30735": {
+  "sid": "385a0000",
+  "P": 5878839,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 58,
+  "reputation": 1501,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 4,
+   "Pace": 10,
+   "Strength": 4,
+   "Stamina": 3,
+   "Technique": 2,
+   "Aggression": 9,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "30737": {
+  "sid": "3a5a0000",
+  "P": 5878995,
+  "positions": {
+   "DR": 15,
+   "MR": 20,
+   "AMR": 16
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 81,
+  "reputation": 2767,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 7,
+   "Technique": 9,
+   "Aggression": 10,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "30780": {
+  "sid": "655a0000",
+  "P": 5882349,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 107,
+  "reputation": 1657,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 11,
+   "Aggression": 15,
+   "Leadership": 13,
+   "Agility": 9
+  }
+ },
+ "30781": {
+  "sid": "665a0000",
+  "P": 5882427,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 65,
+  "reputation": 1818,
+  "attributes": {
+   "Aerial": 11,
+   "Teamwork": 4,
+   "Pace": 10,
+   "Strength": 5,
+   "Stamina": 8,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 8,
+   "Agility": 12
+  }
+ },
+ "30784": {
+  "sid": "695a0000",
+  "P": 5882661,
+  "positions": {
+   "MC": 12,
+   "ST": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 47,
+  "pa": 47,
+  "reputation": 1941,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 4,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 11,
+   "Aggression": 14,
+   "Leadership": 6,
+   "Agility": 8
+  }
+ },
+ "30786": {
+  "sid": "6b5a0000",
+  "P": 5882817,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 73,
+  "pa": 73,
+  "reputation": 2995,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 9,
+   "Stamina": 9,
+   "Technique": 7,
+   "Aggression": 12,
+   "Leadership": 2,
+   "Agility": 10
+  }
+ },
+ "30788": {
+  "sid": "6d5a0000",
+  "P": 5882973,
+  "positions": {
+   "DC": 20,
+   "DMC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 45,
+  "pa": 47,
+  "reputation": 2132,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 4,
+   "Pace": 7,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 1,
+   "Aggression": 14,
+   "Leadership": 2,
+   "Agility": 6
+  }
+ },
+ "30867": {
+  "sid": "b05a0000",
+  "P": 5888199,
+  "positions": {
+   "ML": 12,
+   "MR": 12,
+   "AML": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 3677,
+  "attributes": {
+   "Aerial": 2,
+   "Teamwork": 7,
+   "Pace": 13,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 13,
+   "Aggression": 11,
+   "Leadership": 2,
+   "Agility": 11
+  }
+ },
+ "30957": {
+  "sid": "005b0000",
+  "P": 5894439,
+  "positions": {
+   "AML": 20,
+   "AMC": 13,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 85,
+  "pa": 87,
+  "reputation": 4685,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 7,
+   "Technique": 9,
+   "Aggression": 15,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "30960": {
+  "sid": "035b0000",
+  "P": 5894673,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 88,
+  "reputation": 3781,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 9,
+   "Strength": 6,
+   "Stamina": 6,
+   "Technique": 1,
+   "Aggression": 5,
+   "Leadership": 2,
+   "Agility": 9
+  }
+ },
+ "30964": {
+  "sid": "075b0000",
+  "P": 5894985,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 84,
+  "reputation": 3102,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 10,
+   "Strength": 5,
+   "Stamina": 2,
+   "Technique": 1,
+   "Aggression": 12,
+   "Leadership": 4,
+   "Agility": 10
+  }
+ },
+ "30973": {
+  "sid": "105b0000",
+  "P": 5895687,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 9,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 75,
+  "reputation": 3360,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 7,
+   "Pace": 10,
+   "Strength": 8,
+   "Stamina": 7,
+   "Technique": 1,
+   "Aggression": 5,
+   "Leadership": 11,
+   "Agility": 8
+  }
+ },
+ "30976": {
+  "sid": "135b0000",
+  "P": 5895921,
+  "positions": {
+   "MC": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 64,
+  "reputation": 1286,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 10,
+   "Aggression": 8,
+   "Leadership": 9,
+   "Agility": 10
+  }
+ },
+ "32632": {
+  "sid": "10610000",
+  "P": 6015495,
+  "positions": {
+   "AML": 15,
+   "AMR": 15,
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 99,
+  "reputation": 3060,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 13,
+   "Pace": 12,
+   "Strength": 6,
+   "Stamina": 14,
+   "Technique": 6,
+   "Aggression": 15,
+   "Leadership": 5,
+   "Agility": 12
+  }
+ },
+ "32635": {
+  "sid": "13610000",
+  "P": 6015729,
+  "positions": {
+   "DL": 20,
+   "DML": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 105,
+  "pa": 120,
+  "reputation": 5001,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 9,
+   "Pace": 13,
+   "Strength": 8,
+   "Stamina": 7,
+   "Technique": 8,
+   "Aggression": 15,
+   "Leadership": 10,
+   "Agility": 11
+  }
+ },
+ "32640": {
+  "sid": "18610000",
+  "P": 6016119,
+  "positions": {
+   "ML": 12,
+   "MC": 20,
+   "AMC": 14
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 90,
+  "pa": 95,
+  "reputation": 4893,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 11,
+   "Pace": 9,
+   "Strength": 8,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 8,
+   "Leadership": 7,
+   "Agility": 11
+  }
+ },
+ "32643": {
+  "sid": "1b610000",
+  "P": 6016353,
+  "positions": {
+   "MC": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 85,
+  "pa": 97,
+  "reputation": 4175,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 7,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 11,
+   "Agility": 11
+  }
+ },
+ "32644": {
+  "sid": "1c610000",
+  "P": 6016431,
+  "positions": {
+   "AML": 15,
+   "AMC": 20,
+   "AMR": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 10
+  },
+  "ca": 80,
+  "pa": 84,
+  "reputation": 3614,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 9,
+   "Pace": 10,
+   "Strength": 5,
+   "Stamina": 9,
+   "Technique": 12,
+   "Aggression": 7,
+   "Leadership": 9,
+   "Agility": 11
+  }
+ },
+ "32653": {
+  "sid": "25610000",
+  "P": 6017133,
+  "positions": {
+   "DR": 12,
+   "MR": 12,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 70,
+  "pa": 84,
+  "reputation": 2513,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 13,
+   "Aggression": 11,
+   "Leadership": 10,
+   "Agility": 13
+  }
+ },
+ "32659": {
+  "sid": "2b610000",
+  "P": 6017601,
+  "positions": {
+   "DC": 20,
+   "DR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 100,
+  "pa": 116,
+  "reputation": 4774,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 7,
+   "Stamina": 8,
+   "Technique": 6,
+   "Aggression": 8,
+   "Leadership": 1,
+   "Agility": 13
+  }
+ },
+ "32665": {
+  "sid": "31610000",
+  "P": 6018069,
+  "positions": {
+   "DR": 12,
+   "ML": 12,
+   "MR": 12,
+   "AML": 15,
+   "AMR": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 71,
+  "pa": 71,
+  "reputation": 3184,
+  "attributes": {
+   "Aerial": 5,
+   "Teamwork": 6,
+   "Pace": 13,
+   "Strength": 4,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 15,
+   "Leadership": 1,
+   "Agility": 13
+  }
+ },
+ "32668": {
+  "sid": "34610000",
+  "P": 6018303,
+  "positions": {
+   "AML": 12,
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 8
+  },
+  "ca": 75,
+  "pa": 81,
+  "reputation": 3649,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 6,
+   "Pace": 12,
+   "Strength": 5,
+   "Stamina": 8,
+   "Technique": 8,
+   "Aggression": 7,
+   "Leadership": 6,
+   "Agility": 10
+  }
+ },
+ "32671": {
+  "sid": "37610000",
+  "P": 6018537,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 80,
+  "pa": 94,
+  "reputation": 3171,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 2,
+   "Technique": 2,
+   "Aggression": 10,
+   "Leadership": 5,
+   "Agility": 5
+  }
+ },
+ "32678": {
+  "sid": "3e610000",
+  "P": 6019083,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 68,
+  "reputation": 2621,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 4,
+   "Pace": 14,
+   "Strength": 7,
+   "Stamina": 11,
+   "Technique": 6,
+   "Aggression": 11,
+   "Leadership": 4,
+   "Agility": 12
+  }
+ },
+ "32679": {
+  "sid": "3f610000",
+  "P": 6019161,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 69,
+  "reputation": 2542,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 3,
+   "Pace": 12,
+   "Strength": 7,
+   "Stamina": 7,
+   "Technique": 10,
+   "Aggression": 9,
+   "Leadership": 1,
+   "Agility": 11
+  }
+ },
+ "32692": {
+  "sid": "4c610000",
+  "P": 6020175,
+  "positions": {
+   "MC": 20,
+   "AMC": 20
+  },
+  "feet": {
+   "left": 10,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 91,
+  "reputation": 4194,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 13,
+   "Strength": 9,
+   "Stamina": 7,
+   "Technique": 12,
+   "Aggression": 7,
+   "Leadership": 3,
+   "Agility": 8
+  }
+ },
+ "32706": {
+  "sid": "5a610000",
+  "P": 6021267,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 30,
+  "pa": 30,
+  "reputation": 1715,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 3,
+   "Pace": 12,
+   "Strength": 3,
+   "Stamina": 6,
+   "Technique": 7,
+   "Aggression": 8,
+   "Leadership": 8,
+   "Agility": 8
+  }
+ },
+ "32711": {
+  "sid": "5f610000",
+  "P": 6021657,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 80,
+  "reputation": 2628,
+  "attributes": {
+   "Aerial": 9,
+   "Teamwork": 6,
+   "Pace": 11,
+   "Strength": 3,
+   "Stamina": 12,
+   "Technique": 11,
+   "Aggression": 8,
+   "Leadership": 11,
+   "Agility": 9
+  }
+ },
+ "32915": {
+  "sid": "12620000",
+  "P": 6035619,
+  "positions": {
+   "DL": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 62,
+  "pa": 67,
+  "reputation": 2891,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 8,
+   "Stamina": 7,
+   "Technique": 8,
+   "Aggression": 15,
+   "Leadership": 1,
+   "Agility": 10
+  }
+ },
+ "32916": {
+  "sid": "13620000",
+  "P": 6035697,
+  "positions": {
+   "DL": 20,
+   "ML": 15
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 60,
+  "pa": 65,
+  "reputation": 2461,
+  "attributes": {
+   "Aerial": 7,
+   "Teamwork": 7,
+   "Pace": 14,
+   "Strength": 4,
+   "Stamina": 9,
+   "Technique": 8,
+   "Aggression": 12,
+   "Leadership": 2,
+   "Agility": 14
+  }
+ },
+ "32917": {
+  "sid": "14620000",
+  "P": 6035775,
+  "positions": {
+   "DMC": 20,
+   "MC": 18
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 93,
+  "reputation": 2987,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 12,
+   "Strength": 8,
+   "Stamina": 9,
+   "Technique": 12,
+   "Aggression": 11,
+   "Leadership": 4,
+   "Agility": 10
+  }
+ },
+ "32919": {
+  "sid": "16620000",
+  "P": 6035931,
+  "positions": {
+   "DR": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 56,
+  "pa": 56,
+  "reputation": 2968,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 11,
+   "Strength": 7,
+   "Stamina": 10,
+   "Technique": 6,
+   "Aggression": 9,
+   "Leadership": 9,
+   "Agility": 9
+  }
+ },
+ "32921": {
+  "sid": "18620000",
+  "P": 6036087,
+  "positions": {
+   "AML": 20,
+   "AMR": 15,
+   "ST": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 58,
+  "pa": 58,
+  "reputation": 1554,
+  "attributes": {
+   "Aerial": 8,
+   "Teamwork": 7,
+   "Pace": 12,
+   "Strength": 5,
+   "Stamina": 8,
+   "Technique": 9,
+   "Aggression": 5,
+   "Leadership": 10,
+   "Agility": 8
+  }
+ },
+ "32931": {
+  "sid": "22620000",
+  "P": 6036867,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 64,
+  "reputation": 1577,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 6,
+   "Pace": 8,
+   "Strength": 9,
+   "Stamina": 7,
+   "Technique": 2,
+   "Aggression": 12,
+   "Leadership": 11,
+   "Agility": 9
+  }
+ },
+ "32934": {
+  "sid": "25620000",
+  "P": 6037101,
+  "positions": {
+   "DMC": 15,
+   "MC": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 45,
+  "pa": 71,
+  "reputation": 1425,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 6,
+   "Pace": 10,
+   "Strength": 5,
+   "Stamina": 7,
+   "Technique": 7,
+   "Aggression": 15,
+   "Leadership": 6,
+   "Agility": 11
+  }
+ },
+ "32937": {
+  "sid": "28620000",
+  "P": 6037335,
+  "positions": {
+   "DMC": 20,
+   "MC": 15
+  },
+  "feet": {
+   "left": 6,
+   "right": 20
+  },
+  "ca": 50,
+  "pa": 56,
+  "reputation": 866,
+  "attributes": {
+   "Aerial": 3,
+   "Teamwork": 5,
+   "Pace": 11,
+   "Strength": 6,
+   "Stamina": 7,
+   "Technique": 6,
+   "Aggression": 15,
+   "Leadership": 3,
+   "Agility": 13
+  }
+ },
+ "32951": {
+  "sid": "36620000",
+  "P": 6038427,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 20,
+   "right": 5
+  },
+  "ca": 65,
+  "pa": 99,
+  "reputation": 3518,
+  "attributes": {
+   "Aerial": 14,
+   "Teamwork": 8,
+   "Pace": 6,
+   "Strength": 12,
+   "Stamina": 6,
+   "Technique": 10,
+   "Aggression": 15,
+   "Leadership": 3,
+   "Agility": 7
+  }
+ },
+ "32960": {
+  "sid": "3f620000",
+  "P": 6039129,
+  "positions": {
+   "DC": 20,
+   "DR": 15,
+   "DMC": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 60,
+  "pa": 87,
+  "reputation": 2901,
+  "attributes": {
+   "Aerial": 13,
+   "Teamwork": 5,
+   "Pace": 10,
+   "Strength": 4,
+   "Stamina": 6,
+   "Technique": 7,
+   "Aggression": 8,
+   "Leadership": 1,
+   "Agility": 10
+  }
+ },
+ "32980": {
+  "sid": "52620000",
+  "P": 6040611,
+  "positions": {
+   "MC": 12,
+   "AML": 12,
+   "AMC": 20,
+   "AMR": 10
+  },
+  "feet": {
+   "left": 12,
+   "right": 20
+  },
+  "ca": 75,
+  "pa": 134,
+  "reputation": 1679,
+  "attributes": {
+   "Aerial": 4,
+   "Teamwork": 9,
+   "Pace": 11,
+   "Strength": 5,
+   "Stamina": 8,
+   "Technique": 13,
+   "Aggression": 5,
+   "Leadership": 5,
+   "Agility": 13
+  }
+ },
+ "34192": {
+  "sid": "48660000",
+  "P": 6119703,
+  "positions": {
+   "DC": 20,
+   "DR": 15
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 79,
+  "reputation": 2331,
+  "attributes": {
+   "Aerial": 10,
+   "Teamwork": 5,
+   "Pace": 13,
+   "Strength": 5,
+   "Stamina": 10,
+   "Technique": 5,
+   "Aggression": 9,
+   "Leadership": 6,
+   "Agility": 12
+  }
+ },
+ "34198": {
+  "sid": "4e660000",
+  "P": 6120171,
+  "positions": {
+   "GK": 20
+  },
+  "feet": {
+   "left": 8,
+   "right": 20
+  },
+  "ca": 54,
+  "pa": 54,
+  "reputation": 2011,
+  "attributes": {
+   "Aerial": 1,
+   "Teamwork": 5,
+   "Pace": 5,
+   "Strength": 4,
+   "Stamina": 2,
+   "Technique": 1,
+   "Aggression": 9,
+   "Leadership": 4,
+   "Agility": 9
+  }
+ },
+ "34200": {
+  "sid": "50660000",
+  "P": 6120327,
+  "positions": {
+   "DMC": 15,
+   "MC": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 55,
+  "pa": 78,
+  "reputation": 2720,
+  "attributes": {
+   "Aerial": 6,
+   "Teamwork": 8,
+   "Pace": 10,
+   "Strength": 7,
+   "Stamina": 9,
+   "Technique": 13,
+   "Aggression": 7,
+   "Leadership": 2,
+   "Agility": 9
+  }
+ },
+ "34235": {
+  "sid": "73660000",
+  "P": 6123057,
+  "positions": {
+   "ST": 20
+  },
+  "feet": {
+   "left": 7,
+   "right": 20
+  },
+  "ca": 65,
+  "pa": 103,
+  "reputation": 2706,
+  "attributes": {
+   "Aerial": 12,
+   "Teamwork": 4,
+   "Pace": 9,
+   "Strength": 7,
+   "Stamina": 5,
+   "Technique": 13,
+   "Aggression": 12,
+   "Leadership": 1,
+   "Agility": 9
+  }
+ }
+}

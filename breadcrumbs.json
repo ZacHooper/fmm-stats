@@ -1,0 +1,102 @@
+[
+  {
+    "offset": 0,
+    "hex": "0x00000000",
+    "note": "Save header: '26/5/22 - Herr Manager (Bucaspor 1928)' \u2014 FMM22, uncompressed"
+  },
+  {
+    "offset": 315007,
+    "hex": "0x0004ce7f",
+    "note": "Surname string table region (~315k-406k), len4-prefixed UTF-8. NOT flat-indexed by nameID - needs index structure to resolve"
+  },
+  {
+    "offset": 2793508,
+    "hex": "0x002aa024",
+    "note": "PLAYER INFO-FIELD (Step 2) layout CONFIRMED (info.py). Offsets: +0TID +4UID +8firstNameID +12lastNameID +16FFFF +20DOB(day-1,u16)+22year +24nationality(173=Turkey) +26 2ndNat +28role(01=player) +42clubTID +60SID. SID==match-block SID (join key). DOB validated vs 4 screenshots. TODO: transfer value & contract-expiry encoding."
+  },
+  {
+    "offset": 2884803,
+    "hex": "0x002c04c3",
+    "note": "Player INFO-FIELD region (~2.75-2.9MB, global DB). Layout: TID|UID|firstNameID|lastNameID|FFFFFFFF|DOB. Menize here. Find via mm[hit+16:20]==FFFFFFFF"
+  },
+  {
+    "offset": 9980653,
+    "hex": "0x00984aed",
+    "note": "Club record example (Karacabey TID 6353). Layout [TID][UID][len][longname][pad][len][shortname][pad][len][code]. Resolve via clubs.py. Discriminator=valid short-name after long-name (rejects regions/stadiums). Don't floor UID (Altay uid=1863)."
+  },
+  {
+    "offset": 10099086,
+    "hex": "0x009a198e",
+    "note": "Bucaspor club record: a7190000=TID(6567), e14e2d04=UID, then len-prefixed names + BUCA code"
+  },
+  {
+    "offset": 10099102,
+    "hex": "0x009a199e",
+    "note": "Bucaspor 1928 (managed club) name string"
+  },
+  {
+    "offset": 13326617,
+    "hex": "0x00cb5919",
+    "note": "COMPETITION record (2.League White Group, id=228). Layout [compID:u16][UID:u32][len][longname][len][shortname][len][code]. Match header stores compID as u16 at date_off-3. IDs: 228=2.Lg White Group, 227=2.Lg(Play-Off), 117=Turkish Cup, 65=Friendly, 1370=Reserves Group 4. See comps.py"
+  },
+  {
+    "offset": 21377010,
+    "hex": "0x01462ff2",
+    "note": "TACTICS/formation records region (~21.3MB). Same 225515 delimiter but formation names (4-2 Diamond etc), NOT match stats"
+  },
+  {
+    "offset": 56195250,
+    "hex": "0x035978b2",
+    "note": "SEASON MATCH-STATS start (~56.2MB). 75 match anchors, ~5150B apart, to 56587455. Each: header+home XI+away XI. Use season_extract.py"
+  },
+  {
+    "offset": 56262617,
+    "hex": "0x035a7fd9",
+    "note": "EVENT unit [b0][b1=TYPE][min:u16][b4][playerTID:u32][ffff]. b1 CONFIRMED: 01=goal 02=own_goal 03=penalty 04=missed_penalty 05=red_card 06=injury 29=disallowed_goal(offside). b0=modifier. No yellow cards in stream."
+  },
+  {
+    "offset": 56265303,
+    "hex": "0x035a8a57",
+    "note": "Ozcan match block in a DIFFERENT match (~56.26MB) - sibling matches cluster here"
+  },
+  {
+    "offset": 56546276,
+    "hex": "0x035ed3e4",
+    "note": "MATCH HEADER format. '12 06 41 00..52 92 04 00' then DELIMITER (?2225515 0a000000 xN + 0x12 run) then tactics/events/[homeTID:2][awayTID:2][day:2][year:07xx][att:2] then home XI, away XI"
+  },
+  {
+    "offset": 56547668,
+    "hex": "0x035ed954",
+    "note": "Karacabey Bld (home) XI stat blocks. posOrder1-11 stride62. Verified 3 goals/5 SoT. tid21263=Taskaya(2G,rtg10), tid32951=Kurtulus(1G)"
+  },
+  {
+    "offset": 56549031,
+    "hex": "0x035edea7",
+    "note": "MATCH-STAT REGION (~56.5MB). Karacabey v Bucaspor. 11 Bucaspor blocks from here, stride 62 (54B block + 8B ff delim). Demir=posOrder1. ALL 17 fields validated vs screenshots"
+  },
+  {
+    "offset": 56549217,
+    "hex": "0x035edf61",
+    "note": "Ozcan match-stat block (Karacabey match). 54-byte block, mojo layout CONFIRMED for FMM22. TID=51b3 SID=3b85 posOrder=4"
+  },
+  {
+    "offset": 56582523,
+    "hex": "0x035f617b",
+    "note": "TEAM-TOTALS record (per match, before the XIs). ~54B, contains BOTH team TIDs (a719 home / 1946 away) + likely team stats (possession/shots/corners). Passes block check -> was causing find_xi junk-block bug (fixed: require run>=7). LEAD for team-level stat decoding."
+  },
+  {
+    "offset": 62404668,
+    "hex": "0x03b8383c",
+    "note": "PLAYER ATTRIBUTES decoded (attrs.py). 24 attr bytes at M-59 (M=club marker a719ffff). CONFIRMED offsets (validated Demir/Duruk/Metin 100%): 0Aerial 2Agility 4Kicking 5Throwing 7Crossing 8Dribbling 10Passing 11Shooting 12Tackling 13Technique 14Aggression 15Creativity 16Decisions 19Positioning 20Teamwork 21Pace 22Stamina. Open: Handling/Reflexes order (idx3/6, need Kivanc), Movement (idx9/18). Communication/Leadership/Strength=derived not raw."
+  },
+  {
+    "offset": 62408022,
+    "hex": "0x03b84556",
+    "note": "Cuma Menize player/squad snapshot (cluster A). ~260B: names/club/comp/attributes/positions/CA-PA/reps/clubTID a719. NOT match stats"
+  },
+  {
+    "offset": 62408022,
+    "hex": "0x03b84556",
+    "note": "Own-squad TID->name via snapshots (squad.py, bucaspor_players.json). Full name inline at record start; playerTID 8 bytes before 'a719 ffff'. 28 players; 25/27 match players named. Opponents still need global name index."
+  }
+]
