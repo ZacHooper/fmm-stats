@@ -26,8 +26,63 @@ _NAME_LEN = re.compile(rb"([\x03-\x20])\x00\x00\x00")
 _FULLNAME = re.compile(r"[A-ZÀ-ſ][\w'. À-ſ-]{2,}$")
 
 
-def own_squad(mm, lo=SNAPSHOT_LO, hi=SNAPSHOT_HI):
+def _name_before(mm, marker_i):
+    """The player's full name from the record body preceding a club marker, or None.
+    (First length-prefixed 'First Last' that looks like a Turkish full name.)"""
+    win = mm[marker_i - 280:marker_i]
+    for m in _NAME_LEN.finditer(win):
+        L = m.group(1)[0]
+        s = m.end()
+        cand = win[s:s + L]
+        if len(cand) != L:
+            continue
+        try:
+            txt = cand.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if " " in txt and _FULLNAME.match(txt) and not any(c.isdigit() for c in txt):
+            return txt
+    return None
+
+
+def snapshot_bounds(mm, margin=5000):
+    """Locate the squad-snapshot region adaptively (it drifts as the save grows).
+
+    Club markers also appear in the match region (team-total records), so we can't
+    just take the densest cluster. The snapshot is the marker cluster whose markers
+    are preceded by real player NAMES. Returns (lo, hi) or the static window if
+    discovery fails."""
+    hits, pos = [], 0
+    while True:
+        i = mm.find(CLUB_MARKER, pos)
+        if i == -1:
+            break
+        hits.append(i)
+        pos = i + 1
+    if not hits:
+        return SNAPSHOT_LO, SNAPSHOT_HI
+    clusters, cur = [], [hits[0]]
+    for h in hits[1:]:
+        if h - cur[-1] < 50_000:
+            cur.append(h)
+        else:
+            clusters.append(cur)
+            cur = [h]
+    clusters.append(cur)
+    best, best_score = None, 0
+    for c in clusters:
+        score = sum(1 for i in c[:12] if _name_before(mm, i))
+        if score > best_score:
+            best, best_score = c, score
+    if not best:
+        return SNAPSHOT_LO, SNAPSHOT_HI
+    return max(0, best[0] - margin), best[-1] + margin
+
+
+def own_squad(mm, lo=None, hi=None):
     """{player_tid: full_name} for the managed club's squad."""
+    if lo is None or hi is None:
+        lo, hi = snapshot_bounds(mm)
     out, pos = {}, lo
     while True:
         i = mm.find(CLUB_MARKER, pos)
@@ -37,20 +92,9 @@ def own_squad(mm, lo=SNAPSHOT_LO, hi=SNAPSHOT_HI):
         tid = int.from_bytes(mm[i - 8:i - 4], "little")
         if not (1000 < tid < 70000):
             continue
-        win = mm[i - 280:i]
-        for m in _NAME_LEN.finditer(win):
-            L = m.group(1)[0]
-            s = m.end()
-            cand = win[s:s + L]
-            if len(cand) != L:
-                continue
-            try:
-                txt = cand.decode("utf-8")
-            except UnicodeDecodeError:
-                continue
-            if " " in txt and _FULLNAME.match(txt) and not any(c.isdigit() for c in txt):
-                out.setdefault(tid, txt)
-                break
+        name = _name_before(mm, i)
+        if name:
+            out.setdefault(tid, name)
     return out
 
 
@@ -63,13 +107,14 @@ CONFIRMED = {0: "Aerial", 1: "Agility", 2: "Communication", 3: "Handling",
              21: "Pace", 22: "Stamina", 23: "Strength"}
 
 
-def attr_record(mm, tid):
+def attr_record(mm, tid, bounds=None):
     """Own-squad exact record: {'attrs':[36], 'positions':{}, 'feet':(l,r), 'M'}."""
+    lo, hi = bounds or snapshot_bounds(mm)
     le = struct.pack("<I", tid)
-    pos = SNAPSHOT_LO
+    pos = lo
     while True:
         i = mm.find(le, pos)
-        if i == -1 or i > SNAPSHOT_HI:
+        if i == -1 or i > hi:
             return None
         pos = i + 1
         if mm[i + 8:i + 12] == CLUB_MARKER:
@@ -104,8 +149,8 @@ ATTR_OFFSETS = {
     -22: "Stamina", -21: "Technique", -19: "Aggression", -16: "Leadership",
     -5: "Agility",
 }
-RECORD = 78
-P_PHASE = 57
+RECORD = 78   # records sit on a 78-byte grid, but its phase is save-dependent
+              # (shifts as the file grows), so we validate structurally, not by phase.
 
 
 def _valid_positions(seg):
@@ -113,7 +158,12 @@ def _valid_positions(seg):
 
 
 def record_for(mm, tid):
-    """Locate a player's global attribute record via SID. Returns a dict or None."""
+    """Locate a player's global attribute record via SID. Returns a dict or None.
+
+    The record is identified structurally (valid 15-position block + feet 0-20 +
+    0 < CA <= PA <= 200), NOT by absolute grid phase — the phase drifts between
+    saves. Verified byte-identical to the phase-filtered version on the known save,
+    and it resolves the larger/newer saves where the phase had shifted."""
     io = info_offset(mm, tid)
     if io is None:
         return None
@@ -125,8 +175,6 @@ def record_for(mm, tid):
             return None
         pos = i + 1
         P = i + 42
-        if P % RECORD != P_PHASE:
-            continue
         seg = mm[P:P + 15]
         if not _valid_positions(seg):
             continue

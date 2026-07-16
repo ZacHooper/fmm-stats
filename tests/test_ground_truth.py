@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Ground-truth regression guard. Asserts the known-correct values still parse, so a
-refactor — or a new save that shifts every offset — fails loudly instead of silently.
+Ground-truth regression guard for the 2021-22 Bucaspor career. Asserts the
+known-correct values still parse, so a refactor — or a save that shifts every offset —
+fails loudly instead of silently. (Player values develop season-to-season, so this is
+specific to a 21-22 save; a later-season save legitimately differs.)
 
-Requires the save file (gitignored). Run:  python3 tests/test_ground_truth.py
-Skips cleanly if the save is absent.
+Requires a 21-22 save (gitignored). Pass one, else the first known name is used:
+    python3 tests/test_ground_truth.py [path/to/21-22-save.fms]
+Skips cleanly if none is found.
 """
 import os
 import sys
@@ -12,9 +15,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser.save import Save, DEFAULT_SAVE          # noqa: E402
+from fmparser.save import Save                        # noqa: E402
 from fmparser import matches as M                     # noqa: E402
 from fmparser import attributes as A                  # noqa: E402
+
+# 21-22 saves to try, in order, if none is passed on the command line
+CANDIDATES = ["21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
 
 # --- ground truth (Karacabey 3-3 Bucaspor, 30 Apr 2022, + two scouted opponents) ---
 MATCH = {"home_tid": 6353, "away_tid": 6567}
@@ -39,16 +45,20 @@ def _check(cond, msg, fails):
         fails.append(msg)
 
 
-def run(save_path=DEFAULT_SAVE):
-    if not os.path.exists(save_path):
-        print(f"SKIP: save not found at {save_path}")
+def run(save_path=None):
+    if save_path is None:
+        save_path = next((os.path.join(ROOT, c) for c in CANDIDATES
+                          if os.path.exists(os.path.join(ROOT, c))), None)
+    if not save_path or not os.path.exists(save_path):
+        print("SKIP: no 21-22 save found (tried: " + ", ".join(CANDIDATES) + ")")
         return 0
     s = Save(save_path)
     fails = []
+    print(f"(using {os.path.basename(save_path)})")
 
     season = M.extract_season(s.mm)
-    _check(len(season) == 74, f"expected 74 matches, got {len(season)}", fails)
-
+    # match COUNT varies by season and how far in the save is, so we don't assert it —
+    # finding the specific 3-3 fixture below is what proves match parsing works.
     match = next((m for m in season if m["home_tid"] == MATCH["home_tid"]
                   and m["away_tid"] == MATCH["away_tid"]), None)
     _check(match is not None, "3-3 match not found", fails)
@@ -84,10 +94,10 @@ def run(save_path=DEFAULT_SAVE):
         for f in fails:
             print("  -", f)
         return 1
-    print(f"PASS: 74 matches, 3-3 team stats + formation, opponents "
-          f"{1 - off_total/total:.0%} within +/-1")
+    print(f"PASS: 3-3 fixture team stats + formation ({len(season)} matches parsed), "
+          f"opponents {1 - off_total/total:.0%} within +/-1")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(run())
+    sys.exit(run(sys.argv[1] if len(sys.argv) > 1 else None))

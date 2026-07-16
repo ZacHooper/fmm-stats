@@ -37,7 +37,7 @@ def auto_label(season):
     """<season-end-year>-<period> from the latest match date."""
     dates = sorted(m["date"] for m in season if m["date"])
     if not dates:
-        return "unknown"
+        return "unknown", None
     latest = dates[-1]
     year, month = int(latest[:4]), int(latest[5:7])
     end_year = year + 1 if month >= 8 else year
@@ -45,32 +45,61 @@ def auto_label(season):
 
 
 def build_players(mm, season):
-    """League-wide player rows (attributes + identity + club)."""
-    names = A.own_squad(mm)
+    """League-wide player rows (attributes + identity + club).
+
+    Normally the player set is everyone who appeared in the first team's matches.
+    For a fresh season with no matches played, fall back to the managed squad so a
+    start-of-season save still yields your team + attributes."""
+    from fmparser.regions import MANAGED_CLUB_TID
+    bounds = A.snapshot_bounds(mm)
+    names = A.own_squad(mm, *bounds)
+    # exact attributes for our own squad (from the snapshot) — no estimation needed
+    exact = {}
+    for tid in names:
+        r = A.attr_record(mm, tid, bounds=bounds)
+        if r:
+            exact[tid] = {"attrs": A.decode(r["attrs"]),
+                          "feet": {"left": r["feet"][0], "right": r["feet"][1]}}
+
     # which club each player last appeared for
     tid_club = {}
     for m in season:
         for side, ct in (("home_xi", m["home_tid"]), ("away_xi", m["away_tid"])):
             for p in m[side]:
                 tid_club.setdefault(p["tid_int"], ct)
+
+    tids = A.league_tids(season)
+    if not tids:                       # no matches yet -> managed squad only
+        tids = sorted(names)
+        for t in tids:
+            tid_club.setdefault(t, MANAGED_CLUB_TID)
+
     club_tids = sorted(set(tid_club.values()))
     club_names = {t: R.resolve_club(mm, t, "long") or str(t) for t in club_tids}
 
     players = {}
-    for tid in A.league_tids(season):
+    for tid in tids:
         rec = A.record_for(mm, tid)
         if not rec:
             continue
-        attrs, is_gk, _ = A.estimate_player(mm, rec)
+        is_gk = int(rec["positions"].get("GK", 0) == 20)
         ct = tid_club.get(tid)
+        if tid in exact:               # own squad: exact snapshot attributes
+            attributes = {a: exact[tid]["attrs"][a] for a in A.ATTR_ORDER}
+            estimated = {a: False for a in A.ATTR_ORDER}
+            feet = exact[tid]["feet"]
+        else:                          # opponents: estimated (+/-1)
+            est, _, _ = A.estimate_player(mm, rec)
+            attributes = {a: est[a]["val"] for a in A.ATTR_ORDER}
+            estimated = {a: est[a]["est"] for a in A.ATTR_ORDER}
+            feet = rec["feet"]
         players[str(tid)] = {
             "tid": tid, "name": names.get(tid, f"#{tid}"),
             "club": club_names.get(ct, str(ct)) if ct else "?",
             "is_gk": is_gk, "ca": rec["ca"], "pa": rec["pa"],
             "reputation": rec["reputation"], "positions": rec["positions"],
-            "feet": rec["feet"],
-            "attributes": {a: attrs[a]["val"] for a in A.ATTR_ORDER},
-            "estimated": {a: attrs[a]["est"] for a in A.ATTR_ORDER},
+            "feet": feet,
+            "attributes": attributes, "estimated": estimated,
         }
     return players, club_names
 
