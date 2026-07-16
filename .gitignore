@@ -1,6 +1,12 @@
 # Save files — large, personal, never commit
 *.fms
 
+# Extraction outputs (regenerate with extract.py)
+output/
+
+# Local tooling / editor
+.claude/
+
 # Python
 __pycache__/
 *.pyc
