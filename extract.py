@@ -32,7 +32,7 @@ from fmparser import attributes as A
 from fmparser import reference as R
 from fmparser import staging as S
 from fmparser import tagged as T
-from fmparser import results as RES
+from fmparser import lightresults as L
 
 
 def _period(month):
@@ -54,9 +54,9 @@ def auto_label(season):
     return f"{end_year}-{_period(month)}", latest
 
 
-def build_database(mm, season):
-    """Whole-DB player rows via staging + join. Returns (players, club_names)."""
-    info = S.scrape_players(mm)            # {tid: identity}  (the spine)
+def build_database(mm, season, info):
+    """Whole-DB player rows via staging + join. Returns (players, club_names).
+    `info` is the shared player-info spine ({tid: identity}) scraped once in main()."""
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
 
     # names + exact attributes for the managed squad (snapshot)
@@ -147,38 +147,28 @@ def flatten_matches(season):
     return rows
 
 
-def build_leagues(mm, valid_clubs, size=(10, 32)):
-    """Leagues table + club->league map, from results membership (grouped by comp CID).
-
-    We group played matches by their comp CID; a comp whose member count is
-    league-sized (10-32 clubs) is treated as a league. Cups (which mix divisions and
-    have 40-100+ entrants) fall outside that band. The CID is the reliable grouping
-    key; comp_detail names are best-effort (CID->name resolution is imperfect for
-    non-local comps). Each club is assigned the league whose size is closest to its
-    stored num_teams, else the first seen."""
-    mem = RES.memberships(mm, valid_clubs)
-    counts = T.league_team_counts(mm)
-    leagues = {}
-    for cid, clubs in mem.items():
-        if not (size[0] <= len(clubs) <= size[1]):
-            continue
-        d = R.comp_detail(mm, cid) or {"cid": cid, "uid": None, "name": None,
-                                       "type": None, "nation_id": None}
-        d["num_teams"] = counts.get(d.get("uid"))
-        d["members_found"] = len(clubs)
-        d["member_tids"] = sorted(clubs)
-        leagues[cid] = d
-    # assign each club to one league: prefer the comp whose member count matches its
-    # stored num_teams (a real division), else the first.
-    club_to_league = {}
-    for t in valid_clubs:
-        cands = [d for d in leagues.values() if t in d["member_tids"]]
-        if not cands:
-            continue
-        cands.sort(key=lambda d: (d.get("num_teams") != d["members_found"],
-                                  -d["members_found"]))
-        club_to_league[t] = cands[0]["cid"]
+def build_leagues(mm, valid_clubs, club_nation):
+    """Leagues table + club->league map, from the LIGHT RESULTS (fmparser/lightresults):
+    every simulated game carries its competition CID, so club->league is read directly
+    for the whole DB (all loaded leagues), not just our own. Names are nation-validated
+    (comp_detail mis-names some foreign cids). Returns ({cid: league_detail}, {tid: cid})
+    keeping only league-type competitions in the table."""
+    data = L.build(mm, valid_clubs, club_nation=club_nation)
+    club_to_league = data["club_league"]
+    leagues = {cid: v for cid, v in data["leagues"].items() if L._is_league(mm, cid)}
     return leagues, club_to_league
+
+
+def league_label(detail):
+    """Human league name: the resolved name, else 'Nation (unnamed)' when only the nation
+    is known (foreign comps without a name record), else None."""
+    if not detail:
+        return None
+    if detail.get("name"):
+        return detail["name"]
+    if detail.get("nation"):
+        return f"{detail['nation']} (unnamed)"
+    return None
 
 
 def build_competitions(mm, season):
@@ -239,17 +229,19 @@ def main():
     dest = os.path.join(args.out, label)
     os.makedirs(dest, exist_ok=True)
 
-    players, staff, club_names = build_database(mm, season)
+    info = S.scrape_players(mm)            # player-info spine (scraped once, shared)
+    players, staff, club_names = build_database(mm, season, info)
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
-    # leagues + club->league, then stamp each player with their league
-    leagues, club2league = build_leagues(mm, set(club_names))
-    league_name = {cid: d["name"] for cid, d in leagues.items()}
+    # leagues + club->league (from light results), then stamp each player with their league
+    valid_clubs = {p["club_tid"] for p in info.values() if p["club_tid"] != S.NO_CLUB}
+    club_nation = L.club_nations(info, S.NO_CLUB)
+    leagues, club2league = build_leagues(mm, valid_clubs, club_nation)
     for p in players.values():
         lc = club2league.get(p["club_tid"])
         p["league_cid"] = lc
-        p["league"] = league_name.get(lc)
+        p["league"] = league_label(leagues.get(lc))
 
     def dump(name, obj, indent=1):
         with open(os.path.join(dest, name), "w", newline="") as f:

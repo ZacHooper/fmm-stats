@@ -37,3 +37,5 @@ ATTR_LO, ATTR_HI = 3_800_000, 6_600_000
 SNAPSHOT_LO, SNAPSHOT_HI = 62_300_000, 63_200_000
 # per-match stat region (home XI then away XI, delimiter-clustered)
 MATCH_LO = 55_000_000
+# light results (simulated non-managed games): [home][away][sH][sA]..[flags 0x40xx].[cid]
+LIGHT_LO, LIGHT_HI = 47_000_000, 50_500_000

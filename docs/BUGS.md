@@ -1,38 +1,37 @@
 # Known bugs / follow-ups
 
-## 12c. LIGHT results (simulated non-managed games) — data section notes
+## 12c. LIGHT results (simulated non-managed games) — SOLVED ✅
 
-Only the MANAGED club's games get detailed `[FF×8][home][away][cid]` records (BUGS #12b).
-Every OTHER simulated game (incl. Turkish Super League — confirmed simulated by the user,
-screenshots in data/screenshots/super-league-results-day.png + the Alanyaspor fixture
-lists) stores a LIGHT result. What we've learned about that section (revisit later):
+Only the MANAGED club's games get detailed per-player records (BUGS #12b). Every OTHER
+loaded game (incl. Turkish Super League) stores a LIGHT result: just teams, score,
+competition and a coarse date. Decoded in `fmparser/lightresults.py`; extracted by
+`dump_lightresults.py` → `output/<label>/light_results/`.
 
-- **Location:** scattered ~48.5–48.6 MB (and elsewhere); MULTI-NATION interleaved
-  (saw Turkish Niğde vs Danish Brøndby adjacent). Each fixture appears in ≥2 copies
-  ~**516 bytes apart**, IDENTICAL except one u16 field (the `+12` year field: 2021 vs
-  2020 for the two copies — perspective/leg/fixture-vs-result, unknown).
-- **Record ≈ 42 bytes**, delimited by a 6-byte `FF FF FF` run (three 0xffff); a `0x8700`
-  marker recurs at the same 42-byte cadence. Stride holds for short RUNS (~4 records)
-  then breaks — NOT a uniform array.
-- **Fields relative to the delimiter start:** `+8` compref (0x40xx), `+10` = 117 (const),
-  `+12` year (u16), `+14` day-of-year (u16). **DATE CONFIRMED**: day 303 / 2021 =
-  2021-10-31 = the Alanyaspor Turkish Cup 4th-round match date (vs Ofspor 1660).
-- **Teams + scores:** `[teamA][teamB][scoreA][scoreB]` validated (Alanya 1-0 Başakşehir,
-  5-0 Gaziantep, Altay 0-1 Adana). Teams sit at an ODD byte offset within the record
-  (packed) — earlier even-aligned reads gave garbage scores like 1027.
-- **compref (0x40xx: 16512/16544/16608) is NOT the competition** — 3 same-league (Super
-  League) fixtures had different values. Likely a match/round id, NOT a league key.
-- **Dates around the cup game vary** (Oct31/Oct27/Dec30/Dec29) → not a same-date matchday
-  group; date is per-record. Grouping (per-club? per-round?) still unclear — the neat
-  chronological per-club list the UI shows does NOT map to a contiguous block on disk.
-- **Cup matches ARE present** here (mixed with league), so league-vs-cup must come from
-  the compref or a field we haven't decoded.
+**Record layout (pinned vs ground truth — our own games + the Super League results-day
+screenshot).** Region ~47–50.5 MB; each fixture stored in ≥2 copies **516 bytes apart**:
+```
++0 home_tid u16 · +2 away_tid u16 · +4 scoreH u8 · +5 scoreA u8
++8 flags u16 (0x40xx/0xc0xx, a marker) · +10 competition CID u16 ★ · +12 year(2020/2021)
+```
+**The league key is the CID at +10** — 118 Turkish Super League, 228 our 2.League White,
+117 Turkish Cup, 275 English FA Cup, 258 EURO Cup, etc. Prior work chased the `+8` 0x40xx
+value ("compref") and MISSED the real cid two bytes over — that was the whole blocker.
+Validated: `+10` cleanly separates league / cup / European (Galatasaray → 118 league +
+117 cup; Fenerbahçe → 118 + 117 + 258 EURO). Score is `[teamAscore][teamBscore]`; a game
+appears from both perspectives (A-vs-B and B-vs-A), so team order just reflects whose row.
 
-**Best next lead: parse the tagged DATA DICTIONARY (~17.5 MB) that DEFINES this record.**
-Schema tags seen there (reversed): `fxri`(fixture?), `mtdy`/`mtdr`(match date?), `nmdt`,
-`comp`, `type`, `id`, `dyow`(day-of-week), `time`, `vers`. Reading that schema should give
-the exact 42-byte layout + where the comp id lives, instead of byte-guessing.
-Ground-truth club TIDs for continuation are in docs/IDS.md.
+**Delivered:** club→league for the whole DB (341 clubs), every loaded league found and
+(mostly) named — Turkish Super League, Turkish 1./2. League Red+White, Vanarama National
+League N/S, Greek Super League 2 N/S — plus computed standings per league. Guard:
+`tests/test_lightresults.py` (Super League = its real 20 clubs; Alanyaspor 1-0 Başakşehir
+decodes; league/cup split holds).
+
+**Known limits (not blockers):** (1) COVERAGE is partial (~⅓ of a season) — a SECOND
+cid-less result list (~49.36 MB, repeats the home team + a 0x42xx value) isn't parsed, so
+standings points/played are a lower bound and ordering is approximate. (2) NAMING:
+`reference.comp_detail` mis-names some small-cid / foreign comps (e.g. a Turkish reserve
+league shown as "Angola"); the cid grouping is always correct — name these via the tagged
+DATA DICTIONARY (docs/DATADICT.md) as a follow-up.
 
 ## 12b. Results sweep -> league membership (PARTIAL, works for local league)
 
