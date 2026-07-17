@@ -1,5 +1,39 @@
 # Known bugs / follow-ups
 
+## 12c. LIGHT results (simulated non-managed games) — data section notes
+
+Only the MANAGED club's games get detailed `[FF×8][home][away][cid]` records (BUGS #12b).
+Every OTHER simulated game (incl. Turkish Super League — confirmed simulated by the user,
+screenshots in data/screenshots/super-league-results-day.png + the Alanyaspor fixture
+lists) stores a LIGHT result. What we've learned about that section (revisit later):
+
+- **Location:** scattered ~48.5–48.6 MB (and elsewhere); MULTI-NATION interleaved
+  (saw Turkish Niğde vs Danish Brøndby adjacent). Each fixture appears in ≥2 copies
+  ~**516 bytes apart**, IDENTICAL except one u16 field (the `+12` year field: 2021 vs
+  2020 for the two copies — perspective/leg/fixture-vs-result, unknown).
+- **Record ≈ 42 bytes**, delimited by a 6-byte `FF FF FF` run (three 0xffff); a `0x8700`
+  marker recurs at the same 42-byte cadence. Stride holds for short RUNS (~4 records)
+  then breaks — NOT a uniform array.
+- **Fields relative to the delimiter start:** `+8` compref (0x40xx), `+10` = 117 (const),
+  `+12` year (u16), `+14` day-of-year (u16). **DATE CONFIRMED**: day 303 / 2021 =
+  2021-10-31 = the Alanyaspor Turkish Cup 4th-round match date (vs Ofspor 1660).
+- **Teams + scores:** `[teamA][teamB][scoreA][scoreB]` validated (Alanya 1-0 Başakşehir,
+  5-0 Gaziantep, Altay 0-1 Adana). Teams sit at an ODD byte offset within the record
+  (packed) — earlier even-aligned reads gave garbage scores like 1027.
+- **compref (0x40xx: 16512/16544/16608) is NOT the competition** — 3 same-league (Super
+  League) fixtures had different values. Likely a match/round id, NOT a league key.
+- **Dates around the cup game vary** (Oct31/Oct27/Dec30/Dec29) → not a same-date matchday
+  group; date is per-record. Grouping (per-club? per-round?) still unclear — the neat
+  chronological per-club list the UI shows does NOT map to a contiguous block on disk.
+- **Cup matches ARE present** here (mixed with league), so league-vs-cup must come from
+  the compref or a field we haven't decoded.
+
+**Best next lead: parse the tagged DATA DICTIONARY (~17.5 MB) that DEFINES this record.**
+Schema tags seen there (reversed): `fxri`(fixture?), `mtdy`/`mtdr`(match date?), `nmdt`,
+`comp`, `type`, `id`, `dyow`(day-of-week), `time`, `vers`. Reading that schema should give
+the exact 42-byte layout + where the comp id lives, instead of byte-guessing.
+Ground-truth club TIDs for continuation are in docs/IDS.md.
+
 ## 12b. Results sweep -> league membership (PARTIAL, works for local league)
 
 Played matches are stored as `[FF x8][teamA:u16][teamB:u16][comp CID:u16]` (decoded
