@@ -32,6 +32,7 @@ from fmparser import attributes as A
 from fmparser import reference as R
 from fmparser import staging as S
 from fmparser import tagged as T
+from fmparser import results as RES
 
 
 def _period(month):
@@ -146,6 +147,40 @@ def flatten_matches(season):
     return rows
 
 
+def build_leagues(mm, valid_clubs, size=(10, 32)):
+    """Leagues table + club->league map, from results membership (grouped by comp CID).
+
+    We group played matches by their comp CID; a comp whose member count is
+    league-sized (10-32 clubs) is treated as a league. Cups (which mix divisions and
+    have 40-100+ entrants) fall outside that band. The CID is the reliable grouping
+    key; comp_detail names are best-effort (CID->name resolution is imperfect for
+    non-local comps). Each club is assigned the league whose size is closest to its
+    stored num_teams, else the first seen."""
+    mem = RES.memberships(mm, valid_clubs)
+    counts = T.league_team_counts(mm)
+    leagues = {}
+    for cid, clubs in mem.items():
+        if not (size[0] <= len(clubs) <= size[1]):
+            continue
+        d = R.comp_detail(mm, cid) or {"cid": cid, "uid": None, "name": None,
+                                       "type": None, "nation_id": None}
+        d["num_teams"] = counts.get(d.get("uid"))
+        d["members_found"] = len(clubs)
+        d["member_tids"] = sorted(clubs)
+        leagues[cid] = d
+    # assign each club to one league: prefer the comp whose member count matches its
+    # stored num_teams (a real division), else the first.
+    club_to_league = {}
+    for t in valid_clubs:
+        cands = [d for d in leagues.values() if t in d["member_tids"]]
+        if not cands:
+            continue
+        cands.sort(key=lambda d: (d.get("num_teams") != d["members_found"],
+                                  -d["members_found"]))
+        club_to_league[t] = cands[0]["cid"]
+    return leagues, club_to_league
+
+
 def build_competitions(mm, season):
     """Reference for every competition in the season: name/short/code, type,
     nation, and num_teams (from the tagged region). See fmparser/reference &
@@ -164,8 +199,8 @@ def build_competitions(mm, season):
 def write_players_csv(path, players):
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["tid", "name", "club", "club_tid", "GK", "CA", "PA", "rep",
-                    "dob", "nat", "positions"] + A.ATTR_ORDER)
+        w.writerow(["tid", "name", "club", "club_tid", "league", "league_cid", "GK",
+                    "CA", "PA", "rep", "dob", "nat", "positions"] + A.ATTR_ORDER)
         # attributed players first (by CA desc), then identity-only rows
         def sortkey(p):
             return (0 if p["has_attributes"] else 1, -(p["ca"] or 0), p["tid"])
@@ -174,6 +209,7 @@ def write_players_csv(path, players):
                                                 key=lambda kv: -kv[1]))
             attr = p["attributes"] or {}
             w.writerow([p["tid"], p["name"] or "", p["club"], p["club_tid"],
+                        p.get("league") or "", p.get("league_cid") or "",
                         "Y" if p["is_gk"] else "", p["ca"] or "", p["pa"] or "",
                         p["reputation"] or "", p["dob"] or "", p["nationality_id"], pos]
                        + [attr.get(a, "") for a in A.ATTR_ORDER])
@@ -207,6 +243,14 @@ def main():
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
+    # leagues + club->league, then stamp each player with their league
+    leagues, club2league = build_leagues(mm, set(club_names))
+    league_name = {cid: d["name"] for cid, d in leagues.items()}
+    for p in players.values():
+        lc = club2league.get(p["club_tid"])
+        p["league_cid"] = lc
+        p["league"] = league_name.get(lc)
+
     def dump(name, obj, indent=1):
         with open(os.path.join(dest, name), "w", newline="") as f:
             json.dump(obj, f, ensure_ascii=False, indent=indent)
@@ -215,6 +259,7 @@ def main():
     dump("staff.json", staff, indent=None)         # ~7k non-players (identity only)
     dump("matches.json", season)
     dump("competitions.json", competitions)
+    dump("leagues.json", {str(c): d for c, d in sorted(leagues.items())})
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
     write_players_csv(os.path.join(dest, "players.csv"), players)
     write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)
@@ -230,14 +275,14 @@ def main():
         "counts": {"matches": len(season), "player_match_lines": len(match_rows),
                    "players": len(players), "players_with_attributes": attributed,
                    "staff": len(staff), "competitions": len(competitions),
-                   "clubs_named": len(club_names)},
+                   "leagues": len(leagues), "clubs_named": len(club_names)},
     }
     dump("summary.json", summary)
 
     print(f"extracted -> {dest}/")
     print(f"  matches {len(season)}  players {len(players)} "
           f"({attributed} with attributes)  staff {len(staff)}  "
-          f"comps {len(competitions)}  clubs {len(club_names)}")
+          f"leagues {len(leagues)}  clubs {len(club_names)}")
     print(f"  label {label} (auto {auto}, latest match {latest})")
     s.close()
 

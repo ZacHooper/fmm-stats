@@ -1,5 +1,23 @@
 # Known bugs / follow-ups
 
+## 12b. Results sweep -> league membership (PARTIAL, works for local league)
+
+Played matches are stored as `[FF x8][teamA:u16][teamB:u16][comp CID:u16]` (decoded
+with ground truth: our 34 league fixtures land here, comp 228 -> exactly its 18 clubs).
+`fmparser/results.py` sweeps the whole file and groups teams by CID -> membership.
+`extract.build_leagues` keeps league-sized comps (10-32 members) -> leagues.json +
+club->league_cid on every player.
+
+WORKS: our league (228 -> 18, players tagged correctly). LIMITATIONS: (1) the
+result-region CID resolves to a comp name/nation via reference.comp_detail only for
+LOCAL comps; most foreign result-CIDs return None (the result CID and the packed
+comp-record cid share a space for local comps but not most others -> likely a THIRD
+comp id space; lead for locating foreign comp records / the "additional comp id" the
+user asked about). (2) Coverage partial (~32 leagues, ~1.7k players) — many divisions
+have sparse result records so fall below the size band. The CID is a reliable GROUPING
+key even when unnamed. Next: find foreign comp records (resolve result-CID) and/or a
+cleaner membership source; then league level (BUGS #13) for cross-league baselines.
+
 ## 12. Fixtures / league tables — TODO (context captured for later)
 
 Goal: recreate league tables and, at worst, derive club→league membership from the

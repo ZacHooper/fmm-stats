@@ -152,11 +152,15 @@ def comp_detail(mm, cid):
             if not (1 <= sl <= 45):
                 p += 1
                 sl = int.from_bytes(mm[p:p + 4], "little")
+            if not (1 <= sl <= 45) or p + 4 + sl > len(mm):
+                break                       # not a real comp record here
             try:
                 names.append(mm[p + 4:p + 4 + sl].decode("utf-8"))
             except UnicodeDecodeError:
                 names.append(None)
             p = p + 4 + sl
+        if len(names) < 3 or p + 3 >= len(mm):
+            continue
         typ, nation = mm[p], mm[p + 3]
         return {"cid": cid, "uid": uid, "name": names[0], "short": names[1],
                 "code": names[2],
