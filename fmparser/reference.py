@@ -116,6 +116,54 @@ def comp_name(mm, cid, want="long"):
     return _COMP_CACHE[key]
 
 
+# competition type byte (immediately after the 3 name strings). Calibrated on Turkey:
+# league(228)/play-off(227)=1, cup(117)=2, reserve league(1370)=8, friendly(65)=9.
+COMP_TYPES = {1: "league", 2: "cup", 8: "reserve_league", 9: "friendly"}
+
+
+def comp_detail(mm, cid):
+    """Full competition record: cid, uid, name, short, code, type, nation.
+    After the 3 name strings come: type byte (+0), nation byte (+3). See COMP_TYPES."""
+    le = struct.pack("<H", cid)
+    pos = 0
+    while True:
+        i = mm.find(le, pos)
+        if i == -1:
+            return None
+        pos = i + 1
+        uid = int.from_bytes(mm[i + 2:i + 6], "little")
+        if not (1000 <= uid <= 300_000_000):
+            continue
+        ln = int.from_bytes(mm[i + 6:i + 10], "little")
+        if not (3 <= ln <= 45):
+            continue
+        try:
+            long = mm[i + 10:i + 10 + ln].decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if not (long and long[0].isupper() and sum(c.isalpha() for c in long) >= 3):
+            continue
+        # skip 3 length-prefixed strings from i+6 (long/short/code), tolerating a
+        # 1-byte pad, to land on the type/nation bytes.
+        p = i + 6
+        names = []
+        for _ in range(3):
+            sl = int.from_bytes(mm[p:p + 4], "little")
+            if not (1 <= sl <= 45):
+                p += 1
+                sl = int.from_bytes(mm[p:p + 4], "little")
+            try:
+                names.append(mm[p + 4:p + 4 + sl].decode("utf-8"))
+            except UnicodeDecodeError:
+                names.append(None)
+            p = p + 4 + sl
+        typ, nation = mm[p], mm[p + 3]
+        return {"cid": cid, "uid": uid, "name": names[0], "short": names[1],
+                "code": names[2],
+                "type": COMP_TYPES.get(typ, f"type_{typ}"), "type_id": typ,
+                "nation_id": None if nation == 255 else nation}
+
+
 # ---------------- player info field ----------------
 def info_offset(mm, tid):
     """Info field: TID bytes, FFFFFFFF nickname at +16, plausible DOB year at +22."""

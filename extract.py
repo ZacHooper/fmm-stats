@@ -31,6 +31,7 @@ from fmparser import matches as M
 from fmparser import attributes as A
 from fmparser import reference as R
 from fmparser import staging as S
+from fmparser import tagged as T
 
 
 def _period(month):
@@ -145,17 +146,19 @@ def flatten_matches(season):
     return rows
 
 
-def find_transfers(match_rows, info):
-    """Players whose current club isn't a team they played for this season."""
-    teams = {}
-    for r in match_rows:
-        teams.setdefault(r["tid"], set()).add(r["team_tid"])
-    out = []
-    for tid, played in teams.items():
-        cur = info.get(str(tid), {}).get("club_tid")
-        if cur is not None and cur != S.NO_CLUB and cur not in played:
-            out.append({"tid": tid, "played_for": sorted(played), "current_club": cur})
-    return out
+def build_competitions(mm, season):
+    """Reference for every competition in the season: name/short/code, type,
+    nation, and num_teams (from the tagged region). See fmparser/reference &
+    fmparser/tagged."""
+    counts = T.league_team_counts(mm)
+    comps = {}
+    for cid in sorted({m["comp_id"] for m in season if m.get("comp_id")}):
+        d = R.comp_detail(mm, cid) or {"cid": cid}
+        if "uid" in d:
+            d["num_teams"] = counts.get(d["uid"])
+        d["matches_in_save"] = sum(1 for m in season if m.get("comp_id") == cid)
+        comps[str(cid)] = d
+    return comps
 
 
 def write_players_csv(path, players):
@@ -202,7 +205,7 @@ def main():
 
     players, staff, club_names = build_database(mm, season)
     match_rows = flatten_matches(season)
-    transfers = find_transfers(match_rows, players)
+    competitions = build_competitions(mm, season)
 
     def dump(name, obj, indent=1):
         with open(os.path.join(dest, name), "w", newline="") as f:
@@ -211,8 +214,8 @@ def main():
     dump("players.json", players, indent=None)     # ~24k players -> compact
     dump("staff.json", staff, indent=None)         # ~7k non-players (identity only)
     dump("matches.json", season)
+    dump("competitions.json", competitions)
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
-    dump("transfers.json", transfers)
     write_players_csv(os.path.join(dest, "players.csv"), players)
     write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)
 
@@ -226,15 +229,15 @@ def main():
         "competitions": dict(Counter(m.get("competition") for m in season)),
         "counts": {"matches": len(season), "player_match_lines": len(match_rows),
                    "players": len(players), "players_with_attributes": attributed,
-                   "staff": len(staff), "clubs_named": len(club_names),
-                   "transfers": len(transfers)},
+                   "staff": len(staff), "competitions": len(competitions),
+                   "clubs_named": len(club_names)},
     }
     dump("summary.json", summary)
 
     print(f"extracted -> {dest}/")
     print(f"  matches {len(season)}  players {len(players)} "
           f"({attributed} with attributes)  staff {len(staff)}  "
-          f"clubs {len(club_names)}  transfers {len(transfers)}")
+          f"comps {len(competitions)}  clubs {len(club_names)}")
     print(f"  label {label} (auto {auto}, latest match {latest})")
     s.close()
 

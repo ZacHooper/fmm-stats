@@ -1,5 +1,41 @@
 # Known bugs / follow-ups
 
+## 12. Fixtures / league tables — TODO (context captured for later)
+
+Goal: recreate league tables and, at worst, derive club→league membership from the
+fixture list. Only these countries' leagues are LOADED (so only their clubs have a
+league connection — confirmed in-game by the user):
+- **Turkey** — 2. League Red/White groups + 4 reserve groups + a cup
+- **Greece** — League 2 North/South + 2 reserve groups
+- **Spain** — Segunda Federación (2) + 7 reserve groups + cups
+- **England** — Vanarama National North/South + ~14 reserve groups + several cups
+- **Germany** — 3. Liga + 2 reserve groups + cups
+
+Leads found by searching the league's **comp UID** (unique, from the comp record) across
+the whole file — much better than searching for club TIDs:
+- comp 228 "Turkish 2. League White Group" UID = **463485** (comp record @13.34MB).
+- UID hits cluster: 1 at 13.34MB (the comp record), 4 at ~18.16MB (turned out to be the
+  tagged competition metadata — see #13, being parsed now), 34 at ~19.73-19.81MB.
+- **Fixtures/results-like data** at ~49.38MB and ~57.62MB: club pairs interspersed with
+  year(2021)/day, on ~52-byte strides; looks like fixtures / a head-to-head grid. Not a
+  clean standings table and not a clean club-list, but membership is inferrable (all
+  clubs appearing = the league). For OUR league we can already get membership from
+  matches; the value here is (a) full league tables/standings and (b) OTHER loaded
+  leagues' membership.
+- Open: identify how to locate each loaded league's fixture block and sweep them all
+  (probably key each block by its comp UID, as with 228).
+
+## 13. Tagged competition metadata region (~13-20MB) — self-describing format
+
+The save has a **self-describing tagged section** (~13-20MB) holding competitions,
+finances, staff, history, fixtures metadata. Format: `[tag:4 bytes, stored REVERSED]
+[0x01][typecode:1][value]`. Typecodes seen: 0x11 = 1-byte value, 0x0a/0x0b = u32.
+Field tags (read reversed) include: `comp`, `level` (league tier!), `Group`, `cash`/
+`przm` (prize money, NOT club cash), `valu`, `curr`, `year`/`mont`/`stdt`/`endt`/`date`,
+`type`, `id`, `DBID`, `team`, `info`, `stag`. This is the source for league LEVEL/tier
+(cross-league comparison) and competition setup. Bulk data (players/attributes/matches)
+is NOT here — those stay in the packed structures. Being parsed in `fmparser/tagged.py`.
+
 ## 11. Players vs staff in the info DB — classified by SID
 
 The info section is a ~31k-record spine for the WHOLE database, and it contains
