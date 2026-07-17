@@ -44,7 +44,8 @@ Sparse tag hits at 9–14 MB are false positives; the real dense dict is 17–20
 | `Ttea`/`team` | 1236/492 | team, Ttea, comp, **levl**, przm | **teams entered in a comp** |
 | `stdt`/`endt` | 1002/954 | dyom, mont, year, dyow | **start/end dates** |
 | `fxds` | 996 | fxds, id_1, id_2, sbsn | **fixtures** |
-| `sdfd` | 928 | **comp, team, posn, rank**, cash, stag | **STANDINGS (league table): comp + team + position** |
+| `sdfd` | 928 | comp, edfd, stdt/endt, rsvt | **competition season/stage records**: comp ref + stage date ranges (stdt→endt with full y/m/d) + stage number. NOT standings (that was a mis-read from flat enumeration). |
+| `przm`/`wnpz` | — | posn, cash, curr | **prize money per finishing position** (posn=0→1st place cash, etc.) — NOT a team table |
 | `nmsn`/`nssn`/`sbsn` | 823 | stgn, stag, team, comp, ntms | **season** records |
 | `nati` | 442 | Nnat, comp, seed | **nations** |
 | `przm`/`wnpz`/`lspz`/`cash` | — | cash, curr, levl | **prize money** (per level/position) |
@@ -54,18 +55,30 @@ Common field tags: `id`, `comp`, `type`, `levl`(level), `ntms`(num teams), `team
 `posn`(position), `rank`, `year`/`mont`/`dyom`/`dyow`(date parts), `time`, `cash`,
 `curr`, `przm`(prize), `nati`, `seed`, `strl`, `mnsn`, `nmmt`.
 
-## Why this matters (the goal)
-- **`comp`** → league **level/tier** (`levl`) → cross-league comparison ("≈ England L2").
-- **`sdfd`** → **standings**: `comp` + `team` + `posn` → club→league membership AND final
-  table positions, for ALL loaded leagues (Super League included). This is the clean
-  answer to the club→league problem that byte-level fixture parsing couldn't crack.
+## Recursive parser (DONE — `fmparser/tagged.py`)
+- `read_field(mm, p)` → one field `(tag, type, value, next)`.
+- `parse_field(mm, p)` → one field, **recursively parsing containers**. A container is
+  `<tag> t0a <n>` immediately followed by `id t02 <tag>`; `<n>` = child field count.
+  Tagless positional fields `[01][type][value]` are parsed as name `'~'`.
+- `iter_records(mm, entity)` → every top-level record of an entity type, fully parsed.
 
-## Open / next steps
-1. **Recursive record parser** — the format nests (`sdfd` holds child rows headed by
-   their own `id`). `tagged.walk_fields()` currently yields the flat field stream;
-   needs record-tree segmentation on `id`(0x02) headers.
-2. **ID mapping** — `comp` and `team` values here are internal ids (e.g. `comp=2`,
-   `comp=463485`=uid). Map: comp value ↔ our `cid`/`uid` (reference.comp_detail),
-   `team` value ↔ club `TID`. Then `sdfd` → real league tables + membership.
-3. Join into `extract.py`: leagues table (name + level + members from comp+sdfd) and
-   `club→league` on every player — completing the cross-league baselines goal.
+Example (`iter_records(mm, 'sdfd')`):
+```
+[('comp',[('comp',131234),('id_1',...)]), ('id_2',...),
+ ('edfd',[('comp',[('comp',131234),('in_1',29)]), ('~',6),
+          ('stdt',[('dyow',4),('dyom',30),('mont',8),('year',2000),
+                   ('endt',[('dyow',4),('dyom',2),('mont',5),('year',2001),('hidl',1)])])]),
+ ('lwdl',1)]
+```
+i.e. comp 131234's 2000-01 season stage, 30 Aug 2000 → 2 May 2001.
+
+## Why this matters (the goal) + what's still open
+- **`comp`** → league **level/tier** (`levl`) → cross-league comparison ("≈ England L2"). ✅ reachable.
+- **club→league MEMBERSHIP is still NOT located here.** `sdfd`/`przm` don't carry club
+  TIDs (the `team` fields here are nesting-count bytes, values 2/3 — not TIDs; checked
+  677 `team` fields, 0 were real club TIDs). So the entity that lists *which clubs are in
+  a comp* hasn't been found yet.
+- **Next:** with the recursive parser in hand, walk the `comp` entities (get level/tier +
+  name via the comp uid) and hunt the team↔comp link — candidate entities: `Ttea`/`team`
+  (teams-in-comp), `nssn`/`nmsn` (season squads), `rgdv`/`lsdv` (division setup). Then
+  build leagues (name+level) and, if membership is found, `club→league` per player.

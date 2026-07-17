@@ -52,6 +52,53 @@ def read_field(mm, p):
     return tag, typ, val, p + 6 + sz
 
 
+def parse_field(mm, p):
+    """Parse one field (possibly a nested container) at p. Returns (name, value, next_p):
+      - scalar field     -> value is an int (or entity-ref string for type 0x02)
+      - tagless field     -> name is '~' (positional value)
+      - CONTAINER         -> a `<tag> t0a <n>` opener followed by `id t02 <tag>`; value is
+                             a list of n parsed child fields.
+    Returns None if p isn't a parseable field."""
+    f = read_field(mm, p)
+    if not f:
+        if mm[p] == 0x01 and mm[p + 1] in TYPE_SIZE:      # tagless positional field
+            typ = mm[p + 1]
+            sz = TYPE_SIZE[typ]
+            return "~", int.from_bytes(mm[p + 2:p + 2 + sz], "little"), p + 2 + sz
+        return None
+    tag, typ, val, nxt = f
+    if typ == 0x0a:                                        # maybe a container opener
+        nf = read_field(mm, nxt)
+        if nf and nf[0] == "id" and nf[1] == 0x02 and nf[2] == tag:
+            q = nf[3]
+            kids = []
+            for _ in range(val):                          # `val` = child field count
+                c = parse_field(mm, q)
+                if not c:
+                    break
+                kids.append((c[0], c[1]))
+                q = c[2]
+            return tag, kids, q
+    return tag, val, nxt
+
+
+def iter_records(mm, entity, lo=TAGGED_LO, hi=TAGGED_HI):
+    """Yield every top-level record of the given entity type (e.g. 'comp', 'sdfd') as a
+    parsed field list. Finds each `<entity> t0a <n>` + `id t02 <entity>` opener."""
+    on_disk = entity.ljust(4)[:4][::-1].encode("latin-1")
+    p = lo
+    while p < hi:
+        if (mm[p:p + 4] == on_disk and mm[p + 4] == 0x01 and mm[p + 5] == 0x0a):
+            nf = read_field(mm, p + 10)
+            if nf and nf[0] == "id" and nf[1] == 0x02 and nf[2] == entity:
+                rec = parse_field(mm, p)
+                if rec:
+                    yield p, rec[1]
+                    p = rec[2]
+                    continue
+        p += 1
+
+
 def walk_fields(mm, lo=TAGGED_LO, hi=TAGGED_HI):
     """Yield (offset, tag, type, value) for every tagged field in [lo, hi).
     Skips padding and the occasional tagless `[01][type][value]` field."""
