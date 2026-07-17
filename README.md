@@ -19,14 +19,18 @@ This writes `output/<label>/`:
 
 | file | contents |
 |------|----------|
+| `players.json` / `players.csv` | **whole player DB** (~24k): 23 attributes (exact + estimated), CA/PA, positions, feet, reputation, club, DOB, nationality |
 | `matches.json` | every match: per-player stats (23 fields), events, team stats, formation, man-of-the-match |
-| `players.json` | every league player: 23 attributes (exact + estimated), CA/PA, positions, feet, reputation, club |
-| `players.csv`  | the same, wide format, sorted by CA |
-| `clubs.json`   | club TID → name |
+| `player_match_stats.csv` | flat one-row-per-(match, player), carrying the team actually played for |
+| `transfers.json` | players whose current club differs from a team they played for this season |
+| `staff.json` | ~7k non-players (managers/coaches/scouts): identity only |
+| `clubs.json` | club TID → name |
 | `summary.json` | counts, date range, competitions, how the label was derived |
 
 The label defaults to `<season-end-year>-<period>`, read from the save's latest match
 date (`Aug–Sep`→start, `Oct–Feb`→mid, `Mar–Jul`→end). Override with `--label`.
+A zero-match save (fresh season) still produces the full player DB — the player list
+comes from the info spine, not from matches — but can't auto-derive a year, so pass `--label`.
 
 ## What you get (and how much to trust it)
 
@@ -37,8 +41,17 @@ date (`Aug–Sep`→start, `Oct–Feb`→mid, `Mar–Jul`→end). Override with 
 | **Derived** | computed from stored parts (the game doesn't store it either) |
 
 - **Matches** — player stats, events, score/date/attendance/competition, and formation are **exact**. Shots / shots-on-target / team rating and man-of-the-match are **derived** (the game recomputes them too).
-- **Attributes** — 8 of 23 are **exact** (physical + Teamwork); the other 15 (technical + GK clusters) are **±1**. CA/PA, positions, feet, reputation are **exact** for all 466 league players.
-- **Not recoverable** — possession, clear-cut chances, roles/duties (not in the save). Opponent names are decodable but deliberately left off. See [`docs/BUGS.md`](docs/BUGS.md).
+- **Attributes** — 8 of 23 are **exact** (physical + Teamwork); the other 15 (technical + GK clusters) are **±1**. CA/PA, positions, feet, reputation are **exact**. Your own squad is fully **exact** (from the snapshot); everyone else uses the estimator.
+- **Not recoverable** — possession, clear-cut chances, roles/duties (not in the save). Player names are decodable only for your own club (opponent name index uncracked, and deliberately left off). See [`docs/BUGS.md`](docs/BUGS.md).
+
+## How it works (staging → join)
+
+Each region of the save is scraped independently into a keyed table, then joined — the
+player **info section is the identity spine** (~31k records: `TID`, `SID`, `club_tid`,
+name IDs, DOB). Attributes join on `SID`, clubs on `club_tid`, names on `TID`. This
+decouples *who exists* (info) from *what happened* (matches), so a fresh season with no
+matches still yields the full DB. Non-players (staff) are split out by `SID == ffffffff`.
+See [`fmparser/staging.py`](fmparser/staging.py).
 
 ## Layout
 
@@ -47,8 +60,9 @@ extract.py            entry point
 fmparser/             the library
   save.py             mmap loader + search helpers
   regions.py          career config + region windows (the save-specific bits)
+  staging.py          sweep each region into keyed tables (info spine, attributes)
   matches.py          per-match stats, events, team stats, formation
-  attributes.py       own-squad (exact) + league-wide (estimated) attributes
+  attributes.py       own-squad (exact) + record locator + estimator
   model.py            frozen regression coefficients + predict()
   reference.py        club / competition names, player info field
 data/                 ground truth, screenshots, rough-guide, breadcrumbs

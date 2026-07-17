@@ -1,5 +1,16 @@
 # Known bugs / follow-ups
 
+## 11. Players vs staff in the info DB — classified by SID
+
+The info section is a ~31k-record spine for the WHOLE database, and it contains
+non-players too (managers/coaches/scouts). We classify: **SID == `ffffffff` → staff**
+(no linked player attribute record), otherwise player. Verified: staff average age 45
+(68% over 40) vs 26 for players; and an explicit type flag at **info+33** (1=player,
+0=staff) agrees ~99% with the SID rule. The ~0.7% where +33 disagrees are **likely
+player-coaches** (both roles). We classify by SID, which counts a player-coach as a
+player (they have a real SID) — the intended behaviour. Not special-cased further.
+Staff are written to `staff.json` (identity only; names unresolved like all opponents).
+
 ## 10. Team match stats — DERIVED, not stored ✅
 
 The match-screen "team stats" line is **not stored** as its own record — it's
