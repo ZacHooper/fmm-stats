@@ -58,6 +58,7 @@ def build_database(mm, season, info):
     """Whole-DB player rows via staging + join. Returns (players, club_names).
     `info` is the shared player-info spine ({tid: identity}) scraped once in main()."""
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
+    status = S.scrape_contract_status(mm, info)   # {tid: squad-status code}
 
     # names + exact attributes for the managed squad (snapshot)
     bounds = A.snapshot_bounds(mm)
@@ -102,10 +103,13 @@ def build_database(mm, season, info):
                                "nationality_id": p["nationality_id"]}
             continue
         rec = attrs.get(p["sid"])
+        sc = status.get(tid)
         row = {"tid": tid, "name": own_names.get(tid),
                "club": club_label(p["club_tid"]), "club_tid": p["club_tid"],
                "dob": p["dob"], "nationality_id": p["nationality_id"],
-               "has_attributes": rec is not None}
+               "has_attributes": rec is not None,
+               "squad_status": sc,
+               "loaned_out": sc == S.LOAN_STATUS and p["club_tid"] != S.NO_CLUB}
         if rec:
             row["is_gk"] = int(rec["positions"].get("GK", 0) == 20)
             row["ca"], row["pa"] = rec["ca"], rec["pa"]
@@ -189,8 +193,8 @@ def build_competitions(mm, season):
 def write_players_csv(path, players):
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["tid", "name", "club", "club_tid", "league", "league_cid", "GK",
-                    "CA", "PA", "rep", "dob", "nat", "positions"] + A.ATTR_ORDER)
+        w.writerow(["tid", "name", "club", "club_tid", "loan", "league", "league_cid",
+                    "GK", "CA", "PA", "rep", "dob", "nat", "positions"] + A.ATTR_ORDER)
         # attributed players first (by CA desc), then identity-only rows
         def sortkey(p):
             return (0 if p["has_attributes"] else 1, -(p["ca"] or 0), p["tid"])
@@ -199,6 +203,7 @@ def write_players_csv(path, players):
                                                 key=lambda kv: -kv[1]))
             attr = p["attributes"] or {}
             w.writerow([p["tid"], p["name"] or "", p["club"], p["club_tid"],
+                        "Y" if p.get("loaned_out") else "",
                         p.get("league") or "", p.get("league_cid") or "",
                         "Y" if p["is_gk"] else "", p["ca"] or "", p["pa"] or "",
                         p["reputation"] or "", p["dob"] or "", p["nationality_id"], pos]

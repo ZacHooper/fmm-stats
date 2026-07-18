@@ -14,10 +14,15 @@ hunting for bytes that might appear as stray data.
 from datetime import date, timedelta
 
 from .attributes import _valid_positions, ATTR_OFFSETS, POSITIONS
-from .regions import ATTR_LO, ATTR_HI
+from .regions import ATTR_LO, ATTR_HI, CONTRACT_LO, CONTRACT_HI
 
 # free agents / unattached carry this sentinel club id
 NO_CLUB = 65535
+
+# squad-availability status byte in the contract record. 65 = out on loan / unavailable
+# (validated against the managed club's squad vs an in-game screenshot); 112 = normal
+# squad member. Other values are further squad statuses (undecoded).
+LOAN_STATUS = 65
 
 
 def scrape_players(mm):
@@ -56,6 +61,27 @@ def scrape_players(mm):
             "sid": mm[base + 60:base + 64].hex(),
         }
     return players
+
+
+def scrape_contract_status(mm, info, lo=CONTRACT_LO, hi=CONTRACT_HI):
+    """{tid: squad_status_code} from the contract records (~55-57 MB). Each record is
+    keyed by [TID:u32][UID:u32]; a 0x0087 marker sits at TID+37 and the status byte at
+    TID+39. Every hit is validated against the info spine (TID+UID must match), so there
+    are no false positives. See LOAN_STATUS (65 = out on loan / unavailable)."""
+    uid_of = {tid: p["uid"] for tid, p in info.items()}
+    out = {}
+    p = lo
+    while True:
+        m = mm.find(b"\x87\x00", p, hi)
+        if m == -1:
+            break
+        p = m + 1
+        if m - 37 < 0:
+            continue
+        tid = int.from_bytes(mm[m - 37:m - 33], "little")
+        if uid_of.get(tid) == int.from_bytes(mm[m - 33:m - 29], "little"):
+            out[tid] = mm[m + 2]                # status is a u8 at TID+39
+    return out
 
 
 def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):

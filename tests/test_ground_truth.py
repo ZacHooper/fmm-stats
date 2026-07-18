@@ -18,6 +18,12 @@ sys.path.insert(0, ROOT)
 from fmparser.save import Save                        # noqa: E402
 from fmparser import matches as M                     # noqa: E402
 from fmparser import attributes as A                  # noqa: E402
+from fmparser import staging as S                     # noqa: E402
+
+# reserve squad loan ground truth (from an in-game screenshot, 19 Jun 2022):
+# these six are out on loan (status 65), these three actually play (status 112).
+LOANED_OUT = {21358, 22083, 22097, 22099, 22254, 22908}
+NOT_LOANED = {22498, 33913, 30975}
 
 # 21-22 saves to try, in order, if none is passed on the command line
 CANDIDATES = ["21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
@@ -87,6 +93,15 @@ def run(save_path=None):
     rate = 1 - off_total / total if total else 0
     _check(rate >= 0.90,
            f"within-+/-1 rate {rate:.0%} below 90% ({off_total}/{total} off)", fails)
+
+    # loan status (contract record): known loanees vs playing reserves
+    status = S.scrape_contract_status(s.mm, S.scrape_players(s.mm))
+    for tid in LOANED_OUT:
+        _check(status.get(tid) == S.LOAN_STATUS,
+               f"{tid} status {status.get(tid)} != loaned ({S.LOAN_STATUS})", fails)
+    for tid in NOT_LOANED:
+        _check(status.get(tid) == 112,
+               f"{tid} status {status.get(tid)} != 112 (at club)", fails)
 
     s.close()
     if fails:

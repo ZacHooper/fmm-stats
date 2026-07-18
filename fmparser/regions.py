@@ -39,3 +39,5 @@ SNAPSHOT_LO, SNAPSHOT_HI = 62_300_000, 63_200_000
 MATCH_LO = 55_000_000
 # light results (simulated non-managed games): [home][away][sH][sA]..[flags 0x40xx].[cid]
 LIGHT_LO, LIGHT_HI = 47_000_000, 50_500_000
+# player contract records ([TID][UID]..0x0087 marker..status byte); keyed by TID+UID
+CONTRACT_LO, CONTRACT_HI = 54_000_000, 58_000_000
