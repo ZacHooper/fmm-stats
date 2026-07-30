@@ -221,3 +221,69 @@ Overall on the 28 training players: **63% exact, 93% within ±1**
 | `export_calibration.py` → `calibration.csv` | Displayed values + all 78 raw bytes (guide-labeled) for the 28 Bucaspor players. |
 | `regress.py` | Grid-search regression to decode Class-B attrs; reports exact/±1/R²/features. |
 | `estimate_dump.py` → `attr_estimates.csv` | Per-player actual-vs-estimated for every attribute. |
+
+---
+
+## 7. The managed-squad SNAPSHOT region (~62 MB) — record layout & multi-copy
+
+Separate from the 5 MB global record (§1): the managed club keeps its own squad snapshot
+with **raw 1-20 attributes** (no CA entanglement). `fmparser/attributes.py::attr_record`
+reads it. Records are anchored on `CLUB_MARKER = <MANAGED_CLUB_TID u16 LE> + ff ff`
+(= `a7 19 ff ff` for Bucaspor 6567). Let `M` = marker start.
+
+| Offset (rel. `M`) | Field | Status |
+| --- | --- | --- |
+| `M-59 … M-24` | **36 attribute bytes** (see index map below) | confirmed (`decode()`) |
+| `M-23 … M-9` | 15 **position** ratings (POSITIONS order; >1 = can play) | confirmed |
+| `M-8 … M-5` | **player TID** (u32 LE) | confirmed (this is the search key) |
+| `M-4 … M-1` | constant `ad 00 e4 00` across every record | unknown (record-type tag?) |
+| `M … M+3` | `CLUB_MARKER` (`a7 19 ff ff`) | confirmed |
+| `M+4 … M+7` | **transfer value** (u32 LE) | **confirmed** — Sertgöz 2000 = £2K, Seyhun 98221 ≈ £100K, Berkay/Okka 500 = £500 (all matched in-game) |
+| `M+8 …` | zeros in all sampled records | — |
+| `M+33 / M+34` | left / right **foot** (0-20) | confirmed |
+
+**Attribute byte index map** (`decode()` `CONFIRMED`, index = byte offset from `M-59`):
+`0`=Aerial `1`=Agility `2`=Communication `3`=Handling `4`=Kicking `5`=Throwing
+`6`=Reflexes `7`=Crossing `8`=Dribbling `9`=(unused) `10`=Passing `11`=Shooting
+`12`=Tackling `13`=Technique `14`=Aggression `15`=Creativity `16`=Decisions
+`17`=Leadership `18`=Movement `19`=Positioning `20`=Teamwork `21`=Pace `22`=Stamina
+`23`=Strength. Trailing slots (not decoded): `24`≈100 (const), `25`=? (varies),
+`26-30`=sometimes real values / sometimes `ff`, `31-34`=an IEEE-754 **float ~6-8**
+(e.g. `0x40fc7ae1`≈7.89; purpose unknown — NOT a freshness timestamp, see below).
+
+### 7.1 Multiple copies per player (the "stale attributes" bug)
+
+The save keeps **several snapshot copies** of each squad member from successive squad-list
+writes. In `fm_save1-24-start.fms`, **33 of 39** squad players have ≥2 distinct copies,
+falling in offset clusters (offsets DRIFT per save — do not hardcode):
+
+- **A** `~61.11–61.13 M` — oldest, **always stale**
+- **B** `~61.137–61.148 M` — current for the majority (first-team list)
+- **C1** `~61.766–61.772 M` — current for a minority; **outside `snapshot_bounds`**
+- **C2** `~61.815–61.822 M` — stale/duplicate, sometimes junk (all-1s placeholder)
+
+Copies differ by **player development over time** (verified vs in-game screens dated
+2023-06-20): young players' newer copy is higher (Seyhun Shooting 14→16), veterans' lower
+(Behram, Yüksel). Confirmed correct = the **freshest** copy (Seyhun/Sertgöz/Abay/Bıyık/
+Doğan/Okka → B; Erdem/Duruk/Köseoğlu → C1; Efe Doğan → B, skipping his junk C2).
+
+**FIX shipped:** `attr_record` returns the **last (highest-offset) match within
+`snapshot_bounds`** instead of the first → picks B over A. Exact for the majority.
+**Known limitation:** `snapshot_bounds` is one 42 KB cluster (A+B), so the ~3 players whose
+live copy is in **C1** (600 KB later, separate cluster) still resolve to their in-bounds
+copy. For mid-development players an attribute mid-tick (in-game ↑ arrow) can out-run every
+snapshot, so no copy is exact (Berkay Stamina live 9, all copies 8).
+
+### 7.2 Freshness is per-record — no flag found (dead ends)
+
+Freshness is **per-record, not per-cluster** (within the same C1 region Gökhan's entry is
+fresh but Bıyık's/Okka's are stale), so a robust picker needs a per-record signal. None
+found yet: `M-4…M-1` constant; `M+4` is the value (not a flag); attr indices `26–34` are
+not a clean flag (some correct records also show `ff…/0`); the `31–34` float doesn't order
+copies. **TODO (exact fix):** find a per-record version/timestamp, or map the squad-list
+boundaries (first-team vs reserves/loan) to know each player's authoritative list — note
+squad-status/`club_tid` alone does NOT separate B-correct from C1-correct (Duruk/Köseoğlu
+are first-team 6567 yet live in C1).
+
+Reproduce the copy scan: iterate every `CLUB_MARKER`; `tid = u32 @ M-8`; decode
+`mm[M-59:M-23]`; keep managed-squad tids with all confirmed attrs in 1..20; group by tid.

@@ -54,6 +54,29 @@ def auto_label(season):
     return f"{end_year}-{_period(month)}", latest
 
 
+_PHASES = ("start", "mid", "end")
+
+
+def parse_label(label):
+    """Inverse of auto_label: label string -> (season:int, phase:str).
+
+    season is the end-year of the campaign (21/22 -> 2022), matching auto_label.
+    Handles the current form '2022-end' and the legacy form '21-22-end'
+    (where the second two-digit group is the end year). Raises ValueError on
+    anything else so callers can fall back to summary.json or --season/--phase.
+    """
+    parts = label.split("-")
+    if len(parts) < 2 or parts[-1] not in _PHASES:
+        raise ValueError(f"unrecognised label {label!r}")
+    phase = parts[-1]
+    head = parts[:-1]
+    if len(head) == 1 and head[0].isdigit() and len(head[0]) == 4:
+        return int(head[0]), phase          # 2022-end
+    if len(head) == 2 and all(p.isdigit() and len(p) == 2 for p in head):
+        return 2000 + int(head[1]), phase    # 21-22-end -> 2022
+    raise ValueError(f"unrecognised label {label!r}")
+
+
 def build_database(mm, season, info):
     """Whole-DB player rows via staging + join. Returns (players, club_names).
     `info` is the shared player-info spine ({tid: identity}) scraped once in main()."""
@@ -68,7 +91,8 @@ def build_database(mm, season, info):
         r = A.attr_record(mm, tid, bounds=bounds)
         if r:
             own_exact[tid] = {"attrs": A.decode(r["attrs"]),
-                              "feet": {"left": r["feet"][0], "right": r["feet"][1]}}
+                              "feet": {"left": r["feet"][0], "right": r["feet"][1]},
+                              "value": r["value"]}
 
     # resolve club names only for clubs that actually have loaded players (they exist,
     # so the lookup is cheap) plus clubs that appeared in matches
@@ -119,6 +143,7 @@ def build_database(mm, season, info):
                 row["attributes"] = {a: own_exact[tid]["attrs"][a] for a in A.ATTR_ORDER}
                 row["estimated"] = {a: False for a in A.ATTR_ORDER}
                 row["feet"] = own_exact[tid]["feet"]
+                row["value"] = own_exact[tid]["value"]
             else:                          # everyone else: estimated (+/-1)
                 est, _, _ = A.estimate_player(mm, rec)
                 row["attributes"] = {a: est[a]["val"] for a in A.ATTR_ORDER}

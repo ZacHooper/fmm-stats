@@ -4,6 +4,10 @@
 # Extraction outputs (regenerate with extract.py)
 output/
 
+# DuckDB store (regenerate with load_duckdb.py)
+*.duckdb
+*.duckdb.wal
+
 # Local tooling / editor
 .claude/
 

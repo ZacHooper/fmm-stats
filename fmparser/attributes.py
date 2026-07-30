@@ -108,14 +108,26 @@ CONFIRMED = {0: "Aerial", 1: "Agility", 2: "Communication", 3: "Handling",
 
 
 def attr_record(mm, tid, bounds=None):
-    """Own-squad exact record: {'attrs':[36], 'positions':{}, 'feet':(l,r), 'M'}."""
+    """Own-squad exact record: {'attrs':[36], 'positions':{}, 'feet':(l,r), 'M', 'value'}.
+
+    The save keeps SEVERAL snapshot copies of each squad member (successive squad-list
+    writes); the earlier copies are STALE and the freshest matches the in-game UI. Within
+    the primary snapshot region the freshest copy is the LAST (highest-offset) one, so we
+    return that — returning the first copy showed pre-development attributes (verified
+    against in-game screens: e.g. Seyhun Shooting 14→16). A minority of players whose live
+    copy lives in a separate secondary list (~600 KB later, outside snapshot_bounds) still
+    resolve to their freshest in-region copy; see docs/ATTRIBUTE_DECODING.md.
+
+    `value` is the player's transfer value (u32 at M+4; Sertgöz 2000 = £2K, Seyhun
+    98221 ≈ £100K, both confirmed in-game)."""
     lo, hi = bounds or snapshot_bounds(mm)
     le = struct.pack("<I", tid)
     pos = lo
+    found = None
     while True:
         i = mm.find(le, pos)
         if i == -1 or i > hi:
-            return None
+            return found
         pos = i + 1
         if mm[i + 8:i + 12] == CLUB_MARKER:
             M = i + 8
@@ -123,7 +135,9 @@ def attr_record(mm, tid, bounds=None):
             posb = list(mm[M - 23:M - 8])
             positions = {POSITIONS[k]: v for k, v in enumerate(posb) if v > 1}
             feet = (mm[M + 33], mm[M + 34])
-            return {"attrs": attrs, "positions": positions, "feet": feet, "M": M}
+            value = int.from_bytes(mm[M + 4:M + 8], "little")
+            found = {"attrs": attrs, "positions": positions, "feet": feet,
+                     "M": M, "value": value}
 
 
 def preferred_foot(feet):
