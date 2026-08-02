@@ -4,6 +4,8 @@ sidebar selectors (label + tactic) that every page reuses.
 Immersion rule: this dashboard never surfaces CA/PA. Player quality is expressed only
 through the weighted role rating and its rank/percentile relative to squad and league.
 """
+import datetime
+import json
 import os
 import sys
 import unicodedata
@@ -1096,3 +1098,87 @@ def scout_report(opp_tid, season=None, phase=None, method="buca_433"):
             "method": method, "coverage": coverage, "overall": overall, "strength": strength,
             "units": groups_df, "unit_attrs": attrs_df, "key_players": key_players,
             "h2h": h2h, "flags": flags}
+
+
+# --------------------------------------------------------------------------- scout log
+# Persist scouting reports to a plain JSONL file (survives fm.duckdb rebuilds, git-trackable)
+# so we build a scouting history: calibrate reports over time + review the season with what we
+# thought before each match. One record per (opponent, data-snapshot); re-running refreshes it.
+
+SCOUTS_PATH = os.path.join(REPO, "scouts", "scouts.jsonl")
+
+
+def _json_clean(o):
+    """Recursively make a value JSON-safe: numpy scalars -> python, NaN -> None."""
+    if isinstance(o, dict):
+        return {k: _json_clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_clean(v) for v in o]
+    if hasattr(o, "item"):          # numpy scalar
+        o = o.item()
+    if isinstance(o, float) and o != o:   # NaN
+        return None
+    return o
+
+
+def load_scouts():
+    """All saved scouts as a DataFrame (empty if none), newest write last."""
+    if not os.path.exists(SCOUTS_PATH):
+        return pd.DataFrame()
+    rows = []
+    with open(SCOUTS_PATH, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    return pd.DataFrame(rows)
+
+
+def snapshot_history():
+    """Archived (superseded) in-season player snapshots — one row per (label, season, phase)
+    with its in-game date + player count. The CURRENT snapshot per (season,phase) is in
+    staging; these are the earlier checkpoints kept for progression. Empty if none / no
+    history schema (older DB)."""
+    try:
+        return q("""SELECT snapshot_label, snapshot_date, season, phase, COUNT(*) AS players
+                    FROM history.player_snapshots
+                    GROUP BY 1, 2, 3, 4 ORDER BY season, snapshot_date""")
+    except duckdb.Error:
+        return pd.DataFrame()
+
+
+def save_scout(report, venue=None, formation=None, style=None, note=None, saved_at=None):
+    """Append/refresh a scouting report in the JSONL log. Keyed by (opponent_tid, snapshot),
+    so re-scouting the same opponent on the same data updates the record; a new data snapshot
+    (after a re-import) creates a fresh one. Stores the report's verdict + our supplied
+    formation/style/venue/note so 'what we thought' can be reviewed against the result."""
+    # the actual save label (distinguishes two vintages of the same season/phase, e.g. a
+    # Nov and a March '2024-mid' after a re-import) — so scouts on different data coexist
+    lbl = q("SELECT label FROM staging.extracts WHERE season=? AND phase=?",
+            [report["season"], report["phase"]])
+    snap_label = lbl.iloc[0]["label"] if not lbl.empty else f"{report['season']}-{report['phase']}"
+    rec = _json_clean({
+        "saved_at": saved_at or datetime.datetime.now().isoformat(timespec="seconds"),
+        "opponent_tid": report["opp"]["tid"], "opponent": report["opp"]["name"],
+        "snapshot": f"{report['season']}-{report['phase']}", "snapshot_label": snap_label,
+        "method": report["method"],
+        "venue": venue, "formation": formation, "style": style, "note": note,
+        "overall": report["overall"], "coverage": report["coverage"],
+        "strength": report["strength"].to_dict("records"),
+        "flags": report["flags"],
+        "key_players": (report["key_players"].head(8).to_dict("records")
+                        if not report["key_players"].empty else []),
+        "h2h": {k: report["h2h"].get(k) for k in ("played", "w", "d", "l", "gf", "ga", "ppg")},
+    })
+    os.makedirs(os.path.dirname(SCOUTS_PATH), exist_ok=True)
+    kept = [r for r in (load_scouts().to_dict("records") if os.path.exists(SCOUTS_PATH) else [])
+            if not (r.get("opponent_tid") == rec["opponent_tid"]
+                    and r.get("snapshot_label") == rec["snapshot_label"])]
+    kept.append(rec)
+    with open(SCOUTS_PATH, "w", encoding="utf-8") as f:
+        for r in kept:
+            f.write(json.dumps(r, ensure_ascii=False, allow_nan=False) + "\n")
+    return rec

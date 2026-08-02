@@ -4,12 +4,24 @@
 # Extraction outputs (regenerate with extract.py)
 output/
 
-# DuckDB store (regenerate with load_duckdb.py)
+# DuckDB store — commit the built store (fm.duckdb) so a fresh clone works out of the
+# box; ignore any other *.duckdb (temp/scratch copies) and the transient WAL.
 *.duckdb
+!fm.duckdb
 *.duckdb.wal
 
-# Local tooling / editor
-.claude/
+# Local tooling / editor — but DO track the project skills so they travel with the repo.
+.claude/*
+!.claude/skills/
+# …except developing-with-streamlit, which is a symlink into .venv (a skill shipped by the
+# streamlit pip package, not ours — it reappears on any machine after `uv sync`).
+.claude/skills/developing-with-streamlit
+
+# Local experiments / scratch / personal junk — not part of the shareable project.
+visualizer/
+IMG_*.PNG
+Screenshot*.png
+extra-findings-from-ffmvibe.txt
 
 # Python
 __pycache__/

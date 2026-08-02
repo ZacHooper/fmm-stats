@@ -201,6 +201,20 @@ DDL = [
     """CREATE TABLE IF NOT EXISTS staging.app_config (
         key VARCHAR NOT NULL, value VARCHAR
     )""",
+
+    # Multi-snapshot archive. staging.* always holds ONE snapshot per (season,phase) =
+    # the latest loaded; when a load supersedes a DIFFERENT label in that slice, the
+    # outgoing snapshot's players+attributes are copied here first (tagged by label +
+    # in-game date). Lets multiple in-season checkpoints coexist for progression without
+    # touching the single-snapshot staging layer the dashboard/scout rely on.
+    "CREATE SCHEMA IF NOT EXISTS history",
+    """CREATE TABLE IF NOT EXISTS history.player_snapshots AS
+       SELECT CAST(NULL AS VARCHAR) AS snapshot_label,
+              CAST(NULL AS DATE) AS snapshot_date,
+              CAST(NULL AS TIMESTAMP) AS archived_at,
+              p.*, a.* EXCLUDE (season, phase, tid)
+       FROM staging.players p JOIN staging.player_attributes a USING (season, phase, tid)
+       LIMIT 0""",
 ]
 
 _SEED_METHODS = ("black_hawk", "personal")
@@ -592,6 +606,21 @@ def _clear_group(con, group, season, phase):
 _GROUP_FN = {"core": load_core, "light": load_light, "standings": load_standings}
 
 
+def _archive_snapshot(con, season, phase, label, snap_date):
+    """Copy the current (season,phase) players+attributes into history.player_snapshots
+    before the slice is overwritten, so a superseded in-season checkpoint is retained for
+    progression. Idempotent per snapshot_label."""
+    con.execute("DELETE FROM history.player_snapshots WHERE snapshot_label=?", [label])
+    con.execute(
+        """INSERT INTO history.player_snapshots
+           SELECT ?, ?, ?, p.*, a.* EXCLUDE (season, phase, tid)
+           FROM staging.players p JOIN staging.player_attributes a USING (season, phase, tid)
+           WHERE p.season=? AND p.phase=?""",
+        [label, snap_date, datetime.datetime.now(), season, phase])
+    return con.execute("SELECT COUNT(*) FROM history.player_snapshots "
+                       "WHERE snapshot_label=?", [label]).fetchone()[0]
+
+
 def _detect_groups(d):
     present = []
     if os.path.exists(os.path.join(d, "players.json")):
@@ -644,6 +673,21 @@ def load_label(con, d, include, override=(None, None)):
 
     con.execute("BEGIN TRANSACTION")
     try:
+        # multi-snapshot: archive a superseded (different-label) snapshot before overwrite
+        if "core" in groups:
+            prior = con.execute(
+                "SELECT label, COALESCE(date_to, latest_match) FROM staging.extracts "
+                "WHERE season=? AND phase=?", [season, phase]).fetchone()
+            if prior and prior[0] != label:
+                n = _archive_snapshot(con, season, phase, prior[0], prior[1])
+                new_end = _date((summ.get("date_range") or [None, None])[1]) \
+                    or _date(summ.get("latest_match"))
+                warn = ""
+                if prior[1] and new_end and new_end < prior[1]:
+                    warn = (f"  ⚠ this snapshot ({new_end}) is OLDER than the one it replaces "
+                            f"({prior[1]}) — it will become current")
+                print(f"  archived superseded {prior[0]} ({prior[1]}) -> history "
+                      f"({n} players){warn}")
         counts = {}
         for g in groups:
             _clear_group(con, g, season, phase)
@@ -750,6 +794,7 @@ def create_views(con):
 
 def reset_schema(con):
     con.execute("DROP SCHEMA IF EXISTS staging CASCADE")
+    con.execute("DROP SCHEMA IF EXISTS history CASCADE")
     for name in VIEWS:
         con.execute(f"DROP VIEW IF EXISTS {name}")
 

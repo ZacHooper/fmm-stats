@@ -184,8 +184,40 @@ def cmd_scout(con, a):
             print(f"   {int(r['tid']):6}  {r['name']}  ({int(r['n_players'])} players)")
         print(f"→ scouting the largest squad; pass its tid to pick another.")
     row = matches.iloc[0]
-    _print_scout(db.scout_report(int(row["tid"]), season=a.season, phase=a.phase,
-                                 method=a.method))
+    rep = db.scout_report(int(row["tid"]), season=a.season, phase=a.phase, method=a.method)
+    _print_scout(rep)
+    if not a.no_save:
+        db.save_scout(rep, venue=a.venue, formation=a.formation, style=a.style, note=a.note)
+        ctx = " · ".join(x for x in (a.venue, a.formation, a.style) if x)
+        print(f"  ✎ saved to {os.path.relpath(db.SCOUTS_PATH)}"
+              + (f"  ({ctx})" if ctx else "  (pass --venue/--formation/--style/--note "
+                 "to record context)") + "\n")
+
+
+def cmd_scouts(con, a):
+    import logging
+    logging.getLogger("streamlit").setLevel(logging.ERROR)
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard"))
+    import db
+    s = db.load_scouts()
+    if s.empty:
+        print("No saved scouts yet — `fmq scout <team>` auto-saves each run.")
+        return
+    print(f"{len(s)} saved scout(s):")
+    for _, r in s.sort_values("saved_at").iterrows():
+        ov, h = r.get("overall") or {}, r.get("h2h") or {}
+        ctx = " · ".join(x for x in (r.get("venue"), r.get("formation"), r.get("style")) if x)
+        head = f"\n  {str(r['saved_at'])[:16]}  {r['opponent']}  [{r.get('snapshot')}]"
+        print(head + (f"  ({ctx})" if ctx else ""))
+        bits = []
+        if ov.get("us") is not None and ov.get("them") is not None:
+            bits.append(f"index {ov['us']:.0f} vs {ov['them']:.0f}")
+        if h.get("played"):
+            bits.append(f"H2H P{h['played']} W{h.get('w')} D{h.get('d')} L{h.get('l')}")
+        if bits:
+            print("     " + "   ".join(bits))
+        if r.get("note"):
+            print(f"     note: {r['note']}")
 
 
 def main():
@@ -223,10 +255,18 @@ def main():
     p = sub.add_parser("scout", parents=[common])
     p.add_argument("team", help="opponent club name (substring) or tid")
     p.add_argument("--season", type=int); p.add_argument("--phase")
-    p.add_argument("--method", default="buca_433"); p.set_defaults(fn=cmd_scout)
+    p.add_argument("--method", default="buca_433")
+    p.add_argument("--venue", help="H or A (recorded with the saved scout)")
+    p.add_argument("--formation", help="their in-game formation, e.g. 'attacking 442'")
+    p.add_argument("--style", help="their in-game style, e.g. attacking")
+    p.add_argument("--note", help="free-text: our plan / key expectations")
+    p.add_argument("--no-save", action="store_true", help="don't log this scout")
+    p.set_defaults(fn=cmd_scout)
+
+    sub.add_parser("scouts", parents=[common]).set_defaults(fn=cmd_scouts)
 
     a = ap.parse_args()
-    if a.cmd == "scout":   # uses db.py (its own read-only connection), not the shared con
+    if a.cmd in ("scout", "scouts"):   # use db.py / the JSONL log, not the shared con
         a.fn(None, a)
         return
     con = duckdb.connect(a.db, read_only=True)
