@@ -39,5 +39,8 @@ ids are disjoint from club tids. The ~29.9M "fixture cluster" is a **global team
 club stature/reputation magnitude (Liverpool ~19000, Frem 30, Herlev 4) — useful as a strength
 proxy but not a division label.
 
-**Next step:** build a `fmparser` reader for the club league-code (`p+158`) → emit club→league for
-all clubs at extract time; then day-1 saves get real vs-league percentiles. See [[etl-duckdb-dashboard]].
+**SHIPPED (commit d0f60af):** `reference.club_record()` reads name + league code (+158) + country;
+`reference.league_name()` resolves the code→name (relaxed UID cap + digit-initial names). `extract.py`
+merges club-record leagues into club→league and writes `club_league.json`; `load_duckdb.py` loads it
+(source='club_league'); the dashboard resolves on it. Verified: Frem day-1 → full 12-club 3. Division
+pool + vs-league percentiles. See [[etl-duckdb-dashboard]].
