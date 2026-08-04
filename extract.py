@@ -103,11 +103,13 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
     for m in season:
         club_ids.add(m["home_tid"])
         club_ids.add(m["away_tid"])
-    club_names = {}
+    club_names, club_leagues = {}, {}
     for ct in club_ids:
-        n = R.resolve_club(mm, ct, "long")
-        if n:
-            club_names[ct] = n
+        rec = R.club_record(mm, ct, "long")
+        if rec:
+            club_names[ct] = rec["name"]
+            if rec["league"]:               # club->league from the club record (day-1 safe)
+                club_leagues[ct] = rec["league"]
 
     def club_label(ct):
         if ct == S.NO_CLUB:
@@ -156,7 +158,7 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
                         "positions": {}, "feet": None,
                         "attributes": None, "estimated": None})
         players[str(tid)] = row
-    return players, staff, club_names
+    return players, staff, club_names, club_leagues
 
 
 _STAT_FIELDS = ["posOrder", "rating", "goals", "assists", "passA", "passC",
@@ -268,14 +270,20 @@ def main():
     os.makedirs(dest, exist_ok=True)
 
     info = S.scrape_players(mm)            # player-info spine (scraped once, shared)
-    players, staff, club_names = build_database(mm, season, info, career.club_marker)
+    players, staff, club_names, club_leagues = build_database(
+        mm, season, info, career.club_marker)
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
-    # leagues + club->league (from light results), then stamp each player with their league
+    # leagues + club->league. Light results give it once games are played; the club record
+    # gives it directly (exact, and the ONLY source on a day-1 save before any match).
     valid_clubs = {p["club_tid"] for p in info.values() if p["club_tid"] != S.NO_CLUB}
     club_nation = L.club_nations(info, S.NO_CLUB)
     leagues, club2league = build_leagues(mm, valid_clubs, club_nation)
+    for tid, code in club_leagues.items():          # fill gaps; don't override light-results
+        club2league.setdefault(tid, code)
+        if code not in leagues:
+            leagues[code] = {"cid": code, "name": R.league_name(mm, code), "nation": None}
     for p in players.values():
         lc = club2league.get(p["club_tid"])
         p["league_cid"] = lc
@@ -290,6 +298,11 @@ def main():
     dump("matches.json", season)
     dump("competitions.json", competitions)
     dump("leagues.json", {str(c): d for c, d in sorted(leagues.items())})
+    # club -> league for the whole DB (source='club_league'): from club records (exact,
+    # day-1) merged with light-results inference. This is what the dashboard resolves on.
+    dump("club_league.json",
+         {str(t): {"league_cid": c, "league_name": (leagues.get(c) or {}).get("name")}
+          for t, c in sorted(club2league.items())})
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
     write_players_csv(os.path.join(dest, "players.csv"), players)
     write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)

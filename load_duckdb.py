@@ -479,6 +479,17 @@ def load_core(con, d, season, phase):
             con, "league_members",
             ["season", "phase", "league_cid", "club_tid", "source"], mem_rows)
 
+    # --- club -> league (source='club_league') ------------------------------
+    # extract.py writes club_league.json (main dir) from the club records — exact and
+    # available on day-1, before any match. This is what the dashboard resolves on.
+    cl_path = os.path.join(d, "club_league.json")
+    if os.path.exists(cl_path):
+        rows = [(season, phase, _int(v.get("league_cid")), _int(k), "club_league")
+                for k, v in _load_json(cl_path).items() if v.get("league_cid") is not None]
+        counts["league_members(club_league)"] = _insert(
+            con, "league_members",
+            ["season", "phase", "league_cid", "club_tid", "source"], rows)
+
     # --- matches + events + player stats -------------------------------------
     season_matches = _load_json(os.path.join(d, "matches.json"))
     m_cols = (["season", "phase", "anchor", "date", "competition", "comp_id",

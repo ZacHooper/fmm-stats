@@ -67,6 +67,87 @@ def club_map(mm, tids, want="long"):
     return {t: resolve_club(mm, t, want) for t in tids}
 
 
+def club_record(mm, tid, want="long"):
+    """Find a club's record and return {'name','short','league','country'} or None.
+
+    `league` is the club's league code, read from `[code u16][ff ff]` at +158 past the
+    three name strings (the club.dat model — see docs; verified: Man City=5 English Prem,
+    Boldklubben Frem=1147 Danish 3. Division). This is club->league membership that exists
+    on day-1, before any match is played. The club DB is split across several file
+    segments, so we scan every copy of the record and prefer the one carrying the league
+    field (secondary copies read 0 / ff ff). `country` is the compete-in country code
+    (Denmark=138/0x8a, England=139/0x8b)."""
+    le = struct.pack("<I", tid)
+    pos = 0
+    best = None
+    while True:
+        i = mm.find(le, pos)
+        if i == -1:
+            return best
+        pos = i + 1
+        uid = int.from_bytes(mm[i + 4:i + 8], "little")
+        if not (1 <= uid <= 400_000_000):
+            continue
+        ln = int.from_bytes(mm[i + 8:i + 12], "little")
+        if not (2 <= ln <= 60):
+            continue
+        long_name = _valid_name(mm[i + 12:i + 12 + ln])
+        if not long_name:
+            continue
+        short_name = _short_after(mm, i + 12 + ln)
+        if not short_name:
+            continue
+        p = i + 8                       # walk past the 3 length-prefixed name strings
+        for _ in range(3):
+            sl = int.from_bytes(mm[p:p + 4], "little")
+            if not (2 <= sl <= 60):
+                p += 1
+                sl = int.from_bytes(mm[p:p + 4], "little")
+            if not (2 <= sl <= 60):
+                p = None
+                break
+            p = p + 4 + sl
+        rec = {"name": long_name if want == "long" else short_name,
+               "short": short_name, "league": None, "country": None}
+        if p is not None:
+            rec["country"] = int.from_bytes(mm[p:p + 2], "little")
+            if mm[p + 160:p + 162] == b"\xff\xff":
+                code = int.from_bytes(mm[p + 158:p + 160], "little")
+                if code and code != 0xffff:
+                    rec["league"] = code
+        if best is None:
+            best = rec
+        if rec["league"] is not None:
+            return rec                  # prefer a copy that carries the league field
+
+
+def league_name(mm, code, want="long"):
+    """Name for a club-record league code (e.g. 1147 -> '3. Division').
+
+    These competition records carry a large UID (~2 billion) that resolve_comp rejects,
+    and league names can start with a digit ('3. Division', '2. Bundesliga'), so this uses
+    a dedicated relaxed resolver rather than comp_name."""
+    le = struct.pack("<H", code)
+    pos = 0
+    while True:
+        i = mm.find(le, pos)
+        if i == -1:
+            return None
+        pos = i + 1
+        uid = int.from_bytes(mm[i + 2:i + 6], "little")
+        if not (1_000_000_000 <= uid <= 4_000_000_000):
+            continue
+        ln = int.from_bytes(mm[i + 6:i + 10], "little")
+        if not (3 <= ln <= 45):
+            continue
+        try:
+            nm = mm[i + 10:i + 10 + ln].decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if nm and (nm[0].isupper() or nm[0].isdigit()) and sum(c.isalpha() for c in nm) >= 3:
+            return nm
+
+
 # ---------------- competitions ----------------
 def comp_id_at(mm, date_off):
     return int.from_bytes(mm[date_off - 3:date_off - 1], "little")

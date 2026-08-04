@@ -68,10 +68,16 @@ def main():
     with open(os.path.join(dest, "leagues.json"), "w") as f:
         json.dump(lg_out, f, ensure_ascii=False, indent=1)
 
-    # club_league.json
+    # club_league.json — MERGE with any existing file (extract.py writes club->league from
+    # the club records, which is exact and works on day-1; don't clobber it, only add
+    # light-results entries for clubs it didn't cover).
     cl_out = {str(t): {"league_cid": cid, "league_name": (lgs.get(cid) or {}).get("name")}
               for t, cid in sorted(club_league.items())}
-    with open(os.path.join(dest, "club_league.json"), "w") as f:
+    cl_path = os.path.join(dest, "club_league.json")
+    if os.path.exists(cl_path):
+        with open(cl_path) as f:
+            cl_out = {**cl_out, **json.load(f)}      # existing (club-record) wins
+    with open(cl_path, "w") as f:
         json.dump(cl_out, f, ensure_ascii=False, indent=1)
 
     # standings per league-type competition
