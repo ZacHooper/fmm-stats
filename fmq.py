@@ -11,6 +11,10 @@ Query the fm-parser DuckDB store — raw SQL or named reports.
     uv run python fmq.py matches 2022 end [--comp 228]
     uv run python fmq.py scout bergama                # one-shot opposition report
 
+Career-aware: defaults to the newest career store (fm-<key>.duckdb). Pass
+`--career <key>` or `--db <path>` AFTER the subcommand to pick another, e.g.
+`fmq.py labels --career bucaspor`.
+
 Reports read the transformed-layer views (v_*) created by load_duckdb.py.
 """
 import argparse
@@ -18,6 +22,28 @@ import os
 import sys
 
 import duckdb
+
+
+def _repo():
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _resolve_db(a):
+    """Return (career_key_or_None, abs_db_path). --db overrides; else pick the career's
+    store (--career, else the newest existing fm-*.duckdb)."""
+    if a.db:
+        return getattr(a, "career", None), os.path.abspath(a.db)
+    from fmparser import careers as C
+    repo = _repo()
+    if a.career:
+        car = C.resolve_career(a.career)
+        return car.key, os.path.join(repo, car.db)
+    found = [(os.path.getmtime(os.path.join(repo, c.db)), k, c.db)
+             for k, c in C.CAREERS.items() if os.path.exists(os.path.join(repo, c.db))]
+    if not found:
+        raise SystemExit("no career DuckDB store found — build one with load_duckdb.py")
+    _, key, dbfile = max(found)
+    return key, os.path.join(repo, dbfile)
 
 
 def show(con, sql, params=None, limit=100):
@@ -222,7 +248,10 @@ def cmd_scouts(con, a):
 
 def main():
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--db", default="fm.duckdb")
+    common.add_argument("--db", default=None,
+                        help="explicit DuckDB path (overrides --career)")
+    common.add_argument("--career", default=None,
+                        help="career key from fmparser/careers.py (default: newest store)")
     common.add_argument("--limit", type=int, default=100)
 
     ap = argparse.ArgumentParser(description="Query the fm-parser DuckDB store")
@@ -266,7 +295,10 @@ def main():
     sub.add_parser("scouts", parents=[common]).set_defaults(fn=cmd_scouts)
 
     a = ap.parse_args()
+    a.career_key, a.db = _resolve_db(a)   # a.db -> concrete per-career store path
     if a.cmd in ("scout", "scouts"):   # use db.py / the JSONL log, not the shared con
+        if a.career_key:               # so db.py picks the matching managed club
+            os.environ.setdefault("FM_CAREER", a.career_key)
         a.fn(None, a)
         return
     con = duckdb.connect(a.db, read_only=True)
