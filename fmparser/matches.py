@@ -13,7 +13,7 @@ Structure (validated on Karacabey 3-3 Bucaspor, ground_truth_match1.json):
 from datetime import date, timedelta
 from collections import defaultdict
 
-from .regions import DELIM_UNIT, MATCH_LO, MANAGED_RESERVE_TID
+from .regions import DELIM_UNIT, MATCH_LO
 from .reference import comp_id_at, comp_name
 
 # ---------------- stat block ----------------

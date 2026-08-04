@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Managed-career registry.
+
+This parser targets ONE managed career per database. The only genuinely
+career-specific fact is the club you manage (its TID) — that TID is how the
+snapshot reader finds your squad's exact names + attributes. Everything else in
+the extraction is career-agnostic.
+
+Starting a new career: find its club TID with `scripts/discover_career.py <save>`
+(it reads the "(Nickname)" the save header opens with and resolves it to a club),
+add a row below, and run `extract.py <save> --career <key>`.
+"""
+from __future__ import annotations
+
+import struct
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Career:
+    key: str                       # short id used on the CLI (--career <key>)
+    name: str                      # display name
+    managed_tid: int               # club we get exact names+attributes for
+    reserve_tid: int | None = None # its reserve side (AI-run); used downstream to split matches
+    league_comps: tuple = ()       # first-team competition ids (informational for now)
+    db: str = "fm.duckdb"          # DuckDB store for this career (one file per career)
+
+    @property
+    def club_marker(self) -> bytes:
+        """Squad-membership marker in the save = managed club TID (u16 LE) + ff ff."""
+        return struct.pack("<H", self.managed_tid) + b"\xff\xff"
+
+
+CAREERS = {
+    # Turkish career (the original) — Bucaspor 1928.
+    "bucaspor": Career("bucaspor", "Bucaspor 1928", 6567, 11320, (228, 227, 117),
+                       "fm-buca.duckdb"),
+    # Danish career — Boldklubben Frem (started 2026-08). tids verified from the save.
+    "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb"),
+}
+
+DEFAULT_CAREER = "bucaspor"
+
+
+def resolve_career(key: str | None = None) -> Career:
+    """Look up a career by key; defaults to the original Bucaspor career."""
+    key = key or DEFAULT_CAREER
+    try:
+        return CAREERS[key]
+    except KeyError:
+        known = ", ".join(sorted(CAREERS))
+        raise SystemExit(f"unknown career '{key}'. known careers: {known}")

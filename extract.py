@@ -33,6 +33,7 @@ from fmparser import reference as R
 from fmparser import staging as S
 from fmparser import tagged as T
 from fmparser import lightresults as L
+from fmparser import careers as C
 
 
 def _period(month):
@@ -77,18 +78,19 @@ def parse_label(label):
     raise ValueError(f"unrecognised label {label!r}")
 
 
-def build_database(mm, season, info):
+def build_database(mm, season, info, marker=A.CLUB_MARKER):
     """Whole-DB player rows via staging + join. Returns (players, club_names).
-    `info` is the shared player-info spine ({tid: identity}) scraped once in main()."""
+    `info` is the shared player-info spine ({tid: identity}) scraped once in main().
+    `marker` is the managed club's squad marker (careers.Career.club_marker)."""
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
     status = S.scrape_contract_status(mm, info)   # {tid: squad-status code}
 
     # names + exact attributes for the managed squad (snapshot)
-    bounds = A.snapshot_bounds(mm)
-    own_names = A.own_squad(mm, *bounds)
+    bounds = A.snapshot_bounds(mm, marker=marker)
+    own_names = A.own_squad(mm, *bounds, marker=marker)
     own_exact = {}
     for tid in own_names:
-        r = A.attr_record(mm, tid, bounds=bounds)
+        r = A.attr_record(mm, tid, bounds=bounds, marker=marker)
         if r:
             own_exact[tid] = {"attrs": A.decode(r["attrs"]),
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
@@ -249,7 +251,13 @@ def main():
     ap.add_argument("save", help="path to the .fms save file")
     ap.add_argument("--label", help="output label (default: auto <year>-<period>)")
     ap.add_argument("--out", default="output", help="output root (default: output/)")
+    ap.add_argument("--career", help="managed-career key from fmparser/careers.py "
+                    f"(default: {C.DEFAULT_CAREER}). Known: {', '.join(sorted(C.CAREERS))}")
     args = ap.parse_args()
+
+    career = C.resolve_career(args.career)
+    print(f"career: {career.name} (managed tid {career.managed_tid}, "
+          f"reserves {career.reserve_tid})")
 
     s = Save(args.save)
     mm = s.mm
@@ -260,7 +268,7 @@ def main():
     os.makedirs(dest, exist_ok=True)
 
     info = S.scrape_players(mm)            # player-info spine (scraped once, shared)
-    players, staff, club_names = build_database(mm, season, info)
+    players, staff, club_names = build_database(mm, season, info, career.club_marker)
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
@@ -291,6 +299,9 @@ def main():
     summary = {
         "label": label, "label_auto": auto,
         "label_source": "argument" if args.label else "auto",
+        "career": {"key": career.key, "name": career.name,
+                   "managed_tid": career.managed_tid,
+                   "reserve_tid": career.reserve_tid, "db": career.db},
         "save": os.path.abspath(args.save),
         "latest_match": latest, "date_range": [dates[0], dates[-1]] if dates else None,
         "competitions": dict(Counter(m.get("competition") for m in season)),

@@ -30,6 +30,13 @@ league_cid = st.sidebar.selectbox("League", lg_opts,
                                   index=lg_opts.index(mine) if mine in lg_opts else 0,
                                   format_func=lambda c: f"{lg_names.get(c) or c}")
 
+if not lg_opts:
+    st.info("No league data for this snapshot yet — e.g. a **day-1 save** before any "
+            "matches are simulated, so club→league membership hasn't been established. "
+            "Your squad's attributes and ratings are on the other pages (Squad Tool, "
+            "Player Stats); the vs-league and scouting views here populate once results exist.")
+    st.stop()
+
 teams = db.teams_in_league(season, phase, league_cid)
 team_tids = [int(t) for t in teams["tid"]]
 tname = dict(zip(teams["tid"], teams["name"]))

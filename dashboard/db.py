@@ -15,16 +15,47 @@ import pandas as pd
 import streamlit as st
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.environ.get("FM_DUCKDB", os.path.join(REPO, "fm.duckdb"))
-
-# canonical constants from the parser (fall back if import path shifts)
 sys.path.insert(0, REPO)
-try:
-    from fmparser.regions import MANAGED_CLUB_TID
-except Exception:  # pragma: no cover
-    MANAGED_CLUB_TID = 6567
-RESERVE_CLUB_TID = 11320                 # Bucaspor 1928 Reserves
-OUR_CLUBS = (MANAGED_CLUB_TID, RESERVE_CLUB_TID)
+from fmparser import careers as _careers
+
+# Career-aware: one DuckDB store per managed career (fm-<key>.duckdb). The ACTIVE career
+# sets the DB path + which club is "us"; a sidebar selector switches it. These globals are
+# (re)assigned by _activate_career() at import and on every switch, so pages that read
+# db.MANAGED_CLUB_TID / db.OUR_CLUBS / db.DB_PATH each rerun pick up the change.
+ACTIVE_CAREER = None
+DB_PATH = None
+MANAGED_CLUB_TID = None
+RESERVE_CLUB_TID = None
+OUR_CLUBS = ()
+
+
+def _career_db_path(car):
+    # FM_DUCKDB overrides (used by the fmq CLI to point at a specific/temp copy).
+    return os.environ.get("FM_DUCKDB") or os.path.join(REPO, car.db)
+
+
+def available_careers():
+    """Career keys whose DuckDB store exists on disk, newest-first."""
+    found = [(os.path.getmtime(os.path.join(REPO, c.db)), k)
+             for k, c in _careers.CAREERS.items()
+             if os.path.exists(os.path.join(REPO, c.db))]
+    return [k for _, k in sorted(found, reverse=True)]
+
+
+def _default_career_key():
+    return os.environ.get("FM_CAREER") or (available_careers() or [_careers.DEFAULT_CAREER])[0]
+
+
+def _activate_career(key):
+    global ACTIVE_CAREER, DB_PATH, MANAGED_CLUB_TID, RESERVE_CLUB_TID, OUR_CLUBS
+    ACTIVE_CAREER = _careers.resolve_career(key)
+    DB_PATH = _career_db_path(ACTIVE_CAREER)
+    MANAGED_CLUB_TID = ACTIVE_CAREER.managed_tid
+    RESERVE_CLUB_TID = ACTIVE_CAREER.reserve_tid
+    OUR_CLUBS = tuple(t for t in (MANAGED_CLUB_TID, RESERVE_CLUB_TID) if t)
+
+
+_activate_career(_default_career_key())
 try:
     from fmparser.attributes import ATTR_ORDER
 except Exception:  # pragma: no cover
@@ -37,19 +68,22 @@ PHASE_ORDER = {"start": 0, "mid": 1, "end": 2}
 
 
 def _dbver():
-    """DB file mtime — used as a cache key so a rebuilt/rewritten fm.duckdb
-    transparently reconnects and invalidates cached queries (no manual restart)."""
+    """(DB path, mtime) — cache key so a rebuilt store reconnects transparently AND a
+    career switch (different DB path) never serves another store's cached rows."""
     try:
-        return os.path.getmtime(DB_PATH)
+        return (DB_PATH, os.path.getmtime(DB_PATH))
     except OSError:
-        return 0.0
+        return (DB_PATH, 0.0)
 
 
 @st.cache_resource
 def _connect(ver):
     if not os.path.exists(DB_PATH):
-        st.error(f"No DuckDB store at {DB_PATH}. Build it with:\n\n"
-                 f"`uv run python load_duckdb.py output/2022-end --db fm.duckdb`")
+        car = ACTIVE_CAREER
+        st.error(f"No DuckDB store at {DB_PATH} for career '{car.key if car else '?'}'. "
+                 f"Build it with:\n\n"
+                 f"`uv run python load_duckdb.py output/<label> --db {car.db if car else 'fm-<career>.duckdb'} "
+                 f"--season <YYYY> --phase <start|mid|end>`")
         st.stop()
     # FM_DUCKDB_READONLY=1 lets non-Streamlit callers (e.g. the fmq CLI) attach without
     # taking the single-writer lock, so scouting works while the dashboard is running.
@@ -98,8 +132,30 @@ def roles():
     return df["role"].tolist()
 
 
+def select_career(sidebar=True):
+    """Managed-career selector (one DuckDB per career). Persists in session_state and
+    re-points DB_PATH + the 'us' club when switched. Returns the active career key.
+    With a single career on disk it activates silently (no widget)."""
+    avail = available_careers()
+    box = st.sidebar if sidebar else st
+    if len(avail) <= 1:
+        key = (avail or [_default_career_key()])[0]
+    else:
+        default = st.session_state.get("career", _default_career_key())
+        if default not in avail:
+            default = avail[0]
+        key = box.selectbox("Career", avail, index=avail.index(default),
+                            format_func=lambda k: _careers.CAREERS[k].name, key="career")
+    if not ACTIVE_CAREER or key != ACTIVE_CAREER.key:
+        for stale in ("label_sp", "league"):   # DB-specific selections don't carry over
+            st.session_state.pop(stale, None)
+        _activate_career(key)
+    return key
+
+
 def select_label(sidebar=True):
     """Season+phase selector; persists in session_state. Returns (season, phase)."""
+    select_career(sidebar)          # set the active career (DB_PATH + 'us') before querying
     df = labels_df()
     if df.empty:
         st.error("No extracts loaded. Run load_duckdb.py first.")
@@ -639,6 +695,8 @@ def teams_in_league(season, phase, league_cid):
                SELECT res.club_tid AS tid, any_value(c.name) AS name
                FROM res LEFT JOIN staging.clubs c ON c.tid=res.club_tid
                WHERE res.lc=? GROUP BY res.club_tid""", [league_cid])
+    if df.empty:                       # no league data yet (e.g. day-1 save, no results)
+        return df
     df["name"] = df.apply(lambda r: r["name"] if isinstance(r["name"], str) and r["name"]
                           else f"#{int(r.tid)}", axis=1)
     return df

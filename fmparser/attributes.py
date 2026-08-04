@@ -45,16 +45,16 @@ def _name_before(mm, marker_i):
     return None
 
 
-def snapshot_bounds(mm, margin=5000):
+def snapshot_bounds(mm, margin=5000, marker=CLUB_MARKER):
     """Locate the squad-snapshot region adaptively (it drifts as the save grows).
 
     Club markers also appear in the match region (team-total records), so we can't
     just take the densest cluster. The snapshot is the marker cluster whose markers
     are preceded by real player NAMES. Returns (lo, hi) or the static window if
-    discovery fails."""
+    discovery fails. `marker` is the managed club marker (careers.Career.club_marker)."""
     hits, pos = [], 0
     while True:
-        i = mm.find(CLUB_MARKER, pos)
+        i = mm.find(marker, pos)
         if i == -1:
             break
         hits.append(i)
@@ -79,13 +79,13 @@ def snapshot_bounds(mm, margin=5000):
     return max(0, best[0] - margin), best[-1] + margin
 
 
-def own_squad(mm, lo=None, hi=None):
+def own_squad(mm, lo=None, hi=None, marker=CLUB_MARKER):
     """{player_tid: full_name} for the managed club's squad."""
     if lo is None or hi is None:
-        lo, hi = snapshot_bounds(mm)
+        lo, hi = snapshot_bounds(mm, marker=marker)
     out, pos = {}, lo
     while True:
-        i = mm.find(CLUB_MARKER, pos)
+        i = mm.find(marker, pos)
         if i == -1 or i > hi:
             break
         pos = i + 1
@@ -107,7 +107,7 @@ CONFIRMED = {0: "Aerial", 1: "Agility", 2: "Communication", 3: "Handling",
              21: "Pace", 22: "Stamina", 23: "Strength"}
 
 
-def attr_record(mm, tid, bounds=None):
+def attr_record(mm, tid, bounds=None, marker=CLUB_MARKER):
     """Own-squad exact record: {'attrs':[36], 'positions':{}, 'feet':(l,r), 'M', 'value'}.
 
     The save keeps SEVERAL snapshot copies of each squad member (successive squad-list
@@ -120,7 +120,7 @@ def attr_record(mm, tid, bounds=None):
 
     `value` is the player's transfer value (u32 at M+4; Sertgöz 2000 = £2K, Seyhun
     98221 ≈ £100K, both confirmed in-game)."""
-    lo, hi = bounds or snapshot_bounds(mm)
+    lo, hi = bounds or snapshot_bounds(mm, marker=marker)
     le = struct.pack("<I", tid)
     pos = lo
     found = None
@@ -129,7 +129,7 @@ def attr_record(mm, tid, bounds=None):
         if i == -1 or i > hi:
             return found
         pos = i + 1
-        if mm[i + 8:i + 12] == CLUB_MARKER:
+        if mm[i + 8:i + 12] == marker:
             M = i + 8
             attrs = list(mm[M - 59:M - 23])
             posb = list(mm[M - 23:M - 8])

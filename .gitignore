@@ -4,10 +4,10 @@
 # Extraction outputs (regenerate with extract.py)
 output/
 
-# DuckDB store — commit the built store (fm.duckdb) so a fresh clone works out of the
-# box; ignore any other *.duckdb (temp/scratch copies) and the transient WAL.
+# DuckDB stores — commit the per-career stores (fm-buca.duckdb, fm-frem.duckdb, …) so
+# a fresh clone works out of the box; ignore scratch copies and the transient WAL.
 *.duckdb
-!fm.duckdb
+!fm-*.duckdb
 *.duckdb.wal
 
 # Local tooling / editor — but DO track the project skills so they travel with the repo.

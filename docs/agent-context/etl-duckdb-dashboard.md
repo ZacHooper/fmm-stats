@@ -10,6 +10,18 @@ metadata:
 The fm-parser extract outputs (`output/<label>/` JSON/CSV) are loaded into a DuckDB store
 and consumed by a Streamlit dashboard. Built 2026-07 on top of the existing extractors.
 
+**Career-aware (added 2026-08).** The parser is no longer hardcoded to one club. Careers live
+in `fmparser/careers.py` (`bucaspor`→6567/11320/`fm-buca.duckdb`; `frem`→346/7296/`fm-frem.duckdb`),
+each with its own DuckDB store (one file per career). `extract.py --career <key>` threads the
+club marker through `attributes.py` (snapshot names+exact attrs). `scripts/discover_career.py
+<save>` finds a new career's tids (reads the header "(Nickname)" + ranks name-preceded club
+markers). `dashboard/db.py` resolves the ACTIVE career (sidebar "Career" selector, or env
+`FM_CAREER`/`FM_DUCKDB`) and reassigns `DB_PATH`/`MANAGED_CLUB_TID`/`RESERVE_CLUB_TID`/`OUR_CLUBS`
+per run; cache keys include `DB_PATH` so careers don't cross-contaminate. **Day-1 saves** (0
+matches) have no leagues/competitions/results → vs-league + scouting views stay empty (Team page
+shows a day-1 guard); squad attributes/ratings still work. Bucaspor stays the default so the
+Turkish ground-truth tests pass unchanged.
+
 **Layers**
 - `load_duckdb.py` (run via `uv run`) → `fm.duckdb`, `staging.*` schema (1:1 mirror of the
   extract files), every row stamped `season` (int end-year, 21/22→2022, Aus-FY style) +
