@@ -34,6 +34,7 @@ from fmparser import staging as S
 from fmparser import tagged as T
 from fmparser import lightresults as L
 from fmparser import careers as C
+from fmparser import history as H
 
 
 def _period(month):
@@ -106,13 +107,29 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
                               "value": r["value"]}
 
+    # career (season-by-season) history: {tid: {origin_club_tid, seasons, ...}}. Sid-ordered
+    # records aligned to players via history.build (see fmparser/history.py). Origin club (the
+    # first career row) is the Athletic-Bilbao eligibility key. Computed before club-name
+    # resolution so the (often obscure) origin/history clubs get named too. Never fatal: if
+    # the table can't be located for a save, extraction proceeds without history.
+    try:
+        histories = H.build(mm, info)
+    except Exception as e:                       # locator/enumeration failure -> skip history
+        print(f"  WARNING: history table not parsed ({e}); continuing without history")
+        histories = {}
+
     # resolve club names only for clubs that actually have loaded players (they exist,
-    # so the lookup is cheap) plus clubs that appeared in matches
+    # so the lookup is cheap) plus clubs that appeared in matches or in any player's history
     club_ids = {p["club_tid"] for p in info.values()
                 if p["sid"] in attrs and p["club_tid"] != S.NO_CLUB}
     for m in season:
         club_ids.add(m["home_tid"])
         club_ids.add(m["away_tid"])
+    for h in histories.values():               # origin/current + every season's club
+        club_ids.add(h["origin_club_tid"])
+        club_ids.add(h["last_season_club_tid"])
+        club_ids.update(s["club_tid"] for s in h["seasons"])
+    club_ids.discard(S.NO_CLUB)
     club_names, club_leagues = {}, {}
     for ct in club_ids:
         rec = R.club_record(mm, ct, "long")
@@ -142,12 +159,19 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
             continue
         rec = attrs.get(p["sid"])
         sc = status.get(tid)
+        h = histories.get(tid)
         row = {"tid": tid, "name": full_name(tid, p),
                "club": club_label(p["club_tid"]), "club_tid": p["club_tid"],
                "dob": p["dob"], "nationality_id": p["nationality_id"],
                "has_attributes": rec is not None,
                "squad_status": sc,
-               "loaned_out": sc == S.LOAN_STATUS and p["club_tid"] != S.NO_CLUB}
+               "loaned_out": sc == S.LOAN_STATUS and p["club_tid"] != S.NO_CLUB,
+               # career-history summary (full seasons live in history.json). origin_club_tid
+               # = youth club (Bilbao eligibility key); None for newgens with no record yet.
+               "has_history": h is not None,
+               "origin_club_tid": h["origin_club_tid"] if h else None,
+               "origin_club": club_label(h["origin_club_tid"]) if h else None,
+               "history_confidence": h["confidence"] if h else None}
         if rec:
             row["is_gk"] = int(rec["positions"].get("GK", 0) == 20)
             row["ca"], row["pa"] = rec["ca"], rec["pa"]
@@ -168,7 +192,7 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
                         "positions": {}, "feet": None,
                         "attributes": None, "estimated": None})
         players[str(tid)] = row
-    return players, staff, club_names, club_leagues
+    return players, staff, club_names, club_leagues, histories
 
 
 _STAT_FIELDS = ["posOrder", "rating", "goals", "assists", "passA", "passC",
@@ -280,7 +304,7 @@ def main():
     os.makedirs(dest, exist_ok=True)
 
     info = S.scrape_players(mm)            # player-info spine (scraped once, shared)
-    players, staff, club_names, club_leagues = build_database(
+    players, staff, club_names, club_leagues, histories = build_database(
         mm, season, info, career.club_marker)
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
@@ -305,6 +329,9 @@ def main():
 
     dump("players.json", players, indent=None)     # ~24k players -> compact
     dump("staff.json", staff, indent=None)         # ~7k non-players (identity only)
+    # full career histories keyed by tid (season list per player). ~10.5k players have one;
+    # newgens/youth have no record yet. See fmparser/history.py.
+    dump("history.json", {str(t): h for t, h in histories.items()}, indent=None)
     dump("matches.json", season)
     dump("competitions.json", competitions)
     dump("leagues.json", {str(c): d for c, d in sorted(leagues.items())})
@@ -330,6 +357,7 @@ def main():
         "competitions": dict(Counter(m.get("competition") for m in season)),
         "counts": {"matches": len(season), "player_match_lines": len(match_rows),
                    "players": len(players), "players_with_attributes": attributed,
+                   "players_with_history": len(histories),
                    "staff": len(staff), "competitions": len(competitions),
                    "leagues": len(leagues), "clubs_named": len(club_names)},
     }
