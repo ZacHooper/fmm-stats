@@ -46,13 +46,48 @@ OB 371, FC Midtjylland 360, FC Nordsjælland 2465, Silkeborg 374, Vejle 1164, HB
 **ROW/RECORD FORMAT — FULLY DECODED (2026-08).** A player's history = a variable-length run of 16-byte
 rows, oldest→newest, DELIMITED by a row where **`+4 == 0xFFFFFFFF` AND `+8`(season)==40** (next real
 record's first row has season 41). Data row = `[+0 club u16][+2 flag ffff/0000][+4 u32 global
-counter][+8 season code][+9 appearances][+10 goals][+11..15 ~0]`. Season resets to 40 at each
-delimiter then +1 per season within the player; `+9/+10` are real per-season apps/goals (e.g. a
-verified career: Brøndby(youth,0app)→Hvidovre 18/4, 25/6→Frem 27/5, 12→loan Skovshoved 4→Frem, all
-readable). Current club = the last data row (max season). The delimiter row's `+0` is a club too
-(current/contract?), but inconsistent vs the last data row — unresolved, not needed.
+counter][+8 season code][+9 appearances][+10 goals][+11..15 ~0]`. The `+8` season byte is an **ABSOLUTE year code, NOT a per-player reset**: **50 = current season
+(2021/22)**, counting back (49=2020/21 … 40=2011/12 … 39=2010/11). Careers START at whatever year they
+began — a one-club Frem veteran runs 40→50 (11 rows), a youngster runs 47→50 — and **almost every
+active player's LAST row = season 50 (their current club)**. `+9/+10` are real per-season apps/goals
+(verified career: Brøndby youth 0-app → Hvidovre 18/4,25/6 → Frem 27/5,12 → loan Skovshoved 4 → Frem).
+The DELIMITER row (`+4==FFFFFFFF`) carries season 39 or 40 and a club in `+0` that's often the adjacent
+player's origin/current club but not reliably — semantics unresolved, not needed. (Earlier note that
+season "resets to 40" was WRONG — corrected here.) **Annotated dump: ~/Downloads/history_dump.txt.**
 
-**TWO REMAINING WALLS (why it's still not shippable):**
+**Lead for the link:** since season-50 row = current club, a record's season-50 club should equal that
+player's info `club_tid`. Matching records→players by (season-50 club + career shape) is the most
+promising angle for the ordinal key next session (loans complicate: season-50 club may be a loan club).
+
+**LINK MECHANISM CONFIRMED (2026-08, via user's in-game screenshots) — records are SID-ORDERED.**
+Ground truth: **Mikkel Andersson** (tid 9400, sid 5833) record @40632797 — our apps sum=246, goals=11
+EXACTLY match his screenshot TOTAL; **Pierre-Emile Højbjerg** (tid 9394, sid 5828) record @40631741
+(København→Brøndby→Bayern→Augsburg/Schalke loans→Southampton→Tottenham). Key facts:
+- **Delimiter row's `+0` = the player's CURRENT club** (Andersson→Frem 346, Højbjerg→Tottenham 518).
+- **`+2` is the TRANSFER FEE, not a flag:** `0xffff`=stayed, `0xfeff`=loan, `0`=free, else £000s
+  (`15000`=£15M Tottenham, `12256`=£12.25M Southampton) — user-decoded, verified.
+- **`+8` season is ABSOLUTE: 50 = 2020/21** (last COMPLETED season; save date 4 Jul 2021 so 2021/22
+  has 0 games), counting back. `+9`=apps, `+10`=goals, `+11..15`=assists/yellows/reds/avg-rating
+  (trailing, per user). NOTE a ~1-row lag: the club/stat can be off-by-one vs the screenshot (e.g.
+  Augsburg showed 23 not 16) — alignment of stat→season within a record needs a tweak.
+- **Ordinal by SID:** the 6-player window sid 5828→5833 maps 1:1 IN ORDER to 6 consecutive records
+  (current-club matched 4/6, the 2 misses being loans where info.club_tid=loan club ≠ history
+  current). BOTH anchors gave the IDENTICAL local offset (record#↔sid-position), i.e. clean 1:1 by
+  sid LOCALLY. There is NO 3-hop pointer (a record's +4 counter appears only in the table, not in the
+  player's info/attr record). So the link = **sort players by sid; the Nth (that has history) = the
+  Nth record**, current club = delimiter +0.
+
+**REMAINING WALL = robust enumeration of the FRAGMENTED table.** Delimiter counts swing wildly by
+filter (2.5k–50.8k) because the history records sit in clusters interspersed with FF-filler / other
+data, so no single region-bound or season-filter cleanly isolates ALL records — hence global
+sid-alignment fails (offset constant within a cluster, jumps between). NEXT SESSION: (1) isolate each
+clean history CLUSTER precisely (contiguous run of valid [club][fee][counter][season] rows with the
++4 counter increasing by 1 between FFFFFFFF delimiters); (2) enumerate records per cluster; (3) align
+each cluster to the sid-sorted player list using the constant local offset + current-club(delimiter+0)
+as the anchor, handling loans (current club may be the loan club). Then per-player full history is
+readable. Format is DONE; only the fragmented enumeration + per-cluster sid-anchoring remain.
+
+**(old) TWO REMAINING WALLS (superseded by the SID finding above):**
 1. **Table is FRAGMENTED.** The dense clean run around 40.630–40.634M is only ~16 records, then a big
    gap, then another cluster — the ~24k histories are scattered in many small clusters across ~39–45M
    (the boundary-map "fragmented 38–39M zone"). Enumerating ALL clusters cleanly is unsolved.
