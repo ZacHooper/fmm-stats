@@ -236,13 +236,85 @@ def align(records, player_clubs, max_staff=1500, staff_penalty=0.15):
     return rec2p
 
 
-def build(mm, info):
-    """Top-level: {tid: history} for every player that has a career record.
+def _pava(points):
+    """Isotonic regression (pool-adjacent-violators): fit a monotonic NON-DECREASING curve
+    to (x, y) points sorted by x. Returns blocks [val, weight, x_lo, x_hi]."""
+    out = []
+    for x, y in points:
+        out.append([float(y), 1.0, x, x])
+        while len(out) >= 2 and out[-2][0] > out[-1][0]:
+            v2, w2, lo2, hi2 = out.pop()
+            v1, w1, lo1, hi1 = out.pop()
+            out.append([(v1 * w1 + v2 * w2) / (w1 + w2), w1 + w2, lo1, hi2])
+    return out
 
-    history = {origin_club_tid, current_club_tid, confidence, record_offset, seasons:[{
-        season (raw byte), end_year, club_tid, fee, apps, goals}]}. `confidence` is 'high'
-    when the player is a self-consistent "stayer" (trailer club == their current club),
-    else 'medium' (transfer/loan, carried by the local offset — origin/current still sound).
+
+def align_anchored(records, player_clubs):
+    """Map sid-sorted players -> records by fitting the record<->player OFFSET to the confident
+    "stayer" anchors and enforcing monotonicity, instead of trusting the raw DP everywhere.
+
+    Why: records are sid-ordered players interleaved with ~1.5k sid-less staff/ex-player records,
+    so offset(player) = (staff records before it) is monotonic non-decreasing and bounded by
+    `len(records) - len(players)`. The DP finds it well where "stayer" anchors (trailer club ==
+    player's current club) are DENSE (low/mid sid), but the high-sid tail is transfer/youth-heavy
+    with almost no stayers, so the DP drifts (offsets even exceed the ceiling). We therefore take
+    only the VALID anchors, isotonic-fit the offset curve, and mark players beyond the last anchor
+    'low' confidence rather than fabricating a mapping.
+
+    Returns {player_index: (record_index or None, confidence in {'high','medium','low'})}."""
+    NR, NP = len(records), len(player_clubs)
+    ceiling = max(0, NR - NP)                      # max possible offset (interleaved non-players)
+    rec2p = align(records, player_clubs, max_staff=min(2000, max(ceiling + 200, 100)))
+    anchors = sorted(
+        (j, i - j) for i, j in rec2p.items()
+        if j is not None and j < NP
+        and records[i]["current_club"] == player_clubs[j]
+        and records[i]["current_club"] not in (NO_CLUB, 0)
+        and 0 <= i - j <= ceiling)                 # keep only ceiling-valid anchors
+    if not anchors:
+        return {}
+    blocks = _pava([(j, o) for j, o in anchors])
+    last_j = anchors[-1][0]
+    last_off = min(ceiling, int(round(blocks[-1][0])))
+
+    def offset_at(j):
+        if j > last_j:                             # extrapolate: ramp from last anchor to ceiling
+            span = max(1, NP - 1 - last_j)
+            return min(ceiling, last_off + (ceiling - last_off) * (j - last_j) // span)
+        best = blocks[0][0]
+        for val, w, lo, hi in blocks:
+            if lo <= j:
+                best = val
+            else:
+                break
+        return min(ceiling, int(round(best)))
+
+    out = {}
+    for j in range(NP):
+        base = j + offset_at(j)
+        club = player_clubs[j]
+        chosen, conf = None, "medium"
+        for i in (base, base + 1, base - 1, base + 2, base - 2):   # snap to a stayer if adjacent
+            if 0 <= i < NR and records[i]["current_club"] == club:
+                chosen, conf = i, "high"
+                break
+        if chosen is None:
+            chosen = base if 0 <= base < NR else None
+        if j > last_j:                             # past the reliable anchor range -> untrusted
+            conf = "low"
+        out[j] = (chosen, conf)
+    return out
+
+
+def build(mm, info):
+    """Top-level: {tid: history} for every player mapped to a career record.
+
+    history = {origin_club_tid, last_season_club_tid, confidence, record_offset, seasons:[{
+        season (raw byte), end_year, club_tid, fee, apps, goals}]}. `confidence`:
+      'high'   = the mapped record is a self-consistent stayer (trailer club == current club);
+      'medium' = within the anchor-supported sid range (mapping by the fitted offset — trust the
+                 origin/career but the exact record could be off by a couple in transfer-heavy spots);
+      'low'    = beyond the last reliable anchor (high-sid transfer/youth tail) — DO NOT trust.
     `info` is the shared player-info spine from staging.scrape_players."""
     def sid_u16(r):
         s = r["sid"]
@@ -255,14 +327,16 @@ def build(mm, info):
                      key=lambda r: sid_u16(r))
     player_clubs = [r["club_tid"] for r in players]
     records = enumerate_records(mm)
-    rec2p = align(records, player_clubs)
+    player2rec = align_anchored(records, player_clubs)
 
     out = {}
-    for i, pj in rec2p.items():
-        if pj is None or pj >= len(players):
+    for pj, (i, conf) in player2rec.items():
+        if i is None:
             continue
         rec = records[i]
         rows = rec["rows"]
+        if not rows:                            # mapped to an empty (no-history) slot
+            continue
         p = players[pj]
         last_season = rec["current_club"]       # trailer = club as of last completed season
         last_fee = rec.get("current_fee", 0xffff)
@@ -287,7 +361,7 @@ def build(mm, info):
             # current club (info.club_tid) for "stayers"; differs for summer signings, whose
             # actual current club is on the player row itself.
             "last_season_club_tid": last_season,
-            "confidence": "high" if last_season == p["club_tid"] else "medium",
+            "confidence": conf,
             "record_offset": rec["offset"],
             "seasons": seasons,
         }
