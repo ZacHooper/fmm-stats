@@ -9,3 +9,4 @@
 - [Role-weight methods](role-weight-methods.md) — how role_weights tactics work (unlisted attr=weight 1); frem_counter tactic weight-set + how to add/seed one
 - [Level vs Fit percentile](level-vs-fit-percentile.md) — Fit %ile (tactic weights) vs Level %ile (CA-derived, immersion-safe); read the gap
 - [Player history table](player-history-table.md) — career history @~40.6M, stride-16 rows, club-tid col, origin=row0; spike-validated (Wedege), segmentation still TODO
+- [Name resolution](name-resolution.md) — SOLVED: any player name via browse table (@0.3M) + id-index tables (@37M); first/last_name_id→ordinal→string

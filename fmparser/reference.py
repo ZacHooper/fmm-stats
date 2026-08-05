@@ -286,3 +286,122 @@ def parse_info(mm, tid):
         "club_tid": u16(42),
         "sid": mm[i + 60:i + 62].hex(),
     }
+
+
+# ---------------- player names (whole DB) ----------------
+# Names for EVERY player (not just the managed squad) resolve from the info field's
+# first_name_id / last_name_id via two structures near the start of the save:
+#   1. the "browse" name table (flat [len u32][utf-8], ~46k entries, nation-grouped) —
+#      browse[ordinal] = string;
+#   2. two dense id-index tables (16-byte records [browse_ordinal u32][id u32][..][..],
+#      sorted by id from 0) — one for first names, one for surnames. name_id indexes these
+#      to get the browse ordinal. See docs/agent-context/name-resolution.md.
+# The id has no positional relation to the browse table, hence the indirection; the game
+# stores names once and links by id. Bases are per-save (offsets differ between careers),
+# so everything here is DISCOVERED, not hard-coded.
+
+def _u32(mm, o):
+    return int.from_bytes(mm[o:o + 4], "little")
+
+
+def _walk_browse(mm):
+    """The flat [len u32][utf-8] name table near the file start -> list of strings."""
+    for start in range(200, 3000):
+        ln = _u32(mm, start)
+        if 2 <= ln <= 40:
+            raw = mm[start + 4:start + 4 + ln]
+            try:
+                s = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            if s and s[0].isalpha() and all(ord(c) >= 0x20 for c in s):
+                out = []
+                o = start
+                while o + 4 < len(mm):
+                    L = _u32(mm, o)
+                    if not (1 <= L <= 40):
+                        break
+                    raw = mm[o + 4:o + 4 + L]
+                    try:
+                        t = raw.decode("utf-8")
+                    except UnicodeDecodeError:
+                        break
+                    if any(c < 0x20 for c in raw):
+                        break
+                    out.append(t)
+                    o = o + 4 + L
+                if len(out) > 1000:
+                    return out
+    return []
+
+
+def _discover_id_tables(mm, browse_len, probe=8192):
+    """Find the two dense id->ordinal tables. A record is 16 bytes with the id at +4 and
+    the browse ordinal at +0; ids run 0,1,2,… . Anchor on a mid-range id (present in both
+    tables), verify the dense run, walk back to base. Returns [(base, count), …] largest
+    first."""
+    pat = struct.pack("<I", probe)
+    bases = {}
+    pos = 0
+    while True:
+        i = mm.find(pat, pos)
+        if i == -1:
+            break
+        pos = i + 1
+        o = i - 4                       # i is the +4 id field -> record start
+        if o < 0:
+            continue
+        if (_u32(mm, o + 20) == probe + 1 and _u32(mm, o + 36) == probe + 2
+                and _u32(mm, o) < browse_len and _u32(mm, o + 16) < browse_len):
+            base = o - probe * 16
+            if base >= 0 and _u32(mm, base + 4) == 0 and _u32(mm, base + 20) == 1:
+                n = probe
+                while _u32(mm, base + n * 16 + 4) == n:
+                    n += 1
+                bases[base] = n
+    return sorted(bases.items(), key=lambda x: -x[1])
+
+
+_NAME_TABLES = {}   # id(mm) -> (browse_list, base_first, base_surname)
+
+
+def build_name_resolver(mm, validate=None):
+    """Discover the name tables for `mm` and cache them. `validate` is an optional list of
+    (first_name_id, last_name_id, expected_full_name) — normally the managed squad, whose
+    names we already have from the snapshot — used to orient which id-table is first names
+    vs surnames (falls back to size: the larger table is surnames)."""
+    browse = _walk_browse(mm)
+    tabs = _discover_id_tables(mm, len(browse))
+    if len(tabs) < 2:
+        _NAME_TABLES[id(mm)] = (browse, None, None)
+        return False
+    big, small = tabs[0][0], tabs[1][0]
+    base_sur, base_first = big, small           # heuristic: more surnames than first names
+    if validate:
+        def score(bf, bs):
+            ok = 0
+            for fid, lid, exp in validate:
+                try:
+                    if f"{browse[_u32(mm, bf + fid * 16)]} {browse[_u32(mm, bs + lid * 16)]}" == exp:
+                        ok += 1
+                except IndexError:
+                    pass
+            return ok
+        if score(big, small) > score(small, big):
+            base_first, base_sur = big, small   # swap only if that orientation fits better
+    _NAME_TABLES[id(mm)] = (browse, base_first, base_sur)
+    return True
+
+
+def resolve_name(mm, first_name_id, last_name_id):
+    """Full 'First Last' for any player from their info-field name ids, or None. Call
+    build_name_resolver(mm) once first (cached per mmap)."""
+    t = _NAME_TABLES.get(id(mm))
+    if not t or t[1] is None:
+        return None
+    browse, base_first, base_sur = t
+    try:
+        return f"{browse[_u32(mm, base_first + first_name_id * 16)]} " \
+               f"{browse[_u32(mm, base_sur + last_name_id * 16)]}"
+    except IndexError:
+        return None

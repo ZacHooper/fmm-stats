@@ -88,6 +88,16 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
     # names + exact attributes for the managed squad (snapshot)
     bounds = A.snapshot_bounds(mm, marker=marker)
     own_names = A.own_squad(mm, *bounds, marker=marker)
+
+    # whole-DB name resolver: first/last name ids -> strings. Orient first-vs-surname
+    # tables against the managed squad (we already have their snapshot names).
+    validate = [(info[t]["first_name_id"], info[t]["last_name_id"], own_names[t])
+                for t in own_names if t in info and own_names[t]]
+    R.build_name_resolver(mm, validate=validate)
+
+    def full_name(tid, p):
+        return own_names.get(tid) or R.resolve_name(mm, p["first_name_id"], p["last_name_id"])
+
     own_exact = {}
     for tid in own_names:
         r = A.attr_record(mm, tid, bounds=bounds, marker=marker)
@@ -125,14 +135,14 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
         # handles them correctly (a player-coach has a real SID -> counted as a player).
         # Not worth special-casing further for now.
         if p["sid"] == "ffffffff":
-            staff[str(tid)] = {"tid": tid, "name": own_names.get(tid),
+            staff[str(tid)] = {"tid": tid, "name": full_name(tid, p),
                                "club": club_label(p["club_tid"]),
                                "club_tid": p["club_tid"], "dob": p["dob"],
                                "nationality_id": p["nationality_id"]}
             continue
         rec = attrs.get(p["sid"])
         sc = status.get(tid)
-        row = {"tid": tid, "name": own_names.get(tid),
+        row = {"tid": tid, "name": full_name(tid, p),
                "club": club_label(p["club_tid"]), "club_tid": p["club_tid"],
                "dob": p["dob"], "nationality_id": p["nationality_id"],
                "has_attributes": rec is not None,
