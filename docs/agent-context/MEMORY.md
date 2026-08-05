@@ -6,3 +6,6 @@
 - [FMM tactic options](fmm-tactic-options.md) — FMM22 mobile role lists + team-instruction menu; no player instructions. Use when giving tactical advice
 - [Day-1 league membership SOLVED](day1-league-membership.md) — club→league at club-record +158 (`[code][ff ff]`); 3.Div=1147; club DB is multi-segment
 - [Save-file boundary map TODO](savefile-boundary-map.md) — map regions by filler/signatures so bounds are derived not guessed
+- [Role-weight methods](role-weight-methods.md) — how role_weights tactics work (unlisted attr=weight 1); frem_counter tactic weight-set + how to add/seed one
+- [Level vs Fit percentile](level-vs-fit-percentile.md) — Fit %ile (tactic weights) vs Level %ile (CA-derived, immersion-safe); read the gap
+- [Player history table](player-history-table.md) — career history @~40.6M, stride-16 rows, club-tid col, origin=row0; spike-validated (Wedege), segmentation still TODO
