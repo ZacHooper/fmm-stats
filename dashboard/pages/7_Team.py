@@ -167,12 +167,19 @@ with tab_league:
                 show = kp.head(14).copy()
                 show["Player"] = show["tid"].map(names).fillna("—")
                 show = show.rename(columns={"position": "Pos", "pos_index": "Index",
-                                            "pctile_league": "League %ile",
+                                            "pctile_league": "Fit %ile",
+                                            "level_league": "Level %ile",
                                             "top_attrs": "Top attributes"})
                 show["Index"] = show["Index"].round(0)
-                st.dataframe(show[["Player", "Pos", "Index", "League %ile", "Top attributes"]],
+                cols = ["Player", "Pos", "Index", "Fit %ile"]
+                if "Level %ile" in show.columns:
+                    cols.append("Level %ile")
+                cols.append("Top attributes")
+                st.dataframe(show[cols],
                              hide_index=True, width="stretch", column_config={
-                                 "League %ile": st.column_config.ProgressColumn(
+                                 "Fit %ile": st.column_config.ProgressColumn(
+                                     format="%.0f", min_value=0, max_value=100),
+                                 "Level %ile": st.column_config.ProgressColumn(
                                      format="%.0f", min_value=0, max_value=100),
                                  "Top attributes": st.column_config.TextColumn(width="large")})
     st.divider()
@@ -261,12 +268,19 @@ with tab_scout:
         st.caption("No rated players in our data for this club.")
     else:
         show = kp.head(12).rename(columns={"position": "Pos", "pos_index": "Index",
-                                           "pctile_league": "League %ile",
+                                           "pctile_league": "Fit %ile",
+                                           "level_league": "Level %ile",
                                            "top_attrs": "Top attributes"})
         show["Index"] = show["Index"].round(0)
-        st.dataframe(show[["Pos", "Index", "League %ile", "Top attributes"]], hide_index=True,
+        cols = ["Pos", "Index", "Fit %ile"]
+        if "Level %ile" in show.columns:
+            cols.append("Level %ile")
+        cols.append("Top attributes")
+        st.dataframe(show[cols], hide_index=True,
                      width="stretch", column_config={
-                         "League %ile": st.column_config.ProgressColumn(
+                         "Fit %ile": st.column_config.ProgressColumn(
+                             format="%.0f", min_value=0, max_value=100),
+                         "Level %ile": st.column_config.ProgressColumn(
                              format="%.0f", min_value=0, max_value=100),
                          "Top attributes": st.column_config.TextColumn(width="large")})
         st.caption("Names aren't in the save — players shown by position; ranked so a top-%ile "

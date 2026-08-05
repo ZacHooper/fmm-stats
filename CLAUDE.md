@@ -50,7 +50,7 @@ uv run python fmq.py scout <team>                          # opposition briefing
 ```
 
 ## House rules
-- **Immersion: NEVER surface CA/PA.** Reason with weighted role ratings, `pos_index`, percentiles, match stats, and attributes only.
+- **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings, `pos_index`, percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_*` in `effective_table`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from the query so only the percentile ever leaves. It sits next to the tactic **Fit %ile** (`pctile_*`). Keep raw `ca`/`pa` out of every surfaced frame; don't remove Level %ile thinking it breaks this rule.
 - **Opponent tactics/formation are NOT in the save** — always ask the user for the in-game scout's formation + style. Opponent names aren't parsed (profile by position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
 - Our tactic/method is **`buca_433`** (the dashboard default).
 

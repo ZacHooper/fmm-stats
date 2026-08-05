@@ -409,7 +409,7 @@ def _effective_cached(season, phase, method, curve, floor, ver):
     base AS (
         SELECT pp.tid, pp.position, prm.role, pp.familiarity,
                r.rating AS base_rating, r.rating * {mult} AS eff,
-               p.name, p.club, p.club_tid, cl.league_cid, lgn.nation
+               p.name, p.club, p.club_tid, cl.league_cid, lgn.nation, p.ca
         FROM staging.player_positions pp
         JOIN staging.position_role_map prm ON prm.position = pp.position
         JOIN v_player_ratings r
@@ -421,10 +421,17 @@ def _effective_cached(season, phase, method, curve, floor, ver):
         LEFT JOIN lgn ON lgn.cid = cl.league_cid
         WHERE pp.season=? AND pp.phase=? AND NOT p.is_staff
     )
-    SELECT *,
+    -- `level_*` is a TACTIC-AGNOSTIC quality percentile from the game's overall-ability
+    -- number, ranked within the same position/scope windows as the fit percentiles above.
+    -- Immersion rule: the raw ability number is NEVER exposed — only this percentile is,
+    -- so `ca` is EXCLUDE-d from the projection and must not be re-added downstream.
+    SELECT * EXCLUDE (ca),
         ROUND(100*PERCENT_RANK() OVER (PARTITION BY position ORDER BY eff), 1) AS pctile_global,
         ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, nation ORDER BY eff), 1) AS pctile_nation,
         ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, league_cid ORDER BY eff), 1) AS pctile_league,
+        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position ORDER BY ca), 1) AS level_global,
+        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, nation ORDER BY ca), 1) AS level_nation,
+        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, league_cid ORDER BY ca), 1) AS level_league,
         RANK() OVER (PARTITION BY position ORDER BY eff DESC) AS rank_global,
         RANK() OVER (PARTITION BY position, nation ORDER BY eff DESC) AS rank_nation,
         RANK() OVER (PARTITION BY position, league_cid ORDER BY eff DESC) AS rank_league,
@@ -965,7 +972,8 @@ def squad_frame(season, phase, method, club_tids):
         return prim
     prim["unit"] = prim["position"].map(POSITION_UNIT)
     ca = club_attributes(season, phase, list(club_tids))
-    keep = ["tid", "club_tid", "position", "unit", "eff", "pos_index", "pctile_league"]
+    keep = ["tid", "club_tid", "position", "unit", "eff", "pos_index",
+            "pctile_league", "level_league"]
     return prim[keep].merge(ca.drop(columns=["club_tid"]), on="tid", how="inner")
 
 
@@ -1004,7 +1012,10 @@ def squad_key_players(frame, club_tid, method):
     rel = {pos: {a: w for a, w in role_weight_map(method, role).items() if w >= 2}
            for pos, role in pos_role_map().items()}
     ofs = of.sort_values("pos_index", ascending=False)
-    kp = ofs[["tid", "position", "eff", "pos_index", "pctile_league"]].copy()
+    cols = ["tid", "position", "eff", "pos_index", "pctile_league"]
+    if "level_league" in ofs.columns:
+        cols.append("level_league")
+    kp = ofs[cols].copy()
     kp["top_attrs"] = [_player_top_attrs(r, rel) for _, r in ofs.iterrows()]
     return kp.reset_index(drop=True)
 

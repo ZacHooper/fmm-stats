@@ -55,9 +55,9 @@ c2.metric("Top rating", int(rows["Rating"].max()))
 c3.metric("Median league %ile", f"{rows['pctile_league'].median():.0f}")
 
 show = rows[["tid", "Player", "Status", "position", "familiarity", "Rating",
-             "pctile_league", "League", "pctile_nation", "Nation"]].rename(columns={
-    "position": "Pos", "familiarity": "Fam", "pctile_league": "League %ile",
-    "pctile_nation": "Nation %ile"})
+             "pctile_league", "level_league", "League", "pctile_nation", "Nation"]].rename(columns={
+    "position": "Pos", "familiarity": "Fam", "pctile_league": "Fit %ile",
+    "level_league": "Level %ile", "pctile_nation": "Nation %ile"})
 
 # optional: pull match stats / attributes into the same table (default: none)
 stats, attrs = stat_table.stat_selector("home", default_preset=None,

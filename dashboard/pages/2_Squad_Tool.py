@@ -292,12 +292,17 @@ with tab_cmp:
     else:
         sel["Rating"] = sel["eff"].round().astype(int)
         sel["Squad rank"] = sel["eff"].rank(ascending=False, method="min").astype(int)
-        out = sel[["Player", "familiarity", "Rating", "Squad rank",
-                   "pctile_league", "pctile_nation"]].rename(columns={
-            "familiarity": "Fam", "pctile_league": "League %ile",
+        base_cols = ["Player", "familiarity", "Rating", "Squad rank", "pctile_league"]
+        if "level_league" in sel.columns:
+            base_cols.append("level_league")
+        base_cols.append("pctile_nation")
+        out = sel[base_cols].rename(columns={
+            "familiarity": "Fam", "pctile_league": "Fit %ile",
+            "level_league": "Level %ile",
             "pctile_nation": "Nation %ile"}).sort_values("Rating", ascending=False)
         st.dataframe(out, width="stretch", hide_index=True, column_config={
-            "League %ile": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=100),
+            "Fit %ile": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=100),
+            "Level %ile": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=100),
             "Nation %ile": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=100)})
 
     # ---- configurable match-stat + attribute table (shared component) ----
