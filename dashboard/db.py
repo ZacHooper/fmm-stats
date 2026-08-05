@@ -469,6 +469,57 @@ def _eligibility_cached(season, phase, ver):
     return _conn().execute(sql, [season, phase]).df()
 
 
+# --------------------------------------------------------------------------- shortlist
+# A persistent scouting shortlist, stored in the career's own DuckDB (staging.shortlist,
+# GLOBAL — not per season/phase). Each row: a prospect with a snapshot of their attributes
+# + positions so it renders even for players not in the current squad/snapshot. `tid` is set
+# for players added by look-up (null for manual entries).
+
+def _ensure_shortlist():
+    write("""CREATE TABLE IF NOT EXISTS staging.shortlist (
+        id BIGINT, tid INTEGER, name VARCHAR,
+        positions VARCHAR, attributes VARCHAR, source VARCHAR)""")
+
+
+def shortlist_get():
+    """DataFrame of the shortlist with `positions`/`attributes` parsed to dicts."""
+    _ensure_shortlist()
+    df = q("SELECT id, tid, name, positions, attributes, source FROM staging.shortlist "
+           "ORDER BY name")
+    if not df.empty:
+        df["positions"] = df["positions"].map(lambda s: json.loads(s) if s else {})
+        df["attributes"] = df["attributes"].map(lambda s: json.loads(s) if s else {})
+    return df
+
+
+def shortlist_add(name, positions, attributes, tid=None, source="manual"):
+    _ensure_shortlist()
+    nid = int(q("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM staging.shortlist")["n"].iloc[0])
+    write("INSERT INTO staging.shortlist VALUES (?,?,?,?,?,?)",
+          [nid, tid, name, json.dumps(positions or {}),
+           json.dumps({k: int(v) for k, v in (attributes or {}).items()}), source])
+    return nid
+
+
+def shortlist_remove(sid):
+    _ensure_shortlist()
+    write("DELETE FROM staging.shortlist WHERE id = ?", [int(sid)])
+
+
+def player_search(query, season, phase, limit=50):
+    """Players (not staff) whose name matches `query`, for the shortlist look-up."""
+    return q("""SELECT tid, name, club, club_tid FROM staging.players
+                WHERE season=? AND phase=? AND NOT is_staff AND name ILIKE ?
+                ORDER BY name LIMIT ?""", [season, phase, f"%{query}%", limit])
+
+
+def player_positions_map(season, phase, tid):
+    """{position code: familiarity} for one player in the snapshot."""
+    df = q("SELECT position, familiarity FROM staging.player_positions "
+           "WHERE season=? AND phase=? AND tid=?", [season, phase, int(tid)])
+    return {r.position: int(r.familiarity) for r in df.itertuples()}
+
+
 def player_match_totals(tids):
     """Career (all-season, deduped by latest phase) match-stat totals per player, for the
     given tids. Returns apps/goals/assists/avg rating + attempt & completion sums so
