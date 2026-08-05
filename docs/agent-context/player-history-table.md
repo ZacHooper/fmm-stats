@@ -43,10 +43,26 @@ histories read cleanly in region 40.4–40.8M, every club resolving to a real na
 OB 371, FC Midtjylland 360, FC Nordsjælland 2465, Silkeborg 374, Vejle 1164, HB Køge 5277, Hillerød
 356, Kolding, Sønderborg…). So scouting other clubs' origins works. `65535`/`0xffff` = null club row.
 
-**ROW FORMAT (clean region ~40.6M):** 16 bytes = `[club u16][flag u16(ffff/0000)][+4 u32 GLOBAL
-counter][+8 s8 season-code][+9,+10 two stat bytes][+12 u32 ≈0]`. The `+4` counter is a global
-sequential row index (continuous down the whole table); rows where `+4 == 0xFFFFFFFF` are marker rows,
-and `s8` resets to 40 right after each marker then increments +1 per row.
+**ROW/RECORD FORMAT — FULLY DECODED (2026-08).** A player's history = a variable-length run of 16-byte
+rows, oldest→newest, DELIMITED by a row where **`+4 == 0xFFFFFFFF` AND `+8`(season)==40** (next real
+record's first row has season 41). Data row = `[+0 club u16][+2 flag ffff/0000][+4 u32 global
+counter][+8 season code][+9 appearances][+10 goals][+11..15 ~0]`. Season resets to 40 at each
+delimiter then +1 per season within the player; `+9/+10` are real per-season apps/goals (e.g. a
+verified career: Brøndby(youth,0app)→Hvidovre 18/4, 25/6→Frem 27/5, 12→loan Skovshoved 4→Frem, all
+readable). Current club = the last data row (max season). The delimiter row's `+0` is a club too
+(current/contract?), but inconsistent vs the last data row — unresolved, not needed.
+
+**TWO REMAINING WALLS (why it's still not shippable):**
+1. **Table is FRAGMENTED.** The dense clean run around 40.630–40.634M is only ~16 records, then a big
+   gap, then another cluster — the ~24k histories are scattered in many small clusters across ~39–45M
+   (the boundary-map "fragmented 38–39M zone"). Enumerating ALL clusters cleanly is unsolved.
+2. **Ordinal key unknown.** No tid/uid/sid in the record (confirmed — id searches inside a record are
+   coincidental byte hits). Linking must be ordinal, but current-club alignment fails for
+   uid/tid/sid/file-order (0/16 position-match on a clean 16-record cluster; faint 11/16 subsequence
+   signal only). The order the game uses is still not identified.
+
+Next session starts from HERE: format is known; (a) find/bound every history cluster, (b) find the
+ordinal key (try: reputation, ca, dob, nationality-grouped, or the attribute-record physical order).
 
 **TWO OPEN BLOCKERS (history is NOT yet cracked — deeper than names):**
 1. **Segmentation is wrong/unclear.** The 0xFFFFFFFF-marker + s8-reset gives ~13–14 row blocks, but
