@@ -217,7 +217,7 @@ DDL = [
        LIMIT 0""",
 ]
 
-_SEED_METHODS = ("black_hawk", "personal")
+_SEED_METHODS = ("black_hawk", "personal", "frem_counter")
 
 # 14 FM position codes -> 10 rating roles. Wide/defensive-mid codes fold into the
 # nearest available role (the role vocabulary is narrower than the position codes).
