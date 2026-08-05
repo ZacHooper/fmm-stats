@@ -43,13 +43,61 @@ histories read cleanly in region 40.4–40.8M, every club resolving to a real na
 OB 371, FC Midtjylland 360, FC Nordsjælland 2465, Silkeborg 374, Vejle 1164, HB Køge 5277, Hillerød
 356, Kolding, Sønderborg…). So scouting other clubs' origins works. `65535`/`0xffff` = null club row.
 
-**SEGMENTATION KEY (likely solved):** the `+8` low byte is a **season code that increments within a
-player and DROPS at each new-player boundary** (e.g. `…0x31,0x32 | 0x24,0x25…`). So split the table
-into players wherever the season byte decreases; within a player, **origin = the row with the lowest
-season byte** (earliest season). Validated: Wedege origin Hvidovre, and all Dalum players' earliest
-row = their origin. Still to firm up on the full build: exact season-code→year mapping, how loans are
-recorded (a player's mid-career loan season didn't always show the loan club cleanly — e.g. couldn't
-pin Diyar Ali's B1913 loan row; B1913 may be stored as OB/371 or handled as a loan variant), and
-whether the table is multi-segment beyond ~40.6–40.7M. Then: pick row0 club → look up
+**ROW FORMAT (clean region ~40.6M):** 16 bytes = `[club u16][flag u16(ffff/0000)][+4 u32 GLOBAL
+counter][+8 s8 season-code][+9,+10 two stat bytes][+12 u32 ≈0]`. The `+4` counter is a global
+sequential row index (continuous down the whole table); rows where `+4 == 0xFFFFFFFF` are marker rows,
+and `s8` resets to 40 right after each marker then increments +1 per row.
+
+**TWO OPEN BLOCKERS (history is NOT yet cracked — deeper than names):**
+1. **Segmentation is wrong/unclear.** The 0xFFFFFFFF-marker + s8-reset gives ~13–14 row blocks, but
+   Wedege's validated rows (`[359,346,346,346]`, s8=45..48) sit in the MIDDLE of such a block, not at
+   its start — so the markers are NOT per-player boundaries. Real per-player grouping + multiple-
+   rows-per-season (s8 repeats, e.g. 48,48) still undecoded.
+2. **No player→segment LINK found.** Checked and ruled out: tid/uid/sid do NOT appear in or near
+   the history segment; no uid companion-index in the 38–49.5M region; the player's main record
+   (@ uid, ~1.7M) has NO pointer into 40M and no segment-counter. So linking a history run to a tid
+   is the fundamental unsolved problem. Remaining hypotheses: (a) ORDINAL ALIGNMENT — segments in the
+   same order as some player enumeration (info/attr/uid order), align Nth↔Nth (untested); (b) a
+   player→history index elsewhere (the 3-hop pattern, not yet found).
+
+**ALIGNMENT TEST RAN — FAILED (2026-08).** Marker-delimited segments (+4==0xFFFFFFFF boundaries) in
+the clean region 39.56–43.81M number **23,189 ≈ 24,315 players** (encouraging), median 7 clubs/seg.
+BUT ordinal alignment does NOT hold: segment last-club vs uid-sorted and tid-sorted players'
+current club = **0/2000** position matches. And segment "last clubs" are ~all unique whereas real
+current-clubs repeat heavily (40 players at club 1201) — so either the segmentation captures
+marker/summary rows or the marker≠player-boundary assumption is still wrong. Earlier "screenshot
+matches" (Wedege [359,346,346,346]) were club-SEQUENCE pattern matches, NOT tid-confirmed — that
+window sat mid-journeyman-segment, likely coincidental. Net: neither segmentation NOR linking is
+actually solved; the club/season DATA is present but the record structure resists. Deprioritised —
+needs a dedicated deep-RE session, not a quick win.
+
+**ROOT CAUSE FOUND (2026-08): true bounds/delimiter still unknown.** The link is NOT embedded — a
+known player's uid/tid/sid appears NOWHERE in 39–44M, and marker rows (`+4==0xFFFFFFFF`, e.g.
+`6c01ffff ffffffff 2800...`: +0=a club, s8=0x28=40) carry no id — so linking MUST be ordinal (as the
+user reasoned: parallel load-order arrays). BUT ordinal alignment can't be validated yet because the
+segmentation is wrong: the `sane-+4` region bound (39.56–43.81M, 265k rows) is mostly NOT history —
+filtering to real club rows (+0 in 250–8500, +12==0) inside it yields ~0, so most of that region is
+other data, and the 23,189 "segments" were junk (hence all-unique last-clubs, 0/3000 alignment for
+uid/tid/sid/info-order). NEXT SESSION must: (1) find the EXACT history-table extent (contiguous run
+where every 16-byte row is club+season) — the clean rows are around 40.63M but the true start/end and
+whether it's multi-segment are unknown; (2) find the real per-player delimiter within it; (3) THEN
+re-test ordinal alignment against info/attr/sid load-order. This is a dedicated deep-RE task, not a
+quick win — deprioritised in favour of shipping the scout tool on names+attributes (both done).
+
+**User constraint (2026-08, important):** FM won't store history it doesn't surface (wasted space), so
+each player's stored history == exactly the screenshot seasons — COMPACT. Wedege = ~4 rows
+`[Hvidovre, Frem, Frem, Frem]`, NOT the 12-row Brøndby→…→Frem run I kept matching. That long run's
+season byte increments UNBROKEN across 5 clubs, so it spans MULTIPLE players and the season byte is
+NOT the per-player delimiter. Concrete next-session target: in the true (compact) history table,
+Wedege appears as a ~4-row `{359,346}` run — find the delimiter that makes that run a clean unit
+(candidates: the +2 flag ffff/0000, or a marker I haven't isolated), then each player is a short run
+and ordinal alignment to load-order becomes testable.
+
+**What IS present:** the history DATA is real and readable per-run (club sequences look like careers) —
+screenshot; Dalum players resolve). It's the *systematic* segmentation + tid-linking that's hard.
+Loans are a further wrinkle (Diyar Ali's B1913=tid 333 loan row didn't appear as expected). Pragmatic
+call: the scouting tool can ship on names+attributes NOW (both done); history/eligibility is a
+follow-on once the link is cracked. Origin-club/eligibility is analysis-side (a config list of
+eligible club tids), NOT the parser's job. Then: pick row0 club → look up
 in a curated Capital-Region eligible-club list. See [[fm-parser-project]] (tagged region ~13-20M was
 the wrong place — history is this packed table at 40.6M, not the tagged section).
