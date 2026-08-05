@@ -1,0 +1,40 @@
+club_tid,club_name,region
+# Athletic-Bilbao eligibility list: clubs whose YOUTH PRODUCTS (history origin club) are eligible.
+# Join target: staging.player_history.origin_club_tid. Curate freely — this is the whole policy.
+# Seeded with Danish Capital Region (Region Hovedstaden) FIRST TEAMS resolved from the save.
+# NOTE: a player's origin may occasionally be a club's Reserves side (add those tids if you want
+# to catch academy debutants). Lines starting with # are ignored by the loader.
+325,Akademisk Boldklub Gladsaxe,Hovedstaden
+337,Brøndbyernes Idrætsforening,Hovedstaden
+338,Brønshøj Boldklub,Hovedstaden
+340,Dragør Boldklub,Hovedstaden
+344,Football Club København,Hovedstaden
+345,Frederikssund Idrætsklub,Hovedstaden
+346,Boldklubben Frem,Hovedstaden
+347,Boldklubben Fremad Amager,Hovedstaden
+348,Gladsaxe-Hero Boldklub,Hovedstaden
+349,Glostrup Fodbold Klub - IF 32,Hovedstaden
+350,Hellerup Idræts Klub,Hovedstaden
+353,Football Club Helsingør,Hovedstaden
+356,Hillerød Fodbold,Hovedstaden
+359,Hvidovre Idrætsforening,Hovedstaden
+364,Lyngby Boldklub,Hovedstaden
+1133,Boldklubben Avarta,Hovedstaden
+1137,Frederiksberg Boldklub,Hovedstaden
+1139,Boldklubben Fremad Valby,Hovedstaden
+1141,Herlev Idrætsforening,Hovedstaden
+1157,Boldklubben Rødovre,Hovedstaden
+1158,Skovshoved Idrætsforening,Hovedstaden
+1161,Vanløse Idræts Forening,Hovedstaden
+2430,KFUMs Boldklub København,Hovedstaden
+2465,Football Club Nordsjælland,Hovedstaden
+2493,Fredensborg Boldklub og Idrætsforening,Hovedstaden
+2498,Frederiksberg Alliancen 2000,Hovedstaden
+2500,Gentofte-Vangede Idrætsforening,Hovedstaden
+2548,Allerød Fodbold Klub,Hovedstaden
+2731,Idrætsforeningen Skjold Birkerød,Hovedstaden
+5274,Boldklubben AB Tårnby,Hovedstaden
+5282,Tårnby Fodbold Forening,Hovedstaden
+5298,Ballerup-Skovlunde Fodbold,Hovedstaden
+5303,Boldklubben af 1973 Herlev,Hovedstaden
+5340,Ishøj Idrætsforening,Hovedstaden

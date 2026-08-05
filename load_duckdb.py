@@ -181,6 +181,30 @@ DDL = [
         position VARCHAR NOT NULL, familiarity INTEGER
     )""",
 
+    # career-history summary, one row per player (from history.json / fmparser.history).
+    # origin_club_tid = youth/debut club = the Athletic-Bilbao eligibility key. confidence
+    # in {high, medium, low}: only high/medium are reliably aligned (low = the un-cracked
+    # high-sid tail). See fmparser/history.py. natural key: (season, phase, tid).
+    """CREATE TABLE IF NOT EXISTS staging.player_history (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        origin_club_tid INTEGER, origin_club VARCHAR,
+        last_season_club_tid INTEGER, confidence VARCHAR, record_offset BIGINT
+    )""",
+
+    # full season-by-season career rows (for display). natural key: (season, phase, tid, seq).
+    """CREATE TABLE IF NOT EXISTS staging.player_history_seasons (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        seq INTEGER NOT NULL, hist_season INTEGER, end_year INTEGER,
+        club_tid INTEGER, fee VARCHAR, apps INTEGER, goals INTEGER
+    )""",
+
+    # GLOBAL config (not per-label): the set of club TIDs whose YOUTH products are eligible
+    # under the Athletic-Bilbao origin strategy (e.g. Danish Capital Region). Seeded from
+    # seeds/eligible_origin_clubs.csv; curate freely. Join on player_history.origin_club_tid.
+    """CREATE TABLE IF NOT EXISTS staging.eligible_origin_clubs (
+        club_tid INTEGER NOT NULL, club_name VARCHAR, region VARCHAR
+    )""",
+
     # GLOBAL reference table (not per-label). One row per (method, role, attribute).
     # `method` names a tactic/weight-set: 'black_hawk'/'personal' are seeded from
     # seeds/role_weights.csv; user-defined tactics are added by inserting new methods
@@ -445,6 +469,33 @@ def load_core(con, d, season, phase):
         con, "player_positions",
         ["season", "phase", "tid", "position", "familiarity"], pprows)
 
+    # --- career history (origin club + season-by-season) ---------------------
+    hist_path = os.path.join(d, "history.json")
+    if os.path.exists(hist_path):
+        hist = _load_json(hist_path)
+        hrows, hsrows = [], []
+        for k, v in hist.items():
+            tid = _int(k)
+            if tid is None:
+                continue
+            hrows.append((season, phase, tid, _int(v.get("origin_club_tid")),
+                          v.get("origin_club"), _int(v.get("last_season_club_tid")),
+                          v.get("confidence"), _int(v.get("record_offset"))))
+            for seq, s in enumerate(v.get("seasons") or []):
+                fee = s.get("fee")
+                hsrows.append((season, phase, tid, seq, _int(s.get("season")),
+                               _int(s.get("end_year")), _int(s.get("club_tid")),
+                               str(fee) if fee is not None else None,
+                               _int(s.get("apps")), _int(s.get("goals"))))
+        counts["player_history"] = _insert(
+            con, "player_history",
+            ["season", "phase", "tid", "origin_club_tid", "origin_club",
+             "last_season_club_tid", "confidence", "record_offset"], hrows)
+        counts["player_history_seasons"] = _insert(
+            con, "player_history_seasons",
+            ["season", "phase", "tid", "seq", "hist_season", "end_year",
+             "club_tid", "fee", "apps", "goals"], hsrows)
+
     # --- clubs ---------------------------------------------------------------
     clubs = _load_json(os.path.join(d, "clubs.json"))
     crows = [(season, phase, _int(k), v) for k, v in clubs.items() if _int(k) is not None]
@@ -601,7 +652,8 @@ def load_standings(con, d, season, phase):
 # DELETE scope so a reload of one group leaves the others intact
 def _clear_group(con, group, season, phase):
     if group == "core":
-        for t in ("players", "player_attributes", "player_positions", "clubs",
+        for t in ("players", "player_attributes", "player_positions",
+                  "player_history", "player_history_seasons", "clubs",
                   "competitions", "leagues", "matches", "match_events",
                   "match_player_stats"):
             _delete(con, t, season, phase)
@@ -754,6 +806,28 @@ def seed_role_weights(con):
         "SELECT method, role, attribute, category, weight FROM read_csv_auto(?)", [path])
 
 
+def seed_eligible_origin_clubs(con):
+    """(Re)seed the Athletic-Bilbao eligible-origin-club list from
+    seeds/eligible_origin_clubs.csv (replace). Curate that CSV to define which clubs'
+    youth products count as eligible (e.g. Danish Capital Region)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
+                        "eligible_origin_clubs.csv")
+    if not os.path.exists(path):
+        print(f"  ! eligible_origin_clubs seed missing at {path}; skipping")
+        return
+    rows = []
+    with open(path, encoding="utf-8") as fh:
+        reader = csv.reader(r for r in fh if r.strip() and not r.lstrip().startswith("#"))
+        header = next(reader, None)                 # skip the column header
+        for r in reader:
+            if len(r) >= 1 and _int(r[0]) is not None:
+                rows.append((_int(r[0]), r[1] if len(r) > 1 else None,
+                             r[2] if len(r) > 2 else None))
+    con.execute("DELETE FROM staging.eligible_origin_clubs")
+    con.executemany("INSERT INTO staging.eligible_origin_clubs "
+                    "(club_tid, club_name, region) VALUES (?,?,?)", rows)
+
+
 def seed_reference(con):
     """Seed the static position->role map (replace) and app_config defaults (only for
     keys that don't yet exist, so Config-page edits survive reloads)."""
@@ -863,6 +937,7 @@ def main():
             reset_schema(con)
         create_schema(con)
         seed_role_weights(con)
+        seed_eligible_origin_clubs(con)
         seed_reference(con)
         seed_config_bundle(con)
         print(f"loading into {args.db}")
