@@ -443,6 +443,32 @@ def _effective_cached(season, phase, method, curve, floor, ver):
     return _conn().execute(sql, [method, season, phase]).df()
 
 
+def eligibility_frame(season, phase):
+    """Per-player career origin + Athletic-Bilbao eligibility for the snapshot. Returns
+    tid, origin_club_tid, origin_club, last_season_club, confidence, eligible (origin in
+    staging.eligible_origin_clubs). Only high/medium confidence is reliably aligned."""
+    return _eligibility_cached(season, phase, _dbver())
+
+
+@st.cache_data(show_spinner=False)
+def _eligibility_cached(season, phase, ver):
+    sql = """
+        SELECT h.tid, h.origin_club_tid,
+               COALESCE(oc.name, '#' || h.origin_club_tid) AS origin_club,
+               COALESCE(lc.name, '#' || h.last_season_club_tid) AS last_season_club,
+               h.confidence,
+               (e.club_tid IS NOT NULL) AS eligible
+        FROM staging.player_history h
+        LEFT JOIN staging.clubs oc
+          ON (oc.season, oc.phase, oc.tid) = (h.season, h.phase, h.origin_club_tid)
+        LEFT JOIN staging.clubs lc
+          ON (lc.season, lc.phase, lc.tid) = (h.season, h.phase, h.last_season_club_tid)
+        LEFT JOIN staging.eligible_origin_clubs e ON e.club_tid = h.origin_club_tid
+        WHERE h.season = ? AND h.phase = ?
+    """
+    return _conn().execute(sql, [season, phase]).df()
+
+
 def player_match_totals(tids):
     """Career (all-season, deduped by latest phase) match-stat totals per player, for the
     given tids. Returns apps/goals/assists/avg rating + attempt & completion sums so
