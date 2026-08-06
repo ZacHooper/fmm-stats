@@ -24,10 +24,10 @@ def _valid_opts(include_attrs):
     return opts
 
 
-def _normalise(skey, include_attrs):
+def _normalise(skey, include_attrs, extra_options=()):
     """on_change: expand any picked preset macro to its stats; drop dups / unknowns,
     preserving order. Runs before the widget re-instantiates, so it's safe to write skey."""
-    valid = set(_valid_opts(include_attrs))
+    valid = set(_valid_opts(include_attrs)) | set(extra_options)
     seen, res = set(), []
     for item in st.session_state.get(skey, []):
         for x in (db.MATCH_PRESETS[item] if item in db.MATCH_PRESETS else [item]):
@@ -37,19 +37,25 @@ def _normalise(skey, include_attrs):
     st.session_state[skey] = res
 
 
-def stat_selector(key, default_preset="Custom", include_attrs=True, label="Metrics"):
-    """Unified metric picker. Returns (stats, attrs) — display names split by kind.
-    `default_preset` seeds the first render (None / unknown -> start empty)."""
+def stat_selector(key, default_preset="Custom", include_attrs=True, label="Metrics",
+                  extra_options=(), default_extra=()):
+    """Unified column picker. Returns (stats, attrs) — or (stats, attrs, extras) when
+    `extra_options` is given: a leading group of caller-supplied identity/bio column names
+    (e.g. Player, Age, Value) that pass straight through, so a page can offer complete
+    control over which columns show (including dropping the name). `default_preset`/
+    `default_extra` seed the first render (None / unknown -> start empty)."""
     skey = f"{key}_pick"
+    extra_options = list(extra_options)
     if skey not in st.session_state:
-        st.session_state[skey] = list(db.MATCH_PRESETS.get(default_preset, []))
-    opts = PRESET_MACROS + _valid_opts(include_attrs)
+        st.session_state[skey] = list(default_extra) + list(db.MATCH_PRESETS.get(default_preset, []))
+    opts = extra_options + PRESET_MACROS + _valid_opts(include_attrs)
 
     st.multiselect(
-        label, opts, key=skey, on_change=_normalise, args=(skey, include_attrs),
-        placeholder="Pick a preset, or search stats/attributes (try '90', '%', 'Pace')…",
-        help="Presets (⚽ 🎯 🎩 🛡 🧤) expand to a stat set. Attributes are the raw 1–20 "
-             "ratings; match stats need parsed appearances. All = every match stat.")
+        label, opts, key=skey, on_change=_normalise, args=(skey, include_attrs, extra_options),
+        placeholder="Pick a preset, or search columns (try '90', '%', 'Pace', 'Age')…",
+        help="Leading options are identity/bio columns. Presets (⚽ 🎯 🎩 🛡 🧤) expand to a "
+             "stat set. Attributes are the raw 1–20 ratings; match stats need parsed "
+             "appearances. All = every match stat.")
     with st.container(horizontal=True):          # responsive: wraps on narrow screens
         st.button("All", key=f"{key}_all",
                   on_click=lambda: st.session_state.__setitem__(skey, list(db.MATCH_STAT_DEFS)))
@@ -59,6 +65,9 @@ def stat_selector(key, default_preset="Custom", include_attrs=True, label="Metri
     chosen = st.session_state[skey]
     stats = [c for c in chosen if c in db.MATCH_STAT_DEFS]
     attrs = [c for c in chosen if c in db.ATTR_ORDER]
+    if extra_options:
+        extras = [c for c in chosen if c in extra_options]
+        return stats, attrs, extras
     return stats, attrs
 
 
@@ -81,4 +90,21 @@ def attach_columns(base, stats, attrs, agg, attrs_by, after="Pos"):
             cols.remove(a)
         i = cols.index(after) + 1
         cols[i:i] = attrs
+    return out[cols]
+
+
+def compose(base, id_cols, stats, attrs, agg, attrs_by):
+    """Fully column-controlled table. `base` carries 'key' + any precomputed identity/bio
+    columns (Player, Age, Value, …). Output columns = `id_cols` + `attrs` + `stats`, in that
+    order, filtered to those that exist. Attribute values come from `attrs_by[key]`; match
+    stats from `agg` (indexed by 'key'); 'key' is never shown. Rows whose key is missing
+    from a source just get blanks (e.g. manual prospects have no match stats)."""
+    out = base.copy()
+    idx = agg.set_index("key") if (agg is not None and not agg.empty and "key" in agg) else None
+    for disp in stats:
+        col = db.MATCH_STAT_DEFS[disp]
+        out[disp] = out["key"].map(idx[col]) if (idx is not None and col in idx) else pd.NA
+    for a in attrs:
+        out[a] = out["key"].map(lambda k: (attrs_by.get(k) or {}).get(a))
+    cols = [c for c in (list(id_cols) + list(attrs) + list(stats)) if c in out.columns]
     return out[cols]

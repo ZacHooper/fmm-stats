@@ -513,6 +513,39 @@ def player_search(query, season, phase, limit=50):
                 ORDER BY name LIMIT ?""", [season, phase, f"%{query}%", limit])
 
 
+def _ref_date(season, phase):
+    """Approx in-game calendar date for a snapshot (season = campaign end-year), for age."""
+    if phase == "start":
+        return datetime.date(season - 1, 7, 1)
+    if phase == "mid":
+        return datetime.date(season, 1, 1)
+    return datetime.date(season, 5, 1)
+
+
+def player_bio(season, phase, tids):
+    """{tid: {'Age': int|None, 'Value': int|None, 'Club': str}} for the snapshot. Age is
+    derived from dob vs the snapshot's approx date; Value is the parsed player value (raw
+    units). Wage is NOT parsed from the save, so there's no wage column."""
+    tids = [int(t) for t in tids if t is not None]
+    if not tids:
+        return {}
+    ref = _ref_date(season, phase)
+    ph = ",".join("?" * len(tids))
+    df = q(f"SELECT tid, dob, player_value, club FROM staging.players "
+           f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
+    out = {}
+    for r in df.itertuples():
+        age = None
+        if pd.notna(r.dob):
+            d = r.dob if isinstance(r.dob, datetime.date) else pd.to_datetime(r.dob).date()
+            age = ref.year - d.year - ((ref.month, ref.day) < (d.month, d.day))
+        out[int(r.tid)] = {
+            "Age": age,
+            "Value": int(r.player_value) if pd.notna(r.player_value) else None,
+            "Club": r.club}
+    return out
+
+
 def player_positions_map(season, phase, tid):
     """{position code: familiarity} for one player in the snapshot."""
     df = q("SELECT position, familiarity FROM staging.player_positions "

@@ -50,14 +50,6 @@ def importance_caption():
     return " &nbsp;·&nbsp; ".join(parts) or "no weighted attributes"
 
 
-def role_attr_cols(limit=8):
-    """The role's most important attributes (key then important then useful), for table
-    columns alongside the rating — 'rating is good but not everything'."""
-    ranked = sorted(db.ATTR_ORDER, key=lambda a: (-wmap.get(a.lower(), 1),
-                                                  db.ATTR_ORDER.index(a)))
-    return [a for a in ranked if wmap.get(a.lower(), 1) >= 3][:limit] or ranked[:limit]
-
-
 def prospect_rating(attrs, fam):
     """Effective rating for a set of attributes at the current role + a familiarity."""
     base = db.rating_from_attrs(attrs, method, role)
@@ -268,48 +260,92 @@ with tab_short:
             db.shortlist_remove(sid)
             st.rerun()
 
-        role_cols = role_attr_cols()
         # players who can play the sidebar position
         at_pos = sl[sl["positions"].map(lambda p: position in p)]
 
+        # shared inputs for both tables: bio lookups + match aggregates + attribute maps.
+        # `key` uniquely identifies each display row (real tid for DB players; a synthetic
+        # 's<id>' for manual prospects with no tid) so compose can map attrs/stats per row.
+        all_tids = (here["tid"].astype(int).tolist()
+                    + [int(r["tid"]) for _, r in at_pos.iterrows() if pd.notna(r["tid"])])
+        bio = db.player_bio(season, phase, all_tids)
+        elig = db.eligibility_frame(season, phase)
+        origin_by = dict(zip(elig["tid"], elig["origin_club"])) if not elig.empty else {}
+        prim = db.primary_position_map([t for t in all_tids])
+        sq_attrs = db.attributes_rows(season, phase, here["tid"].tolist())
+        mrows = db.enrich_match_rows(db.match_stats_rows(db.OUR_CLUBS))
+        mrows = mrows[mrows["appeared"]] if not mrows.empty else mrows
+        agg = db.aggregate_match_stats(mrows) if not mrows.empty else pd.DataFrame()
+        if not agg.empty:
+            agg = agg.assign(key=agg["tid"])
+
+        def prospect_row(r):
+            """(key, name, fam, rating, attrs, tid_or_None, primary_pos) for a shortlist row."""
+            fam = int(r["positions"][position]); at = r["attributes"]
+            tid = int(r["tid"]) if pd.notna(r["tid"]) else None
+            key = tid if tid is not None else f"s{int(r['id'])}"
+            pp = (prim.get(tid) if tid is not None
+                  else (max(r["positions"], key=r["positions"].get) if r["positions"] else None))
+            return key, r["name"], fam, prospect_rating(at, fam), at, tid, pp
+
+        # ---- picker: full control over identity/bio + attributes + match stats ----
         st.subheader(f"Where they'd slot at {position}")
+        ID_A = ["Rank", "Type", "Player", "Pos", "Fam", "Rating", "Age", "Value", "Origin"]
+        stats, attrs, ids = stat_table.stat_selector(
+            "sl_slot", default_preset=None, extra_options=ID_A,
+            default_extra=["Rank", "Type", "Player", "Fam", "Rating"],
+            label="Columns (slot-in table)")
         if here.empty and at_pos.empty:
             st.info(f"No squad players or shortlisted prospects list {position}.")
         else:
-            sq_attrs = db.attributes_rows(season, phase, here["tid"].tolist())
-            rows = []
+            rows, attrs_by = [], {}
             for _, r in here.iterrows():
-                at = sq_attrs.get(int(r["tid"]), {})
-                rows.append({"Type": "Squad", "Player": r["Player"],
-                             "Fam": int(r["familiarity"]), "eff": r["eff"],
-                             **{a: at.get(a) for a in role_cols}})
+                tid = int(r["tid"]); at = sq_attrs.get(tid, {})
+                attrs_by[tid] = at
+                rows.append({"key": tid, "Type": "Squad", "Player": r["Player"],
+                             "Pos": prim.get(tid), "Fam": int(r["familiarity"]),
+                             "eff": r["eff"], "Age": bio.get(tid, {}).get("Age"),
+                             "Value": bio.get(tid, {}).get("Value"),
+                             "Origin": origin_by.get(tid)})
             for _, r in at_pos.iterrows():
-                fam = int(r["positions"][position]); at = r["attributes"]
-                rows.append({"Type": "⭐ Shortlist", "Player": r["name"], "Fam": fam,
-                             "eff": prospect_rating(at, fam),
-                             **{a: at.get(a) for a in role_cols}})
-            slot = pd.DataFrame(rows).sort_values("eff", ascending=False).reset_index(drop=True)
-            slot.insert(0, "Rank", slot.index + 1)
-            slot["Rating"] = slot["eff"].round().astype(int)
-            st.dataframe(slot[["Rank", "Type", "Player", "Fam", "Rating"] + role_cols],
+                key, nm, fam, eff_r, at, tid, pp = prospect_row(r)
+                attrs_by[key] = at
+                rows.append({"key": key, "Type": "⭐ Shortlist", "Player": nm, "Pos": pp,
+                             "Fam": fam, "eff": eff_r,
+                             "Age": bio.get(tid, {}).get("Age") if tid else None,
+                             "Value": bio.get(tid, {}).get("Value") if tid else None,
+                             "Origin": origin_by.get(tid) if tid else None})
+            base = pd.DataFrame(rows).sort_values("eff", ascending=False).reset_index(drop=True)
+            base["Rank"] = base.index + 1
+            base["Rating"] = base["eff"].round().astype(int)
+            st.dataframe(stat_table.compose(base, ids, stats, attrs, agg, attrs_by),
                          width="stretch", hide_index=True)
             st.caption("Prospects (⭐) ranked in among the current squad at this position. "
-                       "Columns after Rating are the role's key/important attributes.")
+                       "Add any attribute or match stat above — match stats are blank for "
+                       "prospects (only managed-club matches are parsed). Wage isn't in the save.")
 
         st.subheader(f"Shortlist at {position}")
+        ID_B = ["Player", "Source", "Pos", "Fam", "Rating", "Age", "Value", "Origin"]
+        stats2, attrs2, ids2 = stat_table.stat_selector(
+            "sl_only", default_preset=None, extra_options=ID_B,
+            default_extra=["Player", "Source", "Fam", "Rating"],
+            label="Columns (shortlist table)")
         if at_pos.empty:
             st.info(f"No shortlisted players list {position}. "
                     "Pick another position in the sidebar.")
         else:
-            rows = []
+            rows, attrs_by = [], {}
             for _, r in at_pos.iterrows():
-                fam = int(r["positions"][position]); at = r["attributes"]
-                rows.append({"Player": r["name"], "Source": r["source"], "Fam": fam,
-                             "eff": prospect_rating(at, fam),
-                             **{a: at.get(a) for a in role_cols}})
-            tbl = pd.DataFrame(rows).sort_values("eff", ascending=False)
-            tbl["Rating"] = tbl["eff"].round().astype(int)
-            st.dataframe(tbl[["Player", "Source", "Fam", "Rating"] + role_cols],
+                key, nm, fam, eff_r, at, tid, pp = prospect_row(r)
+                attrs_by[key] = at
+                rows.append({"key": key, "Player": nm, "Source": r["source"], "Pos": pp,
+                             "Fam": fam, "eff": eff_r,
+                             "Age": bio.get(tid, {}).get("Age") if tid else None,
+                             "Value": bio.get(tid, {}).get("Value") if tid else None,
+                             "Origin": origin_by.get(tid) if tid else None})
+            base = pd.DataFrame(rows).sort_values("eff", ascending=False).reset_index(drop=True)
+            base["Rating"] = base["eff"].round().astype(int)
+            st.dataframe(stat_table.compose(base, ids2, stats2, attrs2, agg, attrs_by),
                          width="stretch", hide_index=True)
 
 # --------------------------------------------------------------------- compare
