@@ -58,19 +58,24 @@ if f.empty:
 # --- aggregate per player (shared with the Squad tool) ---
 agg = db.aggregate_match_stats(f)
 
-stats, attrs = stat_table.stat_selector("ps", default_preset="Custom")
-detail = st.checkbox("Show start/sub/minutes detail", value=True)
-
 # attribute columns are snapshotted from the latest label (match stats are career)
 snap = db.labels_df().iloc[-1]
-attrs_by = db.attributes_rows(int(snap["season"]), snap["phase"], agg["tid"].tolist()) if attrs else {}
 
-base = agg.rename(columns={"player": "Player", "pos": "Pos"})[["tid", "Player", "Pos"]].copy()
-for c in (["Apps", "Starts", "Sub", "Min"] if detail else ["Apps"]):
-    base[c] = agg[c].values
-base["Rating"] = agg["Rating"].values
-out = stat_table.attach_columns(base, stats, attrs, agg, attrs_by, after="Pos")
-st.dataframe(out.sort_values("Rating", ascending=False), width="stretch", hide_index=True)
+base = agg.rename(columns={"player": "Player", "pos": "Pos"})[
+    ["tid", "Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating"]].copy()
+base = db.attach_bio(base, int(snap["season"]), snap["phase"])      # Age / Value / Origin
+base["key"] = base["tid"]
+base = base.sort_values("Rating", ascending=False)
+
+stat_table.player_table(
+    "ps", base, default_preset="Custom",
+    id_options=["Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating",
+                "Age", "Value", "Origin"],
+    default_cols=["Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating"],
+    agg_provider=lambda keys: agg,
+    attrs_provider=lambda keys: db.attributes_rows(int(snap["season"]), snap["phase"],
+                                                   [int(k) for k in keys]),
+    picker_label="Columns — add/remove any field, match stat or attribute")
 st.caption("Appearances exclude unused subs. Starts = named in the XI; Sub = off the "
            "bench; Min = minutes (subOff−subOn, 90 if unsubbed). Per 90 = ×90 ÷ minutes "
            "(fairer for subs); per game = ÷ appearances. Conversion % = goals ÷ shots; "

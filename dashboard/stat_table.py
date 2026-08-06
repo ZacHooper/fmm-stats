@@ -50,12 +50,13 @@ def stat_selector(key, default_preset="Custom", include_attrs=True, label="Metri
         st.session_state[skey] = list(default_extra) + list(db.MATCH_PRESETS.get(default_preset, []))
     opts = extra_options + PRESET_MACROS + _valid_opts(include_attrs)
 
+    hint = "'90', '%', 'Pace', 'Age'" if extra_options else "'90', '%', 'Pace'"
     st.multiselect(
         label, opts, key=skey, on_change=_normalise, args=(skey, include_attrs, extra_options),
-        placeholder="Pick a preset, or search columns (try '90', '%', 'Pace', 'Age')…",
-        help="Leading options are identity/bio columns. Presets (⚽ 🎯 🎩 🛡 🧤) expand to a "
-             "stat set. Attributes are the raw 1–20 ratings; match stats need parsed "
-             "appearances. All = every match stat.")
+        placeholder=f"Pick a preset, or search columns (try {hint})…",
+        help=("Leading options are identity/bio columns. " if extra_options else "")
+             + "Presets (⚽ 🎯 🎩 🛡 🧤) expand to a stat set. Attributes are the raw 1–20 "
+               "ratings; match stats need parsed appearances. All = every match stat.")
     with st.container(horizontal=True):          # responsive: wraps on narrow screens
         st.button("All", key=f"{key}_all",
                   on_click=lambda: st.session_state.__setitem__(skey, list(db.MATCH_STAT_DEFS)))
@@ -91,6 +92,59 @@ def attach_columns(base, stats, attrs, agg, attrs_by, after="Pos"):
         i = cols.index(after) + 1
         cols[i:i] = attrs
     return out[cols]
+
+
+def _auto_column_config(cols, extra=None):
+    """Sensible column_config: any '…%ile' column renders as a 0–100 progress bar."""
+    cfg = {}
+    for c in cols:
+        if str(c).endswith("%ile"):
+            cfg[c] = st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=100)
+    if extra:
+        cfg.update(extra)
+    return cfg
+
+
+def player_table(key, rows, *, id_options=None, default_cols=None,
+                 agg_provider=None, attrs_provider=None, include_attrs=True,
+                 default_preset=None, picker_label="Columns", column_config=None,
+                 render=True):
+    """THE reusable player table — one component for every page that lists players.
+
+    `rows`: DataFrame with a stable 'key' column (usually the tid; a synthetic id for
+        players not in the snapshot) plus any precomputed identity/bio columns you want to
+        expose (Player, Pos, Age, Value, Origin, %iles, …).
+    `id_options`: identity/bio column names offered in the picker (default: every non-'key'
+        column of `rows`, in order). `default_cols`: columns shown on first render.
+    `agg_provider(keys)->DataFrame`: returns match-stat aggregates with a 'key' column +
+        MATCH_STAT_DEFS columns; called only when a match stat is picked.
+    `attrs_provider(keys)->{key: {attr: value}}`: called only when an attribute is picked.
+    Everything is add/remove via the same one-box picker (identity + presets + match stats +
+    attributes), so the user has complete control over which columns show, on every page."""
+    if "key" not in rows.columns:
+        raise ValueError("player_table: `rows` must have a 'key' column")
+    id_options = list(id_options) if id_options is not None \
+        else [c for c in rows.columns if c != "key"]
+    skey = f"{key}_pick"
+    if skey not in st.session_state:
+        st.session_state[skey] = list(default_cols if default_cols is not None else id_options)
+
+    stats, attrs, extras = stat_selector(
+        key, default_preset=default_preset, include_attrs=include_attrs,
+        label=picker_label, extra_options=id_options, default_extra=id_options)
+
+    keys = rows["key"].tolist()
+    agg = agg_provider(keys) if (stats and agg_provider) else None
+    # providers return their natural aggregate (keyed by 'tid'); normalise to a 'key' column
+    # so compose can map, tolerating an empty frame (e.g. a day-1 save with no matches).
+    if agg is not None and not agg.empty and "key" not in agg.columns and "tid" in agg.columns:
+        agg = agg.assign(key=agg["tid"])
+    attrs_by = attrs_provider(keys) if (attrs and attrs_provider) else {}
+    out = compose(rows, extras, stats, attrs, agg, attrs_by or {})
+    if render:
+        st.dataframe(out, width="stretch", hide_index=True,
+                     column_config=_auto_column_config(out.columns, column_config))
+    return out
 
 
 def compose(base, id_cols, stats, attrs, agg, attrs_by):

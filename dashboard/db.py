@@ -546,6 +546,24 @@ def player_bio(season, phase, tids):
     return out
 
 
+def attach_bio(rows, season, phase, tid_col="tid"):
+    """Add Age / Value / Origin columns to a player frame (keyed by `tid_col`), so any
+    player table can expose them. Age & Value from the snapshot; Origin from parsed career
+    history. Rows with a null tid (manual prospects) get None. Returns a copy."""
+    r = rows.copy()
+    tids = [int(t) for t in r[tid_col].dropna().unique()]
+    bio = player_bio(season, phase, tids)
+    elig = eligibility_frame(season, phase)
+    origin = dict(zip(elig["tid"], elig["origin_club"])) if not elig.empty else {}
+
+    def _g(t, field):
+        return bio.get(int(t), {}).get(field) if pd.notna(t) else None
+    r["Age"] = r[tid_col].map(lambda t: _g(t, "Age"))
+    r["Value"] = r[tid_col].map(lambda t: _g(t, "Value"))
+    r["Origin"] = r[tid_col].map(lambda t: origin.get(int(t)) if pd.notna(t) else None)
+    return r
+
+
 def player_positions_map(season, phase, tid):
     """{position code: familiarity} for one player in the snapshot."""
     df = q("SELECT position, familiarity FROM staging.player_positions "

@@ -288,13 +288,10 @@ with tab_short:
                   else (max(r["positions"], key=r["positions"].get) if r["positions"] else None))
             return key, r["name"], fam, prospect_rating(at, fam), at, tid, pp
 
-        # ---- picker: full control over identity/bio + attributes + match stats ----
+        agg_p = (lambda keys: agg) if not agg.empty else None
+
+        # ---- slot-in table (shared player_table: full column control) ----
         st.subheader(f"Where they'd slot at {position}")
-        ID_A = ["Rank", "Type", "Player", "Pos", "Fam", "Rating", "Age", "Value", "Origin"]
-        stats, attrs, ids = stat_table.stat_selector(
-            "sl_slot", default_preset=None, extra_options=ID_A,
-            default_extra=["Rank", "Type", "Player", "Fam", "Rating"],
-            label="Columns (slot-in table)")
         if here.empty and at_pos.empty:
             st.info(f"No squad players or shortlisted prospects list {position}.")
         else:
@@ -318,18 +315,19 @@ with tab_short:
             base = pd.DataFrame(rows).sort_values("eff", ascending=False).reset_index(drop=True)
             base["Rank"] = base.index + 1
             base["Rating"] = base["eff"].round().astype(int)
-            st.dataframe(stat_table.compose(base, ids, stats, attrs, agg, attrs_by),
-                         width="stretch", hide_index=True)
+            stat_table.player_table(
+                "sl_slot", base,
+                id_options=["Rank", "Type", "Player", "Pos", "Fam", "Rating",
+                            "Age", "Value", "Origin"],
+                default_cols=["Rank", "Type", "Player", "Fam", "Rating"],
+                agg_provider=agg_p, attrs_provider=lambda keys, ab=attrs_by: ab,
+                picker_label="Columns (slot-in table)")
             st.caption("Prospects (⭐) ranked in among the current squad at this position. "
                        "Add any attribute or match stat above — match stats are blank for "
                        "prospects (only managed-club matches are parsed). Wage isn't in the save.")
 
+        # ---- shortlist-only table (shared player_table) ----
         st.subheader(f"Shortlist at {position}")
-        ID_B = ["Player", "Source", "Pos", "Fam", "Rating", "Age", "Value", "Origin"]
-        stats2, attrs2, ids2 = stat_table.stat_selector(
-            "sl_only", default_preset=None, extra_options=ID_B,
-            default_extra=["Player", "Source", "Fam", "Rating"],
-            label="Columns (shortlist table)")
         if at_pos.empty:
             st.info(f"No shortlisted players list {position}. "
                     "Pick another position in the sidebar.")
@@ -345,8 +343,13 @@ with tab_short:
                              "Origin": origin_by.get(tid) if tid else None})
             base = pd.DataFrame(rows).sort_values("eff", ascending=False).reset_index(drop=True)
             base["Rating"] = base["eff"].round().astype(int)
-            st.dataframe(stat_table.compose(base, ids2, stats2, attrs2, agg, attrs_by),
-                         width="stretch", hide_index=True)
+            stat_table.player_table(
+                "sl_only", base,
+                id_options=["Player", "Source", "Pos", "Fam", "Rating",
+                            "Age", "Value", "Origin"],
+                default_cols=["Player", "Source", "Fam", "Rating"],
+                agg_provider=agg_p, attrs_provider=lambda keys, ab=attrs_by: ab,
+                picker_label="Columns (shortlist table)")
 
 # --------------------------------------------------------------------- compare
 with tab_cmp:
@@ -526,7 +529,6 @@ with tab_cmp:
 
     # ---- configurable match-stat + attribute table (squad picks) ----
     st.subheader("Match stats & attributes")
-    stats, attrs = stat_table.stat_selector("cmp", default_preset="Custom")
     attrs_by_tid = {pool[p]["tid"]: attrs_by[p] for p in squad_picks}
     if pick_agg.empty:
         st.caption("No match appearances for the selected squad players under this filter — "
@@ -534,6 +536,8 @@ with tab_cmp:
         base = pd.DataFrame({"tid": [pool[p]["tid"] for p in squad_picks],
                              "Player": squad_picks})
         base["Pos"] = base["tid"].map(prim_db)
+        for c in ("Apps", "Starts", "Sub", "Min", "Rating"):
+            base[c] = pd.NA
     else:
         pa = pick_agg.sort_values("Rating", ascending=False)
         base = pa.rename(columns={"player": "Player", "pos": "Pos"})[
@@ -541,8 +545,14 @@ with tab_cmp:
     if base.empty:
         st.caption("Select at least one squad player to see the match-stat table.")
     else:
-        tbl = stat_table.attach_columns(base, stats, attrs, pick_agg, attrs_by_tid, after="Pos")
-        st.dataframe(tbl, width="stretch", hide_index=True)
+        base["key"] = base["tid"]
+        stat_table.player_table(
+            "cmp", base, default_preset="Custom",
+            id_options=["Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating"],
+            default_cols=["Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating"],
+            agg_provider=lambda keys, a=pick_agg: a,
+            attrs_provider=lambda keys, ab=attrs_by_tid: ab,
+            picker_label="Columns — add/remove any field, match stat or attribute")
     st.caption("Apps exclude unused subs. Per 90 = ×90 ÷ minutes; per game = ÷ appearances. "
                "Conversion % = goals ÷ shots; DefActions = tackles won + interceptions + "
                "headers won. Filters above scope every figure and the output radars.")

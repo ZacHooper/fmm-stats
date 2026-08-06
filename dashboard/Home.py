@@ -58,23 +58,20 @@ show = rows[["tid", "Player", "Status", "position", "familiarity", "Rating",
              "pctile_league", "level_league", "League", "pctile_nation", "Nation"]].rename(columns={
     "position": "Pos", "familiarity": "Fam", "pctile_league": "Fit %ile",
     "level_league": "Level %ile", "pctile_nation": "Nation %ile"})
+show = db.attach_bio(show, season, phase)         # Age / Value / Origin (toggleable)
+show["key"] = show["tid"]
 
-# optional: pull match stats / attributes into the same table (default: none)
-stats, attrs = stat_table.stat_selector("home", default_preset=None,
-                                        label="Add match stats / attributes (optional)")
-agg = db.player_match_agg(show["tid"].tolist()) if stats else None
-attrs_by = db.attributes_rows(season, phase, show["tid"].tolist()) if attrs else {}
-show = stat_table.attach_columns(show, stats, attrs, agg, attrs_by, after="Pos")
-
-st.dataframe(
-    show, width="stretch", hide_index=True,
-    column_config={
-        "Fam": st.column_config.NumberColumn(format="%d", help="Position familiarity 1–20"),
-        "Rating": st.column_config.NumberColumn(format="%d"),
-        "League %ile": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=100),
-        "Nation %ile": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=100),
-    })
+stat_table.player_table(
+    "home", show,
+    id_options=["Player", "Status", "Pos", "Fam", "Rating", "Fit %ile", "Level %ile",
+                "League", "Nation %ile", "Nation", "Age", "Value", "Origin"],
+    default_cols=["Player", "Status", "Pos", "Fam", "Rating", "Fit %ile", "Level %ile",
+                  "League", "Nation"],
+    agg_provider=lambda keys: db.player_match_agg([int(k) for k in keys]),
+    attrs_provider=lambda keys: db.attributes_rows(season, phase, [int(k) for k in keys]),
+    picker_label="Columns — add/remove any field, match stat or attribute")
 
 st.caption("Rating = tactic-weighted attribute sum × position-familiarity multiplier "
            "(configurable on the Config page). League/Nation columns rank the player among "
-           "everyone who plays that position in their division / country.")
+           "everyone who plays that position in their division / country. Add any attribute "
+           "or match stat, or Age / Value / Origin, via the column picker.")

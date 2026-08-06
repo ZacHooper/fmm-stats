@@ -12,6 +12,7 @@ import os as _os, sys as _sys
 _d = _os.path.dirname(_os.path.abspath(__file__))
 _sys.path.insert(0, _d if _os.path.exists(_os.path.join(_d, "db.py")) else _os.path.dirname(_d))
 import db
+import stat_table
 
 st.set_page_config(page_title="Recruitment", page_icon="🎯", layout="wide")
 st.title("🎯 Recruitment — eligible origins")
@@ -54,29 +55,31 @@ if picks:
 min_level = st.sidebar.slider("Min level %ile (global)", 0, 100, 0, 5)
 df = df[df["level_global"].fillna(0) >= min_level]
 
-# --- table ---------------------------------------------------------------------
+# --- table (shared player_table: add/remove any field, attribute or match stat) --
 df = df.sort_values("eff", ascending=False)
-out = pd.DataFrame({
-    "Player": df["name"],
-    "Pos": df["position"],
-    "Origin": df["origin_club"],
-    "Current club": df["club"],
-    "Rating": df["eff"].round(1),
-    "Fit %ile": df["pctile_global"],
-    "Level %ile": df["level_global"],
-    "Conf": df["confidence"],
+base = pd.DataFrame({
+    "key": df["tid"].values,
+    "tid": df["tid"].values,
+    "Player": df["name"].values,
+    "Pos": df["position"].values,
+    "Origin": df["origin_club"].values,
+    "Current club": df["club"].values,
+    "Rating": df["eff"].round(1).values,
+    "Fit %ile": df["pctile_global"].values,
+    "Level %ile": df["level_global"].values,
+    "Conf": df["confidence"].values,
 })
-st.caption(f"**{len(out)}** eligible players "
+base = db.attach_bio(base, season, phase)         # adds Age / Value (Origin already set)
+base["Origin"] = df["origin_club"].values         # keep the career-history origin
+st.caption(f"**{len(base)}** eligible players "
            f"({(df['confidence'] == 'high').sum()} high, "
            f"{(df['confidence'] == 'medium').sum()} medium).")
-st.dataframe(
-    out, width="stretch", hide_index=True,
-    column_config={
-        "Fit %ile": st.column_config.ProgressColumn(
-            "Fit %ile", help="Tactic-fit rating percentile at this position (global)",
-            min_value=0, max_value=100, format="%d"),
-        "Level %ile": st.column_config.ProgressColumn(
-            "Level %ile", help="Tactic-agnostic quality percentile at this position (global)",
-            min_value=0, max_value=100, format="%d"),
-    },
-)
+stat_table.player_table(
+    "recruit", base,
+    id_options=["Player", "Pos", "Origin", "Current club", "Rating", "Fit %ile",
+                "Level %ile", "Conf", "Age", "Value"],
+    default_cols=["Player", "Pos", "Origin", "Current club", "Rating", "Fit %ile",
+                  "Level %ile", "Conf"],
+    agg_provider=lambda keys: db.player_match_agg([int(k) for k in keys]),
+    attrs_provider=lambda keys: db.attributes_rows(season, phase, [int(k) for k in keys]),
+    picker_label="Columns — add/remove any field, attribute or match stat")
