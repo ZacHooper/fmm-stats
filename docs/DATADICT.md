@@ -41,6 +41,51 @@ are **exact league membership + format + promotion/relegation/splits** — all g
 - The region **drifts per save** (like every other region — see `denmark-region-drift`). The
   enumerator locates it by the `comp` tag cluster; do NOT hard-code the offsets.
 
+## Relational schema (tables, PKs, FKs) — 2026-08
+The save behaves like a relational DB. Even where a field's *contents* are unknown, its role as a
+**key** is recoverable, which itself constrains meaning.
+
+### Key system (how ids/PKs are encoded)
+- A record's `id` (type `0x02`) is the **type tag** (self): the u32 decodes to 4 ASCII chars
+  (`1668246896`=`comp`, `1937007732`=`stdt`, `1851880553`=`nati`, `1936023923`=`seas`). This is the
+  record declaring its table, **not** an instance key.
+- A record's **instance PK** is a UID with a **type-band prefix**:
+  - **`2000000000 + serial`** = created datadict entities (e.g. comp *3.Division* UID `2000016262`).
+  - **`200000000 + tid`** = added clubs (Dalum `200007289`).
+  - **small** = legacy entities (Frem club UID `507`).
+- **FKs are value-based:** a field carrying a value in another table's key-space is a foreign key.
+
+### Datadict tables (PK = instance UID; → = FK)
+| table | PK / id | foreign keys (field → target) | notes |
+|---|---|---|---|
+| `comp` | comp UID (2e9) | `levl`→tier, `curr`→currency, `nati`/`Nnat`→nation, `pare`→comp(parent), `type` | ntms/mntm/mxtm counts |
+| `stnm`/`stag`/`SCsn`/`nssn` | stage UID | `comp`→comp, `drrl`→draw-rule, `seed`/`prio` | stages of a comp; `nssn` holds team-slot `crk` snapshot |
+| `lrnk`/`wrnk` | — | `stnm`→stage, `team`→slot(0..ntms) | standings/rank atom; `crk`=position |
+| `Ttea`/`team` | team UID / `Ttea`=**club tid** | `Ttea`→club(tid), `comp`→comp | team-in-competition |
+| `przm`/`wnpz`/`lspz`/`apmn` | — | `comp`→comp, `posn`→finish position | prize money by position |
+| `stdt`/`endt`/`drdt`/`nwdt`/`date`/`dat2` | date UID | — | y/m/d date records |
+| `fxds` | fixtures UID | `comp`→comp | fixture scheduling |
+| `nati` | nation id | — | nation table |
+| `mnsn`/`nmsn`/`sbsn` | season UID | `comp`→comp | season records |
+
+### External tables (NOT in the datadict — other regions — that bridge in)
+These are the already-cracked structures the datadict joins to (incl. **players + names**, which live
+here, not in the datadict):
+| table | region | PK | foreign keys | source |
+|---|---|---|---|---|
+| **clubs** | club DB ~7M (multi-segment) | club **tid** | `[TID][UID]`; `league`(+158)→comp code; `country`→nation | `reference.club_record` ([[day1-league-membership]]) |
+| **players** | info spine | player **tid** | `club_tid`→club, `first_name_id`/`last_name_id`→names, `nationality_id`→nation | `staging.scrape_players` |
+| **names** | browse @0.3M + id-index @~37M | name_id → ordinal → string | 16-byte `[ordinal][name_id]` index; browse `[len][utf8]` | `reference.build_name_resolver` ([[name-resolution]]) |
+| **packed comps** | comp records ~13M | **cid** (u16) | `[cid][UID]`; name/type/nation | `reference.comp_detail` |
+| **player history** | ~40.6M | (tid via sid-order) | club-tid per row | [[player-history-table]] |
+
+### Bridges (the cross-region joins that make it one schema)
+- **comp UID ↔ cid**: datadict `comp` UID `2000016262` ↔ packed-comp `cid 1147` (via `comp_detail`).
+  This is the join that lets datadict config attach to our competitions. (HANDOFF: cid 228↔uid 463485.)
+- **club tid**: datadict `Ttea` = club tid → clubs table (tid) → names/league.
+- **nation id**: `nati`/`Nnat` shared with players' `nationality_id` and clubs' `country`.
+- **name ids**: players' `first_name_id`/`last_name_id` → names table (the existing 3-hop).
+
 ## Requirements → target entities (work these first)
 Requirement-driven order, most-wanted first:
 
