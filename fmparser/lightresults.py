@@ -103,7 +103,16 @@ def sweep(mm, valid_clubs, lo=RG.LIGHT_LO, hi=RG.LIGHT_HI, min_copies=2):
     """Every light-result fixture in the region, deduped. `valid_clubs` gates false
     positives (both teams must be real club TIDs). Returns a list of dicts:
     {home, away, scoreH, scoreA, cid, copies, off}. Records seen `min_copies`+ times
-    (the 516-apart duplication) are the confirmed ones; set min_copies=1 to keep all."""
+    are the confirmed ones; set min_copies=1 to keep all.
+
+    MIRROR DEDUP: the light list stores a fixture from BOTH clubs' perspectives — the
+    same game appears as `A h-a B` and `B a-h A`. The dedup key is therefore the
+    UNORDERED pair + score (lower-tid perspective), so mirror copies collapse into one
+    fixture instead of being double-counted in the standings (this was inflating W/D/L —
+    e.g. Frem's league record read 5-1-4 with the phantom copies, ~4-1-2 without). The
+    first-seen orientation is kept for display. Caveat: a genuine home-AND-away double
+    leg with an exactly mirrored scoreline would also merge, but that's rare and the
+    error is one game; partial coverage is the far bigger inaccuracy anyway."""
     agg = {}
     o = lo
     end = hi - 16
@@ -115,7 +124,9 @@ def sweep(mm, valid_clubs, lo=RG.LIGHT_LO, hi=RG.LIGHT_HI, min_copies=2):
                 sH, sA = mm[o + 4], mm[o + 5]
                 cid = _u16(mm, o + 10)
                 if sH <= 30 and sA <= 30 and 0 < cid < 20000 and _u16(mm, o + 12) in YEARS:
-                    k = (home, away, cid, sH, sA)
+                    lo_tid, hi_tid = min(home, away), max(home, away)
+                    s_lo, s_hi = (sH, sA) if home == lo_tid else (sA, sH)
+                    k = (lo_tid, hi_tid, cid, s_lo, s_hi)      # unordered -> mirrors merge
                     r = agg.get(k)
                     if r:
                         r["copies"] += 1
