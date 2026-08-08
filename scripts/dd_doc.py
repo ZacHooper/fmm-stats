@@ -108,6 +108,19 @@ KNOWN = {
  "hdty": "?head-to-head/seeding type", "mtdr": "?match-day rule", "idwi": "index",
  "rank": "rank / seed value", "d2lA": "?small enum (23..74)", "wndl": "?", "wnrd": "?winner round",
  "tvds": "?TV days/count", "lsdi": "?last-stage index", "fsdi": "?first-stage index",
+ # --- pass 4: nation/season/rank/round entities + fields (2026-08) ---
+ "nati": "nation's competition setup (Nnat + calendar + level)",
+ "mnsn": "season record (level, num teams, stages, team list via Ttea)",
+ "nmsn": "per-team season schedule + rank (stage/team-slot/crk + TV scheduling)",
+ "srci": "?season/source-comp record (bnsc/decd)", "spst": "stadium/sponsor prize record (stad+przm)",
+ "accm": "?achievement/accumulator (type+sequence)", "rgdv": "?regional/relegation division config",
+ "dvlv": "division level", "stad": "stadium (ref)", "sequ": "sequence no.",
+ "GmTy": "game type flag", "rats": "ratings flag", "ctll": "bool flag", "rndt": "bool flag",
+ "lgfx": "bool flag", "sfsr": "bool flag", "bnsc": "?(0..5)", "decd": "?decided (0..6)",
+ "nmxt": "num next matches (0..82)", "ctin": "counter/index (0..7)", "info": "counter/index value",
+ "mxto": "max teams (alt)", "rst1": "bool flag", "uhtt": "bool flag", "nmlg": "num legs (1..2)",
+ "wnrd": "?winner round", "wndl": "?", "gmbl": "?", "tyar": "bool flag", "prsw": "bool flag",
+ "sswn": "?", "dcin": "?", "SrTs": "?", "chcl": "?channel (0..7)",
 }
 
 
