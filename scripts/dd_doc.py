@@ -176,6 +176,21 @@ KNOWN = {
  "ttac": "bool flag", "sths": "bool flag", "iqum": "bool flag", "frty": "bool flag",
  "blpm": "bool flag", "usfr": "bool flag", "sblt": "bool flag", "ACfl": "?flag ref",
  "dtfl": "?date-flag ref", "sdnf": "?ref", "rmnn": "const(=1)", "RdPr": "const(=0)",
+ # --- pass 9: rule-refs, times, percentages 2026-08 ---
+ "Per%": "percentage (10..100)", "wdft": "weekday fixture default time (HHMM)",
+ "mdft": "midweek fixture default time (HHMM)", "rvtm": "reverse/two-legs flag",
+ "HdRl": "?head-to-head rule flag", "lgrl": "league rule (ref)", "grrl": "group rule (ref)",
+ "stfl": "stage flag (ref)", "fxrl": "fixture rule (1..14)", "dfdl": "?default rule (0..3)",
+ "dsrl": "?rule (1..7)", "stdr": "?start round (1..13)", "ngrt": "?num groups/teams (1..20)",
+ "gpdt": "group data (0..16)", "gnty": "group type (0..7)", "mstc": "?capacity/money threshold (max)",
+ "mnsc": "?capacity/money threshold (min)", "CcQR": "?cup qualification (0..7)", "CcEx": "?cup (const 0)",
+ "mnmt": "?min matches (2..34)", "RkIn": "rank-in (1..20)", "trwi": "?transfer-window index (2..13)",
+ "retm": "?(2..90)", "rsvl": "?reserve level (0..13)", "oldi": "?index (255-sentinel)",
+ "ofdi": "?offset index (255-sentinel)", "reas": "?(2..10, team)", "wkpm": "?week param (1..5)",
+ "alti": "const 0 (lrnk)", "hlti": "const 0 (lrnk)", "alct": "?away count/form (lrnk)",
+ "hlct": "?home count/form (lrnk)", "sseg": "?segment ref", "lfte": "?(1..255)",
+ "lwdl": "?(0..255, 255-sentinel)", "ignt": "bool flag", "WdDa": "bool flag", "rsno": "bool flag",
+ "exfp": "?(0..2)", "scnc": "const(=1)", "spdO": "?(0..255)",
 }
 
 

@@ -218,7 +218,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `sqdt` | 86 | type, valu, cmty, id, sqsr, tcpf, dyom, mont, year, usqn | per-club squad data (type=club tid, valu, sqsr) |
 | `relr` | 85 | id, nrpl | relegation places (nrpl count) |
 | `ssnd` | 82 | id, snms | ?season record (snms 23..99) |
-| `wkpm` | 78 | type, dyow, year, dyom, mont, cmty, valu, strl, id, time | **TBD** |
+| `wkpm` | 78 | type, dyow, year, dyom, mont, cmty, valu, strl, id, time | ?week param (1..5) |
 | `dtrn` | 75 | id, stmn, styo, enmn, enyo, year, strl, dyom, mont, id_1 | date-range record (start/end month + year, e.g. transfer window) |
 | `sudt` | 68 | mnsn, in_2, year, strl, dyom, mont, time, dyow, id, hidl | ?scheduled update date (mnsn + date) |
 | `agdt` | 64 | id, type, dyom, mont, year, plty, lpcr, lnrl, expd, sbty | ?agreement/registration date |
@@ -256,8 +256,8 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `RmSV` | 28 | id, cash, curr, MlsY, MLsC | **TBD** |
 | `MsCv` | 28 | id, cash, curr, MlsY, NtGB | **TBD** |
 | `cnti` | 26 | id, in_2, cont, nmmt, in_1, seed, type, semt, mxtm, id_1 | **TBD** |
-| `dsrl` | 22 | id | **TBD** |
-| `fxrl` | 21 | mnsn, in_2, year, dyom, mont, strl, dyow, time, id, styr | **TBD** |
+| `dsrl` | 22 | id | ?rule (1..7) |
+| `fxrl` | 21 | mnsn, in_2, year, dyom, mont, strl, dyow, time, id, styr | fixture rule (1..14) |
 | `idms` | 17 | levl, id, przm, type, mnsn, ntms, stgn, id_1, id_2, year | **TBD** |
 | `info` | 16 | id, cash, curr, year, tcpf, usqn, mont, dyom, dyow, trrl | counter/index value |
 | `wopm` | 16 | id, decd, type, info, wpdw | **TBD** |
@@ -339,7 +339,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `curr` | 1831 | 0x02,0x11 | refs:    ×525,    ×296,    ×130,    ×110 | ->   !, ->   , ->   , ->   , ->   ( | currency (ref) |
 | `ofsd` | 1788 | 0x0b | 0..16 | 0, 1, 2, 6, 5 | ? |
 | `seed` | 1718 | 0x11,0x0b | 0..255 | 0, 1, 10, 8, 6 | seeding |
-| `lwdl` | 1708 | 0x11 | 0..255 | 1, 4, 0, 255, 2 | **TBD** |
+| `lwdl` | 1708 | 0x11 | 0..255 | 1, 4, 0, 255, 2 | ?(0..255, 255-sentinel) |
 | `mxtm` | 1684 | 0x11,0x12 | 0..185 | 16, 18, 9, 15, 13 | max teams |
 | `indx` | 1587 | 0x11 | 0..25 | 0, 3, 5, 1, 2 | index |
 | `sbsn` | 1547 | 0x11,0x0a,0x12 | 2..136 | 4, 3, 2, 18, 20 | sub-season index |
@@ -387,7 +387,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `Bran` | 667 | 0x12,0x11,0x02 | refs:   «×16 | 1435, 1437, 1436, 1452, 0 | brand/entity ref (~1435) |
 | `XSvC` | 667 | 0x11,0x12 | 1..172 | 2, 51, 13, 4, 3 | ? |
 | `fsdi` | 667 | 0x11 | 0..255 | 21, 9, 0, 1, 2 | ?first-stage index |
-| `lfte` | 664 | 0x11 | 1..255 | 255, 6, 4, 1, 2 | **TBD** |
+| `lfte` | 664 | 0x11 | 1..255 | 255, 6, 4, 1, 2 | ?(1..255) |
 | `drrl` | 664 | 0x02 | refs:    ×105,     ×87,    H×66,    ×53 | ->   , ->   H, ->  , ->    , ->    | draw rule |
 | `bnsc` | 662 | 0x11 | 0..5 | 5, 2, 3, 1, 0 | ?(0..5) |
 | `fxri` | 651 | 0x11 | 0..255 | 2, 8, 7, 1, 3 | ?fixture rule index |
@@ -532,66 +532,66 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `sblt` | 156 | 0x0b | 0..1 | 0, 1 | bool flag |
 | `usfr` | 151 | 0x03 | 0..1 | 1, 0 | bool flag |
 | `updy` | 149 | 0x0a | 3..3 | 3 | ?dated update record (type/valu by date) |
-| `alct` | 149 | 0x11 | 0..15 | 1, 2, 0, 3, 5 | **TBD** |
-| `alti` | 149 | 0x11 | 0..0 | 0 | **TBD** |
+| `alct` | 149 | 0x11 | 0..15 | 1, 2, 0, 3, 5 | ?away count/form (lrnk) |
+| `alti` | 149 | 0x11 | 0..0 | 0 | const 0 (lrnk) |
 | `snen` | 146 | 0x03 | 0..1 | 0, 1 | season-end flag |
-| `rvtm` | 146 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `mstc` | 145 | 0x12,0x11,0x01 | 0..70000 | 5000, 1500, 3000, 300, 12500 | **TBD** |
-| `CcQR` | 143 | 0x0b | 0..7 | 7, 0, 5, 6, 1 | **TBD** |
+| `rvtm` | 146 | 0x03 | 0..1 | 0, 1 | reverse/two-legs flag |
+| `mstc` | 145 | 0x12,0x11,0x01 | 0..70000 | 5000, 1500, 3000, 300, 12500 | ?capacity/money threshold (max) |
+| `CcQR` | 143 | 0x0b | 0..7 | 7, 0, 5, 6, 1 | ?cup qualification (0..7) |
 | `lnrl` | 142 | 0x0b | 0..47 | 0, 3, 1, 8, 4 | ?(0..8) |
 | `snst` | 142 | 0x03 | 0..1 | 0, 1 | season-start flag |
-| `mnsc` | 142 | 0x12,0x11,0x01 | 0..70000 | 8000, 4000, 10000, 1500, 12500 | **TBD** |
-| `HdRl` | 142 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `ignt` | 141 | 0x03 | 0..1 | 1, 0 | **TBD** |
-| `lgrl` | 140 | 0x02 | refs:    ×54,    ×20,    ×17,    ×14 | ->   , ->   , ->   , ->   p, ->  P | **TBD** |
+| `mnsc` | 142 | 0x12,0x11,0x01 | 0..70000 | 8000, 4000, 10000, 1500, 12500 | ?capacity/money threshold (min) |
+| `HdRl` | 142 | 0x03 | 0..1 | 0, 1 | ?head-to-head rule flag |
+| `ignt` | 141 | 0x03 | 0..1 | 1, 0 | bool flag |
+| `lgrl` | 140 | 0x02 | refs:    ×54,    ×20,    ×17,    ×14 | ->   , ->   , ->   , ->   p, ->  P | league rule (ref) |
 | `fnlc` | 134 | 0x0a | 2..3 | 2, 3 | ?final/calendar comp record |
 | `exlg` | 133 | 0x0b | 0..2 | 1, 2, 0 | bool flag |
 | `Ufss` | 132 | 0x03 | 0..1 | 1, 0 | ?season flag |
 | `tppr` | 132 | 0x0a,0x11 | 0..10 | 6, 4, 5, 0, 7 | ?promotion/prize record (nrpl) |
-| `grrl` | 131 | 0x02 | refs:    ×30,     ×30,   ×20,     ×8 | ->  , ->   , ->   , ->  , ->   | **TBD** |
-| `gnty` | 131 | 0x11 | 0..7 | 7, 3, 1, 0, 5 | **TBD** |
-| `gpdt` | 131 | 0x0b | 0..16 | 2, 4, 0, 10, 3 | **TBD** |
-| `ngrt` | 131 | 0x11 | 1..20 | 12, 20, 14, 1, 13 | **TBD** |
+| `grrl` | 131 | 0x02 | refs:    ×30,     ×30,   ×20,     ×8 | ->  , ->   , ->   , ->  , ->   | group rule (ref) |
+| `gnty` | 131 | 0x11 | 0..7 | 7, 3, 1, 0, 5 | group type (0..7) |
+| `gpdt` | 131 | 0x0b | 0..16 | 2, 4, 0, 10, 3 | group data (0..16) |
+| `ngrt` | 131 | 0x11 | 1..20 | 12, 20, 14, 1, 13 | ?num groups/teams (1..20) |
 | `snrd` | 130 | 0x03 | 0..1 | 0, 1 | ?season-round flag |
-| `reas` | 130 | 0x11 | 2..10 | 7, 6, 10, 2, 8 | **TBD** |
-| `dsrl` | 128 | 0x0b,0x0a | 1..7 | 2, 3, 1, 7, 4 | **TBD** |
+| `reas` | 130 | 0x11 | 2..10 | 7, 6, 10, 2, 8 | ?(2..10, team) |
+| `dsrl` | 128 | 0x0b,0x0a | 1..7 | 2, 3, 1, 7, 4 | ?rule (1..7) |
 | `ncmp` | 128 | 0x0a | 2..3 | 2, 3 | nested/child competition (stage/seed/round) |
-| `fxrl` | 127 | 0x0b,0x0a | 1..14 | 5, 11, 4, 6, 2 | **TBD** |
-| `RkIn` | 127 | 0x11 | 1..20 | 1, 20, 11, 7, 4 | **TBD** |
-| `hlct` | 125 | 0x11 | 0..13 | 0, 2, 1, 4, 6 | **TBD** |
-| `hlti` | 125 | 0x11 | 0..0 | 0 | **TBD** |
+| `fxrl` | 127 | 0x0b,0x0a | 1..14 | 5, 11, 4, 6, 2 | fixture rule (1..14) |
+| `RkIn` | 127 | 0x11 | 1..20 | 1, 20, 11, 7, 4 | rank-in (1..20) |
+| `hlct` | 125 | 0x11 | 0..13 | 0, 2, 1, 4, 6 | ?home count/form (lrnk) |
+| `hlti` | 125 | 0x11 | 0..0 | 0 | const 0 (lrnk) |
 | `aqtp` | 124 | 0x03 | 0..1 | 1, 0 | ?flag |
 | `Cfdf` | 124 | 0x11,0x12 | 16..512 | 16, 64, 512, 32, 256 | constant field (=16) |
-| `scnc` | 123 | 0x03 | 1..1 | 1 | **TBD** |
-| `stfl` | 121 | 0x02 | refs:    ×71,    ×26,    ×13,    ×4 | ->  , ->   , ->   , ->   , ->    | **TBD** |
+| `scnc` | 123 | 0x03 | 1..1 | 1 | const(=1) |
+| `stfl` | 121 | 0x02 | refs:    ×71,    ×26,    ×13,    ×4 | ->  , ->   , ->   , ->   , ->    | stage flag (ref) |
 | `sndr` | 118 | 0x11 | 0..3 | 0, 1, 2, 3 | ?(0..3) |
-| `wkpm` | 118 | 0x0a | 1..5 | 5, 1, 4 | **TBD** |
-| `sseg` | 114 | 0x02 | refs:    ×36,    ×18,    ×10,   ×6 | ->   , ->   , -> @  , ->   , ->     | **TBD** |
+| `wkpm` | 118 | 0x0a | 1..5 | 5, 1, 4 | ?week param (1..5) |
+| `sseg` | 114 | 0x02 | refs:    ×36,    ×18,    ×10,   ×6 | ->   , ->   , -> @  , ->   , ->     | ?segment ref |
 | `sudt` | 114 | 0x0a | 4..6 | 5, 4, 6 | ?scheduled update date (mnsn + date) |
 | `expd` | 114 | 0x12,0x02,0x01 | refs:    ×10,  P ×8,   P ×6,   ×6 | 4096, ->   , ->  À, -> ü, ->  P | expiry (ref) |
 | `tfrd` | 112 | 0x0a | 2..3 | 2, 3 | ?transfer/squad-rule record (type=club tid, styr..enyr window) |
-| `ofdi` | 112 | 0x11 | 0..255 | 255, 1, 0, 2, 9 | **TBD** |
-| `oldi` | 112 | 0x11 | 1..255 | 36, 31, 255, 1, 2 | **TBD** |
-| `CcEx` | 110 | 0x0b | 0..0 | 0 | **TBD** |
-| `Per%` | 109 | 0x11 | 10..100 | 50, 60, 40, 69, 100 | **TBD** |
+| `ofdi` | 112 | 0x11 | 0..255 | 255, 1, 0, 2, 9 | ?offset index (255-sentinel) |
+| `oldi` | 112 | 0x11 | 1..255 | 36, 31, 255, 1, 2 | ?index (255-sentinel) |
+| `CcEx` | 110 | 0x0b | 0..0 | 0 | ?cup (const 0) |
+| `Per%` | 109 | 0x11 | 10..100 | 50, 60, 40, 69, 100 | percentage (10..100) |
 | `lpcr` | 108 | 0x11 | 1..4 | 1, 4, 2, 3 | ? |
 | `shsn` | 107 | 0x03 | 0..1 | 1, 0 | bool flag |
 | `lgin` | 107 | 0x11 | 0..1 | 0, 1 | live-game/broadcast flag |
 | `dvlv` | 106 | 0x0b | 1..6 | 2, 1, 3, 4, 6 | division level |
-| `retm` | 106 | 0x0b | 2..90 | 11, 18, 6, 13, 4 | **TBD** |
-| `rsvl` | 106 | 0x0b | 0..13 | 3, 5, 2, 6, 0 | **TBD** |
-| `trwi` | 106 | 0x0b | 2..13 | 4, 2, 3, 5, 8 | **TBD** |
+| `retm` | 106 | 0x0b | 2..90 | 11, 18, 6, 13, 4 | ?(2..90) |
+| `rsvl` | 106 | 0x0b | 0..13 | 3, 5, 2, 6, 0 | ?reserve level (0..13) |
+| `trwi` | 106 | 0x0b | 2..13 | 4, 2, 3, 5, 8 | ?transfer-window index (2..13) |
 | `sswn` | 106 | 0x0b | 1..5 | 3, 2, 1, 5, 4 | ? |
-| `WdDa` | 106 | 0x03 | 0..1 | 1, 0 | **TBD** |
-| `dfdl` | 104 | 0x11 | 0..3 | 1, 0, 2, 3 | **TBD** |
-| `rsno` | 104 | 0x0b | 0..1 | 0, 1 | **TBD** |
+| `WdDa` | 106 | 0x03 | 0..1 | 1, 0 | bool flag |
+| `dfdl` | 104 | 0x11 | 0..3 | 1, 0, 2, 3 | ?default rule (0..3) |
+| `rsno` | 104 | 0x0b | 0..1 | 0, 1 | bool flag |
 | `trrl` | 104 | 0x0a | 4..25 | 10, 13, 12, 5, 8 | ?transfer/registration rule (natr/frtj/fcmn foreign cap) |
 | `natr` | 104 | 0x03 | 0..1 | 0, 1 | nationality-rule flag |
-| `stdr` | 104 | 0x0b | 1..13 | 4, 8, 1, 2, 5 | **TBD** |
-| `wdft` | 102 | 0x12 | 1330..2100 | 1500, 1530, 1330, 2100, 1930 | **TBD** |
-| `mdft` | 102 | 0x12 | 1500..2100 | 2000, 1930, 1800, 1530, 1900 | **TBD** |
-| `exfp` | 102 | 0x0b | 0..2 | 0, 1, 2 | **TBD** |
-| `mnmt` | 102 | 0x11 | 2..34 | 11, 22, 9, 10, 34 | **TBD** |
+| `stdr` | 104 | 0x0b | 1..13 | 4, 8, 1, 2, 5 | ?start round (1..13) |
+| `wdft` | 102 | 0x12 | 1330..2100 | 1500, 1530, 1330, 2100, 1930 | weekday fixture default time (HHMM) |
+| `mdft` | 102 | 0x12 | 1500..2100 | 2000, 1930, 1800, 1530, 1900 | midweek fixture default time (HHMM) |
+| `exfp` | 102 | 0x0b | 0..2 | 0, 1, 2 | ?(0..2) |
+| `mnmt` | 102 | 0x11 | 2..34 | 11, 22, 9, 10, 34 | ?min matches (2..34) |
 | `sfal` | 99 | 0x0b | 0..10 | 1, 6, 3, 7, 2 | **TBD** |
 | `strs` | 99 | 0x03 | 0..1 | 0, 1 | **TBD** |
 | `cnti` | 99 | 0x0a | 2..2 | 2 | **TBD** |
