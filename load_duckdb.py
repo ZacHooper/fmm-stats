@@ -111,7 +111,8 @@ DDL = [
         dob DATE, nationality_id INTEGER, has_attributes BOOLEAN,
         squad_status INTEGER, loaned_out BOOLEAN, is_gk INTEGER,
         ca INTEGER, pa INTEGER, reputation INTEGER, positions JSON,
-        foot_left INTEGER, foot_right INTEGER, player_value BIGINT
+        foot_left INTEGER, foot_right INTEGER, player_value BIGINT,
+        loaned_in BOOLEAN, parent_club_tid INTEGER, parent_club VARCHAR
     )""",
 
     # natural key: (season, phase, tid)
@@ -423,6 +424,8 @@ def load_core(con, d, season, phase):
             json.dumps(v.get("positions") or {}),
             _int(feet.get("left")), _int(feet.get("right")),
             _int(v.get("value")),
+            bool(v.get("loaned_in")), _int(v.get("parent_club_tid")),
+            v.get("parent_club"),
         ))
         attrs, est = v.get("attributes"), v.get("estimated") or {}
         if attrs:
@@ -446,12 +449,14 @@ def load_core(con, d, season, phase):
                 _date(v.get("dob")), _int(v.get("nationality_id")),
                 False, None, None, None, None, None, None,
                 json.dumps({}), None, None, None,
+                False, None, None,
             ))
 
     pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
              "league_cid", "league", "dob", "nationality_id", "has_attributes",
              "squad_status", "loaned_out", "is_gk", "ca", "pa", "reputation",
-             "positions", "foot_left", "foot_right", "player_value"]
+             "positions", "foot_left", "foot_right", "player_value",
+             "loaned_in", "parent_club_tid", "parent_club"]
     counts["players"] = _insert(con, "players", pcols, prows)
     counts["staff"] = _insert(con, "players", pcols, srows)
     counts["player_attributes"] = _insert(con, "player_attributes", acols, arows)
@@ -788,6 +793,25 @@ def _crosscheck(label, counts, expected):
 def create_schema(con):
     for stmt in DDL:
         con.execute(stmt)
+    _migrate(con)
+
+
+# Column additions for stores created before a schema change (CREATE TABLE IF NOT EXISTS
+# won't add columns to an existing table). Each is idempotent.
+_MIGRATIONS = [
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS loaned_in BOOLEAN",
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS parent_club_tid INTEGER",
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS parent_club VARCHAR",
+]
+
+
+def _migrate(con):
+    for stmt in _MIGRATIONS:
+        try:
+            con.execute(stmt)
+        except Exception as e:            # older DuckDB without IF NOT EXISTS -> ignore dups
+            if "already exists" not in str(e).lower():
+                raise
 
 
 def seed_role_weights(con):

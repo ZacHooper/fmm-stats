@@ -77,7 +77,7 @@ st.caption(f"**{len(base)}** eligible players "
 stat_table.player_table(
     "recruit", base,
     id_options=["Player", "Pos", "Origin", "Current club", "Rating", "Fit %ile",
-                "Level %ile", "Conf", "Age", "Value"],
+                "Level %ile", "Conf", "Age", "Value", "Loan"],
     default_cols=["Player", "Pos", "Origin", "Current club", "Rating", "Fit %ile",
                   "Level %ile", "Conf"],
     agg_provider=lambda keys: db.player_match_agg([int(k) for k in keys]),

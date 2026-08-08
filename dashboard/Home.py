@@ -63,9 +63,9 @@ show["key"] = show["tid"]
 
 stat_table.player_table(
     "home", show,
-    id_options=["Player", "Status", "Pos", "Fam", "Rating", "Fit %ile", "Level %ile",
+    id_options=["Player", "Loan", "Status", "Pos", "Fam", "Rating", "Fit %ile", "Level %ile",
                 "League", "Nation %ile", "Nation", "Age", "Value", "Origin"],
-    default_cols=["Player", "Status", "Pos", "Fam", "Rating", "Fit %ile", "Level %ile",
+    default_cols=["Player", "Loan", "Pos", "Fam", "Rating", "Fit %ile", "Level %ile",
                   "League", "Nation"],
     agg_provider=lambda keys: db.player_match_agg([int(k) for k in keys]),
     attrs_provider=lambda keys: db.attributes_rows(season, phase, [int(k) for k in keys]),

@@ -70,7 +70,7 @@ base = base.sort_values("Rating", ascending=False)
 stat_table.player_table(
     "ps", base, default_preset="Custom",
     id_options=["Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating",
-                "Age", "Value", "Origin"],
+                "Age", "Value", "Origin", "Loan"],
     default_cols=["Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating"],
     agg_provider=lambda keys: agg,
     attrs_provider=lambda keys: db.attributes_rows(int(snap["season"]), snap["phase"],

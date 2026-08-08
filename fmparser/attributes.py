@@ -79,23 +79,47 @@ def snapshot_bounds(mm, margin=5000, marker=CLUB_MARKER):
     return max(0, best[0] - margin), best[-1] + margin
 
 
-def own_squad(mm, lo=None, hi=None, marker=CLUB_MARKER):
-    """{player_tid: full_name} for the managed club's squad."""
+def own_squad_full(mm, lo=None, hi=None, marker=CLUB_MARKER):
+    """{tid: {'name', 'loaned_in', 'parent_club_tid'}} for the managed club's squad,
+    INCLUDING loaned-IN players.
+
+    Squad records in the snapshot embed the managed club id (marker[:2] as u16) two ways:
+      * OWNED : `… [club_id][ff ff] …`  — the full CLUB_MARKER; the tid sits 8 bytes before.
+      * LOAN  : `… [parent_club_id][club_id] …` (no ff ff) — the player is on loan TO us; the
+        tid sits 10 bytes before and the owning club is the u16 immediately before club_id.
+    Searching the 2-byte club id (not the 4-byte marker) catches both; a valid tid range +
+    a real name before the record reject coincidental hits. (own_squad greps only the 4-byte
+    marker, so it silently dropped loanees — this is the general version.)"""
     if lo is None or hi is None:
         lo, hi = snapshot_bounds(mm, marker=marker)
+    club_le = marker[:2]                       # managed club tid, u16 LE (e.g. 5a 01 = 346)
     out, pos = {}, lo
     while True:
-        i = mm.find(marker, pos)
-        if i == -1 or i > hi:
+        j = mm.find(club_le, pos, hi)
+        if j == -1:
             break
-        pos = i + 1
-        tid = int.from_bytes(mm[i - 8:i - 4], "little")
+        pos = j + 1
+        if mm[j + 2:j + 4] == b"\xff\xff":     # OWNED: tid 8 bytes before the marker
+            tid = int.from_bytes(mm[j - 8:j - 4], "little")
+            loaned_in, parent = False, None
+        else:                                  # LOAN: tid 10 before; owner is the u16 before
+            tid = int.from_bytes(mm[j - 10:j - 6], "little")
+            loaned_in = True
+            parent = int.from_bytes(mm[j - 2:j], "little")
+            if not (1 <= parent < 70000):      # not a plausible club id -> coincidental hit
+                continue
         if not (1000 < tid < 70000):
             continue
-        name = _name_before(mm, i)
-        if name:
-            out.setdefault(tid, name)
+        name = _name_before(mm, j)
+        if name and tid not in out:
+            out[tid] = {"name": name, "loaned_in": loaned_in, "parent_club_tid": parent}
     return out
+
+
+def own_squad(mm, lo=None, hi=None, marker=CLUB_MARKER):
+    """{player_tid: full_name} for the managed club's squad (owned + loaned-in).
+    Thin wrapper over own_squad_full for callers that only need names."""
+    return {t: v["name"] for t, v in own_squad_full(mm, lo, hi, marker).items()}
 
 
 # ---------------- own squad: exact attributes (snapshot) ----------------

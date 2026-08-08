@@ -86,9 +86,11 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
     status = S.scrape_contract_status(mm, info)   # {tid: squad-status code}
 
-    # names + exact attributes for the managed squad (snapshot)
+    # names + exact attributes for the managed squad (snapshot), incl. loaned-IN players
     bounds = A.snapshot_bounds(mm, marker=marker)
-    own_names = A.own_squad(mm, *bounds, marker=marker)
+    own = A.own_squad_full(mm, *bounds, marker=marker)   # {tid: {name, loaned_in, parent_club_tid}}
+    own_names = {t: v["name"] for t, v in own.items()}
+    managed_tid = int.from_bytes(marker[:2], "little")   # the club these players play for
 
     # whole-DB name resolver: first/last name ids -> strings. Orient first-vs-surname
     # tables against the managed squad (we already have their snapshot names).
@@ -160,12 +162,21 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
         rec = attrs.get(p["sid"])
         sc = status.get(tid)
         h = histories.get(tid)
+        li = own.get(tid)                       # snapshot membership (owned or loaned-in)
+        loaned_in = bool(li and li["loaned_in"])
+        # A loaned-IN player plays for us: present them under the managed club (so squad /
+        # ratings / percentiles include them), but keep their real owner in parent_club_tid.
+        club_tid = managed_tid if loaned_in else p["club_tid"]
+        parent_tid = li["parent_club_tid"] if loaned_in else None
         row = {"tid": tid, "name": full_name(tid, p),
-               "club": club_label(p["club_tid"]), "club_tid": p["club_tid"],
+               "club": club_label(club_tid), "club_tid": club_tid,
                "dob": p["dob"], "nationality_id": p["nationality_id"],
                "has_attributes": rec is not None,
                "squad_status": sc,
                "loaned_out": sc == S.LOAN_STATUS and p["club_tid"] != S.NO_CLUB,
+               "loaned_in": loaned_in,
+               "parent_club_tid": parent_tid,
+               "parent_club": club_label(parent_tid) if parent_tid else None,
                # career-history summary (full seasons live in history.json). origin_club_tid
                # = youth club (Bilbao eligibility key); None for newgens with no record yet.
                "has_history": h is not None,
