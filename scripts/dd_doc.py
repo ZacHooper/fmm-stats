@@ -94,6 +94,20 @@ KNOWN = {
  # boolean flags (value set {0,1})
  "srcc": "bool flag", "pref": "bool flag", "nmrp": "bool flag", "tcpf": "bool flag",
  "usqn": "bool flag", "ilgf": "bool flag", "iEsT": "bool flag", "gmsb": "?(1/2) flag",
+ # --- pass 3: date/finance/fixture entities + their fields (2026-08) ---
+ "sdfd": "stage finance/date record: prize (cash) by finishing posn + stage dates",
+ "stdt": "stage START date (dyom/mont/year/dyow) + TV scheduling + prize",
+ "endt": "stage END date + season-boundary flags (snst/snen) + winner info",
+ "fxds": "fixture-set config (season, num matches, groups, seeding, team slots)",
+ "przm": "prize money by level/position (levl + cash/przm amount)",
+ "sbsn": "sub-season index", "posn": "finishing position (prize / table row)",
+ "nrpl": "number of replays (0..6)", "gpid": "group id (0..15)",
+ "Cfdf": "constant field (=16)", "semt": "?stage-element type (0..7)",
+ "snst": "season-start flag", "snen": "season-end flag", "snrd": "?season-round flag",
+ "Ufss": "?season flag", "wnty": "?winner type/round", "wnCT": "?winner-decided value",
+ "hdty": "?head-to-head/seeding type", "mtdr": "?match-day rule", "idwi": "index",
+ "rank": "rank / seed value", "d2lA": "?small enum (23..74)", "wndl": "?", "wnrd": "?winner round",
+ "tvds": "?TV days/count", "lsdi": "?last-stage index", "fsdi": "?first-stage index",
 }
 
 
