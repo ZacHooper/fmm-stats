@@ -135,6 +135,20 @@ KNOWN = {
  "sqsr": "squad-season ref", "sqsv": "squad-season value", "sndr": "?(0..3)",
  "vlgr": "?(0..3)", "tvds": "?TV days (0..16)", "topp": "promoted places (top)",
  "btpl": "relegated places (bottom)", "lgto": "?league config flag",
+ # --- pass 6: rule / date-range / config entities (2026-08) ---
+ "dtrn": "date-range record (start/end month + year, e.g. transfer window)",
+ "srsd": "season reference date (dyom/mont/year)", "sqdt": "per-club squad data (type=club tid, valu, sqsr)",
+ "updy": "?dated update record (type/valu by date)", "agdt": "?agreement/registration date",
+ "trrl": "?transfer/registration rule (natr/frtj/fcmn foreign cap)", "fcmn": "?foreign-player cap (15..17)",
+ "natr": "nationality-rule flag", "frtj": "?rule flag", "jcom": "?competition prize/schedule record",
+ "rsid": "?rules/schedule record (comp + version)", "rsvt": "?(0..6)", "utic": "bool flag",
+ "dsbi": "?board/achievement record (bnsc + accm seq)", "fnlc": "?final/calendar comp record",
+ "CfOD": "?competition-config-by-date", "CnRl": "?competition rule (entity, styr..enyr, Draf draft)",
+ "Draf": "draft flag", "lcrl": "?rule record (lcrg ref)", "lcrg": "?ref (~54M band)",
+ "RLtm": "ranking/seeding team-list (Ttea members + seed/stage)", "aqtp": "?flag",
+ "expd": "expiry (ref)", "lnrl": "?(0..8)", "lpcr": "?", "sbty": "?(1..17)", "cnem": "?month-ish",
+ "cmty": "255-sentinel flag/?commentary", "vlgr": "?(0..3)", "styo": "start-year flag",
+ "enyo": "end-year flag", "stmn": "start month", "enmn": "end month",
 }
 
 
