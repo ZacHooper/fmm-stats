@@ -265,10 +265,20 @@ def sub_regions(mm):
         if reg:
             anchors = _M.match_anchors(mm, lo=reg[0], hi=reg[1])
             out.append((reg[0], reg[1], "matches",
-                        f"{len(anchors)} match blocks (delimiter-clustered), "
+                        f"{len(anchors)} managed-club match blocks (delimiter-clustered), "
                         f"self-located @{reg[0]/1e6:.3f}M"))
     except Exception:
         pass
+    try:
+        from . import lightresults as _L
+        reg = _L.find_light_region(mm)      # valid_clubs=None -> plausible-range gate
+        if reg:
+            out.append((reg[0], reg[1], "light_results",
+                        f"whole-world simulated fixtures ([home][away][score]..[cid]@+10), "
+                        f"self-located @{reg[0]/1e6:.3f}M (also holds a cid=0 variant)"))
+    except Exception:
+        pass
+    out.sort()
     return out
 
 

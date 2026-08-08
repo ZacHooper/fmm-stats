@@ -52,16 +52,25 @@ def _u16(mm, o):
     return int.from_bytes(mm[o:o + 2], "little")
 
 
-def find_light_region(mm, valid_clubs, margin=30_000, merge_gap=200_000, min_hits=50):
+def find_light_region(mm, valid_clubs=None, margin=30_000, merge_gap=200_000, min_hits=50):
     """DERIVE the light-results region [lo, hi] from content, so it's career-agnostic
     (Bucaspor's sits ~47-48.8M, Frem's ~45.2-46.3M; the hard-coded LIGHT_LO/HI=47-50.5M
     silently returned 0 fixtures for Frem — same region-drift class as the match region,
     see fmparser/matches.find_match_region).
 
     Cheap structural scan: the +12 year field (07E4/E5/E6) is a findable 2-byte marker;
-    at each occurrence, test the record start (o = marker-12) against the full gate (flag
-    byte, two real club TIDs, plausible score + cid). The true region is the densest
-    contiguous cluster of such hits. Returns None (caller falls back) if nothing dense."""
+    at each occurrence, test the record start (o = marker-12) against the gate (flag byte
+    at +9, two club TIDs, plausible score + cid>0). The true region is the densest
+    contiguous cluster of such hits. Returns None (caller falls back) if nothing dense.
+
+    `valid_clubs` (a set of real club TIDs) makes the gate precise; pass None (e.g. from
+    the region-map tool, which doesn't scrape players) to fall back to a plausible-range
+    TID check — enough to locate the region, though the final sweep should still gate on
+    real clubs. NOTE the region also holds a cid=0 fixture VARIANT (real scores, no
+    competition tag — e.g. some foreign leagues) that this gate and sweep() both drop; it
+    can't be league-assigned. See the module docstring."""
+    def _club_ok(t):
+        return t in valid_clubs if valid_clubs is not None else (1 <= t < 70000)
     hits = []
     for ym in _YEAR_MARKERS:
         i = mm.find(ym)
@@ -69,7 +78,7 @@ def find_light_region(mm, valid_clubs, margin=30_000, merge_gap=200_000, min_hit
             o = i - 12
             if o >= 0 and o + 16 < len(mm) and mm[o + 9] in FLAG_HI:
                 home, away = _u16(mm, o), _u16(mm, o + 2)
-                if home in valid_clubs and away in valid_clubs and home != away \
+                if _club_ok(home) and _club_ok(away) and home != away \
                    and mm[o + 4] <= 30 and mm[o + 5] <= 30 and 0 < _u16(mm, o + 10) < 20000:
                     hits.append(o)
             i = mm.find(ym, i + 1)
