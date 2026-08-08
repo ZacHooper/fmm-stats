@@ -625,13 +625,12 @@ def load_light(con, d, season, phase):
             ["season", "phase", "home_tid", "away_tid", "cid", "seq", "home",
              "away", "scoreH", "scoreA", "competition", "copies"], rows)
 
-    cl_path = os.path.join(ld, "club_league.json")
-    if os.path.exists(cl_path):
-        rows = [(season, phase, _int(v.get("league_cid")), _int(k), "club_league")
-                for k, v in _load_json(cl_path).items()]
-        counts["league_members(club_league)"] = _insert(
-            con, "league_members",
-            ["season", "phase", "league_cid", "club_tid", "source"], rows)
+    # NOTE: club->league (source='club_league') is loaded by load_core from the MAIN-dir
+    # club_league.json — the exact, complete club-record map (light-results ∪ club records).
+    # It is deliberately NOT reloaded here: the light_results/club_league.json is only the
+    # light-results-derived SUBSET (drops clubs whose league isn't a resolved league-type,
+    # e.g. Frem's Danish 3. Division cid 1147), and reloading it used to clobber the exact
+    # map. See _clear_group: 'club_league' now belongs to the 'core' group.
     return counts
 
 
@@ -663,9 +662,10 @@ def _clear_group(con, group, season, phase):
                   "match_player_stats"):
             _delete(con, t, season, phase)
         _delete(con, "league_members", season, phase, "AND source='members'")
+        # club->league (exact club-record map) is a core artifact (main-dir club_league.json)
+        _delete(con, "league_members", season, phase, "AND source='club_league'")
     elif group == "light":
         _delete(con, "results", season, phase)
-        _delete(con, "league_members", season, phase, "AND source='club_league'")
     elif group == "standings":
         _delete(con, "standings", season, phase,
                 "AND source='lightresults_computed'")

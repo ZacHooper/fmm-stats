@@ -202,6 +202,15 @@ def comp_name(mm, cid, want="long"):
 COMP_TYPES = {1: "league", 2: "cup", 8: "reserve_league", 9: "friendly"}
 
 
+def _comp_uid_ok(uid):
+    """Competition records come in two UID families: the ones comp_detail was first
+    calibrated on (Turkey etc.) carry a small UID; many domestic/lower leagues (e.g.
+    Danish '3. Division' cid 1147, '2. Bundesliga') carry a ~2-billion UID — the same
+    range league_name() uses. Accept both, else those records are silently missed and
+    their type/nation are lost (so _is_league is wrongly False)."""
+    return (1000 <= uid <= 300_000_000) or (1_000_000_000 <= uid <= 4_000_000_000)
+
+
 def comp_detail(mm, cid):
     """Full competition record: cid, uid, name, short, code, type, nation.
     After the 3 name strings come: type byte (+0), nation byte (+3). See COMP_TYPES."""
@@ -213,7 +222,7 @@ def comp_detail(mm, cid):
             return None
         pos = i + 1
         uid = int.from_bytes(mm[i + 2:i + 6], "little")
-        if not (1000 <= uid <= 300_000_000):
+        if not _comp_uid_ok(uid):
             continue
         ln = int.from_bytes(mm[i + 6:i + 10], "little")
         if not (3 <= ln <= 45):
@@ -222,7 +231,9 @@ def comp_detail(mm, cid):
             long = mm[i + 10:i + 10 + ln].decode("utf-8")
         except UnicodeDecodeError:
             continue
-        if not (long and long[0].isupper() and sum(c.isalpha() for c in long) >= 3):
+        # league names can start with a digit ('3. Division', '2. Bundesliga')
+        if not (long and (long[0].isupper() or long[0].isdigit())
+                and sum(c.isalpha() for c in long) >= 3):
             continue
         # skip 3 length-prefixed strings from i+6 (long/short/code), tolerating a
         # 1-byte pad, to land on the type/nation bytes.
