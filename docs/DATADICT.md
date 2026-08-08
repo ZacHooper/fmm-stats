@@ -53,6 +53,23 @@ Requirement-driven order, most-wanted first:
 | R5 | **Prize money / finances** | `przm`, `wnpz`, `lspz`, `cash`, `apmn` | prize/finance by position |
 | R6 | **Reputation / seeding** | `wrnk`, `lrnk`, `rats`, `seed`, `topp`/`btpl` | strength proxies |
 
+## Phase 2 — the id→club hop: findings (2026-08)
+The established datadict connection method (HANDOFF.md, `reference.comp_detail`) is **link by UID**:
+`our cid → comp UID → datadict entities that reference that UID`. Confirmed pieces:
+- **Hop 1 works:** `comp_detail(1147)` → 3.Division **comp UID `2000016262`** (the ~2e9 "created-entity"
+  family, same band as datadict internal ids like `2000087895`).
+- **UID schemes by entity (clue):** club records are `[TID u32][UID u32]`; UIDs come in bands —
+  legacy clubs small (Frem 346→507, Næsby 369→541), some mid (FCR 2532→943835), and **added clubs
+  `UID = 200000000 + tid`** (Dalum 7289→200007289, Herlev 7509→200007509). Comps/added entities live
+  in the 2e8/2e9 bands.
+- **Ruled out:** club-UID does *not* appear directly as a datadict `Ttea/team/DBID/id` value
+  (0/10 overlap) — so it's **not** a one-step club-UID==team-id shortcut. The team ref in
+  `lrnk`/`nssn` is a **slot index** into the comp's ordered team list.
+- **Next probe (the actual hop):** from cid 1147's comp UID `2000016262`, find the stage/`nssn`
+  records that reference it → its ordered team list (`Ttea` entities) → resolve each `Ttea` to a club
+  (via its UID/`DBID` against the club `[TID][UID]` table, allowing for the UID-band scheme). Then
+  slot→club, and the embedded `crk` snapshot becomes a named, ordered table. Validate on Frem.
+
 ## Completion plan
 - **Phase 0 — Inventory (DONE):** enumerate every key + entity, this doc. Tables below.
 - **Phase 1 — Entity anatomy:** for each R1/R3/R4 entity, dump full records with all fields +
