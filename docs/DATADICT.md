@@ -70,6 +70,27 @@ The established datadict connection method (HANDOFF.md, `reference.comp_detail`)
   (via its UID/`DBID` against the club `[TID][UID]` table, allowing for the UID-band scheme). Then
   slot→club, and the embedded `crk` snapshot becomes a named, ordered table. Validate on Frem.
 
+## Phase 2 — empirical field scan (2026-08, the decisive test)
+Rather than assume `Ttea`, we scanned EVERY datadict field value against known ids (club tids +
+UIDs, comp UID, player tids). Results (field tag → id-type it carries):
+- **`comp`, `DBID` → comp UID** (`2000016262` for 3.Division). Solid.
+- **`Ttea` → club TID** (directly, in some contexts — NOT a 2e9 internal id as first assumed).
+- `Bran` → player tid; `type`/`d2lA` → club tid (mostly coincidental small-value collisions).
+
+BUT following the `Ttea` runs: **no run is 3.Division's 12-club roster.** The Ttea "member lists"
+resolve to other divisions (a Danish group `2437–2478`) and award pseudo-entities ("Team of the
+Year", tids 108–146). The 3.Division comp record (`comp/DBID=2000016262`) carries `ntms=12`/`Bktm=12`
+and `cmps=6` sub-comps but **does not enumerate its member tids inline** — teams are referenced by
+internal slot/structure, which is why datadict-membership was abandoned historically.
+
+**Conclusion / decision:** membership is NOT worth extracting from the datadict — it's already solved
+reliably by club records (`reference.club_record` `+158` league code → the exact 12 clubs, see
+[[day1-league-membership]]). The datadict's unique value is the **config/format** (promotion,
+relegation, splits, rounds, scheduling) and the `crk` position snapshot — but turning `crk` into a
+named ordered table needs the slot→club order, which has no clean lookup. **Open decision:** is the
+exact ordered table worth that remaining slot-resolution effort, given we already have membership +
+an (approximate, mirror-fixed) computed table? Config extraction (R4/R5) is the higher-ROI datadict win.
+
 ## Completion plan
 - **Phase 0 — Inventory (DONE):** enumerate every key + entity, this doc. Tables below.
 - **Phase 1 — Entity anatomy:** for each R1/R3/R4 entity, dump full records with all fields +
