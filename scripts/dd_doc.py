@@ -85,6 +85,15 @@ KNOWN = {
  "cnic": "bool flag", "bsyo": "bool flag", "bsyi": "bool flag", "inac": "inactive flag", "rmic": "bool flag",
  "Bran": "?brand/entity ref (~1435)", "XSvC": "?", "dcin": "?", "hidl": "?", "cmty": "?commentary?",
  "ygap": "?year gap", "plty": "?playoff/penalty type", "sqsr": "?squad-season ref", "in_1": "?", "in_2": "?",
+ # --- pass 2: confidently-pinned long-tail keys (2026-08) ---
+ "Nnat": "nation id (110..141, nation-space)", "natl": "?nation level/flag",
+ "sed1": "seed 1", "sed2": "seed 2", "sort": "sort order", "ptsd": "?points config (0..6)",
+ "nmxt": "num next / matches-to-play", "nrpl": "?num replays", "dyof": "day offset",
+ "info": "generic info/count value", "dats": "date value (day-of-month-ish)", "sequ": "sequence no.",
+ "idwi": "index", "ind1": "index", "ctin": "?counter/index", "decd": "?decided flag/count",
+ # boolean flags (value set {0,1})
+ "srcc": "bool flag", "pref": "bool flag", "nmrp": "bool flag", "tcpf": "bool flag",
+ "usqn": "bool flag", "ilgf": "bool flag", "iEsT": "bool flag", "gmsb": "?(1/2) flag",
 }
 
 
