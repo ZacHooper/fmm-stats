@@ -121,6 +121,20 @@ KNOWN = {
  "mxto": "max teams (alt)", "rst1": "bool flag", "uhtt": "bool flag", "nmlg": "num legs (1..2)",
  "wnrd": "?winner round", "wndl": "?", "gmbl": "?", "tyar": "bool flag", "prsw": "bool flag",
  "sswn": "?", "dcin": "?", "SrTs": "?", "chcl": "?channel (0..7)",
+ # --- pass 5: prize/parent/promotion + per-club records (2026-08) ---
+ "lspz": "league-stage prize (cash by round/position)",
+ "apmn": "appearance / TV money (cash + TV scheduling)", "lgin": "live-game/broadcast flag",
+ "wnpz": "winner prize by finishing position (crk)", "pare": "parent competition (comp + team-count cfg)",
+ "ncmp": "nested/child competition (stage/seed/round)", "relr": "relegation places (nrpl count)",
+ "nrpl": "number of places (relegated / replays, context-dependent)",
+ "ssnd": "?season record (snms 23..99)", "snms": "?season match/day count",
+ "SCsn": "stage config: ntms + topp(promoted)/btpl(relegated) + seed + level",
+ "lsdv": "league division setup (comp + prize + level)", "lsps": "?league position-slot (0..15)",
+ "tfrd": "?transfer/squad-rule record (type=club tid, styr..enyr window)",
+ "sred": "?per-club squad rules (type=club tid, mxss=max squad)", "mxss": "max squad size",
+ "sqsr": "squad-season ref", "sqsv": "squad-season value", "sndr": "?(0..3)",
+ "vlgr": "?(0..3)", "tvds": "?TV days (0..16)", "topp": "promoted places (top)",
+ "btpl": "relegated places (bottom)", "lgto": "?league config flag",
 }
 
 
