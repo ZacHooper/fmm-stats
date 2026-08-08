@@ -161,6 +161,21 @@ KNOWN = {
  "NinE": "bool flag", "sdtr": "?", "sndr": "?(0..3)", "rdcr": "?(0..9)", "shnt": "?(12..14 foreign cap?)",
  "shsn": "bool flag", "exlg": "bool flag", "shpo": "?month", "PrSt": "?flag", "vlys": "?",
  "mtrl": "?related-entity ref", "itvm": "?(0..8)", "vsdp": "bool flag", "Bran": "brand/entity ref (~1435)",
+ # --- pass 8: deep-tail fields (squad rules / draw / groups) 2026-08 ---
+ "COdf": "competition squad rules (mnpl/mxpl)", "mnpl": "min players (squad rule)",
+ "mxpl": "max players (squad rule)", "ngps": "number of groups", "cmps": "number of component/child comps",
+ "pots": "draw/seeding pots", "MlsY": "milestone year (future projection)", "Nxdv": "?next-division config",
+ "FxSt": "?fixture state (0..7)", "ddsd": "draw-seeded flag", "brpd": "?break period (0..5)",
+ "fnrg": "?finishing-position range (0..20)", "bktm": "?time (HHMM)", "qtsd": "?quota (0..100)",
+ "tmPL": "?team placement", "nmdt": "?num dates", "crgt": "?(0..68)", "typz": "?type (0..49)",
+ "hcti": "?home city index", "hmti": "?home-team info", "fate": "?(0..255, TrSt)", "ldos": "?(1..255)",
+ "ctmp": "?count/template (0..9)", "advs": "?advantage (0..3)", "spdO": "?(0..255)", "Cdpc": "?(0..8)",
+ "stvd": "?stage (0..12)", "MtTv": "?match TV (0..9)", "hlps": "?(0..5)", "sfar": "?(1..10)",
+ "edtv": "?(0..4)", "atin": "?(0..17)", "quty": "?quantity (1..9)", "nmdt2": "?",
+ # bool flags
+ "ttac": "bool flag", "sths": "bool flag", "iqum": "bool flag", "frty": "bool flag",
+ "blpm": "bool flag", "usfr": "bool flag", "sblt": "bool flag", "ACfl": "?flag ref",
+ "dtfl": "?date-flag ref", "sdnf": "?ref", "rmnn": "const(=1)", "RdPr": "const(=0)",
 }
 
 
