@@ -55,6 +55,36 @@ KNOWN = {
  "ntim": "nominal kickoff time (HHMM)", "bkdw": "block day-of-week", "stdw": "start day-of-week",
  "endw": "end day-of-week", "mtdy": "match day", "lgto": "?league config flag",
  "pare": "parent competition (comp ref)", "ncmp": "nested/child competition", "indx": "index",
+ # --- systematic field map from scripts/dd_anatomy.py profiles, 2026-08 ---
+ # dates / calendar
+ "dyow": "day of week (1..7)", "dyom": "day of month (1..31)", "mont": "month (1..12)",
+ "year": "year", "time": "time of day (HHMM)", "ntim": "nominal kickoff time (HHMM)",
+ "TiTu": "TV kickoff time slot (HHMM)", "stmn": "start month", "enmn": "end month",
+ "stdm": "start day-of-month", "endm": "end day-of-month", "ftye": "?fixture-type month?",
+ "styr": "start year", "enyr": "end year", "bsyr": "base/season year", "styo": "start-year flag?",
+ "enyo": "end-year flag?", "aldt": "?date-related (0..8)",
+ # counts / structure
+ "ntms": "number of teams", "mntm": "max teams? (0..96)", "mxtm": "max teams", "Bktm": "bracket teams",
+ "tems": "team count (stage)", "levl": "league level/tier (0..27)", "nmmt": "number of matches",
+ "nrds": "number of rounds", "stgs": "number of stages", "stgn": "stage number", "stag": "stage index/ref",
+ "subr": "sub-round", "prio": "priority (seeding)", "seed": "seeding", "posn": "finishing position (for prize)",
+ "indx": "index", "gpid": "group id", "strq": "?stage-seq", "semt": "?", "chcl": "?", "sbty": "?subs type?",
+ "vers": "version", "strl": "?level/rung (1..16)", "SrTs": "?", "tfxt": "?fixture text/type", "ofsd": "?",
+ # ranks / standings snapshot
+ "crk": "current rank / league position", "lwrk": "season-lowest rank", "hgrk": "season-highest rank",
+ "team": "team SLOT index within a stage (0..ntms-1)", "ftac": "?(rank flag)",
+ # money
+ "przm": "prize money (amount, by posn)", "cash": "cash amount", "valu": "value", "curr": "currency (ref)",
+ "wnpz": "winner prize", "lspz": "?prize", "apmn": "?appearance money",
+ # TV / scheduling
+ "tvty": "TV type", "tvmt": "TV channel/match", "ndow": "nominal day-of-week", "sche": "scheduled flag",
+ "fxri": "?fixture rule index", "mtdy": "match day",
+ # ids / refs / flags
+ "DBID": "database id (entity uid, 2e9 band for created)", "id_1": "secondary entity id/ref",
+ "id_2": "secondary entity id/ref", "igmt": "bool flag", "nxss": "bool flag", "umox": "bool flag",
+ "cnic": "bool flag", "bsyo": "bool flag", "bsyi": "bool flag", "inac": "inactive flag", "rmic": "bool flag",
+ "Bran": "?brand/entity ref (~1435)", "XSvC": "?", "dcin": "?", "hidl": "?", "cmty": "?commentary?",
+ "ygap": "?year gap", "plty": "?playoff/penalty type", "sqsr": "?squad-season ref", "in_1": "?", "in_2": "?",
 }
 
 
