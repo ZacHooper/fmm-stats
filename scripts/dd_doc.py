@@ -191,6 +191,20 @@ KNOWN = {
  "hlct": "?home count/form (lrnk)", "sseg": "?segment ref", "lfte": "?(1..255)",
  "lwdl": "?(0..255, 255-sentinel)", "ignt": "bool flag", "WdDa": "bool flag", "rsno": "bool flag",
  "exfp": "?(0..2)", "scnc": "const(=1)", "spdO": "?(0..255)",
+ # --- pass 10: points-per-win, splits, continent 2026-08 ---
+ "pwin": "points per win (3 or 4)", "cont": "continent id (1..6)", "cnti": "continent (const 2)",
+ "mxmt": "max matches (2..34)", "mdsw": "?matchday window (0..4)", "WrWt": "?weighting (1..7)",
+ "hmtm": "?home metric (odds/form 0..100)", "awtm": "?away metric (0..50)", "pris": "?priority (0..6)",
+ "pOsT": "?post-season type (0..4)", "btfo": "?best-of (2..3)", "VRrl": "?rule (1..6)",
+ "SgSd": "?seeding (0..6)", "CrTm": "?current-team flag", "mcld": "?(1..3)",
+ # pspl (league split) carry-over config
+ "plyf": "playoff (ref)", "ckrl": "split carry-over: rule flag", "ckpr": "split carry-over: points flag",
+ "ckch": "split carry-over: flag", "ckcc": "split carry-over: flag", "sr2c": "split second-round config",
+ # flags / enums
+ "strs": "bool flag", "CpTT": "bool flag", "WbDl": "bool flag", "sfst": "bool flag", "hdst": "bool flag",
+ "dahr": "bool flag", "clyc": "bool flag", "sch?": "bool flag", "TrCm": "?(0..2)", "cts1": "?(0..5)",
+ "osti": "?(0..2)", "FAif": "?(0..2)", "sfal": "?(0..10)", "nelt": "?(0..255)", "snrf": "?ref",
+ "ddlf": "?deadline flag ref", "igma": "flag(=1)",
 }
 
 

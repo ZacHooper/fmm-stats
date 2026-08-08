@@ -255,7 +255,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `SmSV` | 28 | id, cash, curr, MlsY, RmSL | **TBD** |
 | `RmSV` | 28 | id, cash, curr, MlsY, MLsC | **TBD** |
 | `MsCv` | 28 | id, cash, curr, MlsY, NtGB | **TBD** |
-| `cnti` | 26 | id, in_2, cont, nmmt, in_1, seed, type, semt, mxtm, id_1 | **TBD** |
+| `cnti` | 26 | id, in_2, cont, nmmt, in_1, seed, type, semt, mxtm, id_1 | continent (const 2) |
 | `dsrl` | 22 | id | ?rule (1..7) |
 | `fxrl` | 21 | mnsn, in_2, year, dyom, mont, strl, dyow, time, id, styr | fixture rule (1..14) |
 | `idms` | 17 | levl, id, przm, type, mnsn, ntms, stgn, id_1, id_2, year | **TBD** |
@@ -267,7 +267,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `nthl` | 15 | id, nmmt, tvty, ndow, tvmt, ntim, dyof, ofsd, ntms, city | **TBD** |
 | `lwpz` | 15 | id, cash, curr | **TBD** |
 | `drpz` | 15 | dyow, id, mnsn, in_2, cash, year, fxor, nmmt, tvty, tvmt | **TBD** |
-| `btfo` | 14 | id, cash, przm, curr, type, tfxt, CcQR, CcEx, levl, hlps | **TBD** |
+| `btfo` | 14 | id, cash, przm, curr, type, tfxt, CcQR, CcEx, levl, hlps | ?best-of (2..3) |
 | `BsNt` | 14 | id, Nnat, igmt, MwSo, MwSs, DBID, SrTs, mxtm, rats, fsqt | **TBD** |
 | `avpt` | 13 | type, id, topp, btpl, ind1, year, ftac, stag, srcc, lfte | **TBD** |
 | `stWP` | 12 | id, year, type, sswn, trrl, lnrl, bcr1, bcr2, bcr3, cann | **TBD** |
@@ -592,63 +592,63 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `mdft` | 102 | 0x12 | 1500..2100 | 2000, 1930, 1800, 1530, 1900 | midweek fixture default time (HHMM) |
 | `exfp` | 102 | 0x0b | 0..2 | 0, 1, 2 | ?(0..2) |
 | `mnmt` | 102 | 0x11 | 2..34 | 11, 22, 9, 10, 34 | ?min matches (2..34) |
-| `sfal` | 99 | 0x0b | 0..10 | 1, 6, 3, 7, 2 | **TBD** |
-| `strs` | 99 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `cnti` | 99 | 0x0a | 2..2 | 2 | **TBD** |
-| `CpTT` | 98 | 0x11 | 0..1 | 0, 1 | **TBD** |
-| `cont` | 97 | 0x03,0x11 | 1..6 | 1, 3, 4, 6, 2 | **TBD** |
-| `TrCm` | 96 | 0x0b | 0..2 | 0, 2 | **TBD** |
-| `CrTm` | 96 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `mcld` | 95 | 0x11 | 1..3 | 3, 2, 1 | **TBD** |
+| `sfal` | 99 | 0x0b | 0..10 | 1, 6, 3, 7, 2 | ?(0..10) |
+| `strs` | 99 | 0x03 | 0..1 | 0, 1 | bool flag |
+| `cnti` | 99 | 0x0a | 2..2 | 2 | continent (const 2) |
+| `CpTT` | 98 | 0x11 | 0..1 | 0, 1 | bool flag |
+| `cont` | 97 | 0x03,0x11 | 1..6 | 1, 3, 4, 6, 2 | continent id (1..6) |
+| `TrCm` | 96 | 0x0b | 0..2 | 0, 2 | ?(0..2) |
+| `CrTm` | 96 | 0x03 | 0..1 | 0, 1 | ?current-team flag |
+| `mcld` | 95 | 0x11 | 1..3 | 3, 2, 1 | ?(1..3) |
 | `ssnd` | 94 | 0x0a | 3..6 | 5, 3, 4, 6 | ?season record (snms 23..99) |
 | `snms` | 94 | 0x11 | 23..99 | 30, 33, 99, 23, 40 | ?season match/day count |
 | `sqdt` | 94 | 0x0a | 4..6 | 5, 4, 6 | per-club squad data (type=club tid, valu, sqsr) |
-| `mdsw` | 92 | 0x0b | 0..4 | 2, 0, 1, 3, 4 | **TBD** |
+| `mdsw` | 92 | 0x0b | 0..4 | 2, 0, 1, 3, 4 | ?matchday window (0..4) |
 | `prsw` | 92 | 0x0b | 0..0 | 0 | bool flag |
 | `agdt` | 91 | 0x0a | 4..4 | 4 | ?agreement/registration date |
 | `wnCT` | 90 | 0x12 | 1700..2400 | 2400, 2300, 1700, 1800, 1900 | ?winner-decided value |
-| `mxmt` | 90 | 0x11 | 2..34 | 11, 22, 9, 10, 34 | **TBD** |
+| `mxmt` | 90 | 0x11 | 2..34 | 11, 22, 9, 10, 34 | max matches (2..34) |
 | `lcrg` | 90 | 0x01 | 14005139..67249095 | 54002973, 54002978, 54002977, 54002979, 54002980 | ?ref (~54M band) |
 | `btpr` | 89 | 0x0a,0x11 | 0..7 | 6, 0, 2, 4, 7 | bottom places (relegation) variant |
-| `WrWt` | 88 | 0x11 | 1..7 | 1, 2, 4, 7 | **TBD** |
+| `WrWt` | 88 | 0x11 | 1..7 | 1, 2, 4, 7 | ?weighting (1..7) |
 | `lsps` | 85 | 0x11 | 0..15 | 0, 1, 2, 3, 4 | ?league position-slot (0..15) |
-| `WbDl` | 84 | 0x11 | 0..1 | 0, 1 | **TBD** |
-| `btfo` | 83 | 0x0a | 2..3 | 2, 3 | **TBD** |
-| `pris` | 83 | 0x11,0x0b | 0..6 | 6, 3, 1, 2, 0 | **TBD** |
-| `pOsT` | 83 | 0x11 | 0..4 | 1, 2, 3, 4, 0 | **TBD** |
-| `VRrl` | 81 | 0x0b | 1..6 | 1, 2, 3, 4, 5 | **TBD** |
+| `WbDl` | 84 | 0x11 | 0..1 | 0, 1 | bool flag |
+| `btfo` | 83 | 0x0a | 2..3 | 2, 3 | ?best-of (2..3) |
+| `pris` | 83 | 0x11,0x0b | 0..6 | 6, 3, 1, 2, 0 | ?priority (0..6) |
+| `pOsT` | 83 | 0x11 | 0..4 | 1, 2, 3, 4, 0 | ?post-season type (0..4) |
+| `VRrl` | 81 | 0x0b | 1..6 | 1, 2, 3, 4, 5 | ?rule (1..6) |
 | `snda` | 80 | 0x0a | 2..4 | 3, 2, 4 | squad rules by entity (mxss, valu) |
 | `sdtr` | 80 | 0x0b | 1..4 | 2, 1, 3, 4 | ? |
-| `hmtm` | 80 | 0x0b,0x11 | 0..100 | 2, 1, 3, 5, 82 | **TBD** |
+| `hmtm` | 80 | 0x0b,0x11 | 0..100 | 2, 1, 3, 5, 82 | ?home metric (odds/form 0..100) |
 | `nrdw` | 77 | 0x11 | 1..255 | 2, 255, 3, 5, 4 | ?wins-related (candidate W) |
-| `SgSd` | 76 | 0x0b | 0..6 | 2, 3, 4, 0, 1 | **TBD** |
-| `sfst` | 75 | 0x03 | 0..1 | 1, 0 | **TBD** |
+| `SgSd` | 76 | 0x0b | 0..6 | 2, 3, 4, 0, 1 | ?seeding (0..6) |
+| `sfst` | 75 | 0x03 | 0..1 | 1, 0 | bool flag |
 | `pspl` | 75 | 0x0a,0x03 | 1..12 | 11, 10, 12, 5, 6 | split? |
 | `mxto` | 75 | 0x11,0x12 | 1..155 | 1, 2, 32, 104, 23 | max teams (alt) |
 | `rndt` | 74 | 0x03,0x0b | 0..4 | 1, 0, 4 | bool flag |
-| `snrf` | 73 | 0x02 | refs:    ×51,    ×12,    @×10 | ->   , ->   @, ->    | **TBD** |
-| `nelt` | 73 | 0x11 | 0..255 | 0, 254, 1, 2, 252 | **TBD** |
+| `snrf` | 73 | 0x02 | refs:    ×51,    ×12,    @×10 | ->   , ->   @, ->    | ?ref |
+| `nelt` | 73 | 0x11 | 0..255 | 0, 254, 1, 2, 252 | ?(0..255) |
 | `d2lA` | 72 | 0x11,0x12 | 10..365 | 83, 66, 73, 67, 74 | ?small enum (23..74) |
-| `ckch` | 71 | 0x03 | 0..1 | 1, 0 | **TBD** |
-| `ckpr` | 71 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `ckcc` | 71 | 0x03 | 0..1 | 1, 0 | **TBD** |
-| `ckrl` | 71 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `plyf` | 71 | 0x02 | refs:     ×71 | ->     | **TBD** |
+| `ckch` | 71 | 0x03 | 0..1 | 1, 0 | split carry-over: flag |
+| `ckpr` | 71 | 0x03 | 0..1 | 0, 1 | split carry-over: points flag |
+| `ckcc` | 71 | 0x03 | 0..1 | 1, 0 | split carry-over: flag |
+| `ckrl` | 71 | 0x03 | 0..1 | 0, 1 | split carry-over: rule flag |
+| `plyf` | 71 | 0x02 | refs:     ×71 | ->     | playoff (ref) |
 | `nrdl` | 70 | 0x11 | 1..255 | 1, 255, 2, 4, 3 | ?losses-related (candidate L) |
-| `cts1` | 70 | 0x11 | 0..5 | 0, 2, 5 | **TBD** |
-| `pwin` | 69 | 0x11 | 3..4 | 3, 4 | **TBD** |
-| `igma` | 69 | 0x03 | 1..1 | 1 | **TBD** |
-| `awtm` | 67 | 0x0b,0x11 | 0..50 | 2, 18, 3, 0, 25 | **TBD** |
-| `dahr` | 67 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `sr2c` | 67 | 0x11 | 0..5 | 3, 2, 5, 0, 1 | **TBD** |
-| `hdst` | 67 | 0x03 | 0..1 | 1, 0 | **TBD** |
-| `osti` | 67 | 0x11 | 0..2 | 1, 0, 2 | **TBD** |
-| `FAif` | 66 | 0x0b | 0..2 | 0, 1, 2 | **TBD** |
-| `sch?` | 65 | 0x03 | 0..1 | 0, 1 | **TBD** |
-| `clyc` | 65 | 0x03 | 0..1 | 1, 0 | **TBD** |
+| `cts1` | 70 | 0x11 | 0..5 | 0, 2, 5 | ?(0..5) |
+| `pwin` | 69 | 0x11 | 3..4 | 3, 4 | points per win (3 or 4) |
+| `igma` | 69 | 0x03 | 1..1 | 1 | flag(=1) |
+| `awtm` | 67 | 0x0b,0x11 | 0..50 | 2, 18, 3, 0, 25 | ?away metric (0..50) |
+| `dahr` | 67 | 0x03 | 0..1 | 0, 1 | bool flag |
+| `sr2c` | 67 | 0x11 | 0..5 | 3, 2, 5, 0, 1 | split second-round config |
+| `hdst` | 67 | 0x03 | 0..1 | 1, 0 | bool flag |
+| `osti` | 67 | 0x11 | 0..2 | 1, 0, 2 | ?(0..2) |
+| `FAif` | 66 | 0x0b | 0..2 | 0, 1, 2 | ?(0..2) |
+| `sch?` | 65 | 0x03 | 0..1 | 0, 1 | bool flag |
+| `clyc` | 65 | 0x03 | 0..1 | 1, 0 | bool flag |
 | `ofxd` | 65 | 0x0a | 2..3 | 3, 2 | ?fixture reference (mnsn/sbsn) |
 | `frtj` | 64 | 0x03 | 0..1 | 0, 1 | ?rule flag |
-| `ddlf` | 64 | 0x02 | refs:    ×24,     ×18,   2×4,   ×4 | ->   , ->   , ->  gb, ->  v, ->  'v | **TBD** |
+| `ddlf` | 64 | 0x02 | refs:    ×24,     ×18,   2×4,   ×4 | ->   , ->   , ->  gb, ->  v, ->  'v | ?deadline flag ref |
 | `nfxd` | 64 | 0x0a | 2..3 | 3, 2 | ?prize-by-level fixture record (przm/cash) |
 | `ScQt` | 64 | 0x0b | 0..9 | 9, 1, 6, 3, 4 | **TBD** |
 | `nplt` | 63 | 0x11 | 1..6 | 1, 6, 3, 2 | **TBD** |
