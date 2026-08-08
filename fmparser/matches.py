@@ -71,6 +71,35 @@ def match_anchors(mm, lo=MATCH_LO, hi=None):
     return [c[0] for c in clusters]
 
 
+def _valid_match_header(mm, anchor):
+    """Strict test: does this delimiter cluster open a real match? Used to locate
+    the match region by CONTENT (see find_match_region) instead of a hard-coded
+    offset — the DELIM_UNIT also appears in the fixed tactic-template region, which
+    has no plausible date/opponent header, so those clusters fail this test."""
+    h = parse_header(mm, anchor)
+    if not h:
+        return False
+    return (2018 <= h["year"] <= 2030 and 0 <= h["day"] <= 366
+            and 0 < h["home_tid"] < 65000 and 0 < h["away_tid"] < 65000
+            and h["home_tid"] != h["away_tid"])
+
+
+def find_match_region(mm, margin=50_000):
+    """DERIVE the per-match region [lo, hi] from the save's own content, so the
+    match parser is career-agnostic (Bucaspor's matches sit ~56M, Frem's ~53.8M;
+    a hard-coded MATCH_LO=55M silently drops Frem's — see savefile-boundary-map).
+
+    Every delimiter cluster in the file is tested with `_valid_match_header`; only
+    the true match cluster (headers with plausible date + two distinct clubs)
+    survives, so its span is self-locating. Returns None if nothing validates
+    (caller falls back to the hard-coded window)."""
+    anchors = match_anchors(mm, lo=0, hi=len(mm))
+    good = [a for a in anchors if _valid_match_header(mm, a)]
+    if len(good) < 3:                       # too few to trust; let caller fall back
+        return None
+    return (max(0, good[0] - margin), min(len(mm), good[-1] + margin))
+
+
 def parse_header(mm, anchor, window=1500):
     end = anchor + window
     for i in range(anchor, end):
@@ -255,7 +284,11 @@ def _label_playoffs(matches):
 
 def extract_season(mm):
     """Full season as a list of match dicts (the content of season_data.json)."""
-    anchors = match_anchors(mm)
+    region = find_match_region(mm)                       # self-locating, career-agnostic
+    if region:
+        anchors = match_anchors(mm, lo=region[0], hi=region[1])
+    else:
+        anchors = match_anchors(mm)                       # fall back to hard-coded MATCH_LO
     out = []
     for n, a in enumerate(anchors):
         nxt = anchors[n + 1] if n + 1 < len(anchors) else None

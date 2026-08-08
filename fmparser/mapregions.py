@@ -251,11 +251,41 @@ def discover(mm, min_gap=8192, min_section=2048):
     return out
 
 
+def sub_regions(mm):
+    """Content-located regions that sit INSIDE a bigger zero-gap section (so the
+    skeleton splitter can't isolate them) but are self-locating by signature. This
+    is the 'locate sub-regions inside the big sections' iteration of the map — add
+    more as they get decoded. Currently: the per-match region (delimiter clusters
+    with plausible date/opponent headers), which drifts per-career and used to be a
+    hard-coded MATCH_LO. Returns a list of (start, end, kind, detail)."""
+    out = []
+    try:
+        from . import matches as _M
+        reg = _M.find_match_region(mm)
+        if reg:
+            anchors = _M.match_anchors(mm, lo=reg[0], hi=reg[1])
+            out.append((reg[0], reg[1], "matches",
+                        f"{len(anchors)} match blocks (delimiter-clustered), "
+                        f"self-located @{reg[0]/1e6:.3f}M"))
+    except Exception:
+        pass
+    return out
+
+
 def discover_path(path, **kw):
     with open(path, "rb") as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
         try:
             return discover(mm, **kw)
+        finally:
+            mm.close()
+
+
+def sub_regions_path(path):
+    with open(path, "rb") as f:
+        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        try:
+            return sub_regions(mm)
         finally:
             mm.close()
 

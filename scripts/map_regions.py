@@ -46,6 +46,12 @@ def main():
     print(f"  {len(regions)} sections, {covered/1e6:.1f} MB content "
           f"({(total-covered)/1e6:.1f} MB in zero-gaps / dropped fragments)")
 
+    subs = MR.sub_regions_path(args.save)
+    if subs:
+        print("\n  content-located sub-regions (inside the sections above):")
+        for s, e, kind, detail in subs:
+            print(f"  {s/1e6:8.3f}M {e/1e6:8.3f}M {(e-s)/1e6:7.3f}M  {kind:13} {detail}")
+
 
 if __name__ == "__main__":
     main()
