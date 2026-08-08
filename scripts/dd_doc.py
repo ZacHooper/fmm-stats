@@ -149,6 +149,18 @@ KNOWN = {
  "expd": "expiry (ref)", "lnrl": "?(0..8)", "lpcr": "?", "sbty": "?(1..17)", "cnem": "?month-ish",
  "cmty": "255-sentinel flag/?commentary", "vlgr": "?(0..3)", "styo": "start-year flag",
  "enyo": "end-year flag", "stmn": "start month", "enmn": "end month",
+ # --- pass 7: promotion/squad-rule/location/reputation entities (2026-08) ---
+ "prmr": "promotion places (nrpl count) — companion to relr", "mxss": "max squad size",
+ "snrp": "squad/registration rule (mxss max squad, NinE)", "snda": "squad rules by entity (mxss, valu)",
+ "sudt": "?scheduled update date (mnsn + date)", "pvrn": "?preview/previous-round record",
+ "rdci": "?draw/registration counter (rdcr)", "ofxd": "?fixture reference (mnsn/sbsn)",
+ "nfxd": "?prize-by-level fixture record (przm/cash)", "tppr": "?promotion/prize record (nrpl)",
+ "rfpr": "?reputation/finish record (hgrk rank 7..27)", "city": "city/location record (+ city id field)",
+ "updv": "?update-division (comp ref)", "lwdv": "?lower-division config (comp/tems)",
+ "OPpr": "?opponent/prize-pool (levl + lwrk rank)", "TrSt": "?stage/tier state",
+ "NinE": "bool flag", "sdtr": "?", "sndr": "?(0..3)", "rdcr": "?(0..9)", "shnt": "?(12..14 foreign cap?)",
+ "shsn": "bool flag", "exlg": "bool flag", "shpo": "?month", "PrSt": "?flag", "vlys": "?",
+ "mtrl": "?related-entity ref", "itvm": "?(0..8)", "vsdp": "bool flag", "Bran": "brand/entity ref (~1435)",
 }
 
 

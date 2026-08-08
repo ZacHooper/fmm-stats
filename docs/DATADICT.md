@@ -190,18 +190,18 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `rsid` | 230 | id, type, comp, vers, rsvt, utic, dyom, mont, fxri, stdt | ?rules/schedule record (comp + version) |
 | `pare` | 226 | id, comp, igmt, umox, nxss, mntm, DBID, ntms, mxtm, type | parent competition (comp + team-count cfg) |
 | `nssn` | 214 | id, stgn, stag, type, nmmt, mnsn, ntms, tvty, indx, DBID | season/stage STRUCTURE incl split-group + embedded team-slot rank snapshot |
-| `pvrn` | 213 | id, dyof, time, stgn, nmmt, mnsn, mtrl, type, ofsd, date | **TBD** |
+| `pvrn` | 213 | id, dyof, time, stgn, nmmt, mnsn, mtrl, type, ofsd, date | ?preview/previous-round record |
 | `spst` | 208 | id, stad, przm, year, time, strl, dyow, dyom, mont, comp | stadium/sponsor prize record (stad+przm) |
 | `accm` | 204 | id, type, sequ, gmsb, gmbl, tyar, prsw, sswn | ?achievement/accumulator (type+sequence) |
 | `srci` | 198 | id, bnsc, decd, sfsr, mnsn, in_2, year, strl, type, time | ?season/source-comp record (bnsc/decd) |
-| `rdci` | 190 | id, gmsb, rdcr, bnsc, type, cmty, valu, fxrl, usqn, tcpf | **TBD** |
+| `rdci` | 190 | id, gmsb, rdcr, bnsc, type, cmty, valu, fxrl, usqn, tcpf | ?draw/registration counter (rdcr) |
 | `wrnk` | 187 | id, crk, lwrk, hgrk | world/reputation rank (crk/lwrk/hgrk) |
 | `lrnk` | 187 | id, crk, type, ftac, nmrp, nmxt, ntms, stag, team, sed1 | STANDINGS atom: one team's rank in a stage (crk + team-slot + stnm + ntms) |
 | `dsbi` | 180 | id, stdt, bnsc, gmsb, accm, type, sequ, prsw, sswn, rdci | ?board/achievement record (bnsc + accm seq) |
 | `wnpz` | 173 | id, cash, nmmt, tvty, curr, ndow, tvmt, ntim, crk, ofsd | winner prize by finishing position (crk) |
 | `przm` | 172 | year, strl, dyom, mont, id, dyow, levl, cash, type, id_1 | prize money by level/position (levl + cash/przm amount) |
 | `lcrl` | 154 | id, lcrg, igmt, mxtm, WrWt, type, GmTy, igma, semt, seed | ?rule record (lcrg ref) |
-| `snrp` | 154 | id, sndr, type, cmty, valu, sdtr, mxss, NinE, usqn, tcpf | **TBD** |
+| `snrp` | 154 | id, sndr, type, cmty, valu, sdtr, mxss, NinE, usqn, tcpf | squad/registration rule (mxss max squad, NinE) |
 | `lsdv` | 150 | id, comp, cash, dyow, curr, dyom, mont, year, strl, semt | league division setup (comp + prize + level) |
 | `sred` | 142 | type, cmty, valu, sqsr, id, dyom, mont, year, sdnf, usqn | ?per-club squad rules (type=club tid, mxss=max squad) |
 | `lspz` | 138 | id, cash, time, curr, mnsn, nmmt, stnm, type, ntms, ofsd | league-stage prize (cash by round/position) |
@@ -220,26 +220,26 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `ssnd` | 82 | id, snms | ?season record (snms 23..99) |
 | `wkpm` | 78 | type, dyow, year, dyom, mont, cmty, valu, strl, id, time | **TBD** |
 | `dtrn` | 75 | id, stmn, styo, enmn, enyo, year, strl, dyom, mont, id_1 | date-range record (start/end month + year, e.g. transfer window) |
-| `sudt` | 68 | mnsn, in_2, year, strl, dyom, mont, time, dyow, id, hidl | **TBD** |
+| `sudt` | 68 | mnsn, in_2, year, strl, dyom, mont, time, dyow, id, hidl | ?scheduled update date (mnsn + date) |
 | `agdt` | 64 | id, type, dyom, mont, year, plty, lpcr, lnrl, expd, sbty | ?agreement/registration date |
 | `trrl` | 62 | id, natr, frtj, cnem, lpcr, type, lnrl, plty, fcmn, valu | ?transfer/registration rule (natr/frtj/fcmn foreign cap) |
-| `snda` | 60 | type, valu, cmty, id, mxss, tcpf, usqn, sqsr, sdnf, sqsv | **TBD** |
-| `ofxd` | 60 | id, mnsn, in_2, sbsn, id_1, id_2, in_1 | **TBD** |
-| `nfxd` | 59 | przm, id, levl, mnsn, in_2, cash, id_1, id_2, ACfl, sbsn | **TBD** |
+| `snda` | 60 | type, valu, cmty, id, mxss, tcpf, usqn, sqsr, sdnf, sqsv | squad rules by entity (mxss, valu) |
+| `ofxd` | 60 | id, mnsn, in_2, sbsn, id_1, id_2, in_1 | ?fixture reference (mnsn/sbsn) |
+| `nfxd` | 59 | przm, id, levl, mnsn, in_2, cash, id_1, id_2, ACfl, sbsn | ?prize-by-level fixture record (przm/cash) |
 | `RLtm` | 59 | Ttea, id, seed, aqtp, tems, stag, type, year, ntms, indx | ranking/seeding team-list (Ttea members + seed/stage) |
 | `CfOD` | 59 | przm, levl, id, year, dyom, mont, strl, id_2, id_1, dyow | ?competition-config-by-date |
 | `CnRl` | 58 | type, cmty, valu, id, comp, styr, enyr, tcpf, Draf, sqsr | ?competition rule (entity, styr..enyr, Draf draft) |
 | `SCsn` | 58 | id, type, ntms, stgn, stag, topp, btpl, seed, levl, time | stage config: ntms + topp(promoted)/btpl(relegated) + seed + level |
-| `tppr` | 51 | id, nrpl, levl, przm, comp, stag, vsdp, indx, itvm, fnrg | **TBD** |
-| `rfpr` | 51 | id, hgrk, comp, inac, type, tems, itvm, vsdp, fnrg, dyow | **TBD** |
-| `city` | 50 | id, type, year, dyow, dyom, mont, strl, id_1, id_2, indx | **TBD** |
-| `updv` | 48 | id, comp | **TBD** |
-| `lwdv` | 48 | id, comp, tems, type, Bran, PrSt, vlys, mntm, mxtm, dyow | **TBD** |
-| `OPpr` | 48 | id, ntms, type, levl, lwrk, strl, year, dyow, dyom, mont | **TBD** |
+| `tppr` | 51 | id, nrpl, levl, przm, comp, stag, vsdp, indx, itvm, fnrg | ?promotion/prize record (nrpl) |
+| `rfpr` | 51 | id, hgrk, comp, inac, type, tems, itvm, vsdp, fnrg, dyow | ?reputation/finish record (hgrk rank 7..27) |
+| `city` | 50 | id, type, year, dyow, dyom, mont, strl, id_1, id_2, indx | city/location record (+ city id field) |
+| `updv` | 48 | id, comp | ?update-division (comp ref) |
+| `lwdv` | 48 | id, comp, tems, type, Bran, PrSt, vlys, mntm, mxtm, dyow | ?lower-division config (comp/tems) |
+| `OPpr` | 48 | id, ntms, type, levl, lwrk, strl, year, dyow, dyom, mont | ?opponent/prize-pool (levl + lwrk rank) |
 | `btpr` | 45 | id, nrpl | bottom places (relegation) variant |
 | `PSfd` | 42 | id, mnsn, id_1, id_2 | **TBD** |
-| `prmr` | 42 | id, nrpl | promotion-related |
-| `TrSt` | 41 | stag, id, type, srcc, shsn, shnt, exlg, shpo, indx, Per% | **TBD** |
+| `prmr` | 42 | id, nrpl | promotion places (nrpl count) — companion to relr |
+| `TrSt` | 41 | stag, id, type, srcc, shsn, shnt, exlg, shpo, indx, Per% | ?stage/tier state |
 | `pspl` | 37 | id, cash, curr, posn, type, ckch, ckpr, ckcc, ckrl, plyf | split? |
 | `COdf` | 36 | id, team, crk, hgrk, lwrk, comp, nrpl, id_1, id_2, rank | **TBD** |
 | `Cmp2` | 34 | id, comp, type, time, ofsd, dyof, nmmt, strl, stag, HdRl | **TBD** |
@@ -349,7 +349,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `hgrk` | 1505 | 0x11 | 0..27 | 0, 4, 6, 13, 17 | season-highest rank |
 | `info` | 1494 | 0x11,0x0b,0x0a,0x03,0x12 | 0..750 | 40, 90, 75, 70, 3 | counter/index value |
 | `fxds` | 1494 | 0x0b,0x0a | 0..81 | 17, 3, 4, 21, 8 | fixture-set config (season, num matches, groups, seeding, team slots) |
-| `mtrl` | 1422 | 0x02 | refs:    ×622,     ×294,    ×147,   ×78 | ->    , ->   , ->   , ->   , ->    | **TBD** |
+| `mtrl` | 1422 | 0x02 | refs:    ×622,     ×294,    ×147,   ×78 | ->    , ->   , ->   , ->   , ->    | ?related-entity ref |
 | `tems` | 1373 | 0x0b,0x11 | 0..80 | 3, 1, 0, 4, 2 | team count (stage) |
 | `subr` | 1288 | 0x11 | 0..69 | 55, 30, 0, 20, 6 | sub-round |
 | `semt` | 1274 | 0x11 | 0..9 | 1, 0, 2, 8, 9 | ?stage-element type (0..7) |
@@ -384,7 +384,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `bsyr` | 680 | 0x12 | 1998..2027 | 2000, 2017, 2021, 2015, 2016 | base/season year |
 | `topp` | 675 | 0x11 | 0..60 | 0, 4, 3, 6, 2 | promoted places (top) |
 | `ftye` | 667 | 0x11 | 1..12 | 12, 10, 11, 1, 2 | ?fixture-type month? |
-| `Bran` | 667 | 0x12,0x11,0x02 | refs:   «×16 | 1435, 1437, 1436, 1452, 0 | ?brand/entity ref (~1435) |
+| `Bran` | 667 | 0x12,0x11,0x02 | refs:   «×16 | 1435, 1437, 1436, 1452, 0 | brand/entity ref (~1435) |
 | `XSvC` | 667 | 0x11,0x12 | 1..172 | 2, 51, 13, 4, 3 | ? |
 | `fsdi` | 667 | 0x11 | 0..255 | 21, 9, 0, 1, 2 | ?first-stage index |
 | `lfte` | 664 | 0x11 | 1..255 | 255, 6, 4, 1, 2 | **TBD** |
@@ -420,7 +420,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `Nnat` | 426 | 0x11,0x12,0x01 | 5..62002127 | 110, 111, 112, 113, 125 | nation id (110..141, nation-space) |
 | `sed1` | 426 | 0x11 | 0..20 | 2, 1, 0, 12, 13 | seed 1 |
 | `sed2` | 426 | 0x11 | 0..21 | 2, 3, 12, 10, 13 | seed 2 |
-| `pvrn` | 420 | 0x11,0x0a,0x12 | 2..164 | 18, 6, 7, 2, 3 | **TBD** |
+| `pvrn` | 420 | 0x11,0x0a,0x12 | 2..164 | 18, 6, 7, 2, 3 | ?preview/previous-round record |
 | `wrnk` | 413 | 0x0a | 2..4 | 4, 2, 3 | world/reputation rank (crk/lwrk/hgrk) |
 | `lrnk` | 413 | 0x0a | 2..4 | 2, 4 | STANDINGS atom: one team's rank in a stage (crk + team-slot + stnm + ntms) |
 | `spdO` | 410 | 0x11 | 0..255 | 0, 235, 245, 249, 1 | **TBD** |
@@ -444,12 +444,12 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `ttac` | 349 | 0x03 | 0..1 | 0, 1 | **TBD** |
 | `pare` | 348 | 0x0a | 2..3 | 2, 3 | parent competition (comp + team-count cfg) |
 | `SrTs` | 346 | 0x11 | 0..21 | 10, 0, 12, 7, 11 | ? |
-| `itvm` | 342 | 0x0b | 0..22 | 1, 8, 0, 22, 19 | **TBD** |
+| `itvm` | 342 | 0x0b | 0..22 | 1, 8, 0, 22, 19 | ?(0..8) |
 | `fnrg` | 338 | 0x0b | 0..20 | 15, 1, 0, 20, 18 | **TBD** |
 | `FxSt` | 337 | 0x0b | 0..7 | 0, 1, 2, 6, 3 | **TBD** |
 | `ddsd` | 325 | 0x03 | 0..1 | 1, 0 | **TBD** |
 | `accm` | 324 | 0x0a | 3..4 | 4, 3 | ?achievement/accumulator (type+sequence) |
-| `vsdp` | 320 | 0x0b | 0..1 | 1, 0 | **TBD** |
+| `vsdp` | 320 | 0x0b | 0..1 | 1, 0 | bool flag |
 | `MtTv` | 319 | 0x0b | 0..9 | 0, 1, 8, 2, 3 | **TBD** |
 | `hlps` | 318 | 0x0b | 0..5 | 0, 1, 3, 2, 4 | **TBD** |
 | `relr` | 315 | 0x0a,0x11 | 1..7 | 3, 5, 4, 7, 2 | relegation places (nrpl count) |
@@ -460,8 +460,8 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `srci` | 302 | 0x0a | 4..4 | 4 | ?season/source-comp record (bnsc/decd) |
 | `sfsr` | 302 | 0x03 | 0..1 | 0, 1 | bool flag |
 | `ldos` | 302 | 0x11 | 1..255 | 1, 255, 2, 4 | **TBD** |
-| `rdci` | 300 | 0x0a | 3..4 | 3, 4 | **TBD** |
-| `rdcr` | 300 | 0x11 | 0..9 | 8, 0, 2, 3, 6 | **TBD** |
+| `rdci` | 300 | 0x0a | 3..4 | 3, 4 | ?draw/registration counter (rdcr) |
+| `rdcr` | 300 | 0x11 | 0..9 | 8, 0, 2, 3, 6 | ?(0..9) |
 | `sbty` | 300 | 0x11 | 1..33 | 1, 2, 27, 26, 12 | ?(1..17) |
 | `ctll` | 299 | 0x0b | 0..32 | 0, 4, 8, 3, 16 | bool flag |
 | `lgfx` | 298 | 0x0b | 0..2 | 1, 0, 2 | bool flag |
@@ -499,7 +499,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `sqsv` | 218 | 0x11 | 4..41 | 8, 28, 41, 25, 4 | squad-season value |
 | `utic` | 218 | 0x03 | 0..1 | 0, 1 | bool flag |
 | `Bktm` | 216 | 0x11 | 0..100 | 18, 20, 12, 28, 16 | bracket teams |
-| `vlys` | 214 | 0x0b | 0..4 | 1, 2, 3, 4, 0 | **TBD** |
+| `vlys` | 214 | 0x0b | 0..4 | 1, 2, 3, 4, 0 | ? |
 | `frty` | 211 | 0x03,0x11 | 0..1 | 0, 1 | **TBD** |
 | `atin` | 210 | 0x11 | 0..17 | 1, 0, 2, 6, 3 | **TBD** |
 | `stdw` | 210 | 0x11 | 1..7 | 7, 6, 1, 4 | start day-of-week |
@@ -507,16 +507,16 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `sfar` | 208 | 0x11 | 1..10 | 2, 1, 3, 6, 10 | **TBD** |
 | `edtv` | 205 | 0x11 | 0..4 | 2, 0, 1, 3, 4 | **TBD** |
 | `mtdr` | 200 | 0x11 | 1..8 | 1, 8, 2 | ?match-day rule |
-| `city` | 200 | 0x01,0x0a,0x12,0x11 | 2..74009628 | 100024, 102586, 102583, 74009628, 2 | **TBD** |
-| `snrp` | 198 | 0x0a | 2..4 | 3, 2, 4 | **TBD** |
+| `city` | 200 | 0x01,0x0a,0x12,0x11 | 2..74009628 | 100024, 102586, 102583, 74009628, 2 | city/location record (+ city id field) |
+| `snrp` | 198 | 0x0a | 2..4 | 3, 2, 4 | squad/registration rule (mxss max squad, NinE) |
 | `blpm` | 197 | 0x03 | 0..1 | 1, 0 | **TBD** |
 | `lspz` | 195 | 0x0a,0x12,0x01 | 2..52750 | 3, 2, 14000, 28000, 52750 | league-stage prize (cash by round/position) |
 | `hdty` | 194 | 0x11 | 1..8 | 3, 4, 5, 8, 2 | ?head-to-head/seeding type |
 | `dtfl` | 188 | 0x02 | refs:    ×46,     ×31,    ×30,    ×23 | ->   , ->   , ->  , ->   A, ->     | **TBD** |
-| `prmr` | 182 | 0x0a,0x11 | 2..6 | 5, 4, 3, 2, 6 | promotion-related |
+| `prmr` | 182 | 0x0a,0x11 | 2..6 | 5, 4, 3, 2, 6 | promotion places (nrpl count) — companion to relr |
 | `lcrl` | 174 | 0x0a,0x01 | 2..156580 | 2, 156580, 3 | ?rule record (lcrg ref) |
 | `apmn` | 174 | 0x0b,0x0a | 0..3 | 1, 0, 2, 3 | appearance / TV money (cash + TV scheduling) |
-| `PrSt` | 173 | 0x0b,0x02 | refs:     ×100,    ×25,    ×3,    ×3 | 1, ->   , ->   , 2, ->     | **TBD** |
+| `PrSt` | 173 | 0x0b,0x02 | refs:     ×100,    ×25,    ×3,    ×3 | 1, ->   , ->   , 2, ->     | ?flag |
 | `rmnn` | 173 | 0x03 | 1..1 | 1 | **TBD** |
 | `RdPr` | 173 | 0x11 | 0..0 | 0 | **TBD** |
 | `TiTu` | 171 | 0x12 | 1230..2100 | 1730, 2000, 1330, 1400, 1800 | TV kickoff time slot (HHMM) |
@@ -545,9 +545,9 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `ignt` | 141 | 0x03 | 0..1 | 1, 0 | **TBD** |
 | `lgrl` | 140 | 0x02 | refs:    ×54,    ×20,    ×17,    ×14 | ->   , ->   , ->   , ->   p, ->  P | **TBD** |
 | `fnlc` | 134 | 0x0a | 2..3 | 2, 3 | ?final/calendar comp record |
-| `exlg` | 133 | 0x0b | 0..2 | 1, 2, 0 | **TBD** |
+| `exlg` | 133 | 0x0b | 0..2 | 1, 2, 0 | bool flag |
 | `Ufss` | 132 | 0x03 | 0..1 | 1, 0 | ?season flag |
-| `tppr` | 132 | 0x0a,0x11 | 0..10 | 6, 4, 5, 0, 7 | **TBD** |
+| `tppr` | 132 | 0x0a,0x11 | 0..10 | 6, 4, 5, 0, 7 | ?promotion/prize record (nrpl) |
 | `grrl` | 131 | 0x02 | refs:    ×30,     ×30,   ×20,     ×8 | ->  , ->   , ->   , ->  , ->   | **TBD** |
 | `gnty` | 131 | 0x11 | 0..7 | 7, 3, 1, 0, 5 | **TBD** |
 | `gpdt` | 131 | 0x0b | 0..16 | 2, 4, 0, 10, 3 | **TBD** |
@@ -567,7 +567,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `sndr` | 118 | 0x11 | 0..3 | 0, 1, 2, 3 | ?(0..3) |
 | `wkpm` | 118 | 0x0a | 1..5 | 5, 1, 4 | **TBD** |
 | `sseg` | 114 | 0x02 | refs:    ×36,    ×18,    ×10,   ×6 | ->   , ->   , -> @  , ->   , ->     | **TBD** |
-| `sudt` | 114 | 0x0a | 4..6 | 5, 4, 6 | **TBD** |
+| `sudt` | 114 | 0x0a | 4..6 | 5, 4, 6 | ?scheduled update date (mnsn + date) |
 | `expd` | 114 | 0x12,0x02,0x01 | refs:    ×10,  P ×8,   P ×6,   ×6 | 4096, ->   , ->  À, -> ü, ->  P | expiry (ref) |
 | `tfrd` | 112 | 0x0a | 2..3 | 2, 3 | ?transfer/squad-rule record (type=club tid, styr..enyr window) |
 | `ofdi` | 112 | 0x11 | 0..255 | 255, 1, 0, 2, 9 | **TBD** |
@@ -575,7 +575,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `CcEx` | 110 | 0x0b | 0..0 | 0 | **TBD** |
 | `Per%` | 109 | 0x11 | 10..100 | 50, 60, 40, 69, 100 | **TBD** |
 | `lpcr` | 108 | 0x11 | 1..4 | 1, 4, 2, 3 | ? |
-| `shsn` | 107 | 0x03 | 0..1 | 1, 0 | **TBD** |
+| `shsn` | 107 | 0x03 | 0..1 | 1, 0 | bool flag |
 | `lgin` | 107 | 0x11 | 0..1 | 0, 1 | live-game/broadcast flag |
 | `dvlv` | 106 | 0x0b | 1..6 | 2, 1, 3, 4, 6 | division level |
 | `retm` | 106 | 0x0b | 2..90 | 11, 18, 6, 13, 4 | **TBD** |
@@ -617,8 +617,8 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `pris` | 83 | 0x11,0x0b | 0..6 | 6, 3, 1, 2, 0 | **TBD** |
 | `pOsT` | 83 | 0x11 | 0..4 | 1, 2, 3, 4, 0 | **TBD** |
 | `VRrl` | 81 | 0x0b | 1..6 | 1, 2, 3, 4, 5 | **TBD** |
-| `snda` | 80 | 0x0a | 2..4 | 3, 2, 4 | **TBD** |
-| `sdtr` | 80 | 0x0b | 1..4 | 2, 1, 3, 4 | **TBD** |
+| `snda` | 80 | 0x0a | 2..4 | 3, 2, 4 | squad rules by entity (mxss, valu) |
+| `sdtr` | 80 | 0x0b | 1..4 | 2, 1, 3, 4 | ? |
 | `hmtm` | 80 | 0x0b,0x11 | 0..100 | 2, 1, 3, 5, 82 | **TBD** |
 | `nrdw` | 77 | 0x11 | 1..255 | 2, 255, 3, 5, 4 | ?wins-related (candidate W) |
 | `SgSd` | 76 | 0x0b | 0..6 | 2, 3, 4, 0, 1 | **TBD** |
@@ -646,10 +646,10 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `FAif` | 66 | 0x0b | 0..2 | 0, 1, 2 | **TBD** |
 | `sch?` | 65 | 0x03 | 0..1 | 0, 1 | **TBD** |
 | `clyc` | 65 | 0x03 | 0..1 | 1, 0 | **TBD** |
-| `ofxd` | 65 | 0x0a | 2..3 | 3, 2 | **TBD** |
+| `ofxd` | 65 | 0x0a | 2..3 | 3, 2 | ?fixture reference (mnsn/sbsn) |
 | `frtj` | 64 | 0x03 | 0..1 | 0, 1 | ?rule flag |
 | `ddlf` | 64 | 0x02 | refs:    ×24,     ×18,   2×4,   ×4 | ->   , ->   , ->  gb, ->  v, ->  'v | **TBD** |
-| `nfxd` | 64 | 0x0a | 2..3 | 3, 2 | **TBD** |
+| `nfxd` | 64 | 0x0a | 2..3 | 3, 2 | ?prize-by-level fixture record (przm/cash) |
 | `ScQt` | 64 | 0x0b | 0..9 | 9, 1, 6, 3, 4 | **TBD** |
 | `nplt` | 63 | 0x11 | 1..6 | 1, 6, 3, 2 | **TBD** |
 | `nprt` | 63 | 0x11 | 0..3 | 1, 2, 0, 3 | **TBD** |
@@ -666,7 +666,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `cnem` | 56 | 0x11 | 5..12 | 12, 6, 11, 10, 5 | ?month-ish |
 | `snfl` | 56 | 0x02 | refs:    ×8,   ×8,   ×8,   ×6 | ->   , ->  , ->   , ->  , ->   | **TBD** |
 | `mage` | 56 | 0x03 | 1..1 | 1 | **TBD** |
-| `TrSt` | 55 | 0x0a | 4..6 | 6, 4, 5 | **TBD** |
+| `TrSt` | 55 | 0x0a | 4..6 | 6, 4, 5 | ?stage/tier state |
 | `plfd` | 54 | 0x11 | 2..7 | 5, 2, 4, 7 | **TBD** |
 | `pts1` | 54 | 0x11 | 0..33 | 5, 0, 4, 6, 20 | **TBD** |
 | `pts2` | 54 | 0x11 | 0..30 | 11, 2, 5, 0, 8 | **TBD** |
@@ -676,13 +676,13 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `crlm` | 53 | 0x0b | 0..18 | 2, 9, 6, 0, 4 | **TBD** |
 | `pced` | 51 | 0x11 | 0..20 | 1, 18, 0, 7, 20 | **TBD** |
 | `poed` | 51 | 0x11 | 0..1 | 1, 0 | **TBD** |
-| `rfpr` | 51 | 0x0a | 2..4 | 2, 4 | **TBD** |
+| `rfpr` | 51 | 0x0a | 2..4 | 2, 4 | ?reputation/finish record (hgrk rank 7..27) |
 | `TtUl` | 50 | 0x0b | 2..5 | 2, 3, 4, 5 | **TBD** |
 | `DOmf` | 50 | 0x0b | 0..4 | 2, 3, 4, 1, 0 | **TBD** |
 | `gsyo` | 48 | 0x03 | 0..1 | 1, 0 | **TBD** |
-| `updv` | 48 | 0x0a | 2..2 | 2 | **TBD** |
-| `lwdv` | 48 | 0x0a | 2..2 | 2 | **TBD** |
-| `OPpr` | 48 | 0x0a | 2..3 | 2, 3 | **TBD** |
+| `updv` | 48 | 0x0a | 2..2 | 2 | ?update-division (comp ref) |
+| `lwdv` | 48 | 0x0a | 2..2 | 2 | ?lower-division config (comp/tems) |
+| `OPpr` | 48 | 0x0a | 2..3 | 2, 3 | ?opponent/prize-pool (levl + lwrk rank) |
 | `StPl` | 47 | 0x0b | 1..15 | 1, 3, 4, 2, 10 | **TBD** |
 | `chdc` | 47 | 0x0b | 0..21 | 2, 3, 4, 5, 9 | **TBD** |
 | `usRU` | 46 | 0x03 | 0..1 | 0, 1 | **TBD** |
@@ -695,7 +695,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `bupd` | 44 | 0x03 | 0..1 | 0, 1 | **TBD** |
 | `ByTm` | 44 | 0x0b | 0..5 | 0, 2, 3, 5, 1 | **TBD** |
 | `pfpr` | 44 | 0x0a | 2..4 | 4, 2 | **TBD** |
-| `shnt` | 43 | 0x11 | 12..18 | 18, 12, 14, 16 | **TBD** |
+| `shnt` | 43 | 0x11 | 12..18 | 18, 12, 14, 16 | ?(12..14 foreign cap?) |
 | `t001` | 43 | 0x11 | 2..254 | 240, 254, 3, 252, 5 | **TBD** |
 | `t002` | 43 | 0x11 | 1..255 | 241, 1, 240, 253, 4 | **TBD** |
 | `t003` | 43 | 0x11 | 1..255 | 242, 15, 255, 2, 240 | **TBD** |
@@ -781,7 +781,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `CdSr` | 26 | 0x11 | 1..3 | 3, 1, 2 | **TBD** |
 | `ind2` | 26 | 0x11 | 0..15 | 7, 15, 2, 0 | **TBD** |
 | `\rut` | 25 | 0x0a | 12..58 | 12, 31, 52, 57, 58 | **TBD** |
-| `shpo` | 25 | 0x11 | 0..10 | 0, 4, 6, 10, 8 | **TBD** |
+| `shpo` | 25 | 0x11 | 0..10 | 0, 4, 6, 10, 8 | ?month |
 | `SDty` | 25 | 0x03 | 0..1 | 0, 1 | **TBD** |
 | `WcSu` | 24 | 0x03 | 0..1 | 0, 1 | **TBD** |
 | `HgSq` | 24 | 0x11 | 22..99 | 40, 99, 24, 22 | **TBD** |
@@ -794,7 +794,7 @@ Ordered by record count. 'Child fields' = tags most often seen inside that recor
 | `sqrw` | 24 | 0x0a,0x01 | 2..7860000 | 2, 7483354, 4, 7860000, 129558 | **TBD** |
 | `nccc` | 24 | 0x11 | 2..10 | 2, 4, 3, 6, 10 | **TBD** |
 | `SSEG` | 24 | 0x0b | 1..3 | 2, 1, 3 | **TBD** |
-| `NinE` | 24 | 0x03 | 0..1 | 0, 1 | **TBD** |
+| `NinE` | 24 | 0x03 | 0..1 | 0, 1 | bool flag |
 | `SefW` | 24 | 0x03 | 1..1 | 1 | **TBD** |
 | `MtAc` | 24 | 0x0b | 2..2 | 2 | **TBD** |
 | `UdFR` | 24 | 0x03 | 1..1 | 1 | **TBD** |
