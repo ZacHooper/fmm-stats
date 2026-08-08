@@ -19,9 +19,14 @@ screenshot):
                          228=our 2.League White, 117=Turkish Cup, 275=English FA Cup, ...)
     +12 year/+14 day     coarse date fields (base years 2020/2021; not the exact calendar
                          date — left as raw)
-Each fixture is stored in >=2 near-identical copies 516 bytes apart; we dedup by
-(home, away, cid, score). Validated: comp_cid cleanly separates league / cup / European
-(e.g. Galatasaray -> 118 league + 117 cup + 258 EURO), so no fragile clustering is needed.
+Each fixture is stored in SEVERAL near-identical copies (empirically always an even
+count: 2/4/6/8...). The old note "twin copies exactly 516 bytes apart" is an
+oversimplification — records pack ~21 bytes apart and whole BLOCKS repeat at mixed
+strides (516 is common but not the only one, and a block can recur 4/6/8x). We don't
+depend on the stride at all: we dedup purely by fixture identity (home, away, cid,
+score). DUP_STRIDE below is documentation only, not used by the code. Validated:
+comp_cid cleanly separates league / cup / European (e.g. Galatasaray -> 118 league +
+117 cup + 258 EURO), so no fragile clustering is needed.
 
 COVERAGE: this is ONE of two on-disk result lists. A second list (~49.36 MB) repeats the
 home team and carries a 0x42xx value with NO cid, so it can't be league-assigned; it isn't
@@ -39,11 +44,50 @@ NATION_NAMES = {173: "Turkey", 139: "England", 146: "Greece", 170: "Spain", 145:
 
 FLAG_HI = (0x40, 0xC0)        # high byte of the +8 marker on a real record
 YEARS = (0x07E4, 0x07E5, 0x07E6)   # +12 field: 2020/2021/2022 — a strong record gate
-DUP_STRIDE = 516              # the twin-copy distance (used only for confirmation)
+DUP_STRIDE = 516              # a COMMON block-repeat distance; documentation only (not used)
+_YEAR_MARKERS = (b"\xe4\x07", b"\xe5\x07", b"\xe6\x07")   # YEARS as +12 little-endian bytes
 
 
 def _u16(mm, o):
     return int.from_bytes(mm[o:o + 2], "little")
+
+
+def find_light_region(mm, valid_clubs, margin=30_000, merge_gap=200_000, min_hits=50):
+    """DERIVE the light-results region [lo, hi] from content, so it's career-agnostic
+    (Bucaspor's sits ~47-48.8M, Frem's ~45.2-46.3M; the hard-coded LIGHT_LO/HI=47-50.5M
+    silently returned 0 fixtures for Frem — same region-drift class as the match region,
+    see fmparser/matches.find_match_region).
+
+    Cheap structural scan: the +12 year field (07E4/E5/E6) is a findable 2-byte marker;
+    at each occurrence, test the record start (o = marker-12) against the full gate (flag
+    byte, two real club TIDs, plausible score + cid). The true region is the densest
+    contiguous cluster of such hits. Returns None (caller falls back) if nothing dense."""
+    hits = []
+    for ym in _YEAR_MARKERS:
+        i = mm.find(ym)
+        while i != -1:
+            o = i - 12
+            if o >= 0 and o + 16 < len(mm) and mm[o + 9] in FLAG_HI:
+                home, away = _u16(mm, o), _u16(mm, o + 2)
+                if home in valid_clubs and away in valid_clubs and home != away \
+                   and mm[o + 4] <= 30 and mm[o + 5] <= 30 and 0 < _u16(mm, o + 10) < 20000:
+                    hits.append(o)
+            i = mm.find(ym, i + 1)
+    if len(hits) < min_hits:
+        return None
+    hits.sort()
+    clusters, cur = [], [hits[0]]
+    for o in hits[1:]:
+        if o - cur[-1] <= merge_gap:
+            cur.append(o)
+        else:
+            clusters.append(cur)
+            cur = [o]
+    clusters.append(cur)
+    best = max(clusters, key=len)
+    if len(best) < min_hits:
+        return None
+    return (max(0, best[0] - margin), min(len(mm), best[-1] + margin))
 
 
 def sweep(mm, valid_clubs, lo=RG.LIGHT_LO, hi=RG.LIGHT_HI, min_copies=2):
@@ -191,7 +235,11 @@ def build(mm, valid_clubs, club_nation=None):
     """Whole pipeline: sweep -> {records, leagues, club_league}. `records` are the deduped
     fixtures; `leagues` the per-cid summary (nation-validated names if `club_nation` given);
     `club_league` the {club_tid: league_cid} map."""
-    records = sweep(mm, valid_clubs)
+    region = find_light_region(mm, valid_clubs)          # self-locating, career-agnostic
+    if region:
+        records = sweep(mm, valid_clubs, lo=region[0], hi=region[1])
+    else:
+        records = sweep(mm, valid_clubs)                  # fall back to hard-coded LIGHT_LO/HI
     return {"records": records,
             "leagues": leagues(mm, records, club_nation=club_nation),
             "club_league": club_leagues(mm, records)}
