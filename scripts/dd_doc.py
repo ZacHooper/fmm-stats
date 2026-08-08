@@ -30,7 +30,31 @@ KNOWN = {
  "dyow": "day of week", "nati": "nation", "curr": "currency", "crk": "current rank? (in wrnk/lrnk)",
  "wrnk": "world/reputation rank (crk/lwrk/hgrk)", "lrnk": "league rank/standings? (crk/team/stag)",
  "lwrk": "lowest rank", "hgrk": "highest rank", "seed": "seeding", "sed1": "seed 1?",
- "dat2": "date entity 2", "nmlg": "?num legs?", "srnd": "seeded round/draw?",
+ "dat2": "date entity 2", "nmlg": "num legs", "srnd": "seeded round/draw?",
+ # --- Phase 1 (R1 standings) decode, 2026-08 ---
+ "lrnk": "STANDINGS atom: one team's rank in a stage (crk + team-slot + stnm + ntms)",
+ "crk": "CURRENT RANK = league position (observed 1..11)",
+ "hgrk": "highest rank reached this season", "lwrk": "lowest rank reached this season",
+ "nrdw": "?wins-related (candidate W)", "nrdl": "?losses-related (candidate L)",
+ "ftac": "?(lrnk flag)", "rkli": "?rank-list size?", "seed": "seeding", "sed1": "seed 1?",
+ "team": "team SLOT index within a stage (0..ntms-1), NOT a club tid",
+ "stnm": "stage entity (ref)", "stgn": "stage number", "stag": "stage index",
+ "Ttea": "team-in-competition INTERNAL entity id (~2e9) — needs id->club hop (Phase 2)",
+ "DBID": "database id (~2e9 internal, not a club tid)",
+ "enyr": "end year (squad-rules season)", "MnAg": "min squad age", "MxAg": "max squad age",
+ "mxnp": "max non-protected players?", "ygap": "?year gap", "plty": "?penalty/type",
+ # --- season-build CONFIG decode, 2026-08 (datadict = format engine: promo/releg/splits/rounds/scheduling) ---
+ "nssn": "season/stage STRUCTURE incl split-group + embedded team-slot rank snapshot",
+ "topp": "top places promoted / qualifying", "btpl": "bottom places relegated",
+ "btpr": "bottom places (relegation) variant", "prmr": "promotion-related", "relr": "relegation-related",
+ "pspl": "split?", "spld": "split?", "nrds": "number of rounds", "rnds": "rounds", "trnd": "total rounds?",
+ "tems": "team count (in stage)", "qurl": "qualification rule?",
+ "SCsn": "stage config (stgn, tems, lgto, stnm)", "srnd": "seeded round (subr/prio/drrl draw-rule/rnds)",
+ "drrl": "draw rule", "prio": "seeding priority", "subr": "sub-round",
+ "fxor": "fixture order", "tvty": "TV type", "tvmt": "TV channel/match", "ndow": "nominal day-of-week",
+ "ntim": "nominal kickoff time (HHMM)", "bkdw": "block day-of-week", "stdw": "start day-of-week",
+ "endw": "end day-of-week", "mtdy": "match day", "lgto": "?league config flag",
+ "pare": "parent competition (comp ref)", "ncmp": "nested/child competition", "indx": "index",
 }
 
 
