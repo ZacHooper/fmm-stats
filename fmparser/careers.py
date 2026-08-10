@@ -39,7 +39,7 @@ CAREERS = {
     "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb"),
 }
 
-DEFAULT_CAREER = "bucaspor"
+DEFAULT_CAREER = "frem"
 
 
 def resolve_career(key: str | None = None) -> Career:

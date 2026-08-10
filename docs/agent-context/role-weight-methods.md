@@ -38,3 +38,14 @@ overlaps. Validated on Frem squad: Aslani AML 86→99 pctile, Schou DC 58→84, 
 Herslov AMC 90→96; Balck stays #1 ST. Also seeded into fm-buca so the method exists everywhere; it's
 NOT the config default (default_method stays black_hawk) — select it in the dashboard sidebar or
 env FM_METHOD. See [[etl-duckdb-dashboard]], [[fmm-tactic-options]].
+
+**frem_gegenpress (added 2026-08, 95 rows).** Frem's mid-22 tactic switch: user abandoned counter,
+went **gegenpress 4-1-2-3** (no ST — a **SS in the AMC slot**, wingers AML/AMR, single DM pivot,
+two B2B CMs). Weighting philosophy vs frem_counter: **stamina→key almost everywhere** (press is
+stamina-hungry), **teamwork + aggression up** (coordinated pressing), **crossing dropped off wide
+roles** (central/through play, not early crosses), **CB pace→key + aggression→key** (high line),
+**AMC = the focal SS** (movement/shooting/decisions/teamwork all key). Seeded to BOTH stores + added
+to `_SEED_METHODS`. **Made the fm-frem default_method** (was frem_counter) since the user committed
+to the switch. Squad read: title-leading 3.Div side, but two structural risks for this shape —
+**no quality natural DM anchor**, and **slow CBs (Jørgensen/Schou pace ~10-11) behind a high line**.
+See [[fmm-tactic-options]], [[denmark-region-drift]].

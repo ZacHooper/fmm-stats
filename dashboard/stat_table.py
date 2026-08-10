@@ -24,13 +24,15 @@ def _valid_opts(include_attrs):
     return opts
 
 
-def _normalise(skey, include_attrs, extra_options=()):
-    """on_change: expand any picked preset macro to its stats; drop dups / unknowns,
-    preserving order. Runs before the widget re-instantiates, so it's safe to write skey."""
+def _normalise(skey, include_attrs, extra_options=(), attr_presets=None):
+    """on_change: expand any picked preset macro (match-stat OR attribute profile) to its
+    columns; drop dups / unknowns, preserving order. Runs before the widget re-instantiates,
+    so it's safe to write skey."""
+    macros = {**db.MATCH_PRESETS, **dict(attr_presets or {})}
     valid = set(_valid_opts(include_attrs)) | set(extra_options)
     seen, res = set(), []
     for item in st.session_state.get(skey, []):
-        for x in (db.MATCH_PRESETS[item] if item in db.MATCH_PRESETS else [item]):
+        for x in (macros[item] if item in macros else [item]):
             if x in valid and x not in seen:
                 seen.add(x)
                 res.append(x)
@@ -38,25 +40,30 @@ def _normalise(skey, include_attrs, extra_options=()):
 
 
 def stat_selector(key, default_preset="Custom", include_attrs=True, label="Metrics",
-                  extra_options=(), default_extra=()):
+                  extra_options=(), default_extra=(), attr_presets=None):
     """Unified column picker. Returns (stats, attrs) — or (stats, attrs, extras) when
     `extra_options` is given: a leading group of caller-supplied identity/bio column names
     (e.g. Player, Age, Value) that pass straight through, so a page can offer complete
     control over which columns show (including dropping the name). `default_preset`/
-    `default_extra` seed the first render (None / unknown -> start empty)."""
+    `default_extra` seed the first render (None / unknown -> start empty).
+    `attr_presets` = {label: [attribute names]} extra one-click macros that expand to a set of
+    ATTRIBUTE columns (e.g. a role's key attributes) — clustered after the match-stat presets."""
     skey = f"{key}_pick"
     extra_options = list(extra_options)
+    attr_presets = dict(attr_presets or {})
     if skey not in st.session_state:
         st.session_state[skey] = list(default_extra) + list(db.MATCH_PRESETS.get(default_preset, []))
-    opts = extra_options + PRESET_MACROS + _valid_opts(include_attrs)
+    opts = extra_options + PRESET_MACROS + list(attr_presets) + _valid_opts(include_attrs)
 
     hint = "'90', '%', 'Pace', 'Age'" if extra_options else "'90', '%', 'Pace'"
     st.multiselect(
-        label, opts, key=skey, on_change=_normalise, args=(skey, include_attrs, extra_options),
+        label, opts, key=skey, on_change=_normalise,
+        args=(skey, include_attrs, extra_options, attr_presets),
         placeholder=f"Pick a preset, or search columns (try {hint})…",
         help=("Leading options are identity/bio columns. " if extra_options else "")
-             + "Presets (⚽ 🎯 🎩 🛡 🧤) expand to a stat set. Attributes are the raw 1–20 "
-               "ratings; match stats need parsed appearances. All = every match stat.")
+             + "Presets (⚽ 🎯 🎩 🛡 🧤) expand to a stat set; ★ presets expand to a role's key "
+               "attributes. Attributes are the raw 1–20 ratings; match stats need parsed "
+               "appearances. All = every match stat.")
     with st.container(horizontal=True):          # responsive: wraps on narrow screens
         st.button("All", key=f"{key}_all",
                   on_click=lambda: st.session_state.__setitem__(skey, list(db.MATCH_STAT_DEFS)))
@@ -108,7 +115,7 @@ def _auto_column_config(cols, extra=None):
 def player_table(key, rows, *, id_options=None, default_cols=None,
                  agg_provider=None, attrs_provider=None, include_attrs=True,
                  default_preset=None, picker_label="Columns", column_config=None,
-                 render=True):
+                 attr_presets=None, render=True):
     """THE reusable player table — one component for every page that lists players.
 
     `rows`: DataFrame with a stable 'key' column (usually the tid; a synthetic id for
@@ -131,7 +138,8 @@ def player_table(key, rows, *, id_options=None, default_cols=None,
 
     stats, attrs, extras = stat_selector(
         key, default_preset=default_preset, include_attrs=include_attrs,
-        label=picker_label, extra_options=id_options, default_extra=id_options)
+        label=picker_label, extra_options=id_options, default_extra=id_options,
+        attr_presets=attr_presets)
 
     keys = rows["key"].tolist()
     agg = agg_provider(keys) if (stats and agg_provider) else None

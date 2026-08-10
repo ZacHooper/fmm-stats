@@ -112,7 +112,8 @@ DDL = [
         squad_status INTEGER, loaned_out BOOLEAN, is_gk INTEGER,
         ca INTEGER, pa INTEGER, reputation INTEGER, positions JSON,
         foot_left INTEGER, foot_right INTEGER, player_value BIGINT,
-        loaned_in BOOLEAN, parent_club_tid INTEGER, parent_club VARCHAR
+        loaned_in BOOLEAN, parent_club_tid INTEGER, parent_club VARCHAR,
+        wage_units INTEGER, wage_gbp BIGINT, contract_expiry DATE, contract_expiry_year INTEGER
     )""",
 
     # natural key: (season, phase, tid)
@@ -242,7 +243,8 @@ DDL = [
        LIMIT 0""",
 ]
 
-_SEED_METHODS = ("black_hawk", "personal", "frem_counter")
+_SEED_METHODS = ("black_hawk", "personal", "frem_counter", "frem_gegenpress",
+                 "frem_attacking_ss", "frem_lowblock_overload", "frem_game_state")
 
 # 14 FM position codes -> 10 rating roles. Wide/defensive-mid codes fold into the
 # nearest available role (the role vocabulary is narrower than the position codes).
@@ -426,6 +428,8 @@ def load_core(con, d, season, phase):
             _int(v.get("value")),
             bool(v.get("loaned_in")), _int(v.get("parent_club_tid")),
             v.get("parent_club"),
+            _int(v.get("wage_units")), _int(v.get("wage_gbp")),
+            _date(v.get("contract_expiry")), _int(v.get("contract_expiry_year")),
         ))
         attrs, est = v.get("attributes"), v.get("estimated") or {}
         if attrs:
@@ -450,13 +454,15 @@ def load_core(con, d, season, phase):
                 False, None, None, None, None, None, None,
                 json.dumps({}), None, None, None,
                 False, None, None,
+                None, None, None, None,
             ))
 
     pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
              "league_cid", "league", "dob", "nationality_id", "has_attributes",
              "squad_status", "loaned_out", "is_gk", "ca", "pa", "reputation",
              "positions", "foot_left", "foot_right", "player_value",
-             "loaned_in", "parent_club_tid", "parent_club"]
+             "loaned_in", "parent_club_tid", "parent_club",
+             "wage_units", "wage_gbp", "contract_expiry", "contract_expiry_year"]
     counts["players"] = _insert(con, "players", pcols, prows)
     counts["staff"] = _insert(con, "players", pcols, srows)
     counts["player_attributes"] = _insert(con, "player_attributes", acols, arows)
@@ -802,6 +808,10 @@ _MIGRATIONS = [
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS loaned_in BOOLEAN",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS parent_club_tid INTEGER",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS parent_club VARCHAR",
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS wage_units INTEGER",
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS wage_gbp BIGINT",
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry DATE",
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
 ]
 
 

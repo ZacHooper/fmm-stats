@@ -26,6 +26,35 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
 
+## Reverse-engineering method: ALWAYS region-first, then structural
+When locating a **new field** in the save, do NOT start by guessing byte offsets. Follow this order —
+it has repeatedly turned multi-hour hunts into quick finds:
+
+1. **Map the file into filler-delimited sections first** — `python3 scripts/map_regions.py <save.fms>`.
+   The save is cleanly split by long runs of `00`/`ff` filler; each section holds one kind of data. This
+   shows you *where* to look and exposes regions we haven't mapped. Cross-check against `fmparser/regions.py`
+   (whose windows are Bucaspor-tuned and often wrong for other careers).
+2. **Find records structurally, never by absolute offset** — every window in `regions.py` **drifts** per
+   save and per career (e.g. Frem's contract-expiry records sit at ~29–31M, nowhere near the Bucaspor
+   `CONTRACT_LO=54M`). Locate a record by an embedded key (tid / uid / sid) plus a validating signature
+   (a marker byte, a plausible year, an in-range value) and **validate every hit against the info spine**,
+   exactly like the scrapers in `fmparser/staging.py`.
+3. **Identify an unknown field with ground truth + contrast** — read the real values off an in-game
+   screenshot for several players, then either (a) find the offset whose per-player value matches, or
+   (b) find the offset that is *constant within a group and differs between groups* (how contract expiry
+   was cracked: 6/2022 players vs 6/2023 players). **Money and dates are DISPLAYED ROUNDED** (value `1923`
+   shows as "£2K"), so search a ±few-% band, not the exact number.
+4. **When value-matching fails everywhere, DIFF TWO SAVES** — the definitive tool. Take two snapshots
+   where the value changed for some players and find the field that changed iff the value did. Fields not
+   stored adjacent to a player id (wages appear to live in a positional finance table) only fall to this.
+5. **Encodings cheat-sheet:** money = raw currency (`2000` = £2K) but shown rounded; dates =
+   `[day-of-year u16][year u16]` (see DOB in `staging.scrape_players`); seasons coded `1971 + n`.
+   **Contract-detail record** (`staging.scrape_contracts`, section ~16–40M, `[tid u32][0x01][wage
+   u16][6×00][expiry day-of-year u16][expiry year u16]`): **wage £/yr = `u16@+5` × ~520** (validated
+   £15.5K–£17.75M, ±2%; the `0x01`-marked record is separate from the `0x87` status record), and
+   **expiry = full date @+13** (some Danish deals expire 31 Dec, not 30 Jun — keep the day, not just
+   the year).
+
 ## Skills (in `.claude/skills/`, auto-discovered)
 - **import-fm-saves** — parse new `.fms` saves → load into the career's DuckDB store. Use when new saves appear.
 - **scout-opponent** — technical-analyst opposition briefing (combines our data + the user's in-game scout report).

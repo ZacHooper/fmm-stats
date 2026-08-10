@@ -32,6 +32,8 @@ position = st.sidebar.selectbox("Position", positions,
                                 index=positions.index("ST") if "ST" in positions else 0)
 role = posmap[position]
 wmap = db.role_weight_map(method, role)          # {attr_lower: weight}
+# one-click attribute presets per role (key attrs under the current tactic) for the column picker
+ATTR_PRESETS = {f"★ {r}": db.role_key_attrs(method, r) for r in db.roles()}
 
 
 def importance_caption():
@@ -321,7 +323,7 @@ with tab_short:
                             "Age", "Value", "Origin"],
                 default_cols=["Rank", "Type", "Player", "Fam", "Rating"],
                 agg_provider=agg_p, attrs_provider=lambda keys, ab=attrs_by: ab,
-                picker_label="Columns (slot-in table)")
+                attr_presets=ATTR_PRESETS, picker_label="Columns (slot-in table)")
             st.caption("Prospects (⭐) ranked in among the current squad at this position. "
                        "Add any attribute or match stat above — match stats are blank for "
                        "prospects (only managed-club matches are parsed). Wage isn't in the save.")
@@ -349,7 +351,7 @@ with tab_short:
                             "Age", "Value", "Origin"],
                 default_cols=["Player", "Source", "Fam", "Rating"],
                 agg_provider=agg_p, attrs_provider=lambda keys, ab=attrs_by: ab,
-                picker_label="Columns (shortlist table)")
+                attr_presets=ATTR_PRESETS, picker_label="Columns (shortlist table)")
 
 # --------------------------------------------------------------------- compare
 with tab_cmp:
@@ -552,6 +554,7 @@ with tab_cmp:
             default_cols=["Player", "Pos", "Apps", "Starts", "Sub", "Min", "Rating"],
             agg_provider=lambda keys, a=pick_agg: a,
             attrs_provider=lambda keys, ab=attrs_by_tid: ab,
+            attr_presets=ATTR_PRESETS,
             picker_label="Columns — add/remove any field, match stat or attribute")
     st.caption("Apps exclude unused subs. Per 90 = ×90 ÷ minutes; per game = ÷ appearances. "
                "Conversion % = goals ÷ shots; DefActions = tackles won + interceptions + "

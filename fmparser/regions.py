@@ -42,3 +42,10 @@ MATCH_LO = 55_000_000
 LIGHT_LO, LIGHT_HI = 47_000_000, 50_500_000
 # player contract records ([TID][UID]..0x0087 marker..status byte); keyed by TID+UID
 CONTRACT_LO, CONTRACT_HI = 54_000_000, 58_000_000
+# player contract DETAIL records — a separate section from the 0x87 status records above.
+# Layout: [tid u32][0x01][wage u16 = £/yr÷~520][zeros][expiry day-of-year u16][expiry year u16].
+# Wage validated £15.5K–£17.75M (±2%); expiry is a full date (DOB-style day+year). Frem's records
+# sit ~29–31M, inside the big 16–38M binary section; the window is generous + validated per-record.
+CONTRACTREC_LO, CONTRACTREC_HI = 16_000_000, 40_000_000
+# £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
+WAGE_GBP_PER_UNIT = 520

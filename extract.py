@@ -85,6 +85,7 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
     `marker` is the managed club's squad marker (careers.Career.club_marker)."""
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
     status = S.scrape_contract_status(mm, info)   # {tid: squad-status code}
+    contracts = S.scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
     # names + exact attributes for the managed squad (snapshot), incl. loaned-IN players
     bounds = A.snapshot_bounds(mm, marker=marker)
@@ -168,6 +169,7 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
         # ratings / percentiles include them), but keep their real owner in parent_club_tid.
         club_tid = managed_tid if loaned_in else p["club_tid"]
         parent_tid = li["parent_club_tid"] if loaned_in else None
+        c = contracts.get(tid)                  # contract detail (wage + expiry); may be None
         row = {"tid": tid, "name": full_name(tid, p),
                "club": club_label(club_tid), "club_tid": club_tid,
                "dob": p["dob"], "nationality_id": p["nationality_id"],
@@ -182,7 +184,11 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
                "has_history": h is not None,
                "origin_club_tid": h["origin_club_tid"] if h else None,
                "origin_club": club_label(h["origin_club_tid"]) if h else None,
-               "history_confidence": h["confidence"] if h else None}
+               "history_confidence": h["confidence"] if h else None,
+               "wage_units": c["wage_units"] if c else None,
+               "wage_gbp": c["wage_gbp"] if c else None,
+               "contract_expiry": c["expiry"] if c else None,
+               "contract_expiry_year": c["expiry_year"] if c else None}
         if rec:
             row["is_gk"] = int(rec["positions"].get("GK", 0) == 20)
             row["ca"], row["pa"] = rec["ca"], rec["pa"]

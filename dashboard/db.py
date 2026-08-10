@@ -43,7 +43,14 @@ def available_careers():
 
 
 def _default_career_key():
-    return os.environ.get("FM_CAREER") or (available_careers() or [_careers.DEFAULT_CAREER])[0]
+    # env override wins; else the configured DEFAULT_CAREER if its store exists (stable — not
+    # mtime-dependent, so a reseed/write never flips the default); else the newest store on disk.
+    if os.environ.get("FM_CAREER"):
+        return os.environ["FM_CAREER"]
+    avail = available_careers()
+    if _careers.DEFAULT_CAREER in avail:
+        return _careers.DEFAULT_CAREER
+    return (avail or [_careers.DEFAULT_CAREER])[0]
 
 
 def _activate_career(key):
@@ -155,7 +162,7 @@ def select_career(sidebar=True):
 
 def select_label(sidebar=True):
     """Season+phase selector; persists in session_state. Returns (season, phase)."""
-    select_career(sidebar)          # set the active career (DB_PATH + 'us') before querying
+    car = select_career(sidebar)    # set the active career (DB_PATH + 'us') before querying
     df = labels_df()
     if df.empty:
         st.error("No extracts loaded. Run load_duckdb.py first.")
@@ -163,6 +170,11 @@ def select_label(sidebar=True):
     opts = list(df[["season", "phase"]].itertuples(index=False, name=None))
     fmt = lambda sp: f"{sp[0]} · {sp[1]}"
     box = st.sidebar if sidebar else st
+    # on a career switch, snap to that career's LATEST save (opts is season/phase-sorted asc,
+    # so opts[-1] is newest) rather than carrying over a stale label from the previous career.
+    if st.session_state.get("_label_career") != car:
+        st.session_state["label_sp"] = opts[-1]
+        st.session_state["_label_career"] = car
     default = st.session_state.get("label_sp", opts[-1])
     idx = opts.index(default) if default in opts else len(opts) - 1
     sp = box.selectbox("Season · phase", opts, index=idx, format_func=fmt, key="label_sp")
@@ -235,6 +247,15 @@ def role_weight_map(method, role):
     df = q("SELECT attribute, weight FROM staging.role_weights "
            "WHERE method=? AND role=?", [method, role])
     return dict(zip(df["attribute"], df["weight"]))
+
+
+def role_key_attrs(method, role, min_w=3):
+    """Ordered (key-first) list of the ATTRIBUTES that matter for a (method, role) — those
+    weighted >= min_w. Powers the attribute 'profile' presets in the shared column picker, so a
+    user can one-click a role's key attributes as columns without knowing them by heart."""
+    wm = role_weight_map(method, role)
+    return sorted((a for a in ATTR_ORDER if wm.get(a.lower(), 1) >= min_w),
+                  key=lambda a: (-wm.get(a.lower(), 1), ATTR_ORDER.index(a)))
 
 
 def rating_from_attrs(attr_values, method, role):
@@ -452,6 +473,13 @@ def eligibility_frame(season, phase):
 
 @st.cache_data(show_spinner=False)
 def _eligibility_cached(season, phase, ver):
+    # player_history is parsed on newer stores only; degrade gracefully where it's absent
+    # (e.g. a store built before the career-history parser) so bio/Origin just goes blank.
+    if not _conn().execute(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema='staging' AND table_name='player_history'").fetchone():
+        return pd.DataFrame(columns=["tid", "origin_club_tid", "origin_club",
+                                     "last_season_club", "confidence", "eligible"])
     sql = """
         SELECT h.tid, h.origin_club_tid,
                COALESCE(oc.name, '#' || h.origin_club_tid) AS origin_club,
@@ -556,9 +584,15 @@ def attach_bio(rows, season, phase, tid_col="tid"):
     bio = player_bio(season, phase, tids)
     elig = eligibility_frame(season, phase)
     origin = dict(zip(elig["tid"], elig["origin_club"])) if not elig.empty else {}
-    ln = q("SELECT tid, parent_club FROM staging.players "
-           "WHERE season=? AND phase=? AND loaned_in", [season, phase])
-    loan = dict(zip(ln["tid"], ln["parent_club"])) if not ln.empty else {}
+    # loaned_in/parent_club are migration-added columns; absent on older un-migrated stores
+    if _conn().execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
+            "AND table_name='players' AND column_name='loaned_in'").fetchone():
+        ln = q("SELECT tid, parent_club FROM staging.players "
+               "WHERE season=? AND phase=? AND loaned_in", [season, phase])
+        loan = dict(zip(ln["tid"], ln["parent_club"])) if not ln.empty else {}
+    else:
+        loan = {}
 
     def _g(t, field):
         return bio.get(int(t), {}).get(field) if pd.notna(t) else None
@@ -567,6 +601,24 @@ def attach_bio(rows, season, phase, tid_col="tid"):
     r["Origin"] = r[tid_col].map(lambda t: origin.get(int(t)) if pd.notna(t) else None)
     r["Loan"] = r[tid_col].map(lambda t: loan.get(int(t)) if pd.notna(t) else None)
     return r
+
+
+def contract_info(season, phase, tids):
+    """{tid: {"Wage": £/yr, "Expiry": ISO date}} for the snapshot. Wage/expiry are
+    migration-added columns (see load_duckdb); on an un-migrated store (e.g. a Bucaspor
+    store not yet re-extracted) they're absent, so return {} and callers just skip them."""
+    tids = [int(t) for t in tids]
+    if not tids:
+        return {}
+    if not _conn().execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
+            "AND table_name='players' AND column_name='wage_gbp'").fetchone():
+        return {}
+    ph = ",".join("?" * len(tids))
+    df = q(f"SELECT tid, wage_gbp, contract_expiry FROM staging.players "
+           f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
+    return {int(r.tid): {"Wage": r.wage_gbp, "Expiry": r.contract_expiry}
+            for r in df.itertuples()}
 
 
 def player_positions_map(season, phase, tid):

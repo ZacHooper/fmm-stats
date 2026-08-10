@@ -14,7 +14,8 @@ hunting for bytes that might appear as stray data.
 from datetime import date, timedelta
 
 from .attributes import _valid_positions, ATTR_OFFSETS, POSITIONS
-from .regions import ATTR_LO, ATTR_HI, CONTRACT_LO, CONTRACT_HI
+from .regions import (ATTR_LO, ATTR_HI, CONTRACT_LO, CONTRACT_HI,
+                      CONTRACTREC_LO, CONTRACTREC_HI, WAGE_GBP_PER_UNIT)
 
 # free agents / unattached carry this sentinel club id
 NO_CLUB = 65535
@@ -81,6 +82,39 @@ def scrape_contract_status(mm, info, lo=CONTRACT_LO, hi=CONTRACT_HI):
         tid = int.from_bytes(mm[m - 37:m - 33], "little")
         if uid_of.get(tid) == int.from_bytes(mm[m - 33:m - 29], "little"):
             out[tid] = mm[m + 2]                # status is a u8 at TID+39
+    return out
+
+
+def scrape_contracts(mm, info, lo=CONTRACTREC_LO, hi=CONTRACTREC_HI):
+    """{tid: {wage_units, wage_gbp, expiry, expiry_year}} from the contract DETAIL records.
+
+    Record layout (anchored on the player TID): `[tid u32][0x01 marker][wage u16][6×00]
+    [expiry day-of-year u16][expiry year u16]`. Wage £/yr = units × WAGE_GBP_PER_UNIT
+    (validated £15.5K–£17.75M, ±2%). Expiry is a full date in the same day-of-year+year
+    encoding as DOB. We scan the section and keep every hit whose TID is in the info spine
+    (collision-safe), first record per tid wins."""
+    out = {}
+    end = min(hi, len(mm))
+    p = lo
+    while p < end:
+        if mm[p + 4] == 0x01:
+            yr = int.from_bytes(mm[p + 15:p + 17], "little")
+            if 2018 <= yr <= 2035:
+                tid = int.from_bytes(mm[p:p + 4], "little")
+                if tid in info and tid not in out:
+                    units = int.from_bytes(mm[p + 5:p + 7], "little")
+                    day = int.from_bytes(mm[p + 13:p + 15], "little")
+                    try:
+                        expiry = (date(yr, 1, 1) + timedelta(days=day)).isoformat()
+                    except ValueError:
+                        expiry = None
+                    out[tid] = {
+                        "wage_units": units,
+                        "wage_gbp": units * WAGE_GBP_PER_UNIT,
+                        "expiry": expiry,
+                        "expiry_year": yr,
+                    }
+        p += 1
     return out
 
 
