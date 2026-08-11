@@ -103,6 +103,19 @@ Five Frem methods now exist: `frem_attacking_ss` (base), `frem_gegenpress`, `fre
 stable) — they tell us **which bench player to bring on per situation** and **which style the squad
 is built for**.
 
+**When to use each — cheatsheet.** Default method (`app_config.default_method`) = `frem_attacking_ss`.
+"Fit" = best‑XI mean Fit %ile mid‑22 (how well *this* squad suits the style).
+
+| Method | Use when | Style | Fit |
+|---|---|---|---|
+| **`frem_attacking_ss`** ⭐default | **vs equals** — standard proactive game | FMM record‑setter meta: Control · Narrow · all‑over press · BWM pivot + SS | 69.0 |
+| **`frem_counter`** | **vs stronger sides** / hit on the break with pace (Nuamah, Randolf, Balck); also the *pace‑in‑behind* answer (deeper line) | Direct, wing‑play, 4‑2‑3‑1 | **69.5** |
+| **`frem_lowblock_overload`** | **vs a weak side parking the bus** — break down a low block, overload the box ("3 goals a game") | Attacking mentality, box overload; dribblers off the bench | 69.1 |
+| **`frem_gegenpress`** | **suffocate / press harder** — physically overrun a side | High press 4‑1‑2‑3, stamina‑hungry; Andersson the presser sub | 68.6 |
+| **`frem_game_state`** | **protect a lead / close out** — emergency only | Defensive, sit deep; Schou/Sundstrup/Grønne on | **64.5** |
+| `black_hawk` | reference baseline, not Frem‑tuned | generic FMM24 meta | — |
+| `personal` | custom weight‑set (manual tweaks) | — | — |
+
 **Squad style‑lean (best‑XI mean Fit %ile, mid‑22):** counter 69.5 ≈ lowblock 69.1 ≈ attacking_ss
 69.0 ≈ gegenpress 68.6, but **game_state only 64.5.** Read: *this squad is built to attack — roughly
 equally good at any proactive style, and materially worse at shutting up shop.* Game‑state is
