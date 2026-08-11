@@ -1,6 +1,6 @@
 ---
 name: season-outlook
-description: Produce a wider-than-one-game preparation briefing across a SET of opponents — a promotion stage, a run-in, or a full remaining fixture list — for the active FM career. Ranks the group by difficulty (squad-quality gap + H2H), maps the recurring threat pattern, recommends a tactic/press plan per game-type, and gives standings-aware rotation & fitness guidance (minutes load + condition). Distinct from scout-opponent (which is one team + one match + the in-game formation); this needs NO per-team formation and hands off to scout-opponent for the games worth a full single-match scout. Use when the user says "season outlook", "how do we stack up against <group>", "prep for the run-in / promo stage", or asks for a minutes/fatigue/rotation view.
+description: Produce a wider-than-one-game preparation briefing across a SET of opponents — a promotion stage, a run-in, or a full remaining fixture list — for the active FM career. Ranks the group by difficulty (squad-quality gap + H2H), maps the recurring threat pattern, recommends a tactic/press plan per game-type, and gives standings-aware rotation guidance (which fixtures are safe to rest/blood players in, plus a minutes-load view when games have been played). Distinct from scout-opponent (which is one team + one match + the in-game formation); this needs NO per-team formation and hands off to scout-opponent for the games worth a full single-match scout. Use when the user says "season outlook", "how do we stack up against <group>", "prep for the run-in / promo stage", or asks for a minutes/fatigue/rotation view.
 ---
 
 # Season / run-in outlook
@@ -79,42 +79,57 @@ Don't just list five matchups — find what **repeats**, because it dictates the
   chase late).
 Output a **base method + the 1-2 named games to flex**, not a wall of per-game plans.
 
-## Step 3 — Squad load & fitness → rotation guidance
+## Step 3 — Rotation guidance
 Only meaningful with a **table cushion** (rotation licence) — tie the advice to the user's live
-position. `match_player_stats` carries per-match `condition` + `subOn`/`subOff`/`pos_order`. Encoding:
-**`pos_order` 1-11 = starters, 12+ = bench; `subOn`/`subOff` = 255 sentinel for "n/a".** `condition`
-is the value recorded AT the match (unused subs read 100; players who empty the tank read low) — a
-**post-match fatigue proxy**, not a live "right now" %; read it as *who gets run into the ground*.
-Validated minutes model (90-min matches; ignores stoppage/ET):
+position. This has TWO parts; **lead with the fixture-level one** (it's the reliable signal and it
+works on any save):
+
+**3a — Which FIXTURES are safe to rotate into (PRIMARY — always available).** Straight from the
+Step 1 difficulty ranking: the **comfortable games** (big eff gap, strong H2H, no elite threat) are
+where you rest key men / start youngsters; the **danger side(s)** get full strength. This needs NO
+minutes data, so it's the whole rotation answer on a **season-start save**. This is usually the more
+useful output — surface it even when the player-load view below is empty.
+
+**3b — Player minutes load (SECONDARY — only if games have been played).** A season-start save has
+**zero minutes**, so skip this entirely then (say "no minutes logged yet — early-season save"). When
+minutes exist, `match_player_stats` gives per-match `subOn`/`subOff`/`pos_order` (encoding:
+**`pos_order` 1-11 = starters, 12+ = bench; `subOn`/`subOff` = 255 sentinel for "n/a"**). Rank by
+**minutes + age + Stamina** — the durable signals for who can/can't handle a congested run.
+
+> **Do NOT use `condition` as a fatigue signal.** It's the end-of-last-match reading and **recovers
+> to ~100 by the next kickoff** — it tracks how gassed a player got in *one* game, not durable
+> tiredness, so it's noise for rotation. (Kept in schema notes only as "what the column is.")
+
+Validated minutes model (90-min matches; ignores stoppage/ET) — guard for the 0-games case first:
 ```python
 S, P = "2022", "2022-03-19"      # season as str for the f-string; P from phase_key resolver above
 TEAM_GAMES = db.q(f"SELECT COUNT(DISTINCT anchor) n FROM staging.match_player_stats "
                   f"WHERE season={S} AND team_tid={db.MANAGED_CLUB_TID}").n[0]
-load = db.q(f"""
-WITH mp AS (
-  SELECT tid, date, rating, condition, pos_order,
-    CASE WHEN pos_order<=11 THEN (CASE WHEN subOff=255 THEN 90 ELSE subOff END)
-         WHEN subOn<255 THEN 90-subOn ELSE 0 END AS mins
-  FROM staging.match_player_stats WHERE season={S} AND team_tid={db.MANAGED_CLUB_TID})
-SELECT tid, SUM(CASE WHEN mins>0 THEN 1 ELSE 0 END) apps,
-  SUM(CASE WHEN pos_order<=11 THEN 1 ELSE 0 END) starts, SUM(mins) mins,
-  ROUND(AVG(CASE WHEN mins>0 THEN rating END),2) avg_rating,
-  ROUND(AVG(CASE WHEN mins>0 THEN condition END),0) avg_cond,
-  arg_max(condition, date) latest_cond
-FROM mp GROUP BY tid""")
-# join staging.players (name, dob, is_staff — FILTER is_staff out) + staging.player_attributes
-# (WIDE table: SELECT tid, Stamina, Pace — NOT a long attribute/value shape). age = S_year - dob.year.
-# min_pct = mins / (TEAM_GAMES*90) * 100.
+if TEAM_GAMES == 0:
+    ...  # early-season save: skip 3b, give the fixture-rotation flags (3a) only
+else:
+    load = db.q(f"""
+    WITH mp AS (
+      SELECT tid, rating, pos_order,
+        CASE WHEN pos_order<=11 THEN (CASE WHEN subOff=255 THEN 90 ELSE subOff END)
+             WHEN subOn<255 THEN 90-subOn ELSE 0 END AS mins
+      FROM staging.match_player_stats WHERE season={S} AND team_tid={db.MANAGED_CLUB_TID})
+    SELECT tid, SUM(CASE WHEN mins>0 THEN 1 ELSE 0 END) apps,
+      SUM(CASE WHEN pos_order<=11 THEN 1 ELSE 0 END) starts, SUM(mins) mins,
+      ROUND(AVG(CASE WHEN mins>0 THEN rating END),2) avg_rating
+    FROM mp GROUP BY tid""")
+    # join staging.players (name, dob, is_staff — FILTER is_staff out) + staging.player_attributes
+    # (WIDE table: SELECT tid, Stamina — NOT a long attribute/value shape). age = S_year - dob.year.
+    # min_pct = mins / (TEAM_GAMES*90) * 100.  (condition deliberately NOT pulled — see note above.)
 ```
-Bucket into three calls:
+Two player buckets (only when 3b ran):
 - **🔴 Heavy load — rotate to rest:** highest minutes, esp. **older** players (age ≥ ~30) and your
-  **best performers by rating** (protect the talisman for the games that matter + next season).
-- **🟠 Fatigue flags:** low `avg_cond`/`latest_cond` — the tank-emptiers (often low-`Stamina` or
-  high-work wide men); manage as impact subs, don't run them 90 every 3 days.
-- **🟢 Fresh & underused:** low minutes, esp. **young** players — the cushion is licence to blood
-  them for the division above. Flag anyone with 0 apps.
-Caveats to state: `condition` is a post-match proxy (recovers between games); `min_pct` uses
-`TEAM_GAMES×90`, so genuine mid-season arrivals read artificially low; 90-min model ignores ET.
+  **best performers by rating** (protect the talisman for the games that matter + next season);
+  low-`Stamina` + high-minutes is the one to cap.
+- **🟢 Fresh & underused — blood them:** low minutes, esp. **young** players — the cushion is licence
+  to develop them for the division above. Flag anyone with 0 apps.
+Caveats to state: `min_pct` uses `TEAM_GAMES×90`, so genuine mid-season arrivals read artificially
+low; 90-min model ignores ET.
 
 ## Report template — KEEP THIS LAYOUT
 Technical-analyst tone, to the manager. Prose + small tables. Base every claim on the pulls.
@@ -142,16 +157,17 @@ single-opponent scout when it comes up, and the likely tactic flex.>
 ## Plan for the run-in
 - **Default:** `<method>` + <press/approach> for <the field / named routine games>.
 - **Flex:** <drop the line / `<counter variant>` for the pace-threat game(s); `<lowblock variant>` vs anyone who bunkers.>
-- **Bank the cushion:** rotate — <who to rest, who to blood> (see fitness below).
 
-## Squad load & fitness (<G> games played)
-🔴 Heavy load — rotate: <players + mins% + why>
-🟠 Fatigue flags: <players + condition + why>
-🟢 Fresh & underused — blood: <players + why>
-<rotation call: the specific rest/blood moves across the run, tied to the cushion.>
-*Caveats: condition = post-match fatigue proxy; min% denom = G×90 (mid-season arrivals read low).*
+## Rotation
+**Safe to rotate into:** <the comfortable fixtures from the group table — big eff gap + good H2H +
+no elite threat — rest key men / start kids here>. **Full strength:** <the danger side(s)>.
+<Player-load — only if games have been played; on an early-season save write "no minutes logged yet":>
+🔴 Heavy load — rotate to rest: <players + mins% + age/Stamina why (talisman, veteran, low-stamina)>
+🟢 Fresh & underused — blood: <players + why; flag 0-app squad members>
+*Caveats: min% denom = G×90 (mid-season arrivals read low); minutes model ignores ET. Condition is
+NOT used (it resets to ~100 each game).*
 
-**One-line to the gaffer:** *<punchy summary: it's won bar X — press the field, cup-tie the danger side, spend the cushion on legs + kids.>*
+**One-line to the gaffer:** *<punchy summary: it's won bar X — press the field, cup-tie the danger side, rest legs + blood kids in the soft games.>*
 
 ---
 Eyeball it: **Team analysis** (unit filters per opponent) + the **Development / minutes** views. Run
