@@ -50,7 +50,7 @@ with tab_team:
     rt = db.q("SELECT tid, season, phase, role, rating FROM v_player_ratings WHERE method=?",
               [method])
     rt = rt[rt["tid"].isin(tids)].copy()
-    rt["ord"] = rt["season"] * 10 + rt["phase"].map(db.PHASE_ORDER)
+    rt["ord"] = rt["season"].astype(str).str.zfill(4) + rt["phase"].map(db.phase_key)
 
     bio = db.attach_bio(pd.DataFrame({"tid": tids}), ls, lp)
     age = dict(zip(bio["tid"], bio["Age"])); val = dict(zip(bio["tid"], bio["Value"]))
@@ -177,7 +177,7 @@ with tab_player:
         st.warning("No attribute snapshots for this player.")
         st.stop()
     rt["t"] = rt["season"].astype(str) + " " + rt["phase"]
-    rt["ord"] = rt["season"] * 10 + rt["phase"].map(db.PHASE_ORDER)
+    rt["ord"] = rt["season"].astype(str).str.zfill(4) + rt["phase"].map(db.phase_key)
     rt = rt.sort_values("ord")
 
     st.subheader("Weighted rating over time")
@@ -200,7 +200,7 @@ with tab_player:
     cols = ", ".join(f'"{a}"' for a in db.ATTR_ORDER)
     aw = db.q(f"SELECT season, phase, {cols} FROM staging.player_attributes WHERE tid=?", [tid])
     aw["t"] = aw["season"].astype(str) + " " + aw["phase"]
-    aw["ord"] = aw["season"] * 10 + aw["phase"].map(db.PHASE_ORDER)
+    aw["ord"] = aw["season"].astype(str).str.zfill(4) + aw["phase"].map(db.phase_key)
     aw = aw.sort_values("ord")
     colour_of = {a: db.WEIGHT_COLOR[wmap.get(a.lower(), 1)] for a in db.ATTR_ORDER}
 

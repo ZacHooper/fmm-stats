@@ -60,10 +60,12 @@ def _attr_cols_ddl():
 DDL = [
     "CREATE SCHEMA IF NOT EXISTS staging",
 
-    # natural key: (season, phase)
+    # natural key: (season, phase). phase is the snapshot's in-game DATE ('YYYY-MM-DD')
+    # for match-having saves (season-start day-1 saves get a synthetic 'YYYY-07-01'); the
+    # legacy words 'start'/'mid'/'end' are still accepted so pre-existing stores keep working.
     """CREATE TABLE IF NOT EXISTS staging.extracts (
         season INTEGER NOT NULL,
-        phase VARCHAR NOT NULL CHECK (phase IN ('start','mid','end')),
+        phase VARCHAR NOT NULL,
         label VARCHAR NOT NULL,
         label_auto VARCHAR,
         source_dir VARCHAR NOT NULL,
@@ -260,20 +262,31 @@ APP_CONFIG_DEFAULTS = {
     "default_method": "black_hawk",
 }
 
+def phase_sort_sql(col="phase"):
+    """SQL for an orderable phase key that works for BOTH the new date-phases
+    ('YYYY-MM-DD', which sort chronologically as strings) and the legacy words
+    'start'/'mid'/'end' (mapped to epoch sentinels so start<mid<end — preserving the old
+    ordering for pre-existing stores). `col` may be table-qualified (e.g. 'a.phase')."""
+    return (f"CASE {col} WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01' "
+            f"WHEN 'end' THEN '0000-00-02' ELSE {col} END")
+
+
+_PS = phase_sort_sql()
+
 VIEWS = {
     "v_player_attributes": """
         SELECT p.*, a.* EXCLUDE (season, phase, tid)
         FROM staging.players p
         JOIN staging.player_attributes a USING (season, phase, tid)
     """,
-    "v_ca_progression": """
+    "v_ca_progression": f"""
         SELECT tid, name, season, phase,
-               CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END AS phase_ord,
+               {_PS} AS phase_ord,
                club, ca, pa, reputation
         FROM staging.players
         WHERE NOT is_staff
     """,
-    "v_transfers": """
+    "v_transfers": f"""
         SELECT a.season, a.tid, COALESCE(a.name, b.name) AS name,
                a.phase AS from_phase, b.phase AS to_phase,
                a.club_tid AS from_club_tid, a.club AS from_club,
@@ -281,8 +294,7 @@ VIEWS = {
         FROM staging.players a
         JOIN staging.players b
           ON a.season = b.season AND a.tid = b.tid
-         AND (CASE a.phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END)
-           < (CASE b.phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END)
+         AND ({phase_sort_sql('a.phase')}) < ({phase_sort_sql('b.phase')})
         WHERE a.club_tid IS DISTINCT FROM b.club_tid
           AND NOT a.is_staff
     """,
@@ -640,6 +652,30 @@ def load_light(con, d, season, phase):
     return counts
 
 
+def _backfill_competition(con, season, phase):
+    """Detailed `matches` (and their per-player `match_player_stats`) carry a `comp_id`
+    but a NULL `competition` NAME for LEAGUE games: the extractor resolves cup/friendly
+    names but league names live in `staging.leagues`, not competitions.json (light-results
+    also drops unresolved league-type cids like Denmark's 3. Division = 1147 — see the note
+    in load_light). Backfill the name from `leagues` by comp_id, then propagate to the
+    per-player stat lines by anchor, so competition filters/tables aren't blank for the
+    league (the bulk of games)."""
+    con.execute("""
+        UPDATE staging.matches m SET competition = l.nm
+        FROM (SELECT cid, any_value(name) AS nm FROM staging.leagues
+              WHERE name IS NOT NULL GROUP BY cid) l
+        WHERE m.competition IS NULL AND m.comp_id = l.cid
+          AND m.season = ? AND m.phase = ?
+    """, [season, phase])
+    con.execute("""
+        UPDATE staging.match_player_stats mps SET competition = m.competition
+        FROM staging.matches m
+        WHERE mps.competition IS NULL AND mps.anchor = m.anchor
+          AND (mps.season, mps.phase) = (m.season, m.phase)
+          AND mps.season = ? AND mps.phase = ?
+    """, [season, phase])
+
+
 def load_standings(con, d, season, phase):
     sd = os.path.join(d, "light_results", "standings")
     if not os.path.isdir(sd):
@@ -713,20 +749,33 @@ def _detect_groups(d):
 # ---------------------------------------------------------------------------
 
 def resolve_season_phase(label, d, override):
+    # 1) explicit --season/--phase override always wins (manual force / re-slice).
     if override[0] is not None and override[1] is not None:
         return override
+    summ_path = os.path.join(d, "summary.json")
+    summ = _load_json(summ_path) if os.path.exists(summ_path) else {}
+    # 2) authoritative explicit fields written by extract.py: season (end-year) + phase
+    #    (the in-game date). A match-less day-1 save has season but phase=None -> synthesise
+    #    a season-start date so it still sorts first and coexists with dated in-season saves.
+    s_season, s_phase = summ.get("season"), summ.get("phase")
+    if s_season is not None:
+        season = override[0] if override[0] is not None else int(s_season)
+        phase = override[1] or s_phase or f"{season - 1:04d}-07-01"
+        return season, phase
+    # 2b) match-less save with no season in summary but season given on the CLI.
+    if override[0] is not None:
+        return override[0], (override[1] or f"{override[0] - 1:04d}-07-01")
+    # 3) legacy fallback: parse the label string (old 'YYYY-mid' form).
     try:
         return parse_label(label)
     except ValueError:
         pass
-    summ = os.path.join(d, "summary.json")
-    if os.path.exists(summ):
-        auto = _load_json(summ).get("label_auto")
-        if auto:
-            try:
-                return parse_label(auto)
-            except ValueError:
-                pass
+    auto = summ.get("label_auto")
+    if auto:
+        try:
+            return parse_label(auto)
+        except ValueError:
+            pass
     raise SystemExit(
         f"cannot derive season/phase from label {label!r}; "
         f"pass --season and --phase explicitly")
@@ -766,6 +815,7 @@ def load_label(con, d, include, override=(None, None)):
         for g in groups:
             _clear_group(con, g, season, phase)
             counts.update(_GROUP_FN[g](con, d, season, phase))
+        _backfill_competition(con, season, phase)
         rng = summ.get("date_range") or [None, None]
         _delete(con, "extracts", season, phase)
         con.execute(
@@ -822,6 +872,23 @@ def _migrate(con):
         except Exception as e:            # older DuckDB without IF NOT EXISTS -> ignore dups
             if "already exists" not in str(e).lower():
                 raise
+    _drop_extracts_phase_check(con)
+
+
+def _drop_extracts_phase_check(con):
+    """Stores created before phase became a date have CHECK(phase IN ('start','mid','end'))
+    on staging.extracts, which now rejects date-valued phases. DuckDB can't drop an unnamed
+    CHECK in place, so rebuild the table (data + column types preserved) without it.
+    Idempotent: a no-op once the constraint is gone."""
+    has_check = con.execute(
+        "SELECT COUNT(*) FROM duckdb_constraints() "
+        "WHERE table_name = 'extracts' AND constraint_type = 'CHECK'").fetchone()[0]
+    if not has_check:
+        return
+    con.execute("CREATE OR REPLACE TABLE staging._extracts_mig AS "
+                "SELECT * FROM staging.extracts")
+    con.execute("DROP TABLE staging.extracts")
+    con.execute("ALTER TABLE staging._extracts_mig RENAME TO extracts")
 
 
 def seed_role_weights(con):
@@ -936,7 +1003,9 @@ def main():
     ap.add_argument("--include", default=",".join(GROUPS),
                     help=f"comma list of groups to load (default all: {','.join(GROUPS)})")
     ap.add_argument("--season", type=int)
-    ap.add_argument("--phase", choices=("start", "mid", "end"))
+    ap.add_argument("--phase", help="snapshot phase; normally the in-game date "
+                    "'YYYY-MM-DD' (auto-derived from summary.json — rarely needed). "
+                    "Legacy words start/mid/end still accepted.")
     ap.add_argument("--reset", action="store_true",
                     help="drop and recreate the staging schema + views first")
     args = ap.parse_args()

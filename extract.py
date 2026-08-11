@@ -18,7 +18,7 @@ Writes output/<label>/:
     summary.json                 counts, date range, how the label was derived
 
 The label defaults to <season-end-year>-<period>, from the save's latest match date
-(Aug-Sep=start, Oct-Feb=mid, Mar-Jul=end). Override with --label.
+(Aug-Sep=start, Jul=end, everything else in-season=mid). Override with --label.
 """
 import argparse
 import csv
@@ -38,15 +38,22 @@ from fmparser import history as H
 
 
 def _period(month):
+    # Phase is only a coarse hint (a real in-season date is what actually orders
+    # snapshots — see history.player_snapshots.snapshot_date). Keep the guess minimal:
+    # only pre-season (Aug/Sep) reads as "start" and only the July wrap reads as "end";
+    # everything Oct–Jun is "mid". The old Mar–Jul→"end" band mislabelled winter/spring
+    # in-season saves (e.g. a 19-Mar save) as "end", so it was dropped.
     if month in (8, 9):
         return "start"
-    if month in (10, 11, 12, 1, 2):
-        return "mid"
-    return "end"          # Mar-Jul
+    if month == 7:
+        return "end"
+    return "mid"          # Oct–Jun (in-season)
 
 
 def auto_label(season):
-    """<season-end-year>-<period> from the latest match date."""
+    """<season-end-year>-<period> from the latest match date. This is only the cosmetic
+    output-DIR name; the authoritative (season, phase) the DB keys on is written explicitly
+    into summary.json by season_phase() below."""
     dates = sorted(m["date"] for m in season if m["date"])
     if not dates:
         return "unknown", None
@@ -54,6 +61,25 @@ def auto_label(season):
     year, month = int(latest[:4]), int(latest[5:7])
     end_year = year + 1 if month >= 8 else year
     return f"{end_year}-{_period(month)}", latest
+
+
+def season_phase(matches):
+    """Authoritative (season:int|None, phase:str|None) for the snapshot.
+
+    phase is the REAL in-game date (latest match, ISO 'YYYY-MM-DD') — so multiple
+    in-season snapshots coexist and sort chronologically for free, and ages compute off
+    the true date instead of a start/mid/end approximation. season is the campaign
+    end-year derived from that date. Returns (None, None) for a match-less day-1 save;
+    the loader then supplies season via --season and synthesises a season-start phase
+    date (YYYY-07-01). The old start/mid/end words are no longer produced (legacy stores
+    that still hold them keep working — the sort expressions treat them as epoch)."""
+    dates = sorted(m["date"] for m in matches if m["date"])
+    if not dates:
+        return None, None
+    latest = dates[-1]
+    year, month = int(latest[:4]), int(latest[5:7])
+    end_year = year + 1 if month >= 8 else year
+    return end_year, latest
 
 
 _PHASES = ("start", "mid", "end")
@@ -363,8 +389,10 @@ def main():
 
     attributed = sum(1 for p in players.values() if p["has_attributes"])
     dates = sorted(m["date"] for m in season if m["date"])
+    snap_season, snap_phase = season_phase(season)   # authoritative DB grain (phase = date)
     summary = {
         "label": label, "label_auto": auto,
+        "season": snap_season, "phase": snap_phase,
         "label_source": "argument" if args.label else "auto",
         "career": {"key": career.key, "name": career.name,
                    "managed_tid": career.managed_tid,

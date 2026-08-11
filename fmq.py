@@ -61,7 +61,8 @@ def show(con, sql, params=None, limit=100):
 def cmd_labels(con, a):
     show(con, "SELECT season, phase, label, save_path, loaded_at "
               "FROM staging.extracts ORDER BY season, "
-              "CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END")
+              "CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01' "
+              "WHEN 'end' THEN '0000-00-02' ELSE phase END")
 
 
 def cmd_sql(con, a):

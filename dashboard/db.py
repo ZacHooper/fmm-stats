@@ -71,7 +71,16 @@ except Exception:  # pragma: no cover
                   "Movement", "Positioning", "Teamwork", "Pace", "Stamina", "Strength",
                   "Agility", "Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
 
-PHASE_ORDER = {"start": 0, "mid": 1, "end": 2}
+# phase is normally the snapshot's in-game DATE ('YYYY-MM-DD'); legacy stores may still
+# hold the words start/mid/end. Sentinels map those words to epoch so start<mid<end and
+# both conventions sort together (real dates always sort after the sentinels).
+_PHASE_SENTINEL = {"start": "0000-00-00", "mid": "0000-00-01", "end": "0000-00-02"}
+
+
+def _psort_sql(col="phase"):
+    """SQL mirror of phase_key: an orderable phase string, date-aware, `col` qualifiable."""
+    return (f"CASE {col} WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01' "
+            f"WHEN 'end' THEN '0000-00-02' ELSE {col} END")
 
 
 def _dbver():
@@ -89,8 +98,8 @@ def _connect(ver):
         car = ACTIVE_CAREER
         st.error(f"No DuckDB store at {DB_PATH} for career '{car.key if car else '?'}'. "
                  f"Build it with:\n\n"
-                 f"`uv run python load_duckdb.py output/<label> --db {car.db if car else 'fm-<career>.duckdb'} "
-                 f"--season <YYYY> --phase <start|mid|end>`")
+                 f"`uv run python load_duckdb.py output/<label> --db {car.db if car else 'fm-<career>.duckdb'}`"
+                 f"\n\n(season + phase auto-derive from the save's in-game date.)")
         st.stop()
     # FM_DUCKDB_READONLY=1 lets non-Streamlit callers (e.g. the fmq CLI) attach without
     # taking the single-writer lock, so scouting works while the dashboard is running.
@@ -118,14 +127,15 @@ def write(sql, params=None):
 
 
 def phase_key(phase):
-    return PHASE_ORDER.get(phase, 9)
+    """Sortable, date-aware string for a phase (words -> epoch sentinels)."""
+    return _PHASE_SENTINEL.get(phase, str(phase))
 
 
 # --------------------------------------------------------------------------- selectors
 
 def labels_df():
     df = q("SELECT season, phase, label FROM staging.extracts")
-    df["ord"] = df["phase"].map(PHASE_ORDER).fillna(9)
+    df["ord"] = df["phase"].map(phase_key)
     return df.sort_values(["season", "ord"]).reset_index(drop=True)
 
 
@@ -419,8 +429,9 @@ def _effective_cached(season, phase, method, curve, floor, ver):
     WITH cl AS (
         SELECT club_tid, arg_max(league_cid, ord) AS league_cid
         FROM (SELECT club_tid, league_cid,
-                     season*10 + CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1
-                                            ELSE 2 END AS ord
+                     LPAD(CAST(season AS VARCHAR), 4, '0') ||
+                     CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
+                                WHEN 'end' THEN '0000-00-02' ELSE phase END AS ord
               FROM staging.league_members
               WHERE source='club_league' AND league_cid IS NOT NULL)
         GROUP BY club_tid
@@ -480,12 +491,22 @@ def _eligibility_cached(season, phase, ver):
             "WHERE table_schema='staging' AND table_name='player_history'").fetchone():
         return pd.DataFrame(columns=["tid", "origin_club_tid", "origin_club",
                                      "last_season_club", "confidence", "eligible"])
+    # The career-history record->player alignment (fmparser/history.py) is positional and
+    # currently 'low' confidence for ~all players (no player-id per record — the segmentation
+    # is unfinished), so low-confidence origin tids resolve to WRONG clubs (e.g. a Danish
+    # player showing a Belgian/German origin). Surface origin/last-season/eligibility ONLY for
+    # medium/high-confidence rows; blank the rest rather than assert a wrong club as fact.
     sql = """
-        SELECT h.tid, h.origin_club_tid,
-               COALESCE(oc.name, '#' || h.origin_club_tid) AS origin_club,
-               COALESCE(lc.name, '#' || h.last_season_club_tid) AS last_season_club,
+        SELECT h.tid,
+               CASE WHEN h.confidence = 'low' THEN NULL ELSE h.origin_club_tid END
+                 AS origin_club_tid,
+               CASE WHEN h.confidence = 'low' THEN NULL
+                    ELSE COALESCE(oc.name, '#' || h.origin_club_tid) END AS origin_club,
+               CASE WHEN h.confidence = 'low' THEN NULL
+                    ELSE COALESCE(lc.name, '#' || h.last_season_club_tid) END
+                 AS last_season_club,
                h.confidence,
-               (e.club_tid IS NOT NULL) AS eligible
+               (e.club_tid IS NOT NULL AND h.confidence <> 'low') AS eligible
         FROM staging.player_history h
         LEFT JOIN staging.clubs oc
           ON (oc.season, oc.phase, oc.tid) = (h.season, h.phase, h.origin_club_tid)
@@ -542,7 +563,13 @@ def player_search(query, season, phase, limit=50):
 
 
 def _ref_date(season, phase):
-    """Approx in-game calendar date for a snapshot (season = campaign end-year), for age."""
+    """In-game calendar date for a snapshot (for age). phase is normally the real date
+    ('YYYY-MM-DD') -> use it directly (exact). Legacy word-phases fall back to the old
+    per-phase approximation (season = campaign end-year)."""
+    try:
+        return datetime.date.fromisoformat(phase)
+    except (ValueError, TypeError):
+        pass
     if phase == "start":
         return datetime.date(season - 1, 7, 1)
     if phase == "mid":
@@ -638,8 +665,8 @@ def player_match_totals(tids):
     return q(f"""
         WITH chosen AS (
             WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_player_stats)
-            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1
-                                                     ELSE 2 END) AS phase
+            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
+                                                     WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
             FROM mm GROUP BY season)
         SELECT m.tid,
                COUNT(*) AS apps,
@@ -669,8 +696,8 @@ def match_stats_rows(club_tids):
     return q(f"""
         WITH chosen AS (
             WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_player_stats)
-            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1
-                                                     ELSE 2 END) AS phase
+            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
+                                                     WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
             FROM mm GROUP BY season)
         SELECT m.season, m.tid, m.team_tid, m.opponent_tid, m.date, m.competition,
                m.rating, m.goals, m.assists, m.passA, m.passC, m.keyPass,
@@ -863,7 +890,9 @@ def attributes_rows(season, phase, tids):
 _RESOLVED_CL = """
     SELECT club_tid, arg_max(league_cid, ord) AS lc FROM (
         SELECT club_tid, league_cid,
-               season*10 + CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END AS ord
+               LPAD(CAST(season AS VARCHAR), 4, '0') ||
+               CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
+                          WHEN 'end' THEN '0000-00-02' ELSE phase END AS ord
         FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
     GROUP BY club_tid"""
 
@@ -933,8 +962,8 @@ def our_match_history(seasons=None):
     our_<stat>/opp_<stat> for MATCH_TEAM_STATS. `seasons` filters (None = all). Shared by the
     Match-records page, the Team scout head-to-head, and the Records page."""
     chosen = q("""WITH mm AS (SELECT DISTINCT season, phase FROM staging.matches)
-                  SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1
-                                                           ELSE 2 END) AS phase
+                  SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
+                                                           WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
                   FROM mm GROUP BY season ORDER BY season""")
     if chosen.empty:
         return pd.DataFrame()
@@ -978,8 +1007,8 @@ def our_penalties(seasons=None):
         WITH ours AS (SELECT DISTINCT tid FROM staging.players WHERE club_tid IN (?, ?)),
              chosen AS (
                WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_events)
-               SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1
-                                                        ELSE 2 END) AS phase
+               SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
+                                                        WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
                FROM mm GROUP BY season),
              nm AS (SELECT tid, any_value(name) AS name FROM staging.players GROUP BY tid)
         SELECT e.season, m.date, m.competition, e.minute, e.seq, e.tid, nm.name AS player,
@@ -1004,8 +1033,9 @@ def our_goal_events(seasons=None):
     df = q("""
         WITH ours AS (SELECT DISTINCT tid FROM staging.players WHERE club_tid IN (?, ?)),
              chosen AS (WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_events)
-                        SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN 0
-                                 WHEN 'mid' THEN 1 ELSE 2 END) AS phase FROM mm GROUP BY season)
+                        SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00'
+                                 WHEN 'mid' THEN '0000-00-01' WHEN 'end' THEN '0000-00-02' ELSE phase END)
+                                 AS phase FROM mm GROUP BY season)
         SELECT e.season, m.date, m.competition, e.anchor, e.minute, e.seq, e.type,
                (m.home_tid = ?) AS us_home, m.home_tid, m.away_tid,
                m.score_home, m.score_away, (e.tid IN (SELECT tid FROM ours)) AS by_us
@@ -1095,7 +1125,8 @@ def latest_snapshot():
     """(season, phase) of the most recent loaded snapshot — max season, latest phase."""
     df = q("""SELECT season, phase FROM staging.extracts
               ORDER BY season DESC,
-                       CASE phase WHEN 'start' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END DESC
+                       CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
+                                  WHEN 'end' THEN '0000-00-02' ELSE phase END DESC
               LIMIT 1""")
     if df.empty:
         return None, None

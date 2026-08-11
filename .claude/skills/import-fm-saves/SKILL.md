@@ -18,13 +18,16 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
   Every save MUST be the same career — verify `clubs.json` has `"6567"` and `"11320"`.
   If not, the extraction is garbage for that save; stop and tell the user.
 - **Season = end-year of the campaign** (22/23 → 2023, Aus-financial-year style).
-- **Auto-labelling is unreliable and must be overridden:**
-  - Season-**start** saves have **0 matches** → `label_auto = "unknown"` (no date to derive from).
-  - `_period` maps **Mar–Jul → "end"**, so a late-March "mid" save and a May "end" save
-    **both auto-label to `<year>-end`** and collide. **Trust the user's filename intent**
-    (`…-23-mid`, `…-23-end`, `…-24-start`) and pass explicit `--season/--phase`.
-- **Loading replaces the `(season, phase)` slice** (idempotent DELETE+INSERT). So re-importing
-  a label overwrites it — that's the mechanism for "newer export with youth intake replaces old".
+- **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), written explicitly into `summary.json`
+  (`season` + `phase`) by `extract.py`. **The loader auto-derives both — normally pass NEITHER
+  `--season` nor `--phase`.** Match-less season-**start** saves (0 matches, no date) get a
+  synthetic `<start-year>-07-01`. Only pass `--season/--phase` to force/override a slice.
+  (Legacy stores may still hold the words `start/mid/end`; those keep working and sort correctly
+  alongside dates — the ordering treats words as epoch.)
+- **Loading replaces the exact `(season, phase=date)` slice** (idempotent DELETE+INSERT). Because
+  phase is the date, **two different in-season snapshots now COEXIST** (different dates) instead of
+  colliding — re-importing the *same* date overwrites it (the "newer export replaces old" mechanism).
+  A superseded *different* label in the same slice is archived to `history.player_snapshots` first.
 - After loading, tell the user to **restart Streamlit** (`pkill -f streamlit && uv run streamlit
   run dashboard/Home.py`); it auto-reconnects to the rebuilt DB on mtime change thereafter.
 
@@ -58,13 +61,16 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
      the labels with the user.
    Present the mapping table + any clashes, then proceed (the user has usually pre-approved).
 
-5. **Load each** with explicit season/phase (kill any running Streamlit first so the DB isn't
-   locked). Run in **background**, wait for a `DONE` sentinel:
+5. **Load each** (season + phase=date auto-derive from `summary.json` — no flags needed). Use the
+   career's store `fm-<key>.duckdb`. Kill any running Streamlit first so the DB isn't locked. Run in
+   **background**, wait for a `DONE` sentinel:
    ```bash
    pkill -f streamlit 2>/dev/null; sleep 1
-   uv run python load_duckdb.py output/<stem> --db fm.duckdb --season <YYYY> --phase <start|mid|end>
+   uv run python load_duckdb.py output/<stem> --db fm-<key>.duckdb
    # …repeat per save… ; echo LOADS_DONE
    ```
+   (Only add `--season/--phase` to force a slice. The loader auto-migrates older stores — drops the
+   legacy `phase IN (start,mid,end)` CHECK on first load so date-phases are accepted.)
 
 6. **Verify**: query `staging.extracts` (all labels + row counts), squad sizes per label
    (`club_tid in (6567,11320)`), and run a quick `AppTest` smoke over the dashboard pages on a

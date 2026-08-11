@@ -66,7 +66,10 @@ it has repeatedly turned multi-hour hunts into quick finds:
 - **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`; dashboard is `uv run streamlit run dashboard/Home.py`.
 - **DuckDB is single-writer**: a running Streamlit holds the lock. For read-only CLI work either `pkill -f streamlit` first, or set `FM_DUCKDB_READONLY=1`, or query a `cp` of the store. The `fmq scout` command auto-copies when the DB is locked.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
-- Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style); phase ∈ {start, mid, end}.
+- Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style). **`phase` = the save's
+  in-game DATE** ('YYYY-MM-DD'; match-less start saves → synthetic `YYYY-07-01`), so multiple
+  in-season snapshots coexist and sort chronologically. Legacy stores may still hold the old words
+  `start/mid/end` — they keep working (ordering treats them as epoch, before any real date).
 
 ## Common commands
 ```bash
@@ -74,7 +77,7 @@ uv sync                                                   # one-time env setup
 uv run streamlit run dashboard/Home.py                    # dashboard (sidebar Career selector)
 python3 scripts/discover_career.py <save.fms>             # find a new career's club tids
 python3 extract.py <save.fms> --career <key> --label <l>  # extract (pure-stdlib, NOT uv)
-uv run python load_duckdb.py output/<label> --db fm-<key>.duckdb --season <YYYY> --phase <start|mid|end>
+uv run python load_duckdb.py output/<label> --db fm-<key>.duckdb   # season+phase(=in-game date) auto-derived
 uv run python fmq.py scout <team>                          # opposition briefing (auto-saves)
 ```
 

@@ -263,31 +263,37 @@ def align_anchored(records, player_clubs):
 
     Returns {player_index: (record_index or None, confidence in {'high','medium','low'})}."""
     NR, NP = len(records), len(player_clubs)
-    ceiling = max(0, NR - NP)                      # max possible offset (interleaved non-players)
-    rec2p = align(records, player_clubs, max_staff=min(2000, max(ceiling + 200, 100)))
+    # The record<->player offset = interleaved non-player (staff/ex-player) records seen so far.
+    # It is monotonic non-decreasing, but its MAX is NOT NR-NP: when the high-sid tail is newgens
+    # with no record, NR can be < NP (ceiling 0) while the real offset for the low-sid players is
+    # large (thousands of interleaved staff). Tying the DP cap + anchor filter to NR-NP then
+    # collapses the whole map to offset 0 (mid-season saves, where trailer!=current, hit this).
+    # So search a GENEROUS band derived from the data, not NR-NP, and cap by NR.
+    band = min(NR, max(4000, (NR - NP) + 500))     # DP search width / max plausible offset
+    rec2p = align(records, player_clubs, max_staff=band)
     anchors = sorted(
         (j, i - j) for i, j in rec2p.items()
         if j is not None and j < NP
         and records[i]["current_club"] == player_clubs[j]
         and records[i]["current_club"] not in (NO_CLUB, 0)
-        and 0 <= i - j <= ceiling)                 # keep only ceiling-valid anchors
+        and 0 <= i - j <= band)                    # keep only band-valid anchors
     if not anchors:
         return {}
     blocks = _pava([(j, o) for j, o in anchors])
     last_j = anchors[-1][0]
-    last_off = min(ceiling, int(round(blocks[-1][0])))
+    last_off = min(band, int(round(blocks[-1][0])))
 
     def offset_at(j):
-        if j > last_j:                             # extrapolate: ramp from last anchor to ceiling
+        if j > last_j:                             # extrapolate: ramp from last anchor to band cap
             span = max(1, NP - 1 - last_j)
-            return min(ceiling, last_off + (ceiling - last_off) * (j - last_j) // span)
+            return min(band, last_off + (band - last_off) * (j - last_j) // span)
         best = blocks[0][0]
         for val, w, lo, hi in blocks:
             if lo <= j:
                 best = val
             else:
                 break
-        return min(ceiling, int(round(best)))
+        return min(band, int(round(best)))
 
     out = {}
     for j in range(NP):
