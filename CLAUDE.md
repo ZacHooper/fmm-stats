@@ -22,7 +22,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 [`docs/agent-context/MEMORY.md`](docs/agent-context/MEMORY.md) — it indexes the rest:
 - **fm-parser-project** — the save-format reverse-engineering story + goals.
 - **etl-duckdb-dashboard** — how the ETL + dashboard + `fmq.py` CLI + scouting tooling work. **The main reference.**
-- **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options**, **light-results-rolling-buffer** — specific findings; read when relevant.
+- **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options**, **light-results-rolling-buffer**, **master-schedule-plan** — specific findings; read when relevant.
 
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
 
