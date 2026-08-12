@@ -52,23 +52,12 @@ def _u16(mm, o):
     return int.from_bytes(mm[o:o + 2], "little")
 
 
-def find_light_region(mm, valid_clubs=None, margin=30_000, merge_gap=200_000, min_hits=50):
-    """DERIVE the light-results region [lo, hi] from content, so it's career-agnostic
-    (Bucaspor's sits ~47-48.8M, Frem's ~45.2-46.3M; the hard-coded LIGHT_LO/HI=47-50.5M
-    silently returned 0 fixtures for Frem — same region-drift class as the match region,
-    see fmparser/matches.find_match_region).
-
-    Cheap structural scan: the +12 year field (07E4/E5/E6) is a findable 2-byte marker;
-    at each occurrence, test the record start (o = marker-12) against the gate (flag byte
-    at +9, two club TIDs, plausible score + cid>0). The true region is the densest
-    contiguous cluster of such hits. Returns None (caller falls back) if nothing dense.
-
-    `valid_clubs` (a set of real club TIDs) makes the gate precise; pass None (e.g. from
-    the region-map tool, which doesn't scrape players) to fall back to a plausible-range
-    TID check — enough to locate the region, though the final sweep should still gate on
-    real clubs. NOTE the region also holds a cid=0 fixture VARIANT (real scores, no
-    competition tag — e.g. some foreign leagues) that this gate and sweep() both drop; it
-    can't be league-assigned. See the module docstring."""
+def find_light_regions(mm, valid_clubs=None, margin=30_000, merge_gap=200_000, min_hits=50):
+    """DERIVE ALL light-results regions [(lo, hi), ...] from content.
+    
+    The game maintains multiple schedule/results blocks across the save (e.g. partitioned
+    by tier or continent), not just one. This function scans for the structural signature
+    and returns boundaries for every dense cluster of valid fixtures it finds."""
     def _club_ok(t):
         return t in valid_clubs if valid_clubs is not None else (1 <= t < 70000)
     hits = []
@@ -76,14 +65,14 @@ def find_light_region(mm, valid_clubs=None, margin=30_000, merge_gap=200_000, mi
         i = mm.find(ym)
         while i != -1:
             o = i - 12
-            if o >= 0 and o + 16 < len(mm) and mm[o + 9] in FLAG_HI:
+            if o >= 0 and o + 16 < len(mm):
                 home, away = _u16(mm, o), _u16(mm, o + 2)
                 if _club_ok(home) and _club_ok(away) and home != away \
                    and mm[o + 4] <= 30 and mm[o + 5] <= 30 and 0 < _u16(mm, o + 10) < 20000:
                     hits.append(o)
             i = mm.find(ym, i + 1)
-    if len(hits) < min_hits:
-        return None
+    if not hits:
+        return []
     hits.sort()
     clusters, cur = [], [hits[0]]
     for o in hits[1:]:
@@ -93,10 +82,12 @@ def find_light_region(mm, valid_clubs=None, margin=30_000, merge_gap=200_000, mi
             clusters.append(cur)
             cur = [o]
     clusters.append(cur)
-    best = max(clusters, key=len)
-    if len(best) < min_hits:
-        return None
-    return (max(0, best[0] - margin), min(len(mm), best[-1] + margin))
+    
+    regions = []
+    for cluster in clusters:
+        if len(cluster) >= min_hits:
+            regions.append((max(0, cluster[0] - margin), min(len(mm), cluster[-1] + margin)))
+    return regions
 
 
 def sweep(mm, valid_clubs, lo=RG.LIGHT_LO, hi=RG.LIGHT_HI, min_copies=2):
@@ -117,22 +108,21 @@ def sweep(mm, valid_clubs, lo=RG.LIGHT_LO, hi=RG.LIGHT_HI, min_copies=2):
     o = lo
     end = hi - 16
     while o < end:
-        if mm[o + 9] in FLAG_HI:
-            home = _u16(mm, o)
-            away = _u16(mm, o + 2)
-            if home in valid_clubs and away in valid_clubs and home != away:
-                sH, sA = mm[o + 4], mm[o + 5]
-                cid = _u16(mm, o + 10)
-                if sH <= 30 and sA <= 30 and 0 < cid < 20000 and _u16(mm, o + 12) in YEARS:
-                    lo_tid, hi_tid = min(home, away), max(home, away)
-                    s_lo, s_hi = (sH, sA) if home == lo_tid else (sA, sH)
-                    k = (lo_tid, hi_tid, cid, s_lo, s_hi)      # unordered -> mirrors merge
-                    r = agg.get(k)
-                    if r:
-                        r["copies"] += 1
-                    else:
-                        agg[k] = {"home": home, "away": away, "scoreH": sH,
-                                  "scoreA": sA, "cid": cid, "copies": 1, "off": o}
+        home = _u16(mm, o)
+        away = _u16(mm, o + 2)
+        if home in valid_clubs and away in valid_clubs and home != away:
+            sH, sA = mm[o + 4], mm[o + 5]
+            cid = _u16(mm, o + 10)
+            if sH <= 30 and sA <= 30 and 0 < cid < 20000 and _u16(mm, o + 12) in YEARS:
+                lo_tid, hi_tid = min(home, away), max(home, away)
+                s_lo, s_hi = (sH, sA) if home == lo_tid else (sA, sH)
+                k = (lo_tid, hi_tid, cid, s_lo, s_hi)      # unordered -> mirrors merge
+                r = agg.get(k)
+                if r:
+                    r["copies"] += 1
+                else:
+                    agg[k] = {"home": home, "away": away, "scoreH": sH,
+                              "scoreA": sA, "cid": cid, "copies": 1, "off": o}
         o += 1
     return [r for r in agg.values() if r["copies"] >= min_copies]
 
@@ -255,11 +245,36 @@ def build(mm, valid_clubs, club_nation=None):
     """Whole pipeline: sweep -> {records, leagues, club_league}. `records` are the deduped
     fixtures; `leagues` the per-cid summary (nation-validated names if `club_nation` given);
     `club_league` the {club_tid: league_cid} map."""
-    region = find_light_region(mm, valid_clubs)          # self-locating, career-agnostic
-    if region:
-        records = sweep(mm, valid_clubs, lo=region[0], hi=region[1])
+    regions = find_light_regions(mm, valid_clubs)          # self-locating, career-agnostic
+    
+    all_records = []
+    if regions:
+        # We need a shared dict for global deduping across all regions, 
+        # so we modify sweep logic inline here to pass agg, or just merge the results.
+        # It's easiest to run sweep for each and then dedup the output.
+        raw_fixtures = []
+        for lo, hi in regions:
+            raw_fixtures.extend(sweep(mm, valid_clubs, lo=lo, hi=hi, min_copies=1))
+            
+        # Global dedup
+        agg = {}
+        for r in raw_fixtures:
+            # We must use the same dedup key that sweep() uses internally:
+            # (lo_tid, hi_tid, cid, s_lo, s_hi)
+            lo_tid, hi_tid = min(r['home'], r['away']), max(r['home'], r['away'])
+            s_lo, s_hi = (r['scoreH'], r['scoreA']) if r['home'] == lo_tid else (r['scoreA'], r['scoreH'])
+            k = (lo_tid, hi_tid, r['cid'], s_lo, s_hi)
+            
+            if k not in agg:
+                agg[k] = r.copy()
+                agg[k]['copies'] = 0
+            agg[k]['copies'] += r['copies']
+            
+        # Require 2 copies total globally to be a valid record
+        records = [r for r in agg.values() if r["copies"] >= 2]
     else:
         records = sweep(mm, valid_clubs)                  # fall back to hard-coded LIGHT_LO/HI
+        
     return {"records": records,
             "leagues": leagues(mm, records, club_nation=club_nation),
             "club_league": club_leagues(mm, records)}

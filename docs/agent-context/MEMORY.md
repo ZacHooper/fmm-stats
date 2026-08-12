@@ -3,6 +3,7 @@
 - [ETL: DuckDB + dashboard](etl-duckdb-dashboard.md) — load_duckdb.py→fm.duckdb (staging schema), role_weights ratings, Streamlit dashboard, fmq CLI
 - [Seyhun attr investigation](seyhun-attr-investigation.md) — FIXED: attr_record reads freshest snapshot copy + player value; snapshot byte-map in docs/ATTRIBUTE_DECODING.md §7
 - [Loan status unreliable](loan-status-unreliable.md) — ignore loaned_out/squad_status for selection; rank by minutes instead
+- [Light results rolling buffer](light-results-rolling-buffer.md) — Why end-of-season saves lack early fixtures (the 1.2MB rolling window) and how we map multiple fragmented fixture arrays to extract all of them.
 - [FMM tactic options](fmm-tactic-options.md) — FMM22 mobile role lists + team-instruction menu; no player instructions. Use when giving tactical advice
 - [Day-1 league membership SOLVED](day1-league-membership.md) — club→league at club-record +158 (`[code][ff ff]`); 3.Div=1147; club DB is multi-segment
 - [Save-file boundary map TODO](savefile-boundary-map.md) — map regions by filler/signatures so bounds are derived not guessed
