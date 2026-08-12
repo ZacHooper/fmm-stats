@@ -202,6 +202,16 @@ DDL = [
         club_tid INTEGER, fee VARCHAR, apps INTEGER, goals INTEGER
     )""",
 
+    # injury spells for the MANAGED SQUAD, from the weekly Player-Progress table
+    # (fmparser.injuries). One row per spell; captures training injuries too (match_events
+    # only has in-match ones). NOTE: loaned-in players' progress data leaves with them, so the
+    # snapshot taken BEFORE loans expire holds the completest picture. natural key:
+    # (season, phase, tid, seq).
+    """CREATE TABLE IF NOT EXISTS staging.player_injuries (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        seq INTEGER NOT NULL, spell_start DATE, spell_end DATE, weeks_out INTEGER
+    )""",
+
     # GLOBAL config (not per-label): the set of club TIDs whose YOUTH products are eligible
     # under the Athletic-Bilbao origin strategy (e.g. Danish Capital Region). Seeded from
     # seeds/eligible_origin_clubs.csv; curate freely. Join on player_history.origin_club_tid.
@@ -519,6 +529,24 @@ def load_core(con, d, season, phase):
             ["season", "phase", "tid", "seq", "hist_season", "end_year",
              "club_tid", "fee", "apps", "goals"], hsrows)
 
+    # --- injuries (weekly Player-Progress -> spells; managed squad only) ------
+    inj_path = os.path.join(d, "injuries.json")
+    if os.path.exists(inj_path):
+        inj = _load_json(inj_path)
+        irows = []
+        for k, spells in inj.items():
+            tid = _int(k)
+            if tid is None:
+                continue
+            for seq, sp in enumerate(spells):
+                start, end, weeks = sp
+                irows.append((season, phase, tid, seq,
+                              datetime.date.fromisoformat(start),
+                              datetime.date.fromisoformat(end), _int(weeks)))
+        counts["player_injuries"] = _insert(
+            con, "player_injuries",
+            ["season", "phase", "tid", "seq", "spell_start", "spell_end", "weeks_out"], irows)
+
     # --- clubs ---------------------------------------------------------------
     clubs = _load_json(os.path.join(d, "clubs.json"))
     crows = [(season, phase, _int(k), v) for k, v in clubs.items() if _int(k) is not None]
@@ -699,8 +727,8 @@ def load_standings(con, d, season, phase):
 def _clear_group(con, group, season, phase):
     if group == "core":
         for t in ("players", "player_attributes", "player_positions",
-                  "player_history", "player_history_seasons", "clubs",
-                  "competitions", "leagues", "matches", "match_events",
+                  "player_history", "player_history_seasons", "player_injuries",
+                  "clubs", "competitions", "leagues", "matches", "match_events",
                   "match_player_stats"):
             _delete(con, t, season, phase)
         _delete(con, "league_members", season, phase, "AND source='members'")

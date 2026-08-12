@@ -194,6 +194,31 @@ def _stormtrooper(S):
     return r["player"], f"{int(r['shotA'])} shots, 0 goals (vs {r['opponent']})"
 
 
+def _injury_summary(S):
+    """Per-player injury aggregate for the season: name, spells, weeks_out, windows."""
+    inj = db.player_injuries(S)
+    if inj.empty:
+        return pd.DataFrame()
+    rows = []
+    for name, g in inj.groupby("name"):
+        g = g.sort_values("spell_start")
+        wins = "; ".join(f"{pd.Timestamp(a).strftime('%d %b')}–{pd.Timestamp(b).strftime('%d %b')}"
+                         for a, b in zip(g["spell_start"], g["spell_end"]))
+        rows.append({"Player": name, "Spells": len(g),
+                     "Weeks out": int(g["weeks_out"].sum()), "Windows": wins})
+    return pd.DataFrame(rows).sort_values("Weeks out", ascending=False)
+
+
+def _injury_award(S):
+    """Most weeks out (the Sick Note) — winner + stat, or None."""
+    summ = _injury_summary(S)
+    if summ.empty:
+        return None
+    r = summ.iloc[0]
+    sp = int(r["Spells"])
+    return r["Player"], f"{int(r['Weeks out'])} weeks out ({sp} spell{'s' if sp != 1 else ''})"
+
+
 # ── award definitions (edit these lists to change the roll of honour) ──────────
 # Each player award: (emoji, name, builder(agg, S) -> (winner, stat) | None, silly?)
 def PLAYER_AWARDS(agg, S, min_apps, young_apps):
@@ -219,6 +244,7 @@ def PLAYER_AWARDS(agg, S, min_apps, young_apps):
         ("⚙️", "Iron Man", _win(agg, "minutes", lambda v: f"{int(v)} minutes"), False),
         ("🚀", "Supersub", _win(agg, "sub_ga", lambda v: f"{int(v)} G+A off the bench"), False),
         ("📈", "Most Improved", _most_improved(S), False),
+        ("🤕", "Sick Note (weeks out)", _injury_award(S), False),
         ("🤡", "The Liability", _win(agg, "mistakes", lambda v: f"{int(v)} mistakes"), True),
         ("🔪", "The Enforcer", _win(agg, "yellows", lambda v: f"{int(v)} yellows"), True),
         ("🌩️", "The Stormtrooper", _stormtrooper(S), True),
@@ -367,6 +393,11 @@ with tab_player:
         st.dataframe(_award_table(items), width="stretch", hide_index=True)
         st.caption(f"Min apps: Player of the Season ≥{min_apps}, Young Gun ≥{young_apps} "
                    f"({gms} games played).")
+        inj = _injury_summary(S)
+        if not inj.empty:
+            st.markdown("**🤕 Injuries** — from the weekly Player-Progress table "
+                        "(includes training injuries, not just in-match).")
+            st.dataframe(inj, width="stretch", hide_index=True)
 
 with tab_team:
     for S in reversed(seasons):

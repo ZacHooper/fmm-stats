@@ -999,6 +999,28 @@ def our_match_history(seasons=None):
     return m
 
 
+def player_injuries(season):
+    """Injury spells for the managed squad in `season`, one row per spell. Sourced from the
+    weekly Player-Progress table (captures training injuries too, unlike match_events).
+
+    A season can have several snapshots; loaned-in players' progress data leaves when their
+    loans expire, so a later snapshot loses their injuries. We therefore pick the snapshot with
+    the MOST complete injury data (max total weeks) for the season. Columns: tid, name, seq,
+    spell_start, spell_end, weeks_out."""
+    best = q("""SELECT phase FROM staging.player_injuries WHERE season=?
+                GROUP BY phase ORDER BY SUM(weeks_out) DESC, COUNT(*) DESC LIMIT 1""", [season])
+    if best.empty:
+        return pd.DataFrame(columns=["tid", "name", "seq", "spell_start",
+                                     "spell_end", "weeks_out"])
+    ph = best["phase"].iloc[0]
+    return q("""SELECT i.tid, nm.name, i.seq, i.spell_start, i.spell_end, i.weeks_out
+                FROM staging.player_injuries i
+                LEFT JOIN (SELECT tid, arg_max(name, phase) AS name
+                           FROM staging.players WHERE season=? GROUP BY tid) nm ON nm.tid=i.tid
+                WHERE i.season=? AND i.phase=?
+                ORDER BY i.tid, i.seq""", [season, season, ph])
+
+
 def our_penalties(seasons=None):
     """Chronological penalties taken by our players (from match_events, latest phase per
     season, joined to match dates). Columns: season, date, minute, seq, tid, player,

@@ -35,6 +35,7 @@ from fmparser import tagged as T
 from fmparser import lightresults as L
 from fmparser import careers as C
 from fmparser import history as H
+from fmparser import injuries as INJ
 
 
 def _period(month):
@@ -384,6 +385,12 @@ def main():
          {str(t): {"league_cid": c, "league_name": (leagues.get(c) or {}).get("name")}
           for t, c in sorted(club2league.items())})
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
+    # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
+    # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py.
+    squad_tids = [t for t, p in players.items()
+                  if p["club_tid"] in (career.managed_tid, career.reserve_tid)]
+    injuries = INJ.extract_injuries(mm, squad_tids, season)
+    dump("injuries.json", {str(t): sp for t, sp in injuries.items()}, indent=None)
     write_players_csv(os.path.join(dest, "players.csv"), players)
     write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)
 
@@ -404,7 +411,8 @@ def main():
                    "players": len(players), "players_with_attributes": attributed,
                    "players_with_history": len(histories),
                    "staff": len(staff), "competitions": len(competitions),
-                   "leagues": len(leagues), "clubs_named": len(club_names)},
+                   "leagues": len(leagues), "clubs_named": len(club_names),
+                   "injured_players": len(injuries)},
     }
     dump("summary.json", summary)
 
