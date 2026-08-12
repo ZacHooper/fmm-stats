@@ -14,7 +14,7 @@ The game does not store the full 32+ game history for non-managed clubs in a sin
 - An end-season save will have matches 16-32.
 - The raw data for matches 1-15 physically ceases to exist in the end-season file. 
 
-*Conclusion:* The only way to get a full historical 32-game simulated league table is to persist our multi-save ETL pipeline. By extracting `start`, `mid`, and `end` saves into DuckDB, we use SQL to stitch the overlapping rolling windows back into a complete timeline.
+*Conclusion:* The `light_results` ring buffer DOES physically delete old matches. However, the game UI still displays full historical fixture lists. This means the complete season scores are NOT lost—they are simply stored in a completely different data structure (likely the massive fixture/schedule arrays in the 55MB region). We just haven't mapped the schedule array parser yet. By extracting `start`, `mid`, and `end` saves into DuckDB, we use SQL to stitch the overlapping rolling windows back into a complete timeline.
 
 ### 2. Multiple Buffers & The Marker Myth
 The parser used to gate fixtures by enforcing a strict marker byte `FLAG_HI = (0x40, 0xc0)`. It also only looked for the *single* densest 1.2MB region in the file.
@@ -27,4 +27,4 @@ The parser used to gate fixtures by enforcing a strict marker byte `FLAG_HI = (0
 
 ## What about the Standings Table?
 If the game deletes raw matches, how does it display the League Table UI?
-We scanned the `6MB-8MB` region of the file and found that FM stores pre-calculated `[Played][W][D][L][Pts]` records. However, these are tightly interleaved with fragmented UI cache pointers (`0x7FFF` null terminators, font/color flags, promotion zone markers) rather than a clean database array. Reverse-engineering this UI memory is extremely fragile and prone to breaking on game updates. We abandoned UI parsing in favor of our DuckDB historical `UNION` strategy, which guarantees 100% accurate match histories.
+We scanned the `6MB-8MB` region of the file and found that FM stores pre-calculated `[Played][W][D][L][Pts]` records. However, these are tightly interleaved with fragmented UI cache pointers (`0x7FFF` null terminators, font/color flags, promotion zone markers) rather than a clean database array. Reverse-engineering this UI memory is extremely fragile and prone to breaking on game updates. While our DuckDB historical `UNION` strategy guarantees 100% accurate match histories without reverse-engineering the UI/Schedule cache, we now know it is mathematically possible to pull the full season from a single end-save if we decode the master fixture schedule block (which stores the scores for every Fixture ID).
