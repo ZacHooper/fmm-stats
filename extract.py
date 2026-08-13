@@ -362,8 +362,10 @@ def main():
         club2league.setdefault(tid, code)
         if code not in leagues:
             d = R.comp_detail(mm, code) or {}
+            nid = d.get("nation_id")
             leagues[code] = {"cid": code, "name": d.get("name") or R.league_name(mm, code),
-                             "nation": None, "reputation": d.get("reputation")}
+                             "nation_id": nid, "nation": L.NATION_NAMES.get(nid),
+                             "reputation": d.get("reputation")}
     for p in players.values():
         lc = club2league.get(p["club_tid"])
         p["league_cid"] = lc

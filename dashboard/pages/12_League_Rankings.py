@@ -51,6 +51,16 @@ else:
     lg["skill_idx"] = pd.NA
     lg["rated"] = pd.NA
 
+# club count: the fixture-based member_count undercounts on low-fixture saves, so use the
+# authoritative club-record membership (league_members, source='club_league').
+clubs = db.q(
+    "SELECT league_cid AS cid, COUNT(DISTINCT club_tid) AS clubs "
+    "FROM staging.league_members WHERE season=? AND phase=? AND source='club_league' "
+    "GROUP BY league_cid",
+    [season, phase])
+lg = lg.merge(clubs, on="cid", how="left")
+lg["clubs"] = lg["clubs"].fillna(lg["member_count"])
+
 # our nation: the nation of the league our managed club sits in this snapshot
 our_nat = db.q(
     "SELECT l.nation_id FROM staging.players p "
@@ -74,7 +84,7 @@ with tab_world:
     if qtext:
         view = view[view["name"].str.lower().str.contains(qtext, na=False)
                     | view["nation"].astype(str).str.lower().str.contains(qtext, na=False)]
-    show = view[["rank", "name", "nation", "reputation", "skill_idx", "member_count"]].copy()
+    show = view[["rank", "name", "nation", "reputation", "skill_idx", "clubs"]].copy()
     show.columns = ["#", "League", "Nation", "Reputation", "Skill idx", "Clubs"]
 
     # boolean mask (aligned to show's index) for our-nation rows; NA nation -> False
@@ -101,7 +111,7 @@ with tab_ours:
         st.info("Couldn't resolve our nation for this snapshot.")
         st.stop()
     ours = lg[lg["nation_id"] == OUR_NATION][
-        ["rank", "name", "reputation", "skill_idx", "member_count"]].copy()
+        ["rank", "name", "reputation", "skill_idx", "clubs"]].copy()
     ours.columns = ["World #", "League", "Reputation", "Skill idx", "Clubs"]
     st.subheader(f"{our_name or 'Our'} pyramid — this snapshot")
     st.dataframe(ours.style.format(

@@ -39,8 +39,23 @@ from collections import Counter, defaultdict
 from . import regions as RG
 from . import reference as R
 
-# nation ids (player/club space) for the loaded leagues, confirmed via member club names.
-NATION_NAMES = {173: "Turkey", 139: "England", 146: "Greece", 170: "Spain", 145: "Germany"}
+# nation ids (player/club space) -> name. These are FMM22 game constants (stable across saves
+# and careers — Turkey 173 holds for Bucaspor too), curated by cross-referencing each id's loaded
+# league names (e.g. 131 -> "Belgian Pro League" -> Belgium). Covers every nation that has a
+# loaded league; add more here as new nations appear. The parsed nation-record table (name +
+# reputation) is a separate reverse-engineering TODO — see docs.
+NATION_NAMES = {
+    64: "Kazakhstan", 126: "Albania", 127: "Andorra", 128: "Armenia", 129: "Austria",
+    130: "Azerbaijan", 131: "Belgium", 133: "Bosnia and Herzegovina", 134: "Bulgaria",
+    135: "Croatia", 136: "Cyprus", 137: "Czech Republic", 138: "Denmark", 139: "England",
+    140: "Estonia", 141: "Faroe Islands", 142: "Finland", 143: "France", 144: "Georgia",
+    145: "Germany", 146: "Greece", 147: "Hungary", 148: "Iceland", 149: "Israel", 150: "Italy",
+    153: "Lithuania", 154: "Luxembourg", 156: "Malta", 158: "Netherlands",
+    159: "Northern Ireland", 160: "Norway", 161: "Poland", 162: "Portugal",
+    163: "Republic of Ireland", 164: "Romania", 165: "Russia", 167: "Scotland",
+    168: "Slovakia", 170: "Spain", 171: "Sweden", 172: "Switzerland", 173: "Turkey",
+    174: "Ukraine", 175: "Wales", 176: "Serbia", 247: "Montenegro",
+}
 
 FLAG_HI = (0x40, 0xC0)        # high byte of the +8 marker on a real record
 YEARS = (0x07E4, 0x07E5, 0x07E6)   # +12 field: 2020/2021/2022 — a strong record gate
