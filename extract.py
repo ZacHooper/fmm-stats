@@ -361,7 +361,9 @@ def main():
     for tid, code in club_leagues.items():          # fill gaps; don't override light-results
         club2league.setdefault(tid, code)
         if code not in leagues:
-            leagues[code] = {"cid": code, "name": R.league_name(mm, code), "nation": None}
+            d = R.comp_detail(mm, code) or {}
+            leagues[code] = {"cid": code, "name": d.get("name") or R.league_name(mm, code),
+                             "nation": None, "reputation": d.get("reputation")}
     for p in players.values():
         lc = club2league.get(p["club_tid"])
         p["league_cid"] = lc
@@ -387,16 +389,20 @@ def main():
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
     # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
     # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py.
+    # NB: `season` here is the MATCHES list; injuries key off the end-year int, derived below.
+    # A match-less day-1 save has no season int (its Player-Progress holds the prior campaign we
+    # already captured) — skip it rather than mislabel those weeks under the new season.
+    snap_season, snap_phase = season_phase(season)   # authoritative DB grain (phase = date)
     squad_tids = [t for t, p in players.items()
                   if p["club_tid"] in (career.managed_tid, career.reserve_tid)]
-    injuries = INJ.extract_injuries(mm, squad_tids, season)
+    injuries = (INJ.extract_injuries(mm, squad_tids, snap_season)
+                if snap_season is not None else {})
     dump("injuries.json", {str(t): sp for t, sp in injuries.items()}, indent=None)
     write_players_csv(os.path.join(dest, "players.csv"), players)
     write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)
 
     attributed = sum(1 for p in players.values() if p["has_attributes"])
     dates = sorted(m["date"] for m in season if m["date"])
-    snap_season, snap_phase = season_phase(season)   # authoritative DB grain (phase = date)
     summary = {
         "label": label, "label_auto": auto,
         "season": snap_season, "phase": snap_phase,

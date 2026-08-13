@@ -121,33 +121,6 @@ def club_record(mm, tid, want="long"):
             return rec                  # prefer a copy that carries the league field
 
 
-def league_name(mm, code, want="long"):
-    """Name for a club-record league code (e.g. 1147 -> '3. Division').
-
-    These competition records carry a large UID (~2 billion) that resolve_comp rejects,
-    and league names can start with a digit ('3. Division', '2. Bundesliga'), so this uses
-    a dedicated relaxed resolver rather than comp_name."""
-    le = struct.pack("<H", code)
-    pos = 0
-    while True:
-        i = mm.find(le, pos)
-        if i == -1:
-            return None
-        pos = i + 1
-        uid = int.from_bytes(mm[i + 2:i + 6], "little")
-        if not (1_000_000_000 <= uid <= 4_000_000_000):
-            continue
-        ln = int.from_bytes(mm[i + 6:i + 10], "little")
-        if not (3 <= ln <= 45):
-            continue
-        try:
-            nm = mm[i + 10:i + 10 + ln].decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-        if nm and (nm[0].isupper() or nm[0].isdigit()) and sum(c.isalpha() for c in nm) >= 3:
-            return nm
-
-
 # ---------------- competitions ----------------
 def comp_id_at(mm, date_off):
     return int.from_bytes(mm[date_off - 3:date_off - 1], "little")
@@ -155,75 +128,46 @@ def comp_id_at(mm, date_off):
 
 _COMP_CACHE = {}
 
-
-def resolve_comp(mm, cid, want="long"):
-    le = struct.pack("<H", cid)
-    pos = 0
-    while True:
-        i = mm.find(le, pos)
-        if i == -1:
-            return None
-        pos = i + 1
-        uid = int.from_bytes(mm[i + 2:i + 6], "little")
-        if not (1000 <= uid <= 300_000_000):
-            continue
-        ln = int.from_bytes(mm[i + 6:i + 10], "little")
-        if not (3 <= ln <= 45):
-            continue
-        try:
-            long_name = mm[i + 10:i + 10 + ln].decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-        if not (long_name and long_name[0].isupper()
-                and sum(c.isalpha() for c in long_name) >= 3):
-            continue
-        j = i + 10 + ln
-        for pad in (0, 1):
-            ln2 = int.from_bytes(mm[j + pad:j + pad + 4], "little")
-            if 3 <= ln2 <= 45:
-                try:
-                    short = mm[j + pad + 4:j + pad + 4 + ln2].decode("utf-8")
-                except UnicodeDecodeError:
-                    short = None
-                if short and short[0].isalnum() and sum(c.isalpha() for c in short) >= 2:
-                    return short if want == "short" else long_name
-    return None
-
-
-def comp_name(mm, cid, want="long"):
-    key = (id(mm), cid, want)
-    if key not in _COMP_CACHE:
-        _COMP_CACHE[key] = resolve_comp(mm, cid, want)
-    return _COMP_CACHE[key]
-
-
 # competition type byte (immediately after the 3 name strings). Calibrated on Turkey:
-# league(228)/play-off(227)=1, cup(117)=2, reserve league(1370)=8, friendly(65)=9.
-COMP_TYPES = {1: "league", 2: "cup", 8: "reserve_league", 9: "friendly"}
+# top-flight league(0), league(228)/play-off(227)=1, cup(117)=2, reserve league(1370)=8,
+# friendly(65)=9. type_id 0 and 1 are BOTH round-robin leagues (0 = a nation's top flight,
+# e.g. 3F Superliga / Bundesliga / Serie A; 1 = the divisions below it).
+COMP_TYPES = {0: "league", 1: "league", 2: "cup", 8: "reserve_league", 9: "friendly"}
+_COMP_VALID_TYPES = frozenset(COMP_TYPES)
+_MIN_COMP_REP = 500          # real loaded comps have reputation >> this (min seen ~12k for a
+                             # 6th-tier league; friendlies ~2.6k). ROUND-label records that
+                             # collide on small cids ('First Leg', 'Playoff') carry rep 0.
 
 
-def _comp_uid_ok(uid):
-    """Competition records come in two UID families: the ones comp_detail was first
-    calibrated on (Turkey etc.) carry a small UID; many domestic/lower leagues (e.g.
-    Danish '3. Division' cid 1147, '2. Bundesliga') carry a ~2-billion UID — the same
-    range league_name() uses. Accept both, else those records are silently missed and
-    their type/nation are lost (so _is_league is wrongly False)."""
-    return (1000 <= uid <= 300_000_000) or (1_000_000_000 <= uid <= 4_000_000_000)
+def find_comp_record(mm, cid):
+    """First VALID competition record for `cid` -> full detail dict (with reputation), or None.
 
+    A comp record is `[cid u16][uid u32][len u32][long][len][short][len][code]` then a
+    trailer whose bytes we read relative to `p` (the first byte after the 3 strings):
+    type @p+0, nation @p+3, REPUTATION (u16) @p+8.
 
-def comp_detail(mm, cid):
-    """Full competition record: cid, uid, name, short, code, type, nation.
-    After the 3 name strings come: type byte (+0), nation byte (+3). See COMP_TYPES."""
+    Small cids (2 = Superliga, 3, 4 ...) collide all over the file, so we cannot trust the
+    first byte-match — and the UID is NOT a reliable gate (top divisions carry a tiny UID
+    like 6/7/22, lower leagues a ~2-billion one, so the old `uid >= 1000` rule silently
+    skipped every top flight and fell through to a bogus record, e.g. cid 2 -> 'Belfort'
+    instead of '3F Superliga'). Instead we VALIDATE the record structurally: 3 decodable
+    length-prefixed names, a known type byte, and the competition-record TRAILER SIGNATURE
+    `[type][0x02][0x00][nation]` (bytes p+1==2, p+2==0) — nation-bound leagues/cups all carry
+    it, and it's what separates them from nation/confederation records that would otherwise
+    validate (e.g. cid 24 -> 'Ivory Coast' rep 54399, above the Premier League). Friendlies
+    (type 9) carry no nation and no signature (`[9,255,255,255]`), so they're allowed through
+    a type-9 exception. Reputation (u16 @p+8) must be >= _MIN_COMP_REP, which also kills the
+    rep-0 round-label collisions ('First Leg', 'Playoff'). First record passing all of that wins.
+    """
     le = struct.pack("<H", cid)
     pos = 0
+    n = len(mm)
     while True:
         i = mm.find(le, pos)
         if i == -1:
             return None
         pos = i + 1
         uid = int.from_bytes(mm[i + 2:i + 6], "little")
-        if not _comp_uid_ok(uid):
-            continue
         ln = int.from_bytes(mm[i + 6:i + 10], "little")
         if not (3 <= ln <= 45):
             continue
@@ -235,8 +179,8 @@ def comp_detail(mm, cid):
         if not (long and (long[0].isupper() or long[0].isdigit())
                 and sum(c.isalpha() for c in long) >= 3):
             continue
-        # skip 3 length-prefixed strings from i+6 (long/short/code), tolerating a
-        # 1-byte pad, to land on the type/nation bytes.
+        # walk the 3 length-prefixed strings (long/short/code), tolerating a 1-byte pad,
+        # to land on the trailer at p.
         p = i + 6
         names = []
         for _ in range(3):
@@ -244,20 +188,60 @@ def comp_detail(mm, cid):
             if not (1 <= sl <= 45):
                 p += 1
                 sl = int.from_bytes(mm[p:p + 4], "little")
-            if not (1 <= sl <= 45) or p + 4 + sl > len(mm):
-                break                       # not a real comp record here
+            if not (1 <= sl <= 45) or p + 4 + sl > n:
+                break
             try:
                 names.append(mm[p + 4:p + 4 + sl].decode("utf-8"))
             except UnicodeDecodeError:
                 names.append(None)
             p = p + 4 + sl
-        if len(names) < 3 or p + 3 >= len(mm):
+        if len(names) < 3 or p + 10 > n:
             continue
         typ, nation = mm[p], mm[p + 3]
+        rep = int.from_bytes(mm[p + 8:p + 10], "little")
+        if typ not in _COMP_VALID_TYPES:
+            continue
+        # trailer signature: nation-bound leagues/cups are [type][02][00][nation]; friendlies
+        # (type 9) are [9][ff][ff][ff]. Anything else is a colliding non-comp record.
+        if not ((mm[p + 1] == 2 and mm[p + 2] == 0) or typ == 9):
+            continue
+        if not ((1 <= nation <= 250) or nation == 255):   # 0 = collision signature
+            continue
+        if rep < _MIN_COMP_REP:                            # rep-0 round-label collision
+            continue
         return {"cid": cid, "uid": uid, "name": names[0], "short": names[1],
-                "code": names[2],
-                "type": COMP_TYPES.get(typ, f"type_{typ}"), "type_id": typ,
-                "nation_id": None if nation == 255 else nation}
+                "code": names[2], "type": COMP_TYPES.get(typ, f"type_{typ}"),
+                "type_id": typ, "nation_id": None if nation == 255 else nation,
+                "reputation": rep}
+
+
+def league_name(mm, code, want="long"):
+    """Name for a club-record league code (e.g. 1147 -> '3. Division', 2 -> '3F Superliga').
+    League names can start with a digit ('3. Division', '2. Bundesliga')."""
+    r = find_comp_record(mm, code)
+    if not r:
+        return None
+    return (r["short"] or r["name"]) if want == "short" else r["name"]
+
+
+def resolve_comp(mm, cid, want="long"):
+    r = find_comp_record(mm, cid)
+    if not r:
+        return None
+    return (r["short"] or r["name"]) if want == "short" else r["name"]
+
+
+def comp_name(mm, cid, want="long"):
+    key = (id(mm), cid, want)
+    if key not in _COMP_CACHE:
+        _COMP_CACHE[key] = resolve_comp(mm, cid, want)
+    return _COMP_CACHE[key]
+
+
+def comp_detail(mm, cid):
+    """Full competition record: cid, uid, name, short, code, type, type_id, nation_id,
+    reputation. See find_comp_record for the structural validation."""
+    return find_comp_record(mm, cid)
 
 
 # ---------------- player info field ----------------

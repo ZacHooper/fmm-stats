@@ -95,7 +95,7 @@ DDL = [
     """CREATE TABLE IF NOT EXISTS staging.leagues (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         cid INTEGER NOT NULL, name VARCHAR, type VARCHAR, nation_id INTEGER,
-        nation VARCHAR, member_count INTEGER, fixtures INTEGER
+        nation VARCHAR, reputation INTEGER, member_count INTEGER, fixtures INTEGER
     )""",
 
     # natural key: (season, phase, league_cid, club_tid, source)
@@ -567,12 +567,13 @@ def load_core(con, d, season, phase):
     if os.path.exists(lg_path):
         leagues = _load_json(lg_path)
         lg_cols = ["season", "phase", "cid", "name", "type", "nation_id", "nation",
-                   "member_count", "fixtures"]
+                   "reputation", "member_count", "fixtures"]
         lg_rows, mem_rows = [], []
         for v in leagues.values():
             cid = _int(v.get("cid"))
             lg_rows.append((season, phase, cid, v.get("name"), v.get("type"),
                             _int(v.get("nation_id")), v.get("nation"),
+                            _int(v.get("reputation")),
                             _int(v.get("member_count")), _int(v.get("fixtures"))))
             for m in v.get("members") or []:
                 mem_rows.append((season, phase, cid, _int(m), "members"))
@@ -890,6 +891,7 @@ _MIGRATIONS = [
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS wage_gbp BIGINT",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry DATE",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
+    "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS reputation INTEGER",
 ]
 
 

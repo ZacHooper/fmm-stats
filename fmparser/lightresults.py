@@ -226,6 +226,7 @@ def leagues(mm, records, club_nation=None, min_games=MIN_LEAGUE_GAMES):
                     name = None
         out[cid] = {"cid": cid, "name": name, "type": d.get("type"),
                     "nation_id": nation_id, "nation": NATION_NAMES.get(nation_id),
+                    "reputation": d.get("reputation"),
                     "members": members, "member_count": len(members),
                     "fixtures": len(recs)}
     return out
