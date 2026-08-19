@@ -31,19 +31,43 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 - After loading, tell the user to **restart Streamlit** (`pkill -f streamlit && uv run streamlit
   run dashboard/Home.py`); it auto-reconnects to the rebuilt DB on mtime change thereafter.
 
-## Player history is NOT wired in (as of 2026-08-19)
+## Player history is live (since 2026-08-19)
 
-`extract.py` still calls `fmparser/history.py`, which is **superseded** — its locator raises on
-any played-in save, `extract.py` swallows the error, and `player_history` lands with **0 rows**.
-Expect that; it is not a new bug. The table is now fully decoded and verified against five
-in-game History screens, but the working implementation lives in **`scripts/history_v2.py`** and
-has not been folded back into the extractor yet.
+`player_history` + `player_history_seasons` populate on every save now, ~21-23k players each. If
+a slice loads with **0 history rows** that is a regression, not the old known gap — check the
+`WARNING: history table not parsed` line in the extract output. `build()` refuses to emit from a
+slab that fails its forest check, so it fails loudly rather than writing garbage.
 
-If you touch it, read `docs/agent-context/player-history-table.md` first. The three facts that
-matter: `+4` is a **next-row pointer** (linked lists — record starts are the in-degree-0 rows,
-`FFFFFFFF` ends a chain); rows appended during the career are **staggered** (identity at row `k`,
-stats at row `k-1`); and the player link is `u32 @ P-38` in the **attribute** record, not
-anything inside the history table (`docs/IDS.md` § PLAYER → CAREER HISTORY).
+Before touching `fmparser/history.py`, read `docs/agent-context/player-history-table.md`. The
+three facts that matter: `+4` is a **next-row pointer** (linked lists — record starts are the
+in-degree-0 rows, `FFFFFFFF` ends a chain); **season+stats come from row `k-1`, club+fee from row
+`k`**; and the player link is `u32 @ P-38` in the **attribute** record, not anything inside the
+history table (`docs/IDS.md` § PLAYER → CAREER HISTORY). Verify any change with
+`python3 scripts/history_v2.py <save> --player <tid>` — it prints the career TOTAL line, which is
+what you diff against an in-game History screenshot.
+
+## Reprocessing EVERYTHING after a parser change
+
+Different job from importing a new save: re-extract and reload every snapshot already registered,
+so old slices pick up the new decode. The store knows the full manifest —
+
+```sql
+SELECT label, season, phase, save_path FROM staging.extracts ORDER BY season, phase;
+```
+
+Then per row: `python3 extract.py <save_path> --career <key> --label <label>` followed by
+`uv run python load_duckdb.py output/<label> --db fm-<key>.duckdb --season <season> --phase <phase>`.
+Budget ~1 min per snapshot (18 snapshots ≈ 25 min); run it in the background and monitor the log.
+
+Before starting: **`pkill -f streamlit`** (it holds the DuckDB write lock) and copy both stores to
+`backups/`. Pass the season/phase explicitly from the manifest rather than letting them re-derive,
+or a save whose in-game date differs from its last match date will land on a different phase and
+you will end up with a duplicate slice instead of a replaced one. Do **not** use `--reset` unless
+you have checked that everything hand-maintained is reproducible from `seeds/` (role_weights and
+eligible_origin_clubs are; a user-added tactic inserted straight into the DB would not be).
+
+Afterwards, verify rather than assume: row counts per slice, plus a ground-truth anchor you can
+check against a screenshot.
 
 ## Steps
 

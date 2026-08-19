@@ -539,7 +539,12 @@ def _effective_cached(season, phase, method, curve, floor, ver):
 def eligibility_frame(season, phase):
     """Per-player career origin + Athletic-Bilbao eligibility for the snapshot. Returns
     tid, origin_club_tid, origin_club, last_season_club, confidence, eligible (origin in
-    staging.eligible_origin_clubs). Only high/medium confidence is reliably aligned."""
+    staging.eligible_origin_clubs).
+
+    Since 2026-08-19 every row is confidence='exact': a player's career-history chain head is
+    a STORED POINTER in his attribute record (u32 @ P-38), not a positional guess, so origin
+    club can be trusted outright. The 'low' handling below is now only a guard for slices
+    loaded by the old parser."""
     return _eligibility_cached(season, phase, _dbver())
 
 
@@ -552,11 +557,11 @@ def _eligibility_cached(season, phase, ver):
             "WHERE table_schema='staging' AND table_name='player_history'").fetchone():
         return pd.DataFrame(columns=["tid", "origin_club_tid", "origin_club",
                                      "last_season_club", "confidence", "eligible"])
-    # The career-history record->player alignment (fmparser/history.py) is positional and
-    # currently 'low' confidence for ~all players (no player-id per record — the segmentation
-    # is unfinished), so low-confidence origin tids resolve to WRONG clubs (e.g. a Danish
-    # player showing a Belgian/German origin). Surface origin/last-season/eligibility ONLY for
-    # medium/high-confidence rows; blank the rest rather than assert a wrong club as fact.
+    # HISTORICAL: the old parser aligned records to players positionally and marked ~all of
+    # them 'low', which resolved to WRONG clubs (a Danish player showing a Belgian origin), so
+    # low-confidence rows were blanked rather than asserted as fact. That alignment is gone —
+    # fmparser/history.py now follows a stored pointer and every row is 'exact'. The CASEs are
+    # kept purely so a store still holding old 'low' rows degrades to blank instead of lying.
     sql = """
         SELECT h.tid,
                CASE WHEN h.confidence = 'low' THEN NULL ELSE h.origin_club_tid END
@@ -1243,8 +1248,9 @@ def player_loan_spells(tid):
     1. **`staging.player_loans`** — EXACT weekly windows for loans OUT, from bit 5 of the
        Player-Progress status field. Unioned across snapshots and merged, like injuries.
     2. **Career history** (`player_history_seasons.fee = 'loan'`) — a season at a NAMED club
-       with apps/goals, back through the player's whole career. Only some snapshots parsed it
-       fully, so take the version with the most rows for this player.
+       with apps/goals, back through the player's whole career. Every snapshot parses this now
+       (before 2026-08-19 most returned nothing), but keep taking the version with the most
+       rows: a loan only appears once the season it belongs to has been written.
     3. **`players.loaned_in`** — a player loaned IN to us, bounded by the snapshot dates that
        observed the loan.
 

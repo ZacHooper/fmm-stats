@@ -35,6 +35,20 @@ Turkish ground-truth tests pass unchanged.
   Squad Tool (merged calculator+compare), Matches, Player Stats, Tactics, Config.
   Shared helpers in `dashboard/db.py` (config, effective_table, attr groups, primary_position).
 
+**Career history is LIVE (2026-08-19) — `staging.player_history` + `player_history_seasons`.**
+Every player's whole club career: origin (youth) club, debut season, and one row per season with
+club, fee, apps, goals, assists and average rating. Populated on **all 18 snapshots across both
+careers** (21.4k-23.6k players per frem slice, 22.1k-23.1k per buca slice); before this rewrite 8
+of the 11 frem slices held ZERO rows, so any note claiming history is unreliable or empty is out
+of date. `confidence` is always `'exact'` now — the link is a stored pointer (`u32 @ P-38` in the
+player's attribute record), not a positional guess, so **origin club can be trusted outright** and
+the old high/medium/low tiering is gone. Consumers: **`pages/9_Recruitment.py`** (the
+Athletic-Bilbao strategy — players whose youth club is in `staging.eligible_origin_clubs`, seeded
+from `seeds/eligible_origin_clubs.csv`; 575 eligible in the newest frem snapshot),
+`db.eligibility_frame()`, `pages/2_Squad_Tool.py` bio, and `db.player_loan_spells()` source (2),
+which reads `fee = 'loan'` rows to recover loan spells across a player's whole career. Decode
+details: `fmparser/history.py` + [[history-chain-pointers]] + [[player-history-table]].
+
 **Opposition scouting is codified (added 2026-07-31) — USE IT instead of ad-hoc pulls.**
 `db.scout_report(opp_tid, season=None, phase=None, method='buca_433')` returns the full report as
 dicts/DataFrames: coverage (partial-squad warning), overall eff, unit edges (us−them per

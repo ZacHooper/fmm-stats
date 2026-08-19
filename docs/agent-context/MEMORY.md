@@ -11,9 +11,10 @@
 - [Role-weight methods](role-weight-methods.md) — how role_weights tactics work (unlisted attr=weight 1); frem_counter tactic weight-set + how to add/seed one
 - [Level vs Fit percentile](level-vs-fit-percentile.md) — Fit %ile (tactic weights) vs Level %ile (CA-derived, immersion-safe); read the gap
 - [Player history table](player-history-table.md) — SOLVED end to end; verified vs all 5 in-game screenshots. See [[history-chain-pointers]]
-- [Name resolution](name-resolution.md) — SOLVED: any player name via browse table (@0.3M) + id-index tables (@37M); first/last_name_id→ordinal→string
+- [Name resolution](name-resolution.md) — SOLVED: any player name via browse table (@0.3M) + id-index tables (@37M); first/last_name_id→ordinal→string. ALSO: club-name traps (a shape filter ate B.93; a tid can match an award record)
 - [Injury / Player-Progress decode](injury-progress-decode.md) — weekly Player-Progress table: +16 is a BITFIELD — injured (1/2) AND out-on-loan (bit5=32, exact windows); tid-recycling gotcha for cross-save unions
 - [TID recycling](tid-recycling.md) — a tid is a SLOT not a person; FM reuses retired tids for newgens; use (tid,dob) as the person key
 - [Reserve marker stale attrs](reserve-marker-stale-attrs.md) — reserve/loaned-out players read stale attributes; frozen row = the tell
 - [User-supplied save date wins](user-supplied-save-date-wins.md) — if the user states a save's in-game date, use it as phase
 - [History chain pointers](history-chain-pointers.md) — +4 is a NEXT-ROW POINTER (linked lists, in-degree-0 = record start); player link = u32 @ P-38 in the attribute record
+- [Ground truth beats my parse](ground-truth-beats-my-parse.md) — if the user's in-game reading conflicts with the parser, suspect the parser; read screenshots directly; prefer ground truth with a checksum (TOTAL lines)

@@ -47,3 +47,19 @@ passes.** Resolve from the SCRAPED per-record name ids (staging.scrape_players a
 first/last_name_id), NOT `parse_info(tid)` — the by-tid search collides on low tids (returned wrong
 players in a proto). Bonus not yet used: the inline snapshot record (@~58M, managed only) also carries
 club + league as text. See [[savefile-boundary-map]], [[player-history-table]], [[etl-duckdb-dashboard]].
+
+**CLUB names are a different path — `reference.resolve_club` — and it has two traps (2026-08-19).**
+1. **A shape filter can eat REAL records.** `_valid_name` required >= 2 alphabetic characters, and
+   a club record is only accepted if its SHORT name validates — so `"B.93"` (one letter) threw away
+   the entire real club record for tid 334, leaving only an unrelated *award* record that happens to
+   share the tid. B.93 rendered as "Player of the Month". Fixed: short names use `min_alpha=1`, long
+   names keep the stricter guard. Exactly 5 of 4,836 clubs changed, all Danish/Faroese "B.xxxx"
+   sides (331 B1908, 332 B1909, 333 B1913, 334 B.93, 586 B68).
+2. **A tid can match more than one record, and first-match wins.** 346 matches BOTH Boldklubben Frem
+   (@6.53M) and an award "Team of the Week" (@13.77M); Frem is correct only because its real record
+   comes first in the file. Still latent. `club_record()` has the discriminator — **real clubs carry
+   a league AND a country; award records carry neither.**
+
+**So: never diagnose a bug from a resolved club NAME — check the tid.** Chasing "why is an award
+showing as a player's club" as a career-history bug cost real time; the history parse was correct
+and the name lookup was wrong.
