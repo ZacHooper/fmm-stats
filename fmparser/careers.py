@@ -30,6 +30,26 @@ class Career:
         """Squad-membership marker in the save = managed club TID (u16 LE) + ff ff."""
         return struct.pack("<H", self.managed_tid) + b"\xff\xff"
 
+    @property
+    def reserve_marker(self) -> bytes | None:
+        """Same marker for the reserve side, or None if the career has no reserve tid."""
+        if self.reserve_tid is None:
+            return None
+        return struct.pack("<H", self.reserve_tid) + b"\xff\xff"
+
+    @property
+    def squad_markers(self) -> tuple[bytes, ...]:
+        """Every club marker whose snapshot records describe players we manage.
+
+        The reserve list is a SEPARATE squad snapshot with its own marker. A player who
+        moves between the two keeps a record under both, and the one under the club he is
+        currently in is the live copy — the other freezes at the moment he left that list.
+        Scanning only the first-team marker therefore reads stale attributes for anyone in
+        the reserves (see docs/ATTRIBUTE_DECODING.md 7.3)."""
+        if self.reserve_marker is None:
+            return (self.club_marker,)
+        return (self.club_marker, self.reserve_marker)
+
 
 CAREERS = {
     # Turkish career (the original) — Bucaspor 1928.

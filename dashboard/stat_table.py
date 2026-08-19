@@ -115,7 +115,7 @@ def _auto_column_config(cols, extra=None):
 def player_table(key, rows, *, id_options=None, default_cols=None,
                  agg_provider=None, attrs_provider=None, include_attrs=True,
                  default_preset=None, picker_label="Columns", column_config=None,
-                 attr_presets=None, render=True):
+                 attr_presets=None, render=True, height="auto"):
     """THE reusable player table — one component for every page that lists players.
 
     `rows`: DataFrame with a stable 'key' column (usually the tid; a synthetic id for
@@ -126,6 +126,7 @@ def player_table(key, rows, *, id_options=None, default_cols=None,
     `agg_provider(keys)->DataFrame`: returns match-stat aggregates with a 'key' column +
         MATCH_STAT_DEFS columns; called only when a match stat is picked.
     `attrs_provider(keys)->{key: {attr: value}}`: called only when an attribute is picked.
+    `height`: table height in pixels, or 'auto'/'stretch' (Streamlit's own vocabulary).
     Everything is add/remove via the same one-box picker (identity + presets + match stats +
     attributes), so the user has complete control over which columns show, on every page."""
     if "key" not in rows.columns:
@@ -150,7 +151,7 @@ def player_table(key, rows, *, id_options=None, default_cols=None,
     attrs_by = attrs_provider(keys) if (attrs and attrs_provider) else {}
     out = compose(rows, extras, stats, attrs, agg, attrs_by or {})
     if render:
-        st.dataframe(out, width="stretch", hide_index=True,
+        st.dataframe(out, width="stretch", hide_index=True, height=height,
                      column_config=_auto_column_config(out.columns, column_config))
     return out
 

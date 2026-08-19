@@ -164,6 +164,54 @@ def attr_record(mm, tid, bounds=None, marker=CLUB_MARKER):
                      "M": M, "value": value}
 
 
+def squad_snapshot_bounds(mm, markers):
+    """Union of the per-marker snapshot windows.
+
+    The first-team and reserve squad lists are written as separate marker clusters and can
+    land in different places, so a single marker's window may not cover both. A marker whose
+    discovery FAILED (snapshot_bounds fell back to the static SNAPSHOT_LO/HI window) is
+    skipped rather than blowing the union open across half the file."""
+    los, his = [], []
+    for m in markers:
+        lo, hi = snapshot_bounds(mm, marker=m)
+        if (lo, hi) == (SNAPSHOT_LO, SNAPSHOT_HI):     # discovery failed -> ignore
+            continue
+        los.append(lo)
+        his.append(hi)
+    if not los:
+        return SNAPSHOT_LO, SNAPSHOT_HI
+    return min(los), max(his)
+
+
+def attr_records(mm, tid, bounds=None, markers=(CLUB_MARKER,)):
+    """{marker: freshest record} — one entry per club marker this tid appears under.
+
+    A player who has moved between the first team and the reserves keeps a snapshot record
+    under BOTH club markers. The copy under the club he is CURRENTLY in is live; the other
+    is frozen at the moment he left that squad list. Verified against an in-game screen
+    (2023-07-01): Hervé Buur reads Pace 10 under the first-team marker — his value when he
+    dropped to the reserves ten months earlier — and Pace 16, the real figure, under the
+    reserve marker. Callers pick by the player's current club (see extract.build_database);
+    within a single marker the freshest copy is still the LAST one, as in attr_record."""
+    lo, hi = bounds or squad_snapshot_bounds(mm, markers)
+    le = struct.pack("<I", tid)
+    out, pos = {}, lo
+    while True:
+        i = mm.find(le, pos)
+        if i == -1 or i > hi:
+            return out
+        pos = i + 1
+        m = bytes(mm[i + 8:i + 12])
+        if m in markers:
+            M = i + 8
+            posb = list(mm[M - 23:M - 8])
+            out[m] = {"attrs": list(mm[M - 59:M - 23]),
+                      "positions": {POSITIONS[k]: v for k, v in enumerate(posb) if v > 1},
+                      "feet": (mm[M + 33], mm[M + 34]),
+                      "M": M,
+                      "value": int.from_bytes(mm[M + 4:M + 8], "little")}
+
+
 def preferred_foot(feet):
     l, r = feet
     if l >= 16 and r >= 16 and abs(l - r) <= 3:

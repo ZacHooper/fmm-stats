@@ -9,6 +9,8 @@ output/
 *.duckdb
 !fm-*.duckdb
 *.duckdb.wal
+# pre-migration store backups — big, local, regenerable by re-importing the saves
+backups/
 
 # Local tooling / editor — but DO track the project skills so they travel with the repo.
 .claude/*

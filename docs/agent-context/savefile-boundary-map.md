@@ -59,6 +59,39 @@ inline_names (Frem@57.99M 'Matthias Andersen', Buca@61.78M 'Jonny Evans'). Next 
 sub-regions inside the big sections (attr grid, club DB, match region, comp/tagged) as their
 signatures get pinned; then have regions.py DERIVE its windows from discover() instead of hardcoding.
 
+**CONTENT-LOCATED SUB-REGIONS shipped (2026-08).** Two regions that DON'T get their own zero-gap
+section — they sit inside bigger sections, so the skeleton splitter can't isolate them and a content
+detector must. Both are now in `mapregions.sub_regions(mm)` and print under the section table in
+`scripts/map_regions.py <save>`:
+- **matches** (`matches.find_match_region`): managed-club per-match blocks, delimiter-clustered
+  (`DELIM_UNIT`), self-located by testing each cluster for a valid match header (date+two clubs).
+  Frem ~53.7M, Buca ~56.4M. Fixed the `MATCH_LO=55M` drift (Frem's are BELOW that floor). See
+  [[denmark-region-drift]].
+- **light_results** (`lightresults.find_light_region`): whole-world simulated fixtures
+  (`[home u16][away u16][score]..[flag 0x40/0xc0 @+9][cid @+10][year 07E4/5/6 @+12]`), self-located
+  as the densest cluster of that signature. Frem ~45.2-46.3M, Buca ~47.6-48.9M. Fixed the
+  `LIGHT_LO/HI=47-50.5M` drift.
+Boundary probe learnings (2026-08): the light region has **NO reserved zero-padding at its edges** —
+it GROWS/SHIFTS each save as games are played (the save is rewritten), which is exactly why
+content-location beats fixed bounds. It also **interleaves a `cid=0` fixture VARIANT** (real scores,
+no competition tag, e.g. some foreign leagues) that `sweep()` drops (can't be league-assigned) —
+this is the "second list" the lightresults docstring hinted at. STILL DRIFTED / TODO: the
+competition-DETAILS region (`reference.comp_detail`) returns None for Denmark domestic cids like
+1147 (Danish 3.Div), so `_is_league` is False and Frem's OWN league membership/standings don't
+populate even though its results parse. That region is the next content-location target.
+
+**`history_table` detector is fresh-save-only (2026-08-17).** The shipped detector keys on "+4 counter
+increments" — but on **established/in-season saves the history table's `+4` counter does NOT reset to 1 and
+is non-monotonic** (see [[player-history-table]]) — SUPERSEDED 2026-08-19: that column is a next-row
+POINTER, not a counter (see [[history-chain-pointers]]); the detector AND the old `find_table_start` miss
+it (0 rows on all 2023 Frem saves). Worse, the 20–55 season-code range hits ~14% of random bytes, so the
+save contains **several stride-16 "season-plausible" look-alike regions** (e.g. winter save: a big decoy at
+~42.5M and the real table at ~44.59M) that a run-finding heuristic can't tell apart. This is the clearest
+case yet FOR this boundary-map project: the real history table must be positively ID'd by a
+filler/signature map (its zero-gap edges + a counter-independent structural signature), not by counter
+increments. Fixing the detector to be counter-agnostic is a prerequisite for cracking established-save
+history.
+
 **Names blocker tie-in:** the name-id→string index is NOT adjacent to the name table (56KB zero gap,
 then a record section). So name resolution likely uses a pointer inside the record section / name-table
 header (@250 has candidate count fields like `60ea0000`=59968), not a standalone index array — a

@@ -48,6 +48,7 @@ TEAM_TID = 346
 
 # 1. Get Latest Season
 latest_season = con.execute(f"SELECT MAX(season) as s FROM staging.match_player_stats WHERE team_tid = {TEAM_TID}").df()['s'].iloc[0]
+latest_phase = con.execute(f"SELECT MAX(phase) as p FROM staging.match_player_stats WHERE team_tid = {TEAM_TID} AND season = {latest_season}").df()['p'].iloc[0]
 
 print(f"=== SEASON {latest_season} REVIEW ===")
 
@@ -57,7 +58,7 @@ SELECT formation, COUNT(*) as games,
     SUM(CASE WHEN home_tid = {TEAM_TID} THEN score_home ELSE score_away END) as scored,
     SUM(CASE WHEN home_tid = {TEAM_TID} THEN score_away ELSE score_home END) as conceded
 FROM staging.matches 
-WHERE (home_tid = {TEAM_TID} OR away_tid = {TEAM_TID}) AND season = {latest_season} 
+WHERE (home_tid = {TEAM_TID} OR away_tid = {TEAM_TID}) AND season = {latest_season} AND phase = '{latest_phase}'
 GROUP BY formation ORDER BY games DESC
 \"\"\"
 print("\\n--- FORMATIONS ---")
@@ -80,7 +81,7 @@ player_pos_stats AS (
         SUM(s.tackW + s.intercept) as def_actions, SUM(s.mistakes) as mistakes
     FROM staging.match_player_stats s
     JOIN player_names p ON s.tid = p.tid
-    WHERE s.team_tid = {TEAM_TID} AND s.season = {latest_season} AND s.pos_order <= 11 AND s.subOn = 255
+    WHERE s.team_tid = {TEAM_TID} AND s.season = {latest_season} AND s.phase = '{latest_phase}' AND s.pos_order <= 11 AND s.subOn = 255
     GROUP BY s.tid, p.name, position_group
 )
 SELECT position_group, name, starts, avg_rating, goals, assists, key_passes, def_actions, mistakes
@@ -101,7 +102,7 @@ SELECT p.name, p.age, COUNT(s.anchor) as games, ROUND(AVG(s.rating), 2) as avg_r
     MAX(s.passC) as max_passes_in_game
 FROM staging.match_player_stats s
 JOIN player_names p ON s.tid = p.tid
-WHERE s.team_tid = {TEAM_TID} AND s.season = {latest_season} GROUP BY p.name, p.age HAVING games > 3
+WHERE s.team_tid = {TEAM_TID} AND s.season = {latest_season} AND s.phase = '{latest_phase}' GROUP BY p.name, p.age HAVING games > 3
 """
 df = con.execute(awards_query).df()
 

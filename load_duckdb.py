@@ -186,20 +186,27 @@ DDL = [
     )""",
 
     # career-history summary, one row per player (from history.json / fmparser.history).
-    # origin_club_tid = youth/debut club = the Athletic-Bilbao eligibility key. confidence
-    # in {high, medium, low}: only high/medium are reliably aligned (low = the un-cracked
-    # high-sid tail). See fmparser/history.py. natural key: (season, phase, tid).
+    # origin_club_tid = youth/debut club = the Athletic-Bilbao eligibility key. `confidence` is
+    # always 'exact' since 2026-08-19: the player -> history link is a stored pointer
+    # (u32 @ P-38 in the attribute record), not an inferred alignment, so the old
+    # high/medium/low tail is gone. See fmparser/history.py. natural key: (season, phase, tid).
     """CREATE TABLE IF NOT EXISTS staging.player_history (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         origin_club_tid INTEGER, origin_club VARCHAR,
-        last_season_club_tid INTEGER, confidence VARCHAR, record_offset BIGINT
+        last_season_club_tid INTEGER, confidence VARCHAR, record_offset BIGINT,
+        debut_season INTEGER, debut_end_year INTEGER
     )""",
 
     # full season-by-season career rows (for display). natural key: (season, phase, tid, seq).
+    # A season can appear TWICE for one player: a loan year stores the parent-club row (0 apps)
+    # and the loan-club row (fee='loan') separately, exactly as the in-game screen shows them.
+    # `goals` is goals CONCEDED for goalkeepers. `rating` is null for pre-career seasons (the
+    # game only keeps an average rating for seasons played during your career).
     """CREATE TABLE IF NOT EXISTS staging.player_history_seasons (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         seq INTEGER NOT NULL, hist_season INTEGER, end_year INTEGER,
-        club_tid INTEGER, fee VARCHAR, apps INTEGER, goals INTEGER
+        club_tid INTEGER, fee VARCHAR, apps INTEGER, goals INTEGER,
+        assists INTEGER, rating DOUBLE
     )""",
 
     # injury spells for the MANAGED SQUAD, from the weekly Player-Progress table
@@ -210,6 +217,16 @@ DDL = [
     """CREATE TABLE IF NOT EXISTS staging.player_injuries (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         seq INTEGER NOT NULL, spell_start DATE, spell_end DATE, weeks_out INTEGER
+    )""",
+
+    # LOAN-OUT spells for the managed squad, from bit 5 of the same weekly Player-Progress
+    # status field (fmparser.injuries.ON_LOAN). Exact weekly windows for players we loaned
+    # OUT — players loaned IN to us are never flagged here (see staging.players.loaned_in for
+    # those). Same two-calendar-year visibility caveat as injuries: union across snapshots.
+    # natural key: (season, phase, tid, seq).
+    """CREATE TABLE IF NOT EXISTS staging.player_loans (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        seq INTEGER NOT NULL, spell_start DATE, spell_end DATE, weeks INTEGER
     )""",
 
     # GLOBAL config (not per-label): the set of club TIDs whose YOUTH products are eligible
@@ -238,6 +255,23 @@ DDL = [
     # page; seeded with defaults only for keys that don't yet exist.
     """CREATE TABLE IF NOT EXISTS staging.app_config (
         key VARCHAR NOT NULL, value VARCHAR
+    )""",
+
+    # IDENTITY BRIDGE. A tid is a SLOT, not a person: FM reuses a retired player's tid for a
+    # newgen (829 swaps in the frem store, 1503 in bucaspor). Within one (season,phase) slice a
+    # tid is unambiguous, so single-snapshot views are fine — but ANY cross-save per-player join
+    # keyed on tid alone splices two people into one career. `dob` separates every recycled slot
+    # (2332 changes, 0 collisions, 0 nulls), so (tid,dob) is the person key. See docs/IDS.md.
+    # person_id is a stable VARCHAR '<tid>-<dob>' (stable across loads, unlike a dense_rank).
+    """CREATE TABLE IF NOT EXISTS staging.persons (
+        person_id VARCHAR NOT NULL, tid INTEGER NOT NULL, dob DATE,
+        name VARCHAR, first_seen VARCHAR, last_seen VARCHAR, slices INTEGER
+    )""",
+    # (season,phase,tid) -> person_id. The join bridge every fact table uses; facts keep their
+    # tid column untouched, so nothing downstream has to change shape.
+    """CREATE TABLE IF NOT EXISTS staging.person_slices (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        tid INTEGER NOT NULL, person_id VARCHAR NOT NULL
     )""",
 
     # Multi-snapshot archive. staging.* always holds ONE snapshot per (season,phase) =
@@ -513,21 +547,24 @@ def load_core(con, d, season, phase):
                 continue
             hrows.append((season, phase, tid, _int(v.get("origin_club_tid")),
                           v.get("origin_club"), _int(v.get("last_season_club_tid")),
-                          v.get("confidence"), _int(v.get("record_offset"))))
+                          v.get("confidence"), _int(v.get("record_offset")),
+                          _int(v.get("debut_season")), _int(v.get("debut_end_year"))))
             for seq, s in enumerate(v.get("seasons") or []):
                 fee = s.get("fee")
                 hsrows.append((season, phase, tid, seq, _int(s.get("season")),
                                _int(s.get("end_year")), _int(s.get("club_tid")),
                                str(fee) if fee is not None else None,
-                               _int(s.get("apps")), _int(s.get("goals"))))
+                               _int(s.get("apps")), _int(s.get("goals")),
+                               _int(s.get("assists")), s.get("rating")))
         counts["player_history"] = _insert(
             con, "player_history",
             ["season", "phase", "tid", "origin_club_tid", "origin_club",
-             "last_season_club_tid", "confidence", "record_offset"], hrows)
+             "last_season_club_tid", "confidence", "record_offset",
+             "debut_season", "debut_end_year"], hrows)
         counts["player_history_seasons"] = _insert(
             con, "player_history_seasons",
             ["season", "phase", "tid", "seq", "hist_season", "end_year",
-             "club_tid", "fee", "apps", "goals"], hsrows)
+             "club_tid", "fee", "apps", "goals", "assists", "rating"], hsrows)
 
     # --- injuries (weekly Player-Progress -> spells; managed squad only) ------
     inj_path = os.path.join(d, "injuries.json")
@@ -546,6 +583,22 @@ def load_core(con, d, season, phase):
         counts["player_injuries"] = _insert(
             con, "player_injuries",
             ["season", "phase", "tid", "seq", "spell_start", "spell_end", "weeks_out"], irows)
+
+    # --- loan-out spells (same weekly table, bit 5) --------------------------
+    loan_path = os.path.join(d, "loans.json")
+    if os.path.exists(loan_path):
+        lrows = []
+        for k, spells in _load_json(loan_path).items():
+            tid = _int(k)
+            if tid is None:
+                continue
+            for seq, (start, end, weeks) in enumerate(spells):
+                lrows.append((season, phase, tid, seq,
+                              datetime.date.fromisoformat(start),
+                              datetime.date.fromisoformat(end), _int(weeks)))
+        counts["player_loans"] = _insert(
+            con, "player_loans",
+            ["season", "phase", "tid", "seq", "spell_start", "spell_end", "weeks"], lrows)
 
     # --- clubs ---------------------------------------------------------------
     clubs = _load_json(os.path.join(d, "clubs.json"))
@@ -729,6 +782,7 @@ def _clear_group(con, group, season, phase):
     if group == "core":
         for t in ("players", "player_attributes", "player_positions",
                   "player_history", "player_history_seasons", "player_injuries",
+                  "player_loans",
                   "clubs", "competitions", "leagues", "matches", "match_events",
                   "match_player_stats"):
             _delete(con, t, season, phase)
@@ -892,6 +946,12 @@ _MIGRATIONS = [
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry DATE",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
     "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS reputation INTEGER",
+    # 2026-08-19: career history re-decoded (linked-list chains + the P-38 link), which also
+    # yielded assists, average rating and the debut season. See fmparser/history.py.
+    "ALTER TABLE staging.player_history ADD COLUMN IF NOT EXISTS debut_season INTEGER",
+    "ALTER TABLE staging.player_history ADD COLUMN IF NOT EXISTS debut_end_year INTEGER",
+    "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS assists INTEGER",
+    "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS rating DOUBLE",
 ]
 
 
@@ -1003,6 +1063,43 @@ def seed_config_bundle(con):
           f"({len(b.get('app_config') or {})} settings, {len(rows)} weight rows)")
 
 
+# person_id for a slice row; '?' when dob is unknown so the row still gets a stable key
+# (28 tids appear in match stats but in no players slice at all — they keep tid-only identity).
+_PERSON_ID = "concat(CAST(tid AS VARCHAR), '-', COALESCE(CAST(dob AS VARCHAR), '?'))"
+
+
+def _psort(col="phase"):
+    """Chronological sort key for a phase. Phases are in-game dates now; legacy stores may
+    still hold the old start/mid/end words, which sort as epoch (before any real date)."""
+    return (f"CASE {col} WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01' "
+            f"WHEN 'end' THEN '0000-00-02' ELSE {col} END")
+
+
+def rebuild_persons(con):
+    """Rebuild the (tid,dob) -> person_id bridge from staging.players.
+
+    Cheap and idempotent: derived entirely from players, so it is rebuilt wholesale after every
+    load rather than maintained incrementally. Needs no re-extraction — dob is already present
+    in every players slice."""
+    ordr = _psort("phase")
+    con.execute("DELETE FROM staging.person_slices")
+    con.execute(f"""INSERT INTO staging.person_slices (season, phase, tid, person_id)
+                    SELECT season, phase, tid, {_PERSON_ID} FROM staging.players""")
+    con.execute("DELETE FROM staging.persons")
+    con.execute(f"""
+        INSERT INTO staging.persons (person_id, tid, dob, name, first_seen, last_seen, slices)
+        SELECT {_PERSON_ID}, tid, dob,
+               arg_max(name, {ordr}) AS name,
+               arg_min(phase, {ordr}) AS first_seen,
+               arg_max(phase, {ordr}) AS last_seen,
+               COUNT(*) AS slices
+        FROM staging.players GROUP BY tid, dob""")
+    n, t = con.execute("SELECT COUNT(*), COUNT(DISTINCT tid) FROM staging.persons").fetchone()
+    if n > t:
+        print(f"  identity bridge: {n} persons across {t} tids "
+              f"({n - t} recycled slot(s) — see docs/IDS.md)")
+
+
 def create_views(con):
     for name, sql in VIEWS.items():
         con.execute(f"CREATE OR REPLACE VIEW {name} AS {sql}")
@@ -1082,6 +1179,7 @@ def main():
             except Exception as e:  # one bad label must not abort a batch
                 fail += 1
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
+        rebuild_persons(con)
         create_views(con)
         print(f"done: {ok} loaded, {fail} failed. views refreshed.")
     finally:

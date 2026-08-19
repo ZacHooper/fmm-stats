@@ -31,6 +31,20 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 - After loading, tell the user to **restart Streamlit** (`pkill -f streamlit && uv run streamlit
   run dashboard/Home.py`); it auto-reconnects to the rebuilt DB on mtime change thereafter.
 
+## Player history is NOT wired in (as of 2026-08-19)
+
+`extract.py` still calls `fmparser/history.py`, which is **superseded** — its locator raises on
+any played-in save, `extract.py` swallows the error, and `player_history` lands with **0 rows**.
+Expect that; it is not a new bug. The table is now fully decoded and verified against five
+in-game History screens, but the working implementation lives in **`scripts/history_v2.py`** and
+has not been folded back into the extractor yet.
+
+If you touch it, read `docs/agent-context/player-history-table.md` first. The three facts that
+matter: `+4` is a **next-row pointer** (linked lists — record starts are the in-degree-0 rows,
+`FFFFFFFF` ends a chain); rows appended during the career are **staggered** (identity at row `k`,
+stats at row `k-1`); and the player link is `u32 @ P-38` in the **attribute** record, not
+anything inside the history table (`docs/IDS.md` § PLAYER → CAREER HISTORY).
+
 ## Steps
 
 1. **Locate the saves.** `ls -la ~/Downloads/*.fms` (or wherever the user says). If several

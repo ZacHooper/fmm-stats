@@ -22,6 +22,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 [`docs/agent-context/MEMORY.md`](docs/agent-context/MEMORY.md) — it indexes the rest:
 - **fm-parser-project** — the save-format reverse-engineering story + goals.
 - **etl-duckdb-dashboard** — how the ETL + dashboard + `fmq.py` CLI + scouting tooling work. **The main reference.**
+- **history-chain-pointers** — the history slab is a forest of linked lists; how the `P-38` player link works.
 - **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options**, **light-results-rolling-buffer**, **master-schedule-plan** — specific findings; read when relevant.
 
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
@@ -47,7 +48,22 @@ it has repeatedly turned multi-hour hunts into quick finds:
 4. **When value-matching fails everywhere, DIFF TWO SAVES** — the definitive tool. Take two snapshots
    where the value changed for some players and find the field that changed iff the value did. Fields not
    stored adjacent to a player id (wages appear to live in a positional finance table) only fall to this.
-5. **Encodings cheat-sheet:** money = raw currency (`2000` = £2K) but shown rounded; dates =
+5. **A monotonic-looking `u32` column may be a POINTER, not a counter.** Big tables here are
+   **linked lists**, not arrays: the field holds the *next row's index*, with `FFFFFFFF` = end of
+   chain. On a fresh save the rows are contiguous so row `k` holds `k+1` and the field is
+   indistinguishable from a counter — the two readings only diverge once the game starts appending
+   into recycled slots. Tell them apart with the **in-degree test**: build the pointer graph and
+   check `max in-degree == 1` and `#(in-degree-0 rows) == #(FFFFFFFF rows)`. If that holds it is a
+   forest of chains, record starts are the in-degree-0 rows, and you need no delimiter heuristics
+   at all. Beware the **column offset**: in career history a row's stats belong to the season on the
+   PREVIOUS row (club+fee from row `k`, season+stats from row `k-1`). Always confirm a whole record
+   against ground truth — an in-game TOTAL line is the cheapest check, since an off-by-one either
+   double-counts a row or drops one.
+6. **If a table has no id in it, look for the pointer running the OTHER way.** Career history holds
+   no tid/sid/uid anywhere; the *attribute* record points at it (`u32 @ P-38`). Before concluding a
+   join is unsolvable, search the file for the target's row index / offset as a u32 — one hit outside
+   the table is the link. See `docs/IDS.md`.
+7. **Encodings cheat-sheet:** money = raw currency (`2000` = £2K) but shown rounded; dates =
    `[day-of-year u16][year u16]` (see DOB in `staging.scrape_players`); seasons coded `1971 + n`.
    **Contract-detail record** (`staging.scrape_contracts`, section ~16–40M, `[tid u32][0x01][wage
    u16][6×00][expiry day-of-year u16][expiry year u16]`): **wage £/yr = `u16@+5` × ~520** (validated
@@ -62,7 +78,10 @@ it has repeatedly turned multi-hour hunts into quick finds:
 - **developing-with-streamlit** — conventions for editing the dashboard.
 
 ## Toolchain
-- **Extractors are pure-stdlib** — run with `python3 extract.py …` / `python3 dump_lightresults.py …` (NOT uv).
+- **Extractors run under bare `python3`** — `python3 extract.py …` / `python3 dump_lightresults.py …` (NOT uv).
+  Stdlib only **except numpy**, which `fmparser/history.py` needs (the history slab is 265k rows and
+  is scanned column-wise). numpy is present in the system python3; if that ever changes, history is
+  the only import to unpick.
 - **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`; dashboard is `uv run streamlit run dashboard/Home.py`.
 - **DuckDB is single-writer**: a running Streamlit holds the lock. For read-only CLI work either `pkill -f streamlit` first, or set `FM_DUCKDB_READONLY=1`, or query a `cp` of the store. The `fmq scout` command auto-copies when the DB is locked.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
@@ -76,14 +95,14 @@ it has repeatedly turned multi-hour hunts into quick finds:
 uv sync                                                   # one-time env setup
 uv run streamlit run dashboard/Home.py                    # dashboard (sidebar Career selector)
 python3 scripts/discover_career.py <save.fms>             # find a new career's club tids
-python3 extract.py <save.fms> --career <key> --label <l>  # extract (pure-stdlib, NOT uv)
+python3 extract.py <save.fms> --career <key> --label <l>  # extract (bare python3, NOT uv)
 uv run python load_duckdb.py output/<label> --db fm-<key>.duckdb   # season+phase(=in-game date) auto-derived
 uv run python fmq.py scout <team>                          # opposition briefing (auto-saves)
 ```
 
 ## House rules
 - **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings, `pos_index`, percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_*` in `effective_table`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from the query so only the percentile ever leaves. It sits next to the tactic **Fit %ile** (`pctile_*`). Keep raw `ca`/`pa` out of every surfaced frame; don't remove Level %ile thinking it breaks this rule.
-- **Opponent tactics/formation are NOT in the save** — always ask the user for the in-game scout's formation + style. Opponent names aren't parsed (profile by position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
+- **Opponent tactics/formation are NOT in the save** — always ask the user for the in-game scout's formation + style. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
 - Our tactic/method is **`buca_433`** (the dashboard default).
 
 ## Data setup on a fresh clone

@@ -1,374 +1,255 @@
 """Career (season-by-season) player history — the top-of-the-History-screen club list.
 
-The save stores one big contiguous **stride-16 table** (denmark-start.fms: 39.56M–41.46M,
-118,659 rows, 11,238 player records). Each 16-byte row:
+THE TABLE IS A FOREST OF LINKED LISTS. One fixed-size stride-16 slab (265,423 rows in every
+frem save, world creation to 2023 — only the byte offset drifts). Each row:
 
-    +0  u16  club tid (a REAL club tid; 0xffff = free/none)
-    +2  u16  transfer fee for that move: 0xffff=stayed, 0xfeff=loan, 0=free, else £000s
-    +4  u32  global monotonic row counter (1..N). The value 0xFFFFFFFF marks a record
-             TRAILER (end of one player's history) and still consumes a counter slot.
-    +8  u8   season code — ABSOLUTE: 50 = the 2020/21 campaign, end_year = 1971 + code.
-             On a TRAILER row this byte is instead the player's DEBUT season.
-    +9  u8   appearances that season
-    +10 u8   goals that season
-    +11..15  assists / cards / avg-rating (trailing; not decoded here)
+    +0  u16  club tid (0xffff = free/none)
+    +2  u16  fee for the move INTO that club: ffff=none, fffe=loan, fffd/0=free, else £000s
+    +4  u32  NEXT ROW POINTER — the 0-based index of the next row in THIS player's chain.
+             0xFFFFFFFF = end of chain.
+    +8  u8   season code — ABSOLUTE; end_year = 1971 + code (50 = the 2020/21 campaign)
+    +9  u8   appearances       +10 u8  goals — CONCEDED for goalkeepers
+    +11 u8   assists           +14 u16 average rating x100 (0 on pre-career rows)
 
-On a trailer row `+0` = the player's club as of the last COMPLETED season (2020/21) — i.e.
-the authoritative CURRENT club. (There is a known ~1-row lag between the club column and the
-stat columns for the final season when a player moved mid-season: the last data row shows the
-club he moved FROM with the new club's stats, and the trailer shows the club he moved TO. So
-trust the trailer for the current club, and the FIRST data row for the origin club.)
+`+4` IS A POINTER, NOT A COUNTER. This is the whole thing, and getting it wrong is what broke
+every previous version. On a FRESH save each record is laid out contiguously, so row k holds
+k+1 and the field is indistinguishable from a monotonic counter — and the chain-terminating
+0xFFFFFFFF is indistinguishable from a record trailer. Both misreadings work perfectly on
+denmark-start and nowhere else: seasons played DURING a career are appended into RECYCLED
+slots elsewhere in the slab, so the chain jumps and the "+1 sequence" breaks *inside* a
+record. Splitting records on a sequence break shatters each player into 3-4 fake players.
 
-LINKING records to players (validated 2026-08 on the Frem squad, 4/4 in-game confirmations):
-records are **SID-ORDERED**, covering the ~10,500 LOWEST-sid players (the ones that existed at
-world creation and therefore have a real career). Newgens / youth-intake players have no record
-yet — they map past the end of the table (the reserved empty tail that fills in future seasons).
-The sid-less staff/legend entities (info sid == 0xFFFFFFFF, e.g. record 0 = a 27-season veteran)
-ALSO have records and are interleaved by sid, so the record<->player offset DRIFTS smoothly
-(0 → ~740 across the range). We recover the exact map with a banded DP that walks the sid-sorted
-player list and decides, per record, whether it belongs to the next player or is an interleaved
-staff record (a "gap"), scoring on the trailer-club == player-club signal. The result is a
-monotonic offset backbone pinned by ~3,700 self-consistent "stayer" anchors. Transfers (whose
-trailer club is their OLD club, not their current one) are carried by the local offset.
+    66162 -> 66163 -> ... -> 66172 -> 66173 -+   contiguous run (pre-career), ptr = k+1
+                                             +-> 10541 -> 2471 -> END   appended, recycled
 
-See docs/agent-context/player-history-table.md for the full reverse-engineering story.
+RECORD STARTS = ROWS WITH IN-DEGREE 0 — rows nothing points at. Exact; no delimiter
+heuristics, no season-plausibility guessing, no alignment DP. Audit any candidate slab with
+`Table.sanity()`: `max_indeg == 1` and `heads == terminators`. True on all 10 frem saves.
+
+THE ONE READING RULE. Walking a chain gives rows [h, r1, r2, ...]. For each row k after the
+head, **the season and stats come from row k-1, and the club and fee come from row k.**
+So the head supplies only a club: the youth/origin club (the Athletic-Bilbao eligibility
+key). Equivalently: the club column leads the stats by one row, in both the contiguous and
+the appended parts of a chain. Verified against five in-game Player-History screens
+(`denmark-24-start.fms`, 30 Jun 2023) — every season line matches, and all five career
+Pld/Gls/Ast TOTALS match exactly: Dirksen 198/10/0, Andersson 286/16/2, Thrane 195/26/4,
+Fugl 46/8/12, Erenbjerg 82/19/3 (including his two loan spells and their loan fee markers).
+The rule fixes transfer years too: reading the club off the same row put Dirksen at Frem from
+2018/19, one season late — the club column is what tells you he signed for 2017/18.
+
+The last row of the contiguous run is a DEBUT/summary row (0 apps, `+8` = debut season, often
+the season the player turned 15/16). Under the rule above it is consumed as a club row, so it
+never becomes a spurious season — which is exactly what makes the totals come out right.
+
+LINKING IS SOLVED AND IS NOT POSITIONAL. There is no tid/sid/uid anywhere in this table; the
+pointer runs the other way. The player's ATTRIBUTE record holds the chain head:
+
+    P-42  u32  SID                    (already used to key the attribute record)
+    P-38  u32  HISTORY CHAIN HEAD     <- the link
+
+where P is the record pointer `staging.scrape_attributes` computes. 25,627/25,627 in-range
+values on denmark-24-start are valid chain heads, all distinct; out-of-range = no history yet
+(newgens). Do NOT re-derive P by hand: being off by one 78-byte grid step silently returns a
+NEIGHBOURING player's career, which looks entirely plausible inside a youth-intake cohort.
+
+KNOWN GAP: blank youth seasons can be one short (the game renders a row for the debut season
+itself; we start at the first stored row). Apps are 0 there, so totals are unaffected.
+
+See docs/agent-context/player-history-table.md for the full reverse-engineering story and
+docs/IDS.md section PLAYER -> CAREER HISTORY for the link.
 """
+import struct
+
+import numpy as np
 
 FF = 0xFFFFFFFF
 NO_CLUB = 0xFFFF
+STRIDE = 16
+SEASON_BASE = 1971                             # end_year = SEASON_BASE + code
+HEAD_AT = -38                                  # chain head, relative to the attribute-record P
+SID_AT = -42                                   # sid, relative to the same P
 
 
-def season_end_year(code):
+def season_end_year(code, base=SEASON_BASE):
     """History season byte -> campaign end-year (50 -> 2021, i.e. the 2020/21 season)."""
-    return 1971 + code
+    return base + code
 
 
 def decode_fee(v):
-    """+2 transfer-fee field -> a friendly value. Bytes are little-endian u16:
-    `ff ff` = 0xffff -> 'stay', `fe ff` = 0xfffe -> 'loan', 0 -> 'free', else fee in £000s (int)."""
-    if v == 0xffff:
-        return "stay"
-    if v == 0xfffe:
-        return "loan"
-    if v == 0:
-        return "free"
-    return v                                   # thousands of pounds (15000 = £15M)
+    """+2 transfer-fee field -> a friendly value. Little-endian u16: `ff ff` = no fee recorded,
+    `fe ff` = loan, `fd ff` = a second free-transfer marker, 0 = free, else the fee in £000s.
+
+    Display note: the game shows `ff ff` as blank when the club is unchanged but as **"Bos"**
+    (Bosman) on a row where the player moved — same stored value, two labels. Both `fd ff` and
+    0 render as "Free" (confirmed on Thrane's 2021/22 Naestved move, which stores `fd ff`).
+    """
+    return {0xffff: "stay", 0xfffe: "loan", 0xfffd: "free", 0: "free"}.get(v, v)
 
 
-def _u16(mm, o):
-    return int.from_bytes(mm[o:o + 2], "little")
+def _u32(buf, off):
+    return (buf[off].astype(np.uint32) | buf[off + 1].astype(np.uint32) << 8 |
+            buf[off + 2].astype(np.uint32) << 16 | buf[off + 3].astype(np.uint32) << 24)
 
 
-def _u32(mm, o):
-    return int.from_bytes(mm[o:o + 4], "little")
+def _as_array(mm):
+    return mm if isinstance(mm, np.ndarray) else np.frombuffer(mm, dtype=np.uint8)
 
 
-def _season_plausible(mm, start, sample=400, lo=20, hi=55):
-    """Fraction of the first `sample` data rows whose +8 season byte is a real campaign
-    code (20..55). The history table reads ~1.0; other stride-16 counter tables (which also
-    increment +4 but store season 0) read ~0.0 — this is what tells them apart."""
-    ok = tot = 0
-    o = start
-    while tot < sample and o < len(mm):
-        c4 = _u32(mm, o + 4)
-        if c4 != FF:
-            tot += 1
-            if lo <= mm[o + 8] <= hi:
-                ok += 1
-        o += 16
-    return ok / tot if tot else 0.0
+def locate(mm, vmin=5000, vmax=4_000_000, samples=48, min_seq=0.45):
+    """Find the slab. -> [(rows, start, hits)], best first; one survivor on every save tested.
 
-
-def find_table_start(mm, min_run=48, min_season_frac=0.7):
-    """Locate the history table's first row = where the +4 counter resets to 1 and then
-    increments 1 per row (delimiter rows show 0xFFFFFFFF but still consume their slot).
-    Derived per-save (offsets differ between saves) — never hard-coded. Validated by
-    season-plausibility so we don't lock onto a look-alike counter table (e.g. an
-    established-career save whose history is laid out differently reads season 0 and is
-    rejected -> the caller skips history rather than emit garbage)."""
-    target = (1).to_bytes(4, "little")
-    pos = mm.find(target)
-    while pos != -1:
-        c = pos - 4                            # counter sits at row+4
-        if c >= 0 and _u32(mm, c + 12) == 0:   # data rows have zero trailing u32
-            ok = True
-            for k in range(min_run):
-                v = _u32(mm, c + 4 + 16 * k)
-                if v == FF:                    # trailer consumes a counter slot
-                    continue
-                if v != k + 1:
-                    ok = False
-                    break
-            if ok and _season_plausible(mm, c) >= min_season_frac:
-                return c
-        pos = mm.find(target, pos + 1)
-    raise ValueError("no season-plausible history table found "
-                     "(counter==1 run with real season codes)")
-
-
-def enumerate_records(mm, start=None, end_gap=6, empty_run_limit=64):
-    """Walk the table from `start`, splitting into per-player records. Returns a list of
-    records, each: {rows, current_club, debut_season, offset, has_trailer}, where
-    `rows` = [(club, fee_raw, season, apps, goals), ...] oldest -> newest.
-
-    RECORD BOUNDARIES:
-      * a TRAILER row `+4 == 0xFFFFFFFF` (the normal case) — carries current club (+0) and
-        debut season (+8); OR
-      * a SEASON DROP — a data row whose season is LOWER than the previous row's. Within a
-        record seasons only ever increase (oldest -> newest), so a drop begins a new player.
-        This catches the ~0.4% of records (on established saves) that lack an explicit trailer.
-
-    TABLE END: two signals. (1) the +4 counter is a monotonic 1..N row-index used ONLY to bound
-    the table — NOT to split records; we tolerate isolated holes (players added mid-career carry
-    an out-of-sequence +4 ~271k) and stop after `end_gap` CONSECUTIVE counter misses (the next,
-    independently-counted segment). (2) the real table is followed by a large PADDING region of
-    EMPTY records (a data-less FF trailer each, ~25k of them) reserved for future newgens — so we
-    also stop after `empty_run_limit` consecutive empty (0-row) records and drop that trailing run.
-    Short empty runs (<=~30) are kept: they are genuine no-history players interleaved by sid."""
-    if start is None:
-        start = find_table_start(mm)
-    records, cur = [], []
-    rec_off = start
-
-    def close(trailer_off=None):
-        nonlocal cur, rec_off
-        if not cur and trailer_off is None:
-            return
-        records.append({
-            "rows": cur,
-            "current_club": _u16(mm, trailer_off) if trailer_off is not None
-                            else (cur[-1][0] if cur else NO_CLUB),
-            "current_fee": _u16(mm, trailer_off + 2) if trailer_off is not None else 0xffff,
-            "debut_season": mm[trailer_off + 8] if trailer_off is not None
-                            else (cur[0][2] if cur else 0),
-            "offset": rec_off,
-            "has_trailer": trailer_off is not None,
-        })
-        cur = []
-
-    zero = b"\x00" * 16
-    o, expected, bad, zrun, empty_run, last_seas, n = \
-        start, _u32(mm, start + 4), 0, 0, 0, None, len(mm)
-    while o < n:
-        if mm[o:o + 16] == zero:                # big empty region -> section end, stop
-            zrun += 1
-            if zrun >= 16:
-                break
-            o += 16
-            continue
-        zrun = 0
-        c4 = _u32(mm, o + 4)
-        if c4 == FF:                           # explicit trailer -> close record
-            n_before = len(records)
-            close(trailer_off=o)
-            if len(records) > n_before and not records[-1]["rows"]:
-                empty_run += 1                  # a data-less (padding-candidate) record
-                if empty_run >= empty_run_limit:   # entered the reserved padding tail -> stop
-                    del records[-empty_run:]    # drop the whole trailing empty run
-                    return records
-            else:
-                empty_run = 0
-            last_seas = None
-            expected += 1
-            bad = 0
-            o += 16
-            rec_off = o
-            continue
-        if c4 == expected:                     # counter in sequence
-            bad = 0
-        else:                                  # a hole (isolated) or the table end
-            bad += 1
-            if bad >= end_gap:                 # sustained break -> next segment: stop
-                break
-        expected += 1
-        s = mm[o + 8]
-        if last_seas is not None and s < last_seas:   # season drop -> implicit boundary
-            close()
-            rec_off = o
-        cur.append((_u16(mm, o), _u16(mm, o + 2), s, mm[o + 9], mm[o + 10]))
-        last_seas = s
-        o += 16
-    close()                                    # flush trailing record (no trailer)
-    return records
-
-
-def align(records, player_clubs, max_staff=1500, staff_penalty=0.15):
-    """Map sid-sorted players -> records via a banded DP (see module docstring).
-
-    `player_clubs` = list of each sid-sorted player's current club_tid. Returns
-    `rec2p` = {record_index: player_index or None} (None = an interleaved staff record).
-
-    State `s` = number of staff records seen so far; record i, if a player record, belongs
-    to player (i - s). We reward trailer-club == player-club (+1) and charge a small penalty
-    per staff gap so the ~740 real staff records are placed but not over-inserted."""
-    N = len(records)
-    S = max_staff
-    NEG = float("-inf")
-    dp = [NEG] * (S + 1)
-    dp[0] = 0.0
-    choice = bytearray(N * (S + 1))
-    for i in range(N):
-        ndp = [NEG] * (S + 1)
-        rc = records[i]["current_club"]
-        smax = S if i >= S else i
-        base_row = i * (S + 1)
-        for s in range(smax + 1):
-            base = dp[s]
-            if base == NEG:
-                continue
-            pj = i - s                          # record i as a player -> player pj
-            m = 1.0 if (pj < len(player_clubs) and player_clubs[pj] == rc) else 0.0
-            if base + m > ndp[s]:
-                ndp[s] = base + m
-                choice[base_row + s] = 0        # 0 = player record
-            if s + 1 <= S and base - staff_penalty > ndp[s + 1]:
-                ndp[s + 1] = base - staff_penalty
-                choice[base_row + s + 1] = 1    # 1 = staff record (gap)
-        dp = ndp
-    s = max(range(S + 1), key=lambda k: dp[k])
-    rec2p = {}
-    for i in range(N - 1, -1, -1):
-        if choice[i * (S + 1) + s] == 0:
-            rec2p[i] = i - s
-        else:
-            rec2p[i] = None
-            s -= 1
-    return rec2p
-
-
-def _pava(points):
-    """Isotonic regression (pool-adjacent-violators): fit a monotonic NON-DECREASING curve
-    to (x, y) points sorted by x. Returns blocks [val, weight, x_lo, x_hi]."""
-    out = []
-    for x, y in points:
-        out.append([float(y), 1.0, x, x])
-        while len(out) >= 2 and out[-2][0] > out[-1][0]:
-            v2, w2, lo2, hi2 = out.pop()
-            v1, w1, lo1, hi1 = out.pop()
-            out.append([(v1 * w1 + v2 * w2) / (w1 + w2), w1 + w2, lo1, hi2])
+    `u32 @ (start - 12)` is the exact row count. It sits at offset %4 == 1 (NOT 4-byte
+    aligned), which is why no aligned scan ever found it, and there is no pointer to the table
+    anywhere else in the file. Signals, none of which hardcode an offset or a season range:
+      1. the header is a plausible row count and start + 16*rows fits in the file;
+      2. `next == k+1` for a supermajority of sampled rows — untouched rows still point at
+         their physical successor. (Never read a "first counter" from row 0: on a played-in
+         save row 0 is usually a recycled row holding an unrelated pointer. That mistake is
+         what made the old locator settle on a FALSE header partway into the slab.)
+      3. every non-terminal pointer is in-slab (`< rows`).
+    Ranked by signal 2, then size. Verify the winner with Table.sanity().
+    """
+    buf = _as_array(mm)
+    n = len(buf)
+    p = np.flatnonzero(buf[3:n - 3] == 0)                   # the header's high byte
+    V = _u32(buf, p)
+    keep = (V >= vmin) & (V <= vmax)
+    p, V = p[keep], V[keep]
+    S = p + 12
+    fits = (S.astype(np.int64) + STRIDE * (V.astype(np.int64) + 2)) <= n - STRIDE
+    V, S = V[fits].astype(np.int64), S[fits].astype(np.int64)
+    if not len(S):
+        return []
+    hits = np.zeros(len(S), np.int32)
+    inrange = np.ones(len(S), bool)
+    for f in np.linspace(0, 1, samples):
+        k = ((V - 1) * f).astype(np.int64)
+        c = _u32(buf, S + STRIDE * k + 4).astype(np.int64)
+        hits += (c == k + 1)
+        inrange &= ((c == FF) | (c < V))
+    good = inrange & (hits >= int(samples * min_seq))
+    out = [(int(v), int(s), int(h)) for v, s, h in zip(V[good], S[good], hits[good])]
+    out.sort(key=lambda r: (-r[2], -r[0]))
     return out
 
 
-def align_anchored(records, player_clubs):
-    """Map sid-sorted players -> records by fitting the record<->player OFFSET to the confident
-    "stayer" anchors and enforcing monotonicity, instead of trusting the raw DP everywhere.
+class Table:
+    """The slab, decoded column-wise, plus its pointer forest."""
 
-    Why: records are sid-ordered players interleaved with ~1.5k sid-less staff/ex-player records,
-    so offset(player) = (staff records before it) is monotonic non-decreasing and bounded by
-    `len(records) - len(players)`. The DP finds it well where "stayer" anchors (trailer club ==
-    player's current club) are DENSE (low/mid sid), but the high-sid tail is transfer/youth-heavy
-    with almost no stayers, so the DP drifts (offsets even exceed the ceiling). We therefore take
-    only the VALID anchors, isotonic-fit the offset curve, and mark players beyond the last anchor
-    'low' confidence rather than fabricating a mapping.
+    def __init__(self, mm, start=None, rows=None):
+        buf = _as_array(mm)
+        if start is None:
+            cand = locate(buf)
+            if not cand:
+                raise ValueError("career-history table not found")
+            rows, start, _ = cand[0]
+        self.start, self.rows = start, rows
+        o = start + STRIDE * np.arange(rows)
+        self.next = _u32(buf, o + 4).astype(np.int64)
+        self.club = buf[o].astype(np.int64) | buf[o + 1].astype(np.int64) << 8
+        self.fee = buf[o + 2].astype(np.int64) | buf[o + 3].astype(np.int64) << 8
+        self.season = buf[o + 8].astype(np.int64)
+        self.apps = buf[o + 9].astype(np.int64)
+        self.goals = buf[o + 10].astype(np.int64)
+        self.assists = buf[o + 11].astype(np.int64)
+        self.rating = buf[o + 14].astype(np.int64) | buf[o + 15].astype(np.int64) << 8
+        live = self.next != FF
+        self.indeg = np.bincount(self.next[live], minlength=rows)
 
-    Returns {player_index: (record_index or None, confidence in {'high','medium','low'})}."""
-    NR, NP = len(records), len(player_clubs)
-    # The record<->player offset = interleaved non-player (staff/ex-player) records seen so far.
-    # It is monotonic non-decreasing, but its MAX is NOT NR-NP: when the high-sid tail is newgens
-    # with no record, NR can be < NP (ceiling 0) while the real offset for the low-sid players is
-    # large (thousands of interleaved staff). Tying the DP cap + anchor filter to NR-NP then
-    # collapses the whole map to offset 0 (mid-season saves, where trailer!=current, hit this).
-    # So search a GENEROUS band derived from the data, not NR-NP, and cap by NR.
-    band = min(NR, max(4000, (NR - NP) + 500))     # DP search width / max plausible offset
-    rec2p = align(records, player_clubs, max_staff=band)
-    anchors = sorted(
-        (j, i - j) for i, j in rec2p.items()
-        if j is not None and j < NP
-        and records[i]["current_club"] == player_clubs[j]
-        and records[i]["current_club"] not in (NO_CLUB, 0)
-        and 0 <= i - j <= band)                    # keep only band-valid anchors
-    if not anchors:
-        return {}
-    blocks = _pava([(j, o) for j, o in anchors])
-    last_j = anchors[-1][0]
-    last_off = min(band, int(round(blocks[-1][0])))
+    def sanity(self):
+        """A well-formed slab is a forest: in-degree <= 1 everywhere, one terminator per head."""
+        k = np.arange(self.rows)
+        return {"rows": self.rows, "start": self.start,
+                "heads": int((self.indeg == 0).sum()),
+                "terminators": int((self.next == FF).sum()),
+                "max_indeg": int(self.indeg.max()),
+                "untouched": round(float((self.next == k + 1).mean()), 4)}
 
-    def offset_at(j):
-        if j > last_j:                             # extrapolate: ramp from last anchor to band cap
-            span = max(1, NP - 1 - last_j)
-            return min(band, last_off + (band - last_off) * (j - last_j) // span)
-        best = blocks[0][0]
-        for val, w, lo, hi in blocks:
-            if lo <= j:
-                best = val
-            else:
+    def is_forest(self):
+        s = self.sanity()
+        return s["max_indeg"] <= 1 and s["heads"] == s["terminators"]
+
+    def debut_row(self, head):
+        """The DEBUT/summary row: the last row of the chain's contiguous run, i.e. the row
+        whose pointer is the first to jump out of it (or the final row if it never jumps)."""
+        rows = self.chain(head)
+        for k in rows[:-1]:
+            if self.next[k] != k + 1:
+                return k
+        return rows[-1]
+
+    def chain(self, head, limit=400):
+        """Row indices of one player's record, head first. `limit` guards a corrupt slab."""
+        out, k = [], int(head)
+        while 0 <= k < self.rows and len(out) < limit:
+            out.append(k)
+            if self.next[k] == FF:
                 break
-        return min(band, int(round(best)))
+            k = int(self.next[k])
+        return out
 
+    def seasons(self, head, base=SEASON_BASE):
+        """[{season, end_year, club_tid, fee, apps, goals, assists, rating}] for one player.
+
+        THE READING RULE: season+stats from row k-1, club+fee from row k. See the module
+        docstring — the head therefore contributes no season, only the origin club, and the
+        trailing debut row is consumed as a club row rather than emitted as a phantom season.
+        """
+        out = []
+        for k in self.chain(head)[1:]:
+            j = k - 1
+            out.append({"season": int(self.season[j]),
+                        "end_year": season_end_year(int(self.season[j]), base),
+                        "club_tid": int(self.club[k]),
+                        "fee": decode_fee(int(self.fee[k])),
+                        "apps": int(self.apps[j]), "goals": int(self.goals[j]),
+                        "assists": int(self.assists[j]),
+                        "rating": round(int(self.rating[j]) / 100, 2) or None})
+        return out
+
+
+def head_index(mm, info, attrs):
+    """{tid: chain head row} via the attribute record's `u32 @ P-38`. Absent = no history."""
     out = {}
-    for j in range(NP):
-        base = j + offset_at(j)
-        club = player_clubs[j]
-        chosen, conf = None, "medium"
-        for i in (base, base + 1, base - 1, base + 2, base - 2):   # snap to a stayer if adjacent
-            if 0 <= i < NR and records[i]["current_club"] == club:
-                chosen, conf = i, "high"
-                break
-        if chosen is None:
-            chosen = base if 0 <= base < NR else None
-        if j > last_j:                             # past the reliable anchor range -> untrusted
-            conf = "low"
-        out[j] = (chosen, conf)
+    for tid, p in info.items():
+        rec = attrs.get(p["sid"])
+        if rec is not None:
+            out[tid] = struct.unpack_from("<I", mm, rec["P"] + HEAD_AT)[0]
     return out
 
 
-def build(mm, info):
-    """Top-level: {tid: history} for every player mapped to a career record.
+def build(mm, info, attrs):
+    """Top-level: {tid: history} for every player whose attribute record points at a chain.
 
-    history = {origin_club_tid, last_season_club_tid, confidence, record_offset, seasons:[{
-        season (raw byte), end_year, club_tid, fee, apps, goals}]}. `confidence`:
-      'high'   = the mapped record is a self-consistent stayer (trailer club == current club);
-      'medium' = within the anchor-supported sid range (mapping by the fitted offset — trust the
-                 origin/career but the exact record could be off by a couple in transfer-heavy spots);
-      'low'    = beyond the last reliable anchor (high-sid transfer/youth tail) — DO NOT trust.
-    `info` is the shared player-info spine from staging.scrape_players."""
-    def sid_u16(r):
-        s = r["sid"]
-        if isinstance(s, str) and len(s) >= 8:
-            v = int.from_bytes(bytes.fromhex(s)[:2], "little")
-            return None if v == 0xffff else v
-        return None
+    history = {origin_club_tid, last_season_club_tid, debut_season, debut_end_year,
+               confidence, record_offset, seasons: [...]}.
 
-    players = sorted((r for r in info.values() if sid_u16(r) is not None),
-                     key=lambda r: sid_u16(r))
-    player_clubs = [r["club_tid"] for r in players]
-    records = enumerate_records(mm)
-    player2rec = align_anchored(records, player_clubs)
+    `confidence` is kept for the existing schema and is always 'exact' now — the link is a
+    stored pointer, not an inferred alignment, so there is no low-confidence tail any more.
+    `info` / `attrs` are the shared spines from staging.scrape_players / scrape_attributes.
+    """
+    table = Table(mm)
+    if not table.is_forest():                  # a mislocated slab decodes into garbage chains
+        raise ValueError(f"history slab failed the forest check: {table.sanity()}")
 
     out = {}
-    for pj, (i, conf) in player2rec.items():
-        if i is None:
+    for tid, head in head_index(mm, info, attrs).items():
+        if not 0 <= head < table.rows or table.indeg[head] != 0:
+            continue                           # no history yet (newgen), or a stale pointer
+        seasons = table.seasons(head)
+        if not seasons:
             continue
-        rec = records[i]
-        rows = rec["rows"]
-        if not rows:                            # mapped to an empty (no-history) slot
-            continue
-        p = players[pj]
-        last_season = rec["current_club"]       # trailer = club as of last completed season
-        last_fee = rec.get("current_fee", 0xffff)
-        # WITHIN A RECORD THE CLUB COLUMN LEADS THE STATS BY ONE ROW (verified vs in-game history):
-        # the apps/goals on row k were played at the club on row k+1 (last row -> the trailer's
-        # club). The fee travels WITH that club (its own row: loan/sold-for/stay), NOT with the
-        # stats. So a season entry = (season/apps/goals from row k) + (club & fee from row k+1).
-        # Row 0's club is the youth/origin club (the "from" of the first move) -> origin_club_tid.
-        seasons = []
-        for k, (c, fv, se, a, g) in enumerate(rows):
-            if k + 1 < len(rows):
-                club, fee = rows[k + 1][0], decode_fee(rows[k + 1][1])
-            else:                                # last data row -> played at the trailer's club
-                club, fee = last_season, decode_fee(last_fee)
-            seasons.append({"season": se, "end_year": season_end_year(se),
-                            "club_tid": club, "fee": fee, "apps": a, "goals": g})
-        origin = rows[0][0] if rows else last_season   # first row's club = youth/origin club
-        out[p["tid"]] = {
-            # origin (youth) club = first career row -> the Athletic-Bilbao eligibility key.
-            "origin_club_tid": origin,
-            # club as of the last completed season (trailer). Equals the player's actual
-            # current club (info.club_tid) for "stayers"; differs for summer signings, whose
-            # actual current club is on the player row itself.
-            "last_season_club_tid": last_season,
-            "confidence": conf,
-            "record_offset": rec["offset"],
+        debut = int(table.season[table.debut_row(head)])
+        out[tid] = {
+            # youth/origin club = the head row's club — the Athletic-Bilbao eligibility key.
+            "origin_club_tid": int(table.club[head]),
+            # club of the most recent STORED season — not necessarily his club today (a summer
+            # signing's current club is on the player row itself).
+            "last_season_club_tid": seasons[-1]["club_tid"],
+            "debut_season": debut,
+            "debut_end_year": season_end_year(debut) if debut is not None else None,
+            "confidence": "exact",
+            "record_offset": table.start + STRIDE * head,
             "seasons": seasons,
         }
     return out

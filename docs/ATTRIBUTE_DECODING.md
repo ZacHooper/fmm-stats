@@ -274,6 +274,86 @@ live copy is in **C1** (600 KB later, separate cluster) still resolve to their i
 copy. For mid-development players an attribute mid-tick (in-game ↑ arrow) can out-run every
 snapshot, so no copy is exact (Berkay Stamina live 9, all copies 8).
 
+### 7.3 The RESERVE squad is a separate marker (fixed 2026-08-19)
+
+`CLUB_MARKER` is built from the **first-team** tid, but the reserve side keeps its **own**
+squad snapshot under its **own** marker (`<reserve_tid u16 LE> + ff ff`). A player who moves
+between the two lists keeps a record under BOTH, and the copy under the club he is
+**currently** in is live — the other freezes on the day he left that list. Scanning only the
+first-team marker therefore returns **stale attributes for every reserve player**.
+
+Ground truth (`denmark-24-start.fms`, in-game 2023-07-01, Hervé Buur tid 3733):
+
+```
+@58.954M  marker 346  (first team) -> Pace 10   <- what the old scan returned
+@58.975M  marker 7296 (reserves)   -> Pace 16   <- the real value, confirmed in-game
+```
+
+He dropped to the reserves in Nov 2022, so his first-team copy had been frozen for ten
+months and his row was **byte-identical across eight consecutive snapshots**. A frozen row
+across snapshots is the diagnostic signature of this bug.
+
+**FIX:** `careers.Career.squad_markers` returns (first-team, reserve); `attributes.attr_records`
+returns one record **per marker**; `extract.build_database` picks the record whose marker
+matches the player's current `club_tid`, falling back to the last found.
+`attributes.squad_snapshot_bounds` unions the per-marker windows (skipping a marker whose
+discovery fell back to the static window). Re-extraction changed exactly 7 of 42 squad rows,
+**all of them club 7296**, with zero first-team movement.
+
+**Limitation — the save must actually contain a reserve copy.** In the 22/23 saves Buur has
+only ONE record file-wide (the frozen first-team one); his reserve record first appears in the
+2023-07-01 save. So reserve players' attributes in the earlier snapshots are still their
+last first-team values and are **not recoverable** — there is no better number in the file.
+Treat pre-2023-07-01 reserve attributes as a floor, not a reading.
+
+**Corollary — no matching marker means USE THE ESTIMATE, not the frozen copy.** A player who
+is out on loan or has been sold keeps his frozen record under our marker long after he leaves
+the squad list, and serving it marks stale data `estimated=False` (i.e. "exact"), which is worse
+than an honest +/-1. `extract.build_database._pick(..., strict=True)` therefore returns None for
+attributes when no marker matches the player's CURRENT `club_tid`, so he falls through to
+`estimate_player` — the same global-record scrape every non-managed player already uses. Names
+keep the loose fallback (a departed player's name is still his name).
+
+Validated on Buur in `denamrk-23-end.fms`, four days before his true values were readable:
+
+```
+frozen "exact"  Pace=10 Dribbling=3 Tackling=10 Passing=10 Shooting=4
+ESTIMATED       Pace=16 Dribbling=8 Tackling=12 Passing=11 Shooting=5
+truth (07-01)   Pace=16 Dribbling=8 Tackling=12 Passing=12 Shooting=6
+```
+
+4 of 7 exact, rest within 1 — versus a frozen copy 6 out on Pace. Effect across the frem career:
+7 players per late-22/23 snapshot flip exact -> estimated (2 actively on loan, 4 ex-loanees who
+then transferred, 1 straight departure), and only 2 of 41 CURRENT-squad rows move. Payoff: Buur's
+loan-period development is now visible as Pace 10 -> 12 -> 16 instead of a flat, false 10.
+
+**The out-of-bounds clusters are OLD writes — do NOT widen the bounds** (tested 2026-08-19,
+frem). `denamrk-23-end.fms` holds three filler-delimited clusters (620 KB of ~90% `00`/`ff`
+between the first two, so they *are* trivially separable by filler if you want them):
+
+| cluster | offset | recs | tids |
+| --- | --- | --- | --- |
+| 0 (in `snapshot_bounds`) | 62.319–62.349 M | 67 | 39 |
+| 1 | 62.969–62.980 M | 38 | 38 |
+| 2 | 63.018–63.026 M | 32 | 32 |
+
+Ground truth settles which is live. Nordberg (tid 4240) against his in-game player screen
+(screenshot dated 11 May 2023, all 17 outfield attributes):
+
+```
+@62.328M  cluster 0, 1st copy  -> 14 of 17 attrs WRONG   (very stale)
+@62.341M  cluster 0, LAST copy ->  0 of 17 attrs wrong   <- exact, and what we pick
+@62.978M  cluster 1            ->  6 of 17 attrs wrong   (stale)
+```
+
+And across the whole squad, comparing each copy to the reading from a save **7 months older**
+(`denmark-23-mid-start-of-winter.fms`): of 38 players with copies both inside and outside the
+bounds, **35 outer copies are byte-identical to the 7-month-old reading** versus only 6 of the
+in-bounds-last copies. The outer clusters are stale squad-list writes that the game never
+reclaimed. So the existing "last copy within `snapshot_bounds`" rule is **correct**, and
+widening the window would actively regress it. 7.2's per-record freshness flag is not needed
+for this career — cluster position plus last-in-cluster is sufficient.
+
 ### 7.2 Freshness is per-record — no flag found (dead ends)
 
 Freshness is **per-record, not per-cluster** (within the same C1 region Gökhan's entry is

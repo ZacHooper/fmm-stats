@@ -11,6 +11,7 @@ import sys
 import unicodedata
 
 import duckdb
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -131,12 +132,72 @@ def phase_key(phase):
     return _PHASE_SENTINEL.get(phase, str(phase))
 
 
+# Legacy word-phases have no real date. Season is the campaign's END year (22/23 -> 2023),
+# so the campaign runs Jul(season-1) -> Jun(season); place the words at plausible points in
+# it so a mixed store still plots on a real time axis.
+_PHASE_WORD_MD = {"start": (-1, 7, 1), "mid": (0, 1, 1), "end": (0, 6, 30)}
+
+
+def phase_date(phase, season):
+    """A phase -> real `pd.Timestamp` for time-axis plotting.
+
+    Real 'YYYY-MM-DD' phases parse directly; the legacy words start/mid/end are synthesised
+    inside the season's campaign window so both conventions land on one continuous axis.
+    """
+    word = _PHASE_WORD_MD.get(str(phase))
+    if word is not None:
+        try:
+            yoff, mo, day = word
+            return pd.Timestamp(int(season) + yoff, mo, day)
+        except (TypeError, ValueError):
+            return pd.NaT
+    return pd.to_datetime(phase, errors="coerce")
+
+
+def add_phase_date(df, col="date", phase_col="phase", season_col="season"):
+    """Add a real-date column derived from (season, phase) and sort chronologically by it.
+
+    Use this for anything plotted over time: spacing snapshots by their in-game date stops
+    two saves taken days apart from looking like a full development step.
+    """
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+    seasons = out[season_col] if season_col in out else [None] * len(out)
+    out[col] = [phase_date(p, s) for p, s in zip(out[phase_col], seasons)]
+    return out.sort_values(col, kind="stable")
+
+
+def even_time_series(dates, values, n=24):
+    """Resample an irregular (dates, values) series onto `n` evenly-spaced time points.
+
+    Streamlit's LineChartColumn sparkline spaces every value equally, so a burst of saves
+    reads as a long plateau. Interpolating onto a uniform time grid first makes the
+    sparkline's shape proportional to elapsed in-game time.
+    """
+    d = pd.to_datetime(pd.Series(list(dates)), errors="coerce")
+    v = pd.Series(list(values), dtype="float64")
+    ok = d.notna() & v.notna()
+    d, v = d[ok], v[ok]
+    if len(d) < 2:
+        return [round(y, 1) for y in v.tolist()]
+    order = d.argsort()
+    d, v = d.iloc[order], v.iloc[order]
+    x = d.astype("int64").to_numpy()
+    if x[-1] == x[0]:
+        return [round(y, 1) for y in v.tolist()]
+    grid = [x[0] + (x[-1] - x[0]) * i / (n - 1) for i in range(n)]
+    return [round(float(y), 1) for y in np.interp(grid, x, v.to_numpy())]
+
+
 # --------------------------------------------------------------------------- selectors
 
 def labels_df():
     df = q("SELECT season, phase, label FROM staging.extracts")
     df["ord"] = df["phase"].map(phase_key)
-    return df.sort_values(["season", "ord"]).reset_index(drop=True)
+    df = df.sort_values(["season", "ord"]).reset_index(drop=True)
+    df["date"] = [phase_date(p, s) for p, s in zip(df["phase"], df["season"])]
+    return df
 
 
 def methods():
@@ -715,14 +776,21 @@ def match_stats_rows(club_tids):
 
 
 def primary_position_map(tids):
-    """tid -> primary position (max familiarity across labels)."""
+    """tid -> primary position (max familiarity across labels).
+
+    Aggregates across every snapshot, so it must exclude slices where the tid belonged to a
+    DIFFERENT person (recycling — see docs/IDS.md); otherwise a retired striker's positions
+    leak into the newgen who inherited his slot."""
     if not tids:
         return {}
     ph = ",".join("?" * len(tids))
-    df = q(f"""SELECT tid, arg_max(position, familiarity) AS pos
-               FROM staging.player_positions WHERE tid IN ({ph}) GROUP BY tid""",
-           [*tids])
-    return dict(zip(df["tid"], df["pos"]))
+    rows = q(f"""SELECT season, phase, tid, position, familiarity
+                 FROM staging.player_positions WHERE tid IN ({ph})""", [*tids])
+    rows = keep_current_person(rows)
+    if rows.empty:
+        return {}
+    best = rows.sort_values("familiarity").groupby("tid").last()
+    return dict(zip(best.index, best["position"]))
 
 
 def primary_position(season, phase, tid):
@@ -1019,6 +1087,415 @@ def player_injuries(season):
                            FROM staging.players WHERE season=? GROUP BY tid) nm ON nm.tid=i.tid
                 WHERE i.season=? AND i.phase=?
                 ORDER BY i.tid, i.seq""", [season, season, ph])
+
+
+def _has_table(name):
+    """True if staging.<name> exists — older stores predate some of the parsers."""
+    return bool(_conn().execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='staging' "
+        "AND table_name=?", [name]).fetchone())
+
+
+def _merge_ranges(rows, gap_days=8):
+    """Merge (start, end, weeks) tuples whose ranges touch or overlap (within `gap_days`).
+
+    Returns [(start, end, weeks)] sorted by start; `weeks` is the largest value any input row
+    claimed for the merged range (snapshots agree on a spell they both saw, so this is a
+    no-op for duplicates and only matters when one save saw a longer version of the spell)."""
+    out = []
+    for start, end, weeks in sorted(rows):
+        if out and (start - out[-1][1]).days <= gap_days:
+            prev = out[-1]
+            out[-1] = (prev[0], max(prev[1], end), max(prev[2], weeks))
+        else:
+            out.append((start, end, weeks))
+    return out
+
+
+# --------------------------------------------------------------------------- person identity
+# A tid is a SLOT, not a person: FM reuses a retired player's tid for a newgen (829 swaps in the
+# frem store, 1503 in bucaspor). Within ONE (season,phase) slice a tid is unambiguous, so every
+# single-snapshot view is already correct — but any CROSS-SAVE per-player join keyed on tid alone
+# splices two careers together. dob separates every recycled slot (2332 changes, 0 collisions,
+# 0 nulls), so the person key is (tid, dob), materialised as staging.persons/person_slices by the
+# loader. See docs/IDS.md.
+
+def _has_persons():
+    """True once the loader has built the identity bridge (older stores predate it)."""
+    return _has_table("persons") and _has_table("person_slices")
+
+
+def current_person_ids(tids):
+    """{tid: person_id} for the identity holding each tid in the NEWEST snapshot.
+
+    That is the person a caller means by "this player" — the one on screen now."""
+    tids = [int(t) for t in tids]
+    if not tids or not _has_persons():
+        return {}
+    ph = ",".join("?" * len(tids))
+    df = q(f"""SELECT tid, arg_max(person_id, {_psort_sql('last_seen')}) AS person_id
+               FROM staging.persons WHERE tid IN ({ph}) GROUP BY tid""", tids)
+    return dict(zip(df["tid"].astype(int), df["person_id"]))
+
+
+def person_history(tid):
+    """Every identity that has ever held `tid`, oldest first — the audit view for recycling.
+
+    Columns: person_id, dob, name, first_seen, last_seen, slices."""
+    cols = ["person_id", "dob", "name", "first_seen", "last_seen", "slices"]
+    if not _has_persons():
+        return pd.DataFrame(columns=cols)
+    return q(f"""SELECT person_id, dob, name, first_seen, last_seen, slices
+                 FROM staging.persons WHERE tid=?
+                 ORDER BY {_psort_sql('first_seen')}""", [int(tid)])
+
+
+def keep_current_person(df):
+    """Drop rows of `df` whose (season, phase, tid) belonged to a DIFFERENT person than the one
+    holding that tid now. `df` needs season/phase/tid columns; returned unchanged if the store
+    has no identity bridge, or if no tid in the frame was ever recycled (the common case)."""
+    if df is None or df.empty or not _has_persons():
+        return df
+    if not {"season", "phase", "tid"} <= set(df.columns):
+        return df
+    tids = [int(t) for t in pd.unique(df["tid"])]
+    if not tids:
+        return df
+    ph = ",".join("?" * len(tids))
+    recycled = q(f"""SELECT tid FROM staging.persons WHERE tid IN ({ph})
+                     GROUP BY tid HAVING COUNT(*) > 1""", tids)
+    if recycled.empty:                       # nothing recycled -> nothing to filter
+        return df
+    hot = set(recycled["tid"].astype(int))
+    cur = current_person_ids(sorted(hot))
+    ph2 = ",".join("?" * len(hot))
+    slices = q(f"""SELECT season, phase, tid, person_id FROM staging.person_slices
+                   WHERE tid IN ({ph2})""", sorted(hot))
+    owner = {(int(r.season), r.phase, int(r.tid)): r.person_id for r in slices.itertuples()}
+    def ok(sn, phse, t):
+        t = int(t)
+        if t not in hot:
+            return True
+        who = owner.get((int(sn), phse, t))
+        return who is None or who == cur.get(t)
+    return df[[ok(a, b, c) for a, b, c in zip(df["season"], df["phase"], df["tid"])]]
+
+
+def _identity_snapshots(tid):
+    """The (season, phase) keys where `tid` was the SAME PERSON it is now.
+
+    Keyed on dob via the identity bridge: 3733 is "Tab Ramos" (b.1966, a free agent) in the
+    21/22 saves and "Hervé Buur" (b.2006) at Frem from 22/23, and a career-wide union keyed only
+    on tid would splice their timelines. Falls back to the old name-match on stores built before
+    the bridge existed. Returns None when the store has nothing for the tid (callers then fall
+    back to no filtering)."""
+    if _has_persons():
+        pid = current_person_ids([tid]).get(int(tid))
+        if pid is not None:
+            df = q("SELECT season, phase FROM staging.person_slices WHERE tid=? AND person_id=?",
+                   [int(tid), pid])
+            if not df.empty:
+                return {(int(r.season), r.phase) for r in df.itertuples()}
+    who = q("SELECT season, phase, name FROM staging.players WHERE tid=?", [int(tid)])
+    if who.empty:
+        return None
+    who = add_phase_date(who)
+    current = who.iloc[-1]["name"]
+    keep = who[who["name"] == current]
+    return {(int(r.season), r.phase) for r in keep.itertuples()}
+
+
+def _same_identity(df, keys):
+    """Keep only rows whose (season, phase) belongs to `keys` (see _identity_snapshots)."""
+    if keys is None or df.empty:
+        return df
+    return df[[(int(sn), ph) in keys for sn, ph in zip(df["season"], df["phase"])]]
+
+
+def player_injury_spells(tid):
+    """Career injury timeline for one player, unioned across EVERY snapshot.
+
+    Each save's weekly Player-Progress series only spans {season-1, season}, so a spell an
+    early save recorded is simply absent from later ones — and a loaned-in player's progress
+    data leaves with them when the loan ends. Neither save is wrong; they just see different
+    windows. So we union every snapshot's spells and merge the overlaps, which is the only way
+    to get a player's full injury history out of a set of saves.
+
+    Columns: spell_start, spell_end, weeks_out, days. Empty frame if nothing is recorded."""
+    cols = ["spell_start", "spell_end", "weeks_out", "days"]
+    if not _has_table("player_injuries"):
+        return pd.DataFrame(columns=cols)
+    df = _same_identity(
+        q("SELECT season, phase, spell_start, spell_end, weeks_out "
+          "FROM staging.player_injuries WHERE tid=?", [int(tid)]), _identity_snapshots(tid))
+    if df.empty:
+        return pd.DataFrame(columns=cols)
+    rows = [(pd.to_datetime(r.spell_start).date(), pd.to_datetime(r.spell_end).date(),
+             int(r.weeks_out or 0)) for r in df.itertuples()]
+    merged = _merge_ranges(rows)
+    return pd.DataFrame([{"spell_start": a, "spell_end": b, "weeks_out": w,
+                          "days": (b - a).days + 1} for a, b, w in merged])
+
+
+def player_loan_spells(tid):
+    """Loan history for one player, from the three sources we can trust, best-first.
+
+    1. **`staging.player_loans`** — EXACT weekly windows for loans OUT, from bit 5 of the
+       Player-Progress status field. Unioned across snapshots and merged, like injuries.
+    2. **Career history** (`player_history_seasons.fee = 'loan'`) — a season at a NAMED club
+       with apps/goals, back through the player's whole career. Only some snapshots parsed it
+       fully, so take the version with the most rows for this player.
+    3. **`players.loaned_in`** — a player loaned IN to us, bounded by the snapshot dates that
+       observed the loan.
+
+    (1) and (2) describe the same event from different angles when they overlap, so a history
+    loan that covers an exact spell is folded into it — exact dates from (1), club and
+    appearances from (2) — rather than listed twice.
+
+    `bounded` is True when the dates are approximate (a season window or snapshot bounds) and
+    False for the exact weekly spells; `ongoing` marks a loan still running in the newest
+    snapshot. Columns: kind ('out'/'history'/'in'), club, season, start, end, apps, goals,
+    bounded, ongoing."""
+    cols = ["kind", "club", "season", "start", "end", "apps", "goals", "bounded", "ongoing"]
+    exact, hist, out = [], [], []
+
+    if _has_table("player_loans"):
+        df = _same_identity(
+            q("SELECT season, phase, spell_start, spell_end, weeks "
+              "FROM staging.player_loans WHERE tid=?", [int(tid)]), _identity_snapshots(tid))
+        if not df.empty:
+            exact = _merge_ranges([(pd.to_datetime(r.spell_start).date(),
+                                    pd.to_datetime(r.spell_end).date(), int(r.weeks or 0))
+                                   for r in df.itertuples()], gap_days=22)
+
+    if _has_table("player_history_seasons"):
+        h = q("""SELECT h.phase, h.season, h.end_year, h.club_tid, h.fee, h.apps, h.goals,
+                        cl.name AS club
+                 FROM staging.player_history_seasons h
+                 LEFT JOIN staging.clubs cl ON (cl.season, cl.phase, cl.tid)
+                                             = (h.season, h.phase, h.club_tid)
+                 WHERE h.tid=?""", [int(tid)])
+        if not h.empty:
+            h = h[h["phase"] == h.groupby("phase").size().idxmax()]   # most complete parse
+            for r in h[h["fee"] == "loan"].itertuples():
+                y = int(r.end_year)
+                hist.append({"kind": "history", "club": r.club or f"club {r.club_tid}",
+                             "season": y, "start": datetime.date(y - 1, 7, 1),
+                             "end": datetime.date(y, 6, 30), "apps": r.apps, "goals": r.goals,
+                             "bounded": True, "ongoing": False})
+
+    # The weekly grid runs to the end of the season, so a spell in force at the save date
+    # extends past it — its end is SCHEDULED, not observed. Flag those as ongoing.
+    lbl = labels_df()
+    newest = lbl["date"].max().date() if not lbl.empty and lbl["date"].notna().any() else None
+
+    # an exact spell and a history row describing the same loan -> one row, best of both
+    for a, b, _weeks in exact:
+        match = next((x for x in hist if x["start"] <= b and a <= x["end"]), None)
+        if match:
+            hist.remove(match)
+        out.append({"kind": "out", "club": (match or {}).get("club"),
+                    "season": b.year + 1 if b.month > 6 else b.year, "start": a, "end": b,
+                    "apps": (match or {}).get("apps"), "goals": (match or {}).get("goals"),
+                    "bounded": False, "ongoing": bool(newest and b >= newest)})
+    out.extend(hist)
+
+    if _conn().execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
+            "AND table_name='players' AND column_name='loaned_in'").fetchone():
+        ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
+        obs = q(f"SELECT season, phase, loaned_in, parent_club FROM staging.players "
+                f"WHERE tid=? AND club_tid IN ({ph}) AND NOT is_staff", [int(tid)])
+        if not obs.empty:
+            obs = add_phase_date(obs)
+            latest = obs["date"].max()
+            run = None
+            for r in obs.itertuples():           # runs of consecutive loaned-in observations
+                if r.loaned_in:
+                    if run is None:
+                        run = {"kind": "in", "club": r.parent_club, "season": int(r.season),
+                               "start": r.date.date(), "end": r.date.date(), "apps": None,
+                               "goals": None, "bounded": True, "ongoing": False}
+                    else:
+                        run["end"] = r.date.date()
+                elif run is not None:
+                    out.append(run); run = None
+            if run is not None:
+                # loaned in as of the newest snapshot — the spell hasn't been seen to end
+                run["ongoing"] = run["end"] == latest.date()
+                out.append(run)
+
+    if not out:
+        return pd.DataFrame(columns=cols)
+    return pd.DataFrame(out, columns=cols).sort_values("start").reset_index(drop=True)
+
+
+# A player only counts as a peer at a role if he can actually play the position: familiarity
+# below this is a makeshift, not a right-back. (Ratings are ALSO scaled by the familiarity
+# curve, so a 10/20 is both admitted and discounted.)
+MIN_ROLE_FAMILIARITY = 10
+
+
+def _eff_role_cte(role_param="?", fam_param="?", tid_pred=""):
+    """CTE giving one familiarity-ADJUSTED rating per (snapshot, player) at a role.
+
+    A role can be reached from several positions (LB from DL or DML), so take the best
+    position: rating is fixed per role, the multiplier comes from that position's familiarity.
+    This is the same eff = rating x multiplier the rest of the dashboard ranks on — without it
+    a DMC with 10/20 at DR outranks every actual right-back on raw attributes alone."""
+    curve, floor = familiarity_params()
+    mult = _mult_sql("pp.familiarity", curve, floor)
+    return f"""
+        SELECT r.season, r.phase, r.tid, r.role,
+               MAX(r.rating * {mult}) AS eff, MAX(pp.familiarity) AS fam
+        FROM v_player_ratings r
+        JOIN staging.player_positions pp USING (season, phase, tid)
+        JOIN staging.position_role_map prm
+          ON prm.position = pp.position AND prm.role = r.role
+        WHERE r.method = ?
+          {"AND r.role = " + role_param if role_param else ""}
+          AND pp.familiarity >= {fam_param}
+          {tid_pred}
+        GROUP BY 1, 2, 3, 4"""
+
+
+def league_options():
+    """Leagues in our nation that have clubs, strongest first — the tier ladder, so a benchmark
+    can be set to the division above (or below). Columns: cid, name, reputation, clubs.
+
+    `reputation` is a migration-added column; on an un-migrated store it's absent, so fall back
+    to ordering by club count (still deterministic, just not tier-ordered)."""
+    has_rep = bool(_conn().execute(
+        "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
+        "AND table_name='leagues' AND column_name='reputation'").fetchone())
+    rep = "any_value(l.reputation)" if has_rep else "NULL"
+    order = "reputation DESC NULLS LAST" if has_rep else "clubs DESC"
+    return q(f"""
+        WITH ournation AS (
+            SELECT any_value(nation_id) AS nid FROM staging.leagues
+            WHERE cid IN (SELECT league_cid FROM staging.league_members
+                          WHERE source='club_league' AND club_tid=?))
+        SELECT l.cid, any_value(l.name) AS name, {rep} AS reputation,
+               COUNT(DISTINCT lm.club_tid) AS clubs
+        FROM staging.leagues l
+        JOIN staging.league_members lm
+          ON lm.league_cid = l.cid AND lm.source='club_league'
+        WHERE l.name IS NOT NULL
+          AND l.nation_id = (SELECT nid FROM ournation)
+        GROUP BY l.cid
+        ORDER BY {order}""", [MANAGED_CLUB_TID])
+
+
+def role_benchmarks(role, method, scope, league_cid=None, min_fam=None):
+    """Per-snapshot benchmark ratings at `role`, so a trajectory can be read against the
+    standard it competes with. All ratings are familiarity-adjusted (see `_eff_role_cte`).
+
+    `scope='squad'`  — every eligible player at our clubs.
+    `scope='league'` — ONE ROW PER CLUB: that club's best eligible player at the role. The
+        median is then "the typical STARTING <role> in this division", which is the question
+        you actually ask of a loan target or a promotion candidate. Taking a median over every
+        squad member instead would measure bench depth and would swing with squad sizes.
+        `league_cid=None` follows OUR division at each snapshot (so the line steps up when
+        we're promoted); pass a cid to pin it to one division across the whole timeline.
+
+    Columns: season, phase, date, best, median, n (peers — clubs for 'league', players for
+    'squad')."""
+    min_fam = MIN_ROLE_FAMILIARITY if min_fam is None else min_fam
+    eff = _eff_role_cte()
+    if scope == "squad":
+        ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
+        sql = f"""
+            WITH eff AS ({eff}),
+            pop AS (SELECT season, phase, tid FROM staging.players
+                    WHERE club_tid IN ({ph}) AND NOT is_staff)
+            SELECT e.season, e.phase, MAX(e.eff) AS best,
+                   MEDIAN(e.eff) AS median, COUNT(*) AS n
+            FROM eff e JOIN pop USING (season, phase, tid)
+            GROUP BY 1, 2"""
+        params = [method, role, min_fam]
+    else:
+        if league_cid is None:
+            league_pred = """lm.league_cid = (SELECT any_value(u.league_cid)
+                                              FROM staging.league_members u
+                                              WHERE u.source='club_league' AND u.club_tid=?
+                                                AND u.season=lm.season AND u.phase=lm.phase)"""
+            extra = [MANAGED_CLUB_TID]
+        else:
+            league_pred = "lm.league_cid = ?"
+            extra = [int(league_cid)]
+        sql = f"""
+            WITH eff AS ({eff}),
+            pop AS (
+                SELECT p.season, p.phase, p.tid, p.club_tid
+                FROM staging.players p
+                JOIN staging.league_members lm
+                  ON (lm.season, lm.phase, lm.club_tid) = (p.season, p.phase, p.club_tid)
+                 AND lm.source='club_league'
+                WHERE NOT p.is_staff AND {league_pred}),
+            per_club AS (
+                SELECT e.season, e.phase, pop.club_tid, MAX(e.eff) AS eff
+                FROM eff e JOIN pop USING (season, phase, tid)
+                GROUP BY 1, 2, 3)
+            SELECT season, phase, MAX(eff) AS best, MEDIAN(eff) AS median, COUNT(*) AS n
+            FROM per_club GROUP BY 1, 2"""
+        params = [method, role, min_fam, *extra]
+    df = q(sql, params)
+    return add_phase_date(df) if not df.empty else df
+
+
+def squad_role_series(tids, method, min_fam=1):
+    """Familiarity-adjusted rating over time at EVERY role, for a set of players — one query
+    for a whole squad, so the growth table can track each player at his own primary role.
+
+    Because the multiplier moves with familiarity, a player who *learns* a position gains
+    rating here even with static attributes — which is real development, and invisible in the
+    raw weighted rating. Columns: tid, season, phase, date, role, rating, fam."""
+    cols = ["tid", "season", "phase", "date", "role", "rating", "fam"]
+    if not tids:
+        return pd.DataFrame(columns=cols)
+    ph = ",".join("?" * len(tids))
+    cte = _eff_role_cte(role_param="", tid_pred=f"AND r.tid IN ({ph})")   # no role filter
+    df = q(f"""WITH eff AS ({cte})
+               SELECT tid, season, phase, role, eff AS rating, fam FROM eff""",
+           [method, min_fam, *[int(t) for t in tids]])
+    df = keep_current_person(df)      # a recycled tid must not inherit its predecessor's curve
+    return add_phase_date(df) if not df.empty else pd.DataFrame(columns=cols)
+
+
+def squad_role_ranking(season, phase, role, method, min_fam=None):
+    """Our squad ranked at `role` in one snapshot by FAMILIARITY-ADJUSTED rating, and limited
+    to players who can genuinely play the position (see MIN_ROLE_FAMILIARITY).
+
+    Ranking on raw attributes instead puts a 20-familiarity DMC top of the right-backs.
+    Columns: tid, name, rating (effective), fam — best first."""
+    min_fam = MIN_ROLE_FAMILIARITY if min_fam is None else min_fam
+    ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
+    return q(f"""
+        WITH eff AS ({_eff_role_cte()})
+        SELECT e.tid, any_value(p.name) AS name, MAX(e.eff) AS rating, MAX(e.fam) AS fam
+        FROM eff e
+        JOIN staging.players p USING (season, phase, tid)
+        WHERE e.season=? AND e.phase=? AND p.club_tid IN ({ph}) AND NOT p.is_staff
+        GROUP BY e.tid
+        ORDER BY rating DESC""", [method, role, min_fam, season, phase])
+
+
+def player_role_series(tids, role, method, min_fam=1):
+    """Familiarity-adjusted rating over time at one role, for one or more players — the same
+    measure the benchmarks use, so lines on one chart are comparable.
+
+    `min_fam` defaults to 1 here (not MIN_ROLE_FAMILIARITY): for a named line we want the
+    player's actual trajectory even in a role he's still learning; the multiplier already
+    shows the cost. Columns: tid, season, phase, date, rating, fam."""
+    if not tids:
+        return pd.DataFrame(columns=["tid", "season", "phase", "date", "rating", "fam", "role"])
+    ph = ",".join("?" * len(tids))
+    df = q(f"""WITH eff AS ({_eff_role_cte()})
+               SELECT tid, season, phase, role, eff AS rating, fam FROM eff
+               WHERE tid IN ({ph})""",
+           [method, role, min_fam, *[int(t) for t in tids]])
+    df = keep_current_person(df)      # a recycled tid must not inherit its predecessor's curve
+    return add_phase_date(df) if not df.empty else df
 
 
 def our_penalties(seasons=None):

@@ -50,12 +50,15 @@ Set `sys.path.insert(0,'dashboard'); import db`. `S = <season end-year>`, `P = <
 4. **Key players / threats** — `eff = db.effective_table(S,P,M); e = eff[eff.club_tid==OPP]`; take
    primary-position row per tid, sort by `eff`, note `pctile_league` (tactic Fit) and `level_league`
    (quality %ile — immersion-safe). High-percentile positions = their danger areas; watch for a
-   lone standout vs a big drop-off to the next man.
+   lone standout vs a big drop-off to the next man. **Names are now resolved for EVERY club** (the
+   ETL runs the id-resolver — verified 100% named), so pull `name` and use real names: build
+   `nm = dict(db.q(f"SELECT tid,name FROM staging.players WHERE season={S} AND phase='{P}' AND club_tid={OPP}").values)`
+   and `e['player'] = e.tid.map(nm)`.
 5. **Standout individuals** — simplest from the **`team_attribute_frame`** you already pulled (it
    carries every attribute + `position` + `eff`): for each attribute, `sl.loc[sl[A].idxmax()]`
    over the opponent rows. (`db.club_attributes(S,P,[OPP])` also works — 3 args, no method, same
-   Capitalised columns.) Flags e.g. "a CB with Aerial 14 / Strength 13" (set-piece + duel threat),
-   "an ST at 88 %ile" (their one real danger).
+   Capitalised columns.) Flags e.g. "Wagué, a CB with Aerial 16 / Strength 15" (set-piece + duel
+   threat), "their ST at 88 %ile" (their one real danger) — name the player now that names resolve.
 
 ### 6. Tactic recommendation — consult our playbook (THE career-specific value-add)
 After profiling, **recommend which of our methods to run**, keyed to
@@ -88,8 +91,10 @@ Gotchas that cost time:
 - **`phase` is a date now** — resolve the latest with `max(phase)`, never assume `'start'`.
 - `db.club_attributes(season, phase, club_tids)` takes **3 args, no method**.
 - In `db.q`, **quote `phase`** inside f-strings: `f"... phase='{P}' ..."`.
-- opponent `name` is NULL → don't try to label players; map `tid → primary position` via
-  `staging.player_positions` (`arg_max(position, familiarity)`) and describe by position.
+- opponent `name` **resolves now** (ETL id-resolver) → join `staging.players` for `name` and use it.
+  Still map `tid → primary position` via `staging.player_positions` (`arg_max(position, familiarity)`)
+  to label each player's role. (Edge case: a handful of match participants not in any squad snapshot —
+  ~28 tids in `match_player_stats` — stay unnamed; that's a join miss, not a resolver gap.)
 - Matches **do** parse for the Frem winter save (H2H present); a *day-1* start save has 0 matches
   (no H2H / league yet) — fall back to the formation/style-only briefing (see "No-data opponents").
 ```python
@@ -109,12 +114,16 @@ eff = db.effective_table(S, P, M); e = eff[eff.club_tid == OPP]              # k
 sl  = taf[taf.club_tid == OPP]                                              # standouts: sl.loc[sl['Pace'].idxmax()]
 pos = db.q(f"SELECT tid, arg_max(position,familiarity) AS pos FROM staging.player_positions "
            f"WHERE season={S} AND phase='{P}' GROUP BY tid")                # tid -> position
+nm  = dict(db.q(f"SELECT tid,name FROM staging.players WHERE season={S} AND phase='{P}' "
+                f"AND club_tid={OPP}").values)                             # tid -> name (resolves for ALL clubs now)
+# e['player'] = e.tid.map(nm); sl['player'] = sl.tid.map(nm)  — use real names in the report
 ```
 
 ## Hard limitations — state them in the report
 - **Opponent tactics/formation are NOT in the save** → rely on the user's in-game scout input.
-- **Opponent player names are unavailable** (only our own squad is named) → describe key players
-  by **position + standout attribute + league percentile**, not by name.
+- **Opponent player names ARE resolved** (the ETL runs the id-resolver — every club is named, not
+  just ours) → **use real names** alongside position + percentile. (A few match participants absent
+  from any squad snapshot stay unnamed — a minor join miss.)
 - **Opponent attributes are model estimates (±1)** for technical/mental (Pace/physical are exact;
   check the `*_est` flags). Treat as directional, not precise.
 - League-membership counts over-report (resolved across labels) — ignore for a single scout.
@@ -136,7 +145,7 @@ every claim on the pulled data; don't invent numbers.
 ```markdown
 # 📋 Opposition briefing — <Club> (<H or A> this week)
 *Their scout report: **<formation>**, **<style>**. Caveats: opponent attributes are model
-estimates (±1) except pace/physicals; opponent names aren't in our data, so key players are
+estimates (±1) except pace/physicals; key players are named (names resolve for every club) and
 profiled by position + league percentile.*
 
 ## Verdict
@@ -160,8 +169,8 @@ flat 4-4-2 leaves, the channels behind weak fullbacks, either side of a lone piv
 ## Where we win
 - <units/attributes we beat them on + space their shape concedes.>
 
-## Key men to watch (by position — no names in our data)
-- **<POS>** — <standout attribute + league percentile / role>
+## Key men to watch (named, by position)
+- **<Name> (<POS>)** — <standout attribute + league percentile / role>
 
 ## Game plan — tactic recommendation
 - **Recommended method:** **`<method>`** — <why, keyed to the cheatsheet: favourite/underdog +
@@ -182,6 +191,7 @@ Them→Defense) and the head-to-head drilldown. Switch the **method** selector t
 preview our XI's Fit for this plan.
 ```
 
-Keep it decision-useful and honest about the estimate/name limitations. One opponent at a time
+Keep it decision-useful and honest about the estimate limitations (attributes ±1; tactics not in
+the save). One opponent at a time
 (opponent tactics vary, so a whole-season sweep would need each team's in-game scout report as
 input). Offer at the end to scout the next opponent.

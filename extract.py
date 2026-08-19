@@ -106,19 +106,57 @@ def parse_label(label):
     raise ValueError(f"unrecognised label {label!r}")
 
 
-def build_database(mm, season, info, marker=A.CLUB_MARKER):
+def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
     """Whole-DB player rows via staging + join. Returns (players, club_names).
     `info` is the shared player-info spine ({tid: identity}) scraped once in main().
-    `marker` is the managed club's squad marker (careers.Career.club_marker)."""
+    `markers` are the managed club's squad markers (careers.Career.squad_markers): the
+    first team plus, when the career has one, the reserve side. Both lists must be scanned
+    — a player in the reserves has a live record only under the RESERVE marker, and the
+    copy under the first-team marker is frozen at the day he dropped out of that list."""
+    if isinstance(markers, (bytes, bytearray)):          # back-compat: a single marker
+        markers = (bytes(markers),)
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
     status = S.scrape_contract_status(mm, info)   # {tid: squad-status code}
     contracts = S.scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
     # names + exact attributes for the managed squad (snapshot), incl. loaned-IN players
-    bounds = A.snapshot_bounds(mm, marker=marker)
-    own = A.own_squad_full(mm, *bounds, marker=marker)   # {tid: {name, loaned_in, parent_club_tid}}
+    bounds = A.squad_snapshot_bounds(mm, markers)
+    club_of_marker = {m: int.from_bytes(m[:2], "little") for m in markers}
+    managed_tid = club_of_marker[markers[0]]             # the first team
+
+    def _pick(per_marker, tid, strict=False):
+        """(marker, entry) under the club the player is CURRENTLY in.
+
+        Players sit in both squad lists after moving between them; the current club breaks
+        the tie and is what makes the reserve copy win for a reserve player.
+
+        `strict` decides what happens when NO marker matches the current club — i.e. the
+        player has left both our lists (sold, released, or out on loan) and the only copies
+        are frozen at the day he left. For NAMES that copy is still fine, so the loose form
+        falls back to the last one found. For ATTRIBUTES it is actively wrong — verified on
+        Hervé Buur, whose frozen copy read Pace 10 four days before the true value of 16,
+        while the ordinary estimated scrape (the one every non-managed player already uses)
+        got 16 exactly. So the strict form returns None and lets the caller fall through to
+        estimate_player, trading a false 'exact' for an honest +/-1."""
+        if not per_marker:
+            return None, None
+        cur = (info.get(tid) or {}).get("club_tid")
+        for m, v in per_marker.items():
+            if club_of_marker[m] == cur:
+                return m, v
+        if strict:
+            return None, None
+        m = list(per_marker)[-1]
+        return m, per_marker[m]
+
+    per_tid = {}
+    for m in markers:
+        for tid, v in A.own_squad_full(mm, *bounds, marker=m).items():
+            per_tid.setdefault(tid, {})[m] = v
+    own, own_marker = {}, {}
+    for tid, per in per_tid.items():
+        own_marker[tid], own[tid] = _pick(per, tid)
     own_names = {t: v["name"] for t, v in own.items()}
-    managed_tid = int.from_bytes(marker[:2], "little")   # the club these players play for
 
     # whole-DB name resolver: first/last name ids -> strings. Orient first-vs-surname
     # tables against the managed squad (we already have their snapshot names).
@@ -131,19 +169,20 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
 
     own_exact = {}
     for tid in own_names:
-        r = A.attr_record(mm, tid, bounds=bounds, marker=marker)
+        _, r = _pick(A.attr_records(mm, tid, bounds=bounds, markers=markers), tid, strict=True)
         if r:
             own_exact[tid] = {"attrs": A.decode(r["attrs"]),
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
                               "value": r["value"]}
 
-    # career (season-by-season) history: {tid: {origin_club_tid, seasons, ...}}. Sid-ordered
-    # records aligned to players via history.build (see fmparser/history.py). Origin club (the
-    # first career row) is the Athletic-Bilbao eligibility key. Computed before club-name
-    # resolution so the (often obscure) origin/history clubs get named too. Never fatal: if
-    # the table can't be located for a save, extraction proceeds without history.
+    # career (season-by-season) history: {tid: {origin_club_tid, seasons, ...}}. The history
+    # slab is a forest of linked lists and each player's chain head is stored in his ATTRIBUTE
+    # record (u32 @ P-38) — hence `attrs` here; the link is exact, not a positional alignment.
+    # Origin club (the chain head's club) is the Athletic-Bilbao eligibility key. Computed
+    # before club-name resolution so the (often obscure) origin/history clubs get named too.
+    # Never fatal: if the slab can't be located for a save, extraction proceeds without history.
     try:
-        histories = H.build(mm, info)
+        histories = H.build(mm, info, attrs)
     except Exception as e:                       # locator/enumeration failure -> skip history
         print(f"  WARNING: history table not parsed ({e}); continuing without history")
         histories = {}
@@ -194,7 +233,8 @@ def build_database(mm, season, info, marker=A.CLUB_MARKER):
         loaned_in = bool(li and li["loaned_in"])
         # A loaned-IN player plays for us: present them under the managed club (so squad /
         # ratings / percentiles include them), but keep their real owner in parent_club_tid.
-        club_tid = managed_tid if loaned_in else p["club_tid"]
+        club_tid = (club_of_marker.get(own_marker.get(tid), managed_tid)
+                    if loaned_in else p["club_tid"])
         parent_tid = li["parent_club_tid"] if loaned_in else None
         c = contracts.get(tid)                  # contract detail (wage + expiry); may be None
         row = {"tid": tid, "name": full_name(tid, p),
@@ -349,7 +389,7 @@ def main():
 
     info = S.scrape_players(mm)            # player-info spine (scraped once, shared)
     players, staff, club_names, club_leagues, histories = build_database(
-        mm, season, info, career.club_marker)
+        mm, season, info, career.squad_markers)
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
@@ -397,9 +437,12 @@ def main():
     snap_season, snap_phase = season_phase(season)   # authoritative DB grain (phase = date)
     squad_tids = [t for t, p in players.items()
                   if p["club_tid"] in (career.managed_tid, career.reserve_tid)]
-    injuries = (INJ.extract_injuries(mm, squad_tids, snap_season)
-                if snap_season is not None else {})
+    # the same weekly series also carries an ON-LOAN bit (bit 5), which gives exact loan
+    # windows for players we loan OUT — see fmparser/injuries.py for the decode + validation.
+    injuries, loans = (INJ.extract_availability(mm, squad_tids, snap_season)
+                       if snap_season is not None else ({}, {}))
     dump("injuries.json", {str(t): sp for t, sp in injuries.items()}, indent=None)
+    dump("loans.json", {str(t): sp for t, sp in loans.items()}, indent=None)
     write_players_csv(os.path.join(dest, "players.csv"), players)
     write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)
 
@@ -420,7 +463,8 @@ def main():
                    "players_with_history": len(histories),
                    "staff": len(staff), "competitions": len(competitions),
                    "leagues": len(leagues), "clubs_named": len(club_names),
-                   "injured_players": len(injuries)},
+                   "injured_players": len(injuries),
+                   "loaned_out_players": len(loans)},
     }
     dump("summary.json", summary)
 
