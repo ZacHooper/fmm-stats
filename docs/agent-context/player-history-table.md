@@ -138,10 +138,18 @@ for the debut season itself; we start at the first stored row. Fugl shows three 
 seasons in game (2018/19–2020/21) and two from the table. Apps are 0 there, so totals and every
 played season are unaffected.
 
-Unrelated bug surfaced by this work: `reference.resolve_club` takes the FIRST shape-matching
-record, so tid 334 (B.93) resolves to the award "Player of the Month". `club_record()` already
-has the discriminator — real clubs carry a league and country, the award has neither. Tracked
-separately; do not mistake it for a history bug.
+**FIXED, and it was not a history bug: club naming.** Erenbjerg's club rendered as the award
+"Player of the Month", and Thrane's 2021/22 club looked *missing*. Both were
+`reference._valid_name` requiring >= 2 alphabetic characters — which rejects the short name
+"B.93", so the whole real club record was discarded and only an unrelated award record sharing
+the tid survived. Short names are abbreviations and are allowed one letter (`min_alpha=1` for
+the short name only); long names keep the stricter guard. Exactly 5 of 4,836 clubs change, all
+Danish/Faroese "B.xxxx" sides: 331 B1908, 332 B1909, 333 B1913, 334 B.93, 586 B68. Thrane's
+2021/22 row was never missing — it is club 2604 = **B36**, which now names correctly and
+matches his screenshot exactly. Note that a club can also have a *second* shape-matching record
+(346 Frem has an award record "Team of the Week" at 13.77M); Frem resolves correctly only
+because its real record comes first in the file, so first-match ordering is still a latent
+hazard — `club_record()` has the discriminator (real clubs carry league + country).
 
 ### 8. REGRESSION ANCHORS (denmark-24-start.fms)
 | player | tid | sid | chain head | check |

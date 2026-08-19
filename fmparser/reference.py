@@ -16,14 +16,22 @@ NATIONS = {173: "Turkey"}
 
 
 # ---------------- clubs ----------------
-def _valid_name(b):
+def _valid_name(b, min_alpha=2):
+    """Decode a length-prefixed name, or None if it can't be one.
+
+    `min_alpha` guards against random bytes that happen to decode. It is 2 for LONG names,
+    but SHORT names are abbreviations and are legitimately allowed a single letter — real
+    example: B.93 (tid 334), whose short name "B.93" was being rejected, which threw away the
+    club record entirely and left only an unrelated "Player of the Month" award record that
+    shares the tid. That surfaced as an award appearing as a player's club in career history.
+    """
     try:
         txt = b.decode("utf-8")
     except UnicodeDecodeError:
         return None
     if any(ord(c) < 0x20 for c in txt):
         return None
-    if sum(c.isalpha() for c in txt) < 2:
+    if sum(c.isalpha() for c in txt) < min_alpha:
         return None
     return txt
 
@@ -32,7 +40,7 @@ def _short_after(mm, j):
     for pad in (0, 1):
         ln = int.from_bytes(mm[j + pad:j + pad + 4], "little")
         if 2 <= ln <= 60:
-            sh = _valid_name(mm[j + pad + 4:j + pad + 4 + ln])
+            sh = _valid_name(mm[j + pad + 4:j + pad + 4 + ln], min_alpha=1)
             if sh:
                 return sh
     return None
