@@ -483,18 +483,22 @@ def effective_table(season, phase, method):
 @st.cache_data(show_spinner=False)
 def _effective_cached(season, phase, method, curve, floor, ver):
     mult = _mult_sql("pp.familiarity", curve, floor)
+    ord_now = f"{int(season):04d}" + phase_key(phase)
     sql = f"""
-    -- resolve each club's league from ANY label that has it (light-results are sparse at
-    -- season start, so 2023-start borrows the club's 2022 league). Leagues are stable
-    -- within a season; picks the latest label that carries a mapping.
+    -- club -> league AS AT the requested snapshot. Every snapshot's mapping is an exact read
+    -- of each club's own league field (+158 in the club record — see
+    -- docs/agent-context/day1-league-membership.md), so resolve at (season, phase) and only
+    -- fall back to the most recent EARLIER snapshot for a club this one didn't carry.
+    -- Do NOT take the newest mapping store-wide: that leaks a later season's promotions and
+    -- relegations back into historical slices, so a 2022 vs-league percentile would be ranked
+    -- against the club's 2024 division.
     WITH cl AS (
         SELECT club_tid, arg_max(league_cid, ord) AS league_cid
         FROM (SELECT club_tid, league_cid,
-                     LPAD(CAST(season AS VARCHAR), 4, '0') ||
-                     CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                WHEN 'end' THEN '0000-00-02' ELSE phase END AS ord
+                     LPAD(CAST(season AS VARCHAR), 4, '0') || {_psort_sql()} AS ord
               FROM staging.league_members
               WHERE source='club_league' AND league_cid IS NOT NULL)
+        WHERE ord <= ?
         GROUP BY club_tid
     ),
     lgn AS (SELECT cid, any_value(nation) AS nation FROM staging.leagues
@@ -533,7 +537,7 @@ def _effective_cached(season, phase, method, curve, floor, ver):
         COUNT(*) OVER (PARTITION BY position, league_cid) AS n_league
     FROM base
     """
-    return _conn().execute(sql, [method, season, phase]).df()
+    return _conn().execute(sql, [ord_now, method, season, phase]).df()
 
 
 def eligibility_frame(season, phase):

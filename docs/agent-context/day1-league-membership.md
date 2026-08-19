@@ -41,6 +41,37 @@ proxy but not a division label.
 
 **SHIPPED (commit d0f60af):** `reference.club_record()` reads name + league code (+158) + country;
 `reference.league_name()` resolves the code→name (relaxed UID cap + digit-initial names). `extract.py`
-merges club-record leagues into club→league and writes `club_league.json`; `load_duckdb.py` loads it
-(source='club_league'); the dashboard resolves on it. Verified: Frem day-1 → full 12-club 3. Division
-pool + vs-league percentiles. See [[etl-duckdb-dashboard]].
+writes `club_league.json`; `load_duckdb.py` loads it (source='club_league'); the dashboard resolves on
+it. Verified: Frem day-1 → full 12-club 3. Division pool + vs-league percentiles.
+See [[etl-duckdb-dashboard]].
+
+**THE CLUB RECORD IS THE ONLY SOURCE — never "merge" it with anything (fixed 2026-08-19).** The
+original wording above said extract.py *merges* club-record leagues into club→league. It did, and the
+merge ran the wrong way: `build_leagues()` seeded the map from the LIGHT RESULTS and the club records
+only `setdefault`-ed into it, so light results won every conflict. Light results assign a club to the
+competition its **already-played games** are tagged with, so on a season-boundary save they report
+LAST season's division for every club that was promoted or relegated. On Frem's 2023-07-02 save that
+put Aalborg in the Superliga (record: NordicBet Liga), Jammerbugt in the 1. Division (record: 2.
+Division), Hellerup in the 3. Division (record: 2. Division), Middelfart in the 2. Division (record:
+3. Division), and four relegated clubs in the 3. Division (records: Denmark's Series 476/477) — **50
+clubs wrong, and every Danish division the wrong size (13/12/11/16 instead of 12/12/12/12)**. The
+user's in-game ground truth caught it; see [[ground-truth-beats-my-parse]].
+
+`extract.py` now builds club→league from the club records ALONE and explicitly discards
+`build_leagues()`'s map (that call is retained only for the leagues *reference* — names, nation,
+reputation). Cost of dropping light results entirely: 4 foreign clubs lose an assignment (2 with no
+club record at all, 2 Belgian sides the light results mislabelled anyway). Zero Danish impact.
+
+**Corollary — the extract emits a SNAPSHOT; derivation belongs in the ETL.** `club_league.json` is
+"which competition is each club in on the save date", nothing more. The raw fixture list is loaded
+separately (`staging.results`, every row carrying its cid), so any historical view can be derived in
+SQL without contaminating the snapshot. Related: `dashboard/db.effective_table` used to resolve
+club→league by taking the newest mapping **store-wide with no season filter**, which leaked a later
+season's promotions back into historical slices; it now resolves as-at the requested (season, phase)
+and only falls back to earlier snapshots.
+
+**Sanity check to run after any change here:** every division in the managed nation must come out the
+right size. `SELECT league_cid, COUNT(DISTINCT club_tid) FROM staging.league_members WHERE
+source='club_league' AND phase=<p> GROUP BY 1` → Denmark should be 12/12/12/12 for cids 2/3/4/1147.
+A club with 0–3 players can legitimately sit in a division (Brønshøj had 3, FC Sydvest 0), so squad
+size is NOT a validity filter — don't "fix" the count by dropping those.

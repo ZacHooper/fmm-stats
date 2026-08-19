@@ -393,13 +393,26 @@ def main():
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
-    # leagues + club->league. Light results give it once games are played; the club record
-    # gives it directly (exact, and the ONLY source on a day-1 save before any match).
+    # leagues reference + club->league. The club record gives membership directly: exact,
+    # current as of the save date, and available on a day-1 save before any match.
     valid_clubs = {p["club_tid"] for p in info.values() if p["club_tid"] != S.NO_CLUB}
     club_nation = L.club_nations(info, S.NO_CLUB)
-    leagues, club2league = build_leagues(mm, valid_clubs, club_nation)
-    for tid, code in club_leagues.items():          # fill gaps; don't override light-results
-        club2league.setdefault(tid, code)
+    # club->league is a SNAPSHOT FACT, read only from each club's own record (+158) — see
+    # docs/agent-context/day1-league-membership.md. `build_leagues` is used purely for the
+    # LEAGUES REFERENCE (names/nation/reputation of every competition); its club->league map
+    # is DELIBERATELY DISCARDED.
+    #
+    # Why: that map votes on the competition tags of games ALREADY PLAYED, so at a season
+    # boundary it reports last season's division for every promoted/relegated club. On
+    # 2023-07-02 it put Aalborg in the Superliga (record: NordicBet Liga), Middelfart in the
+    # 2. Division (record: 3. Division), and four relegated clubs in the 3. Division (records:
+    # Denmark's Series) — 50 clubs wrong, and every Danish division the wrong size. Cost of
+    # dropping it: 4 FOREIGN clubs lose an assignment (2 have no club record at all; 2 Belgian
+    # top-flight sides it mislabelled 'Belgian Pro League B' anyway). No Danish impact.
+    leagues, _derived = build_leagues(mm, valid_clubs, club_nation)
+    club2league = {}
+    for tid, code in club_leagues.items():
+        club2league[tid] = code
         if code not in leagues:
             d = R.comp_detail(mm, code) or {}
             nid = d.get("nation_id")
@@ -423,8 +436,10 @@ def main():
     dump("matches.json", season)
     dump("competitions.json", competitions)
     dump("leagues.json", {str(c): d for c, d in sorted(leagues.items())})
-    # club -> league for the whole DB (source='club_league'): from club records (exact,
-    # day-1) merged with light-results inference. This is what the dashboard resolves on.
+    # club -> league for the whole DB (source='club_league'): from the club records ONLY —
+    # a pure snapshot of which competition each club is in on the save date. This is what the
+    # dashboard resolves on. Any historical/derived view belongs in the DuckDB ETL, which has
+    # the raw fixture list (staging.results, each row carrying its cid) to derive it from.
     dump("club_league.json",
          {str(t): {"league_cid": c, "league_name": (leagues.get(c) or {}).get("name")}
           for t, c in sorted(club2league.items())})
