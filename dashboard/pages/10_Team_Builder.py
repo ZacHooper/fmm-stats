@@ -120,7 +120,7 @@ MIRROR = {"AML": "AMR", "AMR": "AML", "LB": "RB", "RB": "LB", "CB1": "CB2", "CB2
 # --------------------------------------------------------------------------- header controls
 season, phase = db.select_label()          # sidebar: career + season·phase
 
-h1, h2, h3, h4 = st.columns([2, 2, 3, 2])
+h1, h2, h3, h4, h5 = st.columns([2, 2, 2, 2, 1])
 formation = h1.selectbox("Formation", list(FORMATIONS.keys()), key="tb_formation")
 ms = db.methods()
 cfg_default = db.config().get("default_method", ms[0])
@@ -129,7 +129,12 @@ base_method = h2.selectbox("Base tactic", ms,
                            key="tb_method")
 pool_mode = h3.segmented_control("Candidate pool", ["Squad only", "Squad + shortlist"],
                                  default="Squad + shortlist", key="tb_pool")
-if h4.button(("◧ Hide weights" if st.session_state.get("tb_show_w", True) else "◧ Edit weights"),
+at_club_mode = h4.segmented_control(
+    "At club", ["Only", "All"], default="Only", key="tb_atclub",
+    help="'Only' drops loaned-in players whose loan has actually lapsed even though their "
+         "squad record still reads us (a save-parsing staleness — e.g. a loan that ended "
+         "seasons ago but was never refreshed). 'All' shows them anyway.")
+if h5.button(("◧ Hide weights" if st.session_state.get("tb_show_w", True) else "◧ Edit weights"),
              width="stretch"):
     st.session_state.tb_show_w = not st.session_state.get("tb_show_w", True)
     st.rerun()
@@ -152,10 +157,14 @@ st.session_state.tb_xi = {k: v for k, v in st.session_state.tb_xi.items() if k i
 
 # --------------------------------------------------------------------------- data
 @st.cache_data(show_spinner=False)
-def load_pool(season, phase, include_short, ver):
+def load_pool(season, phase, include_short, at_club_only, ver):
     """[{pid, tid, name, is_prospect, positions:{pos:fam}, attrs:{Cap:val}}] — our clubs (+shortlist).
     pid is a stable table key: the tid for real players, a synthetic 'SL#' for tid-less prospects."""
     sq = db.squad(season, phase)
+    if at_club_only:
+        stale = db.stale_loan_ins(season, phase)
+        if stale:
+            sq = sq[~sq["tid"].isin(stale)]
     cols = ", ".join(f'"{a}"' for a in db.ATTR_ORDER)
     at = db.q(f"SELECT tid, {cols} FROM staging.player_attributes WHERE season=? AND phase=?",
               [season, phase])
@@ -183,7 +192,7 @@ def load_pool(season, phase, include_short, ver):
                              is_prospect=True, positions=r.positions, attrs=r.attributes))
     return pool
 
-pool = load_pool(season, phase, pool_mode == "Squad + shortlist", db._dbver())
+pool = load_pool(season, phase, pool_mode == "Squad + shortlist", at_club_mode == "Only", db._dbver())
 by_pid = {p["pid"]: p for p in pool}
 prm = db.pos_role_map()
 

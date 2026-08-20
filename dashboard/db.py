@@ -281,6 +281,44 @@ def squad_tids(season, phase):
     return set(squad(season, phase)["tid"])
 
 
+def stale_loan_ins(season, phase):
+    """Loaned-in tids (for this season, phase) whose loan has actually lapsed even though
+    `players.club_tid`/`loaned_in` still reads us — the squad-list row freezes on a loan-in
+    the same way attribute rows freeze for reserves (see reserve-marker-stale-attrs); nothing
+    rewrites it when the loan ends instead of being renewed.
+
+    Flags a tid when the SAME loan-in relationship has been on the books for 2+ completed
+    seasons with ZERO match_player_stats appearances for us since it started — an active loan
+    racks up minutes for us; a lapsed one doesn't, no matter how old the flag on his row is.
+    A fresh arrival this season has too short a history to trip the 2-season threshold, so
+    genuine new loan-ins are never flagged. Verified against fm-frem tid 10409 (Haarbo):
+    loaned_in since season 2022, zero appearances for us since, a full alternate-club season
+    (172, 33 apps) on the books for 2023 — yet still read loaned_in=True in season 2024."""
+    if not _has_table("match_player_stats"):
+        return set()
+    ph = ",".join("?" * len(OUR_CLUBS))
+    cur = q(f"SELECT tid FROM staging.players WHERE season=? AND phase=? "
+            f"AND loaned_in AND club_tid IN ({ph})", [season, phase, *OUR_CLUBS])
+    if cur.empty:
+        return set()
+    first_seen = q(f"SELECT tid, MIN(season) AS first_season FROM staging.players "
+                   f"WHERE loaned_in AND club_tid IN ({ph}) AND tid IN "
+                   f"({','.join('?' * len(cur))}) GROUP BY tid",
+                   [*OUR_CLUBS, *[int(t) for t in cur["tid"]]])
+    first_by_tid = dict(zip(first_seen["tid"], first_seen["first_season"]))
+    stale = set()
+    for t in cur["tid"]:
+        t = int(t)
+        first = first_by_tid.get(t)
+        if first is None or season - first < 2:
+            continue
+        apps = q(f"SELECT COUNT(*) AS c FROM staging.match_player_stats "
+                 f"WHERE tid=? AND season>? AND team_tid IN ({ph})", [t, first, *OUR_CLUBS])
+        if int(apps["c"].iloc[0]) == 0:
+            stale.add(t)
+    return stale
+
+
 def player_label(tid, name):
     # names are frequently missing (NaN/None) — treat any non-string as unnamed
     if isinstance(name, str) and name:
@@ -538,6 +576,113 @@ def _effective_cached(season, phase, method, curve, floor, ver):
     FROM base
     """
     return _conn().execute(sql, [ord_now, method, season, phase]).df()
+
+
+# ----------------------------------------------------------------- ability ranks (no CA out)
+# Comparing a player against a DIFFERENT division, or against one specific club's squad, needs
+# the game's raw overall-ability number: tactic fit says nothing about level, and the
+# precomputed level_* percentiles in effective_table are scoped to the player's OWN league (so
+# a reserve-team player is ranked against the reserve league, which is meaningless). Immersion
+# rule still holds — these helpers do the ranking INSIDE SQL and return only rank / N, so the
+# ability number never leaves db.py. Callers get "6 of 75", never the number behind it.
+
+_CL_ASAT = """
+    SELECT club_tid, arg_max(league_cid, ord) AS league_cid FROM (
+        SELECT club_tid, league_cid,
+               LPAD(CAST(season AS VARCHAR), 4, '0') || """ + _psort_sql() + """ AS ord
+        FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
+    WHERE ord <= ? GROUP BY club_tid"""
+
+# `min_fam` keeps makeshift players out of the comparison set: staging.player_positions lists
+# every position a player has ANY familiarity in, so an unfiltered pool of "left backs" is
+# padded with centre-halves who can shuffle across. Rank against people who actually play there.
+_POOL = """
+    SELECT p.tid, pp.position, p.ca, p.club_tid, cl.league_cid
+    FROM staging.players p
+    JOIN staging.player_positions pp ON (pp.season, pp.phase, pp.tid) = (p.season, p.phase, p.tid)
+    LEFT JOIN cl ON cl.club_tid = p.club_tid
+    WHERE p.season = ? AND p.phase = ? AND NOT p.is_staff AND p.ca IS NOT NULL
+      AND pp.familiarity >= ?"""
+
+
+def _rank_args(season, phase, tid_positions, min_fam):
+    """(ord_now, VALUES clause, params) shared by both rank helpers."""
+    vals = ", ".join(f"({int(t)}, '{str(pos)}')" for t, pos in tid_positions)
+    return f"{int(season):04d}" + phase_key(phase), vals, [season, phase, int(min_fam)]
+
+
+def comparison_leagues(season, phase, limit=3):
+    """Our own league plus the next lower-reputation leagues in the same nation — the natural
+    ladder to judge a squad player against (his division, then the ones he could be loaned to).
+    Returns [(cid, name), ...] strongest first, ours always at index 0 when known."""
+    mine = my_league(season, phase)
+    lg = q("""SELECT cid, any_value(name) AS name, any_value(nation) AS nation,
+                     max(reputation) AS rep, max(type) AS type
+              FROM staging.leagues WHERE season=? AND phase=? GROUP BY cid""", [season, phase])
+    if lg.empty or mine is None:
+        return [(mine, None)] if mine else []
+    nat = lg.loc[lg["cid"] == mine, "nation"]
+    nation = nat.iloc[0] if not nat.empty else None
+    same = lg[(lg["nation"] == nation) & lg["type"].notna()].sort_values("rep", ascending=False)
+    ours_rep = lg.loc[lg["cid"] == mine, "rep"]
+    below = same[same["rep"] < (ours_rep.iloc[0] if not ours_rep.empty else 0)]
+    out = [(mine, lg.loc[lg["cid"] == mine, "name"].iloc[0])]
+    out += [(int(r.cid), r.name) for r in below.head(max(0, limit - 1)).itertuples()]
+    return out
+
+
+@st.cache_data(show_spinner=False)
+def ability_rank_leagues(season, phase, tid_positions, league_cids, min_fam=0, ver=None):
+    """rank / N by ability for each (tid, position) within each league, position-matched and
+    restricted to players with familiarity >= min_fam there. The player himself is always
+    counted in N exactly once, so "1 of 95" reads naturally even when he doesn't play in that
+    league. Returns tid, position, league_cid, rank, n."""
+    if not tid_positions or not league_cids:
+        return pd.DataFrame(columns=["tid", "position", "league_cid", "rank", "n"])
+    ord_now, vals, params = _rank_args(season, phase, tid_positions, min_fam)
+    cids = ", ".join(str(int(c)) for c in league_cids)
+    sql = f"""
+    WITH cl AS ({_CL_ASAT}), pool AS ({_POOL}),
+         tgt AS (SELECT po.tid, po.position, po.ca FROM pool po
+                 JOIN (VALUES {vals}) v(tid, position)
+                   ON v.tid = po.tid AND v.position = po.position)
+    SELECT t.tid, t.position, l.league_cid,
+           1 + COUNT(CASE WHEN o.ca > t.ca THEN 1 END) AS rank,
+           1 + COUNT(o.tid) AS n
+    FROM tgt t
+    CROSS JOIN (SELECT DISTINCT league_cid FROM pool WHERE league_cid IN ({cids})) l
+    LEFT JOIN pool o
+      ON o.position = t.position AND o.league_cid = l.league_cid AND o.tid <> t.tid
+    GROUP BY 1, 2, 3"""
+    return _conn().execute(sql, [ord_now, *params]).df()
+
+
+@st.cache_data(show_spinner=False)
+def ability_rank_clubs(season, phase, tid_positions, league_cid, min_fam=0, ver=None):
+    """rank / N by ability for each (tid, position) inside EVERY club's squad in one league —
+    i.e. "how many bodies would be ahead of him if we loaned him there", counting only players
+    with familiarity >= min_fam there. Rank 1 means he'd be their first choice in that
+    position. Returns tid, position, club_tid, club, rank, n."""
+    if not tid_positions or league_cid is None:
+        return pd.DataFrame(columns=["tid", "position", "club_tid", "club", "rank", "n"])
+    ord_now, vals, params = _rank_args(season, phase, tid_positions, min_fam)
+    sql = f"""
+    WITH cl AS ({_CL_ASAT}), pool AS ({_POOL}),
+         tgt AS (SELECT po.tid, po.position, po.ca FROM pool po
+                 JOIN (VALUES {vals}) v(tid, position)
+                   ON v.tid = po.tid AND v.position = po.position),
+         hosts AS (SELECT DISTINCT club_tid FROM pool WHERE league_cid = {int(league_cid)})
+    SELECT t.tid, t.position, h.club_tid,
+           COALESCE(any_value(c.name), '#' || h.club_tid) AS club,
+           1 + COUNT(CASE WHEN o.ca > t.ca THEN 1 END) AS rank,
+           1 + COUNT(o.tid) AS n
+    FROM tgt t
+    CROSS JOIN hosts h
+    LEFT JOIN pool o
+      ON o.position = t.position AND o.club_tid = h.club_tid AND o.tid <> t.tid
+    LEFT JOIN staging.clubs c ON c.tid = h.club_tid AND c.season = ? AND c.phase = ?
+    GROUP BY 1, 2, 3"""
+    return _conn().execute(sql, [ord_now, *params, season, phase]).df()
 
 
 def eligibility_frame(season, phase):
