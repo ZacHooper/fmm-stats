@@ -124,6 +124,18 @@ Harmless, but don't mistake it for a decode regression.
 
 ## Gotchas found doing this
 
+- **NEVER byte-copy a DuckDB store that is being written.** `scripts/_dbopen.open_readonly()`
+  falls back to `shutil.copy2` when a read-only connect fails (the single-writer lock), which is
+  fine against an idle dashboard but *not* against a rebuild in progress: the copy captures
+  whatever happened to be durable, so the store reads back with an **arbitrary subset of
+  snapshots**. This cost real debugging time — a rebuild on snapshot 12 of 12 looked exactly like
+  a finished rebuild that had failed 2 snapshots, and the missing ones weren't even a prefix,
+  which is what finally gave it away. `open_readonly` now refuses when a `.wal` sits beside the
+  store *or* its mtime is under `QUIET_SECONDS` (90s); an idle dashboard holds the lock but
+  doesn't touch mtime, so it clears the check. Override with `allow_dirty_copy=True`.
+- **Don't pipe a long background job through `tail`.** The log buffers and you lose the entire
+  diagnostic record if the process dies. Redirect to a file and read that.
+
 - **Two Bucaspor saves lived in the repo root**, which is gitignored (`*.fms`) — they'd have been
   lost on any fresh clone. Both are archived now. Don't assume `~/Downloads` is the only place.
 - **The shortlist had diverged.** A 2026-08-19 copy of the store held 17 entries the live store
