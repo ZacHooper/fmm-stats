@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """Move a `.fms` save into the archive, gzip it, and verify the round-trip is byte-identical.
 
-    uv run python scripts/archive_save.py ~/Downloads/denmark-24-start-2.fms --career frem
+    uv run python scripts/archive_save.py ~/Downloads/whatever.fms --career frem \
+        --phase 2023-08-15 --upload
     uv run python scripts/archive_save.py --career frem --all-from-manifest   # bulk migration
+
+Naming: pass --phase (the save's IN-GAME date) and the file is archived as
+`<career>-<phase>.fms` — the convention every save now follows, since phase is half the store's
+natural key. Without --phase the incoming filename is kept as-is, which is fine for a save whose
+date you don't know yet; scripts/canonicalise_names.py fixes it later once it has a manifest row.
+The date can't be derived automatically for a 0-match save (there are no matches to date it
+from), which is why this is an argument rather than a probe.
 
 Saves are the ONLY irreplaceable artefact in this project. The DuckDB store is derived and the
 extract JSON is regenerable, but a lost `.fms` means a snapshot that can never be rebuilt. So
@@ -48,9 +56,10 @@ def human(n):
     return f"{n / 1e6:.0f} MB"
 
 
-def archive_one(src, career, upload=False, keep_source=False):
-    """-> (ok, message). Moves src into the archive, writes a verified .gz beside it."""
-    name = os.path.basename(src)
+def archive_one(src, career, upload=False, keep_source=False, phase=None):
+    """-> (ok, message). Moves src into the archive, writes a verified .gz beside it.
+    With `phase`, the file is renamed to the canonical `<career>-<phase>.fms` on the way in."""
+    name = f"{career}-{phase}.fms" if phase else os.path.basename(src)
     dest_dir = os.path.join(SAVES_DIR, career)
     dest = os.path.join(dest_dir, name)
     gz = dest + ".gz"
@@ -111,6 +120,9 @@ def main():
                          "--source-dir (bulk one-time migration)")
     ap.add_argument("--source-dir", default=os.path.expanduser("~/Downloads"),
                     help="where to look for saves with --all-from-manifest")
+    ap.add_argument("--phase", help="the save's IN-GAME date (YYYY-MM-DD). Archives it as "
+                                    "<career>-<phase>.fms, the canonical name. Can't be "
+                                    "derived for a 0-match save, hence an argument.")
     ap.add_argument("--upload", action="store_true", help="rclone copy each .gz to R2")
     ap.add_argument("--keep-source", action="store_true",
                     help="copy instead of move (leaves the original in place)")
@@ -136,13 +148,15 @@ def main():
         if not a.saves or not a.career:
             raise SystemExit("give one or more .fms paths plus --career, "
                              "or use --all-from-manifest")
+        if a.phase and len(a.saves) > 1:
+            raise SystemExit("--phase names ONE save; pass them one at a time")
         jobs = [(os.path.expanduser(s), a.career) for s in a.saves]
 
     print(f"archiving {len(jobs)} save(s) into {SAVES_DIR}")
     ok, bad = 0, []
     for src, career in jobs:
         careers.resolve_career(career)                       # fail fast on a bad key
-        good, msg = archive_one(src, career, a.upload, a.keep_source)
+        good, msg = archive_one(src, career, a.upload, a.keep_source, a.phase)
         print(("  " if good else "  ! ") + msg)
         ok += good
         if not good:

@@ -130,6 +130,29 @@ no multi-writer problem to solve:
 - `FM_SAVES_DIR`, `FM_R2_REMOTE` (default `r2:fmm-stats`), `FM_STATE_OFFLINE=1` to skip all
   syncing, `FM_STATE_TTL` for the pull throttle.
 
+## Save + label naming convention
+**`<career>-<YYYY-MM-DD>[-<tag>].fms`** — e.g. `frem-2023-07-02.fms`. The date is the save's
+**in-game date**, which is exactly `phase`, half the store's natural key `(season, phase)`. So the
+name states identity rather than nicknaming it: unique by construction, chronologically sortable,
+career-scoped. `season` is omitted because it's derivable (a phase in July or later belongs to the
+next campaign).
+
+**The label is the same string** — `output/<label>/` and `staging.extracts.label` both use it, so
+save file, extract dir and DB label are one vocabulary instead of three.
+
+An optional `-<tag>` may follow the date as a human note (`frem-2023-07-02-window-open.fms`).
+Nothing parses it, so it can never break a rebuild — only `<career>-<date>` carries meaning.
+
+New saves: `scripts/archive_save.py <file> --career frem --phase <YYYY-MM-DD> --upload` names it
+canonically on the way in. The date **cannot** be derived for a 0-match save (no matches to date
+it from), hence an argument rather than a probe. `scripts/canonicalise_names.py` retro-fits the
+convention across saves, `.gz`, R2 objects, `output/` dirs, both stores' `save_path` + `label`,
+and saved-scout keys — all five, because the manifest is generated FROM the store, so renaming
+files without updating `staging.extracts` silently reverts the manifest on the next export.
+
+Saves with no manifest row have no date and so no canonical name; they live in
+`<career>/unfiled/`.
+
 ## Common commands
 ```bash
 uv sync                                                   # one-time env setup
