@@ -94,6 +94,34 @@ but its store isn't rebuilt — and since `db.available_careers()` keys off whet
 exists, not building one is all it takes to drop it from the dashboard. Rebuild with
 `--career bucaspor --include-inactive`.
 
+## The verification anchors (two of mine were wrong — use these)
+
+Rebuilt a snapshot into a scratch store (`scripts/rebuild.py --db /tmp/verify.duckdb`) and diffed
+it against the live one: **identical** — 23,800 players, 39 first-team + 7 reserve, same names. So
+the recipe is faithful. But two anchors I'd written down were measuring the wrong thing:
+
+- **Division sizes must be counted on `staging.league_members`, NOT `effective_table`.**
+  `effective_table` only contains players with ratings, so a club with no rated players is
+  invisible: the 3. Division shows **11**, not 12, because FC Sydvest has 0 players. That's
+  exactly the trap `day1-league-membership.md` warns about — squad size is not a validity filter.
+  The correct check:
+  ```sql
+  SELECT league_cid, COUNT(DISTINCT club_tid) FROM staging.league_members
+  WHERE source='club_league' AND phase='<p>' AND league_cid IN (2,3,4,1147) GROUP BY 1
+  ```
+  → 12/12/12/12. Passes on both live and rebuilt.
+- **Our squad at 2023-07-02 is 46 players (39 + 7 reserves), not 54.** The 54 figure — and the
+  "30,337 players" one — came from a query missing `AND NOT is_staff`. 23,800 players + 6,537
+  staff = 30,337; 46 + 8 staff = 54.
+
+Anchors that hold as written: Frem's league = 3 (NordicBet Liga); Jakobsen **11/70** at ST in that
+division at familiarity ≥15; Pingel **9/9** at DMC in Brabrand's squad with no familiarity floor.
+
+One benign difference between a full store and a single-snapshot one: `effective_table`'s `lgn`
+CTE resolves league→nation from `staging.leagues` across **all** phases with no phase filter, so a
+store holding fewer snapshots knows fewer leagues' nations (17,090 vs 16,566 nation-null rows).
+Harmless, but don't mistake it for a decode regression.
+
 ## Gotchas found doing this
 
 - **Two Bucaspor saves lived in the repo root**, which is gitignored (`*.fms`) — they'd have been

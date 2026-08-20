@@ -110,6 +110,9 @@ def main():
     ap.add_argument("--skip-existing", action="store_true",
                     help="skip a label whose output/<label> dir already exists (re-loads it "
                          "without re-extracting — much faster when only the ETL changed)")
+    ap.add_argument("--db", help="write to this store instead of the career's own "
+                                 "fm-<key>.duckdb — use it to rebuild into a scratch file and "
+                                 "diff against the live one before trusting a change")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
     a = ap.parse_args()
 
@@ -136,7 +139,8 @@ def main():
 
     for career, crows in by_career.items():
         car = careers.resolve_career(career)
-        print(f"\n=== {car.name} ({career}) -> {car.db} — {len(crows)} snapshots ===")
+        db_path = a.db or car.db
+        print(f"\n=== {car.name} ({career}) -> {db_path} — {len(crows)} snapshots ===")
         for i, r in enumerate(crows, 1):
             label, season, phase = r["label"], r["season"], r["phase"]
             print(f"  [{i}/{len(crows)}] {label}  season={season} phase={phase}")
@@ -158,7 +162,7 @@ def main():
                     failed.append(label)
                     continue
             if not run([sys.executable, "load_duckdb.py", os.path.join("output", label),
-                        "--db", car.db, "--season", str(season), "--phase", phase], a.dry_run):
+                        "--db", db_path, "--season", str(season), "--phase", phase], a.dry_run):
                 print("    ! load failed")
                 failed.append(label)
                 continue
