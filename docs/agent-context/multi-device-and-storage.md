@@ -86,6 +86,25 @@ add from the phone: it PUTs one object and is done.
 crashed against a read-only store**. All 14 pages now pass read-only — a prerequisite for any
 hosted/read-only deployment.
 
+## Naming convention (applied 2026-08-21 to all 19 snapshots)
+
+**`<career>-<YYYY-MM-DD>[-<tag>].fms`**, and the **label is the same string** — save file,
+`output/` dir and `staging.extracts.label` are one vocabulary instead of three. The date is the
+save's *in-game* date, i.e. exactly `phase`, half the store's natural key. `season` is omitted
+because it's derivable (a phase in July or later belongs to the next campaign). An optional
+`-<tag>` may follow as a human note; nothing parses it, so it can't break a rebuild.
+
+`scripts/canonicalise_names.py` renames across **all five** places a name appears, and doing
+fewer is worse than doing none: the local raw + `.gz`, the R2 object, `output/<label>/`,
+`staging.extracts.save_path` AND `.label`, and saved-scout object keys (which embed
+`snapshot_label`). The subtle one is the store: **`seeds/manifest.csv` is GENERATED from it**, so
+renaming files without updating `staging.extracts` reverts the manifest on the next export and a
+rebuild then hunts for saves that no longer exist.
+
+New saves are born canonical via `archive_save.py --phase <date>`. The date **cannot** be derived
+from a 0-match save — no matches to date it from — so it's an argument, not a probe. Saves with no
+manifest row have no date and so no canonical name; they live in `<career>/unfiled/`.
+
 ## Careers
 
 `Career.active` (in `fmparser/careers.py`) marks a career archived. **Only `frem` is built.**
@@ -179,6 +198,12 @@ re-stored in full for all 12 snapshots, so a career history that barely changes 
 a day apart has its 210k rows rewritten anyway. Deduping would take the store 96 MiB → ~30 MiB.
 Deliberately not done: nothing syncs the store now, so its size costs only local disk and rebuild
 minutes. It touches the loader's schema and needs all snapshots reloaded and re-verified.
+
+## Status
+
+**Phase 1 is complete and verified** (git remote + history strip + R2 archive + rebuildable store
++ live state + naming). Phase 2 (static site) is NOT started. The current-state handoff, including
+the football thread, is **[`docs/HANDOFF.md`](../HANDOFF.md)** — read that to resume.
 
 ## Still to build (Phase 2)
 

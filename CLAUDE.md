@@ -22,6 +22,10 @@ Extract with `--career <key>`. **Starting a new career:** run
 opens with and ranks candidate clubs; add the winning first-team + reserve tids to
 `careers.py`, then extract. All saves for a career must be that same career.
 
+## Resuming work
+**[`docs/HANDOFF.md`](docs/HANDOFF.md)** is the current-state handoff — what's done, what's next,
+what's outstanding, and where the football analysis left off. Read it before starting anything.
+
 ## Read this first — accumulated project knowledge
 The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent-context/)**
 (vendored from the assistant's memory so it travels with the repo). Start with
