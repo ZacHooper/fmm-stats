@@ -117,6 +117,29 @@ the recipe is faithful. But two anchors I'd written down were measuring the wron
 Anchors that hold as written: Frem's league = 3 (NordicBet Liga); Jakobsen **11/70** at ST in that
 division at familiarity ≥15; Pingel **9/9** at DMC in Brabrand's squad with no familiarity floor.
 
+### Full 12-snapshot drill result (2026-08-20)
+
+**22 of 24 tables matched the live store exactly**, including every large one
+(`player_history_seasons` 2,524,465, `players` 362,980, `player_positions` 1,012,968). The two
+that differed both favoured the rebuild:
+
+- **`league_members` had 28 FEWER rows** — and that's the fix, not a regression. The live store's
+  older 11 slices were extracted before the club→league precedence fix (commit 8d0b4e3); only
+  `2023-07-02` had been reloaded after it. Rebuilding applied it everywhere, dropping exactly the
+  4 phantom foreign clubs per phase that `day1-league-membership.md` predicted: KAS Eupen filed
+  into a *Dutch* league, a Belgian side into "Belgian Pro League B", and two with no club record.
+  The only phases that already agreed were `2021-07-01` (day-1, no light results) and
+  `2023-07-02` (already reloaded) — exactly as expected. **A rebuild propagates parser fixes to
+  every snapshot for free**, which is a second reason to treat the store as disposable.
+- **`staging.shortlist` is absent** from the rebuild — correct, it lives in `state/` now.
+
+The rebuilt store is also **80 MB vs 96 MiB**: DuckDB doesn't reclaim space across 12 rounds of
+DELETE+INSERT, so a sequential build is simply more compact.
+
+Timing: ~1 min/snapshot when run ALONE. Do not run two rebuilds concurrently — they extract into
+the same `output/<label>` dirs and clobber each other. That produced 4 spurious failures, all of
+which succeeded on a serial retry.
+
 One benign difference between a full store and a single-snapshot one: `effective_table`'s `lgn`
 CTE resolves league→nation from `staging.leagues` across **all** phases with no phase filter, so a
 store holding fewer snapshots knows fewer leagues' nations (17,090 vs 16,566 nation-null rows).
