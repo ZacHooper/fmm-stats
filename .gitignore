@@ -4,10 +4,12 @@
 # Extraction outputs (regenerate with extract.py)
 output/
 
-# DuckDB stores — commit the per-career stores (fm-buca.duckdb, fm-frem.duckdb, …) so
-# a fresh clone works out of the box; ignore scratch copies and the transient WAL.
+# DuckDB stores — DERIVED, never committed. They rewrite wholesale on every import (96 MiB
+# for fm-frem, within 4 MiB of GitHub's hard per-file limit), so versioning them poisoned
+# history: .git hit 257 MB, ~250 MB of it 19 copies of these two files. Rebuild instead:
+#   uv run python scripts/rebuild.py --career frem
+# The recipe is seeds/manifest.csv (in git) + the saves in R2. See docs/agent-context/.
 *.duckdb
-!fm-*.duckdb
 *.duckdb.wal
 # pre-migration store backups — big, local, regenerable by re-importing the saves
 backups/
@@ -19,7 +21,16 @@ backups/
 # streamlit pip package, not ours — it reappears on any machine after `uv sync`).
 .claude/skills/developing-with-streamlit
 
+# Live state mirrored from R2 (shortlist, saved scouts) — one object per entry, synced with
+# rclone. Machine-local cache of a shared bucket, so never committed.
+state/
+
+# Cloudflare / Streamlit local secrets — MUST stay out of git.
+.streamlit/secrets.toml
+.wrangler/
+
 # Local experiments / scratch / personal junk — not part of the shareable project.
+scratch/
 visualizer/
 IMG_*.PNG
 Screenshot*.png
