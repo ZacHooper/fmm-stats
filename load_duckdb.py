@@ -901,10 +901,17 @@ def load_label(con, d, include, override=(None, None)):
         _backfill_competition(con, season, phase)
         rng = summ.get("date_range") or [None, None]
         _delete(con, "extracts", season, phase)
+        # save_path is stored as a BASENAME, not the absolute path the extract recorded.
+        # staging.extracts is the rebuild recipe (scripts/export_manifest.py reads it), and an
+        # absolute /Users/<you>/Downloads/... path silently makes that recipe machine-specific,
+        # so it can't rebuild the store on another laptop. The archive resolves it under
+        # $FM_SAVES_DIR/<career>/ instead. source_dir stays absolute: it points at output/,
+        # which is a local build artefact rather than part of the recipe.
         con.execute(
             "INSERT INTO staging.extracts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             [season, phase, label, summ.get("label_auto"), os.path.abspath(d),
-             summ.get("save"), _date(summ.get("latest_match")),
+             os.path.basename(summ.get("save") or "") or None,
+             _date(summ.get("latest_match")),
              _date(rng[0]), _date(rng[1]), datetime.datetime.now(),
              json.dumps(counts)])
         con.execute("COMMIT")

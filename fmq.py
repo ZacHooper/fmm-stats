@@ -214,9 +214,12 @@ def cmd_scout(con, a):
     rep = db.scout_report(int(row["tid"]), season=a.season, phase=a.phase, method=a.method)
     _print_scout(rep)
     if not a.no_save:
-        db.save_scout(rep, venue=a.venue, formation=a.formation, style=a.style, note=a.note)
+        rec = db.save_scout(rep, venue=a.venue, formation=a.formation, style=a.style,
+                            note=a.note)
         ctx = " · ".join(x for x in (a.venue, a.formation, a.style) if x)
-        print(f"  ✎ saved to {os.path.relpath(db.SCOUTS_PATH)}"
+        where = f"state/scouts/{db.scout_key(rec['opponent_tid'], rec['snapshot_label'])}.json"
+        synced = " (synced to R2)" if db.state.remote_configured() else " (local only)"
+        print(f"  ✎ saved to {where}{synced}"
               + (f"  ({ctx})" if ctx else "  (pass --venue/--formation/--style/--note "
                  "to record context)") + "\n")
 

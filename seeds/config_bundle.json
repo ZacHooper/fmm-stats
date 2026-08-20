@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "_comment": "Baked defaults applied by load_duckdb.seed_config_bundle on every load, so a rebuilt store comes up configured. app_config ONLY \u2014 tactic weight-sets live in seeds/role_weights.csv (all 7 methods, including the frem_* ones and 'personal') and position_role_map is seeded by seed_reference. One source of truth per thing. To update: Config page -> export bundle -> keep app_config.",
+  "app_config": {
+    "default_method": "frem_attacking_ss",
+    "familiarity_curve": "linear_floor",
+    "familiarity_floor": "0.5"
+  }
+}

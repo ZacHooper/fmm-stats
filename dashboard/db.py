@@ -17,6 +17,11 @@ import streamlit as st
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+# our own directory too: db is imported both as `db` (Streamlit pages, fmq) and as
+# `dashboard.db` (scripts run from the repo root), and only the first puts dashboard/ on the
+# path — so `import state` needs this to work either way.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import state
 from fmparser import careers as _careers
 
 # Career-aware: one DuckDB store per managed career (fm-<key>.duckdb). The ACTIVE career
@@ -734,40 +739,43 @@ def _eligibility_cached(season, phase, ver):
 
 
 # --------------------------------------------------------------------------- shortlist
-# A persistent scouting shortlist, stored in the career's own DuckDB (staging.shortlist,
-# GLOBAL — not per season/phase). Each row: a prospect with a snapshot of their attributes
-# + positions so it renders even for players not in the current squad/snapshot. `tid` is set
-# for players added by look-up (null for manual entries).
-
-def _ensure_shortlist():
-    write("""CREATE TABLE IF NOT EXISTS staging.shortlist (
-        id BIGINT, tid INTEGER, name VARCHAR,
-        positions VARCHAR, attributes VARCHAR, source VARCHAR)""")
-
+# A persistent scouting shortlist. Lives in state/shortlist/<id>.json (mirrored to R2 — see
+# dashboard/state.py), NOT in the DuckDB store. It used to be staging.shortlist, which had two
+# problems: a store rebuild destroyed it, and it was invisible to a second machine. It also
+# needed CREATE TABLE on first read, which crashed any page that touched it against a
+# read-only store.
+#
+# Each entry snapshots the prospect's positions + attributes, so it still renders for players
+# who aren't in the current snapshot at all. `tid` is set for players added by look-up (None
+# for manual entries).
 
 def shortlist_get():
-    """DataFrame of the shortlist with `positions`/`attributes` parsed to dicts."""
-    _ensure_shortlist()
-    df = q("SELECT id, tid, name, positions, attributes, source FROM staging.shortlist "
-           "ORDER BY name")
-    if not df.empty:
-        df["positions"] = df["positions"].map(lambda s: json.loads(s) if s else {})
-        df["attributes"] = df["attributes"].map(lambda s: json.loads(s) if s else {})
-    return df
+    """DataFrame of the shortlist: id, tid, name, positions(dict), attributes(dict), source."""
+    rows = []
+    for key, rec in state.entries("shortlist"):
+        rows.append({"id": key,
+                     "tid": rec.get("tid"),
+                     "name": rec.get("name") or "",
+                     "positions": rec.get("positions") or {},
+                     "attributes": rec.get("attributes") or {},
+                     "source": rec.get("source") or "manual"})
+    df = pd.DataFrame(rows, columns=["id", "tid", "name", "positions", "attributes", "source"])
+    return df.sort_values("name").reset_index(drop=True) if not df.empty else df
 
 
 def shortlist_add(name, positions, attributes, tid=None, source="manual"):
-    _ensure_shortlist()
-    nid = int(q("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM staging.shortlist")["n"].iloc[0])
-    write("INSERT INTO staging.shortlist VALUES (?,?,?,?,?,?)",
-          [nid, tid, name, json.dumps(positions or {}),
-           json.dumps({k: int(v) for k, v in (attributes or {}).items()}), source])
-    return nid
+    key = state.new_key()
+    state.put("shortlist", key, {
+        "id": key, "tid": int(tid) if tid is not None else None, "name": name,
+        "positions": {str(k): int(v) for k, v in (positions or {}).items()},
+        "attributes": {str(k): int(v) for k, v in (attributes or {}).items()},
+        "source": source,
+        "added_at": datetime.datetime.now().isoformat(timespec="seconds")})
+    return key
 
 
 def shortlist_remove(sid):
-    _ensure_shortlist()
-    write("DELETE FROM staging.shortlist WHERE id = ?", [int(sid)])
+    state.delete("shortlist", str(sid))
 
 
 def player_search(query, season, phase, limit=50):
@@ -2044,7 +2052,20 @@ def scout_report(opp_tid, season=None, phase=None, method="buca_433"):
 # so we build a scouting history: calibrate reports over time + review the season with what we
 # thought before each match. One record per (opponent, data-snapshot); re-running refreshes it.
 
-SCOUTS_PATH = os.path.join(REPO, "scouts", "scouts.jsonl")
+# Saved scout reports live in state/scouts/<opponent_tid>-<snapshot_label>.json (mirrored to
+# R2 — see dashboard/state.py). They were one append-only JSONL; the per-entry split means a
+# re-scout PUTs over exactly one object instead of rewriting the whole log, so two devices
+# saving different scouts can't clobber each other. LEGACY_SCOUTS is read once by
+# scripts/migrate_state.py and then ignored.
+LEGACY_SCOUTS_PATH = os.path.join(REPO, "scouts", "scouts.jsonl")
+
+
+def scout_key(opponent_tid, snapshot_label):
+    """Stable object key. Re-scouting the same opponent on the same data snapshot overwrites
+    its own entry; a new snapshot (after a re-import) gets a fresh one — the same behaviour the
+    JSONL de-duplication gave, but without a read-modify-write."""
+    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in str(snapshot_label))
+    return f"{int(opponent_tid)}-{safe}"
 
 
 def _json_clean(o):
@@ -2061,19 +2082,18 @@ def _json_clean(o):
 
 
 def load_scouts():
-    """All saved scouts as a DataFrame (empty if none), newest write last."""
-    if not os.path.exists(SCOUTS_PATH):
+    """All saved scouts as a DataFrame (empty if none), oldest first by save time."""
+    rows = [rec for _key, rec in state.entries("scouts")]
+    if not rows:
         return pd.DataFrame()
-    rows = []
-    with open(SCOUTS_PATH, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    return (df.sort_values("saved_at").reset_index(drop=True)
+            if "saved_at" in df.columns else df)
+
+
+def delete_scout(opponent_tid, snapshot_label):
+    """Drop one saved scout."""
+    state.delete("scouts", scout_key(opponent_tid, snapshot_label))
 
 
 def snapshot_history():
@@ -2112,12 +2132,5 @@ def save_scout(report, venue=None, formation=None, style=None, note=None, saved_
                         if not report["key_players"].empty else []),
         "h2h": {k: report["h2h"].get(k) for k in ("played", "w", "d", "l", "gf", "ga", "ppg")},
     })
-    os.makedirs(os.path.dirname(SCOUTS_PATH), exist_ok=True)
-    kept = [r for r in (load_scouts().to_dict("records") if os.path.exists(SCOUTS_PATH) else [])
-            if not (r.get("opponent_tid") == rec["opponent_tid"]
-                    and r.get("snapshot_label") == rec["snapshot_label"])]
-    kept.append(rec)
-    with open(SCOUTS_PATH, "w", encoding="utf-8") as f:
-        for r in kept:
-            f.write(json.dumps(r, ensure_ascii=False, allow_nan=False) + "\n")
+    state.put("scouts", scout_key(rec["opponent_tid"], rec["snapshot_label"]), rec)
     return rec

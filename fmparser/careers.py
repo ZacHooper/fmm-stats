@@ -24,6 +24,7 @@ class Career:
     reserve_tid: int | None = None # its reserve side (AI-run); used downstream to split matches
     league_comps: tuple = ()       # first-team competition ids (informational for now)
     db: str = "fm.duckdb"          # DuckDB store for this career (one file per career)
+    active: bool = True            # False = saves archived, store NOT rebuilt (see below)
 
     @property
     def club_marker(self) -> bytes:
@@ -51,10 +52,15 @@ class Career:
         return (self.club_marker, self.reserve_marker)
 
 
+# `active=False` means: keep the saves in the archive, but don't rebuild the store. The
+# dashboard's career selector keys off whether the store FILE exists (db.available_careers),
+# so not building one is all it takes to drop a career from the UI. Bucaspor stays registered
+# and its saves stay in R2 because they're the only cross-career regression test the parser
+# has — a decode that works on Denmark and Turkey is a decode that generalises.
 CAREERS = {
-    # Turkish career (the original) — Bucaspor 1928.
+    # Turkish career (the original) — Bucaspor 1928. Archived: no longer played.
     "bucaspor": Career("bucaspor", "Bucaspor 1928", 6567, 11320, (228, 227, 117),
-                       "fm-buca.duckdb"),
+                       "fm-buca.duckdb", active=False),
     # Danish career — Boldklubben Frem (started 2026-08). tids verified from the save.
     "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb"),
 }
