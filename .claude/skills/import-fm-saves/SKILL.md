@@ -12,11 +12,20 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 
 ## Key facts (don't relearn these)
 
-- **Extractors are pure-stdlib**: run with `python3 extract.py …` (NOT uv). The **loader is
-  `uv run python load_duckdb.py …`** (duckdb lives only in the uv env).
-- **Parser is hardcoded to the Bucaspor career** (`MANAGED_CLUB_TID=6567`, reserves `11320`).
-  Every save MUST be the same career — verify `clubs.json` has `"6567"` and `"11320"`.
-  If not, the extraction is garbage for that save; stop and tell the user.
+- **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`.
+  numpy (needed by `fmparser/history.py`) is in the uv env, so nothing here depends on a system
+  python any more.
+- **The parser is career-aware** — pass `--career <key>` (`frem` is the active one; `bucaspor` is
+  archived). Verify the extract's `clubs.json` contains that career's managed + reserve tids
+  (frem: `"346"` and `"7296"`). If not, the extraction is garbage for that save; stop and tell
+  the user. All saves loaded into one store must be the same career.
+- **Archive the save before/after extracting** — it's the only irreplaceable artefact:
+  `uv run python scripts/archive_save.py <save.fms> --career frem --upload` moves it to
+  `$FM_SAVES_DIR`, gzips it, hash-verifies the round-trip, and pushes to R2.
+- **Refresh the rebuild recipe after loading** — `uv run python scripts/export_manifest.py`, then
+  commit `seeds/manifest.csv`. Without this the new snapshot can't be rebuilt on another machine.
+- **The stores are NOT committed** (96 MiB, rewrites wholesale, near GitHub's file limit). They're
+  derived: `uv run python scripts/rebuild.py --career frem` rebuilds from saves + manifest.
 - **Season = end-year of the campaign** (22/23 → 2023, Aus-financial-year style).
 - **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), written explicitly into `summary.json`
   (`season` + `phase`) by `extract.py`. **The loader auto-derives both — normally pass NEITHER
@@ -55,16 +64,26 @@ so old slices pick up the new decode. The store knows the full manifest —
 SELECT label, season, phase, save_path FROM staging.extracts ORDER BY season, phase;
 ```
 
-Then per row: `python3 extract.py <save_path> --career <key> --label <label>` followed by
-`uv run python load_duckdb.py output/<label> --db fm-<key>.duckdb --season <season> --phase <phase>`.
-Budget ~1 min per snapshot (18 snapshots ≈ 25 min); run it in the background and monitor the log.
+Then just run the rebuild script — it does exactly this from `seeds/manifest.csv`, passing
+season/phase explicitly so nothing lands on the wrong slice:
 
-Before starting: **`pkill -f streamlit`** (it holds the DuckDB write lock) and copy both stores to
-`backups/`. Pass the season/phase explicitly from the manifest rather than letting them re-derive,
-or a save whose in-game date differs from its last match date will land on a different phase and
-you will end up with a duplicate slice instead of a replaced one. Do **not** use `--reset` unless
-you have checked that everything hand-maintained is reproducible from `seeds/` (role_weights and
-eligible_origin_clubs are; a user-added tactic inserted straight into the DB would not be).
+```bash
+uv run python scripts/rebuild.py --career frem            # add --skip-existing to reuse output/
+```
+
+Budget ~1 min per snapshot (12 snapshots ≈ 12 min); run it in the background and monitor the log.
+`--skip-existing` re-loads from existing `output/` dirs without re-extracting, which is much
+faster when only the ETL changed.
+
+Before starting: **`pkill -f streamlit`** (it holds the DuckDB write lock). No need to back the
+store up any more — it's rebuildable from `seeds/manifest.csv` + the R2 archive, which is the
+whole point. `scripts/rebuild.py` already passes season/phase from the manifest; don't let them
+re-derive, or a save whose in-game date differs from its last match date lands on a different
+phase and you get a duplicate slice instead of a replaced one. `--reset` is now safe for the things that used to be at risk: role_weights,
+eligible_origin_clubs and app_config all seed from `seeds/` (all 7 tactic methods are in
+`role_weights.csv`, and `config_bundle.json` carries the app settings), while the shortlist and
+saved scouts have left the store entirely for `state/` + R2. A tactic inserted straight into the
+DB and never exported to `seeds/role_weights.csv` would still be lost.
 
 Afterwards, verify rather than assume: row counts per slice, plus a ground-truth anchor you can
 check against a screenshot.
@@ -85,8 +104,8 @@ check against a screenshot.
    wait for a `DONE` sentinel via Monitor.
 
 3. **Inspect each `output/<stem>/summary.json`**: read `label_auto`, `latest_match`,
-   `date_range`, `competitions`, `counts`. Also check `clubs.json` for `6567`/`11320`
-   (career sanity). Build a mapping table of **file → intended (season, phase)**, resolving:
+   `date_range`, `competitions`, `counts`. Also check `clubs.json` for the career's managed +
+   reserve tids (frem: `346`/`7296`) as a career sanity check. Build a mapping table of **file → intended (season, phase)**, resolving:
    - filename intent (`-23-mid` → 2023/mid) over the date heuristic,
    - 0-match start saves → the season/phase the user names,
    - the Mar–Jul "end" collision (see above).
@@ -111,8 +130,8 @@ check against a screenshot.
    legacy `phase IN (start,mid,end)` CHECK on first load so date-phases are accepted.)
 
 6. **Verify**: query `staging.extracts` (all labels + row counts), squad sizes per label
-   (`club_tid in (6567,11320)`), and run a quick `AppTest` smoke over the dashboard pages on a
-   new label (e.g. the newest season) to confirm rendering. Report the final snapshot table.
+   (`club_tid in (346,7296)` for frem), and run an `AppTest` smoke over the dashboard pages to
+   confirm rendering — all 14 should pass, including against a read-only store. Report the final snapshot table.
 
 ## Gotchas seen before
 - `output/` and `*.duckdb` are gitignored; extraction writes lots of JSON there — fine.
