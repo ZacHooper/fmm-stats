@@ -1,6 +1,6 @@
 # Handoff — continue exactly where we are
 
-Paste-ready context for a fresh agent. **Last updated 2026-08-21.**
+Paste-ready context for a fresh agent. **Last updated 2026-08-21 (Phase 2 built).**
 
 Read [`CLAUDE.md`](../CLAUDE.md) first, then
 [`docs/agent-context/MEMORY.md`](agent-context/MEMORY.md) which indexes the durable notes. This
@@ -66,38 +66,65 @@ from a 0-match save, so it's an argument — **ask the user for it**.
 
 ---
 
-## Phase 2 — NEXT UP, not started
+## Phase 2 — BUILT, waiting on a Cloudflare Pages project
 
-A **static site on Cloudflare Pages** replaces hosting the dashboard. The user reads the data on
-their phone and needing a laptop awake is the pain point; they also want Claude able to pull a
-scout report from the phone with both laptops off. Streamlit stays local for interactive work.
+A **static site** replaces hosting the dashboard: the user reads the data on a phone, and
+needing a laptop awake was the pain point. Streamlit stays local for interactive work.
+Deployment runbook: [`DEPLOY.md`](DEPLOY.md).
 
-**New `scripts/build_site.py`** renders into a committed `site/` dir, calling existing
-`dashboard/db.py` functions so no analysis logic is duplicated:
+**`scripts/build_site.py`** renders everything in ~7s into a committed `site/` dir:
 
-- **`site/*.html`** — for the user. Squad overview, the position review (depth charts with Fam and
-  ability ranks), league tables, last-match stats. Self-contained HTML, inline CSS, wide tables in
-  `overflow-x: auto` containers so they behave on a phone.
-- **`site/api/*.json`** — for Claude. `api/index.json` (snapshots, clubs, leagues),
-  `api/club/<tid>.json` per club in the managed divisions (~48 files: position, familiarity,
-  effective rating, fit + level percentiles, ability ranks, attributes), `api/squad.json` (ours,
-  with contract/wage and last-season match stats). Scoped per club deliberately — the whole
-  effective table is 30k players and hopeless in a chat context, but our squad plus one opponent
-  is a few hundred KB.
-- **IMMERSION RULE, actively guard it:** published JSON must carry `level_*` percentiles and
-  ability *ranks* only, never raw `ca`/`pa`. Reusing `effective_table` (which `EXCLUDE`s `ca`) and
-  `ability_rank_leagues/clubs` (which return only rank/N) preserves this by construction; a
-  hand-rolled query is how it would break. Verify with `grep -ri '"ca"' site/api/`.
-- **Deploy:** commit `site/`, let Cloudflare Pages' GitHub integration build on push. No wrangler,
-  no Node toolchain. Refresh = import → `build_site.py` → commit → push.
-- **`site/functions/api/shortlist.ts`** — a Pages Function with a native R2 binding (no
-  credentials needed) accepting a POST from a small form on the site and PUTting one object to
-  `state/shortlist/<id>.json`. Guard with a shared-secret header. This is why the shortlist moved
-  to one-object-per-entry.
+| Output | For | Notes |
+|---|---|---|
+| `site/index.html` | phone | priorities this window, weakest/strongest roles, the move-on list |
+| `site/positions.html` | phone | the full depth charts + loan destinations (76 KB) |
+| `site/squad.html` | phone | every owned player, **including** the 8 the depth charts exclude |
+| `site/form.html` | phone | season-by-season, last 20 matches, last season's minutes |
+| `site/divisions.html` | phone | all 3 ladder divisions ranked by squad index |
+| `site/shortlist.html` | phone | the one page that WRITES — talks to the Pages Function |
+| `site/api/index.json` | Claude | the manifest: snapshot, ladder, every file, the caveats |
+| `site/api/squad.json` | Claude | 46 owned players, per-role reads, contracts, attributes |
+| `site/api/positions.json` | Claude | the position review as data |
+| `site/api/form.json` | Claude | 81 deduped matches |
+| `site/api/club/<tid>.json` | Claude | 36 clubs across the 3 divisions, ~620 KB total |
+
+**The analysis is not duplicated.** The depth-chart computation moved out of the Streamlit page
+into **`dashboard/positions.py`**, which both the page and the build call — so the site is a
+second *screen*, not a second *opinion*. `13_Positions.py` is now rendering only; verified the
+extracted logic is semantically identical to what it replaced (the diff is line-wrapping and one
+unused-variable rename).
+
+**The immersion rule is enforced, not just intended.** `build_site.py` walks every emitted JSON
+and fails the build on a raw-ability key at any depth (`ca`, `pa`, `current_ability`, …) — a
+parse, not a grep, so `{"CA": …}` can't slip through and the word inside prose doesn't
+false-positive. Currently passing.
+
+**`functions/api/shortlist.ts`** — a Pages Function with a native R2 binding (no credentials).
+GET lists, POST adds, DELETE removes, all gated by an `x-fm-token` header. It lives at the
+**repo root**, not in `site/`, because `--clean` wipes the output dir. Verified end to end
+against real R2: an object in the exact shape the Function PUTs was read back by
+`dashboard/state.py` → `db.shortlist_get()`, the id stayed int-coercible (the Squad Tool casts
+it), and `shortlist_remove()` deleted it again. The browser JS passes `node --check`.
+
+**What's left is a dashboard click, not code:** create the Pages project (build command empty,
+output dir `site`), bind `FM_STATE` → `fmm-stats`, set the `FM_SHORTLIST_TOKEN` secret. All of
+it is in `DEPLOY.md`, including the cost to watch — ~800 KB committed per refresh, which
+deltas poorly, and the `wrangler pages deploy` escape hatch if it starts to bite.
 
 Deferred deliberately: **store dedupe** (`player_history_seasons` is 14% unique,
 `player_positions` 9% — both re-stored per snapshot; would take the store 80 MB → ~30 MB) and a
 hosted interactive Streamlit as a fallback if static proves limiting.
+
+### Two things the build surfaced
+
+- **`staging.standings` is not usable for this career** — a 22-game division parses back with
+  max `played` 12, and the newest snapshot has no NordicBet Liga table at all. So there is no
+  league table on the site; `divisions.html` ranks clubs by **squad index** instead, which
+  answers the same question honestly. Note that index scores every club under *our* weight-set,
+  so it reads as "how well their players fit the way we play", not raw quality.
+- **A club with no rated players used to vanish silently.** `api/index.json` now lists them in
+  `clubs_without_rated_players` — currently FC Sydvest 05 Tønder, which is exactly why 3.
+  Division reads as 11 clubs on `effective_table` and 12 on `league_members`.
 
 ---
 
@@ -117,6 +144,8 @@ hosted interactive Streamlit as a fallback if static proves limiting.
    `uv run streamlit run dashboard/Home.py`.
 6. `docs/agent-context/fm-parser-project.md` and `day1-league-membership.md` cite commit SHAs
    (`aac6cbe`, `0b9a679`, `9c89633`, `d0f60af`) that the history rewrite invalidated. Cosmetic.
+7. **The Pages project doesn't exist yet** — see `DEPLOY.md`. Until it does, preview with
+   `uv run python -m http.server -d site 8000`.
 
 ---
 
@@ -144,8 +173,9 @@ Plus GK/LB/RB/CB written up in chat.
 - **Against 4-1-2-2-1:** only **four** players have ST familiarity ≥15, and Nordberg at striker is
   64/70 in the division on Fam 15. Jakobsen is the one genuine striker (11/70 in our division,
   1/64 in the tier below) and already the focal point of the strikerless setup.
-- **Loans out:** Karlsen (18, RB) → 2. Division, first choice at 4 clubs, £31.7k/wk idle — the
-  standout. Dedes (20, LB) → 3. Division (Slagelse/Frederiksberg/Næsby). Pingel → Brabrand is a
+- **Loans out:** Karlsen (18, RB) → 2. Division, first choice at **6** clubs there and 9 in 3.
+  Division, £31.7k/wk idle — the standout. (The "4 clubs" in an earlier draft of this file
+  didn't survive recomputation; the shared builder at Fam ≥15 says 6.) Dedes (20, LB) → 3. Division (Slagelse/Frederiksberg/Næsby). Pingel → Brabrand is a
   tidy exit, not development: he'd be 9/9, 15/15 and 10/10 at their three positions.
 - **Releases:** Rwango (last of 88 in the division, starts nowhere below us), Basarte, Dirksen,
   Frahm. **Sell:** Youssef (ability-identical to Fredslund, four years older than Bramsborg who
