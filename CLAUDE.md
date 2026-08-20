@@ -127,7 +127,7 @@ no multi-writer problem to solve:
   file would mean read-modify-write and two devices adding at once would silently lose one. Adds
   are collision-free, a delete is an object delete, sync is a plain union (`rclone copy` both
   ways). Degrades to local-only with no rclone or no remote configured.
-- `FM_SAVES_DIR`, `FM_R2_REMOTE` (default `r2:fm-parser`), `FM_STATE_OFFLINE=1` to skip all
+- `FM_SAVES_DIR`, `FM_R2_REMOTE` (default `r2:fmm-stats`), `FM_STATE_OFFLINE=1` to skip all
   syncing, `FM_STATE_TTL` for the pull throttle.
 
 ## Common commands
@@ -159,7 +159,7 @@ uv run python scripts/discover_career.py <save.fms>       # find a new career's 
 uv run python scripts/rebuild.py --career frem      # fetches saves from R2, extracts, loads
 ```
 
-That needs `rclone` with a remote named per `FM_R2_REMOTE` (default `r2:fm-parser`); without it,
+That needs `rclone` with a remote named per `FM_R2_REMOTE` (default `r2:fmm-stats`); without it,
 drop the `.fms` files into `~/fm-saves/frem/` by hand and the same command works offline. Budget
 ~1 min per snapshot (~12 min for Frem's 12).
 

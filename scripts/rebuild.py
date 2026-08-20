@@ -41,7 +41,7 @@ from fmparser import careers                                          # noqa: E4
 
 MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")
 SAVES_DIR = os.path.expanduser(os.environ.get("FM_SAVES_DIR", "~/fm-saves"))
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fm-parser")
+R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 
 
 def read_manifest():

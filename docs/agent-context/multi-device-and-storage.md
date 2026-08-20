@@ -15,7 +15,7 @@ code + seeds reproduce it exactly, so it is never committed, never synced, and n
 | Tier | Holds | Where |
 |---|---|---|
 | Code + build inputs | source, `seeds/` (role_weights, eligible_origin_clubs, config_bundle, **manifest**) | git (private GitHub) |
-| Archive + live state | `.fms.gz` saves, shortlist, saved scouts | Cloudflare R2 (`r2:fm-parser`) |
+| Archive + live state | `.fms.gz` saves, shortlist, saved scouts | Cloudflare R2 (`r2:fmm-stats`) |
 | Derived | `fm-*.duckdb`, `output/`, `site/` | local only |
 
 Because each machine builds its own store, **there is no multi-writer problem** — which is the
@@ -64,7 +64,7 @@ Verified independently with `cmp` against an untouched original, not just the sc
 
 ## Live state: one object per entry
 
-`dashboard/state.py` mirrors `state/<kind>/<id>.json` to `r2:fm-parser/state/<kind>/`. Kinds:
+`dashboard/state.py` mirrors `state/<kind>/<id>.json` to `r2:fmm-stats/state/<kind>/`. Kinds:
 `shortlist`, `scouts`.
 
 **One object per entry is load-bearing, not tidiness.** R2 has no append, so a shared JSONL means

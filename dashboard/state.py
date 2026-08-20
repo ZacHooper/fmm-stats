@@ -25,7 +25,7 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_DIR = os.environ.get("FM_STATE_DIR") or os.path.join(REPO, "state")
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fm-parser")
+R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 PULL_TTL = int(os.environ.get("FM_STATE_TTL", "300"))       # seconds between remote pulls
 KINDS = ("shortlist", "scouts")
 
