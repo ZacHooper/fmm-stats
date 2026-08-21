@@ -31,7 +31,9 @@ export async function view() {
     ["Search the save", searchPanel],
     ["Capital region", capitalPanel],
   ];
-  let active = 0;
+  // Open on Search until a device token exists: the shortlist can't be read without one, so
+  // landing there shows an empty table and looks broken rather than unconfigured.
+  let active = tok() ? 0 : 1;
   const drawTabs = () => {
     tabs.replaceChildren(...TABS.map(([label], i) => el(`button.chip${i === active ? ".on" : ""}`, {
       text: label,
@@ -40,7 +42,7 @@ export async function view() {
   };
   drawTabs();
   out.append(tabs, panel);
-  panel.append(await TABS[0][1]());
+  panel.append(await TABS[active][1]());
   return out;
 }
 
