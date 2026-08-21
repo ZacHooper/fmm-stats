@@ -66,7 +66,7 @@ from a 0-match save, so it's an argument — **ask the user for it**.
 
 ---
 
-## Phase 2 — the web app. BUILT, waiting on a Cloudflare Pages project
+## Phase 2 — the web app. **LIVE** at <https://fmm-stats.zac-g-hooper.workers.dev>
 
 **One app for phone and desktop**, replacing the idea of a reduced "phone view". The first pass
 pre-rendered six HTML pages; that was wrong — a finished table can't be searched, re-columned or
@@ -139,8 +139,22 @@ weighted attributes + attribute-by-attribute diff), reachable from every table.
 Streamlit (or `seeds/`) and re-export. **Team Builder** could be ported (attributes and weights
 are both client-side already) but isn't yet: it's a view to write, not a data problem.
 
-**What's left is a dashboard click, not code:** create the Pages project (build command empty,
-output dir `site`), bind `FM_STATE` → `fmm-stats`, set `FM_SHORTLIST_TOKEN`. All in `DEPLOY.md`.
+### Deployed as a WORKER, not Pages
+
+Worth knowing before touching the deploy: it runs as a **Cloudflare Worker with static assets**
+(`*.workers.dev`), so a Pages `functions/` directory is **not read** — both endpoints 404'd with an
+empty body until the logic moved to `worker/index.js`. (An empty-bodied 404 is the tell: the
+endpoints return JSON even when they fail, so a bodyless 404 is the asset handler, not the code.)
+`wrangler.jsonc` is the source of truth for the entrypoint, assets dir and R2 binding.
+
+**Verified on the live host:** static assets, `AGENTS.md`, `guides/scout.md`, `/api/all` (200,
+4,330,533 bytes streamed from R2, ETag→304 on repeat), `/api/shortlist` (401 failing closed).
+4.63 MB of deployed JSON re-checked for raw ability: **none**, with 3,302/3,302 level percentiles
+and 92/176 league skill indices present.
+
+**The only step left is `FM_SHORTLIST_TOKEN`** — a secret, so deliberately not in the repo:
+`npx wrangler secret put FM_SHORTLIST_TOKEN`, then paste the same value once per device under
+Recruitment → Shortlist. Until then the shortlist is read-only-and-closed by design.
 
 Deferred: **store dedupe** (`player_history_seasons` 14% unique, `player_positions` 9%; would take
 the store 80 MB → ~30 MB).
