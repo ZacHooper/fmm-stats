@@ -501,6 +501,15 @@ def main():
         "files": {"core": "api/core.json", "squad": "api/squad.json",
                   "positions": "api/positions.json", "matches": "api/matches.json",
                   "all_players": "/api/all"},
+        # An agent handed only this URL should be able to bootstrap itself. AGENTS.md explains
+        # the columnar format, the rating formula it has to compute, and the immersion rule;
+        # the guides are per-task procedures.
+        "agent_guide": "AGENTS.md",
+        "guides": {"scout an opponent": "guides/scout.md"},
+        "how_to_read_this": ("Rows in core/matches are POSITIONAL ARRAYS with a sibling "
+                            "*_fields array naming the slots. Role ratings are NOT stored — "
+                            "compute SUM(attribute x weight) from core.tactics, where an "
+                            "attribute the role does not list weighs 1. Read AGENTS.md first."),
         "counts": {n: {"bytes": b, "gzip": g} for n, b, g in written},
         "immersion_rule": IMMERSION,
         "caveats": [
