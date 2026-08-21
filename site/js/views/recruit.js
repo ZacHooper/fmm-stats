@@ -225,10 +225,10 @@ async function searchPanel() {
       onclick: () => {
         arm = !arm; armBtn.classList.toggle("on", arm);
         armBtn.textContent = arm ? "Picking" : "Pick";
-        if (!arm) { selected.clear(); cmp.textContent = "Compare (0)"; }
+        if (!arm) { selected.clear(); cmp.textContent = "Compare (0)"; tbl.redraw(); }
       },
     });
-    return playerTable({
+    const tbl = playerTable({
       key: "search",
       rows,
       catalogue: {
@@ -261,15 +261,18 @@ async function searchPanel() {
       sort: { by: "lvlg", dir: "desc" },
       searchPlaceholder: "Search by name, club or league…",
       toolbar: [armBtn, cmp],
+      rowClass: (r) => (selected.has(r.tid) ? "picked" : null),
       onRow: (r) => {
         if (!arm) return openProfile(r.tid);
         if (selected.has(r.tid)) selected.delete(r.tid);
         else if (selected.size < 4) selected.add(r.tid);
         else return toast("Four at a time", true);
         cmp.textContent = `Compare (${selected.size})`;
+        tbl.redraw();                              // paint the selection back onto the rows
       },
       empty: "Nobody matches. Load every player if you're looking outside our pyramid.",
-    }).node;
+    });
+    return tbl.node;
   }
 
   go(false);

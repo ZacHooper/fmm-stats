@@ -175,7 +175,7 @@ export async function view() {
       arm = !arm;
       armBtn.classList.toggle("on", arm);
       armBtn.textContent = arm ? "Picking" : "Pick";
-      if (!arm) { selected.clear(); cmpBtn.textContent = "Compare (0)"; }
+      if (!arm) { selected.clear(); cmpBtn.textContent = "Compare (0)"; t.redraw(); }
     },
   });
   let arm = false;
@@ -191,6 +191,7 @@ export async function view() {
     searchPlaceholder: "Search our squad…",
     toolbar: [unitSel, loanBtn, armBtn, cmpBtn],
     filter: (r) => (showLoanIn || !r.loanedIn) && UNITS[unit](r),
+    rowClass: (r) => (selected.has(r.tid) ? "picked" : null),
     empty: "No player matches those filters.",
     onRow: (r) => {
       if (!arm) return openProfile(r.tid, { role: r.r.role });
@@ -198,6 +199,7 @@ export async function view() {
       else if (selected.size < 4) selected.add(r.tid);
       else return toast("Four at a time is the useful maximum", true);
       cmpBtn.textContent = `Compare (${selected.size})`;
+      t.redraw();                                  // paint the selection back onto the rows
     },
   });
 

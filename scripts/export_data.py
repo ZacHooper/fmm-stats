@@ -251,6 +251,27 @@ def main():
                              max(reputation) AS reputation, max(member_count) AS clubs
                       FROM staging.leagues WHERE season=? AND phase=? AND name IS NOT NULL
                       GROUP BY cid ORDER BY reputation DESC NULLS LAST""", [season, phase])
+    # Skill index: average player ability per league, normalised 0-100 across ranked leagues.
+    # Immersion-safe in the same way the Level percentile is — a CA-DERIVED INDEX, never the
+    # number. The raw average is computed here and dropped before anything is written, so the
+    # ability itself cannot leave even by accident.
+    skill = db.q("""WITH cl AS (
+        SELECT club_tid, arg_max(league_cid, ord) AS league_cid FROM (
+          SELECT club_tid, league_cid,
+                 LPAD(CAST(season AS VARCHAR),4,'0') || phase AS ord
+          FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
+        GROUP BY club_tid)
+        SELECT cl.league_cid AS cid, AVG(p.ca) AS aca, COUNT(*) AS rated
+        FROM staging.players p JOIN cl ON cl.club_tid = p.club_tid
+        WHERE p.season=? AND p.phase=? AND NOT p.is_staff AND p.ca IS NOT NULL
+        GROUP BY cl.league_cid HAVING COUNT(*) >= 20""", [season, phase])
+    skill_idx = {}
+    if not skill.empty:
+        lo, hi = float(skill["aca"].min()), float(skill["aca"].max())
+        rng = (hi - lo) or 1.0
+        for r in skill.itertuples():
+            skill_idx[int(r.cid)] = (round(100 * (float(r.aca) - lo) / rng, 1), int(r.rated))
+    del skill                                   # the raw averages never reach a payload
 
     rw = db.q("SELECT method, role, attribute, weight FROM staging.role_weights")
     tactics = {}
@@ -291,9 +312,11 @@ def main():
         "club_fields": ["tid", "name", "league_cid", "players"],
         "leagues": [[int(r.cid), r.name, r.nation,
                      None if pd.isna(r.reputation) else int(r.reputation),
-                     None if pd.isna(r.clubs) else int(r.clubs)]
+                     None if pd.isna(r.clubs) else int(r.clubs),
+                     skill_idx.get(int(r.cid), (None, None))[0],
+                     skill_idx.get(int(r.cid), (None, None))[1]]
                     for r in leagues.itertuples()],
-        "league_fields": ["cid", "name", "nation", "reputation", "clubs"],
+        "league_fields": ["cid", "name", "nation", "reputation", "clubs", "skill_idx", "rated"],
         "tactics": tactics,
         "pos_role": dict(zip(prm["position"], prm["role"])),
         "familiarity": {"curve": curve, "floor": floor},

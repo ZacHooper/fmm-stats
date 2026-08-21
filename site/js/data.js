@@ -51,7 +51,18 @@ export async function boot() {
   S.ours = core.ours;
   S.method = S.index.snapshot.default_method;
   for (const c of core.clubs) S.clubs.set(c[0], { tid: c[0], name: c[1] || `#${c[0]}`, leagueCid: c[2], players: c[3] });
-  for (const l of core.leagues) S.leagues.set(l[0], { cid: l[0], name: l[1], nation: l[2], reputation: l[3], clubs: l[4] });
+  for (const l of core.leagues) {
+    S.leagues.set(l[0], { cid: l[0], name: l[1], nation: l[2], reputation: l[3],
+      memberCount: l[4], skillIdx: l[5] ?? null, rated: l[6] ?? null, clubs: 0 });
+  }
+  // `member_count` from the competition record is unreliable — it reads 5 for a 12-team
+  // division and 11 for the 20-team Premier League. Counting actual club records is exact
+  // (12, 12, 20), so that's what the UI shows. A league can still undercount by clubs whose
+  // squad didn't parse; `S.clubs` only holds clubs with at least one player.
+  for (const c of S.clubs.values()) {
+    const lg = S.leagues.get(c.leagueCid);
+    if (lg) lg.clubs++;
+  }
   for (const row of core.players) {
     const p = mkPlayer(row, core.fields, core.attrs);
     p.inCore = true;

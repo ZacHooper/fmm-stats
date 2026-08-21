@@ -97,7 +97,11 @@ export function playerTable(o) {
       tbody.append(el("tr", {}, [el("td.empty", { colspan: cols.length, text: o.empty || "Nothing matches." })]));
     }
     for (const r of rows.slice(0, state.limit || 400)) {
-      const tr = el("tr", o.onRow ? { class: "click", onclick: () => o.onRow(r) } : {});
+      const extra = o.rowClass ? o.rowClass(r) : null;
+      const tr = el("tr", {
+        ...(o.onRow ? { class: "click", onclick: () => o.onRow(r) } : {}),
+        ...(extra ? { class: (o.onRow ? "click " : "") + extra } : {}),
+      });
       for (const c of cols) {
         const td = el(`td${c.align === "num" ? ".num" : ""}${c.cls ? "." + c.cls : ""}`);
         if (c.render) {
@@ -113,6 +117,7 @@ export function playerTable(o) {
       }
       tbody.append(tr);
     }
+    scroll.classList.toggle("fit", rows.length <= 12);
     clear(scroll).append(el("table", {}, [thead, tbody]));
     if (rows.length > (state.limit || 400)) {
       scroll.append(el("div.more", {}, [

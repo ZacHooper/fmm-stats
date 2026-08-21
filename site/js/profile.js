@@ -7,29 +7,64 @@
  * in the abstract. Switch tactic in the header and the emphasis moves.
  */
 import * as D from "./data.js";
-import { el, bar, num, money, monthYear, sparkline, radar, sheet, pill, DASH } from "./ui.js";
+import { el, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
+  ATTR_BANDS, DASH } from "./ui.js";
 
-const WCLS = { 4: "w4", 3: "w3", 2: "w2", 1: "" };
+/**
+ * Attribute order as the GAME lists it — alphabetical within each group, three columns side by
+ * side, keepers separate. Matching it means a value you just read off the phone lands in the
+ * same place here, which is the whole point of a reference screen.
+ */
+const GAME_ORDER = {
+  Technical: ["Aerial", "Crossing", "Dribbling", "Passing", "Shooting", "Tackling", "Technique"],
+  Mental: ["Aggression", "Creativity", "Decisions", "Leadership", "Movement", "Positioning", "Teamwork"],
+  Physical: ["Pace", "Stamina", "Strength"],
+  Goalkeeping: ["Agility", "Communication", "Handling", "Kicking", "Reflexes", "Throwing"],
+};
 
 export function attributeBlock(p, role, { compare = null } = {}) {
-  const wrap = el("div");
-  for (const [group, names] of Object.entries(D.ATTR_GROUPS)) {
-    const rows = [];
-    for (const a of names) {
+  const isGk = p.positions.some((q) => q.pos === "GK");
+  const groups = ["Technical", "Mental", "Physical"];
+  const cols = groups.map((g) => {
+    const col = el("div.attrcol", {}, [el("h4", { text: g })]);
+    for (const a of GAME_ORDER[g]) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
       const v = p.attrs[i];
-      if (v == null) continue;
       const w = role ? D.weightOf(a, role) : 1;
       const other = compare ? compare.attrs[i] : null;
-      rows.push(el(`div.arow.${WCLS[w] || ""}`, {}, [
-        el("span.an", { text: a, title: w > 1 ? `weight ${w} for ${role}` : a }),
-        el("span", {}, [el("span.abar", { style: `width:${(100 * v) / 20}%;display:block` })]),
-        el("span.av", { text: other != null ? `${v} (${other > v ? "−" : "+"}${Math.abs(v - other)})` : String(v) }),
+      col.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {
+        title: w > 1 ? `${a} — weight ${w} for ${role}` : a,
+      }, [
+        el("span.an", {}, [a, w >= 3 ? el("span.wdot", { text: w >= 4 ? "key" : "imp" }) : null]),
+        el("span", {}, [
+          other != null && other !== v
+            ? el("span.dim", { text: `${v > other ? "+" : ""}${v - other}  ` }) : null,
+          attrValue(v),
+        ]),
       ]));
     }
-    if (rows.length) wrap.append(el("h4", { text: group }), el("div.attrs", {}, rows));
+    return col;
+  });
+  const wrap = el("div", {}, [el("div.attrcols", {}, cols)]);
+  // Keepers keep their own block, as the game does — six attributes that mean nothing for an
+  // outfielder shouldn't pad out everyone else's profile.
+  if (isGk) {
+    const gk = el("div.attrcol", {}, [el("h4", { text: "Goalkeeping" })]);
+    for (const a of GAME_ORDER.Goalkeeping) {
+      const i = D.S.attrs.indexOf(a);
+      if (i < 0) continue;
+      const w = role ? D.weightOf(a, role) : 1;
+      gk.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {}, [
+        el("span.an", { text: a }), attrValue(p.attrs[i]),
+      ]));
+    }
+    wrap.append(el("div.attrcols", {}, [gk]));
   }
+  wrap.append(el("div.avlegend", {},
+    [el("span.dim", { text: "Scale:" }),
+      ...ATTR_BANDS.map(([b, label]) => el(`span.av.v${b}`, { text: label.split(" ")[0], title: label })),
+      el("span.dim", { text: role ? `· tinted rows are weighted for ${role}` : "" })]));
   return wrap;
 }
 
@@ -69,22 +104,38 @@ export function openProfile(tid, { role = null } = {}) {
   ]));
 
   // positions and what each is worth under this tactic
+  // Fit percentile against our own division, and against his own league. Level %ile is a
+  // team-shaped measure — useful for "is this division better than ours", wrong for "is this
+  // player better than that one", which is what a profile is for.
+  const ourCid = D.ourLeagueCid();
+  const divPlayers = D.leaguePlayers(ourCid);
+  const hisCid = D.S.clubs.get(p.clubTid)?.leagueCid;
+  const hisPlayers = hisCid != null && hisCid !== ourCid ? D.leaguePlayers(hisCid) : null;
+  const ourName = D.S.leagues.get(ourCid)?.name || "our division";
+  const hisName = hisCid != null ? D.S.leagues.get(hisCid)?.name : null;
+
   body.push(el("h4", { text: "Positions under this tactic" }));
-  body.push(el("div.scroll", {}, [el("table", {}, [
-    el("thead", {}, [el("tr", {}, ["Pos", "Role", "Fam", "Rating", "Level %ile (league)", "Level %ile (global)"]
-      .map((h, i) => el(`th${i > 1 ? ".num" : ""}`, { text: h })))]),
-    el("tbody", {}, roles.map((r) => el("tr", {}, [
-      el("td", { text: r.pos }), el("td", { text: r.role }),
-      el("td.num", {}, [bar(r.fam, { max: 20, lo: 60 })]),
-      el("td.num", { text: num(r.eff) }),
-      el("td.num", {}, [bar(r.lvlLeague)]),
-      el("td.num", {}, [bar(r.lvlGlobal)]),
-    ]))),
+  const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
+  if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
+  body.push(el("div.scroll.fit", {}, [el("table", {}, [
+    el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, { text: h })))]),
+    el("tbody", {}, roles.map((r) => {
+      const cells = [
+        el("td", { text: r.pos }), el("td", { text: r.role }),
+        el("td.num", {}, [bar(r.fam, { max: 20, lo: 60 })]),
+        el("td.num", { text: num(r.eff) }),
+        el("td.num", {}, [bar(D.pctile(D.poolAt(divPlayers, r.pos), r.eff))]),
+      ];
+      if (hisPlayers) cells.push(el("td.num", {}, [bar(D.pctile(D.poolAt(hisPlayers, r.pos), r.eff))]));
+      return el("tr", {}, cells);
+    })),
   ])]));
   body.push(el("p.note", {
     html: "<b>Rating</b> is this tactic's weighted attribute sum, already discounted by "
-      + "familiarity. <b>Level %ile</b> is quality — where he ranks at that position among "
-      + "players in his own league, and globally. Rating follows the tactic; Level doesn't.",
+      + "familiarity. <b>Fit %ile</b> is where that rating places him at that position "
+      + "against everyone in the division — so it answers <i>is he good enough here</i>, and it "
+      + "moves when you change tactic. (Level %ile, which measures division quality rather than "
+      + "a player, is on the Squad table and in Opposition.)",
   }));
 
   if (traj.length > 1) {
@@ -124,6 +175,10 @@ export function openProfile(tid, { role = null } = {}) {
     ])]));
   }
 
+  // Add to shortlist straight from the profile — the moment you've decided he's interesting is
+  // while you're looking at him, not after navigating to another section.
+  if (!ours) body.push(shortlistButton(p, shown));
+
   const origin = D.S.ours.origin?.[String(tid)];
   if (ours) {
     const cap = D.S.ours.capital_eligible?.includes(tid);
@@ -137,6 +192,46 @@ export function openProfile(tid, { role = null } = {}) {
 }
 
 const kpi = (label, value) => el("div.kpi", {}, [el("b", { text: String(value) }), el("span", { text: label })]);
+
+const TOKEN_KEY = "fm_shortlist_token";
+
+function shortlistButton(p, shown) {
+  const note = el("input.search", { placeholder: "Note (optional) — why he's worth a look" });
+  const btn = el("button.btn", { text: "Add to shortlist" });
+  const wrap = el("div.card", {}, [el("h4", { text: "Shortlist" }), note,
+    el("div.prow", {}, [btn])]);
+  btn.addEventListener("click", async () => {
+    const token = localStorage.getItem(TOKEN_KEY) || "";
+    if (!token) return toast("Save your device token in Recruitment → Shortlist first", true);
+    btn.disabled = true;
+    btn.textContent = "Adding…";
+    try {
+      const r = await fetch("/api/shortlist", {
+        method: "POST",
+        headers: { "x-fm-token": token, "content-type": "application/json" },
+        body: JSON.stringify({
+          name: p.name, tid: p.tid,
+          // carry his real positions and familiarity, so the entry is usable without
+          // re-typing what we already know
+          positions: Object.fromEntries(p.positions.map((q) => [q.pos, q.fam])),
+          note: note.value.trim()
+            || `${shown ? `${shown.role} ${Math.round(shown.eff)}` : ""}`.trim() || undefined,
+          source: "profile",
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      btn.textContent = "On the shortlist ✓";
+      btn.classList.add("on");
+      toast(`${p.name} added to the shortlist`);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "Add to shortlist";
+      toast(`Couldn't add: ${e.message}`, true);
+    }
+  });
+  return wrap;
+}
 
 /** Side-by-side comparison of 2-4 players: radar over role weights + attribute diffs. */
 export function openCompare(tids, role = null) {

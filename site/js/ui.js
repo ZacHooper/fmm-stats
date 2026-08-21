@@ -68,6 +68,22 @@ export function pill(text, cls) {
   return el(`span.pill.${cls}`, { text: t });
 }
 
+/**
+ * Attribute value badge, coloured by band the way the game does it: red for a real weakness,
+ * amber poor, blue ordinary, green good, teal excellent. A number you read beats a bar you
+ * have to estimate, which is why this replaced the bars in player profiles.
+ */
+export function attrValue(v) {
+  if (v == null) return el("span.av.none", { text: DASH });
+  const band = v <= 4 ? 1 : v <= 9 ? 2 : v <= 13 ? 3 : v <= 16 ? 4 : 5;
+  return el(`span.av.v${band}`, { text: String(v), title: `${v} / 20` });
+}
+
+export const ATTR_BANDS = [
+  [1, "1-4 weakness"], [2, "5-9 poor"], [3, "10-13 ordinary"],
+  [4, "14-16 good"], [5, "17-20 excellent"],
+];
+
 /** Inline SVG sparkline — a trajectory belongs in the row it describes, not on another page. */
 export function sparkline(values, { w = 70, h = 18, dot = true } = {}) {
   const vs = values.filter((v) => v != null);
