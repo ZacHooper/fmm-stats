@@ -1,16 +1,31 @@
 # Deploying the app
 
+**Live at <https://fmm-stats.zac-g-hooper.workers.dev>.**
+
 One app for phone and desktop. It's a **static single-page app** — no server, no build step, no
-Node toolchain — that ships the data and computes on the client. Cloudflare Pages serves the
-files; two Pages Functions handle the two things files can't do.
+Node toolchain — that ships the data and computes on the client. It runs as a **Cloudflare Worker
+with static assets**: files in `site/` are served directly, and `worker/index.js` handles the two
+things files can't do.
+
+> **Not Pages.** This started as a Pages project with a `functions/` directory; that directory is
+> not read by the Workers runtime, so both endpoints 404'd with an empty body (the asset handler's
+> 404, not ours). The logic now lives in `worker/index.js` and `functions/` is gone. If you ever
+> move to a real Pages project, that's the thing to reinstate.
 
 ```
 laptop:  import save  ->  export_data.py  ->  git commit + push   (small JSON, the app)
                                      \
                                       -> R2: site-data/all.json   (4 MB, never in git)
                                                         |
-Cloudflare Pages (GitHub integration) ------------- deploys site/ in seconds
+Cloudflare Workers Builds (GitHub) ---------------- deploys site/ + worker/ in seconds
 ```
+
+**Routing.** Cloudflare serves a matching static asset *first* and only invokes the Worker when
+nothing matches. So `api/index.json`, `api/core.json` and the rest come straight off disk, and
+only `/api/all` and `/api/shortlist` — which have no file behind them — reach `worker/index.js`.
+`not_found_handling` is `"none"` on purpose: the app is hash-routed (`#/squad`), so every real
+path is a real file, and an SPA rewrite would return `index.html` for the API paths instead of
+letting them through.
 
 ## Why it's built this way
 
@@ -41,33 +56,38 @@ pays for it. Everything else is 125 KB gzipped and committed.
 
 ## One-time setup
 
-### 1. Create the Pages project
+### 1. Configuration is in the repo, not the dashboard
 
-Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** →
-`ZacHooper/fmm-stats`.
+`wrangler.jsonc` declares everything except the secret: the Worker name, the entrypoint, the
+assets directory, and the R2 binding. **With that file present it is the source of truth** — the
+same fields become read-only in the dashboard, which is the point: the deploy config is versioned
+with the code instead of living in a UI nobody can diff.
 
-| Setting | Value |
-|---|---|
-| Production branch | `main` |
-| Framework preset | **None** |
-| Build command | *(leave empty)* — the app is already in the repo |
-| Build output directory | `site` |
+Validate a change without deploying:
 
-Pick an **unguessable project name**: it becomes `<name>.pages.dev` and that URL is the only
-thing between the site and the open internet. Nothing here is sensitive, but don't pick
-`frem-stats`.
+```bash
+npx wrangler deploy --dry-run          # checks config + bindings, bundles, uploads nothing
+```
 
-`functions/` sits at the **repo root**, outside `site/`, and is picked up automatically.
+### 2. The one thing that must stay in the dashboard
 
-### 2. Bind R2
+**`FM_SHORTLIST_TOKEN`** — a secret, so it is deliberately *not* in `wrangler.jsonc`; a secret in
+the repo is a published secret. Set it once:
 
-Project → **Settings** → **Functions**:
+```bash
+npx wrangler secret put FM_SHORTLIST_TOKEN     # or Settings -> Variables and Secrets
+openssl rand -hex 24                           # to generate one
+```
 
-- **R2 bucket binding** — variable `FM_STATE`, bucket `fmm-stats`. A native binding, so there is
-  no access key to leak or rotate. Both Functions use it: `api/all` streams the player file,
-  `api/shortlist` reads and writes shortlist entries.
-- **Environment variable (secret)** — `FM_SHORTLIST_TOKEN`, e.g. `openssl rand -hex 24`. The
-  shortlist Function refuses every request when it's unset: unconfigured fails closed.
+The shortlist endpoint refuses every request while it's unset — unconfigured fails closed, never
+open. The R2 binding (`FM_STATE` → `fmm-stats`) needs no credentials at all; that's the advantage
+of a native binding over an access key.
+
+Then open **Recruitment → Shortlist** on each device and paste the token once. It's kept in that
+browser's localStorage, never in the page source. What it buys, precisely: it stops someone who
+finds the URL from writing to your bucket. It is not per-user auth and it does reach the browser.
+Reads of the player data are deliberately unauthenticated — gating them would mean shipping the
+token to every visitor just to look.
 
 Then open **Recruitment → Shortlist** on each device and paste the token once. It's kept in that
 browser's localStorage, never in the page source. What it buys, precisely: it stops someone who
@@ -79,7 +99,7 @@ shipping it to every visitor just to look.
 
 Turn wifi **off** — that's the actual test.
 
-1. `https://<project>.pages.dev/` loads with both laptops shut.
+1. <https://fmm-stats.zac-g-hooper.workers.dev> loads with both laptops shut.
 2. **Squad** → *Columns* → add `Pace` and `G/90`; sort by tapping a header. Wide tables scroll
    inside their own box while the page doesn't move sideways.
 3. Change **tactic** in the header — every rating and Fit %ile changes, Level %ile doesn't.
@@ -105,8 +125,14 @@ Preview locally before pushing:
 uv run python -m http.server -d site 8000     # http://localhost:8000
 ```
 
-Everything works except the two Functions, so the shortlist shows "offline" and global search
-falls back to `site/api/all.json` on disk. That fallback is why the file is still written locally.
+Everything works except the two Worker endpoints, so the shortlist shows "offline" and global
+search falls back to `site/api/all.json` on disk. That fallback is why the file is still written
+locally even though it's gitignored.
+
+One wrinkle if you ever run `npx wrangler deploy` from the laptop rather than letting Cloudflare
+build from git: it reads `site/` off disk, so it would upload that 4 MB `all.json` as a static
+asset. Harmless — nothing requests it by that path — but wasteful. `.assetsignore` does *not*
+exclude it (tested: the file is uploaded and the exclusion ignored), so just prefer the git build.
 
 ## What is still dashboard-only
 

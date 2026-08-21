@@ -1,0 +1,25 @@
+{
+  // Deployed as a WORKER WITH STATIC ASSETS, not a Pages project. Cloudflare serves a matching
+  // file from `site/` first and only runs `main` when nothing matches — so the JSON payloads are
+  // static and only /api/all and /api/shortlist reach the Worker.
+  //
+  // `not_found_handling` is "none" deliberately: the app is hash-routed (#/squad), so every real
+  // path is a real file, and an SPA rewrite would return index.html for the API paths instead of
+  // letting them through to the Worker.
+  //
+  // With this file present it is the source of truth — the same fields become read-only in the
+  // dashboard. FM_SHORTLIST_TOKEN stays OUT of it, because a secret in the repo is a published
+  // secret; set it in the dashboard or with `wrangler secret put FM_SHORTLIST_TOKEN`.
+  "name": "fmm-stats",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./site",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "r2_buckets": [
+    { "binding": "FM_STATE", "bucket_name": "fmm-stats" }
+  ],
+  "observability": { "enabled": true }
+}

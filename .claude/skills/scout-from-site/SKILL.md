@@ -31,9 +31,9 @@ step with the schema the way a copy in this repo would:
    immersion rule, and the caveats.
 2. `<SITE>/guides/scout.md` — the scouting procedure and output shape.
 
-`<SITE>` is the Cloudflare Pages URL. Resolve it in this order: the `FM_SITE` environment
-variable, then the `site.url` line in `docs/DEPLOY.md` if present, then ask the user. Don't guess a
-project name — the URL is deliberately unguessable.
+`<SITE>` is **`https://fmm-stats.zac-g-hooper.workers.dev`** (override with the `FM_SITE`
+environment variable). It's a Worker with static assets, not a Pages project — so the dynamic
+endpoints are `/api/all` and `/api/shortlist`, served by `worker/index.js`.
 
 For a local check with no deployment, `uv run python -m http.server -d site 8000` serves the same
 files at `http://localhost:8000` (both Functions are absent, so `/api/all` falls back to
