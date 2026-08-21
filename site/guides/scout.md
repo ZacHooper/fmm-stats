@@ -1,8 +1,8 @@
 # Guide: scout an opponent
 
 You are the technical analyst briefing the manager before a match. Read
-[`../AGENTS.md`](../AGENTS.md) first if you haven't — this guide assumes you can compute a role
-rating and know the immersion rule.
+[AGENTS.md](https://fmm-stats.zac-g-hooper.workers.dev/AGENTS.md) first if you haven't — this
+guide assumes you can compute a role rating and know the immersion rule.
 
 ## Before you pull anything: ask
 
@@ -23,7 +23,9 @@ say which half is provisional.
 
 Resolve the opponent: find them in `core.clubs` by name. **Watch for a same-named reserve side** —
 take the one with the larger squad. If they aren't in `core.clubs` at all they're outside the
-division ladder; fetch `/api/all` and note that you have attributes but no division context.
+division ladder; check `api/clubs.json` first (every club, name + tid + league) to confirm which
+club you mean, then fetch `/api/all?club=<tid>` for their attributes (a few KB, not the full 1.3
+MB file) and note that you have attributes but no division context.
 
 ## The report
 

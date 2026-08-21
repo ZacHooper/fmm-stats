@@ -62,14 +62,18 @@ score for a player, and never present one.
 
 ## Files
 
+All URLs below are absolute and independently followable — you don't need to construct a path
+from the base URL of this doc.
+
 | Fetch | Size | Holds |
 |---|---|---|
-| `api/index.json` | 2 KB | manifest: career, snapshot, ladder, files, caveats. **Start here.** |
-| `api/core.json` | 277 KB (95 KB gz) | our clubs + every club in the division ladder, full attributes; all clubs; all leagues; all 7 tactics |
-| `api/squad.json` | 83 KB | our squad's attributes at **every** snapshot (growth) + career history |
-| `api/positions.json` | 47 KB | the position review: depth charts, ability ranks, keep/loan/sell reads |
-| `api/matches.json` | 115 KB | every parsed match + every per-player-per-match row |
-| `/api/all` | 1.3 MB gz | **every player in the save** (~23,800). Only fetch when you need someone outside the ladder. |
+| [`api/index.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/index.json) | 2 KB | manifest: career, snapshot, ladder, files, caveats. **Start here.** |
+| [`api/core.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/core.json) | 277 KB (95 KB gz) | our clubs + every club in the division ladder, full attributes; all clubs; all leagues; all 7 tactics. **Schema/reference keys come before the `players` array**, so a truncated fetch still yields a usable schema — only the tail of the player list is lost. |
+| [`api/clubs.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/clubs.json) | 207 KB (66 KB gz) | name/tid/league for **every** club in the save (not just the ladder). Fetch this instead of `/api/all` when you only need to resolve a club name. |
+| [`api/squad.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/squad.json) | 83 KB | our squad's attributes at **every** snapshot (growth) + career history |
+| [`api/positions.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/positions.json) | 47 KB | the position review: depth charts, ability ranks, keep/loan/sell reads |
+| [`api/matches.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/matches.json) | 115 KB | every parsed match + every per-player-per-match row |
+| [`/api/all`](https://fmm-stats.zac-g-hooper.workers.dev/api/all) | 1.3 MB gz (full); a few KB filtered | **every player in the save** (~23,800), full attributes. Add `?club=<tid>[,<tid>...]` and/or `?tid=<tid>[,<tid>...]` to get back only those players instead of the whole file — the response keeps the same shape (`attrs`/`fields`/`players`/`note`) plus `count` and `filtered_by`. Use `clubs.json` first to find the tid, then `/api/all?club=<tid>` for that club's full attributes. |
 
 ## Columnar format — the main gotcha
 
@@ -122,7 +126,7 @@ Read `index.json` → `caveats` for the live list. The ones that bite hardest:
 
 For a structured job, fetch the guide and follow it:
 
-- **`guides/scout.md`** — scout an opponent for an upcoming match.
+- [`guides/scout.md`](https://fmm-stats.zac-g-hooper.workers.dev/guides/scout.md) — scout an opponent for an upcoming match.
 
 ## Deriving the common things
 

@@ -48,11 +48,12 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | File | Size (gzip) | Where | When it's fetched |
 |---|---|---|---|
 | `api/core.json` | 92 KB | git | on boot — our clubs + the whole division ladder |
+| `api/clubs.json` | 66 KB | git | resolving a club name/tid outside the ladder |
 | `api/matches.json` | 19 KB | git | Matches / History / any match column |
 | `api/squad.json` | 8 KB | git | growth trajectories + career history |
 | `api/positions.json` | 5 KB | git | the position review |
 | `api/index.json` | 1 KB | git | manifest |
-| `api/all.json` | 1.3 MB | **R2** | only on "load every player" |
+| `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
 
 ## One-time setup
 

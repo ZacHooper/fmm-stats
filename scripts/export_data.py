@@ -46,6 +46,9 @@ sys.path.insert(0, os.path.join(REPO, "scripts"))
 import _dbopen                                                          # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+# Absolute, because an agent that only ever saw index.json (no page it was linked from) has no
+# base URL to resolve a relative path against — it can only follow links it can already see.
+SITE_URL = os.environ.get("FM_SITE_URL", "https://fmm-stats.zac-g-hooper.workers.dev")
 BANNED_KEYS = {"ca", "pa", "current_ability", "potential_ability", "aca"}
 IMMERSION = ("Ability is expressed as percentiles and division ranks only — the raw ability "
              "number never leaves the machine that built this.")
@@ -301,9 +304,12 @@ def main():
     core_players = player_rows(db, pd, season, phase, ATTR_ORDER,
                                club_tids=sorted(keep), levels=levels)
     emit("core.json", {
+        # Schema and reference tables FIRST, "players" LAST: players is most of this file's 277
+        # KB, so a client that truncates mid-fetch (a small agent's fetcher, a flaky connection)
+        # still gets a complete, usable schema + weights + club/league index — only the tail of
+        # the player list is lost, not everything needed to interpret it.
         "attrs": list(ATTR_ORDER),
         "fields": PLAYER_FIELDS,
-        "players": core_players,
         # only clubs with a squad: an empty club can't be rendered anywhere, and they were
         # half the rows. The count is reported so their absence is stated, not silent.
         "clubs": [[int(r.tid), r.name, None if pd.isna(r.league_cid) else int(r.league_cid),
@@ -330,7 +336,22 @@ def main():
             "origin": {str(int(t)): origin[t] for t in sq["tid"]
                        if origin.get(t)},
             "capital_eligible": sorted(capital & {int(t) for t in sq["tid"]})},
-        "note": IMMERSION})
+        "note": IMMERSION,
+        "players": core_players})
+
+    # ---------------------------------------------------------------- clubs.json
+    # Name/tid resolution for EVERY club in the save, not just the ladder subset in core.json —
+    # so an agent scouting a club outside the ladder can resolve it without fetching /api/all
+    # (1.3 MB) just to find a club name.
+    league_names = dict(zip(leagues["cid"], leagues["name"]))
+    emit("clubs.json", {
+        "club_fields": ["tid", "name", "league_cid", "league_name"],
+        "clubs": [[int(r.tid), r.name,
+                   None if pd.isna(r.league_cid) else int(r.league_cid),
+                   None if pd.isna(r.league_cid) else league_names.get(int(r.league_cid))]
+                  for r in clubs.itertuples()],
+        "note": "Every club in the save. No players or attributes here — see core.json (ladder "
+                "clubs, full attributes) or /api/all (every player) for those."})
 
     # ---------------------------------------------------------------- squad.json
     # Attributes at EVERY snapshot, so the app can draw growth under any tactic — the
@@ -498,14 +519,20 @@ def main():
                      "min_familiarity": min_fam},
         "snapshots": db.labels_df()[["season", "phase", "label"]].to_dict("records"),
         "ladder": [{"cid": c, "name": n} for c, n in ladder],
-        "files": {"core": "api/core.json", "squad": "api/squad.json",
-                  "positions": "api/positions.json", "matches": "api/matches.json",
-                  "all_players": "/api/all"},
+        # Absolute URLs throughout: an agent fetcher generally only follows links it has already
+        # seen, so a bare relative path like "api/core.json" is one it has to construct itself
+        # and may refuse to. This file is meant to be the whole bootstrap — every link in it has
+        # to be independently followable.
+        "files": {"core": f"{SITE_URL}/api/core.json", "clubs": f"{SITE_URL}/api/clubs.json",
+                  "squad": f"{SITE_URL}/api/squad.json",
+                  "positions": f"{SITE_URL}/api/positions.json",
+                  "matches": f"{SITE_URL}/api/matches.json",
+                  "all_players": f"{SITE_URL}/api/all"},
         # An agent handed only this URL should be able to bootstrap itself. AGENTS.md explains
         # the columnar format, the rating formula it has to compute, and the immersion rule;
         # the guides are per-task procedures.
-        "agent_guide": "AGENTS.md",
-        "guides": {"scout an opponent": "guides/scout.md"},
+        "agent_guide": f"{SITE_URL}/AGENTS.md",
+        "guides": {"scout an opponent": f"{SITE_URL}/guides/scout.md"},
         "how_to_read_this": ("Rows in core/matches are POSITIONAL ARRAYS with a sibling "
                             "*_fields array naming the slots. Role ratings are NOT stored — "
                             "compute SUM(attribute x weight) from core.tactics, where an "

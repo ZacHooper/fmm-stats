@@ -43,6 +43,11 @@ export default {
  *
  * Unauthenticated on purpose. It's the same football data the pages already render, and gating
  * it would mean shipping a token to every visitor just to read. Writes are gated; reads aren't.
+ *
+ * `?club=<tid>[,<tid>...]` and/or `?tid=<tid>[,<tid>...]` filter the player list server-side —
+ * an agent that only needs one club or one player gets a few KB instead of the full 1.3 MB gz.
+ * Deliberately narrow (two whitelisted equality filters on indexed columns, not a query
+ * language) rather than accepting arbitrary SQL/JS from the caller.
  */
 async function allPlayers(request, env) {
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -57,17 +62,47 @@ async function allPlayers(request, env) {
   }
   const etag = obj.httpEtag;
   // Only changes when a snapshot is imported, so let the browser keep it and skip the ~1.3 MB
-  // transfer on every later search.
+  // transfer on every later search. Filtered responses are deterministic per (etag, query), so
+  // the same conditional check is valid for them too.
   if (request.headers.get("if-none-match") === etag) {
     return new Response(null, { status: 304, headers: { etag } });
   }
-  return new Response(obj.body, {
-    headers: {
-      ...JSON_HEADERS,
-      "cache-control": "public, max-age=300, stale-while-revalidate=86400",
-      etag,
-    },
-  });
+
+  const url = new URL(request.url);
+  const clubFilter = parseIdList(url.searchParams.get("club"));
+  const tidFilter = parseIdList(url.searchParams.get("tid"));
+  if (!clubFilter && !tidFilter) {
+    return new Response(obj.body, {
+      headers: {
+        ...JSON_HEADERS,
+        "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+        etag,
+      },
+    });
+  }
+
+  const data = await obj.json();
+  const clubIdx = data.fields.indexOf("club_tid");
+  const tidIdx = data.fields.indexOf("tid");
+  let players = data.players;
+  if (clubFilter) players = players.filter((r) => clubFilter.has(r[clubIdx]));
+  if (tidFilter) players = players.filter((r) => tidFilter.has(r[tidIdx]));
+  return json({
+    attrs: data.attrs, fields: data.fields, players, note: data.note,
+    filtered_by: { club: clubFilter ? [...clubFilter] : undefined,
+                   tid: tidFilter ? [...tidFilter] : undefined },
+    count: players.length,
+  }, 200, { etag, "cache-control": "public, max-age=300, stale-while-revalidate=86400" });
+}
+
+/** "12,34, 56" -> Set{12,34,56}; param absent/blank -> null (no filter requested — full file).
+ *  Param PRESENT but every entry non-numeric -> empty Set, which matches nothing, so a typo'd id
+ *  comes back as `count: 0`. It must NOT come back as null, or a typo would silently fall through
+ *  to the unfiltered branch and ship the full 4 MB the filter exists to avoid. */
+function parseIdList(raw) {
+  if (!raw) return null;
+  const ids = raw.split(",").map((s) => Number(s.trim())).filter(Number.isFinite);
+  return new Set(ids);
 }
 
 /**

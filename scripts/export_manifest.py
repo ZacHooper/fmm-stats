@@ -31,12 +31,17 @@ MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")
 FIELDS = ["career", "save_file", "label", "season", "phase", "active"]
 
 
-def rows_for(car):
+def rows_for(car, existing):
     store = os.path.join(REPO, car.db)
     if not os.path.exists(store):
-        print(f"  {car.key:10s} no store at {car.db} — skipped "
+        kept = existing.get(car.key, [])
+        # No store to read fresh rows from — keep whatever this career already had in the
+        # manifest rather than dropping it. A machine that has only built ONE of two careers'
+        # stores (the common case: bucaspor is archived and normally left unbuilt) must not
+        # wipe the other career's rebuild recipe out of git just by running this script.
+        print(f"  {car.key:10s} no store at {car.db} — kept {len(kept)} existing row(s) "
               f"({'archived' if not car.active else 'not built yet'})")
-        return []
+        return kept
     con, opened = open_readonly(store, tag="manifest")
     if opened != store:
         print(f"  {car.key:10s} (store locked by a running dashboard — read a copy)")
@@ -61,9 +66,26 @@ def rows_for(car):
     return out
 
 
+def read_existing():
+    if not os.path.exists(MANIFEST):
+        return {}
+    with open(MANIFEST, newline="") as f:
+        rows = list(csv.DictReader(f))
+    out = {}
+    for r in rows:
+        # CSV gives every field back as a string; fresh rows from rows_for() carry season/active
+        # as the int types DuckDB returned, and main()'s sum()/dupe-key logic needs both branches
+        # to agree.
+        r["season"] = int(r["season"])
+        r["active"] = int(r["active"])
+        out.setdefault(r["career"], []).append(r)
+    return out
+
+
 def main():
     print("reading staging.extracts from each career store")
-    rows = [r for car in careers.CAREERS.values() for r in rows_for(car)]
+    existing = read_existing()
+    rows = [r for car in careers.CAREERS.values() for r in rows_for(car, existing)]
     if not rows:
         raise SystemExit("no snapshots found in any store — nothing to write")
     os.makedirs(os.path.dirname(MANIFEST), exist_ok=True)
