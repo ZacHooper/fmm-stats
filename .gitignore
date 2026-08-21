@@ -21,6 +21,11 @@ backups/
 # streamlit pip package, not ours — it reappears on any machine after `uv sync`).
 .claude/skills/developing-with-streamlit
 
+# The every-player export (~4 MB) is DERIVED and lives in R2, streamed by functions/api/all.ts.
+# Committing it would repeat the mistake that took .git to 257 MB with the DuckDB stores: it
+# rewrites wholesale on every import and minified JSON deltas badly.
+site/api/all.json
+
 # Live state mirrored from R2 (shortlist, saved scouts) — one object per entry, synced with
 # rclone. Machine-local cache of a shared bucket, so never committed.
 state/

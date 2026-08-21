@@ -66,65 +66,93 @@ from a 0-match save, so it's an argument — **ask the user for it**.
 
 ---
 
-## Phase 2 — BUILT, waiting on a Cloudflare Pages project
+## Phase 2 — the web app. BUILT, waiting on a Cloudflare Pages project
 
-A **static site** replaces hosting the dashboard: the user reads the data on a phone, and
-needing a laptop awake was the pain point. Streamlit stays local for interactive work.
-Deployment runbook: [`DEPLOY.md`](DEPLOY.md).
+**One app for phone and desktop**, replacing the idea of a reduced "phone view". The first pass
+pre-rendered six HTML pages; that was wrong — a finished table can't be searched, re-columned or
+sorted, so it was a screenshot rather than a tool. It's now a static single-page app that ships
+DATA and computes on the client. Runbook: [`DEPLOY.md`](DEPLOY.md).
 
-**`scripts/build_site.py`** renders everything in ~7s into a committed `site/` dir:
+### The architecture decision that makes it work
 
-| Output | For | Notes |
+**Ratings are computed in the browser.** A role rating is `SUM(attribute × weight)` and the whole
+weight table is 5 KB, so the app ships attributes + weights instead of precomputed ratings —
+smaller than shipping ratings for 7 tactics, and strictly more capable: switching tactic re-rates
+every player instantly with no rebuild. **Verified against the database: 36,920 (player, tactic,
+role) combinations and 3,302 effective ratings, zero difference.** That test lives in the
+scratchpad; it's worth recreating if the engine is touched.
+
+**Ability percentiles are NOT computed in the browser** — they derive from the ability number,
+which never leaves the build machine. `Level %ile` ships precomputed and is the only ability that
+exists client-side. `export_data.py` parses every file it writes and fails on a raw-ability key at
+any depth.
+
+**The 4 MB every-player file is not in git** — it rewrites wholesale each import and minified JSON
+deltas badly (the DuckDB-store mistake again). It lives in R2 at `site-data/all.json` and is
+streamed by `functions/api/all.ts`; only a global search pays for it. Everything committed is
+125 KB gzipped.
+
+### Sections (13 dashboard pages collated into 6)
+
+| Section | Collates | Notes |
 |---|---|---|
-| `site/index.html` | phone | priorities this window, weakest/strongest roles, the move-on list |
-| `site/positions.html` | phone | the full depth charts + loan destinations (76 KB) |
-| `site/squad.html` | phone | every owned player, **including** the 8 the depth charts exclude |
-| `site/form.html` | phone | season-by-season, last 20 matches, last season's minutes |
-| `site/divisions.html` | phone | all 3 ladder divisions ranked by squad index |
-| `site/shortlist.html` | phone | the one page that WRITES — talks to the Pages Function |
-| `site/api/index.json` | Claude | the manifest: snapshot, ladder, every file, the caveats |
-| `site/api/squad.json` | Claude | 46 owned players, per-role reads, contracts, attributes |
-| `site/api/positions.json` | Claude | the position review as data |
-| `site/api/form.json` | Claude | 81 deduped matches |
-| `site/api/club/<tid>.json` | Claude | 36 clubs across the 3 divisions, ~620 KB total |
+| **Squad** | squad list + Development + Player Stats + attributes | ONE table: identity, fit, level, growth Δ + sparkline, contract, any of 23 attributes, any match stat — all add/remove from one picker with presets. Search, sort, unit filter, multi-select → Compare |
+| **Positions** | Positions | the depth charts; the only view computed server-side (ability ranks need the ability number), so it's pinned to the exported tactic and says so |
+| **Recruitment** | Squad Tool shortlist + Recruitment + player search | searches all 23,799 players (lazy R2 fetch), the capital-region rule, and the shortlist (the only thing that WRITES) |
+| **Opposition** | Team scout + Divisions + League Rankings | pick a club → unit-by-unit edge vs us + danger men; divisions by squad index; reputation ladder |
+| **Matches** | Matches + Player Stats | results, H2H, per-competition, team differentials, formations, and a re-aggregating player grid — all filtered together |
+| **History** | Records + Awards | season progression, team + player records, longest runs, and a 10-award roll per season |
 
-**The analysis is not duplicated.** The depth-chart computation moved out of the Streamlit page
-into **`dashboard/positions.py`**, which both the page and the build call — so the site is a
-second *screen*, not a second *opinion*. `13_Positions.py` is now rendering only; verified the
-extracted logic is semantically identical to what it replaced (the diff is line-wrapping and one
-unused-variable rename).
+Shared: a **player profile sheet** (attributes coloured by the selected tactic's weights for that
+role, growth sparkline, match record, career history) and a **compare sheet** (radar over the
+weighted attributes + attribute-by-attribute diff), reachable from every table.
 
-**The immersion rule is enforced, not just intended.** `build_site.py` walks every emitted JSON
-and fails the build on a raw-ability key at any depth (`ca`, `pa`, `current_ability`, …) — a
-parse, not a grep, so `{"CA": …}` can't slip through and the word inside prose doesn't
-false-positive. Currently passing.
+### Files
 
-**`functions/api/shortlist.ts`** — a Pages Function with a native R2 binding (no credentials).
-GET lists, POST adds, DELETE removes, all gated by an `x-fm-token` header. It lives at the
-**repo root**, not in `site/`, because `--clean` wipes the output dir. Verified end to end
-against real R2: an object in the exact shape the Function PUTs was read back by
-`dashboard/state.py` → `db.shortlist_get()`, the id stayed int-coercible (the Squad Tool casts
-it), and `shortlist_remove()` deleted it again. The browser JS passes `node --check`.
+| File | Role |
+|---|---|
+| `scripts/export_data.py` | the exporter — 6 JSON files, ~5s, with the immersion check |
+| `site/index.html`, `site/app.css` | the shell (hash routing, mobile-first, dark/light) |
+| `site/js/data.js` | loading + the rating engine + match aggregation + stat vocabulary |
+| `site/js/table.js` | the configurable table (search / sort / column picker / presets) |
+| `site/js/profile.js` | the player profile + compare sheets |
+| `site/js/app.js` | router, tactic + snapshot selectors |
+| `site/js/views/*.js` | the six sections |
+| `functions/api/all.ts` | streams the every-player file from R2 |
+| `functions/api/shortlist.ts` | shortlist GET/POST/DELETE against R2, token-gated |
+| `dashboard/positions.py` | depth-chart logic shared by Streamlit and the exporter |
+
+### Two bugs the build surfaced, both fixed
+
+- **Growth trends were blank for every new signing.** The trajectory query filtered on
+  `club_tid IN OUR_CLUBS`, so a summer arrival had no history — yet his attributes are in every
+  snapshot, he was just at another club. Widened to the whole file, which then crosses **tid
+  recycling**: `db.keep_current_person` drops the slices where a tid belonged to someone else. It
+  fires on real data (6 rows), so without it two people's growth would be spliced into one line.
+  46 of 46 players now have a trend, up from 26.
+- **`ours.origin` shipped all 23,799 players' origin clubs** (556 KB) in a file loaded on every
+  page view, where only our squad is ever asked for.
+
+### What is still dashboard-only, deliberately
+
+**Tactics** and **Config** write to DuckDB, so they can't move to a static app — edit them in
+Streamlit (or `seeds/`) and re-export. **Team Builder** could be ported (attributes and weights
+are both client-side already) but isn't yet: it's a view to write, not a data problem.
 
 **What's left is a dashboard click, not code:** create the Pages project (build command empty,
-output dir `site`), bind `FM_STATE` → `fmm-stats`, set the `FM_SHORTLIST_TOKEN` secret. All of
-it is in `DEPLOY.md`, including the cost to watch — ~800 KB committed per refresh, which
-deltas poorly, and the `wrangler pages deploy` escape hatch if it starts to bite.
+output dir `site`), bind `FM_STATE` → `fmm-stats`, set `FM_SHORTLIST_TOKEN`. All in `DEPLOY.md`.
 
-Deferred deliberately: **store dedupe** (`player_history_seasons` is 14% unique,
-`player_positions` 9% — both re-stored per snapshot; would take the store 80 MB → ~30 MB) and a
-hosted interactive Streamlit as a fallback if static proves limiting.
+Deferred: **store dedupe** (`player_history_seasons` 14% unique, `player_positions` 9%; would take
+the store 80 MB → ~30 MB).
 
-### Two things the build surfaced
+### Verification that ran
 
-- **`staging.standings` is not usable for this career** — a 22-game division parses back with
-  max `played` 12, and the newest snapshot has no NordicBet Liga table at all. So there is no
-  league table on the site; `divisions.html` ranks clubs by **squad index** instead, which
-  answers the same question honestly. Note that index scores every club under *our* weight-set,
-  so it reads as "how well their players fit the way we play", not raw quality.
-- **A club with no rated players used to vanish silently.** `api/index.json` now lists them in
-  `clubs_without_rated_players` — currently FC Sydvest 05 Tønder, which is exactly why 3.
-  Division reads as 11 clubs on `effective_table` and 12 on `league_members`.
+- Rating engine vs SQL: 36,920 ratings + 3,302 effective ratings, exact match.
+- All 6 views + both sheets render under jsdom against the real export, with no
+  `undefined`/`NaN`/`[object Object]` in the output.
+- All 14 Streamlit pages still pass `AppTest` after the `positions.py` extraction.
+- Shortlist round-trip through real R2: an object in the exact shape the Function PUTs was read
+  back by `state.py` → `db.shortlist_get()`, id stayed int-coercible, and delete removed it.
 
 ---
 
@@ -174,7 +202,7 @@ Plus GK/LB/RB/CB written up in chat.
   64/70 in the division on Fam 15. Jakobsen is the one genuine striker (11/70 in our division,
   1/64 in the tier below) and already the focal point of the strikerless setup.
 - **Loans out:** Karlsen (18, RB) → 2. Division, first choice at **6** clubs there and 9 in 3.
-  Division, £31.7k/wk idle — the standout. (The "4 clubs" in an earlier draft of this file
+  Division, £31.7k/yr idle — the standout. (The "4 clubs" in an earlier draft of this file
   didn't survive recomputation; the shared builder at Fam ≥15 says 6.) Dedes (20, LB) → 3. Division (Slagelse/Frederiksberg/Næsby). Pingel → Brabrand is a
   tidy exit, not development: he'd be 9/9, 15/15 and 10/10 at their three positions.
 - **Releases:** Rwango (last of 88 in the division, starts nowhere below us), Basarte, Dirksen,
