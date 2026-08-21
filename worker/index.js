@@ -155,9 +155,13 @@ async function shortlist(request, env) {
 }
 
 function authorised(request, env) {
-  const want = env.FM_SHORTLIST_TOKEN;
+  // Trim both sides. A token is typed or pasted by hand into a phone browser, and a trailing
+  // space or newline riding along on a copy is otherwise indistinguishable from a wrong token —
+  // you get "bad token" with no way to see why. Whitespace at either end carries no security
+  // value, so accepting it costs nothing and removes a genuinely maddening failure.
+  const want = (env.FM_SHORTLIST_TOKEN ?? "").trim();
   if (!want) return false;                        // unconfigured = closed, never open
-  const got = request.headers.get("x-fm-token") ?? "";
+  const got = (request.headers.get("x-fm-token") ?? "").trim();
   if (got.length !== want.length) return false;   // length may leak; contents may not
   let diff = 0;
   for (let i = 0; i < want.length; i++) diff |= got.charCodeAt(i) ^ want.charCodeAt(i);
