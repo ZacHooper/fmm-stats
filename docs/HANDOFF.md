@@ -1,6 +1,7 @@
 # Handoff — continue exactly where we are
 
-Paste-ready context for a fresh agent. **Last updated 2026-08-21 (Phase 2 built).**
+Paste-ready context for a fresh agent. **Last updated 2026-08-24 (Phase 3 opened, blocked on
+R2 creds).**
 
 Read [`CLAUDE.md`](../CLAUDE.md) first, then
 [`docs/agent-context/MEMORY.md`](agent-context/MEMORY.md) which indexes the durable notes. This
@@ -167,6 +168,36 @@ the store 80 MB → ~30 MB).
 - All 14 Streamlit pages still pass `AppTest` after the `positions.py` extraction.
 - Shortlist round-trip through real R2: an object in the exact shape the Function PUTs was read
   back by `state.py` → `db.shortlist_get()`, id stayed int-coercible, and delete removed it.
+
+---
+
+## Phase 3 — remote-agent SQL access. **OPEN PR, BLOCKED on real R2 creds**
+
+Full detail: [`agent-context/remote-duckdb-access.md`](agent-context/remote-duckdb-access.md).
+Short version: the JSON API only answers fixed shapes; this adds a second path where a remote
+agent with no local store can `ATTACH` a scrubbed copy of the DuckDB store straight over
+HTTP(S) (DuckDB's `httpfs` extension, range requests) and run arbitrary SQL.
+
+**PR open, unmerged:** https://github.com/ZacHooper/fmm-stats/pull/1 (branch
+`claude/duckdb-r2-storage-d1rumw`). Built and pushed:
+- `scripts/publish_duckdb.py` — clones the store, NULLs `staging.players.ca`/`.pa` in the
+  clone (never the live store), uploads to R2 `site-data/fm-<career>.duckdb`.
+- `worker/index.js` — new `/api/db?career=<key>` route, forwards `Range` headers to R2 so
+  httpfs can range-read the file.
+- Docs: `site/AGENTS.md`, `docs/DEPLOY.md`, `CLAUDE.md`, `index.json`'s files map.
+
+**What's NOT done, and why:** nothing has been uploaded to R2 — no session so far has had
+working credentials. First attempt: no `rclone`, no creds at all. User then added env vars, but
+`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` were only 14 characters each (real R2 keys are
+32-char hex) with no endpoint set — looked like placeholders, not real creds — and the user
+asked to reset the environment rather than chase it further.
+
+**Next session should:** get real R2 credentials (endpoint = the Cloudflare account's
+`https://<account-id>.r2.cloudflarestorage.com` — ask the user for the account id, never guess
+it) plus `rclone` installed and a working `r2:` remote; sanity-check them (key length, a cheap
+`rclone lsd r2:fmm-stats` probe) *before* trusting them; then run
+`uv run python scripts/publish_duckdb.py --career frem --upload`, confirm `/api/db` serves
+range requests once the PR is merged and deployed, and tick off the PR's test-plan checklist.
 
 ---
 

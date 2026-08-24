@@ -1,6 +1,7 @@
 - [FM Parser project](fm-parser-project.md) — FMM22 save reverse-engineering, goal: extract per-match player stats
 - [Squad comparison bridge](squad-comparison-bridge.md) — fm-parser extract → fm-data-entry weighted comparison; club tids
 - [Multi-device and storage](multi-device-and-storage.md) — three tiers: git / R2 / local. The DuckDB store is DISPOSABLE — rebuild it, never commit or sync it
+- [Remote-agent SQL access](remote-duckdb-access.md) — PR #1 (open, unmerged, unverified): scrubbed DuckDB copy in R2, `/api/db` Worker route with Range forwarding, `ATTACH ... (READ_ONLY)` over httpfs. Blocked on real R2 creds — see the note for what to check before trusting new ones.
 - [ETL: DuckDB + dashboard](etl-duckdb-dashboard.md) — load_duckdb.py→fm.duckdb (staging schema), role_weights ratings, Streamlit dashboard, fmq CLI
 - [Seyhun attr investigation](seyhun-attr-investigation.md) — FIXED: attr_record reads freshest snapshot copy + player value; snapshot byte-map in docs/ATTRIBUTE_DECODING.md §7
 - [Loan status unreliable](loan-status-unreliable.md) — ignore loaned_out/squad_status for selection; rank by minutes instead
