@@ -212,19 +212,66 @@ def main():
           not bool(g[g.phase == "2022-03-19"].iloc[0]["delta_comparable"]),
           "the -1 when he joined us is an artifact, not a decline")
 
-    # A keeper's total must use all 23; an outfielder's must exclude the 5 keeper attrs.
+    # Each role sums the 18 attributes its role uses — outfielders drop the keeper block,
+    # keepers drop the outfield-only block. Neither uses all 23.
     role = con.execute("""
-        SELECT is_gk, BOOL_AND(attr_total = outfield_total + gk_total) AS uses_all_23,
-               BOOL_AND(attr_total = outfield_total)                   AS uses_18
+        SELECT is_gk,
+               BOOL_AND(attr_total = outfield_total) AS uses_outfield_set,
+               BOOL_AND(attr_total = gk_total)       AS uses_gk_set
         FROM mart.player_growth
         WHERE season = 2024 AND phase = '2024-06-03'
           AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
         GROUP BY is_gk ORDER BY is_gk
     """).df()
-    outfield = role[role.is_gk == 0].iloc[0]
-    keeper = role[role.is_gk == 1].iloc[0]
-    check("outfielders' attr_total excludes the 5 keeper attributes", bool(outfield["uses_18"]))
-    check("keepers' attr_total uses all 23", bool(keeper["uses_all_23"]))
+    check("outfielders' total drops the keeper block",
+          bool(role[role.is_gk == 0].iloc[0]["uses_outfield_set"]))
+    check("keepers' total drops the outfield-only block",
+          bool(role[role.is_gk == 1].iloc[0]["uses_gk_set"]))
+
+    # The vestigial blocks must be measurably inert for the role that doesn't use them,
+    # which is the evidence the split rests on.
+    inert = con.execute("""
+        SELECT
+          AVG(CASE WHEN is_gk = 0 THEN gk_block_total END) AS outfield_gk_block,
+          AVG(CASE WHEN is_gk = 1 THEN gk_block_total END) AS keeper_gk_block
+        FROM mart.player_growth
+        WHERE season = 2024 AND phase = '2024-06-03' AND NOT is_estimated
+          AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
+    """).fetchone()
+    # 5 attributes: an inert block sums to well under 10, a live one to ~50+.
+    check("keeper block is inert for outfielders, live for keepers",
+          inert[0] < 10 and inert[1] > 40,
+          f"outfield sum {inert[0]:.1f} vs keeper sum {inert[1]:.1f}")
+
+    # Growth over a club spell must exceed the single-season figure for a long server.
+    garly = con.execute("""
+        SELECT growth, days_at_club, growth_comparable, age_on_arrival, age_now
+        FROM mart.player_growth_at_club
+        WHERE name = 'Andreas Garly'
+          AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
+        ORDER BY days_at_club DESC LIMIT 1
+    """).fetchone()
+    check("Garly growth since joining = +36 (vs +11 in 2024 alone)", garly[0] == 36,
+          f"got {garly[0]} over {garly[1]} days")
+    check("that span is comparable end to end", bool(garly[2]))
+
+    # Tenure must merge first-team/reserve stints into one row per player. Splitting on
+    # club_tid gives Moller-Jensen four rows, none of them his real growth here.
+    frag = con.execute("""
+        SELECT COUNT(*) FROM (
+          SELECT person_id FROM mart.player_growth_tenure t
+          WHERE EXISTS (SELECT 1 FROM mart.squad_on('2024-06-30') s
+                        WHERE s.person_id = t.person_id)
+          GROUP BY person_id HAVING COUNT(*) > 1)
+    """).fetchone()[0]
+    check("tenure gives one row per current-squad player", frag == 0,
+          f"{frag} players still fragmented")
+    mj = con.execute("""
+        SELECT growth FROM mart.player_growth_tenure WHERE name = 'Oliver Møller-Jensen'
+        ORDER BY days_at_club DESC LIMIT 1
+    """).fetchone()
+    check("Møller-Jensen's tenure growth = +33 (4 fragments merged)", mj[0] == 33,
+          f"got {mj[0]}")
 
     # Every player outside our squad is on model estimates, so growth must be filterable.
     est = con.execute("""

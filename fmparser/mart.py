@@ -54,14 +54,38 @@ from __future__ import annotations
 
 from fmparser.attributes import ATTR_ORDER
 
-# The five keeper attributes. On an outfielder they sit near zero and drift by a point or
-# two of noise (squad means at 2024-06-03: Handling 1.6 / Reflexes 1.8 for outfielders vs
-# 13.0 / 14.0 for keepers), so summing all 23 for an outfielder measures partly nothing.
-# `attr_total` below is therefore role-aware: all 23 for a keeper, the other 18 for
-# everyone else. Keepers keep the full set because they genuinely need Decisions,
-# Positioning, the physicals and so on.
-GK_ATTRS = ["Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
-OUTFIELD_ATTRS = [a for a in ATTR_ORDER if a not in GK_ATTRS]
+# Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
+# out by role; the engine still stores all 23 for everyone, but the ones the role does not
+# use sit pinned in a 1-2 band and only jitter. Measured over our squad's REAL
+# (non-estimated) rows, mean value by role:
+#
+#     attribute      outfield   GK        attribute      outfield   GK
+#     Reflexes            1.5   12.8      Movement            8.3    1.3
+#     Kicking             1.7   12.0      Tackling            8.5    1.6
+#     Handling            1.5   11.1      Dribbling           7.5    2.2
+#     Communication       1.0   10.2      Crossing            6.8    1.8
+#     Throwing            1.5    7.6      Shooting            6.3    1.5
+#
+# Both blocks sit at 1.0-2.2 for the role that does not use them — the same inert band —
+# so each role really uses 18 of the 23, not 23 and 18. Including a vestigial block in a
+# growth total measures jitter: the keeper attributes change 68 times across outfielders'
+# snapshots while never leaving the range 1-5.
+#
+# ONE DEVIATION from the in-game UI, which swaps out the technical block for keepers:
+# PASSING IS NOT VESTIGIAL FOR KEEPERS. It averages 5.6 for our keepers against 8.2 for
+# outfielders and ranges up to 13 — well clear of the inert band that Crossing (1.8) and
+# Shooting (1.5) sit in. So the engine keeps a real passing value for a keeper even where
+# the UI hides it, and it is counted. Aerial (12.7 vs 9.9) and Technique (7.0 vs 8.8) are
+# likewise real for keepers, matching the UI.
+GK_ONLY_ATTRS = ["Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
+OUTFIELD_ONLY_ATTRS = ["Crossing", "Dribbling", "Shooting", "Tackling", "Movement"]
+
+# What each role's total actually sums: everything except the other role's vestigial block.
+OUTFIELD_ATTRS = [a for a in ATTR_ORDER if a not in GK_ONLY_ATTRS]
+GK_ATTRS = [a for a in ATTR_ORDER if a not in OUTFIELD_ONLY_ATTRS]
+
+# Kept for callers that want the raw blocks rather than the role-aware total.
+GK_BLOCK = GK_ONLY_ATTRS
 
 
 def _sum(attrs):
@@ -528,7 +552,9 @@ WITH base AS (
         END                                                   AS age,
         ({_sum(OUTFIELD_ATTRS)})                              AS outfield_total,
         ({_sum(GK_ATTRS)})                                    AS gk_total,
-        CASE WHEN p.is_gk = 1 THEN ({_sum(ATTR_ORDER)})
+        ({_sum(GK_BLOCK)})                                    AS gk_block_total,
+        -- role-aware: each role sums the 18 attributes its role actually uses
+        CASE WHEN p.is_gk = 1 THEN ({_sum(GK_ATTRS)})
              ELSE ({_sum(OUTFIELD_ATTRS)}) END                AS attr_total,
         ({_est_count(ATTR_ORDER)})                            AS est_attrs
     FROM {{S}}.players p
@@ -647,6 +673,112 @@ LEFT JOIN mins m USING (person_id, season)
 """
 
 
+# Growth bounded by a CLUB SPELL rather than by a season — "how much has he grown since we
+# bought him". A season rollup understates a long-serving player badly: Garly reads +11 for
+# 2024 alone but +36 across his whole time here, because his big step (+24) landed in 2023.
+# Keyed on mart.club_runs so each stint at a club is its own row; a player who left and
+# came back gets two.
+PLAYER_GROWTH_AT_CLUB = """
+CREATE OR REPLACE VIEW mart.player_growth_at_club AS
+WITH joined AS (
+    SELECT
+        cr.person_id, cr.club_tid, cr.club, cr.run_id,
+        g.snap_ix, g.tid, g.name, g.phase, g.phase_date, g.age, g.attr_total, g.is_estimated,
+        ROW_NUMBER() OVER (PARTITION BY cr.person_id, cr.run_id ORDER BY g.snap_ix)      AS rn_first,
+        ROW_NUMBER() OVER (PARTITION BY cr.person_id, cr.run_id ORDER BY g.snap_ix DESC) AS rn_last
+    FROM mart.club_runs cr
+    JOIN mart.player_growth g
+      ON g.person_id = cr.person_id AND g.snap_ix BETWEEN cr.from_ix AND cr.to_ix
+),
+bounds AS (
+    SELECT
+        person_id, club_tid, run_id,
+        MAX(CASE WHEN rn_last  = 1 THEN tid END)          AS tid,
+        MAX(CASE WHEN rn_last  = 1 THEN name END)         AS name,
+        MAX(CASE WHEN rn_last  = 1 THEN club END)         AS club,
+        MAX(CASE WHEN rn_first = 1 THEN phase END)        AS joined_phase,
+        MAX(CASE WHEN rn_last  = 1 THEN phase END)        AS last_phase,
+        MAX(CASE WHEN rn_first = 1 THEN phase_date END)   AS joined_date,
+        MAX(CASE WHEN rn_last  = 1 THEN phase_date END)   AS last_date,
+        MAX(CASE WHEN rn_first = 1 THEN age END)          AS age_on_arrival,
+        MAX(CASE WHEN rn_last  = 1 THEN age END)          AS age_now,
+        MAX(CASE WHEN rn_first = 1 THEN attr_total END)   AS start_total,
+        MAX(CASE WHEN rn_last  = 1 THEN attr_total END)   AS end_total,
+        BOOL_OR(CASE WHEN rn_first = 1 THEN is_estimated END) AS start_estimated,
+        BOOL_OR(CASE WHEN rn_last  = 1 THEN is_estimated END) AS end_estimated,
+        COUNT(*)                                          AS snapshots
+    FROM joined GROUP BY person_id, club_tid, run_id
+)
+SELECT
+    b.*,
+    b.end_total - b.start_total                                          AS growth,
+    NOT b.start_estimated AND NOT b.end_estimated                        AS growth_comparable,
+    DATE_DIFF('day', b.joined_date, b.last_date)                         AS days_at_club,
+    ROUND(365.0 * (b.end_total - b.start_total)
+          / NULLIF(DATE_DIFF('day', b.joined_date, b.last_date), 0), 1)  AS growth_per_365
+FROM bounds b
+"""
+
+
+# Growth over a contiguous TENURE at our clubs, treating the first team and the reserves as
+# one place. mart.player_growth_at_club splits on club_tid, which is right for the spells
+# model (a drop to the reserves IS a club change in the data) but fragments the "since we
+# signed him" question: a player who bounces 346 <-> 7296 gets a row per stint, so
+# Moller-Jensen shows up four times and none of the rows is his real growth here.
+PLAYER_GROWTH_TENURE = """
+CREATE OR REPLACE VIEW mart.player_growth_tenure AS
+WITH pc AS (
+    SELECT g.person_id, g.tid, g.name, g.snap_ix, g.phase, g.phase_date, g.age,
+           g.attr_total, g.is_estimated, g.is_gk,
+           g.club_tid IN (SELECT club_tid FROM mart.our_clubs) AS ours
+    FROM mart.player_growth g
+),
+marked AS (
+    SELECT *, CASE WHEN ours IS DISTINCT FROM
+                     LAG(ours) OVER (PARTITION BY person_id ORDER BY snap_ix)
+                   THEN 1 ELSE 0 END AS chg
+    FROM pc
+),
+stints AS (
+    SELECT *, SUM(chg) OVER (PARTITION BY person_id ORDER BY snap_ix) AS stint
+    FROM marked
+),
+ranked AS (
+    SELECT *,
+        ROW_NUMBER() OVER (PARTITION BY person_id, stint ORDER BY snap_ix)      AS rn_first,
+        ROW_NUMBER() OVER (PARTITION BY person_id, stint ORDER BY snap_ix DESC) AS rn_last
+    FROM stints WHERE ours
+),
+bounds AS (
+    SELECT
+        person_id, stint,
+        MAX(CASE WHEN rn_last  = 1 THEN tid END)              AS tid,
+        MAX(CASE WHEN rn_last  = 1 THEN name END)             AS name,
+        MAX(CASE WHEN rn_last  = 1 THEN is_gk END)            AS is_gk,
+        MAX(CASE WHEN rn_first = 1 THEN phase END)            AS joined_phase,
+        MAX(CASE WHEN rn_last  = 1 THEN phase END)            AS last_phase,
+        MAX(CASE WHEN rn_first = 1 THEN phase_date END)       AS joined_date,
+        MAX(CASE WHEN rn_last  = 1 THEN phase_date END)       AS last_date,
+        MAX(CASE WHEN rn_first = 1 THEN age END)              AS age_on_arrival,
+        MAX(CASE WHEN rn_last  = 1 THEN age END)              AS age_now,
+        MAX(CASE WHEN rn_first = 1 THEN attr_total END)       AS start_total,
+        MAX(CASE WHEN rn_last  = 1 THEN attr_total END)       AS end_total,
+        BOOL_OR(CASE WHEN rn_first = 1 THEN is_estimated END) AS start_estimated,
+        BOOL_OR(CASE WHEN rn_last  = 1 THEN is_estimated END) AS end_estimated,
+        COUNT(*)                                              AS snapshots
+    FROM ranked GROUP BY person_id, stint
+)
+SELECT
+    b.*,
+    b.end_total - b.start_total                                          AS growth,
+    NOT b.start_estimated AND NOT b.end_estimated                        AS growth_comparable,
+    DATE_DIFF('day', b.joined_date, b.last_date)                         AS days_at_club,
+    ROUND(365.0 * (b.end_total - b.start_total)
+          / NULLIF(DATE_DIFF('day', b.joined_date, b.last_date), 0), 1)  AS growth_per_365
+FROM bounds b
+"""
+
+
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
     ("mart.our_clubs", OUR_CLUBS),
@@ -664,6 +796,8 @@ ORDER = [
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),
+    ("mart.player_growth_at_club", PLAYER_GROWTH_AT_CLUB),
+    ("mart.player_growth_tenure", PLAYER_GROWTH_TENURE),
 ]
 
 
