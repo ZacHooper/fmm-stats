@@ -195,6 +195,31 @@ def main():
     check("2024 golden boot = Adam Jakobsen, 34", top[0] == "Adam Jakobsen" and top[1] == 34,
           f"got {top}")
 
+    # -- 5b. first team vs reserves ---------------------------------------------------
+    # our_clubs holds both sides. Filtering results on it folds the reserve fixtures into
+    # the first team's, which is how a season review silently reports 58 games instead of
+    # 38 — caught by running the rewritten fm-season-review template.
+    print("\n5b. managed club vs reserves")
+    split = con.execute("""
+        SELECT
+          (SELECT COUNT(*) FROM mart.matches
+            WHERE season = 2024
+              AND (home_tid IN (SELECT club_tid FROM mart.managed_club)
+                OR away_tid IN (SELECT club_tid FROM mart.managed_club))) AS first_team,
+          (SELECT COUNT(*) FROM mart.matches
+            WHERE season = 2024
+              AND (home_tid IN (SELECT club_tid FROM mart.our_clubs)
+                OR away_tid IN (SELECT club_tid FROM mart.our_clubs)))    AS both
+    """).fetchone()
+    check("managed_club isolates the first team's 38 games", split[0] == 38,
+          f"first team {split[0]}, both sides {split[1]}")
+    check("our_clubs really does include more (the reserve fixtures)", split[1] == 58,
+          f"got {split[1]}")
+    check("managed_club resolves to exactly one club",
+          con.execute("SELECT COUNT(*) FROM mart.managed_club").fetchone()[0] == 1)
+    check("reserve_clubs is the complement",
+          con.execute("SELECT COUNT(*) FROM mart.reserve_clubs").fetchone()[0] == 1)
+
     # -- 6. growth ------------------------------------------------------------------
     print("\n6. growth")
     # Garly's trajectory is the reference: 176 at his old club (estimated), 175-176 flat

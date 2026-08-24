@@ -100,28 +100,38 @@ minutes exist, `match_player_stats` gives per-match `subOn`/`subOff`/`pos_order`
 > to ~100 by the next kickoff** — it tracks how gassed a player got in *one* game, not durable
 > tiredness, so it's noise for rotation. (Kept in schema notes only as "what the column is.")
 
-Validated minutes model (90-min matches; ignores stoppage/ET) — guard for the 0-games case first:
+Minutes come from **`mart.match_player_facts`**, which already has `minutes`, `started` and
+`appeared` computed and — critically — is deduped to one phase per season.
+
+> **Never aggregate `staging.match_player_stats` directly here.** It is a ring buffer re-scraped
+> on every import, so a season with 3 snapshots holds each match up to 3 times. The old version of
+> this skill summed it with no phase filter and inflated every minutes total accordingly, which is
+> exactly the signal this section rests on. `mart` applies the dedup once.
+
+Guard for the 0-games case first:
 ```python
-S, P = "2022", "2022-03-19"      # season as str for the f-string; P from phase_key resolver above
-TEAM_GAMES = db.q(f"SELECT COUNT(DISTINCT anchor) n FROM staging.match_player_stats "
-                  f"WHERE season={S} AND team_tid={db.MANAGED_CLUB_TID}").n[0]
+S = 2024                                     # season (end-year)
+TEAM_GAMES = db.q(f"""SELECT COUNT(DISTINCT anchor) n FROM mart.match_player_facts
+                      WHERE season={S} AND team_tid IN (SELECT club_tid FROM mart.managed_club)""").n[0]
 if TEAM_GAMES == 0:
     ...  # early-season save: skip 3b, give the fixture-rotation flags (3a) only
 else:
     load = db.q(f"""
-    WITH mp AS (
-      SELECT tid, rating, pos_order,
-        CASE WHEN pos_order<=11 THEN (CASE WHEN subOff=255 THEN 90 ELSE subOff END)
-             WHEN subOn<255 THEN 90-subOn ELSE 0 END AS mins
-      FROM staging.match_player_stats WHERE season={S} AND team_tid={db.MANAGED_CLUB_TID})
-    SELECT tid, SUM(CASE WHEN mins>0 THEN 1 ELSE 0 END) apps,
-      SUM(CASE WHEN pos_order<=11 THEN 1 ELSE 0 END) starts, SUM(mins) mins,
-      ROUND(AVG(CASE WHEN mins>0 THEN rating END),2) avg_rating
-    FROM mp GROUP BY tid""")
-    # join staging.players (name, dob, is_staff — FILTER is_staff out) + staging.player_attributes
-    # (WIDE table: SELECT tid, Stamina — NOT a long attribute/value shape). age = S_year - dob.year.
+    SELECT f.person_id, any_value(f.tid) AS tid,
+           COUNT(*) FILTER (WHERE f.appeared) AS apps,
+           COUNT(*) FILTER (WHERE f.started)  AS starts,
+           SUM(f.minutes) AS mins,
+           ROUND(AVG(f.rating) FILTER (WHERE f.appeared), 2) AS avg_rating
+    FROM mart.match_player_facts f
+    WHERE f.season={S} AND f.team_tid IN (SELECT club_tid FROM mart.managed_club)
+    GROUP BY f.person_id""")
+    # Names/age: join mart.player_growth_season on (person_id, season) — it carries name, age and
+    # minutes already. Stamina: staging.player_attributes is WIDE (SELECT tid, Stamina).
     # min_pct = mins / (TEAM_GAMES*90) * 100.  (condition deliberately NOT pulled — see note above.)
 ```
+
+**Use `mart.managed_club`, not `mart.our_clubs`, for anything match-related** — `our_clubs` also
+holds the reserve side, whose fixtures would otherwise be counted as the first team's.
 Two player buckets (only when 3b ran):
 - **🔴 Heavy load — rotate to rest:** highest minutes, esp. **older** players (age ≥ ~30) and your
   **best performers by rating** (protect the talisman for the games that matter + next season);

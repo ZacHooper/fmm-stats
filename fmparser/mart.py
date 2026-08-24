@@ -192,6 +192,32 @@ GROUP BY p.club_tid
 HAVING COUNT(DISTINCT i.tid) >= 3
 """
 
+# Our clubs split into the FIRST TEAM and the reserve side. `mart.our_clubs` holds both, which
+# is right for squad membership (a player in the reserves is still ours) but wrong for results:
+# a season review that filters on our_clubs silently folds 20 reserve fixtures into the first
+# team's 38. The two are separable in the data because the reserve side's matches carry a NULL
+# competition while the first team's are all in named competitions; squad size breaks the tie
+# for a career whose save has no matches yet.
+MANAGED_CLUB = """
+CREATE OR REPLACE VIEW mart.managed_club AS
+SELECT club_tid FROM (
+    SELECT o.club_tid,
+           COUNT(*) FILTER (WHERE m.competition IS NOT NULL) AS named_games,
+           (SELECT COUNT(*) FROM {S}.players p
+             WHERE p.club_tid = o.club_tid AND NOT p.is_staff)  AS player_rows
+    FROM mart.our_clubs o
+    LEFT JOIN mart.matches m
+           ON m.home_tid = o.club_tid OR m.away_tid = o.club_tid
+    GROUP BY o.club_tid
+) ORDER BY named_games DESC, player_rows DESC LIMIT 1
+"""
+
+RESERVE_CLUBS = """
+CREATE OR REPLACE VIEW mart.reserve_clubs AS
+SELECT club_tid FROM mart.our_clubs
+WHERE club_tid NOT IN (SELECT club_tid FROM mart.managed_club)
+"""
+
 # Rule 1 in one place: the single phase per season that match facts should be read from.
 CHOSEN_MATCH_PHASE = """
 CREATE OR REPLACE VIEW mart.chosen_match_phase AS
@@ -791,6 +817,8 @@ ORDER = [
     ("mart.chosen_match_phase", CHOSEN_MATCH_PHASE),
     ("mart.match_player_facts", MATCH_PLAYER_FACTS),
     ("mart.matches", MATCHES),
+    ("mart.managed_club", MANAGED_CLUB),
+    ("mart.reserve_clubs", RESERVE_CLUBS),
     ("mart.player_seasons", PLAYER_SEASONS),
     ("mart.club_runs", CLUB_RUNS),
     ("mart.at_club_spells", AT_CLUB),
