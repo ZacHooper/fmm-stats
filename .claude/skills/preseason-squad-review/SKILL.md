@@ -1,52 +1,67 @@
 ---
 name: preseason-squad-review
-description: Data-driven pre-season squad review for the FM Bucaspor save — best XI + bench for the current formation, loan candidates, fast-growing youth, and validation that the rating weighting matches actual match output. Use each pre-season (after importing the new season-start save) or when the user asks to analyse the team / pick a starting XI / decide loans.
+description: Data-driven pre-season squad review for the active FM career — best XI + bench for the current formation, loan candidates, fast-growing youth, and validation that the rating weighting matches actual match output. Use each pre-season (after importing the new season-start save) or when the user asks to analyse the team / pick a starting XI / decide loans.
 ---
 
 # Pre-season squad review
 
-Reads `fm.duckdb` (build/refresh via the `import-fm-saves` skill first). Combine **attribute-
-weighted ratings** (talent/profile) with **actual match output** (performance) — neither alone is
-enough. Immersion rule: reason with ratings + match stats, **never surface CA/PA**.
+Reads the active career's store, `fm-<key>.duckdb` (build/refresh via the `import-fm-saves` skill
+first). Combine **attribute-weighted ratings** (talent/profile) with **actual match output**
+(performance) — neither alone is enough. Immersion rule: reason with ratings + match stats,
+**never surface CA/PA**.
 
 ## Inputs to establish first
-- **Formation & roles** — ask the user (current default: 4-3-3 with a DM: GK / WB WB / CD CD /
-  RP(DM) / B2B B2B / IF AF IF). Map roles → rating roles: WB→LB/RB, CD→CB, RP→DM, B2B→CM,
-  IF→AML/AMR, AF→ST.
-- **Which tactic (method)** — the user's is `buca_433` (default). Use it.
-- **Snapshots**: current squad = latest `(season,'start')` label (attributes/ratings + youth
-  intake). Match performance = the **latest completed season** (`end` phase, most matches).
-- **Squad = OUR_CLUBS (6567 first team + 11320 reserves).** Loaned-out players sit in reserves
-  (club_tid 11320, loaned_out=true) so they're included.
+- **Formation & roles** — ask the user. Map their roles → rating roles (WB→LB/RB, CD→CB, RP→DM,
+  B2B→CM, IF→AML/AMR, AF→ST).
+- **Which tactic (method)** — read it, don't assume: `db.config().get("default_method")`
+  (Frem → `frem_attacking_ss`; `buca_433` belongs to the archived Turkish career).
+- **Snapshot** — the latest one: `db.latest_snapshot()`, or
+  `SELECT season, phase FROM mart.snapshots ORDER BY season DESC, phase_ord DESC LIMIT 1`.
+  **Phases are in-game DATES (`YYYY-MM-DD`), not the words `start`/`mid`/`end`** — a query
+  hardcoding `phase='start'` returns zero rows on any current store.
+- **Squad** — `mart.squad_on(<date>)`, which resolves membership from spells. Do **not** filter on
+  `staging.players.loaned_in`: that flag is set-only and never cleared, so it accumulates expired
+  loans (9 flagged at Frem's latest snapshot, 6 of them gone for a year or more).
+- **First team vs reserves** — `mart.managed_club` and `mart.reserve_clubs`. Use `managed_club`
+  for match stats; `mart.our_clubs` (both) for squad membership.
 
-## Core query patterns (duckdb, read_only; kill Streamlit first to release the lock)
+## Core query patterns (open read-only; a running Streamlit holds the write lock)
 
-**Effective rating per player×position** (familiarity-adjusted; floor-0.5 linear multiplier):
+**Effective rating per player×position** (familiarity-adjusted). Prefer the shared helper —
+`db.effective_table(season, phase, method)` — so the app and this review can't diverge. Raw SQL
+equivalent, if you need it:
 ```sql
 select pp.tid, prm.role, pp.familiarity, r.rating base,
-       r.rating*(0.5+0.5*pp.familiarity/20.0) eff, p.name, p.dob, p.club_tid, p.loaned_out
+       r.rating*(0.5+0.5*pp.familiarity/20.0) eff, p.name, p.dob, p.club_tid
 from staging.player_positions pp
 join staging.position_role_map prm on prm.position=pp.position
 join v_player_ratings r on (r.season,r.phase,r.tid)=(pp.season,pp.phase,pp.tid)
-     and r.method='buca_433' and r.role=prm.role
+     and r.method=<method> and r.role=prm.role
 join staging.players p on (p.season,p.phase,p.tid)=(pp.season,pp.phase,pp.tid)
-where pp.season=<Y> and pp.phase='start' and p.club_tid in (6567,11320) and not p.is_staff
+where (pp.season,pp.phase)=(<S>,<P>)
+  and p.club_tid in (select club_tid from mart.our_clubs) and not p.is_staff
 ```
 Dedupe to best eff per (tid, role) — a player can have two position codes mapping to one role.
 
-**Match stats — SPLIT first-team vs reserve by team_tid** (6567 vs 11320), appeared-only,
-with starts & minutes (see the appearance-decode: pos_order≤11=start; appeared = start OR
-subOn<>255; minutes = (subOff or 90) − (subOn or 0)):
+**Match stats — from `mart`, split first-team vs reserve by `team_tid`.** `mart.player_seasons`
+has apps/starts/minutes/rating already computed, appearance-filtered and deduped to one phase per
+season:
 ```sql
-select tid, count(*) apps, sum(case when pos_order<=11 then 1 else 0 end) starts,
-  sum(case when subOff=255 then 90 else subOff end - case when subOn=255 then 0 else subOn end) mins,
-  round(avg(rating),2) mr, sum(goals) g, sum(assists) a, sum(keyPass) kp
-from staging.match_player_stats
-where season=<Y> and phase='end' and team_tid=<6567 or 11320> and (pos_order<=11 or subOn<>255)
-group by tid
+select person_id, sum(apps) apps, sum(starts) starts, sum(minutes) mins,
+       round(sum(avg_rating*apps)/nullif(sum(apps),0),2) mr,
+       sum(goals) g, sum(assists) a, sum(key_passes) kp
+from mart.player_seasons
+where season=<Y> and team_tid in (select club_tid from mart.managed_club)
+group by person_id
 ```
+> Never aggregate `staging.match_player_stats` directly: it is a ring buffer re-scraped every
+> import, so summing without a phase filter multiplies every total by the number of snapshots in
+> that season. And an unused sub still gets a row carrying a flat **6.00** rating — average it in
+> and every figure sags toward 6.
 
-**Age** ≈ `<season_end_year> - year(dob)` (approximate).
+**Development** — `mart.player_growth_season` (this season) and `mart.player_growth_tenure`
+(since he signed; a season alone badly understates a long server). Filter `growth_comparable` to
+drop the estimate→exact artifact a new signing produces. `age` comes from these views.
 
 **Growth** — best attribute-weighted `base` rating per (tid,label) across all labels; delta
 latest − earliest. Focus U24.

@@ -1,11 +1,11 @@
 ---
 name: import-fm-saves
-description: Parse new FMM22 .fms save files and load them into the DuckDB store (fm.duckdb) so they appear in the Streamlit dashboard. Use when the user drops new save files (e.g. in ~/Downloads) and wants them reflected in the dashboard/ETL. Handles season/phase labelling, auto-label collisions, and clash detection.
+description: Parse new FMM22 .fms save files and load them into the career's DuckDB store (fm-<career>.duckdb) so they appear in the Streamlit dashboard. Use when the user drops new save files (e.g. in ~/Downloads) and wants them reflected in the dashboard/ETL. Handles season/phase labelling, auto-label collisions, and clash detection.
 ---
 
 # Import FMM saves into the dashboard
 
-End-to-end: `.fms` save → extract (JSON/CSV) → light-results → load into `fm.duckdb`
+End-to-end: `.fms` save → extract (JSON/CSV) → light-results → load into `fm-<career>.duckdb`
 (staging schema) → verify. Run from the repo root (the directory containing `extract.py`
 and `load_duckdb.py`). Saves are read from wherever the user drops them (commonly
 `~/Downloads`); adjust the paths in the commands below to your machine.
@@ -146,6 +146,8 @@ check against a screenshot.
    uv run python scripts/export_manifest.py                          # refresh the rebuild recipe
    uv run python scripts/export_data.py --upload-all                 # -> site/api/*.json + R2 all.json
    uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2, scrubbed, for SQL access
+   # publish_duckdb ships the `mart` schema too, so a remote agent's ATTACH gets the
+   # deduped views. Skip it and remote SQL silently falls back to raw `staging`.
    git add site docs seeds && git commit -m "site: <snapshot>" && git push   # Pages deploys on push
    ```
 
