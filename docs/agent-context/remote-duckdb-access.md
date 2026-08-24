@@ -88,8 +88,22 @@ plus ongoing hosting, to fix what was actually just a network-allowlist gap.
   `_dbopen.open_readonly` (same single-writer-safe fallback every other read-only tool uses) and
   is never itself touched. Docstring carries the full verified `ATTACH` syntax plus the httpfs
   install-over-HTTP workaround.
-- Docs updated for the `s3://` access path: `site/AGENTS.md` ("Prefer SQL?" section),
-  `docs/DEPLOY.md` ("SQL access for a remote agent"), `CLAUDE.md` storage-tiers table.
+- Docs updated for the `s3://` access path: `site/AGENTS.md` ("Prefer SQL?" section + a new
+  "Query cookbook" documenting two dedup traps in the raw schema), `docs/DEPLOY.md` ("SQL access
+  for a remote agent"), `CLAUDE.md` (storage-tiers table + a new "Answering a quick football
+  question" section steering a fresh agent at this path instead of a local rebuild).
+- **`.claude/hooks/session-start.sh`** (registered in `.claude/settings.json`) — makes every
+  piece of this setup automatic for a Claude Code web session: `uv sync`, `rclone` installed +
+  configured against `r2:` (with the `AWS_CA_BUNDLE` wrapper below baked in), and the `httpfs`
+  extension pre-placed from our own R2-vendored copy. Verified by wiping `rclone`, its config,
+  and the DuckDB extension cache, re-running the hook, and confirming a full `ATTACH` + query
+  against the real store works immediately afterward with zero manual steps.
+- **`vendor/duckdb-extensions/v<duckdb-version>/linux_amd64/httpfs.duckdb_extension`** in R2 —
+  our own copy of the `httpfs` extension binary, fetched once over HTTPS and re-hosted so no
+  session ever needs to touch `extensions.duckdb.org` again (not even the HTTPS variant — this
+  sidesteps gotcha #3 below structurally rather than requiring every session to route around it
+  itself). Re-vendor only if the project's duckdb version bumps (see
+  `scripts/publish_duckdb.py`'s docstring for the exact command).
 
 ## Why scrub instead of gate
 
@@ -103,8 +117,9 @@ enforced by scrubbing the *data* in the published copy instead of trying to gate
 1. **Merge the PR.** Everything is built, documented, and verified against the real published
    store — nothing left to fix.
 2. **Re-run `scripts/publish_duckdb.py --career frem --upload` after every import** you want
-   reflected remotely — it's not automatic, unlike `export_data.py --upload-all` which
-   `docs/DEPLOY.md`'s "Refreshing after an import" section already lists both under.
+   reflected remotely — it's not automatic. `docs/DEPLOY.md`'s "Refreshing after an import" and
+   the `import-fm-saves` skill's step 7 both call it out now, so a normal import flow won't miss
+   it, but a manual `load_duckdb.py` outside that skill still needs it run by hand.
 3. If a *different* Claude Code sandbox hits either of the two gotchas above again despite this
    note documenting the fix, that's a sign DuckDB's own behaviour changed (a version bump) or
    the sandbox's network policy is stricter than this one was — re-verify rather than assume the

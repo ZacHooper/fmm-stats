@@ -151,7 +151,42 @@ installer defaults to a *plain HTTP* URL, which can still 403 even once the HTTP
 allowed (a network policy commonly allowlists by host **and scheme**) — if so, fetch the `.gz`
 over HTTPS yourself and drop it in `~/.duckdb/extensions/v<version>/<platform>/` (see
 `scripts/publish_duckdb.py`'s docstring for the exact commands), then `LOAD httpfs` picks it up
-from the local cache with no `INSTALL` needed.
+from the local cache with no `INSTALL` needed. **A Claude Code session working in this repo
+doesn't need to do any of this by hand** — `.claude/hooks/session-start.sh` installs `rclone`,
+configures the `r2:` remote, and pre-places the `httpfs` extension from our own R2-vendored copy
+automatically on startup.
+
+### Query cookbook — two traps this schema has that a fixed export doesn't
+
+Raw SQL gets you the underlying tables directly, which means you also own the two dedup rules
+`dashboard/db.py`'s helper functions (`player_match_totals`, `squad`, …) apply for you in the
+Python app. Skip either one and the numbers are wrong, not just imprecise — e.g. a naive query
+for a player's season goals can come back **10-20× too high**.
+
+1. **`staging.match_player_stats` is a ring buffer, not a season table.** Every import snapshot
+   re-scrapes however much match history the save still holds, so **later snapshots in the same
+   season are supersets of earlier ones** — summing `goals` across every `(season, phase)` row
+   double- (or 10×-) counts every match that appears in more than one snapshot. Always restrict
+   to **one `phase` per `season`** — the latest one, since later fully contains earlier:
+   ```sql
+   WITH chosen AS (
+     SELECT season, MAX(phase) AS phase FROM staging.match_player_stats GROUP BY season
+   )
+   SELECT m.tid, SUM(m.goals) AS goals
+   FROM staging.match_player_stats m JOIN chosen USING (season, phase)
+   WHERE m.team_tid = <club tid> AND m.competition = '<competition name>'
+   GROUP BY m.tid;
+   ```
+   (`MAX(phase)` works because phases are `YYYY-MM-DD` strings within a season here; the
+   dashboard's own helper uses an `arg_max` that also tolerates the legacy `start/mid/end`
+   words — see `dashboard/db.py::player_match_totals` for that fuller form.)
+2. **`staging.players` is ALSO one row per snapshot, not one row per player.** A naive
+   `JOIN staging.players p ON p.tid = m.tid` multiplies every stat row by however many snapshots
+   that player appears in (16+ across this store's history) — the same 10-20× inflation as #1,
+   from a completely different cause. Either join on the **same** `(season, phase)` as the stats
+   row (`JOIN staging.players p ON p.tid = m.tid AND p.season = m.season AND p.phase = m.phase`),
+   or look the name up once from a single fixed snapshot (`db.latest_snapshot()`'s `(season,
+   phase)` pair, or any one row via `WHERE tid = ... ORDER BY season DESC, phase DESC LIMIT 1`).
 
 This is a *scrubbed* copy — `staging.players.ca`/`.pa` (raw ability) are already NULLed before
 publish, so the immersion rule above still holds; there is no extra care needed on your part.

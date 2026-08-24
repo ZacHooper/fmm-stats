@@ -27,15 +27,25 @@ it's the same host `rclone`/this script already upload through.
 sandbox's network policy if `INSTALL httpfs` fails outright. One further wrinkle seen in
 testing: DuckDB's installer defaults to a PLAIN HTTP url
 (`http://extensions.duckdb.org/...`), which can still 403 even once the HTTPS host is
-allowed, since a network policy commonly allowlists by host *and scheme*. If so, fetch the
-`.gz` over HTTPS yourself and drop it in DuckDB's extension cache instead of using `INSTALL`:
+allowed, since a network policy commonly allowlists by host *and scheme*.
+
+A Claude Code session in this repo never needs to work around either of those:
+`.claude/hooks/session-start.sh` pre-places `httpfs` from our own R2-vendored copy
+(`vendor/duckdb-extensions/v<duckdb-version>/linux_amd64/httpfs.duckdb_extension`) on startup,
+so `LOAD httpfs;` alone (no `INSTALL`) just works — no network call to
+`extensions.duckdb.org` at all. Elsewhere, fetch the `.gz` over HTTPS yourself and drop it in
+DuckDB's extension cache instead of using `INSTALL`:
 
     v=$(python3 -c "import duckdb; print(duckdb.__version__)")
     curl -o /tmp/httpfs.gz "https://extensions.duckdb.org/v$v/linux_amd64/httpfs.duckdb_extension.gz"
     mkdir -p ~/.duckdb/extensions/v$v/linux_amd64
     gunzip -c /tmp/httpfs.gz > ~/.duckdb/extensions/v$v/linux_amd64/httpfs.duckdb_extension
 
-then just `LOAD httpfs;` (no `INSTALL`) picks it up from the local cache.
+then just `LOAD httpfs;` (no `INSTALL`) picks it up from the local cache. Re-vendor the R2 copy
+(only needed if the project's duckdb version bumps) with:
+
+    rclone copyto ~/.duckdb/extensions/v$v/linux_amd64/httpfs.duckdb_extension \
+        r2:fmm-stats/vendor/duckdb-extensions/v$v/linux_amd64/httpfs.duckdb_extension
 
 The published copy is a SCRUBBED CLONE, never the live store: staging.players.ca/.pa (raw
 ability) are NULLed here before upload. That's the same immersion house rule export_data.py

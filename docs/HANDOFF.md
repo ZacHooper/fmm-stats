@@ -206,7 +206,20 @@ loader + dashboard + `fmq.py` for what was really just a network-allowlist gap.
 
 **What's left:** just merging the PR. Remember `publish_duckdb.py --upload` doesn't run
 automatically — re-run it after every import you want reflected remotely, alongside
-`export_data.py --upload-all` (both are in `docs/DEPLOY.md`'s "Refreshing after an import").
+`export_data.py --upload-all` (both are in `docs/DEPLOY.md`'s "Refreshing after an import" *and*
+now step 7 of the `import-fm-saves` skill, so a normal import won't miss it).
+
+**Also added this session, so a brand-new session needs zero manual setup:**
+`.claude/hooks/session-start.sh` (a Claude Code web SessionStart hook, registered in
+`.claude/settings.json`) runs `uv sync`, installs + configures `rclone` against `r2:`, and
+pre-places the `httpfs` DuckDB extension from a copy we vendored into R2 ourselves
+(`vendor/duckdb-extensions/...` — sidesteps `extensions.duckdb.org` entirely, not just the
+`*.workers.dev` block). Verified by wiping all of that and re-running the hook cold. **Only
+takes effect for future sessions once this PR merges to `main`** — a hook on an unmerged branch
+doesn't fire yet. `CLAUDE.md` now also tells an agent to `ATTACH` the R2 copy directly for a
+quick question instead of defaulting to a local rebuild, and `site/AGENTS.md` documents two
+dedup traps in the raw schema (`match_player_stats` is a ring buffer; `staging.players` is one
+row per snapshot, not per player) that make a naive query silently wrong by 10-20×.
 
 ---
 
