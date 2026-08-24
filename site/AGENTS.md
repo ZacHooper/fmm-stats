@@ -122,6 +122,22 @@ Read `index.json` → `caveats` for the live list. The ones that bite hardest:
 7. **One snapshot.** Everything except `squad.json` trajectories and `matches.json` describes the
    single snapshot in `index.snapshot`. You cannot see the current in-game state, only that save.
 
+## Prefer SQL? Attach the database directly
+
+Everything above is a fixed export. If you can run DuckDB and want an arbitrary query instead —
+grouping, joins, anything not already shaped into one of these files — attach the store itself:
+
+```sql
+INSTALL httpfs; LOAD httpfs;
+ATTACH 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem' AS fm (READ_ONLY);
+SELECT * FROM fm.staging.players LIMIT 5;
+```
+
+This is a *scrubbed* copy — `staging.players.ca`/`.pa` (raw ability) are already NULLed before
+publish, so the immersion rule above still holds; there is no extra care needed on your part.
+Everything else in the store (attributes, matches, history, contracts, …) is queryable, which
+covers questions the JSON files above don't shape an answer for.
+
 ## Task guides
 
 For a structured job, fetch the guide and follow it:

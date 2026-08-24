@@ -20,6 +20,7 @@
 const ALL_KEY = "site-data/all.json";
 const SHORTLIST_PREFIX = "state/shortlist/";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
+const CAREER_RE = /^[a-z0-9_-]{1,40}$/i;
 
 const json = (body, status = 200, extra = {}) =>
   new Response(JSON.stringify(body), { status, headers: { ...JSON_HEADERS, ...extra } });
@@ -29,6 +30,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/all") return allPlayers(request, env);
     if (url.pathname === "/api/shortlist") return shortlist(request, env);
+    if (url.pathname === "/api/db") return dbFile(request, env);
     // Not an asset and not an endpoint. Let the asset handler produce the 404 so the response
     // matches everything else on the host.
     return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: "not found" }, 404);
@@ -93,6 +95,69 @@ async function allPlayers(request, env) {
                    tid: tidFilter ? [...tidFilter] : undefined },
     count: players.length,
   }, 200, { etag, "cache-control": "public, max-age=300, stale-while-revalidate=86400" });
+}
+
+/**
+ * A scrubbed, read-only copy of the career's DuckDB store (~90 MB) — for an agent that wants
+ * arbitrary SQL instead of the fixed shapes above. DuckDB's httpfs extension can ATTACH a
+ * remote database over plain HTTP(S) in read-only mode using range requests, so it never pulls
+ * the whole file:
+ *
+ *   INSTALL httpfs; LOAD httpfs;
+ *   ATTACH 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem' AS fm (READ_ONLY);
+ *   SELECT * FROM fm.staging.players LIMIT 5;
+ *
+ * That's why this forwards the incoming Range header straight to R2 (rather than always
+ * returning the whole object like /api/all does) and answers HEAD, which httpfs uses first to
+ * learn the file size. `?career=` picks the object; default `frem` since that's the only career
+ * currently published.
+ *
+ * The object itself is published by scripts/publish_duckdb.py, which NULLs staging.players.ca
+ * and .pa (raw ability) in the copy before upload — the immersion house rule has no per-field
+ * filter to hide behind once a caller gets raw SQL, so it's enforced by scrubbing the data
+ * rather than the query.
+ */
+async function dbFile(request, env) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return json({ error: `${request.method} not supported` }, 405);
+  }
+  const url = new URL(request.url);
+  const career = (url.searchParams.get("career") || "frem").trim();
+  if (!CAREER_RE.test(career)) return json({ error: "invalid career" }, 400);
+  const key = `site-data/fm-${career}.duckdb`;
+
+  if (request.method === "HEAD") {
+    const head = await env.FM_STATE.head(key);
+    if (!head) return json({ error: `${key} not in the bucket` }, 404);
+    return new Response(null, {
+      headers: {
+        "content-type": "application/octet-stream", "accept-ranges": "bytes",
+        "content-length": String(head.size), etag: head.httpEtag,
+      },
+    });
+  }
+
+  // Passing the request's Headers straight through lets R2 parse the Range header itself
+  // (single source of truth for the byte-range syntax) rather than this code reimplementing it.
+  const obj = await env.FM_STATE.get(key, { range: request.headers });
+  if (!obj) {
+    return json({
+      error: `${key} is not in the bucket — run: `
+        + `uv run python scripts/publish_duckdb.py --career ${career} --upload`,
+    }, 404);
+  }
+  const headers = {
+    "content-type": "application/octet-stream", "accept-ranges": "bytes",
+    etag: obj.httpEtag, "cache-control": "public, max-age=300",
+  };
+  if (obj.range) {
+    const { offset, length } = obj.range;
+    headers["content-range"] = `bytes ${offset}-${offset + length - 1}/${obj.size}`;
+    headers["content-length"] = String(length);
+    return new Response(obj.body, { status: 206, headers });
+  }
+  headers["content-length"] = String(obj.size);
+  return new Response(obj.body, { status: 200, headers });
 }
 
 /** "12,34, 56" -> Set{12,34,56}; param absent/blank -> null (no filter requested — full file).

@@ -54,6 +54,7 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | `api/positions.json` | 5 KB | git | the position review |
 | `api/index.json` | 1 KB | git | manifest |
 | `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
+| `fm-<career>.duckdb` (scrubbed) | ~90 MB | **R2** | `/api/db?career=<key>` — a remote agent `ATTACH`es this over HTTP(S) and runs arbitrary SQL instead of the fixed shapes above |
 
 ## One-time setup
 
@@ -112,6 +113,7 @@ Turn wifi **off** — that's the actual test.
 
 ```bash
 uv run python scripts/export_data.py --upload-all
+uv run python scripts/publish_duckdb.py --career frem --upload   # for SQL access — see below
 git add site docs && git commit -m "site: <snapshot>" && git push
 ```
 
@@ -119,6 +121,34 @@ git add site docs && git commit -m "site: <snapshot>" && git push
 whatever is already in the bucket). `--skip-all` skips generating it entirely for fast iteration.
 Other flags: `--season/--phase` to pin an older snapshot, `--method` for the default tactic,
 `--min-fam` for the familiarity floor on the position review.
+
+## SQL access for a remote agent
+
+The JSON API only ever answers the fixed shapes `export_data.py` chose to export. A remote agent
+session — no local store, no saves, nothing but a URL — that wants an arbitrary query instead can
+attach the actual database over HTTP(S):
+
+```sql
+INSTALL httpfs; LOAD httpfs;
+ATTACH 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem' AS fm (READ_ONLY);
+SELECT * FROM fm.staging.players LIMIT 5;
+```
+
+DuckDB's httpfs extension does this with range requests, so it never pulls the whole ~90 MB file
+— `worker/index.js`'s `/api/db` route forwards the incoming `Range` header straight to R2 (and
+answers `HEAD`, which httpfs uses first to learn the file size).
+
+**What's published is a scrubbed copy, not the live store.** `scripts/publish_duckdb.py` clones
+`fm-<career>.duckdb`, NULLs `staging.players.ca`/`.pa` (raw ability) in the clone, then uploads
+that to `site-data/fm-<career>.duckdb`. The JSON export enforces the same immersion house rule
+per-field (see CLAUDE.md); raw SQL access has no per-field filter to hide behind, so this is
+enforced by scrubbing the data itself instead. The live store is opened read-only and is never
+touched — same single-writer-safe fallback `export_data.py` uses, so this is safe to run with a
+dashboard open.
+
+Needs `rclone` configured against the `r2:` remote to actually upload (see the main README /
+CLAUDE.md for setup); without it, `--upload` fails with a clear message and `--out <path>` still
+lets you produce and inspect the scrubbed copy locally.
 
 Preview locally before pushing:
 
