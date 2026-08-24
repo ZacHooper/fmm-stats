@@ -125,13 +125,24 @@ Read `index.json` → `caveats` for the live list. The ones that bite hardest:
 ## Prefer SQL? Attach the database directly
 
 Everything above is a fixed export. If you can run DuckDB and want an arbitrary query instead —
-grouping, joins, anything not already shaped into one of these files — attach the store itself:
+grouping, joins, anything not already shaped into one of these files — attach the store itself
+straight from R2 over DuckDB's native S3 protocol, using the R2 credentials a Claude Code
+session in this project already carries (`R2_ACCESS_KEY`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`
+env vars):
 
 ```sql
 INSTALL httpfs; LOAD httpfs;
-ATTACH 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem' AS fm (READ_ONLY);
+CREATE SECRET r2 (TYPE r2, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
+                   ACCOUNT_ID '<R2_ACCOUNT_ID>');
+ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
 SELECT * FROM fm.staging.players LIMIT 5;
 ```
+
+Deliberately not a `workers.dev` URL: a network-restricted agent sandbox often can't reach that
+host, but the R2 endpoint above (`<account-id>.r2.cloudflarestorage.com`) usually can, since
+it's the same host the data pipeline already uploads through. If `INSTALL httpfs` itself 403s,
+the sandbox's network policy needs `extensions.duckdb.org` added — that's the one other host
+this needs.
 
 This is a *scrubbed* copy — `staging.players.ca`/`.pa` (raw ability) are already NULLed before
 publish, so the immersion rule above still holds; there is no extra care needed on your part.

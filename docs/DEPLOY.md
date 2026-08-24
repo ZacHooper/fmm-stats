@@ -54,7 +54,7 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | `api/positions.json` | 5 KB | git | the position review |
 | `api/index.json` | 1 KB | git | manifest |
 | `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
-| `fm-<career>.duckdb` (scrubbed) | ~90 MB | **R2** | `/api/db?career=<key>` — a remote agent `ATTACH`es this over HTTP(S) and runs arbitrary SQL instead of the fixed shapes above |
+| `fm-<career>.duckdb` (scrubbed) | ~90 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL instead of the fixed shapes above |
 
 ## One-time setup
 
@@ -125,18 +125,26 @@ Other flags: `--season/--phase` to pin an older snapshot, `--method` for the def
 ## SQL access for a remote agent
 
 The JSON API only ever answers the fixed shapes `export_data.py` chose to export. A remote agent
-session — no local store, no saves, nothing but a URL — that wants an arbitrary query instead can
-attach the actual database over HTTP(S):
+session — no local store, no saves — that wants an arbitrary query instead can `ATTACH` the
+actual database straight from R2, over DuckDB's native S3 protocol, using the same R2
+credentials a Claude Code session in this project already carries as env vars:
 
 ```sql
 INSTALL httpfs; LOAD httpfs;
-ATTACH 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem' AS fm (READ_ONLY);
+CREATE SECRET r2 (TYPE r2, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
+                   ACCOUNT_ID '<R2_ACCOUNT_ID>');
+ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
 SELECT * FROM fm.staging.players LIMIT 5;
 ```
 
-DuckDB's httpfs extension does this with range requests, so it never pulls the whole ~90 MB file
-— `worker/index.js`'s `/api/db` route forwards the incoming `Range` header straight to R2 (and
-answers `HEAD`, which httpfs uses first to learn the file size).
+DuckDB's httpfs extension does this with range requests, so it never pulls the whole ~90 MB file.
+**Deliberately not served through the Worker** (an earlier version of this had a `/api/db` route
+forwarding `Range` headers to R2): a network-restricted agent sandbox often can't reach
+`*.workers.dev`, but the account-scoped R2 endpoint above
+(`<account-id>.r2.cloudflarestorage.com`) usually *is* reachable, since it's the same host
+`rclone` and `publish_duckdb.py` already upload through. The one other host this needs is
+`extensions.duckdb.org`, to install `httpfs` itself — add it to the sandbox's network policy if
+`INSTALL httpfs` 403s.
 
 **What's published is a scrubbed copy, not the live store.** `scripts/publish_duckdb.py` clones
 `fm-<career>.duckdb`, NULLs `staging.players.ca`/`.pa` (raw ability) in the clone, then uploads

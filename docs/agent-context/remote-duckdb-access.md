@@ -1,16 +1,56 @@
 # Remote-agent SQL access to the DuckDB store
 
-**Status (2026-08-24): implemented and pushed, PR open, NOT merged, NOT verified against real
-R2.** PR: https://github.com/ZacHooper/fmm-stats/pull/1, branch `claude/duckdb-r2-storage-d1rumw`.
+**Status (2026-08-24): pivoted from the Worker-forwarding design to a direct R2 `ATTACH`,
+PR open, upload in progress.** PR: https://github.com/ZacHooper/fmm-stats/pull/1, branch
+`claude/duckdb-r2-storage-d1rumw`.
 
 ## Why
 
 The web app's JSON API (`site/api/*.json`, `/api/all`) only answers the fixed shapes
-`export_data.py` chose to export. A remote agent session — no local store, no saves, nothing
-but a URL — that wants an ad-hoc query has no way to do it. DuckDB can `ATTACH` a remote
-database file over plain HTTP(S) in **read-only** mode via the `httpfs` extension, using range
-requests so it never downloads the whole file. That gives a second, SQL-shaped access path
-alongside the JSON one, at the cost of one more R2 upload step per import.
+`export_data.py` chose to export. A remote agent session — no local store, no saves — that wants
+an ad-hoc query has no way to do it. DuckDB can `ATTACH` a remote database file in **read-only**
+mode via the `httpfs` extension, using range requests so it never downloads the whole file. That
+gives a second, SQL-shaped access path alongside the JSON one, at the cost of one more R2 upload
+step per import.
+
+## Two ways to serve the file, and why the second one won
+
+**v1 (original PR, now removed): a Worker route.** `worker/index.js` had a `/api/db?career=`
+route forwarding `Range` headers to R2, so a caller would `ATTACH
+'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem'`. This worked (verified via the
+PR's Cloudflare branch preview) but turned out to be the wrong host for the actual target
+audience: a Claude Code session running in a network-restricted sandbox — exactly the kind of
+"remote agent with no local store" this feature is for — often has `*.workers.dev` blocked by
+its environment's egress policy, with no way to fix that from inside the session.
+
+**v2 (current): DuckDB `ATTACH`es the R2 object directly**, over DuckDB's native S3 protocol,
+using the R2 credentials a Claude Code session in this project already carries as env vars
+(`R2_ACCESS_KEY`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`):
+
+```sql
+INSTALL httpfs; LOAD httpfs;
+CREATE SECRET r2 (TYPE r2, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
+                   ACCOUNT_ID '<R2_ACCOUNT_ID>');
+ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
+SELECT * FROM fm.staging.players LIMIT 5;
+```
+
+This turned out to already work from a restricted sandbox: the account-scoped R2 endpoint
+(`<account-id>.r2.cloudflarestorage.com`) was reachable in testing even though the bare
+`r2.cloudflarestorage.com` and every `*.workers.dev` host were not — confirmed live (`rclone
+lsd r2:fmm-stats` succeeded; `curl` to both blocked hosts got a proxy 403). The **one remaining
+requirement** is that `extensions.duckdb.org` be reachable too, since `INSTALL httpfs` fetches
+the extension binary from there on first use — that single host needs adding to a restricted
+sandbox's network policy (an environment-level setting, not something fixable in-session; see
+https://code.claude.com/docs/en/claude-code-on-the-web). `worker/index.js`'s `/api/db` route and
+its `CAREER_RE` constant were removed since nothing serves this way anymore. `export_data.py`'s
+`index.json["files"]["database"]` now points at the `s3://` key instead of the Worker URL.
+
+**Data size was never the constraint** — the scrubbed store is ~90 MB, comfortably small for
+almost any storage backend. A pivot to Postgres/Supabase was considered and rejected: it would
+mean rewriting the loader, `dashboard/*.py`, and `fmq.py` (all speak DuckDB SQL directly today)
+plus ongoing hosting, to fix what was actually just a two-domain gap in one sandbox's network
+allowlist.
 
 ## What was built
 
@@ -19,55 +59,35 @@ alongside the JSON one, at the cost of one more R2 upload step per import.
   ability — see `load_duckdb.py`'s schema), `CHECKPOINT`s, and uploads the clone to R2 at
   `site-data/fm-<career>.duckdb` via `rclone copyto`. The live store is opened through
   `_dbopen.open_readonly` (same single-writer-safe fallback every other read-only tool uses) and
-  is never itself touched. Verified locally against a synthetic store: `ca`/`pa` come back
-  `NULL` in the copy, source store untouched.
-- **`worker/index.js`** — new `/api/db?career=<key>` route. Forwards the incoming `Range`
-  header straight to R2 via `env.FM_STATE.get(key, { range: request.headers })` (R2 parses the
-  header itself), answers `HEAD` (httpfs uses that first to learn the file size), returns 206
-  with `Content-Range` for a ranged request. Validated with `npx wrangler deploy --dry-run` only
-  — bundles clean, binding present — **never exercised against a live object**, since no object
-  has been uploaded yet.
-- Docs updated: `site/AGENTS.md` ("Prefer SQL?" section), `docs/DEPLOY.md` ("SQL access for a
-  remote agent"), `CLAUDE.md` storage-tiers table, `index.json`'s `files.database` key.
+  is never itself touched.
+- Docs updated for the `s3://` access path: `site/AGENTS.md` ("Prefer SQL?" section),
+  `docs/DEPLOY.md` ("SQL access for a remote agent"), `CLAUDE.md` storage-tiers table,
+  `export_data.py`'s `files.database` key.
 
 ## Why scrub instead of gate
 
 The JSON export enforces "never surface raw CA/PA" per-field (`export_data.py`'s
 `check_immersion`). Raw SQL access has no per-field filter to hide behind once it's shipped —
-whoever holds the URL can `SELECT ca FROM staging.players` directly. So the rule is enforced by
-scrubbing the *data* in the published copy instead of trying to gate the *query*.
-
-## Usage (once published)
-
-```sql
-INSTALL httpfs; LOAD httpfs;
-ATTACH 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem' AS fm (READ_ONLY);
-SELECT * FROM fm.staging.players LIMIT 5;
-```
+whoever holds the R2 credentials can `SELECT ca FROM staging.players` directly. So the rule is
+enforced by scrubbing the *data* in the published copy instead of trying to gate the *query*.
 
 ## What's still open — for whoever picks this up next
 
-1. **Nothing has actually been uploaded to R2 yet.** `/api/db` will 404 until
-   `scripts/publish_duckdb.py --career frem --upload` runs successfully once.
-2. **This session's sandbox did not have working R2 credentials.** `rclone` was not on PATH (an
-   unrelated `/opt/rclone/rclone-filestore` binary exists but isn't the CLI the scripts shell
-   out to). `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` were present but only **14 characters
-   each** — real R2 S3-compatible keys are 32-char hex, so these read as placeholders, not
-   genuine credentials — and no R2 endpoint (`AWS_ENDPOINT_URL` or similar) was set, so even
-   valid-looking keys would have nowhere to point (R2 needs
-   `https://<account-id>.r2.cloudflarestorage.com`, never guess the account id). The user said
-   to reset the environment rather than chase this further in-session.
-3. **Before trusting new creds in a future session**, sanity-check them the same way: key
-   length, an actual endpoint var or rclone remote config (`rclone config show` — do not print
-   secret values, only structure/lengths), and a cheap connectivity probe (e.g.
-   `rclone lsd r2:fmm-stats` or `rclone about r2:`) before running the real upload.
-4. Once upload works: confirm `/api/db` end to end — `curl -I .../api/db?career=frem` for
-   `200`/`accept-ranges: bytes`, then a real `duckdb` client running the `ATTACH` snippet above,
-   checking `ca`/`pa` really do come back `NULL`. The Worker route only ships live once PR #1 is
-   merged and deployed (Cloudflare Workers Builds deploys on push to the repo's default branch —
-   see `docs/DEPLOY.md`); testing the route pre-merge needs a manual `wrangler deploy` from a
-   branch checkout, or waiting for merge.
-5. Tick the checklist in the PR body once verified, and update this note.
+1. **`rclone` + real R2 credentials are now confirmed working** in a Claude Code sandbox for
+   this project (installed via `apt-get install rclone`; the account already carries
+   `R2_ACCESS_KEY`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`/`R2_ENDPOINT` env vars). One
+   installed-rclone quirk: the apt-packaged 1.60.1 throws `LoadCustomCABundleError` if
+   `AWS_CA_BUNDLE` is set alongside this environment's proxy transport — worked around with a
+   `/usr/local/bin/rclone` wrapper that drops that one env var before exec'ing the real binary
+   (harmless outside this kind of proxied sandbox).
+2. **`INSTALL httpfs` needs `extensions.duckdb.org` reachable.** Confirmed blocked in the
+   sandbox that did this pivot (403 on CONNECT), same failure class as the `workers.dev` block
+   this pivot was meant to avoid — but only one host to unblock instead of the whole Worker
+   domain, and it's needed for `httpfs` regardless of which serving approach is used.
+3. Once `extensions.duckdb.org` is reachable: run the `ATTACH` snippet above for real, confirm
+   `ca`/`pa` come back `NULL`, and confirm a plain query (row counts, a known player) matches
+   the live store.
+4. Tick the checklist in the PR body once verified, and update this note.
 
 See also: [Multi-device and storage](multi-device-and-storage.md) for the three-tier storage
 model this extends, and `docs/DEPLOY.md` for the full deploy runbook.

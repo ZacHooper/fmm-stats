@@ -5,15 +5,22 @@ with no local store and no saves, wanting arbitrary SQL instead of the fixed JSO
 
     uv run python scripts/publish_duckdb.py --career frem --upload
 
-DuckDB can ATTACH a remote database over plain HTTP(S) in read-only mode via the httpfs
-extension, using range requests so it never downloads the whole file:
+DuckDB can ATTACH straight to the R2 object over its native S3 protocol (httpfs extension,
+range requests, so it never downloads the whole file) using the same R2 credentials a Claude
+Code session in this project already carries:
 
     INSTALL httpfs; LOAD httpfs;
-    ATTACH 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem' AS fm (READ_ONLY);
+    CREATE SECRET r2 (TYPE r2, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
+                       ACCOUNT_ID '<R2_ACCOUNT_ID>');
+    ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
     SELECT * FROM fm.staging.players LIMIT 5;
 
-(`worker/index.js` serves that URL, forwarding Range requests straight to R2 — see its
-`dbFile` handler.)
+Deliberately NOT served through the Worker (`worker/index.js`): that would mean going out to
+`*.workers.dev`, which a network-restricted agent sandbox may not be able to reach, whereas the
+account-scoped R2 endpoint (`<account-id>.r2.cloudflarestorage.com`) commonly is allowed since
+it's the same host `rclone`/this script already upload through. The one extra requirement is
+that `extensions.duckdb.org` be reachable too, to install `httpfs` itself — add it to the
+sandbox's network policy if `INSTALL httpfs` fails with a 403.
 
 The published copy is a SCRUBBED CLONE, never the live store: staging.players.ca/.pa (raw
 ability) are NULLed here before upload. That's the same immersion house rule export_data.py
