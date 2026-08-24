@@ -71,18 +71,24 @@ from fmparser.attributes import ATTR_ORDER
 # growth total measures jitter: the keeper attributes change 68 times across outfielders'
 # snapshots while never leaving the range 1-5.
 #
-# ONE DEVIATION from the in-game UI, which swaps out the technical block for keepers:
-# PASSING IS NOT VESTIGIAL FOR KEEPERS. It averages 5.6 for our keepers against 8.2 for
-# outfielders and ranges up to 13 — well clear of the inert band that Crossing (1.8) and
-# Shooting (1.5) sit in. So the engine keeps a real passing value for a keeper even where
-# the UI hides it, and it is counted. Aerial (12.7 vs 9.9) and Technique (7.0 vs 8.8) are
-# likewise real for keepers, matching the UI.
+# Passing is NOT vestigial for keepers even though the UI groups it with the technical
+# block it swaps out: it averages 5.6 for our keepers against 8.2 for outfielders and
+# reaches 13, well clear of the inert band Crossing (1.8) and Shooting (1.5) occupy. So
+# the engine keeps a real passing value for a keeper and only the UI hides it. Aerial
+# (12.7 vs 9.9) and Technique (7.0 vs 8.8) are likewise real for keepers.
+#
+# Given that, KEEPERS COUNT ALL 23 (manager's call, 2026-08). The outfield-only block adds
+# roughly 8 points of near-constant value to a keeper's total, so it shifts the level but
+# barely moves the delta, which is what growth reads. Known and accepted side effect: a
+# young keeper can over-index slightly as "most improved" if that inert block drifts up.
+# Outfielders still drop the keeper block, which is the asymmetry that actually matters —
+# it is 5 attributes of pure jitter (they change 68 times across outfielders' snapshots
+# without ever leaving the range 1-5).
 GK_ONLY_ATTRS = ["Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
 OUTFIELD_ONLY_ATTRS = ["Crossing", "Dribbling", "Shooting", "Tackling", "Movement"]
 
-# What each role's total actually sums: everything except the other role's vestigial block.
 OUTFIELD_ATTRS = [a for a in ATTR_ORDER if a not in GK_ONLY_ATTRS]
-GK_ATTRS = [a for a in ATTR_ORDER if a not in OUTFIELD_ONLY_ATTRS]
+GK_ATTRS = list(ATTR_ORDER)
 
 # Kept for callers that want the raw blocks rather than the role-aware total.
 GK_BLOCK = GK_ONLY_ATTRS

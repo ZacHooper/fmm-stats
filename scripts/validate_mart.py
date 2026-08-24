@@ -225,7 +225,7 @@ def main():
     """).df()
     check("outfielders' total drops the keeper block",
           bool(role[role.is_gk == 0].iloc[0]["uses_outfield_set"]))
-    check("keepers' total drops the outfield-only block",
+    check("keepers' total counts all 23",
           bool(role[role.is_gk == 1].iloc[0]["uses_gk_set"]))
 
     # The vestigial blocks must be measurably inert for the role that doesn't use them,
