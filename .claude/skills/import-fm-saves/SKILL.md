@@ -137,6 +137,18 @@ check against a screenshot.
    (`club_tid in (346,7296)` for frem), and run an `AppTest` smoke over the dashboard pages to
    confirm rendering — all 14 should pass, including against a read-only store. Report the final snapshot table.
 
+7. **Refresh the remote artefacts** — not automatic, easy to forget since the store itself is
+   already correct without it. Three things read stale data otherwise: the deployed web app, a
+   remote agent's `ATTACH` (see `docs/agent-context/remote-duckdb-access.md`), and
+   `seeds/manifest.csv` (the rebuild recipe — without it another machine can't reproduce this
+   snapshot). Full detail in `docs/DEPLOY.md`'s "Refreshing after an import":
+   ```bash
+   uv run python scripts/export_manifest.py                          # refresh the rebuild recipe
+   uv run python scripts/export_data.py --upload-all                 # -> site/api/*.json + R2 all.json
+   uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2, scrubbed, for SQL access
+   git add site docs seeds && git commit -m "site: <snapshot>" && git push   # Pages deploys on push
+   ```
+
 ## Gotchas seen before
 - `output/` and `*.duckdb` are gitignored; extraction writes lots of JSON there — fine.
 - DuckDB single-writer: a running Streamlit server holds the file; `pkill -f streamlit` before loading.

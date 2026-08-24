@@ -527,7 +527,12 @@ def main():
                   "squad": f"{SITE_URL}/api/squad.json",
                   "positions": f"{SITE_URL}/api/positions.json",
                   "matches": f"{SITE_URL}/api/matches.json",
-                  "all_players": f"{SITE_URL}/api/all"},
+                  "all_players": f"{SITE_URL}/api/all",
+                  # not JSON — a DuckDB file an agent ATTACHes over its native S3 protocol for
+                  # arbitrary SQL. See AGENTS.md "Prefer SQL?". Scrubbed (ca/pa NULLed) by
+                  # publish_duckdb.py; may be stale or absent if that hasn't run for this
+                  # snapshot. Not an HTTP URL — s3://<bucket>/<key>, read with R2 credentials.
+                  "database": f"s3://fmm-stats/site-data/fm-{car.key}.duckdb"},
         # An agent handed only this URL should be able to bootstrap itself. AGENTS.md explains
         # the columnar format, the rating formula it has to compute, and the immersion rule;
         # the guides are per-task procedures.

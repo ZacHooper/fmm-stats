@@ -1,6 +1,7 @@
 # Handoff — continue exactly where we are
 
-Paste-ready context for a fresh agent. **Last updated 2026-08-21 (Phase 2 built).**
+Paste-ready context for a fresh agent. **Last updated 2026-08-24 (Phase 3: direct-R2 SQL access
+DONE — verified against the real published store, PR #1 open awaiting merge).**
 
 Read [`CLAUDE.md`](../CLAUDE.md) first, then
 [`docs/agent-context/MEMORY.md`](agent-context/MEMORY.md) which indexes the durable notes. This
@@ -167,6 +168,58 @@ the store 80 MB → ~30 MB).
 - All 14 Streamlit pages still pass `AppTest` after the `positions.py` extraction.
 - Shortlist round-trip through real R2: an object in the exact shape the Function PUTs was read
   back by `state.py` → `db.shortlist_get()`, id stayed int-coercible, and delete removed it.
+
+---
+
+## Phase 3 — remote-agent SQL access. **DONE, verified against the real store, PR open awaiting merge**
+
+Full detail: [`agent-context/remote-duckdb-access.md`](agent-context/remote-duckdb-access.md).
+Short version: the JSON API only answers fixed shapes; this adds a second path where a remote
+agent with no local store can `ATTACH` a scrubbed copy of the DuckDB store and run arbitrary
+SQL.
+
+**PR open, unmerged, fully verified:** https://github.com/ZacHooper/fmm-stats/pull/1 (branch
+`claude/duckdb-r2-storage-d1rumw`). This session: got `rclone` installed and real R2 creds
+working, **pivoted the design** away from a Worker route (`*.workers.dev` is commonly blocked
+in a network-restricted Claude Code sandbox — exactly this feature's target audience) to a
+direct DuckDB `ATTACH` over R2's native S3 protocol, then — once the user widened this
+sandbox's network policy — **verified the whole path against the real published store**:
+`484,746` player rows, `0` rows with non-NULL `ca`/`pa` (386,038 scrubbed on publish by
+`scripts/publish_duckdb.py --career frem --upload`), 32 tables visible. Three gotchas found and
+fixed along the way (full detail in the linked note):
+1. DuckDB's `TYPE r2`/`ACCOUNT_ID` secret shorthand silently mis-routes to public AWS S3 instead
+   of R2 in this kind of proxied sandbox — use `TYPE s3` with an explicit `ENDPOINT`,
+   `URL_STYLE 'path'`, `REGION 'auto'` instead (confirmed working).
+2. `INSTALL httpfs` requests a **plain HTTP** URL by default, which can still 403 even once the
+   HTTPS host is allowlisted (host+scheme-specific policies are common) — fetch the `.gz` over
+   HTTPS yourself and drop it in `~/.duckdb/extensions/...` instead; `LOAD httpfs` then needs no
+   network call at all.
+3. `worker/index.js`'s `/api/db` route and `CAREER_RE` constant were removed since nothing
+   serves this way anymore; `export_data.py`'s `files.database` key now points at the `s3://`
+   key directly.
+
+All docs (`scripts/publish_duckdb.py`'s docstring, `site/AGENTS.md`, `docs/DEPLOY.md`,
+`CLAUDE.md`) carry the verified `ATTACH` syntax and both workarounds; the PR body's test-plan
+checklist is ticked. A Supabase/Postgres pivot was considered and rejected: the store is only
+~90 MB, so size was never the constraint, and migrating off DuckDB would mean rewriting the
+loader + dashboard + `fmq.py` for what was really just a network-allowlist gap.
+
+**What's left:** just merging the PR. Remember `publish_duckdb.py --upload` doesn't run
+automatically — re-run it after every import you want reflected remotely, alongside
+`export_data.py --upload-all` (both are in `docs/DEPLOY.md`'s "Refreshing after an import" *and*
+now step 7 of the `import-fm-saves` skill, so a normal import won't miss it).
+
+**Also added this session, so a brand-new session needs zero manual setup:**
+`.claude/hooks/session-start.sh` (a Claude Code web SessionStart hook, registered in
+`.claude/settings.json`) runs `uv sync`, installs + configures `rclone` against `r2:`, and
+pre-places the `httpfs` DuckDB extension from a copy we vendored into R2 ourselves
+(`vendor/duckdb-extensions/...` — sidesteps `extensions.duckdb.org` entirely, not just the
+`*.workers.dev` block). Verified by wiping all of that and re-running the hook cold. **Only
+takes effect for future sessions once this PR merges to `main`** — a hook on an unmerged branch
+doesn't fire yet. `CLAUDE.md` now also tells an agent to `ATTACH` the R2 copy directly for a
+quick question instead of defaulting to a local rebuild, and `site/AGENTS.md` documents two
+dedup traps in the raw schema (`match_player_stats` is a ring buffer; `staging.players` is one
+row per snapshot, not per player) that make a naive query silently wrong by 10-20×.
 
 ---
 

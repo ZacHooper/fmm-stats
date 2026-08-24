@@ -14,9 +14,13 @@ output/
 # pre-migration store backups — big, local, regenerable by re-importing the saves
 backups/
 
-# Local tooling / editor — but DO track the project skills so they travel with the repo.
+# Local tooling / editor — but DO track the project skills, hooks and settings so they travel
+# with the repo (a SessionStart hook only fires for future sessions once it's merged to the
+# default branch — see docs/agent-context/remote-duckdb-access.md).
 .claude/*
 !.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
 # …except developing-with-streamlit, which is a symlink into .venv (a skill shipped by the
 # streamlit pip package, not ours — it reappears on any machine after `uv sync`).
 .claude/skills/developing-with-streamlit
