@@ -52,6 +52,25 @@ Spell overlap semantics:
 """
 from __future__ import annotations
 
+from fmparser.attributes import ATTR_ORDER
+
+# The five keeper attributes. On an outfielder they sit near zero and drift by a point or
+# two of noise (squad means at 2024-06-03: Handling 1.6 / Reflexes 1.8 for outfielders vs
+# 13.0 / 14.0 for keepers), so summing all 23 for an outfielder measures partly nothing.
+# `attr_total` below is therefore role-aware: all 23 for a keeper, the other 18 for
+# everyone else. Keepers keep the full set because they genuinely need Decisions,
+# Positioning, the physicals and so on.
+GK_ATTRS = ["Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
+OUTFIELD_ATTRS = [a for a in ATTR_ORDER if a not in GK_ATTRS]
+
+
+def _sum(attrs):
+    return " + ".join(f'COALESCE(a."{a}", 0)' for a in attrs)
+
+
+def _est_count(attrs):
+    return " + ".join(f'CASE WHEN a."{a}_est" THEN 1 ELSE 0 END' for a in attrs)
+
 # Every statement is formatted with {S} = the staging schema to read from. That is
 # "staging" against a real store, and "fm.staging" when validating against a read-only
 # ATTACHed copy (see scripts/validate_mart.py) — the mart objects are then built locally
@@ -478,6 +497,156 @@ WHERE s.spell_type IN ('at_club', 'loan_in')
 """
 
 
+# --- growth -----------------------------------------------------------------------
+
+# Per player per snapshot, with the delta since that player's PREVIOUS snapshot.
+#
+# Three things make a naive "sum the 23 attributes and diff it" wrong here, and each is
+# handled by a column rather than by dropping rows — the caller decides what to filter:
+#
+#  1. ESTIMATED ATTRIBUTES. Every player outside our squad carries model estimates
+#     (24,472 of 24,472 at 2024-06-03 have Passing_est), and so do a few inside it. Diffing
+#     an estimate measures the model re-estimating, not the player developing. `est_attrs`
+#     counts how many of the 23 are estimated; `is_estimated` is the yes/no. Growth
+#     analysis should filter to is_estimated = false.
+#     (Corroboration for the loan-in ghosts: all 9 of them carry estimated attributes,
+#     because the game is modelling them as outside players — which is what they are.)
+#  2. KEEPER ATTRIBUTES ON OUTFIELDERS — see GK_ATTRS above. `attr_total` is role-aware.
+#  3. IRREGULAR SNAPSHOT SPACING. Gaps here run from 1 day to 261, so raw deltas are not
+#     comparable between players or periods. `days_elapsed` and `delta_per_365` make them
+#     so. Consecutive snapshots 1-3 days apart legitimately produce a zero delta.
+PLAYER_GROWTH = f"""
+CREATE OR REPLACE VIEW mart.player_growth AS
+WITH base AS (
+    SELECT
+        ps.person_id, p.tid, p.name, s.season, s.phase, s.snap_ix, s.phase_date,
+        p.club_tid, p.club, p.is_gk, p.dob,
+        CASE WHEN p.dob IS NULL THEN NULL
+             ELSE DATE_DIFF('year', p.dob, s.phase_date)
+                  - CASE WHEN (MONTH(s.phase_date), DAY(s.phase_date))
+                            < (MONTH(p.dob), DAY(p.dob)) THEN 1 ELSE 0 END
+        END                                                   AS age,
+        ({_sum(OUTFIELD_ATTRS)})                              AS outfield_total,
+        ({_sum(GK_ATTRS)})                                    AS gk_total,
+        CASE WHEN p.is_gk = 1 THEN ({_sum(ATTR_ORDER)})
+             ELSE ({_sum(OUTFIELD_ATTRS)}) END                AS attr_total,
+        ({_est_count(ATTR_ORDER)})                            AS est_attrs
+    FROM {{S}}.players p
+    JOIN {{S}}.player_attributes a USING (season, phase, tid)
+    JOIN mart.snapshots s USING (season, phase)
+    LEFT JOIN {{S}}.person_slices ps USING (season, phase, tid)
+    WHERE NOT p.is_staff AND p.has_attributes
+)
+SELECT
+    b.*,
+    b.est_attrs > 0                                           AS is_estimated,
+    -- LAG partitioned on person_id, never on tid alone: a recycled slot would otherwise
+    -- diff a newgen against the retired player whose tid he inherited (rule 3).
+    LAG(b.attr_total) OVER w                                  AS prev_attr_total,
+    LAG(b.phase)      OVER w                                  AS prev_phase,
+    LAG(b.est_attrs) OVER w > 0                               AS prev_is_estimated,
+    b.attr_total - LAG(b.attr_total) OVER w                   AS delta,
+    DATE_DIFF('day', LAG(b.phase_date) OVER w, b.phase_date)   AS days_elapsed,
+    ROUND(365.0 * (b.attr_total - LAG(b.attr_total) OVER w)
+          / NULLIF(DATE_DIFF('day', LAG(b.phase_date) OVER w, b.phase_date), 0), 1)
+                                                              AS delta_per_365,
+    -- A delta is only meaningful when BOTH endpoints are real reads. The step where a
+    -- player joins us flips his attributes from model estimate to exact, so it produces a
+    -- spurious delta of a point or two in either direction that has nothing to do with
+    -- development (Garly reads -1 across exactly that step). Filter on this, not on
+    -- is_estimated alone, whenever you are measuring growth.
+    LAG(b.attr_total) OVER w IS NOT NULL
+        AND b.est_attrs = 0
+        AND LAG(b.est_attrs) OVER w = 0                       AS delta_comparable
+FROM base b
+WINDOW w AS (PARTITION BY b.person_id ORDER BY b.snap_ix)
+"""
+
+# Long form: one row per player per snapshot per attribute, with its own delta. This is
+# the "WHICH attributes moved" view — a +11 total is a different story if it is all Pace
+# than if it is spread across the mental attributes.
+PLAYER_ATTRIBUTE_GROWTH = f"""
+CREATE OR REPLACE VIEW mart.player_attribute_growth AS
+WITH long AS (
+    UNPIVOT (SELECT season, phase, tid, {", ".join(f'"{a}"' for a in ATTR_ORDER)}
+             FROM {{S}}.player_attributes)
+    ON {", ".join(f'"{a}"' for a in ATTR_ORDER)}
+    INTO NAME attribute VALUE value
+),
+joined AS (
+    SELECT ps.person_id, l.tid, p.name, s.season, s.phase, s.snap_ix, s.phase_date,
+           l.attribute, l.value,
+           l.attribute IN ({", ".join(f"'{a}'" for a in GK_ATTRS)}) AS is_gk_attr
+    FROM long l
+    JOIN {{S}}.players p USING (season, phase, tid)
+    JOIN mart.snapshots s USING (season, phase)
+    LEFT JOIN {{S}}.person_slices ps USING (season, phase, tid)
+    WHERE NOT p.is_staff AND p.has_attributes
+)
+SELECT
+    j.*,
+    LAG(j.value) OVER w                     AS prev_value,
+    j.value - LAG(j.value) OVER w           AS delta
+FROM joined j
+WINDOW w AS (PARTITION BY j.person_id, j.attribute ORDER BY j.snap_ix)
+"""
+
+# The season rollup — the shape the "who is still improving, who has stalled" question
+# actually wants. First and last snapshot IN the season, so the near-duplicate snapshots
+# a few days apart collapse harmlessly.
+#
+# NOTE it deliberately does NOT bake in a "stalled" verdict. Whether +2 is stalling
+# depends on age, position and what you paid him; that is a judgement for the caller (or
+# the dashboard), not a column. `growth`, `age` and `minutes` are what it needs to decide.
+PLAYER_GROWTH_SEASON = """
+CREATE OR REPLACE VIEW mart.player_growth_season AS
+WITH ranked AS (
+    SELECT g.*,
+           ROW_NUMBER() OVER (PARTITION BY g.person_id, g.season ORDER BY g.snap_ix)      AS rn_first,
+           ROW_NUMBER() OVER (PARTITION BY g.person_id, g.season ORDER BY g.snap_ix DESC) AS rn_last
+    FROM mart.player_growth g
+),
+bounds AS (
+    SELECT
+        person_id, season,
+        MAX(CASE WHEN rn_first = 1 THEN tid END)            AS tid,
+        MAX(CASE WHEN rn_last  = 1 THEN name END)           AS name,
+        MAX(CASE WHEN rn_last  = 1 THEN club_tid END)       AS club_tid,
+        MAX(CASE WHEN rn_last  = 1 THEN is_gk END)          AS is_gk,
+        MAX(CASE WHEN rn_last  = 1 THEN age END)            AS age,
+        MAX(CASE WHEN rn_first = 1 THEN phase END)          AS first_phase,
+        MAX(CASE WHEN rn_last  = 1 THEN phase END)          AS last_phase,
+        MAX(CASE WHEN rn_first = 1 THEN phase_date END)     AS first_date,
+        MAX(CASE WHEN rn_last  = 1 THEN phase_date END)     AS last_date,
+        MAX(CASE WHEN rn_first = 1 THEN attr_total END)     AS start_total,
+        MAX(CASE WHEN rn_last  = 1 THEN attr_total END)     AS end_total,
+        BOOL_OR(CASE WHEN rn_first = 1 THEN is_estimated END) AS start_estimated,
+        BOOL_OR(CASE WHEN rn_last  = 1 THEN is_estimated END) AS end_estimated,
+        BOOL_OR(is_estimated)                               AS any_estimated,
+        COUNT(*)                                            AS snapshots
+    FROM ranked GROUP BY person_id, season
+),
+mins AS (
+    SELECT person_id, season, SUM(minutes) AS minutes, SUM(apps) AS apps
+    FROM mart.player_seasons GROUP BY person_id, season
+)
+SELECT
+    b.*,
+    b.end_total - b.start_total                                     AS growth,
+    -- Same rule as delta_comparable: both endpoints must be real reads, or the "growth"
+    -- is partly the model handing over to exact data. A season in which the player joined
+    -- us is exactly the case this catches.
+    NOT b.start_estimated AND NOT b.end_estimated                   AS growth_comparable,
+    DATE_DIFF('day', b.first_date, b.last_date)                     AS days_observed,
+    ROUND(365.0 * (b.end_total - b.start_total)
+          / NULLIF(DATE_DIFF('day', b.first_date, b.last_date), 0), 1) AS growth_per_365,
+    COALESCE(m.minutes, 0)                                          AS minutes,
+    COALESCE(m.apps, 0)                                             AS apps
+FROM bounds b
+LEFT JOIN mins m USING (person_id, season)
+"""
+
+
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
     ("mart.our_clubs", OUR_CLUBS),
@@ -492,6 +661,9 @@ ORDER = [
     ("mart.injury_spells", INJURED),
     ("mart.player_spells", PLAYER_SPELLS),
     ("mart.squad_on", SQUAD_ON),
+    ("mart.player_growth", PLAYER_GROWTH),
+    ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
+    ("mart.player_growth_season", PLAYER_GROWTH_SEASON),
 ]
 
 

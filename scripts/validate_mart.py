@@ -195,6 +195,61 @@ def main():
     check("2024 golden boot = Adam Jakobsen, 34", top[0] == "Adam Jakobsen" and top[1] == 34,
           f"got {top}")
 
+    # -- 6. growth ------------------------------------------------------------------
+    print("\n6. growth")
+    # Garly's trajectory is the reference: 176 at his old club (estimated), 175-176 flat
+    # through 2023, a +24 step at 2023-06-26, then +6 and +5 across 2024 to 211.
+    g = con.execute("""
+        SELECT phase, attr_total, delta, delta_comparable
+        FROM mart.player_growth WHERE name = 'Andreas Garly' ORDER BY snap_ix
+    """).df()
+    check("Garly ends on 211", int(g.iloc[-1]["attr_total"]) == 211,
+          f'got {g.iloc[-1]["attr_total"]}')
+    check("Garly 2024 growth = +11", int(
+        g[g.phase == "2024-06-03"].iloc[0]["attr_total"]
+        - g[g.phase == "2023-07-02"].iloc[0]["attr_total"]) == 11)
+    check("the estimated->real step is marked not-comparable",
+          not bool(g[g.phase == "2022-03-19"].iloc[0]["delta_comparable"]),
+          "the -1 when he joined us is an artifact, not a decline")
+
+    # A keeper's total must use all 23; an outfielder's must exclude the 5 keeper attrs.
+    role = con.execute("""
+        SELECT is_gk, BOOL_AND(attr_total = outfield_total + gk_total) AS uses_all_23,
+               BOOL_AND(attr_total = outfield_total)                   AS uses_18
+        FROM mart.player_growth
+        WHERE season = 2024 AND phase = '2024-06-03'
+          AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
+        GROUP BY is_gk ORDER BY is_gk
+    """).df()
+    outfield = role[role.is_gk == 0].iloc[0]
+    keeper = role[role.is_gk == 1].iloc[0]
+    check("outfielders' attr_total excludes the 5 keeper attributes", bool(outfield["uses_18"]))
+    check("keepers' attr_total uses all 23", bool(keeper["uses_all_23"]))
+
+    # Every player outside our squad is on model estimates, so growth must be filterable.
+    est = con.execute("""
+        SELECT
+          COUNT(*) FILTER (WHERE is_estimated)     AS estimated,
+          COUNT(*) FILTER (WHERE NOT is_estimated) AS real
+        FROM mart.player_growth WHERE season = 2024 AND phase = '2024-06-03'
+    """).fetchone()
+    check("outside players are flagged as estimated", est[0] > 20000, f"{est[0]} estimated")
+    check("our squad reads as real", est[1] >= 30, f"{est[1]} real")
+
+    # The season rollup must agree with the per-snapshot view.
+    agree = con.execute("""
+        SELECT COUNT(*) FROM mart.player_growth_season s
+        WHERE s.season = 2024
+          AND s.growth <> (SELECT MAX(attr_total) - MIN(attr_total) FROM (
+                SELECT attr_total FROM mart.player_growth g
+                WHERE g.person_id = s.person_id AND g.season = 2024
+                  AND g.snap_ix IN (
+                    (SELECT MIN(snap_ix) FROM mart.player_growth WHERE person_id = s.person_id AND season = 2024),
+                    (SELECT MAX(snap_ix) FROM mart.player_growth WHERE person_id = s.person_id AND season = 2024))))
+          AND s.growth >= 0
+    """).fetchone()[0]
+    check("season rollup agrees with per-snapshot totals", agree == 0, f"{agree} disagreements")
+
     print()
     if FAILURES:
         print(f"{len(FAILURES)} CHECK(S) FAILED:")
