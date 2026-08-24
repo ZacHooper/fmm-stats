@@ -31,6 +31,7 @@ import duckdb
 from extract import parse_label
 from fmparser.attributes import ATTR_ORDER
 from fmparser import matches as M
+from fmparser.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
 # schema
@@ -1113,6 +1114,9 @@ def create_views(con):
 
 
 def reset_schema(con):
+    # mart first: its views depend on staging, so dropping staging out from under them
+    # would leave dangling definitions behind.
+    drop_mart(con)
     con.execute("DROP SCHEMA IF EXISTS staging CASCADE")
     con.execute("DROP SCHEMA IF EXISTS history CASCADE")
     for name in VIEWS:
@@ -1188,7 +1192,9 @@ def main():
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
         rebuild_persons(con)
         create_views(con)
-        print(f"done: {ok} loaded, {fail} failed. views refreshed.")
+        mart_objects = create_mart(con)
+        print(f"done: {ok} loaded, {fail} failed. views refreshed, "
+              f"{len(mart_objects)} mart objects rebuilt.")
     finally:
         con.close()
 

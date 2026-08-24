@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""Build the `mart` layer against a store and assert its invariants + ground truth.
+
+Runs against either a local store or the published R2 copy (`--r2`). The R2 copy is
+ATTACHed READ_ONLY and the mart objects are built in the local in-memory database on top
+of it, so nothing is written to the published file.
+
+    uv run python scripts/validate_mart.py --r2
+    uv run python scripts/validate_mart.py --db fm-frem.duckdb
+
+Checks, in order:
+  1. Spell invariant — spells of the SAME type must not overlap for one person; spells of
+     DIFFERENT types may (injured while out on loan).
+  2. Ring-buffer dedup — the latest phase per season really is a superset.
+  3. Loan-in ground truth — the derived spells must match the 9 known loan-ins, including
+     that a pre-season snapshot carries ZERO loan-ins forward.
+  4. Arrival windows — the three known winter arrivals must read winter, everyone else
+     summer.
+  5. Season totals — mart.player_seasons must reproduce the 2024 review numbers.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+
+import duckdb
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from fmparser.mart import create_mart  # noqa: E402
+
+R2_KEY = "s3://fmm-stats/site-data/fm-frem.duckdb"
+
+FAILURES: list[str] = []
+
+
+def check(label, ok, detail=""):
+    mark = "PASS" if ok else "FAIL"
+    print(f"  [{mark}] {label}" + (f" — {detail}" if detail else ""))
+    if not ok:
+        FAILURES.append(label)
+
+
+def connect(args):
+    con = duckdb.connect()
+    if args.r2:
+        con.execute("LOAD httpfs")
+        con.execute(
+            f"""CREATE SECRET r2 (TYPE s3, KEY_ID '{os.environ["R2_ACCESS_KEY"]}',
+                SECRET '{os.environ["R2_SECRET_ACCESS_KEY"]}',
+                ENDPOINT '{os.environ["R2_ACCOUNT_ID"]}.r2.cloudflarestorage.com',
+                URL_STYLE 'path', REGION 'auto')"""
+        )
+        con.execute(f"ATTACH '{R2_KEY}' AS fm (READ_ONLY)")
+        return con, "fm.staging"
+    con.execute(f"ATTACH '{args.db}' AS fm (READ_ONLY)")
+    return con, "fm.staging"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--r2", action="store_true", help="validate against the published R2 copy")
+    ap.add_argument("--db", default="fm-frem.duckdb")
+    args = ap.parse_args()
+
+    con, src = connect(args)
+    created = create_mart(con, src=src)
+    print(f"built {len(created)} mart objects on {src}\n")
+
+    # -- 1. spell overlap invariant -----------------------------------------------
+    print("1. spell invariants")
+    same_type_overlap = con.execute("""
+        WITH s AS (SELECT *, ROW_NUMBER() OVER () AS rid FROM mart.player_spells
+                   WHERE person_id IS NOT NULL)
+        SELECT COUNT(*) FROM s a JOIN s b
+            ON a.person_id = b.person_id AND a.spell_type = b.spell_type
+           AND a.rid < b.rid
+           AND a.valid_from <= COALESCE(b.valid_to, DATE '9999-12-31')
+           AND COALESCE(a.valid_to, DATE '9999-12-31') >= b.valid_from
+    """).fetchone()[0]
+    check("no same-type overlaps", same_type_overlap == 0, f"{same_type_overlap} overlapping pairs")
+
+    cross = con.execute("""
+        SELECT COUNT(*) FROM mart.player_spells a JOIN mart.player_spells b
+          ON a.person_id = b.person_id AND a.spell_type <> b.spell_type
+         AND a.valid_from <= COALESCE(b.valid_to, DATE '9999-12-31')
+         AND COALESCE(a.valid_to, DATE '9999-12-31') >= b.valid_from
+        WHERE a.spell_type = 'injured' AND b.spell_type = 'loan_out'
+    """).fetchone()[0]
+    check("cross-type overlap is permitted (injured while on loan)", cross > 0,
+          f"{cross} injured/loan_out overlaps found")
+
+    bad_range = con.execute("""
+        SELECT COUNT(*) FROM mart.player_spells
+        WHERE valid_to IS NOT NULL AND valid_to < valid_from
+    """).fetchone()[0]
+    check("no inverted date ranges", bad_range == 0, f"{bad_range} inverted")
+
+    # -- 2. ring buffer ------------------------------------------------------------
+    print("\n2. ring-buffer dedup")
+    missed = con.execute(f"""
+        WITH allm AS (
+          SELECT season, date, home_tid, away_tid FROM {src}.matches
+          WHERE home_tid IN (SELECT club_tid FROM mart.our_clubs)
+             OR away_tid IN (SELECT club_tid FROM mart.our_clubs)),
+        u AS (SELECT DISTINCT season, date, home_tid, away_tid FROM allm),
+        kept AS (SELECT DISTINCT season, date, home_tid, away_tid FROM mart.matches
+                 WHERE home_tid IN (SELECT club_tid FROM mart.our_clubs)
+                    OR away_tid IN (SELECT club_tid FROM mart.our_clubs))
+        SELECT COUNT(*) FROM (SELECT * FROM u EXCEPT SELECT * FROM kept)
+    """).fetchone()[0]
+    check("latest phase is a superset of all earlier phases", missed == 0,
+          f"{missed} matches would be lost")
+
+    # -- 3. loan-in ground truth ---------------------------------------------------
+    print("\n3. loan-in spells vs ground truth")
+    truth = {
+        "Emil Hojlund": [2022], "Marcelo Randolf": [2022], "Daniel Bisgaard Haarbo": [2022],
+        "Ernest Nuamah": [2022, 2023], "Jeppe Erenbjerg": [2023], "Nicklas Strunck": [2023],
+        "Marc Nielsen": [2023, 2024], "Jeppe Corfitzen": [2023, 2024],
+        "Jonas Jensen-Abbew": [2024],
+    }
+    got = con.execute("""
+        SELECT name, LIST(DISTINCT season ORDER BY season) AS seasons
+        FROM mart.loan_in_spells GROUP BY name ORDER BY name
+    """).df()
+    got_map = {r["name"]: sorted(r["seasons"]) for _, r in got.iterrows()}
+    norm = lambda s: s.replace("ø", "o").replace("æ", "ae").replace("å", "a")
+    got_norm = {norm(k): v for k, v in got_map.items()}
+    for nm, seasons in truth.items():
+        actual = got_norm.get(nm)
+        check(f"{nm}: {seasons}", actual == seasons, f"got {actual}")
+    check("no loan-in spells derived for 2025 (pre-season: all prior loans expired)",
+          not any(2025 in v for v in got_map.values()),
+          str({k: v for k, v in got_map.items() if 2025 in v}))
+    check("exactly 9 distinct loan-in players", len(got_map) == 9, f"got {len(got_map)}")
+
+    # -- 4. arrival windows --------------------------------------------------------
+    print("\n4. arrival windows")
+    winter_truth = {"Marc Nielsen": 2023, "Anosike Ementa": 2024, "Lauge Sandgrav": 2024}
+    win = con.execute("""
+        SELECT name, season, arrival_window FROM mart.at_club_spells
+        WHERE arrival_window IS NOT NULL
+          AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
+    """).df()
+    win_map = {(norm(r["name"]), int(r["season"])): r["arrival_window"] for _, r in win.iterrows()}
+    for nm, sn in winter_truth.items():
+        # Marc Nielsen arrives as a loan-in; check whichever spell type carries him.
+        got_w = win_map.get((norm(nm), sn))
+        if got_w is None:
+            lw = con.execute(
+                "SELECT arrival_window FROM mart.loan_in_spells WHERE name = ? AND season = ?",
+                [nm, sn]).fetchall()
+            got_w = lw[0][0] if lw else None
+        check(f"{nm} ({sn}) = winter", got_w == "winter", f"got {got_w}")
+
+    summer_truth = [("Anton Pedersen", 2024), ("Frederik Ellegaard", 2024),
+                    ("Rasmus Moller", 2024), ("Adam Jakobsen", 2024)]
+    for nm, sn in summer_truth:
+        got_w = win_map.get((norm(nm), sn))
+        check(f"{nm} ({sn}) = summer", got_w == "summer", f"got {got_w}")
+
+    # -- 5. season totals ----------------------------------------------------------
+    print("\n5. mart.player_seasons reproduces the 2024 review")
+    # Team goals-for (73) and sum-of-player-goals (70) are DIFFERENT metrics, not a
+    # discrepancy: match_events records exactly 3 own_goal events in 2024, and an
+    # opposition own goal counts to our score without being attributed to any of our
+    # players. Assert both so a future change to either can't silently conflate them.
+    team_gf = con.execute("""
+        SELECT SUM(CASE WHEN home_tid IN (SELECT club_tid FROM mart.our_clubs)
+                        THEN score_home ELSE score_away END)
+        FROM mart.matches
+        WHERE season = 2024 AND competition = 'NordicBet Liga'
+          AND (home_tid IN (SELECT club_tid FROM mart.our_clubs)
+            OR away_tid IN (SELECT club_tid FROM mart.our_clubs))
+    """).fetchone()[0]
+    check("2024 league goals-for = 73 (team score)", team_gf == 73, f"got {team_gf}")
+
+    player_goals = con.execute("""
+        SELECT SUM(goals) FROM mart.player_seasons
+        WHERE season = 2024 AND competition = 'NordicBet Liga'
+          AND team_tid IN (SELECT club_tid FROM mart.our_clubs)
+    """).fetchone()[0]
+    check("2024 league player-attributed goals = 70 (= 73 less 3 own goals)",
+          player_goals == 70, f"got {player_goals}")
+
+    top = con.execute("""
+        SELECT any_value(s.name) AS name, SUM(ps.goals) AS goals
+        FROM mart.player_seasons ps
+        JOIN (SELECT DISTINCT person_id, name FROM mart.player_spells) s USING (person_id)
+        WHERE ps.season = 2024
+          AND ps.team_tid IN (SELECT club_tid FROM mart.our_clubs)
+        GROUP BY ps.person_id ORDER BY goals DESC LIMIT 1
+    """).fetchone()
+    check("2024 golden boot = Adam Jakobsen, 34", top[0] == "Adam Jakobsen" and top[1] == 34,
+          f"got {top}")
+
+    print()
+    if FAILURES:
+        print(f"{len(FAILURES)} CHECK(S) FAILED:")
+        for f in FAILURES:
+            print(f"  - {f}")
+        return 1
+    print("all checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
