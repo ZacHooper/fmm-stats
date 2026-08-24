@@ -1,8 +1,10 @@
 # Remote-agent SQL access to the DuckDB store
 
-**Status (2026-08-24): design verified end-to-end in a restricted sandbox, PR open, waiting on
-the actual store upload.** PR: https://github.com/ZacHooper/fmm-stats/pull/1, branch
-`claude/duckdb-r2-storage-d1rumw`.
+**Status (2026-08-24): DONE and verified end-to-end against the real store, PR open awaiting
+merge.** PR: https://github.com/ZacHooper/fmm-stats/pull/1, branch
+`claude/duckdb-r2-storage-d1rumw`. Ran the `ATTACH` snippet below against
+`site-data/fm-frem.duckdb` for real: 484,746 player rows, 0 rows with non-NULL `ca`/`pa`
+(386,038 scrubbed on publish), 32 tables visible.
 
 ## Why
 
@@ -98,11 +100,15 @@ enforced by scrubbing the *data* in the published copy instead of trying to gate
 
 ## What's still open — for whoever picks this up next
 
-1. **The actual store hasn't been re-uploaded with this session's fixes verified against it
-   yet** — the probe-file round trip confirms the R2 credential path works, but the real
-   `fm-frem.duckdb` upload (`uv run python scripts/publish_duckdb.py --career frem --upload`)
-   and a query against it (confirming `ca`/`pa` come back `NULL` on real data) is the last step.
-2. Tick the checklist in the PR body once that's done, and update this note.
+1. **Merge the PR.** Everything is built, documented, and verified against the real published
+   store — nothing left to fix.
+2. **Re-run `scripts/publish_duckdb.py --career frem --upload` after every import** you want
+   reflected remotely — it's not automatic, unlike `export_data.py --upload-all` which
+   `docs/DEPLOY.md`'s "Refreshing after an import" section already lists both under.
+3. If a *different* Claude Code sandbox hits either of the two gotchas above again despite this
+   note documenting the fix, that's a sign DuckDB's own behaviour changed (a version bump) or
+   the sandbox's network policy is stricter than this one was — re-verify rather than assume the
+   old fix still applies.
 
 See also: [Multi-device and storage](multi-device-and-storage.md) for the three-tier storage
 model this extends, and `docs/DEPLOY.md` for the full deploy runbook.

@@ -1,7 +1,7 @@
 # Handoff — continue exactly where we are
 
 Paste-ready context for a fresh agent. **Last updated 2026-08-24 (Phase 3: direct-R2 SQL access
-verified end-to-end; real store upload + PR checklist still pending).**
+DONE — verified against the real published store, PR #1 open awaiting merge).**
 
 Read [`CLAUDE.md`](../CLAUDE.md) first, then
 [`docs/agent-context/MEMORY.md`](agent-context/MEMORY.md) which indexes the durable notes. This
@@ -171,22 +171,22 @@ the store 80 MB → ~30 MB).
 
 ---
 
-## Phase 3 — remote-agent SQL access. **OPEN PR, design verified end-to-end, store upload pending**
+## Phase 3 — remote-agent SQL access. **DONE, verified against the real store, PR open awaiting merge**
 
 Full detail: [`agent-context/remote-duckdb-access.md`](agent-context/remote-duckdb-access.md).
 Short version: the JSON API only answers fixed shapes; this adds a second path where a remote
 agent with no local store can `ATTACH` a scrubbed copy of the DuckDB store and run arbitrary
 SQL.
 
-**PR open, unmerged:** https://github.com/ZacHooper/fmm-stats/pull/1 (branch
+**PR open, unmerged, fully verified:** https://github.com/ZacHooper/fmm-stats/pull/1 (branch
 `claude/duckdb-r2-storage-d1rumw`). This session: got `rclone` installed and real R2 creds
 working, **pivoted the design** away from a Worker route (`*.workers.dev` is commonly blocked
 in a network-restricted Claude Code sandbox — exactly this feature's target audience) to a
 direct DuckDB `ATTACH` over R2's native S3 protocol, then — once the user widened this
-sandbox's network policy — **verified the whole path works end to end**: uploaded a probe file
-with `rclone`, read it back with a real `duckdb.connect()` / `ATTACH` / `read_text` over
-`s3://fmm-stats/...`. Three gotchas found and fixed along the way (full detail in the linked
-note):
+sandbox's network policy — **verified the whole path against the real published store**:
+`484,746` player rows, `0` rows with non-NULL `ca`/`pa` (386,038 scrubbed on publish by
+`scripts/publish_duckdb.py --career frem --upload`), 32 tables visible. Three gotchas found and
+fixed along the way (full detail in the linked note):
 1. DuckDB's `TYPE r2`/`ACCOUNT_ID` secret shorthand silently mis-routes to public AWS S3 instead
    of R2 in this kind of proxied sandbox — use `TYPE s3` with an explicit `ENDPOINT`,
    `URL_STYLE 'path'`, `REGION 'auto'` instead (confirmed working).
@@ -199,17 +199,14 @@ note):
    key directly.
 
 All docs (`scripts/publish_duckdb.py`'s docstring, `site/AGENTS.md`, `docs/DEPLOY.md`,
-`CLAUDE.md`) carry the verified `ATTACH` syntax and both workarounds. A Supabase/Postgres pivot
-was considered and rejected: the store is only ~90 MB, so size was never the constraint, and
-migrating off DuckDB would mean rewriting the loader + dashboard + `fmq.py` for what was really
-just a network-allowlist gap.
+`CLAUDE.md`) carry the verified `ATTACH` syntax and both workarounds; the PR body's test-plan
+checklist is ticked. A Supabase/Postgres pivot was considered and rejected: the store is only
+~90 MB, so size was never the constraint, and migrating off DuckDB would mean rewriting the
+loader + dashboard + `fmq.py` for what was really just a network-allowlist gap.
 
-**What's NOT done yet:** the real `fm-frem.duckdb` hasn't been re-uploaded and queried with
-these fixes applied — the probe-file round trip proves the credential/endpoint path works, but
-not yet against the actual store. **Next session should:** run
-`uv run python scripts/publish_duckdb.py --career frem --upload`, then run the verified `ATTACH`
-snippet against `site-data/fm-frem.duckdb`, confirm `ca`/`pa` come back `NULL` on real rows, and
-tick off the PR's test-plan checklist.
+**What's left:** just merging the PR. Remember `publish_duckdb.py --upload` doesn't run
+automatically — re-run it after every import you want reflected remotely, alongside
+`export_data.py --upload-all` (both are in `docs/DEPLOY.md`'s "Refreshing after an import").
 
 ---
 
