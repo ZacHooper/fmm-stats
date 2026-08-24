@@ -7,20 +7,35 @@ with no local store and no saves, wanting arbitrary SQL instead of the fixed JSO
 
 DuckDB can ATTACH straight to the R2 object over its native S3 protocol (httpfs extension,
 range requests, so it never downloads the whole file) using the same R2 credentials a Claude
-Code session in this project already carries:
+Code session in this project already carries. Use `TYPE s3` with an explicit endpoint, not the
+`TYPE r2` / `ACCOUNT_ID` shorthand — in testing the shorthand silently fell through to public
+AWS S3 (`*.s3.us-east-1.amazonaws.com`) instead of R2 in a network-proxied sandbox:
 
     INSTALL httpfs; LOAD httpfs;
-    CREATE SECRET r2 (TYPE r2, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
-                       ACCOUNT_ID '<R2_ACCOUNT_ID>');
+    CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
+                       ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
+                       URL_STYLE 'path', REGION 'auto');
     ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
     SELECT * FROM fm.staging.players LIMIT 5;
 
 Deliberately NOT served through the Worker (`worker/index.js`): that would mean going out to
 `*.workers.dev`, which a network-restricted agent sandbox may not be able to reach, whereas the
 account-scoped R2 endpoint (`<account-id>.r2.cloudflarestorage.com`) commonly is allowed since
-it's the same host `rclone`/this script already upload through. The one extra requirement is
-that `extensions.duckdb.org` be reachable too, to install `httpfs` itself — add it to the
-sandbox's network policy if `INSTALL httpfs` fails with a 403.
+it's the same host `rclone`/this script already upload through.
+
+`extensions.duckdb.org` must be reachable too, to install `httpfs` itself — add it to the
+sandbox's network policy if `INSTALL httpfs` fails outright. One further wrinkle seen in
+testing: DuckDB's installer defaults to a PLAIN HTTP url
+(`http://extensions.duckdb.org/...`), which can still 403 even once the HTTPS host is
+allowed, since a network policy commonly allowlists by host *and scheme*. If so, fetch the
+`.gz` over HTTPS yourself and drop it in DuckDB's extension cache instead of using `INSTALL`:
+
+    v=$(python3 -c "import duckdb; print(duckdb.__version__)")
+    curl -o /tmp/httpfs.gz "https://extensions.duckdb.org/v$v/linux_amd64/httpfs.duckdb_extension.gz"
+    mkdir -p ~/.duckdb/extensions/v$v/linux_amd64
+    gunzip -c /tmp/httpfs.gz > ~/.duckdb/extensions/v$v/linux_amd64/httpfs.duckdb_extension
+
+then just `LOAD httpfs;` (no `INSTALL`) picks it up from the local cache.
 
 The published copy is a SCRUBBED CLONE, never the live store: staging.players.ca/.pa (raw
 ability) are NULLed here before upload. That's the same immersion house rule export_data.py

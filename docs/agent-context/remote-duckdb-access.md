@@ -1,7 +1,7 @@
 # Remote-agent SQL access to the DuckDB store
 
-**Status (2026-08-24): pivoted from the Worker-forwarding design to a direct R2 `ATTACH`,
-PR open, upload in progress.** PR: https://github.com/ZacHooper/fmm-stats/pull/1, branch
+**Status (2026-08-24): design verified end-to-end in a restricted sandbox, PR open, waiting on
+the actual store upload.** PR: https://github.com/ZacHooper/fmm-stats/pull/1, branch
 `claude/duckdb-r2-storage-d1rumw`.
 
 ## Why
@@ -15,42 +15,67 @@ step per import.
 
 ## Two ways to serve the file, and why the second one won
 
-**v1 (original PR, now removed): a Worker route.** `worker/index.js` had a `/api/db?career=`
-route forwarding `Range` headers to R2, so a caller would `ATTACH
+**v1 (original PR, removed): a Worker route.** `worker/index.js` had a `/api/db?career=` route
+forwarding `Range` headers to R2, so a caller would `ATTACH
 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem'`. This worked (verified via the
-PR's Cloudflare branch preview) but turned out to be the wrong host for the actual target
-audience: a Claude Code session running in a network-restricted sandbox — exactly the kind of
-"remote agent with no local store" this feature is for — often has `*.workers.dev` blocked by
-its environment's egress policy, with no way to fix that from inside the session.
+PR's Cloudflare branch preview) but was the wrong host for the actual target audience: a Claude
+Code session in a network-restricted sandbox — exactly "a remote agent with no local store" —
+commonly has `*.workers.dev` blocked by its environment's egress policy.
 
 **v2 (current): DuckDB `ATTACH`es the R2 object directly**, over DuckDB's native S3 protocol,
 using the R2 credentials a Claude Code session in this project already carries as env vars
-(`R2_ACCESS_KEY`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`):
+(`R2_ACCESS_KEY`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`). **Verified working, full round trip,
+in a restricted sandbox** (uploaded a probe file with `rclone`, read it back with a real DuckDB
+`ATTACH`/`read_text` over `s3://`):
 
 ```sql
 INSTALL httpfs; LOAD httpfs;
-CREATE SECRET r2 (TYPE r2, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
-                   ACCOUNT_ID '<R2_ACCOUNT_ID>');
+CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
+                   ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
+                   URL_STYLE 'path', REGION 'auto');
 ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
 SELECT * FROM fm.staging.players LIMIT 5;
 ```
 
-This turned out to already work from a restricted sandbox: the account-scoped R2 endpoint
-(`<account-id>.r2.cloudflarestorage.com`) was reachable in testing even though the bare
-`r2.cloudflarestorage.com` and every `*.workers.dev` host were not — confirmed live (`rclone
-lsd r2:fmm-stats` succeeded; `curl` to both blocked hosts got a proxy 403). The **one remaining
-requirement** is that `extensions.duckdb.org` be reachable too, since `INSTALL httpfs` fetches
-the extension binary from there on first use — that single host needs adding to a restricted
-sandbox's network policy (an environment-level setting, not something fixable in-session; see
-https://code.claude.com/docs/en/claude-code-on-the-web). `worker/index.js`'s `/api/db` route and
-its `CAREER_RE` constant were removed since nothing serves this way anymore. `export_data.py`'s
-`index.json["files"]["database"]` now points at the `s3://` key instead of the Worker URL.
+`worker/index.js`'s `/api/db` route and its `CAREER_RE` constant were removed since nothing
+serves this way anymore. `export_data.py`'s `index.json["files"]["database"]` now points at the
+`s3://` key instead of the Worker URL.
 
 **Data size was never the constraint** — the scrubbed store is ~90 MB, comfortably small for
 almost any storage backend. A pivot to Postgres/Supabase was considered and rejected: it would
 mean rewriting the loader, `dashboard/*.py`, and `fmq.py` (all speak DuckDB SQL directly today)
-plus ongoing hosting, to fix what was actually just a two-domain gap in one sandbox's network
-allowlist.
+plus ongoing hosting, to fix what was actually just a network-allowlist gap.
+
+## Three things that tripped this up, in order, each with a fix now baked into the docs
+
+1. **`TYPE r2` + `ACCOUNT_ID` silently mis-routes.** The documented DuckDB shorthand for R2
+   (`CREATE SECRET (TYPE r2, ACCOUNT_ID '...')`, which is supposed to auto-construct the
+   `<account-id>.r2.cloudflarestorage.com` endpoint) instead sent the request to public AWS S3
+   (`*.s3.us-east-1.amazonaws.com`), which then failed auth ("Invalid Access Key:
+   proxy-injected" — this sandbox's egress proxy intercepts unauthenticated-looking AWS-shaped
+   requests and injects its own placeholder credentials, which is a red herring; the real
+   problem is the request went to AWS instead of R2 at all). **Fix: use `TYPE s3` with an
+   explicit `ENDPOINT`, `URL_STYLE 'path'`, `REGION 'auto'`** — confirmed working. Every doc now
+   uses this form instead of the shorthand.
+2. **`*.workers.dev` is commonly blocked** in a network-restricted agent sandbox — this is what
+   drove the v1→v2 pivot above. The account-scoped R2 endpoint
+   (`<account-id>.r2.cloudflarestorage.com`) is not the same host and is commonly allowed, since
+   it's the same one `rclone`/`publish_duckdb.py` already upload through.
+3. **`INSTALL httpfs` defaults to plain HTTP** (`http://extensions.duckdb.org/…`, not
+   `https://`), which can still 403 even once the HTTPS host is allowlisted — a network policy
+   commonly allows a host by scheme, and only the HTTPS variant tends to get added. Confirmed in
+   testing: `curl https://extensions.duckdb.org/...httpfs.duckdb_extension.gz` → 200, but
+   `INSTALL httpfs` (which requests the plain-HTTP URL) → 403. **Fix: skip `INSTALL` and fetch
+   the extension over HTTPS directly**, then load it from the local cache:
+   ```bash
+   v=$(python3 -c "import duckdb; print(duckdb.__version__)")
+   curl -o /tmp/httpfs.gz "https://extensions.duckdb.org/v$v/linux_amd64/httpfs.duckdb_extension.gz"
+   mkdir -p ~/.duckdb/extensions/v$v/linux_amd64
+   gunzip -c /tmp/httpfs.gz > ~/.duckdb/extensions/v$v/linux_amd64/httpfs.duckdb_extension
+   ```
+   then `LOAD httpfs;` (no `INSTALL`) picks it up with zero network calls. (Trying
+   `SET custom_extension_repository = 'https://...'` first — the obvious fix — doesn't work: it
+   changes the expected filename and 404s instead.)
 
 ## What was built
 
@@ -59,10 +84,10 @@ allowlist.
   ability — see `load_duckdb.py`'s schema), `CHECKPOINT`s, and uploads the clone to R2 at
   `site-data/fm-<career>.duckdb` via `rclone copyto`. The live store is opened through
   `_dbopen.open_readonly` (same single-writer-safe fallback every other read-only tool uses) and
-  is never itself touched.
+  is never itself touched. Docstring carries the full verified `ATTACH` syntax plus the httpfs
+  install-over-HTTP workaround.
 - Docs updated for the `s3://` access path: `site/AGENTS.md` ("Prefer SQL?" section),
-  `docs/DEPLOY.md` ("SQL access for a remote agent"), `CLAUDE.md` storage-tiers table,
-  `export_data.py`'s `files.database` key.
+  `docs/DEPLOY.md` ("SQL access for a remote agent"), `CLAUDE.md` storage-tiers table.
 
 ## Why scrub instead of gate
 
@@ -73,21 +98,11 @@ enforced by scrubbing the *data* in the published copy instead of trying to gate
 
 ## What's still open — for whoever picks this up next
 
-1. **`rclone` + real R2 credentials are now confirmed working** in a Claude Code sandbox for
-   this project (installed via `apt-get install rclone`; the account already carries
-   `R2_ACCESS_KEY`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`/`R2_ENDPOINT` env vars). One
-   installed-rclone quirk: the apt-packaged 1.60.1 throws `LoadCustomCABundleError` if
-   `AWS_CA_BUNDLE` is set alongside this environment's proxy transport — worked around with a
-   `/usr/local/bin/rclone` wrapper that drops that one env var before exec'ing the real binary
-   (harmless outside this kind of proxied sandbox).
-2. **`INSTALL httpfs` needs `extensions.duckdb.org` reachable.** Confirmed blocked in the
-   sandbox that did this pivot (403 on CONNECT), same failure class as the `workers.dev` block
-   this pivot was meant to avoid — but only one host to unblock instead of the whole Worker
-   domain, and it's needed for `httpfs` regardless of which serving approach is used.
-3. Once `extensions.duckdb.org` is reachable: run the `ATTACH` snippet above for real, confirm
-   `ca`/`pa` come back `NULL`, and confirm a plain query (row counts, a known player) matches
-   the live store.
-4. Tick the checklist in the PR body once verified, and update this note.
+1. **The actual store hasn't been re-uploaded with this session's fixes verified against it
+   yet** — the probe-file round trip confirms the R2 credential path works, but the real
+   `fm-frem.duckdb` upload (`uv run python scripts/publish_duckdb.py --career frem --upload`)
+   and a query against it (confirming `ca`/`pa` come back `NULL` on real data) is the last step.
+2. Tick the checklist in the PR body once that's done, and update this note.
 
 See also: [Multi-device and storage](multi-device-and-storage.md) for the three-tier storage
 model this extends, and `docs/DEPLOY.md` for the full deploy runbook.

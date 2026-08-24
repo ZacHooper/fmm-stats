@@ -1,7 +1,7 @@
 # Handoff — continue exactly where we are
 
-Paste-ready context for a fresh agent. **Last updated 2026-08-24 (Phase 3: R2 creds working,
-design pivoted to direct S3 ATTACH, blocked on `extensions.duckdb.org` network policy).**
+Paste-ready context for a fresh agent. **Last updated 2026-08-24 (Phase 3: direct-R2 SQL access
+verified end-to-end; real store upload + PR checklist still pending).**
 
 Read [`CLAUDE.md`](../CLAUDE.md) first, then
 [`docs/agent-context/MEMORY.md`](agent-context/MEMORY.md) which indexes the durable notes. This
@@ -171,7 +171,7 @@ the store 80 MB → ~30 MB).
 
 ---
 
-## Phase 3 — remote-agent SQL access. **OPEN PR, pivoted design, blocked on one network-policy host**
+## Phase 3 — remote-agent SQL access. **OPEN PR, design verified end-to-end, store upload pending**
 
 Full detail: [`agent-context/remote-duckdb-access.md`](agent-context/remote-duckdb-access.md).
 Short version: the JSON API only answers fixed shapes; this adds a second path where a remote
@@ -180,35 +180,36 @@ SQL.
 
 **PR open, unmerged:** https://github.com/ZacHooper/fmm-stats/pull/1 (branch
 `claude/duckdb-r2-storage-d1rumw`). This session: got `rclone` installed and real R2 creds
-working (confirmed `rclone lsd r2:fmm-stats` lists `saves/`, `state/`, `site-data/`), then
-**pivoted the design** after finding the original approach didn't fit its own target audience —
-a Claude Code sandbox is exactly the "remote agent with no local store" this is for, and that
-kind of sandbox often has `*.workers.dev` blocked by its network policy with no in-session fix.
-- `scripts/publish_duckdb.py` — unchanged logic (clones the store, NULLs
-  `staging.players.ca`/`.pa`, uploads to R2 `site-data/fm-<career>.duckdb`), docstring updated.
-- `worker/index.js`'s `/api/db` route — **removed**. Replaced by DuckDB `ATTACH`ing the R2
-  object directly over its native S3 protocol (`CREATE SECRET ... TYPE r2 ...`, using the
-  `R2_ACCESS_KEY`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID` env vars a Claude Code session in this
-  project already carries). Verified live in this session: the account-scoped R2 endpoint
-  (`<account-id>.r2.cloudflarestorage.com`) is reachable from a restricted sandbox where the
-  bare `r2.cloudflarestorage.com` and every `*.workers.dev` host are not.
-- Docs re-pointed at the `s3://` access path: `site/AGENTS.md`, `docs/DEPLOY.md`, `CLAUDE.md`,
-  `export_data.py`'s `files.database` key.
+working, **pivoted the design** away from a Worker route (`*.workers.dev` is commonly blocked
+in a network-restricted Claude Code sandbox — exactly this feature's target audience) to a
+direct DuckDB `ATTACH` over R2's native S3 protocol, then — once the user widened this
+sandbox's network policy — **verified the whole path works end to end**: uploaded a probe file
+with `rclone`, read it back with a real `duckdb.connect()` / `ATTACH` / `read_text` over
+`s3://fmm-stats/...`. Three gotchas found and fixed along the way (full detail in the linked
+note):
+1. DuckDB's `TYPE r2`/`ACCOUNT_ID` secret shorthand silently mis-routes to public AWS S3 instead
+   of R2 in this kind of proxied sandbox — use `TYPE s3` with an explicit `ENDPOINT`,
+   `URL_STYLE 'path'`, `REGION 'auto'` instead (confirmed working).
+2. `INSTALL httpfs` requests a **plain HTTP** URL by default, which can still 403 even once the
+   HTTPS host is allowlisted (host+scheme-specific policies are common) — fetch the `.gz` over
+   HTTPS yourself and drop it in `~/.duckdb/extensions/...` instead; `LOAD httpfs` then needs no
+   network call at all.
+3. `worker/index.js`'s `/api/db` route and `CAREER_RE` constant were removed since nothing
+   serves this way anymore; `export_data.py`'s `files.database` key now points at the `s3://`
+   key directly.
 
-**What's NOT done, and why:** `INSTALL httpfs` needs `extensions.duckdb.org`, which is *also*
-blocked by this sandbox's network policy (confirmed: 403 on CONNECT) — same failure class as
-the `workers.dev` block this pivot exists to avoid, but now only one host instead of a whole
-domain. That's an environment-level network-policy setting, not something fixable from inside a
-session — the user needs to add it (Claude Code on the web → environment settings; see
-https://code.claude.com/docs/en/claude-code-on-the-web). A Supabase/Postgres pivot was
-considered and rejected: the store is only ~90 MB, so size was never the constraint, and
-migrating off DuckDB would mean rewriting the loader + dashboard + `fmq.py` for a problem that's
-really just a network-policy gap.
+All docs (`scripts/publish_duckdb.py`'s docstring, `site/AGENTS.md`, `docs/DEPLOY.md`,
+`CLAUDE.md`) carry the verified `ATTACH` syntax and both workarounds. A Supabase/Postgres pivot
+was considered and rejected: the store is only ~90 MB, so size was never the constraint, and
+migrating off DuckDB would mean rewriting the loader + dashboard + `fmq.py` for what was really
+just a network-allowlist gap.
 
-**Next session should:** once `extensions.duckdb.org` is allowed, run the upload
-(`uv run python scripts/publish_duckdb.py --career frem --upload`) if it hasn't landed yet, then
-actually run the `ATTACH` snippet in `agent-context/remote-duckdb-access.md`, confirm `ca`/`pa`
-come back `NULL`, and tick off the PR's test-plan checklist.
+**What's NOT done yet:** the real `fm-frem.duckdb` hasn't been re-uploaded and queried with
+these fixes applied — the probe-file round trip proves the credential/endpoint path works, but
+not yet against the actual store. **Next session should:** run
+`uv run python scripts/publish_duckdb.py --career frem --upload`, then run the verified `ATTACH`
+snippet against `site-data/fm-frem.duckdb`, confirm `ca`/`pa` come back `NULL` on real rows, and
+tick off the PR's test-plan checklist.
 
 ---
 

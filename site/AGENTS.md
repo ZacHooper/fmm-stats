@@ -132,17 +132,26 @@ env vars):
 
 ```sql
 INSTALL httpfs; LOAD httpfs;
-CREATE SECRET r2 (TYPE r2, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
-                   ACCOUNT_ID '<R2_ACCOUNT_ID>');
+CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
+                   ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
+                   URL_STYLE 'path', REGION 'auto');
 ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
 SELECT * FROM fm.staging.players LIMIT 5;
 ```
 
+Use `TYPE s3` with an explicit `ENDPOINT`, not the `TYPE r2`/`ACCOUNT_ID` shorthand — in
+testing, the shorthand silently fell through to public AWS S3 instead of R2 from a
+network-proxied sandbox.
+
 Deliberately not a `workers.dev` URL: a network-restricted agent sandbox often can't reach that
 host, but the R2 endpoint above (`<account-id>.r2.cloudflarestorage.com`) usually can, since
 it's the same host the data pipeline already uploads through. If `INSTALL httpfs` itself 403s,
-the sandbox's network policy needs `extensions.duckdb.org` added — that's the one other host
-this needs.
+the sandbox's network policy needs `extensions.duckdb.org` added. One more wrinkle: DuckDB's
+installer defaults to a *plain HTTP* URL, which can still 403 even once the HTTPS host is
+allowed (a network policy commonly allowlists by host **and scheme**) — if so, fetch the `.gz`
+over HTTPS yourself and drop it in `~/.duckdb/extensions/v<version>/<platform>/` (see
+`scripts/publish_duckdb.py`'s docstring for the exact commands), then `LOAD httpfs` picks it up
+from the local cache with no `INSTALL` needed.
 
 This is a *scrubbed* copy — `staging.players.ca`/`.pa` (raw ability) are already NULLed before
 publish, so the immersion rule above still holds; there is no extra care needed on your part.
