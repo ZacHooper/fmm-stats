@@ -17,6 +17,9 @@ Checks, in order:
   4. Arrival windows — the three known winter arrivals must read winter, everyone else
      summer.
   5. Season totals — mart.player_seasons must reproduce the 2024 review numbers.
+  6. Growth — totals, comparability flags, and the tenure/season rollups.
+  7. Regression guards — the four bugs found in the 2026-08 site-refactor audit, each of
+     which returned plausible-looking numbers while silently deleting real football.
 """
 from __future__ import annotations
 
@@ -321,6 +324,91 @@ def main():
           AND s.growth >= 0
     """).fetchone()[0]
     check("season rollup agrees with per-snapshot totals", agree == 0, f"{agree} disagreements")
+
+    # -- 7. regression guards for the bugs found in the 2026-08 site-refactor audit ----
+    # Each of these shipped once. They are cheap to assert and expensive to rediscover:
+    # every one of them looked like a working query returning plausible numbers.
+    print("\n7. regression guards")
+
+    # is_gk_attr once rendered from GK_ATTRS (all 23) instead of GK_BLOCK (the 5 keeper
+    # attributes), so the predicate was universally true and the filter we DOCUMENT for
+    # agents — NOT (is_gk_attr AND NOT is_gk) — silently discarded every outfielder.
+    gk = con.execute("""
+        SELECT COUNT(DISTINCT attribute) FILTER (WHERE is_gk_attr),
+               COUNT(DISTINCT attribute) FILTER (WHERE NOT is_gk_attr)
+        FROM mart.player_attribute_growth
+    """).fetchone()
+    check("is_gk_attr marks exactly the 5 keeper attributes", gk == (5, 18),
+          f"{gk[0]} gk / {gk[1]} outfield")
+    kept = con.execute("""
+        SELECT COUNT(*) FROM mart.player_attribute_growth g
+        JOIN mart.player_growth pg USING (person_id, season, phase)
+        WHERE NOT (g.is_gk_attr AND NOT pg.is_gk) AND pg.is_gk = 0
+    """).fetchone()[0]
+    check("the documented is_gk_attr filter keeps outfielder rows", kept > 0,
+          f"{kept} outfielder rows survive the filter")
+
+    # player_seasons dropped rows with a NULL person_id, and person_slices only covers tids
+    # that appear in staging.players — so 42 of OUR tids with match rows but no roster row
+    # were deleted, taking 25 of our 2024 goals (22% of the season) with them. It also
+    # any_value()'d team_tid while callers filtered on it. Assert exact parity against the
+    # fact table, for EVERY season: any future regression of either kind shows up here.
+    drift = con.execute("""
+        WITH ps AS (
+            SELECT season, SUM(apps) AS apps, SUM(goals) AS goals
+            FROM mart.player_seasons
+            WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs)
+            GROUP BY season),
+        f AS (
+            SELECT season, COUNT(*) FILTER (WHERE appeared) AS apps, SUM(goals) AS goals
+            FROM mart.match_player_facts
+            WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs)
+            GROUP BY season)
+        SELECT f.season, f.apps, ps.apps, f.goals, ps.goals
+        FROM f LEFT JOIN ps USING (season)
+        WHERE f.apps IS DISTINCT FROM ps.apps OR f.goals IS DISTINCT FROM ps.goals
+    """).fetchall()
+    check("player_seasons reproduces match_player_facts exactly, every season",
+          not drift, f"{len(drift)} season(s) drift: {drift}" if drift else "0 drift")
+
+    # squad_on had a ghost and a hole at once, which is why the HEADCOUNT looked right:
+    #   ghost — club_runs filters NOT is_staff, so a player who retires into the coaching
+    #           staff stops producing runs, LEAD() is NULL, and his spell never closes.
+    #   hole  — a run first seen in late June belongs to the NEXT season, so the inferred
+    #           season_start landed one day AFTER the snapshot that observed him.
+    # Compare the SETS, not the counts.
+    season, phase = con.execute("""
+        SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1
+    """).fetchone()
+    sym = con.execute(f"""
+        WITH roster AS (
+            SELECT tid FROM {src}.players
+            WHERE season = ? AND phase = ? AND NOT is_staff
+              AND club_tid IN (SELECT club_tid FROM mart.our_clubs)),
+        spells AS (SELECT DISTINCT tid FROM mart.squad_on(?))
+        SELECT
+            (SELECT COUNT(*) FROM spells WHERE tid NOT IN (SELECT tid FROM roster)),
+            (SELECT COUNT(*) FROM roster WHERE tid NOT IN (SELECT tid FROM spells))
+    """, [season, phase, phase]).fetchone()
+    check(f"squad_on('{phase}') matches the roster set exactly", sym == (0, 0),
+          f"{sym[0]} ghost(s), {sym[1]} missing")
+
+    # A spell may only claim valid_to IS NULL — "still here" — if the newest snapshot really
+    # does still show him there. Stated against the roster rather than against club_runs.to_ix
+    # on purpose: a player can have several runs at one club (left and came back), so joining
+    # spells to runs on (tid, person_id, club_tid) fans out and matches an earlier run's end
+    # against a later run's open spell. The roster is unambiguous.
+    stale = con.execute(f"""
+        SELECT COUNT(*) FROM mart.at_club_spells s
+        WHERE s.valid_to IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM {src}.players p, mart.snapshots n
+              WHERE n.snap_ix = (SELECT MAX(snap_ix) FROM mart.snapshots)
+                AND (p.season, p.phase) = (n.season, n.phase)
+                AND p.tid = s.tid AND p.club_tid = s.club_tid AND NOT p.is_staff)
+    """).fetchone()[0]
+    check("every open-ended spell is still on the newest snapshot's roster",
+          stale == 0, f"{stale} stale-open spell(s)")
 
     print()
     if FAILURES:

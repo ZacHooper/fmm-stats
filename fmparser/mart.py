@@ -88,6 +88,11 @@ GK_ONLY_ATTRS = ["Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
 OUTFIELD_ONLY_ATTRS = ["Crossing", "Dribbling", "Shooting", "Tackling", "Movement"]
 
 OUTFIELD_ATTRS = [a for a in ATTR_ORDER if a not in GK_ONLY_ATTRS]
+# NOT "the keeper attributes" — this is the keeper's TOTAL, which is all 23 (the manager's
+# call: a keeper's outfield attributes still count toward his quality). Use it only for
+# summing attr_total. If you want the five attributes only a keeper uses, that is GK_BLOCK
+# below; reaching for GK_ATTRS there makes the predicate universally true, which is exactly
+# the bug is_gk_attr shipped with.
 GK_ATTRS = list(ATTR_ORDER)
 
 # Kept for callers that want the raw blocks rather than the role-aware total.
@@ -264,12 +269,37 @@ JOIN (SELECT season, arg_max(phase, phase_ord(phase)) AS phase
   USING (season, phase)
 """
 
-# The whole season review as one table. Note it aggregates on person_id (rule 3) but keeps
-# tid for convenience; `apps` counts only matches the player actually appeared in.
+# The whole season review as one table. `apps` counts only matches the player actually
+# appeared in.
+#
+# GRAIN NOTE, and it is the whole reason this view is shaped the way it is. Two earlier
+# choices each silently deleted real football:
+#
+#   1. Aggregating on person_id and dropping the rows where it is NULL. person_slices is
+#      derived purely from staging.players (load_duckdb.rebuild_persons), so a player with
+#      match rows but no roster row in ANY snapshot never gets an identity — 76 tids here,
+#      42 of them ours. Filtering them out cost 196 of our appearances and 25 of our 2024
+#      goals, 22% of the season. So the aggregation key is `player_key`, which falls back to
+#      the tid when identity is unknown. Rule 3 still holds where it can: a recycled slot
+#      whose two occupants ARE both known stays split, because their person_ids differ.
+#
+#      `person_id` is still projected, as any_value, and is still NULL for those rows. Do
+#      NOT replace it with player_key: mart.player_growth_season's `mins` CTE,
+#      publish_mart's OURS predicate and CLAUDE.md's cookbook example all JOIN person_id to
+#      the spell tables, and a synthetic 'tid-1234' would match nothing while looking right.
+#
+#   2. any_value(team_tid) with team_tid outside the GROUP BY. 23 person-seasons here span
+#      more than one club, so the club a row claimed was arbitrary and filtering on it was
+#      unsound. team_tid is part of the grain now: a mid-season transfer becomes two rows,
+#      one per club, which is what "his season at THIS club" means. Callers wanting the
+#      whole season sum across clubs and competitions.
 PLAYER_SEASONS = """
 CREATE OR REPLACE VIEW mart.player_seasons AS
 SELECT
-    f.season, f.person_id, any_value(f.tid) AS tid, any_value(f.team_tid) AS team_tid,
+    f.season,
+    COALESCE(f.person_id, 'tid-' || f.tid)          AS player_key,
+    any_value(f.person_id)                          AS person_id,
+    any_value(f.tid) AS tid, f.team_tid,
     f.competition,
     COUNT(*) FILTER (WHERE f.appeared)              AS apps,
     COUNT(*) FILTER (WHERE f.started)               AS starts,
@@ -283,8 +313,7 @@ SELECT
     SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
     SUM(f.dribbles) AS dribbles, SUM(f.mistakes) AS mistakes, SUM(f.yellow) AS yellows
 FROM mart.match_player_facts f
-WHERE f.person_id IS NOT NULL
-GROUP BY f.season, f.person_id, f.competition
+GROUP BY f.season, COALESCE(f.person_id, 'tid-' || f.tid), f.team_tid, f.competition
 """
 
 
@@ -373,9 +402,15 @@ r AS (
     SELECT
         l.*,
         prev_s.phase_date                       AS prev_phase_date,
+        -- The snapshot AFTER the one that last showed him in this run. NULL means the run
+        -- reaches the newest snapshot, i.e. he is genuinely still here. Anything else means
+        -- the run ended and this is the first date on which he was gone — see the ghost
+        -- note on valid_to below.
+        after_s.phase_date                      AS after_phase_date,
         fm.first_match
     FROM lagged l
-    LEFT JOIN mart.snapshots prev_s ON prev_s.snap_ix = l.prev_to_ix
+    LEFT JOIN mart.snapshots prev_s  ON prev_s.snap_ix  = l.prev_to_ix
+    LEFT JOIN mart.snapshots after_s ON after_s.snap_ix = l.to_ix + 1
     LEFT JOIN firstmatch fm
            ON fm.tid = l.tid AND fm.team_tid = l.club_tid AND fm.season = l.season
 ),
@@ -388,26 +423,47 @@ w AS (SELECT r.*, {window} AS arrival_window, r.prev_to_ix IS NOT NULL AS is_tra
 -- prev_phase_date because prev_phase_date is strictly increasing across a person's runs,
 -- which makes valid_from strictly increasing too — and that is what guarantees the
 -- LEAD-derived valid_to below can neither overlap nor invert.
+--
+-- The whole inferred window is then capped at from_phase_date by LEAST, because a window
+-- must not open AFTER the observation that created it. Without the cap, a run first seen in
+-- a snapshot that falls in the last days of June belongs to the NEXT season (phase 2024-06-30
+-- is season 2025), so season_start(2025) = 2024-07-01 lands one day after the snapshot and
+-- squad_on('2024-06-30') cannot see a player who demonstrably signed. LEAST only ever moves
+-- valid_from earlier, and never earlier than prev_phase_date + 1 (which is <= from_phase_date
+-- by construction), so the strict-increase property above survives intact.
 dated AS (
     SELECT w.*,
            CASE
              WHEN is_transition AND arrival_window = 'winter'
-               THEN GREATEST(winter_cut(season),
-                             COALESCE(prev_phase_date + INTERVAL 1 DAY, winter_cut(season)))
+               THEN LEAST(GREATEST(winter_cut(season),
+                             COALESCE(prev_phase_date + INTERVAL 1 DAY, winter_cut(season))),
+                          from_phase_date)
              WHEN is_transition
-               THEN GREATEST(season_start(season),
-                             COALESCE(prev_phase_date + INTERVAL 1 DAY, season_start(season)))
+               THEN LEAST(GREATEST(season_start(season),
+                             COALESCE(prev_phase_date + INTERVAL 1 DAY, season_start(season))),
+                          from_phase_date)
              ELSE from_phase_date
            END AS valid_from
     FROM w
 )
 -- valid_to is derived from the NEXT spell's valid_from, never from a snapshot date, so the
 -- spells of one person tile without gaps or overlaps by construction. NULL = still current.
+--
+-- GHOST NOTE. "No next spell" does not imply "still here". club_runs filters
+-- WHERE NOT p.is_staff, so a player who retires into the coaching staff (his players row
+-- flips is_staff and club_tid to the 65535 sentinel) simply stops producing runs — LEAD
+-- returns NULL and he stayed in every squad_on() forever. Same for anyone who leaves the
+-- scraped world entirely. So an open-ended spell is only honoured when the run actually
+-- reaches the newest snapshot; otherwise it closes the day before the first snapshot that
+-- no longer showed him. after_phase_date is NULL exactly when to_ix is the newest snap_ix,
+-- which is what makes that the only case yielding a genuine NULL valid_to.
 SELECT
     person_id, tid, name, 'at_club' AS spell_type, club_tid, club, season,
     valid_from,
-    LEAD(valid_from) OVER (PARTITION BY tid, person_id ORDER BY from_ix)
-        - INTERVAL 1 DAY                              AS valid_to,
+    COALESCE(
+        LEAD(valid_from) OVER (PARTITION BY tid, person_id ORDER BY from_ix),
+        after_phase_date
+    ) - INTERVAL 1 DAY                                AS valid_to,
     CASE WHEN is_transition THEN arrival_window END   AS arrival_window
 FROM dated
 """
@@ -634,7 +690,7 @@ WITH long AS (
 joined AS (
     SELECT ps.person_id, l.tid, p.name, s.season, s.phase, s.snap_ix, s.phase_date,
            l.attribute, l.value,
-           l.attribute IN ({", ".join(f"'{a}'" for a in GK_ATTRS)}) AS is_gk_attr
+           l.attribute IN ({", ".join(f"'{a}'" for a in GK_BLOCK)}) AS is_gk_attr
     FROM long l
     JOIN {{S}}.players p USING (season, phase, tid)
     JOIN mart.snapshots s USING (season, phase)
