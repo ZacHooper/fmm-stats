@@ -223,6 +223,31 @@ SELECT club_tid FROM mart.our_clubs
 WHERE club_tid NOT IN (SELECT club_tid FROM mart.managed_club)
 """
 
+# --- reference tables -------------------------------------------------------------
+#
+# These three are near-passthroughs, which normally would not earn a place here — the mart
+# exists for the four snapshot-shape rules, and these tables are global, not snapshot-scoped,
+# so there is no rule to apply. They are included for a functional reason instead: a rating is
+# SUM(attribute x weight), so without the weight table and the position->role map the
+# published artifact cannot answer "how good is he in this role" at all, and the familiarity
+# curve is needed to discount it. scripts/publish_mart.py materialises mart.* and nothing else,
+# so anything the artifact must be able to compute has to be reachable from this schema.
+ROLE_WEIGHTS = """
+CREATE OR REPLACE VIEW mart.role_weights AS
+SELECT method, role, attribute, weight FROM {S}.role_weights
+"""
+
+POSITION_ROLES = """
+CREATE OR REPLACE VIEW mart.position_roles AS
+SELECT position, role FROM {S}.position_role_map
+"""
+
+APP_CONFIG = """
+CREATE OR REPLACE VIEW mart.app_config AS
+SELECT key, value FROM {S}.app_config
+"""
+
+
 # --- dimensions -------------------------------------------------------------------
 
 # Club -> league, AS AT each snapshot. This one object replaces FIVE hand-rolled copies of
@@ -1348,6 +1373,9 @@ FROM bounds b
 
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
+    ("mart.role_weights", ROLE_WEIGHTS),
+    ("mart.position_roles", POSITION_ROLES),
+    ("mart.app_config", APP_CONFIG),
     ("mart.our_clubs", OUR_CLUBS),
     ("mart.chosen_match_phase", CHOSEN_MATCH_PHASE),
     ("mart.match_player_facts", MATCH_PLAYER_FACTS),

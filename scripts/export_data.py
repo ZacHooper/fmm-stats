@@ -281,11 +281,11 @@ def main():
            WHERE season=? AND phase=? AND skill_idx IS NOT NULL""",
         [season, phase]).itertuples()}
 
-    rw = db.q("SELECT method, role, attribute, weight FROM staging.role_weights")
+    rw = db.q("SELECT method, role, attribute, weight FROM mart.role_weights")
     tactics = {}
     for r in rw.itertuples():
         tactics.setdefault(r.method, {}).setdefault(r.role, {})[r.attribute] = int(r.weight)
-    prm = db.q("SELECT position, role FROM staging.position_role_map")
+    prm = db.q("SELECT position, role FROM mart.position_roles")
     curve, floor = db.familiarity_params()
 
     # ---------------------------------------------------------------- our squad extras
@@ -385,9 +385,8 @@ def main():
     # Attributes at EVERY snapshot, so the app can draw growth under any tactic — the
     # trajectory is the thing Development exists for, and it can't be recovered from one slice.
     ours_tids = sorted({int(t) for t in db.q(
-        f"SELECT DISTINCT tid FROM staging.players WHERE club_tid IN "
-        f"({','.join('?' * len(db.OUR_CLUBS))}) AND NOT is_staff",
-        list(db.OUR_CLUBS))["tid"]})
+        """SELECT DISTINCT tid FROM mart.player_snapshots
+           WHERE club_tid IN (SELECT club_tid FROM mart.our_clubs)""")["tid"]})
     # note: ours_tids is EVER-ours (career history is worth keeping for a player who left);
     # trajectories below use only the CURRENT squad.
     # Every snapshot the player EXISTS in, not only the ones he spent with us. A summer
@@ -398,17 +397,21 @@ def main():
     # Widening to the whole file means crossing tid recycling: a tid retired and reissued to a
     # newgen would splice two different people into one trajectory. keep_current_person drops
     # the slices where this tid belonged to somebody else (a no-op for tids never reused).
-    cur_tids = sorted({int(t) for t in db.squad(season, phase)["tid"]})
-    cols = ", ".join(f'pa."{x}"' for x in ATTR_ORDER)
-    hist = db.q(f"""SELECT pa.season, pa.phase, pa.tid, {cols}
-                    FROM staging.player_attributes pa
-                    WHERE pa.tid IN ({','.join('?' * len(cur_tids))})
-                    ORDER BY pa.season, pa.phase""", cur_tids) if cur_tids else pd.DataFrame()
-    before = len(hist)
-    hist = db.keep_current_person(hist)
-    if len(hist) != before:
-        print(f"  (dropped {before - len(hist)} attribute rows where a tid was a different "
-              f"person — recycling)")
+    # The recycling problem is solved by KEYING ON person_id rather than by filtering after the
+    # fact. keep_current_person used to fetch the slices and drop the rows where this tid
+    # belonged to somebody else; selecting the person's own rows never picks them up in the
+    # first place. Same answer, and it is the mart's rule 3 instead of a pandas pass.
+    cur_tids = sorted({int(t) for t in sq["tid"]})
+    cols = ", ".join(f'"{x}"' for x in ATTR_ORDER)
+    hist = db.q(f"""WITH me AS (
+                        SELECT DISTINCT person_id, tid FROM mart.player_snapshots
+                        WHERE season=? AND phase=? AND tid IN ({','.join('?' * len(cur_tids))}))
+                    SELECT ps.season, ps.phase, me.tid, {cols}
+                    FROM mart.player_snapshots ps
+                    JOIN me ON me.person_id = ps.person_id
+                    WHERE ps.has_attributes
+                    ORDER BY me.tid, ps.season, ps.phase""",
+                 [season, phase, *cur_tids]) if cur_tids else pd.DataFrame()
     traj = {}
     for r in hist.to_dict("records"):
         traj.setdefault(str(int(r["tid"])), []).append(
@@ -416,14 +419,11 @@ def main():
              [None if pd.isna(r[x]) else int(r[x]) for x in ATTR_ORDER]])
     # Career history repeats in every snapshot, so read it from the requested one only —
     # a UNION across snapshots would multiply every season row by 12.
-    careers = db.q(f"""SELECT h.tid, h.end_year, h.club_tid, c.name AS club, h.fee,
-                              h.apps, h.goals, h.assists, h.rating
-                       FROM staging.player_history_seasons h
-                       LEFT JOIN staging.clubs c
-                         ON (c.season, c.phase, c.tid) = (h.season, h.phase, h.club_tid)
-                       WHERE h.season=? AND h.phase=?
-                         AND h.tid IN ({','.join('?' * len(ours_tids))})
-                       ORDER BY h.tid, h.seq""", [season, phase, *ours_tids]) \
+    careers = db.q(f"""SELECT tid, end_year, club_tid, club, fee, apps, goals, assists, rating
+                       FROM mart.player_career_seasons
+                       WHERE season=? AND phase=?
+                         AND tid IN ({','.join('?' * len(ours_tids))})
+                       ORDER BY tid, seq""", [season, phase, *ours_tids]) \
         if ours_tids else pd.DataFrame()
     chist = {}
     for r in (careers.to_dict("records") if not careers.empty else []):
@@ -477,15 +477,23 @@ def main():
                                      if (int(r["tid"]), r["position"], c) in D["best_hosts"]},
                            "read": r["read"], "also": r["also"]}
                            for _, r in D["per_role"][D["per_role"]["role"] == role]
-                           .sort_values("eff", ascending=False).iterrows()]}
+                           .sort_values(["eff", "tid"], ascending=[False, True],
+                                        kind="mergesort").iterrows()]}
                       for role in D["roles_present"]],
             "note": IMMERSION})
 
     # ---------------------------------------------------------------- matches.json
     # Raw-ish: the app computes records, awards, H2H, per-player aggregates and differentials
     # from this. One dataset instead of four pages' worth of precomputed answers.
-    hist_m = db.our_match_history()
-    mps = db.match_stats_rows(db.OUR_CLUBS)
+    # mart.club_matches is every match seen from one club's side, already oriented — venue,
+    # opponent, gf/ga, result, pts and each team stat split into our_/opp_. The Python this
+    # replaces ran a query per season in a loop and then flipped seventeen columns in pandas.
+    hist_m = db.q("""SELECT * FROM mart.club_matches
+                     WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)
+                     ORDER BY season, date, opp_tid""")
+    mps = db.q("""SELECT * FROM mart.match_player_facts
+                  WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND appeared
+                  ORDER BY season, date, tid""")
     mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
                "result", "pts", "formation"]
     if not hist_m.empty:      # dedupe: opp_tid is already in the identity block above
@@ -511,8 +519,7 @@ def main():
         "matches": rowify(hist_m, mfields),
         "player_fields": [f for f in pfields if mps is not None and not mps.empty
                           and f in mps.columns],
-        "player_rows": rowify(mps[mps["appeared"]] if mps is not None and not mps.empty
-                              else mps, pfields),
+        "player_rows": rowify(mps, pfields),
         "note": "Only the managed club's matches are richly parsed, so these are our records. "
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
                 "season runs, so an early game may be absent from a late save."})
