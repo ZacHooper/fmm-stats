@@ -66,6 +66,86 @@ import time
 
 import duckdb
 
+# ---------------------------------------------------------------------------------------
+# Compaction (--compact, on by default)
+#
+# The live store is ~107 MB, of which ~45 MB is pure cross-snapshot duplication: staging
+# mirrors the parser, one FULL row set per (season, phase), so an immutable fact is restored
+# verbatim in every later snapshot. player_history_seasons is the extreme case — 3,383,704
+# rows collapse to 470,092 distinct ones (7.2x), because a player's 2019 season row cannot
+# change but is re-stored 16 times.
+#
+# So each snapshot-scoped table is RUN-LENGTH ENCODED: group by every column except
+# season/phase, and record the contiguous run of snapshot indices the row was present for.
+# Interval-per-group would be LOSSY — 59 groups in this career appear, vanish and reappear —
+# so runs are found with gaps-and-islands, not min/max, which is exact.
+#
+# The published copy then exposes staging.<table> as a VIEW that expands the runs back, so
+# every query already documented against the full store (docs/agent-context/
+# remote-duckdb-access.md, site/AGENTS.md) keeps working against the identical schema. The
+# RLE tables sit behind it as staging._rle_<table>. Verified row-for-row with a symmetric
+# EXCEPT ALL against the source before upload — this refuses to publish otherwise.
+#
+# Scrubbing runs BEFORE compaction, deliberately: NULLing ca/pa first makes those columns
+# constant, so rows differing only by ability collapse together and dedupe a little harder.
+#
+# player_history measured 1.0x (no duplication at all — every row is snapshot-unique), where
+# the two extra run columns cost more than dedupe saves, so it is left as a plain table.
+SKIP_RLE = {"player_history"}
+
+
+def compact(con):
+    """RLE every snapshot-scoped staging table in `con`, exposing expansion views under the
+    original names. Returns (tables_compacted, source_rows, encoded_rows)."""
+    con.execute("""CREATE OR REPLACE TABLE staging._snapshots AS
+        SELECT row_number() OVER (ORDER BY season, phase) AS snap_ix, season, phase
+        FROM (SELECT DISTINCT season, phase FROM staging.extracts)""")
+
+    tabs = [t for (t,) in con.execute(
+        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'staging' "
+        "AND NOT starts_with(table_name, '_') ORDER BY table_name").fetchall()]
+
+    done, n_src, n_rle = 0, 0, 0
+    for t in tabs:
+        cols = [c for (c,) in con.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'staging' "
+            f"AND table_name = '{t}' ORDER BY ordinal_position").fetchall()]
+        body = [c for c in cols if c not in ("season", "phase")]
+        if t in SKIP_RLE or not body or not {"season", "phase"} <= set(cols):
+            continue
+        kl = ", ".join(f'"{c}"' for c in body)
+
+        con.execute(f"""CREATE TABLE staging."_rle_{t}" AS
+            WITH ph AS (
+              SELECT p.*, n.snap_ix FROM staging."{t}" p
+              JOIN staging._snapshots n USING (season, phase)),
+            marked AS (
+              SELECT {kl}, snap_ix,
+                     snap_ix - row_number() OVER (PARTITION BY {kl} ORDER BY snap_ix) AS grp
+              FROM ph)
+            SELECT {kl}, min(snap_ix) AS snap_lo, max(snap_ix) AS snap_hi
+            FROM marked GROUP BY {kl}, grp""")
+
+        sel = "season, phase, " + kl
+        expand = (f'SELECT n.season, n.phase, {kl} FROM staging."_rle_{t}" r '
+                  f"JOIN staging._snapshots n ON n.snap_ix BETWEEN r.snap_lo AND r.snap_hi")
+        miss = con.execute(f'SELECT count(*) FROM ((SELECT {sel} FROM staging."{t}") '
+                           f"EXCEPT ALL ({expand}))").fetchone()[0]
+        extra = con.execute(f"SELECT count(*) FROM (({expand}) EXCEPT ALL "
+                            f'(SELECT {sel} FROM staging."{t}"))').fetchone()[0]
+        if miss or extra:
+            raise SystemExit(f"compaction of staging.{t} is LOSSY "
+                             f"(missing={miss}, extra={extra}) — refusing to publish")
+
+        n_src += con.execute(f'SELECT count(*) FROM staging."{t}"').fetchone()[0]
+        n_rle += con.execute(f'SELECT count(*) FROM staging."_rle_{t}"').fetchone()[0]
+        con.execute(f'DROP TABLE staging."{t}"')
+        con.execute(f'CREATE VIEW staging."{t}" AS {expand}')
+        done += 1
+
+    con.execute("CHECKPOINT")
+    return done, n_src, n_rle
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
@@ -87,6 +167,9 @@ def main():
     ap.add_argument("--out", help="write the scrubbed copy here instead of a scratch temp "
                                   "file, and keep it afterwards (handy for inspecting it "
                                   "before trusting an upload)")
+    ap.add_argument("--no-compact", action="store_true",
+                    help="skip run-length compaction (publishes the full ~107 MB copy with "
+                         "plain tables instead of expansion views); see compact() above")
     a = ap.parse_args()
 
     if a.career:
@@ -118,7 +201,28 @@ def main():
             con.execute(f"UPDATE {table} SET {sets}")
             print(f"  scrubbed {', '.join(cols)} on {n} rows in {table}")
         con.execute("CHECKPOINT")
-        con.close()
+        if not a.no_compact:
+            before = os.path.getsize(dest)
+            done, n_src, n_rle = compact(con)
+            con.close()
+            # a rewrite into a fresh file is what actually reclaims the freed blocks: DuckDB
+            # reuses them in place but never shrinks the file, so an in-place CHECKPOINT alone
+            # leaves the old size on disk.
+            tmp2 = dest + ".packed"
+            if os.path.exists(tmp2):
+                os.remove(tmp2)
+            c2 = duckdb.connect()          # in-memory driver; both stores are ATTACHed
+            c2.execute(f"ATTACH '{dest}' AS old (READ_ONLY)")
+            c2.execute(f"ATTACH '{tmp2}' AS packed")
+            c2.execute("COPY FROM DATABASE old TO packed")   # carries tables AND views
+            c2.execute("CHECKPOINT packed")
+            c2.close()
+            os.replace(tmp2, dest)
+            print(f"  compacted {done} tables: {n_src:,} rows -> {n_rle:,} "
+                  f"({n_src / max(n_rle, 1):.1f}x), verified exact; "
+                  f"{before / 1024 / 1024:.1f} -> {os.path.getsize(dest) / 1024 / 1024:.1f} MB")
+        else:
+            con.close()
 
         size = os.path.getsize(dest)
         print(f"published copy: {dest} ({size / 1024 / 1024:.1f} MB)")
