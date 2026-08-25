@@ -136,6 +136,11 @@ def build(season, phase, method, min_fam=DEFAULT_MIN_FAM, excl_loanees=True, slo
         if ours.empty:
             return {"error": f"No owned player has a position at familiarity {min_fam} or above."}
 
+    # Pin the row order before anything groups or ranks. effective_table is a plain SELECT
+    # with no ORDER BY, so its order varies between runs; idxmax() and rank() then break ties
+    # differently and the emitted positions.json churns even though nothing in the data moved.
+    ours = ours.sort_values(["tid", "role", "position"], kind="mergesort")
+
     # one row per (player, role): his best position for that role, ranked by effective rating
     per_role = ours.loc[ours.groupby(["tid", "role"])["eff"].idxmax()].copy()
     per_role["depth"] = (per_role.groupby("role")["eff"]
@@ -204,7 +209,9 @@ def build(season, phase, method, min_fam=DEFAULT_MIN_FAM, excl_loanees=True, slo
 
     rows = []
     for role in roles_present:
-        g = per_role[per_role["role"] == role].sort_values("eff", ascending=False)
+        # tid breaks eff ties so `best` (and everything derived from him) is stable
+        g = per_role[per_role["role"] == role].sort_values(
+            ["eff", "tid"], ascending=[False, True], kind="mergesort")
         n_slots = slots.get(role, 1)
         best, top = g.iloc[0], g.head(max(1, n_slots))
         rows.append({"role": role, "owned": len(g), "slots": n_slots,
@@ -215,7 +222,10 @@ def build(season, phase, method, min_fam=DEFAULT_MIN_FAM, excl_loanees=True, slo
                      "avg_age": (round(top["age"].mean(), 1)
                                  if top["age"].notna().any() else None),
                      "read": role_read(g, n_slots)})
-    summary = pd.DataFrame(rows).sort_values("div_pct", na_position="last")
+    # role breaks the tie: div_pct is NaN for any role with too small a comparison pool, and
+    # pandas' default quicksort leaves both the ties and the NaN block in arbitrary order.
+    summary = pd.DataFrame(rows).sort_values(["div_pct", "role"], na_position="last",
+                                             kind="mergesort")
 
     sq = db.squad(season, phase)
     return {"season": season, "phase": phase, "method": method, "min_fam": min_fam,

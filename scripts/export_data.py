@@ -232,54 +232,37 @@ def main():
         return n
 
     # ---------------------------------------------------------------- reference tables
-    ladder = db.comparison_leagues(season, phase, limit=3)
-    ladder = [(c, n) for c, n in ladder if c is not None]
+    # Everything here comes from mart.* — see fmparser/mart.py. The three queries this
+    # replaced each carried their own copy of the club->league arg_max CTE, and the two in
+    # this file were the wrong copies: no `ord <=` bound, and a sort key built from the raw
+    # `phase` column. mart.club_leagues resolves as-at, once.
+    ladder = [(int(c), n) for c, n in db.q(
+        """SELECT cid, name FROM mart.comparison_ladder
+           WHERE season=? AND phase=? ORDER BY ladder_rank LIMIT 3""",
+        [season, phase]).itertuples(index=False) if c is not None]
     ladder_cids = [c for c, _ in ladder]
 
-    clubs = db.q("""WITH cl AS (
-        SELECT club_tid, arg_max(league_cid, ord) AS league_cid FROM (
-          SELECT club_tid, league_cid,
-                 LPAD(CAST(season AS VARCHAR),4,'0') || phase AS ord
-          FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
-        GROUP BY club_tid)
-        SELECT c.tid, any_value(c.name) AS name, any_value(cl.league_cid) AS league_cid,
-               COUNT(DISTINCT p.tid) AS players
-        FROM staging.clubs c
-        LEFT JOIN cl ON cl.club_tid = c.tid
-        LEFT JOIN staging.players p
-          ON p.tid IS NOT NULL AND p.club_tid = c.tid AND p.season=? AND p.phase=?
-             AND NOT p.is_staff
-        WHERE c.season=? AND c.phase=? GROUP BY c.tid
-        -- ORDER BY is not cosmetic: without it DuckDB's group-by order varies run to run,
-        -- so a re-export with identical data rewrote all 4,337 rows of this array and every
-        -- real diff hid in the churn. The committed JSON is the refactor's regression test,
-        -- which only works if the export is deterministic.
-        ORDER BY c.tid""", [season, phase, season, phase])
-    leagues = db.q("""SELECT cid, any_value(name) AS name, any_value(nation) AS nation,
-                             max(reputation) AS reputation, max(member_count) AS clubs
-                      FROM staging.leagues WHERE season=? AND phase=? AND name IS NOT NULL
-                      GROUP BY cid ORDER BY reputation DESC NULLS LAST, cid""", [season, phase])
-    # Skill index: average player ability per league, normalised 0-100 across ranked leagues.
-    # Immersion-safe in the same way the Level percentile is — a CA-DERIVED INDEX, never the
-    # number. The raw average is computed here and dropped before anything is written, so the
-    # ability itself cannot leave even by accident.
-    skill = db.q("""WITH cl AS (
-        SELECT club_tid, arg_max(league_cid, ord) AS league_cid FROM (
-          SELECT club_tid, league_cid,
-                 LPAD(CAST(season AS VARCHAR),4,'0') || phase AS ord
-          FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
-        GROUP BY club_tid)
-        SELECT cl.league_cid AS cid, AVG(p.ca) AS aca, COUNT(*) AS rated
-        FROM staging.players p JOIN cl ON cl.club_tid = p.club_tid
-        WHERE p.season=? AND p.phase=? AND NOT p.is_staff AND p.ca IS NOT NULL
-        GROUP BY cl.league_cid HAVING COUNT(*) >= 20""", [season, phase])
-    skill_idx = {}
-    if not skill.empty:
-        lo, hi = float(skill["aca"].min()), float(skill["aca"].max())
-        rng = (hi - lo) or 1.0
-        for r in skill.itertuples():
-            skill_idx[int(r.cid)] = (round(100 * (float(r.aca) - lo) / rng, 1), int(r.rated))
-    del skill                                   # the raw averages never reach a payload
+    clubs = db.q("""SELECT club_tid AS tid, name, league_cid, squad_size AS players
+                    FROM mart.clubs WHERE season=? AND phase=?
+                    -- ORDER BY is not cosmetic: without it DuckDB's group-by order varies
+                    -- run to run, so a re-export with identical data rewrote all 4,337 rows
+                    -- of this array and every real diff hid in the churn. The committed JSON
+                    -- is this refactor's regression test, which only works if the export is
+                    -- deterministic.
+                    ORDER BY club_tid""", [season, phase])
+    leagues = db.q("""SELECT cid, name, nation, reputation, member_count AS clubs
+                      FROM mart.leagues WHERE season=? AND phase=? AND name IS NOT NULL
+                      ORDER BY reputation DESC NULLS LAST, cid""", [season, phase])
+    # Division-strength index, straight off mart.leagues. It is the average player ability per
+    # league normalised 0-100 — immersion-safe in the same way the Level percentile is, a
+    # CA-DERIVED INDEX and never the number. This used to be ~20 lines here that computed the
+    # raw averages, normalised them in pandas, and then `del`-ed the frame so the ability
+    # could not leak by accident. The normalisation now happens inside the view, so there is
+    # no raw average in this process to leak in the first place.
+    skill_idx = {int(r.cid): (float(r.skill_idx), int(r.rated)) for r in db.q(
+        """SELECT cid, skill_idx, rated FROM mart.leagues
+           WHERE season=? AND phase=? AND skill_idx IS NOT NULL""",
+        [season, phase]).itertuples()}
 
     rw = db.q("SELECT method, role, attribute, weight FROM staging.role_weights")
     tactics = {}
