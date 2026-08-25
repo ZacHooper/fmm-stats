@@ -192,8 +192,10 @@ def main():
           AND ps.team_tid IN (SELECT club_tid FROM mart.our_clubs)
         GROUP BY ps.person_id ORDER BY goals DESC LIMIT 1
     """).fetchone()
-    check("2024 golden boot = Adam Jakobsen, 34", top[0] == "Adam Jakobsen" and top[1] == 34,
-          f"got {top}")
+    # 30, not 34 — mart.player_seasons now excludes friendlies (is_competitive), and
+    # Jakobsen scored 4 of his 34 total goals in friendlies in 2024.
+    check("2024 golden boot = Adam Jakobsen, 30 (competitive only)",
+          top[0] == "Adam Jakobsen" and top[1] == 30, f"got {top}")
 
     # -- 5b. first team vs reserves ---------------------------------------------------
     # our_clubs holds both sides. Filtering results on it folds the reserve fixtures into
