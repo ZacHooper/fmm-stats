@@ -90,16 +90,63 @@ from fmparser.mart import create_mart, ORDER, MACROS, SQUAD_ON          # noqa: 
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 
-# The growth family — the only tables scoped to our clubs. Everything else ships world-wide.
-GROWTH = ["player_attribute_growth", "player_growth", "player_growth_season",
-          "player_growth_at_club", "player_growth_tenure"]
-
 # Raw-ability column names that must never leave (CLAUDE.md immersion rule). Level/Fit
 # percentiles are fine and deliberately not listed — see the house rule's stated exception.
-FORBIDDEN = {"ca", "pa", "current_ability", "potential_ability"}
+# `aca` is here because scripts/export_data.py's BANNED_KEYS has it and this list did not:
+# same rule, two lists, and a gap between them is how a leak ships.
+FORBIDDEN = {"ca", "pa", "aca", "current_ability", "potential_ability"}
 
-OURS = ("person_id IN (SELECT person_id FROM s.mart.at_club_spells "
-        "WHERE club_tid IN (SELECT club_tid FROM s.mart.our_clubs))")
+OURS = ("person_id IN (SELECT person_id FROM mart.at_club_spells "
+        "WHERE club_tid IN (SELECT club_tid FROM mart.our_clubs))")
+
+# One snapshot per season instead of every snapshot. The store holds up to six snapshots in a
+# season, several of them days apart, and for a dimension table those are near-duplicates —
+# useful locally for a mid-season trajectory, dead weight in an analysis artefact.
+LATEST_IN_SEASON = ("(season, phase) IN (SELECT season, phase FROM mart.snapshots "
+                    "WHERE is_latest_in_season)")
+
+# Just the newest snapshot. Career history is re-scraped whole every import, so every snapshot
+# carries the same rows; scripts/export_data.py reads exactly one snapshot for this reason.
+NEWEST_ONLY = ("(season, phase) IN (SELECT season, phase FROM mart.snapshots "
+               "ORDER BY snap_ix DESC LIMIT 1)")
+
+# Per-table scoping. Anything absent ships world-wide and at every snapshot.
+#
+# The judgement behind each choice: the growth family is about OUR players' development, so it
+# scopes to us (unscoped, player_attribute_growth alone is 8.88M rows / 108 MB — bigger than
+# the store it came from). The dimensions keep every club and every player but drop the
+# mid-season near-duplicates, because opposition analysis is a first-class use of this artefact
+# and scoping those to our clubs would break it — the same reason match_player_facts and
+# at_club_spells are not scoped at all.
+SCOPE = {
+    "player_attribute_growth": OURS,
+    "player_growth": OURS,
+    "player_growth_season": OURS,
+    "player_growth_at_club": OURS,
+    "player_growth_tenure": OURS,
+    # Current standing, not history. These three are world-wide dimensions, so an extra
+    # snapshot costs 23k-80k rows each; at every snapshot they were 17 MB of the artefact,
+    # more than everything else combined. The history they would carry is already covered
+    # where it matters: our players' development is the growth family above (per attribute,
+    # per snapshot, with deltas), and for anyone else the question is "how good is he now".
+    # Season-over-season level history for a player who was never ours is what the full store
+    # is for.
+    "player_snapshots": NEWEST_ONLY,
+    "player_position_levels": NEWEST_ONLY,
+    "player_origin": NEWEST_ONLY,
+    "player_career_seasons": NEWEST_ONLY,
+}
+
+# NEVER materialised. These two are the method-dependent rating layer: 27M and 9.4M rows, each
+# many times the size of the whole artefact. They exist as VIEWS so scripts/export_data.py has a
+# single schema to read from while it runs against a real local store — a machine that has the
+# ability number, which the published copy deliberately does not. Do not "fix" this omission.
+UNPUBLISHED = {"player_role_ratings", "player_position_fit"}
+
+# Refuse to upload something wildly bigger than expected. The failure this guards against is
+# silent: a new object materialises to 200 MB, the upload succeeds, and nobody notices until a
+# remote agent waits five minutes for an ATTACH.
+MAX_MB = 40
 
 
 def build(src_path, dest, scope_ours=True):
@@ -127,12 +174,18 @@ def build(src_path, dest, scope_ours=True):
             name = full.split(".", 1)[1]
             if "CREATE OR REPLACE MACRO" in sql:
                 continue            # macros are re-declared in the output below, not copied
-            scoped = scope_ours and name in GROWTH
-            where = f" WHERE {OURS.replace('s.mart.', 'mart.')}" if scoped else ""
+            if name in UNPUBLISHED:
+                counts.append((name, None, "not published — see UNPUBLISHED"))
+                continue
+            pred = SCOPE.get(name) if scope_ours else None
+            where = f" WHERE {pred}" if pred else ""
             con.execute(f'CREATE TABLE out.mart."{name}" AS '
                         f'SELECT * FROM mart."{name}"{where}')
             n = con.execute(f'SELECT count(*) FROM out.mart."{name}"').fetchone()[0]
-            counts.append((name, n, scoped))
+            label = ("scoped to our clubs" if pred is OURS else
+                     "latest snapshot per season" if pred is LATEST_IN_SEASON else
+                     "newest snapshot only" if pred is NEWEST_ONLY else None)
+            counts.append((name, n, label))
         con.execute("CHECKPOINT out")
         con.execute("DETACH out")
     finally:
@@ -167,6 +220,8 @@ def verify(dest):
         # missing one builds fine and fails in the user's hands.
         latest = con.execute("SELECT max(phase) FROM mart.snapshots").fetchone()[0]
         n = con.execute(f"SELECT count(*) FROM mart.squad_on('{latest}')").fetchone()[0]
+        n_persons = con.execute(
+            f"SELECT count(DISTINCT person_id) FROM mart.squad_on('{latest}')").fetchone()[0]
         if n == 0:
             raise SystemExit(f"mart.squad_on('{latest}') returned 0 players — macro or spell "
                              f"data is wrong; refusing to publish")
@@ -178,9 +233,31 @@ def verify(dest):
                                     WHERE club_tid IN (SELECT club_tid FROM mart.our_clubs))
         """).fetchone()[0]
         clubs = con.execute("SELECT count(DISTINCT club_tid) FROM mart.at_club_spells").fetchone()[0]
-        return latest, n, opp, clubs
     finally:
         con.close()
+
+    # And now the way it is ACTUALLY read. Every doc tells you to ATTACH this file, and under
+    # ATTACH a macro breaks: its body's unqualified `mart.player_spells` resolves against the
+    # caller's catalog, not the attached one, so `m.mart.squad_on(...)` fails with "schema mart
+    # does not exist". The direct-connection check above passes right through that. So test the
+    # documented path too, and assert the parameterless view that exists for exactly this reason
+    # agrees with the macro.
+    con = duckdb.connect()
+    try:
+        con.execute(f"ATTACH '{dest}' AS m (READ_ONLY)")
+        cur = con.execute("SELECT count(*) FROM m.mart.squad_current").fetchone()[0]
+        if cur == 0:
+            raise SystemExit("m.mart.squad_current is empty over ATTACH — refusing to publish")
+        if cur != n_persons:
+            raise SystemExit(f"m.mart.squad_current has {cur} players but squad_on('{latest}') "
+                             f"has {n_persons} distinct — they must agree")
+        con.execute("USE m")            # the documented workaround for the macro
+        if con.execute(f"SELECT count(*) FROM mart.squad_on('{latest}')").fetchone()[0] == 0:
+            raise SystemExit("squad_on is unusable even after USE m — refusing to publish")
+    finally:
+        con.close()
+
+    return latest, n, opp, clubs
 
 
 def main():
@@ -211,8 +288,12 @@ def main():
     dest = a.out or os.path.join(tempfile.gettempdir(), f"fm-{car.key}-mart.duckdb")
     try:
         counts = build(used, dest, scope_ours=not a.all_players)
-        for name, n, scoped in counts:
-            print(f"  mart.{name:32s} {n:>10,} rows{'   [scoped to our clubs]' if scoped else ''}")
+        for name, n, label in counts:
+            if n is None:
+                print(f"  mart.{name:32s} {'—':>10}        [{label}]")
+            else:
+                print(f"  mart.{name:32s} {n:>10,} rows"
+                      f"{f'   [{label}]' if label else ''}")
 
         latest, n_squad, opp, clubs = verify(dest)
         print(f"\n  checks: no raw ability; mart.squad_on('{latest}') -> {n_squad} players; "
@@ -222,6 +303,13 @@ def main():
         full = os.path.getsize(store)
         print(f"\nmart store: {dest} ({size / 1024 / 1024:.1f} MB, "
               f"{100 * size / full:.0f}% of the {full / 1024 / 1024:.0f} MB full store)")
+
+        mb = size / 1024 / 1024
+        if mb > MAX_MB:
+            raise SystemExit(
+                f"\nREFUSING: the artefact is {mb:.1f} MB, over the {MAX_MB} MB ceiling. "
+                f"Something new is materialising far bigger than expected — check SCOPE and "
+                f"UNPUBLISHED in this file before raising the limit.")
 
         if not a.upload:
             print("(not uploaded — pass --upload once rclone + the R2 remote are configured)")

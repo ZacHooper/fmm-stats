@@ -107,21 +107,29 @@ PLAYER_FIELDS = ["tid", "name", "club_tid", "dob", "value", "wage", "expiry",
 
 def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None):
     """Columnar player rows: positional arrays, no repeated keys (that alone is ~40% of the
-    bytes at this row count). `positions` is [[code, familiarity, lvl_league, lvl_nation,
-    lvl_global], ...] — the level percentiles are the sanctioned form of ability, precomputed
-    because the browser can't derive them without the number itself."""
-    cols = ", ".join(f'pa."{a}"' for a in ATTR_ORDER)
+    bytes at this row count). `positions` is [[code, familiarity, lvl_league, lvl_global], ...]
+    — the level percentiles are the sanctioned form of ability, precomputed because the
+    browser can't derive them without the number itself.
+
+    Raw attributes ship deliberately: site/js/data.js computes role ratings client-side from
+    attributes x weights, which is what lets a tactic switch re-rate everyone with no rebuild.
+    mart.player_snapshots therefore carries the 23 attributes wide, and no ability at all."""
+    cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
     where, params = "", [season, phase]
     if club_tids is not None:
-        where = f" AND p.club_tid IN ({','.join('?' * len(club_tids))})"
+        where = f" AND club_tid IN ({','.join('?' * len(club_tids))})"
         params += list(club_tids)
-    df = db.q(f"""SELECT p.tid, p.name, p.club_tid, p.dob, p.player_value, p.wage_gbp,
-                         p.contract_expiry, {cols}
-                  FROM staging.players p
-                  JOIN staging.player_attributes pa USING (season, phase, tid)
-                  WHERE p.season=? AND p.phase=? AND NOT p.is_staff{where}""", params)
-    pos = db.q("SELECT tid, position, familiarity FROM staging.player_positions "
-               "WHERE season=? AND phase=?", [season, phase])
+    df = db.q(f"""SELECT tid, name, club_tid, dob, player_value, wage_gbp,
+                         contract_expiry, {cols}
+                  FROM mart.player_snapshots
+                  WHERE season=? AND phase=? AND has_attributes{where}
+                  -- deterministic order, so a no-op re-export is a no-op. Neither this query
+                  -- nor its staging predecessor had an ORDER BY, and a join's output order is
+                  -- not stable, so this 4 MB array could rewrite itself wholesale. The client
+                  -- keys everything by tid, so the order is ours to choose.
+                  ORDER BY tid""", params)
+    pos = db.q("SELECT tid, position, familiarity FROM mart.player_position_levels "
+               "WHERE season=? AND phase=? ORDER BY tid, position", [season, phase])
     pmap = {}
     for r in pos.itertuples():
         lv = (levels or {}).get((int(r.tid), r.position), (None, None))
@@ -144,17 +152,26 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None):
     return rows
 
 
-def level_map(db, season, phase, method):
-    """{(tid, position): (lvl_league, lvl_global)} from effective_table, which already
-    EXCLUDEs the ability number — so this is the only ability that ever ships, and only as a
-    percentile."""
-    eff = db.effective_table(season, phase, method)
+def level_map(db, season, phase):
+    """{(tid, position): (lvl_league, lvl_global)} — the only ability that ever ships, and
+    only as a percentile.
+
+    NO `method` ARGUMENT, deliberately. This used to read db.effective_table, which joins the
+    27M-row v_player_ratings and takes a method; but the level percentiles are PERCENT_RANK
+    over the ability number, so the ratings only ever shaped row membership — and membership
+    is identical for every method, because v_player_ratings CROSS JOINs every (method, role)
+    onto every player. Verified across 16 snapshots x 7 methods: byte-identical either way.
+    So the old signature offered a knob that could not change the answer, while paying a 27M
+    row scan for it. mart.player_position_levels is the narrow tactic-free form."""
+    lv = db.q("""SELECT tid, position, level_league, level_global
+                 FROM mart.player_position_levels WHERE season=? AND phase=?""",
+              [season, phase])
 
     def pc(v):
         return None if v != v else int(round(float(v)))
 
     return {(int(r.tid), r.position): (pc(r.level_league), pc(r.level_global))
-            for r in eff.itertuples()}
+            for r in lv.itertuples()}
 
 
 def main():
@@ -232,71 +249,82 @@ def main():
         return n
 
     # ---------------------------------------------------------------- reference tables
-    ladder = db.comparison_leagues(season, phase, limit=3)
-    ladder = [(c, n) for c, n in ladder if c is not None]
+    # Everything here comes from mart.* — see fmparser/mart.py. The three queries this
+    # replaced each carried their own copy of the club->league arg_max CTE, and the two in
+    # this file were the wrong copies: no `ord <=` bound, and a sort key built from the raw
+    # `phase` column. mart.club_leagues resolves as-at, once.
+    ladder = [(int(c), n) for c, n in db.q(
+        """SELECT cid, name FROM mart.comparison_ladder
+           WHERE season=? AND phase=? ORDER BY ladder_rank LIMIT 3""",
+        [season, phase]).itertuples(index=False) if c is not None]
     ladder_cids = [c for c, _ in ladder]
 
-    clubs = db.q("""WITH cl AS (
-        SELECT club_tid, arg_max(league_cid, ord) AS league_cid FROM (
-          SELECT club_tid, league_cid,
-                 LPAD(CAST(season AS VARCHAR),4,'0') || phase AS ord
-          FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
-        GROUP BY club_tid)
-        SELECT c.tid, any_value(c.name) AS name, any_value(cl.league_cid) AS league_cid,
-               COUNT(DISTINCT p.tid) AS players
-        FROM staging.clubs c
-        LEFT JOIN cl ON cl.club_tid = c.tid
-        LEFT JOIN staging.players p
-          ON p.tid IS NOT NULL AND p.club_tid = c.tid AND p.season=? AND p.phase=?
-             AND NOT p.is_staff
-        WHERE c.season=? AND c.phase=? GROUP BY c.tid""", [season, phase, season, phase])
-    leagues = db.q("""SELECT cid, any_value(name) AS name, any_value(nation) AS nation,
-                             max(reputation) AS reputation, max(member_count) AS clubs
-                      FROM staging.leagues WHERE season=? AND phase=? AND name IS NOT NULL
-                      GROUP BY cid ORDER BY reputation DESC NULLS LAST""", [season, phase])
-    # Skill index: average player ability per league, normalised 0-100 across ranked leagues.
-    # Immersion-safe in the same way the Level percentile is — a CA-DERIVED INDEX, never the
-    # number. The raw average is computed here and dropped before anything is written, so the
-    # ability itself cannot leave even by accident.
-    skill = db.q("""WITH cl AS (
-        SELECT club_tid, arg_max(league_cid, ord) AS league_cid FROM (
-          SELECT club_tid, league_cid,
-                 LPAD(CAST(season AS VARCHAR),4,'0') || phase AS ord
-          FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
-        GROUP BY club_tid)
-        SELECT cl.league_cid AS cid, AVG(p.ca) AS aca, COUNT(*) AS rated
-        FROM staging.players p JOIN cl ON cl.club_tid = p.club_tid
-        WHERE p.season=? AND p.phase=? AND NOT p.is_staff AND p.ca IS NOT NULL
-        GROUP BY cl.league_cid HAVING COUNT(*) >= 20""", [season, phase])
-    skill_idx = {}
-    if not skill.empty:
-        lo, hi = float(skill["aca"].min()), float(skill["aca"].max())
-        rng = (hi - lo) or 1.0
-        for r in skill.itertuples():
-            skill_idx[int(r.cid)] = (round(100 * (float(r.aca) - lo) / rng, 1), int(r.rated))
-    del skill                                   # the raw averages never reach a payload
+    clubs = db.q("""SELECT club_tid AS tid, name, league_cid, squad_size AS players
+                    FROM mart.clubs WHERE season=? AND phase=?
+                    -- ORDER BY is not cosmetic: without it DuckDB's group-by order varies
+                    -- run to run, so a re-export with identical data rewrote all 4,337 rows
+                    -- of this array and every real diff hid in the churn. The committed JSON
+                    -- is this refactor's regression test, which only works if the export is
+                    -- deterministic.
+                    ORDER BY club_tid""", [season, phase])
+    leagues = db.q("""SELECT cid, name, nation, reputation, member_count AS clubs
+                      FROM mart.leagues WHERE season=? AND phase=? AND name IS NOT NULL
+                      ORDER BY reputation DESC NULLS LAST, cid""", [season, phase])
+    # Division-strength index, straight off mart.leagues. It is the average player ability per
+    # league normalised 0-100 — immersion-safe in the same way the Level percentile is, a
+    # CA-DERIVED INDEX and never the number. This used to be ~20 lines here that computed the
+    # raw averages, normalised them in pandas, and then `del`-ed the frame so the ability
+    # could not leak by accident. The normalisation now happens inside the view, so there is
+    # no raw average in this process to leak in the first place.
+    skill_idx = {int(r.cid): (float(r.skill_idx), int(r.rated)) for r in db.q(
+        """SELECT cid, skill_idx, rated FROM mart.leagues
+           WHERE season=? AND phase=? AND skill_idx IS NOT NULL""",
+        [season, phase]).itertuples()}
 
-    rw = db.q("SELECT method, role, attribute, weight FROM staging.role_weights")
+    rw = db.q("SELECT method, role, attribute, weight FROM mart.role_weights")
     tactics = {}
     for r in rw.itertuples():
         tactics.setdefault(r.method, {}).setdefault(r.role, {})[r.attribute] = int(r.weight)
-    prm = db.q("SELECT position, role FROM staging.position_role_map")
+    prm = db.q("SELECT position, role FROM mart.position_roles")
     curve, floor = db.familiarity_params()
 
     # ---------------------------------------------------------------- our squad extras
-    sq = db.squad(season, phase)
-    elig = db.eligibility_frame(season, phase)
+    # WHO IS OURS, AND WHO IS ONLY BORROWED, comes from the dated spell model rather than the
+    # players.loaned_in flag. That flag is set-only: the save never clears it, so it accumulated
+    # 0 -> 4 -> 7 -> 8 -> 9 across sixteen snapshots and reported nine loanees at a snapshot
+    # where three loans were actually live. mart.squad_on(d) intersects real spells with the
+    # date, so a loan that ended in 2022 cannot come back in 2024. index.json's own caveat list
+    # has warned readers off the flag for a while; this stops shipping it.
+    #
+    # squad_on returns one row per SPELL, so a genuine loanee appears twice (an at_club run and
+    # a loan_in spell). Aggregate to one row per tid before using it as a squad.
+    # `status` keeps its existing meaning — "Loan" is OUT on loan, i.e. away at another club —
+    # so it reads mart.loan_out_spells, while loan-INs stay in the separate `loaned_in` list the
+    # app already treats differently. Both now come from dated spells rather than a flag.
+    sq = db.q("""SELECT s.tid,
+                        any_value(s.name)                        AS name,
+                        max(s.club_tid)                          AS club_tid,
+                        bool_or(s.spell_type = 'loan_in')        AS is_loan_in,
+                        bool_or(o.tid IS NOT NULL)               AS is_loan_out
+                 FROM mart.squad_on(?) s
+                 LEFT JOIN mart.loan_out_spells o
+                        ON o.tid = s.tid
+                       AND CAST(? AS DATE) BETWEEN o.valid_from AND o.valid_to
+                 GROUP BY s.tid ORDER BY s.tid""", [phase, phase])
+    loaned_in = [int(t) for t, f in zip(sq["tid"], sq["is_loan_in"]) if f]
+    reserve_tids = {int(t) for (t,) in
+                    db.q("SELECT club_tid FROM mart.reserve_clubs").itertuples(index=False)}
+    status = {int(t): ("Loan" if out else
+                       "Reserve" if int(c) in reserve_tids else "First team")
+              for t, c, out in zip(sq["tid"], sq["club_tid"], sq["is_loan_out"])}
+
+    elig = db.q("""SELECT tid, origin_club, eligible FROM mart.player_origin
+                   WHERE season=? AND phase=?""", [season, phase])
     origin = dict(zip(elig["tid"], elig["origin_club"])) if not elig.empty else {}
     capital = {int(t) for t, e in zip(elig["tid"], elig["eligible"]) if e} \
         if not elig.empty else set()
-    has_loan = not db.q("SELECT 1 AS ok FROM information_schema.columns WHERE "
-                        "table_schema='staging' AND table_name='players' AND "
-                        "column_name='loaned_in'").empty
-    loaned_in = [int(t) for t in db.q(
-        "SELECT tid FROM staging.players WHERE season=? AND phase=? AND loaned_in",
-        [season, phase])["tid"]] if has_loan else []
 
-    levels = level_map(db, season, phase, method)
+    levels = level_map(db, season, phase)
 
     # ---------------------------------------------------------------- core.json
     keep = set(int(t) for t in clubs.loc[clubs["league_cid"].isin(ladder_cids), "tid"])
@@ -329,7 +357,7 @@ def main():
         "ours": {
             "clubs": [int(t) for t in db.OUR_CLUBS if t],
             "managed_tid": db.MANAGED_CLUB_TID, "reserve_tid": db.RESERVE_CLUB_TID,
-            "status": {str(int(t)): s for t, s in zip(sq["tid"], sq["status"])},
+            "status": {str(int(t)): s for t, s in status.items()},
             "loaned_in": loaned_in,
             # our squad only: eligibility_frame covers the whole snapshot, and shipping all
             # 23,799 origin clubs put 556 KB into a file loaded on every page view
@@ -357,9 +385,8 @@ def main():
     # Attributes at EVERY snapshot, so the app can draw growth under any tactic — the
     # trajectory is the thing Development exists for, and it can't be recovered from one slice.
     ours_tids = sorted({int(t) for t in db.q(
-        f"SELECT DISTINCT tid FROM staging.players WHERE club_tid IN "
-        f"({','.join('?' * len(db.OUR_CLUBS))}) AND NOT is_staff",
-        list(db.OUR_CLUBS))["tid"]})
+        """SELECT DISTINCT tid FROM mart.player_snapshots
+           WHERE club_tid IN (SELECT club_tid FROM mart.our_clubs)""")["tid"]})
     # note: ours_tids is EVER-ours (career history is worth keeping for a player who left);
     # trajectories below use only the CURRENT squad.
     # Every snapshot the player EXISTS in, not only the ones he spent with us. A summer
@@ -370,17 +397,21 @@ def main():
     # Widening to the whole file means crossing tid recycling: a tid retired and reissued to a
     # newgen would splice two different people into one trajectory. keep_current_person drops
     # the slices where this tid belonged to somebody else (a no-op for tids never reused).
-    cur_tids = sorted({int(t) for t in db.squad(season, phase)["tid"]})
-    cols = ", ".join(f'pa."{x}"' for x in ATTR_ORDER)
-    hist = db.q(f"""SELECT pa.season, pa.phase, pa.tid, {cols}
-                    FROM staging.player_attributes pa
-                    WHERE pa.tid IN ({','.join('?' * len(cur_tids))})
-                    ORDER BY pa.season, pa.phase""", cur_tids) if cur_tids else pd.DataFrame()
-    before = len(hist)
-    hist = db.keep_current_person(hist)
-    if len(hist) != before:
-        print(f"  (dropped {before - len(hist)} attribute rows where a tid was a different "
-              f"person — recycling)")
+    # The recycling problem is solved by KEYING ON person_id rather than by filtering after the
+    # fact. keep_current_person used to fetch the slices and drop the rows where this tid
+    # belonged to somebody else; selecting the person's own rows never picks them up in the
+    # first place. Same answer, and it is the mart's rule 3 instead of a pandas pass.
+    cur_tids = sorted({int(t) for t in sq["tid"]})
+    cols = ", ".join(f'"{x}"' for x in ATTR_ORDER)
+    hist = db.q(f"""WITH me AS (
+                        SELECT DISTINCT person_id, tid FROM mart.player_snapshots
+                        WHERE season=? AND phase=? AND tid IN ({','.join('?' * len(cur_tids))}))
+                    SELECT ps.season, ps.phase, me.tid, {cols}
+                    FROM mart.player_snapshots ps
+                    JOIN me ON me.person_id = ps.person_id
+                    WHERE ps.has_attributes
+                    ORDER BY me.tid, ps.season, ps.phase""",
+                 [season, phase, *cur_tids]) if cur_tids else pd.DataFrame()
     traj = {}
     for r in hist.to_dict("records"):
         traj.setdefault(str(int(r["tid"])), []).append(
@@ -388,14 +419,11 @@ def main():
              [None if pd.isna(r[x]) else int(r[x]) for x in ATTR_ORDER]])
     # Career history repeats in every snapshot, so read it from the requested one only —
     # a UNION across snapshots would multiply every season row by 12.
-    careers = db.q(f"""SELECT h.tid, h.end_year, h.club_tid, c.name AS club, h.fee,
-                              h.apps, h.goals, h.assists, h.rating
-                       FROM staging.player_history_seasons h
-                       LEFT JOIN staging.clubs c
-                         ON (c.season, c.phase, c.tid) = (h.season, h.phase, h.club_tid)
-                       WHERE h.season=? AND h.phase=?
-                         AND h.tid IN ({','.join('?' * len(ours_tids))})
-                       ORDER BY h.tid, h.seq""", [season, phase, *ours_tids]) \
+    careers = db.q(f"""SELECT tid, end_year, club_tid, club, fee, apps, goals, assists, rating
+                       FROM mart.player_career_seasons
+                       WHERE season=? AND phase=?
+                         AND tid IN ({','.join('?' * len(ours_tids))})
+                       ORDER BY tid, seq""", [season, phase, *ours_tids]) \
         if ours_tids else pd.DataFrame()
     chist = {}
     for r in (careers.to_dict("records") if not careers.empty else []):
@@ -449,15 +477,23 @@ def main():
                                      if (int(r["tid"]), r["position"], c) in D["best_hosts"]},
                            "read": r["read"], "also": r["also"]}
                            for _, r in D["per_role"][D["per_role"]["role"] == role]
-                           .sort_values("eff", ascending=False).iterrows()]}
+                           .sort_values(["eff", "tid"], ascending=[False, True],
+                                        kind="mergesort").iterrows()]}
                       for role in D["roles_present"]],
             "note": IMMERSION})
 
     # ---------------------------------------------------------------- matches.json
     # Raw-ish: the app computes records, awards, H2H, per-player aggregates and differentials
     # from this. One dataset instead of four pages' worth of precomputed answers.
-    hist_m = db.our_match_history()
-    mps = db.match_stats_rows(db.OUR_CLUBS)
+    # mart.club_matches is every match seen from one club's side, already oriented — venue,
+    # opponent, gf/ga, result, pts and each team stat split into our_/opp_. The Python this
+    # replaces ran a query per season in a loop and then flipped seventeen columns in pandas.
+    hist_m = db.q("""SELECT * FROM mart.club_matches
+                     WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)
+                     ORDER BY season, date, opp_tid""")
+    mps = db.q("""SELECT * FROM mart.match_player_facts
+                  WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND appeared
+                  ORDER BY season, date, tid""")
     mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
                "result", "pts", "formation"]
     if not hist_m.empty:      # dedupe: opp_tid is already in the identity block above
@@ -483,8 +519,7 @@ def main():
         "matches": rowify(hist_m, mfields),
         "player_fields": [f for f in pfields if mps is not None and not mps.empty
                           and f in mps.columns],
-        "player_rows": rowify(mps[mps["appeared"]] if mps is not None and not mps.empty
-                              else mps, pfields),
+        "player_rows": rowify(mps, pfields),
         "note": "Only the managed club's matches are richly parsed, so these are our records. "
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
                 "season runs, so an early game may be absent from a late save."})

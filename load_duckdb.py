@@ -1159,7 +1159,8 @@ def discover_labels(root):
 
 def main():
     ap = argparse.ArgumentParser(description="Load fm-parser extracts into DuckDB")
-    ap.add_argument("path", help="output/<label> dir, or output root with --all")
+    ap.add_argument("path", nargs="?", help="output/<label> dir, or output root with --all; "
+                                            "not needed with --refresh-only")
     ap.add_argument("--db", default="fm.duckdb")
     ap.add_argument("--all", action="store_true",
                     help="load every subdir of PATH containing summary.json")
@@ -1171,12 +1172,31 @@ def main():
                     "Legacy words start/mid/end still accepted.")
     ap.add_argument("--reset", action="store_true",
                     help="drop and recreate the staging schema + views first")
+    ap.add_argument("--refresh-only", action="store_true",
+                    help="rebuild the SQL views + the mart layer against an existing store "
+                         "and load nothing. Both are just definitions, so a change to "
+                         "fmparser/mart.py or VIEWS does not reach a store until something "
+                         "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()
+
+    if args.path is None and not args.refresh_only:
+        ap.error("path is required (or pass --refresh-only to just rebuild views + mart)")
 
     include = [g.strip() for g in args.include.split(",") if g.strip()]
     bad = [g for g in include if g not in GROUPS]
     if bad:
         ap.error(f"unknown group(s): {bad}; choose from {GROUPS}")
+
+    if args.refresh_only:
+        con = duckdb.connect(args.db)
+        try:
+            create_views(con)
+            mart_objects = create_mart(con)
+            print(f"{args.db}: {len(VIEWS)} views + {len(mart_objects)} mart objects rebuilt "
+                  f"(nothing loaded)")
+        finally:
+            con.close()
+        return
 
     dirs = discover_labels(args.path) if args.all else [args.path.rstrip("/")]
     if not dirs:
