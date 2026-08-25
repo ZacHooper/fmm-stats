@@ -774,7 +774,9 @@ JOIN (SELECT season, arg_max(phase, phase_ord(phase)) AS phase
 """
 
 # The whole season review as one table. `apps` counts only matches the player actually
-# appeared in.
+# appeared in. Friendlies are excluded (is_competitive) — a season total is a
+# competitive-season total. `mart.match_player_facts` still has friendlies for anyone who
+# wants them explicitly.
 #
 # GRAIN NOTE, and it is the whole reason this view is shaped the way it is. Two earlier
 # choices each silently deleted real football:
@@ -817,6 +819,7 @@ SELECT
     SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
     SUM(f.dribbles) AS dribbles, SUM(f.mistakes) AS mistakes, SUM(f.yellow) AS yellows
 FROM mart.match_player_facts f
+WHERE f.is_competitive
 GROUP BY f.season, COALESCE(f.person_id, 'tid-' || f.tid), f.team_tid, f.competition
 """
 

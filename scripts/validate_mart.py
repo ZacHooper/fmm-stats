@@ -197,8 +197,10 @@ def main():
           AND ps.team_tid IN (SELECT club_tid FROM mart.our_clubs)
         GROUP BY ps.person_id ORDER BY goals DESC LIMIT 1
     """).fetchone()
-    check("2024 golden boot = Adam Jakobsen, 34", top[0] == "Adam Jakobsen" and top[1] == 34,
-          f"got {top}")
+    # 30, not 34 — mart.player_seasons now excludes friendlies (is_competitive), and
+    # Jakobsen scored 4 of his 34 total goals in friendlies in 2024.
+    check("2024 golden boot = Adam Jakobsen, 30 (competitive only)",
+          top[0] == "Adam Jakobsen" and top[1] == 30, f"got {top}")
 
     # -- 5b. first team vs reserves ---------------------------------------------------
     # our_clubs holds both sides. Filtering results on it folds the reserve fixtures into
@@ -355,6 +357,8 @@ def main():
     # were deleted, taking 25 of our 2024 goals (22% of the season) with them. It also
     # any_value()'d team_tid while callers filtered on it. Assert exact parity against the
     # fact table, for EVERY season: any future regression of either kind shows up here.
+    # Both sides filter to competitive matches — player_seasons excludes friendlies now, so
+    # the fact-table side has to match that scope or every season would show phantom drift.
     drift = con.execute("""
         WITH ps AS (
             SELECT season, SUM(apps) AS apps, SUM(goals) AS goals
@@ -364,13 +368,13 @@ def main():
         f AS (
             SELECT season, COUNT(*) FILTER (WHERE appeared) AS apps, SUM(goals) AS goals
             FROM mart.match_player_facts
-            WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs)
+            WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND is_competitive
             GROUP BY season)
         SELECT f.season, f.apps, ps.apps, f.goals, ps.goals
         FROM f LEFT JOIN ps USING (season)
         WHERE f.apps IS DISTINCT FROM ps.apps OR f.goals IS DISTINCT FROM ps.goals
     """).fetchall()
-    check("player_seasons reproduces match_player_facts exactly, every season",
+    check("player_seasons reproduces match_player_facts exactly, every season (competitive)",
           not drift, f"{len(drift)} season(s) drift: {drift}" if drift else "0 drift")
 
     # squad_on had a ghost and a hole at once, which is why the HEADCOUNT looked right:
