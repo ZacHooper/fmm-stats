@@ -108,7 +108,7 @@ def build(season, phase, method, min_fam=DEFAULT_MIN_FAM, excl_loanees=True, slo
     """
     slots = dict(DEFAULT_SLOTS if slots is None else slots)
 
-    ladder = db.comparison_leagues(season, phase, limit=3)
+    ladder = db.comparison_leagues(season, phase, limit=4)
     if not ladder or ladder[0][0] is None:
         return {"error": "No club→league membership for this snapshot, so there's nothing to "
                          "rank against. Ability ranks need each club's division."}
