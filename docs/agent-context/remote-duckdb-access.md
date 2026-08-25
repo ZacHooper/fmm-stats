@@ -45,23 +45,75 @@ Two are published, and for ANALYSIS you almost always want the smaller one:
 
 | object | size | holds | use it when |
 |---|---:|---|---|
-| `site-data/fm-frem-mart.duckdb` | **~11 MB** | the `mart` schema only, as real tables | analysing the career — squads, growth, spells, match facts |
-| `site-data/fm-frem.duckdb` | **~34 MB** | full `staging` (+ `mart` views) | you need raw staging, or a table the mart doesn't cover (e.g. world-wide current attributes for recruitment) |
+| `site-data/fm-frem-mart.duckdb` | **~24 MB** | the `mart` schema only, as real tables | analysing the career — squads, growth, spells, match facts, clubs, leagues, current attributes |
+| `site-data/fm-frem.duckdb` | **~34 MB** | full `staging` (+ `mart` views) | you need raw staging, or per-snapshot history for a player who was never ours |
 
 `mart` bakes in the four correctness rules (latest-phase-per-season, snapshot-scoped joins,
 `person_id`-not-`tid`, 255-sentinel minutes) that raw `staging` makes you re-derive — so the
 slim object is both smaller AND harder to get wrong. Prefer it.
 
-Two things about the mart object specifically. Its **growth family is scoped to our clubs**
-(`player_attribute_growth` is 21,321 rows there vs 8.88M world-wide — materialising it
-unscoped costs 108 MB, more than the whole store); opponent data is NOT scoped, so
-`match_player_facts` keeps all opponent appearances and `at_club_spells` all ~3,330 clubs. And
-`mart.squad_on(d)` is a **parameterised table macro**, re-declared inside the object because
-macros live in `main` and do not resolve across an `ATTACH`.
+Since the 2026-08-25 site refactor the mart is also what generates the web app, so it covers
+the dimensions too: `mart.clubs`, `mart.leagues` (with `skill_idx`, the division-strength
+index), `mart.club_leagues` (club->league **as at** a snapshot), `mart.comparison_ladder`,
+`mart.player_snapshots` (bio, contract and the 23 attributes wide), `mart.player_position_levels`
+(the Level percentiles), `mart.player_career_seasons`, `mart.player_origin`, `mart.club_matches`
+(every match already oriented per club: venue, opponent, gf/ga, result, pts, our_/opp_ stats),
+and `mart.role_weights` / `mart.position_roles` / `mart.app_config` so a role rating is
+computable from the artefact alone.
 
-When reading `player_attribute_growth`, filter `is_gk_attr` — attributes a player's role does
-not use only jitter, so a bare `ORDER BY delta DESC` surfaces outfielders drifting on keeper
-attributes. Join `mart.player_growth` for `is_gk` and drop `is_gk_attr AND NOT is_gk`.
+#### Scoping — what is and is not in the published copy
+
+| family | scope | why |
+|---|---|---|
+| growth (`player_growth*`, `player_attribute_growth`) | our clubs only | unscoped, `player_attribute_growth` alone is 8.88M rows / 108 MB — bigger than the store |
+| `player_snapshots`, `player_position_levels`, `player_origin`, `player_career_seasons` | **newest snapshot only** | world-wide dimensions; at every snapshot they were 17 MB of the artefact. Our players' history is the growth family; for anyone else the question is "how good is he now" |
+| `match_player_facts`, `at_club_spells`, `player_spells`, `club_matches`, `matches` | **not scoped** | opposition analysis is a first-class use — all opponent appearances and all ~3,330 clubs are kept |
+| `player_role_ratings`, `player_position_fit` | **absent** | 27M and 9.4M rows, the method-dependent rating layer. Views in the local store only; they need the ability number, which the published copy does not have |
+
+`scripts/publish_mart.py` refuses to upload anything over 40 MB, so a new object that
+materialises far bigger than expected fails loudly instead of quietly shipping.
+
+#### The macro gotcha, and the view that avoids it
+
+`mart.squad_on(d)` is a **parameterised table macro**, and a macro's body resolves unqualified
+names against the CURRENT catalog. So over an `ATTACH` it fails:
+
+```sql
+SELECT * FROM m.mart.squad_on('2024-06-30');
+-- Catalog Error: Table with name "mart.player_spells" does not exist
+```
+
+Two ways round it:
+
+```sql
+USE m;  SELECT * FROM mart.squad_on('2024-06-30');   -- any date
+SELECT * FROM m.mart.squad_current;                   -- the newest snapshot, no USE needed
+```
+
+`mart.squad_current` is a plain view for exactly this reason, and it is **one row per person**
+(`squad_on` returns one per spell, so a borrowed player appears twice — once `at_club`, once
+`loan_in`). It carries `is_loan_in` and `is_reserve`.
+
+#### Reading attribute growth
+
+Filter `is_gk_attr` — attributes a player's role does not use only jitter, so a bare
+`ORDER BY delta DESC` surfaces outfielders drifting on keeper attributes. Join
+`mart.player_growth` for `is_gk` and drop `is_gk_attr AND NOT is_gk`:
+
+```sql
+SELECT g.name, g.attribute, g.delta
+FROM m.mart.player_attribute_growth g
+JOIN m.mart.player_growth pg USING (person_id, season, phase)
+WHERE NOT (g.is_gk_attr AND NOT pg.is_gk) AND g.delta IS NOT NULL
+ORDER BY g.delta DESC;
+```
+
+> **This filter did not work before 2026-08-25.** `is_gk_attr` was rendered from a constant
+> holding all 23 attributes rather than the 5 keeper ones, so it was TRUE for every row and the
+> filter above discarded every outfielder instead of the keeper-attribute noise. Against an
+> older artefact, check with
+> `SELECT COUNT(DISTINCT attribute) FROM mart.player_attribute_growth WHERE is_gk_attr` — it
+> must be 5, not 23.
 
 **Both objects are stale until explicitly republished.** `load_duckdb.py` writes the LOCAL
 store only; `scripts/publish_duckdb.py --upload` and `scripts/publish_mart.py --upload` are
