@@ -113,9 +113,15 @@ Turn wifi **off** — that's the actual test.
 
 ```bash
 uv run python scripts/export_data.py --upload-all
-uv run python scripts/publish_duckdb.py --career frem --upload   # for SQL access — see below
+uv run python scripts/publish_duckdb.py --career frem --upload   # full copy, ~34 MB — see below
+uv run python scripts/publish_mart.py   --career frem --upload   # slim analysis copy, ~11 MB
 git add site docs && git commit -m "site: <snapshot>" && git push
 ```
+
+**Neither R2 database is refreshed by an import.** `load_duckdb.py` writes the LOCAL store
+only; the two `publish_*` scripts are separate objects in R2 and separate commands — running
+one does not update the other. Skip them and a remote agent's `ATTACH` silently reads the
+previous snapshot, which looks like a working query returning stale answers.
 
 `--upload-all` pushes the every-player file to R2; drop it to skip (the app then falls back to
 whatever is already in the bucket). `--skip-all` skips generating it entirely for fast iteration.

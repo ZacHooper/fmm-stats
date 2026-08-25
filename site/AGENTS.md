@@ -135,9 +135,29 @@ INSTALL httpfs; LOAD httpfs;
 CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
                    ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
                    URL_STYLE 'path', REGION 'auto');
-ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
-SELECT * FROM fm.staging.players LIMIT 5;
+ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);
+SELECT * FROM m.mart.player_growth_season WHERE season = 2024 ORDER BY growth DESC;
 ```
+
+**Attach the mart object (~11 MB), not the full store (~34 MB), unless you need raw
+`staging`.** `site-data/fm-frem-mart.duckdb` holds the `mart` schema as real tables, with the
+four correctness rules already applied — latest-phase-per-season (match stats are a ring
+buffer; summing across phases double-counts), snapshot-scoped joins (`staging.players` is one
+row per SNAPSHOT), `person_id` not `tid` (FM recycles retired slots), and the 255-sentinel
+minutes arithmetic. Querying raw `staging` means re-deriving all four correctly yourself.
+
+Reach for the full store — `ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm` — only
+when the mart genuinely doesn't cover it, the usual case being world-wide current attributes
+for recruitment (`fm.staging.players`). It carries the `mart` views too.
+
+In the mart object the **growth family is scoped to our clubs** (first team + reserves), since
+`player_attribute_growth` unscoped is 8.88M rows / 108 MB and ours are 0.24% of it. Opponent
+data is NOT scoped: `mart.match_player_facts` keeps every opponent appearance and
+`mart.at_club_spells` all ~3,330 clubs, so opposition analysis works. Player names come from
+the spell tables — `match_player_facts` is keyed by `person_id`, so join
+`mart.at_club_spells USING (person_id)` for a name.
+
+`mart.squad_on('YYYY-MM-DD')` is a table macro — call it, don't select from it.
 
 Use `TYPE s3` with an explicit `ENDPOINT`, not the `TYPE r2`/`ACCOUNT_ID` shorthand — in
 testing, the shorthand silently fell through to public AWS S3 instead of R2 from a

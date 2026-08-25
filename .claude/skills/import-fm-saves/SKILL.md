@@ -145,9 +145,12 @@ check against a screenshot.
    ```bash
    uv run python scripts/export_manifest.py                          # refresh the rebuild recipe
    uv run python scripts/export_data.py --upload-all                 # -> site/api/*.json + R2 all.json
-   uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2, scrubbed, for SQL access
-   # publish_duckdb ships the `mart` schema too, so a remote agent's ATTACH gets the
-   # deduped views. Skip it and remote SQL silently falls back to raw `staging`.
+   uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2 full copy, scrubbed (~34 MB)
+   uv run python scripts/publish_mart.py   --career frem --upload    # -> R2 slim analysis copy (~11 MB)
+   # BOTH R2 copies are needed: publish_duckdb ships `staging` (+ the `mart` schema) for
+   # re-derivation, publish_mart ships the mart alone for analysis. They are SEPARATE
+   # objects — running one does not refresh the other, and neither is written by
+   # load_duckdb.py, so an import leaves both stale until these run.
    git add site docs seeds && git commit -m "site: <snapshot>" && git push   # Pages deploys on push
    ```
 

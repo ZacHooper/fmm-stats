@@ -39,11 +39,40 @@ ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
 SELECT * FROM fm.staging.players LIMIT 5;
 ```
 
+### Which object to ATTACH (updated 2026-08-25)
+
+Two are published, and for ANALYSIS you almost always want the smaller one:
+
+| object | size | holds | use it when |
+|---|---:|---|---|
+| `site-data/fm-frem-mart.duckdb` | **~11 MB** | the `mart` schema only, as real tables | analysing the career — squads, growth, spells, match facts |
+| `site-data/fm-frem.duckdb` | **~34 MB** | full `staging` (+ `mart` views) | you need raw staging, or a table the mart doesn't cover (e.g. world-wide current attributes for recruitment) |
+
+`mart` bakes in the four correctness rules (latest-phase-per-season, snapshot-scoped joins,
+`person_id`-not-`tid`, 255-sentinel minutes) that raw `staging` makes you re-derive — so the
+slim object is both smaller AND harder to get wrong. Prefer it.
+
+Two things about the mart object specifically. Its **growth family is scoped to our clubs**
+(`player_attribute_growth` is 21,321 rows there vs 8.88M world-wide — materialising it
+unscoped costs 108 MB, more than the whole store); opponent data is NOT scoped, so
+`match_player_facts` keeps all opponent appearances and `at_club_spells` all ~3,330 clubs. And
+`mart.squad_on(d)` is a **parameterised table macro**, re-declared inside the object because
+macros live in `main` and do not resolve across an `ATTACH`.
+
+When reading `player_attribute_growth`, filter `is_gk_attr` — attributes a player's role does
+not use only jitter, so a bare `ORDER BY delta DESC` surfaces outfielders drifting on keeper
+attributes. Join `mart.player_growth` for `is_gk` and drop `is_gk_attr AND NOT is_gk`.
+
+**Both objects are stale until explicitly republished.** `load_duckdb.py` writes the LOCAL
+store only; `scripts/publish_duckdb.py --upload` and `scripts/publish_mart.py --upload` are
+separate steps, and running one does not refresh the other. See the import skill's checklist.
+
 `worker/index.js`'s `/api/db` route and its `CAREER_RE` constant were removed since nothing
 serves this way anymore. `export_data.py`'s `index.json["files"]["database"]` now points at the
 `s3://` key instead of the Worker URL.
 
-**Data size was never the constraint** — the scrubbed store is ~90 MB, comfortably small for
+**Data size was never the constraint** — the scrubbed store was ~90 MB then (~34 MB now that
+`publish_duckdb.py` run-length-encodes it, ~11 MB for the mart-only object), comfortably small for
 almost any storage backend. A pivot to Postgres/Supabase was considered and rejected: it would
 mean rewriting the loader, `dashboard/*.py`, and `fmq.py` (all speak DuckDB SQL directly today)
 plus ongoing hosting, to fix what was actually just a network-allowlist gap.

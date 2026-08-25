@@ -248,9 +248,12 @@ row per snapshot, not per player) that make a naive query silently wrong by 10-2
 
 Interrupted mid-flow by the infrastructure work; the user may want to resume it.
 
-**Situation:** 2023/24 pre-season, snapshot `2024 / 2023-07-02`. Frem were promoted twice and are
-now in the **NordicBet Liga (1. Division, tier 2)** — so the squad was built to win the 4th tier
-and most of it is below the level. Tactic is **`frem_attacking_ss`** (strikerless SS), the
+**Situation:** newest parsed snapshot is `2024 / 2023-07-02` (2023/24 pre-season), but the user has
+since reported (2026-08-24, not yet parsed) that Frem **won promotion again** at the end of 23/24
+and are now in the **3F Superliga (tier 1)** for 2024/25 — a third straight promotion (3. Division →
+2. Division → NordicBet Liga → Superliga). The squad was built to win the 4th tier and most of it is
+two tiers below the level; expect the gap to widen sharply, and re-verify Frem's `club_league` cid
+(should be **2**) as soon as a 24/25 save is imported. Tactic is **`frem_attacking_ss`** (strikerless SS), the
 dashboard default.
 
 **Delivered:** a new **Positions page** (`dashboard/pages/13_Positions.py`) — depth chart per role

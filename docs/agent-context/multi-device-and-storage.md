@@ -133,7 +133,9 @@ the recipe is faithful. But two anchors I'd written down were measuring the wron
   "30,337 players" one — came from a query missing `AND NOT is_staff`. 23,800 players + 6,537
   staff = 30,337; 46 + 8 staff = 54.
 
-Anchors that hold as written: Frem's league = 3 (NordicBet Liga); Jakobsen **11/70** at ST in that
+Anchors that hold as written: Frem's league = 3 (NordicBet Liga) **at the 2023-07-02 snapshot —
+promoted to the Superliga (cid 2) for 2024/25, so re-check this against the newest phase rather
+than assuming 3**; Jakobsen **11/70** at ST in that
 division at familiarity ≥15; Pingel **9/9** at DMC in Brabrand's squad with no familiarity floor.
 
 ### Full 12-snapshot drill result (2026-08-20)
