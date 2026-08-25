@@ -17,6 +17,11 @@ Checks, in order:
   4. Arrival windows — the three known winter arrivals must read winter, everyone else
      summer.
   5. Season totals — mart.player_seasons must reproduce the 2024 review numbers.
+  6. Growth — totals, comparability flags, and the tenure/season rollups.
+  7. Regression guards — the four bugs found in the 2026-08 site-refactor audit, each of
+     which returned plausible-looking numbers while silently deleting real football.
+  8. Site-facing objects — grain, percentile range, the as-at club->league pin, match
+     mirroring, and a structural immersion check over information_schema.
 """
 from __future__ import annotations
 
@@ -351,6 +356,179 @@ def main():
           AND s.growth >= 0
     """).fetchone()[0]
     check("season rollup agrees with per-snapshot totals", agree == 0, f"{agree} disagreements")
+
+    # -- 7. regression guards for the bugs found in the 2026-08 site-refactor audit ----
+    # Each of these shipped once. They are cheap to assert and expensive to rediscover:
+    # every one of them looked like a working query returning plausible numbers.
+    print("\n7. regression guards")
+
+    # is_gk_attr once rendered from GK_ATTRS (all 23) instead of GK_BLOCK (the 5 keeper
+    # attributes), so the predicate was universally true and the filter we DOCUMENT for
+    # agents — NOT (is_gk_attr AND NOT is_gk) — silently discarded every outfielder.
+    gk = con.execute("""
+        SELECT COUNT(DISTINCT attribute) FILTER (WHERE is_gk_attr),
+               COUNT(DISTINCT attribute) FILTER (WHERE NOT is_gk_attr)
+        FROM mart.player_attribute_growth
+    """).fetchone()
+    check("is_gk_attr marks exactly the 5 keeper attributes", gk == (5, 18),
+          f"{gk[0]} gk / {gk[1]} outfield")
+    kept = con.execute("""
+        SELECT COUNT(*) FROM mart.player_attribute_growth g
+        JOIN mart.player_growth pg USING (person_id, season, phase)
+        WHERE NOT (g.is_gk_attr AND NOT pg.is_gk) AND pg.is_gk = 0
+    """).fetchone()[0]
+    check("the documented is_gk_attr filter keeps outfielder rows", kept > 0,
+          f"{kept} outfielder rows survive the filter")
+
+    # player_seasons dropped rows with a NULL person_id, and person_slices only covers tids
+    # that appear in staging.players — so 42 of OUR tids with match rows but no roster row
+    # were deleted, taking 25 of our 2024 goals (22% of the season) with them. It also
+    # any_value()'d team_tid while callers filtered on it. Assert exact parity against the
+    # fact table, for EVERY season: any future regression of either kind shows up here.
+    # Both sides filter to competitive matches — player_seasons excludes friendlies now, so
+    # the fact-table side has to match that scope or every season would show phantom drift.
+    drift = con.execute("""
+        WITH ps AS (
+            SELECT season, SUM(apps) AS apps, SUM(goals) AS goals
+            FROM mart.player_seasons
+            WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs)
+            GROUP BY season),
+        f AS (
+            SELECT season, COUNT(*) FILTER (WHERE appeared) AS apps, SUM(goals) AS goals
+            FROM mart.match_player_facts
+            WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND is_competitive
+            GROUP BY season)
+        SELECT f.season, f.apps, ps.apps, f.goals, ps.goals
+        FROM f LEFT JOIN ps USING (season)
+        WHERE f.apps IS DISTINCT FROM ps.apps OR f.goals IS DISTINCT FROM ps.goals
+    """).fetchall()
+    check("player_seasons reproduces match_player_facts exactly, every season (competitive)",
+          not drift, f"{len(drift)} season(s) drift: {drift}" if drift else "0 drift")
+
+    # squad_on had a ghost and a hole at once, which is why the HEADCOUNT looked right:
+    #   ghost — club_runs filters NOT is_staff, so a player who retires into the coaching
+    #           staff stops producing runs, LEAD() is NULL, and his spell never closes.
+    #   hole  — a run first seen in late June belongs to the NEXT season, so the inferred
+    #           season_start landed one day AFTER the snapshot that observed him.
+    # Compare the SETS, not the counts.
+    season, phase = con.execute("""
+        SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1
+    """).fetchone()
+    sym = con.execute(f"""
+        WITH roster AS (
+            SELECT tid FROM {src}.players
+            WHERE season = ? AND phase = ? AND NOT is_staff
+              AND club_tid IN (SELECT club_tid FROM mart.our_clubs)),
+        spells AS (SELECT DISTINCT tid FROM mart.squad_on(?))
+        SELECT
+            (SELECT COUNT(*) FROM spells WHERE tid NOT IN (SELECT tid FROM roster)),
+            (SELECT COUNT(*) FROM roster WHERE tid NOT IN (SELECT tid FROM spells))
+    """, [season, phase, phase]).fetchone()
+    check(f"squad_on('{phase}') matches the roster set exactly", sym == (0, 0),
+          f"{sym[0]} ghost(s), {sym[1]} missing")
+
+    # A spell may only claim valid_to IS NULL — "still here" — if the newest snapshot really
+    # does still show him there. Stated against the roster rather than against club_runs.to_ix
+    # on purpose: a player can have several runs at one club (left and came back), so joining
+    # spells to runs on (tid, person_id, club_tid) fans out and matches an earlier run's end
+    # against a later run's open spell. The roster is unambiguous.
+    stale = con.execute(f"""
+        SELECT COUNT(*) FROM mart.at_club_spells s
+        WHERE s.valid_to IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM {src}.players p, mart.snapshots n
+              WHERE n.snap_ix = (SELECT MAX(snap_ix) FROM mart.snapshots)
+                AND (p.season, p.phase) = (n.season, n.phase)
+                AND p.tid = s.tid AND p.club_tid = s.club_tid AND NOT p.is_staff)
+    """).fetchone()[0]
+    check("every open-ended spell is still on the newest snapshot's roster",
+          stale == 0, f"{stale} stale-open spell(s)")
+
+    # -- 8. the dimension / level / match objects the site is built on -----------------
+    # These replaced hand-rolled SQL in scripts/export_data.py and dashboard/db.py. Each was
+    # verified row-for-row against the code it replaced at the time (see the commit), but that
+    # code is gone now, so what is asserted here are the invariants that survive it.
+    print("\n8. site-facing objects")
+
+    # Grain. A duplicate here silently multiplies whatever joins to it.
+    for obj, key in [("club_leagues", "season, phase, club_tid"),
+                     ("clubs", "season, phase, club_tid"),
+                     ("leagues", "season, phase, cid"),
+                     ("player_snapshots", "season, phase, tid"),
+                     ("player_position_levels", "season, phase, tid, position"),
+                     ("player_origin", "season, phase, tid"),
+                     ("club_matches", "season, phase, anchor, club_tid")]:
+        dup = con.execute(f"""
+            SELECT COUNT(*) FROM (SELECT {key} FROM mart.{obj}
+                                  GROUP BY {key} HAVING COUNT(*) > 1)
+        """).fetchone()[0]
+        check(f"mart.{obj} is unique on ({key})", dup == 0, f"{dup} duplicate key(s)")
+
+    # THE as-at regression pin. Two of the five club->league CTEs this object replaced left
+    # off the `ord <=` bound, so every historical snapshot resolved a club to the division it
+    # ENDED UP in. Frem climbed 3.Division -> 2.Division -> NordicBet -> Superliga across this
+    # store, so if the bound is ever dropped again our own league stops varying by season.
+    ladder = con.execute("""
+        SELECT DISTINCT s.season, cl.league_cid
+        FROM mart.club_leagues cl JOIN mart.snapshots s USING (season, phase)
+        WHERE cl.club_tid IN (SELECT club_tid FROM mart.managed_club)
+        ORDER BY s.season
+    """).fetchall()
+    cids = [c for _s, c in ladder]
+    check("our own division is resolved AS AT each snapshot, not store-wide",
+          len(set(cids)) > 1, f"{len(set(cids))} distinct division(s) across seasons: {ladder}")
+
+    # Levels are percentiles, so they must be in range and total. A NULL here means a player
+    # with no ability got ranked; a value outside [0,100] means the window is wrong.
+    bad = con.execute("""
+        SELECT COUNT(*) FROM mart.player_position_levels
+        WHERE level_global IS NULL OR level_global NOT BETWEEN 0 AND 100
+           OR level_league IS NULL OR level_league NOT BETWEEN 0 AND 100
+    """).fetchone()[0]
+    check("every level_* percentile is present and in [0, 100]", bad == 0, f"{bad} bad row(s)")
+
+    # IMMERSION, enforced structurally rather than by remembering to write EXCLUDE (ca).
+    leak = con.execute("""
+        SELECT list(table_name || '.' || column_name)
+        FROM information_schema.columns
+        WHERE table_schema = 'mart'
+          AND LOWER(column_name) IN ('ca','pa','aca','current_ability','potential_ability')
+    """).fetchone()[0]
+    check("no raw-ability column anywhere in the mart", not leak, str(leak))
+
+    # club_matches is mart.matches seen from each side; the two views of one match must mirror.
+    mirror = con.execute("""
+        SELECT COUNT(*) FROM mart.club_matches a
+        JOIN mart.club_matches b USING (season, phase, anchor)
+        WHERE a.club_tid < b.club_tid
+          AND (a.gf IS DISTINCT FROM b.ga OR a.ga IS DISTINCT FROM b.gf
+               OR a.venue = b.venue
+               OR a.opp_tid IS DISTINCT FROM b.club_tid)
+    """).fetchone()[0]
+    check("club_matches mirrors correctly between the two sides of a match",
+          mirror == 0, f"{mirror} inconsistent pair(s)")
+    pts = con.execute("""
+        SELECT COUNT(*) FROM mart.club_matches
+        WHERE pts IS DISTINCT FROM CASE result WHEN 'W' THEN 3 WHEN 'D' THEN 1 ELSE 0 END
+           OR result IS DISTINCT FROM CASE WHEN gf > ga THEN 'W'
+                                           WHEN gf = ga THEN 'D' ELSE 'L' END
+    """).fetchone()[0]
+    check("club_matches result/pts agree with the score", pts == 0, f"{pts} bad row(s)")
+
+    # The fit layer is method-dependent and the level layer is not; they must still cover the
+    # same (tid, position) set, or the join that rebuilds effective_table loses rows.
+    S, P = con.execute("""SELECT season, phase FROM mart.snapshots
+                          ORDER BY snap_ix DESC LIMIT 1""").fetchone()
+    lv = con.execute("SELECT COUNT(*) FROM mart.player_position_levels "
+                     "WHERE season=? AND phase=?", [S, P]).fetchone()[0]
+    holes = []
+    for (m,) in con.execute(f"SELECT DISTINCT method FROM {src}.role_weights ORDER BY 1").fetchall():
+        n = con.execute("""SELECT COUNT(*) FROM mart.player_position_fit
+                           WHERE season=? AND phase=? AND method=?""", [S, P, m]).fetchone()[0]
+        if n != lv:
+            holes.append((m, n))
+    check(f"player_position_fit covers the level set for every method ({lv} rows)",
+          not holes, f"{holes}" if holes else "all methods agree")
 
     print()
     if FAILURES:

@@ -15,9 +15,8 @@ import { playerTable, metricColumns } from "../table.js";
 import { el, bar, num, money, monthYear, pill, toast, DASH, debounce } from "../ui.js";
 import { openProfile, openCompare } from "../profile.js";
 
-const TOKEN_KEY = "fm_shortlist_token";
 const API = "/api/shortlist";
-const tok = () => localStorage.getItem(TOKEN_KEY) || "";
+const tok = () => localStorage.getItem(D.SHORTLIST_TOKEN_KEY) || "";
 
 export async function view() {
   await D.loadMatches();
@@ -146,8 +145,8 @@ function tokenCard(after) {
         text: "Save on this device",
         onclick: () => {
           const v = input.value.trim();
-          if (!v) { localStorage.removeItem(TOKEN_KEY); return toast("Token cleared", true); }
-          localStorage.setItem(TOKEN_KEY, v);
+          if (!v) { localStorage.removeItem(D.SHORTLIST_TOKEN_KEY); return toast("Token cleared", true); }
+          localStorage.setItem(D.SHORTLIST_TOKEN_KEY, v);
           input.value = "";
           toast("Token saved on this device");
           after?.();

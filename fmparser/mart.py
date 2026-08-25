@@ -88,6 +88,11 @@ GK_ONLY_ATTRS = ["Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
 OUTFIELD_ONLY_ATTRS = ["Crossing", "Dribbling", "Shooting", "Tackling", "Movement"]
 
 OUTFIELD_ATTRS = [a for a in ATTR_ORDER if a not in GK_ONLY_ATTRS]
+# NOT "the keeper attributes" — this is the keeper's TOTAL, which is all 23 (the manager's
+# call: a keeper's outfield attributes still count toward his quality). Use it only for
+# summing attr_total. If you want the five attributes only a keeper uses, that is GK_BLOCK
+# below; reaching for GK_ATTRS there makes the predicate universally true, which is exactly
+# the bug is_gk_attr shipped with.
 GK_ATTRS = list(ATTR_ORDER)
 
 # Kept for callers that want the raw blocks rather than the role-aware total.
@@ -218,6 +223,510 @@ SELECT club_tid FROM mart.our_clubs
 WHERE club_tid NOT IN (SELECT club_tid FROM mart.managed_club)
 """
 
+# --- reference tables -------------------------------------------------------------
+#
+# These three are near-passthroughs, which normally would not earn a place here — the mart
+# exists for the four snapshot-shape rules, and these tables are global, not snapshot-scoped,
+# so there is no rule to apply. They are included for a functional reason instead: a rating is
+# SUM(attribute x weight), so without the weight table and the position->role map the
+# published artifact cannot answer "how good is he in this role" at all, and the familiarity
+# curve is needed to discount it. scripts/publish_mart.py materialises mart.* and nothing else,
+# so anything the artifact must be able to compute has to be reachable from this schema.
+ROLE_WEIGHTS = """
+CREATE OR REPLACE VIEW mart.role_weights AS
+SELECT method, role, attribute, weight FROM {S}.role_weights
+"""
+
+POSITION_ROLES = """
+CREATE OR REPLACE VIEW mart.position_roles AS
+SELECT position, role FROM {S}.position_role_map
+"""
+
+APP_CONFIG = """
+CREATE OR REPLACE VIEW mart.app_config AS
+SELECT key, value FROM {S}.app_config
+"""
+
+
+# --- dimensions -------------------------------------------------------------------
+
+# Club -> league, AS AT each snapshot. This one object replaces FIVE hand-rolled copies of
+# the same arg_max CTE (dashboard/db.py had three, scripts/export_data.py two), and two of
+# those copies were wrong in the same two ways: they built the sort key from the raw `phase`
+# column instead of phase_ord() — so a legacy start/mid/end store sorted 'mid' after 'end' —
+# and they left off the `ord <= snapshot` bound, which resolves a club to whatever division
+# it ended up in rather than the one it was in at the time. Harmless when exporting the
+# newest snapshot, silently wrong for any older one, and Frem climbed three divisions in
+# three seasons, so it is exactly the kind of wrong that reads as plausible.
+#
+# `nation` is resolved by cid across ALL snapshots, not per-snapshot, deliberately matching
+# the existing `lgn` CTE — a league's country does not change, and per-snapshot resolution
+# would drop it for any snapshot where the row happens to carry NULL.
+CLUB_LEAGUES = """
+CREATE OR REPLACE VIEW mart.club_leagues AS
+WITH lm AS (
+    SELECT club_tid, league_cid,
+           LPAD(CAST(season AS VARCHAR), 4, '0') || phase_ord(phase) AS ord
+    FROM {S}.league_members
+    WHERE source = 'club_league' AND league_cid IS NOT NULL
+),
+asat AS (
+    SELECT s.season, s.phase, s.snap_ix, lm.club_tid,
+           arg_max(lm.league_cid, lm.ord) AS league_cid
+    FROM mart.snapshots s
+    JOIN lm ON lm.ord <= LPAD(CAST(s.season AS VARCHAR), 4, '0') || s.phase_ord
+    GROUP BY s.season, s.phase, s.snap_ix, lm.club_tid
+),
+lg AS (
+    SELECT season, phase, cid, any_value(name) AS league_name,
+           max(reputation) AS league_reputation, max(type) AS league_type
+    FROM {S}.leagues GROUP BY season, phase, cid
+),
+nat AS (
+    SELECT cid, any_value(nation) AS nation
+    FROM {S}.leagues WHERE nation IS NOT NULL GROUP BY cid
+)
+SELECT a.season, a.phase, a.snap_ix, a.club_tid, a.league_cid,
+       lg.league_name, nat.nation, lg.league_reputation, lg.league_type
+FROM asat a
+LEFT JOIN lg  ON (lg.season, lg.phase, lg.cid) = (a.season, a.phase, a.league_cid)
+LEFT JOIN nat ON nat.cid = a.league_cid
+"""
+
+# The club dimension. squad_size counts the clubs whose squads actually parsed, which is why
+# it is here rather than left to each caller: a club with zero players is a club we could not
+# scrape, not a club with no players, and the site reports that count separately. Keep the
+# zero rows.
+CLUBS = """
+CREATE OR REPLACE VIEW mart.clubs AS
+SELECT
+    c.season, c.phase, c.tid AS club_tid,
+    any_value(c.name)                       AS name,
+    any_value(cl.league_cid)                AS league_cid,
+    any_value(cl.league_name)               AS league_name,
+    any_value(cl.nation)                    AS nation,
+    any_value(cl.league_reputation)         AS league_reputation,
+    COUNT(DISTINCT p.tid)                   AS squad_size,
+    c.tid IN (SELECT club_tid FROM mart.our_clubs)     AS is_ours,
+    c.tid IN (SELECT club_tid FROM mart.managed_club)  AS is_managed
+FROM {S}.clubs c
+LEFT JOIN mart.club_leagues cl
+       ON (cl.season, cl.phase, cl.club_tid) = (c.season, c.phase, c.tid)
+LEFT JOIN {S}.players p
+       ON (p.season, p.phase) = (c.season, c.phase)
+      AND p.club_tid = c.tid AND p.tid IS NOT NULL AND NOT p.is_staff
+GROUP BY c.season, c.phase, c.tid
+"""
+
+# The league dimension, including the division-strength index.
+#
+# IMMERSION: skill_idx is the average player ability per league, normalised 0-100 across the
+# leagues that have enough rated players to mean anything. It is a CA-DERIVED INDEX, in the
+# same sanctioned category as the Level percentile — the raw average must never become a
+# column, so the normalisation happens inside this view rather than in a caller. Doing it
+# outside would put an `aca` column in the mart, which publish_mart.verify() rejects on
+# sight, and renaming it to slip past that check would break the house rule for real.
+LEAGUES = """
+CREATE OR REPLACE VIEW mart.leagues AS
+WITH lg AS (
+    SELECT season, phase, cid,
+           any_value(name) AS name, any_value(nation) AS nation,
+           max(type) AS type, max(reputation) AS reputation,
+           max(member_count) AS member_count
+    FROM {S}.leagues WHERE name IS NOT NULL
+    GROUP BY season, phase, cid
+),
+counted AS (
+    SELECT season, phase, league_cid AS cid, COUNT(*) AS club_count
+    FROM mart.club_leagues GROUP BY season, phase, league_cid
+),
+rated AS (
+    SELECT cl.season, cl.phase, cl.league_cid AS cid,
+           AVG(p.ca) AS aca, COUNT(*) AS rated
+    FROM {S}.players p
+    JOIN mart.club_leagues cl
+      ON (cl.season, cl.phase, cl.club_tid) = (p.season, p.phase, p.club_tid)
+    WHERE NOT p.is_staff AND p.ca IS NOT NULL
+    GROUP BY cl.season, cl.phase, cl.league_cid
+    HAVING COUNT(*) >= 20
+),
+scaled AS (
+    SELECT season, phase, cid, rated,
+           ROUND(100.0 * (aca - MIN(aca) OVER w)
+                 / NULLIF(MAX(aca) OVER w - MIN(aca) OVER w, 0), 1) AS skill_idx
+    FROM rated
+    WINDOW w AS (PARTITION BY season, phase)
+)
+SELECT lg.season, lg.phase, lg.cid, lg.name, lg.nation, lg.type, lg.reputation,
+       lg.member_count, counted.club_count, scaled.skill_idx, scaled.rated
+FROM lg
+LEFT JOIN counted USING (season, phase, cid)
+LEFT JOIN scaled  USING (season, phase, cid)
+"""
+
+# Our own division, then the next lower-reputation divisions in the same nation — the ladder
+# a squad player is judged against (his league, then the ones he could be loaned into).
+# ladder_rank 0 is always ours. `type IS NOT NULL` drops cups, which have a reputation but no
+# table to be placed in.
+COMPARISON_LADDER = """
+CREATE OR REPLACE VIEW mart.comparison_ladder AS
+WITH ours AS (
+    SELECT l.season, l.phase, l.cid, l.nation, l.reputation
+    FROM mart.leagues l
+    JOIN mart.club_leagues cl
+      ON (cl.season, cl.phase) = (l.season, l.phase) AND cl.league_cid = l.cid
+    WHERE cl.club_tid IN (SELECT club_tid FROM mart.managed_club)
+),
+below AS (
+    SELECT o.season, o.phase, l.cid, l.name, l.reputation
+    FROM ours o
+    JOIN mart.leagues l ON (l.season, l.phase) = (o.season, o.phase)
+    WHERE l.nation IS NOT DISTINCT FROM o.nation
+      AND l.type IS NOT NULL AND l.reputation < o.reputation
+)
+SELECT season, phase, cid, name, is_ours,
+       ROW_NUMBER() OVER (PARTITION BY season, phase
+                          ORDER BY is_ours DESC, reputation DESC, cid) - 1 AS ladder_rank
+FROM (
+    SELECT o.season, o.phase, o.cid,
+           (SELECT name FROM mart.leagues l
+             WHERE (l.season, l.phase, l.cid) = (o.season, o.phase, o.cid)) AS name,
+           o.reputation, TRUE AS is_ours
+    FROM ours o
+    UNION ALL
+    SELECT season, phase, cid, name, reputation, FALSE FROM below
+)
+"""
+
+
+# --- deliberately NOT in the mart: ability ranks against an arbitrary pool ----------
+#
+# dashboard/db.py's ability_rank_leagues / ability_rank_clubs answer "how many bodies would be
+# ahead of him at that club, or in that division" — and they need the raw ability number to do
+# it. They stay in db.py, reading staging.players.ca directly, for two reasons:
+#
+#   1. There is nothing to materialise. The pool is an arbitrary club's squad at an arbitrary
+#      familiarity floor (`--min-fam` is a live knob), so the only precomputable form is a
+#      TOTAL ABILITY ORDINAL over every player. A dense rank over 23k players is an
+#      order-isomorphism of `ca` with finer resolution than `ca` itself: it would pass
+#      publish_mart.verify(), which matches on column NAMES, while being a plain immersion
+#      leak. Baking min_fam into a two-valued column instead would narrow a real feature to
+#      dodge that, which is worse than leaving the helpers where they are.
+#   2. It could not work in the published artifact anyway — `ca` is scrubbed there by design.
+#      This is exactly why positions.json ships a RENDERED ANSWER (ranks and verdicts) rather
+#      than data: the question is only answerable on a machine with the full store.
+#
+# What those helpers DO take from the mart is mart.club_leagues, so the club->league rule has
+# one definition. The ranking itself is theirs.
+
+# --- role ratings and tactic fit ---------------------------------------------------
+#
+# NEITHER OF THE NEXT TWO OBJECTS IS EVER PUBLISHED. player_role_ratings is 27M rows and
+# player_position_fit is ~9.4M; materialising either would dwarf the ~11 MB analysis
+# artifact many times over. They are views so the exporter has a single schema to read from
+# while it runs against a real local store; scripts/publish_mart.py skips them by name. If
+# you are tempted to "fix" that omission, read the size numbers again.
+
+# The role-rating formula: SUM(attribute x weight), with an unlisted attribute defaulting to
+# weight 1. This is a verbatim restatement of load_duckdb.py's v_player_ratings so that
+# nothing outside the mart has to be read to build the site — NOT a second definition of the
+# formula. There are already three deliberate implementations (the loader view, this, and
+# site/js/data.js's rating(), which is verified equal over 36,920 combinations); keep them
+# equal or the app and the dashboard start disagreeing.
+PLAYER_ROLE_RATINGS = f"""
+CREATE OR REPLACE VIEW mart.player_role_ratings AS
+WITH long AS (
+    UNPIVOT {{S}}.player_attributes
+    ON {", ".join(f'"{a}"' for a in ATTR_ORDER)}
+    INTO NAME attribute VALUE value
+),
+combos AS (SELECT DISTINCT method, role FROM {{S}}.role_weights)
+SELECT l.season, l.phase, l.tid, c.method, c.role,
+       SUM(l.value * COALESCE(w.weight, 1)) AS rating
+FROM long l
+CROSS JOIN combos c
+LEFT JOIN {{S}}.role_weights w
+       ON w.method = c.method AND w.role = c.role AND w.attribute = LOWER(l.attribute)
+GROUP BY l.season, l.phase, l.tid, c.method, c.role
+"""
+
+# Tactic fit: the role rating discounted by how familiar the player is with the position, then
+# ranked against everyone who plays that position, globally / in his nation / in his division.
+#
+# The familiarity curve is read from staging.app_config INSIDE the view rather than baked in
+# by the caller. dashboard/db.py generates the same expression in Python (_mult_sql), which
+# means the mart definition would otherwise depend on whatever config the process that built
+# it happened to see — and publish_mart rebuilds the mart from a source store, so the two
+# could silently disagree. A scalar subquery keeps the view self-describing.
+#
+# The ability levels are NOT here: they are method-independent and live in
+# mart.player_position_levels. Join the two on (season, phase, tid, position).
+PLAYER_POSITION_FIT = """
+CREATE OR REPLACE VIEW mart.player_position_fit AS
+WITH cfg AS (
+    SELECT
+        COALESCE(any_value(CASE WHEN key = 'familiarity_curve' THEN value END),
+                 'linear_floor')                                       AS curve,
+        COALESCE(TRY_CAST(any_value(CASE WHEN key = 'familiarity_floor' THEN value END)
+                          AS DOUBLE), 0.5)                             AS floor
+    FROM {S}.app_config
+),
+base AS (
+    SELECT
+        l.season, l.phase, l.tid, l.person_id, l.position, l.role, l.familiarity,
+        l.name, l.club, l.club_tid, l.league_cid, l.nation,
+        r.method,
+        r.rating AS base_rating,
+        r.rating * CASE cfg.curve
+            WHEN 'proportional' THEN l.familiarity / 20.0
+            WHEN 'tiers' THEN CASE WHEN l.familiarity >= 18 THEN 1.0
+                                   WHEN l.familiarity >= 15 THEN 0.95
+                                   WHEN l.familiarity >= 10 THEN 0.85
+                                   WHEN l.familiarity >= 5  THEN 0.70
+                                   ELSE 0.50 END
+            ELSE cfg.floor + (1 - cfg.floor) * (l.familiarity / 20.0)
+        END                                                            AS eff
+    FROM mart.player_position_levels l
+    JOIN mart.player_role_ratings r
+      ON (r.season, r.phase, r.tid) = (l.season, l.phase, l.tid) AND r.role = l.role
+    CROSS JOIN cfg
+)
+SELECT
+    b.*,
+    ROUND(100 * PERCENT_RANK() OVER (PARTITION BY season, phase, method, position
+                                     ORDER BY eff), 1)                 AS pctile_global,
+    ROUND(100 * PERCENT_RANK() OVER (PARTITION BY season, phase, method, position, nation
+                                     ORDER BY eff), 1)                 AS pctile_nation,
+    ROUND(100 * PERCENT_RANK() OVER (PARTITION BY season, phase, method, position, league_cid
+                                     ORDER BY eff), 1)                 AS pctile_league,
+    RANK() OVER (PARTITION BY season, phase, method, position
+                 ORDER BY eff DESC)                                    AS rank_global,
+    RANK() OVER (PARTITION BY season, phase, method, position, nation
+                 ORDER BY eff DESC)                                    AS rank_nation,
+    RANK() OVER (PARTITION BY season, phase, method, position, league_cid
+                 ORDER BY eff DESC)                                    AS rank_league
+FROM base b
+"""
+
+
+# --- matches, from one club's point of view ----------------------------------------
+
+# Every match twice, once per participating club, already oriented: venue, opponent, goals
+# for and against, result, points, and each team stat split into our_/opp_.
+#
+# dashboard/db.py's our_match_history did this in Python — a query per season in a loop, then
+# seventeen lines of pandas .where(home, ...) flips — and only ever for the managed club. In
+# SQL it costs nothing (mart.matches is 139 rows, so doubling it is ~278) and it generalises:
+# an opposition head-to-head becomes a WHERE clause instead of a rewrite.
+#
+# The opponent's name is resolved in the SAME snapshot as the match. The Python version keyed
+# its name map on (season, tid) only, so within a season it kept whichever phase's row landed
+# last — harmless while names are stable, but a tid is a recycled slot and the snapshot-scoped
+# join is the rule the rest of the mart follows.
+CLUB_MATCHES = """
+CREATE OR REPLACE VIEW mart.club_matches AS
+WITH sides AS (
+    SELECT m.season, m.phase, m.anchor, m.home_tid AS club_tid FROM mart.matches m
+    UNION ALL
+    SELECT m.season, m.phase, m.anchor, m.away_tid AS club_tid FROM mart.matches m
+)
+SELECT
+    c.season, c.phase, c.anchor, c.club_tid,
+    m.date, m.competition, m.is_competitive, m.comp_id, m.formation, m.attendance,
+    CASE WHEN c.club_tid = m.home_tid THEN 'H' ELSE 'A' END               AS venue,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_tid ELSE m.home_tid END AS opp_tid,
+    COALESCE(oc.name, '#' || CASE WHEN c.club_tid = m.home_tid
+                                  THEN m.away_tid ELSE m.home_tid END)    AS opponent,
+    CASE WHEN c.club_tid = m.home_tid THEN m.score_home ELSE m.score_away END AS gf,
+    CASE WHEN c.club_tid = m.home_tid THEN m.score_away ELSE m.score_home END AS ga,
+    CASE WHEN (CASE WHEN c.club_tid = m.home_tid THEN m.score_home ELSE m.score_away END)
+            > (CASE WHEN c.club_tid = m.home_tid THEN m.score_away ELSE m.score_home END)
+         THEN 'W'
+         WHEN (CASE WHEN c.club_tid = m.home_tid THEN m.score_home ELSE m.score_away END)
+            = (CASE WHEN c.club_tid = m.home_tid THEN m.score_away ELSE m.score_home END)
+         THEN 'D' ELSE 'L' END                                            AS result,
+    CASE WHEN (CASE WHEN c.club_tid = m.home_tid THEN m.score_home ELSE m.score_away END)
+            > (CASE WHEN c.club_tid = m.home_tid THEN m.score_away ELSE m.score_home END)
+         THEN 3
+         WHEN (CASE WHEN c.club_tid = m.home_tid THEN m.score_home ELSE m.score_away END)
+            = (CASE WHEN c.club_tid = m.home_tid THEN m.score_away ELSE m.score_home END)
+         THEN 1 ELSE 0 END                                                AS pts,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_shots ELSE m.away_shots END  AS our_shots,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_shots ELSE m.home_shots END  AS opp_shots,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_shots_on_target ELSE m.away_shots_on_target END  AS our_shots_on_target,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_shots_on_target ELSE m.home_shots_on_target END  AS opp_shots_on_target,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_passes ELSE m.away_passes END  AS our_passes,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_passes ELSE m.home_passes END  AS opp_passes,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_passes_completed ELSE m.away_passes_completed END  AS our_passes_completed,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_passes_completed ELSE m.home_passes_completed END  AS opp_passes_completed,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_tackles ELSE m.away_tackles END  AS our_tackles,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_tackles ELSE m.home_tackles END  AS opp_tackles,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_tackles_won ELSE m.away_tackles_won END  AS our_tackles_won,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_tackles_won ELSE m.home_tackles_won END  AS opp_tackles_won,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_crosses ELSE m.away_crosses END  AS our_crosses,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_crosses ELSE m.home_crosses END  AS opp_crosses,
+    CASE WHEN c.club_tid = m.home_tid THEN m.home_interceptions ELSE m.away_interceptions END  AS our_interceptions,
+    CASE WHEN c.club_tid = m.home_tid THEN m.away_interceptions ELSE m.home_interceptions END  AS opp_interceptions
+FROM sides c
+JOIN mart.matches m USING (season, phase, anchor)
+LEFT JOIN {S}.clubs oc
+       ON (oc.season, oc.phase) = (m.season, m.phase)
+      AND oc.tid = CASE WHEN c.club_tid = m.home_tid THEN m.away_tid ELSE m.home_tid END
+"""
+
+
+# --- the player dimension ---------------------------------------------------------
+
+# One row per player per snapshot: bio, club, contract, and the 23 attributes wide. This is
+# the object the site's player payload is built from, so it deliberately ships RAW
+# ATTRIBUTES rather than ratings — the app computes role ratings in the browser from
+# attributes x weights, which is what lets you switch tactic and re-rate everyone with no
+# rebuild. Turning attributes into ratings here would break that by design.
+#
+# NO ca/pa. Ability reaches the site only as the Level percentile
+# (mart.player_position_levels), never as a number.
+#
+# `age` is birthday-adjusted against the snapshot date rather than a plain year subtraction,
+# matching dashboard/db.py's player_bio.
+PLAYER_SNAPSHOTS = f"""
+CREATE OR REPLACE VIEW mart.player_snapshots AS
+SELECT
+    s.season, s.phase, s.snap_ix, s.phase_date,
+    p.tid, ps.person_id, p.name,
+    p.club_tid, p.club, cl.league_cid, cl.league_name, cl.nation,
+    p.dob,
+    CASE WHEN p.dob IS NULL THEN NULL
+         ELSE DATE_DIFF('year', p.dob, s.phase_date)
+              - CASE WHEN (MONTH(s.phase_date), DAY(s.phase_date))
+                        < (MONTH(p.dob), DAY(p.dob)) THEN 1 ELSE 0 END
+    END                                                       AS age,
+    p.is_gk, p.has_attributes, p.squad_status, p.reputation,
+    p.foot_left, p.foot_right, p.nationality_id,
+    p.player_value, p.wage_units, p.wage_gbp,
+    p.contract_expiry, p.contract_expiry_year,
+    -- The raw loan flags, carried but NOT to be trusted for "is he ours right now": both are
+    -- set-only and never cleared by the save. mart.squad_on(d) is the answer to that
+    -- question; these are here for provenance and for the parent-club name.
+    p.loaned_in, p.loaned_out, p.parent_club_tid, p.parent_club,
+    ({_est_count(ATTR_ORDER)})                                AS est_attrs,
+    ({_est_count(ATTR_ORDER)}) > 0                            AS is_estimated,
+    {", ".join(f'a."{col}"' for col in ATTR_ORDER)}
+FROM {{S}}.players p
+JOIN mart.snapshots s USING (season, phase)
+LEFT JOIN {{S}}.player_attributes a USING (season, phase, tid)
+LEFT JOIN {{S}}.person_slices ps USING (season, phase, tid)
+LEFT JOIN mart.club_leagues cl
+       ON (cl.season, cl.phase, cl.club_tid) = (p.season, p.phase, p.club_tid)
+WHERE NOT p.is_staff
+"""
+
+# Career history as the game reports it: one row per prior season per player, per snapshot.
+# The club name is resolved WITHIN THE SAME SNAPSHOT on purpose — a tid is a recycled slot,
+# so resolving it against a different snapshot can name the wrong club entirely.
+PLAYER_CAREER_SEASONS = """
+CREATE OR REPLACE VIEW mart.player_career_seasons AS
+SELECT
+    h.season, h.phase, h.tid, ps.person_id, h.seq,
+    h.hist_season, h.end_year, h.club_tid,
+    COALESCE(c.name, '#' || h.club_tid) AS club,
+    h.fee, h.apps, h.goals, h.assists, h.rating
+FROM {S}.player_history_seasons h
+LEFT JOIN {S}.clubs c
+       ON (c.season, c.phase, c.tid) = (h.season, h.phase, h.club_tid)
+LEFT JOIN {S}.person_slices ps
+       ON (ps.season, ps.phase, ps.tid) = (h.season, h.phase, h.tid)
+"""
+
+# Where a player came from, and whether that makes him eligible under the capital rule.
+#
+# confidence='low' blanks the origin rather than dropping the row: an unreliable origin must
+# not read as a known one, but the player still exists. Since the career-history chain head
+# became a STORED POINTER (u32 @ P-38 in the attribute record) rather than a positional
+# guess, every row here is 'exact' in practice and the blanking is a guard, not a filter.
+PLAYER_ORIGIN = """
+CREATE OR REPLACE VIEW mart.player_origin AS
+SELECT
+    h.season, h.phase, h.tid, ps.person_id,
+    CASE WHEN h.confidence = 'low' THEN NULL ELSE h.origin_club_tid END AS origin_club_tid,
+    CASE WHEN h.confidence = 'low' THEN NULL
+         ELSE COALESCE(oc.name, '#' || h.origin_club_tid) END           AS origin_club,
+    CASE WHEN h.confidence = 'low' THEN NULL
+         ELSE COALESCE(lc.name, '#' || h.last_season_club_tid) END      AS last_season_club,
+    h.confidence,
+    (e.club_tid IS NOT NULL AND h.confidence <> 'low')                 AS eligible
+FROM {S}.player_history h
+LEFT JOIN {S}.clubs oc ON (oc.season, oc.phase, oc.tid) = (h.season, h.phase, h.origin_club_tid)
+LEFT JOIN {S}.clubs lc ON (lc.season, lc.phase, lc.tid) = (h.season, h.phase, h.last_season_club_tid)
+LEFT JOIN {S}.eligible_origin_clubs e ON e.club_tid = h.origin_club_tid
+LEFT JOIN {S}.person_slices ps
+       ON (ps.season, ps.phase, ps.tid) = (h.season, h.phase, h.tid)
+"""
+
+
+# --- ability levels ---------------------------------------------------------------
+
+# The immersion-safe ability layer: where a player sits among everyone who plays his
+# position, as a percentile, globally / in his nation / in his division.
+#
+# THIS OBJECT CARRIES NO `method` COLUMN, AND THAT IS THE POINT. dashboard/db.py's
+# effective_table joins the 27M-row v_player_ratings into its base CTE and then computes
+# these three columns as PERCENT_RANK() ... ORDER BY ca. The ratings appear nowhere in that
+# expression; they only shape row membership, and membership is identical for every method
+# because v_player_ratings CROSS JOINs `SELECT DISTINCT method, role` onto every player.
+# Verified directly: the same query with the ratings join deleted returns byte-identical
+# level columns over 80,627 rows, for four different methods. So the level layer is a
+# narrow, tactic-free 1.34M-row object, and the fit layer (which genuinely does depend on
+# method) is a separate concern — see PLAYER_POSITION_FIT.
+#
+# IMMERSION: `ca` is the ORDER BY and is never projected. This is the sanctioned Level
+# percentile (CLAUDE.md's house rule), not the ability number. Adding ca as a column here
+# would ship raw ability into the published artifact and publish_mart.verify() would — and
+# should — refuse the upload.
+#
+# Two guards that are no-ops on this store and deliberate anyway:
+#   - `p.ca IS NOT NULL`: DuckDB orders NULLs LAST by default, so a NULL-ability player would
+#     silently receive level_global = 100.0, i.e. read as the best in the world at his
+#     position. Zero rows are affected today; the day one is, the guard is what stops a
+#     nonsense number reaching the site.
+#   - LEFT JOIN to position_role_map rather than INNER: all 14 position codes are mapped
+#     today, but an unmapped one should lose its ROLE, not vanish from the level pool
+#     entirely. Because PERCENT_RANK partitions by position, an extra position creates its
+#     own partition and cannot perturb any existing one.
+PLAYER_POSITION_LEVELS = """
+CREATE OR REPLACE VIEW mart.player_position_levels AS
+WITH base AS (
+    SELECT s.season, s.phase, s.snap_ix, pp.tid, ps.person_id,
+           pp.position, prm.role, pp.familiarity,
+           p.name, p.club, p.club_tid, cl.league_cid, cl.nation, p.ca
+    FROM {S}.player_positions pp
+    JOIN mart.snapshots s          USING (season, phase)
+    JOIN {S}.players p             USING (season, phase, tid)
+    LEFT JOIN {S}.position_role_map prm ON prm.position = pp.position
+    LEFT JOIN {S}.person_slices ps USING (season, phase, tid)
+    LEFT JOIN mart.club_leagues cl
+           ON (cl.season, cl.phase, cl.club_tid) = (pp.season, pp.phase, p.club_tid)
+    WHERE NOT p.is_staff AND p.ca IS NOT NULL
+)
+SELECT
+    season, phase, snap_ix, tid, person_id, position, role, familiarity,
+    name, club, club_tid, league_cid, nation,
+    ROUND(100 * PERCENT_RANK() OVER (PARTITION BY season, phase, position
+                                     ORDER BY ca), 1)             AS level_global,
+    ROUND(100 * PERCENT_RANK() OVER (PARTITION BY season, phase, position, nation
+                                     ORDER BY ca), 1)             AS level_nation,
+    ROUND(100 * PERCENT_RANK() OVER (PARTITION BY season, phase, position, league_cid
+                                     ORDER BY ca), 1)             AS level_league,
+    -- No rank_* here. effective_table's rank_global/nation/league order by `eff`, the
+    -- FAMILIARITY-ADJUSTED TACTIC FIT, so they belong with pctile_* in the method-dependent
+    -- fit layer, not with the ability levels. n_* are just partition sizes and are shared by
+    -- both, so they live here where they cost nothing.
+    COUNT(*) OVER (PARTITION BY season, phase, position)              AS n_global,
+    COUNT(*) OVER (PARTITION BY season, phase, position, nation)      AS n_nation,
+    COUNT(*) OVER (PARTITION BY season, phase, position, league_cid)  AS n_league
+FROM base
+"""
+
+
 # Rule 1 in one place: the single phase per season that match facts should be read from.
 CHOSEN_MATCH_PHASE = """
 CREATE OR REPLACE VIEW mart.chosen_match_phase AS
@@ -264,14 +773,39 @@ JOIN (SELECT season, arg_max(phase, phase_ord(phase)) AS phase
   USING (season, phase)
 """
 
-# The whole season review as one table. Note it aggregates on person_id (rule 3) but keeps
-# tid for convenience; `apps` counts only matches the player actually appeared in.
-# Friendlies are excluded (is_competitive) — a season total is a competitive-season total.
-# `mart.match_player_facts` still has friendlies for anyone who wants them explicitly.
+# The whole season review as one table. `apps` counts only matches the player actually
+# appeared in. Friendlies are excluded (is_competitive) — a season total is a
+# competitive-season total. `mart.match_player_facts` still has friendlies for anyone who
+# wants them explicitly.
+#
+# GRAIN NOTE, and it is the whole reason this view is shaped the way it is. Two earlier
+# choices each silently deleted real football:
+#
+#   1. Aggregating on person_id and dropping the rows where it is NULL. person_slices is
+#      derived purely from staging.players (load_duckdb.rebuild_persons), so a player with
+#      match rows but no roster row in ANY snapshot never gets an identity — 76 tids here,
+#      42 of them ours. Filtering them out cost 196 of our appearances and 25 of our 2024
+#      goals, 22% of the season. So the aggregation key is `player_key`, which falls back to
+#      the tid when identity is unknown. Rule 3 still holds where it can: a recycled slot
+#      whose two occupants ARE both known stays split, because their person_ids differ.
+#
+#      `person_id` is still projected, as any_value, and is still NULL for those rows. Do
+#      NOT replace it with player_key: mart.player_growth_season's `mins` CTE,
+#      publish_mart's OURS predicate and CLAUDE.md's cookbook example all JOIN person_id to
+#      the spell tables, and a synthetic 'tid-1234' would match nothing while looking right.
+#
+#   2. any_value(team_tid) with team_tid outside the GROUP BY. 23 person-seasons here span
+#      more than one club, so the club a row claimed was arbitrary and filtering on it was
+#      unsound. team_tid is part of the grain now: a mid-season transfer becomes two rows,
+#      one per club, which is what "his season at THIS club" means. Callers wanting the
+#      whole season sum across clubs and competitions.
 PLAYER_SEASONS = """
 CREATE OR REPLACE VIEW mart.player_seasons AS
 SELECT
-    f.season, f.person_id, any_value(f.tid) AS tid, any_value(f.team_tid) AS team_tid,
+    f.season,
+    COALESCE(f.person_id, 'tid-' || f.tid)          AS player_key,
+    any_value(f.person_id)                          AS person_id,
+    any_value(f.tid) AS tid, f.team_tid,
     f.competition,
     COUNT(*) FILTER (WHERE f.appeared)              AS apps,
     COUNT(*) FILTER (WHERE f.started)               AS starts,
@@ -285,8 +819,8 @@ SELECT
     SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
     SUM(f.dribbles) AS dribbles, SUM(f.mistakes) AS mistakes, SUM(f.yellow) AS yellows
 FROM mart.match_player_facts f
-WHERE f.person_id IS NOT NULL AND f.is_competitive
-GROUP BY f.season, f.person_id, f.competition
+WHERE f.is_competitive
+GROUP BY f.season, COALESCE(f.person_id, 'tid-' || f.tid), f.team_tid, f.competition
 """
 
 
@@ -375,9 +909,15 @@ r AS (
     SELECT
         l.*,
         prev_s.phase_date                       AS prev_phase_date,
+        -- The snapshot AFTER the one that last showed him in this run. NULL means the run
+        -- reaches the newest snapshot, i.e. he is genuinely still here. Anything else means
+        -- the run ended and this is the first date on which he was gone — see the ghost
+        -- note on valid_to below.
+        after_s.phase_date                      AS after_phase_date,
         fm.first_match
     FROM lagged l
-    LEFT JOIN mart.snapshots prev_s ON prev_s.snap_ix = l.prev_to_ix
+    LEFT JOIN mart.snapshots prev_s  ON prev_s.snap_ix  = l.prev_to_ix
+    LEFT JOIN mart.snapshots after_s ON after_s.snap_ix = l.to_ix + 1
     LEFT JOIN firstmatch fm
            ON fm.tid = l.tid AND fm.team_tid = l.club_tid AND fm.season = l.season
 ),
@@ -390,15 +930,25 @@ w AS (SELECT r.*, {window} AS arrival_window, r.prev_to_ix IS NOT NULL AS is_tra
 -- prev_phase_date because prev_phase_date is strictly increasing across a person's runs,
 -- which makes valid_from strictly increasing too — and that is what guarantees the
 -- LEAD-derived valid_to below can neither overlap nor invert.
+--
+-- The whole inferred window is then capped at from_phase_date by LEAST, because a window
+-- must not open AFTER the observation that created it. Without the cap, a run first seen in
+-- a snapshot that falls in the last days of June belongs to the NEXT season (phase 2024-06-30
+-- is season 2025), so season_start(2025) = 2024-07-01 lands one day after the snapshot and
+-- squad_on('2024-06-30') cannot see a player who demonstrably signed. LEAST only ever moves
+-- valid_from earlier, and never earlier than prev_phase_date + 1 (which is <= from_phase_date
+-- by construction), so the strict-increase property above survives intact.
 dated AS (
     SELECT w.*,
            CASE
              WHEN is_transition AND arrival_window = 'winter'
-               THEN GREATEST(winter_cut(season),
-                             COALESCE(prev_phase_date + INTERVAL 1 DAY, winter_cut(season)))
+               THEN LEAST(GREATEST(winter_cut(season),
+                             COALESCE(prev_phase_date + INTERVAL 1 DAY, winter_cut(season))),
+                          from_phase_date)
              WHEN is_transition
-               THEN GREATEST(season_start(season),
-                             COALESCE(prev_phase_date + INTERVAL 1 DAY, season_start(season)))
+               THEN LEAST(GREATEST(season_start(season),
+                             COALESCE(prev_phase_date + INTERVAL 1 DAY, season_start(season))),
+                          from_phase_date)
              ELSE from_phase_date
            END AS valid_from
     FROM w
@@ -406,22 +956,32 @@ dated AS (
 -- valid_to is derived from the NEXT spell's valid_from, never from a snapshot date, so the
 -- spells of one person tile without gaps or overlaps by construction. NULL = still current.
 --
--- ever_loaned_in runs are EXCLUDED here. `loaned_in` is a SET-ONLY flag (see module
--- docstring) — nothing in the save clears it when a loan lapses without being renewed, so a
--- loan run's club_tid never changes and it reads as one unbroken 'at_club' spell straight
--- through every later snapshot, including seasons the player never turned out for us again
--- (Haarbo: one evidenced season, 2022, still open at snap 16 in 2024 before this fix).
--- `mart.loan_in_spells` already derives this correctly — one spell per SEASON the player
--- actually appeared for us, capped at that season's end — so an at_club spell for the same
--- run would either duplicate it or (once the loan lapses) contradict it. Excluding
--- loan-flagged runs here makes loan_in_spells the SOLE source of loan-in presence;
--- mart.squad_on()'s UNION of ('at_club', 'loan_in') is what stays correct either way.
--- club_runs itself is untouched, so growth-at-club tracking for loan spells is unaffected.
+-- GHOST NOTE. "No next spell" does not imply "still here". club_runs filters
+-- WHERE NOT p.is_staff, so a player who retires into the coaching staff (his players row
+-- flips is_staff and club_tid to the 65535 sentinel) simply stops producing runs — LEAD
+-- returns NULL and he stayed in every squad_on() forever. Same for anyone who leaves the
+-- scraped world entirely. So an open-ended spell is only honoured when the run actually
+-- reaches the newest snapshot; otherwise it closes the day before the first snapshot that
+-- no longer showed him. after_phase_date is NULL exactly when to_ix is the newest snap_ix,
+-- which is what makes that the only case yielding a genuine NULL valid_to.
+--
+-- SECOND GHOST, same symptom, different cause: ever_loaned_in runs are EXCLUDED entirely
+-- below, not just closed by the note above. `loaned_in` is a SET-ONLY flag (see module
+-- docstring) — nothing in the save clears it when a loan lapses without being renewed, so
+-- the byte marker keeps re-finding a lapsed loanee in OUR squad-list region every later
+-- save. His run genuinely reaches the newest snapshot, so after_phase_date can't help here.
+-- `mart.loan_in_spells` already derives his presence correctly — one spell per SEASON he
+-- actually appeared for us, capped at that season's end — so at_club_spells drops these
+-- runs and leaves loan_in_spells as the SOLE source of loan-in presence; mart.squad_on()'s
+-- UNION of ('at_club', 'loan_in') stays correct either way. club_runs itself is untouched,
+-- so growth-at-club tracking for loan spells is unaffected.
 SELECT
     person_id, tid, name, 'at_club' AS spell_type, club_tid, club, season,
     valid_from,
-    LEAD(valid_from) OVER (PARTITION BY tid, person_id ORDER BY from_ix)
-        - INTERVAL 1 DAY                              AS valid_to,
+    COALESCE(
+        LEAD(valid_from) OVER (PARTITION BY tid, person_id ORDER BY from_ix),
+        after_phase_date
+    ) - INTERVAL 1 DAY                                AS valid_to,
     CASE WHEN is_transition THEN arrival_window END   AS arrival_window
 FROM dated
 WHERE NOT ever_loaned_in
@@ -567,6 +1127,35 @@ WHERE s.spell_type IN ('at_club', 'loan_in')
   AND (s.valid_to IS NULL OR CAST(d AS DATE) <= s.valid_to)
 """
 
+# The same question for "now", as a VIEW rather than a macro — because a macro's body resolves
+# unqualified names against the CURRENT catalog, so `m.mart.squad_on('...')` on an ATTACHed
+# published artefact fails with "schema mart does not exist" (it looks for mart.player_spells in
+# the caller's database, not in m). That is the documented way to read the artefact, so the most
+# common question needs an object that survives it. `USE m` first also works, and is what you
+# need for any other date.
+#
+# One row per person, unlike squad_on: is_loan_in folds the at_club/loan_in pair a borrowed
+# player produces, so this counts as a squad without needing a DISTINCT.
+SQUAD_CURRENT = """
+CREATE OR REPLACE VIEW mart.squad_current AS
+WITH d AS (SELECT phase_date AS on_date FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1)
+SELECT
+    s.person_id,
+    any_value(s.tid)                      AS tid,
+    any_value(s.name)                     AS name,
+    max(s.club_tid)                       AS club_tid,
+    bool_or(s.spell_type = 'loan_in')     AS is_loan_in,
+    max(s.club_tid) IN (SELECT club_tid FROM mart.reserve_clubs) AS is_reserve,
+    min(s.valid_from)                     AS valid_from,
+    (SELECT on_date FROM d)               AS as_of
+FROM mart.player_spells s, d
+WHERE s.spell_type IN ('at_club', 'loan_in')
+  AND s.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+  AND d.on_date >= s.valid_from
+  AND (s.valid_to IS NULL OR d.on_date <= s.valid_to)
+GROUP BY s.person_id
+"""
+
 
 # --- growth -----------------------------------------------------------------------
 
@@ -649,7 +1238,7 @@ WITH long AS (
 joined AS (
     SELECT ps.person_id, l.tid, p.name, s.season, s.phase, s.snap_ix, s.phase_date,
            l.attribute, l.value,
-           l.attribute IN ({", ".join(f"'{a}'" for a in GK_ATTRS)}) AS is_gk_attr
+           l.attribute IN ({", ".join(f"'{a}'" for a in GK_BLOCK)}) AS is_gk_attr
     FROM long l
     JOIN {{S}}.players p USING (season, phase, tid)
     JOIN mart.snapshots s USING (season, phase)
@@ -828,12 +1417,26 @@ FROM bounds b
 
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
+    ("mart.role_weights", ROLE_WEIGHTS),
+    ("mart.position_roles", POSITION_ROLES),
+    ("mart.app_config", APP_CONFIG),
     ("mart.our_clubs", OUR_CLUBS),
     ("mart.chosen_match_phase", CHOSEN_MATCH_PHASE),
     ("mart.match_player_facts", MATCH_PLAYER_FACTS),
     ("mart.matches", MATCHES),
+    ("mart.club_matches", CLUB_MATCHES),
     ("mart.managed_club", MANAGED_CLUB),
     ("mart.reserve_clubs", RESERVE_CLUBS),
+    ("mart.club_leagues", CLUB_LEAGUES),
+    ("mart.clubs", CLUBS),
+    ("mart.leagues", LEAGUES),
+    ("mart.comparison_ladder", COMPARISON_LADDER),
+    ("mart.player_snapshots", PLAYER_SNAPSHOTS),
+    ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
+    ("mart.player_career_seasons", PLAYER_CAREER_SEASONS),
+    ("mart.player_origin", PLAYER_ORIGIN),
+    ("mart.player_role_ratings", PLAYER_ROLE_RATINGS),
+    ("mart.player_position_fit", PLAYER_POSITION_FIT),
     ("mart.player_seasons", PLAYER_SEASONS),
     ("mart.club_runs", CLUB_RUNS),
     ("mart.at_club_spells", AT_CLUB),
@@ -842,6 +1445,7 @@ ORDER = [
     ("mart.injury_spells", INJURED),
     ("mart.player_spells", PLAYER_SPELLS),
     ("mart.squad_on", SQUAD_ON),
+    ("mart.squad_current", SQUAD_CURRENT),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),

@@ -40,6 +40,18 @@ ability number, and that number never leaves the machine that runs the export (h
 `Level %ile` arrives precomputed and is the only ability that exists client-side. The exporter
 parses every file it writes and fails the build on a raw-ability key at any depth.
 
+**The exporter reads only the `mart` schema.** Since 2026-08-25 `export_data.py` touches no
+`staging` table and no `main` view: the four snapshot-shape rules (latest-phase-per-season,
+snapshot-scoped joins, `person_id` not `tid`, 255-sentinel minutes) live in `fmparser/mart.py`
+and both the site and the Streamlit dashboard read them from there. Practical consequence: a
+change to `mart.py` does not reach a store until something re-runs it, so
+`uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb` after editing it (an import
+does this anyway).
+
+`site/api/*.json` is git-tracked and the export is deterministic, which makes
+`git diff site/api` the regression test for any change to the data path — a no-op export must
+produce a no-op diff.
+
 **The 4 MB every-player file is not in git.** It rewrites wholesale each import and minified JSON
 deltas badly; committing it would repeat the mistake that took this repo's `.git` to 257 MB with
 the DuckDB stores in it. It lives in R2 and is streamed by a Function, so only a global search
@@ -54,7 +66,8 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | `api/positions.json` | 5 KB | git | the position review |
 | `api/index.json` | 1 KB | git | manifest |
 | `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
-| `fm-<career>.duckdb` (scrubbed) | ~90 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL instead of the fixed shapes above |
+| `fm-<career>.duckdb` (scrubbed) | ~34 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL instead of the fixed shapes above |
+| `fm-<career>-mart.duckdb` | ~24 MB | **R2** | `site-data/fm-<career>-mart.duckdb` — the `mart` schema as real tables. Prefer this for analysis: it is what generates the files above, so anything the site shows is answerable from it |
 
 ## One-time setup
 
@@ -114,7 +127,7 @@ Turn wifi **off** — that's the actual test.
 ```bash
 uv run python scripts/export_data.py --upload-all
 uv run python scripts/publish_duckdb.py --career frem --upload   # full copy, ~34 MB — see below
-uv run python scripts/publish_mart.py   --career frem --upload   # slim analysis copy, ~11 MB
+uv run python scripts/publish_mart.py   --career frem --upload   # analysis copy, ~24 MB
 git add site docs && git commit -m "site: <snapshot>" && git push
 ```
 

@@ -24,6 +24,10 @@ export const S = {          // everything loaded, one place
   matchAgg: new Map(),      // tid -> aggregated match stats (computed once)
 };
 
+/** localStorage key for the shortlist write token — one constant so the three places that read
+ *  or write it (Recruitment, the profile sheet, Squad) can't drift onto different keys. */
+export const SHORTLIST_TOKEN_KEY = "fm_shortlist_token";
+
 const j = async (url) => {
   const r = await fetch(url, { cache: "no-cache" });
   if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
@@ -112,6 +116,41 @@ export async function loadAll(onProgress) {
   S.all = data;
   onProgress?.(null);
   return data;
+}
+
+/**
+ * Just the players named by `tids`, merged into `S.players` — for when only a handful of
+ * specific players are needed (e.g. resolving the shortlist's tids) and paying for the full
+ * ~1.3 MB `loadAll` would be wasteful. Already-resolved tids (in core, or from a prior call)
+ * are skipped. Silently gives up on failure — callers check `S.players.has(tid)` afterwards,
+ * so a network hiccup just leaves those rows unresolved rather than breaking the page.
+ */
+export async function loadPlayersByTid(tids) {
+  const need = [...new Set(tids)].filter((t) => t != null && !S.players.has(t));
+  if (!need.length) return;
+  try {
+    const data = await j(`/api/all?tid=${need.join(",")}`);
+    for (const row of data.players) {
+      if (!S.players.has(row[0])) S.players.set(row[0], mkPlayer(row, data.fields, data.attrs));
+    }
+  } catch { /* offline or blocked — those tids just stay unresolved */ }
+}
+
+/**
+ * The shortlist, fresh every call (never cached on `S`) — it's edited from other tabs/devices
+ * and is cheap to re-fetch, so staleness would cost more than the extra request. Returns []
+ * with no error, both when no device token is saved and when the request fails, so a caller can
+ * treat "nothing to show" and "not configured" the same way without a try/catch of its own.
+ */
+export async function loadShortlist() {
+  const token = localStorage.getItem(SHORTLIST_TOKEN_KEY) || "";
+  if (!token) return [];
+  try {
+    const r = await fetch("/api/shortlist", { headers: { "x-fm-token": token } });
+    if (!r.ok) return [];
+    const d = await r.json();
+    return d.entries || [];
+  } catch { return []; }
 }
 
 // --------------------------------------------------------------------------- ratings

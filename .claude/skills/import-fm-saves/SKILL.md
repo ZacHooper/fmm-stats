@@ -146,13 +146,21 @@ check against a screenshot.
    uv run python scripts/export_manifest.py                          # refresh the rebuild recipe
    uv run python scripts/export_data.py --upload-all                 # -> site/api/*.json + R2 all.json
    uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2 full copy, scrubbed (~34 MB)
-   uv run python scripts/publish_mart.py   --career frem --upload    # -> R2 slim analysis copy (~11 MB)
+   uv run python scripts/publish_mart.py   --career frem --upload    # -> R2 analysis copy (~24 MB)
    # BOTH R2 copies are needed: publish_duckdb ships `staging` (+ the `mart` schema) for
    # re-derivation, publish_mart ships the mart alone for analysis. They are SEPARATE
    # objects — running one does not refresh the other, and neither is written by
    # load_duckdb.py, so an import leaves both stale until these run.
    git add site docs seeds && git commit -m "site: <snapshot>" && git push   # Pages deploys on push
    ```
+   `site/api/*.json` is git-tracked and the export is deterministic, so the diff should be
+   snapshot data and nothing else. A large reordering with no numbers changed means something
+   lost its `ORDER BY` — worth chasing rather than committing.
+
+8. **Sanity-check the mart** — `uv run python scripts/validate_mart.py --db fm-frem.duckdb`.
+   It asserts the spell invariants, the ring-buffer dedup, the loan-in ground truth, the season
+   totals, and (section 7) the four bugs that once shipped plausible-looking wrong numbers.
+   Cheap, and it is the check that catches a new snapshot breaking an assumption.
 
 ## Gotchas seen before
 - `output/` and `*.duckdb` are gitignored; extraction writes lots of JSON there — fine.

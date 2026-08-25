@@ -110,7 +110,18 @@ def _connect(ver):
     # FM_DUCKDB_READONLY=1 lets non-Streamlit callers (e.g. the fmq CLI) attach without
     # taking the single-writer lock, so scouting works while the dashboard is running.
     ro = os.environ.get("FM_DUCKDB_READONLY") == "1"
-    return duckdb.connect(DB_PATH, read_only=ro)
+    con = duckdb.connect(DB_PATH, read_only=ro)
+    # Everything below reads mart.*, and the mart is only (re)created by a load — so a store
+    # built before it existed, or before an object was added, would fail here with a bare
+    # Catalog Error somewhere deep in a page. Say what to run instead.
+    has_mart = con.execute("SELECT COUNT(*) FROM information_schema.schemata "
+                           "WHERE schema_name = 'mart'").fetchone()[0]
+    if not has_mart:
+        st.error(f"{DB_PATH} has no `mart` schema. It is built from the staging tables, so "
+                 f"nothing needs re-parsing:\n\n"
+                 f"`uv run python load_duckdb.py --refresh-only --db {DB_PATH}`")
+        st.stop()
+    return con
 
 
 def _conn():
@@ -198,7 +209,7 @@ def even_time_series(dates, values, n=24):
 # --------------------------------------------------------------------------- selectors
 
 def labels_df():
-    df = q("SELECT season, phase, label FROM staging.extracts")
+    df = q("SELECT season, phase, label FROM mart.snapshots ORDER BY snap_ix")
     df["ord"] = df["phase"].map(phase_key)
     df = df.sort_values(["season", "ord"]).reset_index(drop=True)
     df["date"] = [phase_date(p, s) for p, s in zip(df["phase"], df["season"])]
@@ -206,12 +217,12 @@ def labels_df():
 
 
 def methods():
-    df = q("SELECT DISTINCT method FROM staging.role_weights ORDER BY method")
+    df = q("SELECT DISTINCT method FROM mart.role_weights ORDER BY method")
     return df["method"].tolist()
 
 
 def roles():
-    df = q("SELECT DISTINCT role FROM staging.role_weights ORDER BY role")
+    df = q("SELECT DISTINCT role FROM mart.role_weights ORDER BY role")
     return df["role"].tolist()
 
 
@@ -422,7 +433,7 @@ UNIT_ORDER = ["GK", "Defense", "Midfield", "Attack"]
 
 # --------------------------------------------------------------------------- config
 def config():
-    df = q("SELECT key, value FROM staging.app_config")
+    df = q("SELECT key, value FROM mart.app_config")
     return dict(zip(df["key"], df["value"]))
 
 
@@ -525,62 +536,36 @@ def effective_table(season, phase, method):
 
 @st.cache_data(show_spinner=False)
 def _effective_cached(season, phase, method, curve, floor, ver):
-    mult = _mult_sql("pp.familiarity", curve, floor)
-    ord_now = f"{int(season):04d}" + phase_key(phase)
-    sql = f"""
-    -- club -> league AS AT the requested snapshot. Every snapshot's mapping is an exact read
-    -- of each club's own league field (+158 in the club record — see
-    -- docs/agent-context/day1-league-membership.md), so resolve at (season, phase) and only
-    -- fall back to the most recent EARLIER snapshot for a club this one didn't carry.
-    -- Do NOT take the newest mapping store-wide: that leaks a later season's promotions and
-    -- relegations back into historical slices, so a 2022 vs-league percentile would be ranked
-    -- against the club's 2024 division.
-    WITH cl AS (
-        SELECT club_tid, arg_max(league_cid, ord) AS league_cid
-        FROM (SELECT club_tid, league_cid,
-                     LPAD(CAST(season AS VARCHAR), 4, '0') || {_psort_sql()} AS ord
-              FROM staging.league_members
-              WHERE source='club_league' AND league_cid IS NOT NULL)
-        WHERE ord <= ?
-        GROUP BY club_tid
-    ),
-    lgn AS (SELECT cid, any_value(nation) AS nation FROM staging.leagues
-            WHERE nation IS NOT NULL GROUP BY cid),
-    base AS (
-        SELECT pp.tid, pp.position, prm.role, pp.familiarity,
-               r.rating AS base_rating, r.rating * {mult} AS eff,
-               p.name, p.club, p.club_tid, cl.league_cid, lgn.nation, p.ca
-        FROM staging.player_positions pp
-        JOIN staging.position_role_map prm ON prm.position = pp.position
-        JOIN v_player_ratings r
-          ON (r.season, r.phase, r.tid) = (pp.season, pp.phase, pp.tid)
-         AND r.method = ? AND r.role = prm.role
-        JOIN staging.players p
-          ON (p.season, p.phase, p.tid) = (pp.season, pp.phase, pp.tid)
-        LEFT JOIN cl ON cl.club_tid = p.club_tid
-        LEFT JOIN lgn ON lgn.cid = cl.league_cid
-        WHERE pp.season=? AND pp.phase=? AND NOT p.is_staff
-    )
-    -- `level_*` is a TACTIC-AGNOSTIC quality percentile from the game's overall-ability
-    -- number, ranked within the same position/scope windows as the fit percentiles above.
-    -- Immersion rule: the raw ability number is NEVER exposed — only this percentile is,
-    -- so `ca` is EXCLUDE-d from the projection and must not be re-added downstream.
-    SELECT * EXCLUDE (ca),
-        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position ORDER BY eff), 1) AS pctile_global,
-        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, nation ORDER BY eff), 1) AS pctile_nation,
-        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, league_cid ORDER BY eff), 1) AS pctile_league,
-        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position ORDER BY ca), 1) AS level_global,
-        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, nation ORDER BY ca), 1) AS level_nation,
-        ROUND(100*PERCENT_RANK() OVER (PARTITION BY position, league_cid ORDER BY ca), 1) AS level_league,
-        RANK() OVER (PARTITION BY position ORDER BY eff DESC) AS rank_global,
-        RANK() OVER (PARTITION BY position, nation ORDER BY eff DESC) AS rank_nation,
-        RANK() OVER (PARTITION BY position, league_cid ORDER BY eff DESC) AS rank_league,
-        COUNT(*) OVER (PARTITION BY position) AS n_global,
-        COUNT(*) OVER (PARTITION BY position, nation) AS n_nation,
-        COUNT(*) OVER (PARTITION BY position, league_cid) AS n_league
-    FROM base
+    """A join of two mart objects rather than a 60-line query.
+
+    This used to compute everything itself: its own club->league CTE (one of five copies), its
+    own nation lookup, the 27M-row v_player_ratings join, and both families of window function.
+    mart.player_position_fit owns the method-dependent half (eff, pctile_*, rank_*) and
+    mart.player_position_levels the method-independent half (level_*, n_*) — split there
+    because the level percentiles provably do not vary by tactic.
+
+    IMMERSION, and this is the real gain: `ca` is no longer in scope anywhere in this query, so
+    the `SELECT * EXCLUDE (ca)` that used to guard the projection is gone. The guarantee stops
+    being "somebody remembered to write EXCLUDE" and becomes "the ability number is not
+    reachable from here" — enforced in the mart, where validate_mart.py and
+    publish_mart.verify() both scan information_schema for it.
+
+    `curve` and `floor` stay in the signature: they are the cache key. The values themselves now
+    come from mart.app_config inside mart.player_position_fit, so the SQL cannot disagree with
+    the config the way an interpolated expression could.
     """
-    return _conn().execute(sql, [ord_now, method, season, phase]).df()
+    sql = """
+    SELECT f.tid, f.position, f.role, f.familiarity, f.base_rating, f.eff,
+           f.name, f.club, f.club_tid, f.league_cid, f.nation,
+           f.pctile_global, f.pctile_nation, f.pctile_league,
+           l.level_global, l.level_nation, l.level_league,
+           f.rank_global, f.rank_nation, f.rank_league,
+           l.n_global, l.n_nation, l.n_league
+    FROM mart.player_position_fit f
+    JOIN mart.player_position_levels l USING (season, phase, tid, position)
+    WHERE f.season = ? AND f.phase = ? AND f.method = ?
+    """
+    return _conn().execute(sql, [season, phase, method]).df()
 
 
 # ----------------------------------------------------------------- ability ranks (no CA out)
@@ -591,12 +576,12 @@ def _effective_cached(season, phase, method, curve, floor, ver):
 # rule still holds — these helpers do the ranking INSIDE SQL and return only rank / N, so the
 # ability number never leaves db.py. Callers get "6 of 75", never the number behind it.
 
+# club -> league AS AT the snapshot, from the mart. This used to be a hand-rolled arg_max CTE
+# here, one of five copies across this file and scripts/export_data.py; mart.club_leagues is
+# the single definition now, and it takes (season, phase) instead of a pre-built `ord` string.
 _CL_ASAT = """
-    SELECT club_tid, arg_max(league_cid, ord) AS league_cid FROM (
-        SELECT club_tid, league_cid,
-               LPAD(CAST(season AS VARCHAR), 4, '0') || """ + _psort_sql() + """ AS ord
-        FROM staging.league_members WHERE source='club_league' AND league_cid IS NOT NULL)
-    WHERE ord <= ? GROUP BY club_tid"""
+    SELECT club_tid, league_cid FROM mart.club_leagues
+    WHERE season = ? AND phase = ?"""
 
 # `min_fam` keeps makeshift players out of the comparison set: staging.player_positions lists
 # every position a player has ANY familiarity in, so an unfiltered pool of "left backs" is
@@ -611,9 +596,10 @@ _POOL = """
 
 
 def _rank_args(season, phase, tid_positions, min_fam):
-    """(ord_now, VALUES clause, params) shared by both rank helpers."""
+    """(VALUES clause, params) shared by both rank helpers. The leading params are the two
+    _CL_ASAT binds; the rest are _POOL's."""
     vals = ", ".join(f"({int(t)}, '{str(pos)}')" for t, pos in tid_positions)
-    return f"{int(season):04d}" + phase_key(phase), vals, [season, phase, int(min_fam)]
+    return vals, [season, phase, season, phase, int(min_fam)]
 
 
 def comparison_leagues(season, phase, limit=3):
@@ -644,7 +630,7 @@ def ability_rank_leagues(season, phase, tid_positions, league_cids, min_fam=0, v
     league. Returns tid, position, league_cid, rank, n."""
     if not tid_positions or not league_cids:
         return pd.DataFrame(columns=["tid", "position", "league_cid", "rank", "n"])
-    ord_now, vals, params = _rank_args(season, phase, tid_positions, min_fam)
+    vals, params = _rank_args(season, phase, tid_positions, min_fam)
     cids = ", ".join(str(int(c)) for c in league_cids)
     sql = f"""
     WITH cl AS ({_CL_ASAT}), pool AS ({_POOL}),
@@ -659,7 +645,7 @@ def ability_rank_leagues(season, phase, tid_positions, league_cids, min_fam=0, v
     LEFT JOIN pool o
       ON o.position = t.position AND o.league_cid = l.league_cid AND o.tid <> t.tid
     GROUP BY 1, 2, 3"""
-    return _conn().execute(sql, [ord_now, *params]).df()
+    return _conn().execute(sql, params).df()
 
 
 @st.cache_data(show_spinner=False)
@@ -670,7 +656,7 @@ def ability_rank_clubs(season, phase, tid_positions, league_cid, min_fam=0, ver=
     position. Returns tid, position, club_tid, club, rank, n."""
     if not tid_positions or league_cid is None:
         return pd.DataFrame(columns=["tid", "position", "club_tid", "club", "rank", "n"])
-    ord_now, vals, params = _rank_args(season, phase, tid_positions, min_fam)
+    vals, params = _rank_args(season, phase, tid_positions, min_fam)
     sql = f"""
     WITH cl AS ({_CL_ASAT}), pool AS ({_POOL}),
          tgt AS (SELECT po.tid, po.position, po.ca FROM pool po
@@ -687,7 +673,7 @@ def ability_rank_clubs(season, phase, tid_positions, league_cid, min_fam=0, ver=
       ON o.position = t.position AND o.club_tid = h.club_tid AND o.tid <> t.tid
     LEFT JOIN staging.clubs c ON c.tid = h.club_tid AND c.season = ? AND c.phase = ?
     GROUP BY 1, 2, 3"""
-    return _conn().execute(sql, [ord_now, *params, season, phase]).df()
+    return _conn().execute(sql, [*params, season, phase]).df()
 
 
 def eligibility_frame(season, phase):
@@ -1117,6 +1103,12 @@ def attributes_rows(season, phase, tids):
 # --------------------------------------------------------------------------- teams
 # club->league resolved across ALL labels (latest label that carries a mapping), so
 # season-start labels with sparse light-results still get their league.
+#
+# This is the last hand-rolled copy of this CTE — mart.club_leagues replaced the other four.
+# It survives because leagues_list and teams_in_league want the store-wide answer ("every club
+# we have ever seen in this league"), not the as-at one, for browsing. Both take (season, phase)
+# and ignore them, which is worth tidying, but making them snapshot-scoped changes what the
+# Opposition and Team pages show and there is no golden output to check that against.
 _RESOLVED_CL = """
     SELECT club_tid, arg_max(league_cid, ord) AS lc FROM (
         SELECT club_tid, league_cid,
@@ -1128,7 +1120,18 @@ _RESOLVED_CL = """
 
 
 def my_league(season, phase):
-    df = q(f"SELECT lc FROM ({_RESOLVED_CL}) WHERE club_tid=?", [MANAGED_CLUB_TID])
+    """Our own division AS AT (season, phase).
+
+    It used to use the store-wide resolution and ignore both arguments, which meant it reported
+    whatever division we ended up in for every snapshot ever — Frem climbed from the 3. Division
+    to the Superliga across this store, so a 2021 snapshot claimed we were in the Superliga.
+    mart.club_leagues resolves as-at while still falling back to the most recent EARLIER mapping,
+    so the sparse-light-results case the store-wide version existed for is still covered.
+    """
+    df = q("""SELECT cl.league_cid AS lc FROM mart.club_leagues cl
+              WHERE cl.season = ? AND cl.phase = ?
+                AND cl.club_tid IN (SELECT club_tid FROM mart.managed_club)""",
+           [season, phase])
     return int(df.iloc[0]["lc"]) if not df.empty and pd.notna(df.iloc[0]["lc"]) else None
 
 
@@ -1785,11 +1788,9 @@ def resolve_club(name_or_tid):
 
 def latest_snapshot():
     """(season, phase) of the most recent loaded snapshot — max season, latest phase."""
-    df = q("""SELECT season, phase FROM staging.extracts
-              ORDER BY season DESC,
-                       CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                  WHEN 'end' THEN '0000-00-02' ELSE phase END DESC
-              LIMIT 1""")
+    # mart.snapshots.snap_ix already encodes "chronological across seasons and phases", so
+    # this stops being another copy of the phase-ordering CASE expression.
+    df = q("SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1")
     if df.empty:
         return None, None
     return int(df.iloc[0]["season"]), df.iloc[0]["phase"]
@@ -1850,8 +1851,12 @@ def squad_frame(season, phase, method, club_tids):
         return prim
     prim["unit"] = prim["position"].map(POSITION_UNIT)
     ca = club_attributes(season, phase, list(club_tids))
-    keep = ["tid", "club_tid", "position", "unit", "eff", "pos_index",
+    # `name` is kept because opponent names ARE resolved — the ETL's id-resolver names every club.
+    # Dropping it here is what made an opposition briefing say "their DMC" when the save knew it
+    # was Kevin Mensah.
+    keep = ["tid", "name", "club_tid", "position", "unit", "eff", "pos_index",
             "pctile_league", "level_league"]
+    keep = [c for c in keep if c in prim.columns]
     return prim[keep].merge(ca.drop(columns=["club_tid"]), on="tid", how="inner")
 
 
@@ -1882,8 +1887,12 @@ def team_strength(frame, club_tid):
 
 def squad_key_players(frame, club_tid, method):
     """A club's players ranked by position index (cross-position fair), each with his most
-    threat-defining attributes inline (`top_attrs`). Columns: position, eff, pos_index,
-    pctile_league, top_attrs. Powers both opponent danger men and our own standouts."""
+    threat-defining attributes inline (`top_attrs`). Columns: tid, name, position, eff,
+    pos_index, pctile_league, top_attrs. Powers both opponent danger men and our own standouts.
+
+    `name` is carried because opponent names ARE resolved now — the ETL's id-resolver names every
+    club, not just ours. This dropped the column, so a briefing could only ever say "their DMC"
+    when the save knew it was Kevin Mensah."""
     of = frame[frame["club_tid"] == club_tid] if not frame.empty else frame
     if of.empty:
         return pd.DataFrame()
@@ -1891,6 +1900,8 @@ def squad_key_players(frame, club_tid, method):
            for pos, role in pos_role_map().items()}
     ofs = of.sort_values("pos_index", ascending=False)
     cols = ["tid", "position", "eff", "pos_index", "pctile_league"]
+    if "name" in ofs.columns:
+        cols.insert(1, "name")
     if "level_league" in ofs.columns:
         cols.append("level_league")
     kp = ofs[cols].copy()
@@ -1985,12 +1996,17 @@ def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
     return F
 
 
-def scout_report(opp_tid, season=None, phase=None, method="buca_433"):
+def scout_report(opp_tid, season=None, phase=None, method=None):
     """Structured opposition report (dicts + DataFrames, no rendering). Sections: opp,
     season/phase/method, coverage, overall (position-index team rating + league %ile),
     strength (per-unit index/%ile us-vs-them, best XI), units + unit_attrs (attribute
     edges), key_players (their squad ranked by position index, cross-position fair),
     standouts, h2h, and flags. Shared by the CLI and the Team scout tab."""
+    # method=None means "this career's configured tactic". It used to default to the string
+    # "buca_433", which is the archived Turkish career's weight-set: against any other store it
+    # matched nothing in role_weights, so every rating came back empty and the report degraded
+    # itself to "PARTIAL DATA" without ever saying why.
+    method = method or config().get("default_method") or (methods() or [None])[0]
     if not season or not phase:
         s, p = latest_snapshot()
         season, phase = season or s, phase or p

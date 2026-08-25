@@ -177,11 +177,13 @@ def _print_scout(rep):
 
     kp = rep["key_players"]
     if not kp.empty:
-        print("\n-- THEIR KEY PLAYERS (by position index; names not in save) --")
+        print("\n-- THEIR KEY PLAYERS (by position index) --")
         for _, r in kp.head(10).iterrows():
             pcl = f"{r['pctile_league']:.0f}%ile" if not _isna(r.get("pctile_league")) else "—"
-            print(f"   {str(r['position']):4} index {r['pos_index']:>5.0f}  {pcl:>7}   "
-                  f"{r['top_attrs']}")
+            nm = r.get("name")
+            nm = nm if isinstance(nm, str) and nm else f"#{int(r['tid'])}"
+            print(f"   {str(r['position']):4} {nm[:22]:22} index {r['pos_index']:>5.0f}  "
+                  f"{pcl:>7}   {r['top_attrs']}")
     print()
 
 
@@ -288,7 +290,12 @@ def main():
     p = sub.add_parser("scout", parents=[common])
     p.add_argument("team", help="opponent club name (substring) or tid")
     p.add_argument("--season", type=int); p.add_argument("--phase")
-    p.add_argument("--method", default="buca_433")
+    # No hardcoded default. `buca_433` was the default here since the original ETL commit and
+    # belongs to the ARCHIVED Turkish career, so against a Frem store it matched no rows in
+    # role_weights: every scout silently reported "0 rated players / PARTIAL DATA" and fell back
+    # to head-to-head. None means "whatever this career's config says" (see cmd_scout).
+    p.add_argument("--method", default=None,
+                   help="weight-set to rate them with (default: the career's configured tactic)")
     p.add_argument("--venue", help="H or A (recorded with the saved scout)")
     p.add_argument("--formation", help="their in-game formation, e.g. 'attacking 442'")
     p.add_argument("--style", help="their in-game style, e.g. attacking")

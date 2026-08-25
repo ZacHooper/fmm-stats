@@ -38,9 +38,30 @@ Adam Jakobsen (tid 9858), role `ST`, method `frem_attacking_ss`. Weighted attrib
 Aerial 12×3, Shooting 12×3, Passing 10×2, Aggression 14×4, Decisions 10×2, Movement 11×4,
 Teamwork 14×3, Pace 12×3, Stamina 14×4, Strength 13×2 — every other attribute ×1.
 
-**rating = 449.** Familiarity at ST is 20, so `famMult = 1.0` and **effective = 449**. If you get
-a different number, you have the weight lookup or the default-of-1 wrong. (Values change when the
-career is re-exported; the method is what matters.)
+**rating = 453** at the current snapshot (`2025 / 2024-06-30`). Familiarity at ST is 20, so
+`famMult = 1.0` and **effective = 453**. If you get a different number, you have the weight lookup
+or the default-of-1 wrong.
+
+His attributes move with every import, so this figure is only a self-check against the snapshot
+named above — it read 449 one snapshot earlier and 448 in 2022. The method is what matters. To
+re-derive it from the published mart object rather than from the JSON:
+
+```sql
+WITH long AS (
+  UNPIVOT (SELECT * EXCLUDE (season, phase, snap_ix, phase_date, tid, person_id, name, club_tid,
+                             club, league_cid, league_name, nation, dob, age, is_gk,
+                             has_attributes, squad_status, reputation, foot_left, foot_right,
+                             nationality_id, player_value, wage_units, wage_gbp, contract_expiry,
+                             contract_expiry_year, loaned_in, loaned_out, parent_club_tid,
+                             parent_club, est_attrs, is_estimated)
+           FROM m.mart.player_snapshots WHERE tid = 9858)
+  ON COLUMNS(*) INTO NAME attribute VALUE value)
+SELECT SUM(l.value * COALESCE(w.weight, 1)) AS rating
+FROM long l
+LEFT JOIN m.mart.role_weights w
+       ON w.method = 'frem_attacking_ss' AND w.role = 'ST'
+      AND w.attribute = LOWER(l.attribute);
+```
 
 Ratings are only comparable **within a position**. A keeper scores ~324 and a striker ~404 purely
 from weight scale. To compare across positions, standardise within position (100 = pool mean,
@@ -139,23 +160,62 @@ ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);
 SELECT * FROM m.mart.player_growth_season WHERE season = 2024 ORDER BY growth DESC;
 ```
 
-**Attach the mart object (~11 MB), not the full store (~34 MB), unless you need raw
+**Attach the mart object (~24 MB), not the full store (~34 MB), unless you need raw
 `staging`.** `site-data/fm-frem-mart.duckdb` holds the `mart` schema as real tables, with the
 four correctness rules already applied — latest-phase-per-season (match stats are a ring
 buffer; summing across phases double-counts), snapshot-scoped joins (`staging.players` is one
 row per SNAPSHOT), `person_id` not `tid` (FM recycles retired slots), and the 255-sentinel
 minutes arithmetic. Querying raw `staging` means re-deriving all four correctly yourself.
 
-Reach for the full store — `ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm` — only
-when the mart genuinely doesn't cover it, the usual case being world-wide current attributes
-for recruitment (`fm.staging.players`). It carries the `mart` views too.
+Since 2026-08-25 the mart is what GENERATES the files above, so anything in this document is
+answerable from it: `mart.player_snapshots` (bio, contract, the 23 attributes wide),
+`mart.player_position_levels` (Level percentiles + familiarity), `mart.clubs`, `mart.leagues`
+(incl. `skill_idx`), `mart.club_leagues` (club→league **as at** a snapshot), `mart.club_matches`
+(every match already oriented per club — venue, opponent, gf/ga, result, pts, `our_`/`opp_`
+stats), `mart.player_career_seasons`, `mart.player_origin`, and `mart.role_weights` /
+`mart.position_roles` / `mart.app_config` so ratings are computable without the JSON.
 
-In the mart object the **growth family is scoped to our clubs** (first team + reserves), since
-`player_attribute_growth` unscoped is 8.88M rows / 108 MB and ours are 0.24% of it. Opponent
-data is NOT scoped: `mart.match_player_facts` keeps every opponent appearance and
-`mart.at_club_spells` all ~3,330 clubs, so opposition analysis works. Player names come from
-the spell tables — `match_player_facts` is keyed by `person_id`, so join
+Reach for the full store — `ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm` — only when
+you need raw `staging`, or per-snapshot history for a player who was never ours. It carries the
+`mart` views too.
+
+**Scoping in the published mart object.** The growth family is scoped to our clubs (first team +
+reserves), since `player_attribute_growth` unscoped is 8.88M rows / 108 MB and ours are 0.24% of
+it. The world-wide dimensions — `player_snapshots`, `player_position_levels`, `player_origin`,
+`player_career_seasons` — carry the **newest snapshot only**; every snapshot cost 17 MB for
+near-duplicates, and our players' history is the growth family. Opponent data is NOT scoped:
+`mart.match_player_facts` keeps every opponent appearance and `mart.at_club_spells` all ~3,330
+clubs. The method-dependent rating layer (`player_role_ratings`, `player_position_fit`) is absent
+— 27M and 9.4M rows, and it needs the ability number the published copy does not have.
+
+Player names come from the spell tables — `match_player_facts` is keyed by `person_id`, so join
 `mart.at_club_spells USING (person_id)` for a name.
+
+**Aggregate before you join a name on.** `mart.at_club_spells` is one row per SPELL, so
+joining it to a fact table before the `GROUP BY` multiplies every stat by that player's spell
+count. Adam Jakobsen has five spells, so his 34 goals come back as 170. Aggregate on
+`person_id` first, then resolve the name in a scalar subquery:
+
+```sql
+WITH tot AS (SELECT person_id, SUM(goals) AS goals FROM m.mart.player_seasons
+             WHERE season = 2024 GROUP BY person_id)
+SELECT (SELECT any_value(name) FROM m.mart.at_club_spells s
+         WHERE s.person_id = tot.person_id) AS name, goals
+FROM tot ORDER BY goals DESC;
+```
+
+Related: `mart.player_seasons` is one row per (player, season, **club**, **competition**), so a
+league campaign and a cup run are separate rows. Sum them, and re-weight `avg_rating` by apps
+rather than averaging the averages.
+
+**`mart.squad_on(d)` is a macro and macros do not cross an `ATTACH`** — its body looks for
+`mart.player_spells` in YOUR catalog, not in `m`. Either `USE m` first, or use
+`m.mart.squad_current` (a plain view, newest snapshot, one row per person with `is_loan_in` and
+`is_reserve`). `squad_on` returns one row per SPELL, so a borrowed player appears twice.
+
+**Do not trust `staging.players.loaned_in` / `.loaned_out`.** The save sets them and never
+clears them, so they accumulate: at the newest snapshot the flag claimed nine loanees where
+three loans were live. The spell tables are the answer — that is what they exist for.
 
 `mart.squad_on('YYYY-MM-DD')` is a table macro — call it, don't select from it.
 
