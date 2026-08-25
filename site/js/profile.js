@@ -193,15 +193,13 @@ export function openProfile(tid, { role = null } = {}) {
 
 const kpi = (label, value) => el("div.kpi", {}, [el("b", { text: String(value) }), el("span", { text: label })]);
 
-const TOKEN_KEY = "fm_shortlist_token";
-
 function shortlistButton(p, shown) {
   const note = el("input.search", { placeholder: "Note (optional) — why he's worth a look" });
   const btn = el("button.btn", { text: "Add to shortlist" });
   const wrap = el("div.card", {}, [el("h4", { text: "Shortlist" }), note,
     el("div.prow", {}, [btn])]);
   btn.addEventListener("click", async () => {
-    const token = localStorage.getItem(TOKEN_KEY) || "";
+    const token = localStorage.getItem(D.SHORTLIST_TOKEN_KEY) || "";
     if (!token) return toast("Save your device token in Recruitment → Shortlist first", true);
     btn.disabled = true;
     btn.textContent = "Adding…";

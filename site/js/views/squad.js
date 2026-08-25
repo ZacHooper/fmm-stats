@@ -31,30 +31,58 @@ export async function view() {
     return pools.get(pos);
   };
 
-  const rows = [];
-  for (const p of ours) {
+  // Shared by squad members and shortlist entries alike, so a shortlisted player slots into
+  // exactly the same row shape and every column, filter and the compare picker just work on him
+  // — no separate "compare a shortlist player" path to keep in sync with this one.
+  function buildRow(p, extra = {}) {
     const best = D.bestRole(p, method, minFam);
-    if (!best) continue;
+    if (!best) return null;
     const g = D.growth(p.tid, best.role, method);
     const traj = D.trajectory(p.tid, best.role, method);
-    rows.push({
+    const status = extra.status ?? (D.S.ours.status?.[String(p.tid)] || DASH);
+    return {
       tid: p.tid, player: p, r: best, growth: g, traj,
       age: D.age(p.dob),
-      status: D.S.ours.status?.[String(p.tid)] || DASH,
+      status,
       loanedIn: loanedIn.has(p.tid),
       origin: D.S.ours.origin?.[String(p.tid)] || null,
       capital: (D.S.ours.capital_eligible || []).includes(p.tid),
       fit: D.pctile(poolFor(best.pos), best.eff),
       alsoRoles: D.playerRoles(p, method).map((x) => x.role).filter((x, i, a) => a.indexOf(x) === i),
-      _search: [p.name, best.pos, best.role, D.S.ours.status?.[String(p.tid)] || ""].join(" ").toLowerCase(),
-    });
+      shortlist: !!extra.shortlist,
+      _search: [p.name, best.pos, best.role, status].join(" ").toLowerCase(),
+    };
+  }
+
+  const rows = [];
+  for (const p of ours) {
+    const row = buildRow(p);
+    if (row) rows.push(row);
+  }
+
+  /** Resolve shortlist entries with a tid into full rows, rated exactly like a squad member. An
+   *  entry with no tid, or one the save can't resolve, has no attributes to rate him with — it's
+   *  excluded rather than shown as a dashed-out row, and the caller reports how many that was. */
+  async function buildShortlistRows() {
+    const entries = await D.loadShortlist();
+    const withTid = entries.filter((e) => e.tid != null);
+    await D.loadPlayersByTid(withTid.map((e) => e.tid));
+    const out = [];
+    for (const e of withTid) {
+      const p = D.S.players.get(e.tid);
+      const row = p && buildRow(p, { status: "Shortlist", shortlist: true });
+      if (row) out.push(row);
+    }
+    return { rows: out, missing: entries.length - out.length };
   }
 
   const catalogue = {
     player: {
       label: "Player", group: "Identity", cls: "name",
       sort: (r) => r.player.name,
-      render: (r) => el("span", {}, [r.player.name, r.loanedIn ? el("span.dim", { text: "  (loan in)" }) : null]),
+      render: (r) => el("span", {}, [r.player.name,
+        r.loanedIn ? el("span.dim", { text: "  (loan in)" }) : null,
+        r.shortlist ? el("span.dim", { text: "  (shortlist)" }) : null]),
     },
     age: { label: "Age", group: "Identity", align: "num", get: (r) => r.age },
     pos: { label: "Pos", group: "Identity", get: (r) => r.r.pos },
@@ -141,6 +169,7 @@ export async function view() {
 
   // ---- filters that sit above the table
   let showLoanIn = false;
+  let showShortlist = false;
   let unit = "all";
   const UNITS = {
     all: () => true,
@@ -162,6 +191,33 @@ export async function view() {
   });
   const unitSel = el("select.btn", { onchange: (e) => { unit = e.target.value; t.redraw(); } },
     Object.keys(UNITS).map((u) => el("option", { value: u, text: u === "all" ? "All positions" : u })));
+  const slBtn = el("button.btn", {
+    text: "Show shortlist",
+    title: "Add shortlisted players to the table alongside the squad, rated and filtered exactly the same way, so they can be picked for Compare",
+    onclick: async () => {
+      showShortlist = !showShortlist;
+      slBtn.classList.toggle("on", showShortlist);
+      if (showShortlist) {
+        if (!localStorage.getItem(D.SHORTLIST_TOKEN_KEY)) {
+          showShortlist = false;
+          slBtn.classList.remove("on");
+          return toast("Save your shortlist device token in Recruitment → Shortlist first", true);
+        }
+        slBtn.textContent = "Loading shortlist…";
+        // Drop any rows from a previous toggle before adding fresh ones, so re-showing after an
+        // edit elsewhere doesn't duplicate a player who's still on the list.
+        for (let i = rows.length - 1; i >= 0; i--) if (rows[i].shortlist) rows.splice(i, 1);
+        const { rows: slRows, missing } = await buildShortlistRows();
+        rows.push(...slRows);
+        if (missing) {
+          toast(`${missing} shortlist ${missing === 1 ? "entry has" : "entries have"} no tid, `
+            + "or aren't in this save, so they can't be rated here", true);
+        }
+      }
+      slBtn.textContent = showShortlist ? "Showing shortlist" : "Show shortlist";
+      t.redraw();
+    },
+  });
   const cmpBtn = el("button.btn", {
     text: "Compare (0)", title: "Tap rows with Compare armed to pick 2-4 players",
     onclick: () => {
@@ -189,8 +245,8 @@ export async function view() {
     defaults: ["age", "pos", "fam", "rating", "fit", "lvl", "growth", "traj", "expiry", "status"],
     sort: { by: "rating", dir: "desc" },
     searchPlaceholder: "Search our squad…",
-    toolbar: [unitSel, loanBtn, armBtn, cmpBtn],
-    filter: (r) => (showLoanIn || !r.loanedIn) && UNITS[unit](r),
+    toolbar: [unitSel, loanBtn, slBtn, armBtn, cmpBtn],
+    filter: (r) => (showLoanIn || !r.loanedIn) && (showShortlist || !r.shortlist) && UNITS[unit](r),
     rowClass: (r) => (selected.has(r.tid) ? "picked" : null),
     empty: "No player matches those filters.",
     onRow: (r) => {
@@ -203,7 +259,7 @@ export async function view() {
     },
   });
 
-  const owned = rows.filter((r) => !r.loanedIn);
+  const owned = rows.filter((r) => !r.loanedIn && !r.shortlist);
   const wage = owned.reduce((a, r) => a + (r.player.wage || 0), 0);
   const ageAvg = owned.filter((r) => r.age != null);
   const grew = owned.filter((r) => r.growth && r.growth.delta > 0).length;
@@ -219,9 +275,11 @@ export async function view() {
     t.node,
     el("p.note", {
       html: "Tap a row for the full profile — attributes weighted by this tactic, growth, match "
-        + "record and career history. <b>Pick</b> turns tapping into multi-select so you can "
-        + "<b>Compare</b> 2-4 players. Every rating recomputes when you change tactic in the header; "
-        + "<b>Level %ile</b> doesn't, because it measures quality rather than fit.",
+        + "record and career history. <b>Show shortlist</b> adds shortlisted players to the table "
+        + "under the same columns and filters as the squad. <b>Pick</b> turns tapping into "
+        + "multi-select so you can <b>Compare</b> 2-4 players — squad and shortlist alike. Every "
+        + "rating recomputes when you change tactic in the header; <b>Level %ile</b> doesn't, "
+        + "because it measures quality rather than fit.",
     }),
   ]);
 }
