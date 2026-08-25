@@ -405,6 +405,18 @@ dated AS (
 )
 -- valid_to is derived from the NEXT spell's valid_from, never from a snapshot date, so the
 -- spells of one person tile without gaps or overlaps by construction. NULL = still current.
+--
+-- ever_loaned_in runs are EXCLUDED here. `loaned_in` is a SET-ONLY flag (see module
+-- docstring) — nothing in the save clears it when a loan lapses without being renewed, so a
+-- loan run's club_tid never changes and it reads as one unbroken 'at_club' spell straight
+-- through every later snapshot, including seasons the player never turned out for us again
+-- (Haarbo: one evidenced season, 2022, still open at snap 16 in 2024 before this fix).
+-- `mart.loan_in_spells` already derives this correctly — one spell per SEASON the player
+-- actually appeared for us, capped at that season's end — so an at_club spell for the same
+-- run would either duplicate it or (once the loan lapses) contradict it. Excluding
+-- loan-flagged runs here makes loan_in_spells the SOLE source of loan-in presence;
+-- mart.squad_on()'s UNION of ('at_club', 'loan_in') is what stays correct either way.
+-- club_runs itself is untouched, so growth-at-club tracking for loan spells is unaffected.
 SELECT
     person_id, tid, name, 'at_club' AS spell_type, club_tid, club, season,
     valid_from,
@@ -412,6 +424,7 @@ SELECT
         - INTERVAL 1 DAY                              AS valid_to,
     CASE WHEN is_transition THEN arrival_window END   AS arrival_window
 FROM dated
+WHERE NOT ever_loaned_in
 """
 
 # loan_in spells. The flag is set-only and never cleared, so it is used ONLY to identify
