@@ -237,7 +237,10 @@ SELECT
     m.season, m.phase, m.anchor, m.side, m.tid,
     ps.person_id,
     m.team_tid, m.opponent_tid, m.date, m.competition,
-    m.competition NOT ILIKE '%%friend%%'        AS is_competitive,
+    -- Reserve fixtures carry a NULL competition (see mart.managed_club) and are not
+    -- friendlies, so NULL must read competitive, not fall out of a bare NOT ILIKE (which
+    -- is NULL, and WHERE treats that as false — silently dropping every reserve row).
+    COALESCE(m.competition NOT ILIKE '%%friend%%', TRUE)   AS is_competitive,
     m.pos_order, m.rating, m.goals, m.assists,
     m.passA, m.passC, m.keyPass, m.tackA, m.tackW, m.intercept,
     m.headA, m.headW, m.crossA, m.crossC, m.dribbles, m.mistakes,
