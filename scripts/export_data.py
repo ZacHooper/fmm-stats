@@ -107,21 +107,29 @@ PLAYER_FIELDS = ["tid", "name", "club_tid", "dob", "value", "wage", "expiry",
 
 def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None):
     """Columnar player rows: positional arrays, no repeated keys (that alone is ~40% of the
-    bytes at this row count). `positions` is [[code, familiarity, lvl_league, lvl_nation,
-    lvl_global], ...] — the level percentiles are the sanctioned form of ability, precomputed
-    because the browser can't derive them without the number itself."""
-    cols = ", ".join(f'pa."{a}"' for a in ATTR_ORDER)
+    bytes at this row count). `positions` is [[code, familiarity, lvl_league, lvl_global], ...]
+    — the level percentiles are the sanctioned form of ability, precomputed because the
+    browser can't derive them without the number itself.
+
+    Raw attributes ship deliberately: site/js/data.js computes role ratings client-side from
+    attributes x weights, which is what lets a tactic switch re-rate everyone with no rebuild.
+    mart.player_snapshots therefore carries the 23 attributes wide, and no ability at all."""
+    cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
     where, params = "", [season, phase]
     if club_tids is not None:
-        where = f" AND p.club_tid IN ({','.join('?' * len(club_tids))})"
+        where = f" AND club_tid IN ({','.join('?' * len(club_tids))})"
         params += list(club_tids)
-    df = db.q(f"""SELECT p.tid, p.name, p.club_tid, p.dob, p.player_value, p.wage_gbp,
-                         p.contract_expiry, {cols}
-                  FROM staging.players p
-                  JOIN staging.player_attributes pa USING (season, phase, tid)
-                  WHERE p.season=? AND p.phase=? AND NOT p.is_staff{where}""", params)
-    pos = db.q("SELECT tid, position, familiarity FROM staging.player_positions "
-               "WHERE season=? AND phase=?", [season, phase])
+    df = db.q(f"""SELECT tid, name, club_tid, dob, player_value, wage_gbp,
+                         contract_expiry, {cols}
+                  FROM mart.player_snapshots
+                  WHERE season=? AND phase=? AND has_attributes{where}
+                  -- deterministic order, so a no-op re-export is a no-op. Neither this query
+                  -- nor its staging predecessor had an ORDER BY, and a join's output order is
+                  -- not stable, so this 4 MB array could rewrite itself wholesale. The client
+                  -- keys everything by tid, so the order is ours to choose.
+                  ORDER BY tid""", params)
+    pos = db.q("SELECT tid, position, familiarity FROM mart.player_position_levels "
+               "WHERE season=? AND phase=? ORDER BY tid, position", [season, phase])
     pmap = {}
     for r in pos.itertuples():
         lv = (levels or {}).get((int(r.tid), r.position), (None, None))
@@ -144,17 +152,26 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None):
     return rows
 
 
-def level_map(db, season, phase, method):
-    """{(tid, position): (lvl_league, lvl_global)} from effective_table, which already
-    EXCLUDEs the ability number — so this is the only ability that ever ships, and only as a
-    percentile."""
-    eff = db.effective_table(season, phase, method)
+def level_map(db, season, phase):
+    """{(tid, position): (lvl_league, lvl_global)} — the only ability that ever ships, and
+    only as a percentile.
+
+    NO `method` ARGUMENT, deliberately. This used to read db.effective_table, which joins the
+    27M-row v_player_ratings and takes a method; but the level percentiles are PERCENT_RANK
+    over the ability number, so the ratings only ever shaped row membership — and membership
+    is identical for every method, because v_player_ratings CROSS JOINs every (method, role)
+    onto every player. Verified across 16 snapshots x 7 methods: byte-identical either way.
+    So the old signature offered a knob that could not change the answer, while paying a 27M
+    row scan for it. mart.player_position_levels is the narrow tactic-free form."""
+    lv = db.q("""SELECT tid, position, level_league, level_global
+                 FROM mart.player_position_levels WHERE season=? AND phase=?""",
+              [season, phase])
 
     def pc(v):
         return None if v != v else int(round(float(v)))
 
     return {(int(r.tid), r.position): (pc(r.level_league), pc(r.level_global))
-            for r in eff.itertuples()}
+            for r in lv.itertuples()}
 
 
 def main():
@@ -284,7 +301,7 @@ def main():
         "SELECT tid FROM staging.players WHERE season=? AND phase=? AND loaned_in",
         [season, phase])["tid"]] if has_loan else []
 
-    levels = level_map(db, season, phase, method)
+    levels = level_map(db, season, phase)
 
     # ---------------------------------------------------------------- core.json
     keep = set(int(t) for t in clubs.loc[clubs["league_cid"].isin(ladder_cids), "tid"])
