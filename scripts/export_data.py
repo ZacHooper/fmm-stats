@@ -289,17 +289,40 @@ def main():
     curve, floor = db.familiarity_params()
 
     # ---------------------------------------------------------------- our squad extras
-    sq = db.squad(season, phase)
-    elig = db.eligibility_frame(season, phase)
+    # WHO IS OURS, AND WHO IS ONLY BORROWED, comes from the dated spell model rather than the
+    # players.loaned_in flag. That flag is set-only: the save never clears it, so it accumulated
+    # 0 -> 4 -> 7 -> 8 -> 9 across sixteen snapshots and reported nine loanees at a snapshot
+    # where three loans were actually live. mart.squad_on(d) intersects real spells with the
+    # date, so a loan that ended in 2022 cannot come back in 2024. index.json's own caveat list
+    # has warned readers off the flag for a while; this stops shipping it.
+    #
+    # squad_on returns one row per SPELL, so a genuine loanee appears twice (an at_club run and
+    # a loan_in spell). Aggregate to one row per tid before using it as a squad.
+    # `status` keeps its existing meaning — "Loan" is OUT on loan, i.e. away at another club —
+    # so it reads mart.loan_out_spells, while loan-INs stay in the separate `loaned_in` list the
+    # app already treats differently. Both now come from dated spells rather than a flag.
+    sq = db.q("""SELECT s.tid,
+                        any_value(s.name)                        AS name,
+                        max(s.club_tid)                          AS club_tid,
+                        bool_or(s.spell_type = 'loan_in')        AS is_loan_in,
+                        bool_or(o.tid IS NOT NULL)               AS is_loan_out
+                 FROM mart.squad_on(?) s
+                 LEFT JOIN mart.loan_out_spells o
+                        ON o.tid = s.tid
+                       AND CAST(? AS DATE) BETWEEN o.valid_from AND o.valid_to
+                 GROUP BY s.tid ORDER BY s.tid""", [phase, phase])
+    loaned_in = [int(t) for t, f in zip(sq["tid"], sq["is_loan_in"]) if f]
+    reserve_tids = {int(t) for (t,) in
+                    db.q("SELECT club_tid FROM mart.reserve_clubs").itertuples(index=False)}
+    status = {int(t): ("Loan" if out else
+                       "Reserve" if int(c) in reserve_tids else "First team")
+              for t, c, out in zip(sq["tid"], sq["club_tid"], sq["is_loan_out"])}
+
+    elig = db.q("""SELECT tid, origin_club, eligible FROM mart.player_origin
+                   WHERE season=? AND phase=?""", [season, phase])
     origin = dict(zip(elig["tid"], elig["origin_club"])) if not elig.empty else {}
     capital = {int(t) for t, e in zip(elig["tid"], elig["eligible"]) if e} \
         if not elig.empty else set()
-    has_loan = not db.q("SELECT 1 AS ok FROM information_schema.columns WHERE "
-                        "table_schema='staging' AND table_name='players' AND "
-                        "column_name='loaned_in'").empty
-    loaned_in = [int(t) for t in db.q(
-        "SELECT tid FROM staging.players WHERE season=? AND phase=? AND loaned_in",
-        [season, phase])["tid"]] if has_loan else []
 
     levels = level_map(db, season, phase)
 
@@ -334,7 +357,7 @@ def main():
         "ours": {
             "clubs": [int(t) for t in db.OUR_CLUBS if t],
             "managed_tid": db.MANAGED_CLUB_TID, "reserve_tid": db.RESERVE_CLUB_TID,
-            "status": {str(int(t)): s for t, s in zip(sq["tid"], sq["status"])},
+            "status": {str(int(t)): s for t, s in status.items()},
             "loaned_in": loaned_in,
             # our squad only: eligibility_frame covers the whole snapshot, and shipping all
             # 23,799 origin clubs put 556 KB into a file loaded on every page view
