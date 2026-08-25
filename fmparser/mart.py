@@ -266,6 +266,8 @@ JOIN (SELECT season, arg_max(phase, phase_ord(phase)) AS phase
 
 # The whole season review as one table. Note it aggregates on person_id (rule 3) but keeps
 # tid for convenience; `apps` counts only matches the player actually appeared in.
+# Friendlies are excluded (is_competitive) — a season total is a competitive-season total.
+# `mart.match_player_facts` still has friendlies for anyone who wants them explicitly.
 PLAYER_SEASONS = """
 CREATE OR REPLACE VIEW mart.player_seasons AS
 SELECT
@@ -283,7 +285,7 @@ SELECT
     SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
     SUM(f.dribbles) AS dribbles, SUM(f.mistakes) AS mistakes, SUM(f.yellow) AS yellows
 FROM mart.match_player_facts f
-WHERE f.person_id IS NOT NULL
+WHERE f.person_id IS NOT NULL AND f.is_competitive
 GROUP BY f.season, f.person_id, f.competition
 """
 
