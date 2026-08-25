@@ -1851,8 +1851,12 @@ def squad_frame(season, phase, method, club_tids):
         return prim
     prim["unit"] = prim["position"].map(POSITION_UNIT)
     ca = club_attributes(season, phase, list(club_tids))
-    keep = ["tid", "club_tid", "position", "unit", "eff", "pos_index",
+    # `name` is kept because opponent names ARE resolved — the ETL's id-resolver names every club.
+    # Dropping it here is what made an opposition briefing say "their DMC" when the save knew it
+    # was Kevin Mensah.
+    keep = ["tid", "name", "club_tid", "position", "unit", "eff", "pos_index",
             "pctile_league", "level_league"]
+    keep = [c for c in keep if c in prim.columns]
     return prim[keep].merge(ca.drop(columns=["club_tid"]), on="tid", how="inner")
 
 
@@ -1883,8 +1887,12 @@ def team_strength(frame, club_tid):
 
 def squad_key_players(frame, club_tid, method):
     """A club's players ranked by position index (cross-position fair), each with his most
-    threat-defining attributes inline (`top_attrs`). Columns: position, eff, pos_index,
-    pctile_league, top_attrs. Powers both opponent danger men and our own standouts."""
+    threat-defining attributes inline (`top_attrs`). Columns: tid, name, position, eff,
+    pos_index, pctile_league, top_attrs. Powers both opponent danger men and our own standouts.
+
+    `name` is carried because opponent names ARE resolved now — the ETL's id-resolver names every
+    club, not just ours. This dropped the column, so a briefing could only ever say "their DMC"
+    when the save knew it was Kevin Mensah."""
     of = frame[frame["club_tid"] == club_tid] if not frame.empty else frame
     if of.empty:
         return pd.DataFrame()
@@ -1892,6 +1900,8 @@ def squad_key_players(frame, club_tid, method):
            for pos, role in pos_role_map().items()}
     ofs = of.sort_values("pos_index", ascending=False)
     cols = ["tid", "position", "eff", "pos_index", "pctile_league"]
+    if "name" in ofs.columns:
+        cols.insert(1, "name")
     if "level_league" in ofs.columns:
         cols.append("level_league")
     kp = ofs[cols].copy()
@@ -1986,12 +1996,17 @@ def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
     return F
 
 
-def scout_report(opp_tid, season=None, phase=None, method="buca_433"):
+def scout_report(opp_tid, season=None, phase=None, method=None):
     """Structured opposition report (dicts + DataFrames, no rendering). Sections: opp,
     season/phase/method, coverage, overall (position-index team rating + league %ile),
     strength (per-unit index/%ile us-vs-them, best XI), units + unit_attrs (attribute
     edges), key_players (their squad ranked by position index, cross-position fair),
     standouts, h2h, and flags. Shared by the CLI and the Team scout tab."""
+    # method=None means "this career's configured tactic". It used to default to the string
+    # "buca_433", which is the archived Turkish career's weight-set: against any other store it
+    # matched nothing in role_weights, so every rating came back empty and the report degraded
+    # itself to "PARTIAL DATA" without ever saying why.
+    method = method or config().get("default_method") or (methods() or [None])[0]
     if not season or not phase:
         s, p = latest_snapshot()
         season, phase = season or s, phase or p
