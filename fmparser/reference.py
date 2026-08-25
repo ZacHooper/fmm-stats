@@ -12,7 +12,25 @@ Reference-data resolvers: club names, competition names, and the player info fie
 from datetime import date, timedelta
 import struct
 
+from . import regions as RG
+
 NATIONS = {173: "Turkey"}
+
+
+def _refdata_window(mm):
+    """(lo, hi) for the club/comp reference-data band. Trusted outright, same as every
+    other region in regions.py (ATTR_LO/HI, LIGHT_LO/HI, ...) — no runtime fallback to a
+    full-file scan. That fallback was tried and measured SLOWER in practice: most
+    club_record lookups here are misses (obscure historical/foreign clubs with no record
+    in this save at all — extract.py's club_ids includes every club named in every
+    player's full career history), and a miss means scanning to end-of-range either way,
+    so "windowed, then whole file" costs window-scan PLUS full-file-scan on every miss —
+    strictly more work than the unbounded original for the common case. Measured on a real
+    4742-club lookup set: fallback version 123s vs unbounded original 116s (SLOWER); window-
+    only (this version) is bounded to ~17 MB regardless of hit or miss. If a future save
+    drifts outside this band, widen REFDATA_* in regions.py (per the project's region-drift
+    convention) rather than reintroducing a fallback."""
+    return RG.REFDATA_LO, min(RG.REFDATA_HI, len(mm))
 
 
 # ---------------- clubs ----------------
@@ -50,9 +68,10 @@ def resolve_club(mm, tid, want="long"):
     """Club name for a TID, or None. Requires the full club shape (long name
     followed by a valid short name) so regions/stadiums/collisions are rejected."""
     le = struct.pack("<I", tid)
-    pos = 0
+    lo, hi = _refdata_window(mm)
+    pos = lo
     while True:
-        i = mm.find(le, pos)
+        i = mm.find(le, pos, hi)
         if i == -1:
             return None
         pos = i + 1
@@ -86,10 +105,11 @@ def club_record(mm, tid, want="long"):
     field (secondary copies read 0 / ff ff). `country` is the compete-in country code
     (Denmark=138/0x8a, England=139/0x8b)."""
     le = struct.pack("<I", tid)
-    pos = 0
     best = None
+    lo, hi = _refdata_window(mm)
+    pos = lo
     while True:
-        i = mm.find(le, pos)
+        i = mm.find(le, pos, hi)
         if i == -1:
             return best
         pos = i + 1
@@ -147,31 +167,15 @@ _MIN_COMP_REP = 500          # real loaded comps have reputation >> this (min se
                              # collide on small cids ('First Leg', 'Playoff') carry rep 0.
 
 
-def find_comp_record(mm, cid):
-    """First VALID competition record for `cid` -> full detail dict (with reputation), or None.
+_COMP_RECORD_CACHE = {}    # (id(mm), cid) -> record|None; see comp_name's cache for the
+                           # same id(mm)-keyed pattern and its one-save-per-process caveat
 
-    A comp record is `[cid u16][uid u32][len u32][long][len][short][len][code]` then a
-    trailer whose bytes we read relative to `p` (the first byte after the 3 strings):
-    type @p+0, nation @p+3, REPUTATION (u16) @p+8.
 
-    Small cids (2 = Superliga, 3, 4 ...) collide all over the file, so we cannot trust the
-    first byte-match — and the UID is NOT a reliable gate (top divisions carry a tiny UID
-    like 6/7/22, lower leagues a ~2-billion one, so the old `uid >= 1000` rule silently
-    skipped every top flight and fell through to a bogus record, e.g. cid 2 -> 'Belfort'
-    instead of '3F Superliga'). Instead we VALIDATE the record structurally: 3 decodable
-    length-prefixed names, a known type byte, and the competition-record TRAILER SIGNATURE
-    `[type][0x02][0x00][nation]` (bytes p+1==2, p+2==0) — nation-bound leagues/cups all carry
-    it, and it's what separates them from nation/confederation records that would otherwise
-    validate (e.g. cid 24 -> 'Ivory Coast' rep 54399, above the Premier League). Friendlies
-    (type 9) carry no nation and no signature (`[9,255,255,255]`), so they're allowed through
-    a type-9 exception. Reputation (u16 @p+8) must be >= _MIN_COMP_REP, which also kills the
-    rep-0 round-label collisions ('First Leg', 'Playoff'). First record passing all of that wins.
-    """
+def _scan_comp_record(mm, cid, lo, hi, n):
     le = struct.pack("<H", cid)
-    pos = 0
-    n = len(mm)
+    pos = lo
     while True:
-        i = mm.find(le, pos)
+        i = mm.find(le, pos, hi)
         if i == -1:
             return None
         pos = i + 1
@@ -221,6 +225,39 @@ def find_comp_record(mm, cid):
                 "code": names[2], "type": COMP_TYPES.get(typ, f"type_{typ}"),
                 "type_id": typ, "nation_id": None if nation == 255 else nation,
                 "reputation": rep}
+
+
+def find_comp_record(mm, cid):
+    """First VALID competition record for `cid` -> full detail dict (with reputation), or None.
+
+    A comp record is `[cid u16][uid u32][len u32][long][len][short][len][code]` then a
+    trailer whose bytes we read relative to `p` (the first byte after the 3 strings):
+    type @p+0, nation @p+3, REPUTATION (u16) @p+8.
+
+    Small cids (2 = Superliga, 3, 4 ...) collide all over the file, so we cannot trust the
+    first byte-match — and the UID is NOT a reliable gate (top divisions carry a tiny UID
+    like 6/7/22, lower leagues a ~2-billion one, so the old `uid >= 1000` rule silently
+    skipped every top flight and fell through to a bogus record, e.g. cid 2 -> 'Belfort'
+    instead of '3F Superliga'). Instead we VALIDATE the record structurally: 3 decodable
+    length-prefixed names, a known type byte, and the competition-record TRAILER SIGNATURE
+    `[type][0x02][0x00][nation]` (bytes p+1==2, p+2==0) — nation-bound leagues/cups all carry
+    it, and it's what separates them from nation/confederation records that would otherwise
+    validate (e.g. cid 24 -> 'Ivory Coast' rep 54399, above the Premier League). Friendlies
+    (type 9) carry no nation and no signature (`[9,255,255,255]`), so they're allowed through
+    a type-9 exception. Reputation (u16 @p+8) must be >= _MIN_COMP_REP, which also kills the
+    rep-0 round-label collisions ('First Leg', 'Playoff'). First record passing all of that wins.
+
+    Scans only the reference-data window (see `_refdata_window`, regions.REFDATA_*) and
+    memoizes per (mm, cid) — this is called 2-3x for the same cid across
+    `_is_league`/`leagues`/`build_competitions` in one extract run.
+    """
+    key = (id(mm), cid)
+    if key in _COMP_RECORD_CACHE:
+        return _COMP_RECORD_CACHE[key]
+    lo, hi = _refdata_window(mm)
+    result = _scan_comp_record(mm, cid, lo, hi, len(mm))
+    _COMP_RECORD_CACHE[key] = result
+    return result
 
 
 def league_name(mm, code, want="long"):

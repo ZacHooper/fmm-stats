@@ -49,3 +49,15 @@ CONTRACT_LO, CONTRACT_HI = 54_000_000, 58_000_000
 CONTRACTREC_LO, CONTRACTREC_HI = 16_000_000, 40_000_000
 # £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
 WAGE_GBP_PER_UNIT = 520
+# club + competition name records (both ~10-14 MB per reference.py's header). Checked
+# stable across a 3-year Frem span (2021-07 and 2024-06 saves) and against Bucaspor: every
+# valid record sits inside this band with wide margin. Without a bound, reference.py's
+# club/comp lookups were `mm.find`-scanning the WHOLE ~60 MB file per call — a small-int
+# TID like `5` packed as 4 mostly-zero bytes hits 44k+ false positives in a save full of
+# zero padding. Trusted outright like every other region here (no runtime fallback): a
+# fallback-on-miss was tried and measured SLOWER overall, because most club_record calls
+# in a real extract are MISSES (extract.py resolves every club named in every player's full
+# career history, most of which have no record in THIS save at all) — a miss scans to the
+# end of the range either way, so "windowed, then whole file" pays for both scans instead of
+# one. If a future save drifts outside this band, widen it here (see module docstring).
+REFDATA_LO, REFDATA_HI = 3_000_000, 20_000_000
