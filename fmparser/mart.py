@@ -964,6 +964,17 @@ dated AS (
 -- reaches the newest snapshot; otherwise it closes the day before the first snapshot that
 -- no longer showed him. after_phase_date is NULL exactly when to_ix is the newest snap_ix,
 -- which is what makes that the only case yielding a genuine NULL valid_to.
+--
+-- SECOND GHOST, same symptom, different cause: ever_loaned_in runs are EXCLUDED entirely
+-- below, not just closed by the note above. `loaned_in` is a SET-ONLY flag (see module
+-- docstring) — nothing in the save clears it when a loan lapses without being renewed, so
+-- the byte marker keeps re-finding a lapsed loanee in OUR squad-list region every later
+-- save. His run genuinely reaches the newest snapshot, so after_phase_date can't help here.
+-- `mart.loan_in_spells` already derives his presence correctly — one spell per SEASON he
+-- actually appeared for us, capped at that season's end — so at_club_spells drops these
+-- runs and leaves loan_in_spells as the SOLE source of loan-in presence; mart.squad_on()'s
+-- UNION of ('at_club', 'loan_in') stays correct either way. club_runs itself is untouched,
+-- so growth-at-club tracking for loan spells is unaffected.
 SELECT
     person_id, tid, name, 'at_club' AS spell_type, club_tid, club, season,
     valid_from,
@@ -973,6 +984,7 @@ SELECT
     ) - INTERVAL 1 DAY                                AS valid_to,
     CASE WHEN is_transition THEN arrival_window END   AS arrival_window
 FROM dated
+WHERE NOT ever_loaned_in
 """
 
 # loan_in spells. The flag is set-only and never cleared, so it is used ONLY to identify

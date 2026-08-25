@@ -239,8 +239,17 @@ export function posIndexer(players, method = S.method) {
   };
 }
 
+// squad_tids (mart.squad_on(phase)-derived), not raw club_tid membership: a loan-in whose
+// loaned_in flag stuck in the save still carries clubTid === one of ours in the per-snapshot
+// player rows (that row is accurate — the marker really does still list him there), but he is
+// not actually on the books. Fall back to the old club_tid test for an older export that
+// predates this field, so a stale core.json degrades rather than breaking.
+export const isOurs = (p) =>
+  S.ours.squad_tids ? S.ours.squad_tids.includes(p.tid) : S.ours.clubs.includes(p.clubTid);
 export const ourPlayers = () =>
-  [...S.players.values()].filter((p) => S.ours.clubs.includes(p.clubTid));
+  S.ours.squad_tids
+    ? S.ours.squad_tids.map((t) => S.players.get(t)).filter(Boolean)
+    : [...S.players.values()].filter((p) => S.ours.clubs.includes(p.clubTid));
 export const clubPlayers = (tid) =>
   [...S.players.values()].filter((p) => p.clubTid === tid);
 export const leaguePlayers = (cid) => {
