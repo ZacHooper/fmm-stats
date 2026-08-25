@@ -180,7 +180,11 @@ def build(season, phase, method, min_fam=DEFAULT_MIN_FAM, excl_loanees=True, slo
         for (t, p), g in hosts.groupby(["tid", "position"]):
             firsts = g[(g["rank"] == 1) & (g["n"] >= MIN_HOST_SQUAD)]
             starts_at[(int(t), p, cid)] = len(firsts)
-            best_hosts[(int(t), p, cid)] = g.sort_values(["rank", "n"], ascending=[True, False])
+            # club breaks the tie so the .head(5) cut downstream is deterministic. Without
+            # it, clubs sharing a (rank, n) reorder between runs and the top-5 boundary
+            # silently swaps members — which churns positions.json on every re-export.
+            best_hosts[(int(t), p, cid)] = g.sort_values(
+                ["rank", "n", "club"], ascending=[True, False, True])
 
     tids = [int(t) for t in per_role["tid"].unique()]
     bio = db.player_bio(season, phase, tids)

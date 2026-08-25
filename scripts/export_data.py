@@ -249,11 +249,16 @@ def main():
         LEFT JOIN staging.players p
           ON p.tid IS NOT NULL AND p.club_tid = c.tid AND p.season=? AND p.phase=?
              AND NOT p.is_staff
-        WHERE c.season=? AND c.phase=? GROUP BY c.tid""", [season, phase, season, phase])
+        WHERE c.season=? AND c.phase=? GROUP BY c.tid
+        -- ORDER BY is not cosmetic: without it DuckDB's group-by order varies run to run,
+        -- so a re-export with identical data rewrote all 4,337 rows of this array and every
+        -- real diff hid in the churn. The committed JSON is the refactor's regression test,
+        -- which only works if the export is deterministic.
+        ORDER BY c.tid""", [season, phase, season, phase])
     leagues = db.q("""SELECT cid, any_value(name) AS name, any_value(nation) AS nation,
                              max(reputation) AS reputation, max(member_count) AS clubs
                       FROM staging.leagues WHERE season=? AND phase=? AND name IS NOT NULL
-                      GROUP BY cid ORDER BY reputation DESC NULLS LAST""", [season, phase])
+                      GROUP BY cid ORDER BY reputation DESC NULLS LAST, cid""", [season, phase])
     # Skill index: average player ability per league, normalised 0-100 across ranked leagues.
     # Immersion-safe in the same way the Level percentile is — a CA-DERIVED INDEX, never the
     # number. The raw average is computed here and dropped before anything is written, so the
