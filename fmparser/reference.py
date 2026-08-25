@@ -12,6 +12,8 @@ Reference-data resolvers: club names, competition names, and the player info fie
 from datetime import date, timedelta
 import struct
 
+import numpy as np
+
 from . import regions as RG
 
 NATIONS = {173: "Turkey"}
@@ -33,7 +35,29 @@ def _refdata_window(mm):
     return RG.REFDATA_LO, min(RG.REFDATA_HI, len(mm))
 
 
-# ---------------- clubs ----------------
+# ---------------- clubs + competitions: single-pass reference index ----------------
+# club_record/find_comp_record used to be independent `mm.find`-per-call scans of the
+# ~20 MB REFDATA window — cheap individually, but extract.py resolves ~4700+ club tids
+# (every club named in every player's full career history) plus a few hundred comp cids
+# in one run, and MOST of those calls are misses that scan to the end of the window
+# regardless. That's O(lookups x window) — tens of seconds in a real extract.
+#
+# _build_refdata_index scans the window ONCE and returns {tid: club_record} and
+# {cid: comp_record} for every record it holds, so every lookup after that is an O(1)
+# dict.get(). The candidate search itself is vectorized with numpy (same technique as
+# history.py's column-wise scan of the history slab): both record shapes put a
+# length-prefixed name's length field (u32, small — [2,60] for a club long name, subsuming
+# the comp range [3,45]) 4 bytes after their UID, so `np.flatnonzero` on the whole window's
+# u32-at-every-offset view finds every plausible record start in one vectorized pass
+# (~350k candidates out of 20M positions, <0.1s) before any per-candidate Python
+# validation runs. Only the reduced candidate set pays Python-level cost.
+#
+# No range check on the tid read back from each candidate (an earlier draft guessed
+# `100 < tid < 70000` to cut candidate volume and shipped it uncommitted with an unverified
+# "validated identical" claim in this comment — it silently dropped 26 real clubs in one
+# real save, including Boca Juniors and River Plate, tid 51-78). Trust the same structural
+# checks the old per-tid scan always relied on (uid range, decodable name, valid short
+# name) instead of a second guess about what a tid can be.
 def _valid_name(b, min_alpha=2):
     """Decode a length-prefixed name, or None if it can't be one.
 
@@ -64,98 +88,6 @@ def _short_after(mm, j):
     return None
 
 
-def resolve_club(mm, tid, want="long"):
-    """Club name for a TID, or None. Requires the full club shape (long name
-    followed by a valid short name) so regions/stadiums/collisions are rejected."""
-    le = struct.pack("<I", tid)
-    lo, hi = _refdata_window(mm)
-    pos = lo
-    while True:
-        i = mm.find(le, pos, hi)
-        if i == -1:
-            return None
-        pos = i + 1
-        uid = int.from_bytes(mm[i + 4:i + 8], "little")
-        if not (1 <= uid <= 400_000_000):
-            continue
-        ln = int.from_bytes(mm[i + 8:i + 12], "little")
-        if not (2 <= ln <= 60):
-            continue
-        long_name = _valid_name(mm[i + 12:i + 12 + ln])
-        if not long_name:
-            continue
-        short_name = _short_after(mm, i + 12 + ln)
-        if not short_name:            # not a club record (e.g. a region)
-            continue
-        return short_name if want == "short" else long_name
-
-
-def club_map(mm, tids, want="long"):
-    return {t: resolve_club(mm, t, want) for t in tids}
-
-
-def club_record(mm, tid, want="long"):
-    """Find a club's record and return {'name','short','league','country'} or None.
-
-    `league` is the club's league code, read from `[code u16][ff ff]` at +158 past the
-    three name strings (the club.dat model — see docs; verified: Man City=5 English Prem,
-    Boldklubben Frem=1147 Danish 3. Division). This is club->league membership that exists
-    on day-1, before any match is played. The club DB is split across several file
-    segments, so we scan every copy of the record and prefer the one carrying the league
-    field (secondary copies read 0 / ff ff). `country` is the compete-in country code
-    (Denmark=138/0x8a, England=139/0x8b)."""
-    le = struct.pack("<I", tid)
-    best = None
-    lo, hi = _refdata_window(mm)
-    pos = lo
-    while True:
-        i = mm.find(le, pos, hi)
-        if i == -1:
-            return best
-        pos = i + 1
-        uid = int.from_bytes(mm[i + 4:i + 8], "little")
-        if not (1 <= uid <= 400_000_000):
-            continue
-        ln = int.from_bytes(mm[i + 8:i + 12], "little")
-        if not (2 <= ln <= 60):
-            continue
-        long_name = _valid_name(mm[i + 12:i + 12 + ln])
-        if not long_name:
-            continue
-        short_name = _short_after(mm, i + 12 + ln)
-        if not short_name:
-            continue
-        p = i + 8                       # walk past the 3 length-prefixed name strings
-        for _ in range(3):
-            sl = int.from_bytes(mm[p:p + 4], "little")
-            if not (2 <= sl <= 60):
-                p += 1
-                sl = int.from_bytes(mm[p:p + 4], "little")
-            if not (2 <= sl <= 60):
-                p = None
-                break
-            p = p + 4 + sl
-        rec = {"name": long_name if want == "long" else short_name,
-               "short": short_name, "league": None, "country": None}
-        if p is not None:
-            rec["country"] = int.from_bytes(mm[p:p + 2], "little")
-            if mm[p + 160:p + 162] == b"\xff\xff":
-                code = int.from_bytes(mm[p + 158:p + 160], "little")
-                if code and code != 0xffff:
-                    rec["league"] = code
-        if best is None:
-            best = rec
-        if rec["league"] is not None:
-            return rec                  # prefer a copy that carries the league field
-
-
-# ---------------- competitions ----------------
-def comp_id_at(mm, date_off):
-    return int.from_bytes(mm[date_off - 3:date_off - 1], "little")
-
-
-_COMP_CACHE = {}
-
 # competition type byte (immediately after the 3 name strings). Calibrated on Turkey:
 # top-flight league(0), league(228)/play-off(227)=1, cup(117)=2, reserve league(1370)=8,
 # friendly(65)=9. type_id 0 and 1 are BOTH round-robin leagues (0 = a nation's top flight,
@@ -166,69 +98,154 @@ _MIN_COMP_REP = 500          # real loaded comps have reputation >> this (min se
                              # 6th-tier league; friendlies ~2.6k). ROUND-label records that
                              # collide on small cids ('First Leg', 'Playoff') carry rep 0.
 
-
-_COMP_RECORD_CACHE = {}    # (id(mm), cid) -> record|None; see comp_name's cache for the
-                           # same id(mm)-keyed pattern and its one-save-per-process caveat
+_REFDATA_INDEX_CACHE = {}   # id(mm) -> ({tid: club_record}, {cid: comp_record})
 
 
-def _scan_comp_record(mm, cid, lo, hi, n):
-    le = struct.pack("<H", cid)
-    pos = lo
-    while True:
-        i = mm.find(le, pos, hi)
-        if i == -1:
-            return None
-        pos = i + 1
-        uid = int.from_bytes(mm[i + 2:i + 6], "little")
-        ln = int.from_bytes(mm[i + 6:i + 10], "little")
-        if not (3 <= ln <= 45):
-            continue
-        try:
-            long = mm[i + 10:i + 10 + ln].decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-        # league names can start with a digit ('3. Division', '2. Bundesliga')
-        if not (long and (long[0].isupper() or long[0].isdigit())
-                and sum(c.isalpha() for c in long) >= 3):
-            continue
-        # walk the 3 length-prefixed strings (long/short/code), tolerating a 1-byte pad,
-        # to land on the trailer at p.
-        p = i + 6
-        names = []
-        for _ in range(3):
-            sl = int.from_bytes(mm[p:p + 4], "little")
-            if not (1 <= sl <= 45):
-                p += 1
-                sl = int.from_bytes(mm[p:p + 4], "little")
-            if not (1 <= sl <= 45) or p + 4 + sl > n:
-                break
-            try:
-                names.append(mm[p + 4:p + 4 + sl].decode("utf-8"))
-            except UnicodeDecodeError:
-                names.append(None)
-            p = p + 4 + sl
-        if len(names) < 3 or p + 10 > n:
-            continue
-        typ, nation = mm[p], mm[p + 3]
-        rep = int.from_bytes(mm[p + 8:p + 10], "little")
-        if typ not in _COMP_VALID_TYPES:
-            continue
-        # trailer signature: nation-bound leagues/cups are [type][02][00][nation]; friendlies
-        # (type 9) are [9][ff][ff][ff]. Anything else is a colliding non-comp record.
-        if not ((mm[p + 1] == 2 and mm[p + 2] == 0) or typ == 9):
-            continue
-        if not ((1 <= nation <= 250) or nation == 255):   # 0 = collision signature
-            continue
-        if rep < _MIN_COMP_REP:                            # rep-0 round-label collision
-            continue
-        return {"cid": cid, "uid": uid, "name": names[0], "short": names[1],
-                "code": names[2], "type": COMP_TYPES.get(typ, f"type_{typ}"),
-                "type_id": typ, "nation_id": None if nation == 255 else nation,
-                "reputation": rep}
+def _build_refdata_index(mm):
+    key = id(mm)
+    cached = _REFDATA_INDEX_CACHE.get(key)
+    if cached is not None:
+        return cached
+    lo, hi = _refdata_window(mm)
+    n = hi - lo
+    buf = np.frombuffer(mm, dtype=np.uint8, count=n, offset=lo)
+    # u32 LE at every offset q within the window (q relative to lo)
+    u32 = (buf[:-3].astype(np.uint32) | (buf[1:-2].astype(np.uint32) << 8)
+           | (buf[2:-1].astype(np.uint32) << 16) | (buf[3:].astype(np.uint32) << 24))
+    # candidate = position of a plausible name-length field: club needs [2,60], comp
+    # needs [3,45] — [2,60] covers both, so this one filter serves either branch below.
+    cand = np.flatnonzero((u32 >= 2) & (u32 <= 60))
+    cand = cand[cand >= 8]      # room to look back 8 bytes for the club header (TID+UID)
+
+    clubs, comps = {}, {}
+    nmax = len(mm)
+    for off in cand.tolist():
+        q = off + lo             # absolute offset of the length field
+
+        # ---- club branch: [TID u32]@q-8 [UID u32]@q-4 [len][long][len][short][len][code] ----
+        # No range check on tid itself (an earlier version guessed `100 < tid < 70000` to
+        # cut candidate volume, but real club tids go as low as 51 — Boca Juniors, River
+        # Plate and 24 others in one real save all sit in [51,78] and would have been
+        # silently dropped). Structural validation only, matching the old per-tid scan.
+        tid = int.from_bytes(mm[q - 8:q - 4], "little")
+        uid = int.from_bytes(mm[q - 4:q], "little")
+        if 1 <= uid <= 400_000_000:
+            ln = int.from_bytes(mm[q:q + 4], "little")
+            if 2 <= ln <= 60:
+                long_name = _valid_name(mm[q + 4:q + 4 + ln])
+                if long_name:
+                    short_name = _short_after(mm, q + 4 + ln)
+                    if short_name:
+                        p = q                # walk past the 3 length-prefixed strings
+                        for _ in range(3):
+                            sl = int.from_bytes(mm[p:p + 4], "little")
+                            if not (2 <= sl <= 60):
+                                p += 1
+                                sl = int.from_bytes(mm[p:p + 4], "little")
+                            if not (2 <= sl <= 60):
+                                p = None
+                                break
+                            p = p + 4 + sl
+                        rec = {"name": long_name, "short": short_name,
+                               "league": None, "country": None}
+                        if p is not None:
+                            rec["country"] = int.from_bytes(mm[p:p + 2], "little")
+                            if mm[p + 160:p + 162] == b"\xff\xff":
+                                code = int.from_bytes(mm[p + 158:p + 160], "little")
+                                if code and code != 0xffff:
+                                    rec["league"] = code
+                        existing = clubs.get(tid)
+                        # prefer a copy that carries the league field, else keep the
+                        # first valid copy (secondary copies read 0 / ff ff)
+                        if existing is None or (existing["league"] is None and rec["league"] is not None):
+                            clubs[tid] = rec
+
+        # ---- comp branch: [cid u16]@q-6 [UID u32]@q-4 [len][long][len][short][len][code] ----
+        cid = int.from_bytes(mm[q - 6:q - 4], "little")
+        if cid not in comps:     # first valid record wins, same as the old per-cid scan
+            uid = int.from_bytes(mm[q - 4:q], "little")
+            ln = int.from_bytes(mm[q:q + 4], "little")
+            if 3 <= ln <= 45:
+                try:
+                    long = mm[q + 4:q + 4 + ln].decode("utf-8")
+                except UnicodeDecodeError:
+                    long = None
+                # league names can start with a digit ('3. Division', '2. Bundesliga')
+                if long and (long[0].isupper() or long[0].isdigit()) and sum(c.isalpha() for c in long) >= 3:
+                    p = q
+                    names = []
+                    for _ in range(3):
+                        sl = int.from_bytes(mm[p:p + 4], "little")
+                        if not (1 <= sl <= 45):
+                            p += 1
+                            sl = int.from_bytes(mm[p:p + 4], "little")
+                        if not (1 <= sl <= 45) or p + 4 + sl > nmax:
+                            break
+                        try:
+                            names.append(mm[p + 4:p + 4 + sl].decode("utf-8"))
+                        except UnicodeDecodeError:
+                            names.append(None)
+                        p = p + 4 + sl
+                    if len(names) == 3 and p + 10 <= nmax:
+                        typ, nation = mm[p], mm[p + 3]
+                        rep = int.from_bytes(mm[p + 8:p + 10], "little")
+                        # trailer signature: nation-bound leagues/cups are [type][02][00]
+                        # [nation]; friendlies (type 9) are [9][ff][ff][ff]. Anything else
+                        # is a colliding non-comp record. rep floor kills rep-0 round-label
+                        # collisions ('First Leg', 'Playoff').
+                        if (typ in _COMP_VALID_TYPES
+                                and ((mm[p + 1] == 2 and mm[p + 2] == 0) or typ == 9)
+                                and ((1 <= nation <= 250) or nation == 255)
+                                and rep >= _MIN_COMP_REP):
+                            comps[cid] = {"cid": cid, "uid": uid, "name": names[0], "short": names[1],
+                                          "code": names[2], "type": COMP_TYPES.get(typ, f"type_{typ}"),
+                                          "type_id": typ, "nation_id": None if nation == 255 else nation,
+                                          "reputation": rep}
+    result = (clubs, comps)
+    _REFDATA_INDEX_CACHE[key] = result
+    return result
+
+
+def resolve_club(mm, tid, want="long"):
+    """Club name for a TID, or None. Requires the full club shape (long name
+    followed by a valid short name) so regions/stadiums/collisions are rejected."""
+    rec = _build_refdata_index(mm)[0].get(tid)
+    if not rec:
+        return None
+    return rec["short"] if want == "short" else rec["name"]
+
+
+def club_map(mm, tids, want="long"):
+    return {t: resolve_club(mm, t, want) for t in tids}
+
+
+def club_record(mm, tid, want="long"):
+    """A club's record: {'name','short','league','country'} or None.
+
+    `league` is the club's league code, read from `[code u16][ff ff]` at +158 past the
+    three name strings (the club.dat model — see docs; verified: Man City=5 English Prem,
+    Boldklubben Frem=1147 Danish 3. Division). This is club->league membership that exists
+    on day-1, before any match is played. The club DB is split across several file
+    segments; the index prefers the copy carrying the league field (secondary copies read
+    0 / ff ff), same as the old per-tid scan. `country` is the compete-in country code
+    (Denmark=138/0x8a, England=139/0x8b)."""
+    rec = _build_refdata_index(mm)[0].get(tid)
+    if not rec:
+        return None
+    return {"name": rec["name"] if want == "long" else rec["short"],
+            "short": rec["short"], "league": rec["league"], "country": rec["country"]}
+
+
+# ---------------- competitions ----------------
+def comp_id_at(mm, date_off):
+    return int.from_bytes(mm[date_off - 3:date_off - 1], "little")
+
+
+_COMP_CACHE = {}
 
 
 def find_comp_record(mm, cid):
-    """First VALID competition record for `cid` -> full detail dict (with reputation), or None.
+    """VALID competition record for `cid` -> full detail dict (with reputation), or None.
 
     A comp record is `[cid u16][uid u32][len u32][long][len][short][len][code]` then a
     trailer whose bytes we read relative to `p` (the first byte after the 3 strings):
@@ -245,19 +262,11 @@ def find_comp_record(mm, cid):
     validate (e.g. cid 24 -> 'Ivory Coast' rep 54399, above the Premier League). Friendlies
     (type 9) carry no nation and no signature (`[9,255,255,255]`), so they're allowed through
     a type-9 exception. Reputation (u16 @p+8) must be >= _MIN_COMP_REP, which also kills the
-    rep-0 round-label collisions ('First Leg', 'Playoff'). First record passing all of that wins.
-
-    Scans only the reference-data window (see `_refdata_window`, regions.REFDATA_*) and
-    memoizes per (mm, cid) — this is called 2-3x for the same cid across
-    `_is_league`/`leagues`/`build_competitions` in one extract run.
+    rep-0 round-label collisions ('First Leg', 'Playoff'). First record passing all of that
+    (in file order) wins — see `_build_refdata_index`, which builds this alongside the club
+    index in the same single pass over the reference-data window.
     """
-    key = (id(mm), cid)
-    if key in _COMP_RECORD_CACHE:
-        return _COMP_RECORD_CACHE[key]
-    lo, hi = _refdata_window(mm)
-    result = _scan_comp_record(mm, cid, lo, hi, len(mm))
-    _COMP_RECORD_CACHE[key] = result
-    return result
+    return _build_refdata_index(mm)[1].get(cid)
 
 
 def league_name(mm, code, want="long"):
