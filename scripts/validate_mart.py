@@ -414,18 +414,33 @@ def main():
     season, phase = con.execute("""
         SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1
     """).fetchone()
+    # THIRD GHOST, excluded from this comparison on purpose: `roster` is the RAW snapshot's
+    # club_tid, which for a stuck loaned_in flag (see AT_CLUB's "SECOND GHOST" note) still
+    # shows the player at the club regardless of whether his loan actually lapsed — that
+    # raw signal is exactly what caused the bug, so it cannot also be this check's ground
+    # truth for these players. Excluded only when loan_in_spells does NOT cover this exact
+    # phase date, so the 3 (of 9) whose most recent loan runs right up to this snapshot stay
+    # in the comparison unchanged; the other 6 are validated exhaustively in section 3 above
+    # (no ghosts in at_club_spells; none re-evidenced the day after their last season).
     sym = con.execute(f"""
-        WITH roster AS (
+        WITH stuck_loan_ghost AS (
+            SELECT cr.tid FROM mart.club_runs cr
+            WHERE cr.ever_loaned_in
+              AND cr.tid NOT IN (SELECT tid FROM mart.loan_in_spells
+                                 WHERE CAST(? AS DATE) BETWEEN valid_from AND valid_to)
+        ),
+        roster AS (
             SELECT tid FROM {src}.players
             WHERE season = ? AND phase = ? AND NOT is_staff
-              AND club_tid IN (SELECT club_tid FROM mart.our_clubs)),
+              AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
+              AND tid NOT IN (SELECT tid FROM stuck_loan_ghost)),
         spells AS (SELECT DISTINCT tid FROM mart.squad_on(?))
         SELECT
             (SELECT COUNT(*) FROM spells WHERE tid NOT IN (SELECT tid FROM roster)),
             (SELECT COUNT(*) FROM roster WHERE tid NOT IN (SELECT tid FROM spells))
-    """, [season, phase, phase]).fetchone()
-    check(f"squad_on('{phase}') matches the roster set exactly", sym == (0, 0),
-          f"{sym[0]} ghost(s), {sym[1]} missing")
+    """, [phase, season, phase, phase]).fetchone()
+    check(f"squad_on('{phase}') matches the roster set exactly (excl. known stuck loan-in ghosts)",
+          sym == (0, 0), f"{sym[0]} ghost(s), {sym[1]} missing")
 
     # A spell may only claim valid_to IS NULL — "still here" — if the newest snapshot really
     # does still show him there. Stated against the roster rather than against club_runs.to_ix
