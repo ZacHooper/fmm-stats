@@ -49,15 +49,23 @@ CONTRACT_LO, CONTRACT_HI = 54_000_000, 58_000_000
 CONTRACTREC_LO, CONTRACTREC_HI = 16_000_000, 40_000_000
 # £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
 WAGE_GBP_PER_UNIT = 520
-# club + competition name records (both ~10-14 MB per reference.py's header). Checked
-# stable across a 3-year Frem span (2021-07 and 2024-06 saves) and against Bucaspor: every
-# valid record sits inside this band with wide margin. Without a bound, reference.py's
-# club/comp lookups were `mm.find`-scanning the WHOLE ~60 MB file per call — a small-int
-# TID like `5` packed as 4 mostly-zero bytes hits 44k+ false positives in a save full of
-# zero padding. Trusted outright like every other region here (no runtime fallback): a
-# fallback-on-miss was tried and measured SLOWER overall, because most club_record calls
-# in a real extract are MISSES (extract.py resolves every club named in every player's full
-# career history, most of which have no record in THIS save at all) — a miss scans to the
-# end of the range either way, so "windowed, then whole file" pays for both scans instead of
-# one. If a future save drifts outside this band, widen it here (see module docstring).
-REFDATA_LO, REFDATA_HI = 3_000_000, 20_000_000
+# club + competition name records. Without a bound, reference.py's club/comp lookups were
+# `mm.find`-scanning the WHOLE ~60 MB file per call — a small-int TID like `5` packed as 4
+# mostly-zero bytes hits 44k+ false positives in a save full of zero padding. Trusted
+# outright like every other region here (no runtime fallback): a fallback-on-miss was tried
+# and measured SLOWER overall, because most club_record calls in a real extract are MISSES
+# (extract.py resolves every club named in every player's full career history, most of
+# which have no record in THIS save at all) — a miss scans to the end of the range either
+# way, so "windowed, then whole file" pays for both scans instead of one.
+#
+# Bounds are the actual `scripts/map_regions.py` filler-delimited section, not just where a
+# handful of sampled TIDs happened to hit — a first attempt set LO from sampled hits alone
+# (3.0M) and silently cut 2.4M+ off the FRONT of the real section, which is exactly the kind
+# of miss this project has been burned by before. The section (label "ff-records", right
+# after the name_table) sits at 0.572-0.576M to 16.6-17.5M across 2 careers x 3 years of
+# saves (Frem 2021-07 + 2024-06, Bucaspor 2022-05) with barely any drift. LO=0 costs
+# nothing (folds in the tiny name_table section ahead of it, ~0.5 MB) and removes the
+# front-truncation risk entirely; HI keeps ~2.5 MB of margin past the widest observed end.
+# If a future save drifts past HI, widen it here (see module docstring) — or better, derive
+# it from `mapregions.sections()` at runtime instead of hand-tuning a constant again.
+REFDATA_LO, REFDATA_HI = 0, 20_000_000

@@ -27,9 +27,9 @@ def _refdata_window(mm):
     so "windowed, then whole file" costs window-scan PLUS full-file-scan on every miss —
     strictly more work than the unbounded original for the common case. Measured on a real
     4742-club lookup set: fallback version 123s vs unbounded original 116s (SLOWER); window-
-    only (this version) is bounded to ~17 MB regardless of hit or miss. If a future save
-    drifts outside this band, widen REFDATA_* in regions.py (per the project's region-drift
-    convention) rather than reintroducing a fallback."""
+    only (this version) is bounded to ~20 MB regardless of hit or miss. See regions.py for
+    where the bound comes from (the actual filler-delimited section, not sampled hits) and
+    what to do if a future save drifts past it."""
     return RG.REFDATA_LO, min(RG.REFDATA_HI, len(mm))
 
 
