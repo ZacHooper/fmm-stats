@@ -236,7 +236,7 @@ doesn't need to do any of this by hand** — `.claude/hooks/session-start.sh` in
 configures the `r2:` remote, and pre-places the `httpfs` extension from our own R2-vendored copy
 automatically on startup.
 
-### Query cookbook — two traps this schema has that a fixed export doesn't
+### Query cookbook — three traps this schema has that a fixed export doesn't
 
 Raw SQL gets you the underlying tables directly, which means you also own the two dedup rules
 `dashboard/db.py`'s helper functions (`player_match_totals`, `squad`, …) apply for you in the
@@ -267,6 +267,21 @@ for a player's season goals can come back **10-20× too high**.
    row (`JOIN staging.players p ON p.tid = m.tid AND p.season = m.season AND p.phase = m.phase`),
    or look the name up once from a single fixed snapshot (`db.latest_snapshot()`'s `(season,
    phase)` pair, or any one row via `WHERE tid = ... ORDER BY season DESC, phase DESC LIMIT 1`).
+3. **`club_tid` at the latest snapshot can still show a loan-in whose loan lapsed years ago —
+   this is real save data, not a bug you can filter around.** A loan is renewed by the game
+   every season, but the byte marker that records "who's on this club's squad list" apparently
+   does not always get cleared when a renewal doesn't happen, so `staging.players`/
+   `mart.player_snapshots`/`mart.player_position_levels` can keep listing a departed loanee at
+   `club_tid = <our club>` indefinitely — confirmed against the raw `.fms` bytes, not an
+   extraction glitch. **For "who is on our books right now" (or as of any date), use
+   `mart.squad_current`** (current squad, one row per person, `is_loan_in` correct) or
+   **`mart.squad_on('<date>')`** (same question for an arbitrary date — call it after `USE m`
+   or via the `m.mart.squad_current`/`squad_on` forms, since a macro's body does not resolve
+   across an `ATTACH`). Both are built from `mart.loan_in_spells`, which requires match
+   appearance evidence before it will call someone loaned-in for a season — a lapsed loan
+   cannot come back. **Never** infer "current squad" from a raw `club_tid` filter on
+   `player_snapshots`/`players`/`player_position_levels` — it will include names who left the
+   club, sometimes years ago (Haarbo, Nuamah and 4 others in this store, as of writing).
 
 This is a *scrubbed* copy — `staging.players.ca`/`.pa` (raw ability) are already NULLed before
 publish, so the immersion rule above still holds; there is no extra care needed on your part.

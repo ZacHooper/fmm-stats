@@ -71,13 +71,17 @@ when you need raw `staging` or per-snapshot history for a player who was never o
 
 Two gotchas worth knowing before you query it: **`mart.squad_on(d)` is a macro and macros do
 not resolve across an `ATTACH`** — `USE m` first, or use the `m.mart.squad_current` view; and
-**the loan flags on `staging.players` are set-only and never cleared**, so use the spell tables
-(that is what they are for).
+**a raw `club_tid` filter for "our squad" is NOT SAFE, on ANY table** — `player_snapshots`,
+`player_position_levels`, `players`, all of them — because a loan that lapsed without being
+renewed can leave a departed player's `club_tid` still pointing at our club indefinitely (this
+is real save data, confirmed against the raw bytes, not an extraction bug). **Use
+`mart.squad_current` (current squad) or `mart.squad_on('<date>')` (as of any date) for "who's
+ours" — never a bare `club_tid = <our tid>` filter.**
 `.claude/hooks/session-start.sh` sets up everything this needs (`rclone`, the `r2:` remote, the
 `httpfs` extension) automatically on a Claude Code web session — see
 [`docs/agent-context/remote-duckdb-access.md`](docs/agent-context/remote-duckdb-access.md) for
-the full story and [`site/AGENTS.md`](site/AGENTS.md)'s "Query cookbook" for the two dedup traps
-in `match_player_stats`/`players` that make a naive query wrong, not just imprecise. The only
+the full story and [`site/AGENTS.md`](site/AGENTS.md)'s "Query cookbook" for the three traps
+in `match_player_stats`/`players`/`club_tid` that make a naive query wrong, not just imprecise. The only
 reasons to fall back to a real local rebuild: you need raw `ca`/`pa` (NULLed in the R2 copy by
 design — see the immersion house rule below) or data more recent than the last
 `publish_duckdb.py --upload` (re-run after every import — not automatic).
