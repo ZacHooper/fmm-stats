@@ -352,7 +352,11 @@ SELECT
     MAX(snap_ix)    AS to_ix,
     MIN(season)     AS season,
     MIN(phase_date) AS from_phase_date,
-    bool_or(loaned_in) AS ever_loaned_in
+    bool_or(loaned_in)  AS ever_loaned_in,
+    -- Every observed snapshot in this run had loaned_in=TRUE: the run is a loan from end
+    -- to end, never converted to a permanent deal (loaned_in never flips to FALSE). Used by
+    -- at_club_spells to keep a pure-loan run from being read as squad membership.
+    bool_and(loaned_in) AS always_loaned_in
 FROM grouped
 GROUP BY tid, person_id, club_tid, run_id
 """
@@ -362,12 +366,25 @@ GROUP BY tid, person_id, club_tid, run_id
 # day before the next run begins, or NULL while the run is still current.
 AT_CLUB = """
 CREATE OR REPLACE VIEW mart.at_club_spells AS
-WITH lagged AS (
+WITH eligible_runs AS (
+    -- club_runs tracks club_tid continuity alone, blind to loan status, so a player who
+    -- was loaned_in at EVERY snapshot of a run at one of OUR clubs (never converted to a
+    -- permanent deal) still produces a run here. Left in, that run becomes an at_club spell
+    -- with valid_to=NULL ("still ongoing") that never closes — a ghost that reappears every
+    -- season regardless of whether the loan was ever renewed, exactly the failure mode the
+    -- loaned_in flag being set-only was already known to cause (see module docstring), just
+    -- reached through club_tid continuity instead of the flag directly. Excluding these runs
+    -- leaves such a player's presence to loan_in_spells alone, which is appearance-gated per
+    -- season and so correctly drops him the moment he stops actually playing for us.
+    SELECT cr.* FROM mart.club_runs cr
+    WHERE NOT (cr.always_loaned_in AND cr.club_tid IN (SELECT club_tid FROM mart.our_clubs))
+),
+lagged AS (
     SELECT
         cr.*,
         LAG(cr.to_ix)    OVER (PARTITION BY cr.tid, cr.person_id ORDER BY cr.from_ix) AS prev_to_ix,
         LEAD(cr.from_ix) OVER (PARTITION BY cr.tid, cr.person_id ORDER BY cr.from_ix) AS next_from_ix
-    FROM mart.club_runs cr
+    FROM eligible_runs cr
 ),
 firstmatch AS (
     SELECT tid, team_tid, season, MIN(date) AS first_match
@@ -393,15 +410,21 @@ w AS (SELECT r.*, {window} AS arrival_window, r.prev_to_ix IS NOT NULL AS is_tra
 -- prev_phase_date because prev_phase_date is strictly increasing across a person's runs,
 -- which makes valid_from strictly increasing too — and that is what guarantees the
 -- LEAD-derived valid_to below can neither overlap nor invert.
+-- Also capped at from_phase_date — the snapshot that FIRST shows him at the new club is
+-- direct evidence, and the window estimate (season_start/winter_cut) can land a day after
+-- it when that snapshot falls exactly on the season boundary (a pre-season snapshot dated
+-- the last day of the old season but already labelled the new season): a signing seen on
+-- 2024-06-30 got valid_from=2024-07-01, one day AFTER the observation that proves he was
+-- already there, dropping him from squad_on() on that exact date.
 dated AS (
     SELECT w.*,
            CASE
              WHEN is_transition AND arrival_window = 'winter'
-               THEN GREATEST(winter_cut(season),
-                             COALESCE(prev_phase_date + INTERVAL 1 DAY, winter_cut(season)))
+               THEN LEAST(from_phase_date, GREATEST(winter_cut(season),
+                             COALESCE(prev_phase_date + INTERVAL 1 DAY, winter_cut(season))))
              WHEN is_transition
-               THEN GREATEST(season_start(season),
-                             COALESCE(prev_phase_date + INTERVAL 1 DAY, season_start(season)))
+               THEN LEAST(from_phase_date, GREATEST(season_start(season),
+                             COALESCE(prev_phase_date + INTERVAL 1 DAY, season_start(season))))
              ELSE from_phase_date
            END AS valid_from
     FROM w
