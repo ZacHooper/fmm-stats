@@ -87,7 +87,7 @@ export function openProfile(tid, { role = null } = {}) {
   const roles = D.playerRoles(p);
   const shown = role ? roles.find((r) => r.role === role) || roles[0] : roles[0];
   const a = D.age(p.dob);
-  const ours = D.S.ours.clubs.includes(p.clubTid);
+  const ours = D.isOurs(p);
   const club = D.S.clubs.get(p.clubTid);
   const agg = D.S.matchAgg?.get(tid);
   const traj = shown ? D.trajectory(tid, shown.role) : [];

@@ -209,7 +209,7 @@ async function searchPanel() {
         tid: p.tid, player: p, r: best, age: D.age(p.dob),
         club: club?.name || DASH, league: lg?.name || DASH,
         rep: lg?.reputation ?? null,
-        ours: D.S.ours.clubs.includes(p.clubTid),
+        ours: D.isOurs(p),
         _search: [p.name, club?.name, lg?.name, best.pos, best.role].filter(Boolean).join(" ").toLowerCase(),
       });
     }

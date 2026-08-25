@@ -359,6 +359,14 @@ def main():
             "managed_tid": db.MANAGED_CLUB_TID, "reserve_tid": db.RESERVE_CLUB_TID,
             "status": {str(int(t)): s for t, s in status.items()},
             "loaned_in": loaned_in,
+            # The spell-derived squad, not "club_tid IN ours.clubs" — a loan-in whose
+            # loaned_in flag stuck (see fmparser/mart.py's AT_CLUB "SECOND GHOST" note) still
+            # shows club_tid = ours in the raw per-snapshot player_rows below (that row is
+            # accurate: the byte marker really does still list him there), but he is not
+            # actually on the books any more. `sq` is already the mart.squad_on(phase)-based
+            # roster used for status/loaned_in above, so it is the correct membership test —
+            # site/js/data.js's ourPlayers() intersects against this instead of raw club_tid.
+            "squad_tids": [int(t) for t in sq["tid"]],
             # our squad only: eligibility_frame covers the whole snapshot, and shipping all
             # 23,799 origin clubs put 556 KB into a file loaded on every page view
             "origin": {str(int(t)): origin[t] for t in sq["tid"]

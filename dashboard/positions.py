@@ -119,16 +119,24 @@ def build(season, phase, method, min_fam=DEFAULT_MIN_FAM, excl_loanees=True, slo
     if eff.empty:
         return {"error": "No rated players in this snapshot."}
 
-    has_loan_col = db.q("SELECT 1 AS ok FROM information_schema.columns "
-                        "WHERE table_schema='staging' AND table_name='players' "
-                        "AND column_name='loaned_in'")
-    loaned_in = (db.q("SELECT tid FROM staging.players WHERE season=? AND phase=? AND loaned_in",
-                      [season, phase])["tid"].astype(int).tolist()
-                 if not has_loan_col.empty else [])
+    # Squad membership comes from the dated spell model (mart.squad_on), not raw club_tid or
+    # the staging.players.loaned_in flag — that flag is SET-ONLY (never cleared when a loan
+    # lapses without renewal), so a naive club_tid filter here silently kept every past
+    # loan-in forever, and excl_loanees's old flag-based check compounded it by ALSO dropping
+    # the loan-ins who are genuinely still here this season. mart.squad_on(phase) already
+    # gets both right: current squad = who's on it; currently-on-loan = a separate,
+    # season-scoped lookup from mart.loan_in_spells.
+    squad_tids = set(db.q("SELECT DISTINCT tid FROM mart.squad_on(?)", [phase])
+                     ["tid"].astype(int))
+    loan_in_tids = (set(db.q("SELECT DISTINCT tid FROM mart.loan_in_spells "
+                             "WHERE CAST(? AS DATE) BETWEEN valid_from AND valid_to",
+                             [phase])["tid"].astype(int))
+                    if squad_tids else set())
 
-    ours = eff[eff["club_tid"].isin(db.OUR_CLUBS)].copy()
-    if excl_loanees and loaned_in:
-        ours = ours[~ours["tid"].astype(int).isin(set(loaned_in))]
+    ours = eff[eff["club_tid"].isin(db.OUR_CLUBS)
+              & eff["tid"].astype(int).isin(squad_tids)].copy()
+    if excl_loanees and loan_in_tids:
+        ours = ours[~ours["tid"].astype(int).isin(loan_in_tids)]
     if ours.empty:
         return {"error": "No owned players in this snapshot."}
     if min_fam:
