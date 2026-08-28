@@ -160,7 +160,11 @@ DDL = [
         passA INTEGER, passC INTEGER, keyPass INTEGER, tackA INTEGER, tackW INTEGER,
         intercept INTEGER, headA INTEGER, headW INTEGER, crossA INTEGER, crossC INTEGER,
         dribbles INTEGER, mistakes INTEGER, shotA INTEGER, shotO INTEGER,
-        condition INTEGER, subOn INTEGER, subOff INTEGER, yellow INTEGER
+        condition INTEGER, subOn INTEGER, subOff INTEGER, yellow INTEGER,
+        -- real on-pitch position of a STARTER in our own XI ('DR','DMC','AML',...),
+        -- decoded from the slot array after the formation string. NULL for the
+        -- opposition (the save stores no shape for them) and for substitutes.
+        position VARCHAR
     )""",
 
     # natural key: (season, phase, league_cid, club_tid, source)
@@ -680,9 +684,13 @@ def load_core(con, d, season, phase):
               + [f"home_{k}" for k in _TS_KEYS] + [f"away_{k}" for k in _TS_KEYS])
     ev_cols = ["season", "phase", "anchor", "seq", "minute", "added", "min_display",
                "tid", "type", "type_byte", "b0"]
+    # `position` is not in _XI: that list mirrors the stat block's own fields, and the
+    # decoded starting position comes from the slot array instead (NULL for the
+    # opposition and for substitutes). See fmparser/matches.parse_slot_positions.
     mps_cols = (["season", "phase", "anchor", "side", "tid", "team_tid",
                  "opponent_tid", "date", "competition", "pos_order", "rating"]
-                + [f for f in _XI if f not in ("posOrder", "tid_int", "rating")])
+                + [f for f in _XI if f not in ("posOrder", "tid_int", "rating")]
+                + ["position"])
     m_rows, ev_rows, mps_rows = [], [], []
     for m in season_matches:
         anchor = _int(m.get("anchor"))
@@ -717,6 +725,7 @@ def load_core(con, d, season, phase):
                     _int(x.get("posOrder")), _int(x.get("rating")),
                     *[_int(x.get(f)) for f in _XI
                       if f not in ("posOrder", "tid_int", "rating")],
+                    x.get("position"),
                 ))
     counts["matches"] = _insert(con, "matches", m_cols, m_rows)
     counts["match_events"] = _insert(con, "match_events", ev_cols, ev_rows)
@@ -985,6 +994,9 @@ _MIGRATIONS = [
     "ALTER TABLE staging.player_history ADD COLUMN IF NOT EXISTS debut_end_year INTEGER",
     "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS assists INTEGER",
     "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS rating DOUBLE",
+    # 2026-08-29: real on-pitch position per starter, decoded from the 11 slot pairs that
+    # follow the formation string. See docs/agent-context/match-position-encoding.md.
+    "ALTER TABLE staging.match_player_stats ADD COLUMN IF NOT EXISTS position VARCHAR",
 ]
 
 

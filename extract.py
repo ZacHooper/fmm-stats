@@ -381,7 +381,7 @@ def main():
 
     s = Save(args.save)
     mm = s.mm
-    season = M.extract_season(mm)
+    season = M.extract_season(mm, our_tids=(career.managed_tid, career.reserve_tid))
     auto, latest = auto_label(season)
     label = args.label or auto
     dest = os.path.join(args.out, label)

@@ -751,6 +751,20 @@ SELECT
     m.passA, m.passC, m.keyPass, m.tackA, m.tackW, m.intercept,
     m.headA, m.headW, m.crossA, m.crossC, m.dribbles, m.mistakes,
     m.shotA, m.shotO, m.condition, m.yellow,
+    -- Real on-pitch position for OUR starters ('DR','DMC','AML',...); NULL for the
+    -- opposition (the save stores no shape for them) and for substitutes. PREFER THIS
+    -- over bucketing pos_order: slot order is depth order and shifts with the shape, so
+    -- a fixed pos_order->unit map ("2,3 = fullbacks") is wrong for every back-3 game.
+    m.position,
+    CASE
+        WHEN m.position IS NULL                                   THEN NULL
+        WHEN m.position = 'GK'                                    THEN 'GK'
+        WHEN m.position LIKE 'DM%%'                               THEN 'Defensive midfield'
+        WHEN m.position LIKE 'AM%%'                               THEN 'Attacking midfield'
+        WHEN m.position LIKE 'D%%'                                THEN 'Defenders'
+        WHEN m.position LIKE 'M%%'                                THEN 'Midfield'
+        WHEN m.position = 'FC'                                    THEN 'Forwards'
+    END                                          AS unit,
     m.pos_order <= 11                            AS started,
     m.pos_order <= 11 OR m.subOn <> 255          AS appeared,
     CASE WHEN m.pos_order <= 11 OR m.subOn <> 255

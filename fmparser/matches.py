@@ -148,10 +148,20 @@ def parse_events(mm, hdr_off, player_tids, back=380):
 
 # ---------------- XI walking ----------------
 def looks_like_block(mm, i):
+    """Does a stat block start at i?
+
+    `condition` (+3) is a match-fitness percentage for anyone who played, but an UNUSED
+    SUBSTITUTE carries 0xff. Requiring a plausible 1..100 here used to abort the walk at
+    the first unused sub, silently truncating the XI at 11 and dropping every block after
+    it — including players who were subbed ON later in the list (26 real appearances lost
+    in frem-2024-11-10.fms alone). posOrder + tid are the actual structural signature, so
+    condition is only rejected when it is neither a percentage nor the unused sentinel.
+    """
     if i + BLOCK > len(mm):
         return False
     tid = int.from_bytes(mm[i + 42:i + 46], "little")
-    return 1 <= mm[i + 3] <= 100 and 1 <= mm[i + 41] <= 30 and 0 < tid < 200000
+    cond_ok = (1 <= mm[i + 3] <= 100) or mm[i + 3] == 0xff
+    return cond_ok and 1 <= mm[i + 41] <= 30 and 0 < tid < 200000
 
 
 MIN_XI = 7
@@ -197,6 +207,70 @@ def parse_formation(mm, anchor, next_anchor):
         out.append(mm[j])
         j += 1
     return out.decode("ascii") if out else None
+
+
+# ---------------- slot positions ----------------
+# Immediately after the formation string sit 11 pairs of 2 bytes — one per starting
+# slot, in posOrder order — giving each starter's actual on-pitch position. This is the
+# ONLY place position is stored; the per-player stat block holds none (exhaustively
+# ruled out). Full write-up + validation: docs/agent-context/match-position-encoding.md.
+POSITION_BANDS = {0x01: "GK", 0x04: "D", 0x08: "DM", 0x10: "M", 0x20: "AM", 0x40: "ST"}
+LEFT_FLAG = 0x80        # band byte: player is the wide-LEFT one of his band
+WIDE_RIGHT = 0x08       # column byte: player is the wide-RIGHT one of his band
+
+
+def slot_position(band_byte, col_byte):
+    """One (band, column) pair -> an FM position code ('DR', 'DMC', 'AML', ...)."""
+    band = POSITION_BANDS.get(band_byte & ~LEFT_FLAG)
+    if band is None:
+        return None
+    if band == "GK":
+        return "GK"
+    if band == "ST":
+        return "FC"
+    if col_byte == WIDE_RIGHT:
+        return band + "R"
+    return band + ("L" if band_byte & LEFT_FLAG else "C")
+
+
+def parse_slot_positions(mm, anchor, next_anchor):
+    """The 11 starting positions for the MANAGED club's XI, or None.
+
+    Only our own club's shape is stored (same as the formation string), so the caller
+    must attach these to whichever side is ours — see extract_match. A None means the
+    array didn't decode; callers keep going with position unknown rather than failing.
+    """
+    hi = next_anchor or anchor + 8000
+    i = mm.find(FORMATION_MARKER, anchor, hi)
+    if i == -1:
+        return None
+    j = i + 4
+    while j < hi and (48 <= mm[j] <= 57 or mm[j] == 45):
+        j += 1
+    k = j
+    while k < hi and mm[k] == 0:            # skip the zero padding
+        k += 1
+    if k + 22 > hi:
+        return None
+    slots = [slot_position(mm[k + 2 * n], mm[k + 2 * n + 1]) for n in range(11)]
+    return None if any(s is None for s in slots) else slots
+
+
+def formation_from_slots(slots):
+    """Collapse decoded slots back into a formation string.
+
+    This is the self-check that makes the decode verifiable WITHOUT screenshots: it must
+    equal the save's own formation string (108/108 across two careers). Prefer it over a
+    post-match screenshot, which is a different moment in time if the manager changed
+    shape mid-match.
+    """
+    order = ["D", "DM", "M", "AM", "ST"]
+    counts = {o: 0 for o in order}
+    for s in slots or ():
+        if s == "GK":
+            continue
+        counts["ST" if s == "FC" else s[:-1]] += 1
+    return "-".join(str(counts[o]) for o in order if counts[o])
 
 
 # ---------------- team stats ----------------
@@ -265,8 +339,21 @@ _XI_FIELDS = ["posOrder", "tid_int", "rating", "goals", "assists", "passA",
               "shotO", "condition", "subOn", "subOff", "yellow"]
 
 
-def _xi(team):
-    return [{k: b[k] for k in _XI_FIELDS} for b in (team or [])]
+def _xi(team, slots=None):
+    """Serialise a side's blocks, attaching the decoded starting position when known.
+
+    `slots` is the 11-entry array from parse_slot_positions and is only ever OUR club's
+    (the save stores no shape for the opposition), so the caller passes it for our side
+    only. Substitutes get position None: the array covers the starting XI, and where a
+    sub actually played is not recorded.
+    """
+    out = []
+    for b in (team or []):
+        row = {k: b[k] for k in _XI_FIELDS}
+        n = b["posOrder"]
+        row["position"] = slots[n - 1] if (slots and 1 <= n <= 11) else None
+        out.append(row)
+    return out
 
 
 def _label_playoffs(matches):
@@ -282,13 +369,20 @@ def _label_playoffs(matches):
                 m["leg"] = i + 1
 
 
-def extract_season(mm):
-    """Full season as a list of match dicts (the content of season_data.json)."""
+def extract_season(mm, our_tids=()):
+    """Full season as a list of match dicts (the content of season_data.json).
+
+    `our_tids` = the career's club tids (first team + reserves). Only our own shape is
+    stored in the save, so starting positions are attached to whichever side is ours;
+    pass nothing and every position is simply None (positions are additive — no caller
+    breaks without them).
+    """
     region = find_match_region(mm)                       # self-locating, career-agnostic
     if region:
         anchors = match_anchors(mm, lo=region[0], hi=region[1])
     else:
         anchors = match_anchors(mm)                       # fall back to hard-coded MATCH_LO
+    ours = {t for t in our_tids if t}
     out = []
     for n, a in enumerate(anchors):
         nxt = anchors[n + 1] if n + 1 < len(anchors) else None
@@ -300,6 +394,7 @@ def extract_season(mm):
             d = (date(h["year"], 1, 1) + timedelta(days=h["day"])).isoformat()
         except ValueError:
             d = None
+        slots = parse_slot_positions(mm, a, nxt)
         out.append({
             "anchor": a, "date": d,
             "competition": h.get("competition"), "comp_id": h.get("comp_id"),
@@ -312,7 +407,8 @@ def extract_season(mm):
                            "away": team_stats(m["away"])},
             "formation": parse_formation(mm, a, nxt),
             "events": m["events"],
-            "home_xi": _xi(m["home"]), "away_xi": _xi(m["away"]),
+            "home_xi": _xi(m["home"], slots if h["home_tid"] in ours else None),
+            "away_xi": _xi(m["away"], slots if h["away_tid"] in ours else None),
         })
     _label_playoffs(out)
     return out
