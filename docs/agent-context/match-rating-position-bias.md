@@ -11,6 +11,28 @@ ratings") and then confirmed in the data. It only became measurable once
 
 ## The evidence
 
+**IMPORTANT — bucket by POSITION, not by band.** `mart.match_player_facts.unit` lumps
+`DML`/`DMR` in with `DMC`, but in a back-3 those wide slots are **wing-backs**, a different
+job entirely. Splitting them makes the DM penalty slightly *worse* (true `DMC` = 6.642 vs
+6.675 for the mixed band) and stops a wing-back being read as a holding midfielder. Use this
+10-role split as the baseline:
+
+| role | positions | starts | mean | sd |
+|---|---|---|---|---|
+| DM (holder) | `DMC` | 109 | **6.642** | 0.727 |
+| Wing-back | `DML`,`DMR` | 17 | 6.882 | 0.697 |
+| Full-back | `DL`,`DR` | 234 | 7.009 | 1.015 |
+| GK | `GK` | 126 | 7.024 | 0.497 |
+| Central mid | `MC` | 250 | 7.072 | 0.871 |
+| Attacking mid | `AMC` | 82 | 7.085 | 1.080 |
+| Wide mid | `ML`,`MR` | 35 | 7.143 | 0.974 |
+| Centre-back | `DC` | 264 | 7.163 | 1.057 |
+| Winger | `AML`,`AMR` | 189 | 7.376 | 1.043 |
+| Forward | `FC` | 80 | 7.800 | 1.554 |
+
+Note the split also separates **wingers (7.376) from AMCs (7.085)** — a 0.29 gap the coarse
+"Attacking midfield" band (7.288) hides.
+
 **1. The DM band is bottom of the table, in every single season.** Our competitive starts:
 
 | unit | n | mean | sd | 2022 | 2023 | 2024 | 2025 |
@@ -90,15 +112,19 @@ their `position`/`unit` are NULL.
 | player | unit | starts | raw | idx |
 |---|---|---|---|---|
 | Tochi Chukwuani | Midfield | 12 | 7.67 | **110.0** |
-| Hervé Buur | Defensive midfield | 5 | 6.80 | **102.6** |
 | Joël Kabongo | Defenders | 8 | 7.25 | 102.3 |
 | Anosike Ementa | Forwards | 12 | **8.00** | 101.9 |
 | Oliver Jeppe | Defensive midfield | 6 | 6.67 | 99.8 |
 
-**Ementa's 8.00 — the top raw rating in the squad — is only par-for-a-forward once adjusted,
-while Buur's 6.80 at DM is the second-best performance in the team.** Raw rating had those
-two almost exactly backwards. Same in 2024: Anton Pedersen's 7.70 at CB becomes the squad's
-2nd-best (108.9), which a raw table buries mid-page.
+**Ementa's 8.00 — the top raw rating in the squad — is only par-for-a-forward once
+adjusted.** Raw rating badly overstates him relative to the deeper roles. Same in 2024:
+Anton Pedersen's 7.70 at CB becomes the squad's 2nd-best (108.9), which a raw table buries
+mid-page.
+
+(An earlier draft of this table read "Hervé Buur, Defensive midfield, 102.6" — that was the
+coarse `unit` bucketing mislabelling a **wing-back** as a DM. He is a full-back/wing-back:
+`DL` 7.00 and `DML` 7.00. Corrected here, and the reason the 10-role split above is the
+baseline to use.)
 
 ## Rules that follow
 
@@ -118,6 +144,17 @@ An earlier read of Jeppe on 2025 alone (6 starts DMC at 7.33 vs 3 at MC at 6.33)
 6.75 competitive — and the apparent flip vanished entirely under a ≥5-start filter. **Require
 a minimum start count before drawing a positional conclusion, and say the n out loud.** See
 [[ground-truth-beats-my-parse]] for the same lesson from the parsing side.
+
+## Open question — how are two central DMs encoded?
+
+Every shape observed so far puts at most one player in the `DMC` column, so a double pivot
+(4-2-3-1, 4-2-2-2) has only ever decoded as `DMC` + `DML`/`DMR`. It is NOT yet confirmed
+whether FMM genuinely treats the second holder as a wide slot or whether two central DMs get
+distinct column bytes we have not seen. **Until that is tested, do not assume a `DML`/`DMR`
+in a two-DM shape is a wing-back** — in a back-4 double pivot it is probably a second
+holder, whereas in a back-3 it is a wing-back. The manager plans to run a 4-2-3-1 and read
+the position labels off the in-game stats screen to settle it; re-check the column-byte
+values for that match against `docs/agent-context/match-position-encoding.md`.
 
 ## Possible follow-up
 
