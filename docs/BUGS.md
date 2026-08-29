@@ -1,5 +1,237 @@
 # Known bugs / follow-ups
 
+## 15. Club record trailer — looks like financial/stadium data (found chasing #14, TODO)
+
+While chasing #14's Formation/Style, checked whether the *club's own* record (not the
+manager's) carries a tactical-identity field instead. It doesn't seem to — but it's clearly
+a substantial, mostly-undecoded data block worth coming back to on its own.
+
+**Location:** the club reference record ([TID][UID][len-prefixed long/short/code names],
+same one `reference._build_refdata_index` already reads for name/league/country) has a large
+trailer immediately after the 3 name strings that we hadn't looked past before. For our 7
+known Superliga clubs it sits at (club record start, trailer start):
+```
+AaB          6519248 -> 6519296   FCK          6528473 -> 6528535
+FCN          7736966 -> 7737034   FCM          6537976 -> 6538040
+OB           6544469 -> 6544510   SønderjyskE  7699504 -> 7699563
+Silkeborg    6546212 -> 6546274
+```
+(Trailer start = club record start + `8 + Σ(4 + len)` over the 3 name strings — i.e. skip
+past the length-prefixed long/short/code names; delta varies 41-68 bytes per club because
+names differ in length.)
+
+**Shape, aligned so offset 0 = trailer start (= right after the 3 names):** `+0..1` =
+country u16 (138 = Denmark, confirmed same for all 7). Past that it's a big table absolutely
+dominated by `0x7FFF` (32767) and `0x7FFE` (32638) sentinel-looking values interleaved with
+real-looking numbers, structured in repeating groups — reads like **stadium capacity /
+attendance and finance (wage budget, transfer budget, ticket prices) fields**, not tactics.
+Nothing in the first 300 bytes matches Formation or Style for any of the 7 (same exact-match
+and style-grouping tests as #14, both came back empty here too).
+
+**Not decoded, not chased further this round** — noting it because it's clearly real,
+substantial, decodable data (budgets/stadium info would be genuinely useful for the
+dashboard/scouting side) that just isn't the thing we were looking for. Worth a dedicated
+pass later: ground-truth a club's actual wage budget / stadium capacity from the in-game
+Club Info screen and hunt for it in this trailer the same way #14 did for managers.
+
+## 14. Manager/staff records — identified structurally (formation + style still open)
+
+Located the per-club MANAGER record for 3 Danish Superliga clubs from user-supplied
+ground-truth screenshots (AaB / Niels Frederiksen, FC Nordsjælland / Kjetil Knutsen,
+OB / Radoslav Látal — all dated 25 Nov 2024). Used snapshot `frem-2024-11-10.fms` (no
+closer save exists in R2 for that date; manager identity/personality don't drift over
+2 weeks, so it's still a valid ground-truth match).
+
+**Found by:** combining #11's staff rule (SID == `ffffffff`) with an exact cross-check —
+scan every `FFFFFFFF`-marked info record (same shape as `reference.parse_info`) with a
+plausible DOB year, keep the ones whose `club_tid` (+42) matches the target club AND whose
+DOB (day-of-year + year, both u16) matches the screenshot exactly. One unambiguous hit per
+manager:
+
+| | tid | club_tid | file offset (frem-2024-11-10.fms) |
+|---|---|---|---|
+| Niels Frederiksen | 1619 | 328 (AaB) | 759558 |
+| Kjetil Knutsen | 1134 | 2465 (FC Nordsjælland) | 705295 |
+| Radoslav Látal | 329 | 371 (OB) | 613993 |
+
+Record shape (identical to the player info-field, offsets relative to record start):
+```
++0  tid u32              +4  uid u32
++8  first_name_id u32    +12 last_name_id u32
++16 FFFFFFFF marker
++20 dob day-of-year u16  +22 dob year u16
++24 nationality u16
++38 international caps u8  +39 international goals u8   (new — see below)
++42 club_tid u16
++52..59 personality block (see #9 — now fully resolved, below)
++60..63 FFFFFFFF          (no player-attribute SID — the staff marker from #11)
+```
+
+**New field, found by stacking all 7 managers' raw bytes and scanning for anything
+byte-exact across the whole group (not just Style/Formation): `+38` = international caps,
+`+39` = international goals, both plain `u8`.** Exact for all 7 — Frederiksen/Knutsen/Thorup/
+Hansen/Machín all "Uncapped" → `0,0`; Látal "47 caps / 1 goal" → `47,1`; Marsch "2 caps / 0
+goals" → `2,0`. This is presumably a *player*-record field too (every person has an
+international record) — worth checking against `staging.scrape_players` next time that's
+touched, since it wasn't in scope there before.
+All fields confirmed byte-exact against the 3 screenshots: tid/uid, name ids, DOB, three
+*different* nationality codes matching Danish/Norwegian/Czech, club_tid, and all 8
+personality values.
+
+**Resolves #9's "decode TODO".** The 8-byte block at +52..59 is exactly the community-nugget
+order it guessed, as plain single bytes with no interleaving needed — Adaptability, Ambition,
+Determination, Loyalty, Handling Pressure, Professionalism, **Sportsmanship** (hidden — not
+shown on the Manager Profile screen, which is why the old Bucaspor lead only matched 6/8
+against on-screen values), Temperament. Verified 1:1 against all three screenshots' visible
+7 (everything but Sportsmanship, which has no UI to check against).
+
+**Formation-shape catalog located** (context for #10's "saved tactics" note): 21 templates at
+~20.66-20.69 MB, marker `76 b9 f4 07` + zero-padded ASCII name + 1262 B of geometry each, in
+fixed declaration order (0=4-4-2, 2=4-1-2-2-1, 5=4-2-3-1, … 18=5-2-2-1 … 20=5-4-1). Pure
+geometry — diffed all 21 records byte-for-byte and confirmed no offset in `[0,1262)` carries
+a redundant per-entry 0-20 index; identity is declaration order only.
+
+**NOT yet found: Style and Formation preference** (the two fields actually asked for), and now
+**decisively ruled out as a nearby raw byte**, not just "not found yet" — see the 7-manager
+follow-up below.
+
+**Ground truth (verbatim from all 7 screenshots gathered so far — kept here so it survives
+without them):**
+
+| field | Frederiksen (AaB) | Knutsen (FCN) | Látal (OB) | Thorup (FCK) | Marsch (FCM) | Hansen (SønderjyskE) | Machín (Silkeborg) |
+|---|---|---|---|---|---|---|---|
+| Nationality | Danish, Uncapped | Norwegian, Uncapped | Czech, 47 caps / 1 goal | Danish, Uncapped | American, 2 caps / 0 goals | Danish, Uncapped | Spanish, Uncapped |
+| DOB (age) | 5/11/1970 (54) | 2/10/1968 (56) | 6/1/1970 (54) | 21/2/1970 (54) | 8/11/1973 (51) | 28/7/1979 (45) | 7/4/1975 (49) |
+| Reputation | Regional | National | National | Continental | National | Regional | National |
+| Job Status | Very Secure | V. Insecure | Very Secure | Very Secure | Secure | Secure | Secure |
+| Adaptability | 12 | 10 | 9 | 17 | 14 | 9 | 11 |
+| Ambition | 10 | 19 | 14 | 11 | 13 | 7 | 13 |
+| Determination | 14 | 15 | 17 | 16 | 15 | 7 | 14 |
+| Loyalty | 14 | 13 | 17 | 18 | 16 | 16 | 9 |
+| Handling Pressure | 14 | 15 | 16 | 17 | 14 | 11 | 13 |
+| Professionalism | 14 | 19 | 17 | 14 | 13 | 14 | 14 |
+| Temperament | 15 | 17 | 4 | 17 | 9 | 16 | 9 |
+| Discipline | 16 | 16 | 14 | 7 | 13 | 13 | 14 |
+| Financial Control | 12 | 16 | 12 | 10 | 2 | 9 | 11 |
+| Judging Ability | 11 | 11 | 14 | 11 | 15 | 11 | 13 |
+| Judging Potential | 13 | 15 | 9 | 10 | 13 | 11 | 11 |
+| People Management | 10 | 13 | 7 | 15 | 16 | 14 | 15 |
+| Motivating | 11 | 16 | 12 | 13 | 15 | 15 | 13 |
+| Tactical Knowledge | 13 | 13 | 13 | 12 | 14 | 12 | 13 |
+| Goalkeeping | 4 | 6 | 6 | 1 | 1 | 1 | 4 |
+| Outfield | 10 | 12 | 10 | 11 | 13 | 9 | 11 |
+| Youth | 18 | 12 | 5 | 15 | 14 | 12 | 12 |
+| Ability (stars /5) | 3.5 | 4.5 | 3.5 | 3.5 | 4 | 3 | 3.5 |
+| Rank | - | - | - | 25th | - | - | - |
+| **Style** | **Attacking** | **Attacking** | **Defensive** | **Attacking** | **Normal** | **Normal** | **Normal** |
+| **Formation** | **5-2-2-1** | **4-1-2-2-1** | **4-2-3-1** | **4-1-2-2-1** | **4-4-2** | **4-1-2-2-1** | **5-2-1-2** |
+| Status line | "Enjoying his role at the club" | "Determined to succeed at the club" | "Proud to be managing OB" | "Proud to be managing FC København" | "Enjoying his role at the club" | "Enjoying his role at the club" | "Happy to be managing Silkeborg IF" |
+
+Located and verified all 4 new managers' records the same way (DOB+club_tid cross-check,
+personality block byte-exact): Thorup tid 861187, Marsch tid 767339, Hansen tid 743453, Machín
+tid 782702 (all in `frem-2024-11-10.fms`).
+
+**Ruled out this round (2026-08-29 follow-up):**
+- **Displayed attributes don't derive formation or style either** — checked directly against
+  the screenshot values (not the file): no attribute is an exact match or constant offset from
+  the formation catalog index across all 7 managers, and no attribute cleanly separates the
+  three Style groups (Attacking/Normal/Defensive all overlap on every one of the 17 values).
+- **Formation-index-as-nearby-byte is now dead, not just unconfirmed.** Re-ran the exact-byte
+  search with all 7 managers (was 3) out to **±50,000 bytes** — zero matches. At n=7 and this
+  window, a coincidental hit is essentially impossible, so this rules the hypothesis out rather
+  than just failing to find it.
+- **The `record+85` Style lead is refuted.** With the 4 new managers it no longer holds: Fred
+  (Attacking)=4, Knutsen (Attacking)=4, but Thorup (also Attacking)=5 — same value as Látal
+  (Defensive)=5 and Hansen (Normal)=5 — while Marsch (Normal)=4 matches the Attacking pair.
+  No grouping survives. Confirmed coincidence, not signal.
+- **Cross-manager constant-byte scan (all 7, offsets -60..+250) turned up nothing new.**
+  Everything constant across all 7 is already-known structure — the `FFFFFFFF` markers/padding,
+  and **`record+33 == 0` for all 7**, which independently confirms #11's staff-vs-player flag
+  (`info+33`: 1=player, 0=staff) using our verified manager set. No low-cardinality offset in
+  the *actual* record zone (roughly `[-60,+64)`, before the unrelated-record contamination
+  noted below) lines up with Style or Formation.
+- **One unexplained oddity, unrelated to Style/Formation:** `record+34` and the u32 at
+  `record+36..39` are near-constant across 6 of the 7 managers (`+34`=1, `+36..39`≈1900) but
+  Frederiksen alone differs at *both* positions (`+34`=175, `+36..39`≈2019) — worth another
+  look some time (maybe a "date appointed to current club" field — plausible since Frederiksen
+  could be the one manager here who changed jobs mid-save while the other 6 are default
+  appointments), but not chased further this round since it doesn't look Style/Formation-shaped.
+- **Reputation (Regional/National/Continental), Job Status (Very Secure/Secure/V.Insecure)
+  and Rank (25th vs "-") don't show up in `[0,140)` either.** Same exhaustive per-offset group
+  check (does this offset's value split the 7 managers into exactly the right groups?) as
+  used for Style — zero matching offsets for Reputation or Job Status; and no offset has
+  Thorup (the only ranked manager, 25th) at literal byte value 25. Same not-yet-searched
+  status as Style/Formation — likely the same separate record, if one exists.
+- **No wage/contract record for managers.** Tested `staging.scrape_contracts`'s exact
+  `[tid][0x01][wage u16]…[expiry]` validator (region 16-40M) against the 3 manager tids —
+  zero hits for all three, vs. clean real wages/expiries when run against ordinary AaB
+  player tids as a sanity check. Confirms managers don't get a contract-shaped record at
+  all, and confirms the `[01 03][wage-like u16]…` bytes trailing each manager's info-field
+  (noted as an open question last round) belong to some unrelated nearby PLAYER's contract,
+  not the manager — the true manager record is just the ~64 bytes mapped above, nothing
+  appended after it.
+- **The player attribute "raw 0-255 → 1-20" trick doesn't transfer as-is.** `model.py`'s
+  formula is a regression *fit* on a large player ground-truth set, tied to offsets inside
+  the player-only 78-byte SID grid managers don't have. Tried the general version anyway —
+  swept `raw // k` / `round(raw/k)` / `ceil(raw/k)` for k=9-15 across a ±2000-byte window
+  for all 10 undecoded manager attributes. Got exactly 2 "hits", both spurious: Tactical
+  Knowledge (constant at 13 for all 3 managers, so any near-constant byte in range trivially
+  "matches" — the already-known DOB-year byte did) and Outfield (matched the already-known
+  nationality-code byte purely by coincidence of scale). **Lesson: with only 3 ground-truth
+  managers there's no way to distinguish a real formula from a coincidence** — this needs
+  either many more managers (to fit for real, the way the player model was) or a location
+  found some other way, not curve-fitting on 3 points.
+
+### Round 3 (same day): real-world managers as bulk ground truth — nearby-byte hypothesis now dead, not just unconfirmed
+
+Idea: the save clearly carries a *licensed real-world* manager database (not just Danish
+lower-league names), so famous managers with an unambiguous real-world tactical reputation
+give free ground truth with zero screenshots needed. Scanned the whole info-record region
+(`0`-`5,000,000`) for staff-shaped records (SID sentinel + valid personality block), resolved
+every name via `reference.build_name_resolver`/`resolve_name` (oriented using the 7 already-
+confirmed managers as the validation set) — **6,429 staff-shaped records**, and grepping the
+resolved names for well-known managers turned up real, correctly-placed people: Guardiola,
+Klopp, Mourinho, Simeone, Conte, Postecoglou, De Zerbi, Arteta, Nagelsmann, Pochettino, and
+more, each at a plausible real 2024/25 club.
+
+**These are genuinely the real people, not name collisions** — DOB and international
+caps/goals (the `+38`/`+39` field from round 2) match real biography almost exactly with zero
+lookup on our part beyond memory: Simeone 107 caps/11 goals (Argentina, real: 106/11 — 1 cap
+off, everything else exact), Conte 20/2 (Italy, exact), Guardiola 47/5 (Spain, exact), Klopp
+0/0 (uncapped, exact), Postecoglou 4/0 (Australia, exact), Mourinho 0/0 (never a pro player,
+exact). Strong independent confirmation of the caps/goals field from round 2, and proof this
+save's manager pool is a real licensed database, not procedurally generated names.
+
+Took the 9 whose real-world Style is unambiguous (no judgment calls — footballing consensus,
+not opinion): **Attacking** — Guardiola, Klopp, Postecoglou, De Zerbi, Arteta, Nagelsmann.
+**Defensive** — Simeone, Mourinho, Conte. Combined with the 7 Danish managers: **n=16** for
+Style (9 Attacking / 4 Normal / 3 Defensive), **n=9** for Formation (added Klopp's 4-3-3 and
+Simeone's famous 4-4-2, both in the 21-entry catalog).
+
+- **Style: zero exact-byte matches at ±20,000 bytes, n=16.** Also tried nibble/bit-masked
+  matching (`&0x0F`, `&0xF0`, each individual bit) at ±5,000 — **zero hits at any mask.**
+- **Formation: zero exact-byte matches at ±20,000 bytes, n=9** (mixing catalog indices
+  0, 2, 5, 10, 17, 18 — good spread).
+
+At this sample size, window, and encoding coverage (whole byte + nibble + single bit), a
+coincidental hit is essentially impossible — this closes off "nearby raw byte in any common
+encoding" as decisively as this method can. If Style/Formation are stored per-manager at all,
+they're not within a wide radius of this record, in any of the encodings tried.
+
+**To close this out — next session:**
+1. **Structural lead (still the leading candidate):** a wholly separate manager-only record
+   (not the generic staff info-field, and not the club's financial record — see #15) holding
+   Style/Formation/Rank/Ability-stars, the fields plain staff don't have. Not yet searched for
+   — the real-manager pool from this round (6,429 resolved staff names, many instantly
+   recognizable) is reusable for testing any future candidate location without needing more
+   screenshots.
+2. **Diff two saves** where the same manager's formation/style actually changed, per
+   CLAUDE.md method #4 — the only test left that can distinguish "stored but still unfound"
+   from "not persisted in the save at all" (e.g. computed from a static in-app real-manager
+   database referenced by identity, the same way real crests/kits aren't in the save either).
+3. Ground truth is no longer the bottleneck (round 3 shows real managers give near-unlimited,
+   screenshot-free ground truth) — the bottleneck is a candidate *location* to test it against.
+
 ## 12c. LIGHT results (simulated non-managed games) — SOLVED ✅
 
 Only the MANAGED club's games get detailed per-player records (BUGS #12b). Every OTHER
@@ -274,7 +506,7 @@ position-specific per-attribute CA-weight tables we can't fully triangulate from
 squad — but good enough to ESTIMATE any opponent's full attribute set to ±1. `regress.py`
 grid-searches feature subsets per attribute and reports exact / ±1 / R² / chosen features.
 
-## 9. Personality block (8 values before the SID) — lead
+## 9. Personality block (8 values before the SID) — SOLVED ✅ (see #14)
 
 Community nugget: the 8 values immediately before the SID are personality, alphabetical:
 Adaptability, Ambition, Determination, Loyalty, Pressure Handling, Professionalism,
@@ -282,6 +514,11 @@ Sportsmanship, Temperament. In our record the SID is at P-42, so this is **P-50.
 Partial confirmation: **b-50 (Adaptability) = 16 for BOTH Yüksel and Aktaş** (the two
 "Adaptable"-personality players) vs 8/0/4 for others. But the 8 bytes aren't all clean
 1-20 (interleaved 0/>20 values) — likely needs a u16 or different stride; decode TODO.
+
+**Resolved in #14**, from the Frem career's 3 opposition-manager ground truths: the block
+IS plain single bytes in exactly this order, no interleaving — the earlier Bucaspor read
+just had one value (Sportsmanship) that isn't shown in any UI to confirm against, which
+made the clean pattern look noisier than it is.
 
 ## 5. Hidden-attribute leads (LOW priority — user: immersion)
 
