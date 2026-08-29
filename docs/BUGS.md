@@ -48,53 +48,79 @@ fixed declaration order (0=4-4-2, 2=4-1-2-2-1, 5=4-2-3-1, … 18=5-2-2-1 … 20=
 geometry — diffed all 21 records byte-for-byte and confirmed no offset in `[0,1262)` carries
 a redundant per-entry 0-20 index; identity is declaration order only.
 
-**NOT yet found: Style and Formation preference** (the two fields actually asked for). Despite
-the exact match on everything else in the record, neither turned up:
-- No byte in a `[-5000,+5000)` window around the record equals the manager's own catalog
-  index (18 / 2 / 5 for AaB / FCN / OB) — rules out a raw declaration-order reference nearby.
-- No occurrence anywhere in the file of the catalog entry's absolute file offset as a u32.
-- Formation name strings do **not** get duplicated per-manager the way #10's managed-team
-  saved tactics do — global search for `"5-2-2-1"` / `"4-1-2-2-1"` / `"4-2-3-1"` only turns up
-  the catalog itself plus our own match-trailer copies, never a second copy near a manager.
+**NOT yet found: Style and Formation preference** (the two fields actually asked for), and now
+**decisively ruled out as a nearby raw byte**, not just "not found yet" — see the 7-manager
+follow-up below.
 
-**Unconfirmed lead for Style:** `record+85` is low-cardinality (values 1-7) across 95 sampled
-Superliga staff records, and reads `4` for both Attacking managers (Frederiksen, Knutsen) vs
-`5` for the one Defensive manager (Látal). Plausible, but only one Defensive data point exists
-so it could be coincidence — that offset sits inside a repeating structure that looks more
-like adjacent contract/staff-list noise than a field that clearly belongs to this record.
+**Ground truth (verbatim from all 7 screenshots gathered so far — kept here so it survives
+without them):**
 
-**Ground truth (verbatim from the 3 screenshots — kept here so it survives without them):**
+| field | Frederiksen (AaB) | Knutsen (FCN) | Látal (OB) | Thorup (FCK) | Marsch (FCM) | Hansen (SønderjyskE) | Machín (Silkeborg) |
+|---|---|---|---|---|---|---|---|
+| Nationality | Danish, Uncapped | Norwegian, Uncapped | Czech, 47 caps / 1 goal | Danish, Uncapped | American, 2 caps / 0 goals | Danish, Uncapped | Spanish, Uncapped |
+| DOB (age) | 5/11/1970 (54) | 2/10/1968 (56) | 6/1/1970 (54) | 21/2/1970 (54) | 8/11/1973 (51) | 28/7/1979 (45) | 7/4/1975 (49) |
+| Reputation | Regional | National | National | Continental | National | Regional | National |
+| Job Status | Very Secure | V. Insecure | Very Secure | Very Secure | Secure | Secure | Secure |
+| Adaptability | 12 | 10 | 9 | 17 | 14 | 9 | 11 |
+| Ambition | 10 | 19 | 14 | 11 | 13 | 7 | 13 |
+| Determination | 14 | 15 | 17 | 16 | 15 | 7 | 14 |
+| Loyalty | 14 | 13 | 17 | 18 | 16 | 16 | 9 |
+| Handling Pressure | 14 | 15 | 16 | 17 | 14 | 11 | 13 |
+| Professionalism | 14 | 19 | 17 | 14 | 13 | 14 | 14 |
+| Temperament | 15 | 17 | 4 | 17 | 9 | 16 | 9 |
+| Discipline | 16 | 16 | 14 | 7 | 13 | 13 | 14 |
+| Financial Control | 12 | 16 | 12 | 10 | 2 | 9 | 11 |
+| Judging Ability | 11 | 11 | 14 | 11 | 15 | 11 | 13 |
+| Judging Potential | 13 | 15 | 9 | 10 | 13 | 11 | 11 |
+| People Management | 10 | 13 | 7 | 15 | 16 | 14 | 15 |
+| Motivating | 11 | 16 | 12 | 13 | 15 | 15 | 13 |
+| Tactical Knowledge | 13 | 13 | 13 | 12 | 14 | 12 | 13 |
+| Goalkeeping | 4 | 6 | 6 | 1 | 1 | 1 | 4 |
+| Outfield | 10 | 12 | 10 | 11 | 13 | 9 | 11 |
+| Youth | 18 | 12 | 5 | 15 | 14 | 12 | 12 |
+| Ability (stars /5) | 3.5 | 4.5 | 3.5 | 3.5 | 4 | 3 | 3.5 |
+| Rank | - | - | - | 25th | - | - | - |
+| **Style** | **Attacking** | **Attacking** | **Defensive** | **Attacking** | **Normal** | **Normal** | **Normal** |
+| **Formation** | **5-2-2-1** | **4-1-2-2-1** | **4-2-3-1** | **4-1-2-2-1** | **4-4-2** | **4-1-2-2-1** | **5-2-1-2** |
+| Status line | "Enjoying his role at the club" | "Determined to succeed at the club" | "Proud to be managing OB" | "Proud to be managing FC København" | "Enjoying his role at the club" | "Enjoying his role at the club" | "Happy to be managing Silkeborg IF" |
 
-| field | Frederiksen (AaB) | Knutsen (FCN) | Látal (OB) |
-|---|---|---|---|
-| Nationality | Danish, Uncapped | Norwegian, Uncapped | Czech, 47 caps / 1 goal |
-| DOB (age) | 5/11/1970 (54) | 2/10/1968 (56) | 6/1/1970 (54) |
-| Reputation | Regional | National | National |
-| Job Status | Very Secure | V. Insecure | Very Secure |
-| Adaptability | 12 | 10 | 9 |
-| Ambition | 10 | 19 | 14 |
-| Determination | 14 | 15 | 17 |
-| Loyalty | 14 | 13 | 17 |
-| Handling Pressure | 14 | 15 | 16 |
-| Professionalism | 14 | 19 | 17 |
-| Temperament | 15 | 17 | 4 |
-| Discipline | 16 | 16 | 14 |
-| Financial Control | 12 | 16 | 12 |
-| Judging Ability | 11 | 11 | 14 |
-| Judging Potential | 13 | 15 | 9 |
-| People Management | 10 | 13 | 7 |
-| Motivating | 11 | 16 | 12 |
-| Tactical Knowledge | 13 | 13 | 13 |
-| Goalkeeping | 4 | 6 | 6 |
-| Outfield | 10 | 12 | 10 |
-| Youth | 18 | 12 | 5 |
-| Ability (stars /5) | 3.5 | 4.5 | 3.5 |
-| Rank | - | - | - |
-| **Style** | **Attacking** | **Attacking** | **Defensive** |
-| **Formation** | **5-2-2-1** | **4-1-2-2-1** | **4-2-3-1** |
-| Status line | "Enjoying his role at the club" | "Determined to succeed at the club" | "Proud to be managing OB" |
+Located and verified all 4 new managers' records the same way (DOB+club_tid cross-check,
+personality block byte-exact): Thorup tid 861187, Marsch tid 767339, Hansen tid 743453, Machín
+tid 782702 (all in `frem-2024-11-10.fms`).
 
 **Ruled out this round (2026-08-29 follow-up):**
+- **Displayed attributes don't derive formation or style either** — checked directly against
+  the screenshot values (not the file): no attribute is an exact match or constant offset from
+  the formation catalog index across all 7 managers, and no attribute cleanly separates the
+  three Style groups (Attacking/Normal/Defensive all overlap on every one of the 17 values).
+- **Formation-index-as-nearby-byte is now dead, not just unconfirmed.** Re-ran the exact-byte
+  search with all 7 managers (was 3) out to **±50,000 bytes** — zero matches. At n=7 and this
+  window, a coincidental hit is essentially impossible, so this rules the hypothesis out rather
+  than just failing to find it.
+- **The `record+85` Style lead is refuted.** With the 4 new managers it no longer holds: Fred
+  (Attacking)=4, Knutsen (Attacking)=4, but Thorup (also Attacking)=5 — same value as Látal
+  (Defensive)=5 and Hansen (Normal)=5 — while Marsch (Normal)=4 matches the Attacking pair.
+  No grouping survives. Confirmed coincidence, not signal.
+- **Cross-manager constant-byte scan (all 7, offsets -60..+250) turned up nothing new.**
+  Everything constant across all 7 is already-known structure — the `FFFFFFFF` markers/padding,
+  and **`record+33 == 0` for all 7**, which independently confirms #11's staff-vs-player flag
+  (`info+33`: 1=player, 0=staff) using our verified manager set. No low-cardinality offset in
+  the *actual* record zone (roughly `[-60,+64)`, before the unrelated-record contamination
+  noted below) lines up with Style or Formation.
+- **One unexplained oddity, unrelated to Style/Formation:** `record+34` and the u32 at
+  `record+36..39` are near-constant across 6 of the 7 managers (`+34`=1, `+36..39`≈1900) but
+  Frederiksen alone differs at *both* positions (`+34`=175, `+36..39`≈2019) — worth another
+  look some time (maybe a "date appointed to current club" field — plausible since Frederiksen
+  could be the one manager here who changed jobs mid-save while the other 6 are default
+  appointments), but not chased further this round since it doesn't look Style/Formation-shaped.
+- **No wage/contract record for managers.** Tested `staging.scrape_contracts`'s exact
+  `[tid][0x01][wage u16]…[expiry]` validator (region 16-40M) against the 3 manager tids —
+  zero hits for all three, vs. clean real wages/expiries when run against ordinary AaB
+  player tids as a sanity check. Confirms managers don't get a contract-shaped record at
+  all, and confirms the `[01 03][wage-like u16]…` bytes trailing each manager's info-field
+  (noted as an open question last round) belong to some unrelated nearby PLAYER's contract,
+  not the manager — the true manager record is just the ~64 bytes mapped above, nothing
+  appended after it.
 - **No wage/contract record for managers.** Tested `staging.scrape_contracts`'s exact
   `[tid][0x01][wage u16]…[expiry]` validator (region 16-40M) against the 3 manager tids —
   zero hits for all three, vs. clean real wages/expiries when run against ordinary AaB
@@ -115,16 +141,19 @@ like adjacent contract/staff-list noise than a field that clearly belongs to thi
   either many more managers (to fit for real, the way the player model was) or a location
   found some other way, not curve-fitting on 3 points.
 
-**To close this out — next session, pick one:**
-1. **Structural lead (untested):** Style/Formation/Rank/Ability-stars are manager-only UI
-   fields that plain staff don't have — plausible they live in a wholly separate
-   manager-only record (not the generic staff info-field), maybe keyed by club_tid alone.
-   Not yet searched for.
-2. **More ground truth:** a few more manager screenshots covering OTHER Style values
-   (whatever FMM offers beyond Attacking/Defensive) would pressure-test the `record+85`
-   lead and give the formula approach above an actual chance of working.
-3. **Diff two saves** where the same club's manager (or their tactic) changed, per
-   CLAUDE.md method #4.
+**To close this out — next session:** the nearby-byte hypothesis is now dead at n=7 (both the
+raw catalog-index search and the `record+85` lead), so the structural lead is the strongest
+remaining option:
+1. **Structural lead (still untested, now the leading candidate):** Style/Formation/Rank/
+   Ability-stars are manager-only UI fields that plain staff don't have — plausible they live
+   in a wholly separate manager-only record (not the generic staff info-field), maybe keyed by
+   club_tid alone. Not yet searched for.
+2. **Diff two saves** where the same club's manager (or their tactic) changed, per
+   CLAUDE.md method #4 — we now have 7 candidate managers to watch for a change in a future
+   snapshot.
+3. **More ground truth is still useful** but no longer for the dead nearby-byte leads — mainly
+   to widen the Style value set (still only seen Attacking/Normal/Defensive) if a fitted-model
+   approach becomes viable later, or once a real candidate field is found structurally.
 
 ## 12c. LIGHT results (simulated non-managed games) — SOLVED ✅
 
