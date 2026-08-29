@@ -27,10 +27,19 @@ Record shape (identical to the player info-field, offsets relative to record sta
 +16 FFFFFFFF marker
 +20 dob day-of-year u16  +22 dob year u16
 +24 nationality u16
++38 international caps u8  +39 international goals u8   (new — see below)
 +42 club_tid u16
 +52..59 personality block (see #9 — now fully resolved, below)
 +60..63 FFFFFFFF          (no player-attribute SID — the staff marker from #11)
 ```
+
+**New field, found by stacking all 7 managers' raw bytes and scanning for anything
+byte-exact across the whole group (not just Style/Formation): `+38` = international caps,
+`+39` = international goals, both plain `u8`.** Exact for all 7 — Frederiksen/Knutsen/Thorup/
+Hansen/Machín all "Uncapped" → `0,0`; Látal "47 caps / 1 goal" → `47,1`; Marsch "2 caps / 0
+goals" → `2,0`. This is presumably a *player*-record field too (every person has an
+international record) — worth checking against `staging.scrape_players` next time that's
+touched, since it wasn't in scope there before.
 All fields confirmed byte-exact against the 3 screenshots: tid/uid, name ids, DOB, three
 *different* nationality codes matching Danish/Norwegian/Czech, club_tid, and all 8
 personality values.
@@ -113,14 +122,12 @@ tid 782702 (all in `frem-2024-11-10.fms`).
   look some time (maybe a "date appointed to current club" field — plausible since Frederiksen
   could be the one manager here who changed jobs mid-save while the other 6 are default
   appointments), but not chased further this round since it doesn't look Style/Formation-shaped.
-- **No wage/contract record for managers.** Tested `staging.scrape_contracts`'s exact
-  `[tid][0x01][wage u16]…[expiry]` validator (region 16-40M) against the 3 manager tids —
-  zero hits for all three, vs. clean real wages/expiries when run against ordinary AaB
-  player tids as a sanity check. Confirms managers don't get a contract-shaped record at
-  all, and confirms the `[01 03][wage-like u16]…` bytes trailing each manager's info-field
-  (noted as an open question last round) belong to some unrelated nearby PLAYER's contract,
-  not the manager — the true manager record is just the ~64 bytes mapped above, nothing
-  appended after it.
+- **Reputation (Regional/National/Continental), Job Status (Very Secure/Secure/V.Insecure)
+  and Rank (25th vs "-") don't show up in `[0,140)` either.** Same exhaustive per-offset group
+  check (does this offset's value split the 7 managers into exactly the right groups?) as
+  used for Style — zero matching offsets for Reputation or Job Status; and no offset has
+  Thorup (the only ranked manager, 25th) at literal byte value 25. Same not-yet-searched
+  status as Style/Formation — likely the same separate record, if one exists.
 - **No wage/contract record for managers.** Tested `staging.scrape_contracts`'s exact
   `[tid][0x01][wage u16]…[expiry]` validator (region 16-40M) against the 3 manager tids —
   zero hits for all three, vs. clean real wages/expiries when run against ordinary AaB
