@@ -31,6 +31,16 @@ export async function view() {
     return pools.get(pos);
   };
 
+  // Rank within the squad itself, not the division — a separate pool because "who's our best
+  // right-back" and "how good is our right-back situation vs the league" are different questions.
+  // Built from `ours` only (never the shortlist), so a shortlisted or scouted player's row asks
+  // "where would he slot in if he joined" rather than moving the goalposts he's judged against.
+  const teamPools = new Map();
+  const teamPoolFor = (pos) => {
+    if (!teamPools.has(pos)) teamPools.set(pos, D.teamPool(ours, pos, method));
+    return teamPools.get(pos);
+  };
+
   // Shared by squad members and shortlist entries alike, so a shortlisted player slots into
   // exactly the same row shape and every column, filter and the compare picker just work on him
   // — no separate "compare a shortlist player" path to keep in sync with this one.
@@ -40,6 +50,7 @@ export async function view() {
     const g = D.growth(p.tid, best.role, method);
     const traj = D.trajectory(p.tid, best.role, method);
     const status = extra.status ?? (D.S.ours.status?.[String(p.tid)] || DASH);
+    const teamPool = teamPoolFor(best.pos);
     return {
       tid: p.tid, player: p, r: best, growth: g, traj,
       age: D.age(p.dob),
@@ -48,6 +59,8 @@ export async function view() {
       origin: D.S.ours.origin?.[String(p.tid)] || null,
       capital: (D.S.ours.capital_eligible || []).includes(p.tid),
       fit: D.pctile(poolFor(best.pos), best.eff),
+      teamRank: D.rankIn(teamPool, best.eff),
+      teamPoolSize: teamPool.length,
       alsoRoles: D.playerRoles(p, method).map((x) => x.role).filter((x, i, a) => a.indexOf(x) === i),
       shortlist: !!extra.shortlist,
       _search: [p.name, best.pos, best.role, status].join(" ").toLowerCase(),
@@ -112,6 +125,12 @@ export async function view() {
       label: "Fit %ile", group: "Rating", align: "num",
       help: "Where he sits at that position in OUR division under this tactic — fit, not level",
       sort: (r) => r.fit, render: (r) => bar(r.fit),
+    },
+    teamRank: {
+      label: "Squad Rank", group: "Rating", align: "num",
+      help: "Where this rating places him among our own players at this position, best to worst. "
+        + "For a shortlisted player this is hypothetical — where he'd slot in if he joined.",
+      sort: (r) => -r.teamRank, render: (r) => el("span", { text: `${r.teamRank}/${r.teamPoolSize}` }),
     },
     lvl: {
       label: "Level %ile", group: "Rating", align: "num",
@@ -178,6 +197,11 @@ export async function view() {
     Midfield: (r) => ["DMC", "MC", "ML", "MR"].includes(r.r.pos),
     Attack: (r) => ["AMC", "AML", "AMR", "ST"].includes(r.r.pos),
   };
+  // Position narrows further than Unit — "how deep are we at DR specifically" rather than
+  // "how's the back line" — and the two filters stack. Options are only the positions that show
+  // up on someone's best role here, so nothing irrelevant to this squad appears in the list.
+  let pos = "all";
+  const POSITIONS = [...new Set(rows.map((r) => r.r.pos))].sort();
   const selected = new Set();
 
   const loanBtn = el("button.btn", {
@@ -190,7 +214,10 @@ export async function view() {
     },
   });
   const unitSel = el("select.btn", { onchange: (e) => { unit = e.target.value; t.redraw(); } },
-    Object.keys(UNITS).map((u) => el("option", { value: u, text: u === "all" ? "All positions" : u })));
+    Object.keys(UNITS).map((u) => el("option", { value: u, text: u === "all" ? "All units" : u })));
+  const posSel = el("select.btn", { onchange: (e) => { pos = e.target.value; t.redraw(); } },
+    [el("option", { value: "all", text: "All positions" }),
+      ...POSITIONS.map((p) => el("option", { value: p, text: p }))]);
   const slBtn = el("button.btn", {
     text: "Show shortlist",
     title: "Add shortlisted players to the table alongside the squad, rated and filtered exactly the same way, so they can be picked for Compare",
@@ -242,11 +269,12 @@ export async function view() {
     catalogue,
     presets,
     sticky: ["player"],
-    defaults: ["age", "pos", "fam", "rating", "fit", "lvl", "growth", "traj", "expiry", "status"],
+    defaults: ["age", "pos", "fam", "rating", "fit", "teamRank", "lvl", "growth", "traj", "expiry", "status"],
     sort: { by: "rating", dir: "desc" },
     searchPlaceholder: "Search our squad…",
-    toolbar: [unitSel, loanBtn, slBtn, armBtn, cmpBtn],
-    filter: (r) => (showLoanIn || !r.loanedIn) && (showShortlist || !r.shortlist) && UNITS[unit](r),
+    toolbar: [unitSel, posSel, loanBtn, slBtn, armBtn, cmpBtn],
+    filter: (r) => (showLoanIn || !r.loanedIn) && (showShortlist || !r.shortlist) && UNITS[unit](r)
+      && (pos === "all" || r.r.pos === pos),
     rowClass: (r) => (selected.has(r.tid) ? "picked" : null),
     empty: "No player matches those filters.",
     onRow: (r) => {
