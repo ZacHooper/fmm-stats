@@ -1,5 +1,74 @@
 # Known bugs / follow-ups
 
+## 14. Manager/staff records — identified structurally (formation + style still open)
+
+Located the per-club MANAGER record for 3 Danish Superliga clubs from user-supplied
+ground-truth screenshots (AaB / Niels Frederiksen, FC Nordsjælland / Kjetil Knutsen,
+OB / Radoslav Látal — all dated 25 Nov 2024). Used snapshot `frem-2024-11-10.fms` (no
+closer save exists in R2 for that date; manager identity/personality don't drift over
+2 weeks, so it's still a valid ground-truth match).
+
+**Found by:** combining #11's staff rule (SID == `ffffffff`) with an exact cross-check —
+scan every `FFFFFFFF`-marked info record (same shape as `reference.parse_info`) with a
+plausible DOB year, keep the ones whose `club_tid` (+42) matches the target club AND whose
+DOB (day-of-year + year, both u16) matches the screenshot exactly. One unambiguous hit per
+manager:
+
+| | tid | club_tid | file offset (frem-2024-11-10.fms) |
+|---|---|---|---|
+| Niels Frederiksen | 1619 | 328 (AaB) | 759558 |
+| Kjetil Knutsen | 1134 | 2465 (FC Nordsjælland) | 705295 |
+| Radoslav Látal | 329 | 371 (OB) | 613993 |
+
+Record shape (identical to the player info-field, offsets relative to record start):
+```
++0  tid u32              +4  uid u32
++8  first_name_id u32    +12 last_name_id u32
++16 FFFFFFFF marker
++20 dob day-of-year u16  +22 dob year u16
++24 nationality u16
++42 club_tid u16
++52..59 personality block (see #9 — now fully resolved, below)
++60..63 FFFFFFFF          (no player-attribute SID — the staff marker from #11)
+```
+All fields confirmed byte-exact against the 3 screenshots: tid/uid, name ids, DOB, three
+*different* nationality codes matching Danish/Norwegian/Czech, club_tid, and all 8
+personality values.
+
+**Resolves #9's "decode TODO".** The 8-byte block at +52..59 is exactly the community-nugget
+order it guessed, as plain single bytes with no interleaving needed — Adaptability, Ambition,
+Determination, Loyalty, Handling Pressure, Professionalism, **Sportsmanship** (hidden — not
+shown on the Manager Profile screen, which is why the old Bucaspor lead only matched 6/8
+against on-screen values), Temperament. Verified 1:1 against all three screenshots' visible
+7 (everything but Sportsmanship, which has no UI to check against).
+
+**Formation-shape catalog located** (context for #10's "saved tactics" note): 21 templates at
+~20.66-20.69 MB, marker `76 b9 f4 07` + zero-padded ASCII name + 1262 B of geometry each, in
+fixed declaration order (0=4-4-2, 2=4-1-2-2-1, 5=4-2-3-1, … 18=5-2-2-1 … 20=5-4-1). Pure
+geometry — diffed all 21 records byte-for-byte and confirmed no offset in `[0,1262)` carries
+a redundant per-entry 0-20 index; identity is declaration order only.
+
+**NOT yet found: Style and Formation preference** (the two fields actually asked for). Despite
+the exact match on everything else in the record, neither turned up:
+- No byte in a `[-5000,+5000)` window around the record equals the manager's own catalog
+  index (18 / 2 / 5 for AaB / FCN / OB) — rules out a raw declaration-order reference nearby.
+- No occurrence anywhere in the file of the catalog entry's absolute file offset as a u32.
+- Formation name strings do **not** get duplicated per-manager the way #10's managed-team
+  saved tactics do — global search for `"5-2-2-1"` / `"4-1-2-2-1"` / `"4-2-3-1"` only turns up
+  the catalog itself plus our own match-trailer copies, never a second copy near a manager.
+
+**Unconfirmed lead for Style:** `record+85` is low-cardinality (values 1-7) across 95 sampled
+Superliga staff records, and reads `4` for both Attacking managers (Frederiksen, Knutsen) vs
+`5` for the one Defensive manager (Látal). Plausible, but only one Defensive data point exists
+so it could be coincidence — that offset sits inside a repeating structure that looks more
+like adjacent contract/staff-list noise than a field that clearly belongs to this record.
+
+**To close this out:** need either (a) a few more manager screenshots covering OTHER Style
+values (Balanced/Cautious/whatever FMM's manager screen actually offers beyond
+Attacking/Defensive) to pressure-test the +85 lead, or (b) two snapshots of the same club
+where the manager (or their formation/style) changed, to diff per CLAUDE.md's method #4.
+Neither attempted yet.
+
 ## 12c. LIGHT results (simulated non-managed games) — SOLVED ✅
 
 Only the MANAGED club's games get detailed per-player records (BUGS #12b). Every OTHER
@@ -274,7 +343,7 @@ position-specific per-attribute CA-weight tables we can't fully triangulate from
 squad — but good enough to ESTIMATE any opponent's full attribute set to ±1. `regress.py`
 grid-searches feature subsets per attribute and reports exact / ±1 / R² / chosen features.
 
-## 9. Personality block (8 values before the SID) — lead
+## 9. Personality block (8 values before the SID) — SOLVED ✅ (see #14)
 
 Community nugget: the 8 values immediately before the SID are personality, alphabetical:
 Adaptability, Ambition, Determination, Loyalty, Pressure Handling, Professionalism,
@@ -282,6 +351,11 @@ Sportsmanship, Temperament. In our record the SID is at P-42, so this is **P-50.
 Partial confirmation: **b-50 (Adaptability) = 16 for BOTH Yüksel and Aktaş** (the two
 "Adaptable"-personality players) vs 8/0/4 for others. But the 8 bytes aren't all clean
 1-20 (interleaved 0/>20 values) — likely needs a u16 or different stride; decode TODO.
+
+**Resolved in #14**, from the Frem career's 3 opposition-manager ground truths: the block
+IS plain single bytes in exactly this order, no interleaving — the earlier Bucaspor read
+just had one value (Sportsmanship) that isn't shown in any UI to confirm against, which
+made the clean pattern look noisier than it is.
 
 ## 5. Hidden-attribute leads (LOW priority — user: immersion)
 
