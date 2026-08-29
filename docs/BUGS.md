@@ -1,5 +1,39 @@
 # Known bugs / follow-ups
 
+## 15. Club record trailer — looks like financial/stadium data (found chasing #14, TODO)
+
+While chasing #14's Formation/Style, checked whether the *club's own* record (not the
+manager's) carries a tactical-identity field instead. It doesn't seem to — but it's clearly
+a substantial, mostly-undecoded data block worth coming back to on its own.
+
+**Location:** the club reference record ([TID][UID][len-prefixed long/short/code names],
+same one `reference._build_refdata_index` already reads for name/league/country) has a large
+trailer immediately after the 3 name strings that we hadn't looked past before. For our 7
+known Superliga clubs it sits at (club record start, trailer start):
+```
+AaB          6519248 -> 6519296   FCK          6528473 -> 6528535
+FCN          7736966 -> 7737034   FCM          6537976 -> 6538040
+OB           6544469 -> 6544510   SønderjyskE  7699504 -> 7699563
+Silkeborg    6546212 -> 6546274
+```
+(Trailer start = club record start + `8 + Σ(4 + len)` over the 3 name strings — i.e. skip
+past the length-prefixed long/short/code names; delta varies 41-68 bytes per club because
+names differ in length.)
+
+**Shape, aligned so offset 0 = trailer start (= right after the 3 names):** `+0..1` =
+country u16 (138 = Denmark, confirmed same for all 7). Past that it's a big table absolutely
+dominated by `0x7FFF` (32767) and `0x7FFE` (32638) sentinel-looking values interleaved with
+real-looking numbers, structured in repeating groups — reads like **stadium capacity /
+attendance and finance (wage budget, transfer budget, ticket prices) fields**, not tactics.
+Nothing in the first 300 bytes matches Formation or Style for any of the 7 (same exact-match
+and style-grouping tests as #14, both came back empty here too).
+
+**Not decoded, not chased further this round** — noting it because it's clearly real,
+substantial, decodable data (budgets/stadium info would be genuinely useful for the
+dashboard/scouting side) that just isn't the thing we were looking for. Worth a dedicated
+pass later: ground-truth a club's actual wage budget / stadium capacity from the in-game
+Club Info screen and hunt for it in this trailer the same way #14 did for managers.
+
 ## 14. Manager/staff records — identified structurally (formation + style still open)
 
 Located the per-club MANAGER record for 3 Danish Superliga clubs from user-supplied
@@ -148,19 +182,55 @@ tid 782702 (all in `frem-2024-11-10.fms`).
   either many more managers (to fit for real, the way the player model was) or a location
   found some other way, not curve-fitting on 3 points.
 
-**To close this out — next session:** the nearby-byte hypothesis is now dead at n=7 (both the
-raw catalog-index search and the `record+85` lead), so the structural lead is the strongest
-remaining option:
-1. **Structural lead (still untested, now the leading candidate):** Style/Formation/Rank/
-   Ability-stars are manager-only UI fields that plain staff don't have — plausible they live
-   in a wholly separate manager-only record (not the generic staff info-field), maybe keyed by
-   club_tid alone. Not yet searched for.
-2. **Diff two saves** where the same club's manager (or their tactic) changed, per
-   CLAUDE.md method #4 — we now have 7 candidate managers to watch for a change in a future
-   snapshot.
-3. **More ground truth is still useful** but no longer for the dead nearby-byte leads — mainly
-   to widen the Style value set (still only seen Attacking/Normal/Defensive) if a fitted-model
-   approach becomes viable later, or once a real candidate field is found structurally.
+### Round 3 (same day): real-world managers as bulk ground truth — nearby-byte hypothesis now dead, not just unconfirmed
+
+Idea: the save clearly carries a *licensed real-world* manager database (not just Danish
+lower-league names), so famous managers with an unambiguous real-world tactical reputation
+give free ground truth with zero screenshots needed. Scanned the whole info-record region
+(`0`-`5,000,000`) for staff-shaped records (SID sentinel + valid personality block), resolved
+every name via `reference.build_name_resolver`/`resolve_name` (oriented using the 7 already-
+confirmed managers as the validation set) — **6,429 staff-shaped records**, and grepping the
+resolved names for well-known managers turned up real, correctly-placed people: Guardiola,
+Klopp, Mourinho, Simeone, Conte, Postecoglou, De Zerbi, Arteta, Nagelsmann, Pochettino, and
+more, each at a plausible real 2024/25 club.
+
+**These are genuinely the real people, not name collisions** — DOB and international
+caps/goals (the `+38`/`+39` field from round 2) match real biography almost exactly with zero
+lookup on our part beyond memory: Simeone 107 caps/11 goals (Argentina, real: 106/11 — 1 cap
+off, everything else exact), Conte 20/2 (Italy, exact), Guardiola 47/5 (Spain, exact), Klopp
+0/0 (uncapped, exact), Postecoglou 4/0 (Australia, exact), Mourinho 0/0 (never a pro player,
+exact). Strong independent confirmation of the caps/goals field from round 2, and proof this
+save's manager pool is a real licensed database, not procedurally generated names.
+
+Took the 9 whose real-world Style is unambiguous (no judgment calls — footballing consensus,
+not opinion): **Attacking** — Guardiola, Klopp, Postecoglou, De Zerbi, Arteta, Nagelsmann.
+**Defensive** — Simeone, Mourinho, Conte. Combined with the 7 Danish managers: **n=16** for
+Style (9 Attacking / 4 Normal / 3 Defensive), **n=9** for Formation (added Klopp's 4-3-3 and
+Simeone's famous 4-4-2, both in the 21-entry catalog).
+
+- **Style: zero exact-byte matches at ±20,000 bytes, n=16.** Also tried nibble/bit-masked
+  matching (`&0x0F`, `&0xF0`, each individual bit) at ±5,000 — **zero hits at any mask.**
+- **Formation: zero exact-byte matches at ±20,000 bytes, n=9** (mixing catalog indices
+  0, 2, 5, 10, 17, 18 — good spread).
+
+At this sample size, window, and encoding coverage (whole byte + nibble + single bit), a
+coincidental hit is essentially impossible — this closes off "nearby raw byte in any common
+encoding" as decisively as this method can. If Style/Formation are stored per-manager at all,
+they're not within a wide radius of this record, in any of the encodings tried.
+
+**To close this out — next session:**
+1. **Structural lead (still the leading candidate):** a wholly separate manager-only record
+   (not the generic staff info-field, and not the club's financial record — see #15) holding
+   Style/Formation/Rank/Ability-stars, the fields plain staff don't have. Not yet searched for
+   — the real-manager pool from this round (6,429 resolved staff names, many instantly
+   recognizable) is reusable for testing any future candidate location without needing more
+   screenshots.
+2. **Diff two saves** where the same manager's formation/style actually changed, per
+   CLAUDE.md method #4 — the only test left that can distinguish "stored but still unfound"
+   from "not persisted in the save at all" (e.g. computed from a static in-app real-manager
+   database referenced by identity, the same way real crests/kits aren't in the save either).
+3. Ground truth is no longer the bottleneck (round 3 shows real managers give near-unlimited,
+   screenshot-free ground truth) — the bottleneck is a candidate *location* to test it against.
 
 ## 12c. LIGHT results (simulated non-managed games) — SOLVED ✅
 
