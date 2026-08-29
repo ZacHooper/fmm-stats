@@ -63,11 +63,68 @@ Superliga staff records, and reads `4` for both Attacking managers (Frederiksen,
 so it could be coincidence — that offset sits inside a repeating structure that looks more
 like adjacent contract/staff-list noise than a field that clearly belongs to this record.
 
-**To close this out:** need either (a) a few more manager screenshots covering OTHER Style
-values (Balanced/Cautious/whatever FMM's manager screen actually offers beyond
-Attacking/Defensive) to pressure-test the +85 lead, or (b) two snapshots of the same club
-where the manager (or their formation/style) changed, to diff per CLAUDE.md's method #4.
-Neither attempted yet.
+**Ground truth (verbatim from the 3 screenshots — kept here so it survives without them):**
+
+| field | Frederiksen (AaB) | Knutsen (FCN) | Látal (OB) |
+|---|---|---|---|
+| Nationality | Danish, Uncapped | Norwegian, Uncapped | Czech, 47 caps / 1 goal |
+| DOB (age) | 5/11/1970 (54) | 2/10/1968 (56) | 6/1/1970 (54) |
+| Reputation | Regional | National | National |
+| Job Status | Very Secure | V. Insecure | Very Secure |
+| Adaptability | 12 | 10 | 9 |
+| Ambition | 10 | 19 | 14 |
+| Determination | 14 | 15 | 17 |
+| Loyalty | 14 | 13 | 17 |
+| Handling Pressure | 14 | 15 | 16 |
+| Professionalism | 14 | 19 | 17 |
+| Temperament | 15 | 17 | 4 |
+| Discipline | 16 | 16 | 14 |
+| Financial Control | 12 | 16 | 12 |
+| Judging Ability | 11 | 11 | 14 |
+| Judging Potential | 13 | 15 | 9 |
+| People Management | 10 | 13 | 7 |
+| Motivating | 11 | 16 | 12 |
+| Tactical Knowledge | 13 | 13 | 13 |
+| Goalkeeping | 4 | 6 | 6 |
+| Outfield | 10 | 12 | 10 |
+| Youth | 18 | 12 | 5 |
+| Ability (stars /5) | 3.5 | 4.5 | 3.5 |
+| Rank | - | - | - |
+| **Style** | **Attacking** | **Attacking** | **Defensive** |
+| **Formation** | **5-2-2-1** | **4-1-2-2-1** | **4-2-3-1** |
+| Status line | "Enjoying his role at the club" | "Determined to succeed at the club" | "Proud to be managing OB" |
+
+**Ruled out this round (2026-08-29 follow-up):**
+- **No wage/contract record for managers.** Tested `staging.scrape_contracts`'s exact
+  `[tid][0x01][wage u16]…[expiry]` validator (region 16-40M) against the 3 manager tids —
+  zero hits for all three, vs. clean real wages/expiries when run against ordinary AaB
+  player tids as a sanity check. Confirms managers don't get a contract-shaped record at
+  all, and confirms the `[01 03][wage-like u16]…` bytes trailing each manager's info-field
+  (noted as an open question last round) belong to some unrelated nearby PLAYER's contract,
+  not the manager — the true manager record is just the ~64 bytes mapped above, nothing
+  appended after it.
+- **The player attribute "raw 0-255 → 1-20" trick doesn't transfer as-is.** `model.py`'s
+  formula is a regression *fit* on a large player ground-truth set, tied to offsets inside
+  the player-only 78-byte SID grid managers don't have. Tried the general version anyway —
+  swept `raw // k` / `round(raw/k)` / `ceil(raw/k)` for k=9-15 across a ±2000-byte window
+  for all 10 undecoded manager attributes. Got exactly 2 "hits", both spurious: Tactical
+  Knowledge (constant at 13 for all 3 managers, so any near-constant byte in range trivially
+  "matches" — the already-known DOB-year byte did) and Outfield (matched the already-known
+  nationality-code byte purely by coincidence of scale). **Lesson: with only 3 ground-truth
+  managers there's no way to distinguish a real formula from a coincidence** — this needs
+  either many more managers (to fit for real, the way the player model was) or a location
+  found some other way, not curve-fitting on 3 points.
+
+**To close this out — next session, pick one:**
+1. **Structural lead (untested):** Style/Formation/Rank/Ability-stars are manager-only UI
+   fields that plain staff don't have — plausible they live in a wholly separate
+   manager-only record (not the generic staff info-field), maybe keyed by club_tid alone.
+   Not yet searched for.
+2. **More ground truth:** a few more manager screenshots covering OTHER Style values
+   (whatever FMM offers beyond Attacking/Defensive) would pressure-test the `record+85`
+   lead and give the formula approach above an actual chance of working.
+3. **Diff two saves** where the same club's manager (or their tactic) changed, per
+   CLAUDE.md method #4.
 
 ## 12c. LIGHT results (simulated non-managed games) — SOLVED ✅
 
