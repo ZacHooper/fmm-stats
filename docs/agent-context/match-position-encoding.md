@@ -153,8 +153,13 @@ multi-match diff (7 matches sharing formation `4-1-2-2-1`) instead found:
 - **One match with a different fine-grained slot array (see below) → 192 bytes differing**, starting
   almost immediately after the slot array, not just within its duplicate.
 - The remaining pairs (identical slot array, different match) differed by only 2-6 bytes, all
-  clustered right at the very end of the tail (offsets ~1130-1153) — small, unidentified,
-  match-specific values that do not obviously correlate with attendance (checked, no match).
+  clustered right at the very end of the tail (offsets ~1130-1153) — small, match-specific values.
+  Checked and ruled out: attendance (identical across matches with different attendance).
+  Checked and NOT confirmed: home/away — all HOME matches in the sample are byte-identical to each
+  other, but the AWAY matches differ from each other too, not just from home, so it isn't a clean
+  boolean flag. Best remaining guess is something opponent/venue-specific (e.g. away-kit-clash
+  selection), unconfirmed. Low priority: it's 2-6 bytes that don't touch anything analysis-relevant
+  (goals, positions, ratings), unlike the column-rank issue below.
 
 **Working conclusion: the bulk of the tail is very likely DERIVED FROM the slot array** — plausibly
 a pitch-diagram coordinate rendering keyed off the same band/column bytes — rather than
