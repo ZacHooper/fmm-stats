@@ -113,10 +113,12 @@ export function openProfile(tid, { role = null } = {}) {
   const hisPlayers = hisCid != null && hisCid !== ourCid ? D.leaguePlayers(hisCid) : null;
   const ourName = D.S.leagues.get(ourCid)?.name || "our division";
   const hisName = hisCid != null ? D.S.leagues.get(hisCid)?.name : null;
+  const oursList = D.ourPlayers();
 
   body.push(el("h4", { text: "Positions under this tactic" }));
   const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
   if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
+  heads.push("Squad rank");
   body.push(el("div.scroll.fit", {}, [el("table", {}, [
     el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, { text: h })))]),
     el("tbody", {}, roles.map((r) => {
@@ -127,6 +129,8 @@ export function openProfile(tid, { role = null } = {}) {
         el("td.num", {}, [bar(D.pctile(D.poolAt(divPlayers, r.pos), r.eff))]),
       ];
       if (hisPlayers) cells.push(el("td.num", {}, [bar(D.pctile(D.poolAt(hisPlayers, r.pos), r.eff))]));
+      const tpool = D.teamPool(oursList, r.pos);
+      cells.push(el("td.num", { text: tpool.length ? `${D.rankIn(tpool, r.eff)}/${tpool.length}` : DASH }));
       return el("tr", {}, cells);
     })),
   ])]));
@@ -135,7 +139,8 @@ export function openProfile(tid, { role = null } = {}) {
       + "familiarity. <b>Fit %ile</b> is where that rating places him at that position "
       + "against everyone in the division — so it answers <i>is he good enough here</i>, and it "
       + "moves when you change tactic. (Level %ile, which measures division quality rather than "
-      + "a player, is on the Squad table and in Opposition.)",
+      + "a player, is on the Squad table and in Opposition.) <b>Squad rank</b> is where he'd "
+      + "stand among our own players at that position if he were part of the squad.",
   }));
 
   if (traj.length > 1) {

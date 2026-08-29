@@ -215,6 +215,27 @@ export function poolAt(players, pos, method = S.method, minFam = 0) {
   return out;
 }
 
+/** Sorted (desc) [{tid, eff}] for one position from a set of players — the pool a player's
+ *  team-rank is read off, whether he's already in it (a squad row ranking itself) or not (a
+ *  shortlisted or scouted player asking "where would he slot in if he joined"). */
+export function teamPool(players, pos, method = S.method) {
+  const out = [];
+  for (const p of players) {
+    for (const q of p.positions) {
+      if (q.pos !== pos) continue;
+      out.push({ tid: p.tid, eff: rating(p.attrs, q.role, method) * famMult(q.fam) });
+    }
+  }
+  return out.sort((a, b) => b.eff - a.eff);
+}
+
+/** 1-based rank `eff` would occupy inside a teamPool() (ties share the better rank). */
+export function rankIn(pool, eff) {
+  let rank = 1;
+  for (const item of pool) if (item.eff > eff) rank++;
+  return rank;
+}
+
 /** Position index: eff standardised within position (100 = pool mean, 15 = 1 s.d.), so a
  *  keeper and a striker are comparable — raw role ratings are not (GK~324 vs ST~404). */
 export function posIndexer(players, method = S.method) {
