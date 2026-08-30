@@ -64,6 +64,7 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | `api/matches.json` | 19 KB | git | Matches / History / any match column |
 | `api/squad.json` | 8 KB | git | growth trajectories + career history |
 | `api/positions.json` | 5 KB | git | the position review |
+| `api/registration.json` | 1 KB | git | the A/B lists + derived home-grown status |
 | `api/index.json` | 1 KB | git | manifest |
 | `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
 | `fm-<career>.duckdb` (scrubbed) | ~34 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL instead of the fixed shapes above |

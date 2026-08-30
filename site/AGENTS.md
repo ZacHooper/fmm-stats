@@ -293,6 +293,8 @@ covers questions the JSON files above don't shape an answer for.
 For a structured job, fetch the guide and follow it:
 
 - [`guides/scout.md`](https://fmm-stats.zac-g-hooper.workers.dev/guides/scout.md) — scout an opponent for an upcoming match.
+- [`guides/registration.md`](https://fmm-stats.zac-g-hooper.workers.dev/guides/registration.md) — the squad-registration house rule (A/B lists, home grown). FMM models none of it; every
+  field is derived, so report it as "home grown on our reading of the save".
 
 ## Deriving the common things
 

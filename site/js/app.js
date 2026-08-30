@@ -12,6 +12,7 @@ const ROUTES = [
   ["squad", "Squad", () => import("./views/squad.js")],
   ["positions", "Positions", () => import("./views/positions.js")],
   ["recruit", "Recruitment", () => import("./views/recruit.js")],
+  ["registration", "Registration", () => import("./views/registration.js")],
   ["opposition", "Opposition", () => import("./views/opposition.js")],
   ["matches", "Matches", () => import("./views/matches.js")],
   ["history", "History", () => import("./views/history.js")],

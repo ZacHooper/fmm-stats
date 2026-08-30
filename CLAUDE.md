@@ -144,12 +144,26 @@ it has repeatedly turned multi-hour hunts into quick finds:
 
 ## The web app (one UI for phone and desktop)
 `site/` is a static single-page app on Cloudflare Pages — the primary UI, since Streamlit can't be
-hosted without a server. Six sections collate the 13 dashboard pages: **Squad** (one configurable
+hosted without a server. Seven sections collate the 13 dashboard pages: **Squad** (one configurable
 table merging the squad list, Development and Player Stats), **Positions**, **Recruitment**
-(search + shortlist + the capital rule), **Opposition**, **Matches**, **History**. It ships DATA
+(search + shortlist + the capital rule), **Registration** (the A/B lists — see below),
+**Opposition**, **Matches**, **History**. It ships DATA
 and computes on the client, so switching tactic re-rates every player with no rebuild.
 **Streamlit stays** for what writes to DuckDB (Tactics, Config) and for Team Builder.
 Read [`docs/DEPLOY.md`](docs/DEPLOY.md) before touching it.
+
+### Squad registration is a HOUSE RULE, not something the save models
+FMM22 has no A-list, no B-list and no home-grown requirement. The **Registration** section
+enforces the Danish Herre-DM rules ([`docs/danish-registration-rules.md`](docs/danish-registration-rules.md))
+on ourselves: a 25-man A-list needing 8 home grown of whom 4 club-trained (tiers 1–2 only), plus
+an unlimited B-list for players under 21 at the last new year. Home-grown status is **derived** —
+never report it as a fact the game asserts. The data layer is the registration family in
+`fmparser/mart.py` (`mart.squad_registration` for our squad, `mart.player_homegrown` for
+everyone, `mart.player_training` for the club-by-club months); the derivation and its two
+deliberate departures from a literal reading are in
+[`docs/agent-context/homegrown-derivation.md`](docs/agent-context/homegrown-derivation.md) and
+[`site/guides/registration.md`](site/guides/registration.md). The A/B plan itself lives in
+browser localStorage — it is a plan, not save data, and nothing writes it back.
 
 **`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `staging`
 table, no `main` view. Add a field to the site by adding it to `fmparser/mart.py` first. And

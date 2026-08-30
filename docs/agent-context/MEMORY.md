@@ -11,6 +11,7 @@
 - [Day-1 league membership SOLVED](day1-league-membership.md) — club→league at club-record +158 (`[code][ff ff]`); 3.Div=1147; club DB is multi-segment
 - [Save-file boundary map TODO](savefile-boundary-map.md) — map regions by filler/signatures so bounds are derived not guessed
 - [Role-weight methods](role-weight-methods.md) — how role_weights tactics work (unlisted attr=weight 1); frem_counter tactic weight-set + how to add/seed one
+- [Home-grown derivation](homegrown-derivation.md) — SHIPPED: the Danish A/B-list registration rules as a house rule. Origin tids in the 64000-65534 band are ACADEMY teams (65189 = ours) — recover the mapping by where each cohort's alumni play; 65535 is the 0xFFFF 'none' sentinel. Club nation for league-less clubs via a nationality-id vote (no hardcoded nation table). The 36-month clock merges career history with observed spells as dated intervals, keyed on person_id. Our academy counts outright; an origin club does NOT unless it is academy, age<=18 at first season, or the history starts after the window.
 - [Level vs Fit percentile](level-vs-fit-percentile.md) — Fit %ile (tactic weights) vs Level %ile (CA-derived, immersion-safe); read the gap
 - [Player history table](player-history-table.md) — SOLVED end to end; verified vs all 5 in-game screenshots. See [[history-chain-pointers]]
 - [Name resolution](name-resolution.md) — SOLVED: any player name via browse table (@0.3M) + id-index tables (@37M); first/last_name_id→ordinal→string. ALSO: club-name traps (a shape filter ate B.93; a tid can match an award record)
