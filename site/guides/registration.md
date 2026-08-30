@@ -15,7 +15,7 @@ way and the rulebook does not help, so, in this app's words:
 
 | term | means | counts toward |
 |---|---|---|
-| **Club-trained** ("Us") | 36 months at **our** club in his age-15-to-21 window | the 4 **and** the 8 |
+| **Club-trained** ("Us") | the save names us as the club he came out of, or 36 months with us inside his eligibility window | the 4 **and** the 8 |
 | **Association-trained** ("Denmark") | the same, at **another Danish** club | the 8 only |
 | **Home grown** | either of the above | the 8 |
 
@@ -93,7 +93,7 @@ and read is not counted twice.
 ## Where the evidence is thin
 
 - **Older players.** The history slab does not reach back far enough to cover a 30-year-old's
-  age-15-to-21 window, so his clock reads zero and only his origin club says anything. The
+  eligibility window, so his clock reads zero and only his origin club says anything. The
   association flag falls back to origin for exactly this reason; the club flag does not, so a
   long-serving veteran reads Danish-trained but not club-trained however long he has been here.
 - **Origin is a club, not a duration.** It says where he was trained, never for how long, so it
