@@ -379,8 +379,8 @@ function spineOf(rows, depth, method) {
  *      wasted one.
  *   2. **The spine** — the best `depth` at each position, first choices before second choices.
  *      These are the players the season actually runs on.
- *   3. **The home-grown top-up**, weakest first: a promoted B-lister can play either way, so the
- *      slot is best spent on one who is otherwise surplus.
+ *   3. **The home-grown top-up**, strongest first: the spine is already registered, so whoever is
+ *      left is outside it, and the slot should hold the best of them.
  *   4. **Everyone else too old for the B-list.** Not because they are better than the youth left
  *      over, but because registration is the only thing standing between them and being unable to
  *      play at all — a B-list-eligible player left off the A-list still plays.
@@ -413,9 +413,14 @@ export function suggest(rows, rules, depth = DEFAULT_DEPTH, method = D.S.method)
   for (const r of queue) put(r.tid);
 
   // 3: the home-grown minimums, club-trained first — it is the half that binds, and an
-  // association-trained player cannot substitute for it.
+  // association-trained player cannot substitute for it. STRONGEST first: step 2 has already
+  // registered the spine, so everyone still available here is outside it, and taking the best
+  // of them puts a useful player in the slot rather than a 16-year-old with four months on the
+  // clock who will not feature. (An earlier version promoted the weakest, on the grounds that
+  // a B-lister plays either way — true, but it made the quota a place to hide the squad's
+  // least useful player instead of its best reserve.)
   if (rules.hg_min) {
-    const spare = rows.filter((r) => plan[r.tid] !== A).sort((x, y) => x.eff - y.eff);
+    const spare = rows.filter((r) => plan[r.tid] !== A).sort((x, y) => y.eff - x.eff);
     for (const wantClub of [true, false]) {
       for (const r of spare) {
         const t = tally(rows, plan, rules);

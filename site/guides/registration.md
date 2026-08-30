@@ -107,8 +107,8 @@ those groups already overflow 25. It is therefore a priority order, not a filter
 1. **Loan-ins.** A loan slot was spent to have him available; an unregistered loanee wastes it.
 2. **The spine** — the best N at each position under the selected tactic, first choices before
    second choices. N is the `Top 1/2/3 per position` picker, default 2 (a starter and his cover).
-3. **The home-grown top-up**, weakest first: a promoted B-lister plays either way, so the slot is
-   best spent on one who is otherwise surplus.
+3. **The home-grown top-up**, strongest first: the spine is already registered, so everyone still
+   available is outside it and the slot should hold the best of them.
 4. **Everyone else too old for the B-list** — not because they are better than the youth left
    over, but because registration is the only thing standing between them and being unable to play
    at all. A B-list-eligible player left off the A-list still plays.
