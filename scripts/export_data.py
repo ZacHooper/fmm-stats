@@ -447,6 +447,52 @@ def main():
     emit("squad.json", {"attrs": list(ATTR_ORDER), "trajectories": traj,
                         "career_history": chist, "note": IMMERSION})
 
+    # ---------------------------------------------------------------- registration.json
+    # The squad-registration house rule (docs/danish-registration-rules.md). FMM models none
+    # of this, so every field here is derived — see fmparser/mart.py's registration family for
+    # how "home grown" is recovered from origin clubs, career history and our own spells.
+    #
+    # Built from mart.player_homegrown at the REQUESTED snapshot rather than from
+    # mart.squad_registration, which pins itself to the newest one: exporting an older
+    # snapshot has to give that snapshot's squad, not today's.
+    rules = db.q("""SELECT tier, league_name, a_list_max, hg_min, hg_club_min,
+                           b_list_under_age, min_matchday_age, nation
+                    FROM mart.registration_rules WHERE season=? AND phase=?""",
+                 [season, phase])
+    reg = db.q(f"""SELECT h.tid, h.age, h.dob, h.hg_club, h.hg_club_basis, h.hg_association,
+                          h.months_club, h.months_to_hg_club, h.hg_club_eta, h.window_open,
+                          h.origin_club, h.origin_nation, h.via_academy
+                   FROM mart.player_homegrown h
+                   WHERE h.season=? AND h.phase=? AND h.tid IN ({','.join('?' * len(cur_tids))})
+                   ORDER BY h.tid""", [season, phase, *cur_tids]) \
+        if cur_tids else pd.DataFrame()
+    REG_FIELDS = ["tid", "age", "b_list", "hg_club", "hg_basis", "hg_association",
+                  "months_club", "months_to_go", "hg_eta", "window_open", "origin_club",
+                  "origin_nation", "via_academy"]
+    # "Under 21 at the last new year before the tournament year" — a fixed date, so a player
+    # who turns 21 in the autumn keeps his B-list place for the whole season.
+    u21_on = datetime.date(season - 1, 1, 1)
+    b_list_born_after = pd.Timestamp(season - 22, 1, 1)
+    emit("registration.json", {
+        "snapshot": {"season": season, "phase": phase},
+        "rules": ({**{k: (None if pd.isna(v) else v) for k, v in
+                      rules.iloc[0].to_dict().items()},
+                   "u21_on": u21_on.isoformat()} if not rules.empty else None),
+        "fields": REG_FIELDS,
+        "players": [[int(r["tid"]), None if pd.isna(r["age"]) else int(r["age"]),
+                     bool(not pd.isna(r["dob"]) and pd.Timestamp(r["dob"]) > b_list_born_after),
+                     bool(r["hg_club"]), r["hg_club_basis"], bool(r["hg_association"]),
+                     None if pd.isna(r["months_club"]) else round(float(r["months_club"]), 1),
+                     None if pd.isna(r["months_to_hg_club"]) else
+                     round(float(r["months_to_hg_club"]), 1),
+                     None if pd.isna(r["hg_club_eta"]) else str(r["hg_club_eta"])[:10],
+                     bool(r["window_open"]), r["origin_club"], r["origin_nation"],
+                     bool(r["via_academy"])]
+                    for r in (reg.to_dict("records") if not reg.empty else [])],
+        "note": "Squad registration is a self-imposed rule — FMM22 does not model it. "
+                "Home-grown status is derived from origin club, career history and observed "
+                "spells; see docs/danish-registration-rules.md."})
+
     # ---------------------------------------------------------------- positions.json
     D = P.build(season, phase, method, min_fam=min_fam, excl_loanees=True)
     if "error" in D:
@@ -570,6 +616,7 @@ def main():
                   "squad": f"{SITE_URL}/api/squad.json",
                   "positions": f"{SITE_URL}/api/positions.json",
                   "matches": f"{SITE_URL}/api/matches.json",
+                  "registration": f"{SITE_URL}/api/registration.json",
                   "all_players": f"{SITE_URL}/api/all",
                   # not JSON — a DuckDB file an agent ATTACHes over its native S3 protocol for
                   # arbitrary SQL. See AGENTS.md "Prefer SQL?". Scrubbed (ca/pa NULLed) by
@@ -580,7 +627,8 @@ def main():
         # the columnar format, the rating formula it has to compute, and the immersion rule;
         # the guides are per-task procedures.
         "agent_guide": f"{SITE_URL}/AGENTS.md",
-        "guides": {"scout an opponent": f"{SITE_URL}/guides/scout.md"},
+        "guides": {"scout an opponent": f"{SITE_URL}/guides/scout.md",
+                   "register the squad": f"{SITE_URL}/guides/registration.md"},
         "how_to_read_this": ("Rows in core/matches are POSITIONAL ARRAYS with a sibling "
                             "*_fields array naming the slots. Role ratings are NOT stored — "
                             "compute SUM(attribute x weight) from core.tactics, where an "
@@ -595,7 +643,10 @@ def main():
             "staging.standings parses only partially for this career, so there is no league "
             "table; divisions are ranked by squad strength instead.",
             "Ratings shown are computed in the browser from attributes x role weights, so "
-            "they follow whichever tactic is selected."]})
+            "they follow whichever tactic is selected.",
+            "Squad registration (A/B lists, home grown) is a SELF-IMPOSED rule — FMM22 does "
+            "not model it and the save contains none of it. Home-grown status is derived; "
+            "see guides/registration.md for what the evidence is and where it is thin."]})
 
     if not a.no_check:
         paths = [os.path.join(out, n) for n, _b, _g in written]

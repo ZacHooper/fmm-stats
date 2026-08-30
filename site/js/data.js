@@ -14,7 +14,7 @@
  */
 
 export const S = {          // everything loaded, one place
-  index: null, core: null, squad: null, positions: null, matches: null,
+  index: null, core: null, squad: null, positions: null, matches: null, registration: null,
   all: null,                // lazy: every player in the save, fetched from R2 on demand
   players: new Map(),       // tid -> player (core, then merged with all)
   clubs: new Map(),         // tid -> {tid,name,leagueCid,players}
@@ -83,6 +83,14 @@ export async function loadSquad() {
 export async function loadPositions() {
   if (!S.positions) S.positions = await j("api/positions.json");
   return S.positions;
+}
+/** Squad registration: the derived home-grown status and the rule set for our tier. Small,
+ *  and only the Registration section asks for it. */
+export async function loadRegistration() {
+  if (!S.registration) {
+    S.registration = await j("api/registration.json").catch(() => null);
+  }
+  return S.registration;
 }
 export async function loadMatches() {
   if (!S.matches) {

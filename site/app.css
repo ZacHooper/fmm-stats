@@ -45,6 +45,10 @@ h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)
   flex:1 1 110px;min-width:110px}
 .kpi b{display:block;font-size:18px;line-height:1.25}
 .kpi span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+/* a KPI that is a PASS/FAIL rather than a number — the registration quotas */
+.kpi.good b{color:var(--good)} .kpi.warn b{color:var(--warn)} .kpi.bad b{color:var(--bad)}
+.kpi.good{border-color:var(--good)} .kpi.warn{border-color:var(--warn)}
+.kpi.bad{border-color:var(--bad)}
 .dim{color:var(--dim)}
 .spinner{color:var(--dim);padding:24px 4px;font-size:14px}
 .grid2{display:grid;gap:10px;grid-template-columns:1fr}
@@ -97,6 +101,15 @@ tbody tr.click:hover td:first-child{background:var(--bg)}
 .chip.on{background:var(--goodbg);border-color:var(--good);color:var(--good);font-weight:600}
 .chip.ghost{color:var(--dim)}
 .chip:hover{border-color:var(--accent)}
+/* segmented control INSIDE a table cell — the A/B/unregistered picker. Not `.prow`: that is
+   the column-picker's row (flex-wrap + a 7px bottom margin), which in a narrow cell stacked
+   the three buttons vertically and made every row ~140px tall. */
+.seg{display:inline-flex;gap:2px;white-space:nowrap;vertical-align:middle}
+.seg button{font:inherit;font-size:12px;line-height:1.15;padding:1px 7px;cursor:pointer;
+  border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--dim)}
+.seg button.on{background:var(--goodbg);border-color:var(--good);color:var(--good);font-weight:600}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
+.seg button:not(:disabled):hover{border-color:var(--accent)}
 /* ---------------------------------------------------------------- cells */
 .barcell{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .bar{display:inline-block;height:6px;border-radius:3px;background:var(--bar);min-width:2px}

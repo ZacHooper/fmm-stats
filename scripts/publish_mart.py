@@ -135,6 +135,13 @@ SCOPE = {
     "player_position_levels": NEWEST_ONLY,
     "player_origin": NEWEST_ONLY,
     "player_career_seasons": NEWEST_ONLY,
+    # Same reasoning for the registration family: "is he home grown" is a question about now,
+    # and the evidence behind it (mart.player_training, one row per player per club) is 982k
+    # rows / ~20 MB across all 17 snapshots against 60k at the newest one.
+    "club_nations": NEWEST_ONLY,
+    "youth_clubs": NEWEST_ONLY,
+    "player_training": NEWEST_ONLY,
+    "player_homegrown": NEWEST_ONLY,
 }
 
 # NEVER materialised. These two are the method-dependent rating layer: 27M and 9.4M rows, each

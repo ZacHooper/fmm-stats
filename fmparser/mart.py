@@ -1429,6 +1429,405 @@ FROM bounds b
 """
 
 
+# --- squad registration: homegrown status and the A/B lists -------------------------
+#
+# FMM22 does not model squad registration at all, so none of this is read out of the save:
+# it is the Danish Herre-DM rulebook (docs/danish-registration-rules.md) applied to save
+# data, as a SELF-IMPOSED house rule. The A-list is capped at 25 and, in the top two tiers,
+# must contain 8 "Home Grown" players of whom at least 4 were trained at the club itself;
+# the B-list is unlimited but only takes players who were under 21 at the last new year.
+#
+# The rulebook's Home Grown test is "eligible to play at the club for 36 months in total
+# between the start of the season he turns 15 and the end of the season he turns 21". Three
+# things in the save carry that:
+#
+#   1. `player_history.origin_club_tid` — the head of the career-history chain, i.e. the club
+#      he came out of. For most players this is a real club tid; for an academy product it is
+#      a YOUTH-TEAM tid that appears in no club table (see mart.youth_clubs).
+#   2. `mart.player_career_seasons` — one row per season per club, which is a dated timeline
+#      once you map a season to Jul-Jun and split a multi-club season across its legs.
+#   3. `mart.at_club_spells` — what WE observed across the snapshots, which fills the gap
+#      where the career history has not written the in-progress season yet (real case: Johan
+#      Nordberg, at the club since 2022 with no 24/25 history row at the 2024-11-10 snapshot).
+#
+# Sources 2 and 3 overlap, so they are unioned as dated intervals and merged (gaps-and-
+# islands) before any month is counted — adding two months figures would double-count every
+# season we watched happen.
+
+# Nation for every club, with a fallback for the ones whose league carries none.
+#
+# `mart.clubs.nation` comes from the club's league, and the save parks its unplayable clubs
+# in league buckets that have no name and no nation (cid 245 holds 82 obviously-Danish clubs
+# — Dragor BK, Nexo BK Bornholm, Silkeborg BK). Three of our own squad's origin clubs sit
+# there, so "was he trained at a Danish club" would be unanswerable for them.
+#
+# The fallback is a two-step vote and needs no hardcoded nation table: first learn what each
+# `nationality_id` MEANS by asking which nation's leagues its players actually play in
+# (nationality 138 -> Denmark, 139 -> England, ...), then give a nation-less league the modal
+# nation of its own players. Confidence is reported rather than hidden, because a league of
+# 46 players voting 138 is a much better bet than one of 3.
+CLUB_NATIONS = """
+CREATE OR REPLACE VIEW mart.club_nations AS
+WITH nat_votes AS (
+    SELECT p.season, p.phase, p.nationality_id, cl.nation, COUNT(*) AS n
+    FROM {S}.players p
+    JOIN mart.club_leagues cl
+      ON (cl.season, cl.phase, cl.club_tid) = (p.season, p.phase, p.club_tid)
+    WHERE NOT p.is_staff AND cl.nation IS NOT NULL AND p.nationality_id IS NOT NULL
+    GROUP BY ALL),
+nat_nation AS (
+    SELECT season, phase, nationality_id, ARG_MAX(nation, n) AS nation
+    FROM nat_votes GROUP BY season, phase, nationality_id),
+league_votes AS (
+    SELECT cl.season, cl.phase, cl.league_cid, nn.nation, COUNT(*) AS n
+    FROM {S}.players p
+    JOIN mart.club_leagues cl
+      ON (cl.season, cl.phase, cl.club_tid) = (p.season, p.phase, p.club_tid)
+    JOIN nat_nation nn
+      ON (nn.season, nn.phase, nn.nationality_id) = (p.season, p.phase, p.nationality_id)
+    WHERE NOT p.is_staff AND cl.nation IS NULL AND cl.league_cid IS NOT NULL
+    GROUP BY ALL),
+league_nation AS (
+    SELECT season, phase, league_cid, ARG_MAX(nation, n) AS nation,
+           ROUND(MAX(n) * 1.0 / SUM(n), 2) AS share, SUM(n) AS voters
+    FROM league_votes GROUP BY season, phase, league_cid)
+SELECT
+    c.season, c.phase, c.club_tid, c.name, c.league_cid,
+    COALESCE(c.nation, ln.nation)                                       AS nation,
+    CASE WHEN c.nation IS NOT NULL THEN 'league'
+         WHEN ln.nation IS NOT NULL THEN 'inferred' END                 AS nation_source,
+    CASE WHEN c.nation IS NOT NULL THEN 1.0 ELSE ln.share END           AS nation_confidence,
+    ln.voters                                                           AS nation_voters
+FROM mart.clubs c
+LEFT JOIN league_nation ln
+       ON (ln.season, ln.phase, ln.league_cid) = (c.season, c.phase, c.league_cid)
+"""
+
+# Youth/academy team tids -> the senior club they belong to.
+#
+# An academy product's origin club is a tid in the ~64000-65534 band that exists in no club
+# table, so it renders as '#65189' and resolves to nothing. It is not garbage: the players
+# sharing one of these tids are overwhelmingly at ONE club (65064 -> Liverpool, 65104 ->
+# Chelsea, 64896 -> Bayern, 65189 -> us), with the strays being academy graduates who moved
+# on — exactly the shape of a youth side. So the mapping is recoverable by asking where each
+# cohort actually ended up.
+#
+# 65535 is excluded: it is 0xFFFF, the u16 "none" sentinel, not a club.
+#
+# Reserve sides vote for their first team, otherwise our own academy would map to Boldklubben
+# Frem Reserves half the time. Only OUR reserve side is known to be a reserve side, which is
+# fine — for a foreign academy the answer only has to be good enough to carry a nation, and
+# "Liverpool Reserves" is as English as "Liverpool".
+#
+# `share` and `alumni` ship so a caller can refuse a weak mapping: cohorts average 2.8 players
+# and 143 of the 388 are singletons, where the "majority" is one player.
+YOUTH_CLUBS = """
+CREATE OR REPLACE VIEW mart.youth_clubs AS
+WITH alumni AS (
+    SELECT o.season, o.phase, o.origin_club_tid AS youth_tid,
+           CASE WHEN ps.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+                THEN (SELECT club_tid FROM mart.managed_club)
+                ELSE ps.club_tid END                                    AS club_tid,
+           COUNT(*)                                                     AS n
+    FROM mart.player_origin o
+    JOIN mart.player_snapshots ps USING (season, phase, tid)
+    WHERE o.origin_club_tid IS NOT NULL
+      AND o.origin_club_tid <> 65535
+      AND ps.club_tid IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM mart.clubs c
+                      WHERE (c.season, c.phase, c.club_tid)
+                          = (o.season, o.phase, o.origin_club_tid))
+    GROUP BY ALL)
+SELECT season, phase, youth_tid,
+       ARG_MAX(club_tid, n)                     AS club_tid,
+       ROUND(MAX(n) * 1.0 / SUM(n), 2)          AS share,
+       SUM(n)                                   AS alumni
+FROM alumni GROUP BY season, phase, youth_tid
+"""
+
+# Months a player was registered at each club INSIDE his home-grown window, as evidence.
+#
+# The window is the rulebook's: from the start of the season in which he turns 15 to the end
+# of the season in which he turns 21 (TR 14.1). `season_of` already knows a campaign runs
+# Jul-Jun and is named for its end year, so both bounds are one macro call.
+#
+# Career history is turned into dated intervals rather than counted as seasons, so that it can
+# be merged with what we observed. A season with several legs (a mid-season loan) splits the
+# Jul-Jun span evenly across its legs in `seq` order — an approximation, because the save
+# stores no transfer date, and a deliberately visible one: the alternative of crediting each
+# leg a full season would hand a player 24 months for one year of football.
+#
+# A LOAN LEG CREDITS THE HOST, NOT THE PARENT. That follows TR 15.2 (a loaned player is a
+# member of the club he plays for) and is flagged as an inference in
+# docs/danish-registration-rules.md, not as a sourced rule. It is also the reading that costs
+# us something — Adelgaard's 23/24 loan to Frederiksberg is six months he does not accrue
+# with us — so it is the conservative one.
+PLAYER_TRAINING = """
+CREATE OR REPLACE VIEW mart.player_training AS
+WITH at_date AS (
+    SELECT season, phase, COALESCE(phase_date, season_end(season)) AS as_of
+    FROM mart.snapshots),
+win AS (
+    SELECT ps.season, ps.phase, ps.tid, ps.person_id, ps.dob,
+           season_start(season_of(ps.dob + INTERVAL 15 YEAR)) AS window_from,
+           season_end(season_of(ps.dob + INTERVAL 21 YEAR))   AS window_to
+    FROM mart.player_snapshots ps
+    WHERE ps.dob IS NOT NULL),
+-- one interval per career-history leg
+legs AS (
+    SELECT h.season, h.phase, h.tid, h.club_tid, h.end_year, h.fee,
+           ROW_NUMBER() OVER (PARTITION BY h.season, h.phase, h.tid, h.end_year
+                              ORDER BY h.seq)                          AS leg,
+           COUNT(*)     OVER (PARTITION BY h.season, h.phase, h.tid, h.end_year) AS legs
+    FROM mart.player_career_seasons h
+    WHERE h.club_tid IS NOT NULL AND h.end_year IS NOT NULL),
+hist AS (
+    SELECT season, phase, tid, club_tid, 'history' AS src,
+           season_start(end_year)
+             + CAST((leg - 1) * 364 / legs AS INTEGER)     AS d_from,
+           season_start(end_year)
+             + CAST(leg * 364 / legs AS INTEGER)           AS d_to
+    FROM legs),
+-- and one per spell we watched happen, keyed on person_id because a tid is a recycled slot
+-- (tid 3505 was Mark Reynolds at Vejgaard before it was Johan Maarup here)
+obs AS (
+    SELECT w.season, w.phase, w.tid, s.club_tid, 'observed' AS src,
+           CAST(s.valid_from AS DATE)                                   AS d_from,
+           LEAST(CAST(COALESCE(s.valid_to, a.as_of) AS DATE), a.as_of)  AS d_to
+    FROM mart.at_club_spells s
+    JOIN win w ON w.person_id = s.person_id
+    JOIN at_date a ON (a.season, a.phase) = (w.season, w.phase)
+    WHERE s.club_tid IS NOT NULL AND CAST(s.valid_from AS DATE) <= a.as_of),
+clipped AS (
+    SELECT i.season, i.phase, i.tid,
+           CASE WHEN i.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+                THEN (SELECT club_tid FROM mart.managed_club)
+                ELSE i.club_tid END                                     AS club_tid,
+           GREATEST(i.d_from, w.window_from)                            AS d_from,
+           LEAST(i.d_to, w.window_to, a.as_of)                          AS d_to
+    FROM (SELECT * FROM hist UNION ALL SELECT * FROM obs) i
+    JOIN win  w USING (season, phase, tid)
+    JOIN at_date a USING (season, phase)),
+-- merge overlapping intervals per club before counting, or the two sources double-count
+-- every season we watched happen
+marked AS (
+    SELECT *, CASE WHEN prev_end IS NULL OR d_from > prev_end + 1 THEN 1 ELSE 0 END AS new_island
+    FROM (SELECT c.*, MAX(d_to) OVER (PARTITION BY season, phase, tid, club_tid
+                                      ORDER BY d_from, d_to
+                                      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
+                      AS prev_end
+          FROM clipped c WHERE d_to > d_from)),
+islands AS (
+    SELECT *, SUM(new_island) OVER (PARTITION BY season, phase, tid, club_tid
+                                    ORDER BY d_from, d_to) AS island
+    FROM marked)
+SELECT season, phase, tid, club_tid,
+       ROUND(SUM(days) / 30.44, 1)  AS months,
+       SUM(days)                    AS days,
+       MIN(d_from)                  AS first_from,
+       MAX(d_to)                    AS last_to
+FROM (SELECT season, phase, tid, club_tid, island,
+             MIN(d_from) AS d_from, MAX(d_to) AS d_to,
+             DATE_DIFF('day', MIN(d_from), MAX(d_to)) AS days
+      FROM islands GROUP BY season, phase, tid, club_tid, island)
+GROUP BY season, phase, tid, club_tid
+"""
+
+# One row per player: is he Home Grown, at us or at another club of our association?
+#
+# HG-AT-CLUB IS ACADEMY-OR-CLOCK, and the academy half is a deliberate departure from a
+# literal reading of the save. FMM only brings an intake player into existence at ~16, so a
+# strict 36-month clock would call a player our own academy produced NOT home grown until he
+# is 19 — backwards from the rule, where his youth registration already counts. Origin =
+# our academy is therefore taken as club-trained outright (manager's call, 2026-08), and the
+# clock is what SIGNED players earn it on. `hg_club_basis` says which of the two fired, and
+# `months_club` ships regardless, so the strict reading is one predicate away.
+#
+# HG-AT-ASSOCIATION (the "trained at another Danish club" half of the 8) accepts a Danish
+# ORIGIN club as well as 36 clocked months, because the history slab only reaches back so
+# far: a 34-year-old's age-15-to-21 window predates every row he has, so the clock can only
+# ever read zero for him. Origin is the sole surviving evidence there.
+#
+# BUT AN ORIGIN CLUB IS NOT AUTOMATICALLY A TRAINING CLUB. `origin_club_tid` is the head of
+# the career-history chain — the club he came out of — and for a player whose first recorded
+# season is a senior one at 20, that says where he signed, not where he was trained. Taking
+# it at face value made Christian Bramsborg (first Frem season at 20, 21 apps) club-trained,
+# which the 36-month rule plainly does not. So origin only counts as youth evidence when it
+# is one of:
+#   * an ACADEMY tid (a youth side is training by definition), or
+#   * a first recorded season starting at 18 or younger (young enough that 36 months inside
+#     the window were still reachable), or
+#   * a history that begins AFTER the window closed — the head row then predates every
+#     season we can read, so it is the only view of his youth that exists.
+PLAYER_HOMEGROWN = """
+CREATE OR REPLACE VIEW mart.player_homegrown AS
+WITH us AS (SELECT club_tid FROM mart.managed_club),
+our_nation AS (
+    SELECT ANY_VALUE(nation) AS nation FROM mart.club_nations
+    WHERE club_tid IN (SELECT club_tid FROM us) AND nation IS NOT NULL),
+at_date AS (
+    SELECT season, phase, COALESCE(phase_date, season_end(season)) AS as_of
+    FROM mart.snapshots),
+first_season AS (
+    SELECT season, phase, tid, MIN(end_year) AS first_end_year
+    FROM mart.player_career_seasons WHERE end_year IS NOT NULL
+    GROUP BY ALL),
+origin AS (
+    SELECT o.season, o.phase, o.tid, o.origin_club_tid,
+           COALESCE(y.club_tid, o.origin_club_tid)  AS origin_parent_tid,
+           y.youth_tid IS NOT NULL                  AS via_academy,
+           y.share                                  AS academy_share,
+           f.first_end_year,
+           -- completed age, not the difference of year parts: DATE_DIFF('year', ...) alone
+           -- reads 18 for an autumn-born 17-year-old and would fail him the test below.
+           DATE_DIFF('year', ps.dob, season_start(f.first_end_year))
+             - CASE WHEN (MONTH(season_start(f.first_end_year)),
+                          DAY(season_start(f.first_end_year)))
+                        < (MONTH(ps.dob), DAY(ps.dob)) THEN 1 ELSE 0 END
+                                                    AS age_at_first_season,
+           COALESCE(y.youth_tid IS NOT NULL, FALSE)
+             OR f.first_end_year IS NULL
+             OR DATE_DIFF('year', ps.dob, season_start(f.first_end_year))
+                  - CASE WHEN (MONTH(season_start(f.first_end_year)),
+                               DAY(season_start(f.first_end_year)))
+                             < (MONTH(ps.dob), DAY(ps.dob)) THEN 1 ELSE 0 END <= 18
+             OR f.first_end_year > season_of(ps.dob + INTERVAL 21 YEAR)
+                                                    AS origin_is_youth
+    FROM mart.player_origin o
+    JOIN mart.player_snapshots ps USING (season, phase, tid)
+    LEFT JOIN mart.youth_clubs y
+           ON (y.season, y.phase, y.youth_tid) = (o.season, o.phase, o.origin_club_tid)
+    LEFT JOIN first_season f USING (season, phase, tid)
+    WHERE o.origin_club_tid IS NOT NULL AND o.origin_club_tid <> 65535
+      AND ps.dob IS NOT NULL),
+mine AS (
+    SELECT season, phase, tid, months, last_to FROM mart.player_training
+    WHERE club_tid IN (SELECT club_tid FROM us)),
+domestic AS (
+    SELECT t.season, t.phase, t.tid,
+           MAX(t.months)                    AS months,
+           ARG_MAX(t.club_tid, t.months)    AS club_tid
+    FROM mart.player_training t
+    JOIN mart.club_nations cn
+      ON (cn.season, cn.phase, cn.club_tid) = (t.season, t.phase, t.club_tid)
+    WHERE cn.nation = (SELECT nation FROM our_nation)
+      AND t.club_tid NOT IN (SELECT club_tid FROM us)
+    GROUP BY ALL)
+SELECT
+    ps.season, ps.phase, ps.tid, ps.person_id, ps.name, ps.dob, ps.age, ps.club_tid,
+    season_start(season_of(ps.dob + INTERVAL 15 YEAR))          AS window_from,
+    season_end(season_of(ps.dob + INTERVAL 21 YEAR))            AS window_to,
+    a.as_of <= season_end(season_of(ps.dob + INTERVAL 21 YEAR)) AS window_open,
+    o.origin_club_tid, o.origin_parent_tid, o.via_academy, o.academy_share,
+    o.origin_is_youth, o.age_at_first_season,
+    oc.name                                                     AS origin_club,
+    oc.nation                                                   AS origin_nation,
+    oc.nation_source                                            AS origin_nation_source,
+    COALESCE(m.months, 0)                                       AS months_club,
+    COALESCE(d.months, 0)                                       AS months_domestic,
+    d.club_tid                                                  AS domestic_club_tid,
+    dc.name                                                     AS domestic_club,
+    -- club-trained: our academy produced him, or he clocked 36 months with us in the window
+    COALESCE(o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth, FALSE)
+      OR COALESCE(m.months, 0) >= 36                            AS hg_club,
+    CASE WHEN o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth
+              THEN CASE WHEN o.via_academy THEN 'academy' ELSE 'youth-origin' END
+         WHEN COALESCE(m.months, 0) >= 36 THEN 'clock' END      AS hg_club_basis,
+    -- association-trained: the same, at any club of our nation (us included)
+    COALESCE(o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth, FALSE)
+      OR COALESCE(m.months, 0) >= 36
+      OR COALESCE(oc.nation = (SELECT nation FROM our_nation) AND o.origin_is_youth, FALSE)
+      OR COALESCE(d.months, 0) >= 36                            AS hg_association,
+    -- how much further he has to go, and when he gets there if he stays. The ETA is NULL
+    -- once the arithmetic runs past his window: he cannot get there any more, and a date
+    -- pinned to the window's last day would read as a deadline he still meets.
+    CASE WHEN COALESCE(m.months, 0) < 36
+         THEN ROUND(36 - COALESCE(m.months, 0), 1) END          AS months_to_hg_club,
+    CASE WHEN COALESCE(m.months, 0) < 36
+              AND ps.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+              AND a.as_of + CAST((36 - COALESCE(m.months, 0)) * 30.44 AS INTEGER)
+                  <= season_end(season_of(ps.dob + INTERVAL 21 YEAR))
+         THEN a.as_of + CAST((36 - COALESCE(m.months, 0)) * 30.44 AS INTEGER)
+         END                                                    AS hg_club_eta
+FROM mart.player_snapshots ps
+JOIN at_date a USING (season, phase)
+LEFT JOIN origin o USING (season, phase, tid)
+LEFT JOIN mart.club_nations oc
+       ON (oc.season, oc.phase, oc.club_tid) = (ps.season, ps.phase, o.origin_parent_tid)
+LEFT JOIN mine     m USING (season, phase, tid)
+LEFT JOIN domestic d USING (season, phase, tid)
+LEFT JOIN mart.club_nations dc
+       ON (dc.season, dc.phase, dc.club_tid) = (ps.season, ps.phase, d.club_tid)
+WHERE ps.dob IS NOT NULL
+"""
+
+# The registration rules that apply to US this season, as data rather than as constants in
+# the app. The homegrown minimums bind only in the top two tiers (TR 14.1 vs 14.2) and we
+# have been promoted three times in three seasons, so which set applies is a moving target —
+# derived from where our division sits in its nation's reputation order, not hardcoded.
+REGISTRATION_RULES = """
+CREATE OR REPLACE VIEW mart.registration_rules AS
+WITH ours AS (
+    SELECT cl.season, cl.phase, cl.league_cid, cl.nation
+    FROM mart.club_leagues cl
+    WHERE cl.club_tid IN (SELECT club_tid FROM mart.managed_club)),
+tier AS (
+    SELECT o.season, o.phase, o.league_cid, o.nation,
+           (SELECT COUNT(*) FROM mart.leagues l
+             WHERE l.season = o.season AND l.phase = o.phase
+               AND l.nation IS NOT DISTINCT FROM o.nation
+               AND l.type = 'league' AND l.reputation IS NOT NULL
+               AND l.reputation > (SELECT ANY_VALUE(l2.reputation) FROM mart.leagues l2
+                                    WHERE (l2.season, l2.phase, l2.cid)
+                                        = (o.season, o.phase, o.league_cid))) + 1 AS tier
+    FROM ours o)
+SELECT t.season, t.phase, t.league_cid, t.nation, t.tier,
+       (SELECT ANY_VALUE(name) FROM mart.leagues l
+         WHERE (l.season, l.phase, l.cid) = (t.season, t.phase, t.league_cid)) AS league_name,
+       25                                        AS a_list_max,
+       CASE WHEN t.tier <= 2 THEN 8 ELSE 0 END   AS hg_min,
+       CASE WHEN t.tier <= 2 THEN 4 ELSE 0 END   AS hg_club_min,
+       21                                        AS b_list_under_age,
+       16                                        AS min_matchday_age
+FROM tier t
+"""
+
+# Our squad, ready to be registered: who is A-list material, who rides free on the B-list,
+# and what each of them contributes to the homegrown quotas.
+#
+# B-LIST ELIGIBILITY IS A FIXED DATE, NOT AN AGE. "Under 21 at the last new year before the
+# tournament year" (TR 14.1) means 1 January of the season's first calendar half, so a player
+# born 7 January 2003 is B-list for all of 24/25 while a 21-year-old born in November is not.
+# Using `age` instead would drop players out of the B-list mid-season, which the rule never
+# does.
+SQUAD_REGISTRATION = """
+CREATE OR REPLACE VIEW mart.squad_registration AS
+WITH sq AS (
+    SELECT person_id, tid, ANY_VALUE(name) AS name, MAX(club_tid) AS club_tid,
+           BOOL_OR(is_loan_in) AS is_loan_in, BOOL_OR(is_reserve) AS is_reserve,
+           ANY_VALUE(as_of) AS as_of
+    FROM mart.squad_current GROUP BY person_id, tid),
+snap AS (SELECT season, phase FROM mart.snapshots
+         ORDER BY season DESC, phase_ord DESC LIMIT 1),
+r AS (SELECT * FROM mart.registration_rules
+      WHERE (season, phase) IN (SELECT season, phase FROM snap))
+SELECT
+    s.season, s.phase, sq.person_id, sq.tid, sq.name, sq.club_tid,
+    sq.is_loan_in, sq.is_reserve, h.age, h.dob,
+    MAKE_DATE(s.season - 1, 1, 1)                               AS u21_on,
+    h.dob > MAKE_DATE(s.season - 1 - 21, 1, 1)                  AS b_list_eligible,
+    h.hg_club, h.hg_club_basis, h.hg_association,
+    h.months_club, h.months_to_hg_club, h.hg_club_eta, h.window_open,
+    h.origin_club, h.origin_nation, h.via_academy,
+    r.a_list_max, r.hg_min, r.hg_club_min, r.tier, r.league_name
+FROM snap s
+CROSS JOIN sq
+LEFT JOIN mart.player_homegrown h
+       ON (h.season, h.phase, h.tid) = (s.season, s.phase, sq.tid)
+LEFT JOIN r ON TRUE
+"""
+
+
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
     ("mart.role_weights", ROLE_WEIGHTS),
@@ -1465,6 +1864,12 @@ ORDER = [
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),
     ("mart.player_growth_at_club", PLAYER_GROWTH_AT_CLUB),
     ("mart.player_growth_tenure", PLAYER_GROWTH_TENURE),
+    ("mart.club_nations", CLUB_NATIONS),
+    ("mart.youth_clubs", YOUTH_CLUBS),
+    ("mart.player_training", PLAYER_TRAINING),
+    ("mart.player_homegrown", PLAYER_HOMEGROWN),
+    ("mart.registration_rules", REGISTRATION_RULES),
+    ("mart.squad_registration", SQUAD_REGISTRATION),
 ]
 
 

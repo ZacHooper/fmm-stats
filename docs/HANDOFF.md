@@ -1,7 +1,7 @@
 # Handoff — continue exactly where we are
 
-Paste-ready context for a fresh agent. **Last updated 2026-08-24 (Phase 3: direct-R2 SQL access
-DONE — verified against the real published store, PR #1 open awaiting merge).**
+Paste-ready context for a fresh agent. **Last updated 2026-08-30 (Phase 4: squad registration —
+the Danish A/B-list rules as a house rule — SHIPPED. Phase 3, direct-R2 SQL access, DONE).**
 
 Read [`CLAUDE.md`](../CLAUDE.md) first, then
 [`docs/agent-context/MEMORY.md`](agent-context/MEMORY.md) which indexes the durable notes. This
@@ -220,6 +220,58 @@ doesn't fire yet. `CLAUDE.md` now also tells an agent to `ATTACH` the R2 copy di
 quick question instead of defaulting to a local rebuild, and `site/AGENTS.md` documents two
 dedup traps in the raw schema (`match_player_stats` is a ring buffer; `staging.players` is one
 row per snapshot, not per player) that make a naive query silently wrong by 10-20×.
+
+---
+
+## Phase 4 — squad registration (the A/B lists). **SHIPPED 2026-08-30**
+
+The Danish Herre-DM registration rules are now enforced as a HOUSE RULE — FMM22 models none of
+it. Rulebook: [`docs/danish-registration-rules.md`](danish-registration-rules.md). Derivation and
+its judgement calls: [`agent-context/homegrown-derivation.md`](agent-context/homegrown-derivation.md).
+User-facing: [`site/guides/registration.md`](../site/guides/registration.md).
+
+**The finding that made it possible:** origin tids in the ~64000–65534 band are **academy team
+ids** — the players sharing one sit at a single club (65064 → Liverpool, 65104 → Chelsea, **65189
+→ us**), with the strays being graduates who moved on. `mart.youth_clubs` recovers the mapping by
+majority vote; 65535 is the 0xFFFF "none" sentinel, not a club.
+
+| Object | What |
+|---|---|
+| `mart.club_nations` | club → nation, with a fallback for the 1,354 clubs whose league carries none (a two-step nationality vote, no hardcoded nation table) |
+| `mart.youth_clubs` | academy tid → parent club, with `share` + `alumni` so a weak mapping can be refused |
+| `mart.player_training` | months at each club inside the age-15→21 window; career history and observed spells merged as dated intervals so nothing is counted twice |
+| `mart.player_homegrown` | the flags, for every player in the save (so a recruitment target can be checked before signing) |
+| `mart.registration_rules` | which rule set applies, derived from our tier — we have been promoted three times in three seasons |
+| `mart.squad_registration` | our squad + B-list eligibility, ready to plan against |
+
+**Where it lives:** a new **Registration** section in the web app (7 sections now), fed by
+`api/registration.json`. The A/B plan is browser localStorage keyed by snapshot — a plan, not save
+data; nothing writes back. "Suggest a legal squad" B-lists everyone eligible, A-lists the rest by
+rating, then promotes home-grown players from the B-list until the minimums are met.
+
+**Current position (2025 / 2024-11-10, Superliga):** 40 in the squad, **11 club-trained**, 38
+association-trained, 21 B-list eligible. The suggestion lands at A-list 20/25 with 8/8 home grown
+and 4/4 club-trained — legal, with five slots spare. The association half is nearly free (the
+capital rule already means everyone is Danish-trained); the constraints that bite are the 25-man
+cap and the 4 club-trained.
+
+**Verified:** 10 new invariants in `scripts/validate_mart.py` section 9 (all pass — the 5 failures
+it also reports are PRE-EXISTING, ground truth pinned to the 2024 snapshot, and fail identically
+on `main`). All 7 views render under jsdom against the committed `site/api` fixture with no
+`undefined`/`NaN`, and the interaction is asserted end to end: demoting the promoted club-trained
+player to the B-list drops the quota to 3/4, shrinks the A-list to 24 and raises the shortfall
+message. `publish_mart.py` takes the artefact 24 → 26 MB (cap 40) with the registration family
+scoped to the newest snapshot, immersion check clean.
+
+**Two things worth knowing before extending it:**
+1. **Borderline months.** Garly and Jakobsen both sit on 35.9 — 0.1 short — and Garly's window has
+   closed, so he misses club-trained status permanently by less than the multi-club-season
+   even-split approximation's own error. There is no override mechanism yet; if a call like that
+   ever decides something, `mart.player_training` has the club-by-club months.
+2. **No Streamlit page and no CLI command.** Deliberate (the plan writes to localStorage, not
+   DuckDB) but it means a season-review skill can read the status via SQL and cannot read the
+   PLAN. The jsdom render/interaction harness is also scratchpad-only — the repo has no npm
+   toolchain and adding one for it was not in scope.
 
 ---
 

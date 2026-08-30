@@ -545,6 +545,87 @@ def main():
     check(f"player_position_fit covers the level set for every method ({lv} rows)",
           not holes, f"{holes}" if holes else "all methods agree")
 
+    # -- 9. squad registration ----------------------------------------------------
+    # The homegrown layer is a house rule applied to save data, not something the save
+    # models, so these check the DERIVATION rather than the game: that the academy-tid
+    # decode lands on the right club, that the nation fallback fires, that no month is
+    # counted twice, and that the two homegrown tiers nest.
+    print("\n9. squad registration (homegrown + A/B lists)")
+
+    academy = con.execute("""
+        SELECT y.club_tid, y.alumni FROM mart.youth_clubs y
+        WHERE y.season = ? AND y.phase = ? AND y.youth_tid = 65189""", [S, P]).fetchone()
+    ours_tid = con.execute("SELECT club_tid FROM mart.managed_club").fetchone()[0]
+    check("youth tid 65189 resolves to our club (the academy decode)",
+          academy is not None and academy[0] == ours_tid,
+          f"-> {academy[0]} with {academy[1]} alumni" if academy else "not mapped")
+
+    sentinel = con.execute("SELECT COUNT(*) FROM mart.youth_clubs WHERE youth_tid = 65535"
+                           ).fetchone()[0]
+    check("the 0xFFFF 'no origin' sentinel is not treated as a club", sentinel == 0,
+          f"{sentinel} row(s)")
+
+    inferred = con.execute("""
+        SELECT COUNT(*) FROM mart.club_nations
+        WHERE season = ? AND phase = ? AND nation_source = 'inferred'""", [S, P]).fetchone()[0]
+    check("the nation fallback fires for league-less clubs", inferred > 0,
+          f"{inferred} club(s) got a nation from their league's modal nationality")
+
+    ours_nation = con.execute("""
+        SELECT nation, nation_source FROM mart.club_nations
+        WHERE season = ? AND phase = ? AND club_tid = ?""", [S, P, ours_tid]).fetchone()
+    check("our own club has a nation straight off its league",
+          ours_nation is not None and ours_nation[1] == 'league', f"{ours_nation}")
+
+    # A merged interval cannot exceed the window it was clipped to, so no (player, club)
+    # pair can hold more months than the window is long. This is what catches a double
+    # count between the two sources: unmerged, a season we both watched and read would be
+    # credited twice and this cap would blow.
+    over = con.execute("""
+        SELECT COUNT(*) FROM mart.player_training t
+        JOIN mart.player_homegrown h USING (season, phase, tid)
+        WHERE t.months > DATE_DIFF('day', h.window_from, h.window_to) / 30.44 + 0.5
+    """).fetchone()[0]
+    check("no player is credited more months at a club than his window is long", over == 0,
+          f"{over} row(s) over the cap")
+
+    nests = con.execute("""
+        SELECT COUNT(*) FROM mart.player_homegrown
+        WHERE hg_club AND NOT hg_association""").fetchone()[0]
+    check("club-trained implies association-trained", nests == 0, f"{nests} row(s)")
+
+    nulls = con.execute("""
+        SELECT COUNT(*) FROM mart.player_homegrown
+        WHERE hg_club IS NULL OR hg_association IS NULL""").fetchone()[0]
+    check("the homegrown flags are never NULL (a missing origin reads as 'no')",
+          nulls == 0, f"{nulls} NULL flag(s)")
+
+    # The B-list test is a date, not an age: "under 21 at the last new year before the
+    # tournament year". A player who turns 21 in the autumn stays B-list all season, and
+    # that is exactly the case an age-based test gets wrong.
+    bad_b = con.execute("""
+        SELECT COUNT(*) FROM mart.squad_registration
+        WHERE b_list_eligible IS DISTINCT FROM (dob > MAKE_DATE(season - 22, 1, 1))
+    """).fetchone()[0]
+    check("B-list eligibility is the fixed-date test", bad_b == 0, f"{bad_b} row(s)")
+
+    rules = con.execute("""SELECT tier, a_list_max, hg_min, hg_club_min FROM
+                           mart.registration_rules WHERE season=? AND phase=?""",
+                        [S, P]).fetchone()
+    check("the rule set matches our tier", rules is not None and rules[1] == 25
+          and ((rules[0] <= 2) == (rules[2] == 8)) and ((rules[0] <= 2) == (rules[3] == 4)),
+          f"tier {rules[0]}: {rules[1]}-man A-list, {rules[2]} HG of which {rules[3]} club"
+          if rules else "no rules row")
+
+    counts = con.execute("""
+        SELECT COUNT(*), COUNT(*) FILTER (hg_club), COUNT(*) FILTER (hg_association),
+               COUNT(*) FILTER (b_list_eligible)
+        FROM mart.squad_registration""").fetchone()
+    check("the squad splits into non-empty registration groups",
+          counts[0] > 0 and counts[1] > 0 and counts[3] > 0,
+          f"{counts[0]} in the squad · {counts[1]} club-trained · {counts[2]} "
+          f"association-trained · {counts[3]} B-list eligible")
+
     print()
     if FAILURES:
         print(f"{len(FAILURES)} CHECK(S) FAILED:")
