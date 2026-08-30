@@ -112,7 +112,9 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
     `markers` are the managed club's squad markers (careers.Career.squad_markers): the
     first team plus, when the career has one, the reserve side. Both lists must be scanned
     — a player in the reserves has a live record only under the RESERVE marker, and the
-    copy under the first-team marker is frozen at the day he dropped out of that list."""
+    copy under the first-team marker is frozen at the day he dropped out of that list.
+    A player loaned IN has no record under either — his exact attrs+value sit under a
+    third marker shape entirely, [parent_club_tid][managed_tid]; see attributes.loan_marker."""
     if isinstance(markers, (bytes, bytearray)):          # back-compat: a single marker
         markers = (bytes(markers),)
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
@@ -169,7 +171,17 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
 
     own_exact = {}
     for tid in own_names:
-        _, r = _pick(A.attr_records(mm, tid, bounds=bounds, markers=markers), tid, strict=True)
+        li = own.get(tid) or {}
+        r = None
+        if li.get("loaned_in") and li.get("parent_club_tid"):
+            # A loanee's exact record is anchored by [parent_club_tid][managed_tid], not
+            # [club][0xffff] — see attributes.loan_marker(). Try it first: a loanee never
+            # appears under our own club markers, so the fallback below would just spend a
+            # full scan finding nothing before we get here anyway.
+            r = A.attr_record(mm, tid, bounds=bounds,
+                              marker=A.loan_marker(managed_tid, li["parent_club_tid"]))
+        if r is None:
+            _, r = _pick(A.attr_records(mm, tid, bounds=bounds, markers=markers), tid, strict=True)
         if r:
             own_exact[tid] = {"attrs": A.decode(r["attrs"]),
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},

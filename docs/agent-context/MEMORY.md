@@ -18,6 +18,7 @@
 - [Injury / Player-Progress decode](injury-progress-decode.md) — weekly Player-Progress table: +16 is a BITFIELD — injured (1/2) AND out-on-loan (bit5=32, exact windows); tid-recycling gotcha for cross-save unions
 - [TID recycling](tid-recycling.md) — a tid is a SLOT not a person; FM reuses retired tids for newgens; use (tid,dob) as the person key
 - [Reserve marker stale attrs](reserve-marker-stale-attrs.md) — reserve/loaned-out players read stale attributes; frozen row = the tell
+- [Loan value marker](loan-value-marker.md) — SOLVED: a loaned-in player's exact attrs+value record is anchored by `[parent_club_tid][managed_tid]`, not `[club][0xffff]` — `attributes.loan_marker()`. Also audited reserve-squad misses for hardcoding bugs: none found, misses are genuine save-data absence.
 - [User-supplied save date wins](user-supplied-save-date-wins.md) — if the user states a save's in-game date, use it as phase
 - [History chain pointers](history-chain-pointers.md) — +4 is a NEXT-ROW POINTER (linked lists, in-degree-0 = record start); player link = u32 @ P-38 in the attribute record
 - [Ground truth beats my parse](ground-truth-beats-my-parse.md) — if the user's in-game reading conflicts with the parser, suspect the parser; read screenshots directly; prefer ground truth with a checksum (TOTAL lines)
