@@ -7,7 +7,7 @@
  * in the abstract. Switch tactic in the header and the emphasis moves.
  */
 import * as D from "./data.js";
-import { el, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
+import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
   ATTR_BANDS, DASH } from "./ui.js";
 
 /**
@@ -257,69 +257,174 @@ function initialsFor(names) {
   });
 }
 
-/** Side-by-side comparison of 2-4 players: a radar per attribute group + attribute diffs. */
+/**
+ * Side-by-side comparison of 2-4 players: a role picker, a radar per attribute group, and a
+ * sortable attribute-by-attribute table.
+ *
+ * Comparing a DR against a DMR (or a clutch of CM/AM/DM types) only means something if
+ * everyone's rated under the SAME named role — a right-back's own best position isn't the
+ * question, "how do they stack up at DMR" is. So the role is a single picker at the top,
+ * defaulting to whichever role the most of the selected players actually list, and every
+ * role-dependent bit (rating, the radar's bold axes, the W column) re-renders on change. The
+ * raw attribute VALUES don't depend on role at all, so the table body is built once and only
+ * re-sorted/re-weighted, not rebuilt from scratch.
+ */
 export function openCompare(tids, role = null) {
   const ps = tids.map((t) => D.S.players.get(t)).filter(Boolean);
   if (ps.length < 2) return;
-  const r = role || D.bestRole(ps[0])?.role;
   const inits = initialsFor(ps.map((p) => p.name));
-  const body = [];
 
-  // initials read faster side by side than full names once you're scanning 3-4 columns, but
-  // the mapping has to stay one glance away rather than living only in a hover title
-  body.push(el("div.cmplegend", {}, ps.map((p, i) => el("div.cmpkey", {}, [
-    el("i", {}), el("span", { text: `${inits[i]} ${p.name}` }),
-  ]))));
+  const roleInfo = new Map();
+  for (const p of ps) {
+    for (const q of D.playerRoles(p)) {
+      if (!roleInfo.has(q.role)) roleInfo.set(q.role, { role: q.role, n: 0 });
+      roleInfo.get(q.role).n++;
+    }
+  }
+  const roleOptions = [...roleInfo.values()].sort((a, b) => b.n - a.n || a.role.localeCompare(b.role));
+  let r = (role && roleInfo.has(role)) ? role : (roleOptions[0]?.role || D.bestRole(ps[0])?.role);
 
-  body.push(el("div.kpis", {}, ps.map((p, i) => {
-    const rr = D.playerRoles(p).find((x) => x.role === r) || D.playerRoles(p)[0];
-    return el("div.kpi", { title: p.name }, [
-      el("b", { text: rr ? num(rr.eff) : DASH }),
-      el("span", { text: `${inits[i]} · ${rr ? `${rr.pos} fam ${rr.fam}` : ""}` }),
-    ]);
-  })));
-
-  // one small radar per attribute group (Technical/Mental/Physical, +Goalkeeping if every
-  // player shown is a keeper) instead of one crowded wheel — it's both what fixes the mobile
-  // cutoff (fewer axes per chart) and what makes the section a spike belongs to obvious
-  body.push(el("h4", { text: `Attribute profile · ${r}` }));
-  const groups = ["Technical", "Mental", "Physical"];
-  if (ps.every((p) => p.positions.some((q) => q.pos === "GK"))) groups.push("Goalkeeping");
-  body.push(el("div.radargrid", {}, groups.map((g) => {
-    const axes = D.ATTR_GROUPS[g].filter((a) => D.S.attrs.indexOf(a) >= 0);
-    const keyed = axes.map((a) => D.weightOf(a, r) >= 2);
-    return el("div.radarcard", {}, [
-      el("h5", { text: g }),
-      radar(axes, ps.map((p) => ({
-        values: axes.map((a) => (p.attrs[D.S.attrs.indexOf(a)] ?? 0) / 20),
-      })), { size: 200, keyed }),
-    ]);
-  })));
-  body.push(el("p.note", { text: `Bold axis labels are attributes this tactic weights at 2 or more for ${r}.` }));
-
-  body.push(el("h4", { text: "Attribute by attribute" }));
-  const rows = [];
+  // static: which attributes appear as rows, and each player's raw value — none of this moves
+  // when the role picker changes, only the W column and best-value ring do
+  const attrRows = [];
   for (const [group, names] of Object.entries(D.ATTR_GROUPS)) {
-    rows.push(el("tr", {}, [el("td", { colspan: ps.length + 2 }, [el("span.dim", { text: group })])]));
     for (const a of names) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
       const vals = ps.map((p) => p.attrs[i]);
       if (vals.every((v) => v == null)) continue;
-      const best = Math.max(...vals.filter((v) => v != null));
-      const w = D.weightOf(a, r);
-      rows.push(el("tr", {}, [
-        el("td", { text: a }),
-        el("td.num", {}, [w > 1 ? pill(String(w), w >= 4 ? "bad" : w >= 3 ? "warn" : "good") : el("span.dim", { text: DASH })]),
-        ...vals.map((v) => el("td.num", {}, [attrValue(v, { best: v != null && v === best && vals.length > 1 })])),
-      ]));
+      attrRows.push({ group, attr: a, vals });
     }
   }
-  body.push(el("div.scroll", {}, [el("table", {}, [
-    el("thead", {}, [el("tr", {}, [el("th", { text: "Attribute" }), el("th.num", { text: "W" }),
-      ...ps.map((p, i) => el("th.num", { text: inits[i], title: p.name }))])]),
-    el("tbody", {}, rows),
-  ])]));
-  body.push(el("p.note", { text: "W = this tactic's weight for the role (blank = 1, the default). Ringed = highest of the players shown." }));
-  sheet(`Compare · ${r}`, body, { wide: true });
+  let sortKey = null; // null = grouped default order; else "attr" | "w" | a player's tid
+  let sortDir = "desc";
+
+  // a player who doesn't actually list this role (comparing a natural DR against a natural
+  // DMR, say) still gets an unfamiliarity-blind rating rather than silently falling back to
+  // his own best role, which would make the column look like it answers a question it doesn't
+  function ratingFor(p) {
+    const rr = D.playerRoles(p).find((x) => x.role === r);
+    if (rr) return { eff: rr.eff, label: `${rr.pos} fam ${rr.fam}` };
+    return { eff: D.rating(p.attrs, r), label: "not a listed position" };
+  }
+
+  function sortedRows() {
+    if (!sortKey) return null;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...attrRows].sort((a, b) => {
+      let x, y;
+      if (sortKey === "attr") { x = a.attr; y = b.attr; }
+      else if (sortKey === "w") { x = D.weightOf(a.attr, r); y = D.weightOf(b.attr, r); }
+      else {
+        const idx = ps.findIndex((p) => p.tid === sortKey);
+        x = a.vals[idx]; y = b.vals[idx];
+      }
+      const xn = x == null, yn = y == null;
+      if (xn && yn) return 0;
+      if (xn) return 1;
+      if (yn) return -1;
+      return typeof x === "string" ? dir * x.localeCompare(y) : dir * (x - y);
+    });
+  }
+
+  function sortTh(key, label, { num: isNum = false, title = label } = {}) {
+    const on = sortKey === key;
+    return el(`th${isNum ? ".num" : ""}${on ? ".sorted" : ""}`, {
+      title,
+      onclick: () => {
+        if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
+        else { sortKey = key; sortDir = key === "attr" ? "asc" : "desc"; }
+        renderAll();
+      },
+    }, [label, on ? el("span.arrow", { text: sortDir === "asc" ? "▲" : "▼" }) : null]);
+  }
+
+  function attrTr(row) {
+    const best = Math.max(...row.vals.filter((v) => v != null));
+    const w = D.weightOf(row.attr, r);
+    return el("tr", {}, [
+      el("td", { text: row.attr, title: row.group }),
+      el("td.num", {}, [w > 1 ? pill(String(w), w >= 4 ? "bad" : w >= 3 ? "warn" : "good") : el("span.dim", { text: DASH })]),
+      ...row.vals.map((v) => el("td.num", {}, [attrValue(v, { best: v != null && v === best && row.vals.length > 1 })])),
+    ]);
+  }
+
+  const roleSel = el("select.btn", {
+    onchange: (e) => { r = e.target.value; renderAll(); },
+  }, roleOptions.map((o) => el("option", {
+    value: o.role, text: `${o.role}${o.n < ps.length ? ` (${o.n}/${ps.length})` : ""}`,
+  })));
+  roleSel.value = r;
+
+  // initials read faster side by side than full names once you're scanning 3-4 columns, but
+  // the mapping has to stay one glance away rather than living only in a hover title
+  const legend = el("div.cmplegend", {}, ps.map((p, i) => el("div.cmpkey", {}, [
+    el("i", {}), el("span", { text: `${inits[i]} ${p.name}` }),
+  ])));
+
+  const content = el("div");
+
+  function renderAll() {
+    clear(content);
+
+    const kpis = el("div.kpis", {}, ps.map((p, i) => {
+      const rf = ratingFor(p);
+      return el("div.kpi", { title: p.name }, [
+        el("b", { text: num(rf.eff) }),
+        el("span", { text: `${inits[i]} · ${rf.label}` }),
+      ]);
+    }));
+
+    // one small radar per attribute group (Technical/Mental/Physical, +Goalkeeping if every
+    // player shown is a keeper) instead of one crowded wheel — it's both what fixes the mobile
+    // cutoff (fewer axes per chart) and what makes the section a spike belongs to obvious
+    const groups = ["Technical", "Mental", "Physical"];
+    if (ps.every((p) => p.positions.some((q) => q.pos === "GK"))) groups.push("Goalkeeping");
+    const radars = el("div.radargrid", {}, groups.map((g) => {
+      const axes = D.ATTR_GROUPS[g].filter((a) => D.S.attrs.indexOf(a) >= 0);
+      const keyed = axes.map((a) => D.weightOf(a, r) >= 2);
+      return el("div.radarcard", {}, [
+        el("h5", { text: g }),
+        radar(axes, ps.map((p) => ({
+          values: axes.map((a) => (p.attrs[D.S.attrs.indexOf(a)] ?? 0) / 20),
+        })), { size: 200, keyed }),
+      ]);
+    }));
+
+    const rows = [];
+    const sorted = sortedRows();
+    if (sorted) {
+      for (const row of sorted) rows.push(attrTr(row));
+    } else {
+      for (const group of Object.keys(D.ATTR_GROUPS)) {
+        const inGroup = attrRows.filter((row) => row.group === group);
+        if (!inGroup.length) continue;
+        rows.push(el("tr", {}, [el("td", { colspan: ps.length + 2 }, [el("span.dim", { text: group })])]));
+        for (const row of inGroup) rows.push(attrTr(row));
+      }
+    }
+    const table = el("div.scroll", {}, [el("table", {}, [
+      el("thead", {}, [el("tr", {}, [
+        sortTh("attr", "Attribute"),
+        sortTh("w", "W", { num: true, title: "This tactic's weight for the role — click to sort" }),
+        ...ps.map((p, i) => sortTh(p.tid, inits[i], { num: true, title: `${p.name} — click to sort` })),
+      ])]),
+      el("tbody", {}, rows),
+    ])]);
+
+    content.append(
+      kpis,
+      el("h4", { text: `Attribute profile · ${r}` }), radars,
+      el("p.note", { text: `Bold axis labels are attributes this tactic weights at 2 or more for ${r}.` }),
+      el("h4", { text: "Attribute by attribute" }), table,
+      el("p.note", { text: "W = this tactic's weight for the role (blank = 1, the default). Ringed = highest of the players shown. Click a column header to sort." }),
+    );
+  }
+
+  renderAll();
+  sheet("Compare", [
+    el("div.prow", {}, [el("span.dim", { text: "Compare as:" }), roleSel]),
+    legend,
+    content,
+  ], { wide: true });
 }
