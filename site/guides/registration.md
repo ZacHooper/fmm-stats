@@ -68,11 +68,14 @@ and read is not counted twice.
 
 **Two deliberate departures from a literal reading, both in the app's favour of being usable:**
 
-- **Our academy counts outright.** FMM only creates an intake player at ~16, so a strict clock
-  would call a player our own academy produced *not* home grown until he is 19. Origin = our
-  academy is taken as club-trained; the 36-month clock is what SIGNED players earn it on.
-  `hg_basis` says which fired (`academy` / `youth-origin` / `clock`), and `months_club` ships
-  regardless, so the strict reading is one filter away.
+- **Coming out of our club counts outright.** If the save says a player's origin club is us — our
+  academy side or the club itself — he is club-trained, with no 36-month test on top. The origin
+  club is the head of his career-history chain and is stored independently of when his recorded
+  seasons start, so a player signed from elsewhere at 19 carries THAT club as his origin, not us.
+  (Mikkel Bruhn's first recorded season is at 21 and his origin still reads Espergærde IF.) The
+  clock is what players signed from elsewhere earn club-trained status on. `hg_basis` says which
+  route fired (`academy` / `youth-origin` / `clock`) and `months_club` ships regardless, so a
+  stricter reading is one filter away.
 - **A loan leg credits the host, not the parent.** That follows TR §15.2 and is flagged as an
   inference in the rules doc, not as a sourced rule. It is also the conservative reading — it
   costs us months rather than granting them.
@@ -83,11 +86,9 @@ and read is not counted twice.
   age-15-to-21 window, so his clock reads zero and only his origin club says anything. The
   association flag falls back to origin for exactly this reason; the club flag does not, so a
   long-serving veteran reads Danish-trained but not club-trained however long he has been here.
-- **Origin proves the club, not the 36 months.** The origin row is the club he was at *before* his
-  first recorded season, so for a player whose record starts at 19 it covers ages 18 and under —
-  good enough to say he trained at a club of this association, not good enough to say he clocked
-  36 months at one. So the association flag accepts a Danish origin outright, while the club flag
-  still needs an academy tid, a first season at 18 or younger, or the clock.
+- **Origin is a club, not a duration.** It says where he was trained, never for how long, so it
+  can settle "trained at us" and "trained in Denmark" but never a borderline 36-month question for
+  a player who came from somewhere else. For those, read `months_club`.
 - **Nation for exotic clubs is a guess.** A club in a league the save gives no nation to gets one
   from its players' modal nationality, which lands some non-league foreign sides in the wrong
   country (Kaizer Chiefs reads as England). It does not affect the Danish question — a club being

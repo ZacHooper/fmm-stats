@@ -1648,17 +1648,20 @@ GROUP BY season, phase, tid, club_tid
 # far: a 34-year-old's age-15-to-21 window predates every row he has, so the clock can only
 # ever read zero for him. Origin is the sole surviving evidence there.
 #
-# BUT AN ORIGIN CLUB IS NOT AUTOMATICALLY A TRAINING CLUB. `origin_club_tid` is the head of
-# the career-history chain — the club he came out of — and for a player whose first recorded
-# season is a senior one at 20, that says where he signed, not where he was trained. Taking
-# it at face value made Christian Bramsborg (first Frem season at 20, 21 apps) club-trained,
-# which the 36-month rule plainly does not. So origin only counts as youth evidence when it
-# is one of:
-#   * an ACADEMY tid (a youth side is training by definition), or
-#   * a first recorded season starting at 18 or younger (young enough that 36 months inside
-#     the window were still reachable), or
-#   * a history that begins AFTER the window closed — the head row then predates every
-#     season we can read, so it is the only view of his youth that exists.
+# THE ORIGIN CLUB IS THE YOUTH CLUB, whenever it resolves at all — so origin = us is
+# club-trained outright, with no age test on top. An earlier version gated it behind "his
+# first recorded season starts at 18 or younger", on the theory that a first Frem season at
+# 19 says where he SIGNED rather than where he trained. That theory is wrong, and the data
+# says so plainly: Mikkel Bruhn (34) and Daniel S. Jørgensen (33) both have their first
+# recorded season at 21, yet their origin clubs read Espergærde IF and Næstved BK — their
+# real youth clubs, not whoever they played for at 21. The chain head is stored
+# independently of where the recorded seasons begin, which is exactly why a player signed
+# from elsewhere at 19 gets THAT club as his origin, not us. So an origin of us can only
+# mean he came out of us. (The gate had been marking Christian Bramsborg and Oliver
+# Møller-Jensen, both origin: Boldklubben Frem, as not club-trained.)
+#
+# `age_at_first_season` is still carried, as evidence for a human reading a borderline case,
+# but nothing branches on it.
 PLAYER_HOMEGROWN = """
 CREATE OR REPLACE VIEW mart.player_homegrown AS
 WITH us AS (SELECT club_tid FROM mart.managed_club),
@@ -1678,21 +1681,13 @@ origin AS (
            y.youth_tid IS NOT NULL                  AS via_academy,
            y.share                                  AS academy_share,
            f.first_end_year,
-           -- completed age, not the difference of year parts: DATE_DIFF('year', ...) alone
-           -- reads 18 for an autumn-born 17-year-old and would fail him the test below.
+           -- Carried as EVIDENCE only, never as a test. Completed age, not the difference of
+           -- year parts: DATE_DIFF('year', ...) alone reads 18 for an autumn-born 17-year-old.
            DATE_DIFF('year', ps.dob, season_start(f.first_end_year))
              - CASE WHEN (MONTH(season_start(f.first_end_year)),
                           DAY(season_start(f.first_end_year)))
                         < (MONTH(ps.dob), DAY(ps.dob)) THEN 1 ELSE 0 END
-                                                    AS age_at_first_season,
-           COALESCE(y.youth_tid IS NOT NULL, FALSE)
-             OR f.first_end_year IS NULL
-             OR DATE_DIFF('year', ps.dob, season_start(f.first_end_year))
-                  - CASE WHEN (MONTH(season_start(f.first_end_year)),
-                               DAY(season_start(f.first_end_year)))
-                             < (MONTH(ps.dob), DAY(ps.dob)) THEN 1 ELSE 0 END <= 18
-             OR f.first_end_year > season_of(ps.dob + INTERVAL 21 YEAR)
-                                                    AS origin_is_youth
+                                                    AS age_at_first_season
     FROM mart.player_origin o
     JOIN mart.player_snapshots ps USING (season, phase, tid)
     LEFT JOIN mart.youth_clubs y
@@ -1719,7 +1714,7 @@ SELECT
     season_end(season_of(ps.dob + INTERVAL 21 YEAR))            AS window_to,
     a.as_of <= season_end(season_of(ps.dob + INTERVAL 21 YEAR)) AS window_open,
     o.origin_club_tid, o.origin_parent_tid, o.via_academy, o.academy_share,
-    o.origin_is_youth, o.age_at_first_season,
+    o.age_at_first_season,
     oc.name                                                     AS origin_club,
     oc.nation                                                   AS origin_nation,
     oc.nation_source                                            AS origin_nation_source,
@@ -1727,22 +1722,17 @@ SELECT
     COALESCE(d.months, 0)                                       AS months_domestic,
     d.club_tid                                                  AS domestic_club_tid,
     dc.name                                                     AS domestic_club,
-    -- club-trained: our academy produced him, or he clocked 36 months with us in the window
-    COALESCE(o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth, FALSE)
+    -- club-trained: he came out of our club, or he clocked 36 months with us in the window
+    COALESCE(o.origin_parent_tid IN (SELECT club_tid FROM us), FALSE)
       OR COALESCE(m.months, 0) >= 36                            AS hg_club,
-    CASE WHEN o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth
+    CASE WHEN o.origin_parent_tid IN (SELECT club_tid FROM us)
               THEN CASE WHEN o.via_academy THEN 'academy' ELSE 'youth-origin' END
          WHEN COALESCE(m.months, 0) >= 36 THEN 'clock' END      AS hg_club_basis,
-    -- Association-trained: the same, at any club of our nation (us included).
-    --
-    -- NO `origin_is_youth` GATE ON THE ORIGIN ROUTE HERE, and the asymmetry with hg_club is the
-    -- point. The origin row is the club he was at BEFORE his first recorded season, so for a
-    -- player whose record starts at 19 it covers ages 18 and under — squarely inside the window.
-    -- That is enough to say he was training at a club of this association; it is NOT enough to
-    -- say he clocked 36 months at ONE of them, which is why hg_club keeps the gate.
-    -- Gating both read Christian Bramsborg and Oliver Møller-Jensen (origin: us, nationality:
-    -- Danish, first recorded season at 19) as not home grown at all, which is plainly wrong.
-    COALESCE(o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth, FALSE)
+    -- Association-trained: the same test, at any club of our nation (us included), so it is
+    -- satisfied by every club-trained player plus everyone whose origin club is domestic.
+    -- Nearly free for this career, where the capital-region signing rule already means the
+    -- whole squad came out of a Danish club — the quota that actually binds is the club half.
+    COALESCE(o.origin_parent_tid IN (SELECT club_tid FROM us), FALSE)
       OR COALESCE(m.months, 0) >= 36
       OR COALESCE(oc.nation = (SELECT nation FROM our_nation), FALSE)
       OR COALESCE(d.months, 0) >= 36                            AS hg_association,
