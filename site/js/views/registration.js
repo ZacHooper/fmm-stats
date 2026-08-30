@@ -130,10 +130,12 @@ export async function view() {
     ].filter(Boolean));
   }
 
+  // A compact horizontal segmented control, not three stacked chips: this sits in a table cell,
+  // and anything that wraps makes every row in the table as tall as the tallest cell.
   const listCell = (r) => {
-    const wrap = el("span.prow", { onclick: (e) => e.stopPropagation() });
+    const wrap = el("span.seg", { onclick: (e) => e.stopPropagation() });
     const buttons = [[A, "A"], [B, "B"], [OUT, "—"]].map(([v, label]) => el(
-      `button.chip${plan[r.tid] === v ? ".on" : ""}`, {
+      `button${plan[r.tid] === v ? ".on" : ""}`, {
         text: label,
         disabled: v === B && !r.h.b_list,
         title: v === B && !r.h.b_list
@@ -186,9 +188,14 @@ export async function view() {
       render: (r) => bar(Math.min(36, r.h.months_club ?? 0), { max: 36, lo: 99, dp: 1 }),
     },
     eta: {
-      label: "Club-trained on", group: "Registration",
-      help: "When he reaches 36 months if he stays. Blank once his window has closed — he can no longer get there.",
-      get: (r) => r.h.hg_eta || (r.h.hg_club ? "already" : r.h.window_open ? "not on this path" : "window closed"),
+      label: "Home-grown date", group: "Registration",
+      help: "When he becomes club-trained: the date he reaches 36 months with us if he stays. "
+        + "'Already' = he counts now. Otherwise he cannot get there — either his age-21 window "
+        + "has closed, or he cannot clock 36 months before it does.",
+      sort: (r) => r.h.hg_eta || (r.h.hg_club ? "0000" : "9999"),
+      render: (r) => (r.h.hg_club ? pill("Already", "good")
+        : r.h.hg_eta ? el("span", { text: r.h.hg_eta })
+        : el("span.dim", { text: r.h.window_open ? "Out of time" : "Window closed" })),
     },
     blist: {
       label: "B-list", group: "Registration",
