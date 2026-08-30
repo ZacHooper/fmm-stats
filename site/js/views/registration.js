@@ -23,6 +23,10 @@ import { el, bar, num, pill, DASH, toast } from "../ui.js";
 import { openProfile } from "../profile.js";
 
 const A = "A", B = "B", OUT = "-";
+// How many players per position the suggestion treats as the spine. Two is a starter plus
+// his cover; the picker offers 1-3 because how deep "the squad" goes is a manager's call,
+// not a rule — the rulebook only ever counts to 25.
+const DEFAULT_DEPTH = 2, DEPTH_KEY = "fm:registration:depth";
 
 export async function view() {
   const R = await D.loadRegistration();
@@ -76,8 +80,10 @@ export async function view() {
 
   // ---- the plan itself ------------------------------------------------------------
   const KEY = `fm:registration:${D.S.index.snapshot.season}:${D.S.index.snapshot.phase}`;
+  let depth = Number(localStorage.getItem(DEPTH_KEY)) || DEFAULT_DEPTH;
+  if (![1, 2, 3].includes(depth)) depth = DEFAULT_DEPTH;
   let plan = load(KEY);
-  if (!plan) { plan = suggest(rows, rules); save(KEY, plan); }
+  if (!plan) { plan = suggest(rows, rules, depth, method); save(KEY, plan); }
   // A player who arrived since the plan was saved has no entry yet; default him rather than
   // dropping him, so a mid-window signing shows up as a decision to make instead of vanishing.
   for (const r of rows) if (!(r.tid in plan)) plan[r.tid] = r.h.b_list ? B : OUT;
@@ -113,6 +119,7 @@ export async function view() {
     );
 
     const cannotPlay = rows.filter((r) => plan[r.tid] === OUT);
+    const swappable = rows.filter((r) => plan[r.tid] === A && r.h.b_list).length;
     const overCap = Math.max(0, t.a - t.cap);
     warnings.replaceChildren(...[
       overCap ? el("div.card", {}, [
@@ -126,6 +133,13 @@ export async function view() {
           html: cannotPlay.map((r) => `${r.player.name} (${r.age})`).join(" · ")
             + ". Fielding one of these is normally a forfeit if the team won or drew.",
         }),
+        // The way out is never obvious from the table: the A-list is full of players who would
+        // still be available from the B-list, so a slot is one click away rather than a sale.
+        swappable ? el("p.note", {
+          html: `A slot can be freed without losing anyone — <b>${swappable}</b> player`
+            + `${swappable === 1 ? "" : "s"} on the A-list ${swappable === 1 ? "is" : "are"} `
+            + "B-list eligible and would still be available from there.",
+        }) : null,
       ]) : null,
     ].filter(Boolean));
   }
@@ -220,18 +234,33 @@ export async function view() {
     originNation: { label: "Origin nation", group: "Origin", get: (r) => r.h.origin_nation || DASH },
   };
 
+  const depthSel = el("select.btn", {
+    title: "How many players per position the suggestion protects as the spine",
+    onchange: (e) => {
+      depth = Number(e.target.value);
+      try { localStorage.setItem(DEPTH_KEY, String(depth)); } catch { /* private mode */ }
+      rebuild();
+    },
+  }, [1, 2, 3].map((n) => el("option", {
+    value: String(n), text: `Top ${n} per position`, selected: n === depth,
+  })));
+
+  const rebuild = () => {
+    plan = suggest(rows, rules, depth, method);
+    save(KEY, plan);
+    const t = tally(rows, plan, rules);
+    toast(t.out ? `${t.a} on the A-list · ${t.out} unregistered` : `${t.a} on the A-list`);
+    table.redraw();
+    drawSummary();
+  };
+
   const toolbar = [
+    depthSel,
     el("button.chip.ghost", {
-      text: "Suggest a legal squad",
-      title: "B-list everyone eligible, A-list the rest by rating, then promote home-grown "
-        + "players until the minimums are met",
-      onclick: () => {
-        plan = suggest(rows, rules);
-        save(KEY, plan);
-        toast("Rebuilt from scratch");
-        table.redraw();
-        drawSummary();
-      },
+      text: "Suggest a squad",
+      title: "Loan-ins first, then the best players at each position, then the home-grown "
+        + "top-up, then whoever is too old for the B-list and would otherwise be unable to play",
+      onclick: rebuild,
     }),
     el("button.chip.ghost", {
       text: "Clear",
@@ -256,6 +285,7 @@ export async function view() {
       Quality: ["list", "age", "pos", "rating", "fit", "status"],
     },
     sort: { by: "rating", dir: "desc" },
+    toolbar,
     onRow: (r) => openProfile(r.tid, { role: r.r?.role }),
     searchPlaceholder: "Search the squad…",
     empty: "No squad players in this export.",
@@ -313,44 +343,103 @@ function tally(rows, plan, rules) {
 }
 
 /**
+ * The best `depth` players at every position we field, by this tactic's rating.
+ *
+ * Keyed on POSITION, not on a player's best role, because "top 2 at DL" is the question a squad
+ * list has to answer and a player who is third-choice everywhere is in nobody's top 2. A player
+ * covering three positions is picked up by each of them; `rank` keeps the best placing he earned,
+ * so when slots are tight every position's first choice is registered before anybody's second.
+ */
+function spineOf(rows, depth, method) {
+  const byPos = new Map();
+  for (const r of rows) {
+    for (const q of D.playerRoles(r.player, method)) {
+      if (!byPos.has(q.pos)) byPos.set(q.pos, []);
+      byPos.get(q.pos).push({ tid: r.tid, eff: q.eff });
+    }
+  }
+  const rank = new Map();
+  for (const arr of byPos.values()) {
+    arr.sort((x, y) => y.eff - x.eff);
+    arr.slice(0, depth).forEach((x, i) => {
+      rank.set(x.tid, Math.min(rank.get(x.tid) ?? Infinity, i));
+    });
+  }
+  return rank;
+}
+
+/**
  * A legal-as-possible starting plan.
  *
- * Everyone B-list eligible goes to the B-list first, because it costs nothing and preserves
- * A-list capacity (which is DBU's own advice). That can leave the A-list short of home-grown
- * players — most of ours are young — so the second pass PROMOTES home-grown B-listers back onto
- * the A-list until the minimums are met, cheapest by rating first: a promoted player can still
- * play either way, so the one to spend a slot on is the one you would otherwise leave out.
+ * THE A-LIST CANNOT HOLD EVERYONE, and that is the whole difficulty. This squad is 40: 19 of them
+ * are too old for the B-list, 5 are on loan to us, and the spine is another 19 at depth 2. Any two
+ * of those three groups already overflow 25, so the suggestion is a priority order, not a filter:
+ *
+ *   1. **Loan-ins.** We spent a loan slot to have him available; an unregistered loanee is a
+ *      wasted one.
+ *   2. **The spine** — the best `depth` at each position, first choices before second choices.
+ *      These are the players the season actually runs on.
+ *   3. **The home-grown top-up**, strongest first: the spine is already registered, so whoever is
+ *      left is outside it, and the slot should hold the best of them.
+ *   4. **Everyone else too old for the B-list.** Not because they are better than the youth left
+ *      over, but because registration is the only thing standing between them and being unable to
+ *      play at all — a B-list-eligible player left off the A-list still plays.
+ *
+ * Whoever misses out is reported as unregistered rather than quietly dropped, because that is a
+ * real squad decision (those are the players to sell or loan out) and not a rounding error.
  */
-export function suggest(rows, rules) {
+export function suggest(rows, rules, depth = DEFAULT_DEPTH, method = D.S.method) {
   const plan = {};
-  const byRating = [...rows].sort((x, y) => y.eff - x.eff);
-  const seniors = byRating.filter((r) => !r.h.b_list);
-  const youth = byRating.filter((r) => r.h.b_list);
+  for (const r of rows) plan[r.tid] = r.h.b_list ? B : OUT;
 
-  for (const r of youth) plan[r.tid] = B;
+  const byTid = new Map(rows.map((r) => [r.tid, r]));
+  const rank = spineOf(rows, depth, method);
+  const cap = () => rules.a_list_max - tally(rows, plan, rules).missing;
   let a = 0;
-  for (const r of seniors) {
-    plan[r.tid] = a < rules.a_list_max ? A : OUT;
-    if (plan[r.tid] === A) a++;
-  }
+  const put = (tid) => {
+    if (plan[tid] === A) return true;
+    if (a >= cap()) return false;
+    plan[tid] = A;
+    a++;
+    return true;
+  };
 
+  // 1 + 2: the loanees and the spine, in that order
+  const queue = [
+    ...rows.filter((r) => r.loanedIn).sort((x, y) => y.eff - x.eff),
+    ...rows.filter((r) => rank.has(r.tid))
+      .sort((x, y) => rank.get(x.tid) - rank.get(y.tid) || y.eff - x.eff),
+  ];
+  for (const r of queue) put(r.tid);
+
+  // 3: the home-grown minimums, club-trained first — it is the half that binds, and an
+  // association-trained player cannot substitute for it. STRONGEST first: step 2 has already
+  // registered the spine, so everyone still available here is outside it, and taking the best
+  // of them puts a useful player in the slot rather than a 16-year-old with four months on the
+  // clock who will not feature. (An earlier version promoted the weakest, on the grounds that
+  // a B-lister plays either way — true, but it made the quota a place to hide the squad's
+  // least useful player instead of its best reserve.)
   if (rules.hg_min) {
-    // Promote from the back of the B-list (weakest first): the strong ones are playing
-    // regardless, so spending an A-list slot on one of them buys nothing.
-    const promote = [...youth].reverse();
+    const spare = rows.filter((r) => plan[r.tid] !== A).sort((x, y) => y.eff - x.eff);
     for (const wantClub of [true, false]) {
-      for (const r of promote) {
+      for (const r of spare) {
         const t = tally(rows, plan, rules);
         if (t.hgCounted >= rules.hg_min && t.club >= rules.hg_club_min) break;
-        if (plan[r.tid] !== B) continue;
         if (wantClub ? !r.h.hg_club : !r.h.hg_association) continue;
         if (wantClub && t.club >= rules.hg_club_min) continue;
-        if (a >= rules.a_list_max) break;
-        plan[r.tid] = A;
-        a++;
+        // The cap grows as the shortfall shrinks, so this can succeed where `put` would have
+        // refused a moment ago — hence the recomputed cap() rather than a fixed one.
+        put(r.tid);
       }
     }
   }
+
+  // 4: the rest of the players who have no B-list to fall back on
+  for (const r of rows.filter((r) => !r.h.b_list && plan[r.tid] !== A)
+                      .sort((x, y) => y.eff - x.eff)) put(r.tid);
+
+  // Anyone still unplaced sits on the B-list if he can, and is unregistered if he cannot.
+  for (const r of rows) if (plan[r.tid] !== A) plan[r.tid] = r.h.b_list ? B : OUT;
   return plan;
 }
 

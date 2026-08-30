@@ -246,8 +246,11 @@ majority vote; 65535 is the 0xFFFF "none" sentinel, not a club.
 
 **Where it lives:** a new **Registration** section in the web app (7 sections now), fed by
 `api/registration.json`. The A/B plan is browser localStorage keyed by snapshot — a plan, not save
-data; nothing writes back. "Suggest a legal squad" B-lists everyone eligible, A-lists the rest by
-rating, then promotes home-grown players from the B-list until the minimums are met.
+data; nothing writes back. "Suggest a squad" works down a priority order — loan-ins, then the best
+N per position (the `Top 1/2/3 per position` picker, default 2), then the home-grown top-up, then
+whoever is too old for the B-list and would otherwise be unable to play at all. The A-list cannot
+hold everyone (19 seniors + 5 loan-ins + a 19-man spine against 25 places), so who misses out is
+reported as unregistered rather than quietly dropped.
 
 **Current position (2025 / 2024-11-10, Superliga):** 40 in the squad, **11 club-trained**, 38
 association-trained, 21 B-list eligible. The suggestion lands at A-list 20/25 with 8/8 home grown
