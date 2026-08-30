@@ -322,27 +322,33 @@ export async function view() {
   const depthTable = el("div");
 
   function drawDepth() {
+    // ONLY fam-FAM_FLOOR-and-above is counted. Listing a position at familiarity 3 is not cover,
+    // and counting it made every row look healthy — MR read 10 deep when two players could
+    // actually play there. The position KEYS still come from every listed position, so a
+    // position nobody is familiar with appears as a row of zeros rather than vanishing, which
+    // is exactly the hole worth seeing.
     const by = new Map();
     for (const r of rows) {
       for (const q of r.player.positions) {
-        if (!by.has(q.pos)) by.set(q.pos, { a: 0, b: 0, out: 0, fam: 0 });
+        if (!by.has(q.pos)) by.set(q.pos, { a: 0, b: 0, out: 0 });
+        if (q.fam < FAM_FLOOR) continue;
         const c = by.get(q.pos);
         const l = plan[r.tid];
         if (l === A) c.a++; else if (l === B) c.b++; else c.out++;
-        if (q.fam >= FAM_FLOOR && l !== OUT) c.fam++;
       }
     }
     const list = [...by.entries()].sort((x, y) => posRank(x[0]) - posRank(y[0])
                                                   || x[0].localeCompare(y[0]));
     depthTable.replaceChildren(
-      el("h3", { text: "Cover by position" }),
+      el("h3", { text: `Cover by position · familiarity ${FAM_FLOOR}+` }),
       el("div.scroll.fit", {}, [el("table", {}, [
         el("thead", {}, [el("tr", {}, [
           el("th", { text: "Pos" }),
           el("th.num", { text: "A" }), el("th.num", { text: "B" }),
-          el("th.num", { text: "Unreg" }), el("th.num", { text: "Squad" }),
-          el("th.num", { text: `Available, fam ${FAM_FLOOR}+`, title:
-            `Registered (A or B) and familiar enough to actually play there — familiarity ${FAM_FLOOR} or more` }),
+          el("th.num", { text: "Can field", title:
+            `On either list and familiar enough to play there — the number that matters on a matchday` }),
+          el("th.num", { text: "Unreg", title:
+            "Familiar at this position but on neither list, so unavailable" }),
         ])]),
         el("tbody", {}, list.map(([pos, c]) => {
           const available = c.a + c.b;
@@ -350,21 +356,20 @@ export async function view() {
             el("td.name", { text: pos }),
             el("td.num", { text: String(c.a) }),
             el("td.num", { text: String(c.b) }),
-            el("td.num", {}, [c.out ? el("span.dim", { text: String(c.out) }) : DASH]),
-            el("td.num", { text: String(c.a + c.b + c.out) }),
             el("td.num", {}, [
               available === 0 ? pill("none", "bad")
-                : c.fam === 0 ? pill(`0 of ${available}`, "warn")
-                : el("span", { text: String(c.fam) }),
+                : available === 1 ? pill("1", "warn")
+                : el("span", { text: String(available) }),
             ]),
+            el("td.num", {}, [c.out ? el("span.dim", { text: String(c.out) }) : DASH]),
           ]);
         })),
       ])]),
       el("p.note", {
-        html: "A player is counted at <b>every</b> position he lists, so these do not sum to the "
-          + "squad. <b>Unreg</b> is cover you own but cannot field. The last column is the one "
-          + `that matters on a matchday: registered <i>and</i> familiar (${FAM_FLOOR}+) at the `
-          + "position.",
+        html: `Only players at familiarity <b>${FAM_FLOOR}+</b> are counted — a position listed at `
+          + "3 is not cover. A player counts at every position he is familiar with, so these do "
+          + "not sum to the squad. A position nobody qualifies at still appears, as "
+          + "<b>none</b>; <b>Unreg</b> is cover you own but cannot field.",
       }),
     );
   }

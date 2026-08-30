@@ -141,6 +141,13 @@ those groups already overflow 25. It is therefore a priority order, not a filter
    over, but because registration is the only thing standing between them and being unable to play
    at all. A B-list-eligible player left off the A-list still plays.
 
+**Cover by position**, below the table, is the other half of the picture: per position, how many
+of your registered players can actually play there — familiarity 15 or better, the same floor the
+depth charts use. Only qualified players are counted, because a position listed at familiarity 3
+is not cover; a position nobody qualifies at still gets a row, reading **none**, since that is the
+hole worth seeing. A player counts at every position he is familiar with, so the rows do not sum
+to the squad.
+
 Whoever misses out is reported as unregistered rather than quietly dropped: that is a real squad
 decision (those are the players to sell or loan out), and the card says how many A-list places are
 held by B-list-eligible players, since freeing one of those costs nothing.
