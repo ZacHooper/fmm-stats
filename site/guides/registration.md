@@ -62,9 +62,18 @@ and read is not counted twice.
 
 - **Older players.** The history slab does not reach back far enough to cover a 30-year-old's
   age-15-to-21 window, so his clock reads zero and only his origin club says anything. The
-  association flag falls back to origin for exactly this reason; the club flag does not.
-- **Origin is not automatically training.** A first recorded season at 19 or later does not make
-  the origin club a training club, and is not credited as one.
+  association flag falls back to origin for exactly this reason; the club flag does not, so a
+  long-serving veteran reads Danish-trained but not club-trained however long he has been here.
+- **Origin proves the club, not the 36 months.** The origin row is the club he was at *before* his
+  first recorded season, so for a player whose record starts at 19 it covers ages 18 and under —
+  good enough to say he trained at a club of this association, not good enough to say he clocked
+  36 months at one. So the association flag accepts a Danish origin outright, while the club flag
+  still needs an academy tid, a first season at 18 or younger, or the clock.
+- **Nation for exotic clubs is a guess.** A club in a league the save gives no nation to gets one
+  from its players' modal nationality, which lands some non-league foreign sides in the wrong
+  country (Kaizer Chiefs reads as England). It does not affect the Danish question — a club being
+  called English rather than South African changes nothing here — but do not read `origin_nation`
+  as authoritative for a club outside the playable leagues.
 - **Borderline months.** The even split across a multi-club season is an approximation, so a
   player sitting a month either side of 36 could fall either way. Check `months_club` before
   treating a near-miss as settled.

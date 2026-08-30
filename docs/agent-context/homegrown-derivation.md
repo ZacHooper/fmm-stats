@@ -81,13 +81,22 @@ backwards from the rule, where his youth registration already counts. `hg_club_b
 which route fired (`academy` / `youth-origin` / `clock`) and `months_club` ships regardless, so
 the strict reading is one predicate away.
 
-**An origin club is not automatically a training club.** Taken at face value, `origin_club_tid`
-made Christian Bramsborg club-trained on the strength of a first Frem season at 20 with 21 apps —
-which says where he signed, not where he was trained. Origin counts as youth evidence only when
-it is an academy tid, OR his first recorded season starts at 18 or younger, OR his history begins
-*after* the window closed (the head row then predates everything we can read, so it is the only
-view of his youth that exists — this is what saves the 34-year-olds, whose clock can only ever
-read zero).
+**An origin club is not automatically a training club — FOR THE CLUB FLAG.** Taken at face value,
+`origin_club_tid` made Christian Bramsborg club-trained on the strength of a first Frem season at
+19 with 21 apps, which says where he signed, not that he clocked 36 months there. So for
+`hg_club`, origin counts only when it is an academy tid, OR his first recorded season starts at 18
+or younger, OR his history begins *after* the window closed (the head row then predates everything
+we can read, so it is the only view of his youth that exists — this is what saves the
+34-year-olds, whose clock can only ever read zero).
+
+**`hg_association` deliberately does NOT carry that gate** (fixed 2026-08-30; gating both was a
+bug). The origin row is the club he was at BEFORE his first recorded season, so for a record
+starting at 19 it covers ages 18 and under — squarely inside the window. That is enough to say he
+trained at a club of this association; it is only "36 months at ONE club" that it cannot support.
+Gating both read Bramsborg and Oliver Møller-Jensen — Danish, origin club *us* — as not home grown
+at all, which is plainly wrong. Widening it takes our squad from 38/40 to 40/40 while leaving the
+flag selective world-wide: 1,772 of 23,598 players, 67% of those at Danish clubs (not 100% —
+imports exist), and 12 of the 6,432 at English clubs.
 
 Watch the age arithmetic: `DATE_DIFF('year', dob, d)` is the difference of year PARTS, not
 completed age, and reads 18 for an autumn-born 17-year-old. The mart subtracts the
@@ -95,13 +104,13 @@ birthday-not-yet-reached term, the same way `mart.player_snapshots` does.
 
 ## What it says about the current squad (2025 / 2024-11-10, Superliga tier 1)
 
-40 in the squad · **11 club-trained** · 38 association-trained · 21 B-list eligible. Rules: 25-man
+40 in the squad · **11 club-trained** · 40 association-trained · 21 B-list eligible. Rules: 25-man
 A-list, 8 home grown of whom 4 club-trained.
 
 The binding constraints are the cap and the club-trained 4 — the association half is nearly free,
 because the capital-region signing rule already means almost everyone was trained in Denmark.
-World-wide the flags are properly selective: 1,774 of 23,598 players are Danish-association
-home grown and 19 are club-trained by us.
+World-wide the flags are properly selective: 1,772 of 23,598 players are Danish-association
+home grown and 20 are club-trained by us.
 
 **The interesting tension, and the reason the picker is not a checklist:** the B-list is free, so
 the obvious move is to park every U21 on it — but the home-grown minimums are counted on the
