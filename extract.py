@@ -169,11 +169,38 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
     def full_name(tid, p):
         return own_names.get(tid) or R.resolve_name(mm, p["first_name_id"], p["last_name_id"])
 
+    # A loanee's squad-list "loaned_in" flag is trusted for NAME purposes (that copy is
+    # fine even stale) but NOT as proof the loan is still live: verified on this exact
+    # career, Ernest Nuamah reads loaned_in=True, club_tid=346 across EIGHT CONSECUTIVE
+    # snapshots spanning 2023-01-06 to 2024-11-10 — almost two years, far longer than any
+    # real loan, and eight other names showed the identical pattern. The squad-list entry
+    # simply never got cleared. Attaching the exact-record's real attrs+value to a stale
+    # ghost would be worse than the false-owned-marker case attr_record's docstring already
+    # guards against: it fabricates a plausible-looking CURRENT transfer value for a player
+    # who may not even be at the club any more.
+    #
+    # Gate on an appearance instead: has this tid actually turned out for one of our clubs
+    # in a match this save's own (rolling-window) `season` data covers? Verified to split
+    # the 2024-11-10 snapshot cleanly — all 5 genuine loanees appeared, all 9 stale-flagged
+    # names did not. A brand-new loanee who hasn't debuted yet will also fail this and fall
+    # to the ordinary estimate path — a false negative, not a false positive, which is the
+    # safe direction to be wrong in (same trade-off `_pick(strict=True)` already makes for
+    # the owned/reserve case: an honest +/-1 beats a false 'exact').
+    our_club_ids = set(club_of_marker.values())
+    appeared_for_us = {
+        b["tid_int"]
+        for m in season
+        for xi_key, side_club_tid in (("home_xi", m.get("home_tid")),
+                                      ("away_xi", m.get("away_tid")))
+        if side_club_tid in our_club_ids
+        for b in (m.get(xi_key) or [])
+    }
+
     own_exact = {}
     for tid in own_names:
         li = own.get(tid) or {}
         r = None
-        if li.get("loaned_in") and li.get("parent_club_tid"):
+        if li.get("loaned_in") and li.get("parent_club_tid") and tid in appeared_for_us:
             # A loanee's exact record is anchored by [parent_club_tid][managed_tid], not
             # [club][0xffff] — see attributes.loan_marker(). Try it first: a loanee never
             # appears under our own club markers, so the fallback below would just spend a

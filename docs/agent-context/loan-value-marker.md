@@ -19,10 +19,35 @@ and every one comes back sane (1-20 attributes, plausible positions, real transf
 value at all.
 
 **Fix shipped** (2026-08-30): `attributes.loan_marker(managed_tid, parent_tid)` builds the
-marker; `extract.build_database`'s `own_exact` loop tries it first for any tid `own[tid]`
-marks `loaned_in` (using the `parent_club_tid` that scan already found), falling through to
-the existing owned/reserve path — which for a loanee already correctly returns nothing, so
-there is no regression risk to the non-loan path.
+marker; `extract.build_database`'s `own_exact` loop tries it for any tid `own[tid]` marks
+`loaned_in` (using the `parent_club_tid` that scan already found), falling through to the
+existing owned/reserve path — which for a loanee already correctly returns nothing, so there
+is no regression risk to the non-loan path.
+
+**Second bug, found before shipping: the `loaned_in` flag itself is stale-prone, same as
+every other squad-status flag in this codebase (see [[loan-status-unreliable]]).** A first
+pass wired the marker straight off `own[tid]["loaned_in"]` and it fired for 14 players, not
+5 — 9 of them had been flagged `loaned_in=True` for up to **eight consecutive snapshots
+spanning nearly two years** (Ernest Nuamah: 2023-01-06 through 2024-11-10 continuously). No
+real loan runs that long; the squad-list entry simply never got cleared. Trusting it would
+have attached a real-looking but almost certainly stale or fabricated transfer value to a
+ghost — worse than the false-owned-marker case `attr_record`'s own docstring already guards
+against, because a value where "no data" used to be reads as more authoritative, not less.
+
+**Gated on match appearance instead.** `build_database` already receives `season` (the
+save's own rolling match window) as a parameter; the fix checks whether the tid has actually
+turned out in `home_xi`/`away_xi` for one of our clubs anywhere in that window before trusting
+the loan marker. Verified to split the 2024-11-10 snapshot perfectly clean: all 5 genuine
+loanees had appeared, all 9 stale-flagged names had not. A brand-new loanee who hasn't
+debuted yet also fails this gate and falls to the ordinary estimate — a false negative, not a
+false positive, which is the deliberately safe direction (same trade-off `_pick(strict=True)`
+already makes for the owned/reserve case).
+
+**Known, pre-existing, NOT fixed here:** the 9 ghosts still show `club_tid=346` and
+`loaned_in=True` in the exported row — that override logic predates this patch entirely and
+is a separate bug in `own_squad_full`'s squad-membership detection, not the value decode.
+Worth a future look; out of scope for this fix, which only touches whether the EXACT
+attrs+value get attached.
 
 ## The other half of the ask: is anything hardcoded that's causing a RESERVE miss?
 
