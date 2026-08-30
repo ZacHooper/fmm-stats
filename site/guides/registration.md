@@ -8,6 +8,21 @@ has the constraint a real Superliga manager works under.
 Everything below is therefore DERIVED. Say so when you report on it — a player is "home grown
 on our reading of the save", not "home grown" as a fact the game asserts.
 
+## Vocabulary — read this first
+
+**"Home grown" is an umbrella term, not "trained at our club".** It is easy to read it the other
+way and the rulebook does not help, so, in this app's words:
+
+| term | means | counts toward |
+|---|---|---|
+| **Club-trained** ("Us") | 36 months at **our** club in his age-15-to-21 window | the 4 **and** the 8 |
+| **Association-trained** ("Denmark") | the same, at **another Danish** club | the 8 only |
+| **Home grown** | either of the above | the 8 |
+
+So the 8 is the loose test almost every Dane passes, and the **4 club-trained** is the one that
+bites. The squad table's `Trained at` column answers "where", the summary tiles answer "does the
+A-list meet the quotas".
+
 ## The rules being enforced
 
 | | |
@@ -21,6 +36,10 @@ on our reading of the save", not "home grown" as a fact the game asserts.
 The credit maths is not "count the home-grown players": with 3 club-trained and 5
 association-trained the A-list is credited **7**, not 8, because only 4 non-club-trained places
 exist. That is why the club-trained column matters more than the total.
+
+**The A-list cap is always 25.** A home-grown shortfall does not change the cap; it reduces how
+many of the 25 you are allowed to use, which the app shows as `A-list · 24 allowed` beside a
+`24 / 25` count rather than by moving the denominator.
 
 ## Which is the binding constraint
 
@@ -62,9 +81,18 @@ and read is not counted twice.
 
 - **Older players.** The history slab does not reach back far enough to cover a 30-year-old's
   age-15-to-21 window, so his clock reads zero and only his origin club says anything. The
-  association flag falls back to origin for exactly this reason; the club flag does not.
-- **Origin is not automatically training.** A first recorded season at 19 or later does not make
-  the origin club a training club, and is not credited as one.
+  association flag falls back to origin for exactly this reason; the club flag does not, so a
+  long-serving veteran reads Danish-trained but not club-trained however long he has been here.
+- **Origin proves the club, not the 36 months.** The origin row is the club he was at *before* his
+  first recorded season, so for a player whose record starts at 19 it covers ages 18 and under —
+  good enough to say he trained at a club of this association, not good enough to say he clocked
+  36 months at one. So the association flag accepts a Danish origin outright, while the club flag
+  still needs an academy tid, a first season at 18 or younger, or the clock.
+- **Nation for exotic clubs is a guess.** A club in a league the save gives no nation to gets one
+  from its players' modal nationality, which lands some non-league foreign sides in the wrong
+  country (Kaizer Chiefs reads as England). It does not affect the Danish question — a club being
+  called English rather than South African changes nothing here — but do not read `origin_nation`
+  as authoritative for a club outside the playable leagues.
 - **Borderline months.** The even split across a multi-club season is an approximation, so a
   player sitting a month either side of 36 could fall either way. Check `months_club` before
   treating a near-miss as settled.
@@ -112,6 +140,13 @@ those groups already overflow 25. It is therefore a priority order, not a filter
 4. **Everyone else too old for the B-list** — not because they are better than the youth left
    over, but because registration is the only thing standing between them and being unable to play
    at all. A B-list-eligible player left off the A-list still plays.
+
+**Cover by position**, below the table, is the other half of the picture: per position, how many
+of your registered players can actually play there — familiarity 15 or better, the same floor the
+depth charts use. Only qualified players are counted, because a position listed at familiarity 3
+is not cover; a position nobody qualifies at still gets a row, reading **none**, since that is the
+hole worth seeing. A player counts at every position he is familiar with, so the rows do not sum
+to the squad.
 
 Whoever misses out is reported as unregistered rather than quietly dropped: that is a real squad
 decision (those are the players to sell or loan out), and the card says how many A-list places are

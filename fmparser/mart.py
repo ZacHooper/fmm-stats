@@ -1733,10 +1733,18 @@ SELECT
     CASE WHEN o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth
               THEN CASE WHEN o.via_academy THEN 'academy' ELSE 'youth-origin' END
          WHEN COALESCE(m.months, 0) >= 36 THEN 'clock' END      AS hg_club_basis,
-    -- association-trained: the same, at any club of our nation (us included)
+    -- Association-trained: the same, at any club of our nation (us included).
+    --
+    -- NO `origin_is_youth` GATE ON THE ORIGIN ROUTE HERE, and the asymmetry with hg_club is the
+    -- point. The origin row is the club he was at BEFORE his first recorded season, so for a
+    -- player whose record starts at 19 it covers ages 18 and under — squarely inside the window.
+    -- That is enough to say he was training at a club of this association; it is NOT enough to
+    -- say he clocked 36 months at ONE of them, which is why hg_club keeps the gate.
+    -- Gating both read Christian Bramsborg and Oliver Møller-Jensen (origin: us, nationality:
+    -- Danish, first recorded season at 19) as not home grown at all, which is plainly wrong.
     COALESCE(o.origin_parent_tid IN (SELECT club_tid FROM us) AND o.origin_is_youth, FALSE)
       OR COALESCE(m.months, 0) >= 36
-      OR COALESCE(oc.nation = (SELECT nation FROM our_nation) AND o.origin_is_youth, FALSE)
+      OR COALESCE(oc.nation = (SELECT nation FROM our_nation), FALSE)
       OR COALESCE(d.months, 0) >= 36                            AS hg_association,
     -- how much further he has to go, and when he gets there if he stays. The ETA is NULL
     -- once the arithmetic runs past his window: he cannot get there any more, and a date
