@@ -27,6 +27,10 @@ const A = "A", B = "B", OUT = "-";
 // his cover; the picker offers 1-3 because how deep "the squad" goes is a manager's call,
 // not a rule — the rulebook only ever counts to 25.
 const DEFAULT_DEPTH = 2, DEPTH_KEY = "fm:registration:depth";
+// Familiarity at or above which a player is treated as able to play a position rather than
+// merely listed there. Matches dashboard/positions.py's DEFAULT_MIN_FAM, so the site and the
+// depth charts agree on what "he can play there" means.
+const FAM_FLOOR = 15;
 
 export async function view() {
   const R = await D.loadRegistration();
@@ -95,16 +99,22 @@ export async function view() {
     plan[tid] = list;
     save(KEY, plan);
     drawSummary();
+    drawDepth();
   };
 
   function drawSummary() {
     const t = tally(rows, plan, rules);
     summary.replaceChildren(
       el("div.kpis", {}, [
-        kpi("A-list", `${t.a} / ${t.cap}`, t.a > t.cap ? "bad" : t.a === t.cap ? "warn" : "good"),
-        kpi("Home grown (A)", `${t.hgCounted} / ${rules.hg_min}`,
+        // The denominator stays the rulebook's 25 whatever the penalty does. Showing "24 / 24"
+        // read as "the cap is 24", when 25 is the cap and 24 is this list's reduced allowance —
+        // so the reduction is named in the label instead of hidden in the denominator.
+        kpi(t.missing ? `A-list · ${t.cap} allowed` : "A-list",
+            `${t.a} / ${rules.a_list_max}`,
+            t.a > t.cap ? "bad" : t.missing ? "warn" : "good"),
+        kpi("Home grown on A", `${t.hgCounted} / ${rules.hg_min}`,
             t.hgCounted >= rules.hg_min ? "good" : "bad"),
-        kpi("Club-trained (A)", `${t.club} / ${rules.hg_club_min}`,
+        kpi("…of them club-trained", `${t.club} / ${rules.hg_club_min}`,
             t.club >= rules.hg_club_min ? "good" : "bad"),
         kpi("B-list", String(t.b)),
         kpi("Unregistered", String(t.out), t.out ? "warn" : "good"),
@@ -166,11 +176,15 @@ export async function view() {
     return wrap;
   };
 
+  // "Home grown" is the rulebook's UMBRELLA term — it covers both trained-here and trained-at-
+  // another-Danish-club, and the quota counts them together. Naming this column after it made it
+  // read as a definition ("home grown = Danish"), so the column asks the plainer question of
+  // WHERE he trained and leaves "home grown" to the summary tiles, which is where the quota lives.
   const hgCell = (r) => {
     if (r.h.hg_club) {
-      return pill(r.h.hg_basis === "clock" ? "Club (36mo)" : "Club (youth)", "good");
+      return pill(r.h.hg_basis === "clock" ? "Us (36mo)" : "Us (youth)", "good");
     }
-    if (r.h.hg_association) return pill("Danish", "warn");
+    if (r.h.hg_association) return pill(r.h.origin_nation || "Association", "warn");
     return el("span.dim", { text: DASH });
   };
 
@@ -186,8 +200,9 @@ export async function view() {
       sort: (r) => ({ A: 0, B: 1, "-": 2 })[plan[r.tid]], render: listCell,
     },
     hg: {
-      label: "Home grown", group: "Registration",
-      help: "Club = trained here (counts toward both minimums). Danish = trained at another club of the association (counts toward the 8 only).",
+      label: "Trained at", group: "Registration",
+      help: "Both count as HOME GROWN toward the 8. 'Us' also counts toward the 4 who must be "
+        + "trained at the club itself; a Danish club does not.",
       sort: (r) => (r.h.hg_club ? 2 : r.h.hg_association ? 1 : 0), render: hgCell,
     },
     basis: {
@@ -252,6 +267,7 @@ export async function view() {
     toast(t.out ? `${t.a} on the A-list · ${t.out} unregistered` : `${t.a} on the A-list`);
     table.redraw();
     drawSummary();
+    drawDepth();
   };
 
   const toolbar = [
@@ -269,6 +285,7 @@ export async function view() {
         save(KEY, plan);
         table.redraw();
         drawSummary();
+        drawDepth();
       },
     }),
   ];
@@ -291,6 +308,67 @@ export async function view() {
     empty: "No squad players in this export.",
   });
 
+  // ---- how the two lists cover the pitch ------------------------------------------
+  // The table above answers "what did I do with this player"; this answers "what have I got at
+  // right-back", which is the question a 25-man cap actually turns into. A player is counted at
+  // EVERY position he lists, so the columns do not sum to the squad — depth is per position, and
+  // a player covering three of them really is depth at three of them.
+  const POS_ORDER = ["GK", "DL", "DC", "DR", "DML", "DMC", "DMR",
+                     "ML", "MC", "MR", "AML", "AMC", "AMR", "ST"];
+  const posRank = (p) => {
+    const i = POS_ORDER.indexOf(p);
+    return i === -1 ? POS_ORDER.length : i;
+  };
+  const depthTable = el("div");
+
+  function drawDepth() {
+    const by = new Map();
+    for (const r of rows) {
+      for (const q of r.player.positions) {
+        if (!by.has(q.pos)) by.set(q.pos, { a: 0, b: 0, out: 0, fam: 0 });
+        const c = by.get(q.pos);
+        const l = plan[r.tid];
+        if (l === A) c.a++; else if (l === B) c.b++; else c.out++;
+        if (q.fam >= FAM_FLOOR && l !== OUT) c.fam++;
+      }
+    }
+    const list = [...by.entries()].sort((x, y) => posRank(x[0]) - posRank(y[0])
+                                                  || x[0].localeCompare(y[0]));
+    depthTable.replaceChildren(
+      el("h3", { text: "Cover by position" }),
+      el("div.scroll.fit", {}, [el("table", {}, [
+        el("thead", {}, [el("tr", {}, [
+          el("th", { text: "Pos" }),
+          el("th.num", { text: "A" }), el("th.num", { text: "B" }),
+          el("th.num", { text: "Unreg" }), el("th.num", { text: "Squad" }),
+          el("th.num", { text: `Available, fam ${FAM_FLOOR}+`, title:
+            `Registered (A or B) and familiar enough to actually play there — familiarity ${FAM_FLOOR} or more` }),
+        ])]),
+        el("tbody", {}, list.map(([pos, c]) => {
+          const available = c.a + c.b;
+          return el("tr", {}, [
+            el("td.name", { text: pos }),
+            el("td.num", { text: String(c.a) }),
+            el("td.num", { text: String(c.b) }),
+            el("td.num", {}, [c.out ? el("span.dim", { text: String(c.out) }) : DASH]),
+            el("td.num", { text: String(c.a + c.b + c.out) }),
+            el("td.num", {}, [
+              available === 0 ? pill("none", "bad")
+                : c.fam === 0 ? pill(`0 of ${available}`, "warn")
+                : el("span", { text: String(c.fam) }),
+            ]),
+          ]);
+        })),
+      ])]),
+      el("p.note", {
+        html: "A player is counted at <b>every</b> position he lists, so these do not sum to the "
+          + "squad. <b>Unreg</b> is cover you own but cannot field. The last column is the one "
+          + `that matters on a matchday: registered <i>and</i> familiar (${FAM_FLOOR}+) at the `
+          + "position.",
+      }),
+    );
+  }
+
   out.append(
     el("div.card", {}, [
       el("b", { text: `${rules.league_name} · tier ${rules.tier}` }),
@@ -298,15 +376,19 @@ export async function view() {
         html: rules.hg_min
           ? `A-list ${rules.a_list_max} players, including <b>${rules.hg_min} home grown</b> of `
             + `whom at least <b>${rules.hg_club_min} trained here</b>. B-list unlimited, for `
-            + `players under ${rules.b_list_under_age} on ${rules.u21_on}. `
-            + `<a href="guides/registration.md">How home-grown status is derived</a>.`
+            + `players under ${rules.b_list_under_age} on ${rules.u21_on}.<br>`
+            + `<b>&ldquo;Home grown&rdquo; is the umbrella</b>: it means trained at <i>us</i> OR at `
+            + `another ${rules.nation || "domestic"} club. Only the first kind counts toward the `
+            + `${rules.hg_club_min}. `
+            + `<a href="guides/registration.md">How it is derived</a>.`
           : `A-list ${rules.a_list_max} players, no home-grown requirement in tier ${rules.tier}. `
             + `B-list unlimited, for players under ${rules.b_list_under_age} on ${rules.u21_on}.`,
       }),
     ]),
-    summary, warnings, table.node,
+    summary, warnings, table.node, depthTable,
   );
   drawSummary();
+  drawDepth();
   return out;
 }
 

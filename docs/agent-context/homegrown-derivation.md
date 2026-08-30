@@ -7,6 +7,12 @@ rule — FMM22 models none of it. Data layer: the registration family in `fmpars
 `squad_registration`). UI: the **Registration** section of the web app. User-facing explanation:
 [`site/guides/registration.md`](../../site/guides/registration.md).
 
+**Vocabulary, because it trips people up:** "home grown" is the UMBRELLA — `hg_club`
+(trained at us, counts toward both the 4 and the 8) plus `hg_association` (trained at another
+club of our association, counts toward the 8 only). `hg_club` implies `hg_association`, and
+`validate_mart.py` asserts it. The site's column is called "Trained at" for this reason: naming
+it "Home grown" read as a definition ("home grown = Danish") rather than as a quota.
+
 ## The finding that unlocked it: origin tids in the 64000–65534 band are ACADEMY teams
 
 `staging.player_history.origin_club_tid` is the head of the career-history chain — the club a

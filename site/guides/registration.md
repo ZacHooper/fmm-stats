@@ -8,6 +8,21 @@ has the constraint a real Superliga manager works under.
 Everything below is therefore DERIVED. Say so when you report on it — a player is "home grown
 on our reading of the save", not "home grown" as a fact the game asserts.
 
+## Vocabulary — read this first
+
+**"Home grown" is an umbrella term, not "trained at our club".** It is easy to read it the other
+way and the rulebook does not help, so, in this app's words:
+
+| term | means | counts toward |
+|---|---|---|
+| **Club-trained** ("Us") | 36 months at **our** club in his age-15-to-21 window | the 4 **and** the 8 |
+| **Association-trained** ("Denmark") | the same, at **another Danish** club | the 8 only |
+| **Home grown** | either of the above | the 8 |
+
+So the 8 is the loose test almost every Dane passes, and the **4 club-trained** is the one that
+bites. The squad table's `Trained at` column answers "where", the summary tiles answer "does the
+A-list meet the quotas".
+
 ## The rules being enforced
 
 | | |
@@ -21,6 +36,10 @@ on our reading of the save", not "home grown" as a fact the game asserts.
 The credit maths is not "count the home-grown players": with 3 club-trained and 5
 association-trained the A-list is credited **7**, not 8, because only 4 non-club-trained places
 exist. That is why the club-trained column matters more than the total.
+
+**The A-list cap is always 25.** A home-grown shortfall does not change the cap; it reduces how
+many of the 25 you are allowed to use, which the app shows as `A-list · 24 allowed` beside a
+`24 / 25` count rather than by moving the denominator.
 
 ## Which is the binding constraint
 
