@@ -236,33 +236,66 @@ function shortlistButton(p, shown) {
   return wrap;
 }
 
-/** Side-by-side comparison of 2-4 players: radar over role weights + attribute diffs. */
+/** "AJ" from "Adam Jakobsen"; one word gets its first two letters. */
+function initialsOf(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Initials for a compared set, disambiguated (AJ, AJ2, ...) if two players collide. */
+function initialsFor(names) {
+  const base = names.map(initialsOf);
+  const counts = {};
+  for (const b of base) counts[b] = (counts[b] || 0) + 1;
+  const seen = {};
+  return base.map((b) => {
+    if (counts[b] <= 1) return b;
+    seen[b] = (seen[b] || 0) + 1;
+    return `${b}${seen[b]}`;
+  });
+}
+
+/** Side-by-side comparison of 2-4 players: a radar per attribute group + attribute diffs. */
 export function openCompare(tids, role = null) {
   const ps = tids.map((t) => D.S.players.get(t)).filter(Boolean);
   if (ps.length < 2) return;
   const r = role || D.bestRole(ps[0])?.role;
+  const inits = initialsFor(ps.map((p) => p.name));
   const body = [];
-  body.push(el("div.kpis", {}, ps.map((p) => {
+
+  // initials read faster side by side than full names once you're scanning 3-4 columns, but
+  // the mapping has to stay one glance away rather than living only in a hover title
+  body.push(el("div.cmplegend", {}, ps.map((p, i) => el("div.cmpkey", {}, [
+    el("i", {}), el("span", { text: `${inits[i]} ${p.name}` }),
+  ]))));
+
+  body.push(el("div.kpis", {}, ps.map((p, i) => {
     const rr = D.playerRoles(p).find((x) => x.role === r) || D.playerRoles(p)[0];
-    return el("div.kpi", {}, [
+    return el("div.kpi", { title: p.name }, [
       el("b", { text: rr ? num(rr.eff) : DASH }),
-      el("span", { text: `${p.name} · ${rr ? `${rr.pos} fam ${rr.fam}` : ""}` }),
+      el("span", { text: `${inits[i]} · ${rr ? `${rr.pos} fam ${rr.fam}` : ""}` }),
     ]);
   })));
 
-  // radar over the attributes this role actually cares about — comparing on 23 axes hides
-  // the answer, comparing on the weighted ones shows it
-  const keyAttrs = D.S.attrs.filter((a) => D.weightOf(a, r) >= 2);
-  const axes = (keyAttrs.length >= 4 ? keyAttrs : D.S.attrs.slice(0, 8));
-  body.push(el("h4", { text: `Weighted profile · ${r}` }));
-  body.push(radar(axes, ps.map((p) => ({
-    label: p.name,
-    values: axes.map((a) => (p.attrs[D.S.attrs.indexOf(a)] ?? 0) / 20),
-  })), { size: 260 }));
-  body.push(el("p.note", {
-    text: `Axes are the attributes this tactic weights at 2 or more for ${r}. `
-      + ps.map((p, i) => `${["●", "▲", "■", "◆"][i]} ${p.name}`).join("   "),
-  }));
+  // one small radar per attribute group (Technical/Mental/Physical, +Goalkeeping if every
+  // player shown is a keeper) instead of one crowded wheel — it's both what fixes the mobile
+  // cutoff (fewer axes per chart) and what makes the section a spike belongs to obvious
+  body.push(el("h4", { text: `Attribute profile · ${r}` }));
+  const groups = ["Technical", "Mental", "Physical"];
+  if (ps.every((p) => p.positions.some((q) => q.pos === "GK"))) groups.push("Goalkeeping");
+  body.push(el("div.radargrid", {}, groups.map((g) => {
+    const axes = D.ATTR_GROUPS[g].filter((a) => D.S.attrs.indexOf(a) >= 0);
+    const keyed = axes.map((a) => D.weightOf(a, r) >= 2);
+    return el("div.radarcard", {}, [
+      el("h5", { text: g }),
+      radar(axes, ps.map((p) => ({
+        values: axes.map((a) => (p.attrs[D.S.attrs.indexOf(a)] ?? 0) / 20),
+      })), { size: 200, keyed }),
+    ]);
+  })));
+  body.push(el("p.note", { text: `Bold axis labels are attributes this tactic weights at 2 or more for ${r}.` }));
 
   body.push(el("h4", { text: "Attribute by attribute" }));
   const rows = [];
@@ -278,17 +311,15 @@ export function openCompare(tids, role = null) {
       rows.push(el("tr", {}, [
         el("td", { text: a }),
         el("td.num", {}, [w > 1 ? pill(String(w), w >= 4 ? "bad" : w >= 3 ? "warn" : "good") : el("span.dim", { text: DASH })]),
-        ...vals.map((v) => el("td.num", {}, [
-          el(v === best && vals.length > 1 ? "b" : "span", { text: v == null ? DASH : String(v) }),
-        ])),
+        ...vals.map((v) => el("td.num", {}, [attrValue(v, { best: v != null && v === best && vals.length > 1 })])),
       ]));
     }
   }
   body.push(el("div.scroll", {}, [el("table", {}, [
     el("thead", {}, [el("tr", {}, [el("th", { text: "Attribute" }), el("th.num", { text: "W" }),
-      ...ps.map((p) => el("th.num", { text: p.name }))])]),
+      ...ps.map((p, i) => el("th.num", { text: inits[i], title: p.name }))])]),
     el("tbody", {}, rows),
   ])]));
-  body.push(el("p.note", { text: "W = this tactic's weight for the role (blank = 1, the default). Bold = highest of the players shown." }));
+  body.push(el("p.note", { text: "W = this tactic's weight for the role (blank = 1, the default). Ringed = highest of the players shown." }));
   sheet(`Compare · ${r}`, body, { wide: true });
 }

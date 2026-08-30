@@ -73,10 +73,10 @@ export function pill(text, cls) {
  * amber poor, blue ordinary, green good, teal excellent. A number you read beats a bar you
  * have to estimate, which is why this replaced the bars in player profiles.
  */
-export function attrValue(v) {
+export function attrValue(v, { best = false } = {}) {
   if (v == null) return el("span.av.none", { text: DASH });
   const band = v <= 4 ? 1 : v <= 9 ? 2 : v <= 13 ? 3 : v <= 16 ? 4 : 5;
-  return el(`span.av.v${band}`, { text: String(v), title: `${v} / 20` });
+  return el(`span.av.v${band}${best ? ".best" : ""}`, { text: String(v), title: `${v} / 20` });
 }
 
 export const ATTR_BANDS = [
@@ -112,14 +112,23 @@ export function sparkline(values, { w = 70, h = 18, dot = true } = {}) {
   return svg;
 }
 
-/** Grouped radar. `series` = [{label, values:[0..1], cls}] over the same axes. */
-export function radar(axes, series, { size = 220 } = {}) {
+/**
+ * Grouped radar. `series` = [{label, values:[0..1]}] over the same axes.
+ * `keyed[i]` bolds the i-th axis label — used to flag attributes the current role weights
+ * heavily, so the grouping (which section) and the weighting (which axis matters) both show.
+ *
+ * No HTML width/height attributes on purpose: the viewBox alone gives the SVG a 1:1 intrinsic
+ * ratio, and CSS (`svg.radar{width:100%;height:auto}`) does the scaling. A hardcoded pixel size
+ * doesn't shrink for a narrow phone, which is what was cutting axis labels off at the edges.
+ */
+export function radar(axes, series, { size = 220, keyed = [] } = {}) {
   const NS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
   svg.setAttribute("class", "radar");
-  svg.setAttribute("width", size); svg.setAttribute("height", size);
-  const cx = size / 2, cy = size / 2, r = size / 2 - 26;
+  // extra margin (vs. plain size/2) leaves room for axis-label text before it reaches the
+  // viewBox edge — the previous, tighter margin is what clipped longer attribute names
+  const cx = size / 2, cy = size / 2, r = size / 2 - size * 0.19;
   const ang = (i) => (2 * Math.PI * i) / axes.length - Math.PI / 2;
   const pt = (i, f) => [cx + r * f * Math.cos(ang(i)), cy + r * f * Math.sin(ang(i))];
   for (const f of [0.25, 0.5, 0.75, 1]) {
@@ -129,10 +138,10 @@ export function radar(axes, series, { size = 220 } = {}) {
     svg.append(p);
   }
   axes.forEach((a, i) => {
-    const [x, y] = pt(i, 1.16);
+    const [x, y] = pt(i, 1.14);
     const t = document.createElementNS(NS, "text");
     t.setAttribute("x", x.toFixed(1)); t.setAttribute("y", y.toFixed(1));
-    t.setAttribute("class", "axis");
+    t.setAttribute("class", `axis${keyed[i] ? " keyed" : ""}`);
     t.setAttribute("text-anchor", x < cx - 4 ? "end" : x > cx + 4 ? "start" : "middle");
     t.setAttribute("dominant-baseline", y < cy ? "auto" : "hanging");
     t.textContent = a;

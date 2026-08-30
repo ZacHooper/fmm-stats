@@ -125,13 +125,33 @@ svg.spark path.up,svg.spark circle.up{stroke:var(--up);fill:none}
 svg.spark circle.up{fill:var(--up)}
 svg.spark path.down,svg.spark circle.down{stroke:var(--down)}
 svg.spark circle.down{fill:var(--down)}
+/* width:100%+height:auto (from the 1:1 viewBox) makes the radar shrink to fit a phone instead
+   of a fixed pixel size overflowing it; overflow:visible is a second guard so a long axis
+   label that still grazes the edge fades into the card's padding rather than getting clipped */
+svg.radar{width:100%;height:auto;max-width:230px;overflow:visible;display:block;margin:0 auto}
 svg.radar polygon.grid{fill:none;stroke:var(--line);stroke-width:1}
 svg.radar text.axis{font-size:8.5px;fill:var(--dim)}
+svg.radar text.axis.keyed{fill:var(--ink);font-weight:700}
 svg.radar polygon.series{fill-opacity:.18;stroke-width:1.6}
 svg.radar polygon.s0{fill:var(--accent);stroke:var(--accent)}
 svg.radar polygon.s1{fill:var(--accent2);stroke:var(--accent2)}
 svg.radar polygon.s2{fill:var(--warn);stroke:var(--warn)}
 svg.radar polygon.s3{fill:var(--bad);stroke:var(--bad)}
+/* one small radar per attribute group (Technical/Mental/Physical) instead of one crowded
+   17-axis wheel — stacked on a phone, side by side once there's room */
+.radargrid{display:grid;grid-template-columns:1fr;gap:18px;margin-top:6px}
+@media(min-width:640px){.radargrid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}}
+.radarcard{text-align:center}
+.radarcard h5{margin:0 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+/* comparing players by initials only works if the mapping is always one glance away — a
+   coloured dot ties each initial back to its radar series and table column */
+.cmplegend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 10px;font-size:13px}
+.cmpkey{display:inline-flex;align-items:center;gap:6px}
+.cmpkey i{display:inline-block;width:9px;height:9px;border-radius:50%;font-style:normal}
+.cmpkey:nth-child(1) i{background:var(--accent)}
+.cmpkey:nth-child(2) i{background:var(--accent2)}
+.cmpkey:nth-child(3) i{background:var(--warn)}
+.cmpkey:nth-child(4) i{background:var(--bad)}
 /* attribute grid, laid out like the game: three columns, a coloured value badge, and a
    tinted row where the attribute matters to the role being viewed */
 .attrcols{display:grid;grid-template-columns:1fr;gap:14px}
@@ -152,6 +172,7 @@ svg.radar polygon.s3{fill:var(--bad);stroke:var(--bad)}
 .av.v4{background:#1e8e4a}
 .av.v5{background:#12a37a}
 .av.none{background:var(--line);color:var(--dim)}
+.av.best{outline:2px solid var(--ink);outline-offset:1px}
 .avlegend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 /* ---------------------------------------------------------------- sheet */
 .sheetback{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:60;display:flex;
