@@ -252,7 +252,7 @@ whoever is too old for the B-list and would otherwise be unable to play at all. 
 hold everyone (19 seniors + 5 loan-ins + a 19-man spine against 25 places), so who misses out is
 reported as unregistered rather than quietly dropped.
 
-**Current position (2025 / 2024-11-10, Superliga):** 40 in the squad, **13 club-trained**, 40
+**Current position (2025 / 2024-11-10, Superliga):** 40 in the squad, **14 club-trained**, 40
 association-trained (all of them — everyone's origin club is Danish), 21 B-list eligible. The suggestion lands at A-list 20/25 with 8/8 home grown
 and 4/4 club-trained — legal, with five slots spare. The association half is nearly free (the
 capital rule already means everyone is Danish-trained); the constraints that bite are the 25-man

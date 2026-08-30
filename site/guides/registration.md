@@ -50,8 +50,10 @@ almost every player was trained in Denmark. The constraints that actually bite a
 ## Where home-grown status comes from
 
 The rulebook test is "eligible to play at the club for 36 months in total, between the start of
-the season he turns 15 and the end of the season he turns 21". Three things in the save carry
-that, and the mart (`fmparser/mart.py`, the registration family) combines them:
+the season he turns 15 and the end of the season he turns 21". **We run the window one season
+longer, to the end of the last season in which he is still 21** — see the departures below.
+Three things in the save carry the months, and the mart (`fmparser/mart.py`, the registration
+family) combines them:
 
 1. **Origin club** — the head of the career-history chain, i.e. the club he came out of. For an
    academy product this is a **youth-team tid** in the ~64000–65534 band that appears in no club
@@ -66,7 +68,15 @@ that, and the mart (`fmparser/mart.py`, the registration family) combines them:
 Sources 2 and 3 are merged as intervals before any month is counted, so a season we both watched
 and read is not counted twice.
 
-**Two deliberate departures from a literal reading, both in the app's favour of being usable:**
+**Three deliberate departures from a literal reading, all in the app's favour of being usable:**
+
+- **The window runs to the end of the season he turns 22**, not the season he turns 21. Taken
+  literally, a March-born player's window shuts the June he is 21 and three months old, while an
+  autumn-born player in the same position keeps accruing for another nine months purely on his
+  birthday. Andreas Garly — four seasons at the club, still 21 — closed out on 35.9 months and
+  missed club-trained status permanently by a tenth of a month, which is inside the error of the
+  even-leg split above. The extra season gives everyone his full seventh year and takes the
+  birthday lottery out of the borderline cases.
 
 - **Coming out of our club counts outright.** If the save says a player's origin club is us — our
   academy side or the club itself — he is club-trained, with no 36-month test on top. The origin

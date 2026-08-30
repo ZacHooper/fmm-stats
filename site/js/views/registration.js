@@ -207,12 +207,14 @@ export async function view() {
     },
     basis: {
       label: "Basis", group: "Registration",
-      help: "academy = came through our youth side · youth-origin = his first recorded club was us, young enough to count · clock = 36 months with us inside the age-15-to-21 window",
+      help: "academy = came through our youth side · youth-origin = the save names us as the club "
+        + "he came out of · clock = 36 months with us inside his eligibility window",
       get: (r) => r.h.hg_basis || DASH,
     },
     months: {
       label: "Months", group: "Registration", align: "num",
-      help: "Months registered with us inside his age-15-to-21 window. 36 makes him club-trained.",
+      help: "Months registered with us between the start of the season he turned 15 and the end "
+        + "of the last season he is 21. 36 of them makes him club-trained.",
       sort: (r) => r.h.months_club,
       render: (r) => bar(Math.min(36, r.h.months_club ?? 0), { max: 36, lo: 99, dp: 1 }),
     },

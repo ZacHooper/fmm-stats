@@ -62,6 +62,14 @@ The rulebook test is 36 months registered at the club, between the start of the 
 15 and the end of the season he turns 21 (TR §14.1). `season_of` already knows a campaign runs
 Jul–Jun and is named for its end year, so both window bounds are one macro call.
 
+**We run the upper bound one season longer — to the end of the season he turns 22, i.e. the last
+season in which he is still 21** (manager's call, 2026-08). The literal text shuts a March-born
+player's window the June he is 21 and three months old, while an autumn-born player in the same
+position accrues another nine months purely on his birthday. Andreas Garly — four seasons at the
+club, still 21 at the snapshot — closed out on 35.9 months and missed club-trained status
+permanently by a tenth of a month, inside the error of the even-leg split. With the extra season
+he reads 40.3 and qualifies on the clock.
+
 Two sources, unioned as DATED INTERVALS and merged (gaps-and-islands) before any month is
 counted — adding two month-counts would double-count every season we both watched and read:
 
@@ -79,7 +87,9 @@ A loan leg credits the HOST, not the parent (TR §15.2 — flagged as an inferen
 doc). That is the reading that costs us months rather than granting them: Adelgaard's 23/24 loan
 to Frederiksberg is six months he does not accrue with us.
 
-## Two deliberate departures from a literal reading
+## Three deliberate departures from a literal reading
+
+(The first is the window's upper bound, above.)
 
 **Our academy counts outright** (manager's call, 2026-08). FMM only creates an intake player at
 ~16, so a strict clock calls a player our own academy produced *not* home grown until he is 19 —
@@ -103,7 +113,7 @@ nothing branches on it. Two rounds of this: gating `hg_association` too was the 
 the same day), which had those two reading as not home grown *at all*.
 
 The flags stay selective world-wide: **1,772** of 23,598 players are association home grown (67%
-of those at Danish clubs — not 100%, imports exist; 12 of the 6,432 at English clubs), and **22**
+of those at Danish clubs — not 100%, imports exist; 12 of the 6,432 at English clubs), and **24**
 are club-trained by us.
 
 Watch the age arithmetic: `DATE_DIFF('year', dob, d)` is the difference of year PARTS, not
@@ -112,20 +122,20 @@ birthday-not-yet-reached term, the same way `mart.player_snapshots` does.
 
 ## What it says about the current squad (2025 / 2024-11-10, Superliga tier 1)
 
-40 in the squad · **13 club-trained** · 40 association-trained · 21 B-list eligible. Rules: 25-man
+40 in the squad · **14 club-trained** · 40 association-trained · 21 B-list eligible. Rules: 25-man
 A-list, 8 home grown of whom 4 club-trained.
 
 The binding constraints are the cap and the club-trained 4 — the association half is nearly free,
 because the capital-region signing rule already means almost everyone was trained in Denmark.
 World-wide the flags are properly selective: 1,772 of 23,598 players are Danish-association
-home grown and 22 are club-trained by us.
+home grown and 24 are club-trained by us.
 
 **The interesting tension, and the reason the picker is not a checklist:** the B-list is free, so
 the obvious move is to park every U21 on it — but the home-grown minimums are counted on the
 A-LIST, and most home-grown players are young. Leaving club-trained Frederik Balslev (21) on the
 B-list drops us to 3 club-trained, one short, and shrinks the A-list to 24.
 
-**Two borderline cases worth knowing about:** Andreas Garly and Adam Jakobsen both sit on 35.9
-months — 0.1 short — and Garly's window has already closed, so he misses club-trained status
-permanently by less than the even-split approximation's own error bar. If a call like that ever
+**Borderline months are still the thing to watch.** Garly's 35.9 is what forced the window
+change above; Christian Bramsborg now sits on the same 35.9 and is club-trained by origin rather
+than by the clock, so nothing turns on it. If a call like that ever
 matters, read `mart.player_training` for the club-by-club months before treating it as settled.

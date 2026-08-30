@@ -1438,7 +1438,8 @@ FROM bounds b
 # the B-list is unlimited but only takes players who were under 21 at the last new year.
 #
 # The rulebook's Home Grown test is "eligible to play at the club for 36 months in total
-# between the start of the season he turns 15 and the end of the season he turns 21". Three
+# between the start of the season he turns 15 and the end of the season he turns 21" — we run
+# one season longer, to the end of the season he turns 22; see PLAYER_TRAINING. Three
 # things in the save carry that:
 #
 #   1. `player_history.origin_club_tid` — the head of the career-history chain, i.e. the club
@@ -1547,9 +1548,19 @@ FROM alumni GROUP BY season, phase, youth_tid
 
 # Months a player was registered at each club INSIDE his home-grown window, as evidence.
 #
-# The window is the rulebook's: from the start of the season in which he turns 15 to the end
-# of the season in which he turns 21 (TR 14.1). `season_of` already knows a campaign runs
-# Jul-Jun and is named for its end year, so both bounds are one macro call.
+# The window runs from the start of the season in which he turns 15 to the end of the LAST
+# SEASON IN WHICH HE IS STILL 21 — i.e. the season he turns 22. `season_of` already knows a
+# campaign runs Jul-Jun and is named for its end year, so both bounds are one macro call.
+#
+# THAT UPPER BOUND IS ONE SEASON LATER THAN A LITERAL READING of TR 14.1, which says "the end
+# of the season in which he turns 21", and the departure is deliberate (manager's call,
+# 2026-08). Under the literal text a March-born player's window shuts the June he is 21 and
+# three months old, while an autumn-born player in the same position keeps accruing for another
+# nine months purely on his birthday. Andreas Garly — four seasons at the club and still 21 on
+# the day of this snapshot — closed out on 35.9 months and missed club-trained status
+# permanently by a tenth of a month, which is well inside the error of the even-leg split below.
+# Running to the end of the season he turns 22 gives every player his full seventh season and
+# takes the birthday lottery out of the borderline cases.
 #
 # Career history is turned into dated intervals rather than counted as seasons, so that it can
 # be merged with what we observed. A season with several legs (a mid-season loan) splits the
@@ -1570,7 +1581,7 @@ WITH at_date AS (
 win AS (
     SELECT ps.season, ps.phase, ps.tid, ps.person_id, ps.dob,
            season_start(season_of(ps.dob + INTERVAL 15 YEAR)) AS window_from,
-           season_end(season_of(ps.dob + INTERVAL 21 YEAR))   AS window_to
+           season_end(season_of(ps.dob + INTERVAL 22 YEAR))   AS window_to
     FROM mart.player_snapshots ps
     WHERE ps.dob IS NOT NULL),
 -- one interval per career-history leg
@@ -1645,7 +1656,7 @@ GROUP BY season, phase, tid, club_tid
 #
 # HG-AT-ASSOCIATION (the "trained at another Danish club" half of the 8) accepts a Danish
 # ORIGIN club as well as 36 clocked months, because the history slab only reaches back so
-# far: a 34-year-old's age-15-to-21 window predates every row he has, so the clock can only
+# far: a 34-year-old's eligibility window predates every row he has, so the clock can only
 # ever read zero for him. Origin is the sole surviving evidence there.
 #
 # THE ORIGIN CLUB IS THE YOUTH CLUB, whenever it resolves at all — so origin = us is
@@ -1711,8 +1722,8 @@ domestic AS (
 SELECT
     ps.season, ps.phase, ps.tid, ps.person_id, ps.name, ps.dob, ps.age, ps.club_tid,
     season_start(season_of(ps.dob + INTERVAL 15 YEAR))          AS window_from,
-    season_end(season_of(ps.dob + INTERVAL 21 YEAR))            AS window_to,
-    a.as_of <= season_end(season_of(ps.dob + INTERVAL 21 YEAR)) AS window_open,
+    season_end(season_of(ps.dob + INTERVAL 22 YEAR))            AS window_to,
+    a.as_of <= season_end(season_of(ps.dob + INTERVAL 22 YEAR)) AS window_open,
     o.origin_club_tid, o.origin_parent_tid, o.via_academy, o.academy_share,
     o.age_at_first_season,
     oc.name                                                     AS origin_club,
@@ -1744,7 +1755,7 @@ SELECT
     CASE WHEN COALESCE(m.months, 0) < 36
               AND ps.club_tid IN (SELECT club_tid FROM mart.our_clubs)
               AND a.as_of + CAST((36 - COALESCE(m.months, 0)) * 30.44 AS INTEGER)
-                  <= season_end(season_of(ps.dob + INTERVAL 21 YEAR))
+                  <= season_end(season_of(ps.dob + INTERVAL 22 YEAR))
          THEN a.as_of + CAST((36 - COALESCE(m.months, 0)) * 30.44 AS INTEGER)
          END                                                    AS hg_club_eta
 FROM mart.player_snapshots ps
