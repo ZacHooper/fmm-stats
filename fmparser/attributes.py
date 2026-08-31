@@ -122,6 +122,23 @@ def own_squad(mm, lo=None, hi=None, marker=CLUB_MARKER):
     return {t: v["name"] for t, v in own_squad_full(mm, lo, hi, marker).items()}
 
 
+def loan_marker(managed_tid, parent_tid):
+    """The 4-byte marker that anchors a LOANED-IN player's exact attribute record:
+    `[parent_club_tid][managed_tid]`, both u16 LE — the loan pair from own_squad_full's
+    squad-LIST pattern, reused because it turns out to anchor the ATTRIBUTE record too.
+
+    An owned player's record sits at `tid + 8` under CLUB_MARKER (`[club][0xffff]`).
+    attr_record()/attr_records() only ever tested that shape, so a loanee's record —
+    real, exact, and carrying `value` — was invisible: neither attr_record's default
+    marker nor any (club, 0xffff) marker in squad_markers matches it. Confirmed
+    byte-for-byte on the 2024-11-10 frem snapshot: Emil Rosberg Møller (parent 344,
+    us 346) has `58 01 5a 01` sitting at the identical M offset where an owned
+    player like Adam Jakobsen has `5a 01 ff ff` — same attrs/positions/feet/value
+    layout around it, decoding to sane 1-20 attributes and a plausible transfer fee
+    (confirmed for all 5 current loanees). See docs/agent-context/loan-value-marker.md."""
+    return struct.pack("<HH", parent_tid, managed_tid)
+
+
 # ---------------- own squad: exact attributes (snapshot) ----------------
 CONFIRMED = {0: "Aerial", 1: "Agility", 2: "Communication", 3: "Handling",
              4: "Kicking", 5: "Throwing", 6: "Reflexes", 7: "Crossing",
