@@ -92,28 +92,34 @@ async function shortlistPanel() {
     const f = search.value.trim().toLowerCase();
     const shown = rows.filter((r) => !f || JSON.stringify(r).toLowerCase().includes(f));
     list.replaceChildren(el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["Player", "tid", "Positions", "Note", "Added", "Source", ""]
+      el("thead", {}, [el("tr", {}, ["Player", "tid", "Positions", "Club", "Value", "Note", "Added", "Source", ""]
         .map((h) => el("th", { text: h })))]),
-      el("tbody", {}, shown.length ? shown.map((e2) => el("tr", {}, [
-        el("td.name", {}, [e2.tid && D.S.players.has(Number(e2.tid))
-          ? el("button.link", { text: e2.name, onclick: () => openProfile(Number(e2.tid)) })
-          : el("span", { text: e2.name })]),
-        el("td", { text: e2.tid ?? DASH }),
-        el("td", { text: Object.entries(e2.positions || {}).map(([k, v]) => `${k} ${v}`).join(", ") || DASH }),
-        el("td", { text: e2.note || DASH }),
-        el("td", { text: (e2.added_at || "").slice(0, 10) || DASH }),
-        el("td", { text: e2.source || DASH }),
-        el("td", {}, [el("button.link", {
-          text: "remove",
-          onclick: async () => {
-            if (!confirm(`Remove ${e2.name}?`)) return;
-            const r = await fetch(`${API}?id=${encodeURIComponent(e2.id)}`,
-              { method: "DELETE", headers: { "x-fm-token": tok() } });
-            if (!r.ok) return toast("Delete failed", true);
-            toast("Removed"); load();
-          },
-        })]),
-      ])) : [el("tr", {}, [el("td.empty", { colspan: 7, text: "Nothing on the shortlist yet." })])]),
+      el("tbody", {}, shown.length ? shown.map((e2) => {
+        const p = e2.tid != null ? D.S.players.get(Number(e2.tid)) : null;
+        const club = p ? D.S.clubs.get(p.clubTid) : null;
+        return el("tr", {}, [
+          el("td.name", {}, [p
+            ? el("button.link", { text: e2.name, onclick: () => openProfile(Number(e2.tid)) })
+            : el("span", { text: e2.name })]),
+          el("td", { text: e2.tid ?? DASH }),
+          el("td", { text: Object.entries(e2.positions || {}).map(([k, v]) => `${k} ${v}`).join(", ") || DASH }),
+          el("td", { text: club?.name || DASH }),
+          el("td", { text: p ? money(p.value) : DASH }),
+          el("td", { text: e2.note || DASH }),
+          el("td", { text: (e2.added_at || "").slice(0, 10) || DASH }),
+          el("td", { text: e2.source || DASH }),
+          el("td", {}, [el("button.link", {
+            text: "remove",
+            onclick: async () => {
+              if (!confirm(`Remove ${e2.name}?`)) return;
+              const r = await fetch(`${API}?id=${encodeURIComponent(e2.id)}`,
+                { method: "DELETE", headers: { "x-fm-token": tok() } });
+              if (!r.ok) return toast("Delete failed", true);
+              toast("Removed"); load();
+            },
+          })]),
+        ]);
+      }) : [el("tr", {}, [el("td.empty", { colspan: 9, text: "Nothing on the shortlist yet." })])]),
     ])]));
   };
   search.addEventListener("input", debounce(drawList, 140));
@@ -127,6 +133,12 @@ async function shortlistPanel() {
       if (!r.ok) { status.textContent = d.error || `HTTP ${r.status}`; return; }
       rows = d.entries || [];
       status.textContent = `${d.count} shortlisted`;
+      drawList();
+      // Club/value aren't stored on the shortlist entry itself (it's just a player reference),
+      // and a shortlisted target found outside the ladder/squad may never have been resolved
+      // into S.players this session — fetch exactly those tids (cheap: the Worker's ?tid=
+      // filter, not the full 1.3 MB all.json) and redraw once they land.
+      await D.loadPlayersByTid(rows.map((r) => r.tid).filter((t) => t != null));
       drawList();
     } catch (e) { status.textContent = `offline (${e.message})`; drawList(); }
   }
