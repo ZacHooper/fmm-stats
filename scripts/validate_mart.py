@@ -12,8 +12,9 @@ Checks, in order:
   1. Spell invariant — spells of the SAME type must not overlap for one person; spells of
      DIFFERENT types may (injured while out on loan).
   2. Ring-buffer dedup — the latest phase per season really is a superset.
-  3. Loan-in ground truth — the derived spells must match the 9 known loan-ins, including
-     that a pre-season snapshot carries ZERO loan-ins forward.
+  3. Loan-in ground truth — the derived spells must match the 14 known loan-ins (9 pre-2025
+     + 5 2025 loan-ins visible since the loan-value-decode fix), including that none of them
+     carry forward past the season boundary that follows the latest snapshot.
   4. Arrival windows — the three known winter arrivals must read winter, everyone else
      summer.
   5. Season totals — mart.player_seasons must reproduce the 2024 review numbers.
@@ -119,11 +120,17 @@ def main():
 
     # -- 3. loan-in ground truth ---------------------------------------------------
     print("\n3. loan-in spells vs ground truth")
+    # 9 pre-2025 loanees, plus 5 real 2025 loan-ins the loan-value-decode fix (2026-08-30)
+    # newly makes visible — they used to fall through to the +/-1 estimate path with no
+    # value at all and so never generated a loan_in_spells row; see
+    # docs/agent-context/loan-value-marker.md.
     truth = {
         "Emil Hojlund": [2022], "Marcelo Randolf": [2022], "Daniel Bisgaard Haarbo": [2022],
         "Ernest Nuamah": [2022, 2023], "Jeppe Erenbjerg": [2023], "Nicklas Strunck": [2023],
         "Marc Nielsen": [2023, 2024], "Jeppe Corfitzen": [2023, 2024],
         "Jonas Jensen-Abbew": [2024],
+        "Andreas Schjelderup": [2025], "Emil Rosberg Moller": [2025],
+        "Marinus Larsen": [2025], "Mounir Secka": [2025], "Tochi Chukwuani": [2025],
     }
     got = con.execute("""
         SELECT name, LIST(DISTINCT season ORDER BY season) AS seasons
@@ -135,10 +142,13 @@ def main():
     for nm, seasons in truth.items():
         actual = got_norm.get(nm)
         check(f"{nm}: {seasons}", actual == seasons, f"got {actual}")
-    check("no loan-in spells derived for 2025 (pre-season: all prior loans expired)",
-          not any(2025 in v for v in got_map.values()),
+    check("exactly the 5 known 2025 loan-ins, no others",
+          {k for k, v in got_map.items() if 2025 in v}
+          == {"Andreas Schjelderup", "Emil Rosberg Møller", "Marinus Larsen",
+              "Mounir Secka", "Tochi Chukwuani"},
           str({k: v for k, v in got_map.items() if 2025 in v}))
-    check("exactly 9 distinct loan-in players", len(got_map) == 9, f"got {len(got_map)}")
+    check("exactly 14 distinct loan-in players (9 pre-2025 + 5 real 2025 loan-ins)",
+          len(got_map) == 14, f"got {len(got_map)}")
 
     # loaned_in is SET-ONLY (never cleared in the save), so a loan-in's raw club_tid run
     # never ends on its own — at_club_spells must not let that leak through as open-ended
@@ -154,17 +164,21 @@ def main():
           len(still_open) == 0, f"{[r[0] for r in still_open]}")
 
     # The day AFTER the season ends, not the latest phase itself: a loan's valid_to is 30
-    # June, so a handful of these 9 (whoever's last evidenced season ran right up to the
-    # snapshot date) are legitimately still "on loan" ON 2024-06-30 — that's correct, not a
-    # ghost. 1 July is the first date no prior-season loan can still cover, so it isolates
-    # true ghosting from a same-day boundary artifact.
+    # June, so a handful of these known loan-ins (whoever's last evidenced season ran right
+    # up to the snapshot date) are legitimately still "on loan" on that date — that's
+    # correct, not a ghost. 1 July is the first date no prior-season loan can still cover,
+    # so it isolates true ghosting from a same-day boundary artifact. Now that the 2025
+    # loan-ins are in loan_in_spells too, this lands on 2025-07-01 — a season boundary past
+    # the latest snapshot (2024-11-10), so it's asserting none of them get carried forward
+    # into a season we haven't even reached data for yet, which is the stronger version of
+    # the same claim.
     day_after = con.execute(
         "SELECT MAX(season_end(season)) + INTERVAL 1 DAY FROM mart.loan_in_spells").fetchone()[0]
     squad_ghosts = con.execute(f"""
         SELECT name FROM mart.squad_on('{day_after}')
         WHERE name IN {tuple(truth.keys())}
     """).fetchall()
-    check(f"squad_on('{day_after}') carries none of the 9 known loan-ins forward "
+    check(f"squad_on('{day_after}') carries none of the 14 known loan-ins forward "
           f"(none re-evidenced for the new season yet)", len(squad_ghosts) == 0,
           f"{[r[0] for r in squad_ghosts]}")
 
@@ -258,12 +272,14 @@ def main():
     # -- 6. growth ------------------------------------------------------------------
     print("\n6. growth")
     # Garly's trajectory is the reference: 176 at his old club (estimated), 175-176 flat
-    # through 2023, a +24 step at 2023-06-26, then +6 and +5 across 2024 to 211.
+    # through 2023, a +24 step at 2023-06-26, then +6 and +5 across 2024 to 211, then +1 at
+    # the 2024-11-10 snapshot (added to the manifest 2026-08-28, after 211 was first pinned
+    # here) to 212 — a real extra growth step, not drift.
     g = con.execute("""
         SELECT phase, attr_total, delta, delta_comparable
         FROM mart.player_growth WHERE name = 'Andreas Garly' ORDER BY snap_ix
     """).df()
-    check("Garly ends on 211", int(g.iloc[-1]["attr_total"]) == 211,
+    check("Garly ends on 212", int(g.iloc[-1]["attr_total"]) == 212,
           f'got {g.iloc[-1]["attr_total"]}')
     check("Garly 2024 growth = +11", int(
         g[g.phase == "2024-06-03"].iloc[0]["attr_total"]
@@ -311,7 +327,7 @@ def main():
           AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
         ORDER BY days_at_club DESC LIMIT 1
     """).fetchone()
-    check("Garly growth since joining = +36 (vs +11 in 2024 alone)", garly[0] == 36,
+    check("Garly growth since joining = +37 (vs +11 in 2024 alone)", garly[0] == 37,
           f"got {garly[0]} over {garly[1]} days")
     check("that span is comparable end to end", bool(garly[2]))
 
@@ -330,7 +346,7 @@ def main():
         SELECT growth FROM mart.player_growth_tenure WHERE name = 'Oliver Møller-Jensen'
         ORDER BY days_at_club DESC LIMIT 1
     """).fetchone()
-    check("Møller-Jensen's tenure growth = +33 (4 fragments merged)", mj[0] == 33,
+    check("Møller-Jensen's tenure growth = +40 (4 fragments merged)", mj[0] == 40,
           f"got {mj[0]}")
 
     # Every player outside our squad is on model estimates, so growth must be filterable.
