@@ -22,6 +22,7 @@ export const S = {          // everything loaded, one place
   tactics: {}, posRole: {}, fam: { curve: "linear_floor", floor: 0.5 },
   method: null, ours: null, attrs: [],
   matchAgg: new Map(),      // tid -> aggregated match stats (computed once)
+  matchNames: new Map(),    // tid -> name, for match participants no longer in S.players
 };
 
 /** localStorage key for the shortlist write token — one constant so the three places that read
@@ -99,8 +100,22 @@ export async function loadMatches() {
   if (!S.matches) {
     S.matches = await j("api/matches.json");
     buildMatchAgg();
+    S.matchNames = new Map(Object.entries(S.matches.player_names || {}).map(([k, v]) => [+k, v]));
   }
   return S.matches;
+}
+
+/** Name for any tid seen in match history — `core.json`'s player list only covers the CURRENT
+ *  squad, so a player who left the save after racking up matches/goals has no entry in
+ *  `S.players`; `matches.json`'s `player_names` (every tid who ever played for us) fills that
+ *  gap. Falls back to `#tid` only if neither source knows him. */
+export function matchName(tid) {
+  return S.players.get(tid)?.name || S.matchNames?.get(tid) || `#${tid}`;
+}
+/** Whether `openProfile(tid)` will actually do anything — it silently no-ops for a tid outside
+ *  `S.players`, so a row resolved only via `matchName`'s fallback shouldn't look clickable. */
+export function hasProfile(tid) {
+  return S.players.has(tid);
 }
 
 /**
