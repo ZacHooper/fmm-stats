@@ -13,7 +13,35 @@ import unicodedata
 import duckdb
 import numpy as np
 import pandas as pd
-import streamlit as st
+
+# streamlit is a presentation dependency (the sidebar selectors, st.error/st.stop, the
+# cache decorators) — it has no business being required to run a scout report from the CLI
+# or an agent skill. Fall back to a plain functools.lru_cache when it isn't installed: the
+# decorated functions here (_connect, _q, _effective_cached, ...) are called repeatedly
+# within one process, so dropping caching outright would reopen the DuckDB connection and
+# re-run every query, not just lose a nicety.
+try:
+    import streamlit as st
+    _HAS_ST = True
+except ImportError:
+    _HAS_ST = False
+    import functools
+
+    def _cache(fn=None, **_kw):
+        deco = functools.lru_cache(maxsize=None)
+        return deco(fn) if fn is not None else deco
+    _cache.clear = lambda: None
+
+    class _StStub:
+        """Only the two surfaces db.py uses outside a running Streamlit session: the cache
+        decorators (used throughout) and cache_data.clear() (used by write()/set_config()).
+        st.error/st.stop/st.sidebar/st.session_state are used only inside the sidebar
+        selector functions and _connect's error branches, both guarded by _HAS_ST below —
+        a headless caller never reaches them, so they don't need a stand-in here."""
+        cache_data = staticmethod(_cache)
+        cache_resource = staticmethod(_cache)
+
+    st = _StStub()
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
@@ -98,15 +126,23 @@ def _dbver():
         return (DB_PATH, 0.0)
 
 
+def _fail(msg):
+    """Report a fatal setup error the way the caller can see it: a friendly card + halt
+    inside Streamlit, a plain exception everywhere else (fmq.py, a skill script, ...)."""
+    if _HAS_ST:
+        st.error(msg)
+        st.stop()
+    raise RuntimeError(msg)
+
+
 @st.cache_resource
 def _connect(ver):
     if not os.path.exists(DB_PATH):
         car = ACTIVE_CAREER
-        st.error(f"No DuckDB store at {DB_PATH} for career '{car.key if car else '?'}'. "
-                 f"Build it with:\n\n"
-                 f"`uv run python load_duckdb.py output/<label> --db {car.db if car else 'fm-<career>.duckdb'}`"
-                 f"\n\n(season + phase auto-derive from the save's in-game date.)")
-        st.stop()
+        _fail(f"No DuckDB store at {DB_PATH} for career '{car.key if car else '?'}'. "
+              f"Build it with:\n\n"
+              f"`uv run python load_duckdb.py output/<label> --db {car.db if car else 'fm-<career>.duckdb'}`"
+              f"\n\n(season + phase auto-derive from the save's in-game date.)")
     # FM_DUCKDB_READONLY=1 lets non-Streamlit callers (e.g. the fmq CLI) attach without
     # taking the single-writer lock, so scouting works while the dashboard is running.
     ro = os.environ.get("FM_DUCKDB_READONLY") == "1"
@@ -117,10 +153,9 @@ def _connect(ver):
     has_mart = con.execute("SELECT COUNT(*) FROM information_schema.schemata "
                            "WHERE schema_name = 'mart'").fetchone()[0]
     if not has_mart:
-        st.error(f"{DB_PATH} has no `mart` schema. It is built from the staging tables, so "
-                 f"nothing needs re-parsing:\n\n"
-                 f"`uv run python load_duckdb.py --refresh-only --db {DB_PATH}`")
-        st.stop()
+        _fail(f"{DB_PATH} has no `mart` schema. It is built from the staging tables, so "
+              f"nothing needs re-parsing:\n\n"
+              f"`uv run python load_duckdb.py --refresh-only --db {DB_PATH}`")
     return con
 
 
@@ -1870,25 +1905,44 @@ def _best_xi(frame_club):
 
 def team_strength(frame, club_tid):
     """(unit-strength DataFrame, team dict) for a club from a _scout_frame. Aggregates its
-    best XI: index = mean position-index (100 = league-average player per position);
-    pctile = mean league percentile. Both are cross-position comparable."""
+    best XI: index = mean position-index (100 = league-average player per position),
+    tactic-weighted by whichever `method` built the frame; pctile = mean league Fit
+    percentile, same weighting. Both are cross-position comparable, but both answer "how
+    does this attribute set score under OUR tactic's role weights" — meaningful for judging
+    how a group of players suits a system, not for judging a stranger's underlying quality.
+
+    `quality` is the tactic-agnostic sibling: mean Level %ile (`level_league`, CA-derived,
+    immersion-safe) — the number to reach for when the question is "how good is this unit,
+    full stop" rather than "how well does it fit a tactic neither of us confirmed they run."
+    Use `index`/`pctile` for our own squad (we DO run this tactic); use `quality` to size up
+    an opponent."""
     xi = _best_xi(frame[frame["club_tid"] == club_tid]) if not frame.empty else frame
+    has_level = not xi.empty and "level_league" in xi.columns
     rows = []
     for unit in ["Defense", "Midfield", "Attack", "GK"]:
         u = xi[xi["unit"] == unit] if not xi.empty else xi
         rows.append({"unit": unit, "n": len(u),
                      "index": round(u["pos_index"].mean(), 1) if len(u) else None,
-                     "pctile": round(u["pctile_league"].mean(), 0) if len(u) else None})
+                     "pctile": round(u["pctile_league"].mean(), 0) if len(u) else None,
+                     "quality": (round(u["level_league"].mean(), 0)
+                                if len(u) and has_level else None)})
     team = {"index": round(xi["pos_index"].mean(), 1) if not xi.empty else None,
             "pctile": round(xi["pctile_league"].mean(), 0) if not xi.empty else None,
+            "quality": (round(xi["level_league"].mean(), 0)
+                       if not xi.empty and has_level else None),
             "n": len(xi) if not xi.empty else 0}
     return pd.DataFrame(rows), team
 
 
-def squad_key_players(frame, club_tid, method):
-    """A club's players ranked by position index (cross-position fair), each with his most
+def squad_key_players(frame, club_tid, method, rank_by="pos_index"):
+    """A club's players ranked by `rank_by` (cross-position fair), each with his most
     threat-defining attributes inline (`top_attrs`). Columns: tid, name, position, eff,
     pos_index, pctile_league, top_attrs. Powers both opponent danger men and our own standouts.
+
+    Default `rank_by="pos_index"` (tactic Fit, i.e. how good under OUR role weights) is right
+    for OUR OWN squad — we run this tactic. For an OPPONENT, rank by `"level_league"` instead
+    (tactic-agnostic Level %ile) — their most dangerous player is whoever is best full stop,
+    not whoever would fit best into a system they don't play. `scout_report` does this.
 
     `name` is carried because opponent names ARE resolved now — the ETL's id-resolver names every
     club, not just ours. This dropped the column, so a briefing could only ever say "their DMC"
@@ -1896,9 +1950,11 @@ def squad_key_players(frame, club_tid, method):
     of = frame[frame["club_tid"] == club_tid] if not frame.empty else frame
     if of.empty:
         return pd.DataFrame()
+    if rank_by not in of.columns:
+        rank_by = "pos_index"
     rel = {pos: {a: w for a, w in role_weight_map(method, role).items() if w >= 2}
            for pos, role in pos_role_map().items()}
-    ofs = of.sort_values("pos_index", ascending=False)
+    ofs = of.sort_values(rank_by, ascending=False)
     cols = ["tid", "position", "eff", "pos_index", "pctile_league"]
     if "name" in ofs.columns:
         cols.insert(1, "name")
@@ -1941,9 +1997,46 @@ def _scout_unit_tables(frame, us, opp):
     return pd.DataFrame(grp_rows), pd.DataFrame(attr_rows)
 
 
-def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
-    """Rule-based auto-read: squad strength (position-index), H2H verdict, per-unit edges,
-    danger men, and the opponent's exploitable defensive soft-spots. Returns strings."""
+# A back line never plays a back line — it plays the opposition's front line. `strength`
+# pairs each unit with itself (Defense-us vs Defense-them) because that's the natural shape
+# of "how does each line individually rank", but it answers a different question than "who
+# wins this particular ON-PITCH contest". These are the pairings that actually meet:
+# our attack against their defense, their attack against our defense, and midfield against
+# midfield (the one unit that does contest itself). `us_unit`/`them_unit` name which row of
+# `strength` each side of the matchup comes from.
+FACE_OFFS = [
+    ("Our attack vs their defense", "Attack", "Defense"),
+    ("Their attack vs our defense", "Defense", "Attack"),
+    ("Midfield (contested)", "Midfield", "Midfield"),
+]
+
+
+def matchup_table(us_units, op_units):
+    """Face-off unit comparison from the two `team_strength` outputs — see FACE_OFFS. Uses
+    `quality` (mean Level %ile, tactic-agnostic) as the headline number: a face-off asks how
+    good their front line is against how good our back line is, not how well either fits a
+    tactic only one of us actually runs. `us_fit`/`them_fit` (pos_index, OUR role weights)
+    ride along for whoever's side of the row is genuinely playing that tactic — us."""
+    us_by_unit = {r["unit"]: r for _, r in us_units.iterrows()} if not us_units.empty else {}
+    op_by_unit = {r["unit"]: r for _, r in op_units.iterrows()} if not op_units.empty else {}
+    rows = []
+    for label, us_unit, them_unit in FACE_OFFS:
+        u, t = us_by_unit.get(us_unit), op_by_unit.get(them_unit)
+        uq = u["quality"] if u is not None else None
+        tq = t["quality"] if t is not None else None
+        rows.append({
+            "matchup": label, "us_unit": us_unit, "them_unit": them_unit,
+            "us_quality": uq, "them_quality": tq,
+            "edge": (round(uq - tq, 1) if pd.notna(uq) and pd.notna(tq) else None),
+            "us_fit": u["index"] if u is not None else None,
+            "them_fit": t["index"] if t is not None else None,
+        })
+    return pd.DataFrame(rows)
+
+
+def _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups=None):
+    """Rule-based auto-read: squad strength (position-index), H2H verdict, face-off matchup
+    edges, danger men, and the opponent's exploitable defensive soft-spots. Returns strings."""
     F = []
     if coverage["partial"]:
         F.append(f"⚠️ PARTIAL DATA — only {coverage['in_frame']} rated players "
@@ -1967,26 +2060,18 @@ def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
             F.append(f"✅ We own them ({rec}, {h2h['ppg']:.2f} ppg).")
         else:
             F.append(f"H2H: {rec} ({h2h['ppg']:.2f} ppg).")
-    if not strength.empty:
-        for _, r in strength[strength["unit"] != "TEAM"].iterrows():
+    if matchups is not None and not matchups.empty:
+        for _, r in matchups.iterrows():
             if pd.isna(r["edge"]):
                 continue
-            ua = attrs_df[(attrs_df["unit"] == r["unit"]) & attrs_df["edge"].notna()] \
-                if not attrs_df.empty else attrs_df
-            detail = ""
-            if not ua.empty:
-                ours = ", ".join(ua.sort_values("edge", ascending=False).head(2)["attribute"])
-                theirs = ", ".join(ua.sort_values("edge").head(2)["attribute"])
-                detail = f" Our edge: {ours}. Theirs: {theirs}."
-            side = "we lead" if r["edge"] >= 0 else "they lead"
-            F.append(f"{r['unit']}: {side} ({_fmt_edge(r['edge'])} idx).{detail}")
+            side = "favours us" if r["edge"] >= 0 else "favours them"
+            F.append(f"{r['matchup']}: {side} ({_fmt_edge(r['edge'])} quality %ile).")
     if key_players is not None and not key_players.empty:
         men = []
         for _, r in key_players.head(3).iterrows():
-            pcl = r.get("pctile_league")
-            men.append(f"{r['position']} (idx {r['pos_index']:.0f}"
-                       + (f", {pcl:.0f}%ile)" if pd.notna(pcl) else ")"))
-        F.append(f"Danger men: {', '.join(men)}.")
+            lvl = r.get("level_league")
+            men.append(f"{r['position']}" + (f" ({lvl:.0f}%ile)" if pd.notna(lvl) else ""))
+        F.append(f"Danger men (by Level %ile, tactic-agnostic): {', '.join(men)}.")
     if not attrs_df.empty:
         td = attrs_df[attrs_df["unit"] == "Defense"].set_index("attribute")["them"]
         soft = [f"{lbl} ({a} {td[a]:.0f})" for a, thr, lbl in _DEF_SOFT
@@ -1998,10 +2083,22 @@ def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
 
 def scout_report(opp_tid, season=None, phase=None, method=None):
     """Structured opposition report (dicts + DataFrames, no rendering). Sections: opp,
-    season/phase/method, coverage, overall (position-index team rating + league %ile),
-    strength (per-unit index/%ile us-vs-them, best XI), units + unit_attrs (attribute
-    edges), key_players (their squad ranked by position index, cross-position fair),
-    standouts, h2h, and flags. Shared by the CLI and the Team scout tab."""
+    season/phase/method, coverage, overall (team index/%ile us-vs-them, both flavours —
+    see below), strength (per-unit index/%ile/quality us-vs-them, best XI — same-unit,
+    "how strong is each line in isolation"), matchups (face-off unit pairs — see
+    matchup_table, "who wins the contest that actually happens on the pitch"), units +
+    unit_attrs (attribute edges), key_players (their squad ranked by Level %ile — quality,
+    not fit under our tactic — cross-position fair), h2h, and flags. Shared by the CLI and
+    the Team scout tab.
+
+    Two ratings run through this report and they answer different questions. `index`/`pctile`
+    (pos_index / pctile_league) are OUR tactic's role-weighted Fit — right for judging how a
+    group of players suits a system, which is only true of OUR own squad; applying it to an
+    opponent silently asks "how good would they be playing our system", not "how good are
+    they". `quality` (level_league, mean Level %ile) is CA-derived and tactic-agnostic — the
+    one to reach for when sizing up a stranger. `overall`/`strength` keep both; `matchups`
+    and `key_players` (for the opponent) default to `quality` because that's the question a
+    scouting report is actually asking."""
     # method=None means "this career's configured tactic". It used to default to the string
     # "buca_433", which is the archived Turkish career's weight-set: against any other store it
     # matched nothing in role_weights, so every rating came back empty and the report degraded
@@ -2027,22 +2124,31 @@ def scout_report(opp_tid, season=None, phase=None, method=None):
     # position-normalised team & unit strength (best XI) for both clubs
     us_units, us_team = team_strength(frame, us)
     op_units, op_team = team_strength(frame, opp_tid)
+    matchups = matchup_table(us_units, op_units)   # the face-off pairing — see FACE_OFFS
     strength = us_units.merge(op_units, on="unit", suffixes=("_us", "_them"))
     strength = strength.rename(columns={"index_us": "us", "index_them": "them",
-                                        "pctile_us": "us_pctile", "pctile_them": "them_pctile"})
+                                        "pctile_us": "us_pctile", "pctile_them": "them_pctile",
+                                        "quality_us": "us_quality", "quality_them": "them_quality"})
     strength["edge"] = (strength["us"] - strength["them"]).round(1)
+    strength["quality_edge"] = (strength["us_quality"] - strength["them_quality"]).round(1)
     ti, oi = us_team["index"], op_team["index"]
+    tq, oq = us_team["quality"], op_team["quality"]
     strength = pd.concat([strength, pd.DataFrame([{
         "unit": "TEAM", "us": ti, "them": oi, "us_pctile": us_team["pctile"],
-        "them_pctile": op_team["pctile"], "n_us": us_team["n"], "n_them": op_team["n"],
-        "edge": (round(ti - oi, 1) if ti is not None and oi is not None else None)}])],
+        "them_pctile": op_team["pctile"], "us_quality": tq, "them_quality": oq,
+        "n_us": us_team["n"], "n_them": op_team["n"],
+        "edge": (round(ti - oi, 1) if ti is not None and oi is not None else None),
+        "quality_edge": (round(tq - oq, 1) if pd.notna(tq) and pd.notna(oq) else None)}])],
         ignore_index=True)
     overall = {"us": ti, "them": oi, "us_pctile": us_team["pctile"],
-               "them_pctile": op_team["pctile"]}
+               "them_pctile": op_team["pctile"], "us_quality": tq, "them_quality": oq}
 
     groups_df, attrs_df = _scout_unit_tables(frame, us, opp_tid)
 
-    key_players = squad_key_players(frame, opp_tid, method)   # ranked by index, attrs inline
+    # ranked by Level %ile (tactic-agnostic quality), not our tactic's Fit — their most
+    # dangerous player is whoever is best full stop, not whoever suits a system they don't
+    # play. See squad_key_players' docstring.
+    key_players = squad_key_players(frame, opp_tid, method, rank_by="level_league")
 
     hist = our_match_history()
     h = hist[hist["opp_tid"] == opp_tid].sort_values(["season", "date"]) if not hist.empty \
@@ -2056,11 +2162,11 @@ def scout_report(opp_tid, season=None, phase=None, method=None):
     else:
         h2h = {"played": 0, "matches": h}
 
-    flags = _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage)
+    flags = _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups)
     return {"opp": {"tid": opp_tid, "name": opp_name}, "season": season, "phase": phase,
             "method": method, "coverage": coverage, "overall": overall, "strength": strength,
-            "units": groups_df, "unit_attrs": attrs_df, "key_players": key_players,
-            "h2h": h2h, "flags": flags}
+            "matchups": matchups, "units": groups_df, "unit_attrs": attrs_df,
+            "key_players": key_players, "h2h": h2h, "flags": flags}
 
 
 # --------------------------------------------------------------------------- scout log
@@ -2143,6 +2249,7 @@ def save_scout(report, venue=None, formation=None, style=None, note=None, saved_
         "venue": venue, "formation": formation, "style": style, "note": note,
         "overall": report["overall"], "coverage": report["coverage"],
         "strength": report["strength"].to_dict("records"),
+        "matchups": report["matchups"].to_dict("records"),
         "flags": report["flags"],
         "key_players": (report["key_players"].head(8).to_dict("records")
                         if not report["key_players"].empty else []),

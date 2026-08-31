@@ -259,8 +259,27 @@ with tab_scout:
                                                                     max_value=100),
                          "Them %ile": st.column_config.ProgressColumn(format="%.0f", min_value=0,
                                                                       max_value=100)})
-        st.caption("Index 100 = an average player for that position (so a CB and a striker are "
-                   "on the same scale); %ile = rank vs the league at that position.")
+        st.caption("Index/%ile are rated under OUR tactic's role weights — how well each line "
+                   "would fit our system. Fair for judging our own squad; an opponent doesn't "
+                   "run our tactic, so use the face-off table below for them.")
+
+    matchups = rep.get("matchups")
+    if matchups is not None and not matchups.empty:
+        st.markdown("**Face-off matchups** — who actually plays whom, by Level %ile "
+                    "(tactic-agnostic quality, not Fit under our tactic)")
+        mdf = matchups.rename(columns={"matchup": "Matchup", "us_quality": "Us",
+                                       "them_quality": "Them", "edge": "Edge"})
+        st.dataframe(mdf[["Matchup", "Us", "Them", "Edge"]], hide_index=True, width="stretch",
+                     column_config={"Us": st.column_config.ProgressColumn(format="%.0f",
+                                                                          min_value=0, max_value=100),
+                                    "Them": st.column_config.ProgressColumn(format="%.0f",
+                                                                            min_value=0, max_value=100),
+                                    "Edge": st.column_config.NumberColumn(
+                                        help="Us − them Level %ile (+ = our side of the "
+                                             "matchup is the stronger unit)")})
+        st.caption("A back line never plays a back line — this pairs our attack against "
+                   "their defense, their attack against our defense, and midfield against "
+                   "midfield.")
 
     st.markdown("**Their key players** — by position index, with each player's top attributes")
     kp = rep["key_players"]

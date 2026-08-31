@@ -183,7 +183,7 @@ is the regression test: a no-op export must produce a no-op diff.
   python. The old "extractors need bare `python3`" rule was a portability trap: it made a second
   machine depend on numpy being installed outside uv. Bare `python3` still works here if the system
   interpreter happens to have numpy.
-- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`; dashboard is `uv run streamlit run dashboard/Home.py`.
+- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **Plain `uv sync` is lean on purpose** — `duckdb` + `pandas` only, which is everything the ETL, `fmq.py` (including `fmq.py scout`), and an agent skill scouting or querying the store need. Streamlit + plotly are a presentation dependency (the dashboard's UI framework and charts), not a data-layer one — `dashboard/db.py` falls back to a plain `functools.lru_cache` when streamlit isn't importable, so it never requires the dashboard to run a scout report. Pull them in with `uv sync --extra dashboard` before `uv run streamlit run dashboard/Home.py`.
 - **DuckDB is single-writer**: a running Streamlit holds the lock. For read-only CLI work either `pkill -f streamlit` first, or set `FM_DUCKDB_READONLY=1`, or query a `cp` of the store. The `fmq scout` command auto-copies when the DB is locked.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style). **`phase` = the save's
@@ -251,7 +251,8 @@ Saves with no manifest row have no date and so no canonical name; they live in
 
 ## Common commands
 ```bash
-uv sync                                                   # one-time env setup
+uv sync                                                   # one-time env setup (duckdb + pandas — lean)
+uv sync --extra dashboard                                 # pulls in streamlit + plotly for the UI
 uv run streamlit run dashboard/Home.py                    # dashboard (sidebar Career selector)
 uv run python scripts/rebuild.py --career frem            # rebuild the store from saves + manifest
 uv run python fmq.py scout <team>                         # opposition briefing (auto-saves)
@@ -288,6 +289,8 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
   change to the rating formula must land in BOTH the SQL (`v_player_ratings`) and the JS. They are
   verified equal to the last decimal over 36,920 combinations — keep it that way.
 - **Opponent tactics/formation are NOT in the save** — always ask the user for the in-game scout's formation + style. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
+- **Rating an opponent: Level %ile, not Fit %ile.** `pos_index`/`pctile_*` (`effective_table`) are OUR tactic's role-weighted Fit — how well an attribute set suits `frem_attacking_ss`, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `db.scout_report()`'s `key_players`/danger-men reads and its `matchups` table (see next bullet) use `level_*`; only use `pos_index` for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
+- **A back line doesn't play a back line.** `db.scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`db.matchup_table()`) for that reading, not `strength`.
 - Our tactic/method is **`frem_attacking_ss`** — the strikerless SS setup, and the dashboard default (`seeds/config_bundle.json`). `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.
 
 ## Data setup on a fresh clone

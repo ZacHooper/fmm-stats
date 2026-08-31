@@ -5,8 +5,6 @@ description = "DuckDB ETL + query CLI over fm-parser extract outputs"
 requires-python = ">=3.13"
 dependencies = [
     "duckdb>=1.1",
-    "streamlit>=1.40",
-    "plotly>=5.24",
     "pandas>=2.2",
 ]
 
@@ -15,3 +13,16 @@ dependencies = [
 # package = false: this is a workspace of scripts, not an installable package.
 [tool.uv]
 package = false
+
+[project.optional-dependencies]
+# streamlit/plotly are a PRESENTATION dependency — the Streamlit dashboard's UI framework
+# and its charts — not something the data layer needs. dashboard/db.py already falls back
+# to a plain functools.lru_cache when streamlit isn't importable (it's used there only for
+# cache decorators + the sidebar widgets), so a plain `uv sync` is enough for everything
+# else: load_duckdb.py, fmq.py (including `fmq.py scout`), and any agent skill that scouts
+# or queries the store. Add this extra only to run the Streamlit app itself:
+# `uv sync --extra dashboard && uv run streamlit run dashboard/Home.py`.
+dashboard = [
+    "streamlit>=1.40",
+    "plotly>=5.24",
+]

@@ -24,19 +24,30 @@ the narrative, not to hand-roll SQL that re-derives what it already gets right**
   ring buffer; a naive scan across every snapshot double-counts).
 - **Squad strength** via `squad_frame()`/`team_strength()` — position-normalised best-XI index,
   both clubs, one coherent frame so unit and attribute reads use the same players.
-- **Key players** via `squad_key_players()` — ranked by position index (cross-position fair), each
-  with the attributes that make him a threat inlined (`top_attrs`) — no separate "standouts" pull.
-- **Auto-read** via `_scout_flags()` — bogey-side / we-own-them H2H calls, per-unit edges with the
-  two attributes behind each, danger men, and their defensive soft spots (a fixed threshold list),
+- **Matchups** via `matchup_table()` (new) — the pairing that actually meets on the pitch: our
+  attack vs their defense, their attack vs our defense, midfield vs midfield. `strength` compares
+  each unit to itself (Defense-us vs Defense-them), which is the wrong axis for a game plan — their
+  defense never plays our defense. Use `rep["matchups"]` for "who wins this contest", `rep["strength"]`
+  only for "how strong is each line in isolation".
+- **Key players** via `squad_key_players(..., rank_by="level_league")` — ranked by **Level %ile**
+  (tactic-agnostic quality), not our tactic's Fit rating. `pos_index`/`pctile_league` are OUR role
+  weights applied to their attributes — a fair "how would this player suit OUR system" question,
+  and the right ranking for our own squad (`squad_key_players` defaults to it there), but the wrong
+  one for judging an opponent, who almost certainly doesn't run our tactic. Level %ile is
+  CA-derived and immersion-safe already (it's the one sanctioned CA export) and it's what
+  `scout_report` now ranks their `key_players`/danger men by.
+- **Auto-read** via `_scout_flags()` — bogey-side / we-own-them H2H calls, the same face-off
+  matchup edges, danger men (Level %ile), and their defensive soft spots (a fixed threshold list),
   plus a `⚠️ PARTIAL DATA` flag when the frame doesn't reach 11 rated players. **This already covers
   the old "no-data opponent" detection** — check `rep["coverage"]["partial"]` and read `rep["flags"]`
   instead of eyeballing empty DataFrames yourself.
 
 Writing your own query for any of this reopens exactly the traps these helpers exist to close —
 ring-buffer double counts, `tid` recycling across snapshots, a raw `club_tid` filter that still
-matches a player whose loan lapsed without clearing. If a report needs something `scout_report`
-doesn't return (e.g. a deeper individual-attribute cut), pull that one extra thing with `db.q(...)`
-— don't re-derive what's already there.
+matches a player whose loan lapsed without clearing, and (new) rating an opponent by how well they'd
+fit a tactic they don't play. If a report needs something `scout_report` doesn't return (e.g. a
+deeper individual-attribute cut), pull that one extra thing with `db.q(...)` — don't re-derive what's
+already there.
 
 **`fmq.py scout <team> [--venue H|A --formation "..." --style "..." --note "..."]`** is the CLI
 form of the same call and — unless `--no-save` — writes the result into the R2-synced scout log
@@ -82,14 +93,17 @@ After profiling, **recommend which of our methods to run**, keyed to
 [`docs/fmm-tactic-blueprints.md`](../../docs/fmm-tactic-blueprints.md) → **"When to use each —
 cheatsheet"**. Read that table live (methods evolve); don't hardcode the mapping. The decision
 inputs are already in `rep`:
-- **Favourite vs underdog** (`rep["overall"]["us"]` vs `["them"]`, the `TEAM` row of `rep["strength"]`)
-  → proactive default (`frem_attacking_ss`) when we're better/equal; the counter variant
+- **Favourite vs underdog** (`rep["overall"]["us_quality"]` vs `["them_quality"]` — Level %ile, not
+  the Fit-based `us`/`them`, since the latter judges them under a tactic they don't run) →
+  proactive default (`frem_attacking_ss`) when we're better/equal; the counter variant
   (`frem_counter`) when they're stronger / carry pace to hit in behind.
 - **Their style** (user's scout) → if they'll **park a deep block**, the break-them-down variant
   (`frem_lowblock_overload`); if they'll **try to play out**, pressing their weak build-up
   (`frem_gegenpress`).
-- **Physical matchup** (`rep["units"]`/`rep["unit_attrs"]`, the Defense/Midfield/Attack rows) → if
-  they edge us on Strength/Aerial and play direct to a target man, **don't** open in a
+- **The actual on-pitch matchups** (`rep["matchups"]` — see above) → "Our attack vs their defense"
+  tells you whether to expect chances created; "Their attack vs our defense" tells you what to
+  protect. If they edge that second row and it's built on Strength/Aerial (check `rep["unit_attrs"]`
+  for the Defense-unit attribute detail) and they play direct to a target man, **don't** open in a
   high-press/duel game that plays to their one advantage; control instead.
 - **Game state** → protecting a lead late = the close-out variant (`frem_game_state`).
 
@@ -99,6 +113,11 @@ in-game lever to pull if the game turns (e.g. "start `frem_attacking_ss`; if the
 template).
 
 ### Validated pull snippet + gotchas
+This whole path is `duckdb` + `pandas` — `uv sync` (no extras) is enough; you do NOT need
+`uv sync --extra dashboard` (streamlit + plotly) to run a scout. `dashboard/db.py` only uses
+streamlit for its Streamlit-page sidebar widgets and a cache decorator, and falls back to a plain
+`functools.lru_cache` when it isn't installed, so `import db` works either way.
+
 Query a **copy** of the db if the live one is locked — mirror what `fmq.py scout` itself does
 (try a read-only connect first; only copy on failure), rather than always paying for a full copy.
 Run via a **heredoc / script file**, not `python -c` (the escaping bites).
@@ -124,11 +143,20 @@ S, P = db.latest_snapshot()
 M = db.config().get("default_method")
 
 rep = db.scout_report(OPP, season=S, phase=P, method=M)
-# rep = {opp, season, phase, method, coverage, overall, strength, units, unit_attrs,
-#        key_players, h2h, flags} — DataFrames for strength/units/unit_attrs/key_players,
-#        rep["h2h"]["matches"] is the per-match DataFrame (date, venue, gf, ga, result,
-#        our_shots/opp_shots, our_shots_on_target/opp_..., our_passes/opp_...,
-#        our_passes_completed/opp_..., our_tackles_won/opp_..., our_interceptions/opp_...).
+# rep = {opp, season, phase, method, coverage, overall, strength, matchups, units,
+#        unit_attrs, key_players, h2h, flags} — DataFrames for strength/matchups/units/
+#        unit_attrs/key_players.
+#   overall/strength carry BOTH ratings: us/them (+ us_pctile/them_pctile) is our tactic's
+#     Fit; us_quality/them_quality is tactic-agnostic Level %ile. Use *_quality for "how
+#     good are they", *_pctile for "how would this suit OUR system".
+#   matchups is the face-off pairing (see matchup_table docstring): rows "Our attack vs
+#     their defense" / "Their attack vs our defense" / "Midfield (contested)", each with
+#     us_quality/them_quality/edge (Level %ile) and us_fit/them_fit (pos_index) alongside.
+#   key_players is ranked by Level %ile (rank_by="level_league") for the opponent — quality,
+#     not Fit under our tactic.
+#   rep["h2h"]["matches"] is the per-match DataFrame (date, venue, gf, ga, result,
+#     our_shots/opp_shots, our_shots_on_target/opp_..., our_passes/opp_...,
+#     our_passes_completed/opp_..., our_tackles_won/opp_..., our_interceptions/opp_...).
 
 prior = db.load_scouts()
 prior = prior[prior.opponent_tid == OPP] if not prior.empty else prior       # calibration check
@@ -211,15 +239,20 @@ it still holds.>
 flat 4-4-2 leaves, the channels behind weak fullbacks, either side of a lone pivot.>
 
 ## Their threats
-- <squad-profile + key-player + H2H bullets, drawn from `rep["flags"]` and `rep["key_players"]`:
-  danger unit, high-percentile men, lone standout vs drop-off, shot volume, direct/set-piece route.>
+- <squad-profile + key-player + H2H bullets, drawn from `rep["flags"]`, `rep["key_players"]`
+  (Level %ile — their quality, not their Fit under our tactic) and the "Their attack vs our
+  defense" row of `rep["matchups"]`: danger unit, high-Level%ile men, lone standout vs drop-off,
+  shot volume, direct/set-piece route.>
 
 ## Where we win
-- <units/attributes we beat them on (`rep["strength"]`/`rep["unit_attrs"]`) + space their shape
+- <the "Our attack vs their defense" row of `rep["matchups"]` (do we have the quality edge going
+  forward?) + attribute detail from `rep["unit_attrs"]` (their Defense unit's weak spots — already
+  the right axis, since it's describing THEIR defensive line on its own terms) + space their shape
   concedes.>
 
 ## Key men to watch (named, by position)
-- **<Name> (<POS>)** — <standout attribute + league percentile / role, from `top_attrs`>
+- **<Name> (<POS>)** — <standout attribute + Level %ile / role, from `top_attrs`. Level %ile, not
+  Fit — see "The engine already exists" above for why.>
 
 ## Game plan — tactic recommendation
 - **Recommended method:** **`<method>`** — <why, keyed to the cheatsheet: favourite/underdog +
@@ -235,9 +268,10 @@ flat 4-4-2 leaves, the channels behind weak fullbacks, either side of a lone piv
 **One-line to the gaffer:** *<punchy, quotable summary of the plan.>*
 
 ---
-Eyeball it: **Team analysis → Scout a team → <Club>** (unit/position filters, e.g. Us→Attack vs
-Them→Defense) and the head-to-head drilldown. Switch the **method** selector to `<recommended>` to
-preview our XI's Fit for this plan. This report has been saved to the scout log
+Eyeball it: **Team analysis → Scout a team → <Club>** — the **Face-off matchups** table for the
+attack-vs-defense reads, the unit/position filters (e.g. Us→Attack vs Them→Defense) to probe any
+matchup by hand, and the head-to-head drilldown. Switch the **method** selector to `<recommended>`
+to preview our XI's Fit for this plan. This report has been saved to the scout log
 (`uv run python fmq.py scouts` to review it alongside past reads on other opponents).
 ```
 
