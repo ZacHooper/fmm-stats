@@ -225,7 +225,10 @@ async function searchPanel() {
       const capitalOk = ours ? (D.S.ours.capital_eligible || []).includes(p.tid) : p.capitalEligible;
       rows.push({
         tid: p.tid, player: p, r: best, age: D.age(p.dob),
-        club: club?.name || DASH, league: lg?.name || DASH,
+        // null, not DASH: the table already renders a null cell as an em dash, and keeping the
+        // blank as a real blank is what lets a filter tell "unknown" apart from a club actually
+        // called "—". Filters treat unknown as its own thing (the "?" toggle on each chip).
+        club: club?.name || null, league: lg?.name || null,
         rep: lg?.reputation ?? null,
         ours, originClub, capitalOk,
         _search: [p.name, club?.name, lg?.name, originClub, best.pos, best.role].filter(Boolean).join(" ").toLowerCase(),
@@ -251,7 +254,15 @@ async function searchPanel() {
       catalogue: {
         player: { label: "Player", group: "Identity", cls: "name", sort: (r) => r.player.name, get: (r) => r.player.name },
         age: { label: "Age", group: "Identity", align: "num", get: (r) => r.age },
-        pos: { label: "Pos", group: "Identity", get: (r) => r.r.pos },
+        pos: {
+          label: "Pos", group: "Identity", get: (r) => r.r.pos,
+          // The COLUMN shows his best position; the FILTER matches any position he is listed at,
+          // because "show me left-backs" means everyone who can play there, not everyone whose
+          // single best role happens to be it. Pair it with a Fam filter to exclude the token
+          // 1-familiarity listings.
+          help: "Best position. Filtering on it matches any position he can play.",
+          filterValue: (r) => r.player.positions.map((x) => x.pos),
+        },
         fam: { label: "Fam", group: "Identity", align: "num", sort: (r) => r.r.fam, render: (r) => bar(r.r.fam, { max: 20, lo: 60 }) },
         club: { label: "Club", group: "Identity", get: (r) => r.club },
         league: { label: "League", group: "Identity", get: (r) => r.league },
@@ -259,12 +270,17 @@ async function searchPanel() {
         origin: {
           label: "Origin club", group: "Identity",
           help: "Career-origin club — where his career-history chain starts, not his current club",
-          get: (r) => r.originClub || DASH,
+          get: (r) => r.originClub,
         },
         capital: {
           label: "Capital", group: "Identity",
           help: "Would satisfy the capital-region signing rule if signed today. Unknown until "
             + "“Load every player” has been fetched, for anyone outside our squad.",
+          // Render-only, and its `sort` is a display rank (1/-1/0) rather than a value, so the
+          // filter needs to be told what it is actually choosing between.
+          filterType: "set",
+          filterValue: (r) => (r.capitalOk === true ? "Eligible"
+            : r.capitalOk === false ? "Outside" : null),
           sort: (r) => (r.capitalOk === true ? 1 : r.capitalOk === false ? -1 : 0),
           render: (r) => (r.capitalOk === true ? pill("✓", "good")
             : r.capitalOk === false ? pill("outside", "flat") : pill("?", "flat")),
@@ -287,6 +303,9 @@ async function searchPanel() {
       },
       presets: { "Scouting": ["age", "club", "league", "rating", "lvlg", "value", "expiry", "origin", "capital"] },
       sticky: ["player"],
+      // Only this table gets filters: it is the one holding ~23,000 rows once every player is
+      // loaded. The other four are squad-sized, where sort plus the search box is already enough.
+      filters: true,
       defaults: ["age", "pos", "fam", "club", "league", "rating", "lvlg", "value", "expiry", "origin", "capital"],
       sort: { by: "lvlg", dir: "desc" },
       searchPlaceholder: "Search by name, club or league…",
