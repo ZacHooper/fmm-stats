@@ -103,9 +103,15 @@ def check_immersion(paths):
 # --------------------------------------------------------------------------- player rows
 PLAYER_FIELDS = ["tid", "name", "club_tid", "dob", "value", "wage", "expiry",
                  "attrs", "positions"]
+# all.json only: origin_club_tid + capital_eligible ride along here rather than in core.json's
+# PLAYER_FIELDS because core.json loads on every page view (see the "ours only" note on
+# mart.player_origin in the core.json block below) — all.json is already the lazy, R2-only,
+# search-outside-our-pyramid payload, so two more columns cost nothing extra to load.
+ALL_PLAYER_FIELDS = PLAYER_FIELDS + ["origin_club_tid", "capital_eligible"]
 
 
-def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None):
+def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
+                 include_origin=False):
     """Columnar player rows: positional arrays, no repeated keys (that alone is ~40% of the
     bytes at this row count). `positions` is [[code, familiarity, lvl_league, lvl_global], ...]
     — the level percentiles are the sanctioned form of ability, precomputed because the
@@ -113,21 +119,31 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None):
 
     Raw attributes ship deliberately: site/js/data.js computes role ratings client-side from
     attributes x weights, which is what lets a tactic switch re-rate everyone with no rebuild.
-    mart.player_snapshots therefore carries the 23 attributes wide, and no ability at all."""
+    mart.player_snapshots therefore carries the 23 attributes wide, and no ability at all.
+
+    include_origin appends [origin_club_tid, capital_eligible] per row (ALL_PLAYER_FIELDS) —
+    the tid, not the club name, since the caller already has every club's name from core.json's
+    unfiltered `clubs` array and can resolve it client-side, same as the current-club column."""
     cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
     where, params = "", [season, phase]
     if club_tids is not None:
         where = f" AND club_tid IN ({','.join('?' * len(club_tids))})"
         params += list(club_tids)
-    df = db.q(f"""SELECT tid, name, club_tid, dob, player_value, wage_gbp,
-                         contract_expiry, {cols}
-                  FROM mart.player_snapshots
-                  WHERE season=? AND phase=? AND has_attributes{where}
+    origin_join, origin_cols = "", ""
+    if include_origin:
+        origin_cols = ", o.origin_club_tid, o.eligible AS capital_eligible"
+        origin_join = """LEFT JOIN mart.player_origin o
+                                ON (o.season, o.phase, o.tid) = (p.season, p.phase, p.tid)"""
+    df = db.q(f"""SELECT p.tid, p.name, p.club_tid, p.dob, p.player_value, p.wage_gbp,
+                         p.contract_expiry, {cols}{origin_cols}
+                  FROM mart.player_snapshots p
+                  {origin_join}
+                  WHERE p.season=? AND p.phase=? AND p.has_attributes{where}
                   -- deterministic order, so a no-op re-export is a no-op. Neither this query
                   -- nor its staging predecessor had an ORDER BY, and a join's output order is
                   -- not stable, so this 4 MB array could rewrite itself wholesale. The client
                   -- keys everything by tid, so the order is ours to choose.
-                  ORDER BY tid""", params)
+                  ORDER BY p.tid""", params)
     pos = db.q("SELECT tid, position, familiarity FROM mart.player_position_levels "
                "WHERE season=? AND phase=? ORDER BY tid, position", [season, phase])
     pmap = {}
@@ -145,10 +161,14 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None):
     rows = []
     for r in df.to_dict("records"):
         tid = int(r["tid"])
-        rows.append([tid, r["name"] if isinstance(r["name"], str) else None,
-                     iv(r["club_tid"]), sv(r["dob"]), iv(r["player_value"]),
-                     iv(r["wage_gbp"]), sv(r["contract_expiry"]),
-                     [iv(r[a]) for a in ATTR_ORDER], pmap.get(tid, [])])
+        row = [tid, r["name"] if isinstance(r["name"], str) else None,
+               iv(r["club_tid"]), sv(r["dob"]), iv(r["player_value"]),
+               iv(r["wage_gbp"]), sv(r["contract_expiry"]),
+               [iv(r[a]) for a in ATTR_ORDER], pmap.get(tid, [])]
+        if include_origin:
+            row += [iv(r["origin_club_tid"]),
+                    None if pd.isna(r["capital_eligible"]) else bool(r["capital_eligible"])]
+        rows.append(row)
     return rows
 
 
@@ -583,8 +603,9 @@ def main():
     if a.skip_all:
         print("  all.json               skipped (--skip-all)")
     else:
-        rows = player_rows(db, pd, season, phase, ATTR_ORDER, levels=levels)
-        n, gz = write_json(all_path, {"attrs": list(ATTR_ORDER), "fields": PLAYER_FIELDS,
+        rows = player_rows(db, pd, season, phase, ATTR_ORDER, levels=levels,
+                           include_origin=True)
+        n, gz = write_json(all_path, {"attrs": list(ATTR_ORDER), "fields": ALL_PLAYER_FIELDS,
                                       "players": rows, "note": IMMERSION}, db._json_clean)
         print(f"  all.json               {n / 1024:8.0f} KB raw  {gz / 1024:7.0f} KB gzip  "
               f"({len(rows)} players — R2 only, NOT git)")

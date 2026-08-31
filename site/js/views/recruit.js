@@ -205,12 +205,18 @@ async function searchPanel() {
       if (!best) continue;
       const club = D.S.clubs.get(p.clubTid);
       const lg = club ? D.S.leagues.get(club.leagueCid) : null;
+      // Our own squad resolves origin/capital from core.json's `ours` maps (always loaded);
+      // everyone else only has it once all.json has been fetched — see mkPlayer in data.js.
+      const ours = D.isOurs(p);
+      const originClub = ours ? (D.S.ours.origin?.[String(p.tid)] || null)
+        : (p.originClubTid != null ? (D.S.clubs.get(p.originClubTid)?.name || `#${p.originClubTid}`) : null);
+      const capitalOk = ours ? (D.S.ours.capital_eligible || []).includes(p.tid) : p.capitalEligible;
       rows.push({
         tid: p.tid, player: p, r: best, age: D.age(p.dob),
         club: club?.name || DASH, league: lg?.name || DASH,
         rep: lg?.reputation ?? null,
-        ours: D.isOurs(p),
-        _search: [p.name, club?.name, lg?.name, best.pos, best.role].filter(Boolean).join(" ").toLowerCase(),
+        ours, originClub, capitalOk,
+        _search: [p.name, club?.name, lg?.name, originClub, best.pos, best.role].filter(Boolean).join(" ").toLowerCase(),
       });
     }
     const selected = new Set();
@@ -238,6 +244,19 @@ async function searchPanel() {
         club: { label: "Club", group: "Identity", get: (r) => r.club },
         league: { label: "League", group: "Identity", get: (r) => r.league },
         rep: { label: "League rep", group: "Identity", align: "num", get: (r) => r.rep },
+        origin: {
+          label: "Origin club", group: "Identity",
+          help: "Career-origin club — where his career-history chain starts, not his current club",
+          get: (r) => r.originClub || DASH,
+        },
+        capital: {
+          label: "Capital", group: "Identity",
+          help: "Would satisfy the capital-region signing rule if signed today. Unknown until "
+            + "“Load every player” has been fetched, for anyone outside our squad.",
+          sort: (r) => (r.capitalOk === true ? 1 : r.capitalOk === false ? -1 : 0),
+          render: (r) => (r.capitalOk === true ? pill("✓", "good")
+            : r.capitalOk === false ? pill("outside", "flat") : pill("?", "flat")),
+        },
         rating: { label: "Rating", group: "Rating", align: "num", sort: (r) => r.r.eff, render: (r) => num(r.r.eff) },
         lvl: {
           label: "Level %ile", group: "Rating", align: "num",
@@ -254,9 +273,9 @@ async function searchPanel() {
         expiry: { label: "Contract", group: "Contract", sort: (r) => r.player.expiry || "9999", render: (r) => monthYear(r.player.expiry) },
         ...metricColumns(D, { agg: D.S.matchAgg }),
       },
-      presets: { "Scouting": ["age", "club", "league", "rating", "lvlg", "value", "expiry"] },
+      presets: { "Scouting": ["age", "club", "league", "rating", "lvlg", "value", "expiry", "capital"] },
       sticky: ["player"],
-      defaults: ["age", "pos", "fam", "club", "league", "rating", "lvlg", "value", "expiry"],
+      defaults: ["age", "pos", "fam", "club", "league", "rating", "lvlg", "value", "expiry", "capital"],
       sort: { by: "lvlg", dir: "desc" },
       searchPlaceholder: "Search by name, club or league…",
       toolbar: [armBtn, cmp],
