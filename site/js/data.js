@@ -35,10 +35,13 @@ const j = async (url) => {
 };
 
 function mkPlayer(row, fields, attrNames) {
-  const [tid, name, clubTid, dob, value, wage, expiry, attrs, positions] = row;
+  // core.json rows stop at `positions` (index 8); only all.json's ALL_PLAYER_FIELDS carries
+  // origin/capital (indexes 9-10), so both are undefined -> null for a core-only player.
+  const [tid, name, clubTid, dob, value, wage, expiry, attrs, positions,
+         originClubTid, capitalEligible] = row;
   return {
     tid, name: name || `#${tid}`, unnamed: !name, clubTid, dob, value, wage, expiry,
-    attrs,
+    attrs, originClubTid: originClubTid ?? null, capitalEligible: capitalEligible ?? null,
     positions: (positions || []).map(([pos, fam, lvlLeague, lvlGlobal]) =>
       ({ pos, fam, lvlLeague, lvlGlobal, role: S.posRole[pos] || pos })),
   };
