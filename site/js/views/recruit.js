@@ -183,6 +183,19 @@ const parsePositions = (text) => {
 };
 
 // --------------------------------------------------------------------------- search
+/**
+ * A position-scoped filter value: read whichever of a row's roles the active Position filter
+ * selected, falling back to his single best role when Position isn't filtered — unchanged from
+ * before this existed. Multi-valued on purpose (same shape the Pos filter itself already
+ * returns): if he has two roles among the selected positions, a range filter matches if EITHER
+ * satisfies it, same as "does he have DR or DML".
+ */
+function scoped(row, filters, pick) {
+  const sel = filters?.find((f) => f.col === "pos")?.values;
+  const roles = sel?.length ? row.roles.filter((x) => sel.includes(x.pos)) : [row.r];
+  return roles.map(pick);
+}
+
 async function searchPanel() {
   const wrap = el("div");
   const msg = el("p.note");
@@ -213,7 +226,12 @@ async function searchPanel() {
     const pools = new Map();
     const rows = [];
     for (const p of D.S.players.values()) {
-      const best = D.bestRole(p);
+      // playerRoles(p) is every listed position rated and sorted best-first — bestRole(p) is
+      // just its [0]. Taking the whole list here, once, is the same cost as the old bestRole()
+      // call and is what lets Fam/Rating/Level scope themselves to a Position filter below,
+      // instead of always describing whichever role rates highest overall.
+      const roles = D.playerRoles(p);
+      const best = roles[0];
       if (!best) continue;
       const club = D.S.clubs.get(p.clubTid);
       const lg = club ? D.S.leagues.get(club.leagueCid) : null;
@@ -224,7 +242,7 @@ async function searchPanel() {
         : (p.originClubTid != null ? (D.S.clubs.get(p.originClubTid)?.name || `#${p.originClubTid}`) : null);
       const capitalOk = ours ? (D.S.ours.capital_eligible || []).includes(p.tid) : p.capitalEligible;
       rows.push({
-        tid: p.tid, player: p, r: best, age: D.age(p.dob),
+        tid: p.tid, player: p, r: best, roles, age: D.age(p.dob),
         // null, not DASH: the table already renders a null cell as an em dash, and keeping the
         // blank as a real blank is what lets a filter tell "unknown" apart from a club actually
         // called "—". Filters treat unknown as its own thing (the "?" toggle on each chip).
@@ -263,7 +281,13 @@ async function searchPanel() {
           help: "Best position. Filtering on it matches any position he can play.",
           filterValue: (r) => r.player.positions.map((x) => x.pos),
         },
-        fam: { label: "Fam", group: "Identity", align: "num", sort: (r) => r.r.fam, render: (r) => bar(r.r.fam, { max: 20, lo: 60 }) },
+        fam: {
+          label: "Fam", group: "Identity", align: "num", sort: (r) => r.r.fam,
+          render: (r) => bar(r.r.fam, { max: 20, lo: 60 }),
+          help: "Familiarity at his best role — or, with a Position filter active, at the "
+            + "selected position(s), not his overall best.",
+          filterValue: (r, filters) => scoped(r, filters, (x) => x.fam),
+        },
         club: { label: "Club", group: "Identity", get: (r) => r.club },
         league: { label: "League", group: "Identity", get: (r) => r.league },
         rep: { label: "League rep", group: "Identity", align: "num", get: (r) => r.rep },
@@ -285,16 +309,22 @@ async function searchPanel() {
           render: (r) => (r.capitalOk === true ? pill("✓", "good")
             : r.capitalOk === false ? pill("outside", "flat") : pill("?", "flat")),
         },
-        rating: { label: "Rating", group: "Rating", align: "num", sort: (r) => r.r.eff, render: (r) => num(r.r.eff) },
+        rating: {
+          label: "Rating", group: "Rating", align: "num", sort: (r) => r.r.eff, render: (r) => num(r.r.eff),
+          filterValue: (r, filters) => scoped(r, filters, (x) => x.eff),
+        },
         lvl: {
           label: "Level %ile", group: "Rating", align: "num",
-          help: "Quality at that position in his own league",
+          help: "Quality at that position in his own league — or, with a Position filter active, "
+            + "at the selected position(s).",
           sort: (r) => r.r.lvlLeague, render: (r) => bar(r.r.lvlLeague),
+          filterValue: (r, filters) => scoped(r, filters, (x) => x.lvlLeague),
         },
         lvlg: {
           label: "Level %ile (world)", group: "Rating", align: "num",
           help: "Quality at that position across every league in the save — the fair way to compare across divisions",
           sort: (r) => r.r.lvlGlobal, render: (r) => bar(r.r.lvlGlobal),
+          filterValue: (r, filters) => scoped(r, filters, (x) => x.lvlGlobal),
         },
         value: { label: "Value", group: "Contract", align: "num", sort: (r) => r.player.value, render: (r) => money(r.player.value) },
         wage: { label: "Wage/yr", group: "Contract", align: "num", sort: (r) => r.player.wage, render: (r) => money(r.player.wage) },

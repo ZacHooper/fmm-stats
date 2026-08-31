@@ -242,9 +242,16 @@ function filterKind(def) {
  * uses (`sort || get`), so a column sorts and filters on one number; for a set it prefers `get`,
  * because what you want to pick from a list is the displayed value ("DL", a club name), not a
  * sort rank.
+ *
+ * `filters` — the full active filter list — is passed to a custom `filterValue`, not just the
+ * row. A column can be scoped by a SIBLING filter: recruit.js's Fam/Rating/Level %ile all read
+ * a player's single best-rated role by default, but when a Position filter is also active they
+ * need to answer "at the position(s) selected", not "at whichever role rates highest overall" —
+ * otherwise "Pos=DR, Fam 18-20" can pass a player whose DR familiarity is nowhere near that
+ * range, because his unrelated best role happened to qualify.
  */
-function filterKey(def, kind) {
-  if (def.filterValue) return def.filterValue;
+function filterKey(def, kind, filters) {
+  if (def.filterValue) return (row) => def.filterValue(row, filters);
   return kind === "range" ? (def.sort || def.get) : (def.get || def.sort);
 }
 
@@ -274,7 +281,7 @@ function applyFilters(rows, filters, catalogue) {
   const tests = active.map((f) => {
     const def = catalogue[f.col];
     const kind = filterKind(def);
-    const key = filterKey(def, kind);
+    const key = filterKey(def, kind, filters);
     if (kind === "range") {
       const lo = isBlank(f.min) ? null : Number(f.min);
       const hi = isBlank(f.max) ? null : Number(f.max);
@@ -322,7 +329,7 @@ function filterPanel(o, state, changed) {
   function hasData(id) {
     if (populated.has(id)) return populated.get(id);
     const def = o.catalogue[id];
-    const key = filterKey(def, filterKind(def));
+    const key = filterKey(def, filterKind(def), state.filters);
     const n = Math.min(o.rows.length, 2000);
     let found = false;
     for (let i = 0; i < n && !found; i++) found = readValues(key, o.rows[i]).length > 0;
@@ -336,7 +343,7 @@ function filterPanel(o, state, changed) {
     if (stats.has(id)) return stats.get(id);
     const def = o.catalogue[id];
     const kind = filterKind(def);
-    const key = filterKey(def, kind);
+    const key = filterKey(def, kind, state.filters);
     const values = new Set();
     let min = Infinity, max = -Infinity;
     for (const r of o.rows) {
