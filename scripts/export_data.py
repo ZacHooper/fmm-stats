@@ -569,14 +569,27 @@ def main():
                   WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND appeared
                   ORDER BY season, date, tid""")
     mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
-               "result", "pts", "formation"]
+               "result", "pts", "formation", "attendance"]
     if not hist_m.empty:      # dedupe: opp_tid is already in the identity block above
         mfields += [c for c in hist_m.columns
                     if c.startswith(("our_", "opp_")) and c not in mfields]
     pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "goals",
-               "assists", "minutes", "started", "passA", "passC", "keyPass", "tackA",
-               "tackW", "intercept", "headA", "headW", "crossA", "crossC", "dribbles",
-               "shotA", "shotO", "mistakes", "yellow"]
+               "assists", "minutes", "started", "position", "passA", "passC", "keyPass",
+               "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
+               "dribbles", "shotA", "shotO", "mistakes", "yellow"]
+
+    # Name resolution for every tid who ever appeared for us — core.json's `players` array only
+    # covers the CURRENT squad (see the core.json block above), so a player who left the save
+    # after racking up matches/goals has no name anywhere else on the site. Bounded to "everyone
+    # who ever played a match for our club", a few hundred rows at most, not all.json territory.
+    player_names = {}
+    if mps is not None and not mps.empty:
+        tids = [int(t) for t in mps["tid"].dropna().unique()]
+        if tids:
+            nm = db.q(f"""SELECT tid, ANY_VALUE(name) AS name FROM mart.player_snapshots
+                         WHERE tid IN ({','.join('?' * len(tids))}) GROUP BY tid""", tids)
+            player_names = {str(int(r.tid)): r.name for r in nm.itertuples()
+                            if isinstance(r.name, str)}
 
     def rowify(df, fields):
         if df is None or df.empty:
@@ -594,6 +607,7 @@ def main():
         "player_fields": [f for f in pfields if mps is not None and not mps.empty
                           and f in mps.columns],
         "player_rows": rowify(mps, pfields),
+        "player_names": player_names,
         "note": "Only the managed club's matches are richly parsed, so these are our records. "
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
                 "season runs, so an early game may be absent from a late save."})
