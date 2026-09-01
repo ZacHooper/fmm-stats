@@ -13,7 +13,35 @@ import unicodedata
 import duckdb
 import numpy as np
 import pandas as pd
-import streamlit as st
+
+# streamlit is a presentation dependency (the sidebar selectors, st.error/st.stop, the
+# cache decorators) — it has no business being required to run a scout report from the CLI
+# or an agent skill. Fall back to a plain functools.lru_cache when it isn't installed: the
+# decorated functions here (_connect, _q, _effective_cached, ...) are called repeatedly
+# within one process, so dropping caching outright would reopen the DuckDB connection and
+# re-run every query, not just lose a nicety.
+try:
+    import streamlit as st
+    _HAS_ST = True
+except ImportError:
+    _HAS_ST = False
+    import functools
+
+    def _cache(fn=None, **_kw):
+        deco = functools.lru_cache(maxsize=None)
+        return deco(fn) if fn is not None else deco
+    _cache.clear = lambda: None
+
+    class _StStub:
+        """Only the two surfaces db.py uses outside a running Streamlit session: the cache
+        decorators (used throughout) and cache_data.clear() (used by write()/set_config()).
+        st.error/st.stop/st.sidebar/st.session_state are used only inside the sidebar
+        selector functions and _connect's error branches, both guarded by _HAS_ST below —
+        a headless caller never reaches them, so they don't need a stand-in here."""
+        cache_data = staticmethod(_cache)
+        cache_resource = staticmethod(_cache)
+
+    st = _StStub()
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
@@ -98,15 +126,23 @@ def _dbver():
         return (DB_PATH, 0.0)
 
 
+def _fail(msg):
+    """Report a fatal setup error the way the caller can see it: a friendly card + halt
+    inside Streamlit, a plain exception everywhere else (fmq.py, a skill script, ...)."""
+    if _HAS_ST:
+        st.error(msg)
+        st.stop()
+    raise RuntimeError(msg)
+
+
 @st.cache_resource
 def _connect(ver):
     if not os.path.exists(DB_PATH):
         car = ACTIVE_CAREER
-        st.error(f"No DuckDB store at {DB_PATH} for career '{car.key if car else '?'}'. "
-                 f"Build it with:\n\n"
-                 f"`uv run python load_duckdb.py output/<label> --db {car.db if car else 'fm-<career>.duckdb'}`"
-                 f"\n\n(season + phase auto-derive from the save's in-game date.)")
-        st.stop()
+        _fail(f"No DuckDB store at {DB_PATH} for career '{car.key if car else '?'}'. "
+              f"Build it with:\n\n"
+              f"`uv run python load_duckdb.py output/<label> --db {car.db if car else 'fm-<career>.duckdb'}`"
+              f"\n\n(season + phase auto-derive from the save's in-game date.)")
     # FM_DUCKDB_READONLY=1 lets non-Streamlit callers (e.g. the fmq CLI) attach without
     # taking the single-writer lock, so scouting works while the dashboard is running.
     ro = os.environ.get("FM_DUCKDB_READONLY") == "1"
@@ -117,10 +153,9 @@ def _connect(ver):
     has_mart = con.execute("SELECT COUNT(*) FROM information_schema.schemata "
                            "WHERE schema_name = 'mart'").fetchone()[0]
     if not has_mart:
-        st.error(f"{DB_PATH} has no `mart` schema. It is built from the staging tables, so "
-                 f"nothing needs re-parsing:\n\n"
-                 f"`uv run python load_duckdb.py --refresh-only --db {DB_PATH}`")
-        st.stop()
+        _fail(f"{DB_PATH} has no `mart` schema. It is built from the staging tables, so "
+              f"nothing needs re-parsing:\n\n"
+              f"`uv run python load_duckdb.py --refresh-only --db {DB_PATH}`")
     return con
 
 
@@ -280,16 +315,37 @@ def select_method(sidebar=True):
 # --------------------------------------------------------------------------- data access
 
 def squad(season, phase):
-    """Our full squad: first team + reserves (loaned-out players sit in reserves with
-    loaned_out=True, so they're included). Carries status flags for the UI."""
+    """Our full squad: first team + reserves + players out on loan (still ours, so they
+    still count). Carries status flags for the UI.
+
+    Two mart sources, neither a raw club_tid/loaned_out flag: `mart.snapshot_squad` for
+    who's genuinely present (spell-based — see its docstring for why the raw column can't
+    be trusted), `mart.loan_out_spells` for who's ours but out on loan (EXACT weekly windows
+    from the save's own Player-Progress flag, not the stale `loaned_out` column staging.
+    players carries — that one is exactly as unreliable as `loaned_in`, same "set once,
+    never cleared" mechanism, and staging.player_loans is already scoped to our squad at
+    the source, so no club_tid filter is needed on that side at all)."""
     ph = ",".join("?" * len(OUR_CLUBS))
-    df = q(f"SELECT tid, name, club_tid, loaned_out FROM staging.players "
-           f"WHERE season=? AND phase=? AND club_tid IN ({ph}) AND NOT is_staff",
-           [season, phase, *OUR_CLUBS])
+    df = q(f"""
+        WITH loaned_out AS (
+            SELECT DISTINCT s.tid, s.name
+            FROM mart.loan_out_spells s
+            JOIN (SELECT phase_date FROM mart.snapshots WHERE season=? AND phase=?) sn
+              ON sn.phase_date BETWEEN s.valid_from AND s.valid_to
+        ),
+        present AS (
+            SELECT tid, any_value(name) AS name, max(club_tid) AS club_tid
+            FROM mart.snapshot_squad
+            WHERE season=? AND phase=? AND club_tid IN ({ph})
+            GROUP BY tid
+        )
+        SELECT tid, name, ? AS club_tid, 'Loan' AS status FROM loaned_out
+        UNION ALL
+        SELECT tid, name, club_tid,
+               CASE WHEN club_tid = ? THEN 'Reserve' ELSE 'First team' END AS status
+        FROM present WHERE tid NOT IN (SELECT tid FROM loaned_out)
+        """, [season, phase, season, phase, *OUR_CLUBS, RESERVE_CLUB_TID, RESERVE_CLUB_TID])
     df["label"] = df.apply(lambda r: player_label(r.tid, r["name"]), axis=1)
-    df["status"] = df.apply(
-        lambda r: "Loan" if r["loaned_out"] else
-        ("Reserve" if r["club_tid"] == RESERVE_CLUB_TID else "First team"), axis=1)
     return by_surname(df, "label").reset_index(drop=True)
 
 
@@ -303,36 +359,19 @@ def stale_loan_ins(season, phase):
     the same way attribute rows freeze for reserves (see reserve-marker-stale-attrs); nothing
     rewrites it when the loan ends instead of being renewed.
 
-    Flags a tid when the SAME loan-in relationship has been on the books for 2+ completed
-    seasons with ZERO match_player_stats appearances for us since it started — an active loan
-    racks up minutes for us; a lapsed one doesn't, no matter how old the flag on his row is.
-    A fresh arrival this season has too short a history to trip the 2-season threshold, so
-    genuine new loan-ins are never flagged. Verified against fm-frem tid 10409 (Haarbo):
-    loaned_in since season 2022, zero appearances for us since, a full alternate-club season
-    (172, 33 apps) on the books for 2023 — yet still read loaned_in=True in season 2024."""
-    if not _has_table("match_player_stats"):
-        return set()
+    This used to detect that itself with a heuristic (2+ completed seasons on the books with
+    zero match_player_stats appearances). mart.loan_in_spells already answers the same
+    question exactly (appearance-gated, one spell per season actually played) — flagged minus
+    genuinely-present is simpler and can't disagree with the ground truth this file uses
+    everywhere else."""
     ph = ",".join("?" * len(OUR_CLUBS))
-    cur = q(f"SELECT tid FROM staging.players WHERE season=? AND phase=? "
-            f"AND loaned_in AND club_tid IN ({ph})", [season, phase, *OUR_CLUBS])
-    if cur.empty:
+    flagged = q(f"SELECT DISTINCT tid FROM staging.players WHERE season=? AND phase=? "
+                f"AND loaned_in AND club_tid IN ({ph})", [season, phase, *OUR_CLUBS])
+    if flagged.empty:
         return set()
-    first_seen = q(f"SELECT tid, MIN(season) AS first_season FROM staging.players "
-                   f"WHERE loaned_in AND club_tid IN ({ph}) AND tid IN "
-                   f"({','.join('?' * len(cur))}) GROUP BY tid",
-                   [*OUR_CLUBS, *[int(t) for t in cur["tid"]]])
-    first_by_tid = dict(zip(first_seen["tid"], first_seen["first_season"]))
-    stale = set()
-    for t in cur["tid"]:
-        t = int(t)
-        first = first_by_tid.get(t)
-        if first is None or season - first < 2:
-            continue
-        apps = q(f"SELECT COUNT(*) AS c FROM staging.match_player_stats "
-                 f"WHERE tid=? AND season>? AND team_tid IN ({ph})", [t, first, *OUR_CLUBS])
-        if int(apps["c"].iloc[0]) == 0:
-            stale.add(t)
-    return stale
+    present = q(f"SELECT tid FROM mart.snapshot_squad WHERE season=? AND phase=? "
+                f"AND club_tid IN ({ph})", [season, phase, *OUR_CLUBS])
+    return set(flagged["tid"]) - set(present["tid"])
 
 
 def player_label(tid, name):
@@ -358,9 +397,10 @@ def by_surname(df, name_col="label"):
 
 
 def attributes_row(season, phase, tid):
-    """The 23 wide attributes for one player as a {attribute: value} dict."""
+    """The 23 wide attributes for one player as a {attribute: value} dict — a thin read of
+    mart.player_snapshots."""
     cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
-    df = q(f"SELECT {cols} FROM staging.player_attributes "
+    df = q(f"SELECT {cols} FROM mart.player_snapshots "
            "WHERE season=? AND phase=? AND tid=?", [season, phase, tid])
     if df.empty:
         return None
@@ -787,27 +827,22 @@ def _ref_date(season, phase):
 
 
 def player_bio(season, phase, tids):
-    """{tid: {'Age': int|None, 'Value': int|None, 'Club': str}} for the snapshot. Age is
-    derived from dob vs the snapshot's approx date; Value is the parsed player value (raw
-    units). Wage is NOT parsed from the save, so there's no wage column."""
+    """{tid: {'Age': int|None, 'Value': int|None, 'Club': str}} for the snapshot. Wage is NOT
+    parsed from the save, so there's no wage column here (see contract_info).
+
+    A thin read of mart.player_snapshots, which already computes `age` (birthday-adjusted
+    against the snapshot date, same rule this used to compute inline) and carries value/club
+    — one definition instead of two."""
     tids = [int(t) for t in tids if t is not None]
     if not tids:
         return {}
-    ref = _ref_date(season, phase)
     ph = ",".join("?" * len(tids))
-    df = q(f"SELECT tid, dob, player_value, club FROM staging.players "
+    df = q(f"SELECT tid, age, player_value, club FROM mart.player_snapshots "
            f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
-    out = {}
-    for r in df.itertuples():
-        age = None
-        if pd.notna(r.dob):
-            d = r.dob if isinstance(r.dob, datetime.date) else pd.to_datetime(r.dob).date()
-            age = ref.year - d.year - ((ref.month, ref.day) < (d.month, d.day))
-        out[int(r.tid)] = {
-            "Age": age,
-            "Value": int(r.player_value) if pd.notna(r.player_value) else None,
-            "Club": r.club}
-    return out
+    return {int(r.tid): {"Age": int(r.age) if pd.notna(r.age) else None,
+                         "Value": int(r.player_value) if pd.notna(r.player_value) else None,
+                         "Club": r.club}
+            for r in df.itertuples()}
 
 
 def attach_bio(rows, season, phase, tid_col="tid"):
@@ -840,18 +875,13 @@ def attach_bio(rows, season, phase, tid_col="tid"):
 
 
 def contract_info(season, phase, tids):
-    """{tid: {"Wage": £/yr, "Expiry": ISO date}} for the snapshot. Wage/expiry are
-    migration-added columns (see load_duckdb); on an un-migrated store (e.g. a Bucaspor
-    store not yet re-extracted) they're absent, so return {} and callers just skip them."""
+    """{tid: {"Wage": £/yr, "Expiry": ISO date}} for the snapshot — a thin read of
+    mart.player_snapshots."""
     tids = [int(t) for t in tids]
     if not tids:
         return {}
-    if not _conn().execute(
-            "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
-            "AND table_name='players' AND column_name='wage_gbp'").fetchone():
-        return {}
     ph = ",".join("?" * len(tids))
-    df = q(f"SELECT tid, wage_gbp, contract_expiry FROM staging.players "
+    df = q(f"SELECT tid, wage_gbp, contract_expiry FROM mart.player_snapshots "
            f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
     return {int(r.tid): {"Wage": r.wage_gbp, "Expiry": r.contract_expiry}
             for r in df.itertuples()}
@@ -867,60 +897,48 @@ def player_positions_map(season, phase, tid):
 def player_match_totals(tids):
     """Career (all-season, deduped by latest phase) match-stat totals per player, for the
     given tids. Returns apps/goals/assists/avg rating + attempt & completion sums so
-    callers can show both rates and volume."""
+    callers can show both rates and volume.
+
+    A thin aggregate over mart.match_player_facts, which already resolves the ring-buffer
+    latest-phase-per-season (mart.chosen_match_phase) and the 255-sentinel minutes
+    arithmetic — one definition instead of the two this and match_stats_rows used to carry
+    separately."""
     if not tids:
         return pd.DataFrame()
     ph = ",".join("?" * len(tids))
     return q(f"""
-        WITH chosen AS (
-            WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_player_stats)
-            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                     WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-            FROM mm GROUP BY season)
-        SELECT m.tid,
+        SELECT f.tid,
                COUNT(*) AS apps,
-               SUM(CASE WHEN m.pos_order <= 11 THEN 1 ELSE 0 END) AS starts,
-               SUM(CASE WHEN m.subOff = 255 THEN 90 ELSE m.subOff END
-                   - CASE WHEN m.subOn = 255 THEN 0 ELSE m.subOn END) AS minutes,
-               SUM(m.goals) AS goals, SUM(m.assists) AS assists,
-               ROUND(AVG(m.rating), 2) AS avg_rating,
-               SUM(m.passA) AS passA, SUM(m.passC) AS passC,
-               SUM(m.tackA) AS tackA, SUM(m.tackW) AS tackW,
-               SUM(m.headA) AS headA, SUM(m.headW) AS headW,
-               SUM(m.crossA) AS crossA, SUM(m.crossC) AS crossC,
-               SUM(m.shotA) AS shotA, SUM(m.shotO) AS shotO,
-               SUM(m.intercept) AS intercept, SUM(m.keyPass) AS keyPass
-        FROM staging.match_player_stats m
-        JOIN chosen ch USING (season, phase)
-        WHERE m.tid IN ({ph}) AND (m.pos_order <= 11 OR m.subOn <> 255)
-        GROUP BY m.tid""", [*tids])
+               SUM(CASE WHEN f.started THEN 1 ELSE 0 END) AS starts,
+               SUM(f.minutes) AS minutes,
+               SUM(f.goals) AS goals, SUM(f.assists) AS assists,
+               ROUND(AVG(f.rating), 2) AS avg_rating,
+               SUM(f.passA) AS passA, SUM(f.passC) AS passC,
+               SUM(f.tackA) AS tackA, SUM(f.tackW) AS tackW,
+               SUM(f.headA) AS headA, SUM(f.headW) AS headW,
+               SUM(f.crossA) AS crossA, SUM(f.crossC) AS crossC,
+               SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
+               SUM(f.intercept) AS intercept, SUM(f.keyPass) AS keyPass
+        FROM mart.match_player_facts f
+        WHERE f.tid IN ({ph}) AND f.appeared
+        GROUP BY f.tid""", [*tids])
 
 
 def match_stats_rows(club_tids):
     """Deduped per-player-per-match rows (latest phase per season) for the given clubs'
-    players — the basis for the whole-team match-stat grid."""
+    players — the basis for the whole-team match-stat grid. A thin read of
+    mart.match_player_facts."""
     if not club_tids:
         return pd.DataFrame()
     ph = ",".join("?" * len(club_tids))
     return q(f"""
-        WITH chosen AS (
-            WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_player_stats)
-            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                     WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-            FROM mm GROUP BY season)
-        SELECT m.season, m.tid, m.team_tid, m.opponent_tid, m.date, m.competition,
-               m.rating, m.goals, m.assists, m.passA, m.passC, m.keyPass,
-               m.tackA, m.tackW, m.intercept, m.headA, m.headW, m.crossA, m.crossC,
-               m.dribbles, m.shotA, m.shotO, m.mistakes, m.yellow,
-               (m.pos_order <= 11) AS started,
-               (m.pos_order <= 11 OR m.subOn <> 255) AS appeared,
-               CASE WHEN (m.pos_order <= 11 OR m.subOn <> 255)
-                    THEN (CASE WHEN m.subOff = 255 THEN 90 ELSE m.subOff END)
-                       - (CASE WHEN m.subOn = 255 THEN 0 ELSE m.subOn END)
-                    ELSE 0 END AS minutes
-        FROM staging.match_player_stats m
-        JOIN chosen ch USING (season, phase)
-        WHERE m.team_tid IN ({ph})""", [*club_tids])
+        SELECT season, tid, team_tid, opponent_tid, date, competition,
+               rating, goals, assists, passA, passC, keyPass,
+               tackA, tackW, intercept, headA, headW, crossA, crossC,
+               dribbles, shotA, shotO, mistakes, yellow,
+               started, appeared, minutes
+        FROM mart.match_player_facts
+        WHERE team_tid IN ({ph})""", [*club_tids])
 
 
 def primary_position_map(tids):
@@ -1018,13 +1036,21 @@ GK_OUTPUT_RADAR = ["Pass %", "Passes/90", "KeyP/90", "Yellows/gm"]
 
 
 def enrich_match_rows(rows):
-    """Add player / opponent / pos / unit / squad labels to raw match_stats_rows()."""
+    """Add player / opponent / pos / unit / squad labels to raw match_stats_rows().
+
+    Names are looked up by the exact tids present in `rows` — already correctly scoped to
+    OUR_CLUBS by match_stats_rows (via mart.match_player_facts.team_tid) — rather than by a
+    second `club_tid IN OUR_CLUBS` filter here. That filter would have missed a player whose
+    CURRENT snapshot no longer shows him at our club_tid (he's since left) despite the match
+    stats being genuinely ours; a plain tid lookup finds a name for anyone with match rows,
+    full stop, and never needs to reason about squad membership a second time."""
     if rows is None or rows.empty:
         return rows
     rows = rows.copy()
+    tids = rows["tid"].unique().tolist()
+    ph = ",".join("?" * len(tids))
     names = q(f"SELECT tid, any_value(name) AS name FROM staging.players "
-              f"WHERE club_tid IN ({','.join(str(int(t)) for t in OUR_CLUBS)}) "
-              f"GROUP BY tid")
+              f"WHERE tid IN ({ph}) GROUP BY tid", tids)
     nmap = dict(zip(names["tid"], names["name"]))
     rows["player"] = rows["tid"].map(lambda t: player_label(t, nmap.get(t)))
     clubs = q("SELECT season, tid, name FROM staging.clubs")
@@ -1086,13 +1112,14 @@ def player_match_agg(tids=None):
 
 
 def attributes_rows(season, phase, tids):
-    """Batch {tid: {attribute: value}} for many players in one query (NaN attrs dropped)."""
+    """Batch {tid: {attribute: value}} for many players in one query (NaN attrs dropped) —
+    a thin read of mart.player_snapshots."""
     tids = [int(t) for t in (tids or [])]
     if not tids:
         return {}
     cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
     ph = ",".join("?" * len(tids))
-    df = q(f"SELECT tid, {cols} FROM staging.player_attributes "
+    df = q(f"SELECT tid, {cols} FROM mart.player_snapshots "
            f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
     out = {}
     for _, r in df.iterrows():
@@ -1192,44 +1219,21 @@ MATCH_TEAM_STATS = ["shots", "shots_on_target", "passes", "passes_completed",
 def our_match_history(seasons=None):
     """Per-match frame for the managed club (latest phase per season). Columns: season, date,
     competition, formation, opp_tid, opponent, venue (H/A), gf, ga, result (W/D/L), pts, and
-    our_<stat>/opp_<stat> for MATCH_TEAM_STATS. `seasons` filters (None = all). Shared by the
-    Match-records page, the Team scout head-to-head, and the Records page."""
-    chosen = q("""WITH mm AS (SELECT DISTINCT season, phase FROM staging.matches)
-                  SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                           WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-                  FROM mm GROUP BY season ORDER BY season""")
-    if chosen.empty:
-        return pd.DataFrame()
-    if seasons is not None:
-        chosen = chosen[chosen["season"].isin(list(seasons))]
-    sel_cols = ", ".join(f"home_{k}, away_{k}" for k in MATCH_TEAM_STATS)
-    frames = []
-    for _, r in chosen.iterrows():
-        frames.append(q(
-            f"""SELECT season, date, competition, formation, home_tid, away_tid,
-                       score_home, score_away, {sel_cols}
-                FROM staging.matches
-                WHERE season=? AND phase=? AND (home_tid=? OR away_tid=?)""",
-            [int(r.season), r.phase, MANAGED_CLUB_TID, MANAGED_CLUB_TID]))
-    m = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-    if m.empty:
-        return m
-    clubs = q("SELECT season, tid, name FROM staging.clubs")
-    cmap = {(s, t): n for s, t, n in zip(clubs["season"], clubs["tid"], clubs["name"])}
-    home = m["home_tid"] == MANAGED_CLUB_TID
-    m["opp_tid"] = m["away_tid"].where(home, m["home_tid"])
-    m["opponent"] = [cmap.get((s, t)) or f"#{int(t)}"
-                     for s, t in zip(m["season"], m["opp_tid"])]
-    m["venue"] = home.map({True: "H", False: "A"})
-    m["gf"] = m["score_home"].where(home, m["score_away"])
-    m["ga"] = m["score_away"].where(home, m["score_home"])
-    m["result"] = m.apply(lambda r: "W" if r.gf > r.ga else ("D" if r.gf == r.ga else "L"),
-                          axis=1)
-    m["pts"] = m["result"].map({"W": 3, "D": 1, "L": 0})
-    for k in MATCH_TEAM_STATS:
-        m[f"our_{k}"] = m[f"home_{k}"].where(home, m[f"away_{k}"])
-        m[f"opp_{k}"] = m[f"away_{k}"].where(home, m[f"home_{k}"])
-    return m
+    our_<stat>/opp_<stat> for MATCH_TEAM_STATS (plus a few extra mart.club_matches carries:
+    phase, anchor, is_competitive, comp_id, attendance). `seasons` filters (None = all).
+    Shared by the Match-records page, the Team scout head-to-head, and the Records page.
+
+    A thin filter over mart.club_matches now, not a from-scratch computation — that view
+    already does the latest-phase-per-season resolution and the home/away flip for ANY club,
+    generalising what this function used to do only for us, in a per-season Python loop
+    (mart.club_matches's own comment names this exact function as what it replaced). It also
+    resolves the opponent name WITHIN the match's own snapshot, fixing a tid-recycling edge
+    case the old Python version's (season, tid)-only name map didn't guard against."""
+    df = q("SELECT * FROM mart.club_matches WHERE club_tid = ? ORDER BY date",
+           [MANAGED_CLUB_TID])
+    if seasons is not None and not df.empty:
+        df = df[df["season"].isin(list(seasons))]
+    return df
 
 
 def player_injuries(season):
@@ -1466,30 +1470,31 @@ def player_loan_spells(tid):
                     "bounded": False, "ongoing": bool(newest and b >= newest)})
     out.extend(hist)
 
-    if _conn().execute(
-            "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
-            "AND table_name='players' AND column_name='loaned_in'").fetchone():
-        ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
-        obs = q(f"SELECT season, phase, loaned_in, parent_club FROM staging.players "
-                f"WHERE tid=? AND club_tid IN ({ph}) AND NOT is_staff", [int(tid)])
-        if not obs.empty:
-            obs = add_phase_date(obs)
-            latest = obs["date"].max()
-            run = None
-            for r in obs.itertuples():           # runs of consecutive loaned-in observations
-                if r.loaned_in:
-                    if run is None:
-                        run = {"kind": "in", "club": r.parent_club, "season": int(r.season),
-                               "start": r.date.date(), "end": r.date.date(), "apps": None,
-                               "goals": None, "bounded": True, "ongoing": False}
-                    else:
-                        run["end"] = r.date.date()
-                elif run is not None:
-                    out.append(run); run = None
-            if run is not None:
-                # loaned in as of the newest snapshot — the spell hasn't been seen to end
-                run["ongoing"] = run["end"] == latest.date()
-                out.append(run)
+    # Source 3: mart.loan_in_spells — one spell per SEASON actually appeared for us, already
+    # appearance-gated (see its docstring). This used to reconstruct runs of consecutive
+    # `staging.players.loaned_in` observations instead, which is exactly the flag this whole
+    # file otherwise refuses to trust: it's set once and never cleared, so a lapsed loan-in
+    # read as one giant "ongoing" run stretching from the real loan to the newest snapshot,
+    # years after it ended (the Nuamah case — see club_attributes()'s docstring).
+    li = q("SELECT season, valid_from, valid_to FROM mart.loan_in_spells "
+           "WHERE tid=? ORDER BY valid_from", [int(tid)])
+    if not li.empty:
+        # The spell table doesn't carry the parent club (only that a genuine loan-in window
+        # exists) — recover it from any snapshot whose date falls inside the window.
+        pc = q("SELECT phase_date, parent_club FROM mart.player_snapshots "
+               "WHERE tid=? AND parent_club IS NOT NULL", [int(tid)])
+        for r in li.itertuples():
+            vfrom = pd.Timestamp(r.valid_from).date()
+            vto = pd.Timestamp(r.valid_to).date()
+            club = None
+            if not pc.empty:
+                m = pc[(pc["phase_date"] >= r.valid_from) & (pc["phase_date"] <= r.valid_to)]
+                if not m.empty:
+                    club = m.iloc[0]["parent_club"]
+            out.append({"kind": "in", "club": club, "season": int(r.season),
+                       "start": vfrom, "end": vto, "apps": None, "goals": None,
+                       "bounded": True,
+                       "ongoing": bool(newest and vfrom <= newest <= vto)})
 
     if not out:
         return pd.DataFrame(columns=cols)
@@ -1572,8 +1577,8 @@ def role_benchmarks(role, method, scope, league_cid=None, min_fam=None):
         ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
         sql = f"""
             WITH eff AS ({eff}),
-            pop AS (SELECT season, phase, tid FROM staging.players
-                    WHERE club_tid IN ({ph}) AND NOT is_staff)
+            pop AS (SELECT season, phase, tid FROM mart.snapshot_squad
+                    WHERE club_tid IN ({ph}))
             SELECT e.season, e.phase, MAX(e.eff) AS best,
                    MEDIAN(e.eff) AS median, COUNT(*) AS n
             FROM eff e JOIN pop USING (season, phase, tid)
@@ -1638,10 +1643,10 @@ def squad_role_ranking(season, phase, role, method, min_fam=None):
     ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
     return q(f"""
         WITH eff AS ({_eff_role_cte()})
-        SELECT e.tid, any_value(p.name) AS name, MAX(e.eff) AS rating, MAX(e.fam) AS fam
+        SELECT e.tid, any_value(ss.name) AS name, MAX(e.eff) AS rating, MAX(e.fam) AS fam
         FROM eff e
-        JOIN staging.players p USING (season, phase, tid)
-        WHERE e.season=? AND e.phase=? AND p.club_tid IN ({ph}) AND NOT p.is_staff
+        JOIN mart.snapshot_squad ss USING (season, phase, tid)
+        WHERE e.season=? AND e.phase=? AND ss.club_tid IN ({ph})
         GROUP BY e.tid
         ORDER BY rating DESC""", [method, role, min_fam, season, phase])
 
@@ -1667,24 +1672,25 @@ def player_role_series(tids, role, method, min_fam=1):
 def our_penalties(seasons=None):
     """Chronological penalties taken by our players (from match_events, latest phase per
     season, joined to match dates). Columns: season, date, minute, seq, tid, player,
-    made (bool: 'penalty'=scored, 'missed_penalty'=missed). For penalty-streak records."""
+    made (bool: 'penalty'=scored, 'missed_penalty'=missed). For penalty-streak records.
+
+    "Ours" is `mart.match_player_facts.team_tid` — which team a player actually turned out
+    for in THIS match — not a raw `staging.players.club_tid` filter (the same lapsed-loan
+    ghost trap as everywhere else: `WHERE club_tid IN (us)` would keep crediting a penalty
+    to someone long after he left, and would just as easily miss one from before a since-lost
+    tid recycling). `match_player_facts` is already restricted to the latest phase per season
+    (`mart.chosen_match_phase`), so joining to it also retires the hand-rolled ring-buffer CTE
+    this used to carry."""
     df = q("""
-        WITH ours AS (SELECT DISTINCT tid FROM staging.players WHERE club_tid IN (?, ?)),
-             chosen AS (
-               WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_events)
-               SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                        WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-               FROM mm GROUP BY season),
-             nm AS (SELECT tid, any_value(name) AS name FROM staging.players GROUP BY tid)
-        SELECT e.season, m.date, m.competition, e.minute, e.seq, e.tid, nm.name AS player,
+        WITH nm AS (SELECT tid, any_value(name) AS name FROM staging.players GROUP BY tid)
+        SELECT f.season, f.date, f.competition, e.minute, e.seq, f.tid, nm.name AS player,
                (e.type = 'penalty') AS made
-        FROM staging.match_events e
-        JOIN chosen ch USING (season, phase)
-        JOIN staging.matches m ON (e.season, e.phase, e.anchor) = (m.season, m.phase, m.anchor)
-        JOIN ours o ON e.tid = o.tid
-        LEFT JOIN nm ON nm.tid = e.tid
-        WHERE e.type IN ('penalty', 'missed_penalty')
-        ORDER BY m.date, e.minute, e.seq""", [MANAGED_CLUB_TID, RESERVE_CLUB_TID])
+        FROM mart.match_player_facts f
+        JOIN staging.match_events e
+             ON (e.season, e.phase, e.anchor, e.tid) = (f.season, f.phase, f.anchor, f.tid)
+        LEFT JOIN nm ON nm.tid = f.tid
+        WHERE f.team_tid IN (?, ?) AND e.type IN ('penalty', 'missed_penalty')
+        ORDER BY f.date, e.minute, e.seq""", [MANAGED_CLUB_TID, RESERVE_CLUB_TID])
     if seasons is not None and not df.empty:
         df = df[df["season"].isin(list(seasons))]
     return df
@@ -1694,22 +1700,21 @@ def our_goal_events(seasons=None):
     """Ordered goal-type match_events for our matches (latest phase per season) with our
     perspective. Columns: season, date, competition, anchor, minute, seq, our_goal (bool —
     goal for us), venue, opponent, gf, ga, result. Events reconcile the scoreline ~99%, so a
-    per-match running score is reliable (biggest-comeback records)."""
+    per-match running score is reliable (biggest-comeback records).
+
+    `by_us` is `mart.match_player_facts.team_tid`, same reasoning as `our_penalties` — not a
+    raw club_tid filter."""
     df = q("""
-        WITH ours AS (SELECT DISTINCT tid FROM staging.players WHERE club_tid IN (?, ?)),
-             chosen AS (WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_events)
-                        SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00'
-                                 WHEN 'mid' THEN '0000-00-01' WHEN 'end' THEN '0000-00-02' ELSE phase END)
-                                 AS phase FROM mm GROUP BY season)
-        SELECT e.season, m.date, m.competition, e.anchor, e.minute, e.seq, e.type,
+        SELECT f.season, f.date, f.competition, f.anchor, e.minute, e.seq, e.type,
                (m.home_tid = ?) AS us_home, m.home_tid, m.away_tid,
-               m.score_home, m.score_away, (e.tid IN (SELECT tid FROM ours)) AS by_us
-        FROM staging.match_events e
-        JOIN chosen ch USING (season, phase)
+               m.score_home, m.score_away, (f.team_tid IN (?, ?)) AS by_us
+        FROM mart.match_player_facts f
+        JOIN staging.match_events e
+             ON (e.season, e.phase, e.anchor, e.tid) = (f.season, f.phase, f.anchor, f.tid)
         JOIN staging.matches m ON (e.season, e.phase, e.anchor) = (m.season, m.phase, m.anchor)
         WHERE (m.home_tid = ? OR m.away_tid = ?) AND e.type IN ('goal', 'penalty', 'own_goal')
-        ORDER BY m.date, e.anchor, e.minute, e.seq""",
-           [MANAGED_CLUB_TID, RESERVE_CLUB_TID, MANAGED_CLUB_TID,
+        ORDER BY m.date, f.anchor, e.minute, e.seq""",
+           [MANAGED_CLUB_TID, MANAGED_CLUB_TID, RESERVE_CLUB_TID,
             MANAGED_CLUB_TID, MANAGED_CLUB_TID])
     if df.empty:
         return df
@@ -1730,7 +1735,21 @@ def our_goal_events(seasons=None):
 
 
 def club_attributes(season, phase, club_tids):
-    """Per-player 23 attributes + club_tid for the given clubs."""
+    """Per-player 23 attributes + club_tid for the given clubs.
+
+    Filters on GENUINE presence via `mart.snapshot_squad` — the general form of
+    `mart.squad_current`/`squad_on` (which only cover `mart.our_clubs`) — rather than the raw
+    `staging.players.club_tid`. That field is a per-snapshot fact but `loaned_in`/`loaned_out`
+    next to it is a flag the save sets once and never clears, so a loan that lapsed without
+    being renewed can leave a departed player's `club_tid` still pointing at his old club
+    indefinitely. Confirmed on real data: Ernest Nuamah's loan_in spell for us ended
+    2023-06-30, but his snapshot row at 2024-11-10 still read `club_tid=346, loaned_in=True`
+    — he'd have shown up as one of OUR players in a report a full 16 months after leaving.
+    `mart.snapshot_squad` is the single mart-level definition of "genuinely here" for any
+    club at any snapshot — a remote agent querying the published store gets the identical
+    answer via plain SQL, no Python needed. This is the single choke point every
+    club_tid-filtered per-player pull merges through (`squad_frame`, `team_attribute_frame`),
+    so fixing it here fixes all of them."""
     if not club_tids:
         return pd.DataFrame()
     cols = ", ".join(f'pa."{a}"' for a in ATTR_ORDER)
@@ -1738,8 +1757,12 @@ def club_attributes(season, phase, club_tids):
     return q(f"""SELECT p.tid, p.club_tid, {cols}
                  FROM staging.player_attributes pa
                  JOIN staging.players p USING (season, phase, tid)
+                 JOIN mart.snapshot_squad ss
+                      ON (ss.season, ss.phase, ss.tid, ss.club_tid)
+                       = (p.season, p.phase, p.tid, p.club_tid)
                  WHERE pa.season=? AND pa.phase=? AND p.club_tid IN ({ph})
-                   AND NOT p.is_staff""", [season, phase, *club_tids])
+                   AND NOT p.is_staff
+              """, [season, phase, *club_tids])
 
 
 # --------------------------------------------------------------------------- scouting
@@ -1870,25 +1893,44 @@ def _best_xi(frame_club):
 
 def team_strength(frame, club_tid):
     """(unit-strength DataFrame, team dict) for a club from a _scout_frame. Aggregates its
-    best XI: index = mean position-index (100 = league-average player per position);
-    pctile = mean league percentile. Both are cross-position comparable."""
+    best XI: index = mean position-index (100 = league-average player per position),
+    tactic-weighted by whichever `method` built the frame; pctile = mean league Fit
+    percentile, same weighting. Both are cross-position comparable, but both answer "how
+    does this attribute set score under OUR tactic's role weights" — meaningful for judging
+    how a group of players suits a system, not for judging a stranger's underlying quality.
+
+    `quality` is the tactic-agnostic sibling: mean Level %ile (`level_league`, CA-derived,
+    immersion-safe) — the number to reach for when the question is "how good is this unit,
+    full stop" rather than "how well does it fit a tactic neither of us confirmed they run."
+    Use `index`/`pctile` for our own squad (we DO run this tactic); use `quality` to size up
+    an opponent."""
     xi = _best_xi(frame[frame["club_tid"] == club_tid]) if not frame.empty else frame
+    has_level = not xi.empty and "level_league" in xi.columns
     rows = []
     for unit in ["Defense", "Midfield", "Attack", "GK"]:
         u = xi[xi["unit"] == unit] if not xi.empty else xi
         rows.append({"unit": unit, "n": len(u),
                      "index": round(u["pos_index"].mean(), 1) if len(u) else None,
-                     "pctile": round(u["pctile_league"].mean(), 0) if len(u) else None})
+                     "pctile": round(u["pctile_league"].mean(), 0) if len(u) else None,
+                     "quality": (round(u["level_league"].mean(), 0)
+                                if len(u) and has_level else None)})
     team = {"index": round(xi["pos_index"].mean(), 1) if not xi.empty else None,
             "pctile": round(xi["pctile_league"].mean(), 0) if not xi.empty else None,
+            "quality": (round(xi["level_league"].mean(), 0)
+                       if not xi.empty and has_level else None),
             "n": len(xi) if not xi.empty else 0}
     return pd.DataFrame(rows), team
 
 
-def squad_key_players(frame, club_tid, method):
-    """A club's players ranked by position index (cross-position fair), each with his most
+def squad_key_players(frame, club_tid, method, rank_by="pos_index"):
+    """A club's players ranked by `rank_by` (cross-position fair), each with his most
     threat-defining attributes inline (`top_attrs`). Columns: tid, name, position, eff,
     pos_index, pctile_league, top_attrs. Powers both opponent danger men and our own standouts.
+
+    Default `rank_by="pos_index"` (tactic Fit, i.e. how good under OUR role weights) is right
+    for OUR OWN squad — we run this tactic. For an OPPONENT, rank by `"level_league"` instead
+    (tactic-agnostic Level %ile) — their most dangerous player is whoever is best full stop,
+    not whoever would fit best into a system they don't play. `scout_report` does this.
 
     `name` is carried because opponent names ARE resolved now — the ETL's id-resolver names every
     club, not just ours. This dropped the column, so a briefing could only ever say "their DMC"
@@ -1896,9 +1938,11 @@ def squad_key_players(frame, club_tid, method):
     of = frame[frame["club_tid"] == club_tid] if not frame.empty else frame
     if of.empty:
         return pd.DataFrame()
+    if rank_by not in of.columns:
+        rank_by = "pos_index"
     rel = {pos: {a: w for a, w in role_weight_map(method, role).items() if w >= 2}
            for pos, role in pos_role_map().items()}
-    ofs = of.sort_values("pos_index", ascending=False)
+    ofs = of.sort_values(rank_by, ascending=False)
     cols = ["tid", "position", "eff", "pos_index", "pctile_league"]
     if "name" in ofs.columns:
         cols.insert(1, "name")
@@ -1941,9 +1985,46 @@ def _scout_unit_tables(frame, us, opp):
     return pd.DataFrame(grp_rows), pd.DataFrame(attr_rows)
 
 
-def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
-    """Rule-based auto-read: squad strength (position-index), H2H verdict, per-unit edges,
-    danger men, and the opponent's exploitable defensive soft-spots. Returns strings."""
+# A back line never plays a back line — it plays the opposition's front line. `strength`
+# pairs each unit with itself (Defense-us vs Defense-them) because that's the natural shape
+# of "how does each line individually rank", but it answers a different question than "who
+# wins this particular ON-PITCH contest". These are the pairings that actually meet:
+# our attack against their defense, their attack against our defense, and midfield against
+# midfield (the one unit that does contest itself). `us_unit`/`them_unit` name which row of
+# `strength` each side of the matchup comes from.
+FACE_OFFS = [
+    ("Our attack vs their defense", "Attack", "Defense"),
+    ("Their attack vs our defense", "Defense", "Attack"),
+    ("Midfield (contested)", "Midfield", "Midfield"),
+]
+
+
+def matchup_table(us_units, op_units):
+    """Face-off unit comparison from the two `team_strength` outputs — see FACE_OFFS. Uses
+    `quality` (mean Level %ile, tactic-agnostic) as the headline number: a face-off asks how
+    good their front line is against how good our back line is, not how well either fits a
+    tactic only one of us actually runs. `us_fit`/`them_fit` (pos_index, OUR role weights)
+    ride along for whoever's side of the row is genuinely playing that tactic — us."""
+    us_by_unit = {r["unit"]: r for _, r in us_units.iterrows()} if not us_units.empty else {}
+    op_by_unit = {r["unit"]: r for _, r in op_units.iterrows()} if not op_units.empty else {}
+    rows = []
+    for label, us_unit, them_unit in FACE_OFFS:
+        u, t = us_by_unit.get(us_unit), op_by_unit.get(them_unit)
+        uq = u["quality"] if u is not None else None
+        tq = t["quality"] if t is not None else None
+        rows.append({
+            "matchup": label, "us_unit": us_unit, "them_unit": them_unit,
+            "us_quality": uq, "them_quality": tq,
+            "edge": (round(uq - tq, 1) if pd.notna(uq) and pd.notna(tq) else None),
+            "us_fit": u["index"] if u is not None else None,
+            "them_fit": t["index"] if t is not None else None,
+        })
+    return pd.DataFrame(rows)
+
+
+def _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups=None):
+    """Rule-based auto-read: squad strength (position-index), H2H verdict, face-off matchup
+    edges, danger men, and the opponent's exploitable defensive soft-spots. Returns strings."""
     F = []
     if coverage["partial"]:
         F.append(f"⚠️ PARTIAL DATA — only {coverage['in_frame']} rated players "
@@ -1967,26 +2048,18 @@ def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
             F.append(f"✅ We own them ({rec}, {h2h['ppg']:.2f} ppg).")
         else:
             F.append(f"H2H: {rec} ({h2h['ppg']:.2f} ppg).")
-    if not strength.empty:
-        for _, r in strength[strength["unit"] != "TEAM"].iterrows():
+    if matchups is not None and not matchups.empty:
+        for _, r in matchups.iterrows():
             if pd.isna(r["edge"]):
                 continue
-            ua = attrs_df[(attrs_df["unit"] == r["unit"]) & attrs_df["edge"].notna()] \
-                if not attrs_df.empty else attrs_df
-            detail = ""
-            if not ua.empty:
-                ours = ", ".join(ua.sort_values("edge", ascending=False).head(2)["attribute"])
-                theirs = ", ".join(ua.sort_values("edge").head(2)["attribute"])
-                detail = f" Our edge: {ours}. Theirs: {theirs}."
-            side = "we lead" if r["edge"] >= 0 else "they lead"
-            F.append(f"{r['unit']}: {side} ({_fmt_edge(r['edge'])} idx).{detail}")
+            side = "favours us" if r["edge"] >= 0 else "favours them"
+            F.append(f"{r['matchup']}: {side} ({_fmt_edge(r['edge'])} quality %ile).")
     if key_players is not None and not key_players.empty:
         men = []
         for _, r in key_players.head(3).iterrows():
-            pcl = r.get("pctile_league")
-            men.append(f"{r['position']} (idx {r['pos_index']:.0f}"
-                       + (f", {pcl:.0f}%ile)" if pd.notna(pcl) else ")"))
-        F.append(f"Danger men: {', '.join(men)}.")
+            lvl = r.get("level_league")
+            men.append(f"{r['position']}" + (f" ({lvl:.0f}%ile)" if pd.notna(lvl) else ""))
+        F.append(f"Danger men (by Level %ile, tactic-agnostic): {', '.join(men)}.")
     if not attrs_df.empty:
         td = attrs_df[attrs_df["unit"] == "Defense"].set_index("attribute")["them"]
         soft = [f"{lbl} ({a} {td[a]:.0f})" for a, thr, lbl in _DEF_SOFT
@@ -1998,10 +2071,22 @@ def _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage):
 
 def scout_report(opp_tid, season=None, phase=None, method=None):
     """Structured opposition report (dicts + DataFrames, no rendering). Sections: opp,
-    season/phase/method, coverage, overall (position-index team rating + league %ile),
-    strength (per-unit index/%ile us-vs-them, best XI), units + unit_attrs (attribute
-    edges), key_players (their squad ranked by position index, cross-position fair),
-    standouts, h2h, and flags. Shared by the CLI and the Team scout tab."""
+    season/phase/method, coverage, overall (team index/%ile us-vs-them, both flavours —
+    see below), strength (per-unit index/%ile/quality us-vs-them, best XI — same-unit,
+    "how strong is each line in isolation"), matchups (face-off unit pairs — see
+    matchup_table, "who wins the contest that actually happens on the pitch"), units +
+    unit_attrs (attribute edges), key_players (their squad ranked by Level %ile — quality,
+    not fit under our tactic — cross-position fair), h2h, and flags. Shared by the CLI and
+    the Team scout tab.
+
+    Two ratings run through this report and they answer different questions. `index`/`pctile`
+    (pos_index / pctile_league) are OUR tactic's role-weighted Fit — right for judging how a
+    group of players suits a system, which is only true of OUR own squad; applying it to an
+    opponent silently asks "how good would they be playing our system", not "how good are
+    they". `quality` (level_league, mean Level %ile) is CA-derived and tactic-agnostic — the
+    one to reach for when sizing up a stranger. `overall`/`strength` keep both; `matchups`
+    and `key_players` (for the opponent) default to `quality` because that's the question a
+    scouting report is actually asking."""
     # method=None means "this career's configured tactic". It used to default to the string
     # "buca_433", which is the archived Turkish career's weight-set: against any other store it
     # matched nothing in role_weights, so every rating came back empty and the report degraded
@@ -2027,22 +2112,31 @@ def scout_report(opp_tid, season=None, phase=None, method=None):
     # position-normalised team & unit strength (best XI) for both clubs
     us_units, us_team = team_strength(frame, us)
     op_units, op_team = team_strength(frame, opp_tid)
+    matchups = matchup_table(us_units, op_units)   # the face-off pairing — see FACE_OFFS
     strength = us_units.merge(op_units, on="unit", suffixes=("_us", "_them"))
     strength = strength.rename(columns={"index_us": "us", "index_them": "them",
-                                        "pctile_us": "us_pctile", "pctile_them": "them_pctile"})
+                                        "pctile_us": "us_pctile", "pctile_them": "them_pctile",
+                                        "quality_us": "us_quality", "quality_them": "them_quality"})
     strength["edge"] = (strength["us"] - strength["them"]).round(1)
+    strength["quality_edge"] = (strength["us_quality"] - strength["them_quality"]).round(1)
     ti, oi = us_team["index"], op_team["index"]
+    tq, oq = us_team["quality"], op_team["quality"]
     strength = pd.concat([strength, pd.DataFrame([{
         "unit": "TEAM", "us": ti, "them": oi, "us_pctile": us_team["pctile"],
-        "them_pctile": op_team["pctile"], "n_us": us_team["n"], "n_them": op_team["n"],
-        "edge": (round(ti - oi, 1) if ti is not None and oi is not None else None)}])],
+        "them_pctile": op_team["pctile"], "us_quality": tq, "them_quality": oq,
+        "n_us": us_team["n"], "n_them": op_team["n"],
+        "edge": (round(ti - oi, 1) if ti is not None and oi is not None else None),
+        "quality_edge": (round(tq - oq, 1) if pd.notna(tq) and pd.notna(oq) else None)}])],
         ignore_index=True)
     overall = {"us": ti, "them": oi, "us_pctile": us_team["pctile"],
-               "them_pctile": op_team["pctile"]}
+               "them_pctile": op_team["pctile"], "us_quality": tq, "them_quality": oq}
 
     groups_df, attrs_df = _scout_unit_tables(frame, us, opp_tid)
 
-    key_players = squad_key_players(frame, opp_tid, method)   # ranked by index, attrs inline
+    # ranked by Level %ile (tactic-agnostic quality), not our tactic's Fit — their most
+    # dangerous player is whoever is best full stop, not whoever suits a system they don't
+    # play. See squad_key_players' docstring.
+    key_players = squad_key_players(frame, opp_tid, method, rank_by="level_league")
 
     hist = our_match_history()
     h = hist[hist["opp_tid"] == opp_tid].sort_values(["season", "date"]) if not hist.empty \
@@ -2056,11 +2150,11 @@ def scout_report(opp_tid, season=None, phase=None, method=None):
     else:
         h2h = {"played": 0, "matches": h}
 
-    flags = _scout_flags(overall, strength, attrs_df, key_players, h2h, coverage)
+    flags = _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups)
     return {"opp": {"tid": opp_tid, "name": opp_name}, "season": season, "phase": phase,
             "method": method, "coverage": coverage, "overall": overall, "strength": strength,
-            "units": groups_df, "unit_attrs": attrs_df, "key_players": key_players,
-            "h2h": h2h, "flags": flags}
+            "matchups": matchups, "units": groups_df, "unit_attrs": attrs_df,
+            "key_players": key_players, "h2h": h2h, "flags": flags}
 
 
 # --------------------------------------------------------------------------- scout log
@@ -2143,6 +2237,7 @@ def save_scout(report, venue=None, formation=None, style=None, note=None, saved_
         "venue": venue, "formation": formation, "style": style, "note": note,
         "overall": report["overall"], "coverage": report["coverage"],
         "strength": report["strength"].to_dict("records"),
+        "matchups": report["matchups"].to_dict("records"),
         "flags": report["flags"],
         "key_players": (report["key_players"].head(8).to_dict("records")
                         if not report["key_players"].empty else []),
