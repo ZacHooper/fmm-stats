@@ -47,11 +47,17 @@ then just `LOAD httpfs;` (no `INSTALL`) picks it up from the local cache. Re-ven
     rclone copyto ~/.duckdb/extensions/v$v/linux_amd64/httpfs.duckdb_extension \
         r2:fmm-stats/vendor/duckdb-extensions/v$v/linux_amd64/httpfs.duckdb_extension
 
-The published copy is a SCRUBBED CLONE, never the live store: staging.players.ca/.pa (raw
-ability) are NULLed here before upload. That's the same immersion house rule export_data.py
-enforces for the JSON API (see CLAUDE.md) — applied at the row level, because raw SQL access
-has no per-field filter to hide behind once it's shipped. The live store is opened read-only
-and is never itself touched.
+The published copy carries staging.players.ca/.pa (raw ability) UNCHANGED — it is not scrubbed.
+The immersion house rule (CLAUDE.md: never SURFACE the raw ability number) is enforced at the
+presentation layer — the dashboard, the skills, and export_data.py's JSON API (checked at build
+time by scripts/build_site.py) — not by hiding the column from SQL. A query against this store
+can compute Level %ile / Fit ratings same as a local rebuild; it just shouldn't print the raw
+`ca`/`pa` value in a report, same rule that already applies everywhere else. (Before
+2026-09-01 this script also NULLed ca/pa here, which meant mart.player_position_fit and
+mart.player_position_levels — both of which require ca — came back EMPTY against this copy:
+a remote scout report always read "0 rated players" regardless of the opponent. That's why the
+scrub was dropped, not a change to what gets surfaced.) The live store is opened read-only and
+is never itself touched.
 
 Like all.json, this is a derived, R2-only artefact — NOT git (see the storage-tiers table in
 CLAUDE.md). Re-run after every import that you want reflected remotely.
@@ -85,9 +91,6 @@ import duckdb
 # remote-duckdb-access.md, site/AGENTS.md) keeps working against the identical schema. The
 # RLE tables sit behind it as staging._rle_<table>. Verified row-for-row with a symmetric
 # EXCEPT ALL against the source before upload — this refuses to publish otherwise.
-#
-# Scrubbing runs BEFORE compaction, deliberately: NULLing ca/pa first makes those columns
-# constant, so rows differing only by ability collapse together and dedupe a little harder.
 #
 # player_history measured 1.0x (no duplication at all — every row is snapshot-unique), where
 # the two extra run columns cost more than dedupe saves, so it is left as a plain table.
@@ -153,9 +156,6 @@ sys.path.insert(0, os.path.join(REPO, "scripts"))
 import _dbopen                                                          # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
-# Table, columns to NULL. Only staging.players carries raw ability — see CLAUDE.md's immersion
-# house rule and load_duckdb.py's schema (ca/pa are not duplicated anywhere else).
-SCRUB = [("staging.players", ["ca", "pa"])]
 
 
 def main():
@@ -194,13 +194,6 @@ def main():
         shutil.copy2(used, dest)
 
         con = duckdb.connect(dest)
-        for table, cols in SCRUB:
-            sets = ", ".join(f"{c} = NULL" for c in cols)
-            n = con.execute(f"SELECT COUNT(*) FROM {table} "
-                            f"WHERE {' OR '.join(f'{c} IS NOT NULL' for c in cols)}").fetchone()[0]
-            con.execute(f"UPDATE {table} SET {sets}")
-            print(f"  scrubbed {', '.join(cols)} on {n} rows in {table}")
-        con.execute("CHECKPOINT")
         if not a.no_compact:
             before = os.path.getsize(dest)
             done, n_src, n_rle = compact(con)

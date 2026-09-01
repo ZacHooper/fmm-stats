@@ -145,7 +145,7 @@ check against a screenshot.
    ```bash
    uv run python scripts/export_manifest.py                          # refresh the rebuild recipe
    uv run python scripts/export_data.py --upload-all                 # -> site/api/*.json + R2 all.json
-   uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2 full copy, scrubbed (~34 MB)
+   uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2 full copy (~34 MB)
    uv run python scripts/publish_mart.py   --career frem --upload    # -> R2 analysis copy (~24 MB)
    # BOTH R2 copies are needed: publish_duckdb ships `staging` (+ the `mart` schema) for
    # re-derivation, publish_mart ships the mart alone for analysis. They are SEPARATE

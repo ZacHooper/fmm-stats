@@ -283,10 +283,15 @@ for a player's season goals can come back **10-20× too high**.
    `player_snapshots`/`players`/`player_position_levels` — it will include names who left the
    club, sometimes years ago (Haarbo, Nuamah and 4 others in this store, as of writing).
 
-This is a *scrubbed* copy — `staging.players.ca`/`.pa` (raw ability) are already NULLed before
-publish, so the immersion rule above still holds; there is no extra care needed on your part.
-Everything else in the store (attributes, matches, history, contracts, …) is queryable, which
-covers questions the JSON files above don't shape an answer for.
+**This copy is NOT scrubbed** — `staging.players.ca`/`.pa` (raw ability) are present and
+queryable, same as a local store, since Level %ile / Fit ratings (`mart.player_position_fit`,
+`mart.player_position_levels`) both need `ca` to compute and came back completely empty when
+this copy used to NULL it out. That means the immersion rule above is now YOUR responsibility
+here, not something the export already handled for you: `SELECT ca FROM staging.players` will
+return a real number, and the house rule says don't put it in front of the manager. Compute with
+it (ratings, percentiles, ranks) freely; never print the raw value itself — same as everywhere
+else in this project. Everything else in the store (attributes, matches, history, contracts, …)
+is queryable, which covers questions the JSON files above don't shape an answer for.
 
 ## Task guides
 

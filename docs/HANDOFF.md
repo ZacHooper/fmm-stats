@@ -1,7 +1,8 @@
 # Handoff — continue exactly where we are
 
-Paste-ready context for a fresh agent. **Last updated 2026-08-30 (Phase 4: squad registration —
-the Danish A/B-list rules as a house rule — SHIPPED. Phase 3, direct-R2 SQL access, DONE).**
+Paste-ready context for a fresh agent. **Last updated 2026-09-01 (the published DuckDB copy is
+no longer ca/pa-scrubbed — see the note at the end of Phase 3. Phase 4: squad registration — the
+Danish A/B-list rules as a house rule — SHIPPED. Phase 3, direct-R2 SQL access, DONE).**
 
 Read [`CLAUDE.md`](../CLAUDE.md) first, then
 [`docs/agent-context/MEMORY.md`](agent-context/MEMORY.md) which indexes the durable notes. This
@@ -220,6 +221,21 @@ doesn't fire yet. `CLAUDE.md` now also tells an agent to `ATTACH` the R2 copy di
 quick question instead of defaulting to a local rebuild, and `site/AGENTS.md` documents two
 dedup traps in the raw schema (`match_player_stats` is a ring buffer; `staging.players` is one
 row per snapshot, not per player) that make a naive query silently wrong by 10-20×.
+
+**2026-09-01: the published full-store copy is no longer scrubbed.** `scripts/publish_duckdb.py`
+used to NULL `staging.players.ca`/`.pa` before upload. Found via a real scouting session: that
+made `mart.player_position_fit`/`player_position_levels` (both need `ca`) return EMPTY against
+the R2 copy — a remote `db.scout_report()` always showed "0 rated players", for every opponent,
+regardless of history. The user's call: the immersion rule is about not *surfacing* the number
+in a dashboard/report, not about hiding it from SQL — so the scrub is gone, raw `ca`/`pa` now
+ship in `site-data/fm-<career>.duckdb`, and CLAUDE.md/site/AGENTS.md/DEPLOY.md were updated to
+say so and to remind a remote agent the "never print it" rule is now its own responsibility
+there rather than structurally enforced. The JSON export (`site/api/*.json`, what the deployed
+web app actually shows) is unaffected — `scripts/build_site.py`'s build-time raw-ability check
+still guards that path. Not yet re-published as of this note — the store on R2 is still the old
+scrubbed one until the next `publish_duckdb.py --upload` runs (needs a full rebuild first if
+every snapshot should reflect it, or a plain re-run against the current local store for just the
+latest snapshot).
 
 ---
 

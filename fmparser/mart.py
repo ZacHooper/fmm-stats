@@ -412,9 +412,12 @@ FROM (
 #      publish_mart.verify(), which matches on column NAMES, while being a plain immersion
 #      leak. Baking min_fam into a two-valued column instead would narrow a real feature to
 #      dodge that, which is worse than leaving the helpers where they are.
-#   2. It could not work in the published artifact anyway — `ca` is scrubbed there by design.
-#      This is exactly why positions.json ships a RENDERED ANSWER (ranks and verdicts) rather
-#      than data: the question is only answerable on a machine with the full store.
+#   2. The published MART-ONLY artifact (fm-<career>-mart.duckdb) never carries `ca` at all —
+#      not scrubbed, just never selected by any mart view — so these helpers still can't run
+#      against it; ATTACH the full store (fm-<career>.duckdb, published unscrubbed since
+#      2026-09-01) instead. This is exactly why positions.json ships a RENDERED ANSWER (ranks
+#      and verdicts) rather than data: the mart-only artifact everything else reads from can't
+#      answer this one.
 #
 # What those helpers DO take from the mart is mart.club_leagues, so the club->league rule has
 # one definition. The ranking itself is theirs.
