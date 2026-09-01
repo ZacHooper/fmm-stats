@@ -315,16 +315,37 @@ def select_method(sidebar=True):
 # --------------------------------------------------------------------------- data access
 
 def squad(season, phase):
-    """Our full squad: first team + reserves (loaned-out players sit in reserves with
-    loaned_out=True, so they're included). Carries status flags for the UI."""
+    """Our full squad: first team + reserves + players out on loan (still ours, so they
+    still count). Carries status flags for the UI.
+
+    Two mart sources, neither a raw club_tid/loaned_out flag: `mart.snapshot_squad` for
+    who's genuinely present (spell-based — see its docstring for why the raw column can't
+    be trusted), `mart.loan_out_spells` for who's ours but out on loan (EXACT weekly windows
+    from the save's own Player-Progress flag, not the stale `loaned_out` column staging.
+    players carries — that one is exactly as unreliable as `loaned_in`, same "set once,
+    never cleared" mechanism, and staging.player_loans is already scoped to our squad at
+    the source, so no club_tid filter is needed on that side at all)."""
     ph = ",".join("?" * len(OUR_CLUBS))
-    df = q(f"SELECT tid, name, club_tid, loaned_out FROM staging.players "
-           f"WHERE season=? AND phase=? AND club_tid IN ({ph}) AND NOT is_staff",
-           [season, phase, *OUR_CLUBS])
+    df = q(f"""
+        WITH loaned_out AS (
+            SELECT DISTINCT s.tid, s.name
+            FROM mart.loan_out_spells s
+            JOIN (SELECT phase_date FROM mart.snapshots WHERE season=? AND phase=?) sn
+              ON sn.phase_date BETWEEN s.valid_from AND s.valid_to
+        ),
+        present AS (
+            SELECT tid, any_value(name) AS name, max(club_tid) AS club_tid
+            FROM mart.snapshot_squad
+            WHERE season=? AND phase=? AND club_tid IN ({ph})
+            GROUP BY tid
+        )
+        SELECT tid, name, ? AS club_tid, 'Loan' AS status FROM loaned_out
+        UNION ALL
+        SELECT tid, name, club_tid,
+               CASE WHEN club_tid = ? THEN 'Reserve' ELSE 'First team' END AS status
+        FROM present WHERE tid NOT IN (SELECT tid FROM loaned_out)
+        """, [season, phase, season, phase, *OUR_CLUBS, RESERVE_CLUB_TID, RESERVE_CLUB_TID])
     df["label"] = df.apply(lambda r: player_label(r.tid, r["name"]), axis=1)
-    df["status"] = df.apply(
-        lambda r: "Loan" if r["loaned_out"] else
-        ("Reserve" if r["club_tid"] == RESERVE_CLUB_TID else "First team"), axis=1)
     return by_surname(df, "label").reset_index(drop=True)
 
 
@@ -338,36 +359,19 @@ def stale_loan_ins(season, phase):
     the same way attribute rows freeze for reserves (see reserve-marker-stale-attrs); nothing
     rewrites it when the loan ends instead of being renewed.
 
-    Flags a tid when the SAME loan-in relationship has been on the books for 2+ completed
-    seasons with ZERO match_player_stats appearances for us since it started — an active loan
-    racks up minutes for us; a lapsed one doesn't, no matter how old the flag on his row is.
-    A fresh arrival this season has too short a history to trip the 2-season threshold, so
-    genuine new loan-ins are never flagged. Verified against fm-frem tid 10409 (Haarbo):
-    loaned_in since season 2022, zero appearances for us since, a full alternate-club season
-    (172, 33 apps) on the books for 2023 — yet still read loaned_in=True in season 2024."""
-    if not _has_table("match_player_stats"):
-        return set()
+    This used to detect that itself with a heuristic (2+ completed seasons on the books with
+    zero match_player_stats appearances). mart.loan_in_spells already answers the same
+    question exactly (appearance-gated, one spell per season actually played) — flagged minus
+    genuinely-present is simpler and can't disagree with the ground truth this file uses
+    everywhere else."""
     ph = ",".join("?" * len(OUR_CLUBS))
-    cur = q(f"SELECT tid FROM staging.players WHERE season=? AND phase=? "
-            f"AND loaned_in AND club_tid IN ({ph})", [season, phase, *OUR_CLUBS])
-    if cur.empty:
+    flagged = q(f"SELECT DISTINCT tid FROM staging.players WHERE season=? AND phase=? "
+                f"AND loaned_in AND club_tid IN ({ph})", [season, phase, *OUR_CLUBS])
+    if flagged.empty:
         return set()
-    first_seen = q(f"SELECT tid, MIN(season) AS first_season FROM staging.players "
-                   f"WHERE loaned_in AND club_tid IN ({ph}) AND tid IN "
-                   f"({','.join('?' * len(cur))}) GROUP BY tid",
-                   [*OUR_CLUBS, *[int(t) for t in cur["tid"]]])
-    first_by_tid = dict(zip(first_seen["tid"], first_seen["first_season"]))
-    stale = set()
-    for t in cur["tid"]:
-        t = int(t)
-        first = first_by_tid.get(t)
-        if first is None or season - first < 2:
-            continue
-        apps = q(f"SELECT COUNT(*) AS c FROM staging.match_player_stats "
-                 f"WHERE tid=? AND season>? AND team_tid IN ({ph})", [t, first, *OUR_CLUBS])
-        if int(apps["c"].iloc[0]) == 0:
-            stale.add(t)
-    return stale
+    present = q(f"SELECT tid FROM mart.snapshot_squad WHERE season=? AND phase=? "
+                f"AND club_tid IN ({ph})", [season, phase, *OUR_CLUBS])
+    return set(flagged["tid"]) - set(present["tid"])
 
 
 def player_label(tid, name):
@@ -1466,30 +1470,31 @@ def player_loan_spells(tid):
                     "bounded": False, "ongoing": bool(newest and b >= newest)})
     out.extend(hist)
 
-    if _conn().execute(
-            "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
-            "AND table_name='players' AND column_name='loaned_in'").fetchone():
-        ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
-        obs = q(f"SELECT season, phase, loaned_in, parent_club FROM staging.players "
-                f"WHERE tid=? AND club_tid IN ({ph}) AND NOT is_staff", [int(tid)])
-        if not obs.empty:
-            obs = add_phase_date(obs)
-            latest = obs["date"].max()
-            run = None
-            for r in obs.itertuples():           # runs of consecutive loaned-in observations
-                if r.loaned_in:
-                    if run is None:
-                        run = {"kind": "in", "club": r.parent_club, "season": int(r.season),
-                               "start": r.date.date(), "end": r.date.date(), "apps": None,
-                               "goals": None, "bounded": True, "ongoing": False}
-                    else:
-                        run["end"] = r.date.date()
-                elif run is not None:
-                    out.append(run); run = None
-            if run is not None:
-                # loaned in as of the newest snapshot — the spell hasn't been seen to end
-                run["ongoing"] = run["end"] == latest.date()
-                out.append(run)
+    # Source 3: mart.loan_in_spells — one spell per SEASON actually appeared for us, already
+    # appearance-gated (see its docstring). This used to reconstruct runs of consecutive
+    # `staging.players.loaned_in` observations instead, which is exactly the flag this whole
+    # file otherwise refuses to trust: it's set once and never cleared, so a lapsed loan-in
+    # read as one giant "ongoing" run stretching from the real loan to the newest snapshot,
+    # years after it ended (the Nuamah case — see club_attributes()'s docstring).
+    li = q("SELECT season, valid_from, valid_to FROM mart.loan_in_spells "
+           "WHERE tid=? ORDER BY valid_from", [int(tid)])
+    if not li.empty:
+        # The spell table doesn't carry the parent club (only that a genuine loan-in window
+        # exists) — recover it from any snapshot whose date falls inside the window.
+        pc = q("SELECT phase_date, parent_club FROM mart.player_snapshots "
+               "WHERE tid=? AND parent_club IS NOT NULL", [int(tid)])
+        for r in li.itertuples():
+            vfrom = pd.Timestamp(r.valid_from).date()
+            vto = pd.Timestamp(r.valid_to).date()
+            club = None
+            if not pc.empty:
+                m = pc[(pc["phase_date"] >= r.valid_from) & (pc["phase_date"] <= r.valid_to)]
+                if not m.empty:
+                    club = m.iloc[0]["parent_club"]
+            out.append({"kind": "in", "club": club, "season": int(r.season),
+                       "start": vfrom, "end": vto, "apps": None, "goals": None,
+                       "bounded": True,
+                       "ongoing": bool(newest and vfrom <= newest <= vto)})
 
     if not out:
         return pd.DataFrame(columns=cols)
@@ -1572,8 +1577,8 @@ def role_benchmarks(role, method, scope, league_cid=None, min_fam=None):
         ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
         sql = f"""
             WITH eff AS ({eff}),
-            pop AS (SELECT season, phase, tid FROM staging.players
-                    WHERE club_tid IN ({ph}) AND NOT is_staff)
+            pop AS (SELECT season, phase, tid FROM mart.snapshot_squad
+                    WHERE club_tid IN ({ph}))
             SELECT e.season, e.phase, MAX(e.eff) AS best,
                    MEDIAN(e.eff) AS median, COUNT(*) AS n
             FROM eff e JOIN pop USING (season, phase, tid)
@@ -1638,10 +1643,10 @@ def squad_role_ranking(season, phase, role, method, min_fam=None):
     ph = ",".join(str(int(t)) for t in OUR_CLUBS) or "NULL"
     return q(f"""
         WITH eff AS ({_eff_role_cte()})
-        SELECT e.tid, any_value(p.name) AS name, MAX(e.eff) AS rating, MAX(e.fam) AS fam
+        SELECT e.tid, any_value(ss.name) AS name, MAX(e.eff) AS rating, MAX(e.fam) AS fam
         FROM eff e
-        JOIN staging.players p USING (season, phase, tid)
-        WHERE e.season=? AND e.phase=? AND p.club_tid IN ({ph}) AND NOT p.is_staff
+        JOIN mart.snapshot_squad ss USING (season, phase, tid)
+        WHERE e.season=? AND e.phase=? AND ss.club_tid IN ({ph})
         GROUP BY e.tid
         ORDER BY rating DESC""", [method, role, min_fam, season, phase])
 
