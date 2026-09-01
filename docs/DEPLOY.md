@@ -67,7 +67,7 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | `api/registration.json` | 1 KB | git | the A/B lists + derived home-grown status |
 | `api/index.json` | 1 KB | git | manifest |
 | `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
-| `fm-<career>.duckdb` (scrubbed) | ~34 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL instead of the fixed shapes above |
+| `fm-<career>.duckdb` (raw `ca`/`pa` included) | ~34 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL instead of the fixed shapes above |
 | `fm-<career>-mart.duckdb` | ~24 MB | **R2** | `site-data/fm-<career>-mart.duckdb` — the `mart` schema as real tables. Prefer this for analysis: it is what generates the files above, so anything the site shows is answerable from it |
 
 ## One-time setup
@@ -177,17 +177,22 @@ allowlists by host *and scheme*. If so, skip `INSTALL` and fetch the extension o
 yourself — see `scripts/publish_duckdb.py`'s docstring for the exact `curl`/`gunzip` commands
 that drop it straight into DuckDB's extension cache, after which `LOAD httpfs` alone works.
 
-**What's published is a scrubbed copy, not the live store.** `scripts/publish_duckdb.py` clones
-`fm-<career>.duckdb`, NULLs `staging.players.ca`/`.pa` (raw ability) in the clone, then uploads
-that to `site-data/fm-<career>.duckdb`. The JSON export enforces the same immersion house rule
-per-field (see CLAUDE.md); raw SQL access has no per-field filter to hide behind, so this is
-enforced by scrubbing the data itself instead. The live store is opened read-only and is never
-touched — same single-writer-safe fallback `export_data.py` uses, so this is safe to run with a
-dashboard open.
+**What's published is a compacted copy, not the live store — but not a scrubbed one.**
+`scripts/publish_duckdb.py` clones `fm-<career>.duckdb` and uploads that clone to
+`site-data/fm-<career>.duckdb`; `staging.players.ca`/`.pa` (raw ability) travel unchanged. They
+used to be NULLed here, but `mart.player_position_fit`/`player_position_levels` both need `ca`
+to compute (Level %ile, Fit ratings), so a scrubbed copy meant a remote scout report always
+came back "0 rated players" regardless of the opponent. The immersion house rule (never
+*surface* the number — see CLAUDE.md) still applies to raw SQL access same as everywhere else;
+it's just enforced by the querier's judgement now rather than by the column being absent. The
+JSON export (`export_data.py` → `site/api/*.json`) is separate and keeps its own build-time
+enforcement (`scripts/build_site.py` fails the build on a raw-ability key at any depth) — that
+path is unaffected. The live store is opened read-only and is never touched — same
+single-writer-safe fallback `export_data.py` uses, so this is safe to run with a dashboard open.
 
 Needs `rclone` configured against the `r2:` remote to actually upload (see the main README /
 CLAUDE.md for setup); without it, `--upload` fails with a clear message and `--out <path>` still
-lets you produce and inspect the scrubbed copy locally.
+lets you produce and inspect the published copy locally.
 
 Preview locally before pushing:
 
