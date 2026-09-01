@@ -393,9 +393,10 @@ def by_surname(df, name_col="label"):
 
 
 def attributes_row(season, phase, tid):
-    """The 23 wide attributes for one player as a {attribute: value} dict."""
+    """The 23 wide attributes for one player as a {attribute: value} dict — a thin read of
+    mart.player_snapshots."""
     cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
-    df = q(f"SELECT {cols} FROM staging.player_attributes "
+    df = q(f"SELECT {cols} FROM mart.player_snapshots "
            "WHERE season=? AND phase=? AND tid=?", [season, phase, tid])
     if df.empty:
         return None
@@ -822,27 +823,22 @@ def _ref_date(season, phase):
 
 
 def player_bio(season, phase, tids):
-    """{tid: {'Age': int|None, 'Value': int|None, 'Club': str}} for the snapshot. Age is
-    derived from dob vs the snapshot's approx date; Value is the parsed player value (raw
-    units). Wage is NOT parsed from the save, so there's no wage column."""
+    """{tid: {'Age': int|None, 'Value': int|None, 'Club': str}} for the snapshot. Wage is NOT
+    parsed from the save, so there's no wage column here (see contract_info).
+
+    A thin read of mart.player_snapshots, which already computes `age` (birthday-adjusted
+    against the snapshot date, same rule this used to compute inline) and carries value/club
+    — one definition instead of two."""
     tids = [int(t) for t in tids if t is not None]
     if not tids:
         return {}
-    ref = _ref_date(season, phase)
     ph = ",".join("?" * len(tids))
-    df = q(f"SELECT tid, dob, player_value, club FROM staging.players "
+    df = q(f"SELECT tid, age, player_value, club FROM mart.player_snapshots "
            f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
-    out = {}
-    for r in df.itertuples():
-        age = None
-        if pd.notna(r.dob):
-            d = r.dob if isinstance(r.dob, datetime.date) else pd.to_datetime(r.dob).date()
-            age = ref.year - d.year - ((ref.month, ref.day) < (d.month, d.day))
-        out[int(r.tid)] = {
-            "Age": age,
-            "Value": int(r.player_value) if pd.notna(r.player_value) else None,
-            "Club": r.club}
-    return out
+    return {int(r.tid): {"Age": int(r.age) if pd.notna(r.age) else None,
+                         "Value": int(r.player_value) if pd.notna(r.player_value) else None,
+                         "Club": r.club}
+            for r in df.itertuples()}
 
 
 def attach_bio(rows, season, phase, tid_col="tid"):
@@ -875,18 +871,13 @@ def attach_bio(rows, season, phase, tid_col="tid"):
 
 
 def contract_info(season, phase, tids):
-    """{tid: {"Wage": £/yr, "Expiry": ISO date}} for the snapshot. Wage/expiry are
-    migration-added columns (see load_duckdb); on an un-migrated store (e.g. a Bucaspor
-    store not yet re-extracted) they're absent, so return {} and callers just skip them."""
+    """{tid: {"Wage": £/yr, "Expiry": ISO date}} for the snapshot — a thin read of
+    mart.player_snapshots."""
     tids = [int(t) for t in tids]
     if not tids:
         return {}
-    if not _conn().execute(
-            "SELECT 1 FROM information_schema.columns WHERE table_schema='staging' "
-            "AND table_name='players' AND column_name='wage_gbp'").fetchone():
-        return {}
     ph = ",".join("?" * len(tids))
-    df = q(f"SELECT tid, wage_gbp, contract_expiry FROM staging.players "
+    df = q(f"SELECT tid, wage_gbp, contract_expiry FROM mart.player_snapshots "
            f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
     return {int(r.tid): {"Wage": r.wage_gbp, "Expiry": r.contract_expiry}
             for r in df.itertuples()}
@@ -902,60 +893,48 @@ def player_positions_map(season, phase, tid):
 def player_match_totals(tids):
     """Career (all-season, deduped by latest phase) match-stat totals per player, for the
     given tids. Returns apps/goals/assists/avg rating + attempt & completion sums so
-    callers can show both rates and volume."""
+    callers can show both rates and volume.
+
+    A thin aggregate over mart.match_player_facts, which already resolves the ring-buffer
+    latest-phase-per-season (mart.chosen_match_phase) and the 255-sentinel minutes
+    arithmetic — one definition instead of the two this and match_stats_rows used to carry
+    separately."""
     if not tids:
         return pd.DataFrame()
     ph = ",".join("?" * len(tids))
     return q(f"""
-        WITH chosen AS (
-            WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_player_stats)
-            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                     WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-            FROM mm GROUP BY season)
-        SELECT m.tid,
+        SELECT f.tid,
                COUNT(*) AS apps,
-               SUM(CASE WHEN m.pos_order <= 11 THEN 1 ELSE 0 END) AS starts,
-               SUM(CASE WHEN m.subOff = 255 THEN 90 ELSE m.subOff END
-                   - CASE WHEN m.subOn = 255 THEN 0 ELSE m.subOn END) AS minutes,
-               SUM(m.goals) AS goals, SUM(m.assists) AS assists,
-               ROUND(AVG(m.rating), 2) AS avg_rating,
-               SUM(m.passA) AS passA, SUM(m.passC) AS passC,
-               SUM(m.tackA) AS tackA, SUM(m.tackW) AS tackW,
-               SUM(m.headA) AS headA, SUM(m.headW) AS headW,
-               SUM(m.crossA) AS crossA, SUM(m.crossC) AS crossC,
-               SUM(m.shotA) AS shotA, SUM(m.shotO) AS shotO,
-               SUM(m.intercept) AS intercept, SUM(m.keyPass) AS keyPass
-        FROM staging.match_player_stats m
-        JOIN chosen ch USING (season, phase)
-        WHERE m.tid IN ({ph}) AND (m.pos_order <= 11 OR m.subOn <> 255)
-        GROUP BY m.tid""", [*tids])
+               SUM(CASE WHEN f.started THEN 1 ELSE 0 END) AS starts,
+               SUM(f.minutes) AS minutes,
+               SUM(f.goals) AS goals, SUM(f.assists) AS assists,
+               ROUND(AVG(f.rating), 2) AS avg_rating,
+               SUM(f.passA) AS passA, SUM(f.passC) AS passC,
+               SUM(f.tackA) AS tackA, SUM(f.tackW) AS tackW,
+               SUM(f.headA) AS headA, SUM(f.headW) AS headW,
+               SUM(f.crossA) AS crossA, SUM(f.crossC) AS crossC,
+               SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
+               SUM(f.intercept) AS intercept, SUM(f.keyPass) AS keyPass
+        FROM mart.match_player_facts f
+        WHERE f.tid IN ({ph}) AND f.appeared
+        GROUP BY f.tid""", [*tids])
 
 
 def match_stats_rows(club_tids):
     """Deduped per-player-per-match rows (latest phase per season) for the given clubs'
-    players — the basis for the whole-team match-stat grid."""
+    players — the basis for the whole-team match-stat grid. A thin read of
+    mart.match_player_facts."""
     if not club_tids:
         return pd.DataFrame()
     ph = ",".join("?" * len(club_tids))
     return q(f"""
-        WITH chosen AS (
-            WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_player_stats)
-            SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                     WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-            FROM mm GROUP BY season)
-        SELECT m.season, m.tid, m.team_tid, m.opponent_tid, m.date, m.competition,
-               m.rating, m.goals, m.assists, m.passA, m.passC, m.keyPass,
-               m.tackA, m.tackW, m.intercept, m.headA, m.headW, m.crossA, m.crossC,
-               m.dribbles, m.shotA, m.shotO, m.mistakes, m.yellow,
-               (m.pos_order <= 11) AS started,
-               (m.pos_order <= 11 OR m.subOn <> 255) AS appeared,
-               CASE WHEN (m.pos_order <= 11 OR m.subOn <> 255)
-                    THEN (CASE WHEN m.subOff = 255 THEN 90 ELSE m.subOff END)
-                       - (CASE WHEN m.subOn = 255 THEN 0 ELSE m.subOn END)
-                    ELSE 0 END AS minutes
-        FROM staging.match_player_stats m
-        JOIN chosen ch USING (season, phase)
-        WHERE m.team_tid IN ({ph})""", [*club_tids])
+        SELECT season, tid, team_tid, opponent_tid, date, competition,
+               rating, goals, assists, passA, passC, keyPass,
+               tackA, tackW, intercept, headA, headW, crossA, crossC,
+               dribbles, shotA, shotO, mistakes, yellow,
+               started, appeared, minutes
+        FROM mart.match_player_facts
+        WHERE team_tid IN ({ph})""", [*club_tids])
 
 
 def primary_position_map(tids):
@@ -1053,13 +1032,21 @@ GK_OUTPUT_RADAR = ["Pass %", "Passes/90", "KeyP/90", "Yellows/gm"]
 
 
 def enrich_match_rows(rows):
-    """Add player / opponent / pos / unit / squad labels to raw match_stats_rows()."""
+    """Add player / opponent / pos / unit / squad labels to raw match_stats_rows().
+
+    Names are looked up by the exact tids present in `rows` — already correctly scoped to
+    OUR_CLUBS by match_stats_rows (via mart.match_player_facts.team_tid) — rather than by a
+    second `club_tid IN OUR_CLUBS` filter here. That filter would have missed a player whose
+    CURRENT snapshot no longer shows him at our club_tid (he's since left) despite the match
+    stats being genuinely ours; a plain tid lookup finds a name for anyone with match rows,
+    full stop, and never needs to reason about squad membership a second time."""
     if rows is None or rows.empty:
         return rows
     rows = rows.copy()
+    tids = rows["tid"].unique().tolist()
+    ph = ",".join("?" * len(tids))
     names = q(f"SELECT tid, any_value(name) AS name FROM staging.players "
-              f"WHERE club_tid IN ({','.join(str(int(t)) for t in OUR_CLUBS)}) "
-              f"GROUP BY tid")
+              f"WHERE tid IN ({ph}) GROUP BY tid", tids)
     nmap = dict(zip(names["tid"], names["name"]))
     rows["player"] = rows["tid"].map(lambda t: player_label(t, nmap.get(t)))
     clubs = q("SELECT season, tid, name FROM staging.clubs")
@@ -1121,13 +1108,14 @@ def player_match_agg(tids=None):
 
 
 def attributes_rows(season, phase, tids):
-    """Batch {tid: {attribute: value}} for many players in one query (NaN attrs dropped)."""
+    """Batch {tid: {attribute: value}} for many players in one query (NaN attrs dropped) —
+    a thin read of mart.player_snapshots."""
     tids = [int(t) for t in (tids or [])]
     if not tids:
         return {}
     cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
     ph = ",".join("?" * len(tids))
-    df = q(f"SELECT tid, {cols} FROM staging.player_attributes "
+    df = q(f"SELECT tid, {cols} FROM mart.player_snapshots "
            f"WHERE season=? AND phase=? AND tid IN ({ph})", [season, phase, *tids])
     out = {}
     for _, r in df.iterrows():
@@ -1227,44 +1215,21 @@ MATCH_TEAM_STATS = ["shots", "shots_on_target", "passes", "passes_completed",
 def our_match_history(seasons=None):
     """Per-match frame for the managed club (latest phase per season). Columns: season, date,
     competition, formation, opp_tid, opponent, venue (H/A), gf, ga, result (W/D/L), pts, and
-    our_<stat>/opp_<stat> for MATCH_TEAM_STATS. `seasons` filters (None = all). Shared by the
-    Match-records page, the Team scout head-to-head, and the Records page."""
-    chosen = q("""WITH mm AS (SELECT DISTINCT season, phase FROM staging.matches)
-                  SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                           WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-                  FROM mm GROUP BY season ORDER BY season""")
-    if chosen.empty:
-        return pd.DataFrame()
-    if seasons is not None:
-        chosen = chosen[chosen["season"].isin(list(seasons))]
-    sel_cols = ", ".join(f"home_{k}, away_{k}" for k in MATCH_TEAM_STATS)
-    frames = []
-    for _, r in chosen.iterrows():
-        frames.append(q(
-            f"""SELECT season, date, competition, formation, home_tid, away_tid,
-                       score_home, score_away, {sel_cols}
-                FROM staging.matches
-                WHERE season=? AND phase=? AND (home_tid=? OR away_tid=?)""",
-            [int(r.season), r.phase, MANAGED_CLUB_TID, MANAGED_CLUB_TID]))
-    m = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-    if m.empty:
-        return m
-    clubs = q("SELECT season, tid, name FROM staging.clubs")
-    cmap = {(s, t): n for s, t, n in zip(clubs["season"], clubs["tid"], clubs["name"])}
-    home = m["home_tid"] == MANAGED_CLUB_TID
-    m["opp_tid"] = m["away_tid"].where(home, m["home_tid"])
-    m["opponent"] = [cmap.get((s, t)) or f"#{int(t)}"
-                     for s, t in zip(m["season"], m["opp_tid"])]
-    m["venue"] = home.map({True: "H", False: "A"})
-    m["gf"] = m["score_home"].where(home, m["score_away"])
-    m["ga"] = m["score_away"].where(home, m["score_home"])
-    m["result"] = m.apply(lambda r: "W" if r.gf > r.ga else ("D" if r.gf == r.ga else "L"),
-                          axis=1)
-    m["pts"] = m["result"].map({"W": 3, "D": 1, "L": 0})
-    for k in MATCH_TEAM_STATS:
-        m[f"our_{k}"] = m[f"home_{k}"].where(home, m[f"away_{k}"])
-        m[f"opp_{k}"] = m[f"away_{k}"].where(home, m[f"home_{k}"])
-    return m
+    our_<stat>/opp_<stat> for MATCH_TEAM_STATS (plus a few extra mart.club_matches carries:
+    phase, anchor, is_competitive, comp_id, attendance). `seasons` filters (None = all).
+    Shared by the Match-records page, the Team scout head-to-head, and the Records page.
+
+    A thin filter over mart.club_matches now, not a from-scratch computation — that view
+    already does the latest-phase-per-season resolution and the home/away flip for ANY club,
+    generalising what this function used to do only for us, in a per-season Python loop
+    (mart.club_matches's own comment names this exact function as what it replaced). It also
+    resolves the opponent name WITHIN the match's own snapshot, fixing a tid-recycling edge
+    case the old Python version's (season, tid)-only name map didn't guard against."""
+    df = q("SELECT * FROM mart.club_matches WHERE club_tid = ? ORDER BY date",
+           [MANAGED_CLUB_TID])
+    if seasons is not None and not df.empty:
+        df = df[df["season"].isin(list(seasons))]
+    return df
 
 
 def player_injuries(season):
