@@ -1765,7 +1765,20 @@ def our_goal_events(seasons=None):
 
 
 def club_attributes(season, phase, club_tids):
-    """Per-player 23 attributes + club_tid for the given clubs."""
+    """Per-player 23 attributes + club_tid for the given clubs.
+
+    Filters on GENUINE presence (an `at_club`/`loan_in` spell covering the snapshot date),
+    not the raw `staging.players.club_tid` — that field is a per-snapshot fact but
+    `loaned_in`/`loaned_out` next to it is a flag the save sets once and never clears, so a
+    loan that lapsed without being renewed can leave a departed player's `club_tid` still
+    pointing at his old club indefinitely. Confirmed on real data: Ernest Nuamah's loan_in
+    spell for us ended 2023-06-30, but his snapshot row at 2024-11-10 still read
+    `club_tid=346, loaned_in=True` — he'd have shown up as one of OUR players in a report a
+    full 16 months after leaving. `mart.squad_current`/`squad_on` already solve this the
+    right way but only for `mart.our_clubs`; this is the same check generalised to an
+    arbitrary club, since a scout report needs it for the OPPONENT's squad too, not just
+    ours. This is the single choke point every club_tid-filtered per-player pull merges
+    through (`squad_frame`, `team_attribute_frame`), so fixing it here fixes all of them."""
     if not club_tids:
         return pd.DataFrame()
     cols = ", ".join(f'pa."{a}"' for a in ATTR_ORDER)
@@ -1773,8 +1786,16 @@ def club_attributes(season, phase, club_tids):
     return q(f"""SELECT p.tid, p.club_tid, {cols}
                  FROM staging.player_attributes pa
                  JOIN staging.players p USING (season, phase, tid)
+                 JOIN mart.snapshots sn ON (sn.season, sn.phase) = (pa.season, pa.phase)
                  WHERE pa.season=? AND pa.phase=? AND p.club_tid IN ({ph})
-                   AND NOT p.is_staff""", [season, phase, *club_tids])
+                   AND NOT p.is_staff
+                   AND EXISTS (
+                       SELECT 1 FROM mart.player_spells s
+                       WHERE s.tid = p.tid AND s.club_tid = p.club_tid
+                         AND s.spell_type IN ('at_club', 'loan_in')
+                         AND sn.phase_date >= s.valid_from
+                         AND (s.valid_to IS NULL OR sn.phase_date <= s.valid_to))
+              """, [season, phase, *club_tids])
 
 
 # --------------------------------------------------------------------------- scouting

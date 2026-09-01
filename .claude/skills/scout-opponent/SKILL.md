@@ -80,6 +80,16 @@ Everything below is parameterised off the active career — pull these from `db`
   ask.
 - **Formation** — ASK THE USER (from the in-game scout). Opponent shape is NOT parsed.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …).
+- **Current league position / recent form (both sides)** — ASK THE USER. `v_league_table`
+  genuinely does not parse for this career (match history is a ring buffer — a season's table
+  never fully reconstructs), so `rep["overall"]`'s squad-quality read is the ONLY signal this
+  report has for "who's favoured", and it can be flatly wrong: it measures attribute quality,
+  blind to results, table position, current form, or squad depth actually holding up over a
+  season. Don't let the Verdict assert "underdogs"/"favourites" from `us_quality`/`them_quality`
+  alone — say what the quality gap suggests, then explicitly ask (or use what the user already
+  told you) where each side actually sits, and let table position win if the two disagree. This
+  bit the first real scout run under this skill: Frem 1st, Brøndby 9th, but the quality read
+  alone said "clear underdogs" — true for the attribute profile, false for the season.
 
 ## Check for a prior scout — this is calibration now, not just prediction
 Before pulling fresh data: `s = db.load_scouts(); s = s[s.opponent_tid == OPP]` (or
@@ -170,11 +180,17 @@ rec = db.save_scout(rep, venue="H", formation="attacking 442", style="high-press
 Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL yourself:
 - **Attribute columns are Capitalised** in `team_attribute_frame`/`club_attributes` — a lowercase
   `['pace', ...]` filter silently yields an empty list.
-- A raw `club_tid = <opp>` filter on `staging.players`/`mart.player_snapshots` is a per-snapshot
-  fact (fine within one snapshot) but a stale `loaned_in`/`loaned_out` flag on that same row is
-  **not** — the save sets those and never clears them, so don't describe a player's loan status
-  from the flags. Rank/describe by minutes and the attribute frame instead, which is what
-  `squad_frame`/`squad_key_players` already do.
+- **A raw `club_tid` filter on `staging.players` is not safe even within a single snapshot** —
+  this used to say it was; it isn't. `club_attributes()` (and therefore `squad_frame`, and
+  therefore every rating/key-player/matchup this skill touches) now filters on GENUINE presence
+  (an `at_club`/`loan_in` spell from `mart.player_spells` covering the snapshot date), not raw
+  `club_tid`. Confirmed on real data: Ernest Nuamah's loan to us ended 2023-06-30, but his row at
+  the 2024-11-10 snapshot still read `club_tid=346, loaned_in=True` — a raw filter put him in a
+  Brøndby scout's "our attacking outlets" 16 months after he left. If you bypass `club_attributes`
+  for a raw query, reproduce this check yourself (`mart.player_spells`, `spell_type IN ('at_club',
+  'loan_in')`, date between `valid_from`/`valid_to`) rather than trusting `club_tid` alone — and
+  never trust `loaned_in`/`loaned_out` for loan STATUS prose either, same reason: set once, never
+  cleared.
 - Cross-snapshot per-player aggregates (e.g. "has this player grown since we last played them")
   must key on `person_id`, not `tid` — FM recycles retired players' slots.
 - opponent `name` **resolves for every club** (the ETL id-resolver) — `squad_key_players` and

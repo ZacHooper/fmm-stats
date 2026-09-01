@@ -76,7 +76,13 @@ not resolve across an `ATTACH`** — `USE m` first, or use the `m.mart.squad_cur
 renewed can leave a departed player's `club_tid` still pointing at our club indefinitely (this
 is real save data, confirmed against the raw bytes, not an extraction bug). **Use
 `mart.squad_current` (current squad) or `mart.squad_on('<date>')` (as of any date) for "who's
-ours" — never a bare `club_tid = <our tid>` filter.**
+ours" — never a bare `club_tid = <our tid>` filter.** Confirmed live, not theoretical: Ernest
+Nuamah's loan ended 2023-06-30, but his row a season later still read `club_tid=346,
+loaned_in=True`, and turned up as one of "our" attacking outlets in a scout report built on a
+raw filter. `mart.squad_current` is scoped to `mart.our_clubs`, so it only answers this for OUR
+squad — `dashboard/db.py`'s `club_attributes()` (and everything built on it: `squad_frame`,
+`team_attribute_frame`, `scout_report`) generalises the same spell-based check to an ARBITRARY
+club, since a scout report needs "who's really on the opponent's books" too, not just ours.
 `.claude/hooks/session-start.sh` sets up everything this needs (`rclone`, the `r2:` remote, the
 `httpfs` extension) automatically on a Claude Code web session — see
 [`docs/agent-context/remote-duckdb-access.md`](docs/agent-context/remote-duckdb-access.md) for
