@@ -1702,24 +1702,25 @@ def player_role_series(tids, role, method, min_fam=1):
 def our_penalties(seasons=None):
     """Chronological penalties taken by our players (from match_events, latest phase per
     season, joined to match dates). Columns: season, date, minute, seq, tid, player,
-    made (bool: 'penalty'=scored, 'missed_penalty'=missed). For penalty-streak records."""
+    made (bool: 'penalty'=scored, 'missed_penalty'=missed). For penalty-streak records.
+
+    "Ours" is `mart.match_player_facts.team_tid` — which team a player actually turned out
+    for in THIS match — not a raw `staging.players.club_tid` filter (the same lapsed-loan
+    ghost trap as everywhere else: `WHERE club_tid IN (us)` would keep crediting a penalty
+    to someone long after he left, and would just as easily miss one from before a since-lost
+    tid recycling). `match_player_facts` is already restricted to the latest phase per season
+    (`mart.chosen_match_phase`), so joining to it also retires the hand-rolled ring-buffer CTE
+    this used to carry."""
     df = q("""
-        WITH ours AS (SELECT DISTINCT tid FROM staging.players WHERE club_tid IN (?, ?)),
-             chosen AS (
-               WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_events)
-               SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01'
-                                                        WHEN 'end' THEN '0000-00-02' ELSE phase END) AS phase
-               FROM mm GROUP BY season),
-             nm AS (SELECT tid, any_value(name) AS name FROM staging.players GROUP BY tid)
-        SELECT e.season, m.date, m.competition, e.minute, e.seq, e.tid, nm.name AS player,
+        WITH nm AS (SELECT tid, any_value(name) AS name FROM staging.players GROUP BY tid)
+        SELECT f.season, f.date, f.competition, e.minute, e.seq, f.tid, nm.name AS player,
                (e.type = 'penalty') AS made
-        FROM staging.match_events e
-        JOIN chosen ch USING (season, phase)
-        JOIN staging.matches m ON (e.season, e.phase, e.anchor) = (m.season, m.phase, m.anchor)
-        JOIN ours o ON e.tid = o.tid
-        LEFT JOIN nm ON nm.tid = e.tid
-        WHERE e.type IN ('penalty', 'missed_penalty')
-        ORDER BY m.date, e.minute, e.seq""", [MANAGED_CLUB_TID, RESERVE_CLUB_TID])
+        FROM mart.match_player_facts f
+        JOIN staging.match_events e
+             ON (e.season, e.phase, e.anchor, e.tid) = (f.season, f.phase, f.anchor, f.tid)
+        LEFT JOIN nm ON nm.tid = f.tid
+        WHERE f.team_tid IN (?, ?) AND e.type IN ('penalty', 'missed_penalty')
+        ORDER BY f.date, e.minute, e.seq""", [MANAGED_CLUB_TID, RESERVE_CLUB_TID])
     if seasons is not None and not df.empty:
         df = df[df["season"].isin(list(seasons))]
     return df
@@ -1729,22 +1730,21 @@ def our_goal_events(seasons=None):
     """Ordered goal-type match_events for our matches (latest phase per season) with our
     perspective. Columns: season, date, competition, anchor, minute, seq, our_goal (bool —
     goal for us), venue, opponent, gf, ga, result. Events reconcile the scoreline ~99%, so a
-    per-match running score is reliable (biggest-comeback records)."""
+    per-match running score is reliable (biggest-comeback records).
+
+    `by_us` is `mart.match_player_facts.team_tid`, same reasoning as `our_penalties` — not a
+    raw club_tid filter."""
     df = q("""
-        WITH ours AS (SELECT DISTINCT tid FROM staging.players WHERE club_tid IN (?, ?)),
-             chosen AS (WITH mm AS (SELECT DISTINCT season, phase FROM staging.match_events)
-                        SELECT season, arg_max(phase, CASE phase WHEN 'start' THEN '0000-00-00'
-                                 WHEN 'mid' THEN '0000-00-01' WHEN 'end' THEN '0000-00-02' ELSE phase END)
-                                 AS phase FROM mm GROUP BY season)
-        SELECT e.season, m.date, m.competition, e.anchor, e.minute, e.seq, e.type,
+        SELECT f.season, f.date, f.competition, f.anchor, e.minute, e.seq, e.type,
                (m.home_tid = ?) AS us_home, m.home_tid, m.away_tid,
-               m.score_home, m.score_away, (e.tid IN (SELECT tid FROM ours)) AS by_us
-        FROM staging.match_events e
-        JOIN chosen ch USING (season, phase)
+               m.score_home, m.score_away, (f.team_tid IN (?, ?)) AS by_us
+        FROM mart.match_player_facts f
+        JOIN staging.match_events e
+             ON (e.season, e.phase, e.anchor, e.tid) = (f.season, f.phase, f.anchor, f.tid)
         JOIN staging.matches m ON (e.season, e.phase, e.anchor) = (m.season, m.phase, m.anchor)
         WHERE (m.home_tid = ? OR m.away_tid = ?) AND e.type IN ('goal', 'penalty', 'own_goal')
-        ORDER BY m.date, e.anchor, e.minute, e.seq""",
-           [MANAGED_CLUB_TID, RESERVE_CLUB_TID, MANAGED_CLUB_TID,
+        ORDER BY m.date, f.anchor, e.minute, e.seq""",
+           [MANAGED_CLUB_TID, MANAGED_CLUB_TID, RESERVE_CLUB_TID,
             MANAGED_CLUB_TID, MANAGED_CLUB_TID])
     if df.empty:
         return df
@@ -1767,18 +1767,19 @@ def our_goal_events(seasons=None):
 def club_attributes(season, phase, club_tids):
     """Per-player 23 attributes + club_tid for the given clubs.
 
-    Filters on GENUINE presence (an `at_club`/`loan_in` spell covering the snapshot date),
-    not the raw `staging.players.club_tid` — that field is a per-snapshot fact but
-    `loaned_in`/`loaned_out` next to it is a flag the save sets once and never clears, so a
-    loan that lapsed without being renewed can leave a departed player's `club_tid` still
-    pointing at his old club indefinitely. Confirmed on real data: Ernest Nuamah's loan_in
-    spell for us ended 2023-06-30, but his snapshot row at 2024-11-10 still read
-    `club_tid=346, loaned_in=True` — he'd have shown up as one of OUR players in a report a
-    full 16 months after leaving. `mart.squad_current`/`squad_on` already solve this the
-    right way but only for `mart.our_clubs`; this is the same check generalised to an
-    arbitrary club, since a scout report needs it for the OPPONENT's squad too, not just
-    ours. This is the single choke point every club_tid-filtered per-player pull merges
-    through (`squad_frame`, `team_attribute_frame`), so fixing it here fixes all of them."""
+    Filters on GENUINE presence via `mart.snapshot_squad` — the general form of
+    `mart.squad_current`/`squad_on` (which only cover `mart.our_clubs`) — rather than the raw
+    `staging.players.club_tid`. That field is a per-snapshot fact but `loaned_in`/`loaned_out`
+    next to it is a flag the save sets once and never clears, so a loan that lapsed without
+    being renewed can leave a departed player's `club_tid` still pointing at his old club
+    indefinitely. Confirmed on real data: Ernest Nuamah's loan_in spell for us ended
+    2023-06-30, but his snapshot row at 2024-11-10 still read `club_tid=346, loaned_in=True`
+    — he'd have shown up as one of OUR players in a report a full 16 months after leaving.
+    `mart.snapshot_squad` is the single mart-level definition of "genuinely here" for any
+    club at any snapshot — a remote agent querying the published store gets the identical
+    answer via plain SQL, no Python needed. This is the single choke point every
+    club_tid-filtered per-player pull merges through (`squad_frame`, `team_attribute_frame`),
+    so fixing it here fixes all of them."""
     if not club_tids:
         return pd.DataFrame()
     cols = ", ".join(f'pa."{a}"' for a in ATTR_ORDER)
@@ -1786,15 +1787,11 @@ def club_attributes(season, phase, club_tids):
     return q(f"""SELECT p.tid, p.club_tid, {cols}
                  FROM staging.player_attributes pa
                  JOIN staging.players p USING (season, phase, tid)
-                 JOIN mart.snapshots sn ON (sn.season, sn.phase) = (pa.season, pa.phase)
+                 JOIN mart.snapshot_squad ss
+                      ON (ss.season, ss.phase, ss.tid, ss.club_tid)
+                       = (p.season, p.phase, p.tid, p.club_tid)
                  WHERE pa.season=? AND pa.phase=? AND p.club_tid IN ({ph})
                    AND NOT p.is_staff
-                   AND EXISTS (
-                       SELECT 1 FROM mart.player_spells s
-                       WHERE s.tid = p.tid AND s.club_tid = p.club_tid
-                         AND s.spell_type IN ('at_club', 'loan_in')
-                         AND sn.phase_date >= s.valid_from
-                         AND (s.valid_to IS NULL OR sn.phase_date <= s.valid_to))
               """, [season, phase, *club_tids])
 
 

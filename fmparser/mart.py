@@ -1144,33 +1144,51 @@ WHERE s.spell_type IN ('at_club', 'loan_in')
   AND (s.valid_to IS NULL OR CAST(d AS DATE) <= s.valid_to)
 """
 
-# The same question for "now", as a VIEW rather than a macro — because a macro's body resolves
-# unqualified names against the CURRENT catalog, so `m.mart.squad_on('...')` on an ATTACHed
-# published artefact fails with "schema mart does not exist" (it looks for mart.player_spells in
-# the caller's database, not in m). That is the documented way to read the artefact, so the most
-# common question needs an object that survives it. `USE m` first also works, and is what you
-# need for any other date.
-#
-# One row per person, unlike squad_on: is_loan_in folds the at_club/loan_in pair a borrowed
-# player produces, so this counts as a squad without needing a DISTINCT.
-SQUAD_CURRENT = """
-CREATE OR REPLACE VIEW mart.squad_current AS
-WITH d AS (SELECT phase_date AS on_date FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1)
+# The general form of the same question: genuine squad membership at EVERY snapshot, for
+# EVERY club, not just ours. A plain VIEW (not a macro — see squad_current's note below), so
+# it's the primitive a remote agent querying the published store over ATTACH should reach
+# for directly: `SELECT * FROM m.mart.snapshot_squad WHERE club_tid = <opp> AND season = ...
+# AND phase = '...'` needs no macro, no USE, no per-caller reimplementation of the spell-date
+# join. This replaces what dashboard/db.py's club_attributes() used to do inline (an EXISTS
+# against mart.player_spells written fresh in Python) — that was itself a smaller instance of
+# exactly the bug it was fixing: correctness logic re-derived outside the mart instead of
+# defined once inside it. squad_current (below) is now just a filtered read of this.
+SNAPSHOT_SQUAD = """
+CREATE OR REPLACE VIEW mart.snapshot_squad AS
 SELECT
+    sn.season, sn.phase, sn.snap_ix, sn.phase_date,
     s.person_id,
     any_value(s.tid)                      AS tid,
     any_value(s.name)                     AS name,
     max(s.club_tid)                       AS club_tid,
     bool_or(s.spell_type = 'loan_in')     AS is_loan_in,
-    max(s.club_tid) IN (SELECT club_tid FROM mart.reserve_clubs) AS is_reserve,
-    min(s.valid_from)                     AS valid_from,
-    (SELECT on_date FROM d)               AS as_of
-FROM mart.player_spells s, d
-WHERE s.spell_type IN ('at_club', 'loan_in')
-  AND s.club_tid IN (SELECT club_tid FROM mart.our_clubs)
-  AND d.on_date >= s.valid_from
-  AND (s.valid_to IS NULL OR d.on_date <= s.valid_to)
-GROUP BY s.person_id
+    min(s.valid_from)                     AS valid_from
+FROM mart.snapshots sn
+JOIN mart.player_spells s
+     ON s.spell_type IN ('at_club', 'loan_in')
+    AND sn.phase_date >= s.valid_from
+    AND (s.valid_to IS NULL OR sn.phase_date <= s.valid_to)
+GROUP BY sn.season, sn.phase, sn.snap_ix, sn.phase_date, s.person_id
+"""
+
+# The same question for "now, our clubs", as a VIEW rather than a macro — because a macro's
+# body resolves unqualified names against the CURRENT catalog, so `m.mart.squad_on('...')` on
+# an ATTACHed published artefact fails with "schema mart does not exist" (it looks for
+# mart.player_spells in the caller's database, not in m). That is the documented way to read
+# the artefact, so the most common question needs an object that survives it. `USE m` first
+# also works, and is what you need for any other date or any other club (`snapshot_squad`,
+# above).
+SQUAD_CURRENT = """
+CREATE OR REPLACE VIEW mart.squad_current AS
+SELECT
+    ss.person_id, ss.tid, ss.name, ss.club_tid, ss.is_loan_in,
+    ss.club_tid IN (SELECT club_tid FROM mart.reserve_clubs) AS is_reserve,
+    ss.valid_from,
+    ss.phase_date AS as_of
+FROM mart.snapshot_squad ss
+JOIN (SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1) latest
+  USING (season, phase)
+WHERE ss.club_tid IN (SELECT club_tid FROM mart.our_clubs)
 """
 
 
@@ -1902,6 +1920,7 @@ ORDER = [
     ("mart.injury_spells", INJURED),
     ("mart.player_spells", PLAYER_SPELLS),
     ("mart.squad_on", SQUAD_ON),
+    ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
