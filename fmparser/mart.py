@@ -1331,6 +1331,21 @@ LEFT JOIN mins m USING (person_id, season)
 # 2024 alone but +36 across his whole time here, because his big step (+24) landed in 2023.
 # Keyed on mart.club_runs so each stint at a club is its own row; a player who left and
 # came back gets two.
+#
+# KNOWN, NOT FIXED HERE: unlike player_growth_tenure (fixed 2026-09-01 to gate `ours` on
+# mart.player_spells), this still keys off mart.club_runs directly, which is raw
+# staging.players.club_tid — exposed to the same lapsed-loan ghost (see the GHOST NOTE on
+# mart.at_club_spells: "club_runs itself is untouched, so growth-at-club tracking for loan
+# spells is unaffected" — a deliberate call at the time, not an oversight, but the same class
+# of bug player_growth_tenure just got fixed for). A lapsed loanee's run here still spans
+# from his real loan to the newest snapshot, same fabricated-tenure shape. Not fixed in this
+# pass because it needs a real redesign, not a one-line EXISTS swap: club_runs is keyed by
+# run_id derived from raw club_tid continuity, and player_growth_at_club's whole grouping
+# (`joined AS ... JOIN mart.club_runs cr`) would need to key on spell windows instead. Lower
+# priority than player_growth_tenure was: not read by export_data.py or dashboard/db.py
+# today (grep confirms only fmparser/mart.py and scripts/publish_mart.py reference it), so
+# nothing user-facing is currently corrupted by it — but a remote agent querying this mart
+# object directly would be.
 PLAYER_GROWTH_AT_CLUB = """
 CREATE OR REPLACE VIEW mart.player_growth_at_club AS
 WITH joined AS (
@@ -1378,12 +1393,29 @@ FROM bounds b
 # model (a drop to the reserves IS a club change in the data) but fragments the "since we
 # signed him" question: a player who bounces 346 <-> 7296 gets a row per stint, so
 # Moller-Jensen shows up four times and none of the rows is his real growth here.
+#
+# `ours` is spell-based (EXISTS against mart.player_spells), not a raw `g.club_tid` check —
+# see the GHOST NOTE on mart.at_club_spells above for why the raw column can't be trusted:
+# `staging.players.club_tid` is a per-snapshot fact, but a lapsed loan leaves it pointing at
+# us indefinitely (the squad-list record is written once and never cleared). A raw check
+# here fabricated a 967-day, +24-attribute "tenure" for Ernest Nuamah (2022-03-19 through the
+# newest snapshot) out of a loan that actually ended 2023-06-30 — confirmed against the raw
+# save bytes, not a hypothetical. `mart.player_spells` already answers "was he genuinely
+# here on this date" correctly (that's what `mart.squad_on`/`squad_current` are built from);
+# this reuses the identical check per growth row instead of re-deriving it from club_tid.
 PLAYER_GROWTH_TENURE = """
 CREATE OR REPLACE VIEW mart.player_growth_tenure AS
 WITH pc AS (
     SELECT g.person_id, g.tid, g.name, g.snap_ix, g.phase, g.phase_date, g.age,
            g.attr_total, g.is_estimated, g.is_gk,
-           g.club_tid IN (SELECT club_tid FROM mart.our_clubs) AS ours
+           EXISTS (
+               SELECT 1 FROM mart.player_spells sp
+               WHERE sp.person_id = g.person_id
+                 AND sp.spell_type IN ('at_club', 'loan_in')
+                 AND sp.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+                 AND g.phase_date >= sp.valid_from
+                 AND (sp.valid_to IS NULL OR g.phase_date <= sp.valid_to)
+           )                                                        AS ours
     FROM mart.player_growth g
 ),
 marked AS (
