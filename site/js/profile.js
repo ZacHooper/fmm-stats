@@ -182,26 +182,45 @@ export function openProfile(tid, { role = null } = {}) {
   }
 
   body.push(el("h4", { text: "Attributes" }));
-  body.push(el("p.note", {
-    text: shown ? `Coloured by importance to ${shown.role} in this tactic — red = key, amber = important, green = useful.` : "",
-  }));
-  const attrBox = el("div", {}, [attributeBlock(p, shown?.role)]);
+  const attrNote = el("p.note", {});
+  body.push(attrNote);
+  const attrBox = el("div");
+  let curRole = shown?.role;
+  let curDetail = "simple";
+  function rerenderAttrs() {
+    attrNote.textContent = curRole
+      ? `Coloured by importance to ${curRole} in this tactic — red = key, amber = important, green = useful.` : "";
+    clear(attrBox);
+    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail }));
+  }
+  rerenderAttrs();
+
+  const controls = [];
+  // Only offer the highlight picker when he actually has more than one distinct role to
+  // highlight for — a player who lists a single position has nothing to switch between.
+  const seenRoles = new Set();
+  const roleOptions = roles.filter((r) => (seenRoles.has(r.role) ? false : seenRoles.add(r.role)));
+  if (roleOptions.length > 1) {
+    const roleSel = el("select.btn", {
+      onchange: (e) => { curRole = e.target.value; rerenderAttrs(); },
+    }, roleOptions.map((r) => el("option", { value: r.role, text: `${r.pos} · ${r.role}` })));
+    roleSel.value = curRole;
+    controls.push(el("span.dim", { text: "Highlight:" }), roleSel);
+  }
   if (traj.length > 1) {
     // Growth is opt-in and defaults to hidden — "Current only" reproduces the plain grid above,
     // and picking a more detailed level re-renders the same three-column layout in place rather
     // than bolting on a separate table.
     const detailSel = el("select.btn", {
-      onchange: (e) => {
-        clear(attrBox);
-        attrBox.append(attributeBlock(p, shown?.role, { attrTraj, detail: e.target.value }));
-      },
+      onchange: (e) => { curDetail = e.target.value; rerenderAttrs(); },
     }, [
       el("option", { value: "simple", text: "Current only" }),
       el("option", { value: "more", text: "+ growth since first snapshot" }),
       el("option", { value: "most", text: "+ growth + trend" }),
     ]);
-    body.push(el("div.prow", {}, [el("span.dim", { text: "Detail:" }), detailSel]));
+    controls.push(el("span.dim", { text: "Detail:" }), detailSel);
   }
+  if (controls.length) body.push(el("div.prow", {}, controls));
   body.push(attrBox);
 
   body.push(el("h4", { text: "Match record for us (all seasons)" }));
