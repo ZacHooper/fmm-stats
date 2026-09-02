@@ -338,6 +338,12 @@ export function trajectory(tid, role, method = S.method) {
   const t = S.squad?.trajectories?.[String(tid)] || [];
   return t.map(([season, phase, attrs]) => ({ season, phase, value: rating(attrs, role, method) }));
 }
+/** Raw per-snapshot attribute rows for a player, oldest first — same source `trajectory()`
+ *  derives a role rating from, exposed unrated so per-ATTRIBUTE growth can be shown too. */
+export function attrTrajectory(tid) {
+  const t = S.squad?.trajectories?.[String(tid)] || [];
+  return t.map(([season, phase, attrs]) => ({ season, phase, attrs }));
+}
 
 // --------------------------------------------------------------------------- match stats
 export const MATCH_SUMS = ["goals", "assists", "passA", "passC", "keyPass", "tackA", "tackW",

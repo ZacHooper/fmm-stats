@@ -81,6 +81,47 @@ function statTable(agg) {
   ])]);
 }
 
+/**
+ * Per-attribute breakdown of `attrTraj` (oldest-first snapshot rows) — same GAME_ORDER grouping
+ * as attributeBlock() so an attribute lands in the same relative spot in both, and a raw trend
+ * (sparkline over every recorded value) alongside first-vs-last, since a steady climb and a dip-
+ * then-recover can share the same net delta.
+ */
+function attrGrowthTable(attrTraj, isGk) {
+  if (attrTraj.length < 2) return el("p.note", { text: "Not enough snapshots yet." });
+  const groups = ["Technical", "Mental", "Physical"];
+  if (isGk) groups.push("Goalkeeping");
+  const rows = [];
+  for (const g of groups) {
+    const inGroup = [];
+    for (const a of GAME_ORDER[g]) {
+      const i = D.S.attrs.indexOf(a);
+      if (i < 0) continue;
+      const vals = attrTraj.map((t) => t.attrs[i]);
+      const known = vals.filter((v) => v != null);
+      if (known.length < 2) continue;
+      const first = known[0], last = known[known.length - 1];
+      inGroup.push({ a, vals, first, last, delta: last - first });
+    }
+    if (!inGroup.length) continue;
+    rows.push(el("tr", {}, [el("td", { colspan: 5 }, [el("span.dim", { text: g })])]));
+    for (const { a, vals, first, last, delta } of inGroup) {
+      rows.push(el("tr", {}, [
+        el("td", { text: a }),
+        el("td.num", {}, [sparkline(vals, { w: 64, h: 18 })]),
+        el("td.num", {}, [attrValue(first)]),
+        el("td.num", {}, [attrValue(last)]),
+        el("td.num", { text: delta === 0 ? DASH : `${delta > 0 ? "+" : ""}${delta}` }),
+      ]));
+    }
+  }
+  return el("div.scroll", {}, [el("table", {}, [
+    el("thead", {}, [el("tr", {}, ["Attribute", "Trend", "First", "Last", "Δ"]
+      .map((h, i) => el(`th${i > 0 ? ".num" : ""}`, { text: h })))]),
+    el("tbody", {}, rows),
+  ])]);
+}
+
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
@@ -92,6 +133,8 @@ export function openProfile(tid, { role = null } = {}) {
   const agg = D.S.matchAgg?.get(tid);
   const traj = shown ? D.trajectory(tid, shown.role) : [];
   const growth = shown ? D.growth(tid, shown.role) : null;
+  const attrTraj = D.attrTrajectory(tid);
+  const isGk = p.positions.some((q) => q.pos === "GK");
   const career = D.S.squad?.career_history?.[String(tid)] || [];
 
   const body = [];
@@ -155,6 +198,8 @@ export function openProfile(tid, { role = null } = {}) {
             : "",
         }),
       ]),
+      el("p.note", { text: "By attribute — trend across all snapshots, first vs most recent recorded value." }),
+      attrGrowthTable(attrTraj, isGk),
     ]));
   }
 
