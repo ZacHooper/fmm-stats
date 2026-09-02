@@ -46,8 +46,9 @@ export function attributeBlock(p, role, { compare = null, attrTraj = null, detai
         if (detail === "most") spark = attrTraj.map((t) => t.attrs[i]);
       }
     }
-    return el(`div.arow${w >= 2 ? ".keyed" : ""}`, { title }, [
-      el("span.an", {}, [a, w >= 3 ? el("span.wdot", { text: w >= 4 ? "key" : "imp" }) : null]),
+    const tier = w >= 4 ? "key" : w === 3 ? "imp" : w === 2 ? "useful" : null;
+    return el(`div.arow${tier ? `.keyed.${tier}` : ""}`, { title }, [
+      el("span.an", {}, [a, tier ? el("span.wdot", { text: tier }) : null]),
       el("span", {}, [
         spark ? sparkline(spark, { w: 40, h: 14, dot: false }) : null,
         other != null && other !== v
