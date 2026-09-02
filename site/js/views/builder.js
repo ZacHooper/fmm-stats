@@ -8,14 +8,14 @@
  * AMC, ST, GK); the header's tactic says how that role is rated. Switching tactic re-ranks every
  * slot's candidates without touching the shape, the same way it re-rates every other view.
  *
- * "General" is a fourth, DIFFERENT kind of shape: instead of merging positions into roles (DL
- * and DML both count as one LB slot in a named formation), each slot matches one exact raw FM
- * position, laid out like the game's own position grid — so you can check a player at the exact
- * position rather than the role it collapses to. Central columns get several independently
- * assignable slots sharing one position (three separate midfielders to compare, not one merged
- * box), the same way a named formation already reuses one role across CB1/CB2. Everything
- * downstream (`lookupAt`) just branches on which kind of key a slot carries; candidate ranking
- * and assignment don't care how many slots share it.
+ * "General" is a fourth, DIFFERENT kind of shape: each slot matches one exact raw FM position
+ * rather than the role it collapses to in a named formation (there is no "CB" position in a
+ * player's own positions list, only DC). It's laid out like the game's own position screen, and
+ * several slots can share one rating position — three AMC slots down the AM line, an AML slot on
+ * the Forward line and another on the AM line — the same way a named formation already reuses one
+ * role across CB1/CB2, so more than one player can be compared and assigned there at once.
+ * Everything downstream (`lookupAt`) just branches on which kind of key a slot carries; candidate
+ * ranking and assignment don't care how many slots share it.
  *
  * Ported from the Streamlit Team Builder page, minus its two heaviest features: live per-slot
  * weight tuning (duty is a display label only here, not an override) and the Hungarian-algorithm
@@ -54,29 +54,25 @@ const NAMED = {
     [["GK", "GK", "SK"]],
   ],
 };
-// General grid: laid out on an explicit 5-column x 6-row CSS grid, the same shape the game's own
-// position screen uses — five outfield lines (Forward / AM / CM / DM / Defence) plus GK on its
-// own row. Every position the game has is on offer regardless of what any formation or tactic
-// actually fields (see D.POS_ORDER's own reasoning for why).
-//
-// The 3 central columns of each outfield line are 3 SEPARATE slots (id ST1/ST2/ST3, etc.), not
-// one merged box — same pattern a named formation already uses for CB1/CB2: several slots can
-// share one rating `key` (there's only one raw "MC" position to judge them all against) while
-// still being assigned independently, because a squad can have three midfielders worth comparing
-// side by side. AML/AMR are the one real exception: they span BOTH the Forward and AM rows,
-// because unlike the center there genuinely is only one of them — FMM has no separate
-// wide-forward position, so duplicating "AML" into two independent slots would just be two boxes
-// racing to describe the same player. DML/DMR and DL/DR stay on separate rows with separate
-// labels (WB vs FB) because those, unlike the center columns, ARE different raw positions.
+// General grid: an explicit 5-column x 6-row CSS grid — five outfield lines (Forward / AM / CM /
+// DM / Defence) plus GK on its own row, mirroring the game's own position screen. Every position
+// the game has is on offer regardless of what any formation or tactic actually fields (see
+// D.POS_ORDER's own reasoning for why). id is unique per cell; key is the raw position it's rated
+// and looked up by, and several cells share one (ST1-3, AMC1-3, AML1/AML2, …) so a squad's real
+// competition for a place — three midfielders, a winger who could play either line — has room to
+// show up as separate, independently assignable boxes. DML/DMR and DL/DR carry the WB/FB label
+// because those, unlike the repeats above, are genuinely different raw positions.
 const GENERAL_CELLS = [
-  { id: "AML", key: "AML", duty: "AML", row: 1, col: 1, rowSpan: 2 },
+  { id: "AML1", key: "AML", duty: "AML", row: 1, col: 1 },
   { id: "ST1", key: "ST", duty: "ST", row: 1, col: 2 },
   { id: "ST2", key: "ST", duty: "ST", row: 1, col: 3 },
   { id: "ST3", key: "ST", duty: "ST", row: 1, col: 4 },
-  { id: "AMR", key: "AMR", duty: "AMR", row: 1, col: 5, rowSpan: 2 },
+  { id: "AMR1", key: "AMR", duty: "AMR", row: 1, col: 5 },
+  { id: "AML2", key: "AML", duty: "AML", row: 2, col: 1 },
   { id: "AMC1", key: "AMC", duty: "AMC", row: 2, col: 2 },
   { id: "AMC2", key: "AMC", duty: "AMC", row: 2, col: 3 },
   { id: "AMC3", key: "AMC", duty: "AMC", row: 2, col: 4 },
+  { id: "AMR2", key: "AMR", duty: "AMR", row: 2, col: 5 },
   { id: "ML", key: "ML", duty: "ML", row: 3, col: 1 },
   { id: "MC1", key: "MC", duty: "CM", row: 3, col: 2 },
   { id: "MC2", key: "MC", duty: "CM", row: 3, col: 3 },
@@ -99,8 +95,8 @@ const GENERAL_LABEL = "General (any position)";
 // FORMATIONS: name -> {kind, rows | cells}. kind "role" slots are looked up by merging every raw
 // position that maps onto that role (a named formation's LB slot matches DL or DML, whichever
 // fits better); kind "pos" slots match one exact raw position and nothing else. Named formations
-// lay out as simple flex rows (`rows`); the General grid needs explicit placement (`cells`) for
-// its spans, so it gets its own renderer — see drawPitch().
+// lay out as simple flex rows (`rows`); the General grid needs explicit row/column placement
+// (`cells`), so it gets its own renderer — see drawPitch().
 const FORMATIONS = {
   ...Object.fromEntries(Object.entries(NAMED).map(([name, rows]) => [name, { kind: "role", rows }])),
   [GENERAL_LABEL]: { kind: "pos", cells: GENERAL_CELLS },
@@ -254,8 +250,8 @@ export async function view() {
       pitch = el("div.pitch.grid5");
       for (const c of f.cells) {
         const node = slotEl(c.id, c.key, c.duty);
-        node.style.gridRow = `${c.row} / span ${c.rowSpan || 1}`;
-        node.style.gridColumn = `${c.col} / span ${c.colSpan || 1}`;
+        node.style.gridRow = String(c.row);
+        node.style.gridColumn = String(c.col);
         pitch.append(node);
       }
     } else {
