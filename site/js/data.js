@@ -360,6 +360,31 @@ export function attrTrajectory(tid) {
 }
 
 // ------------------------------------------------------------------------- forecast
+const clampAttr = (v) => Math.max(0, Math.min(20, Math.round(v)));
+
+/**
+ * A direct (attribute, ageNow, valueNow, toAge) cell if the save's own real timespan covers it,
+ * else a chain through an intermediate published horizon that does. The save is only ~4 real
+ * years long (2021-07 to 2025-07): NO ONE currently 17 has ever been tracked all the way to 24
+ * in this data (that needs a 7-year gap), so mart.attribute_forecast correctly has no cell
+ * there — but 17->21 and 21->24 are each independently observed, so chaining them is still real,
+ * data-backed growth, not extrapolation. Composing the bands (min of the lower bounds, max of
+ * the upper) is a deliberately generous approximation of the compounded uncertainty. Returns
+ * null only when no path — direct or chained — is backed by a real (n>=30) cell.
+ */
+function forecastCell(fc, name, ageNow, valueNow, toAge) {
+  const direct = fc.cells[name]?.[String(ageNow)]?.[String(valueNow)]?.[String(toAge)];
+  if (direct) return { median: direct[0], p25: direct[1], p75: direct[2] };
+  for (const mid of (fc.horizons || []).filter((h) => h > ageNow && h < toAge).sort((x, y) => x - y)) {
+    const first = fc.cells[name]?.[String(ageNow)]?.[String(valueNow)]?.[String(mid)];
+    if (!first) continue;
+    const second = fc.cells[name]?.[String(mid)]?.[String(clampAttr(first[0]))]?.[String(toAge)];
+    if (!second) continue;
+    return { median: second[0], p25: Math.min(first[1], second[1]), p75: Math.max(first[2], second[2]) };
+  }
+  return null;
+}
+
 /**
  * Project a player's attribute vector forward to `toAge` (21 or 24 — the two published
  * horizons) using the empirical current-value + age lookup in api/forecast.json. This is a
@@ -382,11 +407,10 @@ export function forecastAttrs(p, toAge = 24) {
   if (a < toAge) {
     for (let i = 0; i < S.attrs.length; i++) {
       if (buckets[i] !== "forecastable" || p.attrs[i] == null) continue;
-      const cell = fc.cells[S.attrs[i]]?.[String(a)]?.[String(p.attrs[i])]?.[String(toAge)];
+      const cell = forecastCell(fc, S.attrs[i], a, p.attrs[i], toAge);
       if (!cell) continue;
-      const [median, p25, p75] = cell;
-      attrs[i] = Math.max(0, Math.min(20, Math.round(median)));
-      band[i] = [p25, p75];
+      attrs[i] = clampAttr(cell.median);
+      band[i] = [cell.p25, cell.p75];
     }
   }
   return { attrs, band, buckets };
