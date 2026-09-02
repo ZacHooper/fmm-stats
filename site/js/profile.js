@@ -10,6 +10,17 @@ import * as D from "./data.js";
 import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
   ATTR_BANDS, DASH } from "./ui.js";
 
+// A per-viewer preference, not per-player state — once you've picked "+ growth + trend" you
+// want it on every profile you open from then on, not reset back to the plain grid each time.
+const DETAIL_KEY = "fm:profile:detail";
+const loadDetail = () => {
+  try {
+    const v = localStorage.getItem(DETAIL_KEY);
+    return v === "more" || v === "most" ? v : "simple";
+  } catch { return "simple"; }
+};
+const saveDetail = (v) => { try { localStorage.setItem(DETAIL_KEY, v); } catch { /* private browsing */ } };
+
 /**
  * Attribute order as the GAME lists it — alphabetical within each group, three columns side by
  * side, keepers separate. Matching it means a value you just read off the phone lands in the
@@ -219,7 +230,7 @@ export function openProfile(tid, { role = null } = {}) {
   body.push(attrNote);
   const attrBox = el("div");
   let curRole = shown?.role;
-  let curDetail = "simple";
+  let curDetail = loadDetail();
   function rerenderAttrs() {
     attrNote.textContent = curRole
       ? `Coloured by importance to ${curRole} in this tactic — green = key, amber = important, red = useful.` : "";
@@ -241,16 +252,17 @@ export function openProfile(tid, { role = null } = {}) {
     controls.push(el("span.dim", { text: "Highlight:" }), roleSel);
   }
   if (traj.length > 1) {
-    // Growth is opt-in and defaults to hidden — "Current only" reproduces the plain grid above,
-    // and picking a more detailed level re-renders the same three-column layout in place rather
-    // than bolting on a separate table.
+    // Growth defaults to whatever level you last picked (persisted, not per-player), so once
+    // you've settled on "+ growth + trend" every profile opens straight into it. Picking a
+    // level re-renders the same three-column layout in place rather than bolting on a table.
     const detailSel = el("select.btn", {
-      onchange: (e) => { curDetail = e.target.value; rerenderAttrs(); },
+      onchange: (e) => { curDetail = e.target.value; saveDetail(curDetail); rerenderAttrs(); },
     }, [
       el("option", { value: "simple", text: "Current only" }),
       el("option", { value: "more", text: "+ growth since first snapshot" }),
       el("option", { value: "most", text: "+ growth + trend" }),
     ]);
+    detailSel.value = curDetail;
     controls.push(el("span.dim", { text: "Detail:" }), detailSel);
   }
   if (controls.length) body.push(el("div.prow", {}, controls));
