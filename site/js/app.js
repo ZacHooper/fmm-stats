@@ -11,6 +11,7 @@ import { el, clear, toast } from "./ui.js";
 const ROUTES = [
   ["squad", "Squad", () => import("./views/squad.js")],
   ["positions", "Positions", () => import("./views/positions.js")],
+  ["builder", "Builder", () => import("./views/builder.js")],
   ["recruit", "Recruitment", () => import("./views/recruit.js")],
   ["registration", "Registration", () => import("./views/registration.js")],
   ["opposition", "Opposition", () => import("./views/opposition.js")],
