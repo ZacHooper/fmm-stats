@@ -22,27 +22,51 @@ const GAME_ORDER = {
   Goalkeeping: ["Agility", "Communication", "Handling", "Kicking", "Reflexes", "Throwing"],
 };
 
-export function attributeBlock(p, role, { compare = null } = {}) {
+/**
+ * @param {object} [opts]
+ * @param {object} [opts.compare] another player, to show a per-attribute delta against him.
+ * @param {Array} [opts.attrTraj] this player's snapshot history (D.attrTrajectory(tid)), oldest
+ *   first — enables growth annotation, gated by `detail`.
+ * @param {"simple"|"more"|"most"} [opts.detail] "simple" (default) is the plain current-value
+ *   grid; "more" adds the net change since the first snapshot next to the value; "most" also
+ *   prepends a small trend sparkline. Kept off by default — growth is opt-in, not everyone
+ *   wants a busier grid.
+ */
+export function attributeBlock(p, role, { compare = null, attrTraj = null, detail = "simple" } = {}) {
   const isGk = p.positions.some((q) => q.pos === "GK");
+
+  function row(a, i, w, title) {
+    const v = p.attrs[i];
+    const other = compare ? compare.attrs[i] : null;
+    let spark = null, delta = null;
+    if (attrTraj && detail !== "simple") {
+      const known = attrTraj.map((t) => t.attrs[i]).filter((x) => x != null);
+      if (known.length >= 2) {
+        delta = v - known[0];
+        if (detail === "most") spark = attrTraj.map((t) => t.attrs[i]);
+      }
+    }
+    return el(`div.arow${w >= 2 ? ".keyed" : ""}`, { title }, [
+      el("span.an", {}, [a, w >= 3 ? el("span.wdot", { text: w >= 4 ? "key" : "imp" }) : null]),
+      el("span", {}, [
+        spark ? sparkline(spark, { w: 40, h: 14, dot: false }) : null,
+        other != null && other !== v
+          ? el("span.dim", { text: `${v > other ? "+" : ""}${v - other}  ` }) : null,
+        attrValue(v),
+        delta != null
+          ? el("span.dim", { text: ` ${delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`}` }) : null,
+      ]),
+    ]);
+  }
+
   const groups = ["Technical", "Mental", "Physical"];
   const cols = groups.map((g) => {
     const col = el("div.attrcol", {}, [el("h4", { text: g })]);
     for (const a of GAME_ORDER[g]) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
-      const v = p.attrs[i];
       const w = role ? D.weightOf(a, role) : 1;
-      const other = compare ? compare.attrs[i] : null;
-      col.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {
-        title: w > 1 ? `${a} — weight ${w} for ${role}` : a,
-      }, [
-        el("span.an", {}, [a, w >= 3 ? el("span.wdot", { text: w >= 4 ? "key" : "imp" }) : null]),
-        el("span", {}, [
-          other != null && other !== v
-            ? el("span.dim", { text: `${v > other ? "+" : ""}${v - other}  ` }) : null,
-          attrValue(v),
-        ]),
-      ]));
+      col.append(row(a, i, w, w > 1 ? `${a} — weight ${w} for ${role}` : a));
     }
     return col;
   });
@@ -55,9 +79,7 @@ export function attributeBlock(p, role, { compare = null } = {}) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
       const w = role ? D.weightOf(a, role) : 1;
-      gk.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {}, [
-        el("span.an", { text: a }), attrValue(p.attrs[i]),
-      ]));
+      gk.append(row(a, i, w, a));
     }
     wrap.append(el("div.attrcols", {}, [gk]));
   }
@@ -81,47 +103,6 @@ function statTable(agg) {
   ])]);
 }
 
-/**
- * Per-attribute breakdown of `attrTraj` (oldest-first snapshot rows) — same GAME_ORDER grouping
- * as attributeBlock() so an attribute lands in the same relative spot in both, and a raw trend
- * (sparkline over every recorded value) alongside first-vs-last, since a steady climb and a dip-
- * then-recover can share the same net delta.
- */
-function attrGrowthTable(attrTraj, isGk) {
-  if (attrTraj.length < 2) return el("p.note", { text: "Not enough snapshots yet." });
-  const groups = ["Technical", "Mental", "Physical"];
-  if (isGk) groups.push("Goalkeeping");
-  const rows = [];
-  for (const g of groups) {
-    const inGroup = [];
-    for (const a of GAME_ORDER[g]) {
-      const i = D.S.attrs.indexOf(a);
-      if (i < 0) continue;
-      const vals = attrTraj.map((t) => t.attrs[i]);
-      const known = vals.filter((v) => v != null);
-      if (known.length < 2) continue;
-      const first = known[0], last = known[known.length - 1];
-      inGroup.push({ a, vals, first, last, delta: last - first });
-    }
-    if (!inGroup.length) continue;
-    rows.push(el("tr", {}, [el("td", { colspan: 5 }, [el("span.dim", { text: g })])]));
-    for (const { a, vals, first, last, delta } of inGroup) {
-      rows.push(el("tr", {}, [
-        el("td", { text: a }),
-        el("td.num", {}, [sparkline(vals, { w: 64, h: 18 })]),
-        el("td.num", {}, [attrValue(first)]),
-        el("td.num", {}, [attrValue(last)]),
-        el("td.num", { text: delta === 0 ? DASH : `${delta > 0 ? "+" : ""}${delta}` }),
-      ]));
-    }
-  }
-  return el("div.scroll", {}, [el("table", {}, [
-    el("thead", {}, [el("tr", {}, ["Attribute", "Trend", "First", "Last", "Δ"]
-      .map((h, i) => el(`th${i > 0 ? ".num" : ""}`, { text: h })))]),
-    el("tbody", {}, rows),
-  ])]);
-}
-
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
@@ -134,7 +115,6 @@ export function openProfile(tid, { role = null } = {}) {
   const traj = shown ? D.trajectory(tid, shown.role) : [];
   const growth = shown ? D.growth(tid, shown.role) : null;
   const attrTraj = D.attrTrajectory(tid);
-  const isGk = p.positions.some((q) => q.pos === "GK");
   const career = D.S.squad?.career_history?.[String(tid)] || [];
 
   const body = [];
@@ -198,8 +178,6 @@ export function openProfile(tid, { role = null } = {}) {
             : "",
         }),
       ]),
-      el("p.note", { text: "By attribute — trend across all snapshots, first vs most recent recorded value." }),
-      attrGrowthTable(attrTraj, isGk),
     ]));
   }
 
@@ -207,7 +185,24 @@ export function openProfile(tid, { role = null } = {}) {
   body.push(el("p.note", {
     text: shown ? `Coloured by importance to ${shown.role} in this tactic — red = key, amber = important, green = useful.` : "",
   }));
-  body.push(attributeBlock(p, shown?.role));
+  const attrBox = el("div", {}, [attributeBlock(p, shown?.role)]);
+  if (traj.length > 1) {
+    // Growth is opt-in and defaults to hidden — "Current only" reproduces the plain grid above,
+    // and picking a more detailed level re-renders the same three-column layout in place rather
+    // than bolting on a separate table.
+    const detailSel = el("select.btn", {
+      onchange: (e) => {
+        clear(attrBox);
+        attrBox.append(attributeBlock(p, shown?.role, { attrTraj, detail: e.target.value }));
+      },
+    }, [
+      el("option", { value: "simple", text: "Current only" }),
+      el("option", { value: "more", text: "+ growth since first snapshot" }),
+      el("option", { value: "most", text: "+ growth + trend" }),
+    ]);
+    body.push(el("div.prow", {}, [el("span.dim", { text: "Detail:" }), detailSel]));
+  }
+  body.push(attrBox);
 
   body.push(el("h4", { text: "Match record for us (all seasons)" }));
   body.push(statTable(agg));
