@@ -51,29 +51,47 @@ const NAMED = {
     [["GK", "GK", "SK"]],
   ],
 };
-// General grid: one slot per raw FM position (id === the position code itself), no duty. Every
-// position the game has is on offer regardless of what any formation or tactic actually fields —
-// see D.POS_ORDER's own reasoning for why nothing here should be tactic-derived.
-const GENERAL_ROWS = [
-  [["ST", "ST", null]],
-  [["AML", "AML", null], ["AMC", "AMC", null], ["AMR", "AMR", null]],
-  [["ML", "ML", null], ["MC", "MC", null], ["MR", "MR", null]],
-  [["DML", "DML", null], ["DMC", "DMC", null], ["DMR", "DMR", null]],
-  [["DL", "DL", null], ["DC", "DC", null], ["DR", "DR", null]],
-  [["GK", "GK", null]],
+// General grid: one slot per raw FM position (id === the position code itself), no per-slot
+// tactic tie — every position the game has is on offer regardless of what any formation or
+// tactic actually fields (see D.POS_ORDER's own reasoning for why). Laid out on an explicit
+// 5-column x 6-row CSS grid, the same shape the game's own position screen uses: five outfield
+// lines (Forward / AM / CM / DM / Defence), each spanning all 5 columns, plus GK on its own row.
+// The 3 central columns of each outfield line are ONE slot rendered 3-wide (there is no separate
+// central-left/-right position in FMM to fill them with) — except AML/AMR, which span BOTH the
+// Forward and AM rows: FMM has no distinct "wide forward" position, so the one AML/AMR slot
+// covers that whole flank rather than being duplicated. DML/DMR and DL/DR stay on separate rows
+// with separate labels (WB vs FB) because those genuinely are different raw positions.
+const GENERAL_CELLS = [
+  { id: "AML", key: "AML", duty: "AML", row: 1, col: 1, rowSpan: 2 },
+  { id: "ST", key: "ST", duty: "ST", row: 1, col: 2, colSpan: 3 },
+  { id: "AMR", key: "AMR", duty: "AMR", row: 1, col: 5, rowSpan: 2 },
+  { id: "AMC", key: "AMC", duty: "AMC", row: 2, col: 2, colSpan: 3 },
+  { id: "ML", key: "ML", duty: "ML", row: 3, col: 1 },
+  { id: "MC", key: "MC", duty: "CM", row: 3, col: 2, colSpan: 3 },
+  { id: "MR", key: "MR", duty: "MR", row: 3, col: 5 },
+  { id: "DML", key: "DML", duty: "WBL", row: 4, col: 1 },
+  { id: "DMC", key: "DMC", duty: "DM", row: 4, col: 2, colSpan: 3 },
+  { id: "DMR", key: "DMR", duty: "WBR", row: 4, col: 5 },
+  { id: "DL", key: "DL", duty: "FBL", row: 5, col: 1 },
+  { id: "DC", key: "DC", duty: "CB", row: 5, col: 2, colSpan: 3 },
+  { id: "DR", key: "DR", duty: "FBR", row: 5, col: 5 },
+  { id: "GK", key: "GK", duty: "GK", row: 6, col: 2, colSpan: 3 },
 ];
 const GENERAL_LABEL = "General (any position)";
 
-// FORMATIONS: name -> {kind, rows}. kind "role" slots are looked up by merging every raw
+// FORMATIONS: name -> {kind, rows | cells}. kind "role" slots are looked up by merging every raw
 // position that maps onto that role (a named formation's LB slot matches DL or DML, whichever
-// fits better); kind "pos" slots match one exact raw position and nothing else.
+// fits better); kind "pos" slots match one exact raw position and nothing else. Named formations
+// lay out as simple flex rows (`rows`); the General grid needs explicit placement (`cells`) for
+// its spans, so it gets its own renderer — see drawPitch().
 const FORMATIONS = {
   ...Object.fromEntries(Object.entries(NAMED).map(([name, rows]) => [name, { kind: "role", rows }])),
-  [GENERAL_LABEL]: { kind: "pos", rows: GENERAL_ROWS },
+  [GENERAL_LABEL]: { kind: "pos", cells: GENERAL_CELLS },
 };
 
 const flatSlots = (name) => {
   const f = FORMATIONS[name];
+  if (f.cells) return f.cells.map((c) => ({ id: c.id, key: c.key, duty: c.duty, kind: f.kind }));
   return f.rows.flat().map(([id, key, duty]) => ({ id, key, duty, kind: f.kind }));
 };
 
@@ -204,15 +222,29 @@ export async function view() {
     );
   }
 
+  const slotEl = (sid, key, duty) => {
+    const tid = state.xi[sid];
+    return el(`div.slot${sid === active ? ".on" : ""}${tid != null ? ".filled" : ""}`, {
+      onclick: () => { active = sid; redraw(); },
+    }, [el("small", { text: duty || key }), el("b", { text: tid != null ? surname(tid) : "—" })]);
+  };
+
   function drawPitch() {
-    const pitch = el("div.pitch");
-    for (const row of FORMATIONS[state.formation].rows) {
-      pitch.append(el("div.pitchrow", {}, row.map(([sid, key, duty]) => {
-        const tid = state.xi[sid];
-        return el(`div.slot${sid === active ? ".on" : ""}${tid != null ? ".filled" : ""}`, {
-          onclick: () => { active = sid; redraw(); },
-        }, [el("small", { text: duty || key }), el("b", { text: tid != null ? surname(tid) : "—" })]);
-      })));
+    const f = FORMATIONS[state.formation];
+    let pitch;
+    if (f.cells) {
+      pitch = el("div.pitch.grid5");
+      for (const c of f.cells) {
+        const node = slotEl(c.id, c.key, c.duty);
+        node.style.gridRow = `${c.row} / span ${c.rowSpan || 1}`;
+        node.style.gridColumn = `${c.col} / span ${c.colSpan || 1}`;
+        pitch.append(node);
+      }
+    } else {
+      pitch = el("div.pitch");
+      for (const row of f.rows) {
+        pitch.append(el("div.pitchrow", {}, row.map(([sid, key, duty]) => slotEl(sid, key, duty))));
+      }
     }
     clear(pitchHost).append(pitch);
   }
@@ -303,8 +335,12 @@ export async function view() {
       empty: "Nobody in the pool fits this position.",
     });
     const label = slot.kind === "pos" ? `position ${slot.key}` : `role ${slot.key}`;
+    // The General grid's duty is a display nickname for the pitch cell (WBL, CB…), not a real
+    // tactical instruction, so it's redundant next to "position X" here — only named formations
+    // show it.
+    const dutyPart = slot.kind === "role" && slot.duty ? ` · ${slot.duty}` : "";
     clear(candHost).append(
-      el("p.note", { text: `${slot.id}${slot.duty ? ` · ${slot.duty}` : ""} (${label}) — ${rows.length} eligible` }),
+      el("p.note", { text: `${slot.id}${dutyPart} (${label}) — ${rows.length} eligible` }),
       table.node,
     );
   }
