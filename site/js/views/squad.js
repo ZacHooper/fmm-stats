@@ -198,10 +198,12 @@ export async function view() {
     Attack: (r) => ["AMC", "AML", "AMR", "ST"].includes(r.r.pos),
   };
   // Position narrows further than Unit — "how deep are we at DR specifically" rather than
-  // "how's the back line" — and the two filters stack. Options are only the positions that show
-  // up on someone's best role here, so nothing irrelevant to this squad appears in the list.
+  // "how's the back line" — and the two filters stack. Every position the game has is on offer,
+  // not just the ones that happen to be someone's tactic-best: under a strikerless tactic nobody
+  // rates ST as their best role, but "who could I play at ST if I switched" is still a real
+  // question, and it matches how the same filter behaves on Recruitment's search table.
   let pos = "all";
-  const POSITIONS = [...new Set(rows.map((r) => r.r.pos))].sort();
+  const POSITIONS = D.POS_ORDER.filter((p) => rows.some((r) => r.player.positions.some((q) => q.pos === p)));
   const selected = new Set();
 
   const loanBtn = el("button.btn", {
@@ -274,7 +276,7 @@ export async function view() {
     searchPlaceholder: "Search our squad…",
     toolbar: [unitSel, posSel, loanBtn, slBtn, armBtn, cmpBtn],
     filter: (r) => (showLoanIn || !r.loanedIn) && (showShortlist || !r.shortlist) && UNITS[unit](r)
-      && (pos === "all" || r.r.pos === pos),
+      && (pos === "all" || r.player.positions.some((q) => q.pos === pos)),
     rowClass: (r) => (selected.has(r.tid) ? "picked" : null),
     empty: "No player matches those filters.",
     onRow: (r) => {

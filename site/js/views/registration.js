@@ -315,11 +315,9 @@ export async function view() {
   // right-back", which is the question a 25-man cap actually turns into. A player is counted at
   // EVERY position he lists, so the columns do not sum to the squad — depth is per position, and
   // a player covering three of them really is depth at three of them.
-  const POS_ORDER = ["GK", "DL", "DC", "DR", "DML", "DMC", "DMR",
-                     "ML", "MC", "MR", "AML", "AMC", "AMR", "ST"];
   const posRank = (p) => {
-    const i = POS_ORDER.indexOf(p);
-    return i === -1 ? POS_ORDER.length : i;
+    const i = D.POS_ORDER.indexOf(p);
+    return i === -1 ? D.POS_ORDER.length : i;
   };
   const depthTable = el("div");
 
