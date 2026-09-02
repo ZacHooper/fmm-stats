@@ -144,15 +144,17 @@ export function openProfile(tid, { role = null } = {}) {
   }));
 
   if (traj.length > 1) {
-    body.push(el("h4", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }));
-    body.push(el("div.card", {}, [
-      sparkline(traj.map((t) => t.value), { w: 260, h: 44 }),
-      el("p.note", {
-        text: growth
-          ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
-            + ` (${num(growth.from)} → ${num(growth.to)}), recomputed under the current tactic.`
-          : "",
-      }),
+    body.push(el("details", {}, [
+      el("summary", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }),
+      el("div.card", {}, [
+        sparkline(traj.map((t) => t.value), { w: 260, h: 44 }),
+        el("p.note", {
+          text: growth
+            ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
+              + ` (${num(growth.from)} → ${num(growth.to)}), recomputed under the current tactic.`
+            : "",
+        }),
+      ]),
     ]));
   }
 
