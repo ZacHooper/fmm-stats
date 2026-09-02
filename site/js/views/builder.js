@@ -8,6 +8,12 @@
  * AMC, ST, GK); the header's tactic says how that role is rated. Switching tactic re-ranks every
  * slot's candidates without touching the shape, the same way it re-rates every other view.
  *
+ * "General" is a fourth, DIFFERENT kind of shape: instead of merging positions into roles (DL
+ * and DML both count as one LB slot in a named formation), it's one slot per raw FM position —
+ * all 14 of them, laid out like the game's own position grid — so you can check a player at the
+ * exact position rather than the role it collapses to. Everything downstream (`lookupAt`) just
+ * branches on which kind of key a slot carries; candidate ranking and assignment don't care.
+ *
  * Ported from the Streamlit Team Builder page, minus its two heaviest features: live per-slot
  * weight tuning (duty is a display label only here, not an override) and the Hungarian-algorithm
  * "suggest best XI". This is the static picker — tap a slot, see who fits, assign him.
@@ -19,11 +25,11 @@ import { openProfile } from "../profile.js";
 
 const LS_KEY = "fm:builder";
 
-// Each slot: [id, role, duty]. `role` is one of core.pos_role's VALUES — the vocabulary
-// S.tactics[method] looks weights up by — not a raw FM position code (there is no "CB" position
-// in a player's own positions list, only DC; posRole is what turns DC into CB). Rows run
-// attack (top) -> goalkeeper (bottom), matching how a pitch reads.
-const FORMATIONS = {
+// Named formations: rows of [id, role, duty]. `role` is one of core.pos_role's VALUES — the
+// vocabulary S.tactics[method] looks weights up by — not a raw FM position code (there is no
+// "CB" position in a player's own positions list, only DC; posRole is what turns DC into CB).
+// Rows run attack (top) -> goalkeeper (bottom), matching how a pitch reads.
+const NAMED = {
   "4-1-2-3 (SS)": [
     [["AML", "AML", "IF"], ["AMC", "AMC", "SS"], ["AMR", "AMR", "IF"]],
     [["CM1", "CM", "RP"], ["CM2", "CM", "BBM"]],
@@ -45,8 +51,31 @@ const FORMATIONS = {
     [["GK", "GK", "SK"]],
   ],
 };
+// General grid: one slot per raw FM position (id === the position code itself), no duty. Every
+// position the game has is on offer regardless of what any formation or tactic actually fields —
+// see D.POS_ORDER's own reasoning for why nothing here should be tactic-derived.
+const GENERAL_ROWS = [
+  [["ST", "ST", null]],
+  [["AML", "AML", null], ["AMC", "AMC", null], ["AMR", "AMR", null]],
+  [["ML", "ML", null], ["MC", "MC", null], ["MR", "MR", null]],
+  [["DML", "DML", null], ["DMC", "DMC", null], ["DMR", "DMR", null]],
+  [["DL", "DL", null], ["DC", "DC", null], ["DR", "DR", null]],
+  [["GK", "GK", null]],
+];
+const GENERAL_LABEL = "General (any position)";
 
-const flatSlots = (key) => FORMATIONS[key].flat().map(([id, role, duty]) => ({ id, role, duty }));
+// FORMATIONS: name -> {kind, rows}. kind "role" slots are looked up by merging every raw
+// position that maps onto that role (a named formation's LB slot matches DL or DML, whichever
+// fits better); kind "pos" slots match one exact raw position and nothing else.
+const FORMATIONS = {
+  ...Object.fromEntries(Object.entries(NAMED).map(([name, rows]) => [name, { kind: "role", rows }])),
+  [GENERAL_LABEL]: { kind: "pos", rows: GENERAL_ROWS },
+};
+
+const flatSlots = (name) => {
+  const f = FORMATIONS[name];
+  return f.rows.flat().map(([id, key, duty]) => ({ id, key, duty, kind: f.kind }));
+};
 
 function loadState() {
   let s = {};
@@ -72,13 +101,27 @@ async function shortlistPlayers() {
   return tids.map((t) => D.S.players.get(t)).filter(Boolean);
 }
 
-/** Best familiarity + Level %iles a player has AT a given role (a role can be reached by more
- *  than one raw position — DL and DML both map to LB — so this is a max over whichever of his
- *  listed positions maps onto it, not a single lookup). */
-function bestAt(p, role) {
+/** The position entry a player would be judged on for `slot`. A "pos" slot (the General grid)
+ *  matches that exact raw position and nothing else. A "role" slot (a named formation) matches
+ *  whichever of his listed positions maps onto that role, best familiarity first — a role can be
+ *  reached by more than one raw position (DL and DML both map to LB). */
+function lookupAt(p, slot) {
+  if (slot.kind === "pos") return p.positions.find((q) => q.pos === slot.key) || null;
   let best = null;
-  for (const q of p.positions) if (q.role === role && (!best || q.fam > best.fam)) best = q;
+  for (const q of p.positions) if (q.role === slot.key && (!best || q.fam > best.fam)) best = q;
   return best;
+}
+
+/** [{eff}] for our own squad at `slot` — the pool a candidate's Squad Rank is read off. Never
+ *  the shortlist: "where would he rank in the squad" only means something against players
+ *  actually in it. */
+function squadPoolAt(slot) {
+  const out = [];
+  for (const p of D.ourPlayers()) {
+    const best = lookupAt(p, slot);
+    if (best && best.fam > 0) out.push({ eff: D.rating(p.attrs, best.role, D.S.method) * D.famMult(best.fam) });
+  }
+  return out;
 }
 
 export async function view() {
@@ -102,7 +145,8 @@ export async function view() {
   wrap.append(el("h2", { text: "Builder" }));
   wrap.append(el("p.note", {
     text: "Formation is the pitch shape; the tactic selected up top decides how each slot's "
-      + "role is rated. Tap a slot, then assign from the ranked list.",
+      + `role is rated. "${GENERAL_LABEL}" swaps merged roles for the 14 raw positions, one slot `
+      + "each. Tap a slot, then assign from the ranked list.",
   }));
 
   const formSel = el("select.btn", {
@@ -151,7 +195,7 @@ export async function view() {
     const filled = slots.filter((s) => state.xi[s.id] != null);
     const lvls = filled.map((s) => {
       const p = D.S.players.get(state.xi[s.id]);
-      return p ? bestAt(p, s.role)?.lvlLeague ?? null : null;
+      return p ? lookupAt(p, s)?.lvlLeague ?? null : null;
     }).filter((v) => v != null);
     const mean = lvls.length ? Math.round(lvls.reduce((a, b) => a + b, 0) / lvls.length) : null;
     clear(kpis).append(
@@ -162,26 +206,26 @@ export async function view() {
 
   function drawPitch() {
     const pitch = el("div.pitch");
-    for (const row of FORMATIONS[state.formation]) {
-      pitch.append(el("div.pitchrow", {}, row.map(([sid, , duty]) => {
+    for (const row of FORMATIONS[state.formation].rows) {
+      pitch.append(el("div.pitchrow", {}, row.map(([sid, key, duty]) => {
         const tid = state.xi[sid];
         return el(`div.slot${sid === active ? ".on" : ""}${tid != null ? ".filled" : ""}`, {
           onclick: () => { active = sid; redraw(); },
-        }, [el("small", { text: duty }), el("b", { text: tid != null ? surname(tid) : "—" })]);
+        }, [el("small", { text: duty || key }), el("b", { text: tid != null ? surname(tid) : "—" })]);
       })));
     }
     clear(pitchHost).append(pitch);
   }
 
-  function candidatesFor(role) {
+  function candidatesFor(slot) {
     const rows = [];
     for (const { player: p, shortlist } of pool) {
-      const best = bestAt(p, role);
+      const best = lookupAt(p, slot);
       if (!best || best.fam <= 0) continue;
-      const base = D.rating(p.attrs, role, D.S.method);
+      const base = D.rating(p.attrs, best.role, D.S.method);
       const eff = base * D.famMult(best.fam);
       rows.push({
-        tid: p.tid, player: p, shortlist, fam: best.fam, eff, base,
+        tid: p.tid, player: p, shortlist, fam: best.fam, eff, base, role: best.role,
         lvl: best.lvlLeague, lvlg: best.lvlGlobal,
         _search: p.name.toLowerCase(),
       });
@@ -192,7 +236,12 @@ export async function view() {
   function drawCandidates() {
     const slot = slots.find((s) => s.id === active);
     if (!slot) { clear(candHost); return; }
-    const rows = candidatesFor(slot.role);
+    const rows = candidatesFor(slot);
+    const squadPool = squadPoolAt(slot);
+    for (const r of rows) {
+      r.teamRank = D.rankIn(squadPool, r.eff);
+      r.teamPoolSize = squadPool.length;
+    }
     const assignedElsewhere = new Set(Object.entries(state.xi)
       .filter(([sid]) => sid !== active).map(([, tid]) => tid));
 
@@ -210,7 +259,7 @@ export async function view() {
         player: {
           label: "Player", group: "Identity", cls: "name", sort: (r) => r.player.name,
           render: (r) => el("span", {}, [
-            el("button.link", { text: r.player.name, onclick: () => openProfile(r.tid, { role: slot.role }) }),
+            el("button.link", { text: r.player.name, onclick: () => openProfile(r.tid, { role: r.role }) }),
             state.xi[active] === r.tid ? el("span.dim", { text: "  ✓ this slot" }) : null,
             r.shortlist ? el("span.dim", { text: "  (shortlist)" }) : null,
           ]),
@@ -221,7 +270,13 @@ export async function view() {
         },
         rating: {
           label: "Rating", group: "Rating", align: "num", sort: (r) => r.eff, render: (r) => num(r.eff),
-          help: "This tactic's weighted attribute sum × the familiarity multiplier, for this role",
+          help: "This tactic's weighted attribute sum × the familiarity multiplier, for this position",
+        },
+        teamRank: {
+          label: "Squad Rank", group: "Rating", align: "num",
+          help: "Where this rating places him among our own players at this position, best to "
+            + "worst. For a shortlisted player this is hypothetical — where he'd slot in if he joined.",
+          sort: (r) => -r.teamRank, render: (r) => el("span", { text: `${r.teamRank}/${r.teamPoolSize}` }),
         },
         lvl: {
           label: "Level %ile", group: "Rating", align: "num", sort: (r) => r.lvl, render: (r) => bar(r.lvl),
@@ -242,13 +297,14 @@ export async function view() {
         },
       },
       sticky: ["player"],
-      defaults: ["fam", "rating", "lvlg", "action"],
+      defaults: ["fam", "rating", "teamRank", "action"],
       sort: { by: "rating", dir: "desc" },
       searchPlaceholder: "Search candidates…",
-      empty: "Nobody in the pool fits this role.",
+      empty: "Nobody in the pool fits this position.",
     });
+    const label = slot.kind === "pos" ? `position ${slot.key}` : `role ${slot.key}`;
     clear(candHost).append(
-      el("p.note", { text: `${slot.id} · ${slot.duty} (role ${slot.role}) — ${rows.length} eligible` }),
+      el("p.note", { text: `${slot.id}${slot.duty ? ` · ${slot.duty}` : ""} (${label}) — ${rows.length} eligible` }),
       table.node,
     );
   }
