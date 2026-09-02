@@ -1481,6 +1481,161 @@ SELECT
 FROM bounds b
 """
 
+# What will attribute X look like at age 21/24, given its value NOW? Tested and rejected: a
+# "starting Technique predicts growth rate" model — holding current Crossing fixed, Technique
+# adds +0.000 R^2 to a 4-years-later prediction (n=11,829 tracked players; see
+# docs/agent-context/player-analysis-methods.md). What DOES work is the plain empirical lookup
+# below: current value predicts the future value directly (R^2=0.85 for Crossing), because a
+# player who is already ahead at 17 stays ahead — the gap is set early and growth doesn't
+# re-sort it.
+#
+# `now_pool`/`target_pool` each keep ONE row per (person, age bucket) via QUALIFY, rather than
+# a bare self-join on every snapshot pair: person_id repeats across ~20 snapshots, so an
+# unfiltered join would let one player contribute several correlated observations to the same
+# cell and inflate `n` without adding information.
+#
+# `bucket` is derived, not hardcoded, from a SEPARATE one-year-apart self-join restricted to
+# ages 16-22: comparing the mean delta on pairs where BOTH ends are real (is_estimated = false,
+# which in practice means "our own squad, historically") against the same on decoded pairs. The
+# decode compresses some attributes 8-24x (Movement, Positioning, Aerial) relative to their real
+# growth — those are 'unmodelled' rather than silently forecast off a flattened curve. Agility
+# and Technique read 'fixed' because their real growth is ~0 at every age, not because the
+# decode is thin for them.
+ATTRIBUTE_FORECAST = f"""
+CREATE OR REPLACE VIEW mart.attribute_forecast AS
+WITH now_pool AS (
+    SELECT
+        person_id,
+        CAST(FLOOR(age) AS INTEGER) AS age_now,
+        is_estimated,
+        {", ".join(f'"{a}"' for a in ATTR_ORDER)}
+    FROM mart.player_snapshots
+    WHERE NOT is_gk AND has_attributes AND person_id IS NOT NULL
+      AND age BETWEEN 15 AND 24
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY person_id, CAST(FLOOR(age) AS INTEGER) ORDER BY phase_date
+    ) = 1
+),
+target_pool AS (
+    SELECT
+        person_id,
+        t.horizon_age,
+        is_estimated,
+        {", ".join(f'"{a}"' for a in ATTR_ORDER)}
+    FROM mart.player_snapshots
+    CROSS JOIN (VALUES (21), (24)) AS t(horizon_age)
+    WHERE NOT is_gk AND has_attributes AND person_id IS NOT NULL
+      AND ABS(age - t.horizon_age) <= 1.0
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY person_id, t.horizon_age ORDER BY ABS(age - t.horizon_age)
+    ) = 1
+),
+horizon_pairs AS (
+    SELECT
+        n.person_id, n.age_now, tg.horizon_age,
+        {", ".join(f'n."{a}" AS now_{a}, tg."{a}" AS later_{a}' for a in ATTR_ORDER)}
+    FROM now_pool n
+    JOIN target_pool tg ON tg.person_id = n.person_id AND tg.horizon_age > n.age_now
+),
+horizon_long AS (
+    {" UNION ALL ".join(
+        f"SELECT age_now, horizon_age, '{a}' AS attribute, "
+        f"now_{a} AS value_now, later_{a} AS value_later FROM horizon_pairs"
+        for a in ATTR_ORDER
+    )}
+),
+cells AS (
+    SELECT
+        attribute, age_now, value_now, horizon_age,
+        COUNT(*)                            AS n,
+        QUANTILE_CONT(value_later, 0.25)    AS p25,
+        MEDIAN(value_later)                 AS median,
+        AVG(value_later)                    AS mean,
+        QUANTILE_CONT(value_later, 0.75)    AS p75,
+        QUANTILE_CONT(value_later, 0.90)    AS p90
+    FROM horizon_long
+    WHERE value_now IS NOT NULL AND value_later IS NOT NULL
+    GROUP BY attribute, age_now, value_now, horizon_age
+    HAVING COUNT(*) >= 30
+),
+yearly_pairs AS (
+    SELECT
+        a.person_id,
+        (NOT a.is_estimated AND NOT b.is_estimated) AS both_real,
+        {", ".join(f'b."{a}" - a."{a}" AS d_{a}' for a in ATTR_ORDER)}
+    FROM mart.player_snapshots a
+    JOIN mart.player_snapshots b
+      ON b.person_id = a.person_id
+     AND DATE_DIFF('day', a.phase_date, b.phase_date) BETWEEN 350 AND 380
+    WHERE NOT a.is_gk AND a.has_attributes AND b.has_attributes
+      AND a.person_id IS NOT NULL AND a.age BETWEEN 16 AND 22
+),
+yearly_long AS (
+    {" UNION ALL ".join(
+        f"SELECT both_real, '{a}' AS attribute, d_{a} AS delta FROM yearly_pairs"
+        for a in ATTR_ORDER
+    )}
+),
+bucket_stats AS (
+    SELECT
+        attribute,
+        AVG(delta) FILTER (WHERE both_real)     AS real_mean,
+        COUNT(*) FILTER (WHERE both_real)       AS real_n,
+        AVG(delta) FILTER (WHERE NOT both_real) AS decoded_mean
+    FROM yearly_long
+    GROUP BY attribute
+),
+buckets AS (
+    SELECT
+        attribute,
+        CASE
+            WHEN real_n < 30 OR real_mean IS NULL THEN 'unmodelled'
+            WHEN ABS(real_mean) < 0.1 THEN 'fixed'
+            WHEN decoded_mean IS NULL OR ABS(decoded_mean) < 0.02 THEN 'unmodelled'
+            WHEN ABS(real_mean) / ABS(decoded_mean) > 2
+              OR ABS(decoded_mean) / ABS(real_mean) > 2 THEN 'unmodelled'
+            ELSE 'forecastable'
+        END AS bucket
+    FROM bucket_stats
+)
+SELECT
+    c.attribute, c.age_now, c.value_now, c.horizon_age,
+    c.n, c.p25, c.median, c.mean, c.p75, c.p90,
+    COALESCE(bk.bucket, 'unmodelled') AS bucket
+FROM cells c
+LEFT JOIN buckets bk USING (attribute)
+"""
+
+# Headline "how many points has he got left" figure — total attribute points gained over ONE
+# YEAR, by the age at the START of that year. Deliberately year-over-year rather than
+# consecutive-snapshot: a snapshot gap can be as short as a few days, and attribute changes
+# arrive in lumps (median per-snapshot delta is 0 at every age), so annualising a short gap
+# wildly overstates the rate. mart.player_growth already carries the role-aware total.
+GROWTH_AGE_CURVE = """
+CREATE OR REPLACE VIEW mart.growth_age_curve AS
+WITH yearly AS (
+    SELECT
+        a.age                        AS age_now,
+        b.attr_total - a.attr_total  AS delta
+    FROM mart.player_growth a
+    JOIN mart.player_growth b
+      ON b.person_id = a.person_id
+     AND DATE_DIFF('day', a.phase_date, b.phase_date) BETWEEN 350 AND 380
+    WHERE a.age IS NOT NULL
+)
+SELECT
+    CAST(ROUND(age_now) AS INTEGER) AS age,
+    COUNT(*)                        AS n,
+    QUANTILE_CONT(delta, 0.25)      AS p25,
+    MEDIAN(delta)                   AS median,
+    AVG(delta)                      AS mean,
+    QUANTILE_CONT(delta, 0.75)      AS p75,
+    QUANTILE_CONT(delta, 0.90)      AS p90
+FROM yearly
+GROUP BY 1
+ORDER BY 1
+"""
+
 
 # --- squad registration: homegrown status and the A/B lists -------------------------
 #
@@ -1927,6 +2082,8 @@ ORDER = [
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),
     ("mart.player_growth_at_club", PLAYER_GROWTH_AT_CLUB),
     ("mart.player_growth_tenure", PLAYER_GROWTH_TENURE),
+    ("mart.attribute_forecast", ATTRIBUTE_FORECAST),
+    ("mart.growth_age_curve", GROWTH_AGE_CURVE),
     ("mart.club_nations", CLUB_NATIONS),
     ("mart.youth_clubs", YOUTH_CLUBS),
     ("mart.player_training", PLAYER_TRAINING),

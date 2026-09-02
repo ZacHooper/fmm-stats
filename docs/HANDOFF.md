@@ -231,7 +231,7 @@ in a dashboard/report, not about hiding it from SQL — so the scrub is gone, ra
 ship in `site-data/fm-<career>.duckdb`, and CLAUDE.md/site/AGENTS.md/DEPLOY.md were updated to
 say so and to remind a remote agent the "never print it" rule is now its own responsibility
 there rather than structurally enforced. The JSON export (`site/api/*.json`, what the deployed
-web app actually shows) is unaffected — `scripts/build_site.py`'s build-time raw-ability check
+web app actually shows) is unaffected — `export_data.py`'s `check_immersion()` build-time raw-ability check
 still guards that path. Not yet re-published as of this note — the store on R2 is still the old
 scrubbed one until the next `publish_duckdb.py --upload` runs (needs a full rebuild first if
 every snapshot should reflect it, or a plain re-run against the current local store for just the

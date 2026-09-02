@@ -379,6 +379,40 @@ def main():
     """).fetchone()[0]
     check("season rollup agrees with per-snapshot totals", agree == 0, f"{agree} disagreements")
 
+    # Agility and Technique never move in real play (measured ~0.00 and ~0.04 per year on our
+    # squad's real attribute values) — the forecast lookup must read that back as 'fixed', not
+    # project a number that doesn't happen.
+    fixed_bucket = con.execute("""
+        SELECT DISTINCT attribute, bucket FROM mart.attribute_forecast
+        WHERE attribute IN ('Agility', 'Technique')
+    """).df()
+    check("Agility and Technique are bucketed 'fixed'",
+          len(fixed_bucket) == 2 and (fixed_bucket["bucket"] == "fixed").all(),
+          fixed_bucket.to_dict("records") if len(fixed_bucket) else "no rows")
+
+    # A higher starting value should never forecast a LOWER expected outcome for the same
+    # attribute/age/horizon — the decode is monotonic, so a big cell-to-cell inversion would
+    # mean the lookup itself is broken, not just noisy.
+    inverted = con.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT attribute, age_now, horizon_age, value_now, median,
+                   LAG(median) OVER (
+                       PARTITION BY attribute, age_now, horizon_age ORDER BY value_now
+                   ) AS prev_median
+            FROM mart.attribute_forecast WHERE n >= 100
+        ) WHERE prev_median IS NOT NULL AND median < prev_median - 1
+    """).fetchone()[0]
+    check("forecast median is non-decreasing in the starting value (n>=100 cells)",
+          inverted == 0, f"{inverted} inverted cells")
+
+    # Matches the validated age curve: growth is front-loaded and roughly halves every few
+    # years (median 8 @ 16 falling to ~1 @ 24), never negative before 25.
+    curve = con.execute("SELECT age, median FROM mart.growth_age_curve WHERE age BETWEEN 16 AND 24"
+                         ).df().set_index("age")["median"]
+    check("growth_age_curve: median is positive and declining from 16 to 24",
+          bool((curve >= 0).all()) and curve.loc[16] >= curve.loc[20] >= curve.loc[24],
+          curve.to_dict())
+
     # -- 7. regression guards for the bugs found in the 2026-08 site-refactor audit ----
     # Each of these shipped once. They are cheap to assert and expensive to rediscover:
     # every one of them looked like a working query returning plausible numbers.
