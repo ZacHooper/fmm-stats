@@ -29,6 +29,13 @@ export const S = {          // everything loaded, one place
  *  or write it (Recruitment, the profile sheet, Squad) can't drift onto different keys. */
 export const SHORTLIST_TOKEN_KEY = "fm_shortlist_token";
 
+/** Every position the game has, pitch order — independent of any tactic. A tactic only says
+ *  which of these it fields and what role each is rated as; it never shrinks this list, so
+ *  nothing that lets a user choose a position (a filter, a depth chart) should derive its
+ *  options from the current tactic's roles. */
+export const POS_ORDER = ["GK", "DL", "DC", "DR", "DML", "DMC", "DMR",
+                           "ML", "MC", "MR", "AML", "AMC", "AMR", "ST"];
+
 const j = async (url) => {
   const r = await fetch(url, { cache: "no-cache" });
   if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
