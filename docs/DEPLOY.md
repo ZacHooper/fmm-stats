@@ -186,7 +186,7 @@ came back "0 rated players" regardless of the opponent. The immersion house rule
 *surface* the number — see CLAUDE.md) still applies to raw SQL access same as everywhere else;
 it's just enforced by the querier's judgement now rather than by the column being absent. The
 JSON export (`export_data.py` → `site/api/*.json`) is separate and keeps its own build-time
-enforcement (`scripts/build_site.py` fails the build on a raw-ability key at any depth) — that
+enforcement (`export_data.py`'s `check_immersion()` fails the build on a raw-ability key at any depth) — that
 path is unaffected. The live store is opened read-only and is never touched — same
 single-writer-safe fallback `export_data.py` uses, so this is safe to run with a dashboard open.
 

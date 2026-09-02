@@ -31,8 +31,12 @@ const GAME_ORDER = {
  *   grid; "more" adds the net change since the first snapshot next to the value; "most" also
  *   prepends a small trend sparkline. Kept off by default — growth is opt-in, not everyone
  *   wants a busier grid.
+ * @param {object} [opts.forecast] D.forecastAttrs(p, toAge) result — answers "will his X come"
+ *   right where the question gets asked: a 'fixed' attribute (Agility, Technique) is marked as
+ *   never moving; a 'forecastable' one whose projection differs from today's value shows
+ *   `-> projected`. Silent for 'unmodelled' attributes and for a value already at the target.
  */
-export function attributeBlock(p, role, { compare = null, attrTraj = null, detail = "simple" } = {}) {
+export function attributeBlock(p, role, { compare = null, attrTraj = null, detail = "simple", forecast = null } = {}) {
   const isGk = p.positions.some((q) => q.pos === "GK");
 
   function row(a, i, w, title) {
@@ -47,6 +51,8 @@ export function attributeBlock(p, role, { compare = null, attrTraj = null, detai
       }
     }
     const tier = w >= 4 ? "key" : w === 3 ? "imp" : w === 2 ? "useful" : null;
+    const bucket = forecast?.buckets?.[i];
+    const fcVal = bucket === "forecastable" ? forecast.attrs[i] : null;
     return el(`div.arow${tier ? `.keyed.${tier}` : ""}`, { title }, [
       el("span.an", {}, [a, tier ? el("span.wdot", { text: tier }) : null]),
       el("span", {}, [
@@ -56,6 +62,8 @@ export function attributeBlock(p, role, { compare = null, attrTraj = null, detai
         attrValue(v),
         delta != null
           ? el("span.dim", { text: ` ${delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`}` }) : null,
+        bucket === "fixed" ? el("span.dim", { text: " (fixed)" }) : null,
+        fcVal != null && fcVal !== v ? el("span.dim", { text: ` → ${fcVal}` }) : null,
       ]),
     ]);
   }
@@ -117,6 +125,25 @@ export function openProfile(tid, { role = null } = {}) {
   const growth = shown ? D.growth(tid, shown.role) : null;
   const attrTraj = D.attrTrajectory(tid);
   const career = D.S.squad?.career_history?.[String(tid)] || [];
+  // Attribute-level forecast at 24 (the attribute grid's "will his X come" answer) and, for the
+  // growth sparkline, the SAME per-attribute lookup rated at each horizon still ahead of him —
+  // the p25/p75 attribute band rated through the role gives an (approximate — it ignores
+  // cross-attribute correlation) rating band rather than just a point projection.
+  const forecast = D.S.forecast ? D.forecastAttrs(p, 24) : null;
+  const roleForecast = (() => {
+    if (!shown || !D.S.forecast || a == null) return null;
+    const horizons = [21, 24].filter((h) => a < h);
+    if (!horizons.length) return null;
+    const points = [], band = [];
+    for (const h of horizons) {
+      const fc = D.forecastAttrs(p, h);
+      const lo = fc.attrs.map((v, i) => (fc.band[i] ? fc.band[i][0] : v));
+      const hi = fc.attrs.map((v, i) => (fc.band[i] ? fc.band[i][1] : v));
+      points.push(D.rating(fc.attrs, shown.role) * D.famMult(shown.fam));
+      band.push([D.rating(lo, shown.role) * D.famMult(shown.fam), D.rating(hi, shown.role) * D.famMult(shown.fam)]);
+    }
+    return { points, band, lastAge: horizons[horizons.length - 1] };
+  })();
 
   const body = [];
   body.push(el("div.kpis", {}, [
@@ -171,12 +198,17 @@ export function openProfile(tid, { role = null } = {}) {
     body.push(el("details", {}, [
       el("summary", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }),
       el("div.card", {}, [
-        sparkline(traj.map((t) => t.value), { w: 260, h: 44 }),
+        sparkline(traj.map((t) => t.value), { w: 260, h: 44, forecast: roleForecast }),
         el("p.note", {
-          text: growth
+          text: (growth
             ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
               + ` (${num(growth.from)} → ${num(growth.to)}), recomputed under the current tactic.`
-            : "",
+            : "")
+            + (roleForecast
+              ? ` Dashed: projected to age ${roleForecast.lastAge}` +
+                ` (${num(roleForecast.points[roleForecast.points.length - 1])}), from the` +
+                " whole-save attribute lookup, not this player's own trend."
+              : ""),
         }),
       ]),
     ]));
@@ -192,7 +224,7 @@ export function openProfile(tid, { role = null } = {}) {
     attrNote.textContent = curRole
       ? `Coloured by importance to ${curRole} in this tactic — green = key, amber = important, red = useful.` : "";
     clear(attrBox);
-    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail }));
+    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail, forecast }));
   }
   rerenderAttrs();
 

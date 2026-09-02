@@ -65,18 +65,35 @@ FROM pop peer WHERE peer.age BETWEEN :age - 1 AND :age + 1;
 This reversed two judgements: Bech (17, Level %ile 32.9) is **83rd percentile for his age**, while
 Fugl (24, Level %ile 19.0) is **10th** — one is a prospect, the other is finished.
 
-**Project a weak attribute from a strong one via the mature population.** For "he's 16, he'll grow
-into it", don't guess — look up what players aged 21+ with his *exact* attribute actually have.
-Wide players with Technique 11–13: **6.5 mean Crossing at 15–17, 9.8 at 18–20, 10.5 at 21+**. That
-turns "will his Crossing 8 improve" into a number (~+4, landing 11–12). Caveats to state every time:
-it is cross-sectional (different players at different ages, not tracked individuals) and the mature
-pool has survivorship in it, so it overstates individual growth somewhat.
+**RETRACTED — do not use.** An earlier version of this section recommended looking up mature
+(21+) players who share a *different* attribute (Technique) as a way to project a weak one
+(Crossing) forward — "wide players with Technique 11–13 average 10.5 Crossing at 21+, so his
+Crossing 8 should land around 11–12". That method is now known to overstate growth by roughly
+3×, for the reason below, and is replaced by the "current value + age" lookup that follows.
 
-**Empirical growth-by-age and growth-by-attribute curves.** From `mart.player_attribute_growth` over
-our own squad: total attribute points gained per year run ~9–11 at ages 16–20, ~6–8 at 21–22, ~3–5 at
-23–24, ~1 at 25. Growth is wildly uneven by attribute — over ~3.3 tracked years the physicals move
-most (Stamina +4.4, Strength +4.1, Pace +3.0) and **Technique is effectively frozen (+0.13)**. Use
-this before promising that any technical weakness will train out.
+**Forecast an attribute from ITS OWN current value + age — not from a different attribute.**
+Tracking the SAME players longitudinally (25,635 players × 20 snapshots, 2021→2025) rather than
+comparing different players cross-sectionally: current value alone predicts the future value
+well (R²=0.85 for Crossing 4 years out, n=11,829). Holding current Crossing fixed, adding
+Technique to the model gains **+0.000 R²** — a technical player is already ahead at 17 and stays
+ahead; growth doesn't re-sort the field. So the retracted method's real driver was never
+Technique, it was that high-Technique players already had higher Crossing at the start, and the
+cross-sectional design let a mature high-Technique population's *survivorship* pass for growth.
+Direct year-over-year tracking of a 17-year-old with Crossing 6–8 gives **~9.7 at 21** (wide
+players only, exact starting value, n≈100–130 per cell) — about +1.5 to +2, not +4. This is now
+shipped as `mart.attribute_forecast` (one row per attribute/age-now/value-now/horizon), exported
+as `site/api/forecast.json` and surfaced on the site's Development tab and player profiles —
+prefer reading it there over re-deriving this by hand.
+
+**Empirical growth-by-age curve, and which attributes don't move at all.** Total attribute points
+gained per year (year-over-year pairs, whole save): median 8 at 16, 7 at 18, 4 at 20, 3 at 22, 1
+at 24, ~0 at 28. Growth is wildly uneven by attribute, and two are worth calling out explicitly:
+**Agility never moves (0.00/yr at every age) and Technique is next to frozen (~0.02–0.04/yr)** —
+confirmed on our squad's real attribute values, not just the decode. A third group only *looks*
+frozen: the decode compresses Movement, Positioning and Aerial 8–24× relative to their real
+growth (measured on our squad's real values vs the world's decoded ones), so treat those as
+unmodelled rather than as further frozen attributes — `mart.attribute_forecast`'s `bucket` column
+makes this split (`forecastable` / `fixed` / `unmodelled`) rather than leaving it to eyeballing.
 
 ## Methods that are underpowered — do not re-run without more seasons
 
@@ -98,6 +115,8 @@ Always tabulate the with/without split *by phase* before believing an uplift res
 correlation on 41 real-data wide players read 0.568 for under-21s and 0.315 for mature players; on
 11,229 estimated-Crossing wide players it reads **0.275 under-21 and 0.555 at 24–27** — the opposite
 ordering. When a real-attribute sample is in the tens, prefer the decoded 24k population and say so.
+(This correlation is real but describes the *level* relationship between Technique and Crossing,
+not a growth-rate one — see the retraction above for why conflating the two overstated a forecast.)
 
 ## Reusable setup
 

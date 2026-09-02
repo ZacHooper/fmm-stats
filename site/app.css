@@ -142,6 +142,8 @@ svg.spark path.up,svg.spark circle.up{stroke:var(--up);fill:none}
 svg.spark circle.up{fill:var(--up)}
 svg.spark path.down,svg.spark circle.down{stroke:var(--down)}
 svg.spark circle.down{fill:var(--down)}
+svg.spark path.fc{stroke:var(--dim);stroke-dasharray:2.5 2}
+svg.spark polygon.band{fill:var(--accent);opacity:.15;stroke:none}
 /* width:100%+height:auto (from the 1:1 viewBox) makes the radar shrink to fit a phone instead
    of a fixed pixel size overflowing it; overflow:visible is a second guard so a long axis
    label that still grazes the edge fades into the card's padding rather than getting clipped */

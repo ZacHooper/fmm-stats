@@ -15,6 +15,7 @@
 
 export const S = {          // everything loaded, one place
   index: null, core: null, squad: null, positions: null, matches: null, registration: null,
+  forecast: null,
   all: null,                // lazy: every player in the save, fetched from R2 on demand
   players: new Map(),       // tid -> player (core, then merged with all)
   clubs: new Map(),         // tid -> {tid,name,leagueCid,players}
@@ -83,6 +84,10 @@ export async function boot() {
     p.inCore = true;
     S.players.set(p.tid, p);
   }
+  // Fire-and-forget: small enough to prefetch eagerly (unlike squad/positions/matches, which
+  // stay lazy), so a profile opened from ANY section already has it rather than only after a
+  // visit to Development.
+  loadForecast();
   return S;
 }
 
@@ -102,6 +107,15 @@ export async function loadRegistration() {
     S.registration = await j("api/registration.json").catch(() => null);
   }
   return S.registration;
+}
+/** The attribute-forecast lookup (empirical, current-value + age — see api/forecast.json's
+ *  own note). Small and only Development asks for it; `.catch(() => null)` so an older
+ *  export missing the file degrades instead of breaking the page. */
+export async function loadForecast() {
+  if (!S.forecast) {
+    S.forecast = await j("api/forecast.json").catch(() => null);
+  }
+  return S.forecast;
 }
 export async function loadMatches() {
   if (!S.matches) {
@@ -343,6 +357,57 @@ export function trajectory(tid, role, method = S.method) {
 export function attrTrajectory(tid) {
   const t = S.squad?.trajectories?.[String(tid)] || [];
   return t.map(([season, phase, attrs]) => ({ season, phase, attrs }));
+}
+
+// ------------------------------------------------------------------------- forecast
+/**
+ * Project a player's attribute vector forward to `toAge` (21 or 24 — the two published
+ * horizons) using the empirical current-value + age lookup in api/forecast.json. This is a
+ * LEVEL model, not a growth-rate one: testing showed a starting attribute like Technique adds
+ * +0.000 R^2 to a future value once you already know the current one (a technical player is
+ * already ahead, not accelerating), so there is no per-player trajectory to draw — just "given
+ * this value now, here is what players like him had at 21/24". `buckets[i]` is 'forecastable'
+ * (projected + a p25-p75 band), 'fixed' (Agility/Technique — never move, current value stands),
+ * or 'unmodelled' (the decode compresses real growth too much to trust — current value stands).
+ * A player already at or past `toAge` gets his current values back, unflagged as anything else.
+ * Returns null with no forecast loaded or no known age.
+ */
+export function forecastAttrs(p, toAge = 24) {
+  const fc = S.forecast;
+  const a = age(p.dob);
+  if (!fc || a == null) return null;
+  const attrs = p.attrs.slice();
+  const band = p.attrs.map(() => null);
+  const buckets = S.attrs.map((name) => fc.buckets[name] || "unmodelled");
+  if (a < toAge) {
+    for (let i = 0; i < S.attrs.length; i++) {
+      if (buckets[i] !== "forecastable" || p.attrs[i] == null) continue;
+      const cell = fc.cells[S.attrs[i]]?.[String(a)]?.[String(p.attrs[i])]?.[String(toAge)];
+      if (!cell) continue;
+      const [median, p25, p75] = cell;
+      attrs[i] = Math.max(0, Math.min(20, Math.round(median)));
+      band[i] = [p25, p75];
+    }
+  }
+  return { attrs, band, buckets };
+}
+
+/** Total attribute points still to come between the player's current age and `toAge`, summed
+ *  year by year from mart.growth_age_curve (median 8/yr at 16 falling to ~1 at 24). Summing the
+ *  p25/p75 bounds the same way is an approximation — it doesn't account for year-to-year
+ *  correlation — but it is the right order of magnitude for "how much is left", which is all
+ *  this number is for. Returns null once he's at or past `toAge`, or with no forecast loaded. */
+export function pointsRemaining(p, toAge = 24) {
+  const fc = S.forecast;
+  const a = age(p.dob);
+  if (!fc || a == null || a >= toAge) return null;
+  let median = 0, p25 = 0, p75 = 0, found = false;
+  for (const [rowAge, m, lo, hi] of fc.ageCurve) {
+    if (rowAge < a || rowAge >= toAge) continue;
+    median += m; p25 += lo; p75 += hi; found = true;
+  }
+  const r1 = (x) => Math.round(x * 10) / 10;
+  return found ? { median: r1(median), p25: r1(p25), p75: r1(p75) } : null;
 }
 
 // --------------------------------------------------------------------------- match stats
