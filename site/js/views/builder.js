@@ -9,10 +9,13 @@
  * slot's candidates without touching the shape, the same way it re-rates every other view.
  *
  * "General" is a fourth, DIFFERENT kind of shape: instead of merging positions into roles (DL
- * and DML both count as one LB slot in a named formation), it's one slot per raw FM position —
- * all 14 of them, laid out like the game's own position grid — so you can check a player at the
- * exact position rather than the role it collapses to. Everything downstream (`lookupAt`) just
- * branches on which kind of key a slot carries; candidate ranking and assignment don't care.
+ * and DML both count as one LB slot in a named formation), each slot matches one exact raw FM
+ * position, laid out like the game's own position grid — so you can check a player at the exact
+ * position rather than the role it collapses to. Central columns get several independently
+ * assignable slots sharing one position (three separate midfielders to compare, not one merged
+ * box), the same way a named formation already reuses one role across CB1/CB2. Everything
+ * downstream (`lookupAt`) just branches on which kind of key a slot carries; candidate ranking
+ * and assignment don't care how many slots share it.
  *
  * Ported from the Streamlit Team Builder page, minus its two heaviest features: live per-slot
  * weight tuning (duty is a display label only here, not an override) and the Hungarian-algorithm
@@ -51,31 +54,45 @@ const NAMED = {
     [["GK", "GK", "SK"]],
   ],
 };
-// General grid: one slot per raw FM position (id === the position code itself), no per-slot
-// tactic tie — every position the game has is on offer regardless of what any formation or
-// tactic actually fields (see D.POS_ORDER's own reasoning for why). Laid out on an explicit
-// 5-column x 6-row CSS grid, the same shape the game's own position screen uses: five outfield
-// lines (Forward / AM / CM / DM / Defence), each spanning all 5 columns, plus GK on its own row.
-// The 3 central columns of each outfield line are ONE slot rendered 3-wide (there is no separate
-// central-left/-right position in FMM to fill them with) — except AML/AMR, which span BOTH the
-// Forward and AM rows: FMM has no distinct "wide forward" position, so the one AML/AMR slot
-// covers that whole flank rather than being duplicated. DML/DMR and DL/DR stay on separate rows
-// with separate labels (WB vs FB) because those genuinely are different raw positions.
+// General grid: laid out on an explicit 5-column x 6-row CSS grid, the same shape the game's own
+// position screen uses — five outfield lines (Forward / AM / CM / DM / Defence) plus GK on its
+// own row. Every position the game has is on offer regardless of what any formation or tactic
+// actually fields (see D.POS_ORDER's own reasoning for why).
+//
+// The 3 central columns of each outfield line are 3 SEPARATE slots (id ST1/ST2/ST3, etc.), not
+// one merged box — same pattern a named formation already uses for CB1/CB2: several slots can
+// share one rating `key` (there's only one raw "MC" position to judge them all against) while
+// still being assigned independently, because a squad can have three midfielders worth comparing
+// side by side. AML/AMR are the one real exception: they span BOTH the Forward and AM rows,
+// because unlike the center there genuinely is only one of them — FMM has no separate
+// wide-forward position, so duplicating "AML" into two independent slots would just be two boxes
+// racing to describe the same player. DML/DMR and DL/DR stay on separate rows with separate
+// labels (WB vs FB) because those, unlike the center columns, ARE different raw positions.
 const GENERAL_CELLS = [
   { id: "AML", key: "AML", duty: "AML", row: 1, col: 1, rowSpan: 2 },
-  { id: "ST", key: "ST", duty: "ST", row: 1, col: 2, colSpan: 3 },
+  { id: "ST1", key: "ST", duty: "ST", row: 1, col: 2 },
+  { id: "ST2", key: "ST", duty: "ST", row: 1, col: 3 },
+  { id: "ST3", key: "ST", duty: "ST", row: 1, col: 4 },
   { id: "AMR", key: "AMR", duty: "AMR", row: 1, col: 5, rowSpan: 2 },
-  { id: "AMC", key: "AMC", duty: "AMC", row: 2, col: 2, colSpan: 3 },
+  { id: "AMC1", key: "AMC", duty: "AMC", row: 2, col: 2 },
+  { id: "AMC2", key: "AMC", duty: "AMC", row: 2, col: 3 },
+  { id: "AMC3", key: "AMC", duty: "AMC", row: 2, col: 4 },
   { id: "ML", key: "ML", duty: "ML", row: 3, col: 1 },
-  { id: "MC", key: "MC", duty: "CM", row: 3, col: 2, colSpan: 3 },
+  { id: "MC1", key: "MC", duty: "CM", row: 3, col: 2 },
+  { id: "MC2", key: "MC", duty: "CM", row: 3, col: 3 },
+  { id: "MC3", key: "MC", duty: "CM", row: 3, col: 4 },
   { id: "MR", key: "MR", duty: "MR", row: 3, col: 5 },
   { id: "DML", key: "DML", duty: "WBL", row: 4, col: 1 },
-  { id: "DMC", key: "DMC", duty: "DM", row: 4, col: 2, colSpan: 3 },
+  { id: "DMC1", key: "DMC", duty: "DM", row: 4, col: 2 },
+  { id: "DMC2", key: "DMC", duty: "DM", row: 4, col: 3 },
+  { id: "DMC3", key: "DMC", duty: "DM", row: 4, col: 4 },
   { id: "DMR", key: "DMR", duty: "WBR", row: 4, col: 5 },
   { id: "DL", key: "DL", duty: "FBL", row: 5, col: 1 },
-  { id: "DC", key: "DC", duty: "CB", row: 5, col: 2, colSpan: 3 },
+  { id: "DC1", key: "DC", duty: "CB", row: 5, col: 2 },
+  { id: "DC2", key: "DC", duty: "CB", row: 5, col: 3 },
+  { id: "DC3", key: "DC", duty: "CB", row: 5, col: 4 },
   { id: "DR", key: "DR", duty: "FBR", row: 5, col: 5 },
-  { id: "GK", key: "GK", duty: "GK", row: 6, col: 2, colSpan: 3 },
+  { id: "GK", key: "GK", duty: "GK", row: 6, col: 3 },
 ];
 const GENERAL_LABEL = "General (any position)";
 
@@ -163,8 +180,9 @@ export async function view() {
   wrap.append(el("h2", { text: "Builder" }));
   wrap.append(el("p.note", {
     text: "Formation is the pitch shape; the tactic selected up top decides how each slot's "
-      + `role is rated. "${GENERAL_LABEL}" swaps merged roles for the 14 raw positions, one slot `
-      + "each. Tap a slot, then assign from the ranked list.",
+      + `role is rated. "${GENERAL_LABEL}" swaps merged roles for the raw FM positions — several `
+      + "slots down the middle of each line, so you can compare more than one player at once. "
+      + "Tap a slot, then assign from the ranked list.",
   }));
 
   const formSel = el("select.btn", {
