@@ -190,7 +190,7 @@ export function openProfile(tid, { role = null } = {}) {
   let curDetail = "simple";
   function rerenderAttrs() {
     attrNote.textContent = curRole
-      ? `Coloured by importance to ${curRole} in this tactic — red = key, amber = important, green = useful.` : "";
+      ? `Coloured by importance to ${curRole} in this tactic — green = key, amber = important, red = useful.` : "";
     clear(attrBox);
     attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail }));
   }
