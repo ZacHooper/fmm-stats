@@ -179,8 +179,14 @@ svg.radar polygon.s3{fill:var(--bad);stroke:var(--bad)}
 .arow+.arow{margin-top:2px}
 .arow.keyed{background:var(--line2)}
 .arow.keyed .an{font-weight:600}
+.arow.key{background:var(--goodbg)}
+.arow.imp{background:var(--warnbg)}
+.arow.useful{background:var(--badbg)}
 .arow .an{color:var(--ink)}
 .arow .wdot{color:var(--dim);font-size:10px;margin-left:4px}
+.arow.key .wdot{color:var(--good)}
+.arow.imp .wdot{color:var(--warn)}
+.arow.useful .wdot{color:var(--bad)}
 .av{display:inline-block;min-width:30px;text-align:center;padding:2px 6px;border-radius:6px;
   font-weight:700;font-size:13px;color:#fff;font-variant-numeric:tabular-nums}
 .av.v1{background:#c0392b}

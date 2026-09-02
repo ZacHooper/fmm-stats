@@ -22,27 +22,52 @@ const GAME_ORDER = {
   Goalkeeping: ["Agility", "Communication", "Handling", "Kicking", "Reflexes", "Throwing"],
 };
 
-export function attributeBlock(p, role, { compare = null } = {}) {
+/**
+ * @param {object} [opts]
+ * @param {object} [opts.compare] another player, to show a per-attribute delta against him.
+ * @param {Array} [opts.attrTraj] this player's snapshot history (D.attrTrajectory(tid)), oldest
+ *   first — enables growth annotation, gated by `detail`.
+ * @param {"simple"|"more"|"most"} [opts.detail] "simple" (default) is the plain current-value
+ *   grid; "more" adds the net change since the first snapshot next to the value; "most" also
+ *   prepends a small trend sparkline. Kept off by default — growth is opt-in, not everyone
+ *   wants a busier grid.
+ */
+export function attributeBlock(p, role, { compare = null, attrTraj = null, detail = "simple" } = {}) {
   const isGk = p.positions.some((q) => q.pos === "GK");
+
+  function row(a, i, w, title) {
+    const v = p.attrs[i];
+    const other = compare ? compare.attrs[i] : null;
+    let spark = null, delta = null;
+    if (attrTraj && detail !== "simple") {
+      const known = attrTraj.map((t) => t.attrs[i]).filter((x) => x != null);
+      if (known.length >= 2) {
+        delta = v - known[0];
+        if (detail === "most") spark = attrTraj.map((t) => t.attrs[i]);
+      }
+    }
+    const tier = w >= 4 ? "key" : w === 3 ? "imp" : w === 2 ? "useful" : null;
+    return el(`div.arow${tier ? `.keyed.${tier}` : ""}`, { title }, [
+      el("span.an", {}, [a, tier ? el("span.wdot", { text: tier }) : null]),
+      el("span", {}, [
+        spark ? sparkline(spark, { w: 40, h: 14, dot: false }) : null,
+        other != null && other !== v
+          ? el("span.dim", { text: `${v > other ? "+" : ""}${v - other}  ` }) : null,
+        attrValue(v),
+        delta != null
+          ? el("span.dim", { text: ` ${delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`}` }) : null,
+      ]),
+    ]);
+  }
+
   const groups = ["Technical", "Mental", "Physical"];
   const cols = groups.map((g) => {
     const col = el("div.attrcol", {}, [el("h4", { text: g })]);
     for (const a of GAME_ORDER[g]) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
-      const v = p.attrs[i];
       const w = role ? D.weightOf(a, role) : 1;
-      const other = compare ? compare.attrs[i] : null;
-      col.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {
-        title: w > 1 ? `${a} — weight ${w} for ${role}` : a,
-      }, [
-        el("span.an", {}, [a, w >= 3 ? el("span.wdot", { text: w >= 4 ? "key" : "imp" }) : null]),
-        el("span", {}, [
-          other != null && other !== v
-            ? el("span.dim", { text: `${v > other ? "+" : ""}${v - other}  ` }) : null,
-          attrValue(v),
-        ]),
-      ]));
+      col.append(row(a, i, w, w > 1 ? `${a} — weight ${w} for ${role}` : a));
     }
     return col;
   });
@@ -55,9 +80,7 @@ export function attributeBlock(p, role, { compare = null } = {}) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
       const w = role ? D.weightOf(a, role) : 1;
-      gk.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {}, [
-        el("span.an", { text: a }), attrValue(p.attrs[i]),
-      ]));
+      gk.append(row(a, i, w, a));
     }
     wrap.append(el("div.attrcols", {}, [gk]));
   }
@@ -92,6 +115,7 @@ export function openProfile(tid, { role = null } = {}) {
   const agg = D.S.matchAgg?.get(tid);
   const traj = shown ? D.trajectory(tid, shown.role) : [];
   const growth = shown ? D.growth(tid, shown.role) : null;
+  const attrTraj = D.attrTrajectory(tid);
   const career = D.S.squad?.career_history?.[String(tid)] || [];
 
   const body = [];
@@ -144,23 +168,61 @@ export function openProfile(tid, { role = null } = {}) {
   }));
 
   if (traj.length > 1) {
-    body.push(el("h4", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }));
-    body.push(el("div.card", {}, [
-      sparkline(traj.map((t) => t.value), { w: 260, h: 44 }),
-      el("p.note", {
-        text: growth
-          ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
-            + ` (${num(growth.from)} → ${num(growth.to)}), recomputed under the current tactic.`
-          : "",
-      }),
+    body.push(el("details", {}, [
+      el("summary", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }),
+      el("div.card", {}, [
+        sparkline(traj.map((t) => t.value), { w: 260, h: 44 }),
+        el("p.note", {
+          text: growth
+            ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
+              + ` (${num(growth.from)} → ${num(growth.to)}), recomputed under the current tactic.`
+            : "",
+        }),
+      ]),
     ]));
   }
 
   body.push(el("h4", { text: "Attributes" }));
-  body.push(el("p.note", {
-    text: shown ? `Coloured by importance to ${shown.role} in this tactic — red = key, amber = important, green = useful.` : "",
-  }));
-  body.push(attributeBlock(p, shown?.role));
+  const attrNote = el("p.note", {});
+  body.push(attrNote);
+  const attrBox = el("div");
+  let curRole = shown?.role;
+  let curDetail = "simple";
+  function rerenderAttrs() {
+    attrNote.textContent = curRole
+      ? `Coloured by importance to ${curRole} in this tactic — green = key, amber = important, red = useful.` : "";
+    clear(attrBox);
+    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail }));
+  }
+  rerenderAttrs();
+
+  const controls = [];
+  // Only offer the highlight picker when he actually has more than one distinct role to
+  // highlight for — a player who lists a single position has nothing to switch between.
+  const seenRoles = new Set();
+  const roleOptions = roles.filter((r) => (seenRoles.has(r.role) ? false : seenRoles.add(r.role)));
+  if (roleOptions.length > 1) {
+    const roleSel = el("select.btn", {
+      onchange: (e) => { curRole = e.target.value; rerenderAttrs(); },
+    }, roleOptions.map((r) => el("option", { value: r.role, text: `${r.pos} · ${r.role}` })));
+    roleSel.value = curRole;
+    controls.push(el("span.dim", { text: "Highlight:" }), roleSel);
+  }
+  if (traj.length > 1) {
+    // Growth is opt-in and defaults to hidden — "Current only" reproduces the plain grid above,
+    // and picking a more detailed level re-renders the same three-column layout in place rather
+    // than bolting on a separate table.
+    const detailSel = el("select.btn", {
+      onchange: (e) => { curDetail = e.target.value; rerenderAttrs(); },
+    }, [
+      el("option", { value: "simple", text: "Current only" }),
+      el("option", { value: "more", text: "+ growth since first snapshot" }),
+      el("option", { value: "most", text: "+ growth + trend" }),
+    ]);
+    controls.push(el("span.dim", { text: "Detail:" }), detailSel);
+  }
+  if (controls.length) body.push(el("div.prow", {}, controls));
+  body.push(attrBox);
 
   body.push(el("h4", { text: "Match record for us (all seasons)" }));
   body.push(statTable(agg));
