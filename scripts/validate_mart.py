@@ -12,13 +12,18 @@ Checks, in order:
   1. Spell invariant — spells of the SAME type must not overlap for one person; spells of
      DIFFERENT types may (injured while out on loan).
   2. Ring-buffer dedup — the latest phase per season really is a superset.
-  3. Loan-in ground truth — the derived spells must match the 14 known loan-ins (9 pre-2025
-     + 5 2025 loan-ins visible since the loan-value-decode fix), including that none of them
-     carry forward past the season boundary that follows the latest snapshot.
+  3. Loan-in ground truth — the derived spells must cover at least the 14 known loan-ins
+     (9 pre-2025 + 5 2025 loan-ins visible since the loan-value-decode fix). A loan still
+     open when the truth table was written is checked as a PREFIX, not full equality — it
+     legitimately gains seasons every time a later snapshot is added while the player is
+     still out on loan; that a lapsed loan stops carrying forward is section 7's job
+     ("no ghosts"), not this table's.
   4. Arrival windows — the three known winter arrivals must read winter, everyone else
      summer.
   5. Season totals — mart.player_seasons must reproduce the 2024 review numbers.
-  6. Growth — totals, comparability flags, and the tenure/season rollups.
+  6. Growth — non-regression + a fixed historical baseline, not a moving endpoint (a
+     player's total keeps climbing every snapshot, so pinning it to an exact number breaks
+     on schedule); comparability flags; the tenure/season rollups.
   7. Regression guards — the four bugs found in the 2026-08 site-refactor audit, each of
      which returned plausible-looking numbers while silently deleting real football.
   8. Site-facing objects — grain, percentile range, the as-at club->league pin, match
@@ -141,14 +146,22 @@ def main():
     got_norm = {norm(k): v for k, v in got_map.items()}
     for nm, seasons in truth.items():
         actual = got_norm.get(nm)
-        check(f"{nm}: {seasons}", actual == seasons, f"got {actual}")
+        # Require the known seasons as a PREFIX, not full equality. A loan already over when
+        # the truth table was written never grows, so prefix == equality for it. One still
+        # open (e.g. Secka, Chukwuani) correctly gains a season every time the save moves
+        # another year on — pinning the full list would fail every such snapshot on schedule,
+        # for a reason that isn't a bug.
+        check(f"{nm}: starts {seasons}",
+              actual is not None and actual[:len(seasons)] == seasons, f"got {actual}")
     check("exactly the 5 known 2025 loan-ins, no others",
           {k for k, v in got_map.items() if 2025 in v}
           == {"Andreas Schjelderup", "Emil Rosberg Møller", "Marinus Larsen",
               "Mounir Secka", "Tochi Chukwuani"},
           str({k: v for k, v in got_map.items() if 2025 in v}))
-    check("exactly 14 distinct loan-in players (9 pre-2025 + 5 real 2025 loan-ins)",
-          len(got_map) == 14, f"got {len(got_map)}")
+    # Floor, not exact: a later snapshot only ever adds loan windows, never removes a
+    # historical one, so the count is monotonically non-decreasing across the save.
+    check("at least 14 distinct loan-in players (9 pre-2025 + 5 real 2025 loan-ins)",
+          len(got_map) >= 14, f"got {len(got_map)}")
 
     # loaned_in is SET-ONLY (never cleared in the save), so a loan-in's raw club_tid run
     # never ends on its own — at_club_spells must not let that leak through as open-ended
@@ -273,17 +286,26 @@ def main():
     print("\n6. growth")
     # Garly's trajectory is the reference: 176 at his old club (estimated), 175-176 flat
     # through 2023, a +24 step at 2023-06-26, then +6 and +5 across 2024 to 211, then +1 at
-    # the 2024-11-10 snapshot (added to the manifest 2026-08-28, after 211 was first pinned
-    # here) to 212 — a real extra growth step, not drift.
+    # the 2024-11-10 snapshot to 212, then +5 more by 2025-11-30 to 217 — real, ongoing growth
+    # for a player who's still young, not drift. He'll keep climbing every time a new
+    # snapshot lands, so nothing below pins the CURRENT total: only that it never regresses,
+    # and that it has reached the last baseline that WAS independently confirmed (212, as of
+    # 2024-11-10) — a fact that stays true forever once established, unlike "ends on X".
     g = con.execute("""
         SELECT phase, attr_total, delta, delta_comparable
         FROM mart.player_growth WHERE name = 'Andreas Garly' ORDER BY snap_ix
     """).df()
-    check("Garly ends on 212", int(g.iloc[-1]["attr_total"]) == 212,
-          f'got {g.iloc[-1]["attr_total"]}')
-    check("Garly 2024 growth = +11", int(
+    comparable = g[g["delta_comparable"]]
+    check("Garly's attribute total never regresses across comparable snapshots",
+          (comparable["delta"] >= 0).all(), f"deltas: {comparable['delta'].tolist()}")
+    check("Garly's total has reached at least 212 (confirmed baseline, 2024-11-10)",
+          int(g.iloc[-1]["attr_total"]) >= 212, f'got {g.iloc[-1]["attr_total"]}')
+    # This one window IS fixed forever — both endpoints are calendar-past, so re-running
+    # against a later snapshot can't change it. Safe to keep pinned exactly.
+    garly_2024_growth = int(
         g[g.phase == "2024-06-03"].iloc[0]["attr_total"]
-        - g[g.phase == "2023-07-02"].iloc[0]["attr_total"]) == 11)
+        - g[g.phase == "2023-07-02"].iloc[0]["attr_total"])
+    check("Garly 2024 growth = +11", garly_2024_growth == 11)
     check("the estimated->real step is marked not-comparable",
           not bool(g[g.phase == "2022-03-19"].iloc[0]["delta_comparable"]),
           "the -1 when he joined us is an artifact, not a decline")
@@ -327,7 +349,11 @@ def main():
           AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
         ORDER BY days_at_club DESC LIMIT 1
     """).fetchone()
-    check("Garly growth since joining = +37 (vs +11 in 2024 alone)", garly[0] == 37,
+    # Same reasoning as the total above: cumulative tenure growth only ever climbs while
+    # he's still at the club, so pin the RELATION (tenure >= any one season within it, since
+    # deltas are non-negative — checked above) rather than a moving absolute figure.
+    check(f"Garly's cumulative tenure growth (+{garly[0]}) is at least his 2024-alone growth "
+          f"(+{garly_2024_growth})", garly[0] >= garly_2024_growth,
           f"got {garly[0]} over {garly[1]} days")
     check("that span is comparable end to end", bool(garly[2]))
 
