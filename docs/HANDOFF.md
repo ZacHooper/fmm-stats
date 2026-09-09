@@ -370,5 +370,10 @@ and ST**, plus a verdict on the 4-1-2-2-1 question.
 **House rules to honour:** never surface raw CA/PA (percentiles and ranks only — the Positions page
 and the `ability_rank_*` helpers are built to make this structural); opponent tactics/formation are
 NOT in the save, so always ask for the in-game scout's formation + style; the user's self-imposed
-**capital-province rule** (new signings must have a Region Hovedstaden origin club — existing squad
-and academy products are grandfathered; the allow-list is `seeds/eligible_origin_clubs.csv`).
+**capital-province rule** (new signings must have an origin club on the allow-list in
+`seeds/eligible_origin_clubs.csv` — existing squad and academy products are grandfathered).
+**Widened 2026-09-09** from Region Hovedstaden alone to the **Copenhagen S-tog commuter belt**:
+the Køge lineage (HB Køge + its 2009 predecessors Herfølge BK and Køge BK), the Roskilde clubs
+and Greve, all Region Sjælland. Rationale in the CSV's own comment block — Roskilde is closer to
+Copenhagen than Køge, so distance/commuter logic admits both or neither, and the boundary was set
+once rather than drifting per player. Eligible pool 550 -> 643 (+17%).

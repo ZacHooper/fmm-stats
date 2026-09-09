@@ -40,3 +40,24 @@ club_tid,club_name,region
 5340,Ishøj Idrætsforening,Hovedstaden
 334,Boldklubben af 1893,Hovedstaden
 2400,Avedøre Idrætsforening,Hovedstaden
+# --- S-tog belt extension (added 2026-09-09, manager's call) -------------------------------
+# These clubs are in Region Sjælland, NOT Region Hovedstaden, so they are a deliberate
+# widening of the rule rather than a correction to it. The line drawn is the Copenhagen
+# S-train commuter network: Køge and Roskilde are both S-tog termini and both sit inside the
+# greater-Copenhagen travel-to-work area. Roskilde (~30km) is in fact CLOSER to Copenhagen
+# than Køge (~40km), so admitting one on distance/commuter logic requires admitting both —
+# hence the boundary is set once, here, rather than drifting a club at a time.
+# Includes each club's Reserves side and, for HB Køge, the two predecessor clubs it was
+# formed from in 2009 (Herfølge BK 354 + Køge BK 362) — a player's origin may point at the
+# pre-merger entity.
+5277,Herfølge Boldklub Køge,Sjælland (S-tog belt)
+9805,Herfølge Boldklub Køge Reserves,Sjælland (S-tog belt)
+354,Herfølge Boldklub,Sjælland (S-tog belt)
+362,Køge Boldklub,Sjælland (S-tog belt)
+2457,Køge Nord Football Club,Sjælland (S-tog belt)
+2532,Football Club Roskilde,Sjælland (S-tog belt)
+8216,Football Club Roskilde Reserves,Sjælland (S-tog belt)
+2440,KFUMs Boldklub Roskilde,Sjælland (S-tog belt)
+8124,KFUMs Boldklub Roskilde Reserves,Sjælland (S-tog belt)
+373,Roskilde Boldklub af 1906,Sjælland (S-tog belt)
+1140,Greve Fodbold,Sjælland (S-tog belt)
