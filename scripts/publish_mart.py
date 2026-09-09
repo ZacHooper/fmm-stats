@@ -135,6 +135,13 @@ SCOPE = {
     "player_position_levels": NEWEST_ONLY,
     "player_origin": NEWEST_ONLY,
     "player_career_seasons": NEWEST_ONLY,
+    # Same story: club/league identity and current membership, not standings history (no
+    # points/results columns — those live in club_matches/results). Left unscoped these three
+    # grow ~4-5K rows per snapshot forever — at 21 snapshots they were the single biggest
+    # driver pushing the artefact over the MAX_MB ceiling below.
+    "clubs": NEWEST_ONLY,
+    "club_leagues": NEWEST_ONLY,
+    "leagues": NEWEST_ONLY,
     # Same reasoning for the registration family: "is he home grown" is a question about now,
     # and the evidence behind it (mart.player_training, one row per player per club) is 982k
     # rows / ~20 MB across all 17 snapshots against 60k at the newest one.

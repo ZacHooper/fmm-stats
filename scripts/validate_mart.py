@@ -123,14 +123,17 @@ def main():
     # 9 pre-2025 loanees, plus 5 real 2025 loan-ins the loan-value-decode fix (2026-08-30)
     # newly makes visible — they used to fall through to the +/-1 estimate path with no
     # value at all and so never generated a loan_in_spells row; see
-    # docs/agent-context/loan-value-marker.md.
+    # docs/agent-context/loan-value-marker.md. Secka and Chukwuani's loans are still open as
+    # of the 2025-11-30 snapshot, so they now carry into 2026 too — genuine continuation, not
+    # drift. 3 more (Gülstorff, Lejbowicz, Sørensen) are new real 2026 loan-ins.
     truth = {
         "Emil Hojlund": [2022], "Marcelo Randolf": [2022], "Daniel Bisgaard Haarbo": [2022],
         "Ernest Nuamah": [2022, 2023], "Jeppe Erenbjerg": [2023], "Nicklas Strunck": [2023],
         "Marc Nielsen": [2023, 2024], "Jeppe Corfitzen": [2023, 2024],
         "Jonas Jensen-Abbew": [2024],
         "Andreas Schjelderup": [2025], "Emil Rosberg Moller": [2025],
-        "Marinus Larsen": [2025], "Mounir Secka": [2025], "Tochi Chukwuani": [2025],
+        "Marinus Larsen": [2025], "Mounir Secka": [2025, 2026], "Tochi Chukwuani": [2025, 2026],
+        "Lauge Gülstorff": [2026], "Mikkel Lejbowicz": [2026], "Oliver Sorensen": [2026],
     }
     got = con.execute("""
         SELECT name, LIST(DISTINCT season ORDER BY season) AS seasons
@@ -147,8 +150,8 @@ def main():
           == {"Andreas Schjelderup", "Emil Rosberg Møller", "Marinus Larsen",
               "Mounir Secka", "Tochi Chukwuani"},
           str({k: v for k, v in got_map.items() if 2025 in v}))
-    check("exactly 14 distinct loan-in players (9 pre-2025 + 5 real 2025 loan-ins)",
-          len(got_map) == 14, f"got {len(got_map)}")
+    check("exactly 17 distinct loan-in players (9 pre-2025 + 5 real 2025 + 3 real 2026 loan-ins)",
+          len(got_map) == 17, f"got {len(got_map)}")
 
     # loaned_in is SET-ONLY (never cleared in the save), so a loan-in's raw club_tid run
     # never ends on its own — at_club_spells must not let that leak through as open-ended
@@ -273,13 +276,14 @@ def main():
     print("\n6. growth")
     # Garly's trajectory is the reference: 176 at his old club (estimated), 175-176 flat
     # through 2023, a +24 step at 2023-06-26, then +6 and +5 across 2024 to 211, then +1 at
-    # the 2024-11-10 snapshot (added to the manifest 2026-08-28, after 211 was first pinned
-    # here) to 212 — a real extra growth step, not drift.
+    # the 2024-11-10 snapshot to 212, flat through mid-2025, then +5 at the 2025-11-30
+    # snapshot (added to the manifest 2026-09-09, after 212 was pinned here) to 217 — a real
+    # extra growth step, not drift.
     g = con.execute("""
         SELECT phase, attr_total, delta, delta_comparable
         FROM mart.player_growth WHERE name = 'Andreas Garly' ORDER BY snap_ix
     """).df()
-    check("Garly ends on 212", int(g.iloc[-1]["attr_total"]) == 212,
+    check("Garly ends on 217", int(g.iloc[-1]["attr_total"]) == 217,
           f'got {g.iloc[-1]["attr_total"]}')
     check("Garly 2024 growth = +11", int(
         g[g.phase == "2024-06-03"].iloc[0]["attr_total"]
@@ -327,7 +331,7 @@ def main():
           AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
         ORDER BY days_at_club DESC LIMIT 1
     """).fetchone()
-    check("Garly growth since joining = +37 (vs +11 in 2024 alone)", garly[0] == 37,
+    check("Garly growth since joining = +42 (vs +11 in 2024 alone)", garly[0] == 42,
           f"got {garly[0]} over {garly[1]} days")
     check("that span is comparable end to end", bool(garly[2]))
 
