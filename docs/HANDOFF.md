@@ -312,6 +312,17 @@ scoped to the newest snapshot, immersion check clean.
    (`aac6cbe`, `0b9a679`, `9c89633`, `d0f60af`) that the history rewrite invalidated. Cosmetic.
 7. **The Pages project doesn't exist yet** — see `DEPLOY.md`. Until it does, preview with
    `uv run python -m http.server -d site 8000`.
+8. **3,936 of 22,624 origin clubs don't resolve to a name** (`mart.player_origin.origin_club`
+   reads `#<tid>`, e.g. `#65192`), so the capital-region rule **cannot be evaluated** for 17% of
+   the player pool — a recruitment target silently reads `eligible=False` when the truth is
+   unknown. Confirmed live 2026-09-09: Samuel Clemmensen (tid 8834, ST, the best Fit on the
+   winter board) came back `#65192`; the user identified it in-game as **FC Fredericia**
+   (tid 343 — Jutland, so genuinely ineligible), but the data could not say so. These ids are
+   NOT in `staging.clubs`, so they are probably youth/academy or defunct-club records held in a
+   different structure. **Todo: find where they resolve and map them**, then either extend the
+   club dimension or make `player_origin` distinguish *ineligible* from *unknown* — right now
+   the two are indistinguishable and the rule quietly under-reports eligible players. Until
+   then, treat `eligible=False` on a `#<tid>` origin as "ask the user", not "no".
 
 ---
 
