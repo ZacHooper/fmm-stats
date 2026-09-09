@@ -153,7 +153,19 @@ UNPUBLISHED = {"player_role_ratings", "player_position_fit"}
 # Refuse to upload something wildly bigger than expected. The failure this guards against is
 # silent: a new object materialises to 200 MB, the upload succeeds, and nobody notices until a
 # remote agent waits five minutes for an ATTACH.
-MAX_MB = 40
+#
+# This is NOT a constant to set once. `mart.snapshot_squad` is deliberately unscoped across
+# BOTH every club and every snapshot (see fmparser/mart.py) — it's the general-purpose
+# "who was on whose books, as of any past date" primitive — so it grows by roughly one
+# snapshot's worth of the world's players (~24k rows) every time this is published, forever,
+# even though every other big table here is pinned to the newest snapshot only and stays flat.
+# 40 MB was sized for ~17 snapshots (measured ~24 MB then); at 21 snapshots the honest
+# artefact is ~45 MB. Bumped to give headroom for the next several imports rather than
+# forcing a bump on every single one — but it WILL need raising again eventually, and that's
+# expected, not a regression. What should still stop you cold: a jump far bigger than one
+# snapshot's growth accounts for (a few MB) — that's the accidentally-unscoped-133-MB-table
+# failure mode this check exists for, and no headroom number fixes that, only checking SCOPE.
+MAX_MB = 64
 
 
 def build(src_path, dest, scope_ours=True):
