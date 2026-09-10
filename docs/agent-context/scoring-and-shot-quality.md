@@ -1,0 +1,88 @@
+---
+name: scoring-and-shot-quality
+description: "What actually drives Frem's goals — shots ON TARGET, not shot volume; and playing a centre-forward. Includes the plausible-sounding hypotheses that were tested and failed, so they are not re-derived."
+metadata:
+  node_type: memory
+  type: reference
+---
+
+Written after a season-long "why can't we score" investigation that produced two durable results and
+killed four attractive-looking ones. The negative results are the more valuable half — each was
+compelling enough to have been written into a briefing before it was tested.
+
+Method: `staging.match_player_stats` aggregated per match. **Read trap 4 in
+[[player-analysis-methods]] first** — one match is stored under up to five `anchor`s and the obvious
+dedup is a no-op.
+
+## 1. Shots ON TARGET is the whole story; shot VOLUME is not
+
+Correlations with goals scored, n=427 matches:
+
+| | vs goals | vs shots |
+|---|---|---|
+| **Shots on target** | **+0.72** | — |
+| **SOT rate** | **+0.52** | — |
+| Shots | +0.46 | — |
+| Pass completion % | +0.27 | +0.33 |
+| Crosses completed | +0.23 | **+0.50** |
+| Key passes | +0.20 | +0.37 |
+| Mistakes | −0.18 | — |
+| Aerials won | **−0.23** | −0.11 |
+
+Bucketing by SOT rate settles it — **volume is flat and goals triple**:
+
+| SOT rate | Games | Shots | Goals |
+|---|---|---|---|
+| worst (16%) | 117 | 8.0 | 0.80 |
+| 2nd (36%) | 98 | 8.4 | 1.43 |
+| 3rd (48%) | 108 | 9.1 | 1.98 |
+| best (65%) | 104 | 8.5 | **2.71** |
+
+We take ~8 shots a game almost regardless of what we do. **Chasing more attempts is a dead end;
+chance quality is the entire lever.** Crossing is the trap that makes this concrete — it correlates
++0.50 with shots and only +0.23 with goals, i.e. more shots, not better ones.
+
+**The in-game lever is the team instruction `Work Into Box` (vs `Shoot On Sight`)**, not team
+selection. With it set, our worst-accuracy shooters simply stopped shooting and the SOT rate went
+from a 36.2% season average to 47–67% across three matches. Diagnosing this as "stop picking players
+who shoot badly" wasted weeks.
+
+## 2. Play a centre-forward — worth ~0.66 goals a game
+
+Starting XIs since 2024-07, split on whether anyone started at `FC`:
+
+| | Games | Goals | Shots | SOT% |
+|---|---|---|---|---|
+| **Strikerless** | 18 | **0.78** | **6.39** | **36.0%** |
+| **With a centre-forward** | 169 | **1.44** | 3.83 | **42.5%** |
+
+Monotonic in how many are fielded: **0 → 0.78, 1 → 1.21, 2 → 1.55** goals/game. Note the strikerless
+row's shape — *more* shots, *worse* accuracy, *fewer* goals, which is finding 1 restated: without a
+focal point we manufacture attempts from bad positions.
+
+## 3. Tested and FAILED — do not re-derive these
+
+- **Aerial dominance does not produce goals.** Team aerial win rate vs goals: **r = +0.03** over 563
+  matches, and goals/game are flat (1.69/1.72/1.65/1.75) across every quartile. Aerials *won*
+  correlates **−0.23** with goals. It does predict shots (4.2 → 8.0 per game worst to best quartile)
+  — volume again, not quality. A vivid four-game sequence (striker's aerial win rate 75/71/50/30 →
+  goals 3/2/0/0) looked like a law and is coincidence.
+- **"Crosses need a target in the box" is false.** Cross completion is **20.4% strikerless vs 21.6%
+  with a striker** — no difference. A 45%-completion game exists but is an outlier, not a mechanism.
+- **Opponent ball-winning barely suppresses us.** Opponent tackles-won + interceptions vs our shots:
+  **r = −0.30**; vs our goals: **−0.04**, with non-monotonic buckets. Three consecutive opponents
+  whose best defender racked up 11, 16 and 12 interceptions against us looked like a pattern; the
+  52-match test does not support it.
+- **Pairing two specific midfielders is not special.** "Our two best MCs together" reads
+  1.58 goals/game vs 0.96 with neither at MC — but decomposed, **the gain is from having *at least
+  one* of them at MC (+0.4 to +0.5); the second adds ~0.1**, and "both vs every other configuration"
+  is +0.29 at just **1.3 SE**. Consistent with the ~3× underpowering this save has for pairing
+  analysis (see [[player-analysis-methods]]). The actionable residue is the dull version: **avoid
+  shapes with no true MC**, which cost ~0.5 goals/game.
+
+## The habit that caught all four
+
+Each failed hypothesis came from 3–4 vivid matches and was tested against 50–560. **Before writing a
+pattern into a briefing or a skill, run it against the full match history** — and prefer a
+league-wide effect size over a per-opponent record. A per-opponent split of "3 wins from 3" implies
+an effect several times larger than anything that survives testing.

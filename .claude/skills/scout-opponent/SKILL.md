@@ -150,6 +150,23 @@ Everything below is parameterised off the active career — pull these from `db`
   centre-backs in the air", find the aerial centre-back they have not started.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
   the in-game report has held up; weight it more than the shape.
+- **OUR OWN tactics screens** — ASK FOR THESE TOO. This skill recommends a *method*
+  (`frem_attacking_ss`, `frem_counter`, …), but a method is only a **rating weight-set**: it does not
+  set mentality, defensive line, closing down, tempo, width, or the final-third instructions. Those
+  live on the manager's Shape / Defence / Attack screens and this skill was blind to them for a whole
+  season of briefings. Two things that cost real accuracy:
+  - **`Work Into Box` vs `Shoot On Sight` is the shot-quality lever**, and it was already set while
+    the briefings were diagnosing poor shooting as a selection problem (see
+    [`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md)). Check the
+    instruction before proposing a change of personnel.
+  - **A method recommendation is not a game plan.** One briefing recommended `frem_counter` with a
+    deep line and "absorb and break" on a −39 quality gap; the manager ran Attacking mentality, a
+    HIGH line, All Over closing down and Fast tempo away at the division's best attack and won 6-0,
+    having drawn 1-1 with the cautious version. Do not infer "sit deep" from a quality gap alone, and
+    state the settings you mean rather than leaving them implied by the method name.
+  Note also that role labels on a formation screen (IW / PF / Poacher / AF / AP) belong to whichever
+  club's screen you are reading — say whose, every time, or a briefing will attribute the opponent's
+  roles to us.
 - **Current league position / recent form (both sides)** — ASK THE USER. `v_league_table`
   genuinely does not parse for this career (match history is a ring buffer — a season's table
   never fully reconstructs), so `rep["overall"]`'s squad-quality read is the ONLY signal this
@@ -181,7 +198,20 @@ and it is cheap — the FT screen already has everything needed.
 
 - Anchor the match against the **season baseline**, not against feel. Pull it:
   `m = db.our_match_history()` filtered to the season, then shots / shots-on-target / conversion /
-  passes per game. "11 shots and 3 goals" means nothing until it sits next to "7.1 shots and 0.82
+  passes per game. **Use that helper rather than raw `staging.match_player_stats`** — one match is
+  stored under up to five `anchor`s and the obvious `(anchor, tid)` dedup is a no-op (trap 4 in
+  [`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md)).
+- **The FT stat screen lists starters and substitutes separately** — scroll before totalling, or a
+  starters-only count gets compared against the store's full-match figures. That error manufactured a
+  fake "shot collapse" across two briefings. Column key: `PaA/PaC` passes attempted/completed,
+  `Key` key passes, `Ass` assists, `TaA/TaW` tackles, `Int` interceptions, `HeA/HeW` headers,
+  `CrA/CrC` crosses, `Dri` dribbles, **`Mis` = mistakes** (not misplaced passes), `MiG` mistakes
+  leading to a goal, `ShA/ShO` shots attempted/on target, `Con` condition.
+- **Test a pattern before you write it down.** Four hypotheses from this skill's briefings looked
+  compelling over 3–4 matches and died against the full history (see
+  [`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md)). A
+  per-opponent record of "3 wins from 3" implies an effect several times larger than anything that
+  survives a league-wide test. "11 shots and 3 goals" means nothing until it sits next to "7.1 shots and 0.82
   goals per game, 11.7% conversion".
 - **A right conclusion off wrong reasoning still counts as a miss** — say so. It will not transfer to
   the next opponent otherwise.
