@@ -45,6 +45,30 @@ signings can read `club_tid = ours` while being absent from `squad_current`, and
 lag the live game. Cross-check against `site/api/core.json`'s `ours.squad_tids` and ask the user.
 See [[loan-status-unreliable]].
 
+**4. ONE MATCH IS STORED UNDER SEVERAL `anchor`s — deduping on `(anchor, tid)` does NOTHING.**
+`staging.match_player_stats` is the ring buffer, and every snapshot that still holds a match writes
+its own copy under a fresh `anchor`. Measured on Frem: of 178 first-team matches, only **20 have a
+single anchor** — 66 have two, **77 have three**, 6 have four and 9 have five. And `(anchor, tid)`
+is already unique (max 1 row), so the obvious
+`ROW_NUMBER() OVER (PARTITION BY anchor, tid …)` guard is a no-op that looks like a fix. Any raw
+`SUM`/`AVG` over the table therefore multiplies a match's totals by an uneven **1–5×**. It bit
+during a per-player pull of one match: every row came back triplicated, and the team totals read
+39 shots / 15 goals for a 5-0.
+
+**Prefer `db.our_match_history()`**, which already collapses this. If you must go raw, dedup at the
+MATCH level — pick one anchor per `(date, opponent_tid)`, newest snapshot first — and only then
+join players:
+```sql
+WITH pick AS (SELECT anchor FROM staging.match_player_stats
+              WHERE team_tid = 346 AND date = DATE '2024-09-15'
+              ORDER BY season DESC, phase DESC LIMIT 1)
+SELECT * FROM staging.match_player_stats WHERE anchor = (SELECT anchor FROM pick);
+```
+Sanity-check any aggregate against a known-real scale: our shots per game are ~7, so a bucket
+averaging 1.6 or 39 is a dedup bug, not a finding. A second symptom of the same class: mixing the
+reserve side in (`mart.our_clubs` includes tid 7296) drags team-level averages down because reserve
+fixtures carry sparse stats — filter `team_tid = 346` for first-team questions.
+
 ## Methods that worked
 
 **Phase-split a season around the event, then control with the same opponents.** Cutting 2025 at
