@@ -156,9 +156,49 @@ con.execute("ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ON
 ```
 
 `R2_ACCESS_KEY` / `R2_SECRET_ACCESS_KEY` / `R2_ACCOUNT_ID` are already in the environment on a Claude
-Code web session (see [[remote-duckdb-access.md]]). `match_player_facts` has no `name` column —
-resolve it in a scalar subquery against `at_club_spells` (one row per spell, so `any_value`, never a
-join before aggregating).
+Code web session (see [[remote-duckdb-access.md]]).
+
+**Faster still on a remote session: pull the full store down and drive `dashboard/db.py` against it.**
+Seconds, no fidelity loss, and you get every helper (`scout_report`, `effective_table`,
+`our_match_history`, `save_scout`) instead of hand-rolled SQL:
+```bash
+rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"    # ~48 MB; retry once on a 501
+```
+```python
+os.environ.update(FM_CAREER="frem", FM_DUCKDB=f"{SCRATCH}/fm-frem.duckdb", FM_DUCKDB_READONLY="1")
+sys.path.insert(0, "dashboard"); import db
+```
+Pull the **full** store, not `-mart`: the mart omits the rating layer that Fit and Level need.
+
+### Schema and API gotchas (each one cost a failed query)
+
+| You'll reach for | It's actually |
+|---|---|
+| a position on `mart.player_snapshots` | **it has none** — neither `pos` nor `position`. Positions live in `effective_table` / `squad_frame` (column `position`) and, per started match, in `staging.match_player_stats.position` |
+| `mart.clubs.tid` | **`club_tid`** |
+| `mart.role_weights.position` | **`role`** (10 roles: GK/LB/RB/CB/DM/CM/AMC/AML/AMR/ST), and attribute names are **lowercase** |
+| `squad_key_players(club_tid, season=…)` | **`squad_key_players(frame, club_tid, method, rank_by=…)`** — pass a `squad_frame`, not a club |
+| `squad_frame(club_tid, season, phase, method)` | **`squad_frame(season, phase, method, club_tids)`** — that argument order, and a *list* of tids |
+| a `name` column on match stats | absent — see the name-resolution note below |
+
+Other things that bite: **attribute columns are Capitalised** in the frames
+(`Aerial`, `Pace`) but **lowercase** in `role_weights`; DuckDB rejects `rows`, `dec`, `move`,
+`second`, `drop`, `passing` as bare aliases; and `pd.NA` in a Series breaks `.round()`, so build
+percentage columns with a list comprehension guarding the zero denominator.
+
+**Resolving names: do NOT go via `at_club_spells`/`person_id` for match stats.** That was the advice
+here and it silently returns the *wrong player* — tids are recycled slots ([[tid-recycling]]), so a
+scalar subquery picking `any_value(person_id)` can map a current player's tid to a retired one. It
+produced "Jose Almeida" for a player who is actually Jonathan Bech. Build a tid→name map from the
+latest snapshot instead and check for misses:
+```python
+S, P = db.latest_snapshot()
+nm = db.q(f"SELECT tid,name FROM mart.player_snapshots WHERE season={S} AND phase='{P}'") \
+       .set_index("tid")["name"].to_dict()
+df["name"] = df.tid.map(nm).fillna("(gone)")   # "(gone)" = left the club since the snapshot
+```
+For "is this player still ours", `mart.squad_current` is the only safe answer — a raw `club_tid`
+filter returned two departed centre-backs as our two best.
 
 ## Findings from the first run (2025 season, 3F Superliga)
 
