@@ -58,6 +58,63 @@ faced before can open by saying what the last read was and whether it still hold
 call `db.save_scout(rep, venue=..., formation=..., style=..., note=...)` yourself afterward so this
 report lands in the same log the CLI would write.
 
+## Reading attributes: check the role weights before calling anything a weakness
+
+**An attribute is only a strength or a weakness against its counterpart.** `mart.role_weights`
+already encodes which attributes a role is even scored on, and a number the role does not score is
+noise. The pair that has bitten this skill twice:
+
+| | CB | LB/RB | DM | CM | ST | AMC | AML/AMR |
+|---|---|---|---|---|---|---|---|
+| **movement** | **baseline** | 3 | 2 | 4 | 4 | 3 | 3 |
+| **positioning** | **4** | 3 | 4 | baseline | **baseline** | **baseline** | **baseline** |
+
+("baseline" = absent from that role's weight list, so it scores at weight 1 — the floor. There is no
+way to weight an attribute *below* baseline, so an unlisted attribute is not penalised; it is simply
+not what the role is judged on.)
+
+**Movement is the attacker's side of the duel; Positioning is the defender's answer to it.** Two
+consecutive briefings led with "their back line has Movement 7.1" as the headline exploit. A
+centre-back with Movement 6 is not slow to react — Movement is not what he is judged on. Redone on
+Positioning, one of those defences was *level* with ours, and the other's weak link turned out to be
+a different player on the opposite flank. Same trap in reverse: "their striker has Positioning 7"
+says nothing.
+
+Before quoting any attribute, check it is weighted above baseline for that player's role:
+
+| The question | Attacker column | Defender column |
+|---|---|---|
+| Can they track runners in behind? | Movement, Pace | **Positioning**, Pace |
+| Can they win it back? | Dribbling, Technique | **Tackling** |
+| Who wins the ball in the air? | Aerial, Strength | **Aerial, Strength** |
+| Will they last 90? | Stamina | Stamina |
+
+**A ball-playing centre-back is a threat, not just a press target.** `rep["key_players"]` ranks by
+Level %ile and a deep-lying creator can sit mid-table on it while running the game. If an opponent
+defender's profile is Passing/Technique-led, check him as an attacking outlet too — one such
+centre-back finished a scouted fixture on 53 passes, 45 completed, **4 key passes**, 11 tackles with
+9 won and 7 interceptions, the best player on the pitch, having appeared in the briefing only as a
+note about how they build from the back.
+
+**Read the decoded numbers as exact.** Attributes for a player who was never ours are a frozen
+decode, but held-out accuracy is ~63% exact / ~93% within ±1 (`fmparser/model.py`), so quote them
+without hedging. Eight are exact outright (Pace, Strength, Stamina, Technique, Aggression,
+Leadership, Agility, Teamwork) — a Pace or Strength comparison is the hardest claim available about
+an opponent. Do **not** import the 8-24x "compression" figure from
+[`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md): that is about
+year-over-year *growth* and belongs to forecasting, not to a point-in-time scouting read.
+
+The two reads that do need care are about football, not decode error:
+
+- **Check individual defenders, not just `rep["unit_attrs"]`** — a back four averaging 12 can contain
+  an 8, and the unit mean hides exactly the player you want to attack.
+- **One attribute does not decide a duel.** A full-back with Positioning 8 but Tackling 13 and Aerial
+  15 can still have an excellent game (observed: 8 tackles, 6 won, 5 interceptions, rated 8). Name
+  the weakness, then weigh it against the rest of that player's profile before building a flank plan
+  on it.
+
+Full write-up: [`scouting-attribute-reads`](../../../docs/agent-context/scouting-attribute-reads.md).
+
 ## Resolve the career context first (do NOT hardcode)
 Everything below is parameterised off the active career — pull these from `db`, don't assume Bucaspor:
 - **Us** = `db.MANAGED_CLUB_TID` (first team) + `db.OUR_CLUBS` (adds the reserve tid). e.g. Frem =
@@ -78,8 +135,21 @@ Everything below is parameterised off the active career — pull these from `db`
   squad) already sorts below the first team — take `matches.iloc[0]` unless it's genuinely
   ambiguous (`len(matches) > 1` with comparable squad sizes), in which case list the candidates and
   ask.
-- **Formation** — ASK THE USER (from the in-game scout). Opponent shape is NOT parsed.
-- **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …).
+- **Formation** — ASK THE USER (from the in-game scout). Opponent shape is NOT parsed. **Treat the
+  in-game scout's shape as a prior, not a fact** — it has been wrong on both occasions it has been
+  checked against what the opponent actually lined up in (a "5-2-2-1 counter" side played a 4-2-3-1;
+  the style half of the same report, "counter-attack, very physical", was accurate). The **Next
+  Match → Predicted XI** screen is a better source when the user has it: it names eleven players and
+  their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
+  the briefing so the *personnel* reads survive a shape that turns out different — name which of
+  their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
+  XI for shape, not for names:** on its first check the shape was right and **3 of the 11 names were
+  wrong**, and two of the three (a centre-back swap that was their answer to our aerial threat, and a
+  winger who then scored) were the players who did the damage. So always read their **bench** for the
+  counter-profile to whatever your plan depends on — if the plan is "our target man beats their
+  centre-backs in the air", find the aerial centre-back they have not started.
+- **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
+  the in-game report has held up; weight it more than the shape.
 - **Current league position / recent form (both sides)** — ASK THE USER. `v_league_table`
   genuinely does not parse for this career (match history is a ring buffer — a season's table
   never fully reconstructs), so `rep["overall"]`'s squad-quality read is the ONLY signal this
@@ -98,9 +168,37 @@ what it said (index gap, method planned, any note) and whether it still holds �
 even our own personnel may have moved since. If nothing's saved, say so and proceed; this scout
 will be the first entry once you save it.
 
+**Re-save a scout when its reasoning changes, not just when the fixture does.** `db.save_scout`
+appends, so a corrected read can be written over the top with the fix stated in the `note` — the log
+is what the next agent reads, and a note carrying reasoning we already know to be wrong is worse
+than no note.
+
+## After the match — close the loop (do this when the user posts the FT stats)
+The scout log only becomes calibration if someone checks it. When the user shares a full-time stat
+screen for a fixture that was scouted, **grade the briefing explicitly**: which calls landed, which
+did not, and which were right for the wrong reason. This is where the durable learning comes from,
+and it is cheap — the FT screen already has everything needed.
+
+- Anchor the match against the **season baseline**, not against feel. Pull it:
+  `m = db.our_match_history()` filtered to the season, then shots / shots-on-target / conversion /
+  passes per game. "11 shots and 3 goals" means nothing until it sits next to "7.1 shots and 0.82
+  goals per game, 11.7% conversion".
+- **A right conclusion off wrong reasoning still counts as a miss** — say so. It will not transfer to
+  the next opponent otherwise.
+- Read the **per-player** columns for the specific claim the briefing made: if the plan was "attack
+  their weak aerial full-back", check the aerial-duel counts, not just the scoreline.
+- Feed anything durable back into this skill or `docs/agent-context/`, and re-save the scout note.
+
+Manager observations beat the model here. Three corrections from one session that no query would
+have surfaced: that a defender's counter to Movement is Positioning (the model agreed — the briefing
+had not checked); that both late goals arrived after the press was pulled back (see the game-plan
+section on line vs press); and that a single poor performance is not evidence to move a player who
+has been good all season. **Do not restructure a recommendation off one match's stat line** — that
+is the same n=1 error the skill warns about elsewhere, applied to our own squad.
+
 ### Tactic recommendation — consult our playbook (THE career-specific value-add)
 After profiling, **recommend which of our methods to run**, keyed to
-[`docs/fmm-tactic-blueprints.md`](../../docs/fmm-tactic-blueprints.md) → **"When to use each —
+[`docs/fmm-tactic-blueprints.md`](../../../docs/fmm-tactic-blueprints.md) → **"When to use each —
 cheatsheet"**. Read that table live (methods evolve); don't hardcode the mapping. The decision
 inputs are already in `rep`:
 - **Favourite vs underdog** (`rep["overall"]["us_quality"]` vs `["them_quality"]` — Level %ile, not
@@ -115,7 +213,25 @@ inputs are already in `rep`:
   protect. If they edge that second row and it's built on Strength/Aerial (check `rep["unit_attrs"]`
   for the Defense-unit attribute detail) and they play direct to a target man, **don't** open in a
   high-press/duel game that plays to their one advantage; control instead.
-- **Game state** → protecting a lead late = the close-out variant (`frem_game_state`).
+- **Game state** → protecting a lead late = the close-out variant (`frem_game_state`). But check its
+  Fit before recommending it: on the Frem squad it is 64.5 against ~69 for every proactive method, so
+  "shut up shop" is this squad's *worst* option and the third goal is usually the better defence.
+- **The XI the user has actually drawn.** If they share a formation screen, rate that XI at the slots
+  each player really occupies (`db.effective_table(S, P, method)` filtered to
+  `name` + `position`) and compare the mean Fit %ile across candidate methods. The shape itself is
+  evidence: a 4-2-3-1 with an AF and a wide W is `frem_counter`'s shape, and on one real XI nine of
+  eleven players scored higher under it than under the proactive default. **Rate the slot, not the
+  player** — the same winger can be a 92 at MR and an 85 at AMR, and a deep left slot flipped which
+  of two candidates was correct by 25 percentile points.
+
+**Line and press are two levers, not one.** The cheatsheet's scenario presets move both together,
+which makes it easy to write "drop the line" and have it read as "drop the press". Against a side
+whose creativity funnels through one deep passer, pulling the *press* hands that player time on the
+ball and is the more expensive of the two. Observed: a 3-0 became 3-2 immediately after the press was
+pulled, with their deep playmaker finishing on 32 passes / 28 completed — by ten the most on the
+pitch. When protecting a lead against a technical build-up (check the opponent Defense unit's
+Passing/Technique in `rep["unit_attrs"]`), **drop the line and keep the press on**. Say which lever
+you mean, every time.
 
 Output a **"Recommended method + why + fallback switch"** call: a base method to start, and the
 in-game lever to pull if the game turns (e.g. "start `frem_attacking_ss`; if they bunker like the
@@ -197,8 +313,18 @@ Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL 
   `squad_frame` already carry it; you shouldn't need to re-join `staging.players` for it.
 
 ## No local store at all
-If the machine has no `fm-<career>.duckdb` and rebuilding one isn't worth the ~1 min/snapshot for
-a single scout, don't reimplement this pull against the R2-published mart either — hand off to
+**First try pulling the published full store down and running the real engine against it** — on a
+remote/web session this takes seconds and costs nothing in fidelity, which beats both a rebuild and
+a thinner report:
+
+```bash
+rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"      # ~48 MB, retry on a 501
+```
+then point `db.py` at the copy (`FM_DUCKDB=$SCRATCH/fm-frem.duckdb`, `FM_DUCKDB_READONLY=1`) and
+call `db.scout_report()` exactly as below. Pull the **full** store, not `-mart`: the mart object
+omits the rating layer, and Fit/Level both need it. `db.save_scout()` still works and still syncs.
+
+Only if rclone or the remote isn't configured — hand off to
 [`scout-from-site`](../scout-from-site/SKILL.md), which is built for exactly that (the deployed
 site's JSON, or the mart via `ATTACH` if arbitrary SQL is genuinely needed — see
 `site/AGENTS.md`'s cookbook). It carries its own, narrower set of caveats (no per-match H2H beyond
@@ -216,6 +342,19 @@ thinner report under this skill's name.
   once, never cleared). `scout_report`'s squad frame is snapshot-club-tid based, not flag based, so
   this mainly bites if you're tempted to assert loan status in prose — don't, from the flags alone.
 - League-membership counts over-report (resolved across labels) — ignore for a single scout.
+- **Check how stale the snapshot is against the fixture date, and say so.** `db.latest_snapshot()`
+  is the last *parsed* save, not today's game. Scouting a February fixture off a November snapshot
+  means the entire January window is invisible: on one real briefing **six of the opponent's starting
+  eleven had arrived since the snapshot**, including the man who ran the game, and on the next
+  opponent it was both first-choice full-backs. Sanity-check the user's predicted-XI screenshot
+  against `rep["key_players"]` — **a name in their XI that is absent from the frame is a new signing**,
+  and one you can often still rate off their previous club
+  (`WHERE name ILIKE '%<name>%'` without a club filter). State the gap in the caveat line and
+  prompt for an import.
+- **In-game news items name players from BOTH squads.** An "opposition report on <Club>" screen
+  mixes their scout's read with our own players' morale notes. Three names in one such report were
+  all ours. Resolve every name against `club_tid` before attributing it — do not assume a name in
+  an opposition report belongs to the opposition.
 - **No-data opponents:** `rep["coverage"]["partial"]` is `True` (and `rep["flags"][0]` says so)
   when the frame has fewer than 11 rated players — a **newly-promoted side** we haven't parsed in a
   prior save, or a **lower-division Cup draw** FMM doesn't fully model. A **day-1 start save** (0
@@ -236,7 +375,8 @@ the Verdict with one line on whether it still holds.
 # 📋 Opposition briefing — <Club> (<H or A> this week)
 *Their scout report: **<formation>**, **<style>**. Caveats: opponent attributes are model
 estimates (±1) except pace/physicals; key players are named (names resolve for every club) and
-profiled by position + league percentile.*
+profiled by position + league percentile. <If the snapshot predates the fixture by a window, say so
+here and name the players in their XI that our data has never seen.>*
 
 ## Verdict
 <one line: favourites/underdogs + our H2H record + the single biggest threat + our single biggest
@@ -264,7 +404,11 @@ flat 4-4-2 leaves, the channels behind weak fullbacks, either side of a lone piv
 - <the "Our attack vs their defense" row of `rep["matchups"]` (do we have the quality edge going
   forward?) + attribute detail from `rep["unit_attrs"]` (their Defense unit's weak spots — already
   the right axis, since it's describing THEIR defensive line on its own terms) + space their shape
-  concedes.>
+  concedes. **Then go per-player**: name the individual defender who is the soft spot and say which
+  KIND of soft spot he is — a Positioning weakness is a run-at-him weakness, an Aerial/Strength
+  weakness is a duel-and-deliver one, and they are usually different players on opposite flanks. A
+  unit mean hides both. Read the columns the role is actually scored on — see "Reading attributes"
+  above.>
 
 ## Key men to watch (named, by position)
 - **<Name> (<POS>)** — <standout attribute + Level %ile / role, from `top_attrs`. Level %ile, not
