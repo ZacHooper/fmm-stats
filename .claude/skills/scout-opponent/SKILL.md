@@ -243,9 +243,11 @@ inputs are already in `rep`:
   protect. If they edge that second row and it's built on Strength/Aerial (check `rep["unit_attrs"]`
   for the Defense-unit attribute detail) and they play direct to a target man, **don't** open in a
   high-press/duel game that plays to their one advantage; control instead.
-- **Game state** → protecting a lead late = the close-out variant (`frem_game_state`). But check its
-  Fit before recommending it: on the Frem squad it is 64.5 against ~69 for every proactive method, so
-  "shut up shop" is this squad's *worst* option and the third goal is usually the better defence.
+- **Game state** → protecting a lead late = the close-out variant (`frem_game_state`). **Recompute its
+  Fit before quoting one** — the 64.5-vs-~69 figure this line used to cite was from mid-22, and on the
+  2025-11-30 squad `frem_game_state` recomputes to 87.3, *second* of the five, with the whole spread
+  collapsed to 2.6 points. The old "shutting up shop is this squad's worst option" no longer holds.
+  Same trap as the attribute reads: an undated number gets quoted at a squad four seasons newer.
 - **The XI the user has actually drawn.** If they share a formation screen, rate that XI at the slots
   each player really occupies (`db.effective_table(S, P, method)` filtered to
   `name` + `position`) and compare the mean Fit %ile across candidate methods. The shape itself is
