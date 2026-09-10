@@ -46,24 +46,29 @@ Practical pairings for a briefing:
 | Who wins the ball in the air? | Aerial, Strength | **Aerial, Strength** (same column both ends) |
 | Will they be there at the end? | Stamina | Stamina |
 
-## But: on an opponent, three of those columns are the *least* trustworthy in the table
+## The decoded attributes are accurate enough to read as exact
 
-Compounding trap. Per [[player-analysis-methods]], only **8 attributes are exact save-wide** (Pace,
-Strength, Stamina, Technique, Aggression, Leadership, Agility, Teamwork). The other 15 — including
-**Movement, Positioning and Aerial** — are a frozen linear decode for anyone outside our club. And
-those three specifically are **compressed 8–24×** relative to their real values.
+Worth stating so it does not get re-litigated. Everything outside our club is a frozen linear
+decode rather than a save value, but the held-out accuracy (`fmparser/model.py`) is **~63% exact and
+~93% within ±1** — read an opponent's attribute as the number it says. Eight are exact outright
+(Pace, Strength, Stamina, Technique, Aggression, Leadership, Agility, Teamwork), so a Pace or
+Strength comparison is the single hardest claim available about an opponent, but the rest do not
+need hedging in a briefing.
 
-So the two columns that matter most for the defensive read are both estimated *and* compressed.
-Consequences for a briefing:
+**Do not import the growth caveat into a scouting read.** [[player-analysis-methods]] notes the
+decode compresses Movement, Positioning and Aerial **8-24x relative to real *growth***. That is a
+statement about year-over-year *change*, and it belongs to forecasting — "has he improved", "will he
+improve". It is not a statement about level accuracy, and using it to discount a point-in-time
+scouting number is a misreading (made once, in the first draft of this file).
 
-- **Rank order within a squad probably survives** the compression (it's monotone-ish) — "Durmisi is
-  their weakest aerial defender" is a fair call.
-- **The magnitude does not.** Do not present "Positioning 8 vs 13" as a five-point gap, and do not
-  build a plan on a two-point difference in these columns between two opponent players.
-- **Pace and Strength are exact** — lean on them. "Their centre-back has Pace 10 and our forward has
-  Pace 16" is the strongest single claim available about an opponent, because both halves are real.
-- Prefer **Level %ile** (`level_*`) for "how good is he" and reserve attribute talk for "what kind of
-  player is he" — see [[level-vs-fit-percentile]].
+The reads to be careful with are therefore about football, not decode error:
+
+- **Check individual defenders, not just `rep["unit_attrs"]`** — a back four averaging 12 can contain
+  an 8, and the unit mean hides exactly the player you want to attack.
+- **One attribute does not decide a duel.** A full-back with Positioning 8 but Tackling 13 and Aerial
+  15 can still have an excellent game (observed: 8 tackles, 6 won, 5 interceptions, rated 8). Name
+  the weakness, but weigh it against the rest of that player's profile before building the plan
+  around it.
 
 ## Worked example of getting it wrong, then right
 

@@ -89,19 +89,29 @@ Before quoting any attribute, check it is weighted above baseline for that playe
 | Who wins the ball in the air? | Aerial, Strength | **Aerial, Strength** |
 | Will they last 90? | Stamina | Stamina |
 
-**Compounding this: on an opponent, Movement / Positioning / Aerial are the least reliable columns
-in the table.** Only 8 attributes are exact save-wide (Pace, Strength, Stamina, Technique,
-Aggression, Leadership, Agility, Teamwork); the rest are a frozen decode for anyone outside our
-club, and those three are **compressed 8-24x** relative to real values (see
-[`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md)). So:
+**A ball-playing centre-back is a threat, not just a press target.** `rep["key_players"]` ranks by
+Level %ile and a deep-lying creator can sit mid-table on it while running the game. If an opponent
+defender's profile is Passing/Technique-led, check him as an attacking outlet too — one such
+centre-back finished a scouted fixture on 53 passes, 45 completed, **4 key passes**, 11 tackles with
+9 won and 7 interceptions, the best player on the pitch, having appeared in the briefing only as a
+note about how they build from the back.
 
-- **Rank order within a squad survives** — "he is their weakest aerial defender" is fair.
-- **Magnitude does not** — never present "Positioning 8 vs 13" as a five-point gap, and never build
-  a plan on a two-point difference between two opponent players in these columns.
-- **Pace and Strength are exact.** "Their CB is Pace 10, our forward is Pace 16" is the strongest
-  claim available about an opponent because both halves are real. Lean on it.
+**Read the decoded numbers as exact.** Attributes for a player who was never ours are a frozen
+decode, but held-out accuracy is ~63% exact / ~93% within ±1 (`fmparser/model.py`), so quote them
+without hedging. Eight are exact outright (Pace, Strength, Stamina, Technique, Aggression,
+Leadership, Agility, Teamwork) — a Pace or Strength comparison is the hardest claim available about
+an opponent. Do **not** import the 8-24x "compression" figure from
+[`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md): that is about
+year-over-year *growth* and belongs to forecasting, not to a point-in-time scouting read.
+
+The two reads that do need care are about football, not decode error:
+
 - **Check individual defenders, not just `rep["unit_attrs"]`** — a back four averaging 12 can contain
   an 8, and the unit mean hides exactly the player you want to attack.
+- **One attribute does not decide a duel.** A full-back with Positioning 8 but Tackling 13 and Aerial
+  15 can still have an excellent game (observed: 8 tackles, 6 won, 5 interceptions, rated 8). Name
+  the weakness, then weigh it against the rest of that player's profile before building a flank plan
+  on it.
 
 Full write-up: [`scouting-attribute-reads`](../../../docs/agent-context/scouting-attribute-reads.md).
 
@@ -132,7 +142,12 @@ Everything below is parameterised off the active career — pull these from `db`
   Match → Predicted XI** screen is a better source when the user has it: it names eleven players and
   their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
-  their players is the problem and which is the soft spot, not just which zone.
+  their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
+  XI for shape, not for names:** on its first check the shape was right and **3 of the 11 names were
+  wrong**, and two of the three (a centre-back swap that was their answer to our aerial threat, and a
+  winger who then scored) were the players who did the damage. So always read their **bench** for the
+  counter-profile to whatever your plan depends on — if the plan is "our target man beats their
+  centre-backs in the air", find the aerial centre-back they have not started.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
   the in-game report has held up; weight it more than the shape.
 - **Current league position / recent form (both sides)** — ASK THE USER. `v_league_table`
