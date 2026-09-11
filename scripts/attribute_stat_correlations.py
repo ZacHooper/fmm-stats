@@ -45,8 +45,11 @@ RATIOS = {"pass_pct": ("passC", "passA"), "sot_pct": ("shotO", "shotA"),
           "cross_pct": ("crossC", "crossA")}
 
 
-def build(db, min_minutes):
-    """One row per (person_id, season): minutes + stat totals + that season's attributes."""
+def build(db, min_minutes, competition=None):
+    """One row per (person_id, season): minutes + stat totals + that season's attributes.
+
+    `competition` is a SQL ILIKE pattern (e.g. "%Superliga%"). Our club has played in four
+    different divisions, so an unfiltered run pools 3. Division minutes with top-flight ones."""
     # mart.match_player_facts is already deduped to one phase per season — never aggregate
     # staging.match_player_stats here, it is a ring buffer and stores a match up to 5 times.
     agg = ", ".join(f"SUM({c}) {c}" for c in COUNTS)
@@ -55,6 +58,7 @@ def build(db, min_minutes):
                  FROM mart.match_player_facts
                  WHERE team_tid IN (SELECT club_tid FROM mart.managed_club)
                    AND is_competitive AND minutes > 0
+                   {"AND competition ILIKE '" + competition.replace("'", "''") + "'" if competition else ""}
                  GROUP BY person_id, season""")          # "position" is a DuckDB reserved word
 
     snap = db.q("SELECT * FROM mart.player_snapshots")
@@ -96,6 +100,8 @@ def main():
     p.add_argument("--career", default=os.environ.get("FM_CAREER", "frem"))
     p.add_argument("--db", help="path to the store (default: db.py's resolved path)")
     p.add_argument("--stat", action="append", help="repeatable; default = all")
+    p.add_argument("--competition", help="SQL ILIKE pattern, e.g. '%Superliga%' — our club has "
+                   "played four different divisions, so pooling them mixes standards")
     p.add_argument("--min-minutes", type=int, default=450,
                    help="drop player-seasons below this (default 450 — ~5 full games)")
     p.add_argument("--top", type=int, default=7, help="attributes to show per stat")
@@ -108,10 +114,20 @@ def main():
     os.environ.setdefault("FM_DUCKDB_READONLY", "1")
     from dashboard import db
 
-    m, attrs = build(db, a.min_minutes)
-    print(f"{len(m)} player-seasons at >= {a.min_minutes} minutes  |  "
+    m, attrs = build(db, a.min_minutes, a.competition)
+    print(f"{len(m)} player-seasons at >= {a.min_minutes} minutes"
+          + (f" in {a.competition}" if a.competition else " (ALL competitions/divisions pooled)") + "  |  "
           + ", ".join(f"{k} {v}" for k, v in m.grp.value_counts().items()))
 
+    if not a.competition:
+        comps = db.q("""SELECT DISTINCT competition FROM mart.match_player_facts
+                        WHERE team_tid IN (SELECT club_tid FROM mart.managed_club)
+                          AND is_competitive AND competition NOT ILIKE '%Pokal%'""").competition.tolist()
+        if len(comps) > 1:
+            print(f"  ⚠️  pooling {len(comps)} different divisions ({', '.join(sorted(comps))}).\n"
+                  f"      Standard changes what an attribute buys — Aggression drives interceptions\n"
+                  f"      at +0.45 in the lower divisions and +/-0 in the Superliga. Pass\n"
+                  f"      --competition '%<division>%' unless you specifically want the pooled read.")
     stats = a.stat or [c + "_90" for c in COUNTS] + list(RATIOS) + ["rating"]
     rows = []
     for s in stats:

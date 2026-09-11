@@ -1,11 +1,37 @@
 # What attributes actually make a player DO things
 
-**Computed 2026-09-11 on the `frem-2026-03-22` snapshot: 104 player-seasons at ≥450 competitive
-minutes (Defence 45, Midfield 37, Attack 22).** Regenerate rather than quote after any import:
+**Computed 2026-09-11 on the `frem-2026-03-22` snapshot.** Two reads, because *the division
+changes the answer* (see below): **all competitions pooled** = 104 player-seasons at ≥450 minutes
+(Defence 45, Midfield 37, Attack 22); **3F Superliga only** = 41 player-seasons at ≥360 minutes
+(Defence 18, Midfield 15, Attack 8). Regenerate rather than quote after any import:
 
 ```bash
-uv run python scripts/attribute_stat_correlations.py --top 8
+uv run python scripts/attribute_stat_correlations.py --competition '%Superliga%' --min-minutes 360
+uv run python scripts/attribute_stat_correlations.py --top 8      # pooled, warns about mixing
 ```
+
+## ⚠️ Standard changes what an attribute buys — filter by division
+
+Frem has climbed 3. Division → 2. Division → NordicBet Liga → 3F Superliga, so an unfiltered run
+mixes four standards. On interceptions the two eras disagree sharply:
+
+| pooled, interceptions/90 | **3F Superliga** (n=41) | lower divisions (n=44) | both (n=104) |
+|---|---|---|---|
+| **Positioning** | **.65** | **.51** | **.51** |
+| Tackling | **.74** | .25 | .49 |
+| **Aggression** | **−.06** | **+.45** | +.27 |
+| Strength | .15 | .40 | — |
+| Decisions | .31 | −.01 | .28 |
+| Movement | −.69 | −.19 | −.43 |
+
+**Positioning is the only stable one.** Aggression and Strength win the ball in the lower leagues
+and stop working in the top flight; Tackling triples in importance going the other way. The
+plausible reading is that you can bully the ball off a 3. Division midfield and cannot bully it off
+a Superliga one. **The pooled +0.27 for Aggression is an artefact of mixing divisions** — it is
+entirely a lower-league effect, and quoting it at a Superliga squad is wrong.
+
+**So: always pass `--competition` for the division you are actually playing in.** The tool prints a
+warning when you don't.
 
 Method, and the four traps that have each produced a wrong answer here, are in the
 [`attribute-profiles`](../../.claude/skills/attribute-profiles/SKILL.md) skill. The short version:
@@ -13,7 +39,10 @@ one row per (player, season) with **that season's** attributes; every correlatio
 a positional unit**; POOLED is unit-demeaned. Ratings/role weights say how good a player is — this
 says how he behaves.
 
-## The headline table (POOLED, unit-demeaned)
+## The headline table — ALL COMPETITIONS POOLED (unit-demeaned)
+
+*For a Superliga-only
+read of the rows that shift most, see the division table above and re-run with `--competition`.*
 
 | Stat | drives it ▲ | suppresses it ▼ | note |
 |---|---|---|---|

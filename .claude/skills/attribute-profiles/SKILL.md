@@ -14,9 +14,10 @@ good a player is; this says how he behaves. Use it when the question is about a 
 trap below.
 
 ```bash
-uv run python scripts/attribute_stat_correlations.py                      # every stat
-uv run python scripts/attribute_stat_correlations.py --stat intercept_90 --top 10
-uv run python scripts/attribute_stat_correlations.py --min-minutes 600
+# ALWAYS filter to the division you are playing in — see trap 5
+uv run python scripts/attribute_stat_correlations.py --competition '%Superliga%' --min-minutes 360
+uv run python scripts/attribute_stat_correlations.py --competition '%Superliga%' --stat intercept_90 --top 10
+uv run python scripts/attribute_stat_correlations.py                      # pooled; prints a warning
 uv run python scripts/attribute_stat_correlations.py --csv /tmp/attr.csv  # long-form for further cuts
 ```
 Remote session with no local store: `rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"`
@@ -30,7 +31,7 @@ Current baseline findings, with the dates and samples they were computed on:
 [`attribute-stat-correlations`](../../../docs/agent-context/attribute-stat-correlations.md).
 **Re-run rather than quoting that file** if a snapshot has been imported since its date.
 
-## The four traps — all of them have already produced a wrong answer here
+## The five traps — all of them have already produced a wrong answer here
 
 **1. Position confounds everything. Never correlate across the whole squad.** Centre-backs have
 high Tackling *and* high interceptions because they are centre-backs. A whole-squad correlation
@@ -50,6 +51,14 @@ the first one told the manager to ignore Aggression. The tool builds player-seas
 at n < 15 is a hint, not a result — say so. Trust the POOLED column and cross-unit agreement:
 an effect that holds in all three units with the same sign is real; one that appears in a single
 column is probably a player.
+
+**5. Filter to the division. Standard changes what an attribute buys.** Frem has climbed from
+3. Division to the Superliga, so an unfiltered run pools four standards. Interceptions, pooled:
+Aggression is **+0.45 in the lower divisions and −0.06 in the Superliga**; Tackling goes the other
+way, **.25 → .74**. Only Positioning is stable (.51 → .65). The all-competitions Aggression figure
+of +0.27 is a mixing artefact and was quoted at a Superliga squad before this was checked. The tool
+warns when you pool; pass `--competition '%Superliga%'`. Lower `--min-minutes` to ~360 to keep the
+sample usable when you narrow it, and say the n.
 
 **4. This is description under OUR instructions, not physics.** Every row is our players playing
 our tactic. A **team instruction moves a whole column at once and is invisible here** — `Work Into
