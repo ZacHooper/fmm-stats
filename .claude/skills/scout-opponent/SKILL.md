@@ -111,7 +111,14 @@ The two reads that do need care are about football, not decode error:
 - **One attribute does not decide a duel.** A full-back with Positioning 8 but Tackling 13 and Aerial
   15 can still have an excellent game (observed: 8 tackles, 6 won, 5 interceptions, rated 8). Name
   the weakness, then weigh it against the rest of that player's profile before building a flank plan
-  on it.
+  on it. Seen again since: a right-back playing out of position at centre-back, flagged in a briefing
+  as the aerial weak link, finished as his side's best player on 6 tackles from 6 and 6 interceptions.
+- **A duel has two sides — check OURS before ruling a route out.** A briefing told the manager not to
+  cross because the opponent centre-backs read Aerial 15 and Strength 14. It never looked up our own
+  target man: Aerial 16, Strength 18, better than both. We crossed 19 times anyway, won the header
+  count 18-14, and he won 5 of his 8 aerial duels on the way to a 2-0. Quoting only the defender's
+  number is the same one-sided error as quoting an attribute the role isn't scored on — state both
+  sides of the duel, or don't call the route off.
 
 Full write-up: [`scouting-attribute-reads`](../../../docs/agent-context/scouting-attribute-reads.md).
 
@@ -143,9 +150,14 @@ Everything below is parameterised off the active career — pull these from `db`
   their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for shape, not for names:** on its first check the shape was right and **3 of the 11 names were
-  wrong**, and two of the three (a centre-back swap that was their answer to our aerial threat, and a
-  winger who then scored) were the players who did the damage. So always read their **bench** for the
+  XI for shape, not for names:** across five checks the shape has held every time and the names have
+  been wrong **3, 3, 4, 4 and — worst so far — 6 out of 11**. Twice the wrong names were the players
+  who did the damage (a centre-back swap that was their answer to our aerial threat, and a winger who
+  then scored). On the 6/11 occasion the two men the screen had on the BENCH were the opponent's two
+  best midfielders and both started, while the full-back the briefing named as the flank target never
+  appeared at all — so the most specific attacking instruction in the report pointed at a player who
+  was not on the pitch. **Never let the single most specific recommendation depend on one predicted
+  name.** Name the weak PROFILE and the zone, then say who fills it if the expected man is absent. So always read their **bench** for the
   counter-profile to whatever your plan depends on — if the plan is "our target man beats their
   centre-backs in the air", find the aerial centre-back they have not started.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
