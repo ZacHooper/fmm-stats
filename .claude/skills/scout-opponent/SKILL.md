@@ -150,8 +150,11 @@ Everything below is parameterised off the active career — pull these from `db`
   their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for shape, not for names:** across five checks the shape has held every time and the names have
-  been wrong **3, 3, 4, 4 and — worst so far — 6 out of 11**. Twice the wrong names were the players
+  XI for shape, not for names:** across six checks the shape has held every time and the names have
+  been wrong **3, 3, 4, 4, 6 and 7 out of 11** — and the trend is getting worse, not better. On the
+  7/11 occasion only four predicted names appeared and two of those played different slots; the
+  goalkeeper the screen named was on the bench and the one who actually played was the opponent's
+  best, which alone invalidated the briefing's chosen route to goal. Twice the wrong names were the players
   who did the damage (a centre-back swap that was their answer to our aerial threat, and a winger who
   then scored). On the 6/11 occasion the two men the screen had on the BENCH were the opponent's two
   best midfielders and both started, while the full-back the briefing named as the flank target never
