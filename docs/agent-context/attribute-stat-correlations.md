@@ -65,6 +65,28 @@ read of the rows that shift most, see the division table above and re-run with `
 | **Mistakes** | Agility .36, Pace .36, Passing .23 | **Aerial −.37**, Strength −.32 | reads as "small quick players carry the ball more" |
 | **Match rating** | Shooting .32, Movement .23, Dribbling .19 | Tackling −.12 | attacking output is what the game rewards |
 
+## Re-run once a season
+
+The sample grows by ~20 player-seasons a year and the Superliga read is currently n=41, so
+coefficients will move. Re-run after each season-end import, keep the dated table, and treat a
+finding that survives three seasons differently from one seen once. Expect the extremes to shrink
+toward the middle as n grows — a correlation of .74 on 41 observations is not a .74 on 200.
+
+## ⚠️ Restriction of range: a zero can mean "we have never had one"
+
+In the Superliga read, Shooting drives midfielders' shots (.72) and shots on target (.76) but
+**not their goals (.06)**, where the same attribute converts all the way through for defenders
+(.61) and attackers (.66). That is not evidence that a shooting midfielder is worthless. **Our
+midfielders' Shooting ranges from 8 to 12** — Tjørnelund at 12 is the highest we have ever fielded
+— so there is no variance for the analysis to find. What the data actually shows is the cost of
+that: Garly (Shooting 9) has taken **37 Superliga shots and scored 0** in 4,089 minutes, and
+Chukwuani (Shooting 9) converts 12% of his shots against Ementa's 21% and Jakobsen's (Shooting 17)
+26%.
+
+**Before reading any near-zero coefficient as "this attribute doesn't matter here", check the
+spread of that attribute within the unit.** A flat line across a range of 8-12 says nothing about
+what a 16 would do.
+
 ## The five conclusions worth acting on
 
 1. **Interceptions are a Positioning + Tackling stat, and forwards cannot supply them.**

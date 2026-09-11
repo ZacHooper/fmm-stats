@@ -68,6 +68,12 @@ That has been the right answer twice: shot quality (`Work Into Box`) and press i
 (closing down). See [`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md).
 
 ## Reading a result honestly
+- **A near-zero coefficient may be restriction of range, not absence of effect.** Check the spread
+  of the attribute within that unit before concluding it does not matter. Shooting looks irrelevant
+  to midfield goals (r=.06) purely because every midfielder we have ever fielded sits between 8
+  and 12 — the analysis cannot see what a 16 would do.
+- **Re-run once a season** and keep the dated tables; the sample grows ~20 player-seasons a year
+  and large coefficients on small n will shrink toward the middle.
 - **Correlation, not causation, and no controls.** Attributes are correlated with each other
   (fast players are usually agile), so a single column cannot separate them. Report the shape of
   the answer, not a coefficient to two decimals.
