@@ -160,8 +160,13 @@ drop the line and **keep the press on**.
 ### Carry the shot-quality lever into the plan
 If the group contains sides that will bunker, or a top-tier goalkeeper, the binding constraint is
 chance *quality*, not chance volume. Shots on target predicts our goals at **r=+0.72** while shot
-volume is flat across every accuracy quartile, and crossing has an optimum around 11 and declines
-beyond it ([`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md)).
+volume is flat across every accuracy quartile, and crossing correlates **+0.50 with shots but only
++0.23 with goals** — it buys more attempts, not better ones
+([`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md)). Crossing is
+*not* harmful in general: bucketed over 184 matches, goals rise with crosses (1.43 / 1.72 / 1.89 /
+1.83 by quartile) and merely plateau at the top. It becomes the wrong delivery only against a
+specific profile — aerially strong centre-backs and a high-Handling keeper — so argue it per
+opponent, never as a league-wide law.
 **`Work Into Box` is the lever** — with it set, the squad's worst shooters simply stop shooting and
 team SOT rate went from a 36.2% season average to 47-67%. It is a team instruction, not a selection
 problem; say so before recommending a different XI.
