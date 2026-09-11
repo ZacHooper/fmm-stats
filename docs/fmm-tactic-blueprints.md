@@ -116,21 +116,70 @@ is built for**.
 | `black_hawk` | reference baseline, not Frem‑tuned | generic FMM24 meta | — |
 | `personal` | custom weight‑set (manual tweaks) | — | — |
 
-**Squad style‑lean (best‑XI mean Fit %ile, mid‑22):** counter 69.5 ≈ lowblock 69.1 ≈ attacking_ss
-69.0 ≈ gegenpress 68.6, but **game_state only 64.5.** Read: *this squad is built to attack — roughly
-equally good at any proactive style, and materially worse at shutting up shop.* Game‑state is
-emergency‑only; the players who'd play it are squad fillers, not the stars. Recruitment gap = a
-lock‑down DM (Anchor) + a commanding CB if we ever want to defend leads reliably.
+**Squad style‑lean — RECOMPUTED 2026‑09‑10 on the 2025‑11‑30 snapshot (37‑man squad, `squad_current`,
+best XI picked per method over a generic GK/DL/DC/DC/DR/DMC/MC/MC/AML/AMC/AMR frame):**
 
-**In‑game SETTING presets per scenario:**
-| Scenario | Mentality | Line | Tempo | Width | Press | Notes |
-|---|---|---|---|---|---|---|
-| Base (vs equals) | Control | **Balanced** | Normal | Narrow | All Over | our slow‑CB deviation from High |
-| vs low block / weak | Attacking | High | Normal | Narrow→Bal | Own Half | overload the box |
-| Protect lead / vs strong | Balanced | Deep/Bal | Slow | Narrow | Own Half | Anchor DM, BBM→CM |
-| vs pace in behind | Balanced | **Deep** | Normal | Narrow | Own Half | trap OFF, man‑mark runner, counter |
+| Method | Fit %ile now | mid‑22 |
+|---|---|---|
+| `frem_counter` | **89.1** | 69.5 |
+| `frem_game_state` | **87.3** | 64.5 |
+| `frem_lowblock_overload` | 87.2 | 69.1 |
+| `frem_attacking_ss` | 87.0 | 69.0 |
+| `frem_gegenpress` | 86.5 | 68.6 |
 
-**Bench specialists (bring on for…):**
+Compare the *ranking*, not the levels (different squad, and the best‑XI frame here may not match
+whatever was used in 22). **The mid‑22 read no longer holds: `frem_game_state` has gone from a clear
+outlier 4.5 points off the pace to SECOND, and the spread across all five has collapsed from 4.5 to
+2.6.** The old conclusion — "materially worse at shutting up shop, game‑state is emergency‑only,
+the players who'd play it are squad fillers" — is superseded; this squad no longer has a style it
+cannot play. That stale number was quoted at a 2026 squad during the 2026‑09 session and put a wrong
+claim into `scout-opponent`, so:
+
+> **Convention: any number in this doc that drives a decision carries the date and the squad it was
+> computed on.** A dated number that is stale is recoverable; an undated one gets quoted forever.
+
+The recruitment gap noted in 22 (a lock‑down DM + a commanding CB) may also have closed — recheck
+before repeating it.
+
+**In‑game SETTING presets per scenario.** The full menu surface (every lever and its options) is in
+[`fmm-tactic-options`](agent-context/fmm-tactic-options.md) — read it first; a `role_weights` method
+sets NONE of these. The Attack tab was missing from this table entirely until 2026‑09 and it turned
+out to hold the most consequential lever of the lot, so it is now columns of its own.
+
+| Scenario | Mentality | Line | Tempo | Width | Press | Final third | Passing | Notes |
+|---|---|---|---|---|---|---|---|---|
+| **Current default (2026‑03, evidence below)** | **Attacking** | **High** | **Fast** | Narrow | All Over | **Work Into Box** + Run At Defence | Short, focus **Centre** | Expressive; won 6‑0 away at the league's best attack |
+| Base (vs equals) *(mid‑22, unverified since)* | Control | Balanced | Normal | Narrow | All Over | — | — | the "slow‑CB deviation from High" it cites refers to a 22 back line |
+| vs low block / weak | Attacking | High | Normal | Narrow→Bal | Own Half | Work Into Box | Centre | overload the box |
+| vs pace in behind | Balanced | **Deep** | Normal | Narrow | Own Half | — | — | trap OFF, man‑mark the runner |
+| ~~Protect lead / vs strong~~ *(disproved 2026‑03)* | ~~Balanced~~ | ~~Deep/Bal~~ | ~~Slow~~ | | | | | see below |
+
+**`Work Into Box` is the shot‑quality lever, and it is a team instruction, not a selection problem.**
+Shots ON TARGET predicts our goals at r=+0.72 while shot volume is flat across every accuracy
+quartile ([`scoring-and-shot-quality`](agent-context/scoring-and-shot-quality.md)). With Work Into
+Box set, our worst‑accuracy shooters simply stop shooting: the squad's most prolific wasteful shooter
+(19 shots, 1 goal, 26% accuracy on the season) took 0 shots in one match and 2 in the next, and team
+SOT rate went from a 36.2% season average to 47–67%. Set it before reaching for a different XI.
+
+**Why "Protect lead / vs strong" is struck through.** Away at Midtjylland (quality gap 45 v 84) the
+cautious version of the plan — counter method, deep line, absorb and break — drew 1‑1 with 3 shots.
+The same fixture replayed with **Attacking / High / All Over / Fast / Work Into Box** finished **6‑0**,
+15 shots and 7 on target. A large quality gap is NOT on its own a reason to sit deep with this squad;
+`frem_game_state`'s Fit (above) says the same thing from the other direction. Keep a deep line for the
+specific case it was written for — genuine pace in behind against slow centre‑backs.
+
+**Line and press are two levers, not one.** These presets move them together, which makes it easy to
+write "drop the line" and have it read as "drop the press". Against a side whose creativity runs
+through one deep passer, pulling the *press* is the more expensive of the two: a 3‑0 became 3‑2
+immediately after the press came off, with their deep playmaker finishing on 32 passes / 28 completed,
+by ten the most on the pitch. When protecting a lead against a technical build‑up, **drop the line and
+keep the press on**, and say which lever you mean.
+
+**Bench specialists (bring on for…)** — ⚠️ **STALE PERSONNEL (mid‑22).** Most of the players named
+below have left; the Fit numbers are from a squad two-plus seasons old. Treat the *shape* of the list
+(which archetype to bring on for which problem) as still useful and re‑derive the names against
+`squad_current` before quoting any of them.
+
 - **Press harder / full gegenpress:** Andersson (70→**79** — the presser: aggression 17, teamwork 15).
 - **Break a low block:** Lodberg (55→**66**), Fugl (49→**64**), Tånnander (55→**64**) — dribble/creative
   risers; Nuamah even more dangerous here (76→**82**). Strong bench for parked buses.

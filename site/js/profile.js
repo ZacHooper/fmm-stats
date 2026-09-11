@@ -10,6 +10,17 @@ import * as D from "./data.js";
 import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
   ATTR_BANDS, DASH } from "./ui.js";
 
+// A per-viewer preference, not per-player state — once you've picked "+ growth + trend" you
+// want it on every profile you open from then on, not reset back to the plain grid each time.
+const DETAIL_KEY = "fm:profile:detail";
+const loadDetail = () => {
+  try {
+    const v = localStorage.getItem(DETAIL_KEY);
+    return v === "more" || v === "most" ? v : "simple";
+  } catch { return "simple"; }
+};
+const saveDetail = (v) => { try { localStorage.setItem(DETAIL_KEY, v); } catch { /* private browsing */ } };
+
 /**
  * Attribute order as the GAME lists it — alphabetical within each group, three columns side by
  * side, keepers separate. Matching it means a value you just read off the phone lands in the
@@ -22,27 +33,60 @@ const GAME_ORDER = {
   Goalkeeping: ["Agility", "Communication", "Handling", "Kicking", "Reflexes", "Throwing"],
 };
 
-export function attributeBlock(p, role, { compare = null } = {}) {
+/**
+ * @param {object} [opts]
+ * @param {object} [opts.compare] another player, to show a per-attribute delta against him.
+ * @param {Array} [opts.attrTraj] this player's snapshot history (D.attrTrajectory(tid)), oldest
+ *   first — enables growth annotation, gated by `detail`.
+ * @param {"simple"|"more"|"most"} [opts.detail] "simple" (default) is the plain current-value
+ *   grid; "more" adds the net change since the first snapshot next to the value; "most" also
+ *   prepends a small trend sparkline. Kept off by default — growth is opt-in, not everyone
+ *   wants a busier grid.
+ * @param {object} [opts.forecast] D.forecastAttrs(p, toAge) result — answers "will his X come"
+ *   right where the question gets asked: a 'fixed' attribute (Agility, Technique) is marked as
+ *   never moving; a 'forecastable' one whose projection differs from today's value shows
+ *   `-> projected`. Silent for 'unmodelled' attributes and for a value already at the target.
+ */
+export function attributeBlock(p, role, { compare = null, attrTraj = null, detail = "simple", forecast = null } = {}) {
   const isGk = p.positions.some((q) => q.pos === "GK");
+
+  function row(a, i, w, title) {
+    const v = p.attrs[i];
+    const other = compare ? compare.attrs[i] : null;
+    let spark = null, delta = null;
+    if (attrTraj && detail !== "simple") {
+      const known = attrTraj.map((t) => t.attrs[i]).filter((x) => x != null);
+      if (known.length >= 2) {
+        delta = v - known[0];
+        if (detail === "most") spark = attrTraj.map((t) => t.attrs[i]);
+      }
+    }
+    const tier = w >= 4 ? "key" : w === 3 ? "imp" : w === 2 ? "useful" : null;
+    const bucket = forecast?.buckets?.[i];
+    const fcVal = bucket === "forecastable" ? forecast.attrs[i] : null;
+    return el(`div.arow${tier ? `.keyed.${tier}` : ""}`, { title }, [
+      el("span.an", {}, [a, tier ? el("span.wdot", { text: tier }) : null]),
+      el("span", {}, [
+        spark ? sparkline(spark, { w: 40, h: 14, dot: false }) : null,
+        other != null && other !== v
+          ? el("span.dim", { text: `${v > other ? "+" : ""}${v - other}  ` }) : null,
+        attrValue(v),
+        delta != null
+          ? el("span.dim", { text: ` ${delta === 0 ? "±0" : `${delta > 0 ? "+" : ""}${delta}`}` }) : null,
+        bucket === "fixed" ? el("span.dim", { text: " (fixed)" }) : null,
+        fcVal != null && fcVal !== v ? el("span.dim", { text: ` → ${fcVal}` }) : null,
+      ]),
+    ]);
+  }
+
   const groups = ["Technical", "Mental", "Physical"];
   const cols = groups.map((g) => {
     const col = el("div.attrcol", {}, [el("h4", { text: g })]);
     for (const a of GAME_ORDER[g]) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
-      const v = p.attrs[i];
       const w = role ? D.weightOf(a, role) : 1;
-      const other = compare ? compare.attrs[i] : null;
-      col.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {
-        title: w > 1 ? `${a} — weight ${w} for ${role}` : a,
-      }, [
-        el("span.an", {}, [a, w >= 3 ? el("span.wdot", { text: w >= 4 ? "key" : "imp" }) : null]),
-        el("span", {}, [
-          other != null && other !== v
-            ? el("span.dim", { text: `${v > other ? "+" : ""}${v - other}  ` }) : null,
-          attrValue(v),
-        ]),
-      ]));
+      col.append(row(a, i, w, w > 1 ? `${a} — weight ${w} for ${role}` : a));
     }
     return col;
   });
@@ -55,9 +99,7 @@ export function attributeBlock(p, role, { compare = null } = {}) {
       const i = D.S.attrs.indexOf(a);
       if (i < 0) continue;
       const w = role ? D.weightOf(a, role) : 1;
-      gk.append(el(`div.arow${w >= 2 ? ".keyed" : ""}`, {}, [
-        el("span.an", { text: a }), attrValue(p.attrs[i]),
-      ]));
+      gk.append(row(a, i, w, a));
     }
     wrap.append(el("div.attrcols", {}, [gk]));
   }
@@ -92,7 +134,27 @@ export function openProfile(tid, { role = null } = {}) {
   const agg = D.S.matchAgg?.get(tid);
   const traj = shown ? D.trajectory(tid, shown.role) : [];
   const growth = shown ? D.growth(tid, shown.role) : null;
+  const attrTraj = D.attrTrajectory(tid);
   const career = D.S.squad?.career_history?.[String(tid)] || [];
+  // Attribute-level forecast at 24 (the attribute grid's "will his X come" answer) and, for the
+  // growth sparkline, the SAME per-attribute lookup rated at each horizon still ahead of him —
+  // the p25/p75 attribute band rated through the role gives an (approximate — it ignores
+  // cross-attribute correlation) rating band rather than just a point projection.
+  const forecast = D.S.forecast ? D.forecastAttrs(p, 24) : null;
+  const roleForecast = (() => {
+    if (!shown || !D.S.forecast || a == null) return null;
+    const horizons = [21, 24].filter((h) => a < h);
+    if (!horizons.length) return null;
+    const points = [], band = [];
+    for (const h of horizons) {
+      const fc = D.forecastAttrs(p, h);
+      const lo = fc.attrs.map((v, i) => (fc.band[i] ? fc.band[i][0] : v));
+      const hi = fc.attrs.map((v, i) => (fc.band[i] ? fc.band[i][1] : v));
+      points.push(D.rating(fc.attrs, shown.role) * D.famMult(shown.fam));
+      band.push([D.rating(lo, shown.role) * D.famMult(shown.fam), D.rating(hi, shown.role) * D.famMult(shown.fam)]);
+    }
+    return { points, band, lastAge: horizons[horizons.length - 1] };
+  })();
 
   const body = [];
   body.push(el("div.kpis", {}, [
@@ -144,23 +206,67 @@ export function openProfile(tid, { role = null } = {}) {
   }));
 
   if (traj.length > 1) {
-    body.push(el("h4", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }));
-    body.push(el("div.card", {}, [
-      sparkline(traj.map((t) => t.value), { w: 260, h: 44 }),
-      el("p.note", {
-        text: growth
-          ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
-            + ` (${num(growth.from)} → ${num(growth.to)}), recomputed under the current tactic.`
-          : "",
-      }),
+    body.push(el("details", {}, [
+      el("summary", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }),
+      el("div.card", {}, [
+        sparkline(traj.map((t) => t.value), { w: 260, h: 44, forecast: roleForecast }),
+        el("p.note", {
+          text: (growth
+            ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
+              + ` (${num(growth.from)} → ${num(growth.to)}), recomputed under the current tactic.`
+            : "")
+            + (roleForecast
+              ? ` Dashed: projected to age ${roleForecast.lastAge}` +
+                ` (${num(roleForecast.points[roleForecast.points.length - 1])}), from the` +
+                " whole-save attribute lookup, not this player's own trend."
+              : ""),
+        }),
+      ]),
     ]));
   }
 
   body.push(el("h4", { text: "Attributes" }));
-  body.push(el("p.note", {
-    text: shown ? `Coloured by importance to ${shown.role} in this tactic — red = key, amber = important, green = useful.` : "",
-  }));
-  body.push(attributeBlock(p, shown?.role));
+  const attrNote = el("p.note", {});
+  body.push(attrNote);
+  const attrBox = el("div");
+  let curRole = shown?.role;
+  let curDetail = loadDetail();
+  function rerenderAttrs() {
+    attrNote.textContent = curRole
+      ? `Coloured by importance to ${curRole} in this tactic — green = key, amber = important, red = useful.` : "";
+    clear(attrBox);
+    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail, forecast }));
+  }
+  rerenderAttrs();
+
+  const controls = [];
+  // Only offer the highlight picker when he actually has more than one distinct role to
+  // highlight for — a player who lists a single position has nothing to switch between.
+  const seenRoles = new Set();
+  const roleOptions = roles.filter((r) => (seenRoles.has(r.role) ? false : seenRoles.add(r.role)));
+  if (roleOptions.length > 1) {
+    const roleSel = el("select.btn", {
+      onchange: (e) => { curRole = e.target.value; rerenderAttrs(); },
+    }, roleOptions.map((r) => el("option", { value: r.role, text: `${r.pos} · ${r.role}` })));
+    roleSel.value = curRole;
+    controls.push(el("span.dim", { text: "Highlight:" }), roleSel);
+  }
+  if (traj.length > 1) {
+    // Growth defaults to whatever level you last picked (persisted, not per-player), so once
+    // you've settled on "+ growth + trend" every profile opens straight into it. Picking a
+    // level re-renders the same three-column layout in place rather than bolting on a table.
+    const detailSel = el("select.btn", {
+      onchange: (e) => { curDetail = e.target.value; saveDetail(curDetail); rerenderAttrs(); },
+    }, [
+      el("option", { value: "simple", text: "Current only" }),
+      el("option", { value: "more", text: "+ growth since first snapshot" }),
+      el("option", { value: "most", text: "+ growth + trend" }),
+    ]);
+    detailSel.value = curDetail;
+    controls.push(el("span.dim", { text: "Detail:" }), detailSel);
+  }
+  if (controls.length) body.push(el("div.prow", {}, controls));
+  body.push(attrBox);
 
   body.push(el("h4", { text: "Match record for us (all seasons)" }));
   body.push(statTable(agg));

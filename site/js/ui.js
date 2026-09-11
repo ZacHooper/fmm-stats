@@ -84,29 +84,59 @@ export const ATTR_BANDS = [
   [4, "14-16 good"], [5, "17-20 excellent"],
 ];
 
-/** Inline SVG sparkline — a trajectory belongs in the row it describes, not on another page. */
-export function sparkline(values, { w = 70, h = 18, dot = true } = {}) {
+/**
+ * Inline SVG sparkline — a trajectory belongs in the row it describes, not on another page.
+ * `forecast`, when given, continues the line past the last real value as a dashed segment with
+ * a shaded p25-p75 band: `{ points: [v, ...], band: [[lo, hi], ...] }`, same length, values
+ * AFTER the last entry in `values`. The scale (lo/hi) spans real values and the forecast band
+ * together, so a wide band doesn't get clipped.
+ */
+export function sparkline(values, { w = 70, h = 18, dot = true, forecast = null } = {}) {
   const vs = values.filter((v) => v != null);
   if (vs.length < 2) return el("span.dim", { text: DASH });
-  const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
-  const pts = vs.map((v, i) => [
-    (i / (vs.length - 1)) * (w - 2) + 1,
-    h - 1 - ((v - lo) / span) * (h - 2),
-  ]);
+  const fPts = forecast?.points || [];
+  const fBand = forecast?.band || [];
+  const all = [...vs, ...fPts, ...fBand.flat()].filter((v) => v != null);
+  const lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || 1;
+  const n = vs.length + fPts.length;
+  const xAt = (i) => (i / (n - 1)) * (w - 2) + 1;
+  const yAt = (v) => h - 1 - ((v - lo) / span) * (h - 2);
+  const pts = vs.map((v, i) => [xAt(i), yAt(v)]);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
   svg.setAttribute("width", w); svg.setAttribute("height", h);
   svg.setAttribute("class", "spark");
+  const trendUp = vs[vs.length - 1] >= vs[0];
+
+  if (fPts.length) {
+    const last = pts[pts.length - 1];
+    const fSeriesPts = fPts.map((v, i) => [xAt(vs.length + i), yAt(v)]);
+    if (fBand.length === fPts.length) {
+      const upper = fBand.map((b, i) => [xAt(vs.length + i), yAt(b[1])]);
+      const lower = fBand.map((b, i) => [xAt(vs.length + i), yAt(b[0])]).reverse();
+      const poly = document.createElementNS(svg.namespaceURI, "polygon");
+      poly.setAttribute("points", [last, ...upper, ...lower]
+        .map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" "));
+      poly.setAttribute("class", "band");
+      svg.append(poly);
+    }
+    const fpath = document.createElementNS(svg.namespaceURI, "path");
+    fpath.setAttribute("d", [last, ...fSeriesPts]
+      .map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" "));
+    fpath.setAttribute("class", "fc");
+    svg.append(fpath);
+  }
+
   const path = document.createElementNS(svg.namespaceURI, "path");
   path.setAttribute("d", pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" "));
-  path.setAttribute("class", vs[vs.length - 1] >= vs[0] ? "up" : "down");
+  path.setAttribute("class", trendUp ? "up" : "down");
   svg.append(path);
   if (dot) {
     const c = document.createElementNS(svg.namespaceURI, "circle");
     c.setAttribute("cx", pts[pts.length - 1][0].toFixed(1));
     c.setAttribute("cy", pts[pts.length - 1][1].toFixed(1));
     c.setAttribute("r", 1.8);
-    c.setAttribute("class", vs[vs.length - 1] >= vs[0] ? "up" : "down");
+    c.setAttribute("class", trendUp ? "up" : "down");
     svg.append(c);
   }
   return svg;

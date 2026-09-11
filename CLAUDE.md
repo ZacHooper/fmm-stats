@@ -289,8 +289,8 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 
 ## House rules
 - **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings, `pos_index`, percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_*` in `effective_table`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from the query so only the percentile ever leaves. It sits next to the tactic **Fit %ile** (`pctile_*`). Keep raw `ca`/`pa` out of every surfaced frame; don't remove Level %ile thinking it breaks this
-  rule. **`scripts/build_site.py` enforces this for published JSON** — it parses every emitted
-  file and fails the build on a raw-ability key at any depth, so anything new you add to the
+  rule. **`scripts/export_data.py`'s `check_immersion()` enforces this for published JSON** — it
+  parses every emitted file and fails the build on a raw-ability key at any depth, so anything new you add to the
   export is checked automatically.
 - **Depth-chart logic lives in `dashboard/positions.py`**, shared by the Streamlit page and the
   exporter. Change it there, not in either consumer, or the app and the dashboard start giving

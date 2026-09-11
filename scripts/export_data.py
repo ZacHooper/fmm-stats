@@ -467,6 +467,41 @@ def main():
     emit("squad.json", {"attrs": list(ATTR_ORDER), "trajectories": traj,
                         "career_history": chist, "note": IMMERSION})
 
+    # ---------------------------------------------------------------- forecast.json
+    # Given his CURRENT value of an attribute and his age, what will it be at 21 / 24? Built
+    # entirely from mart.attribute_forecast (fmparser/mart.py) — a lookup keyed on
+    # (attribute, age_now, value_now, horizon_age), not a fitted formula: growth turned out to
+    # be a level phenomenon (current value predicts future value directly, R^2=0.85 for
+    # Crossing) rather than a rate one, so there is no coefficient to ship, just the empirical
+    # table. `bucket` is derived in SQL per attribute — 'forecastable' where the decode tracks
+    # real growth, 'fixed' where nothing moves (Agility, Technique), 'unmodelled' where the
+    # decode compresses real growth too much to trust (Movement, Positioning, Aerial, ...).
+    fc = db.q("""SELECT attribute, age_now, value_now, horizon_age, median, p25, p75
+                 FROM mart.attribute_forecast""")
+    buckets = {r.attribute: r.bucket for r in
+               db.q("SELECT DISTINCT attribute, bucket FROM mart.attribute_forecast").itertuples()}
+    cells = {}
+    for r in fc.itertuples():
+        by_age = cells.setdefault(r.attribute, {}).setdefault(str(int(r.age_now)), {})
+        by_value = by_age.setdefault(str(int(r.value_now)), {})
+        by_value[str(int(r.horizon_age))] = [round(float(r.median), 1),
+                                              round(float(r.p25)), round(float(r.p75))]
+    curve = db.q("SELECT age, median, p25, p75 FROM mart.growth_age_curve")
+    emit("forecast.json", {
+        "attrs": list(ATTR_ORDER),
+        "buckets": buckets,
+        "horizons": [21, 24],
+        "cells": cells,
+        "ageCurve": [[int(r.age), round(float(r.median), 1), round(float(r.p25), 1),
+                      round(float(r.p75), 1)] for r in curve.itertuples()],
+        "note": "Empirical lookup over the whole save (~25k players tracked across snapshots), "
+                "not a per-player prediction: current value + age predicts a future value well "
+                "(R^2=0.85 for Crossing), but a starting attribute like Technique does NOT "
+                "predict how FAST another attribute grows (+0.000 R^2 beyond current value) — "
+                "a technical player is simply already ahead, not accelerating. Fixed attributes "
+                "(Agility, Technique) never move in real play; unmodelled ones are decoded too "
+                "coarsely outside our own squad to forecast honestly. " + IMMERSION})
+
     # ---------------------------------------------------------------- registration.json
     # The squad-registration house rule (docs/danish-registration-rules.md). FMM models none
     # of this, so every field here is derived — see fmparser/mart.py's registration family for
@@ -649,6 +684,7 @@ def main():
         # to be independently followable.
         "files": {"core": f"{SITE_URL}/api/core.json", "clubs": f"{SITE_URL}/api/clubs.json",
                   "squad": f"{SITE_URL}/api/squad.json",
+                  "forecast": f"{SITE_URL}/api/forecast.json",
                   "positions": f"{SITE_URL}/api/positions.json",
                   "matches": f"{SITE_URL}/api/matches.json",
                   "registration": f"{SITE_URL}/api/registration.json",
