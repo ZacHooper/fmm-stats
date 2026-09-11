@@ -54,18 +54,25 @@ column is probably a player.
 
 **5. Filter to the division. Standard changes what an attribute buys.** Frem has climbed from
 3. Division to the Superliga, so an unfiltered run pools four standards. Interceptions, pooled:
-Aggression is **+0.45 in the lower divisions and −0.06 in the Superliga**; Tackling goes the other
-way, **.25 → .74**. Only Positioning is stable (.51 → .65). The all-competitions Aggression figure
-of +0.27 is a mixing artefact and was quoted at a Superliga squad before this was checked. The tool
-warns when you pool; pass `--competition '%Superliga%'`. Lower `--min-minutes` to ~360 to keep the
+Aggression runs **+0.34 in the lower divisions and −0.32 in the Superliga**; Strength **+.40 → +.02**.
+Positioning stays positive in both (.45 / .22) and so does Tackling (.19 / .47). The tool warns when you pool; pass `--competition '%Superliga%'`. Lower `--min-minutes` to ~360 to keep the
 sample usable when you narrow it, and say the n.
 
-**4. This is description under OUR instructions, not physics.** Every row is our players playing
-our tactic. A **team instruction moves a whole column at once and is invisible here** — `Work Into
-Box` changed the squad's SOT rate from 36% to 47-67% without changing anybody's attributes. So
-before recommending personnel for an effect, ask whether an instruction does it more cheaply.
-That has been the right answer twice: shot quality (`Work Into Box`) and press intensity
-(closing down). See [`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md).
+**4. This is description under OUR instructions, not physics — so check it against `--who
+opponents`.** Every "us" row is our players playing our tactic. A **team instruction moves a whole
+column at once and is invisible here** — `Work Into Box` changed the squad's SOT rate from 36% to
+47-67% without changing anybody's attributes. So before recommending personnel for an effect, ask
+whether an instruction does it more cheaply; that has been the right answer twice, for shot quality
+(`Work Into Box`) and press intensity (closing down). See
+[`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md).
+
+  **`--who opponents` is the fix for this trap**, and should be run for any finding you intend to
+  act on. It is the same analysis over the players we have faced — 287 player-seasons from 57 clubs
+  under 57 managers — so an effect that survives there belongs to the game rather than to our
+  tactic. Its coefficients attenuate (we only see an opponent in the 2-4 games he plays us, so each
+  observation is a few matches of noise): **compare signs and rank order, never magnitudes**.
+  Aerial→headers survives at .52 against our .64-.79; Aggression→interceptions does not survive at
+  all, and neither does anything for tackle success % or cross completion %.
 
 ## Reading a result honestly
 - **A near-zero coefficient may be restriction of range, not absence of effect.** Check the spread
