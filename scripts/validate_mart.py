@@ -677,10 +677,10 @@ def main():
     # The academy resolution may only ADD eligible players. If a player was eligible on his raw
     # origin tid he must stay eligible once that tid is resolved, or the resolution has moved a
     # senior club onto something else.
-    lost = con.execute("""
+    lost = con.execute(f"""
         SELECT COUNT(*) FROM mart.player_origin o
         WHERE o.season = ? AND o.phase = ? AND NOT o.eligible AND o.confidence <> 'low'
-          AND o.origin_club_tid IN (SELECT club_tid FROM staging.eligible_origin_clubs)
+          AND o.origin_club_tid IN (SELECT club_tid FROM {src}.eligible_origin_clubs)
     """, [S, P]).fetchone()[0]
     check("resolving academies never REMOVES capital eligibility", lost == 0,
           f"{lost} player(s) lost it")
