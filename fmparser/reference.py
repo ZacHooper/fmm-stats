@@ -19,6 +19,27 @@ from . import regions as RG
 NATIONS = {173: "Turkey"}
 
 
+# A club's uid is NOT bounded by the 400,000,000 that gated this scan for its whole life.
+# Ground truth, confirmed against two in-game player profiles (2026-09-12): Shawn Beeckaert
+# plays for tid 6863, which the game shows as "EM United" -- Erpe-Mere United, uid
+# 2,000,004,399, a perfectly well-formed record at byte 10,104,532 that the ceiling threw
+# away. Jesús Bernal plays for tid 7153, "Paracuellos" = C.D. Paracuellos Antamira, uid
+# 2,000,112,622. We were keeping "Erpe-Mere United Reserves" (uid 200,010,882, under the
+# ceiling) while dropping the first team.
+#
+# This is the THIRD uid gate in this file to be wrong the same way -- see find_comp_record on
+# the old `uid >= 1000` rule that silently skipped every top division. The uid is not a range
+# to guess at; it is an identifier.
+#
+# The ceiling is not simply raised, because widening it in place CORRUPTS three real clubs:
+# person records match the club shape and win low tids on file order (C Cerro Porteño ->
+# 'Ultee', Club Sporting Cristal -> 'Boujemaoui', Club Centro Deportivo Municipal ->
+# 'Leemans'). So the band below admits records only for tids nothing else resolved, and only
+# with the club trailer marker present. Measured on frem-2026-03-22: 327 clubs recovered,
+# 0 existing names changed, 0 person records admitted.
+_CLUB_UID_FILL_LO, _CLUB_UID_FILL_HI = 1_900_000_000, 2_100_000_000
+
+
 def _refdata_window(mm):
     """(lo, hi) for the club/comp reference-data band. Trusted outright, same as every
     other region in regions.py (ATTR_LO/HI, LIGHT_LO/HI, ...) — no runtime fallback to a
@@ -118,6 +139,7 @@ def _build_refdata_index(mm):
     cand = cand[cand >= 8]      # room to look back 8 bytes for the club header (TID+UID)
 
     clubs, comps = {}, {}
+    tiers = {}                  # tid -> which gate admitted the stored record (0 beats 1)
     nmax = len(mm)
     for off in cand.tolist():
         q = off + lo             # absolute offset of the length field
@@ -129,7 +151,14 @@ def _build_refdata_index(mm):
         # silently dropped). Structural validation only, matching the old per-tid scan.
         tid = int.from_bytes(mm[q - 8:q - 4], "little")
         uid = int.from_bytes(mm[q - 4:q], "little")
-        if 1 <= uid <= 400_000_000:
+        # TIER 0 is the long-standing gate; TIER 1 is a strictly gap-FILLING second tier for
+        # the ~2-billion uid band (see _CLUB_UID_FILL_LO below). A tier-1 record can never
+        # displace a tier-0 one, so this cannot change a club name that resolves today.
+        primary = 1 <= uid <= 400_000_000
+        fill = (not primary
+                and _CLUB_UID_FILL_LO <= uid <= _CLUB_UID_FILL_HI
+                and tid <= 0xFFFF)
+        if primary or fill:
             ln = int.from_bytes(mm[q:q + 4], "little")
             if 2 <= ln <= 60:
                 long_name = _valid_name(mm[q + 4:q + 4 + ln])
@@ -148,17 +177,32 @@ def _build_refdata_index(mm):
                             p = p + 4 + sl
                         rec = {"name": long_name, "short": short_name,
                                "league": None, "country": None}
+                        marker = p is not None and mm[p + 160:p + 162] == b"\xff\xff"
                         if p is not None:
                             rec["country"] = int.from_bytes(mm[p:p + 2], "little")
-                            if mm[p + 160:p + 162] == b"\xff\xff":
+                            if marker:
                                 code = int.from_bytes(mm[p + 158:p + 160], "little")
                                 if code and code != 0xffff:
                                     rec["league"] = code
+                        # A tier-1 candidate must carry the club trailer marker. Person
+                        # records match the [tid][uid][len][long][len][short] shape too --
+                        # a first name followed by a surname -- and without this they fill
+                        # empty tids with surnames ('Kjell', 'De Vriese', 'Sickinger' at
+                        # tids 867-876). The marker costs 9 of 336 fills and removes all 9
+                        # of those. A wrong club name is worse than a missing one.
+                        if fill and not marker:
+                            continue
+                        tier = 0 if primary else 1
                         existing = clubs.get(tid)
-                        # prefer a copy that carries the league field, else keep the
-                        # first valid copy (secondary copies read 0 / ff ff)
-                        if existing is None or (existing["league"] is None and rec["league"] is not None):
+                        # prefer the lower tier; within a tier prefer a copy that carries
+                        # the league field, else keep the first valid copy (secondary
+                        # copies read 0 / ff ff)
+                        if (existing is None
+                                or (tier < tiers[tid])
+                                or (tier == tiers[tid]
+                                    and existing["league"] is None and rec["league"] is not None)):
                             clubs[tid] = rec
+                            tiers[tid] = tier
 
         # ---- comp branch: [cid u16]@q-6 [UID u32]@q-4 [len][long][len][short][len][code] ----
         cid = int.from_bytes(mm[q - 6:q - 4], "little")

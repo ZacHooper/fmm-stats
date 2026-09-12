@@ -63,3 +63,33 @@ club + league as text. See [[savefile-boundary-map]], [[player-history-table]], 
 **So: never diagnose a bug from a resolved club NAME — check the tid.** Chasing "why is an award
 showing as a player's club" as a career-history bug cost real time; the history parse was correct
 and the name lookup was wrong.
+
+## Club names: the uid gate dropped 327 real clubs (2026-09-12)
+
+`reference.py`'s club branch accepted only `1 <= uid <= 400_000_000`. Every club whose uid sits
+in the ~2-billion band was thrown away: **327 in a 2026 Frem save, 363 in a 2022 Bucaspor save**.
+At the 2026-03-22 snapshot that left **293 players at 79 clubs** that could only render `#<tid>`.
+
+Ground truth came off two in-game player profiles, not from the parse: Shawn Beeckaert plays for
+tid 6863, which the game shows as **"EM United"** — Erpe-Mere United, uid 2,000,004,399, a
+well-formed record at byte 10,104,532. We were keeping "Erpe-Mere United **Reserves**" (uid
+200,010,882, under the ceiling) while dropping the first team. Jesús Bernal's tid 7153 is
+"Paracuellos" = C.D. Paracuellos Antamira, uid 2,000,112,622.
+
+**Third uid gate in this file to be wrong the same way** — `find_comp_record`'s old `uid >= 1000`
+rule skipped every top division for the mirror-image reason. A uid is an identifier, not a range.
+
+The ceiling was NOT simply raised. Widening it in place **corrupts real clubs**: person records
+match the club shape (a first name followed by a surname) and win low tids on file order, renaming
+C Cerro Porteño → 'Ultee', Club Sporting Cristal → 'Boujemaoui', Club Centro Deportivo Municipal →
+'Leemans'. So the band is a second, strictly **gap-filling** tier — a tier-1 record can never
+displace a tier-0 one — and it additionally requires the club **trailer marker** (`ff ff` at
+p+160), which costs 9 of 336 fills and removes all 9 surnames. A wrong club name is worse than a
+missing one.
+
+Verified additive on both careers: **0 existing names changed, 0 lost**.
+`tests/test_club_uid_gate.py` holds the screenshot ground truth plus the three displacement cases.
+
+This is the same lesson as the award-record note above, from the other direction: the club index
+is where club-name bugs live, and the discriminators that work are STRUCTURAL (trailer marker,
+league, country) — never a guessed numeric range.
