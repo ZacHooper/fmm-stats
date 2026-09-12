@@ -9,6 +9,24 @@ description: Measure how a player's ATTRIBUTES drive his on-pitch STATS — whic
 good a player is; this says how he behaves. Use it when the question is about a **behaviour**
 (win the ball high, create chances, hit the target, give it away) rather than about quality.
 
+## There is a dashboard for this — offer it
+[**The Attribute Lab**](https://claude.ai/code/artifact/bae40c5f-a50a-485b-b4be-3d2735e2a5f5) is
+the explorable version: every statistic against every attribute, per unit, across the four
+measurements — plus a workbench for rewriting a role's weights with the measured evidence beside
+each slider, the squad re-ranking live underneath, and outcome presets ("build this role to win
+it back / create / finish") that derive weights from the correlations instead of from taste.
+
+Rebuild its data after an import, and re-verify the arithmetic, then republish the page:
+```bash
+uv run python scripts/export_attribute_lab.py                    # -> site-data/lab.json
+uv run python scripts/check_rating_parity.py site-data/lab.json  # must PASS
+```
+`check_rating_parity.py` asserts the page computes `base_rating`/`eff` identically to
+`mart.player_position_fit`. CLAUDE.md requires that equality and, until this was written, no
+committed test enforced it. **A weight-set built in the Lab** comes back via
+`scripts/import_weight_set.py` (writes `state/weights/<name>.json`, which syncs to R2; `--promote`
+makes it a real method in `staging.role_weights`).
+
 ## Run the tool, don't hand-roll it
 `scripts/attribute_stat_correlations.py` is the validated implementation. It already handles every
 trap below.

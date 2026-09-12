@@ -15,6 +15,15 @@ uv run python scripts/attribute_stat_correlations.py --competition '%Superliga%'
 uv run python scripts/attribute_stat_correlations.py --who opponents --min-minutes 180
 ```
 
+Or explore it interactively in **[The Attribute Lab](https://claude.ai/code/artifact/bae40c5f-a50a-485b-b4be-3d2735e2a5f5)**,
+which also carries a workbench for rebuilding a role's attribute weights from this evidence
+(`scripts/export_attribute_lab.py` builds its data; `scripts/import_weight_set.py` brings a
+weight-set back into the store).
+
+**Crossing joined the attribute list on 2026-09-12** — it had been missing, which left a hole in
+exactly the role whose job is delivery, since it is weighted KEY on our wing-backs. Figures below
+that predate the re-run do not include it.
+
 Method and traps: the [`attribute-profiles`](../../.claude/skills/attribute-profiles/SKILL.md)
 skill. One row per (player, season) with **that season's** attributes; correlations computed
 **inside a positional unit**; the figures below are unit-demeaned pools.

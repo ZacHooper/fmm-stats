@@ -36,9 +36,12 @@ POS_GROUP = {"GK": "GK",
              "ML": "Midfield", "MC": "Midfield", "MR": "Midfield",
              "AML": "Attack", "AMC": "Attack", "AMR": "Attack", "ST": "Attack", "FC": "Attack"}
 
+# The 18 outfield attributes (ATTR_ORDER minus the five keeper-only ones). Crossing belongs
+# here: it is weighted KEY on our wing-backs, so leaving it out left a hole in exactly the
+# role whose whole job is delivery.
 ATTRS = ["Tackling", "Positioning", "Decisions", "Aggression", "Teamwork", "Strength", "Aerial",
          "Stamina", "Pace", "Agility", "Movement", "Technique", "Dribbling", "Creativity",
-         "Passing", "Shooting", "Leadership"]
+         "Passing", "Shooting", "Crossing", "Leadership"]
 
 # counting stats -> per 90; the ratios are computed from their own numerator/denominator
 COUNTS = ["intercept", "tackW", "tackA", "keyPass", "assists", "goals", "shotA", "shotO",
