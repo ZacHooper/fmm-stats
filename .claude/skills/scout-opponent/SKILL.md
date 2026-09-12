@@ -150,9 +150,11 @@ Everything below is parameterised off the active career — pull these from `db`
   their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for shape, not for names:** across six checks the shape has held every time and the names have
-  been wrong **3, 3, 4, 4, 6 and 7 out of 11** — and the trend is getting worse, not better. On the
-  7/11 occasion only four predicted names appeared and two of those played different slots; the
+  XI for shape, mostly — and never for names:** across seven checks the names have been wrong
+  **3, 3, 4, 4, 6, 7 and 4 out of 11**, and the shape, which had held on the first six, broke on the
+  seventh: FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, with the predicted DMC
+  never appearing and an AMC in his place — so a shape read is a strong prior, not a fact either.
+  On the 7/11 occasion only four predicted names appeared and two of those played different slots; the
   goalkeeper the screen named was on the bench and the one who actually played was the opponent's
   best, which alone invalidated the briefing's chosen route to goal. Twice the wrong names were the players
   who did the damage (a centre-back swap that was their answer to our aerial threat, and a winger who
@@ -163,6 +165,19 @@ Everything below is parameterised off the active career — pull these from `db`
   name.** Name the weak PROFILE and the zone, then say who fills it if the expected man is absent. So always read their **bench** for the
   counter-profile to whatever your plan depends on — if the plan is "our target man beats their
   centre-backs in the air", find the aerial centre-back they have not started.
+- **Their squad is not their first-team list — read the RESERVE club too, and check the names you
+  are handed actually exist in it.** Against FC København the player who ran the game from AMC
+  (25 passes, 23 completed, **5 key passes, the most on the pitch**, rated 8) sits in our data under
+  *FCK Reserves* (tid 7294), not the first team, so a briefing built off `club_tid = 344` could not
+  have named him. Resolve the reserve tid the same way we resolve ours (`mart.reserve_clubs` for us;
+  for an opponent, `resolve_club("<name> Reserves")`) and scan it for anyone who would walk into the
+  first XI. Two traps come with it: **`level_league` is a percentile against that player's OWN
+  league**, so a reserve-listed player reads 100 %ile against reserve-league peers and is not
+  comparable to a first-teamer's Superliga number — rank cross-league candidates on `level_nation` /
+  `level_global` instead (the same man: league 100, nation 92.3, global 84.3). And a name on the
+  Predicted XI that appears in **no** club's squad in our latest snapshot is a post-snapshot signing:
+  say so in the briefing rather than silently dropping him. Their goalkeeper in that match was one —
+  the screen named Kelly, someone else played, and he is in no FCK squad we hold.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
   the in-game report has held up; weight it more than the shape.
 - **OUR OWN tactics screens** — ASK FOR THESE TOO. This skill recommends a *method*

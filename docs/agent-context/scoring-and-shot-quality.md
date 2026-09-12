@@ -60,6 +60,19 @@ Monotonic in how many are fielded: **0 → 0.78, 1 → 1.21, 2 → 1.55** goals/
 row's shape — *more* shots, *worse* accuracy, *fewer* goals, which is finding 1 restated: without a
 focal point we manufacture attempts from bad positions.
 
+**It shows up in points, not just goals** — re-cut on the 2025+ squad only (62 stats-bearing
+first-team matches), which is the personnel any current briefing is actually picking from:
+
+| starting FCs | Games | Goals/g | Conceded/g | Points/g |
+|---|---|---|---|---|
+| 0 (strikerless) | 10 | 0.70 | 1.40 | **0.90** |
+| 1 | 31 | 1.45 | 1.19 | 1.32 |
+| 2 | 21 | 1.62 | 1.05 | **1.95** |
+
+Two forwards is also the *better defensive* row, which kills the "but it leaves us open" objection.
+The strikerless bucket is only 10 games here — the 0.90 ppg is soft — but it points the same way as
+the 18-game goals cut above, and no cut of this save has ever had strikerless ahead.
+
 ## 3. Tested and FAILED — do not re-derive these
 
 - **Aerial dominance does not produce goals.** Team aerial win rate vs goals: **r = +0.03** over 563
@@ -73,6 +86,15 @@ focal point we manufacture attempts from bad positions.
   **r = −0.30**; vs our goals: **−0.04**, with non-monotonic buckets. Three consecutive opponents
   whose best defender racked up 11, 16 and 12 interceptions against us looked like a pattern; the
   52-match test does not support it.
+- **Our own interceptions do not predict results.** This is the mirror of the bullet above and it
+  died the same way. A scouting note called interceptions "the clearest in-match dial we have" off
+  an 8-match per-opponent split (wins 43 and 38, losses averaging 32.3). Over **176** of our own
+  stats-bearing matches, interceptions vs points is **r = +0.044** — wins 33.8, draws 34.1, losses
+  32.7 — and league-wide (351 matches, every club) **r = +0.093**. The differential is marginally
+  better (+0.17 league-wide) and still not something to steer a game plan by. It is not even a
+  "we're chasing the ball" artifact: interceptions correlate *positively* with our own pass volume
+  (+0.21 to +0.25). The counterexample that prompted the test: a 2-0 home win over FC København on
+  ~31 interceptions — below that fixture's *loss* average — while FCK made 39 and lost.
 - **Pairing two specific midfielders is not special.** "Our two best MCs together" reads
   1.58 goals/game vs 0.96 with neither at MC — but decomposed, **the gain is from having *at least
   one* of them at MC (+0.4 to +0.5); the second adds ~0.1**, and "both vs every other configuration"
