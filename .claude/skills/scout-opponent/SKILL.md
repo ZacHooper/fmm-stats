@@ -162,10 +162,13 @@ Everything below is parameterised off the active career — pull these from `db`
   their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for shape, mostly — and never for names:** across seven checks the names have been wrong
-  **3, 3, 4, 4, 6, 7 and 4 out of 11**, and the shape, which had held on the first six, broke on the
-  seventh: FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, with the predicted DMC
-  never appearing and an AMC in his place — so a shape read is a strong prior, not a fact either.
+  XI for neither shape nor names:** across eight checks the names have been wrong
+  **3, 3, 4, 4, 6, 7, 4 and 3 out of 11**, and the shape, which held on the first six, has now broken
+  on both of the last two — FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, and AC
+  Horsens were predicted in a 3-5-2 and played a 4-2-3-1 with their entire predicted midfield three
+  absent. A low name-error count is not the reassurance it looks like: 8 of Horsens' 11 predicted men
+  played, but only three in the predicted slot, and the back three became a back four with a
+  centre-back at MC. **Count slots, not names.**
   On the 7/11 occasion only four predicted names appeared and two of those played different slots; the
   goalkeeper the screen named was on the bench and the one who actually played was the opponent's
   best, which alone invalidated the briefing's chosen route to goal. Twice the wrong names were the players
@@ -183,7 +186,13 @@ Everything below is parameterised off the active career — pull these from `db`
   *FCK Reserves* (tid 7294), not the first team, so a briefing built off `club_tid = 344` could not
   have named him. Resolve the reserve tid the same way we resolve ours (`mart.reserve_clubs` for us;
   for an opponent, `resolve_club("<name> Reserves")`) and scan it for anyone who would walk into the
-  first XI. Two traps come with it: **`level_league` is a percentile against that player's OWN
+  first XI — **and compare them against the WEAKEST men in the predicted XI, not the best.** Getting
+  that backwards cost a briefing: it checked Horsens' reserve list, saw nobody near their top players,
+  wrote "their reserve list holds nobody who would walk into this XI", and then watched Ísak Óli
+  Ólafsson start at centre-back (rated 7, 6 interceptions) with Malte Kiilerich off the bench. On
+  `level_nation` the two of them read 79.9 and 83.0 against three *predicted starters* at 71.7, 74.6
+  and 75.8. The question is never "is this reserve as good as their best" — it is "is he better than
+  the worst man they are expected to pick". Two traps come with it: **`level_league` is a percentile against that player's OWN
   league**, so a reserve-listed player reads 100 %ile against reserve-league peers and is not
   comparable to a first-teamer's Superliga number — rank cross-league candidates on `level_nation` /
   `level_global` instead (the same man: league 100, nation 92.3, global 84.3). And a name on the
