@@ -648,9 +648,23 @@ def main():
     check("the 0xFFFF 'no origin' sentinel is not treated as a club", sentinel == 0,
           f"{sentinel} row(s)")
 
-    # An academy tid must never survive into the PARENT column: that is the whole point of the
-    # vote, and a parent that is itself unmapped is a tid no allow-list can match. Checked
-    # against mart.clubs in the same snapshot, because a tid is a recycled slot.
+    # The academy -> club link is ARITHMETIC (youth_tid = 65535 - club_tid), so it is checkable
+    # rather than merely plausible. If this ever fails, the id space has changed and every
+    # downstream homegrown/eligibility answer is suspect.
+    off_rule = con.execute("""
+        SELECT COUNT(*) FROM mart.youth_clubs
+        WHERE season = ? AND phase = ? AND club_tid <> 65535 - youth_tid""", [S, P]).fetchone()[0]
+    check("every academy is the u16 complement of its club (65535 - tid)", off_rule == 0,
+          f"{off_rule} row(s) break the rule")
+
+    both = con.execute("""
+        SELECT COUNT(*) FROM mart.youth_clubs y JOIN mart.clubs c
+          ON (c.season, c.phase, c.club_tid) = (y.season, y.phase, y.youth_tid)
+        WHERE y.season = ? AND y.phase = ?""", [S, P]).fetchone()[0]
+    check("no tid is both a club and an academy", both == 0, f"{both} collision(s)")
+
+    # A parent that is itself unmapped is a tid no allow-list can match. Checked against
+    # mart.clubs in the same snapshot, because a tid is a recycled slot.
     unmapped = con.execute("""
         SELECT COUNT(*) FROM mart.youth_clubs y
         WHERE y.season = ? AND y.phase = ?

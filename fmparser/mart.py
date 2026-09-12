@@ -689,10 +689,9 @@ LEFT JOIN {S}.person_slices ps
 # the PARENT. An academy-origin player is a product of the club that runs the academy, so
 # "came out of FC København" has to be true whether the save recorded FCK or FCK's youth side.
 #
-# `eligible` is NOT gated on origin_parent_share. The mapping is a vote (see mart.youth_clubs)
-# and a thin one is a guess, so the share ships next to the verdict and a caller who wants a
-# stricter policy can demand it — but the rule itself stays inclusive, because the alternative
-# is silently excluding a real academy graduate for having few contemporaries.
+# There is no confidence column and no threshold to tune. mart.youth_clubs resolves the academy
+# arithmetically (youth_tid = 65535 - club_tid), so `origin_parent_tid` is either exactly right
+# or absent, and `eligible` is a fact about the parent rather than a judgement about a vote.
 PLAYER_ORIGIN = """
 CREATE OR REPLACE VIEW mart.player_origin AS
 SELECT
@@ -700,7 +699,6 @@ SELECT
     COALESCE(y.club_tid, b.origin_club_tid)                            AS origin_parent_tid,
     CASE WHEN b.confidence = 'low' THEN NULL
          ELSE COALESCE(pc.name, b.origin_club) END                     AS origin_parent_club,
-    y.share                                                            AS origin_parent_share,
     y.youth_tid IS NOT NULL                                            AS via_academy,
     (e.club_tid IS NOT NULL AND b.confidence <> 'low')                 AS eligible
 FROM mart.player_origin_base b
@@ -1771,73 +1769,48 @@ LEFT JOIN league_nation ln
 #
 # 65535 is excluded: it is 0xFFFF, the u16 "none" sentinel, not a club.
 #
-# EACH ALUMNUS VOTES WITH THE CLUB HIS CAREER HISTORY STARTS AT, NOT THE CLUB HE IS AT NOW.
-# That one change is what makes this mapping trustworthy for every club instead of just ours.
-# An academy graduate's first recorded season is at the side that produced him; where he plays
-# five years later is a transfer-market outcome, and for a big academy the alumni scatter — so
-# voting on the current club put Chelsea's academy at 0.38 and RB Leipzig's at 0.31, i.e. a
-# coin flip dressed as a majority. Measured at 2026-03-22:
+# THE MAPPING IS ARITHMETIC, NOT INFERRED: youth_tid = 65535 - club_tid.
 #
-#                                   current club      first club
-#     academies mapped                  653              623
-#     mean share                       0.85             0.96
-#     unanimous academies               411              539
-#     weak (<60%) academies             113               17
-#     parents that are a B/reserve      107                2
+# An academy's tid is the u16 COMPLEMENT of its club's tid, so the link is exact and needs no
+# vote, no majority and no confidence score. Frem 346 -> 65189, FCK 344 -> 65191, Brøndby
+# 337 -> 65198, FCN 2465 -> 63070, Liverpool 471 -> 65064. It also explains the sentinel:
+# 65535 is the complement of tid 0, i.e. "no club", which is why it must stay excluded.
 #
-# That last row is the correctness fix, not just a confidence one: the two votes pick a
-# DIFFERENT parent for 146 academies, and the disagreements are overwhelmingly a club's
-# B or reserve side losing to its first team (Real San Sebastián B -> Real San Sebastián,
-# Anderlecht Reserves -> Anderlecht, Sevilla B -> Sevilla). A B-team parent is not a cosmetic
-# wart — it is a tid that is not on any allow-list, so it drops the academy out of the capital
-# rule entirely.
+# The two id spaces cannot collide. Club tids occupy 51-11077 and their complements 54458-65484,
+# so a tid is never both a club and an academy, and the `NOT EXISTS` guard below is belt and
+# braces rather than a tie-break.
 #
-# The our_clubs -> managed_club redirect below used to be load-bearing for exactly that reason
-# (our own academy mapped to Boldklubben Frem Reserves half the time, and only WE got the
-# special case). Voting on the first recorded club makes it redundant — three of the eight out
-# of Frem's academy are in the Reserves today and all eight vote Boldklubben Frem — so it is
-# kept only as a belt-and-braces guard for a player whose history genuinely opens at a
-# reserve side.
+# THIS REPLACED A MAJORITY VOTE over where each cohort's alumni played (2026-09-12). The vote
+# was wrong in kind, not just noisy: it answered a question about the transfer market and called
+# it provenance. Against the complement it agreed on 577 of 623 academies and lost the other 46
+# — every one of them a German II side beating its own first team (Bayern München II over Bayern
+# München, Dortmund II over Dortmund), because a graduate's early senior football is played for
+# the II team. All 618 academies in the high band resolve under the rule, 618/618.
 #
-# `share` and `alumni` ship so a caller can refuse a weak mapping: 186 of the 623 academies
-# are singletons, where the "majority" is one player and one player's first move can be a loan.
+# `alumni` survives the vote's removal as a plain count — how many players came out of this
+# academy — because it is a useful fact. It is NOT a confidence: the mapping is exact whether
+# the cohort is one player or twenty.
 #
-# The 30 academies that stop being mapped are those where NO alumnus's first club resolves —
-# see the resolvable-vote filter below. 2,355 players change parent club in total.
+# The five low-band tids (6863, 6879, 7113, 7123, 7153) are NOT academies. They sit in normal
+# club space, their complements resolve to nothing, and they are simply clubs absent from this
+# snapshot's `clubs` table. They map to nothing here, which is the honest answer — inventing a
+# parent for them is what the vote used to do.
 YOUTH_CLUBS = """
 CREATE OR REPLACE VIEW mart.youth_clubs AS
-WITH first_club AS (
-    SELECT season, phase, tid,
-           ARG_MIN(club_tid, end_year * 100 + seq)                      AS club_tid
-    FROM mart.player_career_seasons
-    WHERE club_tid IS NOT NULL AND end_year IS NOT NULL
-    GROUP BY ALL),
-alumni AS (
-    SELECT o.season, o.phase, o.origin_club_tid AS youth_tid,
-           CASE WHEN f.club_tid IN (SELECT club_tid FROM mart.our_clubs)
-                THEN (SELECT club_tid FROM mart.managed_club)
-                ELSE f.club_tid END                                     AS club_tid,
-           COUNT(*)                                                     AS n
-    FROM mart.player_origin_base o
-    JOIN first_club f USING (season, phase, tid)
-    WHERE o.origin_club_tid IS NOT NULL
-      AND o.origin_club_tid <> 65535
-      AND f.club_tid IS NOT NULL
-      AND NOT EXISTS (SELECT 1 FROM mart.clubs c
-                      WHERE (c.season, c.phase, c.club_tid)
-                          = (o.season, o.phase, o.origin_club_tid))
-      -- A vote for a tid that names no club in this snapshot is a wasted vote: it can carry no
-      -- nation and match no allow-list, and 15 players' history opens at the ACADEMY itself,
-      -- which would have an academy elect itself its own parent. Both are dropped here rather
-      -- than papered over downstream.
-      AND EXISTS (SELECT 1 FROM mart.clubs c2
-                  WHERE (c2.season, c2.phase, c2.club_tid) = (o.season, o.phase, f.club_tid))
-    GROUP BY ALL)
-SELECT season, phase, youth_tid,
-       ARG_MAX(club_tid, n)                     AS club_tid,
-       ROUND(MAX(n) * 1.0 / SUM(n), 2)          AS share,
-       SUM(n)                                   AS alumni
-FROM alumni GROUP BY season, phase, youth_tid
+SELECT o.season, o.phase,
+       o.origin_club_tid                        AS youth_tid,
+       65535 - o.origin_club_tid                AS club_tid,
+       COUNT(*)                                 AS alumni
+FROM mart.player_origin_base o
+JOIN mart.clubs parent
+  ON (parent.season, parent.phase, parent.club_tid)
+   = (o.season, o.phase, 65535 - o.origin_club_tid)
+WHERE o.origin_club_tid IS NOT NULL
+  AND o.origin_club_tid <> 65535
+  AND NOT EXISTS (SELECT 1 FROM mart.clubs c
+                  WHERE (c.season, c.phase, c.club_tid)
+                      = (o.season, o.phase, o.origin_club_tid))
+GROUP BY o.season, o.phase, o.origin_club_tid
 """
 
 # Months a player was registered at each club INSIDE his home-grown window, as evidence.
@@ -1984,7 +1957,6 @@ origin AS (
     SELECT o.season, o.phase, o.tid, o.origin_club_tid,
            COALESCE(y.club_tid, o.origin_club_tid)  AS origin_parent_tid,
            y.youth_tid IS NOT NULL                  AS via_academy,
-           y.share                                  AS academy_share,
            f.first_end_year,
            -- Carried as EVIDENCE only, never as a test. Completed age, not the difference of
            -- year parts: DATE_DIFF('year', ...) alone reads 18 for an autumn-born 17-year-old.
@@ -2018,7 +1990,7 @@ SELECT
     season_start(season_of(ps.dob + INTERVAL 15 YEAR))          AS window_from,
     season_end(season_of(ps.dob + INTERVAL 22 YEAR))            AS window_to,
     a.as_of <= season_end(season_of(ps.dob + INTERVAL 22 YEAR)) AS window_open,
-    o.origin_club_tid, o.origin_parent_tid, o.via_academy, o.academy_share,
+    o.origin_club_tid, o.origin_parent_tid, o.via_academy,
     o.age_at_first_season,
     oc.name                                                     AS origin_club,
     oc.nation                                                   AS origin_nation,

@@ -56,11 +56,10 @@ Three things in the save carry the months, and the mart (`fmparser/mart.py`, the
 family) combines them:
 
 1. **Origin club** — the head of the career-history chain, i.e. the club he came out of. For an
-   academy product this is a **youth-team tid** (58365–65406, plus a tail at 6859–7176) that
-   appears in no club table; `mart.youth_clubs` maps it back by asking where each cohort's alumni
-   **started** their careers (65189 → us, 65064 → Liverpool, 65104 → Chelsea). Asking where they
-   play *now* is self-confirming — an academy whose one notable graduate signed for you votes for
-   you — and it scatters for big academies. 65535 is the "none" sentinel, not a club.
+   academy product this is a **youth-team tid** that appears in no club table. It is the u16
+   complement of the club's own tid, so `mart.youth_clubs` maps it back exactly — `65535 - tid`,
+   no guessing (65189 → us, 65064 → Liverpool, 65104 → Chelsea). 65535 is the complement of tid 0,
+   i.e. the "none" sentinel, not a club.
 2. **Career history** — one row per season per club, turned into dated Jul–Jun intervals. A
    season with several clubs is split evenly across its legs, because the save stores no
    transfer date.
