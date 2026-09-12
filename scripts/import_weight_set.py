@@ -105,8 +105,11 @@ def main():
         sys.exit(1)
 
     name = doc["method"]
-    state.put(KIND, name, doc)
-    synced = "and pushed to R2" if state.remote_configured() else "(no R2 remote configured)"
+    res = state.put(KIND, name, doc)
+    synced = {state.SYNCED: "and pushed to R2",
+              state.LOCAL_ONLY: "(no R2 remote configured — local only)",
+              state.SYNC_FAILED: f"(LOCAL ONLY — the push to R2 FAILED: {res.detail})",
+              }[res.status]
     print(f"stored state/{KIND}/{name}.json {synced}")
     print(f"  {cells} weighted cells across {len(doc['weights'])} roles, "
           f"based on {doc.get('base_method','?')}")

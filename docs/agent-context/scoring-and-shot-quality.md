@@ -95,6 +95,16 @@ the 18-game goals cut above, and no cut of this save has ever had strikerless ah
   "we're chasing the ball" artifact: interceptions correlate *positively* with our own pass volume
   (+0.21 to +0.25). The counterexample that prompted the test: a 2-0 home win over FC København on
   ~31 interceptions — below that fixture's *loss* average — while FCK made 39 and lost.
+- **"Cross a lot when the target man plays" is tempting and does not survive as a PLAN.** A 0-6 with
+  31 crosses, 13 corners and four goals from a striker who won 8 of 14 duels made this look like a
+  lever. Cut properly on 2025+ starts: with Ementa starting, games of 20+ crosses average **2.13
+  goals** against 1.14 with fewer — but also **1.50 conceded** against 1.08, and **1.25 ppg against
+  1.50**, over just 8 games. Without him the split vanishes entirely (1.50 vs 1.57). So heavy
+  crossing marks an open game, not a won one, and the headline result is finding 1 restated: that
+  match was **9 shots on target from 13** (a 69% SOT rate against a 38.5% season average, the 2nd
+  highest SOT count in 176 matches). The actionable residue is a negative one, in
+  [[scouting-attribute-reads]]: do not *rule out* the aerial route on two named opponent centre-backs
+  — just don't sell crossing as the mechanism either.
 - **Pairing two specific midfielders is not special.** "Our two best MCs together" reads
   1.58 goals/game vs 0.96 with neither at MC — but decomposed, **the gain is from having *at least
   one* of them at MC (+0.4 to +0.5); the second adds ~0.1**, and "both vs every other configuration"

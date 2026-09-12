@@ -51,12 +51,23 @@ already there.
 
 **`fmq.py scout <team> [--venue H|A --formation "..." --style "..." --note "..."]`** is the CLI
 form of the same call and — unless `--no-save` — writes the result into the R2-synced scout log
-(`state/scouts/`, via `db.save_scout`). That log is new since this skill was last written and is
-worth using: it's a season's worth of "what we thought going in," so a scout for a team you've
+(`state/scouts/`, via `db.save_scout`). That log is worth using: it's a season's worth of "what we thought going in," so a scout for a team you've
 faced before can open by saying what the last read was and whether it still holds. Call
 `db.scout_report()` directly for the briefing (you need the DataFrames, not printed text) but still
-call `db.save_scout(rep, venue=..., formation=..., style=..., note=...)` yourself afterward so this
-report lands in the same log the CLI would write.
+call `db.save_scout(rep, venue=..., formation=..., style=..., note=..., fixture=...)` yourself
+afterward so this report lands in the same log the CLI would write. **Always pass `fixture` — the
+match date, straight off the Next Match screen** (`fixture="2026-04-20"`). It is what separates the
+home and away meetings of the same opponent: the key used to be `(opponent_tid, snapshot_label)`
+alone, so the second scout of a side between two imports replaced the first, which is two fixtures
+losing one rather than a supersede. Without it you get the old single-slot behaviour, and
+`save_scout` warns on stderr and sets `_collision` when it can see it is replacing a scout of a
+different venue. **Check the `_sync` on what it returns**
+(`state.SYNCED` / `LOCAL_ONLY` / `SYNC_FAILED`) and tell the user when it is not `synced` — a scout
+that only reached local disk is one the next agent and the other machine will never see, and until
+2026-09 that failure was silent. Two things the log still cannot tell you, so don't read an absence
+as proof: `season-outlook` and `scout-from-site` never write to it at all, and the key is
+`(opponent_tid, snapshot_label, fixture)` — pass `fixture` or the second scout of the same opponent
+before the next import still overwrites the first.
 
 ## Reading attributes: check the role weights before calling anything a weakness
 
@@ -150,10 +161,13 @@ Everything below is parameterised off the active career — pull these from `db`
   their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for shape, mostly — and never for names:** across seven checks the names have been wrong
-  **3, 3, 4, 4, 6, 7 and 4 out of 11**, and the shape, which had held on the first six, broke on the
-  seventh: FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, with the predicted DMC
-  never appearing and an AMC in his place — so a shape read is a strong prior, not a fact either.
+  XI for neither shape nor names:** across eight checks the names have been wrong
+  **3, 3, 4, 4, 6, 7, 4 and 3 out of 11**, and the shape, which held on the first six, has now broken
+  on both of the last two — FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, and AC
+  Horsens were predicted in a 3-5-2 and played a 4-2-3-1 with their entire predicted midfield three
+  absent. A low name-error count is not the reassurance it looks like: 8 of Horsens' 11 predicted men
+  played, but only three in the predicted slot, and the back three became a back four with a
+  centre-back at MC. **Count slots, not names.**
   On the 7/11 occasion only four predicted names appeared and two of those played different slots; the
   goalkeeper the screen named was on the bench and the one who actually played was the opponent's
   best, which alone invalidated the briefing's chosen route to goal. Twice the wrong names were the players
@@ -171,7 +185,13 @@ Everything below is parameterised off the active career — pull these from `db`
   *FCK Reserves* (tid 7294), not the first team, so a briefing built off `club_tid = 344` could not
   have named him. Resolve the reserve tid the same way we resolve ours (`mart.reserve_clubs` for us;
   for an opponent, `resolve_club("<name> Reserves")`) and scan it for anyone who would walk into the
-  first XI. Two traps come with it: **`level_league` is a percentile against that player's OWN
+  first XI — **and compare them against the WEAKEST men in the predicted XI, not the best.** Getting
+  that backwards cost a briefing: it checked Horsens' reserve list, saw nobody near their top players,
+  wrote "their reserve list holds nobody who would walk into this XI", and then watched Ísak Óli
+  Ólafsson start at centre-back (rated 7, 6 interceptions) with Malte Kiilerich off the bench. On
+  `level_nation` the two of them read 79.9 and 83.0 against three *predicted starters* at 71.7, 74.6
+  and 75.8. The question is never "is this reserve as good as their best" — it is "is he better than
+  the worst man they are expected to pick". Two traps come with it: **`level_league` is a percentile against that player's OWN
   league**, so a reserve-listed player reads 100 %ile against reserve-league peers and is not
   comparable to a first-teamer's Superliga number — rank cross-league candidates on `level_nation` /
   `level_global` instead (the same man: league 100, nation 92.3, global 84.3). And a name on the
@@ -216,9 +236,11 @@ even our own personnel may have moved since. If nothing's saved, say so and proc
 will be the first entry once you save it.
 
 **Re-save a scout when its reasoning changes, not just when the fixture does.** `db.save_scout`
-appends, so a corrected read can be written over the top with the fix stated in the `note` — the log
-is what the next agent reads, and a note carrying reasoning we already know to be wrong is worse
-than no note.
+does **not** append — it replaces the record at `(opponent_tid, snapshot_label)`. It used to replace
+*everything*, which cost four fixtures their pre-match briefing; it now carries the post-match half
+forward and files the superseded prediction into `revisions`, so a corrected read can be written
+over the top with the fix stated in the `note` without losing what it corrected. The log is what the
+next agent reads, and a note carrying reasoning we already know to be wrong is worse than no note.
 
 ## After the match — close the loop (do this when the user posts the FT stats)
 The scout log only becomes calibration if someone checks it. When the user shares a full-time stat
@@ -247,7 +269,19 @@ and it is cheap — the FT screen already has everything needed.
   the next opponent otherwise.
 - Read the **per-player** columns for the specific claim the briefing made: if the plan was "attack
   their weak aerial full-back", check the aerial-duel counts, not just the scoreline.
-- Feed anything durable back into this skill or `docs/agent-context/`, and re-save the scout note.
+- **Write the grading with `db.grade_scout(opp_tid, result_note=..., result="W 2-0 (H)",
+  fixture=...)`, NOT `save_scout`.** A scout record has two halves: `note` is what we thought BEFORE the game and
+  `result_note` is how that read graded afterwards, and the pairing is the entire reason the log is
+  calibration rather than a pile of old opinions. `grade_scout` writes `result_note` / `result` /
+  `graded_at` and leaves `note` alone; name the `fixture` when the opponent has more than one scout
+  — it raises rather than guess which briefing your result belongs to, since a wrong guess writes
+  over a grading that was already right — and returns `None` if there is nothing saved to grade (say
+  so rather than inventing a record). Check
+  its `_sync` like any other write. Grading through `save_scout` with the grading text in `note` is
+  what destroyed the Lyngby, Midtjylland, OB and FCK briefings — the FCK one was recoverable, the
+  other three are not.
+- Feed anything durable back into this skill or `docs/agent-context/`. `docs/` is in git and
+  versioned; the scout log is not, and R2 has no object versioning — so a bad write there is gone.
 
 Manager observations beat the model here. Three corrections from one session that no query would
 have surfaced: that a defender's counter to Movement is Positioning (the model agreed — the briefing
@@ -348,11 +382,25 @@ rep = db.scout_report(OPP, season=S, phase=P, method=M)
 
 prior = db.load_scouts()
 prior = prior[prior.opponent_tid == OPP] if not prior.empty else prior       # calibration check
+# there may be SEVERAL rows per opponent now — one per fixture. `fixture`, `venue` and
+# `saved_at` say which is which; `result_note` marks the ones already played and graded.
 
 # ... write the report from rep, ask the user for formation/style, apply the tactic step ...
 
+FIXTURE = "2026-04-20"                        # the match date off the Next Match screen
 rec = db.save_scout(rep, venue="H", formation="attacking 442", style="high-press",
-                    note="short plan summary")                               # logs it, R2-synced
+                    note="short plan summary", fixture=FIXTURE)
+# ALWAYS pass fixture — without it the two meetings of a season share one key and the second
+# replaces the first. Then report what the write actually did:
+if rec["_sync"] != "synced":                  # LOCAL_ONLY (no remote) / SYNC_FAILED (push died)
+    print(f"scout saved LOCALLY ONLY ({rec['_sync']}) — tell the user")
+if rec.get("_collision"):                     # replaced an undiscriminated scout of another venue
+    print("that overwrote a scout of the other leg")
+
+# AFTER THE MATCH, when the user posts the FT stats — never save_scout with the grading in
+# `note`, that destroys the briefing you are grading:
+db.grade_scout(OPP, result_note="what held, what didn't, and why",
+               result="W 2-0 (H)", fixture=FIXTURE)
 ```
 
 Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL yourself:
@@ -384,7 +432,8 @@ rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"      # ~48 MB, retr
 ```
 then point `db.py` at the copy (`FM_DUCKDB=$SCRATCH/fm-frem.duckdb`, `FM_DUCKDB_READONLY=1`) and
 call `db.scout_report()` exactly as below. Pull the **full** store, not `-mart`: the mart object
-omits the rating layer, and Fit/Level both need it. `db.save_scout()` still works and still syncs.
+omits the rating layer, and Fit/Level both need it. `db.save_scout()` and `db.grade_scout()` both
+still work and still sync from a downloaded store — check the returned `_sync` either way.
 
 Only if rclone or the remote isn't configured — hand off to
 [`scout-from-site`](../scout-from-site/SKILL.md), which is built for exactly that (the deployed

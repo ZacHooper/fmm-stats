@@ -16,6 +16,10 @@ allowed CA-derived exception).
 - Not a single-match game plan — it needs **no per-team formation** (that's `scout-opponent`, one
   team at a time, requiring the user's in-game scout). This is a squad-quality + risk + workload map.
 - It **hands off** to `scout-opponent` for the one or two fixtures it flags as "circle this".
+- It writes **nothing to the scout log**. A group outlook can profile a dozen opponents and leave no
+  record of any of them, so an opponent covered here and nowhere else looks unscouted forever. Only
+  the per-fixture hand-off to `scout-opponent` creates a record — say which teams you covered are
+  going unlogged, and offer the hand-off for the ones that matter.
 
 ## Resolve context first (do NOT hardcode)
 - **Us** = `db.MANAGED_CLUB_TID` (+ `db.OUR_CLUBS` for reserves). Method `M = db.config().get("default_method")`.
