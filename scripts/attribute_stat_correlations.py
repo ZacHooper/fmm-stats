@@ -87,9 +87,17 @@ def build(db, min_minutes, competition=None, who="us"):
 
     # Positions from player_position_levels, which names every club — match_player_facts.position
     # is NULL for opponents. Primary position = highest familiarity in that season.
+    #
+    # The trailing `"position"` in the ORDER BY is a DETERMINISM fix, not a preference. 6,148
+    # (person, season) pairs are equally familiar at two positions in the same snapshot, and
+    # without a final tiebreaker DuckDB's parallel ROW_NUMBER resolves them differently run to
+    # run: n drifted (CB 111 or 112, ST 39 or 40) and coefficients moved in the second decimal
+    # with nothing about the data changing. Alphabetical is arbitrary — the point is that it is
+    # the SAME arbitrary choice every time, so a figure quoted in the docs can be reproduced.
     pos = db.q("""SELECT person_id, season, "position",
                          ROW_NUMBER() OVER (PARTITION BY person_id, season
-                                            ORDER BY familiarity DESC, snap_ix DESC) rn
+                                            ORDER BY familiarity DESC, snap_ix DESC,
+                                                     "position") rn
                   FROM mart.player_position_levels""")   # "position" is a DuckDB reserved word
     f = f.merge(pos[pos.rn == 1][["person_id", "season", "position"]], on=["person_id", "season"])
 

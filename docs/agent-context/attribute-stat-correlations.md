@@ -207,6 +207,10 @@ player-seasons, n=40, correlation of the weighted attribute total with goals):
 | the new ST weights | **0.484** |
 | Shooting alone | 0.469 |
 
+⚠️ **Those four figures are POOLED across divisions**, which the next section shows inflates them
+by roughly 60%. The ordering survives the control; the magnitudes do not. Quote the stratified
+table below instead.
+
 The old set was **worse than not weighting at all**, because it came from forum consensus rather
 than measurement: Aggression 4, Stamina 4, Movement 4 and Shooting only 3. Shooting is the one
 attribute that predicts shots, shots on target and goals in every cut. Nearly all of the gain is
@@ -238,6 +242,65 @@ a raw `club_tid` filter — which pollutes the list with departed loanees):
 Ementa up one, Nordberg down two: Shooting 11 against Ementa's 15, and the Aggression 15 the old
 set paid 4 for now counts once. His Pace 16 (now weighted 3, against Ementa's 12) wins some of it
 back — it is not enough.
+
+## The division confound eats most of the signal — control for it
+
+**Measured 2026-09-12, and it qualifies every pooled number in this file.** The cuts above pool
+four divisions. Our club climbed from the 3. Division to the Superliga, so a player-season's
+per-90 output and his attributes BOTH rise with the standard he was playing in, and a pooled
+correlation credits the attribute for the promotion. The file already said this about what we
+concede; it is just as true of what we produce.
+
+`scripts/derive_weight_set.py` therefore computes every figure inside a **(position, division)
+stratum** of 8+ rows — the division a player-season mostly belongs to, by minutes. Restricting to
+the Superliga instead would be cleaner and would leave 14-38 rows a position, which is no sample;
+stratifying removes the same confound and keeps every row.
+
+What it costs, on the ST "finish" target (shots on target + goals, n=39):
+
+| reading | old ST weights | flat | new ST weights | Shooting alone |
+|---|---|---|---|---|
+| pooled across divisions | +0.442 | +0.499 | **+0.565** | +0.553 |
+| **stratified by division** | +0.160 | +0.204 | **+0.238** | +0.222 |
+| Superliga only, 90+ mins (n=34) | +0.353 | +0.337 | **+0.387** | +0.298 |
+
+**Roughly 60% of the apparent effect was the league, not the player.** Two things survive, and they
+are the two that matter:
+
+- **The ordering is stable in every reading** — new > flat > old, and Shooting is the top attribute
+  for a striker whichever way it is cut. The ST rewrite stands; only the SIZE of its advantage was
+  overstated. Quote the stratified figures from now on.
+- **Weighting matters MORE once the confound is removed, not less.** Flat is what the confound
+  flatters: a good player in a good league scores well on every attribute at once. At CM the
+  derived set beats flat by +0.146 pooled and **+0.176** stratified; at RB by +0.220 and +0.203.
+  Removing the confound shrinks flat's score further than it shrinks a targeted one.
+
+Per-cell z-scoring versus one pooled sd makes almost no difference (ST +0.265 vs +0.260), so the
+collapse is the control itself and not noise from small-cell standard deviations.
+
+### A flat role was unrepresentable, and it silently deleted positions
+
+Shipping "this role is flat" as *no rows in `role_weights`* looked natural — `COALESCE(weight, 1)`
+already defaults an unlisted attribute to 1 — but both rating views built their method x role list
+as `SELECT DISTINCT method, role FROM role_weights`. A role with no rows therefore did not exist,
+and **every position mapping to it vanished from the ratings**: the first derived pair shipped with
+AML and AMR flat, and the squad's 13 AMLs and 10 AMRs had no fit rows at all, so the depth chart
+read "no player rated here" for two positions we are deep in.
+
+Fixed in both `fmparser/mart.py` (`PLAYER_ROLE_RATINGS`) and `load_duckdb.py`
+(`v_player_ratings`) — `combos` is now every method x every role from `position_role_map`. Existing
+methods all carry all ten roles, so the change is a no-op for them; `git diff site/api` after an
+export is the check.
+
+### Determinism: the position pick used to drift between runs
+
+6,148 (person, season) pairs are equally familiar at two positions in the same snapshot. The
+primary-position query broke those ties with nothing stable, so DuckDB's parallel `ROW_NUMBER`
+resolved them differently run to run: **n moved (CB 111 or 112, ST 39 or 40) and coefficients moved
+in the second decimal with nothing about the data changing.** `build()` now appends `"position"` to
+the ORDER BY. Alphabetical is arbitrary; the point is that it is the same arbitrary choice every
+time, so a figure quoted here can be reproduced. Figures computed before 2026-09-12 may differ by
+±1 row.
 
 ## Two failure modes this file has already hit
 

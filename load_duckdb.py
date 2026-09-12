@@ -385,7 +385,19 @@ VIEWS["v_player_ratings"] = f"""
     WITH long AS (
         UNPIVOT staging.player_attributes ON {_UNPIVOT} INTO NAME attribute VALUE value
     ),
-    combos AS (SELECT DISTINCT method, role FROM staging.role_weights)
+    combos AS (
+    -- Every method x every role, NOT the pairs that happen to appear in role_weights. A role
+    -- with no rows there is a FLAT role - every attribute at weight 1 - which is a legitimate and
+    -- deliberate state: scripts/derive_weight_set.py ships one when no weighting beat a flat
+    -- baseline out-of-fold. Built from the pairs present, such a role vanishes from the ratings
+    -- entirely and every position mapping to it disappears from the depth chart: two methods
+    -- shipped with AML/AMR flat and the squad's 13 AMLs and 10 AMRs had no fit rows at all.
+    -- COALESCE(weight, 1) below already yields the right number; combos just has to ask for
+    -- the row.
+    SELECT m.method, r.role
+    FROM (SELECT DISTINCT method FROM staging.role_weights) m
+    CROSS JOIN (SELECT DISTINCT role FROM staging.position_role_map) r
+    )
     SELECT l.season, l.phase, l.tid, c.method, c.role,
            SUM(l.value * COALESCE(w.weight, 1)) AS rating
     FROM long l

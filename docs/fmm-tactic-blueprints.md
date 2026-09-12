@@ -198,3 +198,91 @@ below have left; the Fit numbers are from a squad two-plus seasons old. Treat th
 - **Close a game / defend:** Schou (best defensive CB: game_state 75, counter 77), Sundstrup & Grønne
   (rise in game_state), Randolf (counter FB). Thin group overall — see recruitment gap.
 - **Counter:** Schou/Jørgensen behind, Nuamah + Randolf pace, Balck as a fast ST outlet.
+
+## Two DERIVED variants (2026-09-12) — `frem_minmax_4231`, `frem_minmax_4411`
+
+**Different in kind from the five above.** Every earlier method was assembled from what a tactic's
+author said his players needed. These two were built by `scripts/derive_weight_set.py`: name what
+each slot in the shape is FOR, and let the match data choose the attributes. Read that script's
+docstring before editing either — hand-editing a derived set throws away the audit trail that is
+the whole point of it.
+
+The method is per role: partial-correlate every attribute against the role's outcome mix,
+**controlling for the flat attribute sum**, inside a (position, division) stratum, then ship the
+block only if it beats a flat weighting out-of-fold in ≥80% of cross-validation splits. Stored
+blocks face the same test, bootstrapped. **A role that nothing beat stays flat on purpose** — that
+is a finding, not a gap.
+
+| role | brief | `frem_minmax_4231` | `frem_minmax_4411` |
+|---|---|---|---|
+| GK | — | inherits `frem_attacking_ss` | inherits `frem_attacking_ss` |
+| LB | 4231 create · 4411 defend | **derived** leadership/pace 4, crossing 3 | `frem_game_state` |
+| RB | same | `black_hawk` | **derived** aerial/pace/stamina 4 |
+| CB | win the air + win it back | `frem_counter` | `frem_counter` |
+| DM | screen | `personal` | `black_hawk` |
+| CM | 4231 keep+progress · 4411 win it back+keep | **derived** agility/technique 4 | **derived** dribbling/pace/technique 3 |
+| AML | 4231 progress+create · 4411 defend+break | **flat** | `black_hawk` |
+| AMR | same | **flat** | **flat** |
+| AMC | 4231 create · 4411 finish+progress | **derived** agility/technique 4 | `personal` |
+| ST | finish | `frem_attacking_ss` (the rewritten block) | `frem_attacking_ss` |
+
+**Squad Fit %ile, best XI on the generic frame, computed 2026-09-12 on the `frem-2026-03-22`
+snapshot (37-man `squad_current`):** `black_hawk` 88.7 · `frem_counter` 88.7 · `personal` 88.5 ·
+**`frem_minmax_4231` 88.2** · **`frem_minmax_4411` 87.2** · `frem_lowblock_overload` 87.1 ·
+`frem_game_state` 86.3 · `frem_attacking_ss` 85.7 · `frem_gegenpress` 85.6. The whole field sits
+inside 3.1 points, so read the ranking and not the levels; `frem_attacking_ss` has dropped from
+87.0 because its ST block was rewritten the same day.
+
+### What the derivation could NOT do, and why that matters
+
+**Six of the ten 4-4-1-1 roles came back flat or borrowed.** Every defensive brief — LB and CM
+"win it back", AMR "win it back + progress" — failed to beat a flat weighting. That is the same
+result this project has now reached three separate ways: *our XI's attributes do not predict what
+we concede* ([`attribute-stat-correlations`](agent-context/attribute-stat-correlations.md)). The
+defensive dials are team instructions, not selection.
+
+So **`frem_minmax_4411`'s value is its SHAPE and its settings, not its weights.** Do not expect its
+Fit column to tell you much about who should play in a big game; expect the 4-2-3-1 set to, because
+the creative and progressive briefs are the ones the data can see.
+
+**The goalkeeper cannot be derived at all.** A keeper's match row holds passes and essentially
+nothing else — no saves, no clean sheets, no goals conceded — so both methods inherit
+`frem_attacking_ss`'s GK block rather than inventing one.
+
+**A flat role used to be unrepresentable.** Shipping "no weights" for AML/AMR made those positions
+disappear from the depth chart entirely, because both rating views built their method x role list
+from the pairs present in `role_weights`. Fixed in `fmparser/mart.py` and `load_duckdb.py`; if you
+ever see "no player rated here" for a position the squad clearly covers, that is the shape of the
+bug to look for.
+
+### In-game settings
+
+The weight-set sets NONE of these; the full menu surface is in
+[`fmm-tactic-options`](agent-context/fmm-tactic-options.md).
+
+| | `frem_minmax_4231` (vs equals / weaker) | `frem_minmax_4411` (vs FCK-class) |
+|---|---|---|
+| Shape | `SK / WB-CD-CD-WB / BWM-DLP / IF-AM-IF / AF` | `SK / FB-CD-CD-FB / WM-BWM-CM-WM / SS / AF` |
+| Mentality | **Attacking** | **Balanced** |
+| Defensive line | **High** | **Balanced** |
+| Tempo | Fast | Normal |
+| Width | Narrow | Balanced |
+| Closing down | All Over | **All Over — keep the press on** |
+| Final third | **Work Into Box** + Run At Defence | **Work Into Box** |
+| Passing | Short, focus Centre | Mixed |
+
+Two rules carry over from what is already established here and they are not optional:
+
+- **A quality gap is not a reason to sit deep.** Away at Midtjylland the cautious plan drew 1-1 with
+  3 shots; the same fixture on Attacking / High / All Over / Fast / Work Into Box finished 6-0. The
+  4-4-1-1 is a change of SHAPE — an extra body in midfield and a split striker to press the first
+  pass — not a change of intent. Keep a deep line for the one case it was written for: genuine pace
+  in behind against slow centre-backs.
+- **Line and press are two levers.** Against a side whose build-up runs through one deep passer,
+  pulling the press is the expensive one: a 3-0 became 3-2 immediately after the press came off.
+  Drop the line if you must; keep the press.
+
+**`Work Into Box` is in both columns deliberately.** Shots on target predict our goals at r=+0.72
+while shot volume is flat across every accuracy quartile, and this is the instruction that moves
+accuracy — team SOT rate went from a 36.2% season average to 47-67% with it set.
+
