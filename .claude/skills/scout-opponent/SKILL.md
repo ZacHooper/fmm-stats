@@ -51,8 +51,7 @@ already there.
 
 **`fmq.py scout <team> [--venue H|A --formation "..." --style "..." --note "..."]`** is the CLI
 form of the same call and — unless `--no-save` — writes the result into the R2-synced scout log
-(`state/scouts/`, via `db.save_scout`). That log is new since this skill was last written and is
-worth using: it's a season's worth of "what we thought going in," so a scout for a team you've
+(`state/scouts/`, via `db.save_scout`). That log is worth using: it's a season's worth of "what we thought going in," so a scout for a team you've
 faced before can open by saying what the last read was and whether it still holds. Call
 `db.scout_report()` directly for the briefing (you need the DataFrames, not printed text) but still
 call `db.save_scout(rep, venue=..., formation=..., style=..., note=..., fixture=...)` yourself
@@ -383,11 +382,25 @@ rep = db.scout_report(OPP, season=S, phase=P, method=M)
 
 prior = db.load_scouts()
 prior = prior[prior.opponent_tid == OPP] if not prior.empty else prior       # calibration check
+# there may be SEVERAL rows per opponent now — one per fixture. `fixture`, `venue` and
+# `saved_at` say which is which; `result_note` marks the ones already played and graded.
 
 # ... write the report from rep, ask the user for formation/style, apply the tactic step ...
 
+FIXTURE = "2026-04-20"                        # the match date off the Next Match screen
 rec = db.save_scout(rep, venue="H", formation="attacking 442", style="high-press",
-                    note="short plan summary")                               # logs it, R2-synced
+                    note="short plan summary", fixture=FIXTURE)
+# ALWAYS pass fixture — without it the two meetings of a season share one key and the second
+# replaces the first. Then report what the write actually did:
+if rec["_sync"] != "synced":                  # LOCAL_ONLY (no remote) / SYNC_FAILED (push died)
+    print(f"scout saved LOCALLY ONLY ({rec['_sync']}) — tell the user")
+if rec.get("_collision"):                     # replaced an undiscriminated scout of another venue
+    print("that overwrote a scout of the other leg")
+
+# AFTER THE MATCH, when the user posts the FT stats — never save_scout with the grading in
+# `note`, that destroys the briefing you are grading:
+db.grade_scout(OPP, result_note="what held, what didn't, and why",
+               result="W 2-0 (H)", fixture=FIXTURE)
 ```
 
 Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL yourself:
@@ -419,7 +432,8 @@ rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"      # ~48 MB, retr
 ```
 then point `db.py` at the copy (`FM_DUCKDB=$SCRATCH/fm-frem.duckdb`, `FM_DUCKDB_READONLY=1`) and
 call `db.scout_report()` exactly as below. Pull the **full** store, not `-mart`: the mart object
-omits the rating layer, and Fit/Level both need it. `db.save_scout()` still works and still syncs.
+omits the rating layer, and Fit/Level both need it. `db.save_scout()` and `db.grade_scout()` both
+still work and still sync from a downloaded store — check the returned `_sync` either way.
 
 Only if rclone or the remote isn't configured — hand off to
 [`scout-from-site`](../scout-from-site/SKILL.md), which is built for exactly that (the deployed

@@ -18,6 +18,11 @@ the store does:
 - Ability *ranks* only for our own squad (`positions.json`); for an opponent you get ability
   *percentiles* per player-position, not their rank inside another division.
 - No injury or loan-spell history, no awards tables, no per-competition league detail.
+- **Nothing you produce here reaches the scout log.** `db.save_scout` needs the store, so a report
+  written from the site leaves no record in `state/scouts/` and the next agent will find no trace of
+  it — which has already led to "I'm sure we scouted them" against an empty log. Say so when you
+  deliver, and offer to re-save it from a machine that has the store (`scout-opponent`, which also
+  wants a `fixture` date so the two meetings of a season each keep their own record).
 
 If the answer needs any of those, say the store would answer better and offer to run
 `scout-opponent` instead. Don't quietly deliver a thinner report as if it were the full one.
