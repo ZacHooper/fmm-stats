@@ -652,14 +652,23 @@ LEFT JOIN {S}.person_slices ps
        ON (ps.season, ps.phase, ps.tid) = (h.season, h.phase, h.tid)
 """
 
-# Where a player came from, and whether that makes him eligible under the capital rule.
+# Where a player came from — the raw reading, with no eligibility verdict on it.
 #
 # confidence='low' blanks the origin rather than dropping the row: an unreliable origin must
 # not read as a known one, but the player still exists. Since the career-history chain head
 # became a STORED POINTER (u32 @ P-38 in the attribute record) rather than a positional
 # guess, every row here is 'exact' in practice and the blanking is a guard, not a filter.
-PLAYER_ORIGIN = """
-CREATE OR REPLACE VIEW mart.player_origin AS
+#
+# THIS IS SPLIT FROM mart.player_origin ON PURPOSE, and the split is what makes the capital
+# rule correct. `origin_club_tid` is very often an ACADEMY side rather than a senior club —
+# 2,067 of 22,537 players at the 2026-03-22 snapshot, every one of them 21 or under, i.e. the
+# regen intake. Academy tids live in their own id space (58,365-65,406, plus a tail at
+# 6,859-7,176) and never appear in `clubs` at any snapshot, so joining the capital allow-list
+# straight onto `origin_club_tid` silently misses all of them. Resolving academy -> parent
+# needs mart.youth_clubs, and youth_clubs is DERIVED from origin, so the eligibility verdict
+# has to live downstream of both: base -> youth_clubs -> player_origin.
+PLAYER_ORIGIN_BASE = """
+CREATE OR REPLACE VIEW mart.player_origin_base AS
 SELECT
     h.season, h.phase, h.tid, ps.person_id,
     CASE WHEN h.confidence = 'low' THEN NULL ELSE h.origin_club_tid END AS origin_club_tid,
@@ -667,14 +676,41 @@ SELECT
          ELSE COALESCE(oc.name, '#' || h.origin_club_tid) END           AS origin_club,
     CASE WHEN h.confidence = 'low' THEN NULL
          ELSE COALESCE(lc.name, '#' || h.last_season_club_tid) END      AS last_season_club,
-    h.confidence,
-    (e.club_tid IS NOT NULL AND h.confidence <> 'low')                 AS eligible
+    h.confidence
 FROM {S}.player_history h
 LEFT JOIN {S}.clubs oc ON (oc.season, oc.phase, oc.tid) = (h.season, h.phase, h.origin_club_tid)
 LEFT JOIN {S}.clubs lc ON (lc.season, lc.phase, lc.tid) = (h.season, h.phase, h.last_season_club_tid)
-LEFT JOIN {S}.eligible_origin_clubs e ON e.club_tid = h.origin_club_tid
 LEFT JOIN {S}.person_slices ps
        ON (ps.season, ps.phase, ps.tid) = (h.season, h.phase, h.tid)
+"""
+
+
+# The same rows, with the academy resolved to its parent club and the capital rule applied to
+# the PARENT. An academy-origin player is a product of the club that runs the academy, so
+# "came out of FC København" has to be true whether the save recorded FCK or FCK's youth side.
+#
+# `eligible` is NOT gated on origin_parent_share. The mapping is a vote (see mart.youth_clubs)
+# and a thin one is a guess, so the share ships next to the verdict and a caller who wants a
+# stricter policy can demand it — but the rule itself stays inclusive, because the alternative
+# is silently excluding a real academy graduate for having few contemporaries.
+PLAYER_ORIGIN = """
+CREATE OR REPLACE VIEW mart.player_origin AS
+SELECT
+    b.*,
+    COALESCE(y.club_tid, b.origin_club_tid)                            AS origin_parent_tid,
+    CASE WHEN b.confidence = 'low' THEN NULL
+         ELSE COALESCE(pc.name, b.origin_club) END                     AS origin_parent_club,
+    y.share                                                            AS origin_parent_share,
+    y.youth_tid IS NOT NULL                                            AS via_academy,
+    (e.club_tid IS NOT NULL AND b.confidence <> 'low')                 AS eligible
+FROM mart.player_origin_base b
+LEFT JOIN mart.youth_clubs y
+       ON (y.season, y.phase, y.youth_tid) = (b.season, b.phase, b.origin_club_tid)
+LEFT JOIN {S}.clubs pc
+       ON (pc.season, pc.phase, pc.tid)
+        = (b.season, b.phase, COALESCE(y.club_tid, b.origin_club_tid))
+LEFT JOIN {S}.eligible_origin_clubs e
+       ON e.club_tid = COALESCE(y.club_tid, b.origin_club_tid)
 """
 
 
@@ -1735,29 +1771,67 @@ LEFT JOIN league_nation ln
 #
 # 65535 is excluded: it is 0xFFFF, the u16 "none" sentinel, not a club.
 #
-# Reserve sides vote for their first team, otherwise our own academy would map to Boldklubben
-# Frem Reserves half the time. Only OUR reserve side is known to be a reserve side, which is
-# fine — for a foreign academy the answer only has to be good enough to carry a nation, and
-# "Liverpool Reserves" is as English as "Liverpool".
+# EACH ALUMNUS VOTES WITH THE CLUB HIS CAREER HISTORY STARTS AT, NOT THE CLUB HE IS AT NOW.
+# That one change is what makes this mapping trustworthy for every club instead of just ours.
+# An academy graduate's first recorded season is at the side that produced him; where he plays
+# five years later is a transfer-market outcome, and for a big academy the alumni scatter — so
+# voting on the current club put Chelsea's academy at 0.38 and RB Leipzig's at 0.31, i.e. a
+# coin flip dressed as a majority. Measured at 2026-03-22:
 #
-# `share` and `alumni` ship so a caller can refuse a weak mapping: cohorts average 2.8 players
-# and 143 of the 388 are singletons, where the "majority" is one player.
+#                                   current club      first club
+#     academies mapped                  653              623
+#     mean share                       0.85             0.96
+#     unanimous academies               411              539
+#     weak (<60%) academies             113               17
+#     parents that are a B/reserve      107                2
+#
+# That last row is the correctness fix, not just a confidence one: the two votes pick a
+# DIFFERENT parent for 146 academies, and the disagreements are overwhelmingly a club's
+# B or reserve side losing to its first team (Real San Sebastián B -> Real San Sebastián,
+# Anderlecht Reserves -> Anderlecht, Sevilla B -> Sevilla). A B-team parent is not a cosmetic
+# wart — it is a tid that is not on any allow-list, so it drops the academy out of the capital
+# rule entirely.
+#
+# The our_clubs -> managed_club redirect below used to be load-bearing for exactly that reason
+# (our own academy mapped to Boldklubben Frem Reserves half the time, and only WE got the
+# special case). Voting on the first recorded club makes it redundant — three of the eight out
+# of Frem's academy are in the Reserves today and all eight vote Boldklubben Frem — so it is
+# kept only as a belt-and-braces guard for a player whose history genuinely opens at a
+# reserve side.
+#
+# `share` and `alumni` ship so a caller can refuse a weak mapping: 186 of the 623 academies
+# are singletons, where the "majority" is one player and one player's first move can be a loan.
+#
+# The 30 academies that stop being mapped are those where NO alumnus's first club resolves —
+# see the resolvable-vote filter below. 2,355 players change parent club in total.
 YOUTH_CLUBS = """
 CREATE OR REPLACE VIEW mart.youth_clubs AS
-WITH alumni AS (
+WITH first_club AS (
+    SELECT season, phase, tid,
+           ARG_MIN(club_tid, end_year * 100 + seq)                      AS club_tid
+    FROM mart.player_career_seasons
+    WHERE club_tid IS NOT NULL AND end_year IS NOT NULL
+    GROUP BY ALL),
+alumni AS (
     SELECT o.season, o.phase, o.origin_club_tid AS youth_tid,
-           CASE WHEN ps.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+           CASE WHEN f.club_tid IN (SELECT club_tid FROM mart.our_clubs)
                 THEN (SELECT club_tid FROM mart.managed_club)
-                ELSE ps.club_tid END                                    AS club_tid,
+                ELSE f.club_tid END                                     AS club_tid,
            COUNT(*)                                                     AS n
-    FROM mart.player_origin o
-    JOIN mart.player_snapshots ps USING (season, phase, tid)
+    FROM mart.player_origin_base o
+    JOIN first_club f USING (season, phase, tid)
     WHERE o.origin_club_tid IS NOT NULL
       AND o.origin_club_tid <> 65535
-      AND ps.club_tid IS NOT NULL
+      AND f.club_tid IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM mart.clubs c
                       WHERE (c.season, c.phase, c.club_tid)
                           = (o.season, o.phase, o.origin_club_tid))
+      -- A vote for a tid that names no club in this snapshot is a wasted vote: it can carry no
+      -- nation and match no allow-list, and 15 players' history opens at the ACADEMY itself,
+      -- which would have an academy elect itself its own parent. Both are dropped here rather
+      -- than papered over downstream.
+      AND EXISTS (SELECT 1 FROM mart.clubs c2
+                  WHERE (c2.season, c2.phase, c2.club_tid) = (o.season, o.phase, f.club_tid))
     GROUP BY ALL)
 SELECT season, phase, youth_tid,
        ARG_MAX(club_tid, n)                     AS club_tid,
@@ -2076,6 +2150,10 @@ ORDER = [
     ("mart.player_snapshots", PLAYER_SNAPSHOTS),
     ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
     ("mart.player_career_seasons", PLAYER_CAREER_SEASONS),
+    # base -> youth_clubs -> player_origin: the academy->parent vote is derived FROM origin, so
+    # the eligibility verdict that needs it has to be built after it. See PLAYER_ORIGIN_BASE.
+    ("mart.player_origin_base", PLAYER_ORIGIN_BASE),
+    ("mart.youth_clubs", YOUTH_CLUBS),
     ("mart.player_origin", PLAYER_ORIGIN),
     ("mart.player_role_ratings", PLAYER_ROLE_RATINGS),
     ("mart.player_position_fit", PLAYER_POSITION_FIT),
@@ -2097,7 +2175,6 @@ ORDER = [
     ("mart.attribute_forecast", ATTRIBUTE_FORECAST),
     ("mart.growth_age_curve", GROWTH_AGE_CURVE),
     ("mart.club_nations", CLUB_NATIONS),
-    ("mart.youth_clubs", YOUTH_CLUBS),
     ("mart.player_training", PLAYER_TRAINING),
     ("mart.player_homegrown", PLAYER_HOMEGROWN),
     ("mart.registration_rules", REGISTRATION_RULES),

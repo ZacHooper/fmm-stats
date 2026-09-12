@@ -254,7 +254,8 @@ majority vote; 65535 is the 0xFFFF "none" sentinel, not a club.
 | Object | What |
 |---|---|
 | `mart.club_nations` | club → nation, with a fallback for the 1,354 clubs whose league carries none (a two-step nationality vote, no hardcoded nation table) |
-| `mart.youth_clubs` | academy tid → parent club, with `share` + `alumni` so a weak mapping can be refused |
+| `mart.youth_clubs` | academy tid → parent club (each alumnus votes with the club his history STARTS at), with `share` + `alumni` so a weak mapping can be refused |
+| `mart.player_origin_base` / `mart.player_origin` | raw origin, then the capital-rule verdict applied to the RESOLVED parent — split because youth_clubs is derived from origin |
 | `mart.player_training` | months at each club inside the age-15→21 window; career history and observed spells merged as dated intervals so nothing is counted twice |
 | `mart.player_homegrown` | the flags, for every player in the save (so a recruitment target can be checked before signing) |
 | `mart.registration_rules` | which rule set applies, derived from our tier — we have been promoted three times in three seasons |

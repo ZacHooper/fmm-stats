@@ -29,14 +29,64 @@ snapshot it renders as `#65189` and matches nothing in `staging.clubs`.
 | **65189** | **Boldklubben Frem — all 7, and all ours** |
 
 Which is exactly the shape of a youth side: the cohort sits at the parent club, and the strays
-are academy graduates who moved on. `mart.youth_clubs` recovers the mapping by majority vote over
-where each cohort ended up, and ships `share` + `alumni` so a caller can refuse a weak one —
-cohorts average 2.8 players and 143 of the 388 are singletons, where the "majority" is one man.
+are academy graduates who moved on. `mart.youth_clubs` recovers the mapping by majority vote and
+ships `share` + `alumni` so a caller can refuse a weak one — 186 of the 623 academies are
+singletons, where the "majority" is one player.
+
+**Each alumnus votes with the club his career history STARTS at, not the club he is at now**
+(changed 2026-09-12). Voting on the current club is self-confirming and it scatters: an academy's
+graduates are spread across the league by the time you look, so Chelsea's academy came back at
+share 0.38 and RB Leipzig's at 0.31. Measured at 2026-03-22:
+
+| | current club | first club |
+|---|---|---|
+| academies mapped | 653 | 623 |
+| mean share | 0.85 | **0.96** |
+| unanimous | 411 | **539** |
+| weak (<60%) | 113 | **17** |
+| parents that are a B/reserve side | 107 | **2** |
+
+That last row is a correctness fix, not a tidiness one. The two votes pick a **different** parent
+for 146 academies, and the disagreements are overwhelmingly a club's B or reserve side losing to
+its first team (Real San Sebastián B → Real San Sebastián, Anderlecht Reserves → Anderlecht). A
+B-team parent is a tid that sits on no allow-list, so it drops the academy out of the capital rule
+altogether. In total 2,355 players change parent club.
+
+The 30 academies that stop being mapped are the ones where **no** alumnus's first club resolves to
+a club in the snapshot. A vote for a tid that names nothing can carry no nation and match no
+allow-list, so it is dropped at the vote rather than papered over downstream — that filter is also
+what stops the 15 players whose history opens at the academy tid itself from electing an academy
+its own parent. `validate_mart.py` asserts both.
+
+It also removes a flattering artefact. Academy 65170 has two alumni, Jon Ross and Mads-Emil Wass.
+Both *started* at Idrætsforeningen Lyseng Fodbold; Wass then went Roskilde → us. The current-club
+vote made that academy **ours**, 0.5 share, purely because Wass plays for us now — and handed him
+club-trained status he never earned. The first-club vote reads Lyseng, 1.0, from both alumni. Our
+A-list club-trained count goes 12 → 11 against a minimum of 4, and it is now a fact about where
+players were trained rather than about who signed them.
 
 **65535 is 0xFFFF, the u16 "no origin" sentinel** (2,096 players), not a club. Excluded
 explicitly; `validate_mart.py` asserts it never enters `youth_clubs`.
 
-Reserve sides vote for their first team, or our own academy maps to "Frem Reserves" half the time.
+The `our_clubs → managed_club` redirect in the view is now belt-and-braces. It used to be
+load-bearing (our own academy mapped to "Frem Reserves" half the time, and only WE got the special
+case); with first-club voting all eight out of Frem's academy vote Boldklubben Frem even though
+three of them sit in the Reserves today.
+
+## Eligibility is applied to the PARENT, downstream of the vote
+
+`mart.player_origin` is split in two. `mart.player_origin_base` is the raw reading; the academy →
+parent resolution and the capital-rule verdict sit in `mart.player_origin` on top of
+`mart.youth_clubs`. The split is forced: youth_clubs is *derived from* origin, so an eligibility
+flag that needs youth_clubs cannot live in the same view. Build order is
+`player_origin_base → youth_clubs → player_origin`.
+
+Before the split, `eligible` joined the allow-list straight onto the raw `origin_club_tid`, which
+is an academy tid for 2,067 of the 22,537 players at the 2026-03-22 snapshot — every one of them
+21 or under, i.e. the regen intake — so **none of them could ever match**. Resolving the parent
+first adds 57 eligible players (631 → 688) and removes none. `origin_parent_share` ships beside
+the verdict; `eligible` is deliberately NOT gated on it, because excluding a real graduate for
+having few contemporaries is the worse error.
 
 ## Club nations, without a hardcoded nation table
 
