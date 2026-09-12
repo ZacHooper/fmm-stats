@@ -23,6 +23,14 @@ the weights fall out of which attributes actually predict that outcome at that p
 The control is also why this cannot just be read off the Attribute Lab's dot plots: those are raw
 correlations, which rank attributes by quality-confound as much as by effect.
 
+**Every line in a shipped block carries its own evidence** (`audit_block`, added by the 2026-09-12
+audit). A block can beat flat on two attributes while five others are noise — `black_hawk`'s wide
+midfielder beat flat by riding Passing +0.32 while asserting Shooting 4 at a measured -0.32 — so
+whatever wins the block-level comparison is then filtered attribute by attribute against the same
+bands, dropped or downgraded to what it measures, and re-scored. Lines are never ADDED here: that
+would turn a borrowed block into a derived one by stealth. Judgement calls live in `HELD`, named,
+with the argument; they do not live in the CSV.
+
 **Scored out-of-fold, because 20-110 player-seasons per position will happily overfit.** Weights
 are re-derived inside each CV fold and scored on the rows that derivation never saw, so the
 number reported is what the set would do on players we have not measured. A derived set that does
@@ -252,6 +260,73 @@ def to_weights(part):
     return w
 
 
+# ---------------------------------------------------------------------------------------------
+# The attribute-level audit
+#
+# `choose()` can ship a block BORROWED from a hand-built method, on the strength of that block's
+# total score. That is how a 4-4-1-1 wide midfielder came to be rated Shooting 4 (measured partial
+# -0.32, i.e. the wrong sign) and a bank-of-four central midfielder Shooting 4 (+0.09, below the
+# floor that would earn a 2). A block can beat flat on two attributes while five others are noise:
+# the total says the block is useful, it does NOT say every line in it is.
+#
+# So every block, derived or borrowed, is filtered against the same evidence the derivation uses:
+# an attribute keeps its place only if its partial clears the lowest band, and it is re-banded to
+# what it actually measures rather than to the donor method's opinion. Attributes are only ever
+# DROPPED or DOWNGRADED here -- adding one would turn a borrowed block into a derived one by
+# stealth and throw away the provenance.
+AUDIT_FLOOR = BANDS[-1][0]   # below this an attribute earns nothing, so it is not weighted
+
+# Leadership is the one attribute held below its measured band on purpose. It reads positive in
+# every attacking brief (4-2-3-1 LB +0.34, AML +0.34, RB +0.26, DM +0.22, ST +0.22) and negative
+# at CB and CM -- the signature of a general "established first-choice player" signal that the
+# flat-sum control does not absorb, not of a role requirement. A third of the LB figure is
+# literally playing time (+0.341 -> +0.232 once minutes are controlled within the stratum). It is
+# real enough to nudge a ranking and nowhere near solid enough to decide one, so it is capped at
+# "useful" wherever it survives and never introduced into a block that lacks it.
+LEADERSHIP_CAP = 2
+
+# Two attributes are held against the measurement, on football judgement, and both are recorded
+# rather than silently patched:
+#   ("DM", "passing")  -- UNMEASURABLE, not refuted: every DM in the sample sits inside 1.5 points
+#                         of Passing, so the cell has no spread to correlate (restriction of
+#                         range). Rating a deep pivot with no passing weight at all would be
+#                         nonsense, so it stays at its donor weight.
+#   ("ST", "movement")  -- measures -0.26 and is kept at 2 on the manager's judgement; see the ST
+#                         section of docs/fmm-tactic-blueprints.md for that argument.
+HELD = {
+    ("DM", "passing"): "no spread in this sample (restriction of range) — held on judgement",
+    ("ST", "movement"): "measures negative — held at 2 on the manager's judgement",
+}
+
+
+def audit_block(role, weights, part):
+    """Drop or downgrade any weight the partials do not support. Returns (weights, notes)."""
+    kept, notes = {}, []
+    for at, w in sorted(weights.items(), key=lambda t: (-t[1], t[0])):
+        r = part.get(at.capitalize())
+        if (role, at) in HELD:
+            kept[at] = w
+            notes.append(f"{at} {w} HELD — {HELD[(role, at)]}")
+            continue
+        if r is None:
+            notes.append(f"{at} {w} -> dropped (no spread to measure)")
+            continue
+        band = next((wt for lo, wt in BANDS if r >= lo), 1)
+        if at == "leadership":
+            band = min(band, LEADERSHIP_CAP)
+        if band < 2:
+            notes.append(f"{at} {w} -> dropped (r={r:+.2f}, under the {AUDIT_FLOOR:.2f} floor)")
+            continue
+        if band < w:
+            notes.append(f"{at} {w} -> {band} (r={r:+.2f})")
+        kept[at] = band
+    over = sorted([a for a, v in kept.items() if v == 4],
+                  key=lambda a: -(part.get(a.capitalize()) or 0))
+    for a in over[MAX_KEY:]:
+        kept[a] = 3
+    return kept, notes
+
+
 def fmt_w(w):
     return "  ".join(f"{k} {v}" for k, v in sorted(w.items(), key=lambda t: (-t[1], t[0])))
 
@@ -375,11 +450,21 @@ def derive(asc, frame, attrs, rolepos, brief, stored, base, seed):
         sw = {m: boot_win(f, y, attrs, ws.get(role, {}), seed + zlib.crc32((role + m).encode()))
               for m, ws in stored.items()}
         src, sc, w = choose(dw, oof, win, flat, ss, sw, stored, role)
+        # Whatever won, every line in it now has to carry its own evidence.
+        w, notes = audit_block(role, w, part) if w else ({}, [])
+        # An audited block has lost weights, so its score is no longer the one that won the
+        # comparison -- re-measure it, and fall back to flat if the audit ate what it was living on.
+        if w:
+            sc = method_score(f, y, attrs, w)
+            if not np.isfinite(sc) or sc <= flat:
+                notes.append(f"block no longer beats flat after the audit "
+                             f"({sc:+.3f} vs {flat:+.3f}) — shipping flat")
+                src, sc, w = "flat (audited out)", flat, {}
         if w:
             rows[role] = w
         report.append({
             "role": role, "n": len(f), "outcomes": outcomes,
-            "weights": w, "source": src, "chosen_score": sc,
+            "weights": w, "source": src, "chosen_score": sc, "audit": notes,
             "top": sorted([(a, round(r, 2)) for a, r in part.items() if r is not None],
                           key=lambda t: -t[1])[:6],
             "derived": dw, "derived_oof": oof, "win": win, "flat": flat,
@@ -431,6 +516,12 @@ def main():
     frame = pd.concat([ours, opp], ignore_index=True)
     frame = frame.merge(dominant_competition(db), on=["person_id", "season"], how="left")
     frame["comp"] = frame.comp.fillna("?")
+    # ROW ORDER IS LOAD-BEARING. KFold(shuffle=True) permutes positions, not identities, so a
+    # different row order is a different set of folds and therefore a different win rate. DuckDB
+    # returns rows in whatever order its parallel scan finished in, so three identical runs of
+    # this script scored the 4-2-3-1 LB block at 64%, 80% and 84% against an 80% bar -- the block
+    # shipped or not on a coin flip. Sort before anything is measured.
+    frame = frame.sort_values(["person_id", "season"]).reset_index(drop=True)
     attrs = [x for x in attrs if x not in asc.__dict__.get("GK_ONLY", [])]
     rolepos = role_positions(db)
     stored = stored_methods(db)
@@ -443,7 +534,16 @@ def main():
     out_docs = {}
     for name in names:
         brief = BRIEFS[name]
-        rows, report = derive(asc, frame, attrs, rolepos, brief, stored, a.base, a.seed)
+        # A method must not borrow from ITSELF. `stored` is read from the store, so once a derived
+        # method has been seeded, its own blocks come back as candidates -- fitted on these very
+        # rows, so they bootstrap at ~100% and beat every honest candidate. Re-deriving then just
+        # re-ratifies last run's output and the audit trail quietly becomes a loop.
+        # ...and not from a SIBLING derived method either: every method in BRIEFS was fitted on
+        # this same data, so 4-4-1-1 borrowing 4-2-3-1's CM block is the same loop one step removed.
+        # Only the hand-built methods -- written from a tactic author's stated player traits, never
+        # from these rows -- are honest rivals.
+        rivals = {m: w for m, w in stored.items() if m not in BRIEFS}
+        rows, report = derive(asc, frame, attrs, rolepos, brief, rivals, a.base, a.seed)
         out_docs[name] = {
             "method": name, "weights": rows, "base_method": "derived",
             "label": brief["label"], "created": dt.datetime.now().isoformat(timespec="seconds"),
@@ -467,6 +567,8 @@ def main():
                 print(f"       score   : derived(out-of-fold) {r['derived_oof']:+.3f} "
                       f"(beats flat in {r['win']:.0%} of splits)   flat {r['flat']:+.3f}   "
                       f"best stored {best:+.3f} ({bestm}, {r['stored_win'].get(bestm, 0):.0%})")
+                for line in r.get("audit", []):
+                    print("       audit   : " + line)
                 print("       SHIPPED : " + (fmt_w(r["weights"]) or "flat — nothing beat it"))
 
     if a.out:

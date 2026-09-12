@@ -211,20 +211,40 @@ The method is per role: partial-correlate every attribute against the role's out
 **controlling for the flat attribute sum**, inside a (position, division) stratum, then ship the
 block only if it beats a flat weighting out-of-fold in ≥80% of cross-validation splits. Stored
 blocks face the same test, bootstrapped. **A role that nothing beat stays flat on purpose** — that
-is a finding, not a gap.
+is a finding, not a gap. Then, since the 2026-09-12 audit, **every line in the winning block has to
+clear the 0.10 floor on its own** (`audit_block()`), so a block can no longer beat flat on two
+attributes and carry five passengers.
+
+**These are the AUDITED sets.** The first run shipped 64 and 66 weight rows; the audit cut them to
+**42 and 32**, dropping Shooting 4 from a defend-first wide midfielder (measured −0.32), Positioning
+4 from centre-back (−0.08), three of the 4-4-1-1 full-back's four *key* attributes (all ≈0), and
+capping Leadership at 2 everywhere. The full before/after and the reasoning is in
+[`attribute-stat-correlations`](agent-context/attribute-stat-correlations.md#the-attribute-level-audit-2026-09-12--a-block-can-beat-flat-while-half-its-lines-are-noise).
 
 | role | brief | `frem_minmax_4231` | `frem_minmax_4411` |
 |---|---|---|---|
 | GK | — | inherits `frem_attacking_ss` | inherits `frem_attacking_ss` |
-| LB | 4231 create · 4411 defend | **derived** leadership/pace 4, crossing 3 | `frem_game_state` |
-| RB | same | `black_hawk` | **derived** aerial/pace/stamina 4 |
-| CB | win the air + win it back | `frem_counter` | `frem_counter` |
-| DM | screen | `personal` | `black_hawk` |
-| CM | 4231 keep+progress · 4411 win it back+keep | **derived** agility/technique 4 | **derived** dribbling/pace/technique 3 |
-| AML | 4231 progress+create · 4411 defend+break | **flat** | `black_hawk` |
+| LB | 4231 create · 4411 defend | **derived** pace 4, crossing 3, leadership/teamwork/technique 2 | `frem_game_state`, audited → aerial 4, decisions/strength 3 |
+| RB | same | `black_hawk`, audited → positioning 3, pace/technique 2 | **derived** aerial/pace/stamina 4, leadership/positioning 2 |
+| CB | win the air + win it back | `frem_counter`, audited → aerial/pace 3, strength 2 | same |
+| DM | screen | `personal`, audited → creativity/dribbling/passing 4, decisions/shooting 2 | `black_hawk`, audited → creativity/passing 4 |
+| CM | 4231 keep+progress · 4411 win it back+keep | **derived** agility/technique 4, decisions/movement/pace/passing 3, aggression/creativity/teamwork 2 | **flat** — it only ever survived by borrowing the 4-2-3-1 block |
+| AML | 4231 progress+create · 4411 defend+break | **flat** | `black_hawk`, audited → passing 4, creativity/decisions 3 |
 | AMR | same | **flat** | **flat** |
-| AMC | 4231 create · 4411 finish+progress | **derived** agility/technique 4 | `personal` |
-| ST | finish | `frem_attacking_ss` (the rewritten block) | `frem_attacking_ss` |
+| AMC | 4231 create · 4411 finish+progress | `frem_lowblock_overload`, audited → agility/technique 4, creativity/dribbling/shooting 3 | `personal`, audited → decisions/positioning 3, creativity/passing 2 |
+| ST | finish | `frem_attacking_ss`, audited → shooting 4, aerial/movement/pace 2 | same |
+
+Two notes on that table worth carrying forward:
+
+- **The two full-backs diverge sharply in this shape.** On the 4-4-1-1's defend-first brief, Pace
+  measures **−0.07 at left-back and +0.46 at right-back** in the same stratified cell. One borrowed
+  full-back profile cannot serve both sides, which is why LB ends up on an aerial/strength block and
+  RB on a pace/stamina one.
+- **`frem_minmax_4411`'s ST and `frem_attacking_ss`'s ST are no longer identical.** The audit kept
+  Shooting 4 and the held Movement 2 but stripped Decisions 3 (+0.08) and Strength 3 (+0.05), which
+  the stratified cell does not support. The direction of the ST rewrite survived; its breadth did
+  not. If you want those two lines back, add them to `HELD` with the argument — do not hand-edit the
+  CSV.
 
 **Squad Fit %ile, best XI on the generic frame, computed 2026-09-12 on the `frem-2026-03-22`
 snapshot (37-man `squad_current`):** `black_hawk` 88.7 · `frem_counter` 88.7 · `personal` 88.5 ·
