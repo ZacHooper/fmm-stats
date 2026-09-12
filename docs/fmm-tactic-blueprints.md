@@ -246,12 +246,38 @@ Two notes on that table worth carrying forward:
   not. If you want those two lines back, add them to `HELD` with the argument — do not hand-edit the
   CSV.
 
-**Squad Fit %ile, best XI on the generic frame, computed 2026-09-12 on the `frem-2026-03-22`
-snapshot (37-man `squad_current`):** `black_hawk` 88.7 · `frem_counter` 88.7 · `personal` 88.5 ·
-**`frem_minmax_4231` 88.2** · **`frem_minmax_4411` 87.2** · `frem_lowblock_overload` 87.1 ·
-`frem_game_state` 86.3 · `frem_attacking_ss` 85.7 · `frem_gegenpress` 85.6. The whole field sits
-inside 3.1 points, so read the ranking and not the levels; `frem_attacking_ss` has dropped from
-87.0 because its ST block was rewritten the same day.
+**Squad Fit %ile, best XI on the generic frame, recomputed 2026-09-12 AFTER the audit, on the
+`frem-2026-03-22` snapshot (37-man `squad_current`):** `black_hawk` 88.7 · `frem_counter` 88.7 ·
+`personal` 88.5 · **`frem_minmax_4411` 86.3** · `frem_game_state` 86.3 ·
+`frem_lowblock_overload` 85.9 · `frem_attacking_ss` 85.7 · `frem_gegenpress` 85.6 ·
+**`frem_minmax_4231` 85.3**. The whole field sits inside 3.4 points, so read the ranking and not
+the levels.
+
+The audit cost both derived sets a little height — 4-2-3-1 88.2 → 85.3, 4-4-1-1 87.2 → 86.3 — and
+that is the expected direction, not a regression. Stripping unsupported weights moves a block
+toward flat, and a flatter block scores a squad more evenly, so **the pre-audit figures were partly
+measuring the passengers**. The three hand-built leaders are unchanged to the decimal, which is the
+check that nothing else moved.
+
+**Best XI under the audited sets** (`eff`, Fit %ile), and the selection consequences are real:
+
+| | `frem_minmax_4231` | `frem_minmax_4411` |
+|---|---|---|
+| GK | Ullits 63.0%ile | Ullits 63.0%ile |
+| LB | Dehn 91.7 | Buur 86.5 |
+| CB | **Kabongo** 80.7 · Gülstorff 74.1 | **Kabongo** 80.7 · Gülstorff 74.1 |
+| RB | **Karlsen** 100.0 | **Karlsen** 100.0 |
+| centre | **Chukwuani** 94.1 · Tjørnelund 93.4 | **Chukwuani** 100.0 · **Sørensen** 96.3 |
+| wide | Wass 79.7 · Secka 84.0 | Wass 85.4 · Secka 87.1 |
+| AMC | Bech 90.4 | Bech 96.3 |
+| ST | **Olesen** 91.3 (Ementa next) | **Olesen** 91.3 (Ementa next) |
+
+Three changes worth arguing about before you pick a side on this: **Anton Pedersen drops out of both
+back fours** (Kabongo in), **Karlsen passes Jakob Larsen at right-back**, and **Tobias Olesen now
+rates ahead of Ementa at striker** — the last of those is a direct consequence of the audit removing
+Strength 3 and Decisions 3 from the ST block. If Ementa's physical presence is the point of playing
+him, that argument belongs in `HELD` in `scripts/derive_weight_set.py`, with the reasoning written
+down, rather than as a hand-edit to the seed CSV.
 
 ### What the derivation could NOT do, and why that matters
 
