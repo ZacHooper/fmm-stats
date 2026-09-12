@@ -256,8 +256,18 @@ the levels.
 The audit cost both derived sets a little height — 4-2-3-1 88.2 → 85.3, 4-4-1-1 87.2 → 86.3 — and
 that is the expected direction, not a regression. Stripping unsupported weights moves a block
 toward flat, and a flatter block scores a squad more evenly, so **the pre-audit figures were partly
-measuring the passengers**. The three hand-built leaders are unchanged to the decimal, which is the
-check that nothing else moved.
+measuring the passengers**. `black_hawk`, `frem_counter`, `personal`, `frem_game_state`,
+`frem_attacking_ss` and `frem_gegenpress` are unchanged to the decimal, which is the check that the
+audit touched only what it was meant to.
+
+⚠️ **One figure moved that should not have:** `frem_lowblock_overload` reads 85.9 against the 87.1
+recorded earlier the same day, and its weights are untouched in this change. The likeliest cause is
+that this recompute ran against the R2-PUBLISHED store, pulled down fresh, whose seeded weights
+predated last session's `seed_role_weights` de-duplication fix; the `--refresh-only` run that
+re-seeded from the CSV would then have corrected them. That is a hypothesis, not a verified
+cause — the pre-refresh state was overwritten. If you see a hand-built method's Fit figure move
+without a weight change, check `mart.role_weights` against `seeds/role_weights.csv` for duplicates
+first (`count(*)` vs `count(DISTINCT method||role||attribute)`; it is 687/687 as of this commit).
 
 **Best XI under the audited sets** (`eff`, Fit %ile), and the selection consequences are real:
 
