@@ -132,6 +132,19 @@ def entries(kind, sync=True):
     return out
 
 
+def get(kind, key, sync=True):
+    """One entry by key, or None. Unreadable/missing is None rather than an exception, matching
+    `entries` — a caller reading before a write wants "not there yet", not a traceback."""
+    if sync:
+        pull(kind)
+    path = os.path.join(_kind_dir(kind), f"{key}.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def put(kind, key, payload):
     """Write one entry and push it. Atomic locally (write + replace) so a reader never sees
     a partial object.

@@ -2201,6 +2201,37 @@ def load_scouts():
             if "saved_at" in df.columns else df)
 
 
+def grade_scout(opponent_tid, result_note, result=None, snapshot_label=None, graded_at=None):
+    """Record how a saved scout's read actually graded, WITHOUT touching the pre-match `note`.
+
+    Call this when the user posts the full-time stats for a fixture that was scouted. Writes
+    `result_note` (the grading prose), `result` (an optional short outcome like "W 2-0 (H)") and
+    `graded_at` onto the existing record, leaving `note` as the prediction it always was — the
+    two halves are what make the log calibration, so grading must never be written over the top
+    of the briefing it is grading.
+
+    `snapshot_label` defaults to the most recently saved scout for this opponent, which is
+    almost always the one written for the fixture just played. Returns the updated record (with
+    the transient `_sync`), or None if there is no scout to grade."""
+    if snapshot_label is None:
+        mine = [r for _k, r in state.entries("scouts")
+                if r.get("opponent_tid") == opponent_tid and r.get("snapshot_label")]
+        if not mine:
+            return None
+        snapshot_label = max(mine, key=lambda r: r.get("saved_at") or "")["snapshot_label"]
+    key = scout_key(opponent_tid, snapshot_label)
+    rec = state.get("scouts", key)
+    if rec is None:
+        return None
+    rec["result_note"] = result_note
+    if result is not None:
+        rec["result"] = result
+    rec["graded_at"] = graded_at or datetime.datetime.now().isoformat(timespec="seconds")
+    res = state.put("scouts", key, rec)
+    rec["_sync"] = res.status
+    return rec
+
+
 def delete_scout(opponent_tid, snapshot_label):
     """Drop one saved scout."""
     state.delete("scouts", scout_key(opponent_tid, snapshot_label))
@@ -2245,7 +2276,21 @@ def save_scout(report, venue=None, formation=None, style=None, note=None, saved_
                         if not report["key_players"].empty else []),
         "h2h": {k: report["h2h"].get(k) for k in ("played", "w", "d", "l", "gf", "ga", "ppg")},
     })
-    res = state.put("scouts", scout_key(rec["opponent_tid"], rec["snapshot_label"]), rec)
+    # A scout record holds TWO things that must not overwrite each other: `note` is what we
+    # thought BEFORE the game, `result_note` is how that read graded afterwards. That pairing is
+    # the only reason the log is calibration rather than a pile of old opinions, and re-saving
+    # used to destroy whichever half it wasn't writing (four fixtures lost their prediction that
+    # way). So carry the post-match half forward, and file a superseded prediction into
+    # `revisions` rather than losing it.
+    key = scout_key(rec["opponent_tid"], rec["snapshot_label"])
+    prev = state.get("scouts", key) or {}
+    for field in ("result_note", "result", "graded_at"):
+        if prev.get(field) is not None:
+            rec[field] = prev[field]
+    rec["revisions"] = list(prev.get("revisions") or [])
+    if prev.get("note") and prev["note"] != rec.get("note"):
+        rec["revisions"].append({"saved_at": prev.get("saved_at"), "note": prev["note"]})
+    res = state.put("scouts", key, rec)
     # Transient, and underscored so it is never confused with the stored record: the saved file
     # has no `_sync` key. Report it — a scout that only reached local disk is one the next agent
     # (or the other machine) will not find, and that used to pass for a successful save.

@@ -222,9 +222,11 @@ even our own personnel may have moved since. If nothing's saved, say so and proc
 will be the first entry once you save it.
 
 **Re-save a scout when its reasoning changes, not just when the fixture does.** `db.save_scout`
-appends, so a corrected read can be written over the top with the fix stated in the `note` — the log
-is what the next agent reads, and a note carrying reasoning we already know to be wrong is worse
-than no note.
+does **not** append — it replaces the record at `(opponent_tid, snapshot_label)`. It used to replace
+*everything*, which cost four fixtures their pre-match briefing; it now carries the post-match half
+forward and files the superseded prediction into `revisions`, so a corrected read can be written
+over the top with the fix stated in the `note` without losing what it corrected. The log is what the
+next agent reads, and a note carrying reasoning we already know to be wrong is worse than no note.
 
 ## After the match — close the loop (do this when the user posts the FT stats)
 The scout log only becomes calibration if someone checks it. When the user shares a full-time stat
@@ -253,7 +255,17 @@ and it is cheap — the FT screen already has everything needed.
   the next opponent otherwise.
 - Read the **per-player** columns for the specific claim the briefing made: if the plan was "attack
   their weak aerial full-back", check the aerial-duel counts, not just the scoreline.
-- Feed anything durable back into this skill or `docs/agent-context/`, and re-save the scout note.
+- **Write the grading with `db.grade_scout(opp_tid, result_note=..., result="W 2-0 (H)")`, NOT
+  `save_scout`.** A scout record has two halves: `note` is what we thought BEFORE the game and
+  `result_note` is how that read graded afterwards, and the pairing is the entire reason the log is
+  calibration rather than a pile of old opinions. `grade_scout` writes `result_note` / `result` /
+  `graded_at` and leaves `note` alone; it defaults to the most recent scout for that opponent, and
+  returns `None` if there is nothing saved to grade (say so rather than inventing a record). Check
+  its `_sync` like any other write. Grading through `save_scout` with the grading text in `note` is
+  what destroyed the Lyngby, Midtjylland, OB and FCK briefings — the FCK one was recoverable, the
+  other three are not.
+- Feed anything durable back into this skill or `docs/agent-context/`. `docs/` is in git and
+  versioned; the scout log is not, and R2 has no object versioning — so a bad write there is gone.
 
 Manager observations beat the model here. Three corrections from one session that no query would
 have surfaced: that a defender's counter to Movement is Positioning (the model agreed — the briefing

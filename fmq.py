@@ -239,9 +239,17 @@ def cmd_scouts(con, a):
         print("No saved scouts yet — `fmq scout <team>` auto-saves each run.")
         return
     print(f"{len(s)} saved scout(s):")
+
+    def _s(x):
+        """A missing field comes back from the DataFrame as float NaN, not None, and NaN is
+        truthy — which used to crash this listing outright on the two records saved without a
+        venue. Coerce to a plain string here rather than testing for it at five call sites."""
+        return "" if x is None or (isinstance(x, float) and x != x) else str(x)
+
     for _, r in s.sort_values("saved_at").iterrows():
         ov, h = r.get("overall") or {}, r.get("h2h") or {}
-        ctx = " · ".join(x for x in (r.get("venue"), r.get("formation"), r.get("style")) if x)
+        ctx = " · ".join(x for x in map(_s, (r.get("venue"), r.get("formation"),
+                                             r.get("style"))) if x)
         head = f"\n  {str(r['saved_at'])[:16]}  {r['opponent']}  [{r.get('snapshot')}]"
         print(head + (f"  ({ctx})" if ctx else ""))
         bits = []
@@ -251,8 +259,17 @@ def cmd_scouts(con, a):
             bits.append(f"H2H P{h['played']} W{h.get('w')} D{h.get('d')} L{h.get('l')}")
         if bits:
             print("     " + "   ".join(bits))
-        if r.get("note"):
-            print(f"     note: {r['note']}")
+        if _s(r.get("note")):
+            print(f"     note: {_s(r.get('note'))}")
+        # The grading is a SEPARATE field from the pre-match read, so both show. A record with
+        # only a note has not been graded yet; one with only a result_note predates the split.
+        if _s(r.get("result_note")):
+            res = _s(r.get("result"))
+            print(f"     result{' ' + res if res else ''}"
+                  f" (graded {_s(r.get('graded_at'))[:16]}): {_s(r.get('result_note'))}")
+        revs = r.get("revisions")
+        if isinstance(revs, list) and revs:
+            print(f"     ({len(revs)} superseded read(s) kept in `revisions`)")
 
 
 def main():
