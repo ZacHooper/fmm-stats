@@ -84,7 +84,12 @@ OUTCOMES = {
 # (docs/fmm-tactic-blueprints.md).
 BRIEFS = {
     "frem_minmax_4231": {
-        "label": "4-2-3-1, min-maxed from the match data",
+        "label": "4-2-3-1, attacking high press, min-maxed from the match data",
+        # The front-foot shape we already win with (Attacking / High / Work Into Box). Full-backs
+        # are the width, the double pivot screens, the AMC creates, and the CF is the focal point
+        # of the attack -- which is why ST is briefed "finish AND win the air", not "finish". The
+        # earlier finish-only brief never asked the striker to BE the target, so Aerial and
+        # Strength could not earn a place in a block built around a target man.
         "roles": {
             "GK":  ["keep_it"],
             "LB":  ["progress_it", "create"],
@@ -95,25 +100,52 @@ BRIEFS = {
             "AML": ["progress_it", "create"],
             "AMR": ["progress_it", "create"],
             "AMC": ["create"],
-            "ST":  ["finish"],
+            "ST":  ["finish", "win_the_air"],
+        },
+        # Held on judgement -- see JUDGEMENT_NOTE. The 4-2-3-1's full-backs are NOT held: they are
+        # briefed to create, and the manager's call was to hold the non-negotiables for the
+        # centre-backs, the screening pivot, and the full-backs of the BIG-GAME shape only.
+        "hold": {
+            "CB": {"tackling": 3, "positioning": 3},
+            "DM": {"positioning": 3, "tackling": 3, "teamwork": 3, "passing": 4},
         },
     },
     "frem_minmax_4411": {
-        "label": "4-4-1-1 for the big games, min-maxed from the match data",
+        "label": "4-4-1-1, pressing counter for the big games, min-maxed from the match data",
+        # NOT a low block and NOT a cautious plan -- away at Midtjylland the cautious plan drew 1-1
+        # with 3 shots and the front-foot plan won 6-0. This is the same press in a shape that puts
+        # more bodies back for the sides that can hurt us (FC Kobenhavn now, European opposition if
+        # we qualify), with a genuine COUNTER element the 4-2-3-1 does not have: the wide midfielders
+        # win it back and then break and shoot, the central pair win it and carry.
         "roles": {
             "GK":  ["keep_it"],
             "LB":  ["win_it_back", "win_the_air"],
             "RB":  ["win_it_back", "win_the_air"],
             "CB":  ["win_the_air", "win_it_back"],
-            "DM":  ["win_it_back"],
-            "CM":  ["win_it_back", "keep_it"],
-            "AML": ["win_it_back", "progress_it"],
-            "AMR": ["win_it_back", "progress_it"],
+            "DM":  ["win_it_back", "keep_it"],
+            "CM":  ["win_it_back", "keep_it", "progress_it"],
+            "AML": ["win_it_back", "progress_it", "finish"],
+            "AMR": ["win_it_back", "progress_it", "finish"],
             "AMC": ["finish", "progress_it"],
-            "ST":  ["finish"],
+            "ST":  ["finish", "win_the_air"],
+        },
+        "hold": {
+            "CB": {"tackling": 3, "positioning": 3},
+            "DM": {"positioning": 3, "tackling": 3, "teamwork": 3, "passing": 4},
+            "LB": {"tackling": 3, "positioning": 3},
+            "RB": {"tackling": 3, "positioning": 3},
         },
     },
 }
+
+# Roles that are the SAME JOB on opposite flanks. Their cells share no players at all -- 36 distinct
+# left-backs and 36 distinct right-backs, zero overlap -- so deriving them separately measures the
+# difference between two groups of footballers and calls it a difference between sides of the pitch.
+# That is how the first run ended up rating Pace -0.07 at left-back and +0.46 at right-back off the
+# same brief. Symmetric roles are derived ONCE on the union of their positions and the block is
+# shipped to both. `strata()` still gives each position its own baseline inside that cell, so
+# pooling cannot smuggle in a DL-vs-DR gap; it just doubles the sample.
+SYMMETRIC = [("LB", "RB"), ("AML", "AMR")]
 
 # Partial-correlation thresholds -> weight. Deliberately coarse: the samples are 20-110 rows, so
 # the ordering of two attributes 0.03 apart is noise and a finer scale would encode that noise.
@@ -285,12 +317,29 @@ AUDIT_FLOOR = BANDS[-1][0]   # below this an attribute earns nothing, so it is n
 # "useful" wherever it survives and never introduced into a block that lacks it.
 LEADERSHIP_CAP = 2
 
-# Two attributes are held against the measurement, on football judgement, and both are recorded
-# rather than silently patched:
-#   ("DM", "passing")  -- UNMEASURABLE, not refuted: every DM in the sample sits inside 1.5 points
-#                         of Passing, so the cell has no spread to correlate (restriction of
-#                         range). Rating a deep pivot with no passing weight at all would be
-#                         nonsense, so it stays at its donor weight.
+# JUDGEMENT_NOTE -- weights held against the measurement, on the record.
+#
+# The match data can measure defensive VOLUME and not defensive QUALITY. The only defensive outcomes
+# in the save are interceptions and tackles won per 90; there are no clean sheets, no goals conceded,
+# no pressing stats. A well-positioned centre-back who reads the game makes FEWER tackles, and how
+# much defending a player does at all is set by territory and team style rather than by how good he
+# is at it. This is not restriction of range -- Tackling and Positioning both have sd 2.7 and a 6-19
+# range across 112 centre-back seasons -- it is the wrong measurement. Four independent findings in
+# this project now say the same thing (see docs/agent-context/attribute-stat-correlations.md).
+#
+# So the non-negotiables of the defensive positions are HELD at "important" on football judgement:
+# centre-backs and the screening pivot in both shapes, plus the big-game shape's full-backs, who are
+# there to defend. The 4-2-3-1's full-backs are briefed to create and are NOT held. Each brief
+# declares its own holds in BRIEFS[...]["hold"], so the judgement is visible next to the football
+# reasoning rather than buried in a constant.
+#
+# A hold is the ONE thing allowed to add a weight the evidence did not produce -- the audit itself
+# may only drop or downgrade. That asymmetry is deliberate: an addition is a manager's call and has
+# to be declared in the brief, where it can be argued with; a removal is what the evidence says.
+#
+# Two holds are global, applying to every brief:
+#   ("DM", "passing")  -- UNMEASURABLE rather than refuted: every DM in the sample sits inside 1.5
+#                         points of Passing, so the cell has no spread and `partials()` returns None.
 #   ("ST", "movement")  -- measures -0.26 and is kept at 2 on the manager's judgement; see the ST
 #                         section of docs/fmm-tactic-blueprints.md for that argument.
 HELD = {
@@ -299,14 +348,23 @@ HELD = {
 }
 
 
-def audit_block(role, weights, part):
-    """Drop or downgrade any weight the partials do not support. Returns (weights, notes)."""
+def audit_block(role, weights, part, hold=None):
+    """Drop or downgrade any weight the partials do not support. Returns (weights, notes).
+
+    `hold` is this brief's judgement block for the role ({attr: weight}) -- those lines bypass the
+    audit entirely and are ADDED if the evidence never produced them. Everything else is re-banded
+    to what it measures.
+    """
+    hold = hold or {}
     kept, notes = {}, []
     for at, w in sorted(weights.items(), key=lambda t: (-t[1], t[0])):
         r = part.get(at.capitalize())
+        if at in hold:
+            continue                                    # applied below, at its held weight
         if (role, at) in HELD:
             kept[at] = w
-            notes.append(f"{at} {w} HELD — {HELD[(role, at)]}")
+            shown = "no spread to measure" if r is None else f"measures {r:+.2f}"
+            notes.append(f"{at} {w} HELD ({shown}) — {HELD[(role, at)]}")
             continue
         if r is None:
             notes.append(f"{at} {w} -> dropped (no spread to measure)")
@@ -320,9 +378,16 @@ def audit_block(role, weights, part):
         if band < w:
             notes.append(f"{at} {w} -> {band} (r={r:+.2f})")
         kept[at] = band
-    over = sorted([a for a, v in kept.items() if v == 4],
+    for at, w in sorted(hold.items()):
+        r = part.get(at.capitalize())
+        was = weights.get(at)
+        shown = "n/a" if r is None else f"{r:+.2f}"
+        notes.append(f"{at} {was if was else '—'} -> {w} JUDGEMENT HOLD (measures {shown}; "
+                     f"see JUDGEMENT_NOTE)")
+        kept[at] = w
+    over = sorted([a for a, v in kept.items() if v == 4 and a not in hold],
                   key=lambda a: -(part.get(a.capitalize()) or 0))
-    for a in over[MAX_KEY:]:
+    for a in over[max(0, MAX_KEY - sum(1 for a, v in hold.items() if v == 4)):]:
         kept[a] = 3
     return kept, notes
 
@@ -424,9 +489,20 @@ def choose(derived_w, derived_oof, win, flat, stored_scores, stored_wins, stored
     return "flat", flat, {}
 
 
+def symmetric_twin(role):
+    for a, b in SYMMETRIC:
+        if role == a:
+            return b
+        if role == b:
+            return a
+    return None
+
+
 def derive(asc, frame, attrs, rolepos, brief, stored, base, seed):
     """One method: per-role weights plus the scoreboard that justifies (or indicts) them."""
     rows, report = {}, []
+    holds = brief.get("hold", {})
+    twins = {}          # canonical role of a symmetric pair -> the block it decided
     for role, outcomes in brief["roles"].items():
         if role == "GK" and GK_INHERITS:
             rows[role] = dict(stored.get(base, {}).get(role, {}))
@@ -435,7 +511,21 @@ def derive(asc, frame, attrs, rolepos, brief, stored, base, seed):
                            "weights": rows[role]})
             continue
         stats = [s for o in outcomes for s in OUTCOMES[o]]
-        sub = frame[frame.position.isin(rolepos.get(role, []))]
+        # A symmetric role is derived on BOTH flanks' positions at once -- see SYMMETRIC.
+        twin = symmetric_twin(role)
+        paired = bool(twin and brief["roles"].get(twin) == outcomes
+                      and holds.get(twin) == holds.get(role))
+        key = min(role, twin) if paired else role      # the pair decides once, under one name
+        pool = list(rolepos.get(role, []))
+        if paired:
+            pool += [p for p in rolepos.get(twin, []) if p not in pool]
+        if paired and key in twins:
+            w, src = twins[key]["weights"], f"{twins[key]['role']} (symmetric)"
+            if w:
+                rows[role] = dict(w)
+            report.append(dict(twins[key], role=role, source=src, weights=w))
+            continue
+        sub = frame[frame.position.isin(pool)]
         f, y = target(sub, stats)
         if len(f) < asc.MIN_N:
             report.append({"role": role, "n": len(f), "outcomes": outcomes,
@@ -443,15 +533,19 @@ def derive(asc, frame, attrs, rolepos, brief, stored, base, seed):
             continue
         part = partials(f, y, attrs, asc.MIN_SD)
         dw = to_weights(part)
-        # seeded from the role name: a role scores the same however many briefs precede it
-        oof, win = cv_score(f, y, attrs, asc.MIN_SD, seed + zlib.crc32(role.encode()))
+        # Seeded from the role name -- or from the PAIR's canonical name for a symmetric role, so
+        # both flanks are decided by the same folds. Without that, identical evidence produced
+        # different blocks: left-back shipped its derived set at a 96% win rate while right-back,
+        # off the very same pooled cell, shipped frem_game_state's at 88%. That is fold noise
+        # deciding a football question.
+        oof, win = cv_score(f, y, attrs, asc.MIN_SD, seed + zlib.crc32(key.encode()))
         flat = flat_score(f, y, attrs)
         ss = {m: method_score(f, y, attrs, ws.get(role, {})) for m, ws in stored.items()}
         sw = {m: boot_win(f, y, attrs, ws.get(role, {}), seed + zlib.crc32((role + m).encode()))
               for m, ws in stored.items()}
         src, sc, w = choose(dw, oof, win, flat, ss, sw, stored, role)
         # Whatever won, every line in it now has to carry its own evidence.
-        w, notes = audit_block(role, w, part) if w else ({}, [])
+        w, notes = audit_block(role, w, part, holds.get(role)) if (w or holds.get(role)) else ({}, [])
         # An audited block has lost weights, so its score is no longer the one that won the
         # comparison -- re-measure it, and fall back to flat if the audit ate what it was living on.
         if w:
@@ -462,14 +556,17 @@ def derive(asc, frame, attrs, rolepos, brief, stored, base, seed):
                 src, sc, w = "flat (audited out)", flat, {}
         if w:
             rows[role] = w
-        report.append({
-            "role": role, "n": len(f), "outcomes": outcomes,
+        entry = {
+            "role": role, "n": len(f), "outcomes": outcomes, "positions": pool,
             "weights": w, "source": src, "chosen_score": sc, "audit": notes,
             "top": sorted([(a, round(r, 2)) for a, r in part.items() if r is not None],
                           key=lambda t: -t[1])[:6],
             "derived": dw, "derived_oof": oof, "win": win, "flat": flat,
             "stored": ss, "stored_win": sw,
-        })
+        }
+        report.append(entry)
+        if paired:
+            twins[key] = entry
     return rows, report
 
 

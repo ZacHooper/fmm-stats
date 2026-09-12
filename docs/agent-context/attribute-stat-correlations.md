@@ -425,3 +425,70 @@ said `best stored +0.193 (frem_minmax_4231, 100%)` while deriving `frem_minmax_4
 methods are the same loop one step removed: 4-4-1-1 was borrowing 4-2-3-1's CM block. The rival
 pool is now the hand-built methods only — written from a tactic author's stated player traits,
 never from these rows. 4411's CM was surviving entirely on that cross-borrow and is now flat.
+
+## The briefs were the bug (2026-09-12, same day, after the audit)
+
+The audit above made the weights honest and left three of them plainly wrong as football. The manager
+rejected all three on sight, and in every case the fault was the BRIEF, not the statistics. This is
+the most transferable lesson in this file: **when a derived weighting looks wrong to someone who
+watches the team play, check what question you asked before you check the maths.**
+
+### 1. Ask the striker to be the focal point and the answer changes completely
+
+The striker was briefed `finish` = shots on target + goals. That measures a finisher. It never asks
+the centre forward to BE the target, so the attributes of a target man could not earn a place, and
+the audit correctly stripped Strength and Decisions for want of evidence. Rebriefed as
+`finish + win_the_air`, on the same rows, same stratification, same everything:
+
+| attribute | `finish` | `finish + win_the_air` |
+|---|---|---|
+| Aerial | +0.16 | **+0.50** |
+| Strength | +0.05 | **+0.30** |
+| Shooting | +0.29 | +0.30 |
+| block vs flat | +0.238 / +0.204 (85%) | **+0.261 / +0.180 (100%)** |
+
+Aerial is now the largest coefficient anywhere in this analysis. Note also that Movement, HELD at 2
+on judgement because it measured −0.26 under `finish`, clears the key band on its own under the new
+brief — the hold is no longer load-bearing. The HELD notes now print the live measurement for exactly
+this reason: a hold whose justification has expired should say so rather than quietly persist.
+
+The practical consequence: Anosike Ementa goes from second at striker to **99.0 Fit %ile, clear
+first choice.** The physical centre forward was never a hunch the data merely tolerated.
+
+### 2. Symmetric roles derived separately answer a different question than you asked
+
+LB and RB cells share **zero players** — 36 distinct left-backs, 36 distinct right-backs, no overlap,
+because a full-back plays one side. So "Pace −0.07 at LB and +0.46 at RB off one brief" was never
+about flanks; it was the gap between two groups of footballers. Same for AML/AMR.
+
+`SYMMETRIC = [("LB","RB"), ("AML","AMR")]` pools the positions into one cell (n=89 and n=50 instead of
+44/45 and 28/22). `strata()` still gives each position its own baseline inside that cell, so pooling
+cannot reintroduce a DL-vs-DR gap — it only doubles the sample.
+
+**Pooling the data was not enough.** With one cell but still one fold seed per ROLE, identical evidence
+shipped different blocks: left-back took its derived set at a 96% win rate, right-back took
+`frem_game_state`'s at 88%, off the same numbers. Fold noise was deciding a football question. The pair
+now shares a seed and the decision is made once, then copied — the report says `-> LB (SYMMETRIC)` so
+the copy is visible.
+
+### 3. Defensive quality is the one thing rebriefing cannot fix
+
+Centre-back came back with no tackling and the screening pivot came back a regista. The measured
+figures at CB are Tackling **+0.03** and Positioning **−0.08** over n=112.
+
+**This is not restriction of range.** That was the first hypothesis and it is wrong: Tackling sd 2.70
+and Positioning sd 2.71, both spanning 6–19. There is plenty of spread and the correlation is still
+nothing. The mechanism is that the outcome is a **volume** statistic — interceptions and tackles won
+per 90. A well-positioned defender who reads the game makes FEWER tackles, and how much defending
+anybody does is set by territory and team style rather than by ability. Per-90 defensive counts
+measure how MUCH you defend, not how WELL.
+
+That is the fourth independent route to the same conclusion in this file. It also means no brief built
+from this save's defensive stats can ever value a defender properly, so the honest options are a thin
+data-only block or a declared judgement call. The manager chose the latter and it is recorded as such:
+`BRIEFS[...]["hold"]` carries the non-negotiables (CB and DM in both shapes, plus the big-game shape's
+full-backs, who are there to defend; the 4-2-3-1's full-backs are briefed to create and are not held).
+
+**A hold is the only thing permitted to ADD a weight the evidence did not produce** — the audit itself
+may only drop or downgrade. That asymmetry is the point: an addition is a manager's call and must be
+declared in the brief where it can be argued with, while a removal is just what the evidence says.
