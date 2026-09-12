@@ -304,8 +304,12 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - Our tactic/method is **`frem_attacking_ss`** — the strikerless SS setup, and the dashboard default (`seeds/config_bundle.json`). `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.
   **`frem_minmax_4231` and `frem_minmax_4411` are different in kind** — not hand-built from a tactic
   author's stated player traits but DERIVED from the match data by `scripts/derive_weight_set.py`,
-  role by role, with every block that failed to beat a flat weighting left flat on purpose. Read its
-  docstring before editing either; hand-editing a derived set throws the audit trail away.
+  role by role, with every block that failed to beat a flat weighting left flat on purpose, and
+  **every individual weight that failed to clear the evidence floor dropped or downgraded by
+  `audit_block()`** — a block that beats flat does not license every line inside it. Two weights are
+  held against the measurement on purpose and both are named in `HELD`. Read the script's docstring
+  before editing either method; hand-editing a derived set throws the audit trail away, and a
+  judgement call belongs in `HELD` with its argument, not in the CSV.
 
 ## Data setup on a fresh clone
 `git clone` + `uv sync` gives you the code, skills, context, seeds and the rebuild manifest — but

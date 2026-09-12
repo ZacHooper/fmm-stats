@@ -201,6 +201,11 @@ below have left; the Fit numbers are from a squad two-plus seasons old. Treat th
 
 ## Two DERIVED variants (2026-09-12) — `frem_minmax_4231`, `frem_minmax_4411`
 
+**`frem_minmax_4231` is the attacking high press; `frem_minmax_4411` is the same press in a shape
+that puts more bodies back, with a genuine counter element, for the sides that can hurt us (FC
+København now, European opposition if we qualify). Neither is a cautious plan** — away at
+Midtjylland the cautious plan drew 1-1 with 3 shots and the front-foot plan won 6-0.
+
 **Different in kind from the five above.** Every earlier method was assembled from what a tactic's
 author said his players needed. These two were built by `scripts/derive_weight_set.py`: name what
 each slot in the shape is FOR, and let the match data choose the attributes. Read that script's
@@ -211,43 +216,148 @@ The method is per role: partial-correlate every attribute against the role's out
 **controlling for the flat attribute sum**, inside a (position, division) stratum, then ship the
 block only if it beats a flat weighting out-of-fold in ≥80% of cross-validation splits. Stored
 blocks face the same test, bootstrapped. **A role that nothing beat stays flat on purpose** — that
-is a finding, not a gap.
+is a finding, not a gap. Then, since the 2026-09-12 audit, **every line in the winning block has to
+clear the 0.10 floor on its own** (`audit_block()`), so a block can no longer beat flat on two
+attributes and carry five passengers.
 
-| role | brief | `frem_minmax_4231` | `frem_minmax_4411` |
+**These are the AUDITED sets.** The first run shipped 64 and 66 weight rows; the audit cut them to
+**42 and 32**, dropping Shooting 4 from a defend-first wide midfielder (measured −0.32), Positioning
+4 from centre-back (−0.08), three of the 4-4-1-1 full-back's four *key* attributes (all ≈0), and
+capping Leadership at 2 everywhere. The full before/after and the reasoning is in
+[`attribute-stat-correlations`](agent-context/attribute-stat-correlations.md#the-attribute-level-audit-2026-09-12--a-block-can-beat-flat-while-half-its-lines-are-noise).
+
+### The weights as they stand (2026-09-12, after the brief rewrite)
+
+`frem_minmax_4231` — **attacking high press**, the front-foot shape. 50 weights.
+
+| role | key (4) | important (3) | useful (2) |
 |---|---|---|---|
-| GK | — | inherits `frem_attacking_ss` | inherits `frem_attacking_ss` |
-| LB | 4231 create · 4411 defend | **derived** leadership/pace 4, crossing 3 | `frem_game_state` |
-| RB | same | `black_hawk` | **derived** aerial/pace/stamina 4 |
-| CB | win the air + win it back | `frem_counter` | `frem_counter` |
-| DM | screen | `personal` | `black_hawk` |
-| CM | 4231 keep+progress · 4411 win it back+keep | **derived** agility/technique 4 | **derived** dribbling/pace/technique 3 |
-| AML | 4231 progress+create · 4411 defend+break | **flat** | `black_hawk` |
-| AMR | same | **flat** | **flat** |
-| AMC | 4231 create · 4411 finish+progress | **derived** agility/technique 4 | `personal` |
-| ST | finish | `frem_attacking_ss` (the rewritten block) | `frem_attacking_ss` |
+| GK | decisions, handling, positioning, reflexes | communication, kicking | aerial, throwing |
+| LB | — | pace | crossing, leadership, positioning, technique |
+| CB | — | aerial, pace, *positioning*, *tackling* | strength |
+| RB | — | pace | crossing, leadership, positioning, technique |
+| DM | creativity, dribbling, *passing* | *positioning*, *tackling*, *teamwork* | decisions, shooting |
+| CM | agility, technique | decisions, movement, pace, passing | aggression, creativity, teamwork |
+| AML | *flat* | | |
+| AMC | agility, technique | creativity, dribbling, shooting | — |
+| AMR | *flat* | | |
+| ST | aerial, *movement*, shooting, strength | — | decisions |
 
-**Squad Fit %ile, best XI on the generic frame, computed 2026-09-12 on the `frem-2026-03-22`
-snapshot (37-man `squad_current`):** `black_hawk` 88.7 · `frem_counter` 88.7 · `personal` 88.5 ·
-**`frem_minmax_4231` 88.2** · **`frem_minmax_4411` 87.2** · `frem_lowblock_overload` 87.1 ·
-`frem_game_state` 86.3 · `frem_attacking_ss` 85.7 · `frem_gegenpress` 85.6. The whole field sits
-inside 3.1 points, so read the ranking and not the levels; `frem_attacking_ss` has dropped from
-87.0 because its ST block was rewritten the same day.
+`frem_minmax_4411` — **pressing counter for the big games**, more bodies back. 50 weights.
+
+| role | key (4) | important (3) | useful (2) |
+|---|---|---|---|
+| GK | decisions, handling, positioning, reflexes | communication, kicking | aerial, throwing |
+| LB | aerial | pace, *positioning*, *tackling* | leadership, stamina, strength |
+| CB | — | aerial, pace, *positioning*, *tackling* | strength |
+| RB | aerial | pace, *positioning*, *tackling* | leadership, stamina, strength |
+| DM | creativity, dribbling, *passing* | *positioning*, *tackling*, *teamwork* | decisions, shooting |
+| CM | agility, pace, technique | — | aggression, creativity, passing |
+| AML | *flat* | | |
+| AMC | — | decisions, positioning | creativity, passing |
+| AMR | *flat* | | |
+| ST | aerial, *movement*, shooting, strength | — | decisions |
+
+*Italics* mark a **judgement hold** — declared in the brief, not produced by the evidence. See
+JUDGEMENT_NOTE in the script and the audit section of
+[`attribute-stat-correlations`](agent-context/attribute-stat-correlations.md).
+
+### What the brief rewrite changed, and why the briefs were the real bug
+
+The first derivation produced three blocks the manager rejected on sight, and he was right about all
+three. None of them was a statistics problem; all three were the BRIEF.
+
+**1. The striker was briefed `finish` only** — shots on target plus goals. That never asks the centre
+forward to *be* the focal point, so the attributes of a target man could not earn a place, and the
+depth chart put Tobias Olesen ahead of Anosike Ementa. Rebriefed as `finish + win_the_air`:
+
+| | under `finish` | under `finish + win_the_air` |
+|---|---|---|
+| Aerial | +0.16 | **+0.50** — now the strongest coefficient in the whole analysis |
+| Shooting | +0.29 | +0.30 |
+| Strength | +0.05 | **+0.30** |
+| block vs flat | +0.238 / +0.204 | **+0.261 / +0.180**, 100% of bootstraps |
+
+Aerial, Shooting, Strength and the held Movement all sit at *key*. The physical centre forward is
+not a hunch the data tolerates — it is what the data says, **once you ask it the right question**.
+
+**2. Left-back and right-back were derived separately, and their cells share ZERO players** — 36
+distinct left-backs, 36 distinct right-backs, no overlap. So "Pace −0.07 at LB, +0.46 at RB" off one
+brief was the difference between two groups of footballers dressed up as a difference between flanks.
+`SYMMETRIC` now pools both flanks into one cell (n=89 instead of 44/45) and decides the block ONCE,
+under one fold seed. Getting that last part wrong is instructive: with the cells pooled but the seeds
+still per-role, identical evidence still shipped different blocks — left-back took its derived set at
+a 96% win rate, right-back took `frem_game_state`'s at 88%. Fold noise was deciding a football
+question.
+
+**3. Centre-back had no tackling and the screening pivot was a regista.** This one the data cannot
+fix, and pretending otherwise would be the dishonest move. The only defensive outcomes in the save
+are interceptions and tackles won per 90 — **volume, not quality**. A well-positioned defender who
+reads the game makes FEWER tackles, and how much defending anyone does is set by territory and team
+style. It is not restriction of range: Tackling and Positioning both have sd 2.7 over a 6-19 range
+across 112 centre-back seasons, and still correlate at +0.03 and −0.08. So the non-negotiables are
+held on judgement — centre-backs and the pivot in both shapes, plus the big-game shape's full-backs,
+who are there to defend. The 4-2-3-1's full-backs are briefed to create and are NOT held.
+
+**Squad Fit %ile, best XI on the generic frame, 2026-09-12 after the brief rewrite, on the
+`frem-2026-03-22` snapshot (37-man `squad_current`):** `black_hawk` 88.7 · `frem_counter` 88.7 ·
+`personal` 88.5 · **`frem_minmax_4411` 86.9** · `frem_game_state` 86.3 · **`frem_minmax_4231`
+86.1** · `frem_lowblock_overload` 85.9 · `frem_attacking_ss` 85.7 · `frem_gegenpress` 85.6. The
+whole field sits inside 3.1 points, so read the ranking and not the levels.
+
+⚠️ **One figure to watch:** `frem_lowblock_overload` reads 85.9 here against 87.1 recorded earlier
+the same day, with its weights untouched throughout. The likeliest cause is that these recomputes run
+against the R2-PUBLISHED store, pulled down fresh, whose seeded weights predated the
+`seed_role_weights` de-duplication fix; the `--refresh-only` re-seed would then have corrected them.
+A hypothesis, not a verified cause — the pre-refresh state was overwritten. If a hand-built method's
+Fit figure ever moves without a weight change, check `mart.role_weights` against
+`seeds/role_weights.csv` for duplicates first (`count(*)` vs `count(DISTINCT
+method||role||attribute)`; 713/713 as of this commit).
+
+**Best XI under the rebriefed sets** (`eff`, Fit %ile):
+
+| | `frem_minmax_4231` | `frem_minmax_4411` |
+|---|---|---|
+| GK | Ullits 63.0%ile | Ullits 63.0%ile |
+| LB | Dehn 90.6 | Buur 94.8 |
+| CB | Pedersen 80.0 · Gülstorff 77.0 | Pedersen 80.0 · Gülstorff 77.0 |
+| RB | Karlsen 100.0 | Karlsen 100.0 |
+| centre | Tjørnelund 92.6 · Garly 90.4 | Chukwuani 100.0 · Garly 99.4 |
+| wide | Wass 79.7 · Secka 84.0 | Wass 82.1 · Secka 87.1 |
+| AMC | Bech 90.4 | Bech 96.3 |
+| ST | **Ementa 99.0** (Olesen next) | **Ementa 99.0** (Olesen next) |
+
+Both corrections the manager asked for landed: **Ementa is the clear first-choice centre forward at
+99.0%ile** once the striker is briefed as the focal point rather than as a finisher, and **Anton
+Pedersen is back in both back fours** once the centre-backs carry their non-negotiables. The one
+selection call still worth arguing is **Karlsen ahead of Jakob Larsen at right-back**, which survives
+every version of these weights.
 
 ### What the derivation could NOT do, and why that matters
 
-**Six of the ten 4-4-1-1 roles came back flat or borrowed.** Every defensive brief — LB and CM
-"win it back", AMR "win it back + progress" — failed to beat a flat weighting. That is the same
-result this project has now reached three separate ways: *our XI's attributes do not predict what
-we concede* ([`attribute-stat-correlations`](agent-context/attribute-stat-correlations.md)). The
-defensive dials are team instructions, not selection.
+**Defensive quality is not measurable here, and rebriefing does not rescue it.** The only defensive
+outcomes the save records are interceptions and tackles won per 90 — volume, not quality — so every
+brief built on them measures how much defending a player does rather than how well. The wide roles
+stay flat in both shapes even after pooling the flanks (n=50) and adding `finish` to the brief for the
+counter: the derived set wins 16-28% of splits against flat's +0.249. That is the same result this
+project has now reached four separate ways: *our XI's attributes do not predict what we concede*
+([`attribute-stat-correlations`](agent-context/attribute-stat-correlations.md)). The defensive dials
+are team instructions, not selection — which is precisely why the defensive non-negotiables are
+HELD on judgement instead of derived.
 
-So **`frem_minmax_4411`'s value is its SHAPE and its settings, not its weights.** Do not expect its
-Fit column to tell you much about who should play in a big game; expect the 4-2-3-1 set to, because
-the creative and progressive briefs are the ones the data can see.
+So **`frem_minmax_4411`'s defensive value is its SHAPE and its settings; its weights earn their keep
+on the counter.** The blocks that measure well in it are the ones the break depends on — the central
+pair (agility/pace/technique at key, 92% of splits) and the centre forward (aerial +0.50).
 
 **The goalkeeper cannot be derived at all.** A keeper's match row holds passes and essentially
 nothing else — no saves, no clean sheets, no goals conceded — so both methods inherit
 `frem_attacking_ss`'s GK block rather than inventing one.
+
+**Symmetric roles must be decided once.** LB/RB and AML/AMR are the same job on opposite flanks and
+their cells share no players at all, so derived separately they produce two different answers to one
+question. `SYMMETRIC` in the script pools the positions AND the fold seed; `strata()` still gives each
+position its own baseline inside the pooled cell, so nothing is smuggled in. If you add a role pair
+that is genuinely symmetric, add it there rather than accepting the divergence.
 
 **A flat role used to be unrepresentable.** Shipping "no weights" for AML/AMR made those positions
 disappear from the depth chart entirely, because both rating views built their method x role list
@@ -263,7 +373,7 @@ The weight-set sets NONE of these; the full menu surface is in
 | | `frem_minmax_4231` (vs equals / weaker) | `frem_minmax_4411` (vs FCK-class) |
 |---|---|---|
 | Shape | `SK / WB-CD-CD-WB / BWM-DLP / IF-AM-IF / AF` | `SK / FB-CD-CD-FB / WM-BWM-CM-WM / SS / AF` |
-| Mentality | **Attacking** | **Balanced** |
+| Mentality | **Attacking** | **Control** or Attacking — pressing, not cautious |
 | Defensive line | **High** | **Balanced** |
 | Tempo | Fast | Normal |
 | Width | Narrow | Balanced |

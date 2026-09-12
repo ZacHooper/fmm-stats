@@ -336,3 +336,159 @@ any single-cut coefficient at n≈40 as indicative only.
 The sample grows ~20 player-seasons a year (ours) and ~90 (opponents). Re-run after each season-end
 import, keep the dated tables, and expect large coefficients on small n to shrink toward the middle.
 A finding that survives three seasons *and* the opponents cut is worth building a recruitment rule on.
+
+## The attribute-level audit (2026-09-12) — a block can beat flat while half its lines are noise
+
+The first run of `scripts/derive_weight_set.py` shipped two derived weight-sets in which **only
+three of twenty blocks were actually derived**. Everything else was either flat or BORROWED from a
+hand-built method, because `choose()` compares whole blocks on their total score and then ships the
+winner verbatim. Nothing ever checked the individual attributes in a borrowed block against the
+evidence, and the manager spotted the consequence by eye before any of it was measured.
+
+What the borrowed blocks were asserting, against the measured partial correlation in that same
+(position, division) stratified cell:
+
+| set | role | the line | measured | verdict |
+|---|---|---|---|---|
+| 4411 | AML | Shooting **4** | **−0.32** | wrong sign, at *key*, on a defend-first wide midfielder |
+| 4411 | AMC | Dribbling **3** | **−0.32** | wrong sign |
+| 4411 | DM | Shooting **4** | +0.09 | under the floor that earns a 2 |
+| 4411 | LB | Pace **4** / Positioning **4** / Tackling **4** | −0.07 / +0.06 / +0.02 | all three *key* attributes at nothing |
+| 4231 | CB | Positioning **4** | −0.08 | wrong sign, at *key* |
+| 4231 | RB | Crossing **4** / Movement **4** | +0.07 / +0.03 | nothing |
+| 4231 | AMC | Passing **4**, while Agility sat at **2** | −0.03, and Agility **+0.52** | inverted |
+
+Each of those blocks genuinely beat flat — `black_hawk`'s 4411 AML scores +0.100 against flat's
++0.041 and wins 97% of bootstraps. **It was beating flat on Passing (+0.32) while five other lines
+contributed noise.** A block-level verdict does not license the lines inside it, and a min-max set
+whose selling point is "every weight is evidence" cannot carry lines like these.
+
+`audit_block()` now filters every block, derived or borrowed, against the same bands the derivation
+uses: an attribute keeps its place only if its partial clears the 0.10 floor, and it is re-banded to
+what it measures rather than to the donor's opinion. Attributes are only ever **dropped or
+downgraded** — adding one would turn a borrowed block into a derived one by stealth and lose the
+provenance. The audited block is then re-scored, and falls back to flat if the audit ate what it was
+living on (which is what happened to 4411's CM). The two sets went from 64 and 66 weight rows to
+**42 and 32**.
+
+### Leadership is a status proxy, not a role requirement
+
+The line that started the audit was **Leadership 4 for the 4-2-3-1 left-back**. It is not a typo —
+it measures +0.34, second only to Pace in that cell — but it fails every check:
+
+- **A third of it is playing time.** Controlling for minutes within the stratum as well as the flat
+  attribute sum takes it from +0.341 to **+0.232**. `r(leadership, minutes) = +0.33` and
+  `r(target, minutes) = +0.45`.
+- **It is positive in every attacking brief and negative in the defensive ones** — LB +0.34,
+  AML +0.34, RB +0.26, DM +0.22, ST +0.22, against CB −0.13 and CM −0.07. An attribute that mildly
+  helps everything going forward and mildly hurts everything defensive is reading "established
+  first-choice player", a quality signal the flat-sum control does not fully absorb.
+- **n=44 puts the standard error near 0.16**, so +0.34 is about two of them.
+
+It is therefore capped at `LEADERSHIP_CAP = 2` wherever it survives and never introduced into a
+block that lacks it — real enough to nudge a ranking, nowhere near solid enough to decide one.
+Note what the cap is NOT: a claim the coefficient is zero. At RB and AML it *strengthens* under the
+minutes control, so "it's just minutes" is only part of the story; the cross-role sign flip is the
+stronger argument.
+
+### Two attributes are HELD against the measurement, on the record
+
+`HELD` exists so a judgement call is a named exception rather than a silent patch:
+
+- **`("DM", "passing")`** — UNMEASURABLE, not refuted. Every DM in the sample sits inside 1.5 points
+  of Passing, so the cell has no spread to correlate and `partials()` returns `None`. This is the
+  restriction-of-range rule firing correctly; rating a deep pivot with no passing weight at all
+  would be nonsense, so it keeps its donor weight.
+- **`("ST", "movement")`** — measures −0.26 and is held at 2 on the manager's judgement.
+
+Anything else the audit strips is stripped. Notably that includes **Decisions 3 and Strength 3 from
+the ST block** agreed earlier the same day (+0.08 and +0.05 stratified): the ST rewrite's direction
+survived, its breadth did not.
+
+### Row order was load-bearing, and the win-rate gate was a coin flip
+
+`KFold(shuffle=True)` permutes row POSITIONS, not identities, so a different row order is a
+different set of folds. DuckDB returns rows in whatever order its parallel scan finished in, so
+three identical runs of the script against an identical store scored the 4-2-3-1 LB block at
+**64%, 80% and 84%** against an 80% bar. The block shipped or not on a coin flip — which is how
+Leadership 4 came to be there at all. `frame` is now sorted by `(person_id, season)` before
+anything is measured. Two full runs now produce byte-identical output.
+
+This is the same class of bug as the position-pick drift above, found the same way: run it twice.
+
+### A method must not borrow from itself, or from a sibling
+
+`stored` is read from the store, so once a derived method has been seeded its own blocks come back
+as candidates — fitted on these very rows, so they bootstrap at ~100% and beat every honest rival.
+Re-deriving then re-ratifies the last run's output and the audit trail becomes a loop; the report
+said `best stored +0.193 (frem_minmax_4231, 100%)` while deriving `frem_minmax_4231`. Sibling
+methods are the same loop one step removed: 4-4-1-1 was borrowing 4-2-3-1's CM block. The rival
+pool is now the hand-built methods only — written from a tactic author's stated player traits,
+never from these rows. 4411's CM was surviving entirely on that cross-borrow and is now flat.
+
+## The briefs were the bug (2026-09-12, same day, after the audit)
+
+The audit above made the weights honest and left three of them plainly wrong as football. The manager
+rejected all three on sight, and in every case the fault was the BRIEF, not the statistics. This is
+the most transferable lesson in this file: **when a derived weighting looks wrong to someone who
+watches the team play, check what question you asked before you check the maths.**
+
+### 1. Ask the striker to be the focal point and the answer changes completely
+
+The striker was briefed `finish` = shots on target + goals. That measures a finisher. It never asks
+the centre forward to BE the target, so the attributes of a target man could not earn a place, and
+the audit correctly stripped Strength and Decisions for want of evidence. Rebriefed as
+`finish + win_the_air`, on the same rows, same stratification, same everything:
+
+| attribute | `finish` | `finish + win_the_air` |
+|---|---|---|
+| Aerial | +0.16 | **+0.50** |
+| Strength | +0.05 | **+0.30** |
+| Shooting | +0.29 | +0.30 |
+| block vs flat | +0.238 / +0.204 (85%) | **+0.261 / +0.180 (100%)** |
+
+Aerial is now the largest coefficient anywhere in this analysis. Note also that Movement, HELD at 2
+on judgement because it measured −0.26 under `finish`, clears the key band on its own under the new
+brief — the hold is no longer load-bearing. The HELD notes now print the live measurement for exactly
+this reason: a hold whose justification has expired should say so rather than quietly persist.
+
+The practical consequence: Anosike Ementa goes from second at striker to **99.0 Fit %ile, clear
+first choice.** The physical centre forward was never a hunch the data merely tolerated.
+
+### 2. Symmetric roles derived separately answer a different question than you asked
+
+LB and RB cells share **zero players** — 36 distinct left-backs, 36 distinct right-backs, no overlap,
+because a full-back plays one side. So "Pace −0.07 at LB and +0.46 at RB off one brief" was never
+about flanks; it was the gap between two groups of footballers. Same for AML/AMR.
+
+`SYMMETRIC = [("LB","RB"), ("AML","AMR")]` pools the positions into one cell (n=89 and n=50 instead of
+44/45 and 28/22). `strata()` still gives each position its own baseline inside that cell, so pooling
+cannot reintroduce a DL-vs-DR gap — it only doubles the sample.
+
+**Pooling the data was not enough.** With one cell but still one fold seed per ROLE, identical evidence
+shipped different blocks: left-back took its derived set at a 96% win rate, right-back took
+`frem_game_state`'s at 88%, off the same numbers. Fold noise was deciding a football question. The pair
+now shares a seed and the decision is made once, then copied — the report says `-> LB (SYMMETRIC)` so
+the copy is visible.
+
+### 3. Defensive quality is the one thing rebriefing cannot fix
+
+Centre-back came back with no tackling and the screening pivot came back a regista. The measured
+figures at CB are Tackling **+0.03** and Positioning **−0.08** over n=112.
+
+**This is not restriction of range.** That was the first hypothesis and it is wrong: Tackling sd 2.70
+and Positioning sd 2.71, both spanning 6–19. There is plenty of spread and the correlation is still
+nothing. The mechanism is that the outcome is a **volume** statistic — interceptions and tackles won
+per 90. A well-positioned defender who reads the game makes FEWER tackles, and how much defending
+anybody does is set by territory and team style rather than by ability. Per-90 defensive counts
+measure how MUCH you defend, not how WELL.
+
+That is the fourth independent route to the same conclusion in this file. It also means no brief built
+from this save's defensive stats can ever value a defender properly, so the honest options are a thin
+data-only block or a declared judgement call. The manager chose the latter and it is recorded as such:
+`BRIEFS[...]["hold"]` carries the non-negotiables (CB and DM in both shapes, plus the big-game shape's
+full-backs, who are there to defend; the 4-2-3-1's full-backs are briefed to create and are not held).
+
+**A hold is the only thing permitted to ADD a weight the evidence did not produce** — the audit itself
+may only drop or downgrade. That asymmetry is the point: an addition is a manager's call and must be
+declared in the brief where it can be argued with, while a removal is just what the evidence says.
