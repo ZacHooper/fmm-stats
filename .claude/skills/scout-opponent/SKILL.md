@@ -56,7 +56,13 @@ worth using: it's a season's worth of "what we thought going in," so a scout for
 faced before can open by saying what the last read was and whether it still holds. Call
 `db.scout_report()` directly for the briefing (you need the DataFrames, not printed text) but still
 call `db.save_scout(rep, venue=..., formation=..., style=..., note=...)` yourself afterward so this
-report lands in the same log the CLI would write.
+report lands in the same log the CLI would write. **Check the `_sync` on what it returns**
+(`state.SYNCED` / `LOCAL_ONLY` / `SYNC_FAILED`) and tell the user when it is not `synced` — a scout
+that only reached local disk is one the next agent and the other machine will never see, and until
+2026-09 that failure was silent. Two things the log still cannot tell you, so don't read an absence
+as proof: `season-outlook` and `scout-from-site` never write to it at all, and the key is
+`(opponent_tid, snapshot_label)`, so a second scout of the same opponent before the next import
+overwrites the first.
 
 ## Reading attributes: check the role weights before calling anything a weakness
 

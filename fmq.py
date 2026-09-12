@@ -220,7 +220,10 @@ def cmd_scout(con, a):
                             note=a.note)
         ctx = " · ".join(x for x in (a.venue, a.formation, a.style) if x)
         where = f"state/scouts/{db.scout_key(rec['opponent_tid'], rec['snapshot_label'])}.json"
-        synced = " (synced to R2)" if db.state.remote_configured() else " (local only)"
+        synced = {db.state.SYNCED: " (synced to R2)",
+                  db.state.LOCAL_ONLY: " (LOCAL ONLY — no R2 remote configured)",
+                  db.state.SYNC_FAILED: " (⚠ LOCAL ONLY — the push to R2 FAILED)",
+                  }.get(rec.get("_sync"), "")
         print(f"  ✎ saved to {where}{synced}"
               + (f"  ({ctx})" if ctx else "  (pass --venue/--formation/--style/--note "
                  "to record context)") + "\n")

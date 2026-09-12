@@ -2220,7 +2220,9 @@ def snapshot_history():
 
 
 def save_scout(report, venue=None, formation=None, style=None, note=None, saved_at=None):
-    """Append/refresh a scouting report in the JSONL log. Keyed by (opponent_tid, snapshot),
+    """Append/refresh a scouting report in the log, returning the stored record plus a transient
+    `_sync` (state.SYNCED / LOCAL_ONLY / SYNC_FAILED) saying whether it reached R2 — check it, and
+    tell the user when it did not. Keyed by (opponent_tid, snapshot),
     so re-scouting the same opponent on the same data updates the record; a new data snapshot
     (after a re-import) creates a fresh one. Stores the report's verdict + our supplied
     formation/style/venue/note so 'what we thought' can be reviewed against the result."""
@@ -2243,5 +2245,9 @@ def save_scout(report, venue=None, formation=None, style=None, note=None, saved_
                         if not report["key_players"].empty else []),
         "h2h": {k: report["h2h"].get(k) for k in ("played", "w", "d", "l", "gf", "ga", "ppg")},
     })
-    state.put("scouts", scout_key(rec["opponent_tid"], rec["snapshot_label"]), rec)
+    res = state.put("scouts", scout_key(rec["opponent_tid"], rec["snapshot_label"]), rec)
+    # Transient, and underscored so it is never confused with the stored record: the saved file
+    # has no `_sync` key. Report it — a scout that only reached local disk is one the next agent
+    # (or the other machine) will not find, and that used to pass for a successful save.
+    rec["_sync"] = res.status
     return rec

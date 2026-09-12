@@ -17,10 +17,12 @@ Degradation is deliberate: with no rclone binary or no configured remote, everyt
 against `state/` alone. A laptop in aeroplane mode shows the last-synced shortlist rather than
 an error, and never blocks on the network.
 """
+import collections
 import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +30,18 @@ STATE_DIR = os.environ.get("FM_STATE_DIR") or os.path.join(REPO, "state")
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 PULL_TTL = int(os.environ.get("FM_STATE_TTL", "300"))       # seconds between remote pulls
 KINDS = ("shortlist", "scouts")
+
+# What a write actually did. `put` used to discard the push result and return the key, so an
+# entry that never reached R2 still reported success and sat unnoticed on one machine's disk —
+# which is how a saved scout goes missing without anything saying so. These three outcomes are
+# deliberately distinct: LOCAL_ONLY is the documented degradation (no rclone, no remote, plane
+# mode) and is not an error; SYNC_FAILED is a remote we *can* see and a push that did not land,
+# and a caller must surface it.
+SYNCED = "synced"
+LOCAL_ONLY = "local-only"
+SYNC_FAILED = "sync-failed"
+
+PutResult = collections.namedtuple("PutResult", "key status detail")
 
 _remote_ok = None                                            # probed once per process
 
@@ -84,18 +98,18 @@ def pull(kind, force=False):
 
 def push(kind, key=None):
     """Upload one entry (or the whole kind). Called on write, since writes are rare and you
-    want them to land immediately rather than at the next pull."""
+    want them to land immediately rather than at the next pull. Returns `(ok, detail)` — detail
+    carries rclone's stderr on a failure, or why the push was skipped, so the caller can say
+    something more useful than False."""
     if not remote_configured():
-        return False
+        return False, "no R2 remote configured"
     d = _kind_dir(kind, create=True)
     if key is not None:
         src = os.path.join(d, f"{key}.json")
         if not os.path.exists(src):
-            return False
-        ok, _ = _rclone(["copy", src, f"{R2_REMOTE}/state/{kind}/"])
-        return ok
-    ok, _ = _rclone(["copy", d, f"{R2_REMOTE}/state/{kind}", "--include", "*.json"])
-    return ok
+            return False, f"{src} does not exist"
+        return _rclone(["copy", src, f"{R2_REMOTE}/state/{kind}/"])
+    return _rclone(["copy", d, f"{R2_REMOTE}/state/{kind}", "--include", "*.json"])
 
 
 def entries(kind, sync=True):
@@ -120,15 +134,26 @@ def entries(kind, sync=True):
 
 def put(kind, key, payload):
     """Write one entry and push it. Atomic locally (write + replace) so a reader never sees
-    a partial object."""
+    a partial object.
+
+    Returns a `PutResult(key, status, detail)`. The local write either happens or raises; the
+    status is about the REMOTE half, and SYNC_FAILED is also written to stderr so a caller that
+    ignores the return value still cannot lose the write silently — the previous version threw
+    the push result away entirely."""
     d = _kind_dir(kind, create=True)
     path = os.path.join(d, f"{key}.json")
     tmp = path + ".part"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, allow_nan=False, indent=1)
     os.replace(tmp, path)
-    push(kind, key)
-    return key
+    ok, detail = push(kind, key)
+    if ok:
+        return PutResult(key, SYNCED, "")
+    if not remote_configured():
+        return PutResult(key, LOCAL_ONLY, detail)
+    print(f"state: {kind}/{key} written to {path} but NOT pushed to {R2_REMOTE} — {detail}",
+          file=sys.stderr)
+    return PutResult(key, SYNC_FAILED, detail)
 
 
 def delete(kind, key):
