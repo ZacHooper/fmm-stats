@@ -195,6 +195,50 @@ starting outfield ten against opponent shots, shots on target and goals.
 **What we concede is about the opponent and our instructions, not about which of our players
 start.** Consistent with everything else here: the defensive dials are team settings.
 
+## The first weighting this changed: `frem_attacking_ss` / ST
+
+The point of the file. Scored **within role** against what strikers actually produced (league
+player-seasons, n=40, correlation of the weighted attribute total with goals):
+
+| weight-set | r vs goals |
+|---|---|
+| the old ST weights | **0.351** |
+| flat — every attribute 1 | 0.411 |
+| the new ST weights | **0.484** |
+| Shooting alone | 0.469 |
+
+The old set was **worse than not weighting at all**, because it came from forum consensus rather
+than measurement: Aggression 4, Stamina 4, Movement 4 and Shooting only 3. Shooting is the one
+attribute that predicts shots, shots on target and goals in every cut. Nearly all of the gain is
+Shooting — the rest of the set is tidy-up rather than discovery, which is worth remembering before
+the next rewrite.
+
+New set (`seeds/role_weights.csv`): shooting 4; aerial, decisions, pace, strength 3; agility,
+movement, technique 2; **aggression, passing, stamina, teamwork dropped to baseline 1**.
+
+Two caveats recorded deliberately:
+- **Movement is held at 2 on the manager's judgement, not the data.** Measured it contributes
+  nothing (sd 1.66, range 8-15 across our strikers; removing it costs 0.007). Off-the-ball work is
+  the one thing the match stats cannot see, so this is a reasonable place to keep a thumb on the
+  scale — but it is a belief, not a measurement, and should be labelled that way.
+- **Pace at 3 is a position-specific call.** Pace correlates +0.51 with a striker's goals (+0.44
+  controlled) but +0.06 for centre-backs and −0.19 at AMC, and it barely moves Level %ile (−0.01
+  against Technique's +0.29) — so the game charges little CA for it and our Level-%ile scouting
+  *understates* pacy strikers. Do not generalise the 3 to other roles without measuring them.
+
+It re-ranked our strikers immediately. Our actual current squad at ST (`mart.squad_current`, not
+a raw `club_tid` filter — which pollutes the list with departed loanees):
+
+| | old | new |
+|---|---|---|
+| 1 | Nordberg 477.8 | **Ementa 409** |
+| 2 | Ementa 476.0 | Olesen 403 |
+| 3 | Olesen 459.0 | Nordberg 390 |
+
+Ementa up one, Nordberg down two: Shooting 11 against Ementa's 15, and the Aggression 15 the old
+set paid 4 for now counts once. His Pace 16 (now weighted 3, against Ementa's 12) wins some of it
+back — it is not enough.
+
 ## Two failure modes this file has already hit
 
 **Restriction of range — a zero can mean "we have never had one".** Shooting drives midfielders'

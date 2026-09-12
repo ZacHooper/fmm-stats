@@ -1185,9 +1185,10 @@ def main():
     ap.add_argument("--reset", action="store_true",
                     help="drop and recreate the staging schema + views first")
     ap.add_argument("--refresh-only", action="store_true",
-                    help="rebuild the SQL views + the mart layer against an existing store "
-                         "and load nothing. Both are just definitions, so a change to "
-                         "fmparser/mart.py or VIEWS does not reach a store until something "
+                    help="rebuild the SQL views, the mart layer AND the role-weight seeds "
+                         "against an existing store, loading nothing. All three are just "
+                         "definitions, so a change to fmparser/mart.py, VIEWS or "
+                         "seeds/role_weights.csv does not reach a store until something "
                          "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()
 
@@ -1202,10 +1203,15 @@ def main():
     if args.refresh_only:
         con = duckdb.connect(args.db)
         try:
+            # seeds/role_weights.csv is a DEFINITION, exactly like a view: editing it has to
+            # reach an existing store without a full re-import. seed_role_weights only replaces
+            # the methods the CSV names, so a weight-set built in the Lab and promoted into
+            # staging.role_weights survives this.
+            seed_role_weights(con)
             create_views(con)
             mart_objects = create_mart(con)
-            print(f"{args.db}: {len(VIEWS)} views + {len(mart_objects)} mart objects rebuilt "
-                  f"(nothing loaded)")
+            print(f"{args.db}: role-weight seeds + {len(VIEWS)} views + {len(mart_objects)} "
+                  f"mart objects rebuilt (nothing loaded)")
         finally:
             con.close()
         return

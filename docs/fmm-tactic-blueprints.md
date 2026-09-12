@@ -63,7 +63,19 @@ name everywhere: **Pace, Stamina, Teamwork, Decisions, Passing, Movement.**
 | CM (RP+BBM) | Passing, Decisions, Stamina (+Teamwork/Movement/Creativity) | passing, decisions, stamina | teamwork, movement, creativity, tackling |
 | AMC (SS) | Pace, Shooting, Aerial‑if‑few‑headers — runs beyond & finishes | movement, shooting, pace | decisions, technique, teamwork |
 | AML/AMR (IF) | Pace, Shooting, Passing, Movement — cut in to score, NOT crossers | pace, shooting, movement | passing, technique, dribbling, decisions |
-| ST (PF) | Stamina + Aggression/Aerial/Movement "overkill trio" (for variants) | stamina, aggression, movement | aerial, pace, shooting, teamwork |
+| ST (PF) | ~~Stamina + Aggression/Aerial/Movement "overkill trio"~~ — **measured and replaced 2026‑09‑12, see below** | shooting | aerial, strength, pace, decisions |
+
+> **The ST row was measured and rewritten on 2026‑09‑12.** The "overkill trio" came from forum
+> posts, never from data. Across 40 league strikers, the old weighting ranked them **worse than
+> weighting nothing at all** — r=0.351 against goals where a flat average scored 0.411 — because
+> three of its four highest weights sat on attributes with no measurable effect (Movement −0.00,
+> Aggression −0.11, Stamina +0.01 against goals, controlling for ability) while Shooting, at
+> +0.50, was only third tier. The rewritten set scores **0.484**. Full working, including the
+> corroboration rule that kept Tackling out of it, is in
+> [`attribute-stat-correlations`](agent-context/attribute-stat-correlations.md).
+>
+> Movement is held at **2 on the manager's judgement**, not on the data — it is the one null with
+> too little spread at ST (sd 1.66, range 8–15) to be confident about, and it costs 0.007.
 
 Seeded as method **`frem_attacking_ss`** (94 rows, both stores). Sits alongside `frem_gegenpress`.
 Contrast: attacking_ss weights **crossing KEY on WBs** and **shooting KEY / crossing‑baseline on the
