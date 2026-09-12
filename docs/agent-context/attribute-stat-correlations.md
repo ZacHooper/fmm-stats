@@ -44,6 +44,65 @@ This is the **restriction-of-range** caveat below, finally enforced in code rath
 whoever is reading. If a future squad's midfielders all sit between Shooting 8 and 12, that cell
 blanks itself.
 
+### Unit averages hide opposite effects — read the position too
+
+The three outfield units are coarse, and inside them attributes can point opposite ways. Pace
+against match rating, league-wide:
+
+| | unit says | positions inside it |
+|---|---|---|
+| **Attack** | +0.21 | ST **+0.49** · AML +0.32 · AMR −0.24 · AMC **−0.19** |
+| **Defence** | +0.06 | DL +0.22 · DR +0.26 · **DC +0.04 (n=111)** |
+
+The Defence row is the clearest: 111 of its ~199 player-seasons are centre-backs, so the column is
+effectively "what pace does for a centre-back" — nothing — and the full-backs' real effect never
+appears. Same trap on interceptions, where **DR reads +0.40 and the Defence unit reads +0.07**.
+
+So the export now emits **per-position correlations alongside per-unit ones**, wherever the cut has
+`MIN_N` players at that position. Availability is uneven and the export states it per cut:
+
+| cut | positions with n ≥ 12 |
+|---|---|
+| League · all | DC 111 · GK 59 · MC 57 · DR 44 · DL 43 · ST 40 · AMC 32 · DMC 29 · AML 25 · AMR 19 |
+| League · Superliga | DC 38 · GK 22 · DMC 15 · DR 14 · MC 14 |
+| Us · all | DC 20 · MC 20 · DR 13 |
+| Us · Superliga | none |
+
+**A position view is the sharpest and the thinnest read at once.** Twenty to a hundred
+player-seasons is a direction, not a measurement, and usually only one cut can see it at all — so
+nothing corroborates it. Check it against the unit before acting.
+
+### Pace: the worked example
+
+Pace is where this matters most, because the unit view makes it look inert. By position, against
+match rating, and again controlling for the game's own ability model (`level_league`, i.e. *among
+players of the same Level %ile at that position*):
+
+| position | n | raw | controlled for ability |
+|---|---|---|---|
+| **ST** | 39 | **+0.51** | **+0.44** |
+| AML | 25 | +0.32 | +0.36 |
+| DR | 43 | +0.30 | +0.33 |
+| DL | 41 | +0.22 | +0.21 |
+| MC | 58 | +0.18 | +0.16 |
+| DC | 111 | +0.06 | +0.07 |
+| GK | 59 | −0.01 | −0.01 |
+| **AMC** | 31 | −0.19 | **−0.16** |
+
+It survives the control, so it is not a proxy for "good player". And it is emphatically *not* good
+everywhere — at AMC, who receives in front of the defence with no space to run into, it is
+negative.
+
+**Why the community says pace is king.** Against `level_league` within position, Pace averages
+**−0.01** across positions while Technique averages +0.29, Passing +0.22 and Decisions +0.16. The
+game's ability model barely charges CA for pace — so a pacy striker delivers performance the model
+does not price. That also means **our own Level %ile scouting understates pacy strikers.**
+
+**And it is the best evidence that off-the-ball work is real but invisible here.** Pace barely
+touches the counting stats (goals +0.21 in attack, shots on target ~0, key passes −0.01) yet
+predicts a striker's match rating at +0.51. That gap is the off-the-ball running: no stat records
+it, and rating is the only measure that sees it.
+
 ### The GK unit, and what it cannot tell you
 
 GK player-seasons: **league/all 59, league/Superliga 22, us/all 7, us/Superliga 2** — usable in

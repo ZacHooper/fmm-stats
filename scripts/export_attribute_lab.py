@@ -56,6 +56,13 @@ CUTS = [
 
 UNITS = ["Defence", "Midfield", "Attack", "GK", "pooled"]
 
+# Unit grouping averages away opposite effects. Pace against match rating reads +0.21 for the
+# Attack unit while ST is +0.51 and AMC is -0.19; the Defence unit reads +0.06 because 112 of its
+# 197 rows are centre-backs, hiding full-backs at +0.22/+0.26. So correlations are also emitted
+# per exact POSITION, wherever that cut has the sample for it.
+POSITIONS = ["GK", "DL", "DC", "DR", "DML", "DMC", "DMR", "ML", "MC", "MR",
+             "AML", "AMC", "AMR", "ST"]
+
 # Statistic groups, so the explorer's picker isn't a flat list of 21.
 STAT_GROUPS = [
     ("Defending", [("intercept_90", "Interceptions"), ("tackW_90", "Tackles won"),
@@ -99,7 +106,7 @@ def build_frame(asc, db, who, competition, min_minutes):
     return pd.concat([ours, opp], ignore_index=True), attrs
 
 
-def correlations(asc, frame, attrs, stat):
+def correlations(asc, frame, attrs, stat, with_positions=True):
     """{unit: {attr: r}} — inside each unit, plus a unit-demeaned pooled column.
 
     Delegates every cell to `asc.cell`, so the Lab suppresses exactly what the CLI suppresses:
@@ -109,6 +116,12 @@ def correlations(asc, frame, attrs, stat):
     for unit in ["Defence", "Midfield", "Attack", "GK"]:
         sub = frame[frame.grp == unit].dropna(subset=[stat])
         out[unit] = {a: _clean(_r3(asc.cell(sub, stat, a))) for a in attrs}
+    if with_positions:                                 # only where the sample supports it
+        for pos in POSITIONS:
+            sub = frame[frame.position == pos].dropna(subset=[stat])
+            if len(sub) < asc.MIN_N:
+                continue
+            out["@" + pos] = {a: _clean(_r3(asc.cell(sub, stat, a))) for a in attrs}
     z = frame.dropna(subset=[stat]).copy()
     for c in [stat] + attrs:                           # demean inside unit, then pool
         z[c] = z.groupby("grp")[c].transform(lambda v: v - v.mean())
@@ -122,11 +135,23 @@ def correlations(asc, frame, attrs, stat):
 
 
 def spreads(asc, frame, attrs):
-    """{unit: {attr: sd}} — so the page can say WHY a cell is blank instead of just showing one."""
+    """{group: {attr: sd}} for the attributes that FAILED the spread test.
+
+    The page reads this only to explain a blank cell, so carrying the passing values would
+    triple the payload for nothing. An attribute absent from a group's map cleared the bar.
+    """
+    def low(sub):
+        if len(sub) < 2:
+            return {}
+        return {a: _r3(sub[a].std()) for a in attrs
+                if (sub[a].std() or 0) < asc.MIN_SD}
     out = {}
     for unit in ["Defence", "Midfield", "Attack", "GK"]:
-        sub = frame[frame.grp == unit]
-        out[unit] = {a: _clean(_r3(sub[a].std()) if len(sub) > 1 else None) for a in attrs}
+        out[unit] = low(frame[frame.grp == unit])
+    for pos in POSITIONS:
+        sub = frame[frame.position == pos]
+        if len(sub) >= asc.MIN_N:
+            out["@" + pos] = low(sub)
     return out
 
 
@@ -162,8 +187,14 @@ def main():
                      "competition": comp or "all",
                      "n": len(frame),
                      "n_by_unit": {u: int((frame.grp == u).sum())
-                                   for u in ["Defence", "Midfield", "Attack", "GK"]}})
-        corr[cid] = {s: correlations(asc, frame, attrs, s) for s, _ in STATS if s in frame.columns}
+                                   for u in ["Defence", "Midfield", "Attack", "GK"]},
+                     "n_by_pos": {p: int(n) for p, n in frame.position.value_counts().items()
+                                  if n >= asc.MIN_N}})
+        # The opponents-only variants exist to back one checkbox; they do not need the
+        # position breakdown as well, and skipping it keeps the payload sane.
+        wp = not cid.startswith("opp_")
+        corr[cid] = {s: correlations(asc, frame, attrs, s, wp)
+                     for s, _ in STATS if s in frame.columns}
         spread[cid] = spreads(asc, frame, attrs)
         print(f"  {label:24s} n={len(frame):<4} {cuts[-1]['n_by_unit']}")
 
@@ -237,10 +268,12 @@ def main():
         "statGroups": [{"group": g, "stats": [{"id": i, "label": l} for i, l in ss]}
                        for g, ss in STAT_GROUPS],
         "outcomes": [{"id": i, "label": l, "stats": ss} for i, l, ss in OUTCOMES],
-        "units": UNITS,
+        "units": UNITS, "positions": POSITIONS,
         "cuts": cuts, "corr": corr, "spread": spread,
         "minSd": asc.MIN_SD, "minN": asc.MIN_N,
         "methods": methods, "posRole": pos_role, "fam": fam,
+        "rolePositions": {r: sorted(p for p, rr in pos_role.items() if rr == r)
+                          for r in sorted(set(pos_role.values()))},
         "squad": players, "scoreSet": score_set,
     }
 
@@ -251,8 +284,9 @@ def main():
     print(f"\nwrote {a.out}  ({kb:.0f} KB)")
     print(f"  {len(players)} squad players · {len(score_set)} scoring rows · "
           f"{len(methods)} methods · {len(cuts)} cuts")
-    if kb > 400:
+    if kb > 700:
         print("  ⚠️  larger than expected — check for an unfiltered join")
+    # ~450 KB is normal now that positions are emitted alongside units.
 
 
 if __name__ == "__main__":

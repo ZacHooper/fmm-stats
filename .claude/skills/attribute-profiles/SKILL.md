@@ -102,6 +102,13 @@ whether an instruction does it more cheaply; that has been the right answer twic
   keeper attributes — sd ~0.7 among outfielders against a real attribute's ~2.6 — from
   manufacturing "Throwing +0.4 for strikers". It does not catch the milder cases, so keep
   checking.
+- **Read the position, not just the unit — then check one against the other.** The three outfield
+  units average away opposite effects: Pace against match rating is +0.21 for the whole Attack
+  unit, +0.49 at ST and −0.19 at AMC, and the Defence unit's +0.06 is really "what pace does for a
+  centre-back" because 111 of its ~199 rows are centre-backs. `lab.json` carries per-position
+  correlations under `@<POS>` keys wherever the cut has the sample. They are the sharpest and the
+  thinnest read at once — 20-110 player-seasons, usually visible in one cut only — so treat one as
+  a direction and corroborate it against the unit.
 - **Goalkeepers have their own unit, and a hard limit.** All 23 attributes are covered and the GK
   unit has 59 player-seasons league-wide, but a keeper's match row holds passes and little else —
   no saves, no clean sheets, no goals conceded. Measure his distribution and his rating; say
