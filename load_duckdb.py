@@ -295,8 +295,11 @@ DDL = [
        LIMIT 0""",
 ]
 
-_SEED_METHODS = ("black_hawk", "personal", "frem_counter", "frem_gegenpress",
-                 "frem_attacking_ss", "frem_lowblock_overload", "frem_game_state")
+# Which methods the seed CSV owns is read FROM THE CSV, not listed here. The hardcoded list this
+# replaced went stale the moment a new method was added to the CSV: seed_role_weights deleted the
+# seven it knew about and re-inserted the whole file, so the new method gained a DUPLICATE row set
+# on every refresh and the rating view — a LEFT JOIN and a SUM — counted its weights twice. Two
+# refreshes took a centre-back's rating from 431 to 777 and silently reordered the depth chart.
 
 # 14 FM position codes -> 10 rating roles. Wide/defensive-mid codes fold into the
 # nearest available role (the role vocabulary is narrower than the position codes).
@@ -1039,16 +1042,16 @@ def _drop_extracts_phase_check(con):
 
 
 def seed_role_weights(con):
-    """(Re)seed the built-in tactic weight-sets from seeds/role_weights.csv, leaving
-    any user-defined tactics untouched. Idempotent: replaces only the built-in methods."""
+    """(Re)seed the tactic weight-sets from seeds/role_weights.csv, leaving any user-defined
+    tactic untouched. Idempotent: deletes exactly the methods the CSV names, then inserts it."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
                         "role_weights.csv")
     if not os.path.exists(path):
         print(f"  ! role_weights seed missing at {path}; skipping")
         return
-    ph = ",".join("?" * len(_SEED_METHODS))
-    con.execute(f"DELETE FROM staging.role_weights WHERE method IN ({ph})",
-                list(_SEED_METHODS))
+    con.execute(
+        "DELETE FROM staging.role_weights WHERE method IN "
+        "(SELECT DISTINCT method FROM read_csv_auto(?))", [path])
     con.execute(
         "INSERT INTO staging.role_weights (method, role, attribute, category, weight) "
         "SELECT method, role, attribute, category, weight FROM read_csv_auto(?)", [path])

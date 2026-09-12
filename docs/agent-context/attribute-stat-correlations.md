@@ -292,6 +292,20 @@ Fixed in both `fmparser/mart.py` (`PLAYER_ROLE_RATINGS`) and `load_duckdb.py`
 methods all carry all ten roles, so the change is a no-op for them; `git diff site/api` after an
 export is the check.
 
+### Re-seeding silently doubled a new method's weights
+
+`--refresh-only` re-seeds `seeds/role_weights.csv` (added the same day, so that editing the CSV
+reaches an existing store). But `seed_role_weights` deleted a **hardcoded list of seven method
+names** and then inserted the whole file, so a method added to the CSV but not to that list gained
+a duplicate row set on every refresh — and the rating view, a LEFT JOIN with a SUM, counted its
+weights twice. Two refreshes took a centre-back from 431 to 777 and reordered the depth chart,
+which is how it was caught: the second run of a best-XI query disagreed with the first.
+
+It now deletes exactly the methods the CSV names (`SELECT DISTINCT method FROM read_csv_auto`), so
+the list cannot go stale again. Verified idempotent over two consecutive refreshes: 743 rows, zero
+duplicates. **If ratings ever look inflated, check `staging.role_weights` for duplicate
+(method, role, attribute) rows first** — the symptom is a plausible-looking number, not an error.
+
 ### Determinism: the position pick used to drift between runs
 
 6,148 (person, season) pairs are equally familiar at two positions in the same snapshot. The
