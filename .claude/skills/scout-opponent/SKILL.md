@@ -55,14 +55,20 @@ form of the same call and — unless `--no-save` — writes the result into the 
 worth using: it's a season's worth of "what we thought going in," so a scout for a team you've
 faced before can open by saying what the last read was and whether it still holds. Call
 `db.scout_report()` directly for the briefing (you need the DataFrames, not printed text) but still
-call `db.save_scout(rep, venue=..., formation=..., style=..., note=...)` yourself afterward so this
-report lands in the same log the CLI would write. **Check the `_sync` on what it returns**
+call `db.save_scout(rep, venue=..., formation=..., style=..., note=..., fixture=...)` yourself
+afterward so this report lands in the same log the CLI would write. **Always pass `fixture` — the
+match date, straight off the Next Match screen** (`fixture="2026-04-20"`). It is what separates the
+home and away meetings of the same opponent: the key used to be `(opponent_tid, snapshot_label)`
+alone, so the second scout of a side between two imports replaced the first, which is two fixtures
+losing one rather than a supersede. Without it you get the old single-slot behaviour, and
+`save_scout` warns on stderr and sets `_collision` when it can see it is replacing a scout of a
+different venue. **Check the `_sync` on what it returns**
 (`state.SYNCED` / `LOCAL_ONLY` / `SYNC_FAILED`) and tell the user when it is not `synced` — a scout
 that only reached local disk is one the next agent and the other machine will never see, and until
 2026-09 that failure was silent. Two things the log still cannot tell you, so don't read an absence
 as proof: `season-outlook` and `scout-from-site` never write to it at all, and the key is
-`(opponent_tid, snapshot_label)`, so a second scout of the same opponent before the next import
-overwrites the first.
+`(opponent_tid, snapshot_label, fixture)` — pass `fixture` or the second scout of the same opponent
+before the next import still overwrites the first.
 
 ## Reading attributes: check the role weights before calling anything a weakness
 
@@ -255,12 +261,14 @@ and it is cheap — the FT screen already has everything needed.
   the next opponent otherwise.
 - Read the **per-player** columns for the specific claim the briefing made: if the plan was "attack
   their weak aerial full-back", check the aerial-duel counts, not just the scoreline.
-- **Write the grading with `db.grade_scout(opp_tid, result_note=..., result="W 2-0 (H)")`, NOT
-  `save_scout`.** A scout record has two halves: `note` is what we thought BEFORE the game and
+- **Write the grading with `db.grade_scout(opp_tid, result_note=..., result="W 2-0 (H)",
+  fixture=...)`, NOT `save_scout`.** A scout record has two halves: `note` is what we thought BEFORE the game and
   `result_note` is how that read graded afterwards, and the pairing is the entire reason the log is
   calibration rather than a pile of old opinions. `grade_scout` writes `result_note` / `result` /
-  `graded_at` and leaves `note` alone; it defaults to the most recent scout for that opponent, and
-  returns `None` if there is nothing saved to grade (say so rather than inventing a record). Check
+  `graded_at` and leaves `note` alone; name the `fixture` when the opponent has more than one scout
+  — it raises rather than guess which briefing your result belongs to, since a wrong guess writes
+  over a grading that was already right — and returns `None` if there is nothing saved to grade (say
+  so rather than inventing a record). Check
   its `_sync` like any other write. Grading through `save_scout` with the grading text in `note` is
   what destroyed the Lyngby, Midtjylland, OB and FCK briefings — the FCK one was recoverable, the
   other three are not.

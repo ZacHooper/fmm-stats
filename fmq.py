@@ -217,9 +217,10 @@ def cmd_scout(con, a):
     _print_scout(rep)
     if not a.no_save:
         rec = db.save_scout(rep, venue=a.venue, formation=a.formation, style=a.style,
-                            note=a.note)
-        ctx = " · ".join(x for x in (a.venue, a.formation, a.style) if x)
-        where = f"state/scouts/{db.scout_key(rec['opponent_tid'], rec['snapshot_label'])}.json"
+                            note=a.note, fixture=a.fixture)
+        ctx = " · ".join(x for x in (a.venue, a.fixture, a.formation, a.style) if x)
+        where = ("state/scouts/"
+                 f"{db.scout_key(rec['opponent_tid'], rec['snapshot_label'], a.fixture)}.json")
         synced = {db.state.SYNCED: " (synced to R2)",
                   db.state.LOCAL_ONLY: " (LOCAL ONLY — no R2 remote configured)",
                   db.state.SYNC_FAILED: " (⚠ LOCAL ONLY — the push to R2 FAILED)",
@@ -248,8 +249,8 @@ def cmd_scouts(con, a):
 
     for _, r in s.sort_values("saved_at").iterrows():
         ov, h = r.get("overall") or {}, r.get("h2h") or {}
-        ctx = " · ".join(x for x in map(_s, (r.get("venue"), r.get("formation"),
-                                             r.get("style"))) if x)
+        ctx = " · ".join(x for x in map(_s, (r.get("venue"), r.get("fixture"),
+                                             r.get("formation"), r.get("style"))) if x)
         head = f"\n  {str(r['saved_at'])[:16]}  {r['opponent']}  [{r.get('snapshot')}]"
         print(head + (f"  ({ctx})" if ctx else ""))
         bits = []
@@ -317,6 +318,9 @@ def main():
     p.add_argument("--method", default=None,
                    help="weight-set to rate them with (default: the career's configured tactic)")
     p.add_argument("--venue", help="H or A (recorded with the saved scout)")
+    p.add_argument("--fixture", help="match date, e.g. 2026-04-20 — distinguishes two scouts of "
+                                     "the same opponent between imports (without it, the second "
+                                     "replaces the first)")
     p.add_argument("--formation", help="their in-game formation, e.g. 'attacking 442'")
     p.add_argument("--style", help="their in-game style, e.g. attacking")
     p.add_argument("--note", help="free-text: our plan / key expectations")
