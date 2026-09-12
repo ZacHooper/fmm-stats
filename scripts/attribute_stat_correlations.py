@@ -36,12 +36,19 @@ POS_GROUP = {"GK": "GK",
              "ML": "Midfield", "MC": "Midfield", "MR": "Midfield",
              "AML": "Attack", "AMC": "Attack", "AMR": "Attack", "ST": "Attack", "FC": "Attack"}
 
-# The 18 outfield attributes (ATTR_ORDER minus the five keeper-only ones). Crossing belongs
-# here: it is weighted KEY on our wing-backs, so leaving it out left a hole in exactly the
-# role whose whole job is delivery.
-ATTRS = ["Tackling", "Positioning", "Decisions", "Aggression", "Teamwork", "Strength", "Aerial",
-         "Stamina", "Pace", "Agility", "Movement", "Technique", "Dribbling", "Creativity",
-         "Passing", "Shooting", "Crossing", "Leadership"]
+# All 23. The five keeper attributes are included so the GK unit can be measured, and they are
+# suppressed automatically wherever they carry no spread — see MIN_SD.
+from fmparser.attributes import ATTR_ORDER as ATTRS                            # noqa: E402
+
+# A predictor with almost no variance does not yield a reassuring zero: one stray value drives
+# the coefficient. Measured within outfield units, the 18 real attributes run sd 1.85-3.64 while
+# the five keeper ones run 0.56-1.14 (outfielders average 1.5-2.3 on them against a keeper's
+# 10-12). 1.5 sits in that gap and touches no real attribute. This also enforces, in code, the
+# restriction-of-range caveat in docs/agent-context/attribute-stat-correlations.md: a future
+# squad whose midfielders all sit between Shooting 8 and 12 blanks that cell instead of
+# reporting a misleading near-zero.
+MIN_SD = 1.5
+MIN_N = 12                                    # too few rows to correlate anything at all
 
 # counting stats -> per 90; the ratios are computed from their own numerator/denominator
 COUNTS = ["intercept", "tackW", "tackA", "keyPass", "assists", "goals", "shotA", "shotO",
@@ -94,7 +101,7 @@ def build(db, min_minutes, competition=None, who="us"):
     m = f.merge(snap[["person_id", "season"] + attrs], on=["person_id", "season"], how="inner")
     m = m[(m.mins >= min_minutes) & m.position.notna()].copy()
     m["grp"] = m.position.map(POS_GROUP)
-    m = m[m.grp != "GK"]                                 # keepers need their own stat set
+    m = m[m.grp.notna()]                                 # GK is a unit of its own, not dropped
 
     for c in COUNTS:
         m[c + "_90"] = 90 * m[c] / m.mins
@@ -103,20 +110,46 @@ def build(db, min_minutes, competition=None, who="us"):
     return m, attrs
 
 
+def cell(sub, stat, attr):
+    """One correlation, or None when there is not enough spread on either side to support one.
+
+    Both sides matter. A near-constant PREDICTOR invents a coefficient from one stray value; a
+    near-constant OUTCOME (keepers all score zero goals) makes the correlation undefined. Either
+    way the honest answer is a blank, not a number.
+    """
+    if len(sub) < MIN_N:
+        return None
+    if not sub[attr].std() or sub[attr].std() < MIN_SD:
+        return None
+    if not sub[stat].std():
+        return None
+    return sub[stat].corr(sub[attr])
+
+
 def table(m, attrs, stat, top):
     """Per-unit and unit-demeaned-pooled correlations of every attribute against one stat."""
     cols = {}
-    for g in ["Defence", "Midfield", "Attack"]:
+    for g in ["Defence", "Midfield", "Attack", "GK"]:
         s = m[(m.grp == g)].dropna(subset=[stat])
-        cols[f"{g} (n={len(s)})"] = {a: (s[stat].corr(s[a]) if len(s) > 2 and s[a].std() else None)
-                                     for a in attrs}
+        cols[f"{g} (n={len(s)})"] = {a: cell(s, stat, a) for a in attrs}
+    # Pool only over the units where this attribute actually varies. Without that, a keeper
+    # attribute pools outfielders' 1-2 jitter together with keepers' real 10-12 and reports a
+    # coefficient that is entirely the gap between the two groups.
     z = m.dropna(subset=[stat]).copy()
     for c in [stat] + attrs:                             # demean inside unit, then pool
         z[c] = z.groupby("grp")[c].transform(lambda v: v - v.mean())
-    cols[f"POOLED (n={len(z)})"] = {a: z[stat].corr(z[a]) for a in attrs}
+    pooled, pooled_n = {}, 0
+    for a in attrs:
+        keep = [g for g, sub in m.groupby("grp")
+                if len(sub.dropna(subset=[stat])) >= MIN_N and (sub[a].std() or 0) >= MIN_SD]
+        zz = z[z.grp.isin(keep)]
+        pooled[a] = cell(zz, stat, a) if keep else None
+        pooled_n = max(pooled_n, len(zz))
+    cols[f"POOLED (n<={pooled_n})"] = pooled
 
     d = pd.DataFrame(cols).round(2)
-    return d.reindex(d.iloc[:, -1].abs().sort_values(ascending=False).index).head(top)
+    order = d.iloc[:, -1].abs().fillna(-1).sort_values(ascending=False).index
+    return d.reindex(order).head(top)
 
 
 def main():
@@ -163,6 +196,11 @@ def main():
                   f"      +0.34 in the lower divisions and -0.32 in the Superliga. Pass\n"
                   f"      --competition '%<division>%' unless you specifically want the pooled read.\n"
                   f"      And cross-check with --who opponents before believing any single cut.")
+    print(f"  · = not measurable here: the attribute varies by less than sd {MIN_SD} in that "
+          f"unit, the outcome does not vary at all (keepers score no goals), or n < {MIN_N}.\n"
+          f"      A near-constant predictor invents a coefficient rather than reporting zero, so "
+          f"the cell is blanked.\n"
+          f"      POOLED is pooled only over the units where the attribute does vary, hence n<=.")
     stats = a.stat or [c + "_90" for c in COUNTS] + list(RATIOS) + ["rating"]
     rows = []
     for s in stats:
@@ -170,7 +208,7 @@ def main():
             print(f"  (skipping unknown stat {s})")
             continue
         d = table(m, attrs, s, a.top)
-        print(f"\n### {s}\n{d.to_string()}")
+        print(f"\n### {s}\n{d.fillna('·').to_string()}")
         long = d.reset_index(names="attribute").melt(id_vars="attribute", var_name="group", value_name="r")
         long.insert(0, "stat", s)
         rows.append(long)

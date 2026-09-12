@@ -96,7 +96,16 @@ whether an instruction does it more cheaply; that has been the right answer twic
 - **A near-zero coefficient may be restriction of range, not absence of effect.** Check the spread
   of the attribute within that unit before concluding it does not matter. Shooting looks irrelevant
   to midfield goals (r=.06) purely because every midfielder we have ever fielded sits between 8
-  and 12 — the analysis cannot see what a 16 would do.
+  and 12 — the analysis cannot see what a 16 would do. **The tool now enforces the extreme case
+  itself**: a cell whose predictor varies by less than `MIN_SD = 1.5` in that unit prints `·`
+  rather than a number, as does one whose outcome never varies. That is what keeps the five
+  keeper attributes — sd ~0.7 among outfielders against a real attribute's ~2.6 — from
+  manufacturing "Throwing +0.4 for strikers". It does not catch the milder cases, so keep
+  checking.
+- **Goalkeepers have their own unit, and a hard limit.** All 23 attributes are covered and the GK
+  unit has 59 player-seasons league-wide, but a keeper's match row holds passes and little else —
+  no saves, no clean sheets, no goals conceded. Measure his distribution and his rating; say
+  plainly that shot-stopping is not in the data.
 - **Re-run once a season** and keep the dated tables; the sample grows ~20 player-seasons a year
   and large coefficients on small n will shrink toward the middle.
 - **Correlation, not causation, and no controls.** Attributes are correlated with each other

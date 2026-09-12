@@ -54,7 +54,7 @@ CUTS = [
     ("opp_sl",     "Opponents · Superliga", "opponents", "%Superliga%", 180),
 ]
 
-UNITS = ["Defence", "Midfield", "Attack", "pooled"]
+UNITS = ["Defence", "Midfield", "Attack", "GK", "pooled"]
 
 # Statistic groups, so the explorer's picker isn't a flat list of 21.
 STAT_GROUPS = [
@@ -99,21 +99,39 @@ def build_frame(asc, db, who, competition, min_minutes):
     return pd.concat([ours, opp], ignore_index=True), attrs
 
 
-def correlations(frame, attrs, stat):
-    """{unit: {attr: r}} — inside each unit, plus a unit-demeaned pooled column."""
+def correlations(asc, frame, attrs, stat):
+    """{unit: {attr: r}} — inside each unit, plus a unit-demeaned pooled column.
+
+    Delegates every cell to `asc.cell`, so the Lab suppresses exactly what the CLI suppresses:
+    an attribute with no spread in that unit, an outcome with no spread at all, or too few rows.
+    """
     out = {}
-    for unit in ["Defence", "Midfield", "Attack"]:
+    for unit in ["Defence", "Midfield", "Attack", "GK"]:
         sub = frame[frame.grp == unit].dropna(subset=[stat])
-        out[unit] = ({a: _clean(round(sub[stat].corr(sub[a]), 3)) for a in attrs}
-                     if len(sub) > 2 else {a: None for a in attrs})
+        out[unit] = {a: _clean(_r3(asc.cell(sub, stat, a))) for a in attrs}
     z = frame.dropna(subset=[stat]).copy()
-    if len(z) > 2:
-        for c in [stat] + attrs:                       # demean inside unit, then pool
-            z[c] = z.groupby("grp")[c].transform(lambda v: v - v.mean())
-        out["pooled"] = {a: _clean(round(z[stat].corr(z[a]), 3)) for a in attrs}
-    else:
-        out["pooled"] = {a: None for a in attrs}
+    for c in [stat] + attrs:                           # demean inside unit, then pool
+        z[c] = z.groupby("grp")[c].transform(lambda v: v - v.mean())
+    pooled = {}
+    for a in attrs:                                    # pool only where the attribute varies
+        keep = [g for g, sub in frame.groupby("grp")
+                if len(sub.dropna(subset=[stat])) >= asc.MIN_N and (sub[a].std() or 0) >= asc.MIN_SD]
+        pooled[a] = _clean(_r3(asc.cell(z[z.grp.isin(keep)], stat, a))) if keep else None
+    out["pooled"] = pooled
     return out
+
+
+def spreads(asc, frame, attrs):
+    """{unit: {attr: sd}} — so the page can say WHY a cell is blank instead of just showing one."""
+    out = {}
+    for unit in ["Defence", "Midfield", "Attack", "GK"]:
+        sub = frame[frame.grp == unit]
+        out[unit] = {a: _clean(_r3(sub[a].std()) if len(sub) > 1 else None) for a in attrs}
+    return out
+
+
+def _r3(x):
+    return None if x is None or (isinstance(x, float) and not math.isfinite(x)) else round(x, 2)
 
 
 def main():
@@ -137,15 +155,16 @@ def main():
     season, phase = db.latest_snapshot()
 
     # ---- correlations, one block per cut -----------------------------------------------
-    cuts, corr = [], {}
+    cuts, corr, spread = [], {}, {}
     for cid, label, who, comp, mins in CUTS:
         frame, attrs = build_frame(asc, db, who, comp, mins)
         cuts.append({"id": cid, "label": label, "who": who, "min_minutes": mins,
                      "competition": comp or "all",
                      "n": len(frame),
                      "n_by_unit": {u: int((frame.grp == u).sum())
-                                   for u in ["Defence", "Midfield", "Attack"]}})
-        corr[cid] = {s: correlations(frame, attrs, s) for s, _ in STATS if s in frame.columns}
+                                   for u in ["Defence", "Midfield", "Attack", "GK"]}})
+        corr[cid] = {s: correlations(asc, frame, attrs, s) for s, _ in STATS if s in frame.columns}
+        spread[cid] = spreads(asc, frame, attrs)
         print(f"  {label:24s} n={len(frame):<4} {cuts[-1]['n_by_unit']}")
 
     # ---- our current squad --------------------------------------------------------------
@@ -219,7 +238,8 @@ def main():
                        for g, ss in STAT_GROUPS],
         "outcomes": [{"id": i, "label": l, "stats": ss} for i, l, ss in OUTCOMES],
         "units": UNITS,
-        "cuts": cuts, "corr": corr,
+        "cuts": cuts, "corr": corr, "spread": spread,
+        "minSd": asc.MIN_SD, "minN": asc.MIN_N,
         "methods": methods, "posRole": pos_role, "fam": fam,
         "squad": players, "scoreSet": score_set,
     }

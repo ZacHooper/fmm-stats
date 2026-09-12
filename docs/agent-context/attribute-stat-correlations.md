@@ -20,9 +20,39 @@ which also carries a workbench for rebuilding a role's attribute weights from th
 (`scripts/export_attribute_lab.py` builds its data; `scripts/import_weight_set.py` brings a
 weight-set back into the store).
 
-**Crossing joined the attribute list on 2026-09-12** — it had been missing, which left a hole in
-exactly the role whose job is delivery, since it is weighted KEY on our wing-backs. Figures below
-that predate the re-run do not include it.
+**All 23 attributes are covered as of 2026-09-12**, and there is now a GK unit. Two rules make
+that safe; figures below that predate the re-run do not reflect them.
+
+### Blank cells are a feature: the sd floor
+
+A predictor with almost no variance does not yield a reassuring zero — one stray value drives the
+coefficient. Standard deviation within outfield units:
+
+| | min | median | max |
+|---|---|---|---|
+| The 18 real attributes | 1.85 | 2.64 | 3.64 |
+| The 5 keeper attributes | 0.56 | 0.72 | 1.14 |
+
+No overlap: outfielders average 1.5–2.3 on Handling/Reflexes/Throwing against a real keeper's
+10–12. So `attribute_stat_correlations.py` **blanks any cell whose predictor varies by less than
+`MIN_SD = 1.5` in that unit**, blanks any cell whose *outcome* never varies (keepers score no
+goals), and pools only over the units where the attribute does vary. Without the last rule a
+keeper attribute pools outfielders' 1–2 jitter with keepers' real 10–12 and reports a coefficient
+that is nothing but the gap between the two groups.
+
+This is the **restriction-of-range** caveat below, finally enforced in code rather than left to
+whoever is reading. If a future squad's midfielders all sit between Shooting 8 and 12, that cell
+blanks itself.
+
+### The GK unit, and what it cannot tell you
+
+GK player-seasons: **league/all 59, league/Superliga 22, us/all 7, us/Superliga 2** — usable in
+the league cuts, not in ours. But a keeper's match row holds `passA ≈ 21.7`, `intercept ≈ 0.47`
+and essentially nothing else: **no saves, no clean sheets, no goals conceded**. So the unit
+answers "does Kicking predict his distribution" and "what predicts his match rating", and
+**nothing about shot-stopping**. One result worth having already: **Kicking → pass completion %
+is −0.24 for keepers** — the better kickers get asked to hit longer passes, which complete less
+often.
 
 Method and traps: the [`attribute-profiles`](../../.claude/skills/attribute-profiles/SKILL.md)
 skill. One row per (player, season) with **that season's** attributes; correlations computed
