@@ -9,6 +9,24 @@ description: Measure how a player's ATTRIBUTES drive his on-pitch STATS — whic
 good a player is; this says how he behaves. Use it when the question is about a **behaviour**
 (win the ball high, create chances, hit the target, give it away) rather than about quality.
 
+## There is a dashboard for this — offer it
+[**The Attribute Lab**](https://claude.ai/code/artifact/bae40c5f-a50a-485b-b4be-3d2735e2a5f5) is
+the explorable version: every statistic against every attribute, per unit, across the four
+measurements — plus a workbench for rewriting a role's weights with the measured evidence beside
+each slider, the squad re-ranking live underneath, and outcome presets ("build this role to win
+it back / create / finish") that derive weights from the correlations instead of from taste.
+
+Rebuild its data after an import, and re-verify the arithmetic, then republish the page:
+```bash
+uv run python scripts/export_attribute_lab.py                    # -> site-data/lab.json
+uv run python scripts/check_rating_parity.py site-data/lab.json  # must PASS
+```
+`check_rating_parity.py` asserts the page computes `base_rating`/`eff` identically to
+`mart.player_position_fit`. CLAUDE.md requires that equality and, until this was written, no
+committed test enforced it. **A weight-set built in the Lab** comes back via
+`scripts/import_weight_set.py` (writes `state/weights/<name>.json`, which syncs to R2; `--promote`
+makes it a real method in `staging.role_weights`).
+
 ## Run the tool, don't hand-roll it
 `scripts/attribute_stat_correlations.py` is the validated implementation. It already handles every
 trap below.
@@ -54,24 +72,47 @@ column is probably a player.
 
 **5. Filter to the division. Standard changes what an attribute buys.** Frem has climbed from
 3. Division to the Superliga, so an unfiltered run pools four standards. Interceptions, pooled:
-Aggression is **+0.45 in the lower divisions and −0.06 in the Superliga**; Tackling goes the other
-way, **.25 → .74**. Only Positioning is stable (.51 → .65). The all-competitions Aggression figure
-of +0.27 is a mixing artefact and was quoted at a Superliga squad before this was checked. The tool
-warns when you pool; pass `--competition '%Superliga%'`. Lower `--min-minutes` to ~360 to keep the
+Aggression runs **+0.34 in the lower divisions and −0.32 in the Superliga**; Strength **+.40 → +.02**.
+Positioning stays positive in both (.45 / .22) and so does Tackling (.19 / .47). The tool warns when you pool; pass `--competition '%Superliga%'`. Lower `--min-minutes` to ~360 to keep the
 sample usable when you narrow it, and say the n.
 
-**4. This is description under OUR instructions, not physics.** Every row is our players playing
-our tactic. A **team instruction moves a whole column at once and is invisible here** — `Work Into
-Box` changed the squad's SOT rate from 36% to 47-67% without changing anybody's attributes. So
-before recommending personnel for an effect, ask whether an instruction does it more cheaply.
-That has been the right answer twice: shot quality (`Work Into Box`) and press intensity
-(closing down). See [`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md).
+**4. This is description under OUR instructions, not physics — so check it against `--who
+opponents`.** Every "us" row is our players playing our tactic. A **team instruction moves a whole
+column at once and is invisible here** — `Work Into Box` changed the squad's SOT rate from 36% to
+47-67% without changing anybody's attributes. So before recommending personnel for an effect, ask
+whether an instruction does it more cheaply; that has been the right answer twice, for shot quality
+(`Work Into Box`) and press intensity (closing down). See
+[`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md).
+
+  **`--who opponents` is the fix for this trap**, and should be run for any finding you intend to
+  act on. It is the same analysis over the players we have faced — 287 player-seasons from 57 clubs
+  under 57 managers — so an effect that survives there belongs to the game rather than to our
+  tactic. Its coefficients attenuate (we only see an opponent in the 2-4 games he plays us, so each
+  observation is a few matches of noise): **compare signs and rank order, never magnitudes**.
+  Aerial→headers survives at .52 against our .64-.79; Aggression→interceptions does not survive at
+  all, and neither does anything for tackle success % or cross completion %.
 
 ## Reading a result honestly
 - **A near-zero coefficient may be restriction of range, not absence of effect.** Check the spread
   of the attribute within that unit before concluding it does not matter. Shooting looks irrelevant
   to midfield goals (r=.06) purely because every midfielder we have ever fielded sits between 8
-  and 12 — the analysis cannot see what a 16 would do.
+  and 12 — the analysis cannot see what a 16 would do. **The tool now enforces the extreme case
+  itself**: a cell whose predictor varies by less than `MIN_SD = 1.5` in that unit prints `·`
+  rather than a number, as does one whose outcome never varies. That is what keeps the five
+  keeper attributes — sd ~0.7 among outfielders against a real attribute's ~2.6 — from
+  manufacturing "Throwing +0.4 for strikers". It does not catch the milder cases, so keep
+  checking.
+- **Read the position, not just the unit — then check one against the other.** The three outfield
+  units average away opposite effects: Pace against match rating is +0.21 for the whole Attack
+  unit, +0.49 at ST and −0.19 at AMC, and the Defence unit's +0.06 is really "what pace does for a
+  centre-back" because 111 of its ~199 rows are centre-backs. `lab.json` carries per-position
+  correlations under `@<POS>` keys wherever the cut has the sample. They are the sharpest and the
+  thinnest read at once — 20-110 player-seasons, usually visible in one cut only — so treat one as
+  a direction and corroborate it against the unit.
+- **Goalkeepers have their own unit, and a hard limit.** All 23 attributes are covered and the GK
+  unit has 59 player-seasons league-wide, but a keeper's match row holds passes and little else —
+  no saves, no clean sheets, no goals conceded. Measure his distribution and his rating; say
+  plainly that shot-stopping is not in the data.
 - **Re-run once a season** and keep the dated tables; the sample grows ~20 player-seasons a year
   and large coefficients on small n will shrink toward the middle.
 - **Correlation, not causation, and no controls.** Attributes are correlated with each other

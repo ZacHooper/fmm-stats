@@ -29,13 +29,26 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# match_player_facts.unit is finer-grained than we have sample for; collapse to three outfield groups.
-BUCKET = {"Defenders": "Defence", "Defensive midfield": "Midfield", "Midfield": "Midfield",
-          "Attacking midfield": "Attack", "Forwards": "Attack", "GK": "GK"}
+# Collapse the 14 positions to three outfield groups — no squad has the sample for finer.
+POS_GROUP = {"GK": "GK",
+             "DL": "Defence", "DC": "Defence", "DR": "Defence",
+             "DML": "Midfield", "DMC": "Midfield", "DMR": "Midfield",
+             "ML": "Midfield", "MC": "Midfield", "MR": "Midfield",
+             "AML": "Attack", "AMC": "Attack", "AMR": "Attack", "ST": "Attack", "FC": "Attack"}
 
-ATTRS = ["Tackling", "Positioning", "Decisions", "Aggression", "Teamwork", "Strength", "Aerial",
-         "Stamina", "Pace", "Agility", "Movement", "Technique", "Dribbling", "Creativity",
-         "Passing", "Shooting", "Leadership"]
+# All 23. The five keeper attributes are included so the GK unit can be measured, and they are
+# suppressed automatically wherever they carry no spread — see MIN_SD.
+from fmparser.attributes import ATTR_ORDER as ATTRS                            # noqa: E402
+
+# A predictor with almost no variance does not yield a reassuring zero: one stray value drives
+# the coefficient. Measured within outfield units, the 18 real attributes run sd 1.85-3.64 while
+# the five keeper ones run 0.56-1.14 (outfielders average 1.5-2.3 on them against a keeper's
+# 10-12). 1.5 sits in that gap and touches no real attribute. This also enforces, in code, the
+# restriction-of-range caveat in docs/agent-context/attribute-stat-correlations.md: a future
+# squad whose midfielders all sit between Shooting 8 and 12 blanks that cell instead of
+# reporting a misleading near-zero.
+MIN_SD = 1.5
+MIN_N = 12                                    # too few rows to correlate anything at all
 
 # counting stats -> per 90; the ratios are computed from their own numerator/denominator
 COUNTS = ["intercept", "tackW", "tackA", "keyPass", "assists", "goals", "shotA", "shotO",
@@ -45,21 +58,48 @@ RATIOS = {"pass_pct": ("passC", "passA"), "sot_pct": ("shotO", "shotA"),
           "cross_pct": ("crossC", "crossA")}
 
 
-def build(db, min_minutes, competition=None):
+def build(db, min_minutes, competition=None, who="us"):
     """One row per (person_id, season): minutes + stat totals + that season's attributes.
 
     `competition` is a SQL ILIKE pattern (e.g. "%Superliga%"). Our club has played in four
-    different divisions, so an unfiltered run pools 3. Division minutes with top-flight ones."""
+    different divisions, so an unfiltered run pools 3. Division minutes with top-flight ones.
+
+    `who="opponents"` runs the same analysis on the players we have played AGAINST. That is the
+    out-of-sample check: our own players all play under OUR instructions, opponents play under 57
+    different clubs'. An effect that survives there is a property of the game, not of our tactic.
+    Two things differ, and both matter when reading the result:
+      * we only see an opponent in the 2-4 games he plays against us, so each observation is a
+        handful of matches of noise and every correlation is ATTENUATED toward zero — compare
+        signs and rank order with the `us` run, never magnitudes;
+      * `match_player_facts.unit`/`position` are NULL for opponents (the mart only positions our
+        own squad), so positions come from `mart.player_position_levels`, which covers every club.
+    """
     # mart.match_player_facts is already deduped to one phase per season — never aggregate
     # staging.match_player_stats here, it is a ring buffer and stores a match up to 5 times.
     agg = ", ".join(f"SUM({c}) {c}" for c in COUNTS)
-    f = db.q(f"""SELECT person_id, season, any_value(unit) unit, any_value("position") AS pos,
-                        SUM(minutes) mins, {agg}, AVG(rating) rating
+    side = ("team_tid IN (SELECT club_tid FROM mart.managed_club)" if who == "us"
+            else "team_tid NOT IN (SELECT club_tid FROM mart.our_clubs)")
+    comp = ("AND competition ILIKE '" + competition.replace("'", "''") + "'") if competition else ""
+    f = db.q(f"""SELECT person_id, season, SUM(minutes) mins, {agg}, AVG(rating) rating
                  FROM mart.match_player_facts
-                 WHERE team_tid IN (SELECT club_tid FROM mart.managed_club)
-                   AND is_competitive AND minutes > 0
-                   {"AND competition ILIKE '" + competition.replace("'", "''") + "'" if competition else ""}
-                 GROUP BY person_id, season""")          # "position" is a DuckDB reserved word
+                 WHERE {side} AND is_competitive AND minutes > 0 {comp}
+                 GROUP BY person_id, season""")
+
+    # Positions from player_position_levels, which names every club — match_player_facts.position
+    # is NULL for opponents. Primary position = highest familiarity in that season.
+    #
+    # The trailing `"position"` in the ORDER BY is a DETERMINISM fix, not a preference. 6,148
+    # (person, season) pairs are equally familiar at two positions in the same snapshot, and
+    # without a final tiebreaker DuckDB's parallel ROW_NUMBER resolves them differently run to
+    # run: n drifted (CB 111 or 112, ST 39 or 40) and coefficients moved in the second decimal
+    # with nothing about the data changing. Alphabetical is arbitrary — the point is that it is
+    # the SAME arbitrary choice every time, so a figure quoted in the docs can be reproduced.
+    pos = db.q("""SELECT person_id, season, "position",
+                         ROW_NUMBER() OVER (PARTITION BY person_id, season
+                                            ORDER BY familiarity DESC, snap_ix DESC,
+                                                     "position") rn
+                  FROM mart.player_position_levels""")   # "position" is a DuckDB reserved word
+    f = f.merge(pos[pos.rn == 1][["person_id", "season", "position"]], on=["person_id", "season"])
 
     snap = db.q("SELECT * FROM mart.player_snapshots")
     snap["_k"] = snap.phase.map(db.phase_key)            # phase is a DATE; never sort it as text
@@ -67,9 +107,9 @@ def build(db, min_minutes, competition=None):
 
     attrs = [a for a in ATTRS if a in snap.columns]
     m = f.merge(snap[["person_id", "season"] + attrs], on=["person_id", "season"], how="inner")
-    m = m[(m.mins >= min_minutes) & m.unit.notna()].copy()
-    m["grp"] = m.unit.map(BUCKET)
-    m = m[m.grp != "GK"]                                 # keepers need their own stat set
+    m = m[(m.mins >= min_minutes) & m.position.notna()].copy()
+    m["grp"] = m.position.map(POS_GROUP)
+    m = m[m.grp.notna()]                                 # GK is a unit of its own, not dropped
 
     for c in COUNTS:
         m[c + "_90"] = 90 * m[c] / m.mins
@@ -78,20 +118,46 @@ def build(db, min_minutes, competition=None):
     return m, attrs
 
 
+def cell(sub, stat, attr):
+    """One correlation, or None when there is not enough spread on either side to support one.
+
+    Both sides matter. A near-constant PREDICTOR invents a coefficient from one stray value; a
+    near-constant OUTCOME (keepers all score zero goals) makes the correlation undefined. Either
+    way the honest answer is a blank, not a number.
+    """
+    if len(sub) < MIN_N:
+        return None
+    if not sub[attr].std() or sub[attr].std() < MIN_SD:
+        return None
+    if not sub[stat].std():
+        return None
+    return sub[stat].corr(sub[attr])
+
+
 def table(m, attrs, stat, top):
     """Per-unit and unit-demeaned-pooled correlations of every attribute against one stat."""
     cols = {}
-    for g in ["Defence", "Midfield", "Attack"]:
+    for g in ["Defence", "Midfield", "Attack", "GK"]:
         s = m[(m.grp == g)].dropna(subset=[stat])
-        cols[f"{g} (n={len(s)})"] = {a: (s[stat].corr(s[a]) if len(s) > 2 and s[a].std() else None)
-                                     for a in attrs}
+        cols[f"{g} (n={len(s)})"] = {a: cell(s, stat, a) for a in attrs}
+    # Pool only over the units where this attribute actually varies. Without that, a keeper
+    # attribute pools outfielders' 1-2 jitter together with keepers' real 10-12 and reports a
+    # coefficient that is entirely the gap between the two groups.
     z = m.dropna(subset=[stat]).copy()
     for c in [stat] + attrs:                             # demean inside unit, then pool
         z[c] = z.groupby("grp")[c].transform(lambda v: v - v.mean())
-    cols[f"POOLED (n={len(z)})"] = {a: z[stat].corr(z[a]) for a in attrs}
+    pooled, pooled_n = {}, 0
+    for a in attrs:
+        keep = [g for g, sub in m.groupby("grp")
+                if len(sub.dropna(subset=[stat])) >= MIN_N and (sub[a].std() or 0) >= MIN_SD]
+        zz = z[z.grp.isin(keep)]
+        pooled[a] = cell(zz, stat, a) if keep else None
+        pooled_n = max(pooled_n, len(zz))
+    cols[f"POOLED (n<={pooled_n})"] = pooled
 
     d = pd.DataFrame(cols).round(2)
-    return d.reindex(d.iloc[:, -1].abs().sort_values(ascending=False).index).head(top)
+    order = d.iloc[:, -1].abs().fillna(-1).sort_values(ascending=False).index
+    return d.reindex(order).head(top)
 
 
 def main():
@@ -100,6 +166,11 @@ def main():
     p.add_argument("--career", default=os.environ.get("FM_CAREER", "frem"))
     p.add_argument("--db", help="path to the store (default: db.py's resolved path)")
     p.add_argument("--stat", action="append", help="repeatable; default = all")
+    p.add_argument("--who", choices=["us", "opponents"], default="us",
+                   help="'opponents' runs the same analysis on players we have faced — the "
+                        "out-of-sample check, since they play under 57 other managers' "
+                        "instructions. Their per-observation samples are small, so correlations "
+                        "attenuate: compare signs, not magnitudes.")
     p.add_argument("--competition", help="SQL ILIKE pattern, e.g. '%Superliga%' — our club has "
                    "played four different divisions, so pooling them mixes standards")
     p.add_argument("--min-minutes", type=int, default=450,
@@ -114,20 +185,30 @@ def main():
     os.environ.setdefault("FM_DUCKDB_READONLY", "1")
     from dashboard import db
 
-    m, attrs = build(db, a.min_minutes, a.competition)
-    print(f"{len(m)} player-seasons at >= {a.min_minutes} minutes"
+    m, attrs = build(db, a.min_minutes, a.competition, a.who)
+    print(f"{len(m)} {'OPPONENT ' if a.who == 'opponents' else ''}player-seasons "
+          f"at >= {a.min_minutes} minutes"
           + (f" in {a.competition}" if a.competition else " (ALL competitions/divisions pooled)") + "  |  "
           + ", ".join(f"{k} {v}" for k, v in m.grp.value_counts().items()))
 
+    if a.who == "opponents" and a.min_minutes > 270:
+        print("  ⚠️  we only see an opponent in the 2-4 games he plays us; >270 minutes leaves "
+              "almost nobody.\n      Use --min-minutes 180 and read signs, not magnitudes.")
     if not a.competition:
         comps = db.q("""SELECT DISTINCT competition FROM mart.match_player_facts
                         WHERE team_tid IN (SELECT club_tid FROM mart.managed_club)
                           AND is_competitive AND competition NOT ILIKE '%Pokal%'""").competition.tolist()
         if len(comps) > 1:
             print(f"  ⚠️  pooling {len(comps)} different divisions ({', '.join(sorted(comps))}).\n"
-                  f"      Standard changes what an attribute buys — Aggression drives interceptions\n"
-                  f"      at +0.45 in the lower divisions and +/-0 in the Superliga. Pass\n"
-                  f"      --competition '%<division>%' unless you specifically want the pooled read.")
+                  f"      Standard changes what an attribute buys — Aggression on interceptions runs\n"
+                  f"      +0.34 in the lower divisions and -0.32 in the Superliga. Pass\n"
+                  f"      --competition '%<division>%' unless you specifically want the pooled read.\n"
+                  f"      And cross-check with --who opponents before believing any single cut.")
+    print(f"  · = not measurable here: the attribute varies by less than sd {MIN_SD} in that "
+          f"unit, the outcome does not vary at all (keepers score no goals), or n < {MIN_N}.\n"
+          f"      A near-constant predictor invents a coefficient rather than reporting zero, so "
+          f"the cell is blanked.\n"
+          f"      POOLED is pooled only over the units where the attribute does vary, hence n<=.")
     stats = a.stat or [c + "_90" for c in COUNTS] + list(RATIOS) + ["rating"]
     rows = []
     for s in stats:
@@ -135,7 +216,7 @@ def main():
             print(f"  (skipping unknown stat {s})")
             continue
         d = table(m, attrs, s, a.top)
-        print(f"\n### {s}\n{d.to_string()}")
+        print(f"\n### {s}\n{d.fillna('·').to_string()}")
         long = d.reset_index(names="attribute").melt(id_vars="attribute", var_name="group", value_name="r")
         long.insert(0, "stat", s)
         rows.append(long)
