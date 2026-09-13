@@ -40,8 +40,13 @@ SNAPSHOT_LO, SNAPSHOT_HI = 62_300_000, 63_200_000
 MATCH_LO = 55_000_000
 # light results (simulated non-managed games): [home][away][sH][sA]..[flags 0x40xx].[cid]
 LIGHT_LO, LIGHT_HI = 47_000_000, 50_500_000
-# player contract records ([TID][UID]..0x0087 marker..status byte); keyed by TID+UID
-CONTRACT_LO, CONTRACT_HI = 54_000_000, 58_000_000
+# NOTE: the player contract-STATUS window that used to live here
+# (CONTRACT_LO/CONTRACT_HI = 54M-58M) is GONE, not merely unused. It was cut for Bucaspor,
+# where it was flawless, and was simply the wrong place on Frem — that career's section runs
+# ~50-60 MB, so the window opened ~4 MB late and the two oldest Frem snapshots decoded ZERO
+# of ~25,500 records. staging.scrape_contract_status scans the whole file instead; it needs
+# no window because every hit must match both the tid AND the uid from the info spine, and
+# the full scan costs 0.1s. See docs/agent-context/parser-hardcoded-anchor-audit.md.
 # player contract DETAIL records — a separate section from the 0x87 status records above.
 # Layout: [tid u32][0x01][wage u16 = £/yr÷~520][zeros][expiry day-of-year u16][expiry year u16].
 # Wage validated £15.5K–£17.75M (±2%); expiry is a full date (DOB-style day+year). Frem's records

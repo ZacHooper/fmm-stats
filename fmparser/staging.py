@@ -15,8 +15,8 @@ from datetime import date, timedelta
 
 from . import reference as R
 from .attributes import _valid_positions, ATTR_OFFSETS, POSITIONS
-from .regions import (ATTR_LO, ATTR_HI, CONTRACT_LO, CONTRACT_HI,
-                      CONTRACTREC_LO, CONTRACTREC_HI, WAGE_GBP_PER_UNIT)
+from .regions import (ATTR_LO, ATTR_HI, CONTRACTREC_LO, CONTRACTREC_HI,
+                      WAGE_GBP_PER_UNIT)
 
 # free agents / unattached carry this sentinel club id
 NO_CLUB = 65535
@@ -178,7 +178,7 @@ def scrape_contract_status(mm, info, lo=None, hi=None):
     """{tid: squad_status_code} from the contract records. Each record is keyed by
     [TID:u32][UID:u32]; a 0x0087 marker sits at TID+37 and the status byte at TID+39.
 
-    SCANS THE WHOLE FILE by default. It used to scan CONTRACT_LO..CONTRACT_HI (54-58 MB),
+    SCANS THE WHOLE FILE by default. It used to scan a 54-58 MB window (regions.py),
     which was measured on Bucaspor and is simply the wrong place on Frem — the section runs
     ~50-60 MB there, so the window opened ~4 MB after it started and threw away everything
     before that. Measured cost of the constant: frem-2021-07-01 and frem-2023-07-01 found
