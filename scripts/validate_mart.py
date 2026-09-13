@@ -553,6 +553,7 @@ def main():
                      ("leagues", "season, phase, cid"),
                      ("player_snapshots", "season, phase, tid"),
                      ("player_position_levels", "season, phase, tid, position"),
+                     ("player_origin_base", "season, phase, tid"),
                      ("player_origin", "season, phase, tid"),
                      ("club_matches", "season, phase, anchor, club_tid")]:
         dup = con.execute(f"""
@@ -646,6 +647,51 @@ def main():
                            ).fetchone()[0]
     check("the 0xFFFF 'no origin' sentinel is not treated as a club", sentinel == 0,
           f"{sentinel} row(s)")
+
+    # The academy -> club link is ARITHMETIC (youth_tid = 65535 - club_tid), so it is checkable
+    # rather than merely plausible. If this ever fails, the id space has changed and every
+    # downstream homegrown/eligibility answer is suspect.
+    off_rule = con.execute("""
+        SELECT COUNT(*) FROM mart.youth_clubs
+        WHERE season = ? AND phase = ? AND club_tid <> 65535 - youth_tid""", [S, P]).fetchone()[0]
+    check("every academy is the u16 complement of its club (65535 - tid)", off_rule == 0,
+          f"{off_rule} row(s) break the rule")
+
+    both = con.execute("""
+        SELECT COUNT(*) FROM mart.youth_clubs y JOIN mart.clubs c
+          ON (c.season, c.phase, c.club_tid) = (y.season, y.phase, y.youth_tid)
+        WHERE y.season = ? AND y.phase = ?""", [S, P]).fetchone()[0]
+    check("no tid is both a club and an academy", both == 0, f"{both} collision(s)")
+
+    # A parent that is itself unmapped is a tid no allow-list can match. Checked against
+    # mart.clubs in the same snapshot, because a tid is a recycled slot.
+    unmapped = con.execute("""
+        SELECT COUNT(*) FROM mart.youth_clubs y
+        WHERE y.season = ? AND y.phase = ?
+          AND NOT EXISTS (SELECT 1 FROM mart.clubs c
+                          WHERE (c.season, c.phase, c.club_tid) = (y.season, y.phase, y.club_tid))
+    """, [S, P]).fetchone()[0]
+    check("every academy resolves to a club that actually exists", unmapped == 0,
+          f"{unmapped} academy/academies map to an unmapped tid")
+
+    # The academy resolution may only ADD eligible players. If a player was eligible on his raw
+    # origin tid he must stay eligible once that tid is resolved, or the resolution has moved a
+    # senior club onto something else.
+    lost = con.execute(f"""
+        SELECT COUNT(*) FROM mart.player_origin o
+        WHERE o.season = ? AND o.phase = ? AND NOT o.eligible AND o.confidence <> 'low'
+          AND o.origin_club_tid IN (SELECT club_tid FROM {src}.eligible_origin_clubs)
+    """, [S, P]).fetchone()[0]
+    check("resolving academies never REMOVES capital eligibility", lost == 0,
+          f"{lost} player(s) lost it")
+
+    academy_rows, resolved = con.execute("""
+        SELECT COUNT(*), COUNT(*) FILTER (WHERE origin_parent_tid <> origin_club_tid)
+        FROM mart.player_origin
+        WHERE season = ? AND phase = ? AND via_academy""", [S, P]).fetchone()
+    check("academy-origin players are resolved to a parent club",
+          academy_rows > 0 and academy_rows == resolved,
+          f"{resolved}/{academy_rows} resolved")
 
     inferred = con.execute("""
         SELECT COUNT(*) FROM mart.club_nations

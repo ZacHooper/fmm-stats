@@ -133,6 +133,7 @@ SCOPE = {
     # is for.
     "player_snapshots": NEWEST_ONLY,
     "player_position_levels": NEWEST_ONLY,
+    "player_origin_base": NEWEST_ONLY,
     "player_origin": NEWEST_ONLY,
     "player_career_seasons": NEWEST_ONLY,
     # Same reasoning for the registration family: "is he home grown" is a question about now,
