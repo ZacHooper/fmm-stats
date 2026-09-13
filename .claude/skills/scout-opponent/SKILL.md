@@ -161,13 +161,20 @@ Everything below is parameterised off the active career — pull these from `db`
   their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for neither shape nor names:** across eight checks the names have been wrong
-  **3, 3, 4, 4, 6, 7, 4 and 3 out of 11**, and the shape, which held on the first six, has now broken
-  on both of the last two — FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, and AC
+  XI for neither shape nor names:** across nine checks the names have been wrong
+  **3, 3, 4, 4, 6, 7, 4, 3 and 3 out of 11**, and the shape, which held on the first six, has now broken
+  on three of the last three — FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, and AC
   Horsens were predicted in a 3-5-2 and played a 4-2-3-1 with their entire predicted midfield three
   absent. A low name-error count is not the reassurance it looks like: 8 of Horsens' 11 predicted men
   played, but only three in the predicted slot, and the back three became a back four with a
   centre-back at MC. **Count slots, not names.**
+  Lyngby away (2026-04-25) is the cleanest demonstration yet and the reason this is stated as a rule
+  rather than a caution: **8 of 11 names right, only 3 of 11 slots** — Jørgensen moved DC→DR, Deters
+  AMC→AMR, Eisfeld AML→AMC and Çorlu AMR→FC, so a 73% name accuracy concealed a 27% slot accuracy and
+  a completely different front four. Çorlu's move was the one the briefing could have predicted and
+  half did: `player_position_levels` already had **ST as his best slot** (82.3 nation) against the
+  AMR the screen gave him. **When a predicted man's best slot in our data differs from the slot the
+  screen assigns him, say so — that is a cheap, checkable signal and it fired correctly here.**
   On the 7/11 occasion only four predicted names appeared and two of those played different slots; the
   goalkeeper the screen named was on the bench and the one who actually played was the opponent's
   best, which alone invalidated the briefing's chosen route to goal. Twice the wrong names were the players
@@ -191,7 +198,12 @@ Everything below is parameterised off the active career — pull these from `db`
   Ólafsson start at centre-back (rated 7, 6 interceptions) with Malte Kiilerich off the bench. On
   `level_nation` the two of them read 79.9 and 83.0 against three *predicted starters* at 71.7, 74.6
   and 75.8. The question is never "is this reserve as good as their best" — it is "is he better than
-  the worst man they are expected to pick". Two traps come with it: **`level_league` is a percentile against that player's OWN
+  the worst man they are expected to pick". **Done right, it pays: at Lyngby away the reserve check
+  named Niko Datkovic (79.9 nation) as beating predicted starter Andreas Maxsø (75.7) into the XI —
+  and he started at centre-back.** The briefing also got a bonus read out of it that a bare
+  "he might start" would have missed: Datkovic is Pace 7 / Movement 7, so his selection made the
+  opponent back line *slower* and the in-behind route better, not worse. **Profile the reserve, don't
+  just rank him.** Two traps come with it: **`level_league` is a percentile against that player's OWN
   league**, so a reserve-listed player reads 100 %ile against reserve-league peers and is not
   comparable to a first-teamer's Superliga number — rank cross-league candidates on `level_nation` /
   `level_global` instead (the same man: league 100, nation 92.3, global 84.3). And a name on the
