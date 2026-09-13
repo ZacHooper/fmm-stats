@@ -41,30 +41,56 @@ export async function view() {
     return teamPools.get(pos);
   };
 
+  // Position narrows further than Unit — "how deep are we at DR specifically" rather than
+  // "how's the back line" — and the two filters stack. Declared up here because it doesn't just
+  // hide rows: every rating-shaped column is READ AT the filtered position (see scopeRow), so a
+  // row has to know the filter to build itself.
+  let pos = "all";
+
+  /**
+   * Point a row at the role it should describe: the one at the filtered position, or his overall
+   * best when Position isn't filtered (unchanged from before this existed). Everything derived
+   * from a role travels with it — Fam, Rating, Base, Fit, Squad Rank, Level and the growth pair
+   * are all "at that position" numbers, and leaving any of them on the best role would put two
+   * different positions side by side in one row. A row that can't play the filtered position
+   * keeps his best role; the table filter has already dropped him.
+   */
+  function scopeRow(row) {
+    let r = null;
+    if (pos !== "all") for (const q of row.roles) if (q.pos === pos && (!r || q.eff > r.eff)) r = q;
+    r = r || row.roles[0];
+    const teamPool = teamPoolFor(r.pos);
+    row.r = r;
+    row.growth = D.growth(row.tid, r.role, method);
+    row.traj = D.trajectory(row.tid, r.role, method);
+    row.fit = D.pctile(poolFor(r.pos), r.eff);
+    row.teamRank = D.rankIn(teamPool, r.eff);
+    row.teamPoolSize = teamPool.length;
+    return row;
+  }
+
   // Shared by squad members and shortlist entries alike, so a shortlisted player slots into
   // exactly the same row shape and every column, filter and the compare picker just work on him
   // — no separate "compare a shortlist player" path to keep in sync with this one.
   function buildRow(p, extra = {}) {
-    const best = D.bestRole(p, method, minFam);
-    if (!best) return null;
-    const g = D.growth(p.tid, best.role, method);
-    const traj = D.trajectory(p.tid, best.role, method);
+    // Every listed position rated, best-first — bestRole() is just its [0], so holding the whole
+    // list costs nothing extra and is what lets the row re-scope to a Position filter.
+    const roles = D.playerRoles(p, method).filter((r) => r.fam >= minFam);
+    if (!roles.length) return null;
     const status = extra.status ?? (D.S.ours.status?.[String(p.tid)] || DASH);
-    const teamPool = teamPoolFor(best.pos);
-    return {
-      tid: p.tid, player: p, r: best, growth: g, traj,
+    return scopeRow({
+      tid: p.tid, player: p, roles,
       age: D.age(p.dob),
       status,
       loanedIn: loanedIn.has(p.tid),
       origin: D.S.ours.origin?.[String(p.tid)] || null,
       capital: (D.S.ours.capital_eligible || []).includes(p.tid),
-      fit: D.pctile(poolFor(best.pos), best.eff),
-      teamRank: D.rankIn(teamPool, best.eff),
-      teamPoolSize: teamPool.length,
-      alsoRoles: D.playerRoles(p, method).map((x) => x.role).filter((x, i, a) => a.indexOf(x) === i),
+      alsoRoles: roles.map((x) => x.role).filter((x, i, a) => a.indexOf(x) === i),
       shortlist: !!extra.shortlist,
-      _search: [p.name, best.pos, best.role, status].join(" ").toLowerCase(),
-    };
+      // Searchable on every position he's listed at, not just the one on show — the row's
+      // identity doesn't change when the Position filter re-points it.
+      _search: [p.name, ...roles.map((x) => `${x.pos} ${x.role}`), status].join(" ").toLowerCase(),
+    });
   }
 
   const rows = [];
@@ -98,11 +124,14 @@ export async function view() {
         r.shortlist ? el("span.dim", { text: "  (shortlist)" }) : null]),
     },
     age: { label: "Age", group: "Identity", align: "num", get: (r) => r.age },
-    pos: { label: "Pos", group: "Identity", get: (r) => r.r.pos },
+    pos: {
+      label: "Pos", group: "Identity", get: (r) => r.r.pos,
+      help: "His best position under this tactic — or the filtered one, when a Position filter is active",
+    },
     role: { label: "Role", group: "Identity", get: (r) => r.r.role },
     fam: {
       label: "Fam", group: "Identity", align: "num",
-      help: "Position familiarity 0-20. The rating is already discounted by it, so a high rating on a low Fam means raw attributes are carrying him somewhere he doesn't play.",
+      help: "Position familiarity 0-20, at the position in Pos. The rating is already discounted by it, so a high rating on a low Fam means raw attributes are carrying him somewhere he doesn't play.",
       sort: (r) => r.r.fam, render: (r) => bar(r.r.fam, { max: 20, lo: 60 }),
     },
     also: {
@@ -113,7 +142,8 @@ export async function view() {
     status: { label: "Squad", group: "Identity", get: (r) => r.status },
     rating: {
       label: "Rating", group: "Rating", align: "num",
-      help: "This tactic's weighted attribute sum × the familiarity multiplier",
+      help: "This tactic's weighted attribute sum × the familiarity multiplier, at the position in "
+        + "Pos — filter by Position to rate everyone there instead of at their own best role",
       sort: (r) => r.r.eff, render: (r) => num(r.r.eff),
     },
     base: {
@@ -123,28 +153,28 @@ export async function view() {
     },
     fit: {
       label: "Fit %ile", group: "Rating", align: "num",
-      help: "Where he sits at that position in OUR division under this tactic — fit, not level",
+      help: "Where he sits at the position in Pos in OUR division under this tactic — fit, not level",
       sort: (r) => r.fit, render: (r) => bar(r.fit),
     },
     teamRank: {
       label: "Squad Rank", group: "Rating", align: "num",
-      help: "Where this rating places him among our own players at this position, best to worst. "
+      help: "Where this rating places him among our own players at the position in Pos, best to worst. "
         + "For a shortlisted player this is hypothetical — where he'd slot in if he joined.",
       sort: (r) => -r.teamRank, render: (r) => el("span", { text: `${r.teamRank}/${r.teamPoolSize}` }),
     },
     lvl: {
       label: "Level %ile", group: "Rating", align: "num",
-      help: "Quality at that position within his own league — tactic-agnostic, derived from the game's ability rating",
+      help: "Quality at the position in Pos within his own league — tactic-agnostic, derived from the game's ability rating",
       sort: (r) => r.r.lvlLeague, render: (r) => bar(r.r.lvlLeague),
     },
     lvlg: {
       label: "Level %ile (world)", group: "Rating", align: "num",
-      help: "Quality at that position across every league in the save",
+      help: "Quality at the position in Pos across every league in the save",
       sort: (r) => r.r.lvlGlobal, render: (r) => bar(r.r.lvlGlobal),
     },
     growth: {
       label: "Δ", group: "Growth", align: "num",
-      help: "Rating change since his first snapshot, recomputed under this tactic",
+      help: "Rating change since his first snapshot, recomputed under this tactic at the position in Pos",
       sort: (r) => r.growth?.delta ?? null,
       render: (r) => (r.growth
         ? el("span", { class: r.growth.delta >= 0 ? "" : "dim", text: `${r.growth.delta >= 0 ? "+" : ""}${num(r.growth.delta)}` })
@@ -152,7 +182,7 @@ export async function view() {
     },
     traj: {
       label: "Trend", group: "Growth",
-      help: "Rating across every loaded snapshot, under this tactic",
+      help: "Rating across every loaded snapshot, under this tactic at the position in Pos",
       sort: (r) => r.growth?.delta ?? null,
       render: (r) => sparkline(r.traj.map((t) => t.value)),
     },
@@ -190,19 +220,23 @@ export async function view() {
   let showLoanIn = false;
   let showShortlist = false;
   let unit = "all";
+  // Unit reads his OWN best position (roles[0]), not the scoped one the rest of the row shows, so
+  // the two filters stay independent instead of Unit becoming a tautology the moment a Position is
+  // picked: "AML" + "Defence" then means our full-backs judged at AML, which is a real question.
+  // With no Position filter the two are the same position anyway.
+  const home = (r) => r.roles[0].pos;
   const UNITS = {
     all: () => true,
-    GK: (r) => r.r.pos === "GK",
-    Defence: (r) => /^D/.test(r.r.pos) && r.r.pos !== "DMC",
-    Midfield: (r) => ["DMC", "MC", "ML", "MR"].includes(r.r.pos),
-    Attack: (r) => ["AMC", "AML", "AMR", "ST"].includes(r.r.pos),
+    GK: (r) => home(r) === "GK",
+    Defence: (r) => /^D/.test(home(r)) && home(r) !== "DMC",
+    Midfield: (r) => ["DMC", "MC", "ML", "MR"].includes(home(r)),
+    Attack: (r) => ["AMC", "AML", "AMR", "ST"].includes(home(r)),
   };
-  // Position narrows further than Unit — "how deep are we at DR specifically" rather than
-  // "how's the back line" — and the two filters stack. Every position the game has is on offer,
-  // not just the ones that happen to be someone's tactic-best: under a strikerless tactic nobody
-  // rates ST as their best role, but "who could I play at ST if I switched" is still a real
-  // question, and it matches how the same filter behaves on Recruitment's search table.
-  let pos = "all";
+  // Every position the game has is on offer, not just the ones that happen to be someone's
+  // tactic-best: under a strikerless tactic nobody rates ST as their best role, but "who could I
+  // play at ST if I switched" is still a real question — and with the row scoped to it, the
+  // answer is his ST rating rather than his best-role one. Matches how the same filter behaves on
+  // Recruitment's search table.
   const POSITIONS = D.POS_ORDER.filter((p) => rows.some((r) => r.player.positions.some((q) => q.pos === p)));
   const selected = new Set();
 
@@ -217,9 +251,12 @@ export async function view() {
   });
   const unitSel = el("select.btn", { onchange: (e) => { unit = e.target.value; t.redraw(); } },
     Object.keys(UNITS).map((u) => el("option", { value: u, text: u === "all" ? "All units" : u })));
-  const posSel = el("select.btn", { onchange: (e) => { pos = e.target.value; t.redraw(); } },
-    [el("option", { value: "all", text: "All positions" }),
-      ...POSITIONS.map((p) => el("option", { value: p, text: p }))]);
+  const posSel = el("select.btn", {
+    title: "Filter to players who can play there — and read every rating column AT that position "
+      + "rather than at whichever role each player rates best overall",
+    onchange: (e) => { pos = e.target.value; rows.forEach(scopeRow); t.redraw(); },
+  }, [el("option", { value: "all", text: "All positions" }),
+    ...POSITIONS.map((p) => el("option", { value: p, text: p }))]);
   const slBtn = el("button.btn", {
     text: "Show shortlist",
     title: "Add shortlisted players to the table alongside the squad, rated and filtered exactly the same way, so they can be picked for Compare",
@@ -307,7 +344,10 @@ export async function view() {
       html: "Tap a row for the full profile — attributes weighted by this tactic, growth, match "
         + "record and career history. <b>Show shortlist</b> adds shortlisted players to the table "
         + "under the same columns and filters as the squad. <b>Pick</b> turns tapping into "
-        + "multi-select so you can <b>Compare</b> 2-4 players — squad and shortlist alike. Every "
+        + "multi-select so you can <b>Compare</b> 2-4 players — squad and shortlist alike. "
+        + "Picking a <b>Position</b> doesn't just hide rows: every rating column is then read AT "
+        + "that position, so the table answers \"who's our best AML\" rather than \"which of our "
+        + "best-elsewhere players happens to be listed at AML\". Every "
         + "rating recomputes when you change tactic in the header; <b>Level %ile</b> doesn't, "
         + "because it measures quality rather than fit.",
     }),
