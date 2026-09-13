@@ -158,7 +158,16 @@ Everything below is parameterised off the active career — pull these from `db`
   checked against what the opponent actually lined up in (a "5-2-2-1 counter" side played a 4-2-3-1;
   the style half of the same report, "counter-attack, very physical", was accurate). The **Next
   Match → Predicted XI** screen is a better source when the user has it: it names eleven players and
-  their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it. Build
+  their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it.
+  **Better still, ask for the opponent's `Club Squad → Selection` screen (the `Pkd` column).** Found
+  2026-05 and not yet graded against a result, so treat it as promising rather than proven — but it is
+  structurally the better artefact: `Pkd` is the opposition manager's **actual current selection**
+  rather than a prediction, with the position badge per player, and it carries four things the
+  Predicted XI screen does not — **suspensions and injuries** (a red-card badge and a red row; an
+  injury icon), **condition %**, **recent form** and **season apps/goals/average rating**. On its
+  first use it disagreed with the same fixture's Predicted XI in 2 of 11 slots and revealed that
+  **both** of the opponent's first-choice full-backs were unavailable, which inverted the briefing's
+  flank plan. Season apps also settle the "is this name new?" question outright — see the caveat below. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
   XI for neither shape nor names:** across nine checks the names have been wrong
@@ -207,9 +216,18 @@ Everything below is parameterised off the active career — pull these from `db`
   league**, so a reserve-listed player reads 100 %ile against reserve-league peers and is not
   comparable to a first-teamer's Superliga number — rank cross-league candidates on `level_nation` /
   `level_global` instead (the same man: league 100, nation 92.3, global 84.3). And a name on the
-  Predicted XI that appears in **no** club's squad in our latest snapshot is a post-snapshot signing:
-  say so in the briefing rather than silently dropping him. Their goalkeeper in that match was one —
-  the screen named Kelly, someone else played, and he is in no FCK squad we hold.
+  Predicted XI that appears in **no** club's squad in our latest snapshot is *often* a post-snapshot
+  signing: say so in the briefing rather than silently dropping him. Their goalkeeper in that match
+  was one — the screen named Kelly, someone else played, and he is in no FCK squad we hold.
+  **But do not state that inference as fact — the decode is incomplete and absence is weak evidence.**
+  Brøndby, 2026-05: two of their picked XI (Waldo, AML; Peque Polo, FC) appear in **no** Brøndby
+  snapshot in the whole of 2026, yet their own squad screen showed **22 and 11 apps this season** —
+  they had been there all along. A club's decoded squad size swings wildly between snapshots (Brøndby:
+  22 → 44 → 26 across the store, and 26 is unremarkable next to Nordsjælland's 24), so a regular
+  starter can simply fall outside the decode. **Say "our data has never seen him" — which is true and
+  is the part that matters — not "he must be a new signing".** The opponent's `Club Squad → Selection`
+  screen settles it in one glance, because it lists season apps: a double-digit apps count means the
+  gap is ours, not theirs.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
   the in-game report has held up; weight it more than the shape.
 - **OUR OWN tactics screens** — ASK FOR THESE TOO. This skill recommends a *method*
