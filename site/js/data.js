@@ -225,15 +225,39 @@ export function weightOf(attr, role, method = S.method) {
   return S.tactics[method]?.[role]?.[attr.toLowerCase()] ?? 1;
 }
 
-/** [{pos, fam, role, rating, eff, lvlLeague, lvlGlobal}] for one player, best-first. */
+/**
+ * [{pos, fam, role, rating, eff, lvlLeague, lvlGlobal}] for one player, PRIMARY POSITION FIRST:
+ * most familiar, then best-rated among equals.
+ *
+ * Ordering by `eff` alone — which this did until 2026-09-13 — looks like the obvious answer and
+ * is the wrong one, because eff is NOT COMPARABLE ACROSS POSITIONS. A role rating is a weighted
+ * attribute sum and an attribute the role doesn't list weighs 1, so a role's ceiling is set by
+ * its weight total: under `frem_minmax_4231` that is CM 26, GK 26, DM 25 vs LB 11, RB 11. Those
+ * totals are an artefact of how many attributes cleared `derive_weight_set.py`'s evidence floor
+ * for each role, not a claim that midfielders count for 2.4 full-backs — so "highest eff" quietly
+ * meant "most heavily weighted role", and 11 of our 37 came back MC. Worse, the familiarity shown
+ * beside it was then the fam AT that flattered role (Tånnander's MC 10, not his AML 20), which is
+ * what made the Fam column look broken.
+ *
+ * Familiarity has neither problem: it is the game's own statement of where a player plays, on one
+ * 0-20 scale for every position, and it doesn't move when we re-fit a tactic. `dashboard/db.py`
+ * has always read the primary position this way (`groupby("tid")["familiarity"].idxmax()`); this
+ * is the site catching up, not a new opinion.
+ *
+ * Equal familiarity is the only place rating decides, and there it is safe to a point: the tie is
+ * usually a symmetric pair (AML/AMR share one weight block), so the comparison is like-for-like.
+ * Across a genuinely different pair — fam 20 at both DC and MC — the weight-total bias is back,
+ * but it now breaks a tie rather than choosing the position.
+ */
 export function playerRoles(p, method = S.method, weightsOverride = null) {
   return p.positions.map((q) => {
     const r = rating(p.attrs, q.role, method, weightsOverride);
     return { ...q, rating: r, eff: r * famMult(q.fam) };
-  }).sort((a, b) => b.eff - a.eff);
+  }).sort((a, b) => b.fam - a.fam || b.eff - a.eff);
 }
 
-/** The player's strongest role under the current tactic — his row in any one-row-per-player table. */
+/** Where the player actually plays — his row in any one-row-per-player table. See playerRoles()
+ *  for why this is his most familiar position and not his highest-rated one. */
 export function bestRole(p, method = S.method, minFam = 0, weightsOverride = null) {
   const rs = playerRoles(p, method, weightsOverride).filter((r) => r.fam >= minFam);
   return rs[0] || null;
