@@ -260,21 +260,148 @@ the ground truth does not discriminate here — the resolvability rate above is 
 - **`matches.find_match_region`** — derives its region from content. Returns `None` on the
   two 0-match saves, which is correct, not a failure.
 
+## ROUND 3 — what was fixed, and what the fixing taught
+
+`CONTRACT_LO/HI` and `TAGGED_LO/HI` are gone as load-bearing constants; both regions are
+derived per save now. Details and measurements in the commit; the parts worth carrying
+forward:
+
+### The tagged fix moves the datadict, NOT the store
+
+Worth being precise about, because the audit's own headline ("11-15 of 93 competitions
+missing from every Frem snapshot") overstates the store impact. `extract.build_competitions`
+only consumes `league_team_counts` entries for comps **our own matches appear in**, and those
+were already inside the old window — so `competitions.json` comes out **byte-identical**
+before and after.
+
+Where it does land is the datadict layer, and there it is large. On frem-2026-03-22:
+
+| | before | after |
+|---|---|---|
+| datadict records | 22,826 | **25,818** |
+| entity types | 153 | **159** |
+| tagged byte coverage | 77.2% | **87.4%** |
+
+Six entity types were **entirely invisible** on every Frem save. The after-figures match
+Bucaspor exactly, which is the check that matters: this is static reference data, so both
+careers must see the same 6,926 `comp` / 889 `sdfd` / 93 competitions.
+
+### The contract fix is the one that moves the store
+
+End to end through `extract.py` on frem-2026-03-22: `squad_status` present on
+**15,709 -> 25,686 of 25,766 players** (61% -> 99.7%), `loaned_out` True on **114 -> 214**.
+No window is needed at all — every hit must match both tid and uid from the info spine, 8
+exact bytes — and whole-file costs 0.1s.
+
+### Two traps that only appeared once the constants moved
+
+- **`find_match_region` spanned first-to-last, so ONE false positive could open it wide.**
+  Widening the match year band produced a single validating header in the datadict region at
+  ~20.5 MB, which dragged `lo` from ~55 MB down to 20 MB and swallowed 35 MB. The exposure
+  was always there, just at lower probability. It clusters its survivors now, like
+  `find_light_regions` and `snapshot_bounds` already did.
+- **`id(mm)` is not a safe cache key.** CPython reuses the id of a freed object, so a loop
+  that opens saves one after another gets a collision and is served the previous save's
+  cached value. Caught by Bucaspor coming back with Frem's tagged region and losing 829
+  records. `tagged` keys on `(id(mm), len(mm))`. **`reference.py` has the same pattern in
+  `_REFDATA_INDEX_CACHE`, `_COMP_CACHE` and `_NAME_TABLES`** — safe today only because
+  `rebuild.py` runs `extract.py` as a subprocess per save. Any tool that opens two saves in
+  one process will get wrong club names, silently.
+
+### Widening a validator is not free
+
+`MATCH_YEAR_HI` could go to 2040 and no further without changing today's parse: 2050 alters
+the parsed season on three saves, and from 2060 the datadict starts producing headers that
+validate. `DOB_YEAR_HI` could rise only once sweep 1 gained the day-of-year check its sibling
+`_scrape_nicknamed` always had — without it, junk carrying a plausible year and a
+day-of-year of ~61,000 rolls forward into a DOB of 2199 and enters the spine. **Both bounds
+were set by measurement, not by picking a comfortable-looking number.** That is the habit
+worth keeping: a range in this parser is a claim about the data, and it should be checked
+like one.
+
+---
+
+## Light results — INVESTIGATED, NOT FIXED
+
+Deliberately left alone: the evidence does not support a change yet, and any change moves
+fixture counts on an unproven theory.
+
+**What is established.** The `+12`/`+14` fields decode to an **exact, correct calendar
+date** — checked against our own richly-parsed fixtures, `2025-11-09` and `2025-11-08`
+matched to the day. So it is a real date field, not the "base year" the module docstring
+claims.
+
+**What separates signal from noise is NOT the year.** Scoring each record for *coherence*
+(score <= 9, cid resolves, at least one club's country matching the competition's nation)
+splits the data absolutely:
+
+| save | region | records | coherent |
+|---|---|---|---|
+| frem-2026-03-22 | **46-48M** | 2,251 | **96.7%** |
+| | 53-55M, 0-4M, 13M, 29-31M | 75 | **0-17%** |
+| bucaspor-2022-06-01 | **48-49M** | 2,775 | **93.4%** |
+| | 30-33M | 1,260 | **0.0%** |
+| | 8 others | ~136 | ~0% |
+
+Three consequences:
+
+1. **There is exactly ONE real light-results region per save.** Every other region
+   `find_light_regions` returns is junk.
+2. **The current pipeline already STORES that junk** — ~21 bogus fixtures per Frem snapshot
+   and ~200 per Bucaspor, in the published store right now, polluting league membership and
+   computed standings. Nobody was looking for this; it is not caused by the year gate and
+   will not be fixed by changing it.
+3. Inside the real region, years 2023-2025 hold **582 records the current gate discards**
+   (433 survive dedup). So there IS a real loss — it is just smaller and better-located than
+   a raw fixture count suggests.
+
+**The blocker.** Even inside the real region, 2020 is the largest bucket on BOTH careers —
+1,147 on a 2026 save, 1,431 on a 2022 save — with a proper European-season month shape
+(heavy Aug-Dec and Jan-Mar, a June/July gap). It is absent from the day-1 save and grows to
+1,144, so it is not shipped historical data; yet it is only 4.6% stable across saves while
+the 2021/2022 blocks are ~83% stable. Two different behaviours in one field, unexplained.
+
+**Do not "widen the year gate"** — measured, that floods Bucaspor with 1,129 junk records
+from the 0%-coherent 30-33M region and drops resolvability from 87.6% to 62.9%.
+
+**The fix, when someone takes it on**, is to validate by coherence and keep only
+high-coherence regions, with the year relegated to a sanity bound (nothing dated after the
+save's own in-game date). `extract.py:424` already has that date; no reordering needed.
+Note `tests/test_lightresults.py` passes under both the current and the naively-widened
+gate, so it does not discriminate — coherent-fixture count is the metric, raw count is what
+misleads.
+
+**Also worth knowing:** `sweep` reads `+12`/`+14` and throws the value away. Carrying the
+decoded date into the store would make the 2020 question answerable in SQL instead of by
+byte-hunting.
+
+---
+
 ## State: what is fixed, what is open
 
-**Fixed:** only **#3** (`reference.info_offset`) — a verbatim repeat of an already-reviewed
-bug, verifiable against PR #42's own ground truth.
+**Fixed** (see ROUND 3): `reference.info_offset` (the verbatim PR #42 repeat),
+`tagged.TAGGED_LO/HI` and `datadict`'s bounds (derived), `regions.CONTRACT_LO/HI` (derived),
+`matches.py`'s year band + `find_match_region` clustering, `attributes._NAME_LEN`,
+`scrape_contracts`' unbounded read, and `DOB_YEAR_HI` + the missing day-of-year check in
+sweep 1.
 
-**Open, all measured, none attempted:** #1 (light-results year gate), #2 (`CONTRACT_LO/HI`),
-#4 (`TAGGED_LO`). Each changes the shape of extracted data for every snapshot, so each wants
-what PR #42 got — its own change, a full rebuild, and a store-level diff.
-
-Rough order by value: **#4 is the cheapest** (front boundary only, `sections()` lands within
-4 KB, exact known totals to verify against). **#2 is the biggest** (two Frem snapshots have
-no squad status at all). **#1 needs the most design** — it needs the save's in-game date
-threaded into `lightresults`, which currently has no access to it.
+**Open:**
+- **Light results.** Investigated in depth, deliberately not changed — see the section
+  above. The actionable part is that ~21 bogus fixtures per Frem snapshot and ~200 per
+  Bucaspor are in the published store today.
+- **`reference.py`'s `id(mm)` cache keys** (`_REFDATA_INDEX_CACHE`, `_COMP_CACHE`,
+  `_NAME_TABLES`) — safe only because `rebuild.py` forks per save. Two saves in one process
+  silently get each other's club names.
+- **`mapregions.sub_regions` dead branch** — `mapregions.py:274` calls
+  `_L.find_light_region(mm)` (singular); the function was renamed to `find_light_regions`
+  and a bare `except Exception: pass` swallows the `AttributeError`, so the light-results
+  entry has silently never been emitted.
+- **Behaviour-changing latent traps** (none losing data today): the mononym filter in
+  `own_squad_full`, `is_block_start`'s `ff` requirements at +17/+18/+20, the 100-vs-1000 tid
+  floors.
 
 If only one thing survives from this audit, make it this: **a hand-tuned byte window in this
-codebase is a Bucaspor measurement.** Three of them have now been caught front-clipping Frem
-(REFDATA, fixed; CONTRACT and TAGGED, open). Check any remaining one against
-`mapregions.sections()` before trusting it on a new career.
+codebase is a Bucaspor measurement**, and a numeric range is a claim about the data that
+should be checked like one. Three windows have now been caught front-clipping Frem (REFDATA,
+CONTRACT, TAGGED — all fixed). Check any remaining one against `mapregions.sections()` or a
+content-derived locator before trusting it on a new career.
