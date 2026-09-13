@@ -41,23 +41,26 @@ export async function view() {
     return teamPools.get(pos);
   };
 
-  // Position narrows further than Unit — "how deep are we at DR specifically" rather than
-  // "how's the back line" — and the two filters stack. Declared up here because it doesn't just
-  // hide rows: every rating-shaped column is READ AT the filtered position (see scopeRow), so a
-  // row has to know the filter to build itself.
-  let pos = "all";
+  // The positions the table is currently scoped to — [] for "all". Owned by the Pos COLUMN
+  // FILTER (the dropdown just writes into it, see posSel), because it doesn't merely hide rows:
+  // every rating-shaped column is READ AT these positions (see scopeRow), so one source of truth
+  // is the only way the number in a cell and the number a filter tested can't disagree.
+  let scopePos = [];
 
   /**
-   * Point a row at the role it should describe: the one at the filtered position, or his overall
+   * Point a row at the role it should describe: his best at a scoped position, or his overall
    * best when Position isn't filtered (unchanged from before this existed). Everything derived
    * from a role travels with it — Fam, Rating, Base, Fit, Squad Rank, Level and the growth pair
    * are all "at that position" numbers, and leaving any of them on the best role would put two
-   * different positions side by side in one row. A row that can't play the filtered position
-   * keeps his best role; the table filter has already dropped him.
+   * different positions side by side in one row. Several positions scope to the best of them, so
+   * "AML or AMR" reads each player at his better flank. A row that can't play any of them keeps
+   * his best role; the table filter has already dropped him.
    */
   function scopeRow(row) {
     let r = null;
-    if (pos !== "all") for (const q of row.roles) if (q.pos === pos && (!r || q.eff > r.eff)) r = q;
+    if (scopePos.length) {
+      for (const q of row.roles) if (scopePos.includes(q.pos) && (!r || q.eff > r.eff)) r = q;
+    }
     r = r || row.roles[0];
     const teamPool = teamPoolFor(r.pos);
     row.r = r;
@@ -126,13 +129,21 @@ export async function view() {
     age: { label: "Age", group: "Identity", align: "num", get: (r) => r.age },
     pos: {
       label: "Pos", group: "Identity", get: (r) => r.r.pos,
-      help: "His best position under this tactic — or the filtered one, when a Position filter is active",
+      help: "His best position under this tactic. Filtering on it matches any position he can "
+        + "play, and re-rates the whole row there.",
+      // The COLUMN shows the position the row is scoped to; the FILTER offers every position he
+      // is listed at, because "show me the left-backs" means everyone who can play there — and
+      // picking one is what scopes the row to it in the first place (see scopeRow).
+      filterValue: (r) => r.player.positions.map((q) => q.pos),
     },
     role: { label: "Role", group: "Identity", get: (r) => r.r.role },
     fam: {
       label: "Fam", group: "Identity", align: "num",
       help: "Position familiarity 0-20, at the position in Pos. The rating is already discounted by it, so a high rating on a low Fam means raw attributes are carrying him somewhere he doesn't play.",
       sort: (r) => r.r.fam, render: (r) => bar(r.r.fam, { max: 20, lo: 60 }),
+      // Reads the scoped role like every other rating column, so a Pos filter answers "Fam 18+
+      // AT DR" rather than letting an unrelated best role qualify him — the trap recruit.js's
+      // scoped() filterValue exists to avoid, closed here by scoping the row itself instead.
     },
     also: {
       label: "Also", group: "Identity",
@@ -161,6 +172,9 @@ export async function view() {
       help: "Where this rating places him among our own players at the position in Pos, best to worst. "
         + "For a shortlisted player this is hypothetical — where he'd slot in if he joined.",
       sort: (r) => -r.teamRank, render: (r) => el("span", { text: `${r.teamRank}/${r.teamPoolSize}` }),
+      // `sort` is negated so that best-first reads as descending; a filter must still be asked
+      // in the numbers on screen ("1-3" = our top three there), not in their sort rank.
+      filterValue: (r) => r.teamRank,
     },
     lvl: {
       label: "Level %ile", group: "Rating", align: "num",
@@ -185,6 +199,7 @@ export async function view() {
       help: "Rating across every loaded snapshot, under this tactic at the position in Pos",
       sort: (r) => r.growth?.delta ?? null,
       render: (r) => sparkline(r.traj.map((t) => t.value)),
+      filterType: "none",                          // a shape, not a value — Δ is how you filter it
     },
     snaps: { label: "Snapshots", group: "Growth", align: "num", get: (r) => r.traj.length || null },
     wage: {
@@ -204,6 +219,10 @@ export async function view() {
       label: "Capital", group: "Contract",
       help: "Career-origin club inside Region Hovedstaden — the self-imposed signing rule. Existing squad members are grandfathered.",
       sort: (r) => (r.capital ? 1 : 0), render: (r) => (r.capital ? pill("✓", "good") : null),
+      // Render-only, and its `sort` is a display rank rather than a value, so the filter has to
+      // be told what it is actually choosing between — same shape recruit.js's column uses.
+      filterType: "set",
+      filterValue: (r) => (r.capital ? "Eligible" : "Outside"),
     },
     ...metricColumns(D, { agg: D.S.matchAgg }),
   };
@@ -251,12 +270,32 @@ export async function view() {
   });
   const unitSel = el("select.btn", { onchange: (e) => { unit = e.target.value; t.redraw(); } },
     Object.keys(UNITS).map((u) => el("option", { value: u, text: u === "all" ? "All units" : u })));
+  // A one-tap shortcut that WRITES THE POS COLUMN FILTER rather than keeping a second position
+  // state of its own — two controls doing the same job is how a dropdown and a chip end up
+  // disagreeing about what the table is showing. Picking several positions is only expressible
+  // in the chip, so the dropdown shows "Several" and hands over rather than silently dropping
+  // the extras.
+  const MULTI = "__multi";
   const posSel = el("select.btn", {
     title: "Filter to players who can play there — and read every rating column AT that position "
-      + "rather than at whichever role each player rates best overall",
-    onchange: (e) => { pos = e.target.value; rows.forEach(scopeRow); t.redraw(); },
+      + "rather than at whichever role each player rates best overall. Same filter as the Pos "
+      + "chip under Filters, which can take more than one position.",
+    onchange: (e) => {
+      if (e.target.value === MULTI) return;        // a label, not a choice
+      setPosFilter(e.target.value === "all" ? [] : [e.target.value]);
+      t.persist();
+      t.redraw();
+    },
   }, [el("option", { value: "all", text: "All positions" }),
-    ...POSITIONS.map((p) => el("option", { value: p, text: p }))]);
+    ...POSITIONS.map((p) => el("option", { value: p, text: p })),
+    el("option", { value: MULTI, text: "Several — see the Pos chip", hidden: true })]);
+
+  /** Point the table's own Pos filter at `list`, adding or dropping the chip as needed. */
+  function setPosFilter(list) {
+    const fs = (t.state.filters || []).filter((f) => f.col !== "pos");
+    if (list.length) fs.push({ col: "pos", type: "set", values: list, nulls: false });
+    t.state.filters = fs;
+  }
   const slBtn = el("button.btn", {
     text: "Show shortlist",
     title: "Add shortlisted players to the table alongside the squad, rated and filtered exactly the same way, so they can be picked for Compare",
@@ -312,8 +351,25 @@ export async function view() {
     sort: { by: "rating", dir: "desc" },
     searchPlaceholder: "Search our squad…",
     toolbar: [unitSel, posSel, loanBtn, slBtn, armBtn, cmpBtn],
-    filter: (r) => (showLoanIn || !r.loanedIn) && (showShortlist || !r.shortlist) && UNITS[unit](r)
-      && (pos === "all" || r.player.positions.some((q) => q.pos === pos)),
+    // Range and set filters on every column, attributes and match stats included — the same panel
+    // Recruitment's search table has. Squad is only ~50 rows, so this isn't about cutting a list
+    // down to a readable size: it's about asking a question with more than one clause ("under 23,
+    // Pace 14+, contract inside two years") without eyeballing eleven columns for the overlap.
+    filters: true,
+    // Runs before the filters it is handed are applied, so the values they test are the scoped
+    // ones. Cheap to re-derive, but it is the join-key of the whole view, so only redo the work
+    // when the selection actually changed — a draw also fires on every sort and keystroke.
+    prepare: (fs) => {
+      const sel = (fs.find((f) => f.col === "pos")?.values || []).filter((p) => POSITIONS.includes(p));
+      if (sel.join() === scopePos.join()) return;
+      scopePos = sel;
+      rows.forEach(scopeRow);
+      posSel.value = sel.length === 0 ? "all" : sel.length === 1 ? sel[0] : MULTI;
+    },
+    // The column filters compose with this, never replace it: Unit and the loan/shortlist toggles
+    // are groupings of the squad rather than columns, so they stay here. Position left on purpose
+    // — it is the Pos column filter now, which is what lets it re-rate the row as well as hide it.
+    filter: (r) => (showLoanIn || !r.loanedIn) && (showShortlist || !r.shortlist) && UNITS[unit](r),
     rowClass: (r) => (selected.has(r.tid) ? "picked" : null),
     empty: "No player matches those filters.",
     onRow: (r) => {
@@ -345,9 +401,13 @@ export async function view() {
         + "record and career history. <b>Show shortlist</b> adds shortlisted players to the table "
         + "under the same columns and filters as the squad. <b>Pick</b> turns tapping into "
         + "multi-select so you can <b>Compare</b> 2-4 players — squad and shortlist alike. "
-        + "Picking a <b>Position</b> doesn't just hide rows: every rating column is then read AT "
-        + "that position, so the table answers \"who's our best AML\" rather than \"which of our "
-        + "best-elsewhere players happens to be listed at AML\". Every "
+        + "<b>Filters</b> stacks range and set conditions on any column, attributes and match "
+        + "stats included. Picking a <b>Position</b> — from the dropdown or the same filter's Pos "
+        + "chip — doesn't just hide rows: every rating column is then read AT that position, so "
+        + "the table answers \"who's our best AML\" rather than \"which of our best-elsewhere "
+        + "players happens to be listed at AML\". <b>Pos</b> is otherwise his highest-RATED "
+        + "position, which needn't be his most familiar one, and a Rating only compares like "
+        + "with like within a position — across positions, read <b>Fit %ile</b>. Every "
         + "rating recomputes when you change tactic in the header; <b>Level %ile</b> doesn't, "
         + "because it measures quality rather than fit.",
     }),

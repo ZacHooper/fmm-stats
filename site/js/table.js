@@ -27,6 +27,11 @@ const PAGE = 400;                  // rows painted per step — see the paging n
  *   toolbar   extra controls to place beside the search box
  *   empty     message when nothing matches
  *   filters   true to offer the "Filters" button (see filterPanel below)
+ *   prepare   optional (activeFilters) => void, run at the top of every draw, BEFORE any
+ *             filtering or sorting. The hook for a table whose rows are a function of its own
+ *             filter state: squad.js re-points every row at the filtered position here, so the
+ *             scoped values are what the rest of the draw filters, sorts and paints. Must be
+ *             idempotent — it runs on every draw, including sort and search.
  */
 export function playerTable(o) {
   const state = loadState(o.key, o.defaults, o.sort);
@@ -75,6 +80,7 @@ export function playerTable(o) {
   }
 
   function draw() {
+    o.prepare?.(state.filters || []);
     const cols = visibleCols();
     const q = (state.q || "").trim().toLowerCase();
     let rows = o.rows;
@@ -151,7 +157,10 @@ export function playerTable(o) {
   }
 
   draw();
-  return { node: host, redraw: draw, state };
+  // `persist` so a caller that writes `state` itself (squad.js's Position dropdown drives the Pos
+  // column filter) saves it the same way the filter panel does, instead of that one control's
+  // choice being the only one that doesn't survive a reload.
+  return { node: host, redraw: draw, state, persist: () => save(o.key, state) };
 }
 
 function columnPicker(o, state, changed) {
