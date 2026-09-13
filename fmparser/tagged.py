@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Reader for the save's self-describing TAGGED data dictionary (~17.0-20.8 MB).
+Reader for the save's self-describing TAGGED data dictionary (~16.6-21 MB; the exact
+region DRIFTS per save and per career and is derived by find_tagged_region).
 
 This region is a hierarchical, relational database of everything competition-related:
 competitions, standings, fixtures, teams-in-comps, nations, prize money, etc. It's the
@@ -21,6 +22,12 @@ Entity types (id -> X), most common: comp (competitions), stnm/stag (stages), Tt
 comp+team+posn+rank), nmsn/nssn/sbsn (season), nati (nations), przm/wnpz/cash (prize
 money). Full catalogue in docs/DATADICT.md.
 """
+# FALLBACK ONLY — see find_tagged_region. These bounds were measured on Bucaspor, whose
+# region starts at 17.50 MB. Frem's starts at 16.64-16.79 MB, so TAGGED_LO opened AFTER the
+# section did and silently cut 13-23% of the dictionary off the FRONT (1,623 `comp` records
+# on frem-2021-07-01), which cost 11-15 of the 93 competitions in every Frem snapshot ever
+# built. Identical failure to the one regions.py documents for REFDATA_LO. The region is
+# DERIVED per save now; these are kept only for the no-hits fallback path.
 TAGGED_LO, TAGGED_HI = 17_000_000, 20_800_000
 
 TYPE_SIZE = {0x01: 4, 0x0a: 4, 0x0b: 4, 0x13: 4, 0x02: 4,
@@ -30,6 +37,76 @@ TYPE_SIZE = {0x01: 4, 0x0a: 4, 0x0b: 4, 0x13: 4, 0x02: 4,
 _TAG_ID = b"  di"     # "id  "
 _TAG_COMP = b"pmoc"   # "comp"
 _TAG_NTMS = b"smtn"   # "ntms" (number of teams)
+
+# find_tagged_region tuning. The cluster gap and the margins are all RELATIVE, so they
+# travel between saves and careers — which is the entire point.
+_CLUSTER_GAP = 500_000      # two `comp` tags this far apart start a new cluster
+_MARGIN_LO, _MARGIN_HI = 60_000, 300_000
+
+# Keyed on (id(mm), len(mm)), NOT id(mm) alone: CPython reuses the id of a freed object, so
+# a loop that opens one save after another (scripts/rebuild.py, any cross-save check) gets an
+# id collision and serves the previous save's region for the next save. Caught exactly that
+# way — Bucaspor came back with Frem's bounds and lost 829 records. The length disambiguates
+# in practice because two saves of byte-identical length are the same snapshot.
+_REGION_CACHE = {}          # (id(mm), len(mm)) -> (lo, hi)
+
+
+def _cache_key(mm):
+    return id(mm), len(mm)
+
+
+def find_tagged_region(mm):
+    """(lo, hi) for the tagged data dictionary, DERIVED from this save's own content.
+
+    The region is the densest cluster of the `comp` tag. This is the locator
+    `scripts/dd_enum.py` and `scripts/dd_anatomy.py` have used all along — their docstring
+    says the region "drifts per save, like every region" — promoted here so the parser gets
+    it too instead of trusting a hand-tuned constant. Measured on two careers, the cluster
+    start lands within ~4 KB of the first real record (frem-2026: 16.751M vs 16.755M;
+    frem-2021: 16.636M vs 16.639M).
+
+    Deliberately NOT `mapregions.sections()`: at the default min_gap that returns one
+    35.7 MB span (16.7M-52.4M), ~9.4x this window, and `datadict.walk_stream` calls two
+    functions per byte over any unstructured run. The `comp` cluster gives the right
+    POSITION at roughly the current SIZE.
+
+    Falls back to the static TAGGED_LO/TAGGED_HI if the tag is absent, matching
+    `matches.find_match_region` and `attributes.snapshot_bounds`.
+    """
+    key = _cache_key(mm)
+    cached = _REGION_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    hits, i = [], mm.find(_TAG_COMP)
+    while i != -1:
+        hits.append(i)
+        i = mm.find(_TAG_COMP, i + 1)
+    if not hits:                                  # no tag at all -> trust the old window
+        _REGION_CACHE[key] = (TAGGED_LO, TAGGED_HI)
+        return _REGION_CACHE[key]
+
+    clusters, cur = [], [hits[0]]
+    for h in hits[1:]:
+        if h - cur[-1] <= _CLUSTER_GAP:
+            cur.append(h)
+        else:
+            clusters.append(cur)
+            cur = [h]
+    clusters.append(cur)
+    best = max(clusters, key=len)
+    region = (max(0, best[0] - _MARGIN_LO), min(len(mm), best[-1] + _MARGIN_HI))
+    _REGION_CACHE[key] = region
+    return region
+
+
+def _bounds(mm, lo, hi):
+    """Resolve caller-supplied bounds, deriving either end left as None."""
+    if lo is None or hi is None:
+        d_lo, d_hi = find_tagged_region(mm)
+        lo = d_lo if lo is None else lo
+        hi = d_hi if hi is None else hi
+    return lo, hi
 
 
 def _is_field(mm, p):
@@ -82,9 +159,12 @@ def parse_field(mm, p):
     return tag, val, nxt
 
 
-def iter_records(mm, entity, lo=TAGGED_LO, hi=TAGGED_HI):
+def iter_records(mm, entity, lo=None, hi=None):
     """Yield every top-level record of the given entity type (e.g. 'comp', 'sdfd') as a
-    parsed field list. Finds each `<entity> t0a <n>` + `id t02 <entity>` opener."""
+    parsed field list. Finds each `<entity> t0a <n>` + `id t02 <entity>` opener.
+
+    Bounds default to `find_tagged_region(mm)` — per-save, not a constant."""
+    lo, hi = _bounds(mm, lo, hi)
     on_disk = entity.ljust(4)[:4][::-1].encode("latin-1")
     p = lo
     while p < hi:
@@ -99,9 +179,12 @@ def iter_records(mm, entity, lo=TAGGED_LO, hi=TAGGED_HI):
         p += 1
 
 
-def walk_fields(mm, lo=TAGGED_LO, hi=TAGGED_HI):
+def walk_fields(mm, lo=None, hi=None):
     """Yield (offset, tag, type, value) for every tagged field in [lo, hi).
-    Skips padding and the occasional tagless `[01][type][value]` field."""
+    Skips padding and the occasional tagless `[01][type][value]` field.
+
+    Bounds default to `find_tagged_region(mm)` — per-save, not a constant."""
+    lo, hi = _bounds(mm, lo, hi)
     p = lo
     while p < hi:
         f = read_field(mm, p)
@@ -116,9 +199,12 @@ def walk_fields(mm, lo=TAGGED_LO, hi=TAGGED_HI):
 
 
 # --- legacy helper kept for the competitions reference (extract.build_competitions) ---
-def league_team_counts(mm, lo=TAGGED_LO, hi=TAGGED_HI):
+def league_team_counts(mm, lo=None, hi=None):
     """{comp_uid: num_teams} from `comp`+`ntms` field pairs. (Superseded by full
-    entity parsing once that lands; retained so competitions.json keeps working.)"""
+    entity parsing once that lands; retained so competitions.json keeps working.)
+
+    Bounds default to `find_tagged_region(mm)` — per-save, not a constant."""
+    lo, hi = _bounds(mm, lo, hi)
     out = {}
     p = lo
     while True:

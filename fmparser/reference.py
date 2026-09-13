@@ -343,8 +343,27 @@ def comp_detail(mm, cid):
 
 
 # ---------------- player info field ----------------
+# +16 is the NICKNAME field. FFFFFFFF is the "no nickname" sentinel; a player who HAS one
+# carries a real nickname id there. Requiring the sentinel — which this function did for its
+# whole life — means only players WITHOUT a nickname can ever be found, which is exactly the
+# bug fixed in staging.scrape_players (see docs/agent-context/nickname-players-missing.md).
+# It survived there because the fix landed in the spine scraper and this second, independent
+# copy of the same anchor was missed. Ground truth, frem-2026-03-22: tids 20905 (Carlos Polo)
+# and 19471 (Waldo Rubio) both resolve here now and did not before; 9894 (Christian Tue, no
+# nickname) is unchanged.
+NO_NICKNAME = b"\xff\xff\xff\xff"
+# Nickname ids index the same whole-DB name tables as first/last names; the largest real id
+# across a full save is ~32k. Matches staging.NAME_ID_MAX — kept in sync deliberately.
+_NICK_ID_MAX = 65536
+
+
 def info_offset(mm, tid):
-    """Info field: TID bytes, FFFFFFFF nickname at +16, plausible DOB year at +22."""
+    """Offset of a player's info record, or None.
+
+    Located by the TID bytes, then validated on a plausible DOB year at +22 and a nickname
+    field at +16 that is either the "no nickname" sentinel or a plausible nickname id. The
+    sentinel is NOT required: requiring it hides every player who has a nickname.
+    """
     le = struct.pack("<I", tid)
     pos = 0
     while True:
@@ -352,10 +371,12 @@ def info_offset(mm, tid):
         if i == -1:
             return None
         pos = i + 1
-        if mm[i + 16:i + 20] == b"\xff\xff\xff\xff":
-            year = int.from_bytes(mm[i + 22:i + 24], "little")
-            if 1955 <= year <= 2012:
-                return i
+        nick = mm[i + 16:i + 20]
+        if nick != NO_NICKNAME and int.from_bytes(nick, "little") >= _NICK_ID_MAX:
+            continue
+        year = int.from_bytes(mm[i + 22:i + 24], "little")
+        if 1955 <= year <= 2012:
+            return i
 
 
 def parse_info(mm, tid):
