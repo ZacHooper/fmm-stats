@@ -1183,6 +1183,19 @@ def teams_in_league(season, phase, league_cid):
     return df
 
 
+def _primary_position(eff):
+    """One row per player: the position he's most familiar at, best-rated among equals.
+
+    Familiarity has always been the rule here (and `site/js/data.js`'s `playerRoles()` now
+    matches it), because `eff` is not comparable across positions — each role weights a
+    different number of attributes, so ranking a player's own positions by eff just picks his
+    most heavily weighted role. The tie-break is the only thing new: `idxmax` took whichever
+    row came first, which for a player equally familiar at two positions was arbitrary.
+    """
+    order = eff.sort_values(["familiarity", "eff"], ascending=[False, False])
+    return order.groupby("tid", sort=False).head(1).copy()
+
+
 def team_player_frame(season, phase, method, club_tids):
     """Per-player rows for the given clubs: 23 attributes + primary position/unit +
     effective rating at primary position. Basis for team aggregates."""
@@ -1192,8 +1205,7 @@ def team_player_frame(season, phase, method, club_tids):
     eff = eff[eff["club_tid"].isin(club_tids)].copy()
     if eff.empty:
         return eff
-    # primary position row per player (max familiarity)
-    prim = eff.loc[eff.groupby("tid")["familiarity"].idxmax()].copy()
+    prim = _primary_position(eff)
     prim["unit"] = prim["position"].map(POSITION_UNIT)
     return prim
 
@@ -1868,7 +1880,7 @@ def squad_frame(season, phase, method, club_tids):
     eff = _add_position_index(effective_table(season, phase, method))
     if eff.empty:
         return pd.DataFrame()
-    prim = eff.loc[eff.groupby("tid")["familiarity"].idxmax()].copy()
+    prim = _primary_position(eff)
     prim = prim[prim["club_tid"].isin(list(club_tids))]
     if prim.empty:
         return prim

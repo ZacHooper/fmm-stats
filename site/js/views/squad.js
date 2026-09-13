@@ -76,8 +76,9 @@ export async function view() {
   // exactly the same row shape and every column, filter and the compare picker just work on him
   // — no separate "compare a shortlist player" path to keep in sync with this one.
   function buildRow(p, extra = {}) {
-    // Every listed position rated, best-first — bestRole() is just its [0], so holding the whole
-    // list costs nothing extra and is what lets the row re-scope to a Position filter.
+    // Every listed position rated, primary (most familiar) first — bestRole() is just its [0], so
+    // holding the whole list costs nothing extra and is what lets the row re-scope to a Position
+    // filter.
     const roles = D.playerRoles(p, method).filter((r) => r.fam >= minFam);
     if (!roles.length) return null;
     const status = extra.status ?? (D.S.ours.status?.[String(p.tid)] || DASH);
@@ -129,8 +130,8 @@ export async function view() {
     age: { label: "Age", group: "Identity", align: "num", get: (r) => r.age },
     pos: {
       label: "Pos", group: "Identity", get: (r) => r.r.pos,
-      help: "His best position under this tactic. Filtering on it matches any position he can "
-        + "play, and re-rates the whole row there.",
+      help: "Where he actually plays — his most familiar position, best-rated among equals. "
+        + "Filtering on it matches any position he can play, and re-rates the whole row there.",
       // The COLUMN shows the position the row is scoped to; the FILTER offers every position he
       // is listed at, because "show me the left-backs" means everyone who can play there — and
       // picking one is what scopes the row to it in the first place (see scopeRow).
@@ -405,9 +406,10 @@ export async function view() {
         + "stats included. Picking a <b>Position</b> — from the dropdown or the same filter's Pos "
         + "chip — doesn't just hide rows: every rating column is then read AT that position, so "
         + "the table answers \"who's our best AML\" rather than \"which of our best-elsewhere "
-        + "players happens to be listed at AML\". <b>Pos</b> is otherwise his highest-RATED "
-        + "position, which needn't be his most familiar one, and a Rating only compares like "
-        + "with like within a position — across positions, read <b>Fit %ile</b>. Every "
+        + "players happens to be listed at AML\". <b>Pos</b> is otherwise his primary position — "
+        + "the one he's most familiar at — and a Rating only compares like with like within a "
+        + "position, because each role weights a different number of attributes; across "
+        + "positions, read <b>Fit %ile</b>. Every "
         + "rating recomputes when you change tactic in the header; <b>Level %ile</b> doesn't, "
         + "because it measures quality rather than fit.",
     }),
