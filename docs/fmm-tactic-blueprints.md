@@ -165,6 +165,7 @@ out to hold the most consequential lever of the lot, so it is now columns of its
 | vs low block / weak | Attacking | High | Normal | Narrow→Bal | Own Half | Work Into Box | Centre | overload the box |
 | vs pace in behind | Balanced | **Deep** | Normal | Narrow | Own Half | — | — | trap OFF, man‑mark the runner |
 | ~~Protect lead / vs strong~~ *(disproved 2026‑03)* | ~~Balanced~~ | ~~Deep/Bal~~ | ~~Slow~~ | | | | | see below |
+| **vs an elite ATTACK (2026‑05, Brøndby H, won 2‑1)** | **Control** | **Deep** | **Slow** | — | **Mid block** | — | — | held them to 1 SOT / 1 CCC and still had 58% and 10 shots |
 
 **`Work Into Box` is the shot‑quality lever, and it is a team instruction, not a selection problem.**
 Shots ON TARGET predicts our goals at r=+0.72 while shot volume is flat across every accuracy
@@ -179,6 +180,24 @@ The same fixture replayed with **Attacking / High / All Over / Fast / Work Into 
 15 shots and 7 on target. A large quality gap is NOT on its own a reason to sit deep with this squad;
 `frem_game_state`'s Fit (above) says the same thing from the other direction. Keep a deep line for the
 specific case it was written for — genuine pace in behind against slow centre‑backs.
+
+**But do not over‑read that into "never go deep" — 2026‑05‑29, Brøndby at home, won 2‑1.** The manager
+overruled a briefing that asked for Attacking / Fast / All Over with the line one notch deeper, and
+played **Control · Slow · Deep line · Mid block** instead. It produced **the best defensive
+performance against Brøndby in six meetings: 7 shots, ONE on target, ONE clear‑cut chance**, against a
+previous best case of 3 on target and against FIVE clear‑cut chances conceded in the same fixture
+three weeks earlier. Season‑wide we hold a side to ≤1 SOT in only 5 of 23 games.
+
+**And it cost nothing going forward:** 58% possession, 288 passes, **10 shots** (above the 7.4 season
+average) and 2 goals at 20% conversion (baseline 15.3%).
+
+So the two results are not in conflict, and the distinction is the actionable part: **what failed at
+Midtjylland was `frem_counter` + deep + ABSORB AND BREAK — surrendering the ball — not the deep line
+itself.** That version managed three shots. **Control + Deep + Slow keeps the ball *and* the shape.**
+When the opponent's edge is specifically their ATTACK (check `matchups`: Brøndby were −55 on "their
+attack vs our defence", the worst of any scout this season) rather than a general quality gap, taking
+the line down is the right answer — and "deep" must not be read as "sit off", which is the error the
+struck‑through row actually encodes.
 
 **Line and press are two levers, not one.** These presets move them together, which makes it easy to
 write "drop the line" and have it read as "drop the press". Against a side whose creativity runs
