@@ -116,7 +116,18 @@ def own_squad_full(mm, lo=None, hi=None, marker=CLUB_MARKER):
         if not (1000 < tid < 70000):
             continue
         name = _name_before(mm, j)
-        if name and tid not in out:
+        if name:
+            # LAST copy wins, not the first. The save keeps SEVERAL squad-list copies per
+            # player from successive writes, and the freshest is the highest-offset one —
+            # the same fact `attr_record` below is built on ("returning the first copy showed
+            # pre-development attributes"). This function took the FIRST, so when a loan
+            # converts to a permanent deal it kept reading a stale LOAN-shaped copy and the
+            # player stayed `loaned_in` forever. Mounir Secka (tid 26779) has three copies on
+            # frem-2026-03-22 — two LOAN at 61,439,685 / 61,457,553 and the real OWNED
+            # `[346][ffff]` at 61,479,005 — and we were reporting the first.
+            #
+            # Measured across all 22 Frem saves and BOTH squad markers: one flip (Secka, on
+            # 2025-11-30 and 2026-03-22), zero tids added or lost. Bucaspor unchanged.
             out[tid] = {"name": name, "loaned_in": loaned_in, "parent_club_tid": parent}
     return out
 

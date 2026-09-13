@@ -167,11 +167,18 @@ def main():
     # never ends on its own — at_club_spells must not let that leak through as open-ended
     # squad membership once the loan has lapsed (the actual bug this fixed: all 9 read as
     # permanent Frem players, ad infinitum, in mart.squad_on() before this check existed).
+    # club_runs now splits a run when the loan flag CHANGES, so a player who was loaned in
+    # and then signed permanently has TWO runs at the same club — one flagged, one not. The
+    # old form joined on (tid, person_id, club_tid) only, so it matched his legitimate
+    # at_club spell against the flagged run and called it a ghost. Same strength, stated
+    # correctly: an at_club spell must be BACKED by an unflagged run at that club. A true
+    # ghost has no unflagged run anywhere and is still caught.
     still_open = con.execute("""
         SELECT s.name FROM mart.at_club_spells s
-        JOIN mart.club_runs cr ON cr.tid = s.tid AND cr.person_id = s.person_id
-                               AND cr.club_tid = s.club_tid AND cr.ever_loaned_in
         WHERE s.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+          AND NOT EXISTS (SELECT 1 FROM mart.club_runs cr
+                          WHERE cr.tid = s.tid AND cr.person_id = s.person_id
+                            AND cr.club_tid = s.club_tid AND NOT cr.ever_loaned_in)
     """).fetchall()
     check("no loan-in ghosts in at_club_spells (loan presence comes from loan_in_spells only)",
           len(still_open) == 0, f"{[r[0] for r in still_open]}")
@@ -187,9 +194,17 @@ def main():
     # the same claim.
     day_after = con.execute(
         "SELECT MAX(season_end(season)) + INTERVAL 1 DAY FROM mart.loan_in_spells").fetchone()[0]
+    # A loanee we later SIGNED is not ghosting when he carries forward — he is ours. Exclude
+    # anyone whose presence on that date is backed by an at_club spell at one of our clubs;
+    # a lapsed loanee has no such spell and is still caught.
     squad_ghosts = con.execute(f"""
         SELECT name FROM mart.squad_on('{day_after}')
         WHERE name IN {tuple(truth.keys())}
+          AND tid NOT IN (
+              SELECT tid FROM mart.at_club_spells
+              WHERE club_tid IN (SELECT club_tid FROM mart.our_clubs)
+                AND CAST('{day_after}' AS DATE)
+                    BETWEEN valid_from AND COALESCE(valid_to, DATE '9999-12-31'))
     """).fetchall()
     check(f"squad_on('{day_after}') carries none of the 14 known loan-ins forward "
           f"(none re-evidenced for the new season yet)", len(squad_ghosts) == 0,
@@ -510,6 +525,11 @@ def main():
             WHERE cr.ever_loaned_in
               AND cr.tid NOT IN (SELECT tid FROM mart.loan_in_spells
                                  WHERE CAST(? AS DATE) BETWEEN valid_from AND valid_to)
+              -- ...and no genuine owned run at that club. Since the run split, a converted
+              -- loanee has one, and he is a real squad member rather than a stuck flag.
+              AND NOT EXISTS (SELECT 1 FROM mart.club_runs c2
+                              WHERE c2.tid = cr.tid AND c2.person_id = cr.person_id
+                                AND c2.club_tid = cr.club_tid AND NOT c2.ever_loaned_in)
         ),
         roster AS (
             SELECT tid FROM {src}.players

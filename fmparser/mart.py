@@ -931,8 +931,17 @@ WITH pc AS (
     WHERE NOT p.is_staff
 ),
 marked AS (
+    -- A run breaks when the CLUB changes, and also when the LOAN FLAG changes. Without the
+    -- second test a loan that converts to a permanent deal stays one single run, and since
+    -- `ever_loaned_in` below is a bool_or over the run, one loan snapshot then poisons every
+    -- later owned snapshot in it — at_club_spells' `WHERE NOT ever_loaned_in` drops the lot.
+    -- That is what kept Mounir Secka reading as a loanee for a season after we signed him.
+    -- Splitting here gives him a loan run and an owned run, and the existing filter drops
+    -- exactly the loan half, which is what it was always meant to do.
     SELECT *, CASE WHEN club_tid IS DISTINCT FROM
                 LAG(club_tid) OVER (PARTITION BY tid, person_id ORDER BY snap_ix)
+                OR loaned_in IS DISTINCT FROM
+                LAG(loaned_in) OVER (PARTITION BY tid, person_id ORDER BY snap_ix)
               THEN 1 ELSE 0 END AS chg
     FROM pc
 ),
@@ -1058,12 +1067,20 @@ WHERE NOT ever_loaned_in
 # correct, since by rule every prior-season loan has already expired.
 LOAN_IN = """
 CREATE OR REPLACE VIEW mart.loan_in_spells AS
-WITH flagged AS (
-    SELECT DISTINCT ps.person_id, p.tid
+WITH newest_snap AS (SELECT MAX(phase_date) AS newest_phase_date FROM mart.snapshots),
+flagged AS (
+    -- Carries WHEN the flag was last on, not just THAT it was once on. The old form was
+    -- `SELECT DISTINCT person_id, tid`, with no season or phase correlation at all, and the
+    -- join below is on person_id alone — so a single flagged snapshot anywhere turned every
+    -- season the player ever appeared for us into a season-long loan spell. A player whose
+    -- loan converted to a permanent deal could never stop being a loanee.
+    SELECT ps.person_id, p.tid, MAX(s.phase_date) AS last_flagged_date
     FROM {S}.players p
     JOIN {S}.person_slices ps USING (season, phase, tid)
+    JOIN mart.snapshots s USING (season, phase)
     WHERE p.loaned_in AND p.club_tid IN (SELECT club_tid FROM mart.our_clubs)
       AND NOT p.is_staff
+    GROUP BY ps.person_id, p.tid
 ),
 seasons_played AS (
     SELECT f.person_id, f.tid, f.season, f.team_tid,
@@ -1075,20 +1092,33 @@ seasons_played AS (
 r AS (
     SELECT sp.person_id, sp.tid, sp.season, sp.team_tid AS club_tid,
            sp.first_match, sp.first_match AS from_phase_date,
-           CAST(NULL AS DATE) AS prev_phase_date
+           CAST(NULL AS DATE) AS prev_phase_date,
+           fl.last_flagged_date
     FROM seasons_played sp
     JOIN flagged fl ON fl.person_id = sp.person_id
+),
+spells AS (
+    SELECT
+        r.person_id, r.tid,
+        (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = r.tid)  AS name,
+        'loan_in' AS spell_type, r.club_tid,
+        CAST(NULL AS VARCHAR) AS club, r.season,
+        CASE WHEN {window} = 'winter' THEN winter_cut(r.season)
+             ELSE season_start(r.season) END       AS valid_from,
+        -- Close the spell when the flag actually went off. If it is STILL on at the newest
+        -- snapshot the loan is ongoing as far as the save tells us, so the season-long form
+        -- is kept exactly as before — that is what the 9 known stuck-flag ghosts rely on.
+        CASE WHEN r.last_flagged_date >= (SELECT newest_phase_date FROM newest_snap)
+             THEN season_end(r.season)
+             ELSE LEAST(season_end(r.season), r.last_flagged_date) END  AS valid_to,
+        {window}                                   AS arrival_window
+    FROM r
 )
-SELECT
-    r.person_id, r.tid,
-    (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = r.tid)  AS name,
-    'loan_in' AS spell_type, r.club_tid,
-    CAST(NULL AS VARCHAR) AS club, r.season,
-    CASE WHEN {window} = 'winter' THEN winter_cut(r.season)
-         ELSE season_start(r.season) END       AS valid_from,
-    season_end(r.season)                       AS valid_to,
-    {window}                                   AS arrival_window
-FROM r
+-- A season that begins after the flag went off produces an inverted range; it is not a
+-- loan spell at all, so drop it rather than emit valid_to < valid_from.
+SELECT person_id, tid, name, spell_type, club_tid, club, season,
+       valid_from, valid_to, arrival_window
+FROM spells WHERE valid_to >= valid_from
 """
 
 # loan_out spells, lifted from the parsed weekly Player-Progress flag — these carry REAL
