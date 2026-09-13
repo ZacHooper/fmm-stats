@@ -13,6 +13,7 @@ hunting for bytes that might appear as stray data.
 """
 from datetime import date, timedelta
 
+from . import reference as R
 from .attributes import _valid_positions, ATTR_OFFSETS, POSITIONS
 from .regions import (ATTR_LO, ATTR_HI, CONTRACT_LO, CONTRACT_HI,
                       CONTRACTREC_LO, CONTRACTREC_HI, WAGE_GBP_PER_UNIT)
@@ -20,19 +21,120 @@ from .regions import (ATTR_LO, ATTR_HI, CONTRACT_LO, CONTRACT_HI,
 # free agents / unattached carry this sentinel club id
 NO_CLUB = 65535
 
+# The info record's NICKNAME field at +16. FFFFFFFF is the "no nickname" sentinel; a
+# player who HAS one carries a real nickname id there instead. See `scrape_players`.
+NO_NICKNAME = b"\xff\xff\xff\xff"
+
+# DOB year plausibility window for an info record (a 14-year-old in a 2026 save is the
+# youngest that matters; the oldest staff records sit in the mid-50s).
+DOB_YEAR_LO, DOB_YEAR_HI = 1955, 2012
+
+# first/last/nickname ids index the whole-DB name tables (~46k entries — see
+# reference.build_name_resolver). The largest REAL id seen across the 30,798 records of
+# a full save is 32,147; exactly two junk records carry 82M and 0xFFFF0000. 65536 sits
+# comfortably above the real range and below the junk.
+NAME_ID_MAX = 65536
+
 # squad-availability status byte in the contract record. 65 = out on loan / unavailable
 # (validated against the managed club's squad vs an in-game screenshot); 112 = normal
 # squad member. Other values are further squad statuses (undecoded).
 LOAN_STATUS = 65
 
 
+def _decode_info(mm, base):
+    """Decode one info record at `base` into the spine's identity dict."""
+    year = int.from_bytes(mm[base + 22:base + 24], "little")
+    day1 = int.from_bytes(mm[base + 20:base + 22], "little")
+    try:
+        dob = (date(year, 1, 1) + timedelta(days=day1)).isoformat()
+    except ValueError:
+        dob = None
+    return {
+        "tid": int.from_bytes(mm[base:base + 4], "little"),
+        "uid": int.from_bytes(mm[base + 4:base + 8], "little"),
+        "first_name_id": int.from_bytes(mm[base + 8:base + 12], "little"),
+        "last_name_id": int.from_bytes(mm[base + 12:base + 16], "little"),
+        "dob": dob,
+        "nationality_id": int.from_bytes(mm[base + 24:base + 26], "little"),
+        "flag28": mm[base + 28],
+        "club_tid": int.from_bytes(mm[base + 42:base + 44], "little"),
+        "sid": mm[base + 60:base + 64].hex(),
+    }
+
+
+def _scrape_nicknamed(mm, found):
+    """The info records `scrape_players`' FFFFFFFF sweep structurally cannot see.
+
+    Anchoring on FFFFFFFF finds the nickname field only when it is EMPTY, so every player
+    who HAS a nickname was invisible to the whole player decode — no name, no attributes,
+    no squad membership, no ratings. On a real save that is ~2,100 records, heavily
+    concentrated in the nickname-using nations: Brøndby's Carlos Polo ("Peque Polo") and
+    Waldo Rubio ("Waldo") both started against us and neither existed in our data.
+
+    There is no anchor byte to search for here and the records are variable length
+    (91-107 bytes, no alignment), so we sweep the 58 possible DOB-year u16 values instead
+    — each an `mm.find` at C speed — and validate hard. `found` is the FFFFFFFF sweep's
+    result, which supplies the strongest validator we have: the set of club ids already
+    known to be real. A false positive would need a plausible tid, a plausible day-of-year,
+    a real club id AND a pair of name ids that resolve to actual names.
+    """
+    clubs = {p["club_tid"] for p in found.values()} - {NO_CLUB}
+    # Every one of the 30,798 records the FFFFFFFF sweep finds resolves to a name, so
+    # "resolves" is a sound invariant to filter on. Degrade gracefully if the name tables
+    # aren't discoverable rather than dropping every candidate.
+    try:
+        resolves = R.build_name_resolver(mm)
+    except Exception:
+        resolves = False
+
+    out = {}
+    end = len(mm)
+    for year in range(DOB_YEAR_LO, DOB_YEAR_HI + 1):
+        pat = year.to_bytes(2, "little")
+        p = 0
+        while True:
+            k = mm.find(pat, p)
+            if k == -1:
+                break
+            p = k + 1
+            base = k - 22                   # the year u16 sits at +22
+            if base < 0 or base + 64 > end:
+                continue
+            if mm[base + 16:base + 20] == NO_NICKNAME:
+                continue                    # the FFFFFFFF sweep already had its chance
+            tid = int.from_bytes(mm[base:base + 4], "little")
+            if not (100 < tid < 70000) or tid in found or tid in out:
+                continue
+            if int.from_bytes(mm[base + 20:base + 22], "little") > 366:
+                continue                    # day-of-year
+            club = int.from_bytes(mm[base + 42:base + 44], "little")
+            if club != NO_CLUB and club not in clubs:
+                continue
+            rec = _decode_info(mm, base)
+            nick = int.from_bytes(mm[base + 16:base + 20], "little")
+            if max(rec["first_name_id"], rec["last_name_id"], nick) >= NAME_ID_MAX:
+                continue
+            if resolves and R.resolve_name(
+                    mm, rec["first_name_id"], rec["last_name_id"]) is None:
+                continue
+            out[tid] = rec
+    return out
+
+
 def scrape_players(mm):
-    """The identity spine: {tid: info dict}. One sweep of the whole file for info
-    records (TID, then FFFFFFFF nickname at +16, then a plausible DOB year)."""
+    """The identity spine: {tid: info dict}, in two sweeps.
+
+    1. Records with NO nickname, found by searching for the FFFFFFFF sentinel that sits in
+       the nickname field at +16 (then a plausible DOB year and tid). Fast, and it covers
+       ~94% of the database.
+    2. Records WITH a nickname, which sweep 1 cannot see by construction — see
+       `_scrape_nicknamed`. Sweep 1's results are passed in and always win a tid clash, so
+       this only ever ADDS to the spine.
+    """
     players = {}
     i = 0
     while True:
-        j = mm.find(b"\xff\xff\xff\xff", i)
+        j = mm.find(NO_NICKNAME, i)
         if j == -1:
             break
         i = j + 1
@@ -40,27 +142,14 @@ def scrape_players(mm):
         if base < 0:
             continue
         year = int.from_bytes(mm[base + 22:base + 24], "little")
-        if not (1955 <= year <= 2012):
+        if not (DOB_YEAR_LO <= year <= DOB_YEAR_HI):
             continue
         tid = int.from_bytes(mm[base:base + 4], "little")
         if not (100 < tid < 70000) or tid in players:
             continue
-        day1 = int.from_bytes(mm[base + 20:base + 22], "little")
-        try:
-            dob = (date(year, 1, 1) + timedelta(days=day1)).isoformat()
-        except ValueError:
-            dob = None
-        players[tid] = {
-            "tid": tid,
-            "uid": int.from_bytes(mm[base + 4:base + 8], "little"),
-            "first_name_id": int.from_bytes(mm[base + 8:base + 12], "little"),
-            "last_name_id": int.from_bytes(mm[base + 12:base + 16], "little"),
-            "dob": dob,
-            "nationality_id": int.from_bytes(mm[base + 24:base + 26], "little"),
-            "flag28": mm[base + 28],
-            "club_tid": int.from_bytes(mm[base + 42:base + 44], "little"),
-            "sid": mm[base + 60:base + 64].hex(),
-        }
+        players[tid] = _decode_info(mm, base)
+
+    players.update(_scrape_nicknamed(mm, players))
     return players
 
 

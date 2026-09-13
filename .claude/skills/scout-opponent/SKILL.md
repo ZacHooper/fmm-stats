@@ -222,9 +222,13 @@ Everything below is parameterised off the active career — pull these from `db`
   **But do not state that inference as fact — the decode is incomplete and absence is weak evidence.**
   Brøndby, 2026-05: two of their picked XI (Waldo, AML; Peque Polo, FC) appear in **no** Brøndby
   snapshot in the whole of 2026, yet their own squad screen showed **22 and 11 apps this season** —
-  they had been there all along. A club's decoded squad size swings wildly between snapshots (Brøndby:
-  22 → 44 → 26 across the store, and 26 is unremarkable next to Nordsjælland's 24), so a regular
-  starter can simply fall outside the decode. **Say "our data has never seen him" — which is true and
+  they had been there all along. Root-caused the same session: `scrape_players` anchored the record
+  search on the `FFFFFFFF` **"no nickname" sentinel**, so every player WITH a nickname was invisible
+  to the entire decode — 2,072 records on one save, concentrated in the Spanish/Portuguese/Brazilian
+  squads. They turned out to be Carlos Polo and Waldo Rubio, and between them they scored and made
+  both goals in the 1-2 that beat us in March. **Fixed** (a second validated sweep — see
+  [`nickname-players-missing`](../../../docs/agent-context/nickname-players-missing.md)), so a store
+  rebuilt after 2026-09 carries them; a store built before that does not. **Say "our data has never seen him" — which is true and
   is the part that matters — not "he must be a new signing".** The opponent's `Club Squad → Selection`
   screen settles it in one glance, because it lists season apps: a double-digit apps count means the
   gap is ours, not theirs.

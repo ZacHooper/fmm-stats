@@ -16,6 +16,7 @@
 - [Player history table](player-history-table.md) — SOLVED end to end; verified vs all 5 in-game screenshots. See [[history-chain-pointers]]
 - [Name resolution](name-resolution.md) — SOLVED: any player name via browse table (@0.3M) + id-index tables (@37M); first/last_name_id→ordinal→string. ALSO: club-name traps (a shape filter ate B.93; a tid can match an award record)
 - [Injury / Player-Progress decode](injury-progress-decode.md) — weekly Player-Progress table: +16 is a BITFIELD — injured (1/2) AND out-on-loan (bit5=32, exact windows); tid-recycling gotcha for cross-save unions
+- [Nickname players missing](nickname-players-missing.md) — the info sweep anchored on the FFFFFFFF "no nickname" sentinel, so every player WITH a nickname was invisible to the whole decode (2,072 records); fixed with a second validated sweep
 - [TID recycling](tid-recycling.md) — a tid is a SLOT not a person; FM reuses retired tids for newgens; use (tid,dob) as the person key
 - [Reserve marker stale attrs](reserve-marker-stale-attrs.md) — reserve/loaned-out players read stale attributes; frozen row = the tell
 - [Loan value marker](loan-value-marker.md) — SOLVED: a loaned-in player's exact attrs+value record is anchored by `[parent_club_tid][managed_tid]`, not `[club][0xffff]` — `attributes.loan_marker()`. Also audited reserve-squad misses for hardcoding bugs: none found, misses are genuine save-data absence.
