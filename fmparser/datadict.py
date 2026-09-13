@@ -33,6 +33,10 @@ import re
 
 from . import tagged
 
+# FALLBACK ONLY. These were Bucaspor-tuned and opened AFTER Frem's dictionary starts,
+# clipping 13-23% of it off the front. Every entry point below now derives its bounds per
+# save via tagged.find_tagged_region(); these names are kept because callers (and
+# tests/test_datadict.py) still reference D.HI explicitly.
 LO, HI = tagged.TAGGED_LO, tagged.TAGGED_HI
 
 CONTAINER = 0x0a
@@ -132,8 +136,10 @@ def _parse(mm, p, hi, records=None, types=None, parent="~root"):
     return [tag, val], nxt
 
 
-def is_record(mm, p, hi=HI):
+def is_record(mm, p, hi=None):
     """True if p starts an id-headed record (`<tag> 01 0a <n>` + `id 02 <tag>`)."""
+    if hi is None:
+        hi = tagged.find_tagged_region(mm)[1]
     if not (p + 6 <= hi and mm[p + 4] == 0x01 and mm[p + 5] == CONTAINER
             and _printable4(mm[p:p + 4])):
         return False
@@ -146,13 +152,14 @@ def is_record(mm, p, hi=HI):
 
 
 # --------------------------------------------------------------------------- stream
-def walk_stream(mm, lo=LO, hi=HI):
+def walk_stream(mm, lo=None, hi=None):
     """Single forward pass over the region, yielding every top-level item in order:
         ("rec",   entity, offset, pair)    id-headed record (pair = [entity, [fields]])
         ("field", tag,    offset, pair)    loose field / anonymous or headerless container
         ("raw",   None,   offset, hexstr)  non-padding bytes we couldn't parse (verbatim)
         ("pad",   None,   offset, length)  a run of 0x00 padding
     This is byte-complete: every byte in [lo, hi) falls into exactly one item."""
+    lo, hi = tagged._bounds(mm, lo, hi)
     p = lo
     while p < hi:
         if mm[p] == 0x00:                              # padding run
@@ -183,9 +190,10 @@ def walk_stream(mm, lo=LO, hi=HI):
 
 
 # ------------------------------------------------------------------------- coverage
-def coverage(mm, lo=LO, hi=HI):
+def coverage(mm, lo=None, hi=None):
     """Byte-accounting proof of losslessness. Every byte is tagged / raw / padding;
     unaccounted is 0 by construction. Reports the raw runs (candidates for decoding)."""
+    lo, hi = tagged._bounds(mm, lo, hi)
     tagged_b = raw_b = pad_b = 0
     recs = fields = 0
     raw_runs = []
@@ -221,10 +229,11 @@ def coverage(mm, lo=LO, hi=HI):
 
 
 # --------------------------------------------------------------------------- collect
-def all_records(mm, lo=LO, hi=HI):
+def all_records(mm, lo=None, hi=None):
     """Every id-headed record at ANY nesting depth, in document order, as
     {"entity", "offset", "fields"}. Nested records also live inside their parent's
     fields, so a nested `comp` appears both here (its own entry) and inside its parent."""
+    lo, hi = tagged._bounds(mm, lo, hi)
     sink = []
     for kind, _, off, _ in walk_stream(mm, lo, hi):
         if kind in ("rec", "field"):
@@ -232,8 +241,9 @@ def all_records(mm, lo=LO, hi=HI):
     return sink
 
 
-def collect(mm, lo=LO, hi=HI):
+def collect(mm, lo=None, hi=None):
     """{entity: [record, ...]} of every id-headed record (any depth) -> per-entity files."""
+    lo, hi = tagged._bounds(mm, lo, hi)
     out = {}
     for r in all_records(mm, lo, hi):
         out.setdefault(r["entity"], []).append(
@@ -254,11 +264,12 @@ TYPE_MEANING = {
 }
 
 
-def schema_report(mm, lo=LO, hi=HI):
+def schema_report(mm, lo=None, hi=None):
     """Auto-derived data dictionary: per-tag stats (types, cardinality, min/max, samples,
     parents), per-entity field schemas, and the container nesting graph. Covers every one
     of the ~1000+ field tags mechanically — the instrument the semantic decode works from.
     """
+    lo, hi = tagged._bounds(mm, lo, hi)
     from collections import Counter, defaultdict
 
     types = []
@@ -380,12 +391,13 @@ def _ascii_code(v):
     return None
 
 
-def crossref(mm, schema=None, lo=LO, hi=HI):
+def crossref(mm, schema=None, lo=None, hi=None):
     """Automated label suggestions. Two parts:
       reverse_index — for each known anchor ID (club TID, comp uid, nation), the tags that
                       hold it and how often (answers 'which tag carries club 955?').
       tag_candidates — per-tag heuristic meaning (date part, enum, tier, packed 4-char
                       code, holds-club/comp/nation) from value domains + anchor hits."""
+    lo, hi = tagged._bounds(mm, lo, hi)
     from collections import Counter, defaultdict
 
     if schema is None:
@@ -443,10 +455,11 @@ def crossref(mm, schema=None, lo=LO, hi=HI):
 
 
 # --------------------------------------------------------------------------- dump
-def dump_json(mm, dest, lo=LO, hi=HI):
+def dump_json(mm, dest, lo=None, hi=None):
     """Write the whole region to `dest/` as JSON: one file per entity, a lossless ordered
     stream (`_stream.json`), a byte-accounting manifest (`_coverage.json`), and an index
     (`_index.json`). Returns the coverage manifest. Requires only stdlib json/os."""
+    lo, hi = tagged._bounds(mm, lo, hi)
     import json
     import os
 

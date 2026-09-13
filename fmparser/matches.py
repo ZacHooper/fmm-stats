@@ -21,6 +21,23 @@ BLOCK = 54
 DELIM = 8
 STRIDE = BLOCK + DELIM
 
+# Plausible-year band for a match header. This is a VALIDATOR (it separates a real match
+# cluster from the fixed tactic-template region, which carries the same delimiter but no
+# plausible date), and via _valid_match_header it is also how find_match_region locates the
+# match region at all. It cannot be made relative to the save's date, because the save's date
+# is DERIVED from these very headers.
+#
+# The old ceiling was 2030, which would have stopped the match parser dead in 2031 — not a
+# degraded parse, no matches findable at all. 2040 is the most it can be raised to without
+# changing what is parsed TODAY, measured on 6 saves across 2 careers:
+#   <=2040  parsed season byte-identical to the old 2030 behaviour on every save;
+#    2050   changes it (frem-2025 and frem-2026 each gain a match, bucaspor's set shifts);
+#   >=2060  the datadict region at ~20.5 MB starts producing headers that validate, which is
+#           what made the 0-match saves return a bogus region instead of None.
+# find_match_region now clusters its survivors, so a future stray can no longer drag the
+# region open on its own — but the band still decides what validates, so it stays measured.
+MATCH_YEAR_LO, MATCH_YEAR_HI = 2018, 2040
+
 FIELDS = {
     0: "assists", 3: "condition", 4: "crossA", 5: "crossC", 8: "dribbles",
     10: "goals", 11: "headA", 12: "headW", 16: "intercept", 19: "subOn",
@@ -79,9 +96,15 @@ def _valid_match_header(mm, anchor):
     h = parse_header(mm, anchor)
     if not h:
         return False
-    return (2018 <= h["year"] <= 2030 and 0 <= h["day"] <= 366
+    return (MATCH_YEAR_LO <= h["year"] <= MATCH_YEAR_HI and 0 <= h["day"] <= 366
             and 0 < h["home_tid"] < 65000 and 0 < h["away_tid"] < 65000
             and h["home_tid"] != h["away_tid"])
+
+
+# Two surviving anchors this far apart belong to different clusters. The real match region
+# is ~0.3 MB wide, and the nearest stray sits tens of MB away, so this is not a delicate
+# threshold.
+_MATCH_CLUSTER_GAP = 2_000_000
 
 
 def find_match_region(mm, margin=50_000):
@@ -89,22 +112,39 @@ def find_match_region(mm, margin=50_000):
     match parser is career-agnostic (Bucaspor's matches sit ~56M, Frem's ~53.8M;
     a hard-coded MATCH_LO=55M silently drops Frem's — see savefile-boundary-map).
 
-    Every delimiter cluster in the file is tested with `_valid_match_header`; only
-    the true match cluster (headers with plausible date + two distinct clubs)
-    survives, so its span is self-locating. Returns None if nothing validates
-    (caller falls back to the hard-coded window)."""
+    Every delimiter cluster in the file is tested with `_valid_match_header`, then the
+    survivors are CLUSTERED and the densest cluster wins. Taking the plain first-to-last
+    span instead — which this did originally — makes the whole region hostage to a single
+    false positive anywhere in the file: one stray validating header in the datadict region
+    at ~20.5 MB dragged `lo` down from ~55 MB and swallowed 35 MB of unrelated bytes. That
+    is not hypothetical, it is what happened when MATCH_YEAR_HI was widened, and the same
+    exposure existed before at a lower probability. Clustering removes the dependence on the
+    year band being narrow enough to get lucky.
+
+    Returns None if nothing validates (caller falls back to the hard-coded window)."""
     anchors = match_anchors(mm, lo=0, hi=len(mm))
     good = [a for a in anchors if _valid_match_header(mm, a)]
     if len(good) < 3:                       # too few to trust; let caller fall back
         return None
-    return (max(0, good[0] - margin), min(len(mm), good[-1] + margin))
+    clusters, cur = [], [good[0]]
+    for a in good[1:]:
+        if a - cur[-1] <= _MATCH_CLUSTER_GAP:
+            cur.append(a)
+        else:
+            clusters.append(cur)
+            cur = [a]
+    clusters.append(cur)
+    best = max(clusters, key=len)
+    if len(best) < 3:
+        return None
+    return (max(0, best[0] - margin), min(len(mm), best[-1] + margin))
 
 
 def parse_header(mm, anchor, window=1500):
     end = anchor + window
     for i in range(anchor, end):
         year = int.from_bytes(mm[i:i + 2], "little")
-        if 2018 <= year <= 2030:
+        if MATCH_YEAR_LO <= year <= MATCH_YEAR_HI:
             day = int.from_bytes(mm[i - 2:i], "little")
             if not (0 <= day <= 366):
                 continue

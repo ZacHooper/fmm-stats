@@ -22,7 +22,12 @@ POSITIONS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR",
              "AML", "AMC", "AMR", "ST", "DML", "DMR"]
 
 # ---------------- own squad: names ----------------
-_NAME_LEN = re.compile(rb"([\x03-\x20])\x00\x00\x00")
+# Length-prefixed name, [3, 64] BYTES. The old cap was 0x20 = 32 bytes, one single byte
+# above the longest name actually in the squad ('Frederik Vestergaard Kristensen', 31
+# bytes) — and these are UTF-8 bytes, so accented names hit it sooner than their character
+# count suggests. _FULLNAME below still validates the shape, so the wider cap admits longer
+# real names without admitting junk.
+_NAME_LEN = re.compile(rb"([\x03-\x40])\x00\x00\x00")
 _FULLNAME = re.compile(r"[A-ZÀ-ſ][\w'. À-ſ-]{2,}$")
 
 

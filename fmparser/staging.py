@@ -25,9 +25,23 @@ NO_CLUB = 65535
 # player who HAS one carries a real nickname id there instead. See `scrape_players`.
 NO_NICKNAME = b"\xff\xff\xff\xff"
 
-# DOB year plausibility window for an info record (a 14-year-old in a 2026 save is the
-# youngest that matters; the oldest staff records sit in the mid-50s).
-DOB_YEAR_LO, DOB_YEAR_HI = 1955, 2012
+# DOB year plausibility window for an info record.
+#
+# The ceiling was 2012, which sounds generous until you notice the youngest cohort in a 2026
+# save is already 2009/2010 — roughly three seasons before newgens start being born past the
+# ceiling and vanishing from the spine entirely, silently, exactly like every other bug in
+# this family. Raised to 2030.
+#
+# Measured cost of raising it, across 6 saves: bucaspor picks up TWO placeholder records
+# (dob 2021-01-01, i.e. a one-year-old in a 2022 save — 'Sabri Davids', 'Edgar Carrera').
+# They carry no SID so they gain no attributes, and 2 in 33,943 is the same order as the
+# junk sweep 1 has always carried. Judged worth it against a scheduled, silent data loss.
+# The day-of-year check added to sweep 1 below removes strictly more junk than this admits
+# (one bogus record per save, on all 6).
+#
+# The FLOOR is fine and stays: the oldest people taper off smoothly (1956: 2, 1957: 4,
+# 1958: 9), which is a real cohort edge, not a clipped one.
+DOB_YEAR_LO, DOB_YEAR_HI = 1955, 2030
 
 # first/last/nickname ids index the whole-DB name tables (~46k entries — see
 # reference.build_name_resolver). The largest REAL id seen across the 30,798 records of
@@ -147,17 +161,37 @@ def scrape_players(mm):
         tid = int.from_bytes(mm[base:base + 4], "little")
         if not (100 < tid < 70000) or tid in players:
             continue
+        # Day-of-year sanity, which _scrape_nicknamed has always applied and this sweep
+        # never did. It only started to matter when the DOB ceiling was raised: a junk
+        # record carrying a plausible year and a day-of-year of ~61,000 rolls forward into
+        # a DOB of 2199 and was admitted to the spine ('Rajagobal Rajagobal', 2-5 per save).
+        # The two sweeps validate the same field the same way now.
+        if int.from_bytes(mm[base + 20:base + 22], "little") > 366:
+            continue
         players[tid] = _decode_info(mm, base)
 
     players.update(_scrape_nicknamed(mm, players))
     return players
 
 
-def scrape_contract_status(mm, info, lo=CONTRACT_LO, hi=CONTRACT_HI):
-    """{tid: squad_status_code} from the contract records (~55-57 MB). Each record is
-    keyed by [TID:u32][UID:u32]; a 0x0087 marker sits at TID+37 and the status byte at
-    TID+39. Every hit is validated against the info spine (TID+UID must match), so there
-    are no false positives. See LOAN_STATUS (65 = out on loan / unavailable)."""
+def scrape_contract_status(mm, info, lo=None, hi=None):
+    """{tid: squad_status_code} from the contract records. Each record is keyed by
+    [TID:u32][UID:u32]; a 0x0087 marker sits at TID+37 and the status byte at TID+39.
+
+    SCANS THE WHOLE FILE by default. It used to scan CONTRACT_LO..CONTRACT_HI (54-58 MB),
+    which was measured on Bucaspor and is simply the wrong place on Frem — the section runs
+    ~50-60 MB there, so the window opened ~4 MB after it started and threw away everything
+    before that. Measured cost of the constant: frem-2021-07-01 and frem-2023-07-01 found
+    ZERO of ~25,500 records (squad_status entirely NULL for those snapshots), the later Frem
+    saves 39-57%, and Bucaspor — the career it was tuned on — a flawless 100%.
+
+    No window is needed because the validation is already far stronger than a byte range:
+    every hit must match BOTH the tid and the uid from the info spine, 8 exact bytes. Across
+    the whole file that yields 25,687 records on frem-2026 with no tid disagreeing on status.
+    `lo`/`hi` are kept for callers that want to restrict the scan.
+    """
+    lo = 0 if lo is None else lo
+    hi = len(mm) if hi is None else hi
     uid_of = {tid: p["uid"] for tid, p in info.items()}
     out = {}
     p = lo
@@ -183,7 +217,10 @@ def scrape_contracts(mm, info, lo=CONTRACTREC_LO, hi=CONTRACTREC_HI):
     encoding as DOB. We scan the section and keep every hit whose TID is in the info spine
     (collision-safe), first record per tid wins."""
     out = {}
-    end = min(hi, len(mm))
+    # -17, not 0: the record body reads as far as p+16 (expiry year at +15..+17), so a bare
+    # `p < len(mm)` walks off the end and raises IndexError. Harmless while hi defaulted to
+    # 40M, but scrape_contract_status now scans to EOF and this is the same family of scan.
+    end = min(hi, len(mm) - 17)
     p = lo
     while p < end:
         if mm[p + 4] == 0x01:
