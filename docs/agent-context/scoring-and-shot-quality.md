@@ -105,6 +105,23 @@ the 18-game goals cut above, and no cut of this save has ever had strikerless ah
   highest SOT count in 176 matches). The actionable residue is a negative one, in
   [[scouting-attribute-reads]]: do not *rule out* the aerial route on two named opponent centre-backs
   — just don't sell crossing as the mechanism either.
+
+  **Re-tested 2026-04, and the negative result is stronger than "not a plan" — cross volume is
+  close to inert.** Over **166 competitive matches** (2026 store, `our_match_history`):
+  `corr(crosses, goals) = +0.089`, against **+0.660 for shots on target** and +0.423 for shots.
+  Goals per game by cross-volume quartile are **1.47 / 1.82 / 1.79 / 1.81** — everything above
+  roughly ten crosses a game buys nothing at all. Two corrections follow:
+  1. **A grading that reads "we crossed a lot and won" as vindication is reading co-occurrence as
+     cause.** The 2026-04-04 home leg vs Lyngby was graded exactly that way — it overturned the
+     briefing's anti-crossing call because "we crossed 19 times and won anyway, winning headers
+     18-14". The win was finding 1 restated once again: 6 shots on target from 10, a 60% SOT rate.
+     That overturn was itself wrong, and it propagated — it was carried into the away-leg briefing
+     three weeks later as "the aerial route is ON", which this doc had already advised against.
+  2. **Vs Lyngby specifically, the route has now failed three times identically.** 24 crosses at
+     home (0-0), 24 away (0-0), 24 away again on 2026-04-25 (won 1-0, 3 completed from 24, header
+     count lost 16-24, and the goal was an unassisted Schöne strike, not a cross). n=3 on its own
+     would prove nothing; sitting on top of the league-wide +0.089 it is just the general result
+     showing up in one fixture.
 - **Pairing two specific midfielders is not special.** "Our two best MCs together" reads
   1.58 goals/game vs 0.96 with neither at MC — but decomposed, **the gain is from having *at least
   one* of them at MC (+0.4 to +0.5); the second adds ~0.1**, and "both vs every other configuration"
