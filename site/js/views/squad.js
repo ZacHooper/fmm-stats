@@ -170,11 +170,18 @@ export async function view() {
     },
     teamRank: {
       label: "Squad Rank", group: "Rating", align: "num",
-      help: "Where this rating places him among our own players at the position in Pos, best to worst. "
-        + "For a shortlisted player this is hypothetical — where he'd slot in if he joined.",
-      sort: (r) => -r.teamRank, render: (r) => el("span", { text: `${r.teamRank}/${r.teamPoolSize}` }),
-      // `sort` is negated so that best-first reads as descending; a filter must still be asked
-      // in the numbers on screen ("1-3" = our top three there), not in their sort rank.
+      help: "Where this rating places him among our own players at the position in Pos, best to "
+        + "worst — the table's default sort, because a rank is comparable across positions in a "
+        + "way a rating isn't. Ties break on Fit %ile. For a shortlisted player this is "
+        + "hypothetical — where he'd slot in if he joined.",
+      // Negated so best-first reads as descending, plus Fit %ile as a thousandths-scale
+      // tie-break: a rank alone puts every position's first choice in one undifferentiated
+      // block, and squad order is not an interesting way to break that. Fit is 0-100, so the
+      // fraction can never reach 1 and reorder the ranks themselves.
+      sort: (r) => -r.teamRank + (r.fit ?? 0) / 1e4,
+      render: (r) => el("span", { text: `${r.teamRank}/${r.teamPoolSize}` }),
+      // A filter must still be asked in the numbers on screen ("1-3" = our top three there),
+      // not in that composite sort key.
       filterValue: (r) => r.teamRank,
     },
     lvl: {
@@ -349,7 +356,12 @@ export async function view() {
     presets,
     sticky: ["player"],
     defaults: ["age", "pos", "fam", "rating", "fit", "teamRank", "lvl", "growth", "traj", "expiry", "status"],
-    sort: { by: "rating", dir: "desc" },
+    // Squad Rank, not Rating: a rating only means something against the same position, so
+    // ranking the whole squad by it sorted our midfielders to the top on the size of the CM
+    // weight block. A rank is per-position by construction, so the table opens on every
+    // position's first choice, then every second choice. `v` bumped so the retune actually
+    // reaches a browser holding the old saved sort.
+    sort: { by: "teamRank", dir: "desc", v: 2 },
     searchPlaceholder: "Search our squad…",
     toolbar: [unitSel, posSel, loanBtn, slBtn, armBtn, cmpBtn],
     // Range and set filters on every column, attributes and match stats included — the same panel
