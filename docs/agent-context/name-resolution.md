@@ -119,3 +119,26 @@ They are also not harmless. `mart.our_clubs` includes the reserve club, so they 
 `matches.json` and put "#33015" second in the site's all-time average-rating table, ahead of most
 of the first team. `scripts/export_data.py` now drops match rows whose tid cannot be named, which
 is exactly this set — a real player's reserve appearances are named and unaffected.
+
+## Resolve a match row's name by person_id, never by tid alone (2026-09)
+
+Found while verifying the export above. `matches.json`'s `player_names` was built with
+`SELECT tid, ANY_VALUE(name) ... FROM mart.player_snapshots GROUP BY tid`. A tid is a recycled
+slot ([[tid-recycling]]), so that group sweeps in the snapshots where the slot belonged to
+somebody else entirely, and `ANY_VALUE` then picked between the two people by scan order.
+
+**7 of our 74 named players came back under a stranger's name — and a different stranger on the
+next export.** tid 4240 alternated between Johan Nordberg (ours) and Thomas De Clercq; 20597
+between Jean Pierre Graabæk and Raúl Tirilonte. The History page was quietly attributing a Frem
+career to a man who never played for us, and the value was not even stable run to run.
+
+The match row already carries the answer: `mart.match_player_facts.person_id`. Key the name
+lookup on that and the era ambiguity never arises. Two things make it safe:
+
+* no tid serves two different people among our own appearances, so one name per tid is still
+  well defined and the site's tid-keyed map does not need reshaping;
+* `person_id` is a **string** `'<tid>-<dob>'`, not an integer — casting it with `int()` raises.
+
+Pick the winner with an explicit `ROW_NUMBER() ... ORDER BY phase_date DESC, tid DESC, name`
+rather than `ANY_VALUE`: one person_id does carry two spellings, and an unordered pick there is
+the same non-determinism one level down.

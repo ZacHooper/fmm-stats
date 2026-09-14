@@ -1588,8 +1588,10 @@ WITH now_pool AS (
     FROM mart.player_snapshots
     WHERE NOT is_gk AND has_attributes AND person_id IS NOT NULL
       AND age BETWEEN 15 AND 24
+    -- tid breaks the tie: a recycled slot can put one person_id in a snapshot twice, and an
+    -- ORDER BY that does not resolve to a single row lets the scan order pick the winner.
     QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY person_id, CAST(FLOOR(age) AS INTEGER) ORDER BY phase_date
+        PARTITION BY person_id, CAST(FLOOR(age) AS INTEGER) ORDER BY phase_date, tid
     ) = 1
 ),
 target_pool AS (
@@ -1602,8 +1604,17 @@ target_pool AS (
     CROSS JOIN (VALUES (21), (24)) AS t(horizon_age)
     WHERE NOT is_gk AND has_attributes AND person_id IS NOT NULL
       AND ABS(age - t.horizon_age) <= 1.0
+    -- "closest snapshot to the horizon age" TIES ROUTINELY — a player at 20.5 and at 21.5 is
+    -- 0.5 from horizon 21 either way — and ROW_NUMBER then resolved the tie by whatever order
+    -- the parallel scan happened to produce. That made the whole forecast non-deterministic:
+    -- two exports of the SAME store disagreed on ~40 cells by +/-1, which is both a wobble in
+    -- published data and the thing that stops `git diff site/api` being the regression test
+    -- CLAUDE.md says it is. phase_date then tid resolves every tie to one row; preferring the
+    -- EARLIER snapshot on a tie also reads better than a coin flip (it is the first sighting
+    -- at that distance). The value moves by at most the +/-1 the tie was already flipping.
     QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY person_id, t.horizon_age ORDER BY ABS(age - t.horizon_age)
+        PARTITION BY person_id, t.horizon_age
+        ORDER BY ABS(age - t.horizon_age), phase_date, tid
     ) = 1
 ),
 horizon_pairs AS (

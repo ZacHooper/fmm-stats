@@ -476,17 +476,23 @@ def main():
     # table. `bucket` is derived in SQL per attribute — 'forecastable' where the decode tracks
     # real growth, 'fixed' where nothing moves (Agility, Technique), 'unmodelled' where the
     # decode compresses real growth too much to trust (Movement, Positioning, Aerial, ...).
+    # ORDER BY on all three reads is load-bearing, not tidiness: `cells` and `buckets` are
+    # dicts built in row order and `ageCurve` is a list, so an unordered scan emits the same
+    # data as different BYTES run to run — which is exactly what stops `git diff site/api`
+    # being the regression test it is supposed to be (see CLAUDE.md).
     fc = db.q("""SELECT attribute, age_now, value_now, horizon_age, median, p25, p75
-                 FROM mart.attribute_forecast""")
+                 FROM mart.attribute_forecast
+                 ORDER BY attribute, age_now, value_now, horizon_age""")
     buckets = {r.attribute: r.bucket for r in
-               db.q("SELECT DISTINCT attribute, bucket FROM mart.attribute_forecast").itertuples()}
+               db.q("SELECT DISTINCT attribute, bucket FROM mart.attribute_forecast "
+                    "ORDER BY attribute").itertuples()}
     cells = {}
     for r in fc.itertuples():
         by_age = cells.setdefault(r.attribute, {}).setdefault(str(int(r.age_now)), {})
         by_value = by_age.setdefault(str(int(r.value_now)), {})
         by_value[str(int(r.horizon_age))] = [round(float(r.median), 1),
                                               round(float(r.p25)), round(float(r.p75))]
-    curve = db.q("SELECT age, median, p25, p75 FROM mart.growth_age_curve")
+    curve = db.q("SELECT age, median, p25, p75 FROM mart.growth_age_curve ORDER BY age")
     emit("forecast.json", {
         "attrs": list(ATTR_ORDER),
         "buckets": buckets,
@@ -617,31 +623,53 @@ def main():
     # covers the CURRENT squad (see the core.json block above), so a player who left the save
     # after racking up matches/goals has no name anywhere else on the site. Bounded to "everyone
     # who ever played a match for our club", a few hundred rows at most, not all.json territory.
-    player_names = {}
+    # RESERVE-LEAGUE PLACEHOLDERS, and why `person_id IS NOT NULL` is the test. The save
+    # simulates the reserve league with anonymous filler: those stat blocks carry tids from a
+    # band (33007-33106 on Frem) that appears in no club's squad in any snapshot, and the SAME
+    # tid turns out for up to nine different reserve sides in a season, so it is a per-match
+    # roster slot, not a person. The info spine knows nothing about them, which is exactly why
+    # they have no person_id — a structural signal, where "we failed to find a name" is only a
+    # symptom. Shipping them put "#33015" second in the all-time average-rating table. A real
+    # player's reserve appearances carry a person_id and are unaffected.
     if mps is not None and not mps.empty:
-        tids = [int(t) for t in mps["tid"].dropna().unique()]
-        if tids:
-            nm = db.q(f"""SELECT tid, ANY_VALUE(name) AS name FROM mart.player_snapshots
-                         WHERE tid IN ({','.join('?' * len(tids))}) GROUP BY tid""", tids)
-            player_names = {str(int(r.tid)): r.name for r in nm.itertuples()
-                            if isinstance(r.name, str)}
-
-    # RESERVE-LEAGUE PLACEHOLDERS. A tid we cannot name is not a departed player — every real
-    # one we ever fielded is named above, because he sat in some snapshot's squad even if he
-    # has since left or retired. What is left is the reserve league: the save simulates it
-    # with anonymous filler whose stat blocks carry tids from a band (33007-33106 here) that
-    # appears in no club's squad, and the SAME tid turns out for eight different reserve
-    # sides across a season, so it is a per-match slot number, not a person. Shipping them
-    # put "#33015" second in the all-time average-rating table. They are dropped rather than
-    # shown as a number: nothing downstream can say anything true about them, and a real
-    # player's reserve appearances (he is named) are unaffected.
-    if mps is not None and not mps.empty:
-        keep = mps["tid"].map(lambda t: str(int(t)) in player_names)
+        keep = mps["person_id"].notna()
         dropped = int((~keep).sum())
         if dropped:
-            print(f"  matches.json           dropped {dropped} unnameable reserve-league rows "
-                  f"({mps.loc[~keep, 'tid'].nunique()} placeholder tids)")
+            print(f"  matches.json           dropped {dropped} anonymous reserve-league rows "
+                  f"({mps.loc[~keep, 'tid'].nunique()} placeholder tids, no person_id)")
         mps = mps[keep]
+
+    # Name resolution for every player who ever appeared for us — core.json's `players` array
+    # only covers the CURRENT squad (see the core.json block above), so a player who left the
+    # save after racking up matches/goals has no name anywhere else on the site. Bounded to
+    # "everyone who ever played a match for our club", a few hundred rows at most, not all.json
+    # territory.
+    #
+    # Resolved by PERSON, not by tid. A tid is a recycled slot (docs/agent-context/
+    # tid-recycling.md): grouping snapshots by tid alone sweeps in the eras when that slot
+    # belonged to somebody else entirely, and ANY_VALUE then picked between them by scan order
+    # — 7 of our 74 players came back under a stranger's name, and a DIFFERENT stranger on the
+    # next export (tid 4240 alternated between Johan Nordberg and Thomas De Clercq). Keying on
+    # the person_id the match row itself carries is both correct and stable. No tid serves two
+    # different people among our own appearances, so one name per tid is still well defined.
+    player_names = {}
+    if mps is not None and not mps.empty:
+        pairs = mps[["tid", "person_id"]].dropna().drop_duplicates()
+        pids = sorted({str(x) for x in pairs["person_id"]})      # person_id is '<tid>-<dob>'
+        if pids:
+            nm = db.q(f"""SELECT person_id, name FROM (
+                            SELECT person_id, name, ROW_NUMBER() OVER (
+                                PARTITION BY person_id
+                                ORDER BY phase_date DESC, tid DESC, name) AS rn
+                            FROM mart.player_snapshots
+                            WHERE person_id IN ({','.join('?' * len(pids))})
+                              AND name IS NOT NULL)
+                          WHERE rn = 1""", pids)
+            by_person = {str(r.person_id): r.name for r in nm.itertuples()
+                         if isinstance(r.name, str)}
+            player_names = {str(int(r.tid)): by_person[str(r.person_id)]
+                            for r in pairs.sort_values("tid").itertuples()
+                            if str(r.person_id) in by_person}
 
     def rowify(df, fields):
         if df is None or df.empty:
