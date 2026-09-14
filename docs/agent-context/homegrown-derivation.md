@@ -29,14 +29,55 @@ snapshot it renders as `#65189` and matches nothing in `staging.clubs`.
 | **65189** | **Boldklubben Frem — all 7, and all ours** |
 
 Which is exactly the shape of a youth side: the cohort sits at the parent club, and the strays
-are academy graduates who moved on. `mart.youth_clubs` recovers the mapping by majority vote over
-where each cohort ended up, and ships `share` + `alumni` so a caller can refuse a weak one —
-cohorts average 2.8 players and 143 of the 388 are singletons, where the "majority" is one man.
+are academy graduates who moved on.
+
+## The academy id is arithmetic: `youth_tid = 65535 - club_tid`
+
+An academy's tid is the **u16 complement** of its club's tid. Frem 346 → 65189, FCK 344 → 65191,
+Brøndby 337 → 65198, FCN 2465 → 63070, Liverpool 471 → 65064. `mart.youth_clubs` is therefore a
+lookup, not an inference: **no vote, no majority, no confidence score**. It also explains the
+sentinel — 65535 is the complement of tid 0, "no club" — which is why it stays excluded.
+
+The two id spaces cannot collide: club tids occupy 51–11077 and their complements 54458–65484.
+All 618 academies in the high band resolve, 618/618, and `validate_mart.py` asserts both the rule
+and the non-collision.
+
+**This replaced a majority vote** over where each cohort's alumni played (2026-09-12). The vote
+was wrong in kind rather than merely noisy — it answered a question about the transfer market and
+called it provenance. Against the complement it agreed on 577 of 623 academies and lost the other
+46, **every one of them a German II side beating its own first team** (Bayern München II over
+Bayern München, Dortmund II over Dortmund), because a graduate's early senior football is played
+for the II team. Parents that were a B/reserve side: 107 under the shipped vote, 0 under the rule.
+
+It also removed a flattering artefact. Academy 65170's two alumni are Jon Ross and Mads-Emil Wass;
+the complement is 365, Idrætsforeningen Lyseng Fodbold. The old vote made that academy **ours**
+purely because Wass plays for us now, and handed him club-trained status he never earned. Our
+A-list club-trained count goes 12 → 11 against a minimum of 4.
+
+`alumni` survives as a plain count of how many players came out of an academy. It is **not** a
+confidence: the mapping is exact whether the cohort is one player or twenty.
+
+**Five low-band tids are not academies** (6863, 6879, 7113, 7123, 7153). They sit in normal club
+space, their complements resolve to nothing, and they appear in `clubs` at no snapshot — clubs the
+extract does not carry, most likely. They map to nothing, which is the honest answer; the vote used
+to invent a parent for them, which is how four players got capital eligibility they had not earned.
 
 **65535 is 0xFFFF, the u16 "no origin" sentinel** (2,096 players), not a club. Excluded
 explicitly; `validate_mart.py` asserts it never enters `youth_clubs`.
 
-Reserve sides vote for their first team, or our own academy maps to "Frem Reserves" half the time.
+## Eligibility is applied to the PARENT, downstream of the lookup
+
+`mart.player_origin` is split in two. `mart.player_origin_base` is the raw reading; the academy →
+parent resolution and the capital-rule verdict sit in `mart.player_origin` on top of
+`mart.youth_clubs`. The split is forced: youth_clubs is *derived from* origin, so an eligibility
+flag that needs youth_clubs cannot live in the same view. Build order is
+`player_origin_base → youth_clubs → player_origin`.
+
+Before the split, `eligible` joined the allow-list straight onto the raw `origin_club_tid`, which
+is an academy tid for 2,067 of the 22,537 players at the 2026-03-22 snapshot — every one of them
+21 or under, i.e. the regen intake — so **none of them could ever match**. Resolving the parent
+first adds 53 eligible players (631 → 684) and removes none. There is no confidence column and no
+threshold to tune: `origin_parent_tid` is either exactly right or absent.
 
 ## Club nations, without a hardcoded nation table
 

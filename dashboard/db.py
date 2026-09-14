@@ -1183,6 +1183,19 @@ def teams_in_league(season, phase, league_cid):
     return df
 
 
+def _primary_position(eff):
+    """One row per player: the position he's most familiar at, best-rated among equals.
+
+    Familiarity has always been the rule here (and `site/js/data.js`'s `playerRoles()` now
+    matches it), because `eff` is not comparable across positions — each role weights a
+    different number of attributes, so ranking a player's own positions by eff just picks his
+    most heavily weighted role. The tie-break is the only thing new: `idxmax` took whichever
+    row came first, which for a player equally familiar at two positions was arbitrary.
+    """
+    order = eff.sort_values(["familiarity", "eff"], ascending=[False, False])
+    return order.groupby("tid", sort=False).head(1).copy()
+
+
 def team_player_frame(season, phase, method, club_tids):
     """Per-player rows for the given clubs: 23 attributes + primary position/unit +
     effective rating at primary position. Basis for team aggregates."""
@@ -1192,8 +1205,7 @@ def team_player_frame(season, phase, method, club_tids):
     eff = eff[eff["club_tid"].isin(club_tids)].copy()
     if eff.empty:
         return eff
-    # primary position row per player (max familiarity)
-    prim = eff.loc[eff.groupby("tid")["familiarity"].idxmax()].copy()
+    prim = _primary_position(eff)
     prim["unit"] = prim["position"].map(POSITION_UNIT)
     return prim
 
@@ -1868,7 +1880,7 @@ def squad_frame(season, phase, method, club_tids):
     eff = _add_position_index(effective_table(season, phase, method))
     if eff.empty:
         return pd.DataFrame()
-    prim = eff.loc[eff.groupby("tid")["familiarity"].idxmax()].copy()
+    prim = _primary_position(eff)
     prim = prim[prim["club_tid"].isin(list(club_tids))]
     if prim.empty:
         return prim
@@ -2170,12 +2182,27 @@ def scout_report(opp_tid, season=None, phase=None, method=None):
 LEGACY_SCOUTS_PATH = os.path.join(REPO, "scouts", "scouts.jsonl")
 
 
-def scout_key(opponent_tid, snapshot_label):
-    """Stable object key. Re-scouting the same opponent on the same data snapshot overwrites
-    its own entry; a new snapshot (after a re-import) gets a fresh one — the same behaviour the
-    JSONL de-duplication gave, but without a read-modify-write."""
+def _slug(x, sep="-"):
+    """Lowercase, filesystem- and R2-safe token. Runs of anything else collapse to one `sep`."""
+    out = "".join(c if c.isalnum() or c in "-_." else sep for c in str(x).strip().lower())
+    return sep.join(t for t in out.split(sep) if t)
+
+
+def scout_key(opponent_tid, snapshot_label, fixture=None):
+    """Stable object key, one per SCOUT.
+
+    Keying on `(opponent_tid, snapshot_label)` alone meant one scout per opponent per data
+    snapshot: the home and away meetings of the same season landed on one key and the second
+    silently replaced the first, which is not a supersede — it is two different fixtures losing
+    one. `fixture` is the discriminator that separates them, and the match date off the Next
+    Match screen is the natural value ("2026-04-20"); a venue works when that is all you have.
+
+    Omitting it keeps the historical key, so records written before this existed still resolve
+    and re-scouting the same fixture still updates in place."""
     safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in str(snapshot_label))
-    return f"{int(opponent_tid)}-{safe}"
+    base = f"{int(opponent_tid)}-{safe}"
+    fx = _slug(fixture) if fixture is not None else ""
+    return f"{base}-{fx}" if fx else base
 
 
 def _json_clean(o):
@@ -2201,9 +2228,55 @@ def load_scouts():
             if "saved_at" in df.columns else df)
 
 
-def delete_scout(opponent_tid, snapshot_label):
-    """Drop one saved scout."""
-    state.delete("scouts", scout_key(opponent_tid, snapshot_label))
+def grade_scout(opponent_tid, result_note, result=None, snapshot_label=None, graded_at=None,
+                fixture=None):
+    """Record how a saved scout's read actually graded, WITHOUT touching the pre-match `note`.
+
+    Call this when the user posts the full-time stats for a fixture that was scouted. Writes
+    `result_note` (the grading prose), `result` (an optional short outcome like "W 2-0 (H)") and
+    `graded_at` onto the existing record, leaving `note` as the prediction it always was — the
+    two halves are what make the log calibration, so grading must never be written over the top
+    of the briefing it is grading.
+
+    Narrow to one scout with `fixture` (and/or `snapshot_label`) when several exist for this
+    opponent. Resolves against the STORED keys rather than rebuilding one, so it finds a record
+    whatever discriminator it was saved under.
+
+    Returns None when there is no scout to grade, and **raises ValueError rather than guessing**
+    when the opponent has several ungraded scouts and nothing was given to choose between them:
+    `saved_at` has second resolution and "last saved" is not "the fixture just played", so a
+    guess here silently grades the wrong briefing — and can overwrite a grading that was already
+    right. An already-graded record is skipped when disambiguating, so the normal "scout both
+    legs, grade each after its match" flow needs no arguments; re-grading one is still fine if
+    you name its `fixture`."""
+    want = _slug(fixture) if fixture is not None else None
+    cands = [(k, r) for k, r in state.entries("scouts")
+             if r.get("opponent_tid") == opponent_tid
+             and (snapshot_label is None or r.get("snapshot_label") == snapshot_label)
+             and (want is None or (_slug(r["fixture"]) if r.get("fixture") else "") == want)]
+    if not cands:
+        return None
+    if len(cands) > 1 and want is None:
+        ungraded = [kr for kr in cands if not kr[1].get("result_note")]
+        if len(ungraded) != 1:
+            raise ValueError(
+                f"{len(cands)} scouts saved for opponent {opponent_tid} "
+                f"({', '.join(sorted(k for k, _ in cands))}) — pass fixture= (or "
+                f"snapshot_label=) to say which one this result belongs to.")
+        cands = ungraded
+    key, rec = max(cands, key=lambda kr: kr[1].get("saved_at") or "")
+    rec["result_note"] = result_note
+    if result is not None:
+        rec["result"] = result
+    rec["graded_at"] = graded_at or datetime.datetime.now().isoformat(timespec="seconds")
+    res = state.put("scouts", key, rec)
+    rec["_sync"] = res.status
+    return rec
+
+
+def delete_scout(opponent_tid, snapshot_label, fixture=None):
+    """Drop one saved scout. `fixture` must match what it was saved under."""
+    state.delete("scouts", scout_key(opponent_tid, snapshot_label, fixture))
 
 
 def snapshot_history():
@@ -2219,8 +2292,11 @@ def snapshot_history():
         return pd.DataFrame()
 
 
-def save_scout(report, venue=None, formation=None, style=None, note=None, saved_at=None):
-    """Append/refresh a scouting report in the JSONL log. Keyed by (opponent_tid, snapshot),
+def save_scout(report, venue=None, formation=None, style=None, note=None, saved_at=None,
+               fixture=None):
+    """Append/refresh a scouting report in the log, returning the stored record plus a transient
+    `_sync` (state.SYNCED / LOCAL_ONLY / SYNC_FAILED) saying whether it reached R2 — check it, and
+    tell the user when it did not. Keyed by (opponent_tid, snapshot),
     so re-scouting the same opponent on the same data updates the record; a new data snapshot
     (after a re-import) creates a fresh one. Stores the report's verdict + our supplied
     formation/style/venue/note so 'what we thought' can be reviewed against the result."""
@@ -2235,6 +2311,7 @@ def save_scout(report, venue=None, formation=None, style=None, note=None, saved_
         "snapshot": f"{report['season']}-{report['phase']}", "snapshot_label": snap_label,
         "method": report["method"],
         "venue": venue, "formation": formation, "style": style, "note": note,
+        "fixture": fixture,
         "overall": report["overall"], "coverage": report["coverage"],
         "strength": report["strength"].to_dict("records"),
         "matchups": report["matchups"].to_dict("records"),
@@ -2243,5 +2320,33 @@ def save_scout(report, venue=None, formation=None, style=None, note=None, saved_
                         if not report["key_players"].empty else []),
         "h2h": {k: report["h2h"].get(k) for k in ("played", "w", "d", "l", "gf", "ga", "ppg")},
     })
-    state.put("scouts", scout_key(rec["opponent_tid"], rec["snapshot_label"]), rec)
+    # A scout record holds TWO things that must not overwrite each other: `note` is what we
+    # thought BEFORE the game, `result_note` is how that read graded afterwards. That pairing is
+    # the only reason the log is calibration rather than a pile of old opinions, and re-saving
+    # used to destroy whichever half it wasn't writing (four fixtures lost their prediction that
+    # way). So carry the post-match half forward, and file a superseded prediction into
+    # `revisions` rather than losing it.
+    key = scout_key(rec["opponent_tid"], rec["snapshot_label"], fixture)
+    prev = state.get("scouts", key) or {}
+    # Two scouts of the same opponent inside one snapshot window are two different FIXTURES, and
+    # with no discriminator they collide on one key. We cannot always tell, but a changed venue
+    # on an undiscriminated key is the clear case — say so rather than replacing it quietly.
+    collision = bool(prev and fixture is None and prev.get("venue") and venue
+                     and prev.get("venue") != venue)
+    if collision:
+        print(f"scout: {key} already holds a {prev['venue']} scout of {rec['opponent']} and this "
+              f"one is {venue} — REPLACING it. Pass fixture= (the match date) to keep both.",
+              file=sys.stderr)
+    for field in ("result_note", "result", "graded_at"):
+        if prev.get(field) is not None:
+            rec[field] = prev[field]
+    rec["revisions"] = list(prev.get("revisions") or [])
+    if prev.get("note") and prev["note"] != rec.get("note"):
+        rec["revisions"].append({"saved_at": prev.get("saved_at"), "note": prev["note"]})
+    res = state.put("scouts", key, rec)
+    # Transient, and underscored so they are never confused with the stored record: the saved
+    # file has neither key. Report them — a scout that only reached local disk is one the next
+    # agent (or the other machine) will not find, and that used to pass for a successful save.
+    rec["_sync"] = res.status
+    rec["_collision"] = collision
     return rec

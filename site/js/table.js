@@ -21,12 +21,19 @@ const PAGE = 400;                  // rows painted per step — see the paging n
  *   rows      array of row objects (each must have .tid and ._search)
  *   catalogue {id: {label, group, get(row), render?(row), align?, sort?, help?, width?}}
  *   defaults  [id] initially-shown columns, in order
+ *   sort      {by, dir, v?} the default sort. Bump `v` when you retune it, so a browser holding
+ *             an older saved sort adopts the new one once instead of never seeing it.
  *   presets   {name: [id]} one-click column sets
  *   sticky    [id] columns that can never be removed (identity)
  *   onRow     click handler for a row
  *   toolbar   extra controls to place beside the search box
  *   empty     message when nothing matches
  *   filters   true to offer the "Filters" button (see filterPanel below)
+ *   prepare   optional (activeFilters) => void, run at the top of every draw, BEFORE any
+ *             filtering or sorting. The hook for a table whose rows are a function of its own
+ *             filter state: squad.js re-points every row at the filtered position here, so the
+ *             scoped values are what the rest of the draw filters, sorts and paints. Must be
+ *             idempotent — it runs on every draw, including sort and search.
  */
 export function playerTable(o) {
   const state = loadState(o.key, o.defaults, o.sort);
@@ -75,6 +82,7 @@ export function playerTable(o) {
   }
 
   function draw() {
+    o.prepare?.(state.filters || []);
     const cols = visibleCols();
     const q = (state.q || "").trim().toLowerCase();
     let rows = o.rows;
@@ -151,7 +159,10 @@ export function playerTable(o) {
   }
 
   draw();
-  return { node: host, redraw: draw, state };
+  // `persist` so a caller that writes `state` itself (squad.js's Position dropdown drives the Pos
+  // column filter) saves it the same way the filter panel does, instead of that one control's
+  // choice being the only one that doesn't survive a reload.
+  return { node: host, redraw: draw, state, persist: () => save(o.key, state) };
 }
 
 function columnPicker(o, state, changed) {
@@ -506,10 +517,17 @@ function filterPanel(o, state, changed) {
 function loadState(key, defaults, sort) {
   let s = {};
   try { s = JSON.parse(localStorage.getItem(LS(key)) || "{}"); } catch { s = {}; }
+  // A retuned default sort has to be able to reach a browser that already saved one, or the
+  // people who use the page most are the only ones who never get it. `sort.v` is how a view says
+  // "this default is new": bumping it adopts the new sort ONCE, on the next load, and leaves the
+  // column choice, filters and search untouched. Any sort the user picks afterwards sticks, and
+  // a saved state at the current version is never second-guessed.
+  const stale = sort?.v != null && s.sortV !== sort.v;
   return {
     cols: Array.isArray(s.cols) && s.cols.length ? s.cols : [...defaults],
-    sortBy: s.sortBy ?? sort?.by ?? null,
-    sortDir: s.sortDir ?? sort?.dir ?? "desc",
+    sortBy: (stale ? sort.by : s.sortBy) ?? sort?.by ?? null,
+    sortDir: (stale ? sort.dir : s.sortDir) ?? sort?.dir ?? "desc",
+    sortV: sort?.v ?? null,
     // Filters persist with the columns: a saved search you have to rebuild every visit is one
     // you stop using. Unknown column ids are dropped at apply time, so a catalogue that loses a
     // column can't strand a filter nobody can see or remove.
@@ -520,7 +538,7 @@ function loadState(key, defaults, sort) {
 function save(key, s) {
   try {
     localStorage.setItem(LS(key), JSON.stringify({
-      cols: s.cols, sortBy: s.sortBy, sortDir: s.sortDir, q: s.q, filters: s.filters,
+      cols: s.cols, sortBy: s.sortBy, sortDir: s.sortDir, sortV: s.sortV, q: s.q, filters: s.filters,
     }));
   } catch { /* private browsing — column choice just won't persist */ }
 }

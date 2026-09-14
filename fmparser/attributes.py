@@ -22,7 +22,12 @@ POSITIONS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR",
              "AML", "AMC", "AMR", "ST", "DML", "DMR"]
 
 # ---------------- own squad: names ----------------
-_NAME_LEN = re.compile(rb"([\x03-\x20])\x00\x00\x00")
+# Length-prefixed name, [3, 64] BYTES. The old cap was 0x20 = 32 bytes, one single byte
+# above the longest name actually in the squad ('Frederik Vestergaard Kristensen', 31
+# bytes) — and these are UTF-8 bytes, so accented names hit it sooner than their character
+# count suggests. _FULLNAME below still validates the shape, so the wider cap admits longer
+# real names without admitting junk.
+_NAME_LEN = re.compile(rb"([\x03-\x40])\x00\x00\x00")
 _FULLNAME = re.compile(r"[A-ZÀ-ſ][\w'. À-ſ-]{2,}$")
 
 
@@ -111,7 +116,18 @@ def own_squad_full(mm, lo=None, hi=None, marker=CLUB_MARKER):
         if not (1000 < tid < 70000):
             continue
         name = _name_before(mm, j)
-        if name and tid not in out:
+        if name:
+            # LAST copy wins, not the first. The save keeps SEVERAL squad-list copies per
+            # player from successive writes, and the freshest is the highest-offset one —
+            # the same fact `attr_record` below is built on ("returning the first copy showed
+            # pre-development attributes"). This function took the FIRST, so when a loan
+            # converts to a permanent deal it kept reading a stale LOAN-shaped copy and the
+            # player stayed `loaned_in` forever. Mounir Secka (tid 26779) has three copies on
+            # frem-2026-03-22 — two LOAN at 61,439,685 / 61,457,553 and the real OWNED
+            # `[346][ffff]` at 61,479,005 — and we were reporting the first.
+            #
+            # Measured across all 22 Frem saves and BOTH squad markers: one flip (Secka, on
+            # 2025-11-30 and 2026-03-22), zero tids added or lost. Bucaspor unchanged.
             out[tid] = {"name": name, "loaned_in": loaned_in, "parent_club_tid": parent}
     return out
 

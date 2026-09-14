@@ -295,8 +295,11 @@ DDL = [
        LIMIT 0""",
 ]
 
-_SEED_METHODS = ("black_hawk", "personal", "frem_counter", "frem_gegenpress",
-                 "frem_attacking_ss", "frem_lowblock_overload", "frem_game_state")
+# Which methods the seed CSV owns is read FROM THE CSV, not listed here. The hardcoded list this
+# replaced went stale the moment a new method was added to the CSV: seed_role_weights deleted the
+# seven it knew about and re-inserted the whole file, so the new method gained a DUPLICATE row set
+# on every refresh and the rating view — a LEFT JOIN and a SUM — counted its weights twice. Two
+# refreshes took a centre-back's rating from 431 to 777 and silently reordered the depth chart.
 
 # 14 FM position codes -> 10 rating roles. Wide/defensive-mid codes fold into the
 # nearest available role (the role vocabulary is narrower than the position codes).
@@ -385,7 +388,19 @@ VIEWS["v_player_ratings"] = f"""
     WITH long AS (
         UNPIVOT staging.player_attributes ON {_UNPIVOT} INTO NAME attribute VALUE value
     ),
-    combos AS (SELECT DISTINCT method, role FROM staging.role_weights)
+    combos AS (
+    -- Every method x every role, NOT the pairs that happen to appear in role_weights. A role
+    -- with no rows there is a FLAT role - every attribute at weight 1 - which is a legitimate and
+    -- deliberate state: scripts/derive_weight_set.py ships one when no weighting beat a flat
+    -- baseline out-of-fold. Built from the pairs present, such a role vanishes from the ratings
+    -- entirely and every position mapping to it disappears from the depth chart: two methods
+    -- shipped with AML/AMR flat and the squad's 13 AMLs and 10 AMRs had no fit rows at all.
+    -- COALESCE(weight, 1) below already yields the right number; combos just has to ask for
+    -- the row.
+    SELECT m.method, r.role
+    FROM (SELECT DISTINCT method FROM staging.role_weights) m
+    CROSS JOIN (SELECT DISTINCT role FROM staging.position_role_map) r
+    )
     SELECT l.season, l.phase, l.tid, c.method, c.role,
            SUM(l.value * COALESCE(w.weight, 1)) AS rating
     FROM long l
@@ -1027,16 +1042,16 @@ def _drop_extracts_phase_check(con):
 
 
 def seed_role_weights(con):
-    """(Re)seed the built-in tactic weight-sets from seeds/role_weights.csv, leaving
-    any user-defined tactics untouched. Idempotent: replaces only the built-in methods."""
+    """(Re)seed the tactic weight-sets from seeds/role_weights.csv, leaving any user-defined
+    tactic untouched. Idempotent: deletes exactly the methods the CSV names, then inserts it."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
                         "role_weights.csv")
     if not os.path.exists(path):
         print(f"  ! role_weights seed missing at {path}; skipping")
         return
-    ph = ",".join("?" * len(_SEED_METHODS))
-    con.execute(f"DELETE FROM staging.role_weights WHERE method IN ({ph})",
-                list(_SEED_METHODS))
+    con.execute(
+        "DELETE FROM staging.role_weights WHERE method IN "
+        "(SELECT DISTINCT method FROM read_csv_auto(?))", [path])
     con.execute(
         "INSERT INTO staging.role_weights (method, role, attribute, category, weight) "
         "SELECT method, role, attribute, category, weight FROM read_csv_auto(?)", [path])
@@ -1185,9 +1200,10 @@ def main():
     ap.add_argument("--reset", action="store_true",
                     help="drop and recreate the staging schema + views first")
     ap.add_argument("--refresh-only", action="store_true",
-                    help="rebuild the SQL views + the mart layer against an existing store "
-                         "and load nothing. Both are just definitions, so a change to "
-                         "fmparser/mart.py or VIEWS does not reach a store until something "
+                    help="rebuild the SQL views, the mart layer AND the role-weight seeds "
+                         "against an existing store, loading nothing. All three are just "
+                         "definitions, so a change to fmparser/mart.py, VIEWS or "
+                         "seeds/role_weights.csv does not reach a store until something "
                          "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()
 
@@ -1202,10 +1218,15 @@ def main():
     if args.refresh_only:
         con = duckdb.connect(args.db)
         try:
+            # seeds/role_weights.csv is a DEFINITION, exactly like a view: editing it has to
+            # reach an existing store without a full re-import. seed_role_weights only replaces
+            # the methods the CSV names, so a weight-set built in the Lab and promoted into
+            # staging.role_weights survives this.
+            seed_role_weights(con)
             create_views(con)
             mart_objects = create_mart(con)
-            print(f"{args.db}: {len(VIEWS)} views + {len(mart_objects)} mart objects rebuilt "
-                  f"(nothing loaded)")
+            print(f"{args.db}: role-weight seeds + {len(VIEWS)} views + {len(mart_objects)} "
+                  f"mart objects rebuilt (nothing loaded)")
         finally:
             con.close()
         return

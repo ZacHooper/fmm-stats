@@ -133,6 +133,7 @@ SCOPE = {
     # is for.
     "player_snapshots": NEWEST_ONLY,
     "player_position_levels": NEWEST_ONLY,
+    "player_origin_base": NEWEST_ONLY,
     "player_origin": NEWEST_ONLY,
     "player_career_seasons": NEWEST_ONLY,
     # Same story: club/league identity and current membership, not standings history (no

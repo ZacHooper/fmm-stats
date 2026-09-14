@@ -226,10 +226,10 @@ async function searchPanel() {
     const pools = new Map();
     const rows = [];
     for (const p of D.S.players.values()) {
-      // playerRoles(p) is every listed position rated and sorted best-first — bestRole(p) is
-      // just its [0]. Taking the whole list here, once, is the same cost as the old bestRole()
+      // playerRoles(p) is every listed position rated, primary (most familiar) first — bestRole(p)
+      // is just its [0]. Taking the whole list here, once, is the same cost as the old bestRole()
       // call and is what lets Fam/Rating/Level scope themselves to a Position filter below,
-      // instead of always describing whichever role rates highest overall.
+      // instead of always describing the position he happens to play most.
       const roles = D.playerRoles(p);
       const best = roles[0];
       if (!best) continue;

@@ -69,6 +69,30 @@ The reads to be careful with are therefore about football, not decode error:
   15 can still have an excellent game (observed: 8 tackles, 6 won, 5 interceptions, rated 8). Name
   the weakness, but weigh it against the rest of that player's profile before building the plan
   around it.
+- **A duel needs a duellist.** Naming a soft spot does not mean it gets attacked. A briefing called
+  an opponent's left-back (Aerial 6, Strength 8) the aerial door; in the match he contested **zero**
+  headers, while the centre-backs who picked our target man up held him to 2 aerial wins from 8. Say
+  which of our players is supposed to meet which of theirs, and how the ball gets there — a weakness
+  nobody is routed at is not an exploit.
+- **Never rest an aerial verdict on two NAMED opponent defenders.** Three briefings in a row ruled
+  the aerial route out — or aimed it at the wrong man — by quoting the centre-backs on the Predicted
+  XI, and in each case those men did not occupy those slots. The Horsens case is the clean one: the
+  briefing said don't cross, "the men who contest the box are K. Larsen (Aerial 15) and Moreno (13)".
+  Larsen played right-back and Moreno played centre-MIDFIELD; we crossed 31 times, had 13 corners,
+  and our striker won 8 of 14 duels and scored four in a 6-0. Predicted names are wrong 3–7 times out
+  of 11, so an opponent-name-dependent verdict is a coin toss. Rest it instead on the two things that
+  hold: **our own target man** (we pick him — Aerial 16 / Strength 18 here, better than every
+  defender in the Horsens squad, a fact that was in the briefing's own working) and the opponent's
+  **squad-wide** defensive Aerial, not two names. This does **not** mean "cross more" — see
+  [[scoring-and-shot-quality]], where crossing predicts shots and not goals. It means do not *rule it
+  out* on evidence that evaporates when the team sheet arrives.
+
+**`level_league` is a percentile inside that player's OWN league.** A reserve-listed player reads
+100 %ile against reserve-league peers, which is not comparable to a first-teamer's Superliga
+percentile, so ranking a mixed list on `level_league` puts reserves on top by construction. Use
+`level_nation` / `level_global` whenever the candidates come from different leagues. Real case: the
+FCK reserve who ran their AMC slot against us reads league 100, nation 92.3, global 84.3 — still
+genuinely good, but a place below their first-team stars rather than level with them.
 
 ## Worked example of getting it wrong, then right
 

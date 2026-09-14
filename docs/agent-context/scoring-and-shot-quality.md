@@ -60,6 +60,19 @@ Monotonic in how many are fielded: **0 → 0.78, 1 → 1.21, 2 → 1.55** goals/
 row's shape — *more* shots, *worse* accuracy, *fewer* goals, which is finding 1 restated: without a
 focal point we manufacture attempts from bad positions.
 
+**It shows up in points, not just goals** — re-cut on the 2025+ squad only (62 stats-bearing
+first-team matches), which is the personnel any current briefing is actually picking from:
+
+| starting FCs | Games | Goals/g | Conceded/g | Points/g |
+|---|---|---|---|---|
+| 0 (strikerless) | 10 | 0.70 | 1.40 | **0.90** |
+| 1 | 31 | 1.45 | 1.19 | 1.32 |
+| 2 | 21 | 1.62 | 1.05 | **1.95** |
+
+Two forwards is also the *better defensive* row, which kills the "but it leaves us open" objection.
+The strikerless bucket is only 10 games here — the 0.90 ppg is soft — but it points the same way as
+the 18-game goals cut above, and no cut of this save has ever had strikerless ahead.
+
 ## 3. Tested and FAILED — do not re-derive these
 
 - **Aerial dominance does not produce goals.** Team aerial win rate vs goals: **r = +0.03** over 563
@@ -73,6 +86,42 @@ focal point we manufacture attempts from bad positions.
   **r = −0.30**; vs our goals: **−0.04**, with non-monotonic buckets. Three consecutive opponents
   whose best defender racked up 11, 16 and 12 interceptions against us looked like a pattern; the
   52-match test does not support it.
+- **Our own interceptions do not predict results.** This is the mirror of the bullet above and it
+  died the same way. A scouting note called interceptions "the clearest in-match dial we have" off
+  an 8-match per-opponent split (wins 43 and 38, losses averaging 32.3). Over **176** of our own
+  stats-bearing matches, interceptions vs points is **r = +0.044** — wins 33.8, draws 34.1, losses
+  32.7 — and league-wide (351 matches, every club) **r = +0.093**. The differential is marginally
+  better (+0.17 league-wide) and still not something to steer a game plan by. It is not even a
+  "we're chasing the ball" artifact: interceptions correlate *positively* with our own pass volume
+  (+0.21 to +0.25). The counterexample that prompted the test: a 2-0 home win over FC København on
+  ~31 interceptions — below that fixture's *loss* average — while FCK made 39 and lost.
+- **"Cross a lot when the target man plays" is tempting and does not survive as a PLAN.** A 0-6 with
+  31 crosses, 13 corners and four goals from a striker who won 8 of 14 duels made this look like a
+  lever. Cut properly on 2025+ starts: with Ementa starting, games of 20+ crosses average **2.13
+  goals** against 1.14 with fewer — but also **1.50 conceded** against 1.08, and **1.25 ppg against
+  1.50**, over just 8 games. Without him the split vanishes entirely (1.50 vs 1.57). So heavy
+  crossing marks an open game, not a won one, and the headline result is finding 1 restated: that
+  match was **9 shots on target from 13** (a 69% SOT rate against a 38.5% season average, the 2nd
+  highest SOT count in 176 matches). The actionable residue is a negative one, in
+  [[scouting-attribute-reads]]: do not *rule out* the aerial route on two named opponent centre-backs
+  — just don't sell crossing as the mechanism either.
+
+  **Re-tested 2026-04, and the negative result is stronger than "not a plan" — cross volume is
+  close to inert.** Over **166 competitive matches** (2026 store, `our_match_history`):
+  `corr(crosses, goals) = +0.089`, against **+0.660 for shots on target** and +0.423 for shots.
+  Goals per game by cross-volume quartile are **1.47 / 1.82 / 1.79 / 1.81** — everything above
+  roughly ten crosses a game buys nothing at all. Two corrections follow:
+  1. **A grading that reads "we crossed a lot and won" as vindication is reading co-occurrence as
+     cause.** The 2026-04-04 home leg vs Lyngby was graded exactly that way — it overturned the
+     briefing's anti-crossing call because "we crossed 19 times and won anyway, winning headers
+     18-14". The win was finding 1 restated once again: 6 shots on target from 10, a 60% SOT rate.
+     That overturn was itself wrong, and it propagated — it was carried into the away-leg briefing
+     three weeks later as "the aerial route is ON", which this doc had already advised against.
+  2. **Vs Lyngby specifically, the route has now failed three times identically.** 24 crosses at
+     home (0-0), 24 away (0-0), 24 away again on 2026-04-25 (won 1-0, 3 completed from 24, header
+     count lost 16-24, and the goal was an unassisted Schöne strike, not a cross). n=3 on its own
+     would prove nothing; sitting on top of the league-wide +0.089 it is just the general result
+     showing up in one fixture.
 - **Pairing two specific midfielders is not special.** "Our two best MCs together" reads
   1.58 goals/game vs 0.96 with neither at MC — but decomposed, **the gain is from having *at least
   one* of them at MC (+0.4 to +0.5); the second adds ~0.1**, and "both vs every other configuration"
