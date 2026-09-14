@@ -19,6 +19,10 @@ import * as D from "../data.js";
 import { el, num, pill, DASH } from "../ui.js";
 import { openProfile } from "../profile.js";
 
+// Appearances needed to qualify for an AVERAGE-RATING award over a full fixture list.
+// Mirrors dashboard/pages/11_Awards.py's RATING_AWARD_APPS — keep the two in step.
+const RATING_AWARD_APPS = 20;
+
 export async function view() {
   const M = await D.loadMatches();
   await D.loadSquad();
@@ -81,7 +85,7 @@ export async function view() {
   const topAgg = (fn, n = 10) => aggPool.map((a) => ({ tid: a.tid, v: fn(a) }))
     .filter((x) => x.v != null && Number.isFinite(x.v) && x.v > 0)
     .sort((a, b) => b.v - a.v).slice(0, n);
-  const topRatingAgg = (n = 10) => aggPool.filter((a) => a.apps >= 10)
+  const topRatingAgg = (n = 10) => aggPool.filter((a) => a.apps >= RATING_AWARD_APPS)
     .map((a) => ({ tid: a.tid, v: a.rating })).filter((x) => x.v != null)
     .sort((a, b) => b.v - a.v).slice(0, n);
   const topHatTricks = (n = 10) => {
@@ -106,7 +110,7 @@ export async function view() {
     hofTable("Most Assists", topAgg((a) => a.assists)),
     hofTable("Most Goal Involvements", topAgg((a) => a.goals + a.assists)),
     hofTable("Most Minutes Played", topAgg((a) => a.min)),
-    hofTable("Highest Average Rating (min 10 apps)", topRatingAgg(), 2),
+    hofTable(`Highest Average Rating (min ${RATING_AWARD_APPS} apps)`, topRatingAgg(), 2),
     hofTable("Most Hat-tricks", topHatTricks()),
   ].filter(Boolean)));
 
@@ -195,8 +199,11 @@ export async function view() {
       ])]),
       el("p.note", {
         text: `Season ${s}: ${games} parsed matches, minimum ${minApps} appearances to qualify — `
-          + "the bar scales with games played so a two-game cameo can't win anything. "
-          + "Appearances count substitutes, not just starts.",
+          + "the bar scales with games played so a two-game cameo can't win anything, and the "
+          + "two average-rating awards (Player of the season, Young Gun) set it higher again, "
+          + "since an average over a dozen games is noise where a counting stat already "
+          + "rewards playing more. Each award names its own bar. Appearances count "
+          + "substitutes, not just starts.",
       }),
       el("h4", { text: "Team awards" }),
       team.length ? teamAwardsTable(team) : el("p.note", { text: "No managed-club matches this season." }),
@@ -235,11 +242,21 @@ function seasonPlayerAwards(rows, matches, s) {
   const games = new Set(sr.map((r) => String(r.date))).size;
   const minApps = Math.max(3, Math.round(games * 0.3));
   const pool = [...agg.values()].filter((a) => a.apps >= minApps);
-  const top = (fn, label, dp = 2, note = "", silly = false) => {
-    const best = pool.map((a) => ({ a, v: fn(a) })).filter((x) => x.v != null && Number.isFinite(x.v))
+  const top = (fn, label, dp = 2, note = "", silly = false, from = pool) => {
+    const best = from.map((a) => ({ a, v: fn(a) })).filter((x) => x.v != null && Number.isFinite(x.v))
       .sort((x, y) => y.v - x.v)[0];
     return best ? { label, who: best.a.tid, value: num(best.v, dp), note, silly } : null;
   };
+
+  // Player of the Season and Young Gun are AVERAGE-RATING awards, and an average over a
+  // handful of games is mostly noise: a fringe player's dozen-game purple patch outranks a
+  // full campaign, which is how one player ends up winning both. They need a real season's
+  // work — RATING_AWARD_APPS over a normal fixture list — where every other award keeps the
+  // lower `minApps` bar, because a counting stat (goals, key passes, minutes) already
+  // rewards playing more. The bar scales down only if the season itself is short, so a
+  // half-season store or a career's opening months still crowns someone.
+  const ratingMinApps = Math.max(minApps, Math.min(RATING_AWARD_APPS, Math.round(games * 0.6)));
+  const ratingPool = pool.filter((a) => a.apps >= ratingMinApps);
 
   // Young Gun: age at the season's last new year, the same cutoff the registration rules use.
   const ageAt = (tid) => D.age(D.S.players.get(tid)?.dob, `${s}-01-01`);
@@ -272,9 +289,11 @@ function seasonPlayerAwards(rows, matches, s) {
     note: "goals+assists off the bench" } : null;
 
   return [
-    top((a) => a.rating, "Player of the season", 2, "highest average match rating"),
+    top((a) => a.rating, "Player of the season", 2,
+      `highest average match rating, min ${ratingMinApps} apps`, false, ratingPool),
     top((a) => (ageAt(a.tid) != null && ageAt(a.tid) <= 21 ? a.rating : null),
-      "Young Gun (U21)", 2, "highest average rating, U21"),
+      "Young Gun (U21)", 2, `highest average rating, U21, min ${ratingMinApps} apps`,
+      false, ratingPool),
     top((a) => a.goals, "Golden boot", 0, "most goals"),
     hattrickAward,
     top((a) => a.assists, "Playmaker", 0, "most assists"),
@@ -347,7 +366,10 @@ function seasonTeamAwards(sm) {
     if (!bestMonth || ppgM > bestMonth.ppg) bestMonth = { ppg: ppgM, ym, w, d, l, n: ms.length };
   }
 
-  const crowd = mrow("attendance", (r) => Number(r.attendance).toLocaleString());
+  // Biggest Crowd is OUR gate, so only home games count — the 32,962 at Parken is
+  // København's crowd, not ours, and it outdrew every home game we ever played.
+  const crowd = mrow("attendance", (r) => Number(r.attendance).toLocaleString(),
+    (m) => m.venue === "H");
 
   // Cup Run: no competition-type flag ships to the client, so this is a heuristic — the
   // season's most-played competition is treated as the league (true for any real fixture

@@ -424,6 +424,7 @@ def extract_season(mm, our_tids=()):
         anchors = match_anchors(mm)                       # fall back to hard-coded MATCH_LO
     ours = {t for t in our_tids if t}
     out = []
+    by_header = {}                  # date_off -> index into `out`; see the dedupe note below
     for n, a in enumerate(anchors):
         nxt = anchors[n + 1] if n + 1 < len(anchors) else None
         m = extract_match(mm, a, nxt)
@@ -435,7 +436,7 @@ def extract_season(mm, our_tids=()):
         except ValueError:
             d = None
         slots = parse_slot_positions(mm, a, nxt)
-        out.append({
+        rec = {
             "anchor": a, "date": d,
             "competition": h.get("competition"), "comp_id": h.get("comp_id"),
             "home_flag": mm[h["date_off"] - 1],
@@ -449,6 +450,26 @@ def extract_season(mm, our_tids=()):
             "events": m["events"],
             "home_xi": _xi(m["home"], slots if h["home_tid"] in ours else None),
             "away_xi": _xi(m["away"], slots if h["away_tid"] in ours else None),
-        })
+        }
+        # GHOST ANCHORS. A handful of matches carry a second delimiter cluster 24 bytes ahead
+        # of the real one. It is too far to merge into the same cluster (match_anchors joins
+        # hits <=16 bytes apart) so it survives as its own anchor, and parse_header — which
+        # scans FORWARD for the first plausible date — then re-reads the very same header.
+        # The result is a phantom fixture: right date, right opponent, right attendance, but
+        # 0-0 with no formation and no XI, because the stat blocks all sit past the real
+        # anchor and the ghost's window closes 24 bytes in. Seen on three 2026 fixtures
+        # (2 Frem, 1 reserve) and it is what put a duplicate FCK and Horsens in the results.
+        #
+        # The header offset is the match's identity: two anchors resolving to one date_off
+        # are one match, so keep the reading with actual football in it. Comparing XI size
+        # rather than trusting anchor order keeps this a statement about content, not about
+        # which stray byte happened to land first.
+        prev = by_header.get(h["date_off"])
+        played = len(rec["home_xi"]) + len(rec["away_xi"])
+        if prev is None:
+            by_header[h["date_off"]] = len(out)
+            out.append(rec)
+        elif played > len(out[prev]["home_xi"]) + len(out[prev]["away_xi"]):
+            out[prev] = rec
     _label_playoffs(out)
     return out
