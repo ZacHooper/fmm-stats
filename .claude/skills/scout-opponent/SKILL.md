@@ -170,9 +170,9 @@ Everything below is parameterised off the active career — pull these from `db`
   flank plan. Season apps also settle the "is this name new?" question outright — see the caveat below. Build
   the briefing so the *personnel* reads survive a shape that turns out different — name which of
   their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for neither shape nor names:** across nine checks the names have been wrong
-  **3, 3, 4, 4, 6, 7, 4, 3 and 3 out of 11**, and the shape, which held on the first six, has now broken
-  on three of the last three — FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, and AC
+  XI for neither shape nor names:** across eleven checks the names have been wrong
+  **3, 3, 4, 4, 6, 7, 4, 3, 3, 4 and 2 out of 11**, and the shape, which held on the first six, then broke
+  on four straight before holding again — FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, and AC
   Horsens were predicted in a 3-5-2 and played a 4-2-3-1 with their entire predicted midfield three
   absent. A low name-error count is not the reassurance it looks like: 8 of Horsens' 11 predicted men
   played, but only three in the predicted slot, and the back three became a back four with a
@@ -184,6 +184,14 @@ Everything below is parameterised off the active career — pull these from `db`
   half did: `player_position_levels` already had **ST as his best slot** (82.3 nation) against the
   AMR the screen gave him. **When a predicted man's best slot in our data differs from the slot the
   screen assigns him, say so — that is a cheap, checkable signal and it fired correctly here.**
+  **Slot accuracy is volatile, not monotonically bad — do not assume the screen is always poor.** The
+  same opponent (Brøndby) three weeks apart went 5/11 on slots and then **8/11 on slots, 9/11 on names**,
+  the best of any check so far. Two lessons: a wrong slot last time is no guide to this time, and the
+  hedges that survive either way are the PROFILE reads, not the positional ones.
+  **The recurring, expensive error is naming a FLANK off a predicted full-back.** Three briefings running,
+  the named flank target was the wrong man — Cubo (did not play), Riveros (injured, replaced), and
+  Munksgaard (replaced by Brunner, who then rated 5 and was the actual soft spot on the OPPOSITE side to
+  the one named). Name the weak PROFILE and say which side it appears on only once the sheet is real.
   On the 7/11 occasion only four predicted names appeared and two of those played different slots; the
   goalkeeper the screen named was on the bench and the one who actually played was the opponent's
   best, which alone invalidated the briefing's chosen route to goal. Twice the wrong names were the players
