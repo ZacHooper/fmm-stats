@@ -626,6 +626,23 @@ def main():
             player_names = {str(int(r.tid)): r.name for r in nm.itertuples()
                             if isinstance(r.name, str)}
 
+    # RESERVE-LEAGUE PLACEHOLDERS. A tid we cannot name is not a departed player — every real
+    # one we ever fielded is named above, because he sat in some snapshot's squad even if he
+    # has since left or retired. What is left is the reserve league: the save simulates it
+    # with anonymous filler whose stat blocks carry tids from a band (33007-33106 here) that
+    # appears in no club's squad, and the SAME tid turns out for eight different reserve
+    # sides across a season, so it is a per-match slot number, not a person. Shipping them
+    # put "#33015" second in the all-time average-rating table. They are dropped rather than
+    # shown as a number: nothing downstream can say anything true about them, and a real
+    # player's reserve appearances (he is named) are unaffected.
+    if mps is not None and not mps.empty:
+        keep = mps["tid"].map(lambda t: str(int(t)) in player_names)
+        dropped = int((~keep).sum())
+        if dropped:
+            print(f"  matches.json           dropped {dropped} unnameable reserve-league rows "
+                  f"({mps.loc[~keep, 'tid'].nunique()} placeholder tids)")
+        mps = mps[keep]
+
     def rowify(df, fields):
         if df is None or df.empty:
             return []

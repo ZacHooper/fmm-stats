@@ -88,6 +88,18 @@ def _fdate(d):
         return str(d)
 
 
+# Player of the Season and Young Gun are AVERAGE-RATING awards, and an average over a
+# handful of games is mostly noise: a fringe player's 12-game purple patch outranks a full
+# campaign, which is how one player ends up winning both. Both need a real season's work —
+# 20 appearances over a normal fixture list — scaled down only if the season itself is short
+# (a half-season store, or a career's opening months) so the award stays winnable.
+RATING_AWARD_APPS = 20
+
+
+def _rating_award_apps(games):
+    return max(5, min(RATING_AWARD_APPS, round(0.6 * games)))
+
+
 def _longest_run(flags):
     best_len, cur = 0, 0
     for f in flags:
@@ -320,11 +332,14 @@ def TEAM_AWARDS(ms, S):
         bppg, bn, bym, bw, bd, bl = max(cand)
         best_month = (f"{bppg:.2f} PPG", f"{bym.strftime('%b %Y')} ({bw}W {bd}D {bl}L, {bn} games)")
 
+    # Biggest Crowd is OUR gate, so only home games count — the 32,962 at Parken is
+    # København's crowd, not Frem's, and it beat every home game we ever played.
     crowd = None
-    att = ms["date"].map(ATT)
+    home_ms = ms[ms["venue"] == "H"]
+    att = home_ms["date"].map(ATT)
     if att.notna().any():
-        r = ms.loc[att.idxmax()]
-        crowd = (f"{int(att.max()):,}", f"vs {r['opponent']} · {_fdate(r['date'])} ({r['venue']})")
+        r = home_ms.loc[att.idxmax()]
+        crowd = (f"{int(att.max()):,}", f"vs {r['opponent']} · {_fdate(r['date'])} (H)")
 
     cup_run = None
     cup_names = [n for n, tp in COMP_TYPE.items() if tp == "cup"]
@@ -384,7 +399,7 @@ with tab_player:
     for S in reversed(seasons):
         agg = _season_player_agg(S)
         gms = len(hist[hist["season"] == S]) or 1
-        min_apps, young_apps = max(5, round(0.35 * gms)), max(3, round(0.20 * gms))
+        min_apps = young_apps = _rating_award_apps(gms)
         st.subheader(f"Season {S}")
         if agg.empty:
             st.caption("No player appearances this season.")
@@ -420,8 +435,8 @@ with tab_honours:
                 gms = len(hist[hist["season"] == S]) or 1
                 if agg.empty:
                     continue
-                items = [a for a in PLAYER_AWARDS(agg, S, max(5, round(0.35 * gms)),
-                                                  max(3, round(0.20 * gms))) if show_silly or not a[3]]
+                ra = _rating_award_apps(gms)
+                items = [a for a in PLAYER_AWARDS(agg, S, ra, ra) if show_silly or not a[3]]
             else:
                 items = TEAM_AWARDS(hist[hist["season"] == S], S)
             for (e, n, v, *rest) in items:
