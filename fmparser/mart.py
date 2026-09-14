@@ -99,6 +99,9 @@ GK_ATTRS = list(ATTR_ORDER)
 GK_BLOCK = GK_ONLY_ATTRS
 
 
+from . import value_model as _vm
+
+
 def _sum(attrs):
     return " + ".join(f'COALESCE(a."{a}", 0)' for a in attrs)
 
@@ -774,6 +777,59 @@ SELECT
     COUNT(*) OVER (PARTITION BY season, phase, position, league_cid)  AS n_league
 FROM base
 """
+
+
+# Estimated transfer value for EVERY player, because the save stores a real one only for
+# the club we manage (the own-squad snapshot record does not exist for other clubs; see
+# fmparser/value_model.py for the three searches that establish this).
+#
+# `value_gbp` is the real figure where the save has one and the model's estimate otherwise,
+# so a caller can just use it; `is_actual` says which, and `value_est` always holds the
+# model output so the two can be compared on our own squad.
+#
+# IMMERSION: this view reads ca/pa but emits only money, exactly as player_position_levels
+# reads ca and emits only a percentile. Do not add ca/pa to the SELECT.
+#
+# ACCURACY IS ~2.3x. `in_trusted_band` flags the £20k-£5M range the model was validated
+# in — outside it, especially above £5M, the estimate is unevidenced. And this is a VALUE,
+# never an asking price: the markup is not modelled and has been measured at 31x on a
+# coveted teenager. See docs/agent-context/player-value-estimation.md.
+PLAYER_VALUE_EST = """
+CREATE OR REPLACE VIEW mart.player_value_est AS
+WITH c AS (
+    SELECT season, phase, club_tid, name, league_reputation FROM mart.clubs
+), par AS (
+    SELECT season, phase, name, MAX(league_reputation) AS lr FROM c GROUP BY 1, 2, 3
+), lr AS (
+    -- A reserve side carries no league reputation of its own, so it inherits its first
+    -- team's. This OVERSHOOTS for reserve players (Røssner: £235k predicted vs £95k real)
+    -- and `res` in the model only partly absorbs it. Flagged, not solved.
+    SELECT c.season, c.phase, c.club_tid,
+           COALESCE(c.league_reputation, p.lr)   AS lrp,
+           (c.league_reputation IS NULL)::INT    AS is_res
+    FROM c LEFT JOIN par p
+      ON p.season = c.season AND p.phase = c.phase
+     AND p.name = regexp_replace(c.name, ' Reserves$', '')
+)
+SELECT
+    s.season, s.phase, s.snap_ix, p.tid, s.person_id, p.name, p.club, p.club_tid, s.age,
+    p.player_value                                        AS value_actual,
+    ROUND({value_sql})                                    AS value_est,
+    COALESCE(p.player_value, ROUND({value_sql}))          AS value_gbp,
+    p.player_value IS NOT NULL                            AS is_actual,
+    {value_sql} BETWEEN {lo} AND {hi}                     AS in_trusted_band
+FROM {S}.players p
+JOIN mart.player_snapshots s USING (season, phase, tid)
+JOIN lr ON lr.season = p.season AND lr.phase = p.phase AND lr.club_tid = p.club_tid
+WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
+  AND p.reputation > 0 AND lr.lrp > 0 AND s.age IS NOT NULL
+"""
+
+# Bake the frozen coefficients in now, leaving only {S} for create_mart's .format().
+PLAYER_VALUE_EST = (PLAYER_VALUE_EST
+                    .replace("{value_sql}", _vm.sql_expr())
+                    .replace("{lo}", str(_vm.TRUSTED_LO))
+                    .replace("{hi}", str(_vm.TRUSTED_HI)))
 
 
 # Rule 1 in one place: the single phase per season that match facts should be read from.
@@ -2151,6 +2207,7 @@ ORDER = [
     ("mart.comparison_ladder", COMPARISON_LADDER),
     ("mart.player_snapshots", PLAYER_SNAPSHOTS),
     ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
+    ("mart.player_value_est", PLAYER_VALUE_EST),
     ("mart.player_career_seasons", PLAYER_CAREER_SEASONS),
     # base -> youth_clubs -> player_origin: the academy->parent vote is derived FROM origin, so
     # the eligibility verdict that needs it has to be built after it. See PLAYER_ORIGIN_BASE.
