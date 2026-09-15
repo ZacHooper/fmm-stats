@@ -854,7 +854,7 @@ SELECT
     m.competition NOT ILIKE '%%friend%%'        AS is_competitive,
     m.pos_order, m.rating, m.goals, m.assists,
     m.passA, m.passC, m.keyPass, m.tackA, m.tackW, m.intercept,
-    m.headA, m.headW, m.crossA, m.crossC, m.dribbles, m.mistakes,
+    m.headA, m.headW, m.crossA, m.crossC, m.dribbles, m.mistakes, m.mistGoal,
     m.shotA, m.shotO, m.condition, m.yellow,
     -- Real on-pitch position for OUR starters ('DR','DMC','AML',...); NULL for the
     -- opposition (the save stores no shape for them) and for substitutes. PREFER THIS
@@ -936,7 +936,8 @@ SELECT
     SUM(f.headA) AS headA, SUM(f.headW) AS headW,
     SUM(f.crossA) AS crossA, SUM(f.crossC) AS crossC,
     SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
-    SUM(f.dribbles) AS dribbles, SUM(f.mistakes) AS mistakes, SUM(f.yellow) AS yellows
+    SUM(f.dribbles) AS dribbles, SUM(f.mistakes) AS mistakes,
+    SUM(f.mistGoal) AS mistGoal, SUM(f.yellow) AS yellows
 FROM mart.match_player_facts f
 WHERE f.is_competitive
 GROUP BY f.season, COALESCE(f.person_id, 'tid-' || f.tid), f.team_tid, f.competition

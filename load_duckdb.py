@@ -159,7 +159,7 @@ DDL = [
         pos_order INTEGER, rating INTEGER, goals INTEGER, assists INTEGER,
         passA INTEGER, passC INTEGER, keyPass INTEGER, tackA INTEGER, tackW INTEGER,
         intercept INTEGER, headA INTEGER, headW INTEGER, crossA INTEGER, crossC INTEGER,
-        dribbles INTEGER, mistakes INTEGER, shotA INTEGER, shotO INTEGER,
+        dribbles INTEGER, mistakes INTEGER, mistGoal INTEGER, shotA INTEGER, shotO INTEGER,
         condition INTEGER, subOn INTEGER, subOff INTEGER, yellow INTEGER,
         -- real on-pitch position of a STARTER in our own XI ('DR','DMC','AML',...),
         -- decoded from the slot array after the formation string. NULL for the
@@ -1012,6 +1012,11 @@ _MIGRATIONS = [
     # 2026-08-29: real on-pitch position per starter, decoded from the 11 slot pairs that
     # follow the formation string. See docs/agent-context/match-position-encoding.md.
     "ALTER TABLE staging.match_player_stats ADD COLUMN IF NOT EXISTS position VARCHAR",
+    # 2026-09: mistakes leading to a goal. Decoded all along (matches.FIELDS offset 23) but
+    # dropped from _XI_FIELDS before serialisation, so it never reached the extract JSON.
+    # Existing stores get the column as NULL: the value is missing from output/*.json, so a
+    # backfill needs a full re-extract (scripts/rebuild.py), not --refresh-only.
+    "ALTER TABLE staging.match_player_stats ADD COLUMN IF NOT EXISTS mistGoal INTEGER",
 ]
 
 
@@ -1020,8 +1025,19 @@ def _migrate(con):
         try:
             con.execute(stmt)
         except Exception as e:            # older DuckDB without IF NOT EXISTS -> ignore dups
-            if "already exists" not in str(e).lower():
-                raise
+            msg = str(e).lower()
+            if "already exists" in msg:
+                continue
+            # A PUBLISHED store (scripts/publish_duckdb.py) is run-length compacted: each
+            # staging table becomes `_rle_<name>` with a decompressing VIEW in its place, and
+            # a view has no columns of its own to add. Skipping is correct rather than
+            # tolerant — the view's columns come from its definition. A mart edit that needs
+            # a column the published data genuinely lacks still fails loudly downstream in
+            # create_mart, which is the honest outcome: that store predates the field and
+            # needs a rebuild + republish, not a migration.
+            if "can only modify view" in msg:
+                continue
+            raise
     _drop_extracts_phase_check(con)
 
 
@@ -1218,6 +1234,13 @@ def main():
     if args.refresh_only:
         con = duckdb.connect(args.db)
         try:
+            # Schema migrations first. A mart/view definition can depend on a staging COLUMN
+            # that a store predating the change does not have, and --refresh-only is the
+            # documented way to apply a definition edit (see CLAUDE.md) — so without this the
+            # refresh dies in create_mart with a Binder Error naming the missing column, and
+            # the only recovery is a full re-import. Every entry in _MIGRATIONS is idempotent,
+            # so running it on an already-current store is a no-op.
+            _migrate(con)
             # seeds/role_weights.csv is a DEFINITION, exactly like a view: editing it has to
             # reach an existing store without a full re-import. seed_role_weights only replaces
             # the methods the CSV names, so a weight-set built in the Lab and promoted into
