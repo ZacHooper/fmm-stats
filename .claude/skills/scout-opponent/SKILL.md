@@ -518,8 +518,16 @@ thinner report under this skill's name.
 ## Report template — KEEP THIS LAYOUT for every scout (consistency matters)
 Technical-analyst tone, to the manager. Prose + small tables. Fill the skeleton below verbatim
 (same headings, order, emoji, the italic caveat line, and the closing gaffer line + footer). Base
-every claim on `rep`; don't invent numbers. If a prior scout exists (see "calibration" above), open
-the Verdict with one line on whether it still holds.
+every claim on `rep`; don't invent numbers.
+
+**Two sections are load-bearing and are never dropped for brevity, even when thin:**
+- **The prior-scout line in the Verdict.** Check the log (see "calibration" above) and say what we
+  said last time and whether it still holds — or that this is the first scout of them. That pairing
+  is the only thing that makes the log calibration rather than a pile of old opinions.
+- **The Head-to-head table.** Keep it even when it is two old fixtures; the manager reads it. Say
+  plainly how much weight it carries (a two-season-old meeting after both squads turned over is
+  near-worthless as evidence, and a promotion or relegation in between is worth naming), and still
+  pull the one pattern that survives — home vs away, clinical vs wasteful, out-shot or not.
 
 ```markdown
 # 📋 Opposition briefing — <Club> (<H or A> this week)
@@ -558,31 +566,34 @@ briefing, which is why it was removed. Four or five bullets, each in the form
 - <their BENCH, when it holds a counter-profile to our plan or a player stronger than a predicted
   starter — this is where the briefing has been caught out most often.>
 
-## Where we win
-- <the "Our attack vs their defense" row of `rep["matchups"]` (do we have the quality edge going
-  forward?) + attribute detail from `rep["unit_attrs"]` (their Defense unit's weak spots — already
-  the right axis, since it's describing THEIR defensive line on its own terms) + space their shape
-  concedes. **Then go per-player**: name the individual defender who is the soft spot and say which
-  KIND of soft spot he is — a Positioning weakness is a run-at-him weakness, an Aerial/Strength
-  weakness is a duel-and-deliver one, and they are usually different players on opposite flanks. A
-  unit mean hides both. Read the columns the role is actually scored on — see "Reading attributes"
-  above.>
-
 ## Game plan
-- **Shape: standard 4-2-3-1.** <One line on how it sits against theirs — who screens whom, where we
-  attack, tied to our real edges (width/pace/creativity) rather than their strengths (aerial/duels).>
+<This section carries WHERE WE WIN inside it — there is no separate "Where we win" heading. That
+split made the report state an edge in one section and the instruction acting on it three sections
+later; folding them ties the why to the what, which is how the manager reads it. So **every bullet
+below names the number or duel that justifies it**, and the edges to work from are the "Our attack
+vs their defense" row of `rep["matchups"]` (do we have the quality edge going forward?), their
+Defense unit's weak attributes in `rep["unit_attrs"]`, and the space their shape concedes.
+**Go per-player, not per-unit** — name the individual defender who is the soft spot and say which
+KIND he is: a **Positioning** weakness is a run-at-him weakness, an **Aerial/Strength** weakness is
+a duel-and-deliver one, and they are usually different players on opposite flanks, so a unit mean
+hides both. Read only the columns the role is actually scored on — see "Reading attributes" above.>
+- **Shape: standard 4-2-3-1.** <How it sits against theirs — who screens whom, and which flank or
+  channel we attack, with the edge that makes it the right one. Prefer our real edges
+  (width/pace/creativity) over their strengths (aerial/duels).>
 - **Variation:** <ONLY if the data triggers one, in the manager's own vocabulary — a forward wing
   dropping AM→M for cover, the 10 dropping to a 6 against a dangerous opposing AMC, a WB becoming an
   IWB, back four almost always. Name the trigger with its number. If nothing triggers one, write
-  "none needed — standard 4-2-3-1" and move on; do not list the menu.>
+  "none needed — standard 4-2-3-1" and move on; do not list the menu. A variation you argued AGAINST
+  is worth one line when the reason is a finding (e.g. their AMC is their weakest starter, so the
+  second pivot buys nothing) — that is analysis, not a menu item.>
 - **Settings:** <Mentality / Line / Tempo / Width / Press / Final third / Passing — each justified
   from a duel or a number, not from the preset. Say which of Line and Press you mean, every time.>
-- **Personnel:** <the centre-back pairing and why, the flank to load with the gap that justifies it,
-  the in-behind runner, who takes the danger man.>
+- **Personnel:** <the centre-back pairing and why, the flank to load with the gap that justifies it
+  (name the pace/positioning numbers on both sides), the in-behind runner, who takes the danger man.>
 - **Defend:** <funnel wide/deny centre; screen the direct ball; man-mark aerial threats on set pieces.>
 - **Cutting edge / set pieces:** <if the H2H shows control-without-chances, stress chance quality;
-  our aerial edge if any — checking BOTH sides of the duel before recommending a route; who to track
-  after our set pieces.>
+  our aerial edge if any — checking BOTH sides of the duel before recommending OR ruling out a
+  route, and saying where to deliver rather than just whether to; who to track after our set pieces.>
 
 **One-line to the gaffer:** *<punchy, quotable summary of the plan.>*
 
