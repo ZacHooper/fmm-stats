@@ -41,6 +41,16 @@ the narrative, not to hand-roll SQL that re-derives what it already gets right**
   plus a `⚠️ PARTIAL DATA` flag when the frame doesn't reach 11 rated players. **This already covers
   the old "no-data opponent" detection** — check `rep["coverage"]["partial"]` and read `rep["flags"]`
   instead of eyeballing empty DataFrames yourself.
+  **On a partial frame the squad-derived flags are now WITHHELD, not hedged** (2026-09): team
+  strength, matchups, danger men and defensive soft spots are suppressed and only the warning plus
+  H2H come back. They used to be emitted with full confidence off however few players existed, which
+  is worse than no flags — scouting Hajduk Split off **two** rated players produced "We're stronger —
+  team index 126 vs 116" and "Their defence: weak in the air (Aerial 5) — target it", where the
+  Aerial 5 was ONE full-back standing in for a back four. Acting on it means bombarding the box: 21
+  crosses, 17 headers won to 7, six corners to nil, one goal, lost 1-3. H2H survives the suppression
+  because it comes from match history, not the squad frame.
+  **`resolve_club`'s `n_players` is NOT coverage** — it read 59 for that same Hajduk side while the
+  frame had 2. It counts across labels/snapshots; `rep["coverage"]` is the only honest answer.
 
 Writing your own query for any of this reopens exactly the traps these helpers exist to close —
 ring-buffer double counts, `tid` recycling across snapshots, a raw `club_tid` filter that still
@@ -176,6 +186,15 @@ Everything below is parameterised off the active career — pull these from `db`
     target was the wrong man (did not play / injured / replaced by the man who was the actual soft spot
     on the *opposite* flank). Name the weak **profile** and the zone, then say who fills it if the
     expected man is absent.
+  - **The rule applies to the THREAT LIST too, and that is where it was missed.** Against Vejle the
+    briefing led on Eiting ("press him and never take it off", 95.9 league Level) and Gyökeres (the
+    stated reason the centre-back pair needed pace cover) — **both were benched**, and Remberg (39.3)
+    and Ponce (35.7) started instead. The flank call was hedged; the threat section was not, so the
+    most-emphasised half of the report aimed at men who never played. For the top two threats, always
+    add the one-line fallback: *if X doesn't start, the threat becomes Y*.
+  - **Ask for the `Club Squad → Selection` (`Pkd`) screen — this is now GRADED, not promising.** That
+    screen would have shown Eiting at S5 and Gyökeres at S7 and inverted the threat section before
+    kickoff. It is the single highest-value artefact to request.
   - **Read their BENCH for the counter-profile to whatever your plan depends on.** Twice the
     non-predicted names did the damage — a centre-back swap answering our aerial threat, and a winger
     who scored. Once the two men shown on the bench were their two best midfielders and both started;
@@ -370,6 +389,27 @@ presets per scenario"** (read it live). Two that repeatedly matter:
 Personnel calls are what the manager actually acts on: name the centre-back pairing and why (a
 high line behind a Positioning-19/Pace-10 defender needs a quick partner), the flank to load and the
 pace gap that justifies it, the in-behind runner, and who man-marks the aerial threat at set pieces.
+
+**Before proposing a personnel change, split that player's OWN record BY POSITION.** Attributes say
+what a player could do; the match record says what he actually does in a given slot, and the two
+disagree often enough to flip a recommendation. It is a cheap query — dedup at match level first
+(one anchor per `(date, opponent_tid)`, newest snapshot first, `team_tid = 346`; see trap 4 in
+[`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md), because a raw
+`SUM` multiplies every total by 1–5×) then group by `season, position`. Two live findings it produced
+in one sitting:
+- **Chukwuani**: at MC in 2025, 27 apps, rating 7.33, 6 goals, 5 assists. At AMC in 2026, 8 apps,
+  rating 6.75, **2.25 shots a game at 0.38 on target, zero goals, zero assists**. The manager's read
+  — "he liked being the main creator" — was exactly right, and the split also identified him as one
+  of the wasteful shooters behind a bad shots-to-goals night.
+- **Larsen**: 2.78 mistakes per game at DR over 9 apps, against 2.00 at DC and 1.00 at DMC. A
+  4-mistake match was not an outlier but the top of his normal distribution there.
+**And check the position before blaming the player.** Across 194 matches our right backs average
+**2.38** mistakes a game to the left backs' **1.55** — stable in ALL FIVE seasons, across four
+divisions and ~18 players, and **2.36 with the current incumbent removed**. So "our right back is
+error-prone" is a fact about the slot, and swapping the man does not fix it (his replacement reads
+2.44). Swap for quality; do not promise an error reduction the data does not support.
+**One bad game is not a pattern** — the same sitting had a player rated 4 immediately after an 8 with
+2 assists. Move on a split, not on a scoreline.
 Note whose screen a role label belongs to (IW / PF / Poacher / AF / AP) every time, or a briefing
 will attribute the opponent's roles to us.
 
@@ -456,6 +496,17 @@ Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL 
   'loan_in')`, date between `valid_from`/`valid_to`) rather than trusting `club_tid` alone — and
   never trust `loaned_in`/`loaned_out` for loan STATUS prose either, same reason: set once, never
   cleared.
+- **The MIRROR of that trap: a spell filter at a SEASON-BOUNDARY snapshot DROPS players who are
+  genuinely ours.** A raw `club_tid` keeps players who have left; the spell check loses players who
+  are still here, because a loan with a 30 June expiry looks lapsed at a 2 July snapshot and the
+  renewal falls after it. Confirmed: at `2026-07-02` both Chukwuani and Gülstorff had `loan_in`
+  spells ending `2026-06-30`, so `mart.snapshot_squad` excluded them — and a month later they
+  started against Vejle and were two of our three best performers (Chukwuani rated 8 with 2 assists;
+  Gülstorff 8 tackles from 8). **Reconcile every squad pull against `mart.clubs.squad_size` and say
+  so if they disagree** — the tell was sitting in the briefing's own output and went unread:
+  `squad_size` said **42**, the spell-filtered pull returned **25**. A shortfall that large at a July
+  snapshot means expired-loan exclusions, and the fix is to check `mart.player_spells` for loans
+  ending at the season boundary rather than trusting either filter blindly.
 - Cross-snapshot per-player aggregates (e.g. "has this player grown since we last played them")
   must key on `person_id`, not `tid` — FM recycles retired players' slots.
 - opponent `name` **resolves for every club** (the ETL id-resolver) — `squad_key_players` and
@@ -505,7 +556,8 @@ thinner report under this skill's name.
   mixes their scout's read with our own players' morale notes. Three names in one such report were
   all ours. Resolve every name against `club_tid` before attributing it — do not assume a name in
   an opposition report belongs to the opposition.
-- **No-data opponents:** `rep["coverage"]["partial"]` is `True` (and `rep["flags"][0]` says so)
+- **No-data opponents:** `rep["coverage"]["partial"]` is `True` (and `rep["flags"][0]` says so, with
+  the squad-derived flags withheld — see "The engine already exists")
   when the frame has fewer than 11 rated players — a **newly-promoted side** we haven't parsed in a
   prior save, or a **lower-division Cup draw** FMM doesn't fully model. A **day-1 start save** (0
   matches) also has no H2H or league yet (`rep["h2h"]["played"] == 0`). Don't fake tables when the

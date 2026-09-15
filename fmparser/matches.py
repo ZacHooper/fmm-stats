@@ -373,10 +373,17 @@ def extract_match(mm, anchor, next_anchor):
             "star_home": _star(home), "star_away": _star(away)}
 
 
+# `mistGoal` (mistakes leading to a goal) was decoded in FIELDS from the start but was
+# missing from this list until 2026-09, so it was read off every player block and then
+# dropped before serialisation. It matters because plain `mistakes` cannot distinguish a
+# harmless misplaced touch from one that gifts a goal: across 194 matches our right backs
+# average 2.38 mistakes a game to the left backs' 1.55 — stable in all five seasons and not
+# a player effect — yet corr(DR mistakes, goals against) is +0.068, which is uninterpretable
+# without knowing which of those mistakes actually cost anything.
 _XI_FIELDS = ["posOrder", "tid_int", "rating", "goals", "assists", "passA",
               "passC", "keyPass", "tackA", "tackW", "intercept", "headA",
-              "headW", "crossA", "crossC", "dribbles", "mistakes", "shotA",
-              "shotO", "condition", "subOn", "subOff", "yellow"]
+              "headW", "crossA", "crossC", "dribbles", "mistakes", "mistGoal",
+              "shotA", "shotO", "condition", "subOn", "subOff", "yellow"]
 
 
 def _xi(team, slots=None):
