@@ -2038,12 +2038,24 @@ def _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups=None):
     """Rule-based auto-read: squad strength (position-index), H2H verdict, face-off matchup
     edges, danger men, and the opponent's exploitable defensive soft-spots. Returns strings."""
     F = []
-    if coverage["partial"]:
+    # A thin frame does not make the squad-derived reads vaguer, it makes them WRONG, and
+    # they are phrased with the same confidence as a full one. Scouting Hajduk Split off two
+    # rated players produced "We're stronger — team index 126 vs 116" and "Their defence:
+    # weak in the air (Aerial 5) — target it", where the Aerial 5 was ONE full-back standing
+    # in for a back four. Acting on it is bombarding the box: 21 crosses, 17 headers won to
+    # 7, six corners to nil, one goal, lost 1-3. The old wording ("directional") was an
+    # invitation to use them anyway, so on a partial frame they are now WITHHELD rather than
+    # hedged. H2H survives — it comes from match history, not the squad frame, so coverage
+    # has no bearing on it.
+    partial = coverage["partial"]
+    if partial:
         F.append(f"⚠️ PARTIAL DATA — only {coverage['in_frame']} rated players "
                  f"({coverage['n_with_attr']}/{coverage['n_players']} with attributes). "
-                 "Unit/standout reads are directional; lean on H2H + your in-game scout.")
+                 "Team strength, matchups, danger men and defensive soft spots are WITHHELD: "
+                 "on a frame this thin they read as confident team-level claims while "
+                 "describing one or two players. Use H2H + your in-game scout instead.")
     u, t, up, tp = (overall.get(k) for k in ("us", "them", "us_pctile", "them_pctile"))
-    if u is not None and t is not None:
+    if not partial and u is not None and t is not None:
         d = u - t
         ctx = f" ({up:.0f} vs {tp:.0f} %ile league)" if pd.notna(up) and pd.notna(tp) else ""
         if abs(d) < 3:
@@ -2060,19 +2072,19 @@ def _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups=None):
             F.append(f"✅ We own them ({rec}, {h2h['ppg']:.2f} ppg).")
         else:
             F.append(f"H2H: {rec} ({h2h['ppg']:.2f} ppg).")
-    if matchups is not None and not matchups.empty:
+    if not partial and matchups is not None and not matchups.empty:
         for _, r in matchups.iterrows():
             if pd.isna(r["edge"]):
                 continue
             side = "favours us" if r["edge"] >= 0 else "favours them"
             F.append(f"{r['matchup']}: {side} ({_fmt_edge(r['edge'])} quality %ile).")
-    if key_players is not None and not key_players.empty:
+    if not partial and key_players is not None and not key_players.empty:
         men = []
         for _, r in key_players.head(3).iterrows():
             lvl = r.get("level_league")
             men.append(f"{r['position']}" + (f" ({lvl:.0f}%ile)" if pd.notna(lvl) else ""))
         F.append(f"Danger men (by Level %ile, tactic-agnostic): {', '.join(men)}.")
-    if not attrs_df.empty:
+    if not partial and not attrs_df.empty:
         td = attrs_df[attrs_df["unit"] == "Defense"].set_index("attribute")["them"]
         soft = [f"{lbl} ({a} {td[a]:.0f})" for a, thr, lbl in _DEF_SOFT
                 if a in td.index and pd.notna(td[a]) and td[a] < thr]
