@@ -1,6 +1,6 @@
 ---
 name: scout-opponent
-description: Produce a technical-analyst opposition scouting report for a single upcoming opponent in the active FM career — expected style, threats, weaknesses, key players/positions, a concrete game plan, and a recommendation of WHICH of our tactic methods to run. Combines our data (head-to-head history, squad-attribute profile, ratings) with the in-game scout's report (formation + style), which the user must supply because opponent tactics are NOT in the save. Use when the user says "scout <team>", "how do we beat <team>", or "prep for <team> this week".
+description: Produce a technical-analyst opposition scouting report for a single upcoming opponent in the active FM career — expected style, threats with the numbers behind them, weaknesses, and a concrete game plan — our standing 4-2-3-1 plus any variation, settings and personnel calls this opponent justifies. Combines our data (head-to-head history, squad-attribute profile, ratings) with the in-game scout's report (formation + style), which the user must supply because opponent tactics are NOT in the save. Use when the user says "scout <team>", "how do we beat <team>", or "prep for <team> this week".
 ---
 
 # Scout an opponent
@@ -139,13 +139,18 @@ Everything below is parameterised off the active career — pull these from `db`
   346 (+7296 reserves); Bucaspor = 6567 (+11320).
 - **Snapshot** — `S, P = db.latest_snapshot()` (backed by `mart.snapshots.snap_ix`, already
   chronological across seasons/phases — don't hand-roll a `max(phase)` or a `phase_key` sort).
-- **Our default method** = `db.config().get("default_method")` (Frem → `frem_attacking_ss`;
-  Bucaspor → `buca_433`). This is the *base* for the game plan; the tactic step below may recommend
-  switching to a situational variant. `scout_report(method=None)` already resolves this same
-  fallback internally, so passing `None` explicitly is fine too.
-- **Our identity** — read it off `rep["strength"]`/the unit means, don't recite a fixed line.
-  (Frem: strong Creativity/Movement/Shooting/Pace, physically lighter → suits proactive control +
-  width + pace, not an aerial/physical scrap.)
+- **Our rating basis** — for Frem pass **`frem_minmax_4231`** explicitly, to match the 4-2-3-1 we
+  actually play. **Do not inherit `db.config().get("default_method")`**: it still returns
+  `frem_attacking_ss` (`seeds/config_bundle.json`), which is the dashboard/site default but no
+  longer our tactic, and `scout_report(method=None)` resolves to that same stale value. Bucaspor
+  (archived) → `buca_433`. The method only decides how players are RATED — the game plan is a shape
+  plus settings, see the game-plan section below.
+- **Our identity** — read it off `rep["strength"]`/`rep["unit_attrs"]` means, don't recite a fixed
+  line; the squad has turned over heavily and the old "strong Creativity/Shooting" read is dated.
+  **Check `rep["strength"]`'s `n_us` per unit before quoting a unit mean** — our Midfield frame has
+  come back with as few as 2 rated players against an opponent's 11, which makes both the unit
+  quality figure and its attribute means a two-man sample. Say so rather than quoting a 40-point
+  gap as if it were solid.
 
 ## Inputs to establish first
 - **Opponent** — `matches = db.resolve_club(name_or_tid)`. Diacritic/Turkish-insensitive
@@ -153,112 +158,63 @@ Everything below is parameterised off the active career — pull these from `db`
   squad) already sorts below the first team — take `matches.iloc[0]` unless it's genuinely
   ambiguous (`len(matches) > 1` with comparable squad sizes), in which case list the candidates and
   ask.
-- **Formation** — ASK THE USER (from the in-game scout). Opponent shape is NOT parsed. **Treat the
-  in-game scout's shape as a prior, not a fact** — it has been wrong on both occasions it has been
-  checked against what the opponent actually lined up in (a "5-2-2-1 counter" side played a 4-2-3-1;
-  the style half of the same report, "counter-attack, very physical", was accurate). The **Next
-  Match → Predicted XI** screen is a better source when the user has it: it names eleven players and
-  their slots, which resolves shape, personnel and their bench in one screenshot. Ask for it.
-  **Better still, ask for the opponent's `Club Squad → Selection` screen (the `Pkd` column).** Found
-  2026-05 and not yet graded against a result, so treat it as promising rather than proven — but it is
-  structurally the better artefact: `Pkd` is the opposition manager's **actual current selection**
-  rather than a prediction, with the position badge per player, and it carries four things the
-  Predicted XI screen does not — **suspensions and injuries** (a red-card badge and a red row; an
-  injury icon), **condition %**, **recent form** and **season apps/goals/average rating**. On its
-  first use it disagreed with the same fixture's Predicted XI in 2 of 11 slots and revealed that
-  **both** of the opponent's first-choice full-backs were unavailable, which inverted the briefing's
-  flank plan. Season apps also settle the "is this name new?" question outright — see the caveat below. Build
-  the briefing so the *personnel* reads survive a shape that turns out different — name which of
-  their players is the problem and which is the soft spot, not just which zone. **Trust the Predicted
-  XI for neither shape nor names:** across eleven checks the names have been wrong
-  **3, 3, 4, 4, 6, 7, 4, 3, 3, 4 and 2 out of 11**, and the shape, which held on the first six, then broke
-  on four straight before holding again — FC København were predicted in a 4-1-2-2-1 and played a 4-2-3-1, and AC
-  Horsens were predicted in a 3-5-2 and played a 4-2-3-1 with their entire predicted midfield three
-  absent. A low name-error count is not the reassurance it looks like: 8 of Horsens' 11 predicted men
-  played, but only three in the predicted slot, and the back three became a back four with a
-  centre-back at MC. **Count slots, not names.**
-  Lyngby away (2026-04-25) is the cleanest demonstration yet and the reason this is stated as a rule
-  rather than a caution: **8 of 11 names right, only 3 of 11 slots** — Jørgensen moved DC→DR, Deters
-  AMC→AMR, Eisfeld AML→AMC and Çorlu AMR→FC, so a 73% name accuracy concealed a 27% slot accuracy and
-  a completely different front four. Çorlu's move was the one the briefing could have predicted and
-  half did: `player_position_levels` already had **ST as his best slot** (82.3 nation) against the
-  AMR the screen gave him. **When a predicted man's best slot in our data differs from the slot the
-  screen assigns him, say so — that is a cheap, checkable signal and it fired correctly here.**
-  **Slot accuracy is volatile, not monotonically bad — do not assume the screen is always poor.** The
-  same opponent (Brøndby) three weeks apart went 5/11 on slots and then **8/11 on slots, 9/11 on names**,
-  the best of any check so far. Two lessons: a wrong slot last time is no guide to this time, and the
-  hedges that survive either way are the PROFILE reads, not the positional ones.
-  **The recurring, expensive error is naming a FLANK off a predicted full-back.** Three briefings running,
-  the named flank target was the wrong man — Cubo (did not play), Riveros (injured, replaced), and
-  Munksgaard (replaced by Brunner, who then rated 5 and was the actual soft spot on the OPPOSITE side to
-  the one named). Name the weak PROFILE and say which side it appears on only once the sheet is real.
-  On the 7/11 occasion only four predicted names appeared and two of those played different slots; the
-  goalkeeper the screen named was on the bench and the one who actually played was the opponent's
-  best, which alone invalidated the briefing's chosen route to goal. Twice the wrong names were the players
-  who did the damage (a centre-back swap that was their answer to our aerial threat, and a winger who
-  then scored). On the 6/11 occasion the two men the screen had on the BENCH were the opponent's two
-  best midfielders and both started, while the full-back the briefing named as the flank target never
-  appeared at all — so the most specific attacking instruction in the report pointed at a player who
-  was not on the pitch. **Never let the single most specific recommendation depend on one predicted
-  name.** Name the weak PROFILE and the zone, then say who fills it if the expected man is absent. So always read their **bench** for the
-  counter-profile to whatever your plan depends on — if the plan is "our target man beats their
-  centre-backs in the air", find the aerial centre-back they have not started.
-- **Their squad is not their first-team list — read the RESERVE club too, and check the names you
-  are handed actually exist in it.** Against FC København the player who ran the game from AMC
-  (25 passes, 23 completed, **5 key passes, the most on the pitch**, rated 8) sits in our data under
-  *FCK Reserves* (tid 7294), not the first team, so a briefing built off `club_tid = 344` could not
-  have named him. Resolve the reserve tid the same way we resolve ours (`mart.reserve_clubs` for us;
-  for an opponent, `resolve_club("<name> Reserves")`) and scan it for anyone who would walk into the
-  first XI — **and compare them against the WEAKEST men in the predicted XI, not the best.** Getting
-  that backwards cost a briefing: it checked Horsens' reserve list, saw nobody near their top players,
-  wrote "their reserve list holds nobody who would walk into this XI", and then watched Ísak Óli
-  Ólafsson start at centre-back (rated 7, 6 interceptions) with Malte Kiilerich off the bench. On
-  `level_nation` the two of them read 79.9 and 83.0 against three *predicted starters* at 71.7, 74.6
-  and 75.8. The question is never "is this reserve as good as their best" — it is "is he better than
-  the worst man they are expected to pick". **Done right, it pays: at Lyngby away the reserve check
-  named Niko Datkovic (79.9 nation) as beating predicted starter Andreas Maxsø (75.7) into the XI —
-  and he started at centre-back.** The briefing also got a bonus read out of it that a bare
-  "he might start" would have missed: Datkovic is Pace 7 / Movement 7, so his selection made the
-  opponent back line *slower* and the in-behind route better, not worse. **Profile the reserve, don't
-  just rank him.** Two traps come with it: **`level_league` is a percentile against that player's OWN
-  league**, so a reserve-listed player reads 100 %ile against reserve-league peers and is not
-  comparable to a first-teamer's Superliga number — rank cross-league candidates on `level_nation` /
-  `level_global` instead (the same man: league 100, nation 92.3, global 84.3). And a name on the
-  Predicted XI that appears in **no** club's squad in our latest snapshot is *often* a post-snapshot
-  signing: say so in the briefing rather than silently dropping him. Their goalkeeper in that match
-  was one — the screen named Kelly, someone else played, and he is in no FCK squad we hold.
-  **But do not state that inference as fact — the decode is incomplete and absence is weak evidence.**
-  Brøndby, 2026-05: two of their picked XI (Waldo, AML; Peque Polo, FC) appear in **no** Brøndby
-  snapshot in the whole of 2026, yet their own squad screen showed **22 and 11 apps this season** —
-  they had been there all along. Root-caused the same session: `scrape_players` anchored the record
-  search on the `FFFFFFFF` **"no nickname" sentinel**, so every player WITH a nickname was invisible
-  to the entire decode — 2,072 records on one save, concentrated in the Spanish/Portuguese/Brazilian
-  squads. They turned out to be Carlos Polo and Waldo Rubio, and between them they scored and made
-  both goals in the 1-2 that beat us in March. **Fixed** (a second validated sweep — see
-  [`nickname-players-missing`](../../../docs/agent-context/nickname-players-missing.md)), so a store
-  rebuilt after 2026-09 carries them; a store built before that does not. **Say "our data has never seen him" — which is true and
-  is the part that matters — not "he must be a new signing".** The opponent's `Club Squad → Selection`
-  screen settles it in one glance, because it lists season apps: a double-digit apps count means the
-  gap is ours, not theirs.
+- **Formation** — ASK THE USER (from the in-game scout). Opponent shape is NOT parsed.
+  **Best artefact: their `Club Squad → Selection` screen (the `Pkd` column)** — the opposition
+  manager's *actual* current selection with position badges, plus suspensions, injuries, condition %,
+  form and season apps. On its first use it disagreed with the same fixture's Predicted XI in 2 of 11
+  slots and revealed both first-choice full-backs unavailable, inverting the flank plan. Season apps
+  also settle "is this name new?" outright. Failing that, **Next Match → Predicted XI** names eleven
+  players and their slots.
+  **Trust the Predicted XI for neither shape nor names, and COUNT SLOTS, NOT NAMES.** Across eleven
+  checks names were wrong 2–7 of 11, and shape held for six, then broke on four straight. Lyngby away
+  is the cleanest case: **8 of 11 names right, only 3 of 11 slots** — a 73% name accuracy concealing a
+  completely different front four. Slot accuracy is volatile, not reliably bad (the same opponent went
+  5/11 then 8/11 three weeks later), so a wrong sheet last time is no guide to this time. **What
+  survives either way are the PROFILE reads, not the positional ones** — build the briefing so they do.
+  - **Never let your single most specific recommendation depend on one predicted name.** The recurring,
+    expensive error is naming a FLANK off a predicted full-back: three briefings running the named
+    target was the wrong man (did not play / injured / replaced by the man who was the actual soft spot
+    on the *opposite* flank). Name the weak **profile** and the zone, then say who fills it if the
+    expected man is absent.
+  - **Read their BENCH for the counter-profile to whatever your plan depends on.** Twice the
+    non-predicted names did the damage — a centre-back swap answering our aerial threat, and a winger
+    who scored. Once the two men shown on the bench were their two best midfielders and both started;
+    once the named goalkeeper was benched and the one who played was their best, which alone
+    invalidated the briefing's route to goal.
+  - **When a predicted man's best slot in our data differs from the slot the screen assigns him, say
+    so** — cheap, checkable, and it has fired correctly (`player_position_levels` had Çorlu's best slot
+    as ST against the screen's AMR; he played ST). Caveat: `level_*` is CA-derived, so for a very
+    high-quality player it reads high at *every* slot and the ordering is mostly familiarity — only
+    flag a difference that is large and football-plausible.
+- **Their squad is not their first-team list — read the RESERVE club too** (`resolve_club("<name>
+  Reserves")`), and **compare reserves against the WEAKEST men in the predicted XI, not the best.**
+  Getting that backwards cost a briefing: it saw nobody near Horsens' top players, wrote "nobody who
+  would walk into this XI", then watched a reserve start at centre-back (rated 7, 6 interceptions)
+  with another off the bench — 79.9 and 83.0 on `level_nation` against predicted starters at 71.7,
+  74.6 and 75.8. Done right it pays: at Lyngby the check named Datkovic (79.9) as beating predicted
+  starter Maxsø (75.7), and he started. **Profile the reserve, don't just rank him** — Datkovic is
+  Pace 7 / Movement 7, so his selection made their back line *slower* and the in-behind route better.
+  Two traps: **`level_league` is a percentile against that player's OWN league**, so a reserve-listed
+  player reads ~100 against reserve peers and is not comparable to a first-teamer's Superliga number
+  (rank cross-league candidates on `level_nation`/`level_global`); and a name in **no** club's squad
+  is *often* a post-snapshot signing but **absence is weak evidence** — `scrape_players` once anchored
+  on the "no nickname" sentinel and hid 2,072 nicknamed players, two of whom had 22 and 11 apps that
+  season and scored/made both goals in a 1-2 that beat us
+  ([`nickname-players-missing`](../../../docs/agent-context/nickname-players-missing.md); fixed, so a
+  store rebuilt after 2026-09 carries them). Say **"our data has never seen him"**, not "he must be a
+  new signing" — and the `Selection` screen's apps column settles it in one glance.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
   the in-game report has held up; weight it more than the shape.
-- **OUR OWN tactics screens** — ASK FOR THESE TOO. This skill recommends a *method*
-  (`frem_attacking_ss`, `frem_counter`, …), but a method is only a **rating weight-set**: it does not
-  set mentality, defensive line, closing down, tempo, width, or the final-third instructions. Those
-  live on the manager's Shape / Defence / Attack screens and this skill was blind to them for a whole
-  season of briefings. Two things that cost real accuracy:
-  - **`Work Into Box` vs `Shoot On Sight` is the shot-quality lever**, and it was already set while
-    the briefings were diagnosing poor shooting as a selection problem (see
-    [`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md)). Check the
-    instruction before proposing a change of personnel.
-  - **A method recommendation is not a game plan.** One briefing recommended `frem_counter` with a
-    deep line and "absorb and break" on a −39 quality gap; the manager ran Attacking mentality, a
-    HIGH line, All Over closing down and Fast tempo away at the division's best attack and won 6-0,
-    having drawn 1-1 with the cautious version. Do not infer "sit deep" from a quality gap alone, and
-    state the settings you mean rather than leaving them implied by the method name.
-  Note also that role labels on a formation screen (IW / PF / Poacher / AF / AP) belong to whichever
-  club's screen you are reading — say whose, every time, or a briefing will attribute the opponent's
-  roles to us.
+- **OUR OWN tactics screens** — ASK FOR THESE TOO (Shape / Defence / Attack). A shape sets none of
+  mentality, line, closing down, tempo, width or the final-third instructions, and this skill was
+  blind to them for a whole season of briefings. In particular check whether **`Work Into Box`** is
+  already set before diagnosing poor shooting as a selection problem
+  ([`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md)). And **do
+  not infer "sit deep" from a quality gap**: one briefing advised a deep line and "absorb and break"
+  on a −39 gap; the manager ran Attacking / HIGH / All Over / Fast away at the division's best attack
+  and won 6-0, having drawn 1-1 with the cautious version. State the settings you mean — see the
+  game-plan section. Role labels (IW / PF / Poacher / AF / AP) belong to whichever club's screen you
+  are reading — say whose, every time, or a briefing will attribute the opponent's roles to us.
 - **Current league position / recent form (both sides)** — ASK THE USER. `v_league_table`
   genuinely does not parse for this career (match history is a ring buffer — a season's table
   never fully reconstructs), so `rep["overall"]`'s squad-quality read is the ONLY signal this
@@ -332,49 +288,90 @@ section on line vs press); and that a single poor performance is not evidence to
 has been good all season. **Do not restructure a recommendation off one match's stat line** — that
 is the same n=1 error the skill warns about elsewhere, applied to our own squad.
 
-### Tactic recommendation — consult our playbook (THE career-specific value-add)
-After profiling, **recommend which of our methods to run**, keyed to
-[`docs/fmm-tactic-blueprints.md`](../../../docs/fmm-tactic-blueprints.md) → **"When to use each —
-cheatsheet"**. Read that table live (methods evolve); don't hardcode the mapping. The decision
-inputs are already in `rep`:
-- **Favourite vs underdog** (`rep["overall"]["us_quality"]` vs `["them_quality"]` — Level %ile, not
-  the Fit-based `us`/`them`, since the latter judges them under a tactic they don't run) →
-  proactive default (`frem_attacking_ss`) when we're better/equal; the counter variant
-  (`frem_counter`) when they're stronger / carry pace to hit in behind.
-- **Their style** (user's scout) → if they'll **park a deep block**, the break-them-down variant
-  (`frem_lowblock_overload`); if they'll **try to play out**, pressing their weak build-up
-  (`frem_gegenpress`).
-- **The actual on-pitch matchups** (`rep["matchups"]` — see above) → "Our attack vs their defense"
-  tells you whether to expect chances created; "Their attack vs our defense" tells you what to
-  protect. If they edge that second row and it's built on Strength/Aerial (check `rep["unit_attrs"]`
-  for the Defense-unit attribute detail) and they play direct to a target man, **don't** open in a
-  high-press/duel game that plays to their one advantage; control instead.
-- **Game state** → protecting a lead late = the close-out variant (`frem_game_state`). **Recompute its
-  Fit before quoting one** — the 64.5-vs-~69 figure this line used to cite was from mid-22, and on the
-  2025-11-30 squad `frem_game_state` recomputes to 87.3, *second* of the five, with the whole spread
-  collapsed to 2.6 points. The old "shutting up shop is this squad's worst option" no longer holds.
-  Same trap as the attribute reads: an undated number gets quoted at a squad four seasons newer.
-- **The XI the user has actually drawn.** If they share a formation screen, rate that XI at the slots
-  each player really occupies (`db.effective_table(S, P, method)` filtered to
-  `name` + `position`) and compare the mean Fit %ile across candidate methods. The shape itself is
-  evidence: a 4-2-3-1 with an AF and a wide W is `frem_counter`'s shape, and on one real XI nine of
-  eleven players scored higher under it than under the proactive default. **Rate the slot, not the
-  player** — the same winger can be a 92 at MR and an 85 at AMR, and a deep left slot flipped which
-  of two candidates was correct by 25 percentile points.
+### Game plan — a 4-2-3-1 and the variations off it (THE career-specific value-add)
 
-**Line and press are two levers, not one.** The cheatsheet's scenario presets move both together,
-which makes it easy to write "drop the line" and have it read as "drop the press". Against a side
-whose creativity funnels through one deep passer, pulling the *press* hands that player time on the
-ball and is the more expensive of the two. Observed: a 3-0 became 3-2 immediately after the press was
-pulled, with their deep playmaker finishing on 32 passes / 28 completed — by ten the most on the
-pitch. When protecting a lead against a technical build-up (check the opponent Defense unit's
-Passing/Technique in `rep["unit_attrs"]`), **drop the line and keep the press on**. Say which lever
-you mean, every time.
+**Do NOT output a "recommended method + fallback switch".** That was this skill's deliverable until
+2026-09 and it was the wrong unit of advice: a `role_weights` method is a **rating weight-set**, not
+a game plan, and ranking five of them told the manager nothing he could do on a team screen. He runs
+a **4-2-3-1 with a back four** as the standing shape and varies it per opponent. So the deliverable
+is **that baseline plus the specific variations this opponent justifies**, each tied to the threat or
+weakness that triggers it.
 
-Output a **"Recommended method + why + fallback switch"** call: a base method to start, and the
-in-game lever to pull if the game turns (e.g. "start `frem_attacking_ss`; if they bunker like the
-0-0, switch to `frem_lowblock_overload`"). Fold this into the game-plan section of the report (see
-template).
+**The method is now only the RATING BASIS — pick it to match the shape, and say so once.** For a
+4-2-3-1 rate with **`frem_minmax_4231`**, which is derived from this career's own match data rather
+than from a tactic author's stated traits (`scripts/derive_weight_set.py` — read its docstring before
+touching the set). Two things to know about it:
+- **It has no AML/AMR block.** Only 8 roles are weighted (GK/CB/LB/RB/DM/CM/AMC/ST); the wide
+  attacking roles failed to beat a flat weighting and were left flat **on purpose**. Fit numbers at
+  AML/AMR still appear in `effective_table` — they are simply flat-weighted, so treat a wide Fit as
+  a rough quality read, not a role-tuned one, and lean on `level_*` there instead.
+- **`db.config().get("default_method")` still returns `frem_attacking_ss`** (`seeds/config_bundle.json`),
+  which is no longer what we play. Pass the method explicitly rather than inheriting the config
+  default, and don't describe `frem_attacking_ss` as "our tactic".
+
+**Rate the slot, not the player.** The same winger can be a 92 at MR and an 85 at AMR, and a deep
+left slot has flipped which of two candidates was correct by 25 percentile points. If the manager
+shares a formation screen, rate that XI at the slots each player really occupies
+(`db.effective_table(S, P, method)` filtered to `name` + `position`).
+
+**The variation vocabulary — these are the manager's own levers, so propose in these terms:**
+
+| Variation | Trigger to look for in `rep` |
+|---|---|
+| **Drop one forward wing AM → M** (e.g. AML → ML) | their strongest attacking outlet is on that flank, or their full-back on that side is their best attacking contributor — buys cover without changing the back four |
+| **Drop the 10 to a 6** (second pivot beside the DM) | their AMC is a genuine threat (high Level %ile, Technique/Creativity-led) and would otherwise play between our lines |
+| **Turn a WB into an IWB** | their winger on that side is a dribbler who comes inside, or we need an extra body in central midfield without losing a defender |
+| **Back 3, or a single anchor + two strikers** | **reserved for the very top sides (FCK)** — do not propose it for mid-table opposition |
+
+Almost always a back four. A variation is worth naming only when something in the data triggers it;
+**listing all four as a menu is noise.** Usually the honest answer is "standard 4-2-3-1, no
+variation needed" plus the settings — say that rather than manufacturing a tweak.
+
+**The decision inputs are already in `rep`:**
+- **Favourite vs underdog** — `rep["overall"]["us_quality"]` vs `["them_quality"]` (Level %ile, not
+  the Fit-based `us`/`them`, since the latter judges them under a tactic they don't run). This sets
+  mentality and how much cover the shape needs, **not** which weight-set to quote.
+- **Their style** (user's scout) → a deep block is a width-and-patience problem; a side that tries to
+  play out is a pressing opportunity keyed to their weakest build-up player.
+- **The on-pitch matchups** (`rep["matchups"]`) → "Our attack vs their defense" says whether to
+  expect chances; "Their attack vs our defense" says what to protect, and is the row that justifies
+  a wing dropping to M. If they edge that second row on Strength/Aerial (check `rep["unit_attrs"]`)
+  and play direct to a target man, **don't** open in a high-press duel game that plays to their one
+  advantage.
+
+**Check the weights against the opponent before trusting a shape or a route.** A weight-set is
+selected for a duel, and the cheatsheet's situational mapping can point at the wrong one: against a
+side with a slow but dominant aerial centre-back, the "break down a low block" set weighted **aerial
+highest and pace lowest**, rewarding the duel we lose and ignoring the one we win. Read
+`mart.role_weights` (**attribute names are lowercase there** — a capitalised filter returns nothing)
+when a route recommendation hinges on it.
+
+**Line and press are two levers, not one.** It is easy to write "drop the line" and have it read as
+"drop the press". Against a side whose creativity funnels through one deep passer, pulling the
+*press* hands that player time on the ball and is the more expensive of the two. Observed: a 3-0
+became 3-2 immediately after the press was pulled, with their deep playmaker finishing on 32 passes
+/ 28 completed, by ten the most on the pitch. When protecting a lead against a technical build-up
+(check the opponent Defense unit's Passing/Technique in `rep["unit_attrs"]`), **drop the line and
+keep the press on**. Say which lever you mean, every time.
+
+**Settings and personnel are the valuable half — spell them out.** A shape sets none of Mentality,
+Line, Tempo, Width, Press, Final third or Passing; those live on the manager's Shape / Defence /
+Attack screens and the presets are in
+[`docs/fmm-tactic-blueprints.md`](../../../docs/fmm-tactic-blueprints.md) → **"In-game SETTING
+presets per scenario"** (read it live). Two that repeatedly matter:
+- **`Work Into Box` vs `Shoot On Sight` is the shot-quality lever** — a team instruction, not a
+  selection problem (see
+  [`scoring-and-shot-quality`](../../../docs/agent-context/scoring-and-shot-quality.md)). Check it is
+  set before proposing a different XI.
+- **Justify Line and Width from the duel, not the preset.** "vs pace in behind → drop deep" does not
+  apply when our Defense unit Pace beats their Attack unit Pace; narrow does not apply when their
+  wide men don't track back. Quote both sides of the comparison.
+
+Personnel calls are what the manager actually acts on: name the centre-back pairing and why (a
+high line behind a Positioning-19/Pace-10 defender needs a quick partner), the flank to load and the
+pace gap that justifies it, the in-behind runner, and who man-marks the aerial threat at set pieces.
+Note whose screen a role label belongs to (IW / PF / Poacher / AF / AP) every time, or a briefing
+will attribute the opponent's roles to us.
 
 ### Validated pull snippet + gotchas
 This whole path is `duckdb` + `pandas` — `uv sync` (no extras) is enough; you do NOT need
@@ -404,7 +401,7 @@ sys.path.insert(0, "dashboard"); import db
 matches = db.resolve_club("Slagelse")
 OPP = int(matches.iloc[0]["tid"])
 S, P = db.latest_snapshot()
-M = db.config().get("default_method")
+M = "frem_minmax_4231"        # match the shape we play; do NOT inherit the stale config default
 
 rep = db.scout_report(OPP, season=S, phase=P, method=M)
 # rep = {opp, season, phase, method, coverage, overall, strength, matchups, units,
@@ -548,10 +545,18 @@ it still holds.>
 flat 4-4-2 leaves, the channels behind weak fullbacks, either side of a lone pivot.>
 
 ## Their threats
-- <squad-profile + key-player + H2H bullets, drawn from `rep["flags"]`, `rep["key_players"]`
-  (Level %ile — their quality, not their Fit under our tactic) and the "Their attack vs our
-  defense" row of `rep["matchups"]`: danger unit, high-Level%ile men, lone standout vs drop-off,
-  shot volume, direct/set-piece route.>
+<ONE section — named player, the numbers behind the threat, and what it means for us. Do NOT also
+write a separate "key men" list: that duplicated this section almost line for line in every
+briefing, which is why it was removed. Four or five bullets, each in the form
+**Name (POS)** — the stat that makes him a threat + the tactical consequence:>
+- **<Name> (<POS>)** — <Level %ile + the two or three attributes that drive the threat, from
+  `rep["key_players"]`/`top_attrs`. Level %ile, not Fit — see "The engine already exists" above.
+  Then the consequence: who picks him up, which lever contains him, what he punishes if ignored.>
+- <plus the non-player threats, still with their numbers: the "Their attack vs our defense" row of
+  `rep["matchups"]`, the direct/set-piece route and the aerial group that delivers it, shot volume
+  from the H2H, and anything in `rep["flags"]`.>
+- <their BENCH, when it holds a counter-profile to our plan or a player stronger than a predicted
+  starter — this is where the briefing has been caught out most often.>
 
 ## Where we win
 - <the "Our attack vs their defense" row of `rep["matchups"]` (do we have the quality edge going
@@ -563,28 +568,29 @@ flat 4-4-2 leaves, the channels behind weak fullbacks, either side of a lone piv
   unit mean hides both. Read the columns the role is actually scored on — see "Reading attributes"
   above.>
 
-## Key men to watch (named, by position)
-- **<Name> (<POS>)** — <standout attribute + Level %ile / role, from `top_attrs`. Level %ile, not
-  Fit — see "The engine already exists" above for why.>
-
-## Game plan — tactic recommendation
-- **Recommended method:** **`<method>`** — <why, keyed to the cheatsheet: favourite/underdog +
-  their style + physical matchup>. **Fallback switch:** <the in-game lever, e.g. → `frem_lowblock_overload`
-  if they bunker>.
-- <shape vs theirs; who screens whom; where we attack — tie to our identity + the space their shape
-  concedes. Prefer our real edges (width/pace/creativity) over their strengths (aerial/duels).>
-- **Mentality:** <home = ...; away = ...>
+## Game plan
+- **Shape: standard 4-2-3-1.** <One line on how it sits against theirs — who screens whom, where we
+  attack, tied to our real edges (width/pace/creativity) rather than their strengths (aerial/duels).>
+- **Variation:** <ONLY if the data triggers one, in the manager's own vocabulary — a forward wing
+  dropping AM→M for cover, the 10 dropping to a 6 against a dangerous opposing AMC, a WB becoming an
+  IWB, back four almost always. Name the trigger with its number. If nothing triggers one, write
+  "none needed — standard 4-2-3-1" and move on; do not list the menu.>
+- **Settings:** <Mentality / Line / Tempo / Width / Press / Final third / Passing — each justified
+  from a duel or a number, not from the preset. Say which of Line and Press you mean, every time.>
+- **Personnel:** <the centre-back pairing and why, the flank to load with the gap that justifies it,
+  the in-behind runner, who takes the danger man.>
 - **Defend:** <funnel wide/deny centre; screen the direct ball; man-mark aerial threats on set pieces.>
 - **Cutting edge / set pieces:** <if the H2H shows control-without-chances, stress chance quality;
-  our aerial edge if any; who to track after our set pieces.>
+  our aerial edge if any — checking BOTH sides of the duel before recommending a route; who to track
+  after our set pieces.>
 
 **One-line to the gaffer:** *<punchy, quotable summary of the plan.>*
 
 ---
 Eyeball it: **Team analysis → Scout a team → <Club>** — the **Face-off matchups** table for the
 attack-vs-defense reads, the unit/position filters (e.g. Us→Attack vs Them→Defense) to probe any
-matchup by hand, and the head-to-head drilldown. Switch the **method** selector to `<recommended>`
-to preview our XI's Fit for this plan. This report has been saved to the scout log
+matchup by hand, and the head-to-head drilldown. Set the **method** selector to
+`frem_minmax_4231` to preview our XI's Fit in this shape. This report has been saved to the scout log
 (`uv run python fmq.py scouts` to review it alongside past reads on other opponents).
 ```
 
