@@ -208,11 +208,38 @@ on `claude/pr-51-review-audit-un6rcv`. Full argument in the review comment on PR
 `work_rate`, `flair`, from fmm-editor's `Player.cs` order.
 
 Two things make that order safe to assert. Every one of the seven offsets we had verified
-independently against in-game values lands exactly where it predicts. And FMM22 fills only
-**18 of the 34** slots with a 1-20 value — where the live 18 are exactly the
-ability-independent attributes and the dead 16 are exactly the technical/GK values it computes
-from CA at display time, which is what `estimate_player` reconstructs. A partition that clean
-cannot come from a mis-aligned order.
+independently against in-game values lands exactly where it predicts. And FMM22 stores **18 of
+the 34** slots as a plain 1-20 value and the other 16 in a wrapped 0-255 encoding, split exactly
+along fmm-editor's semantic line — the plain 18 ability-independent, the encoded 16 technical
+and goalkeeping. A partition that clean cannot come from a mis-aligned order.
+
+**The 0-255 slots are NOT computed at display time — they hold the attribute, entangled.**
+`fmparser/model.py` has been predicting from those exact bytes all along, and a positional test
+settles what they carry. At MATCHED ability (CA 95-105, n=3,596), each source byte ranks
+positions exactly as its fmm-editor name says:
+
+| byte | name | top | bottom |
+|---|---|---|---|
+| `P-34` | Crossing | AMR 263, MR 262, AML 260 | DC 219, GK 173 |
+| `P-32` | Tackling | DC 272, DMC 268 | ST 211, GK 175 |
+| `P-31` | Finishing | **ST 282**, AMC 251 | DC 213, GK 173 |
+| `P-27` | Passing | MC 272, DMC 268 | ST 244, GK 241 |
+| `P-11` | Movement | ST 270, AML 268 | DC 226, GK 181 |
+| `P-10` | Positioning | DC 275, DMC 265 | ST 223 |
+| `P-7…P-1` | the 5 GK attributes | **GK 244-279** | every outfield position flat at ~170-174 |
+
+The goalkeeping five are decisive: GK ~80 points clear with all ten outfield positions
+indistinguishable. `corr(byte, CA)` is only 0.02-0.25, and within a 10-point CA band the bytes
+still have sd 20-35 — this is per-player information, not a re-encoding of ability.
+
+So the ordering is confirmed **slot by slot**, not just at the seven anchors, and two
+long-standing claims are retired: `fm-parser-project.md`'s "FMM stores a REDUCED set and
+computes the full 23-attr screen on demand", and this PR's own earlier wording that FMM22
+"computes those from CA at display time". Both wrong. **Follow-up worth having:** the frozen
+model is ~63% exact / ~93% within 1, fitted on 28 players; bytes with signal this clean should
+support a far better decode.
+
+
 
 Semantic checks agree where they can discriminate — `P-28` vs `height_cm` is **r = +0.79**
 against +0.30 for Strength, which is Jumping and nothing else; `P-8` tracks Technique (+0.65)

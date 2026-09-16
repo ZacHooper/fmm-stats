@@ -310,11 +310,14 @@ def record_tail(mm, P):
 #   1. All seven offsets we confirmed independently against in-game values land exactly where
 #      it predicts -- Pace P-24, Strength P-23, Stamina P-22, Technique P-21, Aggression P-19,
 #      Leadership P-16, Agility P-5.
-#   2. FMM22 fills only 18 of the 34 slots with a 1-20 value (the other 16 hold 0-255 data, no
-#      overlap) -- and the live 18 are EXACTLY the ability-independent attributes while the
-#      dead 16 are EXACTLY the technical/GK values FMM22 computes from CA at display time,
-#      which is what `estimate_player` below reconstructs. A partition that clean cannot come
-#      from a mis-aligned order.
+#   2. FMM22 stores 18 of the 34 slots as a plain 1-20 value and the other 16 as a wrapped
+#      0-255 encoding, with no overlap -- and the split is EXACTLY along fmm-editor's semantic
+#      line: the plain 18 are the ability-independent attributes, the encoded 16 are the
+#      technical and goalkeeping ones. A partition that clean cannot come from a mis-aligned
+#      order. (The encoded 16 are what `model.FROZEN` below decodes; they are not computed at
+#      display time. At matched ability the Finishing byte peaks at ST, the Tackling byte at
+#      DC, and the five GK bytes put GK ~80 points clear of every outfield position -- so the
+#      ordering is confirmed slot by slot, not just at the seven anchors.)
 #
 # Semantic checks agree where they can discriminate: P-28 vs height_cm r=+0.79 (Strength, the
 # strongest named physical, manages +0.30) -- that is Jumping; P-8 tracks Technique at +0.65 vs
