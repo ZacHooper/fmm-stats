@@ -31,8 +31,15 @@ Known field map (see docs/BUGS.md #14 for the full writeup):
   +60..63 FFFFFFFF sentinel (no player-attribute SID -> staff, per BUGS #11)
   +64..67 unexplained u32 ("reference"? no correlation found with anything so far)
   +68..83 FFFFFFFF padding (16 bytes)
-  +84..99 NOT the manager's own data -- confirmed contamination from an unrelated
-          nearby PLAYER's record (see BUGS #14); ignore past +64 for this record.
+  +84     Unknown7/Unknown8
+  +85     DefaultLanguageCount u8, then n x [language_id u16][proficiency u8]
+          then RelationshipCount u8, then m x [Level][Type][Unk][Uid u32][Reason]
+          then 1 trailing byte. CORRECTED 2026-09-16 (BUGS #14 Round 4): the old
+          note here called +84.. "contamination from an unrelated nearby PLAYER"
+          and said to ignore past +64. That was WRONG. The record is VARIABLE-
+          LENGTH and runs to the next record's start; parsing from +85 consumes
+          all 7 managers' records to the exact byte. The bytes below from +84 on
+          are this manager's own LANGUAGES and RELATIONSHIPS, not another player.
 
 STILL OPEN (checked, not found in [0,140) as a plain byte, nor within +-50,000 bytes
 as a raw catalog/enum reference): Style, Formation, Reputation, Job Status, Rank,
@@ -89,8 +96,9 @@ Marsch  255255255255122  4  0  0255255255255255255255255255255255255
 Hansen  255255255255  6  4  0  0255255255255255255255255255255255255
 Machin  255255255255156  4  0  0255255255255255255255255255255255255
 
-[80-99] FF padding continued, then contamination from an unrelated nearby PLAYER
-        record (NOT this manager's own data -- see BUGS #14)
+[80-99] FF padding (Unknown6c..6f), then +84 Unknown7/8 and +85 onward the
+        LANGUAGE list: [count u8] then n x [id u16][proficiency u8].
+        (Was mislabelled "contamination from an unrelated player" -- see above.)
          80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99
 Frederik255255255255  0  4  7  0  9 21  0  8 29  0  8 31  0 10  5  0
 Knutsen 255255255255  0  4  7  0 10 29  0 10 31  0  2 21  0 10  2  0
@@ -100,8 +108,9 @@ Marsch  255255255255  0  4  9  0  2 10  0  5 23  0  4  7  0 10  3  0
 Hansen  255255255255  0  5  7  0  5 10  0  2 21  0  2 29  0  2 31  0
 Machin  255255255255  0  2  7  0  4 23  0 10  2  0  3  1227  3  0  0
 
-[100-139] deeper into the contamination zone -- different record lengths per
-manager confirm this isn't part of a fixed-size manager record at all
+[100-139] the RELATIONSHIP list (8-byte records) and the record's end. The
+different record lengths per manager are exactly the point: the record is
+variable-length because these lists are counted, not fixed.
         100101102103104105106107108109110111112113114115116117118119
 Frederik  1  3120  0  0  0  8 75  1  3122 11  0  0  9 60  3  1108  1
 Knutsen   3  1 76  3  0  0  3 65  1  3255255255255  7 50111  4  0  0

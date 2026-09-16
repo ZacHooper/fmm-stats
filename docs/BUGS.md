@@ -1,6 +1,14 @@
 # Known bugs / follow-ups
 
-## 15. Club record trailer — looks like financial/stadium data (found chasing #14, TODO)
+## 15. Club record trailer — **DECODED 2026-09-16** (the "finance" reading was wrong)
+
+> **RESOLUTION.** The flood of `0x7FFF` that this entry read as sentinels is **colours**: a
+> `Color` is a u16 in RGB555, and `0x7FFF` is white. The trailer is 6 club colours + 6 kits,
+> then Status/Academy/Facilities, attendances, `LeagueId` (which is what the empirical `+158`
+> always was), stadium id, league position, reputation, affiliates, a fixed **40-slot squad
+> array**, an 11-slot staff array and `main_club_tid`. See `reference.parse_club_trailer` and
+> [`docs/PARSER_EXPANSION_HANDOFF.md`](PARSER_EXPANSION_HANDOFF.md). The stadium/finance guess
+> below is superseded — stadium capacity lives in its own table (`fmparser/places.py`).
 
 While chasing #14's Formation/Style, checked whether the *club's own* record (not the
 manager's) carries a tactical-identity field instead. It doesn't seem to — but it's clearly
@@ -34,7 +42,22 @@ dashboard/scouting side) that just isn't the thing we were looking for. Worth a 
 pass later: ground-truth a club's actual wage budget / stadium capacity from the in-game
 Club Info screen and hunt for it in this trailer the same way #14 did for managers.
 
-## 14. Manager/staff records — identified structurally (formation + style still open)
+## 14. Manager/staff records — **FORMATION SOLVED 2026-09-16** (style still open)
+
+> **RESOLUTION.** The formation is a **triple** — preferred / attacking / defensive — at
+> `ID2+31/+32/+33` of a SEPARATE staff attribute record, where `ID2` is the u32 at **info+64**
+> that Rounds 1-4 below carried as an "unexplained u32". 7/7 ground-truth managers exact, and
+> 100% of 4,210 staff records carry a catalog-valid triple against a 57% base rate. Everything
+> the rounds below "ruled out" was ruled out correctly — the field simply was not in the record
+> being searched. See `fmparser/staff.py` and
+> [`docs/PARSER_EXPANSION_HANDOFF.md`](PARSER_EXPANSION_HANDOFF.md).
+>
+> `data/rough-guide.md`'s "Editing managers / staff attributes" section describes this record
+> from the hex-editing side and was in the repo the whole time. Worth reading it before starting
+> a long hunt.
+>
+> **Style and Job Status are still unlocated.** Reputation tier IS solved (world reputation at
+> `ID2+12` orders Regional < National < Continental cleanly).
 
 Located the per-club MANAGER record for 3 Danish Superliga clubs from user-supplied
 ground-truth screenshots (AaB / Niels Frederiksen, FC Nordsjælland / Kjetil Knutsen,
@@ -66,6 +89,10 @@ Record shape (identical to the player info-field, offsets relative to record sta
 +52..59 personality block (see #9 — now fully resolved, below)
 +60..63 FFFFFFFF          (no player-attribute SID — the staff marker from #11)
 ```
+**The record does NOT end at +64 — see Round 4 below.** It is VARIABLE-LENGTH (94–305 bytes
+observed) and runs to the start of the next record; the "contamination past +64" call in the
+earlier rounds was wrong, and the bytes it discarded are this person's languages and
+relationships.
 
 **New field, found by stacking all 7 managers' raw bytes and scanning for anything
 byte-exact across the whole group (not just Style/Formation): `+38` = international caps,
@@ -128,8 +155,9 @@ without them):**
 | Status line | "Enjoying his role at the club" | "Determined to succeed at the club" | "Proud to be managing OB" | "Proud to be managing FC København" | "Enjoying his role at the club" | "Enjoying his role at the club" | "Happy to be managing Silkeborg IF" |
 
 Located and verified all 4 new managers' records the same way (DOB+club_tid cross-check,
-personality block byte-exact): Thorup tid 861187, Marsch tid 767339, Hansen tid 743453, Machín
-tid 782702 (all in `frem-2024-11-10.fms`).
+personality block byte-exact). NOTE: the numbers below are **file offsets, not tids** (they were
+mislabelled "tid" here until 2026-09-16) — Thorup @861187 (tid 2506), Marsch @767339 (tid 1686),
+Hansen @743453 (tid 1486), Machín @782702 (tid 1833), all in `frem-2024-11-10.fms`.
 
 **Ruled out this round (2026-08-29 follow-up):**
 - **Displayed attributes don't derive formation or style either** — checked directly against
@@ -217,6 +245,113 @@ At this sample size, window, and encoding coverage (whole byte + nibble + single
 coincidental hit is essentially impossible — this closes off "nearby raw byte in any common
 encoding" as decisively as this method can. If Style/Formation are stored per-manager at all,
 they're not within a wide radius of this record, in any of the encodings tried.
+
+### Round 4 (2026-09-16): record extent was wrong; trailer fully decoded; Style/Formation closed off much harder
+
+Two external repos were checked first. **`jal-co/FMMLoader-26` is irrelevant** — a mod
+*installer* for Football Manager 2026 **desktop** (copies folders into `graphics/`, `editor
+data/`, `tactics/`, manages restore points). No binary parsing anywhere in its Rust core, no
+save-format knowledge, wrong game family. **`nyongrand/fmm-editor` is the opposite — the single
+most useful external artefact found so far.** A C# editor for the **FMM26 pre-game database**
+(`people.dat`, `player.dat`, `club.dat`, …) whose `FMMLibrary/People.cs` is a field-by-field
+reader for a person record recognisably the same structure as ours. It does not parse formation
+either, but it names the fields around it, which is what unblocked this round.
+
+**1. The manager record is VARIABLE-LENGTH and we were truncating it.** Records are stored
+**tid-sequential with no gaps** — sweeping a ±600-byte window around each of the 7 managers
+finds tid k−5…k+5 in order, at irregular spacing. Observed manager record lengths:
+Frederiksen 140, Knutsen 116, Látal 127, Thorup 175, Marsch 124, Hansen 159, Machín 110. The
+earlier rounds declared everything past +64 "contamination from an unrelated nearby PLAYER"
+because the lengths differed per manager. **That is exactly backwards** — the lengths differ
+because the record ends with counted variable-length lists. Same class of error as the nickname
+bug (`docs/agent-context/nickname-players-missing.md`): a sentinel (here the `FFFFFFFF`
+padding) used to decide where a record stops.
+
+**2. The trailer is languages + relationships, and it accounts for every remaining byte.**
+Mapped against `fmm-editor`'s `People`/`Relationship` structs and validated on the save:
+
+```
++60  PlayerId int32       -1 for staff  <-- this IS our SID==ffffffff staff rule (#11)
++64  Unknown6b u32        (the "unexplained u32" of round 2)
++68..83  4 x int32 = -1   (Unknown6c/6d/6e/6f)
++84  Unknown7/Unknown8
++85  DefaultLanguageCount u8, then n x [ language_id u16 ][ proficiency u8 ]
+     RelationshipCount u8, then m x [ Level u8 ][ Type u8 ][ Unk u8 ][ Uid u32 ][ Reason u8 ]
+     1 trailing byte (Unknown21)
+```
+**Validation: parsing from +85 consumes all 7 records to the exact byte (leftover 0 on 7/7).**
+A scan of every candidate start from +80 to +103 shows +85 is the only alignment that does —
+every other either overruns or leaves 6–66 bytes dangling on some manager.
+
+**Languages decode cleanly and self-validate against real biography:** Frederiksen (Danish) =
+Danish 10, English 9, Norwegian 8, Swedish 8; Knutsen (Norwegian) = Norwegian 10, Danish 2;
+Marsch (American) = English 10, German 5 (he coached Salzburg and Leipzig); Machín (Spanish) =
+Spanish 10, English 4. Proficiency is 1–10. The ids were inferred here and later CONFIRMED
+against the real language table (`fmparser/lookups.py`, 77 rows): **5=Czech, 7=English,
+10=German, 21=Norwegian, 23=Spanish, 29=Swedish, 31=Danish** — note 21/29 are Norwegian and
+Swedish respectively, the opposite of the guess originally recorded here, which is exactly
+why the table was worth parsing rather than inferring.
+
+**Relationships decode too.** `Type=3` entries carry a **club tid** in `Uid` — Thorup's list
+contains 371 (OB) and 360 (FC Midtjylland), both real parts of his career — with `Level` an
+0–100 affinity, and a `-1` sentinel for "no target" appearing exactly where the struct predicts.
+Useful in its own right: a per-manager previous-club / affinity table we did not know existed.
+
+**3. The nickname trap applies to staff as well.** A nickname-safe sweep of this save finds
+**33,873 info records, 7,584 staff-shaped — and 614 of those staff (8%) carry a nickname**, so
+the `FFFFFFFF`-anchored scan used to find managers in rounds 1–3 is blind to roughly one staff
+member in twelve. Future manager discovery must use `reference.info_offset`'s validator
+(nickname sentinel OR plausible nickname id), not the sentinel alone. All 7 confirmed managers
+happen to have no nickname, so the existing ground truth stands.
+
+**4. Style and Formation: the negative is now far stronger than "we searched nearby".**
+- The **21-entry catalog** is confirmed at `20663274 + k*1262`, names in declaration order.
+- **Absolute catalog offset as a u32: zero hits in the entire file**, for every ground-truth
+  formation. There is no pointer to a catalog record anywhere.
+- **No ASCII formation name within ±5000 bytes of any manager record.**
+- **The real FMM encoding for a formation is neither an index nor a name — it is an 11-slot
+  position-code vector** (found via the saved-tactics table below). Searching for those
+  vectors: **each occurs exactly ONCE in the file, inside the saved-tactics table.**
+  `4-1-2-2-1` is the stated preferred formation of **three** of our seven managers (Knutsen,
+  Thorup, Hansen) and its code vector appears **once** in 63 MB. Neither the manager record nor
+  the club record stores a preferred formation this way.
+- **Each manager's `uid` appears exactly once in the whole file** (6 of 7; Látal's uid 12638 is
+  small enough to collide by chance). There is no second, uid-keyed manager record.
+- **No tid-anchored record holds the 10 undecoded coaching attributes as plain 1–20 bytes.**
+  Requiring a tid occurrence with the full attribute multiset within ±48 bytes returns **zero
+  candidates for 3 of the 7 managers**; ±128/±256 gives only scattered hits with no common
+  region.
+- Most importantly: **the person record is now fully accounted for**, header to final byte.
+  There is no unexplained space left in it for Style/Formation to hide in.
+
+**5. New structures found along the way.**
+- **Saved-tactics table at `55286180`: 22 records x 59 bytes**, each `11 x [position code u8]
+  [flag u8][0xff]` + a 26-byte zero-padded name. It holds the user's own tactics — **"uber
+  tactic" appears 4 times** — alongside default-named ones. This is where FMM stores a formation
+  as *geometry + name*, and it carries shapes absent from the 21-entry catalog (`3-2-2-1-2`,
+  `3-2-2-3`, `4-1-2-3`, `4-1-3-2`, `4-1-1-3-1`, `3-3-2-2`, `3-1-4-2`, `4-2-1-2-1`, `3-2-2-2-1`,
+  `5-1-3-1`, `3-3-2-1-1`, `3-2-3-1-1`).
+- The `76 b9 f4 07` marker occurs **60 times**: 21 catalog entries, ~37 in the match region
+  (54.97–55.15 MB, the per-match formation string of #10), plus singletons at 29.23 MB and
+  38.83 MB.
+
+**Where this leaves it.** The leading hypothesis is unchanged in shape but much better founded:
+Style, Formation, Reputation, Job Status, Rank, Ability-stars and the 10 coaching attributes
+live in a **separate staff record** that is not keyed by uid and does not store its attributes
+as raw 1–20 bytes. That last part is the new constraint, and it explains why three rounds of
+value-matching failed: **player attributes are stored scaled/encoded (`model.py` is a fitted
+regression off a raw 0–255 grid), and staff attributes are almost certainly encoded the same
+way** — so a plain-value search cannot find them however wide the window. The remaining tests
+are structural, not value-based:
+1. Find a fixed-stride table whose row count is ~the staff population and which correlates
+   positionally with info-record order (staff records are tid-sequential, so a parallel table
+   would be too).
+2. **Diff two saves** where a manager's formation/style actually changed — still the only test
+   that separates "stored but unfound" from "not persisted at all". Cheaper to run now that the
+   record model is exact, since the trailer no longer produces spurious diffs.
+3. `fmm-editor` models **no** staff/coaching fields in FMM26 either — no formation, no
+   Discipline/Judging/Motivating. So in FMM26 those also live outside `people.dat`. Asking that
+   project's author where staff data sits is the cheapest lead left.
 
 **To close this out — next session:**
 1. **Structural lead (still the leading candidate):** a wholly separate manager-only record

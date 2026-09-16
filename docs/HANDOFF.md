@@ -296,6 +296,22 @@ scoped to the newest snapshot, immersion check clean.
 
 ---
 
+## Parser expansion (2026-09-16) — five workstreams shipped, one open
+
+A field-by-field comparison against `nyongrand/fmm-editor` showed several records were being
+read short, and `data/rough-guide.md` pointed at a staff record we had never located. Shipped:
+the player record's missing 13 bytes (height/weight/shirt/reputations), the **manager formation
+triple** (preferred/attacking/defensive — this closes BUGS #14, open for four rounds), the full
+club record (colours, facts, the 40-slot squad array), competition `Level` plus a reputation
+off-by-one, and five new reference tables (stadiums, cities, languages, currencies, nations with
+**UEFA coefficients**).
+
+**Still open: the manager STYLE field, plus a full rebuild and the value-model refit.** Full
+detail, including everything already ruled out, is in
+[`PARSER_EXPANSION_HANDOFF.md`](PARSER_EXPANSION_HANDOFF.md) — read that before picking it up.
+
+---
+
 ## Loose ends (all small, none blocking)
 
 1. **The R2 token has not been rolled.** Its access key/secret were pasted into a chat transcript.
