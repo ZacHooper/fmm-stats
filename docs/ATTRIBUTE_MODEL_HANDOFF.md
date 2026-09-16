@@ -34,9 +34,98 @@ quoting that number.
    the tool** — it needs a `group` column on `staging.attribute_model` and a CASE in the
    generated view, and it rests on 16 GK rows. Worth doing on the full store, not before.
 
+## CA is ONE shared shift, not fourteen separate effects
+
+**This is the structural finding, and it should shape the model rather than be bolted onto it.**
+
+Fit each entangled attribute from its own byte alone and keep the residuals. If CA entered each
+attribute separately, those residuals would be unrelated across attributes. They are not:
+
+- mean pairwise residual correlation across the 9 outfield entangled attributes: **+0.66**
+  (min +0.55, max +0.79)
+- a single per-row shift explains **69.3%** of the residual variance
+- that shift correlates **+0.93 with CA**, and is **linear** in it — `shift ≈ 0.049 × CA − 3.96`,
+  R² 0.896, and a quadratic term adds exactly nothing (0.896)
+- every attribute loads on it at about 1.0 (0.86–1.35)
+
+So the record's shape is
+
+```
+displayed_a = round( beta_a * unwrap(byte_a) + alpha_a + g(CA) )      g(CA) = 0.049*CA - 3.96
+```
+
+**one** CA term for the whole player — roughly one display point per 20 CA — not one per
+attribute. Scored like for like (186 outfield truth rows, same folds, same offset rule):
+
+| model | free params | exact | ±1 |
+|---|---|---|---|
+| byte only | 18 | 28.0% | 69.0% |
+| **shared CA shift** | **20** | **57.7%** | 88.1% |
+| shared shift + per-attribute loading | 29 | 55.1% | 88.5% |
+| per-attribute CA/PA/own×CA (the current shape) | 45 | 57.5% | 89.5% |
+
+The shared shift **matches the per-attribute fit on 2.25× fewer parameters**, and letting the
+loading vary per attribute makes it *worse* — which is the direct test that the CA effect does
+not differ by attribute. With only 202 truth rows that parsimony is the whole argument for it
+generalising to another career.
+
+Confounds checked and rejected: it is not per-save decode drift (the per-save means just track
+each save's mean CA, and CA still correlates +0.77 with the shift *within* a save); not age
+(+0.28); not CA/PA (+0.56). Reputation comes close (+0.87) but is itself CA-driven.
+
+### What this means for "which attributes need CA"
+
+The natural guess is that CA matters most for the attributes CA is most built from — that
+shooting needs it and teamwork doesn't. **The first half is wrong and the second is right for
+the wrong reason.** CA's contribution is uniform across the entangled attributes; Teamwork is
+untouched by it because Teamwork is built from PLAIN bytes, which are already the displayed
+value and need no rendering step at all. The dividing line is byte KIND, not attribute identity
+— the same line that separates the three composites above.
+
+Two consequences:
+
+- **Do not add per-attribute CA terms.** Fit `g(CA)` once, jointly, by alternating least squares
+  (`archive/ca_shared_shift.py` is the reference implementation and re-runs the
+  table above against any store), then per-attribute slope and
+  intercept on top.
+- Apparent per-attribute variation in "how much CA helps" is an artifact of the floor. Handling,
+  Reflexes and Communication look like they need no CA (+2.0, −4.5, −0.5 points) only because an
+  outfielder's value is pinned at 1 — **Communication is 1 for 100% of outfield truth rows,
+  Handling and Reflexes for 62%**. Score the GK attributes on GKs or not at all.
+
+## A by-product: FM's positional CA weighting, recovered
+
+Regressing CA on all 34 raw attribute slots (standardised betas, `archive/ca_weight_set.py`)
+over **138,349 outfield player-snapshots** recovers what the game weights at each position.
+R² is 0.72–0.77 within a position, and the answer is footballistically coherent, which is the
+main reason to believe it:
+
+| top position | the attributes CA leans on most |
+|---|---|
+| DC | decisions, positioning, tackling, passing, creativity, strength, heading |
+| MC | stamina, dribbling, decisions, tackling, creativity, passing |
+| ST | stamina, **finishing**, strength, dribbling, pace |
+| DL | decisions, stamina, pace, tackling, **crossing** |
+| AML | **pace**, stamina, finishing, agility |
+| GK | strength, stamina, technique, agility, reflexes (and heading *negatively*) |
+
+Crossing earns weight at DL/ST/AML and none at DC; finishing is second at ST and tenth at MC;
+tackling matters at DC/MC/DL and not at AML. This is a scouting asset — it says what the game
+rewards in a given slot — **but it is not a lever for the decoder**, per the section above.
+
+Two traps if anyone re-runs this:
+
+- **Marginal correlation gets it backwards.** Pooled, `tackling_src` correlates 0.04 with CA and
+  `finishing_src` 0.03 — apparently irrelevant. In the multiple regression tackling is the
+  single largest term. The entangled bytes are ability-independent, so they only reveal
+  themselves once the rest of the vector is controlled for. Use the regression, not `corr`.
+- **Split GK from outfield first.** Pooled, every GK byte correlates about −0.6 with CA, purely
+  because outfielders' GK bytes sit below the display floor and go lower as CA rises. That is
+  the strongest apparent signal in the whole table and it is an artifact.
+
 ## The next step: grid-search WEIGHTS on exact matches
 
-The decoder result says the objective is what's binding. The same logic applies to the
+The decoder result says the objective is what's binding, and the shared-shift result says the model has far fewer real parameters than we have been fitting. The same logic applies to the
 coefficients, and there is direct evidence:
 
 **Aerial.** `floor(0.30 × heading_src + 0.70 × jumping + 1.0)` scores **70.8% CV** against the
