@@ -453,15 +453,26 @@ ATTR_ORDER = ["Aerial", "Crossing", "Dribbling", "Shooting", "Passing", "Tacklin
 # generated SQL in load_duckdb builds its expression from these numbers rather than repeating
 # them, so the Python and the database cannot drift.
 #
-#   Teamwork  floor((unselfishness + work_rate) / 2)      EXACT (97.8%, and a grid search
-#             independently rediscovers w=0.50/offset=0 in all five folds)
-#   Aerial    floor(0.30*heading + 0.70*jumping + 1.0)    NOT exact (70.8%) -- an estimate
+#   Teamwork  floor((unselfishness + work_rate) / 2)      EXACT   -- 98.0%
+#   Aerial    floor(0.24*heading + 0.76*jumping + 0.8)    ESTIMATE -- 88.7%
 #
 # That difference is load-bearing: Teamwork's `_est` flag is FALSE and Aerial's must stay TRUE.
-# Aerial was FITTED until 2026-09-17 and scored 58.9%; the closed form beats it by 12 points on
-# two parameters instead of eight, which is why it is no longer in `model.FROZEN`.
+#
+# Both weight sets were GRID-SEARCHED against exact matches on 840 truth rows / 86 players,
+# 5 folds held out by player, and each fold picked the same point. Teamwork is the control: the
+# search returns 0.48/+0.1 -- i.e. it independently rediscovers the halving formula we already
+# knew, at the same 98.0% -- which is why the Aerial number is believable rather than a lucky
+# search. Aerial went 72.0% -> 88.7% on the same rows and the same protocol; the improvement
+# comes from 17 distinct players with only 1 made worse.
+#
+# HEIGHT WAS TESTED AND REJECTED. It is the obvious third term and it does not help: added to
+# a least-squares fit it LOSES (67.5% -> 59.8%), and the grid search chooses a height weight of
+# exactly 0.0 in all five folds. `jumping` appears to carry the physical part already. Weight,
+# strength and agility were tested the same way and also rejected.
+#
+# Residual error is concentrated at the top: nothing predicts 17 or 18, which is 18 of 840 rows.
 TEAMWORK_W = (0.50, 0.50, 0.0)
-AERIAL_W = (0.30, 0.70, 1.0)
+AERIAL_W = (0.24, 0.76, 0.8)
 
 
 def _composite(w, a, b):
