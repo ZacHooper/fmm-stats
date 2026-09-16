@@ -50,7 +50,7 @@ then just `LOAD httpfs;` (no `INSTALL`) picks it up from the local cache. Re-ven
 The published copy carries staging.players.ca/.pa (raw ability) UNCHANGED — it is not scrubbed.
 The immersion house rule (CLAUDE.md: never SURFACE the raw ability number) is enforced at the
 presentation layer — the dashboard, the skills, and export_data.py's JSON API (checked at build
-time by scripts/build_site.py) — not by hiding the column from SQL. A query against this store
+time by scripts/export_data.py) — not by hiding the column from SQL. A query against this store
 can compute Level %ile / Fit ratings same as a local rebuild; it just shouldn't print the raw
 `ca`/`pa` value in a report, same rule that already applies everywhere else. (Before
 2026-09-01 this script also NULLed ca/pa here, which meant mart.player_position_fit and

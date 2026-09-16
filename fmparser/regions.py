@@ -2,29 +2,28 @@
 """
 Where the data lives in the save, and the managed-career config.
 
-Scope: this parser targets ONE career (Bucaspor) pulled at different points in a
-season. Two kinds of constant live here:
+Scope: the parser is CAREER-AWARE (see careers.py); the constants here are the
+DEFAULT career's, for callers that don't pass one. Two kinds live here:
 
-  * CAREER CONFIG — stable across the whole career (managed club TID, its
-    competition IDs). These do NOT change as the save grows; only a *different*
-    career would change them.
+  * CAREER CONFIG — resolved from careers.py, so it follows whichever career is
+    active. Do not read the values below as fixed.
 
   * REGION WINDOWS — byte ranges where the three big structures sit. These DO
-    drift as the save file grows over a season, so they are deliberately generous
-    and every record is validated on read (grid phase, value ranges, name shape).
-    If a future save moves data outside these windows, widen them here — the
-    ground-truth test (tests/) will flag it.
+    drift per save AND per career, so they are deliberately generous and every
+    record is validated on read (grid phase, value ranges, name shape). If a save
+    moves data outside a window, widen it here. Do NOT rely on tests/ to catch
+    that: every test skips when its save is absent, which is most of the time.
 """
 from .careers import resolve_career
 
 # ---- default managed career ----
-# Which club you manage now lives in careers.py, so multiple careers share this
-# parser; pick one per run with `extract.py --career <key>`. The names below are the
-# DEFAULT career (Bucaspor) for callers that don't pass one explicitly — every hot
-# path threads the actual club marker through instead (see attributes.py).
+# Which club you manage lives in careers.py; pick one per run with
+# `extract.py --career <key>` or FM_CAREER. Below is whatever careers.py resolves as the
+# default (currently frem) for callers that don't pass one — every hot path threads the
+# actual club marker through instead (see attributes.py).
 _DEFAULT = resolve_career()
-MANAGED_CLUB_TID = _DEFAULT.managed_tid       # Bucaspor 1928 (first team)
-MANAGED_RESERVE_TID = _DEFAULT.reserve_tid    # Bucaspor reserves (AI-run)
+MANAGED_CLUB_TID = _DEFAULT.managed_tid       # default career's first team
+MANAGED_RESERVE_TID = _DEFAULT.reserve_tid    # its reserve side (AI-run)
 LEAGUE_COMP_IDS = _DEFAULT.league_comps
 CLUB_MARKER = _DEFAULT.club_marker            # managed club TID (u16 LE) + ff ff
 
@@ -40,13 +39,10 @@ SNAPSHOT_LO, SNAPSHOT_HI = 62_300_000, 63_200_000
 MATCH_LO = 55_000_000
 # light results (simulated non-managed games): [home][away][sH][sA]..[flags 0x40xx].[cid]
 LIGHT_LO, LIGHT_HI = 47_000_000, 50_500_000
-# NOTE: the player contract-STATUS window that used to live here
-# (CONTRACT_LO/CONTRACT_HI = 54M-58M) is GONE, not merely unused. It was cut for Bucaspor,
-# where it was flawless, and was simply the wrong place on Frem — that career's section runs
-# ~50-60 MB, so the window opened ~4 MB late and the two oldest Frem snapshots decoded ZERO
-# of ~25,500 records. staging.scrape_contract_status scans the whole file instead; it needs
-# no window because every hit must match both the tid AND the uid from the info spine, and
-# the full scan costs 0.1s. See docs/agent-context/parser-hardcoded-anchor-audit.md.
+# NOTE: contract-STATUS has no window on purpose. CONTRACT_LO/HI (54M-58M) was exact for
+# Bucaspor and 4 MB late for Frem, decoding ZERO of ~25,500 records on two snapshots.
+# scrape_contract_status scans the whole file (0.1s) and is safe unwindowed because every hit
+# must match tid AND uid from the info spine. Do not re-add a window here.
 # player contract DETAIL records — a separate section from the 0x87 status records above.
 # Layout: [tid u32][0x01][wage u16 = £/yr÷~520][zeros][expiry day-of-year u16][expiry year u16].
 # Wage validated £15.5K–£17.75M (±2%); expiry is a full date (DOB-style day+year). Frem's records
@@ -54,23 +50,14 @@ LIGHT_LO, LIGHT_HI = 47_000_000, 50_500_000
 CONTRACTREC_LO, CONTRACTREC_HI = 16_000_000, 40_000_000
 # £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
 WAGE_GBP_PER_UNIT = 520
-# club + competition name records. Without a bound, reference.py's club/comp lookups were
-# `mm.find`-scanning the WHOLE ~60 MB file per call — a small-int TID like `5` packed as 4
-# mostly-zero bytes hits 44k+ false positives in a save full of zero padding. Trusted
-# outright like every other region here (no runtime fallback): a fallback-on-miss was tried
-# and measured SLOWER overall, because most club_record calls in a real extract are MISSES
-# (extract.py resolves every club named in every player's full career history, most of
-# which have no record in THIS save at all) — a miss scans to the end of the range either
-# way, so "windowed, then whole file" pays for both scans instead of one.
+# club + competition name records. The bound exists because unwindowed, reference.py's
+# lookups `mm.find`-scanned the whole ~60 MB per call (a small-int TID packed as 4 mostly-zero
+# bytes hits 44k+ false positives in a padded save). No runtime fallback: "windowed, then
+# whole file" was measured SLOWER, because most club_record calls in a real extract are MISSES
+# and a miss scans to the end of the range either way, so it pays for both scans.
 #
-# Bounds are the actual `scripts/map_regions.py` filler-delimited section, not just where a
-# handful of sampled TIDs happened to hit — a first attempt set LO from sampled hits alone
-# (3.0M) and silently cut 2.4M+ off the FRONT of the real section, which is exactly the kind
-# of miss this project has been burned by before. The section (label "ff-records", right
-# after the name_table) sits at 0.572-0.576M to 16.6-17.5M across 2 careers x 3 years of
-# saves (Frem 2021-07 + 2024-06, Bucaspor 2022-05) with barely any drift. LO=0 costs
-# nothing (folds in the tiny name_table section ahead of it, ~0.5 MB) and removes the
-# front-truncation risk entirely; HI keeps ~2.5 MB of margin past the widest observed end.
-# If a future save drifts past HI, widen it here (see module docstring) — or better, derive
-# it from `mapregions.sections()` at runtime instead of hand-tuning a constant again.
+# LO=0 is deliberate — setting it from sampled TID hits cut 2.4 MB off the FRONT of the real
+# section. Bounds come from the `map_regions.py` "ff-records" section, observed at ~0.57M to
+# 16.6-17.5M across 2 careers x 3 years, so HI keeps ~2.5 MB of margin. To widen, prefer
+# deriving it from `mapregions.sections()` at runtime over hand-tuning again.
 REFDATA_LO, REFDATA_HI = 0, 20_000_000

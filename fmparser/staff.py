@@ -1,82 +1,52 @@
 #!/usr/bin/env python3
 """
-Staff attribute records: coaching ability, reputation, and the FORMATION TRIPLE.
+Staff attribute records: coaching ability, reputation, the FORMATION TRIPLE and Style.
 
-This is the record BUGS #14 spent four rounds failing to find. The mistake was assuming a
-manager's tactical data hung off his info record; it does not. There is a second,
-separately-keyed table:
+The info record carries TWO link fields, which is what BUGS #14 missed for four rounds:
 
-    info record  +60  PlayerId  -> the PLAYER attribute record (ffffffff for staff)
-    info record  +64  ID2       -> the STAFF  attribute record   <-- this one
+    info +60  PlayerId -> the PLAYER attribute record (ffffffff for staff)
+    info +64  ID2      -> the STAFF  attribute record   <-- this one
 
-`+64` was carried in docs as "unexplained u32" (fmm-editor calls it `Unknown6b`). Anchoring
-on it lands every one of the 7 ground-truth managers on a record whose bytes reproduce all
-10 of their coaching attributes exactly. `data/rough-guide.md`'s "Editing managers / staff
-attributes" section describes this record from the hex-editing side and is what pointed here.
+Staff records sit on the same 78-byte grid as player records but are a different layout; the
+two validators are disjoint (0 of 2,315 staff-shaped records also validate as player records).
 
-Staff records share the 78-byte grid with player attribute records but are a different
-layout, and the two validators are disjoint: sweeping the whole file, 0 of 2,315 staff-shaped
-records also validate as player records.
+LAYOUT — the record is exactly 39 bytes, from the stride between consecutive records
+(3,896 of 4,209 gaps; 4,657 of 5,097 on the Turkish save, rest are multiples):
 
-**The formation triple.** `+31/+32/+33` are indices into the 21-entry formation catalog, and
-they are the manager's preferred / attacking / defensive shapes — the same three fields
-FM2026's in-game editor exposes. Evidence:
-  * `+31` matches the in-game Manager Profile formation for all 7 ground-truth managers
-    (Frederiksen 18 = 5-2-2-1, Machin 17 = 5-2-1-2, Marsch 0 = 4-4-2, ...);
-  * across 3,224 staff records, 99.4% have all three bytes in [0,20] against a 57% base rate
-    for three adjacent bytes in the same region;
-  * 60% of managers carry the same shape in all three slots (an unremarkable default), and
-    the variants are footballing-coherent - Thorup 4-1-2-2-1 / 4-2-3-1 attacking / 5-3-2
-    defensive.
+    +0  id2 u32 | +4 ca u16 | +6 pa u16 | +8/+10/+12 home/current/world reputation u16
+    +14..+30    17 attribute bytes (1-20) -- 10 displayed, 7 hidden
+    +31..+33    formation triple: preferred / attacking / defensive, catalog indices
+                (60% of managers carry the SAME shape in all three -- an unremarkable
+                default, not a parser fault)
+    +34..+38    5 catalog indices, UNDECODED
 
-**The record is exactly 39 bytes.** 3,896 of 4,209 gaps between consecutive real records are
-39 (the rest are small multiples, i.e. a skipped record); same on the Turkish save, 4,657 of
-5,097. So it is `[id2 u32][ca u16][pa u16][3 x reputation u16]` = 14 bytes of header, then
-`+14..+30` = **17 attribute bytes**, then `+31..+38` = 8 catalog-index bytes. The 17 is the
-tell: the Manager Profile screen also shows 17 values, but 7 of them are the personality block
-on the INFO record, so only 10 of these 17 are displayed and the other 7 are HIDDEN.
+Knowing the extent is what solved Style: there is nowhere left in 39 bytes for a 3-valued
+enum, so Style must be derived. It is a banding of `+14` (`attacking_intent`), one of the
+seven hidden attributes.
 
-**Style (Attacking / Normal / Defensive) is DERIVED from `+14`, a hidden attribute.** There is
-no 3-valued enum anywhere in the record -- now that its extent is known, there is nowhere left
-for one to hide -- and `+14` is the only byte in it that orders the seven ground-truth managers
-Attacking > Normal > Defensive. That alone would be worth nothing (n=7, and BUGS #14's `-140`
-candidate did the same and was noise), so it was tested out of sample instead, against the
-licensed real-world manager database this save carries:
+WHY `+14` IS NOT AN n=7 FALSE POSITIVE. It orders the 7 ground-truth managers correctly, which
+on its own is worth nothing — BUGS #14's `-140` candidate did exactly that and was noise. It
+was confirmed on four independent cuts, none of which could be fitted after the fact:
+  1. managers BUGS #14 Round 3 had ALREADY labelled attacking land in the top 15% (p < 1e-3);
+  2. controlling for quality, the top 20 by world reputation orders Klopp/Nagelsmann high and
+     Simeone/Mourinho lowest of the twenty;
+  3. cross-career — the same people carry the same values on the Turkish save;
+  4. both band edges were PREDICTED for 7 managers off frem-2026-07-02 and then read in game,
+     7/7 correct. This is what killed the attractive cut-at-11 reading.
+A rival `+14 - +20` also fits the 7 and is REJECTED: out of sample it calls Mourinho attacking.
 
-  * the four famous managers BUGS #14 Round 3 had *already* labelled attacking all sit in the
-    top 15% -- Klopp 18, Postecoglou 16, De Zerbi 16, Nagelsmann 16 (p < 1e-3 by chance);
-  * inside the top 20 by world reputation -- which controls for quality, the obvious confound
-    -- the order is Klopp 18, Nagelsmann 16, Tuchel 15, Pochettino 15, Gallardo 15 at the top
-    and Nuno 11, Zidane 10, Simeone 9, Mourinho 8 at the bottom. The two most famously
-    defensive managers in world football are the two lowest of the twenty;
-  * on the TURKISH save the same people carry the same values (Klopp 18, Simeone 9, Mourinho
-    8) and the names that fill the top are Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda
-    19 -- nobody's prior was consulted to pick them.
+**The numbers behind all four are in `tests/test_staff_records.py`, as data rather than
+prose** — they are executable there and cannot rot. The hunt's history is BUGS #14.
 
-`style()` bands it in thirds: <=7 Defensive, 8-13 Normal, >=14 Attacking. 26% / 45% / 30% of
-1,278 real club managers, with Normal the plurality.
+`style()` bands in thirds: <=7 Defensive, 8-13 Normal, >=14 Attacking — 26/45/30% of 1,278
+real club managers.
 
-**Both band edges are CONFIRMED, not just fitted.** The 2024 ground truth alone could not pin
-the Defensive edge -- its only Defensive manager reads 7 and its lowest Normal reads 12, so any
-cut in 7..11 fitted equally well. So seven managers spanning intent 6-14 were picked off
-`frem-2026-07-02.fms`, their Style PREDICTED, and then read in-game: all seven correct,
-including Odder's Peter Pedersen at intent 8 reading Normal (the Defensive edge) and AGF's Jon
-Dahl Tomasson at 14 reading Attacking (the Attacking edge). `tests/test_staff_records.py`
-guards that set.
+`+34..+38` is real structure, not padding: a 15-value index space DISJOINT from the formation
+triple's, mutually independent (~9% pairwise agreement vs ~7% chance) and independent of the
+triple (~5%). Naming it needs ground truth we lack. Job Status is unlocated and out of scope.
 
-Job Status is still not located, and is out of scope (the user does not want it).
-
-`+34..+38` are five more catalog-index bytes and are NOT decoded. They draw from a 15-value
-subset of [0,19] that is DISJOINT from the formation triple's own 15-value subset (the triple
-never uses 4/6/8/14/15/20; these never use 3/4/5/6/15/20), they are mutually independent
-(~9% pairwise agreement, near the ~7% chance rate), and they are independent of the triple
-(~5%). Five independent draws from a different index space than the formations -- a real
-structure, not padding, but naming it needs ground truth we do not have.
-
-CA/PA are read here because the record carries them, and are subject to the same immersion
-rule as players': keep them out of anything surfaced. `reputation_tier` is the safe
-derivative -- world reputation orders Regional < National < Continental cleanly on the
-ground-truth set.
+CA/PA are read because the record carries them, and fall under the same immersion rule as
+players': never surfaced. `reputation_tier` is the safe derivative.
 """
 import struct
 
