@@ -594,7 +594,16 @@ appear in a future save we can pin it. Leg is inferred by date, which is robust.
 (split 38/1 vs 36/0 across the season; every "1" has home_tid 6567 or 11320). Exposed
 as `home_flag`. (It is NOT a leg indicator — that theory was disproven.)
 
-## 6. info-field: +28 (flag28) — NOT foot, NOT role (both disproven)
+## 6. info-field: +28 — **SOLVED 2026-09-16: Ethnicity**
+
+> **RESOLUTION.** fmm-editor's `People.cs` declares `Ethnicity` at exactly this offset, and the
+> data agrees: 13 distinct small values (0/1/3/2/9 the commonest), which is an ethnicity enum
+> and is *not* a nation id. That **retires the "declared national team" guess below** — a
+> national-team field would hold values in the 100s, like the nationality at +24. Parsed as
+> `ethnicity`; the second nationality is the separate u16 at **+26**, which is ffff or 0 on 78%
+> of records and a real nation id on the rest. See `staging.INFO_LAYOUT`.
+
+## 6a. The original investigation — NOT foot, NOT role (both disproven)
 
 `flag28` (info+28) varies 0/1/2 among players who are all "player" — so NOT the role
 flag. I hypothesised preferred foot, but that's **disproven**: Murat Demir is "Left

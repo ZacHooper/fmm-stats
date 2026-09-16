@@ -300,16 +300,24 @@ def main(argv):
             ok += 1
     print(f"  OK  {ok}/{len(PERSONALITY)} managers' personality + caps/goals exact")
 
-    # 255 is a sentinel in BOTH international fields, and always in the same records -- so it
-    # must read as NULL, not as a striker with 255 international goals.
-    raw255 = sum(1 for t, p in info.items()
-                 if p["international_caps"] is None and p["international_goals"] is None)
-    both = all((p["international_caps"] is None) == (p["international_goals"] is None)
-               for p in info.values())
-    if not both:
-        fails.append("the 255 sentinel is not paired across caps/goals")
+    # An empty person slot has no uid, and blanking the person block on that ONE record-level
+    # invariant is what keeps every field on it clean -- no date window, no plausibility test.
+    # The check that it works: nothing implausible survives anywhere in the block.
+    blank = [p for p in info.values() if p["uid"] == 0]
+    leak = [p for p in blank if any(p[k] is not None for k in S.PERSON_FIELDS)]
+    if leak:
+        fails.append(f"{len(leak)} empty slots (uid == 0) still carry person data")
+    bad_date = [p["joined_date"] for p in info.values()
+                if p["joined_date"] and not ("1950" <= p["joined_date"][:4] <= "2100")]
+    bad_pers = [p for p in info.values() if p["adaptability"] is not None
+                and not all(1 <= p[k] <= 20 for k in ("adaptability", "ambition",
+                                                      "loyalty", "temperament"))]
+    if bad_date or bad_pers:
+        fails.append(f"{len(bad_date)} implausible joined_date(s), "
+                     f"{len(bad_pers)} personality value(s) outside 1-20")
     else:
-        print(f"  OK  {raw255} records carry the 255 international sentinel, nulled in pairs")
+        print(f"  OK  {len(blank)} empty slots blanked on uid == 0; no implausible "
+              f"joined_date or personality value survives anywhere")
 
     # Second save, Style only: the band EDGES, which the 2024 set alone cannot pin.
     other = os.path.join(os.path.dirname(path), STYLE_2026_SAVE)

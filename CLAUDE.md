@@ -173,6 +173,15 @@ Two rules follow, and the recent bugs all break them:
 - **Bound a table walk by the table's own invariant, never a tuned constant.** A miss counter or
   a plausibility window makes the row count a function of the constant. The city table's real
   invariant is `id == slot index`.
+- **One declarative layout per record is the schema.** `staging.INFO_LAYOUT` is a table of
+  `(offset, width, name, kind)` with `UNKNOWN` rows as first-class entries: `_decode_info` reads
+  FROM it and `scripts/audit_records.py` checks AGAINST it, so the parser and its audit cannot
+  drift. **`uv run python scripts/audit_records.py --map` prints the per-byte schema** — that is
+  the record documentation, generated rather than retyped, so it cannot go stale.
+- **Bound a record by its own invariant, not a plausibility window.** 77 person records are
+  empty slots carrying garbage in every field — joined dates in 1290 and 2570, personality of
+  255. `uid == 0` identifies all 77 EXACTLY, so blanking the block on that one structural rule
+  removes the need for a date window or a range test anywhere downstream.
 - **Carry what you cannot name — then go and name it.** A byte identified as an attribute but
   not labelled is still data, so both records' hidden attributes are carried. The PLAYER nine
   are now NAMED from `nyongrand/fmm-editor`'s `Player.cs` (`jumping`, `consistency`,

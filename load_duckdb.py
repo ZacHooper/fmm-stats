@@ -52,6 +52,9 @@ _XI = M._XI_FIELDS  # noqa: SLF001 (intentional reuse of the canonical list)
 from fmparser.attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
 from fmparser.staging import PERSON_FIELDS as _PERSON                # noqa: E402
 PERSON_COLS = list(_PERSON)
+# Everything off the info record is a small integer except the one date.
+PERSON_DATE_COLS = {"joined_date"}
+_PERSON_SQL = {c: ("DATE" if c in PERSON_DATE_COLS else "INTEGER") for c in PERSON_COLS}
 from fmparser.staff import HIDDEN_OFFSETS as _STAFF_HIDDEN      # noqa: E402
 PLAYER_HIDDEN_COLS = list(_PLAYER_HIDDEN.values())
 STAFF_HIDDEN_COLS = list(_STAFF_HIDDEN.values())
@@ -257,7 +260,9 @@ DDL = [
         -- Manager Profile screen shows.
         adaptability INTEGER, ambition INTEGER, determination INTEGER, loyalty INTEGER,
         pressure INTEGER, professionalism INTEGER, sportsmanship INTEGER, temperament INTEGER,
-        international_caps INTEGER, international_goals INTEGER
+        international_caps INTEGER, international_goals INTEGER,
+        u21_caps INTEGER, u21_goals INTEGER, joined_date DATE,
+        second_nationality_id INTEGER, ethnicity INTEGER
     )""",
 
     # natural key: (season, phase, tid)
@@ -706,7 +711,8 @@ def load_core(con, d, season, phase):
             _int(v.get("squad_number")), _int(v.get("preferred_squad_number")),
             _int(v.get("height_cm")), _int(v.get("weight_kg")),
             *(_int(v.get(c)) for c in PLAYER_HIDDEN_COLS),
-            *(_int(v.get(c)) for c in PERSON_COLS),
+            *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
+              for c in PERSON_COLS),
         ))
         attrs, est = v.get("attributes"), v.get("estimated") or {}
         if attrs:
@@ -741,7 +747,8 @@ def load_core(con, d, season, phase):
                 # this padding cannot fall out of step with the column list below.
                 *([None] * 7), *([None] * len(PLAYER_HIDDEN_COLS)),
                 # ...but the PERSON block is on the info record, so staff DO have it.
-                *(_int(v.get(c)) for c in PERSON_COLS),
+                *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
+                  for c in PERSON_COLS),
             ))
 
     pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
@@ -1398,10 +1405,10 @@ _MIGRATIONS = [
     # 2026-09-16: the info record's personality block and international record. Decoded and
     # verified against screenshots back in BUGS #14, then never wired into the parser -- the
     # same identified-and-discarded failure as the record tail.
-] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in PERSON_COLS] + [
-] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in PERSON_COLS]
+] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} {t}"
+     for c, t in _PERSON_SQL.items()] + [
+] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} {t}"
+     for c, t in _PERSON_SQL.items()]
 
 
 def _migrate(con):

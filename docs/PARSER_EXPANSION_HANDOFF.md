@@ -224,7 +224,29 @@ confounded by minutes. Neither contradicts the order; both rest on the structura
 `P-29` stays **Aerial** (Player.cs says Heading; the FMM22 UI says Aerial) and Teamwork is
 still derived from `P-25 + P-9`. Both kept deliberately, both ground-truth-backed for FMM22.
 
-**The INFO record's personality block is parsed too, for the first time.** The 8 values
+**The INFO record now has a declarative layout, and five more named fields.**
+`staging.INFO_LAYOUT` is the single declaration of the record's fixed 68-byte head —
+`_decode_info` reads from it, `audit_records.py` checks against it, and
+`audit_records.py --map` prints it as the schema. Undecoded bytes went from **25 to 6**, and
+the six that remain are `Unknown1`/`Unknown3`, unnamed in fmm-editor too.
+
+What unlocked them: `People.cs`'s constructor gives read ORDER, and FMM22's head is **2 bytes
+shorter** than FMM26's because caps/goals are `u8` here and `i16` there. Shift everything from
++40 on by two and it lands exactly on offsets we had already verified independently — club at
++42, personality at +52, PlayerId at +60, the staff link at +64. That is the check that the
+alignment is right, not a guess. The new fields: **`joined_date`** (+46; 100% decode as a
+plausible date, none after the save's own season), `u21_caps`/`u21_goals` (+40/+41),
+`second_nationality_id` (+26), `ethnicity` (+28 — which retires BUGS #6's "declared national
+team" guess, since that would hold nation ids in the 100s). One that did NOT survive contact:
+`type_flag` (+33) agrees with our SID staff rule on only **82.4%** of records and has three
+values, so BUGS #14's "agrees ~99%" was wrong and the SID rule still decides.
+
+**77 person records are empty slots**, and `uid == 0` identifies them exactly. They were the
+source of every implausible value the record produced — all 66 nonsense joined dates (1290,
+1545, 2570) and all 77 of the 255 international sentinels are theirs. Blanking the person block
+on that one record-level invariant is why no per-field plausibility window is needed anywhere.
+
+**The personality block is parsed too, for the first time.** The 8 values
 (`adaptability … temperament`) were verified byte-exact against the 7 managers' screenshots
 back in BUGS #14 and then never wired into `_decode_info` — identified and discarded, the same
 failure as the record tail. They are `staging.PERSON_FIELDS` now, on **both** players and

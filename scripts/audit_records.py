@@ -28,6 +28,7 @@ This script asserts against all three, from the bytes, on a real save:
              the walk's boundary is wrong.
 
 Run:  uv run python scripts/audit_records.py [path/to/save.fms]
+      uv run python scripts/audit_records.py --map     # print the per-byte schema
 
 Exits non-zero on a failure, so it can gate a merge. Declaring a byte UNKNOWN is a normal,
 honest outcome -- the point is that it is written down rather than skipped by accident.
@@ -100,33 +101,25 @@ def _staff_layout():
 
 
 def _info_head_layout():
-    """The INFO (person) record's FIXED HEAD, 0..67.
+    """The INFO (person) record's fixed head -- taken straight from staging.INFO_LAYOUT.
 
-    The record as a whole is variable-length -- it ends with counted language and relationship
-    lists (BUGS #14 Round 4) -- so there is no stride to measure and only the head is audited.
-    That is where everything we name lives, including the personality block, which spent a
-    round being attributed to the attribute record instead.
+    Not retyped: that table is what `_decode_info` reads from, so the audit is checking the
+    parser's own declaration rather than a copy that can rot. The record as a whole is
+    variable-length (counted language and relationship lists follow), so there is no stride to
+    measure and only the head is covered.
     """
-    f = [(0, 4, "tid"), (4, 4, "uid"), (8, 4, "first_name_id"), (12, 4, "last_name_id"),
-         (20, 2, "dob_day"), (22, 2, "dob_year"), (24, 2, "nationality_id"),
-         (28, 1, "flag28"),
-         (38, 1, "international_caps"), (39, 1, "international_goals"),
-         (42, 2, "club_tid"), (60, 4, "sid"), (64, 4, "id2")]
-    f += [(52 + i, 1, n) for i, n in enumerate(S.PERSONALITY)]
-    # +16..19 is a sparse u32 (0.1% of records set it, the rest ffffffff). People.cs calls the
-    # slot CommonNameId, but 0.1% is nowhere near the ~8% of players that actually carry a
-    # nickname here, so it is NOT the link `_scrape_nicknamed` follows. Declared, not named.
+    f = [(off, width, name) for off, width, name, _ in S.INFO_LAYOUT]
     named = set()
     for off, width, _ in f:
         named.update(range(off, off + width))
-    f += [(o, 1, UNKNOWN) for o in range(0, 68) if o not in named]
+    f += [(o, 1, UNKNOWN) for o in range(0, S.INFO_HEAD) if o not in named]
     return f
 
 
 LAYOUTS = {
     "player_attribute": (78, _player_attr_layout()),
-    # NOT a stride -- the info record is variable-length; 68 is the fixed head we decode.
-    "info_head": (68, _info_head_layout()),
+    # NOT a stride -- the info record is variable-length; this is the fixed head we decode.
+    "info_head": (S.INFO_HEAD, _info_head_layout()),
     "staff_attribute": (39, _staff_layout()),
     "city": (PL.CITY_RECORD, [
         (0, 2, "id"), (2, 4, "uid"), (6, 2, "nation_id"),
@@ -196,7 +189,24 @@ def _extent(name, ids):
     return ok
 
 
+def _print_map(name, stride, fields):
+    """The per-byte schema, UNKNOWN rows included. This is the record documentation:
+    generated from the layouts the parser actually uses, so it cannot go stale."""
+    print(f"\n{name}  ({stride} bytes)")
+    print(f"  {'offset':>10}  {'width':>5}  field")
+    for off, width, fname in sorted(fields):
+        span = f"+{off}" if width == 1 else f"+{off}..{off + width - 1}"
+        flag = "   <-- undecoded" if fname == UNKNOWN else ""
+        print(f"  {span:>10}  {width:>5}  {fname}{flag}")
+    n_unk = sum(w for _, w, n in fields if n == UNKNOWN)
+    print(f"  -- {stride - n_unk} of {stride} bytes decoded, {n_unk} undecoded")
+
+
 def main():
+    if "--map" in sys.argv:
+        for name, (stride, fields) in LAYOUTS.items():
+            _print_map(name, stride, fields)
+        return 0
     save = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
         "~/fm-saves/frem/frem-2024-11-10.fms")
     if not os.path.exists(save):

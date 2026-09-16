@@ -58,59 +58,121 @@ LOAN_STATUS = 65
 
 # The 8 personality bytes at info+52..59, in order. Verified byte-exact against all 7
 # ground-truth managers' Manager Profile screenshots (BUGS #14) and matching the order
-# fmm-editor's `People.cs` declares. They live on the INFO record -- every person has them,
-# player or staff -- NOT on the attribute record, which is what ATTRIBUTE_DECODING.md's old
-# `P-50..P-43` row wrongly claimed.
-#
-# Two notes on the names. Slot 3 reads DETERMINATION on the FMM22 screens we verified against
-# and `Controversy` in People.cs -- ours is the ground-truth reading for our game. And
-# `sportsmanship` is the one of the eight with no UI to check against; it is the only slot
-# taken on the order's authority alone, which is why the old Bucaspor lead could only ever
-# match 6 of 8 against on-screen values.
+# fmm-editor's `People.cs` declares. Slot 3 reads DETERMINATION on the FMM22 screens and
+# `Controversy` in People.cs -- ours is the ground-truth reading for our game. `sportsmanship`
+# is the one slot with no UI to check against, taken on the order's authority alone.
 PERSONALITY = ("adaptability", "ambition", "determination", "loyalty", "pressure",
                "professionalism", "sportsmanship", "temperament")
-# Everything the INFO record contributes that is true of a PERSON rather than of a player or
-# a staff member -- named once so extract.py, the loader and the mart cannot drift apart.
-PERSON_FIELDS = PERSONALITY + ("international_caps", "international_goals")
 # 0 means "not populated", not a real rating: all 622 staff who read 0 are exactly the staff
 # with no attribute record at all -- placeholder people the save never filled in. Every staff
 # member who HAS a record reads 1-20 on all eight.
 
+# ---------------------------------------------------------------------------------------
+# The INFO (person) record's FIXED HEAD -- the single declaration of what this record is.
+#
+# `_decode_info` reads FROM this table and `scripts/audit_records.py` checks AGAINST it, so
+# the parser and its audit cannot drift; `audit_records.py --map` prints it as the schema.
+# UNKNOWN rows are first-class: a byte we have decided we cannot name is covered, and visible.
+#
+# Offsets come from fmm-editor's `People.cs` constructor, which gives read ORDER, shifted for
+# one FMM22 divergence: NationalCaps and NationalGoals are u8 here and i16 there, so
+# everything from +40 on sits 2 bytes earlier than FMM26. That shift is what makes the rest
+# land on offsets we had already verified independently -- club at +42, personality at +52,
+# PlayerId at +60, the staff link at +64 -- which is the check that the alignment is right.
+#
+# The record as a whole is VARIABLE-LENGTH: past this head come counted language and
+# relationship lists (BUGS #14 Round 4). Only the head is fixed, and only the head is declared.
+U8, U16, U32, DATE, HEX4 = "u8", "u16", "u32", "date", "hex4"
+UNKNOWN = "UNKNOWN"
+
+INFO_LAYOUT = (
+    (0, 4, "tid", U32),
+    (4, 4, "uid", U32),
+    (8, 4, "first_name_id", U32),
+    (12, 4, "last_name_id", U32),
+    # People.cs calls this CommonNameId. Only 0.1% of records set it (the rest are ffffffff),
+    # nowhere near the ~8% that carry a nickname, so it is NOT the link `_scrape_nicknamed`
+    # follows. Carried, not relied on.
+    (16, 4, "common_name_id", U32),
+    (20, 4, "dob", DATE),
+    (24, 2, "nationality_id", U16),
+    # 78% ffff, and the other 22% sit in the same id space as the primary nationality.
+    (26, 2, "second_nationality_id", U16),
+    # People.cs: Ethnicity. 13 distinct small values -- which also retires BUGS #6's guess that
+    # this byte was a "declared national team", a field that would hold nation ids in the 100s.
+    (28, 1, "ethnicity", U8),
+    (29, 4, UNKNOWN, None),                 # People.cs Unknown1; not a date (0% plausible)
+    # People.cs: Type. NOT a clean player/staff flag -- three values (1, 0, and 16, which is
+    # rough-guide's "role flag 10 = manager" in hex) and it agrees with our SID rule on only
+    # 82.4% of records. BUGS #14's "agrees ~99%" was wrong. Carried; the SID rule still decides.
+    (33, 1, "type_flag", U8),
+    (34, 4, "unknown_date", DATE),          # decodes 100% as a date, but 82% read 1900 = null
+    (38, 1, "international_caps", U8),
+    (39, 1, "international_goals", U8),
+    (40, 1, "u21_caps", U8),
+    (41, 1, "u21_goals", U8),
+    # People.cs declares ClubId as i32 and it is: +44..45 is 0 for every real club and ffff
+    # paired with the no-club sentinel. Read whole, then normalised back to the u16 NO_CLUB
+    # the rest of the codebase compares against.
+    (42, 4, "club_tid", U32),
+    # Date joined the current club. 100% of records decode as a plausible [day][year], none
+    # later than the save's own season, and 4 of 5,998 earlier than age 14.
+    (46, 4, "joined_date", DATE),
+    (50, 2, UNKNOWN, None),                 # People.cs Unknown3
+    *((52 + i, 1, n, U8) for i, n in enumerate(PERSONALITY)),
+    (60, 4, "sid", HEX4),                   # People.cs PlayerId; ffffffff for staff
+    (64, 4, "id2", U32),                    # People.cs Unknown6b -> the STAFF attribute record
+)
+INFO_HEAD = 68
+
+# Everything the INFO record contributes that is true of a PERSON rather than of a player or
+# a staff member -- named once so extract.py, the loader and the mart cannot drift apart.
+PERSON_FIELDS = PERSONALITY + ("international_caps", "international_goals",
+                               "u21_caps", "u21_goals", "joined_date",
+                               "second_nationality_id", "ethnicity")
+
+
+def _read(mm, base, off, width, kind):
+    b = base + off
+    if kind == U8:
+        return mm[b]
+    if kind == HEX4:
+        return mm[b:b + 4].hex()
+    if kind == DATE:
+        day = int.from_bytes(mm[b:b + 2], "little")
+        year = int.from_bytes(mm[b + 2:b + 4], "little")
+        try:
+            return (date(year, 1, 1) + timedelta(days=day)).isoformat()
+        except (ValueError, OverflowError):
+            return None
+    return int.from_bytes(mm[b:b + width], "little")
+
 
 def _decode_info(mm, base):
-    """Decode one info record at `base` into the spine's identity dict."""
-    year = int.from_bytes(mm[base + 22:base + 24], "little")
-    day1 = int.from_bytes(mm[base + 20:base + 22], "little")
-    try:
-        dob = (date(year, 1, 1) + timedelta(days=day1)).isoformat()
-    except ValueError:
-        dob = None
-    return {
-        "tid": int.from_bytes(mm[base:base + 4], "little"),
-        "uid": int.from_bytes(mm[base + 4:base + 8], "little"),
-        "first_name_id": int.from_bytes(mm[base + 8:base + 12], "little"),
-        "last_name_id": int.from_bytes(mm[base + 12:base + 16], "little"),
-        "dob": dob,
-        "nationality_id": int.from_bytes(mm[base + 24:base + 26], "little"),
-        "flag28": mm[base + 28],
-        "club_tid": int.from_bytes(mm[base + 42:base + 44], "little"),
-        "sid": mm[base + 60:base + 64].hex(),
-        # The info record carries TWO link fields, not one. `sid` (+60) points at the PLAYER
-        # attribute record and is ffffffff for staff; `id2` (+64) points at the STAFF
-        # attribute record, which holds coaching ability and the formation triple. It was
-        # carried in the docs as an "unexplained u32" until 2026-09. See fmparser/staff.py.
-        "id2": int.from_bytes(mm[base + 64:base + 68], "little"),
-        # International record. Both are u8 in FMM22, NOT the u16 pair People.cs declares for
-        # FMM26: Latal reads 47 caps / 1 goal as bytes, matching his screenshot, where a u16
-        # at +38 would make it 303 caps. Verified exact on all 7 managers.
-        #
-        # 255 is a SENTINEL, not a value: 77 records carry 255 in BOTH fields and they are the
-        # same 77, with nothing at all between 200 and 254. The real ceiling is ~200 caps, so a
-        # 255 is "unknown", and storing it would invent a striker with 255 international goals.
-        "international_caps": None if mm[base + 38] == 255 else mm[base + 38],
-        "international_goals": None if mm[base + 39] == 255 else mm[base + 39],
-        **{name: mm[base + 52 + i] for i, name in enumerate(PERSONALITY)},
-    }
+    """Decode one info record at `base` into the spine's identity dict, from INFO_LAYOUT."""
+    rec = {name: _read(mm, base, off, width, kind)
+           for off, width, name, kind in INFO_LAYOUT if name is not UNKNOWN}
+    # Sentinels, handled here rather than in the layout because they are about MEANING, not
+    # about where the bytes are.
+    #
+    # AN EMPTY SLOT HAS NO UID. 77 of 32,849 person records are unpopulated, and `uid == 0`
+    # identifies them EXACTLY -- it is the record's own invariant, not a tuned window. They are
+    # the source of every implausible value this record produces: all 77 read 255 in both
+    # international fields (the only records that do), and all 66 of the nonsense joined_dates
+    # -- 1290, 1545, 2570 -- are theirs. Blanking the person block at the record level is why
+    # no per-field plausibility test is needed anywhere downstream. The identity fields are
+    # left alone so the spine still resolves them.
+    if rec["uid"] == 0:
+        for k in PERSON_FIELDS:
+            rec[k] = None
+    # 0 and ffff both mean "no second nationality".
+    if rec["second_nationality_id"] in (0, 0xFFFF):
+        rec["second_nationality_id"] = None
+    # A full-width no-club sentinel collapses to the u16 NO_CLUB the rest of the code compares
+    # against; anything else above u16 range is a mis-anchored record, and reads as no club too.
+    if rec["club_tid"] > 0xFFFF:
+        rec["club_tid"] = NO_CLUB
+    return rec
 
 
 def _scrape_nicknamed(mm, found):
