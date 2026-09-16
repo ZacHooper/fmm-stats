@@ -302,31 +302,44 @@ def record_tail(mm, P):
 # ---------------------------------------------------------------------------
 # The HIDDEN attributes.
 #
-# 18 bytes in this record hold a 1-20 attribute. ATTR_OFFSETS names 9 of them (the values the
-# player screen shows, plus Teamwork's two halves); these are the other 9. We have always
-# KNOWN they were attributes -- docs/ATTRIBUTE_DECODING.md has called them "hidden attributes"
-# since 2026-07 -- and then thrown them away at parse time, which is the same "stopped
-# reading early" failure as the record tail, just with a different excuse: not being able to
-# NAME a field is not a reason not to CARRY it.
+# 18 bytes in this record hold a 1-20 attribute; ATTR_OFFSETS names 9 (what the player screen
+# shows, plus Teamwork's two halves). These are the other 9, named from fmm-editor's
+# `FMMLibrary/Player.cs`, which declares all 34 attribute slots in read order from `P-34`.
 #
-# Named by offset, deliberately. `hidden_p28` is the byte at `P-28` and claims nothing else.
-# Guessing a name is how `-140` became a Style candidate; a value we can query and cannot
-# name is honest, and it is what identification work needs (contrast two saves, or two groups
-# of players with known values, over a column that is already in the store).
+# Why the order is trusted rather than assumed:
+#   1. All seven offsets we confirmed independently against in-game values land exactly where
+#      it predicts -- Pace P-24, Strength P-23, Stamina P-22, Technique P-21, Aggression P-19,
+#      Leadership P-16, Agility P-5.
+#   2. FMM22 fills only 18 of the 34 slots with a 1-20 value (the other 16 hold 0-255 data, no
+#      overlap) -- and the live 18 are EXACTLY the ability-independent attributes while the
+#      dead 16 are EXACTLY the technical/GK values FMM22 computes from CA at display time,
+#      which is what `estimate_player` below reconstructs. A partition that clean cannot come
+#      from a mis-aligned order.
 #
-# Measured on frem-2024-11-10 over 26,518 records: every one of these is 1-20 for >99.9% of
-# records, the same shape as the named attributes, and each has ~20-30 distinct values.
-# scripts/audit_records.py reports them as named rather than UNKNOWN.
-HIDDEN_OFFSETS = {-28: "hidden_p28", -20: "hidden_p20", -18: "hidden_p18",
-                  -17: "hidden_p17", -15: "hidden_p15", -14: "hidden_p14",
-                  -13: "hidden_p13", -9: "hidden_p09", -8: "hidden_p08"}
-# P-9 is not new to the parser -- `estimate_player` already reads it as the second half of
-# Teamwork (`floor((P-25 + P-9) / 2)`). It is carried here as a value in its own right,
-# because a sub-attribute we only ever see averaged is a sub-attribute we cannot study.
+# Semantic checks agree where they can discriminate: P-28 vs height_cm r=+0.79 (Strength, the
+# strongest named physical, manages +0.30) -- that is Jumping; P-8 tracks Technique at +0.65 vs
+# Stamina +0.20, the signature of Flair; P-13/P-14 correlate +0.57 with each other, as the two
+# dead-ball attributes should. Consistency (P-20) and InjuryProne (P-17) are UNCONFIRMED: only
+# 39 players have enough rated matches to measure rating spread, and the 89 injury rows show
+# the injured group up on every attribute, so that test is confounded by minutes. Those two
+# rest on the structural argument alone.
+#
+# Two departures from fmm-editor's names, both ground-truth-backed for FMM22: P-29 stays
+# `Aerial` (Player.cs says Heading; the FMM22 UI says Aerial), and Teamwork is still derived
+# from P-25 + P-9 (Player.cs says Unselfishness and WorkRate). P-9 is now also carried alone --
+# a sub-attribute we only see averaged is one we cannot study.
+HIDDEN_OFFSETS = {-28: "jumping", -20: "consistency", -18: "big_match",
+                  -17: "injury_prone", -15: "versatility", -14: "set_pieces",
+                  -13: "penalty", -9: "work_rate", -8: "flair"}
 
 
 def hidden_attributes(mm, P):
-    """The 9 unnamed 1-20 attribute bytes, as a dict. Shared by both record readers."""
+    """The 9 attribute bytes the player screen does not show, as a dict.
+
+    Shared by both record readers. Nothing is DERIVED from these -- they are carried so that
+    identification and modelling work is a query rather than a re-extract, and none of them
+    is surfaced in the app.
+    """
     return {name: mm[P + rel] for rel, name in HIDDEN_OFFSETS.items()}
 
 

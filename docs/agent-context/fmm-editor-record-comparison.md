@@ -60,16 +60,52 @@ Flair, then Handling, Kicking, **Agility**, Aerial, Reflexes, Communication, Thr
 Pace `P-24`, Strength `P-23`, Stamina `P-22`, Technique `P-21`, Aggression `P-19`, Leadership
 `P-16`, Agility `P-5`. That is strong mutual validation of both decodes.
 
-Two of our `ATTR_OFFSETS` entries disagree with the FMM26 names and need a ground-truth check
-before either is trusted: we call `P-29` **Aerial** where this order says **Heading**, and we
+**FMM22 fills only 18 of the 34 slots** — and which 18 is the finding. The other 16 hold 0-255
+data with ~150 distinct values; there is no overlap, so the two classes are separable by shape
+alone. The live 18 are Heading, Jumping, Unselfishness, Pace, Strength, Stamina, Technique,
+Consistency, Aggression, BigMatch, InjuryProne, Leadership, Versatility, SetPieces, Penalty,
+WorkRate, Flair, Agility. The dead 16 are Crossing, Dribbling, Tackling, Finishing, LongShot,
+Passing, Decision, Creativity, Movement, Positioning, Handling, Kicking, Aerial, Reflexes,
+Communication, Throwing.
+
+That is a semantic line, not a random one: **FMM22 stores the attributes that do not scale with
+ability and computes the technical/goalkeeping ones from CA at display time** — which is exactly
+what `attributes.estimate_player` has been reconstructing. An 18/16 partition falling that
+cleanly is independent confirmation of the order, on top of the seven anchors. On that basis the
+nine unnamed attribute bytes were **named** on 2026-09-16: `jumping`, `consistency`,
+`big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`, `work_rate`, `flair`.
+
+Two of our `ATTR_OFFSETS` entries disagree with the FMM26 names, and both are KEPT on purpose:
+we call `P-29` **Aerial** where this order says **Heading** (the FMM22 UI says Aerial), and we
 derive Teamwork from `P-25`+`P-9` where the order says those are **Unselfishness** and
-**Positioning**. Neither is necessarily wrong (FMM22's UI labels differ from the DB's internal
-names, and a displayed value can be derived) — but they are the two to verify first.
+**WorkRate**. FMM22's UI labels differ from the DB's internal names and a displayed value can be
+derived, so neither is a conflict. (An earlier revision of this file said `P-9` was Positioning;
+that was a slip — Positioning is `P-10`, and it is one of the dead 16.)
 
 ## People / info record — FIXED 2026-09-16, see BUGS #14 Round 4
 
 Was truncated at +64; the record is variable-length and ends with counted **language** and
 **relationship** lists. Now fully accounted for. `PlayerId` (−1 for staff) is our SID staff rule.
+
+`People.cs` also settles where the **personality block** lives — the 8 bytes Adaptability,
+Ambition, Controversy, Loyality, Pressure, Professionalism, Sportmanship, Temperament are
+declared here, on the INFO record, which is where BUGS #14 verified them byte-exact against 7
+managers' screenshots. `docs/ATTRIBUTE_DECODING.md`'s old `P-50 … P-43` row was wrong and is
+corrected. **One discrepancy to keep in mind:** slot 3 is **Controversy** in FMM26 and reads
+**Determination** on the FMM22 screens we checked. Ours is the ground-truth reading for our game.
+
+## Staff / coach attributes — fmm-editor DOES NOT DECODE THIS RECORD
+
+Worth stating plainly, because it is easy to assume otherwise: **there is no `Staff.cs`.** The
+repo's model files are Player, People, Club, Competition, Nation, City, Stadium, Language,
+Currency, Name, Region, Affiliate, Kit, NationalTeam, Relationship, PositionRating — and nothing
+for coaching ability or the manager formation triple. `People.cs` reads the info record and
+stops at `Unknown6b`, a u32 it never follows; that u32 is our `id2`, and it is the link to the
+staff attribute record (`fmparser/staff.py`). Everything in that 39-byte record — the coaching
+values, the formation triple, `attacking_intent` — is ours, verified against screenshots.
+
+The practical consequence: the six unnamed staff bytes (`hidden_s18 … hidden_s28`) have **no
+upstream order to borrow**. They stay named by offset until we have ground truth of our own.
 
 ## Club record — WE PARSE THE NAMES AND ALMOST NOTHING ELSE
 

@@ -244,9 +244,12 @@ DDL = [
         current_reputation INTEGER, world_reputation INTEGER, international_retired BOOLEAN,
         squad_number INTEGER, preferred_squad_number INTEGER,
         height_cm INTEGER, weight_kg INTEGER,
-        -- the 9 unnamed 1-20 attribute bytes (attributes.HIDDEN_OFFSETS). Named by offset
-        -- because we know WHAT they are and not WHICH they are; see that module.
-        hidden_p28 INTEGER, hidden_p20 INTEGER, hidden_p18 INTEGER, hidden_p17 INTEGER, hidden_p15 INTEGER, hidden_p14 INTEGER, hidden_p13 INTEGER, hidden_p09 INTEGER, hidden_p08 INTEGER
+        -- The 9 attribute bytes the player screen does not show (attributes.HIDDEN_OFFSETS),
+        -- named from fmm-editor's Player.cs. Nothing derives from them; see that module for
+        -- why the order is trusted.
+        jumping INTEGER, consistency INTEGER, big_match INTEGER, injury_prone INTEGER,
+        versatility INTEGER, set_pieces INTEGER, penalty INTEGER, work_rate INTEGER,
+        flair INTEGER
     )""",
 
     # natural key: (season, phase, tid)
@@ -1370,7 +1373,7 @@ _MIGRATIONS = [
     # 2026-09-16 (later still): the HIDDEN attributes. Both records carry 1-20 attribute bytes
     # we can identify as attributes but cannot name -- 9 on the player record, 6 on the staff
     # record. They were parsed and discarded, which is the record-tail failure with a
-    # different excuse. Now carried, named by offset. Same caveat as every addition here:
+    # different excuse. Now carried, and named from fmm-editor's Player.cs. Same caveat:
     # absent from existing output/*.json, so --refresh-only adds them as NULL and a backfill
     # needs a full re-extract.
 ] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} INTEGER"

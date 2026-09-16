@@ -203,16 +203,40 @@ on `claude/pr-51-review-audit-un6rcv`. Full argument in the review comment on PR
    EXTENT) and density guards in `tests/test_staff_records.py` now cover this; the rules are
    in `CLAUDE.md`.
 
-**The hidden attributes are now carried** — 9 on the player record (`hidden_p28 … hidden_p08`),
-6 on the staff record (`hidden_s18 … hidden_s28`), named by offset because we know *what* they
-are and not *which*. See `attributes.HIDDEN_OFFSETS` / `staff.HIDDEN_OFFSETS`; that closes
-"six of the seven hidden attributes" under *Still undecoded in this record* above.
+**The hidden attributes are now carried, and the player nine are NAMED** — `jumping`,
+`consistency`, `big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`,
+`work_rate`, `flair`, from fmm-editor's `Player.cs` order.
+
+Two things make that order safe to assert. Every one of the seven offsets we had verified
+independently against in-game values lands exactly where it predicts. And FMM22 fills only
+**18 of the 34** slots with a 1-20 value — where the live 18 are exactly the
+ability-independent attributes and the dead 16 are exactly the technical/GK values it computes
+from CA at display time, which is what `estimate_player` reconstructs. A partition that clean
+cannot come from a mis-aligned order.
+
+Semantic checks agree where they can discriminate — `P-28` vs `height_cm` is **r = +0.79**
+against +0.30 for Strength, which is Jumping and nothing else; `P-8` tracks Technique (+0.65)
+not Stamina (+0.20); `P-13`/`P-14` correlate +0.57 with each other. **`consistency` and
+`injury_prone` are unconfirmed** — 39 players have enough rated matches to measure rating
+spread, and the 89 injury rows show the injured group up on *every* attribute, so that test is
+confounded by minutes. Neither contradicts the order; both rest on the structural argument.
+
+`P-29` stays **Aerial** (Player.cs says Heading; the FMM22 UI says Aerial) and Teamwork is
+still derived from `P-25 + P-9`. Both kept deliberately, both ground-truth-backed for FMM22.
+
+**The staff six stay named by offset, and that is a finding now, not a gap: fmm-editor has no
+`Staff.cs`.** Its `People.cs` reads the info record and stops at the `Unknown6b` u32 — which is
+our `id2`, the link to the staff attribute record — and never follows it. No upstream order to
+borrow, no ground truth of our own, so naming `hidden_s18 … hidden_s28` would be guessing.
 
 ### Still open
 - **`hidden_s27` is the one to identify next** — 85% of staff read 1-4 against ~10 for the
   other five, the only one of the fifteen distinctive enough for a small ground-truth set.
-- **The personality block's owner is unresolved** — `ATTRIBUTE_DECODING.md` puts it at
-  `P-50 … P-43`, outside a record anchored at `P-42`; `staff.py` says it's on the INFO record.
+- ~~The personality block's owner is unresolved~~ — **resolved.** It is on the INFO record at
+  `info+52…59`: fmm-editor's `People.cs` declares the 8 bytes there, BUGS #14 verified them
+  byte-exact against screenshots, and five of the eight bytes at `P-50 … P-43` are 1-20 for
+  **0%** of records. `ATTRIBUTE_DECODING.md` is corrected. One discrepancy left as a note:
+  slot 3 reads **Determination** on the FMM22 screens and **Controversy** in `People.cs`.
 - **`mart.club_managers` isn't purely structural** — it keeps a `home_reputation` tiebreak and
   exposes no candidate count, so a sole hit and a fallback are indistinguishable.
 - **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate

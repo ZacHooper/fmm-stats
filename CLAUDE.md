@@ -173,10 +173,17 @@ Two rules follow, and the recent bugs all break them:
 - **Bound a table walk by the table's own invariant, never a tuned constant.** A miss counter or
   a plausibility window makes the row count a function of the constant. The city table's real
   invariant is `id == slot index`.
-- **Carry what you cannot name.** A byte identified as an attribute but not labelled is still
-  data. Both records' hidden attributes are carried as `hidden_p*` / `hidden_s*`, named by
-  OFFSET so the name claims only where the byte is — nothing derives from them, none is
-  surfaced. Guessing a name is how `-140` became a Style candidate.
+- **Carry what you cannot name — then go and name it.** A byte identified as an attribute but
+  not labelled is still data, so both records' hidden attributes are carried. The PLAYER nine
+  are now NAMED from `nyongrand/fmm-editor`'s `Player.cs` (`jumping`, `consistency`,
+  `big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`, `work_rate`, `flair`) —
+  the order is confirmed by seven independently-verified anchors plus the fact that the 18
+  slots FMM22 fills are exactly the ability-independent attributes and the 16 it leaves are
+  exactly the technical/GK values it computes from CA. The STAFF six stay `hidden_s*`, named by
+  OFFSET, because fmm-editor has **no `Staff.cs`** — it stops at the `Unknown6b` link that
+  leads there, so there is no upstream order to borrow and no ground truth of our own.
+  Nothing derives from any of the fifteen and none is surfaced. Guessing a name is how `-140`
+  became a Style candidate; sourcing one and checking it twice is not guessing.
 
 ## The web app (one UI for phone and desktop)
 `site/` is a static single-page app on Cloudflare Pages — the primary UI, since Streamlit can't be

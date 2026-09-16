@@ -628,11 +628,11 @@ SELECT
     -- come from the same record tail (fmparser.attributes.record_tail).
     p.current_reputation, p.world_reputation, p.international_retired,
     p.squad_number, p.preferred_squad_number, p.height_cm, p.weight_kg,
-    -- The 9 unnamed 1-20 attribute bytes. We know they are attributes; we do not know WHICH,
-    -- so they are named by offset and nothing is derived from them. Here so identification
-    -- work is a query rather than a re-extract. NOT surfaced anywhere in the app.
-    p.hidden_p28, p.hidden_p20, p.hidden_p18, p.hidden_p17, p.hidden_p15,
-    p.hidden_p14, p.hidden_p13, p.hidden_p09, p.hidden_p08,
+    -- The 9 attribute bytes the player screen does not show. Carried, never derived from and
+    -- never surfaced -- they are here so identification and modelling work is a query rather
+    -- than a re-extract.
+    p.jumping, p.consistency, p.big_match, p.injury_prone, p.versatility,
+    p.set_pieces, p.penalty, p.work_rate, p.flair,
     p.foot_left, p.foot_right, p.nationality_id,
     p.player_value, p.wage_units, p.wage_gbp,
     p.contract_expiry, p.contract_expiry_year,

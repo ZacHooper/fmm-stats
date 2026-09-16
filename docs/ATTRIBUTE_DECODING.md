@@ -27,17 +27,17 @@ anchored on the SID, which is the record's key.
 > **Corrected 2026-09-16.** This read `P-55 … P+22`: same 78-byte grid, wrong phase, and it
 > stopped 13 bytes early — which is why height, weight, shirt number and two reputations went
 > unread for four years. Two knock-ons: `scripts/audit_records.py` now asserts the extent and
-> flags any byte no field claims, and the `P-50 … P-43` row below falls OUTSIDE a record
-> anchored at `P-42`, so **don't rely on it** until that's settled (`fmparser/staff.py` says
-> personality lives on the INFO record).
+> flags any byte no field claims. The `P-50 … P-43` personality row below was a knock-on
+> casualty: it falls OUTSIDE a record anchored at `P-42`, and is now **resolved as wrong** —
+> personality lives on the INFO record at `info+52…59`.
 
 | Offset | Field | Status |
 | --- | --- | --- |
-| `P-50 … P-43` | **Personality** (8 vals: Adaptability, Ambition, Determination, Loyalty, Pressure Handling, Professionalism, Sportsmanship, Temperament) | lead — b-50 Adaptability=16 for both "Adaptable" players; bytes interleaved, decode TODO |
+| `P-50 … P-43` | ~~Personality~~ — **WRONG, resolved 2026-09-16** | The personality block is on the **INFO** record at `info+52…59`, where BUGS #14 verified all 8 values byte-exact against screenshots, and where fmm-editor's `People.cs` declares them. These offsets are not it and are not even attribute-shaped: five of the eight are 1-20 for **0%** of records. They fall outside a record anchored at `P-42` anyway |
 | `P-42 … P-39` | **SID** (the record key) | confirmed |
 | `P-38 … P-35` | **history link** (u32) | confirmed — see [history-chain-pointers](agent-context/history-chain-pointers.md) |
 | `P-34 … P-1` | **34 attribute slots**, exact rough-guide Step-6 order (`slot = guide# ; offset = guide#-35`) | see §2 |
-| `P-28, -20, -18, -17, -15, -14, -13, -9, -8` | **9 HIDDEN attributes** — the 1-20 bytes `ATTR_OFFSETS` doesn't name | **carried since 2026-09-16** as `hidden_p28 … hidden_p08` (`attributes.HIDDEN_OFFSETS`). Named by offset: we know they're attributes, not which. Told apart from the rest of the record by shape — attribute bytes are 1-20 for >99.9% of 26,518 records, every other byte spans 0-255. `P-9` is Teamwork's second half, now carried in its own right |
+| `P-28, -20, -18, -17, -15, -14, -13, -9, -8` | **9 attributes the player screen does not show** | **named 2026-09-16** — `jumping, consistency, big_match, injury_prone, versatility, set_pieces, penalty, work_rate, flair` (`attributes.HIDDEN_OFFSETS`), from fmm-editor's `Player.cs` order. Told apart from the rest of the record by shape: attribute bytes are 1-20 for >99.9% of 26,518 records, every other byte spans 0-255. `P-9` (WorkRate) is also Teamwork's second half, now carried in its own right |
 | `P+23 … P+35` | current + world reputation, international-retired, shirt + preferred shirt, height, weight | confirmed 2026-09-16 (`attributes.record_tail`); GK 188.2cm/78.2kg vs outfield 180.7/72.2 over 26,518 |
 | `P-0 … P+14` | 15 **position** ratings (GK,SW,DL,DC,DR,DMC,ML,MC,MR,AML,AMC,AMR,ST,DML,DMR; 20=natural) | confirmed |
 | `P+15 / P+16` | left / right **foot** (0-20) | confirmed |
@@ -219,9 +219,11 @@ Overall on the 28 training players: **63% exact, 93% within ±1**
   (24Erzincanspor CB, TID 21365), Akyüz (24Erzincanspor GK, TID 21124).
 - **Verify the wrap threshold** (currently `<128`) against a player with a mid-range
   Class-B attribute near the wrap boundary.
-- **Personality block** (`P-50…P-43`): decode the 8 values (b-50 Adaptability=16 for
-  both "Adaptable" players is the confirmed anchor; the bytes look interleaved, so
-  check for a u16/stride issue).
+- ~~**Personality block** (`P-50…P-43`)~~ — **DONE, and it was never here.** The 8 values are
+  plain single bytes at `info+52…59`, verified against 7 managers' screenshots (BUGS #14) and
+  matching fmm-editor's `People.cs`. One open discrepancy worth a check: slot 3 is
+  **Determination** on the FMM22 screens we verified against, but `People.cs` declares it
+  **Controversy** for FMM26. Ours is the screenshot-backed reading for our game.
 - **Re-derive coefficients** whenever `bucaspor_players.json` / calibration changes.
 
 ## Files

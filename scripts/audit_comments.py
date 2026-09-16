@@ -33,7 +33,12 @@ import tokenize
 
 # Not scanned for stale prose. `archive/` is still INDEXED below (a live comment may
 # legitimately point back at an archived script) -- skipping it for both was a false positive.
-SKIP_DIRS = {".venv", ".git", "node_modules", "output", "site-data", "__pycache__"}
+SKIP_DIRS = {".venv", "venv", ".git", "node_modules", "output", "site-data", "__pycache__",
+             "visualizer"}
+# "venv" and "visualizer" added 2026-09-16: the checker was walking a vendored,
+# GITIGNORED virtualenv (visualizer/backend/venv) and reporting 110 stale references
+# from pydantic and typing_extensions, none of them ours. Its own docstring says a noisy
+# checker gets ignored, and at 110-to-0 it was already there.
 NO_SCAN = {"archive"}
 PY_REF = re.compile(r"\b((?:[\w\-]+/)*[\w\-]+\.py)\b")
 SYM_REF = re.compile(r"`_?([a-zA-Z_][\w]*)\(\)`|`[\w.]+\.([a-zA-Z_][\w]*)\(\)`")
