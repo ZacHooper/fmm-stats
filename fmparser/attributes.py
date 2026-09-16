@@ -10,6 +10,7 @@ Two record sources:
     CA/PA, reputation and 9 exact attributes; the other 14 are entangled 0-255 bytes
     decoded by the frozen model. -> record_for(), estimate_player().
 """
+import math
 import re
 import struct
 
@@ -447,6 +448,37 @@ ATTR_ORDER = ["Aerial", "Crossing", "Dribbling", "Shooting", "Passing", "Tacklin
               "Agility", "Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
 
 
+# The two PLAIN-BYTE composites. Neither is a fit: both are closed forms over bytes that are
+# already 1-20, so they need no model and no CA. Kept here as the SINGLE declaration -- the
+# generated SQL in load_duckdb builds its expression from these numbers rather than repeating
+# them, so the Python and the database cannot drift.
+#
+#   Teamwork  floor((unselfishness + work_rate) / 2)      EXACT (97.8%, and a grid search
+#             independently rediscovers w=0.50/offset=0 in all five folds)
+#   Aerial    floor(0.30*heading + 0.70*jumping + 1.0)    NOT exact (70.8%) -- an estimate
+#
+# That difference is load-bearing: Teamwork's `_est` flag is FALSE and Aerial's must stay TRUE.
+# Aerial was FITTED until 2026-09-17 and scored 58.9%; the closed form beats it by 12 points on
+# two parameters instead of eight, which is why it is no longer in `model.FROZEN`.
+TEAMWORK_W = (0.50, 0.50, 0.0)
+AERIAL_W = (0.30, 0.70, 1.0)
+
+
+def _composite(w, a, b):
+    wa, wb, off = w
+    return max(1, min(20, int(math.floor(wa * a + wb * b + off))))
+
+
+def teamwork(unselfishness, work_rate):
+    """Displayed Teamwork from the two plain bytes. Exact, not an estimate."""
+    return _composite(TEAMWORK_W, unselfishness, work_rate)
+
+
+def aerial(heading, jumping):
+    """Displayed Aerial from the two plain bytes. An ESTIMATE (~71% exact), not a fact."""
+    return _composite(AERIAL_W, heading, jumping)
+
+
 def fwd_of(positions):
     top = max(positions, key=positions.get) if positions else ""
     if top in ("ST", "AML", "AMR", "AMC"):
@@ -458,7 +490,6 @@ def fwd_of(positions):
 
 def estimate_player(mm, rec):
     """Full 23-attr set for one global record: {attr: {'val','est'}}, is_gk, fwd."""
-    import math
     P, ca, pa = rec["P"], rec["ca"], rec["pa"]
     is_gk = int(rec["positions"].get("GK", 0) == 20)
     fwd = fwd_of(rec["positions"])
@@ -466,8 +497,8 @@ def estimate_player(mm, rec):
     out = {}
     for attr, off in EXACT_SINGLE.items():
         out[attr] = {"val": mm[P + off], "est": False}
-    tw = math.floor((mm[P - 25] + mm[P - 9]) / 2)
-    out["Teamwork"] = {"val": max(1, min(20, tw)), "est": False}
+    out["Teamwork"] = {"val": teamwork(mm[P - 25], mm[P - 9]), "est": False}
+    out["Aerial"] = {"val": aerial(mm[P - 29], mm[P - 28]), "est": True}
     for attr in model.ESTIMATED_ATTRS:
         out[attr] = {"val": model.predict(attr, mm, P, ca, pa, mean9, fwd), "est": True}
     return out, is_gk, fwd

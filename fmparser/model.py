@@ -9,6 +9,13 @@ values. They are frozen here so estimation is a cheap pure-Python dot product wi
 training step. See archive/regress.py for the derivation and docs/ATTRIBUTE_DECODING.md
 for the write-up. Held-out accuracy: ~63% exact, ~93% within +/-1.
 
+AERIAL IS NOT HERE, and that is deliberate. It is a composite of two PLAIN 1-20 bytes
+(Heading + Jumping), so it has a closed form and needs no CA: `attributes.aerial()`,
+floor(0.30*heading + 0.70*jumping + 1.0). Fitted it scored 58.9%; the closed form scores
+70.8% on two parameters instead of eight. Shooting looks like the same shape and is NOT --
+both of ITS bytes are entangled and its closed form scores 28.2%, worse than the fit. See
+docs/ca-weighting.md.
+
 Each entry: attr -> (own_offset, partner_offset, feature_names, coefficients).
 Offsets are relative to the positions-block start P. Features:
   own    = unwrapped own byte (b+256 if b<128 — the store wraps)
@@ -25,7 +32,6 @@ FROZEN = {
     'Dribbling': (-33, None, ('own', 'CA', 'PA', 'mean9'), (0.115446318373027, 0.07557249862260484, -0.01980801124144112, -0.10373544683659013, -23.334996707090387)),
     'Tackling': (-32, None, ('own', 'CA', 'PA', 'fwd'), (0.1056953945376649, 0.06691417388056242, -0.004650993120029635, -0.7306242142738684, -22.324761095178154)),
     'Shooting': (-31, -30, ('CA', 'PA', 'mean9', 'own*CA', 'fwd', 'partner'), (-0.12107033717252294, -0.013010521973013807, -0.09013851655982238, 0.09717281499822003, -0.6855908269424017, 0.024983448808121946, -4.8849413321955115)),
-    'Aerial': (-29, -28, ('own', 'partner'), (0.1282004688593633, 0.8466347736755109, -249.20507469185281)),
     'Passing': (-27, None, ('own', 'CA', 'PA', 'own*CA'), (0.16632529854274597, 0.20551180269486627, 0.0009404090473238715, -0.07134958074709173, -35.04774730527272)),
     'Decisions': (-26, None, ('own', 'CA', 'PA', 'mean9', 'fwd'), (0.08340501346598053, 0.06945651422018209, -0.030805541047236373, 0.3003657733535151, -0.14574491785861798, -16.397631841001445)),
     'Creativity': (-12, None, ('own', 'own*CA'), (0.08071426329329381, 0.024520182404206062, -16.861599155452467)),

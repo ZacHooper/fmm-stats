@@ -32,6 +32,7 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 # Reuse the season/phase math and field lists from the extractors (pure-stdlib import).
 from extract import parse_label
 from fmparser.attributes import ATTR_ORDER
+from fmparser import attributes as _A
 from fmparser import matches as M
 from fmparser.mart import create_mart, drop_mart
 
@@ -105,6 +106,11 @@ def _seed_attribute_model(con, force=False):
     refit overwrites the table and `--refresh-only` picks it up without touching the parser.
     """
     from fmparser import model as _MOD
+    # Aerial was fitted until 2026-09-17 and is now a closed form. An existing store still
+    # carries its rows; the view no longer reads them, but leaving them there would let a
+    # later refit resurrect it. Prune anything that is no longer a fitted attribute.
+    con.execute("DELETE FROM staging.attribute_model WHERE attribute NOT IN "
+                "(" + ", ".join(repr(a) for a in _MOD.FROZEN) + ")")
     n = con.execute("SELECT count(*) FROM staging.attribute_model").fetchone()[0]
     if n and not force:
         return n
@@ -138,6 +144,21 @@ _FWD = """(SELECT CASE WHEN t.position IN ('ST','AML','AMR','AMC') THEN 1.0
            ORDER BY t.familiarity DESC, (CASE t.position """ + _POS_RANK + """ END)
            LIMIT 1)"""
 _SRC_BY_OFFSET = None
+
+
+# The two plain-byte composites, declared once in fmparser.attributes and rendered to SQL
+# here: attribute -> ((byte column, byte column), weights, is_estimate).
+_COMPOSITE = {
+    "Teamwork": (("unselfishness_src", "work_rate"), _A.TEAMWORK_W, False),
+    "Aerial":   (("heading_src", "jumping"), _A.AERIAL_W, True),
+}
+
+
+def _composite_sql(b1, b2, w):
+    """floor(w1*b1 + w2*b2 + off), clipped 1-20 -- the SQL twin of attributes._composite."""
+    wa, wb, off = w
+    return (f"GREATEST(1, LEAST(20, CAST(floor({_d(wa)} * p.{b1} + {_d(wb)} * p.{b2}"
+            f" + {_d(off)}) AS INTEGER)))")
 
 
 def _d(c):
@@ -194,8 +215,23 @@ def _model_expr(attr, spec, S):
     return f"GREATEST(1, LEAST(20, CAST(round({total}) AS INTEGER)))"
 
 
+def _drop_stale_attr_table(con, S="staging"):
+    """staging.player_attributes was a TABLE until 2026-09-17 and is a VIEW now.
+
+    `CREATE OR REPLACE VIEW` cannot replace a table, so a store predating the change fails
+    every load with "Existing object player_attributes is of type Table". Dropping it is safe
+    and lossless: every column the table held is now derived from player_attributes_exact plus
+    staging.attribute_model, which is exactly what the view computes."""
+    kind = con.execute(
+        "SELECT table_type FROM information_schema.tables "
+        "WHERE table_schema = ? AND table_name = 'player_attributes'", [S]).fetchone()
+    if kind and kind[0] == "BASE TABLE":
+        con.execute(f"DROP TABLE {S}.player_attributes")
+
+
 def _player_attributes_view(con, S="staging"):
     """Build staging.player_attributes from the exact values plus the model in the DB."""
+    _drop_stale_attr_table(con, S)
     rows = con.execute("""SELECT attribute, feature, coef, own_offset, partner_offset
                           FROM staging.attribute_model""").fetchall()
     spec = {}
@@ -204,16 +240,18 @@ def _player_attributes_view(con, S="staging"):
         d["coef"][feat] = coef
     sel = []
     for a in ATTR_ORDER:
-        if a == "Teamwork":
-            # Not a fit -- a stated formula over two raw bytes, floor((Unselfishness +
-            # WorkRate) / 2). It moves here for the same reason as the rest (derivation is the
-            # database's job) but it is NOT an estimate, so `_est` stays FALSE exactly as it
-            # was before the move. Flipping it would silently reclassify every non-squad
-            # player's Teamwork as estimated and change `is_estimated` across the mart.
-            tw = ("GREATEST(1, LEAST(20, CAST(floor((p.unselfishness_src + p.work_rate) / 2.0)"
-                  " AS INTEGER)))")
-            sel.append(f'COALESCE(e."{a}", {tw}) AS "{a}"')
-            sel.append(f'FALSE AS "{a}_est"')
+        if a in _COMPOSITE:
+            # Not fits -- closed forms over two PLAIN 1-20 bytes, so no model and no CA. The
+            # weights come from attributes.TEAMWORK_W / AERIAL_W rather than being retyped
+            # here, so the SQL cannot drift from `attributes.teamwork()` / `aerial()`.
+            #
+            # The `_est` flags differ ON PURPOSE. Teamwork's formula is EXACT, so FALSE --
+            # flipping it would silently reclassify every non-squad player's Teamwork as
+            # estimated and change `is_estimated` across the mart. Aerial's is ~71% exact, so
+            # it is an estimate and stays TRUE.
+            (b1, b2), w, est = _COMPOSITE[a]
+            sel.append(f'COALESCE(e."{a}", {_composite_sql(b1, b2, w)}) AS "{a}"')
+            sel.append(f'(e."{a}" IS NULL) AS "{a}_est"' if est else f'FALSE AS "{a}_est"')
         elif a in spec:
             sel.append(f'COALESCE(e."{a}", {_model_expr(a, spec[a], S)}) AS "{a}"')
             sel.append(f'(e."{a}" IS NULL) AS "{a}_est"')
@@ -1496,17 +1534,26 @@ def create_schema(con):
     # staging.attribute_model), and one DDL statement reads it -- history.player_snapshots is
     # a CREATE TABLE ... AS SELECT that joins it. So the view has to be built partway through
     # the sequence: after the tables it reads exist, before the first statement that needs it.
+    # _migrate MUST run before the view is built, not after. The view reads byte columns off
+    # staging.players; on a store created before those columns existed, building it first
+    # throws and _migrate never runs -- so the store can never heal and EVERY subsequent load
+    # fails identically. That deadlock cost a full 25-save rebuild on 2026-09-17: the nine
+    # PLAIN_OFFSETS columns were missing, the view asked for `p.heading_src`, and the ALTER
+    # that would have added it sat four lines further down.
+    def _build_view():
+        _migrate(con)
+        _seed_attribute_model(con)
+        con.execute(_player_attributes_view(con))
+
     made_view = False
     for stmt in DDL:
         if not made_view and re.search(r"staging\.player_attributes\b(?!_exact)", stmt):
-            _seed_attribute_model(con)
-            con.execute(_player_attributes_view(con))
+            _build_view()
             made_view = True
         con.execute(stmt)
     if not made_view:
-        _seed_attribute_model(con)
-        con.execute(_player_attributes_view(con))
-    _migrate(con)
+        _build_view()
+    _migrate(con)          # again: tables created later in DDL get their columns too
 
 
 # Column additions for stores created before a schema change (CREATE TABLE IF NOT EXISTS
@@ -1621,6 +1668,11 @@ def _migrate(con):
             # create_mart, which is the honest outcome: that store predates the field and
             # needs a rebuild + republish, not a migration.
             if "can only modify view" in msg:
+                continue
+            # _migrate now runs PARTWAY through create_schema (see _build_view), so a table
+            # the DDL has not reached yet is not an error: it will be created complete, with
+            # every column, by the statement that follows.
+            if "does not exist" in msg or "not found" in msg:
                 continue
             raise
     _drop_extracts_phase_check(con)

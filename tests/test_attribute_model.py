@@ -24,6 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import model as MOD                                   # noqa: E402
+from fmparser import attributes as A                                # noqa: E402
 from fmparser.attributes import (ATTR_ORDER, SRC_OFFSETS, PLAIN_OFFSETS,  # noqa: E402
                                  HIDDEN_OFFSETS, EXACT_SINGLE)
 
@@ -129,6 +130,34 @@ def main(argv):
             print(f"  OK  {n_frozen:,} values also reproduce fmparser/model.py exactly")
     else:
         print("  --  store carries a refit, so the model.py cross-check does not apply")
+
+    # The two PLAIN-BYTE COMPOSITES. These are not fits, so the coefficient check above never
+    # touches them -- but their SQL is GENERATED from attributes.TEAMWORK_W / AERIAL_W, and a
+    # generated expression that silently stops matching its own constants is exactly the drift
+    # this file exists to catch. Also pins the `_est` asymmetry: Teamwork's formula is exact
+    # (FALSE), Aerial's is ~71% (TRUE), and swapping them would quietly reclassify every
+    # non-squad player across the mart.
+    JOINS = ("FROM staging.players p "
+             "JOIN staging.player_attributes a USING (season, phase, tid) "
+             "JOIN staging.player_attributes_exact e USING (season, phase, tid) ")
+    for attr, fn, b1, b2, est in (
+            ("Teamwork", A.teamwork, "unselfishness_src", "work_rate", False),
+            ("Aerial", A.aerial, "heading_src", "jumping", True)):
+        where = f'WHERE e."{attr}" IS NULL AND p.{b1} IS NOT NULL '
+        bad = con.execute(f'SELECT count(*) {JOINS}{where}'
+                          f'AND a."{attr}_est" != {est}').fetchone()[0]
+        if bad:
+            ok = False
+            print(f"FAIL: {attr}_est should be {est} on every modelled row -- {bad:,} wrong")
+        rows = con.execute(f'SELECT p.{b1}, p.{b2}, a."{attr}" {JOINS}{where}'
+                           f'USING SAMPLE {SAMPLE} ROWS').fetchall()
+        off = [(x, y, got) for x, y, got in rows if fn(x, y) != got]
+        if off:
+            ok = False
+            print(f"FAIL: generated {attr} SQL disagrees with attributes.{fn.__name__}() on "
+                  f"{len(off)} of {len(rows):,} e.g. {off[:3]}")
+        elif rows:
+            print(f"  OK  {len(rows):,} {attr} values match the closed form, _est = {est}")
 
     stray = [a for a in EXACT_SINGLE
              if con.execute(f'SELECT count(*) FROM staging.player_attributes '
