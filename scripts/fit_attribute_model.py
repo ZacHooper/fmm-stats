@@ -48,18 +48,23 @@ FWD_ATT, FWD_MID = ("ST", "AML", "AMR", "AMC"), ("ML", "MR", "MC", "DMC", "DML",
 
 # Feature sets to try per attribute; CV picks. "frozen" is whatever model.py already uses for
 # that attribute, so the search always contains the incumbent's own shape.
-_BASE = ("own", "partner", "CA", "PA", "mean9", "own*CA", "fwd")
+# `fwd` -- the top position collapsed to 1.0/0.5/0.0 -- is deliberately NOT in the lean base.
+# It threw away almost everything: an AMC/ST, a pure ST and a six-position utility attacker
+# all became the single number 1.0.
+_LEAN = ("own", "partner", "CA", "PA", "own*CA")
+_BASE = _LEAN + ("mean9",)
 SETS = {
-    "frozen": None,                       # the incumbent's own shape, per attribute
-    "base":   _BASE,                      # 8 params
-    # ONE feature, not fifteen. Correlating each candidate against the base model's residual
-    # showed GK familiarity dominating all five goalkeeping attributes (0.32-0.53) while the
-    # other fourteen positions contributed little -- so buying that signal with 15 parameters
-    # on ~160 training rows is a bad trade. The nine undisplayed attributes showed nothing
-    # above the noise floor for 360 tested correlations, which is why there is no "hid" set:
-    # set_pieces->Crossing, penalty->Shooting and work_rate->Movement all failed to appear.
-    "gk":     _BASE + ("GK_FAM",),        # 9
-    "pos":    _BASE + ("POS",),           # 23 -- kept: it still wins where it earns it
+    "frozen": None,        # the incumbent's own shape, per attribute -- fwd and all
+    "lean":   _LEAN,       # 6 params
+    "base":   _BASE,       # 7
+    # Position, three ways, chosen PER ATTRIBUTE because the right answer differs by
+    # attribute rather than globally. Measured at n=80 players: position lifts Dribbling
+    # 48->62%, Positioning 35->41% and Movement 46->54%, and COSTS Aerial 89->77%, Handling
+    # 94->82% and Kicking 82->71%. It differentiates dribbling and movement; it says nothing
+    # about aerial ability or a keeper's hands, where 15 extra parameters are pure variance.
+    "gk":     _BASE + ("GK_FAM",),   # 8  -- one familiarity
+    "nat":    _BASE + ("NAT",),      # 22 -- 15 binary "is this a natural position" flags
+    "pos":    _BASE + ("POS",),      # 22 -- 15 raw familiarities
 }
 
 
@@ -100,6 +105,8 @@ def features(r, bi, pi, own, partner, names):
     for n in names:
         if n == "POS":
             f += list(fam)
+        elif n == "NAT":
+            f += [1.0 if v >= 20 else 0.0 for v in fam]
         elif n == "GK_FAM":
             f += [fam[POS.index("GK")]]
         elif n == "HID":
@@ -227,7 +234,8 @@ def _write(db, out):
     for attr, own, partner, names, coef, *_ in out:
         flat = []
         for nm in names:
-            flat += (POS if nm == "POS" else
+            flat += ([f"NAT_{q}" for q in POS] if nm == "NAT" else
+                     POS if nm == "POS" else
                      HIDDEN if nm == "HID" else
                      ["GK"] if nm == "GK_FAM" else [nm])
         for nm, c in list(zip(flat, coef)) + [("intercept", coef[-1])]:

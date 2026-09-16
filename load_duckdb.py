@@ -172,6 +172,10 @@ def _model_expr(attr, spec, S):
             e = _FWD.format(S=S)
         elif feat in _PLAYER_HIDDEN.values():
             e = f'p."{feat}"'
+        elif feat.startswith("NAT_") and feat[4:] in _POSITIONS:
+            e = (f"CASE WHEN COALESCE((SELECT t.familiarity FROM {S}.player_positions t "
+                 f"WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid) "
+                 f"AND t.position = '{feat[4:]}'), 0) >= 20 THEN 1.0 ELSE 0.0 END")
         elif feat in _POSITIONS:
             # A refit may use the 15 position familiarities directly instead of collapsing
             # them into `fwd` -- the frozen model has no position term at all, and Passing
