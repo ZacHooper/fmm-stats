@@ -120,6 +120,17 @@ All fields confirmed byte-exact against the 3 screenshots: tid/uid, name ids, DO
 *different* nationality codes matching Danish/Norwegian/Czech, club_tid, and all 8
 personality values.
 
+**Parsed at last, 2026-09-16.** The block below was verified against screenshots in this very
+entry and then **never wired into the parser** — `_decode_info` read tid/uid/names/dob/club and
+stopped. It is now carried as `staging.PERSON_FIELDS` (the 8 personality values plus
+international caps/goals at `+38`/`+39`) onto BOTH players and staff, since these are facts
+about a person. Two things fell out: caps/goals are **u8 in FMM22**, not the u16 pair
+`People.cs` declares for FMM26 (Látal reads 47/1 as bytes; a u16 at `+38` would make it 303
+caps), and **255 is a sentinel** — 77 records carry it in both fields, always the same 77, with
+nothing between 200 and 254, so it is stored as NULL rather than inventing a striker with 255
+international goals. Sanity from the licensed database: Ronaldo 186 caps / 118 goals, Courtois
+133 / 0.
+
 **Resolves #9's "decode TODO".** The 8-byte block at +52..59 is exactly the community-nugget
 order it guessed, as plain single bytes with no interleaving needed — Adaptability, Ambition,
 Determination, Loyalty, Handling Pressure, Professionalism, **Sportsmanship** (hidden — not

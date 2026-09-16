@@ -99,8 +99,34 @@ def _staff_layout():
     return f
 
 
+def _info_head_layout():
+    """The INFO (person) record's FIXED HEAD, 0..67.
+
+    The record as a whole is variable-length -- it ends with counted language and relationship
+    lists (BUGS #14 Round 4) -- so there is no stride to measure and only the head is audited.
+    That is where everything we name lives, including the personality block, which spent a
+    round being attributed to the attribute record instead.
+    """
+    f = [(0, 4, "tid"), (4, 4, "uid"), (8, 4, "first_name_id"), (12, 4, "last_name_id"),
+         (20, 2, "dob_day"), (22, 2, "dob_year"), (24, 2, "nationality_id"),
+         (28, 1, "flag28"),
+         (38, 1, "international_caps"), (39, 1, "international_goals"),
+         (42, 2, "club_tid"), (60, 4, "sid"), (64, 4, "id2")]
+    f += [(52 + i, 1, n) for i, n in enumerate(S.PERSONALITY)]
+    # +16..19 is a sparse u32 (0.1% of records set it, the rest ffffffff). People.cs calls the
+    # slot CommonNameId, but 0.1% is nowhere near the ~8% of players that actually carry a
+    # nickname here, so it is NOT the link `_scrape_nicknamed` follows. Declared, not named.
+    named = set()
+    for off, width, _ in f:
+        named.update(range(off, off + width))
+    f += [(o, 1, UNKNOWN) for o in range(0, 68) if o not in named]
+    return f
+
+
 LAYOUTS = {
     "player_attribute": (78, _player_attr_layout()),
+    # NOT a stride -- the info record is variable-length; 68 is the fixed head we decode.
+    "info_head": (68, _info_head_layout()),
     "staff_attribute": (39, _staff_layout()),
     "city": (PL.CITY_RECORD, [
         (0, 2, "id"), (2, 4, "uid"), (6, 2, "nation_id"),

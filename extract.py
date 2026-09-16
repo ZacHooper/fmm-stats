@@ -280,7 +280,8 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
             row = {"tid": tid, "name": full_name(tid, p),
                    "club": club_label(p["club_tid"]),
                    "club_tid": p["club_tid"], "dob": p["dob"],
-                   "nationality_id": p["nationality_id"]}
+                   "nationality_id": p["nationality_id"],
+                   **{k: p[k] for k in S.PERSON_FIELDS}}
             sa = staff_attrs.get(p["id2"])
             if sa:
                 row.update({k: sa[k] for k in ST.STAFF_FIELDS})
@@ -306,6 +307,7 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
         row = {"tid": tid, "name": full_name(tid, p),
                "club": club_label(club_tid), "club_tid": club_tid,
                "dob": p["dob"], "nationality_id": p["nationality_id"],
+               **{k: p[k] for k in S.PERSON_FIELDS},
                "has_attributes": rec is not None,
                "squad_status": sc,
                "loaned_out": sc == S.LOAN_STATUS and p["club_tid"] != S.NO_CLUB,

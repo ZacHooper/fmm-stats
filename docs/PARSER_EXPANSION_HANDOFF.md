@@ -224,6 +224,16 @@ confounded by minutes. Neither contradicts the order; both rest on the structura
 `P-29` stays **Aerial** (Player.cs says Heading; the FMM22 UI says Aerial) and Teamwork is
 still derived from `P-25 + P-9`. Both kept deliberately, both ground-truth-backed for FMM22.
 
+**The INFO record's personality block is parsed too, for the first time.** The 8 values
+(`adaptability … temperament`) were verified byte-exact against the 7 managers' screenshots
+back in BUGS #14 and then never wired into `_decode_info` — identified and discarded, the same
+failure as the record tail. They are `staging.PERSON_FIELDS` now, on **both** players and
+staff, along with international caps/goals at `+38`/`+39`. Two findings came with them: those
+two are **u8 in FMM22**, not the u16 pair `People.cs` declares (Látal reads 47 caps / 1 goal as
+bytes; a u16 would make it 303 caps), and **255 is a sentinel** — 77 records carry it in both
+fields, always the same 77, with nothing between 200 and 254 — so it is stored NULL. The
+licensed database checks out: Ronaldo 186 caps / 118 goals, Courtois 133 / 0.
+
 **The staff six stay named by offset, and that is a finding now, not a gap: fmm-editor has no
 `Staff.cs`.** Its `People.cs` reads the info record and stops at the `Unknown6b` u32 — which is
 our `id2`, the link to the staff attribute record — and never follows it. No upstream order to

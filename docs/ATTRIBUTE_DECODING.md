@@ -33,7 +33,7 @@ anchored on the SID, which is the record's key.
 
 | Offset | Field | Status |
 | --- | --- | --- |
-| `P-50 … P-43` | ~~Personality~~ — **WRONG, resolved 2026-09-16** | The personality block is on the **INFO** record at `info+52…59`, where BUGS #14 verified all 8 values byte-exact against screenshots, and where fmm-editor's `People.cs` declares them. These offsets are not it and are not even attribute-shaped: five of the eight are 1-20 for **0%** of records. They fall outside a record anchored at `P-42` anyway |
+| `P-50 … P-43` | ~~Personality~~ — **WRONG, resolved 2026-09-16** | The personality block is on the **INFO** record at `info+52…59`, where BUGS #14 verified all 8 values byte-exact against screenshots, and where fmm-editor's `People.cs` declares them. These offsets are not it and are not even attribute-shaped: five of the eight are 1-20 for **0%** of records. They fall outside a record anchored at `P-42` anyway. **Parsed since 2026-09-16** as `staging.PERSON_FIELDS`, on players and staff alike |
 | `P-42 … P-39` | **SID** (the record key) | confirmed |
 | `P-38 … P-35` | **history link** (u32) | confirmed — see [history-chain-pointers](agent-context/history-chain-pointers.md) |
 | `P-34 … P-1` | **34 attribute slots**, exact rough-guide Step-6 order (`slot = guide# ; offset = guide#-35`) | see §2 |

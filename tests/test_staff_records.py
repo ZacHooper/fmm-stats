@@ -93,6 +93,22 @@ STYLE = {1619: "Attacking", 1134: "Attacking", 2506: "Attacking",
 # and Mourinho/Simeone the two most famously defensive, and +14 puts them at the extremes.
 FAMOUS = {223: ("Klopp", 16, 20), 2938: ("Mourinho", 1, 9), 1094: ("Simeone", 1, 9)}
 
+# The INFO record's personality block (info+52..59) and international record (+38/+39), from
+# the same 7 screenshots. Sportsmanship is omitted: it is the one of the eight with no UI to
+# check against. tid -> (adaptability, ambition, determination, loyalty, pressure,
+#                        professionalism, temperament, caps, goals)
+PERSONALITY = {
+    1619: (12, 10, 14, 14, 14, 14, 15, 0, 0),
+    1134: (10, 19, 15, 13, 15, 19, 17, 0, 0),
+     329: (9, 14, 17, 17, 16, 17, 4, 47, 1),
+    2506: (17, 11, 16, 18, 17, 14, 17, 0, 0),
+    1686: (14, 13, 15, 16, 14, 13, 9, 2, 0),
+    1486: (9, 7, 7, 16, 11, 14, 16, 0, 0),
+    1833: (11, 13, 14, 9, 13, 14, 9, 0, 0),
+}
+_PERS_KEYS = ("adaptability", "ambition", "determination", "loyalty", "pressure",
+              "professionalism", "temperament", "international_caps", "international_goals")
+
 CATALOG = ['4-4-2', '4-4-2 Diamond', '4-1-2-2-1', '4-1-4-1', '4-2-1-3', '4-2-3-1',
            '4-2-3-1 DM', '4-2-2-2', '4-2-4', '4-3-1-2', '4-3-3', '4-4-1-1', '4-3-2-1',
            '4-5-1', '3-4-3', '3-4-3 DM', '5-1-2-2', '5-2-1-2', '5-2-2-1', '5-3-2', '5-4-1']
@@ -272,6 +288,28 @@ def main(argv):
             fails.append(f"{nations[nid]['name']} should have no UEFA coefficient")
     euro = [r for r in nations.values() if r["coefficients"]]
     print(f"  OK  {len(euro)} nations carry UEFA coefficients, none of them South American")
+
+    # The info record's personality block + international record, on the same 7 managers.
+    ok = 0
+    for tid, want in PERSONALITY.items():
+        p = info.get(tid)
+        got = tuple(p[k] for k in _PERS_KEYS) if p else None
+        if got != want:
+            fails.append(f"tid {tid}: person block {got}, expected {want}")
+        else:
+            ok += 1
+    print(f"  OK  {ok}/{len(PERSONALITY)} managers' personality + caps/goals exact")
+
+    # 255 is a sentinel in BOTH international fields, and always in the same records -- so it
+    # must read as NULL, not as a striker with 255 international goals.
+    raw255 = sum(1 for t, p in info.items()
+                 if p["international_caps"] is None and p["international_goals"] is None)
+    both = all((p["international_caps"] is None) == (p["international_goals"] is None)
+               for p in info.values())
+    if not both:
+        fails.append("the 255 sentinel is not paired across caps/goals")
+    else:
+        print(f"  OK  {raw255} records carry the 255 international sentinel, nulled in pairs")
 
     # Second save, Style only: the band EDGES, which the 2024 set alone cannot pin.
     other = os.path.join(os.path.dirname(path), STYLE_2026_SAVE)

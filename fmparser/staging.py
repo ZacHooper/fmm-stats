@@ -56,6 +56,27 @@ NAME_ID_MAX = 65536
 LOAN_STATUS = 65
 
 
+# The 8 personality bytes at info+52..59, in order. Verified byte-exact against all 7
+# ground-truth managers' Manager Profile screenshots (BUGS #14) and matching the order
+# fmm-editor's `People.cs` declares. They live on the INFO record -- every person has them,
+# player or staff -- NOT on the attribute record, which is what ATTRIBUTE_DECODING.md's old
+# `P-50..P-43` row wrongly claimed.
+#
+# Two notes on the names. Slot 3 reads DETERMINATION on the FMM22 screens we verified against
+# and `Controversy` in People.cs -- ours is the ground-truth reading for our game. And
+# `sportsmanship` is the one of the eight with no UI to check against; it is the only slot
+# taken on the order's authority alone, which is why the old Bucaspor lead could only ever
+# match 6 of 8 against on-screen values.
+PERSONALITY = ("adaptability", "ambition", "determination", "loyalty", "pressure",
+               "professionalism", "sportsmanship", "temperament")
+# Everything the INFO record contributes that is true of a PERSON rather than of a player or
+# a staff member -- named once so extract.py, the loader and the mart cannot drift apart.
+PERSON_FIELDS = PERSONALITY + ("international_caps", "international_goals")
+# 0 means "not populated", not a real rating: all 622 staff who read 0 are exactly the staff
+# with no attribute record at all -- placeholder people the save never filled in. Every staff
+# member who HAS a record reads 1-20 on all eight.
+
+
 def _decode_info(mm, base):
     """Decode one info record at `base` into the spine's identity dict."""
     year = int.from_bytes(mm[base + 22:base + 24], "little")
@@ -79,6 +100,16 @@ def _decode_info(mm, base):
         # attribute record, which holds coaching ability and the formation triple. It was
         # carried in the docs as an "unexplained u32" until 2026-09. See fmparser/staff.py.
         "id2": int.from_bytes(mm[base + 64:base + 68], "little"),
+        # International record. Both are u8 in FMM22, NOT the u16 pair People.cs declares for
+        # FMM26: Latal reads 47 caps / 1 goal as bytes, matching his screenshot, where a u16
+        # at +38 would make it 303 caps. Verified exact on all 7 managers.
+        #
+        # 255 is a SENTINEL, not a value: 77 records carry 255 in BOTH fields and they are the
+        # same 77, with nothing at all between 200 and 254. The real ceiling is ~200 caps, so a
+        # 255 is "unknown", and storing it would invent a striker with 255 international goals.
+        "international_caps": None if mm[base + 38] == 255 else mm[base + 38],
+        "international_goals": None if mm[base + 39] == 255 else mm[base + 39],
+        **{name: mm[base + 52 + i] for i, name in enumerate(PERSONALITY)},
     }
 
 

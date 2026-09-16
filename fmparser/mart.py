@@ -633,6 +633,11 @@ SELECT
     -- than a re-extract.
     p.jumping, p.consistency, p.big_match, p.injury_prone, p.versatility,
     p.set_pieces, p.penalty, p.work_rate, p.flair,
+    -- The info record's personality block (what the profile screen shows) + international
+    -- record. Person-level, so mart.staff carries the same eight.
+    p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure,
+    p.professionalism, p.sportsmanship, p.temperament,
+    p.international_caps, p.international_goals,
     p.foot_left, p.foot_right, p.nationality_id,
     p.player_value, p.wage_units, p.wage_gbp,
     p.contract_expiry, p.contract_expiry_year,
@@ -2324,6 +2329,9 @@ CREATE OR REPLACE VIEW mart.staff AS
 SELECT
     s.season, s.phase, s.snap_ix, s.phase_date,
     p.tid, p.name, p.club_tid, p.club, p.dob, p.nationality_id,
+    p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure,
+    p.professionalism, p.sportsmanship, p.temperament,
+    p.international_caps, p.international_goals,
     sa.home_reputation, sa.current_reputation, sa.world_reputation, sa.reputation_tier,
     sa.attacking_intent, sa.style,
     sa.financial_control, sa.outfield_coaching, sa.goalkeeping_coaching, sa.discipline,
