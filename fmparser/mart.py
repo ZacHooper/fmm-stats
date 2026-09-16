@@ -628,6 +628,11 @@ SELECT
     -- come from the same record tail (fmparser.attributes.record_tail).
     p.current_reputation, p.world_reputation, p.international_retired,
     p.squad_number, p.preferred_squad_number, p.height_cm, p.weight_kg,
+    -- The 9 unnamed 1-20 attribute bytes. We know they are attributes; we do not know WHICH,
+    -- so they are named by offset and nothing is derived from them. Here so identification
+    -- work is a query rather than a re-extract. NOT surfaced anywhere in the app.
+    p.hidden_p28, p.hidden_p20, p.hidden_p18, p.hidden_p17, p.hidden_p15,
+    p.hidden_p14, p.hidden_p13, p.hidden_p09, p.hidden_p08,
     p.foot_left, p.foot_right, p.nationality_id,
     p.player_value, p.wage_units, p.wage_gbp,
     p.contract_expiry, p.contract_expiry_year,
@@ -2324,6 +2329,8 @@ SELECT
     sa.financial_control, sa.outfield_coaching, sa.goalkeeping_coaching, sa.discipline,
     sa.judging_ability, sa.judging_potential, sa.people_management, sa.motivating,
     sa.tactical_knowledge, sa.youth_coaching,
+    -- the 6 unnamed 1-20 attribute bytes; +27 is the distinctive one (85% read 1-4)
+    sa.hidden_s18, sa.hidden_s20, sa.hidden_s24, sa.hidden_s26, sa.hidden_s27, sa.hidden_s28,
     sa.formation_preferred, sa.formation_attacking, sa.formation_defensive,
     sa.formation_preferred_name, sa.formation_attacking_name, sa.formation_defensive_name
 FROM {S}.players p

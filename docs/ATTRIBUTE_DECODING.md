@@ -24,6 +24,24 @@ squad). This is the deep-dive companion to `BUGS.md` #8/#9. Paused here as a
 `P % 78 == 57` (used as a validity filter). The record spans **`P-42 … P+35`** — 78 bytes
 anchored on the SID, which is the record's key.
 
+> **The hidden attributes are now PARSED (2026-09-16).** 18 bytes in this record hold a 1-20
+> value; `ATTR_OFFSETS` names 9 of them and the other 9 — `P-28, -20, -18, -17, -15, -14, -13,
+> -9, -8` — were read, recognised as attributes, and discarded. They are now carried as
+> `hidden_p28 … hidden_p08` (`attributes.HIDDEN_OFFSETS`) through `staging.players`,
+> `history.player_snapshots` and `mart.player_snapshots`. Named by OFFSET on purpose: we know
+> what kind of thing they are and not which, and guessing a name is how `-140` became a Style
+> candidate. Nothing is derived from them and nothing surfaces them.
+>
+> How they were told apart from the rest of the record: every attribute byte is 1-20 for
+> >99.9% of 26,518 records with ~20-30 distinct values, while every non-attribute byte in
+> `P-38 … P-1` ranges over 0-255 with ~150 distinct values. There is no overlap. `P-9` is not
+> new — `estimate_player` already read it as the second half of Teamwork
+> (`floor((P-25 + P-9) / 2)`) — but a sub-attribute only ever seen averaged cannot be studied.
+>
+> The same was done for the staff record's six hidden attributes (`hidden_s18 … hidden_s28`,
+> `fmparser/staff.py`), where `+27` is the one worth attacking first: 85% of staff read 1-4
+> against ~10 for the other five, so a small ground-truth set would separate it.
+
 > **Corrected 2026-09-16 (PR 51).** This section previously read `P-55 … P+22`. Same grid,
 > different phase, and the old phase was wrong at both ends: it stopped 13 bytes early, which
 > is why the two extra reputations, international-retired, shirt + preferred shirt, height and

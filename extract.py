@@ -92,6 +92,9 @@ _PHASES = ("start", "mid", "end")
 # rec-present branch, the identity-only fill and the CSV header cannot drift apart.
 TAIL_FIELDS = ("current_reputation", "world_reputation", "international_retired",
                "squad_number", "preferred_squad_number", "height_cm", "weight_kg")
+# The 9 unnamed 1-20 attribute bytes (attributes.HIDDEN_OFFSETS). Carried, not named --
+# every identity-only row has to fill them too, or the CSV header and the rows disagree.
+HIDDEN_FIELDS = tuple(A.HIDDEN_OFFSETS.values())
 
 
 def parse_label(label):
@@ -327,7 +330,7 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
             # the rest of the global record (see attributes.record_tail). Present for every
             # attributed player, own squad or not — it is read off the global record, not
             # the managed-club snapshot.
-            for k in TAIL_FIELDS:
+            for k in TAIL_FIELDS + HIDDEN_FIELDS:
                 row[k] = rec[k]
             if tid in own_exact:           # own squad: exact snapshot attributes
                 row["attributes"] = {a: own_exact[tid]["attrs"][a] for a in A.ATTR_ORDER}
@@ -343,7 +346,7 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
             row.update({"is_gk": None, "ca": None, "pa": None, "reputation": None,
                         "positions": {}, "feet": None,
                         "attributes": None, "estimated": None,
-                        **{k: None for k in TAIL_FIELDS}})
+                        **{k: None for k in TAIL_FIELDS + HIDDEN_FIELDS}})
         players[str(tid)] = row
     return players, staff, club_names, club_leagues, histories
 
@@ -411,7 +414,7 @@ def write_players_csv(path, players):
         w = csv.writer(f)
         w.writerow(["tid", "name", "club", "club_tid", "loan", "league", "league_cid",
                     "GK", "CA", "PA", "rep", "dob", "nat", "positions"]
-                   + list(TAIL_FIELDS) + A.ATTR_ORDER)
+                   + list(TAIL_FIELDS + HIDDEN_FIELDS) + A.ATTR_ORDER)
         # attributed players first (by CA desc), then identity-only rows
         def sortkey(p):
             return (0 if p["has_attributes"] else 1, -(p["ca"] or 0), p["tid"])
@@ -424,7 +427,8 @@ def write_players_csv(path, players):
                         p.get("league") or "", p.get("league_cid") or "",
                         "Y" if p["is_gk"] else "", p["ca"] or "", p["pa"] or "",
                         p["reputation"] or "", p["dob"] or "", p["nationality_id"], pos]
-                       + [("" if p.get(k) is None else p[k]) for k in TAIL_FIELDS]
+                       + [("" if p.get(k) is None else p[k])
+                          for k in TAIL_FIELDS + HIDDEN_FIELDS]
                        + [attr.get(a, "") for a in A.ATTR_ORDER])
 
 

@@ -299,6 +299,37 @@ def record_tail(mm, P):
     }
 
 
+# ---------------------------------------------------------------------------
+# The HIDDEN attributes.
+#
+# 18 bytes in this record hold a 1-20 attribute. ATTR_OFFSETS names 9 of them (the values the
+# player screen shows, plus Teamwork's two halves); these are the other 9. We have always
+# KNOWN they were attributes -- docs/ATTRIBUTE_DECODING.md has called them "hidden attributes"
+# since 2026-07 -- and then thrown them away at parse time, which is the same "stopped
+# reading early" failure as the record tail, just with a different excuse: not being able to
+# NAME a field is not a reason not to CARRY it.
+#
+# Named by offset, deliberately. `hidden_p28` is the byte at `P-28` and claims nothing else.
+# Guessing a name is how `-140` became a Style candidate; a value we can query and cannot
+# name is honest, and it is what identification work needs (contrast two saves, or two groups
+# of players with known values, over a column that is already in the store).
+#
+# Measured on frem-2024-11-10 over 26,518 records: every one of these is 1-20 for >99.9% of
+# records, the same shape as the named attributes, and each has ~20-30 distinct values.
+# scripts/audit_records.py reports them as named rather than UNKNOWN.
+HIDDEN_OFFSETS = {-28: "hidden_p28", -20: "hidden_p20", -18: "hidden_p18",
+                  -17: "hidden_p17", -15: "hidden_p15", -14: "hidden_p14",
+                  -13: "hidden_p13", -9: "hidden_p09", -8: "hidden_p08"}
+# P-9 is not new to the parser -- `estimate_player` already reads it as the second half of
+# Teamwork (`floor((P-25 + P-9) / 2)`). It is carried here as a value in its own right,
+# because a sub-attribute we only ever see averaged is a sub-attribute we cannot study.
+
+
+def hidden_attributes(mm, P):
+    """The 9 unnamed 1-20 attribute bytes, as a dict. Shared by both record readers."""
+    return {name: mm[P + rel] for rel, name in HIDDEN_OFFSETS.items()}
+
+
 def _valid_positions(seg):
     return len(seg) == 15 and all(1 <= b <= 20 for b in seg) and max(seg) == 20
 
@@ -337,7 +368,7 @@ def record_for(mm, tid):
         return {"sid": sid.hex(), "P": P, "positions": positions,
                 "feet": {"left": left, "right": right},
                 "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs,
-                **record_tail(mm, P)}
+                **record_tail(mm, P), **hidden_attributes(mm, P)}
 
 
 # ---------------- full 23-attr estimation ----------------

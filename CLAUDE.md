@@ -176,6 +176,12 @@ Two rules that follow, and that the recent bugs all break:
   invariant is `id == slot index`; using it made the walk exact and deleted the tolerance knob.
 - **Add the field to `LAYOUTS` in the same commit you add it to the parser.** That is what keeps
   the audit honest as the record grows.
+- **Carry what you cannot name.** A byte you have identified as an attribute but cannot label is
+  still data; dropping it is the same loss as never reading it. Both records' hidden attributes
+  are now carried as `hidden_p*` / `hidden_s*` — named by OFFSET, so the name claims only where
+  the byte is, nothing is derived from them, and none is surfaced. Guessing a name is how `-140`
+  became a Style candidate; a column you can query and cannot name is what the next
+  identification pass actually needs.
 
 ## The web app (one UI for phone and desktop)
 `site/` is a static single-page app on Cloudflare Pages — the primary UI, since Streamlit can't be

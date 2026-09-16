@@ -99,10 +99,26 @@ _ATTRS = {
 # +14..+30 is a block of SEVENTEEN attribute bytes (1-20). Ten are the coaching values the
 # Manager Profile screen shows; the remaining seven are hidden, because the other seven values
 # on that screen are the personality block on the INFO record, not this one. Of the hidden
-# ones only +14 is named -- as `attacking_intent`, on the evidence in the module docstring,
-# because Style is banded from it. +18, +20, +24, +26, +27 and +28 are left unnamed rather
-# than guessed; note that +27 is the only one with a distinctive shape (85% of staff read 1-4,
-# with a thin tail to 20), so it is the easiest of the six to attack next.
+# ones only +14 carries a MEANING -- as `attacking_intent`, on the evidence in the module
+# docstring, because Style is banded from it. The other six are PARSED but not named, as
+# `hidden_s*` (see HIDDEN_OFFSETS below): carrying a value we cannot name costs nothing and is
+# what identification work needs, whereas guessing a name is how `-140` became a Style
+# candidate.
+
+# The six HIDDEN attributes. `+14..+30` is seventeen 1-20 bytes; `_ATTRS` names the ten the
+# Manager Profile screen shows and `attacking_intent`, which Style is banded from. These are
+# the remaining six. All six read 1-20 for 100% of 4,210 staff records -- the same shape as
+# the named ones -- so they are attributes we cannot name, not bytes we are unsure about.
+#
+# Carried rather than discarded, for the same reason as the player record's hidden block: we
+# already know what KIND of thing they are, and a column in the store is what identification
+# work needs. Named by offset so the name claims nothing: `hidden_s27` is staff record `+27`.
+#
+# `+27` is the one worth attacking first -- it is the only one with a distinctive
+# distribution (85% of staff read 1-4, mean 3.0, against ~10 for the other five), so a small
+# ground-truth set would separate it. The other five are unremarkably centred near 10.
+HIDDEN_OFFSETS = {18: "hidden_s18", 20: "hidden_s20", 24: "hidden_s24",
+                  26: "hidden_s26", 27: "hidden_s27", 28: "hidden_s28"}
 
 FORMATION_SLOTS = {31: "formation_preferred",
                    32: "formation_attacking",
@@ -114,7 +130,8 @@ FORMATION_SLOTS = {31: "formation_preferred",
 # derivative to show instead.
 STAFF_FIELDS = (("ca", "pa", "home_reputation", "current_reputation", "world_reputation",
                  "reputation_tier")
-                + tuple(_ATTRS.values()) + tuple(FORMATION_SLOTS.values()) + ("style",))
+                + tuple(_ATTRS.values()) + tuple(HIDDEN_OFFSETS.values())
+                + tuple(FORMATION_SLOTS.values()) + ("style",))
 
 RECORD = 78          # same grid as the player attribute record
 _CATALOG_MARKER = bytes.fromhex("76b9f407")
@@ -192,7 +209,7 @@ def _valid(mm, o, n):
     pa = int.from_bytes(mm[o + 6:o + 8], "little")
     if not (0 < ca <= pa <= 200):
         return False
-    for d in _ATTRS:
+    for d in (*_ATTRS, *HIDDEN_OFFSETS):
         if not (1 <= mm[o + d] <= 20):
             return False
     return all(mm[o + d] < 21 for d in FORMATION_SLOTS)
@@ -215,7 +232,7 @@ def _candidates(mm):
                      | (a[d + 1:n + d + 1].astype(np.uint32) << 8))
     ca, pa = u16(4), u16(6)
     m = (ca > 0) & (ca <= pa) & (pa <= 200)
-    for d in _ATTRS:
+    for d in (*_ATTRS, *HIDDEN_OFFSETS):
         v = a[d:n + d]
         m &= (v >= 1) & (v <= 20)
     for d in FORMATION_SLOTS:
@@ -246,6 +263,7 @@ def _parse(mm, o):
         "world_reputation": u16(12),
     }
     rec.update({name: mm[o + d] for d, name in _ATTRS.items()})
+    rec.update({name: mm[o + d] for d, name in HIDDEN_OFFSETS.items()})
     rec.update({name: mm[o + d] for d, name in FORMATION_SLOTS.items()})
     rec["reputation_tier"] = reputation_tier(rec["world_reputation"])
     rec["style"] = style(rec["attacking_intent"])

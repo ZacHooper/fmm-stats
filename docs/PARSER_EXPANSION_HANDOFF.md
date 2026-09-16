@@ -282,6 +282,32 @@ workstream A fixed. All corrected.
 - **Density + join guards in `tests/test_staff_records.py`** — verified to fail on an injected
   dropped row and an injected phantom row, while the ground-truth coordinate checks still pass.
 
+### The hidden attributes are now carried
+
+Both records hold 1-20 attribute bytes we can identify as attributes but cannot name, and both
+were parsing them and throwing them away — the record-tail failure with a different excuse.
+**Not being able to NAME a field is not a reason not to CARRY it.** Now in the store:
+
+| record | bytes | columns |
+|---|---|---|
+| player attribute | `P-28, -20, -18, -17, -15, -14, -13, -9, -8` | `hidden_p28 … hidden_p08` on `staging.players`, `history.player_snapshots`, `mart.player_snapshots` |
+| staff attribute | `+18, +20, +24, +26, +27, +28` | `hidden_s18 … hidden_s28` on `staging.staff_attributes`, `mart.staff` |
+
+Named by offset, so the name asserts only where the byte is. The separation from non-attribute
+bytes is clean and measured, not assumed: every attribute byte is 1-20 for >99.9% of records
+with ~20-30 distinct values; every other byte in `P-38 … P-1` spans 0-255 with ~150 distinct
+values. Verified end to end on `frem-2024-11-10` — all 15 columns land 1-20 with no nulls for
+attributed players (25,282) and staff (4,210), and `hidden_s27`'s distribution through the mart
+matches the raw bytes exactly.
+
+`scripts/audit_records.py` now reports these as named rather than `UNKNOWN`: the player record
+reads 60 named + 18 unknown (was 51 + 27) and the staff record 34 named + 5 (was 28 + 11, the
+5 being the undecoded catalog indices at `+34..+38` — the attribute block is fully carried).
+
+**`+27` is the one to identify next.** 85% of staff read 1-4, mean 3.0, against ~10 for the
+other five — it is the only one of the fifteen with a shape distinctive enough that a small
+ground-truth set would separate it.
+
 ### Still open after this pass
 - **The personality block's owner is unresolved.** `ATTRIBUTE_DECODING.md` puts it at
   `P-50 … P-43`, which falls outside a record anchored at `P-42`; `staff.py` says it lives on
@@ -289,6 +315,8 @@ workstream A fixed. All corrected.
 - **`parse_club_trailer` steps over 20 undecoded bytes** after `reputation`. The width is right
   (the affiliate count lands correctly for 11,080 clubs) but the content is unread. Now named
   rather than a bare `q += 20`.
+- **The hidden attributes are carried but unidentified.** Fifteen columns, no names. `+27`
+  first (see above); the rest need ground truth we do not have.
 - **`mart.club_managers` is not purely structural.** The comment says the manager is identified
   exactly by absence from the club's staff array, but the SQL keeps a
   `ROW_NUMBER() ... ORDER BY home_reputation DESC` tiebreak and no column says whether a row

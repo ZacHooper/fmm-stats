@@ -46,6 +46,14 @@ _TS_KEYS = ["shots", "shots_on_target", "rating", "players_used", "passes",
 # posOrder -> pos_order; the rest map straight through.
 _XI = M._XI_FIELDS  # noqa: SLF001 (intentional reuse of the canonical list)
 
+# The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
+# store cannot drift from the record. See fmparser/attributes.py HIDDEN_OFFSETS and
+# fmparser/staff.py HIDDEN_OFFSETS for why they are carried but not named.
+from fmparser.attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
+from fmparser.staff import HIDDEN_OFFSETS as _STAFF_HIDDEN      # noqa: E402
+PLAYER_HIDDEN_COLS = list(_PLAYER_HIDDEN.values())
+STAFF_HIDDEN_COLS = list(_STAFF_HIDDEN.values())
+
 
 # Column order for staging.staff_attributes. Must match the DDL below; the value tuple is
 # built from this list so the two cannot drift.
@@ -57,6 +65,7 @@ STAFF_ATTR_COLS = [
     "financial_control", "outfield_coaching", "goalkeeping_coaching", "discipline",
     "judging_ability", "judging_potential", "people_management", "motivating",
     "tactical_knowledge", "youth_coaching",
+] + STAFF_HIDDEN_COLS + [
     "formation_preferred", "formation_attacking", "formation_defensive",
     "formation_preferred_name", "formation_attacking_name", "formation_defensive_name",
 ]
@@ -234,7 +243,10 @@ DDL = [
         -- `reputation` above is HOME reputation; these are the other two.
         current_reputation INTEGER, world_reputation INTEGER, international_retired BOOLEAN,
         squad_number INTEGER, preferred_squad_number INTEGER,
-        height_cm INTEGER, weight_kg INTEGER
+        height_cm INTEGER, weight_kg INTEGER,
+        -- the 9 unnamed 1-20 attribute bytes (attributes.HIDDEN_OFFSETS). Named by offset
+        -- because we know WHAT they are and not WHICH they are; see that module.
+        hidden_p28 INTEGER, hidden_p20 INTEGER, hidden_p18 INTEGER, hidden_p17 INTEGER, hidden_p15 INTEGER, hidden_p14 INTEGER, hidden_p13 INTEGER, hidden_p09 INTEGER, hidden_p08 INTEGER
     )""",
 
     # natural key: (season, phase, tid)
@@ -257,6 +269,9 @@ DDL = [
         discipline INTEGER, judging_ability INTEGER, judging_potential INTEGER,
         people_management INTEGER, motivating INTEGER, tactical_knowledge INTEGER,
         youth_coaching INTEGER,
+        -- the 6 unnamed 1-20 attribute bytes (staff.HIDDEN_OFFSETS)
+        hidden_s18 INTEGER, hidden_s20 INTEGER, hidden_s24 INTEGER,
+        hidden_s26 INTEGER, hidden_s27 INTEGER, hidden_s28 INTEGER,
         formation_preferred INTEGER, formation_attacking INTEGER, formation_defensive INTEGER,
         formation_preferred_name VARCHAR, formation_attacking_name VARCHAR,
         formation_defensive_name VARCHAR
@@ -679,6 +694,7 @@ def load_core(con, d, season, phase):
             v.get("international_retired"),
             _int(v.get("squad_number")), _int(v.get("preferred_squad_number")),
             _int(v.get("height_cm")), _int(v.get("weight_kg")),
+            *(_int(v.get(c)) for c in PLAYER_HIDDEN_COLS),
         ))
         attrs, est = v.get("attributes"), v.get("estimated") or {}
         if attrs:
@@ -708,8 +724,10 @@ def load_core(con, d, season, phase):
                 json.dumps({}), None, None, None,
                 False, None, None,
                 None, None, None, None,
-                # record_tail: staff have no global attribute record (PlayerId == -1)
-                None, None, None, None, None, None, None,
+                # record_tail + the hidden block: staff have no global attribute record
+                # (PlayerId == -1), so both are NULL. Sized from the parser's own tables so
+                # this padding cannot fall out of step with the column list below.
+                *([None] * 7), *([None] * len(PLAYER_HIDDEN_COLS)),
             ))
 
     pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
@@ -719,7 +737,8 @@ def load_core(con, d, season, phase):
              "loaned_in", "parent_club_tid", "parent_club",
              "wage_units", "wage_gbp", "contract_expiry", "contract_expiry_year",
              "current_reputation", "world_reputation", "international_retired",
-             "squad_number", "preferred_squad_number", "height_cm", "weight_kg"]
+             "squad_number", "preferred_squad_number", "height_cm", "weight_kg"
+             ] + PLAYER_HIDDEN_COLS
     counts["players"] = _insert(con, "players", pcols, prows)
     counts["staff"] = _insert(con, "players", pcols, srows)
     counts["staff_attributes"] = _insert(con, "staff_attributes", STAFF_ATTR_COLS, sarows)
@@ -1348,7 +1367,20 @@ _MIGRATIONS = [
     "ALTER TABLE staging.nations ADD COLUMN IF NOT EXISTS is_ranked BOOLEAN",
     "ALTER TABLE staging.nations ADD COLUMN IF NOT EXISTS world_ranking INTEGER",
     "ALTER TABLE staging.nations ADD COLUMN IF NOT EXISTS ranking_points INTEGER",
-]
+    # 2026-09-16 (later still): the HIDDEN attributes. Both records carry 1-20 attribute bytes
+    # we can identify as attributes but cannot name -- 9 on the player record, 6 on the staff
+    # record. They were parsed and discarded, which is the record-tail failure with a
+    # different excuse. Now carried, named by offset. Same caveat as every addition here:
+    # absent from existing output/*.json, so --refresh-only adds them as NULL and a backfill
+    # needs a full re-extract.
+] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} INTEGER"
+     for c in PLAYER_HIDDEN_COLS] + [
+    # history.player_snapshots froze its columns at CREATE TABLE ... AS SELECT time, so it
+    # needs the same additions or the archive silently stops carrying them.
+] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} INTEGER"
+     for c in PLAYER_HIDDEN_COLS] + [
+] + [f"ALTER TABLE staging.staff_attributes ADD COLUMN IF NOT EXISTS {c} INTEGER"
+     for c in STAFF_HIDDEN_COLS]
 
 
 def _migrate(con):

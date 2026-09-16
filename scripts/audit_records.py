@@ -62,7 +62,9 @@ def _player_attr_layout():
     the code it is auditing: ATTR_OFFSETS and record_tail are the source of truth.
     """
     f = [(0, 4, "sid")]
-    for rel, name in A.ATTR_OFFSETS.items():        # P-29 .. P-5
+    for rel, name in A.ATTR_OFFSETS.items():        # P-29 .. P-5, the named attributes
+        f.append((42 + rel, 1, name))
+    for rel, name in A.HIDDEN_OFFSETS.items():      # the 9 unnamed 1-20 attribute bytes
         f.append((42 + rel, 1, name))
     f += [(42, 15, "positions"), (57, 1, "foot_left"), (58, 1, "foot_right"),
           (59, 2, "ca"), (61, 2, "pa"), (63, 2, "home_reputation"),
@@ -71,10 +73,10 @@ def _player_attr_layout():
           (70, 2, UNKNOWN),                          # P+28..29, "always 0" in FMM26
           (72, 1, "squad_number"), (73, 1, "preferred_squad_number"),
           (74, 2, "height_cm"), (76, 2, "weight_kg")]
-    # P-38..P-1 that ATTR_OFFSETS does not name: the HIDDEN attribute bytes. Known to exist
-    # and deliberately undecoded (docs/ATTRIBUTE_DECODING.md), so they are declared rather
-    # than left unaccounted -- but rel 4..7 is the P-38 history link (see
-    # docs/agent-context/history-chain-pointers.md), which is named because we use it.
+    # rel 4..7 is the P-38 history link (docs/agent-context/history-chain-pointers.md).
+    # What is left after the named attributes, the hidden attributes and the link is genuinely
+    # undecoded -- not attribute-shaped either (those bytes range over 0..255 with ~150
+    # distinct values, against 1-20 for every attribute byte).
     f += [(4, 4, "history_link_P38")]
     named = set()
     for off, width, _ in f:
@@ -87,8 +89,10 @@ def _staff_layout():
     f = [(0, 4, "id2"), (4, 2, "ca"), (6, 2, "pa"), (8, 2, "home_reputation"),
          (10, 2, "current_reputation"), (12, 2, "world_reputation")]
     f += [(o, 1, n) for o, n in ST._ATTRS.items()]
+    f += [(o, 1, n) for o, n in ST.HIDDEN_OFFSETS.items()]
     f += [(o, 1, n) for o, n in ST.FORMATION_SLOTS.items()]
-    # the seven hidden attribute bytes the record carries and we cannot name
+    # +14..+30 is seventeen attribute bytes and every one is now carried, so nothing in the
+    # block should be left over. If this ever adds an entry again, a byte went unparsed.
     named = {o for o, _, _ in f}
     f += [(o, 1, UNKNOWN) for o in range(14, 31) if o not in named]
     f += [(o, 1, UNKNOWN) for o in range(34, 39)]    # five catalog indices, undecoded
