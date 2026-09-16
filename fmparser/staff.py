@@ -53,11 +53,16 @@ licensed real-world manager database this save carries:
     8) and the names that fill the top are Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda
     19 -- nobody's prior was consulted to pick them.
 
-`style()` bands it in thirds: <=7 Defensive, 8-13 Normal, >=14 Attacking. That fits all 7
-ground-truth managers exactly, and gives 26% / 45% / 30% of 1,278 real club managers, with
-Normal the plurality. **The Defensive boundary is the under-determined part** -- the only
-Defensive manager we have reads 7 and the lowest Normal reads 12, so anything in 7..11 fits.
-Confirm it with a screenshot of any manager whose `attacking_intent` lands in 8..11.
+`style()` bands it in thirds: <=7 Defensive, 8-13 Normal, >=14 Attacking. 26% / 45% / 30% of
+1,278 real club managers, with Normal the plurality.
+
+**Both band edges are CONFIRMED, not just fitted.** The 2024 ground truth alone could not pin
+the Defensive edge -- its only Defensive manager reads 7 and its lowest Normal reads 12, so any
+cut in 7..11 fitted equally well. So seven managers spanning intent 6-14 were picked off
+`frem-2026-07-02.fms`, their Style PREDICTED, and then read in-game: all seven correct,
+including Odder's Peter Pedersen at intent 8 reading Normal (the Defensive edge) and AGF's Jon
+Dahl Tomasson at 14 reading Attacking (the Attacking edge). `tests/test_staff_records.py`
+guards that set.
 
 Job Status is still not located, and is out of scope (the user does not want it).
 

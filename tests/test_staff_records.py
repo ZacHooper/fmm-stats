@@ -11,7 +11,8 @@ a 57% base rate for three random adjacent bytes), and world ranking must be near
 across nations.
 
 Ground truth is the 25 Nov 2024 Manager Profile screenshots for the seven Danish Superliga
-managers, matched against `frem-2024-11-10.fms`. Run:
+managers, matched against `frem-2024-11-10.fms`, plus a second Style-only set read off
+`frem-2026-07-02.fms` (checked only if that save is present). Run:
 
     python3 tests/test_staff_records.py [path/to/frem-2024-11-10.fms]
 
@@ -63,6 +64,22 @@ MANAGERS = {
            judging_ability=13, judging_potential=11, people_management=15, motivating=13,
            tactical_knowledge=13, goalkeeping_coaching=4, outfield_coaching=11,
            youth_coaching=12)),
+}
+
+# Style ground truth read off `frem-2026-07-02.fms`, chosen BEFORE it was checked in-game
+# specifically to test the band edges -- the 2024 set leaves a gap between the only Defensive
+# manager (intent 7) and the lowest Normal (12), so any Defensive cut in 7..11 fitted it.
+# All seven came back as predicted, which pins BOTH edges: 8 is Normal, 14 is Attacking.
+# tid -> (manager, club, attacking_intent, confirmed Style)
+STYLE_2026_SAVE = "frem-2026-07-02.fms"
+STYLE_2026 = {
+    1542: ("Peter Pedersen", "Odder IGF", 8, "Normal"),          # the Defensive edge: 7|8
+    9534: ("Kenneth Kjaersgaard", "Jammerbugt FC", 9, "Normal"),
+    1527: ("Johnny Hansen", "Vendsyssel FF", 10, "Normal"),
+     179: ("Kim Kristensen", "Hobro IK", 11, "Normal"),
+     163: ("Peter Sorensen", "Vejle BK", 6, "Defensive"),
+     182: ("Brian Priske", "Brondby IF", 12, "Normal"),
+    2015: ("Jon Dahl Tomasson", "AGF", 14, "Attacking"),         # the Attacking edge: 13|14
 }
 
 # In-game Style from the same screenshots, and the attacking_intent (+14) it is banded from.
@@ -233,6 +250,30 @@ def main(argv):
             fails.append(f"{nations[nid]['name']} should have no UEFA coefficient")
     euro = [r for r in nations.values() if r["coefficients"]]
     print(f"  OK  {len(euro)} nations carry UEFA coefficients, none of them South American")
+
+    # Second save, Style only: the band EDGES, which the 2024 set alone cannot pin.
+    other = os.path.join(os.path.dirname(path), STYLE_2026_SAVE)
+    if os.path.exists(other):
+        with open(other, "rb") as f2:
+            mm2 = mmap.mmap(f2.fileno(), 0, access=mmap.ACCESS_READ)
+        info2 = S.scrape_players(mm2)
+        recs2 = ST.scrape_staff_attributes(
+            mm2, [p["id2"] for p in info2.values() if p["sid"] == "ffffffff"])
+        ok = 0
+        for tid, (who, club, intent, want) in STYLE_2026.items():
+            p2 = info2.get(tid)
+            r = recs2.get(p2["id2"]) if p2 else None
+            if not r:
+                fails.append(f"{who} (tid {tid}): no staff record in {STYLE_2026_SAVE}")
+            elif r["attacking_intent"] != intent or r["style"] != want:
+                fails.append(f"{who} @ {club}: intent {r['attacking_intent']}/"
+                             f"{r['style']!r}, expected {intent}/{want!r}")
+            else:
+                ok += 1
+        print(f"  OK  {ok}/{len(STYLE_2026)} band-edge managers on {STYLE_2026_SAVE} "
+              f"(intent 6-14, both edges)")
+    else:
+        print(f"  --  {STYLE_2026_SAVE} absent, band-edge check skipped")
 
     if fails:
         print("\nFAIL:")

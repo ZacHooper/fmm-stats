@@ -61,10 +61,12 @@ Club Info screen and hunt for it in this trailer the same way #14 did for manage
 > Mourinho 8 at the bottom. On the Turkish save the same people read the same values and the top
 > fills with Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda 19.
 >
-> **What is still open is the Defensive boundary, not the field.** Our only Defensive manager
-> reads 7 and our lowest Normal reads 12, so anything in 7..11 fits the ground truth; thirds was
-> chosen because it is principled, not because it is confirmed. A screenshot of any manager
-> reading 8-11 settles it — see `docs/PARSER_EXPANSION_HANDOFF.md` §F for the candidate list.
+> **Both band edges then confirmed by prediction.** The 2024 set could not pin the Defensive
+> edge (only Defensive manager reads 7, lowest Normal reads 12 — any cut in 7..11 fitted), so
+> seven managers spanning intent 6-14 were picked off `frem-2026-07-02.fms`, their Style
+> predicted in advance, and read in-game: **7/7 correct**, including Odder's Peter Pedersen at 8
+> reading Normal and AGF's Jon Dahl Tomasson at 14 reading Attacking. Thirds is measured, not
+> assumed.
 >
 > Job Status remains unlocated and out of scope. `+34..+38` are five undecoded catalog-index
 > bytes (see `fmparser/staff.py`).

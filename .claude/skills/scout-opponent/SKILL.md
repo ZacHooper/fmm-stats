@@ -231,9 +231,9 @@ Everything below is parameterised off the active career — pull these from `db`
   question above — but it is free, it is a sanity check on a mis-read scout screen, and the
   attacking/defensive variants are the only read this report has ever had on **what he changes to
   when the game state changes**: name the shape he shifts into chasing a goal, and the one he
-  shuts up shop in. Caveats: a club WE manage correctly returns no row, and the Style band's
-  Defensive edge is not fully confirmed (see `docs/PARSER_EXPANSION_HANDOFF.md` §F), so treat a
-  "Normal" near the boundary as "Normal or a shade defensive", not as fact.
+  shuts up shop in. One caveat: a club WE manage correctly returns
+  no row. The Style bands themselves are confirmed — 7/7 on a predict-then-check run spanning
+  both edges (`docs/PARSER_EXPANSION_HANDOFF.md` §F) — so quote the label as read, not hedged.
 - **OUR OWN tactics screens** — ASK FOR THESE TOO (Shape / Defence / Attack). A shape sets none of
   mentality, line, closing down, tempo, width or the final-third instructions, and this skill was
   blind to them for a whole season of briefings. In particular check whether **`Work Into Box`** is

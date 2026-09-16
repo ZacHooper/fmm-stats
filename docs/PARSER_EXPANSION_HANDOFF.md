@@ -107,7 +107,7 @@ offset in the game, confirmed on a day-one save. Use the total and the trend; do
 
 ---
 
-## F — Manager STYLE. **SOLVED 2026-09-16** (one boundary left to confirm)
+## F — Manager STYLE. **SOLVED 2026-09-16**, both band edges confirmed in-game
 
 Style is **derived, not stored**: it is a banding of `ID2+14`, one of the seven hidden
 attributes in the staff record. `fmparser/staff.py` exposes it as `attacking_intent` (the raw
@@ -156,31 +156,34 @@ looks like "attacking coaching minus defending coaching". It loses badly out of 
 puts **Mourinho at +4, i.e. Attacking**. `+14` alone gets him right. `+20` is not the opposite
 of `+14` (`corr = +0.01`) and remains unnamed.
 
-### The one thing still to confirm: where Defensive ends
+### The bands, and how both edges were confirmed
 
-`style()` bands in thirds — `<=7` Defensive, `8-13` Normal, `>=14` Attacking. That fits all 7
-ground-truth managers **exactly**, and gives 25% / 45% / 30% across 1,278 real club managers
-with Normal the plurality, which is the right shape for a game label.
+`style()` bands in thirds — `<=7` Defensive, `8-13` Normal, `>=14` Attacking — giving 25% /
+45% / 30% across 1,278 real club managers with Normal the plurality, which is the right shape
+for a game label.
 
-But the ground truth only pins the *Attacking* edge (13 is Normal, 14 is Attacking). Our only
-Defensive manager reads 7 and our lowest Normal reads 12, so **any cut in 7..11 fits equally
-well** — thirds was chosen because it is principled, not because it is confirmed. Under it
-Mourinho (8) and Simeone (9) read Normal, which is arguably wrong; a cut at 11 would make them
-Defensive.
+The 2024 ground truth could only pin the *Attacking* edge (13 Normal, 14 Attacking). Its one
+Defensive manager reads 7 and its lowest Normal reads 12, so **any Defensive cut in 7..11
+fitted it equally well** — and the rival cut at 11 was attractive, because it would have made
+Mourinho (8) and Simeone (9) Defensive, which reads better footballistically.
 
-**One screenshot settles it.** From `frem-2026-07-02.fms`, the Danish managers sitting in the
-undecided zone are:
+So it was settled by prediction rather than by argument: seven managers spanning intent 6-14
+were picked off `frem-2026-07-02.fms`, their Style written down in advance, and then read in
+game. **All seven correct:**
 
-| club | manager | `attacking_intent` | thirds says | a cut at 11 would say |
-|---|---|---|---|---|
-| Hobro IK | Kim Kristensen | 11 | Normal | Defensive |
-| Odense KS | Dani Nørgaard | 11 | Normal | Defensive |
-| KFUM København | Jonas Hjortshøj | 10 | Normal | Defensive |
-| Horsens Freja | Allan Dvinge | 10 | Normal | Defensive |
+| manager | club | intent | predicted & confirmed |
+|---|---|---|---|
+| Peter Sørensen | Vejle BK | 6 | Defensive |
+| **Peter Pedersen** | **Odder IGF** | **8** | **Normal** ← the Defensive edge |
+| Kenneth Kjærsgaard | Jammerbugt FC | 9 | Normal |
+| Johnny Hansen | Vendsyssel FF | 10 | Normal |
+| Kim Kristensen | Hobro IK | 11 | Normal |
+| Brian Priske | Brøndby IF | 12 | Normal |
+| **Jon Dahl Tomasson** | **AGF** | **14** | **Attacking** ← the Attacking edge |
 
-Controls either side, same save: Vejle's Peter Sørensen (6) must read **Defensive** and
-Brøndby's Brian Priske (12) must read **Normal**. If a manager in the table reads Defensive,
-move `_STYLE_BANDS` in `fmparser/staff.py` and re-run `tests/test_staff_records.py`.
+Peter Pedersen at 8 is the one that mattered: it kills the cut-at-11 reading outright. The set
+is guarded in `tests/test_staff_records.py`, which checks it against the 2026 save whenever
+that save is present and skips cleanly when it is not.
 
 ### Still undecoded in this record
 
