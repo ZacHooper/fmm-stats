@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""The in-database attribute model must agree with fmparser/model.py, exactly.
+"""The in-database attribute model must agree with an independent evaluation of its own
+coefficients -- and, when the store still carries the frozen seed, with fmparser/model.py.
 
-The estimation moved out of the parser and into the database on 2026-09-17, so there are now
-TWO implementations of the same fit: `model.predict` in Python and the SQL that
-`load_duckdb._player_attributes_view` generates from `staging.attribute_model`. This is the
-same hazard CLAUDE.md already calls out for `v_player_ratings` vs `site/js/data.js` -- two
-implementations of one formula drift unless something checks them.
+Two implementations of one formula exist now: `model.predict` in Python, and the SQL that
+`load_duckdb._player_attributes_view` generates from `staging.attribute_model`. That is the
+hazard CLAUDE.md already calls out for `v_player_ratings` vs `site/js/data.js`.
 
-It reads the RAW BYTES back out of the store and re-runs the Python model over them, so it
-needs no save file and no extract: the store alone is enough.
+The invariant is NOT "SQL matches model.py" -- that breaks by design the moment anyone refits,
+which is the whole point of moving the model into the database. It is:
+
+  1. the SQL evaluates THE COEFFICIENTS THE STORE HOLDS correctly (always), and
+  2. a store still carrying the frozen seed reproduces fmparser/model.py exactly (only then).
+
+Needs no save file and no extract -- the raw bytes are in the store.
 
     uv run python tests/test_attribute_model.py [--db fm-frem.duckdb]
 """
+import math
 import os
 import sys
 
@@ -19,88 +24,135 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import model as MOD                                   # noqa: E402
-from fmparser.attributes import (ATTR_ORDER, SRC_OFFSETS,           # noqa: E402
-                                 PLAIN_OFFSETS, HIDDEN_OFFSETS, EXACT_SINGLE)
+from fmparser.attributes import (ATTR_ORDER, SRC_OFFSETS, PLAIN_OFFSETS,  # noqa: E402
+                                 HIDDEN_OFFSETS, EXACT_SINGLE)
 
 COLS = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}
-MEAN9_COLS = ["heading_src", "unselfishness_src", "pace_src", "strength_src", "stamina_src",
-              "technique_src", "aggression_src", "leadership_src", "agility_src"]
-FWD_ORDER = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC", "AMR",
-             "ST", "DML", "DMR"]
+MEAN9 = ["heading_src", "unselfishness_src", "pace_src", "strength_src", "stamina_src",
+         "technique_src", "aggression_src", "leadership_src", "agility_src"]
+POS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC", "AMR",
+       "ST", "DML", "DMR"]
+SAMPLE = 3000
 
 
 def main(argv):
-    db = "fm-frem.duckdb"
-    if "--db" in argv:
-        db = argv[argv.index("--db") + 1]
+    db = argv[argv.index("--db") + 1] if "--db" in argv else "fm-frem.duckdb"
     if not os.path.exists(db):
         print(f"SKIP: {db} not found (build it with scripts/rebuild.py)")
         return 0
     import duckdb
     con = duckdb.connect(db, read_only=True)
 
+    spec, tags = {}, set()
+    for attr, feat, coef, own, partner, fitted in con.execute(
+            "SELECT attribute, feature, coef, own_offset, partner_offset, fitted "
+            "FROM staging.attribute_model").fetchall():
+        d = spec.setdefault(attr, {"own": own, "partner": partner, "coef": {}})
+        d["coef"][feat] = coef
+        tags.add(fitted)
+    if not spec:
+        print("SKIP: staging.attribute_model is empty")
+        return 0
+    print(f"  coefficients in store: {', '.join(sorted(tags))}")
+
     byte_cols = sorted(set(COLS.values()))
     rows = con.execute(f"""
-        SELECT p.season, p.phase, p.tid, p.ca, p.pa,
+        SELECT p.tid, p.ca, p.pa,
                {', '.join('p."' + c + '"' for c in byte_cols)},
-               (SELECT t.position FROM staging.player_positions t
-                 WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid)
-                 ORDER BY t.familiarity DESC,
-                          list_position({FWD_ORDER!r}, t.position) LIMIT 1) AS toppos,
+               {', '.join(f'''COALESCE((SELECT t.familiarity FROM staging.player_positions t
+                    WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid)
+                      AND t.position = '{q}'), 0)''' for q in POS)},
                {', '.join('a."' + a + '"' for a in ATTR_ORDER)},
                {', '.join('a."' + a + '_est"' for a in ATTR_ORDER)}
         FROM staging.players p JOIN staging.player_attributes a USING (season, phase, tid)
         WHERE p.ca IS NOT NULL AND p.passing_src IS NOT NULL
-        USING SAMPLE 4000 ROWS
+        USING SAMPLE {SAMPLE} ROWS
     """).fetchall()
     if not rows:
         print("SKIP: no attributed players in the store")
         return 0
 
-    bi = {c: 5 + i for i, c in enumerate(byte_cols)}
-    top_i = 5 + len(byte_cols)
-    attr_i = top_i + 1
-    est_i = attr_i + len(ATTR_ORDER)
-    bad = {}
+    bi = {c: 3 + i for i, c in enumerate(byte_cols)}
+    pi = 3 + len(byte_cols)
+    ai = pi + len(POS)
+    ei = ai + len(ATTR_ORDER)
+
+    bad_sql, bad_frozen, n_sql, n_frozen = {}, {}, 0, 0
+    frozen_seed = all(t.startswith("frozen") for t in tags)
     for r in rows:
-        ca, pa = r[3], r[4]
-        mean9 = sum(r[bi[c]] for c in MEAN9_COLS) / 9.0
-        top = r[top_i] or ""
+        ca, pa = r[1], r[2]
+        m9 = sum(r[bi[c]] for c in MEAN9) / 9.0
+        fam = r[pi:pi + len(POS)]
+        top = POS[max(range(len(POS)), key=lambda i: (fam[i], -i))] if max(fam) else ""
         fwd = 1.0 if top in ("ST", "AML", "AMR", "AMC") else (
               0.5 if top in ("ML", "MR", "MC", "DMC", "DML", "DMR") else 0.0)
-        # a flat buffer the Python model can index exactly as it indexes an mmap
-        buf = bytearray(120)
-        for rel, name in COLS.items():
-            buf[60 + rel] = r[bi[name]]
-        for attr, spec in MOD.FROZEN.items():
-            # Only rows the model actually produced. Our own squad carries EXACT values from
-            # the managed-club snapshot, and those are supposed to differ from the fit --
-            # comparing them would be testing that the model is wrong.
-            if not r[est_i + ATTR_ORDER.index(attr)]:
-                continue
-            want = r[attr_i + ATTR_ORDER.index(attr)]
-            got = MOD.predict(attr, buf, 60, ca, pa, mean9, fwd)
-            if want != got:
-                bad.setdefault(attr, []).append((r[2], want, got))
+        for attr, d in spec.items():
+            j = ATTR_ORDER.index(attr)
+            if not r[ei + j]:
+                continue            # exact value; the model did not produce it
+            want = r[ai + j]
+            own = MOD.uw(r[bi[COLS[d["own"]]]])
+            vals = {"own": own, "CA": ca, "PA": pa, "mean9": m9, "fwd": fwd,
+                    "own*CA": own * ca / 100.0, "intercept": 1.0,
+                    "partner": MOD.uw(r[bi[COLS[d["partner"]]]]) if d["partner"] else 0.0}
+            vals.update({p: fam[k] for k, p in enumerate(POS)})
+            acc = sum(c * vals[f] for f, c in d["coef"].items())
+            got = max(1, min(20, int(_round_half_up(acc))))
+            n_sql += 1
+            if got != want:
+                bad_sql.setdefault(attr, []).append((r[0], want, got))
+            if frozen_seed and attr in MOD.FROZEN:
+                n_frozen += 1
+                fz = MOD.predict(attr, _buf(r, bi), 60, ca, pa, m9, fwd)
+                if fz != want:
+                    bad_frozen.setdefault(attr, []).append((r[0], want, fz))
 
-    n = sum(1 for r in rows for a in MOD.FROZEN if r[est_i + ATTR_ORDER.index(a)])
-    if bad:
-        print(f"FAIL: SQL and fmparser/model.py disagree on {sum(map(len, bad.values()))}"
-              f" of {n:,} values")
-        for a, d in sorted(bad.items(), key=lambda kv: -len(kv[1])):
-            print(f"  {a}: {len(d)} (tid, sql, python) e.g. {d[:3]}")
-        return 1
-    print(f"  OK  {n:,} modelled values across {len(rows):,} players agree exactly")
-    # The exactly-known ones must never be modelled: they come straight off the record.
-    exact_bad = [a for a in EXACT_SINGLE
-                 if con.execute(f'SELECT count(*) FROM staging.player_attributes '
-                                f'WHERE "{a}_est"').fetchone()[0]]
-    if exact_bad:
-        print(f"FAIL: these are read directly and must never be flagged estimated: {exact_bad}")
-        return 1
-    print(f"  OK  the {len(EXACT_SINGLE)} directly-read attributes are never flagged estimated")
-    print("\nPASS: the database model and fmparser/model.py agree exactly")
-    return 0
+    ok = True
+    if bad_sql:
+        ok = False
+        print(f"FAIL: SQL disagrees with its OWN coefficients on "
+              f"{sum(map(len, bad_sql.values()))} of {n_sql:,} values")
+        for a, d in sorted(bad_sql.items(), key=lambda kv: -len(kv[1]))[:5]:
+            print(f"  {a}: {len(d)} (tid, sql, expected) e.g. {d[:3]}")
+    else:
+        print(f"  OK  {n_sql:,} modelled values match an independent evaluation of the "
+              f"store's own coefficients")
+
+    if frozen_seed:
+        if bad_frozen:
+            ok = False
+            print(f"FAIL: the frozen seed does not reproduce fmparser/model.py on "
+                  f"{sum(map(len, bad_frozen.values()))} of {n_frozen:,}")
+            for a, d in sorted(bad_frozen.items(), key=lambda kv: -len(kv[1]))[:5]:
+                print(f"  {a}: {len(d)} e.g. {d[:3]}")
+        else:
+            print(f"  OK  {n_frozen:,} values also reproduce fmparser/model.py exactly")
+    else:
+        print("  --  store carries a refit, so the model.py cross-check does not apply")
+
+    stray = [a for a in EXACT_SINGLE
+             if con.execute(f'SELECT count(*) FROM staging.player_attributes '
+                            f'WHERE "{a}_est"').fetchone()[0]]
+    if stray:
+        ok = False
+        print(f"FAIL: read directly off the record, must never be modelled: {stray}")
+    else:
+        print(f"  OK  the {len(EXACT_SINGLE)} directly-read attributes are never modelled")
+
+    print("\nPASS: the database attribute model is self-consistent" if ok else "\nFAIL")
+    return 0 if ok else 1
+
+
+def _round_half_up(x):
+    """DuckDB's round() goes half AWAY FROM ZERO; Python's round() goes half to EVEN."""
+    return math.floor(x + 0.5) if x >= 0 else math.ceil(x - 0.5)
+
+
+def _buf(r, bi):
+    b = bytearray(120)
+    for off, name in COLS.items():
+        b[60 + off] = r[bi[name]]
+    return b
 
 
 if __name__ == "__main__":

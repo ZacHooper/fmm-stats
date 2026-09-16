@@ -127,9 +127,9 @@ _MEAN9 = ("((p.heading_src + p.unselfishness_src + p.pace_src + p.strength_src +
 # FIRST key at the maximum in insertion order, and insertion order is attributes.POSITIONS --
 # so a player equally good at DC and ST resolves to DC. Ordering by position NAME instead put
 # 588 of 581,486 values one point out, every one of them on an attribute that uses fwd.
-_POS_RANK = " ".join(f"WHEN '{p}' THEN {i}" for i, p in enumerate(
-    ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC", "AMR",
-     "ST", "DML", "DMR"]))
+_POSITIONS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC", "AMR",
+              "ST", "DML", "DMR"]
+_POS_RANK = " ".join(f"WHEN '{p}' THEN {i}" for i, p in enumerate(_POSITIONS))
 _FWD = """(SELECT CASE WHEN t.position IN ('ST','AML','AMR','AMC') THEN 1.0
                        WHEN t.position IN ('ML','MR','MC','DMC','DML','DMR') THEN 0.5
                        ELSE 0.0 END
@@ -170,6 +170,14 @@ def _model_expr(attr, spec, S):
             e = f"({own} * p.ca / 100.0)"
         elif feat == "fwd":
             e = _FWD.format(S=S)
+        elif feat in _POSITIONS:
+            # A refit may use the 15 position familiarities directly instead of collapsing
+            # them into `fwd` -- the frozen model has no position term at all, and Passing
+            # alone varies from MC to GK at matched ability, so this is the obvious thing for
+            # a refit to reach for.
+            e = (f"COALESCE((SELECT t.familiarity FROM {S}.player_positions t "
+                 f"WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid) "
+                 f"AND t.position = '{feat}'), 0)")
         elif feat == "intercept":
             parts.append(_d(c))
             continue
