@@ -95,33 +95,15 @@ Two consequences:
 
 ## A by-product: FM's positional CA weighting, recovered
 
-Regressing CA on all 34 raw attribute slots (standardised betas, `archive/ca_weight_set.py`)
-over **138,349 outfield player-snapshots** recovers what the game weights at each position.
-R² is 0.72–0.77 within a position, and the answer is footballistically coherent, which is the
-main reason to believe it:
+Regressing CA on all 34 raw attribute slots recovers what the game weights at each position
+(R² 0.60–0.74 over 155k player-snapshots). That, the full per-position weight tables, the
+three-way taxonomy of how the save hands us each of the 23 displayed attributes, and the
+**94.8% label ceiling** every accuracy number here is measured against, all live in
+**[`docs/ca-weighting.md`](ca-weighting.md)**. Read it before quoting any accuracy figure — the
+decoder's 57.7% is against a ceiling of ~95, not 100.
 
-| top position | the attributes CA leans on most |
-|---|---|
-| DC | decisions, positioning, tackling, passing, creativity, strength, heading |
-| MC | stamina, dribbling, decisions, tackling, creativity, passing |
-| ST | stamina, **finishing**, strength, dribbling, pace |
-| DL | decisions, stamina, pace, tackling, **crossing** |
-| AML | **pace**, stamina, finishing, agility |
-| GK | strength, stamina, technique, agility, reflexes (and heading *negatively*) |
-
-Crossing earns weight at DL/ST/AML and none at DC; finishing is second at ST and tenth at MC;
-tackling matters at DC/MC/DL and not at AML. This is a scouting asset — it says what the game
-rewards in a given slot — **but it is not a lever for the decoder**, per the section above.
-
-Two traps if anyone re-runs this:
-
-- **Marginal correlation gets it backwards.** Pooled, `tackling_src` correlates 0.04 with CA and
-  `finishing_src` 0.03 — apparently irrelevant. In the multiple regression tackling is the
-  single largest term. The entangled bytes are ability-independent, so they only reveal
-  themselves once the rest of the vector is controlled for. Use the regression, not `corr`.
-- **Split GK from outfield first.** Pooled, every GK byte correlates about −0.6 with CA, purely
-  because outfielders' GK bytes sit below the display floor and go lower as CA rises. That is
-  the strongest apparent signal in the whole table and it is an artifact.
+It is a scouting asset, **not** a lever for the decoder: CA's contribution to the entangled
+attributes is uniform, per the section above.
 
 ## The next step: grid-search WEIGHTS on exact matches
 
