@@ -15,7 +15,7 @@ from datetime import date, timedelta
 
 from . import reference as R
 from .attributes import (_valid_positions, ATTR_OFFSETS, POSITIONS, hidden_attributes,
-                         record_tail, source_bytes)
+                         record_tail, source_bytes, plain_bytes)
 from .regions import (ATTR_LO, ATTR_HI, CONTRACTREC_LO, CONTRACTREC_HI,
                       WAGE_GBP_PER_UNIT)
 
@@ -369,6 +369,7 @@ def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):
                     **record_tail(mm, P),
                     **hidden_attributes(mm, P),
                     **source_bytes(mm, P),
+                    **plain_bytes(mm, P),
                 }
                 out.setdefault(sid, rec)
                 P += 78

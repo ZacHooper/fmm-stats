@@ -98,7 +98,7 @@ HIDDEN_FIELDS = tuple(A.HIDDEN_OFFSETS.values())
 # The entangled 0-255 source bytes, carried RAW so the estimation model can be
 # retrained against the store instead of a 25-minute re-extract. See
 # attributes.SRC_OFFSETS: scraping and inference are different jobs.
-SRC_FIELDS = tuple(A.SRC_OFFSETS.values())
+SRC_FIELDS = tuple(A.SRC_OFFSETS.values()) + tuple(A.PLAIN_OFFSETS.values())
 
 
 def parse_label(label):
@@ -343,10 +343,16 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
                 row["estimated"] = {a: False for a in A.ATTR_ORDER}
                 row["feet"] = own_exact[tid]["feet"]
                 row["value"] = own_exact[tid]["value"]
-            else:                          # everyone else: estimated (+/-1)
-                est, _, _ = A.estimate_player(mm, rec)
-                row["attributes"] = {a: est[a]["val"] for a in A.ATTR_ORDER}
-                row["estimated"] = {a: est[a]["est"] for a in A.ATTR_ORDER}
+            else:
+                # Everyone else: write ONLY what the record states plainly. The 15 entangled
+                # attributes and Teamwork are DERIVED, and derivation is the database's job --
+                # staging.player_attributes is a view over these exact values plus
+                # staging.attribute_model. Estimating here is what used to make retraining the
+                # model cost a full re-extract of every save.
+                row["attributes"] = {a: (rec["attributes"][a] if a in A.EXACT_SINGLE else None)
+                                     for a in A.ATTR_ORDER}
+                row["estimated"] = {a: a not in A.EXACT_SINGLE and a != "Teamwork"
+                                    for a in A.ATTR_ORDER}
                 row["feet"] = rec["feet"]
         else:                              # identity only (free agents / no record)
             row.update({"is_gk": None, "ca": None, "pa": None, "reputation": None,

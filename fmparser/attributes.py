@@ -359,6 +359,28 @@ SRC_OFFSETS = {-34: "crossing_src", -33: "dribbling_src", -32: "tackling_src",
                -1: "throwing_src"}
 
 
+# The remaining nine PLAIN 1-20 bytes, stored raw as well.
+#
+# Seven of them (Pace..Agility) equal their displayed value, so this looks redundant -- but
+# two do not, and those two are why this exists. FMM22's displayed "Aerial" is a function of
+# the Heading AND Jumping bytes, and "Teamwork" is floor((Unselfishness + WorkRate) / 2). The
+# raw Heading and Unselfishness bytes were therefore reachable ONLY through the parser's own
+# derivation, which is precisely the coupling we are removing: the estimation model needs
+# them (they are two of the nine `mean9` averages), so a model retrained against the store
+# could not reproduce the parser without them.
+#
+# With these, staging.players carries all 34 attribute slots of the record verbatim, and
+# nothing downstream has to go back to the save to refit anything.
+PLAIN_OFFSETS = {-29: "heading_src", -25: "unselfishness_src", -24: "pace_src",
+                 -23: "strength_src", -22: "stamina_src", -21: "technique_src",
+                 -19: "aggression_src", -16: "leadership_src", -5: "agility_src"}
+
+
+def plain_bytes(mm, P):
+    """The nine plain 1-20 bytes that back the displayed exact attributes, raw."""
+    return {name: mm[P + rel] for rel, name in PLAIN_OFFSETS.items()}
+
+
 def source_bytes(mm, P):
     """The 16 entangled 0-255 attribute bytes, raw and undecoded."""
     return {name: mm[P + rel] for rel, name in SRC_OFFSETS.items()}
@@ -413,7 +435,7 @@ def record_for(mm, tid):
                 "feet": {"left": left, "right": right},
                 "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs,
                 **record_tail(mm, P), **hidden_attributes(mm, P),
-                **source_bytes(mm, P)}
+                **source_bytes(mm, P), **plain_bytes(mm, P)}
 
 
 # ---------------- full 23-attr estimation ----------------

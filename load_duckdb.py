@@ -23,6 +23,7 @@ import datetime
 import glob
 import json
 import os
+import re
 import sys
 
 import duckdb
@@ -51,7 +52,8 @@ _XI = M._XI_FIELDS  # noqa: SLF001 (intentional reuse of the canonical list)
 # fmparser/staff.py HIDDEN_OFFSETS for why they are carried but not named.
 from fmparser.attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
 from fmparser.attributes import SRC_OFFSETS as _SRC              # noqa: E402
-SRC_COLS = list(_SRC.values())
+from fmparser.attributes import PLAIN_OFFSETS as _PLAIN            # noqa: E402
+SRC_COLS = list(_SRC.values()) + list(_PLAIN.values())
 from fmparser.staging import PERSON_FIELDS as _PERSON                # noqa: E402
 PERSON_COLS = list(_PERSON)
 # Everything off the info record is a small integer except the one date.
@@ -78,10 +80,147 @@ STAFF_ATTR_COLS = [
 ]
 
 
+# ---------------------------------------------------------------------------- attribute model
+# The estimation model, moved OUT of the parser and INTO the database (2026-09-17).
+#
+# It used to run in extract.py, so only its OUTPUT ever reached the store and retraining meant
+# a ~25-minute re-extract of every save before a candidate could be scored. Now the raw bytes
+# are stored (attributes.SRC_OFFSETS / PLAIN_OFFSETS) and the coefficients live in a table, so
+# a retrain is: write new coefficients, run `--refresh-only`, done. The parser scrapes; the
+# database infers.
+#
+# `staging.player_attributes` is a VIEW over `player_attributes_exact` (what the save states
+# outright) and this model (everything else), so every existing consumer is unchanged and the
+# `_est` flags still say which is which.
+ATTR_MODEL_DDL = """CREATE TABLE IF NOT EXISTS staging.attribute_model (
+        attribute VARCHAR NOT NULL, feature VARCHAR NOT NULL, coef DOUBLE NOT NULL,
+        own_offset INTEGER, partner_offset INTEGER, fitted VARCHAR
+    )"""
+
+
+def _seed_attribute_model(con, force=False):
+    """Seed the coefficient table from fmparser.model.FROZEN unless it already holds a fit.
+
+    The frozen dict stays the DEFAULT so a fresh store reproduces today's numbers exactly; a
+    refit overwrites the table and `--refresh-only` picks it up without touching the parser.
+    """
+    from fmparser import model as _MOD
+    n = con.execute("SELECT count(*) FROM staging.attribute_model").fetchone()[0]
+    if n and not force:
+        return n
+    con.execute("DELETE FROM staging.attribute_model")
+    rows = []
+    for attr, (own, partner, feats, coef) in _MOD.FROZEN.items():
+        for f, c in list(zip(feats, coef)) + [("intercept", coef[-1])]:
+            rows.append((attr, f, float(c), own, partner, "frozen-2024-bucaspor-28"))
+    con.executemany("INSERT INTO staging.attribute_model VALUES (?,?,?,?,?,?)", rows)
+    return len(rows)
+
+
+# Feature expressions, in the model's own vocabulary. `own`/`partner` are the wrapped 0-255
+# source bytes; everything else is read straight off the stored record.
+_UW = "(CASE WHEN {c} < 128 THEN {c} + 256 ELSE {c} END)"
+_MEAN9 = ("((p.heading_src + p.unselfishness_src + p.pace_src + p.strength_src + p.stamina_src"
+          " + p.technique_src + p.aggression_src + p.leadership_src + p.agility_src) / 9.0)")
+# fwd: attacking-ness of the player's best position, exactly as attributes.fwd_of computes it.
+# The tie-break is load-bearing. Python's `max(positions, key=positions.get)` returns the
+# FIRST key at the maximum in insertion order, and insertion order is attributes.POSITIONS --
+# so a player equally good at DC and ST resolves to DC. Ordering by position NAME instead put
+# 588 of 581,486 values one point out, every one of them on an attribute that uses fwd.
+_POS_RANK = " ".join(f"WHEN '{p}' THEN {i}" for i, p in enumerate(
+    ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC", "AMR",
+     "ST", "DML", "DMR"]))
+_FWD = """(SELECT CASE WHEN t.position IN ('ST','AML','AMR','AMC') THEN 1.0
+                       WHEN t.position IN ('ML','MR','MC','DMC','DML','DMR') THEN 0.5
+                       ELSE 0.0 END
+            FROM {S}.player_positions t
+           WHERE (t.season, t.phase, t.tid) = (p.season, p.phase, p.tid)
+           ORDER BY t.familiarity DESC, (CASE t.position """ + _POS_RANK + """ END)
+           LIMIT 1)"""
+_SRC_BY_OFFSET = None
+
+
+def _d(c):
+    """A coefficient as an explicit DOUBLE. Written bare, DuckDB reads a 16-digit literal as
+    DECIMAL(18) and the first multiplication by a byte value overflows."""
+    return f"CAST({c!r} AS DOUBLE)"
+
+
+def _model_expr(attr, spec, S):
+    """SQL for one attribute's fitted value, from the coefficient rows."""
+    from fmparser.attributes import SRC_OFFSETS, PLAIN_OFFSETS, HIDDEN_OFFSETS
+    # HIDDEN_OFFSETS is in here because Aerial's PARTNER byte is Jumping (P-28), which is
+    # stored under its own name rather than as a `_src` column.
+    cols = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}
+    own_off, partner_off = spec["own"], spec["partner"]
+    own = _UW.format(c=f'p."{cols[own_off]}"')
+    parts = []
+    for feat, c in spec["coef"].items():
+        if feat == "own":
+            e = own
+        elif feat == "partner":
+            e = _UW.format(c=f'p."{cols[partner_off]}"')
+        elif feat == "CA":
+            e = "p.ca"
+        elif feat == "PA":
+            e = "p.pa"
+        elif feat == "mean9":
+            e = _MEAN9
+        elif feat == "own*CA":
+            e = f"({own} * p.ca / 100.0)"
+        elif feat == "fwd":
+            e = _FWD.format(S=S)
+        elif feat == "intercept":
+            parts.append(_d(c))
+            continue
+        else:
+            raise ValueError(f"unknown model feature {feat!r}")
+        parts.append(f"({_d(c)} * {e})")
+    total = " + ".join(parts)
+    return f"GREATEST(1, LEAST(20, CAST(round({total}) AS INTEGER)))"
+
+
+def _player_attributes_view(con, S="staging"):
+    """Build staging.player_attributes from the exact values plus the model in the DB."""
+    rows = con.execute("""SELECT attribute, feature, coef, own_offset, partner_offset
+                          FROM staging.attribute_model""").fetchall()
+    spec = {}
+    for attr, feat, coef, own, partner in rows:
+        d = spec.setdefault(attr, {"own": own, "partner": partner, "coef": {}})
+        d["coef"][feat] = coef
+    sel = []
+    for a in ATTR_ORDER:
+        if a == "Teamwork":
+            # Not a fit -- a stated formula over two raw bytes, floor((Unselfishness +
+            # WorkRate) / 2). It moves here for the same reason as the rest (derivation is the
+            # database's job) but it is NOT an estimate, so `_est` stays FALSE exactly as it
+            # was before the move. Flipping it would silently reclassify every non-squad
+            # player's Teamwork as estimated and change `is_estimated` across the mart.
+            tw = ("GREATEST(1, LEAST(20, CAST(floor((p.unselfishness_src + p.work_rate) / 2.0)"
+                  " AS INTEGER)))")
+            sel.append(f'COALESCE(e."{a}", {tw}) AS "{a}"')
+            sel.append(f'FALSE AS "{a}_est"')
+        elif a in spec:
+            sel.append(f'COALESCE(e."{a}", {_model_expr(a, spec[a], S)}) AS "{a}"')
+            sel.append(f'(e."{a}" IS NULL) AS "{a}_est"')
+        else:
+            sel.append(f'e."{a}" AS "{a}"')
+            sel.append(f'FALSE AS "{a}_est"')
+    return (f"CREATE OR REPLACE VIEW {S}.player_attributes AS\nSELECT "
+            f"p.season, p.phase, p.tid,\n       " + ",\n       ".join(sel) +
+            f"\nFROM {S}.players p JOIN {S}.player_attributes_exact e"
+            f" USING (season, phase, tid)")
+
+
 def _attr_cols_ddl():
     cols = [f'"{a}" INTEGER' for a in ATTR_ORDER]
     cols += [f'"{a}_est" BOOLEAN' for a in ATTR_ORDER]
     return ",\n    ".join(cols)
+
+
+def _exact_cols_ddl():
+    # No `_est` columns here: a NULL IS the "not stated" flag, and the view derives the rest.
+    return ",\n    ".join(f'"{a}" INTEGER' for a in ATTR_ORDER)
 
 
 # NB: no enforced PRIMARY KEYs. DuckDB maintains an ART index per PK, and bulk
@@ -267,6 +406,13 @@ DDL = [
         positioning_src INTEGER, handling_src INTEGER, kicking_src INTEGER,
         aerial_gk_src INTEGER, reflexes_src INTEGER, communication_src INTEGER,
         throwing_src INTEGER,
+        -- ...and the nine PLAIN bytes, so the whole 34-slot attribute block is here verbatim.
+        -- heading_src and unselfishness_src are the load-bearing two: displayed Aerial and
+        -- Teamwork are DERIVED from them, so without these the model could not be refitted
+        -- against the store alone.
+        heading_src INTEGER, unselfishness_src INTEGER, pace_src INTEGER,
+        strength_src INTEGER, stamina_src INTEGER, technique_src INTEGER,
+        aggression_src INTEGER, leadership_src INTEGER, agility_src INTEGER,
         -- From the INFO record (staging.PERSON_FIELDS), so STAFF carry these too -- they are
         -- facts about a person, not about a player. The 8 personality values are the ones the
         -- Manager Profile screen shows.
@@ -278,10 +424,13 @@ DDL = [
     )""",
 
     # natural key: (season, phase, tid)
-    f"""CREATE TABLE IF NOT EXISTS staging.player_attributes (
+    # What the SAVE STATES outright: exact values only, NULL where the record does not carry
+    # one plainly. staging.player_attributes is a VIEW over this plus staging.attribute_model.
+    f"""CREATE TABLE IF NOT EXISTS staging.player_attributes_exact (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
-        {_attr_cols_ddl()}
+        {_exact_cols_ddl()}
     )""",
+    ATTR_MODEL_DDL,
 
     # Coaching ability + the manager formation triple, from the STAFF attribute record
     # (fmparser/staff.py). Separate from staging.players because only ~4.2k of ~7.5k staff
@@ -696,7 +845,7 @@ def load_core(con, d, season, phase):
     players = _load_json(os.path.join(d, "players.json"))
     prows, arows = [], []
     seen = set()
-    acols = ["season", "phase", "tid"] + ATTR_ORDER + [f"{a}_est" for a in ATTR_ORDER]
+    acols = ["season", "phase", "tid"] + ATTR_ORDER
     for v in players.values():
         tid = _int(v.get("tid"))
         if tid is None or tid in seen:
@@ -727,12 +876,13 @@ def load_core(con, d, season, phase):
             *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
               for c in PERSON_COLS),
         ))
+        # EXACT values only. `estimated` marks which of the extract's values the save states
+        # outright; anything else is stored NULL and derived by staging.player_attributes.
         attrs, est = v.get("attributes"), v.get("estimated") or {}
         if attrs:
             arows.append(
                 (season, phase, tid)
-                + tuple(_int(attrs.get(a)) for a in ATTR_ORDER)
-                + tuple(est.get(a) for a in ATTR_ORDER)
+                + tuple(None if est.get(a) else _int(attrs.get(a)) for a in ATTR_ORDER)
             )
 
     srows, sarows = [], []
@@ -777,7 +927,7 @@ def load_core(con, d, season, phase):
     counts["players"] = _insert(con, "players", pcols, prows)
     counts["staff"] = _insert(con, "players", pcols, srows)
     counts["staff_attributes"] = _insert(con, "staff_attributes", STAFF_ATTR_COLS, sarows)
-    counts["player_attributes"] = _insert(con, "player_attributes", acols, arows)
+    counts["player_attributes"] = _insert(con, "player_attributes_exact", acols, arows)
 
     # long-form positions (every position a player can play + familiarity)
     pprows = []
@@ -1153,7 +1303,7 @@ def load_standings(con, d, season, phase):
 # DELETE scope so a reload of one group leaves the others intact
 def _clear_group(con, group, season, phase):
     if group == "core":
-        for t in ("players", "player_attributes", "staff_attributes", "player_positions",
+        for t in ("players", "player_attributes_exact", "staff_attributes", "player_positions",
                   "player_history", "player_history_seasons", "player_injuries",
                   "player_loans",
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
@@ -1328,8 +1478,20 @@ def _crosscheck(label, counts, expected):
 # ---------------------------------------------------------------------------
 
 def create_schema(con):
+    # staging.player_attributes is a VIEW now (exact values + the model in
+    # staging.attribute_model), and one DDL statement reads it -- history.player_snapshots is
+    # a CREATE TABLE ... AS SELECT that joins it. So the view has to be built partway through
+    # the sequence: after the tables it reads exist, before the first statement that needs it.
+    made_view = False
     for stmt in DDL:
+        if not made_view and re.search(r"staging\.player_attributes\b(?!_exact)", stmt):
+            _seed_attribute_model(con)
+            con.execute(_player_attributes_view(con))
+            made_view = True
         con.execute(stmt)
+    if not made_view:
+        _seed_attribute_model(con)
+        con.execute(_player_attributes_view(con))
     _migrate(con)
 
 
@@ -1586,6 +1748,11 @@ def rebuild_persons(con):
 
 
 def create_views(con):
+    # The attribute model first: staging.player_attributes is a VIEW built from the
+    # coefficient table, and most of what follows reads it.
+    con.execute(ATTR_MODEL_DDL)
+    _seed_attribute_model(con)
+    con.execute(_player_attributes_view(con))
     for name, sql in VIEWS.items():
         con.execute(f"CREATE OR REPLACE VIEW {name} AS {sql}")
 
@@ -1598,6 +1765,7 @@ def reset_schema(con):
     con.execute("DROP SCHEMA IF EXISTS history CASCADE")
     for name in VIEWS:
         con.execute(f"DROP VIEW IF EXISTS {name}")
+    con.execute("DROP VIEW IF EXISTS staging.player_attributes")
 
 
 def discover_labels(root):
