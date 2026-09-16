@@ -109,92 +109,29 @@ offset in the game, confirmed on a day-one save. Use the total and the trend; do
 
 ## F — Manager STYLE. **SOLVED 2026-09-16**, both band edges confirmed in-game
 
-Style is **derived, not stored**: it is a banding of `ID2+14`, one of the seven hidden
-attributes in the staff record. `fmparser/staff.py` exposes it as `attacking_intent` (the raw
-1-20 value) and `style` (the derived label), the same shape as `reputation_tier`.
+Style is **derived, not stored**: a banding of `ID2+14`, one of the staff record's hidden
+attributes, exposed as `attacking_intent` (raw 1-20) and `style` (the label).
 
-### What cracked it: the record is 39 bytes
+**The full argument lives in `fmparser/staff.py`'s module docstring** — next to the code it
+governs, so it cannot drift from it: the 39-byte stride that settled the extent and left
+nowhere for a 3-valued enum, the out-of-sample test against the licensed manager database, the
+rejected `+14 − +20` rival, and the band thirds. **The numbers live in
+`tests/test_staff_records.py`** as executable data — the 7 ground-truth managers and the 7
+whose Style was predicted in advance off `frem-2026-07-02.fms` and then read in game, 7/7
+correct, Peter Pedersen at intent 8 reading Normal being the one that kills the cut-at-11
+reading.
 
-Every earlier round searched a window around the record without knowing where the record
-*ended*. Measuring the stride between consecutive real records settles it — **3,896 of 4,209
-gaps are exactly 39**, and 4,657 of 5,097 on the Turkish save (the rest are 78/117/156, i.e.
-skipped records). So:
-
-```
-+0   id2 u32          +4  ca u16      +6  pa u16
-+8   home rep u16     +10 current u16 +12 world u16
-+14 .. +30            SEVENTEEN attribute bytes (1-20)
-+31 .. +38            EIGHT catalog-index bytes
-```
-
-Seventeen is the number the Manager Profile screen shows — but seven of those seventeen are the
-personality block on the **info** record, so only 10 of these are displayed and **seven are
-hidden**. And with the extent known there is nowhere left in the record for a 3-valued enum,
-which is what turns "we cannot find Style" into "Style is not stored".
-
-### Why `+14`, and not another n=7 false positive
-
-`+14` is the only byte in the record that orders the 7 ground-truth managers Attacking >
-Normal > Defensive. On its own that is worth nothing — BUGS #14's `-140` candidate did exactly
-that and was noise — so it was tested **out of sample** against the licensed real-world manager
-database the save carries:
-
-- the four managers **Round 3 of BUGS #14 had already labelled attacking**, before this hunt
-  existed, all land in the top 15% of the distribution: Klopp 18, Postecoglou 16, De Zerbi 16,
-  Nagelsmann 16. By chance that is p < 1e-3.
-- **Controlling for quality** (the obvious confound — `corr(+14, world reputation)` is only
-  +0.24, but elite managers do average 13.3 vs 10.7): inside the top 20 by world reputation the
-  order runs Klopp 18, Nagelsmann 16, Tuchel 15, Pochettino 15, Gallardo 15 … Nuno 11, Zidane
-  10, Simeone 9, Mourinho 8. The two most famously defensive managers in world football are the
-  two lowest of the twenty.
-- **Cross-career**: on the Turkish save the same people read the same values (Klopp 18, Simeone
-  9, Mourinho 8 — it is a static database attribute, not career state), and the names that fill
-  the top were chosen by nobody: Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda 19.
-
-A rejected rival worth recording: `+14 - +20` also orders the 7 ground-truth managers, and
-looks like "attacking coaching minus defending coaching". It loses badly out of sample — it
-puts **Mourinho at +4, i.e. Attacking**. `+14` alone gets him right. `+20` is not the opposite
-of `+14` (`corr = +0.01`) and remains unnamed.
-
-### The bands, and how both edges were confirmed
-
-`style()` bands in thirds — `<=7` Defensive, `8-13` Normal, `>=14` Attacking — giving 25% /
-45% / 30% across 1,278 real club managers with Normal the plurality, which is the right shape
-for a game label.
-
-The 2024 ground truth could only pin the *Attacking* edge (13 Normal, 14 Attacking). Its one
-Defensive manager reads 7 and its lowest Normal reads 12, so **any Defensive cut in 7..11
-fitted it equally well** — and the rival cut at 11 was attractive, because it would have made
-Mourinho (8) and Simeone (9) Defensive, which reads better footballistically.
-
-So it was settled by prediction rather than by argument: seven managers spanning intent 6-14
-were picked off `frem-2026-07-02.fms`, their Style written down in advance, and then read in
-game. **All seven correct:**
-
-| manager | club | intent | predicted & confirmed |
-|---|---|---|---|
-| Peter Sørensen | Vejle BK | 6 | Defensive |
-| **Peter Pedersen** | **Odder IGF** | **8** | **Normal** ← the Defensive edge |
-| Kenneth Kjærsgaard | Jammerbugt FC | 9 | Normal |
-| Johnny Hansen | Vendsyssel FF | 10 | Normal |
-| Kim Kristensen | Hobro IK | 11 | Normal |
-| Brian Priske | Brøndby IF | 12 | Normal |
-| **Jon Dahl Tomasson** | **AGF** | **14** | **Attacking** ← the Attacking edge |
-
-Peter Pedersen at 8 is the one that mattered: it kills the cut-at-11 reading outright. The set
-is guarded in `tests/test_staff_records.py`, which checks it against the 2026 save whenever
-that save is present and skips cleanly when it is not.
+Recorded here because they appear nowhere else: `corr(+14, world reputation)` is only **+0.24**
+(elite managers do average 13.3 against 10.7 overall, so quality is a confound but not the
+signal), and `corr(+14, +20)` is **+0.01** — `+20` is not the opposite of `+14`, and stays
+unnamed.
 
 ### Still undecoded in this record
 
 - **`+34..+38`** — five more catalog-index bytes, and a real structure rather than padding:
   they draw from a 15-value subset of `[0,19]` that is **disjoint** from the formation triple's
   own 15-value subset, they are mutually independent (~9% pairwise agreement against a ~7%
-  chance rate), and independent of the triple (~5%). Five independent draws from a different
-  index space than the formations. Naming them needs ground truth we do not have.
-- **Six of the seven hidden attributes** (`+18, +20, +24, +26, +27, +28`). `+27` is the easiest
-  next target: 85% of staff read 1-4 on it with a thin tail to 20, a shape none of the others
-  have.
+  chance rate), and independent of the triple (~5%). Naming them needs ground truth we lack.
 - **Job Status** — still unlocated, still out of scope.
 
 ## Outstanding, not part of F
@@ -249,80 +186,36 @@ path; it skips cleanly without one.
 
 ## Follow-up review (PR 51 audit, 2026-09-16)
 
-Reviewed on `claude/pr-51-review-audit-un6rcv`, against `frem-2024-11-10.fms`. Everything the
-PR claims about the staff record, the formation triple, Style, the record tail and the
-competition `level` reproduces from the bytes. Three things it did not catch:
+Re-verified against `frem-2024-11-10.fms`; everything above reproduces. Three gaps, all fixed
+on `claude/pr-51-review-audit-un6rcv`. Full argument in the review comment on PR 51.
 
-**1. The city walk was bounded by a tolerance constant, and both ends were wrong.**
-`_CITY_GAP_TOLERANCE = 40` decided where the table ended, so the row count was a function of
-the constant (40 -> 10,928 rows; 200 -> 11,773; 5,000 -> 13,840). At 40 it emitted **3 rows
-that are not cities** (ids 14338/14339/30976, bytes outside the table passing the loose
-lat/lon test) and dropped **31 rows that are** — every one of the 31 referenced by a stadium,
-so 32 of 10,943 distinct `stadium.city_id` values resolved to nothing in `mart.club_places`.
+1. **The city walk had this document's own bug.** `_CITY_GAP_TOLERANCE = 40` decided where the
+   table ended, so the row count was a function of the constant (40 → 10,928 rows; 200 →
+   11,773; 5,000 → 13,840). It emitted 3 rows that aren't cities and dropped 31 that are —
+   every one of the 31 referenced by a stadium. Now bounded by the table's own invariant
+   (`id == slot index`, true for 10,925/10,925): 10,956 rows, contiguous, no knob. The
+   ground-truth coordinates were exact throughout, which is the lesson.
+2. **Stale claims this work disproved** were still asserted in `lookups.py`, `load_duckdb.py`
+   and two docs — including "ranking history is 24 entries", the very assumption whose
+   cross-career failure is listed under Traps below.
+3. **No invariant was added for any of the 11 new staging tables or 9 new mart views**, so
+   `validate_mart.py` passing meant nothing. `scripts/audit_records.py` (STRIDE / COVERAGE /
+   EXTENT) and density guards in `tests/test_staff_records.py` now cover this; the rules are
+   in `CLAUDE.md`.
 
-The table's real invariant is `id == slot index`, which held for 10,925/10,925 records inside
-the seed run. Walking on that instead gives 10,956 rows, ids 0..10955 contiguous, 1 unresolved
-`city_id` (the 0xFFFF sentinel), identical decode for every row both walks find, and no
-tolerance knob. The ground-truth coordinates were exact throughout — which is the lesson.
+**The hidden attributes are now carried** — 9 on the player record (`hidden_p28 … hidden_p08`),
+6 on the staff record (`hidden_s18 … hidden_s28`), named by offset because we know *what* they
+are and not *which*. See `attributes.HIDDEN_OFFSETS` / `staff.HIDDEN_OFFSETS`; that closes
+"six of the seven hidden attributes" under *Still undecoded in this record* above.
 
-**2. Stale claims the PR's own findings disprove.** The "nation ranking history is 24 entries"
-assertion — the exact assumption whose cross-career failure the PR documents as a headline
-trap — was still stated as fact in `lookups.py` (twice), `load_duckdb.py`'s DDL comment and
-`fmm-editor-record-comparison.md` (twice). `docs/ATTRIBUTE_DECODING.md` §1 and
-`fm-parser-project.md` still said the player record spans `P-55 … P+22`, the truncation
-workstream A fixed. All corrected.
-
-**3. No invariant was added for any of the 11 new staging tables or 9 new mart views.**
-`scripts/validate_mart.py` is untouched by the PR, so "all checks passed" was true and empty.
-
-### What is now in place
-- **`scripts/audit_records.py`** — STRIDE / COVERAGE / EXTENT, described in `CLAUDE.md`. It
-  independently re-derives the 39-byte staff stride (92.6% modal, 100% multiples) and the
-  78-byte player stride (100%), and reports every byte in a record that no field claims.
-- **Density + join guards in `tests/test_staff_records.py`** — verified to fail on an injected
-  dropped row and an injected phantom row, while the ground-truth coordinate checks still pass.
-
-### The hidden attributes are now carried
-
-Both records hold 1-20 attribute bytes we can identify as attributes but cannot name, and both
-were parsing them and throwing them away — the record-tail failure with a different excuse.
-**Not being able to NAME a field is not a reason not to CARRY it.** Now in the store:
-
-| record | bytes | columns |
-|---|---|---|
-| player attribute | `P-28, -20, -18, -17, -15, -14, -13, -9, -8` | `hidden_p28 … hidden_p08` on `staging.players`, `history.player_snapshots`, `mart.player_snapshots` |
-| staff attribute | `+18, +20, +24, +26, +27, +28` | `hidden_s18 … hidden_s28` on `staging.staff_attributes`, `mart.staff` |
-
-Named by offset, so the name asserts only where the byte is. The separation from non-attribute
-bytes is clean and measured, not assumed: every attribute byte is 1-20 for >99.9% of records
-with ~20-30 distinct values; every other byte in `P-38 … P-1` spans 0-255 with ~150 distinct
-values. Verified end to end on `frem-2024-11-10` — all 15 columns land 1-20 with no nulls for
-attributed players (25,282) and staff (4,210), and `hidden_s27`'s distribution through the mart
-matches the raw bytes exactly.
-
-`scripts/audit_records.py` now reports these as named rather than `UNKNOWN`: the player record
-reads 60 named + 18 unknown (was 51 + 27) and the staff record 34 named + 5 (was 28 + 11, the
-5 being the undecoded catalog indices at `+34..+38` — the attribute block is fully carried).
-
-**`+27` is the one to identify next.** 85% of staff read 1-4, mean 3.0, against ~10 for the
-other five — it is the only one of the fifteen with a shape distinctive enough that a small
-ground-truth set would separate it.
-
-### Still open after this pass
-- **The personality block's owner is unresolved.** `ATTRIBUTE_DECODING.md` puts it at
-  `P-50 … P-43`, which falls outside a record anchored at `P-42`; `staff.py` says it lives on
-  the INFO record. One of those is wrong. Flagged in the doc, not settled.
-- **`parse_club_trailer` steps over 20 undecoded bytes** after `reputation`. The width is right
-  (the affiliate count lands correctly for 11,080 clubs) but the content is unread. Now named
-  rather than a bare `q += 20`.
-- **The hidden attributes are carried but unidentified.** Fifteen columns, no names. `+27`
-  first (see above); the rest need ground truth we do not have.
-- **`mart.club_managers` is not purely structural.** The comment says the manager is identified
-  exactly by absence from the club's staff array, but the SQL keeps a
-  `ROW_NUMBER() ... ORDER BY home_reputation DESC` tiebreak and no column says whether a row
-  was a sole candidate or a tiebreak. Worth exposing the candidate count.
-- **`_nation_candidates` breaks out of its `nat_len` loop unconditionally** once a nationality
-  parses, so a candidate whose `name_len` search then fails is dropped rather than retried. It
-  does not bite on this save (the 22 absent nation ids were never candidates) but it is fragile.
-- **Every test in `tests/` skips silently without a save**, exiting 0. There is no check that
-  runs on a clean clone, which is why a parser regression can merge green.
+### Still open
+- **`hidden_s27` is the one to identify next** — 85% of staff read 1-4 against ~10 for the
+  other five, the only one of the fifteen distinctive enough for a small ground-truth set.
+- **The personality block's owner is unresolved** — `ATTRIBUTE_DECODING.md` puts it at
+  `P-50 … P-43`, outside a record anchored at `P-42`; `staff.py` says it's on the INFO record.
+- **`mart.club_managers` isn't purely structural** — it keeps a `home_reputation` tiebreak and
+  exposes no candidate count, so a sole hit and a fallback are indistinguishable.
+- **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate
+  whose `name_len` search then fails. Doesn't bite on these saves.
+- **`parse_club_trailer` steps over 20 undecoded bytes** — width confirmed, content unread.
+- **Every test skips silently and exits 0 without a save**, so nothing runs on a clean clone.

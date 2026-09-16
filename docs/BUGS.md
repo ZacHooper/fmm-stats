@@ -44,32 +44,20 @@ Club Info screen and hunt for it in this trailer the same way #14 did for manage
 
 ## 14. Manager/staff records — **FORMATION + STYLE SOLVED 2026-09-16**
 
-> **STYLE RESOLUTION (later the same day).** Style is **derived, not stored**. The staff record
-> turned out to be exactly **39 bytes** (3,896 of 4,209 consecutive gaps are 39; 4,657 of 5,097
-> on the Turkish save), which is what finally settled it: `+14..+30` is a block of seventeen
-> 1-20 attribute bytes, `+31..+38` are catalog indices, and there is **nowhere left in the
-> record for a 3-valued enum to hide**. `+14` — one of the seven HIDDEN attributes in that block
-> — is the manager's attacking intent, and Style is a banding of it: `<=7` Defensive, `8-13`
-> Normal, `>=14` Attacking fits all 7 ground-truth managers exactly.
+> **STYLE RESOLUTION (later the same day).** Style is **derived, not stored** — a banding of
+> `+14`, one of the staff record's hidden attributes (`<=7` Defensive, `8-13` Normal, `>=14`
+> Attacking). What settled it was the record's EXTENT: measuring the stride between consecutive
+> records puts it at exactly **39 bytes**, so `+14..+30` is seventeen 1-20 attribute bytes,
+> `+31..+38` are catalog indices, and there is **nowhere left for a 3-valued enum to hide**.
 >
-> The n=7 fit proves nothing on its own (that is exactly what the `-140` candidate below did),
-> so `+14` was tested **out of sample** against the licensed real-world manager database:
-> the four managers Round 3 below had already labelled attacking all land in the top 15%
-> (Klopp 18, Postecoglou 16, De Zerbi 16, Nagelsmann 16 — p < 1e-3), and inside the **top 20 by
-> world reputation**, which controls for the obvious confound, the order runs Klopp 18,
-> Nagelsmann 16, Tuchel 15, Pochettino 15 at the top down to Nuno 11, Zidane 10, Simeone 9,
-> Mourinho 8 at the bottom. On the Turkish save the same people read the same values and the top
-> fills with Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda 19.
+> The n=7 fit proves nothing alone — that is exactly what the `-140` candidate in Round 3 below
+> did — so `+14` was tested out of sample against the licensed manager database, and both band
+> edges were then confirmed by predicting seven managers' Style in advance and reading them
+> in game (7/7). **The evidence chain is in `fmparser/staff.py`'s module docstring and the
+> numbers are in `tests/test_staff_records.py`**, where they are executable rather than prose.
 >
-> **Both band edges then confirmed by prediction.** The 2024 set could not pin the Defensive
-> edge (only Defensive manager reads 7, lowest Normal reads 12 — any cut in 7..11 fitted), so
-> seven managers spanning intent 6-14 were picked off `frem-2026-07-02.fms`, their Style
-> predicted in advance, and read in-game: **7/7 correct**, including Odder's Peter Pedersen at 8
-> reading Normal and AGF's Jon Dahl Tomasson at 14 reading Attacking. Thirds is measured, not
-> assumed.
->
-> Job Status remains unlocated and out of scope. `+34..+38` are five undecoded catalog-index
-> bytes (see `fmparser/staff.py`).
+> Job Status remains unlocated and out of scope. The six other hidden attributes are now
+> carried as `hidden_s*` (unidentified); `+34..+38` are five undecoded catalog-index bytes.
 
 > **RESOLUTION.** The formation is a **triple** — preferred / attacking / defensive — at
 > `ID2+31/+32/+33` of a SEPARATE staff attribute record, where `ID2` is the u32 at **info+64**
