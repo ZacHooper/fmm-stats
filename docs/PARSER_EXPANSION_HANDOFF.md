@@ -128,10 +128,23 @@ unnamed.
 
 ### Still undecoded in this record
 
-- **`+34..+38`** — five more catalog-index bytes, and a real structure rather than padding:
-  they draw from a 15-value subset of `[0,19]` that is **disjoint** from the formation triple's
-  own 15-value subset, they are mutually independent (~9% pairwise agreement against a ~7%
-  chance rate), and independent of the triple (~5%). Naming them needs ground truth we lack.
+- **`+34..+38`** — five bytes, still unnamed, but much better characterised now:
+  - **Not formations**, which was the obvious reading. They draw from a 15-value subset of
+    `[0,19]`, and the two commonest preferred shapes are *absent* from it — `4-2-3-1` is the
+    preferred formation of 1,258 staff and **never** appears here, while `4-2-4` and `3-4-3`
+    appear here and are nobody's preferred shape. A different index space.
+  - **Static.** Byte-identical for all 4,082 staff present in both `frem-2024-11-10` and
+    `frem-2026-07-02` — 20 months and a promotion apart. Database attributes, not state.
+  - **Near-unique per person**: 4,131 distinct 5-tuples across 4,210 staff, five near-
+    independent draws from one table with the same distribution in each slot.
+  - **No demographic structure**: no clustering by nationality, club or age decade (mean
+    within-group sd 6.60 against 6.73 overall).
+
+  Static, near-unique, structureless and person-scoped is the signature of an **identity or
+  appearance code** (FM-style face/hair/build parameters) far more than of a preference list —
+  a preference would cluster somehow. Cheapest test: two managers with visibly different
+  portraits, and see whether any slot tracks the difference. Note `+37` is not interchangeable
+  with the other four (value 7 appears 161 times there against 2-9 elsewhere).
 - **Job Status** — still unlocated, still out of scope.
 
 ## Outstanding, not part of F
