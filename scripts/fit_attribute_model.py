@@ -132,14 +132,15 @@ def score(pred, y):
 # The DECODER, and why it is worth a parameter of its own.
 #
 # Least squares minimises squared error; we score exact matches. Those are different
-# objectives, and `round()` sits between them with a free offset nobody had tuned. Tuning it
+# objectives, and the rounding step sits between them with a free offset nobody had tuned.
+# Tuning it
 # on the training fold is worth +8.5 points on its own -- as much as the whole feature-
 # selection apparatus -- and every fold of every attribute picks a NEGATIVE offset, which says
 # the game's decoder is not round-half-up.
 #
-# It needs no schema: for round(), shifting the prediction by `o` is algebraically identical
+# It needs no schema: when decoding by rounding, shifting the prediction by `o` is identical
 # to adding `o` to the intercept, so the tuned decoder is folded into the stored coefficients
-# and the generated SQL keeps using plain round().
+# and the generated SQL keeps rounding exactly as before.
 _OFFSETS = np.arange(-1.5, 1.51, 0.05)
 
 
