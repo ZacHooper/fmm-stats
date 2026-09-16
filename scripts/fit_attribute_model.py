@@ -48,18 +48,21 @@ FWD_ATT, FWD_MID = ("ST", "AML", "AMR", "AMC"), ("ML", "MR", "MC", "DMC", "DML",
 
 # Feature sets to try per attribute; CV picks. "frozen" is whatever model.py already uses for
 # that attribute, so the search always contains the incumbent's own shape.
-# `fwd` -- the top position collapsed to 1.0/0.5/0.0 -- is deliberately NOT in the lean base.
-# It threw away almost everything: an AMC/ST, a pure ST and a six-position utility attacker
-# all became the single number 1.0.
+# `fwd` IS NOT A CANDIDATE FEATURE AT ALL.
+#
+# It collapsed a player's whole positional profile to 1.0/0.5/0.0 off his top position -- an
+# AMC/ST, a pure ST and a six-position utility attacker all became the single number 1.0. It
+# is also not a quantity the game plausibly holds: the save stores 15 familiarities, not an
+# attacking-ness score, so a feature shaped like that is our invention rather than a decoding
+# of anything. Offered against a no-fwd alternative it earned its place for exactly one
+# attribute of fifteen, which is what you would expect of a coincidence.
+#
+# It survives ONLY inside `MOD.predict`, which is the incumbent being measured against, not a
+# candidate. Position now enters as familiarities: GK_FAM, NAT (natural-position flags) or POS.
 _LEAN = ("own", "partner", "CA", "PA", "own*CA")
 _BASE = _LEAN + ("mean9",)
 SETS = {
-    "frozen": None,        # the incumbent's own shape, per attribute -- fwd and all
-    # ...and the same shape with `fwd` REMOVED. Without this the collapse survives by the back
-    # door: "frozen" is selectable, and four attributes picked it. Offering both lets the
-    # measurement decide whether the ATT/MID/DEF grouping earns its place rather than
-    # inheriting it.
-    "frozen_nofwd": None,
+    "frozen": None,        # the incumbent's shape MINUS fwd (see the note above)
     "lean":   _LEAN,       # 6 params
     "base":   _BASE,       # 7
     # Position, three ways, chosen PER ATTRIBUTE because the right answer differs by
@@ -165,14 +168,7 @@ def main():
         # scores whatever that choice produced, on players it has never seen.
         cand = {}
         for label, names in SETS.items():
-            if label == "frozen":
-                nm = ffeats
-            elif label == "frozen_nofwd":
-                nm = tuple(n for n in ffeats if n != "fwd")
-                if nm == ffeats:
-                    continue                      # identical to "frozen"; do not test twice
-            else:
-                nm = names
+            nm = tuple(n for n in ffeats if n != "fwd") if names is None else names
             if partner is None:
                 nm = tuple(n for n in nm if n != "partner")
             cand[label] = (nm, np.array([features(r, bi, pi, own, partner, nm)
