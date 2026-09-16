@@ -65,6 +65,17 @@ MANAGERS = {
            youth_coaching=12)),
 }
 
+# In-game Style from the same screenshots, and the attacking_intent (+14) it is banded from.
+STYLE = {1619: "Attacking", 1134: "Attacking", 2506: "Attacking",
+         1686: "Normal", 1486: "Normal", 1833: "Normal",
+         329: "Defensive"}
+
+# Out-of-sample anchors for +14 from the save's licensed real-world manager database. These
+# are database tids, not career state, and they read the same on the Turkish save. The point
+# is that nobody chose them to fit: Klopp is the most famously attacking manager in the pool
+# and Mourinho/Simeone the two most famously defensive, and +14 puts them at the extremes.
+FAMOUS = {223: ("Klopp", 16, 20), 2938: ("Mourinho", 1, 9), 1094: ("Simeone", 1, 9)}
+
 CATALOG = ['4-4-2', '4-4-2 Diamond', '4-1-2-2-1', '4-1-4-1', '4-2-1-3', '4-2-3-1',
            '4-2-3-1 DM', '4-2-2-2', '4-2-4', '4-3-1-2', '4-3-3', '4-4-1-1', '4-3-2-1',
            '4-5-1', '3-4-3', '3-4-3 DM', '5-1-2-2', '5-2-1-2', '5-2-2-1', '5-3-2', '5-4-1']
@@ -102,6 +113,16 @@ def main(argv):
     recs = ST.scrape_staff_attributes(mm, staff_ids)
     print(f"  OK  {len(recs)} staff attribute records from {len(staff_ids)} staff")
 
+    # The record is 39 bytes: the stride between consecutive real records, which is what
+    # bounds where a field can live at all. A different answer here means the record grew or
+    # the table changed shape, and every offset above needs re-checking.
+    offs = sorted(r["offset"] for r in recs.values())
+    same = sum(1 for a, b in zip(offs, offs[1:]) if b - a == 39)
+    if same < 0.85 * (len(offs) - 1):
+        fails.append(f"staff record stride is not 39: only {same}/{len(offs)-1} gaps match")
+    else:
+        print(f"  OK  staff record stride 39 ({same}/{len(offs)-1} consecutive gaps)")
+
     for tid, (formation, tier, attrs) in MANAGERS.items():
         p = info.get(tid)
         r = recs.get(p["id2"]) if p else None
@@ -119,6 +140,30 @@ def main(argv):
         if not bad and got == formation and r["reputation_tier"] == tier:
             print(f"  OK  tid {tid}: {got} / {catalog[r['formation_attacking']]} / "
                   f"{catalog[r['formation_defensive']]}  ({tier}, 10/10 attrs)")
+
+    # Style is DERIVED from attacking_intent (+14), so this guards the bands as much as the
+    # field: a boundary moved by one would break a ground-truth manager.
+    for tid, want in STYLE.items():
+        p = info.get(tid)
+        r = recs.get(p["id2"]) if p else None
+        got = r["style"] if r else None
+        if got != want:
+            fails.append(f"tid {tid}: style {got!r} (intent "
+                         f"{r['attacking_intent'] if r else '-'}), expected {want!r}")
+    if not any(f.startswith("tid") and "style" in f for f in fails):
+        print(f"  OK  7/7 ground-truth managers' Style derives from attacking_intent")
+
+    for tid, (who, lo, hi) in FAMOUS.items():
+        p = info.get(tid)
+        r = recs.get(p["id2"]) if p else None
+        if not r:
+            fails.append(f"{who} (tid {tid}): no staff record")
+        elif not (lo <= r["attacking_intent"] <= hi):
+            fails.append(f"{who}: attacking_intent {r['attacking_intent']}, expected "
+                         f"{lo}-{hi} — the +14 reading has moved")
+    print(f"  OK  out-of-sample: " + ", ".join(
+        f"{w}={recs[info[t]['id2']]['attacking_intent']}"
+        for t, (w, _, _) in FAMOUS.items() if info.get(t) and recs.get(info[t]["id2"])))
 
     # the triple is real, not three coincidental bytes: a random 3 adjacent bytes in this
     # region are all <21 about 57% of the time, so anything near 100% is signal.

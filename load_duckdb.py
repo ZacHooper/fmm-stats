@@ -53,6 +53,7 @@ STAFF_ATTR_COLS = [
     "season", "phase", "tid",
     "ca", "pa", "home_reputation", "current_reputation", "world_reputation",
     "reputation_tier",
+    "attacking_intent", "style",
     "financial_control", "outfield_coaching", "goalkeeping_coaching", "discipline",
     "judging_ability", "judging_potential", "people_management", "motivating",
     "tactical_knowledge", "youth_coaching",
@@ -250,6 +251,7 @@ DDL = [
         ca INTEGER, pa INTEGER,
         home_reputation INTEGER, current_reputation INTEGER, world_reputation INTEGER,
         reputation_tier VARCHAR,
+        attacking_intent INTEGER, style VARCHAR,
         financial_control INTEGER, outfield_coaching INTEGER, goalkeeping_coaching INTEGER,
         discipline INTEGER, judging_ability INTEGER, judging_potential INTEGER,
         people_management INTEGER, motivating INTEGER, tactical_knowledge INTEGER,
@@ -1335,6 +1337,12 @@ _MIGRATIONS = [
     # and the UEFA coefficients a European campaign is seeded from). Same trap as every other
     # addition here: staging.nations is CREATE TABLE IF NOT EXISTS, so a store built an hour
     # earlier keeps the narrower shape until these run.
+    # 2026-09-16 (later): the staff record is 39 bytes, and +14 -- one of its seven HIDDEN
+    # attribute bytes -- is the manager's attacking intent, which Style is banded from. See
+    # fmparser/staff.py. Absent from existing output/*.json, so --refresh-only adds the
+    # columns as NULL; a backfill needs a full re-extract.
+    "ALTER TABLE staging.staff_attributes ADD COLUMN IF NOT EXISTS attacking_intent INTEGER",
+    "ALTER TABLE staging.staff_attributes ADD COLUMN IF NOT EXISTS style VARCHAR",
     "ALTER TABLE staging.nations ADD COLUMN IF NOT EXISTS rival_nation_id INTEGER",
     "ALTER TABLE staging.nations ADD COLUMN IF NOT EXISTS is_ranked BOOLEAN",
     "ALTER TABLE staging.nations ADD COLUMN IF NOT EXISTS world_ranking INTEGER",

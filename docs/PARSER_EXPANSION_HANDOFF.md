@@ -1,7 +1,7 @@
 # Parser expansion — handoff
 
-**Started and mostly finished 2026-09-16.** Five workstreams shipped, one open (the manager
-STYLE field). Read [`CLAUDE.md`](../CLAUDE.md) and
+**Started and finished 2026-09-16.** Six workstreams, all shipped — the manager STYLE field
+(§F) last, as a derivation rather than a stored field. Read [`CLAUDE.md`](../CLAUDE.md) and
 [`agent-context/fmm-editor-record-comparison.md`](agent-context/fmm-editor-record-comparison.md)
 first — the latter is the field-by-field map this all came from.
 
@@ -107,54 +107,92 @@ offset in the game, confirmed on a day-one save. Use the total and the trend; do
 
 ---
 
-## F — Manager STYLE. **OPEN.** This is where to continue
+## F — Manager STYLE. **SOLVED 2026-09-16** (one boundary left to confirm)
 
-Style is the one field still missing: Attacking / Normal / Defensive, shown on the Manager
-Profile screen. Job Status, Rank and Ability-stars are explicitly **out of scope** (the user
-does not want them).
+Style is **derived, not stored**: it is a banding of `ID2+14`, one of the seven hidden
+attributes in the staff record. `fmparser/staff.py` exposes it as `attacking_intent` (the raw
+1-20 value) and `style` (the derived label), the same shape as `reputation_tier`.
 
-### Ground truth
-`docs/BUGS.md` §14 holds the full table for the 7 Danish Superliga managers as of
-**25 Nov 2024**, matched to `frem-2024-11-10.fms`:
-**Attacking** — Frederiksen (tid 1619), Knutsen (1134), Thorup (2506).
-**Normal** — Marsch (1686), Hansen (1486), Machín (1833).
-**Defensive** — Látal (329).
+### What cracked it: the record is 39 bytes
 
-### Already ruled out — do not repeat
-- **Anywhere near the info record.** BUGS #14 rounds 1–3: exact-byte search ±50,000 at n=7,
-  then ±20,000 at n=16 (adding famous real managers with unambiguous real-world styles), whole
-  byte **plus** nibble masks **plus** every single bit. Zero hits.
-- **Single displayed attributes.** No one of the 17 profile values separates the three groups;
-  they overlap on every one.
-- **The staff record, offsets −300…+400**, as u8, low nibble, high nibble or 2-bit field. One
-  candidate at `−140` split the 7 managers perfectly and was **rejected**: its 2-bit values are
-  25/25/25/25 across 3,340 staff records, i.e. noise. With ~2,800 offset×encoding tests, about
-  one such false positive was expected — treat any single hit at n=7 with that suspicion.
-- The club record trailer (BUGS #15) and the club's own record.
+Every earlier round searched a window around the record without knowing where the record
+*ended*. Measuring the stride between consecutive real records settles it — **3,896 of 4,209
+gaps are exactly 39**, and 4,657 of 5,097 on the Turkish save (the rest are 78/117/156, i.e.
+skipped records). So:
 
-### What is newly possible, and was not before
-1. **The staff record's full extent is still unmapped.** We read a fixed head (`ID2+0..+33`) but
-   never established where the record *ends*. The person record turned out to be variable-length
-   with counted lists, and that is exactly the mistake that hid the formation field for four
-   rounds. Map it properly: find the next record's start, check for counted lists.
-2. **4,210 staff records now have the formation triple and all coaching attributes decoded.**
-   The user's hypothesis is that Style is *derived* from attributes (a determined, high-work-rate,
-   aggressive manager reads as Attacking). Untestable at n=7 — any fit overfits — but now
-   testable at scale in the other direction: does an attribute combination predict the
-   *aggressiveness of the formation triple* across thousands of managers? A real relationship
-   there would support the derivation theory and suggest the weights.
-3. **Ground truth is cheap now.** `mart.club_managers` names the manager of every club in every
-   snapshot, so asking for a screenshot of any specific manager gives a labelled example. The
-   old bottleneck (finding *which* record is the manager) is gone.
-4. **Diff two saves where a manager's style changed** — the only test that separates "stored but
-   unfound" from "not persisted at all, computed on the fly". There are 25 Frem snapshots, and
-   managers demonstrably change clubs across them (`mart.club_managers` shows Brøndby going
-   Borowski → Priske). Cheaper and better-powered than when this was last attempted.
+```
++0   id2 u32          +4  ca u16      +6  pa u16
++8   home rep u16     +10 current u16 +12 world u16
++14 .. +30            SEVENTEEN attribute bytes (1-20)
++31 .. +38            EIGHT catalog-index bytes
+```
 
-If F fails again, the honest conclusion is that Style is computed at display time from attributes
-plus the formation triple, and we should derive our own equivalent rather than keep hunting.
+Seventeen is the number the Manager Profile screen shows — but seven of those seventeen are the
+personality block on the **info** record, so only 10 of these are displayed and **seven are
+hidden**. And with the extent known there is nowhere left in the record for a 3-valued enum,
+which is what turns "we cannot find Style" into "Style is not stored".
 
----
+### Why `+14`, and not another n=7 false positive
+
+`+14` is the only byte in the record that orders the 7 ground-truth managers Attacking >
+Normal > Defensive. On its own that is worth nothing — BUGS #14's `-140` candidate did exactly
+that and was noise — so it was tested **out of sample** against the licensed real-world manager
+database the save carries:
+
+- the four managers **Round 3 of BUGS #14 had already labelled attacking**, before this hunt
+  existed, all land in the top 15% of the distribution: Klopp 18, Postecoglou 16, De Zerbi 16,
+  Nagelsmann 16. By chance that is p < 1e-3.
+- **Controlling for quality** (the obvious confound — `corr(+14, world reputation)` is only
+  +0.24, but elite managers do average 13.3 vs 10.7): inside the top 20 by world reputation the
+  order runs Klopp 18, Nagelsmann 16, Tuchel 15, Pochettino 15, Gallardo 15 … Nuno 11, Zidane
+  10, Simeone 9, Mourinho 8. The two most famously defensive managers in world football are the
+  two lowest of the twenty.
+- **Cross-career**: on the Turkish save the same people read the same values (Klopp 18, Simeone
+  9, Mourinho 8 — it is a static database attribute, not career state), and the names that fill
+  the top were chosen by nobody: Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda 19.
+
+A rejected rival worth recording: `+14 - +20` also orders the 7 ground-truth managers, and
+looks like "attacking coaching minus defending coaching". It loses badly out of sample — it
+puts **Mourinho at +4, i.e. Attacking**. `+14` alone gets him right. `+20` is not the opposite
+of `+14` (`corr = +0.01`) and remains unnamed.
+
+### The one thing still to confirm: where Defensive ends
+
+`style()` bands in thirds — `<=7` Defensive, `8-13` Normal, `>=14` Attacking. That fits all 7
+ground-truth managers **exactly**, and gives 25% / 45% / 30% across 1,278 real club managers
+with Normal the plurality, which is the right shape for a game label.
+
+But the ground truth only pins the *Attacking* edge (13 is Normal, 14 is Attacking). Our only
+Defensive manager reads 7 and our lowest Normal reads 12, so **any cut in 7..11 fits equally
+well** — thirds was chosen because it is principled, not because it is confirmed. Under it
+Mourinho (8) and Simeone (9) read Normal, which is arguably wrong; a cut at 11 would make them
+Defensive.
+
+**One screenshot settles it.** From `frem-2026-07-02.fms`, the Danish managers sitting in the
+undecided zone are:
+
+| club | manager | `attacking_intent` | thirds says | a cut at 11 would say |
+|---|---|---|---|---|
+| Hobro IK | Kim Kristensen | 11 | Normal | Defensive |
+| Odense KS | Dani Nørgaard | 11 | Normal | Defensive |
+| KFUM København | Jonas Hjortshøj | 10 | Normal | Defensive |
+| Horsens Freja | Allan Dvinge | 10 | Normal | Defensive |
+
+Controls either side, same save: Vejle's Peter Sørensen (6) must read **Defensive** and
+Brøndby's Brian Priske (12) must read **Normal**. If a manager in the table reads Defensive,
+move `_STYLE_BANDS` in `fmparser/staff.py` and re-run `tests/test_staff_records.py`.
+
+### Still undecoded in this record
+
+- **`+34..+38`** — five more catalog-index bytes, and a real structure rather than padding:
+  they draw from a 15-value subset of `[0,19]` that is **disjoint** from the formation triple's
+  own 15-value subset, they are mutually independent (~9% pairwise agreement against a ~7%
+  chance rate), and independent of the triple (~5%). Five independent draws from a different
+  index space than the formations. Naming them needs ground truth we do not have.
+- **Six of the seven hidden attributes** (`+18, +20, +24, +26, +27, +28`). `+27` is the easiest
+  next target: 85% of staff read 1-4 on it with a thin tail to 20, a shape none of the others
+  have.
+- **Job Status** — still unlocated, still out of scope.
 
 ## Outstanding, not part of F
 

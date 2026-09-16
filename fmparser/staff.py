@@ -29,11 +29,44 @@ FM2026's in-game editor exposes. Evidence:
     the variants are footballing-coherent - Thorup 4-1-2-2-1 / 4-2-3-1 attacking / 5-3-2
     defensive.
 
-NOT in this record: Style (Attacking/Normal/Defensive) and Job Status. Style is not present
-at any offset in -300..+400 as a byte, nibble or 2-bit field. One candidate at -140 was
-rejected: it splits the 7 known managers perfectly but its values are 25/25/25/25 across
-3,340 staff records, i.e. noise, and ~1 such false positive was expected from the number of
-offsets tested.
+**The record is exactly 39 bytes.** 3,896 of 4,209 gaps between consecutive real records are
+39 (the rest are small multiples, i.e. a skipped record); same on the Turkish save, 4,657 of
+5,097. So it is `[id2 u32][ca u16][pa u16][3 x reputation u16]` = 14 bytes of header, then
+`+14..+30` = **17 attribute bytes**, then `+31..+38` = 8 catalog-index bytes. The 17 is the
+tell: the Manager Profile screen also shows 17 values, but 7 of them are the personality block
+on the INFO record, so only 10 of these 17 are displayed and the other 7 are HIDDEN.
+
+**Style (Attacking / Normal / Defensive) is DERIVED from `+14`, a hidden attribute.** There is
+no 3-valued enum anywhere in the record -- now that its extent is known, there is nowhere left
+for one to hide -- and `+14` is the only byte in it that orders the seven ground-truth managers
+Attacking > Normal > Defensive. That alone would be worth nothing (n=7, and BUGS #14's `-140`
+candidate did the same and was noise), so it was tested out of sample instead, against the
+licensed real-world manager database this save carries:
+
+  * the four famous managers BUGS #14 Round 3 had *already* labelled attacking all sit in the
+    top 15% -- Klopp 18, Postecoglou 16, De Zerbi 16, Nagelsmann 16 (p < 1e-3 by chance);
+  * inside the top 20 by world reputation -- which controls for quality, the obvious confound
+    -- the order is Klopp 18, Nagelsmann 16, Tuchel 15, Pochettino 15, Gallardo 15 at the top
+    and Nuno 11, Zidane 10, Simeone 9, Mourinho 8 at the bottom. The two most famously
+    defensive managers in world football are the two lowest of the twenty;
+  * on the TURKISH save the same people carry the same values (Klopp 18, Simeone 9, Mourinho
+    8) and the names that fill the top are Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda
+    19 -- nobody's prior was consulted to pick them.
+
+`style()` bands it in thirds: <=7 Defensive, 8-13 Normal, >=14 Attacking. That fits all 7
+ground-truth managers exactly, and gives 26% / 45% / 30% of 1,278 real club managers, with
+Normal the plurality. **The Defensive boundary is the under-determined part** -- the only
+Defensive manager we have reads 7 and the lowest Normal reads 12, so anything in 7..11 fits.
+Confirm it with a screenshot of any manager whose `attacking_intent` lands in 8..11.
+
+Job Status is still not located, and is out of scope (the user does not want it).
+
+`+34..+38` are five more catalog-index bytes and are NOT decoded. They draw from a 15-value
+subset of [0,19] that is DISJOINT from the formation triple's own 15-value subset (the triple
+never uses 4/6/8/14/15/20; these never use 3/4/5/6/15/20), they are mutually independent
+(~9% pairwise agreement, near the ~7% chance rate), and they are independent of the triple
+(~5%). Five independent draws from a different index space than the formations -- a real
+structure, not padding, but naming it needs ground truth we do not have.
 
 CA/PA are read here because the record carries them, and are subject to the same immersion
 rule as players': keep them out of anything surfaced. `reputation_tier` is the safe
@@ -46,6 +79,7 @@ import numpy as np
 
 # Offsets relative to the record start (= the ID2 u32).
 _ATTRS = {
+    14: "attacking_intent",
     15: "financial_control",
     16: "outfield_coaching",
     17: "goalkeeping_coaching",
@@ -57,9 +91,13 @@ _ATTRS = {
     29: "tactical_knowledge",
     30: "youth_coaching",
 }
-# +14, +18, +20, +24, +26, +27, +28 are attribute-shaped (1-20) but have no ground truth
-# behind them -- the Manager Profile screen shows 17 values and all 17 are accounted for by
-# _ATTRS plus the personality block on the info record. Left unnamed rather than guessed.
+# +14..+30 is a block of SEVENTEEN attribute bytes (1-20). Ten are the coaching values the
+# Manager Profile screen shows; the remaining seven are hidden, because the other seven values
+# on that screen are the personality block on the INFO record, not this one. Of the hidden
+# ones only +14 is named -- as `attacking_intent`, on the evidence in the module docstring,
+# because Style is banded from it. +18, +20, +24, +26, +27 and +28 are left unnamed rather
+# than guessed; note that +27 is the only one with a distinctive shape (85% of staff read 1-4,
+# with a thin tail to 20), so it is the easiest of the six to attack next.
 
 FORMATION_SLOTS = {31: "formation_preferred",
                    32: "formation_attacking",
@@ -71,7 +109,7 @@ FORMATION_SLOTS = {31: "formation_preferred",
 # derivative to show instead.
 STAFF_FIELDS = (("ca", "pa", "home_reputation", "current_reputation", "world_reputation",
                  "reputation_tier")
-                + tuple(_ATTRS.values()) + tuple(FORMATION_SLOTS.values()))
+                + tuple(_ATTRS.values()) + tuple(FORMATION_SLOTS.values()) + ("style",))
 
 RECORD = 78          # same grid as the player attribute record
 _CATALOG_MARKER = bytes.fromhex("76b9f407")
@@ -82,6 +120,21 @@ _CATALOG_STRIDE = 1262
 # gaps, so this is a DERIVED label, not a field the save asserts. Widen it if a manager ever
 # lands on the wrong side.
 _TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
+
+# Style bands over `attacking_intent` (+14). DERIVED, like reputation_tier -- the save stores
+# the 1-20 attribute, not the label. Thirds of the scale; see the docstring for why, and for
+# why the Defensive edge (7 vs anything up to 11) is the part still to confirm.
+_STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
+
+
+def style(attacking_intent):
+    """Displayed manager Style from `attacking_intent`, or None. DERIVED, not stored."""
+    if attacking_intent is None:
+        return None
+    for ceiling, label in _STYLE_BANDS:
+        if attacking_intent <= ceiling:
+            return label
+    return None
 
 
 def reputation_tier(world_reputation):
@@ -190,6 +243,7 @@ def _parse(mm, o):
     rec.update({name: mm[o + d] for d, name in _ATTRS.items()})
     rec.update({name: mm[o + d] for d, name in FORMATION_SLOTS.items()})
     rec["reputation_tier"] = reputation_tier(rec["world_reputation"])
+    rec["style"] = style(rec["attacking_intent"])
     return rec
 
 

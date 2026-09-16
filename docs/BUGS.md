@@ -42,7 +42,32 @@ dashboard/scouting side) that just isn't the thing we were looking for. Worth a 
 pass later: ground-truth a club's actual wage budget / stadium capacity from the in-game
 Club Info screen and hunt for it in this trailer the same way #14 did for managers.
 
-## 14. Manager/staff records — **FORMATION SOLVED 2026-09-16** (style still open)
+## 14. Manager/staff records — **FORMATION + STYLE SOLVED 2026-09-16**
+
+> **STYLE RESOLUTION (later the same day).** Style is **derived, not stored**. The staff record
+> turned out to be exactly **39 bytes** (3,896 of 4,209 consecutive gaps are 39; 4,657 of 5,097
+> on the Turkish save), which is what finally settled it: `+14..+30` is a block of seventeen
+> 1-20 attribute bytes, `+31..+38` are catalog indices, and there is **nowhere left in the
+> record for a 3-valued enum to hide**. `+14` — one of the seven HIDDEN attributes in that block
+> — is the manager's attacking intent, and Style is a banding of it: `<=7` Defensive, `8-13`
+> Normal, `>=14` Attacking fits all 7 ground-truth managers exactly.
+>
+> The n=7 fit proves nothing on its own (that is exactly what the `-140` candidate below did),
+> so `+14` was tested **out of sample** against the licensed real-world manager database:
+> the four managers Round 3 below had already labelled attacking all land in the top 15%
+> (Klopp 18, Postecoglou 16, De Zerbi 16, Nagelsmann 16 — p < 1e-3), and inside the **top 20 by
+> world reputation**, which controls for the obvious confound, the order runs Klopp 18,
+> Nagelsmann 16, Tuchel 15, Pochettino 15 at the top down to Nuno 11, Zidane 10, Simeone 9,
+> Mourinho 8 at the bottom. On the Turkish save the same people read the same values and the top
+> fills with Sampaoli 18, Roger Schmidt 18, Kompany 18, Almeyda 19.
+>
+> **What is still open is the Defensive boundary, not the field.** Our only Defensive manager
+> reads 7 and our lowest Normal reads 12, so anything in 7..11 fits the ground truth; thirds was
+> chosen because it is principled, not because it is confirmed. A screenshot of any manager
+> reading 8-11 settles it — see `docs/PARSER_EXPANSION_HANDOFF.md` §F for the candidate list.
+>
+> Job Status remains unlocated and out of scope. `+34..+38` are five undecoded catalog-index
+> bytes (see `fmparser/staff.py`).
 
 > **RESOLUTION.** The formation is a **triple** — preferred / attacking / defensive — at
 > `ID2+31/+32/+33` of a SEPARATE staff attribute record, where `ID2` is the u32 at **info+64**
@@ -56,8 +81,8 @@ Club Info screen and hunt for it in this trailer the same way #14 did for manage
 > from the hex-editing side and was in the repo the whole time. Worth reading it before starting
 > a long hunt.
 >
-> **Style and Job Status are still unlocated.** Reputation tier IS solved (world reputation at
-> `ID2+12` orders Regional < National < Continental cleanly).
+> Reputation tier IS solved (world reputation at `ID2+12` orders Regional < National <
+> Continental cleanly); Style is solved as a derivation, see above.
 
 Located the per-club MANAGER record for 3 Danish Superliga clubs from user-supplied
 ground-truth screenshots (AaB / Niels Frederiksen, FC Nordsjælland / Kjetil Knutsen,

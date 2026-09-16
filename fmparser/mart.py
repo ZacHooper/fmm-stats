@@ -2320,6 +2320,7 @@ SELECT
     s.season, s.phase, s.snap_ix, s.phase_date,
     p.tid, p.name, p.club_tid, p.club, p.dob, p.nationality_id,
     sa.home_reputation, sa.current_reputation, sa.world_reputation, sa.reputation_tier,
+    sa.attacking_intent, sa.style,
     sa.financial_control, sa.outfield_coaching, sa.goalkeeping_coaching, sa.discipline,
     sa.judging_ability, sa.judging_potential, sa.people_management, sa.motivating,
     sa.tactical_knowledge, sa.youth_coaching,

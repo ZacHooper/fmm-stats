@@ -224,6 +224,16 @@ Everything below is parameterised off the active career — pull these from `db`
   new signing" — and the `Selection` screen's apps column settles it in one glance.
 - **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
   the in-game report has held up; weight it more than the shape.
+- **THE OPPOSITION MANAGER IS IN THE SAVE NOW — read him before you ask.** `mart.club_managers`
+  gives one row per club per snapshot: who is in charge, his **preferred / attacking / defensive
+  formation**, and a derived **Style** (Attacking / Normal / Defensive). This is the manager's
+  standing preference, *not* the tactic he will pick for this fixture, so it does not replace the
+  question above — but it is free, it is a sanity check on a mis-read scout screen, and the
+  attacking/defensive variants are the only read this report has ever had on **what he changes to
+  when the game state changes**: name the shape he shifts into chasing a goal, and the one he
+  shuts up shop in. Caveats: a club WE manage correctly returns no row, and the Style band's
+  Defensive edge is not fully confirmed (see `docs/PARSER_EXPANSION_HANDOFF.md` §F), so treat a
+  "Normal" near the boundary as "Normal or a shade defensive", not as fact.
 - **OUR OWN tactics screens** — ASK FOR THESE TOO (Shape / Defence / Attack). A shape sets none of
   mentality, line, closing down, tempo, width or the final-third instructions, and this skill was
   blind to them for a whole season of briefings. In particular check whether **`Work Into Box`** is
