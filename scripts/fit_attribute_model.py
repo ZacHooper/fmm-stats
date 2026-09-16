@@ -34,6 +34,11 @@ from fmparser import model as MOD                                    # noqa: E40
 from fmparser.attributes import (ATTR_ORDER, SRC_OFFSETS, PLAIN_OFFSETS,   # noqa: E402
                                  HIDDEN_OFFSETS)
 
+# The nine attributes the player screen does not show. The frozen model could not use them --
+# they were parsed and discarded until 2026-09-16 -- and there is obvious structure to exploit:
+# set_pieces ought to predict Crossing, penalty Shooting, flair Creativity, work_rate Movement.
+HIDDEN = [n for n in HIDDEN_OFFSETS.values()]
+
 COLS = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}
 MEAN9 = ["heading_src", "unselfishness_src", "pace_src", "strength_src", "stamina_src",
          "technique_src", "aggression_src", "leadership_src", "agility_src"]
@@ -43,10 +48,18 @@ FWD_ATT, FWD_MID = ("ST", "AML", "AMR", "AMC"), ("ML", "MR", "MC", "DMC", "DML",
 
 # Feature sets to try per attribute; CV picks. "frozen" is whatever model.py already uses for
 # that attribute, so the search always contains the incumbent's own shape.
+_BASE = ("own", "partner", "CA", "PA", "mean9", "own*CA", "fwd")
 SETS = {
-    "frozen": None,
-    "base":   ("own", "partner", "CA", "PA", "mean9", "own*CA", "fwd"),
-    "pos":    ("own", "partner", "CA", "PA", "mean9", "own*CA", "fwd", "POS"),
+    "frozen": None,                       # the incumbent's own shape, per attribute
+    "base":   _BASE,                      # 8 params
+    # ONE feature, not fifteen. Correlating each candidate against the base model's residual
+    # showed GK familiarity dominating all five goalkeeping attributes (0.32-0.53) while the
+    # other fourteen positions contributed little -- so buying that signal with 15 parameters
+    # on ~160 training rows is a bad trade. The nine undisplayed attributes showed nothing
+    # above the noise floor for 360 tested correlations, which is why there is no "hid" set:
+    # set_pieces->Crossing, penalty->Shooting and work_rate->Movement all failed to appear.
+    "gk":     _BASE + ("GK_FAM",),        # 9
+    "pos":    _BASE + ("POS",),           # 23 -- kept: it still wins where it earns it
 }
 
 
@@ -85,7 +98,14 @@ def features(r, bi, pi, own, partner, names):
             "partner": MOD.uw(g(partner)) if partner is not None else 0.0}
     f = []
     for n in names:
-        f += list(fam) if n == "POS" else [vals[n]]
+        if n == "POS":
+            f += list(fam)
+        elif n == "GK_FAM":
+            f += [fam[POS.index("GK")]]
+        elif n == "HID":
+            f += [r[bi[h]] for h in HIDDEN]
+        else:
+            f += [vals[n]]
     return f + [1.0]
 
 
@@ -207,7 +227,9 @@ def _write(db, out):
     for attr, own, partner, names, coef, *_ in out:
         flat = []
         for nm in names:
-            flat += POS if nm == "POS" else [nm]
+            flat += (POS if nm == "POS" else
+                     HIDDEN if nm == "HID" else
+                     ["GK"] if nm == "GK_FAM" else [nm])
         for nm, c in list(zip(flat, coef)) + [("intercept", coef[-1])]:
             rows.append((attr, nm, float(c), own, partner, "refit-2026-09-17"))
     con.executemany("INSERT INTO staging.attribute_model VALUES (?,?,?,?,?,?)", rows)

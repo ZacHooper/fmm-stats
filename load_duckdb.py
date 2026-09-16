@@ -170,6 +170,8 @@ def _model_expr(attr, spec, S):
             e = f"({own} * p.ca / 100.0)"
         elif feat == "fwd":
             e = _FWD.format(S=S)
+        elif feat in _PLAYER_HIDDEN.values():
+            e = f'p."{feat}"'
         elif feat in _POSITIONS:
             # A refit may use the 15 position familiarities directly instead of collapsing
             # them into `fwd` -- the frozen model has no position term at all, and Passing
