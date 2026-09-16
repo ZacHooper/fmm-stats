@@ -176,7 +176,11 @@ def _build_refdata_index(mm):
                                 break
                             p = p + 4 + sl
                         rec = {"name": long_name, "short": short_name,
-                               "league": None, "country": None}
+                               "league": None, "country": None,
+                               # offset of the trailer (first byte after the 3 names), so
+                               # club_details() can read the rest of the record without
+                               # re-locating it. See parse_club_trailer.
+                               "trailer": p}
                         marker = p is not None and mm[p + 160:p + 162] == b"\xff\xff"
                         if p is not None:
                             rec["country"] = int.from_bytes(mm[p:p + 2], "little")
@@ -230,24 +234,151 @@ def _build_refdata_index(mm):
                         except UnicodeDecodeError:
                             names.append(None)
                         p = p + 4 + sl
-                    if len(names) == 3 and p + 10 <= nmax:
+                    if len(names) == 3 and p + 14 <= nmax:
                         typ, nation = mm[p], mm[p + 3]
-                        rep = int.from_bytes(mm[p + 8:p + 10], "little")
+                        # `gate` is the ORIGINAL reputation expression. It is NOT the
+                        # reputation (see below) — it is kept verbatim, and only as an
+                        # acceptance test, so that which competitions resolve is unchanged
+                        # by the fix. Retuning it is a separate, riskier change: this value
+                        # decides whether a league gets a name at all.
+                        gate = int.from_bytes(mm[p + 8:p + 10], "little")
+                        # The real trailer, per fmm-editor's FMM26 `Competition`:
+                        #   p+0 type u8 | p+1 continent u16 | p+3 nation u16
+                        #   p+5 fg colour u16 | p+7 bg colour u16
+                        #   p+9 REPUTATION u16 | p+11 LEVEL u8 | p+12 parent cid u16
+                        # `gate` reads one byte early, so it is the bg colour's high byte
+                        # plus reputation<<8 -- roughly 256x the real value and contaminated
+                        # by a colour. It stays monotonic only while reputation < 256, so
+                        # ordering by it was luck, not design.
+                        rep = int.from_bytes(mm[p + 9:p + 11], "little")
+                        level = mm[p + 11]
+                        parent = int.from_bytes(mm[p + 12:p + 14], "little")
                         # trailer signature: nation-bound leagues/cups are [type][02][00]
                         # [nation]; friendlies (type 9) are [9][ff][ff][ff]. Anything else
-                        # is a colliding non-comp record. rep floor kills rep-0 round-label
-                        # collisions ('First Leg', 'Playoff').
+                        # is a colliding non-comp record. The gate floor kills rep-0
+                        # round-label collisions ('First Leg', 'Playoff').
+                        #
+                        # NOTE: that `[02][00]` is not a magic signature, it is
+                        # ContinentId == 2 (Europe). It works because this save loads only
+                        # European competitions, so treat it as a continent filter — it will
+                        # not generalise if a non-European league is ever loaded.
                         if (typ in _COMP_VALID_TYPES
                                 and ((mm[p + 1] == 2 and mm[p + 2] == 0) or typ == 9)
                                 and ((1 <= nation <= 250) or nation == 255)
-                                and rep >= _MIN_COMP_REP):
+                                and gate >= _MIN_COMP_REP):
                             comps[cid] = {"cid": cid, "uid": uid, "name": names[0], "short": names[1],
                                           "code": names[2], "type": COMP_TYPES.get(typ, f"type_{typ}"),
                                           "type_id": typ, "nation_id": None if nation == 255 else nation,
-                                          "reputation": rep}
+                                          "reputation": rep,
+                                          # 0 = top flight of its nation. Verified: Turkish
+                                          # Super League 0, NordicBet Liga 1, 2. Division 2,
+                                          # 3. Division 3. Confederation-style records carry
+                                          # junk here (100/112) — filter on type before use.
+                                          "level": level,
+                                          "parent_cid": None if parent == 0xFFFF else parent}
     result = (clubs, comps)
     _REFDATA_INDEX_CACHE[key] = result
     return result
+
+
+# ---------------- club record trailer ----------------
+# Everything after the three name strings. Field order from nyongrand/fmm-editor's FMM26
+# `Club`; see docs/agent-context/fmm-editor-record-comparison.md. Verified on the Danish
+# Superliga: LeagueId reads 2 for every top-flight club (and we know Superliga is cid 2),
+# attendances rank the clubs by real size, and the colours decode to the right kits.
+#
+# A Color is a u16 in RGB555 (r = (c >> 10) & 0x1f, each channel << 3). That is what the
+# 0x7FFF flood in this region is -- 0x7FFF is white -- NOT the "sentinel" that BUGS #15
+# originally read it as, and not stadium/finance data.
+_CLUB_SQUAD_SLOTS = 40      # fixed-size array: exactly 40 for all 10,788 clubs in the save
+_CLUB_STAFF_SLOTS = 11
+_AFFILIATE_SIZE = 21        # [unk u32][club1 u32][club2 u32][start d/y u16][end d/y u16][unk u8]
+_NO_ID = (0, 0xFFFF, 0xFFFFFFFF)
+
+
+def _rgb(c):
+    """RGB555 u16 -> '#rrggbb'."""
+    return "#%02x%02x%02x" % (((c >> 10) & 0x1f) << 3, ((c >> 5) & 0x1f) << 3, (c & 0x1f) << 3)
+
+
+def parse_club_trailer(mm, p):
+    """Parse the club record trailer at `p`, or None if it runs off the end.
+
+    NOTE `country` (p+0) and `nation_id` (p+2) are equal for 10,716 of 10,788 clubs and
+    differ for 72 — consistent with a based-in vs competes-in split (a Monaco/Derry City
+    case), but which is which is NOT verified, so both are kept verbatim.
+    """
+    u16 = lambda o: int.from_bytes(mm[o:o + 2], "little")
+    u32 = lambda o: int.from_bytes(mm[o:o + 4], "little")
+    if p is None or p + 200 > len(mm):
+        return None
+    d = {
+        "based_id": u16(p), "nation_id": u16(p + 2),
+        "colours": [_rgb(u16(p + 4 + 2 * i)) for i in range(6)],
+        # 6 kits of [2 flag bytes][10 colours]; stored whole because which slot is home vs
+        # away is not established.
+        "kits": [[_rgb(u16(p + 16 + 22 * k + 2 + 2 * i)) for i in range(10)]
+                 for k in range(6)],
+        "status": mm[p + 148], "academy": mm[p + 149], "facilities": mm[p + 150],
+        "att_avg": u16(p + 151), "att_min": u16(p + 153), "att_max": u16(p + 155),
+        "reserves": mm[p + 157],
+        "league_id": u16(p + 158),
+        "other_division": u16(p + 160), "other_last_position": mm[p + 162],
+        "stadium_id": u16(p + 163), "last_league": u16(p + 165),
+    }
+    q = p + 167
+    n5 = u32(q)
+    if n5 > 4096:
+        return d
+    q += 4 + n5
+    d["league_pos"] = mm[q]; q += 1
+    d["reputation"] = u16(q); q += 2
+    q += 20
+    naff = u16(q); q += 2
+    if naff > 64:
+        return d
+    affs = []
+    for _ in range(naff):
+        affs.append({"club1_tid": u32(q + 4), "club2_tid": u32(q + 8),
+                     "start_day": u16(q + 12), "start_year": u16(q + 14),
+                     "end_day": u16(q + 16), "end_year": u16(q + 18)})
+        q += _AFFILIATE_SIZE
+    d["affiliates"] = affs
+    npl = u16(q); q += 2
+    if npl != _CLUB_SQUAD_SLOTS:
+        return d                       # shape we do not recognise: stop rather than guess
+    d["squad"] = [t for t in (u32(q + 4 * i) for i in range(npl)) if t not in _NO_ID]
+    q += 4 * npl
+    # The club's STAFF list -- and it EXCLUDES the manager, which is what makes
+    # mart.club_managers exact rather than a reputation heuristic: of the staff whose info
+    # record points at this club, the one missing from here is the man in charge. Verified
+    # on all 7 ground-truth clubs, exactly one candidate each.
+    d["staff"] = [t for t in (u32(q + 4 * i) for i in range(_CLUB_STAFF_SLOTS))
+                  if t not in _NO_ID]
+    q += 4 * _CLUB_STAFF_SLOTS
+    main = u32(q)
+    # Parent club. EVERY reserve side (club_type 2) carries one and it resolves exactly --
+    # "KAA Gent Reserves" -> "KAA Gent", Frem's 7296 -> 346 -- so this is the structural
+    # replacement for the hardcoded reserve_tid in careers.py. 186 of 4,291 first teams carry
+    # one too (B-teams and the like). The rest hold a negative value we have not decoded
+    # (-7298 for Frem, -2685 for AaB), so anything outside a plausible tid range is dropped
+    # rather than guessed at.
+    d["main_club_tid"] = main if 0 < main < 70000 else None
+    d["club_type"] = mm[q + 4]
+    return d
+
+
+def club_details(mm, tid):
+    """Full club record (names + the whole trailer) for a tid, or None."""
+    rec = _build_refdata_index(mm)[0].get(tid)
+    if not rec:
+        return None
+    out = {"tid": tid, "name": rec["name"], "short": rec["short"],
+           "league_cid": rec["league"], "country": rec["country"]}
+    t = parse_club_trailer(mm, rec.get("trailer"))
+    if t:
+        out.update(t)
+    return out
 
 
 def resolve_club(mm, tid, want="long"):

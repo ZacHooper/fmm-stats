@@ -14,7 +14,7 @@ hunting for bytes that might appear as stray data.
 from datetime import date, timedelta
 
 from . import reference as R
-from .attributes import _valid_positions, ATTR_OFFSETS, POSITIONS
+from .attributes import _valid_positions, ATTR_OFFSETS, POSITIONS, record_tail
 from .regions import (ATTR_LO, ATTR_HI, CONTRACTREC_LO, CONTRACTREC_HI,
                       WAGE_GBP_PER_UNIT)
 
@@ -73,6 +73,11 @@ def _decode_info(mm, base):
         "flag28": mm[base + 28],
         "club_tid": int.from_bytes(mm[base + 42:base + 44], "little"),
         "sid": mm[base + 60:base + 64].hex(),
+        # The info record carries TWO link fields, not one. `sid` (+60) points at the PLAYER
+        # attribute record and is ffffffff for staff; `id2` (+64) points at the STAFF
+        # attribute record, which holds coaching ability and the formation triple. It was
+        # carried in the docs as an "unexplained u32" until 2026-09. See fmparser/staff.py.
+        "id2": int.from_bytes(mm[base + 64:base + 68], "little"),
     }
 
 
@@ -267,6 +272,7 @@ def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):
                     "ca": ca, "pa": pa,
                     "reputation": int.from_bytes(mm[P + 21:P + 23], "little"),
                     "attributes": {n: mm[P + rel] for rel, n in ATTR_OFFSETS.items()},
+                    **record_tail(mm, P),
                 }
                 out.setdefault(sid, rec)
                 P += 78

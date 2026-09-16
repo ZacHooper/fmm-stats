@@ -271,6 +271,33 @@ ATTR_OFFSETS = {
 RECORD = 78   # records sit on a 78-byte grid, but its phase is save-dependent
               # (shifts as the file grows), so we validate structurally, not by phase.
 
+# The record does not stop at the reputation we read at P+21. It runs `P-42 … P+35` —
+# exactly the 78-byte grid above — and the last 13 bytes were simply never parsed. Field
+# order confirmed against nyongrand/fmm-editor's FMM26 `Player` struct; see
+# docs/agent-context/fmm-editor-record-comparison.md.
+#
+# The `reputation` we have always read at P+21 is specifically HOME reputation; the name is
+# left alone because value_model.py is fitted on that column.
+#
+# Verified on frem-2024-11-10 over 26,518 records: height median 182cm (min 153), weight
+# median 73kg (min 55), and goalkeepers average 188.2cm/78.2kg against 180.4/71.8 for
+# outfielders — the check to re-run if these ever look wrong.
+def record_tail(mm, P):
+    """The 13 bytes after HomeReputation, as a dict. Shared by both record readers so the
+    global-record shape is defined in exactly one place."""
+    u16 = lambda off: int.from_bytes(mm[P + off:P + off + 2], "little")
+    return {
+        "current_reputation": u16(23),
+        "world_reputation": u16(25),
+        "international_retired": bool(mm[P + 27]),
+        # P+28..29 is a real non-zero u16 in FMM22 that FMM26 documents as "always 0x0000".
+        # Highly repetitive, looks like a flags/enum field. Unidentified, so not surfaced.
+        "squad_number": mm[P + 30],
+        "preferred_squad_number": mm[P + 31],
+        "height_cm": u16(32),
+        "weight_kg": u16(34),
+    }
+
 
 def _valid_positions(seg):
     return len(seg) == 15 and all(1 <= b <= 20 for b in seg) and max(seg) == 20
@@ -309,7 +336,8 @@ def record_for(mm, tid):
         attrs = {name: mm[P + rel] for rel, name in ATTR_OFFSETS.items()}
         return {"sid": sid.hex(), "P": P, "positions": positions,
                 "feet": {"left": left, "right": right},
-                "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs}
+                "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs,
+                **record_tail(mm, P)}
 
 
 # ---------------- full 23-attr estimation ----------------

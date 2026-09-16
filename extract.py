@@ -36,6 +36,9 @@ from fmparser import lightresults as L
 from fmparser import careers as C
 from fmparser import history as H
 from fmparser import injuries as INJ
+from fmparser import staff as ST
+from fmparser import places as PLC
+from fmparser import lookups as LKP
 
 
 def _period(month):
@@ -85,6 +88,11 @@ def season_phase(matches):
 
 _PHASES = ("start", "mid", "end")
 
+# The tail of the global attribute record (attributes.record_tail). Named once here so the
+# rec-present branch, the identity-only fill and the CSV header cannot drift apart.
+TAIL_FIELDS = ("current_reputation", "world_reputation", "international_retired",
+               "squad_number", "preferred_squad_number", "height_cm", "weight_kg")
+
 
 def parse_label(label):
     """Inverse of auto_label: label string -> (season:int, phase:str).
@@ -118,6 +126,12 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
     if isinstance(markers, (bytes, bytearray)):          # back-compat: a single marker
         markers = (bytes(markers),)
     attrs = S.scrape_attributes(mm)        # {sid: attribute record}
+    # Staff get a SEPARATE attribute record, keyed by the info field's `id2` (+64), holding
+    # coaching ability and the preferred/attacking/defensive formation triple. See
+    # fmparser/staff.py.
+    formations = ST.formation_catalog(mm)
+    staff_attrs = ST.scrape_staff_attributes(
+        mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
     status = S.scrape_contract_status(mm, info)   # {tid: squad-status code}
     contracts = S.scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
@@ -260,10 +274,20 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
         # handles them correctly (a player-coach has a real SID -> counted as a player).
         # Not worth special-casing further for now.
         if p["sid"] == "ffffffff":
-            staff[str(tid)] = {"tid": tid, "name": full_name(tid, p),
-                               "club": club_label(p["club_tid"]),
-                               "club_tid": p["club_tid"], "dob": p["dob"],
-                               "nationality_id": p["nationality_id"]}
+            row = {"tid": tid, "name": full_name(tid, p),
+                   "club": club_label(p["club_tid"]),
+                   "club_tid": p["club_tid"], "dob": p["dob"],
+                   "nationality_id": p["nationality_id"]}
+            sa = staff_attrs.get(p["id2"])
+            if sa:
+                row.update({k: sa[k] for k in ST.STAFF_FIELDS})
+                # store the catalog index AND the resolved name: the index is the save's
+                # own id, the name is what a human reads.
+                for slot in ST.FORMATION_SLOTS.values():
+                    ix = sa[slot]
+                    row[f"{slot}_name"] = (formations[ix]
+                                           if ix < len(formations) else None)
+            staff[str(tid)] = row
             continue
         rec = attrs.get(p["sid"])
         sc = status.get(tid)
@@ -300,6 +324,11 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
             row["ca"], row["pa"] = rec["ca"], rec["pa"]
             row["reputation"] = rec["reputation"]
             row["positions"] = rec["positions"]
+            # the rest of the global record (see attributes.record_tail). Present for every
+            # attributed player, own squad or not — it is read off the global record, not
+            # the managed-club snapshot.
+            for k in TAIL_FIELDS:
+                row[k] = rec[k]
             if tid in own_exact:           # own squad: exact snapshot attributes
                 row["attributes"] = {a: own_exact[tid]["attrs"][a] for a in A.ATTR_ORDER}
                 row["estimated"] = {a: False for a in A.ATTR_ORDER}
@@ -313,7 +342,8 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
         else:                              # identity only (free agents / no record)
             row.update({"is_gk": None, "ca": None, "pa": None, "reputation": None,
                         "positions": {}, "feet": None,
-                        "attributes": None, "estimated": None})
+                        "attributes": None, "estimated": None,
+                        **{k: None for k in TAIL_FIELDS}})
         players[str(tid)] = row
     return players, staff, club_names, club_leagues, histories
 
@@ -380,7 +410,8 @@ def write_players_csv(path, players):
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["tid", "name", "club", "club_tid", "loan", "league", "league_cid",
-                    "GK", "CA", "PA", "rep", "dob", "nat", "positions"] + A.ATTR_ORDER)
+                    "GK", "CA", "PA", "rep", "dob", "nat", "positions"]
+                   + list(TAIL_FIELDS) + A.ATTR_ORDER)
         # attributed players first (by CA desc), then identity-only rows
         def sortkey(p):
             return (0 if p["has_attributes"] else 1, -(p["ca"] or 0), p["tid"])
@@ -393,6 +424,7 @@ def write_players_csv(path, players):
                         p.get("league") or "", p.get("league_cid") or "",
                         "Y" if p["is_gk"] else "", p["ca"] or "", p["pa"] or "",
                         p["reputation"] or "", p["dob"] or "", p["nationality_id"], pos]
+                       + [("" if p.get(k) is None else p[k]) for k in TAIL_FIELDS]
                        + [attr.get(a, "") for a in A.ATTR_ORDER])
 
 
@@ -457,7 +489,8 @@ def main():
             nid = d.get("nation_id")
             leagues[code] = {"cid": code, "name": d.get("name") or R.league_name(mm, code),
                              "nation_id": nid, "nation": L.NATION_NAMES.get(nid),
-                             "reputation": d.get("reputation")}
+                             "reputation": d.get("reputation"),
+                             "level": d.get("level"), "parent_cid": d.get("parent_cid")}
     for p in players.values():
         lc = club2league.get(p["club_tid"])
         p["league_cid"] = lc
@@ -474,6 +507,27 @@ def main():
     dump("history.json", {str(t): h for t, h in histories.items()}, indent=None)
     dump("matches.json", season)
     dump("competitions.json", competitions)
+    # Full club records: facts, colours, and the fixed 40-slot SQUAD + 11-slot STAFF arrays.
+    # See reference.parse_club_trailer. Only clubs we already resolved a name for, so this
+    # inherits the same validation rather than trusting the raw index.
+    club_details = {}
+    for ct in sorted(club_names):
+        d = R.club_details(mm, ct)
+        if d and "squad" in d:
+            club_details[str(ct)] = d
+    dump("club_details.json", club_details, indent=None)
+    # Stadiums + cities: capacity and real lat/long. Reference data, so it repeats per
+    # snapshot exactly like clubs.json does — the club record's stadium_id joins
+    # club -> stadium -> city -> coordinates. See fmparser/places.py.
+    dump("stadiums.json", {str(k): v for k, v in sorted(PLC.scrape_stadiums(mm).items())},
+         indent=None)
+    dump("cities.json", {str(k): v for k, v in sorted(PLC.scrape_cities(mm).items())},
+         indent=None)
+    # Small reference tables: languages (resolve the ids on every person record),
+    # currencies (exchange rate per GBP) and nations. See fmparser/lookups.py.
+    dump("languages.json", {str(k): v for k, v in sorted(LKP.scrape_languages(mm).items())})
+    dump("currencies.json", {str(k): v for k, v in sorted(LKP.scrape_currencies(mm).items())})
+    dump("nations.json", {str(k): v for k, v in sorted(LKP.scrape_nations(mm).items())})
     dump("leagues.json", {str(c): d for c, d in sorted(leagues.items())})
     # club -> league for the whole DB (source='club_league'): from the club records ONLY —
     # a pure snapshot of which competition each club is in on the save date. This is what the
