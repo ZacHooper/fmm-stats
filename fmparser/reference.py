@@ -333,7 +333,13 @@ def parse_club_trailer(mm, p):
     q += 4 + n5
     d["league_pos"] = mm[q]; q += 1
     d["reputation"] = u16(q); q += 2
-    q += 20
+    # 20 bytes we step over WITHOUT having decoded them. Not padding as far as we know --
+    # just unread. The affiliate count lands correctly on the far side of it for 11,080
+    # clubs, which is what says the width is right; it says nothing about the content.
+    # Named here rather than left as a bare `+= 20`, because an undeclared skip is exactly
+    # how the player record's last 13 bytes stayed unread for four years.
+    _CLUB_TRAILER_UNDECODED = 20
+    q += _CLUB_TRAILER_UNDECODED
     naff = u16(q); q += 2
     if naff > 64:
         return d

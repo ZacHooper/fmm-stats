@@ -243,3 +243,58 @@ that save is present and skips cleanly when it is not.
 properties a mis-read field cannot fake: the formation triple must be catalog-valid across the
 whole staff population, and world ranking must be near-unique across nations. Run it with a save
 path; it skips cleanly without one.
+
+
+---
+
+## Follow-up review (PR 51 audit, 2026-09-16)
+
+Reviewed on `claude/pr-51-review-audit-un6rcv`, against `frem-2024-11-10.fms`. Everything the
+PR claims about the staff record, the formation triple, Style, the record tail and the
+competition `level` reproduces from the bytes. Three things it did not catch:
+
+**1. The city walk was bounded by a tolerance constant, and both ends were wrong.**
+`_CITY_GAP_TOLERANCE = 40` decided where the table ended, so the row count was a function of
+the constant (40 -> 10,928 rows; 200 -> 11,773; 5,000 -> 13,840). At 40 it emitted **3 rows
+that are not cities** (ids 14338/14339/30976, bytes outside the table passing the loose
+lat/lon test) and dropped **31 rows that are** — every one of the 31 referenced by a stadium,
+so 32 of 10,943 distinct `stadium.city_id` values resolved to nothing in `mart.club_places`.
+
+The table's real invariant is `id == slot index`, which held for 10,925/10,925 records inside
+the seed run. Walking on that instead gives 10,956 rows, ids 0..10955 contiguous, 1 unresolved
+`city_id` (the 0xFFFF sentinel), identical decode for every row both walks find, and no
+tolerance knob. The ground-truth coordinates were exact throughout — which is the lesson.
+
+**2. Stale claims the PR's own findings disprove.** The "nation ranking history is 24 entries"
+assertion — the exact assumption whose cross-career failure the PR documents as a headline
+trap — was still stated as fact in `lookups.py` (twice), `load_duckdb.py`'s DDL comment and
+`fmm-editor-record-comparison.md` (twice). `docs/ATTRIBUTE_DECODING.md` §1 and
+`fm-parser-project.md` still said the player record spans `P-55 … P+22`, the truncation
+workstream A fixed. All corrected.
+
+**3. No invariant was added for any of the 11 new staging tables or 9 new mart views.**
+`scripts/validate_mart.py` is untouched by the PR, so "all checks passed" was true and empty.
+
+### What is now in place
+- **`scripts/audit_records.py`** — STRIDE / COVERAGE / EXTENT, described in `CLAUDE.md`. It
+  independently re-derives the 39-byte staff stride (92.6% modal, 100% multiples) and the
+  78-byte player stride (100%), and reports every byte in a record that no field claims.
+- **Density + join guards in `tests/test_staff_records.py`** — verified to fail on an injected
+  dropped row and an injected phantom row, while the ground-truth coordinate checks still pass.
+
+### Still open after this pass
+- **The personality block's owner is unresolved.** `ATTRIBUTE_DECODING.md` puts it at
+  `P-50 … P-43`, which falls outside a record anchored at `P-42`; `staff.py` says it lives on
+  the INFO record. One of those is wrong. Flagged in the doc, not settled.
+- **`parse_club_trailer` steps over 20 undecoded bytes** after `reputation`. The width is right
+  (the affiliate count lands correctly for 11,080 clubs) but the content is unread. Now named
+  rather than a bare `q += 20`.
+- **`mart.club_managers` is not purely structural.** The comment says the manager is identified
+  exactly by absence from the club's staff array, but the SQL keeps a
+  `ROW_NUMBER() ... ORDER BY home_reputation DESC` tiebreak and no column says whether a row
+  was a sole candidate or a tiebreak. Worth exposing the candidate count.
+- **`_nation_candidates` breaks out of its `nat_len` loop unconditionally** once a nationality
+  parses, so a candidate whose `name_len` search then fails is dropped rather than retried. It
+  does not bite on this save (the 22 absent nation ids were never candidates) but it is fragile.
+- **Every test in `tests/` skips silently without a save**, exiting 0. There is no check that
+  runs on a clean clone, which is why a parser regression can merge green.

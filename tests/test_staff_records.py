@@ -223,6 +223,28 @@ def main(argv):
             fails.append(f"city {cid}: {c}")
     print(f"  OK  {len(stadiums)} stadiums, {len(cities)} cities (capacities + coords exact)")
 
+    # Both tables are dense arrays keyed by slot index, so a hole means the walk dropped a
+    # row and an overshoot means it invented one. This is the check a ground-truth spot-check
+    # cannot make: the coordinates for Aalborg and Parken were exact while the city walk was
+    # simultaneously emitting 3 records that were not cities and dropping 31 that were --
+    # every one of the 31 referenced by a stadium. See scripts/audit_records.py.
+    dense = True
+    for label, tbl in (("stadium", stadiums), ("city", cities)):
+        if min(tbl) != 0 or len(tbl) != max(tbl) + 1:
+            missing = sorted(set(range(min(tbl), max(tbl) + 1)) - set(tbl))
+            fails.append(f"{label} table not contiguous: {len(tbl)} rows over "
+                         f"{min(tbl)}..{max(tbl)}, {len(missing)} gaps {missing[:10]}")
+            dense = False
+    if dense:
+        print("  OK  stadium + city tables dense from id 0 (no dropped or invented rows)")
+
+    unresolved = {s["city_id"] for s in stadiums.values()} - set(cities)
+    if len(unresolved) > 1:
+        fails.append(f"{len(unresolved)} stadium city_ids resolve to no city: "
+                     f"{sorted(unresolved)[:10]}")
+    else:
+        print(f"  OK  every stadium's city_id resolves ({len(unresolved)} unresolved)")
+
     langs = LK.scrape_languages(mm)
     for lid, want in ((7, "English"), (10, "German"), (21, "Norwegian"),
                       (29, "Swedish"), (31, "Danish")):

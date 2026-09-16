@@ -27,8 +27,6 @@ CITY_RECORD = 20
 
 _LAT_RANGE = (-60.0, 80.0)
 _LON_RANGE = (-180.0, 180.0)
-# consecutive unreadable rows before we call it the end of the table
-_CITY_GAP_TOLERANCE = 40
 
 
 def _u16(mm, o):
@@ -81,7 +79,12 @@ def scrape_stadiums(mm, min_chain=25):
 
     Found by chaining: a real record's length field lands exactly on the next record, so a
     run of `min_chain` consecutive valid records is not something noise produces. We seed the
-    walk from the longest such run rather than from a constant.
+    walk from the FIRST such run rather than from a constant -- seeds are scanned in address
+    order, so the first one that chains is the earliest record boundary in the table.
+
+    Ids come back dense from 0 (`len(out) == max(out) + 1`), which is the check that the seed
+    landed on the table's first record and not partway in; scripts/audit_records.py asserts
+    it.
     """
     n = len(mm)
     a = np.frombuffer(mm, dtype=np.uint8)
@@ -94,8 +97,6 @@ def scrape_stadiums(mm, min_chain=25):
     seeds = np.flatnonzero((ln >= 3) & (ln <= 60))
     out, seen_start = {}, None
     for o in seeds.tolist():
-        if seen_start is not None and o < seen_start:
-            continue
         if _chain_len(mm, o, n) >= min_chain:
             seen_start = o
             break
@@ -117,7 +118,11 @@ def scrape_cities(mm):
 
     The table is fixed-width, so it is located by the one thing that cannot be coincidence at
     scale: thousands of consecutive 20-byte records whose two float32s are a valid
-    (latitude, longitude) pair.
+    (latitude, longitude) pair. That run only SEEDS the walk; its extent comes from the
+    table's own invariant (id == slot index) -- see the comment on the walk below.
+
+    Rows are dense and contiguous from id 0, so `len(out) == max(out) + 1` always holds;
+    scripts/audit_records.py asserts it.
     """
     a = np.frombuffer(mm, dtype=np.uint8)
     n = a.size
@@ -149,27 +154,59 @@ def scrape_cities(mm):
     if best[0] < 200:
         return {}
     start = best[1] - 8               # lat sits at +8 within the record
-    out = {}
-    # Walk both ways from the run: the run only pins the densest stretch, and the table has
-    # gaps (rows whose coordinates are unset). Tolerate a short break rather than stopping at
-    # the first one, which truncated the table to a tenth of its real size.
-    for direction in (1, -1):
-        o = start if direction == 1 else start - CITY_RECORD
-        misses = 0
-        while 0 <= o and o + CITY_RECORD <= n and misses < _CITY_GAP_TOLERANCE:
-            lat, lon = struct.unpack("<ff", mm[o + 8:o + 16])
-            nat = _u16(mm, o + 6)
-            if (_LAT_RANGE[0] <= lat <= _LAT_RANGE[1]
-                    and _LON_RANGE[0] <= lon <= _LON_RANGE[1]
-                    and 1 <= nat <= 250):
-                misses = 0
-                cid = _u16(mm, o)
-                out.setdefault(cid, {
-                    "id": cid, "uid": _u32(mm, o + 2), "nation_id": nat,
-                    "latitude": round(lat, 6), "longitude": round(lon, 6),
-                    "attraction": mm[o + 16], "region_id": _u16(mm, o + 17), "offset": o,
-                })
-            else:
-                misses += 1
-            o += direction * CITY_RECORD
+    # The run only pins the densest STRETCH, not the table's extent. Bounding the walk with a
+    # miss counter instead made the row count a function of the tolerance constant: at 40 it
+    # emitted 3 records that are not cities at all and dropped 31 that are, and every one of
+    # those 31 is referenced by a stadium. So bound it by the table's OWN invariant instead.
+    #
+    # The invariant: the table is a dense fixed-width array and `id` IS the slot index. It
+    # held for 10,925/10,925 records inside the run on frem-2024-11-10, which is what makes
+    # it safe to walk on: the first slot whose id != its index is past the end, full stop.
+    # No tolerance, no false positives, and rows the coordinate test would reject are kept
+    # (31 real cities carry nation_id 0 with good coordinates).
+    anchor = _slot_zero(mm, start, n)
+    if anchor is None:
+        return {}
+    out, k = {}, 0
+    while anchor + CITY_RECORD * (k + 1) <= n:
+        o = anchor + CITY_RECORD * k
+        if _u16(mm, o) != k:          # id != slot index -> past the end of the table
+            break
+        lat, lon = struct.unpack("<ff", mm[o + 8:o + 16])
+        placed = (_LAT_RANGE[0] <= lat <= _LAT_RANGE[1]
+                  and _LON_RANGE[0] <= lon <= _LON_RANGE[1])
+        out[k] = {
+            "id": k, "uid": _u32(mm, o + 2), "nation_id": _u16(mm, o + 6),
+            # a slot with no real coordinates keeps its row and reads NULL, rather than
+            # vanishing and leaving a stadium pointing at nothing
+            "latitude": round(lat, 6) if placed else None,
+            "longitude": round(lon, 6) if placed else None,
+            "attraction": mm[o + 16], "region_id": _u16(mm, o + 17), "offset": o,
+        }
+        k += 1
     return out
+
+
+def _slot_zero(mm, start, n):
+    """Offset of city id 0, from the seed run, or None.
+
+    Majority vote over `offset - CITY_RECORD * id` across the run: every record in a dense
+    array agrees on where slot 0 is, so a stray hit cannot outvote the table. 10,925 of
+    10,928 seed records agreed on frem-2024-11-10; the 3 that did not are the false
+    positives this replaces.
+    """
+    votes = {}
+    o = start
+    while o + CITY_RECORD <= n and o < start + CITY_RECORD * 4000:
+        lat, lon = struct.unpack("<ff", mm[o + 8:o + 16])
+        if (_LAT_RANGE[0] <= lat <= _LAT_RANGE[1]
+                and _LON_RANGE[0] <= lon <= _LON_RANGE[1]
+                and abs(lat) > 1e-3 and abs(lon) > 1e-3):
+            base = o - CITY_RECORD * _u16(mm, o)
+            if base >= 0:
+                votes[base] = votes.get(base, 0) + 1
+        o += CITY_RECORD
+    if not votes:
+        return None
+    base, hits = max(votes.items(), key=lambda kv: kv[1])
+    return base if hits >= 200 else None

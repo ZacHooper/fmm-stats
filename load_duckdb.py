@@ -178,7 +178,8 @@ DDL = [
         world_ranking INTEGER, ranking_points INTEGER
     )""",
 
-    # 24-entry world-ranking history per nation, oldest first (seq 0).
+    # World-ranking history per nation, oldest first (seq 0). The length GROWS with
+    # career length (10 entries in 2022, 24 by 2026) -- never assume a fixed count.
     # natural key: (season, phase, nation_id, seq)
     """CREATE TABLE IF NOT EXISTS staging.nation_ranking_history (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,

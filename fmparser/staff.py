@@ -280,8 +280,3 @@ def scrape_staff_attributes(mm, id2s, lo=None, hi=None):
             out[id2] = _parse(mm, o)
     return out
 
-
-def staff_id2(mm, info_offset):
-    """The staff-record key for an info record, or None if it looks unset."""
-    v = int.from_bytes(mm[info_offset + 64:info_offset + 68], "little")
-    return None if v in (0, 0xFFFFFFFF) else v

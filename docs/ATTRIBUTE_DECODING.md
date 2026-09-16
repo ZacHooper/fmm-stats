@@ -21,7 +21,22 @@ squad). This is the deep-dive companion to `BUGS.md` #8/#9. Paused here as a
 ## 1. The record (all offsets relative to positions-block start `P`)
 
 `P` is found as `SID_hit + 42`, and every record sits on a **78-byte grid** with
-`P % 78 == 57` (used as a validity filter). Record spans `P-55 … P+22`.
+`P % 78 == 57` (used as a validity filter). The record spans **`P-42 … P+35`** — 78 bytes
+anchored on the SID, which is the record's key.
+
+> **Corrected 2026-09-16 (PR 51).** This section previously read `P-55 … P+22`. Same grid,
+> different phase, and the old phase was wrong at both ends: it stopped 13 bytes early, which
+> is why the two extra reputations, international-retired, shirt + preferred shirt, height and
+> weight went unread for four years. They are at `P+23 … P+35` and are decoded by
+> `fmparser.attributes.record_tail`; height/weight are confirmed by GK 188.2 cm / 78.2 kg vs
+> outfield 180.7 / 72.2 over 26,518 records. `scripts/audit_records.py` now asserts the
+> 78-byte extent against the save and reports any byte in it that no field claims.
+>
+> One consequence is unresolved: the personality block listed below at `P-50 … P-43` falls
+> OUTSIDE a record anchored at `P-42`, so under this framing those bytes belong to the
+> preceding record. `fmparser/staff.py` says the personality block lives on the INFO record,
+> not this one — which would make the row below stale as well. **Do not rely on the
+> `P-50 … P-43` row until that is settled against the bytes.**
 
 | Offset | Field | Status |
 | --- | --- | --- |

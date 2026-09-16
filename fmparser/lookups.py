@@ -13,7 +13,7 @@ What each is good for:
     comparable;
   * nations give the code, continent, capital CITY and national STADIUM, and replace the
     static NATIONS dict in reference.py with something the save actually asserts. They also
-    carry the NATIONAL TEAM block: world ranking, ranking points, a 24-entry ranking history,
+    carry the NATIONAL TEAM block: world ranking, ranking points, a GROWING ranking history,
     the rival nation, and the UEFA coefficients a European campaign is seeded from.
 
 Cross-checks that make these more than plausible:
@@ -175,7 +175,9 @@ _MAX_CONTINENT = 6
 #   +1   4 x Color u16 (RGB555)
 #   +11  RivalNationId u16        +18  IsRanked u8
 #   +19  WorldRanking u16         +21  RankingPoints u16
-#   +23  history count u16 (24 for every ranked nation, 0 otherwise), then that many u16
+#   +23  history count u16 (0 for an unranked nation; otherwise it GROWS with career
+#        length -- 10 in a 2022 save, 24 by 2026 -- so read the count, never assume it),
+#        then that many u16
 #   +2 past the history: coefficient count u8, then that many f32
 #
 # Evidence this is right, none of it needing an external table:

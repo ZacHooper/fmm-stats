@@ -2334,8 +2334,6 @@ WHERE p.is_staff
 
 # One row per club per snapshot: who is in charge and what they like to play.
 #
-# One row per club per snapshot: who is in charge and what they like to play.
-#
 # THE MANAGER IS THE STAFF MEMBER THE CLUB RECORD DOES NOT LIST. The club record carries an
 # 11-slot staff array, and it holds the coaches but NOT the manager -- so of the staff whose
 # info record points at a club, the one missing from that array is the man in charge. Exact

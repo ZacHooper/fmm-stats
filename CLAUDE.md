@@ -154,6 +154,29 @@ it has repeatedly turned multi-hour hunts into quick finds:
    **expiry = full date @+13** (some Danish deals expire 31 Dec, not 30 Jun — keep the day, not just
    the year).
 
+### Before you call a record decoded: prove the EXTENT, not just the fields
+Ground truth on the fields you read cannot tell you about the fields you didn't. The player
+attribute record decoded perfectly for four years while missing its last 13 bytes, and the city
+walk had Parken and Copenhagen exact while dropping 31 real cities and inventing 3. Both passed
+every check we had. So run **`uv run python scripts/audit_records.py [save.fms]`** — it asserts
+the three things a spot-check structurally cannot:
+
+- **STRIDE** — the modal gap between consecutive records IS the stride you claim (and the rest
+  are multiples of it, i.e. skipped records, not noise). This is the measurement that settled the
+  staff record at 39 bytes and left Style nowhere to hide.
+- **COVERAGE** — every byte in `[0, stride)` is either a named field or declared `UNKNOWN` in the
+  script's `LAYOUTS`. **A byte that is neither is a byte you are stepping over by accident** —
+  that is the whole failure mode. Declaring one `UNKNOWN` is a fine answer; not noticing it is not.
+- **EXTENT** — a keyed table is dense from id 0. A gap means the walk dropped a row; an overshoot
+  means it invented one.
+
+Two rules that follow, and that the recent bugs all break:
+- **Bound a table walk by the table's own invariant, never by a tuned constant.** A miss counter
+  or a plausibility window makes the row count a function of the constant. The city table's real
+  invariant is `id == slot index`; using it made the walk exact and deleted the tolerance knob.
+- **Add the field to `LAYOUTS` in the same commit you add it to the parser.** That is what keeps
+  the audit honest as the record grows.
+
 ## The web app (one UI for phone and desktop)
 `site/` is a static single-page app on Cloudflare Pages — the primary UI, since Streamlit can't be
 hosted without a server. Seven sections collate the 13 dashboard pages: **Squad** (one configurable
