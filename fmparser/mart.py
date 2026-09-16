@@ -633,6 +633,13 @@ SELECT
     -- than a re-extract.
     p.jumping, p.consistency, p.big_match, p.injury_prone, p.versatility,
     p.set_pieces, p.penalty, p.work_rate, p.flair,
+    -- The 16 entangled source bytes, raw. With `estimated` marking which of the 23 displayed
+    -- values are exact (our own squad, from the managed-club snapshot) and which are the
+    -- model's, this view is the attribute model's training set on its own -- no re-extract.
+    p.crossing_src, p.dribbling_src, p.tackling_src, p.finishing_src, p.long_shot_src,
+    p.passing_src, p.decision_src, p.creativity_src, p.movement_src, p.positioning_src,
+    p.handling_src, p.kicking_src, p.aerial_gk_src, p.reflexes_src, p.communication_src,
+    p.throwing_src,
     -- The info record's personality block (what the profile screen shows) + international
     -- record. Person-level, so mart.staff carries the same eight.
     p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure,

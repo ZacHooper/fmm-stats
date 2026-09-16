@@ -42,7 +42,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import attributes as A          # noqa: E402
-from fmparser import model as MOD             # noqa: E402
 from fmparser import staff as ST              # noqa: E402
 from fmparser import places as PL             # noqa: E402
 from fmparser import staging as S             # noqa: E402
@@ -75,21 +74,17 @@ def _player_attr_layout():
           (70, 2, UNKNOWN),                          # P+28..29, "always 0" in FMM26
           (72, 1, "squad_number"), (73, 1, "preferred_squad_number"),
           (74, 2, "height_cm"), (76, 2, "weight_kg")]
-    # The ENTANGLED source bytes: 0-255, wrapped, and decoded to a displayed 1-20 value by the
-    # frozen model rather than read straight. They are not unknown -- `model.FROZEN` names each
-    # one and has been predicting from it all along -- so the map must show them as named, with
-    # `_src` marking that the byte is the source of the attribute and not the attribute.
-    # Two of the model's source bytes are already named and read directly -- Aerial's own byte
-    # (P-29) and its partner Jumping (P-28). That is not a clash, it is the striking part: the
-    # frozen model was fitted on ground truth years before fmm-editor was consulted, and the
-    # only two attributes it needed a PARTNER byte for are exactly the two that fmm-editor's
-    # order says are composites -- Aerial = Heading + Jumping, Shooting = Finishing + LongShot.
-    claimed = {o for o, _, _ in f}
-    for attr, (own, partner, _, _) in MOD.FROZEN.items():
-        for rel in (own, partner):
-            if rel is not None and 42 + rel not in claimed:
-                f.append((42 + rel, 1, f"{attr}_src"))
-                claimed.add(42 + rel)
+    # The ENTANGLED source bytes: 0-255, decoded to a displayed 1-20 value by the frozen model
+    # rather than read straight. Not unknown -- `attributes.SRC_OFFSETS` names each one and the
+    # store now carries them raw -- so `_src` marks that the byte is the SOURCE of the
+    # attribute and not the attribute.
+    #
+    # Worth noting while here: the frozen model needs a PARTNER byte for exactly two
+    # attributes, Aerial (P-29 + P-28) and Shooting (P-31 + P-30). Those are precisely the two
+    # that fmm-editor's order says are composites -- Heading + Jumping, Finishing + LongShots.
+    # A least-squares fit found that years before anyone read Player.cs.
+    for rel, name in A.SRC_OFFSETS.items():
+        f.append((42 + rel, 1, name))
     # rel 4..7 is the P-38 history link (docs/agent-context/history-chain-pointers.md).
     f += [(4, 4, "history_link_P38")]
     named = set()

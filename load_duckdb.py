@@ -50,6 +50,8 @@ _XI = M._XI_FIELDS  # noqa: SLF001 (intentional reuse of the canonical list)
 # store cannot drift from the record. See fmparser/attributes.py HIDDEN_OFFSETS and
 # fmparser/staff.py HIDDEN_OFFSETS for why they are carried but not named.
 from fmparser.attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
+from fmparser.attributes import SRC_OFFSETS as _SRC              # noqa: E402
+SRC_COLS = list(_SRC.values())
 from fmparser.staging import PERSON_FIELDS as _PERSON                # noqa: E402
 PERSON_COLS = list(_PERSON)
 # Everything off the info record is a small integer except the one date.
@@ -255,6 +257,16 @@ DDL = [
         jumping INTEGER, consistency INTEGER, big_match INTEGER, injury_prone INTEGER,
         versatility INTEGER, set_pieces INTEGER, penalty INTEGER, work_rate INTEGER,
         flair INTEGER,
+        -- The 16 ENTANGLED source bytes (0-255), raw and undecoded (attributes.SRC_OFFSETS).
+        -- Stored so the estimation model can be retrained against the store rather than a
+        -- full re-extract: scraping and inference are different jobs. Joined to the exact
+        -- values our own squad carries (estimated = false), this table IS the training set.
+        crossing_src INTEGER, dribbling_src INTEGER, tackling_src INTEGER,
+        finishing_src INTEGER, long_shot_src INTEGER, passing_src INTEGER,
+        decision_src INTEGER, creativity_src INTEGER, movement_src INTEGER,
+        positioning_src INTEGER, handling_src INTEGER, kicking_src INTEGER,
+        aerial_gk_src INTEGER, reflexes_src INTEGER, communication_src INTEGER,
+        throwing_src INTEGER,
         -- From the INFO record (staging.PERSON_FIELDS), so STAFF carry these too -- they are
         -- facts about a person, not about a player. The 8 personality values are the ones the
         -- Manager Profile screen shows.
@@ -711,6 +723,7 @@ def load_core(con, d, season, phase):
             _int(v.get("squad_number")), _int(v.get("preferred_squad_number")),
             _int(v.get("height_cm")), _int(v.get("weight_kg")),
             *(_int(v.get(c)) for c in PLAYER_HIDDEN_COLS),
+            *(_int(v.get(c)) for c in SRC_COLS),
             *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
               for c in PERSON_COLS),
         ))
@@ -746,6 +759,7 @@ def load_core(con, d, season, phase):
                 # (PlayerId == -1), so both are NULL. Sized from the parser's own tables so
                 # this padding cannot fall out of step with the column list below.
                 *([None] * 7), *([None] * len(PLAYER_HIDDEN_COLS)),
+                *([None] * len(SRC_COLS)),
                 # ...but the PERSON block is on the info record, so staff DO have it.
                 *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
                   for c in PERSON_COLS),
@@ -759,7 +773,7 @@ def load_core(con, d, season, phase):
              "wage_units", "wage_gbp", "contract_expiry", "contract_expiry_year",
              "current_reputation", "world_reputation", "international_retired",
              "squad_number", "preferred_squad_number", "height_cm", "weight_kg"
-             ] + PLAYER_HIDDEN_COLS + PERSON_COLS
+             ] + PLAYER_HIDDEN_COLS + SRC_COLS + PERSON_COLS
     counts["players"] = _insert(con, "players", pcols, prows)
     counts["staff"] = _insert(con, "players", pcols, srows)
     counts["staff_attributes"] = _insert(con, "staff_attributes", STAFF_ATTR_COLS, sarows)
@@ -1405,6 +1419,10 @@ _MIGRATIONS = [
     # 2026-09-16: the info record's personality block and international record. Decoded and
     # verified against screenshots back in BUGS #14, then never wired into the parser -- the
     # same identified-and-discarded failure as the record tail.
+] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} INTEGER"
+     for c in SRC_COLS] + [
+] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} INTEGER"
+     for c in SRC_COLS] + [
 ] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} {t}"
      for c, t in _PERSON_SQL.items()] + [
 ] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} {t}"

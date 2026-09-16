@@ -336,6 +336,34 @@ HIDDEN_OFFSETS = {-28: "jumping", -20: "consistency", -18: "big_match",
                   -13: "penalty", -9: "work_rate", -8: "flair"}
 
 
+# THE ENTANGLED SOURCE BYTES, carried raw.
+#
+# These are the 16 slots FMM22 stores as a wrapped 0-255 value rather than a plain 1-20 one:
+# the technical and goalkeeping attributes. `model.FROZEN` turns them into displayed values,
+# and until 2026-09-17 that was the ONLY form that reached the store -- the parser decided what
+# the number was and threw the evidence away.
+#
+# That is the wrong split of responsibilities. Estimation is a MODELLING concern, not a
+# scraping one: keeping only the model's output means every retrain needs a full re-extract
+# (~25 minutes) before it can even be scored. With the bytes in the store, the training set is
+# a query -- raw bytes on one side, and on the other the exact values our own squad carries
+# from the managed-club snapshot, already flagged `estimated = false`.
+#
+# Named `<attribute>_src` because the byte is the SOURCE of the attribute, not the attribute.
+# Nothing is derived from them here.
+SRC_OFFSETS = {-34: "crossing_src", -33: "dribbling_src", -32: "tackling_src",
+               -31: "finishing_src", -30: "long_shot_src", -27: "passing_src",
+               -26: "decision_src", -12: "creativity_src", -11: "movement_src",
+               -10: "positioning_src", -7: "handling_src", -6: "kicking_src",
+               -4: "aerial_gk_src", -3: "reflexes_src", -2: "communication_src",
+               -1: "throwing_src"}
+
+
+def source_bytes(mm, P):
+    """The 16 entangled 0-255 attribute bytes, raw and undecoded."""
+    return {name: mm[P + rel] for rel, name in SRC_OFFSETS.items()}
+
+
 def hidden_attributes(mm, P):
     """The 9 attribute bytes the player screen does not show, as a dict.
 
@@ -384,7 +412,8 @@ def record_for(mm, tid):
         return {"sid": sid.hex(), "P": P, "positions": positions,
                 "feet": {"left": left, "right": right},
                 "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs,
-                **record_tail(mm, P), **hidden_attributes(mm, P)}
+                **record_tail(mm, P), **hidden_attributes(mm, P),
+                **source_bytes(mm, P)}
 
 
 # ---------------- full 23-attr estimation ----------------
