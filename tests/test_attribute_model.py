@@ -97,6 +97,11 @@ def main(argv):
                     "own*CA": own * ca / 100.0, "intercept": 1.0,
                     "partner": MOD.uw(r[bi[COLS[d["partner"]]]]) if d["partner"] else 0.0}
             vals.update({p: fam[k] for k, p in enumerate(POS)})
+            # the NAT_ flags: a refit may pick 'nat' (Movement does), and a feature the
+            # evaluator cannot read is a feature this test silently stops checking.
+            vals.update({f"NAT_{p}": (1.0 if fam[k] >= 20 else 0.0)
+                         for k, p in enumerate(POS)})
+            vals["GK"] = fam[POS.index("GK")]
             acc = sum(c * vals[f] for f, c in d["coef"].items())
             got = max(1, min(20, int(_round_half_up(acc))))
             n_sql += 1

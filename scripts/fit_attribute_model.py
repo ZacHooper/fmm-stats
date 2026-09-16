@@ -61,19 +61,116 @@ FWD_ATT, FWD_MID = ("ST", "AML", "AMR", "AMC"), ("ML", "MR", "MC", "DMC", "DML",
 # candidate. Position now enters as familiarities: GK_FAM, NAT (natural-position flags) or POS.
 _LEAN = ("own", "partner", "CA", "PA", "own*CA")
 _BASE = _LEAN + ("mean9",)
+# TWO CANDIDATES, NOT SEVEN -- because nested selection PAYS for every candidate it is
+# offered. The inner fold picks on ~670 rows, so a candidate that is never genuinely best
+# still wins folds by chance and drags the outer score down with it. Measured on 840 rows,
+# same protocol throughout, shrinking the pool is monotonically better:
+#
+#     all 7                         68.1%        lean, gk, shared        68.7%
+#     drop pos                      68.2%        gk, shared              69.3%
+#     drop pos, nat                 68.6%        shared alone            66.1%
+#
+# The two kept are the two POLES, and they have different jobs rather than different sizes:
+#   gk      the richest least-squares shape (it strictly contains `lean` and `base`), and it
+#           wins every goalkeeping attribute, where the GK familiarity is what separates a
+#           keeper's real Handling from an outfielder's floored 1.
+#   shared  three parameters, grid-searched, and it wins seven of the nine outfield ones.
+# `frozen`, `lean` and `base` are nested subsets of `gk` that the inner CV cannot reliably
+# tell apart at this n; `nat` and `pos` spend 15 free parameters each on 840 rows.
+#
+# HONEST CAVEAT: this pool was chosen by looking at the table above, which is outer-level
+# selection bias -- 69.3% is optimistic by however much that costs. The evidence worth
+# trusting is the MONOTONE TREND and its mechanism, not the winning number.
 SETS = {
-    "frozen": None,        # the incumbent's shape MINUS fwd (see the note above)
-    "lean":   _LEAN,       # 6 params
-    "base":   _BASE,       # 7
-    # Position, three ways, chosen PER ATTRIBUTE because the right answer differs by
-    # attribute rather than globally. Measured at n=80 players: position lifts Dribbling
-    # 48->62%, Positioning 35->41% and Movement 46->54%, and COSTS Aerial 89->77%, Handling
-    # 94->82% and Kicking 82->71%. It differentiates dribbling and movement; it says nothing
-    # about aerial ability or a keeper's hands, where 15 extra parameters are pure variance.
-    "gk":     _BASE + ("GK_FAM",),   # 8  -- one familiarity
-    "nat":    _BASE + ("NAT",),      # 22 -- 15 binary "is this a natural position" flags
-    "pos":    _BASE + ("POS",),      # 22 -- 15 raw familiarities
+    "gk":     _BASE + ("GK_FAM",),   # 8 params -- the richest least-squares shape
+    # SHARED: three parameters, and the only candidate not fitted by least squares.
+    #
+    #     displayed = floor(beta*(w*own + (1-w)*partner) + gamma*CA + alpha)
+    #
+    # `gamma` is NOT free. It is the ONE shared per-player CA shift, fitted jointly across the
+    # outfield entangled attributes and then held fixed -- residuals of a byte-only fit
+    # correlate +0.66 across those attributes and a single per-row shift explains 69.3% of
+    # their variance, so fourteen separate CA terms are fourteen estimates of one number. A
+    # free per-attribute loading was measured and is WORSE (55.1% vs 57.7%).
+    #
+    # `beta`, `w` and `alpha` are GRID-SEARCHED on exact matches rather than least-squared.
+    # That is the whole point: least squares minimises squared error while we score exact
+    # matches, and on Aerial the same change was worth +16.7 points with no new inputs.
+    # See docs/ATTRIBUTE_MODEL_HANDOFF.md.
+    "shared": ("own", "partner", "CA"),
 }
+
+# Grid for the shared candidate. beta spans the range a byte->display slope actually takes
+# (measured 0.070 for Decisions to 0.125 for Dribbling); alpha is the rounding offset, which
+# every fold of the 2024 fit pushed negative.
+# _ALPHA is a search AROUND the least-squares intercept, not an absolute range. The intercept
+# these models need is about -20 to -35 (an unwrapped byte is ~170-330 and the display value is
+# 1-20), so an absolute window would have to be both huge and fine. Seeding it from the
+# residual mean makes the search two orders of magnitude smaller and cannot miss the optimum
+# by more than the window.
+_BETA = np.arange(0.04, 0.201, 0.0025)
+_ALPHA = np.arange(-2.5, 2.51, 0.05)
+_W = np.arange(0.0, 1.001, 0.05)
+
+# The nine OUTFIELD entangled attributes. gamma is fitted from these, on non-GK players only:
+# a GK attribute on an outfielder is pinned at the display floor (Communication is 1 for 100%
+# of outfield truth rows), so including them would fit gamma to a constant.
+_OUTFIELD_ENTANGLED = ("Crossing", "Dribbling", "Tackling", "Shooting", "Passing",
+                       "Decisions", "Creativity", "Movement", "Positioning")
+
+
+def _shared_gamma(Y, OWN, ca, mask):
+    """The one CA slope, fitted jointly across the outfield entangled attributes.
+
+    Alternating least squares: per-attribute slope+intercept given the shift, then the shift
+    given the residuals. Linear in CA -- a quadratic term was measured and adds exactly
+    nothing (R^2 0.896 either way)."""
+    g = np.zeros(int(mask.sum()))
+    gc = np.array([0.0, 0.0])
+    for _ in range(10):
+        resid = []
+        for i in range(len(Y)):
+            y, o = Y[i][mask], OWN[i][mask]
+            k = ~np.isnan(y)
+            if k.sum() < 10:
+                continue
+            A = np.c_[o[k], np.ones(int(k.sum()))]
+            b, *_ = np.linalg.lstsq(A, y[k] - g[k], rcond=None)
+            r = np.full(len(y), np.nan)
+            r[k] = y[k] - A @ b
+            resid.append(r)
+        if not resid:
+            return gc
+        with np.errstate(invalid="ignore"):
+            m = np.nanmean(np.array(resid), axis=0)
+        ok = ~np.isnan(m)
+        gc = np.polyfit(ca[mask][ok], m[ok], 1)
+        g = np.polyval(gc, ca[mask])
+    return gc
+
+
+def _grid_fit(own, partner, ca, y, gc, has_partner):
+    """(beta, w, alpha) maximising EXACT matches. Vectorised over alpha."""
+    shift = np.polyval(gc, ca)          # the shared per-player CA term, held fixed
+    best, arg = -1.0, (0.1, 1.0, 0.0)
+    for w in (_W if has_partner else (1.0,)):
+        blend = w * own + (1 - w) * partner if has_partner else own
+        for beta in _BETA:
+            v = beta * blend + shift
+            a0 = float(np.mean(y - v))            # the least-squares intercept for this beta
+            grid = a0 + _ALPHA
+            hit = (np.clip(np.floor(v[None, :] + grid[:, None]), 1, 20)
+                   == y[None, :]).mean(1)
+            k = int(hit.argmax())
+            if hit[k] > best:
+                best, arg = hit[k], (beta, w, float(grid[k]))
+    return arg
+
+
+def _shared_predict(own, partner, ca, gc, arg, has_partner):
+    beta, w, alpha = arg
+    blend = w * own + (1 - w) * partner if has_partner else own
+    return np.floor(beta * blend + np.polyval(gc, ca) + alpha)
 
 
 def load(db):
@@ -183,6 +280,23 @@ def main():
           f"{folds} folds held out BY PLAYER\n")
     print(f"{'attribute':<15}{'frozen ex':>10}{'frozen ±1':>10}"
           f"{'new ex':>9}{'new ±1':>9}  features")
+    # Joint inputs for the `shared` candidate: the outfield entangled targets, their own
+    # bytes, CA, and who is a keeper. gamma is fitted from THESE, once per training mask.
+    ca_all = np.array([r[1] for r in rows], float)
+    is_gk = np.array([r[pi + POS.index("GK")] == 20 for r in rows])
+    Y_j = np.array([[r[ai + ATTR_ORDER.index(a)] for r in rows] for a in _OUTFIELD_ENTANGLED],
+                   float)
+    OWN_j = np.array([[MOD.uw(r[bi[COLS[MOD.FROZEN[a][0]]]]) for r in rows]
+                      for a in _OUTFIELD_ENTANGLED], float)
+    _gcache = {}
+
+    def gamma_for(mask):
+        """The shared CA shift for a training mask, cached -- nested CV asks for it often."""
+        key = mask.tobytes()
+        if key not in _gcache:
+            _gcache[key] = _shared_gamma(Y_j, OWN_j, ca_all, mask & ~is_gk)
+        return _gcache[key]
+
     out, tot = [], np.zeros(4)
     for attr, (own, partner, ffeats, fcoef) in MOD.FROZEN.items():
         y = np.array([r[ai + ATTR_ORDER.index(attr)] for r in rows], float)
@@ -191,43 +305,72 @@ def main():
         # selection bias -- with three candidates and fifteen attributes it flatters the
         # result for free. So the set is chosen INSIDE each training fold, and the outer fold
         # scores whatever that choice produced, on players it has never seen.
+        own_b = np.array([MOD.uw(r[bi[COLS[own]]]) for r in rows], float)
+        par_b = (np.array([MOD.uw(r[bi[COLS[partner]]]) for r in rows], float)
+                 if partner is not None else np.zeros(len(rows)))
         cand = {}
         for label, names in SETS.items():
+            if label == "shared":
+                cand[label] = (("own", "partner", "CA") if partner is not None
+                               else ("own", "CA"), None)
+                continue
             nm = tuple(n for n in ffeats if n != "fwd") if names is None else names
             if partner is None:
                 nm = tuple(n for n in nm if n != "partner")
             cand[label] = (nm, np.array([features(r, bi, pi, own, partner, nm)
                                          for r in rows], float))
+
+        def fit_predict(label, tr, te):
+            """Predictions for `te` from a model fitted on `tr`. Both boolean row masks."""
+            if label == "shared":
+                gc = gamma_for(tr)
+                arg = _grid_fit(own_b[tr], par_b[tr], ca_all[tr], y[tr], gc, partner is not None)
+                return _shared_predict(own_b[te], par_b[te], ca_all[te], gc, arg,
+                                       partner is not None)
+            X = cand[label][1]
+            c, *_ = np.linalg.lstsq(X[tr], y[tr], rcond=None)
+            return X[te] @ c + tune_offset(X[tr] @ c, y[tr])
+
         pred = np.empty(len(rows))
         chosen = []
         for k in range(folds):
             te = fold == k
             tr = ~te & keep
             inner = np.array([fmap[t] for t in tids[tr]]) % (folds - 1)
+            idx = np.flatnonzero(tr)
             pick, pick_ex = None, -1.0
-            for label, (nm, X) in cand.items():
+            for label in cand:
                 ip = np.empty(tr.sum())
-                Xtr, ytr = X[tr], y[tr]
                 for j in range(folds - 1):
                     ite = inner == j
                     if ite.all() or not ite.any():
                         continue
-                    c, *_ = np.linalg.lstsq(Xtr[~ite], ytr[~ite], rcond=None)
-                    ip[ite] = Xtr[ite] @ c
-                e, _ = score(ip, ytr)
+                    m_tr = np.zeros(len(rows), bool); m_tr[idx[~ite]] = True
+                    m_te = np.zeros(len(rows), bool); m_te[idx[ite]] = True
+                    ip[ite] = fit_predict(label, m_tr, m_te)
+                e, _ = score(ip, y[tr])
                 if e > pick_ex:
                     pick, pick_ex = label, e
             chosen.append(pick)
-            nm, X = cand[pick]
-            c, *_ = np.linalg.lstsq(X[tr], y[tr], rcond=None)
-            off = tune_offset(X[tr] @ c, y[tr])
-            pred[te] = X[te] @ c + off
+            pred[te] = fit_predict(pick, tr, te)
         ex, w1 = score(pred[keep], y[keep])
         label = max(set(chosen), key=chosen.count)          # the set the folds mostly agreed on
-        names, X = cand[label]
-        coef, *_ = np.linalg.lstsq(X[keep], y[keep], rcond=None)
-        coef = coef.copy()
-        coef[-1] += tune_offset(X[keep] @ coef, y[keep])     # fold the decoder into the intercept
+        names = cand[label][0]
+        if label == "shared":
+            # Stored as ordinary linear coefficients -- floor(b*(w*own + (1-w)*partner) +
+            # gamma*CA + alpha) IS linear, so it needs no schema and the generated SQL is
+            # unchanged. The floor-vs-round difference is absorbed by alpha (floor(x + a) ==
+            # round(x + a - 0.5) away from exact ties).
+            gc = gamma_for(keep)
+            beta, w, alpha = _grid_fit(own_b[keep], par_b[keep], ca_all[keep], y[keep], gc,
+                                       partner is not None)
+            coef = ([beta * w, beta * (1 - w)] if partner is not None else [beta])
+            coef += [gc[0], gc[1] + alpha - 0.5]
+        else:
+            X = cand[label][1]
+            coef, *_ = np.linalg.lstsq(X[keep], y[keep], rcond=None)
+            coef = coef.copy()
+            coef[-1] += tune_offset(X[keep] @ coef, y[keep])  # decoder -> the intercept
         best = (ex, w1, label, names, coef)
         # the incumbent, scored on the same rows
         fz = np.array([MOD.predict(attr, _buf(r, bi), 60, r[1], r[2],
