@@ -127,21 +127,45 @@ def main():
     for attr, (own, partner, ffeats, fcoef) in MOD.FROZEN.items():
         y = np.array([r[ai + ATTR_ORDER.index(attr)] for r in rows], float)
         keep = ~np.isnan(y)
-        best = None
+        # NESTED selection. Choosing the feature set by the same CV score you then report is
+        # selection bias -- with three candidates and fifteen attributes it flatters the
+        # result for free. So the set is chosen INSIDE each training fold, and the outer fold
+        # scores whatever that choice produced, on players it has never seen.
+        cand = {}
         for label, names in SETS.items():
-            names = ffeats if names is None else names
+            nm = ffeats if names is None else names
             if partner is None:
-                names = tuple(n for n in names if n != "partner")
-            X = np.array([features(r, bi, pi, own, partner, names) for r in rows], float)
-            pred = np.empty(len(rows))
-            for k in range(folds):
-                te = fold == k
-                c, *_ = np.linalg.lstsq(X[~te & keep], y[~te & keep], rcond=None)
-                pred[te] = X[te] @ c
-            ex, w1 = score(pred[keep], y[keep])
-            if best is None or ex > best[0]:
-                coef, *_ = np.linalg.lstsq(X[keep], y[keep], rcond=None)
-                best = (ex, w1, label, names, coef)
+                nm = tuple(n for n in nm if n != "partner")
+            cand[label] = (nm, np.array([features(r, bi, pi, own, partner, nm)
+                                         for r in rows], float))
+        pred = np.empty(len(rows))
+        chosen = []
+        for k in range(folds):
+            te = fold == k
+            tr = ~te & keep
+            inner = np.array([fmap[t] for t in tids[tr]]) % (folds - 1)
+            pick, pick_ex = None, -1.0
+            for label, (nm, X) in cand.items():
+                ip = np.empty(tr.sum())
+                Xtr, ytr = X[tr], y[tr]
+                for j in range(folds - 1):
+                    ite = inner == j
+                    if ite.all() or not ite.any():
+                        continue
+                    c, *_ = np.linalg.lstsq(Xtr[~ite], ytr[~ite], rcond=None)
+                    ip[ite] = Xtr[ite] @ c
+                e, _ = score(ip, ytr)
+                if e > pick_ex:
+                    pick, pick_ex = label, e
+            chosen.append(pick)
+            nm, X = cand[pick]
+            c, *_ = np.linalg.lstsq(X[tr], y[tr], rcond=None)
+            pred[te] = X[te] @ c
+        ex, w1 = score(pred[keep], y[keep])
+        label = max(set(chosen), key=chosen.count)          # the set the folds mostly agreed on
+        names, X = cand[label]
+        coef, *_ = np.linalg.lstsq(X[keep], y[keep], rcond=None)
+        best = (ex, w1, label, names, coef)
         # the incumbent, scored on the same rows
         fz = np.array([MOD.predict(attr, _buf(r, bi), 60, r[1], r[2],
                                    sum(r[bi[c]] for c in MEAN9) / 9.0,
