@@ -55,6 +55,11 @@ _LEAN = ("own", "partner", "CA", "PA", "own*CA")
 _BASE = _LEAN + ("mean9",)
 SETS = {
     "frozen": None,        # the incumbent's own shape, per attribute -- fwd and all
+    # ...and the same shape with `fwd` REMOVED. Without this the collapse survives by the back
+    # door: "frozen" is selectable, and four attributes picked it. Offering both lets the
+    # measurement decide whether the ATT/MID/DEF grouping earns its place rather than
+    # inheriting it.
+    "frozen_nofwd": None,
     "lean":   _LEAN,       # 6 params
     "base":   _BASE,       # 7
     # Position, three ways, chosen PER ATTRIBUTE because the right answer differs by
@@ -160,7 +165,14 @@ def main():
         # scores whatever that choice produced, on players it has never seen.
         cand = {}
         for label, names in SETS.items():
-            nm = ffeats if names is None else names
+            if label == "frozen":
+                nm = ffeats
+            elif label == "frozen_nofwd":
+                nm = tuple(n for n in ffeats if n != "fwd")
+                if nm == ffeats:
+                    continue                      # identical to "frozen"; do not test twice
+            else:
+                nm = names
             if partner is None:
                 nm = tuple(n for n in nm if n != "partner")
             cand[label] = (nm, np.array([features(r, bi, pi, own, partner, nm)
