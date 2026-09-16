@@ -129,6 +129,30 @@ def score(pred, y):
     return (p == y).mean(), (np.abs(p - y) <= 1).mean()
 
 
+# The DECODER, and why it is worth a parameter of its own.
+#
+# Least squares minimises squared error; we score exact matches. Those are different
+# objectives, and `round()` sits between them with a free offset nobody had tuned. Tuning it
+# on the training fold is worth +8.5 points on its own -- as much as the whole feature-
+# selection apparatus -- and every fold of every attribute picks a NEGATIVE offset, which says
+# the game's decoder is not round-half-up.
+#
+# It needs no schema: for round(), shifting the prediction by `o` is algebraically identical
+# to adding `o` to the intercept, so the tuned decoder is folded into the stored coefficients
+# and the generated SQL keeps using plain round().
+_OFFSETS = np.arange(-1.5, 1.51, 0.05)
+
+
+def tune_offset(pred, y):
+    """The offset that maximises EXACT matches on this (training) data."""
+    best, bo = -1.0, 0.0
+    for o in _OFFSETS:
+        s = (np.clip(np.rint(pred + o), 1, 20) == y).mean()
+        if s > best:
+            best, bo = s, o
+    return float(bo)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -195,11 +219,14 @@ def main():
             chosen.append(pick)
             nm, X = cand[pick]
             c, *_ = np.linalg.lstsq(X[tr], y[tr], rcond=None)
-            pred[te] = X[te] @ c
+            off = tune_offset(X[tr] @ c, y[tr])
+            pred[te] = X[te] @ c + off
         ex, w1 = score(pred[keep], y[keep])
         label = max(set(chosen), key=chosen.count)          # the set the folds mostly agreed on
         names, X = cand[label]
         coef, *_ = np.linalg.lstsq(X[keep], y[keep], rcond=None)
+        coef = coef.copy()
+        coef[-1] += tune_offset(X[keep] @ coef, y[keep])     # fold the decoder into the intercept
         best = (ex, w1, label, names, coef)
         # the incumbent, scored on the same rows
         fz = np.array([MOD.predict(attr, _buf(r, bi), 60, r[1], r[2],
