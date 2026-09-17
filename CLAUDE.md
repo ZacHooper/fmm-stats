@@ -72,8 +72,12 @@ too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attribute
 `mart.role_weights` so ratings are computable). Use the full `site-data/fm-frem.duckdb` only
 when you need raw `staging` or per-snapshot history for a player who was never ours.
 
-Two gotchas worth knowing before you query it: **`mart.squad_on(d)` is a macro and macros do
-not resolve across an `ATTACH`** — `USE m` first, or use the `m.mart.squad_current` view; and
+Two gotchas worth knowing before you query it: **macros do not resolve across an `ATTACH`, and
+that breaks ORDINARY VIEWS too, not just the obvious macro calls** — `mart.clubs` fails with
+`Scalar Function with name phase_ord does not exist` purely because its own SQL calls
+`phase_ord`, which lives in `main` and resolves to your LOCAL database. The error names a
+missing function, so it does not look like an ATTACH problem at all. **`USE m` first and
+qualify nothing**, which fixes every case including `mart.squad_on(d)`; and
 **a raw `club_tid` filter for "our squad" is NOT SAFE, on ANY table** — `player_snapshots`,
 `player_position_levels`, `players`, all of them — because a loan that lapsed without being
 renewed can leave a departed player's `club_tid` still pointing at our club indefinitely (this
