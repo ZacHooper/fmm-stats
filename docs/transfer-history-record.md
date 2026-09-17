@@ -111,7 +111,16 @@ across many different opponents is the tell. See
 
 ## Next steps
 
-1. Find the fee. It is the field that makes the table worth parsing.
+1. **Find the fee AND the transfer-type flag — they are probably two fields, not one.**
+   Zac's reading of the screenshot, which the screenshot supports directly: the game's
+   **Amount** column holds *either* a money value *or* a word — of his 11 signings, four show
+   a fee (£300K, £200K, £130K, £120K) and seven show `Bosman` x2, `Loan` x4, `Graduation` x1.
+   So expect a small **type** field (free / fee / loan / youth graduation) alongside a money
+   field that is only meaningful when the type says so. This reframes the failed fee hunt: a
+   band search across all records was looking for money in rows that have none, and it also
+   explains the three screenshot entries that produced no usable record — two Bosmans and a
+   loan. Search for the fee ONLY in rows whose type flag matches the four fee-paying signings,
+   and look for a byte that partitions the table into groups of roughly the right shape.
 2. Work out the block structure (why 1–11 records per player) before walking it — the offset is
    a symptom of not understanding it.
 3. Test the "expiry at the time of the move" reading for `+61` directly — on a player who
