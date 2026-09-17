@@ -23,6 +23,7 @@ MEAN9 = ["heading_src", "unselfishness_src", "pace_src", "strength_src", "stamin
 POS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC", "AMR",
        "ST", "DML", "DMR"]
 _rhu = lambda x: math.floor(x + 0.5) if x >= 0 else math.ceil(x - 0.5)
+GK_ATTRS = ("Handling", "Kicking", "Reflexes", "Communication", "Throwing")
 
 
 def spec_from(db):
@@ -69,8 +70,9 @@ def main():
     bi = {c: 2 + i for i, c in enumerate(bc)}
     ai = 2 + len(bc)
     pi = ai + len(ATTR_ORDER)
-    print(f"{len(rows)} exact rows\n")
-    print(f"{'attribute':<15}{'frozen ex':>10}{'refit ex':>10}{'refit ±1':>10}")
+    is_gk = np.array([r[pi + POS.index("GK")] == 20 for r in rows])
+    print(f"{len(rows)} exact rows ({int(is_gk.sum())} goalkeeper)\n")
+    print(f"{'attribute':<15}{'frozen ex':>10}{'refit ex':>10}{'refit ±1':>10}{'n':>7}")
     tot = np.zeros(3)
     n_attr = 0
     for attr in ATTR_ORDER:
@@ -103,10 +105,16 @@ def main():
             fz.append(MOD.predict(attr, b, 60, r[0], r[1], m9, fwd)
                       if attr in MOD.FROZEN else np.nan)
         got = np.array(got, float); fz = np.array(fz, float)
-        e = (got[keep] == y[keep]).mean()
-        w = (np.abs(got[keep] - y[keep]) <= 1).mean()
-        fe = (fz[keep] == y[keep]).mean()
-        print(f"{attr:<15}{fe:>9.1%}{e:>10.1%}{w:>10.1%}")
+        # Score on the population that HAS the attribute. A goalkeeping attribute is pinned at
+        # the display floor for an outfielder, so a pooled score measures how often we predict
+        # 1 -- Communication reads 92% pooled and 3% on actual keepers.
+        pop = keep & (is_gk if attr in GK_ATTRS else ~is_gk)
+        if not pop.any():
+            continue
+        e = (got[pop] == y[pop]).mean()
+        w = (np.abs(got[pop] - y[pop]) <= 1).mean()
+        fe = (fz[pop] == y[pop]).mean()
+        print(f"{attr:<15}{fe:>9.1%}{e:>10.1%}{w:>10.1%}{int(pop.sum()):>7}")
         tot += (fe, e, w); n_attr += 1
     print(f"\n{'MEAN':<15}{tot[0]/n_attr:>9.1%}{tot[1]/n_attr:>10.1%}{tot[2]/n_attr:>10.1%}")
     # the closed forms, which carry over unchanged

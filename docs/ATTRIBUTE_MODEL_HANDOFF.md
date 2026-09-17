@@ -7,32 +7,69 @@ got into the store in the first place.
 
 ## Where it stands
 
-| | exact | within ±1 |
+**Score every attribute on the population that HAS it.** A goalkeeping attribute is pinned at
+the display floor for an outfielder — Communication is 1 on all 774 outfield truth rows — so a
+pooled score measures how often we predict 1. Pooled, Communication read **92.4%**; on the 66
+rows that are actually keepers it read **3.0%**. Both numbers were true; only one meant
+anything. Every figure below is scored on the right population.
+
+| the 9 OUTFIELD entangled attributes | exact | ±1 |
 |---|---|---|
-| frozen (`fmparser/model.py`, 2024, 28 Bucaspor players) | 52.6% | 87.8% |
-| **refit** (`scripts/fit_attribute_model.py`) | **69.3%** | 89.5% |
-| **the same coefficients on BUCASPOR, not refitted** | **68.1%** | 87.4% |
+| frozen (2024) | 46.3% | — |
+| **refit, Frem (CV by player)** | **59.4%** | 84.4% |
+| **same coefficients on BUCASPOR, not refitted** | **59.5%** | 80.9% |
 
-840 exact rows over 86 players (25 Frem snapshots), **held out by player**, 5 folds, nested
-selection. 13 of 14 attributes beat the frozen model on Frem; **14 of 14 on Bucaspor.**
+**59.4% on its own data, 59.5% on a career it has never seen.** That is the number to quote.
 
-**The ceiling is 94.8% exact / 98.7% ±1**, not 100% — measured on the attributes read straight
-from a plain byte, where a disagreement is the two sources disagreeing rather than a decode
-error. See [`docs/ca-weighting.md`](ca-weighting.md). Quote accuracy against that, never 100.
+| the 5 GOALKEEPER attributes | |
+|---|---|
+| status | **not refitted — frozen coefficients kept** |
+| why | Frem has **7 goalkeepers**. 66 rows over 7 people is not a training set. |
+
+Refitting them actively hurt: on the Bucaspor hold-out the refit scored **24.8%** against the
+frozen model's **28.0%** — worse on a career it had not seen. `--min-players` (default 20) now
+refuses to refit an attribute whose own population is too small and keeps the incumbent,
+printing why. It is a SAMPLE-SIZE rule, not a score-based one, so it cannot double as an
+accidental way of picking the winner.
+
+**The ceiling is 94.8% exact / 98.7% ±1**, not 100% — see [`docs/ca-weighting.md`](ca-weighting.md).
 
 ### The cross-career hold-out is the important number
 
-Everything is fitted on Frem, so the only evidence it generalises is a career it has never
-seen. `scripts/holdout_score.py --fit fm-frem.duckdb --on fm-buca.duckdb` scores the Frem
-coefficients on Bucaspor's 231 exact rows / 41 players **without refitting**: **68.1%**, against
-69.3% on its own data. A drop of 1.2 points across Denmark → Turkey.
+Everything is fitted on Frem, so the only evidence it generalises is a career it has never seen.
+`scripts/holdout_score.py --fit fm-frem.duckdb --on fm-buca.duckdb` scores the Frem coefficients
+on Bucaspor's 231 exact rows / 41 players **without refitting**. On the nine outfield attributes:
+**59.5%, against 59.4% on Frem.** Denmark → Turkey costs nothing measurable.
 
 That is the failure mode the frozen model had and this one does not. The frozen coefficients
-were fitted on 28 Bucaspor players and score 56.6% there and 52.6% on Frem — they did not
-travel. These do.
+were fitted on 28 Bucaspor players and score 49.6% there against 46.3% on Frem.
 
 The closed forms travel best of all: **Teamwork 99.6%, Aerial 87.4%** on Bucaspor (88.7% on
 Frem), which is what you would hope for from two parameters over plain bytes.
+
+## Which attributes are wrong, and why
+
+Three patterns, all from `archive/error_pattern.py`:
+
+1. **Bias is almost the whole story.** Across the 14, |mean signed error| correlates **−0.91**
+   with the exact-match rate. The attributes we miss are the ones we are systematically high or
+   low on — Positioning −0.41, Dribbling −0.42, Decisions +0.47 — not ones where we are noisy
+   around the right answer. Bias is an intercept problem, which is the most fixable kind.
+2. **We under-predict the good ones, badly.** Pooled over all 14, by true value:
+
+   | true value | exact | mean error | off by ≥2 |
+   |---|---|---|---|
+   | 4–6 | 83.6% | +0.10 | 1.7% |
+   | 10–12 | 53.5% | −0.28 | 27.0% |
+   | 13–15 | 36.6% | −0.69 | 34.5% |
+   | 16–20 | 22.4% | −1.01 | 28.7% |
+
+   A player's *best* attributes are where we are worst, and we systematically make them look
+   worse than they are. For scouting that is the wrong place to be wrong: the elite winger's 17
+   pace reads 16.
+3. **Neither the spread of the byte (+0.21) nor the spread of the true value (−0.06) predicts
+   anything.** It is not that some attributes are intrinsically noisier; it is bias and it is
+   the top of the range.
 
 ## The exact-vs-±1 dial, and why "exact" is the right setting
 

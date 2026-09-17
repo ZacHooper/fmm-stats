@@ -117,6 +117,8 @@ _W = np.arange(0.0, 1.001, 0.05)
 # of outfield truth rows), so including them would fit gamma to a constant.
 _OUTFIELD_ENTANGLED = ("Crossing", "Dribbling", "Tackling", "Shooting", "Passing",
                        "Decisions", "Creativity", "Movement", "Positioning")
+# The five that only a keeper really has; on an outfielder they sit at the display floor.
+GK_ATTRS = ("Handling", "Kicking", "Reflexes", "Communication", "Throwing")
 
 
 def _shared_gamma(Y, OWN, ca, mask):
@@ -257,6 +259,11 @@ def main():
     ap.add_argument("--db", default="fm-frem.duckdb")
     ap.add_argument("--write", action="store_true", help="replace staging.attribute_model")
     ap.add_argument("--folds", type=int, default=5)
+    ap.add_argument("--min-players", type=int, default=20,
+                    help="refuse to refit an attribute whose own population has fewer distinct "
+                         "players than this; keep the incumbent coefficients instead. The "
+                         "learning curve is flat in ROWS and only bends in PLAYERS, so players "
+                         "is the honest unit.")
     ap.add_argument("--min-rows", type=int, default=400,
                     help="refuse to fit below this. One snapshot yields ~30 exact rows, which "
                          "cannot support even the incumbent's 5-parameter shape; lower it only "
@@ -279,11 +286,14 @@ def main():
     print(f"{len(rows):,} exact rows over {len(uniq)} distinct players, "
           f"{folds} folds held out BY PLAYER\n")
     print(f"{'attribute':<15}{'frozen ex':>10}{'frozen ±1':>10}"
-          f"{'new ex':>9}{'new ±1':>9}  features")
+          f"{'new ex':>9}{'new ±1':>9}{'n':>7}  features")
     # Joint inputs for the `shared` candidate: the outfield entangled targets, their own
     # bytes, CA, and who is a keeper. gamma is fitted from THESE, once per training mask.
     ca_all = np.array([r[1] for r in rows], float)
     is_gk = np.array([r[pi + POS.index("GK")] == 20 for r in rows])
+    if is_gk.sum() < 30:
+        print(f"note: only {int(is_gk.sum())} goalkeeper rows — the five GK attributes are "
+              f"scored on those alone and their numbers are indicative at best\n")
     Y_j = np.array([[r[ai + ATTR_ORDER.index(a)] for r in rows] for a in _OUTFIELD_ENTANGLED],
                    float)
     OWN_j = np.array([[MOD.uw(r[bi[COLS[MOD.FROZEN[a][0]]]]) for r in rows]
@@ -305,6 +315,27 @@ def main():
         # selection bias -- with three candidates and fifteen attributes it flatters the
         # result for free. So the set is chosen INSIDE each training fold, and the outer fold
         # scores whatever that choice produced, on players it has never seen.
+        pop0 = keep & (is_gk if attr in GK_ATTRS else ~is_gk)
+        n_players = len({t for t, m in zip(tids, pop0) if m})
+        if n_players < a.min_players:
+            # NOT ENOUGH PLAYERS TO FIT THIS ONE. Frem has 7 goalkeepers, so the five keeper
+            # attributes were being fitted on 66 rows over 7 people -- and it showed: on the
+            # Bucaspor hold-out the refit scored 24.8% against the frozen model's 28.0%, i.e.
+            # refitting them made things WORSE on a career it had not seen. Keeping the
+            # incumbent is the honest outcome, and this is a SAMPLE-SIZE rule rather than a
+            # score-based one, so it cannot be an accidental way of picking the winner.
+            fz = np.array([MOD.predict(attr, _buf(r, bi), 60, r[1], r[2],
+                                       sum(r[bi[c]] for c in MEAN9) / 9.0,
+                                       _fwd(r, pi)) for r in rows], float)
+            fex, f1 = score(fz[pop0], y[pop0])
+            print(f"{attr:<15}{fex:>9.1%}{f1:>10.1%}{'—':>8}{'—':>9}"
+                  f"{int(pop0.sum()):>7}  kept (only {n_players} players)")
+            own_off, partner_off, ffeat, fcoef = MOD.FROZEN[attr]
+            out.append((attr, own_off, partner_off, tuple(f for f in ffeat if f != "fwd"),
+                        np.array([c for f, c in zip(ffeat, fcoef) if f != "fwd"]
+                                 + [fcoef[-1]]), fex, fex))
+            tot += (fex, f1, fex, f1)
+            continue
         own_b = np.array([MOD.uw(r[bi[COLS[own]]]) for r in rows], float)
         par_b = (np.array([MOD.uw(r[bi[COLS[partner]]]) for r in rows], float)
                  if partner is not None else np.zeros(len(rows)))
@@ -353,7 +384,15 @@ def main():
                     pick, pick_ex = label, e
             chosen.append(pick)
             pred[te] = fit_predict(pick, tr, te)
-        ex, w1 = score(pred[keep], y[keep])
+        # SCORE EACH ATTRIBUTE ON THE POPULATION THAT HAS IT.
+        #
+        # A goalkeeping attribute is pinned at the display floor for an outfielder --
+        # Communication is 1 on all 774 outfield truth rows -- so scoring it over everyone
+        # measures how often we predict 1, not whether we can decode a keeper's hands. Before
+        # this split Communication reported 92.4% (= 774/840) while scoring 6.1% on the 66 rows
+        # that are actually keepers. The pooled number was true and meaningless.
+        pop = keep & (is_gk if attr in GK_ATTRS else ~is_gk)
+        ex, w1 = score(pred[pop], y[pop])
         label = max(set(chosen), key=chosen.count)          # the set the folds mostly agreed on
         names = cand[label][0]
         if label == "shared":
@@ -376,9 +415,10 @@ def main():
         fz = np.array([MOD.predict(attr, _buf(r, bi), 60, r[1], r[2],
                                    sum(r[bi[c]] for c in MEAN9) / 9.0,
                                    _fwd(r, pi)) for r in rows], float)
-        fex, f1 = score(fz[keep], y[keep])
+        fex, f1 = score(fz[pop], y[pop])
         ex, w1, label, names, coef = best
-        print(f"{attr:<15}{fex:>9.1%}{f1:>10.1%}{ex:>8.1%}{w1:>9.1%}  {label}")
+        print(f"{attr:<15}{fex:>9.1%}{f1:>10.1%}{ex:>8.1%}{w1:>9.1%}"
+              f"{int(pop.sum()):>7}  {label}")
         out.append((attr, own, partner, names, coef, ex, fex))
         tot += (fex, f1, ex, w1)
     n = len(MOD.FROZEN)
