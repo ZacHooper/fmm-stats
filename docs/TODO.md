@@ -326,6 +326,18 @@ Two gaps remain open:
   proves the 14 bytes are accounted for, not that the record ends there). Run
   `uv run python scripts/audit_records.py --map` to see it. It does NOT audit the empty-CODE bug
   above — a record whose 3-name loop aborts never reaches this trailer at all.
+- **Each of the 3 names is followed by an unnamed terminator byte** that `_eval_comp_candidate`
+  currently treats as a heuristic retry rather than a declared field. Measured 2026-09-17: the
+  `if not ok_len: p += 1` fallback fires on **1,355 of 1,356 name-slot boundaries (99.9%)**
+  across all 678 competitions — not a rare recovery path, the NORMAL one. The byte it steps
+  over is `0x00` on 95.6% of boundaries and `0xff` on the other 4.4%, consistent at both the
+  long→short and short→code boundaries, and it sits outside each name's own counted length (the
+  decoded strings never carry an embedded null) — a genuine per-name terminator, not noise.
+  `p` still lands correctly either way, so nothing downstream is wrong, but the true per-record
+  length is `6 + (4+long_len+1) + (4+short_len+1) + (4+code_len+1) + 14`, not the un-terminated
+  version currently implied. Fix: name the byte explicitly (e.g. consume `sl+1` per name slot
+  instead of retrying on failure) and add it to `scripts/audit_records.py`'s `comp_trailer`
+  coverage so COVERAGE stops treating it as an invisible gap between two named fields.
 
 ### 11. `mart.club_managers` isn't purely structural
 It keeps a `home_reputation` tiebreak and exposes no candidate count, so a sole structural hit
