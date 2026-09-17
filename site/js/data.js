@@ -15,7 +15,7 @@
 
 export const S = {          // everything loaded, one place
   index: null, core: null, squad: null, positions: null, matches: null, registration: null,
-  forecast: null,
+  forecast: null, world: null,
   all: null,                // lazy: every player in the save, fetched from R2 on demand
   players: new Map(),       // tid -> player (core, then merged with all)
   clubs: new Map(),         // tid -> {tid,name,leagueCid,players}
@@ -44,16 +44,33 @@ const j = async (url) => {
 };
 
 function mkPlayer(row, fields, attrNames) {
-  // core.json rows stop at `weight` (index 11); only all.json's ALL_PLAYER_FIELDS carries
-  // origin/capital (indexes 12-13), so both are undefined -> null for a core-only player.
+  // core.json rows stop at `weight` (index 11); all.json's ALL_PLAYER_FIELDS adds origin/capital
+  // (12-13), and PROFILE_FIELDS (loadProfile only) adds the bio/reputation/personality/hidden-
+  // attribute tail after that — all undefined -> null for a row that doesn't carry them.
   const [tid, name, clubTid, dob, value, wage, expiry, attrs, positions,
-         shirt, height, weight, originClubTid, capitalEligible] = row;
+         shirt, height, weight, originClubTid, capitalEligible,
+         nationality, footLeft, footRight, preferredShirt, joinedDate,
+         caps, goals, u21Caps, u21Goals,
+         repHome, repCurrent, repWorld,
+         adaptability, ambition, determination, loyalty, pressure,
+         professionalism, sportsmanship, temperament,
+         jumping, consistency, bigMatch, injuryProne, versatility,
+         setPieces, penalty, workRate, flair] = row;
   return {
     tid, name: name || `#${tid}`, unnamed: !name, clubTid, dob, value, wage, expiry,
     attrs, shirt: shirt ?? null, height: height ?? null, weight: weight ?? null,
     originClubTid: originClubTid ?? null, capitalEligible: capitalEligible ?? null,
     positions: (positions || []).map(([pos, fam, lvlLeague, lvlGlobal]) =>
       ({ pos, fam, lvlLeague, lvlGlobal, role: S.posRole[pos] || pos })),
+    profile: nationality === undefined ? null : {
+      nationality, footLeft, footRight, preferredShirt, joinedDate,
+      caps, goals, u21Caps, u21Goals,
+      reputation: { home: repHome, current: repCurrent, world: repWorld },
+      personality: { adaptability, ambition, determination, loyalty, pressure,
+        professionalism, sportsmanship, temperament },
+      hidden: { jumping, consistency, bigMatch, injuryProne, versatility,
+        setPieces, penalty, workRate, flair },
+    },
   };
 }
 
@@ -117,6 +134,13 @@ export async function loadForecast() {
     S.forecast = await j("api/forecast.json").catch(() => null);
   }
   return S.forecast;
+}
+/** Nations + map places for the World page. Small, and only that page asks for it. */
+export async function loadWorld() {
+  if (!S.world) {
+    S.world = await j("api/world.json").catch(() => null);
+  }
+  return S.world;
 }
 export async function loadMatches() {
   if (!S.matches) {
@@ -182,6 +206,35 @@ export async function loadPlayersByTid(tids) {
       if (!S.players.has(row[0])) S.players.set(row[0], mkPlayer(row, data.fields, data.attrs));
     }
   } catch { /* offline or blocked — those tids just stay unresolved */ }
+}
+
+/**
+ * The profile-popup-only bio/reputation/personality/hidden-attribute tail for ONE player —
+ * fetched on demand when a profile sheet actually opens, not eagerly for every page view (same
+ * reasoning as loadAll/loadPlayersByTid: reputation especially was previously left out of
+ * core.json entirely to keep that payload lean).
+ *
+ * Deliberately NOT `loadPlayersByTid`: that helper skips any tid already in `S.players`, which
+ * is exactly the common case here — our own squad and every division-ladder club are already
+ * resolved from core.json by boot(), whose row stops at `weight` and never carries this tail. So
+ * this always re-fetches (once — `profileLoaded` short-circuits a second open) and OVERWRITES
+ * the existing entry rather than skipping it; an all.json row is a strict superset of a core.json
+ * row, so nothing already on the player is lost.
+ */
+export async function loadProfile(tid) {
+  const existing = S.players.get(tid);
+  if (existing?.profileLoaded) return existing;
+  try {
+    const data = await j(`/api/all?tid=${tid}`);
+    const row = data.players.find((r) => r[0] === tid);
+    if (!row) return existing || null;
+    const p = mkPlayer(row, data.fields, data.attrs);
+    p.profileLoaded = true;
+    S.players.set(tid, p);
+    return p;
+  } catch {
+    return existing || null;   // offline/blocked — profile sheet just skips the new sections
+  }
 }
 
 /**
