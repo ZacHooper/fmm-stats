@@ -278,8 +278,12 @@ are now **fixed** (2026-09-17): the `_MIN_COMP_REP = 500` reputation floor now a
 structurally-valid low-reputation competition at tier 1 instead of dropping it (mirroring the
 existing club-uid-ceiling tier-2 fill), recovering all 76 real cids that were failing on
 reputation alone — `Danish Second Division East`/`West`, `Greek Football League North`/`South`,
-the Greek/Northern Irish/Welsh/Polish regional divisions among them (cid 1 `'Replay 2'` stayed
-correctly excluded, since it fails on other gates too, not reputation alone). And the
+the Greek/Northern Irish/Welsh/Polish regional divisions among them. (cid 1 turned out to be
+REUSED — a genuine noise record `'Replay 2'` at `gate=0` AND a real competition
+`'Belgian Pro League B'` at `reputation=92` both decode to cid 1 at different file offsets; tier
+arbitration correctly keeps the tier-0 `'Belgian Pro League B'` and drops the tier-1 `'Replay
+2'`, so the earlier claim in this entry that cid 1 was pure noise was itself wrong — it just
+has company.) And the
 reserve-group name-walk now accepts a length-0 short-name/code for slots 1/2, so all 30
 `<Nation> Reserves Group <N>` competitions resolve, including cid 1342 "Danish Reserves Group
 1" (Zac's own motivating example) — `mart.py`'s comment calling it unnamed was wrong; the name
