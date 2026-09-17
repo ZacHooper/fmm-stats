@@ -27,12 +27,47 @@ is contiguous and the counters bound it, so no plausibility window is involved.
 | `+12` | u32 counter, always `+8` + 4,723 | |
 | `+46` | club (u16) | equals the player's current club on 19% — not yet understood |
 | `+48` | **player tid** (u16) | resolves to a known person on **4,099/4,099 records (100%)**; 1,612 distinct people |
-| `+61` | date `[day u16][year u16]` | 100% plausible. `day 0 / year 2021` on 3,037 records = null; the rest are 2027/2028, consistent with a contract expiry |
+| `+61` | `[day u16][year u16]` — **not a transfer date**, see below | day takes only TWO values (0 and 179) across all 4,099 records |
 
 Everything else is unread. **Fees are NOT located** — `+52`/`+53` vary with the transfer but not
 linearly with the fee (£200K → 23, £120K → 9, £300K → 53), and searching for the exact amounts
 finds nothing here. Money is displayed ROUNDED (CLAUDE.md §3), so any future search must use a
 band, but a band search over ±25% did not find them either.
+
+## `+61` is not a transfer date — correcting an earlier claim
+
+An earlier version of this note said `+61` "decodes as a plausible `[day][year]` on 100% of
+records". That was true and almost meaningless: **the day only ever takes two values**, so the
+test was passing on a constant. Zac caught it by pointing out the Transfers screen shows no
+dates at all. There are just **7 distinct pairs** in the whole table:
+
+```
+day=0    year=2021   3,037 records   (null)
+day=179  year=2028     554
+day=179  year=2027     427
+day=179  year=2030      34
+day=179  year=2029      29
+day=179  year=2026      11
+day=179  year=2031       7
+```
+
+Day 179 is the end of June — a season boundary, not an event. So the field is really a YEAR
+with a fixed companion, and it cannot express a per-transfer date even in principle.
+
+What it *does* correlate with is **contract expiry**, cross-checked against
+`staging.scrape_contracts`, which decodes expiry from a different record entirely:
+
+| relation to the player's CURRENT expiry year | records |
+|---|---|
+| equal | 664 (62.5%) |
+| current is 1–4 years LATER | 381 |
+| current is EARLIER | 17 (1.6%) |
+
+**`+63` is ≤ the current expiry year on 98.4% of records.** A one-directional relationship that
+strong is not chance, and it is what you would expect if `+63` is the expiry of the contract
+signed **at the move**, with renewals since pushing the current one later. That is the leading
+reading; 62.5% equality on its own would not have justified calling it contract expiry, and the
+earlier draft should not have implied it did.
 
 ## The column-offset trap applies — read `+0` from the NEXT record
 
@@ -79,5 +114,7 @@ across many different opponents is the tell. See
 1. Find the fee. It is the field that makes the table worth parsing.
 2. Work out the block structure (why 1–11 records per player) before walking it — the offset is
    a symptom of not understanding it.
-3. Decide whether `+61` really is contract expiry by checking it against
-   `staging.scrape_contracts`, which already decodes expiry from a different record.
+3. Test the "expiry at the time of the move" reading for `+61` directly — on a player who
+   demonstrably renewed after signing, `+63` should hold the OLD expiry while
+   `scrape_contracts` holds the new one. The 98.4% one-directional result is consistent with
+   it but does not prove it.
