@@ -66,7 +66,7 @@ fmparser/             the library
   model.py            frozen regression coefficients + predict()
   reference.py        club / competition names, player info field
 data/                 ground truth, screenshots, rough-guide, breadcrumbs
-docs/                 ATTRIBUTE_DECODING.md, BUGS.md
+docs/                 TODO.md (start here), BUGS.md, record layouts + reference
 archive/              exploratory + model-derivation scripts (provenance)
 tests/                ground-truth regression guard
 output/               extractions (gitignored)
@@ -99,5 +99,7 @@ Running on a *different* career or a full-DB export would need the config genera
 
 The reverse-engineering story — record layouts, the exact formulas, the attribute
 regression, and everything that turned out **not** to be stored — is in
-[`docs/ATTRIBUTE_DECODING.md`](docs/ATTRIBUTE_DECODING.md) and
-[`docs/BUGS.md`](docs/BUGS.md).
+[`docs/ATTRIBUTE_DECODING.md`](docs/ATTRIBUTE_DECODING.md),
+[`docs/record-expansion.md`](docs/record-expansion.md) and
+[`docs/BUGS.md`](docs/BUGS.md). What the project is doing *next* is in one place,
+[`docs/TODO.md`](docs/TODO.md).

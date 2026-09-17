@@ -1,4 +1,4 @@
-"""Evidence for the shared-CA-shift model shape (docs/ATTRIBUTE_MODEL_HANDOFF.md).
+"""Evidence for the shared-CA-shift model shape (docs/attribute-model.md).
 
 Run: uv run python archive/ca_shared_shift.py <store.duckdb>
 

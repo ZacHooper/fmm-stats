@@ -1,30 +1,41 @@
-# Light Results Ring Buffers & Missing Games
+---
+name: light-results-rolling-buffer
+description: "SUPERSEDED — the region is the CLUB RECORDS tables, not a results list; the rolling-buffer/deletion story was wrong"
+metadata:
+  node_type: memory
+  type: reference
+---
 
-**Date:** August 2026
+# SUPERSEDED 2026-09-17 — this note was wrong about what the region IS
 
-## The Problem
-We were noticing that our end-of-season saves were missing the first ~19 games of the simulated non-managed leagues (like Danish 3. Division), despite the managed club retaining all 32-34 of its matches. Furthermore, we suspected our parser was artificially gating fixtures because we were skipping ~90% of the bytes in the `light_results` region.
+The original note (August 2026) concluded that the ~47 MB region holds simulated match
+results in a 1.2 MB ring buffer, and that the engine **physically overwrites** old fixtures
+so early-season games "physically cease to exist". Both halves are wrong.
 
-## The Discovery
-Through brute-force byte scanning of the entire `.fms` save file, we discovered two major architectural facts about how Football Manager Mobile handles non-managed ("light") match results:
+**It is not a results list.** It is the **Club History** screens, per club: Team Records
+(biggest win, biggest defeat, highest scoring match, longest streaks) and Player Records
+(most goals in a season, youngest player, highest transfer fee). Decoded slot-for-slot
+against in-game screenshots and parsed by
+[`fmparser/clubrecords.py`](../../fmparser/clubrecords.py).
 
-### 1. The Game Engine literally deletes old fixtures (Rolling Window)
-The game does not store the full 32+ game history for non-managed clubs in a single save file. To save memory, it allocates fixed-size ~1.2MB arrays. As the season progresses past ~13-15 games, the engine **physically overwrites the oldest fixtures** with new ones. 
-- A mid-season save will have matches 1-15.
-- An end-season save will have matches 16-32.
-- The raw data for matches 1-15 physically ceases to exist in the end-season file. 
+**Nothing is being deleted.** Three of six opening-day fixtures (16 Aug 2025) are present
+with correct scores in a save dated 11 Jun 2026 — ten months later. The original authors saw
+~13 rows per club and inferred a 13-game window; the real reason is that there are **~12
+record CATEGORIES**.
 
-*Conclusion:* The `light_results` ring buffer DOES physically delete old matches. However, the game UI still displays full historical fixture lists. This means the complete season scores are NOT lost—they are simply stored in a completely different data structure (likely the massive fixture/schedule arrays in the 55MB region). We just haven't mapped the schedule array parser yet. By extracting `start`, `mid`, and `end` saves into DuckDB, we use SQL to stitch the overlapping rolling windows back into a complete timeline.
+Everything the note treated as evidence of a ring buffer has a simpler cause:
 
-### 2. Multiple Buffers & The Marker Myth
-The parser used to gate fixtures by enforcing a strict marker byte `FLAG_HI = (0x40, 0xc0)`. It also only looked for the *single* densest 1.2MB region in the file.
-- **Multiple Regions:** We found up to 7 distinct ~1.2MB arrays scattered throughout the 63MB save (likely partitioned by continent or competition type, such as English leagues vs Belgian leagues).
-- **The Marker is flexible:** Valid fixtures also use `0x41`, `0x00`, and `0x42xx`. The `0x42xx` marker is particularly tricky because it completely overwrites the Competition CID bytes with a flag (which means we can't easily auto-assign them to a league, but they are valid matches).
+| observed | actual cause |
+|---|---|
+| ~13 rows per club | ~12 record categories |
+| "fixtures stored in >=2 copies" | "Highest scoring match" and "Highest scoring LEAGUE match" are one game in two slots; a record in both the Overall and per-season table appears 4x |
+| rows not in date order | they are in CATEGORY order |
+| computed standings showing 5-13 games played | they were computed from record-holding matches |
+| "multiple 1.2 MB arrays" | per-club blocks, one table each |
 
-*Solution Implemented:* We rewrote `fmparser/lightresults.py` to:
-1. Strip out the `FLAG_HI` marker check completely. If the struct is physically sound (valid home TID + valid away TID + score <= 30 + valid year), we parse it.
-2. Use `find_light_regions` (plural) to locate *every* active ring buffer across the entire save file, sweep all of them, and then globally deduplicate mirror records.
+**What still holds.** These are real matches with real club tids and competition ids, so
+`lightresults.club_leagues()` / `leagues()` remain sound as a club->league MEMBERSHIP source.
+Do not build a fixture list or a league table from them.
 
-## What about the Standings Table?
-If the game deletes raw matches, how does it display the League Table UI?
-We scanned the `6MB-8MB` region of the file and found that FM stores pre-calculated `[Played][W][D][L][Pts]` records. However, these are tightly interleaved with fragmented UI cache pointers (`0x7FFF` null terminators, font/color flags, promotion zone markers) rather than a clean database array. Reverse-engineering this UI memory is extremely fragile and prone to breaking on game updates. While our DuckDB historical `UNION` strategy guarantees 100% accurate match histories without reverse-engineering the UI/Schedule cache, we now know it is mathematically possible to pull the full season from a single end-save if we decode the master fixture schedule block (which stores the scores for every Fixture ID).
+Full write-up: [`docs/light-results-record.md`](../light-results-record.md). The hunt for
+complete results continues in [`docs/TODO.md`](../TODO.md) #4 — and it is not in this region.

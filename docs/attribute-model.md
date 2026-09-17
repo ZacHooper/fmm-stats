@@ -1,8 +1,13 @@
-# Attribute model — handoff
+# Attribute model — the decoder, and what is already ruled out
+
+> **STATUS: REFERENCE, not a work plan.** The refit SHIPPED in PR #51. Kept for the model
+> shape, the accuracy numbers and — most valuable — the **"Everything already ruled out"**
+> section near the end, which exists so nobody re-runs a dead end. The leads still worth
+> chasing are in [`TODO.md`](TODO.md).
 
 **2026-09-17.** The estimation model moved out of the parser into the database, and was refit.
-This is where it landed and what to do next. Read
-[`docs/PARSER_EXPANSION_HANDOFF.md`](PARSER_EXPANSION_HANDOFF.md) first for how the raw bytes
+This is where it landed. Read
+[`docs/record-expansion.md`](record-expansion.md) first for how the raw bytes
 got into the store in the first place.
 
 ## Where it stands

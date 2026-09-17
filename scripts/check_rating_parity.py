@@ -3,7 +3,7 @@
 
 CLAUDE.md requires the rating formula to stay identical everywhere it is implemented — the SQL
 (`mart.player_role_ratings` / `mart.player_position_fit`), the site's JS (`site/js/data.js`)
-and now the Attribute Lab dashboard. That equality was asserted in `docs/HANDOFF.md` on the
+and now the Attribute Lab dashboard. That equality was asserted in `docs/TODO.md` on the
 strength of a scratchpad check that was never committed, so nothing has been guarding it.
 
 This recomputes `base_rating` and `eff` from `lab.json` exactly as the dashboard does —

@@ -85,6 +85,13 @@ order). Position 1 = champion, position N = bottom.
 
 ## The light-results region is PER-CLUB BLOCKS (major structural finding)
 
+> **2026-09-17 — the blocks are real, but they are not fixture lists.** Each per-club block
+> is that club's **Club History record table** (Team Records / Player Records), not its home
+> programme. The structural observation below stands and was right; the interpretation of
+> what the rows MEAN was wrong. A club's block holds ~12 rows because there are ~12 record
+> CATEGORIES, and the slot index is the category. See
+> [`light-results-record.md`](light-results-record.md) and `fmparser/clubrecords.py`.
+
 The region is NOT interspersed fixtures — it is a sequence of **per-club blocks, ordered
 by club TID**. Each block contains, on a ~21-byte slot grid:
 

@@ -307,6 +307,35 @@ DDL = [
         tid INTEGER NOT NULL, name VARCHAR
     )""",
 
+    # Club History -- the Team Records and Player Records tables (fmparser/clubrecords.py).
+    # This is the region lightresults.py reads as match RESULTS; it is not one, and the
+    # identification against in-game screenshots is in that module's docstring. Stored raw
+    # and unconsumed: it is verified data, but NOTHING should build a fixture list from it.
+    # A record held in two slots, or in both the Overall and per-season table, is genuinely
+    # stored more than once, so rows are NOT deduplicated here.
+    # natural key: (season, phase, byte_offset)
+    """CREATE TABLE IF NOT EXISTS staging.club_records (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        byte_offset BIGINT NOT NULL, club_tid INTEGER NOT NULL,
+        slot INTEGER, category VARCHAR, kind VARCHAR,
+        opponent_tid INTEGER, score_for INTEGER, score_against INTEGER,
+        value DOUBLE, comp_cid INTEGER, record_season INTEGER, day INTEGER,
+        unk10 INTEGER, unk12 INTEGER, unk14 INTEGER
+    )""",
+
+    # Player records. `club_tid` here is POSITIONAL -- the row carries no club id and is
+    # attributed to the nearest club block, with the byte distance kept so a reader can see
+    # how strong the inference is. `unk0` is plausibly the player but is NOT named, because
+    # it is unverified.
+    # natural key: (season, phase, byte_offset)
+    """CREATE TABLE IF NOT EXISTS staging.player_records (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        byte_offset BIGINT NOT NULL, club_tid INTEGER, club_distance INTEGER,
+        slot INTEGER, category VARCHAR, unit VARCHAR, player_tid INTEGER,
+        value DOUBLE, record_season INTEGER,
+        unk8 BIGINT, unk12 BIGINT, unk16 BIGINT
+    )""",
+
     # The club record's trailer (fmparser.reference.parse_club_trailer). Facts the club
     # record asserts directly, rather than inferred.
     # natural key: (season, phase, tid)
@@ -1109,6 +1138,36 @@ def load_core(con, d, season, phase):
             ["season", "phase", "club_tid", "seq", "club1_tid", "club2_tid",
              "start_day", "start_year", "end_day", "end_year"], af_rows)
 
+    # --- club history records (team + player) ---------------------------------
+    cr_path = os.path.join(d, "club_records.json")
+    if os.path.exists(cr_path):
+        rows = [(season, phase, _int(v.get("offset")), _int(v.get("club_tid")),
+                 _int(v.get("slot")), v.get("category"), v.get("kind"),
+                 _int(v.get("opponent_tid")), _int(v.get("score_for")),
+                 _int(v.get("score_against")), v.get("value"), _int(v.get("comp_cid")),
+                 _int(v.get("season")), _int(v.get("day")), _int(v.get("unk10")),
+                 _int(v.get("unk12")), _int(v.get("unk14")))
+                for v in _load_json(cr_path)]
+        counts["club_records"] = _insert(
+            con, "club_records",
+            ["season", "phase", "byte_offset", "club_tid", "slot", "category", "kind",
+             "opponent_tid", "score_for", "score_against", "value", "comp_cid",
+             "record_season", "day", "unk10", "unk12", "unk14"], rows)
+    pr_path = os.path.join(d, "player_records.json")
+    if os.path.exists(pr_path):
+        rows = [(season, phase, _int(v.get("offset")), _int(v.get("club_tid")),
+                 _int(v.get("club_distance")), _int(v.get("slot")), v.get("category"),
+                 v.get("unit"), _int(v.get("player_tid")), v.get("value"),
+                 _int(v.get("season")), _int(v.get("unk8")), _int(v.get("unk12")),
+                 _int(v.get("unk16")))
+                for v in _load_json(pr_path)]
+        counts["player_records"] = _insert(
+            con, "player_records",
+            ["season", "phase", "byte_offset", "club_tid", "club_distance", "slot",
+             "category", "unit", "player_tid", "value", "record_season",
+             "unk8", "unk12", "unk16"], rows,
+            dtypes={"unk8": "int64", "unk12": "int64", "unk16": "int64"})
+
     # --- stadiums + cities ----------------------------------------------------
     sd_path = os.path.join(d, "stadiums.json")
     if os.path.exists(sd_path):
@@ -1361,7 +1420,7 @@ def _clear_group(con, group, season, phase):
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
                   "nation_coefficients",
                   "club_affiliates", "competitions", "leagues", "matches", "match_events",
-                  "match_player_stats"):
+                  "match_player_stats", "club_records", "player_records"):
             _delete(con, t, season, phase)
         _delete(con, "league_members", season, phase, "AND source='members'")
         # club->league (exact club-record map) is a core artifact (main-dir club_league.json)

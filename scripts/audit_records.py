@@ -124,6 +124,30 @@ def _info_head_layout():
     return f
 
 
+def _comp_trailer_layout():
+    """The competition record's fixed trailer, starting right after its 3 length-prefixed
+    names (long/short/code) -- offsets straight from `_build_refdata_index`'s comp branch
+    in reference.py, not retyped.
+
+    Like `info_head`, this is NOT the whole record: the names in front are variable-length,
+    so there is no stride to measure, and this covers only the 14-byte trailer we currently
+    read. fmm-editor's FMM26 `Competition.cs` (docs/agent-context/fmm-editor-record-
+    comparison.md) lists more fields after this -- a Qualifiers table and a 3-season
+    Rank/Year history -- neither located in FMM22 yet, so COVERAGE passing here proves the
+    14 bytes we read are accounted for, not that the record ends at +13. (fmm-editor also
+    lists IsWomen, but that's a later-game-version field per Zac -- FMM22 saves won't carry
+    it, so it's not part of this record's unresolved extent.)
+
+    Also does NOT audit the empty-CODE bug (TODO #10): a record whose 3-name loop aborts on
+    a zero-length code, like every auto-generated "<Nation> Reserves Group <N>" competition,
+    never reaches this trailer at all -- it's dropped before COVERAGE ever sees it. This
+    layout can only prove the trailer is read correctly for records that survive that walk.
+    """
+    return [(0, 1, "type"), (1, 2, "continent"), (3, 2, "nation"),
+            (5, 2, "fg_colour"), (7, 2, "bg_colour"),
+            (9, 2, "reputation"), (11, 1, "level"), (12, 2, "parent_cid")]
+
+
 LAYOUTS = {
     "player_attribute": (78, _player_attr_layout()),
     # NOT a stride -- the info record is variable-length; this is the fixed head we decode.
@@ -133,6 +157,9 @@ LAYOUTS = {
         (0, 2, "id"), (2, 4, "uid"), (6, 2, "nation_id"),
         (8, 4, "latitude"), (12, 4, "longitude"),
         (16, 1, "attraction"), (17, 2, "region_id"), (19, 1, UNKNOWN)]),
+    # NOT a stride -- see _comp_trailer_layout: variable-length names precede it, and the
+    # record may continue past +13 (Qualifiers, Rank/Year history -- unlocated in FMM22).
+    "comp_trailer": (14, _comp_trailer_layout()),
 }
 
 

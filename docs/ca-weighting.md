@@ -2,7 +2,7 @@
 
 **2026-09-17.** Two results that came out of the same investigation, both measured on the Frem
 store (6 snapshots, 2021–2026). Companion to
-[`ATTRIBUTE_MODEL_HANDOFF.md`](ATTRIBUTE_MODEL_HANDOFF.md), which covers the decoder itself.
+[`attribute-model.md`](attribute-model.md), which covers the decoder itself.
 
 Regenerate everything here with:
 
@@ -56,7 +56,8 @@ so much as a sample-size one — do not read it as a finding.
   (−3.2), which is the cleanest single demonstration that CA belongs to byte kind and not to
   attribute identity.
 - **modelled** — an entangled 0-255 byte. The byte alone gets 20–36%; the shared CA shift is
-  what makes it usable. See the handoff for why it is ONE shift and not fourteen.
+  what makes it usable. See [`attribute-model.md`](attribute-model.md) for why it is ONE
+  shift and not fourteen.
 
 ### The label ceiling: 94.8%, not 100%
 

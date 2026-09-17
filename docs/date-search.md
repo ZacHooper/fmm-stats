@@ -1,7 +1,7 @@
-# Handoff: find complete results/fixtures via DATE search
+# Finding complete results/fixtures via a DATE search
 
 > **STATUS: OPEN, AND POSSIBLY UNNECESSARY.** May be superseded by the standings
-> record in [`STANDINGS_HANDOFF.md`](STANDINGS_HANDOFF.md) — decide that before
+> record in [`standings-record.md`](standings-record.md) — decide that before
 > spending time here. See [`TODO.md`](TODO.md) #4.
 
 Fresh-eyes task. We've been trying to recover **complete league results/standings** from an

@@ -1,8 +1,13 @@
 # Attribute decoding — findings, formulas, and where it's wrong
 
+> **STATUS: PART REFERENCE, PART SUPERSEDED.** §1 (the 78-byte record) and §7 (the managed-squad
+> snapshot region, the stale-attribute bug, the reserve marker) are live and still the only
+> write-up of either. **§4 and §6 are history** — the estimation model left this document in
+> PR #51 and now lives in the `staging.attribute_model` TABLE, refit and cross-career validated;
+> read [`attribute-model.md`](attribute-model.md) instead. Open work is in [`TODO.md`](TODO.md).
+
 Status of the effort to read **every league player's attributes** (not just our own
-squad). This is the deep-dive companion to `BUGS.md` #8/#9. Paused here as a
-"good-enough + documented" checkpoint.
+squad). This is the deep-dive companion to `BUGS.md` #8/#9.
 
 ## TL;DR
 
@@ -123,7 +128,15 @@ value that carries a leadership modifier it wasn't given. Add Leadership as an i
 
 ---
 
-## 4. The ESTIMATION model (Class-B) — the formulas I'm actually using
+## 4. The ESTIMATION model (Class-B) — SUPERSEDED, kept as the 2024 baseline
+
+> **Do not use these coefficients.** They are the original 28-player Bucaspor fit, and they are
+> no longer what runs: coefficients live in the `staging.attribute_model` table, are refit by
+> `scripts/fit_attribute_model.py`, and score **59.4% exact on Frem / 59.5% on the Bucaspor
+> hold-out** for the nine outfield entangled attributes against a **94.8% ceiling**. The ±1
+> rates below are also measured on the fitting set itself, so they are optimistic by
+> construction. Kept only as the baseline the current model is compared against.
+> See [`attribute-model.md`](attribute-model.md).
 
 Each Class-B attribute is predicted by a linear model over a grid-searched subset of
 features (`regress.py`). Inputs:
@@ -191,9 +204,17 @@ Overall on the 28 training players: **63% exact, 93% within ±1**
 
 ---
 
-## 6. If/when we dig deeper — TODO & pointers
+## 6. The old dig-deeper list — RESOLVED, kept for the trail
 
-**Goal:** turn the ±1 estimate into an exact decode of the Class-B (CA-weighted) attrs.
+> **This list is done, and mostly not the way it expected.** The FM CA weight tables were
+> recovered from 155k snapshots rather than borrowed from the editor
+> ([`ca-weighting.md`](ca-weighting.md)); inverting them to recover an attribute was tried and
+> **measured to fail** ([`attribute-model.md`](attribute-model.md)); the personality block was
+> found on the INFO record, not here; and the wrap threshold is settled. Nothing below is open
+> work — for that, see [`TODO.md`](TODO.md).
+
+**Goal (as stated in 2026-07):** turn the ±1 estimate into an exact decode of the Class-B
+(CA-weighted) attrs.
 
 - **Use the FM CA weight table** (saved from FM Scout; per-position attribute weights).
   The model is `CA = (weighted attribute avg / 20) * 200 * modifiers`. Our byte is
@@ -230,6 +251,9 @@ Overall on the 28 training players: **63% exact, 93% within ±1**
 
 | File | Role |
 | --- | --- |
+> These are the 2026-07 exploration scripts. `league_attrs.py` is gone (its job is now
+> `fmparser/staging.py::scrape_attributes`); the other three are vendored under `archive/`.
+
 | `league_attrs.py` | Locate any player's record via SID; read positions/feet/CA/PA/rep + exact attrs. |
 | `export_calibration.py` → `calibration.csv` | Displayed values + all 78 raw bytes (guide-labeled) for the 28 Bucaspor players. |
 | `regress.py` | Grid-search regression to decode Class-B attrs; reports exact/±1/R²/features. |

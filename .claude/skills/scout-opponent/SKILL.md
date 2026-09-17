@@ -175,7 +175,7 @@ Everything below is parameterised off the active career — pull these from `db`
   (`opponent_manager()`/`mart.club_managers`, one row per club per snapshot) names who is in
   charge and gives his **preferred / attacking / defensive formation** plus a derived **Style**
   (Attacking / Normal / Defensive, `attacking_intent` banded — confirmed 7/7 on a
-  predict-then-check run spanning both edges, `docs/PARSER_EXPANSION_HANDOFF.md` §F). This is
+  predict-then-check run spanning both edges, `docs/record-expansion.md` §F). This is
   now the BASELINE for the report: open with the preferred shape and Style, and use the
   attacking/defensive variants for the one read this report has ever had on **what he changes to
   when the game state changes** — the shape he shifts into chasing a goal, and the one he shuts
