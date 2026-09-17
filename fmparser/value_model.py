@@ -39,6 +39,17 @@ Three specific failure modes, all measured:
     A coveted teenager on a long contract carries a far bigger markup than an ageing
     squad player. THE MARKUP IS NOT MODELLED AT ALL. Never present an estimate as a fee.
 
+IS THERE AN EXACT FORMULA INSTEAD OF A REGRESSION? No, proven not guessed: the same real
+person (joined on person_id, not the recyclable tid) with byte-identical ca/pa/reputation/
+age/is_gk between two snapshots still shows `player_value` changing in 11% of such pairs —
+up to 5.5x on our own FIRST-TEAM squad, up to 102x on reserves — and every single one of
+those changes lands on a season-boundary snapshot pair, never mid-season. So the field is a
+cached, at-most-once-a-season refresh, not a continuous function of anything decoded so far,
+and the refresh size doesn't correlate with that player's match rating/apps/goals the
+season just ended either (r = -0.04/+0.08/-0.02). OLS is therefore the right tool, not a
+placeholder for an exact formula this parser hasn't found — see
+docs/agent-context/player-value-estimation.md §3b for the full method and numbers.
+
 WHAT WAS TRIED AND DID NOT WORK:
   * HOME REPUTATION (P+21, what this used to run on) vs CURRENT REPUTATION vs WORLD
     REPUTATION — PR #51 parsed all three off the same record tail (2026-09-17). Current
