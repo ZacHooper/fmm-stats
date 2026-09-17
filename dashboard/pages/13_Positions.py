@@ -17,7 +17,7 @@ the useful part:
 Loaned-IN players are excluded by default: they'll go back, so planning around them overstates
 the squad. Loaned-OUT players stay in — they're still ours.
 
-The computation itself lives in `dashboard/positions.py`, shared with `scripts/build_site.py`
+The computation itself lives in `dashboard/positions.py`, shared with `scripts/export_data.py`
 so the phone-readable static site shows the same depth charts and the same verdicts as this
 page rather than a second opinion.
 """

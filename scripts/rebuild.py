@@ -98,6 +98,28 @@ def run(cmd, dry_run=False):
     return r.returncode == 0
 
 
+# A field every CURRENT extract carries and no old one does. `--skip-existing` reuses an
+# output dir without looking inside it, so an extract written before the raw attribute bytes
+# landed loads CLEANLY and silently produces a store whose byte columns are entirely NULL --
+# no error, no warning, and every model built on it is worthless. That cost a Bucaspor
+# hold-out on 2026-09-17: 7 snapshots, 229 exact truth rows, and `passing_src` NULL in all of
+# them. Cheap to check, so check it.
+_EXTRACT_MARKER = "passing_src"
+
+
+def _extract_is_current(out_dir):
+    """Does this extract carry the fields the loader now expects? Reads one player row."""
+    f = os.path.join(out_dir, "players.json")
+    if not os.path.exists(f):
+        return False
+    try:
+        with open(f) as fh:
+            head = fh.read(200_000)
+    except OSError:
+        return False
+    return f'"{_EXTRACT_MARKER}"' in head
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -149,9 +171,12 @@ def main():
                 failed.append(label)
                 continue
             out_dir = os.path.join(REPO, "output", label)
-            if a.skip_existing and os.path.isdir(out_dir):
+            if a.skip_existing and os.path.isdir(out_dir) and _extract_is_current(out_dir):
                 print(f"    reusing existing {os.path.relpath(out_dir, REPO)}")
             else:
+                if a.skip_existing and os.path.isdir(out_dir):
+                    print("    existing extract predates the current player record "
+                          "— re-extracting")
                 save = fetch_save(career, r["save_file"], a.dry_run)
                 if save is None:
                     failed.append(label)

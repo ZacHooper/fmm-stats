@@ -209,7 +209,7 @@ the football thread, is **[`docs/HANDOFF.md`](../HANDOFF.md)** — read that to 
 
 ## Still to build (Phase 2)
 
-Static site on Cloudflare Pages — `scripts/build_site.py` renders HTML for reading on a phone
+Static site on Cloudflare Pages — `scripts/export_data.py` emits the JSON the app reads on a phone
 **and** `site/api/club/<tid>.json` per club so Claude can fetch the data and produce a scout
 report with both laptops off. Committed `site/`, Pages deploys on push. Plus a Pages Function with
 an R2 binding for shortlist adds from the phone. The immersion rule needs active guarding in the

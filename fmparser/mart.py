@@ -335,7 +335,8 @@ WITH lg AS (
     SELECT season, phase, cid,
            any_value(name) AS name, any_value(nation) AS nation,
            max(type) AS type, max(reputation) AS reputation,
-           max(member_count) AS member_count
+           max(member_count) AS member_count,
+           max(level) AS level, max(parent_cid) AS parent_cid
     FROM {S}.leagues WHERE name IS NOT NULL
     GROUP BY season, phase, cid
 ),
@@ -361,6 +362,10 @@ scaled AS (
     WINDOW w AS (PARTITION BY season, phase)
 )
 SELECT lg.season, lg.phase, lg.cid, lg.name, lg.nation, lg.type, lg.reputation,
+       -- `level` is the save's own 0-indexed tier; `tier` is it made 1-indexed to match how
+       -- the pyramid is spoken about. Prefer these to ranking by reputation, which treats
+       -- parallel regional divisions as if they were a hierarchy.
+       lg.level, lg.level + 1 AS tier, lg.parent_cid,
        lg.member_count, counted.club_count, scaled.skill_idx, scaled.rated
 FROM lg
 LEFT JOIN counted USING (season, phase, cid)
@@ -619,6 +624,28 @@ SELECT
                         < (MONTH(p.dob), DAY(p.dob)) THEN 1 ELSE 0 END
     END                                                       AS age,
     p.is_gk, p.has_attributes, p.squad_status, p.reputation,
+    -- `reputation` above is HOME reputation; these two complete the set, and the physicals
+    -- come from the same record tail (fmparser.attributes.record_tail).
+    p.current_reputation, p.world_reputation, p.international_retired,
+    p.squad_number, p.preferred_squad_number, p.height_cm, p.weight_kg,
+    -- The 9 attribute bytes the player screen does not show. Carried, never derived from and
+    -- never surfaced -- they are here so identification and modelling work is a query rather
+    -- than a re-extract.
+    p.jumping, p.consistency, p.big_match, p.injury_prone, p.versatility,
+    p.set_pieces, p.penalty, p.work_rate, p.flair,
+    -- The 16 entangled source bytes, raw. With `estimated` marking which of the 23 displayed
+    -- values are exact (our own squad, from the managed-club snapshot) and which are the
+    -- model's, this view is the attribute model's training set on its own -- no re-extract.
+    p.crossing_src, p.dribbling_src, p.tackling_src, p.finishing_src, p.long_shot_src,
+    p.passing_src, p.decision_src, p.creativity_src, p.movement_src, p.positioning_src,
+    p.handling_src, p.kicking_src, p.aerial_gk_src, p.reflexes_src, p.communication_src,
+    p.throwing_src,
+    -- The info record's personality block (what the profile screen shows) + international
+    -- record. Person-level, so mart.staff carries the same eight.
+    p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure,
+    p.professionalism, p.sportsmanship, p.temperament,
+    p.international_caps, p.international_goals, p.u21_caps, p.u21_goals,
+    p.joined_date, p.second_nationality_id, p.ethnicity,
     p.foot_left, p.foot_right, p.nationality_id,
     p.player_value, p.wage_units, p.wage_gbp,
     p.contract_expiry, p.contract_expiry_year,
@@ -2137,7 +2164,14 @@ WHERE ps.dob IS NOT NULL
 # The registration rules that apply to US this season, as data rather than as constants in
 # the app. The homegrown minimums bind only in the top two tiers (TR 14.1 vs 14.2) and we
 # have been promoted three times in three seasons, so which set applies is a moving target —
-# derived from where our division sits in its nation's reputation order, not hardcoded.
+# derived from where our division sits in its own nation, not hardcoded.
+#
+# TIER COMES FROM THE SAVE'S `level` BYTE, falling back to the old reputation-rank only where
+# level is missing. Reputation-rank counts how many same-nation leagues out-rank ours, which
+# is wrong wherever a country runs PARALLEL divisions at one tier: Denmark's Series has four
+# regional groups, and rank gives them tiers 5/6/7/8 where the save says all four are level 4.
+# It happens to agree for the four Danish divisions above that, so this switch is a no-op for
+# our current position and a correctness fix below it.
 REGISTRATION_RULES = """
 CREATE OR REPLACE VIEW mart.registration_rules AS
 WITH ours AS (
@@ -2146,13 +2180,18 @@ WITH ours AS (
     WHERE cl.club_tid IN (SELECT club_tid FROM mart.managed_club)),
 tier AS (
     SELECT o.season, o.phase, o.league_cid, o.nation,
-           (SELECT COUNT(*) FROM mart.leagues l
-             WHERE l.season = o.season AND l.phase = o.phase
-               AND l.nation IS NOT DISTINCT FROM o.nation
-               AND l.type = 'league' AND l.reputation IS NOT NULL
-               AND l.reputation > (SELECT ANY_VALUE(l2.reputation) FROM mart.leagues l2
-                                    WHERE (l2.season, l2.phase, l2.cid)
-                                        = (o.season, o.phase, o.league_cid))) + 1 AS tier
+           COALESCE(
+             (SELECT ANY_VALUE(l.level) + 1 FROM mart.leagues l
+               WHERE (l.season, l.phase, l.cid) = (o.season, o.phase, o.league_cid)
+                 AND l.level IS NOT NULL),
+             (SELECT COUNT(*) FROM mart.leagues l
+               WHERE l.season = o.season AND l.phase = o.phase
+                 AND l.nation IS NOT DISTINCT FROM o.nation
+                 AND l.type = 'league' AND l.reputation IS NOT NULL
+                 AND l.reputation > (SELECT ANY_VALUE(l2.reputation) FROM mart.leagues l2
+                                      WHERE (l2.season, l2.phase, l2.cid)
+                                          = (o.season, o.phase, o.league_cid))) + 1
+           ) AS tier
     FROM ours o)
 SELECT t.season, t.phase, t.league_cid, t.nation, t.tier,
        (SELECT ANY_VALUE(name) FROM mart.leagues l
@@ -2201,6 +2240,205 @@ LEFT JOIN r ON TRUE
 """
 
 
+# ------------------------------------------------------------------- lookups
+# The small reference tables, exposed as of the latest snapshot that carries them. They are
+# static within a save, so there is no as-at logic to do -- take any_value per id.
+LANGUAGES = """
+CREATE OR REPLACE VIEW mart.languages AS
+SELECT id, any_value(name) AS name, any_value(other_name) AS other_name,
+       any_value(nation_id) AS nation_id, any_value(difficulty) AS difficulty
+FROM {S}.languages GROUP BY id
+"""
+
+CURRENCIES = """
+CREATE OR REPLACE VIEW mart.currencies AS
+SELECT uid, any_value(name) AS name, any_value(exchange_rate) AS exchange_rate
+FROM {S}.currencies GROUP BY uid
+"""
+
+# Supersedes the static NATIONS dict in reference.py: this is what the save asserts, with the
+# capital CITY and national STADIUM resolving through mart.club_places' source tables.
+#
+# Unlike the other lookups, the national-team half of this MOVES between snapshots -- ranking,
+# points and coefficients all drift as the career runs -- so it is keyed by (season, phase)
+# rather than collapsed.
+#
+# PREFER `total_coefficient`. It is the sum of the whole array and reproduces the in-game
+# "Coef" column exactly (England 197.498, Spain 195.096, ... all 11 nations to three
+# decimals), so it is the figure European seeding actually turns on. `current_coefficient`
+# is the newest non-zero entry by seq, which IS the most recent completed season by
+# chronology -- but the in-game per-season columns read a fixed index rather than the newest,
+# so the two disagree. See the ordering note in fmparser/lookups.py before relying on any
+# single season's value.
+NATIONS = """
+CREATE OR REPLACE VIEW mart.nations AS
+SELECT n.season, n.phase, n.id, n.name, n.nationality, n.code, n.continent_id,
+       n.capital_city_id, n.national_stadium_id,
+       n.rival_nation_id,
+       (SELECT any_value(r.name) FROM {S}.nations r
+         WHERE (r.season, r.phase, r.id) = (n.season, n.phase, n.rival_nation_id)) AS rival,
+       n.is_ranked, n.world_ranking, n.ranking_points,
+       (SELECT MAX(c.coefficient) FROM {S}.nation_coefficients c
+         WHERE (c.season, c.phase, c.nation_id) = (n.season, n.phase, n.id)
+           AND c.coefficient > 0)                                  AS best_coefficient,
+       (SELECT arg_max(c.coefficient, c.seq) FROM {S}.nation_coefficients c
+         WHERE (c.season, c.phase, c.nation_id) = (n.season, n.phase, n.id)
+           AND c.coefficient > 0)                                  AS current_coefficient,
+       (SELECT SUM(c.coefficient) FROM {S}.nation_coefficients c
+         WHERE (c.season, c.phase, c.nation_id) = (n.season, n.phase, n.id)) AS total_coefficient
+FROM {S}.nations n
+"""
+
+# Long form of both time series, for trend queries.
+NATION_RANKING_HISTORY = """
+CREATE OR REPLACE VIEW mart.nation_ranking_history AS
+SELECT h.season, h.phase, h.nation_id, n.name AS nation, h.seq, h.ranking
+FROM {S}.nation_ranking_history h
+LEFT JOIN {S}.nations n ON (n.season, n.phase, n.id) = (h.season, h.phase, h.nation_id)
+"""
+
+NATION_COEFFICIENTS = """
+CREATE OR REPLACE VIEW mart.nation_coefficients AS
+SELECT c.season, c.phase, c.nation_id, n.name AS nation, c.seq, c.coefficient
+FROM {S}.nation_coefficients c
+LEFT JOIN {S}.nations n ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nation_id)
+"""
+
+
+# ------------------------------------------------------------------------- places
+# Where a club actually plays, with real coordinates: club -> stadium -> city.
+#
+# Verified against reality rather than plausibility -- Parken 38,065 (exact), Aalborg
+# Portland Park 13,800 (exact), Copenhagen 55.6761/12.5683, Aalborg 57.0488/9.9217. See
+# fmparser/places.py.
+CLUB_PLACES = """
+CREATE OR REPLACE VIEW mart.club_places AS
+SELECT c.season, c.phase, c.club_tid, c.name AS club, c.league_cid, c.league_name,
+       cd.stadium_id, st.name AS stadium,
+       st.capacity, st.expansion_capacity,
+       st.city_id, ci.latitude, ci.longitude, ci.nation_id, ci.attraction, ci.region_id
+FROM mart.clubs c
+LEFT JOIN {S}.club_details cd
+       ON (cd.season, cd.phase, cd.tid) = (c.season, c.phase, c.club_tid)
+LEFT JOIN {S}.stadiums st
+       ON (st.season, st.phase, st.id) = (c.season, c.phase, cd.stadium_id)
+LEFT JOIN {S}.cities ci
+       ON (ci.season, ci.phase, ci.id) = (c.season, c.phase, st.city_id)
+"""
+
+
+# ---------------------------------------------------------------------------- staff
+# Coaching staff with an attribute record (~4.2k of ~7.5k staff), including the manager
+# formation triple. `ca`/`pa` are deliberately EXCLUDED here, not just unselected downstream:
+# the immersion rule applies to staff exactly as it does to players, and `reputation_tier`
+# (derived from world reputation) is the safe thing to show instead.
+STAFF = """
+CREATE OR REPLACE VIEW mart.staff AS
+SELECT
+    s.season, s.phase, s.snap_ix, s.phase_date,
+    p.tid, p.name, p.club_tid, p.club, p.dob, p.nationality_id,
+    p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure,
+    p.professionalism, p.sportsmanship, p.temperament,
+    p.international_caps, p.international_goals, p.u21_caps, p.u21_goals,
+    p.joined_date, p.second_nationality_id, p.ethnicity,
+    sa.home_reputation, sa.current_reputation, sa.world_reputation, sa.reputation_tier,
+    sa.attacking_intent, sa.style,
+    sa.financial_control, sa.outfield_coaching, sa.goalkeeping_coaching, sa.discipline,
+    sa.judging_ability, sa.judging_potential, sa.people_management, sa.motivating,
+    sa.tactical_knowledge, sa.youth_coaching,
+    -- the 6 unnamed 1-20 attribute bytes; +27 is the distinctive one (85% read 1-4)
+    sa.hidden_s18, sa.hidden_s20, sa.hidden_s24, sa.hidden_s26, sa.hidden_s27, sa.hidden_s28,
+    sa.formation_preferred, sa.formation_attacking, sa.formation_defensive,
+    sa.formation_preferred_name, sa.formation_attacking_name, sa.formation_defensive_name
+FROM {S}.players p
+JOIN mart.snapshots s USING (season, phase)
+JOIN {S}.staff_attributes sa USING (season, phase, tid)
+WHERE p.is_staff
+"""
+
+# One row per club per snapshot: who is in charge and what they like to play.
+#
+# THE MANAGER IS THE STAFF MEMBER THE CLUB RECORD DOES NOT LIST. The club record carries an
+# 11-slot staff array, and it holds the coaches but NOT the manager -- so of the staff whose
+# info record points at a club, the one missing from that array is the man in charge. Exact
+# on all 7 ground-truth clubs, with exactly one candidate each.
+#
+# This replaced a reputation heuristic that was wrong twice in seven: ordering a club's staff
+# by WORLD reputation put Poul Buus ahead of Niels Frederiksen at AaB (3025 vs 1387) and Zsolt
+# Low ahead of Radoslav Latal at OB, both contradicted by the in-game screenshots. World
+# reputation is career-wide, so a well-travelled coach outranks a locally-built manager.
+#
+# A club we manage ourselves correctly yields NO row: every one of Frem's staff is listed, so
+# there is no AI manager to find.
+CLUB_MANAGERS = """
+CREATE OR REPLACE VIEW mart.club_managers AS
+SELECT * EXCLUDE (rn) FROM (
+    SELECT st.*,
+           ROW_NUMBER() OVER (PARTITION BY st.season, st.phase, st.club_tid
+                              ORDER BY st.home_reputation DESC, st.tid) AS rn
+    FROM mart.staff st
+    WHERE st.club_tid IS NOT NULL AND st.club_tid <> 65535
+      AND NOT EXISTS (SELECT 1 FROM {S}.club_staff cs
+                       WHERE (cs.season, cs.phase, cs.club_tid, cs.staff_tid)
+                           = (st.season, st.phase, st.club_tid, st.tid))
+      -- only for clubs whose record we actually parsed; otherwise "not listed" is vacuous
+      -- and every coach at an unparsed club would look like a manager.
+      AND EXISTS (SELECT 1 FROM {S}.club_details cd
+                   WHERE (cd.season, cd.phase, cd.tid)
+                       = (st.season, st.phase, st.club_tid))
+) WHERE rn = 1
+"""
+
+# Squad membership as the CLUB RECORD states it, rather than inferred from spells.
+#
+# This is a different question from staging.players.club_tid, and the two legitimately
+# disagree:
+#   * the array INCLUDES loaned-IN players (they are in the squad, owned elsewhere);
+#   * the array EXCLUDES players who are in the club's RESERVE side, which club_tid lumps
+#     under the first team -- on frem-2024-11-10, 32 players carry club_tid 346 while the
+#     first-team array holds 29, and the 8 missing are exactly the 8 in the reserves array.
+# So: club_roster answers "who is in this squad", club_tid answers "who owns him".
+#
+# Deliberately NOT wired into mart.squad_current yet. The spell model stays as the source of
+# truth until the two have been compared across every snapshot -- see mart.roster_vs_spells.
+CLUB_ROSTER = """
+CREATE OR REPLACE VIEW mart.club_roster AS
+SELECT s.season, s.phase, s.snap_ix, s.phase_date,
+       cs.club_tid, cs.player_tid AS tid, cs.slot,
+       p.name, p.club_tid AS owner_club_tid,
+       p.club_tid IS DISTINCT FROM cs.club_tid AS on_loan_in,
+       ps.person_id
+FROM {S}.club_squad cs
+JOIN mart.snapshots s USING (season, phase)
+LEFT JOIN {S}.players p
+       ON (p.season, p.phase, p.tid) = (cs.season, cs.phase, cs.player_tid)
+LEFT JOIN {S}.person_slices ps
+       ON (ps.season, ps.phase, ps.tid) = (cs.season, cs.phase, cs.player_tid)
+"""
+
+# The comparison that has to be run before any consumer switches over: where does the club
+# record's roster disagree with the spell-derived squad, and which is right?
+ROSTER_VS_SPELLS = """
+CREATE OR REPLACE VIEW mart.roster_vs_spells AS
+WITH roster AS (
+    SELECT season, phase, club_tid, tid FROM mart.club_roster
+),
+spells AS (
+    SELECT season, phase, club_tid, tid FROM mart.snapshot_squad
+)
+SELECT COALESCE(r.season, sp.season)     AS season,
+       COALESCE(r.phase, sp.phase)       AS phase,
+       COALESCE(r.club_tid, sp.club_tid) AS club_tid,
+       COALESCE(r.tid, sp.tid)           AS tid,
+       r.tid IS NOT NULL                 AS in_club_record,
+       sp.tid IS NOT NULL                AS in_spells
+FROM roster r
+FULL OUTER JOIN spells sp
+  ON (r.season, r.phase, r.club_tid, r.tid) = (sp.season, sp.phase, sp.club_tid, sp.tid)
+WHERE r.tid IS NULL OR sp.tid IS NULL
+"""
+
+
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
     ("mart.role_weights", ROLE_WEIGHTS),
@@ -2217,6 +2455,15 @@ ORDER = [
     ("mart.clubs", CLUBS),
     ("mart.leagues", LEAGUES),
     ("mart.comparison_ladder", COMPARISON_LADDER),
+    ("mart.languages", LANGUAGES),
+    ("mart.currencies", CURRENCIES),
+    ("mart.nations", NATIONS),
+    ("mart.nation_ranking_history", NATION_RANKING_HISTORY),
+    ("mart.nation_coefficients", NATION_COEFFICIENTS),
+    ("mart.club_places", CLUB_PLACES),
+    ("mart.staff", STAFF),
+    ("mart.club_managers", CLUB_MANAGERS),
+    ("mart.club_roster", CLUB_ROSTER),
     ("mart.player_snapshots", PLAYER_SNAPSHOTS),
     ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
     ("mart.player_value_est", PLAYER_VALUE_EST),
@@ -2238,6 +2485,7 @@ ORDER = [
     ("mart.squad_on", SQUAD_ON),
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
+    ("mart.roster_vs_spells", ROSTER_VS_SPELLS),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),

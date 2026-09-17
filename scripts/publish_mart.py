@@ -61,7 +61,7 @@ for `is_gk` and drop `is_gk_attr AND NOT is_gk`:
 IMMERSION
 ---------
 No mart column carries raw ability (checked at build time against CLAUDE.md's house rule, the
-same guard `scripts/build_site.py` applies to published JSON), so unlike publish_duckdb.py
+same guard `scripts/export_data.py` applies to published JSON), so unlike publish_duckdb.py
 there is nothing to scrub — but the check runs anyway, so that a future mart column named
 `ca` cannot ship by accident.
 

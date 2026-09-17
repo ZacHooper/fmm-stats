@@ -102,7 +102,12 @@ def check_immersion(paths):
 
 # --------------------------------------------------------------------------- player rows
 PLAYER_FIELDS = ["tid", "name", "club_tid", "dob", "value", "wage", "expiry",
-                 "attrs", "positions"]
+                 "attrs", "positions", "shirt", "height", "weight"]
+# shirt/height/weight come from the global attribute record's tail (attributes.record_tail).
+# The three REPUTATION fields from that same tail are deliberately NOT exported: core.json
+# loads on every page view so it stays lean, and reputation tracks ability closely enough to
+# be an awkward thing to publish next to the Level percentile. They live in the store for
+# querying and for value_model.
 # all.json only: origin_club_tid + capital_eligible ride along here rather than in core.json's
 # PLAYER_FIELDS because core.json loads on every page view (see the "ours only" note on
 # mart.player_origin in the core.json block below) — all.json is already the lazy, R2-only,
@@ -135,7 +140,9 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
         origin_join = """LEFT JOIN mart.player_origin o
                                 ON (o.season, o.phase, o.tid) = (p.season, p.phase, p.tid)"""
     df = db.q(f"""SELECT p.tid, p.name, p.club_tid, p.dob, p.player_value, p.wage_gbp,
-                         p.contract_expiry, {cols}{origin_cols}
+                         p.contract_expiry,
+                         p.squad_number, p.height_cm, p.weight_kg,
+                         {cols}{origin_cols}
                   FROM mart.player_snapshots p
                   {origin_join}
                   WHERE p.season=? AND p.phase=? AND p.has_attributes{where}
@@ -164,7 +171,8 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
         row = [tid, r["name"] if isinstance(r["name"], str) else None,
                iv(r["club_tid"]), sv(r["dob"]), iv(r["player_value"]),
                iv(r["wage_gbp"]), sv(r["contract_expiry"]),
-               [iv(r[a]) for a in ATTR_ORDER], pmap.get(tid, [])]
+               [iv(r[a]) for a in ATTR_ORDER], pmap.get(tid, []),
+               iv(r["squad_number"]), iv(r["height_cm"]), iv(r["weight_kg"])]
         if include_origin:
             row += [iv(r["origin_club_tid"]),
                     None if pd.isna(r["capital_eligible"]) else bool(r["capital_eligible"])]

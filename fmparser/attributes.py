@@ -10,6 +10,7 @@ Two record sources:
     CA/PA, reputation and 9 exact attributes; the other 14 are entangled 0-255 bytes
     decoded by the frozen model. -> record_for(), estimate_player().
 """
+import math
 import re
 import struct
 
@@ -271,6 +272,130 @@ ATTR_OFFSETS = {
 RECORD = 78   # records sit on a 78-byte grid, but its phase is save-dependent
               # (shifts as the file grows), so we validate structurally, not by phase.
 
+# The record does not stop at the reputation we read at P+21. It runs `P-42 … P+35` —
+# exactly the 78-byte grid above — and the last 13 bytes were simply never parsed. Field
+# order confirmed against nyongrand/fmm-editor's FMM26 `Player` struct; see
+# docs/agent-context/fmm-editor-record-comparison.md.
+#
+# The `reputation` we have always read at P+21 is specifically HOME reputation; the name is
+# left alone because value_model.py is fitted on that column.
+#
+# Verified on frem-2024-11-10 over 26,518 records: height median 182cm (min 153), weight
+# median 73kg (min 55), and goalkeepers average 188.2cm/78.2kg against 180.4/71.8 for
+# outfielders — the check to re-run if these ever look wrong.
+def record_tail(mm, P):
+    """The 13 bytes after HomeReputation, as a dict. Shared by both record readers so the
+    global-record shape is defined in exactly one place."""
+    u16 = lambda off: int.from_bytes(mm[P + off:P + off + 2], "little")
+    return {
+        "current_reputation": u16(23),
+        "world_reputation": u16(25),
+        "international_retired": bool(mm[P + 27]),
+        # P+28..29 is a real non-zero u16 in FMM22 that FMM26 documents as "always 0x0000".
+        # Highly repetitive, looks like a flags/enum field. Unidentified, so not surfaced.
+        "squad_number": mm[P + 30],
+        "preferred_squad_number": mm[P + 31],
+        "height_cm": u16(32),
+        "weight_kg": u16(34),
+    }
+
+
+# ---------------------------------------------------------------------------
+# The HIDDEN attributes.
+#
+# 18 bytes in this record hold a 1-20 attribute; ATTR_OFFSETS names 9 (what the player screen
+# shows, plus Teamwork's two halves). These are the other 9, named from fmm-editor's
+# `FMMLibrary/Player.cs`, which declares all 34 attribute slots in read order from `P-34`.
+#
+# Why the order is trusted rather than assumed:
+#   1. All seven offsets we confirmed independently against in-game values land exactly where
+#      it predicts -- Pace P-24, Strength P-23, Stamina P-22, Technique P-21, Aggression P-19,
+#      Leadership P-16, Agility P-5.
+#   2. FMM22 stores 18 of the 34 slots as a plain 1-20 value and the other 16 as a wrapped
+#      0-255 encoding, with no overlap -- and the split is EXACTLY along fmm-editor's semantic
+#      line: the plain 18 are the ability-independent attributes, the encoded 16 are the
+#      technical and goalkeeping ones. A partition that clean cannot come from a mis-aligned
+#      order. (The encoded 16 are what `model.FROZEN` below decodes; they are not computed at
+#      display time. At matched ability the Finishing byte peaks at ST, the Tackling byte at
+#      DC, and the five GK bytes put GK ~80 points clear of every outfield position -- so the
+#      ordering is confirmed slot by slot, not just at the seven anchors.)
+#
+# Semantic checks agree where they can discriminate: P-28 vs height_cm r=+0.79 (Strength, the
+# strongest named physical, manages +0.30) -- that is Jumping; P-8 tracks Technique at +0.65 vs
+# Stamina +0.20, the signature of Flair; P-13/P-14 correlate +0.57 with each other, as the two
+# dead-ball attributes should. Consistency (P-20) and InjuryProne (P-17) are UNCONFIRMED: only
+# 39 players have enough rated matches to measure rating spread, and the 89 injury rows show
+# the injured group up on every attribute, so that test is confounded by minutes. Those two
+# rest on the structural argument alone.
+#
+# Two departures from fmm-editor's names, both ground-truth-backed for FMM22: P-29 stays
+# `Aerial` (Player.cs says Heading; the FMM22 UI says Aerial), and Teamwork is still derived
+# from P-25 + P-9 (Player.cs says Unselfishness and WorkRate). P-9 is now also carried alone --
+# a sub-attribute we only see averaged is one we cannot study.
+HIDDEN_OFFSETS = {-28: "jumping", -20: "consistency", -18: "big_match",
+                  -17: "injury_prone", -15: "versatility", -14: "set_pieces",
+                  -13: "penalty", -9: "work_rate", -8: "flair"}
+
+
+# THE ENTANGLED SOURCE BYTES, carried raw.
+#
+# These are the 16 slots FMM22 stores as a wrapped 0-255 value rather than a plain 1-20 one:
+# the technical and goalkeeping attributes. `model.FROZEN` turns them into displayed values,
+# and until 2026-09-17 that was the ONLY form that reached the store -- the parser decided what
+# the number was and threw the evidence away.
+#
+# That is the wrong split of responsibilities. Estimation is a MODELLING concern, not a
+# scraping one: keeping only the model's output means every retrain needs a full re-extract
+# (~25 minutes) before it can even be scored. With the bytes in the store, the training set is
+# a query -- raw bytes on one side, and on the other the exact values our own squad carries
+# from the managed-club snapshot, already flagged `estimated = false`.
+#
+# Named `<attribute>_src` because the byte is the SOURCE of the attribute, not the attribute.
+# Nothing is derived from them here.
+SRC_OFFSETS = {-34: "crossing_src", -33: "dribbling_src", -32: "tackling_src",
+               -31: "finishing_src", -30: "long_shot_src", -27: "passing_src",
+               -26: "decision_src", -12: "creativity_src", -11: "movement_src",
+               -10: "positioning_src", -7: "handling_src", -6: "kicking_src",
+               -4: "aerial_gk_src", -3: "reflexes_src", -2: "communication_src",
+               -1: "throwing_src"}
+
+
+# The remaining nine PLAIN 1-20 bytes, stored raw as well.
+#
+# Seven of them (Pace..Agility) equal their displayed value, so this looks redundant -- but
+# two do not, and those two are why this exists. FMM22's displayed "Aerial" is a function of
+# the Heading AND Jumping bytes, and "Teamwork" is floor((Unselfishness + WorkRate) / 2). The
+# raw Heading and Unselfishness bytes were therefore reachable ONLY through the parser's own
+# derivation, which is precisely the coupling we are removing: the estimation model needs
+# them (they are two of the nine `mean9` averages), so a model retrained against the store
+# could not reproduce the parser without them.
+#
+# With these, staging.players carries all 34 attribute slots of the record verbatim, and
+# nothing downstream has to go back to the save to refit anything.
+PLAIN_OFFSETS = {-29: "heading_src", -25: "unselfishness_src", -24: "pace_src",
+                 -23: "strength_src", -22: "stamina_src", -21: "technique_src",
+                 -19: "aggression_src", -16: "leadership_src", -5: "agility_src"}
+
+
+def plain_bytes(mm, P):
+    """The nine plain 1-20 bytes that back the displayed exact attributes, raw."""
+    return {name: mm[P + rel] for rel, name in PLAIN_OFFSETS.items()}
+
+
+def source_bytes(mm, P):
+    """The 16 entangled 0-255 attribute bytes, raw and undecoded."""
+    return {name: mm[P + rel] for rel, name in SRC_OFFSETS.items()}
+
+
+def hidden_attributes(mm, P):
+    """The 9 attribute bytes the player screen does not show, as a dict.
+
+    Shared by both record readers. Nothing is DERIVED from these -- they are carried so that
+    identification and modelling work is a query rather than a re-extract, and none of them
+    is surfaced in the app.
+    """
+    return {name: mm[P + rel] for rel, name in HIDDEN_OFFSETS.items()}
+
 
 def _valid_positions(seg):
     return len(seg) == 15 and all(1 <= b <= 20 for b in seg) and max(seg) == 20
@@ -309,7 +434,9 @@ def record_for(mm, tid):
         attrs = {name: mm[P + rel] for rel, name in ATTR_OFFSETS.items()}
         return {"sid": sid.hex(), "P": P, "positions": positions,
                 "feet": {"left": left, "right": right},
-                "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs}
+                "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs,
+                **record_tail(mm, P), **hidden_attributes(mm, P),
+                **source_bytes(mm, P), **plain_bytes(mm, P)}
 
 
 # ---------------- full 23-attr estimation ----------------
@@ -319,6 +446,48 @@ ATTR_ORDER = ["Aerial", "Crossing", "Dribbling", "Shooting", "Passing", "Tacklin
               "Technique", "Aggression", "Creativity", "Decisions", "Leadership",
               "Movement", "Positioning", "Teamwork", "Pace", "Stamina", "Strength",
               "Agility", "Handling", "Kicking", "Reflexes", "Communication", "Throwing"]
+
+
+# The two PLAIN-BYTE composites. Neither is a fit: both are closed forms over bytes that are
+# already 1-20, so they need no model and no CA. Kept here as the SINGLE declaration -- the
+# generated SQL in load_duckdb builds its expression from these numbers rather than repeating
+# them, so the Python and the database cannot drift.
+#
+#   Teamwork  floor((unselfishness + work_rate) / 2)      EXACT   -- 98.0%
+#   Aerial    floor(0.24*heading + 0.76*jumping + 0.8)    ESTIMATE -- 88.7%
+#
+# That difference is load-bearing: Teamwork's `_est` flag is FALSE and Aerial's must stay TRUE.
+#
+# Both weight sets were GRID-SEARCHED against exact matches on 840 truth rows / 86 players,
+# 5 folds held out by player, and each fold picked the same point. Teamwork is the control: the
+# search returns 0.48/+0.1 -- i.e. it independently rediscovers the halving formula we already
+# knew, at the same 98.0% -- which is why the Aerial number is believable rather than a lucky
+# search. Aerial went 72.0% -> 88.7% on the same rows and the same protocol; the improvement
+# comes from 17 distinct players with only 1 made worse.
+#
+# HEIGHT WAS TESTED AND REJECTED. It is the obvious third term and it does not help: added to
+# a least-squares fit it LOSES (67.5% -> 59.8%), and the grid search chooses a height weight of
+# exactly 0.0 in all five folds. `jumping` appears to carry the physical part already. Weight,
+# strength and agility were tested the same way and also rejected.
+#
+# Residual error is concentrated at the top: nothing predicts 17 or 18, which is 18 of 840 rows.
+TEAMWORK_W = (0.50, 0.50, 0.0)
+AERIAL_W = (0.24, 0.76, 0.8)
+
+
+def _composite(w, a, b):
+    wa, wb, off = w
+    return max(1, min(20, int(math.floor(wa * a + wb * b + off))))
+
+
+def teamwork(unselfishness, work_rate):
+    """Displayed Teamwork from the two plain bytes. Exact, not an estimate."""
+    return _composite(TEAMWORK_W, unselfishness, work_rate)
+
+
+def aerial(heading, jumping):
+    """Displayed Aerial from the two plain bytes. An ESTIMATE (~71% exact), not a fact."""
+    return _composite(AERIAL_W, heading, jumping)
 
 
 def fwd_of(positions):
@@ -332,7 +501,6 @@ def fwd_of(positions):
 
 def estimate_player(mm, rec):
     """Full 23-attr set for one global record: {attr: {'val','est'}}, is_gk, fwd."""
-    import math
     P, ca, pa = rec["P"], rec["ca"], rec["pa"]
     is_gk = int(rec["positions"].get("GK", 0) == 20)
     fwd = fwd_of(rec["positions"])
@@ -340,8 +508,8 @@ def estimate_player(mm, rec):
     out = {}
     for attr, off in EXACT_SINGLE.items():
         out[attr] = {"val": mm[P + off], "est": False}
-    tw = math.floor((mm[P - 25] + mm[P - 9]) / 2)
-    out["Teamwork"] = {"val": max(1, min(20, tw)), "est": False}
+    out["Teamwork"] = {"val": teamwork(mm[P - 25], mm[P - 9]), "est": False}
+    out["Aerial"] = {"val": aerial(mm[P - 29], mm[P - 28]), "est": True}
     for attr in model.ESTIMATED_ATTRS:
         out[attr] = {"val": model.predict(attr, mm, P, ca, pa, mean9, fwd), "est": True}
     return out, is_gk, fwd

@@ -104,6 +104,10 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **fm-parser-project** — the save-format reverse-engineering story + goals.
 - **etl-duckdb-dashboard** — how the ETL + dashboard + `fmq.py` CLI + scouting tooling work. **The main reference.**
 - **history-chain-pointers** — the history slab is a forest of linked lists; how the `P-38` player link works.
+- **fmm-editor-record-comparison** — field-by-field map of our parsers vs the FMM26 database layouts (`nyongrand/fmm-editor`). **Read before decoding any new field** — it names the record you're in.
+- **[`docs/ca-weighting.md`](docs/ca-weighting.md)** — how the save hands us each of the 23 displayed attributes (direct byte / plain-byte composite / CA-modelled), **FM's per-position CA weight tables** recovered from 155k snapshots, and the **94.8% label ceiling** every attribute-accuracy figure is measured against. Read before quoting an accuracy number or reasoning about what the game rewards in a position.
+- **[`docs/ATTRIBUTE_MODEL_HANDOFF.md`](docs/ATTRIBUTE_MODEL_HANDOFF.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
+- **[`docs/PARSER_EXPANSION_HANDOFF.md`](docs/PARSER_EXPANSION_HANDOFF.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
 - **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options**, **light-results-rolling-buffer**, **master-schedule-plan** — specific findings; read when relevant.
 
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
@@ -151,6 +155,46 @@ it has repeatedly turned multi-hour hunts into quick finds:
    £15.5K–£17.75M, ±2%; the `0x01`-marked record is separate from the `0x87` status record), and
    **expiry = full date @+13** (some Danish deals expire 31 Dec, not 30 Jun — keep the day, not just
    the year).
+
+### Before you call a record decoded: prove the EXTENT, not just the fields
+Ground truth on the fields you read says nothing about the fields you didn't. The player record
+decoded perfectly for four years while missing its last 13 bytes; the city walk had Parken and
+Copenhagen exact while dropping 31 real cities and inventing 3. Both passed every check we had.
+Run **`uv run python scripts/audit_records.py [save.fms]`**:
+
+- **STRIDE** — the modal gap between consecutive records IS the stride you claim, and the rest
+  are multiples of it (skipped records, not noise). This is what settled the staff record at 39
+  bytes and left Style nowhere to hide.
+- **COVERAGE** — every byte in `[0, stride)` is a named field or declared `UNKNOWN` in the
+  script's `LAYOUTS`. **A byte that is neither is a byte you are stepping over by accident.**
+  Add the field to `LAYOUTS` in the same commit you add it to the parser.
+- **EXTENT** — a keyed table is dense from id 0. A gap means the walk dropped a row; an
+  overshoot means it invented one.
+
+Two rules follow, and the recent bugs all break them:
+- **Bound a table walk by the table's own invariant, never a tuned constant.** A miss counter or
+  a plausibility window makes the row count a function of the constant. The city table's real
+  invariant is `id == slot index`.
+- **One declarative layout per record is the schema.** `staging.INFO_LAYOUT` is a table of
+  `(offset, width, name, kind)` with `UNKNOWN` rows as first-class entries: `_decode_info` reads
+  FROM it and `scripts/audit_records.py` checks AGAINST it, so the parser and its audit cannot
+  drift. **`uv run python scripts/audit_records.py --map` prints the per-byte schema** — that is
+  the record documentation, generated rather than retyped, so it cannot go stale.
+- **Bound a record by its own invariant, not a plausibility window.** 77 person records are
+  empty slots carrying garbage in every field — joined dates in 1290 and 2570, personality of
+  255. `uid == 0` identifies all 77 EXACTLY, so blanking the block on that one structural rule
+  removes the need for a date window or a range test anywhere downstream.
+- **Carry what you cannot name — then go and name it.** A byte identified as an attribute but
+  not labelled is still data, so both records' hidden attributes are carried. The PLAYER nine
+  are now NAMED from `nyongrand/fmm-editor`'s `Player.cs` (`jumping`, `consistency`,
+  `big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`, `work_rate`, `flair`) —
+  the order is confirmed by seven independently-verified anchors plus the fact that the 18
+  slots FMM22 fills are exactly the ability-independent attributes and the 16 it leaves are
+  exactly the technical/GK values it computes from CA. The STAFF six stay `hidden_s*`, named by
+  OFFSET, because fmm-editor has **no `Staff.cs`** — it stops at the `Unknown6b` link that
+  leads there, so there is no upstream order to borrow and no ground truth of our own.
+  Nothing derives from any of the fifteen and none is surfaced. Guessing a name is how `-140`
+  became a Style candidate; sourcing one and checking it twice is not guessing.
 
 ## The web app (one UI for phone and desktop)
 `site/` is a static single-page app on Cloudflare Pages — the primary UI, since Streamlit can't be
@@ -298,7 +342,7 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - **The web app computes ratings itself** (`site/js/data.js`) from attributes × role weights, so a
   change to the rating formula must land in BOTH the SQL (`v_player_ratings`) and the JS. They are
   verified equal to the last decimal over 36,920 combinations — keep it that way.
-- **Opponent tactics/formation are NOT in the save** — always ask the user for the in-game scout's formation + style. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
+- **The opponent's tactic on the day is NOT in the save — the MANAGER's preferences now are.** Still ask the user for the in-game scout's formation + style: that is what the opposition will actually line up in, and it is the half of the scout report that has held up. But `mart.club_managers` now names the opposition manager and carries his **preferred / attacking / defensive formation** and a derived **Style** (Attacking / Normal / Defensive, banded from a hidden attribute — see [`docs/PARSER_EXPANSION_HANDOFF.md`](docs/PARSER_EXPANSION_HANDOFF.md) §F). Use it as the prior and the game-state read (what he shifts to chasing a goal), not as a substitute for what the user can see. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
 - **Rating an opponent: Level %ile, not Fit %ile.** `pos_index`/`pctile_*` (`effective_table`) are OUR tactic's role-weighted Fit — how well an attribute set suits `frem_attacking_ss`, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `db.scout_report()`'s `key_players`/danger-men reads and its `matchups` table (see next bullet) use `level_*`; only use `pos_index` for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
 - **A back line doesn't play a back line.** `db.scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`db.matchup_table()`) for that reading, not `strength`.
 - Our tactic/method is **`frem_attacking_ss`** — the strikerless SS setup, and the dashboard default (`seeds/config_bundle.json`). `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.

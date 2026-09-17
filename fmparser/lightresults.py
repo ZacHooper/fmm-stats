@@ -242,6 +242,10 @@ def leagues(mm, records, club_nation=None, min_games=MIN_LEAGUE_GAMES):
         out[cid] = {"cid": cid, "name": name, "type": d.get("type"),
                     "nation_id": nation_id, "nation": NATION_NAMES.get(nation_id),
                     "reputation": d.get("reputation"),
+                    # 0-indexed division tier straight from the comp record: unlike ranking
+                    # by reputation it puts PARALLEL divisions on the same tier (Denmark's
+                    # Series' four regional groups are all level 4).
+                    "level": d.get("level"), "parent_cid": d.get("parent_cid"),
                     "members": members, "member_count": len(members),
                     "fixtures": len(recs)}
     return out
