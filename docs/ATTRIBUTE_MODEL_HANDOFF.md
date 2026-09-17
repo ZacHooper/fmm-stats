@@ -178,6 +178,42 @@ are in there too — so it is an inherently noisy measurement of the attribute v
 **The usable part of CA is already extracted**, as the one shared per-player shift. That is the
 robust form of this idea and it is in the model.
 
+### Use the BYTE, not the displayed attribute — and then the whole idea still fails
+
+The constraint above was written over the DISPLAYED attributes, which are a rounded, clipped
+view of the internal values; the entangled bytes carry ~255 levels and CA is presumably
+computed from those. Redone over the raw bytes (`archive/ca_surprise_test.py`, 118,876
+snapshots, 34 bytes, CV by player):
+
+| | R² | CA residual sd |
+|---|---|---|
+| outfield | 0.713 | **15.0** |
+| GK | 0.683 | **15.7** |
+
+Still 15.1 against our decode's implied-CA error of 6.1. The quantisation was not what made it
+loose — **CA genuinely is not a linear function of the 34 bytes**, and ~29% of its variance
+lives somewhere we cannot see.
+
+That last fact kills a tempting follow-up. If CA *were* determined by the bytes it would be
+redundant, and the only useful part would be the SURPRISE, `CA - sum(w*byte)` — CA with
+everything we already know subtracted off. Tested as the decoder's CA term in place of raw CA:
+
+| | mean exact |
+|---|---|
+| raw CA | **66.1%** |
+| surprise | 44.8% |
+
+**−21.2 points.** The reasoning behind it was wrong, and instructively so: the decoder is not
+trying to learn something NEW about the player, it is trying to calibrate the byte→display map,
+and what does that is CA's plain ability-level signal — which correlates with every attribute
+at once. Subtracting the byte-predicted part removes exactly that common signal and leaves
+noise (sd 18.2 against raw CA's 20.9, but decorrelated from the attributes). **The predictable
+part of CA is the useful part, not the redundant part.**
+
+Handling +8.9, Reflexes +5.4 and Communication +2.9 are the only gains, and they are the three
+attributes floored at 1 for outfielders — i.e. the surprise is working as a crude keeper flag
+there, the same thing `blend_w` turned out to be.
+
 ### Two traps that make a naive version of this look like it works
 
 - **Circularity.** `staging.player_attributes`' entangled values are model output that USED CA
