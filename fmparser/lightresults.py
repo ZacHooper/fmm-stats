@@ -44,11 +44,15 @@ score). DUP_STRIDE below is documentation only, not used by the code. Validated:
 comp_cid cleanly separates league / cup / European (e.g. Galatasaray -> 118 league +
 117 cup + 258 EURO), so no fragile clustering is needed.
 
-COVERAGE: this is ONE of two on-disk result lists. A second list (~49.36 MB) repeats the
-home team and carries a 0x42xx value with NO cid, so it can't be league-assigned; it isn't
-parsed here. Consequently per-game coverage is partial (~a third of a season), but every
-club appears often enough that league MEMBERSHIP is complete and robust. Standings computed
-from this list alone are therefore approximate.
+COVERAGE: partial by nature, now that the region is known to be the Club History tables --
+a club contributes its record-setting matches, not its fixtures. League MEMBERSHIP is still
+complete and robust because every club holds records; standings computed from this list are
+not approximate so much as meaningless, and `league_table()` should not be trusted.
+
+The "second result list at ~49.36 MB" this docstring used to claim DOES NOT EXIST. Checked
+2026-09-17: 49.36 MB is an UNSET table -- every field 0xff on a 70-byte stride, carrying the
+same `e4 07` (2020) season sentinel that clubrecords.py's empty slots use. There is no
+`0x42xx` value and no repeated home team. Do not go looking there again.
 """
 from collections import Counter, defaultdict
 

@@ -59,7 +59,7 @@
       ]
     },
     {
-      "competition": "Bundesliga", "cid": null,
+      "competition": "Bundesliga", "cid": 14,
       "date": "2026-04-04", "day_of_year": 93,
       "note": "a SECOND league, to prove any variant inventory generalises beyond cid 5. UI splits 5 + 1.",
       "fixtures": [

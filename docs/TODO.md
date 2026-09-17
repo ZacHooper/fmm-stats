@@ -64,6 +64,7 @@ Five things have produced numbers that looked fine and were not. All are live tr
 | what CA is made of, per position | [`ca-weighting.md`](ca-weighting.md) |
 | record layouts from the 2026-09 expansion | [`record-expansion.md`](record-expansion.md) |
 | the per-byte schema of any record we walk | `uv run python scripts/audit_records.py --map` |
+| which BYTES of the save no parser reads | `uv run python scripts/audit_coverage.py` |
 | the standings record, decoded but unimplemented | [`standings-record.md`](standings-record.md) |
 | the hunt for complete fixtures | [`date-search.md`](date-search.md) |
 | how to deploy the site | [`DEPLOY.md`](DEPLOY.md) |
@@ -102,8 +103,20 @@ off in-game screenshots (`tests/fixtures/light_results_truth.json`) are recovere
 those 9 are precisely the ones that happen to BE club records. Two fixtures
 (Southampton 3-0 Aston Villa, Liverpool 0-1 Newcastle) have their two club tids nowhere
 adjacent in the file, so any remaining structure does not store a fixture as a tid pair.
-Unexamined: the cid-less list at ~49.36 MB, and a 497-record chained region at 6.127-6.260 MB
-that `find_light_regions` never sweeps.
+**Updated 2026-09-17 (second pass).** The "cid-less list at ~49.36 MB" **does not exist** —
+it is an unset table, every field `0xff`. Six more hypotheses were tested and killed with
+measurements (uid-keyed records, slot-index round-robin columns, bare score arrays, the
+datadict's `fxds`/`mtdy` scheduling records, a two-save append diff); all are tabulated in
+[`light-results-record.md`](light-results-record.md) so they are not re-run.
+
+**The live lead is a 25-byte, AWAY-FIRST record at ~40.05–40.11 MB.** Three fixtures decode
+exactly, one of them (Southampton 3-6 Newcastle, day 135) independently confirmed against the
+Club History screen. Every oriented probe missed it because they all assumed home-first. The
+next step is EXTENT and per-byte COVERAGE of that record, not another value hunt — grid-walking
+it today still yields only 2/28, so it is a real record at real offsets, not a decoded table.
+
+Still unexamined: a 497-record chained region at 6.127-6.260 MB that `find_light_regions`
+never sweeps.
 
 [`date-search.md`](date-search.md) — the results we hold are **our matches only**, confirmed by
 `mart.competitions`: we carry exactly **32** Superliga fixtures per season, which is one club's

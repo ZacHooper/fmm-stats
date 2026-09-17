@@ -234,6 +234,59 @@ declared UNKNOWN so that the audit counts them, per CLAUDE.md's coverage rule.
 - **4-byte slot-index records** `[slot][slot][sh][sa]`: longest consecutive run 27; a 20-team
   season needs 380.
 
+## The 2026-09-17 sweep: what the fixture list is NOT
+
+The hunt for a complete results list was re-run from scratch against all 28 screenshot-verified
+fixtures (`tests/fixtures/light_results_truth.json`) on `frem-2026-06-11.fms`. Each item below
+is a MEASUREMENT, not an impression, and each kills a hypothesis that looked reasonable:
+
+| hypothesis | test | result |
+|---|---|---|
+| home tid + away tid near each other with both scores | every oriented template `(sep, hg_off, ag_off)`, sep 1..128, offsets ±64, scored by DISTINCT FIXTURES explained | best template explains **9/28** — noise. The separation histogram is symmetric and all multiples of 16, i.e. per-club lookup tables |
+| clubs referenced by club UID, not tid | same probe on the uid (a genuinely separate id space: Southampton is tid 504, uid 713) | best **5/27** |
+| clubs referenced by a slot index within the competition | scan every stride/phase for a column where each index appears ~19 times over ~380 rows | **no round-robin column exists**; every hit is a byte counter (24 values × exactly 256) |
+| the scores stored bare, order implied by the generated schedule | every run of ≥120 bytes all ≤ 11 with a football-shaped distribution | **0 survive** |
+| the datadict holds fixtures (`fxds`, `ofxd`, `nfxd`, `mtdy`) | decoded all 996 + 60 + 59 + 106 records | **scheduling RULES** — day-of-week, kickoff 1800, template years 2000/2001. No scoreline anywhere. This is why an earlier session found "a schedule table but no link to a scoreline": there is no link to find |
+| a second result list at ~49.36 MB (claimed by `lightresults.py`) | read the bytes | **does not exist** — an UNSET table, every field `0xff` on a 70-byte stride with clubrecords' `e4 07` (2020) empty-slot sentinel |
+| an append diff between 2026-03-22 and 2026-06-11 would expose a filling table | per-section diff (the file grew 517 KB, so absolute offsets shift) | section 2 is only 61% identical; newly-filled bytes are smeared across 34–40 MB with no append signature |
+
+Two dismissals from the earlier pass were themselves wrong and are withdrawn: the 40.05 MB
+structure was ruled out because "`L.sweep()` recovers 0 records there", but `sweep()` reads the
+21-byte CLUB RECORD and could never have found anything there — that argument proves nothing.
+
+## The live lead: a 25-byte fixture record at ~40.05–40.11 MB
+
+Two fixtures decode EXACTLY, and they were found by dropping the assumption that the home club
+comes first — the record is **away-first**, which is why every oriented probe above missed them:
+
+```
++0  away_tid  u16
++2  home_tid  u16
++4  away_goals u8
++5  home_goals u8
++6  day_of_year u16      (0-based, same encoding as the club record's +8)
++8  UNKNOWN u8           NOT the cid -- reads 5 on rows whose league is 2, 4 and 32
++9..+24 UNKNOWN          +9 and +11 are correlated (+11 ~= 0.59 x +9) across all 14 EPL rows
+```
+
+| offset | decode | check |
+|---|---|---|
+| 40.0559 M | Tottenham 5-0 Bournemouth, day 143 | 2026-05-24, final round ✓ |
+| 40.0567 M | West Brom 0-2 Liverpool, day 143 | same round ✓ |
+| 40.0800 M | Southampton 3-6 Newcastle, day 135 | independently verified as the Club History "Highest scoring match, 16/5/2026" ✓ — and its MIRROR is stored too |
+
+**The stride is 25**: every gap between fixture-shaped rows in 40.00–40.20 MB is a multiple of
+25 (37×25, 29×50, 22×75, 20×175 ...), grid phase 10. The region spans many leagues at once —
+Danish 2/3/4/1147, Spanish 32, English 5/6/7/8/70, reserve leagues 1338/1348 — so it is not
+grouped per competition.
+
+**What is NOT yet established, and must not be assumed:** walking the 25-byte grid across the
+whole file decodes 40,619 slots as "a fixture", which is only ~20x the base rate you get from
+two valid club tids plus plausible scores, and it still recovers only **2/28** of the ground
+truth. So this is a real record at real offsets, not a decoded table. The next step is the
+record's EXTENT (per CLAUDE.md: bound the walk by the table's own invariant, and name every
+byte in [0, 25)) — not another value hunt.
+
 ## A UI observation worth keeping
 
 The game renders a single match-day as **two sections under the same date header**, with nothing

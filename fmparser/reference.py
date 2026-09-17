@@ -176,6 +176,10 @@ def _build_refdata_index(mm):
                                 break
                             p = p + 4 + sl
                         rec = {"name": long_name, "short": short_name,
+                               # the club's UID -- a second id space, distinct from the tid
+                               # the rest of the codebase joins on. Carried because a table
+                               # that references clubs by uid is invisible to any tid search.
+                               "uid": uid,
                                "league": None, "country": None,
                                # offset of the trailer (first byte after the 3 names), so
                                # club_details() can read the rest of the record without
