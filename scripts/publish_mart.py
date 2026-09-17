@@ -156,7 +156,25 @@ SCOPE = {
 # many times the size of the whole artefact. They exist as VIEWS so scripts/export_data.py has a
 # single schema to read from while it runs against a real local store — a machine that has the
 # ability number, which the published copy deliberately does not. Do not "fix" this omission.
-UNPUBLISHED = {"player_role_ratings", "player_position_fit"}
+UNPUBLISHED = {
+    # The method-dependent rating layer (see above): 27M and 9.4M rows.
+    "player_role_ratings", "player_position_fit",
+    # SCAFFOLDING, NOT AN ANSWER. `club_roster` is the club-record squad ARRAY's view of
+    # "who is on whose books"; `snapshot_squad` is the SPELL model's view of the same
+    # question, and `roster_vs_spells` is the diagnostic comparing them. fmparser/mart.py
+    # says it plainly at CLUB_ROSTER: "Deliberately NOT wired into mart.squad_current yet.
+    # The spell model stays as the source of truth until the two have been compared across
+    # every snapshot."
+    #
+    # So publishing all three ships a remote analyst two competing answers plus the
+    # comparison between them, one of which the code itself does not trust. They stay in the
+    # FULL store (publish_duckdb.py), which is where you go to do that comparison. Promote
+    # club_roster here the day it becomes the source of truth, and drop roster_vs_spells for
+    # good at the same time -- a diagnostic outlives its question.
+    #
+    # Incidentally 17 MB of the artefact, but that is not why they are here.
+    "club_roster", "roster_vs_spells",
+}
 
 # Refuse to upload something wildly bigger than expected. The failure this guards against is
 # silent: a new object materialises to 200 MB, the upload succeeds, and nobody notices until a
@@ -173,7 +191,15 @@ UNPUBLISHED = {"player_role_ratings", "player_position_fit"}
 # expected, not a regression. What should still stop you cold: a jump far bigger than one
 # snapshot's growth accounts for (a few MB) — that's the accidentally-unscoped-133-MB-table
 # failure mode this check exists for, and no headroom number fixes that, only checking SCOPE.
-MAX_MB = 64
+#
+# 2026-09-17: it did exactly that job. 25 snapshots should have read ~50 MB and read 92, which
+# is the jump-too-big case rather than creep — and checking SCOPE found `club_roster`, a new
+# unscoped table from PR #51 running at 27,310 rows per snapshot, now in UNPUBLISHED above.
+# Raised to 128 only AFTER that, because the remaining ~79 MB is honest: the artefact really
+# has outgrown 64. Note the number is a TRIPWIRE, not a budget — DuckDB reads an R2 object
+# over httpfs with range requests, so a 90 MB ATTACH costs a remote agent nothing much. The
+# cost this guards is not bandwidth, it is shipping something nobody meant to ship.
+MAX_MB = 128
 
 
 def build(src_path, dest, scope_ours=True):

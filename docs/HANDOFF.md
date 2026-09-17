@@ -93,5 +93,5 @@ rewards in each slot. That is a scouting asset independent of the decoder.
   in-game scout's formation and style anyway; use `mart.club_managers` as the prior.
 - **The capital-province rule**: new signings need an origin club in
   `seeds/eligible_origin_clubs.csv` (the Copenhagen S-tog commuter belt; existing squad and
-  academy products grandfathered). **See TODO #6 — 17% of origins do not resolve, and
+  academy products grandfathered). **See TODO #5 — 17% of origins do not resolve, and
   `eligible=False` currently cannot be told apart from "unknown".**
