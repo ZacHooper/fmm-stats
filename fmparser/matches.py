@@ -158,9 +158,20 @@ def parse_header(mm, anchor, window=1500):
 
 
 # ---------------- events ----------------
+# 0x07/0x08 are a PENALTY SHOOTOUT, decoded 2026-09-17 from the one fixture in the archive
+# that went to one: Frem v Midtjylland, Sydbank Pokalen, 2022-10-25. The match record says
+# 0-0 after extra time, all ten events are stamped at minute 120, and resolving each taker's
+# club AS AT 2022 splits them home 4 scored / 1 missed against away 3 scored / 2 missed --
+# five kicks a side, scored + missed = 5 for both, Frem through 4-3. The arithmetic only
+# closes if 0x07 is the conversion and 0x08 the miss, which is what settles the direction.
+#
+# Caveat worth keeping: a single shootout cannot prove the byte means "shootout kick" rather
+# than "goal after 90+30". If one ever shows up outside minute 120, revisit the name.
 EVENT_TYPE = {
     0x01: "goal", 0x02: "own_goal", 0x03: "penalty", 0x04: "missed_penalty",
-    0x05: "red_card", 0x06: "injury", 0x29: "disallowed_goal",
+    0x05: "red_card", 0x06: "injury",
+    0x07: "shootout_goal", 0x08: "shootout_miss",
+    0x29: "disallowed_goal",
 }
 
 

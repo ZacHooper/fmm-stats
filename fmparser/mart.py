@@ -100,6 +100,14 @@ GK_BLOCK = GK_ONLY_ATTRS
 
 
 from . import value_model as _vm
+from .matches import EVENT_TYPE as _EVENT_TYPE
+
+# The event-type CASE, generated from the parser's own table so a byte named in
+# fmparser/matches.py reaches the mart on the next --refresh-only, with no re-extract. The
+# ELSE keeps the `?xx` shape the parser uses for a byte nobody has identified yet.
+_EVENT_CASE = ("CASE ev.type_byte "
+               + " ".join(f"WHEN {b} THEN '{n}'" for b, n in sorted(_EVENT_TYPE.items()))
+               + " ELSE '?' || printf('%02x', ev.type_byte) END")
 
 
 def _sum(attrs):
@@ -423,21 +431,14 @@ GROUP BY g.season, g.club_tid
 #
 # Coverage: our matches only, so this is our season's goal timings, not the league's.
 #
-# ?07 = SHOOTOUT SCORED, ?08 = SHOOTOUT MISSED. One fixture carries all ten (Frem v
-# Midtjylland, Sydbank Pokalen, 2022-10-25), and every check lines up: the match record says
-# 0-0 after extra time, all ten are stamped at minute 120, and once each taker's club is
-# resolved AS AT 2022 the split is home 4 scored / 1 missed and away 3 scored / 2 missed --
-# five kicks each side, scored + missed = 5 for both, Frem through 4-3. A miscount either way
-# would break that arithmetic, which is what makes it a decode rather than a guess.
-#
-# Still NOT renamed in fmparser/matches.py, because one match cannot show whether the byte
-# means "shootout goal" or just "goal after 90+30". Name it when a second shootout appears.
-# ?0e remains unidentified: 2 events, both in reserve fixtures, minutes 38 and 59.
+# shootout_goal / shootout_miss (bytes 0x07/0x08) are named in fmparser/matches.py -- see the
+# comment there for the arithmetic that settles the direction. ?0e remains unidentified: 2
+# events, both in reserve fixtures, minutes 38 and 59.
 MATCH_EVENTS = """
 CREATE OR REPLACE VIEW mart.match_events AS
 WITH ev AS (
     SELECT DISTINCT m.date, m.home_tid, m.away_tid, m.competition, m.comp_id,
-           e.seq, e.minute, e.added, e.min_display, e.tid, e.type, e.type_byte
+           e.seq, e.minute, e.added, e.min_display, e.tid, e.type_byte
     FROM {S}.match_events e
     JOIN {S}.matches m USING (season, phase, anchor)
     WHERE m.date IS NOT NULL
@@ -452,7 +453,15 @@ WITH ev AS (
 SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
        ev.date, ev.competition, ev.comp_id,
        ev.home_tid, ev.away_tid,
-       ev.minute, ev.added, ev.min_display, ev.type, ev.type_byte,
+       ev.minute, ev.added, ev.min_display,
+       -- The LABEL is derived from type_byte here, not read from
+       -- staging.match_events.type. That column is written at EXTRACT time, so naming
+       -- a byte would otherwise mean a 25-minute re-extract before the store agreed --
+       -- and until it did, solved bytes would still read as `?07`. The byte is the
+       -- fact; the name is a label, and a label belongs where --refresh-only can change
+       -- it. Generated from fmparser.matches.EVENT_TYPE so the two cannot drift.
+       {event_case}                                       AS type,
+       ev.type_byte,
        ev.tid, nm.name AS player,
        -- which side the event belongs to, from the scorer's club at the time. NULL when the
        -- player is no longer resolvable rather than guessed.
@@ -2658,7 +2667,8 @@ def create_mart(con, src="staging"):
     for stmt in MACROS:
         con.execute(stmt)
     for name, sql in ORDER:
-        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS))
+        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS,
+                               event_case=_EVENT_CASE))
     return [n for n, _ in ORDER]
 
 

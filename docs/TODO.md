@@ -60,15 +60,11 @@ what ships today.
 never been examined. **Possibly superseded by #3**: if the standings record gives exact final
 tables, complete fixtures may no longer be needed. Decide that before spending time here.
 
-### 5. Two match-event type bytes are unnamed
-`mart.match_events` carries them verbatim rather than dropping them.
-
-- **`?07` / `?08` are all but certainly shootout scored / missed.** All ten occurrences are in
-  one fixture (Frem v Midtjylland, Sydbank Pokalen, 2022-10-25) which finished 0-0 after extra
-  time, all at minute 120, splitting home 4/1 and away 3/2 — five kicks a side, Frem through
-  4-3. Not renamed in `fmparser/matches.py` because one match cannot separate "shootout goal"
-  from "goal after 90+30". **Name them when a second shootout appears in any save.**
-- **`?0e` is unidentified.** Two events, both in reserve fixtures, minutes 38 and 59.
+### 5. One match-event type byte is unnamed
+`?0e` (byte 14): 2 events, both in reserve fixtures, minutes 38 and 59. `mart.match_events`
+carries it verbatim rather than dropping it. `0x07`/`0x08` were named `shootout_goal` /
+`shootout_miss` on 2026-09-17 — see `fmparser/matches.py` for the arithmetic that settled the
+direction.
 
 ### 6. Staff record bytes `+34..+38` are undecoded
 Five catalog indices, declared `UNKNOWN` in `scripts/audit_records.py`'s `LAYOUTS` so the audit
