@@ -129,6 +129,14 @@ def claims(mm, n):
     # ---- DECLARED: window scans with no per-record offset --------------------
     from fmparser import regions as RG
     declared("reference.name_table", 0, 520_000)
+    # _build_refdata_index scans this whole window for club + competition candidates but
+    # only reports positions for the records it accepts, not a per-byte offset list, so
+    # this is DECLARED like the window-scan parsers below -- it overstates coverage inside
+    # the window (most candidate positions are rejected, not read as a real record), but it
+    # stops the club/comp region reading as untouched. See TODO #10 for why "declared" is
+    # not "correctly decoded" here: the reputation floor and the empty-CODE bug both drop
+    # real records inside this exact span.
+    declared("reference.clubs_comps", RG.REFDATA_LO, RG.REFDATA_HI)
     declared("staging.attributes", RG.ATTR_LO, RG.ATTR_HI)
     declared("staging.contracts", RG.CONTRACTREC_LO, RG.CONTRACTREC_HI)
     declared("attributes.snapshot", RG.SNAPSHOT_LO, RG.SNAPSHOT_HI)
