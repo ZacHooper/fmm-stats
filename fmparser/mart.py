@@ -1036,7 +1036,7 @@ FROM base
 # IMMERSION: this view reads ca/pa but emits only money, exactly as player_position_levels
 # reads ca and emits only a percentile. Do not add ca/pa to the SELECT.
 #
-# ACCURACY IS ~2.3x. `in_trusted_band` flags the £20k-£5M range the model was validated
+# ACCURACY IS ~2.2x. `in_trusted_band` flags the £20k-£5M range the model was validated
 # in — outside it, especially above £5M, the estimate is unevidenced. And this is a VALUE,
 # never an asking price: the markup is not modelled and has been measured at 31x on a
 # coveted teenager. See docs/agent-context/player-value-estimation.md.
@@ -1068,7 +1068,7 @@ FROM {S}.players p
 JOIN mart.player_snapshots s USING (season, phase, tid)
 JOIN lr ON lr.season = p.season AND lr.phase = p.phase AND lr.club_tid = p.club_tid
 WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
-  AND p.reputation > 0 AND lr.lrp > 0 AND s.age IS NOT NULL
+  AND s.current_reputation > 0 AND lr.lrp > 0 AND s.age IS NOT NULL
 """
 
 # Bake the frozen coefficients in now, leaving only {S} for create_mart's .format().

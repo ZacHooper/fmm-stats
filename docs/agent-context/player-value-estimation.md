@@ -44,24 +44,58 @@ Nothing else. The value is derived by the game, not stored in coarse form.
 `fmparser/value_model.py` (frozen coefficients, same pattern as `model.py`), refit with
 `scripts/fit_value_model.py`, surfaced as `mart.player_value_est`.
 
-OLS on log(value), trained on the managed club's own squad across all snapshots — **734 rows,
-80 players, 22 snapshots**, the only labelled data that exists.
+OLS on log(value), trained on the managed club's own squad across all snapshots — **833 rows,
+86 players, 25 snapshots** as of the 2026-09-17 refit (up from 734/80/22), the only labelled
+data that exists.
 
 ```
-log(value) = intercept + ca*CA + pa*PA + lrep*ln(player rep) + llrp*ln(league rep)
+log(value) = intercept + ca*CA + pa*PA + crep*ln(player CURRENT rep) + llrp*ln(league rep)
            + gk*is_gk + acap*A + acap2*A^2 + res*is_reserve,  A = min(age, 28)
 ```
 
 Validated with **5-fold CV grouped by player** — ungrouped CV leaks badly, since one player
-appears in up to 22 snapshots.
+appears in up to 25 snapshots.
 
 | Spec | CV R² | Median error |
 |---|---|---|
-| ca only | 0.612 | 2.75× |
-| no league reputation | 0.686 | 2.49× |
-| **shipped** | **0.717** | **2.27×** |
+| ca only | 0.598 | 2.62× |
+| no league reputation | 0.689 | 2.46× |
+| home reputation instead of current | 0.706 | 2.27× |
+| **shipped (current reputation)** | **0.712** | **2.20×** |
 
-In the £20k–£5M band real targets live in: **median 2.15×, 70% within 3.6×**.
+In the £20k–£5M band real targets live in: **median 2.22×, 70% within 3.5×**.
+
+### 3a. 2026-09-17 refit: current reputation replaces home reputation
+
+PR #51 parsed two more reputation fields off the same record tail the model already read
+`reputation` (home, P+21) from: `current_reputation` and `world_reputation`
+(`fmparser/attributes.py`). Docs/TODO.md had this flagged since that PR as unused — refit here.
+
+**Current reputation replacing home reputation is a real, repeatable win**, not noise: it beat
+home reputation on grouped-CV in *every* spec tried, both single-seed (0.712 vs 0.706 here) and
+averaged over 30 CV seeds (0.704 ± 0.006 vs 0.694 ± 0.012) — a bigger margin than the seed
+variance, and current reputation's variance is itself tighter. That tracks what the two field
+names say: home reputation is the slower-moving figure, current tracks where the player
+actually stands right now, which is closer to what a transfer fee is pricing.
+
+**World reputation never won a single comparison it was tried in** — alone (0.677-0.690,
+worse than either domestic figure), alongside home, alongside current, or all three together
+(0.687-0.699, all worse than current alone at 0.704-0.712). Home and current reputation
+correlate **0.967** with each other in this data (and only ~0.27 with world reputation, which
+really is measuring something different) — that near-collinearity is also why running home
+*and* current together scores worse than current alone (0.697 vs 0.704 over 30 seeds): it's one
+signal read at two cadences, and giving the model two correlated copies of it just adds
+overfitting noise for no new information.
+
+One thread left dangling, worth a look if more snapshots accumulate: world reputation
+correlates **essentially zero (-0.03)** with the shipped model's residual over the full 833-row
+sample, but **-0.51** restricted to the 78 rows valued ≥£1M. That could be a real effect (world
+fame and domestic value diverging hardest for genuinely expensive players — the kind of thing
+that might eventually help the "unevidenced above £5M" problem in §4) or could be a 78-row
+coincidence; it wasn't chased further because there isn't enough data at that end of the market
+yet to tell the two apart, and a term fit on 78 points isn't one to ship. Re-run
+`scripts/fit_value_model.py --compare` (it now prints this comparison) once the top-of-market
+sample has grown.
 
 Effect sizes, holding everything else equal — age is the second-biggest term after reputation:
 

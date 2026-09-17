@@ -40,7 +40,7 @@ import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "dashboard"))
 
 # Features, in the order value_model.COEF stores them.
-FEATURES = ["ca", "pa", "lrep", "llrp", "gk", "acap", "acap2", "res"]
+FEATURES = ["ca", "pa", "crep", "llrp", "gk", "acap", "acap2", "res"]
 
 TRAIN_SQL = """
 WITH c AS (
@@ -56,7 +56,8 @@ WITH c AS (
      AND p.name = regexp_replace(c.name, ' Reserves$', '')
 )
 SELECT p.season, p.phase, p.tid, p.name, s.club,
-       p.ca, p.pa, p.reputation, p.is_gk, s.age,
+       p.ca, p.pa, p.reputation, s.current_reputation, s.world_reputation,
+       p.is_gk, s.age,
        lr.lrp, lr.is_res, p.player_value AS val
 FROM staging.players p
 JOIN mart.player_snapshots s USING (season, phase, tid)
@@ -70,7 +71,16 @@ def prep(df):
     df = df.copy()
     for col in ("age", "ca", "pa"):
         df[col] = df[col].astype(float)
-    df["lrep"] = np.log(df.reputation.astype(float))    # player reputation
+    # CURRENT reputation, not home (P+21) — PR #51 parsed two more reputation fields off the
+    # same record tail, and current_reputation beats home reputation on grouped-CV (0.704 vs
+    # 0.694 R2, 30-seed average) with LOWER seed-to-seed variance, for the same reason it's
+    # named "current": home reputation is a slower-moving figure, current tracks the player's
+    # actual present standing. world_reputation was tried too (alone, alongside home, alongside
+    # current, all three together) and never beat current-alone in any combination — see
+    # docs/agent-context/player-value-estimation.md for the full comparison table.
+    df["crep"] = np.log(df.current_reputation.astype(float))
+    df["lrep"] = np.log(df.reputation.astype(float))       # kept for --compare only
+    df["wrep"] = np.log(df.world_reputation.astype(float))  # kept for --compare only
     df["llrp"] = np.log(df.lrp.astype(float))           # league reputation
     df["gk"] = df.is_gk.astype(float)
     # The raw age quadratic turns UPWARD past ~28, claiming a 33-year-old is worth more
@@ -123,12 +133,15 @@ def main():
     print(f"value range £{d.val.min():,.0f} - £{d.val.max():,.0f}\n")
 
     if args.compare:
-        core = ["ca", "pa", "lrep", "llrp", "gk"]
+        core = ["ca", "pa", "crep", "llrp", "gk"]
         specs = {
             "ca only": ["ca"],
-            "no league rep": ["ca", "pa", "lrep", "gk", "acap", "acap2", "res"],
+            "no league rep": ["ca", "pa", "crep", "gk", "acap", "acap2", "res"],
             "raw age quadratic": core + ["age", "age2"],
-            "SHIPPED (age capped, +res)": FEATURES,
+            "home rep instead of current": ["ca", "pa", "lrep", "llrp", "gk", "acap", "acap2", "res"],
+            "+world rep alongside current": ["ca", "pa", "crep", "wrep", "llrp", "gk", "acap", "acap2", "res"],
+            "world rep only (no home/current)": ["ca", "pa", "wrep", "llrp", "gk", "acap", "acap2", "res"],
+            "SHIPPED (current rep, age capped, +res)": FEATURES,
         }
         d["age2"] = d.age ** 2
         for name, feats in specs.items():

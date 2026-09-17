@@ -89,12 +89,7 @@ Two things to do: find where they resolve, and until then make `player_origin` d
 
 ## Models
 
-### 8. Refit the transfer-value model with the new reputation fields
-`current_reputation` and `world_reputation` are parsed (PR #51) and currently unused.
-`fmparser/value_model.py`. This was the one workstream from the parser expansion that never
-got done, and reputation is exactly what a value model wants.
-
-### 9. Attribute decoder — two measured leads
+### 8. Attribute decoder — two measured leads
 Both from [`ATTRIBUTE_MODEL_HANDOFF.md`](ATTRIBUTE_MODEL_HANDOFF.md); neither is speculative.
 
 - **Bias is almost the whole story.** `|mean signed error|` correlates **−0.91** with the
@@ -107,7 +102,7 @@ Current state is 59.4% exact on Frem / 59.5% on Bucaspor for the nine outfield a
 against a **94.8% ceiling**. Read the handoff's "already ruled out" section first — height,
 the CA constraint, the CA surprise, a non-linear link and `blend_w` are all tested and dead.
 
-### 10. Goalkeeper attributes cannot be modelled at this sample size
+### 9. Goalkeeper attributes cannot be modelled at this sample size
 Frem has **7 goalkeepers**. The five keeper attributes are deliberately **not refitted**
 (`--min-players`, default 20) and keep the frozen coefficients, because refitting made the
 Bucaspor hold-out worse. Needs more GK ground truth before it can move — which realistically
@@ -118,7 +113,7 @@ players).
 
 ## Football (the actual career)
 
-### 11. Position write-ups still owed
+### 10. Position write-ups still owed
 Zac asked for the position-by-position read for **DM, CM, AML, AMC, AMR and ST**, plus a verdict
 on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **Note the earlier analysis is now
 several seasons stale** — it was written when Frem were in NordicBet Liga; they have been in the
