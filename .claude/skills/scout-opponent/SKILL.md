@@ -233,7 +233,7 @@ Everything below is parameterised off the active career — pull these from `db`
   when the game state changes**: name the shape he shifts into chasing a goal, and the one he
   shuts up shop in. One caveat: a club WE manage correctly returns
   no row. The Style bands themselves are confirmed — 7/7 on a predict-then-check run spanning
-  both edges (`docs/PARSER_EXPANSION_HANDOFF.md` §F) — so quote the label as read, not hedged.
+  both edges (`docs/record-expansion.md` §F) — so quote the label as read, not hedged.
 - **OUR OWN tactics screens** — ASK FOR THESE TOO (Shape / Defence / Attack). A shape sets none of
   mentality, line, closing down, tempo, width or the final-third instructions, and this skill was
   blind to them for a whole season of briefings. In particular check whether **`Work Into Box`** is

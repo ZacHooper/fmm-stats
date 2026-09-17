@@ -23,11 +23,11 @@ opens with and ranks candidate clubs; add the winning first-team + reserve tids 
 `careers.py`, then extract. All saves for a career must be that same career.
 
 ## Resuming work
-**[`docs/HANDOFF.md`](docs/HANDOFF.md)** is where the project is right now — short, and state
-rather than history. **[`docs/TODO.md`](docs/TODO.md)** is the single register of everything
-still outstanding: if it isn't in TODO, it isn't open. Read both before starting anything, and
-when you finish something, DELETE its TODO entry rather than marking it done — otherwise that
-file rots into another changelog, which is what this cleanup was undoing.
+**[`docs/TODO.md`](docs/TODO.md)** is the ONE doc you read to resume — where the project is
+now, plus every outstanding thing in a single register. If it isn't in TODO, it isn't open.
+Everything else in `docs/` is reference you read when a task sends you there. When you finish
+something, DELETE its TODO entry rather than marking it done — otherwise that file rots into
+another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoing.
 
 ## Answering a quick football question — don't default to a local rebuild
 A question like "who was our top scorer last season" does NOT need
@@ -113,8 +113,8 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **history-chain-pointers** — the history slab is a forest of linked lists; how the `P-38` player link works.
 - **fmm-editor-record-comparison** — field-by-field map of our parsers vs the FMM26 database layouts (`nyongrand/fmm-editor`). **Read before decoding any new field** — it names the record you're in.
 - **[`docs/ca-weighting.md`](docs/ca-weighting.md)** — how the save hands us each of the 23 displayed attributes (direct byte / plain-byte composite / CA-modelled), **FM's per-position CA weight tables** recovered from 155k snapshots, and the **94.8% label ceiling** every attribute-accuracy figure is measured against. Read before quoting an accuracy number or reasoning about what the game rewards in a position.
-- **[`docs/ATTRIBUTE_MODEL_HANDOFF.md`](docs/ATTRIBUTE_MODEL_HANDOFF.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
-- **[`docs/PARSER_EXPANSION_HANDOFF.md`](docs/PARSER_EXPANSION_HANDOFF.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
+- **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
+- **[`docs/record-expansion.md`](docs/record-expansion.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
 - **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options**, **light-results-rolling-buffer**, **master-schedule-plan** — specific findings; read when relevant.
 
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
@@ -349,7 +349,7 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - **The web app computes ratings itself** (`site/js/data.js`) from attributes × role weights, so a
   change to the rating formula must land in BOTH the SQL (`v_player_ratings`) and the JS. They are
   verified equal to the last decimal over 36,920 combinations — keep it that way.
-- **The opponent's tactic on the day is NOT in the save — the MANAGER's preferences now are.** Still ask the user for the in-game scout's formation + style: that is what the opposition will actually line up in, and it is the half of the scout report that has held up. But `mart.club_managers` now names the opposition manager and carries his **preferred / attacking / defensive formation** and a derived **Style** (Attacking / Normal / Defensive, banded from a hidden attribute — see [`docs/PARSER_EXPANSION_HANDOFF.md`](docs/PARSER_EXPANSION_HANDOFF.md) §F). Use it as the prior and the game-state read (what he shifts to chasing a goal), not as a substitute for what the user can see. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
+- **The opponent's tactic on the day is NOT in the save — the MANAGER's preferences now are.** Still ask the user for the in-game scout's formation + style: that is what the opposition will actually line up in, and it is the half of the scout report that has held up. But `mart.club_managers` now names the opposition manager and carries his **preferred / attacking / defensive formation** and a derived **Style** (Attacking / Normal / Defensive, banded from a hidden attribute — see [`docs/record-expansion.md`](docs/record-expansion.md) §F). Use it as the prior and the game-state read (what he shifts to chasing a goal), not as a substitute for what the user can see. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
 - **Rating an opponent: Level %ile, not Fit %ile.** `pos_index`/`pctile_*` (`effective_table`) are OUR tactic's role-weighted Fit — how well an attribute set suits `frem_attacking_ss`, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `db.scout_report()`'s `key_players`/danger-men reads and its `matchups` table (see next bullet) use `level_*`; only use `pos_index` for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
 - **A back line doesn't play a back line.** `db.scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`db.matchup_table()`) for that reading, not `strength`.
 - Our tactic/method is **`frem_attacking_ss`** — the strikerless SS setup, and the dashboard default (`seeds/config_bundle.json`). `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.

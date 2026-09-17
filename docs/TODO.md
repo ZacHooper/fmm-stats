@@ -1,10 +1,73 @@
-# TODO — the single register of outstanding work
+# TODO — the one doc you read to resume
 
-**Everything not-yet-done lives here.** Handoff docs describe work that is *finished* or a
-*method* worth keeping; this file is the list of what is still open. If you finish something,
-delete its entry — do not mark it done, or this becomes another changelog.
+**Where the project is, and everything still open.** There is no second resume doc: if it
+isn't here, it isn't outstanding. The other files in `docs/` are *reference* — record layouts,
+rules, dead ends already measured — and you read them when a task sends you there, not to find
+out what to do.
+
+If you finish something, **delete its entry**. Do not tick it off, or this rots into a
+changelog, which is what killed the last four handoff docs.
+
+Item numbers are for conversation only — they are renumbered whenever entries are deleted, so
+never cite one in code or a commit message.
 
 Last reviewed **2026-09-17**, after PR #51 (record expansion + attribute decoder rebuild).
+
+---
+
+## Where the project is
+
+Reverse-engineering **Football Manager Mobile 2022** `.fms` saves into a DuckDB store, a static
+web app and a Streamlit dashboard, to manage a career with real data.
+
+| | |
+|---|---|
+| career | **Boldklubben Frem** (Denmark, `--career frem`, managed tid 346, reserves 7296) |
+| store | **25 snapshots**, `fm-frem.duckdb`, latest **2027 / 2026-07-02** |
+| division | **3F Superliga — tier 1, `club_league` cid 2 — since season 2025** |
+| how they got there | 3. Division → 2. Division → NordicBet Liga → Superliga, three straight promotions |
+| tactic | `frem_attacking_ss` (strikerless SS), the dashboard default |
+| hold-out | **Bucaspor** (Turkey) is archived, and is the only cross-career parser regression test |
+
+The squad was built to win the fourth tier. Expect the level gap to be the dominant story.
+
+**Infrastructure is done and not a source of open work.** Storage tiers (git / R2 / local-only)
+are settled, the store is disposable (`scripts/rebuild.py --career frem`), the web app is live
+at <https://fmm-stats.zac-g-hooper.workers.dev>, remote-agent SQL over R2 works, and squad
+registration shipped. House rules live in [`CLAUDE.md`](../CLAUDE.md) — read them there, they
+are not repeated here.
+
+### Reading the data without getting it wrong
+
+Five things have produced numbers that looked fine and were not. All are live traps, not history:
+
+- **Score an attribute on the population that HAS it.** A keeper attribute sits at the display
+  floor for an outfielder, so pooling made Communication read 92.4% when it scores 3.0% on
+  actual keepers.
+- **The decoder's ceiling is 94.8% exact / 98.7% ±1, not 100%** — measured on attributes read
+  straight from a byte, where a disagreement is the two sources disagreeing rather than a decode
+  error ([`ca-weighting.md`](ca-weighting.md)). Quote accuracy against that, never against 100%.
+  Current state: **59.4% exact on Frem, 59.5% on the Bucaspor hold-out**, for the nine outfield
+  entangled attributes; frozen was 46.3%.
+- **Joining a per-(season, _phase_) dimension on (season, club_tid) fans every fact out by the
+  snapshot count.** Frem's 19 home games read as 95.
+- **`any_value(x ORDER BY y)` does not order in DuckDB.** `max_by(x, y)` is the one that works.
+- **`mart.club_attendance` is our-matches-only** — every club but us has one or two home games a
+  season, so read `n_games` before trusting `avg_att`. (`staging.club_details.att_*` is NOT
+  attendance — see below.)
+
+### Where to look
+
+| you want | read |
+|---|---|
+| the attribute decoder, and what is already ruled out | [`attribute-model.md`](attribute-model.md) |
+| what CA is made of, per position | [`ca-weighting.md`](ca-weighting.md) |
+| record layouts from the 2026-09 expansion | [`record-expansion.md`](record-expansion.md) |
+| the per-byte schema of any record we walk | `uv run python scripts/audit_records.py --map` |
+| the standings record, decoded but unimplemented | [`standings-record.md`](standings-record.md) |
+| the hunt for complete fixtures | [`date-search.md`](date-search.md) |
+| how to deploy the site | [`DEPLOY.md`](DEPLOY.md) |
+| known parser bugs and their history | [`BUGS.md`](BUGS.md) |
 
 ---
 
@@ -15,65 +78,68 @@ Its access key and secret were pasted into a chat transcript. Cloudflare → R2 
 Tokens, then `rclone config update r2 access_key_id <NEW> secret_access_key <NEW>`. **This is
 the only security item in this file.**
 
+### 2. `mart.squad_current` still uses the spell model
+`roster_vs_spells` exists specifically to judge whether to switch it to the roster. Nobody has
+read it and decided. Until then the spell model stands, because it is the one that survives a
+lapsed loan (a departed player's `club_tid` can point at us indefinitely).
+
 ---
 
 ## Parser / decode
 
-### 2. `att_avg` / `att_min` / `att_max` are misnamed — find out what they really are
-The bytes are read correctly (`league_id` lands exactly at p+158 right beside them), but the
-NAMES come from fmm-editor's `Club.cs` and were never checked against the game. They fail every
-check:
-
-- **static across every snapshot** — Frem reads 1100/100/3300 through three promotions from the
-  4th tier to the Superliga; FCK reads 3600/1000/5500 for years;
-- **a hard worldwide ceiling of 12,500**, with 99 clubs sitting exactly on it — real attendance
-  does not cap identically for Barcelona, Real and Man United;
-- always **multiples of 100**, only 66 distinct values of `att_avg` worldwide;
-- **Barcelona reads max 9,500 BELOW avg 9,600**, which no genuine min/avg/max triple can do
-  (6.8% of clubs violate the ordering).
-
-No single scale reconciles them with in-game figures: ×10 matches Frem's ~11k exactly but gives
-FCK 36k against an in-game ~30k, and puts **25% of clubs above their own stadium capacity**
-(worst case 62×). ×8.3 fits FCK and misses Frem.
-
-**Deliberately NOT surfaced in `mart.clubs`** — carried in `staging.club_details` only.
-
-**Superseded in practice.** `staging.matches.attendance` is the REAL figure and is now exposed
-as `mart.club_attendance`: FCK 32,875 against a reported ~30k, and Frem's own average tracks
-the climb exactly (2,086 in 2022 in the lower divisions → 10,924 in 2026 in the Superliga,
-against Zac's ~11k). Capacity correlates **+0.93** with it; `att_avg` correlates **−0.31**.
-So there is no longer a *need* to decode these fields — it is now curiosity, and low priority.
-If anyone does pick it up, the method is ground truth rather than more inference (CLAUDE.md §3),
-and note they are NOT static as first claimed: 506 of 5,208 clubs move `att_avg` across
-snapshots, they just happen not to for Frem or FCK.
-
 ### 3. The league standings record is decoded but not implemented
 `staging.standings` still reads `source = 'lightresults_computed'` — the *approximate* table
 inferred from partial fixture coverage. A **14-byte fixed record holding the exact final
-position of every club in every loaded competition** was decoded on 2026-07-20 and never
-wired up. Layout and plan: [`STANDINGS_HANDOFF.md`](STANDINGS_HANDOFF.md). Strict upgrade over
-what ships today.
+position of every club in every loaded competition** was decoded on 2026-07-20 and never wired
+up. Layout, validation and parser plan: [`standings-record.md`](standings-record.md). Strict
+upgrade over what ships today.
 
 ### 4. Complete results/fixtures via a date search
-[`DATE_SEARCH_HANDOFF.md`](DATE_SEARCH_HANDOFF.md) — the results we hold are **our matches
-only**, confirmed by `mart.competitions`: we carry exactly **32** Superliga fixtures per season,
-which is one club's full league programme, not the division's ~200. Two zones that light up on a
-date search (~36–38 MB, ~63–64 MB) have never been examined.
+[`date-search.md`](date-search.md) — the results we hold are **our matches only**, confirmed by
+`mart.competitions`: we carry exactly **32** Superliga fixtures per season, which is one club's
+full league programme, not the division's ~200. Two zones that light up on a date search
+(~36–38 MB, ~63–64 MB) have never been examined.
 
 **Possibly superseded by #3**: if the standings record gives exact final tables, complete
 fixtures may no longer be needed. Decide that before spending time here.
 
-### 5. One match-event type byte is unnamed
+### 5. `att_avg` / `att_min` / `att_max` are misnamed — curiosity only
+The bytes are read correctly (`league_id` lands exactly at p+158 right beside them), but the
+NAMES come from fmm-editor's `Club.cs` and were never checked against the game. They fail every
+check: a hard worldwide ceiling of 12,500 with 99 clubs exactly on it; always multiples of 100,
+only 66 distinct values of `att_avg` worldwide; and **Barcelona reads max 9,500 BELOW avg
+9,600**, which no genuine min/avg/max triple can do (6.8% of clubs violate the ordering). No
+single scale reconciles them with in-game figures — ×10 matches Frem's ~11k exactly but gives
+FCK 36k against an in-game ~30k and puts 25% of clubs above their own stadium capacity.
+
+**Deliberately NOT surfaced in `mart.clubs`**; carried in `staging.club_details` only.
+
+**Superseded in practice.** `staging.matches.attendance` is the real figure and is exposed as
+`mart.club_attendance`: FCK 32,875 against a reported ~30k, Frem climbing 2,086 (2022, lower
+divisions) → 10,924 (2026, Superliga) against Zac's ~11k. Capacity correlates **+0.93** with it;
+`att_avg` correlates **−0.31**. So this is now curiosity, and low priority. If anyone picks it
+up, the method is ground truth rather than more inference (CLAUDE.md §3), and note they are NOT
+static as first claimed: 506 of 5,208 clubs move `att_avg` across snapshots — Frem and FCK just
+happen not to.
+
+### 6. One match-event type byte is unnamed
 `?0e` (byte 14): 2 events, both in reserve fixtures, minutes 38 and 59. `mart.match_events`
 carries it verbatim rather than dropping it. `0x07`/`0x08` were named `shootout_goal` /
 `shootout_miss` on 2026-09-17 — see `fmparser/matches.py` for the arithmetic that settled the
 direction.
 
-### 6. Staff record bytes `+34..+38` are undecoded
-Five catalog indices, declared `UNKNOWN` in `scripts/audit_records.py`'s `LAYOUTS` so the audit
-passes honestly. The record's stride and coverage are proven; only these five are unnamed.
+### 7. Staff record: five catalog indices plus six hidden attributes
+Bytes `+34..+38` are five undecoded catalog indices, declared `UNKNOWN` in
+`scripts/audit_records.py`'s `LAYOUTS` so the audit passes honestly. The record's stride and
+coverage are proven; only these are unnamed.
 
-### 7. 17% of origin clubs do not resolve, and the capital rule silently under-reports
+The six hidden staff attributes stay named by OFFSET (`hidden_s18 … hidden_s28`) on purpose:
+fmm-editor has **no `Staff.cs`** — its `People.cs` stops at the `Unknown6b` u32 that links here
+— so there is no upstream order to borrow and no ground truth of our own. **`hidden_s27` is the
+one to identify next**: 85% of staff read 1–4 against ~10 for the other five, the only one
+distinctive enough for a small ground-truth set.
+
+### 8. 17% of origin clubs do not resolve, and the capital rule silently under-reports
 **3,936 of 22,624** origin clubs come back as `#<tid>` in `mart.player_origin.origin_club`, so
 the capital-province rule **cannot be evaluated** for that share of the pool — and
 `eligible=False` is currently indistinguishable from *unknown*. Confirmed live: Samuel
@@ -85,17 +151,31 @@ Two things to do: find where they resolve, and until then make `player_origin` d
 *ineligible* from *unknown*. **Treat `eligible=False` on a `#<tid>` origin as "ask Zac", not
 "no".**
 
+### 9. Three records still read short or unread
+All three are known gaps, not suspicions:
+
+- **`parse_club_trailer` steps over 20 undecoded bytes** — width confirmed, content unread.
+- **The Region table is unparsed**, as is the nation record's counted language list.
+- **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate whose
+  `name_len` search then fails. It does not bite on the current saves, which is why it survived.
+
+### 10. `mart.club_managers` isn't purely structural
+It keeps a `home_reputation` tiebreak and exposes no candidate count, so a sole structural hit
+and a reputation fallback are indistinguishable to anything reading the view. A scout report
+quoting the opposition manager cannot tell how confident to be.
+
 ---
 
 ## Models
 
-### 8. Refit the transfer-value model with the new reputation fields
-`current_reputation` and `world_reputation` are parsed (PR #51) and currently unused.
-`fmparser/value_model.py`. This was the one workstream from the parser expansion that never
-got done, and reputation is exactly what a value model wants.
+### 11. Refit the transfer-value model with the new reputation fields
+`current_reputation` and `world_reputation` are parsed (PR #51) and currently unused —
+`fmparser/value_model.py` still fits on `reputation` alone. This was the one workstream from the
+parser expansion that never got done, and reputation is exactly what a value model wants. Zac
+called it out as important for transfer value.
 
-### 9. Attribute decoder — two measured leads
-Both from [`ATTRIBUTE_MODEL_HANDOFF.md`](ATTRIBUTE_MODEL_HANDOFF.md); neither is speculative.
+### 12. Attribute decoder — two measured leads, and two hints
+Both leads are from [`attribute-model.md`](attribute-model.md); neither is speculative.
 
 - **Bias is almost the whole story.** `|mean signed error|` correlates **−0.91** with the
   exact-match rate across the 14. The misses are systematic, not noisy — an intercept problem,
@@ -103,11 +183,13 @@ Both from [`ATTRIBUTE_MODEL_HANDOFF.md`](ATTRIBUTE_MODEL_HANDOFF.md); neither is
 - **We under-predict good players.** Exact falls 83.6% (true 4–6) → 22.4% (true 16–20) with the
   bias going +0.10 → −1.01. Worst precisely where scouting cares most.
 
-Current state is 59.4% exact on Frem / 59.5% on Bucaspor for the nine outfield attributes,
-against a **94.8% ceiling**. Read the handoff's "already ruled out" section first — height,
-the CA constraint, the CA surprise, a non-linear link and `blend_w` are all tested and dead.
+Two features that lost at n=80 but lost *narrowly*, worth one re-test now the store is 25
+snapshots: **feet for Dribbling** (48→54%) and **height/weight for Shooting** (63→66%).
 
-### 10. Goalkeeper attributes cannot be modelled at this sample size
+**Read the reference doc's "already ruled out" section first** — height, the CA constraint, the
+CA surprise, a non-linear link and `blend_w` are all tested and dead. Do not re-run them.
+
+### 13. Goalkeeper attributes cannot be modelled at this sample size
 Frem has **7 goalkeepers**. The five keeper attributes are deliberately **not refitted**
 (`--min-players`, default 20) and keep the frozen coefficients, because refitting made the
 Bucaspor hold-out worse. Needs more GK ground truth before it can move — which realistically
@@ -116,14 +198,23 @@ players).
 
 ---
 
+## Quality
+
+### 14. Every test skips silently and exits 0 without a save
+So a clean clone runs the suite, sees green, and has tested nothing. The suite is save-dependent
+by nature; the fix is to make absence *fail loudly* or report SKIPPED in a way CI can count, not
+to pretend it passed.
+
+---
+
 ## Football (the actual career)
 
-### 11. Position write-ups still owed
+### 15. Position write-ups still owed
 Zac asked for the position-by-position read for **DM, CM, AML, AMC, AMR and ST**, plus a verdict
-on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **Note the earlier analysis is now
-several seasons stale** — it was written when Frem were in NordicBet Liga; they have been in the
-**3F Superliga (tier 1, cid 2) since 2025** and the store now runs to **2027 / 2026-07-02**.
-Redo the read against the current squad rather than resuming the old one.
+on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **The earlier analysis is several
+seasons stale** — it was written when Frem were in NordicBet Liga; they have been in the **3F
+Superliga (tier 1, cid 2) since 2025** and the store now runs to **2027 / 2026-07-02**. Redo the
+read against the current squad rather than resuming the old one.
 
 ---
 
@@ -138,8 +229,10 @@ Redo the read against the current squad rather than resuming the old one.
 - **4 saves in `unfiled/`** with no in-game date, so no canonical name:
   `frem/unfiled/denmark-mid-22.fms`, `bucaspor/unfiled/{22-23-start, fm_save1-24-mid,
   fm_save3}.fms`. Needs Zac's in-game dates to file them.
+- **`careers.py` hardcodes `reserve_tid`** — `main_club_tid` from the club record could replace
+  it, making a new career one field shorter to register.
 - **Stale commit SHAs** cited in `agent-context/fm-parser-project.md` and
   `day1-league-membership.md` (`aac6cbe`, `0b9a679`, `9c89633`, `d0f60af`) — invalidated by the
   history rewrite. Cosmetic.
 - **The Cloudflare Pages project does not exist** — the site is deployed as a Worker instead
-  (see `DEPLOY.md`). Preview locally with `uv run python -m http.server -d site 8000`.
+  (see [`DEPLOY.md`](DEPLOY.md)). Preview locally with `uv run python -m http.server -d site 8000`.

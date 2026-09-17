@@ -5,7 +5,7 @@ date2hex — turn a calendar date into the hex byte patterns to search for in a 
 In the light-result / fixture grid the date sits as two little-endian u16s:
     [+12 year][+14 day-of-year]  ->  bytes:  <yr_lo> <yr_hi> <day_lo> <day_hi>
 
-The year encoding is offset (see docs/STANDINGS_HANDOFF.md), and day-of-year is
+The year encoding is offset (see docs/standings-record.md), and day-of-year is
 seen both 0- and 1-indexed, so this prints every plausible pattern to try.
 
 Usage:

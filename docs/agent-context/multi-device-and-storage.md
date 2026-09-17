@@ -205,7 +205,7 @@ minutes. It touches the loader's schema and needs all snapshots reloaded and re-
 
 **Phase 1 is complete and verified** (git remote + history strip + R2 archive + rebuildable store
 + live state + naming). Phase 2 (static site) is NOT started. The current-state handoff, including
-the football thread, is **[`docs/HANDOFF.md`](../HANDOFF.md)** — read that to resume.
+the football thread, is **[`docs/TODO.md`](../TODO.md)** — read that to resume.
 
 ## Still to build (Phase 2)
 

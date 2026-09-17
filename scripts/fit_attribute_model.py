@@ -96,7 +96,7 @@ SETS = {
     # `beta`, `w` and `alpha` are GRID-SEARCHED on exact matches rather than least-squared.
     # That is the whole point: least squares minimises squared error while we score exact
     # matches, and on Aerial the same change was worth +16.7 points with no new inputs.
-    # See docs/ATTRIBUTE_MODEL_HANDOFF.md.
+    # See docs/attribute-model.md.
     "shared": ("own", "partner", "CA"),
 }
 

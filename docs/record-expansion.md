@@ -1,16 +1,18 @@
-# Parser expansion — handoff
+# Parser expansion — record layouts from the 2026-09 decode
 
-> **STATUS: SHIPPED in PR #51 (2026-09-17), including the Style hunt.** Kept as the
-> RECORD-LAYOUT REFERENCE for everything it decoded, and for the traps it hit — not as
-> a work plan. Anything still open from it lives in [`TODO.md`](TODO.md).
+> **STATUS: REFERENCE, not a work plan.** Everything here SHIPPED in PR #51 (2026-09-17),
+> including the Style hunt. Kept for the record layouts it decoded and the traps it hit.
+> Anything still open from it lives in [`TODO.md`](TODO.md). For the per-byte schema of a
+> record we walk, prefer `uv run python scripts/audit_records.py --map` — that is generated
+> from the parser's own tables and cannot go stale.
 
 **Started and finished 2026-09-16.** Six workstreams, all shipped — the manager STYLE field
 (§F) last, as a derivation rather than a stored field. Read [`CLAUDE.md`](../CLAUDE.md) and
 [`agent-context/fmm-editor-record-comparison.md`](agent-context/fmm-editor-record-comparison.md)
 first — the latter is the field-by-field map this all came from.
 
-> These are **workstreams A–F**, deliberately lettered. `docs/HANDOFF.md` already numbers
-> project-level phases 1–4 and reusing numbers here would be confusing.
+> These are **workstreams A–F**, deliberately lettered, so they never collide with the numbered
+> entries in [`TODO.md`](TODO.md).
 
 ---
 
