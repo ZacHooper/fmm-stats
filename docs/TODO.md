@@ -285,8 +285,21 @@ open:
   above the club scraper describes an identical failure: a hard ceiling silently dropping real
   low-value records — Erpe-Mere United's actual first team, among others). Fix the same way: a
   tier-2 fill that only adds a cid nothing else resolves, never displacing an existing name.
-  Separately, cids in the 1338-1360 range (Frem's own unnamed reserve league among them) have NO
-  candidate record at all — that's already-documented, correct behaviour, not this bug.
+- **The reserve-group competitions DO have names in the save — corrects both this file and
+  `mart.py`'s comment, which called cid 1342 unnamed.** Zac spotted "Danish Reserves Group 1" on
+  the in-game Domestic Competitions screen and asked why we'd call it nameless. Traced cid 1342's
+  actual bytes: `[len 23]"Danish Reserves Group 1"[0xff][len 11]"Res Group 1"[0xff][len 0]""`. The
+  record is real and correctly formed, cid and all — but the third name (the short CODE, e.g.
+  "SL" for Superliga) is genuinely EMPTY for an auto-generated group, and the 3-name loop requires
+  every length to be `1..45`. It can't represent a length-0 string, so it aborts on the third
+  field and the whole record is thrown away. **30/30** "`<Nation> Reserves Group <N>`"
+  competitions found in the file hit this exact failure — systemic, not a one-off. Different
+  mechanism from the reputation floor above (this one kills auto-generated groups specifically,
+  regardless of reputation); fix is separate: accept `sl == 0` for the second/third name fields
+  instead of requiring `1..45` for all three. `mart.py`'s "reserve" derivation (a competition
+  every one of whose matches involves a non-managed club of ours) stays useful as a fallback for
+  whichever nations don't follow this naming pattern, but for OUR OWN reserve league it's
+  currently covering for a fixable gap, not a genuine absence.
 - **`is_competitive` (`competition NOT ILIKE '%friend%'`, in `mart.py`) conflates cup and
   league.** A real, already-decoded type byte exists per competition (`COMP_TYPES`: league/cup/
   reserve_league/friendly, surfaced as `mart.competitions.kind`) and every `comp_id` Frem's own
