@@ -121,8 +121,11 @@ the table is FOR is still unknown — 13 of its 25 bytes are carried, not named,
 are known to hold only three independent numbers. Naming those, or finding what selects the
 275, is the next question.
 
-Still unexamined: a 497-record chained region at 6.127-6.260 MB that `find_light_regions`
-never sweeps.
+The 497-record chained region at 6.127-6.260 MB has now been swept: 91 signature hits but
+only 67% share a stride, so it fails the alignment control and is not a match table. A
+whole-file sweep at every byte offset found **no second gridded match signature anywhere** —
+the 25-byte table is the only one. Expanding beyond its 275 matches is also ruled out from
+inside: the other 3,700 slots have both club fields AND both goal bytes explicitly 0xff.
 
 [`date-search.md`](date-search.md) — the results we hold are **our matches only**, confirmed by
 `mart.competitions`: we carry exactly **32** Superliga fixtures per season, which is one club's

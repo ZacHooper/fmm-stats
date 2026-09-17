@@ -425,6 +425,71 @@ competition's full programme, and it recovers only 2 of the 28 screenshot fixtur
 is not established** — only its shape, its extent, and the fixture field group. Do not let the
 module name suggest otherwise.
 
+## Borders, and the search for a second match table (2026-09-17)
+
+### Where the 275 sit inside the 3,975 slots
+
+Every slot is written — **0 are untouched** — so the table is fully initialised and the empty
+ones are blank-by-value, not blank-by-absence.
+
+```
+slot census (3,975)              match slots by decile
+  3,699  trailer, day, numbers     0- 397 |##                            4
+         but +0..+5 ALL 0xff       397- 795 |###################################  70
+    275  a resolvable club pair    795-1192 |#####################################  83
+      1  boundary artifact        1192-1590 |############################  56
+                                  1590-1987 |###############  30
+first match at slot 280           1987-2385 |##########  21
+last  match at slot 2608          2385-2782 |#####  11
+                                  2782-3975 |  0
+```
+
+The last **30% of the table is entirely matchless**, and the filled part decays from a peak
+around slots 800–1200. Slot index is **neither** a club ordering (50% monotonic in either club
+tid — chance) **nor** a time ordering (r = −0.16 against match date), so what orders the table
+is unknown.
+
+### The byte borders
+
+* **Immediately before** (ends at 40042185): a **16-byte**-stride table, rows like
+  `xx xx 5c a1 00 05 | 10 27 | 10 27 | yy yy`, where `10 27` is 10000 — a default/initial
+  value repeated. This is what bleeds into the 25-byte table's first slot.
+* **Immediately after** (from 40141560): unstructured records, with the ASCII string
+  `Manager` at 40141735.
+* The final slots read `ff ff ff ff ff ff 00 00 ... 00 ff 00 00 87 01 ff ff 03` — trailer
+  present, everything else zeroed.
+
+### You cannot expand beyond the 275 *within* this table
+
+3,699 of the 3,700 non-fixture slots have **`+0..+5` all `0xff`** — both club fields *and* both
+goal bytes explicitly unset. The match is not stored elsewhere in the record; it is simply
+absent. What those slots DO carry: a valid day-of-year on 2,598 of them, a nonzero `+9` on
+2,600, and the `+8` type byte (5 on 2,442, 0 on 1,105, then 4/2/3/1).
+
+So the table is better understood as **~3,975 dated entries of which 275 additionally
+reference a match**, not as a match table that is mostly empty.
+
+### There is no second match table
+
+The match signature — `[club u16][club u16][goals<=12][goals<=12][day 1..366]` with both clubs
+in the **same league** — was swept at **every byte offset** in the file: 1,185 hits. Raw counts
+are useless here, because any region with dense small bytes fires it. The control that works is
+**alignment**: a real table's hits share a stride, noise does not.
+
+| cluster | hits | best stride | on-grid | verdict |
+|---|---|---|---|---|
+| 40.049–40.107 M | 242 | **25** | **100%** | the known table |
+| 36.395–36.398 M | 15 | 143 | 100% | **false** — the same `Frem 0-1 Brøndby day=256` 15x with two incrementing counters. A record holding two club tids adjacent (club + parent club), not a match |
+| 14.4–14.9 M | ~120 | 2–3 | 45–72% | **false** — only ever Stoke/Sunderland/Swansea and Genoa/Inter/Lazio/Zebre, at irregular gaps, in a dense small-byte region |
+| 6.127–6.205 M | 91 | 3 | 67% | **false** — fails alignment (this is the "497-record chained region" TODO flagged as never swept; it is now swept) |
+
+Inside the known table the plausible/implausible ratio is **121**; outside it is **1.46**.
+**No other gridded match signature exists in the save.**
+
+Method note: the first null model required *implausible* goal bytes (13–250) and reported the
+14 MB band as `inf` ratio, i.e. perfect. That was wrong — implausible bytes are rare in ANY
+small-byte region, so the null measured nothing. Control on alignment, not on value ranges.
+
 ## A UI observation worth keeping
 
 The game renders a single match-day as **two sections under the same date header**, with nothing
