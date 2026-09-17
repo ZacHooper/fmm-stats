@@ -272,7 +272,39 @@ All three are known gaps, not suspicions:
 - **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate whose
   `name_len` search then fails. It does not bite on the current saves, which is why it survived.
 
-### 10. `mart.club_managers` isn't purely structural
+### 10. The competition scraper: a tuned reputation floor, a conflated type flag, and half a record
+Three separate gaps found auditing `reference.py`'s competition scraper 2026-09-17, all still
+open:
+
+- **`_MIN_COMP_REP = 500` silently drops 46 real competitions.** Re-ran the scan without the
+  acceptance filter: 46 cids have a fully valid record (right type byte, right continent/nation
+  signature) but fail ONLY because their reputation is 0 or 1, genuinely — not garbage. Includes
+  `Danish Second Division East`/`West` and the 5 `Spanish Federation Second Group 1-5` divisions,
+  which are exactly the `league_cid`s that came back unresolved in the matchslots 275-fixture
+  audit. **Same disease as the club-uid ceiling this file already fixed once** (the comment right
+  above the club scraper describes an identical failure: a hard ceiling silently dropping real
+  low-value records — Erpe-Mere United's actual first team, among others). Fix the same way: a
+  tier-2 fill that only adds a cid nothing else resolves, never displacing an existing name.
+  Separately, cids in the 1338-1360 range (Frem's own unnamed reserve league among them) have NO
+  candidate record at all — that's already-documented, correct behaviour, not this bug.
+- **`is_competitive` (`competition NOT ILIKE '%friend%'`, in `mart.py`) conflates cup and
+  league.** A real, already-decoded type byte exists per competition (`COMP_TYPES`: league/cup/
+  reserve_league/friendly, surfaced as `mart.competitions.kind`) and every `comp_id` Frem's own
+  matches reference resolves it with zero gaps — so this isn't a decode gap, it's that
+  `scripts/derive_weight_set.py`, `scripts/export_attribute_lab.py`, and the main query in
+  `scripts/attribute_stat_correlations.py` filter on `is_competitive` alone, pooling Sydbank
+  Pokalen (16 games) into "league form". One place in that last script even builds a
+  "you're pooling N divisions" warning and explicitly excludes `Pokal` from ITS list — hiding the
+  one thing that warning should catch. Fix: join `comp_id` to `mart.competitions.kind` instead of
+  the string heuristic, and add `is_league`/`kind` to `mart.matches`/`mart.match_player_facts`.
+- **The competition record itself is only half read** — `docs/agent-context/fmm-editor-record-comparison.md`
+  already flags this ("Competition record — we parse about half"). We decode cid/uid/names/type/
+  nation/reputation/level/parent_cid (14 bytes); fmm-editor's reference lists more after that never
+  located in FMM22: a **Qualifiers table**, a **3-season Rank/Year history**, and an **IsWomen**
+  flag. Not in `scripts/audit_records.py`'s `LAYOUTS` at all, so there's no standing coverage
+  check on it either — add one when this gets picked up.
+
+### 11. `mart.club_managers` isn't purely structural
 It keeps a `home_reputation` tiebreak and exposes no candidate count, so a sole structural hit
 and a reputation fallback are indistinguishable to anything reading the view. A scout report
 quoting the opposition manager cannot tell how confident to be.
@@ -281,13 +313,13 @@ quoting the opposition manager cannot tell how confident to be.
 
 ## Models
 
-### 11. Refit the transfer-value model with the new reputation fields
+### 12. Refit the transfer-value model with the new reputation fields
 `current_reputation` and `world_reputation` are parsed (PR #51) and currently unused —
 `fmparser/value_model.py` still fits on `reputation` alone. This was the one workstream from the
 parser expansion that never got done, and reputation is exactly what a value model wants. Zac
 called it out as important for transfer value.
 
-### 12. Attribute decoder — two measured leads, and two hints
+### 13. Attribute decoder — two measured leads, and two hints
 Both leads are from [`attribute-model.md`](attribute-model.md); neither is speculative.
 
 - **Bias is almost the whole story.** `|mean signed error|` correlates **−0.91** with the
@@ -302,7 +334,7 @@ snapshots: **feet for Dribbling** (48→54%) and **height/weight for Shooting** 
 **Read the reference doc's "already ruled out" section first** — height, the CA constraint, the
 CA surprise, a non-linear link and `blend_w` are all tested and dead. Do not re-run them.
 
-### 13. Goalkeeper attributes cannot be modelled at this sample size
+### 14. Goalkeeper attributes cannot be modelled at this sample size
 Frem has **7 goalkeepers**. The five keeper attributes are deliberately **not refitted**
 (`--min-players`, default 20) and keep the frozen coefficients, because refitting made the
 Bucaspor hold-out worse. Needs more GK ground truth before it can move — which realistically
@@ -313,7 +345,7 @@ players).
 
 ## Quality
 
-### 14. Every test skips silently and exits 0 without a save
+### 15. Every test skips silently and exits 0 without a save
 So a clean clone runs the suite, sees green, and has tested nothing. The suite is save-dependent
 by nature; the fix is to make absence *fail loudly* or report SKIPPED in a way CI can count, not
 to pretend it passed.
@@ -322,7 +354,7 @@ to pretend it passed.
 
 ## Football (the actual career)
 
-### 15. Position write-ups still owed
+### 16. Position write-ups still owed
 Zac asked for the position-by-position read for **DM, CM, AML, AMC, AMR and ST**, plus a verdict
 on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **The earlier analysis is several
 seasons stale** — it was written when Frem were in NordicBet Liga; they have been in the **3F
