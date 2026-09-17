@@ -9,16 +9,30 @@ got into the store in the first place.
 
 | | exact | within ±1 |
 |---|---|---|
-| frozen (`fmparser/model.py`, 2024, 28 Bucaspor players) | 54.8% | 88.4% |
-| refit (`scripts/fit_attribute_model.py`) | **68.4%** | 92.1% |
+| frozen (`fmparser/model.py`, 2024, 28 Bucaspor players) | 52.6% | 87.8% |
+| **refit** (`scripts/fit_attribute_model.py`) | **69.3%** | 89.5% |
+| **the same coefficients on BUCASPOR, not refitted** | **68.1%** | 87.4% |
 
-Measured on the same rows, **held out by player**, 202 exact rows over 80 distinct players
-(one Frem snapshot per year, 2021–2026). Nothing is written to any store yet — the fit tool is
-report-only until `--write`.
+840 exact rows over 86 players (25 Frem snapshots), **held out by player**, 5 folds, nested
+selection. 13 of 14 attributes beat the frozen model on Frem; **14 of 14 on Bucaspor.**
 
-`model.py`'s docstring claims ~63%/93%, but that was measured on the 28 players it was fitted
-from. On Frem it delivers 54.8%. **Always re-score the incumbent on the same rows** rather than
-quoting that number.
+**The ceiling is 94.8% exact / 98.7% ±1**, not 100% — measured on the attributes read straight
+from a plain byte, where a disagreement is the two sources disagreeing rather than a decode
+error. See [`docs/ca-weighting.md`](ca-weighting.md). Quote accuracy against that, never 100.
+
+### The cross-career hold-out is the important number
+
+Everything is fitted on Frem, so the only evidence it generalises is a career it has never
+seen. `scripts/holdout_score.py --fit fm-frem.duckdb --on fm-buca.duckdb` scores the Frem
+coefficients on Bucaspor's 231 exact rows / 41 players **without refitting**: **68.1%**, against
+69.3% on its own data. A drop of 1.2 points across Denmark → Turkey.
+
+That is the failure mode the frozen model had and this one does not. The frozen coefficients
+were fitted on 28 Bucaspor players and score 56.6% there and 52.6% on Frem — they did not
+travel. These do.
+
+The closed forms travel best of all: **Teamwork 99.6%, Aerial 87.4%** on Bucaspor (88.7% on
+Frem), which is what you would hope for from two parameters over plain bytes.
 
 ## The three things that actually mattered
 
