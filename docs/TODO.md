@@ -55,10 +55,13 @@ wired up. Layout and plan: [`STANDINGS_HANDOFF.md`](STANDINGS_HANDOFF.md). Stric
 what ships today.
 
 ### 4. Complete results/fixtures via a date search
-[`DATE_SEARCH_HANDOFF.md`](DATE_SEARCH_HANDOFF.md) — the known results region is a partial feed
-(91 of 306 fixtures), and two zones that light up on a date search (~36–38 MB, ~63–64 MB) have
-never been examined. **Possibly superseded by #3**: if the standings record gives exact final
-tables, complete fixtures may no longer be needed. Decide that before spending time here.
+[`DATE_SEARCH_HANDOFF.md`](DATE_SEARCH_HANDOFF.md) — the results we hold are **our matches
+only**, confirmed by `mart.competitions`: we carry exactly **32** Superliga fixtures per season,
+which is one club's full league programme, not the division's ~200. Two zones that light up on a
+date search (~36–38 MB, ~63–64 MB) have never been examined.
+
+**Possibly superseded by #3**: if the standings record gives exact final tables, complete
+fixtures may no longer be needed. Decide that before spending time here.
 
 ### 5. One match-event type byte is unnamed
 `?0e` (byte 14): 2 events, both in reserve fixtures, minutes 38 and 59. `mart.match_events`

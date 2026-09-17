@@ -479,6 +479,67 @@ FROM ev LEFT JOIN nm
 """
 
 
+# The COMPETITION dimension -- every competition our matches reference, not just leagues.
+#
+# mart.leagues covers the world's leagues. It does NOT cover cups or friendlies, which live
+# only in staging.competitions, so until now a match's `competition` was a bare string with
+# nothing to join to and no way to say "league games only". That quietly mixes cup and
+# friendly goals into any total a caller builds.
+#
+# `kind` is the useful column: league / cup / friendly from the save's own type, and RESERVE
+# derived structurally -- a competition every one of whose matches involves a club of ours
+# that is not the managed club. Frem's cid 1342 carries 60 fixtures, the second-biggest
+# competition in the store, and has no name anywhere in the save; all 60 involve the reserve
+# side (7296) and 7296 appears in nothing else. The rule is written against our_clubs rather
+# than the literal 1342 so it holds for any career.
+COMPETITIONS = """
+CREATE OR REPLACE VIEW mart.competitions AS
+WITH cmp AS (   -- the competitions our save actually carries detail for
+    SELECT CAST(season AS INTEGER) AS season, cid,
+           max_by(name, phase) AS name, max_by(short, phase) AS short,
+           max_by(code, phase) AS code, max_by(type, phase) AS type,
+           max_by(num_teams, phase) AS num_teams, max_by(level, phase) AS level
+    FROM {S}.competitions GROUP BY season, cid
+), lg AS (      -- the world's leagues
+    SELECT CAST(season AS INTEGER) AS season, cid,
+           max_by(name, phase) AS name, max_by(type, phase) AS type,
+           max_by(nation, phase) AS nation, max_by(reputation, phase) AS reputation,
+           max_by(level, phase) AS level, max_by(member_count, phase) AS member_count
+    FROM {S}.leagues GROUP BY season, cid
+), fx AS (      -- what we hold fixtures for, and whether they are all reserve games
+    SELECT CAST(season_of(date) AS INTEGER) AS season, comp_id AS cid,
+           COUNT(*) AS games,
+           BOOL_AND(home_tid IN (SELECT club_tid FROM mart.our_clubs
+                                  WHERE club_tid NOT IN (SELECT club_tid FROM mart.managed_club))
+                 OR away_tid IN (SELECT club_tid FROM mart.our_clubs
+                                  WHERE club_tid NOT IN (SELECT club_tid FROM mart.managed_club)))
+                                                     AS all_reserve
+    FROM (SELECT DISTINCT season, date, comp_id, home_tid, away_tid FROM {S}.matches
+          WHERE date IS NOT NULL AND comp_id IS NOT NULL)
+    GROUP BY 1, 2
+)
+SELECT COALESCE(cmp.season, lg.season, fx.season)  AS season,
+       COALESCE(cmp.cid, lg.cid, fx.cid)           AS cid,
+       COALESCE(cmp.name, lg.name)                 AS name,
+       cmp.short, cmp.code, lg.nation, lg.reputation,
+       COALESCE(cmp.num_teams, lg.member_count)    AS num_teams,
+       COALESCE(cmp.level, lg.level)               AS level,
+       CASE WHEN COALESCE(fx.all_reserve, FALSE) AND cmp.type IS NULL THEN 'reserve'
+            ELSE COALESCE(cmp.type, lg.type) END   AS kind,
+       COALESCE(fx.games, 0)                       AS games_in_store,
+       -- a display label that never comes back NULL, so a caller grouping by competition
+       -- does not silently drop the reserve league the way `competition` currently does
+       COALESCE(cmp.name, lg.name,
+                CASE WHEN COALESCE(fx.all_reserve, FALSE) THEN 'Reserve League (derived)' END,
+                'Competition #' || CAST(COALESCE(cmp.cid, lg.cid, fx.cid) AS VARCHAR))
+                                                   AS label
+FROM cmp
+FULL OUTER JOIN lg  ON lg.cid = cmp.cid AND lg.season = cmp.season
+FULL OUTER JOIN fx  ON fx.cid = COALESCE(cmp.cid, lg.cid)
+                   AND fx.season = COALESCE(cmp.season, lg.season)
+"""
+
+
 # The league dimension, including the division-strength index.
 #
 # IMMERSION: skill_idx is the average player ability per league, normalised 0-100 across the
@@ -2613,6 +2674,7 @@ ORDER = [
     ("mart.clubs", CLUBS),
     ("mart.club_attendance", CLUB_ATTENDANCE),
     ("mart.match_events", MATCH_EVENTS),
+    ("mart.competitions", COMPETITIONS),
     ("mart.leagues", LEAGUES),
     ("mart.comparison_ladder", COMPARISON_LADDER),
     ("mart.languages", LANGUAGES),
