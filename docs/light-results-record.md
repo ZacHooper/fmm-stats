@@ -256,6 +256,12 @@ structure was ruled out because "`L.sweep()` recovers 0 records there", but `swe
 
 ## The 25-byte MATCH-SLOT table — EXTENT and COVERAGE settled
 
+> **MERGED into `fmparser/matchslots.py` 2026-09-17.** The module's docstring is now the
+> canonical, current source for this table — it carries everything below plus what's been
+> found since (the table is 73% populated not 7%, competition-type findings, the orientation
+> bug on repeated club pairs, and the `k`/`B` formulas this section left as leads). Read it
+> first; this section is kept for the measurements and dead ends, not as the live reference.
+
 Parsed by **`fmparser/matchslots.py`**, guarded by **`tests/test_match_slots.py`**. The record
 is **AWAY-FIRST**, which is the whole reason it went unfound: every probe above searched for an
 oriented home→away pair and excluded it by construction.

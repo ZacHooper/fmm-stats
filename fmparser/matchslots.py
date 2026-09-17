@@ -93,9 +93,11 @@ why -- corrected here):
                                                         Dusseldorf won AWAY, misread as
                                                         Nurnberg 3-2 at home)
 A fifth (Logrones 0-3 A.Madrid, day 201) could not be found in-game; tid 989 is a real,
-well-formed club record, so this isn't a bad resolve. Day 201 sits in the sparse 180-300 band
-(1-2 rows/day vs. dozens/day in the 100-180 core) -- the likeliest place for a STALE slot, so
-the year-inference rule (day>=181 -> season-1) may have the wrong YEAR here. Unresolved.
+well-formed club record, so this isn't a bad resolve. SOLVED by the k formula below: k=1421
+against a same-year prediction of -40, which is `naive + 4*365` -- this row is a real match,
+just roughly FOUR SEASONS stale, not a wrong year-guess. It won't be on Atletico's current
+fixture screen because it isn't from the current season at all. Don't use the day>=181 rule
+that produced the "wrong year" framing in the first place -- use k (below), which is exact.
 
 ORIENTATION IS NOT RELIABLE ON A REPEATED CLUB PAIR. Three (away_tid, home_tid) pairs recur in
 the table with a different day AND a different score each time -- initially read as possible
@@ -124,7 +126,36 @@ tid/score/day, different `trailer_a` -- the same multi-copy pattern as `clubreco
 Newcastle/Southampton duplicate pair, `k` (= (+9) - (+13), == (+11) - (+15) per the
 four-numbers-hold-three identity above) is IDENTICAL across both copies (26 both times) even
 though (+9)/(+11) themselves differ (33/19 vs 101/60) -- so `k` looks MATCH-level (shared by
-every copy of one fixture) while (+9)/(+11) are COPY-specific. Neither is named yet.
+every copy of one fixture) while (+9)/(+11) are COPY-specific.
+
+`k` IS SOLVED (this was sitting unmerged in docs/light-results-record.md, from before this
+module existed -- do not rediscover it as a "lead" again): **k = (save's own day-of-year) -
+(match day)**, wrapping `+365` for a match from the previous calendar year. Exact or
++365-exact on 251/275 rows (91%) on frem-2026-06-11 (save day-of-year 161). This is the real
+date rule -- prefer it over guessing a year from `day` alone (the day>=181 cutoff used
+elsewhere in this file's history was exactly that kind of guess, and it produced a wrong-looking
+"unresolved" case that k then solved outright, see COMPETITION TYPE above). The ~9% that don't
+fit exactly are mostly small (1-14) misses, consistent with a few days' lag between a match
+being played and this table being refreshed, not a broken formula -- except for outliers that
+are further multiples of ~365 off (the Logrones/Madrid row is `naive + 4*365`: a match roughly
+four seasons old, sitting in a slot that was never overwritten). `B` is not independent either:
+**B == floor(3*A/5) on 223/275 rows (81%)**, so of the four i16 fields, only ONE number (call it
+A, or equivalently k) is truly free; B, (+13) and (+15) all derive from it.
+
+**No ID field exists.** Checked every UNKNOWN byte for uniqueness across the 275 fixture rows
+(262 of them genuinely distinct matches): the best candidate, `+9` (A), has only 94 distinct
+values -- reused ~3x on average, nothing close to a per-match identifier. There isn't one to
+find; A is a date-derived number (via k), not a key.
+
+BORDER: no gap precedes this table -- content density stays ~0.6 for at least 80KB backward.
+Immediately adjacent (ending exactly at this table's start, no delimiter) is a DIFFERENT
+16-byte-stride table running for 9,692 records (~155KB, from ~39.887M on frem-2026-06-11):
+`00 05 [u16, usually 10000] [u16, usually 10000] [i16 -1500..1087] ff ff ff 00 00 [u8] [2-byte
+trailer, usually 5c-a1]`. The two 10000s read as a percentage x100 (100.00%) that's usually
+unset, with real computed values clustering 8500-9700 when it isn't. Not identified beyond
+that -- it is what the trailer-residue scan already had to exclude from slot 0 of this table
+(see the `NO_CLUB` comment in `scrape()`), now with its full extent measured. The ASCII string
+"Manager" appears ~190 bytes after this table's END, which is unstructured there, not before.
 """
 from . import regions as RG        # noqa: F401  (kept so callers see the region vocabulary)
 

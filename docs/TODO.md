@@ -152,11 +152,11 @@ cross-league row as unverified until it's been checked twice, not once:
 | Sevilla 1-3 Gladbach | 146 → 2026-05-27 | continental cup **Final**, neutral (was misread the other way round) |
 | Nürnberg 2-3 Düsseldorf | 140 → 2026-05-21 | promotion **Playoff**, 1st leg, Düsseldorf won away (was misread as Nürnberg winning at home) |
 
-A fifth cross-league row (Logroñés 0-3 A. Madrid, day 201) couldn't be found in-game — tid 989
-resolves to a real, well-formed club record, so it's not a bad resolve; day 201 sits in the
-sparse 180-300 band (1-2 rows/day, vs. dozens/day in the 100-180 core) that's the likeliest
-place for a STALE slot, so the year-inference rule (day≥181 → season-1) may have the wrong
-YEAR here. Unresolved.
+A fifth cross-league row (Logroñés 0-3 A. Madrid, day 201) couldn't be found in-game — **now
+solved** by the `k` formula below: its `k` is `naive + 4×365`, i.e. this really is a match, just
+roughly four seasons stale in a slot that was never overwritten. It won't be on Atlético's
+current fixture screen because it isn't from the current season at all — not a wrong
+year-guess, as the old day≥181 heuristic made it look.
 
 **Orientation is NOT reliable on a repeated club pair.** Three `(away_tid, home_tid)` pairs
 recur with a different day and score each time — first read as possible reschedules, but
@@ -177,14 +177,30 @@ known league fixtures: `+8` (5 on 226/242 same-league rows AND 17/20 cross-leagu
 game is 391). Neither separates cup/friendly/playoff from league. (Unaffected by the
 orientation bug above — these are raw per-offset byte values, not which club they're read as.)
 
-**New lead**: the Sevilla-Gladbach final is stored TWICE, 500 bytes (20 slots) apart, identical
-tid/score/day, different `trailer_a` — the same multi-copy pattern as `clubrecords.py`. On the
-Newcastle/Southampton duplicate pair (a genuine same-match duplicate, not a repeated-pair
-mismatch — both copies agree with each other and with reality), the derived `k`
-(`= A - (+13) = B - (+15)`, per the existing four-numbers-hold-three identity) is IDENTICAL
-across both copies (26 both times) even though `A`/`B` themselves differ (33/19 vs 101/60) — so
-`k` looks MATCH-level (shared by every copy of one fixture) while `A`/`B` are COPY-specific.
-Neither is named yet, but that narrows what to look for.
+**`k` is SOLVED** — this was sitting unmerged in `light-results-record.md` from before
+`matchslots.py` existed, so it's now folded into the module docstring rather than re-treated as
+open. **`k = (save's own day-of-year) − (match day)`, wrapping `+365` for a previous-year
+match** — exact or +365-exact on 251/275 rows (91%) on `frem-2026-06-11` (save day-of-year
+161). This is the real date rule; prefer it over guessing a year from `day` alone. The ~9% that
+miss are mostly off by a few days (a refresh-lag artifact, not a broken formula) except for a
+handful that are further whole multiples of ~365 off — stale slots, as with the Madrid row
+above. `B` isn't independent either: **`B == floor(3A/5)` on 223/275 (81%)** — of the four i16
+fields, only ONE number is truly free.
+
+The Sevilla-Gladbach final is also stored TWICE, 500 bytes (20 slots) apart, identical
+tid/score/day, different `trailer_a` — the same multi-copy pattern as `clubrecords.py`.
+
+**No ID field exists.** Checked every `UNKNOWN` byte for uniqueness across the 275 fixture rows
+(262 genuinely distinct matches): the best candidate, `+9` (A), has only 94 distinct values —
+reused ~3× on average. A is a date-derived number (via `k`), not a key; there's no sequential
+match id to find here.
+
+**Immediately before the table, no gap**: content density stays ~0.6 for at least 80KB back.
+A DIFFERENT 16-byte-stride table runs for 9,692 records (~155KB) right up to this table's
+start — `00 05 [u16 ~10000] [u16 ~10000] [i16 -1500..1087] ff ff ff 00 00 [u8] [2-byte trailer,
+usually 5c-a1]`. The two ~10000 fields read as a percentage ×100 (100.00% default, real values
+cluster 8500-9700). Not identified beyond that. "Manager" (ASCII) appears ~190 bytes after this
+table's END, not before.
 
 The 497-record chained region at 6.127-6.260 MB has now been swept: 91 signature hits but
 only 67% share a stride, so it fails the alignment control and is not a match table. A
