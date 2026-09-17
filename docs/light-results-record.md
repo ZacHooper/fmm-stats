@@ -479,12 +479,25 @@ are useless here, because any region with dense small bytes fires it. The contro
 | cluster | hits | best stride | on-grid | verdict |
 |---|---|---|---|---|
 | 40.049–40.107 M | 242 | **25** | **100%** | the known table |
-| 36.395–36.398 M | 15 | 143 | 100% | **false** — the same `Frem 0-1 Brøndby day=256` 15x with two incrementing counters. A record holding two club tids adjacent (club + parent club), not a match |
+| 36.395–36.398 M | 15 | 143 | 100% | **false** — see below |
 | 14.4–14.9 M | ~120 | 2–3 | 45–72% | **false** — only ever Stoke/Sunderland/Swansea and Genoa/Inter/Lazio/Zebre, at irregular gaps, in a dense small-byte region |
 | 6.127–6.205 M | 91 | 3 | 67% | **false** — fails alignment (this is the "497-record chained region" TODO flagged as never swept; it is now swept) |
 
 Inside the known table the plausible/implausible ratio is **121**; outside it is **1.46**.
 **No other gridded match signature exists in the save.**
+
+The 36.395 M cluster is worth spelling out, because it is the most instructive false
+positive and an earlier draft of this table described it wrongly. The 15 hits are NOT the same
+fixture repeated: the opponent varies (Brøndby x8, FC Roskilde x6, FC København x5, FC
+Midtjylland x2). What is CONSTANT is bytes `+4..+7` = `01 00 00 01`, which the signature reads
+as "0-1" and "day 256" (`0x0100`). A constant scoreline and a constant date across four
+different opponents is the tell — the opposite way round from how it first looked.
+
+The containing structure is a **143-byte record, 4,099 of them at 36.3556–36.9418 M**, carrying
+a sequential `u32` counter at +8 (6,411 -> 10,509, step 1) and a second at +12 that is always
+exactly 4,723 higher. Its `+0`/`+2` fields vary freely (710 distinct values at +0) and only
+coincidentally land on club tids — `+2` looked like a constant "Frem" only because a 15-row
+window was sampled from a 4,099-row table. Unidentified, and not a match table.
 
 Method note: the first null model required *implausible* goal bytes (13–250) and reported the
 14 MB band as `inf` ratio, i.e. perfect. That was wrong — implausible bytes are rare in ANY
