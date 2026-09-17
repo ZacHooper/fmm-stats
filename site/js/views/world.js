@@ -42,6 +42,7 @@ export async function view() {
   const panel = el("div");
   const TABS = [
     ["Leagues", leaguesPanel],
+    ["Clubs", clubsPanel],
     ["Nations", () => nationsPanel(world)],
     ["Maps", () => mapsPanel(world)],
   ];
@@ -107,6 +108,65 @@ function leaguesPanel() {
   nationFilter.addEventListener("change", drawLadder);
   drawLadder();
   wrap.append(el("div.tbar", {}, [nationFilter]), ladderBox);
+  return wrap;
+}
+
+// --------------------------------------------------------------------------- clubs
+function clubsPanel() {
+  const ourTids = new Set(D.S.ours.clubs || []);
+  const clubs = [...D.S.clubs.values()].filter((c) => c.reputation != null)
+    .map((c) => ({ ...c, leagueName: D.S.leagues.get(c.leagueCid)?.name || null }))
+    .sort((a, b) => b.reputation - a.reputation);
+  const wrap = el("div");
+  wrap.append(el("h3", { text: `Club reputation · ${clubs.length} clubs` }));
+
+  const nationFilter = el("select.btn");
+  const nations = [...new Set(clubs.map((c) => c.nation).filter(Boolean))].sort();
+  nationFilter.append(el("option", { value: "", text: "All nations" }),
+    ...nations.map((n) => el("option", { value: n, text: n })));
+
+  const leagueFilter = el("select.btn");
+  const drawLeagueOptions = () => {
+    const want = nationFilter.value;
+    const inScope = want ? clubs.filter((c) => c.nation === want) : clubs;
+    const lgs = [...new Map(inScope.filter((c) => c.leagueName)
+      .map((c) => [c.leagueCid, c.leagueName])).entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]));
+    const prev = leagueFilter.value;
+    leagueFilter.replaceChildren(el("option", { value: "", text: "All leagues" }),
+      ...lgs.map(([cid, name]) => el("option", { value: cid, text: name })));
+    leagueFilter.value = lgs.some(([cid]) => String(cid) === prev) ? prev : "";
+  };
+
+  const clubBox = el("div");
+  const drawClubs = () => {
+    const wantNation = nationFilter.value;
+    const wantLeague = leagueFilter.value;
+    const rows = clubs.filter((c) => (!wantNation || c.nation === wantNation)
+      && (!wantLeague || String(c.leagueCid) === wantLeague));
+    clubBox.replaceChildren(el("div.scroll", {}, [el("table", {}, [
+      el("thead", {}, [el("tr", {}, ["#", "Club", "Nation", "League", "Reputation", "Squad"]
+        .map((h, i) => el(`th${i === 0 || i === 4 || i === 5 ? ".num" : ""}`, { text: h })))]),
+      el("tbody", {}, rows.map((c) => el("tr", {}, [
+        el("td.num", { text: clubs.indexOf(c) + 1 }),
+        el("td.name", {}, [c.name, ourTids.has(c.tid) ? pill(" us", "good") : null]),
+        el("td", { text: c.nation || DASH }),
+        el("td", { text: c.leagueName || DASH }),
+        el("td.num", { text: c.reputation }),
+        el("td.num", { text: c.players }),
+      ]))),
+    ])]), el("p.note", {
+      text: `${rows.length} of ${clubs.length} clubs shown. Reputation is parsed straight from `
+        + "each club's own record (distinct from its league's reputation, on the Leagues tab). "
+        + "Only clubs with a parsed squad appear at all — an empty club can't be rendered "
+        + "anywhere on the site.",
+    }));
+  };
+  nationFilter.addEventListener("change", () => { drawLeagueOptions(); drawClubs(); });
+  leagueFilter.addEventListener("change", drawClubs);
+  drawLeagueOptions();
+  drawClubs();
+  wrap.append(el("div.tbar", {}, [nationFilter, leagueFilter]), clubBox);
   return wrap;
 }
 

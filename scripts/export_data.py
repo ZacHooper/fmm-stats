@@ -337,7 +337,8 @@ def main():
         [season, phase]).itertuples(index=False) if c is not None]
     ladder_cids = [c for c, _ in ladder]
 
-    clubs = db.q("""SELECT club_tid AS tid, name, league_cid, squad_size AS players
+    clubs = db.q("""SELECT club_tid AS tid, name, league_cid, squad_size AS players,
+                           nation, reputation AS club_reputation
                     FROM mart.clubs WHERE season=? AND phase=?
                     -- ORDER BY is not cosmetic: without it DuckDB's group-by order varies
                     -- run to run, so a re-export with identical data rewrote all 4,337 rows
@@ -419,9 +420,11 @@ def main():
         # only clubs with a squad: an empty club can't be rendered anywhere, and they were
         # half the rows. The count is reported so their absence is stated, not silent.
         "clubs": [[int(r.tid), r.name, None if pd.isna(r.league_cid) else int(r.league_cid),
-                   int(r.players)] for r in clubs.itertuples() if int(r.players) > 0],
+                   int(r.players), r.nation if isinstance(r.nation, str) else None,
+                   None if pd.isna(r.club_reputation) else int(r.club_reputation)]
+                  for r in clubs.itertuples() if int(r.players) > 0],
         "clubs_without_players": int((clubs["players"] == 0).sum()),
-        "club_fields": ["tid", "name", "league_cid", "players"],
+        "club_fields": ["tid", "name", "league_cid", "players", "nation", "reputation"],
         "leagues": [[int(r.cid), r.name, r.nation,
                      None if pd.isna(r.reputation) else int(r.reputation),
                      None if pd.isna(r.clubs) else int(r.clubs),
@@ -459,10 +462,12 @@ def main():
     # (1.3 MB) just to find a club name.
     league_names = dict(zip(leagues["cid"], leagues["name"]))
     emit("clubs.json", {
-        "club_fields": ["tid", "name", "league_cid", "league_name"],
+        "club_fields": ["tid", "name", "league_cid", "league_name", "nation", "reputation"],
         "clubs": [[int(r.tid), r.name,
                    None if pd.isna(r.league_cid) else int(r.league_cid),
-                   None if pd.isna(r.league_cid) else league_names.get(int(r.league_cid))]
+                   None if pd.isna(r.league_cid) else league_names.get(int(r.league_cid)),
+                   r.nation if isinstance(r.nation, str) else None,
+                   None if pd.isna(r.club_reputation) else int(r.club_reputation)]
                   for r in clubs.itertuples()],
         "note": "Every club in the save. No players or attributes here — see core.json (ladder "
                 "clubs, full attributes) or /api/all (every player) for those."})
