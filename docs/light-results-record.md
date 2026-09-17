@@ -254,38 +254,97 @@ Two dismissals from the earlier pass were themselves wrong and are withdrawn: th
 structure was ruled out because "`L.sweep()` recovers 0 records there", but `sweep()` reads the
 21-byte CLUB RECORD and could never have found anything there — that argument proves nothing.
 
-## The live lead: a 25-byte fixture record at ~40.05–40.11 MB
+## The 25-byte MATCH-SLOT table — EXTENT and COVERAGE settled
 
-Two fixtures decode EXACTLY, and they were found by dropping the assumption that the home club
-comes first — the record is **away-first**, which is why every oriented probe above missed them:
+Parsed by **`fmparser/matchslots.py`**, guarded by **`tests/test_match_slots.py`**. The record
+is **AWAY-FIRST**, which is the whole reason it went unfound: every probe above searched for an
+oriented home→away pair and excluded it by construction.
+
+### Location — self-locating, never a constant
+
+It drifts hard (37.78 M on a 2023 save, 40.59 M on a 2025 one), so `locate()` uses the table's
+own invariant: the 4-byte constant `87 01 ff ff` at **+20**, which occupies exactly ONE residue
+class mod 25 and forms exactly ONE contiguous run. On frem-2026-06-11, 4,354 of the file's
+19,663 occurrences sit on the winning residue against ~670 for the runner-up, where random
+residues would give ~787. That margin *is* the identification.
+
+### EXTENT — the slot count is preallocated, and that is the invariant
+
+| save | start | end | slots |
+|---|---|---|---|
+| frem-2023-07-02 | 37.7794 M | 37.8787 M | 3,975 |
+| frem-2025-06-29 | 40.5857 M | 40.6851 M | 3,975 |
+| frem-2026-03-22 | 39.7082 M | 39.8076 M | 3,975 |
+| frem-2026-06-11 | 40.0422 M | 40.1416 M | 3,975 |
+| frem-2026-06-29 | 40.3934 M | 40.4927 M | 3,975 |
+| bucaspor-2022-05-25 | 39.9654 M | 40.0640 M | **3,943** |
+| bucaspor-2022-06-01 | 40.8197 M | 40.9183 M | **3,943** |
+
+Constant within a career across four seasons, different between careers — the signature of a
+table allocated when the career is created. A walk returning any other count is wrong, and the
+test asserts it, so the row count can never become a function of a tuned constant.
+
+### STRIDE — 25, measured two independent ways
+
+Autocorrelation over 40.050–40.120 M puts stride 25 at 70.35% with 50 and 75 as its multiples;
+the best non-multiple (23) scores 31.89%. Independently, the trailer's residue class is unique.
+**Neighbouring bands are different tables** — 16/48 at 40.0–40.7 M, 9/27 at 41.1–41.5 M — so any
+sweep must respect the extent above rather than the neighbourhood.
+
+*Method note, worth keeping:* the first extent attempt measured periodicity over raw bytes and
+returned a 157 KB region at 34.12 M as the strongest 25-byte table in the file. It was wrong —
+inside a run of `00` or `ff` a byte equals its neighbour at EVERY stride, so a padding desert
+scores ~1.0 on any period. That region is on an **83**-byte period and turned out to be a
+per-person table of two dates (`[id u32]…[day 233][year 2025][day 174][year 2026]`, nulls
+reading `00 00 b3 07` = day 0 year 1971) — a contract/registration table, now named rather than
+mistaken for this one. Score periodicity over CONTENT only, and control against stride 24 and 26.
+
+### COVERAGE — all 25 bytes, 12 named and 13 declared UNKNOWN
 
 ```
-+0  away_tid  u16
-+2  home_tid  u16
++0  away_tid   u16    0xffff (or 0) when the slot references no match
++2  home_tid   u16
 +4  away_goals u8
 +5  home_goals u8
-+6  day_of_year u16      (0-based, same encoding as the club record's +8)
-+8  UNKNOWN u8           NOT the cid -- reads 5 on rows whose league is 2, 4 and 32
-+9..+24 UNKNOWN          +9 and +11 are correlated (+11 ~= 0.59 x +9) across all 14 EPL rows
++6  day        u16    day-of-year, 0-based
++8  UNKNOWN    u8     5 on 93%. NOT the cid — reads 5 on rows whose clubs are in leagues 2/4/32
++9  UNKNOWN    i16    call it A; 0..360 on fixture rows
++11 UNKNOWN    i16    B; r = +0.994 with A, B ~ 0.58 x A
++13 UNKNOWN    i16    == A - k
++15 UNKNOWN    i16    == B - k, the SAME k
++17 UNKNOWN    i16
++19 UNKNOWN    u8     0 on 99.6%
++20 trailer_a  u16    constant 391 on 93%
++22 trailer_b  u16    constant 0xffff on 99%
++24 UNKNOWN    u8     3 on 93%
 ```
 
-| offset | decode | check |
-|---|---|---|
-| 40.0559 M | Tottenham 5-0 Bournemouth, day 143 | 2026-05-24, final round ✓ |
-| 40.0567 M | West Brom 0-2 Liverpool, day 143 | same round ✓ |
-| 40.0800 M | Southampton 3-6 Newcastle, day 135 | independently verified as the Club History "Highest scoring match, 16/5/2026" ✓ — and its MIRROR is stored too |
+`(+9 − +11) == (+13 − +15)` and `(+9 − +13) == (+11 − +15)` hold on **275/275** fixture rows, so
+those four fields carry only **three** independent numbers. They are carried, not named.
 
-**The stride is 25**: every gap between fixture-shaped rows in 40.00–40.20 MB is a multiple of
-25 (37×25, 29×50, 22×75, 20×175 ...), grid phase 10. The region spans many leagues at once —
-Danish 2/3/4/1147, Spanish 32, English 5/6/7/8/70, reserve leagues 1338/1348 — so it is not
-grouped per competition.
+### Validation of the fixture group
 
-**What is NOT yet established, and must not be assumed:** walking the 25-byte grid across the
-whole file decodes 40,619 slots as "a fixture", which is only ~20x the base rate you get from
-two valid club tids plus plausible scores, and it still recovers only **2/28** of the ground
-truth. So this is a real record at real offsets, not a decoded table. The next step is the
-record's EXTENT (per CLAUDE.md: bound the walk by the table's own invariant, and name every
-byte in [0, 25)) — not another value hunt.
+* **275 slots carry a club pair and 100% resolve to a real club** — chance is ~8%.
+* `+4`/`+5` max 6-6, mean 1.37/1.67, **no row above 12**.
+* `+6` is a valid day-of-year on **100%** of those rows.
+* Three decode against the game: Tottenham 5-0 Bournemouth and West Brom 0-2 Liverpool (day
+  143 = 2026-05-24, final round) from the screenshots, and Southampton 3-6 Newcastle (day 135)
+  independently confirmed by the Club History screen's "Highest scoring match, 16/5/2026".
+
+One row needed excluding and it is worth saying why, because it is not a fudge: the table's
+FIRST slot straddles the 16-byte table ending immediately before it and reads `10 27 10 27`
+(10000, 10000). It resolved only because reference's club index has no tid range check, so tid
+0 maps to an award record. Rejecting a **null id** is structural; with it gone the internal
+identity goes from 275/276 to **275/275**, which is the confirmation that it was noise.
+
+### What this table is NOT
+
+It is **not the fixture list**. 275 matches, drawn from many leagues at once (Danish 2/3/4,
+Spanish 32, English 5/6/7/8/70, reserve leagues), clustered on recent days — nothing like a
+competition's full programme, and it recovers only 2 of the 28 screenshot fixtures. The other
+3,700 slots carry a trailer, a day and the four numbers but no match. **What the table is FOR
+is not established** — only its shape, its extent, and the fixture field group. Do not let the
+module name suggest otherwise.
 
 ## A UI observation worth keeping
 

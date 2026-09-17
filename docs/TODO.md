@@ -109,11 +109,17 @@ measurements (uid-keyed records, slot-index round-robin columns, bare score arra
 datadict's `fxds`/`mtdy` scheduling records, a two-save append diff); all are tabulated in
 [`light-results-record.md`](light-results-record.md) so they are not re-run.
 
-**The live lead is a 25-byte, AWAY-FIRST record at ~40.05–40.11 MB.** Three fixtures decode
-exactly, one of them (Southampton 3-6 Newcastle, day 135) independently confirmed against the
-Club History screen. Every oriented probe missed it because they all assumed home-first. The
-next step is EXTENT and per-byte COVERAGE of that record, not another value hunt — grid-walking
-it today still yields only 2/28, so it is a real record at real offsets, not a decoded table.
+**The 25-byte AWAY-FIRST record is now DECODED as far as its shape goes** —
+`fmparser/matchslots.py`, guarded by `tests/test_match_slots.py`. Stride 25 (two independent
+measurements), self-locating by a constant at +20, **3,975 slots on every Frem save across four
+seasons and 3,943 on Bucaspor** (a preallocated table, which is the invariant that bounds the
+walk), all 25 bytes named or declared UNKNOWN, and three fixtures verified against the game.
+
+**It is NOT the fixture list**: 275 matches from many leagues at once, recovering 2 of the 28
+screenshot fixtures, with 3,700 further slots carrying a trailer and a date but no match. What
+the table is FOR is still unknown — 13 of its 25 bytes are carried, not named, and four of them
+are known to hold only three independent numbers. Naming those, or finding what selects the
+275, is the next question.
 
 Still unexamined: a 497-record chained region at 6.127-6.260 MB that `find_light_regions`
 never sweeps.
