@@ -310,11 +310,43 @@ SELECT
     any_value(cl.nation)                    AS nation,
     any_value(cl.league_reputation)         AS league_reputation,
     COUNT(DISTINCT p.tid)                   AS squad_size,
+    -- CLUB CONTEXT, from the club record decoded in PR #51. Parsed since then and surfaced
+    -- nowhere until now, which is why a scout report could not say how big an opponent is.
+    any_value(d.facilities)                 AS facilities,       -- 1-20, training
+    any_value(d.academy)                    AS academy,          -- 1-20, youth
+    any_value(d.reputation)                 AS reputation,
+    -- LAST SEASON's finish, and the league it was finished IN -- not the current standing.
+    -- Verified on the 2026-07-02 pre-season save: twelve Superliga clubs read positions
+    -- 1,1,2,2,3,4..10, i.e. TWO clubs on 1 and two on 2, because Vejle and Viborg finished
+    -- 1st and 2nd in the NordicBet Liga and came up, while FCK and Midtjylland finished 1st
+    -- and 2nd in the Superliga. Pair the two columns or the number is meaningless.
+    any_value(d.league_pos)                 AS last_league_pos,
+    any_value(d.last_league)                AS last_league_cid,
+    any_value(ll.name)                      AS last_league,
+    any_value(d.staff_size)                 AS staff_size,
+    any_value(d.status)                     AS club_status,      -- 1 first team, 2 reserves
+    any_value(d.stadium_id)                 AS stadium_id,
+    any_value(st.name)                      AS stadium,
+    any_value(st.capacity)                  AS stadium_capacity,
+    -- ATTENDANCE IS DELIBERATELY NOT HERE. staging.club_details carries att_avg/att_min/
+    -- att_max, we read those bytes correctly (league_id lands exactly at p+158 beside them),
+    -- and the NAMES are borrowed from fmm-editor's Club.cs and have never been checked
+    -- against the game. They do not survive the check: the values are static across every
+    -- snapshot (Frem reads 1100 through three promotions from the 4th tier), they cap
+    -- worldwide at exactly 12,500 with 99 clubs sitting on that number, they are always
+    -- multiples of 100, and Barcelona reads max 9,500 BELOW avg 9,600. No single scale
+    -- reconciles them with in-game figures either -- x10 fits Frem's ~11k exactly but puts
+    -- 25% of clubs above their own stadium capacity (worst case 62x). Whatever they are,
+    -- they are not the attendance the game shows. See docs/TODO.md.
     c.tid IN (SELECT club_tid FROM mart.our_clubs)     AS is_ours,
     c.tid IN (SELECT club_tid FROM mart.managed_club)  AS is_managed
 FROM {S}.clubs c
 LEFT JOIN mart.club_leagues cl
        ON (cl.season, cl.phase, cl.club_tid) = (c.season, c.phase, c.tid)
+LEFT JOIN {S}.club_details d
+       ON (d.season, d.phase, d.tid) = (c.season, c.phase, c.tid)
+LEFT JOIN {S}.stadiums st ON st.id = d.stadium_id
+LEFT JOIN (SELECT DISTINCT cid, name FROM {S}.leagues) ll ON ll.cid = d.last_league
 LEFT JOIN {S}.players p
        ON (p.season, p.phase) = (c.season, c.phase)
       AND p.club_tid = c.tid AND p.tid IS NOT NULL AND NOT p.is_staff
