@@ -72,6 +72,36 @@ Numbers you should quote, and the two ways of getting them wrong:
 **FM's per-position CA weight tables**, recovered from 155k snapshots, which say what the game
 rewards in each slot. That is a scouting asset independent of the decoder.
 
+## What the mart gained on 2026-09-17, after PR #51
+
+PR #51 decoded a lot of records; several were then parsed and surfaced nowhere. Four new views
+close that, and each one found a bug or an unknown on the way:
+
+- **`mart.clubs` gained the club record** — facilities, academy, reputation, staff size,
+  stadium and capacity, plus **last season's finishing position and the league it was finished
+  in**. Frem read at a glance: 3rd in the Superliga on the 8th reputation, the worst-but-one
+  training facilities, the biggest squad and staff. `last_league_pos` is NOT the current
+  standing and the two columns are meaningless apart — twelve Superliga clubs read
+  1,1,2,2,3,4..10 because two of them came up as NordicBet champions and runners-up.
+- **`mart.club_attendance`** — real attendance, from the match records. FCK 32,875, Frem 10,924
+  in 2026 (14% fill in 2022, 73% now). `staging.club_details.att_*` is NOT this: it correlates
+  **−0.31** with what clubs actually draw while capacity correlates **+0.93**. Coverage is
+  our-matches-only, so **read `n_games` before trusting `avg_att`** — every club but us has one
+  or two home games a season.
+- **`mart.match_events`** — goal timings, cards, injuries, penalties, with the scorer named and
+  a side. Decoding it named `shootout_goal`/`shootout_miss` (bytes 0x07/0x08). The label is now
+  derived from `type_byte` in SQL rather than read from the store, so **naming a future event
+  byte needs a one-line edit and `--refresh-only`, not a re-extract**.
+- **`mart.competitions`** — cups and friendlies had no dimension at all, so a goal total mixed
+  them in silently (our 2026 goals are 67 league / 10 friendly / 1 cup / 1 reserve). It also
+  identifies **the reserve league**, which holds 60 fixtures and has no name anywhere in the
+  save; `kind = 'reserve'` is derived from `mart.our_clubs`, not hardcoded.
+
+**Two traps worth carrying forward**, because both produced numbers that looked fine until they
+did not: joining a per-(season, **phase**) dimension on (season, club_tid) **fans every fact
+out by the snapshot count**, and `any_value(x ORDER BY y)` **does not order in DuckDB** —
+`max_by(x, y)` is the one that works.
+
 ## Where to look
 
 | you want | read |
