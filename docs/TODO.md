@@ -67,6 +67,7 @@ Five things have produced numbers that looked fine and were not. All are live tr
 | which BYTES of the save no parser reads | `uv run python scripts/audit_coverage.py` |
 | the standings record, decoded but unimplemented | [`standings-record.md`](standings-record.md) |
 | the hunt for complete fixtures | [`date-search.md`](date-search.md) |
+| the transfer-history record (decoded, not parsed) | [`transfer-history-record.md`](transfer-history-record.md) |
 | how to deploy the site | [`DEPLOY.md`](DEPLOY.md) |
 | known parser bugs and their history | [`BUGS.md`](BUGS.md) |
 
