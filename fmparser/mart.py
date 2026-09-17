@@ -410,6 +410,66 @@ GROUP BY g.season, g.club_tid
 """
 
 
+# Match EVENTS -- goals with their minute, plus cards, injuries and missed penalties.
+#
+# staging.match_events was parsed and surfaced nowhere. `tid` is the PLAYER (Nordberg, Ementa,
+# Jakobsen), not the club, and the types are: goal, own_goal, penalty, missed_penalty,
+# disallowed_goal, red_card, injury, plus three byte values still unnamed (?07, ?08, ?0e) which
+# are carried verbatim rather than dropped.
+#
+# DEDUPED THE SAME WAY mart.club_attendance is, and for the same reason: an event belongs to a
+# MATCH, and the save holds each match again in every later snapshot at a different `anchor`.
+# 1,959 stored rows are 694 real events. Key on the fixture, never on (season, phase, anchor).
+#
+# Coverage: our matches only, so this is our season's goal timings, not the league's.
+#
+# ?07 = SHOOTOUT SCORED, ?08 = SHOOTOUT MISSED. One fixture carries all ten (Frem v
+# Midtjylland, Sydbank Pokalen, 2022-10-25), and every check lines up: the match record says
+# 0-0 after extra time, all ten are stamped at minute 120, and once each taker's club is
+# resolved AS AT 2022 the split is home 4 scored / 1 missed and away 3 scored / 2 missed --
+# five kicks each side, scored + missed = 5 for both, Frem through 4-3. A miscount either way
+# would break that arithmetic, which is what makes it a decode rather than a guess.
+#
+# Still NOT renamed in fmparser/matches.py, because one match cannot show whether the byte
+# means "shootout goal" or just "goal after 90+30". Name it when a second shootout appears.
+# ?0e remains unidentified: 2 events, both in reserve fixtures, minutes 38 and 59.
+MATCH_EVENTS = """
+CREATE OR REPLACE VIEW mart.match_events AS
+WITH ev AS (
+    SELECT DISTINCT m.date, m.home_tid, m.away_tid, m.competition, m.comp_id,
+           e.seq, e.minute, e.added, e.min_display, e.tid, e.type, e.type_byte
+    FROM {S}.match_events e
+    JOIN {S}.matches m USING (season, phase, anchor)
+    WHERE m.date IS NOT NULL
+), nm AS (
+    -- PER SEASON, not global. Resolving a scorer's club from the newest snapshot asks "who
+    -- does he play for now", which for a 2022 cup tie is the wrong question -- six of the ten
+    -- shootout takers in the 2022-10-25 Sydbank Pokalen match came back with no side at all
+    -- because they had since moved. Take his club in the season the match was played.
+    SELECT season, tid, max_by(name, phase) AS name, max_by(club_tid, phase) AS club_tid
+    FROM {S}.players WHERE NOT is_staff GROUP BY season, tid
+)
+SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
+       ev.date, ev.competition, ev.comp_id,
+       ev.home_tid, ev.away_tid,
+       ev.minute, ev.added, ev.min_display, ev.type, ev.type_byte,
+       ev.tid, nm.name AS player,
+       -- which side the event belongs to, from the scorer's club at the time. NULL when the
+       -- player is no longer resolvable rather than guessed.
+       CASE WHEN nm.club_tid = ev.home_tid THEN 'home'
+            WHEN nm.club_tid = ev.away_tid THEN 'away' END        AS side,
+       ev.home_tid IN (SELECT club_tid FROM mart.our_clubs)
+         OR ev.away_tid IN (SELECT club_tid FROM mart.our_clubs)  AS ours,
+       -- Bucket on `minute` (INTEGER), never on `min_display` -- that one is VARCHAR and
+       -- holds "45+2"/"90+4" for stoppage time, so arithmetic on it does not even bind.
+       -- Stoppage-time goals land in the bucket of the half they belong to, which is what
+       -- you want: a 90+4 winner is a 76-90 goal, not a 91-105 one.
+       CAST(LEAST(6, (LEAST(ev.minute, 90) - 1) / 15 + 1) AS INTEGER) AS quarter_hour
+FROM ev LEFT JOIN nm
+       ON nm.tid = ev.tid AND nm.season = CAST(season_of(ev.date) AS INTEGER)
+"""
+
+
 # The league dimension, including the division-strength index.
 #
 # IMMERSION: skill_idx is the average player ability per league, normalised 0-100 across the
@@ -2543,6 +2603,7 @@ ORDER = [
     ("mart.club_leagues", CLUB_LEAGUES),
     ("mart.clubs", CLUBS),
     ("mart.club_attendance", CLUB_ATTENDANCE),
+    ("mart.match_events", MATCH_EVENTS),
     ("mart.leagues", LEAGUES),
     ("mart.comparison_ladder", COMPARISON_LADDER),
     ("mart.languages", LANGUAGES),

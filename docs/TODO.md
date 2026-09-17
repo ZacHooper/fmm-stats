@@ -60,11 +60,21 @@ what ships today.
 never been examined. **Possibly superseded by #3**: if the standings record gives exact final
 tables, complete fixtures may no longer be needed. Decide that before spending time here.
 
-### 5. Staff record bytes `+34..+38` are undecoded
+### 5. Two match-event type bytes are unnamed
+`mart.match_events` carries them verbatim rather than dropping them.
+
+- **`?07` / `?08` are all but certainly shootout scored / missed.** All ten occurrences are in
+  one fixture (Frem v Midtjylland, Sydbank Pokalen, 2022-10-25) which finished 0-0 after extra
+  time, all at minute 120, splitting home 4/1 and away 3/2 — five kicks a side, Frem through
+  4-3. Not renamed in `fmparser/matches.py` because one match cannot separate "shootout goal"
+  from "goal after 90+30". **Name them when a second shootout appears in any save.**
+- **`?0e` is unidentified.** Two events, both in reserve fixtures, minutes 38 and 59.
+
+### 6. Staff record bytes `+34..+38` are undecoded
 Five catalog indices, declared `UNKNOWN` in `scripts/audit_records.py`'s `LAYOUTS` so the audit
 passes honestly. The record's stride and coverage are proven; only these five are unnamed.
 
-### 6. 17% of origin clubs do not resolve, and the capital rule silently under-reports
+### 7. 17% of origin clubs do not resolve, and the capital rule silently under-reports
 **3,936 of 22,624** origin clubs come back as `#<tid>` in `mart.player_origin.origin_club`, so
 the capital-province rule **cannot be evaluated** for that share of the pool — and
 `eligible=False` is currently indistinguishable from *unknown*. Confirmed live: Samuel
@@ -80,12 +90,12 @@ Two things to do: find where they resolve, and until then make `player_origin` d
 
 ## Models
 
-### 7. Refit the transfer-value model with the new reputation fields
+### 8. Refit the transfer-value model with the new reputation fields
 `current_reputation` and `world_reputation` are parsed (PR #51) and currently unused.
 `fmparser/value_model.py`. This was the one workstream from the parser expansion that never
 got done, and reputation is exactly what a value model wants.
 
-### 8. Attribute decoder — two measured leads
+### 9. Attribute decoder — two measured leads
 Both from [`ATTRIBUTE_MODEL_HANDOFF.md`](ATTRIBUTE_MODEL_HANDOFF.md); neither is speculative.
 
 - **Bias is almost the whole story.** `|mean signed error|` correlates **−0.91** with the
@@ -98,7 +108,7 @@ Current state is 59.4% exact on Frem / 59.5% on Bucaspor for the nine outfield a
 against a **94.8% ceiling**. Read the handoff's "already ruled out" section first — height,
 the CA constraint, the CA surprise, a non-linear link and `blend_w` are all tested and dead.
 
-### 9. Goalkeeper attributes cannot be modelled at this sample size
+### 10. Goalkeeper attributes cannot be modelled at this sample size
 Frem has **7 goalkeepers**. The five keeper attributes are deliberately **not refitted**
 (`--min-players`, default 20) and keep the frozen coefficients, because refitting made the
 Bucaspor hold-out worse. Needs more GK ground truth before it can move — which realistically
@@ -109,7 +119,7 @@ players).
 
 ## Football (the actual career)
 
-### 10. Position write-ups still owed
+### 11. Position write-ups still owed
 Zac asked for the position-by-position read for **DM, CM, AML, AMC, AMR and ST**, plus a verdict
 on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **Note the earlier analysis is now
 several seasons stale** — it was written when Frem were in NordicBet Liga; they have been in the
