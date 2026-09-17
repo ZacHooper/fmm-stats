@@ -79,8 +79,25 @@ the save was taken.
 COMPETITION TYPE -- no `cid` field is stored; every league grouping quoted anywhere for this
 table (e.g. "349 clubs across 48 league_cids" on frem-2026-06-11) is each club's own DEFAULT
 league membership looked up separately via `reference.club_record`, not anything read from the
-row. Of 275 fixtures, 242 pair two clubs from the same inferred league; the other 33 can't be
-ordinary league matches by construction. Four were checked against real in-game fixture screens
+row -- confirmed with the *right* test, not just an easy one. reference.py's 2026-09-17 fix
+(reputation-floor tier, empty-CODE name-walk) made 76 more real cids resolvable, which raises
+an obvious question: does one of the row's 8 UNKNOWN bytes turn out to BE a cid now that more
+of them decode? Checking "does this byte resolve to *some* valid competition" says yes for
+almost every offset -- but that test is worthless here: with 678 real cids packed densely into
+0..1400, nearly any small byte value resolves to *something* by chance (the same trap the
+audit tooling exists to catch for reject-reason counts). The real test is "does this offset
+equal the row's OWN, INDEPENDENTLY KNOWN cid" on the 242 fixtures where both clubs share a
+league (so the correct answer is known without reading the row at all): every one of the 25
+bytes, read as u8 or u16, matches that known cid on 0-2% of rows -- indistinguishable from
+small-integer coincidence, not the ~100% a real field would show. (u8@8's 5.8% is fully
+explained by that byte's own already-documented behaviour -- constant `5` on 93% of ALL rows
+regardless of league, which happens to collide with `5` also being the English Premier
+Division's cid, given how many English clubs are in this table.) So the fix recovered which
+already-known leagues resolve; it did not, and structurally could not, uncover a hidden cid
+field. Of 275 fixtures, 242 pair two clubs from the same inferred league; the other 33 can't be
+ordinary league matches by construction, and their real competition is not recoverable from
+this record at all, fix or no fix -- there is nothing here for a future reputation/name-walk
+fix to unlock. Four were checked against real in-game fixture screens
 and all four decoded EXACTLY on DATE while turning out to be four DIFFERENT kinds of
 non-league fixture -- "cross-league" means "not a plain league game", not "cup tie". Only two
 of the four also had the SCORE read correctly on the first pass (see ORIENTATION below for

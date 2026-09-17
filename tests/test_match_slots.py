@@ -139,6 +139,37 @@ def main():
           f"(+9 - +11) == (+13 - +15) on {ident}/{len(rows)} rows")
     ok &= ident >= len(rows) - 1
 
+    # ---- NO CID FIELD: pin the negative result, tested the right way ----
+    # "does this byte resolve to SOME valid competition" is worthless with 678 real cids
+    # packed densely into 0..1400 -- nearly any small value resolves to something by chance.
+    # The real test: on a fixture where both clubs share a league (so the correct cid is
+    # known independently of the row), does any offset actually EQUAL that cid? A real field
+    # would hit ~100% for at least one offset; coincidence tops out under ~10%.
+    idx_full, comps = R._build_refdata_index(mm)
+
+    def league_of(tid):
+        c = idx_full.get(tid)
+        return c.get("league") if c else None
+
+    same_league = [(r, league_of(r["away_tid"])) for r in rows
+                   if league_of(r["away_tid"]) is not None
+                   and league_of(r["away_tid"]) == league_of(r["home_tid"])]
+    max_hit_rate = 0.0
+    for off in range(MS.STRIDE):
+        for width in (1, 2):
+            if off + width > MS.STRIDE:
+                continue
+            hits = sum(1 for r, lcid in same_league
+                       if int.from_bytes(mm[r["offset"] + off:r["offset"] + off + width],
+                                          "little") == lcid)
+            max_hit_rate = max(max_hit_rate, hits / len(same_league))
+    good = max_hit_rate < 0.10
+    ok &= good
+    print(f"\nNO CID FIELD")
+    print(f"  {'ok  ' if good else 'FAIL'} best offset matches its own row's known league cid "
+          f"on {max_hit_rate*100:.1f}% of {len(same_league)} same-league fixtures "
+          f"(expected <10%, a real field would show ~100%)")
+
     print("\nGROUND TRUTH (away-first layout)")
     by_pair = {(r["away_tid"], r["home_tid"]): r for r in rows}
     for a, h, ag, hg, day, label in TRUTH:

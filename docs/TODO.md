@@ -135,12 +135,23 @@ records (86 found, e.g. Qatar tid 1,632,698,368) but their tids are 4+ orders of
 bigger than this record's 16-bit `away_tid`/`home_tid` fields can hold (max 65,535) — a national
 team is structurally unable to appear here, independent of the calendar.
 
-**No `cid`/competition field is stored in the record.** `frem-2026-06-11`'s 275 fixtures span
-349 distinct clubs across 48+ `league_cid`s (Denmark, England, Spain, Germany, Belgium, plus
-unresolvable reserve/regional cids) and never include Frem itself — but that's each club's own
-DEFAULT league membership looked up separately, not anything read from the row. 242/275 pair
-two clubs from the same inferred league; the other 33 can't be ordinary league fixtures by
-construction. Four were checked against Zac's own in-game fixture screens and all four decoded
+**No `cid`/competition field is stored in the record — reconfirmed 2026-09-17 with the right
+test, after the reputation-floor/empty-CODE fix raised the obvious question of whether one of
+the 8 UNKNOWN bytes was secretly a now-more-resolvable cid.** "Does this byte resolve to *some*
+valid competition" says yes almost everywhere — worthless, since 678 real cids packed densely
+into 0..1400 make that near-guaranteed by chance. The test that actually settles it: on the
+242/275 fixtures where both clubs share a league (so the correct cid is known independently of
+the row), does any of the 25 bytes, read as u8 or u16, EQUAL that known cid? Every offset hits
+0-2%, not the ~100% a real field would show (`tests/test_match_slots.py`'s new "NO CID FIELD"
+check pins this). So the fix changed which already-inferred leagues resolve (`frem-2026-06-11`'s
+275 fixtures span 349 distinct clubs across 47 `league_cid`s via each club's own DEFAULT
+league membership looked up separately, ALL 47 of which now resolve, 20 only because of the
+fix), not whether a hidden cid exists — it doesn't, and this table structurally cannot answer
+the question for the other 33 fixtures. 242/275 pair two clubs from the same inferred league;
+the other 33 can't be ordinary league fixtures by construction, and their real competition (cup
+/ friendly / playoff) is unrecoverable from this record, full stop — not blocked by any decode
+bug, so no future fix to `reference.py` can unlock it. Four were checked against Zac's own
+in-game fixture screens and all four decoded
 EXACTLY on **date**, but only two of the four also had the score read correctly the first time
 — the other two were corrected after further checking (below), so treat any score quoted for a
 cross-league row as unverified until it's been checked twice, not once:
