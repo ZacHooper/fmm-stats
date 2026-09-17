@@ -337,6 +337,85 @@ FIRST slot straddles the 16-byte table ending immediately before it and reads `1
 0 maps to an award record. Rejecting a **null id** is structural; with it gone the internal
 identity goes from 275/276 to **275/275**, which is the confirmation that it was noise.
 
+### What the 275 matches actually are (frem-2026-06-11)
+
+Every slot carries a **real result**, not a fixture: 3.05 goals/game, 121 home wins / 71 draws
+/ 83 away wins, most common scorelines 1-0 (31), 1-1 (26), 2-2 (19), 0-0 (17). That is a
+football distribution, and it is the strongest evidence the field group is read correctly.
+
+**Our own club never appears.** 0 of 275 slots involve Frem (346) or the reserves (7296) —
+our games live in the rich match region (`regions.MATCH_LO`) instead. The table is about
+everyone else.
+
+**30 leagues at once**, so it is not grouped per competition. By nation of the club's league:
+Spain 222, England 131, Denmark 66, Germany 34, Belgium 6 — which tracks how many divisions
+each nation has loaded, i.e. a scatter across the loaded world rather than a selection.
+349 distinct clubs appear, 218 of them exactly once.
+
+**Dates cluster into weekly rounds and thin out going back.** Days 121/128/135/142/150 are
+exactly 7 apart and hold 25/24/27/24/25 matches each; before that it is 1–6 per day back to
+day 9, and a thin tail runs into the PREVIOUS calendar year. That last part is confirmed
+arithmetically, not assumed — see the `k` identity below, where those rows come out at
+exactly −365.
+
+All 14 English Premier Division slots on the reference save:
+
+```
+2026-03-14 Liverpool   3-2 Man City      2026-05-16 Brentford   1-1 Leeds
+2026-04-04 Watford     3-1 Southampton   2026-05-16 Chelsea     1-0 Everton
+2026-04-12 Leicester   2-4 Southampton   2026-05-16 West Brom   1-0 Watford
+2026-04-26 Man UFC     0-4 Leeds         2026-05-16 Southampton 3-6 Newcastle
+2026-05-02 Derby       0-3 Man City      2026-05-16 Newcastle   6-3 Southampton   <- mirror
+2026-05-08 Bournemouth 1-0 Derby         2026-05-24 Tottenham   5-0 Bournemouth   <- verified
+2026-05-09 Man City    2-1 Leeds         2026-05-24 West Brom   0-2 Liverpool     <- verified
+```
+
+A round is never complete: 2026-05-24 is a 10-match EPL round and only 2 of it are here.
+11 fixtures are stored more than once and 10 also appear with home/away swapped, so the
+275 slots are fewer than 275 distinct matches.
+
+### The four unknown numbers carry ONE independent value
+
+Naming them is still open, but their structure is now measured, and it collapses the record:
+
+* **`k` is constant within a match-day** — 26 for every match on day 135, 19 for every match on
+  day 142 — and `k == (save day-of-year) − (match day)` on 87% of slots. The exceptions are
+  almost all exactly **−365**: matches from the previous calendar year, which is what
+  establishes that a day above the save's own day-of-year belongs to the year before.
+  So `C` and `D` are `A` and `B` re-referenced from the save date to the match date.
+* **`B == floor(3A/5)`** on 81% of slots (100% of the day-135 block), so `B` is *derived*, not
+  independent.
+
+Four i16 fields, therefore, hold one number plus the match date. `A` ranges 6..354. What it
+counts is unknown; `save_date − A` lands 1–100 days before the save with no pattern yet found.
+
+One wrinkle worth recording rather than smoothing over: on `frem-2026-03-22` the offset is
+**−6**, not 0, on 581/619 slots — the reference date is six days before the save's in-game
+date. Consistent with the table being refreshed periodically rather than continuously; not
+explained.
+
+### How full the table gets
+
+| save | in-game date | match slots filled (of 3,975) |
+|---|---|---|
+| frem-2026-03-22 | mid-season | **619** |
+| frem-2026-06-11 | season just ended | **275** |
+| frem-2026-06-29 | off-season | **125** |
+
+The fill tracks how much football has recently been played. A fixed-size table holding a
+decaying sample of recent results is exactly the shape the old
+`light-results-rolling-buffer.md` note described — so that idea may have been right about a
+STRUCTURE while being attached to the wrong bytes (it was written about the club-records
+region, where nothing is deleted). Stated as a lead, not a finding: we have three saves, not a
+controlled test.
+
+### Ruled out as the selection rule
+
+* **Club-record matches.** Southampton 3-6 Newcastle is in both this table and the Club History
+  screen, which looked promising. It is coincidence: only 31/275 slots (11.3%) are also a
+  club-record match, and only 36/3,262 club-record matches have a slot.
+* **Our shortlist.** 0 of the 9 shortlisted players' clubs appear.
+
 ### What this table is NOT
 
 It is **not the fixture list**. 275 matches, drawn from many leagues at once (Danish 2/3/4,
