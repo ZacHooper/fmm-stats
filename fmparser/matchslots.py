@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-The 25-byte MATCH-SLOT table: a fixed-size table, ~7% of whose slots reference a real match.
+The 25-byte MATCH-SLOT table: a fixed-size table, ~73% of whose slots carry real data and
+~7-15% of THOSE carry a resolvable club pair (a "fixture").
 
 WHAT IS PROVEN, and what is not. The table's SHAPE, EXTENT and the fixture field group are
 established from the bytes and hold across five Frem saves and two Bucaspor ones. What the
 table is FOR is not established -- the other 18 bytes are carried, not named. Do not describe
 this as "the fixture list": it holds 275 matches on the reference save, drawn from many
-leagues at once, which is nothing like a competition's full programme.
+leagues at once, which is nothing like a competition's full programme. Do not describe it as
+"~7% populated" either -- see POPULATION below; that figure only counts slots with a club pair,
+and undercounts what's actually stored by a factor of ten.
 
 LOCATION -- self-locating, never a constant. Every window in regions.py drifts per save and
 per career, and this one drifts hard: 37.78M on frem-2023-07-02, 40.59M on frem-2025-06-29,
@@ -48,6 +51,59 @@ VALIDATION of the fixture group, on frem-2026-06-11's 3,975 slots:
 The record is AWAY-FIRST. That is why it went unfound for so long: every probe that assumed
 the home club comes first, or that searched for an oriented home->away pair, excluded it by
 construction.
+
+POPULATION -- checking `day != 0` independently of the club-pair filter, across four saves
+spanning 2023-2026:
+
+    save                   fixture  clubless-but-dated  inert(day=0)  populated total
+    frem-2023-07-02            138                2,736         1,101            2,874
+    frem-2024-06-30            157                2,717         1,101            2,874
+    frem-2026-06-11            275                2,598         1,102            2,873
+    frem-2026-07-02            100                2,773         1,102            2,873
+
+The populated total is essentially CONSTANT (2,873-2,874) while fixture count ranges 100-275 --
+slots don't get added or removed, matches flip from "dated, no club yet" to "fixture" as they're
+played, inside a fixed ~2,874-slot band (slot index 1..2,874 populated, 2,875..3,974 inert, same
+boundary on saves years apart). Reads as a preallocated calendar that fills in progressively,
+not a sparse table. **The ~2,600 clubless-but-dated slots are the majority of the table's real
+content and are not examined by `scrape()` or anything downstream.**
+
+WORLD CUP -- checked `frem-2023-01-06` (after the real Qatar 2022 final) and `frem-2026-07-02`
+(during the real 2026 tournament window, in which fixture count correctly drops to 100 as
+domestic leagues break for it). Zero fixture rows resolve to a nation in either save. Nations do
+exist as their own club-style records (86 found, e.g. Qatar tid 1,632,698,368) but their tids
+exceed the 16-bit `away_tid`/`home_tid` fields (max 65,535) by 4+ orders of magnitude -- a
+national team cannot be addressed by this record's club-pair fields at all, regardless of when
+the save was taken.
+
+COMPETITION TYPE -- no `cid` field is stored; every league grouping quoted anywhere for this
+table (e.g. "349 clubs across 48 league_cids" on frem-2026-06-11) is each club's own DEFAULT
+league membership looked up separately via `reference.club_record`, not anything read from the
+row. Of 275 fixtures, 242 pair two clubs from the same inferred league; the other 33 can't be
+ordinary league matches by construction. Four were checked against real in-game fixture screens
+and all four decoded EXACTLY (score AND the day -> calendar-date inference) while turning out
+to be four DIFFERENT kinds of non-league fixture -- "cross-league" means "not a plain league
+game", not "cup tie":
+    Forest 3-0 Maidstone       day 13  -> 2026-01-14   FA Cup Third Round REPLAY
+    Burnley 1-2 Arsenal        day 199 -> 2025-07-19   pre-season FRIENDLY
+    Gladbach 1-3 Sevilla       day 146 -> 2026-05-27   continental cup FINAL, neutral venue
+    Nurnberg 3-2 Dusseldorf    day 140 -> 2026-05-21   promotion PLAYOFF, first leg
+A fifth (Logrones 0-3 A.Madrid, day 201) could not be found in-game; tid 989 is a real,
+well-formed club record, so this isn't a bad resolve. Day 201 sits in the sparse 180-300 band
+(1-2 rows/day vs. dozens/day in the 100-180 core) -- the likeliest place for a STALE slot, so
+the year-inference rule (day>=181 -> season-1) may have the wrong YEAR here. Unresolved.
+
+RULED OUT as a competition-type flag, on the four confirmed rows plus the three known league
+fixtures: `+8` (reads 5 on 226/242 same-league rows AND 17/20 cross-league rows) and
+`trailer_a` (the cup replay and a same-day plain-league game are both 5; another plain-league
+game is 391). Neither separates cup/friendly/playoff from league play.
+
+LEAD on A/B/k: the Sevilla-Gladbach final is stored TWICE, 500 bytes (20 slots) apart, same
+tid/score/day, different `trailer_a` -- the same multi-copy pattern as `clubrecords.py`. On the
+Newcastle/Southampton duplicate pair, `k` (= (+9) - (+13), == (+11) - (+15) per the
+four-numbers-hold-three identity above) is IDENTICAL across both copies (26 both times) even
+though (+9)/(+11) themselves differ (33/19 vs 101/60) -- so `k` looks MATCH-level (shared by
+every copy of one fixture) while (+9)/(+11) are COPY-specific. Neither is named yet.
 """
 from . import regions as RG        # noqa: F401  (kept so callers see the region vocabulary)
 
@@ -70,12 +126,18 @@ LAYOUT = (
     (5,  1, "home_goals", U8),
     (6,  2, "day",        U16),   # day-of-year, 0-based -- same encoding as the club record
     (8,  1, UNKNOWN,      U8),    # 5 on 93% of slots. NOT the cid: it reads 5 on rows whose
-                                  # clubs are in leagues 2, 4 and 32.
+                                  # clubs are in leagues 2, 4 and 32. Not competition-type
+                                  # either -- 5 on both same-league (226/242) and cross-league
+                                  # (17/20) fixture rows. See COMPETITION TYPE above.
     (9,  2, UNKNOWN,      I16),   # call it A. 0..360 on fixture rows.
     (11, 2, UNKNOWN,      I16),   # B. r=+0.994 with A; B ~ 0.58 x A.
     (13, 2, UNKNOWN,      I16),   # == A - k
     (15, 2, UNKNOWN,      I16),   # == B - k, the SAME k. Verified 275/276 fixture rows:
                                   # (+9 - +11) == (+13 - +15) and (+9 - +13) == (+11 - +15).
+                                  # k looks MATCH-level, not copy-level: on a fixture stored
+                                  # twice (Southampton/Newcastle), k was identical (26) across
+                                  # both copies while A and B themselves differed. See LEAD
+                                  # on A/B/k above.
                                   # So the four hold only three independent numbers.
     (17, 2, UNKNOWN,      I16),
     (19, 1, UNKNOWN,      U8),    # 0 on 99.6%

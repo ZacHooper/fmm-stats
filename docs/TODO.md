@@ -116,17 +116,65 @@ measurements), self-locating by a constant at +20, **3,975 slots on every Frem s
 seasons and 3,943 on Bucaspor** (a preallocated table, which is the invariant that bounds the
 walk), all 25 bytes named or declared UNKNOWN, and three fixtures verified against the game.
 
-**It is NOT the fixture list**: 275 matches from many leagues at once, recovering 2 of the 28
-screenshot fixtures, with 3,700 further slots carrying a trailer and a date but no match. What
-the table is FOR is still unknown — 13 of its 25 bytes are carried, not named, and four of them
-are known to hold only three independent numbers. Naming those, or finding what selects the
-275, is the next question.
+**It is NOT the fixture list, and it is not ~7% populated either** — that figure only counts
+slots with a resolvable CLUB PAIR (a "fixture"; 275 on `frem-2026-06-11`). Checking the `day`
+field independently of the club filter shows the table is **72-74% populated**, and the total
+stays essentially constant while the mix shifts: fixture-count + clubless-but-dated count is
+**2,874** on `frem-2023-07-02` and `frem-2024-06-30`, **2,873** on `frem-2026-06-11` and
+`frem-2026-07-02` — four saves spanning 2023-2026, fixture count anywhere from 100 to 275, same
+populated total every time. The remaining ~1,101-1,102 slots are genuinely inert (day=0, every
+carried field zero). Reads as a fixed-size calendar of ~2,874 slots that fill in progressively
+as matches are played, not a fixture list that's mostly empty — **the ~2,600 clubless-but-dated
+slots are the majority of the table's real content and have never been examined.**
+
+**Checked for a World Cup** (`frem-2023-01-06`, days after the real Qatar final, and
+`frem-2026-07-02`, taken DURING the real 2026 tournament window): zero fixture rows resolve to
+a nation in either save (100 fixture rows in the WC-window save, correctly down from 275 three
+weeks earlier as domestic leagues broke for it). National teams do exist as their own club-style
+records (86 found, e.g. Qatar tid 1,632,698,368) but their tids are 4+ orders of magnitude
+bigger than this record's 16-bit `away_tid`/`home_tid` fields can hold (max 65,535) — a national
+team is structurally unable to appear here, independent of the calendar.
+
+**No `cid`/competition field is stored in the record.** `frem-2026-06-11`'s 275 fixtures span
+349 distinct clubs across 48+ `league_cid`s (Denmark, England, Spain, Germany, Belgium, plus
+unresolvable reserve/regional cids) and never include Frem itself — but that's each club's own
+DEFAULT league membership looked up separately, not anything read from the row. 242/275 pair
+two clubs from the same inferred league; the other 33 can't be ordinary league fixtures by
+construction. Four were checked against Zac's own in-game fixture screens and all four decoded
+EXACTLY (score, and the day→calendar-date inference) while turning out to be four *different*
+kinds of non-league match — so "cross-league" means "not a plain league game", not "cup tie":
+
+| row | day → date | screenshot says |
+|---|---|---|
+| Forest 3-0 Maidstone | 13 → 2026-01-14 | FA Cup Third Round **Replay** |
+| Burnley 1-2 Arsenal | 199 → 2025-07-19 | pre-season **Friendly** |
+| Gladbach 1-3 Sevilla | 146 → 2026-05-27 | continental cup **Final**, neutral venue |
+| Nürnberg 3-2 Düsseldorf | 140 → 2026-05-21 | promotion **Playoff**, 1st leg |
+
+A fifth cross-league row (Logroñés 0-3 A. Madrid, day 201) couldn't be found in-game — tid 989
+resolves to a real, well-formed club record, so it's not a bad resolve; day 201 sits in the
+sparse 180-300 band (1-2 rows/day, vs. dozens/day in the 100-180 core) that's the likeliest
+place for a STALE slot, so the year-inference rule (day≥181 → season-1) may have the wrong
+YEAR here. Unresolved.
+
+**Ruled out as a competition-type flag**, tested against the four confirmed rows plus the three
+known league fixtures: `+8` (5 on 226/242 same-league rows AND 17/20 cross-league rows) and
+`trailer_a` (the cup replay and a same-day plain-league game are both 5; another plain-league
+game is 391). Neither separates cup/friendly/playoff from league.
+
+**New lead**: the Sevilla-Gladbach final is stored TWICE, 500 bytes (20 slots) apart, identical
+tid/score/day, different `trailer_a` — the same multi-copy pattern as `clubrecords.py`. On the
+Newcastle/Southampton duplicate pair, the derived `k` (`= A - (+13) = B - (+15)`, per the
+existing four-numbers-hold-three identity) is IDENTICAL across both copies (26 both times) even
+though `A`/`B` themselves differ (33/19 vs 101/60) — so `k` looks MATCH-level (shared by every
+copy of one fixture) while `A`/`B` are COPY-specific. Neither is named yet, but that narrows
+what to look for.
 
 The 497-record chained region at 6.127-6.260 MB has now been swept: 91 signature hits but
 only 67% share a stride, so it fails the alignment control and is not a match table. A
 whole-file sweep at every byte offset found **no second gridded match signature anywhere** —
-the 25-byte table is the only one. Expanding beyond its 275 matches is also ruled out from
-inside: the other 3,700 slots have both club fields AND both goal bytes explicitly 0xff.
+the 25-byte table is the only one (654 stray hits of the same trailer constant at 46.88-48.35M
+were checked and decode as non-football garbage, not a second table).
 
 [`date-search.md`](date-search.md) — the results we hold are **our matches only**, confirmed by
 `mart.competitions`: we carry exactly **32** Superliga fixtures per season, which is one club's
