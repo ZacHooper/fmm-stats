@@ -154,7 +154,8 @@ def claims(mm, n):
         diag = R.diagnose_refdata_scan(mm)
         top_comp = ", ".join(f"{r}={c}" for r, c in diag.comp_reject_solo_ids.most_common(3))
         summary = (f"{diag.n_candidates:,} candidates -> clubs {diag.club_accepted_tier0}"
-                   f"+{diag.club_accepted_tier1} tier1, comps {diag.comp_accepted} accepted, "
+                   f"+{diag.club_accepted_tier1} tier1, comps {diag.comp_accepted_tier0}"
+                   f"+{diag.comp_accepted_tier1} tier1, "
                    f"top SOLO comp rejections (cids): {top_comp} "
                    f"(run scripts/audit_declared_scans.py for the full breakdown)")
         audited("reference.clubs_comps", RG.REFDATA_LO, RG.REFDATA_HI, summary)

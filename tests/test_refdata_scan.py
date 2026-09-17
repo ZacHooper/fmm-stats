@@ -3,9 +3,10 @@
 Guard `reference.py`'s club/competition candidate scan against two things: that the
 observability refactor (`_eval_club_candidate`/`_eval_comp_candidate`/
 `diagnose_refdata_scan`, added alongside docs/TODO.md item #10) never drifts from what
-`_build_refdata_index` actually accepts, and that the two known bugs it was built to surface
-(the reputation floor, the empty-CODE name-walk abort) keep showing up with a real, non-zero
-count rather than silently going back to zero.
+`_build_refdata_index` actually accepts, and that the two bugs the instrumentation surfaced
+(the reputation floor, the empty-CODE name-walk abort) STAY fixed -- both are now fixed in
+`reference.py` itself (a tier-1 fill for low-reputation competitions, and accepting a
+length-0 short-name/code for name slots 1/2), so this test pins the fix rather than the bug.
 
 The trap this guards against is specific: `_build_refdata_index` and `diagnose_refdata_scan`
 each maintain their OWN acceptance bookkeeping (one dict, one set of counters) even though
@@ -69,34 +70,29 @@ def main():
     ok &= good
     print(f"  {'ok  ' if good else 'FAIL'} diagnosed club accepts ({club_total}) == "
           f"_build_refdata_index clubs ({len(clubs)})")
-    good = diag.comp_accepted == len(comps)
+    comp_total = diag.comp_accepted_tier0 + diag.comp_accepted_tier1
+    good = comp_total == len(comps)
     ok &= good
-    print(f"  {'ok  ' if good else 'FAIL'} diagnosed comp accepts ({diag.comp_accepted}) == "
+    print(f"  {'ok  ' if good else 'FAIL'} diagnosed comp accepts ({comp_total}) == "
           f"_build_refdata_index comps ({len(comps)})")
 
-    # ---- the two known bugs keep showing up, not silently fixed or silently zeroed ----
-    print("\nKNOWN BUGS STILL SURFACE (docs/TODO.md item #10 -- if these hit 0, the bug")
-    print("  was fixed and this assertion should be updated, not deleted)")
+    # ---- the two docs/TODO.md item #10 bugs are FIXED -- pin the fix, not the bug ----
+    print("\nFIXED BUGS STAY FIXED (docs/TODO.md item #10)")
+    # The reputation floor no longer drops a structurally-valid low-reputation competition:
+    # it is admitted at tier 1 instead, so a solo reputation-floor reject should never happen.
     solo_rep = diag.comp_reject_solo_ids[R.COMP_REJECT_REPUTATION_FLOOR]
-    good = solo_rep > 0
+    good = solo_rep == 0
     ok &= good
     print(f"  {'ok  ' if good else 'FAIL'} {solo_rep} cids solo-rejected by the reputation "
-          f"floor (gate < {R._MIN_COMP_REP})")
-    slot3 = diag.comp_reject_ids[R.COMP_REJECT_NAME_WALK_SLOT3_EMPTY]
-    good = slot3 > 0
+          f"floor (gate < {R._MIN_COMP_REP}) -- expected 0, they're tier-1 accepts now")
+    # cid 1342 ("Danish Reserves Group 1", Zac's own motivating example) is the confirmed,
+    # named instance of the empty-CODE bug -- it and every "Reserves Group" competition must
+    # resolve now that a length-0 short-name/code is accepted for slots 1/2.
+    rec_1342 = R.find_comp_record(mm, 1342)
+    good = bool(rec_1342) and rec_1342["name"] == "Danish Reserves Group 1" and rec_1342["code"] == ""
     ok &= good
-    print(f"  {'ok  ' if good else 'FAIL'} {slot3} cids rejected by the empty-CODE "
-          f"name-walk abort")
-    # cid 1342 ("Danish Reserves Group 1") is the confirmed, named instance of the
-    # empty-CODE bug -- if it ever starts resolving, the bug is fixed; if it disappears
-    # from the reject list without resolving, something else broke instead.
-    reject_reasons_1342 = [r for _off, cid, r in diag.comp_rejections if cid == 1342]
-    resolves_1342 = R.find_comp_record(mm, 1342) is not None
-    good = resolves_1342 or any(R.COMP_REJECT_NAME_WALK_SLOT3_EMPTY in r
-                                 for r in reject_reasons_1342)
-    ok &= good
-    print(f"  {'ok  ' if good else 'FAIL'} cid 1342 either resolves now, or is still "
-          f"rejected specifically by the empty-CODE bug (not something else)")
+    print(f"  {'ok  ' if good else 'FAIL'} comp cid=1342 -> {rec_1342['name'] if rec_1342 else None} "
+          f"(expected 'Danish Reserves Group 1' with code=='')")
 
     print("\n" + ("PASS: refdata scan diagnosis matches the real scan and known bugs are "
                   "tracked" if ok else "FAIL: see above"))

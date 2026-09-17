@@ -272,49 +272,24 @@ All three are known gaps, not suspicions:
 - **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate whose
   `name_len` search then fails. It does not bite on the current saves, which is why it survived.
 
-### 10. The competition scraper: a tuned reputation floor, a conflated type flag, and half a record
-Three separate gaps found auditing `reference.py`'s competition scraper 2026-09-17, all still
-open:
+### 10. The competition scraper: a conflated type flag, and half a record
+Found auditing `reference.py`'s competition scraper 2026-09-17. Two of the four original gaps
+are now **fixed** (2026-09-17): the `_MIN_COMP_REP = 500` reputation floor now admits a
+structurally-valid low-reputation competition at tier 1 instead of dropping it (mirroring the
+existing club-uid-ceiling tier-2 fill), recovering all 76 real cids that were failing on
+reputation alone — `Danish Second Division East`/`West`, `Greek Football League North`/`South`,
+the Greek/Northern Irish/Welsh/Polish regional divisions among them (cid 1 `'Replay 2'` stayed
+correctly excluded, since it fails on other gates too, not reputation alone). And the
+reserve-group name-walk now accepts a length-0 short-name/code for slots 1/2, so all 30
+`<Nation> Reserves Group <N>` competitions resolve, including cid 1342 "Danish Reserves Group
+1" (Zac's own motivating example) — `mart.py`'s comment calling it unnamed was wrong; the name
+was always there, just unreachable by the walk. Both fixes are pinned by
+`tests/test_refdata_scan.py` and visible via `uv run python scripts/audit_declared_scans.py`
+(`comp_reputation_below_floor` now has a 0 solo count; `name_walk_aborted_other` no longer
+includes any Reserves Group cid).
 
-- **`_MIN_COMP_REP = 500` silently drops up to 47 real competitions — corrects a wrong example
-  in an earlier version of this entry.** The floor is checked against `gate`
-  (`mm[p+8:p+10]`), NOT the real `reputation` field (`mm[p+9:p+11]`) — `gate` reads one byte
-  early and is roughly `reputation << 8` plus a colour-byte contamination (see
-  `_eval_comp_candidate`'s comment). An earlier pass here compared the wrong field (`rep`
-  against 500 directly) and named the **5 `Spanish Federation Second Group 1-5` divisions**
-  as victims; they are not — their real reputation is 75, which shifts to `gate≈19300`,
-  comfortably clearing the floor, and `find_comp_record` resolves all five today. Redone
-  against the real `gate` check (`fmparser.reference.diagnose_refdata_scan`, the
-  `comp_reject_solo_ids` counter — see below): **47 distinct cids fail `gate < 500` and
-  nothing else**, confirmed including `Danish Second Division East`/`West` (`gate=104`),
-  `Greek Football League North`/`South`, ten `Greek Regional Division` groups, several
-  `Northern Irish`/`Irish` regional divisions, `Welsh Tier 6`, and two `Polish Second
-  Division` groups — a real, structurally valid, named lower-tier league in every case
-  checked. **Not all 47 are signal, though**: cid 1 is `'Replay 2'` at `gate=0`, exactly the
-  round-label-collision noise the floor exists to catch — so treat this as "up to 47", and
-  check each one's name before adding it to a fix, not just its gate value.
-  **Same disease as the club-uid ceiling this file already fixed once** (the comment right
-  above the club scraper describes an identical failure: a hard ceiling silently dropping real
-  low-value records — Erpe-Mere United's actual first team, among others). Fix the same way: a
-  tier-2 fill that only adds a cid nothing else resolves, never displacing an existing name.
-  **Tooling now exists for this**: `uv run python scripts/audit_declared_scans.py` reports
-  the solo-vs-independent split and cross-references against real referenced ids — read its
-  own docstring before re-deriving any of these numbers by hand again.
-- **The reserve-group competitions DO have names in the save — corrects both this file and
-  `mart.py`'s comment, which called cid 1342 unnamed.** Zac spotted "Danish Reserves Group 1" on
-  the in-game Domestic Competitions screen and asked why we'd call it nameless. Traced cid 1342's
-  actual bytes: `[len 23]"Danish Reserves Group 1"[0xff][len 11]"Res Group 1"[0xff][len 0]""`. The
-  record is real and correctly formed, cid and all — but the third name (the short CODE, e.g.
-  "SL" for Superliga) is genuinely EMPTY for an auto-generated group, and the 3-name loop requires
-  every length to be `1..45`. It can't represent a length-0 string, so it aborts on the third
-  field and the whole record is thrown away. **30/30** "`<Nation> Reserves Group <N>`"
-  competitions found in the file hit this exact failure — systemic, not a one-off. Different
-  mechanism from the reputation floor above (this one kills auto-generated groups specifically,
-  regardless of reputation); fix is separate: accept `sl == 0` for the second/third name fields
-  instead of requiring `1..45` for all three. `mart.py`'s "reserve" derivation (a competition
-  every one of whose matches involves a non-managed club of ours) stays useful as a fallback for
-  whichever nations don't follow this naming pattern, but for OUR OWN reserve league it's
-  currently covering for a fixable gap, not a genuine absence.
+Two gaps remain open:
+
 - **`is_competitive` (`competition NOT ILIKE '%friend%'`, in `mart.py`) conflates cup and
   league.** A real, already-decoded type byte exists per competition (`COMP_TYPES`: league/cup/
   reserve_league/friendly, surfaced as `mart.competitions.kind`) and every `comp_id` Frem's own

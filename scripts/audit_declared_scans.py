@@ -67,7 +67,9 @@ def report_refdata(mm):
         print(f"    {c:>8,} ({pct:>5.1f}%)  {diag.club_reject_ids[reason]:>6,} cids  -- {reason}")
 
     print("\nCOMPETITIONS")
-    print(f"  accepted (cid resolved)                   {diag.comp_accepted:>8,}")
+    print(f"  accepted tier0 (primary reputation gate)  {diag.comp_accepted_tier0:>8,}")
+    print(f"  accepted tier1 (reputation-floor fill)    {diag.comp_accepted_tier1:>8,}")
+    print(f"  superseded (valid, lost cid arbitration)  {diag.comp_superseded:>8,}")
     print(f"  already-resolved skips (not a defect)     {diag.comp_already_resolved:>8,}")
     print("  reject reasons -- gates are tested independently, so a candidate failing")
     print("  multiple gates counts against each; SOLO = this was the only gate it failed")

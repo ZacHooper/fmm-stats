@@ -139,13 +139,11 @@ COMP_REJECT_ALREADY_RESOLVED = "cid_already_resolved"          # not a defect --
 COMP_REJECT_LONG_LEN = "long_name_length_out_of_range"
 COMP_REJECT_LONG_UNDECODABLE = "long_name_undecodable"
 COMP_REJECT_LONG_SHAPE = "long_name_shape_invalid"
-COMP_REJECT_NAME_WALK_SLOT3_EMPTY = "name_walk_slot3_empty"    # the empty-CODE bug: a real,
-                                                                 # auto-generated competition
-                                                                 # (e.g. "<Nation> Reserves
-                                                                 # Group <N>") has a genuinely
-                                                                 # empty short code, and the
-                                                                 # walk can't represent a
-                                                                 # zero-length name slot
+# The empty-CODE bug (a real, auto-generated competition like "<Nation> Reserves Group <N>"
+# has a genuinely empty short code) is FIXED 2026-09-17 -- see the name-walk loop below,
+# which now accepts sl==0 for slots 1/2. There used to be a COMP_REJECT_NAME_WALK_SLOT3_EMPTY
+# reason naming it specifically; it's retired rather than kept as dead code that can never
+# fire again. docs/TODO.md #10 has the before/after.
 COMP_REJECT_NAME_WALK_ABORTED = "name_walk_aborted_other"      # any other out-of-range slot
 COMP_REJECT_TRAILER_OOB = "trailer_runs_past_buffer_end"
 COMP_REJECT_TYPE = "comp_type_unrecognised"
@@ -173,6 +171,7 @@ class CompCandidate(NamedTuple):
     accepted: bool
     reasons: list            # empty if accepted; a rejected candidate carries >=1
     cid: int
+    tier: object             # 0 or 1, only if accepted -- see _eval_comp_candidate
     rec: object              # dict, only if accepted
 
 
@@ -286,53 +285,62 @@ def _club_wins(existing_tier, existing_rec, new_tier, new_rec):
     return existing_rec["league"] is None and new_rec["league"] is not None
 
 
-def _eval_comp_candidate(mm, q, nmax, resolved_cids):
-    """The comp gate cascade for the candidate at length-field offset q. `resolved_cids` is
-    checked via `cid in resolved_cids` (a dict or set both work) -- the real scan passes the
-    `comps` dict being built so a later candidate for an already-resolved cid short-circuits
-    exactly like the original first-valid-wins scan; the diagnostic passes its own set.
+def _eval_comp_candidate(mm, q, nmax, resolved_tiers):
+    """The comp gate cascade for the candidate at length-field offset q. `resolved_tiers` is
+    a {cid: tier} map, checked via `resolved_tiers.get(cid) == 0` -- short-circuit ONLY when
+    the best possible tier is already resolved for this cid, so a later tier-0 candidate can
+    still improve on an earlier tier-1 (reputation-floor gap-fill) hit for the same cid. The
+    real scan passes the `comp_tiers` dict it's building; the diagnostic passes its own.
 
-    Structural gates (name decode, name walk, buffer bounds) short-circuit in order, because
-    a later gate is meaningless without the earlier one succeeding -- you cannot test
-    reputation on a trailer that was never located. Once the trailer exists, the four
-    trailer-shape gates are evaluated INDEPENDENTLY (not short-circuited), matching
-    audit_light_results.gate_costs' "cost in isolation" idiom, so a candidate failing both
-    the continent check and the reputation floor is counted against both.
+    Structural gates (name decode, name walk, buffer bounds, type/continent/nation) short-
+    circuit in order, because a later gate is meaningless without the earlier one succeeding
+    -- you cannot test reputation on a trailer that was never located. Once a candidate
+    clears every structural gate, reputation decides the TIER (see below) rather than
+    accept/reject -- the four trailer-shape gates used to be evaluated fully independently,
+    matching audit_light_results.gate_costs' "cost in isolation" idiom, but that only still
+    applies to the three genuinely structural ones now that reputation has its own tier.
     """
     cid = int.from_bytes(mm[q - 6:q - 4], "little")
-    if cid in resolved_cids:
-        return CompCandidate(False, [COMP_REJECT_ALREADY_RESOLVED], cid, None)
+    if resolved_tiers.get(cid) == 0:
+        return CompCandidate(False, [COMP_REJECT_ALREADY_RESOLVED], cid, None, None)
 
     uid = int.from_bytes(mm[q - 4:q], "little")
     ln = int.from_bytes(mm[q:q + 4], "little")
     if not (3 <= ln <= 45):
-        return CompCandidate(False, [COMP_REJECT_LONG_LEN], cid, None)
+        return CompCandidate(False, [COMP_REJECT_LONG_LEN], cid, None, None)
     try:
         long = mm[q + 4:q + 4 + ln].decode("utf-8")
     except UnicodeDecodeError:
-        return CompCandidate(False, [COMP_REJECT_LONG_UNDECODABLE], cid, None)
+        return CompCandidate(False, [COMP_REJECT_LONG_UNDECODABLE], cid, None, None)
     # league names can start with a digit ('3. Division', '2. Bundesliga')
     if not (long and (long[0].isupper() or long[0].isdigit())
             and sum(c.isalpha() for c in long) >= 3):
-        return CompCandidate(False, [COMP_REJECT_LONG_SHAPE], cid, None)
+        return CompCandidate(False, [COMP_REJECT_LONG_SHAPE], cid, None, None)
 
     p, names = q, []
     for slot in range(3):
         sl = int.from_bytes(mm[p:p + 4], "little")
-        if not (1 <= sl <= 45):
+        # A length of 0 is a VALID empty short-name/code for slots 1/2 (an auto-generated
+        # competition like "<Nation> Reserves Group <N>" genuinely has no code) -- fixed
+        # 2026-09-17, see docs/TODO.md #10. Slot 0 (the long name) can never be empty; it's
+        # already been decoded and shape-checked above before this loop even starts.
+        ok_len = (1 <= sl <= 45) or (slot > 0 and sl == 0)
+        if not ok_len:
             p += 1
             sl = int.from_bytes(mm[p:p + 4], "little")
-        if not (1 <= sl <= 45) or p + 4 + sl > nmax:
-            reason = (COMP_REJECT_NAME_WALK_SLOT3_EMPTY if slot == 2 and sl == 0
-                      else COMP_REJECT_NAME_WALK_ABORTED)
-            return CompCandidate(False, [reason], cid, None)
-        try:
-            names.append(mm[p + 4:p + 4 + sl].decode("utf-8"))
-        except UnicodeDecodeError:
-            names.append(None)
+            ok_len = (1 <= sl <= 45) or (slot > 0 and sl == 0)
+        if not ok_len or p + 4 + sl > nmax:
+            return CompCandidate(False, [COMP_REJECT_NAME_WALK_ABORTED], cid, None, None)
+        if sl == 0:
+            names.append("")
+        else:
+            try:
+                names.append(mm[p + 4:p + 4 + sl].decode("utf-8"))
+            except UnicodeDecodeError:
+                names.append(None)
         p = p + 4 + sl
     if p + 14 > nmax:
-        return CompCandidate(False, [COMP_REJECT_TRAILER_OOB], cid, None)
+        return CompCandidate(False, [COMP_REJECT_TRAILER_OOB], cid, None, None)
 
     typ, nation = mm[p], mm[p + 3]
     # `gate` is the ORIGINAL reputation expression. It is NOT the reputation (see below) —
@@ -357,17 +365,33 @@ def _eval_comp_candidate(mm, q, nmax, resolved_cids):
     # NOTE: that `[02][00]` is not a magic signature, it is ContinentId == 2 (Europe). It
     # works because this save loads only European competitions, so treat it as a continent
     # filter — it will not generalise if a non-European league is ever loaded.
-    reasons = []
+    # STRUCTURAL gates (type/continent/nation) and the reputation floor are split apart on
+    # purpose. Fixed 2026-09-17 (docs/TODO.md #10): a candidate that clears all three
+    # structural gates and fails ONLY on reputation is a real, low-prestige competition, not
+    # garbage -- Danish Second Division East (gate=104), Greek Football League North, several
+    # Northern Irish/Welsh/Polish regional divisions, all confirmed by name. TIER 0 is the
+    # original combined gate; TIER 1 is a strictly gap-filling second tier admitting a
+    # candidate ONLY when every structural gate passed and reputation alone didn't -- same
+    # shape as the club uid-ceiling fix above (tier 1 never displaces tier 0, never admits a
+    # candidate that failed a structural gate). `gate` is the ORIGINAL reputation expression,
+    # kept verbatim rather than switched to the real `rep` field below, so this fix touches
+    # only the previously-hopeless population and cannot change which cid a tier-0 candidate
+    # already resolves to.
+    structural_reasons = []
     if typ not in _COMP_VALID_TYPES:
-        reasons.append(COMP_REJECT_TYPE)
+        structural_reasons.append(COMP_REJECT_TYPE)
     if not ((mm[p + 1] == 2 and mm[p + 2] == 0) or typ == 9):
-        reasons.append(COMP_REJECT_CONTINENT_SIG)
+        structural_reasons.append(COMP_REJECT_CONTINENT_SIG)
     if not ((1 <= nation <= 250) or nation == 255):
-        reasons.append(COMP_REJECT_NATION_RANGE)
-    if gate < _MIN_COMP_REP:
-        reasons.append(COMP_REJECT_REPUTATION_FLOOR)
-    if reasons:
-        return CompCandidate(False, reasons, cid, None)
+        structural_reasons.append(COMP_REJECT_NATION_RANGE)
+    low_reputation = gate < _MIN_COMP_REP
+    if structural_reasons:
+        # A candidate that fails a structural gate is hopeless regardless of reputation, but
+        # low_reputation is still tallied here (comp_reject_candidates/ids) for the
+        # "independent gate cost" picture -- never comp_reject_solo, since it isn't alone.
+        if low_reputation:
+            structural_reasons.append(COMP_REJECT_REPUTATION_FLOOR)
+        return CompCandidate(False, structural_reasons, cid, None, None)
 
     rec = {"cid": cid, "uid": uid, "name": names[0], "short": names[1], "code": names[2],
            "type": COMP_TYPES.get(typ, f"type_{typ}"), "type_id": typ,
@@ -377,7 +401,7 @@ def _eval_comp_candidate(mm, q, nmax, resolved_cids):
            # here (100/112) — filter on type before use.
            "level": level,
            "parent_cid": None if parent == 0xFFFF else parent}
-    return CompCandidate(True, [], cid, rec)
+    return CompCandidate(True, [], cid, 1 if low_reputation else 0, rec)
 
 
 def _build_refdata_index(mm):
@@ -389,6 +413,7 @@ def _build_refdata_index(mm):
 
     clubs, comps = {}, {}
     tiers = {}                  # tid -> which gate admitted the stored record (0 beats 1)
+    comp_tiers = {}             # cid -> which gate admitted the stored record (0 beats 1)
     for off in cand.tolist():
         q = off + lo             # absolute offset of the length field
 
@@ -399,9 +424,13 @@ def _build_refdata_index(mm):
                 clubs[cc.tid] = cc.rec
                 tiers[cc.tid] = cc.tier
 
-        comp_cc = _eval_comp_candidate(mm, q, nmax, comps)
+        comp_cc = _eval_comp_candidate(mm, q, nmax, comp_tiers)
         if comp_cc.accepted:
-            comps[comp_cc.cid] = comp_cc.rec
+            # prefer the lower tier; within a tier, first valid copy wins (unchanged from
+            # before this cid ever had a tier concept)
+            if comp_cc.cid not in comp_tiers or comp_cc.tier < comp_tiers[comp_cc.cid]:
+                comps[comp_cc.cid] = comp_cc.rec
+                comp_tiers[comp_cc.cid] = comp_cc.tier
 
     result = (clubs, comps)
     _REFDATA_INDEX_CACHE[key] = result
@@ -418,26 +447,32 @@ class RefdataDiagnosis(NamedTuple):
     club_reject_candidates: object   # Counter: reason -> candidate occurrences
     club_reject_ids: object          # Counter: reason -> DISTINCT tids ever rejected for it
     club_rejections: list            # [(offset, tid, reason), ...]
-    comp_accepted: int                # cids resolved (first-valid-wins winners)
+    comp_accepted_tier0: int         # cids WON at tier 0 (all 4 gates passed)
+    comp_accepted_tier1: int         # cids WON at tier 1 (structural gates passed, low
+                                       # reputation -- the reputation-floor fix, 2026-09-17)
+    comp_superseded: int             # structurally valid, but an earlier/better candidate
+                                       # for the same cid already won
     comp_already_resolved: int        # cid-collision skips -- not a defect signal
-    comp_reject_candidates: object    # Counter: reason -> candidate occurrences. The comp
-                                       # branch's 4 trailer gates are counted INDEPENDENTLY
-                                       # (a candidate failing 3 gates at once counts against
-                                       # all 3), so this measures "total exposure to this
-                                       # gate" across every rejected candidate, INCLUDING
-                                       # ones that were never going to resolve regardless --
-                                       # it is NOT "how many real comps would this gate
-                                       # alone recover". Use comp_reject_solo_ids for that.
+    comp_reject_candidates: object    # Counter: reason -> candidate occurrences. The three
+                                       # STRUCTURAL gates (type/continent/nation) are counted
+                                       # INDEPENDENTLY (a candidate failing 2 at once counts
+                                       # against both); COMP_REJECT_REPUTATION_FLOOR only
+                                       # appears here for a candidate that ALSO failed a
+                                       # structural gate -- a low-reputation candidate that
+                                       # passes everything else is ACCEPTED at tier 1, not
+                                       # rejected, so it never reaches this Counter at all.
     comp_reject_ids: object           # Counter: reason -> DISTINCT cids ever rejected for it
                                        # (same caveat as comp_reject_candidates)
     comp_reject_solo_candidates: object   # Counter: reason -> candidate occurrences whose
                                        # ONLY failed gate is this one -- a candidate here
-                                       # passed every other trailer gate and would resolve
-                                       # today if just this one were relaxed. THIS is the
-                                       # actionable number (e.g. the reputation floor: 9,410
-                                       # candidates fail it independently, but only 47 fail
-                                       # it ALONE -- the other 9,363 are hopeless regardless
-                                       # of the floor and fixing it wouldn't recover them).
+                                       # passed every other structural gate and would resolve
+                                       # today if just this one were relaxed. For the three
+                                       # structural gates, this is still the actionable
+                                       # number; COMP_REJECT_REPUTATION_FLOOR will read 0
+                                       # here now that reputation-only failures are tier-1
+                                       # ACCEPTS rather than rejects (kept as a live check
+                                       # that the fix didn't regress -- see
+                                       # tests/test_refdata_scan.py).
     comp_reject_solo_ids: object      # Counter: reason -> DISTINCT cids, solo-failure basis
     comp_rejections: list             # [(offset, cid, reasons), ...]
 
@@ -461,21 +496,23 @@ def diagnose_refdata_scan(mm):
     _candidate_positions' note.
 
     Reject counts alone are not proof of a real gap, in TWO separate ways this function was
-    caught making before shipping:
+    caught making before shipping -- both now fixed (2026-09-17, docs/TODO.md #10), kept as
+    HISTORICAL examples of the caution because the same traps apply to whatever gate is next:
       1. `comp_reject_candidates`/`comp_reject_ids` count a candidate against EVERY gate it
-         fails, independently. On frem-2026-06-11.fms, COMP_REJECT_REPUTATION_FLOOR shows
-         9,410 candidates / 1,031 distinct cids that way -- but `comp_reject_solo_ids` (the
-         same reason, counted only when it's the SOLE failure) shows 47. The other 984 cids
-         also fail type/continent/nation and would never resolve regardless of the
-         reputation floor; fixing the floor can only ever recover the 47. Use the `solo`
-         Counters for "how many real records would this specific fix recover", and the
-         non-solo ones only for "how much noise touches this gate at all".
-      2. Even a solo/isolated reject count isn't proof of NEED: on this save,
-         COMP_REJECT_NAME_WALK_SLOT3_EMPTY hits 164 distinct cids (solo, since a name-walk
-         abort short-circuits before any other gate runs) but only ~30 are genuine
-         "<Nation> Reserves Group <N>" competitions -- the other ~134 are coincidental
-         non-records that happen to share the same failure shape. Cross-referencing
-         rejected ids against ids something else in the save actually REFERENCES (a match's
+         fails, independently. Before the reputation floor got its own tier,
+         COMP_REJECT_REPUTATION_FLOOR showed 9,410 candidates / 1,031 distinct cids that way
+         -- but the SOLO count (the same reason, counted only when it was the sole failure)
+         showed 47. The other 984 cids also failed type/continent/nation and would never
+         have resolved regardless of the floor; a fix could only ever recover the 47 (which
+         is exactly why the fix is a TIER, not a relaxed threshold -- see
+         _eval_comp_candidate). Use the `solo` Counters for "how many real records would
+         this specific fix recover", non-solo only for "how much noise touches this gate".
+      2. Even a solo/isolated reject count isn't proof of NEED. Before the empty-CODE bug
+         was fixed, its reason hit 164 distinct cids (solo, since a name-walk abort
+         short-circuited before any other gate ran) but only ~30 were genuine
+         "<Nation> Reserves Group <N>" competitions -- the other ~134 were coincidental
+         non-records sharing the same failure shape. Cross-referencing rejected ids against
+         ids something else in the save actually REFERENCES (a match's
          comp_id/home_tid/away_tid, a player's club_tid) is what separates a real gap from
          noise -- see scripts/audit_declared_scans.py.
     """
@@ -487,9 +524,10 @@ def diagnose_refdata_scan(mm):
     comp_reject_solo_id_sets = collections.defaultdict(set)
     club_rejections, comp_rejections = [], []
     club_accepted_tier0 = club_accepted_tier1 = club_superseded = 0
-    comp_accepted = comp_already_resolved = 0
+    comp_accepted_tier0 = comp_accepted_tier1 = comp_superseded = 0
+    comp_already_resolved = 0
     clubs_seen, tiers_seen = {}, {}
-    resolved_cids = set()
+    comp_tiers_seen = {}
 
     for off in cand.tolist():
         q = off + lo
@@ -497,7 +535,14 @@ def diagnose_refdata_scan(mm):
         cc = _eval_club_candidate(mm, q)
         if cc.accepted:
             existing = clubs_seen.get(cc.tid)
-            if _club_wins(tiers_seen.get(cc.tid), existing, cc.tier, cc.rec):
+            prior_tier = tiers_seen.get(cc.tid)
+            if _club_wins(prior_tier, existing, cc.tier, cc.rec):
+                # A cid/tid can win TWICE across this scan -- first at tier 1, later
+                # upgraded by a tier-0 candidate. Counting both wins as separate accepts
+                # double-counts that one tid; undo the earlier tier's count on an upgrade
+                # so each tid is counted exactly once, in its FINAL tier.
+                if prior_tier == 1:
+                    club_accepted_tier1 -= 1
                 clubs_seen[cc.tid] = cc.rec
                 tiers_seen[cc.tid] = cc.tier
                 if cc.tier == 0:
@@ -511,10 +556,21 @@ def diagnose_refdata_scan(mm):
             club_reject_id_sets[cc.reason].add(cc.tid)
             club_rejections.append((q, cc.tid, cc.reason))
 
-        comp_cc = _eval_comp_candidate(mm, q, nmax, resolved_cids)
+        comp_cc = _eval_comp_candidate(mm, q, nmax, comp_tiers_seen)
         if comp_cc.accepted:
-            resolved_cids.add(comp_cc.cid)
-            comp_accepted += 1
+            prior_comp_tier = comp_tiers_seen.get(comp_cc.cid)
+            if prior_comp_tier is None or comp_cc.tier < prior_comp_tier:
+                # same double-counting trap as the club branch above: undo the earlier
+                # tier's count on an upgrade so each cid is counted exactly once
+                if prior_comp_tier == 1:
+                    comp_accepted_tier1 -= 1
+                comp_tiers_seen[comp_cc.cid] = comp_cc.tier
+                if comp_cc.tier == 0:
+                    comp_accepted_tier0 += 1
+                else:
+                    comp_accepted_tier1 += 1
+            else:
+                comp_superseded += 1
         elif comp_cc.reasons == [COMP_REJECT_ALREADY_RESOLVED]:
             comp_already_resolved += 1
         else:
@@ -534,7 +590,8 @@ def diagnose_refdata_scan(mm):
 
     return RefdataDiagnosis(hi - lo, len(cand), club_accepted_tier0, club_accepted_tier1,
                              club_superseded, club_reject_candidates, club_reject_ids,
-                             club_rejections, comp_accepted, comp_already_resolved,
+                             club_rejections, comp_accepted_tier0, comp_accepted_tier1,
+                             comp_superseded, comp_already_resolved,
                              comp_reject_candidates, comp_reject_ids,
                              comp_reject_solo_candidates, comp_reject_solo_ids,
                              comp_rejections)

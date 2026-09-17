@@ -489,7 +489,9 @@ FROM ev LEFT JOIN nm
 # `kind` is the useful column: league / cup / friendly from the save's own type, and RESERVE
 # derived structurally -- a competition every one of whose matches involves a club of ours
 # that is not the managed club. Frem's cid 1342 carries 60 fixtures, the second-biggest
-# competition in the store, and has no name anywhere in the save; all 60 involve the reserve
+# competition in the store, and IS named in the save ("Danish Reserves Group 1") -- it just
+# used to be unreachable, because its short CODE is a genuine empty string and the name-walk
+# aborted on that until reference.py's 2026-09-17 fix. All 60 fixtures involve the reserve
 # side (7296) and 7296 appears in nothing else. The rule is written against our_clubs rather
 # than the literal 1342 so it holds for any career.
 COMPETITIONS = """
