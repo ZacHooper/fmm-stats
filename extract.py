@@ -538,7 +538,7 @@ def main():
     # one, and fmparser/clubrecords.py's docstring has the identification against in-game
     # screenshots. Stored because it is real, verified data we can name; nothing consumes it
     # yet, and NOTHING should build a fixture list from it.
-    recs = CRE.build(mm, valid_clubs)
+    recs = CRE.build(mm, valid_clubs, valid_players=set(info))
     dump("club_records.json", recs["team_records"], indent=None)
     dump("player_records.json", recs["player_records"], indent=None)
     # Stadiums + cities: capacity and real lat/long. Reference data, so it repeats per

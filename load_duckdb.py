@@ -316,8 +316,9 @@ DDL = [
     # natural key: (season, phase, byte_offset)
     """CREATE TABLE IF NOT EXISTS staging.club_records (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
-        byte_offset BIGINT NOT NULL, club_tid INTEGER NOT NULL, opponent_tid INTEGER,
-        score_for INTEGER, score_against INTEGER,
+        byte_offset BIGINT NOT NULL, club_tid INTEGER NOT NULL,
+        slot INTEGER, category VARCHAR, kind VARCHAR,
+        opponent_tid INTEGER, score_for INTEGER, score_against INTEGER,
         value DOUBLE, comp_cid INTEGER, record_season INTEGER, day INTEGER,
         unk10 INTEGER, unk12 INTEGER, unk14 INTEGER
     )""",
@@ -330,8 +331,9 @@ DDL = [
     """CREATE TABLE IF NOT EXISTS staging.player_records (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         byte_offset BIGINT NOT NULL, club_tid INTEGER, club_distance INTEGER,
+        slot INTEGER, category VARCHAR, unit VARCHAR, player_tid INTEGER,
         value DOUBLE, record_season INTEGER,
-        unk0 BIGINT, unk8 BIGINT, unk12 BIGINT
+        unk8 BIGINT, unk12 BIGINT, unk16 BIGINT
     )""",
 
     # The club record's trailer (fmparser.reference.parse_club_trailer). Facts the club
@@ -1140,6 +1142,7 @@ def load_core(con, d, season, phase):
     cr_path = os.path.join(d, "club_records.json")
     if os.path.exists(cr_path):
         rows = [(season, phase, _int(v.get("offset")), _int(v.get("club_tid")),
+                 _int(v.get("slot")), v.get("category"), v.get("kind"),
                  _int(v.get("opponent_tid")), _int(v.get("score_for")),
                  _int(v.get("score_against")), v.get("value"), _int(v.get("comp_cid")),
                  _int(v.get("season")), _int(v.get("day")), _int(v.get("unk10")),
@@ -1147,20 +1150,23 @@ def load_core(con, d, season, phase):
                 for v in _load_json(cr_path)]
         counts["club_records"] = _insert(
             con, "club_records",
-            ["season", "phase", "byte_offset", "club_tid", "opponent_tid", "score_for",
-             "score_against", "value", "comp_cid", "record_season", "day",
-             "unk10", "unk12", "unk14"], rows)
+            ["season", "phase", "byte_offset", "club_tid", "slot", "category", "kind",
+             "opponent_tid", "score_for", "score_against", "value", "comp_cid",
+             "record_season", "day", "unk10", "unk12", "unk14"], rows)
     pr_path = os.path.join(d, "player_records.json")
     if os.path.exists(pr_path):
         rows = [(season, phase, _int(v.get("offset")), _int(v.get("club_tid")),
-                 _int(v.get("club_distance")), v.get("value"), _int(v.get("season")),
-                 _int(v.get("unk0")), _int(v.get("unk8")), _int(v.get("unk12")))
+                 _int(v.get("club_distance")), _int(v.get("slot")), v.get("category"),
+                 v.get("unit"), _int(v.get("player_tid")), v.get("value"),
+                 _int(v.get("season")), _int(v.get("unk8")), _int(v.get("unk12")),
+                 _int(v.get("unk16")))
                 for v in _load_json(pr_path)]
         counts["player_records"] = _insert(
             con, "player_records",
-            ["season", "phase", "byte_offset", "club_tid", "club_distance", "value",
-             "record_season", "unk0", "unk8", "unk12"], rows,
-            dtypes={"unk0": "int64", "unk8": "int64", "unk12": "int64"})
+            ["season", "phase", "byte_offset", "club_tid", "club_distance", "slot",
+             "category", "unit", "player_tid", "value", "record_season",
+             "unk8", "unk12", "unk16"], rows,
+            dtypes={"unk8": "int64", "unk12": "int64", "unk16": "int64"})
 
     # --- stadiums + cities ----------------------------------------------------
     sd_path = os.path.join(d, "stadiums.json")

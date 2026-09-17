@@ -1,4 +1,29 @@
-# Master Schedule Array: Parsing Plan
+---
+name: master-schedule-plan
+description: "SUPERSEDED — the 55MB 'master schedule' is regions.MATCH_LO, our own club's matches, already parsed"
+metadata:
+  node_type: memory
+  type: reference
+---
+
+# SUPERSEDED 2026-09-17
+
+Two claims below are wrong and cost a later session real time:
+
+1. **The "massive relational memory block spanning 55MB to 58.5MB" is `regions.MATCH_LO`** —
+   the rich match region `fmparser/matches.py` already parses. Verified: of all genuine
+   `[home][away][day][year]` records in 55-59 MB, **35 of 35 involve Frem or its reserves**.
+   There is no global schedule there. "Found exactly 22 unique match-ups for Frem" was our
+   own matches, mistaken for a world fixture table.
+2. **The `d3 00 02 08` fixture pointer is not a file offset** — as a u32 it is `0x080200d3`
+   = 134 MB, on a 64 MB file. The "Data Dictionary Hop (~34MB)" is not the datadict either:
+   the tagged region sits at **16.7-20.3 MB** on this save.
+
+Kept for the method (ground-truth anchoring, diffing start/mid/end saves), not the target.
+
+---
+
+
 
 **Date:** August 2026
 

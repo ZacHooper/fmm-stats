@@ -393,7 +393,17 @@ are structural, not value-based:
 3. Ground truth is no longer the bottleneck (round 3 shows real managers give near-unlimited,
    screenshot-free ground truth) — the bottleneck is a candidate *location* to test it against.
 
-## 12c. LIGHT results (simulated non-managed games) — SOLVED ✅
+## 12c. LIGHT results — MISIDENTIFIED; it is the CLUB RECORDS table ⚠️
+
+> **2026-09-17.** The record layout below decodes correctly, but the region is NOT a list of
+> simulated results. It is the per-club **Club History** tables — Team Records and Player
+> Records — now parsed by `fmparser/clubrecords.py` and verified slot-for-slot against in-game
+> screenshots. A club has ~12 rows because there are ~12 record CATEGORIES; the ">=2 copies"
+> below is the two-slot pattern ("Highest scoring match" / "Highest scoring LEAGUE match");
+> and the "computed standings" are computed from record-holding matches, which is why they
+> show 5-13 games played. The club->league MEMBERSHIP use is still sound. See
+> [`docs/light-results-record.md`](light-results-record.md). Everything below is kept as the
+> decode history.
 
 Only the MANAGED club's games get detailed per-player records (BUGS #12b). Every OTHER
 loaded game (incl. Turkish Super League) stores a LIGHT result: just teams, score,

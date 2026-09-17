@@ -115,7 +115,8 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **[`docs/ca-weighting.md`](docs/ca-weighting.md)** — how the save hands us each of the 23 displayed attributes (direct byte / plain-byte composite / CA-modelled), **FM's per-position CA weight tables** recovered from 155k snapshots, and the **94.8% label ceiling** every attribute-accuracy figure is measured against. Read before quoting an accuracy number or reasoning about what the game rewards in a position.
 - **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
 - **[`docs/record-expansion.md`](docs/record-expansion.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
-- **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options**, **light-results-rolling-buffer**, **master-schedule-plan** — specific findings; read when relevant.
+- **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options** — specific findings; read when relevant.
+- **light-results-rolling-buffer**, **master-schedule-plan** — both **SUPERSEDED 2026-09-17**. The ~47 MB region is the per-club **Club History record tables** (`fmparser/clubrecords.py`, verified against in-game screenshots), NOT a list of simulated results, and nothing is deleted by a ring buffer. 55–58 MB is `regions.MATCH_LO`, our own matches. Read [`docs/light-results-record.md`](docs/light-results-record.md) before doing anything with either.
 
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
 

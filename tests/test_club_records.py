@@ -37,6 +37,34 @@ TEAM_RECORDS = [
     (473, 0, 5, 280, -5.0, "Biggest defeat overall, 0-5 v Man City 8/10/2022"),
 ]
 
+# The Team Records - 2025/26 Season screen, slot by slot. The slot index IS the category, so
+# this asserts the ORDER as much as the values -- and the order is the only thing that makes
+# a row interpretable, since no category id is stored.
+TEAM_BLOCK_2025 = [
+    ("highest_league_position", 5.0), ("lowest_league_position", 16.0),
+    ("highest_scoring_match", 9.0), ("highest_scoring_league_match", 9.0),
+    ("biggest_win", 4.0), ("biggest_league_win", 4.0),
+    ("biggest_defeat", -5.0), ("biggest_league_defeat", -5.0),
+    ("most_consecutive_wins", 2.0), ("most_games_without_defeat", 4.0),
+    ("most_games_without_win", 5.0), ("most_consecutive_defeats", 3.0),
+]
+
+# Player Records - Overall, slot by slot, with the player the game names.
+PLAYER_BLOCK = [
+    ("most_goals_in_a_season", 17.0, "Lino"),
+    ("most_league_goals_in_a_season", 16.0, "Lino"),
+    ("most_assists_in_a_season", 12.0, "Aribo"),
+    ("highest_average_rating_in_a_season", 7.37, "Sterling"),
+    ("most_player_of_match_in_a_season", 7.0, "Woodman"),
+    ("most_bookings_in_a_season", 16.0, "Ward-Prowse"),
+    ("most_red_cards_in_a_season", 1.0, "Broja"),
+    ("most_appearances_in_a_season", 44.0, "Bednarek"),
+    ("youngest_player", 6182.0, "Woodman"),
+    ("oldest_player", 13212.0, "Forster"),
+    ("highest_transfer_fee_paid", 31156734.0, "Nygren"),
+    ("highest_transfer_fee_received", 44958444.0, "Livramento"),
+]
+
 # Player Records - Overall. The last two are ages expressed in DAYS: 16y338d and 36y63d come
 # out as years*365.25 + days, exactly, which is what identified the table in the first place.
 PLAYER_VALUES = [
@@ -84,6 +112,8 @@ def main():
     # are its real 2025/26 streaks, not anything to do with that scoreline.
     by_fixture = defaultdict(set)
     for r in team:
+        if r["kind"] != "match" or r["score_for"] is None:
+            continue          # table/streak rows have no fixture; the parser nulls them out
         total = r["score_for"] + r["score_against"]
         gd = r["score_for"] - r["score_against"]
         if abs(r["value"] - total) < 1e-6 or abs(r["value"] - gd) < 1e-6:
@@ -95,6 +125,52 @@ def main():
           f"{len(disagree)} disagree across copies")
     for k, v in list(disagree.items())[:3]:
         print(f"        opp={k[0]} {k[1]}-{k[2]} day={k[3]} -> values {sorted(v)}")
+
+    print("\nCATEGORY ORDER — Team Records, 2025/26 block (slot index == category):")
+    blocks = defaultdict(list)
+    for r in team:
+        blocks[r["offset"] - r["slot"] * 21].append(r)
+    target = None
+    for base, rows in blocks.items():
+        bw = [x for x in rows if x["category"] == "biggest_win"]
+        if bw and bw[0]["day"] == 227:
+            target = sorted(rows, key=lambda r: r["slot"])
+            break
+    if target is None:
+        ok = False
+        print("  FAIL could not find the 2025/26 block (biggest_win on day 227)")
+    else:
+        for (cat, val), row in zip(TEAM_BLOCK_2025, target):
+            good = row["category"] == cat and abs(row["value"] - val) < 1e-6
+            ok &= good
+            print(f"  {'ok  ' if good else 'FAIL'} slot {row['slot']+1:>2} {cat:<30} "
+                  f"{row['value']:>7.2f} (expected {val})")
+
+    print("\nPLAYER RECORDS — Overall block, slot / value / player:")
+    from fmparser import reference as R
+    pblocks = defaultdict(list)
+    for r in player:
+        pblocks[r["offset"] - r["slot"] * 22].append(r)
+    pt = None
+    for base, rows in pblocks.items():
+        if any(abs(x["value"] - 44958444.0) < 1 for x in rows) and \
+           any(x["season"] == 2025 for x in rows):
+            pt = sorted(rows, key=lambda r: r["slot"])
+            break
+    if pt is None:
+        ok = False
+        print("  FAIL could not find the Overall player block")
+    else:
+        R.build_name_resolver(mm)
+        for (cat, val, who), row in zip(PLAYER_BLOCK, pt):
+            p = info.get(row["player_tid"])
+            nm = R.resolve_name(mm, p["first_name_id"], p["last_name_id"]) if p else ""
+            good = (row["category"] == cat
+                    and abs(row["value"] - val) < max(0.005, abs(val) * 1e-6)
+                    and who.lower() in str(nm).lower())
+            ok &= good
+            print(f"  {'ok  ' if good else 'FAIL'} slot {row['slot']+1:>2} {cat:<34} "
+                  f"{row['value']:>14,.2f}  {nm} (expected {who})")
 
     print("\nPLAYER RECORDS vs the game:")
     have = [r["value"] for r in player]

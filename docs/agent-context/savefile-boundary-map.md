@@ -67,7 +67,7 @@ detector must. Both are now in `mapregions.sub_regions(mm)` and print under the 
   (`DELIM_UNIT`), self-located by testing each cluster for a valid match header (date+two clubs).
   Frem ~53.7M, Buca ~56.4M. Fixed the `MATCH_LO=55M` drift (Frem's are BELOW that floor). See
   [[denmark-region-drift]].
-- **light_results** (`lightresults.find_light_region`): whole-world simulated fixtures
+- **light_results** (`lightresults.find_light_region`): NOT fixtures — the per-club **Club History record tables** (`fmparser/clubrecords.py`, identified 2026-09-17)
   (`[home u16][away u16][score]..[flag 0x40/0xc0 @+9][cid @+10][year 07E4/5/6 @+12]`), self-located
   as the densest cluster of that signature. Frem ~45.2-46.3M, Buca ~47.6-48.9M. Fixed the
   `LIGHT_LO/HI=47-50.5M` drift.

@@ -5,8 +5,9 @@
 - [ETL: DuckDB + dashboard](etl-duckdb-dashboard.md) — load_duckdb.py→fm.duckdb (staging schema), role_weights ratings, Streamlit dashboard, fmq CLI
 - [Seyhun attr investigation](seyhun-attr-investigation.md) — FIXED: attr_record reads freshest snapshot copy + player value; snapshot byte-map in docs/ATTRIBUTE_DECODING.md §7
 - [Loan status unreliable](loan-status-unreliable.md) — ignore loaned_out/squad_status for selection; rank by minutes instead
-- [Light results rolling buffer](light-results-rolling-buffer.md) — Why end-of-season saves lack early fixtures (the 1.2MB rolling window) and how we map multiple fragmented fixture arrays to extract all of them.
-- [Master schedule parsing plan](master-schedule-plan.md) — The strategy to bypass the rolling buffer by reverse-engineering the relational UI schedule array (55MB-58MB) using pointer hops.
+- [Club records decoded](../light-results-record.md) — the ~47MB region is the **Club History** tables (Team + Player Records), slot index = category, verified against screenshots; `fmparser/clubrecords.py`, `staging.club_records` / `staging.player_records`.
+- [Light results rolling buffer](light-results-rolling-buffer.md) — **SUPERSEDED**: the region is the CLUB RECORDS tables, not results; nothing is deleted. See [`docs/light-results-record.md`](../light-results-record.md) + `fmparser/clubrecords.py`.
+- [Master schedule parsing plan](master-schedule-plan.md) — **SUPERSEDED**: 55-58MB is `regions.MATCH_LO`, our own club's matches, already parsed; the 'fixture pointer' is not a file offset.
 - [FMM tactic options](fmm-tactic-options.md) — FMM22 mobile role lists + team-instruction menu; no player instructions. Use when giving tactical advice
 - [Day-1 league membership SOLVED](day1-league-membership.md) — club→league at club-record +158 (`[code][ff ff]`); 3.Div=1147; club DB is multi-segment
 - [Save-file boundary map TODO](savefile-boundary-map.md) — map regions by filler/signatures so bounds are derived not guessed
