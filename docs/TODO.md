@@ -276,15 +276,30 @@ All three are known gaps, not suspicions:
 Three separate gaps found auditing `reference.py`'s competition scraper 2026-09-17, all still
 open:
 
-- **`_MIN_COMP_REP = 500` silently drops 46 real competitions.** Re-ran the scan without the
-  acceptance filter: 46 cids have a fully valid record (right type byte, right continent/nation
-  signature) but fail ONLY because their reputation is 0 or 1, genuinely — not garbage. Includes
-  `Danish Second Division East`/`West` and the 5 `Spanish Federation Second Group 1-5` divisions,
-  which are exactly the `league_cid`s that came back unresolved in the matchslots 275-fixture
-  audit. **Same disease as the club-uid ceiling this file already fixed once** (the comment right
+- **`_MIN_COMP_REP = 500` silently drops up to 47 real competitions — corrects a wrong example
+  in an earlier version of this entry.** The floor is checked against `gate`
+  (`mm[p+8:p+10]`), NOT the real `reputation` field (`mm[p+9:p+11]`) — `gate` reads one byte
+  early and is roughly `reputation << 8` plus a colour-byte contamination (see
+  `_eval_comp_candidate`'s comment). An earlier pass here compared the wrong field (`rep`
+  against 500 directly) and named the **5 `Spanish Federation Second Group 1-5` divisions**
+  as victims; they are not — their real reputation is 75, which shifts to `gate≈19300`,
+  comfortably clearing the floor, and `find_comp_record` resolves all five today. Redone
+  against the real `gate` check (`fmparser.reference.diagnose_refdata_scan`, the
+  `comp_reject_solo_ids` counter — see below): **47 distinct cids fail `gate < 500` and
+  nothing else**, confirmed including `Danish Second Division East`/`West` (`gate=104`),
+  `Greek Football League North`/`South`, ten `Greek Regional Division` groups, several
+  `Northern Irish`/`Irish` regional divisions, `Welsh Tier 6`, and two `Polish Second
+  Division` groups — a real, structurally valid, named lower-tier league in every case
+  checked. **Not all 47 are signal, though**: cid 1 is `'Replay 2'` at `gate=0`, exactly the
+  round-label-collision noise the floor exists to catch — so treat this as "up to 47", and
+  check each one's name before adding it to a fix, not just its gate value.
+  **Same disease as the club-uid ceiling this file already fixed once** (the comment right
   above the club scraper describes an identical failure: a hard ceiling silently dropping real
   low-value records — Erpe-Mere United's actual first team, among others). Fix the same way: a
   tier-2 fill that only adds a cid nothing else resolves, never displacing an existing name.
+  **Tooling now exists for this**: `uv run python scripts/audit_declared_scans.py` reports
+  the solo-vs-independent split and cross-references against real referenced ids — read its
+  own docstring before re-deriving any of these numbers by hand again.
 - **The reserve-group competitions DO have names in the save — corrects both this file and
   `mart.py`'s comment, which called cid 1342 unnamed.** Zac spotted "Danish Reserves Group 1" on
   the in-game Domestic Competitions screen and asked why we'd call it nameless. Traced cid 1342's

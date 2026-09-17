@@ -35,7 +35,7 @@ sys.path.insert(0, ROOT)
 from fmparser.save import Save                # noqa: E402
 from fmparser import mapregions as MR         # noqa: E402
 
-MEASURED, DECLARED = "MEASURED", "DECLARED"
+MEASURED, AUDITED, DECLARED = "MEASURED", "AUDITED", "DECLARED"
 PAD_RUN = 16
 
 
@@ -68,6 +68,18 @@ def claims(mm, n):
 
     def declared(who, s, e):
         out.append((max(0, s), min(n, e), who, DECLARED))
+
+    def audited(who, s, e, summary=None):
+        """Stronger than DECLARED, still weaker than MEASURED: every candidate this scan's
+        prefilter considers has a known disposition (accepted/rejected-with-a-named-reason/
+        superseded) -- see fmparser.reference.diagnose_refdata_scan. This does NOT mean
+        every byte in [s,e) is decoded into a record; it means nothing is falling through
+        an unnamed filter among the positions the scan actually looks at. Mislabelling this
+        as "every byte decoded" is exactly the mistake DECLARED's own docstring warns about
+        one tier down -- don't repeat it one tier up."""
+        out.append((max(0, s), min(n, e), who, AUDITED))
+        if summary:
+            print(f"  ~ {who}: {summary}", file=sys.stderr)
 
     # ---- MEASURED: parsers that report a per-record offset -------------------
     from fmparser import staging as S
@@ -129,14 +141,26 @@ def claims(mm, n):
     # ---- DECLARED: window scans with no per-record offset --------------------
     from fmparser import regions as RG
     declared("reference.name_table", 0, 520_000)
-    # _build_refdata_index scans this whole window for club + competition candidates but
-    # only reports positions for the records it accepts, not a per-byte offset list, so
-    # this is DECLARED like the window-scan parsers below -- it overstates coverage inside
-    # the window (most candidate positions are rejected, not read as a real record), but it
-    # stops the club/comp region reading as untouched. See TODO #10 for why "declared" is
-    # not "correctly decoded" here: the reputation floor and the empty-CODE bug both drop
-    # real records inside this exact span.
-    declared("reference.clubs_comps", RG.REFDATA_LO, RG.REFDATA_HI)
+    # _build_refdata_index has real candidate-level introspection now (diagnose_refdata_scan,
+    # added alongside TODO #10): every position its prefilter considers ends up accepted,
+    # rejected-with-a-named-reason, or superseded. That is stronger than a bare DECLARED
+    # window scan, so this reports AUDITED instead -- but see `audited()`'s own docstring
+    # and diagnose_refdata_scan's: AUDITED covers candidate DISPOSITIONS, not every byte
+    # (the prefilter itself only proposes 1.76% of this window as a candidate at all). Falls
+    # back to a plain DECLARED claim if the diagnosis throws, so a save whose shape breaks
+    # it doesn't crash the whole audit.
+    try:
+        from fmparser import reference as R
+        diag = R.diagnose_refdata_scan(mm)
+        top_comp = ", ".join(f"{r}={c}" for r, c in diag.comp_reject_solo_ids.most_common(3))
+        summary = (f"{diag.n_candidates:,} candidates -> clubs {diag.club_accepted_tier0}"
+                   f"+{diag.club_accepted_tier1} tier1, comps {diag.comp_accepted} accepted, "
+                   f"top SOLO comp rejections (cids): {top_comp} "
+                   f"(run scripts/audit_declared_scans.py for the full breakdown)")
+        audited("reference.clubs_comps", RG.REFDATA_LO, RG.REFDATA_HI, summary)
+    except Exception as exc:
+        print(f"  ! reference diagnosis failed: {exc}", file=sys.stderr)
+        declared("reference.clubs_comps", RG.REFDATA_LO, RG.REFDATA_HI)
     declared("staging.attributes", RG.ATTR_LO, RG.ATTR_HI)
     declared("staging.contracts", RG.CONTRACTREC_LO, RG.CONTRACTREC_HI)
     declared("attributes.snapshot", RG.SNAPSHOT_LO, RG.SNAPSHOT_HI)
@@ -179,20 +203,23 @@ def main():
     spans = claims(mm, n)
 
     pad = padding_mask(arr)
-    claimed = np.zeros(n, dtype=np.uint8)          # 1 = measured, 2 = declared
+    STRENGTH = {DECLARED: 1, AUDITED: 2, MEASURED: 3}   # strongest-wins, explicit precedence
+    claimed = np.zeros(n, dtype=np.uint8)               # 0=unclaimed,1=declared,2=audited,3=measured
     for s_, e_, who, how in spans:
-        v = 1 if how == MEASURED else 2
+        v = STRENGTH[how]
         seg = claimed[s_:e_]
-        seg[seg != 1] = v
+        seg[seg < v] = v
 
     content = ~pad
     n_pad = int(pad.sum())
-    n_meas = int((content & (claimed == 1)).sum())
-    n_decl = int((content & (claimed == 2)).sum())
-    n_un = n - n_pad - n_meas - n_decl
+    n_meas = int((content & (claimed == 3)).sum())
+    n_aud = int((content & (claimed == 2)).sum())
+    n_decl = int((content & (claimed == 1)).sum())
+    n_un = n - n_pad - n_meas - n_aud - n_decl
     print("WHOLE FILE")
     print(f"  padding (>={PAD_RUN}B runs of 00/ff) {n_pad:>12,}  {n_pad/n*100:>5.1f}%")
     print(f"  content, MEASURED as read           {n_meas:>12,}  {n_meas/n*100:>5.1f}%")
+    print(f"  content, AUDITED (candidates known) {n_aud:>12,}  {n_aud/n*100:>5.1f}%")
     print(f"  content, inside a DECLARED window   {n_decl:>12,}  {n_decl/n*100:>5.1f}%")
     print(f"  content, UNCLAIMED                  {n_un:>12,}  {n_un/n*100:>5.1f}%   <-- the dig list")
 
