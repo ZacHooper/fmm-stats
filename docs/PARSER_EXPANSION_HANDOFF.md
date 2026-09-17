@@ -1,5 +1,9 @@
 # Parser expansion — handoff
 
+> **STATUS: SHIPPED in PR #51 (2026-09-17), including the Style hunt.** Kept as the
+> RECORD-LAYOUT REFERENCE for everything it decoded, and for the traps it hit — not as
+> a work plan. Anything still open from it lives in [`TODO.md`](TODO.md).
+
 **Started and finished 2026-09-16.** Six workstreams, all shipped — the manager STYLE field
 (§F) last, as a derivation rather than a stored field. Read [`CLAUDE.md`](../CLAUDE.md) and
 [`agent-context/fmm-editor-record-comparison.md`](agent-context/fmm-editor-record-comparison.md)

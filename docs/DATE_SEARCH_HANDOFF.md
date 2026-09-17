@@ -1,5 +1,9 @@
 # Handoff: find complete results/fixtures via DATE search
 
+> **STATUS: OPEN, AND POSSIBLY UNNECESSARY.** May be superseded by the standings
+> record in [`STANDINGS_HANDOFF.md`](STANDINGS_HANDOFF.md) — decide that before
+> spending time here. See [`TODO.md`](TODO.md) #4.
+
 Fresh-eyes task. We've been trying to recover **complete league results/standings** from an
 FMM22 save (`21-22-end.fms`, ~64 MB). The known results region (48.1–49.5 MB) is only a
 **partial** feed (White Group 91/306 fixtures), so standings can't be rebuilt from it. The

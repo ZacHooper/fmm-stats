@@ -23,8 +23,11 @@ opens with and ranks candidate clubs; add the winning first-team + reserve tids 
 `careers.py`, then extract. All saves for a career must be that same career.
 
 ## Resuming work
-**[`docs/HANDOFF.md`](docs/HANDOFF.md)** is the current-state handoff — what's done, what's next,
-what's outstanding, and where the football analysis left off. Read it before starting anything.
+**[`docs/HANDOFF.md`](docs/HANDOFF.md)** is where the project is right now — short, and state
+rather than history. **[`docs/TODO.md`](docs/TODO.md)** is the single register of everything
+still outstanding: if it isn't in TODO, it isn't open. Read both before starting anything, and
+when you finish something, DELETE its TODO entry rather than marking it done — otherwise that
+file rots into another changelog, which is what this cleanup was undoing.
 
 ## Answering a quick football question — don't default to a local rebuild
 A question like "who was our top scorer last season" does NOT need
