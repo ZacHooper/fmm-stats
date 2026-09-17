@@ -353,6 +353,63 @@ LEFT JOIN {S}.players p
 GROUP BY c.season, c.phase, c.tid
 """
 
+# Real attendance, from the MATCH records -- not from club_details.
+#
+# staging.club_details carries att_avg/att_min/att_max and they are NOT this: they correlate
+# -0.31 with what clubs actually draw, while stadium capacity correlates +0.93, and one club
+# (Herfolge, tid 5277) sits on the worldwide 12,500 ceiling while really drawing 2,318. What
+# they are is TODO #2; what they are not is attendance.
+#
+# staging.matches.attendance is the real figure and it checks out against the game: FCK read
+# 32,962 against a reported ~30k, and Frem's own average tracks the climb exactly --
+# 1,826 in 2021 in the 3. Division, 4,630 in 2023, 11,029 in 2025 in the Superliga.
+#
+# COVERAGE IS THE CATCH, and it is why this is a separate view rather than a column on
+# mart.clubs. The save only stores matches we were involved in, so `home_games` is a handful
+# for anyone but us -- 17 clubs have 3 or more. ALWAYS read n_games before trusting avg_att;
+# a one-game average is one away day, not a club's drawing power.
+CLUB_ATTENDANCE = """
+CREATE OR REPLACE VIEW mart.club_attendance AS
+WITH g AS (
+    -- SEASON COMES FROM THE MATCH DATE, not from the snapshot. `staging.matches.season` is
+    -- the season of the SAVE the match was read out of, so one physical fixture appears
+    -- under every later snapshot and gets counted again each time -- Frem's 20-odd home
+    -- games read as 95. Keying on (date, home, away) collapses the copies, and season_of()
+    -- puts the match in the campaign it was actually played in.
+    SELECT DISTINCT CAST(season_of(date) AS INTEGER) AS season,
+           home_tid AS club_tid, date, away_tid, attendance
+    FROM {S}.matches
+    WHERE attendance > 0 AND home_tid IS NOT NULL AND date IS NOT NULL
+)
+-- mart.clubs is one row per (season, PHASE, club_tid). Joining it on (season, club_tid)
+-- fans every match out by the number of snapshots in that season -- Frem's 19 home games
+-- came back as 95, and avg_att was an average over five copies of each. Collapse it to one
+-- row per club-season FIRST. Same shape as the at_club_spells trap in CLAUDE.md.
+, cs AS (
+    SELECT season, club_tid,
+           -- max_by, NOT any_value(... ORDER BY ...): DuckDB ignores the ORDER BY there and
+           -- returns an arbitrary row. That handed Frem its OLDEST capacity (4,400, from
+           -- before the ground was expanded) against a 10,924 average, i.e. a fill rate of
+           -- 2.48 -- a number that cannot exist and so caught itself.
+           max_by(name, phase)             AS name,
+           max_by(stadium_capacity, phase) AS stadium_capacity
+    FROM mart.clubs
+    GROUP BY season, club_tid
+)
+SELECT g.season, g.club_tid,
+       any_value(c.name)                                  AS club,
+       COUNT(*)                                           AS n_games,
+       CAST(ROUND(AVG(g.attendance)) AS INTEGER)          AS avg_att,
+       MIN(g.attendance)                                  AS min_att,
+       MAX(g.attendance)                                  AS max_att,
+       any_value(c.stadium_capacity)                      AS stadium_capacity,
+       ROUND(AVG(g.attendance) / NULLIF(any_value(c.stadium_capacity), 0), 3) AS fill_rate
+FROM g
+LEFT JOIN cs c ON c.club_tid = g.club_tid AND c.season = g.season
+GROUP BY g.season, g.club_tid
+"""
+
+
 # The league dimension, including the division-strength index.
 #
 # IMMERSION: skill_idx is the average player ability per league, normalised 0-100 across the
@@ -2485,6 +2542,7 @@ ORDER = [
     ("mart.reserve_clubs", RESERVE_CLUBS),
     ("mart.club_leagues", CLUB_LEAGUES),
     ("mart.clubs", CLUBS),
+    ("mart.club_attendance", CLUB_ATTENDANCE),
     ("mart.leagues", LEAGUES),
     ("mart.comparison_ladder", COMPARISON_LADDER),
     ("mart.languages", LANGUAGES),

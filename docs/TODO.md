@@ -37,9 +37,15 @@ FCK 36k against an in-game ~30k, and puts **25% of clubs above their own stadium
 (worst case 62×). ×8.3 fits FCK and misses Frem.
 
 **Deliberately NOT surfaced in `mart.clubs`** — carried in `staging.club_details` only.
-**Next step is ground truth, not more inference**: get exact in-game figures for two or three
-clubs (all three of average/lowest/highest if the game shows them) and match against the
-stored values, per CLAUDE.md's method §3.
+
+**Superseded in practice.** `staging.matches.attendance` is the REAL figure and is now exposed
+as `mart.club_attendance`: FCK 32,875 against a reported ~30k, and Frem's own average tracks
+the climb exactly (2,086 in 2022 in the lower divisions → 10,924 in 2026 in the Superliga,
+against Zac's ~11k). Capacity correlates **+0.93** with it; `att_avg` correlates **−0.31**.
+So there is no longer a *need* to decode these fields — it is now curiosity, and low priority.
+If anyone does pick it up, the method is ground truth rather than more inference (CLAUDE.md §3),
+and note they are NOT static as first claimed: 506 of 5,208 clubs move `att_avg` across
+snapshots, they just happen not to for Frem or FCK.
 
 ### 3. The league standings record is decoded but not implemented
 `staging.standings` still reads `source = 'lightresults_computed'` — the *approximate* table
