@@ -84,7 +84,10 @@ export async function boot() {
   S.fam = core.familiarity;
   S.ours = core.ours;
   S.method = S.index.snapshot.default_method;
-  for (const c of core.clubs) S.clubs.set(c[0], { tid: c[0], name: c[1] || `#${c[0]}`, leagueCid: c[2], players: c[3] });
+  for (const c of core.clubs) S.clubs.set(c[0], {
+    tid: c[0], name: c[1] || `#${c[0]}`, leagueCid: c[2], players: c[3],
+    nation: c[4] ?? null, reputation: c[5] ?? null,
+  });
   for (const l of core.leagues) {
     S.leagues.set(l[0], { cid: l[0], name: l[1], nation: l[2], reputation: l[3],
       memberCount: l[4], skillIdx: l[5] ?? null, rated: l[6] ?? null, clubs: 0 });
@@ -181,9 +184,19 @@ export async function loadAll(onProgress) {
     // Local preview has no Function runtime in front of it; fall back to the file on disk.
     data = await j("api/all.json").catch(() => { throw e; });
   }
+  // Overwrite, don't skip: all.json's row is a strict superset of core.json's (it carries the
+  // profile tail — reputation/personality/hidden attributes — that core.json deliberately
+  // leaves out to stay lean), so a player already known from core.json still gains new data
+  // here. Skipping them was the bug behind "my own squad's Global rep never fills in even after
+  // Load every player" — our own players and every ladder club's players are exactly the ones
+  // pre-loaded from core.json, so a skip left them permanently on the lean shape.
   for (const row of data.players) {
-    if (S.players.has(row[0])) continue;
-    S.players.set(row[0], mkPlayer(row, data.fields, data.attrs));
+    const p = mkPlayer(row, data.fields, data.attrs);
+    // Only true once all.json actually carries the profile tail (PROFILE_FIELDS) — an older
+    // export without it would otherwise wrongly block a later loadProfile() fetch from filling
+    // the gap in.
+    if (p.profile) p.profileLoaded = true;
+    S.players.set(row[0], p);
   }
   S.all = data;
   onProgress?.(null);
