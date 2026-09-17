@@ -312,10 +312,15 @@ open:
   the string heuristic, and add `is_league`/`kind` to `mart.matches`/`mart.match_player_facts`.
 - **The competition record itself is only half read** — `docs/agent-context/fmm-editor-record-comparison.md`
   already flags this ("Competition record — we parse about half"). We decode cid/uid/names/type/
-  nation/reputation/level/parent_cid (14 bytes); fmm-editor's reference lists more after that never
-  located in FMM22: a **Qualifiers table**, a **3-season Rank/Year history**, and an **IsWomen**
-  flag. Not in `scripts/audit_records.py`'s `LAYOUTS` at all, so there's no standing coverage
-  check on it either — add one when this gets picked up.
+  nation/reputation/level/parent_cid (14 bytes); fmm-editor's FMM26 reference lists more after
+  that never located in FMM22: a **Qualifiers table** and a **3-season Rank/Year history**.
+  (fmm-editor's `IsWomen` is NOT part of this gap — per Zac that's a later-game-version field,
+  so FMM22 saves won't carry it at all; drop it from what we're looking for.) **Now has a
+  standing coverage check**: `comp_trailer` in `scripts/audit_records.py`'s `LAYOUTS`, covering
+  the known 14-byte trailer (not a stride — the 3 names in front are variable-length, so this
+  proves the 14 bytes are accounted for, not that the record ends there). Run
+  `uv run python scripts/audit_records.py --map` to see it. It does NOT audit the empty-CODE bug
+  above — a record whose 3-name loop aborts never reaches this trailer at all.
 
 ### 11. `mart.club_managers` isn't purely structural
 It keeps a `home_reputation` tiebreak and exposes no candidate count, so a sole structural hit
