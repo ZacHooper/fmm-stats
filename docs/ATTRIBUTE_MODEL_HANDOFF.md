@@ -137,6 +137,58 @@ Blending plain bytes works because a plain byte IS the attribute. Blending entan
 not, because an entangled byte needs CA to decode at all. **Do not assume "has a partner"
 implies "has a closed form".** Shooting has a partner and does not.
 
+## Can we INVERT the CA weights to recover an attribute? No — measured.
+
+The idea: CA is a weighted sum of attributes, we know CA exactly and we know 11 of the 23
+attributes exactly, so `sum(unknown w_a * attr_a) = CA - sum(known)` is an exact linear
+constraint on the 14 we estimate. One equation in 14 unknowns is not invertible, but combined
+with a byte-based estimate of each it becomes a constrained projection — and our decode errors
+are correlated at +0.66, so their weighted sum is large and systematic, exactly what a
+constraint should fix.
+
+**It cannot work, because the constraint is looser than the estimate it would constrain**
+(`archive/ca_constraint_test.py`, 840 truth rows where all 23 attributes are exact, CV by
+player):
+
+| | sd, CA points |
+|---|---|
+| the constraint's own residual — how tightly `CA = sum(w*attr)` holds | **16.8** |
+| our decode's implied-CA error — what it would correct | **6.1** |
+
+The constraint is **2.7x noisier than the error it would fix**, so projecting onto it adds
+noise. Even with perfectly estimated weights it does not close: the 155k-row byte regression
+reaches R² 0.70–0.77, which is a residual of about 10.7 CA points against our 6.1. CA is not a
+pure linear function of the 23 displayed attributes — hidden attributes and position weighting
+are in there too — so it is an inherently noisy measurement of the attribute vector.
+
+**The usable part of CA is already extracted**, as the one shared per-player shift. That is the
+robust form of this idea and it is in the model.
+
+### Two traps that make a naive version of this look like it works
+
+- **Circularity.** `staging.player_attributes`' entangled values are model output that USED CA
+  as an input. Regress CA on them and you recover CA from itself: R² 0.945, sd 6.6 — better
+  than the truth. Fit on CA-independent inputs only.
+- **COALESCE.** The same view returns the EXACT value wherever one exists, i.e. on every truth
+  row, so the decode error read off it is identically **zero**. Use `load_duckdb._model_expr`,
+  which is the model branch with no COALESCE. Both of these bit during this investigation.
+
+## `blend_w` earns +0.7, and mostly as a goalkeeper flag
+
+The other half of Stage 3 — familiarity-weighted CA weights as a feature — is a DIFFERENT
+mechanism from the constraint (redistribution at fixed CA, not a constraint on a sum) and it
+does help, but barely (`archive/blend_weight_test.py`): **69.3% → 69.9%**. Ten of fourteen
+attributes are unchanged to the decimal; the gain is Handling +4.6, Reflexes +3.8, Creativity
++2.0, and Shooting **−1.3**. That distribution says it is acting as a better goalkeeper
+indicator than the raw GK familiarity already in the `gk` set, not as the positional
+redistribution it was motivated by. Part of the +0.7 is also just fighting the pool penalty,
+since testing it means offering 4 candidates instead of 2.
+
+**Not built.** It needs `staging.ca_weights` + a migration + a mart view + a new SQL feature
+expression + test changes, and 0.7 points that have never been checked on a second career is
+not worth a schema change. Revisit only after the Bucaspor hold-out says the current
+coefficients generalise at all.
+
 ## Everything already ruled out — do not re-test without more data
 
 All at n=80 players, so all conditional on sample size; several may flip on the full store.
