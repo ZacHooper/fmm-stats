@@ -34,6 +34,34 @@ travel. These do.
 The closed forms travel best of all: **Teamwork 99.6%, Aerial 87.4%** on Bucaspor (88.7% on
 Frem), which is what you would hope for from two parameters over plain bytes.
 
+## The exact-vs-±1 dial, and why "exact" is the right setting
+
+The grid search optimises EXACT matches, so it is free to trade near-misses for hits — and it
+does. Across the refit, exact gained **+16.7** points while ±1 gained only **+1.7**, and four
+attributes went BACKWARDS at ±1: Dribbling 87.0 → 74.6, Tackling 92.6 → 86.3, Passing
+89.2 → 83.2, Crossing 88.8 → 86.5. 10.3% of values are now off by 2 or more, asymmetrically
+(−2 at 6.9% against +2 at 2.1%, so a bad miss is usually an UNDER-prediction).
+
+That looks like it might be the wrong trade, because nothing surfaces a raw attribute — the app
+surfaces role ratings, which are weighted means over 15–23 attributes, and a fatter tail could
+propagate. **Measured (`archive/rating_error_propagation.py`, all 10 roles of
+`frem_attacking_ss`, 840 snapshots), it does not:**
+
+- mean role-rating error **0.21** on the 1–20 scale — **1.0% of full range**, max 1.3
+- 7.5% of ordered player pairs come out in the wrong order, **but the median true gap in a
+  swapped pair is 0.19 rating points**; 86% of swaps are between players within 0.5 of each
+  other and 97.7% within 1.0
+
+The inversions are near-ties between players who are genuinely interchangeable. Averaging over
+15–23 attributes cancels the per-attribute error almost entirely, so the fat tail does not
+reach the depth chart. **Keep the exact-match objective.** If a future use needs calibrated
+per-attribute values rather than good rankings, the dial is one line — score `_grid_fit` on
+`|err| <= 1` instead of equality.
+
+Note this error only reaches players WITHOUT exact truth. Our own squad is COALESCEd to the
+save's stated values, so it applies to opponents, recruitment targets and scouting — which is
+where it matters most and where it cannot be checked directly.
+
 ## The three things that actually mattered
 
 1. **The decoder, not the features.** Least squares minimises squared error; we score exact
