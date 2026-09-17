@@ -1,0 +1,75 @@
+{
+  "_comment": [
+    "Ground truth read off in-game screenshots by Zac, 2026-09-17. These are the ONLY",
+    "independent truth we have for non-managed clubs' results: every other check is the",
+    "parser grading its own homework. Our own matches are NOT usable here -- they live in",
+    "the rich match region (regions.MATCH_LO), a different structure.",
+    "",
+    "`ui_group` records something the UI leaks: a single match-day is rendered as TWO",
+    "sections under the SAME date header, with nothing in the UI to distinguish them.",
+    "Zac spotted it; it is the best hint we have that one match-day is stored in more",
+    "than one place. Keep it -- 'which group did the parser find' is a real signal.",
+    "",
+    "day_of_year is 0-BASED (date - Jan 1 of that year), which is the encoding the light",
+    "record's +14 field and the 40MB record's +6 field both use."
+  ],
+  "save": "frem-2026-06-11.fms",
+  "rounds": [
+    {
+      "competition": "English Premier Division", "cid": 5,
+      "date": "2026-05-24", "day_of_year": 143,
+      "note": "final round of the season; recent, so inside any plausible recency window",
+      "fixtures": [
+        {"home": 406, "away": 481, "hg": 3, "ag": 2, "label": "Arsenal 3-2 Newcastle", "ui_group": 1},
+        {"home": 431, "away": 421, "hg": 1, "ag": 0, "label": "Chelsea 1-0 Brighton", "ui_group": 1},
+        {"home": 444, "away": 468, "hg": 0, "ag": 1, "label": "Derby 0-1 Leicester", "ui_group": 1},
+        {"home": 466, "away": 448, "hg": 2, "ag": 0, "label": "Leeds 2-0 Everton", "ui_group": 1},
+        {"home": 474, "away": 521, "hg": 2, "ag": 0, "label": "Man UFC 2-0 Watford", "ui_group": 1},
+        {"home": 499, "away": 473, "hg": 0, "ag": 0, "label": "Sheff Utd 0-0 Man City", "ui_group": 1},
+        {"home": 504, "away": 407, "hg": 3, "ag": 0, "label": "Southampton 3-0 Aston Villa", "ui_group": 1},
+        {"home": 518, "away": 404, "hg": 5, "ag": 0, "label": "Tottenham 5-0 Bournemouth", "ui_group": 1},
+        {"home": 523, "away": 471, "hg": 0, "ag": 2, "label": "West Brom 0-2 Liverpool", "ui_group": 1}
+      ]
+    },
+    {
+      "competition": "English Premier Division", "cid": 5,
+      "date": "2025-08-16", "day_of_year": 227,
+      "note": "OPENING DAY, 10 months before the save. Disproves the rolling-buffer claim: 3 of these 6 are present in the save.",
+      "fixtures": [
+        {"home": 468, "away": 473, "hg": 4, "ag": 3, "label": "Leicester 4-3 Man City", "ui_group": 1},
+        {"home": 504, "away": 499, "hg": 4, "ag": 0, "label": "Southampton 4-0 Sheff Utd", "ui_group": 1},
+        {"home": 518, "away": 466, "hg": 1, "ag": 2, "label": "Tottenham 1-2 Leeds", "ui_group": 1},
+        {"home": 523, "away": 474, "hg": 3, "ag": 1, "label": "West Brom 3-1 Man UFC", "ui_group": 1},
+        {"home": 406, "away": 444, "hg": 3, "ag": 1, "label": "Arsenal 3-1 Derby", "ui_group": 2},
+        {"home": 471, "away": 481, "hg": 0, "ag": 1, "label": "Liverpool 0-1 Newcastle", "ui_group": 2}
+      ]
+    },
+    {
+      "competition": "English Premier Division", "cid": 5,
+      "date": "2026-01-10", "day_of_year": 9,
+      "note": "mid-season. UI splits this one date into 5 + 2 with no visible reason.",
+      "fixtures": [
+        {"home": 421, "away": 406, "hg": 0, "ag": 3, "label": "Brighton 0-3 Arsenal", "ui_group": 1},
+        {"home": 448, "away": 504, "hg": 2, "ag": 1, "label": "Everton 2-1 Southampton", "ui_group": 1},
+        {"home": 466, "away": 471, "hg": 0, "ag": 3, "label": "Leeds 0-3 Liverpool", "ui_group": 1},
+        {"home": 521, "away": 407, "hg": 1, "ag": 1, "label": "Watford 1-1 Aston Villa", "ui_group": 1},
+        {"home": 524, "away": 468, "hg": 1, "ag": 1, "label": "West Ham 1-1 Leicester", "ui_group": 1},
+        {"home": 420, "away": 473, "hg": 1, "ag": 2, "label": "Brentford 1-2 Man City", "ui_group": 2},
+        {"home": 431, "away": 444, "hg": 2, "ag": 1, "label": "Chelsea 2-1 Derby", "ui_group": 2}
+      ]
+    },
+    {
+      "competition": "Bundesliga", "cid": null,
+      "date": "2026-04-04", "day_of_year": 93,
+      "note": "a SECOND league, to prove any variant inventory generalises beyond cid 5. UI splits 5 + 1.",
+      "fixtures": [
+        {"home": 640, "away": 6485, "hg": 0, "ag": 3, "label": "1. FC Koln 0-3 RB Leipzig", "ui_group": 1},
+        {"home": 628, "away": 641, "hg": 2, "ag": 2, "label": "1. FC Nurnberg 2-2 Mainz 05", "ui_group": 1},
+        {"home": 634, "away": 662, "hg": 2, "ag": 1, "label": "Borussia Dortmund 2-1 SV Werder", "ui_group": 1},
+        {"home": 635, "away": 633, "hg": 4, "ag": 2, "label": "B. Monchengladbach 4-2 VfL Bochum", "ui_group": 1},
+        {"home": 643, "away": 632, "hg": 0, "ag": 4, "label": "Schalke 04 0-4 Arminia Bielefeld", "ui_group": 1},
+        {"home": 639, "away": 670, "hg": 1, "ag": 0, "label": "FC Bayern 1-0 VfB Stuttgart", "ui_group": 2}
+      ]
+    }
+  ]
+}

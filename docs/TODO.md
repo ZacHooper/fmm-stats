@@ -95,6 +95,16 @@ up. Layout, validation and parser plan: [`standings-record.md`](standings-record
 upgrade over what ships today.
 
 ### 4. Complete results/fixtures via a date search
+**Re-scoped 2026-09-17.** The light-results region turned out to be the **club records**
+tables (`fmparser/clubrecords.py`), so the complete results are not there and never were, and
+neither the rolling-buffer story nor the "partial decode" framing survives. 28 results read
+off in-game screenshots (`tests/fixtures/light_results_truth.json`) are recovered 9/28, and
+those 9 are precisely the ones that happen to BE club records. Two fixtures
+(Southampton 3-0 Aston Villa, Liverpool 0-1 Newcastle) have their two club tids nowhere
+adjacent in the file, so any remaining structure does not store a fixture as a tid pair.
+Unexamined: the cid-less list at ~49.36 MB, and a 497-record chained region at 6.127-6.260 MB
+that `find_light_regions` never sweeps.
+
 [`date-search.md`](date-search.md) — the results we hold are **our matches only**, confirmed by
 `mart.competitions`: we carry exactly **32** Superliga fixtures per season, which is one club's
 full league programme, not the division's ~200. Two zones that light up on a date search

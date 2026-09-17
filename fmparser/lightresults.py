@@ -2,6 +2,22 @@
 """
 Light results — the simulated games of NON-managed clubs in the loaded leagues.
 
+    !! THIS REGION IS THE CLUB RECORDS TABLES, NOT A RESULTS LIST. !!
+
+    Identified 2026-09-17 against in-game screenshots: the rows are the Club History
+    screens (biggest win, biggest defeat, highest scoring match, streaks), parsed properly
+    by `fmparser/clubrecords.py`. Consequences for everything below:
+      * a club has ~12 rows because there are ~12 record CATEGORIES;
+      * the ">=2 copies" this module relies on is the two-slot pattern ("Highest scoring
+        match" and "Highest scoring LEAGUE match" are one game), not redundancy;
+      * `league_table()` computes standings from record-holding matches, which is why they
+        read 5-13 games played;
+      * the club tid is at the END of the 21-byte record, so this module's forward reads of
+        cid/year/day take the NEXT record's fields on every second copy.
+    What still holds: these ARE real matches with real club tids and real competition ids,
+    so `club_leagues()` / `leagues()` remain sound as a MEMBERSHIP source. Do not build a
+    fixture list or a league table from this module. See docs/light-results-record.md.
+
 Only the managed club's games get rich per-player detail (see matches.py). Every other
 loaded game is stored "light": just teams, score, competition and (roughly) a date. This
 region (~47-50.5 MB) is where the whole football world's results live, so it's the source
