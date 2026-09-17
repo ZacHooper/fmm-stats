@@ -2093,6 +2093,40 @@ def _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups=None):
     return F
 
 
+def opponent_manager(club_tid, season=None, phase=None):
+    """The opposing club's manager at a given (or latest) snapshot, from `mart.club_managers` —
+    identified structurally (the one staff member at the club absent from its coach array), not
+    heuristically. Returns None for a club we manage ourselves (no such row exists there) or one
+    with no resolvable manager.
+
+    Carries the manager's PREFERENCES (formation_preferred/attacking/defensive — already resolved
+    to names, see `fmparser/staff.py`'s `formation_catalog`) and a derived Style
+    (`attacking_intent` banded into Defensive/Normal/Attacking, validated 7/7 in-game — see
+    `docs/PARSER_EXPANSION_HANDOFF.md` §F). This is the manager's TENDENCY, not a guarantee of
+    today's exact XI: a manager still shifts shape chasing a game, and what the user sees in the
+    in-game scout report this week can differ if the manager has since changed or the fixture is
+    a big enough occasion to depart from habit."""
+    if not season or not phase:
+        s, p = latest_snapshot()
+        season, phase = season or s, phase or p
+    df = q("""SELECT name, style, attacking_intent, reputation_tier,
+                     formation_preferred_name, formation_attacking_name, formation_defensive_name,
+                     tactical_knowledge, discipline, motivating
+              FROM mart.club_managers
+              WHERE club_tid=? AND season=? AND phase=?""", [club_tid, season, phase])
+    if df.empty:
+        return None
+    r = df.iloc[0]
+    return {"name": r["name"], "style": r["style"],
+            "attacking_intent": int(r["attacking_intent"]) if pd.notna(r["attacking_intent"]) else None,
+            "reputation_tier": r["reputation_tier"],
+            "formation_preferred": r["formation_preferred_name"],
+            "formation_attacking": r["formation_attacking_name"],
+            "formation_defensive": r["formation_defensive_name"],
+            "tactical_knowledge": r["tactical_knowledge"], "discipline": r["discipline"],
+            "motivating": r["motivating"]}
+
+
 def scout_report(opp_tid, season=None, phase=None, method=None):
     """Structured opposition report (dicts + DataFrames, no rendering). Sections: opp,
     season/phase/method, coverage, overall (team index/%ile us-vs-them, both flavours —
@@ -2100,8 +2134,10 @@ def scout_report(opp_tid, season=None, phase=None, method=None):
     "how strong is each line in isolation"), matchups (face-off unit pairs — see
     matchup_table, "who wins the contest that actually happens on the pitch"), units +
     unit_attrs (attribute edges), key_players (their squad ranked by Level %ile — quality,
-    not fit under our tactic — cross-position fair), h2h, and flags. Shared by the CLI and
-    the Team scout tab.
+    not fit under our tactic — cross-position fair), h2h, flags, and manager (the opposing
+    manager's preferred/attacking/defensive formation + derived Style, from
+    `opponent_manager()`/`mart.club_managers` — None if we manage this club ourselves or no
+    manager resolves). Shared by the CLI and the Team scout tab.
 
     Two ratings run through this report and they answer different questions. `index`/`pctile`
     (pos_index / pctile_league) are OUR tactic's role-weighted Fit — right for judging how a
@@ -2175,10 +2211,11 @@ def scout_report(opp_tid, season=None, phase=None, method=None):
         h2h = {"played": 0, "matches": h}
 
     flags = _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups)
+    manager = opponent_manager(opp_tid, season, phase)
     return {"opp": {"tid": opp_tid, "name": opp_name}, "season": season, "phase": phase,
             "method": method, "coverage": coverage, "overall": overall, "strength": strength,
             "matchups": matchups, "units": groups_df, "unit_attrs": attrs_df,
-            "key_players": key_players, "h2h": h2h, "flags": flags}
+            "key_players": key_players, "h2h": h2h, "flags": flags, "manager": manager}
 
 
 # --------------------------------------------------------------------------- scout log

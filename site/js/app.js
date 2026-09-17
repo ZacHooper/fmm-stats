@@ -18,6 +18,7 @@ const ROUTES = [
   ["opposition", "Opposition", () => import("./views/opposition.js")],
   ["matches", "Matches", () => import("./views/matches.js")],
   ["history", "History", () => import("./views/history.js")],
+  ["world", "World", () => import("./views/world.js")],
 ];
 
 const main = () => document.getElementById("main");

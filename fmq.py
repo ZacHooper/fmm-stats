@@ -146,6 +146,11 @@ def _print_scout(rep):
     o, cov, ov = rep["opp"], rep["coverage"], rep["overall"]
     print(f"\n=== SCOUT: {o['name']} (tid {o['tid']}) — {rep['season']}/{rep['phase']} "
           f"· {rep['method']} ===")
+    mgr = rep.get("manager")
+    if mgr:
+        print(f"    manager: {mgr['name']}  ·  preferred {mgr['formation_preferred']}  "
+              f"({mgr['style']})  ·  attacking {mgr['formation_attacking']}  ·  "
+              f"defensive {mgr['formation_defensive']}")
     if not _isna(ov["us"]) and not _isna(ov["them"]):
         note = "  ⚠️ PARTIAL DATA" if cov["partial"] else ""
         print(f"    team index (best XI, 100=avg for position): us {ov['us']:.0f} "
@@ -216,7 +221,13 @@ def cmd_scout(con, a):
     rep = db.scout_report(int(row["tid"]), season=a.season, phase=a.phase, method=a.method)
     _print_scout(rep)
     if not a.no_save:
-        rec = db.save_scout(rep, venue=a.venue, formation=a.formation, style=a.style,
+        # --formation/--style are now a fresher-info OVERRIDE, not the only source: the manager's
+        # own preferred formation/Style (rep["manager"]) already fills the log if the user didn't
+        # pass anything newer from the in-game scout screens.
+        mgr = rep.get("manager") or {}
+        formation = a.formation or mgr.get("formation_preferred")
+        style = a.style or mgr.get("style")
+        rec = db.save_scout(rep, venue=a.venue, formation=formation, style=style,
                             note=a.note, fixture=a.fixture)
         ctx = " · ".join(x for x in (a.venue, a.fixture, a.formation, a.style) if x)
         where = ("state/scouts/"

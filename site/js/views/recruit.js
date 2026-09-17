@@ -248,6 +248,12 @@ async function searchPanel() {
         // called "—". Filters treat unknown as its own thing (the "?" toggle on each chip).
         club: club?.name || null, league: lg?.name || null,
         rep: lg?.reputation ?? null,
+        clubRep: club?.reputation ?? null,
+        // The player's OWN world reputation — not a club/league figure, so it speaks to him
+        // individually. Only populated once his `profile` tail has loaded (our own squad and
+        // every ladder club are eager from core.json without it; "Load every player" backfills
+        // everyone, including those — see loadAll's overwrite in data.js).
+        globalRep: p.profile?.reputation?.world ?? null,
         ours, originClub, capitalOk,
         _search: [p.name, club?.name, lg?.name, originClub, best.pos, best.role].filter(Boolean).join(" ").toLowerCase(),
       });
@@ -291,6 +297,12 @@ async function searchPanel() {
         club: { label: "Club", group: "Identity", get: (r) => r.club },
         league: { label: "League", group: "Identity", get: (r) => r.league },
         rep: { label: "League rep", group: "Identity", align: "num", get: (r) => r.rep },
+        clubRep: { label: "Club rep", group: "Identity", align: "num", get: (r) => r.clubRep },
+        globalRep: {
+          label: "Global rep", group: "Identity", align: "num", get: (r) => r.globalRep,
+          help: "The player's own world reputation, not his club's or league's — blank until "
+            + "\"Load every player in the save\" has fetched his full profile.",
+        },
         origin: {
           label: "Origin club", group: "Identity",
           help: "Career-origin club — where his career-history chain starts, not his current club",
