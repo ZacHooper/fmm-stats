@@ -141,15 +141,16 @@ unresolvable reserve/regional cids) and never include Frem itself — but that's
 DEFAULT league membership looked up separately, not anything read from the row. 242/275 pair
 two clubs from the same inferred league; the other 33 can't be ordinary league fixtures by
 construction. Four were checked against Zac's own in-game fixture screens and all four decoded
-EXACTLY (score, and the day→calendar-date inference) while turning out to be four *different*
-kinds of non-league match — so "cross-league" means "not a plain league game", not "cup tie":
+EXACTLY on **date**, but only two of the four also had the score read correctly the first time
+— the other two were corrected after further checking (below), so treat any score quoted for a
+cross-league row as unverified until it's been checked twice, not once:
 
 | row | day → date | screenshot says |
 |---|---|---|
-| Forest 3-0 Maidstone | 13 → 2026-01-14 | FA Cup Third Round **Replay** |
-| Burnley 1-2 Arsenal | 199 → 2025-07-19 | pre-season **Friendly** |
-| Gladbach 1-3 Sevilla | 146 → 2026-05-27 | continental cup **Final**, neutral venue |
-| Nürnberg 3-2 Düsseldorf | 140 → 2026-05-21 | promotion **Playoff**, 1st leg |
+| Forest 3-0 Maidstone | 13 → 2026-01-14 | FA Cup Third Round **Replay** (score OK) |
+| Burnley 1-2 Arsenal | 199 → 2025-07-19 | pre-season **Friendly** (score OK) |
+| Sevilla 1-3 Gladbach | 146 → 2026-05-27 | continental cup **Final**, neutral (was misread the other way round) |
+| Nürnberg 2-3 Düsseldorf | 140 → 2026-05-21 | promotion **Playoff**, 1st leg, Düsseldorf won away (was misread as Nürnberg winning at home) |
 
 A fifth cross-league row (Logroñés 0-3 A. Madrid, day 201) couldn't be found in-game — tid 989
 resolves to a real, well-formed club record, so it's not a bad resolve; day 201 sits in the
@@ -157,18 +158,33 @@ sparse 180-300 band (1-2 rows/day, vs. dozens/day in the 100-180 core) that's th
 place for a STALE slot, so the year-inference rule (day≥181 → season-1) may have the wrong
 YEAR here. Unresolved.
 
+**Orientation is NOT reliable on a repeated club pair.** Three `(away_tid, home_tid)` pairs
+recur with a different day and score each time — first read as possible reschedules, but
+ground truth says all three are ordinary fixtures where the real venue genuinely differed (two
+are legs of a two-legged playoff with real alternating venues; Merthyr/Bradford confirmed
+directly). The table gets it wrong for exactly **one of the two rows, every time (3/3)**:
+Palace/Stoke (day 142 wrong, day 138 right), Sint-Truidense/Beerschot (day 128 wrong, day 121
+right), Merthyr/Bradford (day 114 wrong, day 359 right). It isn't even one consistent bug: on
+Palace/Stoke the club **identities** are swapped between the away/home slots; on
+Nürnberg/Düsseldorf above, the identities are correct but the **goals** are swapped between the
+two clubs instead. Two distinct failure modes, both invisible from the bytes alone. **Every
+single-occurrence row checked against a screenshot has been exactly right** — this is specific
+to a club pair appearing more than once, not a flaw in away-first generally.
+
 **Ruled out as a competition-type flag**, tested against the four confirmed rows plus the three
 known league fixtures: `+8` (5 on 226/242 same-league rows AND 17/20 cross-league rows) and
 `trailer_a` (the cup replay and a same-day plain-league game are both 5; another plain-league
-game is 391). Neither separates cup/friendly/playoff from league.
+game is 391). Neither separates cup/friendly/playoff from league. (Unaffected by the
+orientation bug above — these are raw per-offset byte values, not which club they're read as.)
 
 **New lead**: the Sevilla-Gladbach final is stored TWICE, 500 bytes (20 slots) apart, identical
 tid/score/day, different `trailer_a` — the same multi-copy pattern as `clubrecords.py`. On the
-Newcastle/Southampton duplicate pair, the derived `k` (`= A - (+13) = B - (+15)`, per the
-existing four-numbers-hold-three identity) is IDENTICAL across both copies (26 both times) even
-though `A`/`B` themselves differ (33/19 vs 101/60) — so `k` looks MATCH-level (shared by every
-copy of one fixture) while `A`/`B` are COPY-specific. Neither is named yet, but that narrows
-what to look for.
+Newcastle/Southampton duplicate pair (a genuine same-match duplicate, not a repeated-pair
+mismatch — both copies agree with each other and with reality), the derived `k`
+(`= A - (+13) = B - (+15)`, per the existing four-numbers-hold-three identity) is IDENTICAL
+across both copies (26 both times) even though `A`/`B` themselves differ (33/19 vs 101/60) — so
+`k` looks MATCH-level (shared by every copy of one fixture) while `A`/`B` are COPY-specific.
+Neither is named yet, but that narrows what to look for.
 
 The 497-record chained region at 6.127-6.260 MB has now been swept: 91 signature hits but
 only 67% share a stride, so it fails the alignment control and is not a match table. A

@@ -81,17 +81,38 @@ table (e.g. "349 clubs across 48 league_cids" on frem-2026-06-11) is each club's
 league membership looked up separately via `reference.club_record`, not anything read from the
 row. Of 275 fixtures, 242 pair two clubs from the same inferred league; the other 33 can't be
 ordinary league matches by construction. Four were checked against real in-game fixture screens
-and all four decoded EXACTLY (score AND the day -> calendar-date inference) while turning out
-to be four DIFFERENT kinds of non-league fixture -- "cross-league" means "not a plain league
-game", not "cup tie":
-    Forest 3-0 Maidstone       day 13  -> 2026-01-14   FA Cup Third Round REPLAY
-    Burnley 1-2 Arsenal        day 199 -> 2025-07-19   pre-season FRIENDLY
-    Gladbach 1-3 Sevilla       day 146 -> 2026-05-27   continental cup FINAL, neutral venue
-    Nurnberg 3-2 Dusseldorf    day 140 -> 2026-05-21   promotion PLAYOFF, first leg
+and all four decoded EXACTLY on DATE while turning out to be four DIFFERENT kinds of
+non-league fixture -- "cross-league" means "not a plain league game", not "cup tie". Only two
+of the four also had the SCORE read correctly on the first pass (see ORIENTATION below for
+why -- corrected here):
+    Forest 3-0 Maidstone       day 13  -> 2026-01-14   FA Cup Third Round REPLAY       (score OK)
+    Burnley 1-2 Arsenal        day 199 -> 2025-07-19   pre-season FRIENDLY             (score OK)
+    Sevilla 1-3 Gladbach       day 146 -> 2026-05-27   continental cup FINAL, neutral  (score was
+                                                        misread as Gladbach 1-3 Sevilla)
+    Nurnberg 2-3 Dusseldorf    day 140 -> 2026-05-21   promotion PLAYOFF, 1st leg,     (score was
+                                                        Dusseldorf won AWAY, misread as
+                                                        Nurnberg 3-2 at home)
 A fifth (Logrones 0-3 A.Madrid, day 201) could not be found in-game; tid 989 is a real,
 well-formed club record, so this isn't a bad resolve. Day 201 sits in the sparse 180-300 band
 (1-2 rows/day vs. dozens/day in the 100-180 core) -- the likeliest place for a STALE slot, so
 the year-inference rule (day>=181 -> season-1) may have the wrong YEAR here. Unresolved.
+
+ORIENTATION IS NOT RELIABLE ON A REPEATED CLUB PAIR. Three (away_tid, home_tid) pairs recur in
+the table with a different day AND a different score each time -- initially read as possible
+reschedules, but ground truth says all three are perfectly ordinary fixtures where the real
+venue genuinely differed (two are legs of a two-legged playoff tie with real alternating
+venues; Merthyr/Bradford per Zac directly). The table gets it wrong for exactly ONE of the two
+rows, every time (3/3):
+    Palace/Stoke      day 138 correct (Stoke home 3-0), day 142 has the TIDS swapped
+    Truidense/Beersch. day 121 correct (Truidense home 4-0), day 128 has the TIDS swapped
+    Merthyr/Bradford   day 359 correct (Merthyr home 2-0), day 114 has the TIDS swapped
+And it is not even ONE consistent bug: on Nurnberg/Dusseldorf above, the TIDS are right
+(Dusseldorf really was away) but the GOALS are swapped between the two clubs instead. So a
+repeated pair can fail by mislabelling WHO played where, or by mislabelling WHO SCORED WHAT
+while the venue is right -- two distinct failure modes, both invisible from the bytes alone.
+**Every single-occurrence row checked against a screenshot has been exactly right** (the three
+originals plus Forest/Maidstone and Burnley/Arsenal above) -- the unreliability is specific to
+a club pair that shows up more than once, not a general flaw in the away-first convention.
 
 RULED OUT as a competition-type flag, on the four confirmed rows plus the three known league
 fixtures: `+8` (reads 5 on 226/242 same-league rows AND 17/20 cross-league rows) and
