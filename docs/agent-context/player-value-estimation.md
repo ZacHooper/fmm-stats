@@ -118,28 +118,33 @@ size of the jump reaches **5.5×** on our own FIRST-TEAM squad (Johannes Tjørne
 £857,284, identical inputs either side) and **up to 102×** on reserve-team players (already
 flagged as the model's weakest case for a different, compounding reason — see §4).
 
-**Every one of the 35 changes lands exactly on a season-boundary snapshot pair** (e.g.
-2026-06-29 → 2026-07-02, 2024-06-03 → 2024-06-30) — never mid-season. Combined with the other
-89% of identical-input pairs showing **zero** change even when spaced months apart mid-season,
-this says `player_value` is not continuously recomputed from current attributes at all: it is a
-**cached figure the game refreshes at most once per season**, and whatever it refreshes it
-*with* isn't fully captured by anything this parser has decoded yet.
+**All 35 changes happen to land on a season-boundary snapshot pair** in this dataset (e.g.
+2026-06-29 → 2026-07-02, 2024-06-03 → 2024-06-30) — none observed mid-season. **This is an
+observation about our snapshot sample, not a proven mechanism — do not read it as "the game
+caches value and refreshes it once a season."** That claim was in an earlier draft of this
+section and is retracted: it overreaches what a correlational read of a sparse, import-driven
+snapshot schedule can establish. Our snapshots already cluster near season boundaries (that's
+when saves tend to get taken), so mid-season pairs in the store are mostly close together in
+time — a real trigger that fires every few months, or on a specific in-game event unrelated to
+the calendar (a scout report, a match, board confidence, anything), could easily produce this
+exact pattern without value being season-locked at all. "Season boundary" may just be a proxy
+for "the only gaps in this store wide enough to have caught it." Telling those apart needs
+snapshots taken closer together mid-season, which the store doesn't have yet.
 
 The obvious next guess — the size of the jump reflects how well the player just played — doesn't
 hold either: correlating the jump (log ratio) against that player's average match rating,
 appearances and goals **for the season that just ended** gives correlations of **-0.04, +0.08,
 -0.02** respectively (n=241, `mart.player_seasons`) — indistinguishable from zero. A standout
 season (Tjørnelund's own trigger snapshot: rating 6.36, an ordinary season, 0 goals) doesn't
-predict a bigger jump.
+predict a bigger jump. That test is agnostic to the timing question above and stands regardless.
 
 **Conclusion: OLS/log-linear regression is the correct tool here, not a stand-in for a formula
 we haven't found yet.** The target itself has real variance that the currently-decoded inputs
 cannot explain — this is *why* even the in-sample fit on our own squad is "visibly loose" (§4's
-Garly example), and no amount of respecification will close that gap without decoding whatever
-drives the season-boundary refresh. If that field is ever found — a candidate worth checking
-first is anything in the club_details/manager-confidence family that also updates on a season
-rollover — it would be a genuine improvement to add; contract length and a raw performance
-metric were both checked here and are not it.
+Garly example). What's proven is that some undecoded input drives it; what's NOT established is
+when or how often it updates. If that field is ever found, it would be a genuine improvement to
+add — contract length and a raw performance metric were both checked here and are not it — but
+finding it likely needs denser mid-season snapshots, not more inference from the ones we have.
 
 Effect sizes, holding everything else equal — age is the second-biggest term after reputation:
 
