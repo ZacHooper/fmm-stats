@@ -22,7 +22,6 @@ const unitOf = (pos) => Object.entries(UNIT).find(([, ps]) => ps.includes(pos))?
 
 export async function view() {
   await D.loadMatches();                    // for the head-to-head record against a scouted club
-  const ourCid = D.ourLeagueCid();
   const ladder = D.S.index.ladder;
   const out = el("div");
   out.append(el("h2", { text: "Opposition" }));
@@ -186,51 +185,10 @@ export async function view() {
     html: "Squad quality, not results — it says who <i>should</i> finish where. Scored under the "
       + "selected tactic, so it measures fit to our style rather than raw quality; for level, use "
       + "the ability ranks on <a href=\"#/positions\">Positions</a>. There is no league table here "
-      + "because <code>staging.standings</code> parses only partially for this career.",
+      + "because <code>staging.standings</code> parses only partially for this career. The "
+      + "world-wide league reputation ladder (and nations) moved to "
+      + "<a href=\"#/world\">World</a>.",
   }));
-
-  // ---------------------------------------------------------------- league ladder
-  const lgs = [...D.S.leagues.values()].filter((l) => l.reputation != null)
-    .sort((a, b) => b.reputation - a.reputation);
-  const ourLg = D.S.leagues.get(ourCid);
-  const ourRank = lgs.findIndex((l) => l.cid === ourCid) + 1;
-  out.append(el("h3", { text: `League reputation ladder · ${lgs.length} leagues` }));
-  // No cutoff. The previous top-60 hid most of the pyramid, including divisions we could
-  // plausibly loan into — and a silently truncated list reads as a complete one.
-  const nationFilter = el("select.btn");
-  const nations = [...new Set(lgs.map((l) => l.nation).filter(Boolean))].sort();
-  nationFilter.append(el("option", { value: "", text: "All nations" }),
-    ...nations.map((n) => el("option", { value: n, text: n })));
-  const ladderBox = el("div");
-  const drawLadder = () => {
-    const want = nationFilter.value;
-    const rows = lgs.filter((l) => !want || l.nation === want);
-    ladderBox.replaceChildren(el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["#", "League", "Nation", "Reputation", "Skill idx", "Clubs", "Rated"]
-        .map((h, i) => el(`th${i === 0 || i >= 3 ? ".num" : ""}`, { text: h })))]),
-      el("tbody", {}, rows.map((l) => el("tr", {}, [
-        el("td.num", { text: lgs.indexOf(l) + 1 }),
-        el("td.name", {}, [l.name, l.cid === ourCid ? pill(" us", "good") : null]),
-        el("td", { text: l.nation || DASH }),
-        el("td.num", { text: l.reputation }),
-        el("td.num", {}, [bar(l.skillIdx)]),
-        el("td.num", { text: l.clubs || DASH }),
-        el("td.num", { text: l.rated ?? DASH }),
-      ]))),
-    ])]), el("p.note", {
-      html: "<b>Reputation</b> is a value parsed straight from each competition record. "
-        + "<b>Skill idx</b> is the average player ability in that league normalised 0-100 across "
-        + "ranked leagues — a CA-derived index in the same sanctioned form as a Level percentile, "
-        + "never the number itself. Only leagues with 20+ rated players get one. "
-        + "<b>Clubs</b> counts actual club records, not the competition record's member count — "
-        + "that field is unreliable (it reads 5 for a 12-team division), so it isn't shown. "
-        + (ourLg ? `<br>${ourLg.name}: reputation ${ourLg.reputation}, `
-          + `skill idx ${ourLg.skillIdx ?? "—"}, ranked ${ourRank} of ${lgs.length} loaded leagues.` : ""),
-    }));
-  };
-  nationFilter.addEventListener("change", drawLadder);
-  drawLadder();
-  out.append(el("div.tbar", {}, [nationFilter]), ladderBox);
   return out;
 }
 

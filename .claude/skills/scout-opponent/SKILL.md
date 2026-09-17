@@ -1,14 +1,17 @@
 ---
 name: scout-opponent
-description: Produce a technical-analyst opposition scouting report for a single upcoming opponent in the active FM career — expected style, threats with the numbers behind them, weaknesses, and a concrete game plan — our standing 4-2-3-1 plus any variation, settings and personnel calls this opponent justifies. Combines our data (head-to-head history, squad-attribute profile, ratings) with the in-game scout's report (formation + style), which the user must supply because opponent tactics are NOT in the save. Use when the user says "scout <team>", "how do we beat <team>", or "prep for <team> this week".
+description: Produce a technical-analyst opposition scouting report for a single upcoming opponent in the active FM career — expected style, threats with the numbers behind them, weaknesses, and a concrete game plan — our standing 4-2-3-1 plus any variation, settings and personnel calls this opponent justifies. Combines our data (head-to-head history, squad-attribute profile, ratings, and now the opposing manager's own formation/Style record) with anything fresher the user can add from the in-game scout screens — no longer required, since the manager's preferences are in the save. Use when the user says "scout <team>", "how do we beat <team>", or "prep for <team> this week".
 ---
 
 # Scout an opponent
 
 Acts as the technical analyst briefing the manager on this week's opponent. **Career-aware** —
 reads the active career's store (`FM_CAREER` / newest `fm-<key>.duckdb`), not a hardcoded club.
-Refresh via `import-fm-saves` first if stale. Combine **our data** with the **in-game scout's
-report** — neither is enough alone. Immersion rule: reason with ratings + match stats + attributes,
+Refresh via `import-fm-saves` first if stale. The opposing manager's own formation/Style record
+(`rep["manager"]`) is now the baseline for shape and intent — no user input required to get a
+report started. Layer on anything fresher the user can add (this week's team news, an in-game
+scout screen) as a refinement, not a prerequisite. Immersion rule: reason with ratings + match
+stats + attributes,
 **never surface CA/PA** (the Level %ile is the one allowed CA-derived exception). No local store
 to hand? Use the [`scout-from-site`](../scout-from-site/SKILL.md) skill instead — same job, the
 deployed site's JSON, works from anywhere.
@@ -168,14 +171,30 @@ Everything below is parameterised off the active career — pull these from `db`
   squad) already sorts below the first team — take `matches.iloc[0]` unless it's genuinely
   ambiguous (`len(matches) > 1` with comparable squad sizes), in which case list the candidates and
   ask.
-- **Formation** — ASK THE USER (from the in-game scout). Opponent shape is NOT parsed.
+- **Manager, formation & Style — read automatically, no ask required.** `rep["manager"]`
+  (`opponent_manager()`/`mart.club_managers`, one row per club per snapshot) names who is in
+  charge and gives his **preferred / attacking / defensive formation** plus a derived **Style**
+  (Attacking / Normal / Defensive, `attacking_intent` banded — confirmed 7/7 on a
+  predict-then-check run spanning both edges, `docs/PARSER_EXPANSION_HANDOFF.md` §F). This is
+  now the BASELINE for the report: open with the preferred shape and Style, and use the
+  attacking/defensive variants for the one read this report has ever had on **what he changes to
+  when the game state changes** — the shape he shifts into chasing a goal, and the one he shuts
+  up shop in. Quote the Style label as read, not hedged. One caveat: it is the manager's
+  *standing* preference, not a guarantee of today's XI (a manager still departs from habit for a
+  big occasion, and a club WE manage correctly returns no row/`None`) — so it is a starting point
+  to state plainly, not a promise, and asking the user is now optional refinement rather than a
+  prerequisite: don't block the report on it.
+- **If the user has it, an in-game scout screen still refines the above — ask for it, don't
+  require it.** It answers something the manager record structurally cannot: this week's actual
+  team news (injuries, suspensions, who's actually fit), not the manager's general habit.
   **Best artefact: their `Club Squad → Selection` screen (the `Pkd` column)** — the opposition
   manager's *actual* current selection with position badges, plus suspensions, injuries, condition %,
   form and season apps. On its first use it disagreed with the same fixture's Predicted XI in 2 of 11
   slots and revealed both first-choice full-backs unavailable, inverting the flank plan. Season apps
   also settle "is this name new?" outright. Failing that, **Next Match → Predicted XI** names eleven
   players and their slots.
-  **Trust the Predicted XI for neither shape nor names, and COUNT SLOTS, NOT NAMES.** Across eleven
+  **Trust the Predicted XI for neither shape nor names, and COUNT SLOTS, NOT NAMES** — this is
+  exactly why it is no longer a required input: across eleven
   checks names were wrong 2–7 of 11, and shape held for six, then broke on four straight. Lyngby away
   is the cleanest case: **8 of 11 names right, only 3 of 11 slots** — a 73% name accuracy concealing a
   completely different front four. Slot accuracy is volatile, not reliably bad (the same opponent went
@@ -222,18 +241,6 @@ Everything below is parameterised off the active career — pull these from `db`
   ([`nickname-players-missing`](../../../docs/agent-context/nickname-players-missing.md); fixed, so a
   store rebuilt after 2026-09 carries them). Say **"our data has never seen him"**, not "he must be a
   new signing" — and the `Selection` screen's apps column settles it in one glance.
-- **Style** — ASK THE USER (balanced / possession / counter / high-press / direct …). This half of
-  the in-game report has held up; weight it more than the shape.
-- **THE OPPOSITION MANAGER IS IN THE SAVE NOW — read him before you ask.** `mart.club_managers`
-  gives one row per club per snapshot: who is in charge, his **preferred / attacking / defensive
-  formation**, and a derived **Style** (Attacking / Normal / Defensive). This is the manager's
-  standing preference, *not* the tactic he will pick for this fixture, so it does not replace the
-  question above — but it is free, it is a sanity check on a mis-read scout screen, and the
-  attacking/defensive variants are the only read this report has ever had on **what he changes to
-  when the game state changes**: name the shape he shifts into chasing a goal, and the one he
-  shuts up shop in. One caveat: a club WE manage correctly returns
-  no row. The Style bands themselves are confirmed — 7/7 on a predict-then-check run spanning
-  both edges (`docs/PARSER_EXPANSION_HANDOFF.md` §F) — so quote the label as read, not hedged.
 - **OUR OWN tactics screens** — ASK FOR THESE TOO (Shape / Defence / Attack). A shape sets none of
   mentality, line, closing down, tempo, width or the final-third instructions, and this skill was
   blind to them for a whole season of briefings. In particular check whether **`Work Into Box`** is
@@ -360,8 +367,9 @@ variation needed" plus the settings — say that rather than manufacturing a twe
 - **Favourite vs underdog** — `rep["overall"]["us_quality"]` vs `["them_quality"]` (Level %ile, not
   the Fit-based `us`/`them`, since the latter judges them under a tactic they don't run). This sets
   mentality and how much cover the shape needs, **not** which weight-set to quote.
-- **Their style** (user's scout) → a deep block is a width-and-patience problem; a side that tries to
-  play out is a pressing opportunity keyed to their weakest build-up player.
+- **Their style** (`rep["manager"]["style"]`, refined by the user's scout if they have one) → a
+  deep block is a width-and-patience problem; a side that tries to play out is a pressing
+  opportunity keyed to their weakest build-up player.
 - **The on-pitch matchups** (`rep["matchups"]`) → "Our attack vs their defense" says whether to
   expect chances; "Their attack vs our defense" says what to protect, and is the row that justifies
   a wing dropping to M. If they edge that second row on Strength/Aerial (check `rep["unit_attrs"]`)
@@ -474,10 +482,14 @@ prior = prior[prior.opponent_tid == OPP] if not prior.empty else prior       # c
 # there may be SEVERAL rows per opponent now — one per fixture. `fixture`, `venue` and
 # `saved_at` say which is which; `result_note` marks the ones already played and graded.
 
-# ... write the report from rep, ask the user for formation/style, apply the tactic step ...
+# ... write the report from rep — formation/style default to rep["manager"], override with
+# whatever fresher in-game scout info the user offers — then apply the tactic step ...
 
 FIXTURE = "2026-04-20"                        # the match date off the Next Match screen
-rec = db.save_scout(rep, venue="H", formation="attacking 442", style="high-press",
+mgr = rep.get("manager") or {}
+rec = db.save_scout(rep, venue="H",
+                    formation=mgr.get("formation_preferred", "unknown"),
+                    style=mgr.get("style", "unknown"),
                     note="short plan summary", fixture=FIXTURE)
 # ALWAYS pass fixture — without it the two meetings of a season share one key and the second
 # replaces the first. Then report what the write actually did:
@@ -543,7 +555,10 @@ site's JSON, or the mart via `ATTACH` if arbitrary SQL is genuinely needed — s
 thinner report under this skill's name.
 
 ## Hard limitations — state them in the report
-- **Opponent tactics/formation are NOT in the save** → rely on the user's in-game scout input.
+- **The exact XI on the day is NOT in the save** — `rep["manager"]` gives his standing
+  preferred/attacking/defensive formation and Style, which is now the baseline, but it is a
+  preference, not a guarantee. A fresher in-game scout screen from the user narrows this further
+  (this week's team news) but is optional, not required.
 - **Opponent player names ARE resolved** (the ETL runs the id-resolver — every club is named, not
   just ours) → **use real names** alongside position + percentile.
 - **Opponent attributes are model estimates (±1)** for technical/mental (Pace/physical are exact;
@@ -593,7 +608,9 @@ every claim on `rep`; don't invent numbers.
 
 ```markdown
 # 📋 Opposition briefing — <Club> (<H or A> this week)
-*Their scout report: **<formation>**, **<style>**. Caveats: opponent attributes are model
+*<Manager name> — preferred **<formation>**, **<Style>** (shifts to <attacking formation> chasing
+a goal, <defensive formation> protecting one). <If the user supplied a fresher in-game scout read
+that differs, say so and which one this briefing follows.> Caveats: opponent attributes are model
 estimates (±1) except pace/physicals; key players are named (names resolve for every club) and
 profiled by position + league percentile. <If the snapshot predates the fixture by a window, say so
 here and name the players in their XI that our data has never seen.>*

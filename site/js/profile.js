@@ -110,6 +110,73 @@ export function attributeBlock(p, role, { compare = null, attrTraj = null, detai
   return wrap;
 }
 
+const FOOT_LABEL = (l, r) => {
+  if (l == null && r == null) return null;
+  if (l != null && r != null) return el("span", {}, ["Left ", attrValue(l), "  Right ", attrValue(r)]);
+  return el("span", {}, [l != null ? "Left " : "Right ", attrValue(l ?? r)]);
+};
+
+/** Bio + reputation + personality + the 9 attributes the in-game screen doesn't show — all from
+ *  the profile-only tail (`D.loadProfile`), fetched lazily so core.json stays lean (see
+ *  data.js's `loadProfile` docstring). Returns null while it hasn't loaded yet (or failed),
+ *  which is also the loading-placeholder case: `openProfile` re-renders this box once the fetch
+ *  resolves, so a slow connection shows the rest of the sheet immediately and fills this in a
+ *  moment later rather than blocking the whole profile on it. */
+function profileExtras(p) {
+  const prof = p.profile;
+  if (!prof) return null;
+  const wrap = el("div");
+
+  const bioRows = [
+    ["Nationality", prof.nationality || DASH],
+    ["Foot", FOOT_LABEL(prof.footLeft, prof.footRight) || DASH],
+    ["Squad number", p.shirt != null
+      // 0 reads as "no preference set" rather than a real shirt number — only show it when
+      // it names an actual, different number.
+      ? `#${p.shirt}${prof.preferredShirt ? (prof.preferredShirt !== p.shirt ? ` (prefers #${prof.preferredShirt})` : "") : ""}`
+      : DASH],
+    ["Joined", prof.joinedDate ? monthYear(prof.joinedDate) : DASH],
+    ["Caps / goals", `${prof.caps ?? DASH} / ${prof.goals ?? DASH}`],
+    ["U21 caps / goals", `${prof.u21Caps ?? DASH} / ${prof.u21Goals ?? DASH}`],
+  ];
+  wrap.append(el("h4", { text: "Bio" }));
+  wrap.append(el("div.kpis", {}, bioRows.map(([label, value]) =>
+    el("div.kpi", {}, [el("b", { text: String(value) }), el("span", { text: label })]))));
+
+  wrap.append(el("h4", { text: "Reputation" }));
+  wrap.append(el("div.kpis", {}, [
+    ["Home", prof.reputation.home], ["Current", prof.reputation.current],
+    ["World", prof.reputation.world],
+  ].map(([label, v]) => el("div.kpi", {},
+    [el("b", { text: v == null ? DASH : v.toLocaleString() }), el("span", { text: label })]))));
+
+  const miniAttrs = (title, pairs) => {
+    const known = pairs.filter(([, v]) => v != null);
+    if (!known.length) return null;
+    return el("div", {}, [
+      el("h4", { text: title }),
+      el("div.attrcols", {}, [el("div.attrcol", {}, known.map(([label, v]) =>
+        el("div.arow", {}, [el("span.an", { text: label }), el("span", {}, [attrValue(v)])]))) ]),
+    ]);
+  };
+  const personality = miniAttrs("Personality", [
+    ["Adaptability", prof.personality.adaptability], ["Ambition", prof.personality.ambition],
+    ["Determination", prof.personality.determination], ["Loyalty", prof.personality.loyalty],
+    ["Pressure", prof.personality.pressure], ["Professionalism", prof.personality.professionalism],
+    ["Sportsmanship", prof.personality.sportsmanship], ["Temperament", prof.personality.temperament],
+  ]);
+  if (personality) wrap.append(personality);
+  const hidden = miniAttrs("Attributes the in-game screen doesn't show", [
+    ["Jumping", prof.hidden.jumping], ["Consistency", prof.hidden.consistency],
+    ["Big match", prof.hidden.bigMatch], ["Injury proneness", prof.hidden.injuryProne],
+    ["Versatility", prof.hidden.versatility], ["Set pieces", prof.hidden.setPieces],
+    ["Penalties", prof.hidden.penalty], ["Work rate", prof.hidden.workRate],
+    ["Flair", prof.hidden.flair],
+  ]);
+  if (hidden) wrap.append(hidden);
+  return wrap;
+}
+
 function statTable(agg) {
   if (!agg) return el("p.note", { text: "No parsed match data for this player — only the managed club's matches are richly parsed." });
   const show = ["Apps", "Starts", "Min", "Rating", "Goals", "Assists", "G/90", "A/90",
@@ -267,6 +334,17 @@ export function openProfile(tid, { role = null } = {}) {
   }
   if (controls.length) body.push(el("div.prow", {}, controls));
   body.push(attrBox);
+
+  // Bio/reputation/personality/hidden-attribute tail — fetched lazily (data.js's loadProfile),
+  // so the sheet opens immediately and this section fills in a moment later rather than
+  // blocking every profile open on an extra request.
+  const profileBox = el("div", {}, [el("p.note", { text: "Loading bio…" })]);
+  body.push(profileBox);
+  D.loadProfile(tid).then((p2) => {
+    clear(profileBox);
+    const extras = profileExtras(p2 || p);
+    profileBox.append(extras || el("p.note", { text: "Extra profile detail unavailable right now." }));
+  });
 
   body.push(el("h4", { text: "Match record for us (all seasons)" }));
   body.push(statTable(agg));

@@ -36,6 +36,13 @@ export async function view() {
   const seasons = [...new Set(matches.map((m) => m.season))].sort((a, b) => b - a);
   const oppName = (m) => m.opponent || `#${m.opp_tid}`;
 
+  // Real home-game attendance per season, from mart.club_attendance (same source as "Biggest
+  // Crowd" below — staging.matches.attendance — just aggregated once server-side).
+  const af = M.attendance_fields || [];
+  const attBySeason = new Map((M.attendance || [])
+    .map((r) => Object.fromEntries(af.map((n, i) => [n, r[i]])))
+    .map((a) => [a.season, a]));
+
   const out = el("div");
   out.append(el("h2", { text: "History" }));
 
@@ -54,17 +61,23 @@ export async function view() {
       ppg: ms.length ? ms.reduce((a, m) => a + (m.pts || 0), 0) / ms.length : null,
       comps: [...new Set(ms.map((m) => m.competition))].filter(Boolean),
       snaps: snap.length,
+      att: attBySeason.get(s) || null,
     };
   });
+  const HEAD = ["Season", "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm",
+    "Avg crowd", "Min crowd", "Max crowd", "Competitions", "Snapshots"];
   out.append(el("div.scroll", {}, [el("table", {}, [
-    el("thead", {}, [el("tr", {}, ["Season", "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm", "Competitions", "Snapshots"]
-      .map((h, i) => el(`th${i && i < 9 ? ".num" : i === 10 ? ".num" : ""}`, { text: h })))]),
+    el("thead", {}, [el("tr", {}, HEAD
+      .map((h, i) => el(`th${i > 0 && i < 12 ? ".num" : ""}`, { text: h })))]),
     el("tbody", {}, prog.map((r) => el("tr", {}, [
       el("td.name", { text: r.season }), el("td.num", { text: r.p }), el("td.num", { text: r.w }),
       el("td.num", { text: r.d }), el("td.num", { text: r.l }), el("td.num", { text: r.gf }),
       el("td.num", { text: r.ga }),
       el("td.num", { text: (r.gf - r.ga >= 0 ? "+" : "") + (r.gf - r.ga) }),
       el("td.num", { text: r.ppg == null ? DASH : num(r.ppg, 2) }),
+      el("td.num", { text: r.att ? r.att.avg_att.toLocaleString() : DASH }),
+      el("td.num", { text: r.att ? r.att.min_att.toLocaleString() : DASH }),
+      el("td.num", { text: r.att ? r.att.max_att.toLocaleString() : DASH }),
       el("td", { text: r.comps.join(", ") || DASH }),
       el("td.num", { text: r.snaps }),
     ]))),
@@ -72,7 +85,8 @@ export async function view() {
   out.append(el("p.note", {
     text: "Friendlies excluded. Counts come from the newest snapshot of each season and can fall "
       + "short of the true fixture list — match detail sits in a fixed-size ring buffer the game "
-      + "overwrites as a season runs, so treat a short season as missing games, not lost ones.",
+      + "overwrites as a season runs, so treat a short season as missing games, not lost ones. "
+      + "Crowd figures are our home games only.",
   }));
 
   // ---------------------------------------------------------------- Hall of Fame
