@@ -110,6 +110,39 @@ measurements (uid-keyed records, slot-index round-robin columns, bare score arra
 datadict's `fxds`/`mtdy` scheduling records, a two-save append diff); all are tabulated in
 [`light-results-record.md`](light-results-record.md) so they are not re-run.
 
+**CLOSED 2026-09-18 — the ~2,600 clubless-but-dated slots hold NO match data.** This entry
+called them "the majority of the table's real content and never examined"; they have now been
+examined and there is nothing in them. On `frem-2026-06-11` all **2,598** of those slots carry
+`away_tid == home_tid == 0xFFFF` **and** `away_goals == home_goals == 255` — both club fields
+and both score fields at their sentinels. They are date-only shells: a `day`, the A/B/k group,
+and nothing else. So the table's real match content IS the 275 fixture rows, and the "populated
+total 2,874" figure counts shells, not content. Do not re-open this as a source of results.
+
+**CLOSED 2026-09-18 — the datadict's `fxds` is a schedule TEMPLATE, not fixtures.** Previously
+recorded as "tested and killed" without a reason; here is the reason, so it stays killed. Its
+996 records carry `id_1`/`id_2` values like 2,003,398,260 and 1,937,006,962 — 4-byte tag-shaped
+constants, not club tids — and their dates read `dyow`/`dyom`/`mont` with **year 2000/2001**,
+i.e. "this round is played on this day-of-week in this month" rules with a placeholder year, not
+this career's dated fixtures. The dictionary describes competition STRUCTURE; the realised
+programme is not in it.
+
+**Where the unparsed bytes actually are** (frem-2026-06-11, 63.9 MB), for the next hunt — the
+tail is the biggest unexplored area left and the only large one:
+
+| span | size | ff / zero / printable | note |
+|---|---|---|---|
+| 51,149,000 – 55,839,667 | 4.69 MB | 33% / 45% / 5.4% | before our match region |
+| 56,223,268 – 61,896,648 | 5.67 MB | 52% / 30% / 8.7% | between matches and the squad snapshot |
+| 62,002,727 – 63,936,873 | 1.93 MB | 14% / 15% / **25.8%** | after the snapshot; by far the most TEXT-dense unparsed span in the file |
+
+(Our own match region is 55.84–56.22 MB and the squad snapshot 61.90–62.00 MB on that save;
+both are parsed. Everything else in the 51–64 MB tail is not.) The 14.0–16.7 MB region (2.7 MB,
+85% filler) is the other unidentified area — see #18.
+
+**And a shorter path to most of what "results" is for:** #3's standings record is already decoded
+and gives the exact final position of every club in every loaded competition. That is a strict
+upgrade over today's `lightresults_computed` approximation and needs wiring, not decoding.
+
 **The 25-byte AWAY-FIRST record is now DECODED as far as its shape goes** —
 `fmparser/matchslots.py`, guarded by `tests/test_match_slots.py`. Stride 25 (two independent
 measurements), self-locating by a constant at +20, **3,975 slots on every Frem save across four
