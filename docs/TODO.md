@@ -730,6 +730,33 @@ history exists.** Worth a docstring fix. An unresolved lead sits beside it — t
 `start-8` varies across saves (2,069 / 67,635 / 564 / 52 / 56), is not monotonic so not a usage
 counter, and would fit a free-list head into the recycled pool. Untested.
 
+### The history pool: reclamation means older snapshots hold history newer ones lost
+Measured 2026-09-18, full detail in [`table-framing.md`](table-framing.md). The slab is a fixed
+per-database pool (265,423 rows Frem / 295,648 Bucaspor), a perfect forest with **100% of rows
+reachable** in every save, whose singleton chains are the free reserve (27,319 on day one ->
+~10,000 and stable, so exhaustion is not a risk). Churn is monotonic: `untouched` decays
+0.81 -> 0.38 over five years.
+
+**The finding that matters:** of 24,145 sids present in both the day-one and the 2026 save,
+**6,077 (25.2%) have a SHORTER history chain in 2026** — 68,998 rows, the worst going 39 rows
+down to 5. Median age of that group in 2021 was 31 (~36 by 2026) versus 22 for the 72% that
+gained rows, and max chain length across the whole pool falls 39 -> 31 -> 26. So rows are
+reclaimed from players whose careers end.
+
+Open, in order:
+1. **Settle the mechanism with a RELIABLE retirement signal.** `club_tid` cannot do it (97.6% of
+   the shortened group vs 97.7% of the lengthened group still "have a club" — the lapsed-loan
+   trap). Try absence from later `mart.player_snapshots` / match stats instead.
+2. **Quantify the loss in the STORE, not the save**: per person, compare career-history row
+   counts across snapshots and count how many have their richest history in an OLDER snapshot.
+3. **If material, union history across snapshots in `fmparser/mart.py`.** We keep every
+   snapshot's extract, so the data is recoverable — nothing currently unions it.
+4. Cheap standing check per import: singleton-chain count, to confirm the reserve is not
+   shrinking toward exhaustion.
+
+Refuted while doing this, so nobody retries it: the `u32` at slab `start-8` is **not** a
+free-list head — the rows it points at have in-degree 1, i.e. ordinary mid-chain rows.
+
 **Do not look for count headers above 39 MB either** — checked 2026-09-18. The history slab is
 counted but on different framing (`u32 @ start-12`, no sentinel, already read by
 `history.locate`); the club-history rows sit straight after an 8-byte FF run with NO count (the
