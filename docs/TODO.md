@@ -290,16 +290,21 @@ All three are known gaps, not suspicions:
   reads it. Its own 6th entry ("World") is the coincidental candidate that a widened comp scan
   briefly picked up as a fake `cid=24931` competition (see #10) before comps moved to a pure
   structural walk that never scans this far at all.
-- **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate whose
-  `name_len` search then fails. Confirmed 2026-09-18 as the live cause of a real, visible gap,
-  not just a theoretical one: `lookups.scrape_nations()` is missing **Algeria** (nation_id 0,
-  the very first real nation, sitting immediately before Angola/nation_id 1) from its output.
-  Root cause is the same *class* of bug fixed today in the competition scraper's own name walk
-  (see #10's terminator note): a **plausibility-sniffed** terminator
-  skip is ambiguous exactly when the field that follows is short/edge-case, where an
-  **unconditional, structural** skip (the actual rule — every name field gets exactly one
-  terminator, full stop, regardless of what's in it) is not. Not yet fixed here; `lookups.py`
-  wasn't touched this session.
+- **`_nation_candidates`' `1 <= nid` floor drops ALGERIA** (nation_id 0, the first real
+  nation, immediately before Angola/nation_id 1). **Root cause corrected 2026-09-18 by
+  measurement** — this entry previously blamed the unconditional `break` at the end of the
+  `nat_len` loop, and that is NOT it. Switching the two suspects independently on
+  frem-2023-07-02: as shipped, 1,860 candidates and no Algeria; removing the outer `break`
+  alone, **still 1,860 candidates and still no Algeria**; lowering the floor to `0 <= nid`
+  alone, 2,164 candidates and `(0, 'Algeria', 'ALG')` present. So it is the **range gate**,
+  which makes this the same family as every other uid/id range gate in this codebase rather
+  than a terminator-walk bug. The `nat_len` break may still be a latent bug; it is not this
+  one.
+
+  The nation table also **declares its own count — 251** (u16 at 12,776,735, record 0 at
+  12,776,737), so the fix has an exact target: 251 slots, and `scrape_nations` currently
+  returns 227. See #18 and [`table-framing.md`](table-framing.md). 24 declared ids are absent
+  in total and the other 23 are NOT yet classified blank-vs-missed.
 
 ### 10. The competition scraper — SOLVED (2026-09-18): a pure structural walk, gate-free
 Found auditing `reference.py`'s competition scraper 2026-09-17, escalated into a full rewrite
@@ -659,12 +664,13 @@ is fixed yet** — the audit is committed, the fixes are not.
   real rate is 7.4%, i.e. exactly the ~8% the comment says carry a nickname, and it is the
   same +16 bytes `_scrape_nicknamed` keys on. Fix the comment in the same change.
 
-- **`lookups.scrape_nations` reads 227 of a declared 251, and ALGERIA IS MISSING.** The real
-  record 0 is at 12,776,737 (`[uid 5][id 0][7]'Algeria'`), 188 bytes before the id-1 record
-  the locator was treating as the table start — which is also why the nation table looked
-  header-less in the first audit pass. `_nation_candidates` requires `1 <= nid <= 4096`, so
-  **id 0 is rejected by the gate.** 24 declared ids are absent in total; the other 23 have NOT
-  been checked for blank-vs-missed.
+- **`lookups.scrape_nations` reads 227 of a declared 251.** The real record 0 is at
+  12,776,737 (`[uid 5][id 0][7]'Algeria'`), 188 bytes before the id-1 record the locator was
+  treating as the table start — which is also why the nation table looked header-less in the
+  first audit pass. **The missing Algeria was already known (#9); what is new is the declared
+  count**, which turns "a candidate is being dropped" into "the table holds 251 and we return
+  227", and the measurement that corrects #9's root cause to the `1 <= nid` range gate. 24
+  declared ids are absent in total; the other 23 have NOT been checked for blank-vs-missed.
 
 - **`lookups.scrape_languages` reads 77 of a declared 124.** `_language_at` stops at slot 77,
   'Malayalam', whose `OtherName` is a ZERO-LENGTH string, and `_string` requires `1 <= ln`. A
