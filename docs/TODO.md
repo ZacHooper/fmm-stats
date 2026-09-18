@@ -634,7 +634,14 @@ The competition table's self-declared count (#10) turned out to be a **general c
 table "what does your header say, versus what do we read?" found four defects. **Nothing here
 is fixed yet** — the audit is committed, the fixes are not.
 
-**Two are losing real data on every save ever built:**
+**Three are losing real data on every save ever built:**
+
+- **`lookups.scrape_nations` reads 227 of a declared 251, and ALGERIA IS MISSING.** The real
+  record 0 is at 12,776,737 (`[uid 5][id 0][7]'Algeria'`), 188 bytes before the id-1 record
+  the locator was treating as the table start — which is also why the nation table looked
+  header-less in the first audit pass. `_nation_candidates` requires `1 <= nid <= 4096`, so
+  **id 0 is rejected by the gate.** 24 declared ids are absent in total; the other 23 have NOT
+  been checked for blank-vs-missed.
 
 - **`lookups.scrape_languages` reads 77 of a declared 124.** `_language_at` stops at slot 77,
   'Malayalam', whose `OtherName` is a ZERO-LENGTH string, and `_string` requires `1 <= ln`. A
@@ -665,8 +672,11 @@ is fixed yet** — the audit is committed, the fixes are not.
 
 **The next goal: name the tables in the inventory, one at a time.** `discover_tables.py`
 validates a table by deriving its stride from the header's count and then checking
-`id == slot index` on **every** declared record, which found five tables nothing parses — all
-present in **both careers** with the same shape:
+`id == slot index` on **every** declared record. That found five tables nothing parses, and
+**chaining forward from a declared end found two more** — each fixed-width table's end is
+followed immediately by the sentinel and the next table's count, so a section is a contiguous
+run of blocks. Full register with offsets in
+[`table-framing.md`](table-framing.md#the-complete-register). The unnamed ones:
 
 | offset (frem-2023-07-02, DRIFTS) | Frem | Bucaspor | stride | evidence |
 |---|---|---|---|---|
@@ -674,6 +684,8 @@ present in **both careers** with the same shape:
 | ~6,245,275 | 1,971 | 2,603 | 7 B | INDEX. `[id u32 == index][3 bytes 1..255]` |
 | ~6,263,016 | 816 | 796 | 7 B | INDEX. same shape |
 | ~6,259,084 | 560 | **560** | 7 B | INDEX. same shape; count is career-INVARIANT, so a fixed enumeration |
+| ~13,711,352 | 807 | — | variable | **THE AWARD TABLE** — club-shaped `[tid][uid][3 strings]`, `tid 0` = 'Footballer of the Year'. This is where the 153 award names polluting the club index (#17) come from, now with a declared anchor. Trailer length still unpinned. |
+| ~6,330,330 | 273 | — | variable | `[id u32][len][string]`, id 1 = 'Replay' |
 | ~13,990,354 | 888 | **888** | 7 B | TILE only. `[id u32][00 00 00]`, ids strictly ascending 1..3221 with 2,333 gaps; ends flush against the sentinel that introduces the LANGUAGE table |
 
 All four INDEX tables sit in the attribute section behind the staff grid and drift with it.
