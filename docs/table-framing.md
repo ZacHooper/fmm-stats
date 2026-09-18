@@ -264,6 +264,43 @@ The small candidates (count < ~100, stride < 8) are where the exact-division tes
 — `span % count == 0` is nearly free to satisfy — so treat every one of them as a place to
 look, not as a table.
 
+## Why the yield is low, and where the rest are
+
+Five new tables totalling ~91 KB out of a 60.7 MB file is a thin harvest, and the reason is
+structural rather than a tuning problem: **the detectors only see sentinel-framed tables of
+FIXED-WIDTH records.** The file's bulk lives in regions with different framing entirely — the
+~47 MB of per-club Club History record tables
+([`light-results-record.md`](light-results-record.md)), the tagged data dictionary
+(`fmparser/tagged.py`, self-describing and walked a completely different way), the match
+region, and the history slab. None of those is a sentinel-framed grid, so none of them should
+be expected here.
+
+The nearest untapped seam is the **variable-length** tables, and it was probed rather than
+assumed. A string-walk detector — consume `count x k` length-prefixed UTF-8 strings from
+record 0 and check where the walk lands — gives a clean result for records holding ONE string:
+
+| table | k | walk ends | lands |
+|---|---|---|---|
+| currencies (173) | 1 | 13,990,340 | 8-byte sentinel at **+4** — exact |
+| stadiums (15,987) | 1 | 13,492,153 | 67 bytes before the city table's own sentinel |
+
+and fails for the two tables whose records hold several:
+
+| table | why |
+|---|---|
+| competitions (1372) | 3 strings per record, but 100 slots are blank and many short/code fields are empty, so the true string count is not `count x k` for any k |
+| languages (124) | 2 strings per record, except the 47 records whose `OtherName` is empty |
+
+**The failure mode is the same bug class this whole document is about**: a zero-length
+length-prefixed string is invisible to a greedy string walker, exactly as it was invisible to
+`_language_at` and to the old competition reader. So a string-density detector cannot bound a
+variable-length table without already knowing the record shape — which is the thing it was
+supposed to avoid needing.
+
+That makes the next goal concrete rather than open-ended: walking the variable-length tables
+needs a per-record parser, so they should be taken **one at a time**, and each one's header
+gives a free, exact termination check the moment its record shape is right.
+
 ## Method notes worth carrying
 
 - **A table can declare its own size, and nine here do.** Before writing a walk bounded by a
