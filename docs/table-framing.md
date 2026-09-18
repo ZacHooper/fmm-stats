@@ -68,9 +68,21 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | languages | 13,996,580 | u16 | 124 | 77 |
 | surname id-table | 37,878,967 | u32 | 32,148 | 28,624 |
 | first-name id-table | 38,393,347 | u32 | 19,128 | 15,366 |
+| **nickname id-table** | **38,699,407** | u32 | **9,480** | **never read** |
 
 Plus the history slab (40,364,927, 265,423 rows): the same idea with different framing — a
 u32 at `start - 12`, no sentinel — and `history.locate` already reads it.
+
+**Confirmed adjacencies** (each found by walking one table's declared extent and reading what
+follows): player attributes -> staff -> the three 7 B tables -> the 99 B table -> round/leg
+names (273) -> **the club table (11,331)** -> competitions (1372) -> **nations (251)**;
+stadiums -> cities -> awards (807); currencies -> the 888-record list -> languages; and
+surname -> first-name -> **nickname** id-tables.
+
+**Where the chain STOPS.** The language table's 124 records end at 14,000,242 followed by six
+bytes and then a run of only **six** 0xFF — not an 8-byte sentinel. So the convention is not
+universal even inside a section, and a chain walker must be able to halt rather than assume
+the next block is always there.
 
 **The blocks CHAIN.** Each fixed-width table's declared end is followed immediately by the
 8-byte sentinel and the next table's count, so a section is a contiguous run of
@@ -244,6 +256,33 @@ the check that makes them tables rather than coincidences:
 
 So **560 is career-invariant** — a fixed enumeration — while the other three scale with the
 database. That difference is itself a clue for the naming pass.
+
+#### The NICKNAME id-table: 9,480 slots at 38,699,407 — and we have never read it
+
+Found by chaining past the two name id-tables, which turn out to be **three** consecutive
+blocks: surname (32,148) -> first-name (19,128) -> nickname (9,480), each
+`[8xFF][count][16-byte records]`. `reference._discover_id_tables` returns only the two
+LARGEST, so the third has never been opened.
+
+It resolves through the same browse table, and the ground truth is not ambiguous:
+
+| `common_name_id` | nickname | the name we currently show |
+|---|---|---|
+| 48 | **Tite** | Adenor Leonardo Bachi |
+| 50 | **Renato Gaúcho** | Renato Portaluppi |
+| 22 | **Míchel** | José Miguel González Martín del Campo |
+| 40 | Adnan Hamad | Adnan Hamad Al-Abbasi |
+| 311 | Javi Pérez | Javier Pérez Martínez |
+
+**2,424 of 32,760 people carry one**, and we display every one of them under their full legal
+name instead of the name the game shows.
+
+This also corrects a claim in our own code. `staging.INFO_LAYOUT` says of `common_name_id`:
+*"Only 0.1% of records set it (the rest are ffffffff), nowhere near the ~8% that carry a
+nickname, so it is NOT the link `_scrape_nicknamed` follows."* The measured rate is
+**2,424 / 32,760 = 7.4%**, which IS the ~8% that carry a nickname — and it is the same byte
+range `_scrape_nicknamed` keys on (`+16`, the `NO_NICKNAME` sentinel). So both halves of that
+comment are wrong: the field is the nickname link, and it now has a table to resolve against.
 
 #### THE CLUB TABLE: 11,331 records at 6,340,458, `tid == slot index`
 
