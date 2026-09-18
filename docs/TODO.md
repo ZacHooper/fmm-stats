@@ -465,11 +465,22 @@ Two gaps remain — one football-domain, one structural:
   named and the list is left structural. `tests/test_refdata_scan.py` pins the six populations
   above, so if any of them changes shape this conclusion gets revisited rather than inherited.
 
-  **A NATIONAL-TEAM ID SPACE is visible here and is worth chasing on its own.** 1,143 entries
-  read as a small negative int32 — 132 distinct values in −1658..−5, clustering densely, and
-  Copa América's ten are ten *consecutive* values against CONMEBOL's exactly ten members.
-  Nations are not in the club table, so nothing resolves them today. If this is the national-
-  team id space it would also be the first handle on international competitions generally.
+  **SOLVED — the sign is the discriminator.** `ref > 0` is a CLUB uid; **`ref < 0` is a
+  NATIONAL TEAM, and `-ref` is that nation's `uid` from `lookups.scrape_nations`.** Exact on
+  62/62 negative refs, no exceptions: Copa América's ten resolve to Argentina, Bolivia,
+  Brazil, Chile, Colombia, Ecuador, Paraguay, Peru, Uruguay, Venezuela — CONMEBOL's ten
+  members and nothing else — and the European International League divisions to Scotland /
+  Serbia / Slovakia / Slovenia / Spain / Sweden / Switzerland / Turkey / Ukraine / Wales. The
+  reason they looked like a suspiciously dense id space is that the nation table is
+  alphabetical and negating it reverses the order, so a confederation's members come out
+  consecutive. `0xFFFFFFFF` (−1) is the empty sentinel, not a nation; no nation has uid 1.
+  Pinned in `tests/test_refdata_scan.py` against CONMEBOL, whose membership is knowable
+  independently of the save. Zac called this one before the data did.
+
+  This makes the reference list the first thing in the parser that can name an international
+  competition's participants, and it is the general lever for international football: any
+  record that points at a team can now mean "nation" by going negative, so the same sign rule
+  is worth testing wherever a team ref appears.
 
   **Two widths are undecidable and are declared as such, not guessed:** `n_refs` (bytes +1..3
   are zero on all 46,641 slots and the max count is 134, so u8-plus-padding and u32 are
@@ -565,6 +576,20 @@ with a pure structural walk once the table's own start and declared record count
 a hex dump — no plausibility gate needed at all, and it immediately explained every remaining
 "missing" cid as a genuinely blank slot rather than a scanner defect. Two follow-ups this
 opens, both explicitly requested along the way and not yet done:
+
+- **National teams are club records the club scan cannot see** (found 2026-09-18 while
+  decoding the competition reference list; NOT chased — Zac has this as its own project).
+  A national team is stored in the club layout: Argentina at offset 6,866,484 on
+  frem-2026-06-11 reads `[tid 961][uid 0xFFFFF98F][9]'Argentina'[00][9]'Argentina'[00]
+  [3]'ARG'[trailer]`, which is exactly the long/short/code shape `_eval_club_candidate`
+  looks for. It is invisible anyway, because uid 4,294,965,647 fails both admission bands
+  (`<= 400,000,000`, and the 1.9–2.1bn fill band). **202 of the save's 227 nations have such
+  a record.** Their tids run 1..6342, and 153 of those tids currently resolve in our club
+  index to something that is not a club at all — `'Footballer of the Year'`,
+  `'Player of the Month'`, `"Players' Team of the Year"` — i.e. AWARD records the club gate
+  admits. So the low-tid end of the club table is returning award names where national teams
+  live. Both halves are club-table problems and belong with the rewrite below, not with the
+  competition record.
 
 - **The club table is still gate-based** (`_eval_club_candidate`). It shares the exact same
   candidate-scan architecture the comp table moved away from, and the review pass MEASURED the

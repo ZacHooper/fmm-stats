@@ -422,11 +422,26 @@ def comp_refs(mm, cid):
     **Resolve by UID, never by tid.** 1,095 of these values also match some club's tid and
     the tid reading is wrong every time -- uid 1913 is D.C. United (right for MLS), tid 1913
     is York United. Build the index from `_build_refdata_index(mm)[0]`; there is no uid-keyed
-    resolver in this module because nothing else needs one. National-team competitions carry
-    a reference in a different, unresolved id space (a small negative int32; 132 distinct
-    values in -1658..-5, clustering densely -- Copa América's ten are ten consecutive
-    values, and CONMEBOL has exactly ten members), so a uid lookup simply misses. That is
-    not a parse failure.
+    resolver in this module because nothing else needs one.
+
+    **THE SIGN IS THE DISCRIMINATOR: `ref > 0` is a CLUB, `ref < 0` is a NATIONAL TEAM, and
+    `-ref` is that nation's `uid` from `lookups.scrape_nations`.** Exact on 62/62 negative
+    refs, with no exceptions and no fudge -- Copa América's ten resolve to Argentina,
+    Bolivia, Brazil, Chile, Colombia, Ecuador, Paraguay, Peru, Uruguay and Venezuela, i.e.
+    CONMEBOL's ten members and nothing else, and the European International League divisions
+    to Scotland/Serbia/Slovakia/Slovenia/Spain/Sweden/Switzerland/Turkey/Ukraine/Wales. They
+    are ten and sixteen CONSECUTIVE negative ids because the nation table is alphabetical and
+    the negation reverses it, which is why they looked like a suspiciously dense id space
+    before the mapping was found. `0xFFFFFFFF` (-1) is NOT a national team, it is the
+    empty-slot sentinel; no nation has uid 1.
+
+    A national team is stored as a CLUB-SHAPED record -- Argentina at offset 6,866,484 on
+    frem-2026-06-11 reads `[tid 961][uid 0xFFFFF98F][9]'Argentina'[00][9]'Argentina'[00]
+    [3]'ARG'[trailer]`, the exact long/short/code layout `_eval_club_candidate` looks for.
+    It is nonetheless invisible to the club scan, because a uid of 4,294,965,647 fails both
+    admission bands (`<= 400,000,000`, or the 1.9-2.1bn fill band). 202 of the save's 227
+    nations have such a record. Not chased here -- see docs/TODO.md; it belongs with the
+    club table's own structural rewrite, not with the competition record.
 
     WHAT THE LIST MEANS IS NOT DECIDED, and the name here is deliberately structural. It was
     briefly called `comp_qualifiers` after fmm-editor's `Qualifiers` table (`n × 8 bytes`,
@@ -439,7 +454,7 @@ def comp_refs(mm, cid):
                             expansion year). Membership, not qualification.
       * Canadian Champ'ship 3 entries: Forge FC, Toronto FC, CF Montréal -- the Canadian
                             clubs playing in FOREIGN leagues that still enter this cup.
-      * Copa América        10 national-team refs, no clubs at all.
+      * Copa América        10 national-team refs (negative), no clubs at all.
       * Scottish Cup        13 entries, every one 0xFFFFFFFF. Reserved and empty.
       * Italian Cup         4 entries (3 Serie C clubs + a sentinel) against a ~78-team field.
 

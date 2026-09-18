@@ -217,11 +217,19 @@ the Libertadores / Asian / African Champions Leagues have 94 / 47 / 54, and **3F
 zero while MLS has 28**. A plausible story is "an explicit entrant list, stored only where the
 field cannot be derived from the league structure the game simulates". A story is not a decode.
 
-**A national-team id space is visible here.** 1,143 entries read as a small negative int32 —
-132 distinct values in −1658..−5, clustering densely, and Copa América's ten are ten
-*consecutive* values against CONMEBOL's exactly ten members. Nations are not in the club table
-so nothing resolves them today; chasing this would be the first handle on international
-competitions generally.
+**The SIGN says what `ref` points at: positive = club uid, negative = NATIONAL TEAM, with
+`-ref` being that nation's `uid` from `lookups.scrape_nations`.** Exact on 62/62 negative refs
+— Copa América's ten are CONMEBOL's ten members exactly; the European International League
+divisions are European nations. They land on consecutive negative ids because the nation table
+is alphabetical and negating reverses it. `0xFFFFFFFF` (−1) is the empty sentinel, not a
+nation. This is the first thing in the parser that can name an international competition's
+participants, and the sign rule is worth testing wherever else a team reference appears.
+
+**A national team is a CLUB-shaped record the club scan cannot admit.** Argentina reads
+`[tid 961][uid 0xFFFFF98F][9]'Argentina'[00][9]'Argentina'[00][3]'ARG'[trailer]` — the exact
+long/short/code layout — but uid 4,294,965,647 fails both of `_eval_club_candidate`'s uid
+bands, so all 202 such records are invisible. Filed under the club table's own rewrite
+([[TODO]]), not here.
 
 Three widths/values deliberately NOT named:
 - **`n_refs`' width.** u8 + 3 UNKNOWN, not u32: bytes +1..3 are zero on all 46,641 slots and

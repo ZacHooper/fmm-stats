@@ -33,6 +33,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from fmparser import lookups as LK    # noqa: E402
 from fmparser import reference as R    # noqa: E402
 from fmparser.save import Save         # noqa: E402
 
@@ -74,6 +75,12 @@ KNOWN_NOT_A_COMP = 24931
 # read it as a single byte against 255 until 2026-09-18 -- right answer, wrong width. A byte
 # read would resolve nation_id 65535 to 255, so this pins the declared width.
 NO_NATION = 0xFFFF
+
+# A competition's reference list uses the SIGN to say what it points at: positive = club uid,
+# negative = national team, where -ref is that nation's `uid` from scrape_nations. CONMEBOL's
+# ten members are the check, because the right answer is knowable independently of the save.
+CONMEBOL = sorted(["Argentina", "Bolivia", "Brazil", "Chile", "Colombia",
+                   "Ecuador", "Paraguay", "Peru", "Uruguay", "Venezuela"])
 
 
 def _check(ok_flag, label):
@@ -144,6 +151,15 @@ def main():
                  "-- the asymmetry that rules out a single label")
     ok &= _check(all(e["ref"] > 0xFFFF0000 for e in R.comp_refs(mm, 254)),
                  "cid=254 (Copa América) holds national-team refs, not club uids")
+    # the sign rule: ref < 0 is a national team and -ref is that nation's scrape_nations uid.
+    # Pinned on Copa América because the answer is checkable without the save -- CONMEBOL has
+    # exactly ten members, so ten refs resolving to exactly those ten is not a coincidence a
+    # shape check could produce.
+    nat_by_uid = {r["uid"]: r["name"] for r in LK.scrape_nations(mm).values()}
+    conmebol = sorted(nat_by_uid.get(-(e["ref"] - (1 << 32))) for e in R.comp_refs(mm, 254))
+    ok &= _check(conmebol == CONMEBOL,
+                 f"Copa América's 10 refs are -(nation uid) for CONMEBOL's 10 members "
+                 f"({conmebol})")
 
     nation_widths = {c["nation_id"] for c in comps.values()}
     ok &= _check(255 not in nation_widths or NO_NATION not in nation_widths,

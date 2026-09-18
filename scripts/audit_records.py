@@ -169,11 +169,14 @@ def _comp_ref_entry_layout():
     1,095 of these values also match some club's tid and that reading is wrong every time --
     uid 1913 is D.C. United (right for MLS), tid 1913 is York United.
 
-    NATIONAL-TEAM competitions carry a reference in a different, unresolved id space: 1,143
-    entries read as a small negative int32, 132 distinct values in -1658..-5, and they cluster
-    densely (-1658..-1649 is ten consecutive values, and Copa América -- which is where they
-    appear -- has exactly ten CONMEBOL member nations). Nations are not in the club table, so
-    this is very likely a national-team id space. Unresolved, and not guessed at.
+    **The SIGN is the discriminator: positive is a club, negative is a NATIONAL TEAM, and
+    `-ref` is that nation's `uid` from `lookups.scrape_nations`.** Exact on 62/62 negative
+    refs -- Copa América's ten are CONMEBOL's ten members exactly, the European International
+    League divisions are European nations. They occupy consecutive negative ids because the
+    nation table is alphabetical and negating reverses it. `0xFFFFFFFF` (-1) is the empty
+    sentinel, not a nation; no nation has uid 1. A national team is stored as a club-shaped
+    record that the club scan cannot admit (its uid fails both uid bands) -- 202 of 227
+    nations have one; see docs/TODO.md, it belongs with the club table, not here.
 
     `ordinal` is declared as a u8 for the same reason as the count: the byte above it is 0 on
     5,220 of 5,237 entries and 1 on the other 17, so u8-plus-a-rare-flag and u16 are not
@@ -190,7 +193,7 @@ def _comp_ref_entry_layout():
       * Canadian Championship: 3 entries -- Forge FC, Toronto FC, CF Montréal, i.e. the
         Canadian clubs that play in FOREIGN leagues but enter the Canadian cup. Reads as
         "entrants the league structure cannot imply".
-      * Copa América: 10 national-team refs, no clubs.
+      * Copa América: 10 national-team refs (negative), no clubs.
       * Scottish Cup: 13 entries, ALL `0xFFFFFFFF`. Reserved and empty.
       * Italian Cup: 4 entries (3 Serie C clubs + a sentinel) against a ~78-team real field.
     And the asymmetry that makes a single label untenable: European Champions Cup has ZERO
