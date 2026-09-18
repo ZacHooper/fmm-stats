@@ -56,7 +56,8 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | *unnamed, 7 B* | 6,259,084 | u32 | 560 | — |
 | *unnamed, 7 B* | 6,263,016 | u32 | 816 | — |
 | *unnamed, 99 B* | 6,268,740 | u32 | 622 | — |
-| *unnamed, strings* | 6,330,330 | u32 | 273 | — |
+| *round/leg names* | 6,330,330 | u32 | 273 | — |
+| **clubs + national teams** | **6,340,458** | u32 | **11,331** | ~4,700 via a scan |
 | competitions | 12,626,907 | u16 | 1,372 | 1,372 ✓ |
 | nations | **12,776,737** | u16 | **251** | 227 |
 | stadiums | 12,816,567 | u16 | 15,987 | 15,987 ✓ |
@@ -244,6 +245,46 @@ the check that makes them tables rather than coincidences:
 So **560 is career-invariant** — a fixed enumeration — while the other three scale with the
 database. That difference is itself a clue for the naming pass.
 
+#### THE CLUB TABLE: 11,331 records at 6,340,458, `tid == slot index`
+
+**The single biggest result of this work, and it came from chaining, not searching.** TODO #17
+recorded that clubs were the one table with no locatable structure — the candidate scan's
+accepted records sprawled across one 6.4 MB run whose first entry was junk, so there was no
+"record 0" to look behind. That was true only because nobody had walked the chain into the
+6.33–12.63 MB gap.
+
+```
+6,340,446   8 x FF                      <- sentinel
+6,340,454   u32 = 11331                 <- declared count
+6,340,458   [tid 0][uid 0xFFFFFFFB][7]'Algeria'[00][7]'Algeria'[00][3]'ALG' ...
+```
+
+- **`tid` IS the slot index, and the table is dense: 11,331 of 11,331 tids resolve, zero gaps**
+  (ids 0..11,330 against a declared 11,331).
+- Ground truth is exact: `tid 346` = `'Boldklubben Frem' / 'Frem' / 'Frem'`, `tid 7296` =
+  `'Boldklubben Frem Reserves'` — the two tids `careers.py` has always used.
+- It runs from 6,340,458 to the competition table's own header at 12,626,905, so **the whole
+  6.3 MB gap is this one table.**
+- It holds more than clubs. Low tids are **national teams** in the club layout, alphabetically
+  (`0 Algeria, 1 Angola, 2 Benin, 3 Botswana, 4 Burkina Faso, 5 Burundi, 6 Cameroon, …`) with
+  descending negative uids (`0xFFFFFFFB, 0xFFFFFFFA, …`); real clubs start around tid 61
+  (`'Asociación Atlética Argentinos Juniors'`); reserve sides sit high (`7296`); and the table
+  **ends with U21 national teams** (`11328 'Tuvalu U21'`, `11329 'Montenegro U21'`,
+  `11330 'Saint Barthélemy U21'`).
+
+That last point resolves the other half of TODO #17 by construction: national teams are not
+invisible records the club scan happens to miss, they are **rows 0..~200 of the club table**,
+and the reason 153 low tids were resolving to `'Footballer of the Year'` and friends is that
+the scan never found this table and was matching award records (13,711,352) instead.
+
+**What is NOT yet done: the record's trailer.** The head is
+`[tid u32][uid u32][len][long][00][len][short][00][len][code]`, and a **fixed** 491-byte
+trailer walks the first 62 records exactly (the whole CAF national-team block) and then
+breaks, so the trailer carries something variable-length. The extent, the count, the index
+invariant and the anchor are all established; converting `_eval_club_candidate` into a pure
+structural walk needs only that trailer decoded, and until then a tid-keyed scan bounded by
+this table's declared extent is already strictly better than scanning 20 MB of REFDATA.
+
 #### The award table: 807 records at 13,711,352
 
 Found by chaining forward from the city table's declared end, and it matters beyond the
@@ -310,9 +351,12 @@ look, not as a table.
 
 ## Why the yield is low, and where the rest are
 
-Five new tables totalling ~91 KB out of a 60.7 MB file is a thin harvest, and the reason is
-structural rather than a tuning problem: **the detectors only see sentinel-framed tables of
-FIXED-WIDTH records.** The file's bulk lives in regions with different framing entirely — the
+The detectors' own harvest was ~91 KB of a 60.7 MB file, which looked thin until chaining
+added the 6.3 MB club table. The reason the *detectors* find little is structural rather than
+a tuning problem: **they only see sentinel-framed tables of FIXED-WIDTH records** — and the
+lesson is that **chaining forward from a known table's declared end beats any detector**,
+because the declared count makes each table's extent known and therefore makes the next
+table's header findable with no search at all. The file's bulk lives in regions with different framing entirely — the
 ~47 MB of per-club Club History record tables
 ([`light-results-record.md`](light-results-record.md)), the tagged data dictionary
 (`fmparser/tagged.py`, self-describing and walked a completely different way), the match
