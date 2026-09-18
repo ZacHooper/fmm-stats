@@ -16,6 +16,7 @@ import struct
 
 import numpy as np
 
+from . import lookups as LK
 from . import regions as RG
 
 NATIONS = {173: "Turkey"}
@@ -115,13 +116,239 @@ def _short_after(mm, j):
 # top-flight league(0), league(228)/play-off(227)=1, cup(117)=2, reserve league(1370)=8,
 # friendly(65)=9. type_id 0 and 1 are BOTH round-robin leagues (0 = a nation's top flight,
 # e.g. 3F Superliga / Bundesliga / Serie A; 1 = the divisions below it).
-COMP_TYPES = {0: "league", 1: "league", 2: "cup", 8: "reserve_league", 9: "friendly"}
-_COMP_VALID_TYPES = frozenset(COMP_TYPES)
+#
+# This is NOT a small closed enum -- corrected 2026-09-18. `_eval_comp_candidate` used to
+# reject any type outside this dict (`_COMP_VALID_TYPES`, now retired), on the unstated
+# assumption that only 5 type values existed. They don't: at minimum 3, 4, 5, 7, 10, 11, 12,
+# 13, 14, 15, 22, 23, 26, 28, 29, 30, 36, 37, 38, 39 all produce clean, real, football-shaped
+# competitions when the type check is dropped (Carabao Cup, FA Trophy, European Championship,
+# Copa América, African Cup of Nations, national Super Cups, youth leagues, All-Star
+# exhibitions among them) -- confirmed by NAME, not just by passing the other gates. The
+# single clearest case: cid 13 "French Regional Divisions" sat in an otherwise fully dense
+# 0-12 block and was still being dropped by this gate alone. Only the 5 values below have a
+# name sourced with real confidence; every other value falls through to `type_N` in the `rec`
+# dict rather than getting a guessed label -- naming the rest properly is future work
+# (docs/TODO.md), not blocking their resolution. Nation/continent/reputation/name-shape
+# already do the real noise filtering (every actual noise candidate checked failed one of
+# those, never type alone), so there is no evidence a type gate was ever needed here.
+COMP_TYPES = {0: "league", 1: "league", 2: "cup", 8: "reserve_league", 9: "friendly",
+              21: "continental_cup"}
 _MIN_COMP_REP = 500          # real loaded comps have reputation >> this (min seen ~12k for a
                              # 6th-tier league; friendlies ~2.6k). ROUND-label records that
                              # collide on small cids ('First Leg', 'Playoff') carry rep 0.
+# 45 -> 60 (2026-09-18), matching the club long-name cap (_eval_club_candidate's [2,60]).
+# 45 was silently dropping real competitions with long, fully-spelled regional names --
+# "Northern Amateur Football League Premier Division" (51), "Chinese National Amateur
+# Division North East Group" (52), "United States Soccer Leagues Division Two Playoffs"
+# (51) among 40+ confirmed real names in the 46-52 range. No noise candidate in this save
+# was ever caught BY the length cap alone (continent/nation/reputation/shape already do
+# that work), so narrowing it bought nothing.
+_COMP_NAME_CAP = 60
 
 _REFDATA_INDEX_CACHE = {}   # id(mm) -> ({tid: club_record}, {cid: comp_record})
+_NATION_BOUNDS_CACHE = {}   # id(mm) -> (lo, hi) of the real nation-name table, padded
+
+
+def _nation_table_bounds(mm):
+    """The real NATION table's byte extent, straight from `lookups.scrape_nations` (its own
+    offsets, not a guess) -- padded by 200B either side, comfortably more than one nation's
+    own record span (~60-90B: name + nationality + 3-letter code, each length-prefixed) but
+    nowhere near the ~2,900B gap to the next real table. Measured 2026-09-18: this file's
+    "Danish Reserves Group 1" (cid 1342, the ORIGINAL motivating fix for this whole item)
+    sits only 2,905B before the nation table's own first offset -- reusing `scrape_nations`'
+    own 4096B cluster-continuity margin here (a different job: finding candidates that
+    belong to ONE dense run, not bounding that run's own edges) swallowed it whole and
+    broke the fix. 200B is derived from the record shape, not copied from a neighbour's
+    unrelated constant.
+
+    WHY THIS EXISTS: `scrape_nations`'s own docstring says it plainly -- "CLUB and
+    COMPETITION records share this exact shape [with nation records]", so this scan's
+    candidate prefilter proposes every nation's name/nationality/code triplet as a comp (or
+    club) candidate too. Confirmed 2026-09-18: "British Virgin Is." (real nation_id 206 per
+    `scrape_nations`) was resolving as comp cid 63981 -- a number read from the WRONG byte
+    offset for this record type, not a real id at all, just the tail of the PREVIOUS
+    nation's own ranking-history array sitting where a comp record's cid/uid would be.
+    Only one such collision tripped a comp gate on this save (a length-shape fluke), which
+    means an unknown number of others could be silently resolving as fake "competitions"
+    with plausible-looking fields, never tripping anything. Excluding the whole known
+    region structurally is the fix CLAUDE.md's region-first method calls for -- an
+    incidental gate (reputation ceiling, name-length shape) only catches the collisions
+    that happen to look wrong, not the ones that don't.
+    """
+    key = id(mm)
+    cached = _NATION_BOUNDS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    offsets = [rec["offset"] for rec in LK.scrape_nations(mm).values()]
+    bounds = (min(offsets) - 200, max(offsets) + 200) if offsets else None
+    _NATION_BOUNDS_CACHE[key] = bounds
+    return bounds
+
+
+_NAME_TABLE_BOUNDS_CACHE = {}   # id(mm) -> (start, end) of the browse name table, exact
+
+
+def _name_table_bounds(mm):
+    """The real NAME table's (the ~46k-entry flat [len][utf-8] first-name/surname "browse"
+    table `_walk_browse` reads for player-name resolution) byte extent -- same collision
+    class as `_nation_table_bounds`, one door down: this table sits at the very start of
+    the file (`scripts/map_regions.py` independently maps it as `name_table`, entry0@299=
+    'Rajagobal'), made of nothing but back-to-back length-prefixed strings, which is
+    EXACTLY the shape the comp/club candidate prefilter looks for. Confirmed 2026-09-18:
+    comp cid=24931 named 'World' resolved from file offset 897 -- squarely inside this
+    table, nowhere near any real competition (which cluster at ~12.6-12.76M on this save) --
+    only surfaced once the name-length cap was raised to 60 and the continent gate widened
+    to accept the 0xFFFF "no confederation" sentinel, the same two changes that recovered
+    75 genuine long-named lower-tier leagues and World Cup/Confederations Cup/Club World
+    Championship. No padding needed, unlike the nation table: `_walk_browse` already finds
+    this table's own precise start/end by the same walk that reads its contents, not a
+    separate candidate scan with its own continuity margin.
+    """
+    key = id(mm)
+    cached = _NAME_TABLE_BOUNDS_CACHE.get(key)
+    if cached is not None:
+        return cached
+    start, end, names = _walk_browse_bounds(mm)
+    bounds = (start, end) if names else None
+    _NAME_TABLE_BOUNDS_CACHE[key] = bounds
+    return bounds
+
+
+_COMP_TABLE_ANCHOR_CACHE = {}
+
+
+def _comp_table_anchor(mm):
+    """(start, count) for the competition table, read from the file's OWN structure, not a
+    tuned constant: the table is preceded by a run of 0xFF filler, then a u16 giving its own
+    declared record count, then record 0 begins immediately. Spotted directly in a hex dump
+    2026-09-18 -- 0x055c = 1372 on this save, exactly max real cid (1371) + 1.
+
+    This is the anchor for `_walk_comp_table`, which reads the WHOLE table by pure
+    arithmetic once `start`/`count` are known -- no plausibility gate needed at all, because
+    the walk never depends on a record's content to find the next one. Confirmed by walking
+    every one of the 1372 declared records with zero misalignment (cid always equals the
+    loop index) and cross-checking against the file's own count: 1272 named + 100 verified-
+    blank (namelen 0, a structured placeholder uid) == 1372 exactly.
+
+    The candidate that a bare `_comp_table_anchor` search would find first isn't
+    necessarily the real one -- a small preceding 0xFF run plus a plausible count occurs
+    coincidentally elsewhere in the file (a 'Team of the Week' id sequence at ~13.7M was one
+    such false hit). Confirmed by walking to record 1 and checking its cid reads back as 1
+    -- far stronger than trusting the count-range heuristic alone, and self-consistent with
+    the very same arithmetic the real walk uses.
+    """
+    key = id(mm)
+    cached = _COMP_TABLE_ANCHOR_CACHE.get(key)
+    if cached is not None:
+        return cached
+    buf = np.frombuffer(mm, dtype=np.uint8)
+    is_ff = buf == 0xFF
+    d = np.diff(is_ff.astype(np.int8))
+    run_starts = np.flatnonzero(d == 1) + 1
+    run_ends = np.flatnonzero(d == -1) + 1
+    result = None
+    for s, e in zip(run_starts.tolist(), run_ends.tolist()):
+        if e - s < 6:
+            continue
+        p = e
+        count = int.from_bytes(mm[p:p + 2], "little")
+        if not (100 <= count <= 5000):
+            continue
+        cid0 = int.from_bytes(mm[p + 2:p + 4], "little")
+        uid0 = int.from_bytes(mm[p + 4:p + 8], "little")
+        if cid0 != 0 or not (1 <= uid0 <= 100_000):
+            continue
+        namelen0 = int.from_bytes(mm[p + 8:p + 12], "little")
+        if not (3 <= namelen0 <= _COMP_NAME_CAP):
+            continue
+        name0 = mm[p + 12:p + 12 + namelen0]
+        if not (name0[:1].isalpha() or name0[:1].isdigit()):
+            continue
+        try:
+            _, next_p = _read_comp_slot(mm, p + 2)
+            cid1 = int.from_bytes(mm[next_p:next_p + 2], "little")
+        except (IndexError, UnicodeDecodeError):
+            continue
+        if cid1 == 1:
+            result = (p + 2, count)
+            break
+    _COMP_TABLE_ANCHOR_CACHE[key] = result
+    return result
+
+
+def _read_comp_slot(mm, p):
+    """Read ONE competition-table slot at `p` (a `[cid][uid]...` record start) by pure
+    arithmetic -- no plausibility gate, no rejection outcome. Returns (rec_or_None, next_p):
+    `rec` is None for a genuinely blank/reserved slot (namelen 0 -- confirmed 2026-09-18,
+    cid 1242-1337 and 4 scattered per-nation placeholders on this save, uid a structured
+    `2,000,000,000 + n` counter distinct from real competitions' `200,000,000 + cid`
+    range), and `next_p` is always correct regardless, because the terminator convention
+    (one byte after the long name, one after the short name, none after the code) and the
+    25+8*history_count trailer extension apply identically whether or not the names are
+    empty. See `_walk_comp_table`."""
+    cid = int.from_bytes(mm[p:p + 2], "little")
+    uid = int.from_bytes(mm[p + 2:p + 6], "little")
+    q = p + 6
+    ln = int.from_bytes(mm[q:q + 4], "little")
+    long = mm[q + 4:q + 4 + ln].decode("utf-8")
+    pp = q + 4 + ln + 1
+    sl = int.from_bytes(mm[pp:pp + 4], "little")
+    short = mm[pp + 4:pp + 4 + sl].decode("utf-8")
+    pp = pp + 4 + sl + 1
+    cl = int.from_bytes(mm[pp:pp + 4], "little")
+    code = mm[pp + 4:pp + 4 + cl].decode("utf-8")
+    pp = pp + 4 + cl
+    trailer = mm[pp:pp + 14]
+    typ, nation = trailer[0], trailer[3]
+    rep = int.from_bytes(trailer[9:11], "little")
+    level = trailer[11]
+    parent = int.from_bytes(trailer[12:14], "little")
+    hist_p = pp + 14
+    hist_count = int.from_bytes(mm[hist_p:hist_p + 4], "little")
+    next_p = hist_p + 25 + 8 * hist_count
+    if ln == 0:
+        return None, next_p
+    rec = {"cid": cid, "uid": uid, "name": long, "short": short, "code": code,
+           "type": COMP_TYPES.get(typ, f"type_{typ}"), "type_id": typ,
+           "nation_id": None if nation == 255 else nation, "reputation": rep,
+           "level": level, "parent_cid": None if parent == 0xFFFF else parent}
+    return rec, next_p
+
+
+def _walk_comp_table(mm):
+    """Pure structural walk of the ENTIRE competition table -- no candidate scan, no gates.
+    `_comp_table_anchor` gives the table's start and its own declared record count; every
+    one of those records is then read by `_read_comp_slot`'s arithmetic alone. Returns
+    (comps, n_blank) where `comps` is {cid: rec} for named records only; `n_blank` counts
+    genuinely empty slots. Returns (None, None) if the anchor can't be found on this save
+    (a different career/format) -- callers fall back to the old candidate-scan-plus-gates
+    path in that case.
+
+    Replaces `_eval_comp_candidate`'s whole gate cascade for competitions (2026-09-18):
+    once the table's own start/count are known, every record -- named or blank -- resolves
+    by arithmetic, with cid checked against the walk's own loop index as the ONE structural
+    assertion (a real invariant, not a tuned constant, per CLAUDE.md's region-first method).
+    A misalignment raises rather than silently truncating the walk, since a table whose
+    OWN declared count and start are known has no legitimate reason to drift.
+    """
+    anchor = _comp_table_anchor(mm)
+    if anchor is None:
+        return None, None
+    start, count = anchor
+    comps = {}
+    n_blank = 0
+    p = start
+    for i in range(count):
+        cid = int.from_bytes(mm[p:p + 2], "little")
+        if cid != i:
+            raise ValueError(f"comp table walk misaligned at slot {i}: read cid={cid}, "
+                              f"offset={p}")
+        rec, p = _read_comp_slot(mm, p)
+        if rec is None:
+            n_blank += 1
+        else:
+            comps[cid] = rec
+    return comps, n_blank
 
 # ---- named reject reasons -----------------------------------------------------------
 # Both _build_refdata_index and diagnose_refdata_scan (below) call the SAME
@@ -146,6 +373,11 @@ COMP_REJECT_LONG_SHAPE = "long_name_shape_invalid"
 # fire again. docs/TODO.md #10 has the before/after.
 COMP_REJECT_NAME_WALK_ABORTED = "name_walk_aborted_other"      # any other out-of-range slot
 COMP_REJECT_TRAILER_OOB = "trailer_runs_past_buffer_end"
+# The type-value whitelist this named (a candidate's type byte outside a 5-value dict) is
+# RETIRED 2026-09-18 -- it was rejecting real competitions (cid 13 "French Regional
+# Divisions" among ~20 other genuine type values), not filtering noise; see COMP_TYPES'
+# comment for the evidence. Kept as a name, not deleted, so old diagnostics/docs referencing
+# it still resolve; it can no longer fire.
 COMP_REJECT_TYPE = "comp_type_unrecognised"
 COMP_REJECT_CONTINENT_SIG = "comp_continent_signature_mismatch"
 COMP_REJECT_NATION_RANGE = "comp_nation_id_out_of_range"
@@ -157,6 +389,39 @@ COMP_REJECT_REPUTATION_FLOOR = "comp_reputation_below_floor"   # the reputation-
                                                                  # tuned _MIN_COMP_REP floor
                                                                  # meant to reject name-
                                                                  # collision garbage
+COMP_REJECT_SHORT_LONGER_THAN_LONG = "comp_short_name_longer_than_long"  # added 2026-09-18
+                                                                 # alongside the reputation
+                                                                 # ceiling -- every one of
+                                                                 # 1,065 genuine competitions
+                                                                 # has len(short) <=
+                                                                 # len(long); exactly one
+                                                                 # candidate breaks it
+                                                                 # ("British Virgin Is." /
+                                                                 # "British Virgin Islands",
+                                                                 # code "VGB" -- almost
+                                                                 # certainly a NATION record
+                                                                 # coinciding with this
+                                                                 # record's byte shape, same
+                                                                 # class of leak as the
+                                                                 # continent-tree reputation
+                                                                 # outliers above
+COMP_REJECT_REPUTATION_IMPLAUSIBLE = "comp_reputation_implausible"  # ceiling, not floor --
+                                                                 # added 2026-09-18 alongside
+                                                                 # the continent-enum widening.
+                                                                 # Every genuine competition
+                                                                 # measured tops out at 200
+                                                                 # (European Champions Cup);
+                                                                 # exactly 4 candidates read
+                                                                 # 24,933-29,810 -- "Africa"/
+                                                                 # "Europe"/"Asia"/"North
+                                                                 # America" with a parent_cid
+                                                                 # chain and a single-digit uid,
+                                                                 # almost certainly the
+                                                                 # unparsed Region table
+                                                                 # (docs/TODO.md #9) coinciding
+                                                                 # with this record's byte
+                                                                 # shape by chance, not a
+                                                                 # competition at all
 
 
 class ClubCandidate(NamedTuple):
@@ -197,6 +462,21 @@ def _candidate_positions(mm):
     # the rest is either genuinely other content, padding, or exactly this blind spot).
     cand = np.flatnonzero((u32 >= 2) & (u32 <= 60))
     cand = cand[cand >= 8]      # room to look back 8 bytes for the club header (TID+UID)
+    # Exclude the real NATION table -- see _nation_table_bounds' docstring. Its
+    # name/nationality/code triplets share this exact candidate shape, so without this a
+    # nation string can resolve as a fake club or competition under a bogus id read from
+    # neighbouring bytes that were never meant to be an id at all.
+    nation_bounds = _nation_table_bounds(mm)
+    if nation_bounds is not None:
+        nlo, nhi = nation_bounds
+        cand = cand[(cand + lo < nlo) | (cand + lo > nhi)]
+    # Exclude the real NAME (browse) table -- see _name_table_bounds' docstring. Same
+    # collision class as the nation table: a flat run of length-prefixed strings at the
+    # very start of the file can, rarely, coincidentally satisfy every comp/club gate.
+    name_bounds = _name_table_bounds(mm)
+    if name_bounds is not None:
+        nmlo, nmhi = name_bounds
+        cand = cand[(cand + lo < nmlo) | (cand + lo > nmhi)]
     return lo, hi, len(mm), cand
 
 
@@ -292,13 +572,15 @@ def _eval_comp_candidate(mm, q, nmax, resolved_tiers):
     still improve on an earlier tier-1 (reputation-floor gap-fill) hit for the same cid. The
     real scan passes the `comp_tiers` dict it's building; the diagnostic passes its own.
 
-    Structural gates (name decode, name walk, buffer bounds, type/continent/nation) short-
-    circuit in order, because a later gate is meaningless without the earlier one succeeding
-    -- you cannot test reputation on a trailer that was never located. Once a candidate
-    clears every structural gate, reputation decides the TIER (see below) rather than
-    accept/reject -- the four trailer-shape gates used to be evaluated fully independently,
-    matching audit_light_results.gate_costs' "cost in isolation" idiom, but that only still
-    applies to the three genuinely structural ones now that reputation has its own tier.
+    Structural gates (name decode, name walk, buffer bounds, continent/nation/implausible-
+    reputation) short-circuit in order, because a later gate is meaningless without the
+    earlier one succeeding -- you cannot test reputation on a trailer that was never
+    located. Once a candidate clears every structural gate, LOW reputation decides the TIER
+    (see below) rather than accept/reject. There used to be a fourth structural gate on the
+    trailer's `type` byte; it's retired (2026-09-18, see COMP_TYPES' comment) -- it was
+    rejecting real competitions (cid 13 among ~20 confirmed real type values), and every
+    actual noise candidate checked was already caught by continent/nation/reputation
+    regardless, so it was never doing filtering work of its own.
     """
     cid = int.from_bytes(mm[q - 6:q - 4], "little")
     if resolved_tiers.get(cid) == 0:
@@ -306,29 +588,41 @@ def _eval_comp_candidate(mm, q, nmax, resolved_tiers):
 
     uid = int.from_bytes(mm[q - 4:q], "little")
     ln = int.from_bytes(mm[q:q + 4], "little")
-    if not (3 <= ln <= 45):
+    if not (3 <= ln <= _COMP_NAME_CAP):
         return CompCandidate(False, [COMP_REJECT_LONG_LEN], cid, None, None)
     try:
         long = mm[q + 4:q + 4 + ln].decode("utf-8")
     except UnicodeDecodeError:
         return CompCandidate(False, [COMP_REJECT_LONG_UNDECODABLE], cid, None, None)
-    # league names can start with a digit ('3. Division', '2. Bundesliga')
-    if not (long and (long[0].isupper() or long[0].isdigit())
+    # league names can start with a digit ('3. Division', '2. Bundesliga') or lowercase --
+    # real sponsor branding is deliberately lowercase ('cinch Premiership', 'cinch
+    # Championship', 'cinch League 1/2' -- the actual Scottish top-flight sponsor since
+    # 2022). Widened 2026-09-18; sum(isalpha) >= 3 still does the real noise filtering.
+    if not (long and (long[0].isalpha() or long[0].isdigit())
             and sum(c.isalpha() for c in long) >= 3):
         return CompCandidate(False, [COMP_REJECT_LONG_SHAPE], cid, None, None)
 
-    p, names = q, []
-    for slot in range(3):
+    # STRUCTURAL, not sniffed: exactly ONE terminator byte follows the long name and the
+    # short name; the code name (last of the three) has none before the trailer. This was
+    # a plausibility guess until 2026-09-18 -- "if the next u32 doesn't look like a valid
+    # length, assume there's a terminator byte in the way and skip it" -- which is provably
+    # ambiguous whenever a short/code name is genuinely EMPTY (length 0, allowed since
+    # 2026-09-17 for auto-generated competitions like "<Nation> Reserves Group <N>") and its
+    # own preceding terminator byte happens to be 0x00: four zero bytes (imaginary
+    # terminator + the true zero-length field) is indistinguishable from the true zero-length
+    # field alone, so the guess sees a "plausible" empty name and never skips the terminator,
+    # misaligning the trailer by 1 byte. Confirmed on cid 172 "Welsh First Division" -- a
+    # real, clean top-flight-adjacent league with reputation 19, silently dropped because its
+    # empty code field followed a 0x00 terminator. Removing the guess in favour of the known
+    # fixed byte count recovered 134 more real competitions on this save with zero losses and
+    # zero changed records elsewhere (verified against the old heuristic candidate-for-
+    # candidate).
+    p = q + 4 + ln
+    names = [long]
+    for slot in (1, 2):
+        p += 1
         sl = int.from_bytes(mm[p:p + 4], "little")
-        # A length of 0 is a VALID empty short-name/code for slots 1/2 (an auto-generated
-        # competition like "<Nation> Reserves Group <N>" genuinely has no code) -- fixed
-        # 2026-09-17, see docs/TODO.md #10. Slot 0 (the long name) can never be empty; it's
-        # already been decoded and shape-checked above before this loop even starts.
-        ok_len = (1 <= sl <= 45) or (slot > 0 and sl == 0)
-        if not ok_len:
-            p += 1
-            sl = int.from_bytes(mm[p:p + 4], "little")
-            ok_len = (1 <= sl <= 45) or (slot > 0 and sl == 0)
+        ok_len = (1 <= sl <= _COMP_NAME_CAP) or sl == 0
         if not ok_len or p + 4 + sl > nmax:
             return CompCandidate(False, [COMP_REJECT_NAME_WALK_ABORTED], cid, None, None)
         if sl == 0:
@@ -358,16 +652,25 @@ def _eval_comp_candidate(mm, q, nmax, resolved_tiers):
     rep = int.from_bytes(mm[p + 9:p + 11], "little")
     level = mm[p + 11]
     parent = int.from_bytes(mm[p + 12:p + 14], "little")
-    # trailer signature: nation-bound leagues/cups are [type][02][00][nation]; friendlies
+    # trailer signature: nation-bound leagues/cups are [type][continent u16][nation]; friendlies
     # (type 9) are [9][ff][ff][ff]. Anything else is a colliding non-comp record. The gate
     # floor kills rep-0 round-label collisions ('First Leg', 'Playoff').
     #
-    # NOTE: that `[02][00]` is not a magic signature, it is ContinentId == 2 (Europe). It
-    # works because this save loads only European competitions, so treat it as a continent
-    # filter — it will not generalise if a non-European league is ever loaded.
-    # STRUCTURAL gates (type/continent/nation) and the reputation floor are split apart on
-    # purpose. Fixed 2026-09-17 (docs/TODO.md #10): a candidate that clears all three
-    # structural gates and fails ONLY on reputation is a real, low-prestige competition, not
+    # `continent` is a real FIFA-confederation enum, not a Europe-only flag -- corrected
+    # 2026-09-18. The check used to hardcode `== 2` on the theory that "this save loads only
+    # European competitions"; that theory was never actually true, it just never got tested,
+    # because every confederation cup was ALSO being dropped by the (now-retired) type gate,
+    # so continent==2-only never got a chance to matter for them.
+    # Measured directly off the file: cid 61 Copa Libertadores (continent=5, S. America), 79
+    # Oceania Champions League (4), 80 Asian Champions League (1), 81 African Champions
+    # League (0), 256 European Champions Cup (2), 732 North American Champions League (3) --
+    # all six FIFA confederations, 0-5. Widen to that range rather than removing the check
+    # entirely: nation==0 (seen on every coincidental non-comp candidate this widening could
+    # otherwise let through) still fails COMP_REJECT_NATION_RANGE regardless.
+    # STRUCTURAL gates (continent/nation/implausible-reputation) and the reputation FLOOR are
+    # split apart on purpose. Fixed 2026-09-17 (docs/TODO.md #10): a candidate that clears
+    # every structural gate and fails ONLY on the low-reputation floor is a real, low-prestige
+    # competition, not
     # garbage -- Danish Second Division East (gate=104), Greek Football League North, several
     # Northern Irish/Welsh/Polish regional divisions, all confirmed by name. TIER 0 is the
     # original combined gate; TIER 1 is a strictly gap-filling second tier admitting a
@@ -377,13 +680,20 @@ def _eval_comp_candidate(mm, q, nmax, resolved_tiers):
     # kept verbatim rather than switched to the real `rep` field below, so this fix touches
     # only the previously-hopeless population and cannot change which cid a tier-0 candidate
     # already resolves to.
+    continent = int.from_bytes(mm[p + 1:p + 3], "little")
     structural_reasons = []
-    if typ not in _COMP_VALID_TYPES:
-        structural_reasons.append(COMP_REJECT_TYPE)
-    if not ((mm[p + 1] == 2 and mm[p + 2] == 0) or typ == 9):
+    # continent==0xFFFF is the same "no confederation" sentinel already known for type-9
+    # friendlies -- corrected 2026-09-18, it isn't actually tied to type 9 at all. Genuinely
+    # global competitions use it too: type 6 "Confederations Cup"/"World Cup"/"World Cup
+    # Playoff", type 12 "Club World Championship" -- all real, all previously dropped.
+    if not (continent <= 5 or typ == 9 or continent == 0xFFFF):
         structural_reasons.append(COMP_REJECT_CONTINENT_SIG)
     if not ((1 <= nation <= 250) or nation == 255):
         structural_reasons.append(COMP_REJECT_NATION_RANGE)
+    if rep > 1000:
+        structural_reasons.append(COMP_REJECT_REPUTATION_IMPLAUSIBLE)
+    if names[1] is not None and len(names[1]) > len(names[0]):
+        structural_reasons.append(COMP_REJECT_SHORT_LONGER_THAN_LONG)
     low_reputation = gate < _MIN_COMP_REP
     if structural_reasons:
         # A candidate that fails a structural gate is hopeless regardless of reputation, but
@@ -411,9 +721,14 @@ def _build_refdata_index(mm):
         return cached
     lo, hi, nmax, cand = _candidate_positions(mm)
 
-    clubs, comps = {}, {}
+    clubs = {}
     tiers = {}                  # tid -> which gate admitted the stored record (0 beats 1)
+    comps, _n_blank = _walk_comp_table(mm)
+    use_walk = comps is not None
     comp_tiers = {}             # cid -> which gate admitted the stored record (0 beats 1)
+    if not use_walk:
+        comps = {}
+
     for off in cand.tolist():
         q = off + lo             # absolute offset of the length field
 
@@ -424,13 +739,16 @@ def _build_refdata_index(mm):
                 clubs[cc.tid] = cc.rec
                 tiers[cc.tid] = cc.tier
 
-        comp_cc = _eval_comp_candidate(mm, q, nmax, comp_tiers)
-        if comp_cc.accepted:
-            # prefer the lower tier; within a tier, first valid copy wins (unchanged from
-            # before this cid ever had a tier concept)
-            if comp_cc.cid not in comp_tiers or comp_cc.tier < comp_tiers[comp_cc.cid]:
-                comps[comp_cc.cid] = comp_cc.rec
-                comp_tiers[comp_cc.cid] = comp_cc.tier
+        # Competitions come from the pure structural walk above (_walk_comp_table) since
+        # 2026-09-18 -- see its docstring. The candidate-scan-plus-gates path
+        # (_eval_comp_candidate) only still runs here as a fallback for a save/career where
+        # the table's own count-header anchor can't be found.
+        if not use_walk:
+            comp_cc = _eval_comp_candidate(mm, q, nmax, comp_tiers)
+            if comp_cc.accepted:
+                if comp_cc.cid not in comp_tiers or comp_cc.tier < comp_tiers[comp_cc.cid]:
+                    comps[comp_cc.cid] = comp_cc.rec
+                    comp_tiers[comp_cc.cid] = comp_cc.tier
 
     result = (clubs, comps)
     _REFDATA_INDEX_CACHE[key] = result
@@ -447,16 +765,18 @@ class RefdataDiagnosis(NamedTuple):
     club_reject_candidates: object   # Counter: reason -> candidate occurrences
     club_reject_ids: object          # Counter: reason -> DISTINCT tids ever rejected for it
     club_rejections: list            # [(offset, tid, reason), ...]
-    comp_accepted_tier0: int         # cids WON at tier 0 (all 4 gates passed)
+    comp_accepted_tier0: int         # cids WON at tier 0 (every structural gate + the
+                                       # reputation floor passed)
     comp_accepted_tier1: int         # cids WON at tier 1 (structural gates passed, low
                                        # reputation -- the reputation-floor fix, 2026-09-17)
     comp_superseded: int             # structurally valid, but an earlier/better candidate
                                        # for the same cid already won
     comp_already_resolved: int        # cid-collision skips -- not a defect signal
-    comp_reject_candidates: object    # Counter: reason -> candidate occurrences. The three
-                                       # STRUCTURAL gates (type/continent/nation) are counted
-                                       # INDEPENDENTLY (a candidate failing 2 at once counts
-                                       # against both); COMP_REJECT_REPUTATION_FLOOR only
+    comp_reject_candidates: object    # Counter: reason -> candidate occurrences. The
+                                       # STRUCTURAL gates (continent/nation/implausible-
+                                       # reputation -- NOT type, retired 2026-09-18) are
+                                       # counted INDEPENDENTLY (a candidate failing 2 at once
+                                       # counts against both); COMP_REJECT_REPUTATION_FLOOR only
                                        # appears here for a candidate that ALSO failed a
                                        # structural gate -- a low-reputation candidate that
                                        # passes everything else is ACCEPTED at tier 1, not
@@ -871,8 +1191,10 @@ def _u32(mm, o):
     return int.from_bytes(mm[o:o + 4], "little")
 
 
-def _walk_browse(mm):
-    """The flat [len u32][utf-8] name table near the file start -> list of strings."""
+def _walk_browse_bounds(mm):
+    """Same discovery as `_walk_browse`, but also returns the table's own byte extent
+    (`start` of its first length field, `end` just past its last string) -- needed to
+    exclude this region from the club/comp candidate scan. See `_name_table_bounds`."""
     for start in range(200, 3000):
         ln = _u32(mm, start)
         if 2 <= ln <= 40:
@@ -898,8 +1220,13 @@ def _walk_browse(mm):
                     out.append(t)
                     o = o + 4 + L
                 if len(out) > 1000:
-                    return out
-    return []
+                    return start, o, out
+    return None, None, []
+
+
+def _walk_browse(mm):
+    """The flat [len u32][utf-8] name table near the file start -> list of strings."""
+    return _walk_browse_bounds(mm)[2]
 
 
 def _discover_id_tables(mm, browse_len, probe=8192):
