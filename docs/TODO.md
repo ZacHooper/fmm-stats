@@ -11,7 +11,7 @@ changelog, which is what killed the last four handoff docs.
 Item numbers are for conversation only — they are renumbered whenever entries are deleted, so
 never cite one in code or a commit message.
 
-Last reviewed **2026-09-17**, after PR #51 (record expansion + attribute decoder rebuild).
+Last reviewed **2026-09-18**, after the table-framing audit (#18).
 
 ---
 
@@ -109,6 +109,39 @@ it is an unset table, every field `0xff`. Six more hypotheses were tested and ki
 measurements (uid-keyed records, slot-index round-robin columns, bare score arrays, the
 datadict's `fxds`/`mtdy` scheduling records, a two-save append diff); all are tabulated in
 [`light-results-record.md`](light-results-record.md) so they are not re-run.
+
+**CLOSED 2026-09-18 — the ~2,600 clubless-but-dated slots hold NO match data.** This entry
+called them "the majority of the table's real content and never examined"; they have now been
+examined and there is nothing in them. On `frem-2026-06-11` all **2,598** of those slots carry
+`away_tid == home_tid == 0xFFFF` **and** `away_goals == home_goals == 255` — both club fields
+and both score fields at their sentinels. They are date-only shells: a `day`, the A/B/k group,
+and nothing else. So the table's real match content IS the 275 fixture rows, and the "populated
+total 2,874" figure counts shells, not content. Do not re-open this as a source of results.
+
+**CLOSED 2026-09-18 — the datadict's `fxds` is a schedule TEMPLATE, not fixtures.** Previously
+recorded as "tested and killed" without a reason; here is the reason, so it stays killed. Its
+996 records carry `id_1`/`id_2` values like 2,003,398,260 and 1,937,006,962 — 4-byte tag-shaped
+constants, not club tids — and their dates read `dyow`/`dyom`/`mont` with **year 2000/2001**,
+i.e. "this round is played on this day-of-week in this month" rules with a placeholder year, not
+this career's dated fixtures. The dictionary describes competition STRUCTURE; the realised
+programme is not in it.
+
+**Where the unparsed bytes actually are** (frem-2026-06-11, 63.9 MB), for the next hunt — the
+tail is the biggest unexplored area left and the only large one:
+
+| span | size | ff / zero / printable | note |
+|---|---|---|---|
+| 51,149,000 – 55,839,667 | 4.69 MB | 33% / 45% / 5.4% | before our match region |
+| 56,223,268 – 61,896,648 | 5.67 MB | 52% / 30% / 8.7% | between matches and the squad snapshot |
+| 62,002,727 – 63,936,873 | 1.93 MB | 14% / 15% / **25.8%** | after the snapshot; by far the most TEXT-dense unparsed span in the file |
+
+(Our own match region is 55.84–56.22 MB and the squad snapshot 61.90–62.00 MB on that save;
+both are parsed. Everything else in the 51–64 MB tail is not.) The 14.0–16.7 MB region (2.7 MB,
+85% filler) is the other unidentified area — see #18.
+
+**And a shorter path to most of what "results" is for:** #3's standings record is already decoded
+and gives the exact final position of every club in every loaded competition. That is a strict
+upgrade over today's `lightresults_computed` approximation and needs wiring, not decoding.
 
 **The 25-byte AWAY-FIRST record is now DECODED as far as its shape goes** —
 `fmparser/matchslots.py`, guarded by `tests/test_match_slots.py`. Stride 25 (two independent
@@ -290,16 +323,21 @@ All three are known gaps, not suspicions:
   reads it. Its own 6th entry ("World") is the coincidental candidate that a widened comp scan
   briefly picked up as a fake `cid=24931` competition (see #10) before comps moved to a pure
   structural walk that never scans this far at all.
-- **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate whose
-  `name_len` search then fails. Confirmed 2026-09-18 as the live cause of a real, visible gap,
-  not just a theoretical one: `lookups.scrape_nations()` is missing **Algeria** (nation_id 0,
-  the very first real nation, sitting immediately before Angola/nation_id 1) from its output.
-  Root cause is the same *class* of bug fixed today in the competition scraper's own name walk
-  (see #10's terminator note): a **plausibility-sniffed** terminator
-  skip is ambiguous exactly when the field that follows is short/edge-case, where an
-  **unconditional, structural** skip (the actual rule — every name field gets exactly one
-  terminator, full stop, regardless of what's in it) is not. Not yet fixed here; `lookups.py`
-  wasn't touched this session.
+- **`_nation_candidates`' `1 <= nid` floor drops ALGERIA** (nation_id 0, the first real
+  nation, immediately before Angola/nation_id 1). **Root cause corrected 2026-09-18 by
+  measurement** — this entry previously blamed the unconditional `break` at the end of the
+  `nat_len` loop, and that is NOT it. Switching the two suspects independently on
+  frem-2023-07-02: as shipped, 1,860 candidates and no Algeria; removing the outer `break`
+  alone, **still 1,860 candidates and still no Algeria**; lowering the floor to `0 <= nid`
+  alone, 2,164 candidates and `(0, 'Algeria', 'ALG')` present. So it is the **range gate**,
+  which makes this the same family as every other uid/id range gate in this codebase rather
+  than a terminator-walk bug. The `nat_len` break may still be a latent bug; it is not this
+  one.
+
+  The nation table also **declares its own count — 251** (u16 at 12,776,735, record 0 at
+  12,776,737), so the fix has an exact target: 251 slots, and `scrape_nations` currently
+  returns 227. See #18 and [`table-framing.md`](table-framing.md). 24 declared ids are absent
+  in total and the other 23 are NOT yet classified blank-vs-missed.
 
 ### 10. The competition scraper — SOLVED (2026-09-18): a pure structural walk, gate-free
 Found auditing `reference.py`'s competition scraper 2026-09-17, escalated into a full rewrite
@@ -591,6 +629,18 @@ opens, both explicitly requested along the way and not yet done:
   live. Both halves are club-table problems and belong with the rewrite below, not with the
   competition record.
 
+- **THE CLUB TABLE'S START IS NOW FOUND** (2026-09-18, by chaining — see #18 and
+  [`table-framing.md`](table-framing.md)): **11,331 records at 6,340,458**, declared by a u32
+  at 6,340,454 behind an 8-byte FF sentinel, with **`tid` as the slot index and no gaps —
+  11,331 of 11,331 tids resolve.** Ground truth exact: tid 346 = 'Boldklubben Frem', tid 7296
+  = 'Boldklubben Frem Reserves'. It spans the whole 6.34–12.63 MB gap, ending at the
+  competition table's own header. **National teams are rows 0..~200 of this table** (Algeria,
+  Angola, Benin, … with descending negative uids) and U21 national teams are the last rows, so
+  the bullet above is not a separate problem — it is the same table. Remaining work is the
+  RECORD TRAILER: a fixed 491 bytes walks the first 62 records exactly and then breaks, so it
+  holds something variable-length. Decode that and `_eval_club_candidate` becomes a structural
+  walk like `_walk_comp_table`.
+
 - **The club table is still gate-based** (`_eval_club_candidate`). It shares the exact same
   candidate-scan architecture the comp table moved away from, and the review pass MEASURED the
   exposure rather than leaving it as a suspicion: with `_candidate_positions`' nation-table and
@@ -600,9 +650,13 @@ opens, both explicitly requested along the way and not yet done:
   to 'Rajagobal', the browse name table's own first entry. The exclusions cost zero real clubs,
   so they stay, but **a scan that needs whole regions fenced off to stop inventing records has
   not found its table's structure yet.** Note the club table still yields tid 4294967295 even
-  WITH the exclusions, which is a live wrong record, not a hypothetical one. Worth checking
-  whether the club table also declares its own start/count the same way (a preceding filler run
-  + a count header) before assuming it needs a scan at all — that is all it took for comps.
+  WITH the exclusions, which is a live wrong record, not a hypothetical one. **That check is now done and the answer is no**
+  (2026-09-18, see #18 and [`table-framing.md`](table-framing.md)): the club scan has no
+  located table to look behind at all. Its accepted records sprawl across one 6.4 MB run
+  (6,340,470 .. 12,776,631 on frem-2023-07-02, 24,669 of them) whose first entry is junk
+  (tid 1,701,276,737), so there is no "record 0" whose preceding bytes could hold a count.
+  Finding the club table's real start is its own piece of work, and it is the prerequisite
+  for the rewrite, not a step inside it.
 - **The audit tooling's comp half is DONE** (2026-09-18, review pass) — recorded here because
   the generalisation is still owed. `scripts/audit_declared_scans.py` was printing comp tier
   counts and per-gate reject costs, including the line "fixing this gate alone would recover
@@ -619,6 +673,146 @@ opens, both explicitly requested along the way and not yet done:
   EXTENT check already does exactly this for `city` and `stadium`; competitions now satisfy it
   by construction; clubs are the table that still needs it, and cid not being sequential in the
   old comp output should have been this kind of flag and was checked nowhere.
+
+### 18. Table discovery: the save frames its own tables, and the inventory needs naming
+**Full write-up: [`table-framing.md`](table-framing.md).** Measured on all 34 saves across both
+careers; reproduce with `scripts/audit_table_headers.py` (+ `--confirm`) and
+`scripts/discover_tables.py` (+ `--stable`).
+
+The competition table's self-declared count (#10) turned out to be a **general convention**:
+`[8 bytes of 0xFF][record count][record 0]`, used by nine tables, exact every time. Asking each
+table "what does your header say, versus what do we read?" found four defects. **Nothing here
+is fixed yet** — the audit is committed, the fixes are not.
+
+**Four are losing real data on every save ever built:**
+
+- **NICKNAMES ARE NEVER RESOLVED.** There is a THIRD name id-table — 9,480 slots at
+  38,699,407, chained immediately after the first-name table — and
+  `reference._discover_id_tables` returns only the two LARGEST, so it has never been opened.
+  `common_name_id` (`staging.INFO_LAYOUT` +16) indexes it, **2,424 of 32,760 people carry
+  one**, and we show every one of them under their full legal name: `Tite` appears as 'Adenor
+  Leonardo Bachi', `Renato Gaúcho` as 'Renato Portaluppi', `Míchel` as 'José Miguel González
+  Martín del Campo'. This also **corrects INFO_LAYOUT's own comment**, which claims the field
+  is set on "only 0.1% of records ... so it is NOT the link `_scrape_nicknamed` follows" — the
+  real rate is 7.4%, i.e. exactly the ~8% the comment says carry a nickname, and it is the
+  same +16 bytes `_scrape_nicknamed` keys on. Fix the comment in the same change.
+
+- **`lookups.scrape_nations` reads 227 of a declared 251.** The real record 0 is at
+  12,776,737 (`[uid 5][id 0][7]'Algeria'`), 188 bytes before the id-1 record the locator was
+  treating as the table start — which is also why the nation table looked header-less in the
+  first audit pass. **The missing Algeria was already known (#9); what is new is the declared
+  count**, which turns "a candidate is being dropped" into "the table holds 251 and we return
+  227", and the measurement that corrects #9's root cause to the `1 <= nid` range gate. 24
+  declared ids are absent in total; the other 23 have NOT been checked for blank-vs-missed.
+
+- **`lookups.scrape_languages` reads 77 of a declared 124.** `_language_at` stops at slot 77,
+  'Malayalam', whose `OtherName` is a ZERO-LENGTH string, and `_string` requires `1 <= ln`. A
+  tolerant walk reaches exactly 124 and stops. Same failure as the competition table's empty
+  code field on cid 172 'Welsh First Division', one table over. Lost: Berber (Tamazight) and
+  the game's own UI locales (uid 1,000,000+).
+- **`lookups.scrape_currencies` reads 94 of a declared 173.** `_currency_at` rejects
+  `uid > 4096`; slot 94 is 'Macao Pataca', uid 51535. **The fourth uid range gate in this
+  codebase to cut a table short.** Lost: West African CFA franc, Nigerian Naira, Bolivian
+  Boliviano, Guatemalan Quetzal, Honduran Lempira, Nicaraguan Córdoba and 72 more.
+  Both declared counts are identical in both careers and both parsers read the same short
+  numbers everywhere, so this is a constant, silent loss — not save-specific.
+
+**Three are structural, with no live data loss:**
+
+- **The staff attribute table is a dense array indexed by `id2`** — `id2 == slot index` on
+  4642/4642 — so it is walkable by arithmetic. `scrape_staff_attributes` reads 4150 because it
+  is driven by the info spine's id2 set, which is fine for its purpose; worth knowing the whole
+  table is available if anything ever needs non-squad staff.
+- **The two name id-tables** declare 32148 / 19128 and the walk gets 28624 / 15366, stopping at
+  the first free slot (`id = 0xFFFFFFFF`; 3,523 are scattered through the surname table).
+  Latent only — `resolve_name` indexes directly and does not use the walked count. The
+  first-name/surname orientation heuristic would be more robust reading the declared counts.
+- **`staging.scrape_attributes` over-reads by 13.** All 26,505 declared slots pass the position
+  check; the 13 extras are off-grid past the table end and obvious garbage (height 54,539 cm),
+  and **zero of them join the info spine**, so none surfaces. The declared count would replace
+  the scan-and-skip loop with pure arithmetic.
+
+**The next goal: name the tables in the inventory, one at a time.** `discover_tables.py`
+validates a table by deriving its stride from the header's count and then checking
+`id == slot index` on **every** declared record. That found five tables nothing parses, and
+**chaining forward from a declared end found two more** — each fixed-width table's end is
+followed immediately by the sentinel and the next table's count, so a section is a contiguous
+run of blocks. Full register with offsets in
+[`table-framing.md`](table-framing.md#the-complete-register). The unnamed ones:
+
+| offset (frem-2023-07-02, DRIFTS) | Frem | Bucaspor | stride | evidence |
+|---|---|---|---|---|
+| ~6,268,740 | 622 | 1,109 | 99 B | INDEX. Record has a 64-byte `FF` block inside it; `[id][u32][u32][u16 ~115][u16 ~145][u16 ~5750][8 small bytes][u16 1900][u32][u32][64×FF][u16 day][u16 2023]` |
+| ~6,245,275 | 1,971 | 2,603 | 7 B | INDEX. `[id u32 == index][3 bytes 1..255]` |
+| ~6,263,016 | 816 | 796 | 7 B | INDEX. same shape |
+| ~6,259,084 | 560 | **560** | 7 B | INDEX. same shape; count is career-INVARIANT, so a fixed enumeration |
+| ~13,711,352 | 807 | — | variable | **THE AWARD TABLE** — club-shaped `[tid][uid][3 strings]`, `tid 0` = 'Footballer of the Year'. This is where the 153 award names polluting the club index (#17) come from, now with a declared anchor. Trailer length still unpinned. |
+| ~6,330,330 | 273 | — | variable | `[id u32][len][string]`, id 1 = 'Replay' |
+| ~13,990,354 | 888 | **888** | 7 B | TILE only. `[id u32][00 00 00]`, ids strictly ascending 1..3221 with 2,333 gaps; ends flush against the sentinel that introduces the LANGUAGE table |
+
+All four INDEX tables sit in the attribute section behind the staff grid and drift with it.
+
+**A header number is not always a count.** Three kinds, separated by holding the number against
+a whole career of saves (see [`table-framing.md`](table-framing.md)): a **true count** (the
+reference tables), a **per-database pool** (the history slab — 265,423 in ALL 28 Frem saves over
+five in-game years, 295,648 in Bucaspor, 100% initialised on day one), and an **engine-wide
+capacity** (the browse name table's `60,000`, identical in both careers, 76.5% utilised).
+`history.locate`'s docstring calling 265,423 "the exact row count" is true of the physical rows
+but invites the wrong inference: **it is a fixed allocation and can never indicate how much
+history exists.** Worth a docstring fix. An unresolved lead sits beside it — the `u32` at
+`start-8` varies across saves (2,069 / 67,635 / 564 / 52 / 56), is not monotonic so not a usage
+counter, and would fit a free-list head into the recycled pool. Untested.
+
+### The history pool: reclamation means older snapshots hold history newer ones lost
+Measured 2026-09-18, full detail in [`table-framing.md`](table-framing.md). The slab is a fixed
+per-database pool (265,423 rows Frem / 295,648 Bucaspor), a perfect forest with **100% of rows
+reachable** in every save, whose singleton chains are the free reserve (27,319 on day one ->
+~10,000 and stable, so exhaustion is not a risk). Churn is monotonic: `untouched` decays
+0.81 -> 0.38 over five years.
+
+**The finding that matters:** of 24,145 sids present in both the day-one and the 2026 save,
+**6,077 (25.2%) have a SHORTER history chain in 2026** — 68,998 rows, the worst going 39 rows
+down to 5. Median age of that group in 2021 was 31 (~36 by 2026) versus 22 for the 72% that
+gained rows, and max chain length across the whole pool falls 39 -> 31 -> 26. So rows are
+reclaimed from players whose careers end.
+
+Open, in order:
+1. **Settle the mechanism with a RELIABLE retirement signal.** `club_tid` cannot do it (97.6% of
+   the shortened group vs 97.7% of the lengthened group still "have a club" — the lapsed-loan
+   trap). Try absence from later `mart.player_snapshots` / match stats instead.
+2. **Quantify the loss in the STORE, not the save**: per person, compare career-history row
+   counts across snapshots and count how many have their richest history in an OLDER snapshot.
+3. **If material, union history across snapshots in `fmparser/mart.py`.** We keep every
+   snapshot's extract, so the data is recoverable — nothing currently unions it.
+4. Cheap standing check per import: singleton-chain count, to confirm the reserve is not
+   shrinking toward exhaustion.
+
+Refuted while doing this, so nobody retries it: the `u32` at slab `start-8` is **not** a
+free-list head — the rows it points at have in-degree 1, i.e. ordinary mid-chain rows.
+
+**Do not look for count headers above 39 MB either** — checked 2026-09-18. The history slab is
+counted but on different framing (`u32 @ start-12`, no sentinel, already read by
+`history.locate`); the club-history rows sit straight after an 8-byte FF run with NO count (the
+bytes there are float32 `1.0`); our matches have no sentinel within 1,250 bytes of the first
+anchor and are found by `regions.DELIM_UNIT`; the snapshot is found by `CLUB_MARKER`. Across all
+34 saves, zero count-framed tables above 39 MB survive both stability filters. **The convention
+belongs to the static reference database (~4–14 MB plus the name id-tables), not to the career
+half of the file** — reference data ships as counted arrays, career data is pointer- and
+delimiter-located.
+
+**Do not re-check 14.0 -> 37.9 MB for count-framed tables** — that 23.9 MB jump in the register
+looks like the obvious next place and it was checked (2026-09-18): 14.0–16.7 MB is 85% filler
+with no headers (every count candidate is a multiple of 256, i.e. data bytes), 16.7–21 MB is the
+tagged data dictionary on completely different framing, and 21–39.8 MB is the contract/transfer
+record pages. The convention lives in two bands only, 3.99–6.33 MB and 6.34–14.0 MB, plus the
+name id-table trio at 37.9 MB. One unproven lead is kept in the doc (a `u32 = 32,966` at
+14,000,242, person-count-shaped, with a 14-byte unit that stops being uniform after 386 rows).
+
+Read `table-framing.md` before extending the sweep — it records what the detectors CANNOT find
+(variable-length tables have real headers and are invisible; competitions, stadiums, languages
+and currencies are all in that class), the two cross-save filters and why offset-keying finds
+nothing, and the remaining tile-only candidates including the ones already identified as false
+positives in the award-record region so the next pass does not rediscover them.
 
 ---
 
