@@ -719,6 +719,16 @@ run of blocks. Full register with offsets in
 
 All four INDEX tables sit in the attribute section behind the staff grid and drift with it.
 
+**Do not look for count headers above 39 MB either** — checked 2026-09-18. The history slab is
+counted but on different framing (`u32 @ start-12`, no sentinel, already read by
+`history.locate`); the club-history rows sit straight after an 8-byte FF run with NO count (the
+bytes there are float32 `1.0`); our matches have no sentinel within 1,250 bytes of the first
+anchor and are found by `regions.DELIM_UNIT`; the snapshot is found by `CLUB_MARKER`. Across all
+34 saves, zero count-framed tables above 39 MB survive both stability filters. **The convention
+belongs to the static reference database (~4–14 MB plus the name id-tables), not to the career
+half of the file** — reference data ships as counted arrays, career data is pointer- and
+delimiter-located.
+
 **Do not re-check 14.0 -> 37.9 MB for count-framed tables** — that 23.9 MB jump in the register
 looks like the obvious next place and it was checked (2026-09-18): 14.0–16.7 MB is 85% filler
 with no headers (every count candidate is a multiple of 256, i.e. data bytes), 16.7–21 MB is the
