@@ -646,7 +646,18 @@ The competition table's self-declared count (#10) turned out to be a **general c
 table "what does your header say, versus what do we read?" found four defects. **Nothing here
 is fixed yet** — the audit is committed, the fixes are not.
 
-**Three are losing real data on every save ever built:**
+**Four are losing real data on every save ever built:**
+
+- **NICKNAMES ARE NEVER RESOLVED.** There is a THIRD name id-table — 9,480 slots at
+  38,699,407, chained immediately after the first-name table — and
+  `reference._discover_id_tables` returns only the two LARGEST, so it has never been opened.
+  `common_name_id` (`staging.INFO_LAYOUT` +16) indexes it, **2,424 of 32,760 people carry
+  one**, and we show every one of them under their full legal name: `Tite` appears as 'Adenor
+  Leonardo Bachi', `Renato Gaúcho` as 'Renato Portaluppi', `Míchel` as 'José Miguel González
+  Martín del Campo'. This also **corrects INFO_LAYOUT's own comment**, which claims the field
+  is set on "only 0.1% of records ... so it is NOT the link `_scrape_nicknamed` follows" — the
+  real rate is 7.4%, i.e. exactly the ~8% the comment says carry a nickname, and it is the
+  same +16 bytes `_scrape_nicknamed` keys on. Fix the comment in the same change.
 
 - **`lookups.scrape_nations` reads 227 of a declared 251, and ALGERIA IS MISSING.** The real
   record 0 is at 12,776,737 (`[uid 5][id 0][7]'Algeria'`), 188 bytes before the id-1 record
