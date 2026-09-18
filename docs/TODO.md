@@ -713,6 +713,14 @@ run of blocks. Full register with offsets in
 
 All four INDEX tables sit in the attribute section behind the staff grid and drift with it.
 
+**Do not re-check 14.0 -> 37.9 MB for count-framed tables** — that 23.9 MB jump in the register
+looks like the obvious next place and it was checked (2026-09-18): 14.0–16.7 MB is 85% filler
+with no headers (every count candidate is a multiple of 256, i.e. data bytes), 16.7–21 MB is the
+tagged data dictionary on completely different framing, and 21–39.8 MB is the contract/transfer
+record pages. The convention lives in two bands only, 3.99–6.33 MB and 6.34–14.0 MB, plus the
+name id-table trio at 37.9 MB. One unproven lead is kept in the doc (a `u32 = 32,966` at
+14,000,242, person-count-shaped, with a 14-byte unit that stops being uniform after 386 rows).
+
 Read `table-framing.md` before extending the sweep — it records what the detectors CANNOT find
 (variable-length tables have real headers and are invisible; competitions, stadiums, languages
 and currencies are all in that class), the two cross-save filters and why offset-keying finds

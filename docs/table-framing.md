@@ -388,6 +388,32 @@ The small candidates (count < ~100, stride < 8) are where the exact-division tes
 — `span % count == 0` is nearly free to satisfy — so treat every one of them as a place to
 look, not as a table.
 
+## The 14.0 -> 37.9 MB stretch is NOT more count-framed tables
+
+The obvious next place to look, since the register jumps 23.9 MB from the language table to the
+surname id-table. It was checked, and the answer is no — recorded here so it is not re-checked.
+`scripts/map_regions.py` splits it into three stretches with three different characters:
+
+| stretch | what it is |
+|---|---|
+| 14.00 – 16.71 MB | **85% filler** (33% `0xFF`, 52% `0x00`) with sparse structure. 54,437 runs of >= 8 `FF` in 2.8 MB, and EVERY count candidate in it is a multiple of 256 (257, 513, 769, 1024, 1026 …) — i.e. ordinary data bytes read as a u16, not a header. Club tids appear but unevenly (tid 346 seventeen times, tid 61 two hundred), so it is not a per-club grid either. Unidentified, but not count-framed. |
+| 16.72 – ~21 MB | the **tagged data dictionary** — `fmparser/tagged.py`, self-describing `[tag][0x01][type][value]` fields, an entirely different framing, already parsed. |
+| ~21 – 39.76 MB | `map_regions` calls it "binary pages ~49B". Holds the **contract detail records** (`regions.CONTRACTREC_LO/HI`) and the **transfer-history record** at 36.36–36.94 MB, both already decoded by other means. The three name id-tables sit at 37.88–38.85 MB inside it and those ARE count-framed. |
+
+The whole-file index detector finds **zero** index-keyed tables anywhere between 14 MB and
+37.9 MB, which agrees.
+
+So the count-framed tables cluster in exactly two bands — **3.99–6.33 MB** (the attribute
+section) and **6.34–14.00 MB** (the reference section) — plus the **37.88–38.85 MB** name
+id-table trio. That is the shape of the convention in this file, not a coverage gap waiting to
+be filled.
+
+**One lead worth keeping**: `u32 = 32,966` sits at 14,000,242, immediately where the language
+table ends, followed by a repeating 14-byte `[6 x FF][8 bytes]` unit. 32,966 is
+person-count-shaped (the info spine holds 32,849 person records, 77 of them empty), so this may
+be a per-person table. But the unit stops being uniform after 386 records, so its extent is
+UNPROVEN and it is not in the register.
+
 ## Why the yield is low, and where the rest are
 
 The detectors' own harvest was ~91 KB of a 60.7 MB file, which looked thin until chaining
