@@ -43,17 +43,40 @@ table (run of 10) and the first-name id-table (run of 9) — 2 of the 9 tables w
 **Header width is not guessable.** The variable-length string-record tables use a u16; the
 fixed-width grids and the name id-tables use a u32. Read both and let the table decide.
 
-| table | header | declared |
-|---|---|---|
-| competitions | u16 | 1372 |
-| cities | u16 | 10956 |
-| stadiums | u16 | 15987 |
-| languages | u16 | 124 |
-| currencies | u16 | 173 |
-| player attributes | u32 | 26505 |
-| staff attributes | u32 | 4642 |
-| surname id-table | u32 | 32148 |
-| first-name id-table | u32 | 19128 |
+### The complete register
+
+Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits at `record0 - 2`
+(u16) or `record0 - 4` (u32). Read the header, never these numbers.
+
+| table | record 0 | hdr | declared | we read |
+|---|---|---|---|---|
+| player attributes | 3,996,823 | u32 | 26,505 | 26,518 — **13 over** |
+| staff attributes | 6,064,225 | u32 | 4,642 | 4,150 |
+| *unnamed, 7 B* | 6,245,275 | u32 | 1,971 | — |
+| *unnamed, 7 B* | 6,259,084 | u32 | 560 | — |
+| *unnamed, 7 B* | 6,263,016 | u32 | 816 | — |
+| *unnamed, 99 B* | 6,268,740 | u32 | 622 | — |
+| *unnamed, strings* | 6,330,330 | u32 | 273 | — |
+| competitions | 12,626,907 | u16 | 1,372 | 1,372 ✓ |
+| nations | **12,776,737** | u16 | **251** | 227 |
+| stadiums | 12,816,567 | u16 | 15,987 | 15,987 ✓ |
+| cities | 13,492,220 | u16 | 10,956 | 10,956 ✓ |
+| **awards** | **13,711,352** | u32 | **807** | — |
+| currencies | 13,985,965 | u16 | 173 | 94 |
+| *unnamed, 7 B* | 13,990,354 | u16 | 888 | — |
+| languages | 13,996,580 | u16 | 124 | 77 |
+| surname id-table | 37,878,967 | u32 | 32,148 | 28,624 |
+| first-name id-table | 38,393,347 | u32 | 19,128 | 15,366 |
+
+Plus the history slab (40,364,927, 265,423 rows): the same idea with different framing — a
+u32 at `start - 12`, no sentinel — and `history.locate` already reads it.
+
+**The blocks CHAIN.** Each fixed-width table's declared end is followed immediately by the
+8-byte sentinel and the next table's count, so a section is a contiguous run of
+`[8xFF][count][records]` blocks. That is how the award and 273-entry tables were found:
+by walking forward from a table whose extent the declared count already gave us, rather than
+by searching for anything. Verified end-to-end for player attributes -> staff -> the three
+7 B tables -> the 99 B table -> 273-entry strings, and cities -> awards.
 
 The history slab is the same idea with different framing and was already relying on it:
 `history.locate` reads the exact row count from a **u32 at `start - 12`**, with no sentinel.
@@ -85,6 +108,14 @@ against our parser, which is both cheaper and stronger evidence: **204/204 confi
 failures**, over all 34 saves.
 
 ### The two that lose real data
+
+**Nations — a range gate that excludes id 0.** The nation table declares **251** and
+`scrape_nations` returns 227. Its header was missed at first because the locator's "first
+record" was nation id **1** (Angola, 12,776,923): the real record 0 sits 188 bytes earlier at
+**12,776,737** and is `[uid 5][id 0][7]'Algeria'`. `_nation_candidates` requires
+`1 <= nid <= 4096`, so **Algeria is rejected by the gate and missing from the nation table
+entirely.** 24 declared ids are absent in total; whether the other 23 are blank slots or
+further misses is NOT yet established.
 
 **Languages — an empty name field.** `lookups._language_at` stops at slot 77, 'Malayalam',
 whose `OtherName` is zero-length; `_string` requires `1 <= ln`. A walk that tolerates a
@@ -213,6 +244,19 @@ the check that makes them tables rather than coincidences:
 So **560 is career-invariant** — a fixed enumeration — while the other three scale with the
 database. That difference is itself a clue for the naming pass.
 
+#### The award table: 807 records at 13,711,352
+
+Found by chaining forward from the city table's declared end, and it matters beyond the
+inventory: **these are the records leaking into the club index.** They use the club shape
+(`[tid u32][uid u32]` then long/short/code strings), start at `tid 0, uid 102407,
+'Footballer of the Year'` / `'World Footballer of the Year'`, and continue through
+`'South American Footballer of the Year'`, `'African Footballer of the Year'`,
+`"Players' Player of the Year"`, `"Players' Young Player"`. TODO #17 records that **153 low
+tids currently resolve in our club index to award names** — this is the table they come from,
+and it now has an exact, declared anchor instead of a region guess. The trailer is longer than
+the club/comp trailer (an assumed 14 bytes ran the string reads off the end), so the record
+shape still needs pinning before it can be walked.
+
 #### The 622 × 99 B table, measured
 
 The richest of the five and the obvious place to start. Every field below was checked across
@@ -255,7 +299,7 @@ here, and the shape is suggestive rather than conclusive.
 | offset | records | stride | notes |
 |---|---|---|---|
 | ~13,990,354 | 888 | 7 B | `[id u32][00 00 00]`, ids strictly ascending 1..3221 with 2,333 gaps. Tail always zero. Ends flush against the sentinel that introduces the **language** table. Count 888 in *both* careers. |
-| ~13,712,779 .. ~13,730,600 | 8 / 9 / 18 / 24 / 111 | 12 / 174 / 5 / 4 / 4 B | **False positives.** This is the award-record region; the bytes are length-prefixed strings. Listed so the next pass doesn't rediscover them as tables. |
+| ~13,712,779 .. ~13,730,600 | 8 / 9 / 18 / 24 / 111 | 12 / 174 / 5 / 4 / 4 B | **False positives** — all of them sit INSIDE the 807-record award table at 13,711,352 (above), whose records are length-prefixed strings. Listed so the next pass doesn't rediscover them as tables. |
 | ~6,520,193 .. ~6,922,426 | 8–14 | 27–61 B | In the club-name region. Contain repeating groups whose second `u16` is `0x07E7` (2023) — a lead, unverified, and the apparent strides do not hold beyond the first few records. |
 | ~34,325,563 .. ~34,517,491 | 10–20 | 4–10 B | Unexamined. |
 | ~53,828,461 .. ~55,032,659 | 10–79 | 3–7 B | Unexamined; inside/near the match region. |
