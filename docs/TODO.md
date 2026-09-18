@@ -591,6 +591,18 @@ opens, both explicitly requested along the way and not yet done:
   live. Both halves are club-table problems and belong with the rewrite below, not with the
   competition record.
 
+- **THE CLUB TABLE'S START IS NOW FOUND** (2026-09-18, by chaining — see #18 and
+  [`table-framing.md`](table-framing.md)): **11,331 records at 6,340,458**, declared by a u32
+  at 6,340,454 behind an 8-byte FF sentinel, with **`tid` as the slot index and no gaps —
+  11,331 of 11,331 tids resolve.** Ground truth exact: tid 346 = 'Boldklubben Frem', tid 7296
+  = 'Boldklubben Frem Reserves'. It spans the whole 6.34–12.63 MB gap, ending at the
+  competition table's own header. **National teams are rows 0..~200 of this table** (Algeria,
+  Angola, Benin, … with descending negative uids) and U21 national teams are the last rows, so
+  the bullet above is not a separate problem — it is the same table. Remaining work is the
+  RECORD TRAILER: a fixed 491 bytes walks the first 62 records exactly and then breaks, so it
+  holds something variable-length. Decode that and `_eval_club_candidate` becomes a structural
+  walk like `_walk_comp_table`.
+
 - **The club table is still gate-based** (`_eval_club_candidate`). It shares the exact same
   candidate-scan architecture the comp table moved away from, and the review pass MEASURED the
   exposure rather than leaving it as a suspicion: with `_candidate_positions`' nation-table and
