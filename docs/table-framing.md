@@ -414,6 +414,40 @@ person-count-shaped (the info spine holds 32,849 person records, 77 of them empt
 be a per-person table. But the unit stops being uniform after 386 records, so its extent is
 UNPROVEN and it is not in the register.
 
+## Three kinds of number sit in front of a table
+
+Not every header number is a record count, and conflating them is how `60000` nearly entered
+the register as a table of 60,000 names. The distinction was settled by the one test a single
+save cannot run: **hold the number against a career's worth of saves and see whether it moves.**
+
+| kind | evidence | examples |
+|---|---|---|
+| **True count** | equals the records actually present | competitions 1,372; cities 10,956; stadiums 15,987; languages 124; currencies 173 |
+| **Per-database pool** | fixed for a career, DIFFERENT between careers, 100% initialised | the **history slab**: 265,423 rows in all 28 Frem saves, **295,648** in Bucaspor |
+| **Engine-wide capacity** | identical across careers, larger than actual usage | the **browse name table**: `60,000` in both careers, holding 45,942 (Frem) / 45,834 (Bucaspor) names — 76.5% utilised |
+
+### The history slab's 265,423 is a POOL, not a growing count
+
+This is the one worth internalising. `history.locate`'s docstring calls it "the exact row
+count", which is true of the physical rows — but it is **byte-identical in all 28 Frem saves,
+from the day-one 2021-07-01 save to 2026-07-02**, five in-game years and 25 snapshots apart,
+while the career history it holds grows the whole time. And every one of the 265,423 rows is
+non-zero even on day one.
+
+So it is a **fixed pool allocated when the database is built, fully initialised, and recycled
+rather than grown** — which is exactly what
+[`history-chain-pointers.md`](agent-context/history-chain-pointers.md) describes from the other
+side (chains running through recycled slots). The practical consequence: **that number can
+never tell you how much history exists**, only how many slots the pool has. It is safe as a
+walk bound and worthless as a measure.
+
+Bucaspor's 295,648 confirms it is per-database rather than a hard-coded engine constant.
+
+**One unresolved lead** in the same header: the `u32` at `start - 8` DOES vary across saves
+(2,069 on the day-one save, then 67,635, 564, and 52 for most of the career, 56 at the end).
+It is not monotonic, so it is not a usage counter; a free-list head into the recycled pool would
+fit, but that is a guess and has not been tested.
+
 ## The convention does NOT extend to the career half of the file (39 MB +)
 
 Checked because the register stops at 38.85 MB and the file runs to ~61 MB. The tables up
@@ -425,7 +459,7 @@ are located by other mechanisms, and that is not an oversight in the search:
 | history slab, 39.8–44.6 MB | **Counted, but a DIFFERENT framing**: `u32 @ start - 12`, no sentinel, not 4-byte aligned. `history.locate` already reads it. The only counted table outside the two reference bands. |
 | just after the slab, 44.6 MB | a per-season series — `[f32][…][u16 year]`, 7.0 in 2021, 10.0 in 2022 — FF-padded, no count. |
 | club history record tables, ~46.8 MB | The first row sits **immediately** after an 8-byte FF run with **no count between them**: the 4 bytes where a count would be read `3F 80 00 00`, i.e. float32 `1.0` — data, not a header. The FF run here is filler that happens to be 8 long. |
-| our matches, ~55.4 MB | No sentinel+count. The nearest 8-byte sentinel is 1,250 bytes before the first match anchor and its u32/u16 (724,183,345 / 10,545) bear no relation to the 25 matches in the save. Matches are found by the `regions.DELIM_UNIT` delimiter cluster. |
+| our matches, ~55.4 MB | **No count and no capacity.** Checked twice: the nearest 8-byte sentinel is 1,250 bytes before the first anchor with unrelated values, and the 64 bytes immediately in front of the anchor are *near-constant across saves* (only two value sets over 10 saves) while the match count swings from 9 to 57 — so they track something else entirely. They read as `u16` pairs (8/15, 8/27, 13/31), i.e. tail data from the preceding match record rather than a header. Matches are found by the `regions.DELIM_UNIT` delimiter cluster. |
 | squad snapshot, 51–61 MB | located by `regions.CLUB_MARKER`. |
 
 The cross-save sweep agrees: across all 34 saves there is **not one** count-framed table above

@@ -719,6 +719,17 @@ run of blocks. Full register with offsets in
 
 All four INDEX tables sit in the attribute section behind the staff grid and drift with it.
 
+**A header number is not always a count.** Three kinds, separated by holding the number against
+a whole career of saves (see [`table-framing.md`](table-framing.md)): a **true count** (the
+reference tables), a **per-database pool** (the history slab — 265,423 in ALL 28 Frem saves over
+five in-game years, 295,648 in Bucaspor, 100% initialised on day one), and an **engine-wide
+capacity** (the browse name table's `60,000`, identical in both careers, 76.5% utilised).
+`history.locate`'s docstring calling 265,423 "the exact row count" is true of the physical rows
+but invites the wrong inference: **it is a fixed allocation and can never indicate how much
+history exists.** Worth a docstring fix. An unresolved lead sits beside it — the `u32` at
+`start-8` varies across saves (2,069 / 67,635 / 564 / 52 / 56), is not monotonic so not a usage
+counter, and would fit a free-list head into the recycled pool. Untested.
+
 **Do not look for count headers above 39 MB either** — checked 2026-09-18. The history slab is
 counted but on different framing (`u32 @ start-12`, no sentinel, already read by
 `history.locate`); the club-history rows sit straight after an 8-byte FF run with NO count (the
