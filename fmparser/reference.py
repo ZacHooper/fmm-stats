@@ -291,7 +291,7 @@ def _read_comp_slot(mm, p):
     `2,000,000,000 + n` counter distinct from real competitions' `200,000,000 + cid`
     range), and `next_p` is always correct regardless, because the terminator convention
     (one byte after the long name, one after the short name, none after the code) and the
-    `25 + 8*n_qualifiers` trailer extension apply identically whether or not the names are
+    `25 + 8*n_refs` trailer extension apply identically whether or not the names are
     empty. See `_walk_comp_table`."""
     cid = int.from_bytes(mm[p:p + 2], "little")
     uid = int.from_bytes(mm[p + 2:p + 6], "little")
@@ -320,28 +320,28 @@ def _read_comp_slot(mm, p):
     rep = int.from_bytes(trailer[9:11], "little")
     level = trailer[11]
     parent = int.from_bytes(trailer[12:14], "little")
-    # The record does NOT end at the trailer. What follows is the QUALIFIERS table --
-    # `[n_qualifiers]` then that many 8-byte entries -- and then a fixed 21-byte tail, so
-    # `25 + 8 * n_qualifiers`, which is the whole reason this function can report `next_p`.
+    # The record does NOT end at the trailer. What follows is a counted REFERENCE LIST --
+    # `[n_refs]` then that many 8-byte entries -- and then a fixed 21-byte tail, so
+    # `25 + 8 * n_refs`, which is the whole reason this function can report `next_p`.
     # Non-zero on 24 of this save's 1,272 named competitions (up to 134 across the archive)
     # and 914 records overall, so the `8 *` term is load-bearing, not speculative.
     #
     # The ORDER was measured, not assumed: the entries come BEFORE the 21-byte tail,
-    # established on the 914 records that have qualifiers by where the tail's three-u16
-    # season triple reads as a plausible year (686 hits at record_end-9, zero at +16 from
-    # here). A contiguous-25-byte-head reading gives the identical record length, which is
-    # why it went unnoticed -- 1,348 of 1,372 records have no qualifiers, so the two
-    # coincide there.
+    # established on the 914 records that have a list by where the tail's three-u16 season
+    # triple reads as a plausible year (686 hits at record_end-9, zero at +16 from here).
+    # A contiguous-25-byte-head reading gives the identical record length, which is why it
+    # went unnoticed -- 1,348 of 1,372 records have an empty list, so the two coincide there.
     #
     # The count is read as a u32 here because that is safe -- bytes +1..+3 are zero on all
     # 46,641 slots in the archive -- but it is DECLARED as a u8 plus three unknowns in
     # `scripts/audit_records.py`, because with a maximum count of 134 the two widths are
-    # indistinguishable and the layout must not assert what was not measured. The entry
-    # fields ARE decoded (`comp_qualifier_entry`: club uid, season, position) but are not
-    # read into `rec` -- nothing consumes them yet; see docs/TODO.md.
-    hist_p = pp + 14
-    n_qualifiers = int.from_bytes(mm[hist_p:hist_p + 4], "little")
-    next_p = hist_p + 25 + 8 * n_qualifiers
+    # indistinguishable and the layout must not assert what was not measured. The entry's
+    # own fields are decoded (`comp_ref_entry`) and readable via `comp_refs`, but are not
+    # put in `rec`: only 24 of 1,272 competitions have any, and what the list MEANS varies
+    # between them, so there is nothing yet worth a column. See `comp_refs`.
+    list_p = pp + 14
+    n_refs = int.from_bytes(mm[list_p:list_p + 4], "little")
+    next_p = list_p + 25 + 8 * n_refs
     if ln == 0:
         return None, next_p
     rec = {"cid": cid, "uid": uid, "name": long, "short": short, "code": code,
@@ -410,34 +410,46 @@ def _walk_comp_table(mm):
             comps[cid] = rec
     return comps, n_blank
 
-def comp_qualifiers(mm, cid):
-    """[{club_uid, season, position}] -- the QUALIFIERS table on competition `cid`, in file
-    order. Empty list for a blank slot, a competition with none, or a cid past the table.
+def comp_refs(mm, cid):
+    """[{ref, season, ordinal}] -- the competition's counted reference list, in file order.
+    Empty for a blank slot, a competition with none, or a cid past the table.
 
-    Which clubs qualified for this competition, from which season, in which slot. Decoded
-    2026-09-18 by resolving the ids rather than by shape: Major League Soccer's entries come
-    back as D.C. United, LA Galaxy, Atlanta United, Charlotte FC, Chicago Fire and CF
-    Montréal, and Copa Libertadores' 2021 entries as Club The Strongest (1), Club Always
-    Ready (1), Club Bolívar (2), Royal Pari (3) -- Bolivian and Ecuadorian clubs at plausible
-    qualification positions, in the right competition. This is fmm-editor's `Qualifiers`
-    table (`n × 8 bytes`); the 3-season Rank/Year history is the separate 21-byte tail that
-    ENDS the record, and that one is still unnamed.
+    `ref` resolves as a club **UID** for club competitions, and that part is solid: MLS's
+    entries come back as its 28 member clubs (D.C. United, LA Galaxy, Atlanta United,
+    Charlotte FC, Chicago Fire, CF Montréal), Copa Libertadores' as Bolivian and Ecuadorian
+    clubs in the right competition. `0xFFFFFFFF` is the empty-slot sentinel.
 
-    **`club_uid` is a UID. Resolve it against a club's `uid`, never against its tid.** 1,095
-    of these values also match some club's tid, and the tid reading is wrong every time it
-    was checked -- uid 1913 is D.C. United, which is right for MLS, while tid 1913 is York
-    United. Build the index yourself from `_build_refdata_index(mm)[0]`; there is no
-    uid-keyed resolver here because nothing else in the module needs one.
+    **Resolve by UID, never by tid.** 1,095 of these values also match some club's tid and
+    the tid reading is wrong every time -- uid 1913 is D.C. United (right for MLS), tid 1913
+    is York United. Build the index from `_build_refdata_index(mm)[0]`; there is no uid-keyed
+    resolver in this module because nothing else needs one. National-team competitions carry
+    a reference in a different, unresolved id space (a small negative int32; 132 distinct
+    values in -1658..-5, clustering densely -- Copa América's ten are ten consecutive
+    values, and CONMEBOL has exactly ten members), so a uid lookup simply misses. That is
+    not a parse failure.
 
-    Two values are returned raw rather than filtered, because both are real save content and
-    a caller may want to see them:
-      * `club_uid == 0xFFFFFFFF` is the empty-slot sentinel (96 of 620 entries on
-        frem-2026-06-11) and `season == 0` means unset.
-      * NATIONAL-TEAM competitions -- European International League Division A-D, Copa
-        América, North American U20 Championship -- carry a small-negative int32 here
-        instead of a club uid (62 of 620). Nations are not in the club table, so this is
-        very likely a national-team reference in another id space. Unresolved, so a caller
-        resolving by uid simply gets no match; do not treat that as a parse failure.
+    WHAT THE LIST MEANS IS NOT DECIDED, and the name here is deliberately structural. It was
+    briefly called `comp_qualifiers` after fmm-editor's `Qualifiers` table (`n × 8 bytes`,
+    which this may well be) and Zac was right to push back on the inconsistency: only 24 of
+    1,272 competitions populate it, and they do not share one meaning --
+
+      * Copa Libertadores   47 entries × 2 seasons, each with a domestic placing. A
+                            qualification list, exactly.
+      * Major League Soccer its 28 member clubs, Charlotte FC stamped season 2022 (its real
+                            expansion year). Membership, not qualification.
+      * Canadian Champ'ship 3 entries: Forge FC, Toronto FC, CF Montréal -- the Canadian
+                            clubs playing in FOREIGN leagues that still enter this cup.
+      * Copa América        10 national-team refs, no clubs at all.
+      * Scottish Cup        13 entries, every one 0xFFFFFFFF. Reserved and empty.
+      * Italian Cup         4 entries (3 Serie C clubs + a sentinel) against a ~78-team field.
+
+    And the asymmetry that kills any single label: European Champions Cup has ZERO while the
+    Libertadores / Asian / African Champions Leagues have 94 / 47 / 54, and 3F Superliga has
+    zero while MLS has 28. The story that fits is "an explicit entrant list, stored only
+    where the field cannot be derived from the league structure the game simulates" --
+    promotion/relegation pyramids and UEFA coefficients being derivable, a closed franchise
+    league and CONMEBOL's entrants not. A story is not a decode, so the fields are named and
+    the list is not. See `scripts/audit_records.py`'s `comp_ref_entry`.
     """
     anchor = _comp_table_anchor(mm)
     if anchor is None:
@@ -448,8 +460,8 @@ def comp_qualifiers(mm, cid):
     p = start
     for _i in range(cid):
         _rec, p = _read_comp_slot(mm, p)
-    # re-derive the qualifier array's offset exactly as _read_comp_slot does, so the two
-    # cannot drift: past the 3 names (one terminator after the first two), then the trailer
+    # re-derive the list's offset exactly as _read_comp_slot does, so the two cannot drift:
+    # past the 3 names (one terminator after each of the first two), then the 14-byte trailer
     q = p + 6
     ln = int.from_bytes(mm[q:q + 4], "little")
     pp = q + 4 + ln + 1
@@ -457,14 +469,16 @@ def comp_qualifiers(mm, cid):
     pp = pp + 4 + sl + 1
     cl = int.from_bytes(mm[pp:pp + 4], "little")
     pp = pp + 4 + cl
-    hist_p = pp + 14
-    n = int.from_bytes(mm[hist_p:hist_p + 4], "little")
+    list_p = pp + 14
+    n = int.from_bytes(mm[list_p:list_p + 4], "little")
     out = []
     for k in range(n):
-        e = hist_p + 4 + 8 * k
-        out.append({"club_uid": int.from_bytes(mm[e:e + 4], "little"),
+        e = list_p + 4 + 8 * k
+        out.append({"ref": int.from_bytes(mm[e:e + 4], "little"),
                     "season": int.from_bytes(mm[e + 4:e + 6], "little"),
-                    "position": int.from_bytes(mm[e + 6:e + 8], "little")})
+                    # u8, not u16: the byte above is 0 on 5,220 of 5,237 entries and 1 on
+                    # the other 17, so the two widths are not separable here
+                    "ordinal": mm[e + 6]})
     return out
 
 

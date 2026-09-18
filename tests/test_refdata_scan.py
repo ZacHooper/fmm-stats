@@ -117,24 +117,33 @@ def main():
     ok &= _check(len(spans) - 1 == declared and contiguous,
                  f"comp_table_spans tiles the table with no gap or overlap "
                  f"({len(spans) - 1} record spans + 1 count header)")
-    # ---- the qualifiers table resolves to real clubs ----
-    # Pins the decode AND the uid-not-tid rule: uid 1913 is D.C. United (right for MLS),
-    # tid 1913 is York United, so a tid-keyed read passes a shape check and still lies.
-    print("\nQUALIFIERS TABLE")
+    # ---- the competition reference list ----
+    # Pins the field decode and the uid-not-tid rule: uid 1913 is D.C. United (right for
+    # MLS), tid 1913 is York United, so a tid-keyed read passes a shape check and still lies.
+    # It deliberately does NOT assert what the list MEANS -- only 24 of 1,272 competitions
+    # populate it and they don't share one meaning, so `comp_refs` names the fields and not
+    # the list. See its docstring.
+    print("\nCOMPETITION REFERENCE LIST")
     clubs_by_uid = {c["uid"]: c["name"] for c in R._build_refdata_index(mm)[0].values()}
-    quals = R.comp_qualifiers(mm, 22)          # Major League Soccer
-    named = [clubs_by_uid.get(q["club_uid"]) for q in quals]
-    hits = [n for n in named if n]
-    ok &= _check(len(quals) == 28, f"cid=22 (MLS) declares 28 qualifier entries ({len(quals)})")
+    mls = R.comp_refs(mm, 22)                  # Major League Soccer
+    hits = [n for n in (clubs_by_uid.get(e["ref"]) for e in mls) if n]
+    ok &= _check(len(mls) == 28, f"cid=22 (MLS) declares 28 entries ({len(mls)})")
     ok &= _check(all(w in hits for w in ("D.C. United", "LA Galaxy", "Atlanta United FC")),
-                 f"MLS qualifiers resolve to real MLS clubs by UID "
-                 f"({len(hits)}/{len(quals)} resolve; e.g. {hits[:3]})")
-    lib = R.comp_qualifiers(mm, 61)            # Copa Libertadores
-    ok &= _check(all(q["season"] == 0 or 1990 <= q["season"] <= 2060 for q in lib),
+                 f"MLS refs resolve to real MLS clubs by UID "
+                 f"({len(hits)}/{len(mls)} resolve; e.g. {hits[:3]})")
+    lib = R.comp_refs(mm, 61)                  # Copa Libertadores
+    ok &= _check(all(e["season"] == 0 or 1990 <= e["season"] <= 2060 for e in lib),
                  f"every Copa Libertadores season is a plausible year or the 0 sentinel "
                  f"({len(lib)} entries)")
-    ok &= _check(all(q["position"] < 100 for q in lib if q["club_uid"] != 0xFFFFFFFF),
-                 "qualifier positions are small ordinals, not ids")
+    # the populations that stop this list being called one thing -- if any of these change
+    # shape the "it isn't one concept" conclusion needs revisiting, so pin them
+    ok &= _check(all(e["ref"] == 0xFFFFFFFF for e in R.comp_refs(mm, 279)),
+                 "cid=279 (Scottish Cup) is 13 entries that are ALL the empty sentinel")
+    ok &= _check(not R.comp_refs(mm, 256) and len(R.comp_refs(mm, 61)) == 94,
+                 "European Champions Cup has NO entries while Copa Libertadores has 94 "
+                 "-- the asymmetry that rules out a single label")
+    ok &= _check(all(e["ref"] > 0xFFFF0000 for e in R.comp_refs(mm, 254)),
+                 "cid=254 (Copa América) holds national-team refs, not club uids")
 
     nation_widths = {c["nation_id"] for c in comps.values()}
     ok &= _check(255 not in nation_widths or NO_NATION not in nation_widths,

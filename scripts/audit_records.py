@@ -144,66 +144,84 @@ def _comp_trailer_layout():
             (9, 2, "reputation"), (11, 1, "level"), (12, 2, "parent_cid")]
 
 
-def _comp_qualifier_count_layout():
-    """The count of 8-byte QUALIFIER entries that follows the competition trailer.
+def _comp_ref_count_layout():
+    """The count of 8-byte reference entries that follows the competition trailer.
 
-    **Declared as a u8 plus three UNKNOWN bytes, because the width is genuinely
-    undecidable from this data and declaring a u32 would be a claim, not a reading.**
-    Bytes +1..+3 are zero on all 46,641 slots across every archived save, and the largest
-    count anywhere is 134 -- so a `u8` followed by three zero bytes and a little-endian
-    `u32` are indistinguishable. `reference._read_comp_slot` reads it as a u32, which is
-    safe either way (the upper bytes are always zero), but the LAYOUT must not assert what
-    was not measured. A save with 256+ qualifiers in one competition would settle it.
+    **A u8 plus three UNKNOWN bytes, because the width is undecidable from this data.**
+    Bytes +1..+3 are zero on all 46,641 slots across every archived save and the largest
+    count anywhere is 134, so a `u8` followed by three zero bytes and a little-endian `u32`
+    cannot be told apart. `reference._read_comp_slot` reads a u32, which is safe either way;
+    the LAYOUT must not assert what was not measured. A save with 256+ entries in one
+    competition would settle it.
     """
-    return [(0, 1, "n_qualifiers"), (1, 3, UNKNOWN)]
+    return [(0, 1, "n_refs"), (1, 3, UNKNOWN)]
 
 
-def _comp_qualifier_entry_layout():
-    """One 8-byte qualifier entry: which club qualified for this competition, from what
-    season, in what slot.
+def _comp_ref_entry_layout():
+    """One 8-byte entry in the competition's reference list. Fields decoded; what the LIST
+    MEANS is deliberately NOT named -- see below, it is not one thing.
 
-    This is fmm-editor's `Qualifiers` table (`n × 8 bytes`), and the identification is
-    confirmed by resolving the ids rather than by shape. The `u32` is a club **UID**:
-    Major League Soccer's entries come back as D.C. United, LA Galaxy, Atlanta United,
-    Charlotte FC, Chicago Fire and CF Montréal, and Copa Libertadores' 2021 entries as
-    Club The Strongest (1), Club Always Ready (1), Club Bolívar (2), Royal Pari (3) --
-    Bolivian and Ecuadorian clubs at plausible qualification positions, in the right
-    competition. `0xFFFFFFFF` is the empty-slot sentinel (96 of 620 entries on
-    frem-2026-06-11), and `season` 0 means unset.
+    `ref` resolves as a club **UID** for club competitions, and that identification is solid:
+    Major League Soccer's entries come back as its 28 member clubs (D.C. United, LA Galaxy,
+    Atlanta United, Charlotte FC, Chicago Fire, CF Montréal), and Copa Libertadores' as
+    Bolivian and Ecuadorian clubs (Club The Strongest, Club Bolívar, Royal Pari) in the right
+    competition. `0xFFFFFFFF` is the empty-slot sentinel. **Resolve by UID, never by tid:**
+    1,095 of these values also match some club's tid and that reading is wrong every time --
+    uid 1913 is D.C. United (right for MLS), tid 1913 is York United.
 
-    Read it by UID, NOT by tid. 1,095 of these values ALSO match some club's tid, and that
-    reading is wrong every time it was checked: uid 1913 is D.C. United (correct for MLS)
-    while tid 1913 is York United. The tid-only matches are worse -- they are all the
-    `0xFFFFFFFF` sentinel "resolving" against the bogus tid=4294967295 record the club scan
-    still invents (docs/TODO.md).
+    NATIONAL-TEAM competitions carry a reference in a different, unresolved id space: 1,143
+    entries read as a small negative int32, 132 distinct values in -1658..-5, and they cluster
+    densely (-1658..-1649 is ten consecutive values, and Copa América -- which is where they
+    appear -- has exactly ten CONMEBOL member nations). Nations are not in the club table, so
+    this is very likely a national-team id space. Unresolved, and not guessed at.
 
-    **One competition family does not fit and is not forced to.** National-team competitions
-    -- European International League Division A-D, Copa América, North American U20
-    Championship -- carry a small-negative-int32 value here instead of a club uid (62 of 620
-    entries). Nations are not in the club table, so this is very likely a national-team
-    reference in another id space; unresolved, and deliberately not guessed at.
+    `ordinal` is declared as a u8 for the same reason as the count: the byte above it is 0 on
+    5,220 of 5,237 entries and 1 on the other 17, so u8-plus-a-rare-flag and u16 are not
+    separable here. Values are small (1, 2, 3 ...) and read as a placing where the list is a
+    qualification list.
+
+    WHY THE LIST ITSELF IS UNNAMED. It was briefly called the `Qualifiers` table (fmm-editor
+    has one, `n × 8 bytes`, which this may well be) and Zac was right to push back: only 24 of
+    1,272 competitions populate it at all, and the populated ones do not share one meaning.
+      * Copa Libertadores: 47 entries per season for two seasons, each with a domestic
+        qualifying position. A qualifier list, exactly.
+      * Major League Soccer: its 28 member clubs, with Charlotte FC stamped season 2022 --
+        its real expansion year. A membership list, not a qualification.
+      * Canadian Championship: 3 entries -- Forge FC, Toronto FC, CF Montréal, i.e. the
+        Canadian clubs that play in FOREIGN leagues but enter the Canadian cup. Reads as
+        "entrants the league structure cannot imply".
+      * Copa América: 10 national-team refs, no clubs.
+      * Scottish Cup: 13 entries, ALL `0xFFFFFFFF`. Reserved and empty.
+      * Italian Cup: 4 entries (3 Serie C clubs + a sentinel) against a ~78-team real field.
+    And the asymmetry that makes a single label untenable: European Champions Cup has ZERO
+    while Copa Libertadores / Asian / African Champions Leagues have 94 / 47 / 54, and 3F
+    Superliga has zero while MLS has 28. A plausible story is "an explicit entrant list,
+    stored only where the field cannot be derived from the league structure the game
+    simulates" -- promotion/relegation pyramids and UEFA coefficients being derivable, a
+    closed franchise league and CONMEBOL's entrants not. That is a story, not a decode, so
+    the layout names the FIELDS and leaves the list structural.
     """
-    return [(0, 4, "club_uid"), (4, 2, "season"), (6, 2, "position")]
+    return [(0, 4, "ref"), (4, 2, "season"), (6, 1, "ordinal"), (7, 1, UNKNOWN)]
 
 
 def _comp_history_tail_layout():
-    """The 21 fixed bytes that END a competition record, AFTER the qualifiers array.
+    """The 21 fixed bytes that END a competition record, AFTER the reference list.
 
     THE ORDER HERE WAS ESTABLISHED BY MEASUREMENT, NOT ASSUMED, and two earlier readings of
     it were wrong. The fixed part is NOT a contiguous 25-byte head with the qualifiers after
     it (which is how it was first declared, and which looks right because 1,348 of 1,372
-    records have zero qualifiers, so the two readings coincide); nor is it
-    `[count][3 stat u32][qualifiers][3 season u16][tail]`, which is what docs/TODO.md
+    records have zero entries, so the two readings coincide); nor is it
+    `[count][3 stat u32][entries][3 season u16][tail]`, which is what docs/TODO.md
     claimed. All the candidate orderings give the same record length, so arithmetic cannot
-    separate them -- only content can. On the 914 records that DO carry qualifiers, the
+    separate them -- only content can. On the 914 records that DO carry entries, the
     three-u16 season triple reads as a plausible year (1990-2060) at `record_end - 9` on 686
     of them and at `count + 16` on ZERO. So: count, then the qualifiers, then this.
 
     The three u32s and the three u16s are parallel arrays, three seasons wide, which is
     exactly the shape of fmm-editor's FMM26 `Competition` Rank[3]/Year[3] history -- and
-    unlike the qualifier entries, these u32s do NOT resolve as clubs by either uid or tid
+    unlike the reference entries, these u32s do NOT resolve as clubs by either uid or tid
     (3F Superliga's read 505/526/507), so they are carried UNNAMED. Both arrays go
-    0xFF-sentinel on records that carry a full qualifiers array instead, which is itself a
+    0xFF-sentinel on records that carry a full reference list instead, which is itself a
     hint about what the two represent.
     """
     return [(0, 4, UNKNOWN), (4, 4, UNKNOWN), (8, 4, UNKNOWN),
@@ -226,15 +244,15 @@ LAYOUTS = {
     #   [cid u16][uid u32]
     #   [len u32][long name][1 terminator][len u32][short name][1 terminator][len u32][code]
     #   comp_trailer            14
-    #   comp_qualifier_count     4   -> n_qualifiers
-    #   comp_qualifier_entry     8   x n_qualifiers
+    #   comp_ref_count           4   -> n_refs
+    #   comp_ref_entry           8   x n_refs
     #   comp_history_tail       21
-    # = 25 + 8 * n_qualifiers after the code name, which is exactly what
+    # = 25 + 8 * n_refs after the code name, which is exactly what
     # reference._walk_comp_table steps by -- and scripts/audit_coverage.py claims the whole
     # table MEASURED per record on the strength of it.
     "comp_trailer": (14, _comp_trailer_layout()),
-    "comp_qualifier_count": (4, _comp_qualifier_count_layout()),
-    "comp_qualifier_entry": (8, _comp_qualifier_entry_layout()),
+    "comp_ref_count": (4, _comp_ref_count_layout()),
+    "comp_ref_entry": (8, _comp_ref_entry_layout()),
     "comp_history_tail": (21, _comp_history_tail_layout()),
 }
 
