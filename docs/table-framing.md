@@ -414,6 +414,36 @@ person-count-shaped (the info spine holds 32,849 person records, 77 of them empt
 be a per-person table. But the unit stops being uniform after 386 records, so its extent is
 UNPROVEN and it is not in the register.
 
+## The convention does NOT extend to the career half of the file (39 MB +)
+
+Checked because the register stops at 38.85 MB and the file runs to ~61 MB. The tables up
+there — the history slab, the club history record tables, our own matches, the squad snapshot —
+are located by other mechanisms, and that is not an oversight in the search:
+
+| region | framing |
+|---|---|
+| history slab, 39.8–44.6 MB | **Counted, but a DIFFERENT framing**: `u32 @ start - 12`, no sentinel, not 4-byte aligned. `history.locate` already reads it. The only counted table outside the two reference bands. |
+| just after the slab, 44.6 MB | a per-season series — `[f32][…][u16 year]`, 7.0 in 2021, 10.0 in 2022 — FF-padded, no count. |
+| club history record tables, ~46.8 MB | The first row sits **immediately** after an 8-byte FF run with **no count between them**: the 4 bytes where a count would be read `3F 80 00 00`, i.e. float32 `1.0` — data, not a header. The FF run here is filler that happens to be 8 long. |
+| our matches, ~55.4 MB | No sentinel+count. The nearest 8-byte sentinel is 1,250 bytes before the first match anchor and its u32/u16 (724,183,345 / 10,545) bear no relation to the 25 matches in the save. Matches are found by the `regions.DELIM_UNIT` delimiter cluster. |
+| squad snapshot, 51–61 MB | located by `regions.CLUB_MARKER`. |
+
+The cross-save sweep agrees: across all 34 saves there is **not one** count-framed table above
+39 MB that survives both stability filters (the single candidate, a Bucaspor `10 x 3 B`, has a
+drift value shared by nothing else — a coincidence in a different place each save).
+
+**So the convention is a property of the STATIC REFERENCE DATABASE, not of the save.** The
+reference half (roughly 4–14 MB: attributes, staff, clubs, competitions, nations, stadiums,
+cities, languages, currencies, awards, and the name id-tables at 37.9 MB) is shipped as counted
+arrays, because its sizes are fixed when the database is built. The career half (39–61 MB:
+history, club records, matches, the snapshot) is written by the running game and is located by
+pointers, delimiters and markers instead — which is exactly why `history.py` needed the
+in-degree test, `matches.py` needs a delimiter cluster, and neither could have been found by
+looking in front of record 0.
+
+That is the useful closing shape of this work: **look for a count header when the data is
+reference data, and expect pointers or delimiters when it is career data.**
+
 ## Why the yield is low, and where the rest are
 
 The detectors' own harvest was ~91 KB of a 60.7 MB file, which looked thin until chaining
