@@ -443,10 +443,51 @@ walk bound and worthless as a measure.
 
 Bucaspor's 295,648 confirms it is per-database rather than a hard-coded engine constant.
 
-**One unresolved lead** in the same header: the `u32` at `start - 8` DOES vary across saves
-(2,069 on the day-one save, then 67,635, 564, and 52 for most of the career, 56 at the end).
-It is not monotonic, so it is not a usage counter; a free-list head into the recycled pool would
-fit, but that is a guess and has not been tested.
+**The `start - 8` free-list guess is REFUTED.** That u32 does vary across saves (2,069 on the
+day-one save, then 67,635, 564, 52 for most of the career, 56 at the end), and a free-list head
+into the pool would have fitted neatly. It is not one: the rows it points at (2069, 52, 56) all
+have **in-degree 1**, i.e. they are ordinary mid-chain rows, not chain heads and not free. So
+`start - 8` is most likely not a header field at all — `start - 12` is the only one.
+
+### How the pool actually behaves
+
+Measured across six Frem saves spanning the whole career (day-one 2021 to 2026):
+
+| | 2021-07-01 | 2023-07-02 | 2026-07-02 |
+|---|---|---|---|
+| pool rows | 265,423 | 265,423 | 265,423 |
+| chains (in-degree 0) | 50,776 | 34,441 | 34,460 |
+| mean chain length | 5.23 | 7.71 | 7.70 |
+| **max chain length** | **39** | **31** | **26** |
+| singleton chains | 27,319 (10.3% of pool) | 9,271 (3.5%) | 10,026 (3.8%) |
+| `untouched` (`next == k+1`) | 0.809 | 0.671 | **0.376** |
+
+Four things follow, and they make the pool model concrete:
+
+1. **Every row is always in exactly one chain.** Max in-degree is 1 and heads == terminators in
+   every save, and following every head reaches **100%** of the 265,423 rows. There is no region
+   of orphaned or unallocated rows to find.
+2. **Singleton chains are the free reserve.** 27,319 of them on day one, consumed down to ~9,300
+   by 2023, then holding around 10,000. The pool is not close to exhausting.
+3. **Churn is monotonic and measurable.** `untouched` — the fraction of rows still pointing at
+   their physical successor — decays 0.81 -> 0.38 over five years. That is the cleanest single
+   number for "how much of this pool has been rewritten".
+4. **Rows are RECLAIMED FROM OLDER PLAYERS.** Of 24,145 sids with an attribute record in both
+   the day-one and the 2026 save, 72.0% have a longer chain (five more seasons, as expected) but
+   **25.2% (6,077) have a SHORTER one** — 68,998 rows lost in total, the worst going 39 rows
+   down to 5, and 38 down to 5. The shortened group's median age in 2021 was **31** (so ~36 by
+   2026); the group that gained rows had a median age of **22**. Falling max-chain-length
+   (39 -> 26) corroborates it independently of sid identity.
+
+**The mechanism is most likely reclamation at career end, but this is NOT proven.** The age
+split is the evidence; `club_tid` cannot settle it, because a lapsed loan leaves a departed
+player's club pointing at his old club indefinitely (the reason `mart.squad_current` exists) —
+and indeed 97.6% of the shortened group vs 97.7% of the lengthened group still "have a club",
+which tells us nothing.
+
+**The consequence holds either way: an EARLIER snapshot can carry career history a LATER one has
+already dropped.** We keep a per-snapshot extract of every save, so that history is not lost to
+us — but only if something unions it across snapshots, and nothing currently does.
 
 ## The convention does NOT extend to the career half of the file (39 MB +)
 
