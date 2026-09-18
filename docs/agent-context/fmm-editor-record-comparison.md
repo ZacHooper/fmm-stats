@@ -173,14 +173,88 @@ save, instead of inferring membership from loan spells. **`MainClub`** would lik
 hardcoded reserve tids in `careers.py` — but it currently decodes to a negative sentinel, so the
 tail alignment drifts somewhere after `Players[]`. Both need pinning down before use.
 
-## Competition record — we parse about half
+## Competition record — the whole record is now located (2026-09-18)
 
-We read cid, uid, long/short/code, type, nation_id, reputation. `Competition.cs` also has:
-**`Level` (division tier!)**, **`ParentCompetitionId`**, `ContinentId`, foreground/background
-`Color`, a `Qualifiers` table (n × 8 bytes), `Rank1..3` + `Year1..3` (a 3-season history), and
-`IsWomen`. **`Level` is the one to grab** — we currently hardcode the Danish pyramid
-(Superliga=2, 1.Div=3, 2.Div=4, 3.Div=1147) in [[denmark-division-tiers]]; `Level` would derive
-it for any nation instead. Not yet located in the FMM22 record.
+Superseded: this section used to read "we parse about half", with `Level`,
+`ParentCompetitionId`, `ContinentId`, the colours and the `Rank1..3`/`Year1..3` history all
+listed as "not yet located in the FMM22 record". They are all located now, and so is the
+record's END — `reference._walk_comp_table` reads every slot the table declares by arithmetic
+(1372 on Frem, 1371 on Bucaspor, `cid == slot index` throughout), which it could not do without
+knowing the exact extent. `scripts/audit_records.py --map` prints the per-byte schema; that is
+the documentation, generated rather than retyped, so prefer it over anything restated here.
+
+The layout, after `[cid u16][uid u32]` and the three length-prefixed names (exactly one
+terminator byte after the long and short names, none after the code):
+
+| piece | width | holds |
+|---|---|---|
+| `comp_trailer` | 14 | `type`, `continent` (u16, FIFA confederation 0-5, `0xFFFF` = global), `nation` (u16, `0xFFFF` = none), `fg_colour`, `bg_colour`, `reputation`, **`level`**, **`parent_cid`** |
+| `comp_ref_count` | 4 | `n_refs` in byte +0; +1..3 UNKNOWN (see below) |
+| `comp_ref_entry` | 8 × n | `[ref u32][season u16][ordinal u8][u8 UNKNOWN]` — maybe fmm-editor's `Qualifiers`, see below |
+| `comp_history_tail` | 21 | 3 × u32 (unnamed) + `season_0..2` + u16 + u8 — fmm-editor's `Rank1..3`/`Year1..3` shape |
+
+**`Level` is read** (`level`, trailer +11) — 0 = a nation's top flight, 1/2/3 below it — so the
+hardcoded Danish pyramid in [[denmark-division-tiers]] can be derived for any nation instead.
+Confederation-style records carry junk there (100/112), so filter on `type_id` before using it.
+
+**The entry's FIELDS are decoded; what the LIST means is not, and is not named.** `ref`
+resolves as a club **UID** — MLS's entries come back as its 28 member clubs (D.C. United, LA
+Galaxy, Atlanta United, Charlotte FC, Chicago Fire, CF Montréal), Copa Libertadores' as
+Bolivian and Ecuadorian clubs in the right competition. `0xFFFFFFFF` = empty slot, `season` 0
+= unset. **Resolve by UID, never by tid:** 1,095 values also match some club's tid and that
+reading is wrong every time (uid 1913 = D.C. United, tid 1913 = York United). Read it with
+`reference.comp_refs(mm, cid)`.
+
+**It was briefly named after fmm-editor's `Qualifiers` table and that was wrong.** Only 24 of
+1,272 competitions populate the list, and they do not share one meaning: Copa Libertadores has
+47 clubs × 2 seasons with domestic placings (a real qualification list); MLS has its 28 member
+clubs with Charlotte FC stamped season 2022, its expansion year; the Canadian Championship has
+3 — Forge FC, Toronto FC, CF Montréal, the Canadian clubs in *foreign* leagues that still
+enter it; Copa América has 10 national-team refs and no clubs; the Scottish Cup has 13 entries
+that are *all* the empty sentinel; the Italian Cup has 4 (3 Serie C clubs + a sentinel) against
+a ~78-team field. And the asymmetry that settles it: **European Champions Cup has ZERO** while
+the Libertadores / Asian / African Champions Leagues have 94 / 47 / 54, and **3F Superliga has
+zero while MLS has 28**. A plausible story is "an explicit entrant list, stored only where the
+field cannot be derived from the league structure the game simulates". A story is not a decode.
+
+**The SIGN says what `ref` points at: positive = club uid, negative = NATIONAL TEAM, with
+`-ref` being that nation's `uid` from `lookups.scrape_nations`.** Exact on 62/62 negative refs
+— Copa América's ten are CONMEBOL's ten members exactly; the European International League
+divisions are European nations. They land on consecutive negative ids because the nation table
+is alphabetical and negating reverses it. `0xFFFFFFFF` (−1) is the empty sentinel, not a
+nation. This is the first thing in the parser that can name an international competition's
+participants, and the sign rule is worth testing wherever else a team reference appears.
+
+**A national team is a CLUB-shaped record the club scan cannot admit.** Argentina reads
+`[tid 961][uid 0xFFFFF98F][9]'Argentina'[00][9]'Argentina'[00][3]'ARG'[trailer]` — the exact
+long/short/code layout — but uid 4,294,965,647 fails both of `_eval_club_candidate`'s uid
+bands, so all 202 such records are invisible. Filed under the club table's own rewrite
+([[TODO]]), not here.
+
+Three widths/values deliberately NOT named:
+- **`n_refs`' width.** u8 + 3 UNKNOWN, not u32: bytes +1..3 are zero on all 46,641 slots and
+  the largest count anywhere is 134, so the two widths are indistinguishable.
+- **`ordinal`'s width.** u8 + 1 UNKNOWN: the byte above it is 0 on 5,220 of 5,237 entries and 1
+  on the other 17.
+- **the tail's three u32s.** They pair with the three seasons as parallel arrays, but 3F
+  Superliga's read 505/526/507, which resolve as English clubs by tid and as nothing by uid.
+
+Three traps this record set, worth carrying to the next one:
+- **Field order can be invisible to arithmetic.** `[count][entries][tail]`,
+  `[count][tail][entries]` and `[count][3 u32][entries][3 u16][tail]` all give the same record
+  length, so confirming the walk lands on `cid == i` cannot separate them. Content can: the
+  tail's season triple reads as a plausible year at `record_end − 9` on 686 of the 914 records
+  with a list, and at `count + 16` on zero.
+- **The majority of the data may not be able to distinguish them.** 1,348 of 1,372 records have
+  an empty list, where every ordering coincides — a spot check confirms whichever guess came
+  first.
+- **A sentinel read as garbage looks like a refuted hypothesis.** This decode was first written
+  off as "fits 83%, so it's a guess" — the other 17% were `season == 0`, unset rather than
+  misaligned. Every non-plausible year in the archive is exactly 0. By competition rather than
+  by entry: 574 all-plausible, 272 all-zero, 68 mixed. The 8-byte reading holds for 100%.
+
+`IsWomen` is a later-game-version field (per Zac); FMM22 saves do not carry it, so it is not
+part of this record's unresolved extent.
 
 ## Record types we did not parse — now done (2026-09-16)
 

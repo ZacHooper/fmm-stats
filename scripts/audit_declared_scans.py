@@ -6,13 +6,23 @@ superseded by an earlier/better candidate for the same key? Closes the gap `DECL
 open in `scripts/audit_coverage.py` -- "a parser scanned this window" is not "every candidate
 is accounted for."
 
-Currently covers `reference.py`'s club/comp scan (`_build_refdata_index` /
+Currently covers `reference.py`'s CLUB scan (`_build_refdata_index` /
 `diagnose_refdata_scan`). `staging.py`'s `scrape_attributes`/`scrape_contracts` share the same
 shape and are the next candidates once they get the equivalent `_eval_*_candidate` refactor --
-see docs/TODO.md item #10.
+see docs/TODO.md.
+
+COMPETITIONS ARE NO LONGER AUDITED THIS WAY, because they are no longer a candidate scan:
+`reference._walk_comp_table` reads the table's own declared slots by arithmetic, so there are
+no candidates, no gates and no reject reasons to tally. This script printed exactly such a
+tally until 2026-09-18 -- tier counts, per-gate reject costs, "fixing this gate alone would
+recover exactly this many" -- for a code path `_build_refdata_index` had already stopped
+calling. Numbers about a dead path read as an audit and are worse than no audit. What replaces
+them is the walk's own structural summary (declared == named + blank) plus the cross-reference
+below, which is the half that still answers a real question.
 
 Two things this script exists specifically to avoid getting wrong, both caught while building
-it (see `reference.diagnose_refdata_scan`'s docstring for the full story):
+it against the comp gates (see `reference.diagnose_refdata_scan`'s docstring), and both of
+which now apply to the CLUB gates:
 
   1. A raw reject-reason count is not "how many real records are we losing" -- a candidate
      that fails 3 gates at once counts against all 3, so a gate's raw count is dominated by
@@ -37,17 +47,6 @@ from fmparser import staging as S      # noqa: E402
 from fmparser import matches as M      # noqa: E402
 
 
-def _reject_table(candidates, ids, solo_candidates, solo_ids, total_rejected_candidates):
-    lines = []
-    for reason, c in candidates.most_common():
-        s = solo_candidates.get(reason, 0)
-        si = solo_ids.get(reason, 0)
-        lines.append(
-            f"    {c:>8,} candidates / {ids[reason]:>6,} cids touch it   "
-            f"{s:>8,} candidates / {si:>6,} cids fail ONLY it  -- {reason}")
-    return lines
-
-
 def report_refdata(mm):
     diag = R.diagnose_refdata_scan(mm)
     print(f"reference.clubs_comps: {diag.n_window_bytes:,} window bytes, "
@@ -66,31 +65,42 @@ def report_refdata(mm):
         pct = c / total_rej * 100 if total_rej else 0
         print(f"    {c:>8,} ({pct:>5.1f}%)  {diag.club_reject_ids[reason]:>6,} cids  -- {reason}")
 
-    print("\nCOMPETITIONS")
-    print(f"  accepted tier0 (primary reputation gate)  {diag.comp_accepted_tier0:>8,}")
-    print(f"  accepted tier1 (reputation-floor fill)    {diag.comp_accepted_tier1:>8,}")
-    print(f"  superseded (valid, lost cid arbitration)  {diag.comp_superseded:>8,}")
-    print(f"  already-resolved skips (not a defect)     {diag.comp_already_resolved:>8,}")
-    print("  reject reasons -- gates are tested independently, so a candidate failing")
-    print("  multiple gates counts against each; SOLO = this was the only gate it failed")
-    print("  (the actionable number: fixing this gate alone would recover exactly this many)")
-    for line in _reject_table(diag.comp_reject_candidates, diag.comp_reject_ids,
-                               diag.comp_reject_solo_candidates, diag.comp_reject_solo_ids,
-                               sum(diag.comp_reject_candidates.values())):
-        print(line)
     return diag
 
 
-def report_cross_reference(mm, diag):
-    """Of the ids something else in the save actually references, how many resolve, and for
-    the ones that don't, which reject reason (solo if there is one, else the full set)
-    explains it. This is what turns a reject count into a real, actionable gap."""
+def report_comp_table(mm):
+    """The competition table has no candidates to diagnose -- it is walked. So the report is
+    the walk's own invariant: the table's declared record count equals what came out of it.
+    Returns (comps, declared) for the cross-reference below."""
+    start, declared = R._comp_table_anchor(mm)
+    comps, n_blank = R._walk_comp_table(mm)
+    print("\nCOMPETITIONS (structural walk -- no candidates, no gates, nothing to reject)")
+    print(f"  table start offset                        {start:>8,}")
+    print(f"  records the table declares                {declared:>8,}")
+    print(f"  named                                     {len(comps):>8,}")
+    print(f"  blank slots (namelen 0, placeholder uid)  {n_blank:>8,}")
+    agree = "ok" if len(comps) + n_blank == declared else "MISMATCH"
+    print(f"  named + blank == declared                 {agree:>8}")
+    return comps, declared
+
+
+def report_cross_reference(mm, diag, comps, declared):
+    """Of the ids something else in the save actually references, how many resolve, and what
+    explains the ones that don't. This is what turns a count into a real, actionable gap.
+
+    The two halves now explain a miss DIFFERENTLY, which is the whole point of the walk.
+    A club miss is attributed to the gate that rejected it (there is still a gate cascade to
+    blame). A competition miss cannot be a gate any more, so it is classified structurally:
+    either the cid is past the end of the table the save itself declares, or the table says
+    that slot is blank. Both are statements about the save, not about our tuning -- and a
+    referenced cid that lands on a blank slot is the interesting case, because it means
+    something in the save points at a competition the save never populated."""
     print("\nCROSS-REFERENCE: ids real matches/players reference, that fail to resolve")
 
-    comp_reject_reason = {}
-    for _off, cid, reasons in diag.comp_rejections:
-        if cid not in comp_reject_reason or len(reasons) < len(comp_reject_reason[cid]):
-            comp_reject_reason[cid] = reasons   # prefer the most specific (fewest reasons) hit
+    def comp_miss_reason(cid):
+        if cid >= declared:
+            return f"cid >= the {declared} records the table declares (dangling reference)"
+        return "the table declares this slot BLANK (namelen 0) -- nothing to resolve"
 
     club_reject_reason = {}
     for _off, tid, reason in diag.club_rejections:
@@ -123,7 +133,7 @@ def report_cross_reference(mm, diag):
           f"{len(missing_cids)} missing")
     by_reason = {}
     for cid in missing_cids:
-        reason = "/".join(comp_reject_reason.get(cid, ["no candidate found for this cid at all"]))
+        reason = comp_miss_reason(cid)
         by_reason.setdefault(reason, []).append(cid)
     for reason, cids in sorted(by_reason.items(), key=lambda kv: -len(kv[1])):
         shown = ", ".join(str(c) for c in cids[:15])
@@ -148,7 +158,8 @@ def main():
     with open(save, "rb") as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
     diag = report_refdata(mm)
-    report_cross_reference(mm, diag)
+    comps, declared = report_comp_table(mm)
+    report_cross_reference(mm, diag, comps, declared)
     return 0
 
 
