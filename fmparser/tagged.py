@@ -22,6 +22,8 @@ Entity types (id -> X), most common: comp (competitions), stnm/stag (stages), Tt
 comp+team+posn+rank), nmsn/nssn/sbsn (season), nati (nations), przm/wnpz/cash (prize
 money). Full catalogue in docs/DATADICT.md.
 """
+from .save import cache_key as _cache_key
+
 # FALLBACK ONLY — see find_tagged_region. These bounds were measured on Bucaspor, whose
 # region starts at 17.50 MB. Frem's starts at 16.64-16.79 MB, so TAGGED_LO opened AFTER the
 # section did and silently cut 13-23% of the dictionary off the FRONT (1,623 `comp` records
@@ -43,16 +45,12 @@ _TAG_NTMS = b"smtn"   # "ntms" (number of teams)
 _CLUSTER_GAP = 500_000      # two `comp` tags this far apart start a new cluster
 _MARGIN_LO, _MARGIN_HI = 60_000, 300_000
 
-# Keyed on (id(mm), len(mm)), NOT id(mm) alone: CPython reuses the id of a freed object, so
-# a loop that opens one save after another (scripts/rebuild.py, any cross-save check) gets an
-# id collision and serves the previous save's region for the next save. Caught exactly that
-# way — Bucaspor came back with Frem's bounds and lost 829 records. The length disambiguates
-# in practice because two saves of byte-identical length are the same snapshot.
-_REGION_CACHE = {}          # (id(mm), len(mm)) -> (lo, hi)
-
-
-def _cache_key(mm):
-    return id(mm), len(mm)
+# Keyed via save.cache_key -- (id(mm), len(mm)), NOT id(mm) alone. CPython reuses the id of
+# a freed object, so a loop that opens one save after another serves the previous save's
+# region for the next one; caught exactly that way here (Bucaspor came back with Frem's
+# bounds and lost 829 records). See `save.cache_key` for the full story and the second time
+# it bit, in reference.py.
+_REGION_CACHE = {}          # save.cache_key -> (lo, hi)
 
 
 def find_tagged_region(mm):

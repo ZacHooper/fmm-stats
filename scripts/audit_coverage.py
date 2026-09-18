@@ -141,27 +141,42 @@ def claims(mm, n):
     # ---- DECLARED: window scans with no per-record offset --------------------
     from fmparser import regions as RG
     declared("reference.name_table", 0, 520_000)
-    # _build_refdata_index has real candidate-level introspection now (diagnose_refdata_scan,
-    # added alongside TODO #10): every position its prefilter considers ends up accepted,
-    # rejected-with-a-named-reason, or superseded. That is stronger than a bare DECLARED
-    # window scan, so this reports AUDITED instead -- but see `audited()`'s own docstring
-    # and diagnose_refdata_scan's: AUDITED covers candidate DISPOSITIONS, not every byte
-    # (the prefilter itself only proposes 1.76% of this window as a candidate at all). Falls
-    # back to a plain DECLARED claim if the diagnosis throws, so a save whose shape breaks
-    # it doesn't crash the whole audit.
+    # The CLUB scan has real candidate-level introspection (diagnose_refdata_scan): every
+    # position its prefilter considers ends up accepted, rejected-with-a-named-reason, or
+    # superseded. That is stronger than a bare DECLARED window scan, so it reports AUDITED --
+    # but see `audited()`'s own docstring and diagnose_refdata_scan's: AUDITED covers
+    # candidate DISPOSITIONS, not every byte (the prefilter proposes only ~1.5% of this
+    # window as a candidate at all). Falls back to a plain DECLARED claim if the diagnosis
+    # throws, so a save whose shape breaks it doesn't crash the whole audit.
+    #
+    # Competitions are NOT part of this claim any more and must not be folded back into it.
+    # They come from `_walk_comp_table`, which reads every slot the table itself declares --
+    # a genuinely stronger guarantee than AUDITED, on a region this window does not even
+    # cover (the table sits at ~12.6M, outside REFDATA_LO/HI). It gets its own MEASURED-style
+    # line below rather than being averaged into a candidate-disposition summary.
     try:
         from fmparser import reference as R
         diag = R.diagnose_refdata_scan(mm)
-        top_comp = ", ".join(f"{r}={c}" for r, c in diag.comp_reject_solo_ids.most_common(3))
         summary = (f"{diag.n_candidates:,} candidates -> clubs {diag.club_accepted_tier0}"
-                   f"+{diag.club_accepted_tier1} tier1, comps {diag.comp_accepted_tier0}"
-                   f"+{diag.comp_accepted_tier1} tier1, "
-                   f"top SOLO comp rejections (cids): {top_comp} "
+                   f"+{diag.club_accepted_tier1} tier1, {diag.club_superseded:,} superseded "
                    f"(run scripts/audit_declared_scans.py for the full breakdown)")
-        audited("reference.clubs_comps", RG.REFDATA_LO, RG.REFDATA_HI, summary)
+        audited("reference.clubs", RG.REFDATA_LO, RG.REFDATA_HI, summary)
     except Exception as exc:
-        print(f"  ! reference diagnosis failed: {exc}", file=sys.stderr)
-        declared("reference.clubs_comps", RG.REFDATA_LO, RG.REFDATA_HI)
+        print(f"  ! reference club diagnosis failed: {exc}", file=sys.stderr)
+        declared("reference.clubs", RG.REFDATA_LO, RG.REFDATA_HI)
+    # The competition table: start and length both read from the save's own count header, so
+    # its extent is known exactly rather than claimed. A failure here is a real defect, not a
+    # soft downgrade -- report it loudly instead of quietly falling back to DECLARED.
+    try:
+        from fmparser import reference as R
+        spans = R.comp_table_spans(mm)
+        c_comps, c_blank = R._walk_comp_table(mm)
+        measured("reference.comp_table", spans)
+        print(f"  ~ reference.comp_table: {len(spans) - 1:,} declared slots = "
+              f"{len(c_comps):,} named + {c_blank} blank, cid == slot index throughout, "
+              f"{spans[0][0]:,}-{spans[-1][1]:,}", file=sys.stderr)
+    except Exception as exc:
+        print(f"  ! COMPETITION TABLE WALK FAILED: {exc}", file=sys.stderr)
     declared("staging.attributes", RG.ATTR_LO, RG.ATTR_HI)
     declared("staging.contracts", RG.CONTRACTREC_LO, RG.CONTRACTREC_HI)
     declared("attributes.snapshot", RG.SNAPSHOT_LO, RG.SNAPSHOT_HI)

@@ -284,8 +284,9 @@ All three are known gaps, not suspicions:
   **continent/confederation name table** matching `nyongrand/fmm-editor`'s `ContinentName`
   class exactly (`[uid u32][Name][1 terminator][CodeName][Demonym][1 terminator]`, no 14-byte
   trailer) — `Africa`/`Asia`/`Europe`/`North America`/`Oceania`/`South America` at ids 0-5
-  (matching the six FIFA confederations `_eval_comp_candidate`'s `continent` field already
-  uses) plus a synthetic `World` at id 6 with empty code/demonym. Unparsed; nothing currently
+  (matching the six FIFA confederations the competition record's own `continent` field uses,
+  declared as `comp_trailer` +1..2 in `scripts/audit_records.py`) plus a synthetic `World` at
+  id 6 with empty code/demonym. Unparsed; nothing currently
   reads it. Its own 6th entry ("World") is the coincidental candidate that a widened comp scan
   briefly picked up as a fake `cid=24931` competition (see #10) before comps moved to a pure
   structural walk that never scans this far at all.
@@ -294,7 +295,7 @@ All three are known gaps, not suspicions:
   not just a theoretical one: `lookups.scrape_nations()` is missing **Algeria** (nation_id 0,
   the very first real nation, sitting immediately before Angola/nation_id 1) from its output.
   Root cause is the same *class* of bug fixed today in the competition scraper's own name walk
-  (`_eval_comp_candidate`, see #10's terminator note): a **plausibility-sniffed** terminator
+  (see #10's terminator note): a **plausibility-sniffed** terminator
   skip is ambiguous exactly when the field that follows is short/edge-case, where an
   **unconditional, structural** skip (the actual rule — every name field gets exactly one
   terminator, full stop, regardless of what's in it) is not. Not yet fixed here; `lookups.py`
@@ -377,9 +378,24 @@ guessed, by walking to record 1 and checking its cid reads back as 1), and `_wal
 then reads every one of the `count` records by pure arithmetic — name lengths, the terminator
 rule above, and a variable trailing block (below) — with the walk's own loop index as cid the
 ONE structural assertion (raises on mismatch rather than silently drifting). **No plausibility
-gate at all.** `_eval_comp_candidate`/`COMP_TYPES`/`COMP_REJECT_*` are retained only as a
-same-save-family fallback for a save where this anchor can't be found; `_build_refdata_index`
-prefers the walk whenever it resolves.
+gate at all.**
+
+**The gate cascade is DELETED, not kept as a fallback** (2026-09-18, round 4 — the review pass).
+It shipped for one day as a "same-save-family fallback for a save where the anchor can't be
+found", and the review asked the obvious question: does that save exist? Measured on all 34
+archived saves across BOTH careers, the anchor resolves and the walk reads every declared slot
+exactly — Frem 1372 = 1272 named + 100 blank, Bucaspor 1371 = 1271 + 100, `cid == i` throughout
+every one. So the fallback was dead code, and a dead fallback is not insurance: it is a second,
+untested definition of what a competition record is, which is precisely what had been quietly
+costing real records all along. Gone: `_eval_comp_candidate`, `CompCandidate`, all twelve
+`COMP_REJECT_*` reasons, the two-tier reputation arbitration, `_MIN_COMP_REP`, and the comp half
+of `RefdataDiagnosis`/`diagnose_refdata_scan`. `_walk_comp_table` now raises `CompTableError`
+(with the slot, the offset and the declared count) instead of returning `None` for a caller to
+fall back on — and it raises on an unreadable name or a short read too, which the shipped
+version let escape as a bare `UnicodeDecodeError` past a `_build_refdata_index` that caught
+neither. `COMP_TYPES` also lost `21: "continental_cup"`: `type_id` is the real field, the label
+is a display convenience for the five values with sourced names, and 21 had been named off a
+single chat observation.
 
 The walk immediately explained every remaining "missing" cid without adding a single new gate:
 of the 1372 declared records, exactly **1272 are real (named) and 100 are genuinely blank**
@@ -409,21 +425,36 @@ Two gaps remain — one football-domain, one structural:
   `scripts/attribute_stat_correlations.py` filter on `is_competitive` alone, pooling Sydbank
   Pokalen (16 games) into "league form". Fix: join `comp_id` to `mart.competitions.kind` instead
   of the string heuristic, and add `is_league`/`kind` to `mart.matches`/`mart.match_player_facts`.
-- **The variable-width block after the known 14-byte trailer is measured but not field-named.**
-  `docs/agent-context/fmm-editor-record-comparison.md` flags "Competition record — we parse
-  about half"; this is very likely fmm-editor's unlocated **3-season Rank/Year history** (and
-  possibly the **Qualifiers table** too). Structurally solved for WIDTH — every record carries
-  `[history_count u32][3 stat u32][history_count × 8-byte entries][3 season u16][1 tail
-  byte][2-byte pad]`, i.e. `25 + 8 × history_count` bytes, confirmed exactly on every
-  non-zero-count competition checked (Italian Cup, Copa América, Scottish Cup, MLS among them;
-  `history_count` is what looked like a stray "extra byte" before this was understood — it's a
-  real `u32` whose top 3 bytes are simply 0 in the common case). NOT solved for MEANING: the
-  8-byte entries' own fields (one plausible read is `[u32 value][u16][u16]`, sentinel `0xFFFF`
-  for "no data" — MLS's entries strongly suggest per-season standings/attendance-style figures,
-  but nothing is confirmed against an in-game screenshot yet). `_read_comp_slot` already walks
-  past this block correctly (needed just to find the next record); reading it into a real field
-  list is the remaining work, and `scripts/audit_records.py`'s `comp_trailer` `LAYOUTS` entry
-  should grow to cover it once named.
+- **The block after the 14-byte trailer is now DECLARED and its field ORDER corrected; the
+  8-byte entries are still unnamed.** `docs/agent-context/fmm-editor-record-comparison.md`
+  is updated to match (it used to say "we parse about half"); this region is very likely
+  fmm-editor's **3-season Rank/Year history** (and possibly the **Qualifiers table**). Solved
+  for WIDTH and ORDER: `[n_entries u32][n_entries × 8 bytes][21-byte fixed tail]` =
+  `25 + 8 × n_entries`,
+  now declared in `scripts/audit_records.py` as `comp_history_count`/`comp_history_entry`/
+  `comp_history_tail`.
+
+  **The order above is a CORRECTION of what this item previously claimed** (`[count][3 stat
+  u32][entries][3 season u16][1 tail byte][2-byte pad]`), and of the first attempt to declare
+  it as a contiguous 25-byte head with the entries after it. All three orderings give the
+  identical record length, so the walk's arithmetic cannot separate them and neither could any
+  amount of checking that the walk lands on `cid == i`. Only content can: on the 914 records
+  across the archive that actually carry entries, the three-`u16` season triple reads as a
+  plausible year (1990-2060) at `record_end − 9` on **686** of them and at `head + 16` on
+  **zero**. So the entries come immediately after the count and the fixed tail ends the record.
+  This is worth remembering as a method note — 1,348 of 1,372 records have `n_entries == 0`,
+  where every candidate ordering coincides, so the majority of the data could not have
+  distinguished them and a spot check would have confirmed whichever guess was made first.
+
+  NOT solved for MEANING. The tail's three `u32`s pair with the three seasons as parallel
+  arrays (exactly fmm-editor's Rank[3]/Year[3] shape) but do not resolve as club tids — 3F
+  Superliga's read 505/526/507, which come back as 'Southend United'/'Wigan Athletic'/'St.
+  Albans City' — so they are carried as UNKNOWN rather than named. The 8-byte entry is the same
+  story with a tempting near-miss: `[u32 value][u16 season][u16]` holds for 21,440 of 25,758
+  entries (every entry of 'European International League Division A/B' steps through seasons
+  correctly) and fails for the other 4,318, where Major League Soccer's entries after the first
+  read season 0. 83% is a guess, not a decode. An in-game competition-history screen for a
+  competition whose entries break the pattern would settle it in one reading.
 
 ### 11. `mart.club_managers` isn't purely structural
 It keeps a `home_reputation` tiebreak and exposes no candidate count, so a sole structural hit
@@ -489,23 +520,34 @@ a hex dump — no plausibility gate needed at all, and it immediately explained 
 "missing" cid as a genuinely blank slot rather than a scanner defect. Two follow-ups this
 opens, both explicitly requested along the way and not yet done:
 
-- **The club table is still gate-based** (`_eval_club_candidate`, unchanged this session). It
-  shares the exact same candidate-scan architecture the comp table just moved away from, and
-  the same failure mode is plausible: `_candidate_positions`' shared nation/name-table
-  exclusions exist ONLY because club candidates (not just comp ones) can collide with those
-  regions, which is itself evidence the club scan is exposed to the same class of gate-vs-bytes
-  ambiguity. Worth checking whether the club table ALSO declares its own start/count the same
-  way (a preceding filler run + count header) before assuming it needs a scan at all.
-- **A general audit-tooling gap, raised earlier in the same investigation**: the existing audit
-  scripts (`scripts/audit_declared_scans.py`'s reject-reason tallies) are built around gates and
-  went stale the moment comps stopped having any — they still run (as the same-save-family
-  fallback path's diagnostic) but no longer describe how `_build_refdata_index` actually
-  resolves competitions. The generally useful version of this ask is a **structural, business-
-  logic-free anomaly check** that would have caught today's whole chain of bugs without knowing
-  football: e.g., for a table that declares its own record count (or where one can be inferred),
-  assert the resolved id set is CONTIGUOUS from 0 (a gap is a red flag on its own, independent of
-  what a gate says caused it) — cid not being sequential in the old comp output should have been
-  exactly this kind of flag, and wasn't checked anywhere.
+- **The club table is still gate-based** (`_eval_club_candidate`). It shares the exact same
+  candidate-scan architecture the comp table moved away from, and the review pass MEASURED the
+  exposure rather than leaving it as a suspicion: with `_candidate_positions`' nation-table and
+  name-table exclusions removed, the club scan admits **191 extra "clubs" on frem-2026-06-11**
+  — 'Angola', 'Botswana', 'Egypt', 'Ghana', 'Sint Maarten', 'Réunion' and the rest of the
+  nation table, each under a nonsense tid (393218, 1376257, …) — plus tid 4294967295 resolving
+  to 'Rajagobal', the browse name table's own first entry. The exclusions cost zero real clubs,
+  so they stay, but **a scan that needs whole regions fenced off to stop inventing records has
+  not found its table's structure yet.** Note the club table still yields tid 4294967295 even
+  WITH the exclusions, which is a live wrong record, not a hypothetical one. Worth checking
+  whether the club table also declares its own start/count the same way (a preceding filler run
+  + a count header) before assuming it needs a scan at all — that is all it took for comps.
+- **The audit tooling's comp half is DONE** (2026-09-18, review pass) — recorded here because
+  the generalisation is still owed. `scripts/audit_declared_scans.py` was printing comp tier
+  counts and per-gate reject costs, including the line "fixing this gate alone would recover
+  exactly this many", for a code path `_build_refdata_index` had already stopped calling: an
+  audit describing a dead path, which is worse than no audit. It now reports the walk's own
+  invariant instead (`named + blank == the count the table declares`) and classifies a
+  cross-reference miss structurally — either the cid is past the end of the declared table
+  (2 such on frem-2026-06-11: 64735 and 65280, dangling references out of club `league`
+  fields) or the table itself declares that slot blank. `scripts/audit_coverage.py` claims the
+  comp table MEASURED per record via a new `reference.comp_table_spans`, 149 KB that the old
+  AUDITED window claim never covered at all. **Still owed: the general version** — a
+  structural, business-logic-free anomaly check applied to every keyed table, asserting the
+  resolved id set is CONTIGUOUS from 0 regardless of what any gate says. `audit_records.py`'s
+  EXTENT check already does exactly this for `city` and `stadium`; competitions now satisfy it
+  by construction; clubs are the table that still needs it, and cid not being sequential in the
+  old comp output should have been this kind of flag and was checked nowhere.
 
 ---
 

@@ -173,14 +173,44 @@ save, instead of inferring membership from loan spells. **`MainClub`** would lik
 hardcoded reserve tids in `careers.py` — but it currently decodes to a negative sentinel, so the
 tail alignment drifts somewhere after `Players[]`. Both need pinning down before use.
 
-## Competition record — we parse about half
+## Competition record — the whole record is now located (2026-09-18)
 
-We read cid, uid, long/short/code, type, nation_id, reputation. `Competition.cs` also has:
-**`Level` (division tier!)**, **`ParentCompetitionId`**, `ContinentId`, foreground/background
-`Color`, a `Qualifiers` table (n × 8 bytes), `Rank1..3` + `Year1..3` (a 3-season history), and
-`IsWomen`. **`Level` is the one to grab** — we currently hardcode the Danish pyramid
-(Superliga=2, 1.Div=3, 2.Div=4, 3.Div=1147) in [[denmark-division-tiers]]; `Level` would derive
-it for any nation instead. Not yet located in the FMM22 record.
+Superseded: this section used to read "we parse about half", with `Level`,
+`ParentCompetitionId`, `ContinentId`, the colours and the `Rank1..3`/`Year1..3` history all
+listed as "not yet located in the FMM22 record". They are all located now, and so is the
+record's END — `reference._walk_comp_table` reads every slot the table declares by arithmetic
+(1372 on Frem, 1371 on Bucaspor, `cid == slot index` throughout), which it could not do without
+knowing the exact extent. `scripts/audit_records.py --map` prints the per-byte schema; that is
+the documentation, generated rather than retyped, so prefer it over anything restated here.
+
+The layout, after `[cid u16][uid u32]` and the three length-prefixed names (exactly one
+terminator byte after the long and short names, none after the code):
+
+| piece | width | holds |
+|---|---|---|
+| `comp_trailer` | 14 | `type`, `continent` (u16, FIFA confederation 0-5, `0xFFFF` = global), `nation` (u16, `0xFFFF` = none), `fg_colour`, `bg_colour`, `reputation`, **`level`**, **`parent_cid`** |
+| `comp_history_count` | 4 | `n_entries` |
+| `comp_history_entry` | 8 × n | UNNAMED — see below |
+| `comp_history_tail` | 21 | 3 × u32 (unnamed) + `season_0..2` + u16 + u8 — fmm-editor's `Rank1..3`/`Year1..3` shape |
+
+**`Level` is read** (`level`, trailer +11) — 0 = a nation's top flight, 1/2/3 below it — so the
+hardcoded Danish pyramid in [[denmark-division-tiers]] can be derived for any nation instead.
+Confederation-style records carry junk there (100/112), so filter on `type_id` before using it.
+
+Two things deliberately NOT named, both because a plausible read is not a decode:
+- the **8-byte history entry**. `[u32 value][u16 season][u16]` fits 21,440 of 25,758 entries
+  and fails for 4,318 (Major League Soccer's read season 0 after the first).
+- the **tail's three u32s**. They pair with the three seasons as parallel arrays, but 3F
+  Superliga's read 505/526/507, which resolve as English clubs, so they are not club tids.
+
+The entries sit BETWEEN the count and the tail, which was established by content and not by
+arithmetic: all the candidate orderings give the same record length, and 1,348 of 1,372 records
+have `n_entries == 0`, where they coincide. On the 914 records that do carry entries the season
+triple reads as a plausible year at `record_end − 9` on 686 and at `count + 16` on zero.
+
+`IsWomen` is a later-game-version field (per Zac); FMM22 saves do not carry it, so it is not
+part of this record's unresolved extent. The `Qualifiers` table is the most likely identity of
+the 8-byte entries, still unconfirmed.
 
 ## Record types we did not parse — now done (2026-09-16)
 

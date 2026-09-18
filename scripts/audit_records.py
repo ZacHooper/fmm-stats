@@ -125,27 +125,84 @@ def _info_head_layout():
 
 
 def _comp_trailer_layout():
-    """The competition record's fixed trailer, starting right after its 3 length-prefixed
-    names (long/short/code) -- offsets straight from `_build_refdata_index`'s comp branch
-    in reference.py, not retyped.
+    """The competition record's fixed 14-byte trailer, starting right after its 3
+    length-prefixed names (long/short/code) -- offsets straight from
+    `reference._read_comp_slot`, not retyped.
 
-    Like `info_head`, this is NOT the whole record: the names in front are variable-length,
-    so there is no stride to measure, and this covers only the 14-byte trailer we currently
-    read. fmm-editor's FMM26 `Competition.cs` (docs/agent-context/fmm-editor-record-
-    comparison.md) lists more fields after this -- a Qualifiers table and a 3-season
-    Rank/Year history -- neither located in FMM22 yet, so COVERAGE passing here proves the
-    14 bytes we read are accounted for, not that the record ends at +13. (fmm-editor also
-    lists IsWomen, but that's a later-game-version field per Zac -- FMM22 saves won't carry
-    it, so it's not part of this record's unresolved extent.)
+    Like `info_head`, this is NOT a stride: the names in front are variable-length. It is
+    also not the whole record -- `comp_history_head` below covers what follows it.
 
-    Also does NOT audit the empty-CODE bug (TODO #10): a record whose 3-name loop aborts on
-    a zero-length code, like every auto-generated "<Nation> Reserves Group <N>" competition,
-    never reaches this trailer at all -- it's dropped before COVERAGE ever sees it. This
-    layout can only prove the trailer is read correctly for records that survive that walk.
+    `nation` is declared here as a u16 and that is the correct width: byte +4 is 0x00 for
+    all 1,212 nation-bound competitions on frem-2026-06-11 and 0xFF for exactly the 60 that
+    carry the 0xFFFF sentinel. `_read_comp_slot` read it as a single byte against 255 until
+    2026-09-18 -- right answer, wrong width, and only because all 227 nation ids in the save
+    fit in a byte (1-249). The parser now reads the declared width. This is what COVERAGE is
+    for: the layout and the parser disagreeing is a defect even when the output matches.
     """
     return [(0, 1, "type"), (1, 2, "continent"), (3, 2, "nation"),
             (5, 2, "fg_colour"), (7, 2, "bg_colour"),
             (9, 2, "reputation"), (11, 1, "level"), (12, 2, "parent_cid")]
+
+
+def _comp_history_count_layout():
+    """The 4 bytes that follow the competition trailer: a count of 8-byte history entries.
+
+    LOCATED 2026-09-18 by `reference._walk_comp_table`, which had to know the record's exact
+    extent to walk 1,372 slots with `cid == slot index` holding throughout (1,371 on
+    Bucaspor). Before that, `_comp_trailer_layout` said fmm-editor's Qualifiers table and
+    3-season Rank/Year history were "unlocated in FMM22"; the walk located the region by
+    construction, and this plus `comp_history_entry`/`comp_history_tail` below is that result
+    written down, per CLAUDE.md's rule that proving a record's EXTENT means declaring it, not
+    just stepping over it.
+
+    This is the only one of the three the parser reads, and it is load-bearing: non-zero on
+    24 of frem-2026-06-11's 1,272 named competitions (up to 94 entries) and 914 records
+    across all 34 archived saves, with each entry adding 8 bytes, so the record's fixed part
+    is `4 + 8 * n_entries + 21` -- which is the `25 + 8 * n_entries` the walk steps by.
+    """
+    return [(0, 4, "n_entries")]
+
+
+def _comp_history_entry_layout():
+    """One 8-byte history entry. Width PROVEN (it is what makes the walk land on `cid == i`
+    for 47k records); contents UNNAMED on purpose.
+
+    A tempting read is `[u32 value][u16 season][u16]` -- it holds for 21,440 of 25,758
+    entries, including every entry of 'European International League Division A/B', whose
+    seasons step down 2022, 2022, 2022, ... exactly as a per-season history should. It does
+    NOT hold for the other 4,318: Major League Soccer's entries after the first read season
+    0. So the entry is either not uniformly shaped or the field boundary is elsewhere, and
+    one plausible read that covers 83% of the data is a guess, not a decode. Carried as
+    UNKNOWN until there is ground truth -- an in-game competition-history screen for a
+    competition whose entries break the pattern would settle it in one reading.
+    """
+    return [(0, 8, UNKNOWN)]
+
+
+def _comp_history_tail_layout():
+    """The 21 fixed bytes that END a competition record, AFTER the variable entries array.
+
+    THE ORDER HERE WAS ESTABLISHED BY MEASUREMENT, NOT ASSUMED, and both earlier readings of
+    it were wrong. The fixed part is NOT a contiguous 25-byte head with the entries after it
+    (which is how it was first declared, and which looks right because 1,348 of 1,372 records
+    have zero entries, so the two readings coincide); nor is it
+    `[count][3 stat u32][entries][3 season u16][tail]`, which is what docs/TODO.md claimed.
+    Both orderings give the same record length, so arithmetic cannot separate them -- only
+    content can. On the 914 records that DO carry entries, the three-u16 season triple reads
+    as plausible years (1990-2060) at `record_end - 9` on 686 of them and at `head + 16` on
+    ZERO. So: count, then the entries, then this.
+
+    The three u32s and the three u16s are parallel arrays, three seasons wide, which is
+    exactly the shape of fmm-editor's FMM26 `Competition` Rank[3]/Year[3] history. The years
+    are named; the values they pair with are NOT -- on 3F Superliga they read 505/526/507,
+    which resolve as 'Southend United'/'Wigan Athletic'/'St. Albans City', so whatever they
+    identify it is not a club tid and naming them would be a guess. That is how `-140` became
+    a Style candidate. Both arrays go 0xFF-sentinel on records that carry a full entries
+    array instead, which is itself a hint about what the two represent.
+    """
+    return [(0, 4, UNKNOWN), (4, 4, UNKNOWN), (8, 4, UNKNOWN),
+            (12, 2, "season_0"), (14, 2, "season_1"), (16, 2, "season_2"),
+            (18, 2, UNKNOWN), (20, 1, UNKNOWN)]
 
 
 LAYOUTS = {
@@ -157,9 +214,22 @@ LAYOUTS = {
         (0, 2, "id"), (2, 4, "uid"), (6, 2, "nation_id"),
         (8, 4, "latitude"), (12, 4, "longitude"),
         (16, 1, "attraction"), (17, 2, "region_id"), (19, 1, UNKNOWN)]),
-    # NOT a stride -- see _comp_trailer_layout: variable-length names precede it, and the
-    # record may continue past +13 (Qualifiers, Rank/Year history -- unlocated in FMM22).
+    # NOT strides -- variable-length names precede the trailer and a variable-length entries
+    # array sits inside the part after it. Together these four cover the competition record
+    # in full, in file order:
+    #   [cid u16][uid u32]
+    #   [len u32][long name][1 terminator][len u32][short name][1 terminator][len u32][code]
+    #   comp_trailer        14
+    #   comp_history_count   4   -> n_entries
+    #   comp_history_entry   8   x n_entries
+    #   comp_history_tail   21
+    # = 25 + 8 * n_entries after the code name, which is exactly what
+    # reference._walk_comp_table steps by -- and scripts/audit_coverage.py claims the whole
+    # table MEASURED per record on the strength of it.
     "comp_trailer": (14, _comp_trailer_layout()),
+    "comp_history_count": (4, _comp_history_count_layout()),
+    "comp_history_entry": (8, _comp_history_entry_layout()),
+    "comp_history_tail": (21, _comp_history_tail_layout()),
 }
 
 
