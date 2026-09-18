@@ -144,61 +144,67 @@ def _comp_trailer_layout():
             (9, 2, "reputation"), (11, 1, "level"), (12, 2, "parent_cid")]
 
 
-def _comp_history_count_layout():
-    """The 4 bytes that follow the competition trailer: a count of 8-byte history entries.
+def _comp_qualifier_count_layout():
+    """The count of 8-byte QUALIFIER entries that follows the competition trailer.
 
-    LOCATED 2026-09-18 by `reference._walk_comp_table`, which had to know the record's exact
-    extent to walk 1,372 slots with `cid == slot index` holding throughout (1,371 on
-    Bucaspor). Before that, `_comp_trailer_layout` said fmm-editor's Qualifiers table and
-    3-season Rank/Year history were "unlocated in FMM22"; the walk located the region by
-    construction, and this plus `comp_history_entry`/`comp_history_tail` below is that result
-    written down, per CLAUDE.md's rule that proving a record's EXTENT means declaring it, not
-    just stepping over it.
-
-    This is the only one of the three the parser reads, and it is load-bearing: non-zero on
-    24 of frem-2026-06-11's 1,272 named competitions (up to 94 entries) and 914 records
-    across all 34 archived saves, with each entry adding 8 bytes, so the record's fixed part
-    is `4 + 8 * n_entries + 21` -- which is the `25 + 8 * n_entries` the walk steps by.
+    **Declared as a u8 plus three UNKNOWN bytes, because the width is genuinely
+    undecidable from this data and declaring a u32 would be a claim, not a reading.**
+    Bytes +1..+3 are zero on all 46,641 slots across every archived save, and the largest
+    count anywhere is 134 -- so a `u8` followed by three zero bytes and a little-endian
+    `u32` are indistinguishable. `reference._read_comp_slot` reads it as a u32, which is
+    safe either way (the upper bytes are always zero), but the LAYOUT must not assert what
+    was not measured. A save with 256+ qualifiers in one competition would settle it.
     """
-    return [(0, 4, "n_entries")]
+    return [(0, 1, "n_qualifiers"), (1, 3, UNKNOWN)]
 
 
-def _comp_history_entry_layout():
-    """One 8-byte history entry. Width PROVEN (it is what makes the walk land on `cid == i`
-    for 47k records); contents UNNAMED on purpose.
+def _comp_qualifier_entry_layout():
+    """One 8-byte qualifier entry: which club qualified for this competition, from what
+    season, in what slot.
 
-    A tempting read is `[u32 value][u16 season][u16]` -- it holds for 21,440 of 25,758
-    entries, including every entry of 'European International League Division A/B', whose
-    seasons step down 2022, 2022, 2022, ... exactly as a per-season history should. It does
-    NOT hold for the other 4,318: Major League Soccer's entries after the first read season
-    0. So the entry is either not uniformly shaped or the field boundary is elsewhere, and
-    one plausible read that covers 83% of the data is a guess, not a decode. Carried as
-    UNKNOWN until there is ground truth -- an in-game competition-history screen for a
-    competition whose entries break the pattern would settle it in one reading.
+    This is fmm-editor's `Qualifiers` table (`n × 8 bytes`), and the identification is
+    confirmed by resolving the ids rather than by shape. The `u32` is a club **UID**:
+    Major League Soccer's entries come back as D.C. United, LA Galaxy, Atlanta United,
+    Charlotte FC, Chicago Fire and CF Montréal, and Copa Libertadores' 2021 entries as
+    Club The Strongest (1), Club Always Ready (1), Club Bolívar (2), Royal Pari (3) --
+    Bolivian and Ecuadorian clubs at plausible qualification positions, in the right
+    competition. `0xFFFFFFFF` is the empty-slot sentinel (96 of 620 entries on
+    frem-2026-06-11), and `season` 0 means unset.
+
+    Read it by UID, NOT by tid. 1,095 of these values ALSO match some club's tid, and that
+    reading is wrong every time it was checked: uid 1913 is D.C. United (correct for MLS)
+    while tid 1913 is York United. The tid-only matches are worse -- they are all the
+    `0xFFFFFFFF` sentinel "resolving" against the bogus tid=4294967295 record the club scan
+    still invents (docs/TODO.md).
+
+    **One competition family does not fit and is not forced to.** National-team competitions
+    -- European International League Division A-D, Copa América, North American U20
+    Championship -- carry a small-negative-int32 value here instead of a club uid (62 of 620
+    entries). Nations are not in the club table, so this is very likely a national-team
+    reference in another id space; unresolved, and deliberately not guessed at.
     """
-    return [(0, 8, UNKNOWN)]
+    return [(0, 4, "club_uid"), (4, 2, "season"), (6, 2, "position")]
 
 
 def _comp_history_tail_layout():
-    """The 21 fixed bytes that END a competition record, AFTER the variable entries array.
+    """The 21 fixed bytes that END a competition record, AFTER the qualifiers array.
 
-    THE ORDER HERE WAS ESTABLISHED BY MEASUREMENT, NOT ASSUMED, and both earlier readings of
-    it were wrong. The fixed part is NOT a contiguous 25-byte head with the entries after it
-    (which is how it was first declared, and which looks right because 1,348 of 1,372 records
-    have zero entries, so the two readings coincide); nor is it
-    `[count][3 stat u32][entries][3 season u16][tail]`, which is what docs/TODO.md claimed.
-    Both orderings give the same record length, so arithmetic cannot separate them -- only
-    content can. On the 914 records that DO carry entries, the three-u16 season triple reads
-    as plausible years (1990-2060) at `record_end - 9` on 686 of them and at `head + 16` on
-    ZERO. So: count, then the entries, then this.
+    THE ORDER HERE WAS ESTABLISHED BY MEASUREMENT, NOT ASSUMED, and two earlier readings of
+    it were wrong. The fixed part is NOT a contiguous 25-byte head with the qualifiers after
+    it (which is how it was first declared, and which looks right because 1,348 of 1,372
+    records have zero qualifiers, so the two readings coincide); nor is it
+    `[count][3 stat u32][qualifiers][3 season u16][tail]`, which is what docs/TODO.md
+    claimed. All the candidate orderings give the same record length, so arithmetic cannot
+    separate them -- only content can. On the 914 records that DO carry qualifiers, the
+    three-u16 season triple reads as a plausible year (1990-2060) at `record_end - 9` on 686
+    of them and at `count + 16` on ZERO. So: count, then the qualifiers, then this.
 
     The three u32s and the three u16s are parallel arrays, three seasons wide, which is
-    exactly the shape of fmm-editor's FMM26 `Competition` Rank[3]/Year[3] history. The years
-    are named; the values they pair with are NOT -- on 3F Superliga they read 505/526/507,
-    which resolve as 'Southend United'/'Wigan Athletic'/'St. Albans City', so whatever they
-    identify it is not a club tid and naming them would be a guess. That is how `-140` became
-    a Style candidate. Both arrays go 0xFF-sentinel on records that carry a full entries
-    array instead, which is itself a hint about what the two represent.
+    exactly the shape of fmm-editor's FMM26 `Competition` Rank[3]/Year[3] history -- and
+    unlike the qualifier entries, these u32s do NOT resolve as clubs by either uid or tid
+    (3F Superliga's read 505/526/507), so they are carried UNNAMED. Both arrays go
+    0xFF-sentinel on records that carry a full qualifiers array instead, which is itself a
+    hint about what the two represent.
     """
     return [(0, 4, UNKNOWN), (4, 4, UNKNOWN), (8, 4, UNKNOWN),
             (12, 2, "season_0"), (14, 2, "season_1"), (16, 2, "season_2"),
@@ -219,16 +225,16 @@ LAYOUTS = {
     # in full, in file order:
     #   [cid u16][uid u32]
     #   [len u32][long name][1 terminator][len u32][short name][1 terminator][len u32][code]
-    #   comp_trailer        14
-    #   comp_history_count   4   -> n_entries
-    #   comp_history_entry   8   x n_entries
-    #   comp_history_tail   21
-    # = 25 + 8 * n_entries after the code name, which is exactly what
+    #   comp_trailer            14
+    #   comp_qualifier_count     4   -> n_qualifiers
+    #   comp_qualifier_entry     8   x n_qualifiers
+    #   comp_history_tail       21
+    # = 25 + 8 * n_qualifiers after the code name, which is exactly what
     # reference._walk_comp_table steps by -- and scripts/audit_coverage.py claims the whole
     # table MEASURED per record on the strength of it.
     "comp_trailer": (14, _comp_trailer_layout()),
-    "comp_history_count": (4, _comp_history_count_layout()),
-    "comp_history_entry": (8, _comp_history_entry_layout()),
+    "comp_qualifier_count": (4, _comp_qualifier_count_layout()),
+    "comp_qualifier_entry": (8, _comp_qualifier_entry_layout()),
     "comp_history_tail": (21, _comp_history_tail_layout()),
 }
 

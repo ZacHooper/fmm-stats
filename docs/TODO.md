@@ -425,36 +425,68 @@ Two gaps remain — one football-domain, one structural:
   `scripts/attribute_stat_correlations.py` filter on `is_competitive` alone, pooling Sydbank
   Pokalen (16 games) into "league form". Fix: join `comp_id` to `mart.competitions.kind` instead
   of the string heuristic, and add `is_league`/`kind` to `mart.matches`/`mart.match_player_facts`.
-- **The block after the 14-byte trailer is now DECLARED and its field ORDER corrected; the
-  8-byte entries are still unnamed.** `docs/agent-context/fmm-editor-record-comparison.md`
-  is updated to match (it used to say "we parse about half"); this region is very likely
-  fmm-editor's **3-season Rank/Year history** (and possibly the **Qualifiers table**). Solved
-  for WIDTH and ORDER: `[n_entries u32][n_entries × 8 bytes][21-byte fixed tail]` =
-  `25 + 8 × n_entries`,
-  now declared in `scripts/audit_records.py` as `comp_history_count`/`comp_history_entry`/
-  `comp_history_tail`.
+- **The block after the 14-byte trailer is the QUALIFIERS table, now decoded** — and this
+  entry is a correction of its own previous two revisions, both of which were wrong.
+  `docs/agent-context/fmm-editor-record-comparison.md` is updated to match.
 
-  **The order above is a CORRECTION of what this item previously claimed** (`[count][3 stat
-  u32][entries][3 season u16][1 tail byte][2-byte pad]`), and of the first attempt to declare
-  it as a contiguous 25-byte head with the entries after it. All three orderings give the
-  identical record length, so the walk's arithmetic cannot separate them and neither could any
-  amount of checking that the walk lands on `cid == i`. Only content can: on the 914 records
-  across the archive that actually carry entries, the three-`u16` season triple reads as a
-  plausible year (1990-2060) at `record_end − 9` on **686** of them and at `head + 16` on
-  **zero**. So the entries come immediately after the count and the fixed tail ends the record.
-  This is worth remembering as a method note — 1,348 of 1,372 records have `n_entries == 0`,
-  where every candidate ordering coincides, so the majority of the data could not have
-  distinguished them and a spot check would have confirmed whichever guess was made first.
+  The layout, after the trailer: `[n_qualifiers][n × 8-byte entry][21-byte fixed tail]` =
+  `25 + 8 × n_qualifiers`, declared in `scripts/audit_records.py` as
+  `comp_qualifier_count`/`comp_qualifier_entry`/`comp_history_tail`.
 
-  NOT solved for MEANING. The tail's three `u32`s pair with the three seasons as parallel
-  arrays (exactly fmm-editor's Rank[3]/Year[3] shape) but do not resolve as club tids — 3F
-  Superliga's read 505/526/507, which come back as 'Southend United'/'Wigan Athletic'/'St.
-  Albans City' — so they are carried as UNKNOWN rather than named. The 8-byte entry is the same
-  story with a tempting near-miss: `[u32 value][u16 season][u16]` holds for 21,440 of 25,758
-  entries (every entry of 'European International League Division A/B' steps through seasons
-  correctly) and fails for the other 4,318, where Major League Soccer's entries after the first
-  read season 0. 83% is a guess, not a decode. An in-game competition-history screen for a
-  competition whose entries break the pattern would settle it in one reading.
+  **The entry is decoded: `[club_uid u32][season u16][position u16]`**, confirmed by
+  resolving the ids, not by shape. Major League Soccer's entries come back as D.C. United,
+  LA Galaxy, Atlanta United, Charlotte FC, Chicago Fire and CF Montréal; Copa Libertadores'
+  2021 entries as Club The Strongest (1), Club Always Ready (1), Club Bolívar (2), Royal
+  Pari (3) — Bolivian and Ecuadorian clubs at plausible qualification positions, in the
+  right competition. This is fmm-editor's `Qualifiers` table, not (as previously written)
+  the Rank/Year history — that is the 21-byte TAIL, whose three u32s pair with three seasons
+  and do NOT resolve as clubs either way, so they stay unnamed.
+
+  **Read it by UID, never by tid.** 1,095 of these values also match some club's tid and the
+  tid reading is wrong every time: uid 1913 is D.C. United (right for MLS), tid 1913 is York
+  United. `0xFFFFFFFF` is the empty-slot sentinel, and the tid-only "matches" are that
+  sentinel resolving against the bogus tid=4294967295 club the club scan still invents
+  (#17). National-team competitions — European International League Division A-D, Copa
+  América, North American U20 Championship — carry a small-negative-int32 here instead of a
+  club uid (62 of 620 entries on frem-2026-06-11); nations are not in the club table, so
+  this is very likely a national-team reference in another id space. Unresolved, not guessed.
+
+  **Three method notes, each from getting this wrong first:**
+  1. *The order cannot be settled by arithmetic.* `[count][entries][tail]`,
+     `[count][tail][entries]` and `[count][3 u32][entries][3 u16][tail]` all give the same
+     record length, so no amount of confirming the walk lands on `cid == i` separates them.
+     Only content does: on the 914 records that carry qualifiers, the tail's season triple
+     reads as a plausible year at `record_end − 9` on **686** and at `count + 16` on **zero**.
+  2. *The majority of the data could not distinguish them anyway.* 1,348 of 1,372 records
+     have `n_qualifiers == 0`, where every candidate ordering coincides — so a spot check
+     would have confirmed whichever guess was made first.
+  3. *A sentinel read as garbage looks like a failed hypothesis.* The entry decode was first
+     written off as "fits 83% of entries, so it's a guess, not a decode". The other 17% were
+     `season == 0` — an unset value, not misalignment. Split by competition rather than by
+     entry, 574 comps are all-plausible, 272 are all-zero, and 68 are mixed; every
+     non-plausible year in the archive is **exactly 0**. Aggregating over entries hid that
+     completely, and the 8-byte reading in fact holds for 100% of them.
+
+  **`n_qualifiers`' WIDTH is undecidable and is declared as such** — a `u8` plus three
+  UNKNOWN bytes, not a `u32`. Bytes +1..+3 are zero on all 46,641 slots across every save
+  and the largest count anywhere is 134, so a u8-plus-zero-padding and a little-endian u32
+  cannot be told apart. `_read_comp_slot` reads a u32 (safe either way); the LAYOUT must not
+  assert what was not measured. A save with 256+ qualifiers in one competition would settle it.
+
+- **The qualifiers are readable but not yet in the store.** `reference.comp_qualifiers(mm,
+  cid)` returns `[{club_uid, season, position}]` and `tests/test_refdata_scan.py` pins it
+  (all 28 MLS entries resolve to real MLS clubs by uid), so the decode has a reader and a
+  test rather than being a declaration that rots. What is NOT done is surfacing it: nothing
+  in `extract.py`, `load_duckdb.py` or `fmparser/mart.py` touches it. Worth having — a
+  per-competition qualification history keyed to real clubs is not available anywhere else in
+  the save. When doing it: resolve by UID against `_build_refdata_index`'s club index (never
+  by tid), drop the `0xFFFFFFFF` empty slots, and leave the national-team competitions out
+  until their id space is understood.
+
+- **Two small unknowns left in this record**, both declared as UNKNOWN rather than guessed:
+  `n_qualifiers`' upper three bytes (u8-vs-u32, undecidable at max count 134) and the
+  history tail's three u32s (they pair with the three seasons but resolve as nothing by uid,
+  and as English clubs by tid on a Danish competition, so they are not club refs).
 
 ### 11. `mart.club_managers` isn't purely structural
 It keeps a `home_reputation` tiebreak and exposes no candidate count, so a sole structural hit

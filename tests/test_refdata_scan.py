@@ -117,6 +117,25 @@ def main():
     ok &= _check(len(spans) - 1 == declared and contiguous,
                  f"comp_table_spans tiles the table with no gap or overlap "
                  f"({len(spans) - 1} record spans + 1 count header)")
+    # ---- the qualifiers table resolves to real clubs ----
+    # Pins the decode AND the uid-not-tid rule: uid 1913 is D.C. United (right for MLS),
+    # tid 1913 is York United, so a tid-keyed read passes a shape check and still lies.
+    print("\nQUALIFIERS TABLE")
+    clubs_by_uid = {c["uid"]: c["name"] for c in R._build_refdata_index(mm)[0].values()}
+    quals = R.comp_qualifiers(mm, 22)          # Major League Soccer
+    named = [clubs_by_uid.get(q["club_uid"]) for q in quals]
+    hits = [n for n in named if n]
+    ok &= _check(len(quals) == 28, f"cid=22 (MLS) declares 28 qualifier entries ({len(quals)})")
+    ok &= _check(all(w in hits for w in ("D.C. United", "LA Galaxy", "Atlanta United FC")),
+                 f"MLS qualifiers resolve to real MLS clubs by UID "
+                 f"({len(hits)}/{len(quals)} resolve; e.g. {hits[:3]})")
+    lib = R.comp_qualifiers(mm, 61)            # Copa Libertadores
+    ok &= _check(all(q["season"] == 0 or 1990 <= q["season"] <= 2060 for q in lib),
+                 f"every Copa Libertadores season is a plausible year or the 0 sentinel "
+                 f"({len(lib)} entries)")
+    ok &= _check(all(q["position"] < 100 for q in lib if q["club_uid"] != 0xFFFFFFFF),
+                 "qualifier positions are small ordinals, not ids")
+
     nation_widths = {c["nation_id"] for c in comps.values()}
     ok &= _check(255 not in nation_widths or NO_NATION not in nation_widths,
                  "nation_id is read at its declared u16 width (no 255/0xFFFF confusion)")

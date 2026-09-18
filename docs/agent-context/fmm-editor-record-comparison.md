@@ -189,28 +189,47 @@ terminator byte after the long and short names, none after the code):
 | piece | width | holds |
 |---|---|---|
 | `comp_trailer` | 14 | `type`, `continent` (u16, FIFA confederation 0-5, `0xFFFF` = global), `nation` (u16, `0xFFFF` = none), `fg_colour`, `bg_colour`, `reputation`, **`level`**, **`parent_cid`** |
-| `comp_history_count` | 4 | `n_entries` |
-| `comp_history_entry` | 8 × n | UNNAMED — see below |
+| `comp_qualifier_count` | 4 | `n_qualifiers` in byte +0; +1..3 UNKNOWN (see below) |
+| `comp_qualifier_entry` | 8 × n | **`Qualifiers`** — `[club_uid u32][season u16][position u16]` |
 | `comp_history_tail` | 21 | 3 × u32 (unnamed) + `season_0..2` + u16 + u8 — fmm-editor's `Rank1..3`/`Year1..3` shape |
 
 **`Level` is read** (`level`, trailer +11) — 0 = a nation's top flight, 1/2/3 below it — so the
 hardcoded Danish pyramid in [[denmark-division-tiers]] can be derived for any nation instead.
 Confederation-style records carry junk there (100/112), so filter on `type_id` before using it.
 
-Two things deliberately NOT named, both because a plausible read is not a decode:
-- the **8-byte history entry**. `[u32 value][u16 season][u16]` fits 21,440 of 25,758 entries
-  and fails for 4,318 (Major League Soccer's read season 0 after the first).
-- the **tail's three u32s**. They pair with the three seasons as parallel arrays, but 3F
-  Superliga's read 505/526/507, which resolve as English clubs, so they are not club tids.
+**The `Qualifiers` entry is decoded, confirmed by resolving ids rather than by shape.** MLS's
+entries come back as D.C. United, LA Galaxy, Atlanta United, Charlotte FC, Chicago Fire and CF
+Montréal; Copa Libertadores' 2021 entries as Club The Strongest (1), Club Always Ready (1),
+Club Bolívar (2), Royal Pari (3) — Bolivian and Ecuadorian clubs at plausible qualification
+positions in the right competition. **Resolve by UID, never by tid:** 1,095 values also match
+some club's tid and that reading is wrong every time (uid 1913 = D.C. United, tid 1913 = York
+United). `0xFFFFFFFF` = empty slot, `season` 0 = unset. National-team competitions (European
+International League A-D, Copa América, North American U20) carry a small-negative int32 here
+instead — nations are not in the club table, so likely a national-team ref in another id space;
+unresolved on purpose. Nothing reads the qualifiers into a record yet ([[TODO]]).
 
-The entries sit BETWEEN the count and the tail, which was established by content and not by
-arithmetic: all the candidate orderings give the same record length, and 1,348 of 1,372 records
-have `n_entries == 0`, where they coincide. On the 914 records that do carry entries the season
-triple reads as a plausible year at `record_end − 9` on 686 and at `count + 16` on zero.
+Two things deliberately NOT named:
+- **`n_qualifiers`' width.** Declared u8 + 3 UNKNOWN, not u32: bytes +1..3 are zero on all
+  46,641 slots and the largest count anywhere is 134, so the two widths are indistinguishable.
+- **the tail's three u32s.** They pair with the three seasons as parallel arrays, but 3F
+  Superliga's read 505/526/507, which resolve as English clubs by tid and as nothing by uid.
+
+Three traps this record set, worth carrying to the next one:
+- **Field order can be invisible to arithmetic.** `[count][entries][tail]`,
+  `[count][tail][entries]` and `[count][3 u32][entries][3 u16][tail]` all give the same record
+  length, so confirming the walk lands on `cid == i` cannot separate them. Content can: the
+  tail's season triple reads as a plausible year at `record_end − 9` on 686 of the 914 records
+  with qualifiers, and at `count + 16` on zero.
+- **The majority of the data may not be able to distinguish them.** 1,348 of 1,372 records have
+  `n_qualifiers == 0`, where every ordering coincides — a spot check confirms whichever guess
+  came first.
+- **A sentinel read as garbage looks like a refuted hypothesis.** This entry decode was first
+  written off as "fits 83%, so it's a guess" — the other 17% were `season == 0`, unset rather
+  than misaligned. Every non-plausible year in the archive is exactly 0. By competition rather
+  than by entry: 574 all-plausible, 272 all-zero, 68 mixed. The 8-byte reading holds for 100%.
 
 `IsWomen` is a later-game-version field (per Zac); FMM22 saves do not carry it, so it is not
-part of this record's unresolved extent. The `Qualifiers` table is the most likely identity of
-the 8-byte entries, still unconfirmed.
+part of this record's unresolved extent.
 
 ## Record types we did not parse — now done (2026-09-16)
 

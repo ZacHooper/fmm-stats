@@ -291,7 +291,7 @@ def _read_comp_slot(mm, p):
     `2,000,000,000 + n` counter distinct from real competitions' `200,000,000 + cid`
     range), and `next_p` is always correct regardless, because the terminator convention
     (one byte after the long name, one after the short name, none after the code) and the
-    25+8*history_count trailer extension apply identically whether or not the names are
+    `25 + 8*n_qualifiers` trailer extension apply identically whether or not the names are
     empty. See `_walk_comp_table`."""
     cid = int.from_bytes(mm[p:p + 2], "little")
     uid = int.from_bytes(mm[p + 2:p + 6], "little")
@@ -320,23 +320,28 @@ def _read_comp_slot(mm, p):
     rep = int.from_bytes(trailer[9:11], "little")
     level = trailer[11]
     parent = int.from_bytes(trailer[12:14], "little")
-    # The record does NOT end at the trailer. What follows is `[n_entries u32]` then
-    # `n_entries` 8-byte entries then a fixed 21-byte tail -- so `25 + 8 * n_entries`, which
-    # is the whole reason this function can report `next_p` at all. `n_entries` is non-zero
-    # on 24 of this save's 1,272 named competitions (up to 94) and 914 records across the
-    # archive, so the `8 *` term is load-bearing, not speculative.
+    # The record does NOT end at the trailer. What follows is the QUALIFIERS table --
+    # `[n_qualifiers]` then that many 8-byte entries -- and then a fixed 21-byte tail, so
+    # `25 + 8 * n_qualifiers`, which is the whole reason this function can report `next_p`.
+    # Non-zero on 24 of this save's 1,272 named competitions (up to 134 across the archive)
+    # and 914 records overall, so the `8 *` term is load-bearing, not speculative.
     #
-    # The ORDER matters and was measured, not assumed: entries come BEFORE the 21-byte tail,
-    # established on the 914 records that have entries by where the tail's three-u16 season
-    # triple reads as a plausible year (686 hits at record_end-9, zero at +16 from here).
-    # A contiguous-25-byte-head reading gives the identical record length, which is why it
-    # went unnoticed -- 1,348 of 1,372 records have no entries at all, so the two coincide.
-    # `scripts/audit_records.py` declares all three pieces (`comp_history_count`,
-    # `comp_history_entry`, `comp_history_tail`); nothing but the count is read here, because
-    # nothing but the count is named.
+    # The ORDER was measured, not assumed: the entries come BEFORE the 21-byte tail,
+    # established on the 914 records that have qualifiers by where the tail's three-u16
+    # season triple reads as a plausible year (686 hits at record_end-9, zero at +16 from
+    # here). A contiguous-25-byte-head reading gives the identical record length, which is
+    # why it went unnoticed -- 1,348 of 1,372 records have no qualifiers, so the two
+    # coincide there.
+    #
+    # The count is read as a u32 here because that is safe -- bytes +1..+3 are zero on all
+    # 46,641 slots in the archive -- but it is DECLARED as a u8 plus three unknowns in
+    # `scripts/audit_records.py`, because with a maximum count of 134 the two widths are
+    # indistinguishable and the layout must not assert what was not measured. The entry
+    # fields ARE decoded (`comp_qualifier_entry`: club uid, season, position) but are not
+    # read into `rec` -- nothing consumes them yet; see docs/TODO.md.
     hist_p = pp + 14
-    hist_count = int.from_bytes(mm[hist_p:hist_p + 4], "little")
-    next_p = hist_p + 25 + 8 * hist_count
+    n_qualifiers = int.from_bytes(mm[hist_p:hist_p + 4], "little")
+    next_p = hist_p + 25 + 8 * n_qualifiers
     if ln == 0:
         return None, next_p
     rec = {"cid": cid, "uid": uid, "name": long, "short": short, "code": code,
@@ -404,6 +409,64 @@ def _walk_comp_table(mm):
         else:
             comps[cid] = rec
     return comps, n_blank
+
+def comp_qualifiers(mm, cid):
+    """[{club_uid, season, position}] -- the QUALIFIERS table on competition `cid`, in file
+    order. Empty list for a blank slot, a competition with none, or a cid past the table.
+
+    Which clubs qualified for this competition, from which season, in which slot. Decoded
+    2026-09-18 by resolving the ids rather than by shape: Major League Soccer's entries come
+    back as D.C. United, LA Galaxy, Atlanta United, Charlotte FC, Chicago Fire and CF
+    Montréal, and Copa Libertadores' 2021 entries as Club The Strongest (1), Club Always
+    Ready (1), Club Bolívar (2), Royal Pari (3) -- Bolivian and Ecuadorian clubs at plausible
+    qualification positions, in the right competition. This is fmm-editor's `Qualifiers`
+    table (`n × 8 bytes`); the 3-season Rank/Year history is the separate 21-byte tail that
+    ENDS the record, and that one is still unnamed.
+
+    **`club_uid` is a UID. Resolve it against a club's `uid`, never against its tid.** 1,095
+    of these values also match some club's tid, and the tid reading is wrong every time it
+    was checked -- uid 1913 is D.C. United, which is right for MLS, while tid 1913 is York
+    United. Build the index yourself from `_build_refdata_index(mm)[0]`; there is no
+    uid-keyed resolver here because nothing else in the module needs one.
+
+    Two values are returned raw rather than filtered, because both are real save content and
+    a caller may want to see them:
+      * `club_uid == 0xFFFFFFFF` is the empty-slot sentinel (96 of 620 entries on
+        frem-2026-06-11) and `season == 0` means unset.
+      * NATIONAL-TEAM competitions -- European International League Division A-D, Copa
+        América, North American U20 Championship -- carry a small-negative int32 here
+        instead of a club uid (62 of 620). Nations are not in the club table, so this is
+        very likely a national-team reference in another id space. Unresolved, so a caller
+        resolving by uid simply gets no match; do not treat that as a parse failure.
+    """
+    anchor = _comp_table_anchor(mm)
+    if anchor is None:
+        raise CompTableError("competition table anchor not found")
+    start, count = anchor
+    if not 0 <= cid < count:
+        return []
+    p = start
+    for _i in range(cid):
+        _rec, p = _read_comp_slot(mm, p)
+    # re-derive the qualifier array's offset exactly as _read_comp_slot does, so the two
+    # cannot drift: past the 3 names (one terminator after the first two), then the trailer
+    q = p + 6
+    ln = int.from_bytes(mm[q:q + 4], "little")
+    pp = q + 4 + ln + 1
+    sl = int.from_bytes(mm[pp:pp + 4], "little")
+    pp = pp + 4 + sl + 1
+    cl = int.from_bytes(mm[pp:pp + 4], "little")
+    pp = pp + 4 + cl
+    hist_p = pp + 14
+    n = int.from_bytes(mm[hist_p:hist_p + 4], "little")
+    out = []
+    for k in range(n):
+        e = hist_p + 4 + 8 * k
+        out.append({"club_uid": int.from_bytes(mm[e:e + 4], "little"),
+                    "season": int.from_bytes(mm[e + 4:e + 6], "little"),
+                    "position": int.from_bytes(mm[e + 6:e + 8], "little")})
+    return out
+
 
 def comp_table_spans(mm):
     """[(record_start, record_end)] -- one span per slot the competition table declares, in
