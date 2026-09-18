@@ -11,7 +11,7 @@ changelog, which is what killed the last four handoff docs.
 Item numbers are for conversation only — they are renumbered whenever entries are deleted, so
 never cite one in code or a commit message.
 
-Last reviewed **2026-09-17**, after PR #51 (record expansion + attribute decoder rebuild).
+Last reviewed **2026-09-18**, after the table-framing audit (#18).
 
 ---
 
@@ -600,9 +600,13 @@ opens, both explicitly requested along the way and not yet done:
   to 'Rajagobal', the browse name table's own first entry. The exclusions cost zero real clubs,
   so they stay, but **a scan that needs whole regions fenced off to stop inventing records has
   not found its table's structure yet.** Note the club table still yields tid 4294967295 even
-  WITH the exclusions, which is a live wrong record, not a hypothetical one. Worth checking
-  whether the club table also declares its own start/count the same way (a preceding filler run
-  + a count header) before assuming it needs a scan at all — that is all it took for comps.
+  WITH the exclusions, which is a live wrong record, not a hypothetical one. **That check is now done and the answer is no**
+  (2026-09-18, see #18 and [`table-framing.md`](table-framing.md)): the club scan has no
+  located table to look behind at all. Its accepted records sprawl across one 6.4 MB run
+  (6,340,470 .. 12,776,631 on frem-2023-07-02, 24,669 of them) whose first entry is junk
+  (tid 1,701,276,737), so there is no "record 0" whose preceding bytes could hold a count.
+  Finding the club table's real start is its own piece of work, and it is the prerequisite
+  for the rewrite, not a step inside it.
 - **The audit tooling's comp half is DONE** (2026-09-18, review pass) — recorded here because
   the generalisation is still owed. `scripts/audit_declared_scans.py` was printing comp tier
   counts and per-gate reject costs, including the line "fixing this gate alone would recover
@@ -619,6 +623,66 @@ opens, both explicitly requested along the way and not yet done:
   EXTENT check already does exactly this for `city` and `stadium`; competitions now satisfy it
   by construction; clubs are the table that still needs it, and cid not being sequential in the
   old comp output should have been this kind of flag and was checked nowhere.
+
+### 18. Table discovery: the save frames its own tables, and the inventory needs naming
+**Full write-up: [`table-framing.md`](table-framing.md).** Measured on all 34 saves across both
+careers; reproduce with `scripts/audit_table_headers.py` (+ `--confirm`) and
+`scripts/discover_tables.py` (+ `--stable`).
+
+The competition table's self-declared count (#10) turned out to be a **general convention**:
+`[8 bytes of 0xFF][record count][record 0]`, used by nine tables, exact every time. Asking each
+table "what does your header say, versus what do we read?" found four defects. **Nothing here
+is fixed yet** — the audit is committed, the fixes are not.
+
+**Two are losing real data on every save ever built:**
+
+- **`lookups.scrape_languages` reads 77 of a declared 124.** `_language_at` stops at slot 77,
+  'Malayalam', whose `OtherName` is a ZERO-LENGTH string, and `_string` requires `1 <= ln`. A
+  tolerant walk reaches exactly 124 and stops. Same failure as the competition table's empty
+  code field on cid 172 'Welsh First Division', one table over. Lost: Berber (Tamazight) and
+  the game's own UI locales (uid 1,000,000+).
+- **`lookups.scrape_currencies` reads 94 of a declared 173.** `_currency_at` rejects
+  `uid > 4096`; slot 94 is 'Macao Pataca', uid 51535. **The fourth uid range gate in this
+  codebase to cut a table short.** Lost: West African CFA franc, Nigerian Naira, Bolivian
+  Boliviano, Guatemalan Quetzal, Honduran Lempira, Nicaraguan Córdoba and 72 more.
+  Both declared counts are identical in both careers and both parsers read the same short
+  numbers everywhere, so this is a constant, silent loss — not save-specific.
+
+**Three are structural, with no live data loss:**
+
+- **The staff attribute table is a dense array indexed by `id2`** — `id2 == slot index` on
+  4642/4642 — so it is walkable by arithmetic. `scrape_staff_attributes` reads 4150 because it
+  is driven by the info spine's id2 set, which is fine for its purpose; worth knowing the whole
+  table is available if anything ever needs non-squad staff.
+- **The two name id-tables** declare 32148 / 19128 and the walk gets 28624 / 15366, stopping at
+  the first free slot (`id = 0xFFFFFFFF`; 3,523 are scattered through the surname table).
+  Latent only — `resolve_name` indexes directly and does not use the walked count. The
+  first-name/surname orientation heuristic would be more robust reading the declared counts.
+- **`staging.scrape_attributes` over-reads by 13.** All 26,505 declared slots pass the position
+  check; the 13 extras are off-grid past the table end and obvious garbage (height 54,539 cm),
+  and **zero of them join the info spine**, so none surfaces. The declared count would replace
+  the scan-and-skip loop with pure arithmetic.
+
+**The next goal: name the tables in the inventory, one at a time.** `discover_tables.py`
+validates a table by deriving its stride from the header's count and then checking
+`id == slot index` on **every** declared record, which found five tables nothing parses — all
+present in **both careers** with the same shape:
+
+| offset (frem-2023-07-02, DRIFTS) | Frem | Bucaspor | stride | evidence |
+|---|---|---|---|---|
+| ~6,268,740 | 622 | 1,109 | 99 B | INDEX. Record has a 64-byte `FF` block inside it; `[id][u32][u32][u16 ~115][u16 ~145][u16 ~5750][8 small bytes][u16 1900][u32][u32][64×FF][u16 day][u16 2023]` |
+| ~6,245,275 | 1,971 | 2,603 | 7 B | INDEX. `[id u32 == index][3 bytes 1..255]` |
+| ~6,263,016 | 816 | 796 | 7 B | INDEX. same shape |
+| ~6,259,084 | 560 | **560** | 7 B | INDEX. same shape; count is career-INVARIANT, so a fixed enumeration |
+| ~13,990,354 | 888 | **888** | 7 B | TILE only. `[id u32][00 00 00]`, ids strictly ascending 1..3221 with 2,333 gaps; ends flush against the sentinel that introduces the LANGUAGE table |
+
+All four INDEX tables sit in the attribute section behind the staff grid and drift with it.
+
+Read `table-framing.md` before extending the sweep — it records what the detectors CANNOT find
+(variable-length tables have real headers and are invisible; competitions, stadiums, languages
+and currencies are all in that class), the two cross-save filters and why offset-keying finds
+nothing, and the remaining tile-only candidates including the ones already identified as false
+positives in the award-record region so the next pass does not rediscover them.
 
 ---
 
