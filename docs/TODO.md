@@ -227,10 +227,11 @@ full league programme, not the division's ~200. Two zones that light up on a dat
 **Possibly superseded by #3**: if the standings record gives exact final tables, complete
 fixtures may no longer be needed. Decide that before spending time here.
 
-### 4b. Career-half region sizing: one real fixed pool, one false one — next region to check is open
+### 4b. Career-half region sizing: two real fixed pools, two false ones — next region to check is open
 **2026-09-18/19.** Following PR #58's proof that the *reference* database announces its own
-table sizes, the same question was asked of the *career* half, tested against three saves
-spanning the whole career (2023/2024/2026). Full writeup, exact numbers and the reusable method:
+table sizes, the same question was asked of the *career* half, tested against five saves: three
+spanning the whole career (2023/2024/2026) plus two more from the same season (2022-08-27,
+2023-06-26). Full writeup, exact numbers and the reusable method:
 [`career-region-sizing.md`](career-region-sizing.md).
 
 **Proven, exact, 3/3**: the player-history slab is a genuine fixed-size pool — 265,423 rows on
@@ -244,7 +245,19 @@ broke that. Tracking one real club (Southampton, tid 504) across all three saves
 its footprint grows by exactly 212 bytes when it earns a new season block — real insertion, not
 space claimed from a reservation. This part of the file is ordinary append-and-shift, not a pool.
 
-**Three follow-ups, none started:**
+**Same pattern, a third region: "our matches."** Looked briefly like it might be a fixed
+container too (`matches.find_match_region()` returning 0 valid anchors on two of five saves
+looked like it could be a locator bug). It isn't — those two saves are effectively at a season
+boundary and the region genuinely resets to empty there, confirmed by comparing two saves from
+inside the *same* season (9 matches vs 43 matches, footprint scaling ~proportionally, not
+constant). What IS exact: a **550-byte `0xFF` wall** right after the last real match, identical
+across all three match-bearing saves regardless of match count (9/43/59). But that wall isn't
+headroom for more matches — reading past it lands in a completely different, independently
+growing **stride-65 per-season table** (`[flag u8][value u16][tid u16][year u16]`, one entry per
+season), unnamed and not yet checked against `table-framing.md`'s similarly-shaped per-season
+series near 44.6 MB (same table found twice, a sibling, or coincidence — open).
+
+**Four follow-ups, none started:**
 - Ship the exact (no-sampling) history-slab locator as a real function next to
   `history.locate()`, the way `scripts/audit_table_headers.py --confirm` sits next to the
   reference-table locators — the sampled version is fine for finding a candidate but should not
@@ -254,10 +267,11 @@ space claimed from a reservation. This part of the file is ordinary append-and-s
   (plural) — a silent `AttributeError` swallowed by a bare `except: pass`, so
   `scripts/map_regions.py` has never once printed a `light_results` sub-region for any save.
   One-line fix.
-- **Unexplained**: `matches.find_match_region()` returns 0 valid anchors on `frem-2023-07-02`
-  and `frem-2024-06-30` (25 delimiter anchors found, none pass `_valid_match_header`) but 59/85
-  on `frem-2026-06-11`. Not investigated; worth checking before trusting it as a boundary anchor
-  for anything else.
+- **The matches season-reset is documented here but not coded anywhere.** `matches.py` has no
+  comment or test asserting the region resets at season boundaries; anyone hitting the
+  0-valid-anchors case cold would still read it as a bug today.
+- **Name the stride-65 per-season table** and settle whether it's the same structure as
+  `table-framing.md`'s "per-season series" near 44.6 MB or a genuine sibling.
 
 Next step per the user: apply the same method (exact structural proof + multi-save cross-check,
 never trust two saves) to the rest of the still-unidentified career-half regions, to work out

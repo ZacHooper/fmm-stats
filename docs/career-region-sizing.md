@@ -1,20 +1,22 @@
-# Two career-half structures, and which one is a fixed pool
+# Career-half structures: which ones are fixed pools, and which just look that way
 
 **2026-09-18/19, following on from PR #58 ("table-framing").** That PR proved the *reference*
 database announces its own table sizes (`[8xFF][count]`). This asks the same question of the
 *career* half instead — is anything back there a fixed-size allocation, and is anything else
-just an ordinary growing structure? Tested against **three independent saves spanning the whole
-career** (`frem-2023-07-02`, `frem-2024-06-30`, `frem-2026-06-11`) — a third save was pulled
+just an ordinary growing structure? Tested against **five independent saves**: three spanning
+the whole career (`frem-2023-07-02`, `frem-2024-06-30`, `frem-2026-06-11`) plus two more from
+the *same* season (`frem-2022-08-27`, `frem-2023-06-26`) pulled specifically to separate
+"grows once a season" from "grows continuously." A third save was pulled the first time
 specifically to stop a two-save coincidence being reported as a proof, and it caught exactly
-that once.
+that once — a pattern repeated below.
 
-**Headline: one real fixed pool, one false one.** The player-history slab is a fixed-size
-allocation, proven with a parameter-free structural test, reproduced exactly on all three
-saves. The club-records region right after it looked like a second fixed pool after two saves
-agreed to the byte — the third save refuted it. It is an ordinary append-and-shift structure:
-real records get inserted, physically growing that part of the file, and everything downstream
-shifts to make room. The two structures sit back-to-back but behave oppositely, and that
-contrast is the actual finding.
+**Headline: two real fixed pools found so far, two false ones ruled out.** The player-history
+slab and the away-first match-slot table (`matchslots.py`, established separately) are genuine
+fixed-size allocations. Club-records and the "our matches" rich per-match stat blocks both
+*looked* like fixed pools at some point in this investigation and both turned out to be ordinary
+append-and-shift structures once tested properly — real records get inserted, physically growing
+that part of the file, and everything downstream shifts to make room. Matches also does
+something club-records doesn't: it resets to empty at every season boundary.
 
 ## 1. The history slab — genuinely a fixed pool, proven exactly
 
@@ -127,6 +129,79 @@ every hand-tuned window is subject to.
 | history slab | **fixed pool** — exact row count and forest shape, position recycled not grown | parameter-free, exact, 3/3 |
 | club-records + trailing empty-slot table | **append-and-shift** — real growth, no reserved headroom | refuted a 2-save coincidence with a 3rd save |
 
+## 4. Our matches — append-and-shift within a season, wiped at season start, then a real wall
+
+This also resolves the `matches.find_match_region()` discrepancy flagged as an open thread
+below in an earlier pass of this doc: **it isn't a locator bug.** `2023-07-02` and `2024-06-30`
+return 0 valid match anchors because both saves are effectively at a season boundary — the
+first is literally day one of a new season, and the region turns out to reset to empty there,
+same as `2024-06-30` apparently being close enough to one. Confirmed by testing two saves from
+inside the *same* season instead.
+
+### The region genuinely grows with match count, not into reserved space
+
+`2022-08-27` (early in season 2023) and `2023-06-26` (near the end of the same season) both
+start their real matches on the exact same day (day 196, 2022 — season start), and the amount
+of real match data between them scales with how many matches had actually been played:
+
+| save | valid matches | offset span of real match data |
+|---|---|---|
+| 2022-08-27 | 9 | 41,275 bytes |
+| 2023-06-26 | 43 | 216,358 bytes |
+
+9 → 43 matches is 4.8×; the span grows 5.2×. Roughly proportional, and nowhere near equal — a
+fixed container being filled in would show the same span in both saves regardless of match
+count. It doesn't. **This is append-and-shift, the same signature as club-records**, just reset
+to zero at every season change instead of accumulating across the whole career.
+
+### The exact wall at the end — real, and reproduces on all three saves tested
+
+Right after the *last* real match's own data (not the aggregate span above — the tail end of
+whichever match happened to be added most recently), there is a run of `0xFF` padding whose
+length does not depend on how many matches preceded it:
+
+| save | matches | padding length | first bytes after |
+|---|---|---|---|
+| 2022-08-27 | 9 | **550** | `01 7b 04 5a 01 e5 07 ff ff …` |
+| 2023-06-26 | 43 | **550** | `02 7b 04 5a 01 e5 07 ff ff …` |
+| 2026-06-11 | 59 | **550** | `03 7b 04 5a 01 e5 07 ff ff …` |
+
+Exactly 550 bytes, independent of match count, in all three saves. So the matches region really
+does end at a hard, reproducible wall — it just isn't headroom reserved for more matches (see
+next).
+
+### What's actually on the other side: a different table entirely, not more match space
+
+Extending the read past the wall shows a small, distinct, repeating record —
+`[flag u8][value u16][tid u16][year u16]` — that has nothing to do with match count:
+
+```
+2026-06-11:
+  56,314,027:  03 7b 04 5a 01 e5 07   flag=03  value=1147 (Danish 3rd Division, our league in 2021)  tid=346 (us)  year=2021
+  56,314,092:  01 04 00 5a 01 e6 07   flag=01  value=4                                                tid=346      year=2022
+  56,314,157:  01 03 00 5a 01 e7 07   flag=01  value=3                                                tid=346      year=2023
+```
+
+Consecutive entries sit **exactly 65 bytes apart** (confirmed twice: 2021→2022 and 2022→2023 in
+the same save) — a stride not seen anywhere else in this codebase (21/22 club-records, 25
+matchslots, 70 the trailing club-slot table, 16 history rows). It grows by one record per
+**season**, tid 346 constant throughout: the 2023 save shows 2 entries (2021, 2022), the 2026
+save shows at least 3 (2021, 2022, 2023). Not characterised beyond this — see Open threads.
+
+**So the full picture at this boundary is three-part**, not two: `[real matches, growing] →
+[550 bytes of exact fixed padding] → [an independent, differently-shaped, differently-growing
+per-season table]`. The 550-byte wall is a genuine, reproducible structural fact; it's a
+separator between two unrelated structures, not slack space either one grows into.
+
+### Net effect, updated
+
+| structure | behaviour | proof standard |
+|---|---|---|
+| history slab | **fixed pool** — exact row count and forest shape, position recycled not grown | parameter-free, exact, 3/3 |
+| club-records + trailing empty-slot table | **append-and-shift**, accumulates all career, no reserved headroom | refuted a 2-save coincidence with a 3rd save |
+| our matches (rich per-match stat blocks) | **append-and-shift within a season**, wiped at season start, ends at an exact 550-byte wall | 3/3 on the wall; season-reset confirmed via same-season pair |
+| the away-first match-slot table (`matchslots.py`, established separately) | **fixed pool** — exactly 3,975 slots on every Frem save across 4 seasons | already proven elsewhere; cited here for contrast |
+
 ## Method, reusable for the next region
 
 This is the general recipe worth carrying into whatever gets checked next (see
@@ -147,19 +222,25 @@ This is the general recipe worth carrying into whatever gets checked next (see
    was the test that actually answered the question; the region-level byte-count never could.
 5. **A structural boundary belongs to something with its own independent proof**, not to
    whatever happens to be adjacent. `matches.find_match_region()` (delimiter-cluster based) was
-   tried as a possible far-side anchor and currently returns **0 valid anchors on the 2023 and
-   2024 saves against 59 on 2026** — an open, unexplained discrepancy in its own right (see
-   TODO), and a reminder not to lean on a locator that hasn't itself been proven stable.
+   tried as a possible far-side anchor and initially returned **0 valid anchors on the 2023 and
+   2024 saves against 59 on 2026** — resolved below (§4): both zero-anchor saves are effectively
+   at a season boundary, and the region turns out to reset there. Still a reminder not to lean on
+   a locator's output before checking *why* it disagrees across saves.
+6. **A padding wall is not evidence that the thing before it owns the space behind it.** The
+   550-byte gap after the last real match looked, before checking, like it might be slack the
+   region could still grow into. Reading past it showed a completely different, independently
+   growing table instead. Always read past a padding boundary before assuming what it's for.
 
 ## Reproducing this
 
 No new script was shipped this pass (the working scripts were exploratory and removed); the
 method above is written out in enough detail to reimplement directly against
-`fmparser/history.py` (`locate()`, `STRIDE`) and `fmparser/clubrecords.py`
-(`scrape_team_records`, `scrape_player_records`). A natural follow-up is turning the exact
-(no-sampling) history-slab locator into a real function alongside `history.locate()`, the same
-way `scripts/audit_table_headers.py --confirm` exists next to the reference-table locators — see
-TODO.
+`fmparser/history.py` (`locate()`, `STRIDE`), `fmparser/clubrecords.py`
+(`scrape_team_records`, `scrape_player_records`), and `fmparser/matches.py`
+(`match_anchors`, `parse_header`, `_valid_match_header`, `find_match_region`). A natural
+follow-up is turning the exact (no-sampling) history-slab locator into a real function alongside
+`history.locate()`, the same way `scripts/audit_table_headers.py --confirm` exists next to the
+reference-table locators — see TODO.
 
 ## Open threads this surfaced
 
@@ -168,11 +249,21 @@ TODO.
   live `AttributeError`, silently swallowed by a bare `except: pass`, so
   `scripts/map_regions.py`'s "content-located sub-regions" listing has never once printed a
   `light_results` line for any save. One-line fix; not yet applied.
-- **`matches.find_match_region()` returns 0 valid anchors on `frem-2023-07-02` and
-  `frem-2024-06-30`** (25 delimiter anchors found, none pass `_valid_match_header`) but 59/85 on
-  `frem-2026-06-11`. Not investigated further here — could be a real gap in the matches locator
-  for these specific saves, or something else entirely about their match data. Worth checking
-  before relying on `find_match_region` as a boundary anchor for anything else.
+- **RESOLVED: `matches.find_match_region()` returning 0 valid anchors on `frem-2023-07-02` and
+  `frem-2024-06-30`** was not a locator bug — both saves are effectively at a season boundary and
+  the matches region resets to empty there (§4). Not yet turned into an actual code fix or a
+  documented invariant in `matches.py` itself — right now this knowledge only lives in this doc.
+- **The stride-65 per-season table right after the matches wall is unnamed.** Shape is pinned
+  (`[flag u8][value u16][tid u16][year u16]`, one record per season, tid constant at our own
+  club), but the `value` field's meaning is not — 1147 for the 2021 entry (our league cid that
+  season) versus small integers (4, 3) for 2022/2023 doesn't obviously generalise. Worth checking
+  whether `value` is always "current league cid" for the season it belongs to, or something else
+  entirely for seasons after the first.
+- **Is this the same per-season series `table-framing.md` already flagged near 44.6 MB** ("a
+  per-season series — `[f32][…][u16 year]`, 7.0 in 2021, 10.0 in 2022 — FF-padded, no count") —
+  a second copy, a different table with a similar shape, or the same table this doc simply found
+  a different route to? Not checked; the two were found independently and the offsets don't
+  obviously match up.
 - **The overall club-records + empty-slot span is not yet bounded by anything independently
   fixed on its far side.** We know it grows; we don't yet know what (if anything) sets a hard
   ceiling on it, or whether it's genuinely unbounded until it collides with whatever comes next
