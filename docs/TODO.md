@@ -277,6 +277,26 @@ Next step per the user: apply the same method (exact structural proof + multi-sa
 never trust two saves) to the rest of the still-unidentified career-half regions, to work out
 which are genuine fixed pools and which just look that way.
 
+**2026-09-19 addendum — the whole file mapped, and two real gaps found.**
+[`savefile-map.md`](savefile-map.md) walks `frem-2026-06-11.fms` start to end with every known
+section, live-verified on this branch wherever possible. Two genuinely uncharacterised stretches
+fell out of it, ~8.7 MB combined:
+- **52.74M–55.84M** (~3.10 MB) — sits between the trailing club-records empty-slot table's
+  filler wall and where our matches begin. Not investigated at all.
+- **56.3M–61.9M** (~5.58 MB) — sits between the per-season table found after matches (§4 above)
+  and the real squad snapshot. `map_regions.py` calls this whole span `inline_names`, which the
+  map now shows is wrong — the snapshot itself is a small 0.11 MB slice at the very end of it
+  (61,896,648–62,002,727, via `attributes.snapshot_bounds`), not the whole 10 MB stretch.
+
+**Also surfaced, and worth fixing before doing much more work on this branch: PR #58 is not
+merged.** This branch (`claude/pr-58-learnings-8xx4fi`) was cut from `main`, and PR #58 lives on
+its own unmerged branch (`docs/table-framing`) — `docs/table-framing.md`,
+`scripts/audit_table_headers.py` and `scripts/discover_tables.py` simply don't exist here. The
+club table, award table, and a handful of small attribute-section sub-tables in
+`savefile-map.md` are cited from that branch at `frem-2023-07-02` offsets, unverified on this
+save. Reconcile the branches (merge #58, or rebase this one onto it) before treating those rows
+as anything more than a lead.
+
 ### 5. `att_avg` / `att_min` / `att_max` are misnamed — curiosity only
 The bytes are read correctly (`league_id` lands exactly at p+158 right beside them), but the
 NAMES come from fmm-editor's `Club.cs` and were never checked against the game. They fail every
