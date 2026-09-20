@@ -104,6 +104,19 @@ position of every club in every loaded competition** was decoded on 2026-07-20 a
 up. Layout, validation and parser plan: [`standings-record.md`](standings-record.md). Strict
 upgrade over what ships today.
 
+**Before doing that work, know what already ships.** `mart.clubs.last_league_pos` /
+`last_league_cid` carry **each club's exact finishing position in its last completed league**,
+straight from the club record — no parser work needed, and `staging.standings` is not involved.
+Verified 2026-09-21: a perfect `1..12` permutation of the Danish top flight in all 25 Frem
+snapshots, and it tracks Frem's real ladder exactly (2.Div 15th → 3.Div 1st → 2.Div 1st →
+NordicBet 1st → Superliga 6th → Superliga 3rd).
+
+The one rule for using it: **it updates at the JULY ROLLOVER and describes the season that just
+ENDED**, so the final table of season S is carried by the first snapshot of season S+1, not by
+the last snapshot of S. On 2026-06-29 it still reads the 2024/25 table; on 2026-07-02 it reads
+2025/26. What it does NOT carry is points, W/D/L or goals — only the position. That is still
+the gap the 14-byte record would close, alongside non-final (in-season) tables.
+
 ### 4. Complete results/fixtures — FOUND 2026-09-20, in a place nobody had opened
 
 **`fix_man.dat`, inside the compressed archive at the end of the file, IS the fixture list
@@ -136,14 +149,42 @@ Three things are still open here:
   the item with actual downstream value: ~20k world results per snapshot, and since each save
   carries an ~18-month window while our snapshots are far closer together than that, a UNION
   across snapshots covers the whole career with overlap rather than holes.
+
+  **The recipe for turning it into league tables is worked out — it just isn't code.** Proven
+  2026-09-21 on the Danish top flight, all five seasons the archive reaches: exactly 192
+  matches and 32 games per club every time, and the resulting order agrees **12/12** with the
+  save's own `last_league_pos` (see #3) in every season, with Frem's row matching our own
+  parsed match records exactly on P/W/D/L/GF/GA/Pts. Three structural facts stand in for the
+  competition field the record does not have:
+
+  1. **`round` (+78) is a matchday counter within a competition** — but it RESTARTS for the
+     post-split phase, so rounds 0-9 each hold two real league rounds ~250 days apart.
+  2. **A >30-day gap inside one round number separates those two phases.** A gap rule alone is
+     not enough: cup ties land within days of a league round.
+  3. **A league round is a PERFECT MATCHING** — N/2 fixtures covering every club in the
+     division exactly once. A cup tie always duplicates a club, so it can never be part of one.
+     This is what finally isolates the league, and it needs no competition id at all.
+
+  Two things to carry into the loader. **Scores are read at +6/+11 and are only valid when the
+  block takes its plain shape** (all of +2..15 except the two goal bytes are 0xFF) — check it
+  per row rather than trusting the ~98% aggregate; all 960 matches in the five Danish seasons
+  happened to be plain. And **a split league's final order is not points order**: every
+  championship-group club ranks above every relegation-group club regardless of points
+  (Nordsjælland finished 7th on 46 while Lyngby finished 5th on 39). Derive the groups from
+  the last 10 rounds' fixtures — after the split, clubs only meet inside their own group, so
+  the fixture graph falls into two components.
 - **The goals block at `+2..+15` is variable-shape**, so `+6`/`+11` is a reading that is right
   whenever the block takes its plain shape and wrong when it does not (one Frem row proves it,
   against our own store). Declared UNKNOWN and not emitted. Naming that block's shapes —
   extra time? penalties? aggregate? — is what would let scores ship.
-- **No competition field is identified**, and ~70 of the 92 bytes are still unnamed, including
-  a round/matchday counter at `+78` that is not cleanly a u8 or a u32 (135 distinct u32 values
-  up to 67M; as a u8 it is 47 values with 255 the mode, but `+79..81` are non-zero on 5,551 of
-  26,954 rows, so it is not a u8 with padding either).
+- **No competition field is identified**, and ~70 of the 92 bytes are still unnamed. The
+  round counter at `+78` is no longer among them — **decoded 2026-09-21**, correcting the
+  entry that used to sit here claiming it was neither cleanly a u8 nor a u32. The
+  measurements were right and the conclusion was wrong: `+78` is a u8 round, and `+79`/`+80`/
+  `+81` are three SEPARATE small columns (8 / 4 / 2 distinct values), not padding and not part
+  of it. "Non-zero neighbours" only ever argued against padding, never against a u8. Same
+  shape of mistake as reading the staff record at the player record's stride — adjacent bytes
+  assumed to be one field.
 
 Everything below is the history of the search, kept because it records what is NOT there.
 
