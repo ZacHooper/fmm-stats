@@ -120,19 +120,21 @@ bytes*:
 
 | span | size | other% | ≈ real bytes | note |
 |---|---|---|---|---|
-| 62.00 – 63.94M | 1.93 MB | 71% | **1.37 MB** | densest unknown in the file; the tail after the snapshot |
+| **0.52 – 3.99M** | 3.47 MB | 45% | **1.55 MB** | **biggest unexplained block in the file.** Sits between the browse name table and the attribute grid — the info spine lives in here (records 584,165–3,988,862), so part of it is known, but what surrounds those records is not |
+| 62.00 – 63.94M | 1.93 MB | 71% | **1.37 MB** | **densest** unknown — highest non-filler *fraction*; the tail after the squad snapshot |
 | 56.31 – 61.90M | 5.58 MB | 18% | **1.00 MB** | |
 | 52.72 – 55.84M | 3.12 MB | 31% | **0.97 MB** | sits between the stride-70 pool and our matches |
-| 0.52 – 3.99M | 3.47 MB | 45% | **1.56 MB** | never examined; sits in front of the attribute section |
+| 31.91 – 35.44M | 3.53 MB | 17% | **0.59 MB** | sits in front of the transfer band |
 | 38.40 – 40.04M | 1.64 MB | 32% | **0.52 MB** | between the transfer band and the match-slot table |
 | 13.98 – 16.69M | 2.71 MB | 18% | **0.49 MB** | already checked: not count-framed |
 | 41.11 – 42.63M | 1.52 MB | 18% | **0.27 MB** | 82% zero — mostly padding |
-| 31.91 – 35.44M | 3.53 MB | 17% | **0.59 MB** | sits in front of the transfer band |
 | **20.32 – 29.17M** | **8.85 MB** | **2%** | **0.18 MB** | **97% `0xFF`. Padding, not a target.** |
 
 That last row is the correction that matters most: the biggest-looking hole in the file is
-empty space. The real frontier is the **1.93 MB tail after the squad snapshot**, which is 71%
-non-filler and has never been opened.
+empty space. Two regions lead on different measures and both are worth opening — **0.52–3.99M**
+has the most unexplained bytes (1.55 MB, though the info spine accounts for some of them), and
+the **1.93 MB tail after the squad snapshot** has the highest non-filler *density* (71%) with
+nothing known in it at all.
 
 ## What changed versus the PR #59 map
 
