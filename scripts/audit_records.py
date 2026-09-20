@@ -44,6 +44,7 @@ sys.path.insert(0, ROOT)
 from fmparser import attributes as A          # noqa: E402
 from fmparser import staff as ST              # noqa: E402
 from fmparser import places as PL             # noqa: E402
+from fmparser import clubrecords as CR        # noqa: E402
 from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402
 from fmparser import staging as S             # noqa: E402
@@ -198,6 +199,12 @@ LAYOUTS = {
     # check that matters, and it is what surfaces `+12..+13` as declared-unknown instead of
     # as two bytes nobody had looked at.
     "history_row": _from_record(H.ROW),
+    # The Club History tables, both new to the audit. These walk in whole 12-slot BLOCKS --
+    # the slot index IS the category, there is no category id in the record -- so the modal
+    # gap a STRIDE check measures is the block stride, not the row stride. COVERAGE is the
+    # useful part: 21 and 22 bytes, fully claimed.
+    "club_team_record": _from_record(CR.TEAM_ROW),
+    "club_player_record": _from_record(CR.PLAYER_ROW),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.
