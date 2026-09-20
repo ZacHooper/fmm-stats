@@ -26,6 +26,20 @@ from .schema import F32, Field, Record, U8, U16, U32, UNKNOWN
 
 # Stadium: [Id u32][Uid u32][CityId u16][Capacity u32][Expansion u32][len u32][name][00]
 _STADIUM_HEADER = 18
+
+# DECLARATION ONLY -- the record is variable-length (a length-prefixed name follows), so this
+# is the fixed head and `is_head=True` says so. Nothing walks it: stadiums are a SEEDED CHAIN
+# (shape E), located by a record's length field landing exactly on the next record.
+# `scrape_stadiums` still reads the head itself, because it has to interleave the reads with
+# the plausibility tests that decide whether this IS a record -- those tests are locating, and
+# locating stays out of the layout.
+STADIUM_HEAD = Record("stadium_head", _STADIUM_HEADER, (
+    Field(0,  4, "id", U32),
+    Field(4,  4, "uid", U32),
+    Field(8,  2, "city_id", U16),
+    Field(10, 4, "capacity", U32),
+    Field(14, 4, "expansion_capacity", U32),
+), is_head=True)
 # City is fixed-width, and unlike the stadium record it is fully declared. Layout from
 # fmm-editor's FMM26 `City`; ids 51 and 58 are Aalborg and Copenhagen to four decimal places.
 CITY_RECORD = 20

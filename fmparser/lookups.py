@@ -26,6 +26,8 @@ Cross-checks that make these more than plausible:
 import re
 import struct
 
+from .schema import F32, Field, Record, U8, U16, U32
+
 _MIN_CHAIN = 20        # consecutive valid records before we believe we found a table
 
 
@@ -96,6 +98,43 @@ def _walk(mm, parse, seeds, min_chain=_MIN_CHAIN):
 
 # ------------------------------------------------------------------ languages
 # [Id u16][Uid u32][len][Name][len][OtherName][NationId u16][Difficulty u8]
+# DECLARATIONS ONLY, for the three seeded-chain tables (shape E in
+# docs/parser-architecture.md). Each record is `[fixed head][length-prefixed strings][fixed
+# tail]`, so neither half is a stride and both are `is_head=True` -- the span is the block,
+# not the record. The parsers keep reading these themselves, because their reads are
+# interleaved with the plausibility tests that decide whether a candidate IS a record, and
+# those tests are LOCATING. What the declarations buy is that the blocks are visible to
+# `scripts/audit_records.py` at all: none of these three tables was in it.
+LANGUAGE_HEAD = Record("language_head", 6, (
+    Field(0, 2, "id", U16, note="what the person record's language list references"),
+    Field(2, 4, "uid", U32),
+), is_head=True)
+LANGUAGE_TAIL = Record("language_tail", 3, (
+    Field(0, 2, "nation_id", U16),
+    Field(2, 1, "difficulty", U8),
+), is_head=True)
+
+CURRENCY_HEAD = Record("currency_head", 2, (
+    Field(0, 2, "uid", U16),
+), is_head=True)
+CURRENCY_TAIL = Record("currency_tail", 4, (
+    Field(0, 4, "exchange_rate", F32, note="per GBP"),
+), is_head=True)
+
+# The nation head sits BEFORE the first string, so the walk reaches it by stepping backwards
+# from the 3-letter code -- `uid` at head+0 and `id` at head+4, which is why the parser reads
+# them as `c - 6` and `c - 2`.
+NATION_HEAD = Record("nation_head", 6, (
+    Field(0, 4, "uid", U32),
+    Field(4, 2, "id", U16),
+), is_head=True)
+NATION_TAIL = Record("nation_tail", 6, (
+    Field(0, 2, "continent_id", U16),
+    Field(2, 2, "capital_city_id", U16),
+    Field(4, 2, "national_stadium_id", U16),
+), is_head=True)
+
+
 def _language_at(mm, o, n):
     if o + 8 > n:
         return None, None

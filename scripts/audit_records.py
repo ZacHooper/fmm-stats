@@ -43,6 +43,7 @@ sys.path.insert(0, ROOT)
 
 from fmparser import attributes as A          # noqa: E402
 from fmparser import staff as ST              # noqa: E402
+from fmparser import lookups as LK            # noqa: E402
 from fmparser import places as PL             # noqa: E402
 from fmparser import reference as R           # noqa: E402
 from fmparser import clubrecords as CR        # noqa: E402
@@ -103,6 +104,17 @@ LAYOUTS = {
     # bytes become visible here for the first time.
     "contract_status": _from_record(S.CONTRACT_STATUS),
     "contract_detail": _from_record(S.CONTRACT_DETAIL),
+    # The three SEEDED-CHAIN tables (shape E): variable-length records with no count and no
+    # index, so each contributes a fixed head and a fixed tail rather than a stride. None of
+    # these was in the audit before, which is why the fixed parts were only ever described in
+    # prose.
+    "stadium_head": _from_record(PL.STADIUM_HEAD),
+    "language_head": _from_record(LK.LANGUAGE_HEAD),
+    "language_tail": _from_record(LK.LANGUAGE_TAIL),
+    "currency_head": _from_record(LK.CURRENCY_HEAD),
+    "currency_tail": _from_record(LK.CURRENCY_TAIL),
+    "nation_head": _from_record(LK.NATION_HEAD),
+    "nation_tail": _from_record(LK.NATION_TAIL),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.
