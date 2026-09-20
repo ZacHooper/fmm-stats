@@ -102,7 +102,10 @@ upgrade over what ships today.
 ### 4. Complete results/fixtures — FOUND 2026-09-20, in a place nobody had opened
 
 **`fix_man.dat`, inside the compressed archive at the end of the file, IS the fixture list
-with scores.** 26,954 records of 92 bytes on `frem-2026-06-11`, against the 275 fixtures the
+with scores** — mostly played matches, but genuinely forward-looking mid-season
+(`bucaspor-2023-05-20` carries 619 rows dated after its own save date; the end-of-June saves
+carry none, which is what made an earlier note over-claim "already played, not a fixture
+list"). 26,954 records of 92 bytes on `frem-2026-06-11`, against the 275 fixtures the
 25-byte match-slot table can resolve. Ground truth: every `mart.club_matches` row for the
 managed club, both careers, five saves — **282 of 285 in-window rows exact on date, home tid,
 away tid and both scores; 0 wrong on clubs or date**. It is **home-first**, unlike the 25-byte
@@ -115,12 +118,27 @@ unparsed span in the file" was a measurement artefact. It reads 7.99 bits/byte o
 contains the zstd magic number. `scripts/entropy_profile.py` now exists so the next region is
 profiled before it is ranked.
 
-**What remains here is a decode job, not a search.** Read the "What is NOT established" list
-in [`save-archive.md`](save-archive.md) before starting — chiefly: ~70 of the 92 bytes are
-unnamed, the goals reading at `+6`/`+11` is NOT a fixed field (the ten bytes after the opener
-are a variable-shape block, almost certainly extra time / penalties), and no competition field
-is identified. A `fmparser/fixtures.py` with a declarative `LAYOUT` and an
-`audit_records.py --map` entry is the shape the rest of this repo holds records to.
+**The decode and the wiring are DONE** (2026-09-20, refactor Phase 4). `fmparser/fixtures.py`
+holds the declared 92-byte `world_fixture` record, `extract.py` emits `world_fixtures.json`,
+and the layout is registered with `tests/test_layouts.py`. Clubs and date ship; **scores do
+not**, and that is deliberate — see below. Row counts per save: 323 on the day-one
+`frem-2021-07-01` (nothing has been played yet), 26,638 / 26,954 / 26,086 on the three
+mid-career saves.
+
+Three things are still open here:
+
+- **Load it into DuckDB.** `world_fixtures.json` is emitted but nothing consumes it. This is
+  the item with actual downstream value: ~20k world results per snapshot, and since each save
+  carries an ~18-month window while our snapshots are far closer together than that, a UNION
+  across snapshots covers the whole career with overlap rather than holes.
+- **The goals block at `+2..+15` is variable-shape**, so `+6`/`+11` is a reading that is right
+  whenever the block takes its plain shape and wrong when it does not (one Frem row proves it,
+  against our own store). Declared UNKNOWN and not emitted. Naming that block's shapes —
+  extra time? penalties? aggregate? — is what would let scores ship.
+- **No competition field is identified**, and ~70 of the 92 bytes are still unnamed, including
+  a round/matchday counter at `+78` that is not cleanly a u8 or a u32 (135 distinct u32 values
+  up to 67M; as a u8 it is 47 values with 255 the mode, but `+79..81` are non-zero on 5,551 of
+  26,954 rows, so it is not a u8 with padding either).
 
 Everything below is the history of the search, kept because it records what is NOT there.
 
@@ -423,6 +441,31 @@ happen not to.
 carries it verbatim rather than dropping it. `0x07`/`0x08` were named `shootout_goal` /
 `shootout_miss` on 2026-09-17 — see `fmparser/matches.py` for the arithmetic that settled the
 direction.
+
+### 6b. The save's own in-game date is not located — partial search, results kept
+
+**Not blocking anything.** `phase` is supplied by hand at import (`archive_save.py --phase`)
+precisely because a 0-match save has no match to date it from, and that works. This is about
+removing the hand-entry, and the hunt was cut short on 2026-09-20; what follows is what was
+ruled out, so the next attempt starts further along.
+
+Ruled out: **it is not a fixed-offset field in any header.** Diffing `frem-2025-06-10` against
+`frem-2026-06-11` and requiring a `[day u16][year u16]` pair that reads as each save's own
+date at the SAME offset in both eliminates every candidate in the first 1 MB, and then in the
+whole file bar one.
+
+The one survivor is **offset 38,184,473** — `99 00 e8 07` on a 2024 save, i.e. day 153, year
+2024. Two cautions before trusting it: it sits inside the big 16–40M binary section rather
+than any header, and the pattern **repeats roughly every 32 bytes**, which smells like a
+per-row date column in some table (a contract or registration grid) that happens to be
+uniformly stamped with the save date, rather than a single authoritative field. Checking it
+means reading the same offset across three or four saves and confirming it tracks each one's
+date exactly.
+
+Cheaper alternative worth trying first: the fixture list now gives a **lower bound for free**
+— the current-year segment of `fix_man` ends at the last played day, which on the saves
+measured is the save's own day-of-year or one before it. That does not date a day-one save
+(323 rows, none of them this season), but it would cross-check every other import.
 
 ### 7. Staff record: five catalog indices plus six hidden attributes
 Bytes `+34..+38` are five undecoded catalog indices, declared `UNKNOWN` in

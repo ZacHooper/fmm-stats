@@ -23,9 +23,16 @@ previous calendar year**:
 | frem-2026-06-11 | **2026**, doy 1–161 (7,721) | **2025**, doy 1–365 (19,232) | 26,953 |
 | bucaspor-2023-03-25 | **2023**, doy 1–90 (5,454) | **2022**, doy 1–365 (20,632) | 26,086 |
 
-The year sits at `+55` and is constant within a segment. The current-year segment stops at the
-save's own day-of-year (2026-06-11 is doy 162; the segment ends at 161), so these are **matches
-already played**, not a forward fixture list.
+The year sits at `+55` and is constant within a segment.
+
+**CORRECTED 2026-09-20.** This paragraph used to conclude "so these are **matches already
+played**, not a forward fixture list", from the observation that the current-year segment on
+frem-2026-06-11 ends at day 161 while the save is doy 162. That generalised from one save and
+is wrong. Counting rows dated after each save's own date: 0 on frem-2021-07-01 and
+frem-2023-07-02, exactly 1 on frem-2025-06-10 and frem-2026-06-11, but **619 of 29,471 (2.1%)
+on bucaspor-2023-05-20**, running up to a month ahead. A forward schedule IS carried
+mid-season. The end-of-June saves the original claim was checked on are precisely the ones
+with nothing scheduled yet.
 
 **Consequence: the archive is a current-state store. It can never replace anything we depend on
 for history** — a save from 2026 knows nothing about 2021. It can only enrich the snapshot it

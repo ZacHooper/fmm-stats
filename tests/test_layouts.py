@@ -31,7 +31,9 @@ from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # n
 # Importing the record modules is what populates SC.REGISTRY. Added to as Phase 2 migrates
 # each record; listed explicitly so an import failure is a test failure rather than a silently
 # smaller registry.
-RECORD_MODULES = ("attributes", "clubrecords", "history", "lookups", "matches",
+# `fixtures` is safe to import with no `archive` extra installed -- archive.py imports
+# zstandard lazily, inside the call -- so the cheap tier stays dependency-free.
+RECORD_MODULES = ("attributes", "clubrecords", "fixtures", "history", "lookups", "matches",
                   "matchslots", "places", "reference", "staff", "staging")
 
 
