@@ -10,7 +10,6 @@ Reference-data resolvers: club names, competition names, and the player info fie
   and their per-match stat blocks.
 """
 import collections
-from datetime import date, timedelta
 from typing import NamedTuple
 import struct
 
@@ -1043,27 +1042,16 @@ def info_offset(mm, tid):
             return i
 
 
-def parse_info(mm, tid):
-    i = info_offset(mm, tid)
-    if i is None:
-        return None
-    u16 = lambda off: int.from_bytes(mm[i + off:i + off + 2], "little")
-    u32 = lambda off: int.from_bytes(mm[i + off:i + off + 4], "little")
-    day1, year = u16(20), u16(22)
-    try:
-        dob = (date(year, 1, 1) + timedelta(days=day1)).isoformat()
-    except ValueError:
-        dob = None
-    nat = u16(24)
-    return {
-        "tid": u32(0), "uid": u32(4),
-        "first_name_id": u32(8), "last_name_id": u32(12),
-        "dob": dob,
-        "nationality_id": nat, "nationality": NATIONS.get(nat, f"#{nat}"),
-        "flag28": mm[i + 28],   # likely 'declared national team' (see docs/BUGS.md #6)
-        "club_tid": u16(42),
-        "sid": mm[i + 60:i + 62].hex(),
-    }
+# `parse_info` lived here and was DEAD -- nothing in the repo called it (the two `archive/`
+# scripts that import `parse_info` import it from a top-level `info` module that no longer
+# exists, so they are already broken and not evidence of use). It is deleted rather than
+# migrated, which retires two real bugs at zero risk: it read `sid` as 2 bytes where
+# `staging.INFO_LAYOUT` says 4 and every other reader agrees, and it carried a `1955..2012`
+# DOB gate that `DOB_YEAR_HI = 2030` superseded in the live path.
+#
+# Its live sibling `info_offset` above still carries that same 1955..2012 gate. That one is a
+# REAL open bug, but a locating one: widening it changes which records are found, so it needs
+# a measured before/after count and does not belong in a migration commit.
 
 
 # ---------------- player names (whole DB) ----------------

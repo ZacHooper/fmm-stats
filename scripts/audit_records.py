@@ -106,22 +106,6 @@ def _player_attr_layout():
     return f
 
 
-def _info_head_layout():
-    """The INFO (person) record's fixed head -- taken straight from staging.INFO_LAYOUT.
-
-    Not retyped: that table is what `_decode_info` reads from, so the audit is checking the
-    parser's own declaration rather than a copy that can rot. The record as a whole is
-    variable-length (counted language and relationship lists follow), so there is no stride to
-    measure and only the head is covered.
-    """
-    f = [(off, width, name) for off, width, name, _ in S.INFO_LAYOUT]
-    named = set()
-    for off, width, _ in f:
-        named.update(range(off, off + width))
-    f += [(o, 1, UNKNOWN) for o in range(0, S.INFO_HEAD) if o not in named]
-    return f
-
-
 def _comp_trailer_layout():
     """The competition record's fixed 14-byte trailer, starting right after its 3
     length-prefixed names (long/short/code) -- offsets straight from
@@ -232,8 +216,9 @@ def _comp_history_tail_layout():
 
 LAYOUTS = {
     "player_attribute": (78, _player_attr_layout()),
-    # NOT a stride -- the info record is variable-length; this is the fixed head we decode.
-    "info_head": (S.INFO_HEAD, _info_head_layout()),
+    # NOT a stride -- the info record is variable-length; this is the fixed head we decode,
+    # which is what `Record(is_head=True)` declares.
+    "info_head": _from_record(S.INFO_LAYOUT),
     "staff_attribute": _from_record(ST.STAFF),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists

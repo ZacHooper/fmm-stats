@@ -13,14 +13,18 @@ hunting for bytes that might appear as stray data.
 """
 from datetime import date, timedelta
 
+from . import primitives as P
+from . import records as RD
 from . import reference as R
+from . import schema as SC
+from .schema import DATE, Field, HEX4, PAD, Record, U8, U16, U32, UNKNOWN
 from .attributes import (_valid_positions, ATTR_OFFSETS, POSITIONS, hidden_attributes,
                          record_tail, source_bytes, plain_bytes)
 from .regions import (ATTR_LO, ATTR_HI, CONTRACTREC_LO, CONTRACTREC_HI,
                       WAGE_GBP_PER_UNIT)
 
 # free agents / unattached carry this sentinel club id
-NO_CLUB = 65535
+NO_CLUB = P.NO_ID16
 
 # The info record's NICKNAME field at +16. FFFFFFFF is the "no nickname" sentinel; a
 # player who HAS one carries a real nickname id there instead. See `scrape_players`.
@@ -82,48 +86,47 @@ PERSONALITY = ("adaptability", "ambition", "determination", "loyalty", "pressure
 #
 # The record as a whole is VARIABLE-LENGTH: past this head come counted language and
 # relationship lists (BUGS #14 Round 4). Only the head is fixed, and only the head is declared.
-U8, U16, U32, DATE, HEX4 = "u8", "u16", "u32", "date", "hex4"
-UNKNOWN = "UNKNOWN"
-
-INFO_LAYOUT = (
-    (0, 4, "tid", U32),
-    (4, 4, "uid", U32),
-    (8, 4, "first_name_id", U32),
-    (12, 4, "last_name_id", U32),
+INFO_LAYOUT = Record("info_head", 68, (
+    Field(0, 4, "tid", U32),
+    Field(4, 4, "uid", U32),
+    Field(8, 4, "first_name_id", U32),
+    Field(12, 4, "last_name_id", U32),
     # People.cs calls this CommonNameId. Only 0.1% of records set it (the rest are ffffffff),
     # nowhere near the ~8% that carry a nickname, so it is NOT the link `_scrape_nicknamed`
     # follows. Carried, not relied on.
-    (16, 4, "common_name_id", U32),
-    (20, 4, "dob", DATE),
-    (24, 2, "nationality_id", U16),
+    Field(16, 4, "common_name_id", U32),
+    Field(20, 4, "dob", DATE),
+    Field(24, 2, "nationality_id", U16),
     # 78% ffff, and the other 22% sit in the same id space as the primary nationality.
-    (26, 2, "second_nationality_id", U16),
+    Field(26, 2, "second_nationality_id", U16),
     # People.cs: Ethnicity. 13 distinct small values -- which also retires BUGS #6's guess that
     # this byte was a "declared national team", a field that would hold nation ids in the 100s.
-    (28, 1, "ethnicity", U8),
-    (29, 4, UNKNOWN, None),                 # People.cs Unknown1; not a date (0% plausible)
+    Field(28, 1, "ethnicity", U8),
+    Field(29, 4, UNKNOWN, PAD),                 # People.cs Unknown1; not a date (0% plausible)
     # People.cs: Type. NOT a clean player/staff flag -- three values (1, 0, and 16, which is
     # rough-guide's "role flag 10 = manager" in hex) and it agrees with our SID rule on only
     # 82.4% of records. BUGS #14's "agrees ~99%" was wrong. Carried; the SID rule still decides.
-    (33, 1, "type_flag", U8),
-    (34, 4, "unknown_date", DATE),          # decodes 100% as a date, but 82% read 1900 = null
-    (38, 1, "international_caps", U8),
-    (39, 1, "international_goals", U8),
-    (40, 1, "u21_caps", U8),
-    (41, 1, "u21_goals", U8),
+    Field(33, 1, "type_flag", U8),
+    Field(34, 4, "unknown_date", DATE),                 # decodes 100% as a date, but 82% read 1900 = null
+    Field(38, 1, "international_caps", U8),
+    Field(39, 1, "international_goals", U8),
+    Field(40, 1, "u21_caps", U8),
+    Field(41, 1, "u21_goals", U8),
     # People.cs declares ClubId as i32 and it is: +44..45 is 0 for every real club and ffff
     # paired with the no-club sentinel. Read whole, then normalised back to the u16 NO_CLUB
     # the rest of the codebase compares against.
-    (42, 4, "club_tid", U32),
+    Field(42, 4, "club_tid", U32),
     # Date joined the current club. 100% of records decode as a plausible [day][year], none
     # later than the save's own season, and 4 of 5,998 earlier than age 14.
-    (46, 4, "joined_date", DATE),
-    (50, 2, UNKNOWN, None),                 # People.cs Unknown3
-    *((52 + i, 1, n, U8) for i, n in enumerate(PERSONALITY)),
-    (60, 4, "sid", HEX4),                   # People.cs PlayerId; ffffffff for staff
-    (64, 4, "id2", U32),                    # People.cs Unknown6b -> the STAFF attribute record
-)
-INFO_HEAD = 68
+    Field(46, 4, "joined_date", DATE),
+    Field(50, 2, UNKNOWN, PAD),                 # People.cs Unknown3
+    *(Field(52 + i, 1, n, U8) for i, n in enumerate(PERSONALITY)),
+    Field(60, 4, "sid", HEX4),                 # People.cs PlayerId; ffffffff for staff
+    Field(64, 4, "id2", U32),                 # People.cs Unknown6b -> the STAFF attribute record
+), is_head=True)
+
+
+INFO_HEAD = INFO_LAYOUT.span
 
 # Everything the INFO record contributes that is true of a PERSON rather than of a player or
 # a staff member -- named once so extract.py, the loader and the mart cannot drift apart.
@@ -132,26 +135,9 @@ PERSON_FIELDS = PERSONALITY + ("international_caps", "international_goals",
                                "second_nationality_id", "ethnicity")
 
 
-def _read(mm, base, off, width, kind):
-    b = base + off
-    if kind == U8:
-        return mm[b]
-    if kind == HEX4:
-        return mm[b:b + 4].hex()
-    if kind == DATE:
-        day = int.from_bytes(mm[b:b + 2], "little")
-        year = int.from_bytes(mm[b + 2:b + 4], "little")
-        try:
-            return (date(year, 1, 1) + timedelta(days=day)).isoformat()
-        except (ValueError, OverflowError):
-            return None
-    return int.from_bytes(mm[b:b + width], "little")
-
-
 def _decode_info(mm, base):
     """Decode one info record at `base` into the spine's identity dict, from INFO_LAYOUT."""
-    rec = {name: _read(mm, base, off, width, kind)
-           for off, width, name, kind in INFO_LAYOUT if name is not UNKNOWN}
+    rec = RD.read(mm, INFO_LAYOUT, base)
     # Sentinels, handled here rather than in the layout because they are about MEANING, not
     # about where the bytes are.
     #
