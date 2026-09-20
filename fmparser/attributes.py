@@ -19,6 +19,9 @@ from .regions import (SNAPSHOT_LO, SNAPSHOT_HI, CLUB_MARKER, ATTR_LO, ATTR_HI,
 from .reference import info_offset
 from . import model
 
+from . import records as RD
+from .schema import Field, HEX4, RAW, Record, U8, U16, U32, UNKNOWN
+
 POSITIONS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR",
              "AML", "AMC", "AMR", "ST", "DML", "DMR"]
 
@@ -284,20 +287,15 @@ RECORD = 78   # records sit on a 78-byte grid, but its phase is save-dependent
 # median 73kg (min 55), and goalkeepers average 188.2cm/78.2kg against 180.4/71.8 for
 # outfielders — the check to re-run if these ever look wrong.
 def record_tail(mm, P):
-    """The 13 bytes after HomeReputation, as a dict. Shared by both record readers so the
-    global-record shape is defined in exactly one place."""
-    u16 = lambda off: int.from_bytes(mm[P + off:P + off + 2], "little")
-    return {
-        "current_reputation": u16(23),
-        "world_reputation": u16(25),
-        "international_retired": bool(mm[P + 27]),
-        # P+28..29 is a real non-zero u16 in FMM22 that FMM26 documents as "always 0x0000".
-        # Highly repetitive, looks like a flags/enum field. Unidentified, so not surfaced.
-        "squad_number": mm[P + 30],
-        "preferred_squad_number": mm[P + 31],
-        "height_cm": u16(32),
-        "weight_kg": u16(34),
-    }
+    """The 13 bytes after HomeReputation, as a dict.
+
+    Read from the `tail` group of `PLAYER`, so the global-record shape is defined in exactly
+    one place -- which is now a declaration rather than this function. The `bool` cast stays
+    here: it is meaning, not layout.
+    """
+    rec = RD.read_group(mm, PLAYER, _base(P), "tail")
+    rec["international_retired"] = bool(rec["international_retired"])
+    return rec
 
 
 # ---------------------------------------------------------------------------
@@ -377,14 +375,75 @@ PLAIN_OFFSETS = {-29: "heading_src", -25: "unselfishness_src", -24: "pace_src",
                  -19: "aggression_src", -16: "leadership_src", -5: "agility_src"}
 
 
+# ---------------------------------------------------------------------------
+# THE RECORD, as one declaration.
+#
+# ANCHOR. The record runs P-42 .. P+35 and every note in this project describes its fields
+# relative to `P`, the SID marker the locator finds -- `P-38`, `P+28`. `anchor=42` keeps both
+# spellings: the declaration is in RECORD coordinates (offset = 42 + rel) and
+# `base = P - PLAYER.anchor` does the subtraction once, instead of at every call site. Mixing
+# the two is a bug this project has already had.
+#
+# ALIASES. `PLAIN_OFFSETS` and `ATTR_OFFSETS` name the IDENTICAL nine bytes -- the raw byte
+# and the value the screen shows, which differ for exactly two of the nine (Aerial is a
+# function of Heading AND Jumping; Teamwork is floor((Unselfishness + WorkRate) / 2)).
+# `scripts/audit_records.py` could not declare both, because the second set trips the overlap
+# check, so it silently omitted `PLAIN_OFFSETS` -- a table the parser reads that its audit
+# could not see. `alias=True` says "this re-reads bytes already covered", which is the truth,
+# and the audit now sees all four blocks.
+#
+# The four blocks are GROUPS because their emission order is the output's key order, and
+# `attributes.json`/`players.json` are written without `sort_keys`.
+PLAYER = Record("player_attribute", RECORD, [
+    Field(0, 4, "sid", HEX4),
+    # docs/agent-context/history-chain-pointers.md: the career-history table holds no id of
+    # its own, and THIS is the link that joins it -- the pointer runs from the attribute
+    # record into the history slab, not the other way.
+    Field(4, 4, "history_link_P38", U32),
+    *[Field(42 + rel, 1, n, U8, group="src") for rel, n in SRC_OFFSETS.items()],
+    *[Field(42 + rel, 1, n, U8, group="hidden") for rel, n in HIDDEN_OFFSETS.items()],
+    *[Field(42 + rel, 1, n, U8, group="attrs") for rel, n in ATTR_OFFSETS.items()],
+    *[Field(42 + rel, 1, n, U8, group="plain", alias=True)
+      for rel, n in PLAIN_OFFSETS.items()],
+    Field(42, 15, "positions", RAW, note="15 position-rating bytes, decoded to a dict"),
+    Field(57, 1, "foot_left", U8),
+    Field(58, 1, "foot_right", U8),
+    Field(59, 2, "ca", U16, note="never surfaced -- immersion rule"),
+    Field(61, 2, "pa", U16, note="never surfaced -- immersion rule"),
+    # named `reputation` downstream, not `home_reputation`: value_model.py is fitted on that
+    # column name. It IS home reputation; the name is left alone on purpose.
+    Field(63, 2, "reputation", U16),
+    Field(65, 2, "current_reputation", U16, group="tail"),
+    Field(67, 2, "world_reputation", U16, group="tail"),
+    Field(69, 1, "international_retired", U8, group="tail"),
+    Field(70, 2, UNKNOWN, U16),   # P+28..29: a real non-zero u16 in FMM22 that FMM26
+                                  # documents as "always 0x0000". Repetitive, looks like a
+                                  # flags/enum field. Unidentified, so never surfaced.
+    Field(72, 1, "squad_number", U8, group="tail"),
+    Field(73, 1, "preferred_squad_number", U8, group="tail"),
+    Field(74, 2, "height_cm", U16, group="tail"),
+    Field(76, 2, "weight_kg", U16, group="tail"),
+], anchor=42)
+
+
+def _base(P):
+    """Record start from the SID marker. One subtraction, stated once."""
+    return P - PLAYER.anchor
+
+
+def named_attributes(mm, P):
+    """The 9 bytes behind the displayed attributes ATTR_OFFSETS names."""
+    return RD.read_group(mm, PLAYER, _base(P), "attrs")
+
+
 def plain_bytes(mm, P):
     """The nine plain 1-20 bytes that back the displayed exact attributes, raw."""
-    return {name: mm[P + rel] for rel, name in PLAIN_OFFSETS.items()}
+    return RD.read_group(mm, PLAYER, _base(P), "plain")
 
 
 def source_bytes(mm, P):
     """The 16 entangled 0-255 attribute bytes, raw and undecoded."""
-    return {name: mm[P + rel] for rel, name in SRC_OFFSETS.items()}
+    return RD.read_group(mm, PLAYER, _base(P), "src")
 
 
 def hidden_attributes(mm, P):
@@ -394,7 +453,7 @@ def hidden_attributes(mm, P):
     identification and modelling work is a query rather than a re-extract, and none of them
     is surfaced in the app.
     """
-    return {name: mm[P + rel] for rel, name in HIDDEN_OFFSETS.items()}
+    return RD.read_group(mm, PLAYER, _base(P), "hidden")
 
 
 def _valid_positions(seg):
@@ -431,7 +490,7 @@ def record_for(mm, tid):
         if not (0 < ca <= pa <= 200):
             continue
         positions = {POSITIONS[k]: v for k, v in enumerate(seg) if v > 1}
-        attrs = {name: mm[P + rel] for rel, name in ATTR_OFFSETS.items()}
+        attrs = named_attributes(mm, P)
         return {"sid": sid.hex(), "P": P, "positions": positions,
                 "feet": {"left": left, "right": right},
                 "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs,

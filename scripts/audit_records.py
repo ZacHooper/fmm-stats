@@ -68,44 +68,6 @@ def _from_record(rec):
              for f in rec.fields if not f.alias])
 
 
-def _player_attr_layout():
-    """The global player attribute record, anchored on the SID at P-42.
-
-    Built from the parser's own tables rather than retyped, so the audit cannot drift from
-    the code it is auditing: ATTR_OFFSETS and record_tail are the source of truth.
-    """
-    f = [(0, 4, "sid")]
-    for rel, name in A.ATTR_OFFSETS.items():        # P-29 .. P-5, the named attributes
-        f.append((42 + rel, 1, name))
-    for rel, name in A.HIDDEN_OFFSETS.items():      # the 9 unnamed 1-20 attribute bytes
-        f.append((42 + rel, 1, name))
-    f += [(42, 15, "positions"), (57, 1, "foot_left"), (58, 1, "foot_right"),
-          (59, 2, "ca"), (61, 2, "pa"), (63, 2, "home_reputation"),
-          (65, 2, "current_reputation"), (67, 2, "world_reputation"),
-          (69, 1, "international_retired"),
-          (70, 2, UNKNOWN),                          # P+28..29, "always 0" in FMM26
-          (72, 1, "squad_number"), (73, 1, "preferred_squad_number"),
-          (74, 2, "height_cm"), (76, 2, "weight_kg")]
-    # The ENTANGLED source bytes: 0-255, decoded to a displayed 1-20 value by the frozen model
-    # rather than read straight. Not unknown -- `attributes.SRC_OFFSETS` names each one and the
-    # store now carries them raw -- so `_src` marks that the byte is the SOURCE of the
-    # attribute and not the attribute.
-    #
-    # Worth noting while here: the frozen model needs a PARTNER byte for exactly two
-    # attributes, Aerial (P-29 + P-28) and Shooting (P-31 + P-30). Those are precisely the two
-    # that fmm-editor's order says are composites -- Heading + Jumping, Finishing + LongShots.
-    # A least-squares fit found that years before anyone read Player.cs.
-    for rel, name in A.SRC_OFFSETS.items():
-        f.append((42 + rel, 1, name))
-    # rel 4..7 is the P-38 history link (docs/agent-context/history-chain-pointers.md).
-    f += [(4, 4, "history_link_P38")]
-    named = set()
-    for off, width, _ in f:
-        named.update(range(off, off + width))
-    f += [(o, 1, UNKNOWN) for o in range(0, 42) if o not in named]
-    return f
-
-
 def _comp_trailer_layout():
     """The competition record's fixed 14-byte trailer, starting right after its 3
     length-prefixed names (long/short/code) -- offsets straight from
@@ -215,7 +177,11 @@ def _comp_history_tail_layout():
 
 
 LAYOUTS = {
-    "player_attribute": (78, _player_attr_layout()),
+    # From the parser's declaration. `_from_record` drops alias fields, which is how
+    # `PLAIN_OFFSETS` can finally be DECLARED alongside `ATTR_OFFSETS` -- the two name the
+    # identical nine bytes, so the old hand-built layout had to omit one of them or trip its
+    # own overlap check, and it silently omitted the one the parser reads.
+    "player_attribute": _from_record(A.PLAYER),
     # NOT a stride -- the info record is variable-length; this is the fixed head we decode,
     # which is what `Record(is_head=True)` declares.
     "info_head": _from_record(S.INFO_LAYOUT),

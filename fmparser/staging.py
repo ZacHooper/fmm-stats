@@ -18,8 +18,8 @@ from . import records as RD
 from . import reference as R
 from . import schema as SC
 from .schema import DATE, Field, HEX4, PAD, Record, U8, U16, U32, UNKNOWN
-from .attributes import (_valid_positions, ATTR_OFFSETS, POSITIONS, hidden_attributes,
-                         record_tail, source_bytes, plain_bytes)
+from .attributes import (_valid_positions, named_attributes, POSITIONS,
+                         hidden_attributes, record_tail, source_bytes, plain_bytes)
 from .regions import (ATTR_LO, ATTR_HI, CONTRACTREC_LO, CONTRACTREC_HI,
                       WAGE_GBP_PER_UNIT)
 
@@ -351,7 +351,7 @@ def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):
                     "feet": {"left": left, "right": right},
                     "ca": ca, "pa": pa,
                     "reputation": int.from_bytes(mm[P + 21:P + 23], "little"),
-                    "attributes": {n: mm[P + rel] for rel, n in ATTR_OFFSETS.items()},
+                    "attributes": named_attributes(mm, P),
                     **record_tail(mm, P),
                     **hidden_attributes(mm, P),
                     **source_bytes(mm, P),
