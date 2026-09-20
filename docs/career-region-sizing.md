@@ -49,10 +49,10 @@ years, because everything upstream — contracts, transfer history, the name id-
 so the slab must be *relocated* on every save; only its row count and internal shape are the
 fixed things.
 
-## 2. The 209-byte handoff — a real, exact constant
+## 2. The 209-byte handoff — a regularity, NOT the invariant to locate by
 
 Immediately after the slab's proven end, the club-records table (`fmparser/clubrecords.py`)
-begins **exactly 209 bytes later, in all three saves**:
+begins **209 bytes later on the three saves this section was first written from**:
 
 | save | slab end | club-records start | gap |
 |---|---|---|---|
@@ -60,9 +60,25 @@ begins **exactly 209 bytes later, in all three saves**:
 | 2024-06-30 | 44,726,205 | 44,726,414 | **209** |
 | 2026-06-11 | 46,876,873 | 46,877,082 | **209** |
 
-This is the one place in this investigation where "find the start structurally, then just add a
-known number of bytes" is actually earned — three independent confirmations, zero tuning.
-**The reverse is not true**: club-records' own *end* cannot be reached this way (see below).
+**This was originally written up as "a real, exact constant ... three independent
+confirmations, zero tuning." Re-measured across all 27 Frem saves, that is wrong**, and the
+way it is wrong is the more useful finding:
+
+- **209 on 25 of the 27 Frem saves**, but **513 on `frem-2022-03-19`**, and **undefined on
+  the day-one save**, where no decodable 12-row block exists at all.
+- More importantly, **the number is not measuring a structural gap**. It is the distance to
+  the first block the 12-row detector can decode, which is a property of the CONTENT. The
+  bytes in between differ per save: on `2022-08-27` the slab end is followed by ~190 bytes of
+  `0xFF` and then the first populated block; on `2022-03-19` the empty 21-byte rows begin at
+  +1 and a 10-row partial block sits at +39, so the first full block is further in.
+- On the **day-one** save those bytes are already a perfectly repeating empty row
+  (`00 00 00 00 | ff ff | e4 07 | 00 00 | 87 01 | ff ff | 04 | ff ff | ff ff | 00 00` — value
+  0.0, cid `FFFF`, the `0x07E4` year-2020 sentinel, club `FFFF`), 25,368 of them. The grid is
+  **preallocated and empty**, which is why the scraper correctly returns nothing there.
+
+So the usable invariant is "**the club-records grid begins within ~200 bytes of the slab's
+end**", and that is what `clubrecords.region()` uses as its lower bound — not `+209`. A
+locator keyed on 209 would mis-anchor on at least one save in 27.
 
 ## 3. Club-records — looked like a second fixed pool, is not
 
