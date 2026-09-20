@@ -11,7 +11,12 @@ changelog, which is what killed the last four handoff docs.
 Item numbers are for conversation only — they are renumbered whenever entries are deleted, so
 never cite one in code or a commit message.
 
-Last reviewed **2026-09-20**, after the tail archive was opened (#4) and the parser refactor (#17).
+Last reviewed **2026-09-20**, after the tail archive was opened (#4) and the **parser refactor
+landed in full** — records are declared once and read from the declaration, the six locator
+shapes are written up in [`parser-architecture.md`](parser-architecture.md), the world fixture
+list is extracted, and all seven self-declared-count defects (#17) are fixed. Every
+restructuring commit was held byte-identical by `scripts/assert_identical.py`; the four commits
+that changed output say so and re-recorded in the same commit.
 
 ---
 
