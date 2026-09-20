@@ -103,6 +103,16 @@ one remaining reason to fall back to a real local rebuild is data more recent th
 (`fm-<career>-mart.duckdb`) still omits the rating layer regardless (too big to materialise —
 ATTACH the full store for that, not a scrub issue).
 
+## How the parser works — [`docs/parser-architecture.md`](docs/parser-architecture.md)
+**The one doc to read before changing `fmparser/`.** It carries the idea the parser is
+organised around — *a locator shape tells you how to FIND a record, a declared layout tells
+you how to READ it* — as the **six-shape locator table** (count-framed / pointer-marker /
+preallocated grid / archive member / seeded chain / key search), one section per shape with
+how you find it, the invariant that bounds it, and **how it fails**. Then the declared-layout
+rule (`primitives.py` / `schema.py` / `records.py`), what is deliberately *not* declarable,
+what each audit script can actually tell you, and what porting to FMM26 will involve.
+The method section below is the field guide; that doc is the map.
+
 ## Read this first — accumulated project knowledge
 The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent-context/)**
 (vendored from the assistant's memory so it travels with the repo). Start with
@@ -123,7 +133,9 @@ These are point-in-time notes — verify file/line claims against the current co
 
 ## Reverse-engineering method: ALWAYS region-first, then structural
 When locating a **new field** in the save, do NOT start by guessing byte offsets. Follow this order —
-it has repeatedly turned multi-hour hunts into quick finds:
+it has repeatedly turned multi-hour hunts into quick finds. (Which *kind* of locator you are
+building is [`docs/parser-architecture.md`](docs/parser-architecture.md) Part 1; this is how
+you find it in the first place.)
 
 1. **Map the file into filler-delimited sections first** — `python3 scripts/map_regions.py <save.fms>`.
    The save is cleanly split by long runs of `00`/`ff` filler; each section holds one kind of data. This
