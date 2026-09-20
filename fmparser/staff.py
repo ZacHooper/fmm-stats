@@ -52,6 +52,10 @@ import struct
 
 import numpy as np
 
+from . import primitives as P
+from . import records as RD
+from .schema import Field, Record, U8, U16, U32, UNKNOWN
+
 # Offsets relative to the record start (= the ID2 u32).
 _ATTRS = {
     14: "attacking_intent",
@@ -117,6 +121,36 @@ _TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
 # the 1-20 attribute, not the label. Thirds of the scale; see the docstring for why, and for
 # why the Defensive edge (7 vs anything up to 11) is the part still to confirm.
 _STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
+
+# The record as ONE declaration, built from the offset tables above rather than retyping them
+# -- `_ATTRS`, `HIDDEN_OFFSETS` and `FORMATION_SLOTS` stay the source of truth because they
+# are what the evidence in the docstring is written against.
+#
+# The field ORDER here is the output order and is load-bearing: `staff.json` is written
+# without `sort_keys`, so re-sorting this list changes the file. It reproduces the order
+# `_parse` built its dict in.
+#
+# Note the last five bytes. `+34..+38` is real structure -- a 15-value index space disjoint
+# from the formation triple's -- and it is declared UNKNOWN rather than left out, because a
+# byte that is neither named nor declared is a byte we are stepping over by accident. Knowing
+# the record is EXACTLY 39 bytes is what settled Style: there is nowhere left in it for a
+# 3-valued enum, so Style has to be derived, and it is.
+STAFF = Record("staff_attribute", 39, [
+    Field(0,  4, "id2", U32, note="the info record's +64 link"),
+    Field(4,  2, "ca", U16, note="never surfaced -- immersion rule"),
+    Field(6,  2, "pa", U16, note="never surfaced -- immersion rule"),
+    Field(8,  2, "home_reputation", U16),
+    Field(10, 2, "current_reputation", U16),
+    Field(12, 2, "world_reputation", U16),
+    *[Field(o, 1, n, U8, group="attrs") for o, n in _ATTRS.items()],
+    *[Field(o, 1, n, U8, group="hidden") for o, n in HIDDEN_OFFSETS.items()],
+    *[Field(o, 1, n, U8, group="formation") for o, n in FORMATION_SLOTS.items()],
+    # the seven bytes of +14..+30 that `_ATTRS`/`HIDDEN_OFFSETS` do not claim would show up
+    # here; today they claim all seventeen, so this list is empty and must stay empty.
+    *[Field(o, 1, UNKNOWN, U8)
+      for o in range(14, 31) if o not in {**_ATTRS, **HIDDEN_OFFSETS}],
+    *[Field(o, 1, UNKNOWN, U8) for o in range(34, 39)],   # five catalog indices, undecoded
+])
 
 
 def style(attacking_intent):
@@ -223,18 +257,18 @@ def _discover_window(mm, margin=50_000):
 
 
 def _parse(mm, o):
-    u16 = lambda d: int.from_bytes(mm[o + d:o + d + 2], "little")
-    rec = {
-        "id2": int.from_bytes(mm[o:o + 4], "little"),
-        "offset": o,
-        "ca": u16(4), "pa": u16(6),
-        "home_reputation": u16(8),
-        "current_reputation": u16(10),
-        "world_reputation": u16(12),
-    }
-    rec.update({name: mm[o + d] for d, name in _ATTRS.items()})
-    rec.update({name: mm[o + d] for d, name in HIDDEN_OFFSETS.items()})
-    rec.update({name: mm[o + d] for d, name in FORMATION_SLOTS.items()})
+    """One staff record, read FROM the declaration.
+
+    Seeded with `id2` and `offset` so `offset` keeps its place as the second key -- `id2` is
+    then overwritten with the same value by `read_into`, which costs one read and means the
+    declaration stays the only place a field's position is stated.
+
+    `reputation_tier` and `style` are appended afterwards because they are DERIVED labels, not
+    fields: the save stores a reputation number and a 1-20 attribute, and the bands that turn
+    those into words are a judgement with evidence behind it (see the module docstring and
+    `tests/test_staff_records.py`). A layout cannot express that, and should not pretend to.
+    """
+    rec = RD.read_into({"id2": P.u32(mm, o), "offset": o}, mm, STAFF, o)
     rec["reputation_tier"] = reputation_tier(rec["world_reputation"])
     rec["style"] = style(rec["attacking_intent"])
     return rec

@@ -106,20 +106,6 @@ def _player_attr_layout():
     return f
 
 
-def _staff_layout():
-    f = [(0, 4, "id2"), (4, 2, "ca"), (6, 2, "pa"), (8, 2, "home_reputation"),
-         (10, 2, "current_reputation"), (12, 2, "world_reputation")]
-    f += [(o, 1, n) for o, n in ST._ATTRS.items()]
-    f += [(o, 1, n) for o, n in ST.HIDDEN_OFFSETS.items()]
-    f += [(o, 1, n) for o, n in ST.FORMATION_SLOTS.items()]
-    # +14..+30 is seventeen attribute bytes and every one is now carried, so nothing in the
-    # block should be left over. If this ever adds an entry again, a byte went unparsed.
-    named = {o for o, _, _ in f}
-    f += [(o, 1, UNKNOWN) for o in range(14, 31) if o not in named]
-    f += [(o, 1, UNKNOWN) for o in range(34, 39)]    # five catalog indices, undecoded
-    return f
-
-
 def _info_head_layout():
     """The INFO (person) record's fixed head -- taken straight from staging.INFO_LAYOUT.
 
@@ -248,7 +234,7 @@ LAYOUTS = {
     "player_attribute": (78, _player_attr_layout()),
     # NOT a stride -- the info record is variable-length; this is the fixed head we decode.
     "info_head": (S.INFO_HEAD, _info_head_layout()),
-    "staff_attribute": (39, _staff_layout()),
+    "staff_attribute": _from_record(ST.STAFF),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.
