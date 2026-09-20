@@ -89,6 +89,10 @@ sits inside that club's block. That is weaker than a key and is recorded as such
 named `player_id`, because guessing a name is how `-140` became a Style candidate.
 """
 import struct
+
+from . import primitives as P
+from . import records as RD
+from .schema import F32, Field, Record, U8, U16, U32
 from collections import defaultdict
 
 SEASON_LO, SEASON_HI = 0x07E4, 0x07EC        # 2020..2028, the seasons a save can hold
@@ -145,16 +149,42 @@ PLAYER_CATEGORIES = [
 ]
 
 
-def _u16(mm, o):
-    return struct.unpack_from("<H", mm, o)[0]
+# THE TWO ROWS, declared.
+#
+# Field order here is OUTPUT order, not offset order -- `season` sits at +20 in the player row
+# and is emitted before the three unknowns, which is how `player_records.json` has always been
+# written and it is written without `sort_keys`. Declaration order is free; offsets are not.
+#
+# The team row's `club_tid` is in its own group because it CANNOT be read per row: slots 1-2
+# are the league-position categories and carry 0xFFFF there, so the club is the value the
+# other ten slots agree on. Requiring row 1 to name the club finds nothing at all, which is
+# how that was caught. The block reads it through `TEAM_ROW.field("club_tid").offset` and
+# decides the club itself.
+TEAM_ROW = Record("club_team_record", TEAM_STRIDE, [
+    Field(0,  4, "value",         F32, group="row"),
+    Field(4,  2, "comp_cid",      U16, group="row"),
+    Field(6,  2, "season",        U16, group="row"),
+    Field(8,  2, "day",           U16, group="row"),
+    Field(10, 2, "unk10",         U16, group="row"),
+    Field(12, 2, "unk12",         U16, group="row"),
+    Field(14, 1, "unk14",         U8,  group="row"),
+    Field(15, 2, "club_tid",      U16, group="club",
+          note="0xffff on slots 1-2; the block decides the club, not the row"),
+    Field(17, 2, "opponent_tid",  U16, group="match"),
+    Field(19, 1, "score_for",     U8,  group="match"),
+    Field(20, 1, "score_against", U8,  group="match"),
+])
 
-
-def _u32(mm, o):
-    return struct.unpack_from("<I", mm, o)[0]
-
-
-def _f32(mm, o):
-    return struct.unpack_from("<f", mm, o)[0]
+PLAYER_ROW = Record("club_player_record", PLAYER_STRIDE, [
+    Field(0,  4, "player_tid", U32, note="verified 8/8 against Southampton's Club History"),
+    Field(4,  4, "value",      F32),
+    Field(20, 2, "season",     U16),
+    Field(8,  4, "unk8",       U32),
+    Field(12, 4, "unk12",      U32),
+    # NOT a terminator, though it reads ff ff ff ff in most rows: slots 1-2 of Southampton's
+    # block carry 1a 02 00 00, so gating on it drops the two categories the game lists FIRST.
+    Field(16, 4, "unk16",      U32),
+])
 
 
 def scrape_team_records(mm, valid_clubs, lo=0, hi=None):
@@ -180,7 +210,8 @@ def scrape_team_records(mm, valid_clubs, lo=0, hi=None):
         if not all(_team_row_ok(mm, r + n * TEAM_STRIDE, valid_clubs) for n in range(BLOCK)):
             r += 1
             continue
-        tids = [_u16(mm, r + n * TEAM_STRIDE + 15) for n in range(BLOCK)]
+        _club_off = TEAM_ROW.field("club_tid").offset
+        tids = [P.u16(mm, r + n * TEAM_STRIDE + _club_off) for n in range(BLOCK)]
         named = [x for x in tids if x != NO_OPPONENT]
         if len(named) < BLOCK - 2 or len(set(named)) != 1:
             r += 1
@@ -192,19 +223,16 @@ def scrape_team_records(mm, valid_clubs, lo=0, hi=None):
         for k in range(BLOCK):
             o = r + k * TEAM_STRIDE
             cat, kind = TEAM_CATEGORIES[k]
-            opp = _u16(mm, o + 17)
-            sf, sa = mm[o + 19], mm[o + 20]
-            row = {
-                "offset": o, "club_tid": club, "slot": k, "category": cat, "kind": kind,
-                "value": _f32(mm, o), "comp_cid": _u16(mm, o + 4),
-                "season": _u16(mm, o + 6), "day": _u16(mm, o + 8),
-                "unk10": _u16(mm, o + 10), "unk12": _u16(mm, o + 12), "unk14": mm[o + 14],
-            }
+            row = {"offset": o, "club_tid": club, "slot": k, "category": cat, "kind": kind}
+            row.update(RD.read_group(mm, TEAM_ROW, o, "row"))
+            fixture = RD.read_group(mm, TEAM_ROW, o, "match")
             # Only a `match` category has a real fixture attached. For `table` the opponent
             # is 0xFFFF and the scores 0xFF; for `streak` they are leftover bytes that WILL
             # look like a plausible fixture if you let them.
-            if kind == "match" and opp != NO_OPPONENT and sf != NO_SCORE and sa != NO_SCORE:
-                row.update(opponent_tid=opp, score_for=sf, score_against=sa)
+            if (kind == "match" and fixture["opponent_tid"] != NO_OPPONENT
+                    and fixture["score_for"] != NO_SCORE
+                    and fixture["score_against"] != NO_SCORE):
+                row.update(fixture)
             else:
                 row.update(opponent_tid=None, score_for=None, score_against=None)
             out.append(row)
@@ -216,11 +244,11 @@ def _team_row_ok(mm, r, valid_clubs):
     """Structural test for one team-record row: a real club, a plausible season and day."""
     if r < 0 or r + TEAM_STRIDE > len(mm):
         return False
-    if not (SEASON_LO <= _u16(mm, r + 6) <= SEASON_HI):
+    if not (SEASON_LO <= P.u16(mm, r + 6) <= SEASON_HI):
         return False
-    if _u16(mm, r + 8) > 366:
+    if P.u16(mm, r + 8) > 366:
         return False
-    cid = _u16(mm, r + 4)
+    cid = P.u16(mm, r + 4)
     return 0 <= cid < 20000
 
 
@@ -246,11 +274,9 @@ def scrape_player_records(mm, valid_players=None, lo=0, hi=None):
         for k in range(BLOCK):
             o = r + k * PLAYER_STRIDE
             cat, unit = PLAYER_CATEGORIES[k]
-            out.append({"offset": o, "slot": k, "category": cat, "unit": unit,
-                        "player_tid": _u32(mm, o), "value": _f32(mm, o + 4),
-                        "season": _u16(mm, o + 20),
-                        "unk8": _u32(mm, o + 8), "unk12": _u32(mm, o + 12),
-                        "unk16": _u32(mm, o + 16)})
+            out.append(RD.read_into(
+                {"offset": o, "slot": k, "category": cat, "unit": unit},
+                mm, PLAYER_ROW, o))
         r += BLOCK * PLAYER_STRIDE
     return out
 
@@ -267,11 +293,11 @@ def _player_row_ok(mm, r, valid_players=None):
     """
     if r < 0 or r + PLAYER_STRIDE > len(mm):
         return False
-    if not (SEASON_LO <= _u16(mm, r + 20) <= SEASON_HI):
+    if not (SEASON_LO <= P.u16(mm, r + 20) <= SEASON_HI):
         return False
     if mm[r + 7] == 0:
         return False
-    if valid_players is not None and _u32(mm, r) not in valid_players:
+    if valid_players is not None and P.u32(mm, r) not in valid_players:
         return False
     return True
 

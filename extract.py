@@ -32,6 +32,7 @@ from fmparser import attributes as A
 from fmparser import reference as R
 from fmparser import staging as S
 from fmparser import tagged as T
+from fmparser import fixtures as FIX
 from fmparser import lightresults as L
 from fmparser import careers as C
 from fmparser import history as H
@@ -189,7 +190,13 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
     R.build_name_resolver(mm, validate=validate)
 
     def full_name(tid, p):
-        return own_names.get(tid) or R.resolve_name(mm, p["first_name_id"], p["last_name_id"])
+        # Order matters. `own_names` is the managed squad's names straight off the squad
+        # snapshot -- what the GAME shows us -- so it wins outright. Then the common name,
+        # which is also a display name and is the reason 2,424 people used to appear under
+        # their full legal names ('Tite' as Adenor Leonardo Bachi). Legal name last.
+        return (own_names.get(tid)
+                or R.resolve_common_name(mm, p.get("common_name_id"))
+                or R.resolve_name(mm, p["first_name_id"], p["last_name_id"]))
 
     # A loanee's squad-list "loaned_in" flag is trusted for NAME purposes (that copy is
     # fine even stale) but NOT as proof the loan is still live: verified on this exact
@@ -562,6 +569,29 @@ def main():
          {str(t): {"league_cid": c, "league_name": (leagues.get(c) or {}).get("name")}
           for t, c in sorted(club2league.items())})
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
+    # The WORLD fixture list, from the zstd archive at the tail of the save
+    # (fmparser/fixtures.py -> fmparser/archive.py). ~27k matches over ~1,750 clubs against
+    # the ~60 of our own that matches.py parses.
+    #
+    # Three things this is NOT, all of them load-bearing:
+    #   * not history -- it is a TWO-CALENDAR-YEAR ROLLING WINDOW of matches already played,
+    #     so a 2026 save knows nothing about 2021. It enriches this snapshot only. Covering
+    #     the career means unioning it across snapshots, which nothing does yet.
+    #   * not scored -- the goal bytes sit in a variable-shape block and are right only when
+    #     that block takes its plain shape. See fixtures.py; they are not emitted.
+    #   * not attributed to a competition -- no competition field is identified in the record.
+    #
+    # Degrades to an empty file rather than failing the extract: the archive needs
+    # `uv sync --extra archive`, and a save could in principle carry no archive at all.
+    try:
+        world = FIX.fixtures(mm, valid_clubs=set(club_names))
+    except ImportError as e:
+        print(f"  NOTE: world fixtures skipped ({e}); run `uv sync --extra archive`")
+        world = []
+    except Exception as e:
+        print(f"  NOTE: world fixtures unavailable ({type(e).__name__}: {e})")
+        world = []
+    dump("world_fixtures.json", world, indent=None)
     # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
     # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py.
     # NB: `season` here is the MATCHES list; injuries key off the end-year int, derived below.
@@ -597,7 +627,8 @@ def main():
                    "staff": len(staff), "competitions": len(competitions),
                    "leagues": len(leagues), "clubs_named": len(club_names),
                    "injured_players": len(injuries),
-                   "loaned_out_players": len(loans)},
+                   "loaned_out_players": len(loans),
+                   "world_fixtures": len(world)},
     }
     dump("summary.json", summary)
 

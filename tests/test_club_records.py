@@ -21,6 +21,8 @@ from collections import defaultdict
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import skip  # noqa: E402
+
 from fmparser import clubrecords as CR      # noqa: E402
 from fmparser import staging as S           # noqa: E402
 from fmparser.save import Save              # noqa: E402
@@ -80,8 +82,7 @@ PLAYER_VALUES = [
 
 def main():
     if not os.path.exists(SAVE):
-        print(f"SKIP: {os.path.basename(SAVE)} not found (fetch with rclone or rebuild.py)")
-        return 0
+        return skip(f"{os.path.basename(SAVE)} not found (fetch with rclone or rebuild.py)")
     mm = Save(SAVE).mm
     info = S.scrape_players(mm)
     valid = {v["club_tid"] for v in info.values()

@@ -10,9 +10,12 @@ Reference-data resolvers: club names, competition names, and the player info fie
   and their per-match stat blocks.
 """
 import collections
-from datetime import date, timedelta
 from typing import NamedTuple
 import struct
+
+from . import primitives as P
+from . import records as RD
+from .schema import Field, PAD, Record, U8, U16, U32, UNKNOWN
 
 import numpy as np
 
@@ -283,6 +286,89 @@ def _comp_table_anchor(mm):
     return result
 
 
+# ---------------------------------------------------------------------------------------
+# THE COMPETITION RECORD'S FOUR FIXED PARTS.
+#
+# The record is `[cid u16][uid u32]` + three length-prefixed names + these four, in this
+# order, and only the four are fixed-width. It is the clearest example of what
+# `docs/parser-architecture.md` means by "counted and nested structures are not declarable":
+# there is no DSL here for `[count][entry x n]`, the arithmetic stays in `_read_comp_slot`,
+# and what IS declared is each fixed block.
+#
+# These four layouts lived in `scripts/audit_records.py` and were the last ones the AUDIT
+# owned rather than the parser. That inversion had already produced a real defect: the audit
+# declared `nation` as a u16 at +3 and both readers took `trailer[3]` alone.
+# ---------------------------------------------------------------------------------------
+COMP_TRAILER = Record("comp_trailer", 14, (
+    Field(0,  1, "type", U8),
+    Field(1,  2, "continent", U16, note="declared, not read"),
+    # A u16, and the width matters. Both readers used to take byte +3 alone and test it
+    # against 255, which gives the right answer today only by luck: the real sentinel is
+    # 0xFFFF and every nation id in this save happens to fit in a byte (227 nations, ids
+    # 1-249, six spare values). Verified on frem-2026-06-11: +4 is 0x00 for all 1,212
+    # nation-bound competitions and 0xFF for exactly the 60 carrying the sentinel.
+    Field(3,  2, "nation", U16),
+    Field(5,  2, "fg_colour", U16, note="declared, not read"),
+    Field(7,  2, "bg_colour", U16, note="declared, not read"),
+    Field(9,  2, "reputation", U16),
+    Field(11, 1, "level", U8),
+    Field(12, 2, "parent_cid", U16),
+), is_head=True)
+
+# A u8 PLUS THREE UNKNOWN BYTES, because the width is undecidable from this data. Bytes
+# +1..+3 are zero on all 46,641 slots across every archived save and the largest count
+# anywhere is 134, so a u8 followed by three zeros and a little-endian u32 cannot be told
+# apart. `_read_comp_slot` reads a u32, which is safe either way; the LAYOUT must not assert
+# what was not measured. A competition with 256+ entries would settle it.
+COMP_REF_COUNT = Record("comp_ref_count", 4, (
+    Field(0, 1, "n_refs", U8),
+    Field(1, 3, UNKNOWN, PAD),
+), is_head=True)
+
+# One entry in the counted reference list. The FIELDS are named; the LIST is not, on purpose
+# -- only 24 of 1,272 competitions populate it and the populated ones do not share a meaning
+# (Copa Libertadores: a qualification list; MLS: its 28 member clubs; Copa America: ten
+# national teams; Scottish Cup: 13 empty sentinels). See `comp_refs` for the full argument.
+#
+# `ref` is a club UID where positive and the NEGATIVE of a nation uid where negative --
+# exact on 62/62 negative refs. Resolve by uid, never by tid: 1,095 of these also match some
+# club's tid and that reading is wrong every time.
+#
+# `ordinal` is a u8 for the same reason as the count: the byte above it is 0 on 5,220 of
+# 5,237 entries and 1 on the other 17, so u8-plus-a-rare-flag and u16 are not separable.
+COMP_REF_ENTRY = Record("comp_ref_entry", 8, (
+    Field(0, 4, "ref", U32),
+    Field(4, 2, "season", U16),
+    Field(6, 1, "ordinal", U8),
+    Field(7, 1, UNKNOWN, PAD),
+))
+
+# The 21 fixed bytes that END the record, AFTER the reference list.
+#
+# THE ORDER WAS ESTABLISHED BY MEASUREMENT, and two earlier readings were wrong. It is NOT a
+# contiguous 25-byte head with the entries after it (which looks right because 1,348 of 1,372
+# records have an empty list, so the readings coincide), nor
+# `[count][3 stat u32][entries][3 season u16][tail]`. Every candidate ordering gives the same
+# record LENGTH, so arithmetic cannot separate them -- only content can. On the 914 records
+# that do carry entries, the three-u16 season triple reads as a plausible year (1990-2060) at
+# `record_end - 9` on 686 of them and at `count + 16` on ZERO.
+#
+# The three u32s and the three u16s are parallel arrays three seasons wide -- the shape of
+# fmm-editor's FMM26 `Competition` Rank[3]/Year[3]. Unlike the reference entries these u32s
+# do NOT resolve as clubs by either uid or tid (3F Superliga's read 505/526/507), so they
+# are carried UNNAMED.
+COMP_HISTORY_TAIL = Record("comp_history_tail", 21, (
+    Field(0,  4, UNKNOWN, PAD),
+    Field(4,  4, UNKNOWN, PAD),
+    Field(8,  4, UNKNOWN, PAD),
+    Field(12, 2, "season_0", U16),
+    Field(14, 2, "season_1", U16),
+    Field(16, 2, "season_2", U16),
+    Field(18, 2, UNKNOWN, PAD),
+    Field(20, 1, UNKNOWN, PAD),
+))
+
+
 def _read_comp_slot(mm, p):
     """Read ONE competition-table slot at `p` (a `[cid][uid]...` record start) by pure
     arithmetic -- no plausibility gate, no rejection outcome. Returns (rec_or_None, next_p):
@@ -305,21 +391,13 @@ def _read_comp_slot(mm, p):
     cl = int.from_bytes(mm[pp:pp + 4], "little")
     code = mm[pp + 4:pp + 4 + cl].decode("utf-8")
     pp = pp + 4 + cl
-    trailer = mm[pp:pp + 14]
-    typ = trailer[0]
-    # nation is a u16, not a byte. Both readers of this trailer used to take `trailer[3]`
-    # alone and test it against 255, which gives the right answer today only by luck: the
-    # real sentinel is 0xFFFF and every nation id in the save happens to fit in a byte
-    # (227 nations, ids 1-249, so six spare values). `scripts/audit_records.py` has always
-    # DECLARED this field as (3, 2) -- the parser was the half that disagreed, and reading
-    # the declared width is what makes the layout the schema rather than a second opinion.
-    # Verified byte-for-byte on frem-2026-06-11: +4 is 0x00 for all 1,212 nation-bound
-    # competitions and 0xFF for exactly the 60 that carry the sentinel, so the u16 read is
-    # behaviour-identical here and correct if a nation id ever crosses 255.
-    nation = int.from_bytes(trailer[3:5], "little")
-    rep = int.from_bytes(trailer[9:11], "little")
-    level = trailer[11]
-    parent = int.from_bytes(trailer[12:14], "little")
+    # The trailer, read from COMP_TRAILER. Four of its eight fields are declared and not
+    # read (`continent`, the two colours) -- declaring a field we choose not to surface is
+    # the point of the layout being the schema, and it is how `nation`'s width was settled.
+    t = RD.read_fields(mm, COMP_TRAILER, pp,
+                       ("type", "nation", "reputation", "level", "parent_cid"))
+    typ, nation = t["type"], t["nation"]
+    rep, level, parent = t["reputation"], t["level"], t["parent_cid"]
     # The record does NOT end at the trailer. What follows is a counted REFERENCE LIST --
     # `[n_refs]` then that many 8-byte entries -- and then a fixed 21-byte tail, so
     # `25 + 8 * n_refs`, which is the whole reason this function can report `next_p`.
@@ -339,9 +417,10 @@ def _read_comp_slot(mm, p):
     # own fields are decoded (`comp_ref_entry`) and readable via `comp_refs`, but are not
     # put in `rec`: only 24 of 1,272 competitions have any, and what the list MEANS varies
     # between them, so there is nothing yet worth a column. See `comp_refs`.
-    list_p = pp + 14
-    n_refs = int.from_bytes(mm[list_p:list_p + 4], "little")
-    next_p = list_p + 25 + 8 * n_refs
+    list_p = pp + COMP_TRAILER.span
+    n_refs = P.u32(mm, list_p)
+    next_p = (list_p + COMP_REF_COUNT.span + COMP_HISTORY_TAIL.span
+              + COMP_REF_ENTRY.span * n_refs)
     if ln == 0:
         return None, next_p
     rec = {"cid": cid, "uid": uid, "name": long, "short": short, "code": code,
@@ -484,17 +563,10 @@ def comp_refs(mm, cid):
     pp = pp + 4 + sl + 1
     cl = int.from_bytes(mm[pp:pp + 4], "little")
     pp = pp + 4 + cl
-    list_p = pp + 14
-    n = int.from_bytes(mm[list_p:list_p + 4], "little")
-    out = []
-    for k in range(n):
-        e = list_p + 4 + 8 * k
-        out.append({"ref": int.from_bytes(mm[e:e + 4], "little"),
-                    "season": int.from_bytes(mm[e + 4:e + 6], "little"),
-                    # u8, not u16: the byte above is 0 on 5,220 of 5,237 entries and 1 on
-                    # the other 17, so the two widths are not separable here
-                    "ordinal": mm[e + 6]})
-    return out
+    list_p = pp + COMP_TRAILER.span
+    n = P.u32(mm, list_p)
+    base = list_p + COMP_REF_COUNT.span
+    return [RD.read(mm, COMP_REF_ENTRY, base + COMP_REF_ENTRY.span * k) for k in range(n)]
 
 
 def comp_table_spans(mm):
@@ -1043,27 +1115,16 @@ def info_offset(mm, tid):
             return i
 
 
-def parse_info(mm, tid):
-    i = info_offset(mm, tid)
-    if i is None:
-        return None
-    u16 = lambda off: int.from_bytes(mm[i + off:i + off + 2], "little")
-    u32 = lambda off: int.from_bytes(mm[i + off:i + off + 4], "little")
-    day1, year = u16(20), u16(22)
-    try:
-        dob = (date(year, 1, 1) + timedelta(days=day1)).isoformat()
-    except ValueError:
-        dob = None
-    nat = u16(24)
-    return {
-        "tid": u32(0), "uid": u32(4),
-        "first_name_id": u32(8), "last_name_id": u32(12),
-        "dob": dob,
-        "nationality_id": nat, "nationality": NATIONS.get(nat, f"#{nat}"),
-        "flag28": mm[i + 28],   # likely 'declared national team' (see docs/BUGS.md #6)
-        "club_tid": u16(42),
-        "sid": mm[i + 60:i + 62].hex(),
-    }
+# `parse_info` lived here and was DEAD -- nothing in the repo called it (the two `archive/`
+# scripts that import `parse_info` import it from a top-level `info` module that no longer
+# exists, so they are already broken and not evidence of use). It is deleted rather than
+# migrated, which retires two real bugs at zero risk: it read `sid` as 2 bytes where
+# `staging.INFO_LAYOUT` says 4 and every other reader agrees, and it carried a `1955..2012`
+# DOB gate that `DOB_YEAR_HI = 2030` superseded in the live path.
+#
+# Its live sibling `info_offset` above still carries that same 1955..2012 gate. That one is a
+# REAL open bug, but a locating one: widening it changes which records are found, so it needs
+# a measured before/after count and does not belong in a migration commit.
 
 
 # ---------------- player names (whole DB) ----------------
@@ -1120,11 +1181,54 @@ def _walk_browse(mm):
     return _walk_browse_bounds(mm)[2]
 
 
+ID_TABLE_STRIDE = 16       # [browse ordinal u32][id u32][8 more]
+_ID_TABLE_FRAME = 12       # [8 x 0xFF][count u32] between one table's end and the next's base
+
+
+def _chain_id_tables(mm, first_base, limit=8):
+    """Every id-table from `first_base` on, by following the tables' own declared counts.
+
+    THE TABLES ARE CHAINED. Each one's declared end is followed immediately by the next
+    one's frame -- `[8 x 0xFF][count u32]`, 12 bytes -- so `next = base + count * 16 + 12`
+    lands exactly on the next base, with no search and no heuristic. Verified on both careers
+    and five in-game years: three tables every time, and the chain terminates by itself when
+    the frame test fails.
+
+    This is how the THIRD table was found. `_discover_id_tables`' probe anchors on id 8192
+    being present, and returned only two tables for the life of this parser -- so the
+    9,480-slot COMMON NAME table, sitting right behind the surnames, was never opened, and
+    2,424 people were shown under their full legal names: `Tite` as 'Adenor Leonardo Bachi',
+    `Renato Gaucho` as 'Renato Portaluppi'.
+
+    Returns [(base, declared_count), ...] in FILE order.
+    """
+    out, base = [], first_base
+    while len(out) < limit:
+        head = base - _ID_TABLE_FRAME
+        if head < 0 or not all(mm[head + k] == 0xFF for k in range(8)):
+            break
+        count = _u32(mm, base - 4)
+        if not (0 < count < 1_000_000):
+            break
+        if base + count * ID_TABLE_STRIDE > len(mm):
+            break
+        out.append((base, count))
+        base = base + count * ID_TABLE_STRIDE + _ID_TABLE_FRAME
+    return out
+
+
 def _discover_id_tables(mm, browse_len, probe=8192):
-    """Find the two dense id->ordinal tables. A record is 16 bytes with the id at +4 and
-    the browse ordinal at +0; ids run 0,1,2,… . Anchor on a mid-range id (present in both
-    tables), verify the dense run, walk back to base. Returns [(base, count), …] largest
-    first."""
+    """Find the dense id->ordinal tables. A record is 16 bytes with the id at +4 and
+    the browse ordinal at +0; ids run 0,1,2,… . Anchor on a mid-range id, verify the dense
+    run, walk back to base -- then CHAIN FORWARD from the earliest hit by declared count, so
+    a table too small for the probe to anchor in is still found. Returns [(base, count), …]
+    in FILE order, `count` being what each table declares about itself.
+
+    The probe still bounds what can be found at all: a table with fewer than `probe` slots
+    sitting BEFORE the first one would be missed, since the chain only runs forwards. No such
+    table exists in either career -- `scripts/audit_table_headers.py` inventories the section
+    -- but that is a measurement, not a guarantee.
+    """
     pat = struct.pack("<I", probe)
     bases = {}
     pos = 0
@@ -1144,10 +1248,18 @@ def _discover_id_tables(mm, browse_len, probe=8192):
                 while _u32(mm, base + n * 16 + 4) == n:
                     n += 1
                 bases[base] = n
-    return sorted(bases.items(), key=lambda x: -x[1])
+    if not bases:
+        return []
+    chained = _chain_id_tables(mm, min(bases))
+    # Fall back to the walked runs only if the chain does not reproduce them -- the declared
+    # counts are the better number (the surname walk stops at the first free slot, 3,523 of
+    # which are scattered through the table), but a chain that failed should not lose tables.
+    if len(chained) >= len(bases):
+        return chained
+    return sorted(bases.items())
 
 
-_NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname)
+_NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname, base_common)
 
 
 def build_name_resolver(mm, validate=None):
@@ -1158,9 +1270,14 @@ def build_name_resolver(mm, validate=None):
     browse = _walk_browse(mm)
     tabs = _discover_id_tables(mm, len(browse))
     if len(tabs) < 2:
-        _NAME_TABLES[_cache_key(mm)] = (browse, None, None)
+        _NAME_TABLES[_cache_key(mm)] = (browse, None, None, None)
         return False
-    big, small = tabs[0][0], tabs[1][0]
+    # By SIZE for the two name tables, because that is what the orientation heuristic below
+    # has always keyed on. The COMMON NAME table is whatever is left over -- it is the
+    # smallest by a wide margin (9,480 against 19,128 and 32,148) and last in the chain.
+    by_size = sorted((c, b) for b, c in tabs)
+    big, small = by_size[-1][1], by_size[-2][1]
+    base_common = by_size[0][1] if len(tabs) > 2 else None
     base_sur, base_first = big, small           # heuristic: more surnames than first names
     if validate:
         def score(bf, bs):
@@ -1174,8 +1291,30 @@ def build_name_resolver(mm, validate=None):
             return ok
         if score(big, small) > score(small, big):
             base_first, base_sur = big, small   # swap only if that orientation fits better
-    _NAME_TABLES[_cache_key(mm)] = (browse, base_first, base_sur)
+    _NAME_TABLES[_cache_key(mm)] = (browse, base_first, base_sur, base_common)
     return True
+
+
+def resolve_common_name(mm, common_name_id):
+    """The name the game DISPLAYS, when a person has one, else None.
+
+    `common_name_id` is `staging.INFO_LAYOUT` +16 (People.cs `CommonNameId`), 0xFFFFFFFF when
+    unset. It indexes the third id-table, not either name table. Set on 2,424 of 32,760
+    people (7.4%) on frem-2023-07-02, and all 2,424 resolve.
+
+    This is a DISPLAY name and often not a shortening of the legal one at all -- 'Tite' for
+    Adenor Leonardo Bachi, 'Renato Gaucho' for Renato Portaluppi, 'Michel' for Jose Miguel
+    Gonzalez Martin del Campo -- so it cannot be derived from the first/last ids and has to
+    come from the table.
+    """
+    t = _NAME_TABLES.get(_cache_key(mm))
+    if not t or t[3] is None or common_name_id is None or common_name_id == P.NO_ID32:
+        return None
+    browse, _, _, base_common = t
+    try:
+        return browse[_u32(mm, base_common + common_name_id * ID_TABLE_STRIDE)]
+    except IndexError:
+        return None
 
 
 def resolve_name(mm, first_name_id, last_name_id):
@@ -1184,7 +1323,7 @@ def resolve_name(mm, first_name_id, last_name_id):
     t = _NAME_TABLES.get(_cache_key(mm))
     if not t or t[1] is None:
         return None
-    browse, base_first, base_sur = t
+    browse, base_first, base_sur, _ = t
     try:
         return f"{browse[_u32(mm, base_first + first_name_id * 16)]} " \
                f"{browse[_u32(mm, base_sur + last_name_id * 16)]}"

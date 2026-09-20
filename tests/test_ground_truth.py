@@ -15,6 +15,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import find_save, skip  # noqa: E402
+
 from fmparser.save import Save                        # noqa: E402
 from fmparser import matches as M                     # noqa: E402
 from fmparser import attributes as A                  # noqa: E402
@@ -26,7 +28,12 @@ LOANED_OUT = {21358, 22083, 22097, 22099, 22254, 22908}
 NOT_LOANED = {22498, 33913, 30975}
 
 # 21-22 saves to try, in order, if none is passed on the command line
-CANDIDATES = ["21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
+# The 21-22 Bucaspor save this test's ground truth was measured on. The canonical name comes
+# first; the spellings after it are what the file was called before
+# `scripts/canonicalise_names.py` retired them, kept so an un-migrated machine still finds it.
+# `harness.find_save` looks under $FM_SAVES_DIR as well as the repo root -- looking ONLY in
+# the repo root is why this test silently stopped running.
+CANDIDATES = ["bucaspor-2022-06-01.fms", "21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
 
 # --- ground truth (Karacabey 3-3 Bucaspor, 30 Apr 2022, + two scouted opponents) ---
 MATCH = {"home_tid": 6353, "away_tid": 6567}
@@ -53,11 +60,9 @@ def _check(cond, msg, fails):
 
 def run(save_path=None):
     if save_path is None:
-        save_path = next((os.path.join(ROOT, c) for c in CANDIDATES
-                          if os.path.exists(os.path.join(ROOT, c))), None)
+        save_path = find_save(*CANDIDATES)
     if not save_path or not os.path.exists(save_path):
-        print("SKIP: no 21-22 save found (tried: " + ", ".join(CANDIDATES) + ")")
-        return 0
+        return skip("no 21-22 save found (tried: " + ", ".join(CANDIDATES) + ")")
     s = Save(save_path)
     fails = []
     print(f"(using {os.path.basename(save_path)})")

@@ -455,6 +455,26 @@ def report(save, verbose=True):
 # That is both cheaper (no full scrape) and stronger evidence, and it is what makes a
 # cross-career sweep affordable.
 
+def _person_table_base(mm, limit=1_200_000, filler=4096):
+    """Offset of the person table's record 0, or None.
+
+    The table's base is the first run of >= 8 0xFF in the first megabyte that is preceded by
+    a long run of 0x00 -- the filler behind the browse name table. Requiring the filler is
+    what stops an ordinary record ending in FF from being mistaken for a table base, and it
+    needs no offset: `table-framing.md` warns to test for >= 8, never == 8.
+    """
+    run = 0
+    for p in range(filler, min(limit, len(mm))):
+        if mm[p] == 0xFF:
+            run += 1
+            continue
+        if run >= 8:
+            if all(mm[q] == 0 for q in range(p - run - filler, p - run)):
+                return p + 4              # skip the u32 count, which is flush against rec 0
+        run = 0
+    return None
+
+
 def confirm(mm):
     """[(table, declared, ok, detail)] -- each declared count checked against its own table."""
     out = []
@@ -474,6 +494,26 @@ def confirm(mm):
         elif stride == 39 and attrs_start is not None:
             ok = sum(1 for k in range(n) if _u(mm, start + 39 * k, 4) == k)
             add("staff_attributes", n, ok == n, f"id2 == slot index on {ok} of {n}")
+
+    # ---- the PERSON table (info spine). Found 2026-09-20; this file used to say "no
+    # header found", because it looked near the first record the SWEEP reaches instead of
+    # at the table's base -- the same mistake the staff grid already taught once.
+    #
+    # The base is the first run of >= 8 0xFF below 1 MB, which sits just past the ~53 KB of
+    # zero filler that follows the browse name table. The check is structural and cheap: the
+    # run must be preceded by real filler (so it is a table base and not a record that
+    # happens to end in FF), and the count must be person-shaped. Its real value is the
+    # cross-save tally `--confirm` prints, which shows the count is CAREER-CONSTANT and
+    # career-specific -- a per-database pool, like the history slab.
+    base = _person_table_base(mm)
+    if base is None:
+        add("person_table", 0, False, "no >=8-FF run below 1 MB preceded by zero filler")
+    else:
+        declared = _u(mm, base - 4, 4)
+        ok = 20_000 <= declared <= 60_000
+        add("person_table", declared, ok,
+            f"record 0 at {base}; count flush against it"
+            f"{'' if ok else ' -- NOT person-shaped'}")
 
     # ---- the two name id-tables: the LAST declared slot must be a valid entry
     browse = R._walk_browse(mm)

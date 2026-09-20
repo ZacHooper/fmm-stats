@@ -52,6 +52,11 @@ import struct
 
 import numpy as np
 
+from . import primitives as P
+from . import records as RD
+from .save import cache_key as _cache_key
+from .schema import Field, Record, U8, U16, U32, UNKNOWN
+
 # Offsets relative to the record start (= the ID2 u32).
 _ATTRS = {
     14: "attacking_intent",
@@ -117,6 +122,36 @@ _TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
 # the 1-20 attribute, not the label. Thirds of the scale; see the docstring for why, and for
 # why the Defensive edge (7 vs anything up to 11) is the part still to confirm.
 _STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
+
+# The record as ONE declaration, built from the offset tables above rather than retyping them
+# -- `_ATTRS`, `HIDDEN_OFFSETS` and `FORMATION_SLOTS` stay the source of truth because they
+# are what the evidence in the docstring is written against.
+#
+# The field ORDER here is the output order and is load-bearing: `staff.json` is written
+# without `sort_keys`, so re-sorting this list changes the file. It reproduces the order
+# `_parse` built its dict in.
+#
+# Note the last five bytes. `+34..+38` is real structure -- a 15-value index space disjoint
+# from the formation triple's -- and it is declared UNKNOWN rather than left out, because a
+# byte that is neither named nor declared is a byte we are stepping over by accident. Knowing
+# the record is EXACTLY 39 bytes is what settled Style: there is nowhere left in it for a
+# 3-valued enum, so Style has to be derived, and it is.
+STAFF = Record("staff_attribute", 39, [
+    Field(0,  4, "id2", U32, note="the info record's +64 link"),
+    Field(4,  2, "ca", U16, note="never surfaced -- immersion rule"),
+    Field(6,  2, "pa", U16, note="never surfaced -- immersion rule"),
+    Field(8,  2, "home_reputation", U16),
+    Field(10, 2, "current_reputation", U16),
+    Field(12, 2, "world_reputation", U16),
+    *[Field(o, 1, n, U8, group="attrs") for o, n in _ATTRS.items()],
+    *[Field(o, 1, n, U8, group="hidden") for o, n in HIDDEN_OFFSETS.items()],
+    *[Field(o, 1, n, U8, group="formation") for o, n in FORMATION_SLOTS.items()],
+    # the seven bytes of +14..+30 that `_ATTRS`/`HIDDEN_OFFSETS` do not claim would show up
+    # here; today they claim all seventeen, so this list is empty and must stay empty.
+    *[Field(o, 1, UNKNOWN, U8)
+      for o in range(14, 31) if o not in {**_ATTRS, **HIDDEN_OFFSETS}],
+    *[Field(o, 1, UNKNOWN, U8) for o in range(34, 39)],   # five catalog indices, undecoded
+])
 
 
 def style(attacking_intent):
@@ -223,39 +258,109 @@ def _discover_window(mm, margin=50_000):
 
 
 def _parse(mm, o):
-    u16 = lambda d: int.from_bytes(mm[o + d:o + d + 2], "little")
-    rec = {
-        "id2": int.from_bytes(mm[o:o + 4], "little"),
-        "offset": o,
-        "ca": u16(4), "pa": u16(6),
-        "home_reputation": u16(8),
-        "current_reputation": u16(10),
-        "world_reputation": u16(12),
-    }
-    rec.update({name: mm[o + d] for d, name in _ATTRS.items()})
-    rec.update({name: mm[o + d] for d, name in HIDDEN_OFFSETS.items()})
-    rec.update({name: mm[o + d] for d, name in FORMATION_SLOTS.items()})
+    """One staff record, read FROM the declaration.
+
+    Seeded with `id2` and `offset` so `offset` keeps its place as the second key -- `id2` is
+    then overwritten with the same value by `read_into`, which costs one read and means the
+    declaration stays the only place a field's position is stated.
+
+    `reputation_tier` and `style` are appended afterwards because they are DERIVED labels, not
+    fields: the save stores a reputation number and a 1-20 attribute, and the bands that turn
+    those into words are a judgement with evidence behind it (see the module docstring and
+    `tests/test_staff_records.py`). A layout cannot express that, and should not pretend to.
+    """
+    rec = RD.read_into({"id2": P.u32(mm, o), "offset": o}, mm, STAFF, o)
     rec["reputation_tier"] = reputation_tier(rec["world_reputation"])
     rec["style"] = style(rec["attacking_intent"])
     return rec
 
 
+STAFF_STRIDE = 39
+_STAFF_FRAME = 12          # [8 x 0xFF][count u32] in front of record 0
+_STAFF_TABLE_CACHE = {}
+
+
+def staff_table(mm):
+    """(base, declared_count) for the staff attribute grid, or None.
+
+    THE TABLE IS A DENSE ARRAY AND `id2 == slot index`, on 4642/4642 slots for Frem and
+    5697/5697 for Bucaspor. This contradicts what this module used to claim -- see
+    `scrape_staff_attributes` -- and the contradiction is resolved by the stride: the record
+    is 39 bytes, not the player record's 78. Read at 78 the ids come out 0, 2, 4, ... and
+    `id2 == slot` holds on exactly 1 slot, which is what "multi-segment" was inferred from.
+
+    Located from any one validated record rather than from a constant: if a record at `o`
+    carries `id2 == k` then record 0 is at `o - k * 39`, and the count-frame in front of it
+    confirms the guess. The frame is then checked against the grid itself -- every declared
+    slot must satisfy `id2 == slot` -- so a wrong base fails loudly instead of returning a
+    plausible half-table.
+    """
+    # `save.cache_key`, never `id(mm)`: CPython reuses the id of a freed object, so a loop
+    # over saves gets served the previous save's base -- and a stale ABSOLUTE OFFSET is the
+    # worst kind of stale, it walks into the middle of an unrelated record.
+    key = _cache_key(mm)
+    if key in _STAFF_TABLE_CACHE:
+        return _STAFF_TABLE_CACHE[key]
+    found = None
+    n = len(mm)
+    for o in _candidates(mm).tolist()[:4000]:
+        if not _valid(mm, o, n):
+            continue
+        k = int.from_bytes(mm[o:o + 4], "little")
+        if not (0 <= k < 1_000_000):
+            continue
+        base = o - k * STAFF_STRIDE
+        if base < _STAFF_FRAME:
+            continue
+        if not all(mm[base - 4 - 1 - j] == 0xFF for j in range(8)):
+            continue
+        count = int.from_bytes(mm[base - 4:base], "little")
+        if not (0 < count < 1_000_000) or k >= count:
+            continue
+        if base + count * STAFF_STRIDE > n:
+            continue
+        if all(int.from_bytes(mm[base + j * STAFF_STRIDE:base + j * STAFF_STRIDE + 4],
+                              "little") == j for j in range(count)):
+            found = (base, count)
+            break
+    _STAFF_TABLE_CACHE[key] = found
+    return found
+
+
 def scrape_staff_attributes(mm, id2s, lo=None, hi=None):
     """{id2: record} for each id in `id2s` that has a staff attribute record.
 
-    Looked up BY KEY, not by walking the grid. The records sit on the same 78-byte stride as
-    player attribute records but the table is MULTI-SEGMENT, so its phase resets: of the 7
-    ground-truth managers, consecutive offsets differ by 19,929 and 8,541 bytes, neither a
-    multiple of 78. A `+= RECORD` sweep therefore desynchronises at the first segment break
-    and silently drops most of the table (it found 2 of 7 known managers). Searching the
-    4-byte key inside the discovered window is both correct and collision-resistant, because
-    every hit is then validated structurally.
+    Looked up BY ARITHMETIC when the grid can be located -- `id2` IS the slot index, so the
+    record is at `base + id2 * 39` and there is nothing to search. Falls back to the old key
+    search over shape-matched candidates if the table cannot be framed.
+
+    THE CORRECTION THIS CARRIES. That fallback used to be the whole story, justified like
+    this: "the records sit on the same 78-byte stride as player attribute records but the
+    table is MULTI-SEGMENT, so its phase resets: of the 7 ground-truth managers, consecutive
+    offsets differ by 19,929 and 8,541 bytes, neither a multiple of 78." The observation was
+    right and the conclusion was wrong -- the stride is 39, and 19,929 and 8,541 are exactly
+    511 and 219 records of it. There are no segments and no phase resets; there was an
+    off-by-a-factor-of-two in the stride, and "a grid walk is provably impossible" followed
+    from it. The arithmetic agrees with the key search on every record the search finds
+    (4,449/4,449 on Frem and 5,462/5,462 on Bucaspor, zero disagreements) and additionally
+    rejects one Frem hit whose id2 lies past the declared end of the table.
     """
     wanted = {i for i in id2s if i not in (None, 0, 0xFFFFFFFF)}
     if not wanted:
         return {}
     n = len(mm)
     out = {}
+    table = staff_table(mm)
+    if table is not None:
+        base, count = table
+        for id2 in sorted(wanted):
+            if not (0 <= id2 < count):
+                continue          # past the table's own declared end: not a record
+            o = base + id2 * STAFF_STRIDE
+            if (lo is not None and not (lo <= o < hi)) or not _valid(mm, o, n):
+                continue
+            out[id2] = _parse(mm, o)
+        return out
     for o in _candidates(mm).tolist():
         if lo is not None and not (lo <= o < hi):
             continue

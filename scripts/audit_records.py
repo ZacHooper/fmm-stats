@@ -43,8 +43,14 @@ sys.path.insert(0, ROOT)
 
 from fmparser import attributes as A          # noqa: E402
 from fmparser import staff as ST              # noqa: E402
+from fmparser import lookups as LK            # noqa: E402
 from fmparser import places as PL             # noqa: E402
+from fmparser import reference as R           # noqa: E402
+from fmparser import clubrecords as CR        # noqa: E402
+from fmparser import history as H             # noqa: E402
+from fmparser import matches as MT            # noqa: E402
 from fmparser import staging as S             # noqa: E402
+from fmparser import fixtures as FX           # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -56,191 +62,64 @@ from fmparser import staging as S             # noqa: E402
 UNKNOWN = "UNKNOWN"
 
 
-def _player_attr_layout():
-    """The global player attribute record, anchored on the SID at P-42.
+def _from_record(rec):
+    """A `fmparser.schema.Record` in this module's `(stride, [(off, width, name)])` shape.
 
-    Built from the parser's own tables rather than retyped, so the audit cannot drift from
-    the code it is auditing: ATTR_OFFSETS and record_tail are the source of truth.
+    The audit's own vocabulary predates `schema.py` and drops `kind`, so it stays as it is;
+    what matters is that a migrated record is DECLARED ONCE and this reads that declaration.
+    `schema.UNKNOWN` is mapped onto the local string so `_coverage` keeps working unchanged.
     """
-    f = [(0, 4, "sid")]
-    for rel, name in A.ATTR_OFFSETS.items():        # P-29 .. P-5, the named attributes
-        f.append((42 + rel, 1, name))
-    for rel, name in A.HIDDEN_OFFSETS.items():      # the 9 unnamed 1-20 attribute bytes
-        f.append((42 + rel, 1, name))
-    f += [(42, 15, "positions"), (57, 1, "foot_left"), (58, 1, "foot_right"),
-          (59, 2, "ca"), (61, 2, "pa"), (63, 2, "home_reputation"),
-          (65, 2, "current_reputation"), (67, 2, "world_reputation"),
-          (69, 1, "international_retired"),
-          (70, 2, UNKNOWN),                          # P+28..29, "always 0" in FMM26
-          (72, 1, "squad_number"), (73, 1, "preferred_squad_number"),
-          (74, 2, "height_cm"), (76, 2, "weight_kg")]
-    # The ENTANGLED source bytes: 0-255, decoded to a displayed 1-20 value by the frozen model
-    # rather than read straight. Not unknown -- `attributes.SRC_OFFSETS` names each one and the
-    # store now carries them raw -- so `_src` marks that the byte is the SOURCE of the
-    # attribute and not the attribute.
-    #
-    # Worth noting while here: the frozen model needs a PARTNER byte for exactly two
-    # attributes, Aerial (P-29 + P-28) and Shooting (P-31 + P-30). Those are precisely the two
-    # that fmm-editor's order says are composites -- Heading + Jumping, Finishing + LongShots.
-    # A least-squares fit found that years before anyone read Player.cs.
-    for rel, name in A.SRC_OFFSETS.items():
-        f.append((42 + rel, 1, name))
-    # rel 4..7 is the P-38 history link (docs/agent-context/history-chain-pointers.md).
-    f += [(4, 4, "history_link_P38")]
-    named = set()
-    for off, width, _ in f:
-        named.update(range(off, off + width))
-    f += [(o, 1, UNKNOWN) for o in range(0, 42) if o not in named]
-    return f
-
-
-def _staff_layout():
-    f = [(0, 4, "id2"), (4, 2, "ca"), (6, 2, "pa"), (8, 2, "home_reputation"),
-         (10, 2, "current_reputation"), (12, 2, "world_reputation")]
-    f += [(o, 1, n) for o, n in ST._ATTRS.items()]
-    f += [(o, 1, n) for o, n in ST.HIDDEN_OFFSETS.items()]
-    f += [(o, 1, n) for o, n in ST.FORMATION_SLOTS.items()]
-    # +14..+30 is seventeen attribute bytes and every one is now carried, so nothing in the
-    # block should be left over. If this ever adds an entry again, a byte went unparsed.
-    named = {o for o, _, _ in f}
-    f += [(o, 1, UNKNOWN) for o in range(14, 31) if o not in named]
-    f += [(o, 1, UNKNOWN) for o in range(34, 39)]    # five catalog indices, undecoded
-    return f
-
-
-def _info_head_layout():
-    """The INFO (person) record's fixed head -- taken straight from staging.INFO_LAYOUT.
-
-    Not retyped: that table is what `_decode_info` reads from, so the audit is checking the
-    parser's own declaration rather than a copy that can rot. The record as a whole is
-    variable-length (counted language and relationship lists follow), so there is no stride to
-    measure and only the head is covered.
-    """
-    f = [(off, width, name) for off, width, name, _ in S.INFO_LAYOUT]
-    named = set()
-    for off, width, _ in f:
-        named.update(range(off, off + width))
-    f += [(o, 1, UNKNOWN) for o in range(0, S.INFO_HEAD) if o not in named]
-    return f
-
-
-def _comp_trailer_layout():
-    """The competition record's fixed 14-byte trailer, starting right after its 3
-    length-prefixed names (long/short/code) -- offsets straight from
-    `reference._read_comp_slot`, not retyped.
-
-    Like `info_head`, this is NOT a stride: the names in front are variable-length. It is
-    also not the whole record -- `comp_history_head` below covers what follows it.
-
-    `nation` is declared here as a u16 and that is the correct width: byte +4 is 0x00 for
-    all 1,212 nation-bound competitions on frem-2026-06-11 and 0xFF for exactly the 60 that
-    carry the 0xFFFF sentinel. `_read_comp_slot` read it as a single byte against 255 until
-    2026-09-18 -- right answer, wrong width, and only because all 227 nation ids in the save
-    fit in a byte (1-249). The parser now reads the declared width. This is what COVERAGE is
-    for: the layout and the parser disagreeing is a defect even when the output matches.
-    """
-    return [(0, 1, "type"), (1, 2, "continent"), (3, 2, "nation"),
-            (5, 2, "fg_colour"), (7, 2, "bg_colour"),
-            (9, 2, "reputation"), (11, 1, "level"), (12, 2, "parent_cid")]
-
-
-def _comp_ref_count_layout():
-    """The count of 8-byte reference entries that follows the competition trailer.
-
-    **A u8 plus three UNKNOWN bytes, because the width is undecidable from this data.**
-    Bytes +1..+3 are zero on all 46,641 slots across every archived save and the largest
-    count anywhere is 134, so a `u8` followed by three zero bytes and a little-endian `u32`
-    cannot be told apart. `reference._read_comp_slot` reads a u32, which is safe either way;
-    the LAYOUT must not assert what was not measured. A save with 256+ entries in one
-    competition would settle it.
-    """
-    return [(0, 1, "n_refs"), (1, 3, UNKNOWN)]
-
-
-def _comp_ref_entry_layout():
-    """One 8-byte entry in the competition's reference list. Fields decoded; what the LIST
-    MEANS is deliberately NOT named -- see below, it is not one thing.
-
-    `ref` resolves as a club **UID** for club competitions, and that identification is solid:
-    Major League Soccer's entries come back as its 28 member clubs (D.C. United, LA Galaxy,
-    Atlanta United, Charlotte FC, Chicago Fire, CF Montréal), and Copa Libertadores' as
-    Bolivian and Ecuadorian clubs (Club The Strongest, Club Bolívar, Royal Pari) in the right
-    competition. `0xFFFFFFFF` is the empty-slot sentinel. **Resolve by UID, never by tid:**
-    1,095 of these values also match some club's tid and that reading is wrong every time --
-    uid 1913 is D.C. United (right for MLS), tid 1913 is York United.
-
-    **The SIGN is the discriminator: positive is a club, negative is a NATIONAL TEAM, and
-    `-ref` is that nation's `uid` from `lookups.scrape_nations`.** Exact on 62/62 negative
-    refs -- Copa América's ten are CONMEBOL's ten members exactly, the European International
-    League divisions are European nations. They occupy consecutive negative ids because the
-    nation table is alphabetical and negating reverses it. `0xFFFFFFFF` (-1) is the empty
-    sentinel, not a nation; no nation has uid 1. A national team is stored as a club-shaped
-    record that the club scan cannot admit (its uid fails both uid bands) -- 202 of 227
-    nations have one; see docs/TODO.md, it belongs with the club table, not here.
-
-    `ordinal` is declared as a u8 for the same reason as the count: the byte above it is 0 on
-    5,220 of 5,237 entries and 1 on the other 17, so u8-plus-a-rare-flag and u16 are not
-    separable here. Values are small (1, 2, 3 ...) and read as a placing where the list is a
-    qualification list.
-
-    WHY THE LIST ITSELF IS UNNAMED. It was briefly called the `Qualifiers` table (fmm-editor
-    has one, `n × 8 bytes`, which this may well be) and Zac was right to push back: only 24 of
-    1,272 competitions populate it at all, and the populated ones do not share one meaning.
-      * Copa Libertadores: 47 entries per season for two seasons, each with a domestic
-        qualifying position. A qualifier list, exactly.
-      * Major League Soccer: its 28 member clubs, with Charlotte FC stamped season 2022 --
-        its real expansion year. A membership list, not a qualification.
-      * Canadian Championship: 3 entries -- Forge FC, Toronto FC, CF Montréal, i.e. the
-        Canadian clubs that play in FOREIGN leagues but enter the Canadian cup. Reads as
-        "entrants the league structure cannot imply".
-      * Copa América: 10 national-team refs (negative), no clubs.
-      * Scottish Cup: 13 entries, ALL `0xFFFFFFFF`. Reserved and empty.
-      * Italian Cup: 4 entries (3 Serie C clubs + a sentinel) against a ~78-team real field.
-    And the asymmetry that makes a single label untenable: European Champions Cup has ZERO
-    while Copa Libertadores / Asian / African Champions Leagues have 94 / 47 / 54, and 3F
-    Superliga has zero while MLS has 28. A plausible story is "an explicit entrant list,
-    stored only where the field cannot be derived from the league structure the game
-    simulates" -- promotion/relegation pyramids and UEFA coefficients being derivable, a
-    closed franchise league and CONMEBOL's entrants not. That is a story, not a decode, so
-    the layout names the FIELDS and leaves the list structural.
-    """
-    return [(0, 4, "ref"), (4, 2, "season"), (6, 1, "ordinal"), (7, 1, UNKNOWN)]
-
-
-def _comp_history_tail_layout():
-    """The 21 fixed bytes that END a competition record, AFTER the reference list.
-
-    THE ORDER HERE WAS ESTABLISHED BY MEASUREMENT, NOT ASSUMED, and two earlier readings of
-    it were wrong. The fixed part is NOT a contiguous 25-byte head with the qualifiers after
-    it (which is how it was first declared, and which looks right because 1,348 of 1,372
-    records have zero entries, so the two readings coincide); nor is it
-    `[count][3 stat u32][entries][3 season u16][tail]`, which is what docs/TODO.md
-    claimed. All the candidate orderings give the same record length, so arithmetic cannot
-    separate them -- only content can. On the 914 records that DO carry entries, the
-    three-u16 season triple reads as a plausible year (1990-2060) at `record_end - 9` on 686
-    of them and at `count + 16` on ZERO. So: count, then the qualifiers, then this.
-
-    The three u32s and the three u16s are parallel arrays, three seasons wide, which is
-    exactly the shape of fmm-editor's FMM26 `Competition` Rank[3]/Year[3] history -- and
-    unlike the reference entries, these u32s do NOT resolve as clubs by either uid or tid
-    (3F Superliga's read 505/526/507), so they are carried UNNAMED. Both arrays go
-    0xFF-sentinel on records that carry a full reference list instead, which is itself a
-    hint about what the two represent.
-    """
-    return [(0, 4, UNKNOWN), (4, 4, UNKNOWN), (8, 4, UNKNOWN),
-            (12, 2, "season_0"), (14, 2, "season_1"), (16, 2, "season_2"),
-            (18, 2, UNKNOWN), (20, 1, UNKNOWN)]
+    return (rec.stride or rec.span,
+            [(f.offset, f.width, f.name if f.emits else UNKNOWN)
+             for f in rec.fields if not f.alias])
 
 
 LAYOUTS = {
-    "player_attribute": (78, _player_attr_layout()),
-    # NOT a stride -- the info record is variable-length; this is the fixed head we decode.
-    "info_head": (S.INFO_HEAD, _info_head_layout()),
-    "staff_attribute": (39, _staff_layout()),
-    "city": (PL.CITY_RECORD, [
-        (0, 2, "id"), (2, 4, "uid"), (6, 2, "nation_id"),
-        (8, 4, "latitude"), (12, 4, "longitude"),
-        (16, 1, "attraction"), (17, 2, "region_id"), (19, 1, UNKNOWN)]),
+    # From the parser's declaration. `_from_record` drops alias fields, which is how
+    # `PLAIN_OFFSETS` can finally be DECLARED alongside `ATTR_OFFSETS` -- the two name the
+    # identical nine bytes, so the old hand-built layout had to omit one of them or trip its
+    # own overlap check, and it silently omitted the one the parser reads.
+    "player_attribute": _from_record(A.PLAYER),
+    # NOT a stride -- the info record is variable-length; this is the fixed head we decode,
+    # which is what `Record(is_head=True)` declares.
+    "info_head": _from_record(S.INFO_LAYOUT),
+    "staff_attribute": _from_record(ST.STAFF),
+    # NEW to the audit. This record was read by `matches.decode_block` and audited by
+    # nothing -- 29 of its 54 bytes named, the other 25 neither named nor declared, and no
+    # entry here at all. Its stride is not measurable the way a grid's is (blocks sit inside
+    # a match, found by delimiter, not on a file-wide grid), so COVERAGE is what this buys.
+    "match_player_block": _from_record(MT.BLOCK_REC),
+    # Also new to the audit. The slab is read COLUMN-WISE with numpy (265,423 rows), so its
+    # stride is a property of the locator rather than of a gap histogram -- COVERAGE is the
+    # check that matters, and it is what surfaces `+12..+13` as declared-unknown instead of
+    # as two bytes nobody had looked at.
+    "history_row": _from_record(H.ROW),
+    # The Club History tables, both new to the audit. These walk in whole 12-slot BLOCKS --
+    # the slot index IS the category, there is no category id in the record -- so the modal
+    # gap a STRIDE check measures is the block stride, not the row stride. COVERAGE is the
+    # useful part: 21 and 22 bytes, fully claimed.
+    "club_team_record": _from_record(CR.TEAM_ROW),
+    "club_player_record": _from_record(CR.PLAYER_ROW),
+    # Both contract records: found by KEY SEARCH, so neither has a stride and the span is
+    # what we read rather than what the record is. The status record's 29 unnamed middle
+    # bytes become visible here for the first time.
+    "contract_status": _from_record(S.CONTRACT_STATUS),
+    "contract_detail": _from_record(S.CONTRACT_DETAIL),
+    # The three SEEDED-CHAIN tables (shape E): variable-length records with no count and no
+    # index, so each contributes a fixed head and a fixed tail rather than a stride. None of
+    # these was in the audit before, which is why the fixed parts were only ever described in
+    # prose.
+    "stadium_head": _from_record(PL.STADIUM_HEAD),
+    "language_head": _from_record(LK.LANGUAGE_HEAD),
+    "language_tail": _from_record(LK.LANGUAGE_TAIL),
+    "currency_head": _from_record(LK.CURRENCY_HEAD),
+    "currency_tail": _from_record(LK.CURRENCY_TAIL),
+    "nation_head": _from_record(LK.NATION_HEAD),
+    "nation_tail": _from_record(LK.NATION_TAIL),
+    # Read FROM the parser's own declaration rather than retyped here. This entry used to be
+    # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
+    # to prevent, sitting inside the audit.
+    "city": _from_record(PL.CITY),
     # NOT strides -- variable-length names precede the trailer and a variable-length entries
     # array sits inside the part after it. Together these four cover the competition record
     # in full, in file order:
@@ -253,10 +132,16 @@ LAYOUTS = {
     # = 25 + 8 * n_refs after the code name, which is exactly what
     # reference._walk_comp_table steps by -- and scripts/audit_coverage.py claims the whole
     # table MEASURED per record on the strength of it.
-    "comp_trailer": (14, _comp_trailer_layout()),
-    "comp_ref_count": (4, _comp_ref_count_layout()),
-    "comp_ref_entry": (8, _comp_ref_entry_layout()),
-    "comp_history_tail": (21, _comp_history_tail_layout()),
+    "comp_trailer": _from_record(R.COMP_TRAILER),
+    "comp_ref_count": _from_record(R.COMP_REF_COUNT),
+    "comp_ref_entry": _from_record(R.COMP_REF_ENTRY),
+    "comp_history_tail": _from_record(R.COMP_HISTORY_TAIL),
+    # From the save's zstd ARCHIVE, not the save body -- the only entry here that is, so the
+    # STRIDE and EXTENT checks below cannot reach it (they walk the mmap) and COVERAGE is the
+    # whole point. 13 of its 92 bytes are named and the other 79 are declared UNKNOWN in one
+    # place, which is the honest statement of where that record stands: the goals block and
+    # the round counter are deliberately unread, not overlooked.
+    "world_fixture": _from_record(FX.FIXTURE),
 }
 
 

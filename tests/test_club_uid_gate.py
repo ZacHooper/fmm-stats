@@ -24,6 +24,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import skip  # noqa: E402
+
 from fmparser.save import Save                        # noqa: E402
 from fmparser import reference as R                   # noqa: E402
 
@@ -55,8 +57,7 @@ def find_save(argv):
 def main():
     path = find_save(sys.argv)
     if not path:
-        print(f"SKIP: no 2026 Frem save found (looked for {', '.join(CANDIDATES)})")
-        return 0
+        return skip(f"no 2026 Frem save found (looked for {', '.join(CANDIDATES)})")
 
     print(f"save: {path}")
     with Save(path) as s:

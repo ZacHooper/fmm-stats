@@ -12,7 +12,9 @@ record we walk:
 
   STRIDE    25, and the trailer constant occupies exactly ONE residue class mod 25, by a
             margin over the runners-up that random residues could not produce.
-  COVERAGE  every byte in [0, 25) is a named field or an explicit UNKNOWN in LAYOUT.
+  COVERAGE  every byte in [0, 25) is a named field or an explicit UNKNOWN in the
+            declared layout -- checked by schema.validate, the same call
+            tests/test_layouts.py makes with no save file at all.
   EXTENT    one contiguous run, and the SLOT COUNT is identical across saves of a career --
             the table is preallocated, so a walk that returns a different count is wrong.
 
@@ -24,7 +26,11 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import skip  # noqa: E402
+
 from fmparser import matchslots as MS      # noqa: E402
+from fmparser import primitives as P        # noqa: E402
+from fmparser import schema as SC          # noqa: E402
 from fmparser import reference as R        # noqa: E402
 from fmparser.save import Save             # noqa: E402
 
@@ -46,27 +52,21 @@ TRUTH = [
 
 def main():
     if not os.path.exists(REF):
-        print(f"SKIP: {os.path.basename(REF)} not found")
-        return 0
+        return skip(f"{os.path.basename(REF)} not found")
     ok = True
     mm = Save(REF).mm
 
-    # ---- COVERAGE: every byte in [0, STRIDE) named or declared exactly once ----
-    seen = {}
-    for off, width, name, kind in MS.LAYOUT:
-        for b in range(off, off + width):
-            if b in seen:
-                print(f"  FAIL byte +{b} covered twice ({seen[b]} and {name})")
-                ok = False
-            seen[b] = name
-    missing = [b for b in range(MS.STRIDE) if b not in seen]
-    over = [b for b in seen if b >= MS.STRIDE]
+    # ---- COVERAGE: delegated to schema.validate, which tests/test_layouts.py also runs
+    # with no save file. Re-implementing the byte-coverage loop here is what let the three
+    # layout dialects drift apart in the first place.
+    problems = SC.validate(MS.SLOT)
+    named = sum(f.width for f in MS.SLOT.fields if f.emits)
     print("COVERAGE")
-    print(f"  {'ok  ' if not missing and not over else 'FAIL'} "
-          f"{len(seen)}/{MS.STRIDE} bytes covered; missing={missing} beyond_stride={over}")
-    named = sum(w for _, w, n, _ in MS.LAYOUT if n != MS.UNKNOWN)
-    print(f"       {named} bytes named, {MS.STRIDE - named} declared UNKNOWN")
-    ok &= not missing and not over
+    print(f"  {'ok  ' if not problems else 'FAIL'} schema.validate({MS.SLOT.name}): "
+          f"{named} bytes named, {MS.STRIDE - named} declared UNKNOWN, span {MS.SLOT.span}")
+    for pr in problems:
+        print(f"       {pr}")
+    ok &= not problems
 
     # ---- STRIDE: the trailer owns one residue class, by a real margin ----
     buf = mm[:]
@@ -131,7 +131,7 @@ def main():
 
     # the internal identity: the four i16s hold only three independent numbers
     def i16(o):
-        return MS._i16(mm, o)
+        return P.i16(mm, o)
     ident = sum(1 for r in rows
                 if i16(r["offset"] + 9) - i16(r["offset"] + 11)
                 == i16(r["offset"] + 13) - i16(r["offset"] + 15))

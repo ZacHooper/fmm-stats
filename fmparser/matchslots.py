@@ -174,55 +174,47 @@ that -- it is what the trailer-residue scan already had to exclude from slot 0 o
 (see the `NO_CLUB` comment in `scrape()`), now with its full extent measured. The ASCII string
 "Manager" appears ~190 bytes after this table's END, which is unstructured there, not before.
 """
+from . import primitives as P
+from . import records as RD
 from . import regions as RG        # noqa: F401  (kept so callers see the region vocabulary)
+from .schema import Field, I16, Record, U8, U16, UNKNOWN
 
 STRIDE = 25
 TRAILER = b"\x87\x01\xff\xff"      # constant at +20..+23
 TRAILER_OFF = 20
-NO_CLUB = 0xFFFF
+NO_CLUB = P.NO_ID16
 
-UNKNOWN = "UNKNOWN"
-U8, U16, I16 = "u8", "u16", "i16"
-
-# One declarative layout IS the schema: the reader below reads FROM it and
-# tests/test_match_slots.py checks AGAINST it, so the two cannot drift. Every byte in
-# [0, STRIDE) appears exactly once. UNKNOWN rows are first-class -- a byte we have decided we
-# cannot name yet, which is a different thing from a byte we stepped over.
-LAYOUT = (
-    (0,  2, "away_tid",   U16),   # 0xffff when the slot references no match
-    (2,  2, "home_tid",   U16),
-    (4,  1, "away_goals", U8),
-    (5,  1, "home_goals", U8),
-    (6,  2, "day",        U16),   # day-of-year, 0-based -- same encoding as the club record
-    (8,  1, UNKNOWN,      U8),    # 5 on 93% of slots. NOT the cid: it reads 5 on rows whose
-                                  # clubs are in leagues 2, 4 and 32. Not competition-type
-                                  # either -- 5 on both same-league (226/242) and cross-league
-                                  # (17/20) fixture rows. See COMPETITION TYPE above.
-    (9,  2, UNKNOWN,      I16),   # call it A. 0..360 on fixture rows.
-    (11, 2, UNKNOWN,      I16),   # B. r=+0.994 with A; B ~ 0.58 x A.
-    (13, 2, UNKNOWN,      I16),   # == A - k
-    (15, 2, UNKNOWN,      I16),   # == B - k, the SAME k. Verified 275/276 fixture rows:
-                                  # (+9 - +11) == (+13 - +15) and (+9 - +13) == (+11 - +15).
-                                  # k looks MATCH-level, not copy-level: on a fixture stored
-                                  # twice (Southampton/Newcastle), k was identical (26) across
-                                  # both copies while A and B themselves differed. See LEAD
-                                  # on A/B/k above.
-                                  # So the four hold only three independent numbers.
-    (17, 2, UNKNOWN,      I16),
-    (19, 1, UNKNOWN,      U8),    # 0 on 99.6%
-    (20, 2, "trailer_a",  U16),   # constant 391 on 93%
-    (22, 2, "trailer_b",  U16),   # constant 0xffff on 99%
-    (24, 1, UNKNOWN,      U8),    # 3 on 93%
-)
-
-
-def _u16(mm, o):
-    return int.from_bytes(mm[o:o + 2], "little")
-
-
-def _i16(mm, o):
-    v = _u16(mm, o)
-    return v - 65536 if v >= 32768 else v
+# One declarative layout IS the schema: `read_slot` reads FROM it and
+# `tests/test_layouts.py` checks it with no save file at all, so the two cannot drift. Every
+# byte in [0, STRIDE) appears exactly once. UNKNOWN rows are first-class -- a byte we have
+# decided we cannot name yet, which is a different thing from a byte we stepped over.
+SLOT = Record("match_slot", STRIDE, [
+    Field(0,  2, "away_tid",   U16, note="0xffff when the slot references no match"),
+    Field(2,  2, "home_tid",   U16),
+    Field(4,  1, "away_goals", U8),
+    Field(5,  1, "home_goals", U8),
+    Field(6,  2, "day",        U16, note="day-of-year, 0-based -- as in the club record"),
+    Field(8,  1, UNKNOWN,      U8),    # 5 on 93% of slots. NOT the cid: it reads 5 on rows
+                                       # whose clubs are in leagues 2, 4 and 32. Not
+                                       # competition-type either -- 5 on both same-league
+                                       # (226/242) and cross-league (17/20) fixture rows.
+                                       # See COMPETITION TYPE above.
+    Field(9,  2, UNKNOWN,      I16),   # call it A. 0..360 on fixture rows.
+    Field(11, 2, UNKNOWN,      I16),   # B. r=+0.994 with A; B ~ 0.58 x A.
+    Field(13, 2, UNKNOWN,      I16),   # == A - k
+    Field(15, 2, UNKNOWN,      I16),   # == B - k, the SAME k. Verified 275/276 fixture rows:
+                                       # (+9 - +11) == (+13 - +15) and (+9 - +13) == (+11 - +15).
+                                       # k looks MATCH-level, not copy-level: on a fixture
+                                       # stored twice (Southampton/Newcastle), k was identical
+                                       # (26) across both copies while A and B themselves
+                                       # differed. See LEAD on A/B/k above.
+                                       # So the four hold only three independent numbers.
+    Field(17, 2, UNKNOWN,      I16),
+    Field(19, 1, UNKNOWN,      U8),    # 0 on 99.6%
+    Field(20, 2, "trailer_a",  U16, note="constant 391 on 93%"),
+    Field(22, 2, "trailer_b",  U16, note="constant 0xffff on 99%"),
+    Field(24, 1, UNKNOWN,      U8),    # 3 on 93%
+])
 
 
 def locate(mm, bridge_slots=40, min_trailers=50):
@@ -262,14 +254,13 @@ def locate(mm, bridge_slots=40, min_trailers=50):
 
 
 def read_slot(mm, o):
-    """Decode one slot FROM the layout, so the parser cannot drift from the audit."""
-    out = {"offset": o}
-    for off, width, name, kind in LAYOUT:
-        if name == UNKNOWN:
-            continue
-        b = o + off
-        out[name] = mm[b] if kind == U8 else (_i16(mm, b) if kind == I16 else _u16(mm, b))
-    return out
+    """Decode one slot FROM the layout, so the parser cannot drift from the audit.
+
+    `read_into` rather than `read`, so `offset` stays the FIRST key. Slot dicts do not reach
+    any JSON file today, but the ordering discipline is the same one the rest of the migration
+    is held to and there is no reason for this record to be the exception.
+    """
+    return RD.read_into({"offset": o}, mm, SLOT, o)
 
 
 def scrape(mm, valid_clubs=None):
@@ -285,8 +276,8 @@ def scrape(mm, valid_clubs=None):
     lo, hi, _ = reg
     out = []
     for o in range(lo, hi, STRIDE):
-        a = _u16(mm, o)
-        h = _u16(mm, o + 2)
+        a = P.u16(mm, o)
+        h = P.u16(mm, o + 2)
         # 0 is a null id, the same class of sentinel as 0xffff -- not a tuned filter. It
         # matters at exactly one place: the table's FIRST slot straddles the 16-byte table
         # that ends immediately before it, and reads `10 27 10 27` (10000, 10000) there.

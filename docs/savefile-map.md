@@ -36,7 +36,8 @@ by a structural test described in the notes.
 | start | end | size | what | class | how |
 |---|---|---|---|---|---|
 | 299 | 515,797 | 0.52 MB | **browse name table** — 45,942 names; the `60,000` in front is a capacity, not a count | static | live (`reference._name_table_bounds`) |
-| 515,797 | 3,988,960 | 3.47 MB | **UNIDENTIFIED** (`00` 27% / `ff` 28% / other 45%) | — | — |
+| 515,797 | ~572,037 | 0.06 MB | filler + a short run of unnamed records | — | — |
+| **572,037** | ~3,988,960 | **3.42 MB** | **the PERSON table (info spine)** — declares **32,966** (Frem) / **34,312** (Bucaspor), career-constant, so a **fixed pool**. Records are variable-length (68 B head + counted lists) and `staging.scrape_players` finds them by sentinel sweep, reading 32,874 — **92 short of declared**. The extent is now anchored at the front; the walk is not solved | **preallocated pool** | hdr (2026-09-20) |
 | 3,988,968 | 6,056,358 | 2.07 MB | **player attributes** — 26,505 × 78 B | static | hdr |
 | 6,056,370 | 6,237,408 | 0.18 MB | **staff attributes** — 4,642 × 39 B, `id2 == slot index` | static | hdr |
 | 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (1,971 / 560 / 816), the 622 × 99 B person-shaped record, the 273-entry round/leg-name strings | static, **unnamed** | chain (PR #58) |
@@ -67,9 +68,11 @@ by a structural test described in the notes.
 | 55,839,667 | 56,223,268 | 0.38 MB | **our matches** — 60 blocks, home XI + away XI, 54 B player blocks | **wiped every July; appends in-season** | live (`matches.find_match_region`) |
 | 56,313,477 | 56,314,027 | **550 B** | exact `0xFF` wall, identical regardless of match count | — | struct |
 | 56,314,027 | — | 65 B/rec | **per-season table** — `[flag u8][value u16][tid u16][year u16]`, one record per season, tid constant at our club | grows 1/season | struct |
-| ~56,314,300 | 61,896,648 | 5.58 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%) | — | — |
-| 61,896,648 | 62,002,727 | 0.11 MB | **squad snapshot** — full names + 23 attributes + feet, managed club only | — | live (`attributes.snapshot_bounds`) |
-| 62,002,727 | 63,936,873 | 1.93 MB | **unexamined tail** (`00` 15% / `ff` 14% / other 71% — the densest unknown in the file) | — | — |
+| ~56,314,300 | ~61,253,092 | 4.94 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%). One small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` / `Res Group 1`), so the structure below starts earlier than its first EMPTY slot | — | — |
+| **~61,253,092** | **62,631,781** | **1.38 MB** | **player-list blocks** — blocks of **100 slots x 200 B** (+14 B per block); 52 blocks are entirely empty on this save, carrying an identical template with `e5 07` = the career's start year. Populated slots hold a variable-length player record: a ~160 B binary core then `[full name][first][last][""][last][club short name][competition name]`. Contents are squad lists (ours) and world/scouting lists (De Bruyne/Man City, Courtois/R. Madrid, Frendrup/Genoa). **The squad snapshot is five of these blocks**, not a structure of its own. Start is the first POPULATED block; the first empty slot is at 61,381,262 | preallocated, partly consumed | struct (stride-200 run) |
+| *61,896,648* | *62,002,727* | *0.11 MB* | ↳ *of which:* **squad snapshot** — the managed club's own list blocks | — | live (`attributes.snapshot_bounds`) |
+| 62,631,781 | 62,635,766 | 3,985 B | **UNNAMED dated table** — 14 B units `[u32 FFFFFFFF][u16 9][u16 day-of-year][u16 year][u32 ?]`, dates a fortnight ahead of the save. Both careers | — | struct |
+| **62,635,766** | **63,936,873** | **1.30 MB** | **the `sicomps` ARCHIVE** — 159 zstd members with a directory; 6.58 MB decompressed. Holds `fix_man.dat`, **the world fixture list with scores**. See [`save-archive.md`](save-archive.md) | grows with the career | live (`archive.locate`) |
 
 ## Behaviour classes, which matter more than the offsets
 
@@ -120,9 +123,9 @@ bytes*:
 
 | span | size | other% | ≈ real bytes | note |
 |---|---|---|---|---|
-| **0.52 – 3.99M** | 3.47 MB | 45% | **1.55 MB** | **biggest unexplained block in the file.** Sits between the browse name table and the attribute grid — the info spine lives in here (records 584,165–3,988,862), so part of it is known, but what surrounds those records is not |
-| 62.00 – 63.94M | 1.93 MB | 71% | **1.37 MB** | **densest** unknown — highest non-filler *fraction*; the tail after the squad snapshot |
-| 56.31 – 61.90M | 5.58 MB | 18% | **1.00 MB** | |
+| **0.57 – 3.99M** | 3.42 MB | 45% | **1.55 MB** | **Partly resolved 2026-09-20**: this is the PERSON table and it declares **32,966** records at a header at 572,037 (34,312 on Bucaspor) — see [`table-framing.md`](table-framing.md). It is still the biggest unexplained block by bytes, because the records are variable-length and nothing walks them; what remains is a per-record parser, not a search |
+| ~~62.00 – 63.94M~~ | ~~1.93 MB~~ | ~~71%~~ | ~~1.37 MB~~ | **RESOLVED 2026-09-20 — and it was ranked here for a reason that was false.** 0.63 MB is the tail of the player-list blocks; 1.30 MB is the `sicomps` **zstd archive**. "71% other / 25.8% printable" is not text density: 95/256 = **37.1% of uniform random bytes are printable**, so compressed data scores exactly this. See [`save-archive.md`](save-archive.md) |
+| 56.31 – 61.38M | 5.07 MB | 18% | **~0.9 MB** | shrank by the player-list blocks, which start at 61,381,262 |
 | 52.72 – 55.84M | 3.12 MB | 31% | **0.97 MB** | sits between the stride-70 pool and our matches |
 | 31.91 – 35.44M | 3.53 MB | 17% | **0.59 MB** | sits in front of the transfer band |
 | 38.40 – 40.04M | 1.64 MB | 32% | **0.52 MB** | between the transfer band and the match-slot table |
@@ -130,11 +133,12 @@ bytes*:
 | 41.11 – 42.63M | 1.52 MB | 18% | **0.27 MB** | 82% zero — mostly padding |
 | **20.32 – 29.17M** | **8.85 MB** | **2%** | **0.18 MB** | **97% `0xFF`. Padding, not a target.** |
 
-That last row is the correction that matters most: the biggest-looking hole in the file is
-empty space. Two regions lead on different measures and both are worth opening — **0.52–3.99M**
-has the most unexplained bytes (1.55 MB, though the info spine accounts for some of them), and
-the **1.93 MB tail after the squad snapshot** has the highest non-filler *density* (71%) with
-nothing known in it at all.
+Two corrections matter more than any row. The biggest-looking hole in the file (20.32–29.17M)
+is empty space. And **ranking by printable fraction is the wrong statistic** — it put the tail
+first on the strength of a number that uniform random bytes produce by construction. **Rank by
+BLOCK ENTROPY instead**: it separates text from compressed data in one pass, and it would have
+found the archive immediately. With the tail resolved, **0.52–3.99M is now the clear leader**:
+the most unexplained bytes in the file, though the info spine accounts for some of them.
 
 ## What changed versus the PR #59 map
 
@@ -174,3 +178,24 @@ run of ≥8 `0xFF`; every `live` row by calling the named function. The structur
   `ff ff e4 07 00 00 87 01 ff ff 04 ff ff ff ff ff ff`; its last occurrence + 21 is the end.
 - **drift class** — re-run any two saves and compare; the reference half moves in tens of KB,
   the career half in megabytes.
+- **player-list blocks** — occurrences of `14 01 00 0a 00` (inside every empty 200-byte slot)
+  whose gaps are exactly 200; the runs come in lengths of exactly 100, separated by 214.
+- **the archive** — the FIRST `28 b5 2f fd` (zstd magic) in the file; walk `[u32 stored][frame]`
+  from four bytes before it. `uv run python scripts/audit_archive.py` reproduces the whole
+  thing, 34/34 saves.
+
+## The tail was mis-ranked, and the reason generalises
+
+The 2026-09-19 map put `62.00–63.94M` second on the gap table on **71% non-filler**, which
+was fair. What went wrong is what happened next: [`TODO.md`](TODO.md) carried the same span
+with its **25.8% printable** figure and called it *"by far the most TEXT-dense unparsed span
+in the file"*, and that is the reading four hunts were aimed by. **95 of 256 byte values are
+printable, so uniform random bytes measure 37.1% printable** -- the span was *less* printable
+than noise. Compressed data therefore scores high on exactly the statistic that was being
+used to mean "text". Block entropy tells them apart at a glance — that span reads a flat
+**7.99 bits/byte** — and the four-byte grep that follows from it
+([`save-archive.md`](save-archive.md)) resolved the region in one step.
+
+Practical rule for the next pass: **profile the whole file by 4 KB block entropy before
+ranking anything.** Filler is ~1.4 bits, ordinary records are 3–6, and anything at 7.9+ is
+compressed or encrypted and will not yield to a stride search at all.

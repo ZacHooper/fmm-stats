@@ -53,6 +53,10 @@ _MARGIN_LO, _MARGIN_HI = 60_000, 300_000
 _REGION_CACHE = {}          # save.cache_key -> (lo, hi)
 
 
+class TaggedRegionNotFound(Exception):
+    """The tagged data dictionary could not be located; no window stands behind it."""
+
+
 def find_tagged_region(mm):
     """(lo, hi) for the tagged data dictionary, DERIVED from this save's own content.
 
@@ -68,8 +72,10 @@ def find_tagged_region(mm):
     functions per byte over any unstructured run. The `comp` cluster gives the right
     POSITION at roughly the current SIZE.
 
-    Falls back to the static TAGGED_LO/TAGGED_HI if the tag is absent, matching
-    `matches.find_match_region` and `attributes.snapshot_bounds`.
+    RAISES if the tag is absent. It used to fall back to the static TAGGED_LO/TAGGED_HI --
+    and then CACHE that fallback, so one blind lookup was served to every later caller for
+    the life of the process. A cached constant is the worst version of this pattern: the
+    answer is wrong, it is wrong silently, and it is wrong repeatedly.
     """
     key = _cache_key(mm)
     cached = _REGION_CACHE.get(key)
@@ -80,9 +86,10 @@ def find_tagged_region(mm):
     while i != -1:
         hits.append(i)
         i = mm.find(_TAG_COMP, i + 1)
-    if not hits:                                  # no tag at all -> trust the old window
-        _REGION_CACHE[key] = (TAGGED_LO, TAGGED_HI)
-        return _REGION_CACHE[key]
+    if not hits:
+        raise TaggedRegionNotFound(
+            "the `comp` tag does not appear in this save, so the tagged data dictionary "
+            "cannot be located. Do not substitute a window -- go and read the bytes.")
 
     clusters, cur = [], [hits[0]]
     for h in hits[1:]:

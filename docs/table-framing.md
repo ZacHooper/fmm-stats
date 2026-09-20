@@ -5,13 +5,15 @@ rewritten in PR 57 because the table turned out to announce its own start and si
 document is what happened when that question was asked of every other table in the file.
 
 Two things came out of it. First, the convention is general, not a competition-table quirk —
-**19 tables declare their own record count**, and the count is exact every time. Second,
+**20 tables declare their own record count** (19 found 2026-09-18, the person table
+2026-09-20), and the count is exact every time. Second,
 comparing each declared count against what our parser actually reads found **five defects**,
 two of which were losing real data on every save ever built.
 
 **Provenance of each claim**, because the sweeps differ in cost and therefore in coverage:
 the declared-count audit and its `--confirm` invariant checks ran on **all 34 saves** (27
-Frem, 7 Bucaspor) — 204/204, zero failures. The tile-based table sweep also ran on all 34.
+Frem, 7 Bucaspor) — **238/238, zero failures** (204/204 before the person table was added).
+The tile-based table sweep also ran on all 34.
 The index-based discovery sweep is much slower (~2–3 min/save, it derives a stride per
 candidate), so the five newly-found tables are confirmed on **one save per career** plus the
 34-save tile sweep for the four it can see; `--stable` is the full version and is worth
@@ -66,6 +68,7 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | currencies | 13,985,965 | u16 | 173 | 94 |
 | *unnamed, 7 B* | 13,990,354 | u16 | 888 | — |
 | languages | 13,996,580 | u16 | 124 | 77 |
+| **person table (info spine)** | **572,041** | u32 | **32,966** | 32,874 — **92 short** |
 | surname id-table | 37,878,967 | u32 | 32,148 | 28,624 |
 | first-name id-table | 38,393,347 | u32 | 19,128 | 15,366 |
 | **nickname id-table** | **38,699,407** | u32 | **9,480** | **never read** |
@@ -113,12 +116,22 @@ looks back 128 bytes, and compares any count it finds against the records we act
 | **player attributes** | **26505** | 26518 | **13 over** |
 | nations | — | 227 | no header at the located start |
 | browse names | (60000) | 45942 | not a count — see below |
-| info spine | — | 32760 | no header found |
+| **info spine** | **32966** | 32874 | **92 short — found 2026-09-20, see below** |
 | clubs | — | — | no located table at all |
 
 `--confirm` re-checks each declared count against the **table's own invariant** rather than
-against our parser, which is both cheaper and stronger evidence: **204/204 confirmed, zero
-failures**, over all 34 saves.
+against our parser, which is both cheaper and stronger evidence: **238/238 confirmed, zero
+failures**, over all 34 saves — and exactly two declared counts per table per career, so the
+tally doubles as the constant-across-a-career test.
+
+> **ALL OF THE DEFECTS BELOW ARE FIXED as of 2026-09-20** (parser refactor, Phase 5). The
+> write-ups are kept because they record *how* each one hid, which is the reusable part. What
+> changed, in one line each: languages 77 -> 124 and currencies 94 -> 173 (one rejected record
+> was truncating the rest of the chain); nations 227 -> 251 (three separate rejects, including
+> the `0xFFFF` no-continent sentinel on 17 defunct states); the attribute table stops at its
+> declared end instead of inventing 13 rows; and the **third name id-table** is now read, so
+> 2,424 people have their real display names. One claim below is also CORRECTED rather than
+> fixed — see "the staff grid" at the end.
 
 ### The two that lose real data
 
@@ -160,6 +173,24 @@ spine hands it, which is legitimate for its current purpose. Its first record si
 (351 bytes) into the table, which is why the header looked absent until the locator was
 anchored on the table's own base rather than on the first record the walk happened to reach.
 
+> **DONE 2026-09-20, and it settled a contradiction.** The lookup is now arithmetic
+> (`base + id2 * 39`). `staff.py` had asserted the opposite of this section — that the table
+> is "multi-segment, so a stride walk is provably impossible" — and this section was the one
+> that was right. The disagreement was entirely the stride: `staff.py` measured the gaps
+> between ground-truth managers (19,929 and 8,541 bytes) against the **player** record's 78
+> bytes rather than the staff record's 39, and 19,929 and 8,541 are exactly 511 and 219
+> records of 39. At stride 78 `id2 == slot` holds on 1 slot and the ids read 0, 2, 4, …,
+> which looks precisely like a phase reset. Agrees with the old key search on every record it
+> finds (4,449/4,449 Frem, 5,462/5,462 Bucaspor) and output is byte-identical.
+
+> **DONE 2026-09-20 — and there are THREE name id-tables, not two.** They are CHAINED: each
+> one's declared end is followed immediately by the next one's `[8 × 0xFF][count]` frame, so
+> `next = base + count * 16 + 12` lands exactly on the next base and the chain terminates by
+> itself. Following it finds a **9,480-slot common-name table** that nothing had ever opened,
+> which is why 2,424 people were displayed under their full legal names (`Tite` as 'Adenor
+> Leonardo Bachi'). `reference.resolve_common_name` reads it; the walked counts now equal the
+> declared ones.
+
 **The two name id-tables** are walked by an `id == slot index` invariant that breaks at the
 first free slot (`id = 0xFFFFFFFF`); 3,523 such slots are scattered through the surname
 table. The declared counts are exact — the last declared slot reads `id=32147,
@@ -172,11 +203,50 @@ the 13 extras are off-grid, past the table's end, and obvious garbage (height 54
 **Zero of the 13 join the info spine**, so none ever surfaces. The declared count would
 replace the scan-and-skip loop with pure arithmetic.
 
+### The info spine DOES declare a count — 2026-09-20, correcting this document
+
+This document used to record "info spine — no header found", and the entry above it said
+`info_spine`'s 25-byte gap holds nothing count-shaped. **The gap was the wrong place to
+look.** The header is not near the first record the sweep happens to reach; it is at the
+table's own base, which is the same mistake the staff grid taught ("anchor on the table's
+base, not on the first record your walk reaches") and it went unlearned for one table.
+
+Take the **first run of >= 8 `0xFF` below 1 MB** — it sits just past the ~53 KB zero filler
+that follows the browse name table — and read the u32 flush against what follows:
+
+| career | header ends | declared | `staging.scrape_players` reads |
+|---|---|---|---|
+| Frem | 572,037 | **32,966** | 32,874 (**92 short**) |
+| Bucaspor | 575,717 | **34,312** | 34,010 (**302 short**) |
+
+The count is **byte-identical across a career** (all four Frem saves measured, 2021 to 2026,
+and all three Bucaspor) and **different between careers** — the *per-database pool* class this
+document already defines for the history slab, not a growing count. So the person table is a
+fixed-size pool, and `32,966` is a **bound**, not a measure of how many people exist.
+
+That also settles the loose lead at the end of this document: the `u32 = 32,966` at 14,000,242
+is the *same number in a second place*, so it is at least consistent with being a second copy
+of this pool size rather than a table of its own.
+
+**What is NOT established**, and matters before anyone treats the shortfall as 92 lost people:
+
+- **The record 0 phase.** The count is flush against 572,041, which is the convention's own
+  test, but that offset decodes as a placeholder (tid 1, uid 2304, no club) and 572,042
+  decodes as a real person. One of the two is an off-by-one and this has not been settled.
+- **Whether the shortfall is data loss at all.** `scrape_players` is keyed by tid, so
+  duplicates collapse, and the table is already known to carry **77 empty slots** identified
+  by `uid == 0`. 92 - 77 = 15 on Frem; Bucaspor's 302 is not explained that way.
+- **A structural walk.** The record is VARIABLE-length (a 68-byte head plus counted language
+  and relationship lists), so the declared count cannot be turned into an extent by
+  arithmetic the way it can for the fixed-width grids. It needs the per-record parser this
+  document's closing section calls for.
+
 ### Two clean negatives
 
 `browse_names`' `u32 = 60000` is a **capacity, not a count**: both id-tables' highest ordinal
-is 45,941, exactly matching the walk's 45,942 entries. And `info_spine`'s 25-byte gap holds
-nothing count-shaped.
+is 45,941, exactly matching the walk's 45,942 entries. The second negative — that
+`info_spine`'s 25-byte gap holds nothing count-shaped — is still true of the GAP, and was
+still the wrong conclusion about the table; see above.
 
 ## Using the convention to FIND tables
 
@@ -286,7 +356,7 @@ comment are wrong: the field is the nickname link, and it now has a table to res
 
 #### THE CLUB TABLE: 11,331 records at 6,340,458, `tid == slot index`
 
-**The single biggest result of this work, and it came from chaining, not searching.** TODO #17
+**The single biggest result of this work, and it came from chaining, not searching.** TODO #16
 recorded that clubs were the one table with no locatable structure — the candidate scan's
 accepted records sprawled across one 6.4 MB run whose first entry was junk, so there was no
 "record 0" to look behind. That was true only because nobody had walked the chain into the
@@ -311,7 +381,7 @@ accepted records sprawled across one 6.4 MB run whose first entry was junk, so t
   **ends with U21 national teams** (`11328 'Tuvalu U21'`, `11329 'Montenegro U21'`,
   `11330 'Saint Barthélemy U21'`).
 
-That last point resolves the other half of TODO #17 by construction: national teams are not
+That last point resolves the other half of TODO #16 by construction: national teams are not
 invisible records the club scan happens to miss, they are **rows 0..~200 of the club table**,
 and the reason 153 low tids were resolving to `'Footballer of the Year'` and friends is that
 the scan never found this table and was matching award records (13,711,352) instead.
@@ -331,7 +401,7 @@ inventory: **these are the records leaking into the club index.** They use the c
 (`[tid u32][uid u32]` then long/short/code strings), start at `tid 0, uid 102407,
 'Footballer of the Year'` / `'World Footballer of the Year'`, and continue through
 `'South American Footballer of the Year'`, `'African Footballer of the Year'`,
-`"Players' Player of the Year"`, `"Players' Young Player"`. TODO #17 records that **153 low
+`"Players' Player of the Year"`, `"Players' Young Player"`. TODO #16 records that **153 low
 tids currently resolve in our club index to award names** — this is the table they come from,
 and it now has an exact, declared anchor instead of a region guess. The trailer is longer than
 the club/comp trailer (an assumed 14 bytes ran the string reads off the end), so the record
@@ -367,7 +437,7 @@ between 1k and 400M, and 160 in the 1.9–2.1bn range that `reference._CLUB_UID_
 uses for club uids. That looks like a uid space, **but none of the 50 distinct values above
 400M resolves against our club index**, so the target is genuinely unidentified. Treat that
 as unresolved rather than as a refutation: the club index is itself known to be incomplete
-(TODO #17), so a miss there is weak evidence either way. Settling which id space this array
+(TODO #16), so a miss there is weak evidence either way. Settling which id space this array
 points into is the first question for the naming pass.
 
 Taken together — CA/PA, a reputation, six 1–20 attributes, a date in the career's own years,
@@ -561,7 +631,7 @@ gives a free, exact termination check the moment its record shape is right.
 
 ## Method notes worth carrying
 
-- **A table can declare its own size, and nine here do.** Before writing a walk bounded by a
+- **A table can declare its own size, and twenty here do.** Before writing a walk bounded by a
   plausibility gate or a miss counter, look at the bytes in front of record 0.
 - **Compare the declared count to what you read.** That single comparison found 4 defects in
   tables that had passed every check we had, including two losing real records on every save.

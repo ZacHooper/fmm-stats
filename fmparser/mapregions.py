@@ -270,14 +270,28 @@ def sub_regions(mm):
     except Exception:
         pass
     try:
+        # `find_light_regionS`, plural, returning a LIST. This called `find_light_region`,
+        # which has never existed, inside a bare `except Exception: pass` -- so the section
+        # was silently never emitted, on every save, since the function was renamed.
+        #
+        # The description is corrected too. This is NOT a whole-world fixture list: it is
+        # the per-club Club History region, read at a 15-byte shift (see
+        # `lightresults`'s docstring and docs/light-results-record.md). The world fixture
+        # list is `fix_man.dat` in the zstd archive.
         from . import lightresults as _L
-        reg = _L.find_light_region(mm)      # valid_clubs=None -> plausible-range gate
-        if reg:
-            out.append((reg[0], reg[1], "light_results",
-                        f"whole-world simulated fixtures ([home][away][score]..[cid]@+10), "
-                        f"self-located @{reg[0]/1e6:.3f}M (also holds a cid=0 variant)"))
-    except Exception:
-        pass
+        # `valid_clubs=None` here, so the tid gate is the loose `1 <= t < 70000` and these
+        # are CANDIDATE clusters, not confirmed regions. On frem-2026-06-11 it returns five
+        # and only the ~46.8M one is real (98.9% of the confirmed records land there); the
+        # others sit in the name tables and the transfer band. Labelled as candidates
+        # because a discovery tool that presents its false positives as findings is worse
+        # than one that finds nothing.
+        for k, (lo, hi) in enumerate(_L.find_light_regions(mm)):
+            out.append((lo, hi, "club_history_candidate",
+                        f"candidate cluster {k + 1} for the Club History region read as "
+                        f"fixtures @{lo/1e6:.3f}M -- most are false positives, and this is "
+                        f"NOT a world fixture list (that is fix_man in the zstd archive)"))
+    except Exception as exc:
+        print(f"  ! lightresults region scan failed: {exc}")
     out.sort()
     return out
 

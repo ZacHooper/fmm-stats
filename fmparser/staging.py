@@ -11,16 +11,18 @@ Sweeping record-by-record (rather than searching for a value) is both faster at 
 (~31k players) and collision-free: we read each record's embedded key instead of
 hunting for bytes that might appear as stray data.
 """
-from datetime import date, timedelta
-
+from . import primitives as P
+from . import records as RD
 from . import reference as R
-from .attributes import (_valid_positions, ATTR_OFFSETS, POSITIONS, hidden_attributes,
-                         record_tail, source_bytes, plain_bytes)
+from . import schema as SC
+from .schema import DATE, Field, HEX4, PAD, Record, U8, U16, U32, UNKNOWN
+from .attributes import (_valid_positions, named_attributes, POSITIONS,
+                         hidden_attributes, record_tail, source_bytes, plain_bytes)
 from .regions import (ATTR_LO, ATTR_HI, CONTRACTREC_LO, CONTRACTREC_HI,
                       WAGE_GBP_PER_UNIT)
 
 # free agents / unattached carry this sentinel club id
-NO_CLUB = 65535
+NO_CLUB = P.NO_ID16
 
 # The info record's NICKNAME field at +16. FFFFFFFF is the "no nickname" sentinel; a
 # player who HAS one carries a real nickname id there instead. See `scrape_players`.
@@ -82,48 +84,52 @@ PERSONALITY = ("adaptability", "ambition", "determination", "loyalty", "pressure
 #
 # The record as a whole is VARIABLE-LENGTH: past this head come counted language and
 # relationship lists (BUGS #14 Round 4). Only the head is fixed, and only the head is declared.
-U8, U16, U32, DATE, HEX4 = "u8", "u16", "u32", "date", "hex4"
-UNKNOWN = "UNKNOWN"
-
-INFO_LAYOUT = (
-    (0, 4, "tid", U32),
-    (4, 4, "uid", U32),
-    (8, 4, "first_name_id", U32),
-    (12, 4, "last_name_id", U32),
-    # People.cs calls this CommonNameId. Only 0.1% of records set it (the rest are ffffffff),
-    # nowhere near the ~8% that carry a nickname, so it is NOT the link `_scrape_nicknamed`
-    # follows. Carried, not relied on.
-    (16, 4, "common_name_id", U32),
-    (20, 4, "dob", DATE),
-    (24, 2, "nationality_id", U16),
+INFO_LAYOUT = Record("info_head", 68, (
+    Field(0, 4, "tid", U32),
+    Field(4, 4, "uid", U32),
+    Field(8, 4, "first_name_id", U32),
+    Field(12, 4, "last_name_id", U32),
+    # People.cs calls this CommonNameId: the name the game DISPLAYS, 0xFFFFFFFF when unset.
+    # It indexes the THIRD id-table (`reference.resolve_common_name`), not either name table.
+    #
+    # This comment used to say "only 0.1% of records set it ... so it is NOT the link
+    # `_scrape_nicknamed` follows". That was wrong twice over. The real rate is 7.4% (2,424
+    # of 32,760 on frem-2023-07-02, every one of which resolves), which is exactly the ~8%
+    # that carry a nickname -- and it IS the same +16 field `_scrape_nicknamed` keys on, as
+    # `scrape_players`' own docstring says when it calls +16 "the nickname field".
+    Field(16, 4, "common_name_id", U32),
+    Field(20, 4, "dob", DATE),
+    Field(24, 2, "nationality_id", U16),
     # 78% ffff, and the other 22% sit in the same id space as the primary nationality.
-    (26, 2, "second_nationality_id", U16),
+    Field(26, 2, "second_nationality_id", U16),
     # People.cs: Ethnicity. 13 distinct small values -- which also retires BUGS #6's guess that
     # this byte was a "declared national team", a field that would hold nation ids in the 100s.
-    (28, 1, "ethnicity", U8),
-    (29, 4, UNKNOWN, None),                 # People.cs Unknown1; not a date (0% plausible)
+    Field(28, 1, "ethnicity", U8),
+    Field(29, 4, UNKNOWN, PAD),                 # People.cs Unknown1; not a date (0% plausible)
     # People.cs: Type. NOT a clean player/staff flag -- three values (1, 0, and 16, which is
     # rough-guide's "role flag 10 = manager" in hex) and it agrees with our SID rule on only
     # 82.4% of records. BUGS #14's "agrees ~99%" was wrong. Carried; the SID rule still decides.
-    (33, 1, "type_flag", U8),
-    (34, 4, "unknown_date", DATE),          # decodes 100% as a date, but 82% read 1900 = null
-    (38, 1, "international_caps", U8),
-    (39, 1, "international_goals", U8),
-    (40, 1, "u21_caps", U8),
-    (41, 1, "u21_goals", U8),
+    Field(33, 1, "type_flag", U8),
+    Field(34, 4, "unknown_date", DATE),                 # decodes 100% as a date, but 82% read 1900 = null
+    Field(38, 1, "international_caps", U8),
+    Field(39, 1, "international_goals", U8),
+    Field(40, 1, "u21_caps", U8),
+    Field(41, 1, "u21_goals", U8),
     # People.cs declares ClubId as i32 and it is: +44..45 is 0 for every real club and ffff
     # paired with the no-club sentinel. Read whole, then normalised back to the u16 NO_CLUB
     # the rest of the codebase compares against.
-    (42, 4, "club_tid", U32),
+    Field(42, 4, "club_tid", U32),
     # Date joined the current club. 100% of records decode as a plausible [day][year], none
     # later than the save's own season, and 4 of 5,998 earlier than age 14.
-    (46, 4, "joined_date", DATE),
-    (50, 2, UNKNOWN, None),                 # People.cs Unknown3
-    *((52 + i, 1, n, U8) for i, n in enumerate(PERSONALITY)),
-    (60, 4, "sid", HEX4),                   # People.cs PlayerId; ffffffff for staff
-    (64, 4, "id2", U32),                    # People.cs Unknown6b -> the STAFF attribute record
-)
-INFO_HEAD = 68
+    Field(46, 4, "joined_date", DATE),
+    Field(50, 2, UNKNOWN, PAD),                 # People.cs Unknown3
+    *(Field(52 + i, 1, n, U8) for i, n in enumerate(PERSONALITY)),
+    Field(60, 4, "sid", HEX4),                 # People.cs PlayerId; ffffffff for staff
+    Field(64, 4, "id2", U32),                 # People.cs Unknown6b -> the STAFF attribute record
+), is_head=True)
+
+
+INFO_HEAD = INFO_LAYOUT.span
 
 # Everything the INFO record contributes that is true of a PERSON rather than of a player or
 # a staff member -- named once so extract.py, the loader and the mart cannot drift apart.
@@ -132,26 +138,9 @@ PERSON_FIELDS = PERSONALITY + ("international_caps", "international_goals",
                                "second_nationality_id", "ethnicity")
 
 
-def _read(mm, base, off, width, kind):
-    b = base + off
-    if kind == U8:
-        return mm[b]
-    if kind == HEX4:
-        return mm[b:b + 4].hex()
-    if kind == DATE:
-        day = int.from_bytes(mm[b:b + 2], "little")
-        year = int.from_bytes(mm[b + 2:b + 4], "little")
-        try:
-            return (date(year, 1, 1) + timedelta(days=day)).isoformat()
-        except (ValueError, OverflowError):
-            return None
-    return int.from_bytes(mm[b:b + width], "little")
-
-
 def _decode_info(mm, base):
     """Decode one info record at `base` into the spine's identity dict, from INFO_LAYOUT."""
-    rec = {name: _read(mm, base, off, width, kind)
-           for off, width, name, kind in INFO_LAYOUT if name is not UNKNOWN}
+    rec = RD.read(mm, INFO_LAYOUT, base)
     # Sentinels, handled here rather than in the layout because they are about MEANING, not
     # about where the bytes are.
     #
@@ -245,32 +234,94 @@ def scrape_players(mm):
        this only ever ADDS to the spine.
     """
     players = {}
-    i = 0
-    while True:
-        j = mm.find(NO_NICKNAME, i)
-        if j == -1:
-            break
-        i = j + 1
-        base = j - 16                       # the FFFFFFFF is the nickname field at +16
-        if base < 0:
-            continue
-        year = int.from_bytes(mm[base + 22:base + 24], "little")
-        if not (DOB_YEAR_LO <= year <= DOB_YEAR_HI):
-            continue
-        tid = int.from_bytes(mm[base:base + 4], "little")
-        if not (100 < tid < 70000) or tid in players:
-            continue
-        # Day-of-year sanity, which _scrape_nicknamed has always applied and this sweep
-        # never did. It only started to matter when the DOB ceiling was raised: a junk
-        # record carrying a plausible year and a day-of-year of ~61,000 rolls forward into
-        # a DOB of 2199 and was admitted to the spine ('Rajagobal Rajagobal', 2-5 per save).
-        # The two sweeps validate the same field the same way now.
-        if int.from_bytes(mm[base + 20:base + 22], "little") > 366:
+    for base in _nickname_sentinel_candidates(mm):
+        tid = P.u32(mm, base)
+        if tid in players:
             continue
         players[tid] = _decode_info(mm, base)
 
     players.update(_scrape_nicknamed(mm, players))
     return players
+
+
+def _nickname_sentinel_candidates(mm):
+    """Record starts for sweep 1, in ascending file order.
+
+    NO WINDOW, and no gap threshold either. The records do form one dense run -- 30,797 of
+    them between 0.584 MB and 3.989 MB on frem-2026-06-11, largest internal gap 6 KB, and
+    the same shape on frem-2021 and bucaspor-2023 -- but "dense run" is not an invariant this
+    table asserts about itself, and bounding the walk by a tuned gap would make the record
+    count a function of that number. That is the mistake the city table's miss counter made.
+
+    So the SCAN stays whole-file and the predicate is unchanged; what changes is that it is
+    evaluated with numpy instead of in a 21-million-iteration Python loop. Measured on
+    frem-2026-06-11: the sentinel occurs 21,213,200 times and 30,797 survive, which is a
+    ratio of 689:1 -- the loop existed almost entirely to reject.
+
+    Overlapping matches are kept, exactly as `mm.find(..., j + 1)` produced them: a run of
+    five 0xFF bytes yields a candidate at both of its first two positions.
+    """
+    import numpy as np
+    a = np.frombuffer(mm, dtype=np.uint8)
+    ff = a == 0xFF
+    # every offset where four consecutive bytes are 0xFF (overlaps included)
+    j = np.flatnonzero(ff[:-3] & ff[1:-2] & ff[2:-1] & ff[3:])
+    base = j - 16                          # the sentinel is the nickname field at +16
+    base = base[base >= 0]
+    base = base[base + INFO_HEAD <= len(a)]
+
+    def u16(off):
+        return a[base + off].astype(np.uint32) | a[base + off + 1].astype(np.uint32) << 8
+
+    def u32(off):
+        return (u16(off) | a[base + off + 2].astype(np.uint32) << 16
+                | a[base + off + 3].astype(np.uint32) << 24)
+
+    year = u16(22)
+    tid = u32(0)
+    # Day-of-year sanity, which `_scrape_nicknamed` has always applied and this sweep did
+    # not until the DOB ceiling was raised: a junk record carrying a plausible year and a
+    # day-of-year of ~61,000 rolls forward into a DOB of 2199 and was admitted to the spine
+    # ('Rajagobal Rajagobal', 2-5 per save). The two sweeps validate it the same way now.
+    day = u16(20)
+    keep = ((year >= DOB_YEAR_LO) & (year <= DOB_YEAR_HI)
+            & (tid > 100) & (tid < 70000) & (day <= 366))
+    return [int(b) for b in base[keep]]
+
+
+# THE TWO CONTRACT RECORDS. Both are shape F in docs/parser-architecture.md -- found by
+# searching for a key, not by walking a table -- so neither has a stride and both are declared
+# `is_head=True`: the span is what we READ, not what the record is.
+#
+# The status record is the interesting declaration. We read 8 bytes at the front and 3 at
+# +37, and the 29 bytes between them were simply never mentioned anywhere. Naming them PAD
+# says out loud that the record continues and we cannot read it, which is a different claim
+# from the record being 11 bytes long.
+CONTRACT_STATUS = Record("contract_status", 40, (
+    Field(0, 4, "tid", U32),
+    Field(4, 4, "uid", U32, note="both must match the info spine -- 8 exact bytes"),
+    Field(8, 29, UNKNOWN, PAD),
+    Field(37, 2, "marker", U16, note="0x0087; this is what the scan searches for"),
+    Field(39, 1, "squad_status", U8),
+), is_head=True)
+
+# `[tid u32][0x01][wage u16][6 x 00][expiry day u16][expiry year u16]`.
+#
+# `expiry` is a DATE in the same [day-of-year][year] encoding as DOB, so it is ONE four-byte
+# field, not two -- and `expiry_year` is an alias over its second half, because the year alone
+# is both the plausibility gate the scan uses and a column downstream.
+#
+# The money conversion is NOT here. Wage units x WAGE_GBP_PER_UNIT (~520) is one of four money
+# conventions in this save, and which applies is a property of this record; a shared helper
+# would let a call site be wrong by that factor and still return a plausible number.
+CONTRACT_DETAIL = Record("contract_detail", 17, (
+    Field(0, 4, "tid", U32),
+    Field(4, 1, "marker", U8, note="0x01 -- distinguishes this from the 0x87 status record"),
+    Field(5, 2, "wage_units", U16),
+    Field(7, 6, UNKNOWN, PAD),
+    Field(13, 4, "expiry", DATE, note="some Danish deals expire 31 Dec -- keep the DAY"),
+    Field(15, 2, "expiry_year", U16, alias=True),
+), is_head=True)
 
 
 def scrape_contract_status(mm, info, lo=None, hi=None):
@@ -301,9 +352,10 @@ def scrape_contract_status(mm, info, lo=None, hi=None):
         p = m + 1
         if m - 37 < 0:
             continue
-        tid = int.from_bytes(mm[m - 37:m - 33], "little")
-        if uid_of.get(tid) == int.from_bytes(mm[m - 33:m - 29], "little"):
-            out[tid] = mm[m + 2]                # status is a u8 at TID+39
+        base = m - CONTRACT_STATUS.field("marker").offset
+        rec = RD.read_fields(mm, CONTRACT_STATUS, base, ("tid", "uid", "squad_status"))
+        if uid_of.get(rec["tid"]) == rec["uid"]:
+            out[rec["tid"]] = rec["squad_status"]
     return out
 
 
@@ -323,24 +375,49 @@ def scrape_contracts(mm, info, lo=CONTRACTREC_LO, hi=CONTRACTREC_HI):
     p = lo
     while p < end:
         if mm[p + 4] == 0x01:
-            yr = int.from_bytes(mm[p + 15:p + 17], "little")
+            yr = P.u16(mm, p + CONTRACT_DETAIL.field("expiry_year").offset)
             if 2018 <= yr <= 2035:
-                tid = int.from_bytes(mm[p:p + 4], "little")
+                tid = P.u32(mm, p)
                 if tid in info and tid not in out:
-                    units = int.from_bytes(mm[p + 5:p + 7], "little")
-                    day = int.from_bytes(mm[p + 13:p + 15], "little")
-                    try:
-                        expiry = (date(yr, 1, 1) + timedelta(days=day)).isoformat()
-                    except ValueError:
-                        expiry = None
+                    r = RD.read_fields(mm, CONTRACT_DETAIL, p, ("wage_units", "expiry"))
                     out[tid] = {
-                        "wage_units": units,
-                        "wage_gbp": units * WAGE_GBP_PER_UNIT,
-                        "expiry": expiry,
+                        "wage_units": r["wage_units"],
+                        "wage_gbp": r["wage_units"] * WAGE_GBP_PER_UNIT,
+                        "expiry": r["expiry"],
                         "expiry_year": yr,
                     }
         p += 1
     return out
+
+
+ATTR_STRIDE = 78
+ATTR_ANCHOR = 42          # the SID marker P sits 42 bytes into the record
+
+
+def attribute_table_end(mm, first_P):
+    """Where the attribute grid really ends, from the count it declares about itself.
+
+    The table is count-framed -- `[>= 8 x 0xFF][count u32][record 0]` -- and record 0 starts
+    `ATTR_ANCHOR` bytes before the first SID marker the scan finds. Returns the exclusive end
+    offset, or None if the frame is not where it should be (then the caller keeps its window).
+
+    WHY THIS MATTERS: without it the scan ran to a tuned window bound and picked up 13 extra
+    "records" past the end of the table -- obvious garbage (one has a height of 54,539 cm),
+    identical in count on every save in both careers. They never surfaced, because none of
+    them joins the info spine, which is exactly why nothing caught them. The declared count
+    and the 78-byte grid agree with each other independently: the records ON the grid number
+    exactly `declared`, and all 13 strays are both off-grid AND past this end.
+    """
+    base0 = first_P - ATTR_ANCHOR
+    if base0 < 12:
+        return None
+    if not all(mm[base0 - 4 - 1 - k] == 0xFF for k in range(8)):
+        return None
+    count = int.from_bytes(mm[base0 - 4:base0], "little")
+    if not (0 < count < 1_000_000):
+        return None
+    end = base0 + count * ATTR_STRIDE
+    return end if end <= len(mm) else None
 
 
 def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):
@@ -348,7 +425,10 @@ def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):
 
     Records sit on a 78-byte grid; we scan for a structurally valid record (15 valid
     positions + feet + 0<CA<=PA<=200), read the SID at P-42, and skip ahead. First
-    SID wins (records are 1:1 with SID)."""
+    SID wins (records are 1:1 with SID).
+
+    `hi` is only the OUTER bound. Once the first record is found the table's own declared
+    count gives the real end and the scan stops there -- see `attribute_table_end`."""
     out = {}
     P = lo
     while P < hi:
@@ -365,14 +445,18 @@ def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):
                     "feet": {"left": left, "right": right},
                     "ca": ca, "pa": pa,
                     "reputation": int.from_bytes(mm[P + 21:P + 23], "little"),
-                    "attributes": {n: mm[P + rel] for rel, n in ATTR_OFFSETS.items()},
+                    "attributes": named_attributes(mm, P),
                     **record_tail(mm, P),
                     **hidden_attributes(mm, P),
                     **source_bytes(mm, P),
                     **plain_bytes(mm, P),
                 }
                 out.setdefault(sid, rec)
-                P += 78
+                if len(out) == 1:
+                    declared_end = attribute_table_end(mm, P)
+                    if declared_end is not None:
+                        hi = min(hi, declared_end)
+                P += ATTR_STRIDE
                 continue
         P += 1
     return out
