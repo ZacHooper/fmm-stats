@@ -229,32 +229,59 @@ def scrape_players(mm):
        this only ever ADDS to the spine.
     """
     players = {}
-    i = 0
-    while True:
-        j = mm.find(NO_NICKNAME, i)
-        if j == -1:
-            break
-        i = j + 1
-        base = j - 16                       # the FFFFFFFF is the nickname field at +16
-        if base < 0:
-            continue
-        year = int.from_bytes(mm[base + 22:base + 24], "little")
-        if not (DOB_YEAR_LO <= year <= DOB_YEAR_HI):
-            continue
-        tid = int.from_bytes(mm[base:base + 4], "little")
-        if not (100 < tid < 70000) or tid in players:
-            continue
-        # Day-of-year sanity, which _scrape_nicknamed has always applied and this sweep
-        # never did. It only started to matter when the DOB ceiling was raised: a junk
-        # record carrying a plausible year and a day-of-year of ~61,000 rolls forward into
-        # a DOB of 2199 and was admitted to the spine ('Rajagobal Rajagobal', 2-5 per save).
-        # The two sweeps validate the same field the same way now.
-        if int.from_bytes(mm[base + 20:base + 22], "little") > 366:
+    for base in _nickname_sentinel_candidates(mm):
+        tid = P.u32(mm, base)
+        if tid in players:
             continue
         players[tid] = _decode_info(mm, base)
 
     players.update(_scrape_nicknamed(mm, players))
     return players
+
+
+def _nickname_sentinel_candidates(mm):
+    """Record starts for sweep 1, in ascending file order.
+
+    NO WINDOW, and no gap threshold either. The records do form one dense run -- 30,797 of
+    them between 0.584 MB and 3.989 MB on frem-2026-06-11, largest internal gap 6 KB, and
+    the same shape on frem-2021 and bucaspor-2023 -- but "dense run" is not an invariant this
+    table asserts about itself, and bounding the walk by a tuned gap would make the record
+    count a function of that number. That is the mistake the city table's miss counter made.
+
+    So the SCAN stays whole-file and the predicate is unchanged; what changes is that it is
+    evaluated with numpy instead of in a 21-million-iteration Python loop. Measured on
+    frem-2026-06-11: the sentinel occurs 21,213,200 times and 30,797 survive, which is a
+    ratio of 689:1 -- the loop existed almost entirely to reject.
+
+    Overlapping matches are kept, exactly as `mm.find(..., j + 1)` produced them: a run of
+    five 0xFF bytes yields a candidate at both of its first two positions.
+    """
+    import numpy as np
+    a = np.frombuffer(mm, dtype=np.uint8)
+    ff = a == 0xFF
+    # every offset where four consecutive bytes are 0xFF (overlaps included)
+    j = np.flatnonzero(ff[:-3] & ff[1:-2] & ff[2:-1] & ff[3:])
+    base = j - 16                          # the sentinel is the nickname field at +16
+    base = base[base >= 0]
+    base = base[base + INFO_HEAD <= len(a)]
+
+    def u16(off):
+        return a[base + off].astype(np.uint32) | a[base + off + 1].astype(np.uint32) << 8
+
+    def u32(off):
+        return (u16(off) | a[base + off + 2].astype(np.uint32) << 16
+                | a[base + off + 3].astype(np.uint32) << 24)
+
+    year = u16(22)
+    tid = u32(0)
+    # Day-of-year sanity, which `_scrape_nicknamed` has always applied and this sweep did
+    # not until the DOB ceiling was raised: a junk record carrying a plausible year and a
+    # day-of-year of ~61,000 rolls forward into a DOB of 2199 and was admitted to the spine
+    # ('Rajagobal Rajagobal', 2-5 per save). The two sweeps validate it the same way now.
+    day = u16(20)
+    keep = ((year >= DOB_YEAR_LO) & (year <= DOB_YEAR_HI)
+            & (tid > 100) & (tid < 70000) & (day <= 366))
+    return [int(b) for b in base[keep]]
 
 
 # THE TWO CONTRACT RECORDS. Both are shape F in docs/parser-architecture.md -- found by
