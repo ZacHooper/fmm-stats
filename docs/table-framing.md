@@ -124,6 +124,15 @@ against our parser, which is both cheaper and stronger evidence: **238/238 confi
 failures**, over all 34 saves — and exactly two declared counts per table per career, so the
 tally doubles as the constant-across-a-career test.
 
+> **ALL OF THE DEFECTS BELOW ARE FIXED as of 2026-09-20** (parser refactor, Phase 5). The
+> write-ups are kept because they record *how* each one hid, which is the reusable part. What
+> changed, in one line each: languages 77 -> 124 and currencies 94 -> 173 (one rejected record
+> was truncating the rest of the chain); nations 227 -> 251 (three separate rejects, including
+> the `0xFFFF` no-continent sentinel on 17 defunct states); the attribute table stops at its
+> declared end instead of inventing 13 rows; and the **third name id-table** is now read, so
+> 2,424 people have their real display names. One claim below is also CORRECTED rather than
+> fixed — see "the staff grid" at the end.
+
 ### The two that lose real data
 
 **Nations — a range gate that excludes id 0.** The nation table declares **251** and
@@ -163,6 +172,24 @@ parsers read the same 77 and 94 everywhere, so this has been a constant, silent 
 spine hands it, which is legitimate for its current purpose. Its first record sits 9 slots
 (351 bytes) into the table, which is why the header looked absent until the locator was
 anchored on the table's own base rather than on the first record the walk happened to reach.
+
+> **DONE 2026-09-20, and it settled a contradiction.** The lookup is now arithmetic
+> (`base + id2 * 39`). `staff.py` had asserted the opposite of this section — that the table
+> is "multi-segment, so a stride walk is provably impossible" — and this section was the one
+> that was right. The disagreement was entirely the stride: `staff.py` measured the gaps
+> between ground-truth managers (19,929 and 8,541 bytes) against the **player** record's 78
+> bytes rather than the staff record's 39, and 19,929 and 8,541 are exactly 511 and 219
+> records of 39. At stride 78 `id2 == slot` holds on 1 slot and the ids read 0, 2, 4, …,
+> which looks precisely like a phase reset. Agrees with the old key search on every record it
+> finds (4,449/4,449 Frem, 5,462/5,462 Bucaspor) and output is byte-identical.
+
+> **DONE 2026-09-20 — and there are THREE name id-tables, not two.** They are CHAINED: each
+> one's declared end is followed immediately by the next one's `[8 × 0xFF][count]` frame, so
+> `next = base + count * 16 + 12` lands exactly on the next base and the chain terminates by
+> itself. Following it finds a **9,480-slot common-name table** that nothing had ever opened,
+> which is why 2,424 people were displayed under their full legal names (`Tite` as 'Adenor
+> Leonardo Bachi'). `reference.resolve_common_name` reads it; the walked counts now equal the
+> declared ones.
 
 **The two name id-tables** are walked by an `id == slot index` invariant that breaks at the
 first free slot (`id = 0xFFFFFFFF`); 3,523 such slots are scattered through the surname

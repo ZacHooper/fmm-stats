@@ -27,10 +27,10 @@ six.
 |---|---|---|---|
 | **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)) |
 | **B. Pointer / delimiter / marker** | career data; there is never a count | a chain that lands exactly on the next record, or a filler wall | history slab, our matches, squad snapshot, tagged region, club records |
-| **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), club records (25,368 empty rows on day one), contract grid (32,961 × 83 B) |
+| **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), club records (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
-| **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status, `attr_record`, staff attributes, injuries |
+| **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status, `attr_record`, injuries |
 
 The rest of this part is one section per shape: what it looks like in the bytes, how to find
 it, and **the way it fails** — because every one of these has cost real debugging time, and the
@@ -179,9 +179,18 @@ keyed on a tid/uid/sid and then have to decide which copy is the live one.
 - `attributes.attr_record` disambiguates **by recency** — reserve players otherwise read stale
   attributes, and a frozen row is the tell
   ([`agent-context/reserve-marker-stale-attrs.md`](agent-context/reserve-marker-stale-attrs.md)).
-- `staff.scrape_staff_attributes` cannot use a grid walk at all: the staff records are
-  **multi-segment**, so a stride walk is provably impossible and each is found by its `id2`
-  link from the person record.
+- `staff.scrape_staff_attributes` **used to be listed here and no longer belongs.** It was
+  held to be shape F because the staff records were "multi-segment, so a stride walk is
+  provably impossible". They are not. That conclusion came from measuring the gaps between
+  ground-truth managers (19,929 and 8,541 bytes) against the **player** record's 78-byte
+  stride; the staff record is **39** bytes, and those gaps are exactly 511 and 219 records of
+  it. Read at the right stride, `id2 == slot index` on every declared slot — 4642/4642 on
+  Frem, 5697/5697 on Bucaspor — so it is **shape C**, a preallocated grid, and the lookup is
+  now arithmetic. Corrected 2026-09-20.
+
+  Keep the failure in mind when reading any other "provably impossible" in these notes: the
+  measurement was right, the stride it was compared against was not, and at 78 bytes the ids
+  come out `0, 2, 4, ...`, which is exactly what a phase reset looks like.
 
 **How it fails.** By picking the wrong copy, which produces *correct-looking* values for the
 wrong point in time. Validate every hit against the info spine, exactly as the scrapers in

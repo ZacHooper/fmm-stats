@@ -490,8 +490,8 @@ Two things to do: find where they resolve, and until then make `player_origin` d
 *ineligible* from *unknown*. **Treat `eligible=False` on a `#<tid>` origin as "ask Zac", not
 "no".**
 
-### 9. Three records still read short or unread
-All three are known gaps, not suspicions:
+### 9. Two records still read short or unread
+Both are known gaps, not suspicions (a third, the nation walk, was fixed 2026-09-20):
 
 - **`parse_club_trailer` steps over 20 undecoded bytes** — width confirmed, content unread.
 - **The Region table is unparsed**, as is the nation record's counted language list. A NEW,
@@ -505,21 +505,12 @@ All three are known gaps, not suspicions:
   reads it. Its own 6th entry ("World") is the coincidental candidate that a widened comp scan
   briefly picked up as a fake `cid=24931` competition (see #10) before comps moved to a pure
   structural walk that never scans this far at all.
-- **`_nation_candidates`' `1 <= nid` floor drops ALGERIA** (nation_id 0, the first real
-  nation, immediately before Angola/nation_id 1). **Root cause corrected 2026-09-18 by
-  measurement** — this entry previously blamed the unconditional `break` at the end of the
-  `nat_len` loop, and that is NOT it. Switching the two suspects independently on
-  frem-2023-07-02: as shipped, 1,860 candidates and no Algeria; removing the outer `break`
-  alone, **still 1,860 candidates and still no Algeria**; lowering the floor to `0 <= nid`
-  alone, 2,164 candidates and `(0, 'Algeria', 'ALG')` present. So it is the **range gate**,
-  which makes this the same family as every other uid/id range gate in this codebase rather
-  than a terminator-walk bug. The `nat_len` break may still be a latent bug; it is not this
-  one.
-
-  The nation table also **declares its own count — 251** (u16 at 12,776,735, record 0 at
-  12,776,737), so the fix has an exact target: 251 slots, and `scrape_nations` currently
-  returns 227. See #17 and [`table-framing.md`](table-framing.md). 24 declared ids are absent
-  in total and the other 23 are NOT yet classified blank-vs-missed.
+(The third bullet here — `_nation_candidates` dropping Algeria — is FIXED, 2026-09-20. The
+range gate was indeed the root cause, as the 2026-09-18 measurement said, and two further
+rejects sat behind it: the `0xFFFF` no-continent sentinel on 17 defunct states, and a locator
+that only searched for 3-letter country codes when six nations carry 2-letter ones. All 251
+declared nations are read, ids 0..250 with no gaps, and the walk asserts that. The "24 absent
+ids, 23 unclassified" question is answered: every one was a real record, none was a blank slot.)
 
 ### 10. The competition scraper — SOLVED (2026-09-18): a pure structural walk, gate-free
 Found auditing `reference.py`'s competition scraper 2026-09-17, escalated into a full rewrite
@@ -857,53 +848,25 @@ The competition table's self-declared count (#10) turned out to be a **general c
 table "what does your header say, versus what do we read?" found four defects. **Nothing here
 is fixed yet** — the audit is committed, the fixes are not.
 
-**Four are losing real data on every save ever built:**
+**The four that were losing real data on every save are FIXED (2026-09-20, refactor Phase 5).**
+Languages 77 -> 124, currencies 94 -> 173, nations 227 -> 251, and the third name id-table is
+read at last, so 2,424 people carry their real display names instead of their full legal ones
+(`Tite`, not 'Adenor Leonardo Bachi'). The attribute table now stops at its declared end rather
+than inventing 13 rows, and the staff grid is read by arithmetic. The diagnoses, and the way
+each one hid, are kept in [`table-framing.md`](table-framing.md) — the reusable lesson is that
+**a rejected record does not cost one record**: in a chained table it truncates everything
+after it, and in a keyed table it punches a hole that still looks like a clean table.
 
-- **NICKNAMES ARE NEVER RESOLVED.** There is a THIRD name id-table — 9,480 slots at
-  38,699,407, chained immediately after the first-name table — and
-  `reference._discover_id_tables` returns only the two LARGEST, so it has never been opened.
-  `common_name_id` (`staging.INFO_LAYOUT` +16) indexes it, **2,424 of 32,760 people carry
-  one**, and we show every one of them under their full legal name: `Tite` appears as 'Adenor
-  Leonardo Bachi', `Renato Gaúcho` as 'Renato Portaluppi', `Míchel` as 'José Miguel González
-  Martín del Campo'. This also **corrects INFO_LAYOUT's own comment**, which claims the field
-  is set on "only 0.1% of records ... so it is NOT the link `_scrape_nicknamed` follows" — the
-  real rate is 7.4%, i.e. exactly the ~8% the comment says carry a nickname, and it is the
-  same +16 bytes `_scrape_nicknamed` keys on. Fix the comment in the same change.
+Two patterns did nearly all the damage and are worth recognising on sight:
 
-- **`lookups.scrape_nations` reads 227 of a declared 251.** The real record 0 is at
-  12,776,737 (`[uid 5][id 0][7]'Algeria'`), 188 bytes before the id-1 record the locator was
-  treating as the table start — which is also why the nation table looked header-less in the
-  first audit pass. **The missing Algeria was already known (#9); what is new is the declared
-  count**, which turns "a candidate is being dropped" into "the table holds 251 and we return
-  227", and the measurement that corrects #9's root cause to the `1 <= nid` range gate. 24
-  declared ids are absent in total; the other 23 have NOT been checked for blank-vs-missed.
-
-- **`lookups.scrape_languages` reads 77 of a declared 124.** `_language_at` stops at slot 77,
-  'Malayalam', whose `OtherName` is a ZERO-LENGTH string, and `_string` requires `1 <= ln`. A
-  tolerant walk reaches exactly 124 and stops. Same failure as the competition table's empty
-  code field on cid 172 'Welsh First Division', one table over. Lost: Berber (Tamazight) and
-  the game's own UI locales (uid 1,000,000+).
-- **`lookups.scrape_currencies` reads 94 of a declared 173.** `_currency_at` rejects
-  `uid > 4096`; slot 94 is 'Macao Pataca', uid 51535. **The fourth uid range gate in this
-  codebase to cut a table short.** Lost: West African CFA franc, Nigerian Naira, Bolivian
-  Boliviano, Guatemalan Quetzal, Honduran Lempira, Nicaraguan Córdoba and 72 more.
-  Both declared counts are identical in both careers and both parsers read the same short
-  numbers everywhere, so this is a constant, silent loss — not save-specific.
-
-**Three are structural, with no live data loss:**
-
-- **The staff attribute table is a dense array indexed by `id2`** — `id2 == slot index` on
-  4642/4642 — so it is walkable by arithmetic. `scrape_staff_attributes` reads 4150 because it
-  is driven by the info spine's id2 set, which is fine for its purpose; worth knowing the whole
-  table is available if anything ever needs non-squad staff.
-- **The two name id-tables** declare 32148 / 19128 and the walk gets 28624 / 15366, stopping at
-  the first free slot (`id = 0xFFFFFFFF`; 3,523 are scattered through the surname table).
-  Latent only — `resolve_name` indexes directly and does not use the walked count. The
-  first-name/surname orientation heuristic would be more robust reading the declared counts.
-- **`staging.scrape_attributes` over-reads by 13.** All 26,505 declared slots pass the position
-  check; the 13 extras are off-grid past the table end and obvious garbage (height 54,539 cm),
-  and **zero of them join the info spine**, so none surfaces. The declared count would replace
-  the scan-and-skip loop with pure arithmetic.
+- **The `0xFFFF` / out-of-band sentinel read as an out-of-range value.** A plausibility gate
+  (`nation_id <= 4096`, `continent_id <= 6`, `uid <= 4096`) rejects the value the save uses to
+  mean "none". It cost 17 defunct nations, 5 regional languages and 79 currencies across three
+  tables. `primitives.NO_ID16` / `NO_ID32` exist to be checked against.
+- **A stride borrowed from the neighbouring table.** The staff record was measured against the
+  player record's 78 bytes instead of its own 39, and the resulting nonsense (`id2` reading
+  0, 2, 4, …) was written up as "the table is multi-segment, a grid walk is provably
+  impossible". It is a dense array.
 
 **The next goal: name the tables in the inventory, one at a time.** `discover_tables.py`
 validates a table by deriving its stride from the header's count and then checking
