@@ -224,6 +224,24 @@ Run **`uv run python scripts/audit_records.py [save.fms]`**:
 - **EXTENT** — a keyed table is dense from id 0. A gap means the walk dropped a row; an
   overshoot means it invented one.
 
+**Never validate a field by JOINING ON IT.** A check that matches candidate rows *on* the
+date and then reports "282 of 285 agree on date" cannot fail when every date is uniformly
+wrong — a shift makes fewer rows join, and a high agreement rate among the rows that did join
+still reads as a pass. That is exactly how `fix_man`'s dates shipped a day late: the day-of-
+year is 1-indexed and `ymd_from` is 0-indexed, and the validation was measuring agreement
+among rows it had already filtered for agreement. **Join on something else (an id, a score)
+and let the field under test come out as OUTPUT**; re-measured that way it was 51/51 and 60/60
+rows needing exactly −1, across both careers, in one run.
+
+**Adjacent bytes are not one field until you show they are.** This has now cost two decodes.
+The staff record was measured against the PLAYER record's 78-byte stride, so `id2` read 0, 2,
+4, … and the write-up concluded "multi-segment, a grid walk is provably impossible" — it is a
+dense 39-byte array. The fixture record's `+78..81` were read as one u32, which offered only
+"u8 plus padding" or "u32", and both look wrong — `+78` is a round counter and `+79`/`+80`/
+`+81` are three separate small columns. In both cases every measurement was correct and the
+grouping was the error. Non-zero neighbours argue against PADDING, never against a narrow
+field.
+
 Two rules follow, and the recent bugs all break them:
 - **Bound a table walk by the table's own invariant, never a tuned constant.** A miss counter or
   a plausibility window makes the row count a function of the constant. The city table's real

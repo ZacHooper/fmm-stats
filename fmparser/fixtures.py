@@ -46,12 +46,36 @@ nowhere.
 **Competition.** No competition field is identified in this record. Every fixture's
 competition is unknown from the record alone -- the same gap the 25-byte table has.
 
-**The round / matchday counter at +78.** `save-archive.md` reports it as "sequential 0,1,2...
-within a competition. Not verified", and measuring it says do not ship it: read as a u32 it
-takes 135 distinct values up to 67,240,195, and read as a u8 it takes 47 with 255 the single
-most common -- but bytes +79..81 are non-zero on 5,551 of 26,954 records, so it is not a u8
-followed by padding either. Neither reading is clean, so the span is declared and nothing is
-emitted.
+**Competition, still.** No competition field is identified in this record, and that is the
+one gap that actually costs something -- see `round` below for how far you can get without it.
+
+THE ROUND COUNTER AT +78 -- DECODED 2026-09-21, CORRECTING THIS MODULE
+----------------------------------------------------------------------
+This section used to say the counter was not decodable: "read as a u32 it takes 135 distinct
+values up to 67,240,195, and read as a u8 it takes 47 with 255 the single most common -- but
+bytes +79..81 are non-zero on 5,551 of 26,954 records, so it is not a u8 followed by padding
+either. Neither reading is clean."
+
+Every measurement there is correct and the conclusion is wrong. The error was assuming the
+four adjacent bytes are one field, so the only choices on offer were "u8 plus padding" or
+"u32". They are FOUR INDEPENDENT FIELDS: `+78` is the round, and `+79`/`+80`/`+81` are three
+separate small-valued columns (8, 4 and 2 distinct values respectively, mostly zero, still
+unidentified). Non-zero neighbours never argued against a u8 -- they only argued against
+PADDING, which is a different claim.
+
+`+78` is a matchday counter WITHIN a competition, 0-45 plus 255, verified against our own
+matches where the competition IS labelled: our 3F Superliga rows run 0..21 and then restart
+for the post-split phase, our Friendlies are all 255, and a Sydbank Pokalen tie carries 2 --
+its own competition's round 2, not the league's. So the counter does not identify the
+competition; it counts within whichever one the match belongs to.
+
+That is still enough to reconstruct a league table with no competition field in the data --
+see docs/TODO.md. The round separates matchdays, a >30-day gap inside one round number
+separates the regular phase from the post-split phase, and a league round is a PERFECT
+MATCHING over the division's clubs (every club exactly once), which a cup tie can never join
+because it duplicates a club. Measured on the Danish top flight: exactly 192 matches and 32
+per club in all five seasons the archive reaches, cross-checked 12/12 against the save's own
+final positions.
 
 WHAT IS PROVEN
 --------------
@@ -113,9 +137,12 @@ FIXTURE = Record("world_fixture", STRIDE, [
     Field(53, 2, "day_raw", U16),
     Field(55, 2, "year", U16, note="only the current and previous calendar year, ever"),
     Field(57, 21, UNKNOWN, PAD),
-    # +78..81: a round/matchday counter, NOT decoded -- see the module docstring. Declared
-    # as one span rather than named, for the same reason as the goals block.
-    Field(78, 4, UNKNOWN, PAD),
+    # 0-45, or 255 for "no matchday" (friendlies). See the module docstring.
+    Field(78, 1, "round", U8, note="matchday WITHIN a competition; 255 = none"),
+    # NOT padding, and NOT part of the round: three separate small columns, 8 / 4 / 2 distinct
+    # values, mostly zero, unidentified. Declared as one unknown span because that is the
+    # honest statement -- but do not read them together with +78, which is what hid the round.
+    Field(79, 3, UNKNOWN, PAD),
     Field(82, 10, UNKNOWN, PAD),
 ])
 
@@ -128,6 +155,7 @@ DAY_MASK = 0x1FF
 # that joins on (opponent, score) needs exactly -1 day. 51 of 51 on frem-2026-06-29 and 60 of
 # 60 on bucaspor-2023-03-25 -- both careers, no exceptions, no other offset represented.
 DAY_BASE = 1
+NO_ROUND = 0xFF           # +78 when the match belongs to no matchday (friendlies)
 
 
 def segments(blob):
@@ -195,14 +223,15 @@ def fixtures(mm, valid_clubs=None):
         for k in range(count):
             base = start + k * STRIDE
             r = RD.read_fields(blob, FIXTURE, base,
-                               ("home_tid", "away_tid", "day_raw", "year"))
+                               ("home_tid", "away_tid", "day_raw", "year", "round"))
             if valid_clubs is not None and (r["home_tid"] not in valid_clubs
                                             or r["away_tid"] not in valid_clubs):
                 continue
             out.append({"home_tid": r["home_tid"], "away_tid": r["away_tid"],
                         "date": P.ymd_from(r["year"],
                                            (r["day_raw"] & DAY_MASK) - DAY_BASE),
-                        "year": r["year"]})
+                        "year": r["year"],
+                        "round": None if r["round"] == NO_ROUND else r["round"]})
     return out
 
 
