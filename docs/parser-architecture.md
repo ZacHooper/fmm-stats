@@ -188,14 +188,54 @@ keyed on a tid/uid/sid and then have to decide which copy is the live one.
 wrong point in time. Validate every hit against the info spine, exactly as the scrapers in
 `staging.py` do.
 
-### Two non-conformers that are defects, not shapes
+### Two non-conformers, and what measuring them showed
 
-- `lightresults` locates and walks the **same region** `clubrecords` owns, with its own
-  independent locator, and `extract.py` calls both. One region, two locators.
-- `staging.scrape_attributes` and `scrape_contracts` have **no locator at all** — just a
-  window constant from `regions.py`.
+**`lightresults` is not a seventh shape — it is shape B, reading shape C's record at a
+15-byte shift.** Measured 2026-09-20 on `frem-2026-06-11`: of the 5,830 "fixtures" a
+whole-region sweep returns, 5,183 (88.9%) sit at exactly `club_team_record + 15`, and the
+alignment is field for field —
 
-Both are Phase 3 of the refactor. Do not model them.
+| light | club_team_record |
+|---|---|
+| `+0` home_tid | `+15` club_tid |
+| `+2` away_tid | `+17` opponent_tid |
+| `+4` scoreH | `+19` score_for |
+| `+5` scoreA | `+20` score_against |
+| `+10` comp_cid | the **next** row's `+4` (stride 21, so `+15+10 == +21+4`) |
+
+So a "fixture" there is one club's record-setting match plus the competition of the following
+category's row. Region agreement is 98.9% on `frem-2026-06-11` and 96.7% on
+`bucaspor-2023-03-25`; the 1–3% outside come from clusters the year-marker scan opens in the
+name tables and the transfer band, and are suspected false positives. Re-pointing the sweep at
+`clubrecords.region()` would drop them — an *output* change, so it is documented and not done.
+
+**The two window-bounded scrapers were measured before being replaced, and the measurement
+said not to.** `ATTR_LO/HI` (3.8–6.6 MB) and `CONTRACTREC_LO/HI` (16–40 MB) return counts
+identical to a whole-file scan on three saves across both careers. The one apparent exception
+argues *for* the window: without it, `frem-2021-07-01` gains a contract record at 12.646 MB
+that reads wage 0 and an expiry six months before the save's own date — and 12.646 MB is
+inside the competition table. It is a coincidental `[tid][0x01]…[plausible year]` in an
+unrelated structure, and the window is what excludes it.
+
+The distinction that matters: **these two are not fallbacks.** Nothing falls through to them
+when a locator fails, because there is no locator to fail. That is what separated them from
+`SNAPSHOT_LO/HI`, `LIGHT_LO/HI` and `MATCH_LO`, all three of which *were* fallbacks and are
+gone — see below.
+
+### A constant fallback is worse than no fallback
+
+Four locators used to answer with a hand-tuned window when they found nothing, so a blind
+locator produced a plausible short result instead of an error. All four now raise or report:
+
+| locator | the window it fell back to | why it was wrong |
+|---|---|---|
+| `attributes.snapshot_bounds` | `SNAPSHOT_LO/HI` 62.3–63.2 MB | the *default career's* snapshot; any other career got an empty read |
+| `tagged.find_tagged_region` | `TAGGED_LO/HI` — **and cached it** | one blind lookup served to every later caller for the life of the process |
+| `matches.extract_season` | `MATCH_LO` = 55 MB | 55 MB is *inside* Frem's own match region (~53.8 MB), so it dropped the start of that career |
+| `lightresults.build` | `LIGHT_LO/HI` 47.0–50.5 MB | Bucaspor-tuned; and measured across all 34 archived saves the locator never once returned empty, so this was dead code with a failure mode attached |
+
+`matches` reports rather than raises, because a 0-match save is a real thing and that is what
+one looks like; it scans from 0 instead of from a constant.
 
 ---
 
@@ -220,6 +260,12 @@ The modules:
 | `fmparser/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `pstring`, `tag4`. Pure `(buffer, offset) -> value`. |
 | `fmparser/schema.py` | `Field(offset, width, name, kind, group, alias, note)`, `Record(name, span, fields, stride, anchor)`, `UNKNOWN`, and `validate()`. |
 | `fmparser/records.py` | `read / read_at_anchor / read_into / read_fields / read_group / walk / columns`. **No locating.** |
+
+**21 records are declared** as of 2026-09-20, and `scripts/audit_records.py` reads every one
+of them from the module that parses it — it holds no layout of its own any more. That
+inversion was not cosmetic: while the audit owned the competition trailer's layout, it
+declared `nation` as a u16 at `+3` and both parsers read `trailer[3]` alone, which is right
+only because all 227 nation ids in the save happen to fit in a byte.
 
 Run **`uv run python tests/test_layouts.py`** — no save file, milliseconds — and
 **`uv run python scripts/audit_records.py --map`**, which prints the per-byte schema. *That
