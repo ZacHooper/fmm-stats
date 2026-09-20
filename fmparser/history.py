@@ -62,6 +62,8 @@ import struct
 
 import numpy as np
 
+from .schema import Field, PAD, Record, U8, U16, U32, UNKNOWN
+
 from .save import cache_key as _cache_key
 
 FF = 0xFFFFFFFF
@@ -86,6 +88,30 @@ def decode_fee(v):
     0 render as "Free" (confirmed on Thrane's 2021/22 Naestved move, which stores `fd ff`).
     """
     return {0xffff: "stay", 0xfffe: "loan", 0xfffd: "free", 0: "free"}.get(v, v)
+
+
+# THE ROW, declared. `+12..+13` is the reason this exists: those two bytes were never read
+# and never declared, so nothing in the repo could tell "we looked and cannot name it" from
+# "we never looked". Declaring them PAD changes no output -- the row is still read column-wise
+# below -- and makes the gap visible to `scripts/audit_records.py`.
+#
+# The columns stay numpy. `records.columns` would return Python lists, and the pointer-forest
+# work here (`np.bincount` over `next`, the in-degree test, the vectorised chain walk) needs
+# arrays over 265,423 rows. What the declaration buys is that the OFFSETS are stated once:
+# `_OFF` below is what the numpy reads index with, so a field cannot move in the layout and
+# stay put in the reader.
+ROW = Record("history_row", STRIDE, [
+    Field(0,  2, "club",    U16, note="club tid; 0xffff = free/none"),
+    Field(2,  2, "fee",     U16, note="fee INTO that club; ffff/fffe/fffd are sentinels"),
+    Field(4,  4, "next",    U32, note="NEXT ROW INDEX, not a counter. 0xFFFFFFFF ends a chain"),
+    Field(8,  1, "season",  U8,  note="absolute season code; end_year = 1971 + code"),
+    Field(9,  1, "apps",    U8),
+    Field(10, 1, "goals",   U8,  note="CONCEDED for goalkeepers"),
+    Field(11, 1, "assists", U8),
+    Field(12, 2, UNKNOWN,   PAD),
+    Field(14, 2, "rating",  U16, note="average rating x100; 0 on pre-career rows"),
+])
+_OFF = {f.name: f.offset for f in ROW.fields if f.emits}
 
 
 def _u32(buf, off):
@@ -169,14 +195,21 @@ class Table:
             rows = (end - start) // STRIDE
         self.start, self.rows = start, rows
         o = start + STRIDE * np.arange(rows)
-        self.next = _u32(buf, o + 4).astype(np.int64)
-        self.club = buf[o].astype(np.int64) | buf[o + 1].astype(np.int64) << 8
-        self.fee = buf[o + 2].astype(np.int64) | buf[o + 3].astype(np.int64) << 8
-        self.season = buf[o + 8].astype(np.int64)
-        self.apps = buf[o + 9].astype(np.int64)
-        self.goals = buf[o + 10].astype(np.int64)
-        self.assists = buf[o + 11].astype(np.int64)
-        self.rating = buf[o + 14].astype(np.int64) | buf[o + 15].astype(np.int64) << 8
+        def _u8col(name):
+            return buf[o + _OFF[name]].astype(np.int64)
+
+        def _u16col(name):
+            k = _OFF[name]
+            return buf[o + k].astype(np.int64) | buf[o + k + 1].astype(np.int64) << 8
+
+        self.next = _u32(buf, o + _OFF["next"]).astype(np.int64)
+        self.club = _u16col("club")
+        self.fee = _u16col("fee")
+        self.season = _u8col("season")
+        self.apps = _u8col("apps")
+        self.goals = _u8col("goals")
+        self.assists = _u8col("assists")
+        self.rating = _u16col("rating")
         live = self.next != FF
         self.indeg = np.bincount(self.next[live], minlength=rows)
 

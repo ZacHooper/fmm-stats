@@ -44,6 +44,7 @@ sys.path.insert(0, ROOT)
 from fmparser import attributes as A          # noqa: E402
 from fmparser import staff as ST              # noqa: E402
 from fmparser import places as PL             # noqa: E402
+from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402
 from fmparser import staging as S             # noqa: E402
 
@@ -192,6 +193,11 @@ LAYOUTS = {
     # entry here at all. Its stride is not measurable the way a grid's is (blocks sit inside
     # a match, found by delimiter, not on a file-wide grid), so COVERAGE is what this buys.
     "match_player_block": _from_record(MT.BLOCK_REC),
+    # Also new to the audit. The slab is read COLUMN-WISE with numpy (265,423 rows), so its
+    # stride is a property of the locator rather than of a gap histogram -- COVERAGE is the
+    # check that matters, and it is what surfaces `+12..+13` as declared-unknown instead of
+    # as two bytes nobody had looked at.
+    "history_row": _from_record(H.ROW),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.
