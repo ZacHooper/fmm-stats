@@ -89,9 +89,14 @@ INFO_LAYOUT = Record("info_head", 68, (
     Field(4, 4, "uid", U32),
     Field(8, 4, "first_name_id", U32),
     Field(12, 4, "last_name_id", U32),
-    # People.cs calls this CommonNameId. Only 0.1% of records set it (the rest are ffffffff),
-    # nowhere near the ~8% that carry a nickname, so it is NOT the link `_scrape_nicknamed`
-    # follows. Carried, not relied on.
+    # People.cs calls this CommonNameId: the name the game DISPLAYS, 0xFFFFFFFF when unset.
+    # It indexes the THIRD id-table (`reference.resolve_common_name`), not either name table.
+    #
+    # This comment used to say "only 0.1% of records set it ... so it is NOT the link
+    # `_scrape_nicknamed` follows". That was wrong twice over. The real rate is 7.4% (2,424
+    # of 32,760 on frem-2023-07-02, every one of which resolves), which is exactly the ~8%
+    # that carry a nickname -- and it IS the same +16 field `_scrape_nicknamed` keys on, as
+    # `scrape_players`' own docstring says when it calls +16 "the nickname field".
     Field(16, 4, "common_name_id", U32),
     Field(20, 4, "dob", DATE),
     Field(24, 2, "nationality_id", U16),

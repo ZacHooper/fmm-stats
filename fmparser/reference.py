@@ -1181,11 +1181,54 @@ def _walk_browse(mm):
     return _walk_browse_bounds(mm)[2]
 
 
+ID_TABLE_STRIDE = 16       # [browse ordinal u32][id u32][8 more]
+_ID_TABLE_FRAME = 12       # [8 x 0xFF][count u32] between one table's end and the next's base
+
+
+def _chain_id_tables(mm, first_base, limit=8):
+    """Every id-table from `first_base` on, by following the tables' own declared counts.
+
+    THE TABLES ARE CHAINED. Each one's declared end is followed immediately by the next
+    one's frame -- `[8 x 0xFF][count u32]`, 12 bytes -- so `next = base + count * 16 + 12`
+    lands exactly on the next base, with no search and no heuristic. Verified on both careers
+    and five in-game years: three tables every time, and the chain terminates by itself when
+    the frame test fails.
+
+    This is how the THIRD table was found. `_discover_id_tables`' probe anchors on id 8192
+    being present, and returned only two tables for the life of this parser -- so the
+    9,480-slot COMMON NAME table, sitting right behind the surnames, was never opened, and
+    2,424 people were shown under their full legal names: `Tite` as 'Adenor Leonardo Bachi',
+    `Renato Gaucho` as 'Renato Portaluppi'.
+
+    Returns [(base, declared_count), ...] in FILE order.
+    """
+    out, base = [], first_base
+    while len(out) < limit:
+        head = base - _ID_TABLE_FRAME
+        if head < 0 or not all(mm[head + k] == 0xFF for k in range(8)):
+            break
+        count = _u32(mm, base - 4)
+        if not (0 < count < 1_000_000):
+            break
+        if base + count * ID_TABLE_STRIDE > len(mm):
+            break
+        out.append((base, count))
+        base = base + count * ID_TABLE_STRIDE + _ID_TABLE_FRAME
+    return out
+
+
 def _discover_id_tables(mm, browse_len, probe=8192):
-    """Find the two dense id->ordinal tables. A record is 16 bytes with the id at +4 and
-    the browse ordinal at +0; ids run 0,1,2,… . Anchor on a mid-range id (present in both
-    tables), verify the dense run, walk back to base. Returns [(base, count), …] largest
-    first."""
+    """Find the dense id->ordinal tables. A record is 16 bytes with the id at +4 and
+    the browse ordinal at +0; ids run 0,1,2,… . Anchor on a mid-range id, verify the dense
+    run, walk back to base -- then CHAIN FORWARD from the earliest hit by declared count, so
+    a table too small for the probe to anchor in is still found. Returns [(base, count), …]
+    in FILE order, `count` being what each table declares about itself.
+
+    The probe still bounds what can be found at all: a table with fewer than `probe` slots
+    sitting BEFORE the first one would be missed, since the chain only runs forwards. No such
+    table exists in either career -- `scripts/audit_table_headers.py` inventories the section
+    -- but that is a measurement, not a guarantee.
+    """
     pat = struct.pack("<I", probe)
     bases = {}
     pos = 0
@@ -1205,10 +1248,18 @@ def _discover_id_tables(mm, browse_len, probe=8192):
                 while _u32(mm, base + n * 16 + 4) == n:
                     n += 1
                 bases[base] = n
-    return sorted(bases.items(), key=lambda x: -x[1])
+    if not bases:
+        return []
+    chained = _chain_id_tables(mm, min(bases))
+    # Fall back to the walked runs only if the chain does not reproduce them -- the declared
+    # counts are the better number (the surname walk stops at the first free slot, 3,523 of
+    # which are scattered through the table), but a chain that failed should not lose tables.
+    if len(chained) >= len(bases):
+        return chained
+    return sorted(bases.items())
 
 
-_NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname)
+_NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname, base_common)
 
 
 def build_name_resolver(mm, validate=None):
@@ -1219,9 +1270,14 @@ def build_name_resolver(mm, validate=None):
     browse = _walk_browse(mm)
     tabs = _discover_id_tables(mm, len(browse))
     if len(tabs) < 2:
-        _NAME_TABLES[_cache_key(mm)] = (browse, None, None)
+        _NAME_TABLES[_cache_key(mm)] = (browse, None, None, None)
         return False
-    big, small = tabs[0][0], tabs[1][0]
+    # By SIZE for the two name tables, because that is what the orientation heuristic below
+    # has always keyed on. The COMMON NAME table is whatever is left over -- it is the
+    # smallest by a wide margin (9,480 against 19,128 and 32,148) and last in the chain.
+    by_size = sorted((c, b) for b, c in tabs)
+    big, small = by_size[-1][1], by_size[-2][1]
+    base_common = by_size[0][1] if len(tabs) > 2 else None
     base_sur, base_first = big, small           # heuristic: more surnames than first names
     if validate:
         def score(bf, bs):
@@ -1235,8 +1291,30 @@ def build_name_resolver(mm, validate=None):
             return ok
         if score(big, small) > score(small, big):
             base_first, base_sur = big, small   # swap only if that orientation fits better
-    _NAME_TABLES[_cache_key(mm)] = (browse, base_first, base_sur)
+    _NAME_TABLES[_cache_key(mm)] = (browse, base_first, base_sur, base_common)
     return True
+
+
+def resolve_common_name(mm, common_name_id):
+    """The name the game DISPLAYS, when a person has one, else None.
+
+    `common_name_id` is `staging.INFO_LAYOUT` +16 (People.cs `CommonNameId`), 0xFFFFFFFF when
+    unset. It indexes the third id-table, not either name table. Set on 2,424 of 32,760
+    people (7.4%) on frem-2023-07-02, and all 2,424 resolve.
+
+    This is a DISPLAY name and often not a shortening of the legal one at all -- 'Tite' for
+    Adenor Leonardo Bachi, 'Renato Gaucho' for Renato Portaluppi, 'Michel' for Jose Miguel
+    Gonzalez Martin del Campo -- so it cannot be derived from the first/last ids and has to
+    come from the table.
+    """
+    t = _NAME_TABLES.get(_cache_key(mm))
+    if not t or t[3] is None or common_name_id is None or common_name_id == P.NO_ID32:
+        return None
+    browse, _, _, base_common = t
+    try:
+        return browse[_u32(mm, base_common + common_name_id * ID_TABLE_STRIDE)]
+    except IndexError:
+        return None
 
 
 def resolve_name(mm, first_name_id, last_name_id):
@@ -1245,7 +1323,7 @@ def resolve_name(mm, first_name_id, last_name_id):
     t = _NAME_TABLES.get(_cache_key(mm))
     if not t or t[1] is None:
         return None
-    browse, base_first, base_sur = t
+    browse, base_first, base_sur, _ = t
     try:
         return f"{browse[_u32(mm, base_first + first_name_id * 16)]} " \
                f"{browse[_u32(mm, base_sur + last_name_id * 16)]}"

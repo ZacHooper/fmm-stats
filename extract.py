@@ -190,7 +190,13 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
     R.build_name_resolver(mm, validate=validate)
 
     def full_name(tid, p):
-        return own_names.get(tid) or R.resolve_name(mm, p["first_name_id"], p["last_name_id"])
+        # Order matters. `own_names` is the managed squad's names straight off the squad
+        # snapshot -- what the GAME shows us -- so it wins outright. Then the common name,
+        # which is also a display name and is the reason 2,424 people used to appear under
+        # their full legal names ('Tite' as Adenor Leonardo Bachi). Legal name last.
+        return (own_names.get(tid)
+                or R.resolve_common_name(mm, p.get("common_name_id"))
+                or R.resolve_name(mm, p["first_name_id"], p["last_name_id"]))
 
     # A loanee's squad-list "loaned_in" flag is trusted for NAME purposes (that copy is
     # fine even stale) but NOT as proof the loan is still live: verified on this exact
