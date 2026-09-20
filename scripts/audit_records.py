@@ -50,6 +50,7 @@ from fmparser import clubrecords as CR        # noqa: E402
 from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402
 from fmparser import staging as S             # noqa: E402
+from fmparser import fixtures as FX           # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +136,12 @@ LAYOUTS = {
     "comp_ref_count": _from_record(R.COMP_REF_COUNT),
     "comp_ref_entry": _from_record(R.COMP_REF_ENTRY),
     "comp_history_tail": _from_record(R.COMP_HISTORY_TAIL),
+    # From the save's zstd ARCHIVE, not the save body -- the only entry here that is, so the
+    # STRIDE and EXTENT checks below cannot reach it (they walk the mmap) and COVERAGE is the
+    # whole point. 13 of its 92 bytes are named and the other 79 are declared UNKNOWN in one
+    # place, which is the honest statement of where that record stands: the goals block and
+    # the round counter are deliberately unread, not overlooked.
+    "world_fixture": _from_record(FX.FIXTURE),
 }
 
 
