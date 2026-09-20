@@ -68,6 +68,14 @@ GROUND TRUTH: every `mart.club_matches` row for the managed club, both careers, 
 that disagree do so only on the score; 0 disagree on clubs or date.** Rows outside the
 two-year window are simply absent: 51/51 of our 2025-26 matches present, 0/143 of 2021-24.
 
+**That "0 disagree on date" was only true once the day-of-year base was right, and it was NOT
+right when this module first shipped.** The field is one-indexed; `ymd_from` is zero-indexed;
+every emitted date was a day late. It went unnoticed because the original check matched rows
+BY date, so a uniform shift could not show up as a mismatch -- it just silently matched fewer
+rows. Re-measured 2026-09-21 by joining on (opponent, score) instead and letting the date
+float: 51 of 51 rows on frem-2026-06-29 and 60 of 60 on bucaspor-2023-03-25 needed exactly
+-1 day, with no other offset represented. See `DAY_BASE`.
+
 **HOME-FIRST.** `matchslots.py`'s 25-byte table is away-first and mis-orients one row of every
 repeated club pair; this one got venue right on all 282.
 """
@@ -101,6 +109,7 @@ FIXTURE = Record("world_fixture", STRIDE, [
     Field(51, 2, UNKNOWN, PAD),
     # `& 0x1FF` never exceeds 366 across 26,954 records, twice over. A random 9-bit mask would
     # overflow about 29% of the time, so the mask is the identification, not a convenience.
+    # ONE-INDEXED -- see DAY_BASE.
     Field(53, 2, "day_raw", U16),
     Field(55, 2, "year", U16, note="only the current and previous calendar year, ever"),
     Field(57, 21, UNKNOWN, PAD),
@@ -111,6 +120,14 @@ FIXTURE = Record("world_fixture", STRIDE, [
 ])
 
 DAY_MASK = 0x1FF
+# The day-of-year is ONE-INDEXED here: 1 = 1 January. `primitives.ymd_from` adds its argument
+# to 1 January, which is the 0-indexed convention our match headers and DOB fields use, so the
+# `- 1` is a real difference between two date fields in the same save, not a fudge.
+#
+# Measured 2026-09-21 against our OWN parsed matches, which carry verified dates: every row
+# that joins on (opponent, score) needs exactly -1 day. 51 of 51 on frem-2026-06-29 and 60 of
+# 60 on bucaspor-2023-03-25 -- both careers, no exceptions, no other offset represented.
+DAY_BASE = 1
 
 
 def segments(blob):
@@ -183,7 +200,8 @@ def fixtures(mm, valid_clubs=None):
                                             or r["away_tid"] not in valid_clubs):
                 continue
             out.append({"home_tid": r["home_tid"], "away_tid": r["away_tid"],
-                        "date": P.ymd_from(r["year"], r["day_raw"] & DAY_MASK),
+                        "date": P.ymd_from(r["year"],
+                                           (r["day_raw"] & DAY_MASK) - DAY_BASE),
                         "year": r["year"]})
     return out
 
