@@ -135,10 +135,9 @@ number was not needed anywhere.
 The tail of the save is a **zstd archive** (`sicomps`): 159 named members, 6.6 MB decompressed,
 with a directory. Its `fix_man.dat` is the world fixture list — 26,954 rows across 1,751 clubs.
 
-> **Not on this branch yet.** The reader (`fmparser/archive.py`) and its two documents,
-> `save-archive.md` and `archive-coverage.md`, arrive with the archive PR. The shape is
-> described here because it is part of the file whether or not we have merged the code that
-> reads it, and Phase 4 of the refactor wires `fix_man` into `extract.py`.
+See [`save-archive.md`](save-archive.md) for the container and
+[`archive-coverage.md`](archive-coverage.md) for what each member is worth against what we
+already parse. The reader is `fmparser/archive.py`; it needs `uv sync --extra archive`.
 
 **The rule that found it, which generalises past this shape:** **rank an unknown region by
 BLOCK ENTROPY, never by printable fraction.** This region was ranked the best remaining target

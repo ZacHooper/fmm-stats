@@ -186,10 +186,12 @@ run of ≥8 `0xFF`; every `live` row by calling the named function. The structur
 
 ## The tail was mis-ranked, and the reason generalises
 
-The 2026-09-19 map put `62.00–63.94M` second on the gap table because it measured 71%
-non-filler and 25.8% printable, and called it "by far the most TEXT-dense unparsed span in
-the file". **95 of 256 byte values are printable, so uniform random bytes measure 37.1%
-printable.** Compressed data therefore scores high on exactly the statistic that was being
+The 2026-09-19 map put `62.00–63.94M` second on the gap table on **71% non-filler**, which
+was fair. What went wrong is what happened next: [`TODO.md`](TODO.md) carried the same span
+with its **25.8% printable** figure and called it *"by far the most TEXT-dense unparsed span
+in the file"*, and that is the reading four hunts were aimed by. **95 of 256 byte values are
+printable, so uniform random bytes measure 37.1% printable** -- the span was *less* printable
+than noise. Compressed data therefore scores high on exactly the statistic that was being
 used to mean "text". Block entropy tells them apart at a glance — that span reads a flat
 **7.99 bits/byte** — and the four-byte grep that follows from it
 ([`save-archive.md`](save-archive.md)) resolved the region in one step.

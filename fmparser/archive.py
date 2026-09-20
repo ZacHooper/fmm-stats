@@ -82,6 +82,15 @@ RECORD_HEADER = b"\x02\x01fmf."      # '.fmf', on the archive's and the director
 RECORD_HEADER_LEN = 13               # [kind][01][ext 4][08][00][00][u32]
 
 _LOCATE_CACHE = {}                   # save.cache_key -> (first_prefix, dir_header, dir_frame)
+_DIR_CACHE = {}                      # save.cache_key -> (archive_name, [Entry, ...])
+
+# Upper bound for decompressing the DIRECTORY member, which is the one member whose unpacked
+# size nothing declares in advance (it is the thing that declares everyone else's). Measured:
+# 10,237 B on both frem-2021-07-01 and frem-2026-06-11, 10,384 B on bucaspor-2023-03-25, from
+# ~2 KB of frame. 1 MB is two orders of magnitude of headroom and still bounds the allocation,
+# which an unbounded `decompress()` does not. If this ever trips, the directory grew by 100x
+# and that is worth stopping for rather than absorbing.
+_DIR_MAX = 1 << 20
 
 
 class ArchiveError(Exception):
@@ -195,8 +204,14 @@ def directory(mm):
 
     The entry count is DECLARED; this reads exactly that many and checks the walk lands
     within 4 bytes of the end of the buffer, which is the directory's own extent test."""
+    from .save import cache_key as _ck
+    key = _ck(mm)
+    hit = _DIR_CACHE.get(key)
+    if hit is not None:
+        return hit
+
     _, _, dir_frame = locate(mm)
-    buf = _zstd().ZstdDecompressor().decompress(mm[dir_frame:])
+    buf = _zstd().ZstdDecompressor().decompress(mm[dir_frame:], max_output_size=_DIR_MAX)
     u32, u64, s, tell = _strings_reader(buf)
     name = s()
     u32(); u32()                      # UNKNOWN: 0 and 1 on every save measured
@@ -206,7 +221,8 @@ def directory(mm):
     left = len(buf) - tell()
     if left > 8:
         raise ArchiveError(f"directory declared {count} entries but left {left} bytes")
-    return name, ents
+    _DIR_CACHE[key] = (name, ents)
+    return _DIR_CACHE[key]
 
 
 def members(mm):
@@ -226,7 +242,12 @@ def read_member(mm, entry):
     off = base
     while off < end:
         stored = int.from_bytes(mm[off:off + 4], "little")
-        out.append(dec.decompress(mm[off + 4:off + 4 + stored]))
+        # `max_output_size` bounds the allocation AND lets a frame that carries no
+        # content size in its header still decompress -- `decompress()` raises on those
+        # otherwise. A member's total unpacked size is an upper bound for any one of its
+        # frames, and the exact total is re-checked below.
+        out.append(dec.decompress(mm[off + 4:off + 4 + stored],
+                                  max_output_size=entry.unpacked))
         off += 4 + stored
     blob = b"".join(out)
     if len(blob) != entry.unpacked:

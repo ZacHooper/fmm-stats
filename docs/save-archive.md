@@ -1,9 +1,17 @@
 # The save ends in a zstd archive: `sicomps`, 159 named members
 
-**Found 2026-09-20**, opening `savefile-map.md`'s densest unexplored gap. That map and
-[`TODO.md`](TODO.md) both described the 1.93 MB after the squad snapshot as *"by far the
-most TEXT-dense unparsed span in the file"* (71% non-filler, 25.8% printable) and ranked it
-the best remaining target on exactly that basis.
+**Found 2026-09-20**, opening the densest unexplored gap in
+[`savefile-map.md`](savefile-map.md). Two documents ranked the 1.93 MB after the squad
+snapshot as the best remaining target, on two DIFFERENT statistics, and only one of them was
+the bad one:
+
+- [`TODO.md`](TODO.md) called it *"by far the most TEXT-dense unparsed span in the file"*,
+  citing **25.8% printable**. That is the flawed reading.
+- `savefile-map.md` called it *"the densest unknown in the file"* on **71% non-filler**,
+  which is a fair measure of "there is something here" and says nothing about what.
+
+The distinction matters because the fix is not "distrust the map" — it is "never rank by
+printable fraction".
 
 **It is not text.** 95 of 256 byte values are printable, so **uniform random bytes are
 37.1% printable by chance** — which is what that span measures once the filler at its front
