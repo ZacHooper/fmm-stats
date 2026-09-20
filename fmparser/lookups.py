@@ -270,10 +270,26 @@ def scrape_currencies(mm):
 # The tail carries a counted language list and up to two national teams, and is NOT walked:
 # the head is what we want and mis-stepping the tail would desynchronise the whole table. So
 # nations are located individually, by the three-string signature ending in a 3-letter code.
-_CODE = re.compile(r"^[A-Z][A-Z0-9]{2}$")
+# TWO or three letters. Six nations carry a 2-letter code -- United Kingdom (UK) and the five
+# ethnicity pseudo-nations SEA Chinese, Singh Indian, Borneo Malay, West Malay, Tamil Indian --
+# and searching only the 3-letter length prefix missed every one of them.
+_CODE = re.compile(r"^[A-Z][A-Z0-9]{1,2}$")
+_CODE_LENS = (3, 2)
 # Continents are a tiny enumeration (Europe is 2). Anything larger is a club or competition
-# record whose colour/type bytes happen to sit where the continent id would be.
+# record whose colour/type bytes happen to sit where the continent id would be -- EXCEPT the
+# no-continent sentinel, see `_plausible_continent`.
 _MAX_CONTINENT = 6
+
+
+def _plausible_continent(v):
+    """A continent id, or the sentinel that says this nation has no continent.
+
+    17 nations carry `continent_id == 0xFFFF`, and they are not junk: they are the DEFUNCT
+    and non-FIFA states -- U.S.S.R., Czechoslovakia, East and West Germany, Yugoslavia, Zaire,
+    Upper Volta, Great Britain, Netherlands Antilles, Ireland (Pre-1922). The game keeps them
+    so a player can have been born in one. Rejecting the sentinel dropped all 17.
+    """
+    return v <= _MAX_CONTINENT or v == P.NO_ID16
 
 
 # The national-team block, immediately after the national stadium id. Offsets relative to it:
@@ -363,7 +379,7 @@ def scrape_nations(mm):
     # the same three-strings-plus-3-letter-code shape and is packed just as densely ("World
     # Cup Oceania Qualifying Section", code WCQ). A continent-id range alone leaves 35 club
     # and competition records scattered across 7-12 MB, one of which squats Belgium's id.
-    cands = [c for c in _nation_candidates(mm) if c["continent_id"] <= _MAX_CONTINENT]
+    cands = [c for c in _nation_candidates(mm) if _plausible_continent(c["continent_id"])]
     if not cands:
         return {}
     # densest cluster: nations sit together; a club match is isolated
@@ -383,21 +399,56 @@ def scrape_nations(mm):
     for c in cands:
         if lo <= c["offset"] <= hi:
             out.setdefault(c["id"], c)
+    _check_nation_extent(mm, out)
     return out
+
+
+def _check_nation_extent(mm, out):
+    """The nation table is DENSE from id 0 to its declared count. Assert that, don't hope it.
+
+    Unlike languages and currencies this table is not walked by chaining, so a rejected record
+    does not truncate the rest -- it punches a hole. That is worse, not better: the result
+    still looks like a well-formed table with 227 nations in it, and the only way to notice is
+    to ask what the save says the count should be. Every one of the 23 that used to be absent
+    was a REAL record (U.S.S.R., Yugoslavia, United Kingdom, Zaire ...), not a blank slot.
+
+    So the check is both halves: the right NUMBER of records, and no gap in the id range.
+    `0 <= id < declared` with no holes is the table's own invariant; the densest-cluster
+    bound above is a heuristic, and this is what keeps the heuristic honest.
+    """
+    if not out:
+        return
+    start = min(r["offset"] for r in out.values())
+    declared = _declared_count(mm, start)
+    if declared is None:
+        return
+    missing = [i for i in range(declared) if i not in out]
+    if missing or len(out) != declared:
+        raise TableCountError(
+            f"nations: read {len(out)} records but the table declares {declared}; "
+            f"{len(missing)} id(s) absent from 0..{declared - 1}"
+            + (f" (first few: {missing[:8]})" if missing else "")
+            + ". A missing nation is a candidate the locator rejected, not a blank slot.")
 
 
 def _nation_candidates(mm):
     n = len(mm)
     out = []
-    pos = 0
-    pat = b"\x03\x00\x00\x00"                  # the 3-letter code's length prefix
-    while True:
-        j = mm.find(pat, pos)
-        if j == -1:
-            break
-        pos = j + 1
+    # Both code lengths, longest first: a 3-letter code's prefix is the more specific match.
+    pats = [(ln, struct.pack("<I", ln)) for ln in _CODE_LENS]
+    heads = []
+    for ln, pat in pats:
+        q = 0
+        while True:
+            j = mm.find(pat, q)
+            if j == -1:
+                break
+            q = j + 1
+            heads.append((j, ln))
+    heads.sort()
+    for j, code_len in heads:
         try:
-            code = mm[j + 4:j + 7].decode("ascii")
+            code = mm[j + 4:j + 4 + code_len].decode("ascii")
         except UnicodeDecodeError:
             continue
         if not _CODE.match(code):
@@ -419,9 +470,13 @@ def _nation_candidates(mm):
                     continue
                 nid = _u16(mm, c - 2)
                 uid = _u32(mm, c - 6)
-                if not (1 <= nid <= 4096):
+                # `0 <=`, not `1 <=`. Nation id 0 is ALGERIA, a real record at the very start
+                # of the table, and excluding it did not just lose one nation: the table start
+                # is derived from the surviving candidates, so rejecting record 0 moved the
+                # whole table's start 188 bytes later than it really is.
+                if not (0 <= nid <= 4096):
                     continue
-                t = j + 7
+                t = j + 4 + code_len      # just past [len][code]; 7 for a 3-letter code
                 rec = {
                     "id": nid, "uid": uid, "name": name, "nationality": nationality,
                     "code": code, "continent_id": _u16(mm, t),
