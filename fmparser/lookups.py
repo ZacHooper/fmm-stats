@@ -26,6 +26,7 @@ Cross-checks that make these more than plausible:
 import re
 import struct
 
+from . import primitives as P
 from .schema import F32, Field, Record, U8, U16, U32
 
 _MIN_CHAIN = 20        # consecutive valid records before we believe we found a table
@@ -39,12 +40,19 @@ def _u32(mm, o):
     return int.from_bytes(mm[o:o + 4], "little")
 
 
-def _string(mm, o, n, maxlen=64):
-    """(text, next_offset) for a [len u32][utf-8] string, or (None, None)."""
+def _string(mm, o, n, maxlen=64, allow_empty=False):
+    """(text, next_offset) for a [len u32][utf-8] string, or (None, None).
+
+    `allow_empty` admits `ln == 0`. It is off by default because a zero length is a weak
+    signature -- four zero bytes are everywhere -- and these parsers double as LOCATORS. It
+    is on for exactly one field: a language's `OtherName`, which is genuinely empty for 47 of
+    the 124 languages. See `_language_at`.
+    """
     if o + 4 > n:
         return None, None
     ln = _u32(mm, o)
-    if not (1 <= ln <= maxlen) or o + 4 + ln > n:
+    lo = 0 if allow_empty else 1
+    if not (lo <= ln <= maxlen) or o + 4 + ln > n:
         return None, None
     try:
         return mm[o + 4:o + 4 + ln].decode("utf-8"), o + 4 + ln
@@ -52,7 +60,33 @@ def _string(mm, o, n, maxlen=64):
         return None, None
 
 
-def _walk(mm, parse, seeds, min_chain=_MIN_CHAIN):
+class TableCountError(Exception):
+    """A count-framed table read fewer records than it declares about itself."""
+
+
+def _declared_count(mm, start, width=2, min_ff=8):
+    """The count this table declares, from the `[>= 8 x 0xFF][count]` frame in front of it.
+
+    Shape A in `docs/parser-architecture.md`, read BACKWARDS: `records.find_framed_count`
+    searches forward from a known-good offset, but here the table start is what we already
+    have. Returns None if the frame is not there, so a caller can still walk unbounded.
+
+    `>= 8` and never `== 8`: the record before the sentinel can itself end in 0xFF. Measured
+    on both careers -- the language frame runs 8 FF and the currency frame 10.
+    """
+    if start < width + min_ff:
+        return None
+    i = start - width - 1
+    ff = 0
+    while i >= 0 and mm[i] == 0xFF:
+        ff += 1
+        i -= 1
+    if ff < min_ff:
+        return None
+    return _u16(mm, start - 2) if width == 2 else _u32(mm, start - 4)
+
+
+def _walk(mm, parse, seeds, min_chain=_MIN_CHAIN, declared=None, label=""):
     """Find the longest chain `parse` can walk, then collect the whole table from its start.
 
     Chaining is the validator: a real record's length fields land exactly on the next record,
@@ -86,14 +120,35 @@ def _walk(mm, parse, seeds, min_chain=_MIN_CHAIN):
         if prev is None:
             break
         start = prev
+    # THE WALK IS BOUNDED BY THE TABLE'S OWN DECLARED COUNT, not by "until a parse fails".
+    # Those differ in exactly the way that hid two bugs for the life of this parser: a single
+    # record the parser wrongly rejects truncates EVERYTHING after it, silently, and the
+    # result still looks like a clean table. Languages stopped at 77 of 124 on one empty
+    # string; currencies at 94 of 173 on one plausibility gate.
+    #
+    # Reaching a DIFFERENT declared number is fine -- a new game version may simply ship more
+    # languages, and we read what it declares. Falling SHORT of it is a parser bug and raises.
+    if declared is None:
+        declared = _declared_count(mm, start)
     out, o = [], start
-    while True:
+    while declared is None or len(out) < declared:
         rec, nxt = parse(mm, o, n)
         if rec is None:
             break
         out.append(rec)
         o = nxt
+    if declared is not None and len(out) != declared:
+        raise TableCountError(
+            f"{label or parse.__name__}: read {len(out)} records but the table declares "
+            f"{declared} (stopped at offset {o}). A record the parser rejects truncates the "
+            f"whole table from that point -- fix the reject, do not lower the count.")
     return out
+
+
+# Nation-less "regional" languages are numbered from a synthetic base rather than given a
+# real uid: 1,000,000 for Latin American, then 1,000,001, 1,000,002 ... Bounded above by the
+# declared count, so this admits a band, not "any large number".
+_REGIONAL_UID_BASE = 1_000_000
 
 
 # ------------------------------------------------------------------ languages
@@ -139,16 +194,23 @@ def _language_at(mm, o, n):
     if o + 8 > n:
         return None, None
     lid, uid = _u16(mm, o), _u32(mm, o + 2)
-    if lid > 4096 or uid > 100_000:
+    # REGIONAL languages -- "Latin American", "Brazilian" and three more -- belong to no
+    # nation, and the save says so twice: a synthetic `uid` from 1,000,000 up and a
+    # `nation_id` of 0xFFFF. The old gates (`uid > 100_000`, `0 <= nat <= 4096`) rejected
+    # both, which ended the walk at id 119 and cost the last five languages.
+    if lid > 4096 or (uid > 100_000 and not
+                      _REGIONAL_UID_BASE <= uid < _REGIONAL_UID_BASE + 4096):
         return None, None
     name, p = _string(mm, o + 6, n)
     if not name or not name[0].isupper():
         return None, None
-    other, p2 = _string(mm, p, n)
+    # OtherName is EMPTY on 47 of the 124 languages -- Malayalam (id 77) is the first, and
+    # rejecting it used to end the walk there, costing every language after it.
+    other, p2 = _string(mm, p, n, allow_empty=True)
     if other is None or p2 + 3 > n:
         return None, None
     nat, diff = _u16(mm, p2), mm[p2 + 2]
-    if not (0 <= nat <= 4096) or diff > 20:
+    if not (0 <= nat <= 4096 or nat == P.NO_ID16) or diff > 20:
         return None, None
     return ({"id": lid, "uid": uid, "name": name, "other_name": other,
              "nation_id": nat, "difficulty": diff, "offset": o}, p2 + 3)
@@ -169,7 +231,7 @@ def scrape_languages(mm):
             if m.start() >= 6:
                 seeds.append(m.start() - 6)       # back over [Id u16][Uid u32]
     seeds.sort()
-    recs = _walk(mm, _language_at, seeds)
+    recs = _walk(mm, _language_at, seeds, label="languages")
     return {r["id"]: r for r in recs}
 
 
@@ -178,9 +240,12 @@ def scrape_languages(mm):
 def _currency_at(mm, o, n):
     if o + 6 > n:
         return None, None
+    # NO `uid > 4096` GATE. It used to be here as a plausibility test, on the assumption
+    # that a currency uid is a small ordinal. It is not: real uids run to 65,045, and Macao
+    # Pataca (uid 51,535) is the 95th record -- so the gate did not filter noise, it ended
+    # the walk 79 records early. The name and exchange-rate tests below are what validate a
+    # record, and they terminate the table on their own at exactly the declared 173.
     uid = _u16(mm, o)
-    if uid > 4096:
-        return None, None
     name, p = _string(mm, o + 2, n)
     if not name or not name[0].isupper() or p + 4 > n:
         return None, None
@@ -194,7 +259,8 @@ def scrape_currencies(mm):
     """{currency_uid: record} with the exchange rate per GBP."""
     seeds = _seed_offsets(mm, rb"[A-Z][A-Za-z ]{3,28} (?:Krone|Peso|Dollar|Pound|Franc|Euro)")
     return {r["uid"]: r
-            for r in _walk(mm, _currency_at, (s - 6 for s in seeds if s >= 6), min_chain=10)}
+            for r in _walk(mm, _currency_at, (s - 6 for s in seeds if s >= 6), min_chain=10,
+                           label="currencies")}
 
 
 # ------------------------------------------------------------------ nations
