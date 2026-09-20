@@ -62,6 +62,8 @@ import struct
 
 import numpy as np
 
+from .save import cache_key as _cache_key
+
 FF = 0xFFFFFFFF
 NO_CLUB = 0xFFFF
 STRIDE = 16
@@ -133,16 +135,38 @@ def locate(mm, vmin=5000, vmax=4_000_000, samples=48, min_seq=0.45):
     return out
 
 
+_SLAB_CACHE = {}       # _cache_key -> (rows, start)
+
+
+def slab_bounds(mm):
+    """(start, end) of the history slab, located ONCE per save.
+
+    `locate()` costs ~3s (it scores millions of candidate headers), and more than one caller
+    now needs the slab's extent: `Table` to read it, and `clubrecords.region` to bound its own
+    scan, since club-records begins within ~200 bytes of `end` on every save tested. Without
+    the memo the second caller pays the full search again. Keyed by `save.cache_key`, never by
+    `id(mm)` alone -- CPython reuses a freed mmap's id and a rebuild loop would be served the
+    previous save's slab.
+    """
+    key = _cache_key(mm)
+    if key not in _SLAB_CACHE:
+        cand = locate(mm)
+        if not cand:
+            raise ValueError("career-history table not found")
+        rows, start, _ = cand[0]
+        _SLAB_CACHE[key] = (rows, start)
+    rows, start = _SLAB_CACHE[key]
+    return start, start + STRIDE * rows
+
+
 class Table:
     """The slab, decoded column-wise, plus its pointer forest."""
 
     def __init__(self, mm, start=None, rows=None):
         buf = _as_array(mm)
         if start is None:
-            cand = locate(buf)
-            if not cand:
-                raise ValueError("career-history table not found")
-            rows, start, _ = cand[0]
+            start, end = slab_bounds(mm)
+            rows = (end - start) // STRIDE
         self.start, self.rows = start, rows
         o = start + STRIDE * np.arange(rows)
         self.next = _u32(buf, o + 4).astype(np.int64)
