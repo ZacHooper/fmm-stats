@@ -32,7 +32,7 @@ from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # n
 # each record; listed explicitly so an import failure is a test failure rather than a silently
 # smaller registry.
 RECORD_MODULES = ("attributes", "clubrecords", "history", "matches", "matchslots",
-                  "places", "staff", "staging")
+                  "places", "reference", "staff", "staging")
 
 
 def _import_record_modules():

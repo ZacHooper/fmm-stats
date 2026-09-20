@@ -13,6 +13,10 @@ import collections
 from typing import NamedTuple
 import struct
 
+from . import primitives as P
+from . import records as RD
+from .schema import Field, PAD, Record, U8, U16, U32, UNKNOWN
+
 import numpy as np
 
 from . import lookups as LK
@@ -282,6 +286,89 @@ def _comp_table_anchor(mm):
     return result
 
 
+# ---------------------------------------------------------------------------------------
+# THE COMPETITION RECORD'S FOUR FIXED PARTS.
+#
+# The record is `[cid u16][uid u32]` + three length-prefixed names + these four, in this
+# order, and only the four are fixed-width. It is the clearest example of what
+# `docs/parser-architecture.md` means by "counted and nested structures are not declarable":
+# there is no DSL here for `[count][entry x n]`, the arithmetic stays in `_read_comp_slot`,
+# and what IS declared is each fixed block.
+#
+# These four layouts lived in `scripts/audit_records.py` and were the last ones the AUDIT
+# owned rather than the parser. That inversion had already produced a real defect: the audit
+# declared `nation` as a u16 at +3 and both readers took `trailer[3]` alone.
+# ---------------------------------------------------------------------------------------
+COMP_TRAILER = Record("comp_trailer", 14, (
+    Field(0,  1, "type", U8),
+    Field(1,  2, "continent", U16, note="declared, not read"),
+    # A u16, and the width matters. Both readers used to take byte +3 alone and test it
+    # against 255, which gives the right answer today only by luck: the real sentinel is
+    # 0xFFFF and every nation id in this save happens to fit in a byte (227 nations, ids
+    # 1-249, six spare values). Verified on frem-2026-06-11: +4 is 0x00 for all 1,212
+    # nation-bound competitions and 0xFF for exactly the 60 carrying the sentinel.
+    Field(3,  2, "nation", U16),
+    Field(5,  2, "fg_colour", U16, note="declared, not read"),
+    Field(7,  2, "bg_colour", U16, note="declared, not read"),
+    Field(9,  2, "reputation", U16),
+    Field(11, 1, "level", U8),
+    Field(12, 2, "parent_cid", U16),
+), is_head=True)
+
+# A u8 PLUS THREE UNKNOWN BYTES, because the width is undecidable from this data. Bytes
+# +1..+3 are zero on all 46,641 slots across every archived save and the largest count
+# anywhere is 134, so a u8 followed by three zeros and a little-endian u32 cannot be told
+# apart. `_read_comp_slot` reads a u32, which is safe either way; the LAYOUT must not assert
+# what was not measured. A competition with 256+ entries would settle it.
+COMP_REF_COUNT = Record("comp_ref_count", 4, (
+    Field(0, 1, "n_refs", U8),
+    Field(1, 3, UNKNOWN, PAD),
+), is_head=True)
+
+# One entry in the counted reference list. The FIELDS are named; the LIST is not, on purpose
+# -- only 24 of 1,272 competitions populate it and the populated ones do not share a meaning
+# (Copa Libertadores: a qualification list; MLS: its 28 member clubs; Copa America: ten
+# national teams; Scottish Cup: 13 empty sentinels). See `comp_refs` for the full argument.
+#
+# `ref` is a club UID where positive and the NEGATIVE of a nation uid where negative --
+# exact on 62/62 negative refs. Resolve by uid, never by tid: 1,095 of these also match some
+# club's tid and that reading is wrong every time.
+#
+# `ordinal` is a u8 for the same reason as the count: the byte above it is 0 on 5,220 of
+# 5,237 entries and 1 on the other 17, so u8-plus-a-rare-flag and u16 are not separable.
+COMP_REF_ENTRY = Record("comp_ref_entry", 8, (
+    Field(0, 4, "ref", U32),
+    Field(4, 2, "season", U16),
+    Field(6, 1, "ordinal", U8),
+    Field(7, 1, UNKNOWN, PAD),
+))
+
+# The 21 fixed bytes that END the record, AFTER the reference list.
+#
+# THE ORDER WAS ESTABLISHED BY MEASUREMENT, and two earlier readings were wrong. It is NOT a
+# contiguous 25-byte head with the entries after it (which looks right because 1,348 of 1,372
+# records have an empty list, so the readings coincide), nor
+# `[count][3 stat u32][entries][3 season u16][tail]`. Every candidate ordering gives the same
+# record LENGTH, so arithmetic cannot separate them -- only content can. On the 914 records
+# that do carry entries, the three-u16 season triple reads as a plausible year (1990-2060) at
+# `record_end - 9` on 686 of them and at `count + 16` on ZERO.
+#
+# The three u32s and the three u16s are parallel arrays three seasons wide -- the shape of
+# fmm-editor's FMM26 `Competition` Rank[3]/Year[3]. Unlike the reference entries these u32s
+# do NOT resolve as clubs by either uid or tid (3F Superliga's read 505/526/507), so they
+# are carried UNNAMED.
+COMP_HISTORY_TAIL = Record("comp_history_tail", 21, (
+    Field(0,  4, UNKNOWN, PAD),
+    Field(4,  4, UNKNOWN, PAD),
+    Field(8,  4, UNKNOWN, PAD),
+    Field(12, 2, "season_0", U16),
+    Field(14, 2, "season_1", U16),
+    Field(16, 2, "season_2", U16),
+    Field(18, 2, UNKNOWN, PAD),
+    Field(20, 1, UNKNOWN, PAD),
+))
+
+
 def _read_comp_slot(mm, p):
     """Read ONE competition-table slot at `p` (a `[cid][uid]...` record start) by pure
     arithmetic -- no plausibility gate, no rejection outcome. Returns (rec_or_None, next_p):
@@ -304,21 +391,13 @@ def _read_comp_slot(mm, p):
     cl = int.from_bytes(mm[pp:pp + 4], "little")
     code = mm[pp + 4:pp + 4 + cl].decode("utf-8")
     pp = pp + 4 + cl
-    trailer = mm[pp:pp + 14]
-    typ = trailer[0]
-    # nation is a u16, not a byte. Both readers of this trailer used to take `trailer[3]`
-    # alone and test it against 255, which gives the right answer today only by luck: the
-    # real sentinel is 0xFFFF and every nation id in the save happens to fit in a byte
-    # (227 nations, ids 1-249, so six spare values). `scripts/audit_records.py` has always
-    # DECLARED this field as (3, 2) -- the parser was the half that disagreed, and reading
-    # the declared width is what makes the layout the schema rather than a second opinion.
-    # Verified byte-for-byte on frem-2026-06-11: +4 is 0x00 for all 1,212 nation-bound
-    # competitions and 0xFF for exactly the 60 that carry the sentinel, so the u16 read is
-    # behaviour-identical here and correct if a nation id ever crosses 255.
-    nation = int.from_bytes(trailer[3:5], "little")
-    rep = int.from_bytes(trailer[9:11], "little")
-    level = trailer[11]
-    parent = int.from_bytes(trailer[12:14], "little")
+    # The trailer, read from COMP_TRAILER. Four of its eight fields are declared and not
+    # read (`continent`, the two colours) -- declaring a field we choose not to surface is
+    # the point of the layout being the schema, and it is how `nation`'s width was settled.
+    t = RD.read_fields(mm, COMP_TRAILER, pp,
+                       ("type", "nation", "reputation", "level", "parent_cid"))
+    typ, nation = t["type"], t["nation"]
+    rep, level, parent = t["reputation"], t["level"], t["parent_cid"]
     # The record does NOT end at the trailer. What follows is a counted REFERENCE LIST --
     # `[n_refs]` then that many 8-byte entries -- and then a fixed 21-byte tail, so
     # `25 + 8 * n_refs`, which is the whole reason this function can report `next_p`.
@@ -338,9 +417,10 @@ def _read_comp_slot(mm, p):
     # own fields are decoded (`comp_ref_entry`) and readable via `comp_refs`, but are not
     # put in `rec`: only 24 of 1,272 competitions have any, and what the list MEANS varies
     # between them, so there is nothing yet worth a column. See `comp_refs`.
-    list_p = pp + 14
-    n_refs = int.from_bytes(mm[list_p:list_p + 4], "little")
-    next_p = list_p + 25 + 8 * n_refs
+    list_p = pp + COMP_TRAILER.span
+    n_refs = P.u32(mm, list_p)
+    next_p = (list_p + COMP_REF_COUNT.span + COMP_HISTORY_TAIL.span
+              + COMP_REF_ENTRY.span * n_refs)
     if ln == 0:
         return None, next_p
     rec = {"cid": cid, "uid": uid, "name": long, "short": short, "code": code,
@@ -483,17 +563,10 @@ def comp_refs(mm, cid):
     pp = pp + 4 + sl + 1
     cl = int.from_bytes(mm[pp:pp + 4], "little")
     pp = pp + 4 + cl
-    list_p = pp + 14
-    n = int.from_bytes(mm[list_p:list_p + 4], "little")
-    out = []
-    for k in range(n):
-        e = list_p + 4 + 8 * k
-        out.append({"ref": int.from_bytes(mm[e:e + 4], "little"),
-                    "season": int.from_bytes(mm[e + 4:e + 6], "little"),
-                    # u8, not u16: the byte above is 0 on 5,220 of 5,237 entries and 1 on
-                    # the other 17, so the two widths are not separable here
-                    "ordinal": mm[e + 6]})
-    return out
+    list_p = pp + COMP_TRAILER.span
+    n = P.u32(mm, list_p)
+    base = list_p + COMP_REF_COUNT.span
+    return [RD.read(mm, COMP_REF_ENTRY, base + COMP_REF_ENTRY.span * k) for k in range(n)]
 
 
 def comp_table_spans(mm):

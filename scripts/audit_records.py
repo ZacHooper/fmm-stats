@@ -44,6 +44,7 @@ sys.path.insert(0, ROOT)
 from fmparser import attributes as A          # noqa: E402
 from fmparser import staff as ST              # noqa: E402
 from fmparser import places as PL             # noqa: E402
+from fmparser import reference as R           # noqa: E402
 from fmparser import clubrecords as CR        # noqa: E402
 from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402
@@ -69,114 +70,6 @@ def _from_record(rec):
     return (rec.stride or rec.span,
             [(f.offset, f.width, f.name if f.emits else UNKNOWN)
              for f in rec.fields if not f.alias])
-
-
-def _comp_trailer_layout():
-    """The competition record's fixed 14-byte trailer, starting right after its 3
-    length-prefixed names (long/short/code) -- offsets straight from
-    `reference._read_comp_slot`, not retyped.
-
-    Like `info_head`, this is NOT a stride: the names in front are variable-length. It is
-    also not the whole record -- `comp_history_head` below covers what follows it.
-
-    `nation` is declared here as a u16 and that is the correct width: byte +4 is 0x00 for
-    all 1,212 nation-bound competitions on frem-2026-06-11 and 0xFF for exactly the 60 that
-    carry the 0xFFFF sentinel. `_read_comp_slot` read it as a single byte against 255 until
-    2026-09-18 -- right answer, wrong width, and only because all 227 nation ids in the save
-    fit in a byte (1-249). The parser now reads the declared width. This is what COVERAGE is
-    for: the layout and the parser disagreeing is a defect even when the output matches.
-    """
-    return [(0, 1, "type"), (1, 2, "continent"), (3, 2, "nation"),
-            (5, 2, "fg_colour"), (7, 2, "bg_colour"),
-            (9, 2, "reputation"), (11, 1, "level"), (12, 2, "parent_cid")]
-
-
-def _comp_ref_count_layout():
-    """The count of 8-byte reference entries that follows the competition trailer.
-
-    **A u8 plus three UNKNOWN bytes, because the width is undecidable from this data.**
-    Bytes +1..+3 are zero on all 46,641 slots across every archived save and the largest
-    count anywhere is 134, so a `u8` followed by three zero bytes and a little-endian `u32`
-    cannot be told apart. `reference._read_comp_slot` reads a u32, which is safe either way;
-    the LAYOUT must not assert what was not measured. A save with 256+ entries in one
-    competition would settle it.
-    """
-    return [(0, 1, "n_refs"), (1, 3, UNKNOWN)]
-
-
-def _comp_ref_entry_layout():
-    """One 8-byte entry in the competition's reference list. Fields decoded; what the LIST
-    MEANS is deliberately NOT named -- see below, it is not one thing.
-
-    `ref` resolves as a club **UID** for club competitions, and that identification is solid:
-    Major League Soccer's entries come back as its 28 member clubs (D.C. United, LA Galaxy,
-    Atlanta United, Charlotte FC, Chicago Fire, CF Montréal), and Copa Libertadores' as
-    Bolivian and Ecuadorian clubs (Club The Strongest, Club Bolívar, Royal Pari) in the right
-    competition. `0xFFFFFFFF` is the empty-slot sentinel. **Resolve by UID, never by tid:**
-    1,095 of these values also match some club's tid and that reading is wrong every time --
-    uid 1913 is D.C. United (right for MLS), tid 1913 is York United.
-
-    **The SIGN is the discriminator: positive is a club, negative is a NATIONAL TEAM, and
-    `-ref` is that nation's `uid` from `lookups.scrape_nations`.** Exact on 62/62 negative
-    refs -- Copa América's ten are CONMEBOL's ten members exactly, the European International
-    League divisions are European nations. They occupy consecutive negative ids because the
-    nation table is alphabetical and negating reverses it. `0xFFFFFFFF` (-1) is the empty
-    sentinel, not a nation; no nation has uid 1. A national team is stored as a club-shaped
-    record that the club scan cannot admit (its uid fails both uid bands) -- 202 of 227
-    nations have one; see docs/TODO.md, it belongs with the club table, not here.
-
-    `ordinal` is declared as a u8 for the same reason as the count: the byte above it is 0 on
-    5,220 of 5,237 entries and 1 on the other 17, so u8-plus-a-rare-flag and u16 are not
-    separable here. Values are small (1, 2, 3 ...) and read as a placing where the list is a
-    qualification list.
-
-    WHY THE LIST ITSELF IS UNNAMED. It was briefly called the `Qualifiers` table (fmm-editor
-    has one, `n × 8 bytes`, which this may well be) and Zac was right to push back: only 24 of
-    1,272 competitions populate it at all, and the populated ones do not share one meaning.
-      * Copa Libertadores: 47 entries per season for two seasons, each with a domestic
-        qualifying position. A qualifier list, exactly.
-      * Major League Soccer: its 28 member clubs, with Charlotte FC stamped season 2022 --
-        its real expansion year. A membership list, not a qualification.
-      * Canadian Championship: 3 entries -- Forge FC, Toronto FC, CF Montréal, i.e. the
-        Canadian clubs that play in FOREIGN leagues but enter the Canadian cup. Reads as
-        "entrants the league structure cannot imply".
-      * Copa América: 10 national-team refs (negative), no clubs.
-      * Scottish Cup: 13 entries, ALL `0xFFFFFFFF`. Reserved and empty.
-      * Italian Cup: 4 entries (3 Serie C clubs + a sentinel) against a ~78-team real field.
-    And the asymmetry that makes a single label untenable: European Champions Cup has ZERO
-    while Copa Libertadores / Asian / African Champions Leagues have 94 / 47 / 54, and 3F
-    Superliga has zero while MLS has 28. A plausible story is "an explicit entrant list,
-    stored only where the field cannot be derived from the league structure the game
-    simulates" -- promotion/relegation pyramids and UEFA coefficients being derivable, a
-    closed franchise league and CONMEBOL's entrants not. That is a story, not a decode, so
-    the layout names the FIELDS and leaves the list structural.
-    """
-    return [(0, 4, "ref"), (4, 2, "season"), (6, 1, "ordinal"), (7, 1, UNKNOWN)]
-
-
-def _comp_history_tail_layout():
-    """The 21 fixed bytes that END a competition record, AFTER the reference list.
-
-    THE ORDER HERE WAS ESTABLISHED BY MEASUREMENT, NOT ASSUMED, and two earlier readings of
-    it were wrong. The fixed part is NOT a contiguous 25-byte head with the qualifiers after
-    it (which is how it was first declared, and which looks right because 1,348 of 1,372
-    records have zero entries, so the two readings coincide); nor is it
-    `[count][3 stat u32][entries][3 season u16][tail]`, which is what docs/TODO.md
-    claimed. All the candidate orderings give the same record length, so arithmetic cannot
-    separate them -- only content can. On the 914 records that DO carry entries, the
-    three-u16 season triple reads as a plausible year (1990-2060) at `record_end - 9` on 686
-    of them and at `count + 16` on ZERO. So: count, then the qualifiers, then this.
-
-    The three u32s and the three u16s are parallel arrays, three seasons wide, which is
-    exactly the shape of fmm-editor's FMM26 `Competition` Rank[3]/Year[3] history -- and
-    unlike the reference entries, these u32s do NOT resolve as clubs by either uid or tid
-    (3F Superliga's read 505/526/507), so they are carried UNNAMED. Both arrays go
-    0xFF-sentinel on records that carry a full reference list instead, which is itself a
-    hint about what the two represent.
-    """
-    return [(0, 4, UNKNOWN), (4, 4, UNKNOWN), (8, 4, UNKNOWN),
-            (12, 2, "season_0"), (14, 2, "season_1"), (16, 2, "season_2"),
-            (18, 2, UNKNOWN), (20, 1, UNKNOWN)]
 
 
 LAYOUTS = {
@@ -226,10 +119,10 @@ LAYOUTS = {
     # = 25 + 8 * n_refs after the code name, which is exactly what
     # reference._walk_comp_table steps by -- and scripts/audit_coverage.py claims the whole
     # table MEASURED per record on the strength of it.
-    "comp_trailer": (14, _comp_trailer_layout()),
-    "comp_ref_count": (4, _comp_ref_count_layout()),
-    "comp_ref_entry": (8, _comp_ref_entry_layout()),
-    "comp_history_tail": (21, _comp_history_tail_layout()),
+    "comp_trailer": _from_record(R.COMP_TRAILER),
+    "comp_ref_count": _from_record(R.COMP_REF_COUNT),
+    "comp_ref_entry": _from_record(R.COMP_REF_ENTRY),
+    "comp_history_tail": _from_record(R.COMP_HISTORY_TAIL),
 }
 
 
