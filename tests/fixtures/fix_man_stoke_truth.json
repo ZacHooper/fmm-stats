@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "Ground truth read off an in-game 'Stoke City / Club Fixtures' screenshot, 2026-09-20.",
+    "Stoke City is NOT a club either career manages -- it never appears in mart.club_matches",
+    "for either Frem or Bucaspor, so PR #63's own ground truth (282/285 rows, both careers)",
+    "never exercised this club's records at all. This file is the first independent check of",
+    "fix_man.dat against a club neither career has any reason to touch, which is a stronger",
+    "claim than 'it works for our own fixtures'.",
+    "",
+    "tid values were resolved once via fmparser.reference._build_refdata_index and confirmed",
+    "by name (Wigan Athletic, Peterborough United, Nottingham Forest, Bristol City,",
+    "Wolverhampton Wanderers, Swansea City, Coventry City, Millwall, Portsmouth, Crystal",
+    "Palace) -- see scripts/audit_fix_man.py --resolve.",
+    "",
+    "home/away follow the screenshot's H/A column; the score is read literally as printed",
+    "(home team's goals first), which is what fix_man.dat's home-first ordering predicts.",
+    "The last two rows are the two legs of the Championship playoff semi-final -- included on",
+    "purpose, since a two-legged tie is the case most likely to break the 'plain shape' score",
+    "block save-archive.md warns is not fully understood."
+  ],
+  "save": "frem-2026-06-11.fms",
+  "club_tid": 512,
+  "club_name": "Stoke City",
+  "fixtures": [
+    {"date": "2026-03-17", "competition": "Sky Bet Championship", "home": 526, "away": 512, "hg": 2, "ag": 1, "label": "Wigan Athletic 2-1 Stoke City"},
+    {"date": "2026-03-21", "competition": "Sky Bet Championship", "home": 489, "away": 512, "hg": 0, "ag": 1, "label": "Peterborough United 0-1 Stoke City"},
+    {"date": "2026-04-03", "competition": "Sky Bet Championship", "home": 512, "away": 485, "hg": 0, "ag": 0, "label": "Stoke City 0-0 Nottingham Forest"},
+    {"date": "2026-04-06", "competition": "Sky Bet Championship", "home": 422, "away": 512, "hg": 3, "ag": 0, "label": "Bristol City 3-0 Stoke City"},
+    {"date": "2026-04-11", "competition": "Sky Bet Championship", "home": 512, "away": 528, "hg": 1, "ag": 2, "label": "Stoke City 1-2 Wolverhampton Wanderers"},
+    {"date": "2026-04-18", "competition": "Sky Bet Championship", "home": 515, "away": 512, "hg": 3, "ag": 2, "label": "Swansea City 3-2 Stoke City"},
+    {"date": "2026-04-25", "competition": "Sky Bet Championship", "home": 512, "away": 439, "hg": 1, "ag": 0, "label": "Stoke City 1-0 Coventry City"},
+    {"date": "2026-05-02", "competition": "Sky Bet Championship", "home": 479, "away": 512, "hg": 2, "ag": 2, "label": "Millwall 2-2 Stoke City"},
+    {"date": "2026-05-09", "competition": "Sky Bet Championship", "home": 512, "away": 492, "hg": 4, "ag": 1, "label": "Stoke City 4-1 Portsmouth"},
+    {"date": "2026-05-19", "competition": "Sky Bet Championship Playoffs Semi Final", "home": 512, "away": 442, "hg": 0, "ag": 3, "label": "Stoke City 0-3 Crystal Palace (1st leg)"},
+    {"date": "2026-05-23", "competition": "Sky Bet Championship Playoffs Semi Final", "home": 442, "away": 512, "hg": 2, "ag": 0, "label": "Crystal Palace 2-0 Stoke City (2nd leg)"}
+  ]
+}

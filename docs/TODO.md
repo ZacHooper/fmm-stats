@@ -109,6 +109,15 @@ away tid and both scores; 0 wrong on clubs or date**. It is **home-first**, unli
 table. Full writeup, including the three mismatches and everything still unnamed:
 [`save-archive.md`](save-archive.md).
 
+**2026-09-20: checked against a club neither career manages.** Every check above is
+`mart.club_matches`, which only ever covers the managed club — so far this was the parser
+grading its own homework. `tests/fixtures/fix_man_stoke_truth.json` (Stoke City, tid 512, off
+an in-game "Club Fixtures" screenshot) plus `scripts/audit_fix_man.py` extend the check to an
+arbitrary club: **11/11 fixtures exact on date, home/away tid and score**, including both legs
+of a two-legged playoff tie — the shape most likely to expose the `+6`/`+11` variable-shape
+score block. Doesn't change the "not shipped" call: 11 more plain-shape rows confirm the block
+held for these 11, not what its shape rule actually is.
+
 The reason four hunts missed it is worth keeping: the region was ranked by **printable-byte
 fraction**, and compressed data is 37.1% printable by construction, so "the most TEXT-dense
 unparsed span in the file" was a measurement artefact. It reads 7.99 bits/byte of entropy and

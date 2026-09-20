@@ -163,6 +163,17 @@ scores; 3 disagree, all on the score only; 0 disagree on clubs or date.** Rows o
 window are simply absent — on frem-2026-06-11, **51/51** of our 2025 and 2026 matches are
 present and **0/143** of 2021-2024 are, which is what the two-year year field already says.
 
+**A second, independent check: a club neither career manages.** All of the above is
+`mart.club_matches`, which only exists for the managed club, so it can never catch a bug that
+only affects clubs the ETL doesn't already resolve. `tests/fixtures/fix_man_stoke_truth.json`
+holds 11 fixtures for Stoke City (tid 512, English Championship — not Frem's or Bucaspor's
+league) read off an in-game screenshot, and `scripts/audit_fix_man.py` checks `fix_man.dat`
+on `frem-2026-06-11` against them: **11/11 exact on date, home/away tid and score**, including
+both legs of a two-legged Championship playoff semi-final — a two-legged tie is the case most
+likely to force the score block out of its "plain" shape. It didn't, here. That raises
+confidence in the plain-shape reading without resolving what the shape rule actually is —
+see the caveat below, which still stands.
+
 **This table is home-first.** `fmparser/matchslots.py`'s 25-byte table is away-first and
 gets the orientation wrong on one of every repeated club pair (3/3 measured). This one got
 venue right on all 282.
@@ -199,6 +210,7 @@ uv sync --extra archive          # zstd is not in the stdlib before Python 3.14
 uv run python scripts/audit_archive.py                      # all saves
 uv run python scripts/audit_archive.py <save.fms>           # one save + the listing
 uv run python tests/test_archive.py
+uv run python scripts/audit_fix_man.py                       # the Stoke City ground truth, above
 ```
 
 ```python
