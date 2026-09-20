@@ -805,7 +805,7 @@ def main():
     nations_df = db.q("""SELECT name, world_ranking, ranking_points, total_coefficient, rival
                          FROM mart.nations
                          WHERE season=? AND phase=? AND is_ranked
-                         ORDER BY world_ranking""", [season, phase])
+                         ORDER BY world_ranking, name""", [season, phase])
     nations = [{"name": r.name, "rank": int(r.world_ranking) + 1,   # 0-indexed in the save
                "points": None if pd.isna(r.ranking_points) else float(r.ranking_points),
                "coefficient": None if pd.isna(r.total_coefficient) else float(r.total_coefficient),
@@ -820,7 +820,8 @@ def main():
                        JOIN mart.leagues l
                             ON (l.season, l.phase, l.cid) = (cp.season, cp.phase, cp.league_cid)
                        WHERE cp.season=? AND cp.phase=? AND l.nation=?
-                         AND cp.latitude IS NOT NULL AND cp.longitude IS NOT NULL""",
+                         AND cp.latitude IS NOT NULL AND cp.longitude IS NOT NULL
+                       ORDER BY cp.club_tid""",
                      [season, phase, our_nation])
         places_dk = [{"tid": int(r.club_tid), "club": r.club, "league": r.league_name,
                      "stadium": r.stadium, "capacity": None if pd.isna(r.capacity) else int(r.capacity),
@@ -842,7 +843,7 @@ def main():
                           )
                           SELECT o.origin_parent_tid AS club_tid,
                                  any_value(o.origin_parent_club) AS club,
-                                 list(o.name) AS players,
+                                 list(o.name ORDER BY o.name) AS players,
                                  any_value(cp.stadium) AS stadium,
                                  any_value(cp.capacity) AS capacity,
                                  any_value(cp.latitude) AS latitude,
@@ -851,7 +852,8 @@ def main():
                           LEFT JOIN mart.club_places cp
                                ON (cp.season, cp.phase, cp.club_tid) = (?, ?, o.origin_parent_tid)
                           WHERE o.origin_parent_tid IS NOT NULL AND o.confidence != 'low'
-                          GROUP BY o.origin_parent_tid""",
+                          GROUP BY o.origin_parent_tid
+                          ORDER BY o.origin_parent_tid""",
                       [season, phase, season, phase])
     places_origin = [{"tid": int(r.club_tid), "club": r.club, "players": list(r.players),
                       "stadium": r.stadium,
