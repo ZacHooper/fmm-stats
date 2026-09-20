@@ -166,6 +166,12 @@ Offsets are from the record's first byte (the `[u8][0x14]` opener):
 | +78 | a round / matchday counter, u32 | sequential 0,1,2… within a competition. Not verified |
 
 **Ground truth**: every `mart.club_matches` row for the managed club, in both careers, on
+five saves. **CORRECTED 2026-09-21: the date needs a `-1`** — the day-of-year field is
+one-indexed and the decoder treated it as zero-indexed, so every date read a day late. The
+original check joined rows ON the date, which cannot expose a uniform shift; re-measuring by
+(opponent, score) instead shows 51/51 and 60/60 rows needing exactly -1 across both careers.
+The counts below stand; the dates behind them did not until `fixtures.DAY_BASE` landed.
+
 five saves. **282 of 285 in-window rows match exactly on date, home tid, away tid and both
 scores; 3 disagree, all on the score only; 0 disagree on clubs or date.** Rows outside the
 window are simply absent — on frem-2026-06-11, **51/51** of our 2025 and 2026 matches are
