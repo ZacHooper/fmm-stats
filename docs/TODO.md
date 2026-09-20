@@ -11,7 +11,7 @@ changelog, which is what killed the last four handoff docs.
 Item numbers are for conversation only — they are renumbered whenever entries are deleted, so
 never cite one in code or a commit message.
 
-Last reviewed **2026-09-18**, after the table-framing audit (#18).
+Last reviewed **2026-09-18**, after the table-framing audit (#17).
 
 ---
 
@@ -137,7 +137,7 @@ tail is the biggest unexplored area left and the only large one:
 
 (Our own match region is 55.84–56.22 MB and the squad snapshot 61.90–62.00 MB on that save;
 both are parsed. Everything else in the 51–64 MB tail is not.) The 14.0–16.7 MB region (2.7 MB,
-85% filler) is the other unidentified area — see #18.
+85% filler) is the other unidentified area — see #17.
 
 **And a shorter path to most of what "results" is for:** #3's standings record is already decoded
 and gives the exact final position of every club in every loaded competition. That is a strict
@@ -406,7 +406,7 @@ All three are known gaps, not suspicions:
 
   The nation table also **declares its own count — 251** (u16 at 12,776,735, record 0 at
   12,776,737), so the fix has an exact target: 251 slots, and `scrape_nations` currently
-  returns 227. See #18 and [`table-framing.md`](table-framing.md). 24 declared ids are absent
+  returns 227. See #17 and [`table-framing.md`](table-framing.md). 24 declared ids are absent
   in total and the other 23 are NOT yet classified blank-vs-missed.
 
 ### 10. The competition scraper — SOLVED (2026-09-18): a pure structural walk, gate-free
@@ -660,25 +660,16 @@ players).
 
 ---
 
-## Quality
-
-### 15. Every test skips silently and exits 0 without a save
-So a clean clone runs the suite, sees green, and has tested nothing. The suite is save-dependent
-by nature; the fix is to make absence *fail loudly* or report SKIPPED in a way CI can count, not
-to pretend it passed.
-
----
-
 ## Football (the actual career)
 
-### 16. Position write-ups still owed
+### 15. Position write-ups still owed
 Zac asked for the position-by-position read for **DM, CM, AML, AMC, AMR and ST**, plus a verdict
 on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **The earlier analysis is several
 seasons stale** — it was written when Frem were in NordicBet Liga; they have been in the **3F
 Superliga (tier 1, cid 2) since 2025** and the store now runs to **2027 / 2026-07-02**. Redo the
 read against the current squad rather than resuming the old one.
 
-### 17. Apply the pure-structural-walk fix to the club table and the audit tooling
+### 16. Apply the pure-structural-walk fix to the club table and the audit tooling
 The competition table's 2026-09-18 rewrite (#10) replaced a candidate-scan-plus-gates approach
 with a pure structural walk once the table's own start and declared record count were found in
 a hex dump — no plausibility gate needed at all, and it immediately explained every remaining
@@ -699,7 +690,7 @@ opens, both explicitly requested along the way and not yet done:
   live. Both halves are club-table problems and belong with the rewrite below, not with the
   competition record.
 
-- **THE CLUB TABLE'S START IS NOW FOUND** (2026-09-18, by chaining — see #18 and
+- **THE CLUB TABLE'S START IS NOW FOUND** (2026-09-18, by chaining — see #17 and
   [`table-framing.md`](table-framing.md)): **11,331 records at 6,340,458**, declared by a u32
   at 6,340,454 behind an 8-byte FF sentinel, with **`tid` as the slot index and no gaps —
   11,331 of 11,331 tids resolve.** Ground truth exact: tid 346 = 'Boldklubben Frem', tid 7296
@@ -721,7 +712,7 @@ opens, both explicitly requested along the way and not yet done:
   so they stay, but **a scan that needs whole regions fenced off to stop inventing records has
   not found its table's structure yet.** Note the club table still yields tid 4294967295 even
   WITH the exclusions, which is a live wrong record, not a hypothetical one. **That check is now done and the answer is no**
-  (2026-09-18, see #18 and [`table-framing.md`](table-framing.md)): the club scan has no
+  (2026-09-18, see #17 and [`table-framing.md`](table-framing.md)): the club scan has no
   located table to look behind at all. Its accepted records sprawl across one 6.4 MB run
   (6,340,470 .. 12,776,631 on frem-2023-07-02, 24,669 of them) whose first entry is junk
   (tid 1,701,276,737), so there is no "record 0" whose preceding bytes could hold a count.
@@ -744,7 +735,7 @@ opens, both explicitly requested along the way and not yet done:
   by construction; clubs are the table that still needs it, and cid not being sequential in the
   old comp output should have been this kind of flag and was checked nowhere.
 
-### 18. Table discovery: the save frames its own tables, and the inventory needs naming
+### 17. Table discovery: the save frames its own tables, and the inventory needs naming
 **Full write-up: [`table-framing.md`](table-framing.md).** Measured on all 34 saves across both
 careers; reproduce with `scripts/audit_table_headers.py` (+ `--confirm`) and
 `scripts/discover_tables.py` (+ `--stable`).

@@ -24,6 +24,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import skip  # noqa: E402
+
 from fmparser import matchslots as MS      # noqa: E402
 from fmparser import reference as R        # noqa: E402
 from fmparser.save import Save             # noqa: E402
@@ -46,8 +48,7 @@ TRUTH = [
 
 def main():
     if not os.path.exists(REF):
-        print(f"SKIP: {os.path.basename(REF)} not found")
-        return 0
+        return skip(f"{os.path.basename(REF)} not found")
     ok = True
     mm = Save(REF).mm
 

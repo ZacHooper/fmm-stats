@@ -27,6 +27,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import skip  # noqa: E402
+
 from fmparser import staff as ST                      # noqa: E402
 from fmparser import staging as S                     # noqa: E402
 from fmparser import lookups as LK                    # noqa: E402
@@ -128,8 +130,7 @@ def find_save(argv):
 def main(argv):
     path = find_save(argv)
     if not path:
-        print(f"SKIP: {SAVE_NAME} not found")
-        return 0
+        return skip(f"{SAVE_NAME} not found")
     with open(path, "rb") as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 

@@ -286,7 +286,7 @@ comment are wrong: the field is the nickname link, and it now has a table to res
 
 #### THE CLUB TABLE: 11,331 records at 6,340,458, `tid == slot index`
 
-**The single biggest result of this work, and it came from chaining, not searching.** TODO #17
+**The single biggest result of this work, and it came from chaining, not searching.** TODO #16
 recorded that clubs were the one table with no locatable structure — the candidate scan's
 accepted records sprawled across one 6.4 MB run whose first entry was junk, so there was no
 "record 0" to look behind. That was true only because nobody had walked the chain into the
@@ -311,7 +311,7 @@ accepted records sprawled across one 6.4 MB run whose first entry was junk, so t
   **ends with U21 national teams** (`11328 'Tuvalu U21'`, `11329 'Montenegro U21'`,
   `11330 'Saint Barthélemy U21'`).
 
-That last point resolves the other half of TODO #17 by construction: national teams are not
+That last point resolves the other half of TODO #16 by construction: national teams are not
 invisible records the club scan happens to miss, they are **rows 0..~200 of the club table**,
 and the reason 153 low tids were resolving to `'Footballer of the Year'` and friends is that
 the scan never found this table and was matching award records (13,711,352) instead.
@@ -331,7 +331,7 @@ inventory: **these are the records leaking into the club index.** They use the c
 (`[tid u32][uid u32]` then long/short/code strings), start at `tid 0, uid 102407,
 'Footballer of the Year'` / `'World Footballer of the Year'`, and continue through
 `'South American Footballer of the Year'`, `'African Footballer of the Year'`,
-`"Players' Player of the Year"`, `"Players' Young Player"`. TODO #17 records that **153 low
+`"Players' Player of the Year"`, `"Players' Young Player"`. TODO #16 records that **153 low
 tids currently resolve in our club index to award names** — this is the table they come from,
 and it now has an exact, declared anchor instead of a region guess. The trailer is longer than
 the club/comp trailer (an assumed 14 bytes ran the string reads off the end), so the record
@@ -367,7 +367,7 @@ between 1k and 400M, and 160 in the 1.9–2.1bn range that `reference._CLUB_UID_
 uses for club uids. That looks like a uid space, **but none of the 50 distinct values above
 400M resolves against our club index**, so the target is genuinely unidentified. Treat that
 as unresolved rather than as a refutation: the club index is itself known to be incomplete
-(TODO #17), so a miss there is weak evidence either way. Settling which id space this array
+(TODO #16), so a miss there is weak evidence either way. Settling which id space this array
 points into is the first question for the naming pass.
 
 Taken together — CA/PA, a reputation, six 1–20 attributes, a date in the career's own years,

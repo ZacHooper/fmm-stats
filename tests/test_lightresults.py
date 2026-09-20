@@ -16,11 +16,18 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import find_save, skip  # noqa: E402
+
 from fmparser.save import Save                        # noqa: E402
 from fmparser import staging as S                     # noqa: E402
 from fmparser import lightresults as L                # noqa: E402
 
-CANDIDATES = ["21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
+# The 21-22 Bucaspor save this test's ground truth was measured on. The canonical name comes
+# first; the spellings after it are what the file was called before
+# `scripts/canonicalise_names.py` retired them, kept so an un-migrated machine still finds it.
+# `harness.find_save` looks under $FM_SAVES_DIR as well as the repo root -- looking ONLY in
+# the repo root is why this test silently stopped running.
+CANDIDATES = ["bucaspor-2022-06-01.fms", "21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
 
 # ground truth (docs/IDS.md + screenshots)
 SUPER_LEAGUE = 118          # Turkish Super League (top division)
@@ -41,18 +48,13 @@ def _check(cond, msg, fails):
 def _find_save(argv):
     if len(argv) > 1 and os.path.exists(argv[1]):
         return argv[1]
-    for c in CANDIDATES:
-        p = os.path.join(ROOT, c)
-        if os.path.exists(p):
-            return p
-    return None
+    return find_save(*CANDIDATES)
 
 
 def run(save_path=None):
     save_path = save_path or _find_save(sys.argv)
     if not save_path:
-        print("SKIP: no 21-22 save found")
-        return 0
+        return skip("no 21-22 save found")
 
     fails = []
     s = Save(save_path)

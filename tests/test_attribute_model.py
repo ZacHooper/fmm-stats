@@ -23,6 +23,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from tests.harness import skip  # noqa: E402
+
 from fmparser import model as MOD                                   # noqa: E402
 from fmparser import attributes as A                                # noqa: E402
 from fmparser.attributes import (ATTR_ORDER, SRC_OFFSETS, PLAIN_OFFSETS,  # noqa: E402
@@ -39,8 +41,7 @@ SAMPLE = 3000
 def main(argv):
     db = argv[argv.index("--db") + 1] if "--db" in argv else "fm-frem.duckdb"
     if not os.path.exists(db):
-        print(f"SKIP: {db} not found (build it with scripts/rebuild.py)")
-        return 0
+        return skip(f"{db} not found (build it with scripts/rebuild.py)")
     import duckdb
     con = duckdb.connect(db, read_only=True)
 
@@ -52,8 +53,7 @@ def main(argv):
         d["coef"][feat] = coef
         tags.add(fitted)
     if not spec:
-        print("SKIP: staging.attribute_model is empty")
-        return 0
+        return skip("staging.attribute_model is empty")
     print(f"  coefficients in store: {', '.join(sorted(tags))}")
 
     byte_cols = sorted(set(COLS.values()))
@@ -70,8 +70,7 @@ def main(argv):
         USING SAMPLE {SAMPLE} ROWS
     """).fetchall()
     if not rows:
-        print("SKIP: no attributed players in the store")
-        return 0
+        return skip("no attributed players in the store")
 
     bi = {c: 3 + i for i, c in enumerate(byte_cols)}
     pi = 3 + len(byte_cols)
