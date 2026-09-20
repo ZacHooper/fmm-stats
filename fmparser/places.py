@@ -20,21 +20,29 @@ import struct
 
 import numpy as np
 
+from . import primitives as P
+from . import records as RD
+from .schema import F32, Field, Record, U8, U16, U32, UNKNOWN
+
 # Stadium: [Id u32][Uid u32][CityId u16][Capacity u32][Expansion u32][len u32][name][00]
 _STADIUM_HEADER = 18
-# City is fixed-width: [Id u16][Uid u32][NationId u16][lat f32][lon f32][attr u8][region u16][u8]
+# City is fixed-width, and unlike the stadium record it is fully declared. Layout from
+# fmm-editor's FMM26 `City`; ids 51 and 58 are Aalborg and Copenhagen to four decimal places.
 CITY_RECORD = 20
+
+CITY = Record("city", CITY_RECORD, [
+    Field(0,  2, "id",         U16, note="== the slot index; that is what bounds the walk"),
+    Field(2,  4, "uid",        U32),
+    Field(6,  2, "nation_id",  U16, note="0 on 31 real cities with good coordinates"),
+    Field(8,  4, "latitude",   F32),
+    Field(12, 4, "longitude",  F32),
+    Field(16, 1, "attraction", U8),
+    Field(17, 2, "region_id",  U16),
+    Field(19, 1, UNKNOWN,      U8),
+])
 
 _LAT_RANGE = (-60.0, 80.0)
 _LON_RANGE = (-180.0, 180.0)
-
-
-def _u16(mm, o):
-    return int.from_bytes(mm[o:o + 2], "little")
-
-
-def _u32(mm, o):
-    return int.from_bytes(mm[o:o + 4], "little")
 
 
 # ---------------------------------------------------------------- stadiums
@@ -42,7 +50,7 @@ def _stadium_at(mm, o, n):
     """Parse a stadium record at `o`, returning (rec, next_offset) or (None, None)."""
     if o < 0 or o + _STADIUM_HEADER + 4 > n:
         return None, None
-    ln = _u32(mm, o + _STADIUM_HEADER)
+    ln = P.u32(mm, o + _STADIUM_HEADER)
     if not (1 <= ln <= 120) or o + _STADIUM_HEADER + 4 + ln + 1 > n:
         return None, None
     raw = mm[o + _STADIUM_HEADER + 4:o + _STADIUM_HEADER + 4 + ln]
@@ -54,10 +62,10 @@ def _stadium_at(mm, o, n):
         return None, None
     if not name or not any(c.isalpha() for c in name):
         return None, None
-    cap, exp = _u32(mm, o + 10), _u32(mm, o + 14)
+    cap, exp = P.u32(mm, o + 10), P.u32(mm, o + 14)
     if cap > 300_000 or exp > 300_000:
         return None, None
-    rec = {"id": _u32(mm, o), "uid": _u32(mm, o + 4), "city_id": _u16(mm, o + 8),
+    rec = {"id": P.u32(mm, o), "uid": P.u32(mm, o + 4), "city_id": P.u16(mm, o + 8),
            "capacity": cap, "expansion_capacity": exp, "name": name, "offset": o}
     return rec, o + _STADIUM_HEADER + 4 + ln + 1
 
@@ -170,19 +178,18 @@ def scrape_cities(mm):
     out, k = {}, 0
     while anchor + CITY_RECORD * (k + 1) <= n:
         o = anchor + CITY_RECORD * k
-        if _u16(mm, o) != k:          # id != slot index -> past the end of the table
+        if P.u16(mm, o) != k:         # id != slot index -> past the end of the table
             break
-        lat, lon = struct.unpack("<ff", mm[o + 8:o + 16])
-        placed = (_LAT_RANGE[0] <= lat <= _LAT_RANGE[1]
-                  and _LON_RANGE[0] <= lon <= _LON_RANGE[1])
-        out[k] = {
-            "id": k, "uid": _u32(mm, o + 2), "nation_id": _u16(mm, o + 6),
-            # a slot with no real coordinates keeps its row and reads NULL, rather than
-            # vanishing and leaving a stadium pointing at nothing
-            "latitude": round(lat, 6) if placed else None,
-            "longitude": round(lon, 6) if placed else None,
-            "attraction": mm[o + 16], "region_id": _u16(mm, o + 17), "offset": o,
-        }
+        rec = RD.read(mm, CITY, o)
+        # The coordinate test is MEANING, not layout, so it stays here rather than in the
+        # declaration: a slot with no real coordinates keeps its row and reads NULL, instead
+        # of vanishing and leaving a stadium pointing at nothing.
+        placed = (_LAT_RANGE[0] <= rec["latitude"] <= _LAT_RANGE[1]
+                  and _LON_RANGE[0] <= rec["longitude"] <= _LON_RANGE[1])
+        rec["latitude"] = round(rec["latitude"], 6) if placed else None
+        rec["longitude"] = round(rec["longitude"], 6) if placed else None
+        rec["offset"] = o
+        out[k] = rec
         k += 1
     return out
 
@@ -202,7 +209,7 @@ def _slot_zero(mm, start, n):
         if (_LAT_RANGE[0] <= lat <= _LAT_RANGE[1]
                 and _LON_RANGE[0] <= lon <= _LON_RANGE[1]
                 and abs(lat) > 1e-3 and abs(lon) > 1e-3):
-            base = o - CITY_RECORD * _u16(mm, o)
+            base = o - CITY_RECORD * P.u16(mm, o)
             if base >= 0:
                 votes[base] = votes.get(base, 0) + 1
         o += CITY_RECORD

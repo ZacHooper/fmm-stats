@@ -56,6 +56,18 @@ from fmparser import staging as S             # noqa: E402
 UNKNOWN = "UNKNOWN"
 
 
+def _from_record(rec):
+    """A `fmparser.schema.Record` in this module's `(stride, [(off, width, name)])` shape.
+
+    The audit's own vocabulary predates `schema.py` and drops `kind`, so it stays as it is;
+    what matters is that a migrated record is DECLARED ONCE and this reads that declaration.
+    `schema.UNKNOWN` is mapped onto the local string so `_coverage` keeps working unchanged.
+    """
+    return (rec.stride or rec.span,
+            [(f.offset, f.width, f.name if f.emits else UNKNOWN)
+             for f in rec.fields if not f.alias])
+
+
 def _player_attr_layout():
     """The global player attribute record, anchored on the SID at P-42.
 
@@ -237,10 +249,10 @@ LAYOUTS = {
     # NOT a stride -- the info record is variable-length; this is the fixed head we decode.
     "info_head": (S.INFO_HEAD, _info_head_layout()),
     "staff_attribute": (39, _staff_layout()),
-    "city": (PL.CITY_RECORD, [
-        (0, 2, "id"), (2, 4, "uid"), (6, 2, "nation_id"),
-        (8, 4, "latitude"), (12, 4, "longitude"),
-        (16, 1, "attraction"), (17, 2, "region_id"), (19, 1, UNKNOWN)]),
+    # Read FROM the parser's own declaration rather than retyped here. This entry used to be
+    # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
+    # to prevent, sitting inside the audit.
+    "city": _from_record(PL.CITY),
     # NOT strides -- variable-length names precede the trailer and a variable-length entries
     # array sits inside the part after it. Together these four cover the competition record
     # in full, in file order:
