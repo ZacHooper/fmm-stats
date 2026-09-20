@@ -49,6 +49,29 @@ a club contributes its record-setting matches, not its fixtures. League MEMBERSH
 complete and robust because every club holds records; standings computed from this list are
 not approximate so much as meaningless, and `league_table()` should not be trusted.
 
+WHAT THIS MODULE IS ACTUALLY READING, measured 2026-09-20. It is not a second data source:
+it is `clubrecords`' team record read at a FIFTEEN-BYTE SHIFT. Of the 5,830 "fixtures" a
+whole-region sweep of frem-2026-06-11 returns, 5,183 (88.9%) sit at exactly `team_row + 15`,
+and the remaining 11.1% are inside the same region on rows that `scrape_team_records` rejects
+(it requires whole 12-slot blocks). The shift lines up field for field:
+
+    light +0  home_tid   == club_team_record +15  club_tid
+    light +2  away_tid   == club_team_record +17  opponent_tid
+    light +4  scoreH     == club_team_record +19  score_for
+    light +5  scoreA     == club_team_record +20  score_against
+    light +10 comp_cid   == the NEXT row's +4     comp_cid   (stride 21, so +15+10 = +21+4)
+
+So a "fixture" here is one club's record-setting match, plus the competition of the following
+category's row. That it produces usable league MEMBERSHIP at all is because every club holds
+records and the tids are real; it is also why `league_table()` must not be trusted.
+
+Across the whole save the region agreement is 98.9% (1,791 of 1,811 deduped records inside
+`clubrecords.region()`) on frem-2026-06-11 and 96.7% (2,454 of 2,537) on bucaspor-2023-03-25.
+The 1-3% outside come from clusters the year-marker scan opens in the name tables (~1.4-3.4
+MB) and the transfer band (~30.4 MB), and are suspected false positives -- plausible bytes in
+unrelated regions. Re-pointing the sweep at `clubrecords.region()` would drop them, which is
+an OUTPUT CHANGE and needs its own measured before/after; it is not done here.
+
 The "second result list at ~49.36 MB" this docstring used to claim DOES NOT EXIST. Checked
 2026-09-17: 49.36 MB is an UNSET table -- every field 0xff on a 70-byte stride, carrying the
 same `e4 07` (2020) season sentinel that clubrecords.py's empty slots use. There is no
@@ -56,7 +79,6 @@ same `e4 07` (2020) season sentinel that clubrecords.py's empty slots use. There
 """
 from collections import Counter, defaultdict
 
-from . import regions as RG
 from . import reference as R
 from .save import cache_key as _cache_key
 
@@ -86,6 +108,11 @@ _YEAR_MARKERS = (b"\xe4\x07", b"\xe5\x07", b"\xe6\x07")   # YEARS as +12 little-
 
 def _u16(mm, o):
     return int.from_bytes(mm[o:o + 2], "little")
+
+
+class LightRegionError(Exception):
+    """The light-results region could not be located, and there is deliberately no window
+    behind this. See `build`."""
 
 
 def find_light_regions(mm, valid_clubs=None, margin=30_000, merge_gap=200_000, min_hits=50):
@@ -126,9 +153,14 @@ def find_light_regions(mm, valid_clubs=None, margin=30_000, merge_gap=200_000, m
     return regions
 
 
-def sweep(mm, valid_clubs, lo=RG.LIGHT_LO, hi=RG.LIGHT_HI, min_copies=2):
-    """Every light-result fixture in the region, deduped. `valid_clubs` gates false
+def sweep(mm, valid_clubs, lo, hi, min_copies=2):
+    """Every light-result fixture in `[lo, hi)`, deduped. `valid_clubs` gates false
     positives (both teams must be real club TIDs). Returns a list of dicts:
+
+    `lo`/`hi` are REQUIRED. They used to default to `regions.LIGHT_LO/HI`, a window measured
+    on Bucaspor, and a default window is how a caller who forgets to locate gets a plausible
+    short answer instead of an error. See `build`.
+
     {home, away, scoreH, scoreA, cid, copies, off}. Records seen `min_copies`+ times
     are the confirmed ones; set min_copies=1 to keep all.
 
@@ -334,8 +366,19 @@ def build(mm, valid_clubs, club_nation=None):
         # Require 2 copies total globally to be a valid record
         records = [r for r in agg.values() if r["copies"] >= 2]
     else:
-        records = sweep(mm, valid_clubs)                  # fall back to hard-coded LIGHT_LO/HI
-        
+        # NO CONSTANT FALLBACK. This used to fall back to `regions.LIGHT_LO/HI` --
+        # 47.0-50.5 MB, measured on Bucaspor -- which is the failure mode CLAUDE.md warns
+        # about in its own words: a constant fallback answers instead of raising, so a
+        # locator that has gone blind produces a plausible short list rather than a stack
+        # trace. Measured before deleting it: `find_light_regions` returns at least one
+        # region on all 34 saves in the archive, across both careers, so the fallback was
+        # dead code with a failure mode attached.
+        raise LightRegionError(
+            "no light-results region found: the year-marker scan returned nothing. "
+            "The markers are 2020-2022 and this table is the Club History region "
+            "(docs/light-results-record.md), so go and read the bytes -- do not add a "
+            "window.")
+
     return {"records": records,
             "leagues": leagues(mm, records, club_nation=club_nation),
             "club_league": club_leagues(mm, records)}
