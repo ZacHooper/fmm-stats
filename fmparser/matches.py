@@ -471,7 +471,16 @@ def extract_season(mm, our_tids=()):
     if region:
         anchors = match_anchors(mm, lo=region[0], hi=region[1])
     else:
-        anchors = match_anchors(mm)                       # fall back to hard-coded MATCH_LO
+        # NO CAREER-SPECIFIC FALLBACK. This used to fall back to `match_anchors(mm)`, whose
+        # default `lo` is `regions.MATCH_LO = 55M` -- a Bucaspor constant that is INSIDE
+        # Frem's own match region (~53.8M), so the fallback's failure mode was to silently
+        # drop the earliest matches of the career it was not measured on. Scanning from 0 is
+        # both correct and, here, free: this path only runs when the locator found fewer
+        # than three valid headers in the entire file, which is what a 0-match save looks
+        # like, and there is nothing to scan slowly through.
+        print("  NOTE: match region not located (fewer than 3 valid headers in the file); "
+              "scanning the whole file. Expected on a 0-match save.")
+        anchors = match_anchors(mm, lo=0, hi=len(mm))
     ours = {t for t in our_tids if t}
     out = []
     by_header = {}                  # date_off -> index into `out`; see the dedupe note below

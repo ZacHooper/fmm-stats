@@ -33,12 +33,24 @@ DELIM_UNIT = bytes.fromhex("21225515" + "0a000000")
 # ---- region windows (generous; validated per-record on read) ----
 # global attribute records (keyed by SID, fixed 78-byte grid)
 ATTR_LO, ATTR_HI = 3_800_000, 6_600_000
-# managed squad snapshot (full names + attributes + feet, before the club marker)
-SNAPSHOT_LO, SNAPSHOT_HI = 62_300_000, 63_200_000
-# per-match stat region (home XI then away XI, delimiter-clustered)
+# per-match stat region (home XI then away XI, delimiter-clustered). Still here because
+# `matches.match_anchors` takes it as a DEFAULT lo for callers that pass no bounds -- and it
+# is 55M, which is INSIDE Frem's own match region (~53.8M), so relying on it drops the start
+# of that career. `matches.extract_season` no longer does: it locates, and scans from 0 when
+# it cannot. Do not make this a fallback again.
 MATCH_LO = 55_000_000
-# light results (simulated non-managed games): [home][away][sH][sA]..[flags 0x40xx].[cid]
-LIGHT_LO, LIGHT_HI = 47_000_000, 50_500_000
+#
+# SNAPSHOT_LO/HI and LIGHT_LO/HI USED TO SIT HERE AND ARE DELETED. Both were fallbacks, and
+# both had the failure mode this file's own header warns about: they were measured on one
+# career, they answer instead of raising, and a blind locator therefore produced a plausible
+# short result rather than an error.
+#   * SNAPSHOT_LO/HI (62.3-63.2M) was the DEFAULT career's squad snapshot. A career whose
+#     snapshot sits elsewhere got an empty answer. `attributes.snapshot_bounds` now raises
+#     `SnapshotNotFound`.
+#   * LIGHT_LO/HI (47.0-50.5M) was Bucaspor-tuned. Measured across all 34 archived saves in
+#     both careers, `lightresults.find_light_regions` returns a region on every one, so the
+#     fallback was dead code with a failure mode attached. It now raises `LightRegionError`.
+# Do not re-add either. See docs/parser-architecture.md, shapes B and C.
 # NOTE: contract-STATUS has no window on purpose. CONTRACT_LO/HI (54M-58M) was exact for
 # Bucaspor and 4 MB late for Frem, decoding ZERO of ~25,500 records on two snapshots.
 # scrape_contract_status scans the whole file (0.1s) and is safe unwindowed because every hit

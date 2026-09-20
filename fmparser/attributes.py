@@ -14,8 +14,7 @@ import math
 import re
 import struct
 
-from .regions import (SNAPSHOT_LO, SNAPSHOT_HI, CLUB_MARKER, ATTR_LO, ATTR_HI,
-                       LEAGUE_COMP_IDS)
+from .regions import CLUB_MARKER, ATTR_LO, ATTR_HI, LEAGUE_COMP_IDS
 from .reference import info_offset
 from . import model
 
@@ -54,13 +53,24 @@ def _name_before(mm, marker_i):
     return None
 
 
+class SnapshotNotFound(Exception):
+    """The managed squad snapshot could not be located, and there is no window behind it."""
+
+
 def snapshot_bounds(mm, margin=5000, marker=CLUB_MARKER):
     """Locate the squad-snapshot region adaptively (it drifts as the save grows).
 
     Club markers also appear in the match region (team-total records), so we can't
     just take the densest cluster. The snapshot is the marker cluster whose markers
-    are preceded by real player NAMES. Returns (lo, hi) or the static window if
-    discovery fails. `marker` is the managed club marker (careers.Career.club_marker)."""
+    are preceded by real player NAMES. `marker` is the managed club marker
+    (careers.Career.club_marker).
+
+    RAISES if it cannot find the region. There is deliberately no window behind this: the
+    old fallback returned `regions.SNAPSHOT_LO/HI`, 62.3-63.2 MB, which is the DEFAULT
+    career's snapshot and nobody else's -- so a career whose snapshot sits elsewhere got a
+    plausible empty answer instead of an error. A locator that has failed should say so.
+    """
+
     hits, pos = [], 0
     while True:
         i = mm.find(marker, pos)
@@ -69,7 +79,9 @@ def snapshot_bounds(mm, margin=5000, marker=CLUB_MARKER):
         hits.append(i)
         pos = i + 1
     if not hits:
-        return SNAPSHOT_LO, SNAPSHOT_HI
+        raise SnapshotNotFound(
+            f"the managed club marker {marker.hex()} does not appear in this save -- "
+            f"wrong career? (careers.py), or the save is not an FMM22 .fms")
     clusters, cur = [], [hits[0]]
     for h in hits[1:]:
         if h - cur[-1] < 50_000:
@@ -84,7 +96,9 @@ def snapshot_bounds(mm, margin=5000, marker=CLUB_MARKER):
         if score > best_score:
             best, best_score = c, score
     if not best:
-        return SNAPSHOT_LO, SNAPSHOT_HI
+        raise SnapshotNotFound(
+            f"found {len(hits)} club markers but no cluster is preceded by player names, "
+            f"so none of them is the squad snapshot")
     return max(0, best[0] - margin), best[-1] + margin
 
 
@@ -206,17 +220,25 @@ def squad_snapshot_bounds(mm, markers):
 
     The first-team and reserve squad lists are written as separate marker clusters and can
     land in different places, so a single marker's window may not cover both. A marker whose
-    discovery FAILED (snapshot_bounds fell back to the static SNAPSHOT_LO/HI window) is
-    skipped rather than blowing the union open across half the file."""
+    discovery FAILS is skipped rather than blowing the union open across half the file --
+    which is legitimate per marker (a career need not have a reserve side) but not for all
+    of them, so an empty union raises.
+
+    This used to detect failure by comparing the returned window against the static
+    SNAPSHOT_LO/HI sentinel. That worked only because the fallback returned a value
+    recognisable as "no answer" -- an exception says the same thing without requiring the
+    caller to know the constant."""
     los, his = [], []
     for m in markers:
-        lo, hi = snapshot_bounds(mm, marker=m)
-        if (lo, hi) == (SNAPSHOT_LO, SNAPSHOT_HI):     # discovery failed -> ignore
+        try:
+            lo, hi = snapshot_bounds(mm, marker=m)
+        except SnapshotNotFound:
             continue
         los.append(lo)
         his.append(hi)
     if not los:
-        return SNAPSHOT_LO, SNAPSHOT_HI
+        raise SnapshotNotFound(
+            f"none of the {len(list(markers))} club markers resolves to a squad snapshot")
     return min(los), max(his)
 
 

@@ -179,7 +179,17 @@ def claims(mm, n):
         print(f"  ! COMPETITION TABLE WALK FAILED: {exc}", file=sys.stderr)
     declared("staging.attributes", RG.ATTR_LO, RG.ATTR_HI)
     declared("staging.contracts", RG.CONTRACTREC_LO, RG.CONTRACTREC_HI)
-    declared("attributes.snapshot", RG.SNAPSHOT_LO, RG.SNAPSHOT_HI)
+    # DERIVED, not declared: `snapshot_bounds` locates this by marker cluster and now
+    # RAISES rather than falling back to `regions.SNAPSHOT_LO/HI`. Claiming the static
+    # window here would have reported 0.9 MB as covered on every career whose snapshot is
+    # somewhere else.
+    try:
+        from fmparser import attributes as _A
+        from fmparser import careers as _C
+        s_lo, s_hi = _A.squad_snapshot_bounds(mm, _C.resolve_career().squad_markers)
+        declared("attributes.snapshot", s_lo, s_hi)
+    except Exception as exc:
+        print(f"  ! squad snapshot not located: {exc}", file=sys.stderr)
 
     try:
         from fmparser import matches as M
