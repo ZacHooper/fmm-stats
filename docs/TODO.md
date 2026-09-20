@@ -260,6 +260,76 @@ full league programme, not the division's ~200. Two zones that light up on a dat
 **Possibly superseded by #3**: if the standings record gives exact final tables, complete
 fixtures may no longer be needed. Decide that before spending time here.
 
+### 4b. Career-half region sizing: two real fixed pools, two false ones — next region to check is open
+**2026-09-18/19.** Following PR #58's proof that the *reference* database announces its own
+table sizes, the same question was asked of the *career* half, tested against five saves: three
+spanning the whole career (2023/2024/2026) plus two more from the same season (2022-08-27,
+2023-06-26). Full writeup, exact numbers and the reusable method:
+[`career-region-sizing.md`](career-region-sizing.md).
+
+**Proven, exact, 3/3**: the player-history slab is a genuine fixed-size pool — 265,423 rows on
+every save regardless of career length, proven with a parameter-free pointer-forest check (not
+`history.locate()`'s sampled score), and it hands off to club-records exactly **209 bytes**
+after its own end, every time.
+
+**Refuted by the 3rd save**: club-records plus the trailing empty-slot table looked like a
+second fixed pool after two saves measured the same span to the byte (4,558,055). A third save
+broke that. Tracking one real club (Southampton, tid 504) across all three saves instead showed
+its footprint grows by exactly 212 bytes when it earns a new season block — real insertion, not
+space claimed from a reservation. This part of the file is ordinary append-and-shift, not a pool.
+
+**Same pattern, a third region: "our matches."** Looked briefly like it might be a fixed
+container too (`matches.find_match_region()` returning 0 valid anchors on two of five saves
+looked like it could be a locator bug). It isn't — those two saves are effectively at a season
+boundary and the region genuinely resets to empty there, confirmed by comparing two saves from
+inside the *same* season (9 matches vs 43 matches, footprint scaling ~proportionally, not
+constant). What IS exact: a **550-byte `0xFF` wall** right after the last real match, identical
+across all three match-bearing saves regardless of match count (9/43/59). But that wall isn't
+headroom for more matches — reading past it lands in a completely different, independently
+growing **stride-65 per-season table** (`[flag u8][value u16][tid u16][year u16]`, one entry per
+season), unnamed and not yet checked against `table-framing.md`'s similarly-shaped per-season
+series near 44.6 MB (same table found twice, a sibling, or coincidence — open).
+
+**Four follow-ups, none started:**
+- Ship the exact (no-sampling) history-slab locator as a real function next to
+  `history.locate()`, the way `scripts/audit_table_headers.py --confirm` sits next to the
+  reference-table locators — the sampled version is fine for finding a candidate but should not
+  be the thing a "fixed pool, proven" claim rests on.
+- **Live bug**: `fmparser/mapregions.py`'s `sub_regions()` calls
+  `lightresults.find_light_region()` (singular) but the real function is `find_light_regions()`
+  (plural) — a silent `AttributeError` swallowed by a bare `except: pass`, so
+  `scripts/map_regions.py` has never once printed a `light_results` sub-region for any save.
+  One-line fix.
+- **The matches season-reset is documented here but not coded anywhere.** `matches.py` has no
+  comment or test asserting the region resets at season boundaries; anyone hitting the
+  0-valid-anchors case cold would still read it as a bug today.
+- **Name the stride-65 per-season table** and settle whether it's the same structure as
+  `table-framing.md`'s "per-season series" near 44.6 MB or a genuine sibling.
+
+Next step per the user: apply the same method (exact structural proof + multi-save cross-check,
+never trust two saves) to the rest of the still-unidentified career-half regions, to work out
+which are genuine fixed pools and which just look that way.
+
+**2026-09-19 addendum — the whole file mapped, and two real gaps found.**
+[`savefile-map.md`](savefile-map.md) walks `frem-2026-06-11.fms` start to end with every known
+section, live-verified on this branch wherever possible. Two genuinely uncharacterised stretches
+fell out of it, ~8.7 MB combined:
+- **52.74M–55.84M** (~3.10 MB) — sits between the trailing club-records empty-slot table's
+  filler wall and where our matches begin. Not investigated at all.
+- **56.3M–61.9M** (~5.58 MB) — sits between the per-season table found after matches (§4 above)
+  and the real squad snapshot. `map_regions.py` calls this whole span `inline_names`, which the
+  map now shows is wrong — the snapshot itself is a small 0.11 MB slice at the very end of it
+  (61,896,648–62,002,727, via `attributes.snapshot_bounds`), not the whole 10 MB stretch.
+
+**Also surfaced, and worth fixing before doing much more work on this branch: PR #58 is not
+merged.** This branch (`claude/pr-58-learnings-8xx4fi`) was cut from `main`, and PR #58 lives on
+its own unmerged branch (`docs/table-framing`) — `docs/table-framing.md`,
+`scripts/audit_table_headers.py` and `scripts/discover_tables.py` simply don't exist here. The
+club table, award table, and a handful of small attribute-section sub-tables in
+`savefile-map.md` are cited from that branch at `frem-2023-07-02` offsets, unverified on this
+save. Reconcile the branches (merge #58, or rebase this one onto it) before treating those rows
+as anything more than a lead.
+
 ### 5. `att_avg` / `att_min` / `att_max` are misnamed — curiosity only
 The bytes are read correctly (`league_id` lands exactly at p+158 right beside them), but the
 NAMES come from fmm-editor's `Club.cs` and were never checked against the game. They fail every
