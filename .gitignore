@@ -4,6 +4,11 @@
 # Extraction outputs (regenerate with extract.py)
 output/
 
+# The refactor's byte-identical baseline (scripts/assert_identical.py --record). Derived from
+# the saves, and it moves whenever output legitimately changes, so it is local state rather
+# than a committed fixture — the commit hash it records is what makes a stale one detectable.
+.oracle/
+
 # DuckDB stores — DERIVED, never committed. They rewrite wholesale on every import (96 MiB
 # for fm-frem, within 4 MiB of GitHub's hard per-file limit), so versioning them poisoned
 # history: .git hit 257 MB, ~250 MB of it 19 copies of these two files. Rebuild instead:
