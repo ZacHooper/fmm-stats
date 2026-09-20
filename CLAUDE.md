@@ -116,6 +116,8 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
 - **[`docs/table-framing.md`](docs/table-framing.md)** — the save declares its own table sizes (`[8xFF][count][records]`); the declared-vs-read audit, the five defects it found, and the inventory of walkable tables still to be named. **Read before walking a new table.**
 - **[`docs/record-expansion.md`](docs/record-expansion.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
+- **[`docs/save-archive.md`](docs/save-archive.md)** — the save's last ~1.3 MB is a **zstd archive** (`sicomps`, 159 named members, 6.6 MB decompressed), read by `fmparser/archive.py` after `uv sync --extra archive`. Its `fix_man.dat` is the **world fixture list with scores** — 26,954 rows, verified 282/285 against our own matches in both careers. Read before touching fixtures/results, and note the rule that found it: **rank an unknown region by BLOCK ENTROPY, never by printable fraction** — compressed bytes are 37% printable by construction (`scripts/entropy_profile.py`).
+- **[`docs/savefile-map.md`](docs/savefile-map.md)** — the whole-file map, start to end, with what is known, what is a fixed pool, what is wiped each July, and the ranked list of what is still unidentified.
 - **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options** — specific findings; read when relevant.
 - **light-results-rolling-buffer**, **master-schedule-plan** — both **SUPERSEDED 2026-09-17**. The ~47 MB region is the per-club **Club History record tables** (`fmparser/clubrecords.py`, verified against in-game screenshots), NOT a list of simulated results, and nothing is deleted by a ring buffer. 55–58 MB is `regions.MATCH_LO`, our own matches. Read [`docs/light-results-record.md`](docs/light-results-record.md) before doing anything with either.
 
@@ -125,6 +127,12 @@ These are point-in-time notes — verify file/line claims against the current co
 When locating a **new field** in the save, do NOT start by guessing byte offsets. Follow this order —
 it has repeatedly turned multi-hour hunts into quick finds:
 
+0. **Profile it by BLOCK ENTROPY first** — `uv run python scripts/entropy_profile.py <save.fms>`.
+   Filler reads ~1.4 bits/byte, ordinary records 3–6, dense records/strings 6–7.5, and **>7.9 is
+   COMPRESSED** — no stride search will ever bite there. This is not optional book-keeping: the
+   file's last 1.3 MB was ranked the best remaining target for being "25.8% printable" when
+   uniform random bytes are **37.1% printable by construction**, and it cost four hunts. Never
+   rank an unknown region by printable fraction.
 1. **Map the file into filler-delimited sections first** — `python3 scripts/map_regions.py <save.fms>`.
    The save is cleanly split by long runs of `00`/`ff` filler; each section holds one kind of data. This
    shows you *where* to look and exposes regions we haven't mapped. Cross-check against `fmparser/regions.py`
@@ -158,7 +166,7 @@ it has repeatedly turned multi-hour hunts into quick finds:
    join is unsolvable, search the file for the target's row index / offset as a u32 — one hit outside
    the table is the link. See `docs/IDS.md`.
 7. **LOOK IN FRONT OF RECORD 0 — the save declares its own table sizes.** The framing is
-   `[8 bytes of 0xFF][record count][record 0]`, and **19 tables use it**, exactly (u16 for the
+   `[8 bytes of 0xFF][record count][record 0]`, and **20 tables use it**, exactly (u16 for the
    variable-length string-record tables, u32 for the fixed-width grids). Comparing each declared
    count against what the parser reads found five defects in tables that passed every check we
    had, two of them losing real records on every save ever built. Test for a run of `>= 8` FF,

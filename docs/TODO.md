@@ -11,7 +11,7 @@ changelog, which is what killed the last four handoff docs.
 Item numbers are for conversation only — they are renumbered whenever entries are deleted, so
 never cite one in code or a commit message.
 
-Last reviewed **2026-09-18**, after the table-framing audit (#18).
+Last reviewed **2026-09-20**, after the tail archive was opened (#4, #4c, #4d).
 
 ---
 
@@ -66,7 +66,10 @@ Five things have produced numbers that looked fine and were not. All are live tr
 | the per-byte schema of any record we walk | `uv run python scripts/audit_records.py --map` |
 | which BYTES of the save no parser reads | `uv run python scripts/audit_coverage.py` |
 | the standings record, decoded but unimplemented | [`standings-record.md`](standings-record.md) |
-| the hunt for complete fixtures | [`date-search.md`](date-search.md) |
+| **the compressed archive at the end of the file, and the fixture list in it** | [**`save-archive.md`**](save-archive.md) |
+| where every byte of the file lives | [`savefile-map.md`](savefile-map.md) |
+| whether a region is text, records or COMPRESSED | `uv run python scripts/entropy_profile.py <save.fms>` |
+| the hunt for complete fixtures (history; now superseded by the archive) | [`date-search.md`](date-search.md) |
 | the transfer-history record (decoded, not parsed) | [`transfer-history-record.md`](transfer-history-record.md) |
 | how to deploy the site | [`DEPLOY.md`](DEPLOY.md) |
 | known parser bugs and their history | [`BUGS.md`](BUGS.md) |
@@ -96,7 +99,31 @@ position of every club in every loaded competition** was decoded on 2026-07-20 a
 up. Layout, validation and parser plan: [`standings-record.md`](standings-record.md). Strict
 upgrade over what ships today.
 
-### 4. Complete results/fixtures via a date search
+### 4. Complete results/fixtures — FOUND 2026-09-20, in a place nobody had opened
+
+**`fix_man.dat`, inside the compressed archive at the end of the file, IS the fixture list
+with scores.** 26,954 records of 92 bytes on `frem-2026-06-11`, against the 275 fixtures the
+25-byte match-slot table can resolve. Ground truth: every `mart.club_matches` row for the
+managed club, both careers, five saves — **282 of 285 in-window rows exact on date, home tid,
+away tid and both scores; 0 wrong on clubs or date**. It is **home-first**, unlike the 25-byte
+table. Full writeup, including the three mismatches and everything still unnamed:
+[`save-archive.md`](save-archive.md).
+
+The reason four hunts missed it is worth keeping: the region was ranked by **printable-byte
+fraction**, and compressed data is 37.1% printable by construction, so "the most TEXT-dense
+unparsed span in the file" was a measurement artefact. It reads 7.99 bits/byte of entropy and
+contains the zstd magic number. `scripts/entropy_profile.py` now exists so the next region is
+profiled before it is ranked.
+
+**What remains here is a decode job, not a search.** Read the "What is NOT established" list
+in [`save-archive.md`](save-archive.md) before starting — chiefly: ~70 of the 92 bytes are
+unnamed, the goals reading at `+6`/`+11` is NOT a fixed field (the ten bytes after the opener
+are a variable-shape block, almost certainly extra time / penalties), and no competition field
+is identified. A `fmparser/fixtures.py` with a declarative `LAYOUT` and an
+`audit_records.py --map` entry is the shape the rest of this repo holds records to.
+
+Everything below is the history of the search, kept because it records what is NOT there.
+
 **Re-scoped 2026-09-17.** The light-results region turned out to be the **club records**
 tables (`fmparser/clubrecords.py`), so the complete results are not there and never were, and
 neither the rolling-buffer story nor the "partial decode" framing survives. 28 results read
@@ -126,18 +153,16 @@ i.e. "this round is played on this day-of-week in this month" rules with a place
 this career's dated fixtures. The dictionary describes competition STRUCTURE; the realised
 programme is not in it.
 
-**Where the unparsed bytes actually are** (frem-2026-06-11, 63.9 MB), for the next hunt — the
-tail is the biggest unexplored area left and the only large one:
+**Where the unparsed bytes actually are** (frem-2026-06-11, 63.9 MB) — updated 2026-09-20,
+and the tail row that used to head this table is gone because the tail is now read:
 
-| span | size | ff / zero / printable | note |
-|---|---|---|---|
-| 51,149,000 – 55,839,667 | 4.69 MB | 33% / 45% / 5.4% | before our match region |
-| 56,223,268 – 61,896,648 | 5.67 MB | 52% / 30% / 8.7% | between matches and the squad snapshot |
-| 62,002,727 – 63,936,873 | 1.93 MB | 14% / 15% / **25.8%** | after the snapshot; by far the most TEXT-dense unparsed span in the file |
+| span | size | note |
+|---|---|---|
+| 51,149,000 – 55,839,667 | 4.69 MB | before our match region. Still unexamined |
+| 56,223,268 – ~61,253,092 | 5.03 MB | between matches and the first player-list block. Still unexamined, but 0.6 MB smaller than this table used to claim |
+| ~~62,002,727 – 63,936,873~~ | ~~1.93 MB~~ | **RESOLVED** — 0.63 MB of player-list blocks + the 1.30 MB `sicomps` archive |
 
-(Our own match region is 55.84–56.22 MB and the squad snapshot 61.90–62.00 MB on that save;
-both are parsed. Everything else in the 51–64 MB tail is not.) The 14.0–16.7 MB region (2.7 MB,
-85% filler) is the other unidentified area — see #18.
+The 14.0–16.7 MB region (2.7 MB, 85% filler) is the other unidentified area — see #18.
 
 **And a shorter path to most of what "results" is for:** #3's standings record is already decoded
 and gives the exact final position of every club in every loaded competition. That is a strict
@@ -316,10 +341,14 @@ section, live-verified on this branch wherever possible. Two genuinely uncharact
 fell out of it, ~8.7 MB combined:
 - **52.74M–55.84M** (~3.10 MB) — sits between the trailing club-records empty-slot table's
   filler wall and where our matches begin. Not investigated at all.
-- **56.3M–61.9M** (~5.58 MB) — sits between the per-season table found after matches (§4 above)
-  and the real squad snapshot. `map_regions.py` calls this whole span `inline_names`, which the
-  map now shows is wrong — the snapshot itself is a small 0.11 MB slice at the very end of it
-  (61,896,648–62,002,727, via `attributes.snapshot_bounds`), not the whole 10 MB stretch.
+- **56.3M–~61.25M** (~4.94 MB) — sits between the per-season table found after matches (§4
+  above) and the first **player-list block**. `map_regions.py` calls this whole span
+  `inline_names`, which the map now shows is wrong. **Trimmed 2026-09-20**: the last 0.63 MB
+  of what this bullet used to claim is the head of the player-list block region
+  (~61.25M–62.63M), of which `attributes.snapshot_bounds`'s 0.11 MB squad snapshot is five
+  blocks. One stray populated block also sits at 56,336,372 (`Jeppe Corfitzen` / `FC
+  København` / `Res Group 1`), so the same structure reaches into this gap and is the first
+  thing to chase in it.
 
 **Also surfaced, and worth fixing before doing much more work on this branch: PR #58 is not
 merged.** This branch (`claude/pr-58-learnings-8xx4fi`) was cut from `main`, and PR #58 lives on
@@ -329,6 +358,44 @@ club table, award table, and a handful of small attribute-section sub-tables in
 `savefile-map.md` are cited from that branch at `frem-2023-07-02` offsets, unverified on this
 save. Reconcile the branches (merge #58, or rebase this one onto it) before treating those rows
 as anything more than a lead.
+
+### 4c. The `sicomps` archive: read, but its members are not
+**New 2026-09-20.** The file's last 1.0–1.6 MB is a **named zstd archive** with a directory —
+159 members on Frem, 161 on Bucaspor, 6.6 MB decompressed. `fmparser/archive.py` reads it,
+`scripts/audit_archive.py` proves the extent on **34/34 saves**, `tests/test_archive.py` guards
+it. Needs `uv sync --extra archive` (zstd is not in the stdlib before Python 3.14).
+[`save-archive.md`](save-archive.md) is the reference.
+
+The container is done. **Its contents are almost entirely unread**, and that is the open work:
+
+- **`fix_man.dat`** — the fixture list. See §4; the single highest-value item in the repo now.
+- **`comp_man.dat`** (232 KB) and **`comp_hosts.dat`** (31 KB) — unexamined, and the names
+  suggest competition state the datadict may not carry.
+- **The 147 `comp_<id>.dat` ids are not our `cid` space.** `reference.comp_refs` resolves
+  1 of 147. The datadict's `DBID` values overlap 54 of them and its `comp` values 92, so a
+  mapping probably exists; **none is established.** Settle this before building anything on a
+  per-competition member, because without it you cannot say which competition a file is.
+- **`rule_group.dat`** carries plain-text engine logs (`15/6/2025: Promoted seeding for Denmark
+  (13th) - id=0 EURO Cup old_seed=2 new_seed=1`) — the only prose in the archive.
+- **Three members are static**: `discipline.dat` is byte-identical on every save of both
+  careers, `fifa_rankings.dat` is 14 bytes and holds no rankings, `squad_man.dat` decays to a
+  17-byte stub. Recorded so nobody re-opens them expecting career state.
+- **Unnamed fields**: the two u64s ending every directory entry (constant
+  `0xFFFFFFF1886E0900`), `'sicomps'` and the `0`/`1` after it, the `[08][00][00]` in the
+  13-byte record header, the u32 that follows it, and the 13 constant bytes before member 0.
+
+### 4d. Player-list blocks — named, not decoded
+**New 2026-09-20.** ~1.38 MB at ~61.25M–62.63M is a run of blocks of **100 slots x 200 B**
+(+14 B per block), most slots holding an identical empty template with `e5 07` = the career's
+start year. Populated slots carry a variable-length player record — a ~160 B binary core then
+`[full name][first][last][""][last][club short name][competition name]`. The lists are squad
+lists (ours) and world/scouting lists (De Bruyne/Man City, Courtois/R. Madrid).
+
+**`attributes.snapshot_bounds` finds exactly five of these blocks — our own squad — and the
+other ~55 have never been opened.** Open: what the 160-byte core holds beyond the 23
+attributes `attributes.py` already reads, what selects which players appear in the world
+lists, and whether the blocks carry a header naming the list. Reproduce with occurrences of
+`14 01 00 0a 00` at gaps of exactly 200; runs come in lengths of exactly 100.
 
 ### 5. `att_avg` / `att_min` / `att_max` are misnamed — curiosity only
 The bytes are read correctly (`league_id` lands exactly at p+158 right beside them), but the
@@ -875,8 +942,32 @@ looks like the obvious next place and it was checked (2026-09-18): 14.0–16.7 M
 with no headers (every count candidate is a multiple of 256, i.e. data bytes), 16.7–21 MB is the
 tagged data dictionary on completely different framing, and 21–39.8 MB is the contract/transfer
 record pages. The convention lives in two bands only, 3.99–6.33 MB and 6.34–14.0 MB, plus the
-name id-table trio at 37.9 MB. One unproven lead is kept in the doc (a `u32 = 32,966` at
-14,000,242, person-count-shaped, with a 14-byte unit that stops being uniform after 386 rows).
+name id-table trio at 37.9 MB.
+
+**2026-09-20 — a TWENTIETH table, and this doc's own advice caught it.** The person table
+(info spine) **does** declare a count; the earlier pass concluded "no header found" because it
+looked near the first record the sentinel SWEEP reaches instead of at the table's base — the
+exact mistake the staff grid had already taught once. It is the first run of >= 8 `0xFF` below
+1 MB, just past the browse table's zero filler:
+
+| career | record 0 | declared | `staging.scrape_players` reads |
+|---|---|---|---|
+| Frem | 572,041 | **32,966** | 32,874 (**92 short**) |
+| Bucaspor | 575,721 | **34,312** | 34,010 (**302 short**) |
+
+`--confirm` is now **238/238 across all 34 saves** and shows the count is **career-constant
+and career-specific** — a per-database pool, like the history slab, so 32,966 is a bound and
+not a headcount. It also makes the old lead below less mysterious: the `u32 = 32,966` at
+14,000,242 is the same number in a second place.
+
+**Open, and do not treat the shortfall as 92 lost people until it is settled:** whether record
+0 is at 572,041 (where the count is flush, but the bytes decode as a placeholder) or 572,042
+(where they decode as a real person); how much of the shortfall is the 77 known `uid == 0`
+empty slots and tid-keyed collapse rather than loss; and a real structural walk, which needs a
+per-record parser because the record is variable-length (68 B head + counted lists).
+
+One unproven lead is kept in the doc (a 14-byte unit at 14,000,242 that stops being uniform
+after 386 rows).
 
 Read `table-framing.md` before extending the sweep — it records what the detectors CANNOT find
 (variable-length tables have real headers and are invisible; competitions, stadiums, languages
@@ -887,6 +978,14 @@ positives in the award-record region so the next pass does not rediscover them.
 ---
 
 ## Housekeeping (safe to do any time)
+
+- **Two pairs of saves in `~/fm-saves/frem` are byte-identical duplicates** (md5, whole file):
+  `frem-2024-05-25.fms` == `frem-2024-06-02.fms`, and `frem-2024-06-03.fms` ==
+  `frem-2024-06-28.fms`. Noticed 2026-09-20 while hashing the archive across all 34 saves —
+  two of the "34" are the same file twice, so any cross-save count in this repo that says 27
+  Frem saves is really 25 distinct ones. Decide which name is right and drop the other (and
+  its `.gz`, its R2 object, and its manifest row — `canonicalise_names.py` lists the five
+  places a save's identity lives).
 
 - **~308 MB of stale `output/` dirs** from old experiments (`frem-patched-test`,
   `multi-region-test`, `frem-22-start`, pre-rename leftovers). All regenerable.

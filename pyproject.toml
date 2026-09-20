@@ -26,3 +26,9 @@ dashboard = [
     "streamlit>=1.40",
     "plotly>=5.24",
 ]
+# The save's tail is a zstd-compressed archive (fmparser/archive.py). zstd only enters the
+# stdlib in 3.14, so reading it needs this package; nothing else in the parser imports it
+# and archive.py raises a message naming this extra if it is missing.
+archive = [
+    "zstandard>=0.22",
+]
