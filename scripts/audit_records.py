@@ -205,6 +205,11 @@ LAYOUTS = {
     # useful part: 21 and 22 bytes, fully claimed.
     "club_team_record": _from_record(CR.TEAM_ROW),
     "club_player_record": _from_record(CR.PLAYER_ROW),
+    # Both contract records: found by KEY SEARCH, so neither has a stride and the span is
+    # what we read rather than what the record is. The status record's 29 unnamed middle
+    # bytes become visible here for the first time.
+    "contract_status": _from_record(S.CONTRACT_STATUS),
+    "contract_detail": _from_record(S.CONTRACT_DETAIL),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.

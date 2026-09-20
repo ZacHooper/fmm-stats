@@ -11,8 +11,6 @@ Sweeping record-by-record (rather than searching for a value) is both faster at 
 (~31k players) and collision-free: we read each record's embedded key instead of
 hunting for bytes that might appear as stray data.
 """
-from datetime import date, timedelta
-
 from . import primitives as P
 from . import records as RD
 from . import reference as R
@@ -259,6 +257,41 @@ def scrape_players(mm):
     return players
 
 
+# THE TWO CONTRACT RECORDS. Both are shape F in docs/parser-architecture.md -- found by
+# searching for a key, not by walking a table -- so neither has a stride and both are declared
+# `is_head=True`: the span is what we READ, not what the record is.
+#
+# The status record is the interesting declaration. We read 8 bytes at the front and 3 at
+# +37, and the 29 bytes between them were simply never mentioned anywhere. Naming them PAD
+# says out loud that the record continues and we cannot read it, which is a different claim
+# from the record being 11 bytes long.
+CONTRACT_STATUS = Record("contract_status", 40, (
+    Field(0, 4, "tid", U32),
+    Field(4, 4, "uid", U32, note="both must match the info spine -- 8 exact bytes"),
+    Field(8, 29, UNKNOWN, PAD),
+    Field(37, 2, "marker", U16, note="0x0087; this is what the scan searches for"),
+    Field(39, 1, "squad_status", U8),
+), is_head=True)
+
+# `[tid u32][0x01][wage u16][6 x 00][expiry day u16][expiry year u16]`.
+#
+# `expiry` is a DATE in the same [day-of-year][year] encoding as DOB, so it is ONE four-byte
+# field, not two -- and `expiry_year` is an alias over its second half, because the year alone
+# is both the plausibility gate the scan uses and a column downstream.
+#
+# The money conversion is NOT here. Wage units x WAGE_GBP_PER_UNIT (~520) is one of four money
+# conventions in this save, and which applies is a property of this record; a shared helper
+# would let a call site be wrong by that factor and still return a plausible number.
+CONTRACT_DETAIL = Record("contract_detail", 17, (
+    Field(0, 4, "tid", U32),
+    Field(4, 1, "marker", U8, note="0x01 -- distinguishes this from the 0x87 status record"),
+    Field(5, 2, "wage_units", U16),
+    Field(7, 6, UNKNOWN, PAD),
+    Field(13, 4, "expiry", DATE, note="some Danish deals expire 31 Dec -- keep the DAY"),
+    Field(15, 2, "expiry_year", U16, alias=True),
+), is_head=True)
+
+
 def scrape_contract_status(mm, info, lo=None, hi=None):
     """{tid: squad_status_code} from the contract records. Each record is keyed by
     [TID:u32][UID:u32]; a 0x0087 marker sits at TID+37 and the status byte at TID+39.
@@ -287,9 +320,10 @@ def scrape_contract_status(mm, info, lo=None, hi=None):
         p = m + 1
         if m - 37 < 0:
             continue
-        tid = int.from_bytes(mm[m - 37:m - 33], "little")
-        if uid_of.get(tid) == int.from_bytes(mm[m - 33:m - 29], "little"):
-            out[tid] = mm[m + 2]                # status is a u8 at TID+39
+        base = m - CONTRACT_STATUS.field("marker").offset
+        rec = RD.read_fields(mm, CONTRACT_STATUS, base, ("tid", "uid", "squad_status"))
+        if uid_of.get(rec["tid"]) == rec["uid"]:
+            out[rec["tid"]] = rec["squad_status"]
     return out
 
 
@@ -309,20 +343,15 @@ def scrape_contracts(mm, info, lo=CONTRACTREC_LO, hi=CONTRACTREC_HI):
     p = lo
     while p < end:
         if mm[p + 4] == 0x01:
-            yr = int.from_bytes(mm[p + 15:p + 17], "little")
+            yr = P.u16(mm, p + CONTRACT_DETAIL.field("expiry_year").offset)
             if 2018 <= yr <= 2035:
-                tid = int.from_bytes(mm[p:p + 4], "little")
+                tid = P.u32(mm, p)
                 if tid in info and tid not in out:
-                    units = int.from_bytes(mm[p + 5:p + 7], "little")
-                    day = int.from_bytes(mm[p + 13:p + 15], "little")
-                    try:
-                        expiry = (date(yr, 1, 1) + timedelta(days=day)).isoformat()
-                    except ValueError:
-                        expiry = None
+                    r = RD.read_fields(mm, CONTRACT_DETAIL, p, ("wage_units", "expiry"))
                     out[tid] = {
-                        "wage_units": units,
-                        "wage_gbp": units * WAGE_GBP_PER_UNIT,
-                        "expiry": expiry,
+                        "wage_units": r["wage_units"],
+                        "wage_gbp": r["wage_units"] * WAGE_GBP_PER_UNIT,
+                        "expiry": r["expiry"],
                         "expiry_year": yr,
                     }
         p += 1
