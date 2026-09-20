@@ -114,7 +114,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **fmm-editor-record-comparison** — field-by-field map of our parsers vs the FMM26 database layouts (`nyongrand/fmm-editor`). **Read before decoding any new field** — it names the record you're in.
 - **[`docs/ca-weighting.md`](docs/ca-weighting.md)** — how the save hands us each of the 23 displayed attributes (direct byte / plain-byte composite / CA-modelled), **FM's per-position CA weight tables** recovered from 155k snapshots, and the **94.8% label ceiling** every attribute-accuracy figure is measured against. Read before quoting an accuracy number or reasoning about what the game rewards in a position.
 - **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
-- **[`docs/table-framing.md`](docs/table-framing.md)** — the save declares its own table sizes (`[8xFF][count][records]`); the declared-vs-read audit, the four defects it found, and the inventory of walkable tables still to be named. **Read before walking a new table.**
+- **[`docs/table-framing.md`](docs/table-framing.md)** — the save declares its own table sizes (`[8xFF][count][records]`); the declared-vs-read audit, the five defects it found, and the inventory of walkable tables still to be named. **Read before walking a new table.**
 - **[`docs/record-expansion.md`](docs/record-expansion.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
 - **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options** — specific findings; read when relevant.
 - **light-results-rolling-buffer**, **master-schedule-plan** — both **SUPERSEDED 2026-09-17**. The ~47 MB region is the per-club **Club History record tables** (`fmparser/clubrecords.py`, verified against in-game screenshots), NOT a list of simulated results, and nothing is deleted by a ring buffer. 55–58 MB is `regions.MATCH_LO`, our own matches. Read [`docs/light-results-record.md`](docs/light-results-record.md) before doing anything with either.
@@ -158,9 +158,9 @@ it has repeatedly turned multi-hour hunts into quick finds:
    join is unsolvable, search the file for the target's row index / offset as a u32 — one hit outside
    the table is the link. See `docs/IDS.md`.
 7. **LOOK IN FRONT OF RECORD 0 — the save declares its own table sizes.** The framing is
-   `[8 bytes of 0xFF][record count][record 0]`, and **nine tables use it**, exactly (u16 for the
+   `[8 bytes of 0xFF][record count][record 0]`, and **19 tables use it**, exactly (u16 for the
    variable-length string-record tables, u32 for the fixed-width grids). Comparing each declared
-   count against what the parser reads found four defects in tables that passed every check we
+   count against what the parser reads found five defects in tables that passed every check we
    had, two of them losing real records on every save ever built. Test for a run of `>= 8` FF,
    never `== 8` (the preceding record can end in FF). It also works as a SEARCH strategy, but
    only with a real validator behind it — the sentinel alone occurs 566,078 times in one save;

@@ -5,8 +5,8 @@ rewritten in PR 57 because the table turned out to announce its own start and si
 document is what happened when that question was asked of every other table in the file.
 
 Two things came out of it. First, the convention is general, not a competition-table quirk —
-**nine tables declare their own record count**, and the count is exact every time. Second,
-comparing each declared count against what our parser actually reads found **four defects**,
+**19 tables declare their own record count**, and the count is exact every time. Second,
+comparing each declared count against what our parser actually reads found **five defects**,
 two of which were losing real data on every save ever built.
 
 **Provenance of each claim**, because the sweeps differ in cost and therefore in coverage:
@@ -423,13 +423,13 @@ save cannot run: **hold the number against a career's worth of saves and see whe
 | kind | evidence | examples |
 |---|---|---|
 | **True count** | equals the records actually present | competitions 1,372; cities 10,956; stadiums 15,987; languages 124; currencies 173 |
-| **Per-database pool** | fixed for a career, DIFFERENT between careers, 100% initialised | the **history slab**: 265,423 rows in all 28 Frem saves, **295,648** in Bucaspor |
+| **Per-database pool** | fixed for a career, DIFFERENT between careers, 100% initialised | the **history slab**: 265,423 rows in all 27 Frem saves, **295,648** in Bucaspor |
 | **Engine-wide capacity** | identical across careers, larger than actual usage | the **browse name table**: `60,000` in both careers, holding 45,942 (Frem) / 45,834 (Bucaspor) names — 76.5% utilised |
 
 ### The history slab's 265,423 is a POOL, not a growing count
 
 This is the one worth internalising. `history.locate`'s docstring calls it "the exact row
-count", which is true of the physical rows — but it is **byte-identical in all 28 Frem saves,
+count", which is true of the physical rows — but it is **byte-identical in all 27 Frem saves,
 from the day-one 2021-07-01 save to 2026-07-02**, five in-game years and 25 snapshots apart,
 while the career history it holds grows the whole time. And every one of the 265,423 rows is
 non-zero even on day one.
