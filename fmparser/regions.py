@@ -31,7 +31,14 @@ CLUB_MARKER = _DEFAULT.club_marker            # managed club TID (u16 LE) + ff f
 DELIM_UNIT = bytes.fromhex("21225515" + "0a000000")
 
 # ---- region windows (generous; validated per-record on read) ----
-# global attribute records (keyed by SID, fixed 78-byte grid)
+# global attribute records (keyed by SID, fixed 78-byte grid).
+#
+# MEASURED 2026-09-20, window vs whole-file, on frem-2021-07-01, frem-2026-06-11 and
+# bucaspor-2023-03-25: identical record counts (26,518 / 26,518 / 26,305), so this window
+# clips NOTHING on either career. The real extent is 3.977-6.219M, 3.989-6.230M and
+# 4.090-6.356M respectively -- about 0.18 MB of margin at the bottom and 0.24 MB at the top,
+# which is tighter than it looks. If a future career's table starts below 3.8M the loss would
+# be silent, so re-run that comparison rather than trusting this note.
 ATTR_LO, ATTR_HI = 3_800_000, 6_600_000
 # per-match stat region (home XI then away XI, delimiter-clustered). Still here because
 # `matches.match_anchors` takes it as a DEFAULT lo for callers that pass no bounds -- and it
@@ -59,6 +66,14 @@ MATCH_LO = 55_000_000
 # Layout: [tid u32][0x01][wage u16 = £/yr÷~520][zeros][expiry day-of-year u16][expiry year u16].
 # Wage validated £15.5K–£17.75M (±2%); expiry is a full date (DOB-style day+year). Frem's records
 # sit ~29–31M, inside the big 16–38M binary section; the window is generous + validated per-record.
+#
+# MEASURED 2026-09-20, window vs whole-file: identical on frem-2026-06-11 (26,706) and
+# bucaspor-2023-03-25 (26,229). frem-2021-07-01 gains exactly ONE record without the window
+# -- and that record is a FALSE POSITIVE, not a loss. tid 263 at 12.646M reads wage_units 0
+# and an expiry of 2021-01-01, six months BEFORE that save's own date, and 12.646M sits
+# inside the competition table (12.607-12.756M). So this window is doing real work: it is
+# excluding a coincidental `[tid][0x01]...[plausible year]` in an unrelated structure.
+# Do not widen it to "recover" that record.
 CONTRACTREC_LO, CONTRACTREC_HI = 16_000_000, 40_000_000
 # £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
 WAGE_GBP_PER_UNIT = 520
