@@ -11,6 +11,9 @@ Structure (validated on Karacabey 3-3 Bucaspor, ground_truth_match1.json):
   - A trailer holds the managed team's formation string + a formation-shape template.
 """
 from datetime import date, timedelta
+
+from . import records as RD
+from .schema import Field, HEX2, HEX4, PAD, Record, U8, U32, UNKNOWN
 from collections import defaultdict
 
 from .regions import DELIM_UNIT, MATCH_LO
@@ -46,13 +49,42 @@ FIELDS = {
     48: "tackA", 49: "tackW", 53: "yellow",
 }
 
+# THE PLAYER BLOCK, declared in full for the first time.
+#
+# `decode_block` named 29 of the record's 54 bytes. The other 25 were neither named nor
+# declared UNKNOWN, and this record was absent from `scripts/audit_records.py` entirely -- so
+# nothing in the repo knew they existed. That is the exact shape of the bug that left the
+# player attribute record missing its last 13 bytes for four years: the fields we DID read
+# were right, which is what made it invisible.
+#
+# Declaring them PAD changes no output. It changes what the audit can see: every byte in
+# [0, 54) is now either a named field or a byte we have said out loud we cannot name.
+#
+# Three of the PAD bytes are not really unknown -- `is_block_start` requires +17, +18 and +20
+# to be 0xff, so they are the record's own delimiter. They are noted rather than named
+# because "the validator reads it" is not the same as knowing what it means.
+#
+# `tid` and `tid_int` are the SAME four bytes read two ways (a hex string for display, an int
+# for joining), which is what `alias=True` is for.
+BLOCK_REC = Record("match_player_block", BLOCK, [
+    *[Field(off, 1, name, U8, group="stats") for off, name in FIELDS.items()],
+    Field(28, 2, "sid", HEX2, note="2 bytes here -- the PERSON record's sid is 4"),
+    Field(42, 4, "tid", HEX4),
+    Field(42, 4, "tid_int", U32, alias=True),
+    *[Field(o, 1, UNKNOWN, PAD,
+            note=("0xff; is_block_start requires it" if o in (17, 18, 20) else ""))
+      for o in range(BLOCK)
+      if o not in FIELDS and o not in (28, 29, 42, 43, 44, 45)],
+])
+
 
 def decode_block(b: bytes) -> dict:
-    d = {name: b[off] for off, name in FIELDS.items()}
-    d["sid"] = b[28:30].hex()
-    d["tid"] = b[42:46].hex()
-    d["tid_int"] = int.from_bytes(b[42:46], "little")
-    return d
+    """One 54-byte player block, read FROM the declaration.
+
+    `read` rather than a comprehension: the emitted order is declaration order, which
+    reproduces the old `{**FIELDS}` then sid, tid, tid_int exactly.
+    """
+    return RD.read(b, BLOCK_REC, 0)
 
 
 def is_block_start(mm, i):

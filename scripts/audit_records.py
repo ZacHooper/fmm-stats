@@ -44,6 +44,7 @@ sys.path.insert(0, ROOT)
 from fmparser import attributes as A          # noqa: E402
 from fmparser import staff as ST              # noqa: E402
 from fmparser import places as PL             # noqa: E402
+from fmparser import matches as MT            # noqa: E402
 from fmparser import staging as S             # noqa: E402
 
 
@@ -186,6 +187,11 @@ LAYOUTS = {
     # which is what `Record(is_head=True)` declares.
     "info_head": _from_record(S.INFO_LAYOUT),
     "staff_attribute": _from_record(ST.STAFF),
+    # NEW to the audit. This record was read by `matches.decode_block` and audited by
+    # nothing -- 29 of its 54 bytes named, the other 25 neither named nor declared, and no
+    # entry here at all. Its stride is not measurable the way a grid's is (blocks sit inside
+    # a match, found by delimiter, not on a file-wide grid), so COVERAGE is what this buys.
+    "match_player_block": _from_record(MT.BLOCK_REC),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.

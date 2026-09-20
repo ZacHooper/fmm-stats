@@ -58,11 +58,12 @@ UNKNOWN = _Unknown()
 # Field kinds, with the width each one actually reads. `validate()` checks a declared width
 # against this table, which is the check no existing layout could make.
 U8, U16, U32, I16, I32, F32 = "u8", "u16", "u32", "i16", "i32", "f32"
-DATE, HEX4 = "date", "hex4"
+DATE, HEX4, HEX2 = "date", "hex4", "hex2"
 RAW = "raw"      # a byte range carried verbatim (positions, a blob) -- any width
 PAD = "pad"      # structural filler / declared-unknown span -- any width, never emitted
 
-KIND_WIDTH = {U8: 1, U16: 2, U32: 4, I16: 2, I32: 4, F32: 4, DATE: 4, HEX4: 4}
+KIND_WIDTH = {U8: 1, U16: 2, U32: 4, I16: 2, I32: 4, F32: 4,
+              DATE: 4, HEX4: 4, HEX2: 2}
 VARIABLE_KINDS = frozenset({RAW, PAD})
 
 

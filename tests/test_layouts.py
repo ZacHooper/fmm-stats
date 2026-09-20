@@ -31,7 +31,8 @@ from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # n
 # Importing the record modules is what populates SC.REGISTRY. Added to as Phase 2 migrates
 # each record; listed explicitly so an import failure is a test failure rather than a silently
 # smaller registry.
-RECORD_MODULES = ("attributes", "matchslots", "places", "staff", "staging")
+RECORD_MODULES = ("attributes", "matches", "matchslots", "places", "staff",
+                  "staging")
 
 
 def _import_record_modules():

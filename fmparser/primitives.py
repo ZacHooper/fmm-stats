@@ -88,8 +88,21 @@ def u16_or_none(mm, off):
 
 def hex4(mm, off):
     """4 bytes as a lowercase hex string -- for id fields we carry but never do arithmetic on
-    (`sid`, which is `ffffffff` for staff). Kept textual so a sentinel stays legible."""
+    (the person record's `sid`, which is `ffffffff` for staff). Kept textual so a sentinel
+    stays legible."""
     return bytes(mm[off:off + 4]).hex()
+
+
+def hex2(mm, off):
+    """2 bytes as a lowercase hex string.
+
+    A separate reader rather than a width argument because the two are NOT the same field
+    written differently: the person record's `sid` is 4 bytes and the match player block's
+    `sid` is 2, and conflating those widths is exactly the bug that was just deleted with
+    `reference.parse_info`. Declaring the width per record keeps `schema.validate` able to
+    check it.
+    """
+    return bytes(mm[off:off + 2]).hex()
 
 
 # ---------------------------------------------------------------------------------------
