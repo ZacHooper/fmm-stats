@@ -5,13 +5,15 @@ rewritten in PR 57 because the table turned out to announce its own start and si
 document is what happened when that question was asked of every other table in the file.
 
 Two things came out of it. First, the convention is general, not a competition-table quirk —
-**19 tables declare their own record count**, and the count is exact every time. Second,
+**20 tables declare their own record count** (19 found 2026-09-18, the person table
+2026-09-20), and the count is exact every time. Second,
 comparing each declared count against what our parser actually reads found **five defects**,
 two of which were losing real data on every save ever built.
 
 **Provenance of each claim**, because the sweeps differ in cost and therefore in coverage:
 the declared-count audit and its `--confirm` invariant checks ran on **all 34 saves** (27
-Frem, 7 Bucaspor) — 204/204, zero failures. The tile-based table sweep also ran on all 34.
+Frem, 7 Bucaspor) — **238/238, zero failures** (204/204 before the person table was added).
+The tile-based table sweep also ran on all 34.
 The index-based discovery sweep is much slower (~2–3 min/save, it derives a stride per
 candidate), so the five newly-found tables are confirmed on **one save per career** plus the
 34-save tile sweep for the four it can see; `--stable` is the full version and is worth
@@ -66,6 +68,7 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | currencies | 13,985,965 | u16 | 173 | 94 |
 | *unnamed, 7 B* | 13,990,354 | u16 | 888 | — |
 | languages | 13,996,580 | u16 | 124 | 77 |
+| **person table (info spine)** | **572,041** | u32 | **32,966** | 32,874 — **92 short** |
 | surname id-table | 37,878,967 | u32 | 32,148 | 28,624 |
 | first-name id-table | 38,393,347 | u32 | 19,128 | 15,366 |
 | **nickname id-table** | **38,699,407** | u32 | **9,480** | **never read** |
@@ -113,12 +116,13 @@ looks back 128 bytes, and compares any count it finds against the records we act
 | **player attributes** | **26505** | 26518 | **13 over** |
 | nations | — | 227 | no header at the located start |
 | browse names | (60000) | 45942 | not a count — see below |
-| info spine | — | 32760 | no header found |
+| **info spine** | **32966** | 32874 | **92 short — found 2026-09-20, see below** |
 | clubs | — | — | no located table at all |
 
 `--confirm` re-checks each declared count against the **table's own invariant** rather than
-against our parser, which is both cheaper and stronger evidence: **204/204 confirmed, zero
-failures**, over all 34 saves.
+against our parser, which is both cheaper and stronger evidence: **238/238 confirmed, zero
+failures**, over all 34 saves — and exactly two declared counts per table per career, so the
+tally doubles as the constant-across-a-career test.
 
 ### The two that lose real data
 
@@ -172,11 +176,50 @@ the 13 extras are off-grid, past the table's end, and obvious garbage (height 54
 **Zero of the 13 join the info spine**, so none ever surfaces. The declared count would
 replace the scan-and-skip loop with pure arithmetic.
 
+### The info spine DOES declare a count — 2026-09-20, correcting this document
+
+This document used to record "info spine — no header found", and the entry above it said
+`info_spine`'s 25-byte gap holds nothing count-shaped. **The gap was the wrong place to
+look.** The header is not near the first record the sweep happens to reach; it is at the
+table's own base, which is the same mistake the staff grid taught ("anchor on the table's
+base, not on the first record your walk reaches") and it went unlearned for one table.
+
+Take the **first run of >= 8 `0xFF` below 1 MB** — it sits just past the ~53 KB zero filler
+that follows the browse name table — and read the u32 flush against what follows:
+
+| career | header ends | declared | `staging.scrape_players` reads |
+|---|---|---|---|
+| Frem | 572,037 | **32,966** | 32,874 (**92 short**) |
+| Bucaspor | 575,717 | **34,312** | 34,010 (**302 short**) |
+
+The count is **byte-identical across a career** (all four Frem saves measured, 2021 to 2026,
+and all three Bucaspor) and **different between careers** — the *per-database pool* class this
+document already defines for the history slab, not a growing count. So the person table is a
+fixed-size pool, and `32,966` is a **bound**, not a measure of how many people exist.
+
+That also settles the loose lead at the end of this document: the `u32 = 32,966` at 14,000,242
+is the *same number in a second place*, so it is at least consistent with being a second copy
+of this pool size rather than a table of its own.
+
+**What is NOT established**, and matters before anyone treats the shortfall as 92 lost people:
+
+- **The record 0 phase.** The count is flush against 572,041, which is the convention's own
+  test, but that offset decodes as a placeholder (tid 1, uid 2304, no club) and 572,042
+  decodes as a real person. One of the two is an off-by-one and this has not been settled.
+- **Whether the shortfall is data loss at all.** `scrape_players` is keyed by tid, so
+  duplicates collapse, and the table is already known to carry **77 empty slots** identified
+  by `uid == 0`. 92 - 77 = 15 on Frem; Bucaspor's 302 is not explained that way.
+- **A structural walk.** The record is VARIABLE-length (a 68-byte head plus counted language
+  and relationship lists), so the declared count cannot be turned into an extent by
+  arithmetic the way it can for the fixed-width grids. It needs the per-record parser this
+  document's closing section calls for.
+
 ### Two clean negatives
 
 `browse_names`' `u32 = 60000` is a **capacity, not a count**: both id-tables' highest ordinal
-is 45,941, exactly matching the walk's 45,942 entries. And `info_spine`'s 25-byte gap holds
-nothing count-shaped.
+is 45,941, exactly matching the walk's 45,942 entries. The second negative — that
+`info_spine`'s 25-byte gap holds nothing count-shaped — is still true of the GAP, and was
+still the wrong conclusion about the table; see above.
 
 ## Using the convention to FIND tables
 
@@ -561,7 +604,7 @@ gives a free, exact termination check the moment its record shape is right.
 
 ## Method notes worth carrying
 
-- **A table can declare its own size, and nine here do.** Before writing a walk bounded by a
+- **A table can declare its own size, and twenty here do.** Before writing a walk bounded by a
   plausibility gate or a miss counter, look at the bytes in front of record 0.
 - **Compare the declared count to what you read.** That single comparison found 4 defects in
   tables that had passed every check we had, including two losing real records on every save.
