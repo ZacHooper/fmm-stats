@@ -58,6 +58,7 @@ from collections import Counter, defaultdict
 
 from . import regions as RG
 from . import reference as R
+from .save import cache_key as _cache_key
 
 # nation ids (player/club space) -> name. These are FMM22 game constants (stable across saves
 # and careers — Turkey 173 holds for Bucaspor too), curated by cross-referencing each id's loaded
@@ -162,15 +163,35 @@ def sweep(mm, valid_clubs, lo=RG.LIGHT_LO, hi=RG.LIGHT_HI, min_copies=2):
     return [r for r in agg.values() if r["copies"] >= min_copies]
 
 
-def _is_league(mm, cid, _cache={}):
+_LEAGUE_CACHE = {}            # (save cache_key, cid) -> bool
+
+
+def _is_league(mm, cid):
     """True for a round-robin league. type_id 1 = league, 0 = top division (Super League);
     both are round-robin. Cups (2), reserve/friendly, and unknowns are excluded here — but
     note comp_detail mis-names some small/foreign cids, so callers should lean on the cid,
-    not the resolved name."""
-    if cid not in _cache:
+    not the resolved name.
+
+    The cache key carries the SAVE as well as the cid, even though the answer is currently
+    save-invariant. Measured 2026-09-20 over cids 0..1999 in `bucaspor-2023-03-25`,
+    `frem-2023-07-02` and `frem-2021-07-01`: the competition table is a FIXED POOL, identical
+    across both careers and across five in-game years (974 leagues in each; zero
+    disagreements; cid 118 is the Turkish Super League in the Danish career too). So the old
+    cid-only key -- a mutable default argument, `mm` absent from the key entirely -- was not
+    returning a wrong answer in practice.
+
+    It is keyed properly anyway because nothing enforces that invariant. `comp_detail` reads a
+    per-save table located by a per-save anchor, so the moment the pool stops being shared
+    (a different game version, a save with different leagues loaded, an edited database) a
+    cid-only cache serves the FIRST save's answer to every save after it in the same process
+    -- which `scripts/rebuild.py` is, walking both careers in one run. The failure would be
+    silent and would land in `extract.py`'s league filter. See `save.cache_key` for why the
+    key is `(id(mm), len(mm))` and not a bare id."""
+    key = (_cache_key(mm), cid)
+    if key not in _LEAGUE_CACHE:
         d = R.comp_detail(mm, cid) or {}
-        _cache[cid] = d.get("type_id") in (0, 1)
-    return _cache[cid]
+        _LEAGUE_CACHE[key] = d.get("type_id") in (0, 1)
+    return _LEAGUE_CACHE[key]
 
 
 MIN_LEAGUE_GAMES = 4          # a real league member appears in >= this many of its games;
