@@ -356,18 +356,16 @@ club table, award table, and a handful of small attribute-section sub-tables in
 save. Reconcile the branches (merge #58, or rebase this one onto it) before treating those rows
 as anything more than a lead.
 
-### 4c. The `sicomps` archive: read, but its members are not
+### 4c. The `sicomps` archive: remaining unparsed members
 **New 2026-09-20.** The file's last 1.0–1.6 MB is a **named zstd archive** with a directory —
-159 members on Frem, 161 on Bucaspor, 6.6 MB decompressed. `fmparser/archive.py` reads it,
-`scripts/audit_archive.py` proves the extent on **34/34 saves**, `tests/test_archive.py` guards
-it. Needs `uv sync --extra archive` (zstd is not in the stdlib before Python 3.14).
+159 members on Frem, 161 on Bucaspor, 6.6 MB decompressed. `fmparser/archive.py` reads it.
+`fix_man.dat` (fixtures and scores) and `comp_man.dat` (stages calendar and Roll of Honour)
+are parsed and wired (`fmparser/fixtures.py`, `fmparser/compman.py`).
 [`save-archive.md`](save-archive.md) is the reference.
 
-The container is done. **Its contents are almost entirely unread**, and that is the open work:
+The remaining open members in the archive:
 
-- **`fix_man.dat`** — the fixture list. See §4; the single highest-value item in the repo now.
-- **`comp_man.dat`** (232 KB) and **`comp_hosts.dat`** (31 KB) — unexamined, and the names
-  suggest competition state the datadict may not carry.
+- **`comp_hosts.dat`** (31 KB) — variable-length, 4-year host cycles (`0x07d2, 0x07d6, ...`).
 - **The 147 `comp_<id>.dat` ids are not our `cid` space.** `reference.comp_refs` resolves
   1 of 147. The datadict's `DBID` values overlap 54 of them and its `comp` values 92, so a
   mapping probably exists; **none is established.** Settle this before building anything on a
@@ -470,7 +468,7 @@ Two things to do: find where they resolve, and until then make `player_origin` d
 ### 9. Two records still read short or unread
 Both are known gaps, not suspicions (a third, the nation walk, was fixed 2026-09-20):
 
-- **`parse_club_trailer` steps over 20 undecoded bytes** — width confirmed, content unread.
+- **parse_club_trailer steps over 20 undecoded bytes** — width confirmed, content unread.
 - **The Region table is unparsed**, as is the nation record's counted language list. A NEW,
   related table was found 2026-09-18 right after the nation table ends: a small (~7-entry)
   **continent/confederation name table** matching `nyongrand/fmm-editor`'s `ContinentName`
@@ -480,228 +478,10 @@ Both are known gaps, not suspicions (a third, the nation walk, was fixed 2026-09
   declared as `comp_trailer` +1..2 in `scripts/audit_records.py`) plus a synthetic `World` at
   id 6 with empty code/demonym. Unparsed; nothing currently
   reads it. Its own 6th entry ("World") is the coincidental candidate that a widened comp scan
-  briefly picked up as a fake `cid=24931` competition (see #10) before comps moved to a pure
+  briefly picked up as a fake `cid=24931` competition before comps moved to a pure
   structural walk that never scans this far at all.
-(The third bullet here — `_nation_candidates` dropping Algeria — is FIXED, 2026-09-20. The
-range gate was indeed the root cause, as the 2026-09-18 measurement said, and two further
-rejects sat behind it: the `0xFFFF` no-continent sentinel on 17 defunct states, and a locator
-that only searched for 3-letter country codes when six nations carry 2-letter ones. All 251
-declared nations are read, ids 0..250 with no gaps, and the walk asserts that. The "24 absent
-ids, 23 unclassified" question is answered: every one was a real record, none was a blank slot.)
 
-### 10. The competition scraper — SOLVED (2026-09-18): a pure structural walk, gate-free
-Found auditing `reference.py`'s competition scraper 2026-09-17, escalated into a full rewrite
-2026-09-18. History, in order:
-
-**2026-09-17** (candidate-scan-plus-gates era, since fully replaced — see below): the
-`_MIN_COMP_REP = 500` reputation floor was made a tier-1 fill instead of a hard reject, and the
-3-name walk was made to accept a length-0 short-name/code (both fixed the same underlying class
-of bug the terminator fix below later generalised). These recovered `Danish Second Division
-East`/`West`, `Greek Football League North`/`South`, the Greek/N.Irish/Welsh/Polish regional
-divisions, and all 30 `<Nation> Reserves Group <N>` competitions including cid 1342 "Danish
-Reserves Group 1" (Zac's own motivating example — `mart.py`'s comment calling it unnamed was
-wrong; the name was always there, just unreachable by the walk).
-
-**2026-09-18, round 1** (more gate fixes, same architecture): auditing every remaining gate
-against real bytes (never trusting a skip "for a good reason") found four more real bugs, each
-confirmed by name before fixing:
-- The `type` byte was treated as a 5-value enum (`COMP_TYPES`) and anything else rejected. It
-  isn't — at least ~20 real values exist (Carabao Cup, European Championship, Copa América,
-  African Cup of Nations, national Super Cups, youth leagues among them), and the single
-  clearest case, cid 13 "French Regional Divisions", sat in an otherwise dense 0-12 block and
-  was STILL being dropped by this gate alone. **Retired entirely** — continent/nation/
-  reputation/shape already did the real noise filtering; the type gate never added anything a
-  noise candidate actually needed catching by.
-- `continent` was hardcoded `== 2` (Europe-only). It's the real FIFA confederation enum
-  (0=Africa, 1=Asia, 2=Europe, 3=N.America, 4=Oceania, 5=S.America), confirmed against 6 real
-  confederation-level competitions (Copa Libertadores, Asian/African/Oceania/European/N.American
-  Champions Leagues) that the retired type gate had ALSO been dropping, so the Europe-only bug
-  never got a chance to matter for them until today. Widened to `<= 5`.
-- A reputation **ceiling** (`> 1000` implausible) and a **short-name-longer-than-long-name**
-  shape check were added after a full sweep found the British Virgin Islands nation-table
-  record (`lookups.scrape_nations()` id 206) resolving as a fake comp `cid=63981` — nation,
-  club and comp records share the exact same `[name][short][code]`-shaped candidate signature
-  (`lookups.scrape_nations`'s own docstring says so), so a nation string can misread as a comp
-  under a bogus id from neighbouring bytes that were never an id at all. Structurally excluded
-  the whole nation-table region from the candidate scan (`_nation_table_bounds`, anchored on
-  `scrape_nations`'s own offsets) rather than leaning on the incidental ceiling/shape gate that
-  only caught the one collision that happened to look wrong — as a side effect this also
-  removed 191 nation/demonym/continent-name/reserve-competition strings that had been silently
-  polluting the CLUB table via the same shared-shape collision.
-
-**2026-09-18, round 2** (the terminator bug, and the shift away from gates): the user pushed
-back hard on continuing to add gates without reading the one failing record's actual bytes
-first. Doing that surfaced the real, previously-hidden defect: `_eval_comp_candidate`'s 3-name
-walk decided whether a terminator byte preceded a name's length field by GUESSING from
-plausibility (if the raw u32 didn't look like a valid length, assume a terminator is in the
-way and skip one byte) rather than knowing the real, unconditional rule — **exactly one
-terminator byte follows the long name and the short name; the code name (last of the three)
-has none before the trailer, always, regardless of what any of the three names contain**. The
-guess is provably ambiguous exactly when a short/code name is genuinely EMPTY (allowed since
-the 2026-09-17 fix) and its own preceding terminator happens to be `0x00`: four zero bytes
-(imaginary terminator + the true zero-length field) reads identically to the zero-length field
-alone, so the terminator is silently never skipped and the trailer misaligns by 1 byte. Found by
-name: cid 172 "Welsh First Division", a real, clean top-flight-adjacent league (reputation 19)
-with an empty code field, dropped for exactly this reason. Fixing the walk to consume the
-terminator unconditionally (no guessing) recovered 134 more real competitions on this save with
-**zero losses and zero changed records** elsewhere (verified candidate-for-candidate against the
-old heuristic). Combined with raising the name-length cap 45→60 (`Northern Amateur Football
-League Premier Division`, 51 chars, among 40+ real names the old cap silently dropped),
-allowing a lowercase first letter (`cinch Premiership` — cinch is Scottish football's actual
-sponsor, deliberately lowercase-branded) and widening the continent check to accept the
-`0xFFFF` "no confederation" sentinel (used by genuinely global competitions like `Club World
-Championship`/`Confederations Cup`/`World Cup`, not just type-9 friendlies as originally
-assumed) recovered 75 more.
-
-**2026-09-18, round 3 — the rewrite.** Chasing gate fixes one collision at a time (the BVI
-nation-table hit, then a further collision with a newly-found continent-name table adjacent to
-nations — see #9 — then a stray "Team of the Week" false anchor) was visibly the wrong shape of
-work: every fix bought a few more real records at the cost of a new, narrower blind spot
-elsewhere, because a plausibility gate can only ever be as good as the noise it happened to be
-tuned against. The actual fix was structural and had been sitting in the bytes the whole time:
-**the table announces its own start and size.** A run of `0xFF` filler is immediately followed
-by a `u16` giving the table's own declared record count (`0x055c` = 1372 on this save, exactly
-max real cid 1371 + 1), then record 0 begins. `_comp_table_anchor` locates this (confirmed, not
-guessed, by walking to record 1 and checking its cid reads back as 1), and `_walk_comp_table`
-then reads every one of the `count` records by pure arithmetic — name lengths, the terminator
-rule above, and a variable trailing block (below) — with the walk's own loop index as cid the
-ONE structural assertion (raises on mismatch rather than silently drifting). **No plausibility
-gate at all.**
-
-**The gate cascade is DELETED, not kept as a fallback** (2026-09-18, round 4 — the review pass).
-It shipped for one day as a "same-save-family fallback for a save where the anchor can't be
-found", and the review asked the obvious question: does that save exist? Measured on all 34
-archived saves across BOTH careers, the anchor resolves and the walk reads every declared slot
-exactly — Frem 1372 = 1272 named + 100 blank, Bucaspor 1371 = 1271 + 100, `cid == i` throughout
-every one. So the fallback was dead code, and a dead fallback is not insurance: it is a second,
-untested definition of what a competition record is, which is precisely what had been quietly
-costing real records all along. Gone: `_eval_comp_candidate`, `CompCandidate`, all twelve
-`COMP_REJECT_*` reasons, the two-tier reputation arbitration, `_MIN_COMP_REP`, and the comp half
-of `RefdataDiagnosis`/`diagnose_refdata_scan`. `_walk_comp_table` now raises `CompTableError`
-(with the slot, the offset and the declared count) instead of returning `None` for a caller to
-fall back on — and it raises on an unreadable name or a short read too, which the shipped
-version let escape as a bare `UnicodeDecodeError` past a `_build_refdata_index` that caught
-neither. `COMP_TYPES` also lost `21: "continental_cup"`: `type_id` is the real field, the label
-is a display convenience for the five values with sourced names, and 21 had been named off a
-single chat observation.
-
-The walk immediately explained every remaining "missing" cid without adding a single new gate:
-of the 1372 declared records, exactly **1272 are real (named) and 100 are genuinely blank**
-placeholder slots — `namelen` 0, a structured `2,000,000,000 + n` uid counter completely
-distinct from real competitions' `200,000,000 + cid` range (96 in one contiguous block,
-cid 1242-1337, plus 4 scattered one-off placeholders sitting right after individual nations'
-own reserve-group blocks, e.g. cid 1341 right after Belgium's 3 reserve groups). These were
-never a scanner defect; they're slots the game itself never populated, and the walk reads them
-exactly as easily as a named record because it never depended on name-shaped content to find
-the next one. `tests/test_refdata_scan.py` pins the exact split (1272/100/1372) plus every
-competition a since-fixed bug used to drop.
-
-One coincidental side effect surfaced and is now moot: widening the continent/name-length/shape
-gates during round 2 briefly let a `cid=24931 'World'` resolve — the 7th entry of a genuinely
-real but different table (the continent-name table right after nations, see #9), not a
-competition at all. The pure walk never reaches that region (it stops at cid 1371, right where
-the file's own count said it would), so this never had to be fixed as its own gate; it just
-stopped being reachable.
-
-Two gaps remain — one football-domain, one structural:
-
-- **`is_competitive` (`competition NOT ILIKE '%friend%'`, in `mart.py`) conflates cup and
-  league.** A real, already-decoded type byte exists per competition (`COMP_TYPES` for the ~6
-  named values, `type_N` for the rest, surfaced as `mart.competitions.kind`) and every `comp_id`
-  Frem's own matches reference resolves it with zero gaps — so this isn't a decode gap, it's
-  that `scripts/derive_weight_set.py`, `scripts/export_attribute_lab.py`, and the main query in
-  `scripts/attribute_stat_correlations.py` filter on `is_competitive` alone, pooling Sydbank
-  Pokalen (16 games) into "league form". Fix: join `comp_id` to `mart.competitions.kind` instead
-  of the string heuristic, and add `is_league`/`kind` to `mart.matches`/`mart.match_player_facts`.
-- **The block after the 14-byte trailer: fields decoded, but what the LIST means is NOT, and
-  must not be named.** This entry is now on its third revision and the first two were wrong;
-  `docs/agent-context/fmm-editor-record-comparison.md` matches it.
-
-  Layout, after the trailer: `[n_refs][n × 8-byte entry][21-byte fixed tail]` =
-  `25 + 8 × n_refs`, declared as `comp_ref_count`/`comp_ref_entry`/`comp_history_tail` and
-  readable via `reference.comp_refs(mm, cid)`.
-
-  **The entry's fields are decoded**: `[ref u32][season u16][ordinal u8][u8 UNKNOWN]`. `ref`
-  resolves as a club **UID** — MLS's entries are its 28 member clubs (D.C. United, LA Galaxy,
-  Atlanta United, Charlotte FC, Chicago Fire, CF Montréal); Copa Libertadores' are Bolivian
-  and Ecuadorian clubs in the right competition. `0xFFFFFFFF` = empty slot, `season` 0 =
-  unset. **Read it by UID, never by tid**: 1,095 values also match some club's tid and the
-  tid reading is wrong every time (uid 1913 = D.C. United, right for MLS; tid 1913 = York
-  United), and the tid-only "matches" are the empty sentinel resolving against the bogus
-  tid=4294967295 club the club scan still invents (#17).
-
-  **It was briefly called the `Qualifiers` table. Zac spotted that that cannot be right, and
-  it isn't.** fmm-editor does have a `Qualifiers` table of `n × 8 bytes` and this may well be
-  it, but only **24 of 1,272** competitions populate the list and they do not share one
-  meaning:
-
-  | competition | n | what the entries are |
-  |---|---|---|
-  | Copa Libertadores | 94 | 47 clubs × 2 seasons, each with a domestic placing — a qualification list, exactly |
-  | Major League Soccer | 28 | its member clubs, Charlotte FC stamped season 2022 (its real expansion year) — membership, not qualification |
-  | Canadian Championship | 3 | Forge FC, Toronto FC, CF Montréal — the Canadian clubs in FOREIGN leagues that still enter this cup |
-  | Copa América | 10 | national-team refs, no clubs at all |
-  | Scottish Cup | 13 | every one `0xFFFFFFFF` — reserved and empty |
-  | Italian Cup | 4 | 3 Serie C clubs + a sentinel, against a ~78-team real field |
-
-  And the asymmetry that rules out any single label: **European Champions Cup has ZERO** while
-  the Libertadores / Asian / African Champions Leagues have 94 / 47 / 54, and **3F Superliga
-  has zero while MLS has 28**. The story that fits is "an explicit entrant list, stored only
-  where the field cannot be derived from the league structure the game simulates" —
-  promotion/relegation pyramids and UEFA coefficients being derivable, a closed franchise
-  league and CONMEBOL's entrants not. **That is a story, not a decode**, so the fields are
-  named and the list is left structural. `tests/test_refdata_scan.py` pins the six populations
-  above, so if any of them changes shape this conclusion gets revisited rather than inherited.
-
-  **SOLVED — the sign is the discriminator.** `ref > 0` is a CLUB uid; **`ref < 0` is a
-  NATIONAL TEAM, and `-ref` is that nation's `uid` from `lookups.scrape_nations`.** Exact on
-  62/62 negative refs, no exceptions: Copa América's ten resolve to Argentina, Bolivia,
-  Brazil, Chile, Colombia, Ecuador, Paraguay, Peru, Uruguay, Venezuela — CONMEBOL's ten
-  members and nothing else — and the European International League divisions to Scotland /
-  Serbia / Slovakia / Slovenia / Spain / Sweden / Switzerland / Turkey / Ukraine / Wales. The
-  reason they looked like a suspiciously dense id space is that the nation table is
-  alphabetical and negating it reverses the order, so a confederation's members come out
-  consecutive. `0xFFFFFFFF` (−1) is the empty sentinel, not a nation; no nation has uid 1.
-  Pinned in `tests/test_refdata_scan.py` against CONMEBOL, whose membership is knowable
-  independently of the save. Zac called this one before the data did.
-
-  This makes the reference list the first thing in the parser that can name an international
-  competition's participants, and it is the general lever for international football: any
-  record that points at a team can now mean "nation" by going negative, so the same sign rule
-  is worth testing wherever a team ref appears.
-
-  **Two widths are undecidable and are declared as such, not guessed:** `n_refs` (bytes +1..3
-  are zero on all 46,641 slots and the max count is 134, so u8-plus-padding and u32 are
-  indistinguishable) and `ordinal` (the byte above it is 0 on 5,220 of 5,237 entries and 1 on
-  the other 17). A save with 256+ entries in one competition would settle the first.
-
-  **Three method notes, each from getting this wrong first:**
-  1. *Field order can be invisible to arithmetic.* `[count][entries][tail]`,
-     `[count][tail][entries]` and `[count][3 u32][entries][3 u16][tail]` all give the same
-     record length, so no amount of confirming the walk lands on `cid == i` separates them.
-     Only content does: on the 914 records with a list, the tail's season triple reads as a
-     plausible year at `record_end − 9` on **686** and at `count + 16` on **zero**.
-  2. *The majority of the data may not be able to distinguish them.* 1,348 of 1,372 records
-     have an empty list, where every candidate ordering coincides — so a spot check would
-     have confirmed whichever guess was made first.
-  3. *A sentinel read as garbage looks like a refuted hypothesis.* The entry decode was first
-     written off as "fits 83% of entries, so it's a guess". The other 17% were `season == 0`,
-     unset rather than misaligned; every non-plausible year in the archive is **exactly 0**.
-     Split by competition rather than by entry: 574 all-plausible, 272 all-zero, 68 mixed.
-     Aggregating over entries hid it completely and the 8-byte reading holds for 100%.
-
-- **The 21-byte tail is still unnamed.** Its three u32s pair with three seasons as parallel
-  arrays (fmm-editor's `Rank1..3`/`Year1..3` shape) but resolve as nothing by uid, and as
-  English clubs by tid on a Danish competition, so they are not club refs. Both arrays go
-  0xFF-sentinel on records that carry a populated reference list instead, which is a hint
-  about how the two relate.
-
-- **Nothing surfaces any of this into the store.** `comp_refs` has a reader and a test so the
-  decode cannot rot, but no `extract.py` / `load_duckdb.py` / `mart.py` path touches it, and
-  given only 24 competitions have a list and its meaning varies, there is nothing yet worth a
-  column. Revisit if the entrant-list story is ever confirmed.
-
-### 11. `mart.club_managers` isn't purely structural
+### 10. `mart.club_managers` isn't purely structural
 It keeps a `home_reputation` tiebreak and exposes no candidate count, so a sole structural hit
 and a reputation fallback are indistinguishable to anything reading the view. A scout report
 quoting the opposition manager cannot tell how confident to be.
