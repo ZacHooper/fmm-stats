@@ -27,6 +27,8 @@ Offsets are relative to the positions-block start P. Features:
 The last coefficient is the intercept.
 """
 
+import math
+
 FROZEN = {
     'Crossing': (-34, None, ('own', 'own*CA'), (0.08999519579991534, 0.025630387368575838, -18.860831479521906)),
     'Dribbling': (-33, None, ('own', 'CA', 'PA', 'mean9'), (0.115446318373027, 0.07557249862260484, -0.01980801124144112, -0.10373544683659013, -23.334996707090387)),
@@ -64,3 +66,61 @@ def predict(attr, mm, P, ca, pa, mean9, fwd):
     for f, c in zip(feats, coef):
         acc += c * vals[f]
     return max(1, min(20, int(round(acc))))
+
+
+# ---------------- full 23-attr estimation ----------------
+EXACT_SINGLE = {
+    "Pace": -24, "Strength": -23, "Stamina": -22, "Technique": -21,
+    "Aggression": -19, "Leadership": -16, "Agility": -5,
+}
+
+ATTR_ORDER = [
+    "Aerial", "Crossing", "Dribbling", "Shooting", "Passing", "Tackling",
+    "Technique", "Aggression", "Creativity", "Decisions", "Leadership",
+    "Movement", "Positioning", "Teamwork", "Pace", "Stamina", "Strength",
+    "Agility", "Handling", "Kicking", "Reflexes", "Communication", "Throwing",
+]
+
+TEAMWORK_W = (0.50, 0.50, 0.0)
+AERIAL_W = (0.24, 0.76, 0.8)
+
+
+def _composite(w, a, b):
+    wa, wb, off = w
+    return max(1, min(20, int(math.floor(wa * a + wb * b + off))))
+
+
+def teamwork(unselfishness, work_rate):
+    """Displayed Teamwork from the two plain bytes. Exact, not an estimate."""
+    return _composite(TEAMWORK_W, unselfishness, work_rate)
+
+
+def aerial(heading, jumping):
+    """Displayed Aerial from the two plain bytes. An ESTIMATE (~71% exact), not a fact."""
+    return _composite(AERIAL_W, heading, jumping)
+
+
+def fwd_of(positions):
+    top = max(positions, key=positions.get) if positions else ""
+    if top in ("ST", "AML", "AMR", "AMC"):
+        return 1.0
+    if top in ("ML", "MR", "MC", "DMC", "DML", "DMR"):
+        return 0.5
+    return 0.0
+
+
+def estimate_player(mm, rec):
+    """Full 23-attr set for one global record: {attr: {'val','est'}}, is_gk, fwd."""
+    P, ca, pa = rec["P"], rec["ca"], rec["pa"]
+    is_gk = int(rec["positions"].get("GK", 0) == 20)
+    fwd = fwd_of(rec["positions"])
+    mean9 = sum(rec["attributes"].values()) / len(rec["attributes"])
+    out = {}
+    for attr, off in EXACT_SINGLE.items():
+        out[attr] = {"val": mm[P + off], "est": False}
+    out["Teamwork"] = {"val": teamwork(mm[P - 25], mm[P - 9]), "est": False}
+    out["Aerial"] = {"val": aerial(mm[P - 29], mm[P - 28]), "est": True}
+    for attr in ESTIMATED_ATTRS:
+        out[attr] = {"val": predict(attr, mm, P, ca, pa, mean9, fwd), "est": True}
+    return out, is_gk, fwd
+

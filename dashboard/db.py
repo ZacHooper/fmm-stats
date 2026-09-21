@@ -98,7 +98,7 @@ def _activate_career(key):
 
 _activate_career(_default_career_key())
 try:
-    from fmparser.attributes import ATTR_ORDER
+    from fmparser.model import ATTR_ORDER
 except Exception:  # pragma: no cover
     ATTR_ORDER = ["Aerial", "Crossing", "Dribbling", "Shooting", "Passing", "Tackling",
                   "Technique", "Aggression", "Creativity", "Decisions", "Leadership",

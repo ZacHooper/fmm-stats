@@ -31,8 +31,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import model as MOD                                    # noqa: E402
-from fmparser.attributes import (ATTR_ORDER, SRC_OFFSETS, PLAIN_OFFSETS,   # noqa: E402
-                                 HIDDEN_OFFSETS)
+from fmparser.model import ATTR_ORDER                                    # noqa: E402
+from fmparser.tables.player_attributes import (SRC_OFFSETS, PLAIN_OFFSETS,  # noqa: E402
+                                               HIDDEN_OFFSETS)
 
 # The nine attributes the player screen does not show. The frozen model could not use them --
 # they were parsed and discarded until 2026-09-16 -- and there is obvious structure to exploit:

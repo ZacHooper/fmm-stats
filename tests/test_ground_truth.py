@@ -19,8 +19,9 @@ from tests.harness import find_save, skip  # noqa: E402
 
 from fmparser.save import Save                        # noqa: E402
 from fmparser import matches as M                     # noqa: E402
-from fmparser import player_attributes as A                  # noqa: E402
+from fmparser.tables import player_attributes as A                  # noqa: E402
 from fmparser import staging as S                     # noqa: E402
+from fmparser import model as MOD                     # noqa: E402
 
 # reserve squad loan ground truth (from an in-game screenshot, 19 Jun 2022):
 # these six are out on loan (status 65), these three actually play (status 112).
@@ -91,7 +92,7 @@ def run(save_path=None):
             continue
         _check(rec["ca"] == ca, f"{tid} CA {rec['ca']} != {ca}", fails)
         _check(rec["pa"] == pa, f"{tid} PA {rec['pa']} != {pa}", fails)
-        attrs, _, _ = A.estimate_player(s.mm, rec)
+        attrs, _, _ = MOD.estimate_player(s.mm, rec)
         total += len(gt)
         off_total += sum(1 for k, v in gt.items() if abs(attrs[k]["val"] - v) > 1)
     # documented held-out accuracy is ~93% within +/-1; guard the aggregate rate

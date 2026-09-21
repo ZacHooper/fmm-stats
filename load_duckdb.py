@@ -31,8 +31,8 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 
 # Reuse the season/phase math and field lists from the extractors (pure-stdlib import).
 from extract import parse_label
-from fmparser.player_attributes import ATTR_ORDER
-from fmparser import player_attributes as _A
+from fmparser.model import ATTR_ORDER
+from fmparser import model as _A
 from fmparser import matches as M
 from fmparser.mart import create_mart, drop_mart
 
@@ -51,9 +51,9 @@ _XI = M._XI_FIELDS  # noqa: SLF001 (intentional reuse of the canonical list)
 # The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
 # store cannot drift from the record. See fmparser/attributes.py HIDDEN_OFFSETS and
 # fmparser/staff.py HIDDEN_OFFSETS for why they are carried but not named.
-from fmparser.attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
-from fmparser.attributes import SRC_OFFSETS as _SRC              # noqa: E402
-from fmparser.attributes import PLAIN_OFFSETS as _PLAIN            # noqa: E402
+from fmparser.tables.player_attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
+from fmparser.tables.player_attributes import SRC_OFFSETS as _SRC              # noqa: E402
+from fmparser.tables.player_attributes import PLAIN_OFFSETS as _PLAIN            # noqa: E402
 SRC_COLS = list(_SRC.values()) + list(_PLAIN.values())
 from fmparser.staging import PERSON_FIELDS as _PERSON                # noqa: E402
 PERSON_COLS = list(_PERSON)
@@ -169,7 +169,7 @@ def _d(c):
 
 def _model_expr(attr, spec, S):
     """SQL for one attribute's fitted value, from the coefficient rows."""
-    from fmparser.attributes import SRC_OFFSETS, PLAIN_OFFSETS, HIDDEN_OFFSETS
+    from fmparser.tables.player_attributes import SRC_OFFSETS, PLAIN_OFFSETS, HIDDEN_OFFSETS
     # HIDDEN_OFFSETS is in here because Aerial's PARTNER byte is Jumping (P-28), which is
     # stored under its own name rather than as a `_src` column.
     cols = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}

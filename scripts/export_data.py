@@ -303,7 +303,7 @@ def main():
     import db
     import positions as P
     quieten()
-    from fmparser.attributes import ATTR_ORDER
+    from fmparser.model import ATTR_ORDER
 
     season, phase = a.season, a.phase
     if season is None or phase is None:
