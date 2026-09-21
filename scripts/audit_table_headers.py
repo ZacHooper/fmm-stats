@@ -38,9 +38,9 @@ from fmparser import attributes as A                 # noqa: E402
 import numpy as np                                   # noqa: E402
 from fmparser import history as H                    # noqa: E402
 from fmparser import lookups as LK                   # noqa: E402
-from fmparser import places as PL                    # noqa: E402
+from fmparser.tables import cities, stadiums         # noqa: E402
 from fmparser import reference as R                  # noqa: E402
-from fmparser import staff as ST                     # noqa: E402
+from fmparser.tables import staff as ST              # noqa: E402
 from fmparser import staging as S                    # noqa: E402
 
 HEADER_BACK = 128          # how far behind record 0 to look for a count
@@ -179,17 +179,17 @@ def t_history(mm):
 
 def t_cities(mm):
     """`offset` IS the record start, and the table is dense from id 0."""
-    cities = PL.scrape_cities(mm)
-    if not cities:
+    cities_map = cities.scrape_cities(mm)
+    if not cities_map:
         return None
-    return Table("cities", min(v["offset"] for v in cities.values()), ids=cities.keys())
+    return Table("cities", min(v["offset"] for v in cities_map.values()), ids=cities_map.keys())
 
 
 def t_stadiums(mm):
-    stadiums = PL.scrape_stadiums(mm)
-    if not stadiums:
+    stadiums_map = stadiums.scrape_stadiums(mm)
+    if not stadiums_map:
         return None
-    return Table("stadiums", min(v["offset"] for v in stadiums.values()), ids=stadiums.keys())
+    return Table("stadiums", min(v["offset"] for v in stadiums_map.values()), ids=stadiums_map.keys())
 
 
 def t_nations(mm):

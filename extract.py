@@ -37,10 +37,9 @@ from fmparser import lightresults as L
 from fmparser import careers as C
 from fmparser import history as H
 from fmparser import injuries as INJ
-from fmparser import staff as ST
-from fmparser import places as PLC
 from fmparser import lookups as LKP
 from fmparser import clubrecords as CRE
+from fmparser.tables import cities, staff as ST, stadiums
 
 
 def _period(month):
@@ -551,9 +550,9 @@ def main():
     # Stadiums + cities: capacity and real lat/long. Reference data, so it repeats per
     # snapshot exactly like clubs.json does — the club record's stadium_id joins
     # club -> stadium -> city -> coordinates. See fmparser/places.py.
-    dump("stadiums.json", {str(k): v for k, v in sorted(PLC.scrape_stadiums(mm).items())},
+    dump("stadiums.json", {str(k): v for k, v in sorted(stadiums.scrape_stadiums(mm).items())},
          indent=None)
-    dump("cities.json", {str(k): v for k, v in sorted(PLC.scrape_cities(mm).items())},
+    dump("cities.json", {str(k): v for k, v in sorted(cities.scrape_cities(mm).items())},
          indent=None)
     # Small reference tables: languages (resolve the ids on every person record),
     # currencies (exchange rate per GBP) and nations. See fmparser/lookups.py.

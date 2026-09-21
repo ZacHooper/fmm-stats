@@ -47,25 +47,19 @@ from fmparser import staging as S      # noqa: E402
 from fmparser import matches as M      # noqa: E402
 
 
-def report_refdata(mm):
-    diag = R.diagnose_refdata_scan(mm)
-    print(f"reference.clubs_comps: {diag.n_window_bytes:,} window bytes, "
-          f"{diag.n_candidates:,} name-length candidates "
-          f"({diag.n_candidates / diag.n_window_bytes * 100:.2f}% of window -- see "
-          f"diagnose_refdata_scan's docstring for what the other ~98% means)\n")
-
-    print("CLUBS")
-    print(f"  accepted tier0 (primary uid band)        {diag.club_accepted_tier0:>8,}")
-    print(f"  accepted tier1 (fill uid band)            {diag.club_accepted_tier1:>8,}")
-    print(f"  superseded (valid, lost tid arbitration)  {diag.club_superseded:>8,}")
-    total_rej = sum(diag.club_reject_candidates.values())
-    print(f"  rejected candidates                       {total_rej:>8,}")
-    print("    candidates / cids touching this reason        solo (only-this-reason) count")
-    for reason, c in diag.club_reject_candidates.most_common():
-        pct = c / total_rej * 100 if total_rej else 0
-        print(f"    {c:>8,} ({pct:>5.1f}%)  {diag.club_reject_ids[reason]:>6,} cids  -- {reason}")
-
-    return diag
+def report_club_table(mm):
+    """The club table has no candidates to diagnose -- it is walked. So the report is
+    the walk's own invariant: the table's declared record count equals what came out of it.
+    Returns (clubs, declared) for the cross-reference below."""
+    start, declared = R._club_table_anchor(mm)
+    clubs, n_blank = R._walk_club_table(mm)
+    print("CLUBS (structural walk -- no candidates, no gates, nothing to reject)")
+    print(f"  table start offset                        {start:>8,}")
+    print(f"  records the table declares                {declared:>8,}")
+    print(f"  named                                     {len(clubs):>8,}")
+    agree = "ok" if len(clubs) + n_blank == declared else "MISMATCH"
+    print(f"  named + blank == declared                 {agree:>8}")
+    return clubs, declared
 
 
 def report_comp_table(mm):
@@ -84,40 +78,28 @@ def report_comp_table(mm):
     return comps, declared
 
 
-def report_cross_reference(mm, diag, comps, declared):
+def report_cross_reference(mm, clubs, declared_clubs, comps, declared_comps):
     """Of the ids something else in the save actually references, how many resolve, and what
-    explains the ones that don't. This is what turns a count into a real, actionable gap.
-
-    The two halves now explain a miss DIFFERENTLY, which is the whole point of the walk.
-    A club miss is attributed to the gate that rejected it (there is still a gate cascade to
-    blame). A competition miss cannot be a gate any more, so it is classified structurally:
-    either the cid is past the end of the table the save itself declares, or the table says
-    that slot is blank. Both are statements about the save, not about our tuning -- and a
-    referenced cid that lands on a blank slot is the interesting case, because it means
-    something in the save points at a competition the save never populated."""
+    explains the ones that don't."""
     print("\nCROSS-REFERENCE: ids real matches/players reference, that fail to resolve")
 
     def comp_miss_reason(cid):
-        if cid >= declared:
-            return f"cid >= the {declared} records the table declares (dangling reference)"
+        if cid >= declared_comps:
+            return f"cid >= the {declared_comps} records the table declares (dangling reference)"
         return "the table declares this slot BLANK (namelen 0) -- nothing to resolve"
 
-    club_reject_reason = {}
-    for _off, tid, reason in diag.club_rejections:
-        club_reject_reason.setdefault(tid, reason)
+    def club_miss_reason(tid):
+        if tid >= declared_clubs:
+            return f"tid >= the {declared_clubs} records the table declares (dangling reference)"
+        return "the table slot is unpopulated"
 
     print("  parsing the season and squads to collect referenced ids "
           "(this is the slow part) ...", file=sys.stderr)
     season = M.extract_season(mm)
-    clubs, _comps = R._build_refdata_index(mm)
-    # Two very different referenced-id sources, deliberately both included: extract_season's
-    # comp_id is "a competition we have actual matches for" (narrow -- Frem's own history,
-    # 4 cids on a real save). Every accepted club's own `league` field is "a competition
-    # SOMETHING claims membership in" (broad -- 17k+ clubs' worth) and is exactly how the
-    # 47 reputation-floor cids were originally found: they're real leagues that real (if not
-    # our own) clubs belong to, invisible to extract_season entirely.
+    all_clubs, _comps = R._build_refdata_index(mm)
+
     needed_cids = {m["comp_id"] for m in season if m.get("comp_id")}
-    needed_cids |= {c["league"] for c in clubs.values() if c.get("league")}
+    needed_cids |= {c["league"] for c in all_clubs.values() if c.get("league")}
     resolved_cids = {cid for cid in needed_cids if R.find_comp_record(mm, cid)}
     missing_cids = sorted(needed_cids - resolved_cids)
 
@@ -143,7 +125,7 @@ def report_cross_reference(mm, diag, comps, declared):
     print(f"\n  clubs: {len(needed_tids)} referenced, {len(resolved_tids)} resolve, "
           f"{len(missing_tids)} missing")
     for tid in missing_tids[:40]:
-        reason = club_reject_reason.get(tid, "no candidate found for this tid at all")
+        reason = club_miss_reason(tid)
         print(f"    tid={tid:<6} {reason}")
     if len(missing_tids) > 40:
         print(f"    ... and {len(missing_tids) - 40} more")
@@ -157,9 +139,9 @@ def main():
         return 0
     with open(save, "rb") as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    diag = report_refdata(mm)
-    comps, declared = report_comp_table(mm)
-    report_cross_reference(mm, diag, comps, declared)
+    clubs, declared_clubs = report_club_table(mm)
+    comps, declared_comps = report_comp_table(mm)
+    report_cross_reference(mm, clubs, declared_clubs, comps, declared_comps)
     return 0
 
 

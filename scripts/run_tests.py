@@ -17,6 +17,7 @@ Green now means something ran.
 Exit codes: 0 all good, 1 something failed, 2 nothing ran at all.
 """
 import argparse
+import concurrent.futures
 import glob
 import os
 import subprocess
@@ -26,16 +27,42 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKIP = 77
 
+UNIT_TESTS = {
+    "test_club_comp_unit.py",
+    "test_compman_unit.py",
+    "test_fixtures_unit.py",
+    "test_layouts.py",
+    "test_places_unit.py",
+    "test_rounds_officials.py",
+    "test_staff_unit.py",
+    "test_tables.py",
+}
+
+
+def _run_single_test(t, verbose):
+    name = os.path.basename(t)
+    t0 = time.time()
+    r = subprocess.run([sys.executable, t], cwd=ROOT,
+                       capture_output=not verbose, text=True)
+    dt = time.time() - t0
+    return name, dt, r
+
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", dest="filter", help="only tests whose filename contains this")
+    ap.add_argument("-u", "--unit", action="store_true",
+                    help="run only fast, zero-save-dependency unit tests")
+    ap.add_argument("-j", "--jobs", type=int, default=1,
+                    help="number of parallel test worker processes (default: 1)")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="stream each test's output instead of only its verdict")
     args = ap.parse_args()
 
     tests = sorted(glob.glob(os.path.join(ROOT, "tests", "test_*.py")))
+    if args.unit:
+        tests = [t for t in tests if os.path.basename(t) in UNIT_TESTS]
     if args.filter:
         tests = [t for t in tests if args.filter in os.path.basename(t)]
     if not tests:
@@ -43,19 +70,20 @@ def main():
         return 2
 
     passed, failed, skipped = [], [], []
-    for t in tests:
-        name = os.path.basename(t)
-        t0 = time.time()
-        r = subprocess.run([sys.executable, t], cwd=ROOT,
-                           capture_output=not args.verbose, text=True)
-        dt = time.time() - t0
+
+    if args.jobs > 1 and not args.verbose:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as ex:
+            futs = [ex.submit(_run_single_test, t, False) for t in tests]
+            results = [f.result() for f in futs]
+    else:
+        results = [_run_single_test(t, args.verbose) for t in tests]
+
+    for name, dt, r in results:
         if r.returncode == 0:
             passed.append(name)
             verdict, extra = "PASS", ""
         elif r.returncode == SKIP:
             skipped.append(name)
-            # the reason is the test's own SKIP line -- surfaced here so a skip is legible
-            # without re-running it, which is the whole point of counting them
             line = next((ln for ln in (r.stdout or "").splitlines()
                          if ln.startswith("SKIP:")), "")
             verdict, extra = "SKIP", line[len("SKIP:"):].strip()

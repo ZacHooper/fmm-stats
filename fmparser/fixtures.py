@@ -108,13 +108,11 @@ from . import primitives as P
 from . import records as RD
 from .schema import Field, PAD, Record, U16, U32, U8, UNKNOWN
 
-MEMBER = "fix_man.dat"
 STRIDE = 92
-OPENER = 0x14                 # the second byte of every record
-MEMBER_HEADER = 6             # every member's decompressed payload opens [03][01]['tad.']
+OPENER = 0x14
+DAY_MASK = 0x1FF
+DAY_BASE = 1
 
-# THE RECORD. Declared layout over the 92-byte stride.
-# Proven fields are named and emitted or typed; unproven or variable blocks stay UNKNOWN/PAD.
 FIXTURE = Record("world_fixture", STRIDE, [
     Field(0,  1, UNKNOWN, PAD),
     Field(1,  1, "opener", U8, note="always 0x14; this is what the stride histogram keys on"),
@@ -163,15 +161,8 @@ FIXTURE = Record("world_fixture", STRIDE, [
     Field(84, 8,  UNKNOWN, PAD),
 ])
 
-DAY_MASK = 0x1FF
-# The day-of-year is ONE-INDEXED here: 1 = 1 January. `primitives.ymd_from` adds its argument
-# to 1 January, which is the 0-indexed convention our match headers and DOB fields use, so the
-# `- 1` is a real difference between two date fields in the same save, not a fudge.
-#
-# Measured 2026-09-21 against our OWN parsed matches, which carry verified dates: every row
-# that joins on (opponent, score) needs exactly -1 day. 51 of 51 on frem-2026-06-29 and 60 of
-# 60 on bucaspor-2023-03-25 -- both careers, no exceptions, no other offset represented.
-DAY_BASE = 1
+MEMBER = "fix_man.dat"
+MEMBER_HEADER = 6             # every member's decompressed payload opens [03][01]['tad.']
 NO_ROUND = 0xFF           # +78 when the match belongs to no matchday (friendlies)
 
 

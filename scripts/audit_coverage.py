@@ -115,12 +115,12 @@ def claims(mm, n):
         print(f"  ! clubrecords failed: {exc}", file=sys.stderr)
 
     try:
-        from fmparser import places as PL
-        st = PL.scrape_stadiums(mm)
+        from fmparser.tables import cities, stadiums
+        st = stadiums.scrape_stadiums(mm)
         rows = st.values() if isinstance(st, dict) else st
         measured("places.stadiums",
                  [(r["offset"], r["offset"] + 40) for r in rows if isinstance(r, dict)])
-        ct = PL.scrape_cities(mm)
+        ct = cities.scrape_cities(mm)
         rows = ct.values() if isinstance(ct, dict) else ct
         measured("places.cities",
                  [(r["offset"], r["offset"] + 24) for r in rows if isinstance(r, dict)])
@@ -128,7 +128,7 @@ def claims(mm, n):
         print(f"  ! places failed: {exc}", file=sys.stderr)
 
     try:
-        from fmparser import staff as ST
+        from fmparser.tables import staff as ST
         id2s = {v["id2"] for v in info.values() if v.get("id2")}
         sa = ST.scrape_staff_attributes(mm, id2s)
         rows = sa.values() if isinstance(sa, dict) else sa
@@ -141,29 +141,18 @@ def claims(mm, n):
     # ---- DECLARED: window scans with no per-record offset --------------------
     from fmparser import regions as RG
     declared("reference.name_table", 0, 520_000)
-    # The CLUB scan has real candidate-level introspection (diagnose_refdata_scan): every
-    # position its prefilter considers ends up accepted, rejected-with-a-named-reason, or
-    # superseded. That is stronger than a bare DECLARED window scan, so it reports AUDITED --
-    # but see `audited()`'s own docstring and diagnose_refdata_scan's: AUDITED covers
-    # candidate DISPOSITIONS, not every byte (the prefilter proposes only ~1.5% of this
-    # window as a candidate at all). Falls back to a plain DECLARED claim if the diagnosis
-    # throws, so a save whose shape breaks it doesn't crash the whole audit.
-    #
-    # Competitions are NOT part of this claim any more and must not be folded back into it.
-    # They come from `_walk_comp_table`, which reads every slot the table itself declares --
-    # a genuinely stronger guarantee than AUDITED, on a region this window does not even
-    # cover (the table sits at ~12.6M, outside REFDATA_LO/HI). It gets its own MEASURED-style
-    # line below rather than being averaged into a candidate-disposition summary.
+    # The club table: start and length both read from the save's own count header (11,331 on Frem,
+    # 12,278 on Bucaspor), so its extent is known exactly rather than claimed as a 20 MB window.
     try:
         from fmparser import reference as R
-        diag = R.diagnose_refdata_scan(mm)
-        summary = (f"{diag.n_candidates:,} candidates -> clubs {diag.club_accepted_tier0}"
-                   f"+{diag.club_accepted_tier1} tier1, {diag.club_superseded:,} superseded "
-                   f"(run scripts/audit_declared_scans.py for the full breakdown)")
-        audited("reference.clubs", RG.REFDATA_LO, RG.REFDATA_HI, summary)
+        spans = R.club_table_spans(mm)
+        c_clubs, c_blank_clubs = R._walk_club_table(mm)
+        measured("reference.club_table", spans)
+        print(f"  ~ reference.club_table: {len(spans) - 1:,} declared slots = "
+              f"{len(c_clubs):,} named + {c_blank_clubs} blank, tid == slot index throughout, "
+              f"{spans[0][0]:,}-{spans[-1][1]:,}", file=sys.stderr)
     except Exception as exc:
-        print(f"  ! reference club diagnosis failed: {exc}", file=sys.stderr)
-        declared("reference.clubs", RG.REFDATA_LO, RG.REFDATA_HI)
+        print(f"  ! CLUB TABLE WALK FAILED: {exc}", file=sys.stderr)
     # The competition table: start and length both read from the save's own count header, so
     # its extent is known exactly rather than claimed. A failure here is a real defect, not a
     # soft downgrade -- report it loudly instead of quietly falling back to DECLARED.

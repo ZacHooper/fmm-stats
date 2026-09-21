@@ -18,11 +18,9 @@ from . import primitives as P
 from . import records as RD
 from .schema import Field, PAD, Record, U16, U32, U8, UNKNOWN
 
-MEMBER = "comp_man.dat"
 HEADER_STRIDE = 36
 STAGE_STRIDE = 78
 HONOUR_STRIDE = 55
-MEMBER_HEADER = 6     # Decompressed member payload opens with 6-byte '[03][01]tad.'
 
 # 1. THE 36-BYTE FILE HEADER
 HEADER = Record("comp_man_header", HEADER_STRIDE, [
@@ -44,7 +42,6 @@ STAGE = Record("comp_man_stage", STAGE_STRIDE, [
     Field(0,  1, "opener", U8),
     Field(1,  5, UNKNOWN, PAD, note="record format / status flags"),
     Field(6,  24, UNKNOWN, PAD),
-    # 16 bytes of constant 0xFF across all 2,316 records
     Field(30, 16, UNKNOWN, PAD, note="constant 0xFF filler"),
     Field(46, 2, "start_year", U16, note="earliest validity year"),
     Field(48, 2, "end_year", U16, note="latest validity year"),
@@ -77,6 +74,9 @@ HONOUR = Record("comp_man_honour", HONOUR_STRIDE, [
     Field(36, 4, "fourth_place_tid", U32, note="4th place club TID"),
     Field(40, 15, UNKNOWN, PAD, note="0xFF padding"),
 ])
+
+MEMBER = "comp_man.dat"
+MEMBER_HEADER = 6     # Decompressed member payload opens with 6-byte '[03][01]tad.'
 
 
 def load_blob(mm):
