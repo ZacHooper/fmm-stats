@@ -1,13 +1,37 @@
 #!/usr/bin/env python3
 """Schemas for Football Manager binary savefile tables."""
+from .competitions import (
+    COMP_HISTORY_TAIL,
+    COMP_REF_COUNT,
+    COMP_REF_ENTRY,
+    COMP_TRAILER,
+)
+from .compman import (
+    HEADER as COMP_MAN_HEADER,
+    HEADER_STRIDE as COMP_MAN_HEADER_STRIDE,
+    HONOUR as COMP_MAN_HONOUR,
+    HONOUR_STRIDE as COMP_MAN_HONOUR_STRIDE,
+    STAGE as COMP_MAN_STAGE,
+    STAGE_STRIDE as COMP_MAN_STAGE_STRIDE,
+)
 from .officials import OFFICIAL, OFFICIAL_STRIDE
 from .places import CITY, CITY_RECORD, STADIUM_HEAD, STADIUM_HEADER
 from .rounds import ROUND_COUNT, ROUND_HEAD, ROUND_TRAILER, ROUND_TRAILER_WIDTH
-from .staff import STAFF, STAFF_STRIDE, STAFF_GRID_STRIDE
+from .staff import STAFF, STAFF_GRID_STRIDE, STAFF_STRIDE
 
 __all__ = [
     "CITY",
     "CITY_RECORD",
+    "COMP_HISTORY_TAIL",
+    "COMP_MAN_HEADER",
+    "COMP_MAN_HEADER_STRIDE",
+    "COMP_MAN_HONOUR",
+    "COMP_MAN_HONOUR_STRIDE",
+    "COMP_MAN_STAGE",
+    "COMP_MAN_STAGE_STRIDE",
+    "COMP_REF_COUNT",
+    "COMP_REF_ENTRY",
+    "COMP_TRAILER",
     "OFFICIAL",
     "OFFICIAL_STRIDE",
     "ROUND_COUNT",
