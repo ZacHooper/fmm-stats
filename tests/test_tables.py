@@ -176,9 +176,156 @@ def test_string_catalog():
     print("  PASS StringCatalogDef (walking, spans, null terminator, trailer)")
 
 
+def test_stadiums_catalog():
+    print("TESTING STADIUMS_CATALOG")
+    from fmparser.tables.stadiums import STADIUMS_CATALOG
+    from tests.test_places_unit import build_stadium_bytes
+
+    # Build 3 stadiums with differing name lengths (variable length records)
+    s1 = build_stadium_bytes(sid=1, name="Short", capacity=10000)
+    s2 = build_stadium_bytes(sid=2, name="A Bit Longer Stadium Name", capacity=25000)
+    s3 = build_stadium_bytes(sid=3, name="Super Long Stadium Arena 2026", capacity=60000)
+    # Plus one invalid capacity stadium that should be filtered by post_process
+    s_bad = build_stadium_bytes(sid=4, name="Mega Dome", capacity=500_000)
+
+    buf = memoryview(s1 + s2 + s3 + s_bad)
+    rows = STADIUMS_CATALOG.scrape(buf)
+    # s_bad should be excluded by post_process
+    assert len(rows) == 3
+    assert rows[0]["id"] == 1 and rows[0]["name"] == "Short"
+    assert rows[1]["id"] == 2 and rows[1]["name"] == "A Bit Longer Stadium Name"
+    assert rows[2]["id"] == 3 and rows[2]["name"] == "Super Long Stadium Arena 2026"
+
+    # Verify spans cover the variable-length records accurately
+    spans = STADIUMS_CATALOG.spans(buf, include_count_header=False)
+    assert len(spans) == 3  # capacity check gates s_bad out of the chain
+    for i in range(len(spans) - 1):
+        assert spans[i][1] == spans[i + 1][0], f"spans must be contiguous: {spans[i]} and {spans[i+1]}"
+
+    # Verify id_map
+    id_map = STADIUMS_CATALOG.id_map(buf)
+    assert set(id_map.keys()) == {1, 2, 3}
+
+    # Verify corrupt null terminator stops the walk
+    s_nonull = build_stadium_bytes(sid=5, name="Corrupt", null_term=False)
+    corrupt_buf = memoryview(s1 + s_nonull + s2)
+    corrupt_rows = STADIUMS_CATALOG.scrape(corrupt_buf)
+    # After s1, s_nonull has no NUL terminator so the walk stops immediately
+    assert len(corrupt_rows) == 1
+    assert corrupt_rows[0]["id"] == 1
+    print("  PASS STADIUMS_CATALOG (variable-length strings, capacity gate, NUL enforcement, spans)")
+
+
+def test_name_id_tables():
+    print("TESTING NAME_ID_TABLES")
+    from fmparser.tables.names import (
+        SURNAMES_TABLE,
+        walk_browse_bounds,
+    )
+
+    # 1. Test browse string table parsing (flat [len u32][utf-8])
+    browse_buf = bytearray(b"\x00" * 250)  # pad to > 200
+    start = len(browse_buf)
+    names = ["Smith", "Jones", "Williams", "Brown", "Taylor"] * 250  # > 1000 names
+    for name in names:
+        nb = name.encode("utf-8")
+        browse_buf += struct.pack("<I", len(nb))
+        browse_buf += nb
+    end = len(browse_buf)
+
+    b_start, b_end, parsed_names = walk_browse_bounds(memoryview(browse_buf))
+    assert b_start == start
+    assert b_end == end
+    assert len(parsed_names) == len(names)
+    assert parsed_names[:5] == ["Smith", "Jones", "Williams", "Brown", "Taylor"]
+
+    # 2. Test FixedTableDef on synthetic 16B records
+    records_buf = bytearray()
+    for i in range(5):
+        records_buf += struct.pack("<II", i, 100 + i) + b"\x00" * 8
+
+    mv = memoryview(records_buf)
+    sur_rows = SURNAMES_TABLE.scrape(mv)
+    assert len(sur_rows) == 5
+    assert sur_rows[0]["ordinal"] == 0 and sur_rows[0]["id"] == 100
+    assert sur_rows[4]["ordinal"] == 4 and sur_rows[4]["id"] == 104
+
+    # Spans
+    spans = SURNAMES_TABLE.spans(mv, include_count_header=False)
+    assert len(spans) == 5
+    assert spans[0] == (0, 16)
+    assert spans[-1] == (64, 80)
+    print("  PASS NAME_ID_TABLES (browse string bounds, 16B FixedTableDef scraping/spans)")
+
+
+def test_player_attributes_table():
+    print("TESTING PLAYER_ATTRIBUTES_TABLE")
+    from fmparser.tables.player_attributes import PLAYER_ATTRIBUTES_TABLE
+
+    buf = bytearray()
+    # 0..4: sid
+    buf += bytes.fromhex("12345678")
+    # 4..8: history link
+    buf += struct.pack("<I", 0)
+    # 8..42: 34 bytes (src, hidden, attrs, plain offsets)
+    buf += b"\x0a" * 34
+    # 42..57: 15 position rating bytes (1..20, with max = 20)
+    buf += bytes([1] * 14 + [20])
+    # 57: foot_left
+    buf += b"\x0f"
+    # 58: foot_right
+    buf += b"\x14"
+    # 59..61: ca
+    buf += struct.pack("<H", 120)
+    # 61..63: pa
+    buf += struct.pack("<H", 150)
+    # 63..65: reputation
+    buf += struct.pack("<H", 5000)
+    # 65..67: current_reputation
+    buf += struct.pack("<H", 5100)
+    # 67..69: world_reputation
+    buf += struct.pack("<H", 4800)
+    # 69: international_retired
+    buf += b"\x00"
+    # 70..72: unknown (2B)
+    buf += b"\x00\x00"
+    # 72: squad_number
+    buf += b"\x09"
+    # 73: preferred_squad_number
+    buf += b"\x09"
+    # 74..76: height_cm
+    buf += struct.pack("<H", 185)
+    # 76..78: weight_kg
+    buf += struct.pack("<H", 78)
+
+    assert len(buf) == 78, f"expected 78 bytes, got {len(buf)}"
+
+    mv = memoryview(buf)
+    rows = PLAYER_ATTRIBUTES_TABLE.scrape(mv)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["sid"] == "12345678"
+    assert r["P"] == 42
+    assert r["ca"] == 120
+    assert r["pa"] == 150
+    assert r["feet"] == {"left": 15, "right": 20}
+    assert r["height_cm"] == 185
+    assert r["weight_kg"] == 78
+    assert isinstance(r["attributes"], dict)
+    assert r["attributes"]["Pace"] == 10
+    assert isinstance(r["positions"], dict)
+
+    spans = PLAYER_ATTRIBUTES_TABLE.spans(mv, include_count_header=False)
+    assert spans == [(0, 78)]
+    print("  PASS PLAYER_ATTRIBUTES_TABLE (78B stride, field unpacking, positions dict, attributes)")
+
+
 def main():
     test_fixed_table()
     test_string_catalog()
+    test_stadiums_catalog()
+    test_name_id_tables()
+    test_player_attributes_table()
     return 0
 
 

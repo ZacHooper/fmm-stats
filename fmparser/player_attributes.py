@@ -20,9 +20,17 @@ from . import model
 
 from . import records as RD
 from .schema import Field, HEX4, RAW, Record, U8, U16, U32, UNKNOWN
-
-POSITIONS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR",
-             "AML", "AMC", "AMR", "ST", "DML", "DMR"]
+from .tables.player_attributes import (
+    ATTR_OFFSETS,
+    HIDDEN_OFFSETS,
+    PLAIN_OFFSETS,
+    PLAYER,
+    PLAYER_ATTRIBUTES_TABLE,
+    POSITIONS,
+    RECORD,
+    SRC_OFFSETS,
+    _valid_positions,
+)
 
 # ---------------- own squad: names ----------------
 # Length-prefixed name, [3, 64] BYTES. The old cap was 0x20 = 32 bytes, one single byte
@@ -288,236 +296,15 @@ def decode(attrs):
 
 
 # ---------------- global record (all players) ----------------
-# offset relative to positions start P (= SID_hit + 42) -> exact attribute
-ATTR_OFFSETS = {
-    -29: "Aerial", -25: "Teamwork", -24: "Pace", -23: "Strength",
-    -22: "Stamina", -21: "Technique", -19: "Aggression", -16: "Leadership",
-    -5: "Agility",
-}
-RECORD = 78   # records sit on a 78-byte grid, but its phase is save-dependent
-              # (shifts as the file grows), so we validate structurally, not by phase.
-
-# The record does not stop at the reputation we read at P+21. It runs `P-42 … P+35` —
-# exactly the 78-byte grid above — and the last 13 bytes were simply never parsed. Field
-# order confirmed against nyongrand/fmm-editor's FMM26 `Player` struct; see
-# docs/agent-context/fmm-editor-record-comparison.md.
-#
-# The `reputation` we have always read at P+21 is specifically HOME reputation; the name is
-# left alone because value_model.py is fitted on that column.
-#
-# Verified on frem-2024-11-10 over 26,518 records: height median 182cm (min 153), weight
-# median 73kg (min 55), and goalkeepers average 188.2cm/78.2kg against 180.4/71.8 for
-# outfielders — the check to re-run if these ever look wrong.
-def record_tail(mm, P):
-    """The 13 bytes after HomeReputation, as a dict.
-
-    Read from the `tail` group of `PLAYER`, so the global-record shape is defined in exactly
-    one place -- which is now a declaration rather than this function. The `bool` cast stays
-    here: it is meaning, not layout.
-    """
-    rec = RD.read_group(mm, PLAYER, _base(P), "tail")
-    rec["international_retired"] = bool(rec["international_retired"])
-    return rec
-
-
-# ---------------------------------------------------------------------------
-# The HIDDEN attributes.
-#
-# 18 bytes in this record hold a 1-20 attribute; ATTR_OFFSETS names 9 (what the player screen
-# shows, plus Teamwork's two halves). These are the other 9, named from fmm-editor's
-# `FMMLibrary/Player.cs`, which declares all 34 attribute slots in read order from `P-34`.
-#
-# Why the order is trusted rather than assumed:
-#   1. All seven offsets we confirmed independently against in-game values land exactly where
-#      it predicts -- Pace P-24, Strength P-23, Stamina P-22, Technique P-21, Aggression P-19,
-#      Leadership P-16, Agility P-5.
-#   2. FMM22 stores 18 of the 34 slots as a plain 1-20 value and the other 16 as a wrapped
-#      0-255 encoding, with no overlap -- and the split is EXACTLY along fmm-editor's semantic
-#      line: the plain 18 are the ability-independent attributes, the encoded 16 are the
-#      technical and goalkeeping ones. A partition that clean cannot come from a mis-aligned
-#      order. (The encoded 16 are what `model.FROZEN` below decodes; they are not computed at
-#      display time. At matched ability the Finishing byte peaks at ST, the Tackling byte at
-#      DC, and the five GK bytes put GK ~80 points clear of every outfield position -- so the
-#      ordering is confirmed slot by slot, not just at the seven anchors.)
-#
-# Semantic checks agree where they can discriminate: P-28 vs height_cm r=+0.79 (Strength, the
-# strongest named physical, manages +0.30) -- that is Jumping; P-8 tracks Technique at +0.65 vs
-# Stamina +0.20, the signature of Flair; P-13/P-14 correlate +0.57 with each other, as the two
-# dead-ball attributes should. Consistency (P-20) and InjuryProne (P-17) are UNCONFIRMED: only
-# 39 players have enough rated matches to measure rating spread, and the 89 injury rows show
-# the injured group up on every attribute, so that test is confounded by minutes. Those two
-# rest on the structural argument alone.
-#
-# Two departures from fmm-editor's names, both ground-truth-backed for FMM22: P-29 stays
-# `Aerial` (Player.cs says Heading; the FMM22 UI says Aerial), and Teamwork is still derived
-# from P-25 + P-9 (Player.cs says Unselfishness and WorkRate). P-9 is now also carried alone --
-# a sub-attribute we only see averaged is one we cannot study.
-HIDDEN_OFFSETS = {-28: "jumping", -20: "consistency", -18: "big_match",
-                  -17: "injury_prone", -15: "versatility", -14: "set_pieces",
-                  -13: "penalty", -9: "work_rate", -8: "flair"}
-
-
-# THE ENTANGLED SOURCE BYTES, carried raw.
-#
-# These are the 16 slots FMM22 stores as a wrapped 0-255 value rather than a plain 1-20 one:
-# the technical and goalkeeping attributes. `model.FROZEN` turns them into displayed values,
-# and until 2026-09-17 that was the ONLY form that reached the store -- the parser decided what
-# the number was and threw the evidence away.
-#
-# That is the wrong split of responsibilities. Estimation is a MODELLING concern, not a
-# scraping one: keeping only the model's output means every retrain needs a full re-extract
-# (~25 minutes) before it can even be scored. With the bytes in the store, the training set is
-# a query -- raw bytes on one side, and on the other the exact values our own squad carries
-# from the managed-club snapshot, already flagged `estimated = false`.
-#
-# Named `<attribute>_src` because the byte is the SOURCE of the attribute, not the attribute.
-# Nothing is derived from them here.
-SRC_OFFSETS = {-34: "crossing_src", -33: "dribbling_src", -32: "tackling_src",
-               -31: "finishing_src", -30: "long_shot_src", -27: "passing_src",
-               -26: "decision_src", -12: "creativity_src", -11: "movement_src",
-               -10: "positioning_src", -7: "handling_src", -6: "kicking_src",
-               -4: "aerial_gk_src", -3: "reflexes_src", -2: "communication_src",
-               -1: "throwing_src"}
-
-
-# The remaining nine PLAIN 1-20 bytes, stored raw as well.
-#
-# Seven of them (Pace..Agility) equal their displayed value, so this looks redundant -- but
-# two do not, and those two are why this exists. FMM22's displayed "Aerial" is a function of
-# the Heading AND Jumping bytes, and "Teamwork" is floor((Unselfishness + WorkRate) / 2). The
-# raw Heading and Unselfishness bytes were therefore reachable ONLY through the parser's own
-# derivation, which is precisely the coupling we are removing: the estimation model needs
-# them (they are two of the nine `mean9` averages), so a model retrained against the store
-# could not reproduce the parser without them.
-#
-# With these, staging.players carries all 34 attribute slots of the record verbatim, and
-# nothing downstream has to go back to the save to refit anything.
-PLAIN_OFFSETS = {-29: "heading_src", -25: "unselfishness_src", -24: "pace_src",
-                 -23: "strength_src", -22: "stamina_src", -21: "technique_src",
-                 -19: "aggression_src", -16: "leadership_src", -5: "agility_src"}
-
-
-# ---------------------------------------------------------------------------
-# THE RECORD, as one declaration.
-#
-# ANCHOR. The record runs P-42 .. P+35 and every note in this project describes its fields
-# relative to `P`, the SID marker the locator finds -- `P-38`, `P+28`. `anchor=42` keeps both
-# spellings: the declaration is in RECORD coordinates (offset = 42 + rel) and
-# `base = P - PLAYER.anchor` does the subtraction once, instead of at every call site. Mixing
-# the two is a bug this project has already had.
-#
-# ALIASES. `PLAIN_OFFSETS` and `ATTR_OFFSETS` name the IDENTICAL nine bytes -- the raw byte
-# and the value the screen shows, which differ for exactly two of the nine (Aerial is a
-# function of Heading AND Jumping; Teamwork is floor((Unselfishness + WorkRate) / 2)).
-# `scripts/audit_records.py` could not declare both, because the second set trips the overlap
-# check, so it silently omitted `PLAIN_OFFSETS` -- a table the parser reads that its audit
-# could not see. `alias=True` says "this re-reads bytes already covered", which is the truth,
-# and the audit now sees all four blocks.
-#
-# The four blocks are GROUPS because their emission order is the output's key order, and
-# `attributes.json`/`players.json` are written without `sort_keys`.
-PLAYER = Record("player_attribute", RECORD, [
-    Field(0, 4, "sid", HEX4),
-    # docs/agent-context/history-chain-pointers.md: the career-history table holds no id of
-    # its own, and THIS is the link that joins it -- the pointer runs from the attribute
-    # record into the history slab, not the other way.
-    Field(4, 4, "history_link_P38", U32),
-    *[Field(42 + rel, 1, n, U8, group="src") for rel, n in SRC_OFFSETS.items()],
-    *[Field(42 + rel, 1, n, U8, group="hidden") for rel, n in HIDDEN_OFFSETS.items()],
-    *[Field(42 + rel, 1, n, U8, group="attrs") for rel, n in ATTR_OFFSETS.items()],
-    *[Field(42 + rel, 1, n, U8, group="plain", alias=True)
-      for rel, n in PLAIN_OFFSETS.items()],
-    Field(42, 15, "positions", RAW, note="15 position-rating bytes, decoded to a dict"),
-    Field(57, 1, "foot_left", U8),
-    Field(58, 1, "foot_right", U8),
-    Field(59, 2, "ca", U16, note="never surfaced -- immersion rule"),
-    Field(61, 2, "pa", U16, note="never surfaced -- immersion rule"),
-    # named `reputation` downstream, not `home_reputation`: value_model.py is fitted on that
-    # column name. It IS home reputation; the name is left alone on purpose.
-    Field(63, 2, "reputation", U16),
-    Field(65, 2, "current_reputation", U16, group="tail"),
-    Field(67, 2, "world_reputation", U16, group="tail"),
-    Field(69, 1, "international_retired", U8, group="tail"),
-    Field(70, 2, UNKNOWN, U16),   # P+28..29: a real non-zero u16 in FMM22 that FMM26
-                                  # documents as "always 0x0000". Repetitive, looks like a
-                                  # flags/enum field. Unidentified, so never surfaced.
-    Field(72, 1, "squad_number", U8, group="tail"),
-    Field(73, 1, "preferred_squad_number", U8, group="tail"),
-    Field(74, 2, "height_cm", U16, group="tail"),
-    Field(76, 2, "weight_kg", U16, group="tail"),
-], anchor=42)
-
-
-def _base(P):
-    """Record start from the SID marker. One subtraction, stated once."""
-    return P - PLAYER.anchor
-
-
-def named_attributes(mm, P):
-    """The 9 bytes behind the displayed attributes ATTR_OFFSETS names."""
-    return RD.read_group(mm, PLAYER, _base(P), "attrs")
-
-
-def plain_bytes(mm, P):
-    """The nine plain 1-20 bytes that back the displayed exact attributes, raw."""
-    return RD.read_group(mm, PLAYER, _base(P), "plain")
-
-
-def source_bytes(mm, P):
-    """The 16 entangled 0-255 attribute bytes, raw and undecoded."""
-    return RD.read_group(mm, PLAYER, _base(P), "src")
-
-
-def hidden_attributes(mm, P):
-    """The 9 attribute bytes the player screen does not show, as a dict.
-
-    Shared by both record readers. Nothing is DERIVED from these -- they are carried so that
-    identification and modelling work is a query rather than a re-extract, and none of them
-    is surfaced in the app.
-    """
-    return RD.read_group(mm, PLAYER, _base(P), "hidden")
-
-
-def _valid_positions(seg):
-    return len(seg) == 15 and all(1 <= b <= 20 for b in seg) and max(seg) == 20
-
-
+# The 78-byte global record runs P-42 .. P+35. Field layout and offsets
+# are declared in fmparser.tables.player_attributes.
 def record_for(mm, tid):
-    """Locate a player's global attribute record via SID. Returns a dict or None.
-
-    The record is identified structurally (valid 15-position block + feet 0-20 +
-    0 < CA <= PA <= 200), NOT by absolute grid phase — the phase drifts between
-    saves. Verified byte-identical to the phase-filtered version on the known save,
-    and it resolves the larger/newer saves where the phase had shifted."""
+    """Locate a player's global attribute record via SID. Returns a dict or None."""
     io = info_offset(mm, tid)
     if io is None:
         return None
-    sid = mm[io + 60:io + 64]
-    pos = ATTR_LO
-    while True:
-        i = mm.find(sid, pos)
-        if i == -1 or i > ATTR_HI:
-            return None
-        pos = i + 1
-        P = i + 42
-        seg = mm[P:P + 15]
-        if not _valid_positions(seg):
-            continue
-        left, right = mm[P + 15], mm[P + 16]
-        ca = int.from_bytes(mm[P + 17:P + 19], "little")
-        pa = int.from_bytes(mm[P + 19:P + 21], "little")
-        rep = int.from_bytes(mm[P + 21:P + 23], "little")
-        if not (0 <= left <= 20 and 0 <= right <= 20):
-            continue
-        if not (0 < ca <= pa <= 200):
-            continue
-        positions = {POSITIONS[k]: v for k, v in enumerate(seg) if v > 1}
-        attrs = named_attributes(mm, P)
-        return {"sid": sid.hex(), "P": P, "positions": positions,
-                "feet": {"left": left, "right": right},
-                "ca": ca, "pa": pa, "reputation": rep, "attributes": attrs,
-                **record_tail(mm, P), **hidden_attributes(mm, P),
-                **source_bytes(mm, P), **plain_bytes(mm, P)}
+    sid = mm[io + 60:io + 64].hex()
+    return PLAYER_ATTRIBUTES_TABLE.id_map(mm, key_field="sid").get(sid)
 
 
 # ---------------- full 23-attr estimation ----------------

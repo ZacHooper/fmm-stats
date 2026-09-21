@@ -16,8 +16,6 @@ from . import records as RD
 from . import reference as R
 from . import schema as SC
 from .schema import DATE, Field, HEX4, PAD, Record, U8, U16, U32, UNKNOWN
-from .attributes import (_valid_positions, named_attributes, POSITIONS,
-                         hidden_attributes, record_tail, source_bytes, plain_bytes)
 from .regions import (ATTR_LO, ATTR_HI, CONTRACTREC_LO, CONTRACTREC_HI,
                       WAGE_GBP_PER_UNIT)
 
@@ -390,73 +388,7 @@ def scrape_contracts(mm, info, lo=CONTRACTREC_LO, hi=CONTRACTREC_HI):
     return out
 
 
-ATTR_STRIDE = 78
-ATTR_ANCHOR = 42          # the SID marker P sits 42 bytes into the record
-
-
-def attribute_table_end(mm, first_P):
-    """Where the attribute grid really ends, from the count it declares about itself.
-
-    The table is count-framed -- `[>= 8 x 0xFF][count u32][record 0]` -- and record 0 starts
-    `ATTR_ANCHOR` bytes before the first SID marker the scan finds. Returns the exclusive end
-    offset, or None if the frame is not where it should be (then the caller keeps its window).
-
-    WHY THIS MATTERS: without it the scan ran to a tuned window bound and picked up 13 extra
-    "records" past the end of the table -- obvious garbage (one has a height of 54,539 cm),
-    identical in count on every save in both careers. They never surfaced, because none of
-    them joins the info spine, which is exactly why nothing caught them. The declared count
-    and the 78-byte grid agree with each other independently: the records ON the grid number
-    exactly `declared`, and all 13 strays are both off-grid AND past this end.
-    """
-    base0 = first_P - ATTR_ANCHOR
-    if base0 < 12:
-        return None
-    if not all(mm[base0 - 4 - 1 - k] == 0xFF for k in range(8)):
-        return None
-    count = int.from_bytes(mm[base0 - 4:base0], "little")
-    if not (0 < count < 1_000_000):
-        return None
-    end = base0 + count * ATTR_STRIDE
-    return end if end <= len(mm) else None
-
-
 def scrape_attributes(mm, lo=ATTR_LO, hi=ATTR_HI):
-    """Every global attribute record in [lo, hi), keyed by its embedded SID.
-
-    Records sit on a 78-byte grid; we scan for a structurally valid record (15 valid
-    positions + feet + 0<CA<=PA<=200), read the SID at P-42, and skip ahead. First
-    SID wins (records are 1:1 with SID).
-
-    `hi` is only the OUTER bound. Once the first record is found the table's own declared
-    count gives the real end and the scan stops there -- see `attribute_table_end`."""
-    out = {}
-    P = lo
-    while P < hi:
-        seg = mm[P:P + 15]
-        if _valid_positions(seg):
-            left, right = mm[P + 15], mm[P + 16]
-            ca = int.from_bytes(mm[P + 17:P + 19], "little")
-            pa = int.from_bytes(mm[P + 19:P + 21], "little")
-            if 0 <= left <= 20 and 0 <= right <= 20 and 0 < ca <= pa <= 200:
-                sid = mm[P - 42:P - 38].hex()
-                rec = {
-                    "sid": sid, "P": P,
-                    "positions": {POSITIONS[k]: v for k, v in enumerate(seg) if v > 1},
-                    "feet": {"left": left, "right": right},
-                    "ca": ca, "pa": pa,
-                    "reputation": int.from_bytes(mm[P + 21:P + 23], "little"),
-                    "attributes": named_attributes(mm, P),
-                    **record_tail(mm, P),
-                    **hidden_attributes(mm, P),
-                    **source_bytes(mm, P),
-                    **plain_bytes(mm, P),
-                }
-                out.setdefault(sid, rec)
-                if len(out) == 1:
-                    declared_end = attribute_table_end(mm, P)
-                    if declared_end is not None:
-                        hi = min(hi, declared_end)
-                P += ATTR_STRIDE
-                continue
-        P += 1
-    return out
+    """Every global attribute record in [lo, hi), keyed by its embedded SID."""
+    from .tables.player_attributes import scrape_player_attributes
+    return scrape_player_attributes(mm)

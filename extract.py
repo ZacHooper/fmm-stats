@@ -28,7 +28,7 @@ from collections import Counter
 
 from fmparser.save import Save
 from fmparser import matches as M
-from fmparser import attributes as A
+from fmparser import player_attributes as A
 from fmparser import reference as R
 from fmparser import staging as S
 from fmparser import tagged as T

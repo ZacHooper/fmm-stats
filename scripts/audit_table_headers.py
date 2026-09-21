@@ -34,7 +34,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fmparser import attributes as A                 # noqa: E402
+from fmparser import player_attributes as A                 # noqa: E402
 import numpy as np                                   # noqa: E402
 from fmparser import history as H                    # noqa: E402
 from fmparser import lookups as LK                   # noqa: E402

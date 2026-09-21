@@ -851,120 +851,13 @@ def _u32(mm, o):
     return int.from_bytes(mm[o:o + 4], "little")
 
 
-def _walk_browse_bounds(mm):
-    """Same discovery as `_walk_browse`, but also returns the table's own byte extent
-    (`start` of its first length field, `end` just past its last string) -- needed to
-    exclude this region from the club/comp candidate scan. See `_name_table_bounds`."""
-    for start in range(200, 3000):
-        ln = _u32(mm, start)
-        if 2 <= ln <= 40:
-            raw = mm[start + 4:start + 4 + ln]
-            try:
-                s = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                continue
-            if s and s[0].isalpha() and all(ord(c) >= 0x20 for c in s):
-                out = []
-                o = start
-                while o + 4 < len(mm):
-                    L = _u32(mm, o)
-                    if not (1 <= L <= 40):
-                        break
-                    raw = mm[o + 4:o + 4 + L]
-                    try:
-                        t = raw.decode("utf-8")
-                    except UnicodeDecodeError:
-                        break
-                    if any(c < 0x20 for c in raw):
-                        break
-                    out.append(t)
-                    o = o + 4 + L
-                if len(out) > 1000:
-                    return start, o, out
-    return None, None, []
-
-
-def _walk_browse(mm):
-    """The flat [len u32][utf-8] name table near the file start -> list of strings."""
-    return _walk_browse_bounds(mm)[2]
-
-
-ID_TABLE_STRIDE = 16       # [browse ordinal u32][id u32][8 more]
-_ID_TABLE_FRAME = 12       # [8 x 0xFF][count u32] between one table's end and the next's base
-
-
-def _chain_id_tables(mm, first_base, limit=8):
-    """Every id-table from `first_base` on, by following the tables' own declared counts.
-
-    THE TABLES ARE CHAINED. Each one's declared end is followed immediately by the next
-    one's frame -- `[8 x 0xFF][count u32]`, 12 bytes -- so `next = base + count * 16 + 12`
-    lands exactly on the next base, with no search and no heuristic. Verified on both careers
-    and five in-game years: three tables every time, and the chain terminates by itself when
-    the frame test fails.
-
-    This is how the THIRD table was found. `_discover_id_tables`' probe anchors on id 8192
-    being present, and returned only two tables for the life of this parser -- so the
-    9,480-slot COMMON NAME table, sitting right behind the surnames, was never opened, and
-    2,424 people were shown under their full legal names: `Tite` as 'Adenor Leonardo Bachi',
-    `Renato Gaucho` as 'Renato Portaluppi'.
-
-    Returns [(base, declared_count), ...] in FILE order.
-    """
-    out, base = [], first_base
-    while len(out) < limit:
-        head = base - _ID_TABLE_FRAME
-        if head < 0 or not all(mm[head + k] == 0xFF for k in range(8)):
-            break
-        count = _u32(mm, base - 4)
-        if not (0 < count < 1_000_000):
-            break
-        if base + count * ID_TABLE_STRIDE > len(mm):
-            break
-        out.append((base, count))
-        base = base + count * ID_TABLE_STRIDE + _ID_TABLE_FRAME
-    return out
-
-
-def _discover_id_tables(mm, browse_len, probe=8192):
-    """Find the dense id->ordinal tables. A record is 16 bytes with the id at +4 and
-    the browse ordinal at +0; ids run 0,1,2,… . Anchor on a mid-range id, verify the dense
-    run, walk back to base -- then CHAIN FORWARD from the earliest hit by declared count, so
-    a table too small for the probe to anchor in is still found. Returns [(base, count), …]
-    in FILE order, `count` being what each table declares about itself.
-
-    The probe still bounds what can be found at all: a table with fewer than `probe` slots
-    sitting BEFORE the first one would be missed, since the chain only runs forwards. No such
-    table exists in either career -- `scripts/audit_table_headers.py` inventories the section
-    -- but that is a measurement, not a guarantee.
-    """
-    pat = struct.pack("<I", probe)
-    bases = {}
-    pos = 0
-    while True:
-        i = mm.find(pat, pos)
-        if i == -1:
-            break
-        pos = i + 1
-        o = i - 4                       # i is the +4 id field -> record start
-        if o < 0:
-            continue
-        if (_u32(mm, o + 20) == probe + 1 and _u32(mm, o + 36) == probe + 2
-                and _u32(mm, o) < browse_len and _u32(mm, o + 16) < browse_len):
-            base = o - probe * 16
-            if base >= 0 and _u32(mm, base + 4) == 0 and _u32(mm, base + 20) == 1:
-                n = probe
-                while _u32(mm, base + n * 16 + 4) == n:
-                    n += 1
-                bases[base] = n
-    if not bases:
-        return []
-    chained = _chain_id_tables(mm, min(bases))
-    # Fall back to the walked runs only if the chain does not reproduce them -- the declared
-    # counts are the better number (the surname walk stops at the first free slot, 3,523 of
-    # which are scattered through the table), but a chain that failed should not lose tables.
-    if len(chained) >= len(bases):
-        return chained
-    return sorted(bases.items())
+from .tables.names import (
+    NAME_ID_STRIDE as ID_TABLE_STRIDE,
+    chain_id_tables as _chain_id_tables,
+    discover_id_tables as _discover_id_tables,
+    walk_browse as _walk_browse,
+    walk_browse_bounds as _walk_browse_bounds,
+)
 
 
 _NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname, base_common)
