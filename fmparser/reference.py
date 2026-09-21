@@ -293,13 +293,13 @@ def _read_comp_slot(mm, p):
     uid = int.from_bytes(mm[p + 2:p + 6], "little")
     q = p + 6
     ln = int.from_bytes(mm[q:q + 4], "little")
-    long = mm[q + 4:q + 4 + ln].decode("utf-8")
+    long = bytes(mm[q + 4:q + 4 + ln]).decode("utf-8")
     pp = q + 4 + ln + 1
     sl = int.from_bytes(mm[pp:pp + 4], "little")
-    short = mm[pp + 4:pp + 4 + sl].decode("utf-8")
+    short = bytes(mm[pp + 4:pp + 4 + sl]).decode("utf-8")
     pp = pp + 4 + sl + 1
     cl = int.from_bytes(mm[pp:pp + 4], "little")
-    code = mm[pp + 4:pp + 4 + cl].decode("utf-8")
+    code = bytes(mm[pp + 4:pp + 4 + cl]).decode("utf-8")
     pp = pp + 4 + cl
     # The trailer, read from COMP_TRAILER. Four of its eight fields are declared and not
     # read (`continent`, the two colours) -- declaring a field we choose not to surface is
@@ -552,8 +552,8 @@ def _read_club_slot(mm, pos):
     ln3 = P.u32(mm, p3)
     p_tr = p3 + 4 + ln3
 
-    raw1 = mm[pos + 12:pos + 12 + ln1]
-    raw2 = mm[p2 + 4:p2 + 4 + ln2]
+    raw1 = bytes(mm[pos + 12:pos + 12 + ln1])
+    raw2 = bytes(mm[p2 + 4:p2 + 4 + ln2])
     try:
         name1 = raw1.decode("utf-8")
     except UnicodeDecodeError:
