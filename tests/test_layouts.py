@@ -36,7 +36,7 @@ from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # n
 RECORD_MODULES = (
     "attributes", "clubrecords", "clubs_comps", "compman", "fixtures", "history", "lookups", "matches",
     "matchslots", "reference", "staging",
-    "tables.cities", "tables.currencies", "tables.names", "tables.officials", "tables.rounds", "tables.stadiums", "tables.staff"
+    "tables.cities", "tables.currencies", "tables.names", "tables.officials", "tables.player_attributes", "tables.rounds", "tables.stadiums", "tables.staff"
 )
 
 

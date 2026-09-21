@@ -17,7 +17,27 @@ from .engine import (
     walk_fixed_table,
     walk_string_catalog,
 )
+from .names import (
+    FIRST_NAMES_TABLE,
+    NAME_ID_ENTRY,
+    NAME_ID_STRIDE,
+    NICKNAMES_TABLE,
+    SURNAMES_TABLE,
+    chain_id_tables,
+    discover_id_tables,
+    locate_first_names,
+    locate_name_tables,
+    locate_nicknames,
+    locate_surnames,
+    walk_browse,
+    walk_browse_bounds,
+)
 from .officials import OFFICIAL, OFFICIAL_STRIDE, OFFICIALS_TABLE, scrape_officials
+from .player_attributes import (
+    PLAYER_ATTRIBUTES_TABLE,
+    locate_player_attributes,
+    scrape_player_attributes,
+)
 from .rounds import (
     ROUND_COUNT,
     ROUND_HEAD,
@@ -27,7 +47,13 @@ from .rounds import (
     round_names_map,
     scrape_rounds,
 )
-from .stadiums import STADIUM_HEAD, STADIUM_HEADER, scrape_stadiums
+from .stadiums import (
+    STADIUM_HEAD,
+    STADIUM_HEADER,
+    STADIUMS_CATALOG,
+    locate_stadiums,
+    scrape_stadiums,
+)
 from .staff import (
     FORMATION_SLOTS,
     HIDDEN_OFFSETS,
@@ -53,6 +79,11 @@ TABLES = {
     "cities": CITIES_TABLE,
     "staff": STAFF_TABLE,
     "currencies": CURRENCIES_CATALOG,
+    "stadiums": STADIUMS_CATALOG,
+    "surnames": SURNAMES_TABLE,
+    "first_names": FIRST_NAMES_TABLE,
+    "nicknames": NICKNAMES_TABLE,
+    "player_attributes": PLAYER_ATTRIBUTES_TABLE,
 }
 
 __all__ = [
@@ -72,4 +103,9 @@ __all__ = [
     "STAFF_TABLE",
     "CURRENCIES_CATALOG",
     "CURRENCIES_TABLE",
+    "STADIUMS_CATALOG",
+    "SURNAMES_TABLE",
+    "FIRST_NAMES_TABLE",
+    "NICKNAMES_TABLE",
+    "PLAYER_ATTRIBUTES_TABLE",
 ]

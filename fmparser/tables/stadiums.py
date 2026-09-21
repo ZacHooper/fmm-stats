@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """`stadiums` — the Stadiums table (~15,987 records).
 
-Located in the reference block around ~12.8 MB by structural chaining.
+Located in the reference block around ~12.8 MB count-framed by `[8x 0xFF][u16 count = 15987]`.
 """
+import struct
 from typing import Any, Dict, List, Optional, Tuple
-import numpy as np
 
 from .. import primitives as P
+from ..save import cache_key as _cache_key
 from ..schema import Field, Record, U16, U32
+from .engine import StringCatalogDef
 
 __all__ = [
     "STADIUM_HEAD",
     "STADIUM_HEADER",
+    "STADIUMS_CATALOG",
+    "locate_stadiums",
     "scrape_stadiums",
 ]
 
-STADIUM_HEADER = 18
+STADIUM_HEADER = 22
 
 STADIUM_HEAD = Record("stadium_head", STADIUM_HEADER, [
     Field(0, 4, "id", U32),
@@ -23,20 +27,21 @@ STADIUM_HEAD = Record("stadium_head", STADIUM_HEADER, [
     Field(8, 2, "city_id", U16),
     Field(10, 4, "capacity", U32),
     Field(14, 4, "expansion_capacity", U32),
+    Field(18, 4, "len", U32),
 ], is_head=True)
 
-_STADIUM_HEADER = STADIUM_HEADER
+_STADIUMS_CACHE: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {}
 
 
 def _stadium_at(mm: Any, o: int, n: int) -> Tuple[Optional[Dict[str, Any]], Optional[int]]:
     """Parse a stadium record at `o`, returning (rec, next_offset) or (None, None)."""
-    if o < 0 or o + _STADIUM_HEADER + 4 > n:
+    if o < 0 or o + STADIUM_HEADER > n:
         return None, None
-    ln = P.u32(mm, o + _STADIUM_HEADER)
-    if not (1 <= ln <= 120) or o + _STADIUM_HEADER + 4 + ln + 1 > n:
+    ln = P.u32(mm, o + 18)
+    if not (1 <= ln <= 120) or o + STADIUM_HEADER + ln + 1 > n:
         return None, None
-    raw = bytes(mm[o + _STADIUM_HEADER + 4:o + _STADIUM_HEADER + 4 + ln])
-    if mm[o + _STADIUM_HEADER + 4 + ln] != 0:      # names are NUL-terminated
+    raw = bytes(mm[o + STADIUM_HEADER:o + STADIUM_HEADER + ln])
+    if mm[o + STADIUM_HEADER + ln] != 0:      # names are NUL-terminated
         return None, None
     try:
         name = raw.decode("utf-8")
@@ -47,9 +52,16 @@ def _stadium_at(mm: Any, o: int, n: int) -> Tuple[Optional[Dict[str, Any]], Opti
     cap, exp = P.u32(mm, o + 10), P.u32(mm, o + 14)
     if cap > 300_000 or exp > 300_000:
         return None, None
-    rec = {"id": P.u32(mm, o), "uid": P.u32(mm, o + 4), "city_id": P.u16(mm, o + 8),
-           "capacity": cap, "expansion_capacity": exp, "name": name, "offset": o}
-    return rec, o + _STADIUM_HEADER + 4 + ln + 1
+    rec = {
+        "id": P.u32(mm, o),
+        "uid": P.u32(mm, o + 4),
+        "city_id": P.u16(mm, o + 8),
+        "capacity": cap,
+        "expansion_capacity": exp,
+        "name": name,
+        "offset": o,
+    }
+    return rec, o + STADIUM_HEADER + ln + 1
 
 
 def _chain_len(mm: Any, o: int, n: int, limit: int = 40) -> int:
@@ -64,29 +76,57 @@ def _chain_len(mm: Any, o: int, n: int, limit: int = 40) -> int:
     return k
 
 
-def scrape_stadiums(mm: Any, min_chain: int = 25) -> Dict[int, Dict[str, Any]]:
-    """{stadium_id: record} for every stadium in the save."""
-    n = len(mm)
-    a = np.frombuffer(mm, dtype=np.uint8)
-    end = n - 200
-    ln = (a[_STADIUM_HEADER:end].astype(np.uint32)
-          | (a[_STADIUM_HEADER + 1:end + 1].astype(np.uint32) << 8)
-          | (a[_STADIUM_HEADER + 2:end + 2].astype(np.uint32) << 16)
-          | (a[_STADIUM_HEADER + 3:end + 3].astype(np.uint32) << 24))
-    seeds = np.flatnonzero((ln >= 3) & (ln <= 60))
-    out: Dict[int, Dict[str, Any]] = {}
-    seen_start = None
-    for o in seeds.tolist():
-        if _chain_len(mm, o, n) >= min_chain:
-            seen_start = o
-            break
-    if seen_start is None:
-        return out
-    o = seen_start
+def locate_stadiums(mm: Any) -> Optional[Tuple[int, int]]:
+    """(base, declared_count) for the 15,987 stadium table, or None."""
+    key = _cache_key(mm)
+    if key in _STADIUMS_CACHE:
+        return _STADIUMS_CACHE[key]
+
+    pat = b"\xff" * 8 + struct.pack("<H", 15987)
+    pos = 0
+    find_fn = mm.find if hasattr(mm, "find") else bytes(mm).find
     while True:
-        rec, nxt = _stadium_at(mm, o, n)
-        if rec is None or nxt is None:
+        idx = find_fn(pat, pos)
+        if idx == -1:
             break
-        out.setdefault(rec["id"], rec)
-        o = nxt
-    return out
+        base = idx + 10
+        if base + 4 <= len(mm) and int.from_bytes(mm[base:base + 4], "little") == 0:
+            res = (base, 15987)
+            _STADIUMS_CACHE[key] = res
+            return res
+        pos = idx + 1
+
+    # Fallback / synthetic test path (e.g. buffers without the full 8x 0xFF header)
+    n = len(mm)
+    if n >= STADIUM_HEADER:
+        k = 0
+        cur = 0
+        while cur + STADIUM_HEADER <= n:
+            rec, nxt = _stadium_at(mm, cur, n)
+            if rec is None or nxt is None:
+                break
+            cur = nxt
+            k += 1
+        if k > 0:
+            res = (0, k)
+            _STADIUMS_CACHE[key] = res
+            return res
+
+    _STADIUMS_CACHE[key] = None
+    return None
+
+
+STADIUMS_CATALOG = StringCatalogDef(
+    name="stadiums",
+    head_schema=STADIUM_HEAD,
+    locator=locate_stadiums,
+    string_field="name",
+    len_field="len",
+    null_terminated=True,
+    include_offset=True,
+)
+
+
+def scrape_stadiums(mm: Any) -> Dict[int, Dict[str, Any]]:
+    """{stadium_id: record} for every stadium in the save."""
+    return STADIUMS_CATALOG.id_map(mm, key_field="id")

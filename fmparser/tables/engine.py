@@ -48,6 +48,7 @@ class StringCatalogDef:
     encoding: str = "utf-8"
     fallback_encoding: str = "latin-1"
     null_terminated: bool = True
+    max_string_len: int = 4096
     include_offset: bool = False
     post_process: Optional[Callable[[Dict[str, Any], int], Optional[Dict[str, Any]]]] = None
 
@@ -118,8 +119,12 @@ def walk_string_catalog(mm: Any, catalog_def: StringCatalogDef) -> List[Dict[str
             break
         head = RD.read(mm, catalog_def.head_schema, pos)
         slen = head.get(catalog_def.len_field, 0)
+        if not (0 <= slen <= catalog_def.max_string_len):
+            break
         rec_len = head_len + slen + term_len + trailer_len
         if pos + rec_len > n:
+            break
+        if catalog_def.null_terminated and mm[pos + head_len + slen] != 0:
             break
 
         raw_str = bytes(mm[pos + head_len:pos + head_len + slen])
@@ -173,8 +178,12 @@ def string_catalog_spans(mm: Any, catalog_def: StringCatalogDef, include_count_h
             break
         head = RD.read(mm, catalog_def.head_schema, pos)
         slen = head.get(catalog_def.len_field, 0)
+        if not (0 <= slen <= catalog_def.max_string_len):
+            break
         rec_len = head_len + slen + term_len + trailer_len
         if pos + rec_len > n:
+            break
+        if catalog_def.null_terminated and mm[pos + head_len + slen] != 0:
             break
         spans.append((pos, pos + rec_len))
         pos += rec_len

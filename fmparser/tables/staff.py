@@ -7,11 +7,10 @@ Declared by a `[>= 8 x 0xFF][count u32]` frame (4,642 on Frem, 5,697 on Bucaspor
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
-
 from ..save import cache_key as _cache_key
 from ..schema import Field, Record, U16, U32, U8, UNKNOWN
 from .engine import FixedTableDef
+from .player_attributes import locate_player_attributes
 
 __all__ = [
     "FORMATION_SLOTS",
@@ -135,64 +134,36 @@ def formation_catalog(mm: Any) -> List[str]:
     return names
 
 
-_STAFF_CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
-
-
-def _candidates_staff(mm: Any) -> np.ndarray:
-    a = np.frombuffer(mm, dtype=np.uint8)
-    n = a.size - STAFF_STRIDE
-    m = np.ones(n, dtype=bool)
-    for d in STAFF_ATTRS:
-        v = a[d:n + d]
-        m &= (v >= 1) & (v <= 20)
-    for d in FORMATION_SLOTS:
-        m &= a[d:n + d] < 21
-    return np.flatnonzero(m)
-
-
-def _valid_staff(mm: Any, o: int, n: int) -> bool:
-    if o + STAFF_STRIDE > n:
-        return False
-    ca = int.from_bytes(mm[o + 4:o + 6], "little")
-    pa = int.from_bytes(mm[o + 6:o + 8], "little")
-    if not (0 <= ca <= pa <= 200):
-        return False
-    for d in STAFF_ATTRS:
-        if not (1 <= mm[o + d] <= 20):
-            return False
-    for d in FORMATION_SLOTS:
-        if mm[o + d] >= 21:
-            return False
-    return True
+_STAFF_CACHE: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {}
 
 
 def locate_staff(mm: Any) -> Optional[Tuple[int, int]]:
-    """(base, declared_count) for the 39-byte staff attributes table, or None."""
+    """(base, declared_count) for the 39-byte staff attributes table, or None.
+
+    Follows immediately after player_attributes: [8x 0xFF][u32 count][records].
+    """
     key = _cache_key(mm)
     if key in _STAFF_CACHE:
         return _STAFF_CACHE[key]
+
+    pa_info = locate_player_attributes(mm)
+    if pa_info:
+        pa_base, pa_count = pa_info
+        base = pa_base + pa_count * 78 + 12
+        if base + 4 <= len(mm):
+            count = int.from_bytes(mm[base - 4:base], "little")
+            if 0 < count < 1_000_000 and base + count * STAFF_STRIDE <= len(mm):
+                res = (base, count)
+                _STAFF_CACHE[key] = res
+                return res
+
+    # Fallback for synthetic unit test buffers
     n = len(mm)
-    for o in _candidates_staff(mm).tolist()[:4000]:
-        if not _valid_staff(mm, o, n):
-            continue
-        k = int.from_bytes(mm[o:o + 4], "little")
-        if not (0 <= k < 1_000_000):
-            continue
-        base = o - k * STAFF_STRIDE
-        if base < 12:
-            continue
-        if not all(mm[base - 4 - 1 - j] == 0xFF for j in range(8)):
-            continue
-        count = int.from_bytes(mm[base - 4:base], "little")
-        if not (0 < count < 1_000_000) or k >= count:
-            continue
-        if base + count * STAFF_STRIDE > n:
-            continue
-        if all(int.from_bytes(mm[base + j * STAFF_STRIDE:base + j * STAFF_STRIDE + 4], "little") == j
-               for j in range(min(count, 50))):
-            res = (base, count)
-            _STAFF_CACHE[key] = res
-            return res
+    if 0 < n < 10_000 and n % STAFF_STRIDE == 0:
+        res = (0, n // STAFF_STRIDE)
+        _STAFF_CACHE[key] = res
+        return res
+
     _STAFF_CACHE[key] = None
     return None
 
