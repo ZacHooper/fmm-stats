@@ -173,7 +173,7 @@ def main():
     os.environ.setdefault("FM_DUCKDB_READONLY", "1")
 
     from dashboard import db
-    from fmparser.attributes import ATTR_ORDER
+    from fmparser.model import ATTR_ORDER
     from fmparser.mart import GK_ONLY_ATTRS
 
     asc = _load_asc()

@@ -28,8 +28,9 @@ from collections import Counter
 
 from fmparser.save import Save
 from fmparser import matches as M
-from fmparser import player_attributes as A
+from fmparser import model as MOD
 from fmparser import reference as R
+from fmparser import squad as SQ
 from fmparser import staging as S
 from fmparser import tagged as T
 from fmparser import fixtures as FIX
@@ -39,7 +40,7 @@ from fmparser import history as H
 from fmparser import injuries as INJ
 from fmparser import lookups as LKP
 from fmparser import clubrecords as CRE
-from fmparser.tables import cities, staff as ST, stadiums
+from fmparser.tables import cities, player_attributes as PA, staff as ST, stadiums
 
 
 def _period(month):
@@ -95,11 +96,11 @@ TAIL_FIELDS = ("current_reputation", "world_reputation", "international_retired"
                "squad_number", "preferred_squad_number", "height_cm", "weight_kg")
 # The 9 unnamed 1-20 attribute bytes (attributes.HIDDEN_OFFSETS). Carried, not named --
 # every identity-only row has to fill them too, or the CSV header and the rows disagree.
-HIDDEN_FIELDS = tuple(A.HIDDEN_OFFSETS.values())
+HIDDEN_FIELDS = tuple(PA.HIDDEN_OFFSETS.values())
 # The entangled 0-255 source bytes, carried RAW so the estimation model can be
 # retrained against the store instead of a 25-minute re-extract. See
 # attributes.SRC_OFFSETS: scraping and inference are different jobs.
-SRC_FIELDS = tuple(A.SRC_OFFSETS.values()) + tuple(A.PLAIN_OFFSETS.values())
+SRC_FIELDS = tuple(PA.SRC_OFFSETS.values()) + tuple(PA.PLAIN_OFFSETS.values())
 
 
 def parse_label(label):
@@ -122,7 +123,7 @@ def parse_label(label):
     raise ValueError(f"unrecognised label {label!r}")
 
 
-def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
+def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     """Whole-DB player rows via staging + join. Returns (players, club_names).
     `info` is the shared player-info spine ({tid: identity}) scraped once in main().
     `markers` are the managed club's squad markers (careers.Career.squad_markers): the
@@ -144,7 +145,7 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
     contracts = S.scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
     # names + exact attributes for the managed squad (snapshot), incl. loaned-IN players
-    bounds = A.squad_snapshot_bounds(mm, markers)
+    bounds = SQ.squad_snapshot_bounds(mm, markers)
     club_of_marker = {m: int.from_bytes(m[:2], "little") for m in markers}
     managed_tid = club_of_marker[markers[0]]             # the first team
 
@@ -175,18 +176,15 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
 
     per_tid = {}
     for m in markers:
-        for tid, v in A.own_squad_full(mm, *bounds, marker=m).items():
+        for tid, v in SQ.own_squad_full(mm, *bounds, marker=m).items():
             per_tid.setdefault(tid, {})[m] = v
     own, own_marker = {}, {}
     for tid, per in per_tid.items():
         own_marker[tid], own[tid] = _pick(per, tid)
     own_names = {t: v["name"] for t, v in own.items()}
 
-    # whole-DB name resolver: first/last name ids -> strings. Orient first-vs-surname
-    # tables against the managed squad (we already have their snapshot names).
-    validate = [(info[t]["first_name_id"], info[t]["last_name_id"], own_names[t])
-                for t in own_names if t in info and own_names[t]]
-    R.build_name_resolver(mm, validate=validate)
+    # whole-DB name resolver: first/last name ids -> strings.
+    R.build_name_resolver(mm)
 
     def full_name(tid, p):
         # Order matters. `own_names` is the managed squad's names straight off the squad
@@ -233,12 +231,12 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
             # [club][0xffff] — see attributes.loan_marker(). Try it first: a loanee never
             # appears under our own club markers, so the fallback below would just spend a
             # full scan finding nothing before we get here anyway.
-            r = A.attr_record(mm, tid, bounds=bounds,
-                              marker=A.loan_marker(managed_tid, li["parent_club_tid"]))
+            r = SQ.attr_record(mm, tid, bounds=bounds,
+                               marker=SQ.loan_marker(managed_tid, li["parent_club_tid"]))
         if r is None:
-            _, r = _pick(A.attr_records(mm, tid, bounds=bounds, markers=markers), tid, strict=True)
+            _, r = _pick(SQ.attr_records(mm, tid, bounds=bounds, markers=markers), tid, strict=True)
         if r:
-            own_exact[tid] = {"attrs": A.decode(r["attrs"]),
+            own_exact[tid] = {"attrs": SQ.decode_confirmed_attributes(r["attrs"]),
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
                               "value": r["value"]}
 
@@ -346,8 +344,8 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
             for k in TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS:
                 row[k] = rec[k]
             if tid in own_exact:           # own squad: exact snapshot attributes
-                row["attributes"] = {a: own_exact[tid]["attrs"][a] for a in A.ATTR_ORDER}
-                row["estimated"] = {a: False for a in A.ATTR_ORDER}
+                row["attributes"] = {a: own_exact[tid]["attrs"][a] for a in MOD.ATTR_ORDER}
+                row["estimated"] = {a: False for a in MOD.ATTR_ORDER}
                 row["feet"] = own_exact[tid]["feet"]
                 row["value"] = own_exact[tid]["value"]
             else:
@@ -356,10 +354,10 @@ def build_database(mm, season, info, markers=(A.CLUB_MARKER,)):
                 # staging.player_attributes is a view over these exact values plus
                 # staging.attribute_model. Estimating here is what used to make retraining the
                 # model cost a full re-extract of every save.
-                row["attributes"] = {a: (rec["attributes"][a] if a in A.EXACT_SINGLE else None)
-                                     for a in A.ATTR_ORDER}
-                row["estimated"] = {a: a not in A.EXACT_SINGLE and a != "Teamwork"
-                                    for a in A.ATTR_ORDER}
+                row["attributes"] = {a: (rec["attributes"][a] if a in MOD.EXACT_SINGLE else None)
+                                     for a in MOD.ATTR_ORDER}
+                row["estimated"] = {a: a not in MOD.EXACT_SINGLE and a != "Teamwork"
+                                    for a in MOD.ATTR_ORDER}
                 row["feet"] = rec["feet"]
         else:                              # identity only (free agents / no record)
             row.update({"is_gk": None, "ca": None, "pa": None, "reputation": None,
@@ -433,7 +431,7 @@ def write_players_csv(path, players):
         w = csv.writer(f)
         w.writerow(["tid", "name", "club", "club_tid", "loan", "league", "league_cid",
                     "GK", "CA", "PA", "rep", "dob", "nat", "positions"]
-                   + list(TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS) + A.ATTR_ORDER)
+                   + list(TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS) + MOD.ATTR_ORDER)
         # attributed players first (by CA desc), then identity-only rows
         def sortkey(p):
             return (0 if p["has_attributes"] else 1, -(p["ca"] or 0), p["tid"])
@@ -448,7 +446,7 @@ def write_players_csv(path, players):
                         p["reputation"] or "", p["dob"] or "", p["nationality_id"], pos]
                        + [("" if p.get(k) is None else p[k])
                           for k in TAIL_FIELDS + HIDDEN_FIELDS]
-                       + [attr.get(a, "") for a in A.ATTR_ORDER])
+                       + [attr.get(a, "") for a in MOD.ATTR_ORDER])
 
 
 def write_match_stats_csv(path, rows):

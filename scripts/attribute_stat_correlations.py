@@ -38,7 +38,7 @@ POS_GROUP = {"GK": "GK",
 
 # All 23. The five keeper attributes are included so the GK unit can be measured, and they are
 # suppressed automatically wherever they carry no spread — see MIN_SD.
-from fmparser.attributes import ATTR_ORDER as ATTRS                            # noqa: E402
+from fmparser.model import ATTR_ORDER as ATTRS                            # noqa: E402
 
 # A predictor with almost no variance does not yield a reassuring zero: one stray value drives
 # the coefficient. Measured within outfield units, the 18 real attributes run sd 1.85-3.64 while

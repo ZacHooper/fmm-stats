@@ -13,8 +13,8 @@ import argparse, math, os, sys
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.getcwd())
-from fmparser.attributes import (ATTR_ORDER, SRC_OFFSETS, PLAIN_OFFSETS,      # noqa: E402
-                                 HIDDEN_OFFSETS, EXACT_SINGLE, teamwork, aerial)
+from fmparser.model import ATTR_ORDER                                       # noqa: E402
+from fmparser.tables.player_attributes import (SRC_OFFSETS, PLAIN_OFFSETS)     # noqa: E402
 from fmparser import model as MOD                                             # noqa: E402
 
 COLS = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}

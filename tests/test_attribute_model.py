@@ -26,9 +26,13 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser import model as MOD                                   # noqa: E402
-from fmparser import player_attributes as A                                # noqa: E402
-from fmparser.player_attributes import (ATTR_ORDER, SRC_OFFSETS, PLAIN_OFFSETS,  # noqa: E402
-                                  HIDDEN_OFFSETS, EXACT_SINGLE)
+from fmparser import model as A                                # noqa: E402
+from fmparser.model import ATTR_ORDER, EXACT_SINGLE
+from fmparser.tables.player_attributes import (  # noqa: E402
+    HIDDEN_OFFSETS,
+    PLAIN_OFFSETS,
+    SRC_OFFSETS,
+)
 
 COLS = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}
 MEAN9 = ["heading_src", "unselfishness_src", "pace_src", "strength_src", "stamina_src",

@@ -864,34 +864,18 @@ _NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname, base
 
 
 def build_name_resolver(mm, validate=None):
-    """Discover the name tables for `mm` and cache them. `validate` is an optional list of
-    (first_name_id, last_name_id, expected_full_name) — normally the managed squad, whose
-    names we already have from the snapshot — used to orient which id-table is first names
-    vs surnames (falls back to size: the larger table is surnames)."""
+    """Discover the name tables for `mm` and cache them."""
     browse = _walk_browse(mm)
     tabs = _discover_id_tables(mm, len(browse))
     if len(tabs) < 2:
         _NAME_TABLES[_cache_key(mm)] = (browse, None, None, None)
         return False
-    # By SIZE for the two name tables, because that is what the orientation heuristic below
-    # has always keyed on. The COMMON NAME table is whatever is left over -- it is the
-    # smallest by a wide margin (9,480 against 19,128 and 32,148) and last in the chain.
+    # By sequence/size: Table 1 (largest) is surnames, Table 2 is first names,
+    # Table 3 (smallest) is common names / nicknames.
     by_size = sorted((c, b) for b, c in tabs)
-    big, small = by_size[-1][1], by_size[-2][1]
+    base_sur = by_size[-1][1]
+    base_first = by_size[-2][1]
     base_common = by_size[0][1] if len(tabs) > 2 else None
-    base_sur, base_first = big, small           # heuristic: more surnames than first names
-    if validate:
-        def score(bf, bs):
-            ok = 0
-            for fid, lid, exp in validate:
-                try:
-                    if f"{browse[_u32(mm, bf + fid * 16)]} {browse[_u32(mm, bs + lid * 16)]}" == exp:
-                        ok += 1
-                except IndexError:
-                    pass
-            return ok
-        if score(big, small) > score(small, big):
-            base_first, base_sur = big, small   # swap only if that orientation fits better
     _NAME_TABLES[_cache_key(mm)] = (browse, base_first, base_sur, base_common)
     return True
 

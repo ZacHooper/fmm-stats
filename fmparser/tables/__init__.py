@@ -36,6 +36,7 @@ from .officials import OFFICIAL, OFFICIAL_STRIDE, OFFICIALS_TABLE, scrape_offici
 from .player_attributes import (
     PLAYER_ATTRIBUTES_TABLE,
     locate_player_attributes,
+    record_for,
     scrape_player_attributes,
 )
 from .rounds import (
@@ -108,4 +109,5 @@ __all__ = [
     "FIRST_NAMES_TABLE",
     "NICKNAMES_TABLE",
     "PLAYER_ATTRIBUTES_TABLE",
+    "record_for",
 ]

@@ -173,9 +173,9 @@ def claims(mm, n):
     # window here would have reported 0.9 MB as covered on every career whose snapshot is
     # somewhere else.
     try:
-        from fmparser import player_attributes as _A
+        from fmparser import squad as _SQ
         from fmparser import careers as _C
-        s_lo, s_hi = _A.squad_snapshot_bounds(mm, _C.resolve_career().squad_markers)
+        s_lo, s_hi = _SQ.squad_snapshot_bounds(mm, _C.resolve_career().squad_markers)
         declared("attributes.snapshot", s_lo, s_hi)
     except Exception as exc:
         print(f"  ! squad snapshot not located: {exc}", file=sys.stderr)

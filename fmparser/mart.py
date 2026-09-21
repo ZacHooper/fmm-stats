@@ -52,7 +52,7 @@ Spell overlap semantics:
 """
 from __future__ import annotations
 
-from fmparser.attributes import ATTR_ORDER
+from .model import ATTR_ORDER
 
 # Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
 # out by role; the engine still stores all 23 for everyone, but the ones the role does not

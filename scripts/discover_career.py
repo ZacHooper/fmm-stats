@@ -20,7 +20,7 @@ from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fmparser.save import Save          # noqa: E402
-from fmparser import player_attributes as A     # noqa: E402
+from fmparser import squad as A     # noqa: E402
 from fmparser import reference as R       # noqa: E402
 
 
