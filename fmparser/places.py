@@ -22,38 +22,8 @@ import numpy as np
 
 from . import primitives as P
 from . import records as RD
-from .schema import F32, Field, Record, U8, U16, U32, UNKNOWN
-
-# Stadium: [Id u32][Uid u32][CityId u16][Capacity u32][Expansion u32][len u32][name][00]
-_STADIUM_HEADER = 18
-
-# DECLARATION ONLY -- the record is variable-length (a length-prefixed name follows), so this
-# is the fixed head and `is_head=True` says so. Nothing walks it: stadiums are a SEEDED CHAIN
-# (shape E), located by a record's length field landing exactly on the next record.
-# `scrape_stadiums` still reads the head itself, because it has to interleave the reads with
-# the plausibility tests that decide whether this IS a record -- those tests are locating, and
-# locating stays out of the layout.
-STADIUM_HEAD = Record("stadium_head", _STADIUM_HEADER, (
-    Field(0,  4, "id", U32),
-    Field(4,  4, "uid", U32),
-    Field(8,  2, "city_id", U16),
-    Field(10, 4, "capacity", U32),
-    Field(14, 4, "expansion_capacity", U32),
-), is_head=True)
-# City is fixed-width, and unlike the stadium record it is fully declared. Layout from
-# fmm-editor's FMM26 `City`; ids 51 and 58 are Aalborg and Copenhagen to four decimal places.
-CITY_RECORD = 20
-
-CITY = Record("city", CITY_RECORD, [
-    Field(0,  2, "id",         U16, note="== the slot index; that is what bounds the walk"),
-    Field(2,  4, "uid",        U32),
-    Field(6,  2, "nation_id",  U16, note="0 on 31 real cities with good coordinates"),
-    Field(8,  4, "latitude",   F32),
-    Field(12, 4, "longitude",  F32),
-    Field(16, 1, "attraction", U8),
-    Field(17, 2, "region_id",  U16),
-    Field(19, 1, UNKNOWN,      U8),
-])
+from .schemas.places import CITY, CITY_RECORD, STADIUM_HEAD, STADIUM_HEADER
+_STADIUM_HEADER = STADIUM_HEADER
 
 _LAT_RANGE = (-60.0, 80.0)
 _LON_RANGE = (-180.0, 180.0)
@@ -67,7 +37,7 @@ def _stadium_at(mm, o, n):
     ln = P.u32(mm, o + _STADIUM_HEADER)
     if not (1 <= ln <= 120) or o + _STADIUM_HEADER + 4 + ln + 1 > n:
         return None, None
-    raw = mm[o + _STADIUM_HEADER + 4:o + _STADIUM_HEADER + 4 + ln]
+    raw = bytes(mm[o + _STADIUM_HEADER + 4:o + _STADIUM_HEADER + 4 + ln])
     if mm[o + _STADIUM_HEADER + 4 + ln] != 0:      # names are NUL-terminated
         return None, None
     try:
