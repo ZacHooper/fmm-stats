@@ -51,6 +51,7 @@ from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402
 from fmparser import staging as S             # noqa: E402
 from fmparser import fixtures as FX           # noqa: E402
+from fmparser import compman as CM            # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +143,9 @@ LAYOUTS = {
     # place, which is the honest statement of where that record stands: the goals block and
     # the round counter are deliberately unread, not overlooked.
     "world_fixture": _from_record(FX.FIXTURE),
+    "comp_man_header": _from_record(CM.HEADER),
+    "comp_man_stage": _from_record(CM.STAGE),
+    "comp_man_honour": _from_record(CM.HONOUR),
 }
 
 

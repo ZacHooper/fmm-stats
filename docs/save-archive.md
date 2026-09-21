@@ -106,7 +106,7 @@ decompressed bytes, measured on four saves:
 | member | 2021 | 2023 | 2026 | Bucaspor | what is established |
 |---|---|---|---|---|---|
 | **`fix_man`** | 1.00 MB | 2.95 MB | 2.52 MB | 2.77 MB | **the fixture list with scores** — see below |
-| `comp_man` | 194 KB | 211 KB | 232 KB | 212 KB | unexamined |
+| `comp_man` | 194 KB | 211 KB | 232 KB | 212 KB | **the master competition stages calendar & roll of honour** — see below |
 | `stadium` | 132 KB | 134 KB | 133 KB | 134 KB | opens `[u16 3][u32 15984]` then 8-byte pairs; 15,984 is one short of the reference stadium table's declared 15,987. Unexamined beyond that |
 | `comp_hosts` | 22 KB | 25 KB | 31 KB | 25 KB | unexamined |
 | `friend_man` | 23 KB | 15 KB | 17 KB | 25 KB | unexamined; friendlies |
@@ -122,6 +122,36 @@ The 147 `comp_<id>.dat` ids are **not our `cid` space**: they run `1, 2, 6, 7, 8
 … 2000099928`, and `reference.comp_refs` resolves exactly **1 of 147**. The tagged data
 dictionary's `DBID` values overlap 54 of them and its `comp` values 92, so a mapping
 probably exists but **none is established here** — treat the id as opaque until it is.
+
+## `comp_man.dat` — master stages calendar and roll of honour
+
+Decoded 2026-09-21. A prior investigation reported "stride 78, exact tiling coincidence; record 133
+lands mid-way through tagged tags `mmus`/`solc`". Both halves of that reading were misunderstandings:
+`comp_man.dat` **is a strict 78-byte grid preceded by a 36-byte header and followed by an auxiliary tail**:
+
+1. **36-byte Header:** byte `+10` is a `u32` declaring the exact count of 78-byte records
+   (`n_stages` = 2,157 on day one `frem-2021-07-01`, 2,316 on `frem-2026-06-11`, 2,181 on
+   `frem-2026-07-02`, 2,269 on `bucaspor-2023-05-20`).
+2. **78-byte Stage Calendar Grid:** runs from offset 36 to `36 + n_stages * 78` (e.g. byte 180,684
+   on 2026). Record index `k` in this grid corresponds directly to `stage_key == k` in `fix_man.dat`.
+   `mmus` (`summ`) and `solc` (`clos`) in record 133 are not stray tagged dictionary fields —
+   record 133 is the **Superliga Championship Split**, and those are 4-byte FourCC status tags sitting
+   at bytes `+70` and `+74` of the 78-byte record.
+   - `+46/+48`: validity year bounds (u16)
+   - `+58`: format mode (1=league/group, 2/4=knockout)
+   - `+64`: default kickoff time (e.g. 1500 for 3pm, 1930 for 7:30pm)
+   - `+66`: calendar scheduling week `0..60` across the season (August to May)
+   - `+70`: team/match capacity or FourCC
+   - `+74`: scheduling priority / leg ordinal or FourCC
+3. **Auxiliary Tail (~25 KB – 54 KB):**
+   - **Part 1 (0..29,850 B):** 1,152 tournament scheduling blocks (`[u32 count][u32 id, u16 year] * count`).
+   - **Part 2 (29,850..51,740 B):** **The 55-byte Roll of Honour Grid** (398 records on 2026).
+     Every completed competition season has a 55-byte record carrying the true `comp_cid`:
+     `[u16 start][u16 end][u16 format][u16 base 1900][u32 comp_cid][u32 season][u32 winner_tid][u32 runner_up_tid][u32 third_place_tid][u32 fourth_place_tid]`.
+     Verified: Premier Division (`cid 5`, 2025 winner Chelsea 431, runner-up Liverpool 471, 3rd Man City 473);
+     FA Cup (`cid 275`, 2025 winner Liverpool 471, runner-up Tottenham 518).
+
+Parsed by `fmparser/compman.py` (`HEADER`, `STAGE`, `HONOUR`).
 
 ## `fix_man.dat` — the fixture list, and exactly how far it is decoded
 
@@ -157,13 +187,25 @@ Offsets are from the record's first byte (the `[u8][0x14]` opener):
 
 | offset | field | evidence |
 |---|---|---|
-| +41 | **home club tid**, u32 | 282/285 |
+| +6 | **home goals**, u8 | match goals (0xFF = unplayed) |
+| +7 | **home extra goals**, u8 | extra time / aggregate goals (0xFF = none) |
+| +8 | **home penalties**, u8 | penalty shoot-out score (0xFF = none; e.g. Leicester v Liverpool 23 Sep 2025: 0-0 pens 2-3) |
+| +11 | **away goals**, u8 | match goals (0xFF = unplayed) |
+| +12 | **away extra goals**, u8 | extra time / aggregate goals (0xFF = none) |
+| +13 | **away penalties**, u8 | penalty shoot-out score (0xFF = none) |
+| +31 | **stage key**, u32 | index into `comp_man.dat`'s 78-byte stage calendar grid (409 distinct values on 2026) |
+| +35 | **seq_id**, u16 | per-fixture sequence id within stage |
+| +41 | **home club tid**, u32 | 282/285 against ground truth; HOME-FIRST |
 | +47 | **away club tid**, u32 | 282/285 |
-| +53 | **day of year = `u16 & 0x1FF`** | `& 0x1FF` never exceeds 366 in 26,954 records, twice over; a random 9-bit mask would overflow ~29% of the time |
+| +53 | **day of year = `u16 & 0x1FF`** | `& 0x1FF` never exceeds 366 in 26,954 records, twice over; 1-indexed (see `fixtures.DAY_BASE`) |
 | +55 | **year**, u16 | 2025 / 2026 only on a 2026 save |
-| +6 | home goals, u8 | 282/285 — **but see the caveat** |
-| +11 | away goals, u8 | 282/285 — **but see the caveat** |
-| +78 | a round / matchday counter, u32 | sequential 0,1,2… within a competition. Not verified |
+| +57 | **day2**, u16 | secondary date day-of-year |
+| +59 | **year2**, u16 | secondary date year |
+| +66 | **season_year**, u16 | season year (2024/2025; 0 on unplayed/friendlies) |
+| +76 | **stage_index**, u8 | stage index within competition (corresponds to `stgs` in `comp_<id>.dat`) |
+| +77 | **round_index**, u8 | round index within stage (corresponds to `rnds` in `comp_<id>.dat`) |
+| +78 | **round**, u8 | matchday counter WITHIN competition; 255 = none / friendly |
+| +83 | **subr**, u8 | stage classification (corresponds to `subr` in `comp_<id>.dat`) |
 
 **Ground truth**: every `mart.club_matches` row for the managed club, in both careers, on
 five saves. **CORRECTED 2026-09-21: the date needs a `-1`** — the day-of-year field is
@@ -172,7 +214,7 @@ original check joined rows ON the date, which cannot expose a uniform shift; re-
 (opponent, score) instead shows 51/51 and 60/60 rows needing exactly -1 across both careers.
 The counts below stand; the dates behind them did not until `fixtures.DAY_BASE` landed.
 
-five saves. **282 of 285 in-window rows match exactly on date, home tid, away tid and both
+On those same five saves, **282 of 285 in-window rows match exactly on date, home tid, away tid and both
 scores; 3 disagree, all on the score only; 0 disagree on clubs or date.** Rows outside the
 window are simply absent — on frem-2026-06-11, **51/51** of our 2025 and 2026 matches are
 present and **0/143** of 2021-2024 are, which is what the two-year year field already says.
@@ -181,22 +223,14 @@ present and **0/143** of 2021-2024 are, which is what the two-year year field al
 gets the orientation wrong on one of every repeated club pair (3/3 measured). This one got
 venue right on all 282.
 
-### Why the scores are NOT a finished decode
+### The goals block (`+2..+15`) decoded
 
-`+6` and `+11` are not fixed fields. The ten bytes after the opener are a **variable-shape
-block**, and the one Frem mismatch shows it directly:
+The goals block carries normal goals, extra time/aggregate goals, and penalty shootouts:
+- Plain matches (97.9%): `+6` and `+11` hold the full score; `+7/+8` and `+12/+13` read `0xFF`.
+- Penalty shootouts: regular score at `+6/+11`, penalty shootout scores at `+8/+13` (verified against Leicester 0-0 Liverpool on 2025-09-23: `+8=2`, `+13=3`).
+- Two-legged ties / extra time: extra goals read at `+7/+12`.
 
-```
-plain (works):  01 14 ff ff ff ff  02 ff ff ff ff  01 ff ff ff ff   -> 2-1
-Frem 2023-02-22: 01 14 ff ff ff ff  00 00 ff 00 ff  00 01 ff 01 ff  -> reads 0-0, store says 0-1
-```
-
-So `+6/+11` is a reading that happens to be right whenever the block takes its plain shape.
-**Do not ship it as a field** until the block's shape rule is understood — most likely it
-carries extra time / penalties / aggregate. The other two mismatches are the *same*
-Bucaspor fixture (2023-02-04, Bucaspor 6567 v 6378) on two different saves, where the
-record takes the plain shape and reads 2-1 while the store reads 1-1. **That one needs a
-screenshot**: neither side is ground truth, since the store's score is itself parsed.
+Parsed by `fmparser/fixtures.py` (`FIXTURE`).
 
 ### What is NOT established about `fix_man`
 - **No competition field is identified.** Every fixture's competition is still unknown from

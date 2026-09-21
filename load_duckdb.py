@@ -593,6 +593,19 @@ DDL = [
         scoreH INTEGER, scoreA INTEGER, competition VARCHAR, copies INTEGER
     )""",
 
+    # natural key: (season, phase, home_tid, away_tid, date)
+    """CREATE TABLE IF NOT EXISTS staging.world_fixtures (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        home_tid INTEGER NOT NULL, away_tid INTEGER NOT NULL,
+        date DATE NOT NULL, year INTEGER NOT NULL,
+        round INTEGER,
+        home_goals INTEGER, away_goals INTEGER,
+        home_pens INTEGER, away_pens INTEGER,
+        stage_key INTEGER, seq_id INTEGER,
+        season_year INTEGER,
+        stage_index INTEGER, round_index INTEGER, subr INTEGER
+    )""",
+
     # natural key: (season, phase, tid, position). Long form of players.positions —
     # every position a player can play (14 FM codes) with familiarity 1..20.
     """CREATE TABLE IF NOT EXISTS staging.player_positions (
@@ -837,7 +850,7 @@ VIEWS["v_player_rating_ranks"] = """
 """
 
 # tables each group owns, and the DELETE scope for idempotent reload
-GROUPS = ("core", "light", "standings")
+GROUPS = ("core", "light", "standings", "world")
 
 
 # ---------------------------------------------------------------------------
@@ -1411,6 +1424,29 @@ def load_standings(con, d, season, phase):
     return {"standings": _insert(con, "standings", cols, rows)}
 
 
+def load_world(con, d, season, phase):
+    path = os.path.join(d, "world_fixtures.json")
+    if not os.path.exists(path):
+        return {}
+    data = _load_json(path)
+    if not data:
+        return {}
+    cols = ["season", "phase", "home_tid", "away_tid", "date", "year", "round",
+            "home_goals", "away_goals", "home_pens", "away_pens",
+            "stage_key", "seq_id", "season_year", "stage_index", "round_index", "subr"]
+    rows = []
+    for r in data:
+        rows.append((
+            season, phase,
+            _int(r["home_tid"]), _int(r["away_tid"]), _date(r["date"]), _int(r["year"]), _int(r.get("round")),
+            _int(r.get("home_goals")), _int(r.get("away_goals")),
+            _int(r.get("home_pens")), _int(r.get("away_pens")),
+            _int(r.get("stage_key")), _int(r.get("seq_id")), _int(r.get("season_year")),
+            _int(r.get("stage_index")), _int(r.get("round_index")), _int(r.get("subr"))
+        ))
+    return {"world_fixtures": _insert(con, "world_fixtures", cols, rows)}
+
+
 # DELETE scope so a reload of one group leaves the others intact
 def _clear_group(con, group, season, phase):
     if group == "core":
@@ -1430,9 +1466,11 @@ def _clear_group(con, group, season, phase):
     elif group == "standings":
         _delete(con, "standings", season, phase,
                 "AND source='lightresults_computed'")
+    elif group == "world":
+        _delete(con, "world_fixtures", season, phase)
 
 
-_GROUP_FN = {"core": load_core, "light": load_light, "standings": load_standings}
+_GROUP_FN = {"core": load_core, "light": load_light, "standings": load_standings, "world": load_world}
 
 
 def _archive_snapshot(con, season, phase, label, snap_date):
@@ -1476,6 +1514,8 @@ def _detect_groups(d):
         present.append("light")
     if os.path.isdir(os.path.join(ld, "standings")):
         present.append("standings")
+    if os.path.exists(os.path.join(d, "world_fixtures.json")):
+        present.append("world")
     return present
 
 
@@ -1647,6 +1687,17 @@ _MIGRATIONS = [
     # --refresh-only adds the columns as NULL and a backfill needs a full re-extract.
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS current_reputation INTEGER",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS world_reputation INTEGER",
+    """CREATE TABLE IF NOT EXISTS staging.world_fixtures (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        home_tid INTEGER NOT NULL, away_tid INTEGER NOT NULL,
+        date DATE NOT NULL, year INTEGER NOT NULL,
+        round INTEGER,
+        home_goals INTEGER, away_goals INTEGER,
+        home_pens INTEGER, away_pens INTEGER,
+        stage_key INTEGER, seq_id INTEGER,
+        season_year INTEGER,
+        stage_index INTEGER, round_index INTEGER, subr INTEGER
+    )""",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS international_retired BOOLEAN",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS squad_number INTEGER",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS preferred_squad_number INTEGER",
