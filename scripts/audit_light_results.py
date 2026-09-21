@@ -41,7 +41,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import lightresults as L          # noqa: E402
-from fmparser import staging as S               # noqa: E402
+from fmparser.tables.person_info import NO_CLUB, scrape_person_info  # noqa: E402
 from fmparser.save import Save                  # noqa: E402
 
 TRUTH_PATH = os.path.join(ROOT, "tests", "fixtures", "light_results_truth.json")
@@ -314,9 +314,9 @@ def main():
 
     mm = Save(args.save).mm
     print(f"auditing {os.path.basename(args.save)}  ({len(mm)/1e6:.1f} MB)")
-    info = S.scrape_players(mm)
+    info = scrape_person_info(mm)
     valid = {v["club_tid"] for v in info.values()
-             if v.get("club_tid") and v["club_tid"] != S.NO_CLUB}
+             if v.get("club_tid") and v["club_tid"] != NO_CLUB}
     truth = load_truth()
 
     hits, tot = truth_scorecard(mm, valid, truth)

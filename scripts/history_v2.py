@@ -20,7 +20,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fmparser import history as H          # noqa: E402
-from fmparser import staging as S          # noqa: E402
+from fmparser.tables.person_info import scrape_person_info  # noqa: E402
+from fmparser.tables.player_attributes import scrape_player_attributes  # noqa: E402
 
 
 def club_names(db):
@@ -53,7 +54,7 @@ def main():
         names = club_names(a.db)
         head = a.chain
         if head is None:
-            info, attrs = S.scrape_players(mm), S.scrape_attributes(mm)
+            info, attrs = scrape_person_info(mm), scrape_player_attributes(mm)
             head = H.head_index(mm, info, attrs).get(a.player)
             if head is None or head >= table.rows:
                 print(f"  tid {a.player}: no history"); return

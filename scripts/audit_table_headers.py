@@ -41,7 +41,13 @@ from fmparser import lookups as LK                   # noqa: E402
 from fmparser.tables import cities, stadiums         # noqa: E402
 from fmparser import reference as R                  # noqa: E402
 from fmparser.tables import staff as ST              # noqa: E402
-from fmparser import staging as S                    # noqa: E402
+from fmparser.tables.person_info import (
+    DOB_YEAR_HI as _DOB_YEAR_HI,
+    DOB_YEAR_LO as _DOB_YEAR_LO,
+    NO_NICKNAME as _NO_NICKNAME,
+    scrape_person_info as _scrape_players,
+)                                                    # noqa: E402
+from fmparser.tables.player_attributes import scrape_player_attributes as _scrape_attributes  # noqa: E402
 
 HEADER_BACK = 128          # how far behind record 0 to look for a count
 MIN_UNDECLARED = 200       # count floor for t_undeclared; below it the exact-division
@@ -241,7 +247,7 @@ def t_name_id_tables(mm):
 def t_player_attributes(mm):
     """78B grid. The scraper reports `P` (the positions block); the record STARTS at the sid,
     P-42 -- see `scripts/audit_records.py`'s player_attribute layout."""
-    attrs = S.scrape_attributes(mm)
+    attrs = _scrape_attributes(mm)
     if not attrs:
         return None
     return Table("player_attributes", min(r["P"] for r in attrs.values()) - 42,
@@ -279,7 +285,7 @@ def t_info_spine(mm, info):
     first = None
     i = 0
     while True:
-        j = mm.find(S.NO_NICKNAME, i)
+        j = mm.find(_NO_NICKNAME, i)
         if j == -1:
             break
         i = j + 1
@@ -287,7 +293,7 @@ def t_info_spine(mm, info):
         if base < 0:
             continue
         year = _u(mm, base + 22, 2)
-        if not (S.DOB_YEAR_LO <= year <= S.DOB_YEAR_HI):
+        if not (_DOB_YEAR_LO <= year <= _DOB_YEAR_HI):
             continue
         tid = _u(mm, base, 4)
         if not (100 < tid < 70000) or _u(mm, base + 20, 2) > 366:
@@ -344,7 +350,7 @@ def t_undeclared(mm):
 
 def tables(mm):
     out = []
-    info = S.scrape_players(mm)
+    info = _scrape_players(mm)
     for fn in (t_competitions, t_history, t_cities, t_stadiums, t_nations, t_languages,
                t_currencies, t_browse_names, t_player_attributes):
         try:

@@ -49,7 +49,9 @@ from fmparser import reference as R           # noqa: E402
 from fmparser import clubrecords as CR        # noqa: E402
 from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402
-from fmparser import staging as S             # noqa: E402
+from fmparser.tables.contracts import CONTRACT_DETAIL, CONTRACT_STATUS  # noqa: E402
+from fmparser.tables.person_info import INFO_LAYOUT, scrape_person_info   # noqa: E402
+from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402
 from fmparser import fixtures as FX           # noqa: E402
 from fmparser import compman as CM            # noqa: E402
 
@@ -83,7 +85,7 @@ LAYOUTS = {
     "player_attribute": _from_record(A.PLAYER),
     # NOT a stride -- the info record is variable-length; this is the fixed head we decode,
     # which is what `Record(is_head=True)` declares.
-    "info_head": _from_record(S.INFO_LAYOUT),
+    "info_head": _from_record(INFO_LAYOUT),
     "staff_attribute": _from_record(ST.STAFF),
     # NEW to the audit. This record was read by `matches.decode_block` and audited by
     # nothing -- 29 of its 54 bytes named, the other 25 neither named nor declared, and no
@@ -104,8 +106,8 @@ LAYOUTS = {
     # Both contract records: found by KEY SEARCH, so neither has a stride and the span is
     # what we read rather than what the record is. The status record's 29 unnamed middle
     # bytes become visible here for the first time.
-    "contract_status": _from_record(S.CONTRACT_STATUS),
-    "contract_detail": _from_record(S.CONTRACT_DETAIL),
+    "contract_status": _from_record(CONTRACT_STATUS),
+    "contract_detail": _from_record(CONTRACT_DETAIL),
     # The three SEEDED-CHAIN tables (shape E): variable-length records with no count and no
     # index, so each contributes a fixed head and a fixed tail rather than a stride. None of
     # these was in the audit before, which is why the fixed parts were only ever described in
@@ -245,10 +247,10 @@ def main():
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 
         print("measured against the save:")
-        attrs = S.scrape_attributes(mm)
-        ok &= _stride("player_attribute", [r["P"] for r in attrs.values()], 78)
-
-        info = S.scrape_players(mm)
+        attrs = scrape_player_attributes(mm)
+        ok &= _stride("player_attribute", [v["offset"] for v in attrs.values()], A.PLAYER_RECORD)
+        # info_head has no stride to check: variable-length records, only the head is declared
+        info = scrape_person_info(mm)
         sa = ST.scrape_staff_attributes(
             mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
         ok &= _stride("staff_attribute", [r["offset"] for r in sa.values()], 39)
