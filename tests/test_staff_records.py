@@ -30,7 +30,8 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser.tables import staff as ST                      # noqa: E402
-from fmparser import staging as S                     # noqa: E402
+from fmparser.tables.person_info import PERSON_FIELDS, scrape_person_info  # noqa: E402
+from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402
 from fmparser import lookups as LK                    # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 
@@ -142,7 +143,7 @@ def main(argv):
     else:
         print(f"  OK  formation catalog: {len(catalog)} templates in declaration order")
 
-    info = S.scrape_players(mm)
+    info = scrape_person_info(mm)
     staff_ids = [p["id2"] for p in info.values() if p["sid"] == "ffffffff"]
     recs = ST.scrape_staff_attributes(mm, staff_ids)
     print(f"  OK  {len(recs)} staff attribute records from {len(staff_ids)} staff")
@@ -211,7 +212,7 @@ def main(argv):
 
     # player record tail: goalkeepers are materially taller and heavier than outfielders.
     # This is the check that proves height/weight are what we think, not plausible noise.
-    attrs = S.scrape_attributes(mm)
+    attrs = scrape_player_attributes(mm)
     gk, out = [], []
     for r in attrs.values():
         h, w = r["height_cm"], r["weight_kg"]
@@ -305,7 +306,7 @@ def main(argv):
     # invariant is what keeps every field on it clean -- no date window, no plausibility test.
     # The check that it works: nothing implausible survives anywhere in the block.
     blank = [p for p in info.values() if p["uid"] == 0]
-    leak = [p for p in blank if any(p[k] is not None for k in S.PERSON_FIELDS)]
+    leak = [p for p in blank if any(p[k] is not None for k in PERSON_FIELDS)]
     if leak:
         fails.append(f"{len(leak)} empty slots (uid == 0) still carry person data")
     bad_date = [p["joined_date"] for p in info.values()
@@ -325,7 +326,7 @@ def main(argv):
     if os.path.exists(other):
         with open(other, "rb") as f2:
             mm2 = mmap.mmap(f2.fileno(), 0, access=mmap.ACCESS_READ)
-        info2 = S.scrape_players(mm2)
+        info2 = scrape_person_info(mm2)
         recs2 = ST.scrape_staff_attributes(
             mm2, [p["id2"] for p in info2.values() if p["sid"] == "ffffffff"])
         ok = 0

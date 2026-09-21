@@ -82,14 +82,14 @@ def claims(mm, n):
             print(f"  ~ {who}: {summary}", file=sys.stderr)
 
     # ---- MEASURED: parsers that report a per-record offset -------------------
-    from fmparser import staging as S
-    info = S.scrape_players(mm)
-    # scrape_players does not report the record base, so re-derive it the same way it finds
+    from fmparser.tables import person_info as PI
+    info = PI.scrape_person_info(mm)
+    # scrape_person_info does not report the record base, so re-derive it the same way it finds
     # them: the FFFFFFFF nickname sentinel at +16. Anchored on the parser's own constants so
     # this cannot drift from what it actually reads.
     bases, i = [], 0
     while True:
-        j = mm.find(S.NO_NICKNAME, i)
+        j = mm.find(PI.NO_NICKNAME, i)
         if j == -1:
             break
         i, base = j + 1, j - 16
@@ -97,15 +97,15 @@ def claims(mm, n):
             continue
         yr = int.from_bytes(mm[base + 22:base + 24], "little")
         tid = int.from_bytes(mm[base:base + 4], "little")
-        if S.DOB_YEAR_LO <= yr <= S.DOB_YEAR_HI and 100 < tid < 70000 \
+        if PI.DOB_YEAR_LO <= yr <= PI.DOB_YEAR_HI and 100 < tid < 70000 \
                 and int.from_bytes(mm[base + 20:base + 22], "little") <= 366:
             bases.append(base)
-    measured("staging.person_info", [(b, b + S.INFO_HEAD) for b in bases])
+    measured("tables.person_info", [(b, b + PI.INFO_HEAD) for b in bases])
 
     try:
         from fmparser import clubrecords as CR
         valid = {v["club_tid"] for v in info.values()
-                 if v.get("club_tid") and v["club_tid"] != S.NO_CLUB}
+                 if v.get("club_tid") and v["club_tid"] != PI.NO_CLUB}
         rec = CR.build(mm, valid, valid_players=set(info))
         measured("clubrecords.team",
                  [(r["offset"], r["offset"] + CR.TEAM_STRIDE) for r in rec["team_records"]])
@@ -166,8 +166,13 @@ def claims(mm, n):
               f"{spans[0][0]:,}-{spans[-1][1]:,}", file=sys.stderr)
     except Exception as exc:
         print(f"  ! COMPETITION TABLE WALK FAILED: {exc}", file=sys.stderr)
-    declared("staging.attributes", RG.ATTR_LO, RG.ATTR_HI)
-    declared("staging.contracts", RG.CONTRACTREC_LO, RG.CONTRACTREC_HI)
+    declared("tables.player_attributes", RG.ATTR_LO, RG.ATTR_HI)
+    from fmparser.tables.contracts import contracts_table_spans
+    c_spans = contracts_table_spans(mm)
+    if c_spans:
+        measured("tables.contracts", c_spans)
+    else:
+        declared("tables.contracts", RG.CONTRACTREC_LO, RG.CONTRACTREC_HI)
     # DERIVED, not declared: `snapshot_bounds` locates this by marker cluster and now
     # RAISES rather than falling back to `regions.SNAPSHOT_LO/HI`. Claiming the static
     # window here would have reported 0.9 MB as covered on every career whose snapshot is

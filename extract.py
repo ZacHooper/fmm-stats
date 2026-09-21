@@ -31,7 +31,17 @@ from fmparser import matches as M
 from fmparser import model as MOD
 from fmparser import reference as R
 from fmparser import squad as SQ
-from fmparser import staging as S
+from fmparser.tables.contracts import (
+    LOAN_STATUS,
+    scrape_contract_status,
+    scrape_contracts,
+)
+from fmparser.tables.person_info import (
+    NO_CLUB,
+    PERSON_FIELDS,
+    scrape_person_info,
+)
+from fmparser.tables.player_attributes import scrape_player_attributes
 from fmparser import tagged as T
 from fmparser import fixtures as FIX
 from fmparser import lightresults as L
@@ -134,15 +144,15 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     third marker shape entirely, [parent_club_tid][managed_tid]; see attributes.loan_marker."""
     if isinstance(markers, (bytes, bytearray)):          # back-compat: a single marker
         markers = (bytes(markers),)
-    attrs = S.scrape_attributes(mm)        # {sid: attribute record}
+    attrs = scrape_player_attributes(mm)        # {sid: attribute record}
     # Staff get a SEPARATE attribute record, keyed by the info field's `id2` (+64), holding
     # coaching ability and the preferred/attacking/defensive formation triple. See
     # fmparser/staff.py.
     formations = ST.formation_catalog(mm)
     staff_attrs = ST.scrape_staff_attributes(
         mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
-    status = S.scrape_contract_status(mm, info)   # {tid: squad-status code}
-    contracts = S.scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
+    status = scrape_contract_status(mm, info)   # {tid: squad-status code}
+    contracts = scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
     # names + exact attributes for the managed squad (snapshot), incl. loaned-IN players
     bounds = SQ.squad_snapshot_bounds(mm, markers)
@@ -255,7 +265,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     # resolve club names only for clubs that actually have loaded players (they exist,
     # so the lookup is cheap) plus clubs that appeared in matches or in any player's history
     club_ids = {p["club_tid"] for p in info.values()
-                if p["sid"] in attrs and p["club_tid"] != S.NO_CLUB}
+                if p["sid"] in attrs and p["club_tid"] != NO_CLUB}
     for m in season:
         club_ids.add(m["home_tid"])
         club_ids.add(m["away_tid"])
@@ -263,7 +273,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
         club_ids.add(h["origin_club_tid"])
         club_ids.add(h["last_season_club_tid"])
         club_ids.update(s["club_tid"] for s in h["seasons"])
-    club_ids.discard(S.NO_CLUB)
+    club_ids.discard(NO_CLUB)
     club_names, club_leagues = {}, {}
     for ct in club_ids:
         rec = R.club_record(mm, ct, "long")
@@ -273,7 +283,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                 club_leagues[ct] = rec["league"]
 
     def club_label(ct):
-        if ct == S.NO_CLUB:
+        if ct == NO_CLUB:
             return "Free agent"
         return club_names.get(ct, f"#{ct}")
 
@@ -290,7 +300,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                    "club": club_label(p["club_tid"]),
                    "club_tid": p["club_tid"], "dob": p["dob"],
                    "nationality_id": p["nationality_id"],
-                   **{k: p[k] for k in S.PERSON_FIELDS}}
+                   **{k: p[k] for k in PERSON_FIELDS}}
             sa = staff_attrs.get(p["id2"])
             if sa:
                 row.update({k: sa[k] for k in ST.STAFF_FIELDS})
@@ -316,10 +326,10 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
         row = {"tid": tid, "name": full_name(tid, p),
                "club": club_label(club_tid), "club_tid": club_tid,
                "dob": p["dob"], "nationality_id": p["nationality_id"],
-               **{k: p[k] for k in S.PERSON_FIELDS},
+               **{k: p[k] for k in PERSON_FIELDS},
                "has_attributes": rec is not None,
                "squad_status": sc,
-               "loaned_out": sc == S.LOAN_STATUS and p["club_tid"] != S.NO_CLUB,
+               "loaned_out": sc == LOAN_STATUS and p["club_tid"] != NO_CLUB,
                "loaned_in": loaned_in,
                "parent_club_tid": parent_tid,
                "parent_club": club_label(parent_tid) if parent_tid else None,
@@ -479,7 +489,7 @@ def main():
     dest = os.path.join(args.out, label)
     os.makedirs(dest, exist_ok=True)
 
-    info = S.scrape_players(mm)            # player-info spine (scraped once, shared)
+    info = scrape_person_info(mm)            # player-info spine (scraped once, shared)
     players, staff, club_names, club_leagues, histories = build_database(
         mm, season, info, career.squad_markers)
     match_rows = flatten_matches(season)
@@ -487,8 +497,8 @@ def main():
 
     # leagues reference + club->league. The club record gives membership directly: exact,
     # current as of the save date, and available on a day-1 save before any match.
-    valid_clubs = {p["club_tid"] for p in info.values() if p["club_tid"] != S.NO_CLUB}
-    club_nation = L.club_nations(info, S.NO_CLUB)
+    valid_clubs = {p["club_tid"] for p in info.values() if p["club_tid"] != NO_CLUB}
+    club_nation = L.club_nations(info, NO_CLUB)
     # club->league is a SNAPSHOT FACT, read only from each club's own record (+158) — see
     # docs/agent-context/day1-league-membership.md. `build_leagues` is used purely for the
     # LEAGUES REFERENCE (names/nation/reputation of every competition); its club->league map

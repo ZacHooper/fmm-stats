@@ -1,6 +1,19 @@
 #!/usr/bin/env python3
 """Table abstraction engine and savefile table registry."""
 from .cities import CITIES_TABLE, CITY, CITY_COUNT, CITY_RECORD, scrape_cities
+from .contracts import (
+    CONTRACT,
+    CONTRACT_DETAIL,
+    CONTRACT_RECORD,
+    CONTRACT_STATUS,
+    CONTRACT_STRIDE,
+    CONTRACT_TABLE,
+    LOAN_STATUS,
+    contracts_table_spans,
+    locate_contracts,
+    scrape_contract_status,
+    scrape_contracts,
+)
 from .currencies import (
     CURRENCIES_CATALOG,
     CURRENCIES_TABLE,
@@ -33,6 +46,22 @@ from .names import (
     walk_browse_bounds,
 )
 from .officials import OFFICIAL, OFFICIAL_STRIDE, OFFICIALS_TABLE, scrape_officials
+from .person_info import (
+    DOB_YEAR_HI,
+    DOB_YEAR_LO,
+    INFO_HEAD,
+    INFO_LAYOUT,
+    NAME_ID_MAX,
+    NO_CLUB,
+    NO_NICKNAME,
+    PERSONALITY,
+    PERSON_FIELDS,
+    PERSON_INFO,
+    locate_person_info,
+    person_info_table_spans,
+    scrape_person_info,
+    scrape_players,
+)
 from .player_attributes import (
     PLAYER_ATTRIBUTES_TABLE,
     locate_player_attributes,
@@ -85,6 +114,7 @@ TABLES = {
     "first_names": FIRST_NAMES_TABLE,
     "nicknames": NICKNAMES_TABLE,
     "player_attributes": PLAYER_ATTRIBUTES_TABLE,
+    "contracts": CONTRACT_TABLE,
 }
 
 __all__ = [
@@ -109,5 +139,6 @@ __all__ = [
     "FIRST_NAMES_TABLE",
     "NICKNAMES_TABLE",
     "PLAYER_ATTRIBUTES_TABLE",
+    "CONTRACT_TABLE",
     "record_for",
 ]

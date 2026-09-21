@@ -20,7 +20,8 @@ from tests.harness import find_save, skip  # noqa: E402
 from fmparser.save import Save                        # noqa: E402
 from fmparser import matches as M                     # noqa: E402
 from fmparser.tables import player_attributes as A                  # noqa: E402
-from fmparser import staging as S                     # noqa: E402
+from fmparser.tables.contracts import LOAN_STATUS, scrape_contract_status # noqa: E402
+from fmparser.tables.person_info import scrape_person_info           # noqa: E402
 from fmparser import model as MOD                     # noqa: E402
 
 # reserve squad loan ground truth (from an in-game screenshot, 19 Jun 2022):
@@ -101,10 +102,10 @@ def run(save_path=None):
            f"within-+/-1 rate {rate:.0%} below 90% ({off_total}/{total} off)", fails)
 
     # loan status (contract record): known loanees vs playing reserves
-    status = S.scrape_contract_status(s.mm, S.scrape_players(s.mm))
+    status = scrape_contract_status(s.mm, scrape_person_info(s.mm))
     for tid in LOANED_OUT:
-        _check(status.get(tid) == S.LOAN_STATUS,
-               f"{tid} status {status.get(tid)} != loaned ({S.LOAN_STATUS})", fails)
+        _check(status.get(tid) == LOAN_STATUS,
+               f"{tid} status {status.get(tid)} != loaned ({LOAN_STATUS})", fails)
     for tid in NOT_LOANED:
         _check(status.get(tid) == 112,
                f"{tid} status {status.get(tid)} != 112 (at club)", fails)

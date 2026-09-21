@@ -43,7 +43,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import reference as R    # noqa: E402
-from fmparser import staging as S      # noqa: E402
+from fmparser.tables.person_info import NO_CLUB as _NO_CLUB, scrape_person_info as _scrape_players  # noqa: E402
 from fmparser import matches as M      # noqa: E402
 
 
@@ -103,11 +103,11 @@ def report_cross_reference(mm, clubs, declared_clubs, comps, declared_comps):
     resolved_cids = {cid for cid in needed_cids if R.find_comp_record(mm, cid)}
     missing_cids = sorted(needed_cids - resolved_cids)
 
-    players = S.scrape_players(mm)
+    players = _scrape_players(mm)
     needed_tids = ({m["home_tid"] for m in season if m.get("home_tid")}
                    | {m["away_tid"] for m in season if m.get("away_tid")}
                    | {p["club_tid"] for p in players.values()
-                      if p.get("club_tid") and p["club_tid"] != S.NO_CLUB})
+                      if p.get("club_tid") and p["club_tid"] != _NO_CLUB})
     resolved_tids = {tid for tid in needed_tids if R.club_record(mm, tid)}
     missing_tids = sorted(needed_tids - resolved_tids)
 

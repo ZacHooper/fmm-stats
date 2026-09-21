@@ -19,7 +19,7 @@ sys.path.insert(0, ROOT)
 from tests.harness import find_save, skip  # noqa: E402
 
 from fmparser.save import Save                        # noqa: E402
-from fmparser import staging as S                     # noqa: E402
+from fmparser.tables.person_info import NO_CLUB, scrape_person_info  # noqa: E402
 from fmparser import lightresults as L                # noqa: E402
 
 # The 21-22 Bucaspor save this test's ground truth was measured on. The canonical name comes
@@ -59,8 +59,8 @@ def run(save_path=None):
     fails = []
     s = Save(save_path)
     mm = s.mm
-    info = S.scrape_players(mm)
-    valid = {p["club_tid"] for p in info.values() if p["club_tid"] != S.NO_CLUB}
+    info = scrape_person_info(mm)
+    valid = {p["club_tid"] for p in info.values() if p["club_tid"] != NO_CLUB}
     data = L.build(mm, valid)
     records, lgs, club_league = data["records"], data["leagues"], data["club_league"]
 

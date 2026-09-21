@@ -24,7 +24,7 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser import clubrecords as CR      # noqa: E402
-from fmparser import staging as S           # noqa: E402
+from fmparser.tables.person_info import NO_CLUB, scrape_person_info  # noqa: E402
 from fmparser.save import Save              # noqa: E402
 
 SAVE = os.path.expanduser("~/fm-saves/frem/frem-2026-06-11.fms")
@@ -84,9 +84,9 @@ def main():
     if not os.path.exists(SAVE):
         return skip(f"{os.path.basename(SAVE)} not found (fetch with rclone or rebuild.py)")
     mm = Save(SAVE).mm
-    info = S.scrape_players(mm)
+    info = scrape_person_info(mm)
     valid = {v["club_tid"] for v in info.values()
-             if v.get("club_tid") and v["club_tid"] != S.NO_CLUB}
+             if v.get("club_tid") and v["club_tid"] != NO_CLUB}
     built = CR.build(mm, valid)
     team = [r for r in built["team_records"] if r["club_tid"] == SOUTHAMPTON]
     player = [r for r in built["player_records"] if r["club_tid"] == SOUTHAMPTON]

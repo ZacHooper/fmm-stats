@@ -21,7 +21,7 @@ import json
 import os
 
 from fmparser.save import Save
-from fmparser import staging as S
+from fmparser.tables.person_info import NO_CLUB, scrape_person_info
 from fmparser import lightresults as L
 from fmparser import reference as R
 from fmparser import matches as M
@@ -41,9 +41,9 @@ def main():
     dest = os.path.join(args.out, label, "light_results")
     os.makedirs(os.path.join(dest, "standings"), exist_ok=True)
 
-    info = S.scrape_players(mm)
-    valid = {p["club_tid"] for p in info.values() if p["club_tid"] != S.NO_CLUB}
-    club_nation = L.club_nations(info, S.NO_CLUB)
+    info = scrape_person_info(mm)
+    valid = {p["club_tid"] for p in info.values() if p["club_tid"] != NO_CLUB}
+    club_nation = L.club_nations(info, NO_CLUB)
     data = L.build(mm, valid, club_nation=club_nation)
     records, lgs, club_league = data["records"], data["leagues"], data["club_league"]
 

@@ -55,7 +55,7 @@ from fmparser.tables.player_attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  
 from fmparser.tables.player_attributes import SRC_OFFSETS as _SRC              # noqa: E402
 from fmparser.tables.player_attributes import PLAIN_OFFSETS as _PLAIN            # noqa: E402
 SRC_COLS = list(_SRC.values()) + list(_PLAIN.values())
-from fmparser.staging import PERSON_FIELDS as _PERSON                # noqa: E402
+from fmparser.tables.person_info import PERSON_FIELDS as _PERSON        # noqa: E402
 PERSON_COLS = list(_PERSON)
 # Everything off the info record is a small integer except the one date.
 PERSON_DATE_COLS = {"joined_date"}
