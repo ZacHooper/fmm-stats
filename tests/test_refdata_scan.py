@@ -184,9 +184,14 @@ def main():
                     _s, dec = R._comp_table_anchor(m)
                     if len(c) + blank != dec:
                         failures.append(f"{os.path.basename(path)}: "
-                                        f"{len(c)}+{blank} != {dec}")
-                    by_career.setdefault(career, set()).add((dec, len(c), blank))
-                except R.CompTableError as exc:
+                                        f"comp {len(c)}+{blank} != {dec}")
+                    cl, cl_blank = R._walk_club_table(m)
+                    _cs, cl_dec = R._club_table_anchor(m)
+                    if len(cl) + cl_blank != cl_dec:
+                        failures.append(f"{os.path.basename(path)}: "
+                                        f"club {len(cl)}+{cl_blank} != {cl_dec}")
+                    by_career.setdefault(career, set()).add((dec, len(c), blank, cl_dec, len(cl)))
+                except (R.CompTableError, R.ClubTableError) as exc:
                     failures.append(f"{os.path.basename(path)}: {exc}")
                 m.close()
         ok &= _check(not failures,
@@ -196,25 +201,28 @@ def main():
             print(f"       {line}")
         for career, shapes in sorted(by_career.items()):
             print(f"       {career}: " + ", ".join(
-                f"declared={d} named={n} blank={b}" for d, n, b in sorted(shapes)))
+                f"comp_declared={d} comp_named={n} comp_blank={b} club_declared={cld} club_named={cln}"
+                for d, n, b, cld, cln in sorted(shapes)))
         ok &= _check(len(by_career) >= 2,
                      f"more than one career exercised ({sorted(by_career)}) -- a single-career "
                      f"run cannot catch a career-specific regression")
 
-    # ---- diagnosis cannot drift from the real scan (clubs only -- comps use the walk) ----
-    print("\nCLUB DIAGNOSIS-VS-REAL-SCAN DRIFT GUARD")
-    clubs, real_comps = R._build_refdata_index(mm)
-    diag = R.diagnose_refdata_scan(mm)
-    club_total = diag.club_accepted_tier0 + diag.club_accepted_tier1
-    ok &= _check(club_total == len(clubs),
-                 f"diagnosed club accepts ({club_total}) == _build_refdata_index clubs "
-                 f"({len(clubs)})")
+    # ---- the structural walk on the reference save (clubs) ----
+    print("\nCLUB TABLE STRUCTURAL WALK")
+    clubs, n_blank_clubs = R._walk_club_table(mm)
+    _start, declared_clubs = R._club_table_anchor(mm)
+    ok &= _check(len(clubs) + n_blank_clubs == declared_clubs,
+                 f"named({len(clubs)}) + blank({n_blank_clubs}) == declared({declared_clubs})")
+    spans = R.club_table_spans(mm)
+    contiguous = all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
+    ok &= _check(len(spans) - 1 == declared_clubs and contiguous,
+                 f"club_table_spans tiles the table with no gap or overlap "
+                 f"({len(spans) - 1} record spans + 1 count header)")
+    real_clubs, real_comps = R._build_refdata_index(mm)
+    ok &= _check(real_clubs == clubs,
+                 "_build_refdata_index clubs == _walk_club_table clubs (single source of truth)")
     ok &= _check(real_comps == comps,
                  "_build_refdata_index comps == _walk_comp_table comps (single source of truth)")
-    ok &= _check(not hasattr(diag, "comp_accepted_tier0"),
-                 "RefdataDiagnosis carries NO comp fields -- competitions have no candidates "
-                 "to diagnose, and reporting tiers for a deleted gate cascade is what made "
-                 "audit_declared_scans lie")
 
     print("\n" + ("PASS: refdata scan resolves clubs (gated) and competitions (pure "
                   "structural walk) as expected" if ok else "FAIL: see above"))

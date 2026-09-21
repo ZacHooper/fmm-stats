@@ -26,96 +26,6 @@ from .save import cache_key as _cache_key
 NATIONS = {173: "Turkey"}
 
 
-# A club's uid is NOT bounded by the 400,000,000 that gated this scan for its whole life.
-# Ground truth, confirmed against two in-game player profiles (2026-09-12): Shawn Beeckaert
-# plays for tid 6863, which the game shows as "EM United" -- Erpe-Mere United, uid
-# 2,000,004,399, a perfectly well-formed record at byte 10,104,532 that the ceiling threw
-# away. Jesús Bernal plays for tid 7153, "Paracuellos" = C.D. Paracuellos Antamira, uid
-# 2,000,112,622. We were keeping "Erpe-Mere United Reserves" (uid 200,010,882, under the
-# ceiling) while dropping the first team.
-#
-# This is the THIRD uid gate in this file to be wrong the same way -- see find_comp_record on
-# the old `uid >= 1000` rule that silently skipped every top division. The uid is not a range
-# to guess at; it is an identifier.
-#
-# The ceiling is not simply raised, because widening it in place CORRUPTS three real clubs:
-# person records match the club shape and win low tids on file order (C Cerro Porteño ->
-# 'Ultee', Club Sporting Cristal -> 'Boujemaoui', Club Centro Deportivo Municipal ->
-# 'Leemans'). So the band below admits records only for tids nothing else resolved, and only
-# with the club trailer marker present. Measured on frem-2026-03-22: 327 clubs recovered,
-# 0 existing names changed, 0 person records admitted.
-_CLUB_UID_FILL_LO, _CLUB_UID_FILL_HI = 1_900_000_000, 2_100_000_000
-
-
-def _refdata_window(mm):
-    """(lo, hi) for the club/comp reference-data band. Trusted outright, same as every
-    other region in regions.py (ATTR_LO/HI, LIGHT_LO/HI, ...) — no runtime fallback to a
-    full-file scan. That fallback was tried and measured SLOWER in practice: most
-    club_record lookups here are misses (obscure historical/foreign clubs with no record
-    in this save at all — extract.py's club_ids includes every club named in every
-    player's full career history), and a miss means scanning to end-of-range either way,
-    so "windowed, then whole file" costs window-scan PLUS full-file-scan on every miss —
-    strictly more work than the unbounded original for the common case. Measured on a real
-    4742-club lookup set: fallback version 123s vs unbounded original 116s (SLOWER); window-
-    only (this version) is bounded to ~20 MB regardless of hit or miss. See regions.py for
-    where the bound comes from (the actual filler-delimited section, not sampled hits) and
-    what to do if a future save drifts past it."""
-    return RG.REFDATA_LO, min(RG.REFDATA_HI, len(mm))
-
-
-# ---------------- clubs + competitions: single-pass reference index ----------------
-# club_record/find_comp_record used to be independent `mm.find`-per-call scans of the
-# ~20 MB REFDATA window — cheap individually, but extract.py resolves ~4700+ club tids
-# (every club named in every player's full career history) plus a few hundred comp cids
-# in one run, and MOST of those calls are misses that scan to the end of the window
-# regardless. That's O(lookups x window) — tens of seconds in a real extract.
-#
-# _build_refdata_index scans the window ONCE and returns {tid: club_record} and
-# {cid: comp_record} for every record it holds, so every lookup after that is an O(1)
-# dict.get(). The candidate search itself is vectorized with numpy (same technique as
-# history.py's column-wise scan of the history slab): both record shapes put a
-# length-prefixed name's length field (u32, small — [2,60] for a club long name, subsuming
-# the comp range [3,45]) 4 bytes after their UID, so `np.flatnonzero` on the whole window's
-# u32-at-every-offset view finds every plausible record start in one vectorized pass
-# (~350k candidates out of 20M positions, <0.1s) before any per-candidate Python
-# validation runs. Only the reduced candidate set pays Python-level cost.
-#
-# No range check on the tid read back from each candidate (an earlier draft guessed
-# `100 < tid < 70000` to cut candidate volume and shipped it uncommitted with an unverified
-# "validated identical" claim in this comment — it silently dropped 26 real clubs in one
-# real save, including Boca Juniors and River Plate, tid 51-78). Trust the same structural
-# checks the old per-tid scan always relied on (uid range, decodable name, valid short
-# name) instead of a second guess about what a tid can be.
-def _valid_name(b, min_alpha=2):
-    """Decode a length-prefixed name, or None if it can't be one.
-
-    `min_alpha` guards against random bytes that happen to decode. It is 2 for LONG names,
-    but SHORT names are abbreviations and are legitimately allowed a single letter — real
-    example: B.93 (tid 334), whose short name "B.93" was being rejected, which threw away the
-    club record entirely and left only an unrelated "Player of the Month" award record that
-    shares the tid. That surfaced as an award appearing as a player's club in career history.
-    """
-    try:
-        txt = b.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-    if any(ord(c) < 0x20 for c in txt):
-        return None
-    if sum(c.isalpha() for c in txt) < min_alpha:
-        return None
-    return txt
-
-
-def _short_after(mm, j):
-    for pad in (0, 1):
-        ln = int.from_bytes(mm[j + pad:j + pad + 4], "little")
-        if 2 <= ln <= 60:
-            sh = _valid_name(mm[j + pad + 4:j + pad + 4 + ln], min_alpha=1)
-            if sh:
-                return sh
-    return None
-
-
 # `type_id` (the byte immediately after the 3 name strings) is the REAL field; it is carried
 # raw on every competition record and is what code should branch on -- `lightresults.py`
 # already does (`type_id in (0, 1)` for a round-robin league).
@@ -592,170 +502,131 @@ def comp_table_spans(mm):
     return spans
 
 
-# ---- named reject reasons (CLUBS ONLY) ----------------------------------------------
-# Both _build_refdata_index and diagnose_refdata_scan (below) call the SAME
-# _eval_club_candidate -- there is exactly one implementation of "is this a valid club
-# record", so the real scan and its audit cannot silently drift apart the way a hand-copied
-# second walk could.
+# ---------------------------------------------------------------------------------------
+# THE CLUB TABLE PURE STRUCTURAL WALK
 #
-# COMPETITIONS have no reject reasons, because they have no gates: `_walk_comp_table` reads
-# the table's own declared slots by arithmetic. The comp half of this cascade (a dozen
-# COMP_REJECT_* reasons, `_eval_comp_candidate`, `CompCandidate`, a two-tier reputation
-# arbitration and the `_MIN_COMP_REP` floor) was DELETED 2026-09-18 once the walk was
-# measured exact on all 32 archived saves across both careers. Clubs are next: docs/TODO.md
-# has the item, and the walk is the model to copy.
-CLUB_REJECT_UID_RANGE = "uid_outside_admission_bands"
-CLUB_REJECT_LONG_LEN = "long_name_length_out_of_range"
-CLUB_REJECT_LONG_INVALID = "long_name_undecodable"
-CLUB_REJECT_SHORT_INVALID = "short_name_undecodable"
-CLUB_REJECT_FILL_NO_MARKER = "fill_tier_missing_trailer_marker"
+# Follows the exact same convention as the competition table:
+# `_club_table_anchor` locates the table start and its own declared record count (11,331 on
+# Frem, 12,278 on Bucaspor) immediately after the 273 round/leg name catalog.
+# Every slot is visited in index order: `tid == i` is the invariant.
+# ---------------------------------------------------------------------------------------
+_CLUB_TABLE_ANCHOR_CACHE = {}
 
 
-
-class ClubCandidate(NamedTuple):
-    accepted: bool
-    reason: object          # None if accepted
-    tid: int
-    tier: object            # 0 or 1, only if accepted
-    rec: object              # dict, only if accepted
+class ClubTableError(Exception):
+    """The club table could not be located or walked."""
 
 
-def _candidate_positions(mm):
-    """(lo, hi, cand) for the CLUB reference-data scan: the window bounds and the
-    numpy-derived array of absolute offsets whose u32 reads as a plausible name-length field
-    (2..60), with room to look back 8 bytes for a club header. Both `_build_refdata_index`
-    and `diagnose_refdata_scan` call this so the candidate set used for real extraction and
-    the candidate set used for diagnosis are the SAME array.
+def _club_table_anchor(mm):
+    """(rec0, declared_count) for the club table, or (None, None)."""
+    key = _cache_key(mm)
+    cached = _CLUB_TABLE_ANCHOR_CACHE.get(key)
+    if cached is not None:
+        return cached
 
-    Competitions no longer come from here at all (`_walk_comp_table` does that), which is why
-    the file length is no longer returned: it existed only so the retired comp gates could
-    bounds-check a trailer read."""
-    lo, hi = _refdata_window(mm)
-    n = hi - lo
-    buf = np.frombuffer(mm, dtype=np.uint8, count=n, offset=lo)
-    # u32 LE at every offset q within the window (q relative to lo)
-    u32 = (buf[:-3].astype(np.uint32) | (buf[1:-2].astype(np.uint32) << 8)
-           | (buf[2:-1].astype(np.uint32) << 16) | (buf[3:].astype(np.uint32) << 24))
-    # candidate = position of a plausible name-length field: club needs [2,60], comp
-    # needs [3,45] — [2,60] covers both, so this one filter serves either branch below.
-    # NOTE: this prefilter itself is a tuned constant, same class as the ones it feeds --
-    # a record whose length field falls outside [2,60], or that has no length prefix at
-    # all, is invisible to every candidate this scan ever considers. See
-    # diagnose_refdata_scan's byte-coverage figure, which is the one honest measurement
-    # of what this prefilter can never see (currently 1.76% of the window IS a candidate;
-    # the rest is either genuinely other content, padding, or exactly this blind spot).
-    cand = np.flatnonzero((u32 >= 2) & (u32 <= 60))
-    cand = cand[cand >= 8]      # room to look back 8 bytes for the club header (TID+UID)
-    # Exclude the real NATION table -- see _nation_table_bounds' docstring. Its
-    # name/nationality/code triplets share this exact candidate shape, so without this a
-    # nation string resolves as a fake CLUB under a bogus id read from neighbouring bytes
-    # that were never meant to be an id at all (191 such on frem-2026-06-11, measured).
-    nation_bounds = _nation_table_bounds(mm)
-    if nation_bounds is not None:
-        nlo, nhi = nation_bounds
-        cand = cand[(cand + lo < nlo) | (cand + lo > nhi)]
-    # Exclude the real NAME (browse) table -- see _name_table_bounds' docstring. Same
-    # collision class as the nation table: a flat run of length-prefixed strings at the
-    # very start of the file can coincidentally satisfy every club gate.
-    name_bounds = _name_table_bounds(mm)
-    if name_bounds is not None:
-        nmlo, nmhi = name_bounds
-        cand = cand[(cand + lo < nmlo) | (cand + lo > nmhi)]
-    return lo, hi, cand
+    pat = b"\xff" * 8 + struct.pack("<I", 273) + struct.pack("<I", 1) + struct.pack("<I", 6) + b"Replay\x00"
+    pos = mm.find(pat)
+    if pos == -1:
+        return None, None
+    p = pos + 8 + 4
+    for _ in range(273):
+        slen = P.u32(mm, p + 4)
+        p += 8 + slen + 1 + 14
+    while p < len(mm) and mm[p] == 0xFF:
+        p += 1
+    cnt = P.u32(mm, p)
+    rec0 = p + 4
+    res = (rec0, cnt)
+    _CLUB_TABLE_ANCHOR_CACHE[key] = res
+    return res
 
 
-def _eval_club_candidate(mm, q):
-    """The club gate cascade for the candidate at length-field offset q, as a pure function
-    of (mm, q) -- no dependency on the running `clubs`/`tiers` state, so it can be called
-    identically by `_build_refdata_index` (which arbitrates the winner across candidates for
-    the same tid) and by `diagnose_refdata_scan` (which tallies every candidate's own
-    disposition). Every guard below is the original inline `if` chain, converted to an
-    early-return so each has a name -- no condition changed, none reordered.
+def _read_club_slot(mm, pos):
+    """Read ONE club slot at pos. Returns (rec, next_pos)."""
+    tid = P.u32(mm, pos)
+    uid = P.i32(mm, pos + 4)
+    ln1 = P.u32(mm, pos + 8)
+    p2 = pos + 12 + ln1 + 1
+    ln2 = P.u32(mm, p2)
+    p3 = p2 + 4 + ln2 + 1
+    ln3 = P.u32(mm, p3)
+    p_tr = p3 + 4 + ln3
 
-    No range check on tid itself (an earlier version guessed `100 < tid < 70000` to cut
-    candidate volume, but real club tids go as low as 51 — Boca Juniors, River Plate and 24
-    others in one real save all sit in [51,78] and would have been silently dropped).
-    Structural validation only, matching the old per-tid scan.
+    raw1 = mm[pos + 12:pos + 12 + ln1]
+    raw2 = mm[p2 + 4:p2 + 4 + ln2]
+    try:
+        name1 = raw1.decode("utf-8")
+    except UnicodeDecodeError:
+        name1 = raw1.decode("latin-1", errors="replace")
+    try:
+        name2 = raw2.decode("utf-8")
+    except UnicodeDecodeError:
+        name2 = raw2.decode("latin-1", errors="replace")
+
+    country = P.u16(mm, p_tr)
+    marker = mm[p_tr + 160:p_tr + 162] == b"\xff\xff"
+    league_code = P.u16(mm, p_tr + 158)
+    league = league_code if (marker and league_code and league_code != 0xFFFF) else None
+
+    naff = P.u16(mm, p_tr + 202)
+    ntail = P.u16(mm, p_tr + 489 + naff * 21)
+    trailer_len = 491 + naff * 21 + ntail * 9
+    nxt = p_tr + trailer_len
+
+    rec = {
+        "name": name1,
+        "short": name2,
+        "uid": uid,
+        "league": league,
+        "country": country,
+        "trailer": p_tr
+    }
+    return rec, nxt
+
+
+def _walk_club_table(mm):
+    """Pure structural walk of the ENTIRE club table -> (clubs, 0).
+    Every declared slot is visited in index order: tid == i.
     """
-    tid = int.from_bytes(mm[q - 8:q - 4], "little")
-    uid = int.from_bytes(mm[q - 4:q], "little")
-    # TIER 0 is the long-standing gate; TIER 1 is a strictly gap-FILLING second tier for
-    # the ~2-billion uid band (see _CLUB_UID_FILL_LO below). A tier-1 record can never
-    # displace a tier-0 one, so this cannot change a club name that resolves today.
-    primary = 1 <= uid <= 400_000_000
-    fill = (not primary
-            and _CLUB_UID_FILL_LO <= uid <= _CLUB_UID_FILL_HI
-            and tid <= 0xFFFF)
-    if not (primary or fill):
-        return ClubCandidate(False, CLUB_REJECT_UID_RANGE, tid, None, None)
-
-    ln = int.from_bytes(mm[q:q + 4], "little")
-    if not (2 <= ln <= 60):
-        return ClubCandidate(False, CLUB_REJECT_LONG_LEN, tid, None, None)
-    long_name = _valid_name(mm[q + 4:q + 4 + ln])
-    if not long_name:
-        return ClubCandidate(False, CLUB_REJECT_LONG_INVALID, tid, None, None)
-    short_name = _short_after(mm, q + 4 + ln)
-    if not short_name:
-        return ClubCandidate(False, CLUB_REJECT_SHORT_INVALID, tid, None, None)
-
-    p = q                        # walk past the 3 length-prefixed strings
-    for _ in range(3):
-        sl = int.from_bytes(mm[p:p + 4], "little")
-        if not (2 <= sl <= 60):
-            p += 1
-            sl = int.from_bytes(mm[p:p + 4], "little")
-        if not (2 <= sl <= 60):
-            p = None
-            break
-        p = p + 4 + sl
-    rec = {"name": long_name, "short": short_name,
-           # the club's UID -- a second id space, distinct from the tid the rest of the
-           # codebase joins on. Carried because a table that references clubs by uid is
-           # invisible to any tid search.
-           "uid": uid,
-           "league": None, "country": None,
-           # offset of the trailer (first byte after the 3 names), so client_details() can
-           # read the rest of the record without re-locating it. See parse_club_trailer.
-           "trailer": p}
-    marker = p is not None and mm[p + 160:p + 162] == b"\xff\xff"
-    if p is not None:
-        rec["country"] = int.from_bytes(mm[p:p + 2], "little")
-        if marker:
-            code = int.from_bytes(mm[p + 158:p + 160], "little")
-            if code and code != 0xffff:
-                rec["league"] = code
-    # A tier-1 candidate must carry the club trailer marker. Person records match the
-    # [tid][uid][len][long][len][short] shape too -- a first name followed by a surname --
-    # and without this they fill empty tids with surnames ('Kjell', 'De Vriese',
-    # 'Sickinger' at tids 867-876). The marker costs 9 of 336 fills and removes all 9 of
-    # those. A wrong club name is worse than a missing one. A trailer-walk failure
-    # (p is None) is NOT itself a rejection for a primary-tier candidate -- it is accepted
-    # with `trailer`/`league`/`country` left as None, same as the original code.
-    if fill and not marker:
-        return ClubCandidate(False, CLUB_REJECT_FILL_NO_MARKER, tid, None, None)
-    return ClubCandidate(True, None, tid, 0 if primary else 1, rec)
+    anchor = _club_table_anchor(mm)
+    if anchor[0] is None:
+        raise ClubTableError("club table anchor not found")
+    rec0, count = anchor
+    clubs = {}
+    pos = rec0
+    for i in range(count):
+        tid = P.u32(mm, pos)
+        if tid != i:
+            raise ClubTableError(f"club table walk misaligned at slot {i} of {count}: "
+                                 f"read tid={tid}, offset={pos}")
+        rec, nxt = _read_club_slot(mm, pos)
+        clubs[tid] = rec
+        pos = nxt
+    return clubs, 0
 
 
-def _club_wins(existing_tier, existing_rec, new_tier, new_rec):
-    """True if `new` should replace `existing` in the club index -- prefer the lower tier;
-    within a tier, prefer the copy carrying `league`. Extracted so `_build_refdata_index`
-    and `diagnose_refdata_scan` classify a structurally-valid-but-outbid candidate
-    (SUPERSEDED) identically."""
-    if existing_rec is None:
-        return True
-    if new_tier != existing_tier:
-        return new_tier < existing_tier
-    return existing_rec["league"] is None and new_rec["league"] is not None
+def club_table_spans(mm):
+    """[(record_start, record_end)] -- one span per slot the club table declares, in
+    file order, plus the 4-byte count header in front of record 0."""
+    anchor = _club_table_anchor(mm)
+    if anchor[0] is None:
+        raise ClubTableError("club table anchor not found")
+    rec0, count = anchor
+    spans = [(rec0 - 4, rec0)]
+    pos = rec0
+    for _i in range(count):
+        _rec, nxt = _read_club_slot(mm, pos)
+        spans.append((pos, nxt))
+        pos = nxt
+    return spans
 
 
 def _build_refdata_index(mm):
     """({tid: club_record}, {cid: comp_record}) for the whole save, built once per mmap.
 
-    The two halves are resolved DIFFERENTLY and on purpose. Competitions come from
-    `_walk_comp_table`, a pure structural walk of the table's own declared slots -- no
-    candidate scan reaches them at all. Clubs still come from the candidate-scan-plus-gates
-    cascade (`_eval_club_candidate`), which is the next thing to convert; see docs/TODO.md.
+    Both halves are resolved by pure structural walks of the table's own declared slots:
+    `_walk_comp_table` for competitions (1,372 slots) and `_walk_club_table` for clubs
+    (11,331 slots on Frem, 12,278 on Bucaspor).
     """
     key = _cache_key(mm)
     cached = _REFDATA_INDEX_CACHE.get(key)
@@ -763,126 +634,11 @@ def _build_refdata_index(mm):
         return cached
 
     comps, _n_blank = _walk_comp_table(mm)
-
-    lo, hi, cand = _candidate_positions(mm)
-    clubs = {}
-    tiers = {}                  # tid -> which gate admitted the stored record (0 beats 1)
-    for off in cand.tolist():
-        q = off + lo             # absolute offset of the length field
-        cc = _eval_club_candidate(mm, q)
-        if cc.accepted:
-            existing = clubs.get(cc.tid)
-            if _club_wins(tiers.get(cc.tid), existing, cc.tier, cc.rec):
-                clubs[cc.tid] = cc.rec
-                tiers[cc.tid] = cc.tier
+    clubs, _n_blank_clubs = _walk_club_table(mm)
 
     result = (clubs, comps)
     _REFDATA_INDEX_CACHE[key] = result
     return result
-
-
-class RefdataDiagnosis(NamedTuple):
-    """Candidate-level disposition for the CLUB scan. There is no comp half: competitions
-    are resolved by `_walk_comp_table`, which has no candidates and no rejections to tally.
-    The comp fields (`comp_accepted_tier0/1`, `comp_superseded`, `comp_already_resolved`,
-    the four `comp_reject_*` Counters and `comp_rejections`) were removed 2026-09-18 with
-    the gate cascade they described -- they had become numbers about a code path that could
-    not execute, which `scripts/audit_declared_scans.py` was still printing as though they
-    were the real resolution."""
-    n_window_bytes: int
-    n_candidates: int
-    club_accepted_tier0: int         # tids WON at tier 0 (winners only, not every hit)
-    club_accepted_tier1: int         # tids WON at tier 1
-    club_superseded: int             # structurally valid, but an earlier/better candidate
-                                       # for the same tid already won
-    club_reject_candidates: object   # Counter: reason -> candidate occurrences
-    club_reject_ids: object          # Counter: reason -> DISTINCT tids ever rejected for it
-    club_rejections: list            # [(offset, tid, reason), ...]
-
-
-def diagnose_refdata_scan(mm):
-    """Per-candidate disposition for every position the CLUB scan in
-    `_build_refdata_index` considers: accepted (with tier), rejected (a named reason), or
-    superseded (structurally valid, but a better/earlier candidate already won that tid).
-    Calls `_eval_club_candidate` -- the SAME function `_build_refdata_index` uses -- so this
-    cannot drift from what the real scan actually does.
-
-    COMPETITIONS ARE NOT DIAGNOSED HERE, and that is the point. They come from
-    `_walk_comp_table`, which reads the table's own declared slots by arithmetic: there is
-    no candidate to have a disposition, no gate to attribute a loss to, and the only two
-    numbers worth checking (`named + blank == declared count`, `cid == slot index`) are
-    assertions inside the walk itself rather than statistics after the fact. Until
-    2026-09-18 this function still ran the retired comp cascade and reported its tiers and
-    reject tallies, while `_build_refdata_index` ignored all of it -- so the docstring's
-    no-drift guarantee, the entire reason this function is shaped the way it is, was true
-    for clubs and false for comps. Deleting the comp half was the fix; do not add a
-    "diagnosis" for the walk to replace it.
-
-    Deliberately bypasses `_REFDATA_INDEX_CACHE`: this is for a human (or a script) running
-    an audit, not the extract.py hot path, and re-derives the candidate array fresh.
-
-    IMPORTANT: this covers 1.76% of the window on a real save (351,682 of 20,000,000
-    bytes) -- one candidate per ~57 bytes. It answers "of the positions that LOOK like a
-    name-length field, what happened to each one", not "what is every byte in this
-    window". A record whose length field falls outside [2,60], or that has no length
-    prefix at all, never becomes a candidate and is invisible here by construction -- see
-    _candidate_positions' note.
-
-    A reject count is not proof of a real gap, and the comp cascade got caught on that twice
-    before it was deleted. Both cautions transfer directly to the club gates, which is why
-    they are kept here:
-      1. A candidate counted against EVERY gate it fails overstates each one. The comp
-         reputation floor showed 9,410 candidates / 1,031 distinct cids that way, but only
-         47 cids failed it ALONE -- the other 984 also failed type/continent/nation and
-         could never have resolved however the floor was set. Count solo failures for "how
-         many records would this fix recover"; count all failures only for "how much noise
-         touches this gate".
-      2. Even a solo count is not proof of NEED. The comp empty-CODE bug hit 164 cids solo,
-         of which only ~30 were real competitions; the rest were coincidental non-records
-         sharing a failure shape. Cross-reference rejected ids against ids something else in
-         the save actually REFERENCES (a match's comp_id/home_tid/away_tid, a player's
-         club_tid) before calling a reject count a gap -- see
-         scripts/audit_declared_scans.py.
-    """
-    lo, hi, cand = _candidate_positions(mm)
-    club_reject_candidates = collections.Counter()
-    club_reject_id_sets = collections.defaultdict(set)
-    club_rejections = []
-    club_accepted_tier0 = club_accepted_tier1 = club_superseded = 0
-    clubs_seen, tiers_seen = {}, {}
-
-    for off in cand.tolist():
-        q = off + lo
-
-        cc = _eval_club_candidate(mm, q)
-        if cc.accepted:
-            existing = clubs_seen.get(cc.tid)
-            prior_tier = tiers_seen.get(cc.tid)
-            if _club_wins(prior_tier, existing, cc.tier, cc.rec):
-                # A tid can win TWICE across this scan -- first at tier 1, later upgraded by
-                # a tier-0 candidate. Counting both wins as separate accepts double-counts
-                # that one tid; undo the earlier tier's count on an upgrade so each tid is
-                # counted exactly once, in its FINAL tier.
-                if prior_tier == 1:
-                    club_accepted_tier1 -= 1
-                clubs_seen[cc.tid] = cc.rec
-                tiers_seen[cc.tid] = cc.tier
-                if cc.tier == 0:
-                    club_accepted_tier0 += 1
-                else:
-                    club_accepted_tier1 += 1
-            else:
-                club_superseded += 1
-        else:
-            club_reject_candidates[cc.reason] += 1
-            club_reject_id_sets[cc.reason].add(cc.tid)
-            club_rejections.append((q, cc.tid, cc.reason))
-
-    club_reject_ids = collections.Counter({r: len(ids) for r, ids in club_reject_id_sets.items()})
-
-    return RefdataDiagnosis(hi - lo, len(cand), club_accepted_tier0, club_accepted_tier1,
-                             club_superseded, club_reject_candidates, club_reject_ids,
-                             club_rejections)
 
 
 # ---------------- club record trailer ----------------

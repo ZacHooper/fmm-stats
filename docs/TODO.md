@@ -530,70 +530,15 @@ Superliga (tier 1, cid 2) since 2025** and the store now runs to **2027 / 2026-0
 read against the current squad rather than resuming the old one.
 
 ### 16. Apply the pure-structural-walk fix to the club table and the audit tooling
-The competition table's 2026-09-18 rewrite (#10) replaced a candidate-scan-plus-gates approach
-with a pure structural walk once the table's own start and declared record count were found in
-a hex dump — no plausibility gate needed at all, and it immediately explained every remaining
-"missing" cid as a genuinely blank slot rather than a scanner defect. Two follow-ups this
-opens, both explicitly requested along the way and not yet done:
-
-- **National teams are club records the club scan cannot see** (found 2026-09-18 while
-  decoding the competition reference list; NOT chased — Zac has this as its own project).
-  A national team is stored in the club layout: Argentina at offset 6,866,484 on
-  frem-2026-06-11 reads `[tid 961][uid 0xFFFFF98F][9]'Argentina'[00][9]'Argentina'[00]
-  [3]'ARG'[trailer]`, which is exactly the long/short/code shape `_eval_club_candidate`
-  looks for. It is invisible anyway, because uid 4,294,965,647 fails both admission bands
-  (`<= 400,000,000`, and the 1.9–2.1bn fill band). **202 of the save's 227 nations have such
-  a record.** Their tids run 1..6342, and 153 of those tids currently resolve in our club
-  index to something that is not a club at all — `'Footballer of the Year'`,
-  `'Player of the Month'`, `"Players' Team of the Year"` — i.e. AWARD records the club gate
-  admits. So the low-tid end of the club table is returning award names where national teams
-  live. Both halves are club-table problems and belong with the rewrite below, not with the
-  competition record.
-
-- **THE CLUB TABLE'S START IS NOW FOUND** (2026-09-18, by chaining — see #17 and
-  [`table-framing.md`](table-framing.md)): **11,331 records at 6,340,458**, declared by a u32
-  at 6,340,454 behind an 8-byte FF sentinel, with **`tid` as the slot index and no gaps —
-  11,331 of 11,331 tids resolve.** Ground truth exact: tid 346 = 'Boldklubben Frem', tid 7296
-  = 'Boldklubben Frem Reserves'. It spans the whole 6.34–12.63 MB gap, ending at the
-  competition table's own header. **National teams are rows 0..~200 of this table** (Algeria,
-  Angola, Benin, … with descending negative uids) and U21 national teams are the last rows, so
-  the bullet above is not a separate problem — it is the same table. Remaining work is the
-  RECORD TRAILER: a fixed 491 bytes walks the first 62 records exactly and then breaks, so it
-  holds something variable-length. Decode that and `_eval_club_candidate` becomes a structural
-  walk like `_walk_comp_table`.
-
-- **The club table is still gate-based** (`_eval_club_candidate`). It shares the exact same
-  candidate-scan architecture the comp table moved away from, and the review pass MEASURED the
-  exposure rather than leaving it as a suspicion: with `_candidate_positions`' nation-table and
-  name-table exclusions removed, the club scan admits **191 extra "clubs" on frem-2026-06-11**
-  — 'Angola', 'Botswana', 'Egypt', 'Ghana', 'Sint Maarten', 'Réunion' and the rest of the
-  nation table, each under a nonsense tid (393218, 1376257, …) — plus tid 4294967295 resolving
-  to 'Rajagobal', the browse name table's own first entry. The exclusions cost zero real clubs,
-  so they stay, but **a scan that needs whole regions fenced off to stop inventing records has
-  not found its table's structure yet.** Note the club table still yields tid 4294967295 even
-  WITH the exclusions, which is a live wrong record, not a hypothetical one. **That check is now done and the answer is no**
-  (2026-09-18, see #17 and [`table-framing.md`](table-framing.md)): the club scan has no
-  located table to look behind at all. Its accepted records sprawl across one 6.4 MB run
-  (6,340,470 .. 12,776,631 on frem-2023-07-02, 24,669 of them) whose first entry is junk
-  (tid 1,701,276,737), so there is no "record 0" whose preceding bytes could hold a count.
-  Finding the club table's real start is its own piece of work, and it is the prerequisite
-  for the rewrite, not a step inside it.
-- **The audit tooling's comp half is DONE** (2026-09-18, review pass) — recorded here because
-  the generalisation is still owed. `scripts/audit_declared_scans.py` was printing comp tier
-  counts and per-gate reject costs, including the line "fixing this gate alone would recover
-  exactly this many", for a code path `_build_refdata_index` had already stopped calling: an
-  audit describing a dead path, which is worse than no audit. It now reports the walk's own
-  invariant instead (`named + blank == the count the table declares`) and classifies a
-  cross-reference miss structurally — either the cid is past the end of the declared table
-  (2 such on frem-2026-06-11: 64735 and 65280, dangling references out of club `league`
-  fields) or the table itself declares that slot blank. `scripts/audit_coverage.py` claims the
-  comp table MEASURED per record via a new `reference.comp_table_spans`, 149 KB that the old
-  AUDITED window claim never covered at all. **Still owed: the general version** — a
-  structural, business-logic-free anomaly check applied to every keyed table, asserting the
-  resolved id set is CONTIGUOUS from 0 regardless of what any gate says. `audit_records.py`'s
-  EXTENT check already does exactly this for `city` and `stadium`; competitions now satisfy it
-  by construction; clubs are the table that still needs it, and cid not being sequential in the
-  old comp output should have been this kind of flag and was checked nowhere.
+**CLOSED 2026-09-21 — The 11,331 club table is completely decoded via pure structural walk.**
+The variable-length trailer formula was solved: `trailer_len = 491 + (naff * 21) + (ntail * 9)`, where
+`naff` is u16 at `p_tr + 202` (affiliates array, 21B per entry) and `ntail` is u16 at `p_tr + 489 + naff * 21`
+(date intervals array, 9B per entry).
+- **11,331 of 11,331** slots resolve in index order (`tid == slot`), capturing all 202 National Teams.
+- Replaced the candidate-scan-plus-gates cascade (`_eval_club_candidate`), eliminating 6,242 phantom clubs and award leakage.
+- Benchmark: **24.5x faster** (1,531 ms -> 62 ms, a 96% reduction in scan time).
+- Coverage: 6.27 MB converted from DECLARED window to MEASURED exact record spans in `audit_coverage.py`.
+- Cross-reference: 0 missing clubs, 0 missing competitions in `audit_declared_scans.py`.
 
 ### 17. Table discovery: the save frames its own tables, and the inventory needs naming
 **Full write-up: [`table-framing.md`](table-framing.md).** Measured on all 34 saves across both
