@@ -14,6 +14,13 @@ from .compman import (
     STAGE as COMP_MAN_STAGE,
     STAGE_STRIDE as COMP_MAN_STAGE_STRIDE,
 )
+from .fixtures import (
+    DAY_BASE,
+    DAY_MASK,
+    FIXTURE,
+    OPENER as FIXTURE_OPENER,
+    STRIDE as FIXTURE_STRIDE,
+)
 from .officials import OFFICIAL, OFFICIAL_STRIDE
 from .places import CITY, CITY_RECORD, STADIUM_HEAD, STADIUM_HEADER
 from .rounds import ROUND_COUNT, ROUND_HEAD, ROUND_TRAILER, ROUND_TRAILER_WIDTH
@@ -32,6 +39,11 @@ __all__ = [
     "COMP_REF_COUNT",
     "COMP_REF_ENTRY",
     "COMP_TRAILER",
+    "DAY_BASE",
+    "DAY_MASK",
+    "FIXTURE",
+    "FIXTURE_OPENER",
+    "FIXTURE_STRIDE",
     "OFFICIAL",
     "OFFICIAL_STRIDE",
     "ROUND_COUNT",
