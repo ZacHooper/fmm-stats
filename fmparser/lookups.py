@@ -28,6 +28,7 @@ import struct
 
 from . import primitives as P
 from .schema import F32, Field, Record, U8, U16, U32
+from .tables import CURRENCIES_CATALOG
 
 _MIN_CHAIN = 20        # consecutive valid records before we believe we found a table
 
@@ -257,10 +258,8 @@ def _currency_at(mm, o, n):
 
 def scrape_currencies(mm):
     """{currency_uid: record} with the exchange rate per GBP."""
-    seeds = _seed_offsets(mm, rb"[A-Z][A-Za-z ]{3,28} (?:Krone|Peso|Dollar|Pound|Franc|Euro)")
-    return {r["uid"]: r
-            for r in _walk(mm, _currency_at, (s - 6 for s in seeds if s >= 6), min_chain=10,
-                           label="currencies")}
+    return CURRENCIES_CATALOG.id_map(mm, key_field="uid")
+
 
 
 # ------------------------------------------------------------------ nations

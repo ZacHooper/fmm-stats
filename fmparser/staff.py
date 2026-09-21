@@ -64,7 +64,12 @@ from .schemas.staff import (
     STAFF_GRID_STRIDE,
     STAFF_HIDDEN_OFFSETS,
     STAFF_STRIDE,
+    _STYLE_BANDS,
+    _TIER_BANDS,
+    reputation_tier,
+    style,
 )
+from .tables import STAFF_TABLE
 
 _ATTRS = STAFF_ATTRS
 
@@ -81,36 +86,8 @@ RECORD = STAFF_GRID_STRIDE  # same grid as the player attribute record (78B)
 _CATALOG_MARKER = bytes.fromhex("76b9f407")
 _CATALOG_STRIDE = 1262
 
-# World-reputation bands for the displayed tier. Derived from the 7 ground-truth managers
-# (Regional 1387/2278, National 5309-5736, Continental 5974) -- the boundaries sit in the
-# gaps, so this is a DERIVED label, not a field the save asserts. Widen it if a manager ever
-# lands on the wrong side.
-_TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
+# Style and reputation bands are declared in schemas/staff.py
 
-# Style bands over `attacking_intent` (+14). DERIVED, like reputation_tier -- the save stores
-# the 1-20 attribute, not the label. Thirds of the scale; see the docstring for why, and for
-# why the Defensive edge (7 vs anything up to 11) is the part still to confirm.
-_STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
-
-
-def style(attacking_intent):
-    """Displayed manager Style from `attacking_intent`, or None. DERIVED, not stored."""
-    if attacking_intent is None:
-        return None
-    for ceiling, label in _STYLE_BANDS:
-        if attacking_intent <= ceiling:
-            return label
-    return None
-
-
-def reputation_tier(world_reputation):
-    """Displayed reputation tier from world reputation, or None."""
-    if world_reputation is None:
-        return None
-    for ceiling, label in _TIER_BANDS:
-        if world_reputation < ceiling:
-            return label
-    return None
 
 
 def formation_catalog(mm):
@@ -220,95 +197,18 @@ _STAFF_TABLE_CACHE = {}
 
 
 def staff_table(mm):
-    """(base, declared_count) for the staff attribute grid, or None.
-
-    THE TABLE IS A DENSE ARRAY AND `id2 == slot index`, on 4642/4642 slots for Frem and
-    5697/5697 for Bucaspor. This contradicts what this module used to claim -- see
-    `scrape_staff_attributes` -- and the contradiction is resolved by the stride: the record
-    is 39 bytes, not the player record's 78. Read at 78 the ids come out 0, 2, 4, ... and
-    `id2 == slot` holds on exactly 1 slot, which is what "multi-segment" was inferred from.
-
-    Located from any one validated record rather than from a constant: if a record at `o`
-    carries `id2 == k` then record 0 is at `o - k * 39`, and the count-frame in front of it
-    confirms the guess. The frame is then checked against the grid itself -- every declared
-    slot must satisfy `id2 == slot` -- so a wrong base fails loudly instead of returning a
-    plausible half-table.
-    """
-    # `save.cache_key`, never `id(mm)`: CPython reuses the id of a freed object, so a loop
-    # over saves gets served the previous save's base -- and a stale ABSOLUTE OFFSET is the
-    # worst kind of stale, it walks into the middle of an unrelated record.
-    key = _cache_key(mm)
-    if key in _STAFF_TABLE_CACHE:
-        return _STAFF_TABLE_CACHE[key]
-    found = None
-    n = len(mm)
-    for o in _candidates(mm).tolist()[:4000]:
-        if not _valid(mm, o, n):
-            continue
-        k = int.from_bytes(mm[o:o + 4], "little")
-        if not (0 <= k < 1_000_000):
-            continue
-        base = o - k * STAFF_STRIDE
-        if base < _STAFF_FRAME:
-            continue
-        if not all(mm[base - 4 - 1 - j] == 0xFF for j in range(8)):
-            continue
-        count = int.from_bytes(mm[base - 4:base], "little")
-        if not (0 < count < 1_000_000) or k >= count:
-            continue
-        if base + count * STAFF_STRIDE > n:
-            continue
-        if all(int.from_bytes(mm[base + j * STAFF_STRIDE:base + j * STAFF_STRIDE + 4],
-                              "little") == j for j in range(count)):
-            found = (base, count)
-            break
-    _STAFF_TABLE_CACHE[key] = found
-    return found
+    """(base, declared_count) for the staff attribute grid, or None."""
+    return STAFF_TABLE.locator(mm)
 
 
 def scrape_staff_attributes(mm, id2s, lo=None, hi=None):
-    """{id2: record} for each id in `id2s` that has a staff attribute record.
-
-    Looked up BY ARITHMETIC when the grid can be located -- `id2` IS the slot index, so the
-    record is at `base + id2 * 39` and there is nothing to search. Falls back to the old key
-    search over shape-matched candidates if the table cannot be framed.
-
-    THE CORRECTION THIS CARRIES. That fallback used to be the whole story, justified like
-    this: "the records sit on the same 78-byte stride as player attribute records but the
-    table is MULTI-SEGMENT, so its phase resets: of the 7 ground-truth managers, consecutive
-    offsets differ by 19,929 and 8,541 bytes, neither a multiple of 78." The observation was
-    right and the conclusion was wrong -- the stride is 39, and 19,929 and 8,541 are exactly
-    511 and 219 records of it. There are no segments and no phase resets; there was an
-    off-by-a-factor-of-two in the stride, and "a grid walk is provably impossible" followed
-    from it. The arithmetic agrees with the key search on every record the search finds
-    (4,449/4,449 on Frem and 5,462/5,462 on Bucaspor, zero disagreements) and additionally
-    rejects one Frem hit whose id2 lies past the declared end of the table.
-    """
+    """{id2: record} for each id in `id2s` that has a staff attribute record."""
     wanted = {i for i in id2s if i not in (None, 0, 0xFFFFFFFF)}
     if not wanted:
         return {}
-    n = len(mm)
-    out = {}
-    table = staff_table(mm)
-    if table is not None:
-        base, count = table
-        for id2 in sorted(wanted):
-            if not (0 <= id2 < count):
-                continue          # past the table's own declared end: not a record
-            o = base + id2 * STAFF_STRIDE
-            if (lo is not None and not (lo <= o < hi)) or not _valid(mm, o, n):
-                continue
-            out[id2] = _parse(mm, o)
-        return out
-    for o in _candidates(mm).tolist():
-        if lo is not None and not (lo <= o < hi):
-            continue
-        id2 = int.from_bytes(mm[o:o + 4], "little")
-        # Keyed on an id the info spine actually claims: that is what makes a candidate list
-        # this loose safe, and it drops the shifted-neighbour false positives for free.
-        if id2 not in wanted or id2 in out:
-            continue
-        if _valid(mm, o, n):
-            out[id2] = _parse(mm, o)
-    return out
+    all_staff = STAFF_TABLE.id_map(mm, key_field="id2")
+    if lo is None and hi is None:
+        return {i: all_staff[i] for i in wanted if i in all_staff}
+    return {i: all_staff[i] for i in wanted if i in all_staff and lo <= all_staff[i]["offset"] < hi}
+
 

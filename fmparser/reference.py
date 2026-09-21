@@ -13,6 +13,7 @@ from .clubs_comps import (  # noqa: F401
     _build_refdata_index,
     _club_table_anchor,
     _comp_table_anchor,
+    _discover_id_tables,
     _name_table_bounds,
     _nation_table_bounds,
     _read_club_slot,

@@ -69,6 +69,24 @@ def test_fixed_table():
     assert rows[1] == {"id": 10, "val": 101, "flag": 1, "extra": 20}
     assert rows[2] == {"id": 20, "val": 102, "flag": 1, "extra": 40}
 
+    # Test object methods directly
+    assert table_def.scrape(mm) == rows
+    assert table_def.spans(mm, include_count_header=True) == fixed_table_spans(mm, table_def, include_count_header=True)
+    id_map = table_def.id_map(mm, key_field="id")
+    assert len(id_map) == 3
+    assert id_map[10]["val"] == 101
+
+    # Test include_offset
+    offset_def = FixedTableDef(
+        name="test_fixed_offset",
+        record_schema=DUMMY_FIXED,
+        locator=lambda m: (base, count),
+        include_offset=True,
+    )
+    offset_rows = offset_def.scrape(mm)
+    assert offset_rows[0]["offset"] == base
+    assert offset_rows[1]["offset"] == base + DUMMY_FIXED.stride
+
     spans = fixed_table_spans(mm, table_def, include_count_header=True)
     assert len(spans) == count + 1  # count header + 3 rows
     assert spans[0] == (0, 4)  # count header span
@@ -124,6 +142,28 @@ def test_string_catalog():
     assert len(rows) == len(items), f"expected {len(items)} rows, got {len(rows)}"
     assert rows[0] == {"id": 1, "name": "First Leg", "code": 999}
     assert rows[1] == {"id": 2, "name": "Quarter Final", "code": 888}
+
+    # Test object methods directly
+    assert catalog_def.scrape(mm) == rows
+    assert catalog_def.spans(mm, include_count_header=True) == string_catalog_spans(mm, catalog_def, include_count_header=True)
+    id_map = catalog_def.id_map(mm, key_field="id")
+    assert len(id_map) == 2
+    assert id_map[1]["name"] == "First Leg"
+
+    # Test include_offset
+    offset_cat = StringCatalogDef(
+        name="test_cat_offset",
+        head_schema=DUMMY_HEAD,
+        trailer_schema=DUMMY_TRAILER,
+        locator=lambda m: (base, len(items)),
+        string_field="name",
+        len_field="len",
+        null_terminated=True,
+        include_offset=True,
+    )
+    offset_cat_rows = offset_cat.scrape(mm)
+    assert offset_cat_rows[0]["offset"] == base
+    assert "offset" in offset_cat_rows[1]
 
     spans = string_catalog_spans(mm, catalog_def, include_count_header=True)
     assert len(spans) == len(items) + 1

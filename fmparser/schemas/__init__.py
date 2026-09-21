@@ -6,6 +6,11 @@ from .competitions import (
     COMP_REF_ENTRY,
     COMP_TRAILER,
 )
+from .currencies import (
+    CURRENCY_COUNT,
+    CURRENCY_HEAD,
+    CURRENCY_TAIL,
+)
 from .compman import (
     HEADER as COMP_MAN_HEADER,
     HEADER_STRIDE as COMP_MAN_HEADER_STRIDE,
@@ -39,6 +44,9 @@ __all__ = [
     "COMP_REF_COUNT",
     "COMP_REF_ENTRY",
     "COMP_TRAILER",
+    "CURRENCY_COUNT",
+    "CURRENCY_HEAD",
+    "CURRENCY_TAIL",
     "DAY_BASE",
     "DAY_MASK",
     "FIXTURE",

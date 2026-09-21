@@ -52,3 +52,27 @@ STAFF = Record("staff_attribute", STAFF_STRIDE, [
       for o in range(14, 31) if o not in {**STAFF_ATTRS, **STAFF_HIDDEN_OFFSETS}],
     *[Field(o, 1, UNKNOWN, U8) for o in range(34, 39)],   # five catalog indices, undecoded
 ])
+
+_TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
+_STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
+
+
+def style(attacking_intent):
+    """Displayed manager Style from `attacking_intent`, or None. DERIVED, not stored."""
+    if attacking_intent is None:
+        return None
+    for ceiling, label in _STYLE_BANDS:
+        if attacking_intent <= ceiling:
+            return label
+    return None
+
+
+def reputation_tier(world_rep):
+    """Displayed manager reputation tier from `world_reputation`, or None."""
+    if world_rep is None:
+        return None
+    for ceiling, label in _TIER_BANDS:
+        if world_rep < ceiling:
+            return label
+    return None
+
