@@ -11,7 +11,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import places as PL  # noqa: E402
+from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 from fmparser import records as RD  # noqa: E402
 
 
@@ -66,7 +66,7 @@ def test_stadium_parsing():
     # 1. Valid stadium
     s1 = build_stadium_bytes(sid=157, name="Aalborg Portland Park", capacity=13800)
     mm1 = memoryview(s1)
-    rec1, nxt1 = PL._stadium_at(mm1, 0, len(s1))
+    rec1, nxt1 = PL_STADIUMS._stadium_at(mm1, 0, len(s1))
     assert rec1 is not None
     assert rec1["id"] == 157
     assert rec1["name"] == "Aalborg Portland Park"
@@ -75,12 +75,12 @@ def test_stadium_parsing():
 
     # 2. Implausible capacity (> 300,000) rejected
     s_huge = build_stadium_bytes(sid=1, capacity=500_000)
-    rec_huge, _ = PL._stadium_at(memoryview(s_huge), 0, len(s_huge))
+    rec_huge, _ = PL_STADIUMS._stadium_at(memoryview(s_huge), 0, len(s_huge))
     assert rec_huge is None
 
     # 3. Missing null terminator rejected
     s_nonull = build_stadium_bytes(sid=2, null_term=False)
-    rec_nonull, _ = PL._stadium_at(memoryview(s_nonull), 0, len(s_nonull))
+    rec_nonull, _ = PL_STADIUMS._stadium_at(memoryview(s_nonull), 0, len(s_nonull))
     assert rec_nonull is None
 
     # 4. Chain of 3 stadiums
@@ -88,7 +88,7 @@ def test_stadium_parsing():
     s_b = build_stadium_bytes(sid=2, name="Stadium B")
     s_c = build_stadium_bytes(sid=3, name="Stadium C")
     chain_buf = memoryview(s_a + s_b + s_c)
-    chain_len = PL._chain_len(chain_buf, 0, len(chain_buf))
+    chain_len = PL_STADIUMS._chain_len(chain_buf, 0, len(chain_buf))
     assert chain_len == 3
 
     print("  PASS _stadium_at (valid, capacity gate, null terminator, chaining)")
@@ -98,14 +98,14 @@ def test_city_parsing():
     print("TESTING CITY record schema")
     # 1. Valid coordinates
     c1 = build_city_bytes(cid=51, latitude=57.0488, longitude=9.9217)
-    rec1 = RD.read(c1, PL.CITY, 0)
+    rec1 = RD.read(c1, PL_CITIES.CITY, 0)
     assert rec1["id"] == 51
     assert abs(rec1["latitude"] - 57.0488) < 1e-4
     assert abs(rec1["longitude"] - 9.9217) < 1e-4
     assert rec1["nation_id"] == 2
 
     # 2. Layout span
-    assert PL.CITY.span == PL.CITY_RECORD == 20
+    assert PL_CITIES.CITY.span == PL_CITIES.CITY_RECORD == 20
 
     print("  PASS CITY record schema (unpacks fields and float32 lat/lon)")
 

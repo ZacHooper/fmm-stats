@@ -7,8 +7,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import officials as OF
-from fmparser import rounds as RO
+from fmparser.tables import officials as OF
+from fmparser.tables import rounds as RO
 
 SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 CASES = [

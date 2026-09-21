@@ -33,8 +33,11 @@ from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # n
 # smaller registry.
 # `fixtures` is safe to import with no `archive` extra installed -- archive.py imports
 # zstandard lazily, inside the call -- so the cheap tier stays dependency-free.
-RECORD_MODULES = ("attributes", "clubrecords", "clubs_comps", "compman", "fixtures", "history", "lookups", "matches",
-                  "matchslots", "officials", "places", "reference", "rounds", "staff", "staging")
+RECORD_MODULES = (
+    "attributes", "clubrecords", "clubs_comps", "compman", "fixtures", "history", "lookups", "matches",
+    "matchslots", "reference", "staging",
+    "tables.cities", "tables.currencies", "tables.names", "tables.officials", "tables.rounds", "tables.stadiums", "tables.staff"
+)
 
 
 def _import_record_modules():

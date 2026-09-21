@@ -42,9 +42,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import attributes as A          # noqa: E402
-from fmparser import staff as ST              # noqa: E402
+from fmparser.tables import staff as ST       # noqa: E402
+from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 from fmparser import lookups as LK            # noqa: E402
-from fmparser import places as PL             # noqa: E402
 from fmparser import reference as R           # noqa: E402
 from fmparser import clubrecords as CR        # noqa: E402
 from fmparser import history as H             # noqa: E402
@@ -110,7 +110,7 @@ LAYOUTS = {
     # index, so each contributes a fixed head and a fixed tail rather than a stride. None of
     # these was in the audit before, which is why the fixed parts were only ever described in
     # prose.
-    "stadium_head": _from_record(PL.STADIUM_HEAD),
+    "stadium_head": _from_record(PL_STADIUMS.STADIUM_HEAD),
     "language_head": _from_record(LK.LANGUAGE_HEAD),
     "language_tail": _from_record(LK.LANGUAGE_TAIL),
     "currency_head": _from_record(LK.CURRENCY_HEAD),
@@ -120,7 +120,7 @@ LAYOUTS = {
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.
-    "city": _from_record(PL.CITY),
+    "city": _from_record(PL_CITIES.CITY),
     # NOT strides -- variable-length names precede the trailer and a variable-length entries
     # array sits inside the part after it. Together these four cover the competition record
     # in full, in file order:
@@ -253,11 +253,11 @@ def main():
             mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
         ok &= _stride("staff_attribute", [r["offset"] for r in sa.values()], 39)
 
-        cities = PL.scrape_cities(mm)
-        ok &= _stride("city", [v["offset"] for v in cities.values()], PL.CITY_RECORD)
+        cities = PL_CITIES.scrape_cities(mm)
+        ok &= _stride("city", [v["offset"] for v in cities.values()], PL_CITIES.CITY_RECORD)
         ok &= _extent("city", cities.keys())
 
-        stadiums = PL.scrape_stadiums(mm)
+        stadiums = PL_STADIUMS.scrape_stadiums(mm)
         ok &= _extent("stadium", stadiums.keys())
 
     print("\n" + ("PASS: every record fully accounted for" if ok

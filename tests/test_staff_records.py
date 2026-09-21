@@ -29,10 +29,10 @@ sys.path.insert(0, ROOT)
 
 from tests.harness import skip  # noqa: E402
 
-from fmparser import staff as ST                      # noqa: E402
+from fmparser.tables import staff as ST                      # noqa: E402
 from fmparser import staging as S                     # noqa: E402
 from fmparser import lookups as LK                    # noqa: E402
-from fmparser import places as PL                     # noqa: E402
+from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 
 SAVE_NAME = "frem-2024-11-10.fms"
 
@@ -228,7 +228,7 @@ def main(argv):
               f"(n={len(gk)}/{len(out)})")
 
     # ---- reference tables (fmparser/places.py, fmparser/lookups.py) ----------
-    stadiums, cities = PL.scrape_stadiums(mm), PL.scrape_cities(mm)
+    stadiums, cities = PL_STADIUMS.scrape_stadiums(mm), PL_CITIES.scrape_cities(mm)
     for sid, want_name, want_cap in ((157, "Aalborg Portland Park", 13800),
                                      (177, "Parken", 38065)):
         st = stadiums.get(sid)

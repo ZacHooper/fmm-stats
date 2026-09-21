@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import records as RD  # noqa: E402
-from fmparser import staff as ST    # noqa: E402
+from fmparser.tables import staff as ST    # noqa: E402
 
 
 def build_staff_record_bytes(

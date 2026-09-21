@@ -115,12 +115,12 @@ def claims(mm, n):
         print(f"  ! clubrecords failed: {exc}", file=sys.stderr)
 
     try:
-        from fmparser import places as PL
-        st = PL.scrape_stadiums(mm)
+        from fmparser.tables import cities, stadiums
+        st = stadiums.scrape_stadiums(mm)
         rows = st.values() if isinstance(st, dict) else st
         measured("places.stadiums",
                  [(r["offset"], r["offset"] + 40) for r in rows if isinstance(r, dict)])
-        ct = PL.scrape_cities(mm)
+        ct = cities.scrape_cities(mm)
         rows = ct.values() if isinstance(ct, dict) else ct
         measured("places.cities",
                  [(r["offset"], r["offset"] + 24) for r in rows if isinstance(r, dict)])
@@ -128,7 +128,7 @@ def claims(mm, n):
         print(f"  ! places failed: {exc}", file=sys.stderr)
 
     try:
-        from fmparser import staff as ST
+        from fmparser.tables import staff as ST
         id2s = {v["id2"] for v in info.values() if v.get("id2")}
         sa = ST.scrape_staff_attributes(mm, id2s)
         rows = sa.values() if isinstance(sa, dict) else sa

@@ -60,7 +60,7 @@ PERSON_COLS = list(_PERSON)
 # Everything off the info record is a small integer except the one date.
 PERSON_DATE_COLS = {"joined_date"}
 _PERSON_SQL = {c: ("DATE" if c in PERSON_DATE_COLS else "INTEGER") for c in PERSON_COLS}
-from fmparser.staff import HIDDEN_OFFSETS as _STAFF_HIDDEN      # noqa: E402
+from fmparser.tables.staff import HIDDEN_OFFSETS as _STAFF_HIDDEN      # noqa: E402
 PLAYER_HIDDEN_COLS = list(_PLAYER_HIDDEN.values())
 STAFF_HIDDEN_COLS = list(_STAFF_HIDDEN.values())
 
