@@ -529,18 +529,7 @@ seasons stale** — it was written when Frem were in NordicBet Liga; they have b
 Superliga (tier 1, cid 2) since 2025** and the store now runs to **2027 / 2026-07-02**. Redo the
 read against the current squad rather than resuming the old one.
 
-### 16. Apply the pure-structural-walk fix to the club table and the audit tooling
-**CLOSED 2026-09-21 — The 11,331 club table is completely decoded via pure structural walk.**
-The variable-length trailer formula was solved: `trailer_len = 491 + (naff * 21) + (ntail * 9)`, where
-`naff` is u16 at `p_tr + 202` (affiliates array, 21B per entry) and `ntail` is u16 at `p_tr + 489 + naff * 21`
-(date intervals array, 9B per entry).
-- **11,331 of 11,331** slots resolve in index order (`tid == slot`), capturing all 202 National Teams.
-- Replaced the candidate-scan-plus-gates cascade (`_eval_club_candidate`), eliminating 6,242 phantom clubs and award leakage.
-- Benchmark: **24.5x faster** (1,531 ms -> 62 ms, a 96% reduction in scan time).
-- Coverage: 6.27 MB converted from DECLARED window to MEASURED exact record spans in `audit_coverage.py`.
-- Cross-reference: 0 missing clubs, 0 missing competitions in `audit_declared_scans.py`.
-
-### 17. Table discovery: the save frames its own tables, and the inventory needs naming
+### 16. Table discovery: the save frames its own tables, and the inventory needs naming
 **Full write-up: [`table-framing.md`](table-framing.md).** Measured on all 34 saves across both
 careers; reproduce with `scripts/audit_table_headers.py` (+ `--confirm`) and
 `scripts/discover_tables.py` (+ `--stable`).
