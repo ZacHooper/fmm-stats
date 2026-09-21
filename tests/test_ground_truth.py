@@ -19,7 +19,7 @@ from tests.harness import find_save, skip  # noqa: E402
 
 from fmparser.save import Save                        # noqa: E402
 from fmparser import matches as M                     # noqa: E402
-from fmparser import attributes as A                  # noqa: E402
+from fmparser import player_attributes as A                  # noqa: E402
 from fmparser import staging as S                     # noqa: E402
 
 # reserve squad loan ground truth (from an in-game screenshot, 19 Jun 2022):

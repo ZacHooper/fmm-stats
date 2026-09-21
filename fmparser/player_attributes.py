@@ -296,19 +296,8 @@ def decode(attrs):
 
 
 # ---------------- global record (all players) ----------------
-# Schema and offsets are defined in fmparser.tables.player_attributes
-
-# The record does not stop at the reputation we read at P+21. It runs `P-42 … P+35` —
-# exactly the 78-byte grid above — and the last 13 bytes were simply never parsed. Field
-# order confirmed against nyongrand/fmm-editor's FMM26 `Player` struct; see
-# docs/agent-context/fmm-editor-record-comparison.md.
-#
-# The `reputation` we have always read at P+21 is specifically HOME reputation; the name is
-# left alone because value_model.py is fitted on that column.
-#
-# Verified on frem-2024-11-10 over 26,518 records: height median 182cm (min 153), weight
-# median 73kg (min 55), and goalkeepers average 188.2cm/78.2kg against 180.4/71.8 for
-# outfielders — the check to re-run if these ever look wrong.
+# The 78-byte global record runs P-42 .. P+35. Field layout and offsets
+# are declared in fmparser.tables.player_attributes.
 def record_for(mm, tid):
     """Locate a player's global attribute record via SID. Returns a dict or None."""
     io = info_offset(mm, tid)

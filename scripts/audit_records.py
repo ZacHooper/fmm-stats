@@ -41,7 +41,7 @@ import collections
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import attributes as A          # noqa: E402
+from fmparser import player_attributes as A          # noqa: E402
 from fmparser.tables import staff as ST       # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 from fmparser import lookups as LK            # noqa: E402

@@ -31,8 +31,8 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 
 # Reuse the season/phase math and field lists from the extractors (pure-stdlib import).
 from extract import parse_label
-from fmparser.attributes import ATTR_ORDER
-from fmparser import attributes as _A
+from fmparser.player_attributes import ATTR_ORDER
+from fmparser import player_attributes as _A
 from fmparser import matches as M
 from fmparser.mart import create_mart, drop_mart
 

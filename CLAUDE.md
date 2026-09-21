@@ -425,6 +425,7 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
   held against the measurement on purpose and both are named in `HELD`. Read the script's docstring
   before editing either method; hand-editing a derived set throws the audit trail away, and a
   judgement call belongs in `HELD` with its argument, not in the CSV.
+- **Code comments describe current reality, not past parser history.** Comments must document the actual binary layout, field semantics, and game engine mechanics factually. Avoid narrative archaeology ("we didn't used to parse this", "until now this was broken", "for the life of this parser"). State what the data is so future readers have an authoritative, noise-free specification.
 
 ## Data setup on a fresh clone
 `git clone` + `uv sync` gives you the code, skills, context, seeds and the rebuild manifest — but

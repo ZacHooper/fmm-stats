@@ -20,7 +20,7 @@ from .careers import resolve_career
 # Which club you manage lives in careers.py; pick one per run with
 # `extract.py --career <key>` or FM_CAREER. Below is whatever careers.py resolves as the
 # default (currently frem) for callers that don't pass one — every hot path threads the
-# actual club marker through instead (see attributes.py).
+# actual club marker through instead (see player_attributes.py).
 _DEFAULT = resolve_career()
 MANAGED_CLUB_TID = _DEFAULT.managed_tid       # default career's first team
 MANAGED_RESERVE_TID = _DEFAULT.reserve_tid    # its reserve side (AI-run)
