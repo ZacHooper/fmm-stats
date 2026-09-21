@@ -117,76 +117,7 @@ the last snapshot of S. On 2026-06-29 it still reads the 2024/25 table; on 2026-
 2025/26. What it does NOT carry is points, W/D/L or goals — only the position. That is still
 the gap the 14-byte record would close, alongside non-final (in-season) tables.
 
-### 4. Complete results/fixtures — FOUND 2026-09-20, in a place nobody had opened
 
-**`fix_man.dat`, inside the compressed archive at the end of the file, IS the fixture list
-with scores** — mostly played matches, but genuinely forward-looking mid-season
-(`bucaspor-2023-05-20` carries 619 rows dated after its own save date; the end-of-June saves
-carry none, which is what made an earlier note over-claim "already played, not a fixture
-list"). 26,954 records of 92 bytes on `frem-2026-06-11`, against the 275 fixtures the
-25-byte match-slot table can resolve. Ground truth: every `mart.club_matches` row for the
-managed club, both careers, five saves — **282 of 285 in-window rows exact on date, home tid,
-away tid and both scores; 0 wrong on clubs or date**. It is **home-first**, unlike the 25-byte
-table. Full writeup, including the three mismatches and everything still unnamed:
-[`save-archive.md`](save-archive.md).
-
-The reason four hunts missed it is worth keeping: the region was ranked by **printable-byte
-fraction**, and compressed data is 37.1% printable by construction, so "the most TEXT-dense
-unparsed span in the file" was a measurement artefact. It reads 7.99 bits/byte of entropy and
-contains the zstd magic number. `scripts/entropy_profile.py` now exists so the next region is
-profiled before it is ranked.
-
-**The decode and the wiring are DONE** (2026-09-20, refactor Phase 4). `fmparser/fixtures.py`
-holds the declared 92-byte `world_fixture` record, `extract.py` emits `world_fixtures.json`,
-and the layout is registered with `tests/test_layouts.py`. Clubs and date ship; **scores do
-not**, and that is deliberate — see below. Row counts per save: 323 on the day-one
-`frem-2021-07-01` (nothing has been played yet), 26,638 / 26,954 / 26,086 on the three
-mid-career saves.
-
-Three things are still open here:
-
-- **Load it into DuckDB.** `world_fixtures.json` is emitted but nothing consumes it. This is
-  the item with actual downstream value: ~20k world results per snapshot, and since each save
-  carries an ~18-month window while our snapshots are far closer together than that, a UNION
-  across snapshots covers the whole career with overlap rather than holes.
-
-  **The recipe for turning it into league tables is worked out — it just isn't code.** Proven
-  2026-09-21 on the Danish top flight, all five seasons the archive reaches: exactly 192
-  matches and 32 games per club every time, and the resulting order agrees **12/12** with the
-  save's own `last_league_pos` (see #3) in every season, with Frem's row matching our own
-  parsed match records exactly on P/W/D/L/GF/GA/Pts. Three structural facts stand in for the
-  competition field the record does not have:
-
-  1. **`round` (+78) is a matchday counter within a competition** — but it RESTARTS for the
-     post-split phase, so rounds 0-9 each hold two real league rounds ~250 days apart.
-  2. **A >30-day gap inside one round number separates those two phases.** A gap rule alone is
-     not enough: cup ties land within days of a league round.
-  3. **A league round is a PERFECT MATCHING** — N/2 fixtures covering every club in the
-     division exactly once. A cup tie always duplicates a club, so it can never be part of one.
-     This is what finally isolates the league, and it needs no competition id at all.
-
-  Two things to carry into the loader. **Scores are read at +6/+11 and are only valid when the
-  block takes its plain shape** (all of +2..15 except the two goal bytes are 0xFF) — check it
-  per row rather than trusting the ~98% aggregate; all 960 matches in the five Danish seasons
-  happened to be plain. And **a split league's final order is not points order**: every
-  championship-group club ranks above every relegation-group club regardless of points
-  (Nordsjælland finished 7th on 46 while Lyngby finished 5th on 39). Derive the groups from
-  the last 10 rounds' fixtures — after the split, clubs only meet inside their own group, so
-  the fixture graph falls into two components.
-- **The goals block at `+2..+15` is variable-shape**, so `+6`/`+11` is a reading that is right
-  whenever the block takes its plain shape and wrong when it does not (one Frem row proves it,
-  against our own store). Declared UNKNOWN and not emitted. Naming that block's shapes —
-  extra time? penalties? aggregate? — is what would let scores ship.
-- **No competition field is identified**, and ~70 of the 92 bytes are still unnamed. The
-  round counter at `+78` is no longer among them — **decoded 2026-09-21**, correcting the
-  entry that used to sit here claiming it was neither cleanly a u8 nor a u32. The
-  measurements were right and the conclusion was wrong: `+78` is a u8 round, and `+79`/`+80`/
-  `+81` are three SEPARATE small columns (8 / 4 / 2 distinct values), not padding and not part
-  of it. "Non-zero neighbours" only ever argued against padding, never against a u8. Same
-  shape of mistake as reading the staff record at the player record's stride — adjacent bytes
-  assumed to be one field.
-
-Everything below is the history of the search, kept because it records what is NOT there.
 
 **Re-scoped 2026-09-17.** The light-results region turned out to be the **club records**
 tables (`fmparser/clubrecords.py`), so the complete results are not there and never were, and
