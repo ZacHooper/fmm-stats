@@ -55,49 +55,18 @@ import numpy as np
 from . import primitives as P
 from . import records as RD
 from .save import cache_key as _cache_key
-from .schema import Field, Record, U8, U16, U32, UNKNOWN
+from .schemas.staff import (
+    FORMATION_SLOTS,
+    HIDDEN_OFFSETS,
+    STAFF,
+    STAFF_ATTRS,
+    STAFF_FORMATION_SLOTS,
+    STAFF_GRID_STRIDE,
+    STAFF_HIDDEN_OFFSETS,
+    STAFF_STRIDE,
+)
 
-# Offsets relative to the record start (= the ID2 u32).
-_ATTRS = {
-    14: "attacking_intent",
-    15: "financial_control",
-    16: "outfield_coaching",
-    17: "goalkeeping_coaching",
-    19: "discipline",
-    21: "judging_ability",
-    22: "judging_potential",
-    23: "people_management",
-    25: "motivating",
-    29: "tactical_knowledge",
-    30: "youth_coaching",
-}
-# +14..+30 is a block of SEVENTEEN attribute bytes (1-20). Ten are the coaching values the
-# Manager Profile screen shows; the remaining seven are hidden, because the other seven values
-# on that screen are the personality block on the INFO record, not this one. Of the hidden
-# ones only +14 carries a MEANING -- as `attacking_intent`, on the evidence in the module
-# docstring, because Style is banded from it. The other six are PARSED but not named, as
-# `hidden_s*` (see HIDDEN_OFFSETS below): carrying a value we cannot name costs nothing and is
-# what identification work needs, whereas guessing a name is how `-140` became a Style
-# candidate.
-
-# The six HIDDEN attributes. `+14..+30` is seventeen 1-20 bytes; `_ATTRS` names the ten the
-# Manager Profile screen shows and `attacking_intent`, which Style is banded from. These are
-# the remaining six. All six read 1-20 for 100% of 4,210 staff records -- the same shape as
-# the named ones -- so they are attributes we cannot name, not bytes we are unsure about.
-#
-# Carried rather than discarded, for the same reason as the player record's hidden block: we
-# already know what KIND of thing they are, and a column in the store is what identification
-# work needs. Named by offset so the name claims nothing: `hidden_s27` is staff record `+27`.
-#
-# `+27` is the one worth attacking first -- it is the only one with a distinctive
-# distribution (85% of staff read 1-4, mean 3.0, against ~10 for the other five), so a small
-# ground-truth set would separate it. The other five are unremarkably centred near 10.
-HIDDEN_OFFSETS = {18: "hidden_s18", 20: "hidden_s20", 24: "hidden_s24",
-                  26: "hidden_s26", 27: "hidden_s27", 28: "hidden_s28"}
-
-FORMATION_SLOTS = {31: "formation_preferred",
-                   32: "formation_attacking",
-                   33: "formation_defensive"}
+_ATTRS = STAFF_ATTRS
 
 # Everything a staff record contributes downstream, named once so extract.py, the loader and
 # the mart cannot drift apart. `ca`/`pa` ride along (the record carries them) and are subject
@@ -108,7 +77,7 @@ STAFF_FIELDS = (("ca", "pa", "home_reputation", "current_reputation", "world_rep
                 + tuple(_ATTRS.values()) + tuple(HIDDEN_OFFSETS.values())
                 + tuple(FORMATION_SLOTS.values()) + ("style",))
 
-RECORD = 78          # same grid as the player attribute record
+RECORD = STAFF_GRID_STRIDE  # same grid as the player attribute record (78B)
 _CATALOG_MARKER = bytes.fromhex("76b9f407")
 _CATALOG_STRIDE = 1262
 
@@ -122,36 +91,6 @@ _TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
 # the 1-20 attribute, not the label. Thirds of the scale; see the docstring for why, and for
 # why the Defensive edge (7 vs anything up to 11) is the part still to confirm.
 _STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
-
-# The record as ONE declaration, built from the offset tables above rather than retyping them
-# -- `_ATTRS`, `HIDDEN_OFFSETS` and `FORMATION_SLOTS` stay the source of truth because they
-# are what the evidence in the docstring is written against.
-#
-# The field ORDER here is the output order and is load-bearing: `staff.json` is written
-# without `sort_keys`, so re-sorting this list changes the file. It reproduces the order
-# `_parse` built its dict in.
-#
-# Note the last five bytes. `+34..+38` is real structure -- a 15-value index space disjoint
-# from the formation triple's -- and it is declared UNKNOWN rather than left out, because a
-# byte that is neither named nor declared is a byte we are stepping over by accident. Knowing
-# the record is EXACTLY 39 bytes is what settled Style: there is nowhere left in it for a
-# 3-valued enum, so Style has to be derived, and it is.
-STAFF = Record("staff_attribute", 39, [
-    Field(0,  4, "id2", U32, note="the info record's +64 link"),
-    Field(4,  2, "ca", U16, note="never surfaced -- immersion rule"),
-    Field(6,  2, "pa", U16, note="never surfaced -- immersion rule"),
-    Field(8,  2, "home_reputation", U16),
-    Field(10, 2, "current_reputation", U16),
-    Field(12, 2, "world_reputation", U16),
-    *[Field(o, 1, n, U8, group="attrs") for o, n in _ATTRS.items()],
-    *[Field(o, 1, n, U8, group="hidden") for o, n in HIDDEN_OFFSETS.items()],
-    *[Field(o, 1, n, U8, group="formation") for o, n in FORMATION_SLOTS.items()],
-    # the seven bytes of +14..+30 that `_ATTRS`/`HIDDEN_OFFSETS` do not claim would show up
-    # here; today they claim all seventeen, so this list is empty and must stay empty.
-    *[Field(o, 1, UNKNOWN, U8)
-      for o in range(14, 31) if o not in {**_ATTRS, **HIDDEN_OFFSETS}],
-    *[Field(o, 1, UNKNOWN, U8) for o in range(34, 39)],   # five catalog indices, undecoded
-])
 
 
 def style(attacking_intent):
