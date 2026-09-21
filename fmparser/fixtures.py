@@ -113,37 +113,54 @@ STRIDE = 92
 OPENER = 0x14                 # the second byte of every record
 MEMBER_HEADER = 6             # every member's decompressed payload opens [03][01]['tad.']
 
-# THE RECORD. ~70 of its 92 bytes are unnamed and every one of them is declared PAD, which is
-# the whole point: a byte that is neither named nor declared is a byte we are stepping over by
-# accident, and this record had no declaration at all until now.
-#
-# `home_goals`/`away_goals` are NOT here even as names -- see the module docstring. They fall
-# inside the variable-shape block at +2..+15, which is declared as one unknown span because
-# that is what it is: not ten unknown bytes, one block whose SHAPE is unknown.
+# THE RECORD. Declared layout over the 92-byte stride.
+# Proven fields are named and emitted or typed; unproven or variable blocks stay UNKNOWN/PAD.
 FIXTURE = Record("world_fixture", STRIDE, [
     Field(0,  1, UNKNOWN, PAD),
     Field(1,  1, "opener", U8, note="always 0x14; this is what the stride histogram keys on"),
-    # +2..+15: the variable-shape block. Goals read correctly at +6 and +11 whenever it takes
-    # its plain shape, and wrongly when it does not, so the whole block stays unnamed.
-    Field(2,  14, UNKNOWN, PAD),
-    Field(16, 25, UNKNOWN, PAD),
-    Field(41, 4, "home_tid", U32, note="282/285 against ground truth; HOME-FIRST"),
-    Field(45, 2, UNKNOWN, PAD),
-    Field(47, 4, "away_tid", U32, note="282/285"),
-    Field(51, 2, UNKNOWN, PAD),
-    # `& 0x1FF` never exceeds 366 across 26,954 records, twice over. A random 9-bit mask would
-    # overflow about 29% of the time, so the mask is the identification, not a convenience.
-    # ONE-INDEXED -- see DAY_BASE.
-    Field(53, 2, "day_raw", U16),
-    Field(55, 2, "year", U16, note="only the current and previous calendar year, ever"),
-    Field(57, 21, UNKNOWN, PAD),
+    # +2..+15: the goals and shoot-out block
+    Field(2,  4, UNKNOWN, PAD),
+    Field(6,  1, "home_goals", U8, note="home score; 0xFF = unplayed"),
+    Field(7,  1, "home_extra_goals", U8, note="home extra-time/aggregate score; 0xFF = none"),
+    Field(8,  1, "home_pens", U8, note="home penalty shoot-out score; 0xFF = none"),
+    Field(9,  2, UNKNOWN, PAD),
+    Field(11, 1, "away_goals", U8, note="away score; 0xFF = unplayed"),
+    Field(12, 1, "away_extra_goals", U8, note="away extra-time/aggregate score; 0xFF = none"),
+    Field(13, 1, "away_pens", U8, note="away penalty shoot-out score; 0xFF = none"),
+    Field(14, 2, UNKNOWN, PAD),
+    Field(16, 8,  UNKNOWN, PAD, note="constant zero"),
+    Field(24, 2,  UNKNOWN, PAD, note="8/7 distinct values, varies per match"),
+    Field(26, 5,  UNKNOWN, PAD, note="constant padding: 0, 0, 0, 0, 20"),
+    # +31: the stage/competition key. Takes 409 distinct values on frem-2026-06-11,
+    # partitioning all 26,954 fixtures with nothing left over.
+    Field(31, 4,  "stage_key", U32, note="stage key; index into comp_man.dat 78-byte grid"),
+    # +35: per-fixture sequence id (256/58 distinct values)
+    Field(35, 2,  "seq_id", U16, note="sequence id within round/stage"),
+    Field(37, 4,  UNKNOWN, PAD),
+    Field(41, 4,  "home_tid", U32, note="282/285 against ground truth; HOME-FIRST"),
+    Field(45, 2,  UNKNOWN, PAD, note="secondary home club or aggregate/penalty marker"),
+    Field(47, 4,  "away_tid", U32, note="282/285"),
+    Field(51, 2,  UNKNOWN, PAD, note="secondary away club or aggregate/penalty marker"),
+    # `& 0x1FF` never exceeds 366 across 26,954 records, twice over.
+    # Top 7 bits (day_raw >> 9) discarded; ONE-INDEXED -- see DAY_BASE.
+    Field(53, 2,  "day_raw", U16),
+    Field(55, 2,  "year", U16, note="only the current and previous calendar year, ever"),
+    Field(57, 2,  "day2_raw", U16, note="secondary date day"),
+    Field(59, 2,  "year2", U16, note="secondary date year"),
+    Field(61, 5,  UNKNOWN, PAD),
+    Field(66, 2,  "season_year", U16, note="season year (2024/2025; 0 on unplayed/friendlies)"),
+    Field(68, 8,  UNKNOWN, PAD),
+    # Stage attributes: constant in all 409 stage groups on frem-2026-06-11
+    Field(76, 1,  "stage_attr_76", U8, note="stage index within competition (from comp_<id>.dat 'stgs')"),
+    Field(77, 1,  "stage_attr_77", U8, note="round index within competition stage (from comp_<id>.dat 'rnds')"),
     # 0-45, or 255 for "no matchday" (friendlies). See the module docstring.
-    Field(78, 1, "round", U8, note="matchday WITHIN a competition; 255 = none"),
-    # NOT padding, and NOT part of the round: three separate small columns, 8 / 4 / 2 distinct
-    # values, mostly zero, unidentified. Declared as one unknown span because that is the
-    # honest statement -- but do not read them together with +78, which is what hid the round.
-    Field(79, 3, UNKNOWN, PAD),
-    Field(82, 10, UNKNOWN, PAD),
+    Field(78, 1,  "round", U8, note="matchday WITHIN a competition; 255 = none"),
+    Field(79, 1,  UNKNOWN, PAD),
+    Field(80, 1,  "stage_attr_80", U8, note="stage attribute, constant within stage"),
+    Field(81, 1,  "stage_attr_81", U8, note="stage attribute, constant within stage"),
+    Field(82, 1,  UNKNOWN, PAD),
+    Field(83, 1,  "stage_attr_83", U8, note="stage class / subr from rules file"),
+    Field(84, 8,  UNKNOWN, PAD),
 ])
 
 DAY_MASK = 0x1FF
@@ -206,32 +223,56 @@ def segments(blob):
 
 
 def fixtures(mm, valid_clubs=None):
-    """[{home_tid, away_tid, date, year}] for every world match in the save's archive.
+    """[{home_tid, away_tid, date, year, round, ...}] for every world match in the save's archive.
 
     `valid_clubs` should be the set of tids we can NAME -- `extract.py` passes the keys of its
     club index, ~4,705 clubs on frem-2026-06-11. Do NOT pass the info spine's
     `{p["club_tid"]}` set: that is "clubs with at least one player in the spine", and it drops
     a third of the real fixtures (19,688 of 26,954). Without a set, every row is kept.
 
-    Raises `archive.ArchiveError` if the save carries no archive, and `ImportError` (via
-    `archive`) if the `archive` extra is not installed -- both of which the caller should
-    treat as "no fixtures", not as a parse failure.
+    Raises `archive.ArchiveError` if the save carries no archive or if the
+    `archive` extra is not installed -- both of which the caller should treat
+    as "no fixtures", not as a parse failure.
     """
     blob = A.extract(mm, MEMBER)
     out = []
+    wanted_fields = (
+        "home_tid", "away_tid", "day_raw", "year", "round",
+        "home_goals", "away_goals", "home_pens", "away_pens",
+        "stage_key", "seq_id", "season_year",
+        "stage_attr_76", "stage_attr_77", "stage_attr_83",
+    )
     for start, count in segments(blob):
         for k in range(count):
             base = start + k * STRIDE
-            r = RD.read_fields(blob, FIXTURE, base,
-                               ("home_tid", "away_tid", "day_raw", "year", "round"))
+            r = RD.read_fields(blob, FIXTURE, base, wanted_fields)
             if valid_clubs is not None and (r["home_tid"] not in valid_clubs
                                             or r["away_tid"] not in valid_clubs):
                 continue
-            out.append({"home_tid": r["home_tid"], "away_tid": r["away_tid"],
-                        "date": P.ymd_from(r["year"],
-                                           (r["day_raw"] & DAY_MASK) - DAY_BASE),
-                        "year": r["year"],
-                        "round": None if r["round"] == NO_ROUND else r["round"]})
+            hg = None if r["home_goals"] == 0xFF else r["home_goals"]
+            ag = None if r["away_goals"] == 0xFF else r["away_goals"]
+            hp = None if r["home_pens"] == 0xFF else r["home_pens"]
+            ap = None if r["away_pens"] == 0xFF else r["away_pens"]
+            rnd = None if r["round"] == NO_ROUND else r["round"]
+            rnd_idx = None if r["stage_attr_77"] == 0xFF else r["stage_attr_77"]
+            d_day = (r["day_raw"] & DAY_MASK) - DAY_BASE
+            out.append({
+                "home_tid": r["home_tid"],
+                "away_tid": r["away_tid"],
+                "date": P.ymd_from(r["year"], d_day),
+                "year": r["year"],
+                "round": rnd,
+                "home_goals": hg,
+                "away_goals": ag,
+                "home_pens": hp,
+                "away_pens": ap,
+                "stage_key": r["stage_key"],
+                "seq_id": r["seq_id"],
+                "season_year": None if r["season_year"] == 0 else r["season_year"],
+                "stage_index": r["stage_attr_76"],
+                "round_index": rnd_idx,
+                "subr": r["stage_attr_83"],
+            })
     return out
 
 

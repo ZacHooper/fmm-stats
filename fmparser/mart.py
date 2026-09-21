@@ -819,6 +819,113 @@ LEFT JOIN {S}.clubs oc
 """
 
 
+WORLD_FIXTURES = """
+CREATE OR REPLACE VIEW mart.world_fixtures AS
+WITH ranked AS (
+    SELECT
+        home_tid, away_tid, date, year, round,
+        home_goals, away_goals, home_pens, away_pens,
+        stage_key, seq_id, season_year, stage_index, round_index, subr,
+        season, phase,
+        ROW_NUMBER() OVER (
+            PARTITION BY home_tid, away_tid, date
+            ORDER BY season DESC, phase DESC
+        ) AS rn
+    FROM {S}.world_fixtures
+)
+SELECT
+    home_tid, away_tid, date, year, round,
+    home_goals, away_goals, home_pens, away_pens,
+    stage_key, seq_id, season_year, stage_index, round_index, subr,
+    season AS latest_season, phase AS latest_phase
+FROM ranked
+WHERE rn = 1
+ORDER BY date, stage_key, seq_id, home_tid
+"""
+
+
+WORLD_CLUB_FIXTURES = """
+CREATE OR REPLACE VIEW mart.world_club_fixtures AS
+WITH unrolled AS (
+    SELECT
+        date, year, round, stage_key, seq_id, season_year,
+        stage_index, round_index, subr,
+        latest_season, latest_phase,
+        home_tid AS club_tid, away_tid AS opp_tid, 'H' AS venue,
+        home_goals AS gf, away_goals AS ga,
+        home_pens AS pens_for, away_pens AS pens_against
+    FROM mart.world_fixtures
+    UNION ALL
+    SELECT
+        date, year, round, stage_key, seq_id, season_year,
+        stage_index, round_index, subr,
+        latest_season, latest_phase,
+        away_tid AS club_tid, home_tid AS opp_tid, 'A' AS venue,
+        away_goals AS gf, home_goals AS ga,
+        away_pens AS pens_for, home_pens AS pens_against
+    FROM mart.world_fixtures
+)
+SELECT
+    u.club_tid,
+    COALESCE(hc.name, '#' || u.club_tid) AS club,
+    u.opp_tid,
+    COALESCE(ac.name, '#' || u.opp_tid) AS opponent,
+    u.date,
+    u.year,
+    u.round,
+    u.venue,
+    u.gf,
+    u.ga,
+    CASE
+        WHEN u.gf IS NULL OR u.ga IS NULL THEN NULL
+        WHEN u.gf > u.ga THEN 'W'
+        WHEN u.gf = u.ga THEN 'D'
+        ELSE 'L'
+    END AS result,
+    CASE
+        WHEN u.gf IS NULL OR u.ga IS NULL THEN NULL
+        WHEN u.gf > u.ga THEN 3
+        WHEN u.gf = u.ga THEN 1
+        ELSE 0
+    END AS pts,
+    u.pens_for,
+    u.pens_against,
+    u.stage_key,
+    u.seq_id,
+    u.season_year,
+    u.stage_index,
+    u.round_index,
+    u.subr
+FROM unrolled u
+LEFT JOIN {S}.clubs hc
+       ON (hc.season, hc.phase) = (u.latest_season, u.latest_phase)
+      AND hc.tid = u.club_tid
+LEFT JOIN {S}.clubs ac
+       ON (ac.season, ac.phase) = (u.latest_season, u.latest_phase)
+      AND ac.tid = u.opp_tid
+ORDER BY u.date, u.stage_key, u.seq_id, u.club_tid
+"""
+
+
+FIXTURE_STAGES = """
+CREATE OR REPLACE VIEW mart.fixture_stages AS
+SELECT
+    stage_key,
+    subr,
+    stage_index,
+    COUNT(DISTINCT round) AS num_rounds,
+    COUNT(*) AS total_matches,
+    COUNT(DISTINCT club_tid) AS num_clubs,
+    MIN(date) AS min_date,
+    MAX(date) AS max_date,
+    MIN(year) AS min_year,
+    MAX(year) AS max_year
+FROM mart.world_club_fixtures
+GROUP BY stage_key, subr, stage_index
+ORDER BY stage_key
+"""
+
+
 # --- the player dimension ---------------------------------------------------------
 
 # One row per player per snapshot: bio, club, contract, and the 23 attributes wide. This is
@@ -2674,6 +2781,9 @@ ORDER = [
     ("mart.reserve_clubs", RESERVE_CLUBS),
     ("mart.club_leagues", CLUB_LEAGUES),
     ("mart.clubs", CLUBS),
+    ("mart.world_fixtures", WORLD_FIXTURES),
+    ("mart.world_club_fixtures", WORLD_CLUB_FIXTURES),
+    ("mart.fixture_stages", FIXTURE_STAGES),
     ("mart.club_attendance", CLUB_ATTENDANCE),
     ("mart.match_events", MATCH_EVENTS),
     ("mart.competitions", COMPETITIONS),
