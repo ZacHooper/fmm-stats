@@ -159,21 +159,9 @@ SCOPE = {
 UNPUBLISHED = {
     # The method-dependent rating layer (see above): 27M and 9.4M rows.
     "player_role_ratings", "player_position_fit",
-    # SCAFFOLDING, NOT AN ANSWER. `club_roster` is the club-record squad ARRAY's view of
-    # "who is on whose books"; `snapshot_squad` is the SPELL model's view of the same
-    # question, and `roster_vs_spells` is the diagnostic comparing them. fmparser/mart.py
-    # says it plainly at CLUB_ROSTER: "Deliberately NOT wired into mart.squad_current yet.
-    # The spell model stays as the source of truth until the two have been compared across
-    # every snapshot."
-    #
-    # So publishing all three ships a remote analyst two competing answers plus the
-    # comparison between them, one of which the code itself does not trust. They stay in the
-    # FULL store (publish_duckdb.py), which is where you go to do that comparison. Promote
-    # club_roster here the day it becomes the source of truth, and drop roster_vs_spells for
-    # good at the same time -- a diagnostic outlives its question.
-    #
-    # Incidentally 17 MB of the artefact, but that is not why they are here.
-    "club_roster", "roster_vs_spells",
+    # `club_roster` is unscoped world-wide (27,310 rows per snapshot, ~17 MB across snapshots).
+    # Current squad analysis reads `mart.squad_current` (scoped to our clubs).
+    "club_roster",
 }
 
 # Refuse to upload something wildly bigger than expected. The failure this guards against is

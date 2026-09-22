@@ -1659,24 +1659,31 @@ JOIN mart.player_spells s
 GROUP BY sn.season, sn.phase, sn.snap_ix, sn.phase_date, s.person_id
 """
 
-# The same question for "now, our clubs", as a VIEW rather than a macro — because a macro's
-# body resolves unqualified names against the CURRENT catalog, so `m.mart.squad_on('...')` on
-# an ATTACHed published artefact fails with "schema mart does not exist" (it looks for
-# mart.player_spells in the caller's database, not in m). That is the documented way to read
-# the artefact, so the most common question needs an object that survives it. `USE m` first
-# also works, and is what you need for any other date or any other club (`snapshot_squad`,
-# above).
+# The same question for "now, our clubs", powered directly by mart.club_roster (the club's
+# 40-slot squad array) rather than inferred from the spell model. This guarantees that active
+# loanees whose loan spells lapsed in the history model still appear, and departed players
+# never linger.
 SQUAD_CURRENT = """
 CREATE OR REPLACE VIEW mart.squad_current AS
 SELECT
-    ss.person_id, ss.tid, ss.name, ss.club_tid, ss.is_loan_in,
-    ss.club_tid IN (SELECT club_tid FROM mart.reserve_clubs) AS is_reserve,
-    ss.valid_from,
-    ss.phase_date AS as_of
-FROM mart.snapshot_squad ss
+    cr.person_id,
+    cr.tid,
+    cr.name,
+    cr.club_tid,
+    cr.on_loan_in AS is_loan_in,
+    cr.club_tid IN (SELECT club_tid FROM mart.reserve_clubs) AS is_reserve,
+    sp.valid_from,
+    cr.phase_date AS as_of
+FROM mart.club_roster cr
 JOIN (SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1) latest
   USING (season, phase)
-WHERE ss.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+LEFT JOIN (
+    SELECT person_id, min(valid_from) AS valid_from
+    FROM mart.player_spells
+    WHERE spell_type IN ('at_club', 'loan_in')
+    GROUP BY person_id
+) sp ON sp.person_id = cr.person_id
+WHERE cr.club_tid IN (SELECT club_tid FROM mart.our_clubs)
 """
 
 
@@ -2767,29 +2774,6 @@ LEFT JOIN {S}.player_loans l
   ON (l.season, l.phase, l.tid) = (p.season, p.phase, p.tid)
 """
 
-# The comparison that has to be run before any consumer switches over: where does the club
-# record's roster disagree with the spell-derived squad, and which is right?
-ROSTER_VS_SPELLS = """
-CREATE OR REPLACE VIEW mart.roster_vs_spells AS
-WITH roster AS (
-    SELECT season, phase, club_tid, tid FROM mart.club_roster
-),
-spells AS (
-    SELECT season, phase, club_tid, tid FROM mart.snapshot_squad
-)
-SELECT COALESCE(r.season, sp.season)     AS season,
-       COALESCE(r.phase, sp.phase)       AS phase,
-       COALESCE(r.club_tid, sp.club_tid) AS club_tid,
-       COALESCE(r.tid, sp.tid)           AS tid,
-       r.tid IS NOT NULL                 AS in_club_record,
-       sp.tid IS NOT NULL                AS in_spells
-FROM roster r
-FULL OUTER JOIN spells sp
-  ON (r.season, r.phase, r.club_tid, r.tid) = (sp.season, sp.phase, sp.club_tid, sp.tid)
-WHERE r.tid IS NULL OR sp.tid IS NULL
-"""
-
-
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
     ("mart.role_weights", ROLE_WEIGHTS),
@@ -2843,7 +2827,6 @@ ORDER = [
     ("mart.squad_on", SQUAD_ON),
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
-    ("mart.roster_vs_spells", ROSTER_VS_SPELLS),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),
