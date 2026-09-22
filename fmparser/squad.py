@@ -9,7 +9,10 @@ import re
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from .regions import CLUB_MARKER
+from .careers import resolve_career
+
+# Default club marker (managed club TID u16 LE + 0xFFFF)
+CLUB_MARKER = resolve_career().club_marker
 from .tables.player_attributes import POSITIONS
 
 

@@ -21,8 +21,8 @@ to make preserving order the easy path rather than a thing you remember to check
 """
 import struct
 
-from . import primitives as P
-from .schema import DATE, F32, HEX2, HEX4, I16, I32, PAD, RAW, U8, U16, U32
+from .core import primitives as P
+from .core import DATE, F32, HEX2, HEX4, I16, I32, PAD, RAW, U8, U16, U32
 
 # One dispatch table, so adding a kind is one line in `schema.KIND_WIDTH` and one here.
 _READERS = {

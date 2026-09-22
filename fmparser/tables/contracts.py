@@ -12,12 +12,13 @@ Contract status records (40 bytes) map player `squad_status` codes and loan stat
 import struct
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from .. import primitives as P
+from ..core import primitives as P
 from .. import records as RD
-from ..regions import WAGE_GBP_PER_UNIT
 from ..save import cache_key as _cache_key
-from ..core import DATE, Field, PAD, Record, U16, U32, U8, UNKNOWN
-from ..core import TableDef, table_spans
+from ..core import DATE, Field, PAD, Record, U16, U32, U8, UNKNOWN, TableDef, table_spans
+
+# £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
+WAGE_GBP_PER_UNIT = 520
 
 __all__ = [
     "CONTRACT",

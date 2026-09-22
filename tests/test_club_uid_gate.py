@@ -27,7 +27,7 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser.save import Save                        # noqa: E402
-from fmparser import reference as R                   # noqa: E402
+from fmparser import clubs_comps as R                   # noqa: E402
 
 # tid -> (long name, short name as the game displays it). The first two are the screenshot
 # ground truth; the other three came out of the same band and are held so a future gate

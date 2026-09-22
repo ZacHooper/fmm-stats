@@ -45,7 +45,7 @@ from fmparser.tables import player_attributes as A          # noqa: E402
 from fmparser.tables import staff as ST       # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 from fmparser.tables import currencies, languages, nations  # noqa: E402
-from fmparser import reference as R           # noqa: E402
+from fmparser import clubs_comps as R           # noqa: E402
 from fmparser import clubrecords as CR        # noqa: E402
 from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402

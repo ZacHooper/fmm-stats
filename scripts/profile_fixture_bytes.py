@@ -49,7 +49,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fmparser import archive as A
 from fmparser.tables import fixtures as FX
-from fmparser.schema import PAD, UNKNOWN
+from fmparser.core import PAD, UNKNOWN
 
 # The saves the acceptance gate uses: day one (empty grids), mid-career, the ground-truth
 # fixture, and the other career. Same set as scripts/assert_identical.py, for the same reason --

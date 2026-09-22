@@ -40,7 +40,7 @@ from collections import Counter, defaultdict
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import lightresults as L          # noqa: E402
+# Light results was retired (it scanned club records thinking they were simulated results).
 from fmparser.tables.person_info import NO_CLUB, scrape_person_info  # noqa: E402
 from fmparser.save import Save                  # noqa: E402
 

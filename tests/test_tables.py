@@ -12,7 +12,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser.schema import Field, Record, U16, U32, U8, PString  # noqa: E402
+from fmparser.core import Field, Record, U16, U32, U8, PString
 from fmparser.tables import (                              # noqa: E402
     TableDef,
     table_spans,

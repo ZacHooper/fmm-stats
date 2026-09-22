@@ -42,7 +42,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import reference as R    # noqa: E402
+from fmparser import clubs_comps as R    # noqa: E402
 from fmparser.tables.person_info import NO_CLUB as _NO_CLUB, scrape_person_info as _scrape_players  # noqa: E402
 from fmparser import matches as M      # noqa: E402
 

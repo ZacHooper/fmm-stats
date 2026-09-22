@@ -23,10 +23,10 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser.schema import DATE, Field, PAD, Record, U16, U32, U8  # noqa: E402
+from fmparser.core import DATE, Field, PAD, Record, U16, U32, U8
 from fmparser.tables import TABLES  # noqa: E402
 from fmparser.tables import contracts as CT  # noqa: E402
-from fmparser.regions import WAGE_GBP_PER_UNIT  # noqa: E402
+from fmparser.tables.contracts import WAGE_GBP_PER_UNIT  # noqa: E402
 
 
 def build_contract_slot_bytes(

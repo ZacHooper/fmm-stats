@@ -62,7 +62,7 @@ import struct
 
 import numpy as np
 
-from .schema import Field, PAD, Record, U8, U16, U32, UNKNOWN
+from .core import Field, PAD, Record, U8, U16, U32, UNKNOWN
 
 from .save import cache_key as _cache_key
 

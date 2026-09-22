@@ -7,7 +7,7 @@ invariant trailer constant `b"\\x87\\x01\\xff\\xff"` at +20 on residue class mod
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import Field, I16, Record, TableDef, U8, U16, UNKNOWN
-from ..primitives import NO_ID16
+from ..core import primitives as P
 from ..save import cache_key as _cache_key
 
 __all__ = [
@@ -27,7 +27,7 @@ __all__ = [
 STRIDE = 25
 TRAILER = b"\x87\x01\xff\xff"      # constant at +20..+23
 TRAILER_OFF = 20
-NO_CLUB = NO_ID16
+NO_CLUB = P.NO_ID16
 
 SLOT = Record("match_slot", STRIDE, [
     Field(0,  2, "away_tid",   U16, note="0xffff when the slot references no match"),
