@@ -664,6 +664,9 @@ positives in the award-record region so the next pass does not rediscover them.
 
 ## Housekeeping (safe to do any time)
 
+- **Move `fmparser/archive.py` to `fmparser/core/archive.py`**:
+  `archive.py` is the Shape D container/filesystem driver for the embedded Zstandard archive (`sicomps`). It is not a table parser — it sits at the same structural abstraction layer as `schema.py`, `table.py`, and `primitives.py`. Relocate to `fmparser/core/archive.py`, update `fmparser/tables/` imports, and keep `fmparser/core/` self-contained.
+
 - **DuckDB Loader optimizations (`load_duckdb.py`)**: Profiling on full snapshots (e.g. `2026-mid` at ~2.9s) identified two simple wins when loader throughput becomes worth tuning:
   1. *JSON decoding with `orjson`*: Standard library `json.load()` accounts for 1.1s–1.3s (45%) of total snapshot load time parsing ~20 JSON files (~33 MB `players.json`). Replacing with `orjson.loads(f.read())` in `load_duckdb.py` cuts JSON parsing to ~0.45s (~0.7s–0.8s saved per snapshot). `orjson` is added to `pyproject.toml` dependencies under `uv` without affecting stdlib-only extractors.
   2. *Flattening generator expressions in `load_core`*: ~0.9s–1.0s (35%) is spent constructing row tuples via nested generator expressions (`*(_int(v.get(c)) for c in PLAYER_HIDDEN_COLS)`, `SRC_COLS`, `PERSON_COLS`), resulting in >11M method dispatches per snapshot. Pre-compiling accessor lists outside row loops saves ~0.4s–0.5s per snapshot.
