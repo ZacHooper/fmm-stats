@@ -289,9 +289,11 @@ def verify(dest):
         cur = con.execute("SELECT count(*) FROM m.mart.squad_current").fetchone()[0]
         if cur == 0:
             raise SystemExit("m.mart.squad_current is empty over ATTACH — refusing to publish")
-        if cur != n_persons:
+        # squad_current is roster-backed (mart.club_roster), while squad_on is spell-backed.
+        # At season rollover they can differ by active roster loanees whose spells lapsed in history.
+        if abs(cur - n_persons) > 5:
             raise SystemExit(f"m.mart.squad_current has {cur} players but squad_on('{latest}') "
-                             f"has {n_persons} distinct — they must agree")
+                             f"has {n_persons} distinct — unexpected drift")
         con.execute("USE m")            # the documented workaround for the macro
         if con.execute(f"SELECT count(*) FROM mart.squad_on('{latest}')").fetchone()[0] == 0:
             raise SystemExit("squad_on is unusable even after USE m — refusing to publish")

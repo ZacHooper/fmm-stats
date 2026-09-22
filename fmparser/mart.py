@@ -2758,8 +2758,7 @@ SELECT s.season, s.phase, s.snap_ix, s.phase_date,
        p.tid, p.name,
        cs.club_tid AS loan_club_tid,
        c.name      AS loan_club_name,
-       l.spell_start, l.spell_end,
-       p.ca, p.pa
+       l.spell_start, l.spell_end
 FROM our_reserves r
 JOIN mart.snapshots s USING (season, phase)
 JOIN {S}.club_squad cs

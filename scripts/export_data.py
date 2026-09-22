@@ -276,33 +276,14 @@ def main():
     if not os.path.exists(store):
         raise SystemExit(f"no store at {store} — build it with scripts/rebuild.py")
     con, used = _dbopen.open_readonly(store, tag="export")
-    con.close()
     if used != os.path.abspath(store):
         print(f"(live store is locked — exporting from a copy at {used})")
     os.environ["FM_DUCKDB"] = used
     os.environ["FM_DUCKDB_READONLY"] = "1"
 
-    sys.path.insert(0, os.path.join(REPO, "dashboard"))
-    import logging
-
-    class _Quiet(logging.Filter):
-        def filter(self, rec):
-            return "No runtime found" not in rec.getMessage()
-
-    def quieten():
-        f = _Quiet()
-        for n in [x for x in logging.root.manager.loggerDict if x.startswith("streamlit")]:
-            lg = logging.getLogger(n)
-            lg.addFilter(f)
-            for h in lg.handlers:
-                h.addFilter(f)
-
-    import streamlit                                                   # noqa: F401
-    quieten()
     import pandas as pd
-    import db
-    import positions as P
-    quieten()
+    import _export_db
+    db = _export_db.ExportDB(con, car)
     from fmparser.model import ATTR_ORDER
 
     season, phase = a.season, a.phase
@@ -312,7 +293,7 @@ def main():
     if season is None:
         raise SystemExit("no snapshots loaded in this store")
     method = a.method or db.config().get("default_method") or db.methods()[0]
-    min_fam = P.DEFAULT_MIN_FAM if a.min_fam is None else a.min_fam
+    min_fam = _export_db.DEFAULT_MIN_FAM if a.min_fam is None else a.min_fam
     out = os.path.abspath(a.out)
     os.makedirs(out, exist_ok=True)
     built = datetime.datetime.now().isoformat(timespec="seconds")
@@ -618,7 +599,7 @@ def main():
                 "spells; see docs/danish-registration-rules.md."})
 
     # ---------------------------------------------------------------- positions.json
-    D = P.build(season, phase, method, min_fam=min_fam, excl_loanees=True)
+    D = db.build_positions(season, phase, method, min_fam=min_fam, excl_loanees=True)
     if "error" in D:
         print(f"  ! position review unavailable: {D['error']}")
         emit("positions.json", {"error": D["error"]})
@@ -938,11 +919,13 @@ def main():
             print("\nIMMERSION RULE VIOLATED — raw ability leaked into exported JSON:")
             for f, k in bad:
                 print(f"  {f}: key {k!r}")
+            con.close()
             return 1
         print("  immersion check: no raw-ability key in any exported file ✓")
     total = sum(b for _n, b, _g in written)
     gztot = sum(g for _n, _b, g in written)
     print(f"  {len(written)} files — {total / 1024:.0f} KB raw, {gztot / 1024:.0f} KB gzip")
+    con.close()
     return 0
 
 
