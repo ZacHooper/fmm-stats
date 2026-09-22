@@ -222,28 +222,20 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     # guards against: it fabricates a plausible-looking CURRENT transfer value for a player
     # who may not even be at the club any more.
     #
-    # Gate on an appearance instead: has this tid actually turned out for one of our clubs
-    # in a match this save's own (rolling-window) `season` data covers? Verified to split
-    # the 2024-11-10 snapshot cleanly — all 5 genuine loanees appeared, all 9 stale-flagged
-    # names did not. A brand-new loanee who hasn't debuted yet will also fail this and fall
-    # to the ordinary estimate path — a false negative, not a false positive, which is the
-    # safe direction to be wrong in (same trade-off `_pick(strict=True)` already makes for
-    # the owned/reserve case: an honest +/-1 beats a false 'exact').
+    # Gate on the club's squad array: only attach exact loanee attributes if the player is
+    # actually in our senior or reserve squad array.
     our_club_ids = set(club_of_marker.values())
-    appeared_for_us = {
-        b["tid_int"]
-        for m in season
-        for xi_key, side_club_tid in (("home_xi", m.get("home_tid")),
-                                      ("away_xi", m.get("away_tid")))
-        if side_club_tid in our_club_ids
-        for b in (m.get(xi_key) or [])
+    our_squad_tids = {
+        tid
+        for ct in our_club_ids
+        for tid in (R.club_details(mm, ct) or {}).get("squad", [])
     }
 
     own_exact = {}
     for tid in own_names:
         li = own.get(tid) or {}
         r = None
-        if li.get("loaned_in") and li.get("parent_club_tid") and tid in appeared_for_us:
+        if li.get("loaned_in") and li.get("parent_club_tid") and tid in our_squad_tids:
             # A loanee's exact record is anchored by [parent_club_tid][managed_tid], not
             # [club][0xffff] — see attributes.loan_marker(). Try it first: a loanee never
             # appears under our own club markers, so the fallback below would just spend a

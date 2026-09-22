@@ -88,11 +88,6 @@ Its access key and secret were pasted into a chat transcript. Cloudflare → R2 
 Tokens, then `rclone config update r2 access_key_id <NEW> secret_access_key <NEW>`. **This is
 the only security item in this file.**
 
-### 2. `mart.squad_current` still uses the spell model
-`roster_vs_spells` exists specifically to judge whether to switch it to the roster. Nobody has
-read it and decided. Until then the spell model stands, because it is the one that survives a
-lapsed loan (a departed player's `club_tid` can point at us indefinitely).
-
 ---
 
 ## Parser / decode

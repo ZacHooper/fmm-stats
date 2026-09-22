@@ -1659,24 +1659,31 @@ JOIN mart.player_spells s
 GROUP BY sn.season, sn.phase, sn.snap_ix, sn.phase_date, s.person_id
 """
 
-# The same question for "now, our clubs", as a VIEW rather than a macro — because a macro's
-# body resolves unqualified names against the CURRENT catalog, so `m.mart.squad_on('...')` on
-# an ATTACHed published artefact fails with "schema mart does not exist" (it looks for
-# mart.player_spells in the caller's database, not in m). That is the documented way to read
-# the artefact, so the most common question needs an object that survives it. `USE m` first
-# also works, and is what you need for any other date or any other club (`snapshot_squad`,
-# above).
+# The same question for "now, our clubs", powered directly by mart.club_roster (the club's
+# 40-slot squad array) rather than inferred from the spell model. This guarantees that active
+# loanees whose loan spells lapsed in the history model still appear, and departed players
+# never linger.
 SQUAD_CURRENT = """
 CREATE OR REPLACE VIEW mart.squad_current AS
 SELECT
-    ss.person_id, ss.tid, ss.name, ss.club_tid, ss.is_loan_in,
-    ss.club_tid IN (SELECT club_tid FROM mart.reserve_clubs) AS is_reserve,
-    ss.valid_from,
-    ss.phase_date AS as_of
-FROM mart.snapshot_squad ss
+    cr.person_id,
+    cr.tid,
+    cr.name,
+    cr.club_tid,
+    cr.on_loan_in AS is_loan_in,
+    cr.club_tid IN (SELECT club_tid FROM mart.reserve_clubs) AS is_reserve,
+    sp.valid_from,
+    cr.phase_date AS as_of
+FROM mart.club_roster cr
 JOIN (SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1) latest
   USING (season, phase)
-WHERE ss.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+LEFT JOIN (
+    SELECT person_id, min(valid_from) AS valid_from
+    FROM mart.player_spells
+    WHERE spell_type IN ('at_club', 'loan_in')
+    GROUP BY person_id
+) sp ON sp.person_id = cr.person_id
+WHERE cr.club_tid IN (SELECT club_tid FROM mart.our_clubs)
 """
 
 
@@ -2717,24 +2724,20 @@ SELECT * EXCLUDE (rn) FROM (
 ) WHERE rn = 1
 """
 
-# Squad membership as the CLUB RECORD states it, rather than inferred from spells.
-#
-# This is a different question from staging.players.club_tid, and the two legitimately
-# disagree:
+# The 40-slot squad array, one row per occupied slot. This is SQUAD MEMBERSHIP (it
+# includes loaned-IN players and excludes reserve-team players); staging.players.club_tid
+# is OWNERSHIP. They legitimately disagree:
 #   * the array INCLUDES loaned-IN players (they are in the squad, owned elsewhere);
 #   * the array EXCLUDES players who are in the club's RESERVE side, which club_tid lumps
 #     under the first team -- on frem-2024-11-10, 32 players carry club_tid 346 while the
 #     first-team array holds 29, and the 8 missing are exactly the 8 in the reserves array.
 # So: club_roster answers "who is in this squad", club_tid answers "who owns him".
-#
-# Deliberately NOT wired into mart.squad_current yet. The spell model stays as the source of
-# truth until the two have been compared across every snapshot -- see mart.roster_vs_spells.
 CLUB_ROSTER = """
 CREATE OR REPLACE VIEW mart.club_roster AS
 SELECT s.season, s.phase, s.snap_ix, s.phase_date,
        cs.club_tid, cs.player_tid AS tid, cs.slot,
        p.name, p.club_tid AS owner_club_tid,
-       p.club_tid IS DISTINCT FROM cs.club_tid AS on_loan_in,
+       (p.parent_club_tid IS NOT NULL AND p.parent_club_tid != cs.club_tid) AS on_loan_in,
        ps.person_id
 FROM {S}.club_squad cs
 JOIN mart.snapshots s USING (season, phase)
@@ -2744,28 +2747,32 @@ LEFT JOIN {S}.person_slices ps
        ON (ps.season, ps.phase, ps.tid) = (cs.season, cs.phase, cs.player_tid)
 """
 
-# The comparison that has to be run before any consumer switches over: where does the club
-# record's roster disagree with the spell-derived squad, and which is right?
-ROSTER_VS_SPELLS = """
-CREATE OR REPLACE VIEW mart.roster_vs_spells AS
-WITH roster AS (
-    SELECT season, phase, club_tid, tid FROM mart.club_roster
-),
-spells AS (
-    SELECT season, phase, club_tid, tid FROM mart.snapshot_squad
+# Players owned by our managed club / reserves who are actively on loan to an external club.
+OUR_LOANEES_OUT = """
+CREATE OR REPLACE VIEW mart.our_loanees_out AS
+WITH our_reserves AS (
+    SELECT season, phase, player_tid AS tid
+    FROM {S}.club_squad
+    WHERE club_tid IN (SELECT club_tid FROM mart.reserve_clubs)
 )
-SELECT COALESCE(r.season, sp.season)     AS season,
-       COALESCE(r.phase, sp.phase)       AS phase,
-       COALESCE(r.club_tid, sp.club_tid) AS club_tid,
-       COALESCE(r.tid, sp.tid)           AS tid,
-       r.tid IS NOT NULL                 AS in_club_record,
-       sp.tid IS NOT NULL                AS in_spells
-FROM roster r
-FULL OUTER JOIN spells sp
-  ON (r.season, r.phase, r.club_tid, r.tid) = (sp.season, sp.phase, sp.club_tid, sp.tid)
-WHERE r.tid IS NULL OR sp.tid IS NULL
+SELECT s.season, s.phase, s.snap_ix, s.phase_date,
+       p.tid, p.name,
+       cs.club_tid AS loan_club_tid,
+       c.name      AS loan_club_name,
+       l.spell_start, l.spell_end,
+       p.ca, p.pa
+FROM our_reserves r
+JOIN mart.snapshots s USING (season, phase)
+JOIN {S}.club_squad cs
+  ON (cs.season, cs.phase, cs.player_tid) = (s.season, s.phase, r.tid)
+ AND cs.club_tid NOT IN (SELECT club_tid FROM mart.our_clubs)
+JOIN {S}.clubs c
+  ON (c.season, c.phase, c.tid) = (cs.season, cs.phase, cs.club_tid)
+JOIN {S}.players p
+  ON (p.season, p.phase, p.tid) = (cs.season, cs.phase, cs.player_tid)
+LEFT JOIN {S}.player_loans l
+  ON (l.season, l.phase, l.tid) = (p.season, p.phase, p.tid)
 """
-
 
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
@@ -2798,6 +2805,7 @@ ORDER = [
     ("mart.staff", STAFF),
     ("mart.club_managers", CLUB_MANAGERS),
     ("mart.club_roster", CLUB_ROSTER),
+    ("mart.our_loanees_out", OUR_LOANEES_OUT),
     ("mart.player_snapshots", PLAYER_SNAPSHOTS),
     ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
     ("mart.player_value_est", PLAYER_VALUE_EST),
@@ -2819,7 +2827,6 @@ ORDER = [
     ("mart.squad_on", SQUAD_ON),
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
-    ("mart.roster_vs_spells", ROSTER_VS_SPELLS),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),
