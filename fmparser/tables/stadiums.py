@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .. import primitives as P
 from ..save import cache_key as _cache_key
-from ..schema import Field, Record, U16, U32, PString
-from .engine import TableDef
+from ..core import Field, Record, U16, U32, PString
+from ..core import TableDef
 
 __all__ = [
     "STADIUM_HEAD",

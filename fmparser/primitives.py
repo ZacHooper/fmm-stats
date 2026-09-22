@@ -1,35 +1,34 @@
 #!/usr/bin/env python3
 """The byte readers, written once.
 
-Before this module there were 12 `_u16`s, 9 `_u32`s, 5 `_f32`s, 5 date decoders, 9
-length-prefixed-string readers and 13 hand-rolled reversed-tag reads across `fmparser/`, in
-two different idioms (`int.from_bytes` and `struct.unpack_from`) that are not interchangeable
-at the edges: `struct.unpack_from` raises past the end of the buffer, `int.from_bytes` on a
-short slice silently returns a SMALLER NUMBER. A parser that walks to the end of a region gets
-a different failure depending on which copy it happened to import.
-
-Everything here is pure: `(buffer, offset) -> value`. No locating, no plausibility windows, no
-caching. Those are the parts that are genuinely different per record, and pretending otherwise
-is how a shared helper starts lying.
-
-TWO THINGS DELIBERATELY NOT HERE
---------------------------------
-**Money.** The save uses four different money conventions -- contract wage units (x520 for
-GBP/yr), transfer fees in thousands, an f32 of whole GBP, and a u32 of whole GBP -- and which
-one applies is a property of the RECORD, not of the byte width. A shared `money()` helper
-would let a call site be wrong by a factor of 520 while still returning a plausible number,
-which is exactly the class of bug that is invisible in review. Each record converts its own.
-
-**Plausibility windows.** `1 <= ln <= 120` for a stadium name, `0 < cid < 20000`, the DOB year
-gate -- these look like validation but they are LOCATING: each is separately measured evidence
-about one table, and centralising them would make a table's extent a function of a shared
-constant instead of its own invariant. See `docs/parser-architecture.md`.
-
-The one exception is `pstring`, which takes its `maxlen` as an argument precisely so the
-caller keeps owning that number.
+DEPRECATED: This module is maintained for backward compatibility with unmigrated parsers.
+It will be removed once all domain parsers are migrated to `fmparser.core`.
+New code should import directly from `fmparser.core`.
 """
 import struct
 from datetime import date, timedelta
+from typing import Any, Optional
+
+from .core.primitives import (
+    DATE_EPOCH,
+    NO_ID16,
+    NO_ID32,
+    SEASON_EPOCH,
+    date_to_days,
+    days_to_date,
+    f32,
+    hex2,
+    hex4,
+    i16,
+    i32,
+    tag4,
+    tag4_to_disk,
+    u8,
+    u16,
+    u16_or_none,
+    u32,
+    ymd,
+)
 
 # ---------------------------------------------------------------------------------------
 # Sentinels. Declared once, under one name each.
@@ -141,25 +140,8 @@ def season_end_year(code):
 # ---------------------------------------------------------------------------------------
 # Strings.
 # ---------------------------------------------------------------------------------------
-def pstring(mm, off, hi, maxlen, encoding="utf-8"):
-    """`(text, next_offset)` for a `[len u32][bytes]` string, or `(None, None)`.
+# DEPRECATED: pstring is removed in favor of `from fmparser.core import PString`
 
-    The length prefix is **u32**, not one byte. `docs/table-framing.md` writes these as
-    `[7]'Algeria'` and the real bytes are `07 00 00 00 'Algeria'`; a search written from that
-    description returns zero hits, which cost a hunt.
-
-    `hi` bounds the read and `maxlen` is the caller's own measured ceiling for this table --
-    both stay arguments so the string reader never owns a table's extent.
-    """
-    if off < 0 or off + 4 > hi:
-        return None, None
-    ln = struct.unpack_from("<I", mm, off)[0]
-    if not (1 <= ln <= maxlen) or off + 4 + ln > hi:
-        return None, None
-    try:
-        return bytes(mm[off + 4:off + 4 + ln]).decode(encoding), off + 4 + ln
-    except UnicodeDecodeError:
-        return None, None
 
 
 def tag4(mm, off):

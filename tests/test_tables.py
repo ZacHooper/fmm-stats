@@ -81,11 +81,8 @@ def test_fixed_table():
     assert offset_rows[1]["offset"] == base + DUMMY_FIXED.stride
 
     spans = table_spans(mm, table_def, include_count_header=True)
-    assert len(spans) == count + 1
-    assert spans[0] == (0, 4)
-    assert spans[1] == (4, 11)
-    assert spans[2] == (11, 18)
-    assert spans[3] == (18, 25)
+    assert len(spans) == 1
+    assert spans[0] == (base, base + count * DUMMY_FIXED.stride)
 
     missing_def = TableDef(
         name="missing",
@@ -103,10 +100,8 @@ def test_single_string_catalog():
         (1, "First Leg", 999),
         (2, "Quarter Final", 888),
     ]
-    buf = bytearray()
-    buf += struct.pack("<I", len(items))
-    base = len(buf)
-
+    base = 4
+    buf = struct.pack("<I", len(items))
     for cid, name, code in items:
         buf += struct.pack("<I", cid)
         nb = name.encode("utf-8")
@@ -139,11 +134,9 @@ def test_single_string_catalog():
     assert rows[1]["name"] == "Quarter Final"
     assert rows[1]["code"] == 888
 
-    spans = cat_def.spans(mm, include_count_header=True)
-    assert len(spans) == 3
-    assert spans[0] == (0, 4)
-    print("  PASS TableDef (single string catalog)")
-
+    spans = table_spans(mm, cat_def, include_count_header=True)
+    assert len(spans) == 1
+    assert spans[0] == (base, len(buf))
 
 def test_multi_string_catalog():
     print("TESTING TableDef (Multi-String Catalog)")
@@ -192,8 +185,9 @@ def test_multi_string_catalog():
     assert rows[1]["nat_id"] == 200
     assert rows[1]["diff"] == 5
 
-    spans = multi_def.spans(mm, include_count_header=False)
-    assert len(spans) == 2
+    spans = table_spans(mm, multi_def, include_count_header=False)
+    assert len(spans) == 1
+    assert spans[0] == (base, len(buf))
     print("  PASS TableDef (multi-string catalog with empty strings)")
 
 

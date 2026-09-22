@@ -16,8 +16,8 @@ from .. import primitives as P
 from .. import records as RD
 from ..regions import WAGE_GBP_PER_UNIT
 from ..save import cache_key as _cache_key
-from ..schema import DATE, Field, PAD, Record, U16, U32, U8, UNKNOWN
-from .engine import TableDef, table_spans
+from ..core import DATE, Field, PAD, Record, U16, U32, U8, UNKNOWN
+from ..core import TableDef, table_spans
 
 __all__ = [
     "CONTRACT",

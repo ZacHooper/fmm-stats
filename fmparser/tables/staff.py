@@ -8,8 +8,8 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..schema import Field, Record, U16, U32, U8, UNKNOWN
-from .engine import TableDef
+from ..core import Field, Record, U16, U32, U8, UNKNOWN
+from ..core import TableDef
 from .player_attributes import locate_player_attributes
 
 __all__ = [

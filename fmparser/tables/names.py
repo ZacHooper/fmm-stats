@@ -11,8 +11,8 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..schema import Field, RAW, Record, U32, UNKNOWN
-from .engine import TableDef
+from ..core import Field, RAW, Record, U32, UNKNOWN
+from ..core import TableDef
 
 __all__ = [
     "NAME_ID_STRIDE",
