@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test suite for fmparser/compman.py (comp_man.dat parser)."""
+"""Test suite for comp_man.dat parser (fmparser/tables/comp_stages.py and comp_honours.py)."""
 import mmap
 import os
 import sys

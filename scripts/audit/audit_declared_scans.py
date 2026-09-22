@@ -6,13 +6,13 @@ superseded by an earlier/better candidate for the same key? Closes the gap `DECL
 open in `scripts/audit_coverage.py` -- "a parser scanned this window" is not "every candidate
 is accounted for."
 
-Currently covers `reference.py`'s CLUB scan (`_build_refdata_index` /
-`diagnose_refdata_scan`). `staging.py`'s `scrape_attributes`/`scrape_contracts` share the same
+Currently covers `clubs_comps.py`'s CLUB scan (`_build_refdata_index` /
+`diagnose_refdata_scan`). Attribute and contract table walks share the same
 shape and are the next candidates once they get the equivalent `_eval_*_candidate` refactor --
 see docs/TODO.md.
 
 COMPETITIONS ARE NO LONGER AUDITED THIS WAY, because they are no longer a candidate scan:
-`reference._walk_comp_table` reads the table's own declared slots by arithmetic, so there are
+`clubs_comps._walk_comp_table` reads the table's own declared slots by arithmetic, so there are
 no candidates, no gates and no reject reasons to tally. This script printed exactly such a
 tally until 2026-09-18 -- tier counts, per-gate reject costs, "fixing this gate alone would
 recover exactly this many" -- for a code path `_build_refdata_index` had already stopped
@@ -21,7 +21,7 @@ them is the walk's own structural summary (declared == named + blank) plus the c
 below, which is the half that still answers a real question.
 
 Two things this script exists specifically to avoid getting wrong, both caught while building
-it against the comp gates (see `reference.diagnose_refdata_scan`'s docstring), and both of
+it against the comp gates (see `clubs_comps.diagnose_refdata_scan`'s docstring), and both of
 which now apply to the CLUB gates:
 
   1. A raw reject-reason count is not "how many real records are we losing" -- a candidate

@@ -28,7 +28,7 @@ from .save import cache_key as _cache_key
 # region starts at 17.50 MB. Frem's starts at 16.64-16.79 MB, so TAGGED_LO opened AFTER the
 # section did and silently cut 13-23% of the dictionary off the FRONT (1,623 `comp` records
 # on frem-2021-07-01), which cost 11-15 of the 93 competitions in every Frem snapshot ever
-# built. Identical failure to the one regions.py documents for REFDATA_LO. The region is
+# built. Identical failure to the one documented for REFDATA_LO. The region is
 # DERIVED per save now; these are kept only for the no-hits fallback path.
 TAGGED_LO, TAGGED_HI = 17_000_000, 20_800_000
 
@@ -49,7 +49,7 @@ _MARGIN_LO, _MARGIN_HI = 60_000, 300_000
 # a freed object, so a loop that opens one save after another serves the previous save's
 # region for the next one; caught exactly that way here (Bucaspor came back with Frem's
 # bounds and lost 829 records). See `save.cache_key` for the full story and the second time
-# it bit, in reference.py.
+# it bit, in clubs_comps.py.
 _REGION_CACHE = {}          # save.cache_key -> (lo, hi)
 
 

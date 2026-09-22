@@ -2,8 +2,8 @@
 """
 Guard the club-records decode against in-game ground truth.
 
-`fmparser/clubrecords.py` reads the region `lightresults.py` has been treating as match
-RESULTS since 2026-07. It is the Club History screens instead, and the only thing that
+`fmparser/clubrecords.py` reads the club records region previously misidentified as match
+RESULTS. It is the Club History screens instead, and the only thing that
 establishes that -- or catches a regression in it -- is a set of values read off the game.
 
 The trap this test exists for is specific and would otherwise pass unnoticed: the club tid

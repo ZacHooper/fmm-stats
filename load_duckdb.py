@@ -49,8 +49,8 @@ _TS_KEYS = ["shots", "shots_on_target", "rating", "players_used", "passes",
 _XI = M._XI_FIELDS  # noqa: SLF001 (intentional reuse of the canonical list)
 
 # The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
-# store cannot drift from the record. See fmparser/attributes.py HIDDEN_OFFSETS and
-# fmparser/staff.py HIDDEN_OFFSETS for why they are carried but not named.
+# store cannot drift from the record. See fmparser/tables/player_attributes.py HIDDEN_OFFSETS and
+# fmparser/tables/staff.py HIDDEN_OFFSETS for why they are carried but not named.
 from fmparser.tables.player_attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
 from fmparser.tables.player_attributes import SRC_OFFSETS as _SRC              # noqa: E402
 from fmparser.tables.player_attributes import PLAIN_OFFSETS as _PLAIN            # noqa: E402
@@ -308,7 +308,7 @@ DDL = [
     )""",
 
     # Club History -- the Team Records and Player Records tables (fmparser/clubrecords.py).
-    # This is the region lightresults.py reads as match RESULTS; it is not one, and the
+    # This is the region previously read as match RESULTS; it is not one, and the
     # identification against in-game screenshots is in that module's docstring. Stored raw
     # and unconsumed: it is verified data, but NOTHING should build a fixture list from it.
     # A record held in two slots, or in both the Overall and per-season table, is genuinely
@@ -1705,7 +1705,7 @@ _MIGRATIONS = [
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS weight_kg INTEGER",
     # 2026-09-16: competition LEVEL (0 = top flight) + parent cid, and the reputation read
     # moved from the trailer's p+8 to p+9 -- the old offset straddled the background colour
-    # and returned roughly 256x the real value. See fmparser/reference.py.
+    # and returned roughly 256x the real value. See fmparser/clubs_comps.py.
     "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS level INTEGER",
     "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS parent_cid INTEGER",
     "ALTER TABLE staging.competitions ADD COLUMN IF NOT EXISTS level INTEGER",

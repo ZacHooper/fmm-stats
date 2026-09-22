@@ -7,7 +7,7 @@ Extract the current state of an FMM22 save into a labelled output bundle.
 Architecture: scrape each region of the save independently into keyed tables, then
 join. The player INFO section is the identity spine (one row per player, ~31k, with
 every foreign key); attributes join on SID, clubs on club_tid, names on TID. See
-fmparser/staging.py.
+fmparser/tables/.
 
 Writes output/<label>/:
     players.json / players.csv   whole player DB: identity + attributes where they exist
@@ -539,7 +539,7 @@ def main():
             club_details[str(ct)] = d
     dump("club_details.json", club_details, indent=None)
     # Club History: the Team Records and Player Records tables, per club. This is the region
-    # fmparser/lightresults.py has been reading as match RESULTS since 2026-07 -- it is not
+    # previously misread as match RESULTS -- it is not
     # one, and fmparser/clubrecords.py's docstring has the identification against in-game
     # screenshots. Stored because it is real, verified data we can name; nothing consumes it
     # yet, and NOTHING should build a fixture list from it.
@@ -548,7 +548,7 @@ def main():
     dump("player_records.json", recs["player_records"], indent=None)
     # Stadiums + cities: capacity and real lat/long. Reference data, so it repeats per
     # snapshot exactly like clubs.json does — the club record's stadium_id joins
-    # club -> stadium -> city -> coordinates. See fmparser/places.py.
+    # club -> stadium -> city -> coordinates. See fmparser/tables/stadiums.py and cities.py.
     dump("stadiums.json", {str(k): v for k, v in sorted(stadiums.scrape_stadiums(mm).items())},
          indent=None)
     dump("cities.json", {str(k): v for k, v in sorted(cities.scrape_cities(mm).items())},

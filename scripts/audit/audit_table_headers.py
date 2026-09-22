@@ -566,7 +566,7 @@ def _lang_step(mm, o):
 def _cur_step(mm, o):
     """One currency record, with NO uid range gate -- `lookups._currency_at` rejects
     `uid > 4096` and so stops at slot 94, 'Macao Pataca' (uid 51535). The fourth uid range
-    gate in this codebase to cut a table short; see reference.py on the other three."""
+    gate in this codebase to cut a table short; see clubs_comps.py on the other three."""
     ln = _u(mm, o + 2, 4)
     if ln > 200:
         return None

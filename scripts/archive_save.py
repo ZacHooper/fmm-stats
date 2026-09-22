@@ -8,7 +8,7 @@
 Naming: pass --phase (the save's IN-GAME date) and the file is archived as
 `<career>-<phase>.fms` — the convention every save now follows, since phase is half the store's
 natural key. Without --phase the incoming filename is kept as-is, which is fine for a save whose
-date you don't know yet; scripts/canonicalise_names.py fixes it later once it has a manifest row.
+date you don't know yet; it can be renamed later once it has a manifest row.
 The date can't be derived automatically for a 0-match save (there are no matches to date it
 from), which is why this is an argument rather than a probe.
 
@@ -18,7 +18,7 @@ they live in two places: raw under $FM_SAVES_DIR/<career>/ for parsing, and gzip
 keeping. They compress ~5x (64 MB -> 12 MB) because the format is mostly 00/ff filler.
 
 Why the hash check matters: every structural read in this parser is offset-based
-(fmparser/regions.py windows, tid/uid signature scans, the history slab's pointer chains). gzip
+(scan windows, tid/uid signature scans, the history slab's pointer chains). gzip
 is byte-exact so decompression cannot move an offset — but that guarantee is worth verifying
 once per file rather than assuming, because a silently truncated archive would look fine until
 the day you needed to rebuild from it. So: hash the raw file, compress, decompress, hash again,

@@ -30,9 +30,9 @@ to" key can be tested by whether OTHER columns go constant under it.
 
 The output is deliberately a table per save and a CROSS-SAVE agreement column, because a
 distinct-value count measured on one save of one career is how a career-specific artefact gets
-mistaken for structure -- the mistake `regions.py` documents at the top of the file.
+mistaken for structure -- the mistake early parsers made by tuning to one career.
 
-    uv run python scripts/profile_fixture_bytes.py                     # the default four saves
+    uv run python scripts/audit/profile_fixture_bytes.py                     # the default four saves
     uv run python scripts/profile_fixture_bytes.py <save.fms> ...      # specific saves
     uv run python scripts/profile_fixture_bytes.py --group-by 78       # group by round instead
     uv run python scripts/profile_fixture_bytes.py --wide              # u16/u32 candidates too

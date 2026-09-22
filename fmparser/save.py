@@ -29,7 +29,7 @@ def cache_key(mm):
     save's answer for the next save.
 
     This has bitten twice. `tagged.py`'s region cache first -- Bucaspor came back with Frem's
-    bounds and lost 829 records. Then `reference.py`, which cached an ABSOLUTE FILE OFFSET
+    bounds and lost 829 records. Then `clubs_comps.py`, which cached an ABSOLUTE FILE OFFSET
     (the competition table's anchor), where a stale hit is worse than a wrong answer: it
     sends the table walk into the middle of an unrelated record and it raises. Measured
     2026-09-18 before the fix, walking 32 real saves in one process: 30 failed that way

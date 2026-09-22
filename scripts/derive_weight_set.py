@@ -39,9 +39,6 @@ not beat flat out-of-fold is reported as not beating flat — see `--show` outpu
     uv run python scripts/derive_weight_set.py --show frem_minmax_4231
     uv run python scripts/derive_weight_set.py --out /tmp/set.json frem_minmax_4231
     uv run python scripts/derive_weight_set.py --all --csv seeds/role_weights.csv   # write both
-
-Then, to make it usable:
-    uv run python scripts/import_weight_set.py /tmp/set.json --promote
     uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 """
 from __future__ import annotations

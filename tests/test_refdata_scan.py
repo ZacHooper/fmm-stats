@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Guard `reference.py`'s club/competition reference-data resolution.
+Guard `clubs_comps.py`'s club/competition reference-data resolution.
 
 The two halves are resolved differently and are tested differently.
 

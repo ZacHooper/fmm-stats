@@ -228,7 +228,7 @@ def main(argv):
         print(f"  OK  GK {gh:.1f}cm/{gw:.1f}kg vs outfield {oh:.1f}cm/{ow:.1f}kg "
               f"(n={len(gk)}/{len(out)})")
 
-    # ---- reference tables (fmparser/places.py, fmparser/lookups.py) ----------
+    # ---- reference tables (fmparser/tables/stadiums.py, cities.py) ----------
     stadiums, cities = PL_STADIUMS.scrape_stadiums(mm), PL_CITIES.scrape_cities(mm)
     for sid, want_name, want_cap in ((157, "Aalborg Portland Park", 13800),
                                      (177, "Parken", 38065)):
