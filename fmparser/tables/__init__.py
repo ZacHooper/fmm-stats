@@ -20,6 +20,45 @@ from .currencies import (
     CURRENCY_TAIL,
     scrape_currencies,
 )
+from .fixtures import (
+    DAY_BASE as FIXTURE_DAY_BASE,
+    DAY_MASK as FIXTURE_DAY_MASK,
+    FIXTURE,
+    FIXTURES_TABLE,
+    MEMBER as FIXTURES_MEMBER,
+    MEMBER_HEADER as FIXTURES_MEMBER_HEADER,
+    NO_ROUND as FIXTURE_NO_ROUND,
+    OPENER as FIXTURE_OPENER,
+    STRIDE as FIXTURE_STRIDE,
+    fixtures as extract_world_fixtures,
+    locate_fixtures,
+    read_fixture,
+    scrape as scrape_fixtures,
+    segments as fixture_segments,
+    summary as fixtures_summary,
+)
+from .comp_stages import (
+    COMP_STAGES_TABLE,
+    HEADER as COMP_STAGES_HEADER,
+    HEADER_STRIDE as COMP_STAGES_HEADER_STRIDE,
+    STAGE as COMP_STAGE,
+    STRIDE as COMP_STAGE_STRIDE,
+    header as comp_stages_header,
+    locate_comp_stages,
+    read_stage as read_comp_stage,
+    scrape as scrape_comp_stages,
+    stages as extract_comp_stages,
+)
+from .comp_honours import (
+    COMP_HONOURS_TABLE,
+    HONOUR as COMP_HONOUR,
+    OPENER as COMP_HONOUR_OPENER,
+    STRIDE as COMP_HONOUR_STRIDE,
+    honours as extract_comp_honours,
+    locate_comp_honours,
+    read_honour as read_comp_honour,
+    scrape as scrape_comp_honours,
+)
 from .engine import (
     TableDef,
     table_spans,
@@ -122,9 +161,12 @@ from .staff import (
 
 TABLES = {
     "cities": CITIES_TABLE,
+    "comp_honours": COMP_HONOURS_TABLE,
+    "comp_stages": COMP_STAGES_TABLE,
     "contracts": CONTRACT_TABLE,
     "currencies": CURRENCIES_TABLE,
     "first_names": FIRST_NAMES_TABLE,
+    "fixtures": FIXTURES_TABLE,
     "languages": LANGUAGES_TABLE,
     "match_officials": OFFICIALS_TABLE,
     "match_slots": MATCH_SLOTS_TABLE,

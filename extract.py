@@ -43,7 +43,7 @@ from fmparser.tables.person_info import (
 )
 from fmparser.tables.player_attributes import scrape_player_attributes
 from fmparser import tagged as T
-from fmparser import fixtures as FIX
+from fmparser.tables import fixtures as FIX
 from fmparser import lightresults as L
 from fmparser import careers as C
 from fmparser import history as H
