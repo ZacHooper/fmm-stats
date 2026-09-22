@@ -28,7 +28,7 @@ sys.path.insert(0, ROOT)
 
 from tests.harness import skip  # noqa: E402
 
-from fmparser import matchslots as MS      # noqa: E402
+from fmparser.tables import match_slots as MS      # noqa: E402
 from fmparser import primitives as P        # noqa: E402
 from fmparser import schema as SC          # noqa: E402
 from fmparser import reference as R        # noqa: E402

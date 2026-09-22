@@ -8,7 +8,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import archive as A
-from fmparser import compman as CM
+from fmparser.tables import comp_stages as CS
+from fmparser.tables import comp_honours as CH
 
 SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 CASES = [
@@ -29,15 +30,16 @@ def test_compman_cases():
 
         with open(p, "rb") as f:
             mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-            blob = CM.load_blob(mm)
+            raw = A.extract(mm, "comp_man.dat")
+            blob = raw[6:]
 
-        hdr = CM.header(blob)
+        hdr = CS.header(blob)
         assert hdr["n_stages"] == expected_stages, f"{fname}: expected {expected_stages}, got {hdr['n_stages']}"
 
-        stg = CM.stages(blob)
+        stg = CS.stages(blob)
         assert len(stg) == expected_stages, f"{fname}: stage count mismatch {len(stg)} != {expected_stages}"
 
-        hon = CM.honours(blob)
+        hon = CH.honours(blob)
         if "2021-07-01" in fname:
             assert len(hon) == 0, f"{fname}: day-one should have 0 honours, got {len(hon)}"
             print(f"  PASS {fname:<25} header ok, {len(stg):,} stages, 0 honours (day one)")

@@ -52,8 +52,9 @@ from fmparser import matches as MT            # noqa: E402
 from fmparser.tables.contracts import CONTRACT_DETAIL, CONTRACT_STATUS  # noqa: E402
 from fmparser.tables.person_info import INFO_LAYOUT, scrape_person_info   # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402
-from fmparser import fixtures as FX           # noqa: E402
-from fmparser import compman as CM            # noqa: E402
+from fmparser.tables import fixtures as FX           # noqa: E402
+from fmparser.tables import comp_stages as CS          # noqa: E402
+from fmparser.tables import comp_honours as CH         # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -145,9 +146,9 @@ LAYOUTS = {
     # place, which is the honest statement of where that record stands: the goals block and
     # the round counter are deliberately unread, not overlooked.
     "world_fixture": _from_record(FX.FIXTURE),
-    "comp_man_header": _from_record(CM.HEADER),
-    "comp_man_stage": _from_record(CM.STAGE),
-    "comp_man_honour": _from_record(CM.HONOUR),
+    "comp_man_header": _from_record(CS.HEADER),
+    "comp_man_stage": _from_record(CS.STAGE),
+    "comp_man_honour": _from_record(CH.HONOUR),
 }
 
 
