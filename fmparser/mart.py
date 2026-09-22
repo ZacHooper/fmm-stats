@@ -2717,24 +2717,20 @@ SELECT * EXCLUDE (rn) FROM (
 ) WHERE rn = 1
 """
 
-# Squad membership as the CLUB RECORD states it, rather than inferred from spells.
-#
-# This is a different question from staging.players.club_tid, and the two legitimately
-# disagree:
+# The 40-slot squad array, one row per occupied slot. This is SQUAD MEMBERSHIP (it
+# includes loaned-IN players and excludes reserve-team players); staging.players.club_tid
+# is OWNERSHIP. They legitimately disagree:
 #   * the array INCLUDES loaned-IN players (they are in the squad, owned elsewhere);
 #   * the array EXCLUDES players who are in the club's RESERVE side, which club_tid lumps
 #     under the first team -- on frem-2024-11-10, 32 players carry club_tid 346 while the
 #     first-team array holds 29, and the 8 missing are exactly the 8 in the reserves array.
 # So: club_roster answers "who is in this squad", club_tid answers "who owns him".
-#
-# Deliberately NOT wired into mart.squad_current yet. The spell model stays as the source of
-# truth until the two have been compared across every snapshot -- see mart.roster_vs_spells.
 CLUB_ROSTER = """
 CREATE OR REPLACE VIEW mart.club_roster AS
 SELECT s.season, s.phase, s.snap_ix, s.phase_date,
        cs.club_tid, cs.player_tid AS tid, cs.slot,
        p.name, p.club_tid AS owner_club_tid,
-       p.club_tid IS DISTINCT FROM cs.club_tid AS on_loan_in,
+       (p.parent_club_tid IS NOT NULL AND p.parent_club_tid != cs.club_tid) AS on_loan_in,
        ps.person_id
 FROM {S}.club_squad cs
 JOIN mart.snapshots s USING (season, phase)
@@ -2742,6 +2738,33 @@ LEFT JOIN {S}.players p
        ON (p.season, p.phase, p.tid) = (cs.season, cs.phase, cs.player_tid)
 LEFT JOIN {S}.person_slices ps
        ON (ps.season, ps.phase, ps.tid) = (cs.season, cs.phase, cs.player_tid)
+"""
+
+# Players owned by our managed club / reserves who are actively on loan to an external club.
+OUR_LOANEES_OUT = """
+CREATE OR REPLACE VIEW mart.our_loanees_out AS
+WITH our_reserves AS (
+    SELECT season, phase, player_tid AS tid
+    FROM {S}.club_squad
+    WHERE club_tid IN (SELECT club_tid FROM mart.reserve_clubs)
+)
+SELECT s.season, s.phase, s.snap_ix, s.phase_date,
+       p.tid, p.name,
+       cs.club_tid AS loan_club_tid,
+       c.name      AS loan_club_name,
+       l.spell_start, l.spell_end,
+       p.ca, p.pa
+FROM our_reserves r
+JOIN mart.snapshots s USING (season, phase)
+JOIN {S}.club_squad cs
+  ON (cs.season, cs.phase, cs.player_tid) = (s.season, s.phase, r.tid)
+ AND cs.club_tid NOT IN (SELECT club_tid FROM mart.our_clubs)
+JOIN {S}.clubs c
+  ON (c.season, c.phase, c.tid) = (cs.season, cs.phase, cs.club_tid)
+JOIN {S}.players p
+  ON (p.season, p.phase, p.tid) = (cs.season, cs.phase, cs.player_tid)
+LEFT JOIN {S}.player_loans l
+  ON (l.season, l.phase, l.tid) = (p.season, p.phase, p.tid)
 """
 
 # The comparison that has to be run before any consumer switches over: where does the club
@@ -2798,6 +2821,7 @@ ORDER = [
     ("mart.staff", STAFF),
     ("mart.club_managers", CLUB_MANAGERS),
     ("mart.club_roster", CLUB_ROSTER),
+    ("mart.our_loanees_out", OUR_LOANEES_OUT),
     ("mart.player_snapshots", PLAYER_SNAPSHOTS),
     ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
     ("mart.player_value_est", PLAYER_VALUE_EST),
