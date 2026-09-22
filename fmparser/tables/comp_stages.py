@@ -8,7 +8,7 @@ grid of `n_stages` x 78-byte records.
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import Field, PAD, Record, TableDef, U8, U16, U32, UNKNOWN
-from ..primitives import u32 as _u32
+from ..core.primitives import u32 as _u32
 
 __all__ = [
     "COMP_STAGES_TABLE",

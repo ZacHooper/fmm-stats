@@ -34,13 +34,6 @@ preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `
 by a structural test described in the notes.
 
 ### Table Engine Migration Status Summary
-## The map
-
-`live` = a parser function called against this save. `hdr` = found by its declared count
-preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `struct` = found
-by a structural test described in the notes.
-
-### Table Engine Migration Status Summary
 * **Migrated to `TableDef` (18 tables)**: `player_attributes`, `staff`, `round_names`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`.
 * **Blocked on Engine Capability (2 tables)**:
   * `competitions` (`comp_table`, 1,372 records) — Shape A count-framed, blocked on nested variable reference array (`n_refs: u32` then `n_refs * 8B`).

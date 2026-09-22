@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from .. import archive as A
 from .. import records as RD
 from ..core import Field, PAD, Record, TableDef, U8, U16, U32, UNKNOWN
-from ..primitives import u16 as _u16, ymd_from as _ymd_from
+from ..core.primitives import u16 as _u16, ymd_from as _ymd_from
 
 __all__ = [
     "DAY_BASE",

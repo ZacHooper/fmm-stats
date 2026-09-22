@@ -7,7 +7,7 @@ Tail table consisting of 55-byte records opening with `b"\\xff\\xff\\xff\\xff\\x
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import Field, PAD, Record, TableDef, U16, U32, UNKNOWN
-from ..primitives import NO_ID32
+from ..core.primitives import NO_ID32
 
 __all__ = [
     "COMP_HONOURS_TABLE",
