@@ -8,8 +8,8 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..schema import F32, Field, Record, U16, U32, PString
-from .engine import TableDef
+from ..core import F32, Field, Record, U16, U32, PString
+from ..core import TableDef
 
 __all__ = [
     "CURRENCIES_TABLE",

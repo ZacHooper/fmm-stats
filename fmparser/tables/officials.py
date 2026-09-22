@@ -9,8 +9,8 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..schema import PAD, RAW, Field, Record, U16, U32, U8, UNKNOWN
-from .engine import TableDef
+from ..core import PAD, RAW, Field, Record, U16, U32, U8, UNKNOWN
+from ..core import TableDef
 
 __all__ = [
     "OFFICIAL",

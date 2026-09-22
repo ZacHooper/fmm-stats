@@ -12,7 +12,7 @@ import numpy as np
 from .. import primitives as P
 from .. import records as RD
 from ..save import cache_key as _cache_key
-from ..schema import DATE, Field, HEX4, PAD, Record, U16, U32, U8, UNKNOWN
+from ..core import DATE, Field, HEX4, PAD, Record, U16, U32, U8, UNKNOWN
 
 __all__ = [
     "DOB_YEAR_HI",

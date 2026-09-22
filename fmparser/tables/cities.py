@@ -8,8 +8,8 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..schema import F32, Field, Record, U8, U16, U32, UNKNOWN
-from .engine import TableDef
+from ..core import F32, Field, Record, U8, U16, U32, UNKNOWN
+from ..core import TableDef
 
 __all__ = [
     "CITIES_TABLE",
