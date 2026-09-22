@@ -33,6 +33,15 @@ from .languages import (
     locate_languages,
     scrape_languages,
 )
+from .match_slots import (
+    MATCH_SLOTS_TABLE,
+    NO_CLUB as MATCH_SLOT_NO_CLUB,
+    SLOT as MATCH_SLOT,
+    STRIDE as MATCH_SLOT_STRIDE,
+    locate_match_slots,
+    match_slots_table_spans,
+    scrape as scrape_match_slots,
+)
 from .names import (
     FIRST_NAMES_TABLE,
     NAME_ID_ENTRY,
@@ -118,6 +127,7 @@ TABLES = {
     "first_names": FIRST_NAMES_TABLE,
     "languages": LANGUAGES_TABLE,
     "match_officials": OFFICIALS_TABLE,
+    "match_slots": MATCH_SLOTS_TABLE,
     "nations": NATIONS_TABLE,
     "nicknames": NICKNAMES_TABLE,
     "person_info": PERSON_INFO,
@@ -163,6 +173,14 @@ __all__ = [
     "languages_table_spans",
     "locate_languages",
     "scrape_languages",
+    # Match Slots
+    "MATCH_SLOTS_TABLE",
+    "MATCH_SLOT",
+    "MATCH_SLOT_NO_CLUB",
+    "MATCH_SLOT_STRIDE",
+    "locate_match_slots",
+    "match_slots_table_spans",
+    "scrape_match_slots",
     # Names
     "FIRST_NAMES_TABLE",
     "NAME_ID_ENTRY",
