@@ -9,12 +9,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
 from ..schema import F32, Field, Record, U8, U16, U32, UNKNOWN
-from .engine import FixedTableDef
+from .engine import TableDef
 
 __all__ = [
     "CITIES_TABLE",
     "CITY",
-    "CITY_COUNT",
     "CITY_RECORD",
     "cities_table_spans",
     "locate_cities",
@@ -22,7 +21,6 @@ __all__ = [
 ]
 
 CITY_RECORD = 20
-CITY_COUNT = 10956
 
 CITY = Record("city", CITY_RECORD, [
     Field(0,  2, "id",         U16, note="== the slot index; that is what bounds the walk"),
@@ -86,9 +84,9 @@ def _process_city(rec: Dict[str, Any], offset: int) -> Dict[str, Any]:
     return rec
 
 
-CITIES_TABLE = FixedTableDef(
+CITIES_TABLE = TableDef(
     name="cities",
-    record_schema=CITY,
+    segments=(CITY,),
     locator=locate_cities,
     include_offset=True,
     post_process=_process_city,

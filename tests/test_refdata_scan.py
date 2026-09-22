@@ -35,7 +35,7 @@ sys.path.insert(0, ROOT)
 
 from tests.harness import skip  # noqa: E402
 
-from fmparser import lookups as LK    # noqa: E402
+from fmparser.tables import nations as LK    # noqa: E402
 from fmparser import reference as R    # noqa: E402
 from fmparser.save import Save         # noqa: E402
 

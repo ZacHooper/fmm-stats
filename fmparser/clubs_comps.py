@@ -19,7 +19,7 @@ from .schema import Field, PAD, Record, U8, U16, U32, UNKNOWN
 
 import numpy as np
 
-from . import lookups as LK
+from .tables import nations as LK
 from . import regions as RG
 from .save import cache_key as _cache_key
 

@@ -17,7 +17,7 @@ from .. import records as RD
 from ..regions import WAGE_GBP_PER_UNIT
 from ..save import cache_key as _cache_key
 from ..schema import DATE, Field, PAD, Record, U16, U32, U8, UNKNOWN
-from .engine import FixedTableDef, fixed_table_spans
+from .engine import TableDef, table_spans
 
 __all__ = [
     "CONTRACT",
@@ -115,17 +115,17 @@ def _process_contract(rec: Dict[str, Any], offset: int) -> Optional[Dict[str, An
     return rec
 
 
-CONTRACT_TABLE = FixedTableDef(
+CONTRACT_TABLE = TableDef(
     name="contracts",
-    record_schema=CONTRACT,
+    segments=(CONTRACT,),
     locator=locate_contracts,
     include_offset=True,
-    post_process=_process_contract,
 )
 
 
 def contracts_table_spans(mm: Any) -> List[Tuple[int, int]]:
-    return fixed_table_spans(mm, CONTRACT_TABLE, include_count_header=True)
+    """Byte spans covering the 83-byte contract grid."""
+    return table_spans(mm, CONTRACT_TABLE, include_count_header=True)
 
 
 def scrape_contracts(

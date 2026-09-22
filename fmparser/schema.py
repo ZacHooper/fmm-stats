@@ -30,6 +30,7 @@ Counted and nested structures. The competition record is
 and relationship lists past its 68-byte head. Only the FIXED-WIDTH parts are declared, and
 `Record.span` is the extent of the declared part, not of the record. `is_head=True` says so.
 """
+from typing import Any
 
 
 class _Unknown:
@@ -233,6 +234,68 @@ def _runs(nums):
         out.append(str(start) if start == prev else f"{start}-{prev}")
         start = prev = n
     return ",".join(out)
+
+
+class PString:
+    """Length-prefixed string primitive: `[len u32][bytes (encoding)][\\0?]`.
+
+    Handles reading length-prefixed strings with optional null-terminators and
+    character decoding fallbacks.
+    """
+    __slots__ = ("name", "null_terminated", "allow_empty", "encoding", "fallback_encoding", "max_len")
+
+    def __init__(
+        self,
+        name: str,
+        null_terminated: bool = False,
+        allow_empty: bool = False,
+        encoding: str = "utf-8",
+        fallback_encoding: str = "latin-1",
+        max_len: int = 4096,
+    ):
+        self.name = name
+        self.null_terminated = null_terminated
+        self.allow_empty = allow_empty
+        self.encoding = encoding
+        self.fallback_encoding = fallback_encoding
+        self.max_len = max_len
+
+    def __repr__(self) -> str:
+        flags = []
+        if self.null_terminated:
+            flags.append("null_terminated=True")
+        if self.allow_empty:
+            flags.append("allow_empty=True")
+        if self.encoding != "utf-8":
+            flags.append(f"encoding={self.encoding!r}")
+        extra = f", {', '.join(flags)}" if flags else ""
+        return f"PString({self.name!r}{extra})"
+
+    def read(self, mm: Any, offset: int, limit: int):
+        """Read string from `offset` bounded by `limit`.
+
+        Returns `({name: decoded_str}, next_offset)` or `None` if invalid/out-of-bounds.
+        """
+        if offset + 4 > limit:
+            return None
+        slen = int.from_bytes(mm[offset:offset + 4], "little")
+        lo = 0 if self.allow_empty else 1
+        if not (lo <= slen <= self.max_len):
+            return None
+        term_len = 1 if self.null_terminated else 0
+        total_len = 4 + slen + term_len
+        if offset + total_len > limit:
+            return None
+        if self.null_terminated and mm[offset + 4 + slen] != 0:
+            return None
+
+        raw = bytes(mm[offset + 4:offset + 4 + slen])
+        try:
+            val = raw.decode(self.encoding)
+        except UnicodeDecodeError:
+            val = raw.decode(self.fallback_encoding, errors="replace")
+        return {self.name: val}, offset + total_len
+
 
 
 def per_byte_map(rec):

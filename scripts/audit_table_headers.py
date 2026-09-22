@@ -37,7 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fmparser.tables import player_attributes as A                 # noqa: E402
 import numpy as np                                   # noqa: E402
 from fmparser import history as H                    # noqa: E402
-from fmparser import lookups as LK                   # noqa: E402
+from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser.tables import cities, stadiums         # noqa: E402
 from fmparser import reference as R                  # noqa: E402
 from fmparser.tables import staff as ST              # noqa: E402
@@ -199,23 +199,21 @@ def t_stadiums(mm):
 
 
 def t_nations(mm):
-    """`offset` is c-6, the uid field, which IS the record head ([uid u32][id u16][names])."""
-    nations = LK.scrape_nations(mm)
-    if not nations:
+    nations_map = nations.scrape_nations(mm)
+    if not nations_map:
         return None
-    return Table("nations", min(v["offset"] for v in nations.values()), ids=nations.keys())
+    return Table("nations", min(v["offset"] for v in nations_map.values()), ids=nations_map.keys())
 
 
 def t_languages(mm):
-    langs = LK.scrape_languages(mm)
+    langs = languages.scrape_languages(mm)
     if not langs:
         return None
     return Table("languages", min(v["offset"] for v in langs.values()), ids=langs.keys())
 
 
 def t_currencies(mm):
-    """Keyed by uid, which is NOT an ordinal, so only `n_records` is a usable target."""
-    cur = LK.scrape_currencies(mm)
+    cur = currencies.scrape_currencies(mm)
     if not cur:
         return None
     return Table("currencies", min(v["offset"] for v in cur.values()), n=len(cur),

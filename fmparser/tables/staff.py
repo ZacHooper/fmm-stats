@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
 from ..schema import Field, Record, U16, U32, U8, UNKNOWN
-from .engine import FixedTableDef
+from .engine import TableDef
 from .player_attributes import locate_player_attributes
 
 __all__ = [
@@ -192,9 +192,9 @@ def _process_staff(rec: Dict[str, Any], offset: int) -> Optional[Dict[str, Any]]
     return row
 
 
-STAFF_TABLE = FixedTableDef(
+STAFF_TABLE = TableDef(
     name="staff_attributes",
-    record_schema=STAFF,
+    segments=(STAFF,),
     locator=locate_staff,
     include_offset=True,
     post_process=_process_staff,
