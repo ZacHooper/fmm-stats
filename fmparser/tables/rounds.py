@@ -8,12 +8,12 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..schema import Field, Record, U16, U32
-from .engine import StringCatalogDef, string_catalog_spans, walk_string_catalog
+from ..schema import Field, Record, U16, U32, PString
+from .engine import TableDef
 
 __all__ = [
     "ROUNDS_CATALOG",
-    "ROUND_COUNT",
+    "ROUNDS_TABLE",
     "ROUND_HEAD",
     "ROUND_TRAILER",
     "ROUND_TRAILER_WIDTH",
@@ -24,12 +24,10 @@ __all__ = [
     "scrape_rounds",
 ]
 
-ROUND_COUNT = 273
 ROUND_TRAILER_WIDTH = 14
 
-ROUND_HEAD = Record("round_head", 8, [
+ROUND_HEAD = Record("round_head", 4, [
     Field(0, 4, "id", U32, note="round / leg identifier"),
-    Field(4, 4, "len", U32, note="name string byte length"),
 ], is_head=True)
 
 ROUND_TRAILER = Record("round_trailer", ROUND_TRAILER_WIDTH, [
@@ -74,27 +72,29 @@ def locate_rounds(mm: Any) -> Optional[Tuple[int, int]]:
 rounds_table = locate_rounds
 
 
-ROUNDS_CATALOG = StringCatalogDef(
+ROUNDS_TABLE = TableDef(
     name="round_names",
-    head_schema=ROUND_HEAD,
-    trailer_schema=ROUND_TRAILER,
+    segments=(
+        ROUND_HEAD,
+        PString("name", null_terminated=True),
+        ROUND_TRAILER,
+    ),
     locator=locate_rounds,
-    string_field="name",
-    len_field="len",
-    null_terminated=True,
 )
+
+ROUNDS_CATALOG = ROUNDS_TABLE
 
 
 def scrape_rounds(mm: Any) -> List[Dict[str, Any]]:
     """Return all decoded round and leg name records."""
-    return ROUNDS_CATALOG.scrape(mm)
+    return ROUNDS_TABLE.scrape(mm)
 
 
 def round_names_map(mm: Any) -> Dict[int, str]:
     """Map {round_id: round_name}."""
-    return {r["id"]: r["name"] for r in ROUNDS_CATALOG.scrape(mm)}
+    return {r["id"]: r["name"] for r in ROUNDS_TABLE.scrape(mm)}
 
 
 def rounds_table_spans(mm: Any) -> List[Tuple[int, int]]:
     """Return [(start, end)] byte spans covering the round table and its header."""
-    return ROUNDS_CATALOG.spans(mm, include_count_header=True)
+    return ROUNDS_TABLE.spans(mm, include_count_header=True)

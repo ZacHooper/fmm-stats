@@ -48,9 +48,16 @@ from fmparser import lightresults as L
 from fmparser import careers as C
 from fmparser import history as H
 from fmparser import injuries as INJ
-from fmparser import lookups as LKP
 from fmparser import clubrecords as CRE
-from fmparser.tables import cities, player_attributes as PA, staff as ST, stadiums
+from fmparser.tables import (
+    cities,
+    currencies,
+    languages,
+    nations,
+    player_attributes as PA,
+    staff as ST,
+    stadiums,
+)
 
 
 def _period(month):
@@ -562,11 +569,11 @@ def main():
          indent=None)
     dump("cities.json", {str(k): v for k, v in sorted(cities.scrape_cities(mm).items())},
          indent=None)
-    # Small reference tables: languages (resolve the ids on every person record),
-    # currencies (exchange rate per GBP) and nations. See fmparser/lookups.py.
-    dump("languages.json", {str(k): v for k, v in sorted(LKP.scrape_languages(mm).items())})
-    dump("currencies.json", {str(k): v for k, v in sorted(LKP.scrape_currencies(mm).items())})
-    dump("nations.json", {str(k): v for k, v in sorted(LKP.scrape_nations(mm).items())})
+    # Reference data dumps — languages (resolve person language lists),
+    # currencies (exchange rate per GBP) and nations.
+    dump("languages.json", {str(k): v for k, v in sorted(languages.scrape_languages(mm).items())})
+    dump("currencies.json", {str(k): v for k, v in sorted(currencies.scrape_currencies(mm).items())})
+    dump("nations.json", {str(k): v for k, v in sorted(nations.scrape_nations(mm).items())})
     dump("leagues.json", {str(c): d for c, d in sorted(leagues.items())})
     # club -> league for the whole DB (source='club_league'): from the club records ONLY —
     # a pure snapshot of which competition each club is in on the save date. This is what the

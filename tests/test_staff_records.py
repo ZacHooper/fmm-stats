@@ -32,7 +32,7 @@ from tests.harness import skip  # noqa: E402
 from fmparser.tables import staff as ST                      # noqa: E402
 from fmparser.tables.person_info import PERSON_FIELDS, scrape_person_info  # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402
-from fmparser import lookups as LK                    # noqa: E402
+from fmparser.tables import languages, nations                    # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 
 SAVE_NAME = "frem-2024-11-10.fms"
@@ -263,32 +263,32 @@ def main(argv):
     else:
         print(f"  OK  every stadium's city_id resolves ({len(unresolved)} unresolved)")
 
-    langs = LK.scrape_languages(mm)
+    langs = languages.scrape_languages(mm)
     for lid, want in ((7, "English"), (10, "German"), (21, "Norwegian"),
                       (29, "Swedish"), (31, "Danish")):
         got = (langs.get(lid) or {}).get("name")
         if got != want:
             fails.append(f"language {lid}: {got!r}, expected {want!r}")
 
-    nations = LK.scrape_nations(mm)
+    nations_map = nations.scrape_nations(mm)
     for nid, want in ((131, "Belgium"), (138, "Denmark"), (139, "England"), (173, "Turkey")):
-        got = (nations.get(nid) or {}).get("name")
+        got = (nations_map.get(nid) or {}).get("name")
         if got != want:
             fails.append(f"nation {nid}: {got!r}, expected {want!r}")
     # the ranking is near-unique across nations: a mis-read field cannot produce that
-    ranks = [r["world_ranking"] for r in nations.values() if r.get("is_ranked")
+    ranks = [r["world_ranking"] for r in nations_map.values() if r.get("is_ranked")
              and 1 <= (r["world_ranking"] or 0) <= 400]
     uniq = len(set(ranks)) / max(len(ranks), 1)
     if uniq < 0.8:
         fails.append(f"world_ranking only {uniq:.0%} distinct — field is probably mis-read")
     else:
-        print(f"  OK  {len(nations)} nations, world_ranking {uniq:.0%} distinct over "
+        print(f"  OK  {len(nations_map)} nations, world_ranking {uniq:.0%} distinct over "
               f"{len(ranks)} ranked")
     # coefficients are UEFA-only: South American sides must have none
-    for nid in (r["id"] for r in nations.values() if r["name"] in ("Brazil", "Argentina")):
-        if nations[nid]["coefficients"]:
-            fails.append(f"{nations[nid]['name']} should have no UEFA coefficient")
-    euro = [r for r in nations.values() if r["coefficients"]]
+    for nid in (r["id"] for r in nations_map.values() if r["name"] in ("Brazil", "Argentina")):
+        if nations_map[nid]["coefficients"]:
+            fails.append(f"{nations_map[nid]['name']} should have no UEFA coefficient")
+    euro = [r for r in nations_map.values() if r["coefficients"]]
     print(f"  OK  {len(euro)} nations carry UEFA coefficients, none of them South American")
 
     # The info record's personality block + international record, on the same 7 managers.

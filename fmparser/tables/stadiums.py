@@ -8,26 +8,26 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .. import primitives as P
 from ..save import cache_key as _cache_key
-from ..schema import Field, Record, U16, U32
-from .engine import StringCatalogDef
+from ..schema import Field, Record, U16, U32, PString
+from .engine import TableDef
 
 __all__ = [
     "STADIUM_HEAD",
     "STADIUM_HEADER",
     "STADIUMS_CATALOG",
+    "STADIUMS_TABLE",
     "locate_stadiums",
     "scrape_stadiums",
 ]
 
 STADIUM_HEADER = 22
 
-STADIUM_HEAD = Record("stadium_head", STADIUM_HEADER, [
+STADIUM_HEAD = Record("stadium_head", 18, [
     Field(0, 4, "id", U32),
     Field(4, 4, "uid", U32),
     Field(8, 2, "city_id", U16),
     Field(10, 4, "capacity", U32),
     Field(14, 4, "expansion_capacity", U32),
-    Field(18, 4, "len", U32),
 ], is_head=True)
 
 _STADIUMS_CACHE: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {}
@@ -116,17 +116,19 @@ def locate_stadiums(mm: Any) -> Optional[Tuple[int, int]]:
     return None
 
 
-STADIUMS_CATALOG = StringCatalogDef(
+STADIUMS_TABLE = TableDef(
     name="stadiums",
-    head_schema=STADIUM_HEAD,
+    segments=(
+        STADIUM_HEAD,
+        PString("name", null_terminated=True),
+    ),
     locator=locate_stadiums,
-    string_field="name",
-    len_field="len",
-    null_terminated=True,
     include_offset=True,
 )
+
+STADIUMS_CATALOG = STADIUMS_TABLE
 
 
 def scrape_stadiums(mm: Any) -> Dict[int, Dict[str, Any]]:
     """{stadium_id: record} for every stadium in the save."""
-    return STADIUMS_CATALOG.id_map(mm, key_field="id")
+    return STADIUMS_TABLE.id_map(mm, key_field="id")

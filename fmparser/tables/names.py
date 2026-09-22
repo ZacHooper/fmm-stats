@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
 from ..schema import Field, RAW, Record, U32, UNKNOWN
-from .engine import FixedTableDef
+from .engine import TableDef
 
 __all__ = [
     "NAME_ID_STRIDE",
@@ -198,23 +198,23 @@ def locate_nicknames(mm: Any) -> Optional[Tuple[int, int]]:
     return None
 
 
-SURNAMES_TABLE = FixedTableDef(
+SURNAMES_TABLE = TableDef(
     name="surnames",
-    record_schema=NAME_ID_ENTRY,
+    segments=(NAME_ID_ENTRY,),
     locator=locate_surnames,
     include_offset=True,
 )
 
-FIRST_NAMES_TABLE = FixedTableDef(
+FIRST_NAMES_TABLE = TableDef(
     name="first_names",
-    record_schema=NAME_ID_ENTRY,
+    segments=(NAME_ID_ENTRY,),
     locator=locate_first_names,
     include_offset=True,
 )
 
-NICKNAMES_TABLE = FixedTableDef(
+NICKNAMES_TABLE = TableDef(
     name="nicknames",
-    record_schema=NAME_ID_ENTRY,
+    segments=(NAME_ID_ENTRY,),
     locator=locate_nicknames,
     include_offset=True,
 )

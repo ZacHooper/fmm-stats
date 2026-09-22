@@ -84,8 +84,8 @@ def test_contract_schema_and_table_def():
     # Verify registration in central tables registry
     assert "contracts" in TABLES
     assert TABLES["contracts"] is CT.CONTRACT_TABLE
-    assert CT.CONTRACT_TABLE.record_schema.span == 83
-    print("  PASS schema and registration")
+    assert CT.CONTRACT.span == 83
+    assert CT.CONTRACT_TABLE.stride == 83
 
 
 def test_contract_scraping_and_decoding():

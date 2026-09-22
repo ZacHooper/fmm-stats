@@ -8,13 +8,11 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..schema import F32, Field, Record, U16, U32
-from .engine import StringCatalogDef
+from ..schema import F32, Field, Record, U16, U32, PString
+from .engine import TableDef
 
 __all__ = [
-    "CURRENCIES_CATALOG",
     "CURRENCIES_TABLE",
-    "CURRENCY_COUNT",
     "CURRENCY_HEAD",
     "CURRENCY_TAIL",
     "currencies_table_spans",
@@ -22,11 +20,8 @@ __all__ = [
     "scrape_currencies",
 ]
 
-CURRENCY_COUNT = 173
-
-CURRENCY_HEAD = Record("currency_head", 6, (
+CURRENCY_HEAD = Record("currency_head", 2, (
     Field(0, 2, "uid", U16, note="currency unique identifier"),
-    Field(2, 4, "len", U32, note="length of UTF-8 name in bytes"),
 ), is_head=True)
 
 CURRENCY_TAIL = Record("currency_tail", 4, (
@@ -64,14 +59,14 @@ def locate_currencies(mm: Any) -> Optional[Tuple[int, int]]:
     return None
 
 
-CURRENCIES_CATALOG = StringCatalogDef(
+CURRENCIES_TABLE = TableDef(
     name="currencies",
-    head_schema=CURRENCY_HEAD,
-    trailer_schema=CURRENCY_TAIL,
+    segments=(
+        CURRENCY_HEAD,
+        PString("name", null_terminated=False),
+        CURRENCY_TAIL,
+    ),
     locator=locate_currencies,
-    string_field="name",
-    len_field="len",
-    null_terminated=False,
     include_offset=True,
     post_process=lambda r, pos: {
         "uid": r["uid"],
@@ -81,14 +76,12 @@ CURRENCIES_CATALOG = StringCatalogDef(
     },
 )
 
-CURRENCIES_TABLE = CURRENCIES_CATALOG
-
 
 def scrape_currencies(mm: Any) -> Dict[int, Dict[str, Any]]:
     """{currency_uid: record} with the exchange rate per GBP."""
-    return CURRENCIES_CATALOG.id_map(mm, key_field="uid")
+    return CURRENCIES_TABLE.id_map(mm, key_field="uid")
 
 
 def currencies_table_spans(mm: Any) -> List[Tuple[int, int]]:
     """Return [(start, end)] byte spans covering the currencies table and its header."""
-    return CURRENCIES_CATALOG.spans(mm, include_count_header=True)
+    return CURRENCIES_TABLE.spans(mm, include_count_header=True)

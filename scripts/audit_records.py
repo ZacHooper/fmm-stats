@@ -44,7 +44,7 @@ sys.path.insert(0, ROOT)
 from fmparser.tables import player_attributes as A          # noqa: E402
 from fmparser.tables import staff as ST       # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
-from fmparser import lookups as LK            # noqa: E402
+from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser import reference as R           # noqa: E402
 from fmparser import clubrecords as CR        # noqa: E402
 from fmparser import history as H             # noqa: E402
@@ -113,12 +113,12 @@ LAYOUTS = {
     # these was in the audit before, which is why the fixed parts were only ever described in
     # prose.
     "stadium_head": _from_record(PL_STADIUMS.STADIUM_HEAD),
-    "language_head": _from_record(LK.LANGUAGE_HEAD),
-    "language_tail": _from_record(LK.LANGUAGE_TAIL),
-    "currency_head": _from_record(LK.CURRENCY_HEAD),
-    "currency_tail": _from_record(LK.CURRENCY_TAIL),
-    "nation_head": _from_record(LK.NATION_HEAD),
-    "nation_tail": _from_record(LK.NATION_TAIL),
+    "language_head": _from_record(languages.LANGUAGE_HEAD),
+    "language_tail": _from_record(languages.LANGUAGE_TAIL),
+    "currency_head": _from_record(currencies.CURRENCY_HEAD),
+    "currency_tail": _from_record(currencies.CURRENCY_TAIL),
+    "nation_head": _from_record(nations.NATION_HEAD),
+    "nation_tail": _from_record(nations.NATION_TAIL),
     # Read FROM the parser's own declaration rather than retyped here. This entry used to be
     # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
     # to prevent, sitting inside the audit.
@@ -248,7 +248,7 @@ def main():
 
         print("measured against the save:")
         attrs = scrape_player_attributes(mm)
-        ok &= _stride("player_attribute", [v["offset"] for v in attrs.values()], A.PLAYER_RECORD)
+        ok &= _stride("player_attribute", [v["offset"] for v in attrs.values()], A.RECORD)
         # info_head has no stride to check: variable-length records, only the head is declared
         info = scrape_person_info(mm)
         sa = ST.scrape_staff_attributes(

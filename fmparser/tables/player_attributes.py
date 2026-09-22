@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..regions import ATTR_HI, ATTR_LO
 from ..save import cache_key as _cache_key
 from ..schema import DATE, Field, HEX4, PAD, RAW, Record, U16, U32, U8, UNKNOWN
-from .engine import FixedTableDef
+from .engine import TableDef
 
 __all__ = [
     "ATTR_OFFSETS",
@@ -129,6 +129,7 @@ def _process_player_attribute(rec: Dict[str, Any], offset: int) -> Dict[str, Any
     P = offset + 42
     out = {
         "sid": rec["sid"],
+        "offset": offset,
         "P": P,
         "positions": {POSITIONS[k]: v for k, v in enumerate(pos_raw) if v > 1},
         "feet": {"left": rec["foot_left"], "right": rec["foot_right"]},
@@ -191,10 +192,11 @@ def _process_player_attribute(rec: Dict[str, Any], offset: int) -> Dict[str, Any
     return out
 
 
-PLAYER_ATTRIBUTES_TABLE = FixedTableDef(
+PLAYER_ATTRIBUTES_TABLE = TableDef(
     name="player_attributes",
-    record_schema=PLAYER,
+    segments=(PLAYER,),
     locator=locate_player_attributes,
+    include_offset=True,
     post_process=_process_player_attribute,
 )
 

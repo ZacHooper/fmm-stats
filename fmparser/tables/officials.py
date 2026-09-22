@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
 from ..schema import PAD, RAW, Field, Record, U16, U32, U8, UNKNOWN
-from .engine import FixedTableDef, fixed_table_spans, walk_fixed_table
+from .engine import TableDef
 
 __all__ = [
     "OFFICIAL",
@@ -92,9 +92,9 @@ def locate_officials(mm: Any) -> Optional[Tuple[int, int]]:
 
 officials_table = locate_officials
 
-OFFICIALS_TABLE = FixedTableDef(
+OFFICIALS_TABLE = TableDef(
     name="match_officials",
-    record_schema=OFFICIAL,
+    segments=(OFFICIAL,),
     locator=locate_officials,
 )
 

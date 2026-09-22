@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Unit tests for the generic table abstraction engine (fmparser/tables.py).
+"""Unit tests for the generic composite-stream table engine (fmparser/tables/engine.py).
 
-Tests `FixedTableDef` and `StringCatalogDef` with synthetic byte buffers without requiring
-a 64 MB savefile, ensuring the walker, spans generator, post-processing, and encoding
-fallbacks are sound under all conditions.
+Tests `TableDef` and `PString` with synthetic byte buffers without requiring a 64 MB savefile,
+ensuring fixed grids, single-string catalogs, and multi-string catalogs are sound under all
+conditions (offsets, spans, post-processing, decoding fallbacks, error handling).
 """
 import os
 import struct
@@ -12,14 +12,11 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser.schema import Field, Record, U16, U32, U8  # noqa: E402
+from fmparser.schema import Field, Record, U16, U32, U8, PString  # noqa: E402
 from fmparser.tables import (                              # noqa: E402
-    FixedTableDef,
-    StringCatalogDef,
-    fixed_table_spans,
-    string_catalog_spans,
-    walk_fixed_table,
-    walk_string_catalog,
+    TableDef,
+    table_spans,
+    walk_table,
 )
 
 # Synthetic fixed schema: 7 bytes = [id u32][val u16][flag u8]
@@ -30,10 +27,9 @@ DUMMY_FIXED = Record("dummy_fixed", 7, [
 ])
 
 # Synthetic catalog schemas:
-# Head: 8 bytes = [id u32][len u32]
-DUMMY_HEAD = Record("dummy_head", 8, [
+# Head: 4 bytes = [id u32]
+DUMMY_HEAD = Record("dummy_head", 4, [
     Field(0, 4, "id", U32),
-    Field(4, 4, "len", U32),
 ], is_head=True)
 
 # Trailer: 4 bytes = [code u32]
@@ -43,8 +39,7 @@ DUMMY_TRAILER = Record("dummy_trailer", 4, [
 
 
 def test_fixed_table():
-    print("TESTING FixedTableDef")
-    # Build a 3-record table with a 4-byte count header
+    print("TESTING TableDef (Fixed Grid)")
     count = 3
     buf = bytearray()
     buf += struct.pack("<I", count)  # count header
@@ -56,30 +51,28 @@ def test_fixed_table():
 
     mm = memoryview(buf)
 
-    table_def = FixedTableDef(
+    table_def = TableDef(
         name="test_fixed",
-        record_schema=DUMMY_FIXED,
+        segments=(DUMMY_FIXED,),
         locator=lambda m: (base, count),
         post_process=lambda r: {**r, "extra": r["id"] * 2},
     )
 
-    rows = walk_fixed_table(mm, table_def)
+    rows = walk_table(mm, table_def)
     assert len(rows) == count, f"expected {count} rows, got {len(rows)}"
     assert rows[0] == {"id": 0, "val": 100, "flag": 1, "extra": 0}
     assert rows[1] == {"id": 10, "val": 101, "flag": 1, "extra": 20}
     assert rows[2] == {"id": 20, "val": 102, "flag": 1, "extra": 40}
 
-    # Test object methods directly
     assert table_def.scrape(mm) == rows
-    assert table_def.spans(mm, include_count_header=True) == fixed_table_spans(mm, table_def, include_count_header=True)
+    assert table_def.spans(mm, include_count_header=True) == table_spans(mm, table_def, include_count_header=True)
     id_map = table_def.id_map(mm, key_field="id")
     assert len(id_map) == 3
     assert id_map[10]["val"] == 101
 
-    # Test include_offset
-    offset_def = FixedTableDef(
+    offset_def = TableDef(
         name="test_fixed_offset",
-        record_schema=DUMMY_FIXED,
+        segments=(DUMMY_FIXED,),
         locator=lambda m: (base, count),
         include_offset=True,
     )
@@ -87,245 +80,161 @@ def test_fixed_table():
     assert offset_rows[0]["offset"] == base
     assert offset_rows[1]["offset"] == base + DUMMY_FIXED.stride
 
-    spans = fixed_table_spans(mm, table_def, include_count_header=True)
-    assert len(spans) == count + 1  # count header + 3 rows
-    assert spans[0] == (0, 4)  # count header span
+    spans = table_spans(mm, table_def, include_count_header=True)
+    assert len(spans) == count + 1
+    assert spans[0] == (0, 4)
     assert spans[1] == (4, 11)
     assert spans[2] == (11, 18)
     assert spans[3] == (18, 25)
 
-    # Empty / not found locator
-    missing_def = FixedTableDef(
+    missing_def = TableDef(
         name="missing",
-        record_schema=DUMMY_FIXED,
+        segments=(DUMMY_FIXED,),
         locator=lambda m: None,
     )
-    assert walk_fixed_table(mm, missing_def) == []
-    assert fixed_table_spans(mm, missing_def) == []
-    print("  PASS FixedTableDef (walking, post_process, spans, missing-locator)")
+    assert walk_table(mm, missing_def) == []
+    assert table_spans(mm, missing_def) == []
+    print("  PASS TableDef (fixed grid: walking, post_process, spans, missing-locator)")
 
 
-def test_string_catalog():
-    print("TESTING StringCatalogDef")
-    # Build a 2-record catalog:
-    # Row 0: id=1, "First Leg" (9 bytes), null, code=999
-    # Row 1: id=2, "Quarter Final" (13 bytes), null, code=888
+def test_single_string_catalog():
+    print("TESTING TableDef (Single String Catalog)")
     items = [
         (1, "First Leg", 999),
         (2, "Quarter Final", 888),
     ]
     buf = bytearray()
-    buf += struct.pack("<I", len(items))  # count header at 0
+    buf += struct.pack("<I", len(items))
     base = len(buf)
 
-    for rid, name, code in items:
-        name_bytes = name.encode("utf-8")
-        buf += struct.pack("<I", rid)
-        buf += struct.pack("<I", len(name_bytes))
-        buf += name_bytes
-        buf += b"\x00"
+    for cid, name, code in items:
+        buf += struct.pack("<I", cid)
+        nb = name.encode("utf-8")
+        buf += struct.pack("<I", len(nb))
+        buf += nb
+        buf += b"\x00"  # null terminator
         buf += struct.pack("<I", code)
 
     mm = memoryview(buf)
 
-    catalog_def = StringCatalogDef(
+    cat_def = TableDef(
         name="test_catalog",
-        head_schema=DUMMY_HEAD,
-        trailer_schema=DUMMY_TRAILER,
+        segments=(
+            DUMMY_HEAD,
+            PString("name", null_terminated=True),
+            DUMMY_TRAILER,
+        ),
         locator=lambda m: (base, len(items)),
-        string_field="name",
-        len_field="len",
-        null_terminated=True,
-    )
-
-    rows = walk_string_catalog(mm, catalog_def)
-    assert len(rows) == len(items), f"expected {len(items)} rows, got {len(rows)}"
-    assert rows[0] == {"id": 1, "name": "First Leg", "code": 999}
-    assert rows[1] == {"id": 2, "name": "Quarter Final", "code": 888}
-
-    # Test object methods directly
-    assert catalog_def.scrape(mm) == rows
-    assert catalog_def.spans(mm, include_count_header=True) == string_catalog_spans(mm, catalog_def, include_count_header=True)
-    id_map = catalog_def.id_map(mm, key_field="id")
-    assert len(id_map) == 2
-    assert id_map[1]["name"] == "First Leg"
-
-    # Test include_offset
-    offset_cat = StringCatalogDef(
-        name="test_cat_offset",
-        head_schema=DUMMY_HEAD,
-        trailer_schema=DUMMY_TRAILER,
-        locator=lambda m: (base, len(items)),
-        string_field="name",
-        len_field="len",
-        null_terminated=True,
         include_offset=True,
     )
-    offset_cat_rows = offset_cat.scrape(mm)
-    assert offset_cat_rows[0]["offset"] == base
-    assert "offset" in offset_cat_rows[1]
 
-    spans = string_catalog_spans(mm, catalog_def, include_count_header=True)
-    assert len(spans) == len(items) + 1
-    assert spans[0] == (0, 4)  # count header
-    # Check contiguity
-    for i in range(1, len(spans) - 1):
-        assert spans[i][1] == spans[i + 1][0], f"gap between span {i} and {i+1}"
-    assert spans[-1][1] == len(buf)
+    rows = cat_def.scrape(mm)
+    assert len(rows) == 2
+    assert rows[0]["id"] == 1
+    assert rows[0]["name"] == "First Leg"
+    assert rows[0]["code"] == 999
+    assert rows[0]["offset"] == base
 
-    print("  PASS StringCatalogDef (walking, spans, null terminator, trailer)")
+    assert rows[1]["id"] == 2
+    assert rows[1]["name"] == "Quarter Final"
+    assert rows[1]["code"] == 888
 
-
-def test_stadiums_catalog():
-    print("TESTING STADIUMS_CATALOG")
-    from fmparser.tables.stadiums import STADIUMS_CATALOG
-    from tests.test_places_unit import build_stadium_bytes
-
-    # Build 3 stadiums with differing name lengths (variable length records)
-    s1 = build_stadium_bytes(sid=1, name="Short", capacity=10000)
-    s2 = build_stadium_bytes(sid=2, name="A Bit Longer Stadium Name", capacity=25000)
-    s3 = build_stadium_bytes(sid=3, name="Super Long Stadium Arena 2026", capacity=60000)
-    # Plus one invalid capacity stadium that should be filtered by post_process
-    s_bad = build_stadium_bytes(sid=4, name="Mega Dome", capacity=500_000)
-
-    buf = memoryview(s1 + s2 + s3 + s_bad)
-    rows = STADIUMS_CATALOG.scrape(buf)
-    # s_bad should be excluded by post_process
-    assert len(rows) == 3
-    assert rows[0]["id"] == 1 and rows[0]["name"] == "Short"
-    assert rows[1]["id"] == 2 and rows[1]["name"] == "A Bit Longer Stadium Name"
-    assert rows[2]["id"] == 3 and rows[2]["name"] == "Super Long Stadium Arena 2026"
-
-    # Verify spans cover the variable-length records accurately
-    spans = STADIUMS_CATALOG.spans(buf, include_count_header=False)
-    assert len(spans) == 3  # capacity check gates s_bad out of the chain
-    for i in range(len(spans) - 1):
-        assert spans[i][1] == spans[i + 1][0], f"spans must be contiguous: {spans[i]} and {spans[i+1]}"
-
-    # Verify id_map
-    id_map = STADIUMS_CATALOG.id_map(buf)
-    assert set(id_map.keys()) == {1, 2, 3}
-
-    # Verify corrupt null terminator stops the walk
-    s_nonull = build_stadium_bytes(sid=5, name="Corrupt", null_term=False)
-    corrupt_buf = memoryview(s1 + s_nonull + s2)
-    corrupt_rows = STADIUMS_CATALOG.scrape(corrupt_buf)
-    # After s1, s_nonull has no NUL terminator so the walk stops immediately
-    assert len(corrupt_rows) == 1
-    assert corrupt_rows[0]["id"] == 1
-    print("  PASS STADIUMS_CATALOG (variable-length strings, capacity gate, NUL enforcement, spans)")
+    spans = cat_def.spans(mm, include_count_header=True)
+    assert len(spans) == 3
+    assert spans[0] == (0, 4)
+    print("  PASS TableDef (single string catalog)")
 
 
-def test_name_id_tables():
-    print("TESTING NAME_ID_TABLES")
-    from fmparser.tables.names import (
-        SURNAMES_TABLE,
-        walk_browse_bounds,
+def test_multi_string_catalog():
+    print("TESTING TableDef (Multi-String Catalog)")
+    items = [
+        (0, 100, "English", "English", 139, 1),
+        (1, 101, "Malayalam", "", 200, 5),  # empty other_name
+    ]
+    buf = bytearray()
+    buf += struct.pack("<H", len(items))
+    base = len(buf)
+
+    HEAD = Record("mhead", 6, [Field(0, 2, "id", U16), Field(2, 4, "uid", U32)], is_head=True)
+    TAIL = Record("mtail", 3, [Field(0, 2, "nat_id", U16), Field(2, 1, "diff", U8)], is_head=True)
+
+    for lid, uid, name1, name2, nat, diff in items:
+        buf += struct.pack("<HI", lid, uid)
+        n1_b = name1.encode("utf-8")
+        buf += struct.pack("<I", len(n1_b)) + n1_b
+        n2_b = name2.encode("utf-8")
+        buf += struct.pack("<I", len(n2_b)) + n2_b
+        buf += struct.pack("<HB", nat, diff)
+
+    mm = memoryview(buf)
+
+    multi_def = TableDef(
+        name="multi_strings",
+        segments=(
+            HEAD,
+            PString("name", null_terminated=False),
+            PString("other_name", null_terminated=False, allow_empty=True),
+            TAIL,
+        ),
+        locator=lambda m: (base, len(items)),
+        include_offset=True,
     )
 
-    # 1. Test browse string table parsing (flat [len u32][utf-8])
-    browse_buf = bytearray(b"\x00" * 250)  # pad to > 200
-    start = len(browse_buf)
-    names = ["Smith", "Jones", "Williams", "Brown", "Taylor"] * 250  # > 1000 names
-    for name in names:
-        nb = name.encode("utf-8")
-        browse_buf += struct.pack("<I", len(nb))
-        browse_buf += nb
-    end = len(browse_buf)
+    rows = multi_def.scrape(mm)
+    assert len(rows) == 2
+    assert rows[0]["name"] == "English"
+    assert rows[0]["other_name"] == "English"
+    assert rows[0]["nat_id"] == 139
+    assert rows[0]["diff"] == 1
 
-    b_start, b_end, parsed_names = walk_browse_bounds(memoryview(browse_buf))
-    assert b_start == start
-    assert b_end == end
-    assert len(parsed_names) == len(names)
-    assert parsed_names[:5] == ["Smith", "Jones", "Williams", "Brown", "Taylor"]
+    assert rows[1]["name"] == "Malayalam"
+    assert rows[1]["other_name"] == ""
+    assert rows[1]["nat_id"] == 200
+    assert rows[1]["diff"] == 5
 
-    # 2. Test FixedTableDef on synthetic 16B records
-    records_buf = bytearray()
-    for i in range(5):
-        records_buf += struct.pack("<II", i, 100 + i) + b"\x00" * 8
-
-    mv = memoryview(records_buf)
-    sur_rows = SURNAMES_TABLE.scrape(mv)
-    assert len(sur_rows) == 5
-    assert sur_rows[0]["ordinal"] == 0 and sur_rows[0]["id"] == 100
-    assert sur_rows[4]["ordinal"] == 4 and sur_rows[4]["id"] == 104
-
-    # Spans
-    spans = SURNAMES_TABLE.spans(mv, include_count_header=False)
-    assert len(spans) == 5
-    assert spans[0] == (0, 16)
-    assert spans[-1] == (64, 80)
-    print("  PASS NAME_ID_TABLES (browse string bounds, 16B FixedTableDef scraping/spans)")
+    spans = multi_def.spans(mm, include_count_header=False)
+    assert len(spans) == 2
+    print("  PASS TableDef (multi-string catalog with empty strings)")
 
 
-def test_player_attributes_table():
-    print("TESTING PLAYER_ATTRIBUTES_TABLE")
-    from fmparser.tables.player_attributes import PLAYER_ATTRIBUTES_TABLE
+def test_pstring_primitive():
+    print("TESTING PString primitive")
+    pstr = PString("text", null_terminated=True)
 
-    buf = bytearray()
-    # 0..4: sid
-    buf += bytes.fromhex("12345678")
-    # 4..8: history link
-    buf += struct.pack("<I", 0)
-    # 8..42: 34 bytes (src, hidden, attrs, plain offsets)
-    buf += b"\x0a" * 34
-    # 42..57: 15 position rating bytes (1..20, with max = 20)
-    buf += bytes([1] * 14 + [20])
-    # 57: foot_left
-    buf += b"\x0f"
-    # 58: foot_right
-    buf += b"\x14"
-    # 59..61: ca
-    buf += struct.pack("<H", 120)
-    # 61..63: pa
-    buf += struct.pack("<H", 150)
-    # 63..65: reputation
-    buf += struct.pack("<H", 5000)
-    # 65..67: current_reputation
-    buf += struct.pack("<H", 5100)
-    # 67..69: world_reputation
-    buf += struct.pack("<H", 4800)
-    # 69: international_retired
-    buf += b"\x00"
-    # 70..72: unknown (2B)
-    buf += b"\x00\x00"
-    # 72: squad_number
-    buf += b"\x09"
-    # 73: preferred_squad_number
-    buf += b"\x09"
-    # 74..76: height_cm
-    buf += struct.pack("<H", 185)
-    # 76..78: weight_kg
-    buf += struct.pack("<H", 78)
+    # Valid string
+    buf = struct.pack("<I", 5) + b"hello\x00"
+    res = pstr.read(buf, 0, len(buf))
+    assert res == ({"text": "hello"}, 10)
 
-    assert len(buf) == 78, f"expected 78 bytes, got {len(buf)}"
+    # Missing null terminator
+    bad_buf = struct.pack("<I", 5) + b"helloX"
+    assert pstr.read(bad_buf, 0, len(bad_buf)) is None
 
-    mv = memoryview(buf)
-    rows = PLAYER_ATTRIBUTES_TABLE.scrape(mv)
-    assert len(rows) == 1
-    r = rows[0]
-    assert r["sid"] == "12345678"
-    assert r["P"] == 42
-    assert r["ca"] == 120
-    assert r["pa"] == 150
-    assert r["feet"] == {"left": 15, "right": 20}
-    assert r["height_cm"] == 185
-    assert r["weight_kg"] == 78
-    assert isinstance(r["attributes"], dict)
-    assert r["attributes"]["Pace"] == 10
-    assert isinstance(r["positions"], dict)
+    # Disallow empty when allow_empty=False
+    pstr_no_empty = PString("text", allow_empty=False)
+    empty_buf = struct.pack("<I", 0)
+    assert pstr_no_empty.read(empty_buf, 0, len(empty_buf)) is None
 
-    spans = PLAYER_ATTRIBUTES_TABLE.spans(mv, include_count_header=False)
-    assert spans == [(0, 78)]
-    print("  PASS PLAYER_ATTRIBUTES_TABLE (78B stride, field unpacking, positions dict, attributes)")
+    # Allow empty
+    pstr_empty = PString("text", allow_empty=True)
+    res_empty = pstr_empty.read(empty_buf, 0, len(empty_buf))
+    assert res_empty == ({"text": ""}, 4)
+
+    # Fallback encoding on invalid UTF-8
+    pstr_latin = PString("text")
+    latin_buf = struct.pack("<I", 4) + b"M\xfcn" + b"\x00"
+    res_latin = pstr_latin.read(latin_buf, 0, len(latin_buf))
+    assert res_latin is not None
+    assert "text" in res_latin[0]
+
+    print("  PASS PString primitive")
 
 
 def main():
     test_fixed_table()
-    test_string_catalog()
-    test_stadiums_catalog()
-    test_name_id_tables()
-    test_player_attributes_table()
+    test_single_string_catalog()
+    test_multi_string_catalog()
+    test_pstring_primitive()
     return 0
 
 
