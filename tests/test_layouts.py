@@ -35,7 +35,7 @@ from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # n
 # zstandard lazily, inside the call -- so the cheap tier stays dependency-free.
 RECORD_MODULES = (
     "clubrecords", "clubs_comps", "compman", "fixtures", "history", "lookups", "matches",
-    "matchslots", "regions", "results", "schema", "tagged",
+    "matchslots", "regions", "schema", "tagged",
     "tables.cities", "tables.contracts", "tables.currencies", "tables.names", "tables.officials", "tables.person_info", "tables.player_attributes", "tables.rounds", "tables.stadiums", "tables.staff"
 )
 

@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..save import cache_key as _cache_key
 from ..schema import PAD, RAW, Field, Record, U16, U32, U8, UNKNOWN
 from .engine import FixedTableDef, fixed_table_spans, walk_fixed_table
-from .rounds import ROUND_COUNT
 
 __all__ = [
     "OFFICIAL",
@@ -51,27 +50,41 @@ _OFFICIALS_CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
 def locate_officials(mm: Any) -> Optional[Tuple[int, int]]:
     """(base, declared_count) for the 99-byte match officials table, or None.
 
-    Found by locating the 273 round table's sentinel, which immediately terminates this table.
+    Located in the attribute chain immediately in front of the round names table.
+    Bounded by the dense `slot_id == 0..N-1` invariant and the declared count header.
     """
     key = _cache_key(mm)
     if key in _OFFICIALS_CACHE:
         return _OFFICIALS_CACHE[key]
 
-    pat = b"\xff" * 8 + struct.pack("<I", ROUND_COUNT) + struct.pack("<I", 1) + struct.pack("<I", 6) + b"Replay\x00"
-    pos = mm.find(pat)
+    sig = struct.pack("<I", 1) + struct.pack("<I", 6) + b"Replay\x00"
+    pos = mm.find(sig)
     if pos == -1:
         _OFFICIALS_CACHE[key] = None
         return None
 
-    for cnt in (622, 1109, 621, 623, 1108, 1110):
-        span = cnt * OFFICIAL_STRIDE
-        hdr_candidate = pos - span - 4
-        if hdr_candidate >= 8 and all(mm[hdr_candidate - 1 - j] == 0xFF for j in range(8)):
-            c = struct.unpack_from("<I", mm, hdr_candidate)[0]
-            if c == cnt:
-                res = (hdr_candidate + 4, cnt)
-                _OFFICIALS_CACHE[key] = res
-                return res
+    # Step back past the 0xFF sentinel preceding rounds to the end of officials
+    k = pos - 4
+    while k > 0 and mm[k - 1] == 0xFF:
+        k -= 1
+
+    # The last official record sits at k - OFFICIAL_STRIDE; its slot_id is N - 1
+    if k >= OFFICIAL_STRIDE + 12:
+        last_slot_id = struct.unpack_from("<I", mm, k - OFFICIAL_STRIDE)[0]
+        count = last_slot_id + 1
+        hdr = k - count * OFFICIAL_STRIDE - 4
+        if hdr >= 8:
+            k_hdr = hdr
+            ff = 0
+            while k_hdr > 0 and mm[k_hdr - 1] == 0xFF:
+                ff += 1
+                k_hdr -= 1
+            if ff >= 8:
+                declared = struct.unpack_from("<I", mm, hdr)[0]
+                if declared == count:
+                    res = (hdr + 4, count)
+                    _OFFICIALS_CACHE[key] = res
+                    return res
 
     _OFFICIALS_CACHE[key] = None
     return None
