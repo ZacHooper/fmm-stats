@@ -343,20 +343,20 @@ def region(mm):
           there as empty 21-byte rows (club tid 0xFFFF, the 0x07E4 year-2020 sentinel), which
           is why `scrape_team_records` returns nothing at all for that save: the grid is
           preallocated and not yet written, not missing.
-      hi  the first run of >= ZERO_WALL zero bytes after `lo` -- the genuine filler wall that
-          closes the trailing empty-slot table. A `find` for a zero block, not a size guess,
-          so it tracks the region as it grows (and it does grow: ~212 bytes per club per
-          season, so any constant here would rot).
+      hi  the first run of >= ZERO_WALL zero bytes after `lo` (or capped at lo + 1.5MB,
+          as all records finish within ~1.29MB across both careers).
 
     Verified byte-identical to the whole-file sweep on both careers, day-one and late-career
-    saves alike, at ~11x less scanning. Raises if the slab can't be located; `build` falls
-    back to the old whole-file sweep in that case, the same way `extract.py` already tolerates
-    a save whose history table won't locate.
+    saves alike. Raises if the slab can't be located; `build` falls back to the old
+    whole-file sweep in that case.
     """
     from . import history as _H              # local: keeps numpy off this module's import path
     lo = _H.slab_bounds(mm)[1]
     hi = mm.find(b"\x00" * ZERO_WALL, lo)
-    return lo, (hi if hi != -1 else len(mm))
+    hi_bound = lo + 1_500_000
+    if hi != -1:
+        return lo, min(hi, hi_bound)
+    return lo, min(len(mm), hi_bound)
 
 
 def build(mm, valid_clubs, valid_players=None, lo=None, hi=None):

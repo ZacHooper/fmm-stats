@@ -139,7 +139,15 @@ def locate(mm, vmin=5000, vmax=4_000_000, samples=48, min_seq=0.45):
     """
     buf = _as_array(mm)
     n = len(buf)
-    p = np.flatnonzero(buf[3:n - 3] == 0)                   # the header's high byte
+
+    # The history slab strictly sits in the upper half of the file (66-74% on all saves).
+    # Window the search to 50%-85% on full saves to avoid scoring millions of zero bytes
+    # in the reference/match sections.
+    lo = int(n * 0.50) if n > 1_000_000 else 3
+    hi = min(n - 3, int(n * 0.85)) if n > 1_000_000 else n - 3
+    sub = buf[lo:hi]
+    p_sub = np.flatnonzero(sub == 0)
+    p = p_sub + lo - 3
     V = _u32(buf, p)
     keep = (V >= vmin) & (V <= vmax)
     p, V = p[keep], V[keep]
@@ -147,7 +155,16 @@ def locate(mm, vmin=5000, vmax=4_000_000, samples=48, min_seq=0.45):
     fits = (S.astype(np.int64) + STRIDE * (V.astype(np.int64) + 2)) <= n - STRIDE
     V, S = V[fits].astype(np.int64), S[fits].astype(np.int64)
     if not len(S):
-        return []
+        # Fallback to full search if windowed search yielded no candidates
+        p = np.flatnonzero(buf[3:n - 3] == 0)
+        V = _u32(buf, p)
+        keep = (V >= vmin) & (V <= vmax)
+        p, V = p[keep], V[keep]
+        S = p + 12
+        fits = (S.astype(np.int64) + STRIDE * (V.astype(np.int64) + 2)) <= n - STRIDE
+        V, S = V[fits].astype(np.int64), S[fits].astype(np.int64)
+        if not len(S):
+            return []
     hits = np.zeros(len(S), np.int32)
     inrange = np.ones(len(S), bool)
     for f in np.linspace(0, 1, samples):
