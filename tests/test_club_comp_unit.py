@@ -15,7 +15,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import reference as R  # noqa: E402
+from fmparser import clubs_comps as R  # noqa: E402
 
 
 def build_comp_slot_bytes(

@@ -167,12 +167,11 @@ def claims(mm, n):
         print(f"  ! staff failed: {exc}", file=sys.stderr)
 
     # ---- DECLARED: window scans with no per-record offset --------------------
-    from fmparser import regions as RG
     declared("reference.name_table", 0, 520_000)
     # The club table: start and length both read from the save's own count header (11,331 on Frem,
     # 12,278 on Bucaspor), so its extent is known exactly rather than claimed as a 20 MB window.
     try:
-        from fmparser import reference as R
+        from fmparser import clubs_comps as R
         spans = R.club_table_spans(mm)
         c_clubs, c_blank_clubs = R._walk_club_table(mm)
         measured("reference.club_table", spans)
@@ -185,7 +184,7 @@ def claims(mm, n):
     # its extent is known exactly rather than claimed. A failure here is a real defect, not a
     # soft downgrade -- report it loudly instead of quietly falling back to DECLARED.
     try:
-        from fmparser import reference as R
+        from fmparser import clubs_comps as R
         spans = R.comp_table_spans(mm)
         c_comps, c_blank = R._walk_comp_table(mm)
         measured("reference.comp_table", spans)

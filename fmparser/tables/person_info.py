@@ -7,7 +7,7 @@ variable-length counted language and relationship lists.
 """
 from typing import Any, Dict, List, Optional, Tuple
 
-from .. import primitives as P
+from ..core import primitives as P
 from .. import records as RD
 from ..save import cache_key as _cache_key
 from ..core import DATE, Field, HEX4, PAD, Record, U16, U32, U8, UNKNOWN

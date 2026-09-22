@@ -6,10 +6,11 @@ Count-framed by `[8x 0xFF][u32 count]` preceding record 0.
 """
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..regions import ATTR_HI, ATTR_LO
 from ..save import cache_key as _cache_key
-from ..core import DATE, Field, HEX4, PAD, RAW, Record, U16, U32, U8, UNKNOWN
-from ..core import TableDef
+from ..core import DATE, Field, HEX4, PAD, RAW, Record, U16, U32, U8, UNKNOWN, TableDef
+
+# Global attribute records byte range window (3.8 MB to 6.6 MB across careers)
+ATTR_LO, ATTR_HI = 3_800_000, 6_600_000
 
 __all__ = [
     "ATTR_OFFSETS",
@@ -208,7 +209,7 @@ def scrape_player_attributes(mm: Any) -> Dict[str, Dict[str, Any]]:
 
 def record_for(mm: Any, tid: int) -> Optional[Dict[str, Any]]:
     """Locate a player's global attribute record via SID. Returns a dict or None."""
-    from ..reference import info_offset
+    from ..clubs_comps import info_offset
     io = info_offset(mm, tid)
     if io is None:
         return None

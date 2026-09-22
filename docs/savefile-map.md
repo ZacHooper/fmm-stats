@@ -33,46 +33,53 @@ structures by their own invariant.** Never by a remembered offset.
 preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `struct` = found
 by a structural test described in the notes.
 
-| start | end | size | what | class | how |
-|---|---|---|---|---|---|
-| 299 | 515,797 | 0.52 MB | **browse name table** — 45,942 names; the `60,000` in front is a capacity, not a count | static | live (`reference._name_table_bounds`) |
-| 515,797 | ~572,037 | 0.06 MB | filler + a short run of unnamed records | — | — |
-| **572,037** | ~3,988,960 | **3.42 MB** | **the PERSON table (info spine)** — declares **32,966** (Frem) / **34,312** (Bucaspor), career-constant, so a **fixed pool**. Records are variable-length (68 B head + counted lists) and `staging.scrape_players` finds them by sentinel sweep, reading 32,874 — **92 short of declared**. The extent is now anchored at the front; the walk is not solved | **preallocated pool** | hdr (2026-09-20) |
-| 3,988,968 | 6,056,358 | 2.07 MB | **player attributes** — 26,505 × 78 B | static | hdr |
-| 6,056,370 | 6,237,408 | 0.18 MB | **staff attributes** — 4,642 × 39 B, `id2 == slot index` | static | hdr |
-| 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (1,971 / 560 / 816), the 622 × 99 B person-shaped record, the 273-entry round/leg-name strings | static, **unnamed** | chain (PR #58) |
-| 6,332,603 | ~12,607,190 | 6.27 MB | **club + national team table** — 11,331 records, `tid == slot index`, dense. Low tids are national teams; U21 sides are the last rows | static | hdr |
-| 12,607,199 | ~12,756,285 | 0.15 MB | **competitions** — 1,372 | static | hdr + live (`_comp_table_anchor`) |
-| 12,756,293 | ~12,796,115 | 0.04 MB | **nations** — declared 251, we read 227 (Algeria is id 0, cut by a `1 <= nid` gate) | static | hdr + live |
-| 12,796,123 | 13,471,770 | 0.68 MB | **stadiums** — 15,987 ✓ | static | hdr + live |
-| 13,471,776 | 13,690,902 | 0.22 MB | **cities** — 10,956 ✓ | static | hdr + live |
-| 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape; plus the 888-record 7 B id list | static, partly unnamed | hdr |
-| 13,965,521 | ~13,976,130 | 0.01 MB | **currencies** — declared 173, we read 94 (`uid > 4096` gate) | static | hdr + live |
-| 13,976,136 | ~13,978,480 | 0.002 MB | **languages** — declared 124, we read 77 (zero-length `OtherName`) | static | hdr + live |
-| 13,978,474 | 16,692,615 | 2.71 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 18%); checked and *not* count-framed | — | — |
-| 16,692,615 | 20,321,452 | 3.63 MB | **tagged data dictionary** — self-describing `[tag][01][type][value]` | static-ish | live (`tagged.find_tagged_region`) |
-| 20,321,452 | 29,171,689 | **8.85 MB** | **FILLER — 97% `0xFF`, 1% `00`, 2% other.** Not a research target | — | struct |
-| **29,171,689** | **31,907,618** | **2.74 MB** | **contract grid** — dense **83-byte** records, **32,961 slots**, 26,754 populated. One slot per person (the info spine holds ~32,885) | **preallocated, stable all career** | struct (stride-83 run) |
-| 31,907,618 | 35,439,434 | 3.53 MB | **UNIDENTIFIED** (`00` 53% / `ff` 31% / other 17%) | — | — |
-| **35,439,434** | **38,404,968** | **2.97 MB** | **seasonal transfer band** — 6,362 × 143 B transfer-history records (`tid@+48`, `wage@+53`, `expiry@+61`). The records are **0.91 MB, 31% of the span**; what the other 69% holds is not established, only that it collapses with them | **wiped every July; the span's collapse IS the file's July shrink** | struct (residue class mod 143) |
-| 38,404,968 | 40,042,185 | 1.64 MB | **UNIDENTIFIED** (`00` 34% / `ff` 33% / other 32%) | — | — |
-| 40,042,185 | 40,141,560 | 99,375 B | **away-first match-slot table** — 3,975 × 25 B | **fixed pool** | live (`matchslots.locate`) |
-| 40,141,778 | 40,656,146 | 0.51 MB | **surname id-table** — declared 32,148, walked 28,624 | static | hdr |
-| 40,656,158 | 40,962,206 | 0.31 MB | **first-name id-table** — declared 19,128, walked 15,366 | static | hdr |
-| 40,962,218 | 41,113,898 | **0.15 MB** | **nickname id-table** — 9,480 × 16 B, **never opened by code** | static | chained past #2 |
-| 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED**, 82% zero — mostly padding | — | — |
-| 42,630,105 | 46,876,873 | 4.25 MB | **player-history slab** — 265,423 rows × 16 B, pointer forest | **fixed pool** | live (`history.locate`) |
-| 46,876,873 | 48,165,854 | 1.29 MB | **club-records** — 21 B team rows / 22 B player rows, 12-row category blocks | **preallocated grid + 212 B per new block** | struct (empty-row extent) |
-| 48,165,854 | 52,721,064 | 4.56 MB | **trailing stride-70 empty-slot pool** — 65,072 slots, `e4 07` (year 2020) empty sentinel | **preallocated, being consumed** | struct (residue class mod 70) |
-| 52,721,064 | 55,839,667 | 3.12 MB | **UNIDENTIFIED**, 65% zero — five `0x00` runs of 52–193 KB | — | — |
-| 55,839,667 | 56,223,268 | 0.38 MB | **our matches** — 60 blocks, home XI + away XI, 54 B player blocks | **wiped every July; appends in-season** | live (`matches.find_match_region`) |
-| 56,313,477 | 56,314,027 | **550 B** | exact `0xFF` wall, identical regardless of match count | — | struct |
-| 56,314,027 | — | 65 B/rec | **per-season table** — `[flag u8][value u16][tid u16][year u16]`, one record per season, tid constant at our club | grows 1/season | struct |
-| ~56,314,300 | ~61,253,092 | 4.94 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%). One small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` / `Res Group 1`), so the structure below starts earlier than its first EMPTY slot | — | — |
-| **~61,253,092** | **62,631,781** | **1.38 MB** | **player-list blocks** — blocks of **100 slots x 200 B** (+14 B per block); 52 blocks are entirely empty on this save, carrying an identical template with `e5 07` = the career's start year. Populated slots hold a variable-length player record: a ~160 B binary core then `[full name][first][last][""][last][club short name][competition name]`. Contents are squad lists (ours) and world/scouting lists (De Bruyne/Man City, Courtois/R. Madrid, Frendrup/Genoa). **The squad snapshot is five of these blocks**, not a structure of its own. Start is the first POPULATED block; the first empty slot is at 61,381,262 | preallocated, partly consumed | struct (stride-200 run) |
-| *61,896,648* | *62,002,727* | *0.11 MB* | ↳ *of which:* **squad snapshot** — the managed club's own list blocks | — | live (`attributes.snapshot_bounds`) |
-| 62,631,781 | 62,635,766 | 3,985 B | **UNNAMED dated table** — 14 B units `[u32 FFFFFFFF][u16 9][u16 day-of-year][u16 year][u32 ?]`, dates a fortnight ahead of the save. Both careers | — | struct |
-| **62,635,766** | **63,936,873** | **1.30 MB** | **the `sicomps` ARCHIVE** — 159 zstd members with a directory; 6.58 MB decompressed. Holds `fix_man.dat`, **the world fixture list with scores**. See [`save-archive.md`](save-archive.md) | grows with the career | live (`archive.locate`) |
+### Table Engine Migration Status Summary
+* **Migrated to `TableDef` (18 tables)**: `player_attributes`, `staff`, `round_names`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`.
+* **Blocked on Engine Capability (2 tables)**:
+  * `competitions` (`comp_table`, 1,372 records) — Shape A count-framed, blocked on nested variable reference array (`n_refs: u32` then `n_refs * 8B`).
+  * `clubs` (`club_table`, 11,331 records) — Shape A count-framed, blocked on nested affiliations array (`naff: u16` then `naff * 21B`).
+* **Non-Table / Structural Walks**: `history.py` (Shape B pointer linked-list forest), `clubrecords.py` (Shape B/C candidate sweep), `matches.py` (Shape B/F lineup blocks), `tagged.py`/`datadict.py` (wire format).
+
+| start | end | size | what | class | shape / how | status |
+|---|---|---|---|---|---|---|
+| 299 | 515,797 | 0.52 MB | **browse name table** — 45,942 names; the `60,000` in front is a capacity, not a count | static | Shape E | live (`reference._name_table_bounds`) |
+| 515,797 | ~572,037 | 0.06 MB | filler + a short run of unnamed records | — | — | — |
+| **572,037** | ~3,988,960 | **3.42 MB** | **the PERSON table (info spine)** — declares **32,966** (Frem) / **34,312** (Bucaspor), career-constant, so a **fixed pool**. Records are variable-length (68 B head + counted lists) and `staging.scrape_players` finds them by sentinel sweep, reading 32,874 — **92 short of declared**. The extent is now anchored at the front; the walk is not solved | **preallocated pool** | Shape A/C | hdr; candidate for TableDef variable-record extension |
+| 3,988,968 | 6,056,358 | 2.07 MB | **player attributes** — 26,505 × 78 B | static | Shape A | **MIGRATED** (`PLAYER_ATTRIBUTES_TABLE`) |
+| 6,056,370 | 6,237,408 | 0.18 MB | **staff attributes** — 4,642 × 39 B, `id2 == slot index` | static | Shape C | **MIGRATED** (`STAFF_TABLE`) |
+| 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (1,971 / 560 / 816), the 622 × 99 B person-shaped record, the 273-entry round/leg-name strings | static, **unnamed** | Shape A/C | `ROUNDS_TABLE` **MIGRATED**; others chained |
+| 6,332,603 | ~12,607,190 | 6.27 MB | **club + national team table** — 11,331 records, `tid == slot index`, dense. Low tids are national teams; U21 sides are the last rows | static | Shape A | **BLOCKED on nested list** (affiliations array) |
+| 12,607,199 | ~12,756,285 | 0.15 MB | **competitions** — 1,372 | static | Shape A | **BLOCKED on nested list** (`n_refs` array) |
+| 12,756,293 | ~12,796,115 | 0.04 MB | **nations** — declared 251, we read 227 (Algeria is id 0, cut by a `1 <= nid` gate) | static | Shape A | **MIGRATED** (`NATIONS_TABLE`) |
+| 12,796,123 | 13,471,770 | 0.68 MB | **stadiums** — 15,987 ✓ | static | Shape A | **MIGRATED** (`STADIUMS_TABLE`) |
+| 13,471,776 | 13,690,902 | 0.22 MB | **cities** — 10,956 ✓ | static | Shape A | **MIGRATED** (`CITIES_TABLE`) |
+| 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape; plus the 888-record 7 B id list | static, partly unnamed | Shape A | hdr |
+| 13,965,521 | ~13,976,130 | 0.01 MB | **currencies** — declared 173, we read 94 (`uid > 4096` gate) | static | Shape A | **MIGRATED** (`CURRENCIES_TABLE`) |
+| 13,976,136 | ~13,978,480 | 0.002 MB | **languages** — declared 124, we read 77 (zero-length `OtherName`) | static | Shape A | **MIGRATED** (`LANGUAGES_TABLE`) |
+| 13,978,474 | 16,692,615 | 2.71 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 18%); checked and *not* count-framed | — | — | — |
+| 16,692,615 | 20,321,452 | 3.63 MB | **tagged data dictionary** — self-describing `[tag][01][type][value]` | static-ish | Wire format | live (`tagged.find_tagged_region`) |
+| 20,321,452 | 29,171,689 | **8.85 MB** | **FILLER — 97% `0xFF`, 1% `00`, 2% other.** Not a research target | — | — | — |
+| **29,171,689** | **31,907,618** | **2.74 MB** | **contract grid** — dense **83-byte** records, **32,961 slots**, 26,754 populated. One slot per person (the info spine holds ~32,885) | **preallocated, stable all career** | Shape C | **MIGRATED** (`CONTRACT_TABLE`) |
+| 31,907,618 | 35,439,434 | 3.53 MB | **UNIDENTIFIED** (`00` 53% / `ff` 31% / other 17%) | — | — | — |
+| **35,439,434** | **38,404,968** | **2.97 MB** | **seasonal transfer band** — 6,362 × 143 B transfer-history records (`tid@+48`, `wage@+53`, `expiry@+61`). The records are **0.91 MB, 31% of the span**; what the other 69% holds is not established, only that it collapses with them | **wiped every July; the span's collapse IS the file's July shrink** | Shape C | struct (residue class mod 143) |
+| 38,404,968 | 40,042,185 | 1.64 MB | **UNIDENTIFIED** (`00` 34% / `ff` 33% / other 32%) | — | — | — |
+| 40,042,185 | 40,141,560 | 99,375 B | **away-first match-slot table** — 3,975 × 25 B | **fixed pool** | Shape C | **MIGRATED** (`MATCH_SLOTS_TABLE`) |
+| 40,141,778 | 40,656,146 | 0.51 MB | **surname id-table** — declared 32,148, walked 28,624 | static | Shape C | **MIGRATED** (`SURNAMES_TABLE`) |
+| 40,656,158 | 40,962,206 | 0.31 MB | **first-name id-table** — declared 19,128, walked 15,366 | static | Shape C | **MIGRATED** (`FIRST_NAMES_TABLE`) |
+| 40,962,218 | 41,113,898 | **0.15 MB** | **nickname id-table** — 9,480 × 16 B | static | Shape C | **MIGRATED** (`NICKNAMES_TABLE`) |
+| 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED**, 82% zero — mostly padding | — | — | — |
+| 42,630,105 | 46,876,873 | 4.25 MB | **player-history slab** — 265,423 rows × 16 B, pointer forest | **fixed pool** | Shape B | live (`history.locate`) |
+| 46,876,873 | 48,165,854 | 1.29 MB | **club-records** — 21 B team rows / 22 B player rows, 12-row category blocks | **preallocated grid + 212 B per new block** | Shape B/C | candidate sweep (`clubrecords.py`) |
+| 48,165,854 | 52,721,064 | 4.56 MB | **trailing stride-70 empty-slot pool** — 65,072 slots, `e4 07` (year 2020) empty sentinel | **preallocated, being consumed** | Shape C | struct (residue class mod 70) |
+| 52,721,064 | 55,839,667 | 3.12 MB | **UNIDENTIFIED**, 65% zero — five `0x00` runs of 52–193 KB | — | — | — |
+| 55,839,667 | 56,223,268 | 0.38 MB | **our matches** — 60 blocks, home XI + away XI, 54 B player blocks | **wiped every July; appends in-season** | Shape B/F | live (`matches.find_match_region`) |
+| 56,313,477 | 56,314,027 | **550 B** | exact `0xFF` wall, identical regardless of match count | — | — | — |
+| 56,314,027 | — | 65 B/rec | **per-season table** — `[flag u8][value u16][tid u16][year u16]`, one record per season, tid constant at our club | grows 1/season | Shape C | struct |
+| ~56,314,300 | ~61,253,092 | 4.94 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%). One small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` / `Res Group 1`), so the structure below starts earlier than its first EMPTY slot | — | — | — |
+| **~61,253,092** | **62,631,781** | **1.38 MB** | **player-list blocks** — blocks of **100 slots x 200 B** (+14 B per block); 52 blocks are entirely empty on this save, carrying an identical template with `e5 07` = the career's start year. Populated slots hold a variable-length player record: a ~160 B binary core then `[full name][first][last][""][last][club short name][competition name]`. Contents are squad lists (ours) and world/scouting lists (De Bruyne/Man City, Courtois/R. Madrid, Frendrup/Genoa). **The squad snapshot is five of these blocks**, not a structure of its own. Start is the first POPULATED block; the first empty slot is at 61,381,262 | preallocated, partly consumed | Shape C/F | struct (stride-200 run) |
+| *61,896,648* | *62,002,727* | *0.11 MB* | ↳ *of which:* **squad snapshot** — the managed club's own list blocks | — | Shape F | live (`attributes.snapshot_bounds`) |
+| 62,631,781 | 62,635,766 | 3,985 B | **UNNAMED dated table** — 14 B units `[u32 FFFFFFFF][u16 9][u16 day-of-year][u16 year][u32 ?]`, dates a fortnight ahead of the save. Both careers | — | Shape C | struct |
+| **62,635,766** | **63,936,873** | **1.30 MB** | **the `sicomps` ARCHIVE** — 159 zstd members with a directory; 6.58 MB decompressed. Holds `fix_man.dat`, **the world fixture list with scores**. See [`save-archive.md`](save-archive.md) | grows with the career | Shape D | Container live (`archive.locate`)<br>↳ `fix_man.dat` **MIGRATED** (`FIXTURES_TABLE`)<br>↳ `comp_man.dat` **MIGRATED** (`COMP_STAGES_TABLE`, `COMP_HONOURS_TABLE`)<br>↳ 147 × `comp_<id>.dat` **FUTURE** (`COMP_DETAILS_TABLE`) |
 
 ## Behaviour classes, which matter more than the offsets
 

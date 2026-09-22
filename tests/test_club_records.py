@@ -148,7 +148,7 @@ def main():
                   f"{row['value']:>7.2f} (expected {val})")
 
     print("\nPLAYER RECORDS — Overall block, slot / value / player:")
-    from fmparser import reference as R
+    from fmparser import clubs_comps as R
     pblocks = defaultdict(list)
     for r in player:
         pblocks[r["offset"] - r["slot"] * 22].append(r)

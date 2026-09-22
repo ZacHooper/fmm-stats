@@ -25,8 +25,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import records as RD                                        # noqa: E402
-from fmparser import schema as SC                                         # noqa: E402
-from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # noqa: E402
+from fmparser.core import schema as SC                                   # noqa: E402
+from fmparser.core import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN
 
 # Importing the record modules is what populates SC.REGISTRY. Added to as Phase 2 migrates
 # each record; listed explicitly so an import failure is a test failure rather than a silently
@@ -34,8 +34,7 @@ from fmparser.schema import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN  # n
 # `fixtures` is safe to import with no `archive` extra installed -- archive.py imports
 # zstandard lazily, inside the call -- so the cheap tier stays dependency-free.
 RECORD_MODULES = (
-    "clubrecords", "clubs_comps", "history", "matches",
-    "regions", "schema", "tagged",
+    "clubrecords", "clubs_comps", "history", "matches", "tagged",
     "tables.cities", "tables.comp_honours", "tables.comp_stages", "tables.contracts",
     "tables.currencies", "tables.fixtures", "tables.languages", "tables.match_slots",
     "tables.names", "tables.nations", "tables.officials", "tables.person_info",

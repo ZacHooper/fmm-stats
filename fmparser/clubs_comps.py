@@ -13,14 +13,13 @@ import collections
 from typing import NamedTuple
 import struct
 
-from . import primitives as P
+from .core import primitives as P
 from . import records as RD
-from .schema import Field, PAD, Record, U8, U16, U32, UNKNOWN
+from .core import Field, PAD, Record, U8, U16, U32, UNKNOWN
 
 import numpy as np
 
 from .tables import nations as LK
-from . import regions as RG
 from .save import cache_key as _cache_key
 
 NATIONS = {173: "Turkey"}

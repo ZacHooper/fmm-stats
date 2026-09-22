@@ -6,7 +6,7 @@ Located in the reference block around ~12.8 MB count-framed by `[8x 0xFF][u16 co
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from .. import primitives as P
+from ..core import primitives as P
 from ..save import cache_key as _cache_key
 from ..core import Field, Record, U16, U32, PString
 from ..core import TableDef

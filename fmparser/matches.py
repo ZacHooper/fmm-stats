@@ -13,11 +13,13 @@ Structure (validated on Karacabey 3-3 Bucaspor, ground_truth_match1.json):
 from datetime import date, timedelta
 
 from . import records as RD
-from .schema import Field, HEX2, HEX4, PAD, Record, U8, U32, UNKNOWN
+from .core import Field, HEX2, HEX4, PAD, Record, U8, U32, UNKNOWN
 from collections import defaultdict
 
-from .regions import DELIM_UNIT, MATCH_LO
-from .reference import comp_id_at, comp_name
+# per-match delimiter cluster (same in every FMM22 save)
+DELIM_UNIT = bytes.fromhex("21225515" + "0a000000")
+MATCH_LO = 55_000_000
+from .clubs_comps import comp_id_at, comp_name
 
 # ---------------- stat block ----------------
 BLOCK = 54

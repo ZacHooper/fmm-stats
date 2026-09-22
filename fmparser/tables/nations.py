@@ -14,7 +14,7 @@ import re
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from .. import primitives as P
+from ..core import primitives as P
 from ..save import cache_key as _cache_key
 from ..core import Field, Record, U16, U32, PString
 from ..core import TableDef

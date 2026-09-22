@@ -90,9 +90,9 @@ named `player_id`, because guessing a name is how `-140` became a Style candidat
 """
 import struct
 
-from . import primitives as P
+from .core import primitives as P
 from . import records as RD
-from .schema import F32, Field, Record, U8, U16, U32
+from .core import F32, Field, Record, U8, U16, U32
 from collections import defaultdict
 
 SEASON_LO, SEASON_HI = 0x07E4, 0x07EC        # 2020..2028, the seasons a save can hold

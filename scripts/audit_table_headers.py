@@ -39,7 +39,7 @@ import numpy as np                                   # noqa: E402
 from fmparser import history as H                    # noqa: E402
 from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser.tables import cities, stadiums         # noqa: E402
-from fmparser import reference as R                  # noqa: E402
+from fmparser import clubs_comps as R                  # noqa: E402
 from fmparser.tables import staff as ST              # noqa: E402
 from fmparser.tables.person_info import (
     DOB_YEAR_HI as _DOB_YEAR_HI,
