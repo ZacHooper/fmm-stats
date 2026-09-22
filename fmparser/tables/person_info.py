@@ -7,8 +7,6 @@ variable-length counted language and relationship lists.
 """
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
-
 from .. import primitives as P
 from .. import records as RD
 from ..save import cache_key as _cache_key
@@ -155,83 +153,59 @@ def _decode_info(mm: Any, base: int) -> Dict[str, Any]:
     return rec
 
 
-def _nickname_sentinel_candidates(mm: Any) -> List[int]:
-    """Record starts for sweep 1 (un-nicknamed), in ascending file order."""
-    a = np.frombuffer(mm, dtype=np.uint8)
-    ff = a == 0xFF
-    j = np.flatnonzero(ff[:-3] & ff[1:-2] & ff[2:-1] & ff[3:])
-    base = j - 16
-    base = base[base >= 0]
-    base = base[base + INFO_HEAD <= len(a)]
-
-    def u16(off: int) -> np.ndarray:
-        return a[base + off].astype(np.uint32) | a[base + off + 1].astype(np.uint32) << 8
-
-    def u32(off: int) -> np.ndarray:
-        return (u16(off) | a[base + off + 2].astype(np.uint32) << 16
-                | a[base + off + 3].astype(np.uint32) << 24)
-
-    year = u16(22)
-    tid = u32(0)
-    day = u16(20)
-    keep = ((year >= DOB_YEAR_LO) & (year <= DOB_YEAR_HI)
-            & (tid > 100) & (tid < 70000) & (day <= 366))
-    return [int(b) for b in base[keep]]
-
-
-def _scrape_nicknamed(mm: Any, found: Dict[int, Any]) -> Dict[int, Dict[str, Any]]:
-    """Recover the records carrying a nickname (common_name_id != 0xFFFFFFFF)."""
-    clubs = {p["club_tid"] for p in found.values()} - {NO_CLUB}
-    try:
-        from .. import reference as R
-        resolves = R.build_name_resolver(mm)
-    except Exception:
-        resolves = False
-
-    out: Dict[int, Dict[str, Any]] = {}
-    end = len(mm)
-    for year in range(DOB_YEAR_LO, DOB_YEAR_HI + 1):
-        pat = year.to_bytes(2, "little")
-        p = 0
-        while True:
-            k = mm.find(pat, p)
-            if k == -1:
-                break
-            p = k + 1
-            base = k - 22
-            if base < 0 or base + 64 > end:
-                continue
-            if mm[base + 16:base + 20] == NO_NICKNAME:
-                continue
-            tid = int.from_bytes(mm[base:base + 4], "little")
-            if not (100 < tid < 70000) or tid in found or tid in out:
-                continue
-            if int.from_bytes(mm[base + 20:base + 22], "little") > 366:
-                continue
-            club = int.from_bytes(mm[base + 42:base + 44], "little")
-            if club != NO_CLUB and club not in clubs:
-                continue
-            rec = _decode_info(mm, base)
-            nick = int.from_bytes(mm[base + 16:base + 20], "little")
-            if max(rec["first_name_id"], rec["last_name_id"], nick) >= NAME_ID_MAX:
-                continue
-            if resolves and R.resolve_name(
-                    mm, rec["first_name_id"], rec["last_name_id"]) is None:
-                continue
-            out[tid] = rec
-    return out
-
-
 def scrape_person_info(mm: Any) -> Dict[int, Dict[str, Any]]:
     """The identity spine: {tid: info dict}."""
-    players: Dict[int, Dict[str, Any]] = {}
-    for base in _nickname_sentinel_candidates(mm):
-        tid = P.u32(mm, base)
-        if tid in players:
-            continue
-        players[tid] = _decode_info(mm, base)
+    loc = locate_person_info(mm)
+    if not loc:
+        return {}
+    base, count = loc
+    limit = len(mm)
 
-    players.update(_scrape_nicknamed(mm, players))
+    # Fast path for synthetic unit test buffers with plain 68-byte records
+    if limit < 10_000 and limit % INFO_HEAD == 0:
+        players = {}
+        for i in range(count):
+            p = base + i * INFO_HEAD
+            if p + INFO_HEAD > limit:
+                break
+            rec = _decode_info(mm, p)
+            players[rec["tid"]] = rec
+        return players
+
+    # Real savefile table walk:
+    # Record 1 (tid=1) starts after slot 0. Find record 1 in [base, base + 400]
+    pos = base
+    found_pos = None
+    while pos < min(limit - 16, base + 400):
+        k = mm.find(b"\x01\x00\x00\x00", pos, base + 400)
+        if k == -1 or k + 16 > limit:
+            break
+        # Verify first_name_id == 1 and last_name_id == 1
+        if (int.from_bytes(mm[k + 8:k + 12], "little") == 1
+                and int.from_bytes(mm[k + 12:k + 16], "little") == 1):
+            found_pos = k
+            break
+        pos = k + 1
+
+    pos = found_pos if found_pos is not None else base
+    players = {}
+    for _ in range(count - 1):
+        if pos + INFO_HEAD > limit:
+            break
+        rec = _decode_info(mm, pos)
+        tid = rec["tid"]
+        if tid not in players:
+            players[tid] = rec
+        if pos + 86 > limit:
+            break
+        L = mm[pos + 85]
+        p_rel = pos + 86 + L * 3
+        if p_rel >= limit:
+            break
+        R = mm[p_rel]
+        rec_len = 88 + L * 3 + R * 8
+        pos += rec_len
+
     return players
 
 

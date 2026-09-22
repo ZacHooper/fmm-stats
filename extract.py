@@ -396,16 +396,29 @@ def flatten_matches(season):
     return rows
 
 
-def build_leagues(mm, valid_clubs, club_nation):
-    """Leagues table + club->league map, from the LIGHT RESULTS (fmparser/lightresults):
-    every simulated game carries its competition CID, so club->league is read directly
-    for the whole DB (all loaded leagues), not just our own. Names are nation-validated
-    (comp_detail mis-names some foreign cids). Returns ({cid: league_detail}, {tid: cid})
-    keeping only league-type competitions in the table."""
-    data = L.build(mm, valid_clubs, club_nation=club_nation)
-    club_to_league = data["club_league"]
-    leagues = {cid: v for cid, v in data["leagues"].items() if L._is_league(mm, cid)}
-    return leagues, club_to_league
+def build_leagues(mm, club_leagues):
+    """Leagues reference built from club->league facts and reference comp records."""
+    leagues = {}
+    for code in sorted(set(club_leagues.values())):
+        if not code or code == 0xFFFF:
+            continue
+        d = R.comp_detail(mm, code) or {}
+        nid = d.get("nation_id")
+        members = sorted(t for t, c in club_leagues.items() if c == code)
+        leagues[code] = {
+            "cid": code,
+            "name": d.get("name") or R.league_name(mm, code),
+            "type": d.get("type", "league"),
+            "nation_id": nid,
+            "nation": L.NATION_NAMES.get(nid),
+            "reputation": d.get("reputation"),
+            "level": d.get("level"),
+            "parent_cid": d.get("parent_cid"),
+            "members": members,
+            "member_count": len(members),
+            "fixtures": 0,
+        }
+    return leagues
 
 
 def league_label(detail):
@@ -497,30 +510,8 @@ def main():
     # leagues reference + club->league. The club record gives membership directly: exact,
     # current as of the save date, and available on a day-1 save before any match.
     valid_clubs = {p["club_tid"] for p in info.values() if p["club_tid"] != NO_CLUB}
-    club_nation = L.club_nations(info, NO_CLUB)
-    # club->league is a SNAPSHOT FACT, read only from each club's own record (+158) — see
-    # docs/agent-context/day1-league-membership.md. `build_leagues` is used purely for the
-    # LEAGUES REFERENCE (names/nation/reputation of every competition); its club->league map
-    # is DELIBERATELY DISCARDED.
-    #
-    # Why: that map votes on the competition tags of games ALREADY PLAYED, so at a season
-    # boundary it reports last season's division for every promoted/relegated club. On
-    # 2023-07-02 it put Aalborg in the Superliga (record: NordicBet Liga), Middelfart in the
-    # 2. Division (record: 3. Division), and four relegated clubs in the 3. Division (records:
-    # Denmark's Series) — 50 clubs wrong, and every Danish division the wrong size. Cost of
-    # dropping it: 4 FOREIGN clubs lose an assignment (2 have no club record at all; 2 Belgian
-    # top-flight sides it mislabelled 'Belgian Pro League B' anyway). No Danish impact.
-    leagues, _derived = build_leagues(mm, valid_clubs, club_nation)
-    club2league = {}
-    for tid, code in club_leagues.items():
-        club2league[tid] = code
-        if code not in leagues:
-            d = R.comp_detail(mm, code) or {}
-            nid = d.get("nation_id")
-            leagues[code] = {"cid": code, "name": d.get("name") or R.league_name(mm, code),
-                             "nation_id": nid, "nation": L.NATION_NAMES.get(nid),
-                             "reputation": d.get("reputation"),
-                             "level": d.get("level"), "parent_cid": d.get("parent_cid")}
+    leagues = build_leagues(mm, club_leagues)
+    club2league = dict(club_leagues)
     for p in players.values():
         lc = club2league.get(p["club_tid"])
         p["league_cid"] = lc
