@@ -65,9 +65,7 @@ fmparser/             the library
   attributes.py       own-squad (exact) + record locator + estimator
   model.py            frozen regression coefficients + predict()
   reference.py        club / competition names, player info field
-data/                 ground truth, screenshots, rough-guide, breadcrumbs
 docs/                 TODO.md (start here), BUGS.md, record layouts + reference
-archive/              exploratory + model-derivation scripts (provenance)
 tests/                ground-truth regression guard
 output/               extractions (gitignored)
 ```

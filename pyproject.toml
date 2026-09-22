@@ -15,17 +15,6 @@ dependencies = [
 package = false
 
 [project.optional-dependencies]
-# streamlit/plotly are a PRESENTATION dependency — the Streamlit dashboard's UI framework
-# and its charts — not something the data layer needs. dashboard/db.py already falls back
-# to a plain functools.lru_cache when streamlit isn't importable (it's used there only for
-# cache decorators + the sidebar widgets), so a plain `uv sync` is enough for everything
-# else: load_duckdb.py, fmq.py (including `fmq.py scout`), and any agent skill that scouts
-# or queries the store. Add this extra only to run the Streamlit app itself:
-# `uv sync --extra dashboard && uv run streamlit run dashboard/Home.py`.
-dashboard = [
-    "streamlit>=1.40",
-    "plotly>=5.24",
-]
 # The save's tail is a zstd-compressed archive (fmparser/archive.py). zstd only enters the
 # stdlib in 3.14, so reading it needs this package; nothing else in the parser imports it
 # and archive.py raises a message naming this extra if it is missing.
