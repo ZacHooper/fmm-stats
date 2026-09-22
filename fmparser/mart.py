@@ -19,8 +19,8 @@ possible at all), but it forces four correctness rules onto every consumer:
      minutes need the 255-sentinel arithmetic on both ends.
 
 Before this module those rules lived in prose (`site/AGENTS.md`), in a skill template, and
-in ~10 copy-pasted CASE expressions across `load_duckdb.py`, `dashboard/db.py` and
-`fmq.py`. Encoding them once here means every consumer — Streamlit, `fmq`, the JS site,
+in ~10 copy-pasted CASE expressions across `load_duckdb.py`, older queries and
+`fmq.py`. Encoding them once here means every consumer — `fmq`, the JS site,
 ad-hoc agent SQL over the published R2 copy — inherits them instead of re-deriving them.
 
 The other half of the module is `mart.player_spells`, which replaces the state flags that
@@ -261,8 +261,8 @@ SELECT key, value FROM {S}.app_config
 
 # --- dimensions -------------------------------------------------------------------
 
-# Club -> league, AS AT each snapshot. This one object replaces FIVE hand-rolled copies of
-# the same arg_max CTE (dashboard/db.py had three, scripts/export_data.py two), and two of
+# Club -> league, AS AT each snapshot. This one object replaces hand-rolled copies of
+# the same arg_max CTE across older queries and scripts/export_data.py, and two of
 # those copies were wrong in the same two ways: they built the sort key from the raw `phase`
 # column instead of phase_ord() — so a legacy start/mid/end store sorted 'mid' after 'end' —
 # and they left off the `ord <= snapshot` bound, which resolves a club to whatever division
@@ -491,7 +491,7 @@ FROM ev LEFT JOIN nm
 # that is not the managed club. Frem's cid 1342 carries 60 fixtures, the second-biggest
 # competition in the store, and IS named in the save ("Danish Reserves Group 1") -- it just
 # used to be unreachable, because its short CODE is a genuine empty string and the name-walk
-# aborted on that until reference.py's 2026-09-17 fix. All 60 fixtures involve the reserve
+# aborted on that until clubs_comps.py's 2026-09-17 fix. All 60 fixtures involve the reserve
 # side (7296) and 7296 appears in nothing else. The rule is written against our_clubs rather
 # than the literal 1342 so it holds for any career.
 COMPETITIONS = """
@@ -630,9 +630,9 @@ FROM (
 
 # --- deliberately NOT in the mart: ability ranks against an arbitrary pool ----------
 #
-# dashboard/db.py's ability_rank_leagues / ability_rank_clubs answer "how many bodies would be
+# ability_rank_leagues / ability_rank_clubs answer "how many bodies would be
 # ahead of him at that club, or in that division" — and they need the raw ability number to do
-# it. They stay in db.py, reading staging.players.ca directly, for two reasons:
+# it, reading staging.players.ca directly, for two reasons:
 #
 #   1. There is nothing to materialise. The pool is an arbitrary club's squad at an arbitrary
 #      familiarity floor (`--min-fam` is a live knob), so the only precomputable form is a
@@ -698,7 +698,7 @@ GROUP BY l.season, l.phase, l.tid, c.method, c.role
 # ranked against everyone who plays that position, globally / in his nation / in his division.
 #
 # The familiarity curve is read from staging.app_config INSIDE the view rather than baked in
-# by the caller. dashboard/db.py generates the same expression in Python (_mult_sql), which
+# by the caller. Previously generated dynamically in Python (_mult_sql), which
 # means the mart definition would otherwise depend on whatever config the process that built
 # it happened to see — and publish_mart rebuilds the mart from a source store, so the two
 # could silently disagree. A scalar subquery keeps the view self-describing.
@@ -758,7 +758,7 @@ FROM base b
 # Every match twice, once per participating club, already oriented: venue, opponent, goals
 # for and against, result, points, and each team stat split into our_/opp_.
 #
-# dashboard/db.py's our_match_history did this in Python — a query per season in a loop, then
+# Previously our_match_history did this in Python — a query per season in a loop, then
 # seventeen lines of pandas .where(home, ...) flips — and only ever for the managed club. In
 # SQL it costs nothing (mart.matches is 139 rows, so doubling it is ~278) and it generalises:
 # an opposition head-to-head becomes a WHERE clause instead of a rewrite.
@@ -937,8 +937,7 @@ ORDER BY stage_key
 # NO ca/pa. Ability reaches the site only as the Level percentile
 # (mart.player_position_levels), never as a number.
 #
-# `age` is birthday-adjusted against the snapshot date rather than a plain year subtraction,
-# matching dashboard/db.py's player_bio.
+# `age` is birthday-adjusted against the snapshot date rather than a plain year subtraction.
 PLAYER_SNAPSHOTS = f"""
 CREATE OR REPLACE VIEW mart.player_snapshots AS
 SELECT
@@ -1075,8 +1074,8 @@ LEFT JOIN {S}.eligible_origin_clubs e
 # The immersion-safe ability layer: where a player sits among everyone who plays his
 # position, as a percentile, globally / in his nation / in his division.
 #
-# THIS OBJECT CARRIES NO `method` COLUMN, AND THAT IS THE POINT. dashboard/db.py's
-# effective_table joins the 27M-row v_player_ratings into its base CTE and then computes
+# THIS OBJECT CARRIES NO `method` COLUMN, AND THAT IS THE POINT. Earlier iterations of
+# effective_table joined the 27M-row v_player_ratings into its base CTE and then computed
 # these three columns as PERCENT_RANK() ... ORDER BY ca. The ratings appear nowhere in that
 # expression; they only shape row membership, and membership is identical for every method
 # because v_player_ratings CROSS JOINs `SELECT DISTINCT method, role` onto every player.
@@ -1637,7 +1636,7 @@ WHERE s.spell_type IN ('at_club', 'loan_in')
 # it's the primitive a remote agent querying the published store over ATTACH should reach
 # for directly: `SELECT * FROM m.mart.snapshot_squad WHERE club_tid = <opp> AND season = ...
 # AND phase = '...'` needs no macro, no USE, no per-caller reimplementation of the spell-date
-# join. This replaces what dashboard/db.py's club_attributes() used to do inline (an EXISTS
+# join. This replaces what older squad queries used to do inline (an EXISTS
 # against mart.player_spells written fresh in Python) — that was itself a smaller instance of
 # exactly the bug it was fixing: correctness logic re-derived outside the mart instead of
 # defined once inside it. squad_current (below) is now just a filtered read of this.
@@ -1855,7 +1854,7 @@ LEFT JOIN mins m USING (person_id, season)
 # pass because it needs a real redesign, not a one-line EXISTS swap: club_runs is keyed by
 # run_id derived from raw club_tid continuity, and player_growth_at_club's whole grouping
 # (`joined AS ... JOIN mart.club_runs cr`) would need to key on spell windows instead. Lower
-# priority than player_growth_tenure was: not read by export_data.py or dashboard/db.py
+# priority than player_growth_tenure was: not read by export_data.py
 # today (grep confirms only fmparser/mart.py and scripts/publish_mart.py reference it), so
 # nothing user-facing is currently corrupted by it — but a remote agent querying this mart
 # object directly would be.
@@ -2591,7 +2590,7 @@ SELECT uid, any_value(name) AS name, any_value(exchange_rate) AS exchange_rate
 FROM {S}.currencies GROUP BY uid
 """
 
-# Supersedes the static NATIONS dict in reference.py: this is what the save asserts, with the
+# Supersedes the static NATIONS dict in clubs_comps.py: this is what the save asserts, with the
 # capital CITY and national STADIUM resolving through mart.club_places' source tables.
 #
 # Unlike the other lookups, the national-team half of this MOVES between snapshots -- ranking,
@@ -2603,7 +2602,7 @@ FROM {S}.currencies GROUP BY uid
 # decimals), so it is the figure European seeding actually turns on. `current_coefficient`
 # is the newest non-zero entry by seq, which IS the most recent completed season by
 # chronology -- but the in-game per-season columns read a fixed index rather than the newest,
-# so the two disagree. See the ordering note in fmparser/lookups.py before relying on any
+# so the two disagree. See the ordering note in tables/nations.py before relying on any
 # single season's value.
 NATIONS = """
 CREATE OR REPLACE VIEW mart.nations AS
@@ -2645,7 +2644,7 @@ LEFT JOIN {S}.nations n ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nat
 #
 # Verified against reality rather than plausibility -- Parken 38,065 (exact), Aalborg
 # Portland Park 13,800 (exact), Copenhagen 55.6761/12.5683, Aalborg 57.0488/9.9217. See
-# fmparser/places.py.
+# fmparser/tables/stadiums.py and cities.py.
 CLUB_PLACES = """
 CREATE OR REPLACE VIEW mart.club_places AS
 SELECT c.season, c.phase, c.club_tid, c.name AS club, c.league_cid, c.league_name,

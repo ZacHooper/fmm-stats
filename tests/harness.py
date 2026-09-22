@@ -38,7 +38,7 @@ def find_save(*names):
     before `scripts/archive_save.py` existed.
 
     Both locations on purpose. Three tests looked ONLY in the repo root, for names
-    (`21-22-end.fms`, `21-22-mid.fms`) that `scripts/canonicalise_names.py` retired -- so they
+    (`21-22-end.fms`, `21-22-mid.fms`) that naming canonicalisation retired -- so they
     had been skipping on every machine, for however long, and reporting exit 0 while doing it.
     That is the failure this module exists to make visible, and it turned up the moment a skip
     stopped looking like a pass.

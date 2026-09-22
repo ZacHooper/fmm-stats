@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic unit tests for Stadiums and Cities parsing logic (fmparser/places.py).
+"""Synthetic unit tests for Stadiums and Cities parsing logic (fmparser/tables/stadiums.py, cities.py).
 
 Tests `_stadium_at`, `_chain_len`, and city record structure using in-memory byte
 buffers without requiring a 64 MB savefile.

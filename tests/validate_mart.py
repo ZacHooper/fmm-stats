@@ -565,7 +565,7 @@ def main():
           stale == 0, f"{stale} stale-open spell(s)")
 
     # -- 8. the dimension / level / match objects the site is built on -----------------
-    # These replaced hand-rolled SQL in scripts/export_data.py and dashboard/db.py. Each was
+    # These replaced hand-rolled SQL in legacy export scripts and db modules. Each was
     # verified row-for-row against the code it replaced at the time (see the commit), but that
     # code is gone now, so what is asserted here are the invariants that survive it.
     print("\n8. site-facing objects")

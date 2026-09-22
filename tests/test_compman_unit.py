@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic unit tests for comp_man.dat parsing logic (fmparser/compman.py).
+"""Synthetic unit tests for comp_man.dat parsing logic (fmparser/tables/comp_stages.py and comp_honours.py).
 
 Tests `header`, `stages`, and `honours` schemas and readers on synthetic byte
 buffers with zero savefile / zstd dependency.

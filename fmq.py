@@ -342,8 +342,8 @@ def main():
 
     a = ap.parse_args()
     a.career_key, a.db = _resolve_db(a)   # a.db -> concrete per-career store path
-    if a.cmd in ("scout", "scouts"):   # use db.py / the JSONL log, not the shared con
-        if a.career_key:               # so db.py picks the matching managed club
+    if a.cmd in ("scout", "scouts"):   # cmd_scout handles its own connection and state
+        if a.career_key:               # set FM_CAREER for matching managed club
             os.environ.setdefault("FM_CAREER", a.career_key)
         a.fn(None, a)
         return

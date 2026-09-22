@@ -23,7 +23,7 @@ from fmparser import datadict as D                    # noqa: E402
 
 # The 21-22 Bucaspor save this test's ground truth was measured on. The canonical name comes
 # first; the spellings after it are what the file was called before
-# `scripts/canonicalise_names.py` retired them, kept so an un-migrated machine still finds it.
+# naming canonicalisation retired them, kept so an un-migrated machine still finds it.
 # `harness.find_save` looks under $FM_SAVES_DIR as well as the repo root -- looking ONLY in
 # the repo root is why this test silently stopped running.
 CANDIDATES = ["bucaspor-2022-06-01.fms", "21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]

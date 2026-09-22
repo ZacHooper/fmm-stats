@@ -20,7 +20,7 @@ a duplicate slice instead of replacing the intended one.
 
 Compression note: gzip is byte-exact, so a decompressed save is identical to the original and
 every structural scan behaves the same. That only holds because we decompress FIRST — mmap a
-`.gz` and every offset in fmparser/regions.py is garbage. extract.py must never see anything
+`.gz` and every binary offset is garbage. extract.py must never see anything
 but raw bytes.
 
 Budget ~1 min per snapshot (~12 min for Frem's 12).

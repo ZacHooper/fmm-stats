@@ -2,7 +2,7 @@
 """
 Club history records -- the "Club History" screens, per club.
 
-WHAT THIS REGION ACTUALLY IS, and why it matters. `fmparser/lightresults.py` has been
+WHAT THIS REGION ACTUALLY IS, and why it matters. Early parsers had been
 reading this same region as a list of simulated match RESULTS since 2026-07. It is not one.
 It is the **club records** tables -- Team Records (biggest win, biggest defeat, highest
 scoring match, ...) and Player Records (most goals in a season, youngest player, highest
@@ -15,7 +15,7 @@ History, and the identification is exact:
     decoded  float 6182 / 13212           -> "Youngest 16 yrs 338 days" / "Oldest 36 yrs 63 days"
                                              (= years*365.25 + days, exact)
 
-Everything that made `lightresults` look like a broken results parser follows from this:
+Everything that made this region look like a broken results parser follows from this:
 
   * a club has ~12 rows because there are ~12 record CATEGORIES, not because a ring buffer
     ate its fixtures;

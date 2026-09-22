@@ -6,7 +6,7 @@ displayed 1-20 value.
 The coefficients below were fitted once (numpy least-squares grid-search) on the 28
 Bucaspor players — the only set with BOTH the raw record bytes and the displayed
 values. They are frozen here so estimation is a cheap pure-Python dot product with no
-training step. See archive/regress.py for the derivation and docs/ATTRIBUTE_DECODING.md
+training step. See docs/ATTRIBUTE_DECODING.md
 for the write-up. Held-out accuracy: ~63% exact, ~93% within +/-1.
 
 AERIAL IS NOT HERE, and that is deliberate. It is a composite of two PLAIN 1-20 bytes

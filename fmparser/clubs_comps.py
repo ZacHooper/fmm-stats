@@ -26,8 +26,7 @@ NATIONS = {173: "Turkey"}
 
 
 # `type_id` (the byte immediately after the 3 name strings) is the REAL field; it is carried
-# raw on every competition record and is what code should branch on -- `lightresults.py`
-# already does (`type_id in (0, 1)` for a round-robin league).
+# raw on every competition record and is what code should branch on (`type_id in (0, 1)` for a round-robin league).
 #
 # COMP_TYPES is a DISPLAY label for the handful of type_ids anchored against named, verified
 # competitions, nothing more. It is not a closed enum and the parser does not validate
@@ -102,7 +101,7 @@ def _name_table_bounds(mm):
     """The real NAME table's (the ~46k-entry flat [len][utf-8] first-name/surname "browse"
     table `_walk_browse` reads for player-name resolution) byte extent -- same collision
     class as `_nation_table_bounds`, one door down: this table sits at the very start of
-    the file (`scripts/map_regions.py` independently maps it as `name_table`, entry0@299=
+    the file (mapped as `name_table`, entry0@299=
     'Rajagobal'), made of nothing but back-to-back length-prefixed strings, which is
     EXACTLY the shape the club candidate prefilter looks for.
 

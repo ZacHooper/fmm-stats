@@ -39,7 +39,7 @@ a competition: match the digits, not the `comp_` prefix.) `fix_man.dat` is the b
 2.52 MB; see docs/save-archive.md for what is and is not known about its contents.
 
 EXTENT, proven by the structure's own invariants rather than a window, on all 34 saves
-(27 Frem + 7 Bucaspor, `scripts/audit_archive.py`):
+(27 Frem + 7 Bucaspor, `tests/test_archive.py`):
 
   * walking `[u32 stored][frame]` from the first zstd magic consumes the file with a
     residual of 2.0-2.1 KB, and that residual is exactly one 13-byte header plus the
@@ -87,8 +87,8 @@ _DIR_CACHE = {}                      # save.cache_key -> (archive_name, [Entry, 
 # Upper bound for decompressing the DIRECTORY member, which is the one member whose unpacked
 # size nothing declares in advance (it is the thing that declares everyone else's). Measured:
 # 10,237 B on both frem-2021-07-01 and frem-2026-06-11, 10,384 B on bucaspor-2023-03-25, from
-# ~2 KB of frame. 1 MB is two orders of magnitude of headroom and still bounds the allocation,
-# which an unbounded `decompress()` does not. If this ever trips, the directory grew by 100x
+# frame carries no declared content size; max_output_size lets a frame without one decompress,
+# which an unbounded decompress call does not. If this ever trips, the directory grew by 100x
 # and that is worth stopping for rather than absorbing.
 _DIR_MAX = 1 << 20
 
@@ -243,7 +243,7 @@ def read_member(mm, entry):
     while off < end:
         stored = int.from_bytes(mm[off:off + 4], "little")
         # `max_output_size` bounds the allocation AND lets a frame that carries no
-        # content size in its header still decompress -- `decompress()` raises on those
+        # content size in its header still decompress -- unbounded decompress raises on those
         # otherwise. A member's total unpacked size is an upper bound for any one of its
         # frames, and the exact total is re-checked below.
         out.append(dec.decompress(mm[off + 4:off + 4 + stored],

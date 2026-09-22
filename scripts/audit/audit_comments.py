@@ -14,15 +14,15 @@ mechanically decidable:
     because the site half is real code that Python comments legitimately point at.
 
 Note the underscore rule: a private helper is matched with or without its leading
-underscore, so a comment saying `characterize()` still resolves to `_characterize`.
+underscore, so a comment saying "characterize()" still resolves to _characterize.
 
 It does NOT flag data files (`fm-frem.duckdb`, `all.json`, `tmp/*.json` are generated,
 gitignored or live in R2), prose nouns, or anything under `archive/`. Things it cannot catch
 and a human still has to: a comment whose FACTS have drifted — a stated row count, a byte
-offset, a claim about which career is the default. For those, see scripts/audit_records.py,
+offset, a claim about which career is the default. For those, see scripts/audit/audit_records.py,
 which checks the record layouts against the actual bytes.
 
-Run:  uv run python scripts/audit_comments.py     (exits non-zero on a hit)
+Run:  uv run python scripts/audit/audit_comments.py     (exits non-zero on a hit)
 """
 import ast
 import io
