@@ -38,7 +38,7 @@ import os
 import sys
 import collections
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
 from fmparser.tables import player_attributes as A          # noqa: E402

@@ -13,8 +13,8 @@ the cheapest possible detector for a migration that quietly re-orders a record, 
 `load_duckdb.py` downstream reads some of these files positionally. So the gate is SHA-256 of
 each emitted file, key order included.
 
-    uv run python scripts/assert_identical.py --record   # take the baseline, before you change anything
-    uv run python scripts/assert_identical.py            # after a commit: must print IDENTICAL
+    uv run python tests/assert_identical.py --record   # take the baseline, before you change anything
+    uv run python tests/assert_identical.py            # after a commit: must print IDENTICAL
 
 Four saves, chosen to span the file's regimes rather than to be many:
 

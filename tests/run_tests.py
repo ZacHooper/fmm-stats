@@ -10,9 +10,9 @@ save returned 0, and so a clean clone printed a wall of SKIP lines and exited gr
 So: a skip exits 77 (`tests/harness.py`), and this runner fails when the whole suite skipped.
 Green now means something ran.
 
-    uv run python scripts/run_tests.py
-    uv run python scripts/run_tests.py -k layouts        # substring filter
-    uv run python scripts/run_tests.py -v                # stream each test's own output
+    uv run python tests/run_tests.py
+    uv run python tests/run_tests.py -k layouts        # substring filter
+    uv run python tests/run_tests.py -v                # stream each test's own output
 
 Exit codes: 0 all good, 1 something failed, 2 nothing ran at all.
 """

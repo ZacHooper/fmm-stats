@@ -76,7 +76,7 @@ def _prose(src):
 
 
 def main():
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     os.chdir(root)
     paths = list(_walk("."))
     py = {p for p in paths if p.endswith(".py")}
