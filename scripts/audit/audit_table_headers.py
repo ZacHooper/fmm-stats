@@ -32,7 +32,7 @@ import mmap
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fmparser.tables import player_attributes as A                 # noqa: E402
 import numpy as np                                   # noqa: E402

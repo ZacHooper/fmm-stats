@@ -115,15 +115,15 @@ The method section below is the field guide; that doc is the map.
 
 **Two commands are the feedback loop for any parser change, and they are cheap:**
 ```bash
-uv run python scripts/run_tests.py            # whole suite; exit 2 means NOTHING ran
-uv run python scripts/assert_identical.py     # 4 saves x 22 files, per-file SHA-256, ~35s
+uv run python tests/run_tests.py            # whole suite; exit 2 means NOTHING ran
+uv run python tests/assert_identical.py     # 4 saves x 22 files, per-file SHA-256, ~35s
 ```
 `assert_identical.py` is the **acceptance gate**: a restructuring commit must leave the
 extracted JSON byte-identical, and `extract.py` dumps with no `sort_keys`, so **key order is
 part of the test** — a reader that returns the right values in the wrong order fails, which is
 correct, because `load_duckdb.py` reads some files positionally. When a change SHOULD alter
 output, re-record in the same commit and say why:
-`scripts/assert_identical.py --record --note '<why>'`. The baseline is gitignored (`.oracle/`)
+`tests/assert_identical.py --record --note '<why>'`. The baseline is gitignored (`.oracle/`)
 because it is keyed to your local saves. Before trusting a green run, remember its own rule: a
 gate that has never failed is not evidence — break something on purpose once.
 
@@ -392,7 +392,7 @@ uv run python scripts/discover_career.py <save.fms>       # find a new career's 
 # after editing fmparser/mart.py or load_duckdb.py's VIEWS — they are definitions, not data,
 # so they do not reach an existing store until something re-runs them
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
-uv run python scripts/validate_mart.py --db fm-frem.duckdb   # assert the mart's invariants
+uv run python tests/validate_mart.py --db fm-frem.duckdb   # assert the mart's invariants
 
 # refreshing the web app (after an import) — see docs/DEPLOY.md
 uv run python scripts/export_data.py --upload-all         # -> site/api/*.json; fails on a CA leak

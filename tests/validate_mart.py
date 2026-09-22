@@ -5,8 +5,8 @@ Runs against either a local store or the published R2 copy (`--r2`). The R2 copy
 ATTACHed READ_ONLY and the mart objects are built in the local in-memory database on top
 of it, so nothing is written to the published file.
 
-    uv run python scripts/validate_mart.py --r2
-    uv run python scripts/validate_mart.py --db fm-frem.duckdb
+    uv run python tests/validate_mart.py --r2
+    uv run python tests/validate_mart.py --db fm-frem.duckdb
 
 Checks, in order:
   1. Spell invariant — spells of the SAME type must not overlap for one person; spells of
