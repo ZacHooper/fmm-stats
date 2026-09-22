@@ -37,25 +37,28 @@ _CURRENCIES_CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
 
 
 def locate_currencies(mm: Any) -> Optional[Tuple[int, int]]:
-    """(base, declared_count) for the 173-record currencies catalog, or None."""
+    """(base, declared_count) for the currencies catalog, or None.
+
+    Declared by a `[>= 8 x 0xFF][count u16]` frame at ~13.98 MB.
+    Record 0 opens with `uid=2 (u16), len=12 (u32), 'Albanian Lek'`.
+    """
     key = _cache_key(mm)
     if key in _CURRENCIES_CACHE:
         return _CURRENCIES_CACHE[key]
 
-    pat = b"\xff" * 8 + struct.pack("<H", CURRENCY_COUNT)
-    pos = 0
-    while True:
-        idx = mm.find(pat, pos)
-        if idx == -1:
-            break
-        base = idx + len(pat)
-        if base + 6 <= len(mm):
-            uid, slen = struct.unpack("<HI", mm[base:base + 6])
-            if uid == 2 and 5 <= slen <= 25:
-                res = (base, CURRENCY_COUNT)
-                _CURRENCIES_CACHE[key] = res
-                return res
-        pos = idx + 1
+    sig = struct.pack("<HI", 2, 12) + b"Albanian Lek"
+    pos = mm.find(sig)
+    if pos != -1 and pos >= 10:
+        k = pos - 2
+        ff = 0
+        while k > 0 and mm[k - 1] == 0xFF:
+            ff += 1
+            k -= 1
+        if ff >= 8:
+            declared_count = struct.unpack_from("<H", mm, pos - 2)[0]
+            res = (pos, declared_count)
+            _CURRENCIES_CACHE[key] = res
+            return res
 
     _CURRENCIES_CACHE[key] = None
     return None

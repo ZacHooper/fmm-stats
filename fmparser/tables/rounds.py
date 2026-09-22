@@ -44,20 +44,31 @@ _ROUNDS_CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
 
 
 def locate_rounds(mm: Any) -> Optional[Tuple[int, int]]:
-    """(base, declared_count) for the 273 round/leg name catalog, or None."""
+    """(base, declared_count) for the round/leg name catalog, or None.
+
+    Declared by a `[>= 8 x 0xFF][count u32]` frame. Record 0 opens with
+    `id=1 (u32), len=6 (u32), 'Replay\\0'`.
+    """
     key = _cache_key(mm)
     if key in _ROUNDS_CACHE:
         return _ROUNDS_CACHE[key]
 
-    pat = b"\xff" * 8 + struct.pack("<I", ROUND_COUNT) + struct.pack("<I", 1) + struct.pack("<I", 6) + b"Replay\x00"
-    pos = mm.find(pat)
-    if pos == -1:
-        _ROUNDS_CACHE[key] = None
-        return None
+    sig = struct.pack("<I", 1) + struct.pack("<I", 6) + b"Replay\x00"
+    pos = mm.find(sig)
+    if pos != -1 and pos >= 12:
+        k = pos - 4
+        ff = 0
+        while k > 0 and mm[k - 1] == 0xFF:
+            ff += 1
+            k -= 1
+        if ff >= 8:
+            declared_count = struct.unpack_from("<I", mm, pos - 4)[0]
+            res = (pos, declared_count)
+            _ROUNDS_CACHE[key] = res
+            return res
 
-    res = (pos + 12, ROUND_COUNT)
-    _ROUNDS_CACHE[key] = res
-    return res
+    _ROUNDS_CACHE[key] = None
+    return None
 
 
 rounds_table = locate_rounds

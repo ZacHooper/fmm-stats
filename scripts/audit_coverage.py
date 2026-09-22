@@ -33,7 +33,35 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser.save import Save                # noqa: E402
-from fmparser import mapregions as MR         # noqa: E402
+
+
+def _zero_gaps(mm, min_gap=8192):
+    n = len(mm)
+    probe = b"\x00" * min_gap
+    out = []
+    i = mm.find(probe)
+    while i != -1:
+        s = i
+        while s > 0 and mm[s - 1] == 0:
+            s -= 1
+        e = i
+        while e < n and mm[e] == 0:
+            e += 1
+        out.append((s, e - s))
+        i = mm.find(probe, e)
+    return out
+
+
+def _sections(mm, min_gap=8192):
+    spans = []
+    prev = 0
+    for s, ln in _zero_gaps(mm, min_gap):
+        if s > prev:
+            spans.append((prev, s))
+        prev = s + ln
+    if prev < len(mm):
+        spans.append((prev, len(mm)))
+    return spans
 
 MEASURED, AUDITED, DECLARED = "MEASURED", "AUDITED", "DECLARED"
 PAD_RUN = 16
@@ -282,7 +310,7 @@ def main():
     print(f"\n  {len(runs)} unclaimed regions, {sum(r[0] for r in runs):,} content bytes total")
 
     print("\nSECTION MAP (zero-gap skeleton) with unclaimed content per section")
-    for a, b in MR.sections(mm, 8192):
+    for a, b in _sections(mm, 8192):
         if b - a < 65536:
             continue
         c = int(unclaimed[a:b].sum())

@@ -39,23 +39,40 @@ _CITIES_CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
 
 
 def locate_cities(mm: Any) -> Optional[Tuple[int, int]]:
-    """(base, declared_count) for the 20-byte cities table, or None."""
+    """(base, declared_count) for the 20-byte cities table, or None.
+
+    Declared by a `[>= 8 x 0xFF][count u16]` frame. Bounded by dense indexing
+    (`id == slot_index`) on a 20-byte stride.
+    """
     key = _cache_key(mm)
     if key in _CITIES_CACHE:
         return _CITIES_CACHE[key]
 
-    pat = b"\xff" * 8 + struct.pack("<H", CITY_COUNT)
-    pos = 0
-    while True:
-        idx = mm.find(pat, pos)
-        if idx == -1:
-            break
-        base = idx + len(pat)
-        if base + 2 <= len(mm) and struct.unpack("<H", mm[base:base + 2])[0] == 0:
-            res = (base, CITY_COUNT)
-            _CITIES_CACHE[key] = res
-            return res
-        pos = idx + 1
+    # Probe 10M..20M reference region first for speed, then fall back to full file
+    sentinel = b"\xff" * 8
+    for lo, hi in [(10_000_000, 20_000_000), (0, len(mm))]:
+        pos = lo
+        n = min(hi, len(mm))
+        while True:
+            idx = mm.find(sentinel, pos, n)
+            if idx == -1:
+                break
+            j = idx + 8
+            while j < n and mm[j] == 0xFF:
+                j += 1
+            if j + 2 <= n:
+                count = struct.unpack_from("<H", mm, j)[0]
+                base = j + 2
+                if count > 100 and base + count * CITY_RECORD <= len(mm):
+                    if (struct.unpack_from("<H", mm, base)[0] == 0 and
+                        struct.unpack_from("<H", mm, base + CITY_RECORD)[0] == 1 and
+                        struct.unpack_from("<H", mm, base + 2 * CITY_RECORD)[0] == 2 and
+                        struct.unpack_from("<H", mm, base + 3 * CITY_RECORD)[0] == 3 and
+                        struct.unpack_from("<H", mm, base + 4 * CITY_RECORD)[0] == 4):
+                        res = (base, count)
+                        _CITIES_CACHE[key] = res
+                        return res
+            pos = j
 
     _CITIES_CACHE[key] = None
     return None

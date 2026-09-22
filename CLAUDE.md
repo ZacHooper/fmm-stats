@@ -159,10 +159,9 @@ you find it in the first place.)
    file's last 1.3 MB was ranked the best remaining target for being "25.8% printable" when
    uniform random bytes are **37.1% printable by construction**, and it cost four hunts. Never
    rank an unknown region by printable fraction.
-1. **Map the file into filler-delimited sections first** — `python3 scripts/map_regions.py <save.fms>`.
-   The save is cleanly split by long runs of `00`/`ff` filler; each section holds one kind of data. This
-   shows you *where* to look and exposes regions we haven't mapped. Cross-check against `fmparser/regions.py`
-   (whose windows are Bucaspor-tuned and often wrong for other careers).
+1. **Audit coverage and unmapped sections first** — `uv run python scripts/audit_coverage.py [save.fms]`.
+   The save is audited by declared table bounds and split by long runs of `00`/`ff` filler; this
+   shows you *where* to look and exposes regions we haven't mapped. Cross-check against `docs/savefile-map.md`.
 2. **Find records structurally, never by absolute offset** — every window in `regions.py` **drifts** per
    save and per career (e.g. Frem's contract-expiry records sit at ~29–31M, nowhere near the Bucaspor
    `CONTRACT_LO=54M`). Locate a record by an embedded key (tid / uid / sid) plus a validating signature
