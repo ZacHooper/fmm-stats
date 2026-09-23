@@ -218,6 +218,12 @@ Everything below is parameterised off the active career — pull these from `st`
     and Ponce (35.7) started instead. The flank call was hedged; the threat section was not, so the
     most-emphasised half of the report aimed at men who never played. For the top two threats, always
     add the one-line fallback: *if X doesn't start, the threat becomes Y*.
+  - **A thin H2H record is not a thin threat — profile the striker who actually STARTS.** FCK at home
+    (2027-05-22): the briefing wrote "the striker is not the danger" off Babacar (Pace 6) and Fenger's
+    2 apps / 0 goals against us. Fenger started as a pressing forward fed by their AMC and went 8 shots,
+    5 on target, 2 goals, rated 10 in a 2-3. `h2h_players` ranks who HAS hurt us; it says nothing about
+    a man who has barely played us. When the starting XI is known, read the starting No. 9's
+    Shooting/Stamina and who supplies him before ruling the central route out.
   - **Ask for the `Club Squad → Selection` (`Pkd`) screen — this is now GRADED, not promising.** That
     screen would have shown Eiting at S5 and Gyökeres at S7 and inverted the threat section before
     kickoff. It is the single highest-value artefact to request.
@@ -435,6 +441,12 @@ error-prone" is a fact about the slot, and swapping the man does not fix it (his
 2.44). Swap for quality; do not promise an error reduction the data does not support.
 **One bad game is not a pattern** — the same sitting had a player rated 4 immediately after an 8 with
 2 assists. Move on a split, not on a scoreline.
+**But a position split answers "how does he rate there", not "can he do THIS job".** Against FCK
+(2027-05-22) the briefing withdrew "Tjørnelund screens their 10" because his DMC rating split was poor
+(6.20 over 5 starts). He started at MC, Mensah ran the first half (39 passes, 1 assist, Fenger fed
+twice) and we were 0-2 down; Tjørnelund moved to DMC at half-time and the game turned. Against a
+creative AMC behind a striker, guarantee a screen in front of the back four from kick-off, and do not
+talk a matchup assignment away with a small rating split.
 Note whose screen a role label belongs to (IW / PF / Poacher / AF / AP) every time, or a briefing
 will attribute the opponent's roles to us.
 
