@@ -624,10 +624,60 @@ Open, in order:
 1. **Settle the mechanism with a RELIABLE retirement signal.** `club_tid` cannot do it (97.6% of
    the shortened group vs 97.7% of the lengthened group still "have a club" — the lapsed-loan
    trap). Try absence from later `mart.player_snapshots` / match stats instead.
+
+   **Two mechanisms found 2026-09-23, doing a "where are they now" retrospective — the second
+   one CONFIRMED with hard evidence, not just a lead.** Both came from `tid`s that stopped
+   matching one real person over the save's life; neither is the 6,077-sid gradual-shortening
+   pattern itself, but both are candidate contributors worth checking against it.
+
+   **(a) `is_staff` flipping `True` truncates the player-history walk.** Two Frem players (tid
+   9231, 9430) had `mart.player_career_seasons` come back completely empty despite a full, real,
+   multi-season history (including their move away from Frem) in every prior snapshot.
+   `f.staging.player_history_seasons` by tid across every season/phase shows the chain intact
+   and growing right up to `2026-07-02`, then **zero rows at `2027-04-25`**, the very next
+   snapshot, for both — a hard cutoff, not a gradual shortening. `staging.players.is_staff`
+   reads `False` at `2026-07-02` and `True` at `2027-04-25` for both.
+
+   **(b) A `tid` is a recycled slot, and `staging.players.name` does NOT reliably change when a
+   new person takes it over — confirmed by comparing `dob`, not just believing the name.** Two
+   more Frem players (tid 9584 "Mikkel Bruhn", tid 9400 "Mikkel Andersson") went through the
+   same `is_staff` cutoff as (a) — full history, then `is_staff=True`, unattached, for several
+   snapshots — and were read as "retired." But `SELECT DISTINCT dob FROM staging.players WHERE
+   tid=<tid>` returns **two** birth dates for each: the original (1990-10-16 for Bruhn,
+   1990-03-17 for Andersson) through the `is_staff=True` snapshots, then a completely different,
+   much younger `dob` (2009-10-19 / 2008-08-26) from the snapshot where `is_staff` flips back to
+   `False` at a small foreign club — **while `name` stays "Mikkel Bruhn" / "Mikkel Andersson"
+   throughout, unchanged.** This is not the two real players un-retiring; it's the tid being
+   handed to an unrelated newgen, with the OLD display name incorrectly carried onto the new
+   occupant. A third case makes clear this isn't universal: tid 4240 ("Thomas De Clercq," a
+   Belgian signing who himself went `is_staff=True` in March 2022) was reassigned to a genuinely
+   new player from 2022-07-01 — and there, **`name` DID update correctly** (to "Johan
+   Nordberg", dob 2005-08-18), while `player_spells`/raw history, queried by bare tid with no
+   `dob` filter, still blended the old occupant's real transfer history (from Belgium's KSV
+   Bornem) onto the new one's card, since nothing before Nordberg's first Frem season belongs to
+   him. So the bug isn't consistently "name never updates" — case (b) and case 4240 disagree on
+   that — but a **`dob` mismatch always exposes it**, and it happened at least three times in
+   one squad's worth of players. **Next step: find what actually determines whether `name`
+   refreshes on recycle** (case (b) vs tid 4240) — likely something about how long the tid sat
+   in the `is_staff`/unattached state, or which code path resolves `name` for an unattached
+   record vs a freshly-assigned club one, but neither has been checked yet.
+
+   **Practical fallout, already applied to the skill and its published output**: don't trust
+   "no career-history chain" as evidence of a free-agent origin (an early guess in
+   `.claude/skills/where-are-they-now/SKILL.md` that turned out wrong for reason (a)), and don't
+   trust a stable `name` across a gap as evidence you're looking at the same person (wrong twice
+   over for reason (b), corrected in the two published `where-are-they-now` retrospective
+   artifacts after the human reviewer noticed neither name currently exists as a player
+   in-game). **Always run the `DISTINCT dob` check per tid before writing up a "the trail goes
+   cold" or "here's their new club" story.**
 2. **Quantify the loss in the STORE, not the save**: per person, compare career-history row
    counts across snapshots and count how many have their richest history in an OLDER snapshot.
-3. **If material, union history across snapshots in `fmstats/mart.py`.** We keep every
-   snapshot's extract, so the data is recoverable — nothing currently unions it.
+3. **If material, union history across snapshots in `fmparser/mart.py`.** We keep every
+   snapshot's extract, so the data is recoverable — nothing currently unions it. Note this would
+   also fix the **published mart-only R2 object** (`fm-frem-mart.duckdb`), where
+   `player_career_seasons` is scoped to the newest snapshot only — today that means a player who
+   left the tracked world right before becoming staff shows a complete blank there even though
+   the full history sits unused in earlier snapshots of the full store.
 4. Cheap standing check per import: singleton-chain count, to confirm the reserve is not
    shrinking toward exhaustion.
 
