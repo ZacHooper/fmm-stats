@@ -43,7 +43,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
-import _dbopen                                                          # noqa: E402
+from fmstats import dbopen as _dbopen                                     # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 # Absolute, because an agent that only ever saw index.json (no page it was linked from) has no

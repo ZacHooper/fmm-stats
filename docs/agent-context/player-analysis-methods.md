@@ -158,17 +158,16 @@ con.execute("ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ON
 `R2_ACCESS_KEY` / `R2_SECRET_ACCESS_KEY` / `R2_ACCOUNT_ID` are already in the environment on a Claude
 Code web session (see [[remote-duckdb-access.md]]).
 
-**Faster still on a remote session: pull the full store down and drive `dashboard/db.py` against it.**
-Seconds, no fidelity loss, and you get every helper (`scout_report`, `effective_table`,
-`our_match_history`, `save_scout`) instead of hand-rolled SQL:
-```bash
-rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"    # ~48 MB; retry once on a 501
-```
+**Faster still: `fmstats` reads the full published store for you.** Seconds on first use (it is
+cached after that), no fidelity loss, and you get every helper (`scout_report`, `effective_table`,
+`match_history`, `h2h_players`, `save_scout`, `stats.player_output`) instead of hand-rolled SQL:
 ```python
-os.environ.update(FM_CAREER="frem", FM_DUCKDB=f"{SCRATCH}/fm-frem.duckdb", FM_DUCKDB_READONLY="1")
-sys.path.insert(0, "dashboard"); import db
+from fmstats import scout, stats, store
+st = store.open_store()                 # R2 copy of fm-frem.duckdb; db="..." for a local build
+out = stats.player_output(st, st.career.managed_tid, since="2027-01-01")
 ```
-Pull the **full** store, not `-mart`: the mart omits the rating layer that Fit and Level need.
+or from the shell, `uv run python fmq.py output --since 2027-01-01`. It reads the **full** store,
+not `-mart`: the mart omits the rating layer that Fit and Level need.
 
 ### Schema and API gotchas (each one cost a failed query)
 

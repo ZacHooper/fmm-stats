@@ -737,68 +737,17 @@ APP_CONFIG_DEFAULTS = {
     "default_method": "black_hawk",
 }
 
-def phase_sort_sql(col="phase"):
-    """SQL for an orderable phase key that works for BOTH the new date-phases
-    ('YYYY-MM-DD', which sort chronologically as strings) and the legacy words
-    'start'/'mid'/'end' (mapped to epoch sentinels so start<mid<end — preserving the old
-    ordering for pre-existing stores). `col` may be table-qualified (e.g. 'a.phase')."""
-    return (f"CASE {col} WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01' "
-            f"WHEN 'end' THEN '0000-00-02' ELSE {col} END")
-
-
-_PS = phase_sort_sql()
+# Dropped if present, never created. Each reads staging across every snapshot without the
+# mart's one-row-per-match rule (goal totals come out 2-3x), surfaces raw CA/PA, or reads
+# standings that do not parse for this career. The mart and fmq.py answer all five questions.
+RETIRED_VIEWS = ("v_ca_progression", "v_transfers", "v_league_table", "v_match_results",
+                 "v_top_scorers")
 
 VIEWS = {
     "v_player_attributes": """
         SELECT p.*, a.* EXCLUDE (season, phase, tid)
         FROM staging.players p
         JOIN staging.player_attributes a USING (season, phase, tid)
-    """,
-    "v_ca_progression": f"""
-        SELECT tid, name, season, phase,
-               {_PS} AS phase_ord,
-               club, ca, pa, reputation
-        FROM staging.players
-        WHERE NOT is_staff
-    """,
-    "v_transfers": f"""
-        SELECT a.season, a.tid, COALESCE(a.name, b.name) AS name,
-               a.phase AS from_phase, b.phase AS to_phase,
-               a.club_tid AS from_club_tid, a.club AS from_club,
-               b.club_tid AS to_club_tid, b.club AS to_club
-        FROM staging.players a
-        JOIN staging.players b
-          ON a.season = b.season AND a.tid = b.tid
-         AND ({phase_sort_sql('a.phase')}) < ({phase_sort_sql('b.phase')})
-        WHERE a.club_tid IS DISTINCT FROM b.club_tid
-          AND NOT a.is_staff
-    """,
-    "v_league_table": """
-        SELECT s.season, s.phase, s.league_cid, s.pos,
-               COALESCE(s.club, c.name) AS club, s.club_tid,
-               s.played, s.won, s.drawn, s.lost, s.gf, s.ga, s.gd, s.points, s.source
-        FROM staging.standings s
-        LEFT JOIN staging.clubs c
-          ON (c.season, c.phase, c.tid) = (s.season, s.phase, s.club_tid)
-    """,
-    "v_match_results": """
-        SELECT m.season, m.phase, m.date, m.competition, m.comp_id,
-               m.home_tid, hc.name AS home, m.score_home, m.score_away,
-               ac.name AS away, m.away_tid, m.attendance, m.formation
-        FROM staging.matches m
-        LEFT JOIN staging.clubs hc
-          ON (hc.season, hc.phase, hc.tid) = (m.season, m.phase, m.home_tid)
-        LEFT JOIN staging.clubs ac
-          ON (ac.season, ac.phase, ac.tid) = (m.season, m.phase, m.away_tid)
-    """,
-    "v_top_scorers": """
-        SELECT mps.season, mps.tid, any_value(p.name) AS name,
-               SUM(mps.goals) AS goals, SUM(mps.assists) AS assists,
-               COUNT(*) AS appearances
-        FROM staging.match_player_stats mps
-        LEFT JOIN staging.players p
-          ON (p.season, p.phase, p.tid) = (mps.season, mps.phase, mps.tid)
-        GROUP BY mps.season, mps.tid
     """,
 }
 
@@ -1929,6 +1878,8 @@ def create_views(con):
     con.execute(ATTR_MODEL_DDL)
     _seed_attribute_model(con)
     con.execute(_player_attributes_view(con))
+    for name in RETIRED_VIEWS:
+        con.execute(f"DROP VIEW IF EXISTS {name}")
     for name, sql in VIEWS.items():
         con.execute(f"CREATE OR REPLACE VIEW {name} AS {sql}")
 
@@ -1939,7 +1890,7 @@ def reset_schema(con):
     drop_mart(con)
     con.execute("DROP SCHEMA IF EXISTS staging CASCADE")
     con.execute("DROP SCHEMA IF EXISTS history CASCADE")
-    for name in VIEWS:
+    for name in (*VIEWS, *RETIRED_VIEWS):
         con.execute(f"DROP VIEW IF EXISTS {name}")
     con.execute("DROP VIEW IF EXISTS staging.player_attributes")
 

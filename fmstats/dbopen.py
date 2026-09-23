@@ -1,8 +1,8 @@
-"""Open a career store read-only even when a live dashboard holds the write lock.
+"""Open a career store read-only even when another process holds the write lock.
 
-DuckDB is single-writer: a running Streamlit owns the file, and a read_only connect still
-fails against it. Every read-only tool therefore needs the same fallback — copy the store to
-a temp path and read that. (`fmq.py cmd_scout` carries this inline; it predates this module.)
+DuckDB is single-writer: a process with the store open for writing (a rebuild, a load) owns the
+file, and a read_only connect still fails against it. Every read-only tool therefore needs the
+same fallback — copy the store to a temp path and read that.
 """
 import os
 import shutil

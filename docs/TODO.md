@@ -28,10 +28,10 @@ web app and a Streamlit dashboard, to manage a career with real data.
 | | |
 |---|---|
 | career | **Boldklubben Frem** (Denmark, `--career frem`, managed tid 346, reserves 7296) |
-| store | **25 snapshots**, `fm-frem.duckdb`, latest **2027 / 2026-07-02** |
+| store | **26 snapshots**, `fm-frem.duckdb`, latest **2027 / 2027-04-25** (published copy on R2; `fmq.py` reads it by default) |
 | division | **3F Superliga — tier 1, `club_league` cid 2 — since season 2025** |
 | how they got there | 3. Division → 2. Division → NordicBet Liga → Superliga, three straight promotions |
-| tactic | `frem_attacking_ss` (strikerless SS), the dashboard default |
+| tactic | **4-2-3-1**, rated with `frem_minmax_4231` (`careers.py` `rating_method`); `frem_attacking_ss` is only the site's display default |
 | hold-out | **Bucaspor** (Turkey) is archived, and is the only cross-career parser regression test |
 
 The squad was built to win the fourth tier. Expect the level gap to be the dominant story.
@@ -98,6 +98,12 @@ inferred from partial fixture coverage. A **14-byte fixed record holding the exa
 position of every club in every loaded competition** was decoded on 2026-07-20 and never wired
 up. Layout, validation and parser plan: [`standings-record.md`](standings-record.md). Strict
 upgrade over what ships today.
+
+League tables no longer wait on it: `fmq.py table` (`fmstats/league.py`) rebuilds them from the
+world fixture list and reproduces every club's finish, as `mart.clubs.last_league_pos` records it,
+for all five completed seasons (`tests/test_fmq.py`). What the record would still add: exact
+positions for competitions whose fixtures the archive does not carry, and the table at a snapshot
+without recomputing it.
 
 **Before doing that work, know what already ships.** `mart.clubs.last_league_pos` /
 `last_league_cid` carry **each club's exact finishing position in its last completed league**,
@@ -676,6 +682,25 @@ positives in the award-record region so the next pass does not rediscover them.
 ---
 
 ## Housekeeping (safe to do any time)
+
+- **Three analysis scripts still import the deleted `dashboard/db.py`** and fail at import:
+  `scripts/derive_weight_set.py` (`from dashboard import db`, ~L605),
+  `scripts/fit_value_model.py` (~L116), `scripts/attribute_stat_correlations.py` (~L186). Port
+  each onto `fmstats` (`store.open_store()` for the connection, `scout.effective_table` /
+  `stats.player_output` for the helpers they used) — `fmq.py` and both scouting skills already
+  have been.
+- **CLAUDE.md and several docs still describe the Streamlit dashboard**, which was removed:
+  the web-app section ("Streamlit stays for …"), the skills list (`developing-with-streamlit`),
+  the "Depth-chart logic lives in `dashboard/positions.py`" house rule, and `dashboard/db.py`
+  references in `docs/IDS.md`, `agent-context/tid-recycling.md` and
+  `agent-context/day1-league-membership.md`. The `fmq`/scouting/store parts are already current.
+- **The newest snapshot is labelled `fm_save1`**, not `frem-2027-04-25`: the save was imported
+  without `archive_save.py` naming it. Scout-log keys embed the label
+  (`state/scouts/371-fm_save1-<fixture>.json`), so rename it with
+  `scripts/canonicalise_names.py` before the next scouts are saved against it.
+- **`tests/test_attribute_model.py` skips unless a repo-local `fm-frem.duckdb` exists.** It could
+  open the store through `fmstats.store.open_store()` (as `tests/test_fmq.py` does) and run on any
+  machine with the R2 remote.
 
 - **Move `fmparser/archive.py` to `fmparser/core/archive.py`**:
   `archive.py` is the Shape D container/filesystem driver for the embedded Zstandard archive (`sicomps`). It is not a table parser — it sits at the same structural abstraction layer as `schema.py`, `table.py`, and `primitives.py`. Relocate to `fmparser/core/archive.py`, update `fmparser/tables/` imports, and keep `fmparser/core/` self-contained.
