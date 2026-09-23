@@ -313,7 +313,10 @@ everyone, `mart.player_training` for the club-by-club months); the derivation an
 deliberate departures from a literal reading are in
 [`docs/agent-context/homegrown-derivation.md`](docs/agent-context/homegrown-derivation.md) and
 [`site/guides/registration.md`](site/guides/registration.md). The A/B plan itself lives in
-browser localStorage — it is a plan, not save data, and nothing writes it back.
+browser localStorage — it is a plan, not save data, and nothing writes it back. A plan can be
+**saved against a transfer window** (`site/js/regwindows.js` → `/api/registrations` →
+`state/registrations/<year>-<summer|winter>.json` in R2, same token as the shortlist) as the
+history of what was registered and the starting point for the next window.
 
 **`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `staging`
 table, no `main` view. Add a field to the site by adding it to `fmstats/mart.py` first. And

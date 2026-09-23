@@ -8,7 +8,7 @@
  *
  * Routing: Cloudflare serves a matching static asset FIRST and only invokes this script when
  * nothing matches. So `/api/index.json`, `/api/core.json` and friends keep being served straight
- * off disk, and only the two paths below — which have no file behind them — reach here.
+ * off disk, and only the paths below — which have no file behind them — reach here.
  * `not_found_handling` is "none" because the app is hash-routed (`#/squad`), so every real path
  * is a real file and an SPA rewrite would swallow these endpoints.
  *
@@ -19,6 +19,7 @@
 
 const ALL_KEY = "site-data/all.json";
 const SHORTLIST_PREFIX = "state/shortlist/";
+const REGISTRATION_PREFIX = "state/registrations/";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 
 const json = (body, status = 200, extra = {}) =>
@@ -29,6 +30,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/all") return allPlayers(request, env);
     if (url.pathname === "/api/shortlist") return shortlist(request, env);
+    if (url.pathname === "/api/registrations") return registrations(request, env);
     // Not an asset and not an endpoint. Let the asset handler produce the 404 so the response
     // matches everything else on the host.
     return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: "not found" }, 404);
@@ -187,6 +189,111 @@ async function shortlist(request, env) {
     return json({ ok: true, deleted: id });
   }
   return json({ error: `${request.method} not supported` }, 405);
+}
+
+/**
+ * Saved squad registrations — the A/B lists as they were submitted for one transfer window.
+ *
+ * Keyed by the WINDOW (`2027-summer`, `2028-winter`), not by a fresh id: a window has exactly
+ * one registration, so saving it again replaces it rather than piling up near-duplicates. Same
+ * one-object-per-entry layout as the shortlist, so two windows saved from two devices never
+ * collide, and the same token gates it — reads included, since a plan is private.
+ *
+ * The record carries each player's NAME and list alongside his tid, so a past window still
+ * reads correctly after the players on it have left the club and dropped out of the export.
+ */
+const WINDOW_ID = /^(\d{4})-(summer|winter)$/;
+
+async function registrations(request, env) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "access-control-allow-methods": "GET,PUT,DELETE,OPTIONS",
+        "access-control-allow-headers": "content-type,x-fm-token",
+      },
+    });
+  }
+  if (!authorised(request, env)) {
+    return json({
+      error: env.FM_SHORTLIST_TOKEN ? "bad token" : "FM_SHORTLIST_TOKEN is not configured",
+    }, 401);
+  }
+  const id = new URL(request.url).searchParams.get("id") ?? "";
+
+  if (request.method === "GET") {
+    const out = [];
+    let cursor;
+    do {
+      const page = await env.FM_STATE.list({ prefix: REGISTRATION_PREFIX, cursor, limit: 1000 });
+      for (const o of page.objects) {
+        const body = await env.FM_STATE.get(o.key);
+        if (!body) continue;
+        try { out.push(await body.json()); } catch { /* half-written: skip, as the shortlist does */ }
+      }
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+    // Newest window first. Not a string sort: a year's winter window opens before its summer.
+    const ord = (r) => {
+      const m = WINDOW_ID.exec(r?.id ?? "");
+      return m ? Number(m[1]) * 2 + (m[2] === "summer" ? 1 : 0) : -1;
+    };
+    out.sort((a, b) => ord(b) - ord(a));
+    return json({ count: out.length, entries: out });
+  }
+
+  if (!WINDOW_ID.test(id)) return json({ error: "id must look like 2027-summer or 2027-winter" }, 400);
+
+  if (request.method === "PUT") {
+    let payload;
+    try {
+      payload = await request.json();
+    } catch {
+      return json({ error: "body must be JSON" }, 400);
+    }
+    const rec = cleanRegistration(id, payload);
+    if (!rec.players.length) return json({ error: "players is required" }, 400);
+    await env.FM_STATE.put(`${REGISTRATION_PREFIX}${id}.json`, JSON.stringify(rec, null, 1), {
+      httpMetadata: { contentType: "application/json" },
+    });
+    return json({ ok: true, entry: rec });
+  }
+
+  if (request.method === "DELETE") {
+    await env.FM_STATE.delete(`${REGISTRATION_PREFIX}${id}.json`);
+    return json({ ok: true, deleted: id });
+  }
+  return json({ error: `${request.method} not supported` }, 405);
+}
+
+/** Whitelist every field: the body is browser-authored, and it is written straight to R2. */
+function cleanRegistration(id, p) {
+  const [, year, window] = id.match(WINDOW_ID);
+  const str = (v, n) => (v == null ? null : String(v).slice(0, n));
+  const int = (v) => (Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.round(Number(v)) : null);
+  const players = (Array.isArray(p?.players) ? p.players : []).slice(0, 200)
+    .filter((r) => r && int(r.tid) != null && ["A", "B", "-"].includes(r.list))
+    .map((r) => ({
+      tid: int(r.tid),
+      name: str(r.name, 120) || String(r.tid),
+      list: r.list,
+      age: int(r.age),
+      pos: str(r.pos, 8),
+      hg: ["club", "association"].includes(r.hg) ? r.hg : null,
+      b_list: !!r.b_list,
+      loaned_in: !!r.loaned_in,
+    }));
+  return {
+    id,
+    year: Number(year),
+    window,
+    snapshot: { season: int(p?.snapshot?.season), phase: str(p?.snapshot?.phase, 10) },
+    note: str(p?.note, 500) || undefined,
+    league: str(p?.league, 80) || undefined,
+    summary: cleanMap(p?.summary),
+    saved_at: new Date().toISOString().slice(0, 19),
+    players,
+  };
 }
 
 function authorised(request, env) {

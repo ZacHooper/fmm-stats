@@ -1,7 +1,7 @@
 {
   // Deployed as a WORKER WITH STATIC ASSETS, not a Pages project. Cloudflare serves a matching
   // file from `site/` first and only runs `main` when nothing matches — so the JSON payloads are
-  // static and only /api/all and /api/shortlist reach the Worker.
+  // static and only /api/all, /api/shortlist and /api/registrations reach the Worker.
   //
   // `not_found_handling` is "none" deliberately: the app is hash-routed (#/squad), so every real
   // path is a real file, and an SPA rewrite would return index.html for the API paths instead of

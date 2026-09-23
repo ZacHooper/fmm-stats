@@ -16,11 +16,16 @@
  * The assignment is per-device state (localStorage, keyed by snapshot). It is a plan, not a fact
  * about the save — nothing here is written back, and re-exporting a new snapshot starts a new
  * plan rather than silently reusing a stale one.
+ *
+ * A plan can be SAVED AGAINST A TRANSFER WINDOW (regwindows.js) — the record of what was actually
+ * registered, which is the history the page otherwise loses at the next export, and the natural
+ * starting point for the next window's plan ("Load into plan").
  */
 import * as D from "../data.js";
 import { playerTable } from "../table.js";
-import { el, bar, num, pill, DASH, toast } from "../ui.js";
+import { el, bar, num, pill, DASH, toast, sheet } from "../ui.js";
 import { openProfile } from "../profile.js";
+import * as W from "../regwindows.js";
 
 const A = "A", B = "B", OUT = "-";
 // How many players per position the suggestion treats as the spine. Two is a starter plus
@@ -94,6 +99,8 @@ export async function view() {
 
   const summary = el("div");
   const warnings = el("div");
+  const windowsPanel = el("div");
+  const byTid = new Map(rows.map((r) => [r.tid, r]));
 
   const setList = (tid, list) => {
     plan[tid] = list;
@@ -281,6 +288,12 @@ export async function view() {
       onclick: rebuild,
     }),
     el("button.chip.ghost", {
+      text: "Save window…",
+      title: "Keep these lists as the registration for a transfer window, to look back on and "
+        + "to start the next window from",
+      onclick: () => saveDialog(),
+    }),
+    el("button.chip.ghost", {
       text: "Clear",
       onclick: () => {
         for (const r of rows) plan[r.tid] = OUT;
@@ -390,11 +403,270 @@ export async function view() {
             + `B-list unlimited, for players under ${rules.b_list_under_age} on ${rules.u21_on}.`,
       }),
     ]),
-    summary, warnings, table.node, depthTable,
+    summary, warnings, table.node, depthTable, windowsPanel,
   );
   drawSummary();
   drawDepth();
+  drawWindows();
   return out;
+
+  // ---- saved windows ------------------------------------------------------------------
+  // Everything below is the history of what was registered. The page above is always the plan
+  // for the CURRENT squad; a saved window is frozen, names and all, so it still reads correctly
+  // once the players on it have left.
+
+  function record(id, note) {
+    const t = tally(rows, plan, rules);
+    return {
+      id,
+      snapshot: { season: D.S.index.snapshot.season, phase: D.S.index.snapshot.phase },
+      league: rules.league_name ? `${rules.league_name} · tier ${rules.tier}` : undefined,
+      note: note || undefined,
+      summary: {
+        a: t.a, b: t.b, out: t.out, cap: t.cap, a_list_max: rules.a_list_max,
+        hg_counted: t.hgCounted, hg_min: rules.hg_min, club: t.club, hg_club_min: rules.hg_club_min,
+      },
+      players: rows.map((r) => ({
+        tid: r.tid, name: r.player.name, list: plan[r.tid], age: r.age, pos: r.r?.pos || null,
+        hg: r.h.hg_club ? "club" : r.h.hg_association ? "association" : null,
+        b_list: !!r.h.b_list, loaned_in: !!r.loanedIn,
+      })),
+    };
+  }
+
+  async function saveDialog() {
+    const { entries } = await W.list();
+    const saved = new Map(entries.map((e) => [e.id, e]));
+    const guess = W.guessWindow(D.S.index.snapshot.phase);
+    const winSel = el("select.btn", {}, [["summer", "Summer window"], ["winter", "Winter window"]]
+      .map(([v, text]) => el("option", { value: v, text, selected: v === guess.window })));
+    const yearIn = el("input.search", {
+      type: "number", value: String(guess.year), min: "2000", max: "2100", style: "width:7em",
+    });
+    const noteIn = el("input.search", { placeholder: "Note — e.g. what changed and why (optional)" });
+    const warn = el("p.note");
+    const idNow = () => W.windowId(Number(yearIn.value), winSel.value);
+    const check = () => {
+      const prev = saved.get(idNow());
+      warn.innerHTML = prev
+        ? `<b>Replaces</b> the saved ${W.windowLabel(prev.id)} (from the ${prev.snapshot?.phase || "?"} `
+          + `snapshot, saved ${String(prev.saved_at || "").slice(0, 10)}).`
+        : `Saves as <b>${W.windowLabel(idNow())}</b>.`;
+      noteIn.value = noteIn.value || prev?.note || "";
+    };
+    winSel.addEventListener("change", check);
+    yearIn.addEventListener("input", check);
+    check();
+    const t = tally(rows, plan, rules);
+    let back;
+    const go = el("button.btn", {
+      text: "Save",
+      onclick: async () => {
+        const year = Number(yearIn.value);
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) return toast("Pick a year", true);
+        go.disabled = true;
+        const res = await W.put(record(idNow(), noteIn.value.trim()));
+        back.remove();
+        toast(res.error
+          ? `Saved on this device only — R2 refused it (${res.error})`
+          : `${W.windowLabel(idNow())} saved${res.where === "local" ? " on this device" : ""}`,
+          !!res.error);
+        drawWindows();
+      },
+    });
+    back = sheet("Save registration for a window", [
+      el("p.note", {
+        text: `${t.a} on the A-list, ${t.b} on the B-list, ${t.out} unregistered — `
+          + `saved exactly as the lists stand on this page.`,
+      }),
+      el("div.prow", {}, [winSel, yearIn]),
+      el("div.prow", {}, [noteIn]),
+      warn,
+      el("div.prow", {}, [go]),
+      el("p.note", {
+        html: W.hasToken()
+          ? "Goes to R2 with your device token, so every device sees it."
+          : "No device token on this browser, so it is kept <b>on this device only</b>. Add the "
+            + "token under Recruitment → Shortlist to share windows across devices.",
+      }),
+    ]);
+  }
+
+  async function drawWindows() {
+    windowsPanel.replaceChildren(el("h3", { text: "Saved windows" }),
+      el("p.note", { text: "Loading…" }));
+    const { entries, error } = await W.list();
+    windowsPanel.replaceChildren(...[
+      el("h3", { text: "Saved windows" }),
+      error ? el("p.note", { html: `<b>Could not read R2</b> (${error}) — showing this device's only.` }) : null,
+      entries.length ? el("div.scroll.fit", {}, [el("table", {}, [
+        el("thead", {}, [el("tr", {}, [
+          el("th", { text: "Window" }), el("th", { text: "Snapshot" }),
+          el("th.num", { text: "A" }), el("th.num", { text: "B" }),
+          el("th.num", { text: "Unreg" }), el("th.num", { text: "HG / club" }), el("th", { text: "" }),
+        ])]),
+        el("tbody", {}, entries.map((e) => {
+          const s = e.summary || {};
+          return el("tr", { style: "cursor:pointer", onclick: () => viewWindow(e) }, [
+            el("td.name", {}, [W.windowLabel(e.id),
+              e.where === "local" ? el("span.dim", { text: "  (this device)" }) : null]),
+            el("td", { text: e.snapshot?.phase || DASH }),
+            el("td.num", { text: `${s.a ?? DASH}` }),
+            el("td.num", { text: `${s.b ?? DASH}` }),
+            el("td.num", {}, [s.out ? pill(String(s.out), "warn") : el("span.dim", { text: "0" })]),
+            el("td.num", { text: s.hg_min ? `${s.hg_counted} / ${s.club}` : DASH }),
+            el("td", {}, [el("span.dim", { text: e.note ? e.note.slice(0, 60) : "" })]),
+          ]);
+        })),
+      ])]) : null,
+      el("p.note", {
+        text: entries.length
+          ? "Tap a window to see who was on each list, what has changed since, and to load it as "
+            + "the starting point for the next window."
+          : "Nothing saved yet. Set the lists above, then press Save window… to keep them as the "
+            + "registration for a transfer window.",
+      }),
+    ].filter(Boolean));
+  }
+
+  /** What has happened to a saved window's squad since, measured against the plan on this page. */
+  function changesSince(rec) {
+    const then = new Map(rec.players.map((p) => [p.tid, p]));
+    return {
+      left: rec.players.filter((p) => !byTid.has(p.tid) && p.list !== OUT),
+      joined: rows.filter((r) => !then.has(r.tid)),
+      moved: rows.filter((r) => then.has(r.tid) && then.get(r.tid).list !== plan[r.tid])
+        .map((r) => ({ r, from: then.get(r.tid).list, to: plan[r.tid] })),
+      agedOut: rows.filter((r) => then.get(r.tid)?.list === B && !r.h.b_list),
+    };
+  }
+
+  function applyWindow(rec) {
+    const then = new Map(rec.players.map((p) => [p.tid, p.list]));
+    let agedOut = 0, fresh = 0;
+    for (const r of rows) {
+      let l = then.get(r.tid);
+      if (l == null) { fresh++; l = r.h.b_list ? B : OUT; }
+      else if (l === B && !r.h.b_list) { agedOut++; l = OUT; }
+      plan[r.tid] = l;
+    }
+    save(KEY, plan);
+    table.redraw();
+    drawSummary();
+    drawDepth();
+    const gone = rec.players.filter((p) => !byTid.has(p.tid) && p.list !== OUT).length;
+    toast([`Loaded ${W.windowLabel(rec.id)}`,
+      gone ? `${gone} since left` : null,
+      fresh ? `${fresh} new to place` : null,
+      agedOut ? `${agedOut} aged out of the B-list — now unregistered` : null,
+    ].filter(Boolean).join(" · "));
+  }
+
+  function viewWindow(rec) {
+    const s = rec.summary || {};
+    const listOf = (l) => rec.players.filter((p) => p.list === l)
+      .sort((x, y) => posRank(x.pos) - posRank(y.pos) || x.name.localeCompare(y.name));
+    const hgPill = (p) => (p.hg === "club" ? pill("Us", "good")
+      : p.hg === "association" ? pill(rules.nation || "Association", "warn") : null);
+    const block = (title, players) => el("div", {}, [
+      el("h3", { text: `${title} · ${players.length}` }),
+      players.length ? el("div.scroll.fit", {}, [el("table", {}, [el("tbody", {}, players.map((p) =>
+        el("tr", {}, [
+          el("td", { text: p.pos || DASH }),
+          el("td.name", {}, [p.name,
+            p.loaned_in ? el("span.dim", { text: "  (loan in)" }) : null,
+            byTid.has(p.tid) ? null : el("span.dim", { text: "  · left" })]),
+          el("td.num", { text: p.age == null ? DASH : String(p.age) }),
+          el("td", {}, [hgPill(p)]),
+        ])))])]) : el("p.note", { text: "Nobody." }),
+    ]);
+
+    const c = changesSince(rec);
+    const names = (arr, f = (x) => x.name) => arr.map(f).join(" · ");
+    const LBL = { A: "A-list", B: "B-list", "-": "Unregistered" };
+    const changes = [
+      c.left.length ? el("p.note", { html: `<b>Left the club</b> (${c.left.length}): ${names(c.left)}` }) : null,
+      c.joined.length ? el("p.note", {
+        html: `<b>Not in this window</b> (${c.joined.length}) — joined or promoted since: `
+          + names(c.joined, (r) => r.player.name),
+      }) : null,
+      c.agedOut.length ? el("p.note", {
+        html: `<b>Aged out of the B-list</b> (${c.agedOut.length}) — need an A-list place now: `
+          + names(c.agedOut, (r) => r.player.name),
+      }) : null,
+      // Grouped by transition: one line per "A → B", not one arrow per player, so a plan that
+      // differs by thirty moves still reads as three or four decisions.
+      ...[...c.moved.reduce((g, m) => {
+        const k = `${m.from}>${m.to}`;
+        return g.set(k, [...(g.get(k) || []), m]);
+      }, new Map())].map(([k, ms]) => {
+        const [from, to] = k.split(">");
+        return el("p.note", {
+          html: `<b>${LBL[from]} → ${LBL[to]} in the current plan</b> (${ms.length}): `
+            + names(ms, (m) => m.r.player.name),
+        });
+      }),
+    ].filter(Boolean);
+
+    let back;
+    back = sheet(`Registration · ${W.windowLabel(rec.id)}`, [
+      el("div.kpis", {}, [
+        kpi("A-list", `${s.a ?? DASH} / ${s.a_list_max ?? rules.a_list_max}`),
+        s.hg_min ? kpi("Home grown on A", `${s.hg_counted} / ${s.hg_min}`,
+          s.hg_counted >= s.hg_min ? "good" : "bad") : null,
+        s.hg_min ? kpi("…club-trained", `${s.club} / ${s.hg_club_min}`,
+          s.club >= s.hg_club_min ? "good" : "bad") : null,
+        kpi("B-list", String(s.b ?? DASH)),
+        kpi("Unregistered", String(s.out ?? DASH), s.out ? "warn" : "good"),
+      ].filter(Boolean)),
+      el("p.note", {
+        html: `From the <b>${rec.snapshot?.phase || "?"}</b> snapshot`
+          + (rec.league ? ` · ${rec.league}` : "")
+          + ` · saved ${String(rec.saved_at || "").slice(0, 10)}`
+          + (rec.where === "local" ? " · <b>this device only</b>" : "")
+          + (rec.note ? `<br>${escapeHtml(rec.note)}` : ""),
+      }),
+      el("div.prow", {}, [
+        el("button.btn", {
+          text: "Load into plan",
+          title: "Set the lists on this page from this window: players still here keep their list, "
+            + "new players get the default, and anyone who has aged out of the B-list is flagged",
+          onclick: () => {
+            if (!confirm(`Replace the current plan with ${W.windowLabel(rec.id)}'s lists?`)) return;
+            applyWindow(rec);
+            back.remove();
+          },
+        }),
+        rec.where === "local" && W.hasToken() ? el("button.btn", {
+          text: "Upload to R2",
+          onclick: async () => {
+            const res = await W.put(rec);
+            toast(res.error ? `Upload failed: ${res.error}` : "Uploaded", !!res.error);
+            back.remove();
+            drawWindows();
+          },
+        }) : null,
+        el("button.btn", {
+          text: "Delete",
+          onclick: async () => {
+            if (!confirm(`Delete the saved ${W.windowLabel(rec.id)}? This cannot be undone.`)) return;
+            try {
+              await W.remove(rec);
+              toast(`${W.windowLabel(rec.id)} deleted`);
+              back.remove();
+              drawWindows();
+            } catch (err) { toast(`Delete failed: ${err.message}`, true); }
+          },
+        }),
+      ]),
+      el("h3", { text: "Since then" }),
+      ...(changes.length ? changes
+        : [el("p.note", { text: "Nothing has changed — the current plan matches this window." })]),
+      block("A-list", listOf(A)),
+      block("B-list", listOf(B)),
+      block("Unregistered", listOf(OUT)),
+    ], { wide: true });
+  }
 }
 
 // --------------------------------------------------------------------------- the rule maths
@@ -537,6 +809,8 @@ const load = (key) => {
 const save = (key, plan) => {
   try { localStorage.setItem(key, JSON.stringify(plan)); } catch { /* private mode */ }
 };
+const escapeHtml = (t) => String(t).replace(/[&<>"]/g,
+  (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
 const kpi = (label, value, cls) => el(`div.kpi${cls ? "." + cls : ""}`, {}, [
   el("b", { text: String(value) }), el("span", { text: label }),
 ]);
