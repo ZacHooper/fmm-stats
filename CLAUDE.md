@@ -77,7 +77,11 @@ as real tables with the correctness rules already applied, so a top-scorer query
 2026-08-25 refactor the mart is also what GENERATES the web app, so it covers the dimensions
 too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attributes wide,
 `mart.player_position_levels` for Level %ile, `mart.club_matches` already oriented per club,
-`mart.role_weights` so ratings are computable). Use the full `site-data/fm-frem.duckdb` only
+`mart.role_weights` so ratings are computable), and the common questions each have a view:
+`mart.league_tables` (tables rebuilt from the fixture list; verified for Denmark only),
+`mart.head_to_head`, `mart.player_vs_club` (each player's output against each opponent),
+`mart.player_primary_position` (the one primary-position rule) and `mart.club_squad_latest`
+(every club's genuine squad now). Use the full `site-data/fm-frem.duckdb` only
 when you need raw `staging` or per-snapshot history for a player who was never ours.
 
 Two gotchas worth knowing before you query it: **macros do not resolve across an `ATTACH`, and
@@ -316,7 +320,7 @@ is the regression test: a no-op export must produce a no-op diff.
   machine depend on numpy being installed outside uv. Bare `python3` still works here if the system
   interpreter happens to have numpy.
 - **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **Plain `uv sync` is lean on purpose** — `duckdb` + `pandas` only, which is everything the ETL, `fmq.py` (including `fmq.py scout`), and an agent skill scouting or querying the store need.
-- **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
+- **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. It re-creates the mart views on the cached copy from this checkout's `fmparser/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
 - **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style). **`phase` = the save's

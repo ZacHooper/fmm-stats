@@ -99,11 +99,14 @@ position of every club in every loaded competition** was decoded on 2026-07-20 a
 up. Layout, validation and parser plan: [`standings-record.md`](standings-record.md). Strict
 upgrade over what ships today.
 
-League tables no longer wait on it: `fmq.py table` (`fmstats/league.py`) rebuilds them from the
-world fixture list and reproduces every club's finish, as `mart.clubs.last_league_pos` records it,
-for all five completed seasons (`tests/test_fmq.py`). What the record would still add: exact
-positions for competitions whose fixtures the archive does not carry, and the table at a snapshot
-without recomputing it.
+League tables no longer wait on it for Denmark: `mart.league_tables` rebuilds them from the
+world fixture list, and every Danish table in every completed season reproduces each club's
+finish as `mart.clubs.last_league_pos` records it (`tests/validate_mart.py` §10). **Elsewhere it
+does not:** England agrees on 71 of 101 tables, Germany 19 of 22, Belgium 12 of 18, Spain 0 of 39
+— and Spain's rebuilt tables look well-formed (20 clubs, 38 games each), so it is not established
+whether the fixture list, the stage filter, the tie-break, or `last_league_pos` itself is wrong
+there. Settle it before quoting a non-Danish table: pick one Spanish season and compare against
+an in-game table screenshot. The standings record would answer it directly.
 
 **Before doing that work, know what already ships.** `mart.clubs.last_league_pos` /
 `last_league_cid` carry **each club's exact finishing position in its last completed league**,
@@ -682,6 +685,20 @@ positives in the award-record region so the next pass does not rediscover them.
 ---
 
 ## Housekeeping (safe to do any time)
+
+- **The site still has its own primary-position rules.** `mart.player_primary_position` (most
+  familiar, then best Level %ile) is what `fmstats` uses, but `scripts/_export_db.py` (~L319,
+  the depth chart: highest tactic rating, familiarity ignored) and `site/js/data.js`
+  `playerRoles()` (most familiar, first row on a tie) each carry another. Switch both to the
+  view in one diff and review `git diff site/api` — it changes published output.
+- **Two more candidates for the mart, left out on size:** squad moves between consecutive
+  snapshots (built on `mart.club_roster`, which is `UNPUBLISHED` world-wide — scope it to clubs
+  we have played) and `pos_index` as a column on `mart.player_position_fit` (only helps readers
+  of the full store, since the rating layer is never published).
+- **Republish after this lands.** The five analysis views (`league_tables`, `head_to_head`,
+  `player_vs_club`, `player_primary_position`, `club_squad_latest`) reach a remote `ATTACH` only
+  once `publish_duckdb.py` / `publish_mart.py --upload` run; `fmq` already has them, since it
+  refreshes the mart views on its cached copy.
 
 - **Three analysis scripts still import the deleted `dashboard/db.py`** and fail at import:
   `scripts/derive_weight_set.py` (`from dashboard import db`, ~L605),

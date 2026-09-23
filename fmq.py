@@ -109,8 +109,9 @@ def cmd_output(st, a):
         df = df[df["still_here"]].drop(columns="still_here")
     sort = {"ga": ["g", "a", "kp"], "goals": ["g"], "assists": ["a"], "kp": ["kp"],
             "shots": ["sh"], "rating": ["rating"], "mins": ["mins"]}[a.sort]
+    keys = (["_ga"] if a.sort == "ga" else []) + sort
     df = df.assign(_ga=df["g"] + df["a"]).sort_values(
-        (["_ga"] if a.sort == "ga" else []) + sort, ascending=False).drop(columns="_ga")
+        keys + ["player"], ascending=[False] * len(keys) + [True]).drop(columns="_ga")
     scope = "incl. players who have left" if a.include_departed else "current squad only"
     print(f"{' · '.join(title)} — {out.n_matches} competitive matches, {scope}")
     _show(df, a.limit)
@@ -237,12 +238,9 @@ def cmd_growth(st, a):
     if df.empty:
         raise SystemExit("no snapshots for that player")
     lv = st.con.execute("""
-        SELECT phase_date AS date, arg_max(position, familiarity * 1000 + level_league) AS pos,
-               arg_max(level_league, familiarity * 1000 + level_league) AS level_league,
-               arg_max(level_nation, familiarity * 1000 + level_league) AS level_nation
-        FROM (SELECT l.*, s.phase_date FROM mart.player_position_levels l
-              JOIN mart.snapshots s USING (season, phase) WHERE l.person_id = ?)
-        GROUP BY phase_date""", [pid]).df()
+        SELECT s.phase_date AS date, p.position AS pos, p.level_league, p.level_nation
+        FROM mart.player_primary_position p JOIN mart.snapshots s USING (season, phase)
+        WHERE p.person_id = ?""", [pid]).df()
     df = df.merge(lv, on="date", how="left")
     gk = bool(df["is_gk"].iloc[-1])
     keep = [c for c in attrs if gk or c not in scout.ATTR_GROUPS["Goalkeeping"]]
@@ -258,27 +256,36 @@ def cmd_growth(st, a):
 
 # --------------------------------------------------------------------------- table
 def cmd_table(st, a):
-    """A league table rebuilt from the fixture list — see fmstats/league.py."""
+    """A league table rebuilt from the fixture list (mart.league_tables)."""
+    season = a.season or st.season
     if a.league:
-        row = st.con.execute("""SELECT club_tid FROM mart.clubs WHERE season=? AND phase=?
-                                AND league_name ILIKE ? ORDER BY squad_size DESC LIMIT 1""",
-                             [st.season, st.phase, f"%{a.league}%"]).fetchone()
+        row = st.con.execute("""SELECT club_tid FROM mart.league_tables
+                                WHERE season = ? AND league_name ILIKE ?
+                                ORDER BY nation = (SELECT nation FROM mart.league_tables
+                                                   WHERE season = ? AND club_tid = ?) DESC,
+                                         pos LIMIT 1""",
+                             [season, f"%{a.league}%", season, st.career.managed_tid]).fetchone()
         if not row:
-            raise SystemExit(f"no league matching '{a.league}' at the latest snapshot")
+            raise SystemExit(f"no league matching '{a.league}' in {season - 1}/{str(season)[2:]}")
         seed = row[0]
     else:
         seed, _ = _club(st, a.club)
     try:
-        lt = league.league_table(st, seed, a.season)
+        lt = league.league_table(st, seed, season)
     except LookupError as e:
         raise SystemExit(str(e))
     t = lt.table
+    name = f"{lt.league} {lt.label}" if lt.league else lt.label
     if lt.complete:
-        print(f"League table {lt.label} (final) — rebuilt from the fixture list")
+        print(f"{name} (final) — rebuilt from the fixture list")
     else:
-        print(f"League table {lt.label} — AS OF {st.phase_date:%Y-%m-%d}, INCOMPLETE: "
+        print(f"{name} — AS OF {st.phase_date:%Y-%m-%d}, INCOMPLETE: "
               f"{t['p'].min()}–{t['p'].max()} games played per club. Games after the "
               f"snapshot are not in the store.")
+    if lt.nation != "Denmark":
+        print(f"({lt.nation or 'this country'} is unverified: only Danish tables have been "
+              "checked against the save's own final positions — see mart.league_tables in "
+              "fmparser/mart.py)")
     if lt.split:
         print("(split league: group 1 ranks above group 2; points carried over)")
     else:

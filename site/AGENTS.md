@@ -134,8 +134,10 @@ Read `index.json` → `caveats` for the live list. The ones that bite hardest:
 2. **Opponent attribute values are model estimates (±1)** except pace and physicals. Fine for
    shape and comparison; don't hang an argument on a single point.
 3. **Squad status and loan flags are unreliable.** Rank by minutes played (`matches.json`).
-4. **League standings do not parse for this career** — a 22-game division reads back with max
-   `played` 12. There is no league table. Rank clubs by squad strength instead.
+4. **The save's standings records do not parse for this career.** League tables are rebuilt
+   from the world fixture list instead: `mart.league_tables` (SQL, below) or
+   `uv run python fmq.py table`. Danish tables are verified against the save's own record of
+   every club's final position; other countries' are not.
 5. **`clubs` in `league_fields` is the competition record's member count and is wrong** (5 for a
    12-team division). Count clubs in `core.clubs` by `league_cid` instead — that's exact.
 6. **Match detail lives in a ring buffer the game overwrites.** A save late in a season no longer
@@ -161,7 +163,7 @@ ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);
 SELECT * FROM m.mart.player_growth_season WHERE season = 2024 ORDER BY growth DESC;
 ```
 
-**Attach the mart object (~24 MB), not the full store (~34 MB), unless you need raw
+**Attach the mart object (~87 MB), not the full store (~101 MB), unless you need raw
 `staging`.** `site-data/fm-frem-mart.duckdb` holds the `mart` schema as real tables, with the
 four correctness rules already applied — latest-phase-per-season (match stats are a ring
 buffer; summing across phases double-counts), snapshot-scoped joins (`staging.players` is one
@@ -175,6 +177,28 @@ answerable from it: `mart.player_snapshots` (bio, contract, the 23 attributes wi
 (every match already oriented per club — venue, opponent, gf/ga, result, pts, `our_`/`opp_`
 stats), `mart.player_career_seasons`, `mart.player_origin`, and `mart.role_weights` /
 `mart.position_roles` / `mart.app_config` so ratings are computable without the JSON.
+
+The questions asked most often have a view of their own, so they are one `SELECT`:
+
+| Question | View | Grain |
+|---|---|---|
+| league table, any season | `mart.league_tables` | season × league × club (`pos`, `p`…`pts`, `group`, `complete`, `nation`) |
+| our record against a club | `mart.head_to_head` | club × opponent × venue (`H`, `A`, `all`) |
+| who has hurt us / who we score against | `mart.player_vs_club` | player × his club × opponent (goals, assists, key passes, shots…) |
+| where a player plays | `mart.player_primary_position` | snapshot × player (most familiar, then best Level %ile) |
+| who is at a club now | `mart.club_squad_latest` | club × player, newest snapshot, every club |
+
+```sql
+-- who from OB has produced against us, and is still there
+SELECT v.name, v.goals, v.assists, v.key_passes
+FROM m.mart.player_vs_club v
+WHERE v.team_tid = 371 AND v.opponent_tid = 346
+  AND v.person_id IN (SELECT person_id FROM m.mart.club_squad_latest WHERE club_tid = 371)
+ORDER BY v.goals + v.assists DESC;
+```
+`league_tables` is only verified for Denmark (every table, every completed season); elsewhere
+it disagrees with the save's recorded finishes often enough — Spain 0 of 39 tables — that it
+should not be quoted without saying so.
 
 Reach for the full store — `ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm` — only when
 you need raw `staging`, or per-snapshot history for a player who was never ours. It carries the

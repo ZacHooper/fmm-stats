@@ -160,14 +160,6 @@ def effective_table(st, method, season=None, phase=None):
               [season or st.season, phase or st.phase, method])
 
 
-def _primary_position(eff):
-    """One row per player: the position he's most familiar at, best-rated among equals. `eff`
-    is not comparable across positions (each role weights a different number of attributes),
-    so ranking a player's own positions by eff alone just picks his most heavily weighted role."""
-    order = eff.sort_values(["familiarity", "eff"], ascending=[False, False])
-    return order.groupby("tid", sort=False).head(1).copy()
-
-
 def _add_position_index(eff):
     """`pos_index`: the role rating standardised within each position against the global pool,
     100 = an average player for that position, 15 = one std. Makes ratings comparable across
@@ -204,11 +196,15 @@ def club_attributes(st, club_tids, season=None, phase=None):
 
 def squad_frame(st, method, club_tids, season=None, phase=None):
     """One row per player (primary position) for the given clubs: eff, pos_index,
-    pctile_league, level_league, unit, and the 23 attributes."""
+    pctile_league, level_league, unit, and the 23 attributes. The primary position is
+    mart.player_primary_position's — the one rule every consumer shares."""
     eff = _add_position_index(effective_table(st, method, season, phase))
     if eff.empty:
         return pd.DataFrame()
-    prim = _primary_position(eff)
+    primary = _q(st.con, """SELECT tid, position FROM mart.player_primary_position
+                            WHERE season = ? AND phase = ?""",
+                 [season or st.season, phase or st.phase])
+    prim = eff.merge(primary, on=["tid", "position"], how="inner")
     prim = prim[prim["club_tid"].isin(list(club_tids))]
     if prim.empty:
         return prim
@@ -341,31 +337,30 @@ def match_history(st, club_tid=None):
 
 
 def h2h_players(st, opp_tid, us_tid=None):
-    """The opponent's per-player production in competitive matches against us, one row per
-    person, aggregated BEFORE the name is attached (mart.at_club_spells has one row per spell,
-    so joining it first multiplies every total). `still_there` = at the opponent at the store's
-    latest snapshot. Level %ile rankings are a poor guide to who actually hurts us — in the OB
-    fixture the two lowest-rated regulars were the top scorer and top creator — so this is the
-    output record to read alongside `key_players`."""
+    """The opponent's per-player output in competitive matches against us (mart.player_vs_club),
+    with `still_there` = in the opponent's squad at the store's latest snapshot
+    (mart.club_squad_latest). Level %ile rankings are a poor guide to who actually hurts us —
+    in the OB fixture the two lowest-rated regulars were the top scorer and top creator — so
+    this is the output record to read alongside `key_players`."""
     return _q(st.con, """
-        WITH f AS (
-            SELECT * FROM mart.match_player_facts
-            WHERE team_tid = ? AND opponent_tid = ? AND is_competitive AND appeared),
-        tot AS (
-            SELECT person_id, COUNT(*) AS apps, SUM(started::INT) AS starts,
-                   SUM(minutes) AS minutes, SUM(goals) AS goals, SUM(assists) AS assists,
-                   SUM(keyPass) AS key_passes, SUM(shotA) AS shots, SUM(shotO) AS on_target,
-                   SUM(crossC) AS crosses_completed, SUM(dribbles) AS dribbles,
-                   ROUND(AVG(rating), 2) AS avg_rating, MAX(date) AS last_played
-            FROM f WHERE person_id IS NOT NULL GROUP BY person_id)
-        SELECT (SELECT any_value(s.name) FROM mart.at_club_spells s
-                WHERE s.person_id = tot.person_id) AS name,
-               tot.*,
-               tot.person_id IN (SELECT person_id FROM mart.snapshot_squad
-                                 WHERE club_tid = ? AND season = ? AND phase = ?) AS still_there
-        FROM tot
-        ORDER BY goals + assists DESC, key_passes DESC, shots DESC""",
-              [opp_tid, us_tid or st.career.managed_tid, opp_tid, st.season, st.phase])
+        SELECT v.* EXCLUDE (team_tid, opponent_tid, first_played),
+               v.person_id IN (SELECT person_id FROM mart.club_squad_latest
+                               WHERE club_tid = ?) AS still_there
+        FROM mart.player_vs_club v
+        WHERE v.team_tid = ? AND v.opponent_tid = ?
+        ORDER BY goals + assists DESC, key_passes DESC, shots DESC, name""",
+              [opp_tid, opp_tid, us_tid or st.career.managed_tid])
+
+
+def head_to_head(st, opp_tid, club_tid=None):
+    """{'all'|'H'|'A': record dict} from mart.head_to_head; empty when never played."""
+    df = _q(st.con, """SELECT venue, played, w, d, l, gf, ga, ppg FROM mart.head_to_head
+                       WHERE club_tid = ? AND opp_tid = ?""",
+            [club_tid or st.career.managed_tid, opp_tid])
+    zero = {"played": 0, "w": 0, "d": 0, "l": 0, "gf": 0, "ga": 0, "ppg": 0.0}
+    out = {r["venue"]: {k: (float(r[k]) if k == "ppg" else int(r[k]))
+                        for k in zero} for _, r in df.iterrows()}
+    return {v: out.get(v, dict(zero)) for v in ("all", "H", "A")} if out else {}
 
 
 def opponent_manager(st, club_tid, season=None, phase=None):
@@ -459,13 +454,6 @@ def _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups, produc
     return F
 
 
-def _record(h):
-    w, d, l = (int((h["result"] == r).sum()) for r in "WDL")
-    return {"played": len(h), "w": w, "d": d, "l": l,
-            "gf": int(h["gf"].sum()), "ga": int(h["ga"].sum()),
-            "ppg": round(float(h["pts"].mean()), 2) if len(h) else 0.0}
-
-
 def scout_report(st, opp_tid, method=None, season=None, phase=None):
     """Structured opposition report (dicts + DataFrames, no rendering). Keys: opp, season,
     phase, method, coverage, overall, strength, matchups, units, unit_attrs, key_players,
@@ -513,12 +501,9 @@ def scout_report(st, opp_tid, method=None, season=None, phase=None):
 
     hist = match_history(st, us)
     h = hist[hist["opp_tid"] == opp_tid].sort_values("date")
-    if not h.empty:
-        h2h = {**_record(h),
-               "H": _record(h[h["venue"] == "H"]), "A": _record(h[h["venue"] == "A"]),
-               "matches": h}
-    else:
-        h2h = {"played": 0, "matches": h}
+    rec = head_to_head(st, opp_tid, us)
+    h2h = ({**rec["all"], "H": rec["H"], "A": rec["A"], "matches": h} if rec
+           else {"played": 0, "matches": h})
     producers = h2h_players(st, opp_tid, us)
 
     flags = _scout_flags(overall, attrs_df, key_players, h2h, coverage, matchups, producers)

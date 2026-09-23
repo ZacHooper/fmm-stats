@@ -19,8 +19,16 @@ Resolution order:
 
 The published copy is only as fresh as the last publish, which is a manual step after an
 import, so `describe()` names the snapshot date alongside the source on every run.
+
+The `mart` schema is a layer of VIEW definitions over `staging`, so the published copy carries
+whatever definitions the publishing machine had. The cache is ours, so after each download —
+and whenever `fmparser/mart.py` changes — `open_store` re-creates the mart on it from this
+checkout's definitions. The data is untouched; only the views are. An explicit `--db` store is
+never modified: when it predates the current definitions, open_store says which command
+refreshes it.
 """
 import datetime
+import hashlib
 import json
 import os
 import subprocess
@@ -28,7 +36,10 @@ import sys
 import time
 from dataclasses import dataclass
 
+import duckdb
+
 from fmparser import careers
+from fmparser.mart import MACROS, ORDER, create_mart
 from fmstats import state
 from fmstats.dbopen import open_readonly
 
@@ -36,6 +47,10 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_DIR = os.environ.get("FM_CACHE_DIR") or os.path.join(
     os.path.expanduser("~"), ".cache", "fmm-stats")
 STORE_TTL = int(os.environ.get("FM_STORE_TTL", "600"))
+MART_VERSION = hashlib.sha256(
+    "\x00".join([*MACROS, *(sql for _, sql in ORDER)]).encode()).hexdigest()[:16]
+# a view every current consumer needs; its absence means the store's mart is out of date
+_PROBE_VIEW = "player_vs_club"
 
 
 @dataclass
@@ -97,8 +112,10 @@ def _refresh_cache(name, force=False):
     if meta is None:
         return False
     size, modtime = meta
-    if not (os.path.exists(local) and seen.get("size") == size and seen.get("modtime") == modtime
-            and os.path.getsize(local) == size):
+    # compared against what R2 reported at download time, not the file on disk: refreshing the
+    # mart views writes to the cached file and changes its size
+    if not (os.path.exists(local) and seen.get("size") == size
+            and seen.get("modtime") == modtime):
         part = local + ".part"
         print(f"store: downloading {name} from R2 ({size / 2**20:.0f} MB)…", file=sys.stderr)
         r = subprocess.run(["rclone", "copyto", f"{state.R2_REMOTE}/site-data/{name}", part],
@@ -109,8 +126,39 @@ def _refresh_cache(name, force=False):
                 os.remove(part)
             return False
         os.replace(part, local)
+        seen.pop("mart_version", None)
+    seen.update({"size": size, "modtime": modtime, "checked_at": time.time()})
     with open(stamp, "w", encoding="utf-8") as f:
-        json.dump({"size": size, "modtime": modtime, "checked_at": time.time()}, f)
+        json.dump(seen, f)
+    return True
+
+
+def _sync_mart(path):
+    """Re-create the mart views on a cached store when they were built from different
+    definitions than this checkout's. Returns False (and leaves the store as it was) when the
+    file cannot be opened for writing, e.g. another process has it open."""
+    stamp = _stamp(path)
+    try:
+        with open(stamp, encoding="utf-8") as f:
+            seen = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        seen = {}
+    if seen.get("mart_version") == MART_VERSION:
+        return True
+    try:
+        con = duckdb.connect(path)
+    except duckdb.Error as e:
+        print(f"store: could not refresh the mart definitions on {path} ({e}); reading it as "
+              f"published.", file=sys.stderr)
+        return False
+    try:
+        create_mart(con)
+        con.execute("CHECKPOINT")
+    finally:
+        con.close()
+    seen["mart_version"] = MART_VERSION
+    with open(stamp, "w", encoding="utf-8") as f:
+        json.dump(seen, f)
     return True
 
 
@@ -144,7 +192,14 @@ def open_store(career=None, db=None, refresh=False, offline=False, announce=True
     """Open the career's store read-only and return a Store. `announce` prints describe() to
     stderr so every answer says which data it came from."""
     car, path, source = resolve_path(career, db, refresh, offline)
+    if source.startswith("r2"):
+        _sync_mart(path)
     con, used = open_readonly(path, tag="fmq")
+    if not con.execute("SELECT 1 FROM information_schema.tables WHERE table_schema = 'mart' "
+                       "AND table_name = ?", [_PROBE_VIEW]).fetchone():
+        print(f"store: {path} predates the current mart definitions (no mart.{_PROBE_VIEW}); "
+              f"refresh it with `uv run python load_duckdb.py --refresh-only --db {path}`.",
+              file=sys.stderr)
     row = con.execute("SELECT season, phase, phase_date, label FROM mart.snapshots "
                       "ORDER BY snap_ix DESC LIMIT 1").fetchone()
     if row is None:

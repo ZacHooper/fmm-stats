@@ -15,6 +15,9 @@ Checks that a report can only pass by being right:
     raw ability value at any depth.
 
 Reads the store `fmstats.store` would (R2 cache, or $FM_DUCKDB). Skips when none is available.
+The data invariants of the views these read (mart.league_tables, head_to_head,
+player_vs_club, player_primary_position, club_squad_latest) are checked for every league and
+club in tests/validate_mart.py §10; this file checks the fmstats/fmq path over them.
 """
 import os
 import sys
