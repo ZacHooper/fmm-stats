@@ -162,3 +162,41 @@ Not implemented yet — this note is the design. Wiring `rating_vs_unit` / `rati
 `fmstats/mart.py` (a `mart.match_rating_baseline` table plus columns on a view) would make
 the correction the default everywhere rather than something each analysis re-derives, and
 would let the season-review skill drop its position-biased awards.
+
+## 2027-05 refresh — still true, plus what the DM rating actually measures
+
+Re-run on 2,584 deduplicated competitive starts (293 matches, 2022–2027; `mart.match_player_facts`
+is NOT one row per match — dedup on `(person_id, date, opponent_tid)`, latest phase, or 639 rows
+double-count). **Match ratings are whole numbers (4–10)**, so a player's average is really his mix
+of 6s, 7s and 8s.
+
+| role | starts | mean | sd | 6 or lower | 7 | 8+ |
+|---|---|---|---|---|---|---|
+| DM (`DMC`) | 185 | **6.58** | 0.80 | 44% | 48% | **8%** |
+| Central mid | 446 | 7.07 | 0.87 | 24% | 47% | 29% |
+| Winger | 263 | 7.36 | 1.03 | 22% | 37% | 40% |
+| Forward | 219 | 7.41 | 1.43 | 33% | 21% | 46% |
+
+DM is bottom in all six seasons (6.39–6.69). Within-player: 6 of 7 players with ≥5 starts at both
+DMC and MC rate higher at MC, mean **+0.48**.
+
+**Equivalent bars** (same z-score against the outfield pool, mean 7.11 / sd 1.01): a 7.0 elsewhere
+≈ **6.5** at DM; 7.3 ≈ **6.7**; 7.5 ≈ **6.9**. The manager's "6.7–6.8 means a DM is playing well"
+lands exactly on a ~7.3–7.4 anywhere else.
+
+**What moves a DM's rating** (correlation within DMC starts): key passes **0.47**, passes completed
+0.33, tackles won 0.16, interceptions 0.13, mistakes −0.11. A 7+ DM game averages 1.15 key passes
+against 0.06 in a 6-or-lower game; tackles (1.6 v 1.1) and interceptions (2.8 v 2.3) barely differ.
+The game rates a DM for creating, not for screening.
+
+**And the screening job leaves no trace in any stat we store.** DM tackles won and interceptions
+correlate ~0 with goals conceded (−0.00, −0.04); only passes completed (−0.17) and the rating itself
+(−0.18) relate to conceding less. Team results track a forward's rating strongly (1.07 ppg when he is
+rated ≤6, 2.11 when ≥7) and a DM's weakly (1.73 v 2.00). Matches with vs without a `DMC` starter:
+1.89 v 1.88 ppg — confounded by when he was picked, so it neither proves nor disproves the manager's
+"a low-rated DM can lift a team" observation.
+
+**Rule for briefings and selection:** judge a DM on a role-relative bar (6.5 solid, 6.7+ playing
+well), his passes completed and mistakes, and the manager's own read — never against a 7.0 bar, and
+never drop him from a screening assignment because his rating split looks poor. That exact error
+cost the first half of the 2027-05-22 FCK home game (see the scout-opponent skill).

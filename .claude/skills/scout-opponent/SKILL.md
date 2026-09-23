@@ -447,6 +447,10 @@ error-prone" is a fact about the slot, and swapping the man does not fix it (his
 twice) and we were 0-2 down; Tjørnelund moved to DMC at half-time and the game turned. Against a
 creative AMC behind a striker, guarantee a screen in front of the back four from kick-off, and do not
 talk a matchup assignment away with a small rating split.
+**A DM's rating is not comparable to anyone else's.** DMs average 6.58 to a central midfielder's
+7.07 for the same performance (within-player gap +0.48), and the rating rewards a DM's key passes,
+not his screening. A DM averaging 6.5 is par, 6.7+ is playing well — see
+[`match-rating-position-bias`](../../../docs/agent-context/match-rating-position-bias.md).
 Note whose screen a role label belongs to (IW / PF / Poacher / AF / AP) every time, or a briefing
 will attribute the opponent's roles to us.
 
