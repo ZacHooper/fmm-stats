@@ -23,7 +23,7 @@ import unicodedata
 
 import pandas as pd
 
-from fmparser.model import ATTR_ORDER
+from fmstats.contract import ATTR_ORDER
 from fmstats import state
 
 ATTR_GROUPS = {

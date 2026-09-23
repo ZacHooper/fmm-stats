@@ -450,7 +450,8 @@ def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--db", default=None, help="read this local store instead of R2")
     common.add_argument("--career", default=None,
-                        help="career key from fmparser/careers.py (default: $FM_CAREER or frem)")
+                        help="career key: reads the store fm-<key>.duckdb "
+                             "(default: $FM_CAREER or frem)")
     common.add_argument("--refresh", action="store_true", help="re-check R2 for a newer store now")
     common.add_argument("--offline", action="store_true", help="never touch the network")
     common.add_argument("--limit", type=int, default=None)

@@ -52,7 +52,7 @@ Spell overlap semantics:
 """
 from __future__ import annotations
 
-from fmparser.model import ATTR_ORDER
+from .contract import ATTR_ORDER
 
 # Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
 # out by role; the engine still stores all 23 for everyone, but the ones the role does not
@@ -100,16 +100,6 @@ GK_BLOCK = GK_ONLY_ATTRS
 
 
 from . import value_model as _vm
-from fmparser.matches import EVENT_TYPE as _EVENT_TYPE
-
-# The event-type CASE, generated from the parser's own table so a byte named in
-# fmparser/matches.py reaches the mart on the next --refresh-only, with no re-extract. The
-# ELSE keeps the `?xx` shape the parser uses for a byte nobody has identified yet.
-_EVENT_CASE = ("CASE ev.type_byte "
-               + " ".join(f"WHEN {b} THEN '{n}'" for b, n in sorted(_EVENT_TYPE.items()))
-               + " ELSE '?' || printf('%02x', ev.type_byte) END")
-# The red-card byte, from the same table, for ending a dismissed player's minutes.
-_RED_CARD_BYTE = next(b for b, n in _EVENT_TYPE.items() if n == "red_card")
 
 
 def _sum(attrs):
@@ -464,13 +454,12 @@ SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
        ev.date, ev.competition, ev.comp_id,
        ev.home_tid, ev.away_tid,
        ev.minute, ev.added, ev.min_display,
-       -- The LABEL is derived from type_byte here, not read from
-       -- staging.match_events.type. That column is written at EXTRACT time, so naming
-       -- a byte would otherwise mean a 25-minute re-extract before the store agreed --
-       -- and until it did, solved bytes would still read as `?07`. The byte is the
-       -- fact; the name is a label, and a label belongs where --refresh-only can change
-       -- it. Generated from fmparser.matches.EVENT_TYPE so the two cannot drift.
-       {event_case}                                       AS type,
+       -- The LABEL comes from staging.event_types, not staging.match_events.type. That
+       -- column is written at EXTRACT time, so naming a byte would otherwise mean a
+       -- 25-minute re-extract before the store agreed. The loader seeds event_types from
+       -- the parser's table on every load and --refresh-only; an unnamed byte keeps the
+       -- `?xx` shape the parser uses.
+       COALESCE(et.name, '?' || printf('%02x', ev.type_byte)) AS type,
        ev.type_byte,
        ev.tid, nm.name AS player,
        -- The side of the PLAYER the event is about: the team he was fielded for in this
@@ -490,6 +479,7 @@ SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
 FROM ev LEFT JOIN nm
        ON nm.tid = ev.tid AND nm.season = CAST(season_of(ev.date) AS INTEGER)
 LEFT JOIN lu ON lu.date = ev.date AND lu.tid = ev.tid
+LEFT JOIN {S}.event_types et ON et.code = ev.type_byte
 """
 
 
@@ -1265,7 +1255,8 @@ JOIN mart.chosen_match_phase USING (season, phase)
 LEFT JOIN {S}.person_slices ps USING (season, phase, tid)
 LEFT JOIN {S}.players pl USING (season, phase, tid)
 LEFT JOIN (SELECT season, phase, anchor, tid, MIN(minute) AS red_min
-           FROM {S}.match_events WHERE type_byte = {red_card_byte}
+           FROM {S}.match_events
+           WHERE type_byte IN (SELECT code FROM {S}.event_types WHERE name = 'red_card')
            GROUP BY season, phase, anchor, tid) rc USING (season, phase, anchor, tid)
 """
 
@@ -3089,8 +3080,7 @@ def create_mart(con, src="staging"):
     for stmt in MACROS:
         con.execute(stmt)
     for name, sql in ORDER:
-        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS,
-                               event_case=_EVENT_CASE, red_card_byte=_RED_CARD_BYTE))
+        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS))
     return [n for n, _ in ORDER]
 
 

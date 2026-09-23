@@ -17,6 +17,10 @@ Resolution order:
   3. the cache as it stands, if R2 cannot be reached;
   4. a repo-local `fm-<career>.duckdb`, if one exists.
 
+A career is a key naming a store file, `fm-<key>.duckdb`; everything else about it — the club
+we manage, its reserve side, the tactic we are rated on — is read from the store it opens
+(`Career.from_store`). fmstats never imports the parser.
+
 The published copy is only as fresh as the last publish, which is a manual step after an
 import, so `describe()` names the snapshot date alongside the source on every run.
 
@@ -38,7 +42,6 @@ from dataclasses import dataclass
 
 import duckdb
 
-from fmparser import careers
 from fmstats.mart import MACROS, ORDER, create_mart
 from fmstats import state
 from fmstats.dbopen import open_readonly
@@ -47,10 +50,57 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_DIR = os.environ.get("FM_CACHE_DIR") or os.path.join(
     os.path.expanduser("~"), ".cache", "fmm-stats")
 STORE_TTL = int(os.environ.get("FM_STORE_TTL", "600"))
+DEFAULT_CAREER = "frem"
 MART_VERSION = hashlib.sha256(
     "\x00".join([*MACROS, *(sql for _, sql in ORDER)]).encode()).hexdigest()[:16]
+# staging tables the loader seeds that the current mart reads; a store published before one
+# existed cannot have its mart refreshed until it is re-seeded
+_MART_INPUTS = ("event_types",)
 # a view every current consumer needs; its absence means the store's mart is out of date
 _PROBE_VIEW = "player_vs_club"
+
+
+@dataclass
+class Career:
+    """The career a store holds, read from the store itself."""
+    key: str                        # as the loader recorded it, else the key it was opened by
+    name: str
+    managed_tid: int
+    reserve_tid: int | None
+    rating_method: str | None       # the tactic we play; None -> app_config default_method
+
+    @property
+    def db(self):
+        return store_file(self.key)
+
+    @classmethod
+    def from_store(cls, con, key):
+        """Our club and reserve side from the mart's data-derived views; the key and the
+        tactic from the `career_*` keys the loader writes to staging.app_config."""
+        managed = con.execute("SELECT club_tid FROM mart.managed_club").fetchone()
+        if managed is None:
+            raise SystemExit("the store has no managed club (mart.managed_club is empty)")
+        managed = managed[0]
+        reserve = con.execute("SELECT min(club_tid) FROM mart.reserve_clubs").fetchone()[0]
+        name = con.execute("SELECT name FROM mart.clubs WHERE club_tid = ? "
+                           "ORDER BY season DESC, phase DESC LIMIT 1", [managed]).fetchone()
+        cfg = dict(con.execute("SELECT key, value FROM staging.app_config "
+                               "WHERE key IN ('career_key', 'career_rating_method')").fetchall())
+        stored = cfg.get("career_key")
+        if stored is None:
+            print("store: note — the loader has not recorded this store's career "
+                  "(staging.app_config career_*), so the tactic falls back to "
+                  "app_config.default_method; `load_duckdb.py --refresh-only` records it",
+                  file=sys.stderr)
+        elif stored != key:
+            print(f"store: note — this store records career '{stored}', not '{key}'",
+                  file=sys.stderr)
+        return cls(stored or key, name[0] if name else f"club {managed}", managed, reserve,
+                   cfg.get("career_rating_method"))
+
+
+def store_file(key):
+    return f"fm-{key}.duckdb"
 
 
 @dataclass
@@ -58,7 +108,7 @@ class Store:
     con: object
     path: str
     source: str             # "explicit" | "r2" | "r2-cache-stale" | "repo"
-    career: careers.Career
+    career: Career
     season: int
     phase: str
     phase_date: object
@@ -152,7 +202,23 @@ def _sync_mart(path):
               f"published.", file=sys.stderr)
         return False
     try:
-        create_mart(con)
+        missing = [t for t in _MART_INPUTS if not con.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_schema = 'staging' "
+            "AND table_name = ?", [t]).fetchone()]
+        if missing:
+            print(f"store: {path} predates staging.{', staging.'.join(missing)}, which the "
+                  f"current mart reads; reading it as published. Fix it with `uv run python "
+                  f"load_duckdb.py --refresh-only --db {path}`, or republish the store.",
+                  file=sys.stderr)
+            return False
+        # one transaction, so a definition that fails to bind leaves the published mart whole
+        con.execute("BEGIN")
+        try:
+            create_mart(con)
+            con.execute("COMMIT")
+        except duckdb.Error:
+            con.execute("ROLLBACK")
+            raise
         con.execute("CHECKPOINT")
     finally:
         con.close()
@@ -163,35 +229,36 @@ def _sync_mart(path):
 
 
 def resolve_path(career=None, db=None, refresh=False, offline=False):
-    """(career, path, source) without opening anything."""
-    car = careers.resolve_career(career or os.environ.get("FM_CAREER"))
+    """(career key, path, source) without opening anything."""
+    key = career or os.environ.get("FM_CAREER") or DEFAULT_CAREER
+    name = store_file(key)
     explicit = db or os.environ.get("FM_DUCKDB")
     if explicit:
         path = os.path.abspath(explicit)
         if not os.path.exists(path):
             raise SystemExit(f"no store at {path}")
-        return car, path, "explicit"
-    cached = os.path.join(CACHE_DIR, car.db)
+        return key, path, "explicit"
+    cached = os.path.join(CACHE_DIR, name)
     offline = offline or os.environ.get("FM_STATE_OFFLINE") == "1"
     if not offline and state.remote_configured():
-        if _refresh_cache(car.db, force=refresh):
-            return car, cached, "r2"
+        if _refresh_cache(name, force=refresh):
+            return key, cached, "r2"
     if os.path.exists(cached):
-        return car, cached, "r2-cache-stale"
-    repo_store = os.path.join(REPO, car.db)
+        return key, cached, "r2-cache-stale"
+    repo_store = os.path.join(REPO, name)
     if os.path.exists(repo_store):
-        return car, repo_store, "repo"
+        return key, repo_store, "repo"
     raise SystemExit(
-        f"no store for career '{car.key}'. Either configure rclone with the R2 remote "
+        f"no store for career '{key}'. Either configure rclone with the R2 remote "
         f"'{state.R2_REMOTE.split(':')[0]}:' (the session-start hook does this on Claude Code "
-        f"web) so {car.db} can be fetched from site-data/, or build one locally with "
-        f"`uv run python scripts/rebuild.py --career {car.key}` and pass --db.")
+        f"web) so {name} can be fetched from site-data/, or build one locally with "
+        f"`uv run python scripts/rebuild.py --career {key}` and pass --db.")
 
 
 def open_store(career=None, db=None, refresh=False, offline=False, announce=True):
     """Open the career's store read-only and return a Store. `announce` prints describe() to
     stderr so every answer says which data it came from."""
-    car, path, source = resolve_path(career, db, refresh, offline)
+    key, path, source = resolve_path(career, db, refresh, offline)
     if source.startswith("r2"):
         _sync_mart(path)
     con, used = open_readonly(path, tag="fmq")
@@ -204,6 +271,7 @@ def open_store(career=None, db=None, refresh=False, offline=False, announce=True
                       "ORDER BY snap_ix DESC LIMIT 1").fetchone()
     if row is None:
         raise SystemExit(f"{path} has no snapshots loaded")
+    car = Career.from_store(con, key)
     st = Store(con, used, source, car, int(row[0]), row[1], row[2], row[3])
     if announce:
         print(st.describe(), file=sys.stderr)

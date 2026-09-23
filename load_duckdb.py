@@ -33,6 +33,7 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 from extract import parse_label
 from fmparser.model import ATTR_ORDER
 from fmparser import model as _A
+from fmparser import careers
 from fmparser import matches as M
 from fmstats.mart import create_mart, drop_mart
 
@@ -1803,6 +1804,36 @@ def seed_reference(con):
             "WHERE NOT EXISTS (SELECT 1 FROM staging.app_config WHERE key=?)", [k, v, k])
 
 
+def seed_event_types(con):
+    """(Re)seed staging.event_types, the byte -> name map the mart labels match events with,
+    from the parser's own table (fmparser.matches.EVENT_TYPE). Replaced wholesale on every load
+    and --refresh-only, so naming a byte reaches the store without a re-extract."""
+    con.execute("CREATE TABLE IF NOT EXISTS staging.event_types "
+                "(code INTEGER PRIMARY KEY, name VARCHAR NOT NULL)")
+    con.execute("DELETE FROM staging.event_types")
+    con.executemany("INSERT INTO staging.event_types VALUES (?, ?)",
+                    sorted(M.EVENT_TYPE.items()))
+
+
+def seed_career(con):
+    """Record which career this store holds in staging.app_config (`career_key`,
+    `career_rating_method`), matched on the managed club the mart derives from the data.
+
+    fmstats reads the store, never fmparser, and the tactic we play is the one career fact the
+    save does not carry — so the loader, which may read both, writes it down. Runs after
+    create_mart: it needs mart.managed_club."""
+    row = con.execute("SELECT club_tid FROM mart.managed_club").fetchone()
+    car = next((c for c in careers.CAREERS.values() if row and c.managed_tid == row[0]), None)
+    if car is None:
+        print(f"  ! managed club {row[0] if row else None} is not a registered career "
+              f"(fmparser/careers.py); career keys left unset")
+        return
+    for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method)):
+        con.execute("DELETE FROM staging.app_config WHERE key = ?", [k])
+        if v is not None:
+            con.execute("INSERT INTO staging.app_config VALUES (?, ?)", [k, v])
+
+
 def seed_config_bundle(con):
     """Apply a committed config bundle (seeds/config_bundle.json) as the baked default —
     the same shape the dashboard exports (db.export_config_bundle). Runs AFTER
@@ -1950,8 +1981,10 @@ def main():
             # the methods the CSV names, so a weight-set built in the Lab and promoted into
             # staging.role_weights survives this.
             seed_role_weights(con)
+            seed_event_types(con)
             create_views(con)
             mart_objects = create_mart(con)
+            seed_career(con)
             print(f"{args.db}: role-weight seeds + {len(VIEWS)} views + {len(mart_objects)} "
                   f"mart objects rebuilt (nothing loaded)")
         finally:
@@ -1996,8 +2029,10 @@ def main():
                 fail += 1
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
         rebuild_persons(con)
+        seed_event_types(con)
         create_views(con)
         mart_objects = create_mart(con)
+        seed_career(con)
         print(f"done: {ok} loaded, {fail} failed. views refreshed, "
               f"{len(mart_objects)} mart objects rebuilt.")
     finally:

@@ -695,10 +695,20 @@ positives in the award-record region so the next pass does not rediscover them.
   snapshots (built on `mart.club_roster`, which is `UNPUBLISHED` world-wide — scope it to clubs
   we have played) and `pos_index` as a column on `mart.player_position_fit` (only helps readers
   of the full store, since the rating layer is never published).
-- **Republish after this lands.** The five analysis views (`league_tables`, `head_to_head`,
-  `player_vs_club`, `player_primary_position`, `club_squad_latest`) reach a remote `ATTACH` only
-  once `publish_duckdb.py` / `publish_mart.py --upload` run; `fmq` already has them, since it
-  refreshes the mart views on its cached copy.
+- **Republish the store — `fmq` needs it now, not only remote `ATTACH`.** The mart reads
+  `staging.event_types` and fmstats reads the career (`staging.app_config` `career_key` /
+  `career_rating_method`), and only the loader writes those. Until `publish_duckdb.py --upload`
+  (and `publish_mart.py --upload` for the five analysis views) run, a fresh cache of the R2 copy
+  reads its mart as published and rates with `app_config.default_method` (`frem_attacking_ss`),
+  not `frem_minmax_4231` — `fmq` says so on every run. Local fix meanwhile:
+  `uv run python load_duckdb.py --refresh-only --db ~/.cache/fmm-stats/fm-frem.duckdb`.
+- **Move the loader's remaining transforms into fmstats**, so `load_duckdb.py` only writes JSON
+  into `staging`: the attribute-model decode view (`staging.player_attributes`, from
+  `staging.attribute_model`), `rebuild_persons` (the `(tid, dob) -> person_id` bridge) and the
+  rating views `v_player_ratings` / `v_player_rating_ranks`. Each reads tables the loader
+  already writes (the coefficients are seeded into `staging.attribute_model`), so none needs a
+  new fmparser import; `tests/test_boundary.py` guards that. Touches the rebuild path and
+  `tests/test_attribute_model.py`, so verify with a real `rebuild.py`, not `--refresh-only`.
 
 - **Three analysis scripts still import the deleted `dashboard/db.py`** and fail at import:
   `scripts/derive_weight_set.py` (`from dashboard import db`, ~L605),

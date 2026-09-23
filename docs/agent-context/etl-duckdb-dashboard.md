@@ -33,6 +33,10 @@ Turkish ground-truth tests pass unchanged.
   v_match_results, v_league_table, v_top_scorers, v_ca_progression and v_transfers if present:
   they summed every snapshot of the match history (goal totals 2-3x), surfaced raw CA/PA, or read
   standings that do not parse.
+- Layering: `fmparser/` extracts, `load_duckdb.py` loads (and seeds `staging.event_types` and
+  the `career_*` keys in `staging.app_config`, the two parser facts the transform needs), and
+  `fmstats/` transforms and analyses. fmstats never imports fmparser, and
+  `tests/test_boundary.py` enforces it; the store is the only interface.
 - `fmq.py` = query CLI over the `fmstats/` package (`labels`, `sql`, `output`, `matches`, `moves`,
   `growth`, `table`, `scout`, `scouts`, `grade` — `uv run python fmq.py --help`). It reads the R2
   published store by default (`fmstats/store.py`, cached at `~/.cache/fmm-stats/`); `--db` for a
