@@ -165,24 +165,28 @@ would let the season-review skill drop its position-biased awards.
 
 ## 2027-05 refresh — still true, plus what the DM rating actually measures
 
-Re-run on 2,584 deduplicated competitive starts (293 matches, 2022–2027; `mart.match_player_facts`
-is NOT one row per match — dedup on `(person_id, date, opponent_tid)`, latest phase, or 639 rows
-double-count). **Match ratings are whole numbers (4–10)**, so a player's average is really his mix
-of 6s, 7s and 8s.
+Re-run on **2,387 first-team competitive starts** (217 matches, 2022–2027):
+`mart.match_player_facts` with `team_tid IN (SELECT club_tid FROM mart.managed_club)`, `started`,
+`is_competitive`. `match_player_facts` is already one row per player per match. **Scope to
+`managed_club`, not `our_clubs`**: `our_clubs` includes the reserve side, whose games are filled
+with anonymous placeholder players (no `person_id`) — they add ~840 starts that are not ours.
+**Match ratings are whole numbers (4–10)**, so a player's average is really his mix of 6s, 7s and
+8s.
 
 | role | starts | mean | sd | 6 or lower | 7 | 8+ |
 |---|---|---|---|---|---|---|
 | DM (`DMC`) | 185 | **6.58** | 0.80 | 44% | 48% | **8%** |
-| Central mid | 446 | 7.07 | 0.87 | 24% | 47% | 29% |
+| Central mid | 416 | 7.05 | 0.87 | 24% | 48% | 27% |
 | Winger | 263 | 7.36 | 1.03 | 22% | 37% | 40% |
-| Forward | 219 | 7.41 | 1.43 | 33% | 21% | 46% |
+| Forward | 186 | 7.52 | 1.47 | 33% | 18% | 49% |
 
 DM is bottom in all six seasons (6.39–6.69). Within-player: 6 of 7 players with ≥5 starts at both
-DMC and MC rate higher at MC, mean **+0.48**.
+DMC and MC rate higher at MC, mean **+0.48** — the same size as the baseline gap (7.05 − 6.58 =
+0.47), so the DM baseline is measuring the role, not weak DMs.
 
 **Equivalent bars** (same z-score against the outfield pool, mean 7.11 / sd 1.01): a 7.0 elsewhere
 ≈ **6.5** at DM; 7.3 ≈ **6.7**; 7.5 ≈ **6.9**. The manager's "6.7–6.8 means a DM is playing well"
-lands exactly on a ~7.3–7.4 anywhere else.
+lands on a ~7.3–7.4 anywhere else.
 
 **What moves a DM's rating** (correlation within DMC starts): key passes **0.47**, passes completed
 0.33, tackles won 0.16, interceptions 0.13, mistakes −0.11. A 7+ DM game averages 1.15 key passes
@@ -192,11 +196,16 @@ The game rates a DM for creating, not for screening.
 **And the screening job leaves no trace in any stat we store.** DM tackles won and interceptions
 correlate ~0 with goals conceded (−0.00, −0.04); only passes completed (−0.17) and the rating itself
 (−0.18) relate to conceding less. Team results track a forward's rating strongly (1.07 ppg when he is
-rated ≤6, 2.11 when ≥7) and a DM's weakly (1.73 v 2.00). Matches with vs without a `DMC` starter:
-1.89 v 1.88 ppg — confounded by when he was picked, so it neither proves nor disproves the manager's
-"a low-rated DM can lift a team" observation.
+rated ≤6, 2.11 when ≥7) and a DM's weakly (1.73 v 2.00). So the data cannot confirm or refute the
+manager's "a low-rated DM can lift a team" — it simply has no measure of the job.
+
+**In our 4-2-3-1 the two deep midfielders decode as `MC`, not `DMC`** — 26 matches: 46 `MC` starts,
+6 `DMC`. That settles the open question above for a back four: a 4-2-3-1 double pivot is two `MC`
+slots, and the `DMC` baseline comes from shapes with a genuine single holder.
 
 **Rule for briefings and selection:** judge a DM on a role-relative bar (6.5 solid, 6.7+ playing
 well), his passes completed and mistakes, and the manager's own read — never against a 7.0 bar, and
 never drop him from a screening assignment because his rating split looks poor. That exact error
-cost the first half of the 2027-05-22 FCK home game (see the scout-opponent skill).
+cost the first half of the 2027-05-22 FCK home game (see the scout-opponent skill). The build that
+makes this the default everywhere is planned in
+[`docs/plans/2026-09-23-match-rating-normalisation.md`](../plans/2026-09-23-match-rating-normalisation.md).

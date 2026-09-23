@@ -539,6 +539,12 @@ players).
 
 ## Football (the actual career)
 
+### 14a. Position-adjusted match rating — approach agreed, build next
+Raw match rating is position-biased (DM ~0.47 below CM, forward ~0.47 above). Keep BOTH lenses:
+raw for within-position and in-game talk, adjusted (`rating_adj`, game units) for cross-position
+comparison and "which position does this midfielder play best". Plan and task list:
+[`plans/2026-09-23-match-rating-normalisation.md`](plans/2026-09-23-match-rating-normalisation.md).
+
 ### 15. Position write-ups still owed
 Zac asked for the position-by-position read for **DM, CM, AML, AMC, AMR and ST**, plus a verdict
 on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **The earlier analysis is several
