@@ -509,7 +509,7 @@ quoting the opposition manager cannot tell how confident to be.
 
 ### 12. Refit the transfer-value model with the new reputation fields
 `current_reputation` and `world_reputation` are parsed (PR #51) and currently unused —
-`fmparser/value_model.py` still fits on `reputation` alone. This was the one workstream from the
+`fmstats/value_model.py` still fits on `reputation` alone. This was the one workstream from the
 parser expansion that never got done, and reputation is exactly what a value model wants. Zac
 called it out as important for transfer value.
 
@@ -626,7 +626,7 @@ Open, in order:
    trap). Try absence from later `mart.player_snapshots` / match stats instead.
 2. **Quantify the loss in the STORE, not the save**: per person, compare career-history row
    counts across snapshots and count how many have their richest history in an OLDER snapshot.
-3. **If material, union history across snapshots in `fmparser/mart.py`.** We keep every
+3. **If material, union history across snapshots in `fmstats/mart.py`.** We keep every
    snapshot's extract, so the data is recoverable — nothing currently unions it.
 4. Cheap standing check per import: singleton-chain count, to confirm the reserve is not
    shrinking toward exhaustion.

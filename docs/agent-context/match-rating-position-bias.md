@@ -159,6 +159,6 @@ values for that match against `docs/agent-context/match-position-encoding.md`.
 ## Possible follow-up
 
 Not implemented yet — this note is the design. Wiring `rating_vs_unit` / `rating_index` into
-`fmparser/mart.py` (a `mart.match_rating_baseline` table plus columns on a view) would make
+`fmstats/mart.py` (a `mart.match_rating_baseline` table plus columns on a view) would make
 the correction the default everywhere rather than something each analysis re-derives, and
 would let the season-review skill drop its position-biased awards.

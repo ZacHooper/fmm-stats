@@ -294,7 +294,7 @@ enforces the Danish Herre-DM rules ([`docs/danish-registration-rules.md`](docs/d
 on ourselves: a 25-man A-list needing 8 home grown of whom 4 club-trained (tiers 1–2 only), plus
 an unlimited B-list for players under 21 at the last new year. Home-grown status is **derived** —
 never report it as a fact the game asserts. The data layer is the registration family in
-`fmparser/mart.py` (`mart.squad_registration` for our squad, `mart.player_homegrown` for
+`fmstats/mart.py` (`mart.squad_registration` for our squad, `mart.player_homegrown` for
 everyone, `mart.player_training` for the club-by-club months); the derivation and its two
 deliberate departures from a literal reading are in
 [`docs/agent-context/homegrown-derivation.md`](docs/agent-context/homegrown-derivation.md) and
@@ -302,7 +302,7 @@ deliberate departures from a literal reading are in
 browser localStorage — it is a plan, not save data, and nothing writes it back.
 
 **`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `staging`
-table, no `main` view. Add a field to the site by adding it to `fmparser/mart.py` first. And
+table, no `main` view. Add a field to the site by adding it to `fmstats/mart.py` first. And
 because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
 is the regression test: a no-op export must produce a no-op diff.
 
@@ -320,7 +320,7 @@ is the regression test: a no-op export must produce a no-op diff.
   machine depend on numpy being installed outside uv. Bare `python3` still works here if the system
   interpreter happens to have numpy.
 - **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **Plain `uv sync` is lean on purpose** — `duckdb` + `pandas` only, which is everything the ETL, `fmq.py` (including `fmq.py scout`), and an agent skill scouting or querying the store need.
-- **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. It re-creates the mart views on the cached copy from this checkout's `fmparser/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
+- **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. It re-creates the mart views on the cached copy from this checkout's `fmstats/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
 - **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style). **`phase` = the save's
@@ -402,7 +402,7 @@ uv run python scripts/export_manifest.py                  # refresh the rebuild 
 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids
 
-# after editing fmparser/mart.py or load_duckdb.py's VIEWS — they are definitions, not data,
+# after editing fmstats/mart.py or load_duckdb.py's VIEWS — they are definitions, not data,
 # so they do not reach an existing store until something re-runs them
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 uv run python tests/validate_mart.py --db fm-frem.duckdb   # assert the mart's invariants

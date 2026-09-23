@@ -22,7 +22,7 @@ import, so `describe()` names the snapshot date alongside the source on every ru
 
 The `mart` schema is a layer of VIEW definitions over `staging`, so the published copy carries
 whatever definitions the publishing machine had. The cache is ours, so after each download —
-and whenever `fmparser/mart.py` changes — `open_store` re-creates the mart on it from this
+and whenever `fmstats/mart.py` changes — `open_store` re-creates the mart on it from this
 checkout's definitions. The data is untouched; only the views are. An explicit `--db` store is
 never modified: when it predates the current definitions, open_store says which command
 refreshes it.
@@ -39,7 +39,7 @@ from dataclasses import dataclass
 import duckdb
 
 from fmparser import careers
-from fmparser.mart import MACROS, ORDER, create_mart
+from fmstats.mart import MACROS, ORDER, create_mart
 from fmstats import state
 from fmstats.dbopen import open_readonly
 

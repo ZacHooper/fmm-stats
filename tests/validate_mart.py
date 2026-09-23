@@ -38,7 +38,7 @@ import sys
 import duckdb
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from fmparser.mart import create_mart  # noqa: E402
+from fmstats.mart import create_mart  # noqa: E402
 
 R2_KEY = "s3://fmm-stats/site-data/fm-frem.duckdb"
 

@@ -285,7 +285,7 @@ def cmd_table(st, a):
     if lt.nation != "Denmark":
         print(f"({lt.nation or 'this country'} is unverified: only Danish tables have been "
               "checked against the save's own final positions — see mart.league_tables in "
-              "fmparser/mart.py)")
+              "fmstats/mart.py)")
     if lt.split:
         print("(split league: group 1 ranks above group 2; points carried over)")
     else:

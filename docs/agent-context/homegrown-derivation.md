@@ -2,7 +2,7 @@
 
 **Status: SHIPPED (2026-08-30).** The Danish registration rules
 ([`docs/danish-registration-rules.md`](../danish-registration-rules.md)) are enforced as a house
-rule — FMM22 models none of it. Data layer: the registration family in `fmparser/mart.py`
+rule — FMM22 models none of it. Data layer: the registration family in `fmstats/mart.py`
 (`club_nations`, `youth_clubs`, `player_training`, `player_homegrown`, `registration_rules`,
 `squad_registration`). UI: the **Registration** section of the web app. User-facing explanation:
 [`site/guides/registration.md`](../../site/guides/registration.md).

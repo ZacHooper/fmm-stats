@@ -42,7 +42,7 @@ parses every file it writes and fails the build on a raw-ability key at any dept
 
 **The exporter reads only the `mart` schema.** Since 2026-08-25 `export_data.py` touches no
 `staging` table and no `main` view: the four snapshot-shape rules (latest-phase-per-season,
-snapshot-scoped joins, `person_id` not `tid`, 255-sentinel minutes) live in `fmparser/mart.py`
+snapshot-scoped joins, `person_id` not `tid`, 255-sentinel minutes) live in `fmstats/mart.py`
 and both the site and the Streamlit dashboard read them from there. Practical consequence: a
 change to `mart.py` does not reach a store until something re-runs it, so
 `uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb` after editing it (an import

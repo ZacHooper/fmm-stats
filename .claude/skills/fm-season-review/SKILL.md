@@ -25,7 +25,7 @@ their Football Manager save parsed via `fm-parser`.
 `match_player_stats` is a ring buffer that re-scrapes match history on every import. Summing
 across phases double-counts; joining `staging.players` on a bare `tid` multiplies every stat row
 by the number of snapshots the player appears in. `mart` applies all four rules once — see
-`fmparser/mart.py`. If `mart` is missing the store predates it: rebuild with
+`fmstats/mart.py`. If `mart` is missing the store predates it: rebuild with
 `uv run python load_duckdb.py …` (which now builds it) rather than working around it.
 
 **2. Appeared ≠ named in the squad**

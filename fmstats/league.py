@@ -2,7 +2,7 @@
 
 The rules — how a league's stages are identified, how a split league ranks, when a season
 counts as complete, and which countries' tables are verified — live with the view in
-fmparser/mart.py.
+fmstats/mart.py.
 """
 from dataclasses import dataclass
 

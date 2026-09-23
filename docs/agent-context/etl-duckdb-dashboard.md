@@ -28,7 +28,7 @@ Turkish ground-truth tests pass unchanged.
   `phase` (start/mid/end). Idempotent per-label DELETE+INSERT. No enforced PKs (ART index made
   bulk reload hang — natural keys are documented in comments, enforced by the loader). Ledger in
   `staging.extracts`. Label math lives in `extract.parse_label` / `auto_label`.
-- Transformed layer = the `mart` schema (fmparser/mart.py) plus three views in `main`
+- Transformed layer = the `mart` schema (fmstats/mart.py) plus three views in `main`
   (v_player_attributes, **v_player_ratings**, **v_player_rating_ranks**). `load_duckdb.py` drops
   v_match_results, v_league_table, v_top_scorers, v_ca_progression and v_transfers if present:
   they summed every snapshot of the match history (goal totals 2-3x), surfaced raw CA/PA, or read

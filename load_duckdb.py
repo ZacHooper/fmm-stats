@@ -34,7 +34,7 @@ from extract import parse_label
 from fmparser.model import ATTR_ORDER
 from fmparser import model as _A
 from fmparser import matches as M
-from fmparser.mart import create_mart, drop_mart
+from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
 # schema
@@ -1922,7 +1922,7 @@ def main():
     ap.add_argument("--refresh-only", action="store_true",
                     help="rebuild the SQL views, the mart layer AND the role-weight seeds "
                          "against an existing store, loading nothing. All three are just "
-                         "definitions, so a change to fmparser/mart.py, VIEWS or "
+                         "definitions, so a change to fmstats/mart.py, VIEWS or "
                          "seeds/role_weights.csv does not reach a store until something "
                          "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()

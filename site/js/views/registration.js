@@ -41,7 +41,7 @@ export async function view() {
       el("b", { text: "No registration data in this export" }),
       el("p.note", {
         html: "Re-run <code>uv run python scripts/export_data.py</code> — the registration "
-          + "family arrived in <code>fmparser/mart.py</code> after this export was built.",
+          + "family arrived in <code>fmstats/mart.py</code> after this export was built.",
       }),
     ]));
     return out;

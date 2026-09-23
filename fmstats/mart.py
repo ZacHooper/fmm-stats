@@ -52,7 +52,7 @@ Spell overlap semantics:
 """
 from __future__ import annotations
 
-from .model import ATTR_ORDER
+from fmparser.model import ATTR_ORDER
 
 # Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
 # out by role; the engine still stores all 23 for everyone, but the ones the role does not
@@ -100,7 +100,7 @@ GK_BLOCK = GK_ONLY_ATTRS
 
 
 from . import value_model as _vm
-from .matches import EVENT_TYPE as _EVENT_TYPE
+from fmparser.matches import EVENT_TYPE as _EVENT_TYPE
 
 # The event-type CASE, generated from the parser's own table so a byte named in
 # fmparser/matches.py reaches the mart on the next --refresh-only, with no re-extract. The
@@ -1157,7 +1157,7 @@ FROM base
 
 # Estimated transfer value for EVERY player, because the save stores a real one only for
 # the club we manage (the own-squad snapshot record does not exist for other clubs; see
-# fmparser/value_model.py for the three searches that establish this).
+# fmstats/value_model.py for the three searches that establish this).
 #
 # `value_gbp` is the real figure where the save has one and the model's estimate otherwise,
 # so a caller can just use it; `is_actual` says which, and `value_est` always holds the
@@ -1889,7 +1889,7 @@ LEFT JOIN mins m USING (person_id, season)
 # run_id derived from raw club_tid continuity, and player_growth_at_club's whole grouping
 # (`joined AS ... JOIN mart.club_runs cr`) would need to key on spell windows instead. Lower
 # priority than player_growth_tenure was: not read by export_data.py
-# today (grep confirms only fmparser/mart.py and scripts/publish_mart.py reference it), so
+# today (grep confirms only fmstats/mart.py and scripts/publish_mart.py reference it), so
 # nothing user-facing is currently corrupted by it — but a remote agent querying this mart
 # object directly would be.
 PLAYER_GROWTH_AT_CLUB = """

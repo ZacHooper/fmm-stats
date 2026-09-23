@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fit the player transfer-value model and print coefficients for `fmparser/value_model.py`.
+Fit the player transfer-value model and print coefficients for `fmstats/value_model.py`.
 
 WHY THIS EXISTS. The save stores a transfer value ONLY for the club you manage — it lives
 at `M+4` in the own-squad snapshot record (`fmparser/squad.py:attr_record`), and that
@@ -22,7 +22,7 @@ USAGE
     uv run python scripts/fit_value_model.py --db fm-frem.duckdb
     uv run python scripts/fit_value_model.py --compare           # also score rival specs
 
-Paste the printed COEF block into `fmparser/value_model.py` and re-run
+Paste the printed COEF block into `fmstats/value_model.py` and re-run
 `load_duckdb.py --refresh-only` so `mart.player_value_est` picks it up.
 
 READ THE LIMITS IN `docs/agent-context/player-value-estimation.md` BEFORE TRUSTING A NUMBER.
@@ -145,7 +145,7 @@ def main():
     print(f"  70% within       {np.quantile(berr, 0.7):.2f}x")
 
     beta = np.linalg.lstsq(design(d), d.y.values, rcond=None)[0]
-    print("\n# --- paste into fmparser/value_model.py ---")
+    print("\n# --- paste into fmstats/value_model.py ---")
     print(f"N_TRAIN, CV_R2, MEDIAN_ERR = {len(d)}, {score:.3f}, {np.median(err):.2f}")
     print("COEF = {")
     print(f'    "intercept": {float(beta[0])!r},')

@@ -287,7 +287,7 @@ and **every position mapping to it vanished from the ratings**: the first derive
 AML and AMR flat, and the squad's 13 AMLs and 10 AMRs had no fit rows at all, so the depth chart
 read "no player rated here" for two positions we are deep in.
 
-Fixed in both `fmparser/mart.py` (`PLAYER_ROLE_RATINGS`) and `load_duckdb.py`
+Fixed in both `fmstats/mart.py` (`PLAYER_ROLE_RATINGS`) and `load_duckdb.py`
 (`v_player_ratings`) — `combos` is now every method x every role from `position_role_map`. Existing
 methods all carry all ten roles, so the change is a no-op for them; `git diff site/api` after an
 export is the check.
