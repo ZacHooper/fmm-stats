@@ -45,7 +45,7 @@ analysis evaluates pure starters. This is narrower than rule 2 — awards use `a
 
 **4. The DuckDB Lock Rule**
 **[WHY]** A running Streamlit holds the write lock. Open read-only, or copy the store to the
-scratchpad first. `scripts/_dbopen.open_readonly(path, tag=...)` does this properly.
+scratchpad first. `fmstats.dbopen.open_readonly(path, tag=...)` does this properly.
 
 **5. The Mobile Output Rule**
 **[BAD]** *A 20-column markdown table of DataFrame output.*
@@ -55,12 +55,21 @@ scratchpad first. `scripts/_dbopen.open_readonly(path, tag=...)` does this prope
 **6. Never surface raw CA/PA** — house rule. Reason with attributes, role ratings and
 percentiles. Growth totals (`mart.player_growth*`) are attribute-derived and fine.
 
+**7. Rank across positions on the ADJUSTED rating**
+**[BAD]** *Player of the Season = highest raw `avg_rating`.*
+**[GOOD]** *Rank on `avg_rating_adj` (mart.player_seasons / mart.match_ratings); show the raw
+average beside it.*
+**[WHY]** The game's rating is position-biased: a DM rates ~0.47 below a central midfielder and a
+forward ~0.47 above one for the same performance, so a raw ranking is partly "who plays furthest
+forward". `rating_adj` restates each start on one scale, in the game's units. Raw stays the right
+number WITHIN a position. See `docs/plans/2026-09-23-match-rating-normalisation.md`.
+
 ## Python Script Template
 
 ```python
 import sys, duckdb, pandas as pd
-sys.path.insert(0, "scripts")
-from _dbopen import open_readonly
+sys.path.insert(0, ".")
+from fmstats.dbopen import open_readonly
 
 DB = "fm-frem.duckdb"          # or resolve via fmparser.careers
 SEASON = None                  # None = latest season with matches
@@ -105,31 +114,36 @@ print(con.execute(f"""
     GROUP BY formation ORDER BY games DESC
 """).df().to_string(index=False))
 
-# 2. POSITIONAL UNITS — pure starters only (rule 3)
-print("\n--- PLAYERS BY UNIT (10+ starts) ---")
+# 2. POSITIONAL UNITS — pure starters only (rule 3), grouped by the role actually played
+#    (mart.match_ratings.role, from the decoded position — never bucket pos_order, which is
+#    depth order and shifts with the shape). Within a unit compare either rating; the
+#    adjusted one is what makes a DM and a winger comparable (rule 7).
+print("\n--- PLAYERS BY ROLE (10+ starts) ---")
 print(con.execute(f"""
-    WITH nm AS (SELECT DISTINCT person_id, name FROM mart.player_spells)
-    SELECT CASE WHEN f.pos_order = 1 THEN 'GK'
-                WHEN f.pos_order IN (2,3) THEN 'Fullbacks'
-                WHEN f.pos_order IN (4,5) THEN 'Centerbacks'
-                WHEN f.pos_order IN (6,7,8,9) THEN 'Midfielders / Wingers'
-                WHEN f.pos_order IN (10,11) THEN 'Forwards' END AS unit,
-           nm.name, COUNT(*) AS starts, ROUND(AVG(f.rating),2) AS avg_rating,
+    WITH nm AS (SELECT person_id, any_value(name) AS name FROM mart.at_club_spells GROUP BY 1)
+    SELECT f.role, nm.name, COUNT(*) AS starts, ROUND(AVG(f.rating),2) AS avg_rating,
+           ROUND(AVG(f.rating_adj),2) AS avg_rating_adj,
            SUM(f.goals) AS goals, SUM(f.assists) AS assists, SUM(f.keyPass) AS key_passes,
            SUM(f.tackW + f.intercept) AS def_actions, SUM(f.mistakes) AS mistakes
-    FROM mart.match_player_facts f JOIN nm USING (person_id)
-    WHERE f.season = {SEASON} AND f.team_tid IN {OURS} AND f.started
-    GROUP BY unit, nm.name HAVING COUNT(*) >= 10
-    ORDER BY CASE unit WHEN 'GK' THEN 1 WHEN 'Centerbacks' THEN 2 WHEN 'Fullbacks' THEN 3
-                       WHEN 'Midfielders / Wingers' THEN 4 ELSE 5 END, avg_rating DESC
+    FROM mart.match_ratings f
+    JOIN mart.rating_roles r USING (position, role)
+    JOIN nm USING (person_id)
+    WHERE f.season = {SEASON} AND f.team_tid IN {OURS} AND f.started AND f.is_competitive
+    GROUP BY f.role, nm.name HAVING COUNT(*) >= 10
+    ORDER BY any_value(r.role_order), avg_rating_adj DESC
 """).df().to_string(index=False))
 
 # 3. AWARDS — appeared-only (rule 2). mart.player_seasons is per competition; roll it up.
 df = con.execute(f"""
-    WITH nm AS (SELECT DISTINCT person_id, name FROM mart.player_spells),
+    -- one name per person: mart.player_spells can carry a second, wrong name for a person
+    WITH nm AS (SELECT person_id, any_value(name) AS name FROM mart.at_club_spells GROUP BY 1),
     tot AS (
       SELECT person_id, SUM(apps) AS games, SUM(minutes) AS minutes,
              ROUND(SUM(avg_rating * apps) / NULLIF(SUM(apps),0), 2) AS avg_rating,
+             SUM(starts) AS starts,
+             ROUND(SUM(avg_rating_adj * starts) FILTER (WHERE avg_rating_adj IS NOT NULL)
+                   / NULLIF(SUM(starts) FILTER (WHERE avg_rating_adj IS NOT NULL), 0), 2)
+                   AS avg_rating_adj,
              SUM(goals) AS goals, SUM(assists) AS assists, SUM(key_passes) AS key_passes,
              SUM(headW) AS headers_won, SUM(dribbles) AS dribbles, SUM(passC) AS passes_completed,
              SUM(shotA) AS shots, SUM(intercept + tackW) AS def_actions,
@@ -144,9 +158,12 @@ df = con.execute(f"""
 
 top = lambda c: df.nlargest(1, c)[["name", c]].to_dict("records")
 print("\n--- AWARDS ---")
-print("Player of Season:", top("avg_rating"))
-u21 = df[df.age <= 21]
-print("Young Player (U21):", u21.nlargest(1, "avg_rating")[["name","avg_rating"]].to_dict("records"))
+# Ranked on the POSITION-ADJUSTED rating (rule 7), over players with 10+ starts. The raw
+# average is shown beside it because it is the number the manager saw in-game.
+rated = df[df.starts >= 10]
+best = lambda d: d.nlargest(1, "avg_rating_adj")[["name", "avg_rating_adj", "avg_rating", "starts"]].to_dict("records")
+print("Player of Season:", best(rated))
+print("Young Player (U21):", best(rated[rated.age <= 21]))
 for label, col in [("Golden Boot","goals"), ("Top Assister","assists"),
                    ("The Maestro (Key Passes)","key_passes"), ("Big Head (Headers)","headers_won"),
                    ("Quick Feet (Dribbles)","dribbles"), ("The Metronome (Passes)","passes_completed"),
@@ -181,7 +198,7 @@ print(con.execute(f"""
 
 # 5. THE STORMTROOPER — most shots, no goal, one match. Note the phase filter comes free.
 print("\nThe Stormtrooper:", con.execute(f"""
-    WITH nm AS (SELECT DISTINCT person_id, name FROM mart.player_spells)
+    WITH nm AS (SELECT person_id, any_value(name) AS name FROM mart.at_club_spells GROUP BY 1)
     SELECT nm.name, f.shotA, f.date FROM mart.match_player_facts f JOIN nm USING (person_id)
     WHERE f.season = {SEASON} AND f.team_tid IN {OURS} AND f.goals = 0 AND f.appeared
     ORDER BY f.shotA DESC LIMIT 1

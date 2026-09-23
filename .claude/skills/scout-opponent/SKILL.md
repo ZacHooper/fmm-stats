@@ -423,10 +423,12 @@ pace gap that justifies it, the in-behind runner, and who man-marks the aerial t
 
 **Before proposing a personnel change, split that player's OWN record BY POSITION.** Attributes say
 what a player could do; the match record says what he actually does in a given slot, and the two
-disagree often enough to flip a recommendation. It is a cheap query — dedup at match level first
-(one anchor per `(date, opponent_tid)`, newest snapshot first, `team_tid = 346`; see trap 4 in
-[`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md), because a raw
-`SUM` multiplies every total by 1–5×) then group by `season, position`. Two live findings it produced
+disagree often enough to flip a recommendation. It is one command:
+`uv run python fmq.py output --by-position --season <Y>` (or `mart.player_role_seasons`), which
+gives each player's starts per role with the raw AND position-adjusted rating. **Compare a player
+across roles on `rating_adj`, never raw** — the game rates a DM ~0.47 below a central midfielder
+for the same game — and compare two players in the same role on either. Read a role only on 5+
+starts. Two live findings it produced
 in one sitting:
 - **Chukwuani**: at MC in 2025, 27 apps, rating 7.33, 6 goals, 5 assists. At AMC in 2026, 8 apps,
   rating 6.75, **2.25 shots a game at 0.38 on target, zero goals, zero assists**. The manager's read

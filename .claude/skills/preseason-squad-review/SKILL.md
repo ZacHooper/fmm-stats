@@ -49,11 +49,18 @@ season:
 ```sql
 select person_id, sum(apps) apps, sum(starts) starts, sum(minutes) mins,
        round(sum(avg_rating*apps)/nullif(sum(apps),0),2) mr,
+       round(sum(avg_rating_adj*starts) filter (where avg_rating_adj is not null)
+             / nullif(sum(starts) filter (where avg_rating_adj is not null),0),2) mr_adj,
        sum(goals) g, sum(assists) a, sum(key_passes) kp
 from mart.player_seasons
 where season=<Y> and team_tid in (select club_tid from mart.managed_club)
 group by person_id
 ```
+> **`mr` is the game's rating, `mr_adj` the position-adjusted one.** Compare players in the same
+> slot on either; compare across positions (a DM against a winger, or where a versatile
+> midfielder is best) only on `mr_adj` — the game rates a DM ~0.47 below a central midfielder for
+> the same game. Per-role splits: `mart.player_role_seasons` / `fmq.py output --by-position`.
+>
 > Never aggregate `staging.match_player_stats` directly: it is a ring buffer re-scraped every
 > import, so summing without a phase filter multiplies every total by the number of snapshots in
 > that season. And an unused sub still gets a row carrying a flat **6.00** rating — average it in

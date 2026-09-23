@@ -156,12 +156,13 @@ holder, whereas in a back-3 it is a wing-back. The manager plans to run a 4-2-3-
 the position labels off the in-game stats screen to settle it; re-check the column-byte
 values for that match against `docs/agent-context/match-position-encoding.md`.
 
-## Possible follow-up
+## Implemented (2026-09-23)
 
-Not implemented yet — this note is the design. Wiring `rating_vs_unit` / `rating_index` into
-`fmstats/mart.py` (a `mart.match_rating_baseline` table plus columns on a view) would make
-the correction the default everywhere rather than something each analysis re-derives, and
-would let the season-review skill drop its position-biased awards.
+The correction is in the mart: `mart.match_ratings` carries `role` and `rating_adj` (game units,
+restated on the outfield scale rather than the 100/15 index above), `mart.player_role_seasons` the
+per-role split, and `mart.player_seasons.avg_rating_adj` the season figure. `fmq.py output
+--by-position` and the season-review awards read them. Design:
+[`docs/plans/2026-09-23-match-rating-normalisation.md`](../plans/2026-09-23-match-rating-normalisation.md).
 
 ## 2027-05 refresh — still true, plus what the DM rating actually measures
 

@@ -1,5 +1,8 @@
 # Match rating normalisation — two lenses on one number
 
+> **Status (2026-09-23): built** — Tasks 1–3 landed; Task 4 (publishing to R2 and the site) is
+> the next import's routine publish.
+>
 > **Goal:** make the position-adjusted match rating a first-class column in the mart, next to the
 > raw rating rather than instead of it, so every consumer (site, `fmq`, skills, season awards)
 > can use the right lens for the question without re-deriving the adjustment.
@@ -136,8 +139,9 @@ per-position average adjusted rating is `AVG(rating_adj)` grouped by role.
 - `mart.rating_roles`: the position → role map above, as a small `VALUES` table.
 - `mart.rating_baseline`: one row per role, with `n`, `mean`, `sd`, plus the outfield pool
   `mean`/`sd` the scale uses. Filters exactly as in section 2.
-- `mart.match_player_facts` gains `role` and `rating_adj`. Both are NULL where `position` is NULL.
-  The raw `rating` column is unchanged.
+- `mart.match_ratings` = `mart.match_player_facts` plus `role` and `rating_adj` (NULL where
+  `position` is NULL). A separate view rather than new columns on `match_player_facts`, because the
+  baseline is computed from `match_player_facts`. The raw `rating` column is unchanged.
 - `mart.player_role_seasons`: one row per (player, season, role) with starts, raw average and
   adjusted average. This is the table that answers "where does he play best". Friendlies are
   excluded, the same convention as `player_seasons`.

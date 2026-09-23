@@ -536,6 +536,7 @@ export const STAT_DEFS = {
   "Apps": (a) => a.apps, "Starts": (a) => a.starts, "Sub": (a) => a.apps - a.starts,
   "Min": (a) => a.min, "Min/gm": (a) => a.apps ? a.min / a.apps : null,
   "Rating": (a) => a.rating,
+  "Rating (adj)": (a) => a.ratingAdj,
   "Goals": (a) => a.goals, "Assists": (a) => a.assists, "G+A": (a) => a.goals + a.assists,
   "Key passes": (a) => a.keyPass, "Pass att": (a) => a.passA, "Tackle att": (a) => a.tackA,
   "Shot att": (a) => a.shotA, "Interceptions": (a) => a.intercept, "Dribbles": (a) => a.dribbles,
@@ -569,7 +570,7 @@ export const STAT_PRESETS = {
   "Midfielder": ["Passes/90", "Pass %", "KeyP/90", "A/90", "Tackles/gm", "TackW/90", "Int/90", "DefAct/90"],
   "Defender": ["TackW/90", "Tackle %", "Int/90", "HeadW/90", "Header %", "DefAct/90", "Pass %", "Mistakes/gm"],
   "Goalkeeper": ["Pass %", "Passes/90", "Mistakes/gm", "Yellows/gm"],
-  "Playing time": ["Apps", "Starts", "Sub", "Min", "Min/gm", "Rating"],
+  "Playing time": ["Apps", "Starts", "Sub", "Min", "Min/gm", "Rating", "Rating (adj)"],
 };
 
 export const ATTR_GROUPS = {
@@ -600,7 +601,7 @@ export function aggregate(rows) {
   for (const r of rows) {
     let a = out.get(r.tid);
     if (!a) {
-      a = { tid: r.tid, apps: 0, starts: 0, min: 0, _rsum: 0, _rn: 0 };
+      a = { tid: r.tid, apps: 0, starts: 0, min: 0, _rsum: 0, _rn: 0, _asum: 0, _an: 0 };
       for (const k of MATCH_SUMS) a[k] = 0;
       out.set(r.tid, a);
     }
@@ -608,9 +609,14 @@ export function aggregate(rows) {
     if (r.started) a.starts++;
     a.min += r.minutes || 0;
     if (r.rating != null) { a._rsum += r.rating; a._rn++; }
+    if (r.rating_adj != null) { a._asum += r.rating_adj; a._an++; }
     for (const k of MATCH_SUMS) a[k] += r[k] || 0;
   }
-  for (const a of out.values()) a.rating = a._rn ? a._rsum / a._rn : null;
+  for (const a of out.values()) {
+    a.rating = a._rn ? a._rsum / a._rn : null;
+    // Position-adjusted (mart.match_ratings): only positioned starts carry one.
+    a.ratingAdj = a._an ? a._asum / a._an : null;
+  }
   return out;
 }
 
