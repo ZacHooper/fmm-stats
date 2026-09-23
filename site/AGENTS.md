@@ -261,6 +261,11 @@ for a player's season goals can come back **10-20× too high**.
    (`MAX(phase)` works because phases are `YYYY-MM-DD` strings within a season here; the
    dashboard's own helper uses an `arg_max` that also tolerates the legacy `start/mid/end`
    words — see `dashboard/db.py::player_match_totals` for that fuller form.)
+   **This applies to `staging` only.** The `mart` match views are already deduplicated:
+   `mart.match_player_facts`, `mart.matches` and `mart.club_matches` keep one phase per season
+   (via `mart.chosen_match_phase`) and hold one row per player, or per club, per match;
+   `mart.match_events` is deduplicated by fixture. Do not add your own dedup on top. `mart.match_player_facts` also carries `name` from the same
+   snapshot, so it needs no name join at all.
 2. **`staging.players` is ALSO one row per snapshot, not one row per player.** A naive
    `JOIN staging.players p ON p.tid = m.tid` multiplies every stat row by however many snapshots
    that player appears in (16+ across this store's history) — the same 10-20× inflation as #1,

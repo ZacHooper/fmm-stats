@@ -108,6 +108,8 @@ from .matches import EVENT_TYPE as _EVENT_TYPE
 _EVENT_CASE = ("CASE ev.type_byte "
                + " ".join(f"WHEN {b} THEN '{n}'" for b, n in sorted(_EVENT_TYPE.items()))
                + " ELSE '?' || printf('%02x', ev.type_byte) END")
+# The red-card byte, from the same table, for ending a dismissed player's minutes.
+_RED_CARD_BYTE = next(b for b, n in _EVENT_TYPE.items() if n == "red_card")
 
 
 def _sum(attrs):
@@ -449,6 +451,14 @@ WITH ev AS (
     -- because they had since moved. Take his club in the season the match was played.
     SELECT season, tid, max_by(name, phase) AS name, max_by(club_tid, phase) AS club_tid
     FROM {S}.players WHERE NOT is_staff GROUP BY season, tid
+), lu AS (
+    -- The team each player was fielded for in that match, from the match's own lineup.
+    -- Unique on (date, tid). This is the authority for `side`: a player's club at the
+    -- season's last snapshot is wrong for anyone who moved mid-season.
+    SELECT DISTINCT m.date, s.tid, s.team_tid
+    FROM {S}.match_player_stats s
+    JOIN {S}.matches m USING (season, phase, anchor)
+    WHERE m.date IS NOT NULL
 )
 SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
        ev.date, ev.competition, ev.comp_id,
@@ -463,12 +473,15 @@ SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
        {event_case}                                       AS type,
        ev.type_byte,
        ev.tid, nm.name AS player,
-       -- which side the event belongs to, from the scorer's club at the time. NULL when the
-       -- player is no longer resolvable rather than guessed.
-       CASE WHEN nm.club_tid = ev.home_tid THEN 'home'
-            WHEN nm.club_tid = ev.away_tid THEN 'away' END        AS side,
+       -- The side of the PLAYER the event is about: the team he was fielded for in this
+       -- match's lineup, falling back to his club in that season when the lineup has no row
+       -- for him. For an own_goal that is the CONCEDING side. NULL when neither resolves.
+       CASE WHEN COALESCE(lu.team_tid, nm.club_tid) = ev.home_tid THEN 'home'
+            WHEN COALESCE(lu.team_tid, nm.club_tid) = ev.away_tid THEN 'away' END AS side,
+       -- The MATCH involves one of our clubs (true for every row today, since only our
+       -- matches carry events). Says nothing about which side the event is for -- use `side`.
        ev.home_tid IN (SELECT club_tid FROM mart.our_clubs)
-         OR ev.away_tid IN (SELECT club_tid FROM mart.our_clubs)  AS ours,
+         OR ev.away_tid IN (SELECT club_tid FROM mart.our_clubs)  AS our_match,
        -- Bucket on `minute` (INTEGER), never on `min_display` -- that one is VARCHAR and
        -- holds "45+2"/"90+4" for stoppage time, so arithmetic on it does not even bind.
        -- Stoppage-time goals land in the bucket of the half they belong to, which is what
@@ -476,6 +489,7 @@ SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
        CAST(LEAST(6, (LEAST(ev.minute, 90) - 1) / 15 + 1) AS INTEGER) AS quarter_hour
 FROM ev LEFT JOIN nm
        ON nm.tid = ev.tid AND nm.season = CAST(season_of(ev.date) AS INTEGER)
+LEFT JOIN lu ON lu.date = ev.date AND lu.tid = ev.tid
 """
 
 
@@ -776,7 +790,12 @@ WITH sides AS (
 )
 SELECT
     c.season, c.phase, c.anchor, c.club_tid,
-    m.date, m.competition, m.is_competitive, m.comp_id, m.formation, m.attendance,
+    m.date, m.competition, m.is_competitive, m.comp_id,
+    -- The save records only OUR side's shape, so it belongs on our row alone; the opponent's
+    -- row is NULL rather than a copy of our formation.
+    CASE WHEN c.club_tid IN (SELECT club_tid FROM mart.our_clubs) THEN m.formation END
+                                                                          AS formation,
+    m.attendance,
     CASE WHEN c.club_tid = m.home_tid THEN 'H' ELSE 'A' END               AS venue,
     CASE WHEN c.club_tid = m.home_tid THEN m.away_tid ELSE m.home_tid END AS opp_tid,
     COALESCE(oc.name, '#' || CASE WHEN c.club_tid = m.home_tid
@@ -944,6 +963,9 @@ SELECT
     s.season, s.phase, s.snap_ix, s.phase_date,
     p.tid, ps.person_id, p.name,
     p.club_tid, p.club, cl.league_cid, cl.league_name, cl.nation,
+    -- Natural positions with familiarity, as the save holds them: JSON, position -> familiarity.
+    -- mart.player_position_levels has the same pairs one row each, with Level %ile.
+    p.positions,
     p.dob,
     CASE WHEN p.dob IS NULL THEN NULL
          ELSE DATE_DIFF('year', p.dob, s.phase_date)
@@ -1204,6 +1226,10 @@ CREATE OR REPLACE VIEW mart.match_player_facts AS
 SELECT
     m.season, m.phase, m.anchor, m.side, m.tid,
     ps.person_id,
+    -- Name from the SAME snapshot as the stats row, so the join cannot multiply rows.
+    -- NULL for opposition players the save holds no person record for (no person_id
+    -- either), about a fifth of rows; nothing else in the store names them.
+    pl.name,
     m.team_tid, m.opponent_tid, m.date, m.competition,
     m.competition NOT ILIKE '%%friend%%'        AS is_competitive,
     m.pos_order, m.rating, m.goals, m.assists,
@@ -1226,13 +1252,21 @@ SELECT
     END                                          AS unit,
     m.pos_order <= 11                            AS started,
     m.pos_order <= 11 OR m.subOn <> 255          AS appeared,
+    -- On from subOn (or kick-off) until subOff (or 90), cut short by a red card.
+    -- subOn/subOff do not record a dismissal, so the red-card event is the only record
+    -- of a sent-off player's exit.
     CASE WHEN m.pos_order <= 11 OR m.subOn <> 255
-         THEN (CASE WHEN m.subOff = 255 THEN 90 ELSE m.subOff END)
+         THEN LEAST(CASE WHEN m.subOff = 255 THEN 90 ELSE m.subOff END,
+                    COALESCE(rc.red_min, 255))
             - (CASE WHEN m.subOn  = 255 THEN 0  ELSE m.subOn  END)
          ELSE 0 END                              AS minutes
 FROM {S}.match_player_stats m
 JOIN mart.chosen_match_phase USING (season, phase)
 LEFT JOIN {S}.person_slices ps USING (season, phase, tid)
+LEFT JOIN {S}.players pl USING (season, phase, tid)
+LEFT JOIN (SELECT season, phase, anchor, tid, MIN(minute) AS red_min
+           FROM {S}.match_events WHERE type_byte = {red_card_byte}
+           GROUP BY season, phase, anchor, tid) rc USING (season, phase, anchor, tid)
 """
 
 MATCHES = """
@@ -2847,7 +2881,7 @@ def create_mart(con, src="staging"):
         con.execute(stmt)
     for name, sql in ORDER:
         con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS,
-                               event_case=_EVENT_CASE))
+                               event_case=_EVENT_CASE, red_card_byte=_RED_CARD_BYTE))
     return [n for n, _ in ORDER]
 
 
