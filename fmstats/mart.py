@@ -52,7 +52,7 @@ Spell overlap semantics:
 """
 from __future__ import annotations
 
-from .model import ATTR_ORDER
+from .contract import ATTR_ORDER
 
 # Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
 # out by role; the engine still stores all 23 for everyone, but the ones the role does not
@@ -100,16 +100,6 @@ GK_BLOCK = GK_ONLY_ATTRS
 
 
 from . import value_model as _vm
-from .matches import EVENT_TYPE as _EVENT_TYPE
-
-# The event-type CASE, generated from the parser's own table so a byte named in
-# fmparser/matches.py reaches the mart on the next --refresh-only, with no re-extract. The
-# ELSE keeps the `?xx` shape the parser uses for a byte nobody has identified yet.
-_EVENT_CASE = ("CASE ev.type_byte "
-               + " ".join(f"WHEN {b} THEN '{n}'" for b, n in sorted(_EVENT_TYPE.items()))
-               + " ELSE '?' || printf('%02x', ev.type_byte) END")
-# The red-card byte, from the same table, for ending a dismissed player's minutes.
-_RED_CARD_BYTE = next(b for b, n in _EVENT_TYPE.items() if n == "red_card")
 
 
 def _sum(attrs):
@@ -464,13 +454,12 @@ SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
        ev.date, ev.competition, ev.comp_id,
        ev.home_tid, ev.away_tid,
        ev.minute, ev.added, ev.min_display,
-       -- The LABEL is derived from type_byte here, not read from
-       -- staging.match_events.type. That column is written at EXTRACT time, so naming
-       -- a byte would otherwise mean a 25-minute re-extract before the store agreed --
-       -- and until it did, solved bytes would still read as `?07`. The byte is the
-       -- fact; the name is a label, and a label belongs where --refresh-only can change
-       -- it. Generated from fmparser.matches.EVENT_TYPE so the two cannot drift.
-       {event_case}                                       AS type,
+       -- The LABEL comes from staging.event_types, not staging.match_events.type. That
+       -- column is written at EXTRACT time, so naming a byte would otherwise mean a
+       -- 25-minute re-extract before the store agreed. The loader seeds event_types from
+       -- the parser's table on every load and --refresh-only; an unnamed byte keeps the
+       -- `?xx` shape the parser uses.
+       COALESCE(et.name, '?' || printf('%02x', ev.type_byte)) AS type,
        ev.type_byte,
        ev.tid, nm.name AS player,
        -- The side of the PLAYER the event is about: the team he was fielded for in this
@@ -490,6 +479,7 @@ SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
 FROM ev LEFT JOIN nm
        ON nm.tid = ev.tid AND nm.season = CAST(season_of(ev.date) AS INTEGER)
 LEFT JOIN lu ON lu.date = ev.date AND lu.tid = ev.tid
+LEFT JOIN {S}.event_types et ON et.code = ev.type_byte
 """
 
 
@@ -1157,7 +1147,7 @@ FROM base
 
 # Estimated transfer value for EVERY player, because the save stores a real one only for
 # the club we manage (the own-squad snapshot record does not exist for other clubs; see
-# fmparser/value_model.py for the three searches that establish this).
+# fmstats/value_model.py for the three searches that establish this).
 #
 # `value_gbp` is the real figure where the save has one and the model's estimate otherwise,
 # so a caller can just use it; `is_actual` says which, and `value_est` always holds the
@@ -1265,7 +1255,8 @@ JOIN mart.chosen_match_phase USING (season, phase)
 LEFT JOIN {S}.person_slices ps USING (season, phase, tid)
 LEFT JOIN {S}.players pl USING (season, phase, tid)
 LEFT JOIN (SELECT season, phase, anchor, tid, MIN(minute) AS red_min
-           FROM {S}.match_events WHERE type_byte = {red_card_byte}
+           FROM {S}.match_events
+           WHERE type_byte IN (SELECT code FROM {S}.event_types WHERE name = 'red_card')
            GROUP BY season, phase, anchor, tid) rc USING (season, phase, anchor, tid)
 """
 
@@ -1889,7 +1880,7 @@ LEFT JOIN mins m USING (person_id, season)
 # run_id derived from raw club_tid continuity, and player_growth_at_club's whole grouping
 # (`joined AS ... JOIN mart.club_runs cr`) would need to key on spell windows instead. Lower
 # priority than player_growth_tenure was: not read by export_data.py
-# today (grep confirms only fmparser/mart.py and scripts/publish_mart.py reference it), so
+# today (grep confirms only fmstats/mart.py and scripts/publish_mart.py reference it), so
 # nothing user-facing is currently corrupted by it — but a remote agent querying this mart
 # object directly would be.
 PLAYER_GROWTH_AT_CLUB = """
@@ -2806,6 +2797,210 @@ LEFT JOIN {S}.player_loans l
   ON (l.season, l.phase, l.tid) = (p.season, p.phase, p.tid)
 """
 
+# --- analysis views: the answers fmq and the scouting skills ask for most -------------
+
+# A player's primary position at a snapshot: the one he is most familiar with, then the one
+# he is best at (Level %ile), then alphabetical so a full tie still resolves the same way
+# every time. Method-independent on purpose — ranking a player's own positions by a tactic
+# rating picks whichever role that tactic weights most heavily, not where he plays — so it
+# can be materialised and published, which the method-dependent rating layer cannot.
+PLAYER_PRIMARY_POSITION = """
+CREATE OR REPLACE VIEW mart.player_primary_position AS
+SELECT season, phase, snap_ix, tid, person_id, name, club_tid, club, league_cid,
+       position, role, familiarity, level_league, level_nation, level_global
+FROM mart.player_position_levels
+QUALIFY ROW_NUMBER() OVER (PARTITION BY season, phase, tid
+                           ORDER BY familiarity DESC, level_league DESC NULLS LAST,
+                                    position) = 1
+"""
+
+# Head-to-head records from the match record, one row per (club, opponent, venue) with an
+# 'all' row alongside H and A. Competitive matches only — a friendly says nothing about a
+# fixture. Covers every club the store has matches for, which is every club we or our
+# reserves have played; mart.club_matches already holds each match once.
+HEAD_TO_HEAD = """
+CREATE OR REPLACE VIEW mart.head_to_head AS
+SELECT club_tid, opp_tid,
+       COALESCE(venue, 'all')                         AS venue,
+       any_value(opponent)                            AS opponent,
+       COUNT(*)                                       AS played,
+       COUNT(*) FILTER (WHERE result = 'W')           AS w,
+       COUNT(*) FILTER (WHERE result = 'D')           AS d,
+       COUNT(*) FILTER (WHERE result = 'L')           AS l,
+       SUM(gf)::INTEGER                               AS gf,
+       SUM(ga)::INTEGER                               AS ga,
+       SUM(pts)::INTEGER                              AS pts,
+       ROUND(AVG(pts), 2)                             AS ppg,
+       MIN(date)                                      AS first_date,
+       MAX(date)                                      AS last_date
+FROM mart.club_matches
+WHERE is_competitive
+GROUP BY GROUPING SETS ((club_tid, opp_tid, venue), (club_tid, opp_tid))
+"""
+
+# League tables rebuilt from the world fixture list, every league in every season it holds.
+#
+# A league is identified by its STAGES, not by a competition id: its regular stage is a
+# multi-round stage at stage_index 0 (`league_key`), and a split league's championship and
+# relegation groups are the other multi-round stages that season whose every club, home and
+# away, was a member of it. Cup and European ties between the same clubs are single-round
+# stages and fall out. A split league ranks group 1 above group 2 with points carried over.
+# Cup group stages are multi-round stage-0 stages too, so a stage only counts as a league when
+# its clubs are at least 80% of that league's membership (mart.club_leagues at the season's
+# last snapshot) — a four-club group drawn from one division is not that division's table.
+#
+# The fixture list holds only games played by the snapshot date, so the store's newest
+# season is a table AS OF that date. `complete` is true for every earlier season and, for
+# the newest, only when every club has played as many league games as clubs did the season
+# before.
+#
+# VERIFIED FOR DENMARK ONLY. Against the save's own record of each club's finish
+# (mart.clubs.last_league_pos at the next season's first snapshot), every Danish table in every
+# completed season agrees, split leagues and reserve groups included (tests/validate_mart.py).
+# Elsewhere agreement is partial — England 71 of 101 tables, Germany 19 of 22, Spain 0 of 39 —
+# and which side is wrong is not established; see docs/TODO.md. Filter on `nation`.
+LEAGUE_TABLES = """
+CREATE OR REPLACE VIEW mart.league_tables AS
+WITH multi AS (
+    SELECT f.* FROM mart.world_club_fixtures f
+    JOIN (SELECT stage_key, subr, max(num_rounds) AS num_rounds
+          FROM mart.fixture_stages GROUP BY stage_key, subr) st USING (stage_key, subr)
+    WHERE st.num_rounds > 1 AND f.result IS NOT NULL
+),
+base AS (
+    SELECT DISTINCT season_year, stage_key AS league_key FROM multi WHERE stage_index = 0
+),
+members AS (
+    SELECT DISTINCT b.season_year, b.league_key, m.club_tid
+    FROM base b JOIN multi m
+      ON m.season_year = b.season_year AND m.stage_key = b.league_key
+),
+stage_fit AS (
+    SELECT b.season_year, b.league_key, m.stage_key,
+           bool_and(mc.club_tid IS NOT NULL AND mo.club_tid IS NOT NULL) AS inside
+    FROM base b
+    JOIN multi m ON m.season_year = b.season_year
+    LEFT JOIN members mc ON (mc.season_year, mc.league_key, mc.club_tid)
+                          = (b.season_year, b.league_key, m.club_tid)
+    LEFT JOIN members mo ON (mo.season_year, mo.league_key, mo.club_tid)
+                          = (b.season_year, b.league_key, m.opp_tid)
+    GROUP BY b.season_year, b.league_key, m.stage_key
+),
+games AS (
+    SELECT s.league_key, m.*
+    FROM stage_fit s
+    JOIN multi m ON (m.season_year, m.stage_key) = (s.season_year, s.stage_key)
+    WHERE s.inside
+),
+tbl AS (
+    SELECT season_year, league_key, club_tid, any_value(club) AS club,
+           COALESCE(min(stage_index) FILTER (WHERE stage_index > 0), 0) AS grp,
+           COUNT(*) AS p,
+           COUNT(*) FILTER (WHERE result = 'W') AS w,
+           COUNT(*) FILTER (WHERE result = 'D') AS d,
+           COUNT(*) FILTER (WHERE result = 'L') AS l,
+           SUM(gf)::INTEGER AS gf, SUM(ga)::INTEGER AS ga,
+           (SUM(gf) - SUM(ga))::INTEGER AS gd, SUM(pts)::INTEGER AS pts
+    FROM games GROUP BY season_year, league_key, club_tid
+),
+shape AS (
+    SELECT season_year, league_key, min(p) AS min_p, max(p) AS max_p,
+           max(grp) > 0 AS split
+    FROM tbl GROUP BY season_year, league_key
+),
+done AS (
+    SELECT s.season_year, s.league_key,
+           s.season_year < (SELECT max(season_year) FROM multi)
+           OR (s.min_p = s.max_p AND s.max_p = prev.max_p)   AS complete,
+           prev.max_p                                         AS games_expected
+    FROM shape s
+    LEFT JOIN shape prev
+           ON (prev.season_year, prev.league_key) = (s.season_year - 1, s.league_key)
+),
+named AS (
+    SELECT m.season_year, m.league_key, COUNT(*) AS n_clubs,
+           mode(cl.league_cid) AS league_cid, mode(cl.league_name) AS league_name,
+           mode(cl.nation) AS nation
+    FROM members m
+    JOIN mart.snapshots sn ON sn.season = m.season_year + 1 AND sn.is_latest_in_season
+    JOIN mart.club_leagues cl
+      ON (cl.season, cl.phase, cl.club_tid) = (sn.season, sn.phase, m.club_tid)
+    GROUP BY m.season_year, m.league_key
+),
+league_size AS (
+    SELECT sn.season - 1 AS season_year, cl.league_cid, COUNT(*) AS n_members
+    FROM mart.snapshots sn
+    JOIN mart.club_leagues cl USING (season, phase)
+    WHERE sn.is_latest_in_season
+    GROUP BY sn.season, cl.league_cid
+),
+leagues AS (
+    SELECT n.* FROM named n
+    JOIN league_size z USING (season_year, league_cid)
+    WHERE n.n_clubs >= 0.8 * z.n_members
+)
+SELECT t.season_year + 1 AS season, t.season_year, t.league_key,
+       n.league_cid, n.league_name, n.nation,
+       ROW_NUMBER() OVER (PARTITION BY t.season_year, t.league_key
+                          ORDER BY t.grp, t.pts DESC, t.gd DESC, t.gf DESC, t.club)
+           AS pos,
+       t.club_tid, t.club, t.p, t.w, t.d, t.l, t.gf, t.ga, t.gd, t.pts,
+       t.grp AS "group", sh.split, d.complete, d.games_expected
+FROM tbl t
+JOIN shape sh USING (season_year, league_key)
+JOIN done d USING (season_year, league_key)
+JOIN leagues n USING (season_year, league_key)
+"""
+
+# Every club's genuine squad at the newest snapshot — the all-clubs sibling of squad_current.
+# Our clubs come from mart.squad_current (the club's squad array, which keeps a loanee whose
+# spell lapsed at a season boundary and was renewed after it); every other club comes from
+# mart.snapshot_squad (spells), since a squad array is only read for clubs whose record parsed.
+CLUB_SQUAD_LATEST = """
+CREATE OR REPLACE VIEW mart.club_squad_latest AS
+WITH latest AS (SELECT season, phase, phase_date FROM mart.snapshots
+                ORDER BY snap_ix DESC LIMIT 1)
+SELECT l.season, l.phase, l.phase_date, sc.club_tid, sc.person_id, sc.tid, sc.name,
+       sc.is_loan_in, 'squad_array' AS source
+FROM mart.squad_current sc CROSS JOIN latest l
+UNION ALL
+SELECT ss.season, ss.phase, ss.phase_date, ss.club_tid, ss.person_id, ss.tid, ss.name,
+       ss.is_loan_in, 'spells'
+FROM mart.snapshot_squad ss JOIN latest l USING (season, phase)
+WHERE ss.club_tid NOT IN (SELECT club_tid FROM mart.our_clubs)
+"""
+
+# Each player's competitive output against each opponent, one row per (person, his club,
+# opponent). Aggregated before the name is attached: mart.at_club_spells has one row per
+# spell, so joining it first multiplies every total by the player's spell count. Covers every
+# match the store holds, so both sides of every fixture we played — which is what answers
+# "who has hurt us" (team_tid = them, opponent_tid = us).
+PLAYER_VS_CLUB = """
+CREATE OR REPLACE VIEW mart.player_vs_club AS
+WITH tot AS (
+    SELECT person_id, team_tid, opponent_tid,
+           COUNT(*)              AS apps,
+           SUM(started::INT)     AS starts,
+           SUM(minutes)          AS minutes,
+           SUM(goals)            AS goals,
+           SUM(assists)          AS assists,
+           SUM(keyPass)          AS key_passes,
+           SUM(shotA)            AS shots,
+           SUM(shotO)            AS on_target,
+           SUM(crossC)           AS crosses_completed,
+           SUM(dribbles)         AS dribbles,
+           ROUND(AVG(rating), 2) AS avg_rating,
+           MIN(date)             AS first_played,
+           MAX(date)             AS last_played
+    FROM mart.match_player_facts
+    WHERE is_competitive AND appeared AND person_id IS NOT NULL
+    GROUP BY person_id, team_tid, opponent_tid
+),
+nm AS (SELECT person_id, any_value(name) AS name FROM mart.at_club_spells GROUP BY person_id)
+SELECT tot.person_id, nm.name, tot.* EXCLUDE (person_id)
+FROM tot LEFT JOIN nm USING (person_id)
+"""
+
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
     ("mart.role_weights", ROLE_WEIGHTS),
@@ -2816,6 +3011,7 @@ ORDER = [
     ("mart.match_player_facts", MATCH_PLAYER_FACTS),
     ("mart.matches", MATCHES),
     ("mart.club_matches", CLUB_MATCHES),
+    ("mart.head_to_head", HEAD_TO_HEAD),
     ("mart.managed_club", MANAGED_CLUB),
     ("mart.reserve_clubs", RESERVE_CLUBS),
     ("mart.club_leagues", CLUB_LEAGUES),
@@ -2823,6 +3019,7 @@ ORDER = [
     ("mart.world_fixtures", WORLD_FIXTURES),
     ("mart.world_club_fixtures", WORLD_CLUB_FIXTURES),
     ("mart.fixture_stages", FIXTURE_STAGES),
+    ("mart.league_tables", LEAGUE_TABLES),
     ("mart.club_attendance", CLUB_ATTENDANCE),
     ("mart.match_events", MATCH_EVENTS),
     ("mart.competitions", COMPETITIONS),
@@ -2840,6 +3037,7 @@ ORDER = [
     ("mart.our_loanees_out", OUR_LOANEES_OUT),
     ("mart.player_snapshots", PLAYER_SNAPSHOTS),
     ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
+    ("mart.player_primary_position", PLAYER_PRIMARY_POSITION),
     ("mart.player_value_est", PLAYER_VALUE_EST),
     ("mart.player_career_seasons", PLAYER_CAREER_SEASONS),
     # base -> youth_clubs -> player_origin: the academy->parent vote is derived FROM origin, so
@@ -2859,6 +3057,8 @@ ORDER = [
     ("mart.squad_on", SQUAD_ON),
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
+    ("mart.club_squad_latest", CLUB_SQUAD_LATEST),
+    ("mart.player_vs_club", PLAYER_VS_CLUB),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
     ("mart.player_growth_season", PLAYER_GROWTH_SEASON),
@@ -2880,8 +3080,7 @@ def create_mart(con, src="staging"):
     for stmt in MACROS:
         con.execute(stmt)
     for name, sql in ORDER:
-        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS,
-                               event_case=_EVENT_CASE, red_card_byte=_RED_CARD_BYTE))
+        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS))
     return [n for n, _ in ORDER]
 
 

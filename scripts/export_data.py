@@ -43,7 +43,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
-import _dbopen                                                          # noqa: E402
+from fmstats import dbopen as _dbopen                                     # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 # Absolute, because an agent that only ever saw index.json (no page it was linked from) has no
@@ -308,7 +308,7 @@ def main():
         return n
 
     # ---------------------------------------------------------------- reference tables
-    # Everything here comes from mart.* — see fmparser/mart.py. The three queries this
+    # Everything here comes from mart.* — see fmstats/mart.py. The three queries this
     # replaced each carried their own copy of the club->league arg_max CTE, and the two in
     # this file were the wrong copies: no `ord <=` bound, and a sort key built from the raw
     # `phase` column. mart.club_leagues resolves as-at, once.
@@ -422,7 +422,7 @@ def main():
             "status": {str(int(t)): s for t, s in status.items()},
             "loaned_in": loaned_in,
             # The spell-derived squad, not "club_tid IN ours.clubs" — a loan-in whose
-            # loaned_in flag stuck (see fmparser/mart.py's AT_CLUB "SECOND GHOST" note) still
+            # loaned_in flag stuck (see fmstats/mart.py's AT_CLUB "SECOND GHOST" note) still
             # shows club_tid = ours in the raw per-snapshot player_rows below (that row is
             # accurate: the byte marker really does still list him there), but he is not
             # actually on the books any more. `sq` is already the mart.squad_on(phase)-based
@@ -513,7 +513,7 @@ def main():
 
     # ---------------------------------------------------------------- forecast.json
     # Given his CURRENT value of an attribute and his age, what will it be at 21 / 24? Built
-    # entirely from mart.attribute_forecast (fmparser/mart.py) — a lookup keyed on
+    # entirely from mart.attribute_forecast (fmstats/mart.py) — a lookup keyed on
     # (attribute, age_now, value_now, horizon_age), not a fitted formula: growth turned out to
     # be a level phenomenon (current value predicts future value directly, R^2=0.85 for
     # Crossing) rather than a rate one, so there is no coefficient to ship, just the empirical
@@ -554,7 +554,7 @@ def main():
 
     # ---------------------------------------------------------------- registration.json
     # The squad-registration house rule (docs/danish-registration-rules.md). FMM models none
-    # of this, so every field here is derived — see fmparser/mart.py's registration family for
+    # of this, so every field here is derived — see fmstats/mart.py's registration family for
     # how "home grown" is recovered from origin clubs, career history and our own spells.
     #
     # Built from mart.player_homegrown at the REQUESTED snapshot rather than from

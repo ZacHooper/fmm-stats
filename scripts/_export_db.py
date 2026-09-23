@@ -1,7 +1,7 @@
 """Standalone database and positions review helpers for site data export.
 
 Decoupled from the retired Streamlit dashboard so scripts/export_data.py has zero dependencies
-on dashboard/ or streamlit. Reads solely from DuckDB (via _dbopen).
+on dashboard/ or streamlit. Reads solely from DuckDB (via fmstats.dbopen).
 """
 import datetime
 import duckdb

@@ -7,7 +7,7 @@
 over `staging`. That stays. This is the companion artefact for the far commoner case: someone
 wants to ANALYSE the career, not re-derive it, and every correctness rule they'd otherwise
 have to remember (latest-phase-per-season, snapshot-scoped joins, person_id-not-tid, the
-255-sentinel minutes arithmetic) is already baked into the mart. See fmparser/mart.py.
+255-sentinel minutes arithmetic) is already baked into the mart. See fmstats/mart.py.
 
 WHY IT IS SMALL — and why the obvious approach makes it BIGGER
 --------------------------------------------------------------
@@ -48,7 +48,7 @@ before upload.
 READING player_attribute_growth: FILTER ON is_gk_attr
 -----------------------------------------------------
 The engine stores all 23 attributes for everyone, but the ones a player's role does not use
-sit pinned in a low band and only jitter (see fmparser/mart.py's role/attribute table). The
+sit pinned in a low band and only jitter (see fmstats/mart.py's role/attribute table). The
 table ships `is_gk_attr` so you can exclude them; it does NOT pre-filter, because keepers
 legitimately use all 23. A bare `ORDER BY delta DESC` therefore surfaces noise — in this
 career, 52 rows are outfielders drifting on keeper attributes. Join to `mart.player_growth`
@@ -85,8 +85,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
-import _dbopen                                                          # noqa: E402
-from fmparser.mart import create_mart, ORDER, MACROS, SQUAD_ON          # noqa: E402
+from fmstats import dbopen as _dbopen                                     # noqa: E402
+from fmstats.mart import create_mart, ORDER, MACROS, SQUAD_ON          # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 
@@ -133,6 +133,7 @@ SCOPE = {
     # is for.
     "player_snapshots": NEWEST_ONLY,
     "player_position_levels": NEWEST_ONLY,
+    "player_primary_position": NEWEST_ONLY,
     "player_origin_base": NEWEST_ONLY,
     "player_origin": NEWEST_ONLY,
     "player_career_seasons": NEWEST_ONLY,
@@ -169,7 +170,7 @@ UNPUBLISHED = {
 # remote agent waits five minutes for an ATTACH.
 #
 # This is NOT a constant to set once. `mart.snapshot_squad` is deliberately unscoped across
-# BOTH every club and every snapshot (see fmparser/mart.py) — it's the general-purpose
+# BOTH every club and every snapshot (see fmstats/mart.py) — it's the general-purpose
 # "who was on whose books, as of any past date" primitive — so it grows by roughly one
 # snapshot's worth of the world's players (~24k rows) every time this is published, forever,
 # even though every other big table here is pinned to the newest snapshot only and stays flat.

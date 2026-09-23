@@ -18,13 +18,20 @@ deployed site's JSON, works from anywhere.
 
 ## The engine already exists — call it, don't re-derive it
 
-`db.scout_report(opp_tid, season, phase, method)` (`dashboard/db.py`) is the shared engine behind
-`fmq.py scout <team>` and the Streamlit **Team scout** tab. It already does every
+`scout.scout_report(st, opp_tid, method=None)` (`fmstats/scout.py`, where `st` is an open
+`fmstats.store.Store`) is the shared engine behind `fmq.py scout <team>`. It already does every
 correctness-sensitive pull this report needs, so **this skill's job is to call it once and write
 the narrative, not to hand-roll SQL that re-derives what it already gets right**:
 
-- **H2H** via `our_match_history()` — latest phase per season already picked (the match table is a
-  ring buffer; a naive scan across every snapshot double-counts).
+- **H2H** via `match_history()` over `mart.club_matches` — one row per match (the match table is a
+  ring buffer; a naive scan across every snapshot double-counts), with per-venue records in
+  `rep["h2h"]["H"]` / `["A"]`.
+- **Who has actually hurt us** via `h2h_players()` → `rep["h2h_players"]` — each opponent player's
+  goals, assists, key passes and shots in matches against us, with `still_there`. **Read it before
+  the threat section, not after.** Level %ile ranks QUALITY, not output: against OB it put Ely,
+  Nørgaard and Weiss top while the men who had actually hurt us were Nielsen (5 goals, Level 53) and
+  Þrándarson (11 key passes, Level 23) — a briefing built on the ranking alone called Nielsen the
+  back-up striker. The auto-read flags anyone still there with 2+ goals and assists against us.
 - **Squad strength** via `squad_frame()`/`team_strength()` — position-normalised best-XI index,
   both clubs, one coherent frame so unit and attribute reads use the same players.
 - **Matchups** via `matchup_table()` (new) — the pairing that actually meets on the pitch: our
@@ -38,7 +45,7 @@ the narrative, not to hand-roll SQL that re-derives what it already gets right**
   and the right ranking for our own squad (`squad_key_players` defaults to it there), but the wrong
   one for judging an opponent, who almost certainly doesn't run our tactic. Level %ile is
   CA-derived and immersion-safe already (it's the one sanctioned CA export) and it's what
-  `scout_report` now ranks their `key_players`/danger men by.
+  `scout_report` ranks their `key_players` by — which is exactly why `h2h_players` sits beside it.
 - **Auto-read** via `_scout_flags()` — bogey-side / we-own-them H2H calls, the same face-off
   matchup edges, danger men (Level %ile), and their defensive soft spots (a fixed threshold list),
   plus a `⚠️ PARTIAL DATA` flag when the frame doesn't reach 11 rated players. **This already covers
@@ -52,22 +59,23 @@ the narrative, not to hand-roll SQL that re-derives what it already gets right**
   Aerial 5 was ONE full-back standing in for a back four. Acting on it means bombarding the box: 21
   crosses, 17 headers won to 7, six corners to nil, one goal, lost 1-3. H2H survives the suppression
   because it comes from match history, not the squad frame.
-  **`resolve_club`'s `n_players` is NOT coverage** — it read 59 for that same Hajduk side while the
-  frame had 2. It counts across labels/snapshots; `rep["coverage"]` is the only honest answer.
+  **`resolve_club`'s `n_players` is NOT coverage** — it is `mart.clubs.squad_size` (ownership, all
+  snapshots of the save); `rep["coverage"]` is the only honest answer to "how many are rated".
 
 Writing your own query for any of this reopens exactly the traps these helpers exist to close —
 ring-buffer double counts, `tid` recycling across snapshots, a raw `club_tid` filter that still
 matches a player whose loan lapsed without clearing, and (new) rating an opponent by how well they'd
 fit a tactic they don't play. If a report needs something `scout_report` doesn't return (e.g. a
-deeper individual-attribute cut), pull that one extra thing with `db.q(...)` — don't re-derive what's
-already there.
+deeper individual-attribute cut), pull that one extra thing with `st.con.execute(...)` — don't
+re-derive what's already there. `fmq.py output --club <them> --vs <us>` is the same producers table
+from the CLI, and `fmq.py matches --opp <them>` the head-to-head.
 
-**`fmq.py scout <team> [--venue H|A --formation "..." --style "..." --note "..."]`** is the CLI
-form of the same call and — unless `--no-save` — writes the result into the R2-synced scout log
-(`state/scouts/`, via `db.save_scout`). That log is worth using: it's a season's worth of "what we thought going in," so a scout for a team you've
+**`fmq.py scout <team> [--venue H|A --fixture <date> --formation "..." --style "..." --note "..."]`**
+is the CLI form of the same call and — unless `--no-save` — writes the result into the R2-synced
+scout log (`state/scouts/`, via `scout.save_scout`). That log is worth using: it's a season's worth of "what we thought going in," so a scout for a team you've
 faced before can open by saying what the last read was and whether it still holds. Call
-`db.scout_report()` directly for the briefing (you need the DataFrames, not printed text) but still
-call `db.save_scout(rep, venue=..., formation=..., style=..., note=..., fixture=...)` yourself
+`scout.scout_report()` directly for the briefing (you need the DataFrames, not printed text) but still
+call `scout.save_scout(st, rep, venue=..., formation=..., style=..., note=..., fixture=...)` yourself
 afterward so this report lands in the same log the CLI would write. **Always pass `fixture` — the
 match date, straight off the Next Match screen** (`fixture="2026-04-20"`). It is what separates the
 home and away meetings of the same opponent: the key used to be `(opponent_tid, snapshot_label)`
@@ -147,16 +155,15 @@ The two reads that do need care are about football, not decode error:
 Full write-up: [`scouting-attribute-reads`](../../../docs/agent-context/scouting-attribute-reads.md).
 
 ## Resolve the career context first (do NOT hardcode)
-Everything below is parameterised off the active career — pull these from `db`, don't assume Bucaspor:
-- **Us** = `db.MANAGED_CLUB_TID` (first team) + `db.OUR_CLUBS` (adds the reserve tid). e.g. Frem =
+Everything below is parameterised off the active career — pull these from `st`, don't assume Bucaspor:
+- **Us** = `st.career.managed_tid` (first team) + `st.career.reserve_tid`. e.g. Frem =
   346 (+7296 reserves); Bucaspor = 6567 (+11320).
-- **Snapshot** — `S, P = db.latest_snapshot()` (backed by `mart.snapshots.snap_ix`, already
+- **Snapshot** — `st.season, st.phase` (the latest row of `mart.snapshots` by `snap_ix`, already
   chronological across seasons/phases — don't hand-roll a `max(phase)` or a `phase_key` sort).
-- **Our rating basis** — for Frem pass **`frem_minmax_4231`** explicitly, to match the 4-2-3-1 we
-  actually play. **Do not inherit `db.config().get("default_method")`**: it still returns
-  `frem_attacking_ss` (`seeds/config_bundle.json`), which is the dashboard/site default but no
-  longer our tactic, and `scout_report(method=None)` resolves to that same stale value. Bucaspor
-  (archived) → `buca_433`. The method only decides how players are RATED — the game plan is a shape
+- **Our rating basis** — `scout_report` defaults to the career's `rating_method`
+  (`fmparser/careers.py`): **`frem_minmax_4231`** for Frem, matching the 4-2-3-1 we actually play;
+  `buca_433` for archived Bucaspor. `app_config.default_method` still reads `frem_attacking_ss`,
+  the site's display default — not our tactic, so don't pass it. The method only decides how players are RATED — the game plan is a shape
   plus settings, see the game-plan section below.
 - **Our identity** — read it off `rep["strength"]`/`rep["unit_attrs"]` means, don't recite a fixed
   line; the squad has turned over heavily and the old "strong Creativity/Shooting" read is dated.
@@ -166,11 +173,11 @@ Everything below is parameterised off the active career — pull these from `db`
   gap as if it were solid.
 
 ## Inputs to establish first
-- **Opponent** — `matches = db.resolve_club(name_or_tid)`. Diacritic/Turkish-insensitive
-  substring match, sorted by squad size descending, so a same-named **Reserves** side (smaller
-  squad) already sorts below the first team — take `matches.iloc[0]` unless it's genuinely
-  ambiguous (`len(matches) > 1` with comparable squad sizes), in which case list the candidates and
-  ask.
+- **Opponent** — `matches = scout.resolve_club(st, name_or_tid)`. Diacritic-insensitive; ranks
+  an exact name, then initials ("OB", "FCK", "AGF"), then a name starting with the query, then a
+  later word, then a substring; within a tier domestic clubs first, then squad size, so a
+  **Reserves** side sorts below its first team. Take `matches.iloc[0]` unless it's genuinely
+  ambiguous (several domestic clubs in the same `tier`), in which case list them and ask.
 - **Manager, formation & Style — read automatically, no ask required.** `rep["manager"]`
   (`opponent_manager()`/`mart.club_managers`, one row per club per snapshot) names who is in
   charge and gives his **preferred / attacking / defensive formation** plus a derived **Style**
@@ -263,13 +270,13 @@ Everything below is parameterised off the active career — pull these from `db`
   alone said "clear underdogs" — true for the attribute profile, false for the season.
 
 ## Check for a prior scout — this is calibration now, not just prediction
-Before pulling fresh data: `s = db.load_scouts(); s = s[s.opponent_tid == OPP]` (or
-`uv run python fmq.py scouts`). If a saved report exists for this opponent, open the briefing with
+Before pulling fresh data: `s = scout.load_scouts(); s = s[s.opponent_tid == OPP]` (or
+`uv run python fmq.py scouts --opp <team>`). If a saved report exists for this opponent, open the briefing with
 what it said (index gap, method planned, any note) and whether it still holds — squad, tactic and
 even our own personnel may have moved since. If nothing's saved, say so and proceed; this scout
 will be the first entry once you save it.
 
-**Re-save a scout when its reasoning changes, not just when the fixture does.** `db.save_scout`
+**Re-save a scout when its reasoning changes, not just when the fixture does.** `scout.save_scout`
 does **not** append — it replaces the record at `(opponent_tid, snapshot_label)`. It used to replace
 *everything*, which cost four fixtures their pre-match briefing; it now carries the post-match half
 forward and files the superseded prediction into `revisions`, so a corrected read can be written
@@ -283,7 +290,7 @@ did not, and which were right for the wrong reason. This is where the durable le
 and it is cheap — the FT screen already has everything needed.
 
 - Anchor the match against the **season baseline**, not against feel. Pull it:
-  `m = db.our_match_history()` filtered to the season, then shots / shots-on-target / conversion /
+  `m = scout.match_history(st)` filtered to the season, then shots / shots-on-target / conversion /
   passes per game. **Use that helper rather than raw `staging.match_player_stats`** — one match is
   stored under up to five `anchor`s and the obvious `(anchor, tid)` dedup is a no-op (trap 4 in
   [`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md)).
@@ -303,7 +310,7 @@ and it is cheap — the FT screen already has everything needed.
   the next opponent otherwise.
 - Read the **per-player** columns for the specific claim the briefing made: if the plan was "attack
   their weak aerial full-back", check the aerial-duel counts, not just the scoreline.
-- **Write the grading with `db.grade_scout(opp_tid, result_note=..., result="W 2-0 (H)",
+- **Write the grading with `scout.grade_scout(opp_tid, result_note=..., result="W 2-0 (H)",
   fixture=...)`, NOT `save_scout`.** A scout record has two halves: `note` is what we thought BEFORE the game and
   `result_note` is how that read graded afterwards, and the pairing is the entire reason the log is
   calibration rather than a pile of old opinions. `grade_scout` writes `result_note` / `result` /
@@ -341,14 +348,14 @@ touching the set). Two things to know about it:
   attacking roles failed to beat a flat weighting and were left flat **on purpose**. Fit numbers at
   AML/AMR still appear in `effective_table` — they are simply flat-weighted, so treat a wide Fit as
   a rough quality read, not a role-tuned one, and lean on `level_*` there instead.
-- **`db.config().get("default_method")` still returns `frem_attacking_ss`** (`seeds/config_bundle.json`),
-  which is no longer what we play. Pass the method explicitly rather than inheriting the config
-  default, and don't describe `frem_attacking_ss` as "our tactic".
+- **`app_config.default_method` still reads `frem_attacking_ss`** (`seeds/config_bundle.json`),
+  which is no longer what we play. `scout_report` ignores it in favour of the career's
+  `rating_method`; don't describe `frem_attacking_ss` as "our tactic".
 
 **Rate the slot, not the player.** The same winger can be a 92 at MR and an 85 at AMR, and a deep
 left slot has flipped which of two candidates was correct by 25 percentile points. If the manager
 shares a formation screen, rate that XI at the slots each player really occupies
-(`db.effective_table(S, P, method)` filtered to `name` + `position`).
+(`scout.effective_table(st, method)` filtered to `name` + `position`).
 
 **The variation vocabulary — these are the manager's own levers, so propose in these terms:**
 
@@ -432,54 +439,40 @@ Note whose screen a role label belongs to (IW / PF / Poacher / AF / AP) every ti
 will attribute the opponent's roles to us.
 
 ### Validated pull snippet + gotchas
-This whole path is `duckdb` + `pandas` — `uv sync` (no extras) is enough; you do NOT need
-`uv sync --extra dashboard` (streamlit + plotly) to run a scout. `dashboard/db.py` only uses
-streamlit for its Streamlit-page sidebar widgets and a cache decorator, and falls back to a plain
-`functools.lru_cache` when it isn't installed, so `import db` works either way.
-
-Query a **copy** of the db if the live one is locked — mirror what `fmq.py scout` itself does
-(try a read-only connect first; only copy on failure), rather than always paying for a full copy.
-Run via a **heredoc / script file**, not `python -c` (the escaping bites).
+This whole path is `duckdb` + `pandas` — `uv sync` (no extras) is enough. `store.open_store()`
+reads the career's published store from R2 (cached at `~/.cache/fmm-stats/`, re-checked every 10
+min) and prints which snapshot it opened; pass `db="fm-frem.duckdb"` (or set `$FM_DUCKDB`) to read
+a local build instead. It copies a locked store to a temp file itself. Run via a **heredoc /
+script file**, not `python -c` (the escaping bites).
 
 ```python
-import os, sys, shutil, tempfile, duckdb
-os.environ["FM_CAREER"] = "frem"                                             # active career
-repo = os.getcwd()
-src = os.path.join(repo, "fm-frem.duckdb")                                   # or db.py's resolved path
-path = src
-try:
-    duckdb.connect(src, read_only=True).close()
-except duckdb.Error:
-    path = os.path.join(tempfile.gettempdir(), "scout.duckdb")
-    shutil.copy2(src, path)                                                  # live DB is locked — scout a copy
-os.environ["FM_DUCKDB"] = path
-os.environ["FM_DUCKDB_READONLY"] = "1"
-sys.path.insert(0, "dashboard"); import db
+from fmstats import scout, store
 
-matches = db.resolve_club("Slagelse")
-OPP = int(matches.iloc[0]["tid"])
-S, P = db.latest_snapshot()
-M = "frem_minmax_4231"        # match the shape we play; do NOT inherit the stale config default
+st = store.open_store()                       # career from $FM_CAREER, else frem
+# st.con (read-only duckdb connection), st.career (.managed_tid, .reserve_tid, .rating_method),
+# st.season / st.phase / st.phase_date / st.label — the latest snapshot
 
-rep = db.scout_report(OPP, season=S, phase=P, method=M)
-# rep = {opp, season, phase, method, coverage, overall, strength, matchups, units,
-#        unit_attrs, key_players, h2h, flags} — DataFrames for strength/matchups/units/
-#        unit_attrs/key_players.
+OPP = int(scout.resolve_club(st, "OB").iloc[0]["tid"])   # exact > initials > prefix > substring
+rep = scout.scout_report(st, OPP)             # rated with st.career.rating_method (frem_minmax_4231)
+# rep = {opp, season, phase, method, coverage, overall, strength, matchups, units, unit_attrs,
+#        key_players, h2h, h2h_players, flags, manager} — DataFrames for strength/matchups/units/
+#        unit_attrs/key_players/h2h_players.
 #   overall/strength carry BOTH ratings: us/them (+ us_pctile/them_pctile) is our tactic's
 #     Fit; us_quality/them_quality is tactic-agnostic Level %ile. Use *_quality for "how
 #     good are they", *_pctile for "how would this suit OUR system".
-#   matchups is the face-off pairing (see matchup_table docstring): rows "Our attack vs
-#     their defense" / "Their attack vs our defense" / "Midfield (contested)", each with
-#     us_quality/them_quality/edge (Level %ile) and us_fit/them_fit (pos_index) alongside.
-#   key_players is ranked by Level %ile (rank_by="level_league") for the opponent — quality,
-#     not Fit under our tactic.
-#   rep["h2h"]["matches"] is the per-match DataFrame (date, venue, gf, ga, result,
-#     our_shots/opp_shots, our_shots_on_target/opp_..., our_passes/opp_...,
-#     our_passes_completed/opp_..., our_tackles_won/opp_..., our_interceptions/opp_...).
+#   matchups is the face-off pairing: rows "Our attack vs their defense" / "Their attack vs
+#     our defense" / "Midfield (contested)", each with us_quality/them_quality/edge (Level
+#     %ile) and us_fit/them_fit (pos_index) alongside.
+#   key_players is ranked by Level %ile — quality, not output. h2h_players is output: goals,
+#     assists, key_passes, shots, on_target, avg_rating, last_played, still_there, per player,
+#     in matches against us.
+#   rep["h2h"] has played/w/d/l/gf/ga/ppg, per-venue "H"/"A" records, and "matches" — the
+#     per-match DataFrame (date, venue, gf, ga, result, our_/opp_ shots, shots_on_target,
+#     passes, passes_completed, tackles_won, interceptions).
 
-prior = db.load_scouts()
+prior = scout.load_scouts()
 prior = prior[prior.opponent_tid == OPP] if not prior.empty else prior       # calibration check
-# there may be SEVERAL rows per opponent now — one per fixture. `fixture`, `venue` and
+# there may be SEVERAL rows per opponent — one per fixture. `fixture`, `venue` and
 # `saved_at` say which is which; `result_note` marks the ones already played and graded.
 
 # ... write the report from rep — formation/style default to rep["manager"], override with
@@ -487,25 +480,25 @@ prior = prior[prior.opponent_tid == OPP] if not prior.empty else prior       # c
 
 FIXTURE = "2026-04-20"                        # the match date off the Next Match screen
 mgr = rep.get("manager") or {}
-rec = db.save_scout(rep, venue="H",
-                    formation=mgr.get("formation_preferred", "unknown"),
-                    style=mgr.get("style", "unknown"),
-                    note="short plan summary", fixture=FIXTURE)
+rec = scout.save_scout(st, rep, venue="H",
+                       formation=mgr.get("formation_preferred", "unknown"),
+                       style=mgr.get("style", "unknown"),
+                       note="short plan summary", fixture=FIXTURE)
 # ALWAYS pass fixture — without it the two meetings of a season share one key and the second
 # replaces the first. Then report what the write actually did:
-if rec["_sync"] != "synced":                  # LOCAL_ONLY (no remote) / SYNC_FAILED (push died)
+if rec["_sync"] != "synced":                  # local-only (no remote) / sync-failed (push died)
     print(f"scout saved LOCALLY ONLY ({rec['_sync']}) — tell the user")
 if rec.get("_collision"):                     # replaced an undiscriminated scout of another venue
     print("that overwrote a scout of the other leg")
 
 # AFTER THE MATCH, when the user posts the FT stats — never save_scout with the grading in
 # `note`, that destroys the briefing you are grading:
-db.grade_scout(OPP, result_note="what held, what didn't, and why",
-               result="W 2-0 (H)", fixture=FIXTURE)
+scout.grade_scout(OPP, result_note="what held, what didn't, and why",
+                  result="W 2-0 (H)", fixture=FIXTURE)
 ```
 
 Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL yourself:
-- **Attribute columns are Capitalised** in `team_attribute_frame`/`club_attributes` — a lowercase
+- **Attribute columns are Capitalised** in `club_attributes`/`squad_frame` — a lowercase
   `['pace', ...]` filter silently yields an empty list.
 - **A raw `club_tid` filter on `staging.players` is not safe even within a single snapshot** —
   this used to say it was; it isn't. `club_attributes()` (and therefore `squad_frame`, and
@@ -535,19 +528,8 @@ Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL 
   `squad_frame` already carry it; you shouldn't need to re-join `staging.players` for it.
 
 ## No local store at all
-**First try pulling the published full store down and running the real engine against it** — on a
-remote/web session this takes seconds and costs nothing in fidelity, which beats both a rebuild and
-a thinner report:
-
-```bash
-rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"      # ~48 MB, retry on a 501
-```
-then point `db.py` at the copy (`FM_DUCKDB=$SCRATCH/fm-frem.duckdb`, `FM_DUCKDB_READONLY=1`) and
-call `db.scout_report()` exactly as below. Pull the **full** store, not `-mart`: the mart object
-omits the rating layer, and Fit/Level both need it. `db.save_scout()` and `db.grade_scout()` both
-still work and still sync from a downloaded store — check the returned `_sync` either way.
-
-Only if rclone or the remote isn't configured — hand off to
+Nothing to do: `store.open_store()` already reads the published full store from R2. Only if rclone
+or the remote isn't configured does it fail — then hand off to
 [`scout-from-site`](../scout-from-site/SKILL.md), which is built for exactly that (the deployed
 site's JSON, or the mart via `ATTACH` if arbitrary SQL is genuinely needed — see
 `site/AGENTS.md`'s cookbook). It carries its own, narrower set of caveats (no per-match H2H beyond
@@ -568,7 +550,7 @@ thinner report under this skill's name.
   once, never cleared). `scout_report`'s squad frame is snapshot-club-tid based, not flag based, so
   this mainly bites if you're tempted to assert loan status in prose — don't, from the flags alone.
 - League-membership counts over-report (resolved across labels) — ignore for a single scout.
-- **Check how stale the snapshot is against the fixture date, and say so.** `db.latest_snapshot()`
+- **Check how stale the snapshot is against the fixture date, and say so.** `st.phase_date`
   is the last *parsed* save, not today's game. Scouting a February fixture off a November snapshot
   means the entire January window is invisible: on one real briefing **six of the opponent's starting
   eleven had arrived since the snapshot**, including the man who ran the game, and on the next
@@ -636,9 +618,12 @@ flat 4-4-2 leaves, the channels behind weak fullbacks, either side of a lone piv
 write a separate "key men" list: that duplicated this section almost line for line in every
 briefing, which is why it was removed. Four or five bullets, each in the form
 **Name (POS)** — the stat that makes him a threat + the tactical consequence:>
-- **<Name> (<POS>)** — <Level %ile + the two or three attributes that drive the threat, from
-  `rep["key_players"]`/`top_attrs`. Level %ile, not Fit — see "The engine already exists" above.
-  Then the consequence: who picks him up, which lever contains him, what he punishes if ignored.>
+- **<Name> (<POS>)** — <pick the men from BOTH lists: `rep["h2h_players"]` (still_there, with
+  goals/assists/key passes against us — lead with that record when he has one) and
+  `rep["key_players"]` (Level %ile + `top_attrs`). A proven producer against us outranks a
+  higher-rated player who has never hurt us. Level %ile, not Fit — see "The engine already exists"
+  above. Then the consequence: who picks him up, which lever contains him, what he punishes if
+  ignored.>
 - <plus the non-player threats, still with their numbers: the "Their attack vs our defense" row of
   `rep["matchups"]`, the direct/set-piece route and the aerial group that delivers it, shot volume
   from the H2H, and anything in `rep["flags"]`.>
@@ -677,11 +662,10 @@ hides both. Read only the columns the role is actually scored on — see "Readin
 **One-line to the gaffer:** *<punchy, quotable summary of the plan.>*
 
 ---
-Eyeball it: **Team analysis → Scout a team → <Club>** — the **Face-off matchups** table for the
-attack-vs-defense reads, the unit/position filters (e.g. Us→Attack vs Them→Defense) to probe any
-matchup by hand, and the head-to-head drilldown. Set the **method** selector to
-`frem_minmax_4231` to preview our XI's Fit in this shape. This report has been saved to the scout log
-(`uv run python fmq.py scouts` to review it alongside past reads on other opponents).
+Eyeball it: `uv run python fmq.py scout <Club> --no-save` prints the same numbers;
+`fmq.py output --club <Club> --vs Frem` who has produced against us, `fmq.py matches --opp <Club>`
+the head-to-head. This report has been saved to the scout log (`uv run python fmq.py scouts --opp
+<Club>` to review it alongside past reads, `fmq.py grade <Club> --fixture <date> ...` after the match).
 ```
 
 Keep it decision-useful and honest about the estimate limitations (attributes ±1; tactics not in

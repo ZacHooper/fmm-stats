@@ -25,6 +25,9 @@ class Career:
     league_comps: tuple = ()       # first-team competition ids (informational for now)
     db: str = "fm.duckdb"          # DuckDB store for this career (one file per career)
     active: bool = True            # False = saves archived, store NOT rebuilt (see below)
+    # role-weight set that matches the shape this career actually plays; rates our squad in a
+    # scout. Distinct from app_config.default_method, which is the web app's display default.
+    rating_method: str | None = None
 
     @property
     def club_marker(self) -> bytes:
@@ -60,9 +63,10 @@ class Career:
 CAREERS = {
     # Turkish career (the original) — Bucaspor 1928. Archived: no longer played.
     "bucaspor": Career("bucaspor", "Bucaspor 1928", 6567, 11320, (228, 227, 117),
-                       "fm-buca.duckdb", active=False),
+                       "fm-buca.duckdb", active=False, rating_method="buca_433"),
     # Danish career — Boldklubben Frem (started 2026-08). tids verified from the save.
-    "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb"),
+    "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb",
+                   rating_method="frem_minmax_4231"),
 }
 
 DEFAULT_CAREER = "frem"

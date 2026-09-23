@@ -28,12 +28,21 @@ Turkish ground-truth tests pass unchanged.
   `phase` (start/mid/end). Idempotent per-label DELETE+INSERT. No enforced PKs (ART index made
   bulk reload hang — natural keys are documented in comments, enforced by the loader). Ledger in
   `staging.extracts`. Label math lives in `extract.parse_label` / `auto_label`.
-- Transformed layer = views in `main` (v_match_results, v_league_table, v_top_scorers,
-  v_ca_progression, v_transfers, v_player_attributes, **v_player_ratings**, **v_player_rating_ranks**).
-- `fmq.py` = query CLI (`uv run python fmq.py league-table 2022 end 228`, etc).
-- `dashboard/` = Streamlit app (`uv run streamlit run dashboard/Home.py`): Home, Development,
-  Squad Tool (merged calculator+compare), Matches, Player Stats, Tactics, Config.
-  Shared helpers in `dashboard/db.py` (config, effective_table, attr groups, primary_position).
+- Transformed layer = the `mart` schema (fmstats/mart.py) plus three views in `main`
+  (v_player_attributes, **v_player_ratings**, **v_player_rating_ranks**). `load_duckdb.py` drops
+  v_match_results, v_league_table, v_top_scorers, v_ca_progression and v_transfers if present:
+  they summed every snapshot of the match history (goal totals 2-3x), surfaced raw CA/PA, or read
+  standings that do not parse.
+- Layering: `fmparser/` extracts, `load_duckdb.py` loads (and seeds `staging.event_types` and
+  the `career_*` keys in `staging.app_config`, the two parser facts the transform needs), and
+  `fmstats/` transforms and analyses. fmstats never imports fmparser, and
+  `tests/test_boundary.py` enforces it; the store is the only interface.
+- `fmq.py` = query CLI over the `fmstats/` package (`labels`, `sql`, `output`, `matches`, `moves`,
+  `growth`, `table`, `scout`, `scouts`, `grade` — `uv run python fmq.py --help`). It reads the R2
+  published store by default (`fmstats/store.py`, cached at `~/.cache/fmm-stats/`); `--db` for a
+  local build.
+- The Streamlit `dashboard/` was removed; `site/` is the UI. Its scouting helpers live on in
+  `fmstats/scout.py`.
 
 **Career history is LIVE (2026-08-19) — `staging.player_history` + `player_history_seasons`.**
 Every player's whole club career: origin (youth) club, debut season, and one row per season with
@@ -49,18 +58,16 @@ from `seeds/eligible_origin_clubs.csv`; 575 eligible in the newest frem snapshot
 which reads `fee = 'loan'` rows to recover loan spells across a player's whole career. Decode
 details: `fmparser/history.py` + [[history-chain-pointers]] + [[player-history-table]].
 
-**Opposition scouting is codified (added 2026-07-31) — USE IT instead of ad-hoc pulls.**
-`db.scout_report(opp_tid, season=None, phase=None, method='buca_433')` returns the full report as
-dicts/DataFrames: coverage (partial-squad warning), overall eff, unit edges (us−them per
-Def/Mid/Att), key_players (their squad by eff + `pctile_league`), standouts (max per key attr),
-h2h (competitive only, friendlies dropped), and rule-based `flags` (squad strength / 🚩 bogey vs
-✅ own-them / per-unit edge / danger men / their defensive soft-spots). Helpers: `db.resolve_club`
-(name→tid, Turkish/diacritic-insensitive via `_fold`), `db.latest_snapshot`. CLI: `uv run python
-fmq.py scout <team|tid>` prints the whole briefing — and it copies the DB to a temp file if the
-live one is locked by a running dashboard (`FM_DUCKDB_READONLY=1` env makes `db._connect` attach
-read-only). Dashboard Team page → "🔎 Scout a team" tab now shows the auto-read + key-players +
-standouts on top of the existing interactive unit comparison + H2H. Still supply opponent
-formation/style yourself (tactics aren't parsed). The `scout-opponent` skill can lean on this now.
+**Opposition scouting is codified — USE IT instead of ad-hoc pulls.**
+`fmstats.scout.scout_report(st, opp_tid, method=None)` returns the full report as
+dicts/DataFrames: coverage (partial-squad warning, which withholds the squad-derived flags),
+overall/strength (Fit index + Level %ile quality), face-off `matchups`, `key_players` (their squad
+by Level %ile), `h2h` (competitive, per-venue records), `h2h_players` (each opponent player's
+output against us, `still_there`), the opposing manager's formation/Style, and rule-based `flags`.
+The method defaults to the career's `rating_method` (`fmparser/careers.py`). Helpers:
+`scout.resolve_club` (exact > initials > prefix > substring, diacritic-insensitive),
+`save_scout` / `grade_scout` for the R2-mirrored log (`fmstats/state.py`). CLI: `uv run python
+fmq.py scout <team|tid> [--venue --fixture --note]`. The `scout-opponent` skill drives it.
 
 **Cross-position rating normalisation (added 2026-07-31).** Raw `eff` is NOT comparable across
 positions — role weights don't sum to a common total, so mean raw eff runs GK~324 → ST~404 by

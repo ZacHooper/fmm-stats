@@ -41,7 +41,7 @@ Nothing else. The value is derived by the game, not stored in coarse form.
 
 ## 3. The model
 
-`fmparser/value_model.py` (frozen coefficients, same pattern as `model.py`), refit with
+`fmstats/value_model.py` (frozen coefficients, same pattern as `model.py`), refit with
 `scripts/fit_value_model.py`, surfaced as `mart.player_value_est`.
 
 OLS on log(value), trained on the managed club's own squad across all snapshots — **734 rows,

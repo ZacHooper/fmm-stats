@@ -33,8 +33,9 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 from extract import parse_label
 from fmparser.model import ATTR_ORDER
 from fmparser import model as _A
+from fmparser import careers
 from fmparser import matches as M
-from fmparser.mart import create_mart, drop_mart
+from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
 # schema
@@ -737,68 +738,17 @@ APP_CONFIG_DEFAULTS = {
     "default_method": "black_hawk",
 }
 
-def phase_sort_sql(col="phase"):
-    """SQL for an orderable phase key that works for BOTH the new date-phases
-    ('YYYY-MM-DD', which sort chronologically as strings) and the legacy words
-    'start'/'mid'/'end' (mapped to epoch sentinels so start<mid<end — preserving the old
-    ordering for pre-existing stores). `col` may be table-qualified (e.g. 'a.phase')."""
-    return (f"CASE {col} WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01' "
-            f"WHEN 'end' THEN '0000-00-02' ELSE {col} END")
-
-
-_PS = phase_sort_sql()
+# Dropped if present, never created. Each reads staging across every snapshot without the
+# mart's one-row-per-match rule (goal totals come out 2-3x), surfaces raw CA/PA, or reads
+# standings that do not parse for this career. The mart and fmq.py answer all five questions.
+RETIRED_VIEWS = ("v_ca_progression", "v_transfers", "v_league_table", "v_match_results",
+                 "v_top_scorers")
 
 VIEWS = {
     "v_player_attributes": """
         SELECT p.*, a.* EXCLUDE (season, phase, tid)
         FROM staging.players p
         JOIN staging.player_attributes a USING (season, phase, tid)
-    """,
-    "v_ca_progression": f"""
-        SELECT tid, name, season, phase,
-               {_PS} AS phase_ord,
-               club, ca, pa, reputation
-        FROM staging.players
-        WHERE NOT is_staff
-    """,
-    "v_transfers": f"""
-        SELECT a.season, a.tid, COALESCE(a.name, b.name) AS name,
-               a.phase AS from_phase, b.phase AS to_phase,
-               a.club_tid AS from_club_tid, a.club AS from_club,
-               b.club_tid AS to_club_tid, b.club AS to_club
-        FROM staging.players a
-        JOIN staging.players b
-          ON a.season = b.season AND a.tid = b.tid
-         AND ({phase_sort_sql('a.phase')}) < ({phase_sort_sql('b.phase')})
-        WHERE a.club_tid IS DISTINCT FROM b.club_tid
-          AND NOT a.is_staff
-    """,
-    "v_league_table": """
-        SELECT s.season, s.phase, s.league_cid, s.pos,
-               COALESCE(s.club, c.name) AS club, s.club_tid,
-               s.played, s.won, s.drawn, s.lost, s.gf, s.ga, s.gd, s.points, s.source
-        FROM staging.standings s
-        LEFT JOIN staging.clubs c
-          ON (c.season, c.phase, c.tid) = (s.season, s.phase, s.club_tid)
-    """,
-    "v_match_results": """
-        SELECT m.season, m.phase, m.date, m.competition, m.comp_id,
-               m.home_tid, hc.name AS home, m.score_home, m.score_away,
-               ac.name AS away, m.away_tid, m.attendance, m.formation
-        FROM staging.matches m
-        LEFT JOIN staging.clubs hc
-          ON (hc.season, hc.phase, hc.tid) = (m.season, m.phase, m.home_tid)
-        LEFT JOIN staging.clubs ac
-          ON (ac.season, ac.phase, ac.tid) = (m.season, m.phase, m.away_tid)
-    """,
-    "v_top_scorers": """
-        SELECT mps.season, mps.tid, any_value(p.name) AS name,
-               SUM(mps.goals) AS goals, SUM(mps.assists) AS assists,
-               COUNT(*) AS appearances
-        FROM staging.match_player_stats mps
-        LEFT JOIN staging.players p
-          ON (p.season, p.phase, p.tid) = (mps.season, mps.phase, mps.tid)
-        GROUP BY mps.season, mps.tid
     """,
 }
 
@@ -1854,6 +1804,36 @@ def seed_reference(con):
             "WHERE NOT EXISTS (SELECT 1 FROM staging.app_config WHERE key=?)", [k, v, k])
 
 
+def seed_event_types(con):
+    """(Re)seed staging.event_types, the byte -> name map the mart labels match events with,
+    from the parser's own table (fmparser.matches.EVENT_TYPE). Replaced wholesale on every load
+    and --refresh-only, so naming a byte reaches the store without a re-extract."""
+    con.execute("CREATE TABLE IF NOT EXISTS staging.event_types "
+                "(code INTEGER PRIMARY KEY, name VARCHAR NOT NULL)")
+    con.execute("DELETE FROM staging.event_types")
+    con.executemany("INSERT INTO staging.event_types VALUES (?, ?)",
+                    sorted(M.EVENT_TYPE.items()))
+
+
+def seed_career(con):
+    """Record which career this store holds in staging.app_config (`career_key`,
+    `career_rating_method`), matched on the managed club the mart derives from the data.
+
+    fmstats reads the store, never fmparser, and the tactic we play is the one career fact the
+    save does not carry — so the loader, which may read both, writes it down. Runs after
+    create_mart: it needs mart.managed_club."""
+    row = con.execute("SELECT club_tid FROM mart.managed_club").fetchone()
+    car = next((c for c in careers.CAREERS.values() if row and c.managed_tid == row[0]), None)
+    if car is None:
+        print(f"  ! managed club {row[0] if row else None} is not a registered career "
+              f"(fmparser/careers.py); career keys left unset")
+        return
+    for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method)):
+        con.execute("DELETE FROM staging.app_config WHERE key = ?", [k])
+        if v is not None:
+            con.execute("INSERT INTO staging.app_config VALUES (?, ?)", [k, v])
+
+
 def seed_config_bundle(con):
     """Apply a committed config bundle (seeds/config_bundle.json) as the baked default —
     the same shape the dashboard exports (db.export_config_bundle). Runs AFTER
@@ -1929,6 +1909,8 @@ def create_views(con):
     con.execute(ATTR_MODEL_DDL)
     _seed_attribute_model(con)
     con.execute(_player_attributes_view(con))
+    for name in RETIRED_VIEWS:
+        con.execute(f"DROP VIEW IF EXISTS {name}")
     for name, sql in VIEWS.items():
         con.execute(f"CREATE OR REPLACE VIEW {name} AS {sql}")
 
@@ -1939,7 +1921,7 @@ def reset_schema(con):
     drop_mart(con)
     con.execute("DROP SCHEMA IF EXISTS staging CASCADE")
     con.execute("DROP SCHEMA IF EXISTS history CASCADE")
-    for name in VIEWS:
+    for name in (*VIEWS, *RETIRED_VIEWS):
         con.execute(f"DROP VIEW IF EXISTS {name}")
     con.execute("DROP VIEW IF EXISTS staging.player_attributes")
 
@@ -1971,7 +1953,7 @@ def main():
     ap.add_argument("--refresh-only", action="store_true",
                     help="rebuild the SQL views, the mart layer AND the role-weight seeds "
                          "against an existing store, loading nothing. All three are just "
-                         "definitions, so a change to fmparser/mart.py, VIEWS or "
+                         "definitions, so a change to fmstats/mart.py, VIEWS or "
                          "seeds/role_weights.csv does not reach a store until something "
                          "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()
@@ -1999,8 +1981,10 @@ def main():
             # the methods the CSV names, so a weight-set built in the Lab and promoted into
             # staging.role_weights survives this.
             seed_role_weights(con)
+            seed_event_types(con)
             create_views(con)
             mart_objects = create_mart(con)
+            seed_career(con)
             print(f"{args.db}: role-weight seeds + {len(VIEWS)} views + {len(mart_objects)} "
                   f"mart objects rebuilt (nothing loaded)")
         finally:
@@ -2045,8 +2029,10 @@ def main():
                 fail += 1
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
         rebuild_persons(con)
+        seed_event_types(con)
         create_views(con)
         mart_objects = create_mart(con)
+        seed_career(con)
         print(f"done: {ok} loaded, {fail} failed. views refreshed, "
               f"{len(mart_objects)} mart objects rebuilt.")
     finally:

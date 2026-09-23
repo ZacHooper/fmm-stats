@@ -32,8 +32,16 @@ another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoi
 ## Answering a quick football question — don't default to a local rebuild
 A question like "who was our top scorer last season" does NOT need
 `scripts/rebuild.py` (~1 min/snapshot, dozens of minutes total) if a local `fm-<career>.duckdb`
-isn't already sitting there. **`ATTACH` the already-published R2 copy directly instead** — same
-data, ready in seconds, no local store needed at all:
+isn't already sitting there. **`fmq.py` reads the already-published R2 copy by default** —
+same data, cached locally on first use (~5 s for 101 MB), so the common questions are one line:
+```bash
+uv run python fmq.py output --season 2024 --include-departed   # top scorers/assists/key passes
+uv run python fmq.py output --club OB --vs Frem                # who from OB produces against us
+uv run python fmq.py matches --opp OB                          # head-to-head, one row per match
+uv run python fmq.py table --season 2026                       # final table, from the fixture list
+uv run python fmq.py sql "SELECT ..."                          # anything else, against the same copy
+```
+For arbitrary SQL without the CLI, `ATTACH` the R2 copy directly instead:
 ```sql
 INSTALL httpfs; LOAD httpfs;
 CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
@@ -63,13 +71,17 @@ FROM tot ORDER BY goals DESC LIMIT 5;
 ```
 `avg_rating` is re-weighted by appearances rather than re-averaged: averaging a 33-game league
 average with a 1-game cup average would give the cup 33x the weight it earned.
-**Attach the mart object (~24 MB), not the full store (~34 MB)** — it holds the `mart` schema
+**Attach the mart object (~87 MB), not the full store (~101 MB)** — it holds the `mart` schema
 as real tables with the correctness rules already applied, so a top-scorer query is one
 `SELECT` rather than a re-derivation of latest-phase/person_id/minutes logic. Since the
 2026-08-25 refactor the mart is also what GENERATES the web app, so it covers the dimensions
 too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attributes wide,
 `mart.player_position_levels` for Level %ile, `mart.club_matches` already oriented per club,
-`mart.role_weights` so ratings are computable). Use the full `site-data/fm-frem.duckdb` only
+`mart.role_weights` so ratings are computable), and the common questions each have a view:
+`mart.league_tables` (tables rebuilt from the fixture list; verified for Denmark only),
+`mart.head_to_head`, `mart.player_vs_club` (each player's output against each opponent),
+`mart.player_primary_position` (the one primary-position rule) and `mart.club_squad_latest`
+(every club's genuine squad now). Use the full `site-data/fm-frem.duckdb` only
 when you need raw `staging` or per-snapshot history for a player who was never ours.
 
 Two gotchas worth knowing before you query it: **macros do not resolve across an `ATTACH`, and
@@ -87,9 +99,9 @@ ours" — never a bare `club_tid = <our tid>` filter.** Confirmed live, not theo
 Nuamah's loan ended 2023-06-30, but his row a season later still read `club_tid=346,
 loaned_in=True`, and turned up as one of "our" attacking outlets in a scout report built on a
 raw filter. `mart.squad_current` is scoped to `mart.our_clubs`, so it only answers this for OUR
-squad — `dashboard/db.py`'s `club_attributes()` (and everything built on it: `squad_frame`,
-`team_attribute_frame`, `scout_report`) generalises the same spell-based check to an ARBITRARY
-club, since a scout report needs "who's really on the opponent's books" too, not just ours.
+squad — `fmstats/scout.py`'s `club_attributes()` (and everything built on it: `squad_frame`,
+`scout_report`) reads `mart.snapshot_squad`, the same spell-based check for an ARBITRARY club,
+since a scout report needs "who's really on the opponent's books" too, not just ours.
 `.claude/hooks/session-start.sh` sets up everything this needs (`rclone`, the `r2:` remote, the
 `httpfs` extension) automatically on a Claude Code web session — see
 [`docs/agent-context/remote-duckdb-access.md`](docs/agent-context/remote-duckdb-access.md) for
@@ -102,6 +114,20 @@ one remaining reason to fall back to a real local rebuild is data more recent th
 `publish_duckdb.py --upload` (re-run after every import — not automatic); the mart-ONLY object
 (`fm-<career>-mart.duckdb`) still omits the rating layer regardless (too big to materialise —
 ATTACH the full store for that, not a scrub issue).
+
+## Three layers: extract, load, transform
+- **`fmparser/` is the E** — save bytes to `output/<label>/*.json`. It imports neither duckdb
+  nor fmstats.
+- **`load_duckdb.py` is the L** — JSON into `staging` tables, plus the reference seeds only the
+  parser can supply (`staging.event_types`, the career keys in `staging.app_config`). It is glue:
+  it may import both sides.
+- **`fmstats/` is the T** — `fmstats/mart.py` derives every analytical table from `staging`,
+  and `scout`/`stats`/`league` analyse the mart. It imports neither fmparser nor `extract`: it
+  reads a `.duckdb` file, local or the R2 copy, and nothing else. The staging schema plus
+  `fmstats/contract.py` (the attribute column names) is the whole interface.
+
+`tests/test_boundary.py` enforces both import rules. A fact only the parser knows reaches
+fmstats by the loader writing it into the store, never by fmstats importing it.
 
 ## How the parser works — [`docs/parser-architecture.md`](docs/parser-architecture.md)
 **The one doc to read before changing `fmparser/`.** It carries the idea the parser is
@@ -282,7 +308,7 @@ enforces the Danish Herre-DM rules ([`docs/danish-registration-rules.md`](docs/d
 on ourselves: a 25-man A-list needing 8 home grown of whom 4 club-trained (tiers 1–2 only), plus
 an unlimited B-list for players under 21 at the last new year. Home-grown status is **derived** —
 never report it as a fact the game asserts. The data layer is the registration family in
-`fmparser/mart.py` (`mart.squad_registration` for our squad, `mart.player_homegrown` for
+`fmstats/mart.py` (`mart.squad_registration` for our squad, `mart.player_homegrown` for
 everyone, `mart.player_training` for the club-by-club months); the derivation and its two
 deliberate departures from a literal reading are in
 [`docs/agent-context/homegrown-derivation.md`](docs/agent-context/homegrown-derivation.md) and
@@ -290,7 +316,7 @@ deliberate departures from a literal reading are in
 browser localStorage — it is a plan, not save data, and nothing writes it back.
 
 **`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `staging`
-table, no `main` view. Add a field to the site by adding it to `fmparser/mart.py` first. And
+table, no `main` view. Add a field to the site by adding it to `fmstats/mart.py` first. And
 because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
 is the regression test: a no-op export must produce a no-op diff.
 
@@ -307,8 +333,9 @@ is the regression test: a no-op export must produce a no-op diff.
   python. The old "extractors need bare `python3`" rule was a portability trap: it made a second
   machine depend on numpy being installed outside uv. Bare `python3` still works here if the system
   interpreter happens to have numpy.
-- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **Plain `uv sync` is lean on purpose** — `duckdb` + `pandas` only, which is everything the ETL, `fmq.py` (including `fmq.py scout`), and an agent skill scouting or querying the store need. Streamlit + plotly are a presentation dependency (the dashboard's UI framework and charts), not a data-layer one — `dashboard/db.py` falls back to a plain `functools.lru_cache` when streamlit isn't importable, so it never requires the dashboard to run a scout report. Pull them in with `uv sync --extra dashboard` before `uv run streamlit run dashboard/Home.py`.
-- **DuckDB is single-writer**: a running Streamlit holds the lock. For read-only CLI work either `pkill -f streamlit` first, or set `FM_DUCKDB_READONLY=1`, or query a `cp` of the store. The `fmq scout` command auto-copies when the DB is locked.
+- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **Plain `uv sync` is lean on purpose** — `duckdb` + `pandas` only, which is everything the ETL, `fmq.py` (including `fmq.py scout`), and an agent skill scouting or querying the store need.
+- **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. It re-creates the mart views on the cached copy from this checkout's `fmstats/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
+- **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style). **`phase` = the save's
   in-game DATE** ('YYYY-MM-DD'; match-less start saves → synthetic `YYYY-07-01`), so multiple
@@ -326,7 +353,7 @@ no multi-writer problem to solve:
 | Derived | `fm-*.duckdb`, `output/` | **local only** | rebuild, never sync |
 | Published | `site/` (the web app + small JSON) | **git** -> Cloudflare Pages | regenerated by `export_data.py`; see [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | Published (big) | `site-data/all.json` (every player, 4 MB) | **R2**, streamed by a Pages Function | NEVER git — rewrites wholesale per import |
-| Published (SQL) | `site-data/fm-<career>.duckdb` (~34 MB, run-length compacted) + `site-data/fm-<career>-mart.duckdb` (~24 MB, mart only) | **R2**, `ATTACH`ed directly | NEVER git — `scripts/publish_duckdb.py` / `publish_mart.py`, each an explicit step after an import |
+| Published (SQL) | `site-data/fm-<career>.duckdb` (~101 MB, run-length compacted) + `site-data/fm-<career>-mart.duckdb` (~87 MB, mart only) | **R2**, `ATTACH`ed directly | NEVER git — `scripts/publish_duckdb.py` / `publish_mart.py`, each an explicit step after an import |
 | Published (queryable) | `site-data/fm-<career>.duckdb` (raw `ca`/`pa` included, unscrubbed) | **R2** (`site-data/`), read via DuckDB's native S3 protocol | for a remote agent: `ATTACH 's3://fmm-stats/site-data/fm-<career>.duckdb' (READ_ONLY)` over httpfs with a `CREATE SECRET (TYPE s3, ENDPOINT '<account-id>.r2.cloudflarestorage.com', …)` (not the `TYPE r2`/`ACCOUNT_ID` shorthand — it mis-routed to AWS S3 in testing), using the R2 creds a Claude Code session here already carries — arbitrary SQL, not just the fixed JSON shapes. Not served through the Worker (`*.workers.dev` is often unreachable from a restricted sandbox; the R2 endpoint usually isn't). Published by `scripts/publish_duckdb.py --upload`; see its docstring for the exact `ATTACH` syntax and the httpfs-install-over-HTTP gotcha. NEVER git. |
 
 - **The store is NOT committed and must not be.** It reached 96 MiB (within 4 MiB of GitHub's hard
@@ -376,10 +403,10 @@ Saves with no manifest row have no date and so no canonical name; they live in
 ## Common commands
 ```bash
 uv sync                                                   # one-time env setup (duckdb + pandas — lean)
-uv sync --extra dashboard                                 # pulls in streamlit + plotly for the UI
-uv run streamlit run dashboard/Home.py                    # dashboard (sidebar Career selector)
 uv run python scripts/rebuild.py --career frem            # rebuild the store from saves + manifest
-uv run python fmq.py scout <team>                         # opposition briefing (auto-saves)
+uv run python fmq.py scout <team> --venue H --fixture <date>   # opposition briefing (saved to the log)
+uv run python fmq.py grade <team> --fixture <date> --result "W 2-1 (H)" --note "..."   # after the match
+uv run python fmq.py --help                               # output, matches, moves, growth, table, sql
 
 # importing a NEW save
 uv run python scripts/archive_save.py ~/Downloads/<save>.fms --career frem --upload
@@ -389,7 +416,7 @@ uv run python scripts/export_manifest.py                  # refresh the rebuild 
 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids
 
-# after editing fmparser/mart.py or load_duckdb.py's VIEWS — they are definitions, not data,
+# after editing fmstats/mart.py or load_duckdb.py's VIEWS — they are definitions, not data,
 # so they do not reach an existing store until something re-runs them
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 uv run python tests/validate_mart.py --db fm-frem.duckdb   # assert the mart's invariants
@@ -412,10 +439,12 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - **The web app computes ratings itself** (`site/js/data.js`) from attributes × role weights, so a
   change to the rating formula must land in BOTH the SQL (`v_player_ratings`) and the JS. They are
   verified equal to the last decimal over 36,920 combinations — keep it that way.
-- **The exact XI on the day is NOT in the save — but the MANAGER's own preferences now are, and that's the baseline.** `mart.club_managers` names the opposition manager and carries his **preferred / attacking / defensive formation** and a derived **Style** (Attacking / Normal / Defensive, banded from a hidden attribute — see [`docs/record-expansion.md`](docs/record-expansion.md) §F), wired into `dashboard/db.py`'s `opponent_manager()`/`scout_report()['manager']`. Use it as the default formation/style for a scout report **without asking the user first** — the Style bands are confirmed 7/7 in-game. Asking for the in-game scout's read is now an optional refinement (this week's actual team news — injuries, suspensions — which the manager record can't give you), not a prerequisite. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
-- **Rating an opponent: Level %ile, not Fit %ile.** `pos_index`/`pctile_*` (`effective_table`) are OUR tactic's role-weighted Fit — how well an attribute set suits `frem_attacking_ss`, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `db.scout_report()`'s `key_players`/danger-men reads and its `matchups` table (see next bullet) use `level_*`; only use `pos_index` for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
-- **A back line doesn't play a back line.** `db.scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`db.matchup_table()`) for that reading, not `strength`.
-- Our tactic/method is **`frem_attacking_ss`** — the strikerless SS setup, and the dashboard default (`seeds/config_bundle.json`). `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.
+- **The exact XI on the day is NOT in the save — but the MANAGER's own preferences now are, and that's the baseline.** `mart.club_managers` names the opposition manager and carries his **preferred / attacking / defensive formation** and a derived **Style** (Attacking / Normal / Defensive, banded from a hidden attribute — see [`docs/record-expansion.md`](docs/record-expansion.md) §F), wired into `fmstats/scout.py`'s `opponent_manager()`/`scout_report()['manager']`. Use it as the default formation/style for a scout report **without asking the user first** — the Style bands are confirmed 7/7 in-game. Asking for the in-game scout's read is now an optional refinement (this week's actual team news — injuries, suspensions — which the manager record can't give you), not a prerequisite. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
+- **Rating an opponent: Level %ile, not Fit %ile.** `pos_index`/`pctile_*` (`effective_table`) are OUR tactic's role-weighted Fit — how well an attribute set suits `frem_attacking_ss`, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `fmstats.scout.scout_report()`'s `key_players` and its `matchups` table (see next bullet) use `level_*`; only use `pos_index` for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
+- **A back line doesn't play a back line.** `scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`matchup_table()`) for that reading, not `strength`.
+- **Quality is not output.** `scout_report()['h2h_players']` is each opponent player's production in matches against us, with `still_there` for whether he is at the club now. Read it next to `key_players`: against OB the two men who hurt us most (5 goals; 11 key passes) sat at 53 and 23 on Level %ile, below six team-mates the ranking put first.
+- We play a **4-2-3-1**, rated with **`frem_minmax_4231`** — the career's `rating_method` in `fmparser/careers.py`, which the loader records in the store
+(`staging.app_config.career_rating_method`) and `fmq scout` uses by default. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.
   **`frem_minmax_4231` and `frem_minmax_4411` are different in kind** — not hand-built from a tactic
   author's stated player traits but DERIVED from the match data by `scripts/derive_weight_set.py`,
   role by role, with every block that failed to beat a flat weighting left flat on purpose, and

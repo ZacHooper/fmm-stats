@@ -38,7 +38,7 @@ import sys
 import duckdb
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from fmparser.mart import create_mart  # noqa: E402
+from fmstats.mart import create_mart  # noqa: E402
 
 R2_KEY = "s3://fmm-stats/site-data/fm-frem.duckdb"
 
@@ -805,6 +805,95 @@ def main():
           counts[0] > 0 and counts[1] > 0 and counts[3] > 0,
           f"{counts[0]} in the squad · {counts[1]} club-trained · {counts[2]} "
           f"association-trained · {counts[3]} B-list eligible")
+
+    # -- 10. analysis views: league tables, head-to-head, output vs a club ---------
+    print("\n10. analysis views")
+    firsts = """SELECT season, arg_min(phase, snap_ix) AS phase FROM mart.snapshots
+                GROUP BY season"""
+    dk = con.execute(f"""
+        WITH firsts AS ({firsts})
+        SELECT lt.season, lt.league_name, COUNT(*) AS n,
+               COUNT(*) FILTER (WHERE lt.pos = c.last_league_pos) AS agree
+        FROM mart.league_tables lt
+        JOIN firsts f ON f.season = lt.season + 1
+        JOIN mart.clubs c ON (c.season, c.phase, c.club_tid) = (f.season, f.phase, lt.club_tid)
+        WHERE lt.nation = 'Denmark' AND c.last_league_pos > 0
+          AND c.last_league = lt.league_name
+        GROUP BY 1, 2 ORDER BY 1, 2""").fetchall()
+    wrong = [(s, lg, f"{a}/{n}") for s, lg, n, a in dk if a != n]
+    check("every Danish league table reproduces the save's own final positions",
+          dk and not wrong,
+          f"{len(dk)} tables, {sum(r[2] for r in dk)} clubs"
+          + (f" — mismatched: {wrong}" if wrong else ""))
+
+    ours = con.execute(f"""
+        WITH firsts AS ({firsts})
+        SELECT COUNT(*), COUNT(*) FILTER (WHERE lt.pos = c.last_league_pos)
+        FROM mart.league_tables lt
+        JOIN firsts f ON f.season = lt.season + 1
+        JOIN mart.clubs c ON (c.season, c.phase, c.club_tid) = (f.season, f.phase, lt.club_tid)
+        WHERE lt.club_tid = (SELECT club_tid FROM mart.managed_club)""").fetchone()
+    check("our own finish matches the save in every completed season",
+          ours[0] > 0 and ours[0] == ours[1], f"{ours[1]}/{ours[0]} seasons")
+
+    shape = con.execute("""
+        SELECT COUNT(*) FILTER (WHERE n <> 1),
+               (SELECT COUNT(*) FROM (SELECT season, league_key, max(pos) mx, COUNT(*) c
+                                      FROM mart.league_tables GROUP BY 1, 2) WHERE mx <> c)
+        FROM (SELECT season, league_key, club_tid, COUNT(*) n FROM mart.league_tables
+              GROUP BY 1, 2, 3)""").fetchone()
+    check("league_tables: one row per club per table, positions 1..n with no gaps",
+          shape == (0, 0), f"{shape[0]} duplicate club rows, {shape[1]} gapped tables")
+
+    prim = con.execute("""
+        SELECT (SELECT COUNT(*) FROM mart.player_primary_position),
+               (SELECT COUNT(DISTINCT (season, phase, tid)) FROM mart.player_position_levels),
+               (SELECT COUNT(DISTINCT (season, phase, tid)) FROM mart.player_primary_position)
+        """).fetchone()
+    check("player_primary_position: exactly one row for every player at every snapshot",
+          prim[0] == prim[1] == prim[2], f"{prim[0]} rows, {prim[1]} players, {prim[2]} keys")
+
+    h2h = con.execute("""
+        WITH v AS (SELECT club_tid, opp_tid,
+                          SUM(played) FILTER (WHERE venue <> 'all') AS p_ha,
+                          SUM(played) FILTER (WHERE venue = 'all') AS p_all,
+                          SUM(ga) FILTER (WHERE venue <> 'all') AS ga_ha,
+                          SUM(ga) FILTER (WHERE venue = 'all') AS ga_all
+                   FROM mart.head_to_head GROUP BY 1, 2)
+        SELECT COUNT(*) FILTER (WHERE p_ha <> p_all OR ga_ha <> ga_all),
+               (SELECT SUM(played) FROM mart.head_to_head WHERE venue = 'all'),
+               (SELECT COUNT(*) FROM mart.club_matches WHERE is_competitive)
+        FROM v""").fetchone()
+    check("head_to_head: home + away = all, and 'all' covers every competitive match",
+          h2h[0] == 0 and h2h[1] == h2h[2],
+          f"{h2h[0]} inconsistent pairs; {h2h[1]} played vs {h2h[2]} club_matches rows")
+
+    pvc = con.execute("""
+        SELECT (SELECT SUM(goals) FROM mart.player_vs_club),
+               (SELECT SUM(goals) FROM mart.match_player_facts
+                WHERE is_competitive AND appeared AND person_id IS NOT NULL)""").fetchone()
+    check("player_vs_club totals equal the match record they aggregate",
+          pvc[0] == pvc[1], f"{pvc[0]} vs {pvc[1]} goals")
+
+    over = con.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT v.team_tid, v.opponent_tid, SUM(v.goals) AS g, any_value(h.ga) AS conceded
+            FROM mart.player_vs_club v
+            JOIN mart.head_to_head h
+              ON h.club_tid = v.opponent_tid AND h.opp_tid = v.team_tid AND h.venue = 'all'
+            WHERE v.opponent_tid = (SELECT club_tid FROM mart.managed_club)
+            GROUP BY 1, 2) WHERE g > conceded""").fetchone()[0]
+    check("no opponent is credited more goals against us than we conceded to it",
+          over == 0, f"{over} opponents over")
+
+    sq = con.execute("""
+        SELECT (SELECT COUNT(*) FROM mart.club_squad_latest
+                WHERE club_tid IN (SELECT club_tid FROM mart.our_clubs)),
+               (SELECT COUNT(*) FROM mart.squad_current),
+               (SELECT COUNT(*) - COUNT(DISTINCT (club_tid, person_id))
+                FROM mart.club_squad_latest)""").fetchone()
+    check("club_squad_latest: our rows are squad_current's, and nobody is listed twice",
+          sq[0] == sq[1] and sq[2] == 0, f"{sq[0]} vs {sq[1]} ours, {sq[2]} duplicates")
 
     print()
     if FAILURES:

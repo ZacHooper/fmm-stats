@@ -52,7 +52,7 @@ almost every player was trained in Denmark. The constraints that actually bite a
 The rulebook test is "eligible to play at the club for 36 months in total, between the start of
 the season he turns 15 and the end of the season he turns 21". **We run the window one season
 longer, to the end of the last season in which he is still 21** — see the departures below.
-Three things in the save carry the months, and the mart (`fmparser/mart.py`, the registration
+Three things in the save carry the months, and the mart (`fmstats/mart.py`, the registration
 family) combines them:
 
 1. **Origin club** — the head of the career-history chain, i.e. the club he came out of. For an

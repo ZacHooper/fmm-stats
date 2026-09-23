@@ -24,7 +24,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
-from _dbopen import open_readonly                                    # noqa: E402
+from fmstats.dbopen import open_readonly                              # noqa: E402
 from fmparser import careers                                         # noqa: E402
 
 MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")

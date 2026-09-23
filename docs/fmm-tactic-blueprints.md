@@ -380,7 +380,7 @@ that is genuinely symmetric, add it there rather than accepting the divergence.
 
 **A flat role used to be unrepresentable.** Shipping "no weights" for AML/AMR made those positions
 disappear from the depth chart entirely, because both rating views built their method x role list
-from the pairs present in `role_weights`. Fixed in `fmparser/mart.py` and `load_duckdb.py`; if you
+from the pairs present in `role_weights`. Fixed in `fmstats/mart.py` and `load_duckdb.py`; if you
 ever see "no player rated here" for a position the squad clearly covers, that is the shape of the
 bug to look for.
 

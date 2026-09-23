@@ -22,10 +22,12 @@ allowed CA-derived exception).
   going unlogged, and offer the hand-off for the ones that matter.
 
 ## Resolve context first (do NOT hardcode)
-- **Us** = `db.MANAGED_CLUB_TID` (+ `db.OUR_CLUBS` for reserves). Method `M = db.config().get("default_method")`.
-- **Snapshot** — latest phase, date-aware: `phs = db.q("SELECT DISTINCT phase FROM staging.players
-  WHERE season=?", [S]).phase.tolist(); P = max(phs, key=db.phase_key)`. **Never a bare SQL
-  `max(phase)`** — legacy word-phases (`start`) sort as epoch and would win over a real date.
+- **Us** = `st.career.managed_tid` (+ `st.career.reserve_tid`), from `st = store.open_store()`.
+  Method `M = scout.rating_method(st)` — the career's `rating_method` (`frem_minmax_4231`), not
+  `app_config.default_method`, which still reads the site's `frem_attacking_ss`.
+- **Snapshot** — `st.season, st.phase`: the latest row of `mart.snapshots` by `snap_ix`, which is
+  date-aware already. **Never a bare SQL `max(phase)`** — legacy word-phases (`start`) sort as epoch
+  and would win over a real date.
 - **The opponent set comes from the USER** (the stage/run-in list). Don't try to auto-derive it from
   `staging.standings` — a Danish promo/relegation split isn't modelled, and the stored table often
   **lags the live game** (see standings note). Resolve each name → **first-team** tid via
@@ -88,31 +90,30 @@ Technique, Aggression, Leadership, Agility and Teamwork are exact outright. No h
 ## Step 1 — Group comparison (the core engine)
 For each opponent pull, vs us: **Level-%ile quality gap**, **per-unit quality**, **H2H**,
 **top threats by Level %ile**, and the **duel edges** above. Rank by quality (difficulty).
-Use `db.squad_frame` + `db.team_strength` — they already pick the primary-position row, apply the
+Use `scout.squad_frame` + `scout.team_strength` (`fmstats/scout.py`) — they already pick the primary-position row, apply the
 spell-based "who is really on their books" check (a hand-rolled `club_tid` filter silently includes
 lapsed loans), and return Level %ile alongside Fit.
 ```python
-import os, sys
-os.environ["FM_CAREER"] = "frem"
-os.environ["FM_DUCKDB"] = os.path.expandvars("$CLAUDE_JOB_DIR/tmp/outlook.duckdb")   # cp of the store
-os.environ["FM_DUCKDB_READONLY"] = "1"
-sys.path.insert(0, "dashboard"); import db, pandas as pd
-S, P = db.latest_snapshot(); M = db.config().get("default_method"); US = db.MANAGED_CLUB_TID
+from fmstats import scout, store
+st = store.open_store()                    # R2 published copy, cached; db="..." for a local build
+S, P, M, US = st.season, st.phase, scout.rating_method(st), st.career.managed_tid
+q = lambda sql, params=None: st.con.execute(sql, params or []).df()
 GROUP = {"FC Nordsjaelland": 2465, "Midtjylland": 360, "Broendby": 337,
          "Lyngby": 364, "Horsens": 326}                      # the user's set
 
-fr = db.squad_frame(S, P, M, [US] + list(GROUP.values()))     # spell-safe, carries the 23 attrs
-us_units, us_team = db.team_strength(fr, US)                  # .quality = Level %ile; .pctile = Fit
-h = db.our_match_history()
+fr = scout.squad_frame(st, M, [US] + list(GROUP.values()))   # spell-safe, carries the 23 attrs
+us_units, us_team = scout.team_strength(fr, US)               # .quality = Level %ile; .pctile = Fit
+h = scout.match_history(st)
 for name, tid in GROUP.items():
-    units, team = db.team_strength(fr, tid)
+    units, team = scout.team_strength(fr, tid)
     hh = h[h.opp_tid == tid]                                  # date, venue, gf, ga, result
     # gap = us_team["quality"] - team["quality"]; per-unit from units[["unit","quality"]]
-    # threats: db.squad_key_players(fr, tid, M, rank_by="level_league")  <- Level, not Fit
+    # threats: scout.squad_key_players(st, fr, tid, M, rank_by="level_league")  <- Level, not Fit
+    #          scout.h2h_players(st, tid)  <- who has actually produced against us, still_there
     # individual defenders: fr[(fr.club_tid == tid) & fr.position.isin(["GK","DL","DC","DR","DMC"])]
 
 # DUEL EDGES — per unit, against the counterpart unit (never one outfield average)
-taf = db.team_attribute_frame(S, P, M, [US] + list(GROUP.values()))   # attrs are Capitalised
+taf = fr                                  # squad_frame carries unit + the 23 attrs (Capitalised)
 def unit(tid, u, cols): return taf[(taf.club_tid == tid) & (taf.unit == u)][cols].mean()
 ourA = unit(US, "Attack",  ["Movement", "Pace", "Shooting"])
 ourD = unit(US, "Defense", ["Positioning", "Pace", "Aerial", "Tackling"])
@@ -182,7 +183,7 @@ position and by player for the season, and compare each contributor's **share of
 our goals while playing 59% and 46% of available minutes. Under-playing the top scorer is a bigger
 lever than any setting in the briefing, and it only shows up if you look.
 ```python
-f = db.q(f"""SELECT tid, SUM(goals) g, SUM(assists) a, SUM(minutes) mins
+f = q(f"""SELECT tid, SUM(goals) g, SUM(assists) a, SUM(minutes) mins
              FROM mart.match_player_facts WHERE season={S}
              AND team_tid IN (SELECT club_tid FROM mart.managed_club) GROUP BY tid""")
 # position comes from the squad_frame (mart.player_snapshots has NO position column) —
@@ -221,12 +222,12 @@ Minutes come from **`mart.match_player_facts`**, which already has `minutes`, `s
 Guard for the 0-games case first:
 ```python
 S = 2024                                     # season (end-year)
-TEAM_GAMES = db.q(f"""SELECT COUNT(DISTINCT anchor) n FROM mart.match_player_facts
+TEAM_GAMES = q(f"""SELECT COUNT(DISTINCT anchor) n FROM mart.match_player_facts
                       WHERE season={S} AND team_tid IN (SELECT club_tid FROM mart.managed_club)""").n[0]
 if TEAM_GAMES == 0:
     ...  # early-season save: skip 3b, give the fixture-rotation flags (3a) only
 else:
-    load = db.q(f"""
+    load = q(f"""
     SELECT f.person_id, any_value(f.tid) AS tid,
            COUNT(*) FILTER (WHERE f.appeared) AS apps,
            COUNT(*) FILTER (WHERE f.started)  AS starts,
@@ -255,7 +256,7 @@ low; 90-min model ignores ET.
 This skill predicts a whole group, which makes it cheap to grade and therefore inexcusable not to.
 When the user reports results from the run, revisit the briefing and say plainly which calls held:
 the difficulty ranking (did the circled side actually bite?), the duel edges (did we out-move them?),
-the recommended base method, and the rotation calls. `db.our_match_history()` has the results and
+the recommended base method, and the rotation calls. `scout.match_history(st)` (or `fmq.py matches`) has the results and
 `mart.match_player_facts` the per-player minutes, so the grade is a pull, not a memory exercise.
 Record anything that *changed* our understanding in `docs/fmm-tactic-blueprints.md` (dated), not just
 in the chat — an undated finding gets quoted forever, and a finding left in a transcript is lost.
@@ -320,22 +321,22 @@ Eyeball it: **Team analysis** (unit filters per opponent) + the **Development / 
   carries no `age`** (`person_id, tid, name, club_tid, is_loan_in, is_reserve, valid_from, as_of`) —
   join `mart.player_snapshots` for age. Both of these cost a query on the 2026-03 run; the fuller
   table is in [`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md).
-- **Don't hand-roll the primary-position/club filter** — `db.squad_frame` does it and applies the
+- **Don't hand-roll the primary-position/club filter** — `scout.squad_frame` does it and applies the
   spell check; a bare `club_tid` filter includes players whose loan lapsed without being renewed.
 - **A `role_weights` method is a rating weight-set, NOT a tactic.** Recommending `frem_counter` sets
   no mentality, line, press, tempo or final-third instruction — name the in-game settings too. The
   full menu surface is [`fmm-tactic-options`](../../../docs/agent-context/fmm-tactic-options.md).
 - **Any Fit number quoted from a doc must carry the date and squad it was computed on** — a mid-22
   Fit table was quoted at a 2026 squad and put a wrong claim into `scout-opponent`.
-- **Attribute columns are Capitalised** (`Pace`, `Stamina`…) in `team_attribute_frame`; and
+- **Attribute columns are Capitalised** (`Pace`, `Stamina`…) in `squad_frame`; and
   `staging.player_attributes` is a **WIDE** table (`SELECT tid, Stamina, Pace`), NOT long. A lowercase
   or `attribute='Stamina'` query yields empty / errors.
-- **`phase` is a date** — resolve latest with `db.phase_key`, never a bare `max`.
+- **`phase` is a date** — take the latest from `st.phase` (`mart.snapshots.snap_ix`), never a bare `max`.
 - **Reserves rows** share a club's name — take the first team tid.
 - **Standings can lag the live game** — take live points/position from the user.
-- Query a **copy** of the store (`cp fm-<key>.duckdb $CLAUDE_JOB_DIR/tmp/outlook.duckdb`, set
-  `FM_DUCKDB` + `FM_DUCKDB_READONLY=1` + `FM_CAREER`); run via a script file, not `python -c`.
-- Opponent names/attributes limitations from `scout-opponent` apply (names NULL → profile by
-  position + %ile; opponent attrs are ±1 estimates except pace/physicals).
+- `store.open_store()` reads the published R2 copy and copies a locked local store itself; set
+  `FM_CAREER` for another career and run via a script file, not `python -c`.
+- Opponent attribute limitations from `scout-opponent` apply (opponent attrs are ±1 estimates
+  except pace/physicals). Opponent names resolve for every club.
 
 Offer at the end to run a full `scout-opponent` on the circled fixture(s), or a deeper rotation plan.
