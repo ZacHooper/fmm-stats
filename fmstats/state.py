@@ -29,7 +29,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_DIR = os.environ.get("FM_STATE_DIR") or os.path.join(REPO, "state")
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 PULL_TTL = int(os.environ.get("FM_STATE_TTL", "300"))       # seconds between remote pulls
-KINDS = ("shortlist", "scouts")
+KINDS = ("shortlist", "scouts", "registrations")
 
 # What a write actually did. `put` used to discard the push result and return the key, so an
 # entry that never reached R2 still reported success and sat unnoticed on one machine's disk —

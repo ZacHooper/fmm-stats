@@ -22,7 +22,8 @@ Cloudflare Workers Builds (GitHub) ---------------- deploys site/ + worker/ in s
 
 **Routing.** Cloudflare serves a matching static asset *first* and only invokes the Worker when
 nothing matches. So `api/index.json`, `api/core.json` and the rest come straight off disk, and
-only `/api/all` and `/api/shortlist` — which have no file behind them — reach `worker/index.js`.
+only `/api/all`, `/api/shortlist` and `/api/registrations` (saved registration windows) — which
+have no file behind them — reach `worker/index.js`.
 `not_found_handling` is `"none"` on purpose: the app is hash-routed (`#/squad`), so every real
 path is a real file, and an SPA rewrite would return `index.html` for the API paths instead of
 letting them through.
@@ -95,7 +96,7 @@ npx wrangler secret put FM_SHORTLIST_TOKEN     # or Settings -> Variables and Se
 openssl rand -hex 24                           # to generate one
 ```
 
-The shortlist endpoint refuses every request while it's unset — unconfigured fails closed, never
+The shortlist and registrations endpoints refuse every request while it's unset — unconfigured fails closed, never
 open. The R2 binding (`FM_STATE` → `fmm-stats`) needs no credentials at all; that's the advantage
 of a native binding over an access key.
 

@@ -140,6 +140,17 @@ can be checked for what he would add to the quotas before you sign him.
 The A/B assignment lives in the browser (localStorage, keyed by snapshot) and is never written
 back to the save or the store. It is a plan, not a fact.
 
+**Saved windows.** `Save window…` keeps the lists as they stand as the registration for one
+transfer window (`Summer 2027`, `Winter 2028`) — one record per window, so saving the same window
+again replaces it. With the device token (the shortlist's) it goes to R2 at
+`state/registrations/<year>-<summer|winter>.json` and every device sees it; without one it stays
+in this browser. Each record carries the players' names, positions, ages and home-grown status
+as they were, so a window reads correctly after its players have left. Opening one shows the three
+lists and what has changed since — who left, who is new, who has aged out of the B-list — and
+**Load into plan** makes it the starting point for the next window: players still here keep their
+list, new players get the default, and a B-lister now too old is flagged as unregistered for you
+to place.
+
 **Suggest a squad** builds one. The A-list cannot hold everyone — this squad is 40, of whom 19 are
 too old for the B-list, 5 are on loan to us, and the spine is another 19 at depth 2, so any two of
 those groups already overflow 25. It is therefore a priority order, not a filter:
