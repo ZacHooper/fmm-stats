@@ -87,14 +87,32 @@ two:
    history stops here even though they haven't left the game).
 3. **Kept playing somewhere the mart doesn't reach** — `is_staff` stays `False` and `club_tid`
    changes to something `mart.clubs`/`f.staging.clubs` *can* still name, just not a club we've
-   ever played or that's in our tracked leagues. One Class-of-2021/22 "retirement" turned out to
-   be exactly this: a year as unattached staff, then back out as an active player at a small
-   German amateur club neither `player_spells` nor `squad_current` had any way to show.
+   ever played or that's in our tracked leagues.
 
 A genuinely current *Frem* player has recent `mart.squad_current` rows or a still-open
 (`valid_to` `NULL`) `at_club` spell corroborated by recent minutes — check both. But "not
 current at Frem" is not the same claim as "retired," and the raw `staging.players` check above
 is the only way to tell which one it actually is.
+
+**Before trusting outcome 3, or ANY row that reappears after a staff spell or an unexplained
+gap, check `dob` too, not just `name` and `club_tid`.** The first pass of this skill got exactly
+this wrong on two players: both went `is_staff=True` (unattached) for roughly a year, then
+`is_staff=False` again at a small foreign club — read, without checking further, as "took a
+staff detour, came back to playing." The real story, caught by the user asking why two players
+neither of them could place were still showing up: `dob` for both changed the moment they
+reappeared as players — the tid had been handed to a completely different, much younger person,
+and the raw data simply carried the OLD display name forward onto the new occupant. **A tid is
+a recycled slot** (this is documented in `fmparser/mart.py`'s own comments on
+`player_career_seasons`), and nothing about `staging.players.name` guarantees it gets refreshed
+when that happens. The only reliable check:
+```sql
+SELECT DISTINCT dob FROM f.staging.players WHERE tid=<tid>
+```
+More than one distinct `dob` for a tid means at least two different real people are being read
+as one — find the transition point (`SELECT season, phase, name, dob, club_tid, is_staff FROM
+f.staging.players WHERE tid=<tid> ORDER BY phase`) and treat everything from that point on as a
+different person. A retired player whose ID was later recycled is still just retired — write
+them up that way, and don't invent a second act for someone else's story.
 
 ## 4. Post-departure story — `mart.player_career_seasons`
 This is the section that makes the retrospective worth reading (the user's own steer: "this
@@ -138,19 +156,25 @@ FROM mart.player_career_seasons WHERE tid=<tid> ORDER BY seq
   as staff, the mart shows nothing for them at all even though five prior snapshots had their
   complete history. **Always fall back to the raw query above against the full store (`f`)
   before declaring "no data exists"** — it will usually still be there.
-- **A second, rarer pattern**: a player whose `player_spells` shows a normal-looking prior club
-  (not the `65535` free-agent sentinel) but whose `player_career_seasons`/raw history has
-  **nothing before their first Frem season at all** — no youth rows, no prior-club stats, ever,
-  in any snapshot. This doesn't fit the `is_staff` explanation (they're an active player, not
-  staff) and doesn't fit a genuine free-agent origin either (spells names a real club). The
-  working theory, not yet confirmed: this is what a recycled `tid` slot looks like from the
-  outside — `fmparser/mart.py`'s own comment on `player_career_seasons` already documents "a
-  tid is a recycled slot" as a known fact about this table. A newly-generated player ("regen")
-  dropped into an old, vacated tid can apparently pick up a plausible-looking one-off "signed
-  from X" transfer entry without inheriting any real backstory chain — which reads, from the
-  data alone, exactly like a normal signing with strangely thin history. Treat it as a
-  possibility worth naming rather than a confirmed cause, and don't invent a backstory to fill
-  the gap either way.
+- **A second pattern, now CONFIRMED, not just theorised**: a player whose `player_spells` shows
+  a normal-looking prior club (not the `65535` free-agent sentinel) but whose
+  `player_career_seasons`/raw history has **nothing before their first Frem season at all** — no
+  youth rows, no prior-club stats, ever, in any snapshot. Caught on a Class-of-2022/23 player
+  ("Thomas De Clercq," supposedly signed from Belgium's KSV Bornem): `SELECT DISTINCT dob FROM
+  f.staging.players WHERE tid=<tid>` returned **two** birth dates. The full timeline showed the
+  real De Clercq (b. 1983) at Frem only through early 2022, becoming staff shortly after — and a
+  brand new tid occupant (b. 2005, a completely different person, "Johan Nordberg") from
+  2022-07-01 onward, with zero history of his own, who is who actually played all 22 apps that
+  season and everything since. **The Belgian transfer story belonged entirely to the old
+  occupant** — `player_spells`/raw `player_history_seasons`, queried by bare `tid` with no `dob`
+  filter, silently blends both identities into what looks like one continuous player. This is
+  the same `fmparser/mart.py`-documented "a tid is a recycled slot" behaviour as the staff-detour
+  gotcha above, just discovered from the other direction (no gap in OUR data to notice — the
+  join across two people is seamless unless you check `dob`). **Whenever a player's history is
+  suspiciously thin, or a transfer origin doesn't ring true, run the `DISTINCT dob` check before
+  writing up the story** — a real signing with unusually few displayed prior seasons is common
+  and fine; a signing with a named origin club but literally zero backing history anywhere is
+  the tell.
 
 ## 5. Loan-only players — treat separately
 Anyone whose *only* connection to the club is a `loan_in` row (never an `at_club` row with our
@@ -231,15 +255,22 @@ write-up that inclusion here means "featured that season," not "notable."
   once "still here" is ruled out. Check raw `staging.players.is_staff` and `club_tid` for
   anyone who drops off before calling them retired (§3) — the real options are retired, moved
   into coaching/staff, or still playing somewhere the mart just doesn't resolve a name for.
+- **A tid is a recycled slot, and `name` does not reliably change when the occupant does.**
+  Before writing up ANYONE whose story involves a gap, a staff detour, or an origin that doesn't
+  quite add up, run `SELECT DISTINCT dob FROM f.staging.players WHERE tid=<tid>` (§3, §4). More
+  than one `dob` means you're reading two different people as one. This produced two confirmed,
+  wrong storylines in earlier drafts of this skill's own output: two "retired" players who
+  looked like they'd come back to play at small foreign clubs (they hadn't — different, younger
+  people inherited their IDs) and one active squad player written up under a completely wrong
+  name and transfer history for two published pages running (the real player has no prior club
+  at all; a different, already-retired person's Belgian signing had leaked into his card).
 - `player_snapshots` silently drops retired/staff/departed-to-untracked-club players — use
-  `player_spells` for names, always.
+  `player_spells` for names, always, but see the recycled-tid caution above before trusting a
+  name from any source blindly.
 - `player_career_seasons` on the **published mart object** is latest-snapshot-only and goes
   empty the moment a tid becomes staff — even if their full real history exists in earlier
   snapshots. Before writing "no data survives" for anyone, check the raw
   `f.staging.player_history_seasons` across every snapshot, not just the mart (§4).
-- A player with a normal-looking prior club in `player_spells` but literally zero history
-  before their first Frem season may be sitting on a recycled `tid` — a possible newgen/regen,
-  not confirmed (§4).
 - `fee` is in **£000s**, and `~65532` is a sentinel, not a windfall.
 - Always tag the league/country next to an unfamiliar club name.
 - Don't infer a multi-season promotion trail from `club_leagues` (latest-only) — read it off
