@@ -628,6 +628,35 @@ def main():
     """).fetchone()[0]
     check("club_matches mirrors correctly between the two sides of a match",
           mirror == 0, f"{mirror} inconsistent pair(s)")
+    # The save records only our shape; the opponent's row must not carry a copy of it.
+    opp_form = con.execute("""
+        SELECT COUNT(*) FROM mart.club_matches
+        WHERE club_tid NOT IN (SELECT club_tid FROM mart.our_clubs) AND formation IS NOT NULL
+    """).fetchone()[0]
+    check("club_matches carries a formation on our row only", opp_form == 0,
+          f"{opp_form} opponent row(s) with a formation")
+
+    # An event about a player who is in that match's lineup must resolve to a side, and to
+    # the side he was fielded for -- not his club at the season's last snapshot.
+    ev_side = con.execute("""
+        WITH lu AS (SELECT DISTINCT date, tid, team_tid FROM mart.match_player_facts)
+        SELECT COUNT(*) FILTER (WHERE e.side IS NULL),
+               COUNT(*) FILTER (WHERE e.side IS DISTINCT FROM
+                   CASE WHEN lu.team_tid = e.home_tid THEN 'home' ELSE 'away' END)
+        FROM mart.match_events e JOIN lu USING (date, tid)
+    """).fetchone()
+    check("match_events.side resolves from the lineup", ev_side == (0, 0),
+          f"{ev_side[0]} NULL, {ev_side[1]} disagreeing with the lineup")
+
+    # A sent-off player's minutes end at the red card, not at 90.
+    red_over = con.execute("""
+        WITH r AS (SELECT date, tid, MIN(minute) AS m FROM mart.match_events
+                   WHERE type = 'red_card' GROUP BY date, tid)
+        SELECT COUNT(*) FROM r JOIN mart.match_player_facts f USING (date, tid)
+        WHERE f.minutes > r.m
+    """).fetchone()[0]
+    check("no dismissed player is credited minutes after his red card", red_over == 0,
+          f"{red_over} player-match(es)")
     pts = con.execute("""
         SELECT COUNT(*) FROM mart.club_matches
         WHERE pts IS DISTINCT FROM CASE result WHEN 'W' THEN 3 WHEN 'D' THEN 1 ELSE 0 END

@@ -412,6 +412,19 @@ carries it verbatim rather than dropping it. `0x07`/`0x08` were named `shootout_
 `shootout_miss` on 2026-09-17 — see `fmparser/matches.py` for the arithmetic that settled the
 direction.
 
+### 6a. Goals exceed shots on some player-match rows
+In `mart.match_player_facts`, 260 of 11,161 rows have `goals > shotA` and 286 have
+`goals > shotO` (e.g. Tim Prica, 2027-04-21: 2 goals, 1 shot on target). The likely cause is
+that penalties or deflections are counted as goals but not as shots, but that is unconfirmed.
+Until it's settled, don't compute a conversion rate from these columns.
+
+### 6aa. Match minutes assume 90 — extra time is miscounted
+`mart.match_player_facts.minutes` treats `subOff = 255` (never substituted off) as the 90th
+minute. In an extra-time match, a player who plays the whole game is credited 90 instead of 120,
+and a substitute brought on in extra time gets a negative total (Lucas Lodberg, 2023-02-22:
+`subOn` 105, minutes −15; Mikkel Andersson, 2022-10-25, the same). The fix needs the match's own
+length (extra time played or not), which `mart.matches` doesn't carry yet.
+
 ### 6b. The save's own in-game date is not located — partial search, results kept
 
 **Not blocking anything.** `phase` is supplied by hand at import (`archive_save.py --phase`)

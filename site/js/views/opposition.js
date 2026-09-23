@@ -124,7 +124,7 @@ export async function view() {
         kpi("Pts/game", num(h2h.reduce((a, m) => a + (m.pts || 0), 0) / h2h.length, 2)),
       ]));
       scout.append(el("div.scroll.fit", {}, [el("table", {}, [
-        el("thead", {}, [el("tr", {}, ["Date", "Competition", "H/A", "Score", "", "Formation"]
+        el("thead", {}, [el("tr", {}, ["Date", "Competition", "H/A", "Score", "", "Our formation"]
           .map((h, i) => el(`th${i === 3 ? ".num" : ""}`, { text: h })))]),
         el("tbody", {}, [...h2h].sort((a, b) => String(b.date).localeCompare(String(a.date)))
           .map((m) => el("tr", {}, [
