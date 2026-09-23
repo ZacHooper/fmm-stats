@@ -222,17 +222,113 @@ function baseMap(container) {
   return map;
 }
 
-function buildMap(container, points, popupFor) {
+/**
+ * A map of round pins that never hide one another.
+ *
+ * The save places a club through club -> stadium -> CITY, and only the city has coordinates, so
+ * every club in a city lands on exactly the same spot (FCK sits precisely under Frem; 84 of the
+ * 162 Danish clubs share a point with another), and at country zoom clubs a few kilometres apart
+ * overlap as well (Frem, FCK, Brøndby, Lyngby and Nordsjælland are one knot around Copenhagen).
+ *
+ * So after every zoom the pins are laid out in SCREEN pixels: clubs on the same point are seeded
+ * around it on a sunflower spiral (`order` decides who takes the centre), then overlapping pairs
+ * are pushed apart. Not fully apart: at country zoom that turns Denmark into a honeycomb that no
+ * longer looks like the map, so pins also shrink when zoomed out and may overlap by up to
+ * OVERLAP of their size — every pin stays visible and clickable, and the map keeps its shape.
+ * The offset goes into the marker's icon anchor, so the pin's latlng stays the true one.
+ */
+const OVERLAP = 0.3;
+const pinScale = (zoom) => (zoom >= 9 ? 1 : zoom >= 8 ? 0.85 : zoom >= 7 ? 0.72 : 0.6);
+function pinLayer(map, { order }) {
   const L = window.L;
-  const map = baseMap(container);
-  const markers = points.map((p) => L.marker([p.lat, p.lon]).bindPopup(popupFor(p)));
-  if (markers.length) {
-    const group = L.featureGroup(markers).addTo(map);
-    map.fitBounds(group.getBounds().pad(0.2));
-  } else {
-    map.setView([56.0, 10.0], 6);   // Denmark, roughly — a reasonable empty-map default
+  const layer = L.featureGroup().addTo(map);
+  let pins = [];                                  // { p, style, marker }
+
+  const iconFor = (style, dx, dy, k = 1) => {
+    const size = Math.round(2 * (style.r * k + style.ringW));
+    return L.divIcon({
+      className: "mapdot",
+      html: `<span style="display:block;box-sizing:border-box;width:${size}px;height:${size}px;`
+        + `border-radius:50%;background:${style.fill};border:${style.ringW}px solid ${style.ring};`
+        + `opacity:.95"></span>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2 - dx, size / 2 - dy],
+      popupAnchor: [dx, dy - size / 2],
+    });
+  };
+
+  function relayout() {
+    if (!pins.length) return;
+    const k = pinScale(map.getZoom());
+    const pos = pins.map((x) => map.latLngToLayerPoint([x.p.lat, x.p.lon]));
+    const base = pos.map((q) => ({ x: q.x, y: q.y }));
+    const rad = pins.map((x) => x.style.r * k + x.style.ringW);
+    // seed: same-point groups on a spiral, so the push below has a direction to work with
+    const groups = new Map();
+    pins.forEach((x, i) => {
+      const k = `${x.p.lat},${x.p.lon}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(i);
+    });
+    const cur = base.map((q) => ({ ...q }));
+    for (const g of groups.values()) {
+      if (g.length < 2) continue;
+      g.sort((i, j) => order(pins[i].p, pins[j].p));
+      g.forEach((i, n) => {
+        const r = 9 * k * Math.sqrt(n + 0.6), a = n * 2.39996;
+        cur[i].x += r * Math.cos(a); cur[i].y += r * Math.sin(a);
+      });
+    }
+    // push overlapping pairs apart; the higher-ranked pin (by `order`) moves less
+    const rank = pins.map((_, i) => i).sort((i, j) => order(pins[i].p, pins[j].p));
+    const weight = new Array(pins.length);
+    rank.forEach((i, n) => { weight[i] = 0.35 + 0.3 * (n / Math.max(1, pins.length - 1)); });
+    for (let it = 0; it < 60; it++) {
+      let moved = false;
+      for (let i = 0; i < pins.length; i++) {
+        for (let j = i + 1; j < pins.length; j++) {
+          const dx = cur[j].x - cur[i].x, dy = cur[j].y - cur[i].y;
+          // Same point: always fully apart, or one pin sits exactly under the other. Otherwise
+          // a partial overlap is allowed, which is what keeps the map's shape.
+          const same = pins[i].p.lat === pins[j].p.lat && pins[i].p.lon === pins[j].p.lon;
+          const need = (rad[i] + rad[j]) * (same ? 1 : 1 - OVERLAP) + 1;
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= need * need) continue;
+          const d = Math.sqrt(d2) || 0.01;
+          const ux = d2 ? dx / d : Math.cos(i + j), uy = d2 ? dy / d : Math.sin(i + j);
+          const push = need - d;
+          const wi = weight[i] / (weight[i] + weight[j]), wj = 1 - wi;
+          cur[i].x -= ux * push * wi; cur[i].y -= uy * push * wi;
+          cur[j].x += ux * push * wj; cur[j].y += uy * push * wj;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    pins.forEach((x, i) => x.marker.setIcon(iconFor(x.style, cur[i].x - base[i].x, cur[i].y - base[i].y, k)));
   }
-  return map;
+  map.on("zoomend", relayout);
+
+  return {
+    layer,
+    /** Replace every pin. `entries` is [{ p, style: {fill, r, ring, ringW, z}, popup }]. */
+    set(entries) {
+      layer.clearLayers();
+      pins = entries.map(({ p, style, popup }) => ({
+        p, style,
+        marker: L.marker([p.lat, p.lon], {
+          icon: iconFor(style, 0, 0), zIndexOffset: style.z || 0, title: p.club,
+        }).bindPopup(popup).addTo(layer),
+      }));
+    },
+    relayout,
+  };
+}
+
+function fitTo(map, pins, pts) {
+  if (pts.length) map.fitBounds(window.L.latLngBounds(pts.map((p) => [p.lat, p.lon])).pad(0.2), { maxZoom: 10 });
+  else map.setView([56.0, 10.0], 6);   // Denmark, roughly — a reasonable empty-map default
+  pins.relayout();                     // fitBounds may not change zoom, and then no zoomend fires
 }
 
 async function mapsPanel(world) {
@@ -279,12 +375,13 @@ async function mapsPanel(world) {
   const originDiv = el("div", { style: "height:380px;border-radius:8px;overflow:hidden" });
   wrap.append(originDiv);
   wrap.append(el("p.note", {
-    text: `${origins.length} origin clubs shown for the current squad.`
+    text: `${origins.length} origin clubs shown for the current squad; overlapping pins are `
+      + "nudged apart, and our own academy has the dark ring."
       + (unresolved ? ` ${unresolved} player(s)' origin club couldn't be placed on the map — ` +
         "that means our data can't resolve it, not that they don't have one." : ""),
   }));
 
-  // Deferred to the next frame: `buildMap` needs the container's real on-page size (Leaflet
+  // Deferred to the next frame: `baseMap` needs the container's real on-page size (Leaflet
   // measures it at construction time), and these divs aren't attached to the document until
   // AFTER this function's promise resolves and the caller replaces the panel's children with
   // it — so building the map inline here would measure a detached, zero-size node.
@@ -292,29 +389,47 @@ async function mapsPanel(world) {
     const L = window.L;
     const ourTids = new Set(D.S.ours.clubs || []);
     const map = baseMap(dkDiv);
-    const layer = L.featureGroup().addTo(map);
+    const byTier = (a, b) => (a.tier ?? 99) - (b.tier ?? 99) || String(a.club).localeCompare(String(b.club));
+    const dkPins = pinLayer(map, {
+      order: (a, b) => (ourTids.has(b.tid) - ourTids.has(a.tid)) || byTier(a, b),
+    });
     const drawDk = () => {
       const want = leagueSel.value;
       const shown = dk.filter((p) => !want
         || (want.startsWith("tier:") ? String(p.tier) === want.slice(5) : p.league === want.slice(7)));
-      layer.clearLayers();
-      // Lowest tier drawn first so the top-flight pins sit on top where grounds overlap.
-      for (const p of [...shown].sort((a, b) => (b.tier ?? 99) - (a.tier ?? 99))) {
+      dkPins.set(shown.map((p) => {
         const ours = ourTids.has(p.tid);
-        L.circleMarker([p.lat, p.lon], {
-          radius: ours ? 10 : 7, color: ours ? "#111" : "#fff", weight: ours ? 3 : 1.5,
-          fillColor: tierColour(p.tier), fillOpacity: 0.9,
-        }).bindPopup(popupHtml(p, p.tier ? `Tier ${p.tier} · ${p.league}` : p.league)).addTo(layer);
-      }
-      if (shown.length) map.fitBounds(layer.getBounds().pad(0.2), { maxZoom: 10 });
-      else map.setView([56.0, 10.0], 6);
+        return {
+          p,
+          style: { fill: tierColour(p.tier), r: ours ? 8 : 7, ring: ours ? "#111" : "#fff",
+                   ringW: ours ? 3 : 1.5, z: ours ? 1000 : (10 - (p.tier ?? 9)) * 100 },
+          popup: popupHtml(p, p.tier ? `Tier ${p.tier} · ${p.league}` : p.league),
+        };
+      }));
+      fitTo(map, dkPins, shown);
       dkNote.textContent = `${shown.length} of ${dk.length} clubs with a resolvable stadium `
         + "location, coloured by division tier (1 = top flight); our club has the dark ring. "
-        + "Tap a pin for the club, ground and capacity.";
+        + "Pins mark each club's CITY (the save has no ground coordinates), and pins that would "
+        + "overlap are nudged apart so none hides another; zoom in and they settle back towards "
+        + "their city. Tap a pin for the club, ground and capacity.";
     };
     leagueSel.addEventListener("change", drawDk);
     drawDk();
-    buildMap(originDiv, origins, (p) => popupHtml(p, p.players.join(", ")));
+    const omap = baseMap(originDiv);
+    const oPins = pinLayer(omap, {
+      order: (a, b) => (ourTids.has(b.tid) - ourTids.has(a.tid))
+        || b.players.length - a.players.length || a.club.localeCompare(b.club),
+    });
+    oPins.set(origins.map((p) => {
+      const ours = ourTids.has(p.tid);
+      return {
+        p,
+        style: { fill: "#2f6fd0", r: ours ? 8 : 7, ring: ours ? "#111" : "#fff",
+                 ringW: ours ? 3 : 1.5, z: ours ? 1000 : 0 },
+        popup: popupHtml(p, p.players.join(", ")),
+      };
+    }));
+    fitTo(omap, oPins, origins);
   });
 
   return wrap;
