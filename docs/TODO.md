@@ -602,10 +602,46 @@ Open, in order:
 1. **Settle the mechanism with a RELIABLE retirement signal.** `club_tid` cannot do it (97.6% of
    the shortened group vs 97.7% of the lengthened group still "have a club" — the lapsed-loan
    trap). Try absence from later `mart.player_snapshots` / match stats instead.
+
+   **Likely candidate found 2026-09-23, doing a "where are they now" retrospective (not yet
+   proven at scale — this is one careful case, not a re-run of the 6,077-sid measurement):**
+   `staging.players.is_staff` flipping `True`→ for a tid. Checked two Frem players (tid 9231,
+   9430) whose `mart.player_career_seasons` came back completely empty even though they'd both
+   had a full, real, multi-season history (including their move away from Frem) in every prior
+   snapshot. Querying `f.staging.player_history_seasons` directly by tid across every
+   season/phase shows the chain fully intact and growing right up to the snapshot at
+   `2026-07-02` — then **zero rows at `2027-04-25`**, the very next snapshot, for both. In both
+   cases `staging.players.is_staff` reads `False` at `2026-07-02` and `True` at `2027-04-25`,
+   with name/dob unchanged (so this is not tid recycling — see the caution on that below). A
+   third player (tid 9584) went the other way — `is_staff` flipped `True` then back to `False`
+   a few snapshots later as he returned to playing (for an untracked amateur club) — and his
+   history chain also vanished in step with the `True` phase and did not return once he started
+   playing again. This is a hard cutoff (full chain one snapshot, none the next), not the
+   gradual shortening the 6,077-sid measurement found, so it's a plausible *contributing*
+   mechanism rather than a full explanation on its own — worth checking whether the population
+   of "shortened" sids in that measurement overlaps with a `False`→`True` `is_staff` transition
+   between the same two saves. If it holds up, it also means: don't trust "no career-history
+   chain for this player" as evidence of a free-agent origin or a missing backstory (an early
+   guess in `.claude/skills/where-are-they-now/SKILL.md` that turned out wrong) — check
+   `is_staff` first.
+
+   **Separately, and worth its own look**: a player (tid 4240) with a normal-looking prior club
+   in `player_spells` (not the free-agent sentinel) had **zero** history rows in *any* snapshot,
+   including the earliest available — not a disappearance, but never present at all. Unlike the
+   is_staff cases, this one can't be explained by a transition since there's no earlier snapshot
+   where it existed. Consistent with `mart.py`'s existing comment that "a tid is a recycled
+   slot": a newly-generated player dropped into an old tid, inheriting a plausible one-off
+   transfer entry via `player_spells`/`staging.players` without a real backstory chain ever
+   having been written for that slot. Not confirmed — nobody has yet identified which prior
+   player (if any) held tid 4240 before, or shown a second case.
 2. **Quantify the loss in the STORE, not the save**: per person, compare career-history row
    counts across snapshots and count how many have their richest history in an OLDER snapshot.
 3. **If material, union history across snapshots in `fmparser/mart.py`.** We keep every
-   snapshot's extract, so the data is recoverable — nothing currently unions it.
+   snapshot's extract, so the data is recoverable — nothing currently unions it. Note this would
+   also fix the **published mart-only R2 object** (`fm-frem-mart.duckdb`), where
+   `player_career_seasons` is scoped to the newest snapshot only — today that means a player who
+   left the tracked world right before becoming staff shows a complete blank there even though
+   the full history sits unused in earlier snapshots of the full store.
 4. Cheap standing check per import: singleton-chain count, to confirm the reserve is not
    shrinking toward exhaustion.
 

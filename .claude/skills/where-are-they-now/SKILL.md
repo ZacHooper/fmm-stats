@@ -61,7 +61,7 @@ Naively: "their last `at_club` spell has `club_tid=346`, so they're still here."
 wrong and it will bite you.** A contract renewal can close out one `at_club` row and (if the
 mart's spell-builder doesn't stitch it back together) leave no successor row, even though the
 player never left. Two Class-of-2021/22 players (a GK and a squad midfielder) looked "still at
-Frem" this way and had actually retired a year earlier.
+Frem" this way and had actually left the club a year earlier.
 
 **Cross-check every "still here" and every "just left" against actual recent minutes**, not
 just the spell table:
@@ -70,20 +70,31 @@ SELECT ps.season, ps.competition, ps.apps
 FROM mart.player_seasons ps WHERE ps.tid=<tid> AND ps.team_tid IN (SELECT club_tid FROM mart.managed_club)
 ORDER BY ps.season
 ```
-If a player has no real minutes (or no `mart.match_player_facts` rows with `minutes>0`) in the
-one or two seasons before "now", and doesn't appear in `mart.squad_current` or `mart.staff`,
-treat them as **retired**, not "still here" — and pull their actual last appearance for a
-send-off line:
+But **don't jump straight to "retired" either** — that was wrong the first time this skill ran.
+When someone has no recent minutes anywhere in the mart, check the RAW status directly before
+writing them off:
 ```sql
-SELECT cm.date, cm.competition, cm.opponent, mpf.rating, mpf.minutes
-FROM mart.match_player_facts mpf
-JOIN mart.club_matches cm ON cm.club_tid IN (SELECT club_tid FROM mart.managed_club)
-  AND cm.season=mpf.season AND cm.phase=mpf.phase AND cm.anchor=mpf.anchor
-WHERE mpf.tid=<tid> AND mpf.minutes>0
-ORDER BY cm.date DESC LIMIT 1
+SELECT season, phase, tid, name, club_tid, is_staff
+FROM f.staging.players WHERE tid=<tid> ORDER BY phase
 ```
-A genuinely current player has recent `mart.squad_current` rows or a still-open (`valid_to`
-`NULL`) `at_club` spell corroborated by recent minutes — check both.
+(needs the full store, `f` — `mart.squad_current`/`mart.staff` are our-club-scoped and won't
+show a player who moved to an untracked club). Three real outcomes turned up doing this, not
+two:
+1. **Genuinely retired** — no more rows at all, or the last rows fade out with no destination.
+2. **Became club staff** — `is_staff` flips to `True`, with a real (if obscure) `club_tid`.
+   This is a coaching/backroom move, not retirement from football — say so, and name the club
+   if `f.staging.clubs`/`mart.staff` resolves one (see §4's gotcha for why their playing
+   history stops here even though they haven't left the game).
+3. **Kept playing somewhere the mart doesn't reach** — `is_staff` stays `False` and `club_tid`
+   changes to something `mart.clubs`/`f.staging.clubs` *can* still name, just not a club we've
+   ever played or that's in our tracked leagues. One Class-of-2021/22 "retirement" turned out to
+   be exactly this: a year as unattached staff, then back out as an active player at a small
+   German amateur club neither `player_spells` nor `squad_current` had any way to show.
+
+A genuinely current *Frem* player has recent `mart.squad_current` rows or a still-open
+(`valid_to` `NULL`) `at_club` spell corroborated by recent minutes — check both. But "not
+current at Frem" is not the same claim as "retired," and the raw `staging.players` check above
+is the only way to tell which one it actually is.
 
 ## 4. Post-departure story — `mart.player_career_seasons`
 This is the section that makes the retrospective worth reading (the user's own steer: "this
@@ -104,14 +115,42 @@ FROM mart.player_career_seasons WHERE tid=<tid> ORDER BY seq
 - Use the post-move rows to say whether they're **actually doing well** — apps, goal
   involvements, and rating with enough of a sample to mean something. That's the whole point of
   this tier, more than the tiers either side of it.
-- **Known gap**: a player who started the save as an unattached free agent (their very first
-  `player_spells` row is `club_tid=65535`, "Free agent") has **no history chain at all** —
-  `player_career_seasons` comes back empty for them, before Frem and after. This isn't a "club
-  not loaded" issue; per `fmparser/history.py`, the chain head pointer (`P-38`) is only valid
-  for players who were slotted onto a real club roster at world creation — a free agent dumped
-  into the pool at save-gen seemingly never gets one written, the same "no history yet" state a
-  newgen has. Say so in the write-up rather than inventing pre/post-Frem stats for these
-  players — it'll usually be one or two per squad (a keeper, a squad player signed same week).
+- **Known gap, corrected**: the published mart object's `player_career_seasons` came back
+  *empty* for a few players even though the raw chain clearly exists. The first write-up of
+  this skill guessed it was a free-agent-origin thing ("no backstory for a player minted
+  unattached at world creation") — **that guess was wrong**, caught by checking the raw
+  `f.staging.player_history_seasons` table directly across every snapshot instead of trusting
+  the published mart:
+  ```sql
+  SELECT season, phase, seq, hist_season, end_year, club_tid, apps
+  FROM f.staging.player_history_seasons WHERE tid=<tid> ORDER BY season, phase, seq
+  ```
+  The real mechanism: **the chain is walked from the PLAYER attribute record, and it stops
+  being populated the moment `is_staff` flips to `True` for that tid** — confirmed on two
+  players whose full, real history (including the move that took them away from Frem) is
+  sitting right there in earlier snapshots and just stops appearing once they became coaching
+  staff, even though nothing else about the row (name, dob) changed. It isn't tid recycling and
+  it isn't a missing backstory; the player-history walk simply doesn't run against a staff
+  record, so once someone crosses that line their whole player-side chain — past AND future —
+  drops out of every snapshot from then on, not just the ones after the switch. **The published
+  mart-only object makes this worse**: `player_career_seasons` there is latest-snapshot-only
+  (see the R2-access doc), so if the very last snapshot happens to catch someone mid-retirement
+  as staff, the mart shows nothing for them at all even though five prior snapshots had their
+  complete history. **Always fall back to the raw query above against the full store (`f`)
+  before declaring "no data exists"** — it will usually still be there.
+- **A second, rarer pattern**: a player whose `player_spells` shows a normal-looking prior club
+  (not the `65535` free-agent sentinel) but whose `player_career_seasons`/raw history has
+  **nothing before their first Frem season at all** — no youth rows, no prior-club stats, ever,
+  in any snapshot. This doesn't fit the `is_staff` explanation (they're an active player, not
+  staff) and doesn't fit a genuine free-agent origin either (spells names a real club). The
+  working theory, not yet confirmed: this is what a recycled `tid` slot looks like from the
+  outside — `fmparser/mart.py`'s own comment on `player_career_seasons` already documents "a
+  tid is a recycled slot" as a known fact about this table. A newly-generated player ("regen")
+  dropped into an old, vacated tid can apparently pick up a plausible-looking one-off "signed
+  from X" transfer entry without inheriting any real backstory chain — which reads, from the
+  data alone, exactly like a normal signing with strangely thin history. Treat it as a
+  possibility worth naming rather than a confirmed cause, and don't invent a backstory to fill
+  the gap either way.
 
 ## 5. Loan-only players — treat separately
 Anyone whose *only* connection to the club is a `loan_in` row (never an `at_club` row with our
@@ -132,7 +171,12 @@ nice detail and it's easy to miss if you only look at the season in question.
   season for anyone in the squad — a low fee for a teenager who went on to rack up appearances
   is the good story, not the outlay.
 - **Cup run**: which round they went out in and the standout result — don't list every
-  fixture, just the headline scoreline and the exit.
+  fixture, just the headline scoreline and the exit. **Gauge depth by match count, not
+  vibes**: `SELECT season, COUNT(*) FROM mart.club_matches WHERE club_tid IN (managed_club) AND
+  competition ILIKE '%Pokalen%' GROUP BY season` across every season, not just the target one —
+  a two-legged tie near the end inflates the count, so a season with 7-8 cup matches against 2-3
+  in a normal year is very likely a run to the final rounds (semi-final or later), worth naming
+  as such and worth checking whether it's the deepest run in the club's history so far.
 - **League progression since**: `SELECT season, competition FROM mart.club_matches WHERE
   club_tid IN (managed_club) AND is_competitive AND competition NOT ILIKE '%Pokalen%' GROUP BY
   1,2` — read down the seasons for the promotion trail. **Don't infer this from
@@ -171,14 +215,31 @@ This is an editorial page, not a dashboard — load `artifact-design` (via the `
 signing, records-that-survive, promotion trail), then tiers as cards. Tiers that worked well:
 **Still here** → **Retired** → **Out in the world** (the crux — give it the most text) →
 **Loan-only** → **Faded to reserves** (kept brief, one standout fact each). Note the filter
-threshold and any data gaps (§4's free-agent-origin caveat) in a short footer, not the intro —
-it reads better as a footnote than as a hedge up front.
+threshold and any data gaps (§4's chain-gap caveats) in a short footer, not the intro — it reads
+better as a footnote than as a hedge up front.
+
+**The filter is by apps, not by fame — say so if it surfaces someone forgettable.** A squad
+player who crossed the 10-apps line and is still technically on the books will get a card next
+to the players everyone actually remembers, purely because the query has no way to weigh
+"memorable" against "met the threshold." That's fine and honest, but don't invent a bigger story
+for them than the data supports — a plain one- or two-line entry is the right length when
+someone's whole footprint is a modest run of appearances, and it's worth flagging in the
+write-up that inclusion here means "featured that season," not "notable."
 
 ## Gotchas, summarised
-- Retirement isn't "no more `at_club` rows for us" — verify against recent minutes, don't trust
-  a bare spell-table read (§3).
-- `player_snapshots` silently drops retired players AND free-agent-origin players — use
+- Retirement isn't "no more `at_club` rows for us" — but it also isn't the automatic fallback
+  once "still here" is ruled out. Check raw `staging.players.is_staff` and `club_tid` for
+  anyone who drops off before calling them retired (§3) — the real options are retired, moved
+  into coaching/staff, or still playing somewhere the mart just doesn't resolve a name for.
+- `player_snapshots` silently drops retired/staff/departed-to-untracked-club players — use
   `player_spells` for names, always.
+- `player_career_seasons` on the **published mart object** is latest-snapshot-only and goes
+  empty the moment a tid becomes staff — even if their full real history exists in earlier
+  snapshots. Before writing "no data survives" for anyone, check the raw
+  `f.staging.player_history_seasons` across every snapshot, not just the mart (§4).
+- A player with a normal-looking prior club in `player_spells` but literally zero history
+  before their first Frem season may be sitting on a recycled `tid` — a possible newgen/regen,
+  not confirmed (§4).
 - `fee` is in **£000s**, and `~65532` is a sentinel, not a windfall.
 - Always tag the league/country next to an unfamiliar club name.
 - Don't infer a multi-season promotion trail from `club_leagues` (latest-only) — read it off
@@ -186,3 +247,4 @@ it reads better as a footnote than as a hedge up front.
 - A club record and an individual-season record are different tables (`club_records` vs
   `player_records`) with different lifespans — check both, and check the actual date/score
   against your target season before attributing a record to it.
+- Gauge cup-run depth by match count across every season, not just the target one — see §6.
