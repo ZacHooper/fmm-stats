@@ -206,13 +206,25 @@ function popupHtml(p, extra) {
   return bits.join("<br>");
 }
 
-function buildMap(container, points, popupFor) {
+// One colour per division tier, top flight hottest. The bottom tier ("Danish Lower Division", ~80
+// clubs — more than the other five combined) is a muted grey on purpose: it would otherwise
+// drown out the divisions a manager actually reads this map for.
+const TIER_COLOURS = { 1: "#c0262d", 2: "#e8701a", 3: "#d4a300", 4: "#2e9e4f", 5: "#2f6fd0", 6: "#8a8f98" };
+const tierColour = (t) => TIER_COLOURS[t] || "#555b66";
+
+function baseMap(container) {
   const L = window.L;
   const map = L.map(container, { scrollWheelZoom: false });
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors",
     maxZoom: 18,
   }).addTo(map);
+  return map;
+}
+
+function buildMap(container, points, popupFor) {
+  const L = window.L;
+  const map = baseMap(container);
   const markers = points.map((p) => L.marker([p.lat, p.lon]).bindPopup(popupFor(p)));
   if (markers.length) {
     const group = L.featureGroup(markers).addTo(map);
@@ -237,12 +249,31 @@ async function mapsPanel(world) {
   const unresolved = world?.origins_unresolved ?? 0;
 
   wrap.append(el("h3", { text: `${world?.our_nation || "Our nation"}'s clubs by division` }));
+  // League filter, ordered down the pyramid. Tier 5 is split into regional series groups, so
+  // each tier that has more than one league also gets an "all of tier N" option.
+  const leagues = [...new Map(dk.map((p) => [p.league, p.tier])).entries()]
+    .sort((a, b) => (a[1] ?? 99) - (b[1] ?? 99) || String(a[0]).localeCompare(String(b[0])));
+  const tiers = [...new Set(leagues.map(([, t]) => t))];
+  const leagueSel = el("select.btn", {}, [
+    el("option", { value: "", text: "All divisions" }),
+    ...tiers.flatMap((t) => {
+      const inTier = leagues.filter(([, lt]) => lt === t);
+      return [
+        inTier.length > 1 ? el("option", { value: `tier:${t}`, text: `Tier ${t} — all ${inTier.length} groups` }) : null,
+        ...inTier.map(([name]) => el("option", { value: `league:${name}`, text: `${t ? `${t} · ` : ""}${name}` })),
+      ].filter(Boolean);
+    }),
+  ]);
+  const legend = el("div.prow", { style: "font-size:12.5px" }, tiers.map((t) => el("span", {
+    style: "display:inline-flex;align-items:center;gap:5px;margin-right:8px",
+  }, [
+    el("span", { style: `display:inline-block;width:11px;height:11px;border-radius:50%;`
+      + `background:${tierColour(t)};border:1px solid #fff;box-shadow:0 0 0 1px ${tierColour(t)}` }),
+    `Tier ${t}`,
+  ])));
   const dkDiv = el("div", { style: "height:380px;border-radius:8px;overflow:hidden" });
-  wrap.append(dkDiv);
-  wrap.append(el("p.note", {
-    text: `${dk.length} clubs with a resolvable stadium location, coloured by division tier `
-      + "(1 = top flight). Tap a pin for the club, ground and capacity.",
-  }));
+  const dkNote = el("p.note");
+  wrap.append(el("div.tbar", {}, [leagueSel]), legend, dkDiv, dkNote);
 
   wrap.append(el("h3", { text: "Our squad's origin clubs" }));
   const originDiv = el("div", { style: "height:380px;border-radius:8px;overflow:hidden" });
@@ -258,7 +289,31 @@ async function mapsPanel(world) {
   // AFTER this function's promise resolves and the caller replaces the panel's children with
   // it — so building the map inline here would measure a detached, zero-size node.
   requestAnimationFrame(() => {
-    buildMap(dkDiv, dk, (p) => popupHtml(p, p.tier ? `Tier ${p.tier} · ${p.league}` : p.league));
+    const L = window.L;
+    const ourTids = new Set(D.S.ours.clubs || []);
+    const map = baseMap(dkDiv);
+    const layer = L.featureGroup().addTo(map);
+    const drawDk = () => {
+      const want = leagueSel.value;
+      const shown = dk.filter((p) => !want
+        || (want.startsWith("tier:") ? String(p.tier) === want.slice(5) : p.league === want.slice(7)));
+      layer.clearLayers();
+      // Lowest tier drawn first so the top-flight pins sit on top where grounds overlap.
+      for (const p of [...shown].sort((a, b) => (b.tier ?? 99) - (a.tier ?? 99))) {
+        const ours = ourTids.has(p.tid);
+        L.circleMarker([p.lat, p.lon], {
+          radius: ours ? 10 : 7, color: ours ? "#111" : "#fff", weight: ours ? 3 : 1.5,
+          fillColor: tierColour(p.tier), fillOpacity: 0.9,
+        }).bindPopup(popupHtml(p, p.tier ? `Tier ${p.tier} · ${p.league}` : p.league)).addTo(layer);
+      }
+      if (shown.length) map.fitBounds(layer.getBounds().pad(0.2), { maxZoom: 10 });
+      else map.setView([56.0, 10.0], 6);
+      dkNote.textContent = `${shown.length} of ${dk.length} clubs with a resolvable stadium `
+        + "location, coloured by division tier (1 = top flight); our club has the dark ring. "
+        + "Tap a pin for the club, ground and capacity.";
+    };
+    leagueSel.addEventListener("change", drawDk);
+    drawDk();
     buildMap(originDiv, origins, (p) => popupHtml(p, p.players.join(", ")));
   });
 
