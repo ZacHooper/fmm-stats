@@ -1,7 +1,8 @@
 # Match rating normalisation — two lenses on one number
 
-> **Status (2026-09-23): built** — Tasks 1–3 landed; Task 4 (publishing to R2 and the site) is
-> the next import's routine publish.
+> **Status (2026-09-24): built and published to R2.** Both R2 stores (`fm-frem.duckdb`,
+> `fm-frem-mart.duckdb`) carry the new objects, published from the existing R2 copy with
+> refreshed views — no rebuild was needed. The site picks it up when this branch reaches `main`.
 >
 > **Goal:** make the position-adjusted match rating a first-class column in the mart, next to the
 > raw rating rather than instead of it, so every consumer (site, `fmq`, skills, season awards)
