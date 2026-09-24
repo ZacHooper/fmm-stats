@@ -218,6 +218,12 @@ Everything below is parameterised off the active career — pull these from `st`
     and Ponce (35.7) started instead. The flank call was hedged; the threat section was not, so the
     most-emphasised half of the report aimed at men who never played. For the top two threats, always
     add the one-line fallback: *if X doesn't start, the threat becomes Y*.
+  - **A thin H2H record is not a thin threat — profile the striker who actually STARTS.** FCK at home
+    (2027-05-22): the briefing wrote "the striker is not the danger" off Babacar (Pace 6) and Fenger's
+    2 apps / 0 goals against us. Fenger started as a pressing forward fed by their AMC and went 8 shots,
+    5 on target, 2 goals, rated 10 in a 2-3. `h2h_players` ranks who HAS hurt us; it says nothing about
+    a man who has barely played us. When the starting XI is known, read the starting No. 9's
+    Shooting/Stamina and who supplies him before ruling the central route out.
   - **Ask for the `Club Squad → Selection` (`Pkd`) screen — this is now GRADED, not promising.** That
     screen would have shown Eiting at S5 and Gyökeres at S7 and inverted the threat section before
     kickoff. It is the single highest-value artefact to request.
@@ -417,10 +423,12 @@ pace gap that justifies it, the in-behind runner, and who man-marks the aerial t
 
 **Before proposing a personnel change, split that player's OWN record BY POSITION.** Attributes say
 what a player could do; the match record says what he actually does in a given slot, and the two
-disagree often enough to flip a recommendation. It is a cheap query — dedup at match level first
-(one anchor per `(date, opponent_tid)`, newest snapshot first, `team_tid = 346`; see trap 4 in
-[`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md), because a raw
-`SUM` multiplies every total by 1–5×) then group by `season, position`. Two live findings it produced
+disagree often enough to flip a recommendation. It is one command:
+`uv run python fmq.py output --by-position --season <Y>` (or `mart.player_role_seasons`), which
+gives each player's starts per role with the raw AND position-adjusted rating. **Compare a player
+across roles on `rating_adj`, never raw** — the game rates a DM ~0.47 below a central midfielder
+for the same game — and compare two players in the same role on either. Read a role only on 5+
+starts. Two live findings it produced
 in one sitting:
 - **Chukwuani**: at MC in 2025, 27 apps, rating 7.33, 6 goals, 5 assists. At AMC in 2026, 8 apps,
   rating 6.75, **2.25 shots a game at 0.38 on target, zero goals, zero assists**. The manager's read
@@ -435,6 +443,16 @@ error-prone" is a fact about the slot, and swapping the man does not fix it (his
 2.44). Swap for quality; do not promise an error reduction the data does not support.
 **One bad game is not a pattern** — the same sitting had a player rated 4 immediately after an 8 with
 2 assists. Move on a split, not on a scoreline.
+**But a position split answers "how does he rate there", not "can he do THIS job".** Against FCK
+(2027-05-22) the briefing withdrew "Tjørnelund screens their 10" because his DMC rating split was poor
+(6.20 over 5 starts). He started at MC, Mensah ran the first half (39 passes, 1 assist, Fenger fed
+twice) and we were 0-2 down; Tjørnelund moved to DMC at half-time and the game turned. Against a
+creative AMC behind a striker, guarantee a screen in front of the back four from kick-off, and do not
+talk a matchup assignment away with a small rating split.
+**A DM's rating is not comparable to anyone else's.** DMs average 6.58 to a central midfielder's
+7.07 for the same performance (within-player gap +0.48), and the rating rewards a DM's key passes,
+not his screening. A DM averaging 6.5 is par, 6.7+ is playing well — see
+[`match-rating-position-bias`](../../../docs/agent-context/match-rating-position-bias.md).
 Note whose screen a role label belongs to (IW / PF / Poacher / AF / AP) every time, or a briefing
 will attribute the opponent's roles to us.
 

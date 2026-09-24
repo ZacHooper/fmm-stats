@@ -5,6 +5,7 @@
     uv run python fmq.py sql "SELECT ..."                # arbitrary query
     uv run python fmq.py output --since 2027-01-01       # our current squad's G/A/key passes
     uv run python fmq.py output --club OB --vs Frem      # who from OB has produced against us
+    uv run python fmq.py output --by-position --season 2027   # raw v position-adjusted rating per role
     uv run python fmq.py matches --opp OB                # results, one row per match
     uv run python fmq.py moves --since 2026-07-02        # squad changes between two snapshots
     uv run python fmq.py growth "Chukwuani"              # a player's attributes over time
@@ -100,6 +101,8 @@ def cmd_output(st, a):
         title.append(f"season {a.season}")
     if a.since:
         title.append(f"since {a.since}")
+    if a.by_position:
+        return _output_by_position(st, tid, title, a)
     out = stats.player_output(st, tid, vs_tid, a.season, a.since)
     df = out.players.drop(columns="person_id")
     if df.empty:
@@ -108,7 +111,8 @@ def cmd_output(st, a):
     if not a.include_departed:
         df = df[df["still_here"]].drop(columns="still_here")
     sort = {"ga": ["g", "a", "kp"], "goals": ["g"], "assists": ["a"], "kp": ["kp"],
-            "shots": ["sh"], "rating": ["rating"], "mins": ["mins"]}[a.sort]
+            "shots": ["sh"], "rating": ["rating"], "rating_adj": ["rating_adj"],
+            "mins": ["mins"]}[a.sort]
     keys = (["_ga"] if a.sort == "ga" else []) + sort
     df = df.assign(_ga=df["g"] + df["a"]).sort_values(
         keys + ["player"], ascending=[False] * len(keys) + [True]).drop(columns="_ga")
@@ -117,6 +121,40 @@ def cmd_output(st, a):
     _show(df, a.limit)
     if out.unresolved:
         print(f"({out.unresolved} appearances by players the store could not name are excluded)")
+    print("rating = the game's own (compare within one position); rating_adj = position-adjusted,"
+          " over starts (compare across positions)")
+
+
+def _output_by_position(st, tid, title, a):
+    """Raw and position-adjusted rating per player per role — where each player plays best."""
+    df = stats.player_by_role(st, tid, a.season, a.since, a.min_starts)
+    if df.empty:
+        print(f"{' · '.join(title)}: no positioned competitive starts "
+              "(only our own starters carry a position)")
+        return
+    df = df.dropna(subset=["player"])
+    if not a.include_departed:
+        here = set(st.con.execute("SELECT person_id FROM mart.club_squad_latest "
+                                  "WHERE club_tid = ?", [tid]).df()["person_id"])
+        df = df[df["person_id"].isin(here)]
+    for c in ("g", "a", "kp"):
+        df[c] = df[c].astype("Int64")
+    # "best" only among roles with enough starts to read: whole-number match ratings make a
+    # 3-start average move in steps of ~0.33.
+    solid = df["starts"] >= 5
+    adj = df["rating_adj"].where(solid)
+    top = adj.groupby(df["person_id"]).transform("max")
+    n_solid = solid.groupby(df["person_id"]).transform("sum")
+    df = df.assign(best=(adj == top) & (n_solid > 1))
+    df = df.assign(_top=df.groupby("person_id")["rating_adj"].transform("max")).sort_values(
+        ["_top", "player", "role_order"], ascending=[False, True, True])
+    df = df.drop(columns=["person_id", "role_order", "_top"])
+    df["best"] = df["best"].map({True: "*", False: ""})
+    scope = "incl. players who have left" if a.include_departed else "current squad only"
+    print(f"{' · '.join(title)} — competitive starts by position, >= {a.min_starts} starts, {scope}")
+    _show(df, a.limit)
+    print("rating = the game's own (compare players WITHIN a role); rating_adj = position-adjusted "
+          "(compare a player ACROSS roles; * = his best role among those with >= 5 starts).")
 
 
 # --------------------------------------------------------------------------- matches
@@ -474,7 +512,12 @@ def main():
     p.add_argument("--include-departed", action="store_true",
                    help="also list players no longer at the club")
     p.add_argument("--sort", default="ga",
-                   choices=["ga", "goals", "assists", "kp", "shots", "rating", "mins"])
+                   choices=["ga", "goals", "assists", "kp", "shots", "rating", "rating_adj",
+                            "mins"])
+    p.add_argument("--by-position", action="store_true",
+                   help="split starts by role, with raw and position-adjusted rating")
+    p.add_argument("--min-starts", type=int, default=3,
+                   help="with --by-position: minimum starts in a role to list it (default 3)")
     p.set_defaults(fn=cmd_output)
 
     p = sub.add_parser("matches", parents=[common])

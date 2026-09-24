@@ -650,7 +650,9 @@ def main():
     hist_m = db.q("""SELECT * FROM mart.club_matches
                      WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)
                      ORDER BY season, date, opp_tid""")
-    mps = db.q("""SELECT * FROM mart.match_player_facts
+    # mart.match_ratings = match_player_facts + the position-adjusted rating (rating_adj).
+    mps = db.q("""SELECT * REPLACE (ROUND(rating_adj, 2) AS rating_adj)
+                  FROM mart.match_ratings
                   WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND appeared
                   ORDER BY season, date, tid""")
     mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
@@ -658,8 +660,8 @@ def main():
     if not hist_m.empty:      # dedupe: opp_tid is already in the identity block above
         mfields += [c for c in hist_m.columns
                     if c.startswith(("our_", "opp_")) and c not in mfields]
-    pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "goals",
-               "assists", "minutes", "started", "position", "passA", "passC", "keyPass",
+    pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
+               "goals", "assists", "minutes", "started", "position", "passA", "passC", "keyPass",
                "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
                "dribbles", "shotA", "shotO", "mistakes", "yellow"]
 

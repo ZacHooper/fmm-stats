@@ -1309,6 +1309,9 @@ SELECT
     COUNT(*) FILTER (WHERE f.started)               AS starts,
     SUM(f.minutes)                                  AS minutes,
     ROUND(AVG(f.rating) FILTER (WHERE f.appeared), 2) AS avg_rating,
+    -- Position-adjusted, over positioned starts only (see mart.match_ratings). NULL for a
+    -- player with no positioned start, which includes every opposition player.
+    ROUND(AVG(f.rating_adj), 2)                     AS avg_rating_adj,
     SUM(f.goals) AS goals, SUM(f.assists) AS assists, SUM(f.keyPass) AS key_passes,
     SUM(f.passA) AS passA, SUM(f.passC) AS passC,
     SUM(f.tackA) AS tackA, SUM(f.tackW) AS tackW, SUM(f.intercept) AS intercept,
@@ -1317,9 +1320,100 @@ SELECT
     SUM(f.shotA) AS shotA, SUM(f.shotO) AS shotO,
     SUM(f.dribbles) AS dribbles, SUM(f.mistakes) AS mistakes,
     SUM(f.mistGoal) AS mistGoal, SUM(f.yellow) AS yellows
-FROM mart.match_player_facts f
+FROM mart.match_ratings f
 WHERE f.is_competitive
 GROUP BY f.season, COALESCE(f.person_id, 'tid-' || f.tid), f.team_tid, f.competition
+"""
+
+# --- position-adjusted match rating ---------------------------------------------------
+#
+# The game's match rating is position-biased: for the same performance a DM is rated ~0.47
+# below a central midfielder and a forward ~0.47 above one, stable in every season and
+# confirmed within players (docs/agent-context/match-rating-position-bias.md). Two lenses,
+# both kept:
+#   * `rating`     — what the game shows. Use it WITHIN one position.
+#   * `rating_adj` — the same performance restated on the outfield scale. Use it ACROSS
+#                    positions ("an adjusted 7.3 is as good, for his position, as a 7.3 is for
+#                    a typical outfielder").
+# Plan and caveats: docs/plans/2026-09-23-match-rating-normalisation.md.
+
+# Decoded position -> rating role. DMC (a single holder) is kept apart from DML/DMR (wing-backs
+# in a back three), and AMC apart from AML/AMR (wingers rate ~0.26 higher). In a back-four
+# 4-2-3-1 the two deep midfielders decode as MC, so they are judged as central midfielders.
+RATING_ROLES = """
+CREATE OR REPLACE VIEW mart.rating_roles AS
+SELECT * FROM (VALUES
+    ('GK',  'GK',            1), ('DC',  'Centre-back',   2),
+    ('DL',  'Full-back',     3), ('DR',  'Full-back',     3),
+    ('DML', 'Wing-back',     4), ('DMR', 'Wing-back',     4),
+    ('DMC', 'DM',            5), ('MC',  'Central mid',   6),
+    ('ML',  'Wide mid',      7), ('MR',  'Wide mid',      7),
+    ('AMC', 'Attacking mid', 8), ('AML', 'Winger',        9),
+    ('AMR', 'Winger',        9), ('FC',  'Forward',      10)
+) t(position, role, role_order)
+"""
+
+# Per-role mean/sd over first-team competitive starts, pooled across seasons, plus the outfield
+# pool whose scale rating_adj is restated on. managed_club, not our_clubs: reserve games are
+# padded with anonymous placeholder players. Starts only (an unused sub carries a flat 6),
+# competitive only (friendlies inflate). Recomputed from the store, so it moves slightly with
+# every import.
+RATING_BASELINE = """
+CREATE OR REPLACE VIEW mart.rating_baseline AS
+WITH base AS (
+    SELECT r.role, r.role_order, f.rating
+    FROM mart.match_player_facts f
+    JOIN mart.rating_roles r USING (position)
+    WHERE f.team_tid IN (SELECT club_tid FROM mart.managed_club)
+      AND f.started AND f.is_competitive
+),
+pool AS (SELECT AVG(rating) AS pool_mean, STDDEV_SAMP(rating) AS pool_sd
+         FROM base WHERE role <> 'GK')
+SELECT b.role, any_value(b.role_order) AS role_order, COUNT(*) AS n,
+       AVG(b.rating) AS role_mean, STDDEV_SAMP(b.rating) AS role_sd,
+       any_value(p.pool_mean) AS pool_mean, any_value(p.pool_sd) AS pool_sd
+FROM base b CROSS JOIN pool p
+GROUP BY b.role
+"""
+
+# mart.match_player_facts plus `role` and `rating_adj`. A separate view rather than extra
+# columns on match_player_facts because the baseline is computed FROM match_player_facts.
+# rating_adj is set only where the save records a position: OUR starters. Opponents and
+# substitutes get NULL. The raw `rating` is untouched.
+MATCH_RATINGS = """
+CREATE OR REPLACE VIEW mart.match_ratings AS
+SELECT f.*, r.role,
+       CASE WHEN f.started AND r.role IS NOT NULL
+            THEN b.pool_mean + (f.rating - b.role_mean) / NULLIF(b.role_sd, 0) * b.pool_sd
+       END AS rating_adj
+FROM mart.match_player_facts f
+LEFT JOIN mart.rating_roles r USING (position)
+LEFT JOIN mart.rating_baseline b ON b.role = r.role
+"""
+
+# One row per (player, season, club, role): where a player performs best. Competitive starts
+# only. Compare roles on avg_rating_adj; compare two players in the same role on either.
+# Whole-number match ratings make small samples coarse — require >= 5 starts before reading a
+# role difference.
+PLAYER_ROLE_SEASONS = """
+CREATE OR REPLACE VIEW mart.player_role_seasons AS
+SELECT
+    f.season,
+    COALESCE(f.person_id, 'tid-' || f.tid)          AS player_key,
+    any_value(f.person_id)                          AS person_id,
+    any_value(f.tid) AS tid, f.team_tid,
+    f.role,
+    string_agg(DISTINCT f.position, ',' ORDER BY f.position) AS positions,
+    COUNT(*)                                        AS starts,
+    ROUND(AVG(f.rating), 2)                         AS avg_rating,
+    ROUND(AVG(f.rating_adj), 2)                     AS avg_rating_adj,
+    SUM(f.goals) AS goals, SUM(f.assists) AS assists, SUM(f.keyPass) AS key_passes,
+    SUM(f.passA) AS passA, SUM(f.passC) AS passC,
+    SUM(f.tackW) AS tackW, SUM(f.intercept) AS intercept,
+    SUM(f.mistakes) AS mistakes
+FROM mart.match_ratings f
+WHERE f.is_competitive AND f.started AND f.role IS NOT NULL
+GROUP BY f.season, COALESCE(f.person_id, 'tid-' || f.tid), f.team_tid, f.role
 """
 
 
@@ -3047,7 +3141,11 @@ ORDER = [
     ("mart.player_origin", PLAYER_ORIGIN),
     ("mart.player_role_ratings", PLAYER_ROLE_RATINGS),
     ("mart.player_position_fit", PLAYER_POSITION_FIT),
+    ("mart.rating_roles", RATING_ROLES),
+    ("mart.rating_baseline", RATING_BASELINE),
+    ("mart.match_ratings", MATCH_RATINGS),
     ("mart.player_seasons", PLAYER_SEASONS),
+    ("mart.player_role_seasons", PLAYER_ROLE_SEASONS),
     ("mart.club_runs", CLUB_RUNS),
     ("mart.at_club_spells", AT_CLUB),
     ("mart.loan_in_spells", LOAN_IN),

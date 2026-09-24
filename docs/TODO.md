@@ -539,6 +539,14 @@ players).
 
 ## Football (the actual career)
 
+### 14a. `mart.player_spells` carries a second, wrong name for some people
+Found while building the adjusted rating: `player_spells` can hold two names for one `person_id`
+(Jonathan Bech's also reads "Jose Almeida", Gregers Dehn's "Mathias Schilling"), so
+`SELECT DISTINCT person_id, name FROM mart.player_spells` fans rows out and `any_value(name)`
+can pick the stranger. `mart.at_club_spells` has one name per person (0 exceptions) and is what
+`fmq`/`stats.py` use; the `fm-season-review` skill now does too. Not yet traced: which spell type
+brings the wrong name in (likely a recycled tid resolved at the wrong snapshot).
+
 ### 15. Position write-ups still owed
 Zac asked for the position-by-position read for **DM, CM, AML, AMC, AMR and ST**, plus a verdict
 on the **4-1-2-2-1** question. GK/LB/RB/CB were delivered. **The earlier analysis is several

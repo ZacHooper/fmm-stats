@@ -559,7 +559,7 @@ export function metricColumns(D, { agg = null, role = null } = {}) {
     }
   }
   if (agg) {
-    const order = ["Apps", "Starts", "Sub", "Min", "Min/gm", "Rating", "Goals", "Assists",
+    const order = ["Apps", "Starts", "Sub", "Min", "Min/gm", "Goals", "Assists",
       "G+A", "Key passes", "Pass att", "Tackle att", "Shot att", "Interceptions", "Dribbles"];
     const per = Object.keys(D.STAT_DEFS).filter((k) => /\/90$/.test(k));
     const pg = Object.keys(D.STAT_DEFS).filter((k) => /\/gm$/.test(k));
@@ -572,6 +572,11 @@ export function metricColumns(D, { agg = null, role = null } = {}) {
       };
     });
     put(order, "Match · totals", 0);
+    put(["Rating", "Rating (adj)"], "Match · rating", 2);
+    cat["stat:Rating"].help = "Average match rating as the game shows it. Biased by position "
+      + "(a DM rates ~0.5 below a central midfielder for the same game) — compare within one position";
+    cat["stat:Rating (adj)"].help = "Position-adjusted average over his starts: the same "
+      + "performance on one scale, in the game's units. Compare players across positions with this";
     put(per, "Match · per 90", 2);
     put(pg, "Match · per game", 2);
     put(pct, "Match · success %", 0);

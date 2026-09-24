@@ -1,4 +1,4 @@
-"""Per-player production from the match record (mart.match_player_facts).
+"""Per-player production from the match record (mart.match_player_facts / mart.match_ratings).
 
 mart.match_player_facts already holds one row per player per match — the ring-buffer
 re-scrapes across snapshots are resolved there — so a sum over it is a true total. Names are
@@ -13,7 +13,7 @@ import pandas as pd
 @dataclass
 class Output:
     players: pd.DataFrame      # player, person_id, pos, apps, starts, mins, g, a, kp, sh, sot,
-                               # ga90, kp90, rating, still_here
+                               # ga90, kp90, rating, rating_adj, still_here
     n_matches: int
     unresolved: int            # appearances by players the store could not name
 
@@ -47,8 +47,9 @@ def player_output(st, club_tid, vs_tid=None, season=None, since=None):
             SELECT person_id, COUNT(*) AS apps, SUM(started::INT) AS starts,
                    SUM(minutes) AS mins, SUM(goals) AS g, SUM(assists) AS a,
                    SUM(keyPass) AS kp, SUM(shotA) AS sh, SUM(shotO) AS sot,
-                   ROUND(AVG(rating), 2) AS rating
-            FROM mart.match_player_facts
+                   ROUND(AVG(rating), 2) AS rating,
+                   ROUND(AVG(rating_adj), 2) AS rating_adj
+            FROM mart.match_ratings
             WHERE {cond} AND person_id IS NOT NULL GROUP BY person_id),
         pos AS (
             SELECT person_id, first(position ORDER BY n DESC, position) AS pos
@@ -61,7 +62,7 @@ def player_output(st, club_tid, vs_tid=None, season=None, since=None):
                person_id, pos, apps, starts, mins, g, a, kp, sh, sot,
                ROUND(90.0 * (g + a) / NULLIF(mins, 0), 2) AS ga90,
                ROUND(90.0 * kp / NULLIF(mins, 0), 2) AS kp90,
-               rating,
+               rating, rating_adj,
                person_id IN ({here_sql}) AS still_here
         FROM tot LEFT JOIN pos USING (person_id)""", params + params + here_params).df()
     if not df.empty and df["pos"].isna().any():
@@ -74,3 +75,35 @@ def player_output(st, club_tid, vs_tid=None, season=None, since=None):
     for c in ("starts", "mins", "g", "a", "kp", "sh", "sot"):
         df[c] = df[c].astype("Int64")
     return Output(df, int(n_matches or 0), int(unresolved or 0))
+
+
+def player_by_role(st, club_tid, season=None, since=None, min_starts=1):
+    """Each player's competitive STARTS split by rating role (DM, Central mid, Attacking mid,
+    ...), raw and position-adjusted. The question it answers is "where does this player
+    perform best": compare roles on `rating_adj`, never on raw `rating`, which the game biases
+    by position (a DM rates ~0.47 below a central midfielder for the same performance). Only
+    starts carry a position, and only for OUR matches, so an opponent club returns nothing."""
+    where, params = ["team_tid = ?", "is_competitive", "started", "role IS NOT NULL"], [club_tid]
+    if season is not None:
+        where.append("season = ?")
+        params.append(season)
+    if since is not None:
+        where.append("date >= CAST(? AS DATE)")
+        params.append(since)
+    cond = " AND ".join(where)
+    df = st.con.execute(f"""
+        WITH tot AS (
+            SELECT COALESCE(person_id, 'tid-' || tid) AS k, any_value(person_id) AS person_id,
+                   role, any_value(role_order) AS role_order, COUNT(*) AS starts,
+                   ROUND(AVG(rating), 2) AS rating, ROUND(AVG(rating_adj), 2) AS rating_adj,
+                   SUM(goals) AS g, SUM(assists) AS a, SUM(keyPass) AS kp,
+                   ROUND(AVG(passC), 1) AS passc_pg, ROUND(AVG(tackW), 1) AS tackw_pg,
+                   ROUND(AVG(intercept), 1) AS int_pg, ROUND(AVG(mistakes), 2) AS mis_pg
+            FROM mart.match_ratings JOIN mart.rating_roles USING (position, role)
+            WHERE {cond} GROUP BY 1, role)
+        SELECT (SELECT any_value(s.name) FROM mart.at_club_spells s
+                WHERE s.person_id = tot.person_id) AS player,
+               person_id, role, role_order, starts, rating, rating_adj,
+               g, a, kp, passc_pg, tackw_pg, int_pg, mis_pg
+        FROM tot WHERE starts >= ?""", params + [min_starts]).df()
+    return df

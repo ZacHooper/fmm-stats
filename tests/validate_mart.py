@@ -895,6 +895,66 @@ def main():
     check("club_squad_latest: our rows are squad_current's, and nobody is listed twice",
           sq[0] == sq[1] and sq[2] == 0, f"{sq[0]} vs {sq[1]} ours, {sq[2]} duplicates")
 
+    # -- 11. position-adjusted match rating --------------------------------------------
+    print("\n11. position-adjusted match rating")
+    unmapped = con.execute("""
+        SELECT string_agg(DISTINCT position, ',') FROM mart.match_player_facts
+        WHERE position IS NOT NULL
+          AND position NOT IN (SELECT position FROM mart.rating_roles)""").fetchone()[0]
+    check("every decoded position maps to a rating role", unmapped is None,
+          f"unmapped: {unmapped}")
+
+    per_role = con.execute("""
+        SELECT r.role, AVG(r.rating_adj) AS adj, any_value(b.pool_mean) AS pool, COUNT(*) AS n
+        FROM mart.match_ratings r JOIN mart.rating_baseline b USING (role)
+        WHERE r.team_tid IN (SELECT club_tid FROM mart.managed_club)
+          AND r.started AND r.is_competitive
+        GROUP BY r.role""").fetchall()
+    off = [(role, round(adj, 3), round(pool, 3)) for role, adj, pool, _ in per_role
+           if abs(adj - pool) > 0.01]
+    check("standardised: on the baseline population every role averages the outfield mean",
+          per_role and not off,
+          f"{len(per_role)} roles, pool mean {per_role[0][2]:.2f}" if per_role and not off
+          else f"off: {off}")
+
+    thin = con.execute("SELECT string_agg(role || '=' || n, ', ') FROM mart.rating_baseline "
+                       "WHERE n < 30").fetchone()[0]
+    check("every role's baseline rests on >= 30 starts", thin is None, f"thin: {thin}")
+
+    null_mismatch = con.execute("""
+        SELECT COUNT(*) FROM mart.match_ratings
+        WHERE (rating_adj IS NULL) <> (position IS NULL OR NOT started)""").fetchone()[0]
+    rows = con.execute("SELECT (SELECT COUNT(*) FROM mart.match_ratings), "
+                       "(SELECT COUNT(*) FROM mart.match_player_facts)").fetchone()
+    check("rating_adj is set exactly for positioned starts, and match_ratings adds no rows",
+          null_mismatch == 0 and rows[0] == rows[1],
+          f"{null_mismatch} mismatches, {rows[0]} vs {rows[1]} rows")
+
+    raw_same = con.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT season, COALESCE(person_id, 'tid-' || tid) AS k, team_tid, competition,
+                   ROUND(AVG(rating) FILTER (WHERE appeared), 2) AS r
+            FROM mart.match_player_facts WHERE is_competitive GROUP BY ALL) f
+        JOIN mart.player_seasons ps
+          ON ps.season = f.season AND ps.player_key = f.k AND ps.team_tid = f.team_tid
+         AND ps.competition = f.competition
+        WHERE ps.avg_rating IS DISTINCT FROM f.r""").fetchone()[0]
+    check("player_seasons.avg_rating (raw) is unchanged by the adjustment", raw_same == 0,
+          f"{raw_same} rows differ")
+
+    starts = con.execute("""
+        SELECT (SELECT SUM(starts) FROM mart.player_role_seasons),
+               (SELECT COUNT(*) FROM mart.match_ratings
+                WHERE is_competitive AND started AND role IS NOT NULL)""").fetchone()
+    check("player_role_seasons start counts reconcile with the match record",
+          starts[0] == starts[1], f"{starts[0]} vs {starts[1]}")
+
+    dm_gap = con.execute("""
+        SELECT MAX(role_mean) FILTER (WHERE role = 'Central mid')
+             - MAX(role_mean) FILTER (WHERE role = 'DM') FROM mart.rating_baseline""").fetchone()[0]
+    check("the DM penalty the adjustment exists for is still present (CM - DM > 0.2)",
+          dm_gap is not None and dm_gap > 0.2, f"CM - DM = {dm_gap:.2f}" if dm_gap else "")
+
     print()
     if FAILURES:
         print(f"{len(FAILURES)} CHECK(S) FAILED:")
