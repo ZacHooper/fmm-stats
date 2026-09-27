@@ -43,10 +43,24 @@ h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)
 .kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:8px 12px;
   flex:1 1 110px;min-width:110px}
-.kpi b{display:block;font-size:18px;line-height:1.25}
-.kpi span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.kpi>b{display:block;font-size:18px;line-height:1.25}
+.kpi>span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+/* a KPI with a breakdown: opens on hover where there is hover, on tap everywhere. The wrap is
+   transparent padding so the pointer can cross from card to panel without closing it. */
+.kpi.pop{position:relative;cursor:pointer}
+.kpi.pop>span::after{content:" ▾"}
+.kpi .popwrap{display:none;position:absolute;left:-1px;top:100%;padding-top:6px;z-index:40;cursor:default}
+.kpi.pop.open .popwrap{display:block}
+@media(hover:hover){.kpi.pop:hover .popwrap,.kpi.pop:focus-within .popwrap{display:block}}
+.popbody{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;
+  width:340px;max-width:calc(100vw - 32px);box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.poptable{width:100%;border-collapse:collapse;font-size:13px}
+.poptable td{padding:3px 0;border:0}
+.poptable td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.poptable td.good{color:var(--good)} .poptable td.warn{color:var(--warn)} .poptable td.bad{color:var(--bad)}
+.sechead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 /* a KPI that is a PASS/FAIL rather than a number — the registration quotas */
-.kpi.good b{color:var(--good)} .kpi.warn b{color:var(--warn)} .kpi.bad b{color:var(--bad)}
+.kpi.good>b{color:var(--good)} .kpi.warn>b{color:var(--warn)} .kpi.bad>b{color:var(--bad)}
 .kpi.good{border-color:var(--good)} .kpi.warn{border-color:var(--warn)}
 .kpi.bad{border-color:var(--bad)}
 .dim{color:var(--dim)}

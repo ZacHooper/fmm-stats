@@ -16,7 +16,7 @@
  * who ever played for us) but his row isn't clickable, since there's no profile left to open.
  */
 import * as D from "../data.js";
-import { el, num, pill, DASH } from "../ui.js";
+import { el, num, money, pill, DASH } from "../ui.js";
 import { openProfile } from "../profile.js";
 
 // Appearances needed to qualify for an AVERAGE-RATING award over a full fixture list.
@@ -42,6 +42,15 @@ export async function view() {
   const attBySeason = new Map((M.attendance || [])
     .map((r) => Object.fromEntries(af.map((n, i) => [n, r[i]])))
     .map((a) => [a.season, a]));
+  // Squad value + wage bill at the season's LAST snapshot (mart.squad_finances, owned players
+  // only — a loanee's value is his parent club's, and his wage share under the loan isn't known).
+  const ff = M.finance_fields || [];
+  const finBySeason = new Map();
+  for (const r of M.finances || []) {
+    const o = Object.fromEntries(ff.map((n, i) => [n, r[i]]));
+    const prev = finBySeason.get(o.season);
+    if (!prev || String(o.phase) > String(prev.phase)) finBySeason.set(o.season, o);
+  }
 
   const out = el("div");
   out.append(el("h2", { text: "History" }));
@@ -62,13 +71,18 @@ export async function view() {
       comps: [...new Set(ms.map((m) => m.competition))].filter(Boolean),
       snaps: snap.length,
       att: attBySeason.get(s) || null,
+      fin: finBySeason.get(s) || null,
     };
   });
   const HEAD = ["Season", "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm",
-    "Avg crowd", "Min crowd", "Max crowd", "Competitions", "Snapshots"];
+    "Avg crowd", "Max crowd", "Squad value", "Wage bill", "Competitions", "Snapshots"];
+  const TEXT_COLS = new Set([0, HEAD.indexOf("Competitions")]);
+  const finTitle = (f) => `At ${f.phase} · ${f.n_owned} owned players`
+    + (f.n_value_est ? ` · ${f.n_value_est} valued by the model (no value in the save)` : "")
+    + (f.n_loan_in ? ` · ${f.n_loan_in} loanee${f.n_loan_in === 1 ? "" : "s"} excluded` : "");
   out.append(el("div.scroll", {}, [el("table", {}, [
     el("thead", {}, [el("tr", {}, HEAD
-      .map((h, i) => el(`th${i > 0 && i < 12 ? ".num" : ""}`, { text: h })))]),
+      .map((h, i) => el(`th${TEXT_COLS.has(i) ? "" : ".num"}`, { text: h })))]),
     el("tbody", {}, prog.map((r) => el("tr", {}, [
       el("td.name", { text: r.season }), el("td.num", { text: r.p }), el("td.num", { text: r.w }),
       el("td.num", { text: r.d }), el("td.num", { text: r.l }), el("td.num", { text: r.gf }),
@@ -76,8 +90,9 @@ export async function view() {
       el("td.num", { text: (r.gf - r.ga >= 0 ? "+" : "") + (r.gf - r.ga) }),
       el("td.num", { text: r.ppg == null ? DASH : num(r.ppg, 2) }),
       el("td.num", { text: r.att ? r.att.avg_att.toLocaleString() : DASH }),
-      el("td.num", { text: r.att ? r.att.min_att.toLocaleString() : DASH }),
       el("td.num", { text: r.att ? r.att.max_att.toLocaleString() : DASH }),
+      el("td.num", r.fin ? { text: money(r.fin.value_gbp), title: finTitle(r.fin) } : { text: DASH }),
+      el("td.num", r.fin ? { text: money(r.fin.wage_gbp), title: finTitle(r.fin) } : { text: DASH }),
       el("td", { text: r.comps.join(", ") || DASH }),
       el("td.num", { text: r.snaps }),
     ]))),
@@ -86,7 +101,11 @@ export async function view() {
     text: "Friendlies excluded. Counts come from the newest snapshot of each season and can fall "
       + "short of the true fixture list — match detail sits in a fixed-size ring buffer the game "
       + "overwrites as a season runs, so treat a short season as missing games, not lost ones. "
-      + "Crowd figures are our home games only.",
+      + "Crowd figures are our home games only. Squad value and wage bill are as of the "
+      + "season's last snapshot, owned players only (first team + reserves): loanees are left "
+      + "out of both, since their value is their parent club's and our share of their wage "
+      + "isn't in the save. A player the save holds no value for is valued by the model — "
+      + "hover a figure to see how many.",
   }));
 
   // ---------------------------------------------------------------- Hall of Fame

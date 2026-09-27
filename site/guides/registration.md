@@ -151,30 +151,16 @@ lists and what has changed since — who left, who is new, who has aged out of t
 list, new players get the default, and a B-lister now too old is flagged as unregistered for you
 to place.
 
-**Suggest a squad** builds one. The A-list cannot hold everyone — this squad is 40, of whom 19 are
-too old for the B-list, 5 are on loan to us, and the spine is another 19 at depth 2, so any two of
-those groups already overflow 25. It is therefore a priority order, not a filter:
-
-1. **Loan-ins.** A loan slot was spent to have him available; an unregistered loanee wastes it.
-2. **The spine** — the best N at each position under the selected tactic, first choices before
-   second choices. N is the `Top 1/2/3 per position` picker, default 2 (a starter and his cover).
-3. **The home-grown top-up**, strongest first: the spine is already registered, so everyone still
-   available is outside it and the slot should hold the best of them.
-4. **Everyone else too old for the B-list** — not because they are better than the youth left
-   over, but because registration is the only thing standing between them and being unable to play
-   at all. A B-list-eligible player left off the A-list still plays.
-
-**Cover by position**, below the table, is the other half of the picture: per position, how many
-of your registered players can actually play there — familiarity 15 or better, the same floor the
-depth charts use. Only qualified players are counted, because a position listed at familiarity 3
-is not cover; a position nobody qualifies at still gets a row, reading **none**, since that is the
-hole worth seeing. A player counts at every position he is familiar with, so the rows do not sum
-to the squad.
+**Where it lives.** Registration is part of the **Squad** page, not a section of its own. The
+**List** column (Registration preset) holds each player's A / B / — toggle and filters like any
+other column; the **Squad** card at the top carries the squad size, is coloured by the worst rule
+breach (red over the cap, amber for a home-grown shortfall or anyone unregistered), and opens the
+full breakdown on hover or tap; saved windows sit under the table. A snapshot with no plan of its
+own starts from the newest plan the browser holds for an earlier snapshot — players still here
+keep their list, a B-lister who has aged out becomes unregistered, a new arrival goes to the
+B-list if eligible and is otherwise unregistered. With no earlier plan at all, B-list-eligible
+players start on the B-list and everyone else on the A-list.
 
 Whoever misses out is reported as unregistered rather than quietly dropped: that is a real squad
 decision (those are the players to sell or loan out), and the card says how many A-list places are
 held by B-list-eligible players, since freeing one of those costs nothing.
-
-At depth 2 this career lands on a legal 25 with every position's top two registered, all five
-loan-ins on the A-list, and six surplus seniors left off. Depth 3 starts cutting useful seniors to
-register third-choice youth, which is why 2 is the default rather than the maximum.

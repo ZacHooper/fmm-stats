@@ -107,7 +107,7 @@ export async function boot() {
   }
   // Fire-and-forget: small enough to prefetch eagerly (unlike squad/positions/matches, which
   // stay lazy), so a profile opened from ANY section already has it rather than only after a
-  // visit to Development.
+  // visit to Squad.
   loadForecast();
   return S;
 }
@@ -122,7 +122,7 @@ export async function loadPositions() {
   return S.positions;
 }
 /** Squad registration: the derived home-grown status and the rule set for our tier. Small,
- *  and only the Registration section asks for it. */
+ *  and only the Squad page (registration columns) asks for it. */
 export async function loadRegistration() {
   if (!S.registration) {
     S.registration = await j("api/registration.json").catch(() => null);
@@ -130,7 +130,7 @@ export async function loadRegistration() {
   return S.registration;
 }
 /** The attribute-forecast lookup (empirical, current-value + age — see api/forecast.json's
- *  own note). Small and only Development asks for it; `.catch(() => null)` so an older
+ *  own note). Small; Squad's Projection columns and the profile use it; `.catch(() => null)` so an older
  *  export missing the file degrades instead of breaking the page. */
 export async function loadForecast() {
   if (!S.forecast) {
