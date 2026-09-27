@@ -81,9 +81,9 @@ too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attribute
 `mart.league_tables` (tables rebuilt from the fixture list; verified for Denmark only),
 `mart.head_to_head`, `mart.player_vs_club` (each player's output against each opponent),
 `mart.player_primary_position` (the one primary-position rule), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
-(every club's genuine squad now), and `mart.player_stars` (Ability/Potential **stars**, half steps 0.5–5, against
-our first team per unit AT THAT SNAPSHOT, with `*_now` twins against today's squad, plus a `development` word — the only form potential ever leaves
-the mart in). Use the full `site-data/fm-frem.duckdb` only
+(every club's genuine squad now), and `mart.player_development` (a
+**development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
+ceiling' — the only form potential ever leaves the mart in; there are deliberately no stars). Use the full `site-data/fm-frem.duckdb` only
 when you need raw `staging` or per-snapshot history for a player who was never ours.
 
 Two gotchas worth knowing before you query it: **macros do not resolve across an `ATTACH`, and

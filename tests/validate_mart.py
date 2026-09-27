@@ -645,31 +645,18 @@ def main():
     """).fetchone()[0]
     check("no raw-ability column anywhere in the mart", not leak, str(leak))
 
-    # Stars are the only form potential leaves the mart in, so their resolution IS the
-    # immersion guard: anything but a half step in [0.5, 5] is a finer number leaking out.
-    cols = ("ability_stars", "potential_stars", "ability_stars_now", "potential_stars_now")
-    off_scale = " OR ".join(f"{c} NOT BETWEEN 0.5 AND 5 OR {c} * 2 <> ROUND({c} * 2)"
-                            for c in cols)
-    stars = con.execute(f"""
-        SELECT COUNT(*) FILTER (WHERE {off_scale}),
-               COUNT(*) FILTER (WHERE potential_stars < ability_stars
-                                   OR potential_stars_now < ability_stars_now),
+    # The development word is the only form potential leaves the mart in, so its vocabulary
+    # IS the immersion guard: anything but the four bands is a finer signal leaking out.
+    dev = con.execute("""
+        SELECT COUNT(*) FILTER (WHERE development IS NULL OR development NOT IN
+                   ('Lots to come', 'Developing', 'Nearly there', 'At his ceiling')),
                COUNT(*) - COUNT(DISTINCT (season, phase, tid)),
-               COUNT(*) FILTER (WHERE snap_ix = (SELECT MAX(snap_ix) FROM mart.snapshots)
-                                  AND (ability_stars <> ability_stars_now
-                                       OR potential_stars <> potential_stars_now)),
-               COUNT(DISTINCT snap_ix)
-        FROM mart.player_stars""").fetchone()
-    check("player_stars are half steps in [0.5, 5]", stars[0] == 0, f"{stars[0]} bad row(s)")
-    check("potential stars >= ability stars (then and now)", stars[1] == 0,
-          f"{stars[1]} row(s)")
-    check("player_stars is one row per player per snapshot", stars[2] == 0,
-          f"{stars[2]} duplicate(s)")
-    check("at the newest snapshot the then- and now-yardsticks agree", stars[3] == 0,
-          f"{stars[3]} row(s) differ")
-    n_snap = con.execute("SELECT COUNT(*) FROM mart.snapshots").fetchone()[0]
-    check("every snapshot has a first-team yardstick", stars[4] == n_snap,
-          f"{stars[4]} of {n_snap} snapshots rated")
+               COUNT(DISTINCT development)
+        FROM mart.player_development""").fetchone()
+    check("player_development uses only the four bands", dev[0] == 0, f"{dev[0]} bad row(s)")
+    check("player_development is one row per player per snapshot", dev[1] == 0,
+          f"{dev[1]} duplicate(s)")
+    check("all four development bands occur", dev[2] == 4, f"{dev[2]} distinct")
 
     # club_matches is mart.matches seen from each side; the two views of one match must mirror.
     mirror = con.execute("""

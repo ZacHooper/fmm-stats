@@ -2908,115 +2908,24 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY season, phase, tid
                                     position) = 1
 """
 
-# Ability and Potential as the game shows them: stars, 0.5 to 5 in half steps, measured
-# against OUR FIRST TEAM. The question a star answers is "is he good enough for us", so the
-# yardstick is the starters we field, and it moves when the squad does: sign a better
-# striker and every forward's stars drop, even the ones who did not get worse. That is
-# deliberate. Level %ile (mart.player_position_levels) is the fixed, league-relative
-# measure and sits next to this, not instead of it.
+# How far a player is from his ceiling, as a word, never a number: 'Lots to come',
+# 'Developing', 'Nearly there' or 'At his ceiling'. The four bands come from the share of his
+# potential ability he has already reached. The bands are wide on purpose: they tell you
+# whether there is growth left, and in particular whether it has run out, but not how much.
+# That keeps the question open the way the game keeps it open. There is no star rating or
+# yardstick against any squad here, by design.
 #
-# Two yardsticks, two pairs of columns:
-#   ability_stars / potential_stars           our first team AT THAT SNAPSHOT — "how did he
-#                                             rate in the squad we had then" (club_roster
-#                                             holds the managed club's squad every snapshot)
-#   ability_stars_now / potential_stars_now   our first team at the NEWEST snapshot — one
-#                                             fixed bar, so a player's history along it
-#                                             shows his growth and not our recruitment
-# At the newest snapshot the two pairs are identical.
-#
-# The yardstick, per positional unit (GK / Defense / Midfield / Attack, the same units as
-# fmstats/scout.py): the mean ability of the unit's STAR_XI best managed-club players by
-# PRIMARY position, reserves excluded. Primary position rather than
-# "can play there", because one versatile player would otherwise set the bar for three
-# units. Per unit rather than squad-wide, because keepers' ability runs lower than
-# outfielders' for the same quality.
-#
-# The scale: the yardstick is 3 stars. Above it every STAR_STEP_UP ability points is half a
-# star, below it every STAR_STEP_DOWN, so 5 stars is 4*STAR_STEP_UP over a typical starter
-# and 0.5 is 5*STAR_STEP_DOWN under. Asymmetric on purpose: our squad spans roughly 100
-# ability points BELOW the bar (reserve teenagers) and 20 above it, and a single step either
-# floors every reserve at 0.5 or caps our best player at 3.5. Potential is the same formula
-# on potential ability against the same yardstick, so potential_stars >= ability_stars
-# always and the gap between them is how far he still has to go.
-#
-# `development` is NOT the star gap. Both stars clamp at the ends of the scale, so a
-# teenager far below the bar reads 0.5/0.5 whatever his ceiling; the word is banded from
-# the ability/potential ratio instead, which has no ends to clamp against.
-#
-# Deliberately NOT built on the weighted role ratings: potential is one number with no
-# attributes behind it, so a role-weighted potential would need an attribute forecast
-# (mart.attribute_forecast leaves several attributes unmodelled), and an ability star on a
-# different basis from the potential star would make the gap between them meaningless.
-# Tactic fit is Fit %ile's job.
-#
-# IMMERSION: reads ca/pa, emits only half-star bands (10 steps) and a word, the same
-# resolution the in-game screen shows, and a four-band word. Do not add ca/pa or the yardstick to the SELECT.
-STAR_STEP_UP = 5
-STAR_STEP_DOWN = 10
-# Starters per unit in our 4-2-3-1: DL DC DC DR / DMC DMC / AML AMC AMR ST.
-STAR_XI = {"GK": 1, "Defense": 4, "Midfield": 2, "Attack": 4}
-_UNIT_VALUES = ", ".join(f"('{p}', '{u}')" for p, u in [
-    ("GK", "GK"),
-    ("DC", "Defense"), ("DL", "Defense"), ("DR", "Defense"), ("DML", "Defense"),
-    ("DMR", "Defense"),
-    ("DMC", "Midfield"), ("MC", "Midfield"), ("ML", "Midfield"), ("MR", "Midfield"),
-    ("AMC", "Attack"), ("AML", "Attack"), ("AMR", "Attack"), ("ST", "Attack")])
-_XI_VALUES = ", ".join(f"('{u}', {k})" for u, k in STAR_XI.items())
-
-
-def _stars(x, bar):
-    """Half-star rating of ability expression `x` against yardstick `bar`, 0.5 to 5."""
-    half_steps = (f"({x} - {bar}) / CASE WHEN {x} >= {bar} "
-                  f"THEN {STAR_STEP_UP} ELSE {STAR_STEP_DOWN} END")
-    return f"LEAST(5, GREATEST(0.5, ROUND(6 + {half_steps}) / 2))"
-
-
-PLAYER_STARS = f"""
-CREATE OR REPLACE VIEW mart.player_stars AS
-WITH unit_map(position, unit) AS (VALUES {_UNIT_VALUES}),
-xi(unit, k) AS (VALUES {_XI_VALUES}),
-first_team AS (
-    SELECT pp.snap_ix, u.unit, p.ca,
-           ROW_NUMBER() OVER (PARTITION BY pp.snap_ix, u.unit
-                              ORDER BY p.ca DESC, pp.tid) AS rk
-    FROM mart.club_roster r
-    JOIN mart.player_primary_position pp USING (season, phase, tid)
-    JOIN unit_map u USING (position)
-    JOIN {{S}}.players p USING (season, phase, tid)
-    WHERE r.club_tid IN (SELECT club_tid FROM mart.managed_club)
-      AND p.ca IS NOT NULL
-),
-bar AS (
-    SELECT f.snap_ix, f.unit, AVG(f.ca) AS bar
-    FROM first_team f JOIN xi USING (unit)
-    WHERE f.rk <= xi.k
-    GROUP BY f.snap_ix, f.unit
-),
-bar_now AS (
-    SELECT unit, bar AS bar_now FROM bar
-    WHERE snap_ix = (SELECT MAX(snap_ix) FROM mart.snapshots)
-),
-rated AS (
-    SELECT pp.season, pp.phase, pp.snap_ix, pp.tid, pp.person_id, pp.name,
-           pp.club_tid, pp.club, pp.position, u.unit,
-           {_stars("p.ca", "b.bar")}                          AS ability_stars,
-           {_stars("GREATEST(p.pa, p.ca)", "b.bar")}          AS potential_stars,
-           {_stars("p.ca", "n.bar_now")}                      AS ability_stars_now,
-           {_stars("GREATEST(p.pa, p.ca)", "n.bar_now")}      AS potential_stars_now,
-           p.ca / GREATEST(p.pa, p.ca, 1)                     AS progress
-    FROM mart.player_primary_position pp
-    JOIN unit_map u USING (position)
-    JOIN bar b USING (snap_ix, unit)
-    JOIN bar_now n USING (unit)
-    JOIN {{S}}.players p USING (season, phase, tid)
-    WHERE p.ca IS NOT NULL AND p.pa IS NOT NULL
-)
-SELECT * EXCLUDE (progress),
-       CASE WHEN progress >= 0.97 THEN 'At his ceiling'
-            WHEN progress >= 0.90 THEN 'Nearly there'
-            WHEN progress >= 0.75 THEN 'Developing'
-            ELSE 'Lots to come' END                           AS development
-FROM rated
+# IMMERSION: reads ca/pa, emits only the word. Do not add ca, pa or the ratio to the SELECT.
+PLAYER_DEVELOPMENT = """
+CREATE OR REPLACE VIEW mart.player_development AS
+SELECT ps.season, ps.phase, ps.snap_ix, ps.tid, ps.person_id, ps.name, ps.club_tid, ps.club,
+       CASE WHEN p.ca >= 0.97 * GREATEST(p.pa, p.ca) THEN 'At his ceiling'
+            WHEN p.ca >= 0.90 * GREATEST(p.pa, p.ca) THEN 'Nearly there'
+            WHEN p.ca >= 0.75 * GREATEST(p.pa, p.ca) THEN 'Developing'
+            ELSE 'Lots to come' END                                AS development
+FROM mart.player_snapshots ps
+JOIN {S}.players p USING (season, phase, tid)
+WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
 """
 
 # Head-to-head records from the match record, one row per (club, opponent, venue) with an
@@ -3267,8 +3176,7 @@ ORDER = [
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
     ("mart.club_squad_latest", CLUB_SQUAD_LATEST),
-    # after club_roster/player_primary_position/managed_club, which the yardstick reads.
-    ("mart.player_stars", PLAYER_STARS),
+    ("mart.player_development", PLAYER_DEVELOPMENT),
     ("mart.player_vs_club", PLAYER_VS_CLUB),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
