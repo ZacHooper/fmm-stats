@@ -38,7 +38,7 @@ import sys
 import duckdb
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from fmstats.mart import create_mart  # noqa: E402
+from fmstats.mart import ORDER, create_mart  # noqa: E402
 
 R2_KEY = "s3://fmm-stats/site-data/fm-frem.duckdb"
 
@@ -68,6 +68,33 @@ def connect(args):
     return con, "fm.staging"
 
 
+# The method-dependent rating layer: 27M and 9.4M rows. Left as views; the one check that
+# reads player_position_fit scans it once, grouped by method.
+NOT_MATERIALISED = {"player_role_ratings", "player_position_fit"}
+
+
+def materialise(con):
+    """Replace each mart view with a table of its own rows, in build order.
+
+    The mart is views on views, and a view is recomputed on every read, so a check against
+    mart.player_homegrown re-ran the whole origin/training chain across every snapshot: ~65 s
+    a check, 13+ minutes a run. Materialising in ORDER means each view is computed once,
+    reading the tables already materialised before it. The rows are identical; this changes
+    when the work happens, not what is checked. DuckDB binds views by name at query time, so
+    a view still defined over a replaced one reads the table.
+    """
+    views = {r[0] for r in con.execute(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'mart' AND table_type = 'VIEW'").fetchall()}
+    for name, _ in ORDER:
+        view = name.split(".", 1)[1]
+        if view not in views or view in NOT_MATERIALISED:
+            continue
+        con.execute(f"CREATE TABLE mart._materialising AS SELECT * FROM mart.{view}")
+        con.execute(f"DROP VIEW mart.{view}")
+        con.execute(f"ALTER TABLE mart._materialising RENAME TO {view}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--r2", action="store_true", help="validate against the published R2 copy")
@@ -76,6 +103,7 @@ def main():
 
     con, src = connect(args)
     created = create_mart(con, src=src)
+    materialise(con)
     print(f"built {len(created)} mart objects on {src}\n")
 
     # -- 1. spell overlap invariant -----------------------------------------------
@@ -619,18 +647,29 @@ def main():
 
     # Stars are the only form potential leaves the mart in, so their resolution IS the
     # immersion guard: anything but a half step in [0.5, 5] is a finer number leaking out.
-    stars = con.execute("""
-        SELECT COUNT(*) FILTER (WHERE ability_stars NOT BETWEEN 0.5 AND 5
-                                   OR potential_stars NOT BETWEEN 0.5 AND 5
-                                   OR ability_stars * 2 <> ROUND(ability_stars * 2)
-                                   OR potential_stars * 2 <> ROUND(potential_stars * 2)),
-               COUNT(*) FILTER (WHERE potential_stars < ability_stars),
-               COUNT(*) - COUNT(DISTINCT (season, phase, tid))
+    cols = ("ability_stars", "potential_stars", "ability_stars_now", "potential_stars_now")
+    off_scale = " OR ".join(f"{c} NOT BETWEEN 0.5 AND 5 OR {c} * 2 <> ROUND({c} * 2)"
+                            for c in cols)
+    stars = con.execute(f"""
+        SELECT COUNT(*) FILTER (WHERE {off_scale}),
+               COUNT(*) FILTER (WHERE potential_stars < ability_stars
+                                   OR potential_stars_now < ability_stars_now),
+               COUNT(*) - COUNT(DISTINCT (season, phase, tid)),
+               COUNT(*) FILTER (WHERE snap_ix = (SELECT MAX(snap_ix) FROM mart.snapshots)
+                                  AND (ability_stars <> ability_stars_now
+                                       OR potential_stars <> potential_stars_now)),
+               COUNT(DISTINCT snap_ix)
         FROM mart.player_stars""").fetchone()
     check("player_stars are half steps in [0.5, 5]", stars[0] == 0, f"{stars[0]} bad row(s)")
-    check("potential_stars >= ability_stars", stars[1] == 0, f"{stars[1]} row(s)")
+    check("potential stars >= ability stars (then and now)", stars[1] == 0,
+          f"{stars[1]} row(s)")
     check("player_stars is one row per player per snapshot", stars[2] == 0,
           f"{stars[2]} duplicate(s)")
+    check("at the newest snapshot the then- and now-yardsticks agree", stars[3] == 0,
+          f"{stars[3]} row(s) differ")
+    n_snap = con.execute("SELECT COUNT(*) FROM mart.snapshots").fetchone()[0]
+    check("every snapshot has a first-team yardstick", stars[4] == n_snap,
+          f"{stars[4]} of {n_snap} snapshots rated")
 
     # club_matches is mart.matches seen from each side; the two views of one match must mirror.
     mirror = con.execute("""
@@ -686,12 +725,13 @@ def main():
                           ORDER BY snap_ix DESC LIMIT 1""").fetchone()
     lv = con.execute("SELECT COUNT(*) FROM mart.player_position_levels "
                      "WHERE season=? AND phase=?", [S, P]).fetchone()[0]
-    holes = []
-    for (m,) in con.execute(f"SELECT DISTINCT method FROM {src}.role_weights ORDER BY 1").fetchall():
-        n = con.execute("""SELECT COUNT(*) FROM mart.player_position_fit
-                           WHERE season=? AND phase=? AND method=?""", [S, P, m]).fetchone()[0]
-        if n != lv:
-            holes.append((m, n))
+    per_method = dict(con.execute(f"""
+        SELECT m.method, COUNT(f.method)
+        FROM (SELECT DISTINCT method FROM {src}.role_weights) m
+        LEFT JOIN mart.player_position_fit f
+               ON f.method = m.method AND f.season = ? AND f.phase = ?
+        GROUP BY m.method""", [S, P]).fetchall())
+    holes = sorted((m, n) for m, n in per_method.items() if n != lv)
     check(f"player_position_fit covers the level set for every method ({lv} rows)",
           not holes, f"{holes}" if holes else "all methods agree")
 

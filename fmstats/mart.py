@@ -2909,15 +2909,24 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY season, phase, tid
 """
 
 # Ability and Potential as the game shows them: stars, 0.5 to 5 in half steps, measured
-# against OUR CURRENT FIRST TEAM. The question a star answers is "is he good enough for us",
-# so the yardstick is the starters we field now, and it moves when the squad does: sign a
-# better striker and every forward's stars drop, even the ones who did not get worse. That
-# is deliberate. Level %ile (mart.player_position_levels) is the fixed, league-relative
+# against OUR FIRST TEAM. The question a star answers is "is he good enough for us", so the
+# yardstick is the starters we field, and it moves when the squad does: sign a better
+# striker and every forward's stars drop, even the ones who did not get worse. That is
+# deliberate. Level %ile (mart.player_position_levels) is the fixed, league-relative
 # measure and sits next to this, not instead of it.
 #
+# Two yardsticks, two pairs of columns:
+#   ability_stars / potential_stars           our first team AT THAT SNAPSHOT — "how did he
+#                                             rate in the squad we had then" (club_roster
+#                                             holds the managed club's squad every snapshot)
+#   ability_stars_now / potential_stars_now   our first team at the NEWEST snapshot — one
+#                                             fixed bar, so a player's history along it
+#                                             shows his growth and not our recruitment
+# At the newest snapshot the two pairs are identical.
+#
 # The yardstick, per positional unit (GK / Defense / Midfield / Attack, the same units as
-# fmstats/scout.py): the mean ability of the unit's STAR_XI best first-team players by
-# PRIMARY position at the newest snapshot, reserves excluded. Primary position rather than
+# fmstats/scout.py): the mean ability of the unit's STAR_XI best managed-club players by
+# PRIMARY position, reserves excluded. Primary position rather than
 # "can play there", because one versatile player would otherwise set the bar for three
 # units. Per unit rather than squad-wide, because keepers' ability runs lower than
 # outfielders' for the same quality.
@@ -2933,9 +2942,6 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY season, phase, tid
 # `development` is NOT the star gap. Both stars clamp at the ends of the scale, so a
 # teenager far below the bar reads 0.5/0.5 whatever his ceiling; the word is banded from
 # the ability/potential ratio instead, which has no ends to clamp against.
-#
-# Every snapshot is rated against TODAY's squad (the yardstick is not per snapshot), so a
-# player's star history shows him against one fixed bar and is comparable along its length.
 #
 # Deliberately NOT built on the weighted role ratings: potential is one number with no
 # attributes behind it, so a role-weighted potential would need an attribute forecast
@@ -2958,9 +2964,9 @@ _UNIT_VALUES = ", ".join(f"('{p}', '{u}')" for p, u in [
 _XI_VALUES = ", ".join(f"('{u}', {k})" for u, k in STAR_XI.items())
 
 
-def _stars(x):
-    """Half-star rating of ability expression `x` against the unit's `b.bar`, 0.5 to 5."""
-    half_steps = (f"({x} - b.bar) / CASE WHEN {x} >= b.bar "
+def _stars(x, bar):
+    """Half-star rating of ability expression `x` against yardstick `bar`, 0.5 to 5."""
+    half_steps = (f"({x} - {bar}) / CASE WHEN {x} >= {bar} "
                   f"THEN {STAR_STEP_UP} ELSE {STAR_STEP_DOWN} END")
     return f"LEAST(5, GREATEST(0.5, ROUND(6 + {half_steps}) / 2))"
 
@@ -2969,32 +2975,39 @@ PLAYER_STARS = f"""
 CREATE OR REPLACE VIEW mart.player_stars AS
 WITH unit_map(position, unit) AS (VALUES {_UNIT_VALUES}),
 xi(unit, k) AS (VALUES {_XI_VALUES}),
-latest AS (SELECT season, phase FROM mart.snapshots ORDER BY snap_ix DESC LIMIT 1),
 first_team AS (
-    SELECT u.unit, p.ca,
-           ROW_NUMBER() OVER (PARTITION BY u.unit ORDER BY p.ca DESC, pp.tid) AS rk
-    FROM mart.player_primary_position pp
-    JOIN latest USING (season, phase)
+    SELECT pp.snap_ix, u.unit, p.ca,
+           ROW_NUMBER() OVER (PARTITION BY pp.snap_ix, u.unit
+                              ORDER BY p.ca DESC, pp.tid) AS rk
+    FROM mart.club_roster r
+    JOIN mart.player_primary_position pp USING (season, phase, tid)
     JOIN unit_map u USING (position)
     JOIN {{S}}.players p USING (season, phase, tid)
-    WHERE pp.tid IN (SELECT tid FROM mart.squad_current WHERE NOT is_reserve)
+    WHERE r.club_tid IN (SELECT club_tid FROM mart.managed_club)
       AND p.ca IS NOT NULL
 ),
 bar AS (
-    SELECT f.unit, AVG(f.ca) AS bar
+    SELECT f.snap_ix, f.unit, AVG(f.ca) AS bar
     FROM first_team f JOIN xi USING (unit)
     WHERE f.rk <= xi.k
-    GROUP BY f.unit
+    GROUP BY f.snap_ix, f.unit
+),
+bar_now AS (
+    SELECT unit, bar AS bar_now FROM bar
+    WHERE snap_ix = (SELECT MAX(snap_ix) FROM mart.snapshots)
 ),
 rated AS (
     SELECT pp.season, pp.phase, pp.snap_ix, pp.tid, pp.person_id, pp.name,
            pp.club_tid, pp.club, pp.position, u.unit,
-           {_stars("p.ca")}                                   AS ability_stars,
-           {_stars("GREATEST(p.pa, p.ca)")}                   AS potential_stars,
+           {_stars("p.ca", "b.bar")}                          AS ability_stars,
+           {_stars("GREATEST(p.pa, p.ca)", "b.bar")}          AS potential_stars,
+           {_stars("p.ca", "n.bar_now")}                      AS ability_stars_now,
+           {_stars("GREATEST(p.pa, p.ca)", "n.bar_now")}      AS potential_stars_now,
            p.ca / GREATEST(p.pa, p.ca, 1)                     AS progress
     FROM mart.player_primary_position pp
     JOIN unit_map u USING (position)
-    JOIN bar b USING (unit)
+    JOIN bar b USING (snap_ix, unit)
+    JOIN bar_now n USING (unit)
     JOIN {{S}}.players p USING (season, phase, tid)
     WHERE p.ca IS NOT NULL AND p.pa IS NOT NULL
 )
@@ -3254,7 +3267,7 @@ ORDER = [
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
     ("mart.club_squad_latest", CLUB_SQUAD_LATEST),
-    # after squad_current: the star yardstick is our current first team.
+    # after club_roster/player_primary_position/managed_club, which the yardstick reads.
     ("mart.player_stars", PLAYER_STARS),
     ("mart.player_vs_club", PLAYER_VS_CLUB),
     ("mart.player_growth", PLAYER_GROWTH),
