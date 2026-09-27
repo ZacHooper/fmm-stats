@@ -255,13 +255,21 @@ one-match cross-nation stage) and works back through the knockout rounds. A grou
 the competition that keeps two or more of its clubs. **Read the SANITY line first:** each
 competition should show 8 groups and 32–40 clubs. If it doesn't, the reconstruction has gone
 wrong and the per-nation tables can't be trusted.
-- Tier 1 and tier 2 take their names from the save (`European Champions Cup`, `EURO Cup`).
-  **The third tier's name is not in the save's competition list**, so call it the
-  "third-tier cup" rather than inventing a name.
+- The tiers are **European Champions Cup** (cid 256), **EURO Cup** (258) and **EURO Cup II**
+  (505, code EC2). These names come from the save's competition records. EURO Cup II isn't
+  in `staging.competitions`, which only keeps competitions with a match in our own data, so
+  the names are fixed in `EURO_TIERS`. The dormant `European Cup Winners Cup` (257) is never
+  played.
+- **Cross-check against the roll of honour.** The `comp_honours` grid in `comp_man.dat`
+  records each finished competition's winner and runner-up. The parser reads it
+  (`fmparser.tables.comp_honours`), but the store doesn't load it. For 25/26 it agrees with the
+  reconstruction for all three competitions (Man City, Augsburg, Sevilla). It hadn't recorded
+  26/27 by the 2027-08-08 save, so it can confirm an OLDER season but not the one just
+  finished.
 - Group third-placers drop a tier, so a club can appear in two competitions. The rebuild
   handles this. The storylines are worth using: in 26/27 RB Leipzig dropped out of the
   Champions Cup groups, knocked Frem out and won the EURO Cup. Lyon finished 3rd in Frem's
-  group and went on to win the third-tier cup.
+  group and went on to win EURO Cup II.
 - **Unlicensed club names.** FMM renames unlicensed clubs, so name them for what they are:
   `Zebre` = Juventus, `Real Hispalis` = Real Betis, `A. Madrid` = Atlético Madrid,
   `Manchester UFC` = Manchester United, `VTSC` = Vitória SC. Say "Zebre (Juventus)".
@@ -272,7 +280,13 @@ wrong and the per-nation tables can't be trusted.
   with each other. `best_prev_9yrs` flags a best-ever season (Denmark 26/27: 11.10 against a
   previous best of 8.50). The 5-year rank move is the headline for a nation.
 
-**Transfers are reconstructed.** There's no transfer table.
+**Transfers are reconstructed, not read from a transfers table.** The fee data is parsed and
+loaded: `fmparser/history.py` decodes the career-history fee field into
+`mart.player_career_seasons.fee`. What's missing is a model of it: no mart view turns those
+rows into "who moved where, when, for how much", so the script derives that itself (moving it
+into `fmstats/mart.py` as `mart.transfers` is the obvious next step). The in-game Transfers
+screen's own 143-byte record is decoded but not parsed (`docs/transfer-history-record.md`),
+and its fee bytes are not located.
 - A move is a club change between the season's first and last snapshot, loans excluded.
 - The fee comes from the player's career history: it sits on the SELLING club's row, in £000s.
 - A move made this season has no buyer row yet, so the seller row is the last row in the chain.
@@ -299,8 +313,8 @@ that league out rather than report a partial table.
 4. Sanity-check one number against a known figure before writing prose (e.g. the Golden Boot
    total against `fmq.py output --season <S>`, or one of our fees against the in-game screen).
 5. Turn it into a Discord-friendly summary in four sections: Our season, Units + awards,
-   National review, Global review. End with a short caveats list: fee coverage, the unnamed
-   third tier, any leagues left out.
+   National review, Global review. End with a short caveats list: fee coverage, any leagues
+   left out.
 
 ## Reporting notes
 - **Goals-for and player-attributed goals differ** and both are right: an opposition own goal

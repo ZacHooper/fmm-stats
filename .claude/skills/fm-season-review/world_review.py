@@ -22,8 +22,8 @@ does not (yet) model, so each one says how it can go wrong:
   single-match cross-nation stage is a final, the two-legged stages its finalists played
   are its knockout rounds, and a group belongs to whichever competition's knockout rounds
   hold at least two of its clubs (the top two stay in the competition; a third-placed club
-  drops a tier, which is why "any club" would be wrong). Tiers are named by average club
-  reputation of the group stage.
+  drops a tier, which is why "any club" would be wrong). Tiers are ranked by the average club
+  reputation of the group stage and named from EURO_TIERS.
 * CLUB NATION comes from mart.clubs at the last snapshot. Clubs from nations the save does
   not load have no nation; they are shown as '?<club>' and can be named by hand.
 """
@@ -35,6 +35,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from fmstats.store import open_store  # noqa: E402
 
 FEE_SENTINEL = 65000
+
+# The European club competitions by tier, from the save's own competition records (read with
+# fmparser.clubs_comps.comp_detail): cid 256 'European Champions Cup' (reputation 200),
+# 258 'EURO Cup' (150), 505 'EURO Cup II' (130). cid 257 'European Cup Winners Cup' is also
+# in the table but dormant (level 100, never in the fixture list). The store's
+# staging.competitions only carries competitions with a match in OUR data, so 505 is absent
+# from it and cannot be looked up there. The comp_man roll of honour (comp_cid 505: Sevilla
+# beat Gladbach in 25/26) confirms the third tier is EC2 and matches this reconstruction.
+EURO_TIERS = ("European Champions Cup", "EURO Cup", "EURO Cup II")
 
 
 def show(con, sql, title=None):
@@ -191,18 +200,12 @@ def continental(con, season, last):
               WHERE g.is_group GROUP BY 1, 2)
     SELECT comp, stage_key, 'Group' FROM votes WHERE n >= 2
     QUALIFY row_number() OVER (PARTITION BY stage_key ORDER BY n DESC) = 1""")
-    # Tier by group-stage club reputation; the top tier is named after the type_21
-    # competition, the next after type_22, the rest 'tier N'.
+    # Tier by group-stage club reputation, named from EURO_TIERS.
     tiers = con.execute("""
         SELECT cs.comp, avg(x.rep) AS r FROM comp_stage cs JOIN xf x USING (stage_key)
         WHERE cs.kind = 'Group' GROUP BY 1 ORDER BY r DESC""").fetchall()
-    names = dict(con.execute(
-        "SELECT kind, any_value(name) FROM mart.competitions WHERE kind IN ('type_21','type_22') GROUP BY 1"
-    ).fetchall())
-    label = {}
-    for t, (comp, _) in enumerate(tiers):
-        label[comp] = {0: names.get("type_21", "tier 1"), 1: names.get("type_22", "tier 2")}.get(
-            t, f"tier {t + 1} cup (name not in save)")
+    label = {comp: EURO_TIERS[t] if t < len(EURO_TIERS) else f"tier {t + 1} cup"
+             for t, (comp, _) in enumerate(tiers)}
     con.execute("CREATE OR REPLACE TEMP TABLE comp_label (comp INT, label VARCHAR)")
     con.executemany("INSERT INTO comp_label VALUES (?, ?)", list(label.items()))
 
