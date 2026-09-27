@@ -9,7 +9,7 @@
  */
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
-import { el, num, pill, DASH } from "../ui.js";
+import { el, num, pill, DASH, multiSelect } from "../ui.js";
 import { openProfile } from "../profile.js";
 
 const RES = { W: "good", D: "flat", L: "bad" };
@@ -26,7 +26,9 @@ export async function view() {
   const isFriendly = (m) => /friend/i.test(comp(m));
 
   const seasons = [...new Set(all.map((m) => m.season))].sort((a, b) => b - a);
-  let season = "all", competition = "all", friendlies = false;
+  const oppKey = (m) => m.opp_tid ?? m.opponent;
+  const oppName = (m) => m.opponent || `#${m.opp_tid}`;
+  let friendlies = false;
 
   const out = el("div");
   out.append(el("h2", { text: "Matches" }));
@@ -34,10 +36,46 @@ export async function view() {
   const kpiRow = el("div.kpis");
   const body = el("div");
 
-  const seasonSel = el("select.btn", { onchange: (e) => { season = e.target.value; draw(); } },
-    [el("option", { value: "all", text: "All seasons" }),
-      ...seasons.map((s) => el("option", { value: String(s), text: String(s) }))]);
-  const compSel = el("select.btn", { onchange: (e) => { competition = e.target.value; draw(); } });
+  // Three multi-selects, each an empty-means-all Set. A list only offers what the filters
+  // BEFORE it leave (season -> competition -> opponent), with a match count beside each, so
+  // nothing on offer ever filters to zero.
+  const count = (ms, key) => {
+    const c = new Map();
+    for (const m of ms) c.set(key(m), (c.get(key(m)) || 0) + 1);
+    return c;
+  };
+  const inSeasons = (m) => !seasonMs.selected.size || seasonMs.selected.has(m.season);
+  const inComps = (m) => !compMs.selected.size || compMs.selected.has(comp(m));
+  const inOpps = (m) => !oppMs.selected.size || oppMs.selected.has(oppKey(m));
+  const friendlyOk = (m) => friendlies || !isFriendly(m);
+
+  const seasonMs = multiSelect({
+    noun: "season", plural: "seasons",
+    options: () => {
+      const c = count(all.filter(friendlyOk), (m) => m.season);
+      return seasons.filter((s) => c.has(s)).map((s) => ({ value: s, label: s, hint: c.get(s) }));
+    },
+    onChange: () => draw(),
+  });
+  const compMs = multiSelect({
+    noun: "competition", plural: "competitions",
+    options: () => {
+      const c = count(all.filter((m) => friendlyOk(m) && inSeasons(m)), comp);
+      return [...c.keys()].sort().map((k) => ({ value: k, label: k, hint: c.get(k) }));
+    },
+    onChange: () => draw(),
+  });
+  const oppMs = multiSelect({
+    noun: "opponent", plural: "opponents", search: true,
+    options: () => {
+      const ms = all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m));
+      const c = count(ms, oppKey);
+      const names = new Map(ms.map((m) => [oppKey(m), oppName(m)]));
+      return [...c.keys()].map((k) => ({ value: k, label: names.get(k), hint: c.get(k) }))
+        .sort((a, b) => b.hint - a.hint || String(a.label).localeCompare(String(b.label)));
+    },
+    onChange: () => draw(),
+  });
   const friBtn = el("button.btn", {
     text: "Friendlies off",
     title: "Friendlies aren't meaningful for form or a bogey read, so they're excluded by default",
@@ -48,24 +86,16 @@ export async function view() {
       draw();
     },
   });
-  out.append(el("div.tbar", {}, [seasonSel, compSel, friBtn]), kpiRow, body);
+  out.append(el("div.tbar", {}, [seasonMs.node, compMs.node, oppMs.node, friBtn]), kpiRow, body);
 
   function filtered() {
-    return all.filter((m) => (season === "all" || String(m.season) === season)
-      && (competition === "all" || comp(m) === competition)
-      && (friendlies || !isFriendly(m)));
-  }
-
-  function rebuildCompSel() {
-    const inSeason = all.filter((m) => season === "all" || String(m.season) === season);
-    const comps = [...new Set(inSeason.map(comp))].sort();
-    compSel.replaceChildren(el("option", { value: "all", text: "All competitions" }),
-      ...comps.map((c) => el("option", { value: c, text: c, selected: c === competition })));
-    if (!comps.includes(competition)) competition = "all";
+    return all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m) && inOpps(m));
   }
 
   function draw() {
-    rebuildCompSel();
+    // Upstream picks can take a value off a downstream list; drop it rather than leave a
+    // filter that silently matches nothing.
+    seasonMs.sync(); compMs.sync(); oppMs.sync();
     const ms = filtered();
     const w = ms.filter((m) => m.result === "W").length;
     const d = ms.filter((m) => m.result === "D").length;
@@ -88,7 +118,7 @@ export async function view() {
 
     // ---- head to head
     body.append(el("h3", { text: "Head to head" }));
-    body.append(summaryTable(ms, (m) => m.opponent || `#${m.opp_tid}`, "Opponent", true));
+    body.append(summaryTable(ms, oppName, "Opponent", true));
 
     // ---- team stat differentials: ours vs theirs, per match average
     const stats = f.filter((n) => n.startsWith("our_")).map((n) => n.slice(4));

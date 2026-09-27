@@ -216,3 +216,98 @@ export function debounce(fn, ms = 180) {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
+
+/**
+ * A dropdown multi-select: a button that reads "All <plural>", the one pick, or "N <plural>",
+ * opening a panel of checkboxes with an optional search box. An EMPTY selection means "all" —
+ * so a filter built on it never has to special-case an "all" sentinel, and clearing is just
+ * emptying the set.
+ *
+ * `options()` is called every time the panel is drawn, so the list can depend on other filters;
+ * `sync()` drops any selected value no longer on offer and refreshes the button label.
+ * `onChange(selected)` fires on every tick, with the live Set.
+ */
+export function multiSelect({ noun, plural, options, onChange, search = false, selected = [] }) {
+  const sel = new Set(selected);
+  const btn = el("button.btn.msbtn", { type: "button" });
+  const q = search ? el("input.search", { type: "search", placeholder: `Find ${noun}…` }) : null;
+  const list = el("div.mslist");
+  const note = el("p.note");
+  const panel = el("div.mspanel", {}, [
+    el("div.prow", {}, [
+      q,
+      el("button.chip.ghost", { type: "button", text: "All", title: `Clear the selection — every ${noun}`,
+        onclick: () => { sel.clear(); changed(); } }),
+    ]),
+    list, note,
+  ]);
+  const wrap = el("span.ms", {}, [btn, panel]);
+  let open = false;
+  const setOpen = (v) => {
+    open = v;
+    wrap.classList.toggle("open", v);
+    if (v) {
+      draw();
+      if (!matchMedia("(pointer: coarse)").matches) q?.focus();
+    }
+  };
+  // Keep the panel on screen: a button near the right edge (a phone, a wrapped toolbar) would
+  // otherwise open it half off the page. Re-run on every draw, because a tick changes the
+  // button's label and can re-wrap the toolbar under an open panel.
+  const place = () => {
+    panel.style.left = "0px";
+    const r = panel.getBoundingClientRect();
+    const over = r.right - (document.documentElement.clientWidth - 8);
+    const shift = over > 0 ? Math.min(over, r.left - 8) : 0;
+    if (shift > 0) panel.style.left = `${-shift}px`;
+  };
+  // No stopPropagation: the document listener below is what closes every OTHER open dropdown.
+  btn.addEventListener("click", () => setOpen(!open));
+  document.addEventListener("click", (e) => { if (open && !wrap.contains(e.target)) setOpen(false); });
+  document.addEventListener("keydown", (e) => { if (open && e.key === "Escape") setOpen(false); });
+  q?.addEventListener("input", () => draw());
+
+  const label = () => {
+    const o = options();
+    if (!sel.size) return `All ${plural}`;
+    if (sel.size === 1) {
+      const v = [...sel][0];
+      return String(o.find((x) => x.value === v)?.label ?? v);
+    }
+    return `${sel.size} ${plural}`;
+  };
+  function changed() {
+    btn.textContent = label();
+    btn.classList.toggle("on", sel.size > 0);
+    draw();
+    onChange(sel);
+  }
+  function draw() {
+    if (!open) return;
+    const o = options();
+    const t = (q?.value || "").trim().toLowerCase();
+    // Ticked values stay on top so a long list never hides what is already chosen.
+    const hits = o.filter((x) => !t || String(x.label).toLowerCase().includes(t))
+      .sort((a, b) => (sel.has(b.value) ? 1 : 0) - (sel.has(a.value) ? 1 : 0));
+    list.replaceChildren(...hits.map((x) => el("label.msrow", {}, [
+      el("input", {
+        type: "checkbox", checked: sel.has(x.value),
+        onchange: (e) => { if (e.target.checked) sel.add(x.value); else sel.delete(x.value); changed(); },
+      }),
+      el("span", { text: String(x.label) }),
+      x.hint != null ? el("span.dim", { text: String(x.hint) }) : null,
+    ])));
+    place();
+    note.textContent = hits.length ? (sel.size ? `${sel.size} selected` : `None ticked = all ${plural}`)
+      : `No ${noun} matches.`;
+  }
+  function sync() {
+    const avail = new Set(options().map((x) => x.value));
+    for (const v of [...sel]) if (!avail.has(v)) sel.delete(v);
+    btn.textContent = label();
+    btn.classList.toggle("on", sel.size > 0);
+    draw();
+  }
+  sync();
+  return { node: wrap, selected: sel, sync };
+}

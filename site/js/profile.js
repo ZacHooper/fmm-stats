@@ -16,7 +16,7 @@ const DETAIL_KEY = "fm:profile:detail";
 const loadDetail = () => {
   try {
     const v = localStorage.getItem(DETAIL_KEY);
-    return v === "more" || v === "most" ? v : "simple";
+    return v === "more" || v === "most" || v === "proj" ? v : "simple";
   } catch { return "simple"; }
 };
 const saveDetail = (v) => { try { localStorage.setItem(DETAIL_KEY, v); } catch { /* private browsing */ } };
@@ -38,12 +38,12 @@ const GAME_ORDER = {
  * @param {object} [opts.compare] another player, to show a per-attribute delta against him.
  * @param {Array} [opts.attrTraj] this player's snapshot history (D.attrTrajectory(tid)), oldest
  *   first — enables growth annotation, gated by `detail`.
- * @param {"simple"|"more"|"most"} [opts.detail] "simple" (default) is the plain current-value
- *   grid; "more" adds the net change since the first snapshot next to the value; "most" also
- *   prepends a small trend sparkline. Kept off by default — growth is opt-in, not everyone
- *   wants a busier grid.
- * @param {object} [opts.forecast] D.forecastAttrs(p, toAge) result — answers "will his X come"
- *   right where the question gets asked: a 'fixed' attribute (Agility, Technique) is marked as
+ * @param {"simple"|"proj"|"more"|"most"} [opts.detail] "simple" (default) is the plain
+ *   current-value grid; "proj" adds the projection from `forecast`; "more" adds the net change
+ *   since the first snapshot next to the value; "most" also prepends a small trend sparkline.
+ *   Kept off by default — every annotation is opt-in, not everyone wants a busier grid.
+ * @param {object} [opts.forecast] D.forecastAttrs(p, toAge) result, shown only at detail
+ *   "proj" — answers "will his X come": a 'fixed' attribute (Agility, Technique) is marked as
  *   never moving; a 'forecastable' one whose projection differs from today's value shows
  *   `-> projected`. Silent for 'unmodelled' attributes and for a value already at the target.
  */
@@ -54,7 +54,7 @@ export function attributeBlock(p, role, { compare = null, attrTraj = null, detai
     const v = p.attrs[i];
     const other = compare ? compare.attrs[i] : null;
     let spark = null, delta = null;
-    if (attrTraj && detail !== "simple") {
+    if (attrTraj && (detail === "more" || detail === "most")) {
       const known = attrTraj.map((t) => t.attrs[i]).filter((x) => x != null);
       if (known.length >= 2) {
         delta = v - known[0];
@@ -62,7 +62,7 @@ export function attributeBlock(p, role, { compare = null, attrTraj = null, detai
       }
     }
     const tier = w >= 4 ? "key" : w === 3 ? "imp" : w === 2 ? "useful" : null;
-    const bucket = forecast?.buckets?.[i];
+    const bucket = detail === "proj" ? forecast?.buckets?.[i] : null;
     const fcVal = bucket === "forecastable" ? forecast.attrs[i] : null;
     return el(`div.arow${tier ? `.keyed.${tier}` : ""}`, { title }, [
       el("span.an", {}, [a, tier ? el("span.wdot", { text: tier }) : null]),
@@ -298,11 +298,14 @@ export function openProfile(tid, { role = null } = {}) {
   const attrBox = el("div");
   let curRole = shown?.role;
   let curDetail = loadDetail();
+  // The projection is only worth offering while he is still short of 24; growth needs at least
+  // two snapshots to have anything to say.
+  const canProject = !!forecast && a != null && a < 24;
   function rerenderAttrs() {
     attrNote.textContent = curRole
       ? `Coloured by importance to ${curRole} in this tactic — green = key, amber = important, red = useful.` : "";
     clear(attrBox);
-    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail, forecast }));
+    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail, forecast: canProject ? forecast : null }));
   }
   rerenderAttrs();
 
@@ -318,18 +321,21 @@ export function openProfile(tid, { role = null } = {}) {
     roleSel.value = curRole;
     controls.push(el("span.dim", { text: "Highlight:" }), roleSel);
   }
-  if (traj.length > 1) {
-    // Growth defaults to whatever level you last picked (persisted, not per-player), so once
+  if (traj.length > 1 || canProject) {
+    // Detail defaults to whatever level you last picked (persisted, not per-player), so once
     // you've settled on "+ growth + trend" every profile opens straight into it. Picking a
     // level re-renders the same three-column layout in place rather than bolting on a table.
+    // A saved level this player can't show falls back to the plain grid.
     const detailSel = el("select.btn", {
       onchange: (e) => { curDetail = e.target.value; saveDetail(curDetail); rerenderAttrs(); },
     }, [
       el("option", { value: "simple", text: "Current only" }),
-      el("option", { value: "more", text: "+ growth since first snapshot" }),
-      el("option", { value: "most", text: "+ growth + trend" }),
+      canProject ? el("option", { value: "proj", text: "+ projection at 24" }) : null,
+      traj.length > 1 ? el("option", { value: "more", text: "+ growth since first snapshot" }) : null,
+      traj.length > 1 ? el("option", { value: "most", text: "+ growth + trend" }) : null,
     ]);
     detailSel.value = curDetail;
+    if (detailSel.value !== curDetail) { detailSel.value = "simple"; curDetail = "simple"; rerenderAttrs(); }
     controls.push(el("span.dim", { text: "Detail:" }), detailSel);
   }
   if (controls.length) body.push(el("div.prow", {}, controls));
