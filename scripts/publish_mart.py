@@ -134,6 +134,8 @@ SCOPE = {
     "player_snapshots": NEWEST_ONLY,
     "player_position_levels": NEWEST_ONLY,
     "player_primary_position": NEWEST_ONLY,
+    # rated against the CURRENT squad, so only the newest snapshot is a question anyone asks.
+    "player_stars": NEWEST_ONLY,
     "player_origin_base": NEWEST_ONLY,
     "player_origin": NEWEST_ONLY,
     "player_career_seasons": NEWEST_ONLY,

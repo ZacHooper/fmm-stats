@@ -617,6 +617,21 @@ def main():
     """).fetchone()[0]
     check("no raw-ability column anywhere in the mart", not leak, str(leak))
 
+    # Stars are the only form potential leaves the mart in, so their resolution IS the
+    # immersion guard: anything but a half step in [0.5, 5] is a finer number leaking out.
+    stars = con.execute("""
+        SELECT COUNT(*) FILTER (WHERE ability_stars NOT BETWEEN 0.5 AND 5
+                                   OR potential_stars NOT BETWEEN 0.5 AND 5
+                                   OR ability_stars * 2 <> ROUND(ability_stars * 2)
+                                   OR potential_stars * 2 <> ROUND(potential_stars * 2)),
+               COUNT(*) FILTER (WHERE potential_stars < ability_stars),
+               COUNT(*) - COUNT(DISTINCT (season, phase, tid))
+        FROM mart.player_stars""").fetchone()
+    check("player_stars are half steps in [0.5, 5]", stars[0] == 0, f"{stars[0]} bad row(s)")
+    check("potential_stars >= ability_stars", stars[1] == 0, f"{stars[1]} row(s)")
+    check("player_stars is one row per player per snapshot", stars[2] == 0,
+          f"{stars[2]} duplicate(s)")
+
     # club_matches is mart.matches seen from each side; the two views of one match must mirror.
     mirror = con.execute("""
         SELECT COUNT(*) FROM mart.club_matches a

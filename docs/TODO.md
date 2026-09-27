@@ -507,6 +507,14 @@ quoting the opposition manager cannot tell how confident to be.
 
 ## Models
 
+### 11a. Ability/Potential stars: calibrate against the game, then surface them
+`mart.player_stars` exists (fmstats/mart.py, `PLAYER_STARS`): half-star Ability/Potential
+against our current first team per unit, plus a `development` word. The scale constants
+(`STAR_STEP_UP`/`STAR_STEP_DOWN`, `STAR_XI`) are a first cut chosen to spread the current
+squad, NOT matched to the game. Owed: (1) 5-10 in-game player star screenshots across ages
+and quality to check the yardstick and steps; (2) ship it to the site next to Level %ile in
+the Squad table (`scripts/export_data.py` + `site/js`), which nothing does yet.
+
 ### 12. Refit the transfer-value model with the new reputation fields
 `current_reputation` and `world_reputation` are parsed (PR #51) and currently unused —
 `fmstats/value_model.py` still fits on `reputation` alone. This was the one workstream from the
