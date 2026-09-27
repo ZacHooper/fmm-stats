@@ -997,6 +997,41 @@ def main():
     check("the DM penalty the adjustment exists for is still present (CM - DM > 0.2)",
           dm_gap is not None and dm_gap > 0.2, f"CM - DM = {dm_gap:.2f}" if dm_gap else "")
 
+    # -- 12. transfers ------------------------------------------------------------------
+    print("\n12. transfers")
+    dup = con.execute("""
+        SELECT COUNT(*) - COUNT(DISTINCT (person_id, by_phase)) FROM mart.transfers""").fetchone()[0]
+    check("transfers: one row per person per snapshot that shows a new club", dup == 0,
+          f"{dup} duplicates")
+    shape = con.execute("""
+        SELECT COUNT(*) FILTER (WHERE from_club_tid = to_club_tid),
+               COUNT(*) FILTER (WHERE (fee_gbp IS NULL) <> (fee_type IN ('none', 'unknown', 'loan'))),
+               COUNT(*) FILTER (WHERE fee_type = 'fee' AND NOT fee_gbp > 0),
+               COUNT(*) FILTER (WHERE move_date IS NOT NULL
+                                AND NOT (move_date > TRY_CAST(after_phase AS DATE)
+                                         AND move_date <= TRY_CAST(by_phase AS DATE)))
+        FROM mart.transfers""").fetchone()
+    check("transfers: a club actually changes, fee_gbp is set exactly for priced/free moves, "
+          "and a move_date lies inside the gap it explains", shape == (0, 0, 0, 0),
+          f"same-club {shape[0]}, fee/null mismatch {shape[1]}, zero 'fee' {shape[2]}, "
+          f"date outside gap {shape[3]}")
+    unknown = con.execute("""
+        SELECT COUNT(*) FILTER (WHERE fee_type = 'unknown') * 1.0 / COUNT(*)
+        FROM mart.transfers WHERE move_type = 'transfer'""").fetchone()[0]
+    check("transfers: fewer than 5% of club-to-club transfers have no readable fee",
+          unknown is not None and unknown < 0.05, f"{unknown:.1%}" if unknown is not None else "")
+    # Ground truth: our own deals, as the in-game Transfers screen reports them.
+    known = {("Mads-Emil Wass", "Granada"): 12_750_000,
+             ("Anosike Ementa", "Fenerbahçe A.Ş."): 9_500_000,
+             ("Fillip Kaiser", "Boldklubben Frem"): 7_383_000}
+    for (name, to_club), want in known.items():
+        got = con.execute("SELECT max(fee_gbp) FROM mart.transfers WHERE name = ? AND to_club = ?",
+                          [name, to_club]).fetchone()[0]
+        if got is None and not con.execute("SELECT 1 FROM mart.transfers WHERE name = ?",
+                                           [name]).fetchone():
+            continue  # store predates the move
+        check(f"transfers: {name} -> {to_club} fee", got == want, f"{got} vs {want}")
+
     print()
     if FAILURES:
         print(f"{len(FAILURES)} CHECK(S) FAILED:")

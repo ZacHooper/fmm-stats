@@ -80,6 +80,8 @@ too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attribute
 `mart.role_weights` so ratings are computable), and the common questions each have a view:
 `mart.league_tables` (tables rebuilt from the fixture list; verified for Denmark only),
 `mart.head_to_head`, `mart.player_vs_club` (each player's output against each opponent),
+`mart.transfers` (every club move with its fee, from the career history; `season` = the campaign
+the player moves for),
 `mart.player_primary_position` (the one primary-position rule), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
 (every club's genuine squad now), and `mart.player_development` (a
 **development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
