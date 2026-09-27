@@ -509,7 +509,7 @@ quoting the opposition manager cannot tell how confident to be.
 
 ### 11a. Ability/Potential stars: calibrate against the game, then surface them
 `mart.player_stars` exists (fmstats/mart.py, `PLAYER_STARS`): half-star Ability/Potential
-against our current first team per unit, plus a `development` word. The scale constants
+against our first team per unit (at each snapshot, plus `*_now` against today's squad), plus a `development` word. The scale constants
 (`STAR_STEP_UP`/`STAR_STEP_DOWN`, `STAR_XI`) are a first cut chosen to spread the current
 squad, NOT matched to the game. Owed: (1) 5-10 in-game player star screenshots across ages
 and quality to check the yardstick and steps; (2) ship it to the site next to Level %ile in
