@@ -134,6 +134,7 @@ SCOPE = {
     "player_snapshots": NEWEST_ONLY,
     "player_position_levels": NEWEST_ONLY,
     "player_primary_position": NEWEST_ONLY,
+    "player_development": NEWEST_ONLY,
     "player_origin_base": NEWEST_ONLY,
     "player_origin": NEWEST_ONLY,
     "player_career_seasons": NEWEST_ONLY,

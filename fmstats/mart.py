@@ -2908,6 +2908,26 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY season, phase, tid
                                     position) = 1
 """
 
+# How far a player is from his ceiling, as a word, never a number: 'Lots to come',
+# 'Developing', 'Nearly there' or 'At his ceiling'. The four bands come from the share of his
+# potential ability he has already reached. The bands are wide on purpose: they tell you
+# whether there is growth left, and in particular whether it has run out, but not how much.
+# That keeps the question open the way the game keeps it open. There is no star rating or
+# yardstick against any squad here, by design.
+#
+# IMMERSION: reads ca/pa, emits only the word. Do not add ca, pa or the ratio to the SELECT.
+PLAYER_DEVELOPMENT = """
+CREATE OR REPLACE VIEW mart.player_development AS
+SELECT ps.season, ps.phase, ps.snap_ix, ps.tid, ps.person_id, ps.name, ps.club_tid, ps.club,
+       CASE WHEN p.ca >= 0.97 * GREATEST(p.pa, p.ca) THEN 'At his ceiling'
+            WHEN p.ca >= 0.90 * GREATEST(p.pa, p.ca) THEN 'Nearly there'
+            WHEN p.ca >= 0.75 * GREATEST(p.pa, p.ca) THEN 'Developing'
+            ELSE 'Lots to come' END                                AS development
+FROM mart.player_snapshots ps
+JOIN {S}.players p USING (season, phase, tid)
+WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
+"""
+
 # Head-to-head records from the match record, one row per (club, opponent, venue) with an
 # 'all' row alongside H and A. Competitive matches only — a friendly says nothing about a
 # fixture. Covers every club the store has matches for, which is every club we or our
@@ -3156,6 +3176,7 @@ ORDER = [
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
     ("mart.club_squad_latest", CLUB_SQUAD_LATEST),
+    ("mart.player_development", PLAYER_DEVELOPMENT),
     ("mart.player_vs_club", PLAYER_VS_CLUB),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),

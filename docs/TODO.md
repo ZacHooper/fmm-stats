@@ -507,6 +507,12 @@ quoting the opposition manager cannot tell how confident to be.
 
 ## Models
 
+### 11a. Surface the development word on the site
+`mart.player_development` (fmstats/mart.py, `PLAYER_DEVELOPMENT`) gives every player one of
+four words for how close he is to his ceiling. Stars were built and dropped: they gave away
+too much. Owed: show the word in the site's Squad table next to Level %ile
+(`scripts/export_data.py` + `site/js`), which nothing does yet.
+
 ### 12. Refit the transfer-value model with the new reputation fields
 `current_reputation` and `world_reputation` are parsed (PR #51) and currently unused —
 `fmstats/value_model.py` still fits on `reputation` alone. This was the one workstream from the

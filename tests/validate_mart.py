@@ -38,7 +38,7 @@ import sys
 import duckdb
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from fmstats.mart import create_mart  # noqa: E402
+from fmstats.mart import ORDER, create_mart  # noqa: E402
 
 R2_KEY = "s3://fmm-stats/site-data/fm-frem.duckdb"
 
@@ -68,6 +68,33 @@ def connect(args):
     return con, "fm.staging"
 
 
+# The method-dependent rating layer: 27M and 9.4M rows. Left as views; the one check that
+# reads player_position_fit scans it once, grouped by method.
+NOT_MATERIALISED = {"player_role_ratings", "player_position_fit"}
+
+
+def materialise(con):
+    """Replace each mart view with a table of its own rows, in build order.
+
+    The mart is views on views, and a view is recomputed on every read, so a check against
+    mart.player_homegrown re-ran the whole origin/training chain across every snapshot: ~65 s
+    a check, 13+ minutes a run. Materialising in ORDER means each view is computed once,
+    reading the tables already materialised before it. The rows are identical; this changes
+    when the work happens, not what is checked. DuckDB binds views by name at query time, so
+    a view still defined over a replaced one reads the table.
+    """
+    views = {r[0] for r in con.execute(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'mart' AND table_type = 'VIEW'").fetchall()}
+    for name, _ in ORDER:
+        view = name.split(".", 1)[1]
+        if view not in views or view in NOT_MATERIALISED:
+            continue
+        con.execute(f"CREATE TABLE mart._materialising AS SELECT * FROM mart.{view}")
+        con.execute(f"DROP VIEW mart.{view}")
+        con.execute(f"ALTER TABLE mart._materialising RENAME TO {view}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--r2", action="store_true", help="validate against the published R2 copy")
@@ -76,6 +103,7 @@ def main():
 
     con, src = connect(args)
     created = create_mart(con, src=src)
+    materialise(con)
     print(f"built {len(created)} mart objects on {src}\n")
 
     # -- 1. spell overlap invariant -----------------------------------------------
@@ -617,6 +645,19 @@ def main():
     """).fetchone()[0]
     check("no raw-ability column anywhere in the mart", not leak, str(leak))
 
+    # The development word is the only form potential leaves the mart in, so its vocabulary
+    # IS the immersion guard: anything but the four bands is a finer signal leaking out.
+    dev = con.execute("""
+        SELECT COUNT(*) FILTER (WHERE development IS NULL OR development NOT IN
+                   ('Lots to come', 'Developing', 'Nearly there', 'At his ceiling')),
+               COUNT(*) - COUNT(DISTINCT (season, phase, tid)),
+               COUNT(DISTINCT development)
+        FROM mart.player_development""").fetchone()
+    check("player_development uses only the four bands", dev[0] == 0, f"{dev[0]} bad row(s)")
+    check("player_development is one row per player per snapshot", dev[1] == 0,
+          f"{dev[1]} duplicate(s)")
+    check("all four development bands occur", dev[2] == 4, f"{dev[2]} distinct")
+
     # club_matches is mart.matches seen from each side; the two views of one match must mirror.
     mirror = con.execute("""
         SELECT COUNT(*) FROM mart.club_matches a
@@ -671,12 +712,13 @@ def main():
                           ORDER BY snap_ix DESC LIMIT 1""").fetchone()
     lv = con.execute("SELECT COUNT(*) FROM mart.player_position_levels "
                      "WHERE season=? AND phase=?", [S, P]).fetchone()[0]
-    holes = []
-    for (m,) in con.execute(f"SELECT DISTINCT method FROM {src}.role_weights ORDER BY 1").fetchall():
-        n = con.execute("""SELECT COUNT(*) FROM mart.player_position_fit
-                           WHERE season=? AND phase=? AND method=?""", [S, P, m]).fetchone()[0]
-        if n != lv:
-            holes.append((m, n))
+    per_method = dict(con.execute(f"""
+        SELECT m.method, COUNT(f.method)
+        FROM (SELECT DISTINCT method FROM {src}.role_weights) m
+        LEFT JOIN mart.player_position_fit f
+               ON f.method = m.method AND f.season = ? AND f.phase = ?
+        GROUP BY m.method""", [S, P]).fetchall())
+    holes = sorted((m, n) for m, n in per_method.items() if n != lv)
     check(f"player_position_fit covers the level set for every method ({lv} rows)",
           not holes, f"{holes}" if holes else "all methods agree")
 
