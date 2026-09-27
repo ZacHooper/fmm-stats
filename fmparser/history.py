@@ -123,7 +123,7 @@ def _as_array(mm):
     return mm if isinstance(mm, np.ndarray) else np.frombuffer(mm, dtype=np.uint8)
 
 
-def locate(mm, vmin=5000, vmax=4_000_000, samples=48, min_seq=0.45):
+def locate(mm, vmin=5000, vmax=4_000_000, samples=48, min_seq=0.30):
     """Find the slab. -> [(rows, start, hits)], best first; one survivor on every save tested.
 
     `u32 @ (start - 12)` is the exact row count. It sits at offset %4 == 1 (NOT 4-byte
@@ -135,7 +135,17 @@ def locate(mm, vmin=5000, vmax=4_000_000, samples=48, min_seq=0.45):
          save row 0 is usually a recycled row holding an unrelated pointer. That mistake is
          what made the old locator settle on a FALSE header partway into the slab.)
       3. every non-terminal pointer is in-slab (`< rows`).
-    Ranked by signal 2, then size. Verify the winner with Table.sanity().
+    Ranked by signal 2, then size. `slab_bounds` verifies each candidate in turn against the
+    forest invariant (`Table.is_forest`) and takes the first that passes.
+
+    `min_seq` is a DISCOVERY filter, not the acceptance test — the real test is the forest
+    invariant applied downstream. It still needs to be low enough to keep the true slab in the
+    candidate pool: signal 2's fraction is the share of rows still in their original contiguous
+    position, and that share only shrinks as a career runs on and more rows get recycled into
+    appended chains. Four Frem saves spanning 2027-06 to 2027-08 scored 23, 20, 17, 17 of 48
+    (48%, 42%, 35%, 35%) — 0.45 (tuned on 2022-23 saves) already missed three of them. 0.30
+    still separates every real slab seen so far from noise; it will need lowering again as
+    these careers run past 2027, since nothing here makes the decay stop.
     """
     buf = _as_array(mm)
     n = len(buf)
@@ -190,14 +200,22 @@ def slab_bounds(mm):
     the memo the second caller pays the full search again. Keyed by `save.cache_key`, never by
     `id(mm)` alone -- CPython reuses a freed mmap's id and a rebuild loop would be served the
     previous save's slab.
+
+    `locate()`'s ranking is a cheap discovery filter (a sampled fraction, tunable, decaying with
+    career age); it is not trusted blindly. The candidate actually returned here is the first
+    one that passes `Table.is_forest()` -- the exact, untunable invariant (max in-degree 1,
+    heads == terminators) -- so a save where the true slab scores below a false lookalike is
+    still decoded correctly.
     """
     key = _cache_key(mm)
     if key not in _SLAB_CACHE:
         cand = locate(mm)
-        if not cand:
+        for rows, start, _ in cand:
+            if Table(mm, start=start, rows=rows).is_forest():
+                _SLAB_CACHE[key] = (rows, start)
+                break
+        else:
             raise ValueError("career-history table not found")
-        rows, start, _ = cand[0]
-        _SLAB_CACHE[key] = (rows, start)
     rows, start = _SLAB_CACHE[key]
     return start, start + STRIDE * rows
 
