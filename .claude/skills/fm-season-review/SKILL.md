@@ -245,8 +245,9 @@ uv run python .claude/skills/fm-season-review/world_review.py --season 2027 [--d
 ```
 It prints, in order: CONTINENTAL FINALS, LAST EIGHT AND BEYOND, a SANITY line, NATION RECORDS,
 CLUBS THROUGH THE GROUPS, BIGGEST SCORELINES, <HOME NATION> IN EUROPE, NATION COEFFICIENTS,
-<HOME NATION> CUP CANDIDATES, TOP SCORERS, and the transfer blocks (WORLD, BY MONTH, TOP 10,
-SPENDERS, SELLERS, BY LEAGUE NATION, HOME NATION deals + totals, OUR LEDGER). The home nation
+<HOME NATION> CUP CANDIDATES, TOP SCORERS, and the transfer blocks (WORLD, BY WINDOW, TOP 10,
+SPENDERS, SELLERS, BY LEAGUE NATION, HOME NATION deals + totals, OUR LEDGER — all read from
+`mart.transfers`). The home nation
 defaults to our club's. Its docstring has the full method. What you need to read the output well:
 
 **Continental cups are rebuilt, not looked up.** The fixture list carries stage keys, which
@@ -280,21 +281,25 @@ wrong and the per-nation tables can't be trusted.
   with each other. `best_prev_9yrs` flags a best-ever season (Denmark 26/27: 11.10 against a
   previous best of 8.50). The 5-year rank move is the headline for a nation.
 
-**Transfers are reconstructed, not read from a transfers table.** The fee data is parsed and
-loaded: `fmparser/history.py` decodes the career-history fee field into
-`mart.player_career_seasons.fee`. What's missing is a model of it: no mart view turns those
-rows into "who moved where, when, for how much", so the script derives that itself (moving it
-into `fmstats/mart.py` as `mart.transfers` is the obvious next step). The in-game Transfers
-screen's own 143-byte record is decoded but not parsed (`docs/transfer-history-record.md`),
-and its fee bytes are not located.
-- A move is a club change between the season's first and last snapshot, loans excluded.
-- The fee comes from the player's career history: it sits on the SELLING club's row, in £000s.
-- A move made this season has no buyer row yet, so the seller row is the last row in the chain.
-- Fee codes of 65000 and above are sentinels, not money.
-- Verified against our own deals (Wass £12.75M, Ementa £9.5M, Kaiser £7.38M).
-- Coverage is the clubs the save tracks in detail, so **quote totals as approximate (a floor)**.
-- The window runs 1 July to 30 June, so June signings for next season are included. Say so.
-- `fee NULL` in OUR LEDGER means a free transfer or a move between our first team and reserves.
+**Transfers come from `mart.transfers`**, one row per club move, with a fee. See the
+comment on the view in `fmstats/mart.py` for how it's built.
+- **What a move is:** a club change between one snapshot and the person's next one.
+- **Fee:** read from the selling club's career-history row, in £000s. 0xFFFC means the
+  contract ended (a free move).
+- **`move_type`:** `transfer`, `internal` (a club and its own reserve/B side), `loan`,
+  `loan_return`, `free_agent_signing` or `released`.
+- **`fee_type`:** `fee`, `free`, `loan`, `none` or `unknown`. Only about 1.5% of real
+  transfers are `unknown`.
+- **`season`:** the campaign the player moves FOR. **A June signing belongs to the next
+  season's market**, so the 26/27 market runs June 2026 to May 2027.
+- **Checked against our own deals** (Wass £12.75M, Ementa £9.5M, Kaiser £7.383M) in
+  `tests/validate_mart.py` §12.
+- **Two limits to caveat:**
+  - It only covers clubs the save tracks in detail, so quote totals as a floor.
+  - Other clubs' loans barely appear, because `club_tid` is who OWNS a player. Only our own
+    loans are flagged.
+- The in-game Transfers screen's separate 143-byte record is still not parsed
+  (`docs/transfer-history-record.md`). The view doesn't need it.
 
 **Home cup winner.** CUP CANDIDATES lists the late-season all-domestic knockout stages. The
 final is the single match that follows a two-leg semi-final stage. Other one-off stages (e.g. a

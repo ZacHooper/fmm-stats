@@ -7,16 +7,13 @@
 --db it uses the R2 published copy. The season must be complete in the store: its window is
 1 Jul (season-1) .. 30 Jun (season), and the transfer diff needs a snapshot at each end.
 
-Everything here is derived from the mart, but three pieces are reconstructions that the mart
-does not (yet) model, so each one says how it can go wrong:
+Everything here is derived from the mart. Two pieces are reconstructions the mart does not
+model, so each says how it can go wrong:
 
-* TRANSFERS. There is no transfer table. A move is a club change between the season's first
-  and last snapshot (loans excluded), and its fee comes from the player's career history in
-  the last snapshot: the fee sits on the SELLING club's row, in £000s, and that row is either
-  followed by the buying club's row or is the chain's last row (a move made this season has
-  no buyer row yet). Fee codes >= 65000 are sentinels (0xFFFC..0xFFFF), not money. Verified
-  on Frem's own deals (Wass £12.75M, Ementa £9.5M, Kaiser £7.38M). Only clubs the save
-  tracks in detail are covered, so totals are a floor.
+* TRANSFERS come from mart.transfers (fmstats/mart.py), which reads each move's fee from
+  the career history. `season` there is the campaign a player moves FOR, so June signings
+  belong to the NEXT season's market. Only clubs the save tracks in detail are covered, so
+  totals are a floor.
 * CONTINENTAL CUPS. The fixture list has stage keys, not competition ids, and the keys move
   every season. Competitions are rebuilt from the finals backwards: a late-season
   single-match cross-nation stage is a final, the two-legged stages its finalists played
@@ -34,7 +31,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from fmstats.store import open_store  # noqa: E402
 
-FEE_SENTINEL = 65000
 
 # The European club competitions by tier, from the save's own competition records (read with
 # fmparser.clubs_comps.comp_detail): cid 256 'European Champions Cup' (reputation 200),
@@ -70,57 +66,54 @@ def home_nation(con):
     ).fetchone()[0]
 
 
-def transfers(con, season, first, last, nation):
+def transfers(con, season, nation):
+    # mart.transfers: one row per club move, `season` = the campaign the player moves FOR
+    # (a June signing counts toward next season). Fees in £; see the view's comment in
+    # fmstats/mart.py for how they are read and what fee_type means.
     con.execute(f"""
     CREATE OR REPLACE TEMP TABLE mv AS
-    WITH now AS (SELECT * FROM mart.player_snapshots WHERE phase = '{last}'),
-    bef AS (SELECT person_id, club_tid, club, nation FROM mart.player_snapshots
-            WHERE phase = '{first}'),
-    h AS (SELECT tid, club_tid, TRY_CAST(fee AS INT) AS fee,
-                 lead(club_tid) OVER (PARTITION BY tid ORDER BY seq) AS nxt
-          FROM mart.player_career_seasons WHERE phase = '{last}')
-    SELECT n.person_id, n.name, n.age, b.club AS from_club, b.nation AS from_nation,
-           n.club AS to_club, n.nation AS to_nation, n.joined_date,
-           (SELECT max(h.fee) FILTER (WHERE h.fee < {FEE_SENTINEL}) FROM h
-             WHERE h.tid = n.tid AND h.club_tid = b.club_tid
-               AND (h.nxt = n.club_tid OR h.nxt IS NULL)) AS fee
-    FROM now n JOIN bef b USING (person_id)
-    WHERE b.club_tid <> n.club_tid AND NOT n.loaned_in
-      AND n.joined_date >= DATE '{season - 1}-07-01'
+    SELECT t.*, round(t.fee_gbp / 1e6, 2) AS fee_m,
+           fc.nation AS from_nation, tc.nation AS to_nation
+    FROM mart.transfers t
+    LEFT JOIN cn fc ON fc.club_tid = t.from_club_tid
+    LEFT JOIN cn tc ON tc.club_tid = t.to_club_tid
+    WHERE t.season = {season} AND t.move_type <> 'internal'
     """)
-    show(con, """SELECT count(*) AS moves, count(*) FILTER (WHERE fee > 0) AS paid,
-                        round(sum(fee) / 1000.0, 1) AS total_m,
-                        count(*) FILTER (WHERE fee >= 10000) AS over_10m FROM mv""",
-         "WORLD TRANSFERS (fees £000s; total in £M)")
-    show(con, """SELECT strftime(joined_date, '%Y-%m') AS month, count(*) FILTER (WHERE fee > 0) AS paid,
-                        round(sum(fee) / 1000.0, 1) AS total_m FROM mv GROUP BY 1 ORDER BY 1""",
-         "BY MONTH")
-    show(con, """SELECT name, age, from_club, to_club, joined_date, fee FROM mv
-                 WHERE fee IS NOT NULL ORDER BY fee DESC LIMIT 10""", "TOP 10 DEALS")
-    show(con, """SELECT to_club, round(sum(fee) / 1000.0, 1) AS spent_m,
-                        count(*) FILTER (WHERE fee > 0) AS n
+    show(con, """SELECT count(*) FILTER (WHERE move_type = 'transfer') AS transfers,
+                        count(*) FILTER (WHERE fee_type = 'fee') AS paid,
+                        count(*) FILTER (WHERE fee_type = 'free') AS free,
+                        round(sum(fee_gbp) / 1e6, 1) AS total_m,
+                        count(*) FILTER (WHERE fee_gbp >= 10e6) AS over_10m FROM mv""",
+         "WORLD TRANSFERS (£M)")
+    show(con, """SELECT transfer_window, count(*) FILTER (WHERE fee_type = 'fee') AS paid,
+                        round(sum(fee_gbp) / 1e6, 1) AS total_m FROM mv GROUP BY 1 ORDER BY 1""",
+         "BY WINDOW")
+    show(con, """SELECT name, age, from_club, to_club, move_date, fee_m FROM mv
+                 WHERE fee_type = 'fee' ORDER BY fee_gbp DESC LIMIT 10""", "TOP 10 DEALS")
+    show(con, """SELECT to_club, round(sum(fee_gbp) / 1e6, 1) AS spent_m,
+                        count(*) FILTER (WHERE fee_type = 'fee') AS n
                  FROM mv GROUP BY 1 ORDER BY 2 DESC NULLS LAST LIMIT 6""", "BIGGEST SPENDERS")
-    show(con, """SELECT from_club, round(sum(fee) / 1000.0, 1) AS received_m
+    show(con, """SELECT from_club, round(sum(fee_gbp) / 1e6, 1) AS received_m
                  FROM mv GROUP BY 1 ORDER BY 2 DESC NULLS LAST LIMIT 6""", "BIGGEST SELLERS")
-    show(con, """WITH s AS (SELECT to_nation AS nation, sum(fee) AS spent FROM mv GROUP BY 1),
-                      r AS (SELECT from_nation AS nation, sum(fee) AS received FROM mv GROUP BY 1)
-                 SELECT nation, round(spent / 1000.0, 1) AS spent_m, round(received / 1000.0, 1) AS received_m,
-                        round((coalesce(received, 0) - coalesce(spent, 0)) / 1000.0, 1) AS net_m
+    show(con, """WITH s AS (SELECT to_nation AS nation, sum(fee_gbp) AS spent FROM mv GROUP BY 1),
+                      r AS (SELECT from_nation AS nation, sum(fee_gbp) AS received FROM mv GROUP BY 1)
+                 SELECT nation, round(spent / 1e6, 1) AS spent_m, round(received / 1e6, 1) AS received_m,
+                        round((coalesce(received, 0) - coalesce(spent, 0)) / 1e6, 1) AS net_m
                  FROM s FULL JOIN r USING (nation) WHERE nation IS NOT NULL
                  ORDER BY greatest(coalesce(spent, 0), coalesce(received, 0)) DESC LIMIT 8""",
          "BY LEAGUE NATION")
-    show(con, f"""SELECT name, age, from_club, to_club, joined_date, fee FROM mv
-                  WHERE (to_nation = '{nation}' OR from_nation = '{nation}') AND fee > 0
-                  ORDER BY fee DESC LIMIT 10""", f"{nation.upper()}: BIGGEST DEALS")
-    show(con, f"""SELECT round(sum(fee) FILTER (WHERE to_nation = '{nation}') / 1000.0, 2) AS spent_m,
-                         round(sum(fee) FILTER (WHERE from_nation = '{nation}') / 1000.0, 2) AS received_m,
-                         round(sum(fee) FILTER (WHERE from_nation = '{nation}'
-                               AND to_nation IS DISTINCT FROM '{nation}') / 1000.0, 2) AS exports_m
+    show(con, f"""SELECT name, age, from_club, to_club, move_date, fee_m FROM mv
+                  WHERE (to_nation = '{nation}' OR from_nation = '{nation}') AND fee_type = 'fee'
+                  ORDER BY fee_gbp DESC LIMIT 10""", f"{nation.upper()}: BIGGEST DEALS")
+    show(con, f"""SELECT round(sum(fee_gbp) FILTER (WHERE to_nation = '{nation}') / 1e6, 2) AS spent_m,
+                         round(sum(fee_gbp) FILTER (WHERE from_nation = '{nation}') / 1e6, 2) AS received_m,
+                         round(sum(fee_gbp) FILTER (WHERE from_nation = '{nation}'
+                               AND to_nation IS DISTINCT FROM '{nation}') / 1e6, 2) AS exports_m
                   FROM mv""", f"{nation.upper()}: MARKET TOTALS")
-    show(con, """SELECT name, age, from_club, to_club, joined_date, fee FROM mv
-                 WHERE from_club IN (SELECT name FROM mart.clubs WHERE is_managed)
-                    OR to_club IN (SELECT name FROM mart.clubs WHERE is_managed)
-                 ORDER BY joined_date""", "OUR LEDGER (fee NULL = free / internal move)")
+    show(con, """SELECT name, age, from_club, to_club, move_date, move_type, fee_type, fee_m FROM mv
+                 WHERE from_club_tid IN (SELECT club_tid FROM mart.our_clubs)
+                    OR to_club_tid IN (SELECT club_tid FROM mart.our_clubs)
+                 ORDER BY move_date NULLS LAST""", "OUR LEDGER")
 
 
 def continental(con, season, last):
@@ -321,7 +314,7 @@ def main():
     coefficients(con, first, last)
     lo, hi = f"{a.season - 1}-07-01", f"{a.season}-06-30"
     domestic(con, a.season, last, nation, lo, hi)
-    transfers(con, a.season, first, last, nation)
+    transfers(con, a.season, nation)
 
 
 if __name__ == "__main__":

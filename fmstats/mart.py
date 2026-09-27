@@ -3115,6 +3115,154 @@ SELECT tot.person_id, nm.name, tot.* EXCLUDE (person_id)
 FROM tot LEFT JOIN nm USING (person_id)
 """
 
+# Every club move in the store, with its fee. One row per (person, snapshot at which the new
+# club is first seen).
+#
+# A MOVE is a club change between one snapshot and the person's next one. So it is the NET
+# move across the gap: A -> B -> C between two snapshots reads as A -> C (and no fee is
+# found, because the career history's A row is followed by B, not C). Moves before the
+# store's first snapshot are not here.
+#
+# MOVE_DATE is `players.joined_date` at the new club, kept only when it falls inside the gap
+# it explains — a joined date outside it belongs to some other stint. The save's joined date
+# is real (Frem's own signings carry their in-game dates), so where it is present there is no
+# need for the window inference `at_club_spells` does.
+#
+# THE FEE comes from the player's career history in the snapshot that first shows the new
+# club (`fmparser/history.py`): the `+2` fee sits on the SELLING club's row, in £000s. The row
+# is the latest one for the old club that is either followed by the new club's row or is the
+# chain's last row — a move made during the season has no row for the buying club yet.
+#   numeric < 65000   -> a fee, `fee_gbp = code * 1000`
+#   'free'            -> free transfer (0xFFFD / 0)
+#   'stay'            -> 0xFFFF on a row where the player then moved: the game labels it
+#                        "Bos" there, i.e. a Bosman free
+#   'loan'            -> 0xFFFE, a loan
+#   65532 (0xFFFC)    -> contract ended, a free move: on the seller row of 1,162 of 1,176
+#                        undated-fee transfers the buyer's row reads 'free', and it is the
+#                        code on 3,392 releases into free agency
+#   other >= 65000, or no matching row -> unknown (a handful of 0xFFxx codes, not money)
+# Validated on Frem's own deals: Wass £12.75M to Granada, Ementa £9.5M to Fenerbahçe,
+# Kaiser £7.383M from FCK.
+#
+# MOVE_TYPE: 'internal' is a move between a club and its own reserve/B side — the club
+# record's `main_club_tid` (staging.club_details) links a reserve side to its first team; the
+# career history does not give the two sides separate rows, so an internal move never has a
+# fee. It is taken as the modal link over all snapshots because not every snapshot carries a
+# record for every reserve side. Our own loans are flagged on the player row (`loaned_in` +
+# `parent_club_tid`; the save only sets those for the managed squad), everyone else's by the
+# 'loan' fee code. tid 65535 is the "Free agent" pseudo-club; a move into or out of it is
+# free by definition, whatever the history row says.
+#
+# SEASON is the campaign the player moves FOR: a move dated June or later counts toward the
+# next season (a June signing plays next season), so a summer window and the winter window
+# that follows share one season. Undated moves take the date of the snapshot that shows them.
+TRANSFERS = """
+CREATE OR REPLACE VIEW mart.transfers AS
+WITH pc AS (
+    SELECT ps.person_id, p.tid, p.name, p.dob, p.club_tid, p.club, p.loaned_in,
+           p.parent_club_tid, p.joined_date,
+           s.season, s.phase, s.snap_ix, s.phase_date
+    FROM {S}.players p
+    JOIN mart.snapshots s USING (season, phase)
+    JOIN {S}.person_slices ps USING (season, phase, tid)
+    WHERE NOT p.is_staff AND ps.person_id IS NOT NULL
+),
+step AS (
+    SELECT *,
+           LAG(club_tid)        OVER w AS prev_club_tid,
+           LAG(club)            OVER w AS prev_club,
+           LAG(loaned_in)       OVER w AS prev_loaned_in,
+           LAG(parent_club_tid) OVER w AS prev_parent_club_tid,
+           LAG(phase)           OVER w AS prev_phase,
+           LAG(phase_date)      OVER w AS prev_phase_date
+    FROM pc
+    WINDOW w AS (PARTITION BY person_id ORDER BY snap_ix)
+),
+moves AS (
+    SELECT * FROM step
+    WHERE prev_club_tid IS NOT NULL AND club_tid IS DISTINCT FROM prev_club_tid
+),
+hist AS (
+    SELECT h.season, h.phase, h.tid, h.seq, h.club_tid, h.fee,
+           LEAD(h.club_tid) OVER (PARTITION BY h.season, h.phase, h.tid ORDER BY h.seq)
+               AS next_club_tid
+    FROM {S}.player_history_seasons h
+    SEMI JOIN moves m ON (m.season, m.phase, m.tid) = (h.season, h.phase, h.tid)
+),
+main AS (
+    SELECT tid, mode(main_club_tid) AS main_club_tid
+    FROM {S}.club_details WHERE main_club_tid IS NOT NULL GROUP BY tid
+),
+fee AS (
+    -- A reserve side's player can carry his parent club on the history row, so either side
+    -- of the move matches its own tid or its first team's.
+    SELECT m.person_id, m.snap_ix, arg_max(h.fee, h.seq) AS fee_code
+    FROM moves m
+    LEFT JOIN main mf ON mf.tid = m.prev_club_tid
+    LEFT JOIN main mt ON mt.tid = m.club_tid
+    JOIN hist h
+      ON (h.season, h.phase, h.tid) = (m.season, m.phase, m.tid)
+     AND h.club_tid IN (m.prev_club_tid, mf.main_club_tid)
+     AND (h.next_club_tid IN (m.club_tid, mt.main_club_tid) OR h.next_club_tid IS NULL)
+    GROUP BY m.person_id, m.snap_ix
+),
+dated AS (
+    SELECT m.*, f.fee_code,
+           COALESCE(mf.main_club_tid, m.prev_club_tid)
+               = COALESCE(mt.main_club_tid, m.club_tid)                AS is_internal,
+           CASE WHEN m.joined_date >  m.prev_phase_date
+                 AND m.joined_date <= m.phase_date THEN m.joined_date END AS move_date
+    FROM moves m LEFT JOIN fee f USING (person_id, snap_ix)
+    LEFT JOIN main mf ON mf.tid = m.prev_club_tid
+    LEFT JOIN main mt ON mt.tid = m.club_tid
+),
+typed AS (
+    SELECT *,
+           CASE
+               WHEN is_internal                                        THEN 'internal'
+               WHEN loaned_in AND parent_club_tid = prev_club_tid      THEN 'loan'
+               WHEN prev_loaned_in AND prev_parent_club_tid = club_tid THEN 'loan_return'
+               WHEN fee_code = 'loan'                                  THEN 'loan'
+               WHEN prev_club_tid = 65535                              THEN 'free_agent_signing'
+               WHEN club_tid = 65535                                   THEN 'released'
+               ELSE 'transfer'
+           END AS move_type,
+           CASE
+               WHEN is_internal                               THEN 'none'
+               WHEN fee_code = 'loan'
+                 OR (loaned_in AND parent_club_tid = prev_club_tid)
+                 OR (prev_loaned_in AND prev_parent_club_tid = club_tid) THEN 'loan'
+               WHEN prev_club_tid = 65535 OR club_tid = 65535 THEN 'free'
+               WHEN TRY_CAST(fee_code AS INTEGER) < 65000     THEN 'fee'
+               WHEN fee_code IN ('free', 'stay', '65532')     THEN 'free'
+               ELSE 'unknown'
+           END AS fee_type
+    FROM dated
+)
+SELECT
+    person_id, tid, name,
+    date_diff('year', dob, COALESCE(move_date, phase_date))            AS age,
+    prev_club_tid                                                      AS from_club_tid,
+    prev_club                                                          AS from_club,
+    club_tid                                                           AS to_club_tid,
+    club                                                               AS to_club,
+    move_date,
+    prev_phase                                                         AS after_phase,
+    phase                                                              AS by_phase,
+    CASE WHEN month(COALESCE(move_date, phase_date)) >= 6
+         THEN year(COALESCE(move_date, phase_date)) + 1
+         ELSE year(COALESCE(move_date, phase_date)) END                AS season,
+    CASE WHEN month(COALESCE(move_date, phase_date)) BETWEEN 6 AND 9 THEN 'summer'
+         WHEN month(COALESCE(move_date, phase_date)) IN (12, 1, 2)   THEN 'winter'
+         ELSE 'outside' END                                            AS transfer_window,
+    move_type,
+    fee_code,
+    fee_type,
+    CASE fee_type WHEN 'fee'  THEN TRY_CAST(fee_code AS INTEGER) * 1000
+                  WHEN 'free' THEN 0 END                               AS fee_gbp
+FROM typed
+"""
+
 ORDER = [
     ("mart.snapshots", SNAPSHOTS),
     ("mart.role_weights", ROLE_WEIGHTS),
@@ -3154,6 +3302,7 @@ ORDER = [
     ("mart.player_primary_position", PLAYER_PRIMARY_POSITION),
     ("mart.player_value_est", PLAYER_VALUE_EST),
     ("mart.player_career_seasons", PLAYER_CAREER_SEASONS),
+    ("mart.transfers", TRANSFERS),
     # base -> youth_clubs -> player_origin: the academy->parent vote is derived FROM origin, so
     # the eligibility verdict that needs it has to be built after it. See PLAYER_ORIGIN_BASE.
     ("mart.player_origin_base", PLAYER_ORIGIN_BASE),
