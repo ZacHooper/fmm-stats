@@ -848,6 +848,19 @@ def main():
           f"{counts[0]} in the squad · {counts[1]} club-trained · {counts[2]} "
           f"association-trained · {counts[3]} B-list eligible")
 
+    # Squad value / wage bill: one row per snapshot, owned players only, and the modelled
+    # share of the value small — the save states a value for nearly every owned player.
+    fin = con.execute("""
+        SELECT (SELECT COUNT(*) FROM mart.snapshots), COUNT(*),
+               SUM(n_value_est), SUM(n_owned), SUM(n_value_missing), SUM(n_wage_missing)
+        FROM mart.squad_finances""").fetchone()
+    check("squad_finances has one row per snapshot", fin[0] == fin[1],
+          f"{fin[1]} rows for {fin[0]} snapshots")
+    check("squad value is mostly stated, not modelled; no owned player unvalued or unwaged",
+          fin[3] and fin[2] / fin[3] < 0.25 and fin[4] == 0 and fin[5] == 0,
+          f"{fin[2]} of {fin[3]} player-snapshots estimated · {fin[4]} unvalued · "
+          f"{fin[5]} without a wage")
+
     # -- 10. analysis views: league tables, head-to-head, output vs a club ---------
     print("\n10. analysis views")
     firsts = """SELECT season, arg_min(phase, snap_ix) AS phase FROM mart.snapshots

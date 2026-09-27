@@ -1,8 +1,8 @@
 /**
- * Squad — one table, every question. This is where the old Squad list, Development and Player
- * Stats pages collapse into a single thing: identity, tactic fit, level, growth, contract, any
- * of the 23 attributes and any match stat are all columns in the same grid, added and removed
- * from one picker.
+ * Squad — one table, every question. This is where the old Squad list, Development, Player
+ * Stats and Registration pages collapse into a single thing: identity, tactic fit, level,
+ * growth, projections, contract, registration, any of the 23 attributes and any match stat are
+ * all columns in the same grid, added and removed from one picker.
  *
  * Why one table rather than three pages: they were three views of the same rows differing only
  * in which columns were on screen, so the split was arbitrary — and it meant you could never
@@ -12,9 +12,22 @@ import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
 import { el, bar, num, money, monthYear, sparkline, pill, DASH, toast } from "../ui.js";
 import { openProfile, openCompare } from "../profile.js";
+import { registrationKit } from "../registration.js";
+
+// mart.player_development's words, most growth left first.
+const DEV_WORDS = ["Lots to come", "Developing", "Nearly there", "At his ceiling"];
+
+// Projection target age (21 or 24 — the two horizons api/forecast.json publishes). Same key the
+// old Development page used, so a saved choice carries over.
+const DEV_KEY = "fm:development";
+const loadToAge = () => {
+  try { return JSON.parse(localStorage.getItem(DEV_KEY) || "{}").toAge === 21 ? 21 : 24; } catch { return 24; }
+};
 
 export async function view() {
-  await Promise.all([D.loadSquad(), D.loadMatches()]);
+  const [, M, forecast] = await Promise.all([D.loadSquad(), D.loadMatches(), D.loadForecast()]);
+  let toAge = loadToAge();
+  let t = null;                                  // the table; assigned once built, below
   const ourCid = D.ourLeagueCid();
   const method = D.S.method;
   const minFam = 0;
@@ -69,6 +82,10 @@ export async function view() {
     row.fit = D.pctile(poolFor(r.pos), r.eff);
     row.teamRank = D.rankIn(teamPool, r.eff);
     row.teamPoolSize = teamPool.length;
+    // Projection at the target age, rated at the SAME scoped role — his projected attributes
+    // under this tactic, discounted by the same familiarity.
+    row.projEff = row.fc ? D.rating(row.fc.attrs, r.role, method) * D.famMult(r.fam) : null;
+    row.projDelta = row.projEff != null ? row.projEff - r.eff : null;
     return row;
   }
 
@@ -82,19 +99,31 @@ export async function view() {
     const roles = D.playerRoles(p, method).filter((r) => r.fam >= minFam);
     if (!roles.length) return null;
     const status = extra.status ?? (D.S.ours.status?.[String(p.tid)] || DASH);
-    return scopeRow({
+    return scopeRow(project({
       tid: p.tid, player: p, roles,
       age: D.age(p.dob),
       status,
       loanedIn: loanedIn.has(p.tid),
       origin: D.S.ours.origin?.[String(p.tid)] || null,
       capital: (D.S.ours.capital_eligible || []).includes(p.tid),
+      dev: D.S.ours.development?.[String(p.tid)] || null,
       alsoRoles: roles.map((x) => x.role).filter((x, i, a) => a.indexOf(x) === i),
       shortlist: !!extra.shortlist,
       // Searchable on every position he's listed at, not just the one on show — the row's
       // identity doesn't change when the Position filter re-points it.
       _search: [p.name, ...roles.map((x) => `${x.pos} ${x.role}`), status].join(" ").toLowerCase(),
-    });
+    }));
+  }
+
+  /** The forecast half of a row: projected attributes at `toAge` and the points still to come.
+   *  Independent of role, so it's redone only when the target age changes, not on re-scoping. */
+  function project(row) {
+    const p = row.player;
+    row.fc = forecast ? D.forecastAttrs(p, toAge) : null;
+    row.remain = forecast ? D.pointsRemaining(p, toAge) : null;
+    row.curTotal = p.attrs.reduce((a, v) => a + (v || 0), 0);
+    row.projTotal = row.fc ? row.fc.attrs.reduce((a, v) => a + (v || 0), 0) : null;
+    return row;
   }
 
   const rows = [];
@@ -102,6 +131,13 @@ export async function view() {
     const row = buildRow(p);
     if (row) rows.push(row);
   }
+
+  // Registration: list column, the squad card and the saved windows. `t` is resolved lazily —
+  // the kit only calls redraw after the table exists.
+  const regKit = await registrationKit({ squadRows: rows, redraw: () => t.redraw() });
+
+  const forecastable = forecast ? D.S.attrs.filter((n) => forecast.buckets[n] === "forecastable") : [];
+  const fixedAttrs = forecast ? D.S.attrs.filter((n) => forecast.buckets[n] === "fixed") : [];
 
   /** Resolve shortlist entries with a tid into full rows, rated exactly like a squad member. An
    *  entry with no tid, or one the save can't resolve, has no attributes to rate him with — it's
@@ -210,6 +246,65 @@ export async function view() {
       filterType: "none",                          // a shape, not a value — Δ is how you filter it
     },
     snaps: { label: "Snapshots", group: "Growth", align: "num", get: (r) => r.traj.length || null },
+    dev: {
+      label: "Development", group: "Growth",
+      help: "How far he is from his ceiling, in words: Lots to come · Developing · Nearly there · "
+        + "At his ceiling. Deliberately wide bands — whether there is growth left, not how much. "
+        + "Read from HIS OWN ceiling in the save, so where it disagrees with the Projection "
+        + "columns (which are what typical players like him went on to reach), this one is "
+        + "about him. Our squad only.",
+      get: (r) => DEV_WORDS.includes(r.dev) ? r.dev : null,
+      // Ordered by growth left, not alphabetically, so descending reads "most to come" first.
+      sort: (r) => (DEV_WORDS.includes(r.dev) ? DEV_WORDS.length - DEV_WORDS.indexOf(r.dev) : null),
+      filterType: "set",
+      filterValue: (r) => r.dev || null,
+    },
+    // ---- projection: what he looks like at the target age (population expectation, not a
+    // per-player prediction — see api/forecast.json's note). Labels read the live target age.
+    projRating: {
+      get label() { return `Rating at ${toAge}`; }, group: "Projection", align: "num",
+      help: "Rating recomputed on his projected attributes at the target age, at the position in "
+        + "Pos under this tactic. Pick 21 or 24 with the Project-to control.",
+      sort: (r) => r.projEff ?? r.r.eff, render: (r) => (r.fc ? num(r.projEff) : null),
+    },
+    projDelta: {
+      get label() { return `Δ to ${toAge}`; }, group: "Projection", align: "num",
+      help: "Projected rating minus rating now",
+      sort: (r) => r.projDelta ?? null,
+      render: (r) => (r.projDelta != null
+        ? el("span", { class: r.projDelta >= 0 ? "" : "dim", text: `${r.projDelta >= 0 ? "+" : ""}${num(r.projDelta)}` })
+        : null),
+    },
+    remain: {
+      label: "Points left", group: "Projection", align: "num",
+      help: "Total attribute points expected to be gained by the target age — median (p25-p75 band), from the whole save's age curve",
+      sort: (r) => r.remain?.median ?? null,
+      render: (r) => (r.remain
+        ? el("span", {}, [num(r.remain.median), el("span.dim", { text: ` (${r.remain.p25}-${r.remain.p75})` })])
+        : (r.age != null && r.age >= toAge ? el("span.dim", { text: "at target" }) : null)),
+    },
+    totals: {
+      label: "Total now → target", group: "Projection", align: "num",
+      sort: (r) => (r.projTotal ?? r.curTotal) - r.curTotal,
+      render: (r) => (r.fc ? `${r.curTotal} → ${r.projTotal}` : String(r.curTotal)),
+    },
+    ...Object.fromEntries(forecastable.map((name) => {
+      const i = D.S.attrs.indexOf(name);
+      return [`fc:${name}`, {
+        label: `${name} →`, group: "Projection · attribute now → projected", align: "num",
+        help: `${name}: current value → projected value at the target age (p25-p75 band)`,
+        sort: (r) => (r.fc ? r.fc.attrs[i] - (r.player.attrs[i] ?? 0) : null),
+        render: (r) => {
+          if (!r.fc || r.player.attrs[i] == null) return DASH;
+          const cur = r.player.attrs[i], proj = r.fc.attrs[i], b = r.fc.band[i];
+          return el("span", {}, [
+            String(cur), " → ",
+            el(proj > cur ? "b" : "span", { text: String(proj) }),
+            b ? el("span.dim", { text: ` (${b[0]}-${b[1]})` }) : null,
+          ]);
+        },
+      }];
+    })),
     wage: {
       label: "Wage/yr", group: "Contract", align: "num",
       sort: (r) => r.player.wage, render: (r) => money(r.player.wage),
@@ -232,11 +327,13 @@ export async function view() {
       filterType: "set",
       filterValue: (r) => (r.capital ? "Eligible" : "Outside"),
     },
+    ...(regKit ? regKit.columns : {}),
     ...metricColumns(D, { agg: D.S.matchAgg }),
   };
 
   const presets = {
-    "Development": ["growth", "traj", "snaps", "rating", "fit"],
+    "Development": ["age", "dev", "growth", "traj", "rating", "projRating", "projDelta", "remain", "fit"],
+    ...(regKit ? regKit.presets : {}),
     "Contracts": ["wage", "expiry", "value", "age", "status"],
     "Recruitment rule": ["origin", "capital", "age", "lvl"],
     "Physical": ["attr:Pace", "attr:Stamina", "attr:Strength", "attr:Agility"],
@@ -349,7 +446,23 @@ export async function view() {
   });
   let arm = false;
 
-  const t = playerTable({
+  // Only on show while a projection column is, so it isn't one more control to read past.
+  const PROJ_COLS = new Set(["projRating", "projDelta", "remain", "totals"]);
+  const targetSel = el("select.btn", {
+    title: "Target age for the Projection columns",
+    onchange: (e) => {
+      toAge = Number(e.target.value);
+      try { localStorage.setItem(DEV_KEY, JSON.stringify({ toAge })); } catch { /* private mode */ }
+      rows.forEach((r) => scopeRow(project(r)));
+      t.redraw();
+    },
+  }, [21, 24].map((y) => el("option", { value: y, text: `Project to ${y}`, selected: y === toAge })));
+  const syncTarget = () => {
+    targetSel.hidden = !forecast
+      || !(t?.state.cols || []).some((c) => PROJ_COLS.has(c) || c.startsWith("fc:"));
+  };
+
+  t = playerTable({
     key: "squad",
     rows,
     catalogue,
@@ -363,7 +476,7 @@ export async function view() {
     // reaches a browser holding the old saved sort.
     sort: { by: "teamRank", dir: "desc", v: 2 },
     searchPlaceholder: "Search our squad…",
-    toolbar: [unitSel, posSel, loanBtn, slBtn, armBtn, cmpBtn],
+    toolbar: [unitSel, posSel, targetSel, loanBtn, slBtn, armBtn, cmpBtn],
     // Range and set filters on every column, attributes and match stats included — the same panel
     // Recruitment's search table has. Squad is only ~50 rows, so this isn't about cutting a list
     // down to a readable size: it's about asking a question with more than one clause ("under 23,
@@ -373,6 +486,7 @@ export async function view() {
     // ones. Cheap to re-derive, but it is the join-key of the whole view, so only redo the work
     // when the selection actually changed — a draw also fires on every sort and keystroke.
     prepare: (fs) => {
+      if (t) syncTarget();
       const sel = (fs.find((f) => f.col === "pos")?.values || []).filter((p) => POSITIONS.includes(p));
       if (sel.join() === scopePos.join()) return;
       scopePos = sel;
@@ -395,17 +509,30 @@ export async function view() {
     },
   });
 
+  syncTarget();
   const owned = rows.filter((r) => !r.loanedIn && !r.shortlist);
-  const wage = owned.reduce((a, r) => a + (r.player.wage || 0), 0);
   const ageAvg = owned.filter((r) => r.age != null);
   const grew = owned.filter((r) => r.growth && r.growth.delta > 0).length;
+
+  // Value and wage bill come from mart.squad_finances for THIS snapshot — the same numbers the
+  // History table shows per season, owned players only. Summing the rows is the fallback for an
+  // export that predates it (and then counts stated values only).
+  const snap = D.S.index.snapshot;
+  const fin = (M.finances || []).map((r) => Object.fromEntries((M.finance_fields || []).map((n, i) => [n, r[i]])))
+    .find((f) => f.season === snap.season && f.phase === snap.phase);
+  const value = fin ? fin.value_gbp : owned.reduce((a, r) => a + (r.player.value || 0), 0);
+  const wage = fin ? fin.wage_gbp : owned.reduce((a, r) => a + (r.player.wage || 0), 0);
+  const valueTitle = fin?.n_value_est
+    ? `${fin.n_value_est} of ${fin.n_owned} owned players have no value in the save and are valued by the model. Loanees excluded.`
+    : "Owned players only — loanees excluded.";
 
   return el("div", {}, [
     el("h2", { text: `Squad · ${D.S.method}` }),
     el("div.kpis", {}, [
-      kpi("Owned", owned.length), kpi("On loan in", rows.length - owned.length),
+      regKit ? regKit.card : kpi("Owned", owned.length),
+      kpi("Squad value", money(value), valueTitle),
+      kpi("Wage bill/yr", money(wage), "Owned players only — a loanee's wage share isn't in the save"),
       kpi("Avg age", ageAvg.length ? num(ageAvg.reduce((a, r) => a + r.age, 0) / ageAvg.length, 1) : DASH),
-      kpi("Wage bill/yr", money(wage)),
       kpi("Improving", `${grew}/${owned.length}`),
     ]),
     t.node,
@@ -423,9 +550,17 @@ export async function view() {
         + "position, because each role weights a different number of attributes; across "
         + "positions, read <b>Fit %ile</b>. Every "
         + "rating recomputes when you change tactic in the header; <b>Level %ile</b> doesn't, "
-        + "because it measures quality rather than fit.",
+        + "because it measures quality rather than fit. The <b>Projection</b> columns (Development "
+        + "preset) are a population expectation with a band, not a per-player prediction — current "
+        + "value and age predict a future value well, but one attribute does not predict how fast "
+        + "another grows."
+        + (fixedAttrs.length ? ` ${fixedAttrs.join(" and ")} never move in real play.` : "")
+        + (regKit ? " The <b>Squad</b> card is registration under the Danish rules (a house "
+          + "rule — the save has no A/B lists): hover or tap it for the breakdown, and set lists "
+          + "in the <b>List</b> column (Registration preset)." : ""),
     }),
+    regKit ? regKit.windowsPanel : null,
   ]);
 }
 
-const kpi = (label, value) => el("div.kpi", {}, [el("b", { text: String(value) }), el("span", { text: label })]);
+const kpi = (label, value, title) => el("div.kpi", { title }, [el("b", { text: String(value) }), el("span", { text: label })]);

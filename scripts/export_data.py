@@ -384,6 +384,12 @@ def main():
     capital = {int(t) for t, e in zip(elig["tid"], elig["eligible"]) if e} \
         if not elig.empty else set()
 
+    # How far each of ours is from his ceiling, as a WORD (mart.player_development) — the
+    # only form potential leaves the mart in, so this is immersion-safe by construction.
+    dev = db.q("""SELECT tid, development FROM mart.player_development
+                  WHERE season=? AND phase=?""", [season, phase])
+    development = dict(zip(dev["tid"].astype(int), dev["development"])) if not dev.empty else {}
+
     levels = level_map(db, season, phase)
 
     # ---------------------------------------------------------------- core.json
@@ -433,7 +439,9 @@ def main():
             # 23,799 origin clubs put 556 KB into a file loaded on every page view
             "origin": {str(int(t)): origin[t] for t in sq["tid"]
                        if origin.get(t)},
-            "capital_eligible": sorted(capital & {int(t) for t in sq["tid"]})},
+            "capital_eligible": sorted(capital & {int(t) for t in sq["tid"]}),
+            "development": {str(int(t)): development[int(t)] for t in sq["tid"]
+                            if development.get(int(t))}},
         "note": IMMERSION,
         "players": core_players})
 
@@ -670,11 +678,18 @@ def main():
     # max that award already surfaces, no fill-rate (that needs stadium_capacity, out of scope
     # here and already unreliable per docs/TODO.md #2's att_avg/att_min/att_max caveat, which
     # doesn't apply to this real-attendance view).
-    att = db.q("""SELECT season, n_games, avg_att, min_att, max_att
+    att = db.q("""SELECT season, n_games, avg_att, max_att
                   FROM mart.club_attendance
                   WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)
                   ORDER BY season""")
-    att_fields = ["season", "n_games", "avg_att", "min_att", "max_att"]
+    att_fields = ["season", "n_games", "avg_att", "max_att"]
+
+    # Squad value + wage bill on every snapshot date (owned players only — see
+    # mart.squad_finances). History reads each season's last row; Squad reads the current one.
+    fin_fields = ["season", "phase", "n_owned", "n_loan_in", "value_gbp", "n_value_est",
+                  "wage_gbp"]
+    fin = db.q(f"""SELECT {", ".join(fin_fields)} FROM mart.squad_finances
+                   ORDER BY snap_ix""")
 
     # Name resolution for every tid who ever appeared for us — core.json's `players` array only
     # covers the CURRENT squad (see the core.json block above), so a player who left the save
@@ -747,6 +762,8 @@ def main():
         "player_names": player_names,
         "attendance_fields": att_fields if att is not None and not att.empty else [],
         "attendance": rowify(att, att_fields),
+        "finance_fields": fin_fields if fin is not None and not fin.empty else [],
+        "finances": rowify(fin, fin_fields),
         "note": "Only the managed club's matches are richly parsed, so these are our records. "
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
                 "season runs, so an early game may be absent from a late save."})

@@ -10,11 +10,9 @@ import { el, clear, toast } from "./ui.js";
 
 const ROUTES = [
   ["squad", "Squad", () => import("./views/squad.js")],
-  ["development", "Development", () => import("./views/development.js")],
   ["positions", "Positions", () => import("./views/positions.js")],
   ["builder", "Builder", () => import("./views/builder.js")],
   ["recruit", "Recruitment", () => import("./views/recruit.js")],
-  ["registration", "Registration", () => import("./views/registration.js")],
   ["opposition", "Opposition", () => import("./views/opposition.js")],
   ["matches", "Matches", () => import("./views/matches.js")],
   ["history", "History", () => import("./views/history.js")],
@@ -24,8 +22,16 @@ const ROUTES = [
 const main = () => document.getElementById("main");
 let current = null;
 
+// Sections folded into another one, kept so an old bookmark lands somewhere sensible:
+// Development's projections and Registration's lists are columns on Squad now.
+const MOVED = { development: "squad", registration: "squad" };
+
 function route() {
-  const h = (location.hash || "#/squad").replace(/^#\/?/, "").split("?")[0];
+  let h = (location.hash || "#/squad").replace(/^#\/?/, "").split("?")[0];
+  if (MOVED[h]) {
+    h = MOVED[h];
+    history.replaceState(null, "", `#/${h}`);
+  }
   return ROUTES.find((r) => r[0] === h) || ROUTES[0];
 }
 

@@ -82,6 +82,7 @@ too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attribute
 `mart.head_to_head`, `mart.player_vs_club` (each player's output against each opponent),
 `mart.transfers` (every club move with its fee, from the career history; `season` = the campaign
 the player moves for),
+`mart.squad_finances` (our squad value + wage bill on every snapshot date — owned players only, loanees out of both, the modelled share counted),
 `mart.player_primary_position` (the one primary-position rule), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
 (every club's genuine squad now), and `mart.player_development` (a
 **development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
@@ -298,17 +299,18 @@ Two rules follow, and the recent bugs all break them:
 
 ## The web app (one UI for phone and desktop)
 `site/` is a static single-page app on Cloudflare Pages — the primary UI, since Streamlit can't be
-hosted without a server. Seven sections collate the 13 dashboard pages: **Squad** (one configurable
-table merging the squad list, Development and Player Stats), **Positions**, **Recruitment**
-(search + shortlist + the capital rule), **Registration** (the A/B lists — see below),
-**Opposition**, **Matches**, **History**. It ships DATA
+hosted without a server. Its sections collate the 13 dashboard pages: **Squad** (one configurable
+table merging the squad list, Development + projections, Player Stats and Registration — the
+A/B lists as a column, the quotas as one hover/tap card, saved windows under the table; see
+below), **Positions**, **Builder**, **Recruitment** (search + shortlist + the capital rule),
+**Opposition**, **Matches**, **History**, **World**. It ships DATA
 and computes on the client, so switching tactic re-rates every player with no rebuild.
 **Streamlit stays** for what writes to DuckDB (Tactics, Config) and for Team Builder.
 Read [`docs/DEPLOY.md`](docs/DEPLOY.md) before touching it.
 
 ### Squad registration is a HOUSE RULE, not something the save models
-FMM22 has no A-list, no B-list and no home-grown requirement. The **Registration** section
-enforces the Danish Herre-DM rules ([`docs/danish-registration-rules.md`](docs/danish-registration-rules.md))
+FMM22 has no A-list, no B-list and no home-grown requirement. The Squad page's registration
+columns and card (`site/js/registration.js`) enforce the Danish Herre-DM rules ([`docs/danish-registration-rules.md`](docs/danish-registration-rules.md))
 on ourselves: a 25-man A-list needing 8 home grown of whom 4 club-trained (tiers 1–2 only), plus
 an unlimited B-list for players under 21 at the last new year. Home-grown status is **derived** —
 never report it as a fact the game asserts. The data layer is the registration family in

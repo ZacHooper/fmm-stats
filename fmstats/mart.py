@@ -1777,6 +1777,42 @@ JOIN mart.player_spells s
 GROUP BY sn.season, sn.phase, sn.snap_ix, sn.phase_date, s.person_id
 """
 
+# What our squad was worth and cost on each snapshot date: one row per (season, phase).
+#
+# OWNED PLAYERS ONLY, on both sides. A loanee's value belongs to his parent club, and his
+# `wage_gbp` is his full contract wage, not the share our loan agreement makes us pay (often 0%)
+# — the loan terms are not decoded, so counting it would overstate the bill. `n_loan_in` says
+# how many were left out.
+#
+# Membership is mart.snapshot_squad (the spell model), never a raw club_tid filter, and covers
+# first team + reserves (mart.our_clubs). The save states a player's value only in the managed
+# club's cached squad list, which lacks a record for some players — typically a signing made
+# after the list was last written. Those fall back to mart.player_value_est's model and are
+# counted in `n_value_est`, so a consumer can say how much of the total is modelled.
+SQUAD_FINANCES = """
+CREATE OR REPLACE VIEW mart.squad_finances AS
+WITH sq AS (
+    SELECT ss.season, ss.phase, ss.snap_ix, ss.tid, ss.is_loan_in
+    FROM mart.snapshot_squad ss
+    WHERE ss.club_tid IN (SELECT club_tid FROM mart.our_clubs)
+)
+SELECT sq.season, sq.phase, any_value(sq.snap_ix)                        AS snap_ix,
+       COUNT(*) FILTER (WHERE NOT sq.is_loan_in)                        AS n_owned,
+       COUNT(*) FILTER (WHERE sq.is_loan_in)                            AS n_loan_in,
+       SUM(COALESCE(p.player_value, v.value_est))
+           FILTER (WHERE NOT sq.is_loan_in)                             AS value_gbp,
+       COUNT(*) FILTER (WHERE NOT sq.is_loan_in AND p.player_value IS NULL
+                         AND v.value_est IS NOT NULL)                   AS n_value_est,
+       COUNT(*) FILTER (WHERE NOT sq.is_loan_in AND p.player_value IS NULL
+                         AND v.value_est IS NULL)                       AS n_value_missing,
+       SUM(p.wage_gbp) FILTER (WHERE NOT sq.is_loan_in)                 AS wage_gbp,
+       COUNT(*) FILTER (WHERE NOT sq.is_loan_in AND p.wage_gbp IS NULL) AS n_wage_missing
+FROM sq
+LEFT JOIN {S}.players p USING (season, phase, tid)
+LEFT JOIN mart.player_value_est v USING (season, phase, tid)
+GROUP BY sq.season, sq.phase
+"""
+
 # The same question for "now, our clubs", powered directly by mart.club_roster (the club's
 # 40-slot squad array) rather than inferred from the spell model. This guarantees that active
 # loanees whose loan spells lapsed in the history model still appear, and departed players
@@ -3324,6 +3360,7 @@ ORDER = [
     ("mart.squad_on", SQUAD_ON),
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
     ("mart.squad_current", SQUAD_CURRENT),
+    ("mart.squad_finances", SQUAD_FINANCES),
     ("mart.club_squad_latest", CLUB_SQUAD_LATEST),
     ("mart.player_development", PLAYER_DEVELOPMENT),
     ("mart.player_vs_club", PLAYER_VS_CLUB),
