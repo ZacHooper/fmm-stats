@@ -708,16 +708,25 @@ def main():
     # mart.club_matches is every match seen from one club's side, already oriented — venue,
     # opponent, gf/ga, result, pts and each team stat split into our_/opp_. The Python this
     # replaces ran a query per season in a loop and then flipped seventeen columns in pandas.
-    hist_m = db.q("""SELECT * FROM mart.club_matches
-                     WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)
-                     ORDER BY season, date, opp_tid""")
+    # mart.match_stages adds the game's own stage/round label, the leg and the tie outcome
+    # (League Path · Third Qualifying Round, leg 2, 3-3 on aggregate, through on penalties).
+    hist_m = db.q("""SELECT m.*, s.stage_kind, s.stage_label AS stage, s.matchday, s.leg,
+                            s.tie_gf, s.tie_ga, s.went_through, s.extra_time,
+                            s.pens_for, s.pens_against
+                     FROM mart.club_matches m
+                     LEFT JOIN mart.match_stages s
+                       ON (s.club_tid, s.date, s.opp_tid) = (m.club_tid, m.date, m.opp_tid)
+                     WHERE m.club_tid IN (SELECT club_tid FROM mart.managed_club)
+                     ORDER BY m.season, m.date, m.opp_tid""")
     # mart.match_ratings = match_player_facts + the position-adjusted rating (rating_adj).
     mps = db.q("""SELECT * REPLACE (ROUND(rating_adj, 2) AS rating_adj)
                   FROM mart.match_ratings
                   WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND appeared
                   ORDER BY season, date, tid""")
     mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
-               "result", "pts", "formation", "attendance"]
+               "result", "pts", "formation", "attendance", "stage_kind", "stage", "matchday",
+               "leg", "tie_gf", "tie_ga", "went_through", "extra_time", "pens_for",
+               "pens_against"]
     if not hist_m.empty:      # dedupe: opp_tid is already in the identity block above
         mfields += [c for c in hist_m.columns
                     if c.startswith(("our_", "opp_")) and c not in mfields]

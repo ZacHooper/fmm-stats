@@ -44,6 +44,8 @@ from fmparser.tables.person_info import (
 from fmparser.tables.player_attributes import scrape_player_attributes
 from fmparser import tagged as T
 from fmparser.tables import fixtures as FIX
+from fmparser.tables import comp_rules as CRU
+from fmparser.tables import rounds as ROUNDS
 from fmparser import careers as C
 from fmparser import history as H
 from fmparser import injuries as INJ
@@ -577,7 +579,9 @@ def main():
     #     the career means unioning it across snapshots, which nothing does yet.
     #   * not scored -- the goal bytes sit in a variable-shape block and are right only when
     #     that block takes its plain shape. See fixtures.py; they are not emitted.
-    #   * not attributed to a competition -- no competition field is identified in the record.
+    #   * not attributed to a competition -- the record carries no competition field. Its
+    #     stage_index/round_index index into the competition's own rules member, which a
+    #     match's comp_id reaches through the competition uid (competition_rounds below).
     #
     # Degrades to an empty file rather than failing the extract: the archive needs
     # `uv sync --extra archive`, and a save could in principle carry no archive at all.
@@ -590,6 +594,22 @@ def main():
         print(f"  NOTE: world fixtures unavailable ({type(e).__name__}: {e})")
         world = []
     dump("world_fixtures.json", world, indent=None)
+    # Every competition's stage/round structure (archive members comp_<uid>.dat) and the
+    # round-name catalog it names them from (main save). Together they label a fixture:
+    # (uid, stage_index, round_index) -> 'League Path' / 'Third Qualifying Round'.
+    try:
+        comp_rounds = CRU.competition_rounds(mm)
+    except ImportError as e:
+        print(f"  NOTE: competition rules skipped ({e}); run `uv sync --extra archive`")
+        comp_rounds = []
+    except Exception as e:
+        print(f"  NOTE: competition rules unavailable ({type(e).__name__}: {e})")
+        comp_rounds = []
+    dump("competition_rounds.json", comp_rounds, indent=None)
+    round_names = (ROUNDS.round_names_map(mm) if ROUNDS.locate_rounds(mm) is not None
+                   else {})
+    dump("round_names.json",
+         [{"id": i, "name": n} for i, n in sorted(round_names.items())], indent=None)
     # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
     # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py.
     # NB: `season` here is the MATCHES list; injuries key off the end-year int, derived below.

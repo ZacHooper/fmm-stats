@@ -370,10 +370,11 @@ are parsed and wired (`fmparser/fixtures.py`, `fmparser/compman.py`).
 The remaining open members in the archive:
 
 - **`comp_hosts.dat`** (31 KB) — variable-length, 4-year host cycles (`0x07d2, 0x07d6, ...`).
-- **The 147 `comp_<id>.dat` ids are not our `cid` space.** `reference.comp_refs` resolves
-  1 of 147. The datadict's `DBID` values overlap 54 of them and its `comp` values 92, so a
-  mapping probably exists; **none is established.** Settle this before building anything on a
-  per-competition member, because without it you cannot say which competition a file is.
+- **`comp_<uid>.dat` beyond the stage list.** The members are parsed (`comp_rules.py`) and
+  their stages/rounds labelled, but the rest of each tree is unread: prize money (`przm`,
+  `wnpz`), qualification and seeding rules (`strq`, `advs`, `rank`), TV and scheduling
+  (`tvds`, `drdt`). `fix_man`'s extra-time goals (+7/+12) are also not emitted, so a fixture
+  the store never saw keeps its 90-minute score.
 - **`rule_group.dat`** carries plain-text engine logs (`15/6/2025: Promoted seeding for Denmark
   (13th) - id=0 EURO Cup old_seed=2 new_seed=1`) — the only prose in the archive.
 - **Three members are static**: `discipline.dat` is byte-identical on every save of both
@@ -382,6 +383,44 @@ The remaining open members in the archive:
 - **Unnamed fields**: the two u64s ending every directory entry (constant
   `0xFFFFFFF1886E0900`), `'sicomps'` and the `0`/`1` after it, the `[08][00][00]` in the
   13-byte record header, the u32 that follows it, and the 13 constant bytes before member 0.
+
+### 4e. Migrate the tagged data dictionary to declared tagged schemas
+**Next PR after #99.** The data dictionary (~16.6–20.3 MB, `fmparser/tagged.py` /
+`fmparser/datadict.py`) is not free-form: it is the game's LIBRARY of competition rule files,
+each a `[u32 n][n tagged fields]` block in exactly the format of the archive's
+`comp_<uid>.dat` members minus their 54-byte header, each naming its source (`file` =
+`esp_second_b_group`, `fra_national_2_region`, `chn_rules` …). Measured on frem-2027-08-08
+(3.63 MB region): **578 blocks** read strictly to their declared count and tile **76.1%** of
+the region; **418** carry `stgs` (the stage list `comp_rules.FILE/STAGE/ROUND` already
+declare) and **160** do not. Not yet tiled: a 72 KB lead (the "fixed-format preamble"
+DATADICT.md mentions), a 300 KB tail, and ~0.5 MB of gaps between blocks (largest 69 KB) —
+probably the runtime records DATADICT.md describes (`sdfd` standings, `nssn` season blocks),
+unconfirmed.
+
+Why the current reader falls short: `datadict.walk_stream` reads `0x0b` as a u32 scalar, so a
+list's elements surface as loose siblings (80% of the region reads as loose "fields", 7% as
+records). Scanning with the strict `read_tree` is not the answer either — accepting the
+zero-width `0x00` type turned ~18,000 stray `01 00` byte pairs into "fields". The fix is to
+LOCATE each block by its own declared count, not to scan.
+
+Plan:
+1. **Locator** — walk the region as `[u32 n][n fields]` blocks, each bounded by its declared
+   count, and require the walk to tile the region: every gap classified, never skipped.
+2. **Schemas** — reuse `comp_rules.FILE/STAGE/ROUND` for the rule files, extending their
+   `unread` lists from a tag inventory over all saves (so `test_comp_rules`' coverage gate
+   keeps holding); declare the 160 no-`stgs` blocks from their own inventory; identify or
+   declare-unknown the preamble and the gaps.
+3. **Consumer** — `extract.py`'s only use is `tagged.league_team_counts` (teams per
+   competition into `competitions.json`); move it onto the parsed blocks with the output
+   byte-identical (`tests/assert_identical.py`).
+4. **Retire the lenient scan** behind `dump_datadict.py` / `tests/test_datadict.py` once the
+   declared parse covers what it covers — or keep it beside it while the gaps are open.
+5. **Gates** — byte-identical extract, zero undeclared tags on every save, and region tiling
+   reported as a number that should only go up.
+
+Payoff beyond tidiness: these are the rules for EVERY competition in the database, not just
+the ~70 the archive loads — entry, advancement, promotion and relegation (`strq`, `advs`,
+`relr`, `prmr`) decoded once would apply everywhere.
 
 ### 4d. Player-list blocks — named, not decoded
 **New 2026-09-20.** ~1.38 MB at ~61.25M–62.63M is a run of blocks of **100 slots x 200 B**
@@ -506,12 +545,6 @@ quoting the opposition manager cannot tell how confident to be.
 ---
 
 ## Models
-
-### 11a. Surface the development word on the site
-`mart.player_development` (fmstats/mart.py, `PLAYER_DEVELOPMENT`) gives every player one of
-four words for how close he is to his ceiling. Stars were built and dropped: they gave away
-too much. Owed: show the word in the site's Squad table next to Level %ile
-(`scripts/export_data.py` + `site/js`), which nothing does yet.
 
 ### 12. Refit the transfer-value model with the new reputation fields
 `current_reputation` and `world_reputation` are parsed (PR #51) and currently unused —

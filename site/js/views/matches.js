@@ -26,6 +26,25 @@ export async function view() {
   const isFriendly = (m) => /friend/i.test(comp(m));
 
   const seasons = [...new Set(all.map((m) => m.season))].sort((a, b) => b - a);
+  // The game's own stage labels (mart.match_stages). A group's letter changes every season,
+  // so filters and summaries compare "Group stage"; the results table keeps "Group D".
+  const phaseOf = (m) => m.stage_kind || null;
+  const roundOf = (m) => (m.stage_kind === "Group" ? "Group stage" : m.stage) || null;
+  const hasStages = all.some((m) => m.stage);
+  // Where in a season a stage falls, so stage lists read in the order they are played.
+  const seasonDay = (m) => {
+    const d = new Date(String(m.date).slice(0, 10));
+    return (d - new Date(Date.UTC(m.season - 1, 6, 1))) / 864e5;
+  };
+  const stageOrder = new Map();
+  for (const m of all) {
+    const k = `${comp(m)}|${roundOf(m)}`;
+    const o = stageOrder.get(k) || { n: 0, s: 0 };
+    o.n++; o.s += seasonDay(m);
+    stageOrder.set(k, o);
+  }
+  const orderOf = (m) => { const o = stageOrder.get(`${comp(m)}|${roundOf(m)}`); return o ? o.s / o.n : 0; };
+  const PHASES = ["League", "Qualifying", "Group", "Knockout"];
   const oppKey = (m) => m.opp_tid ?? m.opponent;
   const oppName = (m) => m.opponent || `#${m.opp_tid}`;
   let friendlies = false;
@@ -47,6 +66,8 @@ export async function view() {
   const inSeasons = (m) => !seasonMs.selected.size || seasonMs.selected.has(m.season);
   const inComps = (m) => !compMs.selected.size || compMs.selected.has(comp(m));
   const inOpps = (m) => !oppMs.selected.size || oppMs.selected.has(oppKey(m));
+  const inPhases = (m) => !phaseMs.selected.size || phaseMs.selected.has(phaseOf(m));
+  const inRounds = (m) => !roundMs.selected.size || roundMs.selected.has(roundOf(m));
   const friendlyOk = (m) => friendlies || !isFriendly(m);
 
   const seasonMs = multiSelect({
@@ -65,10 +86,32 @@ export async function view() {
     },
     onChange: () => draw(),
   });
+  const phaseMs = multiSelect({
+    noun: "phase", plural: "phases",
+    options: () => {
+      const c = count(all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m)), phaseOf);
+      return PHASES.filter((k) => c.has(k)).map((k) => ({ value: k, label: k, hint: c.get(k) }));
+    },
+    onChange: () => draw(),
+  });
+  const roundMs = multiSelect({
+    noun: "round", plural: "rounds",
+    options: () => {
+      const ms = all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m) && inPhases(m));
+      const c = count(ms, roundOf);
+      const first = new Map();
+      for (const m of ms) if (!first.has(roundOf(m))) first.set(roundOf(m), orderOf(m));
+      return [...c.keys()].filter((k) => k != null)
+        .sort((a, b) => first.get(a) - first.get(b))
+        .map((k) => ({ value: k, label: k, hint: c.get(k) }));
+    },
+    onChange: () => draw(),
+  });
   const oppMs = multiSelect({
     noun: "opponent", plural: "opponents", search: true,
     options: () => {
-      const ms = all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m));
+      const ms = all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m)
+        && inPhases(m) && inRounds(m));
       const c = count(ms, oppKey);
       const names = new Map(ms.map((m) => [oppKey(m), oppName(m)]));
       return [...c.keys()].map((k) => ({ value: k, label: names.get(k), hint: c.get(k) }))
@@ -86,16 +129,20 @@ export async function view() {
       draw();
     },
   });
-  out.append(el("div.tbar", {}, [seasonMs.node, compMs.node, oppMs.node, friBtn]), kpiRow, body);
+  const filters = hasStages
+    ? [seasonMs.node, compMs.node, phaseMs.node, roundMs.node, oppMs.node, friBtn]
+    : [seasonMs.node, compMs.node, oppMs.node, friBtn];
+  out.append(el("div.tbar", {}, filters), kpiRow, body);
 
   function filtered() {
-    return all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m) && inOpps(m));
+    return all.filter((m) => friendlyOk(m) && inSeasons(m) && inComps(m) && inPhases(m)
+      && inRounds(m) && inOpps(m));
   }
 
   function draw() {
     // Upstream picks can take a value off a downstream list; drop it rather than leave a
     // filter that silently matches nothing.
-    seasonMs.sync(); compMs.sync(); oppMs.sync();
+    seasonMs.sync(); compMs.sync(); phaseMs.sync(); roundMs.sync(); oppMs.sync();
     const ms = filtered();
     const w = ms.filter((m) => m.result === "W").length;
     const d = ms.filter((m) => m.result === "D").length;
@@ -115,6 +162,28 @@ export async function view() {
     body.append(summaryTable(ms, (m) => m.season, "Season"));
     body.append(el("h3", { text: "By competition" }));
     body.append(summaryTable(ms, comp, "Competition"));
+    if (hasStages) {
+      const staged = ms.filter((m) => m.stage_kind);
+      if (staged.length) {
+        body.append(el("h3", { text: "By phase" }));
+        body.append(summaryTable(staged, phaseOf, "Phase", false,
+          (a, b) => PHASES.indexOf(a.k) - PHASES.indexOf(b.k)));
+        body.append(el("h3", { text: "By round" }));
+        const firstAt = new Map();
+        for (const m of staged) {
+          const k = `${comp(m)} · ${roundOf(m)}`;
+          if (!firstAt.has(k)) firstAt.set(k, [comp(m), orderOf(m)]);
+        }
+        body.append(summaryTable(staged, (m) => `${comp(m)} · ${roundOf(m)}`, "Round", false,
+          (a, b) => {
+            const [ca, oa] = firstAt.get(a.k), [cb, ob] = firstAt.get(b.k);
+            return ca.localeCompare(cb) || oa - ob;
+          }));
+        body.append(el("p.note", { text: "Stages and rounds are the game's own labels, read "
+          + "from each competition's rules in the save. Groups are pooled as \"Group stage\" "
+          + "across seasons; the results below keep the letter." }));
+      }
+    }
 
     // ---- head to head
     body.append(el("h3", { text: "Head to head" }));
@@ -164,14 +233,16 @@ export async function view() {
     // ---- results
     body.append(el("h3", { text: `Results · ${ms.length}` }));
     body.append(el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["Date", "Competition", "H/A", "Opponent", "Score", "", "Formation"]
-        .map((h, i) => el(`th${i === 4 ? ".num" : ""}`, { text: h })))]),
+      el("thead", {}, [el("tr", {}, ["Date", "Competition", "Stage", "H/A", "Opponent", "Score", "", "Formation"]
+        .map((h, i) => el(`th${i === 5 ? ".num" : ""}`, { text: h })))]),
       el("tbody", {}, [...ms].sort((a, b) => String(b.date).localeCompare(String(a.date))).map((m) =>
         el("tr", {}, [
           el("td", { text: String(m.date).slice(0, 10) }),
-          el("td", { text: comp(m) }), el("td", { text: m.venue }),
+          el("td", { text: comp(m) }),
+          el("td", { text: stageText(m) }),
+          el("td", { text: m.venue }),
           el("td.name", { text: m.opponent || `#${m.opp_tid}` }),
-          el("td.num", { text: `${m.gf}–${m.ga}` }),
+          el("td.num", { text: scoreText(m), title: scoreTitle(m) }),
           el("td", {}, [pill(m.result, RES[m.result] || "flat")]),
           el("td", { text: m.formation || DASH }),
         ]))),
@@ -213,7 +284,36 @@ export async function view() {
   return out;
 }
 
-function summaryTable(ms, keyFn, label, sortByPlayed = false) {
+// "Group D · MD 3", "Quarter Final · leg 2", "Preliminary Phase · MD 12"
+function stageText(m) {
+  if (!m.stage) return DASH;
+  const bits = [m.stage];
+  if (m.leg) bits.push(`leg ${m.leg}`);
+  else if (m.matchday) bits.push(`MD ${m.matchday}`);
+  return bits.join(" · ");
+}
+
+// 2–2 aet · 1–3 p · agg 3–3, with a ✓/✗ on the match that settled a tie
+function scoreText(m) {
+  let s = `${m.gf}–${m.ga}`;
+  if (m.extra_time) s += " aet";
+  if (m.pens_for != null) s += ` (${m.pens_for}–${m.pens_against} p)`;
+  const settles = m.went_through != null && (!m.leg || m.leg === 2);
+  if (m.leg === 2 && m.tie_gf != null) s += ` · agg ${m.tie_gf}–${m.tie_ga}`;
+  if (settles) s += m.went_through ? " ✓" : " ✗";
+  return s;
+}
+
+function scoreTitle(m) {
+  const t = [];
+  if (m.extra_time) t.push("after extra time");
+  if (m.pens_for != null) t.push(`penalties ${m.pens_for}–${m.pens_against}`);
+  if (m.tie_gf != null) t.push(`aggregate ${m.tie_gf}–${m.tie_ga}`);
+  if (m.went_through != null) t.push(m.went_through ? "went through" : "knocked out");
+  return t.join(" · ");
+}
+
+function summaryTable(ms, keyFn, label, sortByPlayed = false, order = null) {
   const g = new Map();
   for (const m of ms) {
     const k = keyFn(m);
@@ -222,9 +322,9 @@ function summaryTable(ms, keyFn, label, sortByPlayed = false) {
     if (m.result === "W") r.w++; else if (m.result === "D") r.d++; else if (m.result === "L") r.l++;
     g.set(k, r);
   }
-  const rows = [...g.values()].sort((a, b) => sortByPlayed
+  const rows = [...g.values()].sort(order || ((a, b) => sortByPlayed
     ? b.p - a.p || b.pts / b.p - a.pts / a.p
-    : String(b.k).localeCompare(String(a.k)));
+    : String(b.k).localeCompare(String(a.k))));
   return el("div.scroll", {}, [el("table", {}, [
     el("thead", {}, [el("tr", {}, [label, "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm"]
       .map((h, i) => el(`th${i ? ".num" : ""}`, { text: h })))]),

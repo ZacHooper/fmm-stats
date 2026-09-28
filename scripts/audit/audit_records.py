@@ -55,6 +55,8 @@ from fmparser.tables.player_attributes import scrape_player_attributes     # noq
 from fmparser.tables import fixtures as FX           # noqa: E402
 from fmparser.tables import comp_stages as CS          # noqa: E402
 from fmparser.tables import comp_honours as CH         # noqa: E402
+from fmparser.tables import comp_rules as CRU          # noqa: E402
+from fmparser.core.tagged_schema import tag_map         # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +151,9 @@ LAYOUTS = {
     "comp_man_header": _from_record(CS.HEADER),
     "comp_man_stage": _from_record(CS.STAGE),
     "comp_man_honour": _from_record(CH.HONOUR),
+    # comp_<uid>.dat: only the fixed 54-byte header is a record; the tagged block after it
+    # is wire format (datadict.read_tree), bounded by the header's declared field count.
+    "comp_rules_header": _from_record(CRU.HEADER),
 }
 
 
@@ -226,10 +231,39 @@ def _print_map(name, stride, fields):
     print(f"  -- {stride - n_unk} of {stride} bytes decoded, {n_unk} undecoded")
 
 
+# TAGGED records -- key-value, so COVERAGE is per tag rather than per byte: every tag a
+# member carries must be read or declared unread, and every required tag present.
+TAGGED = (CRU.FILE, CRU.STAGE, CRU.ROUND, CRU.NAME_REF)
+
+
+def _tagged_coverage(mm):
+    """Walk every comp_<uid>.dat member of the save against the declared schemas."""
+    from fmparser import archive as ARCH
+    report = {}
+    ents = ARCH.members(mm)
+    for name, ent in ents.items():
+        if CRU.MEMBER_PATTERN.match(name):
+            fields = CRU.scrape(ARCH.read_member(mm, ent))
+            if fields:
+                CRU.FILE.coverage(fields, report)
+    ok = True
+    for rec in TAGGED:
+        r = report.get(rec.name, {"n": 0, "undeclared": {}, "missing": {}})
+        bad = r["undeclared"] or r["missing"]
+        ok &= not bad
+        print(f"  {'ok  ' if not bad else 'FAIL'} {rec.name:<24} {r['n']:>6} elements"
+              + (f"  UNDECLARED {r['undeclared']}" if r["undeclared"] else "")
+              + (f"  MISSING {r['missing']}" if r["missing"] else ""))
+    return ok
+
+
 def main():
     if "--map" in sys.argv:
         for name, (stride, fields) in LAYOUTS.items():
             _print_map(name, stride, fields)
+        for rec in TAGGED:
+            print()
+            print("\n".join(tag_map(rec)))
         return 0
     save = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
         "~/fm-saves/frem/frem-2024-11-10.fms")
@@ -262,6 +296,12 @@ def main():
 
         stadiums = PL_STADIUMS.scrape_stadiums(mm)
         ok &= _extent("stadium", stadiums.keys())
+
+        print("\ntagged records (archive comp_<uid>.dat) -- tag coverage:")
+        try:
+            ok &= _tagged_coverage(mm)
+        except ImportError as e:
+            print(f"  SKIP: {e} (uv sync --extra archive)")
 
     print("\n" + ("PASS: every record fully accounted for" if ok
                   else "FAIL: see UNACCOUNTED / MISMATCH / CHECK above"))

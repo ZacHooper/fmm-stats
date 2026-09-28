@@ -341,9 +341,24 @@ def main():
         SELECT phase, attr_total, delta, delta_comparable
         FROM mart.player_growth WHERE name = 'Andreas Garly' ORDER BY snap_ix
     """).df()
-    comparable = g[g["delta_comparable"]]
-    check("Garly's attribute total never regresses across comparable snapshots",
-          (comparable["delta"] >= 0).all(), f"deltas: {comparable['delta'].tolist()}")
+    # "Never regresses" is checked over a CLOSED window of saves, not open-ended: a player's
+    # attributes can genuinely fall (injury, age), so a later decline is not a defect. It is
+    # also checked on the attributes the save STORES directly (plus the two composites of
+    # stored bytes). The modelled ones are re-estimated from ability on every snapshot, and
+    # their rounding moves a value by 1 either way with no change in the save -- 2027-08-08
+    # read Shooting/Decisions/Movement/Positioning one lower from identical source bytes.
+    GARLY_WINDOW_END = "2027-07-02"
+    stored = ["Technique", "Aggression", "Agility", "Pace", "Leadership", "Strength",
+              "Stamina", "Teamwork", "Aerial"]
+    st = con.execute(f"""
+        SELECT phase, {" + ".join(f'"{a}"' for a in stored)} AS stored_total
+        FROM mart.player_snapshots
+        WHERE name = 'Andreas Garly' AND has_attributes AND phase <= ?
+        ORDER BY snap_ix""", [GARLY_WINDOW_END]).df()
+    steps = st["stored_total"].diff().dropna()
+    check(f"Garly's stored attributes never regress through {GARLY_WINDOW_END}",
+          len(st) >= 29 and (steps >= 0).all(),
+          f"{len(st)} snapshots, steps: {steps.astype(int).tolist()}")
     check("Garly's total has reached at least 212 (confirmed baseline, 2024-11-10)",
           int(g.iloc[-1]["attr_total"]) >= 212, f'got {g.iloc[-1]["attr_total"]}')
     # This one window IS fixed forever — both endpoints are calendar-past, so re-running
@@ -949,6 +964,46 @@ def main():
                 FROM mart.club_squad_latest)""").fetchone()
     check("club_squad_latest: our rows are squad_current's, and nobody is listed twice",
           sq[0] == sq[1] and sq[2] == 0, f"{sq[0]} vs {sq[1]} ours, {sq[2]} duplicates")
+
+    # match_stages: every competitive match of ours in a competition with rules is labelled
+    unl = con.execute(f"""
+        WITH ours AS (
+            SELECT DISTINCT m.club_tid, m.date, m.opp_tid, m.competition
+            FROM mart.club_matches m
+            JOIN (SELECT cid, arg_max(uid, phase) AS uid FROM {src}.competitions
+                  GROUP BY cid) c ON c.cid = m.comp_id
+            WHERE m.club_tid IN (SELECT club_tid FROM mart.managed_club)
+              AND c.uid IN (SELECT uid FROM {src}.competition_rounds))
+        SELECT COUNT(*), COUNT(s.stage_label)
+        FROM ours o LEFT JOIN mart.match_stages s
+          ON (s.club_tid, s.date, s.opp_tid) = (o.club_tid, o.date, o.opp_tid)""").fetchone()
+    check("match_stages labels every match of ours in a competition with rules",
+          unl[0] == 0 or unl[0] == unl[1], f"{unl[1]} of {unl[0]} labelled")
+    legs = con.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT 1 FROM mart.match_stages WHERE legs = 2
+            GROUP BY club_tid, uid, season_year, stage_index, round_index, opp_tid
+            HAVING COUNT(*) > 2)""").fetchone()[0]
+    check("no two-legged tie has more than two legs", legs == 0, f"{legs} ties over")
+    # The in-game fixture screens (2026/27 and 2027/28), read back from the view.
+    GROUND = [
+        ("2026-08-13", "League Path · Third Qualifying Round", 2),   # Hajduk
+        ("2026-08-20", "Playoff", 1),                                # Olympiacos
+        ("2026-09-17", "Group D", None),                             # Lyon
+        ("2026-09-24", "Third Round", None),                         # Roskilde, Pokalen
+        ("2026-08-09", "Preliminary Phase", None),                   # AGF, Superliga
+        ("2027-02-18", "First Knockout Round", 1),                   # Leipzig
+        ("2027-04-04", "Championship Group", None),                  # Nordsjælland
+        ("2027-08-04", "League Path · Third Qualifying Round", 1),   # Rangers
+    ]
+    got = dict(((str(d), (lab, leg)) for d, lab, leg in con.execute("""
+        SELECT date, stage_label, leg FROM mart.match_stages
+        WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)""").fetchall()))
+    held = [(d, lab, leg) for d, lab, leg in GROUND if d in got]
+    bad = [(d, got[d], (lab, leg)) for d, lab, leg in held if got[d] != (lab, leg)]
+    check("match_stages reproduces the in-game fixture labels",
+          not bad, f"{len(held) - len(bad)} of {len(held)} held"
+          + (f" — {bad}" if bad else ""))
 
     # -- 11. position-adjusted match rating --------------------------------------------
     print("\n11. position-adjusted match rating")

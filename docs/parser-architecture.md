@@ -325,13 +325,37 @@ declared, and `Record.span` is the extent of *the declared part*, not of the rec
 it would be a programming language, and every argument currently visible in a comment would
 stop being visible.
 
+### Tagged records are declared per TAG
+
+Some records are key-value, not fixed-width: the tagged data dictionary and the archive's
+`comp_<uid>.dat` members store `[tag][type][value]` fields in any order, with optional tags
+and a wire type that can vary with the value (`ntms` is a u8 for 12 teams, a u16 for 255).
+There is no offset to declare, so the schema is declared per tag instead, in
+`fmparser/core/tagged_schema.py`:
+
+```python
+STAGE = TaggedRecord("comp_rules_stage", [
+    Tag("indx", "stage_index", INT, required=True, note="= fix_man +76 stage_index"),
+    Tag("rnds", "rounds", ListOf(ROUND)),
+], unread=("strq", "advs", ...))
+```
+
+The same rule holds: the parser reads FROM the declaration (`TaggedRecord.read` checks each
+value's wire type against its kind and raises on an absent required tag), and the audit
+checks AGAINST it. **COVERAGE is per tag**: every tag seen must be read or listed in
+`unread` -- seen and deliberately not read, the counterpart of a declared-UNKNOWN byte -- and
+a tag that is neither is reported. `unread` is built from a measured inventory (for
+`comp_rules`, every tag across 31 saves), never guessed. `tests/test_layouts.py` checks each
+registered tagged schema is sound; `audit_records.py --map` prints it; `audit_records.py
+<save>` and `tests/test_comp_rules.py` fail on an undeclared tag.
+
 ---
 
 ## Part 3 — the checks, and what each one can actually tell you
 
 | command | what it establishes | needs a save? |
 |---|---|---|
-| `tests/test_layouts.py` | every declared layout is internally sound — covered, non-overlapping, widths match kinds | no |
+| `tests/test_layouts.py` | every declared layout is internally sound — covered, non-overlapping, widths match kinds; every tagged schema declares each tag once | no |
 | `scripts/audit_records.py` | **STRIDE / COVERAGE / EXTENT** against a real save | yes |
 | `scripts/audit_records.py --map` | the generated per-byte record documentation | yes |
 | `scripts/audit_table_headers.py --confirm` | declared count == records read, for every framed table | yes |

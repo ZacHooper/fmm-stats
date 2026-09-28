@@ -52,6 +52,8 @@ Spell overlap semantics:
 """
 from __future__ import annotations
 
+import duckdb
+
 from .contract import ATTR_ORDER
 
 # Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
@@ -910,6 +912,166 @@ LEFT JOIN {S}.clubs ac
        ON (ac.season, ac.phase) = (u.latest_season, u.latest_phase)
       AND ac.tid = u.opp_tid
 ORDER BY u.date, u.stage_key, u.seq_id, u.club_tid
+"""
+
+
+# Every fixture of a competition we know, labelled the way the game labels it: 'League Path ·
+# Third Qualifying Round', 'Group D', 'Championship Group', 'Quarter Final', with the leg, the
+# tie aggregate and whether the club went through. One row per club per fixture, keyed like
+# mart.world_club_fixtures on (club_tid, date, opp_tid). went_through is the tie's outcome
+# and reads the same on both legs.
+#
+# SCORES: the fixture list holds the 90-minute score (extra-time goals sit in separate bytes
+# of the record). Where the store holds the match, its full-time score replaces it and
+# extra_time flags the difference; a fixture the store never saw keeps its 90-minute score.
+#
+# The fixture record carries no competition, only stage_index/round_index into the
+# competition's own rules ({S}.competition_rounds, from the archive member comp_<uid>.dat).
+# The competition comes from the matches the store holds: a match's comp_id is a
+# competition whose uid names that rules member, and a fixture's stage_key belongs to one
+# competition, so every stage we have a match in is labelled for every club that played it.
+# A knockout round is one stage_key (the Leipzig tie's key holds all 16 teams of the First
+# Knockout Round), so a whole round labels from one of our matches. A GROUP stage is one
+# stage_key PER GROUP: the letter is the group's place among its sibling keys -- consecutive
+# keys of the same stage and season whose first matchday falls within the same few days.
+#
+# Rules are read from the snapshot of the fixture's own season where there is one, else the
+# newest. stage_kind buckets a stage for comparison: League (stage_type 1), Group (2), and a
+# knockout stage is Qualifying before a competition's group stage and Knockout otherwise
+# (a cup without a group stage is Knockout throughout).
+MATCH_STAGES = """
+CREATE OR REPLACE VIEW mart.match_stages AS
+WITH names AS (
+    SELECT id, arg_max(name, phase) AS name FROM {S}.round_names GROUP BY id
+),
+comp_uid AS (
+    SELECT cid, arg_max(uid, phase) AS uid FROM {S}.competitions GROUP BY cid
+),
+known AS (
+    SELECT f.stage_key, cu.uid, COUNT(*) AS n
+    FROM mart.club_matches m
+    JOIN mart.world_club_fixtures f
+      ON f.club_tid = m.club_tid AND f.date = m.date AND f.opp_tid = m.opp_tid
+    JOIN comp_uid cu ON cu.cid = m.comp_id
+    GROUP BY f.stage_key, cu.uid
+),
+stage_uid AS (
+    SELECT stage_key, arg_max(uid, n) AS uid FROM known GROUP BY stage_key
+),
+rule_snap AS (          -- which snapshot's rules label each (competition, season)
+    SELECT k.uid, f.season_year,
+           arg_max(r.phase, (CASE WHEN r.season = f.season_year + 1 THEN '1' ELSE '0' END)
+                            || r.phase) AS phase
+    FROM (SELECT DISTINCT stage_key, season_year FROM mart.world_club_fixtures) f
+    JOIN stage_uid k USING (stage_key)
+    JOIN (SELECT DISTINCT uid, season, phase FROM {S}.competition_rounds) r ON r.uid = k.uid
+    GROUP BY k.uid, f.season_year
+),
+stages AS (
+    SELECT DISTINCT phase, uid, stage_index, stage_code, stage_type, stage_name_id, n_groups
+    FROM {S}.competition_rounds
+),
+group_at AS (           -- a competition's group stage, when it is a cup with one
+    SELECT phase, uid, min(stage_index) FILTER (WHERE stage_type = 2) AS group_index
+    FROM stages GROUP BY phase, uid
+    HAVING count(*) FILTER (WHERE stage_type = 1) = 0
+),
+key_first AS (
+    SELECT stage_key, season_year, min(stage_index) AS stage_index, min(date) AS first_date
+    FROM mart.world_club_fixtures GROUP BY stage_key, season_year
+),
+played AS (            -- the store's own score: after extra time, where the fixture's is 90'
+    SELECT club_tid, date, opp_tid, any_value(gf) AS gf, any_value(ga) AS ga
+    FROM mart.club_matches GROUP BY club_tid, date, opp_tid
+),
+fx AS (
+    SELECT f.* REPLACE (coalesce(p.gf, f.gf) AS gf, coalesce(p.ga, f.ga) AS ga),
+           (p.gf IS NOT NULL AND (p.gf <> f.gf OR p.ga <> f.ga)) AS extra_time,
+           k.uid, rs.phase AS rules_phase
+    FROM mart.world_club_fixtures f
+    JOIN stage_uid k USING (stage_key)
+    LEFT JOIN played p
+      ON p.club_tid = f.club_tid AND p.date = f.date AND p.opp_tid = f.opp_tid
+    LEFT JOIN rule_snap rs ON rs.uid = k.uid AND rs.season_year = f.season_year
+),
+labelled AS (
+    SELECT fx.*, st.stage_code, st.stage_type, st.n_groups,
+           sn.name AS stage_name, rn.name AS round_name, rr.legs,
+           CASE
+               WHEN st.stage_type = 1 THEN 'League'
+               WHEN st.stage_type = 2 THEN 'Group'
+               WHEN ga.group_index IS NOT NULL AND fx.stage_index < ga.group_index
+                   THEN 'Qualifying'
+               WHEN st.stage_type IS NOT NULL THEN 'Knockout'
+           END AS stage_kind,
+           CASE WHEN st.stage_type = 2 THEN (
+               SELECT count(*) FROM key_first s
+               WHERE s.season_year = fx.season_year AND s.stage_index = fx.stage_index
+                 AND s.stage_key < fx.stage_key
+                 AND s.stage_key > fx.stage_key - coalesce(st.n_groups, 1)
+                 AND abs(date_diff('day', s.first_date,
+                     (SELECT first_date FROM key_first o
+                      WHERE o.stage_key = fx.stage_key
+                        AND o.season_year = fx.season_year))) <= 3)
+           END AS group_no
+    FROM fx
+    LEFT JOIN stages st
+      ON st.phase = fx.rules_phase AND st.uid = fx.uid AND st.stage_index = fx.stage_index
+    LEFT JOIN {S}.competition_rounds rr
+      ON rr.phase = fx.rules_phase AND rr.uid = fx.uid AND rr.stage_index = fx.stage_index
+     AND rr.round_index = fx.round_index AND st.stage_type = 0
+    LEFT JOIN group_at ga ON ga.phase = fx.rules_phase AND ga.uid = fx.uid
+    LEFT JOIN names sn ON sn.id = st.stage_name_id
+    LEFT JOIN names rn ON rn.id = rr.round_name_id
+),
+ties AS (
+    SELECT l.*,
+           CASE WHEN legs = 2 THEN row_number() OVER tie END AS leg,
+           CASE WHEN legs = 2 THEN count(*) OVER tie_all END AS tie_games,
+           CASE WHEN legs = 2 THEN sum(gf) OVER tie_all END AS tie_gf,
+           CASE WHEN legs = 2 THEN sum(ga) OVER tie_all END AS tie_ga,
+           CASE WHEN legs = 2 THEN last_value(pens_for) OVER tie_all END AS tie_pens_for,
+           CASE WHEN legs = 2 THEN last_value(pens_against) OVER tie_all END
+               AS tie_pens_against
+    FROM labelled l
+    WINDOW tie AS (PARTITION BY club_tid, uid, season_year, stage_index, round_index, opp_tid
+                   ORDER BY date),
+           tie_all AS (PARTITION BY club_tid, uid, season_year, stage_index, round_index,
+                       opp_tid ORDER BY date
+                       ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+)
+SELECT
+    club_tid, club, opp_tid, opponent, date, venue, gf, ga,
+    CASE WHEN gf > ga THEN 'W' WHEN gf = ga THEN 'D' WHEN gf < ga THEN 'L' END AS result,
+    extra_time, pens_for, pens_against, season_year, uid, stage_key, stage_index, round_index,
+    CASE WHEN stage_type IN (1, 2) THEN round + 1 END AS matchday,
+    stage_kind, stage_code, stage_name, round_name,
+    CASE WHEN group_no IS NOT NULL THEN chr(65 + group_no::INTEGER) END AS group_letter,
+    CASE
+        WHEN stage_type = 1 THEN stage_name
+        WHEN stage_type = 2 THEN 'Group ' || chr(65 + group_no::INTEGER)
+        ELSE concat_ws(' · ', stage_name, round_name)
+    END AS stage_label,
+    legs, leg,
+    CASE WHEN tie_games = 2 THEN tie_gf::INTEGER END AS tie_gf,
+    CASE WHEN tie_games = 2 THEN tie_ga::INTEGER END AS tie_ga,
+    CASE
+        WHEN stage_type <> 0 OR stage_type IS NULL OR gf IS NULL THEN NULL
+        WHEN EXISTS (SELECT 1 FROM labelled nx
+                     WHERE nx.club_tid = t.club_tid AND nx.uid = t.uid
+                       AND nx.season_year = t.season_year
+                       AND (nx.stage_index > t.stage_index
+                            OR (nx.stage_index = t.stage_index
+                                AND nx.round_index > t.round_index))) THEN TRUE
+        WHEN legs = 2 AND tie_games < 2 THEN NULL
+        WHEN legs = 2 AND tie_gf <> tie_ga THEN tie_gf > tie_ga
+        WHEN legs = 2 THEN CASE WHEN tie_pens_for IS NOT NULL
+                                THEN tie_pens_for > tie_pens_against END
+        WHEN gf <> ga THEN gf > ga
+        WHEN pens_for IS NOT NULL THEN pens_for > pens_against
+    END AS went_through
+FROM ties t
+ORDER BY date, stage_key, club_tid
 """
 
 
@@ -3314,6 +3476,7 @@ ORDER = [
     ("mart.world_fixtures", WORLD_FIXTURES),
     ("mart.world_club_fixtures", WORLD_CLUB_FIXTURES),
     ("mart.fixture_stages", FIXTURE_STAGES),
+    ("mart.match_stages", MATCH_STAGES),
     ("mart.league_tables", LEAGUE_TABLES),
     ("mart.club_attendance", CLUB_ATTENDANCE),
     ("mart.match_events", MATCH_EVENTS),
@@ -3376,9 +3539,27 @@ ORDER = [
 ]
 
 
+LATE_STAGING = {
+    "competition_rounds": """CREATE TABLE {S}.competition_rounds (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, uid BIGINT NOT NULL,
+        stage_index INTEGER, stage_code VARCHAR, stage_type INTEGER, stage_teams INTEGER,
+        stage_name_id BIGINT, n_groups INTEGER,
+        round_index INTEGER, round_name_id BIGINT, round_teams INTEGER, legs INTEGER)""",
+    "round_names": """CREATE TABLE {S}.round_names (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR)""",
+}
+
+
 def create_mart(con, src="staging"):
     """(Re)create the macros and the `mart` schema against `src` staging tables."""
     con.execute("CREATE SCHEMA IF NOT EXISTS mart")
+    # Staging tables a newer loader writes: present empty on a store built before them, so
+    # the views over them build (and return nothing) instead of failing the whole mart.
+    for table, stmt in LATE_STAGING.items():
+        try:
+            con.execute(f"SELECT 1 FROM {src}.{table} LIMIT 0")
+        except duckdb.CatalogException:
+            con.execute(stmt.format(S=src))
     for stmt in MACROS:
         con.execute(stmt)
     for name, sql in ORDER:
