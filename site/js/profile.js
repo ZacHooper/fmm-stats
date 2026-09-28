@@ -10,6 +10,7 @@ import * as D from "./data.js";
 import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
   ATTR_BANDS, DASH } from "./ui.js";
 import { loanOutlook } from "./loans.js";
+import { devChart } from "./devchart.js";
 
 // A per-viewer preference, not per-player state — once you've picked "+ growth + trend" you
 // want it on every profile you open from then on, not reset back to the plain grid each time.
@@ -47,8 +48,9 @@ const GAME_ORDER = {
  *   "proj" — answers "will his X come": a 'fixed' attribute (Agility, Technique) is marked as
  *   never moving; a 'forecastable' one whose projection differs from today's value shows
  *   `-> projected`. Silent for 'unmodelled' attributes and for a value already at the target.
+ * @param {boolean} [opts.legend] append the colour-scale legend under the grid (default true).
  */
-export function attributeBlock(p, role, { compare = null, attrTraj = null, detail = "simple", forecast = null } = {}) {
+export function attributeBlock(p, role, { compare = null, attrTraj = null, detail = "simple", forecast = null, legend = true } = {}) {
   const isGk = p.positions.some((q) => q.pos === "GK");
 
   function row(a, i, w, title) {
@@ -104,7 +106,7 @@ export function attributeBlock(p, role, { compare = null, attrTraj = null, detai
     }
     wrap.append(el("div.attrcols", {}, [gk]));
   }
-  wrap.append(el("div.avlegend", {},
+  if (legend) wrap.append(el("div.avlegend", {},
     [el("span.dim", { text: "Scale:" }),
       ...ATTR_BANDS.map(([b, label]) => el(`span.av.v${b}`, { text: label.split(" ")[0], title: label })),
       el("span.dim", { text: role ? `· tinted rows are weighted for ${role}` : "" })]));
@@ -117,94 +119,126 @@ const FOOT_LABEL = (l, r) => {
   return el("span", {}, [l != null ? "Left " : "Right ", attrValue(l ?? r)]);
 };
 
-/** Bio + reputation + personality + the 9 attributes the in-game screen doesn't show — all from
- *  the profile-only tail (`D.loadProfile`), fetched lazily so core.json stays lean (see
- *  data.js's `loadProfile` docstring). Returns null while it hasn't loaded yet (or failed),
- *  which is also the loading-placeholder case: `openProfile` re-renders this box once the fetch
- *  resolves, so a slow connection shows the rest of the sheet immediately and fills this in a
- *  moment later rather than blocking the whole profile on it. */
-function profileExtras(p) {
-  const prof = p.profile;
+// Per-viewer preferences, not per-player state: you tend to do one job across many players
+// (checking loans, then reading personalities), so the sheet reopens where you left it.
+const TAB_KEY = "fm:profile:tab";
+const EXTRA_KEY = "fm:profile:extra";
+const pref = (k, fallback) => { try { return localStorage.getItem(k) ?? fallback; } catch { return fallback; } };
+const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private browsing */ } };
+
+/** An explanation folded behind a small ⓘ — worth reading once, clutter every time after. */
+const info = (children) => el("details.info", {}, [el("summary", { text: "ⓘ How to read this" }),
+  el("div.note", {}, children)]);
+
+/** Personality + the nine hidden attributes, as extra columns in the attribute grid. They come
+ *  from the profile-only tail (`D.loadProfile`), so null until that has loaded. */
+function extraAttrColumns(prof) {
   if (!prof) return null;
-  const wrap = el("div");
-
-  const bioRows = [
-    ["Nationality", prof.nationality || DASH],
-    ["Foot", FOOT_LABEL(prof.footLeft, prof.footRight) || DASH],
-    ["Height", p.height ? `${p.height} cm` : DASH],
-    ["Weight", p.weight ? `${p.weight} kg` : DASH],
-    ["Squad number", p.shirt != null
-      // 0 reads as "no preference set" rather than a real shirt number — only show it when
-      // it names an actual, different number.
-      ? `#${p.shirt}${prof.preferredShirt ? (prof.preferredShirt !== p.shirt ? ` (prefers #${prof.preferredShirt})` : "") : ""}`
-      : DASH],
-    ["Joined", prof.joinedDate ? monthYear(prof.joinedDate) : DASH],
-    ["Caps / goals", `${prof.caps ?? DASH} / ${prof.goals ?? DASH}`],
-    ["U21 caps / goals", `${prof.u21Caps ?? DASH} / ${prof.u21Goals ?? DASH}`],
-  ];
-  wrap.append(el("h4", { text: "Bio" }));
-  // A value may be a node (Foot is two coloured attribute badges), so append it rather than
-  // stringify it.
-  wrap.append(el("div.kpis", {}, bioRows.map(([label, value]) =>
-    el("div.kpi", {}, [el("b", {}, [value instanceof Node ? value : String(value)]),
-      el("span", { text: label })]))));
-
-  wrap.append(el("h4", { text: "Reputation" }));
-  wrap.append(el("div.kpis", {}, [
-    ["Home", prof.reputation.home], ["Current", prof.reputation.current],
-    ["World", prof.reputation.world],
-  ].map(([label, v]) => el("div.kpi", {},
-    [el("b", { text: v == null ? DASH : v.toLocaleString() }), el("span", { text: label })]))));
-
-  const miniAttrs = (title, pairs) => {
+  const col = (title, pairs) => {
     const known = pairs.filter(([, v]) => v != null);
-    if (!known.length) return null;
-    return el("div", {}, [
-      el("h4", { text: title }),
-      el("div.attrcols", {}, [el("div.attrcol", {}, known.map(([label, v]) =>
-        el("div.arow", {}, [el("span.an", { text: label }), el("span", {}, [attrValue(v)])]))) ]),
-    ]);
+    return known.length ? el("div.attrcol", {}, [el("h4", { text: title }),
+      ...known.map(([label, v]) => el("div.arow", {}, [el("span.an", { text: label }), el("span", {}, [attrValue(v)])]))]) : null;
   };
-  const personality = miniAttrs("Personality", [
-    ["Adaptability", prof.personality.adaptability], ["Ambition", prof.personality.ambition],
-    ["Determination", prof.personality.determination], ["Loyalty", prof.personality.loyalty],
-    ["Pressure", prof.personality.pressure], ["Professionalism", prof.personality.professionalism],
-    ["Sportsmanship", prof.personality.sportsmanship], ["Temperament", prof.personality.temperament],
-  ]);
-  if (personality) wrap.append(personality);
-  const hidden = miniAttrs("Attributes the in-game screen doesn't show", [
-    ["Jumping", prof.hidden.jumping], ["Consistency", prof.hidden.consistency],
-    ["Big match", prof.hidden.bigMatch], ["Injury proneness", prof.hidden.injuryProne],
-    ["Versatility", prof.hidden.versatility], ["Set pieces", prof.hidden.setPieces],
-    ["Penalties", prof.hidden.penalty], ["Work rate", prof.hidden.workRate],
-    ["Flair", prof.hidden.flair],
-  ]);
-  if (hidden) wrap.append(hidden);
-  return wrap;
+  const cols = [
+    col("Personality", [
+      ["Adaptability", prof.personality.adaptability], ["Ambition", prof.personality.ambition],
+      ["Determination", prof.personality.determination], ["Loyalty", prof.personality.loyalty],
+      ["Pressure", prof.personality.pressure], ["Professionalism", prof.personality.professionalism],
+      ["Sportsmanship", prof.personality.sportsmanship], ["Temperament", prof.personality.temperament],
+    ]),
+    col("Hidden", [
+      ["Jumping", prof.hidden.jumping], ["Consistency", prof.hidden.consistency],
+      ["Big match", prof.hidden.bigMatch], ["Injury proneness", prof.hidden.injuryProne],
+      ["Versatility", prof.hidden.versatility], ["Set pieces", prof.hidden.setPieces],
+      ["Penalties", prof.hidden.penalty], ["Work rate", prof.hidden.workRate],
+      ["Flair", prof.hidden.flair],
+    ]),
+  ].filter(Boolean);
+  return cols.length ? el("div.attrcols.extra", {}, cols) : null;
 }
 
-function statTable(agg) {
+/** Bio + reputation, from the same profile-only tail. */
+function bioBlock(p) {
+  const prof = p.profile;
+  if (!prof) return null;
+  const tiles = (rows) => el("div.kpis.sm", {}, rows.map(([label, value]) =>
+    el("div.kpi", {}, [el("b", {}, [value instanceof Node ? value : String(value)]), el("span", { text: label })])));
+  return el("div", {}, [
+    tiles([
+      ["Nationality", prof.nationality || DASH],
+      ["Foot", FOOT_LABEL(prof.footLeft, prof.footRight) || DASH],
+      ["Height", p.height ? `${p.height} cm` : DASH],
+      ["Weight", p.weight ? `${p.weight} kg` : DASH],
+      ["Squad number", p.shirt != null
+        // 0 reads as "no preference set" rather than a real shirt number — only show it when
+        // it names an actual, different number.
+        ? `#${p.shirt}${prof.preferredShirt && prof.preferredShirt !== p.shirt ? ` (prefers #${prof.preferredShirt})` : ""}`
+        : DASH],
+      ["Joined", prof.joinedDate ? monthYear(prof.joinedDate) : DASH],
+      ["Caps / goals", `${prof.caps ?? DASH} / ${prof.goals ?? DASH}`],
+      ["U21 caps / goals", `${prof.u21Caps ?? DASH} / ${prof.u21Goals ?? DASH}`],
+    ]),
+    el("h4", { text: "Reputation" }),
+    tiles([["Home", prof.reputation.home], ["Current", prof.reputation.current], ["World", prof.reputation.world]]
+      .map(([label, v]) => [label, v == null ? DASH : v.toLocaleString()])),
+  ]);
+}
+
+/** Match record in three small groups rather than one sixteen-column row. */
+const STAT_GROUPS = [
+  ["Output", ["Apps", "Starts", "Min", "Rating", "Goals", "Assists", "G/90", "A/90"]],
+  ["On the ball", ["KeyP/90", "Pass %", "Shot acc %", "Conversion %"]],
+  ["Defending", ["Tackle %", "Header %", "Int/90", "Mistakes/gm"]],
+];
+function statBlock(agg) {
   if (!agg) return el("p.note", { text: "No parsed match data for this player — only the managed club's matches are richly parsed." });
-  const show = ["Apps", "Starts", "Min", "Rating", "Goals", "Assists", "G/90", "A/90",
-    "KeyP/90", "Pass %", "Tackle %", "Header %", "Shot acc %", "Conversion %", "Int/90", "Mistakes/gm"];
-  return el("div.scroll", {}, [el("table", {}, [
-    el("thead", {}, [el("tr", {}, show.map((s) => el("th.num", { text: s })))]),
-    el("tbody", {}, [el("tr", {}, show.map((s) => {
+  return el("div", {}, STAT_GROUPS.map(([title, names]) => el("div.statgrp", {}, [
+    el("span.dim", { text: title }),
+    el("div.kpis.sm", {}, names.map((s) => {
       const v = D.statValue(s, agg);
-      return el("td.num", { text: v == null ? DASH : num(v, /%$|Apps|Starts|Min$|Goals|Assists/.test(s) ? 0 : 2) });
-    }))]),
+      return el("div.kpi", {}, [el("b", { text: v == null ? DASH : num(v, /%$|Apps|Starts|Min$|Goals|Assists/.test(s) ? 0 : 2) }),
+        el("span", { text: s })]);
+    })),
+  ])));
+}
+
+function careerTable(career) {
+  return el("div.scroll.fit", {}, [el("table", {}, [
+    el("thead", {}, [el("tr", {}, ["Season", "Club", "Apps", "Goals", "Assists", "Rating", "Move"]
+      .map((h, i) => el(`th${i >= 2 && i <= 5 ? ".num" : ""}`, { text: h })))]),
+    el("tbody", {}, career.map((c) => el("tr", {}, [
+      el("td", { text: c.end_year ?? DASH }), el("td", { text: c.club ?? DASH }),
+      el("td.num", { text: c.apps ?? DASH }), el("td.num", { text: c.goals ?? DASH }),
+      el("td.num", { text: c.assists ?? DASH }),
+      el("td.num", { text: c.rating == null ? DASH : num(c.rating, 2) }),
+      el("td", { text: c.fee ?? DASH }),
+    ]))),
   ])]);
 }
 
+/**
+ * The profile sheet: a fixed top — who he is, then his attributes, which is what the sheet is
+ * opened for — and everything else in tabs below, one open at a time. The tab and the
+ * personality/hidden toggle are remembered across players.
+ */
+let squadTried = false;
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
+  // The development chart, the attribute growth options and career history all read
+  // squad.json. Pages other than Squad don't load it, so fetch it (once, ~20 KB) before the
+  // first sheet rather than showing a profile with those parts silently missing.
+  if (!D.S.squad && !squadTried) {
+    squadTried = true;
+    D.loadSquad().catch(() => null).then(() => openProfile(tid, { role }));
+    return;
+  }
   const roles = D.playerRoles(p);
   const shown = role ? roles.find((r) => r.role === role) || roles[0] : roles[0];
   const a = D.age(p.dob);
   const ours = D.isOurs(p);
+  const loanedIn = D.S.ours.loaned_in?.includes(tid);
   const club = D.S.clubs.get(p.clubTid);
-  const agg = D.S.matchAgg?.get(tid);
   const traj = shown ? D.trajectory(tid, shown.role) : [];
   const growth = shown ? D.growth(tid, shown.role) : null;
   const attrTraj = D.attrTrajectory(tid);
@@ -230,59 +264,158 @@ export function openProfile(tid, { role = null } = {}) {
   })();
 
   const body = [];
-  body.push(el("div.kpis", {}, [
-    kpi("Age", a ?? DASH), kpi("Club", club?.name || DASH),
-    kpi(shown ? `${shown.role} rating` : "Rating", shown ? num(shown.eff) : DASH),
-    kpi("Value", money(p.value)),
-    kpi("Wage/yr", money(p.wage)),
-    kpi("Contract", monthYear(p.expiry)),
+
+  // ---- who he is: club, status, positions, then the money in one compact line
+  const origin = D.S.ours.origin?.[String(tid)];
+  const status = ours ? D.S.ours.status?.[String(tid)] : null;
+  const natural = [...p.positions].filter((q) => q.fam >= 15).sort((x, y) => y.fam - x.fam);
+  body.push(el("div.phead", {}, [
+    el("div.pline", {}, [
+      el("b", { text: club?.name || DASH }),
+      status ? pill(status, "flat") : null,
+      loanedIn ? pill("On loan here", "warn") : null,
+      ...natural.map((q) => el("span.pos", { text: `${q.pos} ${q.fam}`, title: `${q.pos} — familiarity ${q.fam}` })),
+    ]),
+    el("div.figs", {}, [
+      shown ? fig(`${shown.role} rating`, num(shown.eff), `${D.S.method}, familiarity-adjusted`) : null,
+      fig("Value", money(p.value)), fig("Wage/yr", money(p.wage)), fig("Contract", monthYear(p.expiry)),
+      origin ? fig("Origin", origin, D.S.ours.capital_eligible?.includes(tid)
+        ? "Eligible under the capital-region rule" : "Outside the capital region") : null,
+    ]),
   ]));
 
-  // positions and what each is worth under this tactic
-  // Fit percentile against our own division, and against his own league. Level %ile is a
-  // team-shaped measure — useful for "is this division better than ours", wrong for "is this
-  // player better than that one", which is what a profile is for.
-  const ourCid = D.ourLeagueCid();
-  const divPlayers = D.leaguePlayers(ourCid);
-  const hisCid = D.S.clubs.get(p.clubTid)?.leagueCid;
-  const hisPlayers = hisCid != null && hisCid !== ourCid ? D.leaguePlayers(hisCid) : null;
-  const ourName = D.S.leagues.get(ourCid)?.name || "our division";
-  const hisName = hisCid != null ? D.S.leagues.get(hisCid)?.name : null;
-  const oursList = D.ourPlayers();
+  // ---- attributes: always shown, the reason the sheet is opened
+  const attrBox = el("div");
+  const extraBox = el("div");
+  let curRole = shown?.role;
+  let curDetail = loadDetail();
+  let showExtra = pref(EXTRA_KEY, "0") === "1";
+  let profileFailed = false;
+  // The projection is only worth offering while he is still short of 24; growth needs at least
+  // two snapshots to have anything to say.
+  const canProject = !!forecast && a != null && a < 24;
+  function rerenderAttrs() {
+    clear(attrBox).append(attributeBlock(p, curRole, { attrTraj, detail: curDetail,
+      forecast: canProject ? forecast : null, legend: false }));
+  }
+  function rerenderExtra() {
+    clear(extraBox);
+    if (!showExtra) return;
+    extraBox.append(extraAttrColumns(p.profile) || el("p.note", { text: profileFailed ? "Unavailable right now." : "Loading…" }));
+  }
+  rerenderAttrs();
+  rerenderExtra();
 
-  body.push(el("h4", { text: "Positions under this tactic" }));
-  const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
-  if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
-  heads.push("Squad rank");
-  body.push(el("div.scroll.fit", {}, [el("table", {}, [
-    el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, { text: h })))]),
-    el("tbody", {}, roles.map((r) => {
-      const cells = [
-        el("td", { text: r.pos }), el("td", { text: r.role }),
-        el("td.num", {}, [bar(r.fam, { max: 20, lo: 60 })]),
-        el("td.num", { text: num(r.eff) }),
-        el("td.num", {}, [bar(D.pctile(D.poolAt(divPlayers, r.pos), r.eff))]),
-      ];
-      if (hisPlayers) cells.push(el("td.num", {}, [bar(D.pctile(D.poolAt(hisPlayers, r.pos), r.eff))]));
-      const tpool = D.teamPool(oursList, r.pos);
-      cells.push(el("td.num", { text: tpool.length ? `${D.rankIn(tpool, r.eff)}/${tpool.length}` : DASH }));
-      return el("tr", {}, cells);
-    })),
-  ])]));
-  body.push(el("p.note", {
-    html: "<b>Rating</b> is this tactic's weighted attribute sum, already discounted by "
-      + "familiarity. <b>Fit %ile</b> is where that rating places him at that position "
-      + "against everyone in the division — so it answers <i>is he good enough here</i>, and it "
-      + "moves when you change tactic. (Level %ile, which measures division quality rather than "
-      + "a player, is on the Squad table and drives the Loan outlook below.) <b>Squad rank</b> is where he'd "
-      + "stand among our own players at that position if he were part of the squad.",
-  }));
+  const controls = [];
+  // Only offer the highlight picker when he actually has more than one distinct role to
+  // highlight for — a player who lists a single position has nothing to switch between.
+  const seenRoles = new Set();
+  const roleOptions = roles.filter((r) => (seenRoles.has(r.role) ? false : seenRoles.add(r.role)));
+  if (roleOptions.length > 1) {
+    const roleSel = el("select.btn.sm", {
+      onchange: (e) => { curRole = e.target.value; rerenderAttrs(); },
+    }, roleOptions.map((r) => el("option", { value: r.role, text: `${r.pos} · ${r.role}` })));
+    roleSel.value = curRole;
+    controls.push(roleSel);
+  }
+  if (traj.length > 1 || canProject) {
+    // Detail defaults to whatever level you last picked; a saved level this player can't show
+    // falls back to the plain grid.
+    const detailSel = el("select.btn.sm", {
+      onchange: (e) => { curDetail = e.target.value; saveDetail(curDetail); rerenderAttrs(); },
+    }, [
+      el("option", { value: "simple", text: "Current only" }),
+      canProject ? el("option", { value: "proj", text: "+ projection at 24" }) : null,
+      traj.length > 1 ? el("option", { value: "more", text: "+ growth since first snapshot" }) : null,
+      traj.length > 1 ? el("option", { value: "most", text: "+ growth + trend" }) : null,
+    ]);
+    detailSel.value = curDetail;
+    if (detailSel.value !== curDetail) { detailSel.value = "simple"; curDetail = "simple"; rerenderAttrs(); }
+    controls.push(detailSel);
+  }
+  const extraBtn = el(`button.chip${showExtra ? ".on" : ""}`, {
+    text: "+ personality & hidden",
+    onclick: () => {
+      showExtra = !showExtra;
+      setPref(EXTRA_KEY, showExtra ? "1" : "0");
+      extraBtn.classList.toggle("on", showExtra);
+      rerenderExtra();
+    },
+  });
+  controls.push(extraBtn);
+  body.push(el("div.prow.attrbar", {}, [el("h4", { text: "Attributes" }), ...controls]));
+  body.push(attrBox, extraBox);
+  body.push(info([
+    el("div.avlegend", {}, [el("span.dim", { text: "Scale:" }),
+      ...ATTR_BANDS.map(([bnd, label]) => el(`span.av.v${bnd}`, { text: label.split(" ")[0], title: label }))]),
+    el("p", { text: "Tinted rows are the attributes the selected tactic weights for the highlighted role — "
+      + "green = key, amber = important, red = useful. Switch tactic in the header and the emphasis moves." }),
+  ]));
 
-  if (traj.length > 1) {
-    body.push(el("details", {}, [
-      el("summary", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }),
-      el("div.card", {}, [
-        sparkline(traj.map((t) => t.value), { w: 260, h: 44, forecast: roleForecast }),
+  // Bio/personality/hidden tail — fetched lazily for players outside core.json, so the sheet
+  // opens immediately and the pieces that need it fill in when it lands.
+  const onProfile = [];
+  D.loadProfile(tid).then((p2) => {
+    if (p2 && p2 !== p && p2.profile) p.profile = p2.profile;
+    profileFailed = !p.profile;
+    rerenderExtra();
+    for (const f of onProfile) f();
+  });
+
+  // ---- tabs
+  const TABS = [
+    ["fit", "Fit", () => fitTab()],
+    ["stats", "Stats", () => statsTab()],
+    ours && !loanedIn ? ["loan", "Loan", () => loanOutlook(p, shown?.pos)] : null,
+    ["bio", "Bio", () => bioTab()],
+  ].filter(Boolean);
+  let curTab = pref(TAB_KEY, "fit");
+  if (!TABS.some((t) => t[0] === curTab)) curTab = "fit";
+  const tabBar = el("div.ptabs", { role: "tablist" });
+  const tabBody = el("div.ptab");
+  function showTab(key, remember) {
+    curTab = key;
+    if (remember) setPref(TAB_KEY, key);
+    for (const b of tabBar.children) b.classList.toggle("on", b.dataset.tab === key);
+    clear(tabBody).append(TABS.find((t) => t[0] === key)[2]());
+  }
+  for (const [key, label] of TABS) {
+    tabBar.append(el("button", { text: label, role: "tab", dataset: { tab: key }, onclick: () => showTab(key, true) }));
+  }
+  body.push(tabBar, tabBody);
+  showTab(curTab, false);
+
+  function fitTab() {
+    // Fit percentile against our own division, and against his own league — "is he good
+    // enough here", under the selected tactic.
+    const ourCid = D.ourLeagueCid();
+    const divPlayers = D.leaguePlayers(ourCid);
+    const hisCid = D.S.clubs.get(p.clubTid)?.leagueCid;
+    const hisPlayers = hisCid != null && hisCid !== ourCid ? D.leaguePlayers(hisCid) : null;
+    const ourName = D.S.leagues.get(ourCid)?.name || "our division";
+    const hisName = hisCid != null ? D.S.leagues.get(hisCid)?.name : null;
+    const oursList = D.ourPlayers();
+    const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
+    if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
+    heads.push("Squad rank");
+    const out = el("div", {}, [el("div.scroll.fit", {}, [el("table", {}, [
+      el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, { text: h })))]),
+      el("tbody", {}, roles.map((r) => {
+        const cells = [
+          el("td", { text: r.pos }), el("td", { text: r.role }),
+          el("td.num", {}, [bar(r.fam, { max: 20, lo: 60 })]),
+          el("td.num", { text: num(r.eff) }),
+          el("td.num", {}, [bar(D.pctile(D.poolAt(divPlayers, r.pos), r.eff))]),
+        ];
+        if (hisPlayers) cells.push(el("td.num", {}, [bar(D.pctile(D.poolAt(hisPlayers, r.pos), r.eff))]));
+        const tpool = D.teamPool(oursList, r.pos);
+        cells.push(el("td.num", { text: tpool.length ? `${D.rankIn(tpool, r.eff)}/${tpool.length}` : DASH }));
+        return el("tr", {}, cells);
+      })),
+    ])])]);
+    if (traj.length > 1) {
+      out.append(el("h4", { text: `Development as ${shown.role} · ${traj.length} snapshots` }),
+        devChart(p, traj, roleForecast) || sparkline(traj.map((t) => t.value), { w: 260, h: 44, forecast: roleForecast }),
         el("p.note", {
           text: (growth
             ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`
@@ -293,110 +426,46 @@ export function openProfile(tid, { role = null } = {}) {
                 ` (${num(roleForecast.points[roleForecast.points.length - 1])}), from the` +
                 " whole-save attribute lookup, not this player's own trend."
               : ""),
-        }),
-      ]),
-    ]));
+        }));
+    }
+    out.append(info([el("p", {
+      html: "<b>Rating</b> is this tactic's weighted attribute sum, already discounted by "
+        + "familiarity. <b>Fit %ile</b> is where that rating places him at that position "
+        + "against everyone in the division — so it answers <i>is he good enough here</i>, and it "
+        + "moves when you change tactic. (Level %ile, which ranks ability rather than tactical "
+        + "fit, is on the Squad table and drives the Loan tab.) <b>Squad rank</b> is where he'd "
+        + "stand among our own players at that position if he were part of the squad.",
+    })]));
+    return out;
   }
 
-  body.push(el("h4", { text: "Attributes" }));
-  const attrNote = el("p.note", {});
-  body.push(attrNote);
-  const attrBox = el("div");
-  let curRole = shown?.role;
-  let curDetail = loadDetail();
-  // The projection is only worth offering while he is still short of 24; growth needs at least
-  // two snapshots to have anything to say.
-  const canProject = !!forecast && a != null && a < 24;
-  function rerenderAttrs() {
-    attrNote.textContent = curRole
-      ? `Coloured by importance to ${curRole} in this tactic — green = key, amber = important, red = useful.` : "";
-    clear(attrBox);
-    attrBox.append(attributeBlock(p, curRole, { attrTraj, detail: curDetail, forecast: canProject ? forecast : null }));
-  }
-  rerenderAttrs();
-
-  const controls = [];
-  // Only offer the highlight picker when he actually has more than one distinct role to
-  // highlight for — a player who lists a single position has nothing to switch between.
-  const seenRoles = new Set();
-  const roleOptions = roles.filter((r) => (seenRoles.has(r.role) ? false : seenRoles.add(r.role)));
-  if (roleOptions.length > 1) {
-    const roleSel = el("select.btn", {
-      onchange: (e) => { curRole = e.target.value; rerenderAttrs(); },
-    }, roleOptions.map((r) => el("option", { value: r.role, text: `${r.pos} · ${r.role}` })));
-    roleSel.value = curRole;
-    controls.push(el("span.dim", { text: "Highlight:" }), roleSel);
-  }
-  if (traj.length > 1 || canProject) {
-    // Detail defaults to whatever level you last picked (persisted, not per-player), so once
-    // you've settled on "+ growth + trend" every profile opens straight into it. Picking a
-    // level re-renders the same three-column layout in place rather than bolting on a table.
-    // A saved level this player can't show falls back to the plain grid.
-    const detailSel = el("select.btn", {
-      onchange: (e) => { curDetail = e.target.value; saveDetail(curDetail); rerenderAttrs(); },
-    }, [
-      el("option", { value: "simple", text: "Current only" }),
-      canProject ? el("option", { value: "proj", text: "+ projection at 24" }) : null,
-      traj.length > 1 ? el("option", { value: "more", text: "+ growth since first snapshot" }) : null,
-      traj.length > 1 ? el("option", { value: "most", text: "+ growth + trend" }) : null,
-    ]);
-    detailSel.value = curDetail;
-    if (detailSel.value !== curDetail) { detailSel.value = "simple"; curDetail = "simple"; rerenderAttrs(); }
-    controls.push(el("span.dim", { text: "Detail:" }), detailSel);
-  }
-  if (controls.length) body.push(el("div.prow", {}, controls));
-  body.push(attrBox);
-
-  // Bio/reputation/personality/hidden-attribute tail — fetched lazily (data.js's loadProfile),
-  // so the sheet opens immediately and this section fills in a moment later rather than
-  // blocking every profile open on an extra request.
-  const profileBox = el("div", {}, [el("p.note", { text: "Loading bio…" })]);
-  body.push(profileBox);
-  D.loadProfile(tid).then((p2) => {
-    clear(profileBox);
-    const extras = profileExtras(p2 || p);
-    profileBox.append(extras || el("p.note", { text: "Extra profile detail unavailable right now." }));
-  });
-
-  body.push(el("h4", { text: "Match record for us (all seasons)" }));
-  body.push(statTable(agg));
-
-  if (career.length) {
-    body.push(el("h4", { text: "Career history" }));
-    body.push(el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["Season", "Club", "Apps", "Goals", "Assists", "Rating", "Move"]
-        .map((h, i) => el(`th${i >= 2 && i <= 5 ? ".num" : ""}`, { text: h })))]),
-      el("tbody", {}, career.map((c) => el("tr", {}, [
-        el("td", { text: c.end_year ?? DASH }), el("td", { text: c.club ?? DASH }),
-        el("td.num", { text: c.apps ?? DASH }), el("td.num", { text: c.goals ?? DASH }),
-        el("td.num", { text: c.assists ?? DASH }),
-        el("td.num", { text: c.rating == null ? DASH : num(c.rating, 2) }),
-        el("td", { text: c.fee ?? DASH }),
-      ]))),
-    ])]));
+  function statsTab() {
+    const box = el("div", {}, [el("h4", { text: "Match record for us (all seasons)" })]);
+    const statsBox = el("div", {}, [el("p.note", { text: "Loading matches…" })]);
+    box.append(statsBox);
+    D.loadMatches().then(() => clear(statsBox).append(statBlock(D.S.matchAgg?.get(tid))))
+      .catch(() => clear(statsBox).append(statBlock(null)));
+    if (career.length) box.append(el("h4", { text: "Career history" }), careerTable(career));
+    return box;
   }
 
-  // Where he'd get games on loan — owned players only; a loanee's future isn't ours to place.
-  const loanedIn = D.S.ours.loaned_in?.includes(tid);
-  if (ours && !loanedIn) body.push(loanOutlook(p, shown?.pos));
-
-  // Add to shortlist straight from the profile — the moment you've decided he's interesting is
-  // while you're looking at him, not after navigating to another section.
-  if (!ours) body.push(shortlistButton(p, shown));
-
-  const origin = D.S.ours.origin?.[String(tid)];
-  if (ours) {
-    const cap = D.S.ours.capital_eligible?.includes(tid);
-    body.push(el("p.note", {
-      html: `Squad status <b>${D.S.ours.status?.[String(tid)] || "?"}</b>`
-        + (origin ? ` · origin club <b>${origin}</b>` : "")
-        + (origin ? ` · ${cap ? "<b>eligible</b> under the capital-region rule" : "outside the capital region"}` : ""),
-    }));
+  function bioTab() {
+    const box = el("div");
+    const fill = () => {
+      clear(box).append(bioBlock(p) || el("p.note", { text: profileFailed ? "Bio unavailable right now." : "Loading bio…" }));
+      // Add to shortlist straight from the profile — the moment you've decided he's
+      // interesting is while you're looking at him.
+      if (!ours) box.append(shortlistButton(p, shown));
+    };
+    fill();
+    onProfile.push(() => { if (curTab === "bio" && box.isConnected) fill(); });
+    return box;
   }
+
   sheet(`${p.name}${a ? ` · ${a}` : ""}`, body, { wide: true });
 }
 
-const kpi = (label, value) => el("div.kpi", {}, [el("b", { text: String(value) }), el("span", { text: label })]);
+const fig = (label, value, title) => el("span.fig", { title }, [el("span.dim", { text: label }), el("b", { text: String(value) })]);
 
 function shortlistButton(p, shown) {
   const note = el("input.search", { placeholder: "Note (optional) — why he's worth a look" });
