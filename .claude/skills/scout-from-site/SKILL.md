@@ -15,7 +15,7 @@ The site is **one snapshot** (whichever `export_data.py` last published), and it
 the store does:
 
 - No match-by-match `light_results` beyond what `matches.json` holds.
-- Ability *ranks* only for our own squad (`positions.json`); for an opponent you get ability
+- Ability *ranks* only for our own squad (`loans.json`); for an opponent you get ability
   *percentiles* per player-position, not their rank inside another division.
 - No injury or loan-spell history, no awards tables, no per-competition league detail.
 - **Nothing you produce here reaches the scout log.** `db.save_scout` needs the store, so a report

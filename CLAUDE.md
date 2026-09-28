@@ -305,8 +305,11 @@ Two rules follow, and the recent bugs all break them:
 hosted without a server. Its sections collate the 13 dashboard pages: **Squad** (one configurable
 table merging the squad list, Development + projections, Player Stats and Registration — the
 A/B lists as a column, the quotas as one hover/tap card, saved windows under the table; see
-below), **Positions**, **Builder**, **Recruitment** (search + shortlist + the capital rule),
-**Opposition**, **Matches**, **History**, **World**. It ships DATA
+below), **Builder**, **Recruitment** (search + shortlist + the capital rule), **Matches**,
+**History**, **World**. Every owned player's profile sheet ends in a **Loan outlook**
+(`site/js/loans.js`, data `api/loans.json`): his Level %ile in each division from ours down to
+3. Division, against each club's starter line at his position in its manager's preferred
+formation — see `build_loans` in `scripts/_export_db.py`. It ships DATA
 and computes on the client, so switching tactic re-rates every player with no rebuild.
 **Streamlit stays** for what writes to DuckDB (Tactics, Config) and for Team Builder.
 Read [`docs/DEPLOY.md`](docs/DEPLOY.md) before touching it.
@@ -445,9 +448,10 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
   rule. **`scripts/export_data.py`'s `check_immersion()` enforces this for published JSON** — it
   parses every emitted file and fails the build on a raw-ability key at any depth, so anything new you add to the
   export is checked automatically.
-- **Depth-chart logic lives in `dashboard/positions.py`**, shared by the Streamlit page and the
-  exporter. Change it there, not in either consumer, or the app and the dashboard start giving
-  different verdicts.
+- **The loan outlook is computed in the exporter** (`scripts/_export_db.py` `build_loans`),
+  because it orders players by ability; the browser only draws it. Ranking counts a club's
+  natural players only (familiarity 15+): a club with none for a slot is an open door, not a
+  guess at who the AI would play out of position.
 - **The web app computes ratings itself** (`site/js/data.js`) from attributes × role weights, so a
   change to the rating formula must land in BOTH the SQL (`v_player_ratings`) and the JS. They are
   verified equal to the last decimal over 36,920 combinations — keep it that way.
