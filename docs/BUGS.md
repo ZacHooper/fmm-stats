@@ -433,8 +433,8 @@ decodes; league/cup split holds).
 cid-less result list (~49.36 MB, repeats the home team + a 0x42xx value) isn't parsed, so
 standings points/played are a lower bound and ordering is approximate. (2) NAMING:
 `reference.comp_detail` mis-names some small-cid / foreign comps (e.g. a Turkish reserve
-league shown as "Angola"); the cid grouping is always correct — name these via the tagged
-DATA DICTIONARY (docs/DATADICT.md) as a follow-up.
+league shown as "Angola"); the cid grouping is always correct — name these via the data
+dictionary's rule files (`fmparser/tables/rule_files.py`) as a follow-up.
 
 ## 12b. Results sweep -> league membership (PARTIAL, works for local league)
 

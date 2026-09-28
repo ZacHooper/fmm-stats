@@ -131,8 +131,8 @@ Decoded 2026-09-28; parsed by `fmparser/tables/comp_rules.py`, loaded as
 `staging.competition_rounds`. Each member is a declared 54-byte `HEADER` record
 (`season_year` +20, `base_year` +48, `n_fields` +50; the rest declared UNKNOWN, see
 `audit_records.py --map`) followed by a **tagged tree** in the data dictionary's wire format,
-read strictly by `fmparser/datadict.py`'s `read_tree` -- the same type table the dictionary
-scan uses, not a second copy:
+read strictly by `fmparser/tagged.py`'s `read_tree` -- the same reader the dictionary's rule
+files (`tables/rule_files.py`) use:
 
     [54-byte HEADER][n tagged fields, n = HEADER.n_fields]
     field     = [tag x4][0x01][type][value]  |  [0x01][type][value]  (tagless list element)

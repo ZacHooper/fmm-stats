@@ -16,8 +16,9 @@ Two encodings seen so far:
 1. **day-of-year + year, both u16 little-endian** — used by detailed matches AND the light
    results. Year: `e5 07`=2021, `e6 07`=2022, `e4 07`=2020. Example: 30 Apr 2022 = day 120 =
    bytes **`78 00 e6 07`**. (Confirmed: BUGS #12c decoded day 304/2021 = 31 Oct 2021.)
-2. **day-of-month + month + year** (the tagged data dictionary / `datadict`) — separate
-   `dyom`,`mont`,`year` fields; see docs/DATADICT.md. Less useful as a search key.
+2. **day-of-month + month + year** (the tagged data dictionary's rule files,
+   `fmparser/tables/rule_files.py`) — separate `dyom`,`mont`,`year` fields. Less useful as a
+   search key.
 
 The **detailed-match header** (fmparser/matches.py) is `[home:u16][away:u16][day:u16]
 [year:u16][att:u16]`, with the comp cid at `date_off-3`. That's your ground-truth layout.

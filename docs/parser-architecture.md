@@ -25,8 +25,8 @@ six.
 
 | shape | how you find it | the validator that bounds it | used by |
 |---|---|---|---|
-| **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)) |
-| **B. Pointer / delimiter / marker** | career data; there is never a count | a chain that lands exactly on the next record, or a filler wall | history slab, our matches, squad snapshot, tagged region, club records |
+| **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`) |
+| **B. Pointer / delimiter / marker** | career data; there is never a count | a chain that lands exactly on the next record, or a filler wall | history slab, our matches, squad snapshot, club records |
 | **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), club records (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
@@ -238,7 +238,7 @@ locator produced a plausible short result instead of an error. All four now rais
 | locator | the window it fell back to | why it was wrong |
 |---|---|---|
 | `attributes.snapshot_bounds` | `SNAPSHOT_LO/HI` 62.3–63.2 MB | the *default career's* snapshot; any other career got an empty read |
-| `tagged.find_tagged_region` | `TAGGED_LO/HI` — **and cached it** | one blind lookup served to every later caller for the life of the process |
+| `rule_files.find_region` | `TAGGED_LO/HI` — **and cached it** | one blind lookup served to every later caller for the life of the process |
 | `matches.extract_season` | `MATCH_LO` = 55 MB | 55 MB is *inside* Frem's own match region (~53.8 MB), so it dropped the start of that career |
 | `lightresults.build` | `LIGHT_LO/HI` 47.0–50.5 MB | Bucaspor-tuned; and measured across all 34 archived saves the locator never once returned empty, so this was dead code with a failure mode attached |
 
@@ -327,9 +327,13 @@ stop being visible.
 
 ### Tagged records are declared per TAG
 
-Some records are key-value, not fixed-width: the tagged data dictionary and the archive's
-`comp_<uid>.dat` members store `[tag][type][value]` fields in any order, with optional tags
-and a wire type that can vary with the value (`ntms` is a u8 for 12 teams, a u16 for 255).
+Some records are key-value, not fixed-width: the data dictionary's rule files and the
+archive's `comp_<uid>.dat` members store `[tag][01][type][value]` fields in any order, with
+optional tags and a wire type that can vary with the value (`ntms` is a u8 for 12 teams, a
+u16 for 255). `fmparser/tagged.py` reads the wire format; its `read_tree` is strict and is
+only ever called on a block whose field count is declared, so a field that does not parse
+is an error, never a shorter result.
+
 There is no offset to declare, so the schema is declared per tag instead, in
 `fmparser/core/tagged_schema.py`:
 
@@ -344,21 +348,17 @@ The same rule holds: the parser reads FROM the declaration (`TaggedRecord.read` 
 value's wire type against its kind and raises on an absent required tag), and the audit
 checks AGAINST it. **COVERAGE is per tag**: every tag seen must be read or listed in
 `unread` -- seen and deliberately not read, the counterpart of a declared-UNKNOWN byte -- and
-a tag that is neither is reported. `unread` is built from a measured inventory (for
-`comp_rules`, every tag across 31 saves), never guessed. `tests/test_layouts.py` checks each
-registered tagged schema is sound; `audit_records.py --map` prints it; `audit_records.py
-<save>`, `tests/test_comp_rules.py` and `tests/test_rule_files.py` fail on an undeclared tag.
+a tag that is neither is reported. `unread` is built from a measured inventory over every
+save, never guessed. `tests/test_layouts.py` checks each registered tagged schema is sound;
+`audit_records.py --map` prints it; `audit_records.py <save>`, `tests/test_comp_rules.py`
+and `tests/test_rule_files.py` fail on an undeclared tag.
 
-A tagged block is FOUND the same way a table is: by its declared count. The data dictionary
-(`tables/rule_files.py`) is 667 `[u32 n][n fields]` rule files, located by one forward pass
-that reads each candidate strictly and keeps it only if all n fields read -- never by
-scanning for tags. Scanning is what the lenient `datadict.walk_stream` does, and it both
-misses structure (a list's elements surface as loose siblings) and invents it (a scan that
-accepts the zero-width type turns stray `01 00` pairs into fields). The strict walk's own
-failure mode is loud: a file that does not read breaks into fragments, which the tiling
-check counts. That is how the strict reader's last three gaps were found (wire type `0x05`,
-an f64 of prize money; `0x15`, a team id; and tags that are raw u32s rather than four
-characters) -- the locator had been silently dropping the 20 files that use them.
+A tagged block is FOUND the same way a table is: by its declared count (Shape A). The data
+dictionary (`tables/rule_files.py`) is 667 `[u32 n][n fields]` rule files, located by one
+forward pass that reads each candidate strictly and keeps it only if all n fields read, then
+resumes after it. Nothing scans for tags. The walk's failure mode is loud: a rule file that
+does not read breaks into fragments -- count-framed blocks that are not rule files -- and
+`tiling()` counts them; the test requires zero.
 
 ---
 

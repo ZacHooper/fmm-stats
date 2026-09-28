@@ -384,33 +384,22 @@ The remaining open members in the archive:
   `0xFFFFFFF1886E0900`), `'sicomps'` and the `0`/`1` after it, the `[08][00][00]` in the
   13-byte record header, the u32 that follows it, and the 13 constant bytes before member 0.
 
-### 4e. The tagged data dictionary: consumer, state, and the rules themselves
-The dictionary is now LOCATED and DECLARED (`fmparser/tables/rule_files.py`): **667 rule
-files** read strictly as count-framed blocks, each through a declared schema
-(`comp_rules.FILE` for the 453 with a stage list, `NATION_COMPS` / `NATION_RESERVE_COMPS` /
-`NATION_RULES` for each of 53 nations, `STAGELESS_COMP` for the two Welsh files), with zero
-undeclared tags and the group framing checked on every save (`tests/test_rule_files.py`).
-They read **99.2%** of the span from the first file to the last; the rest is 26,878 bytes of
-separators and dated records. The rule files are value-for-value identical in every Frem save,
-so those bytes BETWEEN them are where each save's state lives: 26 of the 666 change in five
-weeks of play. What is left:
+### 4e. The data dictionary: the state between the rule files, and the rules themselves
+The dictionary is 667 rule files, located and declared per tag in
+`fmparser/tables/rule_files.py` (see its docstring); `team_counts` feeds `competitions.json`.
+The rule files read 99.2% of the span and are identical in every save of a career. What is
+left:
 
-1. **Consumer** — `extract.py`'s only use of the dictionary is `tagged.league_team_counts`
-   (teams per competition into `competitions.json`), still on the lenient scan. Move it onto
-   the rule files with the output byte-identical (`tests/assert_identical.py`).
-2. **Retire the lenient scan** behind `dump_datadict.py` / `tests/test_datadict.py` /
-   `docs/DATADICT.md` once nothing needs it. `DATADICT.md`'s format section predates the
-   strict reader (it lists 4 types; there are 17, plus tags that are raw u32s).
-3. **Decode the state** — the separators before each group (runs of `ffffffff`-led u16
-   entries ending `01`) and the 41-byte dated record before each nation's merged `_rules`.
-   Diff two saves: 26 change between frem-2027-07-02 and frem-2027-08-08.
-4. **Region bounds** — `tagged.find_tagged_region` pads the `comp` cluster by 60 KB / 300 KB,
-   which is the "72 KB lead / 300 KB tail" once thought to be unidentified content; the first
-   rule file starts ~66 bytes after the pad. Bounding the region by the rule files instead
-   changes the lenient scan's output, so it rides with step 1.
-5. **Decode the rules** — entry, advancement, promotion and relegation (`strq`, `advs`,
-   `relr`, `prmr`) for EVERY competition in the database, not just the ~70 the archive loads.
-   Every configured archive member names its dictionary file (`file`), so the two join.
+1. **Decode the state** — the 26,878 bytes BETWEEN the rule files are the only part that
+   changes between saves (26 of 666 separators change from frem-2027-07-02 to
+   frem-2027-08-08): the separator before each group (runs of `ffffffff`-led u16 entries
+   ending `01`) and the 41-byte dated record before each nation's merged `_rules`. Diff two
+   saves.
+2. **Decode the rules** — entry, advancement, promotion and relegation (`strq`, `advs`,
+   `relr`, `prmr`) for EVERY competition in the database, not just the ~70 the archive
+   loads. Every configured archive member names its dictionary file (`file`), so the two
+   join. The deleted `docs/DATADICT.md` (last at commit 7cc46b6) holds guesses at many tag
+   meanings, made from the old lenient scan -- hypotheses to test, not facts.
 
 ### 4d. Player-list blocks — named, not decoded
 **New 2026-09-20.** ~1.38 MB at ~61.25M–62.63M is a run of blocks of **100 slots x 200 B**

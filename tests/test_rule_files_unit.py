@@ -15,7 +15,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import datadict as DD                     # noqa: E402
+from fmparser import tagged as TG                      # noqa: E402
 from fmparser.tables import comp_rules as CR, rule_files as RF  # noqa: E402
 
 from test_comp_rules_unit import container, lst, string, tag, u8, u32, fourcc  # noqa: E402
@@ -51,7 +51,14 @@ def region(declared=None):
                            u32("DBID", 105180)]),
     ])
     rules = rule_file("den_rules", [container("dsrl", [weird])])
-    files = [rule_file("den_comps", [u8("dvlv", 1)]),
+    retm = lst("retm", [
+        container(None, [u8("nxss", 0), container("comp", [
+            u32("id", fourcc("comp")), u32("comp", 2000016262)]), u8("ntms", 12)]),
+        container(None, [u8("nxss", 0), u8("comp", 6), u8("ntms", 12)]),
+        container(None, [u8("nxss", 1), u8("comp", 6), u8("ntms", 14)]),   # not in force
+        container(None, [u8("nxss", 0), u8("mntm", 16)]),                  # names no comp
+    ])
+    files = [rule_file("den_comps", [u8("dvlv", 1), retm]),
              rule_file("den_reserve_comps", [u8("rsvl", 1)]),
              rules, comp]
     pad = b"\x00" * 64
@@ -89,6 +96,9 @@ def main() -> int:
     check(CR.stage_rows(6, comp.fields)[0]["stage_code"] == "leag", "stage rows")
     check(RF.read(files[1])["file"] == "den_comps", "nation read")
 
+    check(RF.team_counts(mm) == {2000016262: 12, 6: 12},
+          f"team_counts {RF.team_counts(mm)}")
+
     t = RF.tiling(mm, 0, len(mm))
     check(t["n_rule_files"] == 5 and t["other_blocks"] == 0, f"tiling {t}")
     # unread = the separator + the group count + four container heads
@@ -106,9 +116,9 @@ def main() -> int:
 
     # the strict reader still rejects an unknown type rather than reading past it
     try:
-        DD.read_tree(tag("oops", 0x7e, b"\x00\x00"), 0, 8)
+        TG.read_tree(tag("oops", 0x7e, b"\x00\x00"), 0, 8)
         check(False, "unknown type read without error")
-    except DD.TreeError:
+    except TG.TreeError:
         pass
 
     for f in failures:

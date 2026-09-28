@@ -26,6 +26,7 @@ from .rule_files import (
     framing_problems as rule_file_framing_problems,
     rule_files as scrape_rule_files,
     schema_for as rule_file_schema,
+    team_counts as rule_file_team_counts,
     tiling as rule_file_tiling,
 )
 from .currencies import (
@@ -216,6 +217,7 @@ __all__ = [
     # Rule files (the tagged data dictionary)
     "rule_file_framing_problems",
     "rule_file_schema",
+    "rule_file_team_counts",
     "rule_file_tiling",
     "scrape_rule_files",
     # Contracts

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Declared schemas for TAGGED records -- the key-value counterpart of `schema.Record`.
 
-A tagged record is a set of `[tag][type][value]` fields in the data-dictionary wire format
-(`fmparser/datadict.py`), not bytes at fixed offsets: fields may come in any order, a tag may
+A tagged record is a set of `[tag][type][value]` fields in the tagged wire format
+(`fmparser/tagged.py`), not bytes at fixed offsets: fields may come in any order, a tag may
 be absent, and one tag's wire type can vary with its value (`ntms` is a u8 for 12 teams and
 a u16 for 255). So the schema is declared per TAG rather than per offset:
 

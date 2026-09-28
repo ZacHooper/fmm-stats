@@ -153,7 +153,7 @@ LAYOUTS = {
     "comp_man_stage": _from_record(CS.STAGE),
     "comp_man_honour": _from_record(CH.HONOUR),
     # comp_<uid>.dat: only the fixed 54-byte header is a record; the tagged block after it
-    # is wire format (datadict.read_tree), bounded by the header's declared field count.
+    # is wire format (tagged.read_tree), bounded by the header's declared field count.
     "comp_rules_header": _from_record(CRU.HEADER),
 }
 
@@ -235,7 +235,8 @@ def _print_map(name, stride, fields):
 # TAGGED records -- key-value, so COVERAGE is per tag rather than per byte: every tag a
 # member carries must be read or declared unread, and every required tag present.
 TAGGED = (CRU.FILE, CRU.STAGE, CRU.ROUND, CRU.NAME_REF, RF.NATION_COMPS,
-          RF.NATION_RESERVE_COMPS, RF.NATION_RULES, RF.STAGELESS_COMP)
+          RF.NATION_RESERVE_COMPS, RF.NATION_RULES, RF.TEAM_RULE, RF.COMP_REF,
+          RF.STAGELESS_COMP)
 
 
 def _print_tagged(report):
@@ -260,6 +261,10 @@ def _dictionary_coverage(mm):
     for b in files:
         RF.schema_for(b).coverage(b.fields, report)
     ok = _print_tagged(report)
+    unlisted = set(report) - {rec.name for rec in TAGGED}
+    if unlisted:
+        ok = False
+        print(f"  FAIL schemas not in TAGGED, so not reported: {sorted(unlisted)}")
     t = RF.tiling(mm)
     framing = RF.framing_problems(mm, files)
     ok &= not t["other_blocks"] and not framing

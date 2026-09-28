@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """`rule_files` — the data dictionary's library of competition rule files.
 
-The tagged data dictionary (`tagged.find_tagged_region` finds the region) is the game's
-library of rule files: 667 of them, each naming its source in a `file` string and its
+The save's tagged data dictionary (~16.7-20.0 MB, drifting per save) is the game's library
+of rule files: 667 of them, each naming its source in a `file` string and its
 folder in `SubF` (`.\\europe\\dan\\`). Within a career the rule files are value-for-value
 identical in every save (Bucaspor's total 60 bytes fewer than Frem's); what changes between
 saves is the bytes BETWEEN them (below). A rule file is a tagged block in the wire format of
 the archive's `comp_<uid>.dat` members (`tables/comp_rules.py`) minus their 54-byte header:
 
-    [u32 n][n tagged fields]            (datadict.read_tree reads each field strictly)
+    [u32 n][n tagged fields]            (tagged.read_tree reads each field strictly)
 
-Located as a COUNT-FRAMED block (Shape A): a block declares its own field count and must
-read to exactly that many fields, so its extent is proved rather than guessed. The walk is
-one forward pass over the region: at every candidate `[u32 n][tag 01 type]` it reads n
+`find_region` gives the window to search: the densest cluster of the `comp` tag, padded
+60 KB before and 300 KB after. The pad is slack, not content -- the first rule file opens
+~66 bytes before the cluster's first `comp` and the last closes ~170 bytes after its last
+-- and the dictionary's real extent is the span from the first rule file to the last.
+
+Each file is located as a COUNT-FRAMED block (Shape A): a block declares its own field
+count and must read to exactly that many fields, so its extent is proved rather than
+guessed. The walk is one forward pass over the window: at every candidate `[u32 n][tag 01 type]` it reads n
 fields strictly, and a block that reads is taken whole and the walk resumes after it, so a
 block's inner containers are never re-read as blocks of their own. A block is a rule file
 iff its top level carries both `ftye` and `file`. Every count-framed block in the span is a
@@ -43,27 +48,37 @@ the same declaration the archive members read with; a nation's three kinds of fi
 with `NATION_COMPS`, `NATION_RESERVE_COMPS` and `NATION_RULES`; and the two Welsh files
 that configure a competition with no stage list read with `STAGELESS_COMP`.
 `scripts/audit/audit_records.py --map` prints them.
+
+A nation's `_comps` file carries `retm`, a list of team-count rules (`TEAM_RULE`), each
+naming a competition by uid and, on 18% of them, its number of teams. `team_counts()` reads
+them: 190 competitions, among them 3F Superliga (uid 6) and 3. Division, both 12.
 """
 import re
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
-from .. import datadict as DD
 from .. import tagged
-from ..core.tagged_schema import INT, STRING, Tag, TaggedRecord, TaggedSchemaError
+from ..core.tagged_schema import (
+    FOURCC, INT, STRING, AnyOf, ListOf, Nested, Tag, TaggedRecord, TaggedSchemaError)
+from ..save import cache_key
 from . import comp_rules as CR
 
 __all__ = [
     "Block",
+    "COMP_REF",
     "NATION_COMPS",
     "NATION_RESERVE_COMPS",
     "NATION_RULES",
     "STAGELESS_COMP",
+    "TEAM_RULE",
     "RuleFileError",
+    "RegionNotFound",
     "blocks",
+    "find_region",
     "framing_problems",
     "read",
     "rule_files",
     "schema_for",
+    "team_counts",
     "tiling",
 ]
 
@@ -71,6 +86,45 @@ __all__ = [
 _FIELD_HEAD = re.compile(rb"[\x20-\x7e]{4}\x01[\x00-\x20]")
 _MAX_FIELDS = 5000
 _CONTAINER_HEAD = b"\x01\x0a"
+
+_TAG_COMP = b"pmoc"         # `comp` as stored (reversed)
+_CLUSTER_GAP = 500_000      # two `comp` tags this far apart start a new cluster
+_PAD_LO, _PAD_HI = 60_000, 300_000
+
+# Keyed by save.cache_key -- (id(mm), len(mm)) -- never id(mm) alone: CPython reuses a freed
+# object's id, so a loop over saves would be served the previous save's answer.
+_REGION_CACHE: Dict[Any, Tuple[int, int]] = {}
+_BLOCK_CACHE: Dict[Any, List["Block"]] = {}
+
+
+class RegionNotFound(Exception):
+    """The save carries no `comp` tag, so there is no dictionary to walk."""
+
+
+def find_region(mm: Any) -> Tuple[int, int]:
+    """(lo, hi): the window the walk searches -- the densest cluster of the `comp` tag,
+    padded. Raises rather than falling back to a fixed window."""
+    key = cache_key(mm)
+    if key in _REGION_CACHE:
+        return _REGION_CACHE[key]
+    hits, i = [], mm.find(_TAG_COMP)
+    while i != -1:
+        hits.append(i)
+        i = mm.find(_TAG_COMP, i + 1)
+    if not hits:
+        raise RegionNotFound("no `comp` tag in this save: there is no data dictionary")
+    clusters, cur = [], [hits[0]]
+    for h in hits[1:]:
+        if h - cur[-1] <= _CLUSTER_GAP:
+            cur.append(h)
+        else:
+            clusters.append(cur)
+            cur = [h]
+    clusters.append(cur)
+    best = max(clusters, key=len)
+    region = (max(0, best[0] - _PAD_LO), min(len(mm), best[-1] + _PAD_HI))
+    _REGION_CACHE[key] = region
+    return region
 
 
 # ---- the schemas ---------------------------------------------------------------------------
@@ -89,9 +143,28 @@ def _head(kind: str) -> List[Tag]:
 
 _TRAILER = ("vers", "nati", "Bran", "XSvC", "EdBr", "EdDt")
 
-NATION_COMPS = TaggedRecord("rule_file_nation_comps", _head("<nat>_comps"), unread=_TRAILER + (
-    'dvlv', 'cmps', 'retm', 'dfdl', 'desc', 'ind1', 'ftac', 'year', 'updy'),
-    note="a nation's competition list: division levels (dvlv), competitions (cmps)")
+# A competition reference held in a container: `{id 'comp', comp <uid>}`.
+COMP_REF = TaggedRecord("rule_file_comp_ref", [
+    Tag("id",   "ref_code", FOURCC, required=True, note="'comp'"),
+    Tag("comp", "comp_uid", INT,    required=True, note="= staging.competitions.uid"),
+], unread=("DBID",))
+
+# One element of a nation's `retm` list: a team-count rule for one competition (or, where
+# `comp` is absent, for a team or a nation).
+TEAM_RULE = TaggedRecord("rule_file_team_rule", [
+    Tag("comp", "comp_uid", AnyOf(INT, Nested(COMP_REF, pick="comp_uid")),
+        note="the competition; a u32 uid or a COMP_REF. Absent on the team/nation rules"),
+    Tag("ntms", "teams",    INT, note="teams in the competition, on 18% of rules"),
+    Tag("nxss", "nxss",     INT, required=True,
+        note="0 on every rule but one: Chile's 5250792 carries 0 (17 teams) and 1 (16)"),
+], unread=('umox', 'igmt', 'mntm', 'mxtm', 'type', 'pare', 'team', 'Bktm', 'nati', 'Cexi',
+           'STpr', 'spst'))
+
+NATION_COMPS = TaggedRecord("rule_file_nation_comps", _head("<nat>_comps") + [
+    Tag("retm", "team_rules", ListOf(TEAM_RULE), note="team-count rules; team_counts()"),
+], unread=_TRAILER + ('dvlv', 'cmps', 'dfdl', 'desc', 'ind1', 'ftac', 'year', 'updy'),
+    note="a nation's competition list: division levels (dvlv), competitions (cmps), "
+         "team-count rules (retm)")
 
 NATION_RESERVE_COMPS = TaggedRecord(
     "rule_file_nation_reserve_comps", _head("<nat>_reserve_comps"), unread=_TRAILER + (
@@ -99,9 +172,11 @@ NATION_RESERVE_COMPS = TaggedRecord(
         'u21t'),
     note="a nation's reserve and youth competitions")
 
-NATION_RULES = TaggedRecord("rule_file_nation_rules", _head("<nat>_rules"), unread=_TRAILER + (
+NATION_RULES = TaggedRecord("rule_file_nation_rules", _head("<nat>_rules") + [
+    Tag("retm", "team_rules", ListOf(TEAM_RULE), note="the merged copy of _comps' retm"),
+], unread=_TRAILER + (
     'updy', 'fxrl', 'dsrl', 'trwi', 'year', 'sswn', 'lnrl', 'trrl', 'stdr', 'wdft', 'mdft',
-    'wkpm', 'tfxt', 'TrCm', 'mdsw', 'prsw', 'CnRl', 'dvlv', 'cmps', 'retm', 'fles', 'rsvl',
+    'wkpm', 'tfxt', 'TrCm', 'mdsw', 'prsw', 'CnRl', 'dvlv', 'cmps', 'fles', 'rsvl',
     'dfdl', 'rsno', 'rsvt', 'pspd', 'trsd', 'pmdf', 'Draf', 'ifdr', 'hlps', 'desc', 'snft',
     'BclT', 'ReTT', 'Lpsd', 'wkFT', 'NtSr', 'ifdy', 'ind1', 'ftac', 'u23t', 'u18t', 'PtSm',
     'ifsd', 'RgFr', 'u19t', 'u21t'),
@@ -138,9 +213,13 @@ class Block(NamedTuple):
 
 
 def blocks(mm: Any, lo: Optional[int] = None, hi: Optional[int] = None) -> List[Block]:
-    """Every count-framed tagged block in the region, in order, none overlapping."""
+    """Every count-framed tagged block in the window, in order, none overlapping."""
+    key = None
     if lo is None or hi is None:
-        lo, hi = tagged.find_tagged_region(mm)
+        key = cache_key(mm)
+        if key in _BLOCK_CACHE:
+            return _BLOCK_CACHE[key]
+        lo, hi = find_region(mm)
     out: List[Block] = []
     end = lo
     for m in _FIELD_HEAD.finditer(mm, lo + 4, hi):
@@ -153,12 +232,14 @@ def blocks(mm: Any, lo: Optional[int] = None, hi: Optional[int] = None) -> List[
         q, fields = p, []
         try:
             for _ in range(n):
-                f, q = DD.read_tree(mm, q, hi)
+                f, q = tagged.read_tree(mm, q, hi)
                 fields.append(f)
-        except DD.TreeError:
+        except tagged.TreeError:
             continue
         out.append(Block(p - 4, q, fields))
         end = q
+    if key is not None:
+        _BLOCK_CACHE[key] = out
     return out
 
 
@@ -229,3 +310,16 @@ def tiling(mm: Any, lo: Optional[int] = None, hi: Optional[int] = None) -> Dict[
     other = sum(b.end - b.start for b in bl if not b.is_rule_file)
     return {"span": span, "rule_files": covered, "n_rule_files": len(rf),
             "other_blocks": other, "unread": span - covered - other}
+
+
+def team_counts(mm: Any) -> Dict[int, int]:
+    """{competition uid: teams} from every nation's `_comps` team-count rules -- the rules
+    that name a competition and carry `ntms`, with `nxss` 0."""
+    out: Dict[int, int] = {}
+    for b in rule_files(mm):
+        if schema_for(b) is not NATION_COMPS:
+            continue
+        for rule in read(b)["team_rules"] or []:
+            if rule["comp_uid"] is not None and rule["teams"] is not None and not rule["nxss"]:
+                out[rule["comp_uid"]] = rule["teams"]
+    return out

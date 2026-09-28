@@ -5,12 +5,12 @@ Located inside the save's zstd tail archive (Shape D), one member per loaded com
 named by the competition's `uid` -- the same uid the competition table in the main save
 holds, so `staging.competitions.uid` names the member directly.
 
-A member is a fixed 54-byte header (`HEADER`, declared below) followed by a TAGGED block in
-the data-dictionary wire format (`fmparser/datadict.py`, read strictly by
-`datadict.read_tree`). The header declares the block's top-level field count at +50, and
-the block is exactly that many fields: they end at the file trailer (`XSvC`, `EdBr`,
-`EdDt`, `SubF` = the source path); binary runtime state follows and is not read. A member
-declaring 0 fields is a stub (the competition is loaded but not configured).
+A member is a fixed 54-byte header (`HEADER`, declared below) followed by a block in the
+tagged wire format (`fmparser/tagged.py`, read strictly by `tagged.read_tree`). The header
+declares the block's top-level field count at +50, and the block is exactly that many
+fields: they end at the file trailer (`XSvC`, `EdBr`, `EdDt`, `SubF` = the source path);
+binary runtime state follows and is not read. A member declaring 0 fields is a stub (the
+competition is loaded but not configured).
 
 The tagged block is declared per TAG below -- FILE -> stgs -> STAGE -> rnds -> ROUND, with
 NAME_REF for a name held in a container -- and read through those declarations
@@ -29,7 +29,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from .. import archive as A
-from .. import datadict as DD
+from .. import tagged
 from ..core import Field, PAD, Record, TableDef, U16, U32, UNKNOWN
 from ..core.tagged_schema import (
     FOURCC, INT, AnyOf, ListOf, Nested, Tag, TaggedRecord, TaggedSchemaError)
@@ -165,8 +165,8 @@ class _TaggedField:
 
     def read(self, blob: Any, pos: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
         try:
-            field, nxt = DD.read_tree(blob, pos, limit)
-        except DD.TreeError as e:
+            field, nxt = tagged.read_tree(blob, pos, limit)
+        except tagged.TreeError as e:
             raise RulesError(str(e)) from e
         return {"field": field}, nxt
 

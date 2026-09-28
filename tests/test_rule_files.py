@@ -10,6 +10,7 @@ Guard the data dictionary's rule files (fmparser/tables/rule_files.py) on real s
             every required tag is present; every file reads through its schema
   TILING    the unread share of the span stays at or under 1%
   ARCHIVE   every configured comp_<uid>.dat member names a rule file the dictionary holds
+  TEAMS     team_counts(): 3F Superliga (uid 6) and 3. Division (uid 2000016262) have 12
 
     uv sync --extra archive
     uv run python tests/test_rule_files.py
@@ -28,6 +29,7 @@ SAVES = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 SKIP = 77
 N_RULE_FILES = 667
 MAX_UNREAD = 0.01
+TEAMS = {6: 12, 2000016262: 12}         # 3F Superliga, 3. Division -- both 12-team leagues
 
 
 def saves():
@@ -78,6 +80,10 @@ def main() -> int:
                 if r["undeclared"] or r["missing"]:
                     failures.append(f"{base} {rec}: undeclared {r['undeclared']} "
                                     f"missing {r['missing']}")
+            tc = RF.team_counts(mm)
+            got = {uid: tc.get(uid) for uid in TEAMS}
+            if got != TEAMS:
+                failures.append(f"{base}: team_counts {got}, want {TEAMS}")
             names = archive_files(mm)
             if names is not None and names - {b.file for b in files}:
                 failures.append(f"{base}: archive members name files the dictionary lacks: "
