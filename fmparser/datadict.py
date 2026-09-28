@@ -12,11 +12,21 @@ WIRE FORMAT (fully decoded here; richer than tagged.py's original subset):
   `[0x01][type][value]` (tag "~"). Value size depends on type:
 
     type            size            meaning
-    0x01 0x0b 0x13   4              u32   (0x0b semantics unconfirmed -> kept raw)
+    0x00             0              no value
+    0x01 0x13        4              u32
+    0x0b             4              LIST: value = element count; that many tagless
+                                    elements follow. (Confirmed in the archive's
+                                    comp_<uid>.dat members, where a list is one of the
+                                    member's declared top-level fields. walk_stream still
+                                    reads it as a 4-byte scalar with the raw bytes kept,
+                                    so its elements come out as siblings.)
     0x02             4              entity-type reference (a reversed 4-char tag)
     0x03 0x11        1              u8
     0x12             2              u16
-    0x14             8              u64
+    0x0f             8              a pair of u32 (a name id stored this way repeats: 28, 28)
+    0x14 0x18        8              u64
+    0x19             4              f32
+    0x20             4              u32 (a timestamp-like value before `SubF`)
     0x0a             4 + children   CONTAINER: value = child count; children follow.
                                     Three forms: id-headed record (`<tag> 0a <n>` then
                                     `id 02 <tag>` then n children), headerless container
@@ -41,8 +51,16 @@ LO, HI = tagged.TAGGED_LO, tagged.TAGGED_HI
 
 CONTAINER = 0x0a
 STRING = 0x1a
-FIXED = {0x01: 4, 0x02: 4, 0x0b: 4, 0x13: 4, 0x03: 1, 0x11: 1, 0x12: 2, 0x14: 8}
+LIST = 0x0b
+PAIR = 0x0f
+FIXED = {0x00: 0, 0x01: 4, 0x02: 4, 0x0b: 4, 0x13: 4, 0x03: 1, 0x11: 1, 0x12: 2, 0x14: 8,
+         0x0f: 8, 0x18: 8, 0x19: 4, 0x20: 4}
 KNOWN_TYPES = set(FIXED) | {CONTAINER, STRING}
+# The types the LENIENT scan (walk_stream/_parse) accepts. The region interleaves tagged
+# fields with binary fragments, and a scan that also accepted the zero-width 0x00 or the
+# rarer types would turn stray `01 xx` byte pairs inside those fragments into fields. The
+# strict reader (read_tree) accepts every type, because its extent is declared.
+STREAM_TYPES = {0x01, 0x02, 0x0b, 0x13, 0x03, 0x11, 0x12, 0x14, CONTAINER, STRING}
 
 # On-disk types whose meaning isn't fully confirmed -> keep raw bytes inline as a 3rd
 # element of the field pair, so the value can be reinterpreted later without the save.
@@ -93,7 +111,7 @@ def _parse(mm, p, hi, records=None, types=None, parent="~root"):
     hdr = _header(mm, p, hi)
     if hdr:
         tag, typ, vpos = hdr
-    elif mm[p] == 0x01 and mm[p + 1] in KNOWN_TYPES:
+    elif mm[p] == 0x01 and mm[p + 1] in STREAM_TYPES:
         tag, typ, vpos = "~", mm[p + 1], p + 2
     else:
         return None
@@ -123,7 +141,7 @@ def _parse(mm, p, hi, records=None, types=None, parent="~root"):
             records.append({"entity": tag, "offset": p, "fields": kids})
         return [tag, kids], q
 
-    if typ not in KNOWN_TYPES:
+    if typ not in STREAM_TYPES:
         return None
     v = _value(mm, typ, vpos, hi)
     if not v:
@@ -134,6 +152,50 @@ def _parse(mm, p, hi, records=None, types=None, parent="~root"):
     if typ in AMBIGUOUS_TYPES:
         return [tag, val, raw.hex()], nxt
     return [tag, val], nxt
+
+
+class TreeError(Exception):
+    """A tagged block did not read to its declared extent."""
+
+
+def read_tree(mm, p, hi, max_items=5000):
+    """STRICT read of one field at p -> ((tag, type, value), next_p).
+
+    For a block whose extent is DECLARED -- the archive's comp_<uid>.dat members declare
+    their top-level field count -- so anything that does not parse is an error, never a
+    shorter result. Unlike the lenient `_parse`: every type in FIXED is accepted, a LIST
+    (0x0b) is `[n]` then n elements, containers keep an `id` child as an ordinary field,
+    and a PAIR decodes to a (u32, u32) tuple. Tagless fields have tag None; containers and
+    lists decode to a list of child fields."""
+    hdr = _header(mm, p, hi)
+    if hdr:
+        tag, typ, vpos = hdr
+    elif p + 2 <= hi and mm[p] == 0x01 and mm[p + 1] in KNOWN_TYPES:
+        tag, typ, vpos = None, mm[p + 1], p + 2
+    else:
+        raise TreeError(f"no tagged field at {p}")
+    if typ not in KNOWN_TYPES:
+        raise TreeError(f"unknown field type 0x{typ:02x} at {p}")
+    if typ in (CONTAINER, LIST):
+        if vpos + 4 > hi:
+            raise TreeError(f"count at {vpos} runs past {hi}")
+        n = int.from_bytes(mm[vpos:vpos + 4], "little")
+        if n > max_items:
+            raise TreeError(f"implausible item count {n} at {p}")
+        q, kids = vpos + 4, []
+        for _ in range(n):
+            kid, q = read_tree(mm, q, hi, max_items)
+            kids.append(kid)
+        return (tag, typ, kids), q
+    if typ == PAIR:
+        if vpos + 8 > hi:
+            raise TreeError(f"pair at {vpos} runs past {hi}")
+        return (tag, typ, (int.from_bytes(mm[vpos:vpos + 4], "little"),
+                           int.from_bytes(mm[vpos + 4:vpos + 8], "little"))), vpos + 8
+    v = _value(mm, typ, vpos, hi)
+    if not v:
+        raise TreeError(f"value of type 0x{typ:02x} at {vpos} runs past {hi}")
+    return (tag, typ, v[0]), v[1]
 
 
 def is_record(mm, p, hi=None):

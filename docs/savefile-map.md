@@ -34,7 +34,7 @@ preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `
 by a structural test described in the notes.
 
 ### Table Engine Migration Status Summary
-* **Migrated to `TableDef` (18 tables)**: `player_attributes`, `staff`, `round_names`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`.
+* **Migrated to `TableDef` (19 tables)**: `player_attributes`, `staff`, `round_names`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`, `comp_rules` (a declared 54-byte `HEADER`, then the header's declared count of tagged fields, each read by `datadict.read_tree`).
 * **Blocked on Engine Capability (2 tables)**:
   * `competitions` (`comp_table`, 1,372 records) — Shape A count-framed, blocked on nested variable reference array (`n_refs: u32` then `n_refs * 8B`).
   * `clubs` (`club_table`, 11,331 records) — Shape A count-framed, blocked on nested affiliations array (`naff: u16` then `naff * 21B`).

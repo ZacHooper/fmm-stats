@@ -14,6 +14,14 @@ from .contracts import (
     scrape_contract_status,
     scrape_contracts,
 )
+from .comp_rules import (
+    COMP_RULES_TABLE,
+    HEADER as COMP_RULES_HEADER,
+    competition_rounds,
+    locate_comp_rules,
+    scrape as scrape_comp_rules,
+    stage_rows as comp_rule_stage_rows,
+)
 from .currencies import (
     CURRENCIES_TABLE,
     CURRENCY_HEAD,
@@ -162,6 +170,7 @@ from .staff import (
 TABLES = {
     "cities": CITIES_TABLE,
     "comp_honours": COMP_HONOURS_TABLE,
+    "comp_rules": COMP_RULES_TABLE,
     "comp_stages": COMP_STAGES_TABLE,
     "contracts": CONTRACT_TABLE,
     "currencies": CURRENCIES_TABLE,
@@ -191,6 +200,13 @@ __all__ = [
     "CITY",
     "CITY_RECORD",
     "scrape_cities",
+    # Competition rules (archive comp_<uid>.dat)
+    "COMP_RULES_HEADER",
+    "COMP_RULES_TABLE",
+    "comp_rule_stage_rows",
+    "competition_rounds",
+    "locate_comp_rules",
+    "scrape_comp_rules",
     # Contracts
     "CONTRACT",
     "CONTRACT_DETAIL",

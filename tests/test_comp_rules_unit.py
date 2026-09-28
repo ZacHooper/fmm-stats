@@ -45,10 +45,13 @@ def string(t, s):
     return tag(t, 0x1a, struct.pack("<I", len(b)) + b)
 
 
-def member(fields):
-    head = bytearray(CR.BLOCK_AT)
+def member(fields, declared=None):
+    head = bytearray(CR.HEADER.span)
     head[0:6] = b"\x03\x01tad."
-    struct.pack_into("<I", head, CR.COUNT_AT, len(fields))
+    struct.pack_into("<H", head, CR.HEADER.field("season_year").offset, 2026)
+    struct.pack_into("<H", head, CR.HEADER.field("base_year").offset, 2000)
+    struct.pack_into("<I", head, CR.HEADER.field("n_fields").offset,
+                     len(fields) if declared is None else declared)
     return bytes(head) + b"".join(fields) + b"\xff" * 16
 
 
@@ -86,7 +89,9 @@ def main() -> int:
             failures.append(msg)
 
     blob = build()
-    fields = CR.parse_block(blob)
+    check(CR.HEADER.read(blob, 0)["season_year"] == 2026, "header season_year")
+    check(CR.locate_comp_rules(blob) == (CR.HEADER.span, 4), "locator (base, count)")
+    fields = CR.scrape(blob)
     check([f[0] for f in fields] == ["ftye", "desc", "stgs", "SubF"],
           f"top-level tags {[f[0] for f in fields]}")
     rows = CR.stage_rows(1301396, fields)
@@ -102,20 +107,21 @@ def main() -> int:
     check(rows[1]["n_groups"] == 8, "n_groups")
     check(all(r["uid"] == 1301396 for r in rows), "uid carried")
 
-    # a truncated member must raise, not return a short list
-    try:
-        CR.parse_block(blob[:CR.BLOCK_AT + 20])
-        check(False, "truncated block parsed without error")
-    except CR.RulesError:
-        pass
+    # a truncated member, an over-declared count and an unknown value type must all raise,
+    # never return a shorter list
+    for label, bad in (
+        ("truncated block", blob[:CR.HEADER.span + 20]),
+        ("over-declared count", member([u8("ftye", 1)], declared=3)),
+        ("unknown type", member([tag("oops", 0x7e, b"\x00\x00")])),
+    ):
+        try:
+            CR.scrape(bad)
+            check(False, f"{label} parsed without error")
+        except CR.RulesError:
+            pass
 
-    # an unknown value type must raise
-    bad = member([tag("oops", 0x7e, b"\x00\x00")])
-    try:
-        CR.parse_block(bad)
-        check(False, "unknown type parsed without error")
-    except CR.RulesError:
-        pass
+    # a stub member (declares 0 fields) reads as empty
+    check(CR.scrape(member([])) == [], "stub member")
 
     for f in failures:
         print("FAIL", f)

@@ -55,6 +55,7 @@ from fmparser.tables.player_attributes import scrape_player_attributes     # noq
 from fmparser.tables import fixtures as FX           # noqa: E402
 from fmparser.tables import comp_stages as CS          # noqa: E402
 from fmparser.tables import comp_honours as CH         # noqa: E402
+from fmparser.tables import comp_rules as CRU          # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +150,9 @@ LAYOUTS = {
     "comp_man_header": _from_record(CS.HEADER),
     "comp_man_stage": _from_record(CS.STAGE),
     "comp_man_honour": _from_record(CH.HONOUR),
+    # comp_<uid>.dat: only the fixed 54-byte header is a record; the tagged block after it
+    # is wire format (datadict.read_tree), bounded by the header's declared field count.
+    "comp_rules_header": _from_record(CRU.HEADER),
 }
 
 
