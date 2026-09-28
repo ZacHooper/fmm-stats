@@ -9,6 +9,7 @@
 import * as D from "./data.js";
 import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
   ATTR_BANDS, DASH } from "./ui.js";
+import { loanOutlook } from "./loans.js";
 
 // A per-viewer preference, not per-player state — once you've picked "+ growth + trend" you
 // want it on every profile you open from then on, not reset back to the plain grid each time.
@@ -273,7 +274,7 @@ export function openProfile(tid, { role = null } = {}) {
       + "familiarity. <b>Fit %ile</b> is where that rating places him at that position "
       + "against everyone in the division — so it answers <i>is he good enough here</i>, and it "
       + "moves when you change tactic. (Level %ile, which measures division quality rather than "
-      + "a player, is on the Squad table and in Opposition.) <b>Squad rank</b> is where he'd "
+      + "a player, is on the Squad table and drives the Loan outlook below.) <b>Squad rank</b> is where he'd "
       + "stand among our own players at that position if he were part of the squad.",
   }));
 
@@ -374,6 +375,10 @@ export function openProfile(tid, { role = null } = {}) {
       ]))),
     ])]));
   }
+
+  // Where he'd get games on loan — owned players only; a loanee's future isn't ours to place.
+  const loanedIn = D.S.ours.loaned_in?.includes(tid);
+  if (ours && !loanedIn) body.push(loanOutlook(p, shown?.pos));
 
   // Add to shortlist straight from the profile — the moment you've decided he's interesting is
   // while you're looking at him, not after navigating to another section.

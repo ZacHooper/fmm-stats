@@ -14,7 +14,7 @@
  */
 
 export const S = {          // everything loaded, one place
-  index: null, core: null, squad: null, positions: null, matches: null, registration: null,
+  index: null, core: null, squad: null, loans: null, matches: null, registration: null,
   forecast: null, world: null,
   all: null,                // lazy: every player in the save, fetched from R2 on demand
   players: new Map(),       // tid -> player (core, then merged with all)
@@ -112,7 +112,7 @@ export async function boot() {
     if (tail) p.profileLoaded = true;
     S.players.set(p.tid, p);
   }
-  // Fire-and-forget: small enough to prefetch eagerly (unlike squad/positions/matches, which
+  // Fire-and-forget: small enough to prefetch eagerly (unlike squad/loans/matches, which
   // stay lazy), so a profile opened from ANY section already has it rather than only after a
   // visit to Squad.
   loadForecast();
@@ -124,9 +124,12 @@ export async function loadSquad() {
   if (!S.squad) S.squad = await j("api/squad.json");
   return S.squad;
 }
-export async function loadPositions() {
-  if (!S.positions) S.positions = await j("api/positions.json");
-  return S.positions;
+/** The loan outlook for owned players (see api/loans.json's note). Rendered server-side
+ *  because it orders players by ability; only the profile sheet asks for it. `.catch` so an
+ *  older export without the file degrades to "unavailable" instead of breaking the sheet. */
+export async function loadLoans() {
+  if (!S.loans) S.loans = await j("api/loans.json").catch(() => ({ error: "not in this export" }));
+  return S.loans;
 }
 /** Squad registration: the derived home-grown status and the rule set for our tier. Small,
  *  and only the Squad page (registration columns) asks for it. */

@@ -10,10 +10,8 @@ import { el, clear, toast } from "./ui.js";
 
 const ROUTES = [
   ["squad", "Squad", () => import("./views/squad.js")],
-  ["positions", "Positions", () => import("./views/positions.js")],
   ["builder", "Builder", () => import("./views/builder.js")],
   ["recruit", "Recruitment", () => import("./views/recruit.js")],
-  ["opposition", "Opposition", () => import("./views/opposition.js")],
   ["matches", "Matches", () => import("./views/matches.js")],
   ["history", "History", () => import("./views/history.js")],
   ["world", "World", () => import("./views/world.js")],
@@ -23,8 +21,10 @@ const main = () => document.getElementById("main");
 let current = null;
 
 // Sections folded into another one, kept so an old bookmark lands somewhere sensible:
-// Development's projections and Registration's lists are columns on Squad now.
-const MOVED = { development: "squad", registration: "squad" };
+// Development's projections and Registration's lists are columns on Squad now, and the
+// Positions loan read is the Loan outlook on every owned player's profile. Opposition was
+// retired outright.
+const MOVED = { development: "squad", registration: "squad", positions: "squad", opposition: "squad" };
 
 function route() {
   let h = (location.hash || "#/squad").replace(/^#\/?/, "").split("?")[0];

@@ -75,7 +75,7 @@ naming it spoils the game they are playing.
 
 What you may use, and should:
 - **`lvl_league` / `lvl_global`** — ability *percentiles* per player-position, the sanctioned form.
-- **Ability ranks** in `positions.json` — "21 of 40", never the number behind it.
+- **Ranks and starter lines** in `loans.json` — "2nd choice at that club", never the number behind it.
 - **`skill_idx`** per league — average ability normalised 0–100.
 
 So: talk about percentiles, ranks and attributes. Never reconstruct or estimate a single ability
@@ -93,7 +93,7 @@ from the base URL of this doc.
 | [`api/clubs.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/clubs.json) | 207 KB (66 KB gz) | name/tid/league for **every** club in the save (not just the ladder). Fetch this instead of `/api/all` when you only need to resolve a club name. |
 | [`api/squad.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/squad.json) | 83 KB | our squad's attributes at **every** snapshot (growth) + career history |
 | [`api/forecast.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/forecast.json) | small | the attribute-forecast lookup: given a player's current value of an attribute and his age, what players like him actually had at 21/24. A LEVEL model, not a growth-rate one — a starting attribute like Technique does not predict how fast another attribute grows (+0.000 R² beyond current value), so don't use one attribute to forecast a different one |
-| [`api/positions.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/positions.json) | 47 KB | the position review: depth charts, ability ranks, keep/loan/sell reads |
+| [`api/loans.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/loans.json) | 44 KB (8 KB gz) | the loan outlook for every owned player: per natural position (familiarity 15+) and per division from ours down to 3. Division, his Level %ile there and, per club, his rank among its natural players at the position, how many start in its manager's preferred formation, and the starter line. Read its `note` and `*_fields` |
 | [`api/matches.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/matches.json) | 115 KB | every parsed match + every per-player-per-match row |
 | [`/api/all`](https://fmm-stats.zac-g-hooper.workers.dev/api/all) | 1.3 MB gz (full); a few KB filtered | **every player in the save** (~23,800), full attributes. Add `?club=<tid>[,<tid>...]` and/or `?tid=<tid>[,<tid>...]` to get back only those players instead of the whole file — the response keeps the same shape (`attrs`/`fields`/`players`/`note`) plus `count` and `filtered_by`. Use `clubs.json` first to find the tid, then `/api/all?club=<tid>` for that club's full attributes. |
 
