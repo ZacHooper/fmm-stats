@@ -132,6 +132,18 @@ PROFILE_EXTRA_FIELDS = [
     "set_pieces", "penalty", "work_rate", "flair",
 ]
 PROFILE_FIELDS = ALL_PLAYER_FIELDS + PROFILE_EXTRA_FIELDS
+# The SELECT list behind PROFILE_EXTRA_FIELDS, in the same order, over mart.player_snapshots `p`
+# joined to mart.nations `n` (PROFILE_JOIN). One definition for all.json and core.json's squad.
+PROFILE_COLS = (
+    "n.name AS nationality, p.foot_left, p.foot_right, p.preferred_squad_number, "
+    "p.joined_date, p.international_caps, p.international_goals, p.u21_caps, "
+    "p.u21_goals, p.reputation, p.current_reputation, p.world_reputation, "
+    "p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure, "
+    "p.professionalism, p.sportsmanship, p.temperament, "
+    "p.jumping, p.consistency, p.big_match, p.injury_prone, p.versatility, "
+    "p.set_pieces, p.penalty, p.work_rate, p.flair")
+PROFILE_JOIN = """LEFT JOIN mart.nations n
+                                 ON (n.season, n.phase, n.id) = (p.season, p.phase, p.nationality_id)"""
 
 
 def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
@@ -165,16 +177,8 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
                                 ON (o.season, o.phase, o.tid) = (p.season, p.phase, p.tid)"""
     profile_join, profile_cols = "", ""
     if include_profile:
-        profile_cols = (
-            ", n.name AS nationality, p.foot_left, p.foot_right, p.preferred_squad_number, "
-            "p.joined_date, p.international_caps, p.international_goals, p.u21_caps, "
-            "p.u21_goals, p.reputation, p.current_reputation, p.world_reputation, "
-            "p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure, "
-            "p.professionalism, p.sportsmanship, p.temperament, "
-            "p.jumping, p.consistency, p.big_match, p.injury_prone, p.versatility, "
-            "p.set_pieces, p.penalty, p.work_rate, p.flair")
-        profile_join = """LEFT JOIN mart.nations n
-                                 ON (n.season, n.phase, n.id) = (p.season, p.phase, p.nationality_id)"""
+        profile_cols = ", " + PROFILE_COLS
+        profile_join = PROFILE_JOIN
     df = db.q(f"""SELECT p.tid, p.name, p.club_tid, p.dob, p.player_value, p.wage_gbp,
                          p.contract_expiry,
                          p.squad_number, p.height_cm, p.weight_kg,
@@ -390,6 +394,22 @@ def main():
                   WHERE season=? AND phase=?""", [season, phase])
     development = dict(zip(dev["tid"].astype(int), dev["development"])) if not dev.empty else {}
 
+    # The profile tail (PROFILE_EXTRA_FIELDS: bio, reputation, personality, the hidden nine) for
+    # our squad, so every field the profile sheet shows is also a Squad column, and our own
+    # profiles open without the lazy /api/all fetch. ~40 players, so it costs a few KB.
+    prof = db.q(f"""SELECT p.tid, {PROFILE_COLS} FROM mart.player_snapshots p {PROFILE_JOIN}
+                    WHERE p.season=? AND p.phase=?""", [season, phase])
+
+    def jv(v):
+        if v is None or (not isinstance(v, str) and pd.isna(v)):
+            return None
+        if isinstance(v, str):
+            return v
+        if hasattr(v, "isoformat"):
+            return v.isoformat()[:10]
+        return int(v) if float(v).is_integer() else float(v)
+    profile_tail = {int(r[0]): [jv(v) for v in r[1:]] for r in prof.itertuples(index=False)}
+
     levels = level_map(db, season, phase)
 
     # ---------------------------------------------------------------- core.json
@@ -441,7 +461,10 @@ def main():
                        if origin.get(t)},
             "capital_eligible": sorted(capital & {int(t) for t in sq["tid"]}),
             "development": {str(int(t)): development[int(t)] for t in sq["tid"]
-                            if development.get(int(t))}},
+                            if development.get(int(t))},
+            "profile_fields": PROFILE_EXTRA_FIELDS,
+            "profile": {str(int(t)): profile_tail[int(t)] for t in sq["tid"]
+                        if int(t) in profile_tail}},
         "note": IMMERSION,
         "players": core_players})
 

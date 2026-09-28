@@ -130,6 +130,8 @@ function profileExtras(p) {
   const bioRows = [
     ["Nationality", prof.nationality || DASH],
     ["Foot", FOOT_LABEL(prof.footLeft, prof.footRight) || DASH],
+    ["Height", p.height ? `${p.height} cm` : DASH],
+    ["Weight", p.weight ? `${p.weight} kg` : DASH],
     ["Squad number", p.shirt != null
       // 0 reads as "no preference set" rather than a real shirt number — only show it when
       // it names an actual, different number.
@@ -140,8 +142,11 @@ function profileExtras(p) {
     ["U21 caps / goals", `${prof.u21Caps ?? DASH} / ${prof.u21Goals ?? DASH}`],
   ];
   wrap.append(el("h4", { text: "Bio" }));
+  // A value may be a node (Foot is two coloured attribute badges), so append it rather than
+  // stringify it.
   wrap.append(el("div.kpis", {}, bioRows.map(([label, value]) =>
-    el("div.kpi", {}, [el("b", { text: String(value) }), el("span", { text: label })]))));
+    el("div.kpi", {}, [el("b", {}, [value instanceof Node ? value : String(value)]),
+      el("span", { text: label })]))));
 
   wrap.append(el("h4", { text: "Reputation" }));
   wrap.append(el("div.kpis", {}, [

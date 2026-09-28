@@ -100,9 +100,16 @@ export async function boot() {
     const lg = S.leagues.get(c.leagueCid);
     if (lg) lg.clubs++;
   }
+  // Our squad's profile tail (bio, reputation, personality, the hidden nine) ships in core.json
+  // as ours.profile, in PROFILE_EXTRA_FIELDS order — appended after the two origin/capital slots
+  // it's a full profile row, so our own players' profiles and Squad columns need no lazy fetch.
+  const tails = core.ours?.profile || {};
   for (const row of core.players) {
-    const p = mkPlayer(row, core.fields, core.attrs);
+    const tail = tails[String(row[0])];
+    const full = tail ? [...row, ...Array(Math.max(0, 12 - row.length)).fill(null), null, null, ...tail] : row;
+    const p = mkPlayer(full, core.fields, core.attrs);
     p.inCore = true;
+    if (tail) p.profileLoaded = true;
     S.players.set(p.tid, p);
   }
   // Fire-and-forget: small enough to prefetch eagerly (unlike squad/positions/matches, which
