@@ -19,6 +19,19 @@ import * as D from "../data.js";
 import { el, num, money, pill, DASH } from "../ui.js";
 import { openProfile } from "../profile.js";
 
+// How far a season got in one competition: the stage of its last match there.
+// "3F Superliga (Championship Group)", "Sydbank Pokalen (Fourth Round, out)".
+function reached(ms, comp) {
+  const staged = ms.filter((m) => m.stage).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (!staged.length) return comp;
+  const last = staged[staged.length - 1];
+  const where = last.stage_kind === "Group" ? "Group stage" : last.stage;
+  const isFinal = /(^|· )Final$/.test(last.stage);
+  const tail = last.went_through === false ? ", out"
+    : isFinal && last.went_through ? ", winners" : "";
+  return `${comp} (${where}${tail})`;
+}
+
 // Appearances needed to qualify for an AVERAGE-RATING award over a full fixture list.
 // Mirrors dashboard/pages/11_Awards.py's RATING_AWARD_APPS — keep the two in step.
 const RATING_AWARD_APPS = 20;
@@ -68,15 +81,16 @@ export async function view() {
       gf: ms.reduce((a, m) => a + (m.gf || 0), 0),
       ga: ms.reduce((a, m) => a + (m.ga || 0), 0),
       ppg: ms.length ? ms.reduce((a, m) => a + (m.pts || 0), 0) / ms.length : null,
-      comps: [...new Set(ms.map((m) => m.competition))].filter(Boolean),
+      comps: [...new Set(ms.map((m) => m.competition))].filter(Boolean)
+        .map((c) => reached(ms.filter((m) => m.competition === c), c)),
       snaps: snap.length,
       att: attBySeason.get(s) || null,
       fin: finBySeason.get(s) || null,
     };
   });
   const HEAD = ["Season", "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm",
-    "Avg crowd", "Max crowd", "Squad value", "Wage bill", "Competitions", "Snapshots"];
-  const TEXT_COLS = new Set([0, HEAD.indexOf("Competitions")]);
+    "Avg crowd", "Max crowd", "Squad value", "Wage bill", "Competitions · how far", "Snapshots"];
+  const TEXT_COLS = new Set([0, HEAD.length - 2]);
   const finTitle = (f) => `At ${f.phase} · ${f.n_owned} owned players`
     + (f.n_value_est ? ` · ${f.n_value_est} valued by the model (no value in the save)` : "")
     + (f.n_loan_in ? ` · ${f.n_loan_in} loanee${f.n_loan_in === 1 ? "" : "s"} excluded` : "");
@@ -105,7 +119,9 @@ export async function view() {
       + "season's last snapshot, owned players only (first team + reserves): loanees are left "
       + "out of both, since their value is their parent club's and our share of their wage "
       + "isn't in the save. A player the save holds no value for is valued by the model — "
-      + "hover a figure to see how many.",
+      + "hover a figure to see how many. How far each run got is the stage of the season's "
+      + "last match in that competition, in the game's own words; \"out\" marks a tie lost, "
+      + "and a run with no marker was still alive at the newest snapshot.",
   }));
 
   // ---------------------------------------------------------------- Hall of Fame
