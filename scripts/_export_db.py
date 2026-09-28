@@ -15,7 +15,8 @@ LOAN_TIERS = 4
 # mart.club_managers.formation_preferred_name). "Would he start there" is answered against the
 # host club's own shape, so a second striker starts at a 4-4-2 club and not at a 4-2-3-1 one.
 # In a back-four 4-2-3-1 the two deep midfielders decode as MC (see mart.rating_roles), and a
-# back five's wide men are DML/DMR.
+# back five's wide men are DML/DMR. A 5-2-2-1's two behind the striker are central (AMC), not
+# wingers — confirmed in-game.
 FORMATION_SLOTS = {
     "4-4-2":         {"GK": 1, "DL": 1, "DC": 2, "DR": 1, "ML": 1, "MC": 2, "MR": 1, "ST": 2},
     "4-4-2 Diamond": {"GK": 1, "DL": 1, "DC": 2, "DR": 1, "DMC": 1, "MC": 2, "AMC": 1, "ST": 2},
@@ -34,7 +35,7 @@ FORMATION_SLOTS = {
     "4-5-1":         {"GK": 1, "DL": 1, "DC": 2, "DR": 1, "ML": 1, "MC": 3, "MR": 1, "ST": 1},
     "5-1-2-2":       {"GK": 1, "DML": 1, "DC": 3, "DMR": 1, "DMC": 1, "MC": 2, "ST": 2},
     "5-2-1-2":       {"GK": 1, "DML": 1, "DC": 3, "DMR": 1, "MC": 2, "AMC": 1, "ST": 2},
-    "5-2-2-1":       {"GK": 1, "DML": 1, "DC": 3, "DMR": 1, "MC": 2, "AML": 1, "AMR": 1, "ST": 1},
+    "5-2-2-1":       {"GK": 1, "DML": 1, "DC": 3, "DMR": 1, "MC": 2, "AMC": 2, "ST": 1},
     "5-3-2":         {"GK": 1, "DML": 1, "DC": 3, "DMR": 1, "MC": 3, "ST": 2},
 }
 # A club whose manager record did not parse is read as the most common shape in the ladder.
