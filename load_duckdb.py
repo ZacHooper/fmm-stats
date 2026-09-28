@@ -607,6 +607,22 @@ DDL = [
         stage_index INTEGER, round_index INTEGER, subr INTEGER
     )""",
 
+    # natural key: (season, phase, uid, stage_index, round_index). Each competition's
+    # stage/round structure from its archive member comp_<uid>.dat; `uid` is
+    # staging.competitions.uid, and stage_index/round_index are the numbers
+    # world_fixtures carries. Name ids resolve through staging.round_names.
+    """CREATE TABLE IF NOT EXISTS staging.competition_rounds (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, uid BIGINT NOT NULL,
+        stage_index INTEGER, stage_code VARCHAR, stage_type INTEGER, stage_teams INTEGER,
+        stage_name_id BIGINT, n_groups INTEGER,
+        round_index INTEGER, round_name_id BIGINT, round_teams INTEGER, legs INTEGER
+    )""",
+
+    # natural key: (season, phase, id). The game's stage/round/leg name catalog.
+    """CREATE TABLE IF NOT EXISTS staging.round_names (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR
+    )""",
+
     # natural key: (season, phase, tid, position). Long form of players.positions —
     # every position a player can play (14 FM codes) with familiarity 1..20.
     """CREATE TABLE IF NOT EXISTS staging.player_positions (
@@ -1375,12 +1391,9 @@ def load_standings(con, d, season, phase):
 
 
 def load_world(con, d, season, phase):
+    out = {}
     path = os.path.join(d, "world_fixtures.json")
-    if not os.path.exists(path):
-        return {}
-    data = _load_json(path)
-    if not data:
-        return {}
+    data = _load_json(path) if os.path.exists(path) else []
     cols = ["season", "phase", "home_tid", "away_tid", "date", "year", "round",
             "home_goals", "away_goals", "home_pens", "away_pens",
             "stage_key", "seq_id", "season_year", "stage_index", "round_index", "subr"]
@@ -1394,7 +1407,22 @@ def load_world(con, d, season, phase):
             _int(r.get("stage_key")), _int(r.get("seq_id")), _int(r.get("season_year")),
             _int(r.get("stage_index")), _int(r.get("round_index")), _int(r.get("subr"))
         ))
-    return {"world_fixtures": _insert(con, "world_fixtures", cols, rows)}
+    if rows:
+        out["world_fixtures"] = _insert(con, "world_fixtures", cols, rows)
+    path = os.path.join(d, "competition_rounds.json")
+    rules = _load_json(path) if os.path.exists(path) else []
+    if rules:
+        rcols = ["season", "phase", "uid", "stage_index", "stage_code", "stage_type",
+                 "stage_teams", "stage_name_id", "n_groups", "round_index", "round_name_id",
+                 "round_teams", "legs"]
+        out["competition_rounds"] = _insert(con, "competition_rounds", rcols, [
+            (season, phase) + tuple(r.get(c) for c in rcols[2:]) for r in rules])
+    path = os.path.join(d, "round_names.json")
+    names = _load_json(path) if os.path.exists(path) else []
+    if names:
+        out["round_names"] = _insert(con, "round_names", ["season", "phase", "id", "name"], [
+            (season, phase, r["id"], r["name"]) for r in names])
+    return out
 
 
 # DELETE scope so a reload of one group leaves the others intact
@@ -1417,7 +1445,8 @@ def _clear_group(con, group, season, phase):
         _delete(con, "standings", season, phase,
                 "AND source='lightresults_computed'")
     elif group == "world":
-        _delete(con, "world_fixtures", season, phase)
+        for tbl in ("world_fixtures", "competition_rounds", "round_names"):
+            _delete(con, tbl, season, phase)
 
 
 _GROUP_FN = {"core": load_core, "light": load_light, "standings": load_standings, "world": load_world}
@@ -1647,6 +1676,22 @@ _MIGRATIONS = [
         stage_key INTEGER, seq_id INTEGER,
         season_year INTEGER,
         stage_index INTEGER, round_index INTEGER, subr INTEGER
+    )""",
+
+    # natural key: (season, phase, uid, stage_index, round_index). Each competition's
+    # stage/round structure from its archive member comp_<uid>.dat; `uid` is
+    # staging.competitions.uid, and stage_index/round_index are the numbers
+    # world_fixtures carries. Name ids resolve through staging.round_names.
+    """CREATE TABLE IF NOT EXISTS staging.competition_rounds (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, uid BIGINT NOT NULL,
+        stage_index INTEGER, stage_code VARCHAR, stage_type INTEGER, stage_teams INTEGER,
+        stage_name_id BIGINT, n_groups INTEGER,
+        round_index INTEGER, round_name_id BIGINT, round_teams INTEGER, legs INTEGER
+    )""",
+
+    # natural key: (season, phase, id). The game's stage/round/leg name catalog.
+    """CREATE TABLE IF NOT EXISTS staging.round_names (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR
     )""",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS international_retired BOOLEAN",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS squad_number INTEGER",

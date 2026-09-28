@@ -370,10 +370,11 @@ are parsed and wired (`fmparser/fixtures.py`, `fmparser/compman.py`).
 The remaining open members in the archive:
 
 - **`comp_hosts.dat`** (31 KB) — variable-length, 4-year host cycles (`0x07d2, 0x07d6, ...`).
-- **The 147 `comp_<id>.dat` ids are not our `cid` space.** `reference.comp_refs` resolves
-  1 of 147. The datadict's `DBID` values overlap 54 of them and its `comp` values 92, so a
-  mapping probably exists; **none is established.** Settle this before building anything on a
-  per-competition member, because without it you cannot say which competition a file is.
+- **`comp_<uid>.dat` beyond the stage list.** The members are parsed (`comp_rules.py`) and
+  their stages/rounds labelled, but the rest of each tree is unread: prize money (`przm`,
+  `wnpz`), qualification and seeding rules (`strq`, `advs`, `rank`), TV and scheduling
+  (`tvds`, `drdt`). `fix_man`'s extra-time goals (+7/+12) are also not emitted, so a fixture
+  the store never saw keeps its 90-minute score.
 - **`rule_group.dat`** carries plain-text engine logs (`15/6/2025: Promoted seeding for Denmark
   (13th) - id=0 EURO Cup old_seed=2 new_seed=1`) — the only prose in the archive.
 - **Three members are static**: `discipline.dat` is byte-identical on every save of both

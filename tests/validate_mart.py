@@ -950,6 +950,46 @@ def main():
     check("club_squad_latest: our rows are squad_current's, and nobody is listed twice",
           sq[0] == sq[1] and sq[2] == 0, f"{sq[0]} vs {sq[1]} ours, {sq[2]} duplicates")
 
+    # match_stages: every competitive match of ours in a competition with rules is labelled
+    unl = con.execute(f"""
+        WITH ours AS (
+            SELECT DISTINCT m.club_tid, m.date, m.opp_tid, m.competition
+            FROM mart.club_matches m
+            JOIN (SELECT cid, arg_max(uid, phase) AS uid FROM {src}.competitions
+                  GROUP BY cid) c ON c.cid = m.comp_id
+            WHERE m.club_tid IN (SELECT club_tid FROM mart.managed_club)
+              AND c.uid IN (SELECT uid FROM {src}.competition_rounds))
+        SELECT COUNT(*), COUNT(s.stage_label)
+        FROM ours o LEFT JOIN mart.match_stages s
+          ON (s.club_tid, s.date, s.opp_tid) = (o.club_tid, o.date, o.opp_tid)""").fetchone()
+    check("match_stages labels every match of ours in a competition with rules",
+          unl[0] == 0 or unl[0] == unl[1], f"{unl[1]} of {unl[0]} labelled")
+    legs = con.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT 1 FROM mart.match_stages WHERE legs = 2
+            GROUP BY club_tid, uid, season_year, stage_index, round_index, opp_tid
+            HAVING COUNT(*) > 2)""").fetchone()[0]
+    check("no two-legged tie has more than two legs", legs == 0, f"{legs} ties over")
+    # The in-game fixture screens (2026/27 and 2027/28), read back from the view.
+    GROUND = [
+        ("2026-08-13", "League Path · Third Qualifying Round", 2),   # Hajduk
+        ("2026-08-20", "Playoff", 1),                                # Olympiacos
+        ("2026-09-17", "Group D", None),                             # Lyon
+        ("2026-09-24", "Third Round", None),                         # Roskilde, Pokalen
+        ("2026-08-09", "Preliminary Phase", None),                   # AGF, Superliga
+        ("2027-02-18", "First Knockout Round", 1),                   # Leipzig
+        ("2027-04-04", "Championship Group", None),                  # Nordsjælland
+        ("2027-08-04", "League Path · Third Qualifying Round", 1),   # Rangers
+    ]
+    got = dict(((str(d), (lab, leg)) for d, lab, leg in con.execute("""
+        SELECT date, stage_label, leg FROM mart.match_stages
+        WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)""").fetchall()))
+    held = [(d, lab, leg) for d, lab, leg in GROUND if d in got]
+    bad = [(d, got[d], (lab, leg)) for d, lab, leg in held if got[d] != (lab, leg)]
+    check("match_stages reproduces the in-game fixture labels",
+          not bad, f"{len(held) - len(bad)} of {len(held)} held"
+          + (f" — {bad}" if bad else ""))
+
     # -- 11. position-adjusted match rating --------------------------------------------
     print("\n11. position-adjusted match rating")
     unmapped = con.execute("""

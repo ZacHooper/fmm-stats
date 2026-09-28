@@ -83,7 +83,10 @@ too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attribute
 `mart.transfers` (every club move with its fee, from the career history; `season` = the campaign
 the player moves for),
 `mart.squad_finances` (our squad value + wage bill on every snapshot date — owned players only, loanees out of both, the modelled share counted),
-`mart.player_primary_position` (the one primary-position rule), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
+`mart.player_primary_position` (the one primary-position rule), `mart.match_stages` (every fixture of a competition we play,
+labelled in the game's own words — 'League Path · Third Qualifying Round', 'Group D',
+'Championship Group' — with the leg, the tie aggregate and whether the club went through;
+from each competition's rules member in the save archive), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
 (every club's genuine squad now), and `mart.player_development` (a
 **development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
 ceiling' — the only form potential ever leaves the mart in; there are deliberately no stars). Use the full `site-data/fm-frem.duckdb` only

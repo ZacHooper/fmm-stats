@@ -118,10 +118,60 @@ decompressed bytes, measured on four saves:
 | `fifa_rankings` | 14 B | 14 B | 14 B | 14 B | a date and one u16. Despite the name it holds no ranking table |
 | `squad_man` | 225 B | 97 B | 17 B | 17 B | shrinks to a stub; nothing in it by 2026 |
 
-The 147 `comp_<id>.dat` ids are **not our `cid` space**: they run `1, 2, 6, 7, 8, 11 … 100101
-… 2000099928`, and `reference.comp_refs` resolves exactly **1 of 147**. The tagged data
-dictionary's `DBID` values overlap 54 of them and its `comp` values 92, so a mapping
-probably exists but **none is established here** — treat the id as opaque until it is.
+The 147 `comp_<id>.dat` ids are **not our `cid` space — they are the competition `uid`**. The
+competition record in the main save holds its uid immediately before its name, and
+`fmparser/clubs_comps.py` already reads it into `staging.competitions.uid`: `cid 2` 3F
+Superliga is `comp_6.dat`, `cid 256` European Champions Cup `comp_1301394.dat`, `cid 258`
+EURO Cup `comp_1301396.dat`, `cid 263` Sydbank Pokalen `comp_1301406.dat`. See the next
+section for what the members hold.
+
+## `comp_<uid>.dat` — each competition's rules: stages, rounds and their names
+
+Decoded 2026-09-28; parsed by `fmparser/tables/comp_rules.py`, loaded as
+`staging.competition_rounds`. Each member is a **tagged tree** in the same wire format as the
+tagged data dictionary (FourCC field names stored byte-reversed), after a 50-byte preamble:
+
+    [6-byte member header][44-byte preamble][u32 n @ +50][n fields @ +54]
+    field     = [tag x4][0x01][type][value]  |  [0x01][type][value]  (tagless list element)
+    0x0a container [u32 m][m fields]   0x0b list [u32 n][n fields]   0x1a string [u32 len][bytes]
+    0x0f a pair of u32                 0x00 empty    others fixed width (1/2/4/8 bytes)
+
+The `n` fields end at the trailer `XSvC`/`EdBr`/`EdDt`/`SubF` (`SubF` is the source path, e.g.
+`.\europe\`); binary runtime state follows and is not read. **147/147 members parse to their
+declared count on every save tested in both careers**; 74 declare 0 fields (loaded, not
+configured). The `stgs` list is the stage structure, and it is what `fix_man` indexes:
+
+| field | meaning | fix_man |
+|---|---|---|
+| stage `id` | FourCC code: `leag` `cham` `prom` `rele` `bppr` (League Path) `chpr` (Champions Path) `play` `grou` `cup ` … | |
+| stage `indx` | stage index | **+76 `stage_index`** |
+| stage `type` | 0 knockout, 1 league, 2 groups, 6 play-off feeder | |
+| stage `ntms`, `ngps` | teams, number of groups | |
+| stage `stnm` | stage name id (League Path, Preliminary Phase, Championship Group, Group Stage) | |
+| `rnds[k]` | round `k` of the stage | **+77 `round_index`** |
+| round `stnm`, `ntms`, `nmlg` | round name id, teams, **legs per tie** | |
+
+A name id is either `stnm`'s scalar value or the `stgn` child of an `stnm` container (both
+occur), and resolves through the **round-name catalog** in the main save (273 records,
+`fmparser/tables/rounds.py`, loaded as `staging.round_names`): 17 Quarter Final, 18 Semi
+Final, 20 Final, 73 Group Stage, 76–91 Group A–P, 108 Championship Group, 149–152 First–
+Fourth Qualifying Round, 164/165 First/Second Knockout Round, 236 Preliminary Phase,
+2000016479 League Path, 2000016478 Champions Path.
+
+**Ground truth**: the in-game Club Fixtures screens for 2026/27 and 2027/28 — EURO Cup League
+Path Third Qualifying Round (stage 0, round 0), Playoff (stage 2), Group D, First Knockout
+Round (stage 4, round 0); Champions Cup League Path Third Qualifying Round (stage 1, round 1)
+and Playoff (round 2); 3F Superliga Preliminary Phase (stage 0) and Championship Group (stage
+1); Sydbank Pokalen Third Round (round 2). All reproduce, in `tests/test_comp_rules.py` from
+the save and `tests/validate_mart.py` from `mart.match_stages`.
+
+**The fixture record still carries no competition.** None of the members' uids occurs anywhere
+in `fix_man.dat`, no unnamed fixture byte is constant within a stage and distinct between
+competitions, and `comp_man`'s tail blocks are a day-by-day calendar of stage keys, not a
+competition map. The link runs through the matches the store holds: a match's `comp_id` →
+`staging.competitions.uid` → rules, and its fixture's `stage_key` then labels that stage for
+every club. A knockout round is one `stage_key`; **a group stage is one `stage_key` per group**,
+consecutive, so the letter is the group's place among its siblings (`mart.match_stages`).
 
 ## `comp_man.dat` — master stages calendar and roll of honour
 
@@ -233,8 +283,13 @@ The goals block carries normal goals, extra time/aggregate goals, and penalty sh
 Parsed by `fmparser/fixtures.py` (`FIXTURE`).
 
 ### What is NOT established about `fix_man`
-- **No competition field is identified.** Every fixture's competition is still unknown from
-  the record alone, exactly as for the 25-byte table.
+- **No competition field is identified**, and 2026-09-28 looked for one against the
+  competition uids and found none (see `comp_<uid>.dat` above). A fixture's competition comes
+  from a match the store holds in the same `stage_key`, which labels every fixture of a stage
+  we played in (`mart.match_stages`).
+- **The goals at +6/+11 are the 90-minute score.** Extra-time goals sit at +7/+12 and are not
+  emitted; `mart.match_stages` takes the store's full-time score where it holds the match and
+  flags `extra_time` (3 of our matches to date).
 - **~70 of the 92 bytes are unnamed.** There is no `LAYOUTS` entry for this record yet and
   `scripts/audit_records.py` does not cover it.
 - The 38 KB between segments, and the segment ordering (2026 before 2025), are unexplained.
