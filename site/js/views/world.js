@@ -2,10 +2,8 @@
  * World — the reputation ladder (leagues + nations), and two maps: our nation's clubs by
  * division, and the stadiums of our current squad's origin clubs.
  *
- * Leagues needs no fetch of its own: `D.S.leagues` is already loaded from core.json (it used to
- * live on the Opposition page as the "League reputation ladder" — moved here since it's a
- * world-wide reference table, not something specific to scouting one opponent). Nations and the
- * two maps come from api/world.json, fetched only when this page is opened.
+ * Leagues needs no fetch of its own: `D.S.leagues` is already loaded from core.json. Nations
+ * and the two maps come from api/world.json, fetched only when this page is opened.
  */
 import * as D from "../data.js";
 import { el, clear, bar, num, pill, DASH } from "../ui.js";

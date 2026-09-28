@@ -775,7 +775,7 @@ positives in the award-record region so the next pass does not rediscover them.
   have been.
 - **CLAUDE.md and several docs still describe the Streamlit dashboard**, which was removed:
   the web-app section ("Streamlit stays for …"), the skills list (`developing-with-streamlit`),
-  the "Depth-chart logic lives in `dashboard/positions.py`" house rule, and `dashboard/db.py`
+  and `dashboard/db.py`
   references in `docs/IDS.md`, `agent-context/tid-recycling.md` and
   `agent-context/day1-league-membership.md`. The `fmq`/scouting/store parts are already current.
 - **The newest snapshot is labelled `fm_save1`**, not `frem-2027-04-25`: the save was imported

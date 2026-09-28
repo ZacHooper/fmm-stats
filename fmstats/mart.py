@@ -634,26 +634,23 @@ FROM (
 
 # --- deliberately NOT in the mart: ability ranks against an arbitrary pool ----------
 #
-# ability_rank_leagues / ability_rank_clubs answer "how many bodies would be
-# ahead of him at that club, or in that division" — and they need the raw ability number to do
-# it, reading staging.players.ca directly, for two reasons:
+# The loan outlook (scripts/_export_db.py build_loans) answers "how many bodies would be ahead
+# of him at that club, and where would he sit in that division" — and it needs the raw ability
+# number to do it, reading staging.players.ca directly, for two reasons:
 #
 #   1. There is nothing to materialise. The pool is an arbitrary club's squad at an arbitrary
-#      familiarity floor (`--min-fam` is a live knob), so the only precomputable form is a
-#      TOTAL ABILITY ORDINAL over every player. A dense rank over 23k players is an
-#      order-isomorphism of `ca` with finer resolution than `ca` itself: it would pass
-#      publish_mart.verify(), which matches on column NAMES, while being a plain immersion
-#      leak. Baking min_fam into a two-valued column instead would narrow a real feature to
-#      dodge that, which is worse than leaving the helpers where they are.
+#      familiarity floor, so the only precomputable form is a TOTAL ABILITY ORDINAL over every
+#      player. A dense rank over 23k players is an order-isomorphism of `ca` with finer
+#      resolution than `ca` itself: it would pass publish_mart.verify(), which matches on
+#      column NAMES, while being a plain immersion leak.
 #   2. The published MART-ONLY artifact (fm-<career>-mart.duckdb) never carries `ca` at all —
-#      not scrubbed, just never selected by any mart view — so these helpers still can't run
-#      against it; ATTACH the full store (fm-<career>.duckdb, published unscrubbed since
-#      2026-09-01) instead. This is exactly why positions.json ships a RENDERED ANSWER (ranks
-#      and verdicts) rather than data: the mart-only artifact everything else reads from can't
-#      answer this one.
+#      not scrubbed, just never selected by any mart view — so the computation can't run
+#      against it; ATTACH the full store (fm-<career>.duckdb) instead. This is why loans.json
+#      ships a RENDERED ANSWER (percentiles and ranks) rather than data.
 #
-# What those helpers DO take from the mart is mart.club_leagues, so the club->league rule has
-# one definition. The ranking itself is theirs.
+# What it DOES take from the mart is mart.club_leagues, mart.comparison_ladder,
+# mart.player_position_levels (the Level %ile pool) and the spell tables, so those rules keep
+# one definition. The ranking itself is its own.
 
 # --- role ratings and tactic fit ---------------------------------------------------
 #

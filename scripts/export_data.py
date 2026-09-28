@@ -19,12 +19,12 @@ and the ability itself is dropped. `--check` proves no raw-ability key made it o
 Three files by size, because the budget is a phone on cellular:
 
   api/core.json   ~150 KB   our clubs + every club in the division ladder, full attributes.
-                            Loaded on boot; covers squad, positions, compare, opposition.
+                            Loaded on boot; covers squad, compare, recruitment, the profile.
   api/all.json    ~3.9 MB   EVERY player in the save. Lazy — only fetched when you search
                             outside the ladder. **Goes to R2, never to git**: it rewrites
                             wholesale each import and minified JSON deltas badly, which is
                             exactly how .git reached 257 MB with the DuckDB stores in it.
-  the rest        ~200 KB   squad detail, the position review, matches. Small, committed.
+  the rest        ~200 KB   squad detail, the loan outlook, matches. Small, committed.
 
 Everything else the app shows — records, awards, per-player match aggregates, H2H, growth
 trajectories — is computed in the browser from `matches.json` and `squad.json`, so those
@@ -629,48 +629,30 @@ def main():
                 "Home-grown status is derived from origin club, career history and observed "
                 "spells; see docs/danish-registration-rules.md."})
 
-    # ---------------------------------------------------------------- positions.json
-    D = db.build_positions(season, phase, method, min_fam=min_fam, excl_loanees=True)
-    if "error" in D:
-        print(f"  ! position review unavailable: {D['error']}")
-        emit("positions.json", {"error": D["error"]})
+    # ---------------------------------------------------------------- loans.json
+    # Where each owned player would get games on loan: his Level %ile in every division from
+    # ours down to the third below, and each club's starter line at his position under that
+    # manager's preferred formation. A RENDERED answer, computed here, because it orders
+    # players by the ability number and that never leaves this machine. Tactic-free.
+    L = db.build_loans(season, phase, min_fam=min_fam)
+    if "error" in L:
+        print(f"  ! loan outlook unavailable: {L['error']}")
+        emit("loans.json", {"error": L["error"]})
     else:
-        emit("positions.json", {
-            "snapshot": {"season": season, "phase": phase, "method": method,
-                         "min_familiarity": min_fam, "slots": D["slots"],
-                         "division": D["our_lg"], "division_cid": D["our_cid"],
-                         "ladder": [{"cid": c, "name": n} for c, n in D["ladder"]]},
-            # Server-side because ability ranks need the ability number. Everything else in
-            # the app recomputes on a tactic switch; this one is pinned to `method`.
-            "summary": [{**{k: v for k, v in r._asdict().items() if k != "Index"},
-                         "rank_ours": (list(r.rank_ours) if r.rank_ours else None)}
-                        for r in D["summary"].itertuples()],
-            "depth": [{"role": role, "slots": D["slots"].get(role, 1),
-                       "players": [{
-                           "tid": int(r["tid"]), "depth": int(r["depth"]),
-                           "position": r["position"],
-                           "familiarity": int(r["familiarity"]),
-                           "fit_pctile_division": r["fit_div"],
-                           "ability_pctile_division": r["div_pct"],
-                           "ability_rank": {str(c): list(D["ranks"][(int(r["tid"]),
-                                                                     r["position"], c)])
-                                            for c, _ in D["ladder"]
-                                            if (int(r["tid"]), r["position"], c) in D["ranks"]},
-                           "first_choice_below": {
-                               str(c): D["starts_at"].get((int(r["tid"]), r["position"], c), 0)
-                               for c, _ in D["lower"]},
-                           "hosts": {str(c): [[h.club, int(h.rank), int(h.n)]
-                                              for h in D["best_hosts"][
-                                                  (int(r["tid"]), r["position"], c)]
-                                              .head(5).itertuples()]
-                                     for c, _ in D["lower"]
-                                     if (int(r["tid"]), r["position"], c) in D["best_hosts"]},
-                           "read": r["read"], "also": r["also"]}
-                           for _, r in D["per_role"][D["per_role"]["role"] == role]
-                           .sort_values(["eff", "tid"], ascending=[False, True],
-                                        kind="mergesort").iterrows()]}
-                      for role in D["roles_present"]],
-            "note": IMMERSION})
+        emit("loans.json", {
+            "snapshot": {"season": season, "phase": phase, "min_familiarity": min_fam},
+            "ladder": [{"cid": c, "name": n} for c, n in L["ladder"]],
+            "formations": {str(t): f for t, f in L["formations"].items()},
+            "fallback_formation": L["fallback_formation"],
+            "slots": _export_db.FORMATION_SLOTS,
+            "row_fields": ["league_cid", "lvl", "n", "clubs"],
+            "club_fields": ["club_tid", "rank", "slots", "line"],
+            "players": L["players"],
+            "note": "lvl = his Level %ile at the position in that division. Per club: rank = "
+                    "his place among that club's players at the position (1 = first choice), "
+                    "slots = how many start there in the manager's preferred formation, line = "
+                    "Level %ile of the weakest of them (null = the club has no natural player "
+                    "for that slot, so he walks in). He starts iff rank <= slots. " + IMMERSION})
 
     # ---------------------------------------------------------------- matches.json
     # Raw-ish: the app computes records, awards, H2H, per-player aggregates and differentials
@@ -815,7 +797,7 @@ def main():
 
     # ---------------------------------------------------------------- world.json
     # Nations (world ranking + coefficients) and two maps' worth of club/stadium places — a
-    # separate, lazily-fetched file (like positions.json/matches.json) rather than core.json,
+    # separate, lazily-fetched file (like loans.json/matches.json) rather than core.json,
     # since the World page is one of several sections, not something every page view needs.
     # The Leagues tab needs no new data at all: it's the reputation ladder already shipped in
     # core.json's `leagues` array (D.S.leagues client-side).
@@ -919,7 +901,7 @@ def main():
         "files": {"core": f"{SITE_URL}/api/core.json", "clubs": f"{SITE_URL}/api/clubs.json",
                   "squad": f"{SITE_URL}/api/squad.json",
                   "forecast": f"{SITE_URL}/api/forecast.json",
-                  "positions": f"{SITE_URL}/api/positions.json",
+                  "loans": f"{SITE_URL}/api/loans.json",
                   "matches": f"{SITE_URL}/api/matches.json",
                   "registration": f"{SITE_URL}/api/registration.json",
                   "world": f"{SITE_URL}/api/world.json",
