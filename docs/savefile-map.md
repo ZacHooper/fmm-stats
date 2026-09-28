@@ -57,7 +57,7 @@ by a structural test described in the notes.
 | 13,965,521 | ~13,976,130 | 0.01 MB | **currencies** — declared 173, we read 94 (`uid > 4096` gate) | static | Shape A | **MIGRATED** (`CURRENCIES_TABLE`) |
 | 13,976,136 | ~13,978,480 | 0.002 MB | **languages** — declared 124, we read 77 (zero-length `OtherName`) | static | Shape A | **MIGRATED** (`LANGUAGES_TABLE`) |
 | 13,978,474 | 16,692,615 | 2.71 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 18%); checked and *not* count-framed | — | — | — |
-| 16,692,615 | 20,321,452 | 3.63 MB | **tagged data dictionary** — self-describing `[tag][01][type][value]` | static-ish | Wire format | live (`tagged.find_tagged_region`) |
+| 16,692,615 | 20,321,452 | 3.63 MB | **tagged data dictionary** — 667 count-framed competition/nation **rule files** (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | rule files static; separators change | Shape A | **DECLARED** (`tables/rule_files.py`, 5 tagged schemas); consumer still on the lenient scan (TODO 4e) |
 | 20,321,452 | 29,171,689 | **8.85 MB** | **FILLER — 97% `0xFF`, 1% `00`, 2% other.** Not a research target | — | — | — |
 | **29,171,689** | **31,907,618** | **2.74 MB** | **contract grid** — dense **83-byte** records, **32,961 slots**, 26,754 populated. One slot per person (the info spine holds ~32,885) | **preallocated, stable all career** | Shape C | **MIGRATED** (`CONTRACT_TABLE`) |
 | 31,907,618 | 35,439,434 | 3.53 MB | **UNIDENTIFIED** (`00` 53% / `ff` 31% / other 17%) | — | — | — |

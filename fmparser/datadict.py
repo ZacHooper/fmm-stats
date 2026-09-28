@@ -25,6 +25,8 @@ WIRE FORMAT (fully decoded here; richer than tagged.py's original subset):
     0x12             2              u16
     0x0f             8              a pair of u32 (a name id stored this way repeats: 28, 28)
     0x14 0x18        8              u64
+    0x05             8              f64 (prize money: `cash` = 150000.0)
+    0x15             4              u32 id (`Ttea` = a team, repeated by the next `DBID`)
     0x19             4              f32
     0x20             4              u32 (a timestamp-like value before `SubF`)
     0x0a             4 + children   CONTAINER: value = child count; children follow.
@@ -40,6 +42,7 @@ binary fragments (a fixed-format preamble ~17.0-17.5 MB). Anything not parseable
 zero-padding is captured verbatim as a raw hex blob, so the store is byte-complete.
 """
 import re
+import struct
 
 from . import tagged
 
@@ -53,8 +56,9 @@ CONTAINER = 0x0a
 STRING = 0x1a
 LIST = 0x0b
 PAIR = 0x0f
+F64 = 0x05
 FIXED = {0x00: 0, 0x01: 4, 0x02: 4, 0x0b: 4, 0x13: 4, 0x03: 1, 0x11: 1, 0x12: 2, 0x14: 8,
-         0x0f: 8, 0x18: 8, 0x19: 4, 0x20: 4}
+         0x0f: 8, 0x18: 8, 0x19: 4, 0x20: 4, F64: 8, 0x15: 4}
 KNOWN_TYPES = set(FIXED) | {CONTAINER, STRING}
 # The types the LENIENT scan (walk_stream/_parse) accepts. The region interleaves tagged
 # fields with binary fragments, and a scan that also accepted the zero-width 0x00 or the
@@ -166,12 +170,19 @@ def read_tree(mm, p, hi, max_items=5000):
     shorter result. Unlike the lenient `_parse`: every type in FIXED is accepted, a LIST
     (0x0b) is `[n]` then n elements, containers keep an `id` child as an ordinary field,
     and a PAIR decodes to a (u32, u32) tuple. Tagless fields have tag None; containers and
-    lists decode to a list of child fields."""
+    lists decode to a list of child fields.
+
+    A tag is usually four printable characters, but not always: the discipline rules
+    (`dsrl`) carry fields whose tag is an arbitrary u32 (`20 7d 96 16`). Such a tag is read
+    only where neither a printable tag nor a tagless field fits, and is named `#` + its
+    eight hex digits in the same reversed order (`#16967d20`)."""
     hdr = _header(mm, p, hi)
     if hdr:
         tag, typ, vpos = hdr
     elif p + 2 <= hi and mm[p] == 0x01 and mm[p + 1] in KNOWN_TYPES:
         tag, typ, vpos = None, mm[p + 1], p + 2
+    elif p + 6 <= hi and mm[p + 4] == 0x01 and mm[p + 5] in KNOWN_TYPES:
+        tag, typ, vpos = "#" + mm[p:p + 4][::-1].hex(), mm[p + 5], p + 6
     else:
         raise TreeError(f"no tagged field at {p}")
     if typ not in KNOWN_TYPES:
@@ -192,6 +203,10 @@ def read_tree(mm, p, hi, max_items=5000):
             raise TreeError(f"pair at {vpos} runs past {hi}")
         return (tag, typ, (int.from_bytes(mm[vpos:vpos + 4], "little"),
                            int.from_bytes(mm[vpos + 4:vpos + 8], "little"))), vpos + 8
+    if typ == F64:
+        if vpos + 8 > hi:
+            raise TreeError(f"f64 at {vpos} runs past {hi}")
+        return (tag, typ, struct.unpack_from("<d", mm, vpos)[0]), vpos + 8
     v = _value(mm, typ, vpos, hi)
     if not v:
         raise TreeError(f"value of type 0x{typ:02x} at {vpos} runs past {hi}")

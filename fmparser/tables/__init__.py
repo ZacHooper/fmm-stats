@@ -22,6 +22,12 @@ from .comp_rules import (
     scrape as scrape_comp_rules,
     stage_rows as comp_rule_stage_rows,
 )
+from .rule_files import (
+    framing_problems as rule_file_framing_problems,
+    rule_files as scrape_rule_files,
+    schema_for as rule_file_schema,
+    tiling as rule_file_tiling,
+)
 from .currencies import (
     CURRENCIES_TABLE,
     CURRENCY_HEAD,
@@ -207,6 +213,11 @@ __all__ = [
     "competition_rounds",
     "locate_comp_rules",
     "scrape_comp_rules",
+    # Rule files (the tagged data dictionary)
+    "rule_file_framing_problems",
+    "rule_file_schema",
+    "rule_file_tiling",
+    "scrape_rule_files",
     # Contracts
     "CONTRACT",
     "CONTRACT_DETAIL",

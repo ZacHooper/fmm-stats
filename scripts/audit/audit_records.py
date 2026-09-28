@@ -56,6 +56,7 @@ from fmparser.tables import fixtures as FX           # noqa: E402
 from fmparser.tables import comp_stages as CS          # noqa: E402
 from fmparser.tables import comp_honours as CH         # noqa: E402
 from fmparser.tables import comp_rules as CRU          # noqa: E402
+from fmparser.tables import rule_files as RF           # noqa: E402
 from fmparser.core.tagged_schema import tag_map         # noqa: E402
 
 
@@ -233,7 +234,41 @@ def _print_map(name, stride, fields):
 
 # TAGGED records -- key-value, so COVERAGE is per tag rather than per byte: every tag a
 # member carries must be read or declared unread, and every required tag present.
-TAGGED = (CRU.FILE, CRU.STAGE, CRU.ROUND, CRU.NAME_REF)
+TAGGED = (CRU.FILE, CRU.STAGE, CRU.ROUND, CRU.NAME_REF, RF.NATION_COMPS,
+          RF.NATION_RESERVE_COMPS, RF.NATION_RULES, RF.STAGELESS_COMP)
+
+
+def _print_tagged(report):
+    ok = True
+    for rec in TAGGED:
+        r = report.get(rec.name)
+        if r is None:
+            continue
+        bad = r["undeclared"] or r["missing"]
+        ok &= not bad
+        print(f"  {'ok  ' if not bad else 'FAIL'} {rec.name:<32} {r['n']:>6} elements"
+              + (f"  UNDECLARED {r['undeclared']}" if r["undeclared"] else "")
+              + (f"  MISSING {r['missing']}" if r["missing"] else ""))
+    return ok
+
+
+def _dictionary_coverage(mm):
+    """Every rule file of the tagged data dictionary against its declared schema, plus the
+    share of the dictionary's span the rule files read."""
+    report = {}
+    files = RF.rule_files(mm)
+    for b in files:
+        RF.schema_for(b).coverage(b.fields, report)
+    ok = _print_tagged(report)
+    t = RF.tiling(mm)
+    framing = RF.framing_problems(mm, files)
+    ok &= not t["other_blocks"] and not framing
+    print(f"  {'ok  ' if ok else 'FAIL'} {t['n_rule_files']} rule files read "
+          f"{t['rule_files']} of {t['span']} bytes; {t['unread']} unread "
+          f"({100 * t['unread'] / t['span']:.2f}%), {t['other_blocks']} in unread blocks")
+    for p in framing:
+        print(f"  FAIL {p}")
+    return ok
 
 
 def _tagged_coverage(mm):
@@ -246,15 +281,7 @@ def _tagged_coverage(mm):
             fields = CRU.scrape(ARCH.read_member(mm, ent))
             if fields:
                 CRU.FILE.coverage(fields, report)
-    ok = True
-    for rec in TAGGED:
-        r = report.get(rec.name, {"n": 0, "undeclared": {}, "missing": {}})
-        bad = r["undeclared"] or r["missing"]
-        ok &= not bad
-        print(f"  {'ok  ' if not bad else 'FAIL'} {rec.name:<24} {r['n']:>6} elements"
-              + (f"  UNDECLARED {r['undeclared']}" if r["undeclared"] else "")
-              + (f"  MISSING {r['missing']}" if r["missing"] else ""))
-    return ok
+    return _print_tagged(report)
 
 
 def main():
@@ -302,6 +329,9 @@ def main():
             ok &= _tagged_coverage(mm)
         except ImportError as e:
             print(f"  SKIP: {e} (uv sync --extra archive)")
+
+        print("\ntagged records (data dictionary rule files) -- tag coverage + tiling:")
+        ok &= _dictionary_coverage(mm)
 
     print("\n" + ("PASS: every record fully accounted for" if ok
                   else "FAIL: see UNACCOUNTED / MISMATCH / CHECK above"))

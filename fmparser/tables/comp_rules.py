@@ -70,7 +70,9 @@ HEADER = Record("comp_rules_header", 54, [
 # the member carries is listed as `unread` -- seen and deliberately not read, the
 # counterpart of a declared-UNKNOWN byte. The unread lists are every tag observed across
 # all 30 Frem saves and bucaspor-2023-05-20 (2,263 configured members, 4,829 stages, 6,299
-# rounds), in order of frequency; tests/test_comp_rules.py fails on a tag that is neither.
+# rounds), in order of frequency, then the further tags the data dictionary's 453
+# competition rule files carry (tables/rule_files.py), which read with these same schemas;
+# tests/test_comp_rules.py and tests/test_rule_files.py fail on a tag that is neither.
 
 # A name reference: the stage/round name id, sometimes held in a container instead of
 # stored directly on `stnm`.
@@ -85,18 +87,22 @@ NAME_ID = AnyOf(INT, Nested(NAME_REF, pick="name_id"))
 ROUND = TaggedRecord("comp_rules_round", [
     Tag("stnm", "round_name_id", NAME_ID,
         note="151 'Third Qualifying Round', 17 'Quarter Final', 20 'Final' ..."),
-    Tag("ntms", "round_teams",   INT, required=True, note="teams in the round"),
+    Tag("ntms", "round_teams",   INT,
+        note="teams in the round; absent where the draw sets it (fra_ligue_cup's early rounds)"),
     Tag("nmlg", "legs",          INT, note="legs per tie, 1 or 2"),
 ], unread=(
     'nmmt', 'date', 'drdt', 'ctmp', 'tvds', 'vlgr', 'ofsd', 'nmxt', 'drrl', 'prio', 'wrnk',
     'lrnk', 'nmrp', 'dat2', 'subr', 'wnpz', 'strl', 'iqum', 'apmn', 'tvty', 'mstc', 'lspz',
     'rank', 'nrdw', 'nrdl', 'crlm', 'SgSd', 'mnsc', 'nmrg', 'nchd', 'MnxO', 'MnxT', 'Sran',
-    'spst', 'lgwz', 'ldpz'),
+    'spst', 'lgwz', 'ldpz',
+    # ...and the data dictionary's rule files (tables/rule_files.py) add:
+    'dpas', 'atpm', 'fxri', 'gtmp', 'tvmp', 't2pa', 'lpnd', 'ppmt', 'stfl', 'rusn', 'numb'),
     note="element k of a stage's rnds = fix_man +77 round_index k")
 
 STAGE = TaggedRecord("comp_rules_stage", [
-    Tag("id",   "stage_code",    FOURCC, required=True,
-        note="'leag' 'cham' 'prom' 'rele' 'bppr' 'chpr' 'play' 'grou' 'cup' ..."),
+    Tag("id",   "stage_code",    AnyOf(FOURCC, INT), required=True,
+        note="'leag' 'cham' 'prom' 'rele' 'bppr' 'chpr' 'play' 'grou' 'cup' ...; "
+             "svk_first_4_qualifiers' stage 4 stores the number 4"),
     Tag("indx", "stage_index",   INT,    required=True, note="= fix_man +76 stage_index"),
     Tag("type", "stage_type",    INT,    required=True,
         note="0 knockout, 1 league, 2 groups, 6 play-off feeder"),
@@ -115,7 +121,12 @@ STAGE = TaggedRecord("comp_rules_stage", [
     'desc', 'hdst', 'pris', 'stsp', 'sthU', 'clyb', 'tvDd', 'FtEx', 'swtm', 'FtDt', 'jcom',
     'StSi', 'srbh', 'tmPL', 'plfd', 'MnGt', 'MxGt', 'seed', 'mstc', 'mxlg', 'ppnw', 'ppnd',
     'srst', 'fsff', 'tmor', 'cTmS', 'tvty', 'stsi', 'sequ', 'shi1', 'vdbf', 'midp', 'pref',
-    'ExHG', 'NrTm'),
+    'ExHG', 'NrTm',
+    # ...and the data dictionary's rule files (tables/rule_files.py) add:
+    'SCsn', 'pdef', 'adef', 'psr1', 'psr2', 'rran', 'ahrn', 'gptm', 'NpTm', 'AsCH', 'apmn',
+    'lsfd', 'CrsD', 'alfp', 'SCos', 'stan', 'cftp', 'sbsn', 'lsff', 'dSaC', 'USYh', 'UEYh',
+    'fpln', 'FtPr', 'endt', 'bfpr', 'ulsv', 'text', 'ssdi', 'dfpz', 'SFSL', 'shi2', 'FrTm',
+    'dtPP', 'cldp', 'Cnrd', 'mr2l', 'gtmp', 'tvmp', 'ppmt'),
     note="one element of the member's stgs list")
 
 FILE = TaggedRecord("comp_rules_file", [
@@ -135,7 +146,13 @@ FILE = TaggedRecord("comp_rules_file", [
     'spid', 'OdDt', 'nelt', 'ntms', 'fpyc', 'fprc', 'fppz', 'apmn', '%itv', 'ICsl', 'DlCm',
     'YbHC', 'InTS', 'HsPo', 'styo', 'srar', 'usqn', 'othe', 'lsvy', 'RGps', 'SpDs', 'FxCD',
     'mBsc', 'IToc', 'MxBA', 'sdfd', 'edfd', 'cdtd', 'MGin', 'fnUA', 'visd', 'dbps', 'OdDb',
-    'extc', 'MtGr', 'PrSt', 'rcfm', 'ctuf', 'RnsP', 'dtty', 'duni', 'prty'),
+    'extc', 'MtGr', 'PrSt', 'rcfm', 'ctuf', 'RnsP', 'dtty', 'duni', 'prty',
+    # ...and the data dictionary's rule files (tables/rule_files.py) add:
+    'vwon', 'avpt', 'Sscu', 'Tp3t', 'ssif', 'rklp', 'derb', 'pris', 'MnNm', 'cLqT', 'sYro',
+    'sYoO', 'RTiC', 'ftcl', 'InLP', 'MrTs', 'LsSh', 'RssR', 'rctf', 'frcl', 'cVpC', 'dsft',
+    'psrl', 'ctfo', 'enyo', 'bt2d', 'A*tr', 'rdov', '#03d43e90', 'VlFd', 'CoyH', 'dcoy',
+    'bpld', 'fVhR', 'kRtI', 'plpo', 'rsid', 'FtDt', 'Lwtp', 'SPyi', 'qFcL', 'HiHn', 'pmXy',
+    'aPaW', 'eDpM', 'mtfl', '#20aac028', 'ycov', 'LRSR', 'CrCb', 'oqtc', 'rUqT', 'mssf'),
     note="the member's top-level fields; the trailer is XSvC EdBr EdDt SubF")
 
 

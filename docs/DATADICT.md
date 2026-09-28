@@ -6,6 +6,13 @@ data directly instead of computing approximations from the partial light-results
 [`fmparser/lightresults.py`](../fmparser/lightresults.py) and the memory note
 `denmark-region-drift`).
 
+> **Structure (2026-09-28):** the region is 667 count-framed RULE FILES, one per competition
+> or nation, read strictly and declared per tag in
+> [`fmparser/tables/rule_files.py`](../fmparser/tables/rule_files.py) — start there. The rule
+> files are identical in every save of a career; per-save state is in the bytes between
+> them. This page predates that reader: its format section below lists 4 wire types (the
+> strict reader knows 17), and its "records" are what the lenient scan sees.
+
 ## What the datadict IS (key insight, 2026-08)
 The datadict is the **season-build CONFIG engine** — the rules the game uses at the start of each
 season to *build the fixtures*: competition format, number of teams, rounds/legs, seeding, draw

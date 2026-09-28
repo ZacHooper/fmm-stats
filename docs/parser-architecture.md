@@ -347,7 +347,18 @@ checks AGAINST it. **COVERAGE is per tag**: every tag seen must be read or liste
 a tag that is neither is reported. `unread` is built from a measured inventory (for
 `comp_rules`, every tag across 31 saves), never guessed. `tests/test_layouts.py` checks each
 registered tagged schema is sound; `audit_records.py --map` prints it; `audit_records.py
-<save>` and `tests/test_comp_rules.py` fail on an undeclared tag.
+<save>`, `tests/test_comp_rules.py` and `tests/test_rule_files.py` fail on an undeclared tag.
+
+A tagged block is FOUND the same way a table is: by its declared count. The data dictionary
+(`tables/rule_files.py`) is 667 `[u32 n][n fields]` rule files, located by one forward pass
+that reads each candidate strictly and keeps it only if all n fields read -- never by
+scanning for tags. Scanning is what the lenient `datadict.walk_stream` does, and it both
+misses structure (a list's elements surface as loose siblings) and invents it (a scan that
+accepts the zero-width type turns stray `01 00` pairs into fields). The strict walk's own
+failure mode is loud: a file that does not read breaks into fragments, which the tiling
+check counts. That is how the strict reader's last three gaps were found (wire type `0x05`,
+an f64 of prize money; `0x15`, a team id; and tags that are raw u32s rather than four
+characters) -- the locator had been silently dropping the 20 files that use them.
 
 ---
 

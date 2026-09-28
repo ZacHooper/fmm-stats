@@ -37,6 +37,7 @@ UNIT_TESTS = {
     "test_person_info_unit.py",
     "test_places_unit.py",
     "test_rounds_officials.py",
+    "test_rule_files_unit.py",
     "test_staff_unit.py",
     "test_tables.py",
 }
