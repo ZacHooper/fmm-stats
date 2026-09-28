@@ -390,6 +390,15 @@ def main():
                   WHERE season=? AND phase=?""", [season, phase])
     development = dict(zip(dev["tid"].astype(int), dev["development"])) if not dev.empty else {}
 
+    # Reputation (home / current / world) for our squad, so the Squad table can column it
+    # without the lazy per-profile fetch that carries it for everyone else. Three small ints
+    # a player — the same numbers the profile's Reputation cards show.
+    rp = db.q("""SELECT tid, reputation, current_reputation, world_reputation
+                 FROM mart.player_snapshots WHERE season=? AND phase=?""", [season, phase])
+    reputation = {int(r.tid): [None if pd.isna(v) else int(v)
+                               for v in (r.reputation, r.current_reputation, r.world_reputation)]
+                  for r in rp.itertuples()}
+
     levels = level_map(db, season, phase)
 
     # ---------------------------------------------------------------- core.json
@@ -441,7 +450,10 @@ def main():
                        if origin.get(t)},
             "capital_eligible": sorted(capital & {int(t) for t in sq["tid"]}),
             "development": {str(int(t)): development[int(t)] for t in sq["tid"]
-                            if development.get(int(t))}},
+                            if development.get(int(t))},
+            "reputation_fields": ["home", "current", "world"],
+            "reputation": {str(int(t)): reputation[int(t)] for t in sq["tid"]
+                           if int(t) in reputation}},
         "note": IMMERSION,
         "players": core_players})
 

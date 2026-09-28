@@ -107,6 +107,10 @@ export async function view() {
       origin: D.S.ours.origin?.[String(p.tid)] || null,
       capital: (D.S.ours.capital_eligible || []).includes(p.tid),
       dev: D.S.ours.development?.[String(p.tid)] || null,
+      // Squad members' reputation ships in core.json; anyone else (a shortlisted player) has it
+      // only if his profile row has been fetched.
+      rep: D.S.ours.reputation?.[String(p.tid)]
+        || (p.profile ? [p.profile.reputation.home, p.profile.reputation.current, p.profile.reputation.world] : null),
       alsoRoles: roles.map((x) => x.role).filter((x, i, a) => a.indexOf(x) === i),
       shortlist: !!extra.shortlist,
       // Searchable on every position he's listed at, not just the one on show — the row's
@@ -174,6 +178,14 @@ export async function view() {
       filterValue: (r) => r.player.positions.map((q) => q.pos),
     },
     role: { label: "Role", group: "Identity", get: (r) => r.r.role },
+    height: {
+      label: "Height", group: "Identity", align: "num",
+      help: "Height in cm", get: (r) => r.player.height || null,
+    },
+    weight: {
+      label: "Weight", group: "Identity", align: "num",
+      help: "Weight in kg", get: (r) => r.player.weight || null,
+    },
     fam: {
       label: "Fam", group: "Identity", align: "num",
       help: "Position familiarity 0-20, at the position in Pos. The rating is already discounted by it, so a high rating on a low Fam means raw attributes are carrying him somewhere he doesn't play.",
@@ -259,6 +271,21 @@ export async function view() {
       filterType: "set",
       filterValue: (r) => r.dev || null,
     },
+    repHome: {
+      label: "Home rep", group: "Reputation", align: "num",
+      help: "Reputation in his home nation — the game's own number, same as the profile card",
+      get: (r) => r.rep?.[0] ?? null,
+    },
+    repCurrent: {
+      label: "Current rep", group: "Reputation", align: "num",
+      help: "Current reputation — the game's own number, same as the profile card",
+      get: (r) => r.rep?.[1] ?? null,
+    },
+    repWorld: {
+      label: "World rep", group: "Reputation", align: "num",
+      help: "Worldwide reputation — the game's own number, same as the profile card",
+      get: (r) => r.rep?.[2] ?? null,
+    },
     // ---- projection: what he looks like at the target age (population expectation, not a
     // per-player prediction — see api/forecast.json's note). Labels read the live target age.
     projRating: {
@@ -336,7 +363,8 @@ export async function view() {
     ...(regKit ? regKit.presets : {}),
     "Contracts": ["wage", "expiry", "value", "age", "status"],
     "Recruitment rule": ["origin", "capital", "age", "lvl"],
-    "Physical": ["attr:Pace", "attr:Stamina", "attr:Strength", "attr:Agility"],
+    "Reputation": ["age", "repHome", "repCurrent", "repWorld", "value", "lvl"],
+    "Physical": ["height", "weight", "attr:Pace", "attr:Stamina", "attr:Strength", "attr:Agility"],
     ...Object.fromEntries(Object.entries(D.STAT_PRESETS).map(([k, v]) => [k, v.map((s) => `stat:${s}`)])),
   };
 
