@@ -30,7 +30,7 @@ function divisions(L, rows) {
 /** The highest division with at least one club he'd start for — the loan to aim at. */
 const bestDivision = (divs) => divs.find((d) => d.clubs.some(starts)) || null;
 
-function strip(d, { picked, onPick }) {
+function strip(d, { picked, best, onPick }) {
   const n = d.clubs.length, k = d.clubs.filter(starts).length;
   const track = el("div.ltrack", {}, [
     ...d.clubs.map((c) => el(`span.ltick${starts(c) ? ".on" : ""}`, {
@@ -39,7 +39,7 @@ function strip(d, { picked, onPick }) {
     })),
     d.lvl == null ? null : el("span.ldot", { style: `left:${d.lvl}%`, title: `His Level %ile here: ${d.lvl}` }),
   ]);
-  return el(`div.lrow${picked ? ".on" : ""}`, { onclick: onPick, role: "button", tabindex: "0" }, [
+  return el(`div.lrow${picked ? ".on" : ""}${best ? ".best" : ""}`, { onclick: onPick, role: "button", tabindex: "0" }, [
     el("div.lname", {}, [el("b", { text: d.name }), el("span.dim", { text: d.tier === 0 ? "our division" : `${d.tier} below` })]),
     n ? track : el("div.ltrack.none", { text: "no club here plays this position" }),
     el("div.lstat", {}, [
@@ -76,17 +76,17 @@ function clubTable(d, loanedTo, pos) {
 }
 
 /**
- * The whole section for one owned player, or null when the export has nothing for him (a
- * loanee, a non-owned player, an older export). Renders a placeholder and fills in once
- * loans.json arrives, like the profile's bio block.
+ * The profile sheet's Loan tab for one owned player. Renders a placeholder and fills in once
+ * loans.json arrives; says so when the export has nothing for him. The club list opens when a
+ * division is tapped — the strips answer the question, the list is the detail.
  * @param {object} p      the player
  * @param {string} [pos]  position to open on (the one the sheet is showing), if he has it
  */
 export function loanOutlook(p, pos) {
-  const box = el("div", {}, [el("h4", { text: "Loan outlook" }), el("p.note", { text: "Loading…" })]);
+  const box = el("div", {}, [el("p.note", { text: "Loading…" })]);
   D.loadLoans().then((L) => {
     const mine = L?.players?.[String(p.tid)];
-    clear(box).append(el("h4", { text: "Loan outlook" }));
+    clear(box);
     if (!mine || !Object.keys(mine.positions).length) {
       box.append(el("p.note", { text: L?.error
         ? `Loan outlook unavailable: ${L.error}.`
@@ -102,7 +102,7 @@ export function loanOutlook(p, pos) {
     function render() {
       const divs = divisions(L, mine.positions[cur]);
       const best = bestDivision(divs);
-      const picked = divs.find((d) => d.cid === pickedCid) || best || divs[divs.length - 1];
+      const picked = divs.find((d) => d.cid === pickedCid) || null;
       clear(chips).append(el("span.dim", { text: "At:" }), ...positions.map((q) =>
         el(`button.chip${q === cur ? ".on" : ""}`, { text: q, onclick: () => { cur = q; pickedCid = null; render(); } })));
       const loanedTo = mine.loaned_to;
@@ -113,23 +113,23 @@ export function loanOutlook(p, pos) {
             ? `Highest level he'd start at ${cur}: <b>${best.name}</b> — ${best.clubs.filter(starts).length} of ${best.clubs.length} clubs.`
             : `He wouldn't start at ${cur} for any club down to ${divs[divs.length - 1].name} — a reserves player.`) }),
         el("div.lstrips", {}, divs.map((d) => strip(d, {
-          picked: d === picked, onPick: () => { pickedCid = d.cid; render(); },
+          picked: d === picked, best: d === best, onPick: () => { pickedCid = pickedCid === d.cid ? null : d.cid; render(); },
         }))),
         el("div.llegend.dim", {}, [el("span.ldot.key"), " him  ", el("span.ltick.on.key"), " a club he'd start for  ",
           el("span.ltick.key"), " one he wouldn't — tap a division for its clubs"]),
-        el("h4", { text: `${picked.name} · ${cur}` }),
-        clubTable(picked, loanedTo, cur),
+        picked ? el("h4", { text: `${picked.name} · ${cur}` }) : null,
+        picked ? clubTable(picked, loanedTo, cur) : null,
       );
     }
     render();
-    box.append(chips, body, el("p.note", {
+    box.append(chips, body, el("details.info", {}, [el("summary", { text: "ⓘ How to read this" }), el("p.note", {
       html: "The AI picks its XI mostly on ability, so this ranks on it. The dot is his "
         + "<b>Level %ile</b> at the position in that division. Each tick is a club's "
         + "<b>starter line</b>: the Level %ile of the weakest player it would start there, with "
         + "the number of starters taken from its manager's preferred formation — so a winger "
         + "has no tick at a 5-3-2 club. A club with no natural player for a slot is an open "
         + "door: its tick sits at 0 and he walks in. Morale, form and match fitness aren't in it.",
-    }));
+    })]));
   });
   return box;
 }
