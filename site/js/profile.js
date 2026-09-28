@@ -221,9 +221,18 @@ function careerTable(career) {
  * opened for — and everything else in tabs below, one open at a time. The tab and the
  * personality/hidden toggle are remembered across players.
  */
+let squadTried = false;
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
+  // The development chart, the attribute growth options and career history all read
+  // squad.json. Pages other than Squad don't load it, so fetch it (once, ~20 KB) before the
+  // first sheet rather than showing a profile with those parts silently missing.
+  if (!D.S.squad && !squadTried) {
+    squadTried = true;
+    D.loadSquad().catch(() => null).then(() => openProfile(tid, { role }));
+    return;
+  }
   const roles = D.playerRoles(p);
   const shown = role ? roles.find((r) => r.role === role) || roles[0] : roles[0];
   const a = D.age(p.dob);
