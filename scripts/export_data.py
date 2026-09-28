@@ -539,8 +539,56 @@ def main():
             "goals": None if pd.isna(r["goals"]) else int(r["goals"]),
             "assists": None if pd.isna(r["assists"]) else int(r["assists"]),
             "rating": None if pd.isna(r["rating"]) else round(float(r["rating"]), 2)})
+    # Spells and moves for the current squad, so the development chart can show where each
+    # player was at every point on his curve. Keyed by person_id like the trajectories, so a
+    # recycled tid can't splice in somebody else's spells. Spells are the mart's spell model
+    # (at a club / on loan here / out on loan / injured; injuries are scraped for the managed
+    # squad only). Moves are mart.transfers minus clubs moving a player between their own
+    # sides — except reserves <-> first team at ours, which is a promotion worth marking.
+    me_cte = f"""WITH me AS (SELECT DISTINCT person_id, tid FROM mart.player_snapshots
+                            WHERE season=? AND phase=? AND tid IN ({','.join('?' * len(cur_tids))}))"""
+    spells, moves = {}, {}
+    if cur_tids:
+        sp = db.q(f"""{me_cte}
+                      SELECT me.tid, s.spell_type, s.club_tid,
+                             CAST(s.valid_from AS DATE) AS valid_from,
+                             CAST(s.valid_to AS DATE) AS valid_to
+                      FROM mart.player_spells s JOIN me USING (person_id)
+                      ORDER BY me.tid, s.valid_from, s.spell_type, s.club_tid""",
+                  [season, phase, *cur_tids])
+        for r in sp.to_dict("records"):
+            spells.setdefault(str(int(r["tid"])), []).append(
+                [r["spell_type"], None if pd.isna(r["club_tid"]) else int(r["club_tid"]),
+                 str(r["valid_from"])[:10],
+                 None if pd.isna(r["valid_to"]) else str(r["valid_to"])[:10]])
+        mv = db.q(f"""{me_cte}
+                      SELECT me.tid, t.move_date, t.from_club_tid, t.to_club_tid, t.move_type,
+                             t.fee_type, t.fee_gbp
+                      FROM mart.transfers t JOIN me USING (person_id)
+                      WHERE t.move_date IS NOT NULL
+                        AND (t.move_type <> 'internal'
+                             OR (t.from_club_tid IN (SELECT club_tid FROM mart.our_clubs)
+                                 AND t.to_club_tid IN (SELECT club_tid FROM mart.our_clubs)))
+                      ORDER BY me.tid, t.move_date, t.to_club_tid""",
+                  [season, phase, *cur_tids])
+        for r in mv.to_dict("records"):
+            moves.setdefault(str(int(r["tid"])), []).append(
+                [str(r["move_date"])[:10],
+                 None if pd.isna(r["from_club_tid"]) else int(r["from_club_tid"]),
+                 None if pd.isna(r["to_club_tid"]) else int(r["to_club_tid"]),
+                 r["move_type"], r["fee_type"],
+                 None if pd.isna(r["fee_gbp"]) else int(r["fee_gbp"])])
     emit("squad.json", {"attrs": list(ATTR_ORDER), "trajectories": traj,
-                        "career_history": chist, "note": IMMERSION})
+                        "career_history": chist,
+                        "spell_fields": ["type", "club_tid", "from", "to"],
+                        "spells": spells,
+                        "move_fields": ["date", "from_club_tid", "to_club_tid", "move_type",
+                                        "fee_type", "fee_gbp"],
+                        "moves": moves,
+                        "note": "spells: type is at_club / loan_in / loan_out / injured; `to` "
+                                "null = ongoing. Injuries are recorded for our squad only, and "
+                                "a spell at another club is seen only while the save covers "
+                                "it. " + IMMERSION})
 
     # ---------------------------------------------------------------- forecast.json
     # Given his CURRENT value of an attribute and his age, what will it be at 21 / 24? Built

@@ -10,6 +10,7 @@ import * as D from "./data.js";
 import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
   ATTR_BANDS, DASH } from "./ui.js";
 import { loanOutlook } from "./loans.js";
+import { devChart } from "./devchart.js";
 
 // A per-viewer preference, not per-player state — once you've picked "+ growth + trend" you
 // want it on every profile you open from then on, not reset back to the plain grid each time.
@@ -404,8 +405,8 @@ export function openProfile(tid, { role = null } = {}) {
       })),
     ])])]);
     if (traj.length > 1) {
-      out.append(el("h4", { text: `Growth as ${shown.role} · ${traj.length} snapshots` }),
-        sparkline(traj.map((t) => t.value), { w: 260, h: 44, forecast: roleForecast }),
+      out.append(el("h4", { text: `Development as ${shown.role} · ${traj.length} snapshots` }),
+        devChart(p, traj, roleForecast) || sparkline(traj.map((t) => t.value), { w: 260, h: 44, forecast: roleForecast }),
         el("p.note", {
           text: (growth
             ? `${growth.delta >= 0 ? "+" : ""}${num(growth.delta)} since ${traj[0].phase}`

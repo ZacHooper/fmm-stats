@@ -319,3 +319,42 @@ details.info .note p,details.info .note{margin:4px 0 0}
 .kpis.sm .kpi>b{font-size:14.5px}
 .kpis.sm .kpi>span{font-size:10px}
 .statgrp>.dim{font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+/* ---------------------------------------------------------------- development chart */
+.devwrap{position:relative}
+svg.devchart{display:block;max-width:100%;font-size:11px}
+svg.devchart .grid{stroke:var(--line2);stroke-width:1}
+svg.devchart .tick{stroke:var(--line2);stroke-width:1;stroke-dasharray:2 3}
+svg.devchart .ylab,svg.devchart .xlab,svg.devchart .lanelab{fill:var(--dim);font-size:10.5px}
+svg.devchart .line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
+svg.devchart .pt{fill:var(--accent);stroke:var(--card);stroke-width:1.5}
+svg.devchart .fc{fill:none;stroke:var(--dim);stroke-width:2;stroke-dasharray:4 3}
+svg.devchart .band{fill:var(--accent);opacity:.12}
+svg.devchart .move line{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3;opacity:.55}
+svg.devchart .move text{fill:var(--ink);font-size:10.5px;font-weight:600}
+svg.devchart .seg rect{stroke:var(--card);stroke-width:1}
+svg.devchart .seg text{fill:var(--card);font-size:10px;font-weight:600;pointer-events:none}
+svg.devchart .seg.us rect{fill:var(--accent)}
+svg.devchart .seg.res rect{fill:var(--accent);opacity:.5}
+svg.devchart .seg.res text{fill:var(--ink)}
+svg.devchart .seg.loan rect{fill:var(--accent2)}
+svg.devchart .seg.loanin rect{fill:var(--warn)}
+svg.devchart .seg.other rect{fill:var(--dim);opacity:.45}
+svg.devchart .seg.other text{fill:var(--ink)}
+svg.devchart .seg.inj rect{fill:var(--bad)}
+svg.devchart .cross{stroke:var(--dim);stroke-width:1}
+svg.devchart .hot{fill:var(--accent);stroke:var(--card);stroke-width:2}
+svg.devchart .hit{fill:transparent;cursor:crosshair}
+.devtip{display:none;position:absolute;top:0;transform:translateX(-50%);pointer-events:none;
+  background:var(--card);border:1px solid var(--line);border-radius:8px;padding:5px 8px;
+  font-size:12px;line-height:1.35;box-shadow:0 2px 8px rgba(0,0,0,.12);white-space:nowrap;z-index:5}
+.devtip .hurt{color:var(--bad);font-weight:600}
+.devlegend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--dim);margin:4px 0 2px}
+.devlegend span{display:inline-flex;align-items:center;gap:5px}
+.devlegend i{display:inline-block}
+.devlegend i.sw{width:14px;height:9px;border-radius:2px}
+.devlegend i.sw.us{background:var(--accent)} .devlegend i.sw.res{background:var(--accent);opacity:.5}
+.devlegend i.sw.loan{background:var(--accent2)} .devlegend i.sw.loanin{background:var(--warn)}
+.devlegend i.sw.other{background:var(--dim);opacity:.45} .devlegend i.sw.inj{background:var(--bad)}
+.devlegend i.ln{width:16px;height:0;border-top:2px solid var(--accent)}
+.devlegend i.ln.fc{border-top:2px dashed var(--dim)}
+.devlegend i.ln.mv{border-top:1px dashed var(--ink);width:12px;opacity:.6}
