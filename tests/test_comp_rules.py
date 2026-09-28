@@ -3,6 +3,8 @@
 Guard the competition rules (fmparser/tables/comp_rules.py) on real saves.
 
   PARSE     every comp_<uid>.dat member of every save parses to its declared field count
+  COVERAGE  every tag in every member is declared in comp_rules' schemas (read or unread),
+            and every required tag is present
   NAMES     every stage and round name id resolves in the save's round-name catalog
   GROUND    the in-game fixture screens, read back through (uid, stage, round):
             EURO Cup  League Path / Third Qualifying Round, Playoff, Group Stage,
@@ -22,6 +24,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from fmparser import archive as A                              # noqa: E402
 from fmparser.tables import comp_rules as CR, rounds as R  # noqa: E402
 
 SAVES = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
@@ -68,6 +71,16 @@ def main() -> int:
             except CR.RulesError as e:
                 failures.append(f"{os.path.basename(p)}: {e}")
                 continue
+            cov = {}
+            for name, ent in A.members(mm).items():
+                if CR.MEMBER_PATTERN.match(name):
+                    fields = CR.scrape(A.read_member(mm, ent))
+                    if fields:
+                        CR.FILE.coverage(fields, cov)
+            for rec, r in cov.items():
+                if r["undeclared"] or r["missing"]:
+                    failures.append(f"{os.path.basename(p)} {rec}: undeclared "
+                                    f"{r['undeclared']} missing {r['missing']}")
             names = R.round_names_map(mm)
             unresolved = {i for r in rows for i in (r["stage_name_id"], r["round_name_id"])
                           if i is not None and i not in names}

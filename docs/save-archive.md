@@ -144,6 +144,12 @@ The `n` fields end at the trailer `XSvC`/`EdBr`/`EdDt`/`SubF` (`SubF` is the sou
 declared count on every save tested in both careers**; 74 declare 0 fields (loaded, not
 configured). The `stgs` list is the stage structure, and it is what `fix_man` indexes:
 
+Declared per tag in `comp_rules.py` (`FILE`, `STAGE`, `ROUND`, `NAME_REF`; print them with
+`audit_records.py --map`). Across all 30 Frem saves and one Bucaspor save the members carry
+164 file-level, 108 stage and 39 round tags; the core is always present and the rest follow
+the format (leagues carry round-robin and promotion rules, knockouts rounds and legs, group
+stages group rules). The read tags:
+
 | field | meaning | fix_man |
 |---|---|---|
 | stage `id` | FourCC code: `leag` `cham` `prom` `rele` `bppr` (League Path) `chpr` (Champions Path) `play` `grou` `cup ` … | |

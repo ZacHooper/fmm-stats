@@ -12,18 +12,11 @@ the block is exactly that many fields: they end at the file trailer (`XSvC`, `Ed
 `EdDt`, `SubF` = the source path); binary runtime state follows and is not read. A member
 declaring 0 fields is a stub (the competition is loaded but not configured).
 
-What is read is `stgs`, the stage list. Each stage element carries
-
-    id    FourCC stage code ('leag', 'cham', 'rele', 'prom', 'bppr', 'chpr', 'grou', 'cup ', …)
-    indx  stage index — the SAME number `fix_man.dat` carries at +76 (`stage_index`)
-    type  0 knockout, 1 league, 2 groups, 6 play-off feeder
-    ntms  teams in the stage
-    stnm  the stage's name id (e.g. 2000016479 'League Path', 236 'Preliminary Phase')
-    ngps  number of groups (group stages)
-    rnds  the round list — element k is the round `fix_man.dat` carries at +77 (`round_index`)
-          stnm  round name id (151 'Third Qualifying Round', 17 'Quarter Final', …)
-          ntms  teams in the round
-          nmlg  legs per tie (1 or 2)
+The tagged block is declared per TAG below -- FILE -> stgs -> STAGE -> rnds -> ROUND, with
+NAME_REF for a name held in a container -- and read through those declarations
+(`fmparser/core/tagged_schema.py`). A STAGE's `indx` is the number `fix_man.dat` carries at
++76 (`stage_index`); element k of its `rnds` is the round `fix_man.dat` carries at +77
+(`round_index`). `scripts/audit/audit_records.py --map` prints the schemas.
 
 A name id is either the scalar value of `stnm` or the `stgn` child of an `stnm` container;
 both forms occur, and a scalar may be stored as a PAIR of equal u32s. Name ids resolve
@@ -38,10 +31,16 @@ from typing import Any, Dict, List, Optional, Tuple
 from .. import archive as A
 from .. import datadict as DD
 from ..core import Field, PAD, Record, TableDef, U16, U32, UNKNOWN
+from ..core.tagged_schema import (
+    FOURCC, INT, AnyOf, ListOf, Nested, Tag, TaggedRecord, TaggedSchemaError)
 
 __all__ = [
     "COMP_RULES_TABLE",
+    "FILE",
     "HEADER",
+    "NAME_REF",
+    "ROUND",
+    "STAGE",
     "MEMBER_PATTERN",
     "RulesError",
     "competition_rounds",
@@ -64,6 +63,80 @@ HEADER = Record("comp_rules_header", 54, [
     Field(48, 2,  "base_year", U16, note="2000 on every member"),
     Field(50, 4,  "n_fields", U32, note="declared count of top-level tagged fields"),
 ])
+
+
+# ---- the tagged block: FILE -> stgs -> STAGE -> rnds -> ROUND ----------------------------
+# Declared per TAG (fmparser/core/tagged_schema.py): each Tag is read, and every other tag
+# the member carries is listed as `unread` -- seen and deliberately not read, the
+# counterpart of a declared-UNKNOWN byte. The unread lists are every tag observed across
+# all 30 Frem saves and bucaspor-2023-05-20 (2,263 configured members, 4,829 stages, 6,299
+# rounds), in order of frequency; tests/test_comp_rules.py fails on a tag that is neither.
+
+# A name reference: the stage/round name id, sometimes held in a container instead of
+# stored directly on `stnm`.
+NAME_REF = TaggedRecord("comp_rules_name_ref", [
+    Tag("id",   "ref_code", FOURCC, required=True, note="'stnm'"),
+    Tag("stgn", "name_id",  INT,    required=True,
+        note="round-name catalog id (tables/rounds.py); may be a repeated pair (28, 28)"),
+], unread=("DBID",))
+
+NAME_ID = AnyOf(INT, Nested(NAME_REF, pick="name_id"))
+
+ROUND = TaggedRecord("comp_rules_round", [
+    Tag("stnm", "round_name_id", NAME_ID,
+        note="151 'Third Qualifying Round', 17 'Quarter Final', 20 'Final' ..."),
+    Tag("ntms", "round_teams",   INT, required=True, note="teams in the round"),
+    Tag("nmlg", "legs",          INT, note="legs per tie, 1 or 2"),
+], unread=(
+    'nmmt', 'date', 'drdt', 'ctmp', 'tvds', 'vlgr', 'ofsd', 'nmxt', 'drrl', 'prio', 'wrnk',
+    'lrnk', 'nmrp', 'dat2', 'subr', 'wnpz', 'strl', 'iqum', 'apmn', 'tvty', 'mstc', 'lspz',
+    'rank', 'nrdw', 'nrdl', 'crlm', 'SgSd', 'mnsc', 'nmrg', 'nchd', 'MnxO', 'MnxT', 'Sran',
+    'spst', 'lgwz', 'ldpz'),
+    note="element k of a stage's rnds = fix_man +77 round_index k")
+
+STAGE = TaggedRecord("comp_rules_stage", [
+    Tag("id",   "stage_code",    FOURCC, required=True,
+        note="'leag' 'cham' 'prom' 'rele' 'bppr' 'chpr' 'play' 'grou' 'cup' ..."),
+    Tag("indx", "stage_index",   INT,    required=True, note="= fix_man +76 stage_index"),
+    Tag("type", "stage_type",    INT,    required=True,
+        note="0 knockout, 1 league, 2 groups, 6 play-off feeder"),
+    Tag("ntms", "stage_teams",   INT,    note="teams in the stage"),
+    Tag("stnm", "stage_name_id", NAME_ID,
+        note="2000016479 'League Path', 236 'Preliminary Phase', 73 'Group Stage' ..."),
+    Tag("ngps", "n_groups",      INT,    note="groups in a group stage"),
+    Tag("rnds", "rounds",        ListOf(ROUND), note="the knockout rounds, in order"),
+], unread=(
+    'strq', 'tems', 'ftac', 'advs', 'sort', 'subr', 'prio', 'sche', 'rank', 'nrds', 'srnd',
+    'ctll', 'ttac', 'qurl', 'relr', 'grrl', 'gnty', 'gpdt', 'strs', 'vlgr', 'sblt', 'exfp',
+    'prmr', 'edtv', 'lgrl', 'fxor', 'RLtm', 'stfl', 'ngrt', 'clyc', 'tppr', 'mxtm', 'mntm',
+    'pfpr', 'przm', 'sths', 'exlg', 'pspl', 'rkli', 'rvtm', 'TrSt', 'shsn', 'ByTm', 'shnt',
+    'rfpr', 'OPpr', 'pwin', 'pdrw', 'comp', 'rndt', 'AlOO', 'sch?', 'tfpr', 'mtrl', 'pdad',
+    'ptsd', 'btpr', 'acod', 'shrd', 'shpo', 'lwpz', 'drpz', 'hspp', 'TlCh', 'gcfp', 'dasn',
+    'desc', 'hdst', 'pris', 'stsp', 'sthU', 'clyb', 'tvDd', 'FtEx', 'swtm', 'FtDt', 'jcom',
+    'StSi', 'srbh', 'tmPL', 'plfd', 'MnGt', 'MxGt', 'seed', 'mstc', 'mxlg', 'ppnw', 'ppnd',
+    'srst', 'fsff', 'tmor', 'cTmS', 'tvty', 'stsi', 'sequ', 'shi1', 'vdbf', 'midp', 'pref',
+    'ExHG', 'NrTm'),
+    note="one element of the member's stgs list")
+
+FILE = TaggedRecord("comp_rules_file", [
+    Tag("stgs", "stages", ListOf(STAGE), required=True, note="the stage list, in order"),
+], unread=(
+    'ftye', 'vers', 'type', 'year', 'ygap', 'dtrn', 'bsyr', 'inac', 'levl', 'ilgf', 'Bran',
+    'file', 'XSvC', 'EdBr', 'EdDt', 'SubF', 'fnrg', 'itvm', 'crgt', 'fxds', 'Cdpc', 'ACfl',
+    'tems', 'comp', 'vsdp', 'lgto', 'natl', 'MtTv', 'FxSt', 'ptsd', 'rkli', 'desc', 'aldt',
+    'ldos', 'hlps', 'fxri', 'dcin', 'typz', 'ind1', 'ftac', 'lgfx', 'sudt', 'mstc', 'styr',
+    'VRrl', 'mnsc', 'FAif', 'mgqm', 'yhos', 'sfal', 'vlys', 'tfxt', 'CcQR', 'UdFR', 'updy',
+    'btfo', 'CcEx', 'dsrl', 'crlm', 'mcld', 'AfxD', 'fxrl', 'CdSr', 'cmps', 'mxss', 'Uddr',
+    'aqtp', 'fnlc', 'NoMd', 'StPl', 'fsqt', 'cita', 'fycl', 'yctf', 'ycfm', 'MtAc', 'nptp',
+    'snsd', 'rquh', 'midp', 'IChf', 'rqgp', 'prcm', 'Ucdr', 'sfst', 'LtfP', 'dahr', 'enyr',
+    'GtRc', 'DOmf', 'dbmu', 'wkpm', 'sblt', 'chdc', 'btld', 'mdct', 'qurl', 'dbss', 'DbLm',
+    'FxPr', 'DNSC', 'SlPy', 'poff', 'StLv', 'Bltp', 'edhm', 'iqtb', 'srdl', 'mxps', 'rnst',
+    'strl', 'hstn', 'agdt', 'CRps', 'MxBT', 'MxMD', 'mntm', 'mxtm', 'tmPL', 'TlMS', 'imdf',
+    'spid', 'OdDt', 'nelt', 'ntms', 'fpyc', 'fprc', 'fppz', 'apmn', '%itv', 'ICsl', 'DlCm',
+    'YbHC', 'InTS', 'HsPo', 'styo', 'srar', 'usqn', 'othe', 'lsvy', 'RGps', 'SpDs', 'FxCD',
+    'mBsc', 'IToc', 'MxBA', 'sdfd', 'edfd', 'cdtd', 'MGin', 'fnUA', 'visd', 'dbps', 'OdDb',
+    'extc', 'MtGr', 'PrSt', 'rcfm', 'ctuf', 'RnsP', 'dtty', 'duni', 'prty'),
+    note="the member's top-level fields; the trailer is XSvC EdBr EdDt SubF")
 
 
 class RulesError(Exception):
@@ -105,60 +178,27 @@ def scrape(blob: Any) -> List[Tuple[Optional[str], int, Any]]:
     return [r["field"] for r in rows]
 
 
-def _child(fields: List, tag: str):
-    return next((f for f in fields if f[0] == tag), None)
-
-
-def _scalar(fields: List, tag: str) -> Optional[int]:
-    f = _child(fields, tag)
-    if f is None or isinstance(f[2], list):
-        return None
-    return f[2][0] if isinstance(f[2], tuple) else f[2]
-
-
-def _name_id(fields: List) -> Optional[int]:
-    f = _child(fields, "stnm")
-    if f is None:
-        return None
-    if isinstance(f[2], list):
-        return _scalar(f[2], "stgn")
-    return f[2][0] if isinstance(f[2], tuple) else f[2]
-
-
-def _fourcc(v: Optional[int]) -> Optional[str]:
-    if v is None or isinstance(v, str):     # a type-0x02 id already decodes to its tag
-        return v
-    s = v.to_bytes(4, "little")[::-1]
-    return s.decode("latin-1").strip() if all(32 <= c < 127 for c in s) else None
-
-
 def stage_rows(uid: int, fields: List) -> List[Dict[str, Any]]:
-    """One row per (stage, round); a stage with no round list gives one row with
-    round_index None."""
-    stgs = _child(fields, "stgs")
+    """One row per (stage, round), read through the declared FILE/STAGE/ROUND schemas; a
+    stage with no round list gives one row with round_index None."""
     rows: List[Dict[str, Any]] = []
-    if stgs is None:
+    if not fields:                  # a stub member: loaded, not configured, declares nothing
         return rows
-    for element in stgs[2]:
-        st = element[2]
-        stage = {
-            "uid": uid,
-            "stage_index": _scalar(st, "indx"),
-            "stage_code": _fourcc(_scalar(st, "id")),
-            "stage_type": _scalar(st, "type"),
-            "stage_teams": _scalar(st, "ntms"),
-            "stage_name_id": _name_id(st),
-            "n_groups": _scalar(st, "ngps"),
-        }
-        rnds = _child(st, "rnds")
-        rounds = rnds[2] if rnds is not None else []
+    try:
+        stages = FILE.read(fields)["stages"]
+    except TaggedSchemaError as e:
+        raise RulesError(f"competition {uid}: {e}") from e
+    for st in stages:
+        stage = {"uid": uid, **{k: st[k] for k in (
+            "stage_index", "stage_code", "stage_type", "stage_teams", "stage_name_id",
+            "n_groups")}}
+        rounds = st["rounds"] or []
         if not rounds:
             rows.append({**stage, "round_index": None, "round_name_id": None,
                          "round_teams": None, "legs": None})
         for k, r in enumerate(rounds):
-            rf = r[2]
-            rows.append({**stage, "round_index": k, "round_name_id": _name_id(rf),
-                         "round_teams": _scalar(rf, "ntms"), "legs": _scalar(rf, "nmlg")})
+            rows.append({**stage, "round_index": k, "round_name_id": r["round_name_id"],
+                         "round_teams": r["round_teams"], "legs": r["legs"]})
     return rows
 
 

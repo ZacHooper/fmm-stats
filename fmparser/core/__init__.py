@@ -28,6 +28,20 @@ from .schema import (
     per_byte_map,
     validate,
 )
+from .tagged_schema import (
+    FOURCC,
+    INT,
+    STRING,
+    TAGGED_REGISTRY,
+    AnyOf,
+    ListOf,
+    Nested,
+    Tag,
+    TaggedRecord,
+    TaggedSchemaError,
+    tag_map,
+    validate_tagged,
+)
 from .table import (
     Table,
     TableDef,

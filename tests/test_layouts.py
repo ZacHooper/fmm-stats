@@ -221,8 +221,59 @@ def part3_reader():
     return ok
 
 
+def part4_tagged():
+    """Every registered TAGGED schema is sound, and the tagged checker catches what it must."""
+    from fmparser.core import tagged_schema as TS
+    print("\nTAGGED SCHEMAS")
+    ok = True
+    for name in sorted(TS.TAGGED_REGISTRY):
+        rec = TS.TAGGED_REGISTRY[name]
+        problems = TS.validate_tagged(rec)
+        ok &= not problems
+        print(f"  {'ok  ' if not problems else 'FAIL'} {name:<24} "
+              f"{len(rec.tags)} read + {len(rec.unread)} known-unread tags")
+        for p in problems:
+            print(f"        {p}")
+
+    T = lambda *a, **k: TS.TaggedRecord(*a, register=False, **k)   # noqa: E731
+    rec = T("t", [TS.Tag("indx", "stage_index", TS.INT, required=True),
+                  TS.Tag("id", "code", TS.FOURCC)], unread=("strq",))
+    code = int.from_bytes(b"leag"[::-1], "little")
+    cases = [
+        ("a sound element reads", lambda: rec.read([("indx", 0x11, 3), ("id", 0x01, code)])
+         == {"stage_index": 3, "code": "leag"}),
+        ("an absent optional tag reads as None",
+         lambda: rec.read([("indx", 0x11, 3)])["code"] is None),
+    ]
+    for label, fn in cases:
+        good = fn()
+        ok &= good
+        print(f"  {'ok  ' if good else 'FAIL'} {label}")
+    for label, fields in (
+        ("a missing required tag is caught", [("id", 0x01, code)]),
+        ("a wire type the kind does not accept is caught", [("indx", 0x1a, "x")]),
+        ("a pair that does not repeat one value is caught", [("indx", 0x0f, (1, 2))]),
+    ):
+        try:
+            rec.read(fields)
+            good = False
+        except TS.TaggedSchemaError:
+            good = True
+        ok &= good
+        print(f"  {'ok  ' if good else 'FAIL'} {label}")
+    cov = rec.coverage([("indx", 0x11, 1), ("strq", 0x0b, []), ("zzzz", 0x11, 0)])["t"]
+    good = cov["undeclared"] == {"zzzz": 1} and "strq" not in cov["undeclared"]
+    ok &= good
+    print(f"  {'ok  ' if good else 'FAIL'} coverage reports an undeclared tag, not an unread one")
+    good = (T("d", [TS.Tag("a", "x", TS.INT)], unread=("a",)).tags
+            and TS.validate_tagged(T("d", [TS.Tag("a", "x", TS.INT)], unread=("a",))) != [])
+    ok &= good
+    print(f"  {'ok  ' if good else 'FAIL'} a tag declared both read and unread is caught")
+    return ok
+
+
 def main():
-    ok = part1_registry() & part2_checker() & part3_reader()
+    ok = part1_registry() & part2_checker() & part3_reader() & part4_tagged()
     print("\n" + ("PASS: every declared layout is sound and the checker catches what it must"
                   if ok else "FAIL: see above"))
     return 0 if ok else 1
