@@ -10,7 +10,7 @@
  */
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
-import { el, bar, num, money, monthYear, sparkline, pill, DASH, toast } from "../ui.js";
+import { el, bar, num, money, monthYear, sparkline, pill, attrValue, DASH, toast } from "../ui.js";
 import { openProfile, openCompare } from "../profile.js";
 import { registrationKit } from "../registration.js";
 
@@ -107,10 +107,9 @@ export async function view() {
       origin: D.S.ours.origin?.[String(p.tid)] || null,
       capital: (D.S.ours.capital_eligible || []).includes(p.tid),
       dev: D.S.ours.development?.[String(p.tid)] || null,
-      // Squad members' reputation ships in core.json; anyone else (a shortlisted player) has it
-      // only if his profile row has been fetched.
-      rep: D.S.ours.reputation?.[String(p.tid)]
-        || (p.profile ? [p.profile.reputation.home, p.profile.reputation.current, p.profile.reputation.world] : null),
+      // The profile tail: in core.json for our squad; a shortlisted player has it only once his
+      // profile row has been fetched, so his columns read blank until then.
+      prof: p.profile || null,
       alsoRoles: roles.map((x) => x.role).filter((x, i, a) => a.indexOf(x) === i),
       shortlist: !!extra.shortlist,
       // Searchable on every position he's listed at, not just the one on show — the row's
@@ -271,21 +270,8 @@ export async function view() {
       filterType: "set",
       filterValue: (r) => r.dev || null,
     },
-    repHome: {
-      label: "Home rep", group: "Reputation", align: "num",
-      help: "Reputation in his home nation — the game's own number, same as the profile card",
-      get: (r) => r.rep?.[0] ?? null,
-    },
-    repCurrent: {
-      label: "Current rep", group: "Reputation", align: "num",
-      help: "Current reputation — the game's own number, same as the profile card",
-      get: (r) => r.rep?.[1] ?? null,
-    },
-    repWorld: {
-      label: "World rep", group: "Reputation", align: "num",
-      help: "Worldwide reputation — the game's own number, same as the profile card",
-      get: (r) => r.rep?.[2] ?? null,
-    },
+    // ---- everything the profile sheet shows, one column per field
+    ...profileColumns(),
     // ---- projection: what he looks like at the target age (population expectation, not a
     // per-player prediction — see api/forecast.json's note). Labels read the live target age.
     projRating: {
@@ -364,6 +350,9 @@ export async function view() {
     "Contracts": ["wage", "expiry", "value", "age", "status"],
     "Recruitment rule": ["origin", "capital", "age", "lvl"],
     "Reputation": ["age", "repHome", "repCurrent", "repWorld", "value", "lvl"],
+    "Bio": ["age", "nation", "height", "weight", "foot", "footL", "footR", "shirt", "joined", "caps"],
+    "Personality": PERSONALITY.map(([k]) => `pers:${k}`),
+    "Hidden": HIDDEN.map(([k]) => `hid:${k}`),
     "Physical": ["height", "weight", "attr:Pace", "attr:Stamina", "attr:Strength", "attr:Agility"],
     ...Object.fromEntries(Object.entries(D.STAT_PRESETS).map(([k, v]) => [k, v.map((s) => `stat:${s}`)])),
   };
@@ -592,3 +581,58 @@ export async function view() {
 }
 
 const kpi = (label, value, title) => el("div.kpi", { title }, [el("b", { text: String(value) }), el("span", { text: label })]);
+
+// The profile sheet's personality and hidden-attribute blocks, as [key, label] in the order the
+// sheet lists them — one Squad column each.
+const PERSONALITY = [["adaptability", "Adaptability"], ["ambition", "Ambition"],
+  ["determination", "Determination"], ["loyalty", "Loyalty"], ["pressure", "Pressure"],
+  ["professionalism", "Professionalism"], ["sportsmanship", "Sportsmanship"],
+  ["temperament", "Temperament"]];
+const HIDDEN = [["jumping", "Jumping"], ["consistency", "Consistency"], ["bigMatch", "Big match"],
+  ["injuryProne", "Injury proneness"], ["versatility", "Versatility"], ["setPieces", "Set pieces"],
+  ["penalty", "Penalties"], ["workRate", "Work rate"], ["flair", "Flair"]];
+
+/** Stronger foot as a word: the better-rated foot, "Both" when they're within 2 of each other. */
+const strongFoot = (l, r) => (l == null || r == null ? null
+  : Math.abs(l - r) <= 2 ? "Both" : l > r ? "Left" : "Right");
+
+/** One column per field of the profile tail (`row.prof`, null for a shortlisted player whose
+ *  profile hasn't been fetched), so anything the profile sheet shows can be sorted and filtered. */
+function profileColumns() {
+  const pv = (f) => (r) => (r.prof ? f(r.prof) ?? null : null);
+  const numCol = (label, group, f, help) => ({ label, group, align: "num", help, get: pv(f) });
+  const attrCol = (label, group, f, help) => ({
+    label, group, align: "num", help,
+    sort: pv(f), render: (r) => { const v = pv(f)(r); return v == null ? null : attrValue(v); },
+    filterValue: pv(f),
+  });
+  return {
+    nation: { label: "Nationality", group: "Bio", get: pv((p) => p.nationality) },
+    foot: {
+      label: "Foot", group: "Bio",
+      help: "Stronger foot — 'Both' when the two are within 2 of each other",
+      get: pv((p) => strongFoot(p.footLeft, p.footRight)),
+    },
+    footL: attrCol("Left foot", "Bio", (p) => p.footLeft, "Left foot, 1-20"),
+    footR: attrCol("Right foot", "Bio", (p) => p.footRight, "Right foot, 1-20"),
+    shirt: { label: "No.", group: "Bio", align: "num", help: "Squad number", get: (r) => r.player.shirt || null },
+    prefShirt: numCol("Pref. no.", "Bio", (p) => p.preferredShirt || null, "The squad number he'd prefer"),
+    joined: {
+      label: "Joined", group: "Bio", help: "When he joined the club",
+      sort: pv((p) => p.joinedDate), render: (r) => (r.prof?.joinedDate ? monthYear(r.prof.joinedDate) : null),
+      filterType: "none",
+    },
+    caps: numCol("Caps", "Bio", (p) => p.caps, "Senior international caps"),
+    intGoals: numCol("Int. goals", "Bio", (p) => p.goals, "Senior international goals"),
+    u21Caps: numCol("U21 caps", "Bio", (p) => p.u21Caps),
+    u21Goals: numCol("U21 goals", "Bio", (p) => p.u21Goals),
+    repHome: numCol("Home rep", "Reputation", (p) => p.reputation.home, "Reputation in his home nation"),
+    repCurrent: numCol("Current rep", "Reputation", (p) => p.reputation.current, "Current reputation"),
+    repWorld: numCol("World rep", "Reputation", (p) => p.reputation.world, "Worldwide reputation"),
+    ...Object.fromEntries(PERSONALITY.map(([k, label]) =>
+      [`pers:${k}`, attrCol(label, "Personality", (p) => p.personality[k])])),
+    ...Object.fromEntries(HIDDEN.map(([k, label]) =>
+      [`hid:${k}`, attrCol(label, "Hidden attributes", (p) => p.hidden[k],
+        `${label} — one of the attributes the in-game screen doesn't show`)])),
+  };
+}
