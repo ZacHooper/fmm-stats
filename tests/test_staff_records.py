@@ -290,6 +290,18 @@ def main(argv):
             fails.append(f"{nations_map[nid]['name']} should have no UEFA coefficient")
     euro = [r for r in nations_map.values() if r["coefficients"]]
     print(f"  OK  {len(euro)} nations carry UEFA coefficients, none of them South American")
+    # EXTENT: the walk reads every declared nation and ends on the next table's own frame
+    base, declared = nations.locate_nations(mm)
+    end = nations.nations_table_spans(mm)[0][1]
+    if len(nations_map) != declared or bytes(mm[end:end + 8]) != b"\xff" * 8:
+        fails.append(f"nations: read {len(nations_map)} of {declared}, walk ends at {end} "
+                     f"on {bytes(mm[end:end + 8]).hex()} instead of the next count frame")
+    else:
+        print(f"  OK  all {declared} nations walked, ending on the next table's count frame")
+    dk = {lg["language_id"]: lg["proficiency"]
+          for lg in (nations_map.get(138) or {}).get("languages") or []}
+    if dk.get(31) != 100 or dk.get(7) != 70:
+        fails.append(f"Denmark's languages {dk}: expected Danish (31) 100, English (7) 70")
 
     # The info record's personality block + international record, on the same 7 managers.
     ok = 0

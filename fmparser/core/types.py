@@ -2,7 +2,8 @@
 """Field types and binary primitives for declarative schemas.
 
 Two encodings of a value: PACKED fields at fixed offsets (the kinds `U8` .. `PAD`, and the
-length-prefixed `PString`), and the TAGGED format, where each field carries its own
+variable-length segments whose length the bytes declare: `PString`, `CountedList`), and the
+TAGGED format, where each field carries its own
 tag and type code (`read_tree`, below).
 """
 import struct
@@ -105,6 +106,53 @@ class PString:
         except UnicodeDecodeError:
             val = raw.decode(self.fallback_encoding, errors="replace")
         return {self.name: val}, offset + total_len
+
+
+class CountedList:
+    """A packed list whose length the row declares: `[count][count x item]`.
+
+    A segment of a `TableDef` row, like `PString`. `count` is the width kind of the count
+    (`U8`, `U16` or `U32`); `item` is the `Record` (schema.py) each element is. With `scalar=True` the
+    item must emit exactly one field, and the list holds its values rather than dicts.
+    `max_count` bounds the count, so a misaligned walk fails instead of reading megabytes.
+    """
+    __slots__ = ("name", "count", "item", "scalar", "max_count", "_field")
+
+    def __init__(self, name: str, count: str, item: Any, scalar: bool = False,
+                 max_count: int = 4096):
+        if count not in (U8, U16, U32):
+            raise ValueError(f"{name}: count must be U8, U16 or U32, not {count!r}")
+        self.name = name
+        self.count = count
+        self.item = item
+        self.scalar = scalar
+        self.max_count = max_count
+        emitted = [f for f in item.fields if f.emits]
+        if scalar and len(emitted) != 1:
+            raise ValueError(f"{name}: scalar=True needs an item that emits one field, "
+                             f"{item.name} emits {len(emitted)}")
+        self._field = emitted[0] if scalar else None
+
+    def __repr__(self) -> str:
+        return f"CountedList({self.name!r}, {self.count}, {self.item.name})"
+
+    def read(self, mm: Any, offset: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
+        """`({name: [...]}, next_offset)`, or None when the list overruns `limit`."""
+        cw = KIND_WIDTH[self.count]
+        if offset + cw > limit:
+            return None
+        n = int.from_bytes(mm[offset:offset + cw], "little")
+        stride = self.item.span
+        end = offset + cw + n * stride
+        if n > self.max_count or end > limit:
+            return None
+        base = offset + cw
+        if self.scalar:
+            f = self._field
+            vals = [self.item.read_field(mm, f, base + i * stride) for i in range(n)]
+        else:
+            vals = [self.item.read(mm, base + i * stride) for i in range(n)]
+        return {self.name: vals}, end
 
 
 # ---- the TAGGED format -----------------------------------------------------------------------

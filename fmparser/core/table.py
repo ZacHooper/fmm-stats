@@ -7,7 +7,8 @@ engine does the walk. Two kinds, matching the two kinds of record (`schema.py`):
 `TableDef` -- PACKED rows. The locator returns `(base, count)`, or several such runs; each
 row is a composite sequence of typed segments, walked by offset:
 1. Fixed Record layouts (from `schema.py`).
-2. Length-prefixed string primitives (`PString` from `types.py`).
+2. Variable-length segments whose length the bytes declare (`types.py`): `PString`, a
+   length-prefixed string, and `CountedList`, `[count][count x Record]`.
 3. Custom dynamic segments implementing `read(mm, pos, limit)`.
 
 `TaggedTableDef` -- TAGGED rows. The locator returns `[(offset, n)]`, one per row: a block
@@ -159,22 +160,15 @@ def walk_table(mm: Any, table: TableDef) -> List[Dict[str, Any]]:
 
 
 def _count_header_start(mm: Any, base: int) -> int:
-    """Step back from `base` over a count and its preceding 0xFF sentinel, if there is one."""
-    start = base
-    p = base
-    if p >= 4:
-        k = p
-        while k > 0 and mm[k - 1] == 0xFF:
-            k -= 1
-        if p - k < 4 and k >= 4:
-            k2 = k
-            while k2 > 0 and mm[k2 - 1] == 0xFF:
-                k2 -= 1
-            if p - k2 >= 6:
-                start = k2
-        elif p - k >= 8:
-            start = k
-    return start
+    """Where the table's `[>= 8 x 0xFF][count]` frame starts, for a table whose record 0 is
+    at `base` (count u16 or u32); `base` itself when there is no frame."""
+    for width in (2, 4):
+        k = base - width
+        if k >= 8 and mm[k - 8:k] == b"\xff" * 8:
+            while k > 0 and mm[k - 1] == 0xFF:
+                k -= 1
+            return k
+    return base
 
 
 def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> List[Tuple[int, int]]:

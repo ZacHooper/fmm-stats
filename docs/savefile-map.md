@@ -50,7 +50,7 @@ by a structural test described in the notes.
 | 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (1,971 / 560 / 816), the 622 × 99 B person-shaped record, the 273-entry round/leg-name strings | static, **unnamed** | Shape A/C | `ROUNDS_TABLE` **MIGRATED**; others chained |
 | 6,332,603 | ~12,607,190 | 6.27 MB | **club + national team table** — 11,331 records, `tid == slot index`, dense. Low tids are national teams; U21 sides are the last rows | static | Shape A | **BLOCKED on nested list** (affiliations array) |
 | 12,607,199 | ~12,756,285 | 0.15 MB | **competitions** — 1,372 | static | Shape A | **BLOCKED on nested list** (`n_refs` array) |
-| 12,756,293 | ~12,796,115 | 0.04 MB | **nations** — declared 251, we read 227 (Algeria is id 0, cut by a `1 <= nid` gate) | static | Shape A | **MIGRATED** (`NATIONS_TABLE`) |
+| 12,756,293 | ~12,796,115 | 0.04 MB | **nations** — declared 251, all walked by declaration; ends on the continent table's frame | static | Shape A | **MIGRATED** (`NATIONS_TABLE`) |
 | 12,796,123 | 13,471,770 | 0.68 MB | **stadiums** — 15,987 ✓ | static | Shape A | **MIGRATED** (`STADIUMS_TABLE`) |
 | 13,471,776 | 13,690,902 | 0.22 MB | **cities** — 10,956 ✓ | static | Shape A | **MIGRATED** (`CITIES_TABLE`) |
 | 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape; plus the 888-record 7 B id list | static, partly unnamed | Shape A | hdr |

@@ -77,15 +77,12 @@ locator (`parser-architecture.md` Part 1). `core` walks arrays of both row kinds
 `TaggedTableDef`). In order — each PR gated by byte-identical `tests/assert_identical.py`, the
 module's save test, `audit_records.py`, and one deliberate break:
 
-1. **`nations` and `person_info`** declare a `TableDef` but scrape with hand-written loops.
-   - `person_info`: needs a core COUNTED-LIST segment for the variable lists after its 68-byte
-     head (step 2 needs it too); `TABLES["person_info"]` holds the `Record`, not a table. Its
-     walk covers 2.24 MB of the 3.42 MB table. Settle record 0 (572,041 vs 572,042) and the 92
-     rows short of the declared 32,966 on the way ([`table-framing.md`](table-framing.md)).
-   - `nations`: the scrape searches backwards from 3-letter codes and keeps the densest
-     cluster; the table declares 251 and we read 227 (Algeria, id 0, is cut). Its `TableDef`
-     spans report 50 bytes against 39,634 from its own walk. Decode the real layout from the
-     count frame first — expect the output to change.
+1. **`person_info`** declares a `TableDef` but scrapes with a hand-written loop. The record is
+   `[68 B head][17 B][u8 n][n x (language u16, u8)][u8 m][m x 8 B][1 B]`: two
+   `CountedList`s, the first the same `(language_id, proficiency)` item the nations use.
+   `TABLES["person_info"]` holds the `Record`, not a table. Its walk covers 2.24 MB of the
+   3.42 MB table. Settle record 0 (572,041 vs 572,042) and the 92 rows short of the declared
+   32,966 on the way ([`table-framing.md`](table-framing.md)).
 2. **`clubs_comps`' club and competition tables** — arrays of `[id][uid][len][long][len][short]
    [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
    (`comp_refs`).
@@ -138,7 +135,8 @@ list. Find them by `14 01 00 0a 00` at gaps of exactly 200, in runs of exactly 1
 
 ### 5. Reference-half tables not yet read
 - The unnamed count-framed tables in [`table-framing.md`'s register](table-framing.md#the-complete-register).
-- The **Region** table, the nation record's counted **language list**, and the ~7-entry
+- The **Region** table, the unnamed bytes of the nation record (`NATION_TEAM`, `NATION_END`),
+  and the ~7-entry
   **continent** table right after the nations (`[uid u32][Name][01][CodeName][Demonym][01]`,
   Africa..South America at ids 0–5, `World` at 6).
 - The **20 bytes** `parse_club_trailer` steps over.

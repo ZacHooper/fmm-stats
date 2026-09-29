@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser.core import (                                # noqa: E402
-    Field, PString, Record, TableDef, U8, U16, U32, table_spans, walk_table)
+    CountedList, F32, Field, PString, Record, TableDef, U8, U16, U32, table_spans, walk_table)
 
 # Synthetic fixed schema: 7 bytes = [id u32][val u16][flag u8]
 DUMMY_FIXED = Record("dummy_fixed", 7, [
@@ -251,12 +251,49 @@ def test_runs_row_invariant_fields():
     print("  PASS TableDef (runs, invariant, fields)")
 
 
+def test_counted_list_and_frame():
+    print("TESTING CountedList (scalar and record items) and the count frame in spans")
+    pair = Record("t_pair", 3, [Field(0, 2, "lang", U16), Field(2, 1, "pct", U8)],
+                  is_head=True, register=False)
+    one = Record("t_f32", 4, [Field(0, 4, "v", F32)], is_head=True, register=False)
+    head = Record("t_id", 2, [Field(0, 2, "id", U16)], is_head=True, register=False)
+    table = TableDef(
+        name="counted",
+        segments=(head, CountedList("vals", U16, one, scalar=True),
+                  CountedList("langs", U8, pair)),
+        locator=lambda m: (12, 2),
+        invariant=lambda r, i: r["id"] == i,
+    )
+    row0 = struct.pack("<HH", 0, 2) + struct.pack("<ff", 1.5, 2.5) + bytes([1]) + struct.pack("<HB", 7, 100)
+    row1 = struct.pack("<HH", 1, 0) + bytes([0])
+    buf = b"\xff" * 10 + struct.pack("<H", 2) + row0 + row1 + b"\x00" * 4
+    mm = memoryview(buf)
+    rows = table.scrape(mm)
+    assert rows == [{"id": 0, "vals": [1.5, 2.5], "langs": [{"lang": 7, "pct": 100}]},
+                    {"id": 1, "vals": [], "langs": []}], rows
+    # the span starts at the >= 8 x 0xFF frame, not at record 0, and ends after the last row
+    assert table.spans(mm) == [(0, 12 + len(row0) + len(row1))], table.spans(mm)
+    assert table.spans(mm, include_count_header=False)[0][0] == 12
+
+    # a count that overruns the buffer, or max_count, ends the walk instead of reading past it
+    over = CountedList("vals", U16, one, scalar=True, max_count=1)
+    assert over.read(mm, 12 + 2, len(buf)) is None
+    assert CountedList("vals", U16, one, scalar=True).read(mm, 12 + 2, 16) is None
+    try:
+        CountedList("bad", U16, pair, scalar=True)
+        raise AssertionError("scalar=True on a two-field item should be refused")
+    except ValueError:
+        pass
+    print("  PASS CountedList")
+
+
 def main():
     test_fixed_table()
     test_single_string_catalog()
     test_multi_string_catalog()
     test_pstring_primitive()
     test_runs_row_invariant_fields()
+    test_counted_list_and_frame()
     return 0
 
 

@@ -111,8 +111,8 @@ def claims(mm, n):
 
     # ---- MEASURED: every registered table, from the spans its own walk reports ------------
     # A module's own `<name>_table_spans` is preferred where it has one: it is what the parser
-    # actually walks, and for a table not yet routed through its TableDef (nations, person_info) the
-    # TableDef's spans can disagree with it (nations: 50 bytes vs 39,634). Tables read from
+    # actually walks, and for a table not yet routed through its TableDef (person_info) the
+    # TableDef's spans can disagree with it. Tables read from
     # an archive member, not the save, are covered by the archive container below.
     import fmparser.tables as T
     from fmparser.core import TableDef, TaggedTableDef
