@@ -122,6 +122,12 @@ nothing else is emitted yet. Open:
   all eleven of 2024, 2025, 2026 and All-Time found in the matching list on
   `frem-2027-06-15` (screenshots). The XI is picked by position (its players rank 1st to
   72nd by rating within the 100). Competition dream teams (World Cup 2025) are not here.
+- **Competition awards are not in this table**: the 3F Superliga Team of the Year 2026/27
+  (nine non-Frem players, league-only ratings) and the World Cup 2025 Dream Team appear in no
+  list. Find them by searching the save for the eleven tids of one team together (screenshots
+  on `frem-2027-06-15`); the competition honours or the archive's competition members are the
+  first places to look. The list entries' rating is the all-competitions average (Behrndtz
+  7.47 = league 7.64 and European 6.88), the Team of the Year's is league only.
 - **Lists 63/65**: the club counterpart of 62/64 (up to 79 of our players, across seasons),
   and why the all-time pool is stored twice; match against a club Best XI screen if the
   game has one.
