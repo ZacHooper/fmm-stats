@@ -183,7 +183,7 @@ run of ≥8 `0xFF`; every `live` row by calling the named function. The structur
 - **club-records extent** — the u16 club count after the history pool, walked row by row.
 - **drift class** — re-run any two saves and compare; the reference half moves in tens of KB,
   the career half in megabytes.
-- **player-list blocks** — an unused list (`14 01 00 0a 00` at tail +121 of 100 entries, 200
+- **player-list blocks** — an unused list (`14 01 00 0a 00` at tail +121 of 100 snapshots, 200
   bytes apart), then walked forward and backward list by list (`tables/player_lists.py`).
 - **the archive** — the FIRST `28 b5 2f fd` (zstd magic) in the file; walk `[u32 stored][frame]`
   from four bytes before it. `uv run python scripts/audit_archive.py` reproduces the whole
