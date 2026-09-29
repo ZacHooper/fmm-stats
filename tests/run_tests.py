@@ -4,8 +4,7 @@
 There was no runner, and there did not obviously need to be one -- each test is a `main()`
 returning 0 or 1 and `for t in tests/test_*.py; do uv run python "$t"; done` runs them. What
 that loop cannot do is notice that NOTHING RAN. Every test here is save-dependent, a missing
-save returned 0, and so a clean clone printed a wall of SKIP lines and exited green
-(docs/TODO.md #15).
+save returned 0, and so a clean clone printed a wall of SKIP lines and exited green.
 
 So: a skip exits 77 (`tests/harness.py`), and this runner fails when the whole suite skipped.
 Green now means something ran.

@@ -738,7 +738,7 @@ def main():
     # Real home-game attendance per season (mart.club_attendance groups on home_tid, so this is
     # our own gate, same convention as the "Biggest Crowd" award below) — avg/min alongside the
     # max that award already surfaces, no fill-rate (that needs stadium_capacity, out of scope
-    # here and already unreliable per docs/TODO.md #2's att_avg/att_min/att_max caveat, which
+    # here and already unreliable per the att_avg/att_min/att_max caveat in docs/TODO.md, which
     # doesn't apply to this real-attendance view).
     att = db.q("""SELECT season, n_games, avg_att, max_att
                   FROM mart.club_attendance
@@ -894,7 +894,7 @@ def main():
     # Origin-club stadiums for the CURRENT squad — mart.squad_current is already "who's really
     # ours right now" (see CLAUDE.md's squad_current/squad_on note), so this can't repeat the
     # raw-club_tid mistake that catches a lapsed loan. A player with no resolvable origin club
-    # (17% of the pool, docs/TODO.md #6) or `confidence='low'` can't be plotted — counted, not
+    # (17% of the pool; see docs/TODO.md, "Unnamed fields") or `confidence='low'` can't be plotted — counted, not
     # silently dropped.
     origins_df = db.q("""WITH o AS (
                             SELECT sc.person_id, sc.name, po.origin_parent_tid,

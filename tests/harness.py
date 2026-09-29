@@ -3,7 +3,7 @@
 
 Every test here is save-dependent by nature, and every one of them handled a missing save the
 same way: print `SKIP: ...` and `return 0`. Run the suite on a clean clone and it is green,
-having tested nothing (docs/TODO.md #15). The problem is not the skipping -- a save is 64 MB
+having tested nothing. The problem is not the skipping -- a save is 64 MB
 and lives in R2, so skipping is correct -- it is that a skip and a pass are the same answer.
 
 So a skip exits **77**, the long-standing autotools convention for exactly this. `scripts/
