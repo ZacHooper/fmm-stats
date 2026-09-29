@@ -229,7 +229,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     # fine even stale) but NOT as proof the loan is still live: verified on this exact
     # career, Ernest Nuamah reads loaned_in=True, club_tid=346 across EIGHT CONSECUTIVE
     # snapshots spanning 2023-01-06 to 2024-11-10 — almost two years, far longer than any
-    # real loan, and eight other names showed the identical pattern. The squad-list entry
+    # real loan, and eight other names showed the identical pattern. The squad-list snapshot
     # simply never got cleared. Attaching the exact-record's real attrs+value to a stale
     # ghost would be worse than the false-owned-marker case attr_record's docstring already
     # guards against: it fabricates a plausible-looking CURRENT transfer value for a player
@@ -259,7 +259,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
         if r:
             own_exact[tid] = {"attrs": r["attrs"],
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
-                              "value": r["value"], "as_of": r["as_of"]}
+                              "value": r["value"], "snapshot_date": r["snapshot_date"]}
 
     # career history: the whole pool as stored, plus each player's head row (the attribute
     # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
@@ -358,9 +358,9 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                 row["estimated"] = {a: False for a in MOD.ATTR_ORDER}
                 row["feet"] = own_exact[tid]["feet"]
                 row["value"] = own_exact[tid]["value"]
-                # the date of the Scrapbook-Profile entry these came from (squad.py): its
-                # attributes are as of then, not as of the save
-                row["exact_as_of"] = own_exact[tid]["as_of"]
+                # the date of the player attribute snapshot these came from (squad.py):
+                # the attributes are as of then, not as of the save
+                row["attribute_snapshot_date"] = own_exact[tid]["snapshot_date"]
             else:
                 # Everyone else: write ONLY what the record states plainly. The 15 entangled
                 # attributes and Teamwork are DERIVED, and derivation is the database's job --

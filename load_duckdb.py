@@ -1044,7 +1044,7 @@ def load_core(con, d, season, phase):
             *(_int(v.get(c)) for c in SRC_COLS),
             *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
               for c in PERSON_COLS),
-            _date(v.get("exact_as_of")),
+            _date(v.get("attribute_snapshot_date")),
         ))
         # EXACT values only. `estimated` marks which of the extract's values the save states
         # outright; anything else is stored NULL and derived by staging.player_attributes.
@@ -1094,7 +1094,7 @@ def load_core(con, d, season, phase):
              "wage_units", "wage_gbp", "contract_expiry", "contract_expiry_year",
              "current_reputation", "world_reputation", "international_retired",
              "squad_number", "preferred_squad_number", "height_cm", "weight_kg"
-             ] + PLAYER_HIDDEN_COLS + SRC_COLS + PERSON_COLS + ["exact_as_of"]
+             ] + PLAYER_HIDDEN_COLS + SRC_COLS + PERSON_COLS + ["attribute_snapshot_date"]
     counts["players"] = _insert(con, "players", pcols, prows)
     counts["staff"] = _insert(con, "players", pcols, srows)
     counts["staff_attributes"] = _insert(con, "staff_attributes", STAFF_ATTR_COLS, sarows)
@@ -1737,7 +1737,7 @@ def create_schema(con):
 # Column additions for stores created before a schema change (CREATE TABLE IF NOT EXISTS
 # won't add columns to an existing table). Each is idempotent.
 _MIGRATIONS = [
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS exact_as_of DATE",
+    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS attribute_snapshot_date DATE",
     "ALTER TABLE staging.club_records ADD COLUMN IF NOT EXISTS record_table VARCHAR",
     "ALTER TABLE staging.player_records ADD COLUMN IF NOT EXISTS record_table VARCHAR",
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS loaned_in BOOLEAN",

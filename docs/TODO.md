@@ -118,8 +118,8 @@ Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 `frem-2027-06-15`: 0–30 the World Best XI pool of each season, 31–61 the Manager's Best
 Eleven pool of each season (every player who played for the manager, loanees included; it
 follows the manager, not the club), 62/64 and 63/65 the World and Manager's All-Time pools.
-An entry is the player's **Scrapbook Profile** as of the entry's date (Nuamah's 2022 entry
-verified field by field). `squad.py` reads the manager's lists; nothing else is emitted. Open:
+Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as of its date
+(Nuamah's and Mikkel Andersson's 2022 snapshots verified field by field). `squad.py` reads the manager's lists; nothing else is emitted. Open:
 - **Which copy of each All-Time pair is live**: 63 carries this season's "New Entry" dates,
   65 last season's. Confirm across a season boundary.
 - **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan
@@ -131,7 +131,8 @@ verified field by field). `squad.py` reads the manager's lists; nothing else is 
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
-  `exact_as_of`, the date of the entry the squad's exact attributes came from. Agreement
+  `attribute_snapshot_date`, the date of the player attribute snapshot the squad's exact
+  attributes came from. Agreement
   with the attributes stored on the player's own record falls with its age (84% under a
   month, ~80% to seven months, ~60% at nine or more), and entries up to two years old are in
   use (`frem-2026-06-11`: 2024-06-29). Decide in the mart when an old entry should give way
