@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
-"""`player_lists` -- 66 preallocated lists of 100 player entries: the World Best XI pools,
-season by season and all-time, and our club's squad, season by season.
+"""`player_lists` -- 66 preallocated lists of 100 player entries: the pools behind the
+game's World Best XI and Manager's Best Eleven screens, season by season and all-time.
+
+Each entry is a snapshot of the player as he was in the season that earned it -- name, club,
+the 23 attributes, positions, value and that season's numbers -- because the screens show
+him as he was then, after he has moved on, declined or retired.
 
     region  66 x list
     list    [100 x entry][trailer, 14 bytes]
@@ -17,13 +21,17 @@ The 66 lists are three groups, by index:
             the game's World Best XI screen for that year picks its eleven by position
             (all eleven, for 2024, 2025 and 2026, verified against the screen on
             frem-2027-06-15). The list of the season in progress fills as it is played.
-    31-61   our club's squad, one list per season (first team and reserves, under their
-            own club markers, and players loaned in); filled from 31
+    31-61   the Manager's Best Eleven pool, one per season: every player who played for
+            the MANAGER that season (first team and reserves under their own club
+            markers, loanees under their parent club), filled from 31. It follows the
+            manager, not the club, and keeps players who have since left (2022 and 2026
+            elevens verified against the screen on frem-2027-06-15)
     62-65   62 and 64: the All-Time pool behind World Best XI - All-Time (all eleven
             verified), each entry frozen in the season that earned its place ("Torino -
-            2023"); the two copies are the same 100 players. 63 and 65: the club
-            counterpart -- players who have played for us, across seasons -- not yet
-            matched to a screen
+            2023"). 63 and 65: the pool behind All-Time Manager's Best Eleven (all eleven
+            verified, "Frem - 2025", "FC Kobenhavn (loan) 2021"). In each pair one copy
+            carries this season's entries (the screen's "New Entry") and the other the
+            pool as of the end of last season
 
 A list's trailer is written when its season ends: `season` is that season's end year, and
 reads 0xffff while the season is in progress. Our club's current squad is the last filled

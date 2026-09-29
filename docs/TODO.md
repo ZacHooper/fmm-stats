@@ -128,15 +128,11 @@ nothing else is emitted yet. Open:
   on `frem-2027-06-15`); the competition honours or the archive's competition members are the
   first places to look. The list entries' rating is the all-competitions average (Behrndtz
   7.47 = league 7.64 and European 6.88), the Team of the Year's is league only.
-- **Lists 63/65**: the club counterpart of 62/64 (up to 79 of our players, across seasons),
-  and why the all-time pool is stored twice; match against a club Best XI screen if the
-  game has one.
-- **What an entry holds** (the same 168-byte tail in every list; measured on our club lists
-  against `mart.match_player_facts`, competitive first-team matches up to the entry's date):
-  +8 the date the entry was last written (it is frozen then), +112 apps, +113 goals, +115
-  assists, +116 yellows (257/257 each), +59 average rating (f32, 124/170), +114 goals
-  conceded (goalkeepers only, 71/71), +0/+2 the club's two colours (RGB555), +20 age,
-  +108..+111 international and U21 caps and goals (as of the entry's date). To declare.
+- **All 66 lists are identified** (screenshots, `frem-2027-06-15`): 0-30 World Best XI
+  pools by season, 31-61 Manager's Best Eleven pools by season (the manager's players,
+  loanees included -- it follows the manager, not the club), 62/64 and 63/65 the two
+  All-Time pools. Open: which copy of each pair is the live one (63 carries this season's
+  "New Entry" dates, 65 last season's) -- confirm across a season boundary.
 - **The trailer**: its first byte (2, 3, 5, 16, ff) and 11 more bytes.
 - **The entry tail's unread 116 bytes**: two u16 and four dates at +0, 13 bytes among the
   attributes (a float at index 31), a u32 at +83, 25 bytes at +95 and 46 at +122.
