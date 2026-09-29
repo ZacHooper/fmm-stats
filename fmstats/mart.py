@@ -3324,7 +3324,7 @@ FROM tot LEFT JOIN nm USING (person_id)
 # need for the window inference `at_club_spells` does.
 #
 # THE FEE comes from the player's career history in the snapshot that first shows the new
-# club (`fmparser/history.py`): the `+2` fee sits on the SELLING club's row, in £000s. The row
+# club (`staging.player_history_seasons`): the fee sits on the SELLING club's row, in £000s. The row
 # is the latest one for the old club that is either followed by the new club's row or is the
 # chain's last row — a move made during the season has no row for the buying club yet.
 #   numeric < 65000   -> a fee, `fee_gbp = code * 1000`

@@ -61,7 +61,8 @@ HIDDEN_OFFSETS = {
 
 PLAYER = Record("player_attribute", RECORD, [
     Field(0, 4, "sid", HEX4),
-    Field(4, 4, "history_link_P38", U32),
+    Field(4, 4, "history_head", U32,
+          note="the row this player's chain starts at in the history pool (tables/history.py)"),
     *[Field(42 + rel, 1, n, U8, group="src") for rel, n in SRC_OFFSETS.items()],
     *[Field(42 + rel, 1, n, U8, group="hidden") for rel, n in HIDDEN_OFFSETS.items()],
     *[Field(42 + rel, 1, n, U8, group="attrs") for rel, n in ATTR_OFFSETS.items()],

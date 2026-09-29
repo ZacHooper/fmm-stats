@@ -5,9 +5,9 @@ Does every table we walk declare its own size, the way the competition table doe
 The competition table turned out to announce itself: a run of 0xFF filler, then a u16
 holding the table's OWN record count, then record 0. That one fact replaced a
 candidate-scan-plus-plausibility-gate cascade with pure arithmetic (`tables.competitions.COMP_TABLE`),
-and the history slab has the same shape one door down -- `u32 @ start-12` is its exact row
-count (`history.locate`). Two tables, two self-declared counts, found years apart and by
-accident both times.
+and the history pool has the same shape one door down -- the u32 right in front of record 0
+is its exact record count (`tables/history.py`). Two tables, two self-declared counts, found
+years apart and by accident both times.
 
 So this script asks the question deliberately, for every table the parser locates: take the
 FIRST record, look back HEADER_BACK bytes, and see whether any u16/u32 in there equals the
@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from fmparser.tables import player_attributes as A                 # noqa: E402
 import numpy as np                                   # noqa: E402
-from fmparser import history as H                    # noqa: E402
+from fmparser.tables import history as H             # noqa: E402
 from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser.tables import cities, stadiums         # noqa: E402
 from fmparser import clubs_comps as R                  # noqa: E402
@@ -173,12 +173,12 @@ def t_competitions(mm):
 
 
 def t_history(mm):
-    """CONTROL CASE #2: the slab's row count is a u32 at start-12, already parsed."""
-    cands = H.locate(mm)
-    if not cands:
+    """CONTROL CASE #2: the pool's record count is the u32 right in front of record 0."""
+    loc = H.locate_history(mm)
+    if not loc:
         return None
-    rows, start, _hits = cands[0]
-    return Table("history_slab", start, n=rows, note=f"{rows} rows x {H.STRIDE}B")
+    start, rows = loc
+    return Table("history", start, n=rows, note=f"{rows} records x {H.HISTORY_ROW.span}B")
 
 
 def t_cities(mm):
@@ -481,7 +481,7 @@ def confirm(mm):
     # run must be preceded by real filler (so it is a table base and not a record that
     # happens to end in FF), and the count must be person-shaped. Its real value is the
     # cross-save tally `--confirm` prints, which shows the count is CAREER-CONSTANT and
-    # career-specific -- a per-database pool, like the history slab.
+    # career-specific -- a per-database pool, like the history pool.
     base = _person_table_base(mm)
     if base is None:
         add("person_table", 0, False, "no >=8-FF run below 1 MB preceded by zero filler")

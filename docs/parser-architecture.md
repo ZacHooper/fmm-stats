@@ -19,7 +19,7 @@ questions, and the seven shapes below are combinations of the answers, not seven
 
 | question | answers | in `core` |
 |---|---|---|
-| how do rows relate? | an **array** (fixed or variable stride), or a **linked list** (each row holds the next row's index) | `TableDef` / `TaggedTableDef` walk arrays; a linked-list walk is still to add (`history.py`) |
+| how do rows relate? | an **array** (fixed or variable stride), or a **linked list** (each row holds the next row's index) | `TableDef` / `TaggedTableDef` walk arrays; `LinkedTableDef` reads a linked pool |
 | how is a row encoded? | **packed** (fields at offsets) or **tagged** (key-value fields) | `Record` / `TaggedRecord` |
 | how is the start found and the end proved? | a declared count, a capacity with empty slots, a terminator, a length chain, an archive member, or a search by key | the locator each table supplies |
 
@@ -42,7 +42,7 @@ that do not fit the four regimes.
 | shape | how you find it | the validator that bounds it | used by |
 |---|---|---|---|
 | **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`) |
-| **B. Linked list** | each row holds the NEXT row's index (`FFFFFFFF` ends a chain); follow the pointers | the in-degree test: `max in-degree == 1` and `#(in-degree-0 rows) == #(chain ends)` | history slab |
+| **B. Linked list** | each row holds the NEXT row's index (`FFFFFFFF` ends a chain); the rows it has not moved name the pool's base | the forest check on every row: no row reached twice, no pointer out of the pool, and every row on a chain from a head (`core.forest`) | career-history pool |
 | **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), club records (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
@@ -94,22 +94,36 @@ that catches this class.
 
 ---
 
-### B. Linked list — the history slab
+### B. Linked list — the career-history pool
 
 Each row holds the index of the NEXT row in its chain, with `FFFFFFFF` ending the chain, so
 records are found by following pointers, not by position. A monotonic-looking `u32` column is
 often such a pointer rather than a counter: on a fresh save the rows are contiguous, so row `k`
 holds `k+1` and the two readings are indistinguishable — they only diverge once the game starts
-appending into recycled slots. Tell them apart with the **in-degree test**: build the pointer
-graph and check `max in-degree == 1` and `#(in-degree-0 rows) == #(FFFFFFFF rows)`. If that
-holds, it is a forest of chains, record starts are the in-degree-0 rows, and no delimiter
-heuristic is needed. This is `history.py`; the detail is in
-[`agent-context/history-chain-pointers.md`](agent-context/history-chain-pointers.md).
+appending into recycled slots.
+
+`core.LinkedTableDef` reads such a pool: a `Record` for the row, the name of its pointer field,
+an optional header record, and a locator returning `(base, count)`. It reads **every row**,
+column-wise, and its invariant is `core.forest` over all of them: in-degree at most 1, no
+pointer outside the pool, chain starts equal chain ends, and every row reached by walking
+the chains from their starts. The last clause is what catches a cycle, which has no start
+and no end and so passes the first three. **Following a chain, and what its rows mean
+together, is not the parser's job**: the pool is emitted as stored and the loader walks it
+(`load_duckdb.load_history`).
+
+**How you find one.** From its own pointers. A row the game has not moved points at the row
+after it, so two neighbouring such rows fix the pool's base arithmetically; every candidate
+base is checked against the count in front of it and the forest check, most-named first
+(`tables/history.py`'s `locate_history`). No window and no threshold: one unmoved pair is
+enough, and the acceptance test is exact.
 
 **How it fails.** *Reading the pointer as a counter.* It works perfectly on a fresh save and
 nowhere else: splitting records where the `+1` sequence breaks shatters each player whose
-history was appended into recycled slots into 3-4 fake players. And beware the column offset
-the history slab has — a row's stats belong to the season on the PREVIOUS row.
+history was appended into recycled slots into 3-4 fake players. *Framing the row wrong.* For
+years the history row was read 8 bytes late, as `[club, fee, next][stats]`, which made a
+row's stats look like they belonged to the season on the PREVIOUS row and needed a reading
+rule to undo. The row is `[stats][club, fee, next]`: record 0's stats were the 8 bytes taken
+for a header, and the old rule read record 0's season off the far end of the pool.
 
 ---
 
@@ -216,7 +230,7 @@ Rows sit one after another, but nothing declares how many: the array ends where 
 delimiter or a filler wall says it does. Career data is mostly like this.
 
 **Filler walls.** Long runs of `00`/`ff` separate sections cleanly, which is how
-`clubrecords.region()` bounds itself: start at the end of the history slab (a structure that
+`clubrecords.region()` bounds itself: start at the end of the history pool (a structure that
 knows its own extent), end at the first 4 KB run of zeros. That change alone took the
 club-records scan from 26.4 s to 2.3 s, byte-identically, because it stopped scanning 60 MB to
 find records that live in 0.5 MB. (The club-records table itself is a shape C grid; G is only
@@ -303,7 +317,7 @@ The modules:
 | `fmparser/core/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `tag4`. Pure `(buffer, offset) -> value`. |
 | `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), and the tagged format (`read_tree`). |
 | `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
-| `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged). |
+| `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged), `LinkedTableDef` (a linked pool, with `forest` / `follow`); `record_instances` lists every record a walk reads. |
 
 **31 packed records are declared**, and `scripts/audit/audit_records.py` audits every one of
 them straight from `core.REGISTRY` — every `Record` registers itself on import, so the audit
@@ -431,7 +445,7 @@ in which class you reach for.
 | command | what it establishes | needs a save? |
 |---|---|---|
 | `tests/test_layouts.py` | every declared layout is internally sound — covered, non-overlapping, widths match kinds; every tagged schema declares each tag once | no |
-| `scripts/audit/audit_records.py` | **STRIDE / COVERAGE / EXTENT** against a real save | yes |
+| `scripts/audit/audit_records.py` | **STRIDE / COVERAGE / EXTENT / PADDING** against a real save | yes |
 | `scripts/audit/audit_records.py --map` | the generated per-byte record documentation | yes |
 | `scripts/audit/audit_table_headers.py --confirm` | declared count == records read, for every framed table | yes |
 | `tests/assert_identical.py` | the extract still produces the same *bytes* | yes, 4 |
@@ -443,9 +457,13 @@ decoding bugs passed every check that existed at the time:
 
 - **STRIDE** — the modal gap between consecutive records *is* the stride you claim, and the
   rest are multiples of it (skipped records, not noise).
-- **COVERAGE** — every byte in `[0, span)` is named or declared `PAD`.
+- **COVERAGE** — every byte in `[0, span)` is named or declared `UNKNOWN`.
 - **EXTENT** — a keyed table is dense from id 0. A gap means the walk dropped a row; an
   overshoot means it invented one.
+- **PADDING** — every span declared `PAD` reads the same bytes on every record a table walk
+  reads (`core.record_instances`). `PAD` means filler; an undecoded span that varies is data
+  and is declared `UNKNOWN` with kind `RAW`. The first run of this check found 35 `PAD`
+  spans that were data, besides two bytes of every career-history row.
 
 `audit_coverage.py`'s tiers are worth reading as a *ranking of how much you actually know*:
 **MEASURED** (read record by record) > **AUDITED** (candidates enumerated) > **DECLARED**

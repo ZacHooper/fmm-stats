@@ -26,6 +26,7 @@ import json
 import os
 from collections import Counter
 
+from fmparser.core import follow
 from fmparser.save import Save
 from fmparser import matches as M
 from fmparser import model as MOD
@@ -48,7 +49,7 @@ from fmparser.tables import rounds as ROUNDS
 from fmparser.tables import rule_files as RULE_FILES
 from fmparser.tables import save_header as HDR
 from fmparser import careers as C
-from fmparser import history as H
+from fmparser.tables import history as H
 from fmparser import injuries as INJ
 from fmparser import clubrecords as CRE
 from fmparser.tables import (
@@ -135,6 +136,21 @@ def parse_label(label):
     if len(head) == 2 and all(p.isdigit() and len(p) == 2 for p in head):
         return 2000 + int(head[1]), phase    # 21-22-end -> 2022
     raise ValueError(f"unrecognised label {label!r}")
+
+
+def _history_clubs(hist):
+    """Every club on a player's history chain that has a season on it (two rows or more)."""
+    rows = hist["rows"]
+    nxt, club = rows["next"], rows["club"]
+    pointed = set(nxt)
+    out = set()
+    for head in hist["heads"].values():
+        if not 0 <= head < hist["count"] or head in pointed:
+            continue                           # no history yet, or not a chain's first row
+        chain = list(follow(nxt, head, H.END))
+        if len(chain) > 1:
+            out.update(club[k] for k in chain)
+    return out
 
 
 def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
@@ -246,29 +262,25 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
                               "value": r["value"]}
 
-    # career (season-by-season) history: {tid: {origin_club_tid, seasons, ...}}. The history
-    # slab is a forest of linked lists and each player's chain head is stored in his ATTRIBUTE
-    # record (u32 @ P-38) — hence `attrs` here; the link is exact, not a positional alignment.
-    # Origin club (the chain head's club) is the Athletic-Bilbao eligibility key. Computed
-    # before club-name resolution so the (often obscure) origin/history clubs get named too.
-    # Never fatal: if the slab can't be located for a save, extraction proceeds without history.
+    # career history: the whole pool as stored, plus each player's head row (the attribute
+    # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
+    # can't be located or fails its forest check, extraction proceeds without history.
     try:
-        histories = H.build(mm, info, attrs)
-    except Exception as e:                       # locator/enumeration failure -> skip history
+        histories = H.scrape_history(mm, info, attrs)
+    except Exception as e:                       # locator/forest failure -> skip history
         print(f"  WARNING: history table not parsed ({e}); continuing without history")
-        histories = {}
+        histories = None
 
     # resolve club names only for clubs that actually have loaded players (they exist,
-    # so the lookup is cheap) plus clubs that appeared in matches or in any player's history
+    # so the lookup is cheap) plus clubs that appeared in matches or on a player's history
+    # chain -- every row of a chain with a season on it, so origin clubs get named too
     club_ids = {p["club_tid"] for p in info.values()
                 if p["sid"] in attrs and p["club_tid"] != NO_CLUB}
     for m in season:
         club_ids.add(m["home_tid"])
         club_ids.add(m["away_tid"])
-    for h in histories.values():               # origin/current + every season's club
-        club_ids.add(h["origin_club_tid"])
-        club_ids.add(h["last_season_club_tid"])
-        club_ids.update(s["club_tid"] for s in h["seasons"])
+    if histories:
+        club_ids.update(_history_clubs(histories))
     club_ids.discard(NO_CLUB)
     club_names, club_leagues = {}, {}
     for ct in club_ids:
@@ -310,7 +322,6 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
             continue
         rec = attrs.get(p["sid"])
         sc = status.get(tid)
-        h = histories.get(tid)
         li = own.get(tid)                       # snapshot membership (owned or loaned-in)
         loaned_in = bool(li and li["loaned_in"])
         # A loaned-IN player plays for us: present them under the managed club (so squad /
@@ -329,12 +340,6 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                "loaned_in": loaned_in,
                "parent_club_tid": parent_tid,
                "parent_club": club_label(parent_tid) if parent_tid else None,
-               # career-history summary (full seasons live in history.json). origin_club_tid
-               # = youth club (Bilbao eligibility key); None for newgens with no record yet.
-               "has_history": h is not None,
-               "origin_club_tid": h["origin_club_tid"] if h else None,
-               "origin_club": club_label(h["origin_club_tid"]) if h else None,
-               "history_confidence": h["confidence"] if h else None,
                "wage_units": c["wage_units"] if c else None,
                "wage_gbp": c["wage_gbp"] if c else None,
                "contract_expiry": c["expiry"] if c else None,
@@ -522,9 +527,10 @@ def main():
 
     dump("players.json", players, indent=None)     # ~24k players -> compact
     dump("staff.json", staff, indent=None)         # ~7k non-players (identity only)
-    # full career histories keyed by tid (season list per player). ~10.5k players have one;
-    # newgens/youth have no record yet. See fmparser/history.py.
-    dump("history.json", {str(t): h for t, h in histories.items()}, indent=None)
+    # the career-history pool, every row column-wise, and each player's head row
+    # (fmparser/tables/history.py); the loader reads the chains
+    if histories:
+        dump("history.json", histories, indent=None)
     dump("matches.json", season)
     dump("competitions.json", competitions)
     # Full club records: facts, colours, and the fixed 40-slot SQUAD + 11-slot STAFF arrays.
@@ -639,7 +645,7 @@ def main():
         "competitions": dict(Counter(m.get("competition") for m in season)),
         "counts": {"matches": len(season), "player_match_lines": len(match_rows),
                    "players": len(players), "players_with_attributes": attributed,
-                   "players_with_history": len(histories),
+                   "history_rows": histories["count"] if histories else 0,
                    "staff": len(staff), "competitions": len(competitions),
                    "leagues": len(leagues), "clubs_named": len(club_names),
                    "injured_players": len(injuries),

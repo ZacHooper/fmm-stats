@@ -30,7 +30,8 @@ F32 = "f32"
 DATE = "date"
 HEX4, HEX2 = "hex4", "hex2"
 RAW = "raw"      # Verbatim byte range (any width)
-PAD = "pad"      # Structural filler / declared-unknown span (never emitted)
+PAD = "pad"      # Filler: the same bytes on every record, never emitted. A span that varies
+                 # is data, declared UNKNOWN with a kind (RAW), not PAD
 
 # Expected byte width for each fixed kind
 KIND_WIDTH = {

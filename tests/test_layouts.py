@@ -33,9 +33,9 @@ from fmparser.core import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN
 # `fixtures` is safe to import with no `archive` extra installed -- archive.py imports
 # zstandard lazily, inside the call -- so the cheap tier stays dependency-free.
 RECORD_MODULES = (
-    "clubrecords", "clubs_comps", "history", "matches",
+    "clubrecords", "clubs_comps", "matches",
     "tables.cities", "tables.comp_honours", "tables.comp_rules", "tables.comp_stages", "tables.contracts",
-    "tables.currencies", "tables.fixtures", "tables.languages", "tables.match_slots",
+    "tables.currencies", "tables.fixtures", "tables.history", "tables.languages", "tables.match_slots",
     "tables.names", "tables.nations", "tables.officials", "tables.person_info",
     "tables.player_attributes", "tables.rounds", "tables.rule_files", "tables.stadiums",
     "tables.staff"

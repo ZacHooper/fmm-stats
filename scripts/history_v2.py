@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Inspect the career-history slab of any save — a thin CLI over `fmparser.history`.
+"""Inspect the career-history pool of any save, against in-game Player-History screens.
 
-The decode itself lives in the module; this is the debugging front end used to validate a
-rewrite against in-game Player-History screenshots.
+The parse is `fmparser/tables/history.py`; reading a player's chain is the loader's SQL
+(`load_duckdb.load_history`), run here on an in-memory database, so what this prints is
+exactly what the store holds.
 
-    python3 scripts/history_v2.py <save.fms>                    # locate + forest sanity check
+    python3 scripts/history_v2.py <save.fms>                    # locate + forest check
     python3 scripts/history_v2.py <save.fms> --player 10224     # one player's full career
-    python3 scripts/history_v2.py <save.fms> --chain 66162      # raw chain from a row index
+    python3 scripts/history_v2.py <save.fms> --chain 66162      # raw chain from a record index
 
 Regression anchors (denmark-24-start.fms, in-game 30 Jun 2023) — career Pld/Gls/Ast TOTALS
 that must reproduce exactly: Dirksen 9328 = 198/10/0, Andersson 9400 = 286/16/2,
@@ -19,7 +20,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fmparser import history as H          # noqa: E402
+from fmparser.core import follow            # noqa: E402
+from fmparser.tables import history as H   # noqa: E402
 from fmparser.tables.person_info import scrape_person_info  # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes  # noqa: E402
 
@@ -37,36 +39,58 @@ def club_names(db):
         return {}
 
 
+def player_lines(hist, tid):
+    """(debut line, [season lines]) for one player, read by the loader's own SQL."""
+    import duckdb
+    import load_duckdb as L
+    con = duckdb.connect()
+    con.execute("CREATE SCHEMA staging")
+    for ddl in L.DDL:
+        if "staging.player_history" in ddl:
+            con.execute(ddl)
+    L.load_history(con, 0, "", hist)
+    debut = con.execute("SELECT origin_club_tid, debut_end_year FROM staging.player_history "
+                        "WHERE tid = ?", [tid]).fetchone()
+    lines = con.execute("SELECT end_year, club_tid, apps, goals, assists, rating, fee "
+                        "FROM staging.player_history_seasons WHERE tid = ? ORDER BY seq",
+                        [tid]).fetchall()
+    return debut, lines
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("save")
     ap.add_argument("--player", type=int, help="tid to dump")
-    ap.add_argument("--chain", type=int, help="row index to walk directly")
+    ap.add_argument("--chain", type=int, help="record index to walk directly")
     ap.add_argument("--db", default="fm-frem.duckdb", help="store to read club names from")
     a = ap.parse_args()
 
     with open(a.save, "rb") as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-        table = H.Table(mm)
-        print(f"{a.save}\n  {table.sanity()}  forest={table.is_forest()}")
+        print(f"{a.save}\n  {H.locate_history(mm)}  {H.HISTORY_TABLE.check(mm)}")
         if a.player is None and a.chain is None:
             return
         names = club_names(a.db)
-        head = a.chain
-        if head is None:
-            info, attrs = scrape_person_info(mm), scrape_player_attributes(mm)
-            head = H.head_index(mm, info, attrs).get(a.player)
-            if head is None or head >= table.rows:
-                print(f"  tid {a.player}: no history"); return
-            print(f"  tid {a.player} -> chain head row {head}")
+        info, attrs = scrape_person_info(mm), scrape_player_attributes(mm)
+        hist = H.scrape_history(mm, info, attrs)
+        rows = hist["rows"]
+        if a.chain is not None:
+            for k in follow(rows["next"], a.chain, H.END):
+                print(f"    {k:7d}  " + "  ".join(f"{c}={rows[c][k]}" for c in rows))
+            return
+        print(f"  tid {a.player} -> head record {hist['heads'].get(str(a.player))}")
+        debut, lines = player_lines(hist, a.player)
+        if debut is None:
+            print(f"  tid {a.player}: no history"); return
+        print(f"    {debut[1]-1}/{str(debut[1])[2:]}  "
+              f"{names.get(debut[0], f'club {debut[0]}')[:30]:<30s} (debut)")
         tot = [0, 0, 0]
-        for s in table.seasons(head):
-            yr, club = s["end_year"], names.get(s["club_tid"], f"club {s['club_tid']}")
-            rat = f"{s['rating']:.2f}" if s["rating"] else "    "
-            print(f"    {yr-1}/{str(yr)[2:]}  {club[:30]:<30s} {s['apps']:3d} apps "
-                  f"{s['goals']:3d} gls {s['assists']:3d} ast  {rat}  [{s['fee']}]")
-            for i, k in enumerate(("apps", "goals", "assists")):
-                tot[i] += s[k]
+        for yr, club, apps, goals, assists, rating, fee in lines:
+            club = names.get(club, f"club {club}")
+            rat = f"{rating:.2f}" if rating else "    "
+            print(f"    {yr-1}/{str(yr)[2:]}  {club[:30]:<30s} {apps:3d} apps "
+                  f"{goals:3d} gls {assists:3d} ast  {rat}  [{fee}]")
+            tot = [tot[0] + apps, tot[1] + goals, tot[2] + assists]
         print(f"    {'TOTAL':<38s} {tot[0]:3d} apps {tot[1]:3d} gls {tot[2]:3d} ast")
 
 

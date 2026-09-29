@@ -336,7 +336,7 @@ def region(mm):
     takes, spent looking at 60 MB to read a ~1.3 MB table. Two structural facts fix the
     region without a tuned window:
 
-      lo  the history slab's END. The club-records grid starts within ~200 bytes of it on
+      lo  the history pool's END. The club-records grid starts within ~200 bytes of it on
           every save tested -- 27 Frem, 2 Bucaspor. On a DAY-ONE save those bytes are already
           there as empty 21-byte rows (club tid 0xFFFF, the 0x07E4 year-2020 sentinel), which
           is why `scrape_team_records` returns nothing at all for that save: the grid is
@@ -345,11 +345,11 @@ def region(mm):
           as all records finish within ~1.29MB across both careers).
 
     Verified byte-identical to the whole-file sweep on both careers, day-one and late-career
-    saves alike. Raises if the slab can't be located; `build` falls back to the old
+    saves alike. Raises if the pool can't be located; `build` falls back to the old
     whole-file sweep in that case.
     """
-    from . import history as _H              # local: keeps numpy off this module's import path
-    lo = _H.slab_bounds(mm)[1]
+    from .tables.history import history_end   # local: keeps numpy off this module's import path
+    lo = history_end(mm)
     hi = mm.find(b"\x00" * ZERO_WALL, lo)
     hi_bound = lo + 1_500_000
     if hi != -1:
@@ -360,7 +360,7 @@ def region(mm):
 def build(mm, valid_clubs, valid_players=None, lo=None, hi=None):
     """{team_records, player_records} for the whole save.
 
-    Bounded by `region()` unless the caller pins `lo`/`hi`. If the slab won't locate we scan
+    Bounded by `region()` unless the caller pins `lo`/`hi`. If the pool won't locate we scan
     the whole file exactly as before -- slower, never wrong.
     """
     if lo is None and hi is None:

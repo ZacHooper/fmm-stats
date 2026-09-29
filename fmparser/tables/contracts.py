@@ -14,7 +14,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ..core import primitives as P
 from ..save import cache_key as _cache_key
-from ..core import DATE, Field, PAD, Record, U16, U32, U8, UNKNOWN, TableDef, table_spans
+from ..core import DATE, Field, PAD, RAW, Record, U16, U32, U8, UNKNOWN, TableDef, table_spans
 
 # £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
 WAGE_GBP_PER_UNIT = 520
@@ -44,10 +44,10 @@ CONTRACT = Record("contract", CONTRACT_STRIDE, [
     Field(7,  6, UNKNOWN,                PAD),
     Field(13, 4, "expiry",               DATE, note="some Danish deals expire 31 Dec -- keep the DAY"),
     Field(15, 2, "expiry_year",          U16,  alias=True),
-    Field(17, 19, UNKNOWN,               PAD),
+    Field(17, 19, UNKNOWN,               RAW),
     Field(36, 4, "start_date",           DATE, note="contract signed/commencement date"),
     Field(38, 2, "start_year",           U16,  alias=True),
-    Field(40, 43, UNKNOWN,               PAD),
+    Field(40, 43, UNKNOWN,               RAW),
 ])
 
 # Alias for backward-compatibility with audit scripts

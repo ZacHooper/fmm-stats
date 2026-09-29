@@ -114,7 +114,7 @@ def claims(mm, n):
     # TableDef does not own (person_info's header byte after its count). Tables read from an
     # archive member, not the save, are covered by the archive container below.
     import fmparser.tables as T
-    from fmparser.core import TableDef, TaggedTableDef
+    from fmparser.core import LinkedTableDef, TableDef, TaggedTableDef
     for name, table in T.TABLES.items():
         if getattr(table, "member", None):
             continue                                   # read from an archive member
@@ -124,7 +124,7 @@ def claims(mm, n):
                 spans = own(mm)
             elif isinstance(table, TaggedTableDef):
                 spans = [(b.start - 4, b.end) for b in table.blocks(mm)]   # with the u32 count
-            elif isinstance(table, TableDef):
+            elif isinstance(table, (TableDef, LinkedTableDef)):
                 spans = table.spans(mm)
             else:
                 print(f"  ! TABLES[{name!r}] is a {type(table).__name__}, not a table",
@@ -187,14 +187,6 @@ def claims(mm, n):
             declared("matches.rich", reg[0], reg[1])
     except Exception as exc:
         print(f"  ! matches failed: {exc}", file=sys.stderr)
-    try:
-        from fmparser import history as H
-        cand = H.locate(mm)                    # -> [(rows, start, hits)], best first
-        if cand:
-            rows, start, _ = cand[0]
-            measured("history.slab", [(start, start + H.STRIDE * rows)])
-    except Exception as exc:
-        print(f"  ! history failed: {exc}", file=sys.stderr)
     return out
 
 

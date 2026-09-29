@@ -168,7 +168,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **multi-device-and-storage** — git / R2 / local tiers; the store is DISPOSABLE (rebuild, never commit). **Read before touching data layout.**
 - **fm-parser-project** — the save-format reverse-engineering story + goals.
 - **etl-duckdb-dashboard** — how the ETL + dashboard + `fmq.py` CLI + scouting tooling work. **The main reference.**
-- **history-chain-pointers** — the history slab is a forest of linked lists; how the `P-38` player link works.
+- **history-chain-pointers** — the history pool is a forest of linked lists; how the `P-38` player link works (its "stats on the previous row" rule was a framing error — see [`docs/parser-architecture.md`](docs/parser-architecture.md) shape B).
 - **fmm-editor-record-comparison** — field-by-field map of our parsers vs the FMM26 database layouts (`nyongrand/fmm-editor`). **Read before decoding any new field** — it names the record you're in.
 - **[`docs/ca-weighting.md`](docs/ca-weighting.md)** — how the save hands us each of the 23 displayed attributes (direct byte / plain-byte composite / CA-modelled), **FM's per-position CA weight tables** recovered from 155k snapshots, and the **94.8% label ceiling** every attribute-accuracy figure is measured against. Read before quoting an accuracy number or reasoning about what the game rewards in a position.
 - **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
@@ -216,10 +216,12 @@ you find it in the first place.)
    into recycled slots. Tell them apart with the **in-degree test**: build the pointer graph and
    check `max in-degree == 1` and `#(in-degree-0 rows) == #(FFFFFFFF rows)`. If that holds it is a
    forest of chains, record starts are the in-degree-0 rows, and you need no delimiter heuristics
-   at all. Beware the **column offset**: in career history a row's stats belong to the season on the
-   PREVIOUS row (club+fee from row `k`, season+stats from row `k-1`). Always confirm a whole record
-   against ground truth — an in-game TOTAL line is the cheapest check, since an off-by-one either
-   double-counts a row or drops one.
+   at all. If fields look like they belong to the NEXT or PREVIOUS row, suspect the FRAMING before
+   writing a reading rule: career history was read for years as "season+stats from row `k-1`,
+   club+fee from row `k`", and the truth was that the row starts 8 bytes earlier —
+   `[stats][club, fee, next]`, one complete season line per record. Always confirm a whole
+   record against ground truth — an in-game TOTAL line is the cheapest check, since an
+   off-by-one either double-counts a row or drops one.
 6. **If a table has no id in it, look for the pointer running the OTHER way.** Career history holds
    no tid/sid/uid anywhere; the *attribute* record points at it (`u32 @ P-38`). Before concluding a
    join is unsolvable, search the file for the target's row index / offset as a u32 — one hit outside
@@ -344,8 +346,8 @@ is the regression test: a no-op export must produce a no-op diff.
 
 ## Toolchain
 - **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`.
-  The extractors are stdlib-only **except numpy** (`fmparser/history.py` scans the 265k-row history
-  slab column-wise), and numpy is in the uv env, so there's nothing left that needs a system
+  The extractors are stdlib-only **except numpy** (`fmparser/tables/history.py` locates the 265k-record
+  history pool from its own pointers), and numpy is in the uv env, so there's nothing left that needs a system
   python. The old "extractors need bare `python3`" rule was a portability trap: it made a second
   machine depend on numpy being installed outside uv. Bare `python3` still works here if the system
   interpreter happens to have numpy.

@@ -5,6 +5,13 @@ metadata:
   type: reference
 ---
 
+> **Framing corrected 2026-09-29.** The row is `[stats 8 B][club, fee, next 8 B]` — it starts
+> 8 bytes before where this note puts it, so the pointer is at `+12` of the true record, the
+> count is the single u32 in front of record 0, and the "season+stats from row `k-1`" rule
+> below is that mis-framing seen from the wrong side: each record is one complete season
+> line. The chain structure and the `P-38` link below are right. Current layout:
+> `fmparser/tables/history.py`; reading rule: `load_duckdb.load_history`.
+
 **The career-history table is a forest of LINKED LISTS, not an array.** `+4` holds the
 0-based index of the **next row in that player's chain**; `FFFFFFFF` = end of chain. On a
 fresh save every record is contiguous so row `k` holds `k+1` — indistinguishable from a

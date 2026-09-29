@@ -11,6 +11,11 @@ row is a composite sequence of typed segments, walked by offset:
    length-prefixed string, and `CountedList`, `[count][count x Record]`.
 3. Custom dynamic segments implementing `read(mm, pos, limit)`.
 
+`LinkedTableDef` -- a fixed pool of PACKED rows, each holding the index of the next row in
+its chain (shape B). The locator returns `(base, count)`; the rows are read column-wise and
+the table's invariant is that the pointers form a forest of chains (`forest`). Following a
+chain, and what its rows mean together, is left to the caller.
+
 `TaggedTableDef` -- TAGGED rows. The locator returns `[(offset, n)]`, one per row: a block
 of n tagged fields starting at offset. The engine reads exactly n fields strictly
 (`types.read_tree`) and the row's `TaggedRecord` reads them. `scan_tagged_blocks` is the
@@ -18,7 +23,8 @@ locator shape for a region of count-framed blocks, `[u32 n][n fields]`.
 """
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import (Any, Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence,
+                    Tuple, Union)
 
 from .schema import Record, TaggedRecord, TaggedSchemaError
 from .types import TreeError, read_tree
@@ -200,6 +206,52 @@ def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> 
     return out
 
 
+def record_instances(mm: Any, table: Any) -> Iterator[Tuple[Record, int]]:
+    """Every packed record a table's walk reads, as (Record, offset): each row's fixed
+    segments, each element of its counted lists, and a linked table's header and rows. The
+    walk stops where `walk_table` stops, at the first row that breaks the invariant."""
+    from .types import KIND_WIDTH, CountedList
+    if isinstance(table, LinkedTableDef):
+        base, count = table.run(mm)
+        if table.header is not None:
+            yield table.header, base - table.header.span
+        for i in range(count):
+            yield table.row, base + i * table.stride
+        return
+    limit = len(mm)
+    index = 0
+    for base, count in table.runs(mm):
+        pos = base
+        for i in range(count):
+            if table.is_fixed_stride:
+                pos = base + i * table.stride
+            found, rec, ok = [], {}, True
+            for seg in table.segments:
+                if isinstance(seg, Record):
+                    if pos + seg.span > limit:
+                        ok = False
+                        break
+                    found.append((seg, pos))
+                    rec.update(seg.read(mm, pos))
+                    pos += seg.span
+                elif hasattr(seg, "read"):
+                    res = seg.read(mm, pos, limit)
+                    if res is None:
+                        ok = False
+                        break
+                    part, end = res
+                    if isinstance(seg, CountedList):
+                        first = pos + KIND_WIDTH[seg.count]
+                        n = (end - first) // seg.item.span
+                        found.extend((seg.item, first + i * seg.item.span) for i in range(n))
+                    rec.update(part)
+                    pos = end
+            if not ok or (table.invariant is not None and not table.invariant(rec, index)):
+                return
+            index += 1
+            yield from found
+
+
 def find_framed_count(
     mm: Any,
     start: int,
@@ -233,6 +285,114 @@ def find_framed_count(
         pos = j
 
     return None
+
+
+# ==== LINKED tables ===========================================================================
+
+class LinkedTableError(Exception):
+    """A linked table was not located, or its pointers do not form a forest of chains."""
+
+
+class Forest(NamedTuple):
+    """The pointer structure of a linked table, measured over every row."""
+    rows: int
+    heads: int           # rows no pointer reaches: the chain starts
+    ends: int            # rows holding the end marker
+    max_indegree: int    # most pointers reaching one row
+    outside: int         # pointers that are neither the end marker nor a row index
+    on_chains: int       # rows reached by walking every chain from its head
+
+    @property
+    def ok(self) -> bool:
+        """Every row on exactly one chain: no row reached twice, no pointer out of the pool,
+        and no cycle (a cycle has no head, so its rows are the ones no chain reaches)."""
+        return (self.max_indegree <= 1 and self.outside == 0 and self.heads == self.ends
+                and self.on_chains == self.rows)
+
+
+def follow(next_col: Sequence[int], head: int, end: int = 0xFFFFFFFF) -> Iterator[int]:
+    """The row indices of one chain, head first. Stops at the end marker, a pointer outside
+    the pool, or a row already visited."""
+    seen = set()
+    k = head
+    while 0 <= k < len(next_col) and k not in seen:
+        seen.add(k)
+        yield k
+        k = next_col[k]
+        if k == end:
+            return
+
+
+def forest(next_col: Sequence[int], end: int = 0xFFFFFFFF) -> Forest:
+    """Measure whether `next_col` (row -> next row index, `end` = none) is a forest of chains."""
+    n = len(next_col)
+    indeg = [0] * n
+    ends = outside = 0
+    for p in next_col:
+        if p == end:
+            ends += 1
+        elif 0 <= p < n:
+            indeg[p] += 1
+        else:
+            outside += 1
+    heads = [k for k in range(n) if indeg[k] == 0]
+    on_chains = 0
+    if max(indeg, default=0) <= 1 and outside == 0:
+        on_chains = sum(1 for h in heads for _ in follow(next_col, h, end))
+    return Forest(n, len(heads), ends, max(indeg, default=0), outside, on_chains)
+
+
+@dataclass(frozen=True)
+class LinkedTableDef:
+    """Definition for a LINKED table: a pool of `count` fixed-width rows from `base`, each row
+    carrying in `next_field` the index of the next row in its chain.
+
+    `locator(mm)` returns `(base, count)` or None. `header` is the record in front of row 0,
+    if the table has one. The pool is read whole, every row, whether or not anything points
+    at its chain: which chains matter is a question for whoever reads them."""
+    name: str
+    row: Record
+    next_field: str
+    locator: Callable[[Any], Optional[Run]]
+    header: Optional[Record] = None
+    end: int = 0xFFFFFFFF
+
+    @property
+    def stride(self) -> int:
+        return self.row.stride or self.row.span
+
+    def run(self, mm: Any) -> Run:
+        loc = self.locator(mm)
+        if not loc:
+            raise LinkedTableError(f"{self.name}: not located")
+        return loc
+
+    def columns(self, mm: Any) -> Dict[str, List[Any]]:
+        """Every row, column-wise: {field: [value per row]}."""
+        base, count = self.run(mm)
+        return self.row.columns(mm, base, count, stride=self.stride)
+
+    def check(self, mm: Any) -> Forest:
+        base, count = self.run(mm)
+        nxt = self.row.columns(mm, base, count, names=[self.next_field], stride=self.stride)
+        return forest(nxt[self.next_field], self.end)
+
+    def scrape(self, mm: Any) -> Dict[str, Any]:
+        """{base, count, header, rows}: the header record and every row, column-wise. Raises
+        LinkedTableError if the pointers are not a forest of chains."""
+        base, count = self.run(mm)
+        rows = self.columns(mm)
+        f = forest(rows[self.next_field], self.end)
+        if not f.ok:
+            raise LinkedTableError(f"{self.name}: pointers are not a forest of chains: {f}")
+        head = self.header.read(mm, base - self.header.span) if self.header else None
+        return {"base": base, "count": count, "header": head, "rows": rows}
+
+    def spans(self, mm: Any) -> List[Tuple[int, int]]:
+        """[(start, end)]: the header and every row."""
+        base, count = self.run(mm)
+        start = base - (self.header.span if self.header else 0)
+        return [(start, base + count * self.stride)]
 
 
 # ==== TAGGED tables ===========================================================================
