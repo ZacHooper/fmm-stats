@@ -19,13 +19,12 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
   archived). Verify the extract's `clubs.json` contains that career's managed + reserve tids
   (frem: `"346"` and `"7296"`). If not, the extraction is garbage for that save; stop and tell
   the user. All saves loaded into one store must be the same career.
-- **Archive the save FIRST, with its in-game date** — it's the only irreplaceable artefact, and
-  `--phase` gives it the canonical name (`<career>-<date>.fms`) so you never have to rename later:
-  `uv run python scripts/archive_save.py <save.fms> --career frem --phase 2023-08-15 --upload`.
+- **Archive the save FIRST** — it's the only irreplaceable artefact, and it is named
+  `<career>-<date>.fms` from the in-game date in its own header title, so you never rename later:
+  `uv run python scripts/archive_save.py <save.fms> --career frem --upload`.
   That moves it to `$FM_SAVES_DIR`, gzips it, hash-verifies the round-trip, and pushes to R2.
   **Use the same string as the `--label`** — save file, `output/` dir and DB label are one
-  vocabulary now. Ask the user for the in-game date if you don't have it; it can't be derived
-  from a 0-match save.
+  vocabulary now. The header dates a 0-match save too; `--phase` is only an override.
 - **Refresh the rebuild recipe after loading** — `uv run python scripts/export_manifest.py`, then
   commit `seeds/manifest.csv`. Without this the new snapshot can't be rebuilt on another machine.
 - **The stores are NOT committed** (96 MiB, rewrites wholesale, near GitHub's file limit). They're
@@ -33,8 +32,9 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 - **Season = end-year of the campaign** (22/23 → 2023, Aus-financial-year style).
 - **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), written explicitly into `summary.json`
   (`season` + `phase`) by `extract.py`. **The loader auto-derives both — normally pass NEITHER
-  `--season` nor `--phase`.** Match-less season-**start** saves (0 matches, no date) get a
-  synthetic `<start-year>-07-01`. Only pass `--season/--phase` to force/override a slice.
+  `--season` nor `--phase`.** `phase` is the header date; `season` follows the game's 30 June
+  rollover. The one exception is a new career's first save (0 matches, dated before 30 June):
+  pass `--season` for it. Only pass `--season/--phase` otherwise to force/override a slice.
   (Legacy stores may still hold the words `start/mid/end`; those keep working and sort correctly
   alongside dates — the ordering treats words as epoch.)
 - **Loading replaces the exact `(season, phase=date)` slice** (idempotent DELETE+INSERT). Because

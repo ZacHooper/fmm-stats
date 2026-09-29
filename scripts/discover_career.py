@@ -14,7 +14,6 @@ Note: some famous clubs (e.g. Real Madrid) also carry named star players, so don
 trust the raw top row blindly — use the nickname match + a plausible squad size.
 """
 import os
-import re
 import sys
 from collections import defaultdict
 
@@ -22,12 +21,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fmparser.save import Save          # noqa: E402
 from fmparser import squad as A     # noqa: E402
 from fmparser import clubs_comps as R       # noqa: E402
+from fmparser.tables.save_header import read_save_header  # noqa: E402
 
 
 def header_nickname(mm):
-    head = mm[:128].split(b"\x00")[0].decode("latin-1", "replace")
-    m = re.search(r"\(([^)]+)\)", head)
-    return head, (m.group(1) if m else None)
+    head = read_save_header(mm)
+    return head["title"], head["nickname"]
 
 
 def discover(path):

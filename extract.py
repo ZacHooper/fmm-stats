@@ -46,6 +46,7 @@ from fmparser.tables import fixtures as FIX
 from fmparser.tables import comp_rules as CRU
 from fmparser.tables import rounds as ROUNDS
 from fmparser.tables import rule_files as RULE_FILES
+from fmparser.tables import save_header as HDR
 from fmparser import careers as C
 from fmparser import history as H
 from fmparser import injuries as INJ
@@ -87,23 +88,18 @@ def auto_label(season):
     return f"{end_year}-{_period(month)}", latest
 
 
-def season_phase(matches):
+def season_phase(save_date, matches):
     """Authoritative (season:int|None, phase:str|None) for the snapshot.
 
-    phase is the REAL in-game date (latest match, ISO 'YYYY-MM-DD') — so multiple
-    in-season snapshots coexist and sort chronologically for free, and ages compute off
-    the true date instead of a start/mid/end approximation. season is the campaign
-    end-year derived from that date. Returns (None, None) for a match-less day-1 save;
-    the loader then supplies season via --season and synthesises a season-start phase
-    date (YYYY-07-01). The old start/mid/end words are no longer produced (legacy stores
-    that still hold them keep working — the sort expressions treat them as epoch)."""
+    phase is the save's own in-game date, from its header title (`save_header`); the latest
+    match date stands in only if the title does not read. season is the campaign end-year,
+    with the game's 30 June rollover. None for a new career's first save (no matches, dated
+    before 30 June), which the loader places with --season."""
     dates = sorted(m["date"] for m in matches if m["date"])
-    if not dates:
+    phase = save_date or (dates[-1] if dates else None)
+    if phase is None:
         return None, None
-    latest = dates[-1]
-    year, month = int(latest[:4]), int(latest[5:7])
-    end_year = year + 1 if month >= 8 else year
-    return end_year, latest
+    return HDR.campaign(phase, bool(dates)), phase
 
 
 _PHASES = ("start", "mid", "end")
@@ -613,15 +609,16 @@ def main():
     # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
     # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py.
     # NB: `season` here is the MATCHES list; injuries key off the end-year int, derived below.
-    # A match-less day-1 save has no season int (its Player-Progress holds the prior campaign we
-    # already captured) — skip it rather than mislabel those weeks under the new season.
-    snap_season, snap_phase = season_phase(season)   # authoritative DB grain (phase = date)
+    # A match-less save (a new career's first, or one just past the 30 June rollover) holds the
+    # prior campaign's weeks, already captured -- skip it rather than file them under the new one.
+    header = HDR.read_save_header(mm)
+    snap_season, snap_phase = season_phase(header["date"], season)   # the DB grain
     squad_tids = [t for t, p in players.items()
                   if p["club_tid"] in (career.managed_tid, career.reserve_tid)]
     # the same weekly series also carries an ON-LOAN bit (bit 5), which gives exact loan
     # windows for players we loan OUT — see fmparser/injuries.py for the decode + validation.
     injuries, loans = (INJ.extract_availability(mm, squad_tids, snap_season)
-                       if snap_season is not None else ({}, {}))
+                       if season and snap_season is not None else ({}, {}))
     dump("injuries.json", {str(t): sp for t, sp in injuries.items()}, indent=None)
     dump("loans.json", {str(t): sp for t, sp in loans.items()}, indent=None)
     write_players_csv(os.path.join(dest, "players.csv"), players)
@@ -637,6 +634,7 @@ def main():
                    "managed_tid": career.managed_tid,
                    "reserve_tid": career.reserve_tid, "db": career.db},
         "save": os.path.abspath(args.save),
+        "save_date": header["date"], "save_title": header["title"],
         "latest_match": latest, "date_range": [dates[0], dates[-1]] if dates else None,
         "competitions": dict(Counter(m.get("competition") for m in season)),
         "counts": {"matches": len(season), "player_match_lines": len(match_rows),

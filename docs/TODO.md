@@ -177,14 +177,13 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `staging.clubs` —
   probably youth/academy or defunct clubs in another structure.
 
-### 11. Read the save's date from its header, instead of asking for it
-The file opens with the save slot's title, `9/8/27 - Mr Manager (Frem)`: the in-game date
-the game wrote, `d/m/yy`, then the manager and the club's nickname (`scripts/discover_career.py`
-already reads the nickname). It is the save's own date, available on a 0-match save too, so
-`archive_save.py --phase` could default to it. It disagrees with several hand-entered labels
-(`frem-2021-07-01` reads 27/6/21, `frem-2023-01-06` reads 10/1/23, `frem-2027-08-08` reads
-9/8/27), so decide what to do about existing labels before switching; the date format also
-needs checking against a save made under another locale.
+### 11. Correct the existing snapshot dates to the header dates
+New saves are dated from their header (`save_header.py`); the 38 existing labels were entered
+by hand and 19 of the 30 held locally are off by 1-25 days (`frem-2024-06-03` is really
+2024-06-28). The two byte-identical duplicate pairs resolve the same way: `frem-2024-05-25` is
+2024-06-02 and `frem-2024-06-03` is 2024-06-28. Correcting them means the manifest's phases,
+and, to keep file = label = date, renaming the saves, their `.gz`, the R2 objects, the
+`output/` dirs and the scout-log keys, then a rebuild.
 
 ---
 

@@ -1522,17 +1522,16 @@ def resolve_season_phase(label, d, override):
         return override
     summ_path = os.path.join(d, "summary.json")
     summ = _load_json(summ_path) if os.path.exists(summ_path) else {}
-    # 2) authoritative explicit fields written by extract.py: season (end-year) + phase
-    #    (the in-game date). A match-less day-1 save has season but phase=None -> synthesise
-    #    a season-start date so it still sorts first and coexists with dated in-season saves.
+    # 2) authoritative explicit fields written by extract.py: season (the campaign end-year)
+    #    and phase (the save's in-game date, from its header title).
     s_season, s_phase = summ.get("season"), summ.get("phase")
     if s_season is not None:
         season = override[0] if override[0] is not None else int(s_season)
         phase = override[1] or s_phase or f"{season - 1:04d}-07-01"
         return season, phase
-    # 2b) match-less save with no season in summary but season given on the CLI.
+    # 2b) a new career's first save: dated, but its campaign is given on the CLI.
     if override[0] is not None:
-        return override[0], (override[1] or f"{override[0] - 1:04d}-07-01")
+        return override[0], (override[1] or s_phase or f"{override[0] - 1:04d}-07-01")
     # 3) legacy fallback: parse the label string (old 'YYYY-mid' form).
     try:
         return parse_label(label)

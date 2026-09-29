@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """Move a `.fms` save into the archive, gzip it, and verify the round-trip is byte-identical.
 
-    uv run python scripts/archive_save.py ~/Downloads/whatever.fms --career frem \
-        --phase 2023-08-15 --upload
+    uv run python scripts/archive_save.py ~/Downloads/whatever.fms --career frem --upload
     uv run python scripts/archive_save.py --career frem --all-from-manifest   # bulk migration
 
-Naming: pass --phase (the save's IN-GAME date) and the file is archived as
-`<career>-<phase>.fms` — the convention every save now follows, since phase is half the store's
-natural key. Without --phase the incoming filename is kept as-is, which is fine for a save whose
-date you don't know yet; it can be renamed later once it has a manifest row.
-The date can't be derived automatically for a 0-match save (there are no matches to date it
-from), which is why this is an argument rather than a probe.
+Naming: the file is archived as `<career>-<date>.fms`, the date read from the save's own
+header title (`fmparser/tables/save_header.py`) -- the in-game date the game wrote it on, so
+it names a 0-match save too. `--phase` overrides it; a save whose title does not read keeps
+its incoming filename.
 
 Saves are the ONLY irreplaceable artefact in this project. The DuckDB store is derived and the
 extract JSON is regenerable, but a lost `.fms` means a snapshot that can never be rebuilt. So
@@ -37,6 +34,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
 from fmparser import careers                                          # noqa: E402
+from fmparser.tables.save_header import SAVE_HEADER, read_save_header  # noqa: E402
 
 SAVES_DIR = os.path.expanduser(os.environ.get("FM_SAVES_DIR", "~/fm-saves"))
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
@@ -56,9 +54,18 @@ def human(n):
     return f"{n / 1e6:.0f} MB"
 
 
+def header_date(path):
+    """The in-game date in the save's header title, or None."""
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return read_save_header(f.read(SAVE_HEADER.span))["date"]
+
+
 def archive_one(src, career, upload=False, keep_source=False, phase=None):
-    """-> (ok, message). Moves src into the archive, writes a verified .gz beside it.
-    With `phase`, the file is renamed to the canonical `<career>-<phase>.fms` on the way in."""
+    """-> (ok, message). Moves src into the archive, writes a verified .gz beside it, named
+    `<career>-<date>.fms` from `phase` or else the save's own header date."""
+    phase = phase or header_date(src)
     name = f"{career}-{phase}.fms" if phase else os.path.basename(src)
     dest_dir = os.path.join(SAVES_DIR, career)
     dest = os.path.join(dest_dir, name)
@@ -120,9 +127,8 @@ def main():
                          "--source-dir (bulk one-time migration)")
     ap.add_argument("--source-dir", default=os.path.expanduser("~/Downloads"),
                     help="where to look for saves with --all-from-manifest")
-    ap.add_argument("--phase", help="the save's IN-GAME date (YYYY-MM-DD). Archives it as "
-                                    "<career>-<phase>.fms, the canonical name. Can't be "
-                                    "derived for a 0-match save, hence an argument.")
+    ap.add_argument("--phase", help="the save's IN-GAME date (YYYY-MM-DD), overriding the "
+                                    "date read from its header title")
     ap.add_argument("--upload", action="store_true", help="rclone copy each .gz to R2")
     ap.add_argument("--keep-source", action="store_true",
                     help="copy instead of move (leaves the original in place)")

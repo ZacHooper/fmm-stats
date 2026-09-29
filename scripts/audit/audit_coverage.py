@@ -165,6 +165,8 @@ def claims(mm, n):
     except Exception as exc:
         print(f"  ! clubrecords failed: {exc}", file=sys.stderr)
 
+    from fmparser.tables import save_header as HDR
+    measured("tables.save_header", [(0, HDR.SAVE_HEADER.span)])
     declared("reference.name_table", 0, 520_000)
     # The club table: start and length both read from the save's own count header (11,331 on Frem,
     # 12,278 on Bucaspor), so its extent is known exactly rather than claimed as a 20 MB window.
