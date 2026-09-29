@@ -1,8 +1,8 @@
 # League Standings Record — discovery & parser plan
 
-> **STATUS: DECODED, NOT IMPLEMENTED.** `staging.standings` still ships the
-> approximate `lightresults_computed` table. This is live work — see
-> [`TODO.md`](TODO.md) #3.
+> **STATUS: DECODED, NOT IMPLEMENTED.** League tables are rebuilt from the fixture list
+> (`mart.league_tables`); this record would verify them outside Denmark — see
+> [`TODO.md`](TODO.md), "The standings record".
 
 Discovered 2026-07-20 while reverse-engineering the light-results region in the
 visualizer. This is a **new on-disk structure** that stores the exact final

@@ -111,7 +111,7 @@ def claims(mm, n):
 
     # ---- MEASURED: every registered table, from the spans its own walk reports ------------
     # A module's own `<name>_table_spans` is preferred where it has one: it is what the parser
-    # actually walks, and for a table not yet routed through its TableDef (TODO 4f step 1) the
+    # actually walks, and for a table not yet routed through its TableDef (nations, person_info) the
     # TableDef's spans can disagree with it (nations: 50 bytes vs 39,634). Tables read from
     # an archive member, not the save, are covered by the archive container below.
     import fmparser.tables as T
@@ -151,7 +151,7 @@ def claims(mm, n):
     except Exception as exc:
         print(f"  ! archive failed: {exc}", file=sys.stderr)
 
-    # ---- modules not yet on core (TODO 4f) -------------------------------------------------
+    # ---- modules not yet on core --------------------------------------------------
     from fmparser.tables import person_info as PI
     info = PI.scrape_person_info(mm)
     try:

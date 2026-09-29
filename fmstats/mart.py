@@ -360,7 +360,7 @@ GROUP BY c.season, c.phase, c.tid
 # staging.club_details carries att_avg/att_min/att_max and they are NOT this: they correlate
 # -0.31 with what clubs actually draw, while stadium capacity correlates +0.93, and one club
 # (Herfolge, tid 5277) sits on the worldwide 12,500 ceiling while really drawing 2,318. What
-# they are is TODO #2; what they are not is attendance.
+# they are is open (docs/TODO.md, "Unnamed fields"); what they are not is attendance.
 #
 # staging.matches.attendance is the real figure and it checks out against the game: FCK read
 # 32,962 against a reported ~30k, and Frem's own average tracks the climb exactly --

@@ -256,13 +256,13 @@ structure was ruled out because "`L.sweep()` recovers 0 records there", but `swe
 
 ## The 25-byte MATCH-SLOT table — EXTENT and COVERAGE settled
 
-> **MERGED into `fmparser/matchslots.py` 2026-09-17.** The module's docstring is now the
+> **MERGED into `fmparser/tables/match_slots.py` 2026-09-17.** The module's docstring is now the
 > canonical, current source for this table — it carries everything below plus what's been
 > found since (the table is 73% populated not 7%, competition-type findings, the orientation
 > bug on repeated club pairs, and the `k`/`B` formulas this section left as leads). Read it
 > first; this section is kept for the measurements and dead ends, not as the live reference.
 
-Parsed by **`fmparser/matchslots.py`**, guarded by **`tests/test_match_slots.py`**. The record
+Parsed by **`fmparser/tables/match_slots.py`**, guarded by **`tests/test_match_slots.py`**. The record
 is **AWAY-FIRST**, which is the whole reason it went unfound: every probe above searched for an
 oriented home→away pair and excluded it by construction.
 
@@ -517,3 +517,117 @@ Zac spotted it. Of the verified fixtures, **group 1 scores 9/23 and group 2 scor
 too small to be conclusive on its own, but it is consistent with one match-day being stored in
 more than one place, and it costs nothing to keep recording. The `ui_group` field in the truth
 fixture exists for this.
+
+
+## Match-slot findings beyond the shape (moved from TODO, 2026-09-29)
+
+The world fixture list in the archive (`fix_man.dat`, [`save-archive.md`](save-archive.md)) is now the source of results, so the match-slot table (`fmparser/tables/match_slots.py`) is secondary. What was measured on it:
+
+**The 25-byte AWAY-FIRST record is now DECODED as far as its shape goes** —
+`fmparser/tables/match_slots.py`, guarded by `tests/test_match_slots.py`. Stride 25 (two independent
+measurements), self-locating by a constant at +20, **3,975 slots on every Frem save across four
+seasons and 3,943 on Bucaspor** (a preallocated table, which is the invariant that bounds the
+walk), all 25 bytes named or declared UNKNOWN, and three fixtures verified against the game.
+
+**It is NOT the fixture list, and it is not ~7% populated either** — that figure only counts
+slots with a resolvable CLUB PAIR (a "fixture"; 275 on `frem-2026-06-11`). Checking the `day`
+field independently of the club filter shows the table is **72-74% populated**, and the total
+stays essentially constant while the mix shifts: fixture-count + clubless-but-dated count is
+**2,874** on `frem-2023-07-02` and `frem-2024-06-30`, **2,873** on `frem-2026-06-11` and
+`frem-2026-07-02` — four saves spanning 2023-2026, fixture count anywhere from 100 to 275, same
+populated total every time. The remaining ~1,101-1,102 slots are genuinely inert (day=0, every
+carried field zero). Reads as a fixed-size calendar of ~2,874 slots that fill in progressively
+as matches are played, not a fixture list that's mostly empty — **the ~2,600 clubless-but-dated
+slots are the majority of the table's real content and have never been examined.**
+
+**Checked for a World Cup** (`frem-2023-01-06`, days after the real Qatar final, and
+`frem-2026-07-02`, taken DURING the real 2026 tournament window): zero fixture rows resolve to
+a nation in either save (100 fixture rows in the WC-window save, correctly down from 275 three
+weeks earlier as domestic leagues broke for it). National teams do exist as their own club-style
+records (86 found, e.g. Qatar tid 1,632,698,368) but their tids are 4+ orders of magnitude
+bigger than this record's 16-bit `away_tid`/`home_tid` fields can hold (max 65,535) — a national
+team is structurally unable to appear here, independent of the calendar.
+
+**No `cid`/competition field is stored in the record — reconfirmed 2026-09-17 with the right
+test, after the reputation-floor/empty-CODE fix raised the obvious question of whether one of
+the 8 UNKNOWN bytes was secretly a now-more-resolvable cid.** "Does this byte resolve to *some*
+valid competition" says yes almost everywhere — worthless, since 678 real cids packed densely
+into 0..1400 make that near-guaranteed by chance. The test that actually settles it: on the
+242/275 fixtures where both clubs share a league (so the correct cid is known independently of
+the row), does any of the 25 bytes, read as u8 or u16, EQUAL that known cid? Every offset hits
+0-2%, not the ~100% a real field would show (`tests/test_match_slots.py`'s new "NO CID FIELD"
+check pins this). So the fix changed which already-inferred leagues resolve (`frem-2026-06-11`'s
+275 fixtures span 349 distinct clubs across 47 `league_cid`s via each club's own DEFAULT
+league membership looked up separately, ALL 47 of which now resolve, 20 only because of the
+fix), not whether a hidden cid exists — it doesn't, and this table structurally cannot answer
+the question for the other 33 fixtures. 242/275 pair two clubs from the same inferred league;
+the other 33 can't be ordinary league fixtures by construction, and their real competition (cup
+/ friendly / playoff) is unrecoverable from this record, full stop — not blocked by any decode
+bug, so no future fix to `reference.py` can unlock it. Four were checked against Zac's own
+in-game fixture screens and all four decoded
+EXACTLY on **date**, but only two of the four also had the score read correctly the first time
+— the other two were corrected after further checking (below), so treat any score quoted for a
+cross-league row as unverified until it's been checked twice, not once:
+
+| row | day → date | screenshot says |
+|---|---|---|
+| Forest 3-0 Maidstone | 13 → 2026-01-14 | FA Cup Third Round **Replay** (score OK) |
+| Burnley 1-2 Arsenal | 199 → 2025-07-19 | pre-season **Friendly** (score OK) |
+| Sevilla 1-3 Gladbach | 146 → 2026-05-27 | continental cup **Final**, neutral (was misread the other way round) |
+| Nürnberg 2-3 Düsseldorf | 140 → 2026-05-21 | promotion **Playoff**, 1st leg, Düsseldorf won away (was misread as Nürnberg winning at home) |
+
+A fifth cross-league row (Logroñés 0-3 A. Madrid, day 201) couldn't be found in-game — **now
+solved** by the `k` formula below: its `k` is `naive + 4×365`, i.e. this really is a match, just
+roughly four seasons stale in a slot that was never overwritten. It won't be on Atlético's
+current fixture screen because it isn't from the current season at all — not a wrong
+year-guess, as the old day≥181 heuristic made it look.
+
+**Orientation is NOT reliable on a repeated club pair.** Three `(away_tid, home_tid)` pairs
+recur with a different day and score each time — first read as possible reschedules, but
+ground truth says all three are ordinary fixtures where the real venue genuinely differed (two
+are legs of a two-legged playoff with real alternating venues; Merthyr/Bradford confirmed
+directly). The table gets it wrong for exactly **one of the two rows, every time (3/3)**:
+Palace/Stoke (day 142 wrong, day 138 right), Sint-Truidense/Beerschot (day 128 wrong, day 121
+right), Merthyr/Bradford (day 114 wrong, day 359 right). It isn't even one consistent bug: on
+Palace/Stoke the club **identities** are swapped between the away/home slots; on
+Nürnberg/Düsseldorf above, the identities are correct but the **goals** are swapped between the
+two clubs instead. Two distinct failure modes, both invisible from the bytes alone. **Every
+single-occurrence row checked against a screenshot has been exactly right** — this is specific
+to a club pair appearing more than once, not a flaw in away-first generally.
+
+**Ruled out as a competition-type flag**, tested against the four confirmed rows plus the three
+known league fixtures: `+8` (5 on 226/242 same-league rows AND 17/20 cross-league rows) and
+`trailer_a` (the cup replay and a same-day plain-league game are both 5; another plain-league
+game is 391). Neither separates cup/friendly/playoff from league. (Unaffected by the
+orientation bug above — these are raw per-offset byte values, not which club they're read as.)
+
+**`k` is SOLVED** — this was sitting unmerged in `light-results-record.md` from before
+`matchslots.py` existed, so it's now folded into the module docstring rather than re-treated as
+open. **`k = (save's own day-of-year) − (match day)`, wrapping `+365` for a previous-year
+match** — exact or +365-exact on 251/275 rows (91%) on `frem-2026-06-11` (save day-of-year
+161). This is the real date rule; prefer it over guessing a year from `day` alone. The ~9% that
+miss are mostly off by a few days (a refresh-lag artifact, not a broken formula) except for a
+handful that are further whole multiples of ~365 off — stale slots, as with the Madrid row
+above. `B` isn't independent either: **`B == floor(3A/5)` on 223/275 (81%)** — of the four i16
+fields, only ONE number is truly free.
+
+The Sevilla-Gladbach final is also stored TWICE, 500 bytes (20 slots) apart, identical
+tid/score/day, different `trailer_a` — the same multi-copy pattern as `clubrecords.py`.
+
+**No ID field exists.** Checked every `UNKNOWN` byte for uniqueness across the 275 fixture rows
+(262 genuinely distinct matches): the best candidate, `+9` (A), has only 94 distinct values —
+reused ~3× on average. A is a date-derived number (via `k`), not a key; there's no sequential
+match id to find here.
+
+**Immediately before the table, no gap**: content density stays ~0.6 for at least 80KB back.
+A DIFFERENT 16-byte-stride table runs for 9,692 records (~155KB) right up to this table's
+start — `00 05 [u16 ~10000] [u16 ~10000] [i16 -1500..1087] ff ff ff 00 00 [u8] [2-byte trailer,
+usually 5c-a1]`. The two ~10000 fields read as a percentage ×100 (100.00% default, real values
+cluster 8500-9700). Not identified beyond that. "Manager" (ASCII) appears ~190 bytes after this
+table's END, not before.
+
+The 497-record chained region at 6.127-6.260 MB has now been swept: 91 signature hits but
+only 67% share a stride, so it fails the alignment control and is not a match table. A
+whole-file sweep at every byte offset found **no second gridded match signature anywhere** —
+the 25-byte table is the only one (654 stray hits of the same trailer constant at 46.88-48.35M
+were checked and decode as non-football garbage, not a second table).

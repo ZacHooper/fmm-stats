@@ -49,7 +49,7 @@ the window is wide enough that consecutive snapshots overlap rather than leaving
 |---|---|---|---|
 | **`fix_man`** | `matchslots.py` resolves **275** fixtures from a 3,975-slot table; `matches.py` parses only OUR club's games | **AUGMENT — the largest in the archive** | 26,954 matches, **1,751 distinct clubs**, home-first, with scores. Our club appears 52 times, our reserves 28 — the other ~26,900 are matches we have never had at all |
 | `stadium` | `places.scrape_stadiums` → **15,987** records with names, ids 0..15,986 | **CONFIRM only** | declares **15,984** and runs 8.34 B/entry — an index, not the named records. Ours is bigger and richer; the archive copy is a cross-check, not a source |
-| `comp_<uid>.dat` ×147 | competition table (names, type, level); nothing held each competition's stage/round structure | **PARSED — stages and rounds** | the id is the competition **uid** (`staging.competitions.uid`). `tables/comp_rules.py` reads the 54-byte header and the tagged `stgs` list → `staging.competition_rounds` → `mart.match_stages`. Prize money, qualification and scheduling rules in the same tree are unread (TODO 4c) |
+| `comp_<uid>.dat` ×147 | competition table (names, type, level); nothing held each competition's stage/round structure | **PARSED — stages and rounds** | the id is the competition **uid** (`staging.competitions.uid`). `tables/comp_rules.py` reads the 54-byte header and the tagged `stgs` list → `staging.competition_rounds` → `mart.match_stages`. Prize money, qualification and scheduling rules in the same tree are unread (docs/TODO.md, "Archive members") |
 | `discipline` | injuries/suspensions from the Player-Progress bitfield | **IGNORE** | 254 B and **byte-identical on every save of both careers** — a static enumeration, not career state |
 | `fifa_rankings` | nation rankings via `lookups` → `mart.nation_ranking_history` | **IGNORE** | 14 B on every save. Despite the name it holds no ranking table |
 | `squad_man` | squad snapshot via `CLUB_MARKER` | **IGNORE** | 225 B → 17 B over the career; a stub by 2026 |
@@ -65,7 +65,7 @@ subsystems the archive does **not** carry. Nothing in the plan should be re-poin
 
 Two items do move:
 
-- **TODO #4 (complete results/fixtures) is substantially answered** — by a member of the
+- **Complete results/fixtures are substantially answered** — by a member of the
   archive, not by any of the four byte-level approaches that were tried. It should be rewritten
   around `fix_man` plus the union-across-snapshots idea, and the dead ends kept as recorded
   negatives.
