@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""`player_lists` -- 66 preallocated lists of 100 player entries: each season's world list
-and our club's squad, season by season.
+"""`player_lists` -- 66 preallocated lists of 100 player entries: the World Best XI pools,
+season by season and all-time, and our club's squad, season by season.
 
     region  66 x list
     list    [100 x entry][trailer, 14 bytes]
@@ -13,10 +13,17 @@ of them is 20,014.
 
 The 66 lists are three groups, by index:
 
-     0-30   world lists, one per season of the career, 100 players each
+     0-30   the World Best XI pool, one per season of the career: 100 players, from whom
+            the game's World Best XI screen for that year picks its eleven by position
+            (all eleven, for 2024, 2025 and 2026, verified against the screen on
+            frem-2027-06-15). The list of the season in progress fills as it is played.
     31-61   our club's squad, one list per season (first team and reserves, under their
             own club markers, and players loaned in); filled from 31
-    62-65   two copies of a (world, club) pair, not yet identified
+    62-65   62 and 64: the All-Time pool behind World Best XI - All-Time (all eleven
+            verified), each entry frozen in the season that earned its place ("Torino -
+            2023"); the two copies are the same 100 players. 63 and 65: the club
+            counterpart -- players who have played for us, across seasons -- not yet
+            matched to a screen
 
 A list's trailer is written when its season ends: `season` is that season's end year, and
 reads 0xffff while the season is in progress. Our club's current squad is the last filled
