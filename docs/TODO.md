@@ -8,7 +8,7 @@ When you finish something, **delete its entry**. Do not tick it off, and do not 
 "CLOSED" note: what was learned goes into the reference doc the entry points at. Item numbers
 are for conversation only and are renumbered freely; never cite one in code or a commit.
 
-Last reviewed **2026-09-29**, after the `core` framework landed (#102–#104).
+Last reviewed **2026-09-29**, after clubs and competitions joined the `core` framework (#107).
 
 ---
 
@@ -94,7 +94,7 @@ module's save test, `audit_records.py`, and one deliberate break:
 
 ## Parser — coverage: every byte processed
 
-On `frem-2027-08-08` (61.7 MB): 38.3% filler, 33.8% read, 1.2% declared, **26.6% unclaimed**
+On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1% unclaimed**
 (`audit_coverage.py`). The gaps, largest first, with what is known about each:
 
 ### 3. The unclaimed regions of the career half
