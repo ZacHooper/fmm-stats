@@ -103,13 +103,16 @@ def resolve_club(st, name_or_tid):
 
     Tiers: exact name, then initials ("OB" -> Odense Boldklub, "FCK" -> Football Club
     København), then a name starting with the query, then a later word starting with it, then
-    any substring. Within a tier, clubs in our own nation come first, then larger squads — so
-    a first team outranks its reserves.
+    any substring. Within a tier, clubs in our own nation come first, then clubs in the stronger
+    league (`league_reputation`: "Aarhus" is AGF in the NordicBet Liga, not Aarhus Fremad in
+    the 2. Division, and a first team outranks its reserves, whose league reads 1), then larger
+    squads.
     A plain substring search is not enough: "ob" is inside "Hobro". Columns: tid, name,
-    league, n_players, domestic, tier. Empty if nothing matches."""
+    league, n_players, league_reputation, domestic, tier. Empty if nothing matches."""
     s = str(name_or_tid).strip()
     clubs = _q(st.con, """
         SELECT c.club_tid AS tid, c.name, c.league_name AS league, c.squad_size AS n_players,
+               COALESCE(c.league_reputation, 0) AS league_reputation,
                c.nation = (SELECT nation FROM mart.clubs m
                            WHERE (m.season, m.phase, m.club_tid) = (?, ?, ?)) AS domestic
         FROM mart.clubs c
@@ -139,7 +142,8 @@ def resolve_club(st, name_or_tid):
 
     clubs["tier"] = [tier(i) for i in range(len(clubs))]
     hit = clubs[clubs["tier"].notna() & (clubs["n_players"] > 0)].copy()
-    hit = hit.sort_values(["tier", "domestic", "n_players"], ascending=[True, False, False])
+    hit = hit.sort_values(["tier", "domestic", "league_reputation", "n_players"],
+                          ascending=[True, False, False, False])
     return hit.reset_index(drop=True)
 
 

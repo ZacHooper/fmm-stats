@@ -37,10 +37,6 @@ def resolve_club(mm, tid, want="long"):
     return rec["short"] if want == "short" else rec["name"]
 
 
-def club_map(mm, tids, want="long"):
-    return {t: resolve_club(mm, t, want) for t in tids}
-
-
 def club_record(mm, tid, want="long"):
     """A club's record: {'name','short','league','country'} or None.
 

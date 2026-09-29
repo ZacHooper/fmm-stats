@@ -200,6 +200,11 @@ A table at a time, contracts and names first, then club labels and the rest:
 3. the gate is row-for-row: the mart gives the same name / wage / label for every person as
    today's store (`assert_identical` changes by design — re-record with the note).
 
+When this lands, `fmparser/clubs_comps.py`'s lookups go with it: `club_record`, `league_name`,
+`comp_detail`, `club_details` and the name resolvers exist only for extract's pre-joins, and
+`comp_name` / `comp_id_at` only to label matches in `matches.py`. What remains is the two
+tables themselves (`tables/clubs.py`, `tables/competitions.py`).
+
 Also:
 - **Move the loader's remaining transforms into `fmstats`**, so `load_duckdb.py` only writes
   JSON into `staging`: the attribute-model decode view (`staging.player_attributes`),

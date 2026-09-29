@@ -74,13 +74,22 @@ def main():
                          FROM mart.club_matches WHERE club_tid = ?""", [us]).fetchone()[0]
     check(dup == 0, f"club_matches: {dup} duplicate (date, opponent) rows for us")
 
-    # --- club lookup
+    # --- club lookup: names and initials that name exactly one club
     for q, want in (("OB", "Odense Boldklub"), ("FCK", "Football Club København"),
-                    ("AGF", "Aarhus Gymnastik Forening"), ("Aarhus", "Aarhus Gymnastik Forening"),
-                    ("Hobro", "Hobro Idræts Klub"), ("Brondby", "Brøndbyernes Idrætsforening")):
+                    ("AGF", "Aarhus Gymnastik Forening"), ("Hobro", "Hobro Idræts Klub"),
+                    ("Brondby", "Brøndbyernes Idrætsforening")):
         m = scout.resolve_club(st, q)
         got = m.iloc[0]["name"] if not m.empty else None
         check(got == want, f"resolve_club({q!r}) -> {got!r}, want {want!r}")
+    # an ambiguous name: which Aarhus club wins depends on the snapshot's leagues, so check the
+    # rule -- an Aarhus club, a first team, and in the strongest league of those matched
+    m = scout.resolve_club(st, "Aarhus")
+    top = m.iloc[0] if not m.empty else None
+    check(top is not None and top["name"].startswith("Aarhus")
+          and not any(w in top["name"] for w in ("Reserves", " B"))
+          and top["league_reputation"] == m[m["tier"] == top["tier"]]["league_reputation"].max(),
+          f"resolve_club('Aarhus') -> {None if top is None else top['name']!r}: "
+          "an Aarhus first team in the strongest matched league")
 
     # --- league tables vs the save's own record of each club's finish
     firsts = con.execute("""SELECT season, arg_min(phase, snap_ix) AS phase
