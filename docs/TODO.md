@@ -182,6 +182,18 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
   (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records.
 
+### 10a. Every player's current-season stats by competition type (minor)
+The Player History screen's "This Season" panel splits the current season into Non
+Competitive / League / Cup / Continental / International, each with Pld, Gls, Ast, Yel, Red,
+PoM and average rating, for ANY player -- so the save holds it per player, in a region not yet
+identified. We have nothing like it: `mart.player_seasons` is built from our own match
+reports, so it covers only games Frem played in, and no friendlies, internationals or PoM.
+Use: proper league records (top scorers, cards, player of the match) for every league, not
+just the games we watched. Find it with a screenshot and a save from the SAME in-game day:
+Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, League 4 apps /
+1 yel / 7.00, Continental 2 apps / 7.50 -- take a second player with different numbers to
+rule out coincidence, then search for the values next to his tid.
+
 ### 11. Read the season rollover from the game, not from `careers.py`
 A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
 20 June, measured from the managed club's record and set per career as `Career.rollover`. A
