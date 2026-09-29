@@ -2,7 +2,7 @@
 """Field types and binary primitives for declarative schemas.
 
 Two encodings of a value: PACKED fields at fixed offsets (the kinds `U8` .. `PAD`, and the
-length-prefixed `PString`), and the TAGGED wire format, where each field carries its own
+length-prefixed `PString`), and the TAGGED format, where each field carries its own
 tag and type code (`read_tree`, below).
 """
 import struct
@@ -107,7 +107,7 @@ class PString:
         return {self.name: val}, offset + total_len
 
 
-# ---- the TAGGED wire format ------------------------------------------------------------------
+# ---- the TAGGED format -----------------------------------------------------------------------
 # The save's data dictionary (`tables/rule_files.py`) and the archive's `comp_<uid>.dat`
 # members (`tables/comp_rules.py`) store key-value fields in one format:
 #
@@ -135,19 +135,24 @@ class PString:
 # neither a printable tag nor a tagless field fits, and is named `#` + its eight hex digits
 # in the same reversed order (`#16967d20`).
 #
+# The TYPE CODE is the byte after the 0x01 marker: it says how many bytes the value takes,
+# and the `TYPE_*` constants below name it. It is not what the value MEANS -- that is the
+# schema's kind (`schema.INT`, `schema.STRING`, ...), and one kind may accept several codes
+# (`INT` takes a u8, a u16, a u32 ...).
+#
 # `read_tree` is STRICT: it is only ever called on a block whose extent is declared (a
 # field count), so anything that does not parse is an error, never a shorter result. The
 # schemas that name what the fields mean are declared per tag (`schema.TaggedRecord`).
 
-WIRE_CONTAINER = 0x0a
-WIRE_LIST = 0x0b
-WIRE_STRING = 0x1a
-WIRE_PAIR = 0x0f
-WIRE_REF = 0x02
-WIRE_F64 = 0x05
-WIRE_SIZE = {0x00: 0, 0x01: 4, 0x13: 4, 0x15: 4, WIRE_REF: 4, 0x03: 1, 0x11: 1, 0x12: 2,
-             0x19: 4, 0x20: 4, WIRE_PAIR: 8, 0x14: 8, 0x18: 8, WIRE_F64: 8}
-WIRE_TYPES = frozenset(WIRE_SIZE) | {WIRE_CONTAINER, WIRE_LIST, WIRE_STRING}
+TYPE_CONTAINER = 0x0a
+TYPE_LIST = 0x0b
+TYPE_STRING = 0x1a
+TYPE_PAIR = 0x0f
+TYPE_REF = 0x02
+TYPE_F64 = 0x05
+TYPE_SIZE = {0x00: 0, 0x01: 4, 0x13: 4, 0x15: 4, TYPE_REF: 4, 0x03: 1, 0x11: 1, 0x12: 2,
+             0x19: 4, 0x20: 4, TYPE_PAIR: 8, 0x14: 8, 0x18: 8, TYPE_F64: 8}
+KNOWN_TYPES = frozenset(TYPE_SIZE) | {TYPE_CONTAINER, TYPE_LIST, TYPE_STRING}
 
 _MAX_STRLEN = 1_000_000       # a mis-read length cannot run off the block
 
@@ -164,9 +169,9 @@ def _head(mm, p, hi):
     """(tag, type, value_pos) of the field at p."""
     if p + 6 <= hi and _printable4(mm[p:p + 4]) and mm[p + 4] == 0x01:
         return mm[p:p + 4][::-1].decode("latin-1").strip(), mm[p + 5], p + 6
-    if p + 2 <= hi and mm[p] == 0x01 and mm[p + 1] in WIRE_TYPES:
+    if p + 2 <= hi and mm[p] == 0x01 and mm[p + 1] in KNOWN_TYPES:
         return None, mm[p + 1], p + 2
-    if p + 6 <= hi and mm[p + 4] == 0x01 and mm[p + 5] in WIRE_TYPES:
+    if p + 6 <= hi and mm[p + 4] == 0x01 and mm[p + 5] in KNOWN_TYPES:
         return "#" + mm[p:p + 4][::-1].hex(), mm[p + 5], p + 6
     raise TreeError(f"no tagged field at {p}")
 
@@ -178,13 +183,13 @@ def read_tree(mm, p, hi, max_items=5000):
     a pair to a (u32, u32) tuple, a reference to its four-character code, a string to str,
     an f64 to float, every other type to an int."""
     tag, typ, vpos = _head(mm, p, hi)
-    if typ not in WIRE_TYPES:
+    if typ not in KNOWN_TYPES:
         raise TreeError(f"unknown field type 0x{typ:02x} at {p}")
-    if typ in (WIRE_CONTAINER, WIRE_LIST, WIRE_STRING):
+    if typ in (TYPE_CONTAINER, TYPE_LIST, TYPE_STRING):
         if vpos + 4 > hi:
             raise TreeError(f"count at {vpos} runs past {hi}")
         n = int.from_bytes(mm[vpos:vpos + 4], "little")
-        if typ == WIRE_STRING:
+        if typ == TYPE_STRING:
             if n > _MAX_STRLEN or vpos + 4 + n > hi:
                 raise TreeError(f"string at {vpos} runs past {hi}")
             return (tag, typ, mm[vpos + 4:vpos + 4 + n].decode("latin-1", "replace")), \
@@ -196,15 +201,15 @@ def read_tree(mm, p, hi, max_items=5000):
             kid, q = read_tree(mm, q, hi, max_items)
             kids.append(kid)
         return (tag, typ, kids), q
-    size = WIRE_SIZE[typ]
+    size = TYPE_SIZE[typ]
     if vpos + size > hi:
         raise TreeError(f"value of type 0x{typ:02x} at {vpos} runs past {hi}")
     raw = mm[vpos:vpos + size]
-    if typ == WIRE_PAIR:
+    if typ == TYPE_PAIR:
         value = (int.from_bytes(raw[:4], "little"), int.from_bytes(raw[4:], "little"))
-    elif typ == WIRE_F64:
+    elif typ == TYPE_F64:
         value = struct.unpack("<d", raw)[0]
-    elif typ == WIRE_REF:
+    elif typ == TYPE_REF:
         value = raw[::-1].decode("latin-1", "replace").strip()
     else:
         value = int.from_bytes(raw, "little")

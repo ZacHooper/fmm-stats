@@ -266,7 +266,7 @@ The modules:
 | module | what it holds |
 |---|---|
 | `fmparser/core/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `tag4`. Pure `(buffer, offset) -> value`. |
-| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`, `PString`) and the tagged wire format (`read_tree`). |
+| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`, `PString`) and the tagged format (`read_tree`). |
 | `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
 | `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged). |
 
@@ -330,7 +330,7 @@ stop being visible.
 
 Two encodings occur in the save. PACKED records are bytes at fixed offsets. TAGGED records --
 the data dictionary's rule files, the archive's `comp_<uid>.dat` members -- are
-`[tag][01][type][value]` fields in any order, with optional tags and a wire type that can
+`[tag][01][type][value]` fields in any order, with optional tags and a type code that can
 vary with the value (`ntms` is a u8 for 12 teams, a u16 for 255). Each layer of `core` holds
 both, so a tagged table is hooked up exactly the way a packed one is:
 

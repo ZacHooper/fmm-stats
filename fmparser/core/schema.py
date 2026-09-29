@@ -5,7 +5,7 @@ Two kinds of record, one rule -- the parser reads FROM the declaration and the a
 AGAINST it:
 
   * `Record` -- PACKED: `Field`s at fixed offsets, every byte named or declared UNKNOWN.
-  * `TaggedRecord` -- TAGGED: `Tag`s by name in the wire format (`types.read_tree`), every
+  * `TaggedRecord` -- TAGGED: `Tag`s by name in the tagged format (`types.read_tree`), every
     tag read or listed `unread`.
 
 How the records are found and walked is `table.py` (`TableDef` / `TaggedTableDef`).
@@ -27,11 +27,11 @@ from .types import (
     U16,
     U32,
     UNKNOWN,
-    WIRE_CONTAINER,
-    WIRE_LIST,
-    WIRE_PAIR,
-    WIRE_REF,
-    WIRE_STRING,
+    TYPE_CONTAINER,
+    TYPE_LIST,
+    TYPE_PAIR,
+    TYPE_REF,
+    TYPE_STRING,
 )
 
 # Registry of all instantiated Record layouts
@@ -260,9 +260,9 @@ def per_byte_map(rec: Record) -> str:
 
 
 # ==== TAGGED records ==========================================================================
-# A tagged record is a set of `[tag][type][value]` fields in the tagged wire format
+# A tagged record is a set of `[tag][type][value]` fields in the tagged format
 # (`types.read_tree`), not bytes at fixed offsets: fields may come in any order, a tag may
-# be absent, and one tag's wire type can vary with its value (`ntms` is a u8 for 12 teams and
+# be absent, and one tag's type code can vary with its value (`ntms` is a u8 for 12 teams and
 # a u16 for 255). So the schema is declared per TAG rather than per offset:
 #
 #     STAGE = TaggedRecord("comp_rules_stage", [
@@ -273,7 +273,7 @@ def per_byte_map(rec: Record) -> str:
 # The same three properties `Record` gives a byte layout hold here:
 #
 #   * the schema is READ from: `read(fields)` returns {name: value} for the declared tags,
-#     checking each value's wire type against its kind;
+#     checking each value's type code against its kind;
 #   * a required tag that is absent is an error, never a None that looks like data;
 #   * COVERAGE: every tag seen is either declared (read) or listed in `unread` (seen and
 #     deliberately not read). A tag that is neither is a tag being stepped over by accident,
@@ -283,7 +283,7 @@ def per_byte_map(rec: Record) -> str:
 
 TAGGED_REGISTRY: Dict[str, "TaggedRecord"] = {}
 
-_INT_TYPES = frozenset({0x01, 0x03, 0x11, 0x12, 0x13, 0x14, 0x15, 0x18, WIRE_PAIR})
+_INT_TYPES = frozenset({0x01, 0x03, 0x11, 0x12, 0x13, 0x14, 0x15, 0x18, TYPE_PAIR})
 
 
 class TaggedSchemaError(Exception):
@@ -291,7 +291,7 @@ class TaggedSchemaError(Exception):
 
 
 class Kind:
-    """How a tag's value is read. `accepts(wire_type)`; `read(value, wire_type)`."""
+    """How a tag's value is read. `accepts(type_code)`; `read(value, type_code)`."""
     label = "?"
 
     def accepts(self, typ: int) -> bool:
@@ -312,7 +312,7 @@ class _Int(Kind):
         return typ in _INT_TYPES
 
     def read(self, value, typ):
-        if typ == WIRE_PAIR:
+        if typ == TYPE_PAIR:
             a, b = value
             if a != b:
                 raise TaggedSchemaError(f"pair ({a}, {b}) does not repeat one value")
@@ -325,10 +325,10 @@ class _FourCC(Kind):
     label = "fourcc"
 
     def accepts(self, typ):
-        return typ in (0x01, WIRE_REF)
+        return typ in (0x01, TYPE_REF)
 
     def read(self, value, typ):
-        if typ == WIRE_REF:
+        if typ == TYPE_REF:
             return value
         s = value.to_bytes(4, "little")[::-1]
         if not all(32 <= c < 127 for c in s):
@@ -340,7 +340,7 @@ class _String(Kind):
     label = "string"
 
     def accepts(self, typ):
-        return typ == WIRE_STRING
+        return typ == TYPE_STRING
 
     def read(self, value, typ):
         return value
@@ -354,7 +354,7 @@ class Nested(Kind):
         self.label = f"{record.name}" + (f".{pick}" if pick else "")
 
     def accepts(self, typ):
-        return typ == WIRE_CONTAINER
+        return typ == TYPE_CONTAINER
 
     def read(self, value, typ):
         row = self.record.read(value)
@@ -369,19 +369,19 @@ class ListOf(Kind):
         self.label = f"list of {record.name}"
 
     def accepts(self, typ):
-        return typ == WIRE_LIST
+        return typ == TYPE_LIST
 
     def read(self, value, typ):
         out = []
         for tag, etyp, ev in value:
-            if tag is not None or etyp != WIRE_CONTAINER:
+            if tag is not None or etyp != TYPE_CONTAINER:
                 raise TaggedSchemaError(f"list element is not a tagless container")
             out.append(self.record.read(ev))
         return out
 
 
 class AnyOf(Kind):
-    """The first alternative whose wire type matches."""
+    """The first alternative whose type code matches."""
 
     def __init__(self, *kinds: Kind):
         self.kinds = kinds
@@ -398,7 +398,7 @@ INT, FOURCC, STRING = _Int(), _FourCC(), _String()
 
 
 class Tag:
-    """One declared tag: the wire tag, the name it is read into, how, and whether it must
+    """One declared tag: the on-disk tag, the name it is read into, how, and whether it must
     be present."""
     __slots__ = ("tag", "name", "kind", "required", "note")
 
@@ -436,7 +436,7 @@ class TaggedRecord:
             typ, val = seen[t.tag]
             if not t.kind.accepts(typ):
                 raise TaggedSchemaError(
-                    f"{self.name}.{t.tag}: wire type 0x{typ:02x} is not {t.kind.label}")
+                    f"{self.name}.{t.tag}: type code 0x{typ:02x} is not {t.kind.label}")
             out[t.name] = t.kind.read(val, typ)
         return out
 
@@ -459,9 +459,9 @@ class TaggedRecord:
             if t is not None:
                 kinds = t.kind.kinds if isinstance(t.kind, AnyOf) else (t.kind,)
             for k in kinds:
-                if isinstance(k, Nested) and typ == WIRE_CONTAINER:
+                if isinstance(k, Nested) and typ == TYPE_CONTAINER:
                     k.record.coverage(val, report)
-                elif isinstance(k, ListOf) and typ == WIRE_LIST:
+                elif isinstance(k, ListOf) and typ == TYPE_LIST:
                     for _, _, ev in val:
                         k.record.coverage(ev, report)
         for t in self.tags:

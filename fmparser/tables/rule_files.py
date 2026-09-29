@@ -5,7 +5,7 @@ The save's tagged data dictionary (~16.7-20.0 MB, drifting per save) is the game
 of rule files: 667 of them, each naming its source in a `file` string and its folder in
 `SubF` (`.\\europe\\dan\\`). Within a career the rule files are value-for-value
 identical in every save (Bucaspor's total 60 bytes fewer than Frem's); what changes between
-saves is the bytes BETWEEN them (below). A rule file is a tagged block in the wire format of
+saves is the bytes BETWEEN them (below). A rule file is a tagged block in the tagged format of
 the archive's `comp_<uid>.dat` members (`tables/comp_rules.py`) minus their 54-byte header:
 
     [u32 n][n tagged fields]

@@ -4,7 +4,7 @@
 Builds a region in memory in the layout the module docstring describes -- a dated record
 and a bare `<nat>_rules`, then a separator, a group count and a group of four tagless
 container files (`_comps`, `_reserve_comps`, `_rules` and a competition file with a stage
-list) -- with the wire types the strict reader accepts only since the dictionary needed
+list) -- with the type codes the strict reader accepts only since the dictionary needed
 them: an f64 (`cash`), a u32 id of type 0x15 (`Ttea`) and a tag that is not four printable
 characters. Zero save dependency.
 """

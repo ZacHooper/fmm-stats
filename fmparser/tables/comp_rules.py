@@ -6,7 +6,7 @@ named by the competition's `uid` -- the same uid the competition table in the ma
 holds, so `staging.competitions.uid` names the member directly.
 
 A member is a fixed 54-byte header (`HEADER`, declared below) followed by a block in the
-tagged wire format. The header declares the block's top-level field count at +50, so the
+tagged format. The header declares the block's top-level field count at +50, so the
 table is a `TaggedTableDef` with one row per member: `locate_comp_rules` returns (54, n)
 and the engine reads exactly n fields. They end at the file trailer (`XSvC`, `EdBr`, `EdDt`, `SubF` = the source path);
 binary runtime state follows and is not read. A member declaring 0 fields is a stub (the

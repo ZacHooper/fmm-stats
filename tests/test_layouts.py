@@ -253,7 +253,7 @@ def part4_tagged():
         print(f"  {'ok  ' if good else 'FAIL'} {label}")
     for label, fields in (
         ("a missing required tag is caught", [("id", 0x01, code)]),
-        ("a wire type the kind does not accept is caught", [("indx", 0x1a, "x")]),
+        ("a type code the kind does not accept is caught", [("indx", 0x1a, "x")]),
         ("a pair that does not repeat one value is caught", [("indx", 0x0f, (1, 2))]),
     ):
         try:
