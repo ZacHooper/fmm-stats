@@ -28,6 +28,10 @@ class Career:
     # role-weight set that matches the shape this career actually plays; rates our squad in a
     # scout. Distinct from app_config.default_method, which is the web app's display default.
     rating_method: str | None = None
+    # (month, day) the game starts this career's new season. It follows the home calendar,
+    # so it is per career: measured as the day the managed club's record changes its last
+    # league position (Frem 29 June old / 30 June new; Bucaspor 19 June old / 20 June new).
+    rollover: tuple = (6, 30)
 
     @property
     def club_marker(self) -> bytes:
@@ -63,10 +67,11 @@ class Career:
 CAREERS = {
     # Turkish career (the original) — Bucaspor 1928. Archived: no longer played.
     "bucaspor": Career("bucaspor", "Bucaspor 1928", 6567, 11320, (228, 227, 117),
-                       "fm-buca.duckdb", active=False, rating_method="buca_433"),
+                       "fm-buca.duckdb", active=False, rating_method="buca_433",
+                       rollover=(6, 20)),
     # Danish career — Boldklubben Frem (started 2026-08). tids verified from the save.
     "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb",
-                   rating_method="frem_minmax_4231"),
+                   rating_method="frem_minmax_4231", rollover=(6, 30)),
 }
 
 DEFAULT_CAREER = "frem"

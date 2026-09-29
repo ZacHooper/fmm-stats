@@ -77,28 +77,19 @@ locator (`parser-architecture.md` Part 1). `core` walks arrays of both row kinds
 `TaggedTableDef`). In order — each PR gated by byte-identical `tests/assert_identical.py`, the
 module's save test, `audit_records.py`, and one deliberate break:
 
-1. **`nations` and `person_info`** declare a `TableDef` but scrape with hand-written loops.
-   - `person_info`: needs a core COUNTED-LIST segment for the variable lists after its 68-byte
-     head (step 2 needs it too); `TABLES["person_info"]` holds the `Record`, not a table. Its
-     walk covers 2.24 MB of the 3.42 MB table. Settle record 0 (572,041 vs 572,042) and the 92
-     rows short of the declared 32,966 on the way ([`table-framing.md`](table-framing.md)).
-   - `nations`: the scrape searches backwards from 3-letter codes and keeps the densest
-     cluster; the table declares 251 and we read 227 (Algeria, id 0, is cut). Its `TableDef`
-     spans report 50 bytes against 39,634 from its own walk. Decode the real layout from the
-     count frame first — expect the output to change.
-2. **`clubs_comps`' club and competition tables** — arrays of `[id][uid][len][long][len][short]
+1. **`clubs_comps`' club and competition tables** — arrays of `[id][uid][len][long][len][short]
    [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
-   (`comp_refs`).
-3. **The linked-list walk (shape B)** — a core table for a stride record with a next-row
+   (`comp_refs`) -- a `CountedList`, as in `nations` and `person_info`.
+2. **The linked-list walk (shape B)** — a core table for a stride record with a next-row
    pointer, heads = rows of in-degree 0, read column-wise (`Record.columns`); move `history.py`
    onto it. Its locator should prove the pool exactly (the pointer-forest check in
    [`career-region-sizing.md`](career-region-sizing.md)), not by sampling.
-4. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
+3. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
    walk with an empty-slot predicate and a block size.
-5. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
+4. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
    stride are not mapped yet. Research first: find each array's bounds, then it is an ordinary
    array.
-6. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
+5. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
    already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
    region is empty at a season boundary (0 anchors is correct there, not a locator failure).
 
@@ -121,7 +112,6 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 33.8% read, 1.2% declared, **26.6%
 - **34.12–38.53 M** — the transfer band ([`transfer-history-record.md`](transfer-history-record.md):
   decoded, not parsed).
 - **13.96–16.68 M** — 85% filler, no count headers.
-- **2.81–3.98 M** — inside the person table: the rest of `person_info` (#1.1).
 - A **stride-65 per-season table** (`[flag u8][value u16][tid u16][year u16]`) right after the
   550-byte `0xFF` wall that ends our matches; settle whether it is `table-framing.md`'s
   per-season series near 44.6 MB.
@@ -138,10 +128,13 @@ list. Find them by `14 01 00 0a 00` at gaps of exactly 200, in runs of exactly 1
 
 ### 5. Reference-half tables not yet read
 - The unnamed count-framed tables in [`table-framing.md`'s register](table-framing.md#the-complete-register).
-- The **Region** table, the nation record's counted **language list**, and the ~7-entry
+- The **Region** table, the unnamed bytes of the nation record (`NATION_TEAM`, `NATION_END`),
+  and the ~7-entry
   **continent** table right after the nations (`[uid u32][Name][01][CodeName][Demonym][01]`,
   Africa..South America at ids 0–5, `World` at 6).
 - The **20 bytes** `parse_club_trailer` steps over.
+- The person record's unnamed bytes (`PERSON_MID`, three of each relationship's eight), and
+  what its language `level` of 255 means.
 
 ### 6. Archive members and framing not yet read
 [`save-archive.md`](save-archive.md) is the reference.
@@ -184,11 +177,12 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `staging.clubs` —
   probably youth/academy or defunct clubs in another structure.
 
-### 11. The save's own in-game date
-Not blocking: `phase` is given at import (`archive_save.py --phase`). It is not a fixed-offset
-field in any header (two-save diff). One candidate survives at 38,184,473 but repeats every ~32
-bytes, like a per-row date column; check it across three or four saves. Cheaper cross-check
-first: the current-year segment of `fix_man` ends on the save's day or the day before.
+### 11. Read the season rollover from the game, not from `careers.py`
+A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
+20 June, measured from the managed club's record and set per career as `Career.rollover`. A
+new career needs it measured again. The game holds it -- most likely each nation's calendar in
+the data dictionary's rule files (#7, #8) -- so decode it there. The fixture list does not
+change at the rollover, and no fixed-offset season field exists in the first 14 MB.
 
 ---
 
@@ -326,11 +320,17 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   `rclone config update r2 access_key_id <NEW> secret_access_key <NEW>`.
 - **Position write-ups** for DM, CM, AML, AMC, AMR and ST, plus a verdict on 4-1-2-2-1, against
   the current Superliga squad.
-- **Save housekeeping** (needs Zac): the snapshot labelled `fm_save1` should be canonically
-  named (scout-log keys embed the label; `canonicalise_names.py` is deleted, so by hand or
-  restored from git); two pairs of Frem saves are byte-identical (`2024-05-25` ==
-  `2024-06-02`, `2024-06-03` == `2024-06-28`); four saves in `unfiled/` need in-game dates;
-  stale `output/` dirs and the pre-rewrite git backup on the local machine can go.
+- **Rebuild and republish after the date correction** -- `seeds/manifest.csv` now carries each
+  save's header date as its phase (20 of 37 moved, 1-25 days), so the store must be rebuilt
+  (`scripts/rebuild.py --career frem`) and republished. File names and labels were kept, so
+  19 labels no longer match their dates.
+- **Save housekeeping** (needs Zac): the local duplicates `frem-2024-06-02.fms` and
+  `frem-2024-06-28.fms` are byte-identical copies of the manifest's `frem-2024-05-25` and
+  `frem-2024-06-03`, which their headers date 2024-06-02 and 2024-06-28 -- the extra copies can
+  go. The four `unfiled/` saves are dated by their headers: `frem/denmark-mid-22` 2021-10-02,
+  `bucaspor/22-23-start` and `bucaspor/fm_save3` 2022-06-20 (check whether they are the same
+  save), `bucaspor/fm_save1-24-mid` 2023-11-08. Stale `output/` dirs and the pre-rewrite git
+  backup on the local machine can go.
 - **`careers.py` hardcodes `reserve_tid`** — the club record's `main_club_tid` could derive it.
 - **`tests/test_attribute_model.py` skips without a repo-local store** — open it through
   `fmstats.store.open_store()` as `tests/test_fmq.py` does.

@@ -66,6 +66,7 @@ from .types import (
     U16,
     U32,
     UNKNOWN,
+    CountedList,
     PString,
     TreeError,
     read_tree,
@@ -105,6 +106,7 @@ __all__ = [
     "UNKNOWN",
     "KIND_WIDTH",
     "PString",
+    "CountedList",
     "TreeError",
     "read_tree",
     # Schema

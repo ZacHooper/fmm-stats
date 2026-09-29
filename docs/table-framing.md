@@ -68,7 +68,7 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | currencies | 13,985,965 | u16 | 173 | 94 |
 | *unnamed, 7 B* | 13,990,354 | u16 | 888 | — |
 | languages | 13,996,580 | u16 | 124 | 77 |
-| **person table (info spine)** | **572,041** | u32 | **32,966** | 32,874 — **92 short** |
+| **person table (info spine)** | **572,042** (after a `01` header byte) | u32 | **32,966** | 32,966 ✓ |
 | surname id-table | 37,878,967 | u32 | 32,148 | 28,624 |
 | first-name id-table | 38,393,347 | u32 | 19,128 | 15,366 |
 | **nickname id-table** | **38,699,407** | u32 | **9,480** | **never read** |
@@ -116,7 +116,7 @@ looks back 128 bytes, and compares any count it finds against the records we act
 | **player attributes** | **26505** | 26518 | **13 over** |
 | nations | — | 227 | no header at the located start |
 | browse names | (60000) | 45942 | not a count — see below |
-| **info spine** | **32966** | 32874 | **92 short — found 2026-09-20, see below** |
+| **info spine** | **32966** | 32966 | read in full since 2026-09-29, see below |
 | clubs | — | — | no located table at all |
 
 `--confirm` re-checks each declared count against the **table's own invariant** rather than
@@ -214,10 +214,10 @@ base, not on the first record your walk reaches") and it went unlearned for one 
 Take the **first run of >= 8 `0xFF` below 1 MB** — it sits just past the ~53 KB zero filler
 that follows the browse name table — and read the u32 flush against what follows:
 
-| career | header ends | declared | `staging.scrape_players` reads |
+| career | header ends | declared | read |
 |---|---|---|---|
-| Frem | 572,037 | **32,966** | 32,874 (**92 short**) |
-| Bucaspor | 575,717 | **34,312** | 34,010 (**302 short**) |
+| Frem | 572,037 | **32,966** | 32,966 |
+| Bucaspor | 575,717 | **34,312** | 34,312 |
 
 The count is **byte-identical across a career** (all four Frem saves measured, 2021 to 2026,
 and all three Bucaspor) and **different between careers** — the *per-database pool* class this
@@ -228,18 +228,14 @@ That also settles the loose lead at the end of this document: the `u32 = 32,966`
 is the *same number in a second place*, so it is at least consistent with being a second copy
 of this pool size rather than a table of its own.
 
-**What is NOT established**, and matters before anyone treats the shortfall as 92 lost people:
-
-- **The record 0 phase.** The count is flush against 572,041, which is the convention's own
-  test, but that offset decodes as a placeholder (tid 1, uid 2304, no club) and 572,042
-  decodes as a real person. One of the two is an off-by-one and this has not been settled.
-- **Whether the shortfall is data loss at all.** `scrape_players` is keyed by tid, so
-  duplicates collapse, and the table is already known to carry **77 empty slots** identified
-  by `uid == 0`. 92 - 77 = 15 on Frem; Bucaspor's 302 is not explained that way.
-- **A structural walk.** The record is VARIABLE-length (a 68-byte head plus counted language
-  and relationship lists), so the declared count cannot be turned into an extent by
-  arithmetic the way it can for the fixed-width grids. It needs the per-record parser this
-  document's closing section calls for.
+**Settled 2026-09-29.** The count is followed by one header byte, `01` on every save of both
+careers, and record 0 starts after it (572,042 on Frem) -- a real person, tid 0. Each record is
+`[68 B head][17 B][u8 n][n x (language u16, level u8)][u16 m][m x 8 B]`, and walked that way
+from record 0 every declared record is read, `tid == slot index` holds on all of them, and the
+walk ends on the next table's own frame (`fmparser/tables/person_info.py`). There is no
+shortfall: the "92 short" and the "77 empty slots with `uid == 0`" were a sentinel sweep
+reading records out of alignment. The byte that sweep took for the end of each record is the
+last byte of its relationship list, whose count is a u16.
 
 ### Two clean negatives
 
@@ -480,7 +476,7 @@ be filled.
 
 **One lead worth keeping**: `u32 = 32,966` sits at 14,000,242, immediately where the language
 table ends, followed by a repeating 14-byte `[6 x FF][8 bytes]` unit. 32,966 is
-person-count-shaped (the info spine holds 32,849 person records, 77 of them empty), so this may
+person-count-shaped (the info spine's declared count), so this may
 be a per-person table. But the unit stops being uniform after 386 records, so its extent is
 UNPROVEN and it is not in the register.
 

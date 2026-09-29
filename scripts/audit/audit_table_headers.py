@@ -41,12 +41,8 @@ from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser.tables import cities, stadiums         # noqa: E402
 from fmparser import clubs_comps as R                  # noqa: E402
 from fmparser.tables import staff as ST              # noqa: E402
-from fmparser.tables.person_info import (
-    DOB_YEAR_HI as _DOB_YEAR_HI,
-    DOB_YEAR_LO as _DOB_YEAR_LO,
-    NO_NICKNAME as _NO_NICKNAME,
-    scrape_person_info as _scrape_players,
-)                                                    # noqa: E402
+from fmparser.tables import person_info as PI       # noqa: E402
+from fmparser.tables.person_info import scrape_person_info as _scrape_players  # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes as _scrape_attributes  # noqa: E402
 
 HEADER_BACK = 128          # how far behind record 0 to look for a count
@@ -276,32 +272,13 @@ def t_staff_attributes(mm, info):
 
 
 def t_info_spine(mm, info):
-    """The person records. `scrape_players` does not report offsets, so re-derive the FIRST
-    one here the same way sweep 1 does (the FFFFFFFF nickname sentinel at +16) -- that sweep
-    sees ~94% of the database, which is more than enough to find where the table begins.
-    """
-    first = None
-    i = 0
-    while True:
-        j = mm.find(_NO_NICKNAME, i)
-        if j == -1:
-            break
-        i = j + 1
-        base = j - 16
-        if base < 0:
-            continue
-        year = _u(mm, base + 22, 2)
-        if not (_DOB_YEAR_LO <= year <= _DOB_YEAR_HI):
-            continue
-        tid = _u(mm, base, 4)
-        if not (100 < tid < 70000) or _u(mm, base + 20, 2) > 366:
-            continue
-        first = base
-        break
-    if first is None:
+    """The person records: record 0 as the table's own locator finds it (the byte after the
+    count frame's `01` header byte)."""
+    loc = PI.locate_person_info(mm)
+    if loc is None:
         return None
-    return Table("info_spine", first, ids=info.keys(), n=len(info),
-                 note="variable-length records; keyed by tid")
+    return Table("info_spine", loc[0], ids=info.keys(), n=len(info),
+                 note="variable-length records; keyed by tid; a 01 header byte after the count")
 
 
 def t_clubs(mm):

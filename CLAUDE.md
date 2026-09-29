@@ -285,10 +285,10 @@ Two rules follow, and the recent bugs all break them:
   FROM it and `scripts/audit/audit_records.py` checks AGAINST it, so the parser and its audit cannot
   drift. **`uv run python scripts/audit/audit_records.py --map` prints the per-byte schema** — that is
   the record documentation, generated rather than retyped, so it cannot go stale.
-- **Bound a record by its own invariant, not a plausibility window.** 77 person records are
-  empty slots carrying garbage in every field — joined dates in 1290 and 2570, personality of
-  255. `uid == 0` identifies all 77 EXACTLY, so blanking the block on that one structural rule
-  removes the need for a date window or a range test anywhere downstream.
+- **Bound a record by its own invariant, not a plausibility window.** The person table was
+  once read by a sentinel sweep that produced 77 "empty slots" with joined dates in 1290 and
+  2570 — misaligned reads, not data. Walked from its count frame with `tid == slot index`, all
+  32,966 records are real people and none needs a date window or a range test.
 - **Carry what you cannot name — then go and name it.** A byte identified as an attribute but
   not labelled is still data, so both records' hidden attributes are carried. The PLAYER nine
   are now NAMED from `nyongrand/fmm-editor`'s `Player.cs` (`jumping`, `consistency`,
@@ -353,8 +353,9 @@ is the regression test: a no-op export must produce a no-op diff.
 - **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. It re-creates the mart views on the cached copy from this checkout's `fmstats/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
 - **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
-- Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style). **`phase` = the save's
-  in-game DATE** ('YYYY-MM-DD'; match-less start saves → synthetic `YYYY-07-01`), so multiple
+- Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style); the game's new season
+  starts on the career's rollover day (Frem **30 June**, Bucaspor 20 June). **`phase` = the save's in-game DATE** ('YYYY-MM-DD', from the save's
+  header title), so multiple
   in-season snapshots coexist and sort chronologically. Legacy stores may still hold the old words
   `start/mid/end` — they keep working (ordering treats them as epoch, before any real date).
 
@@ -406,9 +407,11 @@ save file, extract dir and DB label are one vocabulary instead of three.
 An optional `-<tag>` may follow the date as a human note (`frem-2023-07-02-window-open.fms`).
 Nothing parses it, so it can never break a rebuild — only `<career>-<date>` carries meaning.
 
-New saves: `scripts/archive_save.py <file> --career frem --phase <YYYY-MM-DD> --upload` names it
-canonically on the way in. The date **cannot** be derived for a 0-match save (no matches to date
-it from), hence an argument rather than a probe. `scripts/canonicalise_names.py` retro-fits the
+New saves: `scripts/archive_save.py <file> --career frem --upload` names it canonically on the
+way in, from the in-game date in the save's own header title (`9/8/27 - Mr Manager (Frem)`,
+`fmparser/tables/save_header.py`) -- a 0-match save included. `--phase` overrides it.
+`extract.py` takes `phase` from the same header, and `season` from it with the career's
+rollover day (`Career.rollover`: Frem 30 June, Bucaspor 20 June). `scripts/canonicalise_names.py` (deleted; restore from git if needed) retro-fitted the
 convention across saves, `.gz`, R2 objects, `output/` dirs, both stores' `save_path` + `label`,
 and saved-scout keys — all five, because the manifest is generated FROM the store, so renaming
 files without updating `staging.extracts` silently reverts the manifest on the next export.

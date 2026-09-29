@@ -293,7 +293,7 @@ The modules:
 | module | what it holds |
 |---|---|
 | `fmparser/core/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `tag4`. Pure `(buffer, offset) -> value`. |
-| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`, `PString`) and the tagged format (`read_tree`). |
+| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), and the tagged format (`read_tree`). |
 | `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
 | `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged). |
 
@@ -335,8 +335,7 @@ guessing.
 
 ### What is deliberately NOT declarable
 
-**Meaning.** Sentinel collapsing (`uid == 0` blanks the whole person block — 77 records with
-joined dates in 1290 and 2570), banding (a hidden byte → Attacking / Normal / Defensive),
+**Meaning.** Sentinel collapsing (`0xFFFF` second nationality -> none), banding (a hidden byte → Attacking / Normal / Defensive),
 composites (an attribute modelled from CA), and the **four money conventions** — wage units
 ×520, fees in thousands, an f32 of whole GBP, a u32 of whole GBP. Which money convention
 applies is a property of the record, not of the byte width, so a shared `money()` helper would
@@ -365,7 +364,7 @@ both, so a tagged table is hooked up exactly the way a packed one is:
 
 | layer | packed (e.g. cities) | tagged (e.g. rule files) |
 |---|---|---|
-| encoding (`types.py`) | kinds `U16`, `F32`, ... | `read_tree`: one field, strict |
+| encoding (`types.py`) | kinds `U16`, `F32`, ...; variable-length segments `PString`, `CountedList` | `read_tree`: one field, strict |
 | record (`schema.py`) | `Record` of `Field(offset, width, name, kind)`; every byte named or `UNKNOWN` | `TaggedRecord` of `Tag(tag, name, kind)`; every tag read or listed `unread` |
 | table (`table.py`) | `TableDef(name, segments, locator)`; locator -> `(base, count)` | `TaggedTableDef(name, locator, schema)`; locator -> `[(offset, n)]`, one per row |
 | walk | the engine steps by stride / segment | the engine reads exactly n fields per row, then the row's schema |
@@ -396,7 +395,11 @@ in which class you reach for.
    For a region of count-framed blocks, `core.scan_tagged_blocks(mm, lo, hi)` is the whole
    locator shape -- one forward pass, a candidate taken only if all n fields read -- and your
    locator keeps the blocks that are yours (the rule files keep those with `ftye` + `file`).
-3. **Declare the record.** Packed: a `Field` per byte range. Tagged: a `Tag` per tag you
+3. **Declare the record.** Packed: a `Field` per byte range. A variable-length row is a
+   sequence of segments -- `Record`s for the fixed stretches, `PString` for a
+   length-prefixed string, `CountedList(name, count, item)` for `[count][count x item]` --
+   and the walk steps through them in order (`tables/nations.py`: three strings and three
+   counted lists between fixed stretches). Tagged: a `Tag` per tag you
    read, and `unread=` for every other tag seen. Build `unread` from the saves, not by
    hand: declare the tags you know, run `TABLE.coverage(mm)` over every save, and its
    `undeclared` counts are the list to add. Nested containers are `Nested(RECORD)`, lists of

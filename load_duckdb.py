@@ -424,11 +424,19 @@ DDL = [
     )""",
 
     # UEFA country coefficients, oldest first; the last entry is the season in progress and
-    # is always 0.0. Only European nations carry these (131 of 227).
+    # is always 0.0. Only European nations carry these (132 of 251).
     # natural key: (season, phase, nation_id, seq)
     """CREATE TABLE IF NOT EXISTS staging.nation_coefficients (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         nation_id INTEGER NOT NULL, seq INTEGER NOT NULL, coefficient DOUBLE
+    )""",
+
+    # The languages each nation speaks, with how well (proficiency 0..100: Denmark reads
+    # Danish 100, English 70, Swedish 50).
+    # natural key: (season, phase, nation_id, language_id)
+    """CREATE TABLE IF NOT EXISTS staging.nation_languages (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        nation_id INTEGER NOT NULL, language_id INTEGER NOT NULL, proficiency INTEGER
     )""",
 
     # natural key: (season, phase, cid)
@@ -1196,9 +1204,12 @@ def load_core(con, d, season, phase):
                              "continent_id", "capital_city_id", "national_stadium_id",
                              "rival_nation_id", "is_ranked", "world_ranking",
                              "ranking_points"], rows, dtypes={"uid": "int64"})
-        hist, coef = [], []
+        hist, coef, langs = [], [], []
         for v in _load_json(nat_path).values():
             nid = _int(v.get("id"))
+            for lg in v.get("languages") or []:
+                langs.append((season, phase, nid, _int(lg.get("language_id")),
+                              _int(lg.get("proficiency"))))
             for i, rk in enumerate(v.get("ranking_history") or []):
                 hist.append((season, phase, nid, i, _int(rk)))
             for i, cf in enumerate(v.get("coefficients") or []):
@@ -1209,6 +1220,9 @@ def load_core(con, d, season, phase):
         counts["nation_coefficients"] = _insert(
             con, "nation_coefficients",
             ["season", "phase", "nation_id", "seq", "coefficient"], coef)
+        counts["nation_languages"] = _insert(
+            con, "nation_languages",
+            ["season", "phase", "nation_id", "language_id", "proficiency"], langs)
 
     # --- competitions --------------------------------------------------------
     comps = _load_json(os.path.join(d, "competitions.json"))
@@ -1432,7 +1446,7 @@ def _clear_group(con, group, season, phase):
                   "player_history", "player_history_seasons", "player_injuries",
                   "player_loans",
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
-                  "nation_coefficients",
+                  "nation_coefficients", "nation_languages",
                   "club_affiliates", "competitions", "leagues", "matches", "match_events",
                   "match_player_stats", "club_records", "player_records"):
             _delete(con, t, season, phase)
@@ -1508,17 +1522,16 @@ def resolve_season_phase(label, d, override):
         return override
     summ_path = os.path.join(d, "summary.json")
     summ = _load_json(summ_path) if os.path.exists(summ_path) else {}
-    # 2) authoritative explicit fields written by extract.py: season (end-year) + phase
-    #    (the in-game date). A match-less day-1 save has season but phase=None -> synthesise
-    #    a season-start date so it still sorts first and coexists with dated in-season saves.
+    # 2) authoritative explicit fields written by extract.py: season (the campaign end-year)
+    #    and phase (the save's in-game date, from its header title).
     s_season, s_phase = summ.get("season"), summ.get("phase")
     if s_season is not None:
         season = override[0] if override[0] is not None else int(s_season)
         phase = override[1] or s_phase or f"{season - 1:04d}-07-01"
         return season, phase
-    # 2b) match-less save with no season in summary but season given on the CLI.
+    # 2b) a new career's first save: dated, but its campaign is given on the CLI.
     if override[0] is not None:
-        return override[0], (override[1] or f"{override[0] - 1:04d}-07-01")
+        return override[0], (override[1] or s_phase or f"{override[0] - 1:04d}-07-01")
     # 3) legacy fallback: parse the label string (old 'YYYY-mid' form).
     try:
         return parse_label(label)

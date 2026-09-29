@@ -30,7 +30,8 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser.tables import staff as ST                      # noqa: E402
-from fmparser.tables.person_info import PERSON_FIELDS, scrape_person_info  # noqa: E402
+from fmparser.tables.person_info import (PERSON_FIELDS, locate_person_info,  # noqa: E402
+                                         person_info_table_spans, scrape_person_info)
 from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402
 from fmparser.tables import languages, nations                    # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
@@ -144,6 +145,18 @@ def main(argv):
         print(f"  OK  formation catalog: {len(catalog)} templates in declaration order")
 
     info = scrape_person_info(mm)
+    # EXTENT: every declared person is read, and the walk ends on the next table's frame
+    loc = locate_person_info(mm)
+    ends = person_info_table_spans(mm)
+    end = ends[0][1] if ends else None
+    if loc is None:
+        fails.append("person_info: no count frame whose rows start tid 0, 1, 2")
+    elif len(info) != loc[1] or list(info) != list(range(loc[1])) \
+            or bytes(mm[end:end + 8]) != b"\xff" * 8:
+        fails.append(f"person_info: read {len(info)} of {loc[1]}, walk ends at {end} on "
+                     f"{bytes(mm[end:end + 8]).hex()} instead of the next count frame")
+    else:
+        print(f"  OK  all {loc[1]} people walked in tid order, ending on the next frame")
     staff_ids = [p["id2"] for p in info.values() if p["sid"] == "ffffffff"]
     recs = ST.scrape_staff_attributes(mm, staff_ids)
     print(f"  OK  {len(recs)} staff attribute records from {len(staff_ids)} staff")
@@ -290,6 +303,18 @@ def main(argv):
             fails.append(f"{nations_map[nid]['name']} should have no UEFA coefficient")
     euro = [r for r in nations_map.values() if r["coefficients"]]
     print(f"  OK  {len(euro)} nations carry UEFA coefficients, none of them South American")
+    # EXTENT: the walk reads every declared nation and ends on the next table's own frame
+    base, declared = nations.locate_nations(mm)
+    end = nations.nations_table_spans(mm)[0][1]
+    if len(nations_map) != declared or bytes(mm[end:end + 8]) != b"\xff" * 8:
+        fails.append(f"nations: read {len(nations_map)} of {declared}, walk ends at {end} "
+                     f"on {bytes(mm[end:end + 8]).hex()} instead of the next count frame")
+    else:
+        print(f"  OK  all {declared} nations walked, ending on the next table's count frame")
+    dk = {lg["language_id"]: lg["proficiency"]
+          for lg in (nations_map.get(138) or {}).get("languages") or []}
+    if dk.get(31) != 100 or dk.get(7) != 70:
+        fails.append(f"Denmark's languages {dk}: expected Danish (31) 100, English (7) 70")
 
     # The info record's personality block + international record, on the same 7 managers.
     ok = 0
