@@ -140,8 +140,8 @@ fmstats by the loader writing it into the store, never by fmstats importing it.
 ## How the parser works — [`docs/parser-architecture.md`](docs/parser-architecture.md)
 **The one doc to read before changing `fmparser/`.** It carries the idea the parser is
 organised around — *a locator shape tells you how to FIND a record, a declared layout tells
-you how to READ it* — as the **six-shape locator table** (count-framed / pointer-marker /
-preallocated grid / archive member / seeded chain / key search), one section per shape with
+you how to READ it* — as the **seven-shape locator table** (count-framed / linked list /
+preallocated grid / archive member / seeded chain / key search / terminated array), one section per shape with
 how you find it, the invariant that bounds it, and **how it fails**. Then the declared-layout
 rule (`core/types.py` / `core/schema.py` / `core/table.py`), what is deliberately *not* declarable,
 what each audit script can actually tell you, and what porting to FMM26 will involve.

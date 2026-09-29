@@ -12,10 +12,10 @@ kept recurring in different modules. Keeping them apart is what this document is
 
 ---
 
-## Part 1 — the six locator shapes
+## Part 1 — the seven locator shapes
 
 **First, the model underneath them.** Every table in the save answers three independent
-questions, and the six shapes below are combinations of the answers, not six kinds of data:
+questions, and the seven shapes below are combinations of the answers, not seven kinds of data:
 
 | question | answers | in `core` |
 |---|---|---|
@@ -23,29 +23,31 @@ questions, and the six shapes below are combinations of the answers, not six kin
 | how is a row encoded? | **packed** (fields at offsets) or **tagged** (key-value fields) | `Record` / `TaggedRecord` |
 | how is the start found and the end proved? | a declared count, a capacity with empty slots, a terminator, a length chain, an archive member, or a search by key | the locator each table supplies |
 
-So A is an array with a declared count; C an array with a capacity; E an array of variable
-stride; D is where an array or a tagged row is STORED, not a structure; B names both a true
-linked list (the history slab) and arrays that end at a marker (our matches, the squad
-snapshot); and F is an array whose start and stride we have not mapped, found row by row
-through its key -- migrating an F table is research into its bounds, not a refactor.
+So A is an array with a declared count; B the one true linked list; C an array with a
+capacity; D is where an array or a tagged row is STORED, not a structure; E an array of
+variable stride; G an array with no count that ends at a marker; and F is an array whose start
+and stride we have not mapped, found row by row through its key -- migrating an F table is
+research into its bounds, not a refactor. (G is new, split out of B, which used to cover both
+the linked list and the marker-ended arrays; the letters A-F keep their old meanings otherwise,
+so older notes still read correctly.)
 
 A 64 MB `.fms` is not one format. It is several, and the boundary between them is structural,
 not thematic: a 20-byte fixed grid of cities and a 20-byte fixed grid of match slots are the
 same *kind of thing* to a parser, while the competition table sitting between them is not.
 
-Four **regimes** describe the file (see [`savefile-map.md`](savefile-map.md)). Six **shapes**
-describe the code, because a survey of every locator in `fmparser/` found seven that do not
-fit the four — enough that a four-walker design would have had to special-case its way back to
-six.
+Four **regimes** describe the file (see [`savefile-map.md`](savefile-map.md)). Seven
+**shapes** describe the code, because a survey of every locator in `fmparser/` found several
+that do not fit the four regimes.
 
 | shape | how you find it | the validator that bounds it | used by |
 |---|---|---|---|
 | **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`) |
-| **B. Pointer / delimiter / marker** | career data; there is never a count | a chain that lands exactly on the next record, or a filler wall | history slab, our matches, squad snapshot, club records |
+| **B. Linked list** | each row holds the NEXT row's index (`FFFFFFFF` ends a chain); follow the pointers | the in-degree test: `max in-degree == 1` and `#(in-degree-0 rows) == #(chain ends)` | history slab |
 | **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), club records (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
 | **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status, `attr_record`, injuries |
+| **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | our matches, squad snapshot; club records' region bound (the grid itself is C) |
 
 The rest of this part is one section per shape: what it looks like in the bytes, how to find
 it, and **the way it fails** — because every one of these has cost real debugging time, and the
@@ -84,12 +86,11 @@ that catches this class.
 
 ---
 
-### B. Pointer / delimiter / marker — the career half
+### B. Linked list — the history slab
 
-Career data has no counts. What it has instead:
-
-**Linked lists.** A monotonic-looking `u32` column is often a **next-row pointer**, not a
-counter, with `FFFFFFFF` ending the chain. On a fresh save the rows are contiguous, so row `k`
+Each row holds the index of the NEXT row in its chain, with `FFFFFFFF` ending the chain, so
+records are found by following pointers, not by position. A monotonic-looking `u32` column is
+often such a pointer rather than a counter: on a fresh save the rows are contiguous, so row `k`
 holds `k+1` and the two readings are indistinguishable — they only diverge once the game starts
 appending into recycled slots. Tell them apart with the **in-degree test**: build the pointer
 graph and check `max in-degree == 1` and `#(in-degree-0 rows) == #(FFFFFFFF rows)`. If that
@@ -97,20 +98,10 @@ holds, it is a forest of chains, record starts are the in-degree-0 rows, and no 
 heuristic is needed. This is `history.py`; the detail is in
 [`agent-context/history-chain-pointers.md`](agent-context/history-chain-pointers.md).
 
-**Filler walls.** Long runs of `00`/`ff` separate sections cleanly, which is what
-`scripts/map_regions.py` exploits and how `clubrecords.region()` bounds itself: start at the
-end of the history slab (a structure that knows its own extent), end at the first 4 KB run of
-zeros. That change alone took the club-records scan from 26.4 s to 2.3 s, byte-identically,
-because it stopped scanning 60 MB to find records that live in 0.5 MB.
-
-**Markers.** `attributes.CLUB_MARKER` locates the squad snapshot; `matches.find_match_region`
-finds our own games.
-
-**How it fails.** *Drift.* Every window in `regions.py` was tuned on one career and is wrong
-for the other — Frem's contract-expiry records sit at ~29–31 M, nowhere near the Bucaspor
-`CONTRACT_LO = 54 M`. A constant fallback is worse than no fallback, because it produces a
-plausible short answer instead of an error. Locate by an embedded key plus a validating
-signature, and validate every hit against the info spine.
+**How it fails.** *Reading the pointer as a counter.* It works perfectly on a fresh save and
+nowhere else: splitting records where the `+1` sequence breaks shatters each player whose
+history was appended into recycled slots into 3-4 fake players. And beware the column offset
+the history slab has — a row's stats belong to the season on the PREVIOUS row.
 
 ---
 
@@ -211,9 +202,30 @@ keyed on a tid/uid/sid and then have to decide which copy is the live one.
 wrong point in time. Validate every hit against the info spine, exactly as the scrapers in
 `staging.py` do.
 
+### G. Terminated array — no count, ends at a marker
+
+Rows sit one after another, but nothing declares how many: the array ends where a marker, a
+delimiter or a filler wall says it does. Career data is mostly like this.
+
+**Filler walls.** Long runs of `00`/`ff` separate sections cleanly, which is how
+`clubrecords.region()` bounds itself: start at the end of the history slab (a structure that
+knows its own extent), end at the first 4 KB run of zeros. That change alone took the
+club-records scan from 26.4 s to 2.3 s, byte-identically, because it stopped scanning 60 MB to
+find records that live in 0.5 MB. (The club-records table itself is a shape C grid; G is only
+how its region's end is found.)
+
+**Markers and delimiters.** `attributes.CLUB_MARKER` locates the squad snapshot;
+`matches.find_match_region` finds our own games, each opened by a delimiter cluster.
+
+**How it fails.** *Drift.* Every window in `regions.py` was tuned on one career and is wrong
+for the other — Frem's contract-expiry records sit at ~29–31 M, nowhere near the Bucaspor
+`CONTRACT_LO = 54 M`. A constant fallback is worse than no fallback, because it produces a
+plausible short answer instead of an error. Locate by an embedded key plus a validating
+signature, validate every hit against the info spine, and prove the end by landing on it.
+
 ### Two non-conformers, and what measuring them showed
 
-**`lightresults` is not a seventh shape — it is shape B, reading shape C's record at a
+**`lightresults` is not a shape of its own — it is a shape G sweep, reading shape C's record at a
 15-byte shift.** Measured 2026-09-20 on `frem-2026-06-11`: of the 5,830 "fixtures" a
 whole-region sweep returns, 5,183 (88.9%) sit at exactly `club_team_record + 15`, and the
 alignment is field for field —

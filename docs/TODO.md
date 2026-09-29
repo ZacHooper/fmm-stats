@@ -12,7 +12,7 @@ Item numbers are for conversation only — they are renumbered whenever entries 
 never cite one in code or a commit message.
 
 Last reviewed **2026-09-20**, after the tail archive was opened (#4) and the **parser refactor
-landed in full** — records are declared once and read from the declaration, the six locator
+landed in full** — records are declared once and read from the declaration, the locator
 shapes are written up in [`parser-architecture.md`](parser-architecture.md), the world fixture
 list is extracted, and all seven self-declared-count defects (#17) are fixed. Every
 restructuring commit was held byte-identical by `tests/assert_identical.py`; the four commits
@@ -416,13 +416,13 @@ deliberate break:
 2. **`clubs_comps`' club and competition tables** -- arrays of `[id][uid][len][long][len][short]
    [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
    (`comp_refs`).
-3. **The linked-list walk** -- a core table for a stride record with a next-row pointer, heads
+3. **The linked-list walk (shape B)** -- a core table for a stride record with a next-row pointer, heads
    = rows of in-degree 0, read column-wise (`Record.columns`); move `history.py` onto it.
-4. **`clubrecords.py`** -- a preallocated array of 12-slot category blocks: an array walk with
+4. **`clubrecords.py` (shape C)** -- a preallocated array of 12-slot category blocks: an array walk with
    an empty-slot predicate and a block size.
-5. **The key-search tables** (`injuries.py`, `squad.py`) -- arrays whose start and stride are
+5. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) -- arrays whose start and stride are
    not mapped yet. Research first: find each array's bounds, then it is an ordinary array.
-6. **`matches.py`** -- arrays ending at a delimiter; the header and stat block are already
+6. **`matches.py` (shape G)** -- arrays ending at a delimiter; the header and stat block are already
    `Record`s. Move what fits; name what stays bespoke and why.
 
 ### 4d. Player-list blocks — named, not decoded
