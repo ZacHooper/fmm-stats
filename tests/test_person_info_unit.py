@@ -8,12 +8,10 @@ Tests:
 4. Header frame locating (`locate_person_info`):
    - 8-byte 0xFF sentinel frame + uint32 count
 5. Post-processing and record decoding (`_decode_info`):
-   - UID zero clearing of personality fields
    - Second nationality ID normalization (0 or 0xFFFF -> None)
    - Club TID bounds normalization (> 0xFFFF -> NO_CLUB)
-6. Spine scraping (`scrape_person_info`):
-   - Un-nicknamed record candidate detection via 0xFF*4 sentinel
-   - Nicknamed record candidate detection
+6. The table walk (`PERSON_INFO_TABLE`): both counted lists, the spine, the span and the
+   `tid == slot index` invariant, on a synthetic framed table.
 """
 import os
 import struct
@@ -127,13 +125,6 @@ def test_person_info_decoding_rules():
     assert rec["adaptability"] == 18
     assert rec["temperament"] == 11
 
-    # Record with UID = 0 (clears personality and person fields)
-    uid_zero_bytes = build_person_info_head_bytes(tid=201, uid=0)
-    rec_zero = PI._decode_info(uid_zero_bytes, 0)
-    assert rec_zero["uid"] == 0
-    for field in PI.PERSON_FIELDS:
-        assert rec_zero[field] is None
-
     # Normalization: second_nationality_id == 0 or 0xFFFF -> None
     sec_nat_zero = build_person_info_head_bytes(tid=202, second_nationality_id=0)
     assert PI._decode_info(sec_nat_zero, 0)["second_nationality_id"] is None
@@ -143,60 +134,84 @@ def test_person_info_decoding_rules():
     # Normalization: club_tid > 0xFFFF -> NO_CLUB
     club_overflow = build_person_info_head_bytes(tid=204, club_tid=0x1FFFF)
     assert PI._decode_info(club_overflow, 0)["club_tid"] == PI.NO_CLUB
-    print("  PASS _decode_info normalization (UID 0, nationality, club_tid)")
+    print("  PASS _decode_info normalization (nationality, club_tid)")
+
+
+def build_record(tid, langs=(), rels=(), **head):
+    """One whole person record: head, the 17 unnamed bytes, then both counted lists."""
+    buf = bytearray(build_person_info_head_bytes(tid=tid, **head))
+    buf += b"\xff" * 16 + b"\x00"
+    buf += bytes([len(langs)]) + b"".join(struct.pack("<HB", l, v) for l, v in langs)
+    buf += struct.pack("<H", len(rels))
+    buf += b"".join(struct.pack("<BBIBB", 1, kind, target, 0, 50) for kind, target in rels)
+    return bytes(buf)
+
+
+def framed_table(records, pad=572_000):
+    """`[pad][8 x 0xFF][count u32][01][records]`, as the save lays the person table out."""
+    return bytearray(b"\x00" * pad + b"\xff" * 8 + struct.pack("<I", len(records)) + b"\x01"
+                     + b"".join(records) + b"\xff" * 8)
+
+
+def locate(buf):
+    """locate_person_info on a throwaway buffer: its cache keys on (id, len), and a freed
+    test buffer's id is reused by the next one of the same length."""
+    PI._PERSON_INFO_CACHE.clear()
+    return PI.locate_person_info(buf)
 
 
 def test_person_info_locator():
     print("TESTING locate_person_info frame detection")
-    pre_pad = b"\x00" * 572_000
-    sentinel = b"\xff" * 8
-    count = 32966
-    count_bytes = struct.pack("<I", count)
-
-    full_buf = bytearray(pre_pad + sentinel + count_bytes)
-
-    loc = PI.locate_person_info(full_buf)
-    assert loc is not None
-    base, detected_count = loc
-    assert detected_count == count
-    assert base == 572_000 + 8 + 4
+    recs = [build_record(0), build_record(1)]
+    base, detected_count = locate(framed_table(recs))
+    assert detected_count == 2
+    assert base == 572_000 + 8 + 4 + 1, "record 0 follows the 01 header byte"
+    # a frame is taken only where the rows start tid 0, 1 (, 2) -- any count, any offset
+    assert locate(framed_table(recs, pad=100)) == (100 + 13, 2)
+    assert locate(framed_table([build_record(0), build_record(5)])) is None
+    decoy = b"\xff" * 8 + struct.pack("<I", 2) + b"\x01" + build_record(3) + build_record(4)
+    assert locate(bytearray(decoy) + framed_table(recs, pad=0)) == \
+        (len(decoy) + 13, 2), "a frame whose rows are not tid 0, 1 is skipped"
+    # no header byte, no table
+    no_hdr = framed_table(recs)
+    no_hdr[572_000 + 12] = 0
+    assert locate(no_hdr) is None
     print("  PASS frame detection and declared count extraction")
 
 
-def test_person_info_scrape_candidates():
-    print("TESTING scrape_person_info candidates")
-    rec1 = build_person_info_head_bytes(
-        tid=500,
-        uid=10500,
-        first_name_id=1,
-        last_name_id=2,
-        dob_year=2000,
-        common_name_id=0xFFFFFFFF,
-    )
-    rec2 = build_person_info_head_bytes(
-        tid=501,
-        uid=10501,
-        first_name_id=3,
-        last_name_id=4,
-        dob_year=2002,
-        common_name_id=0xFFFFFFFF,
-    )
-    buf = bytearray(rec1 + rec2)
-
-    found = PI.scrape_person_info(buf)
-    assert len(found) == 2
-    assert 500 in found
-    assert 501 in found
-    assert found[500]["uid"] == 10500
-    assert found[501]["uid"] == 10501
-    print("  PASS scrape_person_info un-nicknamed candidates")
+def test_person_info_walk():
+    print("TESTING PERSON_INFO_TABLE walk")
+    recs = [
+        build_record(0, langs=[(7, 10)], rels=[(1, 129), (3, 8136)], uid=9),
+        build_record(1, uid=10501, first_name_id=3, last_name_id=4, dob_year=2002),
+        build_record(2, langs=[(31, 10), (7, 5)], uid=10502),
+    ]
+    buf = framed_table(recs)
+    PI._PERSON_INFO_CACHE.clear()
+    rows = PI.PERSON_INFO_TABLE.scrape(buf)
+    assert [r["tid"] for r in rows] == [0, 1, 2]
+    assert rows[0]["languages"] == [{"language_id": 7, "level": 10}]
+    assert rows[0]["relationships"] == [{"target_kind": 1, "target_id": 129},
+                                        {"target_kind": 3, "target_id": 8136}]
+    assert rows[1]["languages"] == [] and rows[1]["relationships"] == []
+    spine = PI.scrape_person_info(buf)
+    assert list(spine) == [0, 1, 2] and spine[1]["uid"] == 10501
+    assert "languages" not in spine[0], "the spine is the head fields only"
+    # the span runs from the 0xFF frame to the end of the last record
+    lo = 572_000
+    assert PI.person_info_table_spans(buf) == [(lo, lo + 8 + 4 + 1 + sum(map(len, recs)))]
+    # tid == slot index: a record out of order ends the walk there
+    bad = framed_table(recs + [build_record(7)])
+    PI._PERSON_INFO_CACHE.clear()
+    assert [r["tid"] for r in PI.PERSON_INFO_TABLE.scrape(bad)] == [0, 1, 2]
+    print("  PASS walk, counted lists, spine, span, invariant")
 
 
 def main():
     test_person_info_schema_and_constants()
     test_person_info_decoding_rules()
     test_person_info_locator()
-    test_person_info_scrape_candidates()
+    test_person_info_walk()
     return 0
 
 

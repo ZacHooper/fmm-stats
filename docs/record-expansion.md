@@ -287,10 +287,10 @@ team" guess, since that would hold nation ids in the 100s). One that did NOT sur
 `type_flag` (+33) agrees with our SID staff rule on only **82.4%** of records and has three
 values, so BUGS #14's "agrees ~99%" was wrong and the SID rule still decides.
 
-**77 person records are empty slots**, and `uid == 0` identifies them exactly. They were the
-source of every implausible value the record produced — all 66 nonsense joined dates (1290,
-1545, 2570) and all 77 of the 255 international sentinels are theirs. Blanking the person block
-on that one record-level invariant is why no per-field plausibility window is needed anywhere.
+**There are no empty person slots.** The 77 records with `uid == 0` (and every nonsense joined
+date: 1290, 1545, 2570) came from a sentinel sweep reading records out of alignment. Walked
+from the table's count frame (`fmparser/tables/person_info.py`), every one of the 32,966
+records is a real person and none needs blanking or a plausibility window.
 
 **The personality block is parsed too, for the first time.** The 8 values
 (`adaptability … temperament`) were verified byte-exact against the 7 managers' screenshots

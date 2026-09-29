@@ -30,7 +30,8 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser.tables import staff as ST                      # noqa: E402
-from fmparser.tables.person_info import PERSON_FIELDS, scrape_person_info  # noqa: E402
+from fmparser.tables.person_info import (PERSON_FIELDS, locate_person_info,  # noqa: E402
+                                         person_info_table_spans, scrape_person_info)
 from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402
 from fmparser.tables import languages, nations                    # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
@@ -144,6 +145,18 @@ def main(argv):
         print(f"  OK  formation catalog: {len(catalog)} templates in declaration order")
 
     info = scrape_person_info(mm)
+    # EXTENT: every declared person is read, and the walk ends on the next table's frame
+    loc = locate_person_info(mm)
+    ends = person_info_table_spans(mm)
+    end = ends[0][1] if ends else None
+    if loc is None:
+        fails.append("person_info: no count frame whose rows start tid 0, 1, 2")
+    elif len(info) != loc[1] or list(info) != list(range(loc[1])) \
+            or bytes(mm[end:end + 8]) != b"\xff" * 8:
+        fails.append(f"person_info: read {len(info)} of {loc[1]}, walk ends at {end} on "
+                     f"{bytes(mm[end:end + 8]).hex()} instead of the next count frame")
+    else:
+        print(f"  OK  all {loc[1]} people walked in tid order, ending on the next frame")
     staff_ids = [p["id2"] for p in info.values() if p["sid"] == "ffffffff"]
     recs = ST.scrape_staff_attributes(mm, staff_ids)
     print(f"  OK  {len(recs)} staff attribute records from {len(staff_ids)} staff")

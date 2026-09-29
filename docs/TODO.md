@@ -77,25 +77,19 @@ locator (`parser-architecture.md` Part 1). `core` walks arrays of both row kinds
 `TaggedTableDef`). In order — each PR gated by byte-identical `tests/assert_identical.py`, the
 module's save test, `audit_records.py`, and one deliberate break:
 
-1. **`person_info`** declares a `TableDef` but scrapes with a hand-written loop. The record is
-   `[68 B head][17 B][u8 n][n x (language u16, u8)][u8 m][m x 8 B][1 B]`: two
-   `CountedList`s, the first the same `(language_id, proficiency)` item the nations use.
-   `TABLES["person_info"]` holds the `Record`, not a table. Its walk covers 2.24 MB of the
-   3.42 MB table. Settle record 0 (572,041 vs 572,042) and the 92 rows short of the declared
-   32,966 on the way ([`table-framing.md`](table-framing.md)).
-2. **`clubs_comps`' club and competition tables** — arrays of `[id][uid][len][long][len][short]
+1. **`clubs_comps`' club and competition tables** — arrays of `[id][uid][len][long][len][short]
    [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
-   (`comp_refs`).
-3. **The linked-list walk (shape B)** — a core table for a stride record with a next-row
+   (`comp_refs`) -- a `CountedList`, as in `nations` and `person_info`.
+2. **The linked-list walk (shape B)** — a core table for a stride record with a next-row
    pointer, heads = rows of in-degree 0, read column-wise (`Record.columns`); move `history.py`
    onto it. Its locator should prove the pool exactly (the pointer-forest check in
    [`career-region-sizing.md`](career-region-sizing.md)), not by sampling.
-4. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
+3. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
    walk with an empty-slot predicate and a block size.
-5. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
+4. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
    stride are not mapped yet. Research first: find each array's bounds, then it is an ordinary
    array.
-6. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
+5. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
    already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
    region is empty at a season boundary (0 anchors is correct there, not a locator failure).
 
@@ -118,7 +112,6 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 33.8% read, 1.2% declared, **26.6%
 - **34.12–38.53 M** — the transfer band ([`transfer-history-record.md`](transfer-history-record.md):
   decoded, not parsed).
 - **13.96–16.68 M** — 85% filler, no count headers.
-- **2.81–3.98 M** — inside the person table: the rest of `person_info` (#1.1).
 - A **stride-65 per-season table** (`[flag u8][value u16][tid u16][year u16]`) right after the
   550-byte `0xFF` wall that ends our matches; settle whether it is `table-framing.md`'s
   per-season series near 44.6 MB.
@@ -140,6 +133,8 @@ list. Find them by `14 01 00 0a 00` at gaps of exactly 200, in runs of exactly 1
   **continent** table right after the nations (`[uid u32][Name][01][CodeName][Demonym][01]`,
   Africa..South America at ids 0–5, `World` at 6).
 - The **20 bytes** `parse_club_trailer` steps over.
+- The person record's unnamed bytes (`PERSON_MID`, three of each relationship's eight), and
+  what its language `level` of 255 means.
 
 ### 6. Archive members and framing not yet read
 [`save-archive.md`](save-archive.md) is the reference.

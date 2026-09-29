@@ -335,8 +335,7 @@ guessing.
 
 ### What is deliberately NOT declarable
 
-**Meaning.** Sentinel collapsing (`uid == 0` blanks the whole person block — 77 records with
-joined dates in 1290 and 2570), banding (a hidden byte → Attacking / Normal / Defensive),
+**Meaning.** Sentinel collapsing (`0xFFFF` second nationality -> none), banding (a hidden byte → Attacking / Normal / Defensive),
 composites (an attribute modelled from CA), and the **four money conventions** — wage units
 ×520, fees in thousands, an f32 of whole GBP, a u32 of whole GBP. Which money convention
 applies is a property of the record, not of the byte width, so a shared `money()` helper would

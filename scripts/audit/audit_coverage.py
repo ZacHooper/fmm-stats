@@ -110,10 +110,9 @@ def claims(mm, n):
             print(f"  ~ {who}: {summary}", file=sys.stderr)
 
     # ---- MEASURED: every registered table, from the spans its own walk reports ------------
-    # A module's own `<name>_table_spans` is preferred where it has one: it is what the parser
-    # actually walks, and for a table not yet routed through its TableDef (person_info) the
-    # TableDef's spans can disagree with it. Tables read from
-    # an archive member, not the save, are covered by the archive container below.
+    # A module's own `<name>_table_spans` is preferred where it has one: it adds framing the
+    # TableDef does not own (person_info's header byte after its count). Tables read from an
+    # archive member, not the save, are covered by the archive container below.
     import fmparser.tables as T
     from fmparser.core import TableDef, TaggedTableDef
     for name, table in T.TABLES.items():
@@ -151,7 +150,7 @@ def claims(mm, n):
     except Exception as exc:
         print(f"  ! archive failed: {exc}", file=sys.stderr)
 
-    # ---- modules not yet on core --------------------------------------------------
+    # ---- modules not yet on core: clubrecords ---------------------------------------
     from fmparser.tables import person_info as PI
     info = PI.scrape_person_info(mm)
     try:
