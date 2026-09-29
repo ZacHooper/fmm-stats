@@ -467,7 +467,7 @@ surname id-table. It was checked, and the answer is no — recorded here so it i
 | stretch | what it is |
 |---|---|
 | 14.00 – 16.71 MB | **85% filler** (33% `0xFF`, 52% `0x00`) with sparse structure. 54,437 runs of >= 8 `FF` in 2.8 MB, and EVERY count candidate in it is a multiple of 256 (257, 513, 769, 1024, 1026 …) — i.e. ordinary data bytes read as a u16, not a header. Club tids appear but unevenly (tid 346 seventeen times, tid 61 two hundred), so it is not a per-club grid either. Unidentified, but not count-framed. |
-| 16.72 – ~21 MB | the **tagged data dictionary** — `fmparser/tagged.py`, self-describing `[tag][0x01][type][value]` fields, an entirely different framing, already parsed. |
+| 16.72 – ~21 MB | the **tagged data dictionary** — 667 rule files `[u32 n][n tagged fields]`, count-framed but not by the FF sentinel; parsed by `fmparser/tables/rule_files.py` (a `TaggedTableDef`). |
 | ~21 – 39.76 MB | `map_regions` calls it "binary pages ~49B". Holds the **contract detail records** (`regions.CONTRACTREC_LO/HI`) and the **transfer-history record** at 36.36–36.94 MB, both already decoded by other means. The three name id-tables sit at 37.88–38.85 MB inside it and those ARE count-framed. |
 
 The whole-file index detector finds **zero** index-keyed tables anywhere between 14 MB and
@@ -599,7 +599,7 @@ because the declared count makes each table's extent known and therefore makes t
 table's header findable with no search at all. The file's bulk lives in regions with different framing entirely — the
 ~47 MB of per-club Club History record tables
 ([`light-results-record.md`](light-results-record.md)), the tagged data dictionary
-(`fmparser/tagged.py`, self-describing and walked a completely different way), the match
+(`fmparser/tables/rule_files.py`, count-framed tagged blocks with no FF sentinel), the match
 region, and the history slab. None of those is a sentinel-framed grid, so none of them should
 be expected here.
 

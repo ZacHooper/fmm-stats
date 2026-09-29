@@ -23,11 +23,9 @@ from .comp_rules import (
     stage_rows as comp_rule_stage_rows,
 )
 from .rule_files import (
-    framing_problems as rule_file_framing_problems,
-    rule_files as scrape_rule_files,
-    schema_for as rule_file_schema,
+    RULE_FILES_TABLE,
+    locate_rule_files,
     team_counts as rule_file_team_counts,
-    tiling as rule_file_tiling,
 )
 from .currencies import (
     CURRENCIES_TABLE,
@@ -178,6 +176,7 @@ TABLES = {
     "cities": CITIES_TABLE,
     "comp_honours": COMP_HONOURS_TABLE,
     "comp_rules": COMP_RULES_TABLE,
+    "rule_files": RULE_FILES_TABLE,
     "comp_stages": COMP_STAGES_TABLE,
     "contracts": CONTRACT_TABLE,
     "currencies": CURRENCIES_TABLE,
@@ -215,11 +214,9 @@ __all__ = [
     "locate_comp_rules",
     "scrape_comp_rules",
     # Rule files (the tagged data dictionary)
-    "rule_file_framing_problems",
-    "rule_file_schema",
+    "RULE_FILES_TABLE",
+    "locate_rule_files",
     "rule_file_team_counts",
-    "rule_file_tiling",
-    "scrape_rule_files",
     # Contracts
     "CONTRACT",
     "CONTRACT_DETAIL",

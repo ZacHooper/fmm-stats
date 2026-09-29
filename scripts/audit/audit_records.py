@@ -57,7 +57,7 @@ from fmparser.tables import comp_stages as CS          # noqa: E402
 from fmparser.tables import comp_honours as CH         # noqa: E402
 from fmparser.tables import comp_rules as CRU          # noqa: E402
 from fmparser.tables import rule_files as RF           # noqa: E402
-from fmparser.core.tagged_schema import tag_map         # noqa: E402
+from fmparser.core import TAGGED_REGISTRY, tag_map     # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -152,8 +152,8 @@ LAYOUTS = {
     "comp_man_header": _from_record(CS.HEADER),
     "comp_man_stage": _from_record(CS.STAGE),
     "comp_man_honour": _from_record(CH.HONOUR),
-    # comp_<uid>.dat: only the fixed 54-byte header is a record; the tagged block after it
-    # is wire format (tagged.read_tree), bounded by the header's declared field count.
+    # comp_<uid>.dat: only the fixed 54-byte header is a packed record; the block after it is
+    # a TaggedTableDef row (COMP_RULES_TABLE), bounded by the header's declared field count.
     "comp_rules_header": _from_record(CRU.HEADER),
 }
 
@@ -233,10 +233,9 @@ def _print_map(name, stride, fields):
 
 
 # TAGGED records -- key-value, so COVERAGE is per tag rather than per byte: every tag a
-# member carries must be read or declared unread, and every required tag present.
-TAGGED = (CRU.FILE, CRU.STAGE, CRU.ROUND, CRU.NAME_REF, RF.NATION_COMPS,
-          RF.NATION_RESERVE_COMPS, RF.NATION_RULES, RF.TEAM_RULE, RF.COMP_REF,
-          RF.STAGELESS_COMP)
+# row carries must be read or declared unread, and every required tag present. Every
+# TaggedRecord registers itself on import, so the list is the registry, never hand-kept.
+TAGGED = tuple(TAGGED_REGISTRY.values())
 
 
 def _print_tagged(report):
@@ -256,17 +255,9 @@ def _print_tagged(report):
 def _dictionary_coverage(mm):
     """Every rule file of the tagged data dictionary against its declared schema, plus the
     share of the dictionary's span the rule files read."""
-    report = {}
-    files = RF.rule_files(mm)
-    for b in files:
-        RF.schema_for(b).coverage(b.fields, report)
-    ok = _print_tagged(report)
-    unlisted = set(report) - {rec.name for rec in TAGGED}
-    if unlisted:
-        ok = False
-        print(f"  FAIL schemas not in TAGGED, so not reported: {sorted(unlisted)}")
+    ok = _print_tagged(RF.RULE_FILES_TABLE.coverage(mm))
     t = RF.tiling(mm)
-    framing = RF.framing_problems(mm, files)
+    framing = RF.framing_problems(mm)
     ok &= not t["other_blocks"] and not framing
     print(f"  {'ok  ' if ok else 'FAIL'} {t['n_rule_files']} rule files read "
           f"{t['rule_files']} of {t['span']} bytes; {t['unread']} unread "
@@ -280,12 +271,9 @@ def _tagged_coverage(mm):
     """Walk every comp_<uid>.dat member of the save against the declared schemas."""
     from fmparser import archive as ARCH
     report = {}
-    ents = ARCH.members(mm)
-    for name, ent in ents.items():
+    for name, ent in ARCH.members(mm).items():
         if CRU.MEMBER_PATTERN.match(name):
-            fields = CRU.scrape(ARCH.read_member(mm, ent))
-            if fields:
-                CRU.FILE.coverage(fields, report)
+            CRU.COMP_RULES_TABLE.coverage(ARCH.read_member(mm, ent), report)
     return _print_tagged(report)
 
 

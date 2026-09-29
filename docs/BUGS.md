@@ -488,7 +488,7 @@ Field tags (read reversed) include: `comp`, `level` (league tier!), `Group`, `ca
 `przm` (prize money, NOT club cash), `valu`, `curr`, `year`/`mont`/`stdt`/`endt`/`date`,
 `type`, `id`, `DBID`, `team`, `info`, `stag`. This is the source for league LEVEL/tier
 (cross-league comparison) and competition setup. Bulk data (players/attributes/matches)
-is NOT here — those stay in the packed structures. Being parsed in `fmparser/tagged.py`.
+is NOT here — those stay in the packed structures. Parsed by `fmparser/tables/rule_files.py`.
 
 ## 11. Players vs staff in the info DB — classified by SID
 

@@ -23,6 +23,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from fmparser.core import TaggedTableError                        # noqa: E402
 from fmparser.tables import comp_rules as CR, rule_files as RF  # noqa: E402
 
 SAVES = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
@@ -61,21 +62,19 @@ def main() -> int:
         base = os.path.basename(p)
         with open(p, "rb") as f:
             mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-            files = RF.rule_files(mm)
+            files = RF.RULE_FILES_TABLE.blocks(mm)
             t = RF.tiling(mm)
             if t["n_rule_files"] != N_RULE_FILES or t["other_blocks"]:
                 failures.append(f"{base}: {t['n_rule_files']} rule files, "
                                 f"{t['other_blocks']} bytes of other blocks")
             if t["unread"] > MAX_UNREAD * t["span"]:
                 failures.append(f"{base}: {t['unread']} of {t['span']} bytes unread")
-            failures += [f"{base}: {e}" for e in RF.framing_problems(mm, files)]
-            cov = {}
-            for b in files:
-                RF.schema_for(b).coverage(b.fields, cov)
-                try:
-                    RF.read(b)
-                except RF.RuleFileError as e:
-                    failures.append(f"{base}: {e}")
+            failures += [f"{base}: {e}" for e in RF.framing_problems(mm)]
+            cov = RF.RULE_FILES_TABLE.coverage(mm)
+            try:
+                RF.RULE_FILES_TABLE.scrape(mm)
+            except TaggedTableError as e:
+                failures.append(f"{base}: {e}")
             for rec, r in cov.items():
                 if r["undeclared"] or r["missing"]:
                     failures.append(f"{base} {rec}: undeclared {r['undeclared']} "
@@ -85,9 +84,10 @@ def main() -> int:
             if got != TEAMS:
                 failures.append(f"{base}: team_counts {got}, want {TEAMS}")
             names = archive_files(mm)
-            if names is not None and names - {b.file for b in files}:
+            held = {b.get("file") for b in files}
+            if names is not None and names - held:
                 failures.append(f"{base}: archive members name files the dictionary lacks: "
-                                f"{sorted(names - {b.file for b in files})}")
+                                f"{sorted(names - held)}")
             print(f"  {base}: {len(files)} rule files, {t['unread']} of {t['span']} "
                   f"bytes unread ({100 * t['unread'] / t['span']:.2f}%)")
             mm.close()

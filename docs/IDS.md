@@ -171,7 +171,7 @@ youth-intake cohort of near-identical records, looks entirely plausible.
 ## Sources useful for digging
 - **Tagged schema region (~13–20 MB)** — a self-describing data dictionary: field names
   stored reversed (`comp`, `level`, `cash`, `ntms`, `team`, `id`, `stdt`…). Reveals
-  record layouts. See `fmparser/tagged.py`, BUGS #13.
+  record layouts. See `fmparser/tables/rule_files.py`, BUGS #13.
 - **Known club names → TIDs** — the strongest anchor (used to find the clubs above).
 - `data/rough-guide.md` — community hex guide.
 - **Ground truth**: our own matches (exact home/away/score/comp/date) and the

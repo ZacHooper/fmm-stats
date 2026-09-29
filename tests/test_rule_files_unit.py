@@ -15,7 +15,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import tagged as TG                      # noqa: E402
+from fmparser.core import TreeError, read_tree, scan_tagged_blocks  # noqa: E402
 from fmparser.tables import comp_rules as CR, rule_files as RF  # noqa: E402
 
 from test_comp_rules_unit import container, lst, string, tag, u8, u32, fourcc  # noqa: E402
@@ -76,13 +76,13 @@ def main() -> int:
             failures.append(msg)
 
     mm = region()
-    files = RF.rule_files(mm, 0, len(mm))
-    check([b.file for b in files] == ["den_rules", "den_comps", "den_reserve_comps",
-                                      "den_rules", "den_premier"],
-          f"files {[b.file for b in files]}")
+    files = RF.RULE_FILES_TABLE.blocks(mm)
+    names = [b.get("file") for b in files]
+    check(names == ["den_rules", "den_comps", "den_reserve_comps", "den_rules",
+                    "den_premier"], f"files {names}")
     check(RF.is_bare(mm, files[0]) and not any(RF.is_bare(mm, b) for b in files[1:]),
           "bare / container framing")
-    check(RF.framing_problems(mm, files) == [], f"framing {RF.framing_problems(mm, files)}")
+    check(RF.framing_problems(mm) == [], f"framing {RF.framing_problems(mm)}")
     check([RF.schema_for(b).name for b in files] == [
         "rule_file_nation_rules", "rule_file_nation_comps", "rule_file_nation_reserve_comps",
         "rule_file_nation_rules", "comp_rules_file"], "schema_for")
@@ -94,31 +94,31 @@ def main() -> int:
     dsrl = next(v for t, _, v in files[3].fields if t == "dsrl")
     check(dsrl == [("#16967d20", 0x03, 0)], f"non-printable tag {dsrl}")
     check(CR.stage_rows(6, comp.fields)[0]["stage_code"] == "leag", "stage rows")
-    check(RF.read(files[1])["file"] == "den_comps", "nation read")
+    check(RF.RULE_FILES_TABLE.read(files[1])["file"] == "den_comps", "nation read")
 
     check(RF.team_counts(mm) == {2000016262: 12, 6: 12},
           f"team_counts {RF.team_counts(mm)}")
 
-    t = RF.tiling(mm, 0, len(mm))
+    t = RF.tiling(mm)
     check(t["n_rule_files"] == 5 and t["other_blocks"] == 0, f"tiling {t}")
     # unread = the separator + the group count + four container heads
     check(t["unread"] == 12 + 4 + 4 * 2, f"unread {t['unread']}")
 
     # a group whose count does not match the files that follow is a framing problem
     bad = region(declared=3)
-    probs = RF.framing_problems(bad, RF.rule_files(bad, 0, len(bad)))
+    probs = RF.framing_problems(bad)
     check(len(probs) == 1 and "declares 3 files, 4 follow" in probs[0], f"bad k {probs}")
 
     # a tag the schema neither reads nor lists is reported by coverage
     odd = b"\x00" * 8 + bare(rule_file("den_comps", [u8("zzzz", 1)]))
-    cov = RF.NATION_COMPS.coverage(RF.rule_files(odd, 0, len(odd))[0].fields)
+    cov = RF.NATION_COMPS.coverage(scan_tagged_blocks(odd, 0, len(odd))[0].fields)
     check(cov["rule_file_nation_comps"]["undeclared"] == {"zzzz": 1}, "undeclared tag")
 
     # the strict reader still rejects an unknown type rather than reading past it
     try:
-        TG.read_tree(tag("oops", 0x7e, b"\x00\x00"), 0, 8)
+        read_tree(tag("oops", 0x7e, b"\x00\x00"), 0, 8)
         check(False, "unknown type read without error")
-    except TG.TreeError:
+    except TreeError:
         pass
 
     for f in failures:

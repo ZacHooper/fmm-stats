@@ -28,7 +28,7 @@ def cache_key(mm):
     agent poking at two careers in one REPL) gets an id collision and is served the PREVIOUS
     save's answer for the next save.
 
-    This has bitten twice. `tagged.py`'s region cache first -- Bucaspor came back with Frem's
+    This has bitten twice. The data dictionary's region cache first -- Bucaspor came back with Frem's
     bounds and lost 829 records. Then `clubs_comps.py`, which cached an ABSOLUTE FILE OFFSET
     (the competition table's anchor), where a stale hit is worse than a wrong answer: it
     sends the table walk into the middle of an unrelated record and it raises. Measured

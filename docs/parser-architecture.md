@@ -265,9 +265,10 @@ The modules:
 
 | module | what it holds |
 |---|---|
-| `fmparser/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `pstring`, `tag4`. Pure `(buffer, offset) -> value`. |
-| `fmparser/schema.py` | `Field(offset, width, name, kind, group, alias, note)`, `Record(name, span, fields, stride, anchor)`, `UNKNOWN`, and `validate()`. |
-| `fmparser/records.py` | `read / read_at_anchor / read_into / read_fields / read_group / walk / columns`. **No locating.** |
+| `fmparser/core/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `tag4`. Pure `(buffer, offset) -> value`. |
+| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`, `PString`) and the tagged wire format (`read_tree`). |
+| `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
+| `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged). |
 
 **21 records are declared** as of 2026-09-20, and `scripts/audit_records.py` reads every one
 of them from the module that parses it — it holds no layout of its own any more. That
@@ -325,40 +326,58 @@ declared, and `Record.span` is the extent of *the declared part*, not of the rec
 it would be a programming language, and every argument currently visible in a comment would
 stop being visible.
 
-### Tagged records are declared per TAG
+### Packed and tagged: one system
 
-Some records are key-value, not fixed-width: the data dictionary's rule files and the
-archive's `comp_<uid>.dat` members store `[tag][01][type][value]` fields in any order, with
-optional tags and a wire type that can vary with the value (`ntms` is a u8 for 12 teams, a
-u16 for 255). `fmparser/tagged.py` reads the wire format; its `read_tree` is strict and is
-only ever called on a block whose field count is declared, so a field that does not parse
-is an error, never a shorter result.
+Two encodings occur in the save. PACKED records are bytes at fixed offsets. TAGGED records --
+the data dictionary's rule files, the archive's `comp_<uid>.dat` members -- are
+`[tag][01][type][value]` fields in any order, with optional tags and a wire type that can
+vary with the value (`ntms` is a u8 for 12 teams, a u16 for 255). Each layer of `core` holds
+both, so a tagged table is hooked up exactly the way a packed one is:
 
-There is no offset to declare, so the schema is declared per tag instead, in
-`fmparser/core/tagged_schema.py`:
+| layer | packed (e.g. cities) | tagged (e.g. rule files) |
+|---|---|---|
+| encoding (`types.py`) | kinds `U16`, `F32`, ... | `read_tree`: one field, strict |
+| record (`schema.py`) | `Record` of `Field(offset, width, name, kind)`; every byte named or `UNKNOWN` | `TaggedRecord` of `Tag(tag, name, kind)`; every tag read or listed `unread` |
+| table (`table.py`) | `TableDef(name, segments, locator)`; locator -> `(base, count)` | `TaggedTableDef(name, locator, schema)`; locator -> `[(offset, n)]`, one per row |
+| walk | the engine steps by stride / segment | the engine reads exactly n fields per row, then the row's schema |
 
 ```python
-STAGE = TaggedRecord("comp_rules_stage", [
-    Tag("indx", "stage_index", INT, required=True, note="= fix_man +76 stage_index"),
-    Tag("rnds", "rounds", ListOf(ROUND)),
-], unread=("strq", "advs", ...))
+CITIES_TABLE = TableDef(name="cities", locator=locate_cities, segments=(CITY,))
+COMP_RULES_TABLE = TaggedTableDef(name="comp_rules", locator=locate_comp_rules, schema=FILE)
+RULE_FILES_TABLE = TaggedTableDef(name="rule_files", locator=locate_rule_files,
+                                  schema=schema_for)     # one schema per row kind
 ```
 
-The same rule holds: the parser reads FROM the declaration (`TaggedRecord.read` checks each
-value's wire type against its kind and raises on an absent required tag), and the audit
-checks AGAINST it. **COVERAGE is per tag**: every tag seen must be read or listed in
-`unread` -- seen and deliberately not read, the counterpart of a declared-UNKNOWN byte -- and
-a tag that is neither is reported. `unread` is built from a measured inventory over every
-save, never guessed. `tests/test_layouts.py` checks each registered tagged schema is sound;
-`audit_records.py --map` prints it; `audit_records.py <save>`, `tests/test_comp_rules.py`
-and `tests/test_rule_files.py` fail on an undeclared tag.
+`schema` is one `TaggedRecord`, or a function `block -> TaggedRecord` where rows come in
+several kinds (the rule files: a competition's, a nation's three, a stageless one). A row
+that does not read to its declared count raises `TaggedTableError` -- never a shorter row. A
+row declaring 0 fields is a stub: located, not scraped.
 
-A tagged block is FOUND the same way a table is: by its declared count (Shape A). The data
-dictionary (`tables/rule_files.py`) is 667 `[u32 n][n fields]` rule files, located by one
-forward pass that reads each candidate strictly and keeps it only if all n fields read, then
-resumes after it. Nothing scans for tags. The walk's failure mode is loud: a rule file that
-does not read breaks into fragments -- count-framed blocks that are not rule files -- and
-`tiling()` counts them; the test requires zero.
+**Hooking up a new table.** The first two steps are the same for both; the rest differ only
+in which class you reach for.
+
+1. **Find it** -- entropy profile, then look in front of record 0 for the count (Part 1). A
+   packed table's frame is `[>=8 x FF][count]`; a tagged block's is `[u32 n][tag 01 type]`.
+2. **Write the locator.** Packed: `(base, count)`. Tagged: `[(offset of first field, n)]`.
+   For a region of count-framed blocks, `core.scan_tagged_blocks(mm, lo, hi)` is the whole
+   locator shape -- one forward pass, a candidate taken only if all n fields read -- and your
+   locator keeps the blocks that are yours (the rule files keep those with `ftye` + `file`).
+3. **Declare the record.** Packed: a `Field` per byte range. Tagged: a `Tag` per tag you
+   read, and `unread=` for every other tag seen. Build `unread` from the saves, not by
+   hand: declare the tags you know, run `TABLE.coverage(mm)` over every save, and its
+   `undeclared` counts are the list to add. Nested containers are `Nested(RECORD)`, lists of
+   containers `ListOf(RECORD)`, and each nested record is declared the same way.
+4. **Define the table** -- `TableDef(...)` / `TaggedTableDef(...)` -- and read it with
+   `TABLE.scrape(mm)`; register it in `tables/__init__.py`'s `TABLES`.
+5. **Audit it.** Packed: add the layout to `audit_records.py`'s `LAYOUTS`. Tagged: nothing to
+   add -- every `TaggedRecord` registers itself, and `audit_records.py` reports every
+   registered schema. `audit_records.py --map` prints both kinds.
+6. **Test it** -- extent and coverage on every save, plus ground truth for what you read
+   (`tests/test_rule_files.py`: 3F Superliga has 12 teams).
+
+`tests/test_layouts.py` checks every registered schema of both kinds is sound, and the
+`TaggedTableDef` engine's strictness, with no save. `audit_records.py <save>`,
+`tests/test_comp_rules.py` and `tests/test_rule_files.py` fail on an undeclared tag.
 
 ---
 
