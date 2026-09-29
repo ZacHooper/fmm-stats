@@ -119,8 +119,8 @@ _ATTR_AT = 28
 # The attribute block's other bytes, by index (the Scrapbook Profile screen, verified on
 # Ernest Nuamah's 2022 entry: condition 87%, morale Superb, form 7-9-8-9-7, av. rating 7.50).
 _BLOCK = {24: ("condition", U8, "percent"), 25: ("morale", U8, "1-20; 20 = Superb"),
-          26: ("form_1", U8, "the last five match ratings; which end is the latest is "
-                                 "unverified (7-9-8-9-7 reads the same both ways)"),
+          26: ("form_1", U8, "the last five match ratings in screen order; form_5 is the "
+                                 "most recent (Mikkel Andersson 8-7-8-8-6)"),
           27: ("form_2", U8, ""), 28: ("form_3", U8, ""), 29: ("form_4", U8, ""),
           30: ("form_5", U8, "")}
 
