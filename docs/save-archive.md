@@ -44,7 +44,7 @@ region first for a reason that was false. Entropy separates them in one pass.
 Both 13-byte runs are byte-identical across both careers except for the u32.
 
 `'fmf.'` and `'tad.'` are `.fmf` and `.dat` **stored reversed**, the same convention the
-tagged data dictionary uses for its field names (`fmparser/tagged.py`, where `b"  di"` is
+tagged format uses for its field names (`core/types.py`'s `read_tree`, where `b"  di"` is
 `id`). Every member's *decompressed* payload opens with its own 6-byte
 `[0x03][0x01]['tad.']` header, so the extension travels with the content.
 
@@ -130,9 +130,9 @@ section for what the members hold.
 Decoded 2026-09-28; parsed by `fmparser/tables/comp_rules.py`, loaded as
 `staging.competition_rounds`. Each member is a declared 54-byte `HEADER` record
 (`season_year` +20, `base_year` +48, `n_fields` +50; the rest declared UNKNOWN, see
-`audit_records.py --map`) followed by a **tagged tree** in the data dictionary's wire format,
-read strictly by `fmparser/datadict.py`'s `read_tree` -- the same type table the dictionary
-scan uses, not a second copy:
+`audit_records.py --map`) followed by a **tagged tree** in the data dictionary's tagged format,
+read as a `TaggedTableDef` row -- the same engine and tagged reader the dictionary's rule
+files (`tables/rule_files.py`) use:
 
     [54-byte HEADER][n tagged fields, n = HEADER.n_fields]
     field     = [tag x4][0x01][type][value]  |  [0x01][type][value]  (tagless list element)

@@ -34,11 +34,12 @@ from fmparser.core import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN
 # `fixtures` is safe to import with no `archive` extra installed -- archive.py imports
 # zstandard lazily, inside the call -- so the cheap tier stays dependency-free.
 RECORD_MODULES = (
-    "clubrecords", "clubs_comps", "history", "matches", "tagged",
+    "clubrecords", "clubs_comps", "history", "matches",
     "tables.cities", "tables.comp_honours", "tables.comp_rules", "tables.comp_stages", "tables.contracts",
     "tables.currencies", "tables.fixtures", "tables.languages", "tables.match_slots",
     "tables.names", "tables.nations", "tables.officials", "tables.person_info",
-    "tables.player_attributes", "tables.rounds", "tables.stadiums", "tables.staff"
+    "tables.player_attributes", "tables.rounds", "tables.rule_files", "tables.stadiums",
+    "tables.staff"
 )
 
 
@@ -223,7 +224,8 @@ def part3_reader():
 
 def part4_tagged():
     """Every registered TAGGED schema is sound, and the tagged checker catches what it must."""
-    from fmparser.core import tagged_schema as TS
+    from fmparser.core import schema as TS
+    from fmparser.core import TaggedTableDef, TaggedTableError
     print("\nTAGGED SCHEMAS")
     ok = True
     for name in sorted(TS.TAGGED_REGISTRY):
@@ -251,7 +253,7 @@ def part4_tagged():
         print(f"  {'ok  ' if good else 'FAIL'} {label}")
     for label, fields in (
         ("a missing required tag is caught", [("id", 0x01, code)]),
-        ("a wire type the kind does not accept is caught", [("indx", 0x1a, "x")]),
+        ("a type code the kind does not accept is caught", [("indx", 0x1a, "x")]),
         ("a pair that does not repeat one value is caught", [("indx", 0x0f, (1, 2))]),
     ):
         try:
@@ -269,6 +271,24 @@ def part4_tagged():
             and TS.validate_tagged(T("d", [TS.Tag("a", "x", TS.INT)], unread=("a",))) != [])
     ok &= good
     print(f"  {'ok  ' if good else 'FAIL'} a tag declared both read and unread is caught")
+
+    # the TaggedTableDef engine: a row reads to exactly its declared count or raises, and a
+    # row declaring 0 fields is a stub that scrape skips
+    blob = b"\x00" * 4 + b"xdni" + bytes([0x01, 0x11, 3])      # `indx` u8 3, stored reversed
+    table = lambda n: TaggedTableDef(name="t", locator=lambda mm: [(4, n)], schema=rec)  # noqa: E731
+    good = table(1).scrape(blob) == [{"stage_index": 3, "code": None}]
+    ok &= good
+    print(f"  {'ok  ' if good else 'FAIL'} a TaggedTableDef row reads through its schema")
+    try:
+        table(2).blocks(blob)
+        good = False
+    except TaggedTableError:
+        good = True
+    ok &= good
+    print(f"  {'ok  ' if good else 'FAIL'} a row that over-declares its field count is caught")
+    good = table(0).scrape(blob) == [] and len(table(0).blocks(blob)) == 1
+    ok &= good
+    print(f"  {'ok  ' if good else 'FAIL'} a 0-field row is a stub: located, not scraped")
     return ok
 
 

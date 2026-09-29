@@ -76,7 +76,7 @@ import struct
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
 # Every record in this part of the file opens `[u8 kind][0x01][4-char extension, REVERSED]`,
-# the same reversal the tagged data dictionary uses for its field names (fmparser/tagged.py).
+# the same reversal the tagged format uses for its field names (core.types.read_tree).
 MEMBER_HEADER = b"\x03\x01tad."      # '.dat', on the DECOMPRESSED payload of every member
 RECORD_HEADER = b"\x02\x01fmf."      # '.fmf', on the archive's and the directory's headers
 RECORD_HEADER_LEN = 13               # [kind][01][ext 4][08][00][00][u32]

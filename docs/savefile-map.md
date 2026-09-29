@@ -34,11 +34,11 @@ preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `
 by a structural test described in the notes.
 
 ### Table Engine Migration Status Summary
-* **Migrated to `TableDef` (19 tables)**: `player_attributes`, `staff`, `round_names`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`, `comp_rules` (a declared 54-byte `HEADER`, then the header's declared count of tagged fields, each read by `datadict.read_tree`).
+* **Migrated to `TableDef` (19 tables)**: `player_attributes`, `staff`, `round_names`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary).
 * **Blocked on Engine Capability (2 tables)**:
   * `competitions` (`comp_table`, 1,372 records) — Shape A count-framed, blocked on nested variable reference array (`n_refs: u32` then `n_refs * 8B`).
   * `clubs` (`club_table`, 11,331 records) — Shape A count-framed, blocked on nested affiliations array (`naff: u16` then `naff * 21B`).
-* **Non-Table / Structural Walks**: `history.py` (Shape B pointer linked-list forest), `clubrecords.py` (Shape B/C candidate sweep), `matches.py` (Shape B/F lineup blocks), `tagged.py`/`datadict.py` (wire format).
+* **Non-Table / Structural Walks**: `history.py` (Shape B pointer linked-list forest), `clubrecords.py` (Shape B/C candidate sweep), `matches.py` (Shape B/F lineup blocks), `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
@@ -57,7 +57,7 @@ by a structural test described in the notes.
 | 13,965,521 | ~13,976,130 | 0.01 MB | **currencies** — declared 173, we read 94 (`uid > 4096` gate) | static | Shape A | **MIGRATED** (`CURRENCIES_TABLE`) |
 | 13,976,136 | ~13,978,480 | 0.002 MB | **languages** — declared 124, we read 77 (zero-length `OtherName`) | static | Shape A | **MIGRATED** (`LANGUAGES_TABLE`) |
 | 13,978,474 | 16,692,615 | 2.71 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 18%); checked and *not* count-framed | — | — | — |
-| 16,692,615 | 20,321,452 | 3.63 MB | **tagged data dictionary** — self-describing `[tag][01][type][value]` | static-ish | Wire format | live (`tagged.find_tagged_region`) |
+| 16,692,615 | 20,321,452 | 3.63 MB | **tagged data dictionary** — 667 count-framed competition/nation **rule files** (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | rule files static; separators change | Shape A | **DECLARED** (`tables/rule_files.py`); `team_counts` feeds `competitions.json` |
 | 20,321,452 | 29,171,689 | **8.85 MB** | **FILLER — 97% `0xFF`, 1% `00`, 2% other.** Not a research target | — | — | — |
 | **29,171,689** | **31,907,618** | **2.74 MB** | **contract grid** — dense **83-byte** records, **32,961 slots**, 26,754 populated. One slot per person (the info spine holds ~32,885) | **preallocated, stable all career** | Shape C | **MIGRATED** (`CONTRACT_TABLE`) |
 | 31,907,618 | 35,439,434 | 3.53 MB | **UNIDENTIFIED** (`00` 53% / `ff` 31% / other 17%) | — | — | — |

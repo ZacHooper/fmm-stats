@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
 """Table abstraction and walking engine for savefile tables.
 
-A table is a sequence of records declared by a locator shape. Each record in turn
-is a composite sequence of typed segments:
+A table is a name, a LOCATOR that finds its rows, and the SCHEMA that reads each row. The
+engine does the walk. Two kinds, matching the two kinds of record (`schema.py`):
+
+`TableDef` -- PACKED rows. The locator returns `(base, count)`; each row is a composite
+sequence of typed segments, walked by offset:
 1. Fixed Record layouts (from `schema.py`).
 2. Length-prefixed string primitives (`PString` from `types.py`).
 3. Custom dynamic segments implementing `read(mm, pos, limit)`.
-"""
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .schema import Record
+`TaggedTableDef` -- TAGGED rows. The locator returns `[(offset, n)]`, one per row: a block
+of n tagged fields starting at offset. The engine reads exactly n fields strictly
+(`types.read_tree`) and the row's `TaggedRecord` reads them. `scan_tagged_blocks` is the
+locator shape for a region of count-framed blocks, `[u32 n][n fields]`.
+"""
+import re
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+
+from .schema import Record, TaggedRecord, TaggedSchemaError
+from .types import TreeError, read_tree
 
 
 @dataclass(frozen=True)
@@ -208,3 +218,109 @@ def find_framed_count(
         pos = j
 
     return None
+
+
+# ==== TAGGED tables ===========================================================================
+
+class TaggedTableError(Exception):
+    """A located block did not read to its declared field count, or through its schema."""
+
+
+class TaggedBlock(NamedTuple):
+    """One row of a tagged table: the fields of a block, read strictly."""
+    start: int                  # offset of the first field
+    end: int                    # one past the last field
+    fields: List[Tuple[Optional[str], int, Any]]
+
+    @property
+    def top_tags(self) -> frozenset:
+        return frozenset(f[0] for f in self.fields)
+
+    def get(self, tag: str, default: Any = None) -> Any:
+        """The raw value of a top-level tag."""
+        return next((v for t, _, v in self.fields if t == tag), default)
+
+
+def read_block(mm: Any, start: int, n: int, hi: Optional[int] = None) -> TaggedBlock:
+    """Exactly n tagged fields from start; raises TreeError on anything short of that."""
+    hi = len(mm) if hi is None else hi
+    q, fields = start, []
+    for _ in range(n):
+        f, q = read_tree(mm, q, hi)
+        fields.append(f)
+    return TaggedBlock(start, q, fields)
+
+
+# `[tag x4][0x01][type]`: the head of a tagged field, the only thing a block opens with.
+_FIELD_HEAD = re.compile(rb"[\x20-\x7e]{4}\x01[\x00-\x20]")
+_MAX_FIELDS = 5000
+
+
+def scan_tagged_blocks(mm: Any, lo: int, hi: int) -> List[TaggedBlock]:
+    """Every count-framed block `[u32 n][n tagged fields]` in [lo, hi), in order.
+
+    The locator shape for a region of tagged blocks. One forward pass: at every candidate
+    `[u32 n][tag 01 type]` it reads n fields strictly, and a block that reads is taken
+    whole and the pass resumes after it, so a block's inner containers are never re-read as
+    blocks of their own. Nothing is taken on a tag match alone -- a candidate is a block
+    only if all n declared fields read."""
+    out: List[TaggedBlock] = []
+    end = lo
+    for m in _FIELD_HEAD.finditer(mm, lo + 4, hi):
+        p = m.start()
+        if p - 4 < end:
+            continue
+        n = int.from_bytes(mm[p - 4:p], "little")
+        if not 0 < n <= _MAX_FIELDS:
+            continue
+        try:
+            block = read_block(mm, p, n, hi)
+        except TreeError:
+            continue
+        out.append(block)
+        end = block.end
+    return out
+
+
+@dataclass(frozen=True)
+class TaggedTableDef:
+    """Definition for a table of TAGGED rows.
+
+    `locator(mm) -> [(offset, n)]` finds the rows; `schema` is the `TaggedRecord` every row
+    reads with, or a function `block -> TaggedRecord` where the rows are of several kinds.
+    A row declaring 0 fields is a stub: `blocks` returns it, `scrape` and `coverage` skip
+    it."""
+    name: str
+    locator: Callable[[Any], List[Tuple[int, int]]]
+    schema: Union[TaggedRecord, Callable[[TaggedBlock], TaggedRecord]]
+
+    def schema_for(self, block: TaggedBlock) -> TaggedRecord:
+        return self.schema if isinstance(self.schema, TaggedRecord) else self.schema(block)
+
+    def blocks(self, mm: Any) -> List[TaggedBlock]:
+        """Every located row, read strictly to its declared field count."""
+        out = []
+        for start, n in self.locator(mm) or []:
+            try:
+                out.append(read_block(mm, start, n))
+            except TreeError as e:
+                raise TaggedTableError(f"{self.name}: block at {start}: {e}") from e
+        return out
+
+    def read(self, block: TaggedBlock) -> Dict[str, Any]:
+        """A row read through its schema."""
+        try:
+            return self.schema_for(block).read(block.fields)
+        except TaggedSchemaError as e:
+            raise TaggedTableError(f"{self.name}: block at {block.start}: {e}") from e
+
+    def scrape(self, mm: Any) -> List[Dict[str, Any]]:
+        return [self.read(b) for b in self.blocks(mm) if b.fields]
+
+    def coverage(self, mm: Any, report: Optional[Dict] = None) -> Dict:
+        """Every tag of every row against its schema: see `TaggedRecord.coverage`."""
+        report = {} if report is None else report
+        for b in self.blocks(mm):
+            if b.fields:
+                self.schema_for(b).coverage(b.fields, report)
+        return report

@@ -12,6 +12,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from fmparser.core import TaggedTableError  # noqa: E402
 from fmparser.tables import comp_rules as CR  # noqa: E402
 
 
@@ -90,7 +91,7 @@ def main() -> int:
 
     blob = build()
     check(CR.HEADER.read(blob, 0)["season_year"] == 2026, "header season_year")
-    check(CR.locate_comp_rules(blob) == (CR.HEADER.span, 4), "locator (base, count)")
+    check(CR.locate_comp_rules(blob) == [(CR.HEADER.span, 4)], "locator [(offset, count)]")
     fields = CR.scrape(blob)
     check([f[0] for f in fields] == ["ftye", "desc", "stgs", "SubF"],
           f"top-level tags {[f[0] for f in fields]}")
@@ -117,7 +118,7 @@ def main() -> int:
         try:
             CR.scrape(bad)
             check(False, f"{label} parsed without error")
-        except CR.RulesError:
+        except TaggedTableError:
             pass
 
     # a stub member (declares 0 fields) reads as empty

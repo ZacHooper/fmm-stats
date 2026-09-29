@@ -197,7 +197,7 @@ Because the data dictionary is static reference data, the true totals are known 
 | frem-2026-03-22 | 5,875 / 6,926 | 1,051 (15%) | 742 / 889 | 147 (17%) |
 | bucaspor-2022-06-01 | **6,926 / 6,926** | **0** | **889 / 889** | **0** |
 
-**Live downstream impact:** `extract.py:368` calls `tagged.league_team_counts(mm)` with the
+**Live downstream impact (at the time; `league_team_counts` has since been replaced by `rule_files.team_counts`):** `extract.py:368` called `tagged.league_team_counts(mm)` with the
 default window to build `competitions.json`. It finds **81 of 93 competitions** on
 frem-2026-03-22 and 78 of 93 on frem-2021-07-01 — **11-15 competitions (12-16%) missing from
 every Frem snapshot ever built**. Bucaspor: 93 of 93.

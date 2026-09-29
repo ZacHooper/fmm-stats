@@ -384,43 +384,22 @@ The remaining open members in the archive:
   `0xFFFFFFF1886E0900`), `'sicomps'` and the `0`/`1` after it, the `[08][00][00]` in the
   13-byte record header, the u32 that follows it, and the 13 constant bytes before member 0.
 
-### 4e. Migrate the tagged data dictionary to declared tagged schemas
-**Next PR after #99.** The data dictionary (~16.6–20.3 MB, `fmparser/tagged.py` /
-`fmparser/datadict.py`) is not free-form: it is the game's LIBRARY of competition rule files,
-each a `[u32 n][n tagged fields]` block in exactly the format of the archive's
-`comp_<uid>.dat` members minus their 54-byte header, each naming its source (`file` =
-`esp_second_b_group`, `fra_national_2_region`, `chn_rules` …). Measured on frem-2027-08-08
-(3.63 MB region): **578 blocks** read strictly to their declared count and tile **76.1%** of
-the region; **418** carry `stgs` (the stage list `comp_rules.FILE/STAGE/ROUND` already
-declare) and **160** do not. Not yet tiled: a 72 KB lead (the "fixed-format preamble"
-DATADICT.md mentions), a 300 KB tail, and ~0.5 MB of gaps between blocks (largest 69 KB) —
-probably the runtime records DATADICT.md describes (`sdfd` standings, `nssn` season blocks),
-unconfirmed.
+### 4e. The data dictionary: the state between the rule files, and the rules themselves
+The dictionary is 667 rule files, located and declared per tag in
+`fmparser/tables/rule_files.py` (see its docstring); `team_counts` feeds `competitions.json`.
+The rule files read 99.2% of the span and are identical in every save of a career. What is
+left:
 
-Why the current reader falls short: `datadict.walk_stream` reads `0x0b` as a u32 scalar, so a
-list's elements surface as loose siblings (80% of the region reads as loose "fields", 7% as
-records). Scanning with the strict `read_tree` is not the answer either — accepting the
-zero-width `0x00` type turned ~18,000 stray `01 00` byte pairs into "fields". The fix is to
-LOCATE each block by its own declared count, not to scan.
-
-Plan:
-1. **Locator** — walk the region as `[u32 n][n fields]` blocks, each bounded by its declared
-   count, and require the walk to tile the region: every gap classified, never skipped.
-2. **Schemas** — reuse `comp_rules.FILE/STAGE/ROUND` for the rule files, extending their
-   `unread` lists from a tag inventory over all saves (so `test_comp_rules`' coverage gate
-   keeps holding); declare the 160 no-`stgs` blocks from their own inventory; identify or
-   declare-unknown the preamble and the gaps.
-3. **Consumer** — `extract.py`'s only use is `tagged.league_team_counts` (teams per
-   competition into `competitions.json`); move it onto the parsed blocks with the output
-   byte-identical (`tests/assert_identical.py`).
-4. **Retire the lenient scan** behind `dump_datadict.py` / `tests/test_datadict.py` once the
-   declared parse covers what it covers — or keep it beside it while the gaps are open.
-5. **Gates** — byte-identical extract, zero undeclared tags on every save, and region tiling
-   reported as a number that should only go up.
-
-Payoff beyond tidiness: these are the rules for EVERY competition in the database, not just
-the ~70 the archive loads — entry, advancement, promotion and relegation (`strq`, `advs`,
-`relr`, `prmr`) decoded once would apply everywhere.
+1. **Decode the state** — the 26,878 bytes BETWEEN the rule files are the only part that
+   changes between saves (26 of 666 separators change from frem-2027-07-02 to
+   frem-2027-08-08): the separator before each group (runs of `ffffffff`-led u16 entries
+   ending `01`) and the 41-byte dated record before each nation's merged `_rules`. Diff two
+   saves.
+2. **Decode the rules** — entry, advancement, promotion and relegation (`strq`, `advs`,
+   `relr`, `prmr`) for EVERY competition in the database, not just the ~70 the archive
+   loads. Every configured archive member names its dictionary file (`file`), so the two
+   join. The deleted `docs/DATADICT.md` (last at commit 7cc46b6) holds guesses at many tag
+   meanings, made from the old lenient scan -- hypotheses to test, not facts.
 
 ### 4d. Player-list blocks — named, not decoded
 **New 2026-09-20.** ~1.38 MB at ~61.25M–62.63M is a run of blocks of **100 slots x 200 B**

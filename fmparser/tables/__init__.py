@@ -22,6 +22,11 @@ from .comp_rules import (
     scrape as scrape_comp_rules,
     stage_rows as comp_rule_stage_rows,
 )
+from .rule_files import (
+    RULE_FILES_TABLE,
+    locate_rule_files,
+    team_counts as rule_file_team_counts,
+)
 from .currencies import (
     CURRENCIES_TABLE,
     CURRENCY_HEAD,
@@ -171,6 +176,7 @@ TABLES = {
     "cities": CITIES_TABLE,
     "comp_honours": COMP_HONOURS_TABLE,
     "comp_rules": COMP_RULES_TABLE,
+    "rule_files": RULE_FILES_TABLE,
     "comp_stages": COMP_STAGES_TABLE,
     "contracts": CONTRACT_TABLE,
     "currencies": CURRENCIES_TABLE,
@@ -207,6 +213,10 @@ __all__ = [
     "competition_rounds",
     "locate_comp_rules",
     "scrape_comp_rules",
+    # Rule files (the tagged data dictionary)
+    "RULE_FILES_TABLE",
+    "locate_rule_files",
+    "rule_file_team_counts",
     # Contracts
     "CONTRACT",
     "CONTRACT_DETAIL",

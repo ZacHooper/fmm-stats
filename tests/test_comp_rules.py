@@ -25,6 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser import archive as A                              # noqa: E402
+from fmparser.core import TaggedTableError                     # noqa: E402
 from fmparser.tables import comp_rules as CR, rounds as R  # noqa: E402
 
 SAVES = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
@@ -68,7 +69,7 @@ def main() -> int:
             mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
             try:
                 rows = CR.competition_rounds(mm)
-            except CR.RulesError as e:
+            except TaggedTableError as e:
                 failures.append(f"{os.path.basename(p)}: {e}")
                 continue
             cov = {}

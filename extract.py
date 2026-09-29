@@ -42,10 +42,10 @@ from fmparser.tables.person_info import (
     scrape_person_info,
 )
 from fmparser.tables.player_attributes import scrape_player_attributes
-from fmparser import tagged as T
 from fmparser.tables import fixtures as FIX
 from fmparser.tables import comp_rules as CRU
 from fmparser.tables import rounds as ROUNDS
+from fmparser.tables import rule_files as RULE_FILES
 from fmparser import careers as C
 from fmparser import history as H
 from fmparser import injuries as INJ
@@ -436,10 +436,10 @@ def league_label(detail):
 
 
 def build_competitions(mm, season):
-    """Reference for every competition in the season: name/short/code, type,
-    nation, and num_teams (from the tagged region). See fmparser/reference &
-    fmparser/tagged."""
-    counts = T.league_team_counts(mm)
+    """Reference for every competition in the season: name/short/code, type, nation, and
+    num_teams (each nation's team-count rules in the data dictionary,
+    fmparser/tables/rule_files.team_counts)."""
+    counts = RULE_FILES.team_counts(mm)
     comps = {}
     for cid in sorted({m["comp_id"] for m in season if m.get("comp_id")}):
         d = R.comp_detail(mm, cid) or {"cid": cid}

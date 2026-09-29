@@ -433,8 +433,8 @@ decodes; league/cup split holds).
 cid-less result list (~49.36 MB, repeats the home team + a 0x42xx value) isn't parsed, so
 standings points/played are a lower bound and ordering is approximate. (2) NAMING:
 `reference.comp_detail` mis-names some small-cid / foreign comps (e.g. a Turkish reserve
-league shown as "Angola"); the cid grouping is always correct — name these via the tagged
-DATA DICTIONARY (docs/DATADICT.md) as a follow-up.
+league shown as "Angola"); the cid grouping is always correct — name these via the data
+dictionary's rule files (`fmparser/tables/rule_files.py`) as a follow-up.
 
 ## 12b. Results sweep -> league membership (PARTIAL, works for local league)
 
@@ -488,7 +488,7 @@ Field tags (read reversed) include: `comp`, `level` (league tier!), `Group`, `ca
 `przm` (prize money, NOT club cash), `valu`, `curr`, `year`/`mont`/`stdt`/`endt`/`date`,
 `type`, `id`, `DBID`, `team`, `info`, `stag`. This is the source for league LEVEL/tier
 (cross-league comparison) and competition setup. Bulk data (players/attributes/matches)
-is NOT here — those stay in the packed structures. Being parsed in `fmparser/tagged.py`.
+is NOT here — those stay in the packed structures. Parsed by `fmparser/tables/rule_files.py`.
 
 ## 11. Players vs staff in the info DB — classified by SID
 

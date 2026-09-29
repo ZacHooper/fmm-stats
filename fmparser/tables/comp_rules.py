@@ -5,16 +5,16 @@ Located inside the save's zstd tail archive (Shape D), one member per loaded com
 named by the competition's `uid` -- the same uid the competition table in the main save
 holds, so `staging.competitions.uid` names the member directly.
 
-A member is a fixed 54-byte header (`HEADER`, declared below) followed by a TAGGED block in
-the data-dictionary wire format (`fmparser/datadict.py`, read strictly by
-`datadict.read_tree`). The header declares the block's top-level field count at +50, and
-the block is exactly that many fields: they end at the file trailer (`XSvC`, `EdBr`,
-`EdDt`, `SubF` = the source path); binary runtime state follows and is not read. A member
-declaring 0 fields is a stub (the competition is loaded but not configured).
+A member is a fixed 54-byte header (`HEADER`, declared below) followed by a block in the
+tagged format. The header declares the block's top-level field count at +50, so the
+table is a `TaggedTableDef` with one row per member: `locate_comp_rules` returns (54, n)
+and the engine reads exactly n fields. They end at the file trailer (`XSvC`, `EdBr`, `EdDt`, `SubF` = the source path);
+binary runtime state follows and is not read. A member declaring 0 fields is a stub (the
+competition is loaded but not configured).
 
 The tagged block is declared per TAG below -- FILE -> stgs -> STAGE -> rnds -> ROUND, with
 NAME_REF for a name held in a container -- and read through those declarations
-(`fmparser/core/tagged_schema.py`). A STAGE's `indx` is the number `fix_man.dat` carries at
+(`core.TaggedRecord`). A STAGE's `indx` is the number `fix_man.dat` carries at
 +76 (`stage_index`); element k of its `rnds` is the round `fix_man.dat` carries at +77
 (`round_index`). `scripts/audit/audit_records.py --map` prints the schemas.
 
@@ -29,10 +29,9 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from .. import archive as A
-from .. import datadict as DD
-from ..core import Field, PAD, Record, TableDef, U16, U32, UNKNOWN
-from ..core.tagged_schema import (
-    FOURCC, INT, AnyOf, ListOf, Nested, Tag, TaggedRecord, TaggedSchemaError)
+from ..core import (
+    FOURCC, INT, PAD, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
+    TaggedRecord, TaggedSchemaError, TaggedTableDef, TaggedTableError)
 
 __all__ = [
     "COMP_RULES_TABLE",
@@ -42,7 +41,6 @@ __all__ = [
     "ROUND",
     "STAGE",
     "MEMBER_PATTERN",
-    "RulesError",
     "competition_rounds",
     "locate_comp_rules",
     "scrape",
@@ -66,11 +64,13 @@ HEADER = Record("comp_rules_header", 54, [
 
 
 # ---- the tagged block: FILE -> stgs -> STAGE -> rnds -> ROUND ----------------------------
-# Declared per TAG (fmparser/core/tagged_schema.py): each Tag is read, and every other tag
+# Declared per TAG (core.TaggedRecord): each Tag is read, and every other tag
 # the member carries is listed as `unread` -- seen and deliberately not read, the
 # counterpart of a declared-UNKNOWN byte. The unread lists are every tag observed across
 # all 30 Frem saves and bucaspor-2023-05-20 (2,263 configured members, 4,829 stages, 6,299
-# rounds), in order of frequency; tests/test_comp_rules.py fails on a tag that is neither.
+# rounds), in order of frequency, then the further tags the data dictionary's 453
+# competition rule files carry (tables/rule_files.py), which read with these same schemas;
+# tests/test_comp_rules.py and tests/test_rule_files.py fail on a tag that is neither.
 
 # A name reference: the stage/round name id, sometimes held in a container instead of
 # stored directly on `stnm`.
@@ -85,18 +85,22 @@ NAME_ID = AnyOf(INT, Nested(NAME_REF, pick="name_id"))
 ROUND = TaggedRecord("comp_rules_round", [
     Tag("stnm", "round_name_id", NAME_ID,
         note="151 'Third Qualifying Round', 17 'Quarter Final', 20 'Final' ..."),
-    Tag("ntms", "round_teams",   INT, required=True, note="teams in the round"),
+    Tag("ntms", "round_teams",   INT,
+        note="teams in the round; absent where the draw sets it (fra_ligue_cup's early rounds)"),
     Tag("nmlg", "legs",          INT, note="legs per tie, 1 or 2"),
 ], unread=(
     'nmmt', 'date', 'drdt', 'ctmp', 'tvds', 'vlgr', 'ofsd', 'nmxt', 'drrl', 'prio', 'wrnk',
     'lrnk', 'nmrp', 'dat2', 'subr', 'wnpz', 'strl', 'iqum', 'apmn', 'tvty', 'mstc', 'lspz',
     'rank', 'nrdw', 'nrdl', 'crlm', 'SgSd', 'mnsc', 'nmrg', 'nchd', 'MnxO', 'MnxT', 'Sran',
-    'spst', 'lgwz', 'ldpz'),
+    'spst', 'lgwz', 'ldpz',
+    # ...and the data dictionary's rule files (tables/rule_files.py) add:
+    'dpas', 'atpm', 'fxri', 'gtmp', 'tvmp', 't2pa', 'lpnd', 'ppmt', 'stfl', 'rusn', 'numb'),
     note="element k of a stage's rnds = fix_man +77 round_index k")
 
 STAGE = TaggedRecord("comp_rules_stage", [
-    Tag("id",   "stage_code",    FOURCC, required=True,
-        note="'leag' 'cham' 'prom' 'rele' 'bppr' 'chpr' 'play' 'grou' 'cup' ..."),
+    Tag("id",   "stage_code",    AnyOf(FOURCC, INT), required=True,
+        note="'leag' 'cham' 'prom' 'rele' 'bppr' 'chpr' 'play' 'grou' 'cup' ...; "
+             "svk_first_4_qualifiers' stage 4 stores the number 4"),
     Tag("indx", "stage_index",   INT,    required=True, note="= fix_man +76 stage_index"),
     Tag("type", "stage_type",    INT,    required=True,
         note="0 knockout, 1 league, 2 groups, 6 play-off feeder"),
@@ -115,7 +119,12 @@ STAGE = TaggedRecord("comp_rules_stage", [
     'desc', 'hdst', 'pris', 'stsp', 'sthU', 'clyb', 'tvDd', 'FtEx', 'swtm', 'FtDt', 'jcom',
     'StSi', 'srbh', 'tmPL', 'plfd', 'MnGt', 'MxGt', 'seed', 'mstc', 'mxlg', 'ppnw', 'ppnd',
     'srst', 'fsff', 'tmor', 'cTmS', 'tvty', 'stsi', 'sequ', 'shi1', 'vdbf', 'midp', 'pref',
-    'ExHG', 'NrTm'),
+    'ExHG', 'NrTm',
+    # ...and the data dictionary's rule files (tables/rule_files.py) add:
+    'SCsn', 'pdef', 'adef', 'psr1', 'psr2', 'rran', 'ahrn', 'gptm', 'NpTm', 'AsCH', 'apmn',
+    'lsfd', 'CrsD', 'alfp', 'SCos', 'stan', 'cftp', 'sbsn', 'lsff', 'dSaC', 'USYh', 'UEYh',
+    'fpln', 'FtPr', 'endt', 'bfpr', 'ulsv', 'text', 'ssdi', 'dfpz', 'SFSL', 'shi2', 'FrTm',
+    'dtPP', 'cldp', 'Cnrd', 'mr2l', 'gtmp', 'tvmp', 'ppmt'),
     note="one element of the member's stgs list")
 
 FILE = TaggedRecord("comp_rules_file", [
@@ -135,47 +144,36 @@ FILE = TaggedRecord("comp_rules_file", [
     'spid', 'OdDt', 'nelt', 'ntms', 'fpyc', 'fprc', 'fppz', 'apmn', '%itv', 'ICsl', 'DlCm',
     'YbHC', 'InTS', 'HsPo', 'styo', 'srar', 'usqn', 'othe', 'lsvy', 'RGps', 'SpDs', 'FxCD',
     'mBsc', 'IToc', 'MxBA', 'sdfd', 'edfd', 'cdtd', 'MGin', 'fnUA', 'visd', 'dbps', 'OdDb',
-    'extc', 'MtGr', 'PrSt', 'rcfm', 'ctuf', 'RnsP', 'dtty', 'duni', 'prty'),
+    'extc', 'MtGr', 'PrSt', 'rcfm', 'ctuf', 'RnsP', 'dtty', 'duni', 'prty',
+    # ...and the data dictionary's rule files (tables/rule_files.py) add:
+    'vwon', 'avpt', 'Sscu', 'Tp3t', 'ssif', 'rklp', 'derb', 'pris', 'MnNm', 'cLqT', 'sYro',
+    'sYoO', 'RTiC', 'ftcl', 'InLP', 'MrTs', 'LsSh', 'RssR', 'rctf', 'frcl', 'cVpC', 'dsft',
+    'psrl', 'ctfo', 'enyo', 'bt2d', 'A*tr', 'rdov', '#03d43e90', 'VlFd', 'CoyH', 'dcoy',
+    'bpld', 'fVhR', 'kRtI', 'plpo', 'rsid', 'FtDt', 'Lwtp', 'SPyi', 'qFcL', 'HiHn', 'pmXy',
+    'aPaW', 'eDpM', 'mtfl', '#20aac028', 'ycov', 'LRSR', 'CrCb', 'oqtc', 'rUqT', 'mssf'),
     note="the member's top-level fields; the trailer is XSvC EdBr EdDt SubF")
 
 
-class RulesError(Exception):
-    """A member's tagged block did not read to its declared field count."""
-
-
-class _TaggedField:
-    """TableDef segment: one top-level field of the tagged block, read strictly."""
-
-    def read(self, blob: Any, pos: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
-        try:
-            field, nxt = DD.read_tree(blob, pos, limit)
-        except DD.TreeError as e:
-            raise RulesError(str(e)) from e
-        return {"field": field}, nxt
-
-
-def locate_comp_rules(blob: Any) -> Optional[Tuple[int, int]]:
-    """(base, declared field count) for the TableDef locator protocol, or None for a member
-    too short to hold the header."""
+def locate_comp_rules(blob: Any) -> List[Tuple[int, int]]:
+    """[(first field, declared field count)] -- a member's one tagged block, after its
+    header; [] for a member too short to hold the header."""
     if len(blob) < HEADER.span:
-        return None
-    return (HEADER.span, HEADER.read(blob, 0)["n_fields"])
+        return []
+    return [(HEADER.span, HEADER.read(blob, 0)["n_fields"])]
 
 
-COMP_RULES_TABLE = TableDef(
+COMP_RULES_TABLE = TaggedTableDef(
     name="comp_rules",
-    segments=(_TaggedField(),),
     locator=locate_comp_rules,
+    schema=FILE,
 )
 
 
 def scrape(blob: Any) -> List[Tuple[Optional[str], int, Any]]:
-    """The member's top-level tagged fields -- exactly as many as its header declares."""
-    rows = COMP_RULES_TABLE.scrape(blob)
-    loc = locate_comp_rules(blob)
-    if loc and len(rows) != loc[1]:
-        raise RulesError(f"read {len(rows)} of {loc[1]} declared fields")
-    return [r["field"] for r in rows]
+    """The member's top-level tagged fields -- exactly as many as its header declares;
+    raises TaggedTableError otherwise."""
+    blocks = COMP_RULES_TABLE.blocks(blob)
+    return blocks[0].fields if blocks else []
 
 
 def stage_rows(uid: int, fields: List) -> List[Dict[str, Any]]:
@@ -187,7 +185,7 @@ def stage_rows(uid: int, fields: List) -> List[Dict[str, Any]]:
     try:
         stages = FILE.read(fields)["stages"]
     except TaggedSchemaError as e:
-        raise RulesError(f"competition {uid}: {e}") from e
+        raise TaggedTableError(f"comp_rules: competition {uid}: {e}") from e
     for st in stages:
         stage = {"uid": uid, **{k: st[k] for k in (
             "stage_index", "stage_code", "stage_type", "stage_teams", "stage_name_id",
