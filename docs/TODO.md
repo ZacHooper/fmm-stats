@@ -128,6 +128,17 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   11 more bytes. The profile's up/down arrows beside some attributes (a change since an
   earlier value) are somewhere unread: compare two profiles of one player. Squad number is not stored (the
   profile's card is live: current club and number).
+- **Kits on the Best Eleven screens** are drawn from the snapshot's registration club's kit
+  record (Nuamah in FC Nordsjaelland's, a goalkeeper in the club's goalkeeper kit), not from
+  the snapshot: its `colour_1`/`colour_2` are the team he played FOR (Frem, for every
+  loanee). The kit STYLE is the first of the two unread flag bytes before each of the club
+  record's six kits (`tables/clubs.py` `_kit_fields`): Liverpool's plain home kit is 01,
+  Frem's red/blue stripes 31, Barcelona 30, Newcastle 25, FC Nordsjaelland 0c, Frem's
+  goalkeeper kit 0d, ff an unused kit. Name the ids from kits whose design is known; the
+  second byte (00/01/02) is unread.
+- **Snapshot +21 is probably the role shown on the profile**: Ullits 1 (goalkeeper), Nuamah
+  9 ("Winger"), Mikkel Andersson 15 ("Ball Winning Midfielder"); not the squad number (0 of
+  31 current players match). Confirm against a role list.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
