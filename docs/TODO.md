@@ -431,6 +431,26 @@ deliberate break:
 6. **`matches.py` (shape G)** -- arrays ending at a delimiter; the header and stat block are already
    `Record`s. Move what fits; name what stays bespoke and why.
 
+### 4g. Extract dumps tables; the mart does the joins
+`players.json` is a pre-joined row, built in `extract.py` from about seven tables: the person
+table (identity), the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three
+name id-tables + browse strings + the squad snapshot (`name`, with a precedence rule: squad-list
+name, then common name, then legal name), the club table (`club`, `parent_club` labels), the
+contract-status records (`squad_status`, loan flags), the history slab (origin club, history
+summary) and the player attributes (by sid). None of that is extraction. By the three-layer
+rule, extract should dump each table as the save holds it, the loader write it to `staging`,
+and `fmstats/mart.py` do the joins in SQL -- the name precedence becomes a view
+(`mart.person_names`), and `wage_gbp = wage_units x 520` a derivation there.
+
+Do it a table at a time, contracts and names first (both self-contained), then the club labels
+and the rest of `players.json`:
+1. extract dumps the table (`contracts.json`, `name_tables.json` with the id-tables and the
+   ~46k browse strings, ...) and the loader writes a `staging` table;
+2. the mart joins it; every consumer of the old column (`staging.players.name`, wages, club
+   labels -- mart views, `fmq`, the scout, `scripts/export_data.py`) reads the mart instead;
+3. the gate is row-for-row: the mart gives the same name / wage / label for every person as
+   today's store (`assert_identical` changes by design -- re-record with the note).
+
 ### 4d. Player-list blocks — named, not decoded
 **New 2026-09-20.** ~1.38 MB at ~61.25M–62.63M is a run of blocks of **100 slots x 200 B**
 (+14 B per block), most slots holding an identical empty template with `e5 07` = the career's

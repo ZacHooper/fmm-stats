@@ -391,7 +391,8 @@ in which class you reach for.
    stored as several arrays (the world fixture list). Tagged: `[(offset of first field, n)]`.
    Where the table asserts something of every row (`id == slot`), declare it as the
    `invariant` rather than writing a loop that breaks on it: the walk stops at the first row
-   that fails it. A table looked up by id reads one row with `TABLE.row(mm, k)`.
+   that fails it. The engine only finds and reads a table; looking a row up by id is a join
+   on the scraped rows, not a second way into the bytes.
    For a region of count-framed blocks, `core.scan_tagged_blocks(mm, lo, hi)` is the whole
    locator shape -- one forward pass, a candidate taken only if all n fields read -- and your
    locator keeps the blocks that are yours (the rule files keep those with `ftye` + `file`).

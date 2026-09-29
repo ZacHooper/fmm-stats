@@ -68,24 +68,6 @@ class TableDef:
             return []
         return list(loc) if isinstance(loc, list) else [loc]
 
-    def row(self, mm: Any, k: int) -> Optional[Dict[str, Any]]:
-        """Row k of a fixed-stride table, read by arithmetic rather than a walk (k counts
-        across runs). None if k is out of range, the row breaks the invariant, or
-        post_process drops it."""
-        if not self.is_fixed_stride:
-            raise TypeError(f"{self.name}: row(k) needs a fixed-stride table")
-        if k < 0:
-            return None
-        for base, count in self.runs(mm):
-            if k < count:
-                off = base + k * self.stride
-                if off + self.segments[0].span > len(mm):
-                    return None
-                rec = _emit(self, _read_fixed(self, mm, off), off, k)
-                return None if rec is _STOP else rec
-            k -= count
-        return None
-
     def scrape(self, mm: Any) -> List[Dict[str, Any]]:
         return walk_table(mm, self)
 

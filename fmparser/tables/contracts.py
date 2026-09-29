@@ -134,14 +134,14 @@ def scrape_contracts(
     mm: Any,
     tids_or_info: Optional[Union[Iterable[int], Dict[int, Any]]] = None,
 ) -> Dict[int, Dict[str, Any]]:
-    """{tid: {wage_units, wage_gbp, expiry, expiry_year}} for every active contract -- of the
-    given tids (each read directly: slot = tid), or of the whole grid."""
+    """{tid: {wage_units, wage_gbp, expiry, expiry_year}} for every active contract in the
+    grid, or for those of the given tids (in their order)."""
+    grid = {r["tid"]: {k: v for k, v in r.items() if k != "tid"}
+            for r in CONTRACT_TABLE.scrape(mm)}
     if tids_or_info is None:
-        rows = CONTRACT_TABLE.scrape(mm)
-    else:
-        tids = tids_or_info.keys() if isinstance(tids_or_info, dict) else tids_or_info
-        rows = [r for r in (CONTRACT_TABLE.row(mm, t) for t in tids) if r is not None]
-    return {r["tid"]: {k: v for k, v in r.items() if k != "tid"} for r in rows}
+        return grid
+    tids = tids_or_info.keys() if isinstance(tids_or_info, dict) else tids_or_info
+    return {t: grid[t] for t in tids if t in grid}
 
 
 def scrape_contract_status(

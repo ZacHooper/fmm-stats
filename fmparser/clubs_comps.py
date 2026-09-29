@@ -860,26 +860,36 @@ from .tables.names import (
 )
 
 
-_NAME_TABLES = {}   # _cache_key -> (browse_list, {table name: (base, count)})
+_NAME_TABLES = {}   # _cache_key -> {"first": [...], "last": [...], "common": [...] or None}
 
 
 def build_name_resolver(mm, validate=None):
-    """Discover the name tables for `mm` and cache them. False if there are fewer than two
-    (surnames and first names are both needed for a name)."""
+    """Read the name tables for `mm` once and cache, per table, each name id's string (the
+    list index is the id). False if there are fewer than two (surnames and first names are
+    both needed for a name)."""
     tabs = _locate_name_tables(mm)
-    _NAME_TABLES[_cache_key(mm)] = (_walk_browse(mm), tabs)
+    browse = _walk_browse(mm)
+
+    def strings(table):
+        out = []
+        for row in table.scrape(mm):
+            k = row["ordinal"]
+            out.append(browse[k] if 0 <= k < len(browse) else None)
+        return out
+
+    _NAME_TABLES[_cache_key(mm)] = {
+        "first": strings(FIRST_NAMES_TABLE) if "first_names" in tabs else None,
+        "last": strings(SURNAMES_TABLE) if "surnames" in tabs else None,
+        "common": strings(NICKNAMES_TABLE) if "nicknames" in tabs else None,
+    }
     return len(tabs) >= 2
 
 
-def _browse_name(mm, browse, table, name_id):
-    """The browse string an id-table row points at, or None."""
-    row = table.row(mm, name_id)
-    if row is None:
+def _browse_name(names, name_id):
+    """The string for a name id, or None."""
+    if names is None or name_id is None or not 0 <= name_id < len(names):
         return None
-    try:
-        return browse[row["ordinal"]]
-    except IndexError:
-        return None
+    return names[name_id]
 
 
 def resolve_common_name(mm, common_name_id):
@@ -895,20 +905,19 @@ def resolve_common_name(mm, common_name_id):
     come from the table.
     """
     t = _NAME_TABLES.get(_cache_key(mm))
-    if not t or "nicknames" not in t[1] or common_name_id is None \
-            or common_name_id == P.NO_ID32:
+    if not t or common_name_id == P.NO_ID32:
         return None
-    return _browse_name(mm, t[0], NICKNAMES_TABLE, common_name_id)
+    return _browse_name(t["common"], common_name_id)
 
 
 def resolve_name(mm, first_name_id, last_name_id):
     """Full 'First Last' for any player from their info-field name ids, or None. Call
     build_name_resolver(mm) once first (cached per mmap)."""
     t = _NAME_TABLES.get(_cache_key(mm))
-    if not t or len(t[1]) < 2:
+    if not t:
         return None
-    first = _browse_name(mm, t[0], FIRST_NAMES_TABLE, first_name_id)
-    last = _browse_name(mm, t[0], SURNAMES_TABLE, last_name_id)
+    first = _browse_name(t["first"], first_name_id)
+    last = _browse_name(t["last"], last_name_id)
     if first is None or last is None:
         return None
     return f"{first} {last}"
