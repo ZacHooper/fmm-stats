@@ -123,7 +123,7 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
 - **Which copy of each All-Time pair is live**: 63 carries this season's "New Entry" dates,
   65 last season's. Confirm across a season boundary.
 - **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan
-  end and what the other two are; +21..+27; attribute-block indices 9 and 35; the u32 at
+  end and what the other two are; +22..+27; attribute-block indices 9 and 35; the u32 at
   +83; +95 (4 bytes), +103 (5), +117 (3); the 46 bytes at +122; the trailer's first byte and
   11 more bytes. The profile's up/down arrows beside some attributes (a change since an
   earlier value) are somewhere unread: compare two profiles of one player. Squad number is not stored (the
@@ -136,9 +136,10 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   Frem's red/blue stripes 31, Barcelona 30, Newcastle 25, FC Nordsjaelland 0c, Frem's
   goalkeeper kit 0d, ff an unused kit. Name the ids from kits whose design is known; the
   second byte (00/01/02) is unread.
-- **Snapshot +21 is probably the role shown on the profile**: Ullits 1 (goalkeeper), Nuamah
-  9 ("Winger"), Mikkel Andersson 15 ("Ball Winning Midfielder"); not the squad number (0 of
-  31 current players match). Confirm against a role list.
+- **Snapshot role ids** (`+21`, `player_lists.ROLES`): named so far 1 Goalkeeper, 5 Ball
+  Playing Defender, 9 Winger, 15 Ball Winning Midfielder, 17 Advanced Playmaker (profiles
+  and Best Eleven screens). Also seen: 4 (Dehn, Karlsen), 8 (Wass), 13 (Bisgaard Haarbo), 21
+  (Jakobsen), 32 (Thrane, Chukwuani) -- name them from one more set of screens.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry

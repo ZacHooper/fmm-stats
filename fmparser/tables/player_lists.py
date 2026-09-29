@@ -49,7 +49,7 @@ Andersson's 2022 snapshots):
                                   one is the loan end the profile shows)
     +8   snapshot_day, _year      the snapshot's last write: the 1st of each month while its
                                   season runs, then frozen
-    +20  age u8, then 7 bytes unread
+    +20  age u8, +21 role u8 (the profile's role, `ROLES`), then 6 bytes unread
     +28  36 bytes: the 23 attributes at the indices of `ATTRIBUTES`, condition (24),
          morale (25), the last five match ratings (26-30, the most recent last),
          avg_rating f32 (31); 9 and 35 unread
@@ -84,6 +84,7 @@ from .player_attributes import POSITIONS
 
 __all__ = [
     "ATTRIBUTES",
+    "ROLES",
     "CLUB_LISTS",
     "SNAPSHOT_TAIL",
     "LISTS",
@@ -118,6 +119,11 @@ ATTRIBUTES = {
 }
 _ATTR_AT = 28
 
+# The role a snapshot's profile shows, by id: the ones matched to a profile screen so far
+# (Ullits, Pedersen, Nuamah, Mikkel Andersson, Donovan). Not the squad number.
+ROLES = {1: "Goalkeeper", 5: "Ball Playing Defender", 9: "Winger",
+         15: "Ball Winning Midfielder", 17: "Advanced Playmaker"}
+
 
 # The attribute block's other bytes, by index (the Scrapbook Profile screen, verified on
 # Ernest Nuamah's 2022 snapshot: condition 87%, morale Superb, form 7-9-8-9-7, av. rating
@@ -139,7 +145,9 @@ def _tail_fields() -> List[Field]:
         Field(10, 2, "snapshot_year", U16),
         Field(12, 8, UNKNOWN, RAW),
         Field(20, 1, "age", U8, note="at the snapshot's date"),
-        Field(21, 7, UNKNOWN, RAW),
+        Field(21, 1, "role", U8, note="the profile's role: " + ", ".join(
+            f"{k} {v}" for k, v in sorted(ROLES.items()))),
+        Field(22, 6, UNKNOWN, RAW),
     ]
     i = 0
     while i < 36:
