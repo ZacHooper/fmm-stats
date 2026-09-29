@@ -67,6 +67,7 @@ def _process_honour(rec: Dict[str, Any], offset: int) -> Dict[str, Any]:
 
 COMP_HONOURS_TABLE = TableDef(
     name="comp_honours",
+    member="comp_man.dat",
     segments=(HONOUR,),
     locator=locate_comp_honours,
     include_offset=False,

@@ -83,6 +83,7 @@ def _process_stage(rec: Dict[str, Any], offset: int) -> Dict[str, Any]:
 
 COMP_STAGES_TABLE = TableDef(
     name="comp_stages",
+    member="comp_man.dat",
     segments=(STAGE,),
     locator=locate_comp_stages,
     include_offset=False,

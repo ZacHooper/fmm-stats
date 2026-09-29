@@ -150,6 +150,7 @@ def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
 
 FIXTURES_TABLE = TableDef(
     name="fixtures",
+    member=MEMBER,
     segments=(FIXTURE,),
     locator=locate_fixtures,
     include_offset=False,

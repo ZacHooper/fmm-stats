@@ -164,6 +164,7 @@ def locate_comp_rules(blob: Any) -> List[Tuple[int, int]]:
 
 COMP_RULES_TABLE = TaggedTableDef(
     name="comp_rules",
+    member="comp_<uid>.dat",
     locator=locate_comp_rules,
     schema=FILE,
 )

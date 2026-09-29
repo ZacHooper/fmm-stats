@@ -30,6 +30,8 @@ class TableDef:
     segments: Tuple[Any, ...]  # Sequence of Record | PString | CustomSegment
     locator: Callable[[Any], Optional[Tuple[int, int]]]  # mm -> (base_offset, record_count)
     include_offset: bool = False
+    # The archive member the table is read from (shape D), or None for the save itself
+    member: Optional[str] = None
     # (row, row offset) -> the row to emit, or None to drop it
     post_process: Optional[Callable[[Dict[str, Any], int], Optional[Dict[str, Any]]]] = None
 
@@ -288,6 +290,8 @@ class TaggedTableDef:
     name: str
     locator: Callable[[Any], List[Tuple[int, int]]]
     schema: Union[TaggedRecord, Callable[[TaggedBlock], TaggedRecord]]
+    # The archive member the table is read from (shape D), or None for the save itself
+    member: Optional[str] = None
 
     def schema_for(self, block: TaggedBlock) -> TaggedRecord:
         return self.schema if isinstance(self.schema, TaggedRecord) else self.schema(block)
