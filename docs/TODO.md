@@ -117,8 +117,18 @@ Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 `tables/player_lists.py` reads the 66 lists (0–30 world, one per season; 31–61 our squad,
 one per season; 62–65 two copies of a world/club pair). `squad.py` uses our club's lists;
 nothing else is emitted yet. Open:
-- **The world lists** (100 players a season): what selects them — a world XI, the highest
-  rated, the most valuable? Compare one season's list against the ratings and values.
+- **The world lists** (100 players a season): who they are is settled, why is not. Top-league
+  players only (Serie A, Premier Division, Bundesliga, First Division, the odd Ligue 1), under
+  1% Danish (5 of 600 entries on `frem-2027-08-08`), many recurring across seasons (600
+  entries, 297 players), ratings 7.1-8.0, not stored in rating order. Not a scouting list.
+  "The top 100 by season rating in those leagues" reproduces only 40-55 of each list. Likeliest:
+  a team / player of the year shortlist. Settle against the in-game awards screens.
+- **What an entry holds** (the same 168-byte tail in every list; measured on our club lists
+  against `mart.match_player_facts`, competitive first-team matches up to the entry's date):
+  +8 the date the entry was last written (it is frozen then), +112 apps, +113 goals, +115
+  assists, +116 yellows (257/257 each), +59 average rating (f32, 124/170), +114 goals
+  conceded (goalkeepers only, 71/71), +0/+2 the club's two colours (RGB555), +20 age,
+  +108..+111 international and U21 caps and goals (as of the entry's date). To declare.
 - **Lists 62–65**: a (world, club) pair stored twice; the club copy holds up to 79 players
   across several seasons and disagrees with the season lists. What screen is it?
 - **The trailer**: its first byte (2, 3, 5, 16, ff) and 11 more bytes.
