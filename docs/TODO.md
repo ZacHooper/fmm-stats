@@ -313,6 +313,19 @@ reads the newest snapshot only.
   section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
   and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
   near-misses on the larger store: feet for Dribbling, height/weight for Shooting.
+- **Retrain on time-aligned rows.** Our squad's "exact" attributes and value are player
+  attribute snapshots (`tables/player_lists.py`), dated by `attribute_snapshot_date`, and a
+  player who has not played this season carries one up to two years old. Both fits pair a
+  snapshot with the CURRENT save's record bytes, CA and reputation
+  (`scripts/fit_attribute_model.py` joins `staging.players` to `player_attributes_exact` on
+  `(season, phase, tid)`; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
+  snapshot to predict a 2026 player -- and the same stale snapshot is repeated in every
+  store snapshot until he plays again. Train only on rows whose snapshot is fresh relative to
+  the save (written at the last monthly update, ~31 days before `phase`), or pair each
+  distinct snapshot with the store snapshot nearest its date, once per snapshot. Needs a
+  rebuild so the store carries `attribute_snapshot_date`. Re-score on the held-out players
+  (`scripts/holdout_score.py`) before and after; expect a small change, but it is a flaw in the
+  labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
 - **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
   snapshots.
 
