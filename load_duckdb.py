@@ -652,6 +652,7 @@ DDL = [
     )""",
 
     # full season-by-season career rows (for display). natural key: (season, phase, tid, seq).
+    # seq -1 is the debut line (the chain's first record, at the origin club); 0.. follow it.
     # A season can appear TWICE for one player: a loan year stores the parent-club row (0 apps)
     # and the loan-club row (fee='loan') separately, exactly as the in-game screen shows them.
     # `goals` is goals CONCEDED for goalkeepers. `rating` is null for pre-career seasons (the
@@ -916,9 +917,13 @@ HISTORY_SEASON_BASE = 1971          # end_year = 1971 + the row's season code
 #
 # A player's records are one chain, followed by `next` from his head. The head must be a
 # chain's first record (nothing points at it) inside the pool; anything else means no
-# history yet. The head is the debut line: the origin club -- the Athletic-Bilbao eligibility
-# key -- and the season he started there. `player_history_seasons` carries the lines after
-# it, so its `seq` 0 is the chain's second record.
+# history yet. The head is the DEBUT LINE: the oldest season the pool holds for him, at his
+# origin club -- the Athletic-Bilbao eligibility key. For a player whose chain has not been
+# reclaimed it is a youth season (age 14-18 for the whole Frem squad at 2027-08-08); an
+# academy intake's debut line is his youth-team season, with its appearances. It is written
+# to `player_history_seasons` as `seq = -1`, so the lines after it keep `seq` 0, 1, ...;
+# what to make of it is the mart's decision. A chain of the debut line alone (an intake in
+# his first season) is a history too.
 #
 # Verified against five in-game Player-History screens (denmark-24-start.fms, 30 Jun 2023):
 # every season line matches, and the career Pld/Gls/Ast TOTALS match exactly -- Dirksen
@@ -944,12 +949,11 @@ SELECT ?, ?, c.tid, c.seq - 1, r.season, {HISTORY_SEASON_BASE} + r.season, r.clu
        r.apps, r.goals, r.assists,
        CASE WHEN r.rating = 0 THEN NULL ELSE r.rating / 100.0 END
 FROM _hist_chain c JOIN _hist_rows r ON r.row = c.row
-WHERE c.seq > 0
 """
 
 _HISTORY_SUMMARY_SQL = f"""
 WITH ends AS (
-    SELECT tid, max(seq) AS last_seq FROM _hist_chain GROUP BY tid HAVING max(seq) > 0)
+    SELECT tid, max(seq) AS last_seq FROM _hist_chain GROUP BY tid)
 SELECT ?, ?, e.tid, head.club, NULL, last.club, 'exact', ? + 16 * h.row,
        head.season, {HISTORY_SEASON_BASE} + head.season
 FROM ends e

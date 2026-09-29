@@ -8,8 +8,9 @@ table engine under it (core.LinkedTableDef, core.forest) and the loader's chain 
   LOCATE   the pool is found inside unrelated bytes from its own pointers and count, with
            no window or threshold
   SCRAPE   every record comes back column-wise, the header with it
-  LOAD     a chain reads as one debut line plus one line per later record, fee markers and
-           ratings decoded; a head nothing points at is required
+  LOAD     a chain reads as its debut line (seq -1) plus one line per later record, fee
+           markers and ratings decoded; a head nothing points at is required, a chain of one
+           record is a history
 """
 import dataclasses
 import os
@@ -92,7 +93,10 @@ def test_load():
         return
     body = pool()
     hist = over(body).scrape(body)
-    hist["heads"] = {"7": 0, "8": 3, "9": 1, "10": END}      # 9 is mid-chain, 10 has none
+    hist["heads"] = {"7": 0, "8": 3, "9": 1, "10": END, "11": 5}
+    # 9 is mid-chain and 10 has none: no history. 11 is a chain of one record (5 is a
+    # chain end nothing else points at once 2 is cut): a debut line alone is a history.
+    hist["rows"]["next"][2] = END
     con = duckdb.connect()
     con.execute("CREATE SCHEMA staging")
     for ddl in L.DDL:
@@ -102,15 +106,19 @@ def test_load():
     ph = con.execute("SELECT tid, origin_club_tid, last_season_club_tid, record_offset, "
                      "debut_season, debut_end_year FROM staging.player_history "
                      "ORDER BY tid").fetchall()
-    assert ph == [(7, 100, 400, hist["base"], 48, 2019),
-                  (8, 300, 300, hist["base"] + 48, 47, 2018)], ph
+    assert ph == [(7, 100, 200, hist["base"], 48, 2019),
+                  (8, 300, 300, hist["base"] + 48, 47, 2018),
+                  (11, 400, 400, hist["base"] + 80, 51, 2022)], ph
     s = con.execute("SELECT tid, seq, end_year, club_tid, fee, apps, goals, assists, rating "
                     "FROM staging.player_history_seasons ORDER BY tid, seq").fetchall()
-    assert s == [(7, 0, 2020, 100, "stay", 10, 2, 0, 6.5),
+    assert s == [(7, -1, 2019, 100, "stay", 0, 0, 0, None),
+                 (7, 0, 2020, 100, "stay", 10, 2, 0, 6.5),
                  (7, 1, 2021, 200, "loan", 5, 0, 0, None),
-                 (7, 2, 2022, 400, "1500", 30, 9, 4, 7.12),
-                 (8, 0, 2019, 300, "stay", 3, 0, 0, None)], s
-    print("  PASS debut line + season lines; mid-chain and missing heads read no history")
+                 (8, -1, 2018, 300, "stay", 0, 0, 0, None),
+                 (8, 0, 2019, 300, "stay", 3, 0, 0, None),
+                 (11, -1, 2022, 400, "1500", 30, 9, 4, 7.12)], s
+    print("  PASS the debut line as seq -1, then the season lines; a one-record chain is a "
+          "history; mid-chain and missing heads read none")
 
 
 def main():

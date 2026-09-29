@@ -1166,10 +1166,17 @@ WHERE NOT p.is_staff
 # Career history as the game reports it: one row per prior season per player, per snapshot.
 # The club name is resolved WITHIN THE SAME SNAPSHOT on purpose — a tid is a recycled slot,
 # so resolving it against a different snapshot can name the wrong club entirely.
+#
+# THE DEBUT LINE IS A SEASON LIKE ANY OTHER. `is_debut` (staging seq -1) is the oldest season
+# the save holds for the player, at his origin club: a youth season for anyone whose chain the
+# game has not reclaimed, and for an academy intake his youth-team season with its
+# appearances. It counts where every other line counts — the training months, a career total —
+# because it is a season he spent at that club. A store loaded before the loader wrote it has
+# no debut lines, and `is_debut` is simply never true there.
 PLAYER_CAREER_SEASONS = """
 CREATE OR REPLACE VIEW mart.player_career_seasons AS
 SELECT
-    h.season, h.phase, h.tid, ps.person_id, h.seq,
+    h.season, h.phase, h.tid, ps.person_id, h.seq, h.seq < 0 AS is_debut,
     h.hist_season, h.end_year, h.club_tid,
     COALESCE(c.name, '#' || h.club_tid) AS club,
     h.fee, h.apps, h.goals, h.assists, h.rating
@@ -1204,6 +1211,7 @@ SELECT
          ELSE COALESCE(oc.name, '#' || h.origin_club_tid) END           AS origin_club,
     CASE WHEN h.confidence = 'low' THEN NULL
          ELSE COALESCE(lc.name, '#' || h.last_season_club_tid) END      AS last_season_club,
+    h.debut_end_year                                                    AS origin_end_year,
     h.confidence
 FROM {S}.player_history h
 LEFT JOIN {S}.clubs oc ON (oc.season, oc.phase, oc.tid) = (h.season, h.phase, h.origin_club_tid)

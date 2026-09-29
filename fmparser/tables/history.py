@@ -13,15 +13,15 @@ A fixed pool of 16-byte records, allocated when the database is created and neve
             +5  u8   unnamed; the same, 0..26
             +6  u16  average rating x100 (0 before the career)
             +8  u16  club tid (0xffff = none)
-            +10 u16  fee for the move to that club: ffff none, fffe loan, fffd / 0 free,
-                     else £000s
+            +10 u16  transfer fee code: ffff none, fffe loan, fffd / 0 free, else £000s
+                     (`mart.transfers` reads it as the fee of the move AWAY from this club)
             +12 u32  NEXT RECORD INDEX in this record's chain; 0xFFFFFFFF ends the chain
 
 One record is one line of the in-game Player History screen: a season, the club it was
 played at and that season's numbers. A player's records are one chain, starting at the
 record his attribute record points at (`history_head`, `tables/player_attributes.py`);
-nothing in this table names a player. The first record is the debut line -- the origin club
-and the season he started there, usually with no appearances. A season played during the
+nothing in this table names a player. The first record is the debut line: the oldest season
+the pool holds for him, at his origin club. A season played during the
 career is appended into a recycled record anywhere in the pool, so a chain jumps.
 
 The invariant is that the pointers form a forest -- every record on exactly one chain

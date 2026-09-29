@@ -255,13 +255,6 @@ richest history in an older snapshot), and if material, union history across sna
 `fmstats/mart.py` — which also fixes the mart-only R2 object, where `player_career_seasons`
 reads the newest snapshot only.
 
-A decision in the same place: each chain's FIRST record is the debut line the in-game
-Player History screen shows (origin club, the season he started there, usually 0 apps).
-`staging.player_history` keeps it as `origin_club_tid` + `debut_season`, but
-`player_history_seasons` starts at the second record, so youth careers read one season
-short. Adding it as a line changes `mart.at_club_spells` and the home-grown training months
-(`mart.player_training`) — decide, then measure the registration change before shipping.
-
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
   penalties or deflections; until settled, no conversion rate from these columns.

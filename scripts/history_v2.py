@@ -40,7 +40,7 @@ def club_names(db):
 
 
 def player_lines(hist, tid):
-    """(debut line, [season lines]) for one player, read by the loader's own SQL."""
+    """[season lines] for one player, debut line first, read by the loader's own SQL."""
     import duckdb
     import load_duckdb as L
     con = duckdb.connect()
@@ -49,12 +49,10 @@ def player_lines(hist, tid):
         if "staging.player_history" in ddl:
             con.execute(ddl)
     L.load_history(con, 0, "", hist)
-    debut = con.execute("SELECT origin_club_tid, debut_end_year FROM staging.player_history "
-                        "WHERE tid = ?", [tid]).fetchone()
     lines = con.execute("SELECT end_year, club_tid, apps, goals, assists, rating, fee "
                         "FROM staging.player_history_seasons WHERE tid = ? ORDER BY seq",
                         [tid]).fetchall()
-    return debut, lines
+    return lines
 
 
 def main():
@@ -79,11 +77,9 @@ def main():
                 print(f"    {k:7d}  " + "  ".join(f"{c}={rows[c][k]}" for c in rows))
             return
         print(f"  tid {a.player} -> head record {hist['heads'].get(str(a.player))}")
-        debut, lines = player_lines(hist, a.player)
-        if debut is None:
+        lines = player_lines(hist, a.player)
+        if not lines:
             print(f"  tid {a.player}: no history"); return
-        print(f"    {debut[1]-1}/{str(debut[1])[2:]}  "
-              f"{names.get(debut[0], f'club {debut[0]}')[:30]:<30s} (debut)")
         tot = [0, 0, 0]
         for yr, club, apps, goals, assists, rating, fee in lines:
             club = names.get(club, f"club {club}")
