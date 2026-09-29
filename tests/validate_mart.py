@@ -364,11 +364,11 @@ def main():
     # This one window IS fixed forever — both endpoints are calendar-past, so re-running
     # against a later snapshot can't change it. Safe to keep pinned exactly.
     garly_2024_growth = int(
-        g[g.phase == "2024-06-03"].iloc[0]["attr_total"]
+        g[g.phase == "2024-06-28"].iloc[0]["attr_total"]
         - g[g.phase == "2023-07-02"].iloc[0]["attr_total"])
     check("Garly 2024 growth = +11", garly_2024_growth == 11)
     check("the estimated->real step is marked not-comparable",
-          not bool(g[g.phase == "2022-03-19"].iloc[0]["delta_comparable"]),
+          not bool(g[g.phase == "2022-04-02"].iloc[0]["delta_comparable"]),
           "the -1 when he joined us is an artifact, not a decline")
 
     # Each role sums the 18 attributes its role uses — outfielders drop the keeper block,
@@ -378,7 +378,7 @@ def main():
                BOOL_AND(attr_total = outfield_total) AS uses_outfield_set,
                BOOL_AND(attr_total = gk_total)       AS uses_gk_set
         FROM mart.player_growth
-        WHERE season = 2024 AND phase = '2024-06-03'
+        WHERE season = 2024 AND phase = '2024-06-28'
           AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
         GROUP BY is_gk ORDER BY is_gk
     """).df()
@@ -394,7 +394,7 @@ def main():
           AVG(CASE WHEN is_gk = 0 THEN gk_block_total END) AS outfield_gk_block,
           AVG(CASE WHEN is_gk = 1 THEN gk_block_total END) AS keeper_gk_block
         FROM mart.player_growth
-        WHERE season = 2024 AND phase = '2024-06-03' AND NOT is_estimated
+        WHERE season = 2024 AND phase = '2024-06-28' AND NOT is_estimated
           AND club_tid IN (SELECT club_tid FROM mart.our_clubs)
     """).fetchone()
     # 5 attributes: an inert block sums to well under 10, a live one to ~50+.
@@ -447,7 +447,7 @@ def main():
         SELECT
           COUNT(*) FILTER (WHERE is_estimated)     AS estimated,
           COUNT(*) FILTER (WHERE NOT is_estimated) AS real
-        FROM mart.player_growth WHERE season = 2024 AND phase = '2024-06-03'
+        FROM mart.player_growth WHERE season = 2024 AND phase = '2024-06-28'
     """).fetchone()
     check("outside players are flagged as estimated", est[0] > 20000, f"{est[0]} estimated")
     check("our squad reads as real", est[1] >= 30, f"{est[1]} real")

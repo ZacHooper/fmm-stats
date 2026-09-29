@@ -177,13 +177,12 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `staging.clubs` —
   probably youth/academy or defunct clubs in another structure.
 
-### 11. Correct the existing snapshot dates to the header dates
-New saves are dated from their header (`save_header.py`); the 38 existing labels were entered
-by hand and 19 of the 30 held locally are off by 1-25 days (`frem-2024-06-03` is really
-2024-06-28). The two byte-identical duplicate pairs resolve the same way: `frem-2024-05-25` is
-2024-06-02 and `frem-2024-06-03` is 2024-06-28. Correcting them means the manifest's phases,
-and, to keep file = label = date, renaming the saves, their `.gz`, the R2 objects, the
-`output/` dirs and the scout-log keys, then a rebuild.
+### 11. Read the season rollover from the game, not from `careers.py`
+A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
+20 June, measured from the managed club's record and set per career as `Career.rollover`. A
+new career needs it measured again. The game holds it -- most likely each nation's calendar in
+the data dictionary's rule files (#7, #8) -- so decode it there. The fixture list does not
+change at the rollover, and no fixed-offset season field exists in the first 14 MB.
 
 ---
 
@@ -321,11 +320,17 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   `rclone config update r2 access_key_id <NEW> secret_access_key <NEW>`.
 - **Position write-ups** for DM, CM, AML, AMC, AMR and ST, plus a verdict on 4-1-2-2-1, against
   the current Superliga squad.
-- **Save housekeeping** (needs Zac): the snapshot labelled `fm_save1` should be canonically
-  named (scout-log keys embed the label; `canonicalise_names.py` is deleted, so by hand or
-  restored from git); two pairs of Frem saves are byte-identical (`2024-05-25` ==
-  `2024-06-02`, `2024-06-03` == `2024-06-28`); four saves in `unfiled/` need in-game dates;
-  stale `output/` dirs and the pre-rewrite git backup on the local machine can go.
+- **Rebuild and republish after the date correction** -- `seeds/manifest.csv` now carries each
+  save's header date as its phase (20 of 37 moved, 1-25 days), so the store must be rebuilt
+  (`scripts/rebuild.py --career frem`) and republished. File names and labels were kept, so
+  19 labels no longer match their dates.
+- **Save housekeeping** (needs Zac): the local duplicates `frem-2024-06-02.fms` and
+  `frem-2024-06-28.fms` are byte-identical copies of the manifest's `frem-2024-05-25` and
+  `frem-2024-06-03`, which their headers date 2024-06-02 and 2024-06-28 -- the extra copies can
+  go. The four `unfiled/` saves are dated by their headers: `frem/denmark-mid-22` 2021-10-02,
+  `bucaspor/22-23-start` and `bucaspor/fm_save3` 2022-06-20 (check whether they are the same
+  save), `bucaspor/fm_save1-24-mid` 2023-11-08. Stale `output/` dirs and the pre-rewrite git
+  backup on the local machine can go.
 - **`careers.py` hardcodes `reserve_tid`** — the club record's `main_club_tid` could derive it.
 - **`tests/test_attribute_model.py` skips without a repo-local store** — open it through
   `fmstats.store.open_store()` as `tests/test_fmq.py` does.

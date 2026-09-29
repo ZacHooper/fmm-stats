@@ -2,7 +2,7 @@
 """Unit tests for the save header (fmparser/tables/save_header.py), no save needed.
 
   TITLE     the 250-byte NUL-padded title reads to date / manager / nickname
-  CAMPAIGN  the 30 June rollover, and None for a new career's first save
+  CAMPAIGN  the per-career rollover, and None for a new career's first save
 """
 import os
 import sys
@@ -34,13 +34,16 @@ def test_title():
 
 
 def test_campaign():
-    print("TESTING campaign (30 June rollover)")
-    assert H.campaign("2024-06-29", True) == 2024
-    assert H.campaign("2024-06-30", True) == 2025
-    assert H.campaign("2024-06-30", False) == 2025      # past the rollover, no matches yet
-    assert H.campaign("2024-11-22", True) == 2025
-    assert H.campaign("2025-01-10", True) == 2025
-    assert H.campaign("2021-06-27", False) is None      # a new career's first save
+    print("TESTING campaign (per-career rollover)")
+    dk, tr = (6, 30), (6, 20)
+    assert H.campaign("2024-06-29", True, dk) == 2024
+    assert H.campaign("2024-06-30", True, dk) == 2025
+    assert H.campaign("2024-06-30", False, dk) == 2025  # past the rollover, no matches yet
+    assert H.campaign("2024-11-22", True, dk) == 2025
+    assert H.campaign("2025-01-10", True, dk) == 2025
+    assert H.campaign("2021-06-27", False, dk) is None  # a new career's first save
+    assert H.campaign("2022-06-19", True, tr) == 2022   # Turkey rolls over on 20 June
+    assert H.campaign("2022-06-20", False, tr) == 2023
     print("  PASS campaign")
 
 

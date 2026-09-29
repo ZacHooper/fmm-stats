@@ -32,8 +32,8 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 - **Season = end-year of the campaign** (22/23 → 2023, Aus-financial-year style).
 - **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), written explicitly into `summary.json`
   (`season` + `phase`) by `extract.py`. **The loader auto-derives both — normally pass NEITHER
-  `--season` nor `--phase`.** `phase` is the header date; `season` follows the game's 30 June
-  rollover. The one exception is a new career's first save (0 matches, dated before 30 June):
+  `--season` nor `--phase`.** `phase` is the header date; `season` follows the career's
+  rollover day (`Career.rollover`, Frem 30 June). The one exception is a new career's first save (0 matches, dated before the rollover):
   pass `--season` for it. Only pass `--season/--phase` otherwise to force/override a slice.
   (Legacy stores may still hold the words `start/mid/end`; those keep working and sort correctly
   alongside dates — the ordering treats words as epoch.)

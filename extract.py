@@ -88,18 +88,18 @@ def auto_label(season):
     return f"{end_year}-{_period(month)}", latest
 
 
-def season_phase(save_date, matches):
+def season_phase(save_date, matches, rollover):
     """Authoritative (season:int|None, phase:str|None) for the snapshot.
 
     phase is the save's own in-game date, from its header title (`save_header`); the latest
     match date stands in only if the title does not read. season is the campaign end-year,
-    with the game's 30 June rollover. None for a new career's first save (no matches, dated
-    before 30 June), which the loader places with --season."""
+    from the career's rollover day. None for a new career's first save (no matches, dated
+    before the rollover), which the loader places with --season."""
     dates = sorted(m["date"] for m in matches if m["date"])
     phase = save_date or (dates[-1] if dates else None)
     if phase is None:
         return None, None
-    return HDR.campaign(phase, bool(dates)), phase
+    return HDR.campaign(phase, bool(dates), rollover), phase
 
 
 _PHASES = ("start", "mid", "end")
@@ -609,10 +609,10 @@ def main():
     # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
     # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py.
     # NB: `season` here is the MATCHES list; injuries key off the end-year int, derived below.
-    # A match-less save (a new career's first, or one just past the 30 June rollover) holds the
+    # A match-less save (a new career's first, or one just past the rollover) holds the
     # prior campaign's weeks, already captured -- skip it rather than file them under the new one.
     header = HDR.read_save_header(mm)
-    snap_season, snap_phase = season_phase(header["date"], season)   # the DB grain
+    snap_season, snap_phase = season_phase(header["date"], season, career.rollover)   # the DB grain
     squad_tids = [t for t, p in players.items()
                   if p["club_tid"] in (career.managed_tid, career.reserve_tid)]
     # the same weekly series also carries an ON-LOAN bit (bit 5), which gives exact loan
