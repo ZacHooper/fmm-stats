@@ -9,8 +9,9 @@ A fixed pool of 16-byte records, allocated when the database is created and neve
             +1  u8   appearances
             +2  u8   goals (conceded, for a goalkeeper)
             +3  u8   assists
-            +4  u8   unnamed; 0 on every record before the career, then 0..7, never above +1
-            +5  u8   unnamed; the same, 0..26
+            +4  u8   red cards (0 before the career: the game keeps cards only for
+                     seasons played during it)
+            +5  u8   yellow cards (the same)
             +6  u16  average rating x100 (0 before the career)
             +8  u16  club tid (0xffff = none)
             +10 u16  transfer fee code: ffff none, fffe loan, fffd / 0 free, else £000s
@@ -65,8 +66,8 @@ HISTORY_ROW = Record("history_row", 16, [
     Field(1,  1, "apps",    U8),
     Field(2,  1, "goals",   U8,  note="conceded, for a goalkeeper"),
     Field(3,  1, "assists", U8),
-    Field(4,  1, "unk4",    U8,  note="0 before the career; never more than apps"),
-    Field(5,  1, "unk5",    U8,  note="0 before the career; never more than apps"),
+    Field(4,  1, "reds",    U8,  note="0 before the career"),
+    Field(5,  1, "yellows", U8,  note="0 before the career"),
     Field(6,  2, "rating",  U16, note="average rating x100; 0 before the career"),
     Field(8,  2, "club",    U16, note="club tid; 0xffff = none"),
     Field(10, 2, "fee",     U16, note="ffff none, fffe loan, fffd / 0 free, else £000s"),

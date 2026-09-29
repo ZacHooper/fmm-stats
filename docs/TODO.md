@@ -174,11 +174,11 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
   avg). Not attendance — `mart.club_attendance` is. Carried in `staging.club_details` only.
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `staging.clubs` —
   probably youth/academy or defunct clubs in another structure.
-- **Career history** (`tables/history.py`): `unk4` / `unk5`, two per-season counts that are 0
-  before the career started and never exceed that season's apps (0..7 and 0..26 on
-  frem-2027-08-08 — cards and man-of-the-match fit; check against a Player History screen).
-  And the 8 bytes after the pool, `21 04 81 00 xx 00 00 00` on every save: not a record, not
-  the club-records grid, not yet claimed.
+- **Career history** (`tables/history.py`): the 8 bytes after the pool, `21 04 81 00 xx 00 00
+  00` on every save: not a record, not the club-records grid, not yet claimed. The history
+  lines' `yellows` / `reds` are in `staging.player_history_seasons` but not yet in
+  `mart.player_career_seasons` -- add them after the next publish, since the published store
+  lacks the columns and the mart re-binds against it.
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
   (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records.
 
