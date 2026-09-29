@@ -156,6 +156,38 @@ class CountedList:
         return {self.name: vals}, end
 
 
+class FixedList:
+    """A packed list whose length the LAYOUT fixes: `[n x item]`, n the same on every row.
+
+    A segment of a `TableDef` row, like `CountedList` but with no count in the bytes: the
+    game preallocates n slots and fills them in place. Each element is read as `item` (a
+    `Record`); an element that is an unwritten slot is still read, and the table's
+    `post_process` decides what an empty slot looks like.
+    """
+    __slots__ = ("name", "item", "n")
+
+    def __init__(self, name: str, item: Any, n: int):
+        self.name = name
+        self.item = item
+        self.n = n
+
+    def __repr__(self) -> str:
+        return f"FixedList({self.name!r}, {self.item.name} x {self.n})"
+
+    @property
+    def span(self) -> int:
+        return self.n * self.item.span
+
+    def read(self, mm: Any, offset: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
+        """`({name: [...]}, next_offset)`, or None when the list overruns `limit`."""
+        end = offset + self.span
+        if end > limit:
+            return None
+        stride = self.item.span
+        return {self.name: [self.item.read(mm, offset + i * stride)
+                            for i in range(self.n)]}, end
+
+
 # ---- the TAGGED format -----------------------------------------------------------------------
 # The save's data dictionary (`tables/rule_files.py`) and the archive's `comp_<uid>.dat`
 # members (`tables/comp_rules.py`) store key-value fields in one format:

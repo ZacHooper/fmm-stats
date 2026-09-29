@@ -41,13 +41,13 @@ that do not fit the four regimes.
 
 | shape | how you find it | the validator that bounds it | used by |
 |---|---|---|---|
-| **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`) |
+| **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`); club records (`[u16 count]` straight after the history pool, one variable-length row per club) |
 | **B. Linked list** | each row holds the NEXT row's index (`FFFFFFFF` ends a chain); the rows it has not moved name the pool's base | the forest check on every row: no row reached twice, no pointer out of the pool, and every row on a chain from a head (`core.forest`) | career-history pool |
-| **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), club records (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
+| **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), the record blocks inside each club-records row (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
 | **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status, `attr_record`, injuries |
-| **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | our matches, squad snapshot; club records' region bound (the grid itself is C) |
+| **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | our matches, squad snapshot |
 
 The rest of this part is one section per shape: what it looks like in the bytes, how to find
 it, and **the way it fails** — because every one of these has cost real debugging time, and the
@@ -132,8 +132,8 @@ for a header, and the old rule read record 0's season off the far end of the poo
 
 ### C. Preallocated grid — the shape that surprised us
 
-These tables **ship full**. On a day-one save, the club-records region already contains 25,368
-twenty-one-byte rows of empty sentinels, and the stride-70 pool is 100% empty — falling to
+These tables **ship full**. On a day-one save, the club-records table's 2,114 team blocks
+already hold 25,368 twenty-one-byte rows of empty sentinels, and the stride-70 pool is 100% empty — falling to
 92.5% by 2026 as the career fills it in. They also **grow**, by exact multiples of the record
 size. Preallocation and append are not alternatives here; the file does both.
 
@@ -152,6 +152,16 @@ populated row, collect its offsets, and find the residue class mod the stride th
 longest contiguous run. `matchslots.locate` does this. Note the discipline in its signature —
 `bridge_slots` spans the 7% of slots carrying no trailer, and it bounds a **gap**, not the
 table, so widening it cannot change the row count.
+
+**A grid can sit inside a framed table.** The club records are a shape A table -- a u16
+count, then one row per club, `[club_tid][n][n league lists][4 blocks of 12 slots]` -- and
+each block is a preallocated grid whose slots fill in place, independently of each other
+(`core.FixedList`, `tables/club_records.py`). Read as a free-standing grid, by a sweep for
+12 plausible rows agreeing on one club, the same bytes gave the right values and the wrong
+table: a block with any unwritten slot failed the 12-row test and was dropped whole (a
+club's whole current season, for every club not yet at 12 records), and a player block,
+which has no club id of its own, went to the nearest team block's club. Walked from the
+count, the club is the row's key and an empty slot is `comp_cid` / `player_tid` = all-FF.
 
 **How it fails.** A tuned bound silently becomes the answer. A miss counter or a plausibility
 window makes the row count a function of the constant rather than of the table — which is how
@@ -232,12 +242,11 @@ wrong point in time. Validate every hit against the info spine, exactly as the s
 Rows sit one after another, but nothing declares how many: the array ends where a marker, a
 delimiter or a filler wall says it does. Career data is mostly like this.
 
-**Filler walls.** Long runs of `00`/`ff` separate sections cleanly, which is how
-`clubrecords.region()` bounds itself: start at the end of the history pool (a structure that
-knows its own extent), end at the first 4 KB run of zeros. That change alone took the
-club-records scan from 26.4 s to 2.3 s, byte-identically, because it stopped scanning 60 MB to
-find records that live in 0.5 MB. (The club-records table itself is a shape C grid; G is only
-how its region's end is found.)
+**Filler walls.** Long runs of `00`/`ff` separate sections cleanly, and a region between a
+structure that knows its own extent and the next wall is a far smaller search than the file.
+Before assuming a region needs one, look in front of its first record for a count (shape
+A): the club-records region was bounded this way until the u16 in front of it turned out to
+be the club count.
 
 **Markers and delimiters.** `attributes.CLUB_MARKER` locates the squad snapshot;
 `matches.find_match_region` finds our own games, each opened by a delimiter cluster.
@@ -266,8 +275,8 @@ alignment is field for field —
 So a "fixture" there is one club's record-setting match plus the competition of the following
 category's row. Region agreement is 98.9% on `frem-2026-06-11` and 96.7% on
 `bucaspor-2023-03-25`; the 1–3% outside come from clusters the year-marker scan opens in the
-name tables and the transfer band, and are suspected false positives. Re-pointing the sweep at
-`clubrecords.region()` would drop them — an *output* change, so it is documented and not done.
+name tables and the transfer band, and are suspected false positives. The sweep has since
+been deleted; the club-records table is read from its own count.
 
 **The two window-bounded scrapers were measured before being replaced, and the measurement
 said not to.** `ATTR_LO/HI` (3.8–6.6 MB) and `CONTRACTREC_LO/HI` (16–40 MB) return counts
@@ -318,7 +327,7 @@ The modules:
 | module | what it holds |
 |---|---|
 | `fmparser/core/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `tag4`. Pure `(buffer, offset) -> value`. |
-| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), and the tagged format (`read_tree`). |
+| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), `FixedList` (`[n x item]`, n fixed by the layout), and the tagged format (`read_tree`). |
 | `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
 | `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged), `LinkedTableDef` (a linked pool, with `forest` / `follow`); `record_instances` lists every record a walk reads. |
 
@@ -422,7 +431,8 @@ in which class you reach for.
    locator keeps the blocks that are yours (the rule files keep those with `ftye` + `file`).
 3. **Declare the record.** Packed: a `Field` per byte range. A variable-length row is a
    sequence of segments -- `Record`s for the fixed stretches, `PString` for a
-   length-prefixed string, `CountedList(name, count, item)` for `[count][count x item]` --
+   length-prefixed string, `CountedList(name, count, item)` for `[count][count x item]`,
+   `FixedList(name, item, n)` for n preallocated slots --
    and the walk steps through them in order (`tables/nations.py`: three strings and three
    counted lists between fixed stretches). Tagged: a `Tag` per tag you
    read, and `unread=` for every other tag seen. Build `unread` from the saves, not by

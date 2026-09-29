@@ -150,21 +150,6 @@ def claims(mm, n):
     except Exception as exc:
         print(f"  ! archive failed: {exc}", file=sys.stderr)
 
-    # ---- modules not yet on core: clubrecords ---------------------------------------
-    from fmparser.tables import person_info as PI
-    info = PI.scrape_person_info(mm)
-    try:
-        from fmparser import clubrecords as CR
-        valid = {v["club_tid"] for v in info.values()
-                 if v.get("club_tid") and v["club_tid"] != PI.NO_CLUB}
-        rec = CR.build(mm, valid, valid_players=set(info))
-        measured("clubrecords.team",
-                 [(r["offset"], r["offset"] + CR.TEAM_STRIDE) for r in rec["team_records"]])
-        measured("clubrecords.player",
-                 [(r["offset"], r["offset"] + CR.PLAYER_STRIDE) for r in rec["player_records"]])
-    except Exception as exc:
-        print(f"  ! clubrecords failed: {exc}", file=sys.stderr)
-
     from fmparser.tables import save_header as HDR
     measured("tables.save_header", [(0, HDR.SAVE_HEADER.span)])
     declared("reference.name_table", 0, 520_000)

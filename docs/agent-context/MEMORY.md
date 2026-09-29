@@ -5,7 +5,7 @@
 - [ETL: DuckDB + dashboard](etl-duckdb-dashboard.md) — load_duckdb.py→fm.duckdb (staging schema), role_weights ratings, fmq CLI + fmstats query layer (R2 store by default)
 - [Seyhun attr investigation](seyhun-attr-investigation.md) — FIXED: attr_record reads freshest snapshot copy + player value; snapshot byte-map in docs/ATTRIBUTE_DECODING.md §7
 - [Loan status unreliable](loan-status-unreliable.md) — ignore loaned_out/squad_status for selection; rank by minutes instead
-- [Club records decoded](../light-results-record.md) — the ~47MB region is the **Club History** tables (Team + Player Records), slot index = category, verified against screenshots; `fmparser/clubrecords.py`, `staging.club_records` / `staging.player_records`.
+- [Club records decoded](../light-results-record.md) — the ~47MB region is the **Club History** tables (Team + Player Records), slot index = category, verified against screenshots; `fmparser/tables/club_records.py`, `staging.club_records` / `staging.player_records` / `staging.club_league_history`.
 - [Light results rolling buffer](light-results-rolling-buffer.md) — **SUPERSEDED**: the region is the CLUB RECORDS tables, not results; nothing is deleted. See [`docs/light-results-record.md`](../light-results-record.md) + `fmparser/clubrecords.py`.
 - [Master schedule parsing plan](master-schedule-plan.md) — **SUPERSEDED**: 55-58MB is `regions.MATCH_LO`, our own club's matches, already parsed; the 'fixture pointer' is not a file offset.
 - [FMM tactic options](fmm-tactic-options.md) — FMM22 mobile role lists + team-instruction menu; no player instructions. Use when giving tactical advice

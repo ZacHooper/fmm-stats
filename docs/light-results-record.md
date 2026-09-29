@@ -5,7 +5,7 @@
 > (biggest win, biggest defeat, highest scoring match, longest streaks) and Player Records
 > (most goals in a season, youngest player, highest transfer fee). Identified against in-game
 > screenshots of Southampton's Club History and now parsed by
-> [`fmparser/clubrecords.py`](../fmparser/clubrecords.py), guarded by
+> [`fmparser/tables/club_records.py`](../fmparser/tables/club_records.py), guarded by
 > `tests/test_club_records.py`.
 >
 > **Read that module's docstring first.** This file is kept because the audit that led there

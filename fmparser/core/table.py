@@ -8,7 +8,8 @@ engine does the walk. Two kinds, matching the two kinds of record (`schema.py`):
 row is a composite sequence of typed segments, walked by offset:
 1. Fixed Record layouts (from `schema.py`).
 2. Variable-length segments whose length the bytes declare (`types.py`): `PString`, a
-   length-prefixed string, and `CountedList`, `[count][count x Record]`.
+   length-prefixed string, and `CountedList`, `[count][count x Record]`; and `FixedList`,
+   `[n x Record]` with n fixed by the layout.
 3. Custom dynamic segments implementing `read(mm, pos, limit)`.
 
 `LinkedTableDef` -- a fixed pool of PACKED rows, each holding the index of the next row in
@@ -210,7 +211,7 @@ def record_instances(mm: Any, table: Any) -> Iterator[Tuple[Record, int]]:
     """Every packed record a table's walk reads, as (Record, offset): each row's fixed
     segments, each element of its counted lists, and a linked table's header and rows. The
     walk stops where `walk_table` stops, at the first row that breaks the invariant."""
-    from .types import KIND_WIDTH, CountedList
+    from .types import KIND_WIDTH, CountedList, FixedList
     if isinstance(table, LinkedTableDef):
         base, count = table.run(mm)
         if table.header is not None:
@@ -244,6 +245,8 @@ def record_instances(mm: Any, table: Any) -> Iterator[Tuple[Record, int]]:
                         first = pos + KIND_WIDTH[seg.count]
                         n = (end - first) // seg.item.span
                         found.extend((seg.item, first + i * seg.item.span) for i in range(n))
+                    elif isinstance(seg, FixedList):
+                        found.extend((seg.item, pos + i * seg.item.span) for i in range(seg.n))
                     rec.update(part)
                     pos = end
             if not ok or (table.invariant is not None and not table.invariant(rec, index)):

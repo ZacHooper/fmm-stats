@@ -73,6 +73,7 @@ from .types import (
     U32,
     UNKNOWN,
     CountedList,
+    FixedList,
     PString,
     TreeError,
     read_tree,
@@ -113,6 +114,7 @@ __all__ = [
     "KIND_WIDTH",
     "PString",
     "CountedList",
+    "FixedList",
     "TreeError",
     "read_tree",
     # Schema

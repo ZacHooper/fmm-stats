@@ -213,7 +213,10 @@ nice detail and it's easy to miss if you only look at the season in question.
     AND phase = (SELECT MAX(phase) FROM f.staging.club_records WHERE club_tid IN (SELECT club_tid FROM m.mart.managed_club))
   ORDER BY category, slot
   ```
-  and the equivalent on `f.staging.player_records` for individual season records. Cross-check
+  and the equivalent on `f.staging.player_records` for individual season records.
+  `record_table` says which Club History screen a row is from: `'overall'` (the all-time
+  records) or `'season'` (the current season's, where `record_season` reads 2020 and means
+  nothing). A "still-standing" record is an `'overall'` row. Cross-check
   the `record_season`/score against the target season's own `club_matches` rows (same
   opponent, same score, date within a few days — `day` is a day-of-year, roughly ±1 vs the
   real date) before claiming a record is "from that year" — several of these tables' records

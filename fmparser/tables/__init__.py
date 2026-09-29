@@ -4,6 +4,8 @@
 from .cities import CITIES_TABLE, CITY, CITY_RECORD, scrape_cities
 from .clubs import CLUB_TABLE, club_details, locate_clubs, scrape_clubs
 from .history import HISTORY_TABLE, history_heads, locate_history, scrape_history
+from .club_records import (CLUB_RECORDS_TABLE, club_records_table_spans, locate_club_records,
+                           scrape_club_records)
 from .competitions import COMP_TABLE, comp_refs, locate_competitions, scrape_competitions
 from .contracts import (
     CONTRACT,
@@ -177,6 +179,7 @@ TABLES = {
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
     "history": HISTORY_TABLE,
+    "club_records": CLUB_RECORDS_TABLE,
     "comp_honours": COMP_HONOURS_TABLE,
     "comp_rules": COMP_RULES_TABLE,
     "rule_files": RULE_FILES_TABLE,
@@ -206,6 +209,11 @@ __all__ = [
     "history_heads",
     "locate_history",
     "scrape_history",
+    # Club records
+    "CLUB_RECORDS_TABLE",
+    "club_records_table_spans",
+    "locate_club_records",
+    "scrape_club_records",
     # Cities
     "CITIES_TABLE",
     "CITY",

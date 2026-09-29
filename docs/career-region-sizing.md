@@ -51,7 +51,7 @@ fixed things.
 
 ## 2. The 209-byte handoff — a regularity, NOT the invariant to locate by
 
-Immediately after the slab's proven end, the club-records table (`fmparser/clubrecords.py`)
+Immediately after the slab's proven end, the club-records table (`fmparser/tables/club_records.py`)
 begins **209 bytes later on the three saves this section was first written from**:
 
 | save | slab end | club-records start | gap |
@@ -77,8 +77,10 @@ way it is wrong is the more useful finding:
   **preallocated and empty**, which is why the scraper correctly returns nothing there.
 
 So the usable invariant is "**the club-records grid begins within ~200 bytes of the slab's
-end**", and that is what `clubrecords.region()` uses as its lower bound — not `+209`. A
-locator keyed on 209 would mis-anchor on at least one save in 27.
+end**" -- not `+209`. A locator keyed on 209 would mis-anchor on at least one save in 27.
+(Superseded: the table starts at the slab's end exactly, with a u16 club count, and each
+club's first team block sits after its variable-length league history --
+`tables/club_records.py`.)
 
 ## 3. Club-records — looked like a second fixed pool, is not
 
@@ -251,8 +253,8 @@ This is the general recipe worth carrying into whatever gets checked next (see
 
 No new script was shipped this pass (the working scripts were exploratory and removed); the
 method above is written out in enough detail to reimplement directly against
-`fmparser/history.py` (`locate()`, `STRIDE`), `fmparser/clubrecords.py`
-(`scrape_team_records`, `scrape_player_records`), and `fmparser/matches.py`
+`fmparser/history.py` (`locate()`, `STRIDE`), `fmparser/tables/club_records.py`
+(`scrape_club_records`), and `fmparser/matches.py`
 (`match_anchors`, `parse_header`, `_valid_match_header`, `find_match_region`). A natural
 follow-up is turning the exact (no-sampling) history-slab locator into a real function alongside
 `history.locate()`, the same way `scripts/audit/audit_table_headers.py --confirm` exists next to the

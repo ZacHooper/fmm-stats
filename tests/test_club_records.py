@@ -2,9 +2,9 @@
 """
 Guard the club-records decode against in-game ground truth.
 
-`fmparser/clubrecords.py` reads the club records region previously misidentified as match
-RESULTS. It is the Club History screens instead, and the only thing that
-establishes that -- or catches a regression in it -- is a set of values read off the game.
+`fmparser/tables/club_records.py` reads each club's Club History screens: the Team Records
+and Player Records tables. The only thing that establishes the decode -- or catches a
+regression in it -- is a set of values read off the game.
 
 The trap this test exists for is specific and would otherwise pass unnoticed: the club tid
 sits at the END of the 21-byte record. A record held in two slots is stored twice in adjacent
@@ -23,8 +23,8 @@ sys.path.insert(0, ROOT)
 
 from tests.harness import skip  # noqa: E402
 
-from fmparser import clubrecords as CR      # noqa: E402
-from fmparser.tables.person_info import NO_CLUB, scrape_person_info  # noqa: E402
+from fmparser.tables import club_records as CR      # noqa: E402
+from fmparser.tables.person_info import scrape_person_info  # noqa: E402
 from fmparser.save import Save              # noqa: E402
 
 SAVE = os.path.expanduser("~/fm-saves/frem/frem-2026-06-11.fms")
@@ -80,14 +80,19 @@ PLAYER_VALUES = [
 ]
 
 
+# Frem's league history on the same save: (cid, start year, position, clubs). The finishes
+# are the league tables rebuilt from our own fixture list (`mart.league_tables`, end-year
+# seasons 2024, 2025, 2026): champions in the 2023/24 1. Division, then 6th and 3rd.
+FREM = 346
+FREM_LEAGUES = [(3, 2023, 1, 12), (2, 2024, 6, 12), (2, 2025, 3, 12)]
+
+
 def main():
     if not os.path.exists(SAVE):
         return skip(f"{os.path.basename(SAVE)} not found (fetch with rclone or rebuild.py)")
     mm = Save(SAVE).mm
     info = scrape_person_info(mm)
-    valid = {v["club_tid"] for v in info.values()
-             if v.get("club_tid") and v["club_tid"] != NO_CLUB}
-    built = CR.build(mm, valid)
+    built = CR.scrape_club_records(mm)
     team = [r for r in built["team_records"] if r["club_tid"] == SOUTHAMPTON]
     player = [r for r in built["player_records"] if r["club_tid"] == SOUTHAMPTON]
     ok = True
@@ -179,6 +184,15 @@ def main():
         hit = any(abs(v - value) < max(0.005, abs(value) * 1e-6) for v in have)
         ok &= hit
         print(f"  {'ok  ' if hit else 'FAIL'} {label}")
+
+    print("\nLEAGUE HISTORY — Frem vs the league tables:")
+    got = {(r["cid"], r["year"]): (r["position"], r["teams"])
+           for r in built["league_history"] if r["club_tid"] == FREM}
+    for cid, year, pos, teams in FREM_LEAGUES:
+        good = got.get((cid, year)) == (pos, teams)
+        ok &= good
+        print(f"  {'ok  ' if good else 'FAIL'} {year}/{(year + 1) % 100:02d} cid {cid}: "
+              f"{got.get((cid, year))} (expected {(pos, teams)})")
 
     print("\n" + ("PASS: club records match the game" if ok else "FAIL: see above"))
     return 0 if ok else 1
