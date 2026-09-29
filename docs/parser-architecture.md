@@ -387,7 +387,12 @@ in which class you reach for.
 
 1. **Find it** -- entropy profile, then look in front of record 0 for the count (Part 1). A
    packed table's frame is `[>=8 x FF][count]`; a tagged block's is `[u32 n][tag 01 type]`.
-2. **Write the locator.** Packed: `(base, count)`. Tagged: `[(offset of first field, n)]`.
+2. **Write the locator.** Packed: `(base, count)`, or a list of such runs where the table is
+   stored as several arrays (the world fixture list). Tagged: `[(offset of first field, n)]`.
+   Where the table asserts something of every row (`id == slot`), declare it as the
+   `invariant` rather than writing a loop that breaks on it: the walk stops at the first row
+   that fails it. The engine only finds and reads a table; looking a row up by id is a join
+   on the scraped rows, not a second way into the bytes.
    For a region of count-framed blocks, `core.scan_tagged_blocks(mm, lo, hi)` is the whole
    locator shape -- one forward pass, a candidate taken only if all n fields read -- and your
    locator keeps the blocks that are yours (the rule files keep those with `ftye` + `file`).

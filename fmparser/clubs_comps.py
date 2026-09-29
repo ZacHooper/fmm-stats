@@ -849,40 +849,55 @@ def _u32(mm, o):
 
 
 from .tables.names import (
-    NAME_ID_STRIDE as ID_TABLE_STRIDE,
+    FIRST_NAMES_TABLE,
+    NICKNAMES_TABLE,
+    SURNAMES_TABLE,
     chain_id_tables as _chain_id_tables,
     discover_id_tables as _discover_id_tables,
+    locate_name_tables as _locate_name_tables,
     walk_browse as _walk_browse,
     walk_browse_bounds as _walk_browse_bounds,
 )
 
 
-_NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname, base_common)
+_NAME_TABLES = {}   # _cache_key -> {"first": [...], "last": [...], "common": [...] or None}
 
 
 def build_name_resolver(mm, validate=None):
-    """Discover the name tables for `mm` and cache them."""
+    """Read the name tables for `mm` once and cache, per table, each name id's string (the
+    list index is the id). False if there are fewer than two (surnames and first names are
+    both needed for a name)."""
+    tabs = _locate_name_tables(mm)
     browse = _walk_browse(mm)
-    tabs = _discover_id_tables(mm, len(browse))
-    if len(tabs) < 2:
-        _NAME_TABLES[_cache_key(mm)] = (browse, None, None, None)
-        return False
-    # By sequence/size: Table 1 (largest) is surnames, Table 2 is first names,
-    # Table 3 (smallest) is common names / nicknames.
-    by_size = sorted((c, b) for b, c in tabs)
-    base_sur = by_size[-1][1]
-    base_first = by_size[-2][1]
-    base_common = by_size[0][1] if len(tabs) > 2 else None
-    _NAME_TABLES[_cache_key(mm)] = (browse, base_first, base_sur, base_common)
-    return True
+
+    def strings(table):
+        out = []
+        for row in table.scrape(mm):
+            k = row["ordinal"]
+            out.append(browse[k] if 0 <= k < len(browse) else None)
+        return out
+
+    _NAME_TABLES[_cache_key(mm)] = {
+        "first": strings(FIRST_NAMES_TABLE) if "first_names" in tabs else None,
+        "last": strings(SURNAMES_TABLE) if "surnames" in tabs else None,
+        "common": strings(NICKNAMES_TABLE) if "nicknames" in tabs else None,
+    }
+    return len(tabs) >= 2
+
+
+def _browse_name(names, name_id):
+    """The string for a name id, or None."""
+    if names is None or name_id is None or not 0 <= name_id < len(names):
+        return None
+    return names[name_id]
 
 
 def resolve_common_name(mm, common_name_id):
     """The name the game DISPLAYS, when a person has one, else None.
 
     `common_name_id` is `staging.INFO_LAYOUT` +16 (People.cs `CommonNameId`), 0xFFFFFFFF when
-    unset. It indexes the third id-table, not either name table. Set on 2,424 of 32,760
-    people (7.4%) on frem-2023-07-02, and all 2,424 resolve.
+    unset. It indexes the third id-table (nicknames), not either name table. Set on 2,424 of
+    32,760 people (7.4%) on frem-2023-07-02, and all 2,424 resolve.
 
     This is a DISPLAY name and often not a shortening of the legal one at all -- 'Tite' for
     Adenor Leonardo Bachi, 'Renato Gaucho' for Renato Portaluppi, 'Michel' for Jose Miguel
@@ -890,24 +905,19 @@ def resolve_common_name(mm, common_name_id):
     come from the table.
     """
     t = _NAME_TABLES.get(_cache_key(mm))
-    if not t or t[3] is None or common_name_id is None or common_name_id == P.NO_ID32:
+    if not t or common_name_id == P.NO_ID32:
         return None
-    browse, _, _, base_common = t
-    try:
-        return browse[_u32(mm, base_common + common_name_id * ID_TABLE_STRIDE)]
-    except IndexError:
-        return None
+    return _browse_name(t["common"], common_name_id)
 
 
 def resolve_name(mm, first_name_id, last_name_id):
     """Full 'First Last' for any player from their info-field name ids, or None. Call
     build_name_resolver(mm) once first (cached per mmap)."""
     t = _NAME_TABLES.get(_cache_key(mm))
-    if not t or t[1] is None:
+    if not t:
         return None
-    browse, base_first, base_sur, _ = t
-    try:
-        return f"{browse[_u32(mm, base_first + first_name_id * 16)]} " \
-               f"{browse[_u32(mm, base_sur + last_name_id * 16)]}"
-    except IndexError:
+    first = _browse_name(t["first"], first_name_id)
+    last = _browse_name(t["last"], last_name_id)
+    if first is None or last is None:
         return None
+    return f"{first} {last}"

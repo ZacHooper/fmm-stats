@@ -409,10 +409,16 @@ signature, the audit driven by both registries). What is left, in order -- each 
 byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
 deliberate break:
 
-1. **`TableDef` in name only** -- `contracts`, `fixtures`, `names`, `nations` and `person_info`
-   declare a table but scrape with hand-written loops beside it. Route each scrape through its
-   table; `person_info` (and step 2) need a core COUNTED-LIST segment for the variable lists
-   after its 68-byte head.
+1. **`TableDef` in name only** -- `nations` and `person_info` still declare a table but scrape
+   with hand-written loops beside it (contracts, fixtures and the name id-tables now read
+   through theirs).
+   - `person_info`: needs a core COUNTED-LIST segment for the variable lists after its
+     68-byte head (step 2 needs it too); `TABLES["person_info"]` holds the `Record`, not a
+     table. Its walk covers 2.24 MB of the 3.42 MB table -- the rest shows as unread in
+     `audit_coverage.py`.
+   - `nations`: the scrape searches backwards from 3-letter codes and keeps the densest
+     cluster; the table declares 251 and we read 227 (Algeria, id 0, is cut). Decode the real
+     layout from the count frame first -- expect the output to change.
 2. **`clubs_comps`' club and competition tables** -- arrays of `[id][uid][len][long][len][short]
    [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
    (`comp_refs`).
@@ -424,6 +430,26 @@ deliberate break:
    not mapped yet. Research first: find each array's bounds, then it is an ordinary array.
 6. **`matches.py` (shape G)** -- arrays ending at a delimiter; the header and stat block are already
    `Record`s. Move what fits; name what stays bespoke and why.
+
+### 4g. Extract dumps tables; the mart does the joins
+`players.json` is a pre-joined row, built in `extract.py` from about seven tables: the person
+table (identity), the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three
+name id-tables + browse strings + the squad snapshot (`name`, with a precedence rule: squad-list
+name, then common name, then legal name), the club table (`club`, `parent_club` labels), the
+contract-status records (`squad_status`, loan flags), the history slab (origin club, history
+summary) and the player attributes (by sid). None of that is extraction. By the three-layer
+rule, extract should dump each table as the save holds it, the loader write it to `staging`,
+and `fmstats/mart.py` do the joins in SQL -- the name precedence becomes a view
+(`mart.person_names`), and `wage_gbp = wage_units x 520` a derivation there.
+
+Do it a table at a time, contracts and names first (both self-contained), then the club labels
+and the rest of `players.json`:
+1. extract dumps the table (`contracts.json`, `name_tables.json` with the id-tables and the
+   ~46k browse strings, ...) and the loader writes a `staging` table;
+2. the mart joins it; every consumer of the old column (`staging.players.name`, wages, club
+   labels -- mart views, `fmq`, the scout, `scripts/export_data.py`) reads the mart instead;
+3. the gate is row-for-row: the mart gives the same name / wage / label for every person as
+   today's store (`assert_identical` changes by design -- re-record with the note).
 
 ### 4d. Player-list blocks — named, not decoded
 **New 2026-09-20.** ~1.38 MB at ~61.25M–62.63M is a run of blocks of **100 slots x 200 B**

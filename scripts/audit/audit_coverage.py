@@ -109,27 +109,51 @@ def claims(mm, n):
         if summary:
             print(f"  ~ {who}: {summary}", file=sys.stderr)
 
-    # ---- MEASURED: parsers that report a per-record offset -------------------
+    # ---- MEASURED: every registered table, from the spans its own walk reports ------------
+    # A module's own `<name>_table_spans` is preferred where it has one: it is what the parser
+    # actually walks, and for a table not yet routed through its TableDef (TODO 4f step 1) the
+    # TableDef's spans can disagree with it (nations: 50 bytes vs 39,634). Tables read from
+    # an archive member, not the save, are covered by the archive container below.
+    import fmparser.tables as T
+    from fmparser.core import TableDef, TaggedTableDef
+    for name, table in T.TABLES.items():
+        if getattr(table, "member", None):
+            continue                                   # read from an archive member
+        own = getattr(T, f"{name}_table_spans", None)
+        try:
+            if own is not None:
+                spans = own(mm)
+            elif isinstance(table, TaggedTableDef):
+                spans = [(b.start - 4, b.end) for b in table.blocks(mm)]   # with the u32 count
+            elif isinstance(table, TableDef):
+                spans = table.spans(mm)
+            else:
+                print(f"  ! TABLES[{name!r}] is a {type(table).__name__}, not a table",
+                      file=sys.stderr)
+                continue
+            measured(f"tables.{name}", spans)
+        except Exception as exc:
+            print(f"  ! tables.{name} failed: {exc}", file=sys.stderr)
+
+    # ---- the archive container: walked by its own chain of zstd frames to the file's end ----
+    try:
+        from fmparser import archive as ARCH
+        start = ARCH.locate(mm)[0]
+        measured("archive (zstd container)", [(start, n)])
+        names = list(ARCH.members(mm))
+        import re as _re
+        patterns = [_re.compile("^" + _re.escape(t.member).replace("<uid>", r"\d+") + "$")
+                    for t in T.TABLES.values() if getattr(t, "member", None)]
+        parsed = [m for m in names if any(p.match(m) for p in patterns)]
+        print(f"  ~ archive: {len(parsed)} of {len(names)} members have a table "
+              f"({', '.join(sorted({t.member for t in T.TABLES.values() if getattr(t, 'member', None)}))}); "
+              f"the container is claimed whole", file=sys.stderr)
+    except Exception as exc:
+        print(f"  ! archive failed: {exc}", file=sys.stderr)
+
+    # ---- modules not yet on core (TODO 4f) -------------------------------------------------
     from fmparser.tables import person_info as PI
     info = PI.scrape_person_info(mm)
-    # scrape_person_info does not report the record base, so re-derive it the same way it finds
-    # them: the FFFFFFFF nickname sentinel at +16. Anchored on the parser's own constants so
-    # this cannot drift from what it actually reads.
-    bases, i = [], 0
-    while True:
-        j = mm.find(PI.NO_NICKNAME, i)
-        if j == -1:
-            break
-        i, base = j + 1, j - 16
-        if base < 0:
-            continue
-        yr = int.from_bytes(mm[base + 22:base + 24], "little")
-        tid = int.from_bytes(mm[base:base + 4], "little")
-        if PI.DOB_YEAR_LO <= yr <= PI.DOB_YEAR_HI and 100 < tid < 70000 \
-                and int.from_bytes(mm[base + 20:base + 22], "little") <= 366:
-            bases.append(base)
-    measured("tables.person_info", [(b, b + PI.INFO_HEAD) for b in bases])
-
     try:
         from fmparser import clubrecords as CR
         valid = {v["club_tid"] for v in info.values()
@@ -142,31 +166,6 @@ def claims(mm, n):
     except Exception as exc:
         print(f"  ! clubrecords failed: {exc}", file=sys.stderr)
 
-    try:
-        from fmparser.tables import cities, stadiums
-        st = stadiums.scrape_stadiums(mm)
-        rows = st.values() if isinstance(st, dict) else st
-        measured("places.stadiums",
-                 [(r["offset"], r["offset"] + 40) for r in rows if isinstance(r, dict)])
-        ct = cities.scrape_cities(mm)
-        rows = ct.values() if isinstance(ct, dict) else ct
-        measured("places.cities",
-                 [(r["offset"], r["offset"] + 24) for r in rows if isinstance(r, dict)])
-    except Exception as exc:
-        print(f"  ! places failed: {exc}", file=sys.stderr)
-
-    try:
-        from fmparser.tables import staff as ST
-        id2s = {v["id2"] for v in info.values() if v.get("id2")}
-        sa = ST.scrape_staff_attributes(mm, id2s)
-        rows = sa.values() if isinstance(sa, dict) else sa
-        measured("staff.attributes",
-                 [(r["offset"], r["offset"] + 39) for r in rows
-                  if isinstance(r, dict) and r.get("offset")])
-    except Exception as exc:
-        print(f"  ! staff failed: {exc}", file=sys.stderr)
-
-    # ---- DECLARED: window scans with no per-record offset --------------------
     declared("reference.name_table", 0, 520_000)
     # The club table: start and length both read from the save's own count header (11,331 on Frem,
     # 12,278 on Bucaspor), so its extent is known exactly rather than claimed as a 20 MB window.
@@ -193,13 +192,6 @@ def claims(mm, n):
               f"{spans[0][0]:,}-{spans[-1][1]:,}", file=sys.stderr)
     except Exception as exc:
         print(f"  ! COMPETITION TABLE WALK FAILED: {exc}", file=sys.stderr)
-    declared("tables.player_attributes", RG.ATTR_LO, RG.ATTR_HI)
-    from fmparser.tables.contracts import contracts_table_spans
-    c_spans = contracts_table_spans(mm)
-    if c_spans:
-        measured("tables.contracts", c_spans)
-    else:
-        declared("tables.contracts", RG.CONTRACTREC_LO, RG.CONTRACTREC_HI)
     # DERIVED, not declared: `snapshot_bounds` locates this by marker cluster and now
     # RAISES rather than falling back to `regions.SNAPSHOT_LO/HI`. Claiming the static
     # window here would have reported 0.9 MB as covered on every career whose snapshot is

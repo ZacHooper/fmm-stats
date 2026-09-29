@@ -4,8 +4,8 @@
 A table is a name, a LOCATOR that finds its rows, and the SCHEMA that reads each row. The
 engine does the walk. Two kinds, matching the two kinds of record (`schema.py`):
 
-`TableDef` -- PACKED rows. The locator returns `(base, count)`; each row is a composite
-sequence of typed segments, walked by offset:
+`TableDef` -- PACKED rows. The locator returns `(base, count)`, or several such runs; each
+row is a composite sequence of typed segments, walked by offset:
 1. Fixed Record layouts (from `schema.py`).
 2. Length-prefixed string primitives (`PString` from `types.py`).
 3. Custom dynamic segments implementing `read(mm, pos, limit)`.
@@ -23,15 +23,30 @@ from .schema import Record, TaggedRecord, TaggedSchemaError
 from .types import TreeError, read_tree
 
 
+Run = Tuple[int, int]            # (base offset, row count)
+
+
 @dataclass(frozen=True)
 class TableDef:
-    """Definition for a savefile table composed of sequential segments."""
+    """Definition for a savefile table composed of sequential segments.
+
+    `locator(mm)` returns `(base, count)`, or a list of such runs where one table is stored
+    as several arrays (the world fixture list), or None. The engine walks every run in order.
+    """
     name: str
     segments: Tuple[Any, ...]  # Sequence of Record | PString | CustomSegment
-    locator: Callable[[Any], Optional[Tuple[int, int]]]  # mm -> (base_offset, record_count)
+    locator: Callable[[Any], Union[None, Run, List[Run]]]
     include_offset: bool = False
+    # The archive member the table is read from (shape D), or None for the save itself
+    member: Optional[str] = None
     # (row, row offset) -> the row to emit, or None to drop it
     post_process: Optional[Callable[[Dict[str, Any], int], Optional[Dict[str, Any]]]] = None
+    # The table's own invariant, (raw row, row index) -> bool: the walk STOPS at the first
+    # row that breaks it, so the row count is the table's structure, never a tuned constant
+    invariant: Optional[Callable[[Dict[str, Any], int], bool]] = None
+    # Fixed-stride tables only: read just these fields, in this order (key order is part of
+    # the extract output bytes)
+    fields: Optional[Tuple[str, ...]] = None
 
     @property
     def is_fixed_stride(self) -> bool:
@@ -45,6 +60,13 @@ class TableDef:
             rec = self.segments[0]
             return rec.stride or rec.span
         raise AttributeError(f"{self.name} is a variable-length table with no single stride")
+
+    def runs(self, mm: Any) -> List[Run]:
+        """The located runs, [(base, count)], in order."""
+        loc = self.locator(mm)
+        if not loc:
+            return []
+        return list(loc) if isinstance(loc, list) else [loc]
 
     def scrape(self, mm: Any) -> List[Dict[str, Any]]:
         return walk_table(mm, self)
@@ -60,124 +82,128 @@ class TableDef:
 # Alias Table -> TableDef for crisp naming
 Table = TableDef
 
+_STOP = object()     # a row that breaks the table's invariant
+
+
+def _read_fixed(table: TableDef, mm: Any, off: int) -> Dict[str, Any]:
+    rec = table.segments[0]
+    return rec.read_fields(mm, off, table.fields) if table.fields else rec.read(mm, off)
+
+
+def _emit(table: TableDef, rec: Dict[str, Any], off: int, index: int) -> Any:
+    """The row to emit: None to skip it, _STOP where it breaks the invariant."""
+    if table.invariant is not None and not table.invariant(rec, index):
+        return _STOP
+    if table.include_offset:
+        rec["offset"] = off
+    if table.post_process:
+        rec = table.post_process(rec, off)
+    return rec
+
 
 def walk_table(mm: Any, table: TableDef) -> List[Dict[str, Any]]:
-    """Walk all records of a table and return a list of decoded dictionaries."""
-    loc = table.locator(mm)
-    if not loc:
-        return []
-
-    base, count = loc
-    pos = base
+    """Walk every run of a table and return its rows, stopping at the first row that breaks
+    the table's invariant."""
     limit = len(mm)
-    results = []
+    results: List[Dict[str, Any]] = []
+    index = 0
+    for base, count in table.runs(mm):
+        if table.is_fixed_stride:
+            stride = table.stride
+            span = table.segments[0].span
+            for i in range(count):
+                off = base + i * stride
+                if off + span > limit:
+                    break
+                rec = _emit(table, _read_fixed(table, mm, off), off, index)
+                index += 1
+                if rec is _STOP:
+                    return results
+                if rec is not None:
+                    results.append(rec)
+            continue
 
-    # Fast path for fixed-stride tables
-    if table.is_fixed_stride:
-        rec_schema = table.segments[0]
-        stride = rec_schema.stride or rec_schema.span
-        for i in range(count):
-            rec_start = base + i * stride
-            if rec_start + rec_schema.span > limit:
+        # Composite / variable-length rows
+        pos = base
+        for _ in range(count):
+            if pos >= limit:
                 break
-            rec = rec_schema.read(mm, rec_start)
-            if table.include_offset:
-                rec["offset"] = rec_start
-            if table.post_process:
-                rec = table.post_process(rec, rec_start)
-                if rec is None:
-                    continue
-            results.append(rec)
-        return results
-
-    # Composite / variable-length table walk
-    for _ in range(count):
-        if pos >= limit:
-            break
-        rec_start = pos
-        rec: Dict[str, Any] = {}
-        valid = True
-
-        for seg in table.segments:
-            if isinstance(seg, Record):
-                if pos + seg.span > limit:
-                    valid = False
-                    break
-                part = seg.read(mm, pos)
-                rec.update(part)
-                pos += seg.span
-            elif hasattr(seg, "read"):
-                res = seg.read(mm, pos, limit)
-                if res is None:
-                    valid = False
-                    break
-                part, pos = res
-                rec.update(part)
-            else:
-                raise TypeError(f"Unknown segment type in table {table.name}: {type(seg)}")
-
-        if not valid:
-            break
-
-        if table.include_offset:
-            rec["offset"] = rec_start
-        if table.post_process:
-            rec = table.post_process(rec, rec_start)
-            if rec is None:
-                continue
-
-        results.append(rec)
-
+            rec_start = pos
+            rec: Dict[str, Any] = {}
+            valid = True
+            for seg in table.segments:
+                if isinstance(seg, Record):
+                    if pos + seg.span > limit:
+                        valid = False
+                        break
+                    rec.update(seg.read(mm, pos))
+                    pos += seg.span
+                elif hasattr(seg, "read"):
+                    res = seg.read(mm, pos, limit)
+                    if res is None:
+                        valid = False
+                        break
+                    part, pos = res
+                    rec.update(part)
+                else:
+                    raise TypeError(f"Unknown segment type in table {table.name}: {type(seg)}")
+            if not valid:
+                break
+            out = _emit(table, rec, rec_start, index)
+            index += 1
+            if out is _STOP:
+                return results
+            if out is not None:
+                results.append(out)
     return results
 
 
-def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> List[Tuple[int, int]]:
-    """Calculate the byte spans [(start, end)] covering the table in the save."""
-    loc = table.locator(mm)
-    if not loc:
-        return []
-
-    base, count = loc
-    limit = len(mm)
+def _count_header_start(mm: Any, base: int) -> int:
+    """Step back from `base` over a count and its preceding 0xFF sentinel, if there is one."""
     start = base
+    p = base
+    if p >= 4:
+        k = p
+        while k > 0 and mm[k - 1] == 0xFF:
+            k -= 1
+        if p - k < 4 and k >= 4:
+            k2 = k
+            while k2 > 0 and mm[k2 - 1] == 0xFF:
+                k2 -= 1
+            if p - k2 >= 6:
+                start = k2
+        elif p - k >= 8:
+            start = k
+    return start
 
-    if include_count_header:
-        # Step back over count header and preceding 0xFF sentinel bytes
-        p = base
-        if p >= 4:
-            k = p
-            while k > 0 and mm[k - 1] == 0xFF:
-                k -= 1
-            if p - k < 4 and k >= 4:
-                # Step over 2 or 4 byte count
-                k2 = k
-                while k2 > 0 and mm[k2 - 1] == 0xFF:
-                    k2 -= 1
-                if p - k2 >= 6:
-                    start = k2
-            elif p - k >= 8:
-                start = k
 
-    if table.is_fixed_stride:
-        stride = table.segments[0].stride or table.segments[0].span
-        end = base + count * stride
-        return [(start, end)]
-
-    # Variable-length walk to find exact end
-    pos = base
-    for _ in range(count):
-        if pos >= limit:
-            break
-        for seg in table.segments:
-            if isinstance(seg, Record):
-                pos += seg.span
-            elif hasattr(seg, "read"):
-                res = seg.read(mm, pos, limit)
-                if res is None:
-                    return [(start, pos)]
-                _, pos = res
-
-    return [(start, pos)]
+def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> List[Tuple[int, int]]:
+    """The byte spans [(start, end)] covering the table, one per run."""
+    limit = len(mm)
+    out: List[Tuple[int, int]] = []
+    for base, count in table.runs(mm):
+        start = _count_header_start(mm, base) if include_count_header else base
+        if table.is_fixed_stride:
+            out.append((start, base + count * table.stride))
+            continue
+        pos = base
+        for _ in range(count):
+            if pos >= limit:
+                break
+            stopped = False
+            for seg in table.segments:
+                if isinstance(seg, Record):
+                    pos += seg.span
+                elif hasattr(seg, "read"):
+                    res = seg.read(mm, pos, limit)
+                    if res is None:
+                        stopped = True
+                        break
+                    _, pos = res
+            if stopped:
+                break
+        out.append((start, pos))
+    return out
 
 
 def find_framed_count(
@@ -288,6 +314,8 @@ class TaggedTableDef:
     name: str
     locator: Callable[[Any], List[Tuple[int, int]]]
     schema: Union[TaggedRecord, Callable[[TaggedBlock], TaggedRecord]]
+    # The archive member the table is read from (shape D), or None for the save itself
+    member: Optional[str] = None
 
     def schema_for(self, block: TaggedBlock) -> TaggedRecord:
         return self.schema if isinstance(self.schema, TaggedRecord) else self.schema(block)
