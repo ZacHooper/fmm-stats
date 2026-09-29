@@ -26,8 +26,10 @@ from fmparser.tables import history as H  # noqa: E402
 END = H.END
 
 
-def record(season, club, nxt, fee=0xFFFF, apps=0, goals=0, assists=0, rating=0):
-    return struct.pack("<BBBBBBHHHI", season, apps, goals, assists, 0, 0, rating, club, fee, nxt)
+def record(season, club, nxt, fee=0xFFFF, apps=0, goals=0, assists=0, rating=0, reds=0,
+           yellows=0):
+    return struct.pack("<BBBBBBHHHI", season, apps, goals, assists, reds, yellows, rating, club,
+                       fee, nxt)
 
 
 def pool():
@@ -39,7 +41,8 @@ def pool():
             record(50, 200, 5, fee=0xFFFE, apps=5),                    # loan move
             record(47, 300, 4),                                        # B debut
             record(48, 300, END, apps=3),
-            record(51, 400, END, fee=1500, apps=30, goals=9, assists=4, rating=712)]
+            record(51, 400, END, fee=1500, apps=30, goals=9, assists=4, rating=712, reds=1,
+                   yellows=6)]
     return struct.pack("<I", len(recs)) + b"".join(recs)
 
 
@@ -79,6 +82,7 @@ def test_locate_and_scrape():
     assert got["rows"]["next"] == [1, 2, 5, 4, END, END]
     assert got["rows"]["club"] == [100, 100, 200, 300, 300, 400]
     assert got["rows"]["rating"][5] == 712
+    assert (got["rows"]["reds"][5], got["rows"]["yellows"][5]) == (1, 6)
     assert over(body).spans(body) == [(0, len(body))]
     bad = bytearray(body)
     struct.pack_into("<I", bad, 4 + 16 * 2 + 12, 1)          # row 2 -> row 1: a cycle
@@ -117,14 +121,15 @@ def test_load():
     assert ph == [(7, 100, 200, hist["base"], 48, 2019),
                   (8, 300, 300, hist["base"] + 48, 47, 2018),
                   (11, 400, 400, hist["base"] + 80, 51, 2022)], ph
-    s = con.execute("SELECT tid, seq, end_year, club_tid, fee, apps, goals, assists, rating "
+    s = con.execute("SELECT tid, seq, end_year, club_tid, fee, apps, goals, assists, rating, "
+                    "yellows, reds "
                     "FROM staging.player_history_seasons ORDER BY tid, seq").fetchall()
-    assert s == [(7, -1, 2019, 100, "stay", 0, 0, 0, None),
-                 (7, 0, 2020, 100, "stay", 10, 2, 0, 6.5),
-                 (7, 1, 2021, 200, "loan", 5, 0, 0, None),
-                 (8, -1, 2018, 300, "stay", 0, 0, 0, None),
-                 (8, 0, 2019, 300, "stay", 3, 0, 0, None),
-                 (11, -1, 2022, 400, "1500", 30, 9, 4, 7.12)], s
+    assert s == [(7, -1, 2019, 100, "stay", 0, 0, 0, None, 0, 0),
+                 (7, 0, 2020, 100, "stay", 10, 2, 0, 6.5, 0, 0),
+                 (7, 1, 2021, 200, "loan", 5, 0, 0, None, 0, 0),
+                 (8, -1, 2018, 300, "stay", 0, 0, 0, None, 0, 0),
+                 (8, 0, 2019, 300, "stay", 3, 0, 0, None, 0, 0),
+                 (11, -1, 2022, 400, "1500", 30, 9, 4, 7.12, 6, 1)], s
     print("  PASS the debut line as seq -1, then the season lines; a one-record chain is a "
           "history; mid-chain and missing heads read none")
 

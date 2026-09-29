@@ -656,12 +656,13 @@ DDL = [
     # A season can appear TWICE for one player: a loan year stores the parent-club row (0 apps)
     # and the loan-club row (fee='loan') separately, exactly as the in-game screen shows them.
     # `goals` is goals CONCEDED for goalkeepers. `rating` is null for pre-career seasons (the
-    # game only keeps an average rating for seasons played during your career).
+    # game only keeps an average rating for seasons played during your career). Likewise
+    # `yellows` / `reds`, 0 for every season before the career.
     """CREATE TABLE IF NOT EXISTS staging.player_history_seasons (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         seq INTEGER NOT NULL, hist_season INTEGER, end_year INTEGER,
         club_tid INTEGER, fee VARCHAR, apps INTEGER, goals INTEGER,
-        assists INTEGER, rating DOUBLE
+        assists INTEGER, rating DOUBLE, yellows INTEGER, reds INTEGER
     )""",
 
     # injury spells for the MANAGED SQUAD, from the weekly Player-Progress table
@@ -947,7 +948,7 @@ SELECT ?, ?, c.tid, c.seq - 1, r.season, {HISTORY_SEASON_BASE} + r.season, r.clu
                   WHEN 65533 THEN 'free' WHEN 0 THEN 'free'
                   ELSE CAST(r.fee AS VARCHAR) END,
        r.apps, r.goals, r.assists,
-       CASE WHEN r.rating = 0 THEN NULL ELSE r.rating / 100.0 END
+       CASE WHEN r.rating = 0 THEN NULL ELSE r.rating / 100.0 END, r.yellows, r.reds
 FROM _hist_chain c JOIN _hist_rows r ON r.row = c.row
 """
 
@@ -970,7 +971,8 @@ def load_history(con, season, phase, hist):
     rows = hist["rows"]
     df = pd.DataFrame({"row": range(hist["count"]),
                        **{k: rows[k] for k in ("club", "fee", "next", "season", "apps",
-                                               "goals", "assists", "rating")}})
+                                               "goals", "assists", "rating", "yellows",
+                                               "reds")}})
     heads = pd.DataFrame({"tid": [int(t) for t in hist["heads"]],
                           "head": list(hist["heads"].values())}, dtype="int64")
     con.register("_hist_rows", df)
@@ -983,7 +985,8 @@ def load_history(con, season, phase, hist):
                     "debut_season, debut_end_year) " + _HISTORY_SUMMARY_SQL,
                     [season, phase, hist["base"]])
         con.execute("INSERT INTO staging.player_history_seasons (season, phase, tid, seq, "
-                    "hist_season, end_year, club_tid, fee, apps, goals, assists, rating) "
+                    "hist_season, end_year, club_tid, fee, apps, goals, assists, rating, "
+                    "yellows, reds) "
                     + _HISTORY_SEASONS_SQL, [season, phase])
         n_players, n_seasons = (con.execute(
             f"SELECT count(*) FROM staging.{t} WHERE season = ? AND phase = ?",
@@ -1732,6 +1735,9 @@ _MIGRATIONS = [
     "ALTER TABLE staging.player_history ADD COLUMN IF NOT EXISTS debut_end_year INTEGER",
     "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS assists INTEGER",
     "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS rating DOUBLE",
+    # 2026-09-29: yellow and red cards, verified against an in-game Player History screen.
+    "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS yellows INTEGER",
+    "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS reds INTEGER",
     # 2026-08-29: real on-pitch position per starter, decoded from the 11 slot pairs that
     # follow the formation string. See docs/agent-context/match-position-encoding.md.
     "ALTER TABLE staging.match_player_stats ADD COLUMN IF NOT EXISTS position VARCHAR",
