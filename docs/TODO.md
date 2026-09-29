@@ -124,8 +124,9 @@ verified field by field). `squad.py` reads the manager's lists; nothing else is 
   65 last season's. Confirm across a season boundary.
 - **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan
   end and what the other two are; +21..+27; attribute-block indices 9 and 35; the u32 at
-  +83; +95 (4 bytes), +103 (5), +117 (3); the 46 bytes at +122; the order of the five form
-  ratings; the trailer's first byte and 11 more bytes. Squad number is not stored (the
+  +83; +95 (4 bytes), +103 (5), +117 (3); the 46 bytes at +122; the trailer's first byte and
+  11 more bytes. The profile's up/down arrows beside some attributes (a change since an
+  earlier value) are somewhere unread: compare two profiles of one player. Squad number is not stored (the
   profile's card is live: current club and number).
 - **Competition awards are elsewhere**: the 3F Superliga Team of the Year 2026/27 and the
   World Cup 2025 Dream Team appear in no list. Search the save for one team's eleven tids

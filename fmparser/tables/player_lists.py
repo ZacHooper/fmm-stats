@@ -39,7 +39,8 @@ list of 31-61, the one with the 0xffff trailer. Every save of both careers, day 
 included, holds exactly 66 lists.
 
 TAIL, 168 bytes, from the end of the strings. An entry is what the game's Scrapbook Profile
-shows (verified field by field on Ernest Nuamah's 2022 entry), as of the entry's date:
+shows (verified field by field on Ernest Nuamah's and Mikkel Andersson's 2022 entries), as of the
+entry's date:
 
     +0   colour_1, colour_2 u16   the club's colours, RGB555
     +4   4 bytes, +12 8 bytes     three dates that read 1 Jan 2021 (the career's "no date";
@@ -48,7 +49,7 @@ shows (verified field by field on Ernest Nuamah's 2022 entry), as of the entry's
                                   season runs, then frozen
     +20  age u8, then 7 bytes unread
     +28  36 bytes: the 23 attributes at the indices of `ATTRIBUTES`, condition (24),
-         morale (25), the last five match ratings (26-30), avg_rating f32 (31); 9 and 35
+         morale (25), the last five match ratings (26-30, the most recent last), avg_rating f32 (31); 9 and 35
          unread
     +64  15 x u8                  position ratings, in `player_attributes.POSITIONS` order
     +79  player_tid u32, +83 u32 unread
@@ -118,7 +119,7 @@ _ATTR_AT = 28
 
 # The attribute block's other bytes, by index (the Scrapbook Profile screen, verified on
 # Ernest Nuamah's 2022 entry: condition 87%, morale Superb, form 7-9-8-9-7, av. rating 7.50).
-_BLOCK = {24: ("condition", U8, "percent"), 25: ("morale", U8, "1-20; 20 = Superb"),
+_BLOCK = {24: ("condition", U8, "percent"), 25: ("morale", U8, "1-20; 20 = Superb, 17 = Very Good"),
           26: ("form_1", U8, "the last five match ratings in screen order; form_5 is the "
                                  "most recent (Mikkel Andersson 8-7-8-8-6)"),
           27: ("form_2", U8, ""), 28: ("form_3", U8, ""), 29: ("form_4", U8, ""),
