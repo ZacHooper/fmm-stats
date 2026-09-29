@@ -78,12 +78,10 @@ locator (`parser-architecture.md` Part 1). `core` reads arrays of both row kinds
 byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
 deliberate break:
 
-1. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
-   walk with an empty-slot predicate and a block size.
-2. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
+1. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
    stride are not mapped yet. Research first: find each array's bounds, then it is an ordinary
    array.
-3. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
+2. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
    already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
    region is empty at a season boundary (0 anchors is correct there, not a locator failure).
 
@@ -105,6 +103,10 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1%
 - **54.25–59.92 M**, **51.97–54.10 M** — around our match region. Unexamined. One populated
   player-list block sits in this stretch on older saves (`Jeppe Corfitzen` at 56,336,372 on
   `frem-2026-06-11`), so start with #4's structure.
+- **Straight after the club-records table** (46.67 M on `frem-2027-08-08`): `[count u32]` =
+  162 on every save, then variable-length rows carrying 21-byte matches shaped like the club
+  team records (`[f32 value][year][day]…[club][opp][for][against]`). Likely the competitions'
+  own record books. Walk it from its count, as the club records were.
 - **45.36–51.22 M** — a stride-70 pool. Unnamed.
 - **34.12–38.53 M** — the transfer band ([`transfer-history-record.md`](transfer-history-record.md):
   decoded, not parsed).
@@ -174,9 +176,7 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
   avg). Not attendance — `mart.club_attendance` is. Carried in `staging.club_details` only.
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `staging.clubs` —
   probably youth/academy or defunct clubs in another structure.
-- **Career history** (`tables/history.py`): the 8 bytes after the pool, `21 04 81 00 xx 00 00
-  00` on every save: not a record, not the club-records grid, not yet claimed. The history
-  lines' `yellows` / `reds` are in `staging.player_history_seasons` but not yet in
+- **Career history** (`tables/history.py`): the history lines' `yellows` / `reds` are in `staging.player_history_seasons` but not yet in
   `mart.player_career_seasons` -- add them after the next publish, since the published store
   lacks the columns and the mart re-binds against it.
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
@@ -250,6 +250,10 @@ Also:
 Denmark 40/40 tables exact, Germany 23/26, England 85/121, Belgium 14/21, **Spain 0/48** (51 of
 588 clubs agree — worse than chance, so a systematic error, not tie-breaks). Settle it on one
 Spanish season against an in-game table before quoting any non-Danish table.
+**`staging.club_league_history` is that table**: the game's own final position for every club
+in every league season (`tables/club_records.py`; `year` is the season's start year). Check
+the rebuilt tables against it, league by league, then consider serving finished seasons from
+it directly.
 
 ### 14. Person identity across snapshots
 - **`player_spells` holds a second, wrong name for some people** (Jonathan Bech also "Jose

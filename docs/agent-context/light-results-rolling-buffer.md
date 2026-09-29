@@ -16,7 +16,7 @@ so early-season games "physically cease to exist". Both halves are wrong.
 (biggest win, biggest defeat, highest scoring match, longest streaks) and Player Records
 (most goals in a season, youngest player, highest transfer fee). Decoded slot-for-slot
 against in-game screenshots and parsed by
-[`fmparser/clubrecords.py`](../../fmparser/clubrecords.py).
+[`fmparser/tables/club_records.py`](../../fmparser/tables/club_records.py).
 
 **Nothing is being deleted.** Three of six opening-day fixtures (16 Aug 2025) are present
 with correct scores in a save dated 11 Jun 2026 — ten months later. The original authors saw

@@ -51,7 +51,7 @@ from fmparser.tables import save_header as HDR
 from fmparser import careers as C
 from fmparser.tables import history as H
 from fmparser import injuries as INJ
-from fmparser import clubrecords as CRE
+from fmparser.tables import club_records as CRE
 from fmparser.tables import (
     cities,
     currencies,
@@ -512,7 +512,6 @@ def main():
 
     # leagues reference + club->league. The club record gives membership directly: exact,
     # current as of the save date, and available on a day-1 save before any match.
-    valid_clubs = {p["club_tid"] for p in info.values() if p["club_tid"] != NO_CLUB}
     nations_map = nations.scrape_nations(mm)
     leagues = build_leagues(mm, club_leagues, nations_map=nations_map)
     club2league = dict(club_leagues)
@@ -542,14 +541,18 @@ def main():
         if d and "squad" in d:
             club_details[str(ct)] = d
     dump("club_details.json", club_details, indent=None)
-    # Club History: the Team Records and Player Records tables, per club. This is the region
-    # previously misread as match RESULTS -- it is not
-    # one, and fmparser/clubrecords.py's docstring has the identification against in-game
-    # screenshots. Stored because it is real, verified data we can name; nothing consumes it
-    # yet, and NOTHING should build a fixture list from it.
-    recs = CRE.build(mm, valid_clubs, valid_players=set(info))
-    dump("club_records.json", recs["team_records"], indent=None)
-    dump("player_records.json", recs["player_records"], indent=None)
+    # Club History, per club: the Team Records and Player Records tables (every written slot)
+    # and the league history (fmparser/tables/club_records.py). A record match is here
+    # because it set a record: NOTHING should build a fixture list from it.
+    try:
+        recs = CRE.scrape_club_records(mm)
+    except Exception as e:
+        print(f"  WARNING: club records not read ({e})")
+        recs = None
+    if recs is not None:
+        dump("club_records.json", recs["team_records"], indent=None)
+        dump("player_records.json", recs["player_records"], indent=None)
+        dump("club_league_history.json", recs["league_history"], indent=None)
     # Stadiums + cities: capacity and real lat/long. Reference data, so it repeats per
     # snapshot exactly like clubs.json does — the club record's stadium_id joins
     # club -> stadium -> city -> coordinates. See fmparser/tables/stadiums.py and cities.py.

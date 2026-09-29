@@ -28,6 +28,7 @@ SKIP = 77
 
 UNIT_TESTS = {
     "test_club_comp_unit.py",
+    "test_club_records_unit.py",
     "test_comp_rules_unit.py",
     "test_compman_unit.py",
     "test_core_unit.py",

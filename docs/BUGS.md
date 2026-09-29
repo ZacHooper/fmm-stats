@@ -397,7 +397,7 @@ are structural, not value-based:
 
 > **2026-09-17.** The record layout below decodes correctly, but the region is NOT a list of
 > simulated results. It is the per-club **Club History** tables — Team Records and Player
-> Records — now parsed by `fmparser/clubrecords.py` and verified slot-for-slot against in-game
+> Records — now parsed by `fmparser/tables/club_records.py` and verified slot-for-slot against in-game
 > screenshots. A club has ~12 rows because there are ~12 record CATEGORIES; the ">=2 copies"
 > below is the two-slot pattern ("Highest scoring match" / "Highest scoring LEAGUE match");
 > and the "computed standings" are computed from record-holding matches, which is why they
