@@ -259,7 +259,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
         if r:
             own_exact[tid] = {"attrs": r["attrs"],
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
-                              "value": r["value"]}
+                              "value": r["value"], "as_of": r["as_of"]}
 
     # career history: the whole pool as stored, plus each player's head row (the attribute
     # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
@@ -358,6 +358,9 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                 row["estimated"] = {a: False for a in MOD.ATTR_ORDER}
                 row["feet"] = own_exact[tid]["feet"]
                 row["value"] = own_exact[tid]["value"]
+                # the date of the Scrapbook-Profile entry these came from (squad.py): its
+                # attributes are as of then, not as of the save
+                row["exact_as_of"] = own_exact[tid]["as_of"]
             else:
                 # Everyone else: write ONLY what the record states plainly. The 15 entangled
                 # attributes and Teamwork are DERIVED, and derivation is the database's job --

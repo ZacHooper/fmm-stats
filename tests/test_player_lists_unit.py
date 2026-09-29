@@ -6,8 +6,8 @@ squad reader over it (fmparser/squad.py). No save needed.
             to the last: 66 lists, each [100 entries][trailer]
   SCRAPE    used entries only (player_tid set), with their strings, fields and slot; the
             trailer's season
-  SQUAD     our club's lists 31-61 only: an owned player, a loanee under [parent][club],
-            and the freshest entry (the latest list) winning
+  SQUAD     the manager's lists 31-61 only: an owned player, a loanee under
+            [parent][club], and the freshest entry by its date winning, the date carried
   FRAMING   a region that does not read as 66 lists is refused
 """
 import os
@@ -29,8 +29,10 @@ def pstr(s):
     return struct.pack("<I", len(b)) + b
 
 
-def tail(tid=NO_TID, club=0xFFFF, loan=0xFFFF, value=0, attr=0, feet=(0, 0)):
+def tail(tid=NO_TID, club=0xFFFF, loan=0xFFFF, value=0, attr=0, feet=(0, 0), day=0,
+         year=2021):
     t = bytearray(168)
+    struct.pack_into("<HH", t, 8, day, year)          # the entry date
     t[28:64] = bytes([attr]) * 36
     struct.pack_into("<IIHHI", t, 79, tid, 0, club, loan, value)
     t[120:122] = bytes(feet)
@@ -59,9 +61,11 @@ def region(overrides):
 def build():
     lists = {
         0: lst([entry("World One", tid=5000, club=900, value=10)], season=2022),
-        31: lst([entry("Anders Aa", tid=7001, club=346, value=100, attr=5),
-                 entry("Bo Bb", tid=7002, club=99, loan=346, value=50)], season=2022),
-        32: lst([entry("Anders Aa", tid=7001, club=346, value=200, attr=7, feet=(3, 20))]),
+        31: lst([entry("Anders Aa", tid=7001, club=346, value=100, attr=5, day=120, year=2022),
+                 entry("Bo Bb", tid=7002, club=99, loan=346, value=50, day=90, year=2022)],
+                season=2022),
+        32: lst([entry("Anders Aa", tid=7001, club=346, value=200, attr=7, feet=(3, 20),
+                       day=30, year=2023)]),
     }
     junk = bytes(range(256)) * 40
     return junk + region(lists) + junk, len(junk)
@@ -100,6 +104,7 @@ def test_squad():
                      7002: {"name": "Bo Bb", "loaned_in": True, "parent_club_tid": 99}}, squad
     rec = SQ.attr_record(buf, 7001, marker)
     assert rec["value"] == 200 and rec["feet"] == (3, 20) and rec["attrs"]["Pace"] == 7, rec
+    assert rec["as_of"] == "2023-01-31", rec["as_of"]
     assert list(rec["attrs"]) == list(PL.ATTRIBUTES.values())
     loan = SQ.attr_record(buf, 7002, SQ.loan_marker(346, 99))
     assert loan["value"] == 50

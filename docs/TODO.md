@@ -128,10 +128,14 @@ verified field by field). `squad.py` reads the manager's lists; nothing else is 
   11 more bytes. The profile's up/down arrows beside some attributes (a change since an
   earlier value) are somewhere unread: compare two profiles of one player. Squad number is not stored (the
   profile's card is live: current club and number).
-- **Competition awards are elsewhere**: the 3F Superliga Team of the Year 2026/27 and the
-  World Cup 2025 Dream Team appear in no list. Search the save for one team's eleven tids
-  together; the competition honours and the archive's competition members first. (The
-  entries' rating is all competitions; the Team of the Year's is league only.)
+- **Competition teams of the year are not snapshots**: the game shows only the current
+  season's, and a player opens his live profile, so there is nothing stored per year to find.
+- **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
+  `exact_as_of`, the date of the entry the squad's exact attributes came from. Agreement
+  with the attributes stored on the player's own record falls with its age (84% under a
+  month, ~80% to seven months, ~60% at nine or more), and entries up to two years old are in
+  use (`frem-2026-06-11`: 2024-06-29). Decide in the mart when an old entry should give way
+  to the estimate.
 - Emit the lists (`player_lists.json` -> `staging`): every World Best XI and Manager's Best
   Eleven, with each player's profile as it was.
 
