@@ -60,7 +60,7 @@ manager because we manage it.
 
 ## C — Club record. SHIPPED
 
-`reference.parse_club_trailer()` reads the whole trailer: colours and kits (a `Color` is u16
+`tables.clubs.CLUB_TABLE` reads the whole trailer: colours and kits (a `Color` is u16
 RGB555 — the `0x7FFF` flood BUGS #15 called sentinels is **white**), Status/Academy/Facilities,
 attendances, `LeagueId` (which is what the old empirical `+158` always was), stadium id,
 `LeaguePos`, reputation, affiliates (**21 bytes each**), the fixed **40-slot squad array**, the
@@ -319,5 +319,5 @@ borrow, no ground truth of our own, so naming `hidden_s18 … hidden_s28` would 
   exposes no candidate count, so a sole hit and a fallback are indistinguishable.
 - **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate
   whose `name_len` search then fails. Doesn't bite on these saves.
-- **`parse_club_trailer` steps over 20 undecoded bytes** — width confirmed, content unread.
+- **`CLUB_STANDING` declares 20 undecoded bytes** (`tables/clubs.py`) — width confirmed, content unread.
 - **Every test skips silently and exits 0 without a save**, so nothing runs on a clean clone.

@@ -141,7 +141,7 @@ def locate(mm):
     walk must land on a `.fmf` record header followed by the final frame. No offset and no
     window is involved, so this survives the megabyte-scale drift of the career half.
     """
-    from .save import cache_key as _ck
+    from ..save import cache_key as _ck
     key = _ck(mm)
     hit = _LOCATE_CACHE.get(key)
     if hit is not None:
@@ -204,7 +204,7 @@ def directory(mm):
 
     The entry count is DECLARED; this reads exactly that many and checks the walk lands
     within 4 bytes of the end of the buffer, which is the directory's own extent test."""
-    from .save import cache_key as _ck
+    from ..save import cache_key as _ck
     key = _ck(mm)
     hit = _DIR_CACHE.get(key)
     if hit is not None:

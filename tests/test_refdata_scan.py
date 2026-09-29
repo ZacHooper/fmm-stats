@@ -8,7 +8,7 @@ CLUBS still resolve via the candidate-scan-plus-gates cascade (`_eval_club_candi
 guarded here by the diagnosis-vs-real-scan drift check: both call sites must agree on how
 many tids they accept, because each keeps its own acceptance bookkeeping.
 
-COMPETITIONS are a pure structural walk (`_walk_comp_table`) with no plausibility gate at
+COMPETITIONS are a pure structural walk (`tables.competitions.COMP_TABLE`) with no plausibility gate at
 all -- the table announces its own start (a u16 record count right after a run of 0xFF
 filler) and `cid == slot index` holds for every declared slot. So the test asserts the
 INVARIANT, not a snapshot number: `named + blank == the count the table itself declares`,
@@ -37,6 +37,8 @@ from tests.harness import skip  # noqa: E402
 
 from fmparser.tables import nations as LK    # noqa: E402
 from fmparser import clubs_comps as R    # noqa: E402
+from fmparser.tables import clubs as CL, competitions as CO, rounds as RD  # noqa: E402
+from fmparser.tables import nations as NA  # noqa: E402
 from fmparser.save import Save         # noqa: E402
 
 SAVE = os.path.expanduser("~/fm-saves/frem/frem-2026-06-11.fms")
@@ -73,7 +75,7 @@ KNOWN_BLANK_COMPS = [1242, 1290, 1337, 1341, 1346, 1361, 1364]
 # instead of a candidate scan that can wander into neighbouring tables.
 KNOWN_NOT_A_COMP = 24931
 
-# Every competition record carries a nation as a u16 (0xFFFF = no nation). `_read_comp_slot`
+# Every competition record carries a nation as a u16 (0xFFFF = no nation). `COMP_TABLE`
 # read it as a single byte against 255 until 2026-09-18 -- right answer, wrong width. A byte
 # read would resolve nation_id 65535 to 255, so this pins the declared width.
 NO_NATION = 0xFFFF
@@ -109,8 +111,9 @@ def main():
 
     # ---- the structural walk on the reference save ----
     print("\nCOMPETITION TABLE STRUCTURAL WALK")
-    comps, n_blank = R._walk_comp_table(mm)
-    _start, declared = R._comp_table_anchor(mm)
+    comps = CO.scrape_competitions(mm)
+    _start, declared = CO.locate_competitions(mm)
+    n_blank = declared - len(comps)
     ok &= _check(len(comps) + n_blank == declared,
                  f"named({len(comps)}) + blank({n_blank}) == declared({declared})")
     bad_blanks = [c for c in KNOWN_BLANK_COMPS if c in comps]
@@ -118,13 +121,15 @@ def main():
     ok &= _check(KNOWN_NOT_A_COMP not in comps,
                  f"cid={KNOWN_NOT_A_COMP} ('World', the continent-table collision) is NOT a "
                  f"competition")
-    # spans must tile the table exactly: record k ends where record k+1 starts, and there are
-    # as many records as the table declares. This is the claim audit_coverage makes MEASURED.
-    spans = R.comp_table_spans(mm)
-    contiguous = all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
-    ok &= _check(len(spans) - 1 == declared and contiguous,
-                 f"comp_table_spans tiles the table with no gap or overlap "
-                 f"({len(spans) - 1} record spans + 1 count header)")
+    # EXTENT: the tables sit back to back -- round names, clubs, competitions, nations -- each
+    # ending exactly where the next one's count frame begins. This is the claim
+    # audit_coverage makes MEASURED.
+    chain = [("round_names", RD.ROUNDS_TABLE.spans(mm)), ("clubs", CL.CLUB_TABLE.spans(mm)),
+             ("competitions", CO.COMP_TABLE.spans(mm)), ("nations", NA.nations_table_spans(mm))]
+    gaps = [(a, b, sa[-1][1], sb[0][0]) for (a, sa), (b, sb) in zip(chain, chain[1:])
+            if not sa[-1][1] - 2 <= sb[0][0] <= sa[-1][1]]
+    ok &= _check(not gaps, "round names -> clubs -> competitions -> nations sit back to back"
+                 + (f" -- gaps: {gaps}" if gaps else ""))
     # ---- the competition reference list ----
     # Pins the field decode and the uid-not-tid rule: uid 1913 is D.C. United (right for
     # MLS), tid 1913 is York United, so a tid-keyed read passes a shape check and still lies.
@@ -180,16 +185,13 @@ def main():
             with open(path, "rb") as f:
                 m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
                 try:
-                    c, blank = R._walk_comp_table(m)
-                    _s, dec = R._comp_table_anchor(m)
-                    if len(c) + blank != dec:
-                        failures.append(f"{os.path.basename(path)}: "
-                                        f"comp {len(c)}+{blank} != {dec}")
-                    cl, cl_blank = R._walk_club_table(m)
-                    _cs, cl_dec = R._club_table_anchor(m)
-                    if len(cl) + cl_blank != cl_dec:
-                        failures.append(f"{os.path.basename(path)}: "
-                                        f"club {len(cl)}+{cl_blank} != {cl_dec}")
+                    c = CO.scrape_competitions(m)          # raises if short of declared
+                    _s, dec = CO.locate_competitions(m)
+                    blank = dec - len(c)
+                    cl = CL.scrape_clubs(m)                # raises if short of declared
+                    _cs, cl_dec = CL.locate_clubs(m)
+                    if len(cl) != cl_dec:
+                        failures.append(f"{os.path.basename(path)}: club {len(cl)} != {cl_dec}")
                     by_career.setdefault(career, set()).add((dec, len(c), blank, cl_dec, len(cl)))
                 except (R.CompTableError, R.ClubTableError) as exc:
                     failures.append(f"{os.path.basename(path)}: {exc}")
@@ -209,20 +211,15 @@ def main():
 
     # ---- the structural walk on the reference save (clubs) ----
     print("\nCLUB TABLE STRUCTURAL WALK")
-    clubs, n_blank_clubs = R._walk_club_table(mm)
-    _start, declared_clubs = R._club_table_anchor(mm)
-    ok &= _check(len(clubs) + n_blank_clubs == declared_clubs,
-                 f"named({len(clubs)}) + blank({n_blank_clubs}) == declared({declared_clubs})")
-    spans = R.club_table_spans(mm)
-    contiguous = all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
-    ok &= _check(len(spans) - 1 == declared_clubs and contiguous,
-                 f"club_table_spans tiles the table with no gap or overlap "
-                 f"({len(spans) - 1} record spans + 1 count header)")
+    clubs = CL.scrape_clubs(mm)
+    _start, declared_clubs = CL.locate_clubs(mm)
+    ok &= _check(len(clubs) == declared_clubs and list(clubs) == list(range(declared_clubs)),
+                 f"all {declared_clubs} declared clubs read, in tid order")
     real_clubs, real_comps = R._build_refdata_index(mm)
     ok &= _check(real_clubs == clubs,
-                 "_build_refdata_index clubs == _walk_club_table clubs (single source of truth)")
+                 "_build_refdata_index clubs == scrape_clubs (single source of truth)")
     ok &= _check(real_comps == comps,
-                 "_build_refdata_index comps == _walk_comp_table comps (single source of truth)")
+                 "_build_refdata_index comps == scrape_competitions (single source of truth)")
 
     print("\n" + ("PASS: refdata scan resolves clubs (gated) and competitions (pure "
                   "structural walk) as expected" if ok else "FAIL: see above"))

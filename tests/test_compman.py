@@ -7,7 +7,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import archive as A
+from fmparser.core import archive as A
 from fmparser.tables import comp_stages as CS
 from fmparser.tables import comp_honours as CH
 

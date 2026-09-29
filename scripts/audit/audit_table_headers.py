@@ -4,7 +4,7 @@ Does every table we walk declare its own size, the way the competition table doe
 
 The competition table turned out to announce itself: a run of 0xFF filler, then a u16
 holding the table's OWN record count, then record 0. That one fact replaced a
-candidate-scan-plus-plausibility-gate cascade with pure arithmetic (`reference._walk_comp_table`),
+candidate-scan-plus-plausibility-gate cascade with pure arithmetic (`tables.competitions.COMP_TABLE`),
 and the history slab has the same shape one door down -- `u32 @ start-12` is its exact row
 count (`history.locate`). Two tables, two self-declared counts, found years apart and by
 accident both times.
@@ -40,6 +40,7 @@ from fmparser import history as H                    # noqa: E402
 from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser.tables import cities, stadiums         # noqa: E402
 from fmparser import clubs_comps as R                  # noqa: E402
+from fmparser.tables import clubs as CL, competitions as CO  # noqa: E402
 from fmparser.tables import staff as ST              # noqa: E402
 from fmparser.tables import person_info as PI       # noqa: E402
 from fmparser.tables.person_info import scrape_person_info as _scrape_players  # noqa: E402
@@ -161,11 +162,12 @@ def hexdump(mm, tab):
 def t_competitions(mm):
     """CONTROL CASE. The known-good answer -- if this table stops reporting a header hit at
     -2, the probe itself is broken, not the save."""
-    anchor = R._comp_table_anchor(mm)
+    anchor = CO.locate_competitions(mm)
     if not anchor:
         return None
     start, count = anchor
-    comps, n_blank = R._walk_comp_table(mm)
+    comps = CO.scrape_competitions(mm)
+    n_blank = count - len(comps)
     return Table("competitions", start, ids=comps.keys(), n=count,
                  note=f"declared {count} = {len(comps)} named + {n_blank} blank")
 
@@ -282,17 +284,13 @@ def t_info_spine(mm, info):
 
 
 def t_clubs(mm):
-    """CLUBS HAVE NO TABLE ANCHOR, and that is the finding -- there is no "first record" to
-    look behind, so this returns None and prints why.
-
-    Clubs come from the candidate scan, whose accepted records sprawl across ONE 6.4 MB run
-    (6,340,470 .. 12,776,631 on frem-2023-07-02, 24,669 of them) whose first entry is junk
-    (tid 1,701,276,737). A scan with no located table cannot be asked "what is behind your
-    first record", because it does not have one. This is the same conclusion the club-side
-    exclusions in `reference._nation_table_bounds` already argue for from the other
-    direction, and it is the club-table item in docs/TODO.md.
-    """
-    return None
+    """The club table: record 0 as its locator finds it, right after the round-name table."""
+    loc = CL.locate_clubs(mm)
+    if not loc:
+        return None
+    clubs = CL.scrape_clubs(mm)
+    return Table("clubs", loc[0], ids=clubs.keys(), n=loc[1],
+                 note="variable-length records; 6-byte 0xFF run before the u32 count")
 
 
 def t_undeclared(mm):
@@ -326,7 +324,7 @@ def t_undeclared(mm):
 def tables(mm):
     out = []
     info = _scrape_players(mm)
-    for fn in (t_competitions, t_history, t_cities, t_stadiums, t_nations, t_languages,
+    for fn in (t_clubs, t_competitions, t_history, t_cities, t_stadiums, t_nations, t_languages,
                t_currencies, t_browse_names, t_player_attributes):
         try:
             t = fn(mm)
@@ -414,8 +412,6 @@ def report(save, verbose=True):
                 print(f"  hit  {rel:+5d}  u{w * 8:<2} = {val:<12} == {label}")
             if verbose:
                 print("\n".join(hexdump(mm, t)))
-
-        print("\nclubs: " + t_clubs.__doc__.split("\n\n")[0].strip())
 
         und = t_undeclared(mm)
         known = {t.start for _f, t in tables(mm) if not isinstance(t, Exception)}

@@ -47,7 +47,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fmparser import archive as A
+from fmparser.core import archive as A
 from fmparser.tables import fixtures as FX
 from fmparser.core import PAD, UNKNOWN
 

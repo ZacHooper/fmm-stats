@@ -2,6 +2,8 @@
 """The savefile table registry: every table definition, by name (`TABLES`). The engine is
 `fmparser/core/table.py`."""
 from .cities import CITIES_TABLE, CITY, CITY_RECORD, scrape_cities
+from .clubs import CLUB_TABLE, club_details, locate_clubs, scrape_clubs
+from .competitions import COMP_TABLE, comp_refs, locate_competitions, scrape_competitions
 from .contracts import (
     CONTRACT,
     CONTRACT_DETAIL,
@@ -171,6 +173,8 @@ from .staff import (
 
 TABLES = {
     "cities": CITIES_TABLE,
+    "clubs": CLUB_TABLE,
+    "competitions": COMP_TABLE,
     "comp_honours": COMP_HONOURS_TABLE,
     "comp_rules": COMP_RULES_TABLE,
     "rule_files": RULE_FILES_TABLE,
@@ -200,6 +204,15 @@ __all__ = [
     "CITY",
     "CITY_RECORD",
     "scrape_cities",
+    # Clubs and competitions
+    "CLUB_TABLE",
+    "COMP_TABLE",
+    "club_details",
+    "comp_refs",
+    "locate_clubs",
+    "locate_competitions",
+    "scrape_clubs",
+    "scrape_competitions",
     # Competition rules (archive comp_<uid>.dat)
     "COMP_RULES_HEADER",
     "COMP_RULES_TABLE",

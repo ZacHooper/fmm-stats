@@ -12,7 +12,7 @@ shape and are the next candidates once they get the equivalent `_eval_*_candidat
 see docs/TODO.md.
 
 COMPETITIONS ARE NO LONGER AUDITED THIS WAY, because they are no longer a candidate scan:
-`clubs_comps._walk_comp_table` reads the table's own declared slots by arithmetic, so there are
+`tables.competitions.COMP_TABLE` reads the table's own declared slots by arithmetic, so there are
 no candidates, no gates and no reject reasons to tally. This script printed exactly such a
 tally until 2026-09-18 -- tier counts, per-gate reject costs, "fixing this gate alone would
 recover exactly this many" -- for a code path `_build_refdata_index` had already stopped
@@ -43,6 +43,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT)
 
 from fmparser import clubs_comps as R    # noqa: E402
+from fmparser.tables import clubs as CL, competitions as CO  # noqa: E402
 from fmparser.tables.person_info import NO_CLUB as _NO_CLUB, scrape_person_info as _scrape_players  # noqa: E402
 from fmparser import matches as M      # noqa: E402
 
@@ -51,8 +52,8 @@ def report_club_table(mm):
     """The club table has no candidates to diagnose -- it is walked. So the report is
     the walk's own invariant: the table's declared record count equals what came out of it.
     Returns (clubs, declared) for the cross-reference below."""
-    start, declared = R._club_table_anchor(mm)
-    clubs, n_blank = R._walk_club_table(mm)
+    start, declared = CL.locate_clubs(mm)
+    clubs, n_blank = CL.scrape_clubs(mm), 0
     print("CLUBS (structural walk -- no candidates, no gates, nothing to reject)")
     print(f"  table start offset                        {start:>8,}")
     print(f"  records the table declares                {declared:>8,}")
@@ -66,8 +67,9 @@ def report_comp_table(mm):
     """The competition table has no candidates to diagnose -- it is walked. So the report is
     the walk's own invariant: the table's declared record count equals what came out of it.
     Returns (comps, declared) for the cross-reference below."""
-    start, declared = R._comp_table_anchor(mm)
-    comps, n_blank = R._walk_comp_table(mm)
+    start, declared = CO.locate_competitions(mm)
+    comps = CO.scrape_competitions(mm)
+    n_blank = declared - len(comps)
     print("\nCOMPETITIONS (structural walk -- no candidates, no gates, nothing to reject)")
     print(f"  table start offset                        {start:>8,}")
     print(f"  records the table declares                {declared:>8,}")

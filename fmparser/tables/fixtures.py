@@ -6,7 +6,7 @@ Contains world match fixtures tiled across contiguous 92-byte segments.
 """
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from .. import archive as A
+from ..core import archive as A
 from ..core import Field, PAD, Record, TableDef, U8, U16, U32, UNKNOWN
 from ..core.primitives import u16 as _u16, ymd_from as _ymd_from
 

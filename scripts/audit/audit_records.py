@@ -198,7 +198,7 @@ def _dictionary_coverage(mm):
 
 def _tagged_coverage(mm):
     """Walk every comp_<uid>.dat member of the save against the declared schemas."""
-    from fmparser import archive as ARCH
+    from fmparser.core import archive as ARCH
     report = {}
     for name, ent in ARCH.members(mm).items():
         if CRU.MEMBER_PATTERN.match(name):

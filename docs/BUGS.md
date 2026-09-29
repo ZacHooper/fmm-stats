@@ -6,7 +6,7 @@
 > `Color` is a u16 in RGB555, and `0x7FFF` is white. The trailer is 6 club colours + 6 kits,
 > then Status/Academy/Facilities, attendances, `LeagueId` (which is what the empirical `+158`
 > always was), stadium id, league position, reputation, affiliates, a fixed **40-slot squad
-> array**, an 11-slot staff array and `main_club_tid`. See `reference.parse_club_trailer` and
+> array**, an 11-slot staff array and `main_club_tid`. See `tables.clubs.CLUB_TABLE` and
 > [`docs/record-expansion.md`](record-expansion.md). The stadium/finance guess
 > below is superseded — stadium capacity lives in its own table (`fmparser/places.py`).
 

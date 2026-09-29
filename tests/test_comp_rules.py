@@ -24,7 +24,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import archive as A                              # noqa: E402
+from fmparser.core import archive as A                              # noqa: E402
 from fmparser.core import TaggedTableError                     # noqa: E402
 from fmparser.tables import comp_rules as CR, rounds as R  # noqa: E402
 

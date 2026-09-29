@@ -337,7 +337,7 @@ DDL = [
         unk8 BIGINT, unk12 BIGINT, unk16 BIGINT
     )""",
 
-    # The club record's trailer (fmparser.reference.parse_club_trailer). Facts the club
+    # The club record's trailer (fmparser.tables.clubs.CLUB_TABLE). Facts the club
     # record asserts directly, rather than inferred.
     # natural key: (season, phase, tid)
     """CREATE TABLE IF NOT EXISTS staging.club_details (
