@@ -23,8 +23,8 @@ save cannot tell a real count field from a coincidence. Confirm a lead across sa
 careers (`--all`) before anything in fmparser/ starts trusting it.
 
 Usage:
-  uv run python scripts/audit_table_headers.py [save.fms]      # one save, with hex dumps
-  uv run python scripts/audit_table_headers.py --all           # every archived save, terse
+  uv run python scripts/audit/audit_table_headers.py [save.fms]      # one save, with hex dumps
+  uv run python scripts/audit/audit_table_headers.py --all           # every archived save, terse
 """
 import collections
 import glob
@@ -244,7 +244,7 @@ def t_name_id_tables(mm):
 
 def t_player_attributes(mm):
     """78B grid. The scraper reports `P` (the positions block); the record STARTS at the sid,
-    P-42 -- see `scripts/audit_records.py`'s player_attribute layout."""
+    P-42 -- see `scripts/audit/audit_records.py`'s player_attribute layout."""
     attrs = _scrape_attributes(mm)
     if not attrs:
         return None

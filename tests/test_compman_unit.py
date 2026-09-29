@@ -13,7 +13,6 @@ sys.path.insert(0, ROOT)
 
 from fmparser.tables import comp_stages as CS
 from fmparser.tables import comp_honours as CH
-from fmparser import records as RD  # noqa: E402
 
 
 def build_synthetic_compman_blob(
@@ -80,7 +79,7 @@ def test_compman_honour_schema():
     struct.pack_into("<IIII", buf, 24, 346, 177, 157, 100)  # 1st..4th place TIDs
     buf[40:55] = b"\xff" * 15
 
-    rec = RD.read(bytes(buf), CH.HONOUR, 0)
+    rec = CH.HONOUR.read(bytes(buf), 0)
     assert rec["comp_cid"] == 2
     assert rec["season"] == 2025
     assert rec["winner_tid"] == 346

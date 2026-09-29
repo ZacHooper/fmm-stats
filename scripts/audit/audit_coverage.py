@@ -2,7 +2,7 @@
 """
 Whole-file coverage audit: which bytes of the save do we actually read?
 
-`scripts/audit_records.py` proves we read a whole RECORD and a whole TABLE. This proves
+`scripts/audit/audit_records.py` proves we read a whole RECORD and a whole TABLE. This proves
 the complement: that we know what every MEGABYTE of the file is. The two questions it
 answers, both of which we have been guessing at:
 
@@ -21,7 +21,7 @@ a generous window and calling it read. So every claim is tagged:
 Padding is a run of >= 16 identical 0x00 or 0xff bytes. Shorter runs are counted as content
 on purpose: a two-byte `ff ff` inside a record is a sentinel field, not filler.
 
-Run:  uv run python scripts/audit_coverage.py [save.fms] [--granularity BYTES] [--top N]
+Run:  uv run python scripts/audit/audit_coverage.py [save.fms] [--granularity BYTES] [--top N]
 """
 import argparse
 import os

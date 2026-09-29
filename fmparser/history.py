@@ -93,9 +93,9 @@ def decode_fee(v):
 # THE ROW, declared. `+12..+13` is the reason this exists: those two bytes were never read
 # and never declared, so nothing in the repo could tell "we looked and cannot name it" from
 # "we never looked". Declaring them PAD changes no output -- the row is still read column-wise
-# below -- and makes the gap visible to `scripts/audit_records.py`.
+# below -- and makes the gap visible to `scripts/audit/audit_records.py`.
 #
-# The columns stay numpy. `records.columns` would return Python lists, and the pointer-forest
+# The columns stay numpy. `Record.columns` would return Python lists, and the pointer-forest
 # work here (`np.bincount` over `next`, the in-degree test, the vectorised chain walk) needs
 # arrays over 265,423 rows. What the declaration buys is that the OFFSETS are stated once:
 # `_OFF` below is what the numpy reads index with, so a field cannot move in the layout and

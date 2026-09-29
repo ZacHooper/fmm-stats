@@ -91,7 +91,6 @@ named `player_id`, because guessing a name is how `-140` became a Style candidat
 import struct
 
 from .core import primitives as P
-from . import records as RD
 from .core import F32, Field, Record, U8, U16, U32
 from collections import defaultdict
 
@@ -224,8 +223,8 @@ def scrape_team_records(mm, valid_clubs, lo=0, hi=None):
             o = r + k * TEAM_STRIDE
             cat, kind = TEAM_CATEGORIES[k]
             row = {"offset": o, "club_tid": club, "slot": k, "category": cat, "kind": kind}
-            row.update(RD.read_group(mm, TEAM_ROW, o, "row"))
-            fixture = RD.read_group(mm, TEAM_ROW, o, "match")
+            row.update(TEAM_ROW.read_group(mm, o, "row"))
+            fixture = TEAM_ROW.read_group(mm, o, "match")
             # Only a `match` category has a real fixture attached. For `table` the opponent
             # is 0xFFFF and the scores 0xFF; for `streak` they are leftover bytes that WILL
             # look like a plausible fixture if you let them.
@@ -274,9 +273,8 @@ def scrape_player_records(mm, valid_players=None, lo=0, hi=None):
         for k in range(BLOCK):
             o = r + k * PLAYER_STRIDE
             cat, unit = PLAYER_CATEGORIES[k]
-            out.append(RD.read_into(
-                {"offset": o, "slot": k, "category": cat, "unit": unit},
-                mm, PLAYER_ROW, o))
+            out.append(PLAYER_ROW.read_into(
+                {"offset": o, "slot": k, "category": cat, "unit": unit}, mm, o))
         r += BLOCK * PLAYER_STRIDE
     return out
 

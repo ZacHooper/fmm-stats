@@ -113,7 +113,7 @@ def _est_count(attrs):
 
 # Every statement is formatted with {S} = the staging schema to read from. That is
 # "staging" against a real store, and "fm.staging" when validating against a read-only
-# ATTACHed copy (see scripts/validate_mart.py) — the mart objects are then built locally
+# ATTACHed copy (see tests/validate_mart.py) — the mart objects are then built locally
 # while the source stays untouched.
 
 # Classic gaps-and-islands interval merge, applied per tid to a CTE named `raw`

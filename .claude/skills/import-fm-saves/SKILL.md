@@ -157,7 +157,7 @@ check against a screenshot.
    snapshot data and nothing else. A large reordering with no numbers changed means something
    lost its `ORDER BY` — worth chasing rather than committing.
 
-8. **Sanity-check the mart** — `uv run python scripts/validate_mart.py --db fm-frem.duckdb`.
+8. **Sanity-check the mart** — `uv run python tests/validate_mart.py --db fm-frem.duckdb`.
    It asserts the spell invariants, the ring-buffer dedup, the loan-in ground truth, the season
    totals, and (section 7) the four bugs that once shipped plausible-looking wrong numbers.
    Cheap, and it is the check that catches a new snapshot breaking an assumption.

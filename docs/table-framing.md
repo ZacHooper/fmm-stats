@@ -20,10 +20,10 @@ candidate), so the five newly-found tables are confirmed on **one save per caree
 running before anything depends on a shape. Reproduce with:
 
 ```bash
-uv run python scripts/audit_table_headers.py            # per-table report + hex dumps
-uv run python scripts/audit_table_headers.py --confirm  # each declared count vs its own invariant
-uv run python scripts/discover_tables.py                # inventory of walkable tables
-uv run python scripts/discover_tables.py --stable       # only what recurs across saves
+uv run python scripts/audit/audit_table_headers.py            # per-table report + hex dumps
+uv run python scripts/audit/audit_table_headers.py --confirm  # each declared count vs its own invariant
+uv run python scripts/audit/discover_tables.py                # inventory of walkable tables
+uv run python scripts/audit/discover_tables.py --stable       # only what recurs across saves
 ```
 
 ## The convention
@@ -99,7 +99,7 @@ The history slab is the same idea with different framing and was already relying
 
 ## What the audit found: declared vs. what we read
 
-`scripts/audit_table_headers.py` takes the first record of every table the parser locates,
+`scripts/audit/audit_table_headers.py` takes the first record of every table the parser locates,
 looks back 128 bytes, and compares any count it finds against the records we actually got.
 
 | table | declares | we read | |
@@ -275,7 +275,7 @@ Month`) and `count × stride` is a coincidence.
 
 ### The detector that actually works: the index invariant
 
-`scripts/discover_tables.py` prefers a much stronger test. If a table is a dense array whose
+`scripts/audit/discover_tables.py` prefers a much stronger test. If a table is a dense array whose
 first field IS the slot index, then with `count` from the header the stride can be **derived**
 (where do ids 1 and 2 sit?) and then `id == k` checked for **every declared record**. A
 full-table index check is not something noise survives, and it needs no idea what the rest of

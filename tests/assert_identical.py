@@ -193,7 +193,7 @@ def main():
     for d in diffs:
         print("  " + d)
     print("\nIf this change was INTENTIONAL, re-record in the same commit that makes it\n"
-          "and say so in the message:  scripts/assert_identical.py --record --note '<why>'")
+          "and say so in the message:  tests/assert_identical.py --record --note '<why>'")
     return 1
 
 

@@ -245,7 +245,7 @@ def main(argv):
     # row and an overshoot means it invented one. This is the check a ground-truth spot-check
     # cannot make: the coordinates for Aalborg and Parken were exact while the city walk was
     # simultaneously emitting 3 records that were not cities and dropping 31 that were --
-    # every one of the 31 referenced by a stadium. See scripts/audit_records.py.
+    # every one of the 31 referenced by a stadium. See scripts/audit/audit_records.py.
     dense = True
     for label, tbl in (("stadium", stadiums), ("city", cities)):
         if min(tbl) != 0 or len(tbl) != max(tbl) + 1:

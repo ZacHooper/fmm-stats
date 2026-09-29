@@ -38,7 +38,7 @@ by a structural test described in the notes.
 * **Blocked on Engine Capability (2 tables)**:
   * `competitions` (`comp_table`, 1,372 records) — Shape A count-framed, blocked on nested variable reference array (`n_refs: u32` then `n_refs * 8B`).
   * `clubs` (`club_table`, 11,331 records) — Shape A count-framed, blocked on nested affiliations array (`naff: u16` then `naff * 21B`).
-* **Non-Table / Structural Walks**: `history.py` (Shape B pointer linked-list forest), `clubrecords.py` (Shape B/C candidate sweep), `matches.py` (Shape B/F lineup blocks), `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
+* **Non-Table / Structural Walks**: `history.py` (Shape B pointer linked-list forest), `clubrecords.py` (Shape C grid, region ended by a Shape G filler wall), `matches.py` (Shape G delimiter-opened lineup blocks), `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
@@ -69,10 +69,10 @@ by a structural test described in the notes.
 | 40,962,218 | 41,113,898 | **0.15 MB** | **nickname id-table** — 9,480 × 16 B | static | Shape C | **MIGRATED** (`NICKNAMES_TABLE`) |
 | 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED**, 82% zero — mostly padding | — | — | — |
 | 42,630,105 | 46,876,873 | 4.25 MB | **player-history slab** — 265,423 rows × 16 B, pointer forest | **fixed pool** | Shape B | live (`history.locate`) |
-| 46,876,873 | 48,165,854 | 1.29 MB | **club-records** — 21 B team rows / 22 B player rows, 12-row category blocks | **preallocated grid + 212 B per new block** | Shape B/C | candidate sweep (`clubrecords.py`) |
+| 46,876,873 | 48,165,854 | 1.29 MB | **club-records** — 21 B team rows / 22 B player rows, 12-row category blocks | **preallocated grid + 212 B per new block** | Shape C (region end: G) | candidate sweep (`clubrecords.py`) |
 | 48,165,854 | 52,721,064 | 4.56 MB | **trailing stride-70 empty-slot pool** — 65,072 slots, `e4 07` (year 2020) empty sentinel | **preallocated, being consumed** | Shape C | struct (residue class mod 70) |
 | 52,721,064 | 55,839,667 | 3.12 MB | **UNIDENTIFIED**, 65% zero — five `0x00` runs of 52–193 KB | — | — | — |
-| 55,839,667 | 56,223,268 | 0.38 MB | **our matches** — 60 blocks, home XI + away XI, 54 B player blocks | **wiped every July; appends in-season** | Shape B/F | live (`matches.find_match_region`) |
+| 55,839,667 | 56,223,268 | 0.38 MB | **our matches** — 60 blocks, home XI + away XI, 54 B player blocks | **wiped every July; appends in-season** | Shape G | live (`matches.find_match_region`) |
 | 56,313,477 | 56,314,027 | **550 B** | exact `0xFF` wall, identical regardless of match count | — | — | — |
 | 56,314,027 | — | 65 B/rec | **per-season table** — `[flag u8][value u16][tid u16][year u16]`, one record per season, tid constant at our club | grows 1/season | Shape C | struct |
 | ~56,314,300 | ~61,253,092 | 4.94 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%). One small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` / `Res Group 1`), so the structure below starts earlier than its first EMPTY slot | — | — | — |

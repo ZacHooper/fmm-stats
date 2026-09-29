@@ -7,7 +7,6 @@ Contains world match fixtures tiled across contiguous 92-byte segments.
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .. import archive as A
-from .. import records as RD
 from ..core import Field, PAD, Record, TableDef, U8, U16, U32, UNKNOWN
 from ..core.primitives import u16 as _u16, ymd_from as _ymd_from
 
@@ -176,7 +175,7 @@ def scrape(blob: Any, valid_clubs: Optional[Set[int]] = None) -> List[Dict[str, 
     for start, count in segments(blob):
         for k in range(count):
             base = start + k * STRIDE
-            r = RD.read_fields(blob, FIXTURE, base, wanted_fields)
+            r = FIXTURE.read_fields(blob, base, wanted_fields)
             if valid_clubs is not None and (r["home_tid"] not in valid_clubs
                                             or r["away_tid"] not in valid_clubs):
                 continue

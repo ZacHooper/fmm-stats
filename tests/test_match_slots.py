@@ -7,7 +7,7 @@ assumption creeping back: the record is AWAY-FIRST. Every earlier probe searched
 oriented home->away club pair and therefore could not have found it, which is why the region
 sat unread for months while looking like noise.
 
-The three structural assertions are the ones scripts/audit_records.py makes of every other
+The three structural assertions are the ones scripts/audit/audit_records.py makes of every other
 record we walk:
 
   STRIDE    25, and the trailer constant occupies exactly ONE residue class mod 25, by a

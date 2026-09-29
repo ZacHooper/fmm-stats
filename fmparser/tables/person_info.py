@@ -8,7 +8,6 @@ variable-length counted language and relationship lists.
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import primitives as P
-from .. import records as RD
 from ..save import cache_key as _cache_key
 from ..core import DATE, Field, HEX4, PAD, Record, U16, U32, U8, UNKNOWN
 
@@ -142,7 +141,7 @@ def person_info_table_spans(mm: Any) -> List[Tuple[int, int]]:
 
 def _decode_info(mm: Any, base: int) -> Dict[str, Any]:
     """Decode one info record at `base` into the spine's identity dict."""
-    rec = RD.read(mm, PERSON_INFO, base)
+    rec = PERSON_INFO.read(mm, base)
     if rec["uid"] == 0:
         for k in PERSON_FIELDS:
             rec[k] = None

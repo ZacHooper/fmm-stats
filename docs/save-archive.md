@@ -300,7 +300,7 @@ Parsed by `fmparser/fixtures.py` (`FIXTURE`).
   emitted; `mart.match_stages` takes the store's full-time score where it holds the match and
   flags `extra_time` (3 of our matches to date).
 - **~70 of the 92 bytes are unnamed.** There is no `LAYOUTS` entry for this record yet and
-  `scripts/audit_records.py` does not cover it.
+  `scripts/audit/audit_records.py` does not cover it.
 - The 38 KB between segments, and the segment ordering (2026 before 2025), are unexplained.
 - Whether a fixture can appear twice, as it does in `clubrecords.py` and the 25-byte table.
 
