@@ -73,22 +73,26 @@ Live traps, each of which has produced numbers that looked fine and were not:
 
 ### 1. Migrate the remaining tables onto `core`
 Every table is an **array** or a **linked list** of **packed** or **tagged** rows, found by a
-locator (`parser-architecture.md` Part 1). `core` walks arrays of both row kinds (`TableDef`,
-`TaggedTableDef`). In order — each PR gated by byte-identical `tests/assert_identical.py`, the
-module's save test, `audit_records.py`, and one deliberate break:
+locator (`parser-architecture.md` Part 1). `core` reads arrays of both row kinds (`TableDef`,
+`TaggedTableDef`) and linked pools (`LinkedTableDef`). In order — each PR gated by
+byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
+deliberate break:
 
-1. **The linked-list walk (shape B)** — a core table for a stride record with a next-row
-   pointer, heads = rows of in-degree 0, read column-wise (`Record.columns`); move `history.py`
-   onto it. Its locator should prove the pool exactly (the pointer-forest check in
-   [`career-region-sizing.md`](career-region-sizing.md)), not by sampling.
-2. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
+1. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
    walk with an empty-slot predicate and a block size.
-3. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
+2. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
    stride are not mapped yet. Research first: find each array's bounds, then it is an ordinary
    array.
-4. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
+3. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
    already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
    region is empty at a season boundary (0 anchors is correct there, not a locator failure).
+
+### 2. Padding that is data, and records no table walk reaches
+`audit_records.py`'s PADDING check measures every `PAD` span on every record a table reads.
+It found 35 that vary; they are now `UNKNOWN` `RAW` (undecoded data), which #5 and #10 list.
+Five records carrying `PAD` are walked by no table and so are not measured:
+`comp_man_header`, `comp_man_stage`, `comp_rules_header`, `contract_status`,
+`match_player_block`. Each is measured when its module reaches `core`.
 
 ---
 
@@ -170,6 +174,13 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
   avg). Not attendance — `mart.club_attendance` is. Carried in `staging.club_details` only.
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `staging.clubs` —
   probably youth/academy or defunct clubs in another structure.
+- **Career history** (`tables/history.py`): `unk4` / `unk5`, two per-season counts that are 0
+  before the career started and never exceed that season's apps (0..7 and 0..26 on
+  frem-2027-08-08 — cards and man-of-the-match fit; check against a Player History screen).
+  And the 8 bytes after the pool, `21 04 81 00 xx 00 00 00` on every save: not a record, not
+  the club-records grid, not yet claimed.
+- **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
+  (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records.
 
 ### 11. Read the season rollover from the game, not from `careers.py`
 A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
@@ -187,8 +198,7 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 table, the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three name id-tables
 + browse strings + the squad snapshot (`name`, by precedence: squad-list name, then common name,
 then legal name), the club table (`club`, `parent_club`), the contract-status records
-(`squad_status`, loan flags), the history slab (origin club, history summary) and the player
-attributes. None of that is extraction. Extract should dump each table as the save holds it,
+(`squad_status`, loan flags) and the player attributes. None of that is extraction. Extract should dump each table as the save holds it,
 the loader write it to `staging`, and `fmstats/mart.py` do the joins — the name precedence a
 view (`mart.person_names`), `wage_gbp = wage_units × 520` a derivation.
 
@@ -203,7 +213,11 @@ A table at a time, contracts and names first, then club labels and the rest:
 When this lands, `fmparser/clubs_comps.py`'s lookups go with it: `club_record`, `league_name`,
 `comp_detail`, `club_details` and the name resolvers exist only for extract's pre-joins, and
 `comp_name` / `comp_id_at` only to label matches in `matches.py`. What remains is the two
-tables themselves (`tables/clubs.py`, `tables/competitions.py`).
+tables themselves (`tables/clubs.py`, `tables/competitions.py`). The same goes for
+`extract._history_clubs`, which walks history chains only to decide which club names
+`clubs.json` carries: once `clubs.json` is the whole club table it has nothing to do.
+`staging.player_history`'s `confidence` (always 'exact') and `origin_club` (always NULL) go
+then too.
 
 Also:
 - **Move the loader's remaining transforms into `fmstats`**, so `load_duckdb.py` only writes
@@ -234,8 +248,8 @@ Spanish season against an in-game table before quoting any non-Danish table.
 - **`is_staff` flipping to true empties a player's history** in that snapshot (tids 9231,
   9430). Both are in [`agent-context/tid-recycling.md`](agent-context/tid-recycling.md).
 
-### 15. History lost to the slab's reclamation
-The history slab is a fixed pool; 25.2% of sids have a SHORTER chain in 2026 than on day one
+### 15. History lost to the pool's reclamation
+The career-history pool is fixed-size; 25.2% of sids have a SHORTER chain in 2026 than on day one
 ([`table-framing.md`](table-framing.md)). Quantify it in the store (how many people have their
 richest history in an older snapshot), and if material, union history across snapshots in
 `fmstats/mart.py` — which also fixes the mart-only R2 object, where `player_career_seasons`

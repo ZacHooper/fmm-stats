@@ -7,7 +7,8 @@ names, a placeholder uid.
 """
 from typing import Any, Dict, Optional, Tuple
 
-from ..core import CountedList, Field, PAD, PString, Record, TableDef, U8, U16, U32, UNKNOWN
+from ..core import (CountedList, Field, PAD, PString, RAW, Record, TableDef, U8, U16, U32,
+                    UNKNOWN)
 from ..save import cache_key as _cache_key
 from .clubs import NAME_END, after_frame, clubs_end
 
@@ -56,17 +57,17 @@ COMP_REF_ENTRY = Record("comp_ref_entry", 8, (
     Field(0, 4, "ref", U32),
     Field(4, 2, "season", U16),
     Field(6, 1, "ordinal", U8),
-    Field(7, 1, UNKNOWN, PAD),
+    Field(7, 1, UNKNOWN, RAW),
 ))
 
 COMP_HISTORY_TAIL = Record("comp_history_tail", 21, (
-    Field(0,  4, UNKNOWN, PAD),
-    Field(4,  4, UNKNOWN, PAD),
-    Field(8,  4, UNKNOWN, PAD),
+    Field(0,  4, UNKNOWN, RAW),
+    Field(4,  4, UNKNOWN, RAW),
+    Field(8,  4, UNKNOWN, RAW),
     Field(12, 2, "season_0", U16),
     Field(14, 2, "season_1", U16),
     Field(16, 2, "season_2", U16),
-    Field(18, 2, UNKNOWN, PAD),
+    Field(18, 2, UNKNOWN, RAW),
     Field(20, 1, UNKNOWN, PAD),
 ), is_head=True)
 

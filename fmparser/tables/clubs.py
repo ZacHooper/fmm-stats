@@ -8,7 +8,8 @@ teams, stored club-shaped. `club_details` reports one club's whole record.
 from typing import Any, Dict, Optional, Tuple
 
 from ..core import primitives as P
-from ..core import CountedList, Field, I32, PAD, PString, Record, TableDef, U8, U16, U32, UNKNOWN
+from ..core import (CountedList, Field, I32, PAD, PString, RAW, Record, TableDef, U8, U16,
+                    U32, UNKNOWN)
 from ..save import cache_key as _cache_key
 from .rounds import ROUNDS_TABLE
 
@@ -38,7 +39,7 @@ def locate_clubs(mm: Any) -> Optional[Tuple[int, int]]:
 
 
 # The byte after a long or short name: 00 after a name, FF after an empty one (a blank slot).
-NAME_END = Record("name_end", 1, (Field(0, 1, UNKNOWN, PAD),), is_head=True)
+NAME_END = Record("name_end", 1, (Field(0, 1, UNKNOWN, RAW),), is_head=True)
 
 CLUB_HEAD = Record("club_head", 8, (
     Field(0, 4, "tid", U32),
@@ -48,7 +49,7 @@ CLUB_HEAD = Record("club_head", 8, (
 
 def _kit_fields(k):
     base = 16 + 22 * k
-    return (Field(base, 2, UNKNOWN, PAD),               # two flag bytes
+    return (Field(base, 2, UNKNOWN, RAW),               # two flag bytes
             *(Field(base + 2 + 2 * i, 2, f"kit{k}_{i}", U16) for i in range(10)))
 
 
@@ -82,18 +83,18 @@ _BYTE = Record("club_byte", 1, (Field(0, 1, "value", U8),), is_head=True)
 CLUB_STANDING = Record("club_standing", 23, (
     Field(0, 1, "league_pos", U8),
     Field(1, 2, "reputation", U16),
-    Field(3, 20, UNKNOWN, PAD),
+    Field(3, 20, UNKNOWN, RAW),
 ), is_head=True)
 
 AFFILIATE = Record("club_affiliate", 21, (
-    Field(0, 4, UNKNOWN, PAD),
+    Field(0, 4, UNKNOWN, RAW),
     Field(4, 4, "club1_tid", U32),
     Field(8, 4, "club2_tid", U32),
     Field(12, 2, "start_day", U16),
     Field(14, 2, "start_year", U16),
     Field(16, 2, "end_day", U16),
     Field(18, 2, "end_year", U16),
-    Field(20, 1, UNKNOWN, PAD),
+    Field(20, 1, UNKNOWN, RAW),
 ), is_head=True)
 
 _TID = Record("club_squad_slot", 4, (Field(0, 4, "tid", U32),), is_head=True)
@@ -107,10 +108,10 @@ CLUB_STAFF = Record("club_staff", 123, (
     *(Field(4 * i, 4, f"staff_{i}", U32) for i in range(11)),
     Field(44, 4, "main_club_tid", U32),
     Field(48, 1, "club_type", U8),
-    Field(49, 74, UNKNOWN, PAD),
+    Field(49, 74, UNKNOWN, RAW),
 ), is_head=True)
 
-_TAIL_ITEM = Record("club_tail_item", 9, (Field(0, 9, UNKNOWN, PAD),), is_head=True)
+_TAIL_ITEM = Record("club_tail_item", 9, (Field(0, 9, UNKNOWN, RAW),), is_head=True)
 
 # `[tid u32][uid i32]`, three names (NAME_END after long and short, none after the code), then
 # the trailer: 167 fixed bytes, `[u32 8][8 B]`, 23 bytes, the affiliates `[u16 n][n x 21]`,

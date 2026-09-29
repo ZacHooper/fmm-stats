@@ -37,7 +37,7 @@ OFFICIAL = Record("official", OFFICIAL_STRIDE, [
     Field(21, 1, "pressure", U8, note="attribute 3 (1-20 scale)"),
     Field(22, 1, "refereeing", U8, note="attribute 4 (1-20 scale)"),
     Field(23, 1, "running_match", U8, note="attribute 5 (1-20 scale)"),
-    Field(24, 5, UNKNOWN, PAD, note="constant 0x00 padding"),
+    Field(24, 5, UNKNOWN, RAW),
     Field(29, 2, "null_year", U16, note="typically 1900 null-year marker"),
     Field(31, 64, "competitions_raw", RAW, note="16 x u32 prefix-packed eligible competition/region IDs"),
     Field(95, 2, "day_of_year", U16),

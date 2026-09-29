@@ -21,7 +21,7 @@ careers. The invariant is `id == slot index`.
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..core import (CountedList, F32, Field, PAD, PString, Record, TableDef, U8, U16, U32,
+from ..core import (CountedList, F32, Field, PAD, PString, RAW, Record, TableDef, U8, U16, U32,
                     UNKNOWN, table_spans)
 from ..save import cache_key as _cache_key
 
@@ -50,7 +50,7 @@ NATION_TAIL = Record("nation_tail", 6, (
 
 NATION_TEAM = Record("nation_team", 23, (
     Field(0, 1, UNKNOWN, U8),              # 0..3
-    Field(1, 8, UNKNOWN, PAD),             # ff 7f d4 00 00 00 ff 7f on 250 of 251
+    Field(1, 8, UNKNOWN, RAW),             # ff 7f d4 00 00 00 ff 7f on all but one
     Field(9, 1, UNKNOWN, U8),              # 0 / 1
     Field(10, 1, UNKNOWN, U8),             # 1..5
     Field(11, 2, "rival_nation_id", U16, note="0xffff = none"),
@@ -71,7 +71,7 @@ LANGUAGE_SKILL = Record("language_skill", 3, (
 ), is_head=True)
 NATION_GAP = Record("nation_gap", 2, (Field(0, 2, UNKNOWN, U16),), is_head=True)
 NATION_GAP2 = Record("nation_gap2", 1, (Field(0, 1, UNKNOWN, U8),), is_head=True)
-NATION_END = Record("nation_end", 11, (Field(0, 11, UNKNOWN, PAD),), is_head=True)
+NATION_END = Record("nation_end", 11, (Field(0, 11, UNKNOWN, RAW),), is_head=True)
 
 _NATIONS_CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
 

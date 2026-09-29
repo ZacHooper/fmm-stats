@@ -26,6 +26,9 @@ This script asserts against all three, from the bytes, on a real save:
              without having decided to -- which is how the record tail went missing.
   EXTENT     a keyed table is contiguous in its own id space. Gaps and overshoot both mean
              the walk's boundary is wrong.
+  PADDING    every byte declared PAD reads the same on every record a table walk reads. A PAD
+             span that varies is data we are not reading: declare it UNKNOWN with a kind
+             (RAW) instead, so it counts as undecoded rather than as filler.
 
 Run:  uv run python scripts/audit/audit_records.py [path/to/save.fms]
       uv run python scripts/audit/audit_records.py --map     # print the per-byte schema
@@ -47,7 +50,6 @@ from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa
 from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser import clubs_comps as R           # noqa: E402
 from fmparser import clubrecords as CR        # noqa: E402
-from fmparser import history as H             # noqa: E402
 from fmparser import matches as MT            # noqa: E402
 from fmparser.tables.contracts import CONTRACT_DETAIL, CONTRACT_STATUS  # noqa: E402
 from fmparser.tables.person_info import INFO_LAYOUT, scrape_person_info   # noqa: E402
@@ -58,7 +60,8 @@ from fmparser.tables import comp_honours as CH         # noqa: E402
 from fmparser.tables import comp_rules as CRU          # noqa: E402
 from fmparser.tables import rule_files as RF           # noqa: E402
 from fmparser import tables as _all_tables                # noqa: E402,F401  (registers every Record)
-from fmparser.core import REGISTRY, TAGGED_REGISTRY, tag_map  # noqa: E402
+from fmparser.core import (PAD, REGISTRY, TAGGED_REGISTRY, TaggedTableDef,  # noqa: E402
+                           record_instances, tag_map)
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +148,52 @@ def _extent(name, ids):
         print(f"    gaps: {missing[:20]}{' ...' if len(missing) > 20 else ''}")
         print("    -> a gap is either a real hole in the save or a row the walk dropped. "
               "Decide which; do not leave it to a tolerance constant.")
+    return ok
+
+
+def _table_sources(mm, table, members):
+    """The buffers a table is read from: the save, or its archive member."""
+    if not getattr(table, "member", None):
+        yield mm
+    elif table.member in members:
+        from fmparser.core import archive as ARCH
+        yield ARCH.read_member(mm, members[table.member])
+
+
+def _padding(mm):
+    """Every PAD span of every record a table walk reads, measured on every instance."""
+    from fmparser.core import archive as ARCH
+    try:
+        members = ARCH.members(mm)
+    except (ImportError, ARCH.ArchiveError) as e:
+        print(f"  SKIP archive tables: {e} (uv sync --extra archive)")
+        members = {}
+    values = collections.defaultdict(collections.Counter)    # (record, field) -> values
+    count = collections.Counter()
+    for table in _all_tables.TABLES.values():
+        if isinstance(table, TaggedTableDef):
+            continue
+        for buf in _table_sources(mm, table, members):
+            for rec, off in record_instances(buf, table):
+                count[rec.name] += 1
+                for f in rec.fields:
+                    if f.kind is PAD:
+                        at = off + f.offset
+                        values[(rec.name, f.offset, f.width)][bytes(buf[at:at + f.width])] += 1
+    ok = True
+    for (name, off, width), vals in sorted(values.items()):
+        span = f"+{off}" if width == 1 else f"+{off}..{off + width - 1}"
+        good = len(vals) == 1
+        ok &= good
+        top = ", ".join(f"{v.hex()} x{n}" for v, n in vals.most_common(3))
+        print(f"  {'ok  ' if good else 'FAIL'} {name:<24} {span:>10}  {count[name]:>7} records, "
+              f"{len(vals)} value{'s' if len(vals) > 1 else ''}: {top}")
+    unmeasured = sorted(r.name for r in REGISTRY.values()
+                        if any(f.kind is PAD for f in r.fields) and r.name not in count)
+    if unmeasured:
+        print(f"  (not walked by a table, so not measured: {', '.join(unmeasured)})")
+    if not ok:
+        print("    -> a PAD span that varies is data: declare it UNKNOWN with kind RAW.")
     return ok
 
 
@@ -246,6 +295,9 @@ def main():
         stadiums = PL_STADIUMS.scrape_stadiums(mm)
         ok &= _extent("stadium", stadiums.keys())
 
+        print("\npadding -- every PAD span constant on every record a table reads:")
+        ok &= _padding(mm)
+
         print("\ntagged records (archive comp_<uid>.dat) -- tag coverage:")
         try:
             ok &= _tagged_coverage(mm)
@@ -256,7 +308,7 @@ def main():
         ok &= _dictionary_coverage(mm)
 
     print("\n" + ("PASS: every record fully accounted for" if ok
-                  else "FAIL: see UNACCOUNTED / MISMATCH / CHECK above"))
+                  else "FAIL: see UNACCOUNTED / MISMATCH / CHECK / FAIL above"))
     return 0 if ok else 1
 
 

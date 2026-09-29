@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import primitives as P
 from ..save import cache_key as _cache_key
-from ..core import (CountedList, DATE, Field, HEX4, PAD, Record, TableDef, U16, U32, U8,
+from ..core import (CountedList, DATE, Field, HEX4, PAD, RAW, Record, TableDef, U16, U32, U8,
                     UNKNOWN, table_spans)
 
 __all__ = [
@@ -80,7 +80,7 @@ PERSON_INFO = Record("person_info", 68, (
     Field(24, 2, "nationality_id", U16),
     Field(26, 2, "second_nationality_id", U16),
     Field(28, 1, "ethnicity", U8),
-    Field(29, 4, UNKNOWN, PAD),
+    Field(29, 4, UNKNOWN, RAW),
     Field(33, 1, "type_flag", U8),
     Field(34, 4, "unknown_date", DATE),
     Field(38, 1, "international_caps", U8),
@@ -89,7 +89,7 @@ PERSON_INFO = Record("person_info", 68, (
     Field(41, 1, "u21_goals", U8),
     Field(42, 4, "club_tid", U32),
     Field(46, 4, "joined_date", DATE),
-    Field(50, 2, UNKNOWN, PAD),
+    Field(50, 2, UNKNOWN, RAW),
     *(Field(52 + i, 1, n, U8) for i, n in enumerate(PERSONALITY)),
     Field(60, 4, "sid", HEX4),
     Field(64, 4, "id2", U32),

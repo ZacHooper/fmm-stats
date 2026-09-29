@@ -13,7 +13,7 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 ## Key facts (don't relearn these)
 
 - **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`.
-  numpy (needed by `fmparser/history.py`) is in the uv env, so nothing here depends on a system
+  numpy (needed by `fmparser/tables/history.py`) is in the uv env, so nothing here depends on a system
   python any more.
 - **The parser is career-aware** — pass `--career <key>` (`frem` is the active one; `bucaspor` is
   archived). Verify the extract's `clubs.json` contains that career's managed + reserve tids
@@ -48,14 +48,17 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 
 `player_history` + `player_history_seasons` populate on every save now, ~21-23k players each. If
 a slice loads with **0 history rows** that is a regression, not the old known gap — check the
-`WARNING: history table not parsed` line in the extract output. `build()` refuses to emit from a
-slab that fails its forest check, so it fails loudly rather than writing garbage.
+`WARNING: history table not parsed` line in the extract output. The history table refuses to emit
+a pool that fails its forest check, so it fails loudly rather than writing garbage. The loader
+prints how many of the pool's records sit on a player's chain.
 
-Before touching `fmparser/history.py`, read `docs/agent-context/player-history-table.md`. The
-three facts that matter: `+4` is a **next-row pointer** (linked lists — record starts are the
-in-degree-0 rows, `FFFFFFFF` ends a chain); **season+stats come from row `k-1`, club+fee from row
-`k`**; and the player link is `u32 @ P-38` in the **attribute** record, not anything inside the
-history table (`docs/IDS.md` § PLAYER → CAREER HISTORY). Verify any change with
+Before touching `fmparser/tables/history.py`, read its docstring and shape B of
+`docs/parser-architecture.md`. The three facts that matter: `+12` is a **next-record pointer**
+(linked lists — record starts are the in-degree-0 records, `FFFFFFFF` ends a chain); **one record
+is one season line** (`[stats][club, fee, next]`); and the player link is `history_head`
+(`u32 @ P-38`) in the **attribute** record, not anything inside the history table
+(`docs/IDS.md` § PLAYER → CAREER HISTORY). The parser emits the pool as stored; the chains are
+read by `load_duckdb.load_history`. Verify any change with
 `python3 scripts/history_v2.py <save> --player <tid>` — it prints the career TOTAL line, which is
 what you diff against an in-game History screenshot.
 

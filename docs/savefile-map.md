@@ -34,8 +34,8 @@ preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `
 by a structural test described in the notes.
 
 ### Table Engine Migration Status Summary
-* **Migrated to `TableDef` (21 tables)**: `player_attributes`, `staff`, `round_names`, `clubs`, `competitions`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary).
-* **Non-Table / Structural Walks**: `history.py` (Shape B pointer linked-list forest), `clubrecords.py` (Shape C grid, region ended by a Shape G filler wall), `matches.py` (Shape G delimiter-opened lineup blocks), `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
+* **Migrated to `TableDef` (21 tables)**: `player_attributes`, `staff`, `round_names`, `clubs`, `competitions`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary). **As `LinkedTableDef` (1 table)**: `history` (the Shape B career-history pool, every record read, forest-checked).
+* **Non-Table / Structural Walks**: `clubrecords.py` (Shape C grid, region ended by a Shape G filler wall), `matches.py` (Shape G delimiter-opened lineup blocks), `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
@@ -65,7 +65,7 @@ by a structural test described in the notes.
 | 40,656,158 | 40,962,206 | 0.31 MB | **first-name id-table** — declared 19,128, walked 15,366 | static | Shape C | **MIGRATED** (`FIRST_NAMES_TABLE`) |
 | 40,962,218 | 41,113,898 | **0.15 MB** | **nickname id-table** — 9,480 × 16 B | static | Shape C | **MIGRATED** (`NICKNAMES_TABLE`) |
 | 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED**, 82% zero — mostly padding | — | — | — |
-| 42,630,105 | 46,876,873 | 4.25 MB | **player-history slab** — 265,423 rows × 16 B, pointer forest | **fixed pool** | Shape B | live (`history.locate`) |
+| 42,630,093 | 46,876,865 | 4.25 MB | **career-history pool** — `[count u32]` + 265,423 records × 16 B (`[stats][club, fee, next]`, one season line each), pointer forest; 8 unclaimed bytes follow | **fixed pool** | Shape B | **MIGRATED** (`HISTORY_TABLE`) |
 | 46,876,873 | 48,165,854 | 1.29 MB | **club-records** — 21 B team rows / 22 B player rows, 12-row category blocks | **preallocated grid + 212 B per new block** | Shape C (region end: G) | candidate sweep (`clubrecords.py`) |
 | 48,165,854 | 52,721,064 | 4.56 MB | **trailing stride-70 empty-slot pool** — 65,072 slots, `e4 07` (year 2020) empty sentinel | **preallocated, being consumed** | Shape C | struct (residue class mod 70) |
 | 52,721,064 | 55,839,667 | 3.12 MB | **UNIDENTIFIED**, 65% zero — five `0x00` runs of 52–193 KB | — | — | — |
@@ -85,7 +85,7 @@ Four kinds of structure live in this file, and the class tells you how to parse 
 | class | members | consequence |
 |---|---|---|
 | **static reference data** | everything 0–20 MB plus the three name id-tables | Count-framed (`[≥8×FF][count][record 0]`). Walk it by the declared count; the count is exact. |
-| **fixed pool** | history slab (265,423 rows), match-slot table (3,975 slots) | Allocated once at career creation, never resized, recycled internally. The count is a **bound**, never a measure of how much data exists. |
+| **fixed pool** | career-history pool (265,423 records), match-slot table (3,975 slots) | Allocated once at career creation, never resized, recycled internally. The count is a **bound**, never a measure of how much data exists. |
 | **preallocated grid that also grows** | contract grid (32,961 × 83 B), club-records, the stride-70 pool | Ships full of empty-sentinel rows and fills up. Club-records additionally gains 212 B per new season block. On a day-one save these read as *empty*, not missing. |
 | **seasonal, wiped each July** | transfer band (35.4–38.4 MB), our matches | Whatever is in them at the end of June is gone in July. A late-June save each year is the only way to keep a season's transfers or matches. |
 

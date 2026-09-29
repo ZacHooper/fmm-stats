@@ -638,11 +638,12 @@ DDL = [
         position VARCHAR NOT NULL, familiarity INTEGER
     )""",
 
-    # career-history summary, one row per player (from history.json / fmparser.history).
-    # origin_club_tid = youth/debut club = the Athletic-Bilbao eligibility key. `confidence` is
-    # always 'exact' since 2026-08-19: the player -> history link is a stored pointer
-    # (u32 @ P-38 in the attribute record), not an inferred alignment, so the old
-    # high/medium/low tail is gone. See fmparser/history.py. natural key: (season, phase, tid).
+    # career-history summary, one row per player, read from the raw pool in history.json by
+    # `load_history`. origin_club_tid = youth/debut club = the Athletic-Bilbao eligibility
+    # key; debut_season = the season on the chain's first record, the debut line. `confidence`
+    # is always 'exact' (the player -> history link is a stored pointer, the attribute
+    # record's `history_head`) and `origin_club` is always NULL (the mart names it); both are
+    # kept for the schema. natural key: (season, phase, tid).
     """CREATE TABLE IF NOT EXISTS staging.player_history (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         origin_club_tid INTEGER, origin_club VARCHAR,
@@ -651,6 +652,7 @@ DDL = [
     )""",
 
     # full season-by-season career rows (for display). natural key: (season, phase, tid, seq).
+    # seq -1 is the debut line (the chain's first record, at the origin club); 0.. follow it.
     # A season can appear TWICE for one player: a loan year stores the parent-club row (0 apps)
     # and the loan-club row (fee='loan') separately, exactly as the in-game screen shows them.
     # `goals` is goals CONCEDED for goalkeepers. `rating` is null for pre-career seasons (the
@@ -906,6 +908,97 @@ def _delete(con, table, season, phase, extra="", params=()):
 # group loaders — each returns {table: rowcount}
 # ---------------------------------------------------------------------------
 
+HISTORY_END = 0xFFFFFFFF
+HISTORY_SEASON_BASE = 1971          # end_year = 1971 + the row's season code
+
+# Reading a player's career out of the raw history pool (fmparser/tables/history.py: every
+# 16-byte record as stored, plus each player's head record). One record is one line of the
+# in-game Player History screen: a season, its club, its fee and its numbers.
+#
+# A player's records are one chain, followed by `next` from his head. The head must be a
+# chain's first record (nothing points at it) inside the pool; anything else means no
+# history yet. The head is the DEBUT LINE: the oldest season the pool holds for him, at his
+# origin club -- the Athletic-Bilbao eligibility key. For a player whose chain has not been
+# reclaimed it is a youth season (age 14-18 for the whole Frem squad at 2027-08-08); an
+# academy intake's debut line is his youth-team season, with its appearances. It is written
+# to `player_history_seasons` as `seq = -1`, so the lines after it keep `seq` 0, 1, ...;
+# what to make of it is the mart's decision. A chain of the debut line alone (an intake in
+# his first season) is a history too.
+#
+# Verified against five in-game Player-History screens (denmark-24-start.fms, 30 Jun 2023):
+# every season line matches, and the career Pld/Gls/Ast TOTALS match exactly -- Dirksen
+# 198/10/0, Andersson 286/16/2, Thrane 195/26/4, Fugl 46/8/12, Erenbjerg 82/19/3 (two loan
+# spells and their loan fee markers included). `scripts/history_v2.py` runs the same SQL.
+_HISTORY_CHAIN_SQL = f"""
+WITH RECURSIVE chain(tid, seq, row) AS (
+    SELECT h.tid, 0, h.head FROM _hist_heads h
+    WHERE h.head < (SELECT count(*) FROM _hist_rows)
+      AND h.head NOT IN (SELECT next FROM _hist_rows WHERE next <> {HISTORY_END})
+    UNION ALL
+    SELECT c.tid, c.seq + 1, r.next
+    FROM chain c JOIN _hist_rows r ON r.row = c.row
+    WHERE r.next <> {HISTORY_END})
+SELECT * FROM chain
+"""
+
+_HISTORY_SEASONS_SQL = f"""
+SELECT ?, ?, c.tid, c.seq - 1, r.season, {HISTORY_SEASON_BASE} + r.season, r.club,
+       CASE r.fee WHEN 65535 THEN 'stay' WHEN 65534 THEN 'loan'
+                  WHEN 65533 THEN 'free' WHEN 0 THEN 'free'
+                  ELSE CAST(r.fee AS VARCHAR) END,
+       r.apps, r.goals, r.assists,
+       CASE WHEN r.rating = 0 THEN NULL ELSE r.rating / 100.0 END
+FROM _hist_chain c JOIN _hist_rows r ON r.row = c.row
+"""
+
+_HISTORY_SUMMARY_SQL = f"""
+WITH ends AS (
+    SELECT tid, max(seq) AS last_seq FROM _hist_chain GROUP BY tid)
+SELECT ?, ?, e.tid, head.club, NULL, last.club, 'exact', ? + 16 * h.row,
+       head.season, {HISTORY_SEASON_BASE} + head.season
+FROM ends e
+JOIN _hist_chain h ON (h.tid, h.seq) = (e.tid, 0)
+JOIN _hist_rows head ON head.row = h.row
+JOIN _hist_chain l ON (l.tid, l.seq) = (e.tid, e.last_seq)
+JOIN _hist_rows last ON last.row = l.row
+"""
+
+
+def load_history(con, season, phase, hist):
+    """staging.player_history (one row per player) and staging.player_history_seasons (one
+    per season line), read from the raw history pool. The pool itself is not stored."""
+    rows = hist["rows"]
+    df = pd.DataFrame({"row": range(hist["count"]),
+                       **{k: rows[k] for k in ("club", "fee", "next", "season", "apps",
+                                               "goals", "assists", "rating")}})
+    heads = pd.DataFrame({"tid": [int(t) for t in hist["heads"]],
+                          "head": list(hist["heads"].values())}, dtype="int64")
+    con.register("_hist_rows", df)
+    con.register("_hist_heads", heads)
+    try:
+        con.execute(f"CREATE OR REPLACE TEMP TABLE _hist_chain AS {_HISTORY_CHAIN_SQL}")
+        on_chains = con.execute("SELECT count(*) FROM _hist_chain").fetchone()[0]
+        con.execute("INSERT INTO staging.player_history (season, phase, tid, origin_club_tid, "
+                    "origin_club, last_season_club_tid, confidence, record_offset, "
+                    "debut_season, debut_end_year) " + _HISTORY_SUMMARY_SQL,
+                    [season, phase, hist["base"]])
+        con.execute("INSERT INTO staging.player_history_seasons (season, phase, tid, seq, "
+                    "hist_season, end_year, club_tid, fee, apps, goals, assists, rating) "
+                    + _HISTORY_SEASONS_SQL, [season, phase])
+        n_players, n_seasons = (con.execute(
+            f"SELECT count(*) FROM staging.{t} WHERE season = ? AND phase = ?",
+            [season, phase]).fetchone()[0]
+            for t in ("player_history", "player_history_seasons"))
+    finally:
+        con.execute("DROP TABLE IF EXISTS _hist_chain")
+        con.unregister("_hist_rows")
+        con.unregister("_hist_heads")
+    # every row of the pool, split by whether a player's chain reaches it
+    print(f"  history pool: {hist['count']} rows, {on_chains} on a player's chain, "
+          f"{hist['count'] - on_chains} on chains no player points at")
+    return {"player_history": n_players, "player_history_seasons": n_seasons}
+
+
 def load_core(con, d, season, phase):
     counts = {}
 
@@ -1013,32 +1106,7 @@ def load_core(con, d, season, phase):
     # --- career history (origin club + season-by-season) ---------------------
     hist_path = os.path.join(d, "history.json")
     if os.path.exists(hist_path):
-        hist = _load_json(hist_path)
-        hrows, hsrows = [], []
-        for k, v in hist.items():
-            tid = _int(k)
-            if tid is None:
-                continue
-            hrows.append((season, phase, tid, _int(v.get("origin_club_tid")),
-                          v.get("origin_club"), _int(v.get("last_season_club_tid")),
-                          v.get("confidence"), _int(v.get("record_offset")),
-                          _int(v.get("debut_season")), _int(v.get("debut_end_year"))))
-            for seq, s in enumerate(v.get("seasons") or []):
-                fee = s.get("fee")
-                hsrows.append((season, phase, tid, seq, _int(s.get("season")),
-                               _int(s.get("end_year")), _int(s.get("club_tid")),
-                               str(fee) if fee is not None else None,
-                               _int(s.get("apps")), _int(s.get("goals")),
-                               _int(s.get("assists")), s.get("rating")))
-        counts["player_history"] = _insert(
-            con, "player_history",
-            ["season", "phase", "tid", "origin_club_tid", "origin_club",
-             "last_season_club_tid", "confidence", "record_offset",
-             "debut_season", "debut_end_year"], hrows)
-        counts["player_history_seasons"] = _insert(
-            con, "player_history_seasons",
-            ["season", "phase", "tid", "seq", "hist_season", "end_year",
-             "club_tid", "fee", "apps", "goals", "assists", "rating"], hsrows)
+        counts.update(load_history(con, season, phase, _load_json(hist_path)))
 
     # --- injuries (weekly Player-Progress -> spells; managed squad only) ------
     inj_path = os.path.join(d, "injuries.json")
@@ -1659,7 +1727,7 @@ _MIGRATIONS = [
     "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
     "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS reputation INTEGER",
     # 2026-08-19: career history re-decoded (linked-list chains + the P-38 link), which also
-    # yielded assists, average rating and the debut season. See fmparser/history.py.
+    # yielded assists, average rating and the debut season. See fmparser/tables/history.py.
     "ALTER TABLE staging.player_history ADD COLUMN IF NOT EXISTS debut_season INTEGER",
     "ALTER TABLE staging.player_history ADD COLUMN IF NOT EXISTS debut_end_year INTEGER",
     "ALTER TABLE staging.player_history_seasons ADD COLUMN IF NOT EXISTS assists INTEGER",

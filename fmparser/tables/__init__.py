@@ -3,6 +3,7 @@
 `fmparser/core/table.py`."""
 from .cities import CITIES_TABLE, CITY, CITY_RECORD, scrape_cities
 from .clubs import CLUB_TABLE, club_details, locate_clubs, scrape_clubs
+from .history import HISTORY_TABLE, history_heads, locate_history, scrape_history
 from .competitions import COMP_TABLE, comp_refs, locate_competitions, scrape_competitions
 from .contracts import (
     CONTRACT,
@@ -175,6 +176,7 @@ TABLES = {
     "cities": CITIES_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
+    "history": HISTORY_TABLE,
     "comp_honours": COMP_HONOURS_TABLE,
     "comp_rules": COMP_RULES_TABLE,
     "rule_files": RULE_FILES_TABLE,
@@ -199,6 +201,11 @@ TABLES = {
 __all__ = [
     # Engine
     "TABLES",
+    # History
+    "HISTORY_TABLE",
+    "history_heads",
+    "locate_history",
+    "scrape_history",
     # Cities
     "CITIES_TABLE",
     "CITY",

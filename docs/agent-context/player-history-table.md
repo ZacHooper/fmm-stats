@@ -7,6 +7,12 @@ metadata:
   originSessionId: e454ef70-998b-4f22-a5f3-5cc24a02618f
 ---
 
+> **Superseded in part, 2026-09-29.** The row framing below is 8 bytes late: the true record
+> is `[stats][club, fee, next]`, one complete season line, so the "club column leads the stats
+> by one row" rule is the mis-framing, not a property of the data. `fmparser/history.py` is
+> gone: the pool is `fmparser/tables/history.py` (`HISTORY_TABLE`, emitted as stored) and the
+> chains are read by `load_duckdb.load_history`. See shape B in `docs/parser-architecture.md`.
+
 ## 2026-08-19 (afternoon) — SOLVED END TO END: pointer chains + the `P-38` id link
 
 The table is fully decoded and **reproduces all five in-game Player-History screenshots
