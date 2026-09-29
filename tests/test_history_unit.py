@@ -66,6 +66,14 @@ def test_locate_and_scrape():
     buf = junk + body + b"\x21\x04\x81\x00\x01\x00\x00\x00" + junk
     H._CACHE.clear()
     assert H.locate_history(buf) == (len(junk) + 4, 6), H.locate_history(buf)
+    # A pool whose pointers fail is not found at all -- not swapped for a lookalike: here a
+    # one-record frame elsewhere that a pair of neighbouring pointers also names, and that is
+    # trivially a forest on its own.
+    broken = bytearray(body)
+    struct.pack_into("<I", broken, 4 + 16 * 3 + 12, 2)        # row 3 -> row 2: reached twice
+    decoy = struct.pack("<I", 1) + record(0, 0, END) + record(0, 0, 2) + record(0, 0, 3)
+    H._CACHE.clear()
+    assert H.locate_history(junk + bytes(broken) + junk + decoy + junk) is None
     got = over(body).scrape(body)
     assert got["count"] == 6 and got["header"] == {"count": 6}
     assert got["rows"]["next"] == [1, 2, 5, 4, END, END]

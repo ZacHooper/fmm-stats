@@ -78,42 +78,66 @@ _NEXT_AT = HISTORY_ROW.field("next").offset
 _CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
 
 
-def _base_votes(mm: Any) -> Counter:
-    """Every base the pool could start at, with how many row pairs place it there.
+def _base_votes(mm: Any) -> Dict[int, Tuple[int, int]]:
+    """{base: (votes, reach)} for every base the pool could start at.
 
     A record still in its first position points at the one after it, so two neighbouring
     records k, k+1 hold k+1 and k+2 at `+12`, and fix the pool's base at `q - 12 - 16k` for
-    the offset q of the first pointer. Any one such pair in the file names a candidate; the true base is
-    named by every row the game has not moved."""
+    the offset q of the first pointer. Any one such pair names a candidate; the true base is
+    named by every record the game has not moved. `reach` is the highest record index the
+    pairs naming a base point at: a pool starting there must hold at least `reach + 1`."""
     import numpy as np
     n = len(mm)
     votes: Counter = Counter()
+    reach: Dict[int, int] = {}
     lag = _STRIDE // 4                           # the next row's pointer, in u32 steps
     for align in range(4):
         col = np.frombuffer(mm, dtype="<u4", offset=align, count=(n - align) // 4)
         v, w = col[:-lag], col[lag:]
         hit = np.flatnonzero((w - v == 1) & (v > 0) & (v < END - 1))
         base = align + 4 * hit - _NEXT_AT - _STRIDE * (v[hit].astype(np.int64) - 1)
-        base = base[base >= HISTORY_HEADER.span]
-        ks, cs = np.unique(base, return_counts=True)
-        votes.update(dict(zip(ks.tolist(), cs.tolist())))
+        to = w[hit].astype(np.int64)
+        keep = base >= HISTORY_HEADER.span
+        base, to = base[keep], to[keep]
+        order = np.argsort(base, kind="stable")
+        base, to = base[order], to[order]
+        ks, first, cs = np.unique(base, return_index=True, return_counts=True)
+        if len(ks):
+            top = np.maximum.reduceat(to, first)
+            for k, c, t in zip(ks.tolist(), cs.tolist(), top.tolist()):
+                votes[k] += c
+                reach[k] = max(reach.get(k, 0), t)
         del col, v, w
-    return votes
+    return {k: (c, reach[k]) for k, c in votes.items()}
+
+
+def _pointers_fit(mm: Any, base: int, count: int) -> bool:
+    """Every record's pointer is a record index or the end marker, and no record is pointed
+    at twice: the forest check's cheap half, vectorised, run before the whole check."""
+    import numpy as np
+    nxt = np.frombuffer(mm, dtype="<u4", count=count * 4, offset=base)[_NEXT_AT // 4::4]
+    live = nxt[nxt != END]
+    ok = bool(len(live) == 0 or (live.max() < count
+                                 and np.bincount(live, minlength=count).max() <= 1))
+    del nxt, live
+    return ok
 
 
 def locate_history(mm: Any) -> Optional[Tuple[int, int]]:
     """(base, count) for the history pool, or None.
 
-    Candidates come from `_base_votes`, most-named first; one is the pool when the header in
-    front of it declares a count that fits the file and every one of those rows' pointers
-    passes the forest check."""
+    Candidates come from `_base_votes`, most-named first. One is the pool when the count in
+    front of it fits the file and holds every record the pairs naming it point at, and every
+    one of its records' pointers passes the forest check."""
     key = _cache_key(mm)
     if key in _CACHE:
         return _CACHE[key]
     res = None
-    for base, _ in _base_votes(mm).most_common():
+    for base, (_, reach) in sorted(_base_votes(mm).items(), key=lambda kv: -kv[1][0]):
         count = struct.unpack_from("<I", mm, base - HISTORY_HEADER.span)[0]
-        if count == 0 or base + count * _STRIDE > len(mm):
+        if count <= reach or base + count * _STRIDE > len(mm):
+            continue
+        if not _pointers_fit(mm, base, count):
             continue
         probe = dataclasses.replace(HISTORY_TABLE, locator=lambda _mm, r=(base, count): r)
         if probe.check(mm).ok:

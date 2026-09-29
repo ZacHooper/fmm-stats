@@ -115,7 +115,10 @@ together, is not the parser's job**: the pool is emitted as stored and the loade
 after it, so two neighbouring such rows fix the pool's base arithmetically; every candidate
 base is checked against the count in front of it and the forest check, most-named first
 (`tables/history.py`'s `locate_history`). No window and no threshold: one unmoved pair is
-enough, and the acceptance test is exact.
+enough, and the acceptance test is exact. The count must also HOLD the pairs that named the
+base: a one-record frame is trivially a forest, and on a save whose real pool was corrupted
+one such frame was accepted in its place until that rule went in. Break the pool on purpose
+and the locator must return nothing, not a lookalike.
 
 **How it fails.** *Reading the pointer as a counter.* It works perfectly on a fresh save and
 nowhere else: splitting records where the `+1` sequence breaks shatters each player whose
