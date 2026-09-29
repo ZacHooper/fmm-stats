@@ -38,20 +38,29 @@ reads 0xffff while the season is in progress. Our club's current squad is the la
 list of 31-61, the one with the 0xffff trailer. Every save of both careers, day one
 included, holds exactly 66 lists.
 
-TAIL, 168 bytes, from the end of the strings:
+TAIL, 168 bytes, from the end of the strings. An entry is what the game's Scrapbook Profile
+shows (verified field by field on Ernest Nuamah's 2022 entry), as of the entry's date:
 
-    +0   28 bytes      unread: two u16, four [day-of-year u16][year u16] dates, 8 bytes
-    +28  36 bytes      attributes: the 23 displayed attributes at the indices of `ATTRIBUTES`,
-                       13 bytes unread among them
-    +64  15 x u8       position ratings, in `player_attributes.POSITIONS` order
-    +79  player_tid u32
-    +83  u32           unread
-    +87  club_tid u16  the club holding the player's registration
-    +89  loan_club_tid u16  the club he is on loan to; 0xffff = not on loan
-    +91  value u32     transfer value
-    +95  25 bytes      unread
+    +0   colour_1, colour_2 u16   the club's colours, RGB555
+    +4   4 bytes, +12 8 bytes     three dates that read 1 Jan 2021 (the career's "no date";
+                                  one is the loan end the profile shows)
+    +8   entry_day, entry_year    the entry's last write: the 1st of each month while its
+                                  season runs, then frozen
+    +20  age u8, then 7 bytes unread
+    +28  36 bytes: the 23 attributes at the indices of `ATTRIBUTES`, condition (24),
+         morale (25), the last five match ratings (26-30), avg_rating f32 (31); 9 and 35
+         unread
+    +64  15 x u8                  position ratings, in `player_attributes.POSITIONS` order
+    +79  player_tid u32, +83 u32 unread
+    +87  club_tid u16             the club holding the player's registration
+    +89  loan_club_tid u16        the club he is on loan to; 0xffff = not on loan
+    +91  value u32                transfer value
+    +99  wage u32                 weekly wage (x52 is the profile's yearly figure, ~1%)
+    +108 caps, intl_goals, u21_caps, u21_goals u8
+    +112 apps, goals, conceded (goalkeepers), assists, yellows u8 -- the season to the
+         entry's date, competitive first-team matches (257/257 against our match data)
     +120 foot_left u8, +121 foot_right u8
-    +122 46 bytes      unread
+    unread: +95 4 bytes, +103 5 bytes, +117 3 bytes, +122 46 bytes
 
 `club_tid`/`loan_club_tid` read together are the four-byte "club marker" a player's own
 record carries: `[club][ffff]` for a player owned by the club, `[parent][club]` for one on
@@ -66,7 +75,7 @@ import re
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..core import Field, PString, RAW, Record, TableDef, U8, U16, U32, UNKNOWN
+from ..core import F32, Field, PString, RAW, Record, TableDef, U8, U16, U32, UNKNOWN
 from ..save import cache_key as _cache_key
 from .player_attributes import POSITIONS
 
@@ -107,12 +116,42 @@ ATTRIBUTES = {
 _ATTR_AT = 28
 
 
+# The attribute block's other bytes, by index (the Scrapbook Profile screen, verified on
+# Ernest Nuamah's 2022 entry: condition 87%, morale Superb, form 7-9-8-9-7, av. rating 7.50).
+_BLOCK = {24: ("condition", U8, "percent"), 25: ("morale", U8, "1-20; 20 = Superb"),
+          26: ("form_1", U8, "the last five match ratings; which end is the latest is "
+                                 "unverified (7-9-8-9-7 reads the same both ways)"),
+          27: ("form_2", U8, ""), 28: ("form_3", U8, ""), 29: ("form_4", U8, ""),
+          30: ("form_5", U8, "")}
+
+
 def _tail_fields() -> List[Field]:
-    fields = [Field(0, _ATTR_AT, UNKNOWN, RAW)]
-    for i in range(36):
+    fields = [
+        Field(0, 2, "colour_1", U16, note="the club's colours, RGB555"),
+        Field(2, 2, "colour_2", U16),
+        Field(4, 4, UNKNOWN, RAW),
+        Field(8, 2, "entry_day", U16, note="the entry's last write, day-of-year 0-based"),
+        Field(10, 2, "entry_year", U16),
+        Field(12, 8, UNKNOWN, RAW),
+        Field(20, 1, "age", U8, note="at the entry's date"),
+        Field(21, 7, UNKNOWN, RAW),
+    ]
+    i = 0
+    while i < 36:
+        if i == 31:
+            fields.append(Field(_ATTR_AT + 31, 4, "avg_rating", F32,
+                                note="average match rating, all competitions"))
+            i += 4
+            continue
         name = ATTRIBUTES.get(i)
-        fields.append(Field(_ATTR_AT + i, 1, f"attr_{name.lower()}" if name else UNKNOWN,
-                            U8 if name else RAW))
+        if name:
+            fields.append(Field(_ATTR_AT + i, 1, f"attr_{name.lower()}", U8))
+        elif i in _BLOCK:
+            n, kind, note = _BLOCK[i]
+            fields.append(Field(_ATTR_AT + i, 1, n, kind, note=note))
+        else:
+            fields.append(Field(_ATTR_AT + i, 1, UNKNOWN, RAW))
+        i += 1
     fields += [Field(64 + k, 1, f"pos_{p.lower()}", U8) for k, p in enumerate(POSITIONS)]
     fields += [
         Field(79, 4, "player_tid", U32),
@@ -120,7 +159,20 @@ def _tail_fields() -> List[Field]:
         Field(87, 2, "club_tid", U16, note="the club holding the registration"),
         Field(89, 2, "loan_club_tid", U16, note="the club he is on loan to; 0xffff = none"),
         Field(91, 4, "value", U32, note="transfer value"),
-        Field(95, 25, UNKNOWN, RAW),
+        Field(95, 4, UNKNOWN, RAW),
+        Field(99, 4, "wage", U32, note="weekly wage; x52 = the screen's yearly figure"),
+        Field(103, 5, UNKNOWN, RAW),
+        Field(108, 1, "caps", U8, note="international caps, at the entry's date"),
+        Field(109, 1, "intl_goals", U8),
+        Field(110, 1, "u21_caps", U8),
+        Field(111, 1, "u21_goals", U8),
+        Field(112, 1, "apps", U8, note="the season to the entry's date: competitive, "
+                                       "first team"),
+        Field(113, 1, "goals", U8),
+        Field(114, 1, "conceded", U8, note="goalkeepers only"),
+        Field(115, 1, "assists", U8),
+        Field(116, 1, "yellows", U8),
+        Field(117, 3, UNKNOWN, RAW),
         Field(120, 1, "foot_left", U8),
         Field(121, 1, "foot_right", U8),
         Field(122, 46, UNKNOWN, RAW),

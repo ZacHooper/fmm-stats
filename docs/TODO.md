@@ -114,29 +114,25 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1%
 Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 
 ### 4. Player lists: what is still unread
-`tables/player_lists.py` reads the 66 lists (0–30 world, one per season; 31–61 our squad,
-one per season; 62–65 two copies of a world/club pair). `squad.py` uses our club's lists;
-nothing else is emitted yet. Open:
-- **The world lists are identified**: each season's list is the pool behind the in-game
-  World Best XI for that year, and lists 62/64 the pool behind World Best XI - All-Time --
-  all eleven of 2024, 2025, 2026 and All-Time found in the matching list on
-  `frem-2027-06-15` (screenshots). The XI is picked by position (its players rank 1st to
-  72nd by rating within the 100). Competition dream teams (World Cup 2025) are not here.
-- **Competition awards are not in this table**: the 3F Superliga Team of the Year 2026/27
-  (nine non-Frem players, league-only ratings) and the World Cup 2025 Dream Team appear in no
-  list. Find them by searching the save for the eleven tids of one team together (screenshots
-  on `frem-2027-06-15`); the competition honours or the archive's competition members are the
-  first places to look. The list entries' rating is the all-competitions average (Behrndtz
-  7.47 = league 7.64 and European 6.88), the Team of the Year's is league only.
-- **All 66 lists are identified** (screenshots, `frem-2027-06-15`): 0-30 World Best XI
-  pools by season, 31-61 Manager's Best Eleven pools by season (the manager's players,
-  loanees included -- it follows the manager, not the club), 62/64 and 63/65 the two
-  All-Time pools. Open: which copy of each pair is the live one (63 carries this season's
-  "New Entry" dates, 65 last season's) -- confirm across a season boundary.
-- **The trailer**: its first byte (2, 3, 5, 16, ff) and 11 more bytes.
-- **The entry tail's unread 116 bytes**: two u16 and four dates at +0, 13 bytes among the
-  attributes (a float at index 31), a u32 at +83, 25 bytes at +95 and 46 at +122.
-- Emit the lists (`player_lists.json` -> `staging`) once they are named.
+`tables/player_lists.py` reads all 66 lists, identified against the game's screens on
+`frem-2027-06-15`: 0–30 the World Best XI pool of each season, 31–61 the Manager's Best
+Eleven pool of each season (every player who played for the manager, loanees included; it
+follows the manager, not the club), 62/64 and 63/65 the World and Manager's All-Time pools.
+An entry is the player's **Scrapbook Profile** as of the entry's date (Nuamah's 2022 entry
+verified field by field). `squad.py` reads the manager's lists; nothing else is emitted. Open:
+- **Which copy of each All-Time pair is live**: 63 carries this season's "New Entry" dates,
+  65 last season's. Confirm across a season boundary.
+- **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan
+  end and what the other two are; +21..+27; attribute-block indices 9 and 35; the u32 at
+  +83; +95 (4 bytes), +103 (5), +117 (3); the 46 bytes at +122; the order of the five form
+  ratings; the trailer's first byte and 11 more bytes. Squad number is not stored (the
+  profile's card is live: current club and number).
+- **Competition awards are elsewhere**: the 3F Superliga Team of the Year 2026/27 and the
+  World Cup 2025 Dream Team appear in no list. Search the save for one team's eleven tids
+  together; the competition honours and the archive's competition members first. (The
+  entries' rating is all competitions; the Team of the Year's is league only.)
+- Emit the lists (`player_lists.json` -> `staging`): every World Best XI and Manager's Best
+  Eleven, with each player's profile as it was.
 
 ### 4a. Player progress: what is still unread
 `tables/player_progress.py` reads the pool; `injuries.py` uses the status bits. Open: the six
