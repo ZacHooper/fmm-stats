@@ -109,16 +109,10 @@ def segments(blob: Any) -> List[Tuple[int, int]]:
     return out
 
 
-def locate_fixtures(blob: Any) -> Optional[Tuple[int, int]]:
-    """(base, record_count) for TableDef locator protocol (first segment).
-
-    For full segmented iteration across all segments in fix_man.dat,
-    scrape() / fixtures() calls segments() and FIXTURES_TABLE.
-    """
-    segs = segments(blob)
-    if not segs:
-        return None
-    return segs[0]
+def locate_fixtures(blob: Any) -> List[Tuple[int, int]]:
+    """[(base, record_count)] -- every grid in the member, in order: the table is stored as
+    several runs, and the engine walks them all."""
+    return segments(blob)
 
 
 def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
@@ -148,12 +142,20 @@ def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
     }
 
 
+# The fields each fixture is read from, in the order _process_fixture consumes them.
+_FIELDS = (
+    "home_tid", "away_tid", "day_raw", "year", "round",
+    "home_goals", "away_goals", "home_pens", "away_pens",
+    "stage_key", "seq_id", "season_year",
+    "stage_attr_76", "stage_attr_77", "stage_attr_83",
+)
+
 FIXTURES_TABLE = TableDef(
     name="fixtures",
     member=MEMBER,
     segments=(FIXTURE,),
     locator=locate_fixtures,
-    include_offset=False,
+    fields=_FIELDS,
     post_process=_process_fixture,
 )
 
@@ -165,23 +167,12 @@ def read_fixture(blob: Any, o: int) -> Dict[str, Any]:
 
 
 def scrape(blob: Any, valid_clubs: Optional[Set[int]] = None) -> List[Dict[str, Any]]:
-    """[{home_tid, away_tid, date, year, round, ...}] for every match in decompressed fix_man.dat."""
-    wanted_fields = (
-        "home_tid", "away_tid", "day_raw", "year", "round",
-        "home_goals", "away_goals", "home_pens", "away_pens",
-        "stage_key", "seq_id", "season_year",
-        "stage_attr_76", "stage_attr_77", "stage_attr_83",
-    )
-    out = []
-    for start, count in segments(blob):
-        for k in range(count):
-            base = start + k * STRIDE
-            r = FIXTURE.read_fields(blob, base, wanted_fields)
-            if valid_clubs is not None and (r["home_tid"] not in valid_clubs
-                                            or r["away_tid"] not in valid_clubs):
-                continue
-            out.append(_process_fixture(r, base))
-    return out
+    """[{home_tid, away_tid, date, year, round, ...}] for every match in decompressed
+    fix_man.dat; with `valid_clubs`, only matches between two of those clubs."""
+    rows = FIXTURES_TABLE.scrape(blob)
+    if valid_clubs is None:
+        return rows
+    return [r for r in rows if r["home_tid"] in valid_clubs and r["away_tid"] in valid_clubs]
 
 
 def fixtures(mm: Any, valid_clubs: Optional[Set[int]] = None) -> List[Dict[str, Any]]:

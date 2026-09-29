@@ -409,10 +409,16 @@ signature, the audit driven by both registries). What is left, in order -- each 
 byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
 deliberate break:
 
-1. **`TableDef` in name only** -- `contracts`, `fixtures`, `names`, `nations` and `person_info`
-   declare a table but scrape with hand-written loops beside it. Route each scrape through its
-   table; `person_info` (and step 2) need a core COUNTED-LIST segment for the variable lists
-   after its 68-byte head.
+1. **`TableDef` in name only** -- `nations` and `person_info` still declare a table but scrape
+   with hand-written loops beside it (contracts, fixtures and the name id-tables now read
+   through theirs).
+   - `person_info`: needs a core COUNTED-LIST segment for the variable lists after its
+     68-byte head (step 2 needs it too); `TABLES["person_info"]` holds the `Record`, not a
+     table. Its walk covers 2.24 MB of the 3.42 MB table -- the rest shows as unread in
+     `audit_coverage.py`.
+   - `nations`: the scrape searches backwards from 3-letter codes and keeps the densest
+     cluster; the table declares 251 and we read 227 (Algeria, id 0, is cut). Decode the real
+     layout from the count frame first -- expect the output to change.
 2. **`clubs_comps`' club and competition tables** -- arrays of `[id][uid][len][long][len][short]
    [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
    (`comp_refs`).

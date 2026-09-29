@@ -104,27 +104,29 @@ def locate_contracts(mm: Any) -> Optional[Tuple[int, int]]:
     return None
 
 
-def _process_contract(rec: Dict[str, Any], offset: int) -> Optional[Dict[str, Any]]:
-    """Filter out empty or sentinel slots during bulk table walks."""
-    tid = rec.get("tid")
-    if tid is None or tid == 0xFFFFFFFF:
+def _active_contract(rec: Dict[str, Any], offset: int) -> Optional[Dict[str, Any]]:
+    """An active contract as extract emits it, or None: marker 0x01 and a 2018-2045 expiry."""
+    if rec["marker"] != 0x01 or not 2018 <= rec["expiry_year"] <= 2045:
         return None
-    rec["offset"] = offset
-    w = rec.get("wage_units", 0)
-    rec["wage_gbp"] = w * WAGE_GBP_PER_UNIT
-    return rec
+    w = rec["wage_units"]
+    return {"tid": rec["tid"], "wage_units": w, "wage_gbp": w * WAGE_GBP_PER_UNIT,
+            "expiry": rec["expiry"], "expiry_year": rec["expiry_year"]}
 
 
+# A preallocated grid (shape C): the u32 at base-6 is the CAPACITY (59,632 on Frem), not a
+# headcount. Slots are dense from tid 0 (33,127 used on Frem) and the rest are empty, tid
+# FFFFFFFF -- so `tid == slot` is the invariant that ends the used part.
 CONTRACT_TABLE = TableDef(
     name="contracts",
     segments=(CONTRACT,),
     locator=locate_contracts,
-    include_offset=True,
+    invariant=lambda rec, slot: rec["tid"] == slot,
+    post_process=_active_contract,
 )
 
 
 def contracts_table_spans(mm: Any) -> List[Tuple[int, int]]:
-    """Byte spans covering the 83-byte contract grid."""
+    """Byte spans covering the 83-byte contract grid, at its full capacity."""
     return table_spans(mm, CONTRACT_TABLE, include_count_header=True)
 
 
@@ -132,58 +134,14 @@ def scrape_contracts(
     mm: Any,
     tids_or_info: Optional[Union[Iterable[int], Dict[int, Any]]] = None,
 ) -> Dict[int, Dict[str, Any]]:
-    """{tid: {wage_units, wage_gbp, expiry, expiry_year}} from the contract grid.
-
-    Uses O(1) direct slot arithmetic `base0 + tid * 83`.
-    Filters for active contracts (`marker == 0x01` and `2018 <= expiry_year <= 2045`).
-    """
-    loc = locate_contracts(mm)
-    if not loc:
-        return {}
-    base0, total_slots = loc
-    n = len(mm)
-    out: Dict[int, Dict[str, Any]] = {}
-
-    if tids_or_info is not None:
-        target_tids: Iterable[int] = tids_or_info.keys() if isinstance(tids_or_info, dict) else tids_or_info
-        for tid in target_tids:
-            if tid < 0 or tid >= total_slots:
-                continue
-            off = base0 + tid * CONTRACT_STRIDE
-            if off + CONTRACT_STRIDE > n:
-                continue
-            # Active contract check
-            if mm[off + 4] == 0x01:
-                yr = P.u16(mm, off + 15)
-                if 2018 <= yr <= 2045:
-                    w = P.u16(mm, off + 5)
-                    out[tid] = {
-                        "wage_units": w,
-                        "wage_gbp": w * WAGE_GBP_PER_UNIT,
-                        "expiry": P.ymd(mm, off + 13),
-                        "expiry_year": yr,
-                    }
+    """{tid: {wage_units, wage_gbp, expiry, expiry_year}} for every active contract -- of the
+    given tids (each read directly: slot = tid), or of the whole grid."""
+    if tids_or_info is None:
+        rows = CONTRACT_TABLE.scrape(mm)
     else:
-        # Full grid walk
-        for slot in range(total_slots):
-            off = base0 + slot * CONTRACT_STRIDE
-            if off + CONTRACT_STRIDE > n:
-                break
-            rec_tid = P.u32(mm, off)
-            if rec_tid != slot:
-                break
-            if mm[off + 4] == 0x01:
-                yr = P.u16(mm, off + 15)
-                if 2018 <= yr <= 2045:
-                    w = P.u16(mm, off + 5)
-                    out[slot] = {
-                        "wage_units": w,
-                        "wage_gbp": w * WAGE_GBP_PER_UNIT,
-                        "expiry": P.ymd(mm, off + 13),
-                        "expiry_year": yr,
-                    }
-
-    return out
+        tids = tids_or_info.keys() if isinstance(tids_or_info, dict) else tids_or_info
+        rows = [r for r in (CONTRACT_TABLE.row(mm, t) for t in tids) if r is not None]
+    return {r["tid"]: {k: v for k, v in r.items() if k != "tid"} for r in rows}
 
 
 def scrape_contract_status(

@@ -220,11 +220,46 @@ def test_pstring_primitive():
     print("  PASS PString primitive")
 
 
+def test_runs_row_invariant_fields():
+    print("TESTING TableDef (runs, row(k), invariant, fields)")
+    rows_bytes = lambda ids: b"".join(struct.pack("<IHB", i, 100 + i, 1) for i in ids)  # noqa: E731
+    buf = rows_bytes([0, 1, 2]) + b"\xee" * 5 + rows_bytes([3, 4])
+    mm = memoryview(buf)
+    run2 = 3 * 7 + 5
+
+    # several runs are walked in order, and row(k) counts across them
+    two = TableDef(name="runs", segments=(DUMMY_FIXED,), locator=lambda m: [(0, 3), (run2, 2)])
+    assert [r["id"] for r in two.scrape(mm)] == [0, 1, 2, 3, 4]
+    assert two.row(mm, 0)["id"] == 0 and two.row(mm, 3)["id"] == 3 and two.row(mm, 4)["id"] == 4
+    assert two.row(mm, 5) is None and two.row(mm, -1) is None
+    assert two.spans(mm, include_count_header=False) == [(0, 21), (run2, run2 + 14)]
+
+    # the walk STOPS at the first row that breaks the invariant -- later rows are not read,
+    # even ones that would pass
+    bad = rows_bytes([0, 1, 9, 3])
+    inv = TableDef(name="inv", segments=(DUMMY_FIXED,), locator=lambda m: (0, 4),
+                   invariant=lambda r, i: r["id"] == i)
+    assert [r["id"] for r in inv.scrape(memoryview(bad))] == [0, 1]
+    assert inv.row(memoryview(bad), 2) is None and inv.row(memoryview(bad), 3)["id"] == 3
+
+    # fields: a projection, in the order given
+    proj = TableDef(name="proj", segments=(DUMMY_FIXED,), locator=lambda m: (0, 3),
+                    fields=("flag", "id"))
+    assert list(proj.scrape(mm)[0]) == ["flag", "id"]
+
+    # post_process can drop a row; row(k) then returns None
+    drop = TableDef(name="drop", segments=(DUMMY_FIXED,), locator=lambda m: (0, 3),
+                    post_process=lambda r, off: None if r["id"] == 1 else r)
+    assert [r["id"] for r in drop.scrape(mm)] == [0, 2] and drop.row(mm, 1) is None
+    print("  PASS TableDef (runs, row(k), invariant, fields)")
+
+
 def main():
     test_fixed_table()
     test_single_string_catalog()
     test_multi_string_catalog()
     test_pstring_primitive()
+    test_runs_row_invariant_fields()
     return 0
 
 

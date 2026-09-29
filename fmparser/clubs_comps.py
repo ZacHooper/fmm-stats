@@ -849,40 +849,45 @@ def _u32(mm, o):
 
 
 from .tables.names import (
-    NAME_ID_STRIDE as ID_TABLE_STRIDE,
+    FIRST_NAMES_TABLE,
+    NICKNAMES_TABLE,
+    SURNAMES_TABLE,
     chain_id_tables as _chain_id_tables,
     discover_id_tables as _discover_id_tables,
+    locate_name_tables as _locate_name_tables,
     walk_browse as _walk_browse,
     walk_browse_bounds as _walk_browse_bounds,
 )
 
 
-_NAME_TABLES = {}   # _cache_key -> (browse_list, base_first, base_surname, base_common)
+_NAME_TABLES = {}   # _cache_key -> (browse_list, {table name: (base, count)})
 
 
 def build_name_resolver(mm, validate=None):
-    """Discover the name tables for `mm` and cache them."""
-    browse = _walk_browse(mm)
-    tabs = _discover_id_tables(mm, len(browse))
-    if len(tabs) < 2:
-        _NAME_TABLES[_cache_key(mm)] = (browse, None, None, None)
-        return False
-    # By sequence/size: Table 1 (largest) is surnames, Table 2 is first names,
-    # Table 3 (smallest) is common names / nicknames.
-    by_size = sorted((c, b) for b, c in tabs)
-    base_sur = by_size[-1][1]
-    base_first = by_size[-2][1]
-    base_common = by_size[0][1] if len(tabs) > 2 else None
-    _NAME_TABLES[_cache_key(mm)] = (browse, base_first, base_sur, base_common)
-    return True
+    """Discover the name tables for `mm` and cache them. False if there are fewer than two
+    (surnames and first names are both needed for a name)."""
+    tabs = _locate_name_tables(mm)
+    _NAME_TABLES[_cache_key(mm)] = (_walk_browse(mm), tabs)
+    return len(tabs) >= 2
+
+
+def _browse_name(mm, browse, table, name_id):
+    """The browse string an id-table row points at, or None."""
+    row = table.row(mm, name_id)
+    if row is None:
+        return None
+    try:
+        return browse[row["ordinal"]]
+    except IndexError:
+        return None
 
 
 def resolve_common_name(mm, common_name_id):
     """The name the game DISPLAYS, when a person has one, else None.
 
     `common_name_id` is `staging.INFO_LAYOUT` +16 (People.cs `CommonNameId`), 0xFFFFFFFF when
-    unset. It indexes the third id-table, not either name table. Set on 2,424 of 32,760
-    people (7.4%) on frem-2023-07-02, and all 2,424 resolve.
+    unset. It indexes the third id-table (nicknames), not either name table. Set on 2,424 of
+    32,760 people (7.4%) on frem-2023-07-02, and all 2,424 resolve.
 
     This is a DISPLAY name and often not a shortening of the legal one at all -- 'Tite' for
     Adenor Leonardo Bachi, 'Renato Gaucho' for Renato Portaluppi, 'Michel' for Jose Miguel
@@ -890,24 +895,20 @@ def resolve_common_name(mm, common_name_id):
     come from the table.
     """
     t = _NAME_TABLES.get(_cache_key(mm))
-    if not t or t[3] is None or common_name_id is None or common_name_id == P.NO_ID32:
+    if not t or "nicknames" not in t[1] or common_name_id is None \
+            or common_name_id == P.NO_ID32:
         return None
-    browse, _, _, base_common = t
-    try:
-        return browse[_u32(mm, base_common + common_name_id * ID_TABLE_STRIDE)]
-    except IndexError:
-        return None
+    return _browse_name(mm, t[0], NICKNAMES_TABLE, common_name_id)
 
 
 def resolve_name(mm, first_name_id, last_name_id):
     """Full 'First Last' for any player from their info-field name ids, or None. Call
     build_name_resolver(mm) once first (cached per mmap)."""
     t = _NAME_TABLES.get(_cache_key(mm))
-    if not t or t[1] is None:
+    if not t or len(t[1]) < 2:
         return None
-    browse, base_first, base_sur, _ = t
-    try:
-        return f"{browse[_u32(mm, base_first + first_name_id * 16)]} " \
-               f"{browse[_u32(mm, base_sur + last_name_id * 16)]}"
-    except IndexError:
+    first = _browse_name(mm, t[0], FIRST_NAMES_TABLE, first_name_id)
+    last = _browse_name(mm, t[0], SURNAMES_TABLE, last_name_id)
+    if first is None or last is None:
         return None
+    return f"{first} {last}"
