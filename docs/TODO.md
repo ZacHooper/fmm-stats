@@ -8,7 +8,7 @@ When you finish something, **delete its entry**. Do not tick it off, and do not 
 "CLOSED" note: what was learned goes into the reference doc the entry points at. Item numbers
 are for conversation only and are renumbered freely; never cite one in code or a commit.
 
-Last reviewed **2026-09-29**, after the `core` framework landed (#102–#104).
+Last reviewed **2026-09-29**, after clubs and competitions joined the `core` framework (#107).
 
 ---
 
@@ -77,31 +77,24 @@ locator (`parser-architecture.md` Part 1). `core` walks arrays of both row kinds
 `TaggedTableDef`). In order — each PR gated by byte-identical `tests/assert_identical.py`, the
 module's save test, `audit_records.py`, and one deliberate break:
 
-1. **`clubs_comps`' club and competition tables** — arrays of `[id][uid][len][long][len][short]
-   [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
-   (`comp_refs`) -- a `CountedList`, as in `nations` and `person_info`.
-2. **The linked-list walk (shape B)** — a core table for a stride record with a next-row
+1. **The linked-list walk (shape B)** — a core table for a stride record with a next-row
    pointer, heads = rows of in-degree 0, read column-wise (`Record.columns`); move `history.py`
    onto it. Its locator should prove the pool exactly (the pointer-forest check in
    [`career-region-sizing.md`](career-region-sizing.md)), not by sampling.
-3. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
+2. **`clubrecords.py` (shape C)** — a preallocated array of 12-slot category blocks: an array
    walk with an empty-slot predicate and a block size.
-4. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
+3. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
    stride are not mapped yet. Research first: find each array's bounds, then it is an ordinary
    array.
-5. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
+4. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
    already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
    region is empty at a season boundary (0 anchors is correct there, not a locator failure).
-
-### 2. Move `fmparser/archive.py` into `core`
-It is the shape-D driver — the archive directory and member reader every archive table's
-`member=` goes through — not a table parser.
 
 ---
 
 ## Parser — coverage: every byte processed
 
-On `frem-2027-08-08` (61.7 MB): 38.3% filler, 33.8% read, 1.2% declared, **26.6% unclaimed**
+On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1% unclaimed**
 (`audit_coverage.py`). The gaps, largest first, with what is known about each:
 
 ### 3. The unclaimed regions of the career half
@@ -132,7 +125,8 @@ list. Find them by `14 01 00 0a 00` at gaps of exactly 200, in runs of exactly 1
   and the ~7-entry
   **continent** table right after the nations (`[uid u32][Name][01][CodeName][Demonym][01]`,
   Africa..South America at ids 0–5, `World` at 6).
-- The **20 bytes** `parse_club_trailer` steps over.
+- The club record's unnamed stretches (`tables/clubs.py`): 20 bytes in `CLUB_STANDING`, 74 at
+  the end of `CLUB_STAFF`, the `[u32 8][8 B]` block at +167, and the 9-byte tail items.
 - The person record's unnamed bytes (`PERSON_MID`, three of each relationship's eight), and
   what its language `level` of 255 means.
 
@@ -205,6 +199,11 @@ A table at a time, contracts and names first, then club labels and the rest:
    labels — mart views, `fmq`, the scout, `scripts/export_data.py`) reads the mart instead;
 3. the gate is row-for-row: the mart gives the same name / wage / label for every person as
    today's store (`assert_identical` changes by design — re-record with the note).
+
+When this lands, `fmparser/clubs_comps.py`'s lookups go with it: `club_record`, `league_name`,
+`comp_detail`, `club_details` and the name resolvers exist only for extract's pre-joins, and
+`comp_name` / `comp_id_at` only to label matches in `matches.py`. What remains is the two
+tables themselves (`tables/clubs.py`, `tables/competitions.py`).
 
 Also:
 - **Move the loader's remaining transforms into `fmstats`**, so `load_duckdb.py` only writes
@@ -320,10 +319,6 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   `rclone config update r2 access_key_id <NEW> secret_access_key <NEW>`.
 - **Position write-ups** for DM, CM, AML, AMC, AMR and ST, plus a verdict on 4-1-2-2-1, against
   the current Superliga squad.
-- **Rebuild and republish after the date correction** -- `seeds/manifest.csv` now carries each
-  save's header date as its phase (20 of 37 moved, 1-25 days), so the store must be rebuilt
-  (`scripts/rebuild.py --career frem`) and republished. File names and labels were kept, so
-  19 labels no longer match their dates.
 - **Save housekeeping** (needs Zac): the local duplicates `frem-2024-06-02.fms` and
   `frem-2024-06-28.fms` are byte-identical copies of the manifest's `frem-2024-05-25` and
   `frem-2024-06-03`, which their headers date 2024-06-02 and 2024-06-28 -- the extra copies can

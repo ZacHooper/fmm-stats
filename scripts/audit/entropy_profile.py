@@ -15,7 +15,7 @@ pass:
     > 7.9        COMPRESSED OR ENCRYPTED -- no stride search will ever bite here
 
 Measured on this file that last band is the `sicomps` zstd archive at the tail
-(`fmparser/archive.py`) and **nothing else**: on frem-2021-07-01, frem-2026-06-11 and
+(`fmparser/core/archive.py`) and **nothing else**: on frem-2021-07-01, frem-2026-06-11 and
 bucaspor-2023-05-20 every 4 KB block above 7.5 bits lies inside the archive. So the save
 holds exactly one compressed region, which is a useful negative to have on record.
 

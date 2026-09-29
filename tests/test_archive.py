@@ -3,7 +3,7 @@
 Guard the tail archive: LOCATION, COUNT, EXTENT, TILING and the member set.
 
 The claim this test defends is that the last 1-1.6 MB of every save is a named archive of
-zstd-compressed members (fmparser/archive.py), not the "most TEXT-dense unparsed span in
+zstd-compressed members (fmparser/core/archive.py), not the "most TEXT-dense unparsed span in
 the file" the old map called it. The distinction is measurable and this is where it is
 measured: high-entropy compressed bytes are 95/256 = 37.1% printable by chance, which is
 exactly what that span measures, so a printable-fraction argument cannot tell the two
@@ -32,7 +32,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import archive as A        # noqa: E402
+from fmparser.core import archive as A        # noqa: E402
 
 SAVES = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 

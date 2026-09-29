@@ -82,7 +82,7 @@ then `count` x
 | UNPACKED | every member's concatenated frames decompress to **exactly** its declared size |
 
 No offset and no window is involved, which is what makes this survive the megabyte-scale
-drift of the career half. `fmparser/archive.py` is the reader; `tests/test_archive.py`
+drift of the career half. `fmparser/core/archive.py` is the reader; `tests/test_archive.py`
 guards it.
 
 ### Size, and how it behaves
@@ -314,7 +314,7 @@ uv run python tests/test_archive.py
 ```
 
 ```python
-from fmparser import archive as A
+from fmparser.core import archive as A
 name, ents = A.directory(mm)          # ('sicomps', [Entry(...), ...])
 blob = A.extract(mm, "fix_man.dat")   # decompressed, header included
 ```

@@ -63,16 +63,24 @@ ff ff ff ff ff ff ff ff   <- >= 8 sentinel bytes
 00 00 ...                 <- record 0, whose id reads 0
 ```
 
-**How you find it.** `records.find_framed_count(mm, start, hi)`. Then you *must* validate: the
+**How you find it.** Where the table follows another one directly, start at that table's end:
+the save is written front to back, so the round names, clubs, competitions and nations sit
+back to back, and `tables/clubs.py`'s `locate_clubs` is just "after the round-name table's
+span, skip the 0xFF run, read the count" (`after_frame`), `locate_competitions` the same after
+the clubs. No content signature, no tuned range. Otherwise `core.find_framed_count(mm, start,
+hi)`, and then you *must* validate: the
 sentinel alone occurs **566,078 times** in one save, so the frame is a candidate generator and
 nothing else. The validator is that the declared records satisfy `id == slot index` —
-`reference._walk_comp_table` asserts `cid == i` on every slot and raises `CompTableError` with
+`tables.competitions.COMP_TABLE` asserts `cid == i` on every slot and raises `CompTableError` with
 the slot number if it ever fails.
 
 **Two details that are measured, not defensive:**
 
 - Test for a run of **`>= 8`** sentinel bytes, never `== 8`. The record *preceding* the frame
   can itself end in `0xFF`, and an exact-length test misses those frames.
+  Not every frame has eight: the club and competition tables' frames are six (`FF x 6`
+  after the table before them), which is why they are located from that table's end rather
+  than by a sentinel search.
 - A string table's length prefix is **u32**, not one byte. `table-framing.md` renders these as
   `[7]'Algeria'` and the actual bytes are `07 00 00 00 'Algeria' 00`; a search written from
   that description returns zero hits. `primitives.pstring` reads it correctly.
@@ -143,7 +151,7 @@ with a directory. Its `fix_man.dat` is the world fixture list — 26,954 rows ac
 
 See [`save-archive.md`](save-archive.md) for the container and
 [`archive-coverage.md`](archive-coverage.md) for what each member is worth against what we
-already parse. The reader is `fmparser/archive.py`; it needs `uv sync --extra archive`.
+already parse. The reader is `fmparser/core/archive.py`; it needs `uv sync --extra archive`.
 
 **The rule that found it, which generalises past this shape:** **rank an unknown region by
 BLOCK ENTROPY, never by printable fraction.** This region was ranked the best remaining target

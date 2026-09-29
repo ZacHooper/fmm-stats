@@ -28,7 +28,7 @@ Superliga) and Third Round (Sydbank Pokalen).
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from .. import archive as A
+from ..core import archive as A
 from ..core import (
     FOURCC, INT, PAD, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
     TaggedRecord, TaggedSchemaError, TaggedTableDef, TaggedTableError)

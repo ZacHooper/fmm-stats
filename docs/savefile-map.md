@@ -34,15 +34,12 @@ preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `
 by a structural test described in the notes.
 
 ### Table Engine Migration Status Summary
-* **Migrated to `TableDef` (19 tables)**: `player_attributes`, `staff`, `round_names`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary).
-* **Blocked on Engine Capability (2 tables)**:
-  * `competitions` (`comp_table`, 1,372 records) — Shape A count-framed, blocked on nested variable reference array (`n_refs: u32` then `n_refs * 8B`).
-  * `clubs` (`club_table`, 11,331 records) — Shape A count-framed, blocked on nested affiliations array (`naff: u16` then `naff * 21B`).
+* **Migrated to `TableDef` (21 tables)**: `player_attributes`, `staff`, `round_names`, `clubs`, `competitions`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary).
 * **Non-Table / Structural Walks**: `history.py` (Shape B pointer linked-list forest), `clubrecords.py` (Shape C grid, region ended by a Shape G filler wall), `matches.py` (Shape G delimiter-opened lineup blocks), `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
-| 299 | 515,797 | 0.52 MB | **browse name table** — 45,942 names; the `60,000` in front is a capacity, not a count | static | Shape E | live (`reference._name_table_bounds`) |
+| 299 | 515,797 | 0.52 MB | **browse name table** — 45,942 names; the `60,000` in front is a capacity, not a count | static | Shape E | live (`tables.names.walk_browse_bounds`) |
 | 515,797 | ~572,037 | 0.06 MB | filler + a short run of unnamed records | — | — | — |
 | **572,037** | ~3,988,960 | **3.42 MB** | **the PERSON table (info spine)** — declares **32,966** (Frem) / **34,312** (Bucaspor), career-constant, so a **fixed pool**. A `01` header byte follows the count; records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration, all declared, `tid == slot index`, ending on the next table's frame | **preallocated pool** | Shape A | **MIGRATED** (`PERSON_INFO_TABLE`) |
 | 3,988,968 | 6,056,358 | 2.07 MB | **player attributes** — 26,505 × 78 B | static | Shape A | **MIGRATED** (`PLAYER_ATTRIBUTES_TABLE`) |

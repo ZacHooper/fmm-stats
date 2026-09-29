@@ -528,7 +528,7 @@ def main():
     dump("matches.json", season)
     dump("competitions.json", competitions)
     # Full club records: facts, colours, and the fixed 40-slot SQUAD + 11-slot STAFF arrays.
-    # See reference.parse_club_trailer. Only clubs we already resolved a name for, so this
+    # See tables.clubs.CLUB_TABLE. Only clubs we already resolved a name for, so this
     # inherits the same validation rather than trusting the raw index.
     club_details = {}
     for ct in sorted(club_names):
@@ -566,7 +566,7 @@ def main():
           for t, c in sorted(club2league.items())})
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
     # The WORLD fixture list, from the zstd archive at the tail of the save
-    # (fmparser/fixtures.py -> fmparser/archive.py). ~27k matches over ~1,750 clubs against
+    # (fmparser/tables/fixtures.py -> fmparser/core/archive.py). ~27k matches over ~1,750 clubs against
     # the ~60 of our own that matches.py parses.
     #
     # Three things this is NOT, all of them load-bearing:

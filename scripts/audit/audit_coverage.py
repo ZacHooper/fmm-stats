@@ -136,7 +136,7 @@ def claims(mm, n):
 
     # ---- the archive container: walked by its own chain of zstd frames to the file's end ----
     try:
-        from fmparser import archive as ARCH
+        from fmparser.core import archive as ARCH
         start = ARCH.locate(mm)[0]
         measured("archive (zstd container)", [(start, n)])
         names = list(ARCH.members(mm))
@@ -168,31 +168,6 @@ def claims(mm, n):
     from fmparser.tables import save_header as HDR
     measured("tables.save_header", [(0, HDR.SAVE_HEADER.span)])
     declared("reference.name_table", 0, 520_000)
-    # The club table: start and length both read from the save's own count header (11,331 on Frem,
-    # 12,278 on Bucaspor), so its extent is known exactly rather than claimed as a 20 MB window.
-    try:
-        from fmparser import clubs_comps as R
-        spans = R.club_table_spans(mm)
-        c_clubs, c_blank_clubs = R._walk_club_table(mm)
-        measured("reference.club_table", spans)
-        print(f"  ~ reference.club_table: {len(spans) - 1:,} declared slots = "
-              f"{len(c_clubs):,} named + {c_blank_clubs} blank, tid == slot index throughout, "
-              f"{spans[0][0]:,}-{spans[-1][1]:,}", file=sys.stderr)
-    except Exception as exc:
-        print(f"  ! CLUB TABLE WALK FAILED: {exc}", file=sys.stderr)
-    # The competition table: start and length both read from the save's own count header, so
-    # its extent is known exactly rather than claimed. A failure here is a real defect, not a
-    # soft downgrade -- report it loudly instead of quietly falling back to DECLARED.
-    try:
-        from fmparser import clubs_comps as R
-        spans = R.comp_table_spans(mm)
-        c_comps, c_blank = R._walk_comp_table(mm)
-        measured("reference.comp_table", spans)
-        print(f"  ~ reference.comp_table: {len(spans) - 1:,} declared slots = "
-              f"{len(c_comps):,} named + {c_blank} blank, cid == slot index throughout, "
-              f"{spans[0][0]:,}-{spans[-1][1]:,}", file=sys.stderr)
-    except Exception as exc:
-        print(f"  ! COMPETITION TABLE WALK FAILED: {exc}", file=sys.stderr)
     # DERIVED, not declared: `snapshot_bounds` locates this by marker cluster and now
     # RAISES rather than falling back to `regions.SNAPSHOT_LO/HI`. Claiming the static
     # window here would have reported 0.9 MB as covered on every career whose snapshot is

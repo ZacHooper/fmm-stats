@@ -40,7 +40,7 @@ def saves():
 def archive_files(mm):
     """`file` of every configured comp_<uid>.dat member, or None without zstandard."""
     try:
-        from fmparser import archive as A
+        from fmparser.core import archive as A
         import zstandard  # noqa: F401
     except ImportError:
         return None

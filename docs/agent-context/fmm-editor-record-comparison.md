@@ -178,7 +178,7 @@ tail alignment drifts somewhere after `Players[]`. Both need pinning down before
 Superseded: this section used to read "we parse about half", with `Level`,
 `ParentCompetitionId`, `ContinentId`, the colours and the `Rank1..3`/`Year1..3` history all
 listed as "not yet located in the FMM22 record". They are all located now, and so is the
-record's END — `reference._walk_comp_table` reads every slot the table declares by arithmetic
+record's END — `tables.competitions.COMP_TABLE` reads every slot the table declares by arithmetic
 (1372 on Frem, 1371 on Bucaspor, `cid == slot index` throughout), which it could not do without
 knowing the exact extent. `scripts/audit_records.py --map` prints the per-byte schema; that is
 the documentation, generated rather than retyped, so prefer it over anything restated here.
