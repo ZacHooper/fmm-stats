@@ -3,7 +3,7 @@
 > **STATUS: REFERENCE, not a work plan.** Everything here SHIPPED in PR #51 (2026-09-17),
 > including the Style hunt. Kept for the record layouts it decoded and the traps it hit.
 > Anything still open from it lives in [`TODO.md`](TODO.md). For the per-byte schema of a
-> record we walk, prefer `uv run python scripts/audit_records.py --map` — that is generated
+> record we walk, prefer `uv run python scripts/audit/audit_records.py --map` — that is generated
 > from the parser's own tables and cannot go stale.
 
 **Started and finished 2026-09-16.** Six workstreams, all shipped — the manager STYLE field
@@ -157,7 +157,7 @@ unnamed.
 
 - **A full rebuild has NOT been run.** The local store is mixed: 25 snapshots, but only a few
   carry the new tables. `uv run python scripts/rebuild.py --career frem` (~10 min) is the last
-  step before trusting anything. `scripts/validate_mart.py` passed on the pre-E store.
+  step before trusting anything. `tests/validate_mart.py` passed on the pre-E store.
 - **`site/api/*.json` has not been regenerated.** `export_data.py` and `site/js/data.js` were
   changed together in workstream A to add shirt/height/weight, so the next
   `export_data.py --upload-all` will produce a real (expected) `git diff site/api`. The user has
@@ -218,7 +218,7 @@ on `claude/pr-51-review-audit-un6rcv`. Full argument in the review comment on PR
    and two docs — including "ranking history is 24 entries", the very assumption whose
    cross-career failure is listed under Traps below.
 3. **No invariant was added for any of the 11 new staging tables or 9 new mart views**, so
-   `validate_mart.py` passing meant nothing. `scripts/audit_records.py` (STRIDE / COVERAGE /
+   `validate_mart.py` passing meant nothing. `scripts/audit/audit_records.py` (STRIDE / COVERAGE /
    EXTENT) and density guards in `tests/test_staff_records.py` now cover this; the rules are
    in `CLAUDE.md`.
 

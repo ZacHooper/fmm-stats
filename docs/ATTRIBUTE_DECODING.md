@@ -31,7 +31,7 @@ anchored on the SID, which is the record's key.
 
 > **Corrected 2026-09-16.** This read `P-55 … P+22`: same 78-byte grid, wrong phase, and it
 > stopped 13 bytes early — which is why height, weight, shirt number and two reputations went
-> unread for four years. Two knock-ons: `scripts/audit_records.py` now asserts the extent and
+> unread for four years. Two knock-ons: `scripts/audit/audit_records.py` now asserts the extent and
 > flags any byte no field claims. The `P-50 … P-43` personality row below was a knock-on
 > casualty: it falls OUTSIDE a record anchored at `P-42`, and is now **resolved as wrong** —
 > personality lives on the INFO record at `info+52…59`.

@@ -15,7 +15,7 @@ Last reviewed **2026-09-20**, after the tail archive was opened (#4) and the **p
 landed in full** — records are declared once and read from the declaration, the six locator
 shapes are written up in [`parser-architecture.md`](parser-architecture.md), the world fixture
 list is extracted, and all seven self-declared-count defects (#17) are fixed. Every
-restructuring commit was held byte-identical by `scripts/assert_identical.py`; the four commits
+restructuring commit was held byte-identical by `tests/assert_identical.py`; the four commits
 that changed output say so and re-recorded in the same commit.
 
 ---
@@ -68,12 +68,12 @@ Five things have produced numbers that looked fine and were not. All are live tr
 | the attribute decoder, and what is already ruled out | [`attribute-model.md`](attribute-model.md) |
 | what CA is made of, per position | [`ca-weighting.md`](ca-weighting.md) |
 | record layouts from the 2026-09 expansion | [`record-expansion.md`](record-expansion.md) |
-| the per-byte schema of any record we walk | `uv run python scripts/audit_records.py --map` |
-| which BYTES of the save no parser reads | `uv run python scripts/audit_coverage.py` |
+| the per-byte schema of any record we walk | `uv run python scripts/audit/audit_records.py --map` |
+| which BYTES of the save no parser reads | `uv run python scripts/audit/audit_coverage.py` |
 | the standings record, decoded but unimplemented | [`standings-record.md`](standings-record.md) |
 | **the compressed archive at the end of the file, and the fixture list in it** | [**`save-archive.md`**](save-archive.md) |
 | where every byte of the file lives | [`savefile-map.md`](savefile-map.md) |
-| whether a region is text, records or COMPRESSED | `uv run python scripts/entropy_profile.py <save.fms>` |
+| whether a region is text, records or COMPRESSED | `uv run python scripts/audit/entropy_profile.py <save.fms>` |
 | the hunt for complete fixtures (history; now superseded by the archive) | [`date-search.md`](date-search.md) |
 | the transfer-history record (decoded, not parsed) | [`transfer-history-record.md`](transfer-history-record.md) |
 | how to deploy the site | [`DEPLOY.md`](DEPLOY.md) |
@@ -318,7 +318,7 @@ series near 44.6 MB (same table found twice, a sibling, or coincidence — open)
 
 **Four follow-ups, none started:**
 - Ship the exact (no-sampling) history-slab locator as a real function next to
-  `history.locate()`, the way `scripts/audit_table_headers.py --confirm` sits next to the
+  `history.locate()`, the way `scripts/audit/audit_table_headers.py --confirm` sits next to the
   reference-table locators — the sampled version is fine for finding a candidate but should not
   be the thing a "fixed pool, proven" claim rests on.
 - **Live bug**: `fmparser/mapregions.py`'s `sub_regions()` calls
@@ -354,7 +354,7 @@ fell out of it, ~8.7 MB combined:
 **Also surfaced, and worth fixing before doing much more work on this branch: PR #58 is not
 merged.** This branch (`claude/pr-58-learnings-8xx4fi`) was cut from `main`, and PR #58 lives on
 its own unmerged branch (`docs/table-framing`) — `docs/table-framing.md`,
-`scripts/audit_table_headers.py` and `scripts/discover_tables.py` simply don't exist here. The
+`scripts/audit/audit_table_headers.py` and `scripts/audit/discover_tables.py` simply don't exist here. The
 club table, award table, and a handful of small attribute-section sub-tables in
 `savefile-map.md` are cited from that branch at `frem-2023-07-02` offsets, unverified on this
 save. Reconcile the branches (merge #58, or rebase this one onto it) before treating those rows
@@ -400,6 +400,30 @@ left:
    loads. Every configured archive member names its dictionary file (`file`), so the two
    join. The deleted `docs/DATADICT.md` (last at commit 7cc46b6) holds guesses at many tag
    meanings, made from the old lenient scan -- hypotheses to test, not facts.
+
+### 4f. Migrate the remaining tables onto `core`
+Every table is an **array** or a **linked list** of **packed** or **tagged** rows, found by a
+locator (`docs/parser-architecture.md` Part 1). `core` walks arrays of both row kinds
+(`TableDef`, `TaggedTableDef`); the engine is tidy (one record reader, one post-process
+signature, the audit driven by both registries). What is left, in order -- each PR gated by
+byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
+deliberate break:
+
+1. **`TableDef` in name only** -- `contracts`, `fixtures`, `names`, `nations` and `person_info`
+   declare a table but scrape with hand-written loops beside it. Route each scrape through its
+   table; `person_info` (and step 2) need a core COUNTED-LIST segment for the variable lists
+   after its 68-byte head.
+2. **`clubs_comps`' club and competition tables** -- arrays of `[id][uid][len][long][len][short]
+   [len][code]` + trailer: `TableDef` with `PString` segments, plus the counted list
+   (`comp_refs`).
+3. **The linked-list walk** -- a core table for a stride record with a next-row pointer, heads
+   = rows of in-degree 0, read column-wise (`Record.columns`); move `history.py` onto it.
+4. **`clubrecords.py`** -- a preallocated array of 12-slot category blocks: an array walk with
+   an empty-slot predicate and a block size.
+5. **The key-search tables** (`injuries.py`, `squad.py`) -- arrays whose start and stride are
+   not mapped yet. Research first: find each array's bounds, then it is an ordinary array.
+6. **`matches.py`** -- arrays ending at a delimiter; the header and stat block are already
+   `Record`s. Move what fits; name what stays bespoke and why.
 
 ### 4d. Player-list blocks — named, not decoded
 **New 2026-09-20.** ~1.38 MB at ~61.25M–62.63M is a run of blocks of **100 slots x 200 B**
@@ -479,7 +503,7 @@ measured is the save's own day-of-year or one before it. That does not date a da
 
 ### 7. Staff record: five catalog indices plus six hidden attributes
 Bytes `+34..+38` are five undecoded catalog indices, declared `UNKNOWN` in
-`scripts/audit_records.py`'s `LAYOUTS` so the audit passes honestly. The record's stride and
+`scripts/audit/audit_records.py`'s `LAYOUTS` so the audit passes honestly. The record's stride and
 coverage are proven; only these are unnamed.
 
 The six hidden staff attributes stay named by OFFSET (`hidden_s18 … hidden_s28`) on purpose:
@@ -510,7 +534,7 @@ Both are known gaps, not suspicions (a third, the nation walk, was fixed 2026-09
   class exactly (`[uid u32][Name][1 terminator][CodeName][Demonym][1 terminator]`, no 14-byte
   trailer) — `Africa`/`Asia`/`Europe`/`North America`/`Oceania`/`South America` at ids 0-5
   (matching the six FIFA confederations the competition record's own `continent` field uses,
-  declared as `comp_trailer` +1..2 in `scripts/audit_records.py`) plus a synthetic `World` at
+  declared as `comp_trailer` +1..2 in `scripts/audit/audit_records.py`) plus a synthetic `World` at
   id 6 with empty code/demonym. Unparsed; nothing currently
   reads it. Its own 6th entry ("World") is the coincidental candidate that a widened comp scan
   briefly picked up as a fake `cid=24931` competition before comps moved to a pure
@@ -574,8 +598,8 @@ read against the current squad rather than resuming the old one.
 
 ### 16. Table discovery: the save frames its own tables, and the inventory needs naming
 **Full write-up: [`table-framing.md`](table-framing.md).** Measured on all 34 saves across both
-careers; reproduce with `scripts/audit_table_headers.py` (+ `--confirm`) and
-`scripts/discover_tables.py` (+ `--stable`).
+careers; reproduce with `scripts/audit/audit_table_headers.py` (+ `--confirm`) and
+`scripts/audit/discover_tables.py` (+ `--stable`).
 
 The competition table's self-declared count (#10) turned out to be a **general convention**:
 `[8 bytes of 0xFF][record count][record 0]`, used by nine tables, exact every time. Asking each
@@ -797,6 +821,17 @@ positives in the award-record region so the next pass does not rediscover them.
 - **`tests/test_attribute_model.py` skips unless a repo-local `fm-frem.duckdb` exists.** It could
   open the store through `fmstats.store.open_store()` (as `tests/test_fmq.py` does) and run on any
   machine with the R2 remote.
+
+- **Docs and a skill still point at scripts deleted in #82/#73.** `.claude/skills/attribute-profiles/SKILL.md`
+  tells you to run `scripts/export_attribute_lab.py`, `scripts/check_rating_parity.py` and
+  `scripts/import_weight_set.py`, so the skill is broken as written. Also referenced but gone:
+  `scripts/canonicalise_names.py` (CLAUDE.md's save-naming section and two items here),
+  `scripts/audit_archive.py` (`save-archive.md`, `savefile-map.md`),
+  `scripts/audit_light_results.py` (`light-results-record.md`), `scripts/map_regions.py`
+  (`parser-architecture.md`, `table-framing.md`, `career-region-sizing.md`, this file) and
+  `tests/test_lightresults.py`. For each: restore it from git (`git show 2efd9e9^:<path>`) if
+  the workflow is still wanted, or rewrite the passage. The moved audit/test scripts' paths are
+  already fixed.
 
 - **Move `fmparser/archive.py` to `fmparser/core/archive.py`**:
   `archive.py` is the Shape D container/filesystem driver for the embedded Zstandard archive (`sicomps`). It is not a table parser — it sits at the same structural abstraction layer as `schema.py`, `table.py`, and `primitives.py`. Relocate to `fmparser/core/archive.py`, update `fmparser/tables/` imports, and keep `fmparser/core/` self-contained.

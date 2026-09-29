@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Table abstraction engine and savefile table registry."""
+"""The savefile table registry: every table definition, by name (`TABLES`). The engine is
+`fmparser/core/table.py`."""
 from .cities import CITIES_TABLE, CITY, CITY_RECORD, scrape_cities
 from .contracts import (
     CONTRACT,
@@ -71,11 +72,6 @@ from .comp_honours import (
     locate_comp_honours,
     read_honour as read_comp_honour,
     scrape as scrape_comp_honours,
-)
-from .engine import (
-    TableDef,
-    table_spans,
-    walk_table,
 )
 from .languages import (
     LANGUAGES_TABLE,
@@ -197,9 +193,6 @@ TABLES = {
 
 __all__ = [
     # Engine
-    "TableDef",
-    "table_spans",
-    "walk_table",
     "TABLES",
     # Cities
     "CITIES_TABLE",

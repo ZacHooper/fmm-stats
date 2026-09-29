@@ -14,6 +14,21 @@ kept recurring in different modules. Keeping them apart is what this document is
 
 ## Part 1 — the six locator shapes
 
+**First, the model underneath them.** Every table in the save answers three independent
+questions, and the six shapes below are combinations of the answers, not six kinds of data:
+
+| question | answers | in `core` |
+|---|---|---|
+| how do rows relate? | an **array** (fixed or variable stride), or a **linked list** (each row holds the next row's index) | `TableDef` / `TaggedTableDef` walk arrays; a linked-list walk is still to add (`history.py`) |
+| how is a row encoded? | **packed** (fields at offsets) or **tagged** (key-value fields) | `Record` / `TaggedRecord` |
+| how is the start found and the end proved? | a declared count, a capacity with empty slots, a terminator, a length chain, an archive member, or a search by key | the locator each table supplies |
+
+So A is an array with a declared count; C an array with a capacity; E an array of variable
+stride; D is where an array or a tagged row is STORED, not a structure; B names both a true
+linked list (the history slab) and arrays that end at a marker (our matches, the squad
+snapshot); and F is an array whose start and stride we have not mapped, found row by row
+through its key -- migrating an F table is research into its bounds, not a refactor.
+
 A 64 MB `.fms` is not one format. It is several, and the boundary between them is structural,
 not thematic: a 20-byte fixed grid of cities and a 20-byte fixed grid of match slots are the
 same *kind of thing* to a parser, while the competition table sitting between them is not.
@@ -114,7 +129,7 @@ size. Preallocation and append are not alternatives here; the file does both.
   `tests/test_match_slots.py` asserts exactly that.
 - **Day one is a real test case, not an edge case.** A walk that depends on rows existing
   finds nothing on `frem-2021-07-01` and everything on `frem-2026-06-11`. That save is in
-  `scripts/assert_identical.py`'s four for this reason.
+  `tests/assert_identical.py`'s four for this reason.
 
 **How you find one.** By a **residue class mod stride**: take a constant that appears in every
 populated row, collect its offsets, and find the residue class mod the stride that holds the
@@ -143,7 +158,7 @@ already parse. The reader is `fmparser/archive.py`; it needs `uv sync --extra ar
 BLOCK ENTROPY, never by printable fraction.** This region was ranked the best remaining target
 for being "25.8% printable" when uniform random bytes are **37.1% printable by construction** —
 it was *less* printable than noise. Four hunts died there before anyone measured entropy.
-`scripts/entropy_profile.py` does it: filler reads ~1.4 bits/byte, ordinary records 3–6, dense
+`scripts/audit/entropy_profile.py` does it: filler reads ~1.4 bits/byte, ordinary records 3–6, dense
 records and strings 6–7.5, and **anything above 7.9 is compressed**, where no stride search
 will ever bite.
 
@@ -270,14 +285,16 @@ The modules:
 | `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
 | `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged). |
 
-**21 records are declared** as of 2026-09-20, and `scripts/audit_records.py` reads every one
-of them from the module that parses it — it holds no layout of its own any more. That
+**31 packed records are declared**, and `scripts/audit/audit_records.py` audits every one of
+them straight from `core.REGISTRY` — every `Record` registers itself on import, so the audit
+holds no layout, and no list, of its own. (A hand-kept list had silently left five records
+unaudited.) That
 inversion was not cosmetic: while the audit owned the competition trailer's layout, it
 declared `nation` as a u16 at `+3` and both parsers read `trailer[3]` alone, which is right
 only because all 227 nation ids in the save happen to fit in a byte.
 
 Run **`uv run python tests/test_layouts.py`** — no save file, milliseconds — and
-**`uv run python scripts/audit_records.py --map`**, which prints the per-byte schema. *That
+**`uv run python scripts/audit/audit_records.py --map`**, which prints the per-byte schema. *That
 printout is the record documentation.* It is generated rather than retyped, so it cannot go
 stale, which is the only reason to trust it.
 
@@ -288,7 +305,7 @@ attribute record is *found* by its SID marker and this project has always descri
 relative to that marker (`P-38`, `P+28`) while the record itself begins 42 bytes earlier. Both
 spellings are legitimate and mixing them is a bug the repo has already had. `Record.anchor`
 reconciles them: declare in record coordinates, and call
-`records.read_at_anchor(mm, rec, marker_offset)`, which does the subtraction exactly once.
+`rec.read_at_anchor(mm, marker_offset)`, which does the subtraction exactly once.
 
 ### Declared UNKNOWN is not the same as undeclared
 
@@ -369,9 +386,9 @@ in which class you reach for.
    containers `ListOf(RECORD)`, and each nested record is declared the same way.
 4. **Define the table** -- `TableDef(...)` / `TaggedTableDef(...)` -- and read it with
    `TABLE.scrape(mm)`; register it in `tables/__init__.py`'s `TABLES`.
-5. **Audit it.** Packed: add the layout to `audit_records.py`'s `LAYOUTS`. Tagged: nothing to
-   add -- every `TaggedRecord` registers itself, and `audit_records.py` reports every
-   registered schema. `audit_records.py --map` prints both kinds.
+5. **Audit it.** Nothing to add: every `Record` and `TaggedRecord` registers itself, and
+   `audit_records.py` audits every registered schema of both kinds (byte coverage for packed,
+   tag coverage for tagged). `audit_records.py --map` prints both.
 6. **Test it** -- extent and coverage on every save, plus ground truth for what you read
    (`tests/test_rule_files.py`: 3F Superliga has 12 teams).
 
@@ -386,11 +403,11 @@ in which class you reach for.
 | command | what it establishes | needs a save? |
 |---|---|---|
 | `tests/test_layouts.py` | every declared layout is internally sound — covered, non-overlapping, widths match kinds; every tagged schema declares each tag once | no |
-| `scripts/audit_records.py` | **STRIDE / COVERAGE / EXTENT** against a real save | yes |
-| `scripts/audit_records.py --map` | the generated per-byte record documentation | yes |
-| `scripts/audit_table_headers.py --confirm` | declared count == records read, for every framed table | yes |
-| `scripts/assert_identical.py` | the extract still produces the same *bytes* | yes, 4 |
-| `scripts/audit_coverage.py` | whole-file byte accounting in tiers | yes |
+| `scripts/audit/audit_records.py` | **STRIDE / COVERAGE / EXTENT** against a real save | yes |
+| `scripts/audit/audit_records.py --map` | the generated per-byte record documentation | yes |
+| `scripts/audit/audit_table_headers.py --confirm` | declared count == records read, for every framed table | yes |
+| `tests/assert_identical.py` | the extract still produces the same *bytes* | yes, 4 |
+| `scripts/audit/audit_coverage.py` | whole-file byte accounting in tiers | yes |
 
 **Before you call a record decoded, prove the EXTENT, not just the fields.** Ground truth on
 the fields you read says nothing about the fields you did not. Both of this project's worst
@@ -440,7 +457,7 @@ Part 1 is what tells you which kind of locator you are re-deriving.
 Region-first, then structural. This order has repeatedly turned multi-hour hunts into quick
 finds, and every step of it exists because skipping it cost someone a day:
 
-0. **Profile by block entropy** — `scripts/entropy_profile.py`. Above 7.9 bits/byte is
+0. **Profile by block entropy** — `scripts/audit/entropy_profile.py`. Above 7.9 bits/byte is
    compressed and no stride search will bite. **Never rank a region by printable fraction.**
 1. **Map the file into filler-delimited sections** — `scripts/map_regions.py`. Cross-check
    `fmparser/regions.py`, whose windows are Bucaspor-tuned and often wrong elsewhere.

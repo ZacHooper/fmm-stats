@@ -30,16 +30,18 @@ class TableDef:
     segments: Tuple[Any, ...]  # Sequence of Record | PString | CustomSegment
     locator: Callable[[Any], Optional[Tuple[int, int]]]  # mm -> (base_offset, record_count)
     include_offset: bool = False
-    post_process: Optional[Callable[..., Optional[Dict[str, Any]]]] = None
+    # (row, row offset) -> the row to emit, or None to drop it
+    post_process: Optional[Callable[[Dict[str, Any], int], Optional[Dict[str, Any]]]] = None
 
     @property
     def is_fixed_stride(self) -> bool:
         """True if the table consists solely of a single fixed Record."""
-        return len(self.segments) == 1 and (isinstance(self.segments[0], Record) or self.segments[0].__class__.__name__ == "Record") and not self.segments[0].is_head
+        return (len(self.segments) == 1 and isinstance(self.segments[0], Record)
+                and not self.segments[0].is_head)
 
     @property
     def stride(self) -> int:
-        if len(self.segments) >= 1 and (isinstance(self.segments[0], Record) or self.segments[0].__class__.__name__ == "Record"):
+        if self.segments and isinstance(self.segments[0], Record):
             rec = self.segments[0]
             return rec.stride or rec.span
         raise AttributeError(f"{self.name} is a variable-length table with no single stride")
@@ -82,10 +84,7 @@ def walk_table(mm: Any, table: TableDef) -> List[Dict[str, Any]]:
             if table.include_offset:
                 rec["offset"] = rec_start
             if table.post_process:
-                try:
-                    rec = table.post_process(rec, rec_start)
-                except TypeError:
-                    rec = table.post_process(rec)
+                rec = table.post_process(rec, rec_start)
                 if rec is None:
                     continue
             results.append(rec)
@@ -100,7 +99,7 @@ def walk_table(mm: Any, table: TableDef) -> List[Dict[str, Any]]:
         valid = True
 
         for seg in table.segments:
-            if isinstance(seg, Record) or seg.__class__.__name__ == "Record":
+            if isinstance(seg, Record):
                 if pos + seg.span > limit:
                     valid = False
                     break
@@ -123,13 +122,9 @@ def walk_table(mm: Any, table: TableDef) -> List[Dict[str, Any]]:
         if table.include_offset:
             rec["offset"] = rec_start
         if table.post_process:
-            try:
-                processed = table.post_process(rec, rec_start)
-            except TypeError:
-                processed = table.post_process(rec)
-            if processed is None:
+            rec = table.post_process(rec, rec_start)
+            if rec is None:
                 continue
-            rec = processed
 
         results.append(rec)
 
@@ -174,7 +169,7 @@ def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> 
         if pos >= limit:
             break
         for seg in table.segments:
-            if isinstance(seg, Record) or seg.__class__.__name__ == "Record":
+            if isinstance(seg, Record):
                 pos += seg.span
             elif hasattr(seg, "read"):
                 res = seg.read(mm, pos, limit)

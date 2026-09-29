@@ -14,7 +14,6 @@ from typing import NamedTuple
 import struct
 
 from .core import primitives as P
-from . import records as RD
 from .core import Field, PAD, Record, U8, U16, U32, UNKNOWN
 
 import numpy as np
@@ -254,7 +253,7 @@ def _read_comp_slot(mm, p):
     # The trailer, read from COMP_TRAILER. Four of its eight fields are declared and not
     # read (`continent`, the two colours) -- declaring a field we choose not to surface is
     # the point of the layout being the schema, and it is how `nation`'s width was settled.
-    t = RD.read_fields(mm, COMP_TRAILER, pp,
+    t = COMP_TRAILER.read_fields(mm, pp,
                        ("type", "nation", "reputation", "level", "parent_cid"))
     typ, nation = t["type"], t["nation"]
     rep, level, parent = t["reputation"], t["level"], t["parent_cid"]
@@ -272,7 +271,7 @@ def _read_comp_slot(mm, p):
     #
     # The count is read as a u32 here because that is safe -- bytes +1..+3 are zero on all
     # 46,641 slots in the archive -- but it is DECLARED as a u8 plus three unknowns in
-    # `scripts/audit_records.py`, because with a maximum count of 134 the two widths are
+    # `scripts/audit/audit_records.py`, because with a maximum count of 134 the two widths are
     # indistinguishable and the layout must not assert what was not measured. The entry's
     # own fields are decoded (`comp_ref_entry`) and readable via `comp_refs`, but are not
     # put in `rec`: only 24 of 1,272 competitions have any, and what the list MEANS varies
@@ -403,7 +402,7 @@ def comp_refs(mm, cid):
     where the field cannot be derived from the league structure the game simulates" --
     promotion/relegation pyramids and UEFA coefficients being derivable, a closed franchise
     league and CONMEBOL's entrants not. A story is not a decode, so the fields are named and
-    the list is not. See `scripts/audit_records.py`'s `comp_ref_entry`.
+    the list is not. See `scripts/audit/audit_records.py`'s `comp_ref_entry`.
     """
     anchor = _comp_table_anchor(mm)
     if anchor is None:
@@ -426,7 +425,7 @@ def comp_refs(mm, cid):
     list_p = pp + COMP_TRAILER.span
     n = P.u32(mm, list_p)
     base = list_p + COMP_REF_COUNT.span
-    return [RD.read(mm, COMP_REF_ENTRY, base + COMP_REF_ENTRY.span * k) for k in range(n)]
+    return [COMP_REF_ENTRY.read(mm, base + COMP_REF_ENTRY.span * k) for k in range(n)]
 
 
 def comp_table_spans(mm):
@@ -434,7 +433,7 @@ def comp_table_spans(mm):
     file order, plus the 2-byte count header in front of record 0.
 
     This is the competition table's EXTENT, reported per record rather than claimed as a
-    window, which is what `scripts/audit_coverage.py`'s MEASURED tier requires. It reuses
+    window, which is what `scripts/audit/audit_coverage.py`'s MEASURED tier requires. It reuses
     `_read_comp_slot` for the arithmetic, so the audit cannot drift from the parser: if the
     walk's idea of where a record ends is wrong, both are wrong together and the coverage
     map shows it as a gap.

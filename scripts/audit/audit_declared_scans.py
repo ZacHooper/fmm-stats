@@ -3,7 +3,7 @@
 Per-candidate disposition audit for DECLARED-tier parsers: for each candidate position a
 scan considers, is it accepted (and at what tier), rejected (with which named reason), or
 superseded by an earlier/better candidate for the same key? Closes the gap `DECLARED` leaves
-open in `scripts/audit_coverage.py` -- "a parser scanned this window" is not "every candidate
+open in `scripts/audit/audit_coverage.py` -- "a parser scanned this window" is not "every candidate
 is accounted for."
 
 Currently covers `clubs_comps.py`'s CLUB scan (`_build_refdata_index` /
@@ -33,7 +33,7 @@ which now apply to the CLUB gates:
      actually REFERENCES (a match's comp_id/home_tid/away_tid, a player's club_tid) before
      calling a gap real.
 
-Run: uv run python scripts/audit_declared_scans.py [save.fms]
+Run: uv run python scripts/audit/audit_declared_scans.py [save.fms]
 """
 import mmap
 import os

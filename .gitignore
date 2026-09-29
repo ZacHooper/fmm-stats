@@ -4,7 +4,7 @@
 # Extraction outputs (regenerate with extract.py)
 output/
 
-# The refactor's byte-identical baseline (scripts/assert_identical.py --record). Derived from
+# The refactor's byte-identical baseline (tests/assert_identical.py --record). Derived from
 # the saves, and it moves whenever output legitimately changes, so it is local state rather
 # than a committed fixture — the commit hash it records is what makes a stale one detectable.
 .oracle/

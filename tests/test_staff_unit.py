@@ -11,7 +11,6 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import records as RD  # noqa: E402
 from fmparser.tables import staff as ST    # noqa: E402
 
 
@@ -58,7 +57,7 @@ def test_staff_schema_unpack():
         attacking_intent=18,
         formations=(4, 5, 6),
     )
-    rec = RD.read(b, ST.STAFF, 0)
+    rec = ST.STAFF.read(b, 0)
     assert rec["id2"] == 999
     assert rec["ca"] == 140
     assert rec["pa"] == 175

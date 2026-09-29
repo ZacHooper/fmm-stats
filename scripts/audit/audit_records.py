@@ -27,8 +27,8 @@ This script asserts against all three, from the bytes, on a real save:
   EXTENT     a keyed table is contiguous in its own id space. Gaps and overshoot both mean
              the walk's boundary is wrong.
 
-Run:  uv run python scripts/audit_records.py [path/to/save.fms]
-      uv run python scripts/audit_records.py --map     # print the per-byte schema
+Run:  uv run python scripts/audit/audit_records.py [path/to/save.fms]
+      uv run python scripts/audit/audit_records.py --map     # print the per-byte schema
 
 Exits non-zero on a failure, so it can gate a merge. Declaring a byte UNKNOWN is a normal,
 honest outcome -- the point is that it is written down rather than skipped by accident.
@@ -57,7 +57,8 @@ from fmparser.tables import comp_stages as CS          # noqa: E402
 from fmparser.tables import comp_honours as CH         # noqa: E402
 from fmparser.tables import comp_rules as CRU          # noqa: E402
 from fmparser.tables import rule_files as RF           # noqa: E402
-from fmparser.core import TAGGED_REGISTRY, tag_map     # noqa: E402
+from fmparser import tables as _all_tables                # noqa: E402,F401  (registers every Record)
+from fmparser.core import REGISTRY, TAGGED_REGISTRY, tag_map  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -81,81 +82,9 @@ def _from_record(rec):
              for f in rec.fields if not f.alias])
 
 
-LAYOUTS = {
-    # From the parser's declaration. `_from_record` drops alias fields, which is how
-    # `PLAIN_OFFSETS` can finally be DECLARED alongside `ATTR_OFFSETS` -- the two name the
-    # identical nine bytes, so the old hand-built layout had to omit one of them or trip its
-    # own overlap check, and it silently omitted the one the parser reads.
-    "player_attribute": _from_record(A.PLAYER),
-    # NOT a stride -- the info record is variable-length; this is the fixed head we decode,
-    # which is what `Record(is_head=True)` declares.
-    "info_head": _from_record(INFO_LAYOUT),
-    "staff_attribute": _from_record(ST.STAFF),
-    # NEW to the audit. This record was read by `matches.decode_block` and audited by
-    # nothing -- 29 of its 54 bytes named, the other 25 neither named nor declared, and no
-    # entry here at all. Its stride is not measurable the way a grid's is (blocks sit inside
-    # a match, found by delimiter, not on a file-wide grid), so COVERAGE is what this buys.
-    "match_player_block": _from_record(MT.BLOCK_REC),
-    # Also new to the audit. The slab is read COLUMN-WISE with numpy (265,423 rows), so its
-    # stride is a property of the locator rather than of a gap histogram -- COVERAGE is the
-    # check that matters, and it is what surfaces `+12..+13` as declared-unknown instead of
-    # as two bytes nobody had looked at.
-    "history_row": _from_record(H.ROW),
-    # The Club History tables, both new to the audit. These walk in whole 12-slot BLOCKS --
-    # the slot index IS the category, there is no category id in the record -- so the modal
-    # gap a STRIDE check measures is the block stride, not the row stride. COVERAGE is the
-    # useful part: 21 and 22 bytes, fully claimed.
-    "club_team_record": _from_record(CR.TEAM_ROW),
-    "club_player_record": _from_record(CR.PLAYER_ROW),
-    # Both contract records: found by KEY SEARCH, so neither has a stride and the span is
-    # what we read rather than what the record is. The status record's 29 unnamed middle
-    # bytes become visible here for the first time.
-    "contract_status": _from_record(CONTRACT_STATUS),
-    "contract_detail": _from_record(CONTRACT_DETAIL),
-    # The three SEEDED-CHAIN tables (shape E): variable-length records with no count and no
-    # index, so each contributes a fixed head and a fixed tail rather than a stride. None of
-    # these was in the audit before, which is why the fixed parts were only ever described in
-    # prose.
-    "stadium_head": _from_record(PL_STADIUMS.STADIUM_HEAD),
-    "language_head": _from_record(languages.LANGUAGE_HEAD),
-    "language_tail": _from_record(languages.LANGUAGE_TAIL),
-    "currency_head": _from_record(currencies.CURRENCY_HEAD),
-    "currency_tail": _from_record(currencies.CURRENCY_TAIL),
-    "nation_head": _from_record(nations.NATION_HEAD),
-    "nation_tail": _from_record(nations.NATION_TAIL),
-    # Read FROM the parser's own declaration rather than retyped here. This entry used to be
-    # a second, hand-maintained copy of the same 8 fields -- the exact drift the audit exists
-    # to prevent, sitting inside the audit.
-    "city": _from_record(PL_CITIES.CITY),
-    # NOT strides -- variable-length names precede the trailer and a variable-length entries
-    # array sits inside the part after it. Together these four cover the competition record
-    # in full, in file order:
-    #   [cid u16][uid u32]
-    #   [len u32][long name][1 terminator][len u32][short name][1 terminator][len u32][code]
-    #   comp_trailer            14
-    #   comp_ref_count           4   -> n_refs
-    #   comp_ref_entry           8   x n_refs
-    #   comp_history_tail       21
-    # = 25 + 8 * n_refs after the code name, which is exactly what
-    # reference._walk_comp_table steps by -- and scripts/audit_coverage.py claims the whole
-    # table MEASURED per record on the strength of it.
-    "comp_trailer": _from_record(R.COMP_TRAILER),
-    "comp_ref_count": _from_record(R.COMP_REF_COUNT),
-    "comp_ref_entry": _from_record(R.COMP_REF_ENTRY),
-    "comp_history_tail": _from_record(R.COMP_HISTORY_TAIL),
-    # From the save's zstd ARCHIVE, not the save body -- the only entry here that is, so the
-    # STRIDE and EXTENT checks below cannot reach it (they walk the mmap) and COVERAGE is the
-    # whole point. 13 of its 92 bytes are named and the other 79 are declared UNKNOWN in one
-    # place, which is the honest statement of where that record stands: the goals block and
-    # the round counter are deliberately unread, not overlooked.
-    "world_fixture": _from_record(FX.FIXTURE),
-    "comp_man_header": _from_record(CS.HEADER),
-    "comp_man_stage": _from_record(CS.STAGE),
-    "comp_man_honour": _from_record(CH.HONOUR),
-    # comp_<uid>.dat: only the fixed 54-byte header is a packed record; the block after it is
-    # a TaggedTableDef row (COMP_RULES_TABLE), bounded by the header's declared field count.
-    "comp_rules_header": _from_record(CRU.HEADER),
-}
+# Every packed Record registers itself on import (the modules above import them all), so the
+# layouts audited are the registry -- never a hand-kept list that a new record can miss.
+LAYOUTS = {name: _from_record(rec) for name, rec in REGISTRY.items()}
 
 
 def _coverage(name, stride, fields):

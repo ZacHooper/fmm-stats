@@ -159,9 +159,58 @@ class Record:
             if f.emits and f.group == group
         }
 
+    def read_fields(self, mm: Any, base: int, names: Sequence[str]) -> Dict[str, Any]:
+        """A named subset, in the order `names` gives -- not declaration order.
+
+        For a parser whose output order differs from the order the layout reads best in.
+        Extract output is dumped without `sort_keys`, so key order is part of the output
+        bytes; an order explicit at the call site is still a declaration."""
+        by_name = {f.name: f for f in self.fields if f.emits}
+        missing = [n for n in names if n not in by_name]
+        if missing:
+            raise KeyError(f"{self.name} does not emit: {', '.join(map(str, missing))}")
+        return {n: self.read_field(mm, by_name[n], base) for n in names}
+
     def read_at_anchor(self, mm: Any, anchor_off: int) -> Dict[str, Any]:
         """Read the record whose locator landmark sits at `anchor_off`."""
         return self.read(mm, anchor_off - self.anchor)
+
+    def columns(self, mm: Any, lo: int, count: int, names: Optional[Sequence[str]] = None,
+                stride: Optional[int] = None) -> Dict[str, List[Any]]:
+        """`count` rows from `lo`, read COLUMN-WISE as `{name: [value, ...]}`.
+
+        For slabs where building a dict per row dominates. numpy is used when importable and
+        every requested field is an unsigned int; otherwise rows are read and transposed --
+        same values, same order. Values leave as builtin ints: `np.uint32` is not
+        JSON-serialisable and its repr differs from int's, so leaking one would change extract
+        output bytes."""
+        step = stride or self.stride
+        if not step:
+            raise ValueError(f"{self.name} has no stride; columns needs one")
+        fields = [f for f in self.fields if f.emits and (names is None or f.name in names)]
+        order = list(names) if names is not None else [f.name for f in fields]
+        by_name = {f.name: f for f in fields}
+        try:
+            import numpy as np
+        except ImportError:
+            np = None
+        if np is None or any(by_name[n].kind not in (U8, U16, U32) for n in order):
+            out: Dict[str, List[Any]] = {n: [] for n in order}
+            for i in range(count):
+                base = lo + i * step
+                for n in order:
+                    out[n].append(self.read_field(mm, by_name[n], base))
+            return out
+        buf = np.frombuffer(mm, dtype=np.uint8, count=count * step, offset=lo).reshape(count, step)
+        out = {}
+        for n in order:
+            f = by_name[n]
+            col = buf[:, f.offset].astype(np.uint32)
+            for k in range(1, f.width):
+                col = col | (buf[:, f.offset + k].astype(np.uint32) << (8 * k))
+            out[n] = [int(v) for v in col]
+        del buf          # release the view: an exported pointer makes mmap.close() raise
+        return out
 
     def __repr__(self) -> str:
         return f"Record({self.name!r}, span={self.span}, {len(self.fields)} fields)"

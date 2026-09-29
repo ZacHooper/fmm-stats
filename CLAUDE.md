@@ -143,7 +143,7 @@ organised around — *a locator shape tells you how to FIND a record, a declared
 you how to READ it* — as the **six-shape locator table** (count-framed / pointer-marker /
 preallocated grid / archive member / seeded chain / key search), one section per shape with
 how you find it, the invariant that bounds it, and **how it fails**. Then the declared-layout
-rule (`primitives.py` / `schema.py` / `records.py`), what is deliberately *not* declarable,
+rule (`core/types.py` / `core/schema.py` / `core/table.py`), what is deliberately *not* declarable,
 what each audit script can actually tell you, and what porting to FMM26 will involve.
 The method section below is the field guide; that doc is the map.
 
@@ -174,7 +174,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
 - **[`docs/table-framing.md`](docs/table-framing.md)** — the save declares its own table sizes (`[8xFF][count][records]`); the declared-vs-read audit, the five defects it found, and the inventory of walkable tables still to be named. **Read before walking a new table.**
 - **[`docs/record-expansion.md`](docs/record-expansion.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
-- **[`docs/save-archive.md`](docs/save-archive.md)** — the save's last ~1.3 MB is a **zstd archive** (`sicomps`, 159 named members, 6.6 MB decompressed), read by `fmparser/archive.py` after `uv sync --extra archive`. Its `fix_man.dat` is the **world fixture list with scores** — 26,954 rows, verified 282/285 against our own matches in both careers. Read before touching fixtures/results, and note the rule that found it: **rank an unknown region by BLOCK ENTROPY, never by printable fraction** — compressed bytes are 37% printable by construction (`scripts/entropy_profile.py`).
+- **[`docs/save-archive.md`](docs/save-archive.md)** — the save's last ~1.3 MB is a **zstd archive** (`sicomps`, 159 named members, 6.6 MB decompressed), read by `fmparser/archive.py` after `uv sync --extra archive`. Its `fix_man.dat` is the **world fixture list with scores** — 26,954 rows, verified 282/285 against our own matches in both careers. Read before touching fixtures/results, and note the rule that found it: **rank an unknown region by BLOCK ENTROPY, never by printable fraction** — compressed bytes are 37% printable by construction (`scripts/audit/entropy_profile.py`).
 - **[`docs/savefile-map.md`](docs/savefile-map.md)** — the whole-file map, start to end, with what is known, what is a fixed pool, what is wiped each July, and the ranked list of what is still unidentified.
 - **squad-comparison-bridge**, **seyhun-attr-investigation**, **loan-status-unreliable**, **fmm-tactic-options** — specific findings; read when relevant.
 - **light-results-rolling-buffer**, **master-schedule-plan** — both **SUPERSEDED 2026-09-17**. The ~47 MB region is the per-club **Club History record tables** (`fmparser/clubrecords.py`, verified against in-game screenshots), NOT a list of simulated results, and nothing is deleted by a ring buffer. 55–58 MB is `regions.MATCH_LO`, our own matches. Read [`docs/light-results-record.md`](docs/light-results-record.md) before doing anything with either.
@@ -187,13 +187,13 @@ it has repeatedly turned multi-hour hunts into quick finds. (Which *kind* of loc
 building is [`docs/parser-architecture.md`](docs/parser-architecture.md) Part 1; this is how
 you find it in the first place.)
 
-0. **Profile it by BLOCK ENTROPY first** — `uv run python scripts/entropy_profile.py <save.fms>`.
+0. **Profile it by BLOCK ENTROPY first** — `uv run python scripts/audit/entropy_profile.py <save.fms>`.
    Filler reads ~1.4 bits/byte, ordinary records 3–6, dense records/strings 6–7.5, and **>7.9 is
    COMPRESSED** — no stride search will ever bite there. This is not optional book-keeping: the
    file's last 1.3 MB was ranked the best remaining target for being "25.8% printable" when
    uniform random bytes are **37.1% printable by construction**, and it cost four hunts. Never
    rank an unknown region by printable fraction.
-1. **Audit coverage and unmapped sections first** — `uv run python scripts/audit_coverage.py [save.fms]`.
+1. **Audit coverage and unmapped sections first** — `uv run python scripts/audit/audit_coverage.py [save.fms]`.
    The save is audited by declared table bounds and split by long runs of `00`/`ff` filler; this
    shows you *where* to look and exposes regions we haven't mapped. Cross-check against `docs/savefile-map.md`.
 2. **Find records structurally, never by absolute offset** — every window in `regions.py` **drifts** per
@@ -246,14 +246,15 @@ you find it in the first place.)
 Ground truth on the fields you read says nothing about the fields you didn't. The player record
 decoded perfectly for four years while missing its last 13 bytes; the city walk had Parken and
 Copenhagen exact while dropping 31 real cities and inventing 3. Both passed every check we had.
-Run **`uv run python scripts/audit_records.py [save.fms]`**:
+Run **`uv run python scripts/audit/audit_records.py [save.fms]`**:
 
 - **STRIDE** — the modal gap between consecutive records IS the stride you claim, and the rest
   are multiples of it (skipped records, not noise). This is what settled the staff record at 39
   bytes and left Style nowhere to hide.
 - **COVERAGE** — every byte in `[0, stride)` is a named field or declared `UNKNOWN` in the
-  script's `LAYOUTS`. **A byte that is neither is a byte you are stepping over by accident.**
-  Add the field to `LAYOUTS` in the same commit you add it to the parser.
+  record's `Record` declaration (the audit reads every registered `Record`, so there is no
+  second list to update). **A byte that is neither is a byte you are stepping over by
+  accident.**
 - **EXTENT** — a keyed table is dense from id 0. A gap means the walk dropped a row; an
   overshoot means it invented one.
 
@@ -281,8 +282,8 @@ Two rules follow, and the recent bugs all break them:
   invariant is `id == slot index`.
 - **One declarative layout per record is the schema.** `staging.INFO_LAYOUT` is a table of
   `(offset, width, name, kind)` with `UNKNOWN` rows as first-class entries: `_decode_info` reads
-  FROM it and `scripts/audit_records.py` checks AGAINST it, so the parser and its audit cannot
-  drift. **`uv run python scripts/audit_records.py --map` prints the per-byte schema** — that is
+  FROM it and `scripts/audit/audit_records.py` checks AGAINST it, so the parser and its audit cannot
+  drift. **`uv run python scripts/audit/audit_records.py --map` prints the per-byte schema** — that is
   the record documentation, generated rather than retyped, so it cannot go stale.
 - **Bound a record by its own invariant, not a plausibility window.** 77 person records are
   empty slots carrying garbage in every field — joined dates in 1290 and 2570, personality of

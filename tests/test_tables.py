@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for the generic composite-stream table engine (fmparser/tables/engine.py).
+"""Unit tests for the generic composite-stream table engine (fmparser/core/table.py).
 
 Tests `TableDef` and `PString` with synthetic byte buffers without requiring a 64 MB savefile,
 ensuring fixed grids, single-string catalogs, and multi-string catalogs are sound under all
@@ -12,12 +12,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser.core import Field, Record, U16, U32, U8, PString
-from fmparser.tables import (                              # noqa: E402
-    TableDef,
-    table_spans,
-    walk_table,
-)
+from fmparser.core import (                                # noqa: E402
+    Field, PString, Record, TableDef, U8, U16, U32, table_spans, walk_table)
 
 # Synthetic fixed schema: 7 bytes = [id u32][val u16][flag u8]
 DUMMY_FIXED = Record("dummy_fixed", 7, [
@@ -55,7 +51,7 @@ def test_fixed_table():
         name="test_fixed",
         segments=(DUMMY_FIXED,),
         locator=lambda m: (base, count),
-        post_process=lambda r: {**r, "extra": r["id"] * 2},
+        post_process=lambda r, off: {**r, "extra": r["id"] * 2},
     )
 
     rows = walk_table(mm, table_def)

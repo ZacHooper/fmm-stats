@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Per-byte profile of the world-fixture record -- the check COVERAGE cannot make.
 
-`scripts/audit_records.py` asks "is every byte in [0, stride) named or declared UNKNOWN?".
+`scripts/audit/audit_records.py` asks "is every byte in [0, stride) named or declared UNKNOWN?".
 `world_fixture` passed that from the day it shipped, and it was still hiding a competition key
 at +31 inside `Field(16, 25, UNKNOWN, PAD)`. **COVERAGE catches a byte you are stepping over by
 accident; it cannot catch a byte you have declared unknown and then stopped looking at.** A
@@ -33,9 +33,9 @@ distinct-value count measured on one save of one career is how a career-specific
 mistaken for structure -- the mistake early parsers made by tuning to one career.
 
     uv run python scripts/audit/profile_fixture_bytes.py                     # the default four saves
-    uv run python scripts/profile_fixture_bytes.py <save.fms> ...      # specific saves
-    uv run python scripts/profile_fixture_bytes.py --group-by 78       # group by round instead
-    uv run python scripts/profile_fixture_bytes.py --wide              # u16/u32 candidates too
+    uv run python scripts/audit/profile_fixture_bytes.py <save.fms> ...      # specific saves
+    uv run python scripts/audit/profile_fixture_bytes.py --group-by 78       # group by round instead
+    uv run python scripts/audit/profile_fixture_bytes.py --wide              # u16/u32 candidates too
 """
 import argparse
 import collections
@@ -52,7 +52,7 @@ from fmparser.tables import fixtures as FX
 from fmparser.core import PAD, UNKNOWN
 
 # The saves the acceptance gate uses: day one (empty grids), mid-career, the ground-truth
-# fixture, and the other career. Same set as scripts/assert_identical.py, for the same reason --
+# fixture, and the other career. Same set as tests/assert_identical.py, for the same reason --
 # a structure that holds on all four is structure and not a career's accident.
 DEFAULT_SAVES = ["frem-2021-07-01", "frem-2026-06-11", "frem-2026-06-29",
                  "bucaspor-2023-05-20"]

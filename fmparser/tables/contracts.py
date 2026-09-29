@@ -13,7 +13,6 @@ import struct
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ..core import primitives as P
-from .. import records as RD
 from ..save import cache_key as _cache_key
 from ..core import DATE, Field, PAD, Record, U16, U32, U8, UNKNOWN, TableDef, table_spans
 
@@ -211,7 +210,7 @@ def scrape_contract_status(
         if m - 37 < 0:
             continue
         base = m - CONTRACT_STATUS.field("marker").offset
-        rec = RD.read_fields(mm, CONTRACT_STATUS, base, ("tid", "uid", "squad_status"))
+        rec = CONTRACT_STATUS.read_fields(mm, base, ("tid", "uid", "squad_status"))
         if uid_of.get(rec["tid"]) == rec["uid"]:
             out[rec["tid"]] = rec["squad_status"]
 

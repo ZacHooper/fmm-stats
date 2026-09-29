@@ -12,7 +12,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser.tables import fixtures as FX  # noqa: E402
-from fmparser import records as RD   # noqa: E402
 
 
 def build_fixture_record_bytes(
@@ -78,7 +77,7 @@ def test_fixture_schema_unpack():
         season_year=2025,
         round_no=18,
     )
-    rec = RD.read(b, FX.FIXTURE, 0)
+    rec = FX.FIXTURE.read(b, 0)
     assert rec["opener"] == FX.OPENER
     assert rec["home_tid"] == 346
     assert rec["away_tid"] == 177

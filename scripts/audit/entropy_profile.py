@@ -19,9 +19,9 @@ Measured on this file that last band is the `sicomps` zstd archive at the tail
 bucaspor-2023-05-20 every 4 KB block above 7.5 bits lies inside the archive. So the save
 holds exactly one compressed region, which is a useful negative to have on record.
 
-    uv run python scripts/entropy_profile.py <save.fms>            # runs, coarse
-    uv run python scripts/entropy_profile.py <save.fms> --all      # every block
-    uv run python scripts/entropy_profile.py <save.fms> --lo 6e7   # window
+    uv run python scripts/audit/entropy_profile.py <save.fms>            # runs, coarse
+    uv run python scripts/audit/entropy_profile.py <save.fms> --all      # every block
+    uv run python scripts/audit/entropy_profile.py <save.fms> --lo 6e7   # window
 """
 import argparse
 import mmap

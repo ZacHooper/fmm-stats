@@ -255,7 +255,7 @@ method above is written out in enough detail to reimplement directly against
 (`scrape_team_records`, `scrape_player_records`), and `fmparser/matches.py`
 (`match_anchors`, `parse_header`, `_valid_match_header`, `find_match_region`). A natural
 follow-up is turning the exact (no-sampling) history-slab locator into a real function alongside
-`history.locate()`, the same way `scripts/audit_table_headers.py --confirm` exists next to the
+`history.locate()`, the same way `scripts/audit/audit_table_headers.py --confirm` exists next to the
 reference-table locators — see TODO.
 
 ## Open threads this surfaced

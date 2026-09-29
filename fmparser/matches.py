@@ -12,7 +12,6 @@ Structure (validated on Karacabey 3-3 Bucaspor, ground_truth_match1.json):
 """
 from datetime import date, timedelta
 
-from . import records as RD
 from .core import Field, HEX2, HEX4, PAD, Record, U8, U32, UNKNOWN
 from collections import defaultdict
 
@@ -54,7 +53,7 @@ FIELDS = {
 # THE PLAYER BLOCK, declared in full for the first time.
 #
 # `decode_block` named 29 of the record's 54 bytes. The other 25 were neither named nor
-# declared UNKNOWN, and this record was absent from `scripts/audit_records.py` entirely -- so
+# declared UNKNOWN, and this record was absent from `scripts/audit/audit_records.py` entirely -- so
 # nothing in the repo knew they existed. That is the exact shape of the bug that left the
 # player attribute record missing its last 13 bytes for four years: the fields we DID read
 # were right, which is what made it invisible.
@@ -86,7 +85,7 @@ def decode_block(b: bytes) -> dict:
     `read` rather than a comprehension: the emitted order is declaration order, which
     reproduces the old `{**FIELDS}` then sid, tid, tid_int exactly.
     """
-    return RD.read(b, BLOCK_REC, 0)
+    return BLOCK_REC.read(b, 0)
 
 
 def is_block_start(mm, i):

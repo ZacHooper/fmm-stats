@@ -12,7 +12,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
-from fmparser import records as RD  # noqa: E402
 
 
 def build_stadium_bytes(
@@ -98,7 +97,7 @@ def test_city_parsing():
     print("TESTING CITY record schema")
     # 1. Valid coordinates
     c1 = build_city_bytes(cid=51, latitude=57.0488, longitude=9.9217)
-    rec1 = RD.read(c1, PL_CITIES.CITY, 0)
+    rec1 = PL_CITIES.CITY.read(c1, 0)
     assert rec1["id"] == 51
     assert abs(rec1["latitude"] - 57.0488) < 1e-4
     assert abs(rec1["longitude"] - 9.9217) < 1e-4

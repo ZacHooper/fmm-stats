@@ -2,7 +2,7 @@
 """
 Find every WALKABLE table in the save, without knowing what any of them mean.
 
-Background: `scripts/audit_table_headers.py` established that this file frames its tables as
+Background: `scripts/audit/audit_table_headers.py` established that this file frames its tables as
 `[8 bytes of 0xFF][record count][record 0]`, and that the count is exact -- the competition,
 city, stadium, language, currency, player-attribute, staff-attribute and both name id-tables
 all declare theirs. See docs/table-framing.md.
@@ -34,8 +34,8 @@ WHAT THIS CANNOT FIND, so absence here is not evidence:
   * Anything not introduced by the sentinel convention at all.
 
 Usage:
-  uv run python scripts/discover_tables.py [save.fms]        # inventory one save
-  uv run python scripts/discover_tables.py --stable          # only what recurs across saves
+  uv run python scripts/audit/discover_tables.py [save.fms]        # inventory one save
+  uv run python scripts/audit/discover_tables.py --stable          # only what recurs across saves
 """
 import collections
 import glob

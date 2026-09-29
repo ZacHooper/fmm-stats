@@ -14,7 +14,7 @@ Two halves:
           someone remembers to update.
   PART 2  the checker itself, against synthetic records built to break each rule. A validator
           that has never rejected anything is not evidence, which is the same argument
-          `scripts/assert_identical.py` makes about its own red run.
+          `tests/assert_identical.py` makes about its own red run.
 
     uv run python tests/test_layouts.py
 """
@@ -24,7 +24,6 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser import records as RD                                        # noqa: E402
 from fmparser.core import schema as SC                                   # noqa: E402
 from fmparser.core import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN
 
@@ -148,7 +147,7 @@ def part3_reader():
 
     Key order is not a nicety here: `extract.py` dumps without `sort_keys`, so a reader that
     emits in a different order writes different bytes and fails
-    `scripts/assert_identical.py`. Asserting `list(d)` rather than `d ==` is what makes that
+    `tests/assert_identical.py`. Asserting `list(d)` rather than `d ==` is what makes that
     a test rather than a hope.
     """
     print("\nTHE READER")
@@ -168,7 +167,7 @@ def part3_reader():
     buf = bytes(buf)
 
     ok = True
-    got = RD.read(buf, rec, 0)
+    got = rec.read(buf, 0)
     checks = [
         ("values", got == {"id": 7, "code": 321, "when": "2026-02-28", "flag": 3},
          str(got)),
@@ -176,33 +175,20 @@ def part3_reader():
         ("key order is declaration order",
          list(got) == ["id", "code", "when", "flag"], str(list(got))),
         ("read_fields honours the ORDER IT IS GIVEN, not declaration order",
-         list(RD.read_fields(buf, rec, 0, ["flag", "id"])) == ["flag", "id"], ""),
+         list(rec.read_fields(buf, 0, ["flag", "id"])) == ["flag", "id"], ""),
         ("read_into keeps caller keys in front",
-         list(RD.read_into({"tid": 1}, buf, rec, 0)) == ["tid", "id", "code", "when", "flag"],
+         list(rec.read_into({"tid": 1}, buf, 0)) == ["tid", "id", "code", "when", "flag"],
          ""),
         ("read_at_anchor subtracts the anchor",
-         RD.read(buf, rec, 0) == RD.read_at_anchor(
-             buf, Record("probe2", 12, rec.fields, anchor=4, register=False), 4), ""),
+         rec.read(buf, 0) == Record("probe2", 12, rec.fields, anchor=4,
+                                    register=False).read_at_anchor(buf, 4), ""),
     ]
     for label, good, detail in checks:
         ok &= good
         print(f"  {'ok  ' if good else 'FAIL'} {label:<58} {detail}")
 
-    # walk over three records, with the table's own invariant supplied by the caller
     grid = buf * 3
-    rows = list(RD.walk(grid, rec, 0, len(grid)))
-    good = len(rows) == 3 and [o for o, _ in rows] == [0, 12, 24]
-    ok &= good
-    print(f"  {'ok  ' if good else 'FAIL'} {'walk yields one row per stride':<58} "
-          f"{[o for o, _ in rows]}")
-
-    kept = list(RD.walk(grid, rec, 0, len(grid), keep=lambda o, v: o == 12))
-    good = len(kept) == 1
-    ok &= good
-    print(f"  {'ok  ' if good else 'FAIL'} {'walk applies the callers keep predicate':<58} "
-          f"{len(kept)} of 3")
-
-    cols = RD.columns(grid, rec, 0, 3, names=["id", "code"])
+    cols = rec.columns(grid, 0, 3, names=["id", "code"])
     good = cols == {"id": [7, 7, 7], "code": [321, 321, 321]} and \
         all(type(v) is int for v in cols["id"])
     ok &= good
@@ -213,7 +199,7 @@ def part3_reader():
     # fallback for everything else -- and a difference between them would be invisible in
     # normal use. Asking for a DATE forces the fallback; the integer columns must come back
     # the same either way.
-    mixed = RD.columns(grid, rec, 0, 3, names=["id", "when"])
+    mixed = rec.columns(grid, 0, 3, names=["id", "when"])
     good = mixed == {"id": [7, 7, 7], "when": ["2026-02-28"] * 3} and \
         mixed["id"] == cols["id"]
     ok &= good
