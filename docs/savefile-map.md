@@ -34,7 +34,7 @@ preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `
 by a structural test described in the notes.
 
 ### Table Engine Migration Status Summary
-* **Migrated to `TableDef` (21 tables)**: `player_attributes`, `staff`, `round_names`, `clubs`, `competitions`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary). **As `LinkedTableDef` (1 table)**: `history` (the Shape B career-history pool, every record read, forest-checked). **`club_records`** is a `TableDef` too (count-framed, a counted list of league histories and four `FixedList` record blocks per club).
+* **Migrated to `TableDef` (21 tables)**: `player_attributes`, `staff`, `round_names`, `clubs`, `competitions`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary). **As `LinkedTableDef` (1 table)**: `history` (the Shape B career-history pool, every record read, forest-checked). **`player_lists`** (66 lists, seeded from an empty list and walked both ways) and **`club_records`** are `TableDef`s too (count-framed, a counted list of league histories and four `FixedList` record blocks per club).
 * **Non-Table / Structural Walks**: `matches.py` (Shape G delimiter-opened lineup blocks), `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
 
 | start | end | size | what | class | shape / how | status |
@@ -67,14 +67,15 @@ by a structural test described in the notes.
 | 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED**, 82% zero — mostly padding | — | — | — |
 | 42,630,093 | 46,876,865 | 4.25 MB | **career-history pool** — `[count u32]` + 265,423 records × 16 B (`[stats][club, fee, next]`, one season line each), pointer forest | **fixed pool** | Shape B | **MIGRATED** (`HISTORY_TABLE`) |
 | 46,876,865 | 48,166,114 | 1.29 MB | **club-records** — `[count u16]` (1,057 clubs Frem, 1,060 Bucaspor), then per club `[tid u16][n u8][n × 212 B league history][Team/Player Records, overall + this season: 4 × 12 slots of 21 / 22 B]` | **one row per club; grows 212 B per new league a club plays in** | Shape A, record blocks C | **MIGRATED** (`CLUB_RECORDS_TABLE`) |
-| 48,166,114 | 52,721,064 | 4.56 MB | opens with `[count u32]` = 162 on every save and variable-length rows carrying 21-byte record-shaped matches (TODO #3); then the **trailing stride-70 empty-slot pool** — 65,072 slots, `e4 07` (year 2020) empty sentinel | **preallocated, being consumed** | Shape C | struct (residue class mod 70) |
+| 48,166,114 | 48,353,064 | 0.19 MB | **UNIDENTIFIED** — `[count u32]` = 162 on every save and variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows (TODO #3); the same size on every save of a career | — | — | — |
+| 48,353,064 | 52,721,064 | 4.37 MB | **player progress** — 62,400 rows × 70 B (the same count on every save): `[tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16]`, two rows per player per week; the Player Progress page, injured / on-loan bits | **fixed pool**, rows recycled | Shape C (seeded from unused rows, walked both ways) | **MIGRATED** (`PLAYER_PROGRESS_TABLE`) |
 | 52,721,064 | 55,839,667 | 3.12 MB | **UNIDENTIFIED**, 65% zero — five `0x00` runs of 52–193 KB | — | — | — |
 | 55,839,667 | 56,223,268 | 0.38 MB | **our matches** — 60 blocks, home XI + away XI, 54 B player blocks | **wiped every July; appends in-season** | Shape G | live (`matches.find_match_region`) |
 | 56,313,477 | 56,314,027 | **550 B** | exact `0xFF` wall, identical regardless of match count | — | — | — |
 | 56,314,027 | — | 65 B/rec | **per-season table** — `[flag u8][value u16][tid u16][year u16]`, one record per season, tid constant at our club | grows 1/season | Shape C | struct |
 | ~56,314,300 | ~61,253,092 | 4.94 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%). One small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` / `Res Group 1`), so the structure below starts earlier than its first EMPTY slot | — | — | — |
-| **~61,253,092** | **62,631,781** | **1.38 MB** | **player-list blocks** — blocks of **100 slots x 200 B** (+14 B per block); 52 blocks are entirely empty on this save, carrying an identical template with `e5 07` = the career's start year. Populated slots hold a variable-length player record: a ~160 B binary core then `[full name][first][last][""][last][club short name][competition name]`. Contents are squad lists (ours) and world/scouting lists (De Bruyne/Man City, Courtois/R. Madrid, Frendrup/Genoa). **The squad snapshot is five of these blocks**, not a structure of its own. Start is the first POPULATED block; the first empty slot is at 61,381,262 | preallocated, partly consumed | Shape C/F | struct (stride-200 run) |
-| *61,896,648* | *62,002,727* | *0.11 MB* | ↳ *of which:* **squad snapshot** — the managed club's own list blocks | — | Shape F | live (`attributes.snapshot_bounds`) |
+| **61,253,092** | **62,631,642** | **1.38 MB** | **player lists** — 66 lists of `[100 entries][14 B trailer: u8, season u16 (end year; ffff in progress), 11 B]`; an entry is 8 length-prefixed strings (`[full name][first][last][""][last][club short name][""][competition]`) + a 168 B tail (the 23 attributes, 15 position ratings, tid, club marker, value, feet). Lists 0–30 world (100 players a season), 31–61 our club's squad per season, 62–65 two copies of a world/club pair; an unused entry is 200 B | **fixed pool of 66**, filled season by season | Shape E (seeded both ways) | **MIGRATED** (`PLAYER_LISTS_TABLE`) |
+| *61,896,648* | *62,002,727* | *0.11 MB* | ↳ *of which:* our club's squad lists (31–61) — the managed squad, one list per season | — | — | read by `squad.py` from the table |
 | 62,631,781 | 62,635,766 | 3,985 B | **UNNAMED dated table** — 14 B units `[u32 FFFFFFFF][u16 9][u16 day-of-year][u16 year][u32 ?]`, dates a fortnight ahead of the save. Both careers | — | Shape C | struct |
 | **62,635,766** | **63,936,873** | **1.30 MB** | **the `sicomps` ARCHIVE** — 159 zstd members with a directory; 6.58 MB decompressed. Holds `fix_man.dat`, **the world fixture list with scores**. See [`save-archive.md`](save-archive.md) | grows with the career | Shape D | Container live (`archive.locate`)<br>↳ `fix_man.dat` **MIGRATED** (`FIXTURES_TABLE`)<br>↳ `comp_man.dat` **MIGRATED** (`COMP_STAGES_TABLE`, `COMP_HONOURS_TABLE`)<br>↳ 147 × `comp_<uid>.dat` **PARSED** — tagged tree, stage/round list (`comp_rules.py`) |
 
@@ -86,7 +87,7 @@ Four kinds of structure live in this file, and the class tells you how to parse 
 |---|---|---|
 | **static reference data** | everything 0–20 MB plus the three name id-tables | Count-framed (`[≥8×FF][count][record 0]`). Walk it by the declared count; the count is exact. |
 | **fixed pool** | career-history pool (265,423 records), match-slot table (3,975 slots) | Allocated once at career creation, never resized, recycled internally. The count is a **bound**, never a measure of how much data exists. |
-| **preallocated grid that also grows** | contract grid (32,961 × 83 B), club-records, the stride-70 pool | Ships full of empty-sentinel rows and fills up. Club-records additionally gains 212 B each time a club plays in a new league. On a day-one save these read as *empty*, not missing. |
+| **preallocated grid that also grows** | contract grid (32,961 × 83 B), club-records, the player-progress pool | Ships full of empty-sentinel rows and fills up. Club-records additionally gains 212 B each time a club plays in a new league. On a day-one save these read as *empty*, not missing. |
 | **seasonal, wiped each July** | transfer band (35.4–38.4 MB), our matches | Whatever is in them at the end of June is gone in July. A late-June save each year is the only way to keep a season's transfers or matches. |
 
 ## The July rollover, measured
@@ -176,13 +177,14 @@ run of ≥8 `0xFF`; every `live` row by calling the named function. The structur
   whose gaps are exact multiples of 83; the run's extent divided by 83 is the slot count.
 - **transfer band** — the same signature, but every hit in 34–39 MB lands on **one residue
   class mod 143**, at `+48` of the 143-byte transfer record.
-- **stride-70 pool** — occurrences of `e4 07` sharing one residue class mod 70, from
+- **player-progress pool** — two consecutive unused 70-byte rows (one fixed template), then
+  walked both ways row by row (`tables/player_progress.py`); formerly: occurrences of `e4 07` sharing one residue class mod 70, from
   club-records' end to the `0x00` wall.
 - **club-records extent** — the u16 club count after the history pool, walked row by row.
 - **drift class** — re-run any two saves and compare; the reference half moves in tens of KB,
   the career half in megabytes.
-- **player-list blocks** — occurrences of `14 01 00 0a 00` (inside every empty 200-byte slot)
-  whose gaps are exactly 200; the runs come in lengths of exactly 100, separated by 214.
+- **player-list blocks** — an unused list (`14 01 00 0a 00` at tail +121 of 100 entries, 200
+  bytes apart), then walked forward and backward list by list (`tables/player_lists.py`).
 - **the archive** — the FIRST `28 b5 2f fd` (zstd magic) in the file; walk `[u32 stored][frame]`
   from four bytes before it. `uv run python scripts/audit_archive.py` reproduces the whole
   thing, 34/34 saves.

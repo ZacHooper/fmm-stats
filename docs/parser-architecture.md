@@ -43,10 +43,10 @@ that do not fit the four regimes.
 |---|---|---|---|
 | **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`); club records (`[u16 count]` straight after the history pool, one variable-length row per club) |
 | **B. Linked list** | each row holds the NEXT row's index (`FFFFFFFF` ends a chain); the rows it has not moved name the pool's base | the forest check on every row: no row reached twice, no pointer out of the pool, and every row on a chain from a head (`core.forest`) | career-history pool |
-| **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), the record blocks inside each club-records row (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
+| **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), player progress (62,400 × 70 B, seeded from its unused-row template and walked both ways), the record blocks inside each club-records row (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
-| **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status, `attr_record`, injuries |
+| **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status |
 | **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | our matches, squad snapshot |
 
 The rest of this part is one section per shape: what it looks like in the bytes, how to find
@@ -210,6 +210,18 @@ would be short by six with nothing to notice it. `_walk` therefore **rewinds**: 
 looking for a record that ends exactly where the current one starts, and repeats until it
 cannot. A bad seed shifts the whole table and nothing complains.
 
+**The player lists are the same shape, walked both ways** (`tables/player_lists.py`). 66
+lists of `[100 entries][14-byte trailer]`, each entry eight length-prefixed strings and a
+168-byte tail, with no count in front and a large unrelated pool behind. The seed is an
+unused list -- 100 template entries whose tails carry `14 01 00 0a 00` at exactly 200-byte
+gaps -- and from it the walk goes forward list by list, and BACKWARD by reading each
+entry's strings from their end: a string of length n ends n bytes after a u32 holding n, so
+the strings that end at a given byte have exactly one start. Both walks stop where a list no
+longer parses, and the region must come out as 66 lists (31 world, 31 club, 4 more) on
+every save. The managed squad used to be found by key search -- clusters of our club marker
+-- and on the early saves the cluster sat on lists 62-65, stale copies whose attributes
+match the stored ones less often (1,589 vs 1,754) than our current season list's.
+
 ---
 
 ### F. Key search, no table
@@ -217,9 +229,6 @@ cannot. A bad seed shifts the whole table and nothing complains.
 Sometimes there is no table concept to find. You search the file for *N* copies of a record
 keyed on a tid/uid/sid and then have to decide which copy is the live one.
 
-- `attributes.attr_record` disambiguates **by recency** — reserve players otherwise read stale
-  attributes, and a frozen row is the tell
-  ([`agent-context/reserve-marker-stale-attrs.md`](agent-context/reserve-marker-stale-attrs.md)).
 - `staff.scrape_staff_attributes` **used to be listed here and no longer belongs.** It was
   held to be shape F because the staff records were "multi-segment, so a stride walk is
   provably impossible". They are not. That conclusion came from measuring the gaps between
@@ -248,8 +257,7 @@ Before assuming a region needs one, look in front of its first record for a coun
 A): the club-records region was bounded this way until the u16 in front of it turned out to
 be the club count.
 
-**Markers and delimiters.** `attributes.CLUB_MARKER` locates the squad snapshot;
-`matches.find_match_region` finds our own games, each opened by a delimiter cluster.
+**Markers and delimiters.** `matches.find_match_region` finds our own games, each opened by a delimiter cluster.
 
 **How it fails.** *Drift.* Every window in `regions.py` was tuned on one career and is wrong
 for the other — Frem's contract-expiry records sit at ~29–31 M, nowhere near the Bucaspor

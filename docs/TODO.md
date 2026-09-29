@@ -78,10 +78,7 @@ locator (`parser-architecture.md` Part 1). `core` reads arrays of both row kinds
 byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
 deliberate break:
 
-1. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
-   stride are not mapped yet. Research first: find each array's bounds, then it is an ordinary
-   array.
-2. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
+1. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
    already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
    region is empty at a season boundary (0 anchors is correct there, not a locator failure).
 
@@ -107,7 +104,6 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1%
   162 on every save, then variable-length rows carrying 21-byte matches shaped like the club
   team records (`[f32 value][year][day]…[club][opp][for][against]`). Likely the competitions'
   own record books. Walk it from its count, as the club records were.
-- **45.36–51.22 M** — a stride-70 pool. Unnamed.
 - **34.12–38.53 M** — the transfer band ([`transfer-history-record.md`](transfer-history-record.md):
   decoded, not parsed).
 - **13.96–16.68 M** — 85% filler, no count headers.
@@ -117,13 +113,25 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1%
 
 Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 
-### 4. Player-list blocks
-~1.38 MB of blocks of **100 slots × 200 B** (+14 B per block), most slots an empty template.
-Populated slots hold a ~160 B binary core then `[full name][first][last][""][last][club short
-name][competition name]` — our squad lists and world/scouting lists. `attributes.snapshot_bounds`
-reads the five that are our squad; the other ~55 are unopened. Open: what the core holds beyond
-the 23 attributes, what selects the players in the world lists, and whether a block names its
-list. Find them by `14 01 00 0a 00` at gaps of exactly 200, in runs of exactly 100.
+### 4. Player lists: what is still unread
+`tables/player_lists.py` reads the 66 lists (0–30 world, one per season; 31–61 our squad,
+one per season; 62–65 two copies of a world/club pair). `squad.py` uses our club's lists;
+nothing else is emitted yet. Open:
+- **The world lists** (100 players a season): what selects them — a world XI, the highest
+  rated, the most valuable? Compare one season's list against the ratings and values.
+- **Lists 62–65**: a (world, club) pair stored twice; the club copy holds up to 79 players
+  across several seasons and disagrees with the season lists. What screen is it?
+- **The trailer**: its first byte (2, 3, 5, 16, ff) and 11 more bytes.
+- **The entry tail's unread 116 bytes**: two u16 and four dates at +0, 13 bytes among the
+  attributes (a float at index 31), a u32 at +83, 25 bytes at +95 and 46 at +122.
+- Emit the lists (`player_lists.json` -> `staging`) once they are named.
+
+### 4a. Player progress: what is still unread
+`tables/player_progress.py` reads the pool; `injuries.py` uses the status bits. Open: the six
+u16 skill lines at +4 (which line is which on the Player Progress graph), status bits 3 (8)
+and 6 (64), and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
+the week's attribute values?). Named, the table could give every squad player's weekly
+development, not just injuries and loans.
 
 ### 5. Reference-half tables not yet read
 - The unnamed count-framed tables in [`table-framing.md`'s register](table-framing.md#the-complete-register).

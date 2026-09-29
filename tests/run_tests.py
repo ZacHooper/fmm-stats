@@ -37,6 +37,8 @@ UNIT_TESTS = {
     "test_history_unit.py",
     "test_layouts.py",
     "test_person_info_unit.py",
+    "test_player_lists_unit.py",
+    "test_player_progress_unit.py",
     "test_places_unit.py",
     "test_rounds_officials.py",
     "test_rule_files_unit.py",

@@ -3,7 +3,7 @@
 Fit the player transfer-value model and print coefficients for `fmstats/value_model.py`.
 
 WHY THIS EXISTS. The save stores a transfer value ONLY for the club you manage — it lives
-at `M+4` in the own-squad snapshot record (`fmparser/squad.py:attr_record`), and that
+in our club's entries of the player-list table (`fmparser/tables/player_lists.py`), and that
 record does not exist for any other club. Verified three ways on frem-2026-03-22:
 
   1. Searching the whole 63 MB file for `[club_tid u16][ff ff]` under each of five

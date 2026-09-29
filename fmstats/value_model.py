@@ -4,7 +4,7 @@ Frozen transfer-value model: estimates what a player is WORTH, for players whose
 save does not store.
 
 WHY AN ESTIMATE IS NEEDED. The save records a transfer value only for the club you manage
-(`attributes.attr_record`, u32 at `M+4` of the own-squad snapshot record). No such record
+(the `value` of our club's entries in `fmparser/tables/player_lists.py`). No such record
 exists for any other club, the value is not on the global attribute record every player
 has, and each of our own values appears exactly once in the file — so there is no general
 valuation table to read. `scripts/fit_value_model.py`'s docstring records the three

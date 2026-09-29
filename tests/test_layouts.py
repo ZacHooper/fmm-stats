@@ -35,7 +35,7 @@ from fmparser.core import DATE, Field, PAD, Record, U8, U16, U32, UNKNOWN
 RECORD_MODULES = (
     "clubs_comps", "matches",
     "tables.cities", "tables.comp_honours", "tables.comp_rules", "tables.comp_stages", "tables.contracts",
-    "tables.currencies", "tables.fixtures", "tables.history", "tables.club_records", "tables.languages", "tables.match_slots",
+    "tables.currencies", "tables.fixtures", "tables.history", "tables.club_records", "tables.player_lists", "tables.player_progress", "tables.languages", "tables.match_slots",
     "tables.names", "tables.nations", "tables.officials", "tables.person_info",
     "tables.player_attributes", "tables.rounds", "tables.rule_files", "tables.stadiums",
     "tables.staff"
