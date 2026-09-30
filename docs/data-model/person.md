@@ -52,6 +52,8 @@ erDiagram
         int primary_nation_key FK
         list secondary_nations
         list languages "language + proficiency"
+        string training "intensity, focus role, focus attribute, focus position"
+        string contract_status "derived: contracted / expired, still at club / free agent"
         bool is_current
     }
     fact_staff_snapshot {
@@ -68,6 +70,7 @@ erDiagram
         date signed_date
         date expiry_date
         int wage
+        string squad_status "first team / backup / ..."
         date last_seen "last snapshot in force"
         date ended_by "first snapshot replaced or gone"
         string end_reason "expired / released / renewed / transferred"
@@ -122,13 +125,19 @@ snapshot, and the owning club comes from the current contract.
   than two). The one allowed change of primary nation shows up between snapshots with no extra
   modelling.
 - **Languages:** a list of language + proficiency on the same snapshot.
+- **Training:** intensity, focus role, focus attribute and focus position are columns on the
+  same snapshot.
+- **`contract_status`** is derived: contracted, expired but still at the club, or free agent.
+  See [`contract-transfer.md`](contract-transfer.md).
 - **`fact_staff_snapshot`**: the same pattern for the staff role. A behavioural attribute may
   appear in both snapshots; each fact is always read on its own, so that is fine.
 
 ## Contracts
 
-A contract is never changed, only replaced, so **one row per contract**: club, signed and expiry
-dates, wage, and how it ended (expired / released / renewed / transferred).
+Players only; staff have no contract data (see the staff spells in the club model). A contract
+is never changed, only replaced, so **one row per contract**: club, signed and expiry dates,
+wage, squad status, and how it ended (expired / released / renewed / transferred). Full detail
+in [`contract-transfer.md`](contract-transfer.md).
 
 **When it ended is only known to the snapshot:** `last_seen` is the last snapshot it was in
 force, `ended_by` the first snapshot where it had been replaced or was gone. The real end falls
