@@ -49,7 +49,7 @@ Andersson's 2022 snapshots):
                                   one is the loan end the profile shows)
     +8   snapshot_day, _year      the snapshot's last write: the 1st of each month while its
                                   season runs, then frozen
-    +20  age u8, +21 role u8 (the profile's role, `ROLES`), then 6 bytes unread
+    +20  age u8, +21 role u8 (the profile's role: a role id), then 6 bytes unread
     +28  36 bytes: the 23 attributes at the indices of `ATTRIBUTES`, condition (24),
          morale (25), the last five match ratings (26-30, the most recent last),
          avg_rating f32 (31); 9 and 35 unread
@@ -81,12 +81,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..core import F32, Field, PString, RAW, Record, TableDef, U8, U16, U32, UNKNOWN
 from ..save import cache_key as _cache_key
 from .player_attributes import POSITIONS
-from .training import ROLES, ROLES_INFERRED
 
 __all__ = [
     "ATTRIBUTES",
-    "ROLES",
-    "ROLES_INFERRED",
     "CLUB_LISTS",
     "SNAPSHOT_TAIL",
     "LISTS",
@@ -145,8 +142,8 @@ def _tail_fields() -> List[Field]:
         Field(10, 2, "snapshot_year", U16),
         Field(12, 8, UNKNOWN, RAW),
         Field(20, 1, "age", U8, note="at the snapshot's date"),
-        Field(21, 1, "role", U8, note="the profile's role: " + ", ".join(
-            f"{k} {v}" for k, v in sorted(ROLES.items()))),
+        Field(21, 1, "role", U8, note="the profile's role: the training focus role id "
+                                        "on the snapshot's date"),
         Field(22, 6, UNKNOWN, RAW),
     ]
     i = 0

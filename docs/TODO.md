@@ -139,7 +139,8 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
 - **Training table: the unread bytes and codes** (`tables/training.py`, `mart.training_focus`).
   Read and loaded: Focus Role, Focus Pos, attribute focus, intensity, for every player on
   every snapshot. Still open:
-  - the 12 role names in `ROLES_INFERRED` (2, 8, 11, 18, 20, 22, 23, 24, 27-29, 31). The
+  - the 12 role names in `fmstats/definitions.py` `ROLES_INFERRED` (2, 8, 11, 18, 20, 22, 23,
+    24, 27-29, 31). The
     quickest proof is to set a dozen players' Focus Role to each, save, and read the ids;
     `docs/role-ids.csv` names famous players holding each role for checking on profiles.
   - attribute-focus codes 0, 2, 4, 10, 12, 13, 15 (13 is the AI's most common, 5,067 players).

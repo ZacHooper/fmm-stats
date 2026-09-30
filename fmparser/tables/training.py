@@ -17,10 +17,10 @@ One row per person, in a count-framed array a fixed distance after the Player Pr
                                    green fill
     +21  intensity u16             the Int column: 3 = high (the red icon), 2 = normal;
                                    1 and 0 also occur
-    +23  focus_role u16            the Focus Role, in the role ids of `ROLES`; 0xffff on a
+    +23  focus_role u16            the Focus Role, a role id (named in `fmstats/definitions.py`); 0xffff on a
                                    member of staff
     +25  u16                       0 on a player, 0xffff on a member of staff
-    +27  focus_attribute u16       the Attr column, in the codes of `ATTRIBUTE_FOCUS`
+    +27  focus_attribute u16       the Attr column, a code (named in `fmstats/definitions.py`)
     +29  focus_band u8             the Focus Pos, as the pair the match slot array uses
     +30  focus_column u8           (`core.primitives.pitch_position`)
     +31  30 bytes                  unread: nine u16 (the fourth reads 135 on every row), and
@@ -44,9 +44,6 @@ from ..save import cache_key as _cache_key
 from .player_progress import PROGRESS_ROW, locate_player_progress
 
 __all__ = [
-    "ATTRIBUTE_FOCUS",
-    "ROLES",
-    "ROLES_INFERRED",
     "TRAINING_ROW",
     "TRAINING_TABLE",
     "focus_position",
@@ -58,27 +55,6 @@ __all__ = [
 NO_PERSON = 0xFFFFFFFF
 NO_ROLE = 0xFFFF
 
-# The Focus Role (and a player attribute snapshot's role), by id. The ids run in position
-# order -- 0-1 GK, 2 SW, 3-4 full-back, 5-7 DC, 8-12 wide, 13-17 central midfield, 18-24
-# striker -- and 25-32 follow as a second set. Ids in ROLES_INFERRED are placed by their
-# position block and their holders' attributes rather than read off the game's screens.
-ROLES = {0: "Goalkeeper", 1: "Sweeper Keeper", 2: "Sweeper", 3: "Full-Back", 4: "Wing-Back",
-         5: "Central Defender", 6: "Ball Playing Defender", 7: "No-Nonsense Centre-Back",
-         8: "Wide Midfielder", 9: "Winger", 10: "Inverted Winger", 11: "Defensive Winger",
-         12: "Inside Forward", 13: "Central Midfielder", 14: "Deep Lying Playmaker",
-         15: "Ball Winning Midfielder", 16: "Box to Box Midfielder", 17: "Advanced Playmaker",
-         18: "Poacher", 19: "Target Forward", 20: "Deep Lying Forward", 21: "Advanced Forward",
-         22: "Complete Forward", 23: "Pressing Forward", 24: "Trequartista", 25: "Libero",
-         26: "Shadow Striker", 27: "Inverted Wing-Back", 28: "Defensive Full-Back",
-         29: "Anchor", 30: "Defensive Midfielder", 31: "Attacking Midfielder",
-         32: "Roaming Playmaker"}
-ROLES_INFERRED = frozenset({2, 8, 11, 18, 20, 22, 23, 24, 27, 28, 29, 31})
-
-# The Attr column's abbreviation, by the code at +27: the codes read off the Training page.
-# 0, 2, 4, 10, 12, 13 and 15 also occur and are not yet named.
-ATTRIBUTE_FOCUS = {1: "CRO", 3: "PAS", 5: "TAC", 6: "HAN", 8: "AIR", 9: "REF", 11: "CRE",
-                   14: "POS", 17: "STR", 18: "PAC", 19: "STA"}
-
 TRAINING_ROW = Record("training_row", 61, [
     Field(0,  4, "tid",             U32, note="== the row index; 0xffffffff = unused row"),
     Field(4,  4, "uid",             U32),
@@ -87,9 +63,9 @@ TRAINING_ROW = Record("training_row", 61, [
     Field(13, 4, UNKNOWN,           U32),
     Field(17, 4, UNKNOWN,           U32),
     Field(21, 2, "intensity",       U16, note="3 = high, 2 = normal"),
-    Field(23, 2, "focus_role",      U16, note="ROLES; 0xffff on staff"),
+    Field(23, 2, "focus_role",      U16, note="a role id; 0xffff on staff"),
     Field(25, 2, UNKNOWN,           U16, note="0 on a player, 0xffff on staff"),
-    Field(27, 2, "focus_attribute", U16, note="ATTRIBUTE_FOCUS"),
+    Field(27, 2, "focus_attribute", U16, note="an attribute-focus code"),
     Field(29, 1, "focus_band",      U8,  note="the match slot array's band byte"),
     Field(30, 1, "focus_column",    U8,  note="the match slot array's column byte"),
     Field(31, 30, UNKNOWN,          RAW),

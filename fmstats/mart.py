@@ -55,6 +55,7 @@ from __future__ import annotations
 import duckdb
 
 from .contract import ATTR_ORDER
+from . import definitions as D
 
 # Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
 # out by role; the engine still stores all 23 for everyone, but the ones the role does not
@@ -3131,6 +3132,28 @@ JOIN {S}.players p USING (season, phase, tid)
 WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
 """
 
+# The game's own codes, named (fmstats/definitions.py): the parser hands over ids, the mart
+# says what they are called. Rendered as VALUES views, so a newly named code reaches a store
+# with --refresh-only.
+def _values_view(name, cols, rows):
+    body = ",\n    ".join("(" + ", ".join(_sql_literal(v) for v in r) + ")" for r in rows)
+    return (f"CREATE OR REPLACE VIEW {name} AS\nSELECT * FROM (VALUES\n    {body}\n) "
+            f"AS t({', '.join(cols)})")
+
+
+def _sql_literal(v):
+    if isinstance(v, bool):
+        return "TRUE" if v else "FALSE"
+    if isinstance(v, int):
+        return str(v)
+    return "'" + str(v).replace("'", "''") + "'"
+
+
+ROLES_VIEW = _values_view("mart.roles", ("id", "name", "inferred"),
+                          [(k, v, k in D.ROLES_INFERRED) for k, v in sorted(D.ROLES.items())])
+TRAINING_ATTRIBUTES_VIEW = _values_view("mart.training_attributes", ("code", "abbrev"),
+                                        sorted(D.TRAINING_ATTRIBUTES.items()))
+
 # The Training page, per player per snapshot: what he is being trained as (focus position and
 # role), the attribute he is focusing on, and the intensity. Every player in the world has a
 # row -- the AI clubs set their players' focus too -- so this is also each player's role as his
@@ -3147,8 +3170,8 @@ SELECT ps.season, ps.phase, ps.snap_ix, t.tid, ps.person_id, ps.name, ps.club_ti
        CASE t.intensity WHEN 3 THEN 'High' WHEN 2 THEN 'Normal' END AS intensity_label
 FROM {S}.training t
 JOIN mart.player_snapshots ps USING (season, phase, tid)
-LEFT JOIN {S}.training_roles r ON r.id = t.focus_role
-LEFT JOIN {S}.training_attributes a ON a.code = t.focus_attribute
+LEFT JOIN mart.roles r ON r.id = t.focus_role
+LEFT JOIN mart.training_attributes a ON a.code = t.focus_attribute
 """
 
 # Head-to-head records from the match record, one row per (club, opponent, venue) with an
@@ -3551,6 +3574,8 @@ ORDER = [
     ("mart.squad_finances", SQUAD_FINANCES),
     ("mart.club_squad_latest", CLUB_SQUAD_LATEST),
     ("mart.player_development", PLAYER_DEVELOPMENT),
+    ("mart.roles", ROLES_VIEW),
+    ("mart.training_attributes", TRAINING_ATTRIBUTES_VIEW),
     ("mart.training_focus", TRAINING_FOCUS),
     ("mart.player_vs_club", PLAYER_VS_CLUB),
     ("mart.player_growth", PLAYER_GROWTH),
@@ -3580,10 +3605,6 @@ LATE_STAGING = {
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         intensity INTEGER, focus_role INTEGER, focus_attribute INTEGER,
         focus_position VARCHAR)""",
-    "training_roles": """CREATE TABLE {S}.training_roles (
-        id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, inferred BOOLEAN NOT NULL)""",
-    "training_attributes": """CREATE TABLE {S}.training_attributes (
-        code INTEGER PRIMARY KEY, abbrev VARCHAR NOT NULL)""",
 }
 
 

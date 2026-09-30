@@ -67,7 +67,7 @@ def test_scrape():
                        "focus_position": "GK"}, rows[0]
     assert [r["focus_position"] for r in rows] == ["GK", "DL", "ST", "MR"]
     assert rows[1]["intensity"] == 3 and rows[2]["focus_attribute"] == 17
-    assert T.ROLES[rows[1]["focus_role"]] == "Wing-Back"
+    assert rows[1]["focus_role"] == 4
     print("  PASS players only; role, attribute, intensity and the decoded position")
 
 

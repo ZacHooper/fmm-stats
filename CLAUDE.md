@@ -89,7 +89,8 @@ labelled in the game's own words — 'League Path · Third Qualifying Round', 'G
 from each competition's rules member in the save archive), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
 (every club's genuine squad now), `mart.training_focus` (the Training page for every player on every snapshot: focus
 position and role, attribute focus, intensity -- a Scrapbook Profile's role is this focus role
-on its date), and `mart.player_development` (a
+on its date; role and attribute names come from `mart.roles` / `mart.training_attributes`,
+rendered from `fmstats/definitions.py` -- the parser hands over ids only), and `mart.player_development` (a
 **development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
 ceiling' — the only form potential ever leaves the mart in; there are deliberately no stars). Use the full `site-data/fm-frem.duckdb` only
 when you need raw `staging` or per-snapshot history for a player who was never ours.
