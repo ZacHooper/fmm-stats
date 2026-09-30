@@ -136,12 +136,10 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   Frem's red/blue stripes 31, Barcelona 30, Newcastle 25, FC Nordsjaelland 0c, Frem's
   goalkeeper kit 0d, ff an unused kit. Name the ids from kits whose design is known; the
   second byte (00/01/02) is unread.
-- **Snapshot role ids** (`+21`, `player_lists.ROLES`): 23 named from Scrapbook Profiles
-  (22 Complete Forward and 24 Trequartista still unconfirmed). The ids run in position blocks
-  (0-1 GK, 3-7 D, 8-12 wide, 13-17 CM, 18-24 ST, then 25-32 a later set), so each unnamed id
-  has a short candidate list -- `docs/role-ids.csv` `likely`, ranked by the id's mean
-  attributes against its block. Unnamed: 2 (never seen), 8, 11, 18 (88 snapshots), 20, 23,
-  27, 28, 29, 31.
+- **Snapshot role ids** (`+21`, `player_lists.ROLES`): all 33 assigned. 21 are read off
+  Scrapbook Profiles; the 12 in `ROLES_INFERRED` (2, 8, 11, 18, 20, 22, 23, 24, 27, 28, 29, 31)
+  are the roles left over once the others were named, placed by position block and their
+  holders' attributes. Confirm them from `docs/role-ids.csv`; 18 Poacher (88 snapshots) first.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
