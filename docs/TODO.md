@@ -276,6 +276,10 @@ tables themselves (`tables/clubs.py`, `tables/competitions.py`). The same goes f
 `staging.player_history`'s `confidence` (always 'exact') and `origin_club` (always NULL) go
 then too.
 
+The clubs + competitions half, and the rest of the `extract.py` clean-up (labels, dead CSVs,
+file-order reads with a cursor), is planned in
+[`docs/plans/2026-09-30-extract-cleanup.md`](plans/2026-09-30-extract-cleanup.md).
+
 Also:
 - **Move the loader's remaining transforms into `fmstats`**, so `load_duckdb.py` only writes
   JSON into `staging`: the attribute-model decode view (`staging.player_attributes`),
