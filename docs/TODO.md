@@ -8,7 +8,7 @@ When you finish something, **delete its entry**. Do not tick it off, and do not 
 "CLOSED" note: what was learned goes into the reference doc the entry points at. Item numbers
 are for conversation only and are renumbered freely; never cite one in code or a commit.
 
-Last reviewed **2026-09-29**, after clubs and competitions joined the `core` framework (#107).
+Last reviewed **2026-09-30**, after the match table, the last module on the migration list, joined the `core` framework.
 
 ---
 
@@ -71,23 +71,12 @@ Live traps, each of which has produced numbers that looked fine and were not:
 
 ## Parser — the framework: every table on `core`
 
-### 1. Migrate the remaining tables onto `core`
-Every table is an **array** or a **linked list** of **packed** or **tagged** rows, found by a
-locator (`parser-architecture.md` Part 1). `core` reads arrays of both row kinds (`TableDef`,
-`TaggedTableDef`) and linked pools (`LinkedTableDef`). In order — each PR gated by
-byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
-deliberate break:
-
-1. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
-   already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
-   region is empty at a season boundary (0 anchors is correct there, not a locator failure).
-
 ### 2. Padding that is data, and records no table walk reaches
 `audit_records.py`'s PADDING check measures every `PAD` span on every record a table reads.
 It found 35 that vary; they are now `UNKNOWN` `RAW` (undecoded data), which #5 and #10 list.
-Five records carrying `PAD` are walked by no table and so are not measured:
-`comp_man_header`, `comp_man_stage`, `comp_rules_header`, `contract_status`,
-`match_player_block`. Each is measured when its module reaches `core`.
+Four records carrying `PAD` are walked by no table and so are not measured:
+`comp_man_header`, `comp_man_stage`, `comp_rules_header`, `contract_status`. Each is measured
+when a table walk reaches it.
 
 ---
 
@@ -224,11 +213,21 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **Career history** (`tables/history.py`): the history lines' `yellows` / `reds` are in `staging.player_history_seasons` but not yet in
   `mart.player_career_seasons` -- add them after the next publish, since the published store
   lacks the columns and the mart re-binds against it.
-- **Injury and loan spells on the published store**: the R2 copy predates
-  `staging.player_progress`, so `mart.injury_spells` / `mart.loan_out_spells` read empty there
-  until the next rebuild + publish, and it has no `career_managed_tid`, so `mart.our_clubs`
-  falls back to the club in the most named-competition matches. After the publish, drop that
-  fallback from `OUR_CLUBS` in `fmstats/mart.py`.
+- **Drop the `mart.our_clubs` fallback**: the published store (rebuilt 2026-09-30) carries
+  `career_managed_tid`, so the fallback in `OUR_CLUBS` (`fmstats/mart.py`) -- the club in the
+  most named-competition matches -- has nothing left to serve. Remove it.
+- **Surface Player of the Match**: `staging.matches.player_of_match` is the game's own pick,
+  in the store since 2026-09-30; nothing reads it yet. Add it to `mart.matches`.
+- **The match record** (`tables/matches.py`): the event's last 8 bytes (two u32, never a tid
+  of the match), the player slot's 33 unnamed bytes (+54..61 two more u32; +2 equals the
+  opponent's score on the goalkeeper's slot), the team head and tail (75 and 46 bytes), the
+  body head's +19..51 and +67..77 (one u8 reads 90-96 on detailed matches: the final whistle's
+  minute?), and our tactic in the tail: +0..32 small bitfields (team instructions?), eleven
+  per-starter 8-byte items at +1196 (4 flag bytes and a value -- 10/9/6/5 -- that tracks the
+  position: probably role or duty), a u16 coordinate grid at +220..1182 that changes with
+  the back line, and team-looking u16 values after +1295. The positions at +102 are a second
+  copy of +69, byte-identical on all 1,027 matches measured. A tactics screenshot for one
+  match would settle the per-starter items.
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
   (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records.
 
@@ -273,8 +272,8 @@ A table at a time, contracts and names first, then club labels and the rest:
    today's store (`assert_identical` changes by design — re-record with the note).
 
 When this lands, `fmparser/clubs_comps.py`'s lookups go with it: `club_record`, `league_name`,
-`comp_detail`, `club_details` and the name resolvers exist only for extract's pre-joins, and
-`comp_name` / `comp_id_at` only to label matches in `matches.py`. What remains is the two
+`comp_detail`, `club_details` and the name resolvers exist only for extract's pre-joins. What
+remains is the two
 tables themselves (`tables/clubs.py`, `tables/competitions.py`). The same goes for
 `extract._history_clubs`, which walks history chains only to decide which club names
 `clubs.json` carries: once `clubs.json` is the whole club table it has nothing to do.

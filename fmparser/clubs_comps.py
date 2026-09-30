@@ -3,8 +3,7 @@
 
 The club and competition tables themselves are `tables/clubs.py` and `tables/competitions.py`
 (re-exported here); this module answers lookups over them -- `resolve_club`, `club_record`,
-`comp_name`, `league_name` -- plus the name resolver and `info_offset`. A match's cid is a
-u16 at date_off-3.
+`league_name`, `comp_detail` -- plus the name resolver and `info_offset`.
 """
 import struct
 
@@ -55,13 +54,6 @@ def club_record(mm, tid, want="long"):
 
 
 # ---------------- competitions ----------------
-def comp_id_at(mm, date_off):
-    return int.from_bytes(mm[date_off - 3:date_off - 1], "little")
-
-
-_COMP_CACHE = {}
-
-
 def find_comp_record(mm, cid):
     """The competition record for `cid` -> full detail dict, or None if that slot is blank.
 
@@ -88,20 +80,6 @@ def league_name(mm, code, want="long"):
     if not r:
         return None
     return (r["short"] or r["name"]) if want == "short" else r["name"]
-
-
-def resolve_comp(mm, cid, want="long"):
-    r = find_comp_record(mm, cid)
-    if not r:
-        return None
-    return (r["short"] or r["name"]) if want == "short" else r["name"]
-
-
-def comp_name(mm, cid, want="long"):
-    key = (_cache_key(mm), cid, want)
-    if key not in _COMP_CACHE:
-        _COMP_CACHE[key] = resolve_comp(mm, cid, want)
-    return _COMP_CACHE[key]
 
 
 def comp_detail(mm, cid):

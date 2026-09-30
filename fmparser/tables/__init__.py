@@ -148,6 +148,15 @@ from .player_attributes import (
     record_for,
     scrape_player_attributes,
 )
+from .matches import (
+    EVENT_TYPE,
+    MATCHES_TABLE,
+    MatchTableError,
+    check_against_fixtures,
+    locate_matches,
+    matches_table_spans,
+    scrape_matches,
+)
 from .rounds import (
     ROUND_HEAD,
     ROUND_TRAILER,
@@ -201,6 +210,7 @@ TABLES = {
     "languages": LANGUAGES_TABLE,
     "match_officials": OFFICIALS_TABLE,
     "match_slots": MATCH_SLOTS_TABLE,
+    "matches": MATCHES_TABLE,
     "nations": NATIONS_TABLE,
     "nicknames": NICKNAMES_TABLE,
     "person_info": PERSON_INFO_TABLE,
@@ -296,6 +306,14 @@ __all__ = [
     "locate_match_slots",
     "match_slots_table_spans",
     "scrape_match_slots",
+    # Matches
+    "EVENT_TYPE",
+    "MATCHES_TABLE",
+    "MatchTableError",
+    "check_against_fixtures",
+    "locate_matches",
+    "matches_table_spans",
+    "scrape_matches",
     # Names
     "FIRST_NAMES_TABLE",
     "NAME_ID_ENTRY",

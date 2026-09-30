@@ -160,9 +160,10 @@ class FixedList:
     """A packed list whose length the LAYOUT fixes: `[n x item]`, n the same on every row.
 
     A segment of a `TableDef` row, like `CountedList` but with no count in the bytes: the
-    game preallocates n slots and fills them in place. Each element is read as `item` (a
-    `Record`); an element that is an unwritten slot is still read, and the table's
-    `post_process` decides what an empty slot looks like.
+    game preallocates n slots and fills them in place. Each element is read as `item` -- a
+    `Record`, or a `Struct` when the element itself holds a list; an element that is an
+    unwritten slot is still read, and the table's `post_process` decides what an empty slot
+    looks like.
     """
     __slots__ = ("name", "item", "n")
 
@@ -186,6 +187,36 @@ class FixedList:
         stride = self.item.span
         return {self.name: [self.item.read(mm, offset + i * stride)
                             for i in range(self.n)]}, end
+
+
+class Struct:
+    """A fixed-width element made of segments: `Record`s and `FixedList`s, in order.
+
+    The item of a `FixedList` whose elements hold a list of their own -- a match stores two
+    team blocks back to back, each `[head][20 player slots][tail]`. Every segment is fixed
+    width, so the Struct has a span and a list of them strides like a list of Records.
+    `read(mm, offset)` returns one dict: each Record's fields and each list under its name.
+    """
+    __slots__ = ("name", "segments", "span")
+
+    def __init__(self, name: str, *segments: Any):
+        self.name = name
+        self.segments = segments
+        self.span = sum(seg.span for seg in segments)
+
+    def __repr__(self) -> str:
+        return f"Struct({self.name!r}, {len(self.segments)} segments, span {self.span})"
+
+    def read(self, mm: Any, offset: int) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        pos = offset
+        for seg in self.segments:
+            if isinstance(seg, FixedList):
+                out.update(seg.read(mm, pos, len(mm))[0])
+            else:
+                out.update(seg.read(mm, pos))
+            pos += seg.span
+        return out
 
 
 # ---- the TAGGED format -----------------------------------------------------------------------

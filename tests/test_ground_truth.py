@@ -18,7 +18,8 @@ sys.path.insert(0, ROOT)
 from tests.harness import find_save, skip  # noqa: E402
 
 from fmparser.save import Save                        # noqa: E402
-from fmparser import matches as M                     # noqa: E402
+from fmparser.tables.matches import scrape_matches    # noqa: E402
+from load_duckdb import _match_derived                # noqa: E402
 from fmparser.tables import player_attributes as A                  # noqa: E402
 from fmparser.tables.contracts import LOAN_STATUS, scrape_contract_status # noqa: E402
 from fmparser.tables.person_info import scrape_person_info           # noqa: E402
@@ -69,7 +70,7 @@ def run(save_path=None):
     fails = []
     print(f"(using {os.path.basename(save_path)})")
 
-    season = M.extract_season(s.mm)
+    season = scrape_matches(s.mm)
     # match COUNT varies by season and how far in the save is, so we don't assert it —
     # finding the specific 3-3 fixture below is what proves match parsing works.
     match = next((m for m in season if m["home_tid"] == MATCH["home_tid"]
@@ -80,8 +81,9 @@ def run(save_path=None):
                f"score wrong: {match['score']}", fails)
         _check(match["formation"] == FORMATION,
                f"formation wrong: {match['formation']}", fails)
+        team_stats = _match_derived(match)["team_stats"]
         for side, exp in TEAM_STATS.items():
-            ts = match["team_stats"][side]
+            ts = team_stats[side]
             for k, v in exp.items():
                 _check(ts[k] == v, f"{side} {k}: {ts[k]} != {v}", fails)
 

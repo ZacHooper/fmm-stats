@@ -566,7 +566,7 @@ are located by other mechanisms, and that is not an oversight in the search:
 | history slab, 39.8–44.6 MB | **Counted, but a DIFFERENT framing**: `u32 @ start - 12`, no sentinel, not 4-byte aligned. `history.locate` already reads it. The only counted table outside the two reference bands. |
 | just after the slab, 44.6 MB | a per-season series — `[f32][…][u16 year]`, 7.0 in 2021, 10.0 in 2022 — FF-padded, no count. |
 | club history record tables, ~46.8 MB | The first row sits **immediately** after an 8-byte FF run with **no count between them**: the 4 bytes where a count would be read `3F 80 00 00`, i.e. float32 `1.0` — data, not a header. The FF run here is filler that happens to be 8 long. |
-| our matches, ~55.4 MB | **No count and no capacity.** Checked twice: the nearest 8-byte sentinel is 1,250 bytes before the first anchor with unrelated values, and the 64 bytes immediately in front of the anchor are *near-constant across saves* (only two value sets over 10 saves) while the match count swings from 9 to 57 — so they track something else entirely. They read as `u16` pairs (8/15, 8/27, 13/31), i.e. tail data from the preceding match record rather than a header. Matches are found by the `regions.DELIM_UNIT` delimiter cluster. |
+| our matches, ~55.4 MB | **Counted, u8, no sentinel** (found 2026-09-30, `tables/matches.py`). The earlier checks here looked in front of the first *anchor* -- a delimiter cluster that is really the per-starter tactic items at the END of the previous row -- so they looked 300 bytes into the wrong row, and the "near-constant" 64 bytes were that row's tail. Row 0 starts with `[home u16][away u16][cid u16][day u16][n events u8]`; the byte in front of it is the match count on every save, both careers. |
 | squad snapshot, 51–61 MB | located by `regions.CLUB_MARKER`. |
 
 The cross-save sweep agrees: across all 34 saves there is **not one** count-framed table above
@@ -577,13 +577,15 @@ drift value shared by nothing else — a coincidence in a different place each s
 reference half (roughly 4–14 MB: attributes, staff, clubs, competitions, nations, stadiums,
 cities, languages, currencies, awards, and the name id-tables at 37.9 MB) is shipped as counted
 arrays, because its sizes are fixed when the database is built. The career half (39–61 MB:
-history, club records, matches, the snapshot) is written by the running game and is located by
-pointers, delimiters and markers instead — which is exactly why `history.py` needed the
-in-degree test, `matches.py` needs a delimiter cluster, and neither could have been found by
-looking in front of record 0.
+history, club records, matches, the snapshot) is written by the running game and mostly lacks
+the FF-sentinel frame -- which is why `history.py` needed the in-degree test. It is NOT
+uncounted: the club records carry a bare u16 count and our matches a bare u8, each directly in
+front of row 0 with no sentinel, and both were missed for years because the search required
+the sentinel.
 
 That is the useful closing shape of this work: **look for a count header when the data is
-reference data, and expect pointers or delimiters when it is career data.**
+reference data, and for a BARE count in front of row 0 when it is career data** -- then check
+it against a walk that proves its own extent.
 
 ## Why the yield is low, and where the rest are
 

@@ -45,7 +45,7 @@ sys.path.insert(0, ROOT)
 from fmparser import clubs_comps as R    # noqa: E402
 from fmparser.tables import clubs as CL, competitions as CO  # noqa: E402
 from fmparser.tables.person_info import NO_CLUB as _NO_CLUB, scrape_person_info as _scrape_players  # noqa: E402
-from fmparser import matches as M      # noqa: E402
+from fmparser.tables.matches import scrape_matches   # noqa: E402
 
 
 def report_club_table(mm):
@@ -97,7 +97,7 @@ def report_cross_reference(mm, clubs, declared_clubs, comps, declared_comps):
 
     print("  parsing the season and squads to collect referenced ids "
           "(this is the slow part) ...", file=sys.stderr)
-    season = M.extract_season(mm)
+    season = scrape_matches(mm)
     all_clubs, _comps = R._build_refdata_index(mm)
 
     needed_cids = {m["comp_id"] for m in season if m.get("comp_id")}

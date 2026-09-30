@@ -11,7 +11,8 @@ fmparser/tables/.
 
 Writes output/<label>/:
     players.json / players.csv   whole player DB: identity + attributes where they exist
-    matches.json                 full season: per-player stats, events, team stats, formation
+    matches.json                 this season's matches as stored: events, both sides' player
+                                 lines, the stored score, our formation and starting positions
     player_match_stats.csv       flat one-row-per-(match, player), with the team played for
     transfers.json               players whose current club differs from a team they played for
     clubs.json                   club TID -> name
@@ -28,7 +29,6 @@ from collections import Counter
 
 from fmparser.core import follow
 from fmparser.save import Save
-from fmparser import matches as M
 from fmparser import model as MOD
 from fmparser import clubs_comps as R
 from fmparser import squad as SQ
@@ -53,6 +53,7 @@ from fmparser.tables import history as H
 from fmparser.tables import player_progress as PP
 from fmparser.tables import club_records as CRE
 from fmparser.tables import training as TRN
+from fmparser.tables import matches as MT
 from fmparser.tables import (
     cities,
     currencies,
@@ -394,8 +395,8 @@ def flatten_matches(season):
         for side, team, opp in (("home_xi", m["home_tid"], m["away_tid"]),
                                 ("away_xi", m["away_tid"], m["home_tid"])):
             for p in m[side]:
-                row = {"date": m["date"], "competition": m["competition"],
-                       "tid": p["tid_int"], "team_tid": team, "opponent_tid": opp}
+                row = {"date": m["date"], "comp_id": m["comp_id"],
+                       "tid": p["tid"], "team_tid": team, "opponent_tid": opp}
                 row.update({k: p[k] for k in _STAT_FIELDS})
                 rows.append(row)
     return rows
@@ -480,7 +481,7 @@ def write_players_csv(path, players):
 def write_match_stats_csv(path, rows):
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
-        cols = ["date", "competition", "tid", "team_tid", "opponent_tid"] + _STAT_FIELDS
+        cols = ["date", "comp_id", "tid", "team_tid", "opponent_tid"] + _STAT_FIELDS
         w.writerow(cols)
         for r in rows:
             w.writerow([r[c] for c in cols])
@@ -501,7 +502,7 @@ def main():
 
     s = Save(args.save)
     mm = s.mm
-    season = M.extract_season(mm, our_tids=(career.managed_tid, career.reserve_tid))
+    season = MT.scrape_matches(mm)
     auto, latest = auto_label(season)
     label = args.label or auto
     dest = os.path.join(args.out, label)
@@ -586,7 +587,7 @@ def main():
     dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
     # The WORLD fixture list, from the zstd archive at the tail of the save
     # (fmparser/tables/fixtures.py -> fmparser/core/archive.py). ~27k matches over ~1,750 clubs against
-    # the ~60 of our own that matches.py parses.
+    # the ~60 of our own in the match table (tables/matches.py).
     #
     # Three things this is NOT, all of them load-bearing:
     #   * not history -- it is a TWO-CALENDAR-YEAR ROLLING WINDOW of matches already played,
@@ -609,6 +610,16 @@ def main():
         print(f"  NOTE: world fixtures unavailable ({type(e).__name__}: {e})")
         world = []
     dump("world_fixtures.json", world, indent=None)
+    # The match table against the fixture list: the same games, since the rollover. This is
+    # what tells an empty table after the rollover from a table the locator missed.
+    header = HDR.read_save_header(mm)
+    if world and header["date"]:
+        until = header["date"]
+        since = f"{until[:4]}-{career.rollover[0]:02d}-{career.rollover[1]:02d}"
+        if since > until:
+            since = f"{int(until[:4]) - 1}{since[4:]}"
+        MT.check_against_fixtures(season, world, (career.managed_tid, career.reserve_tid),
+                                  since, until)
     # Every competition's stage/round structure (archive members comp_<uid>.dat) and the
     # round-name catalog it names them from (main save). Together they label a fixture:
     # (uid, stage_index, round_index) -> 'League Path' / 'Third Qualifying Round'.
@@ -625,7 +636,6 @@ def main():
                    else {})
     dump("round_names.json",
          [{"id": i, "name": n} for i, n in sorted(round_names.items())], indent=None)
-    header = HDR.read_save_header(mm)
     snap_season, snap_phase = season_phase(header["date"], season, career.rollover)   # the DB grain
     # the weekly Player Progress table, every used row as stored; injury and loan spells are
     # read from its status bits in the mart (fmparser/tables/player_progress.py)
@@ -650,7 +660,8 @@ def main():
         "save": os.path.abspath(args.save),
         "save_date": header["date"], "save_title": header["title"],
         "latest_match": latest, "date_range": [dates[0], dates[-1]] if dates else None,
-        "competitions": dict(Counter(m.get("competition") for m in season)),
+        "competitions": {str(c): n for c, n
+                         in sorted(Counter(m["comp_id"] for m in season).items())},
         "counts": {"matches": len(season), "player_match_lines": len(match_rows),
                    "players": len(players), "players_with_attributes": attributed,
                    "history_rows": histories["count"] if histories else 0,

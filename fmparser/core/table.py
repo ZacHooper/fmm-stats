@@ -8,8 +8,9 @@ engine does the walk. Two kinds, matching the two kinds of record (`schema.py`):
 row is a composite sequence of typed segments, walked by offset:
 1. Fixed Record layouts (from `schema.py`).
 2. Variable-length segments whose length the bytes declare (`types.py`): `PString`, a
-   length-prefixed string, and `CountedList`, `[count][count x Record]`; and `FixedList`,
-   `[n x Record]` with n fixed by the layout.
+   length-prefixed string, and `CountedList`, `[count][count x Record]`; `FixedList`,
+   `[n x item]` with n fixed by the layout, whose item is a `Record` or a `Struct` (a
+   fixed-width element holding a list of its own).
 3. Custom dynamic segments implementing `read(mm, pos, limit)`.
 
 `LinkedTableDef` -- a fixed pool of PACKED rows, each holding the index of the next row in
@@ -207,11 +208,32 @@ def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> 
     return out
 
 
+def _segment_instances(mm: Any, seg: Any, pos: int) -> List[Tuple[Record, int]]:
+    """The packed records one list segment at `pos` holds, recursing into Struct items."""
+    from .types import KIND_WIDTH, CountedList, FixedList, Struct
+    if isinstance(seg, CountedList):
+        cw = KIND_WIDTH[seg.count]
+        n = int.from_bytes(mm[pos:pos + cw], "little")
+        return [(seg.item, pos + cw + i * seg.item.span) for i in range(n)]
+    if isinstance(seg, FixedList):
+        out: List[Tuple[Record, int]] = []
+        for i in range(seg.n):
+            at = pos + i * seg.item.span
+            if isinstance(seg.item, Struct):
+                for sub in seg.item.segments:
+                    out.extend([(sub, at)] if isinstance(sub, Record)
+                               else _segment_instances(mm, sub, at))
+                    at += sub.span
+            else:
+                out.append((seg.item, at))
+        return out
+    return []
+
+
 def record_instances(mm: Any, table: Any) -> Iterator[Tuple[Record, int]]:
     """Every packed record a table's walk reads, as (Record, offset): each row's fixed
     segments, each element of its counted lists, and a linked table's header and rows. The
     walk stops where `walk_table` stops, at the first row that breaks the invariant."""
-    from .types import KIND_WIDTH, CountedList, FixedList
     if isinstance(table, LinkedTableDef):
         base, count = table.run(mm)
         if table.header is not None:
@@ -241,12 +263,7 @@ def record_instances(mm: Any, table: Any) -> Iterator[Tuple[Record, int]]:
                         ok = False
                         break
                     part, end = res
-                    if isinstance(seg, CountedList):
-                        first = pos + KIND_WIDTH[seg.count]
-                        n = (end - first) // seg.item.span
-                        found.extend((seg.item, first + i * seg.item.span) for i in range(n))
-                    elif isinstance(seg, FixedList):
-                        found.extend((seg.item, pos + i * seg.item.span) for i in range(seg.n))
+                    found.extend(_segment_instances(mm, seg, pos))
                     rec.update(part)
                     pos = end
             if not ok or (table.invariant is not None and not table.invariant(rec, index)):

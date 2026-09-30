@@ -74,6 +74,7 @@ from .types import (
     UNKNOWN,
     CountedList,
     FixedList,
+    Struct,
     PString,
     TreeError,
     read_tree,
@@ -115,6 +116,7 @@ __all__ = [
     "PString",
     "CountedList",
     "FixedList",
+    "Struct",
     "TreeError",
     "read_tree",
     # Schema

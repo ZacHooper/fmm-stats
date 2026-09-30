@@ -1,10 +1,17 @@
 ---
 name: ghost-match-anchors
-description: "FIXED — a second delimiter cluster 24 bytes ahead of a real match made phantom 0-0 duplicate fixtures; dedupe on the header offset, which is the match's identity"
+description: "SUPERSEDED 2026-09-30 — matches are read as a count-framed table (tables/matches.py), with no anchors; the anchor scan made phantom 0-0 duplicates and missed each season's first match"
 metadata:
   node_type: memory
   type: reference
 ---
+
+> **SUPERSEDED 2026-09-30.** Matches are no longer found by delimiter anchors: they are a
+> count-framed table, one row per match, walked by each row's own length
+> (`fmparser/tables/matches.py`). The delimiter cluster was the per-starter tactic items at the
+> END of the previous match's row, which is also why the anchor scan never found the season's
+> first match. A duplicate cannot arise from a walk that steps row by row. Kept for the lesson
+> at the bottom, which still holds for any forward scan.
 
 **Symptom (reported 2026-09).** The site's results list showed Frem playing København and Horsens
 one extra time each in 2026 — a second row on the same date against the same opponent, scored 0–0,

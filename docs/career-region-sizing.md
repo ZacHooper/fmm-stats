@@ -254,7 +254,7 @@ This is the general recipe worth carrying into whatever gets checked next (see
 No new script was shipped this pass (the working scripts were exploratory and removed); the
 method above is written out in enough detail to reimplement directly against
 `fmparser/history.py` (`locate()`, `STRIDE`), `fmparser/tables/club_records.py`
-(`scrape_club_records`), and `fmparser/matches.py`
+(`scrape_club_records`), and `fmparser/tables/matches.py`
 (`match_anchors`, `parse_header`, `_valid_match_header`, `find_match_region`). A natural
 follow-up is turning the exact (no-sampling) history-slab locator into a real function alongside
 `history.locate()`, the same way `scripts/audit/audit_table_headers.py --confirm` exists next to the
