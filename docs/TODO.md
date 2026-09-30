@@ -136,10 +136,11 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   Frem's red/blue stripes 31, Barcelona 30, Newcastle 25, FC Nordsjaelland 0c, Frem's
   goalkeeper kit 0d, ff an unused kit. Name the ids from kits whose design is known; the
   second byte (00/01/02) is unread.
-- **Snapshot role ids** (`+21`, `player_lists.ROLES`): named so far 1 Goalkeeper, 5 Ball
-  Playing Defender, 9 Winger, 15 Ball Winning Midfielder, 17 Advanced Playmaker (profiles
-  and Best Eleven screens). Also seen: 4 (Dehn, Karlsen), 8 (Wass), 13 (Bisgaard Haarbo), 21
-  (Jakobsen), 32 (Thrane, Chukwuani) -- name them from one more set of screens.
+- **Snapshot role ids** (`+21`, `player_lists.ROLES`): 20 named from Scrapbook Profiles;
+  4 Wing-Back, 22 Complete Forward and 24 Trequartista are likely but still unconfirmed. Seen but
+  unnamed: 7, 8, 11, 14, 18 (88 snapshots, the big one), 20, 23, 27-31; 2 never seen.
+  `docs/role-ids.csv` names a World Best XI player to check for each (the pool's best-rated at
+  his position, so the one most likely shown in the XI); 7, 8 and 23 are only in our lists.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry

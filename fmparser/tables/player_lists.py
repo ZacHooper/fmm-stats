@@ -119,10 +119,15 @@ ATTRIBUTES = {
 }
 _ATTR_AT = 28
 
-# The role a snapshot's profile shows, by id: the ones matched to a profile screen so far
-# (Ullits, Pedersen, Nuamah, Mikkel Andersson, Donovan). Not the squad number.
-ROLES = {1: "Goalkeeper", 5: "Ball Playing Defender", 9: "Winger",
-         15: "Ball Winning Midfielder", 17: "Advanced Playmaker"}
+# The role a snapshot's profile shows, by id, as read off the Scrapbook Profile screens of
+# players holding each id. Not the squad number. Ids 2, 7, 8, 11, 14, 18, 20, 23 and 27-31 are
+# seen but not yet named; 4, 22 and 24 are the likely reads below and not yet confirmed.
+ROLES = {0: "Goalkeeper", 1: "Sweeper Keeper", 3: "Full-Back", 4: "Wing-Back",
+         5: "Central Defender", 6: "Ball Playing Defender", 9: "Winger",
+         10: "Inverted Winger", 12: "Inside Forward", 13: "Central Midfielder",
+         15: "Ball Winning Midfielder", 16: "Box to Box Midfielder", 17: "Advanced Playmaker",
+         19: "Target Forward", 21: "Advanced Forward", 22: "Complete Forward",
+         24: "Trequartista", 25: "Libero", 26: "Shadow Striker", 32: "Roaming Playmaker"}
 
 
 # The attribute block's other bytes, by index (the Scrapbook Profile screen, verified on
