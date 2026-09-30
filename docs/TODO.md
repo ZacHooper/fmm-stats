@@ -140,15 +140,17 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   `ROLES_INFERRED` are placed by position block and holders' attributes. The player-role table
   below gives every player's CURRENT role, so `docs/role-ids.csv` now names famous players in
   each role, whose live profiles can be checked directly.
-- **Player-role table -- found, not yet a TableDef.** Right after Player Progress (52.0 MB on
-  frem-2027-08-08): `[count u32 = 32,966][32,966 x 61 B]`, row k = person tid k, `ffffffff`
-  = not a player (5,218 blank rows are staff). Read so far: `+0` tid, `+4` uid, `+23` role
-  u16 (the snapshot role ids; 31/32 of our squad equal their live snapshot, Chukwuani 16 vs
-  32), `+29` position as the match slot-array's `(band, column)` pair -- the position the role
-  is played in. Plausibly the training role/position (the user's read). Unread: `+8` u8,
-  `+9`/`+13` u32 (money-like; `+9` round), `+17` u32, `+21` u16 (0-3), `+27` u16 (not an
-  attribute index), `+31..+48`, three dates at `+49/+53/+57`. Walk it by the count; check it
-  on every save of both careers; then load role + position per snapshot.
+- **Training table -- found, not yet a TableDef.** It is the Club Squad > Training page
+  (checked row by row against a screenshot of frem-2027-06-15, 13/13 players). Right after
+  Player Progress (53.1 MB on 2027-06-15, 52.0 MB on 2027-08-08): `[count u32 = 32,966][32,966
+  x 61 B]`, row k = person tid k, `ffffffff` = not a player. Confirmed: `+0` tid, `+4` uid,
+  `+21` intensity u16 (3 = the red high-intensity icon, 2 = normal; 1 and 0 also occur),
+  `+23` Focus Role u16 (the snapshot role ids -- a snapshot's role IS the training focus role
+  on its date), `+27` Attr focus u16 (1 CRO, 3 PAS, 5 TAC, 6 HAN, 9 REF, 11 CRE, 18 PAC,
+  19 STA; 0, 2, 4, 8, 10, 12-15, 17 still to read), `+29` Focus Pos as the match slot
+  array's `(band, column)` pair. Unread: the Progress bar, `+8` u8, `+9`/`+13` u32
+  (money-like; `+9` round), `+17` u32, `+31..+48`, three dates at `+49/+53/+57`. Walk it by
+  the count; check every save of both careers; then load it per snapshot.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
