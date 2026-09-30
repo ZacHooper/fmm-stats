@@ -98,8 +98,9 @@ Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 `frem-2027-06-15`: 0–30 the World Best XI pool of each season, 31–61 the Manager's Best
 Eleven pool of each season (every player who played for the manager, loanees included; it
 follows the manager, not the club), 62/64 and 63/65 the World and Manager's All-Time pools.
-Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as of its date
-(Nuamah's and Mikkel Andersson's 2022 snapshots verified field by field). `squad.py` reads the manager's lists; nothing else is emitted. Open:
+Each entry is a **scrapbook entry**: the player's Scrapbook Profile as of its date
+(Nuamah's and Mikkel Andersson's 2022 entries verified field by field). Every entry is in the
+store (`staging.player_scrapbook`); `staging.squad_scrapbook` picks our squad's. Open:
 - **Which copy of each All-Time pair is live**: 63 carries this season's "New Entry" dates,
   65 last season's. Confirm across a season boundary.
 - **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan
@@ -134,15 +135,15 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   - surfacing it: each squad player's training focus on the site's Squad page.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
-- **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
-  `attribute_snapshot_date`, the date of the player attribute snapshot the squad's exact
-  attributes came from. Agreement
-  with the attributes stored on the player's own record falls with its age (84% under a
-  month, ~80% to seven months, ~60% at nine or more), and entries up to two years old are in
-  use (`frem-2026-06-11`: 2024-06-29). Decide in the mart when an old entry should give way
-  to the estimate.
-- Emit the lists (`player_lists.json` -> `staging`): every World Best XI and Manager's Best
-  Eleven, with each player's profile as it was.
+- **How far to trust an "exact" squad attribute**: `staging.players.scrapbook_date` is the
+  date of the scrapbook entry the squad's exact attributes came from. A squad player's
+  entries are rewritten monthly only while he plays that season, so one who has not played
+  carries last season's (Johan Maarup on `frem-2026-06-11`: 2025-06-30). Agreement with the
+  attributes stored on the player's own record falls with its age (84% under a month, ~80% to
+  seven months, ~60% at nine or more). Decide in `staging.squad_scrapbook` when an old entry
+  should give way to the estimate.
+- **Surface the World Best XI pools**: every season's pool is in `staging.player_scrapbook`
+  (lists 0-30, 62/64); nothing reads it yet.
 
 ### 4a. Player progress: what is still unread
 `tables/player_progress.py` hands every used row to `staging.player_progress` (the six lines
@@ -253,8 +254,8 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 ### 12. Extract dumps tables; the mart does the joins
 `players.json` is a pre-joined row built in `extract.py` from about seven tables: the person
 table, the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three name id-tables
-+ browse strings + the squad snapshot (`name`, by precedence: squad-list name, then common name,
-then legal name), the club table (`club`, `parent_club`), the training table's squad status
++ browse strings (`name`: the common name, then the legal name), the club table (`club`),
+the training table's squad status
 (`squad_status`, loan flags) and the player attributes. None of that is extraction. Extract should dump each table as the save holds it,
 the loader write it to `staging`, and `fmstats/mart.py` do the joins — the name precedence a
 view (`mart.person_names`), `wage_gbp = wage_units × 520` a derivation.
@@ -278,7 +279,9 @@ then too.
 
 Also:
 - **Move the loader's remaining transforms into `fmstats`**, so `load_duckdb.py` only writes
-  JSON into `staging`: the attribute-model decode view (`staging.player_attributes`),
+  JSON into `staging`: the squad views (`staging.squad_scrapbook`, and `staging.players` /
+  `staging.player_attributes_exact` over their `_raw` tables), the attribute-model decode
+  view (`staging.player_attributes`),
   `rebuild_persons` (the `(tid, dob) -> person_id` bridge) and `v_player_ratings` /
   `v_player_rating_ranks`. Verify with a real `rebuild.py`, not `--refresh-only`.
 - **Delete `staging.standings`.** Extract no longer writes `light_results/standings`, but the
@@ -304,8 +307,6 @@ it directly.
 - **`player_spells` holds a second, wrong name for some people** (Jonathan Bech also "Jose
   Almeida"); `mart.at_club_spells` is clean. Likely a recycled tid resolved at the wrong
   snapshot.
-- **A recycled tid can keep the old occupant's name** (Mikkel Bruhn, tid 9584; Mikkel
-  Andersson, 9400), while in other cases (tid 4240) it updates. Find what decides it.
 - **`is_staff` flipping to true empties a player's history** in that snapshot (tids 9231,
   9430). Both are in [`agent-context/tid-recycling.md`](agent-context/tid-recycling.md).
 
@@ -323,6 +324,14 @@ reads the newest snapshot only.
   90 and an extra-time substitute goes negative (Lucas Lodberg, 2023-02-22: −15). The flag exists
   (`extra_time` in `mart.match_stages`, for competitions we play); carry it to the minutes.
 
+### 16a. Retire the stuck-loan workarounds
+`staging.players.loaned_in` is now true only for a player in our squad arrays whose own record
+names another club, so it clears when a loan ends. The mart and exporter still carry code for
+the flag that never cleared: the "SET-ONLY" notes and the `ever_loaned_in` run exclusion in
+`fmstats/mart.py` (`mart.at_club_spells`, "SECOND GHOST"), and the loan note in
+`scripts/export_data.py`. Remove them one at a time on a rebuilt store, each gated by
+`validate_mart.py` and a no-op `git diff site/api`.
+
 ### 17. Views that hide their confidence
 - **`mart.player_origin`**: `eligible=False` cannot be told from *unknown* when the origin club
   does not resolve (#10). Add the distinction; until then treat it as "ask Zac".
@@ -336,17 +345,16 @@ reads the newest snapshot only.
   section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
   and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
   near-misses on the larger store: feet for Dribbling, height/weight for Shooting.
-- **Retrain on time-aligned rows.** Our squad's "exact" attributes and value are player
-  attribute snapshots (`tables/player_lists.py`), dated by `attribute_snapshot_date`, and a
-  player who has not played this season carries one up to two years old. Both fits pair a
-  snapshot with the CURRENT save's record bytes, CA and reputation
+- **Retrain on time-aligned rows.** Our squad's "exact" attributes and value are scrapbook
+  entries (`tables/player_lists.py`), dated by `scrapbook_date`, and a
+  player who has not played this season carries one up to two years old. Both fits pair an
+  entry with the CURRENT save's record bytes, CA and reputation
   (`scripts/fit_attribute_model.py` joins `staging.players` to `player_attributes_exact` on
   `(season, phase, tid)`; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
-  snapshot to predict a 2026 player -- and the same stale snapshot is repeated in every
-  store snapshot until he plays again. Train only on rows whose snapshot is fresh relative to
+  entry to predict a 2026 player -- and the same stale entry is repeated in every
+  store snapshot until he plays again. Train only on rows whose entry is fresh relative to
   the save (written at the last monthly update, ~31 days before `phase`), or pair each
-  distinct snapshot with the store snapshot nearest its date, once per snapshot. Needs a
-  rebuild so the store carries `attribute_snapshot_date`. Re-score on the held-out players
+  distinct entry with the store snapshot nearest its date, once per entry. Re-score on the held-out players
   (`scripts/holdout_score.py`) before and after; expect a small change, but it is a flaw in the
   labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
 - **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more

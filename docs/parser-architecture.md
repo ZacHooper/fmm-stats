@@ -211,16 +211,19 @@ looking for a record that ends exactly where the current one starts, and repeats
 cannot. A bad seed shifts the whole table and nothing complains.
 
 **The player lists are the same shape, walked both ways** (`tables/player_lists.py`). 66
-lists of `[100 player attribute snapshots][14-byte trailer]`, each snapshot eight
+lists of `[100 scrapbook entries][14-byte trailer]`, each entry eight
 length-prefixed strings and a 168-byte tail, with no count in front and a large unrelated
-pool behind. The seed is an unused list -- 100 template snapshots whose tails carry `14 01 00 0a 00` at exactly 200-byte
+pool behind. The seed is an unused list -- 100 template entries whose tails carry `14 01 00 0a 00` at exactly 200-byte
 gaps -- and from it the walk goes forward list by list, and BACKWARD by reading each
-snapshot's strings from their end: a string of length n ends n bytes after a u32 holding n, so
+entry's strings from their end: a string of length n ends n bytes after a u32 holding n, so
 the strings that end at a given byte have exactly one start. Both walks stop where a list no
 longer parses, and the region must come out as 66 lists (31 world, 31 club, 4 more) on
-every save. The managed squad used to be found by key search -- clusters of our club marker
--- and on the early saves the cluster sat on lists 62-65, stale copies whose attributes
-match the stored ones less often (1,589 vs 1,754) than our current season list's.
+every save. Extract hands every entry over as stored (`player_scrapbook.json`); which of
+them are our squad's is the store's question (`staging.squad_scrapbook`: a player in our
+squad arrays, his latest entry in lists 31-61). The managed squad used to be found by key
+search -- clusters of our club marker -- and on the early saves the cluster sat on lists
+62-65, stale copies whose attributes match the stored ones less often (1,589 vs 1,754) than
+our current season list's.
 
 ---
 

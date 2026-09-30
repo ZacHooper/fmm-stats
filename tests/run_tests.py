@@ -40,6 +40,7 @@ UNIT_TESTS = {
     "test_person_info_unit.py",
     "test_player_lists_unit.py",
     "test_player_progress_unit.py",
+    "test_squad_views_unit.py",
     "test_training_unit.py",
     "test_places_unit.py",
     "test_rounds_officials.py",
