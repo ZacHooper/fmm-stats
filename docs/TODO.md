@@ -213,15 +213,11 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **Career history** (`tables/history.py`): the history lines' `yellows` / `reds` are in `staging.player_history_seasons` but not yet in
   `mart.player_career_seasons` -- add them after the next publish, since the published store
   lacks the columns and the mart re-binds against it.
-- **Injury and loan spells on the published store**: the R2 copy predates
-  `staging.player_progress`, so `mart.injury_spells` / `mart.loan_out_spells` read empty there
-  until the next rebuild + publish, and it has no `career_managed_tid`, so `mart.our_clubs`
-  falls back to the club in the most named-competition matches. After the publish, drop that
-  fallback from `OUR_CLUBS` in `fmstats/mart.py`.
-- **Matches on the published store**: the R2 copy is built by the parser that missed each
-  season's first match and most reserve-match events (718 events over 30 saves, 569 of them
-  goals), and it has no `staging.matches.player_of_match`. The next rebuild + publish brings
-  them; nothing reads `player_of_match` yet -- surface it in `mart.matches` then.
+- **Drop the `mart.our_clubs` fallback**: the published store (rebuilt 2026-09-30) carries
+  `career_managed_tid`, so the fallback in `OUR_CLUBS` (`fmstats/mart.py`) -- the club in the
+  most named-competition matches -- has nothing left to serve. Remove it.
+- **Surface Player of the Match**: `staging.matches.player_of_match` is the game's own pick,
+  in the store since 2026-09-30; nothing reads it yet. Add it to `mart.matches`.
 - **The match record** (`tables/matches.py`): the event's last 8 bytes (two u32, never a tid
   of the match), the player slot's 33 unnamed bytes (+54..61 two more u32; +2 equals the
   opponent's score on the goalkeeper's slot), the team head and tail (75 and 46 bytes), the
