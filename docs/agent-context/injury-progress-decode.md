@@ -50,11 +50,15 @@ spells / 9 players**.
 - Zone offsets are Frem-tuned & per-save; re-derive per save/career (region drift, see
   [[denmark-region-drift]], [[savefile-boundary-map]]).
 
-Productionization: DONE — `fmparser/injuries.py` → `staging.player_injuries` → `db.player_injuries`
-(Awards) and `db.player_injury_spells(tid)` (Development → Player detail).
+Productionization: the parser hands every used row over as stored
+(`tables/player_progress.py` `scrape_player_progress` → `player_progress.json` →
+`staging.player_progress`); the mart reads the bits: `mart.progress_weeks` (one row per player
+per week, every copy from every snapshot OR-ed), then `mart.injury_spells` (bits 0-1, weeks up
+to 8 days apart) and `mart.loan_out_spells` (bit 5, 22 days). The table tracks only the managed
+squad and reserves, back to each player's first week at the club.
 
 **Loan history = THREE sources, best-first** (see `db.player_loan_spells`):
-0. **`staging.player_loans`** — bit5 of THIS table: exact weekly windows for loans OUT. No club
+0. **`mart.loan_out_spells`** — bit5 of THIS table: exact weekly windows for loans OUT. No club
    name (the weekly record doesn't carry one); fold in a matching history row to name it.
 1. `staging.player_history_seasons.fee = 'loan'` — a season at a named club with apps/goals,
    for any player, back through their whole career. Only some snapshots parsed it fully
@@ -63,10 +67,10 @@ Productionization: DONE — `fmparser/injuries.py` → `staging.player_injuries`
 2. `staging.players.loaned_in` + `parent_club` across dated snapshots — for players loaned IN
    to us; bounds are SNAPSHOT dates, not real transfer dates.
 
-**Cross-save union is mandatory for both.** A save's weekly series spans only {season-1, season},
-so a spell an early save recorded is absent from later ones, and a loanee's progress data leaves
-with them when the loan ends. `db.player_injury_spells` unions every snapshot then merges ranges
-within 8 days (loans use 22 days, so the off-season week doesn't split one loan in two).
+**Cross-save union is mandatory for both.** A player's weeks leave the save with him (a loanee's
+when the loan ends), so a departed player's weeks come only from the snapshots taken while he was
+ours. `mart.progress_weeks` unions every snapshot's rows before any spell is drawn; the spells
+group weeks within 8 days (loans 22, so the off-season week doesn't split one loan in two).
 
 **Gotcha for any career-wide union: FMM RECYCLES TIDS on regen.** tid 3733 is "Tab Ramos" (free
 agent) in the 21/22 saves and "Hervé Buur" at Frem from 22/23 — unioning on tid alone splices two

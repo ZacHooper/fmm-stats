@@ -41,6 +41,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -83,6 +84,9 @@ def extract(career, name, quiet=True):
         raise FileNotFoundError(path)
     label = label_for(name)
     dest = os.path.join(REPO, "output", label)
+    # the directory is the harness's own; clear it so a file the extract no longer writes
+    # reads as DISAPPEARED instead of being hashed from an earlier run
+    shutil.rmtree(dest, ignore_errors=True)
     cmd = [sys.executable, os.path.join(REPO, "extract.py"), path,
            "--career", career, "--label", label]
     r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)

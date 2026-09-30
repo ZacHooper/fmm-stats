@@ -50,7 +50,7 @@ from fmparser.tables import rule_files as RULE_FILES
 from fmparser.tables import save_header as HDR
 from fmparser import careers as C
 from fmparser.tables import history as H
-from fmparser import injuries as INJ
+from fmparser.tables import player_progress as PP
 from fmparser.tables import club_records as CRE
 from fmparser.tables import training as TRN
 from fmparser.tables import (
@@ -625,26 +625,16 @@ def main():
                    else {})
     dump("round_names.json",
          [{"id": i, "name": n} for i, n in sorted(round_names.items())], indent=None)
-    # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
-    # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py
-    # and fmparser/tables/player_progress.py.
-    # NB: `season` here is the MATCHES list; injuries key off the end-year int, derived below.
-    # A match-less save (a new career's first, or one just past the rollover) holds the
-    # prior campaign's weeks, already captured -- skip it rather than file them under the new one.
     header = HDR.read_save_header(mm)
     snap_season, snap_phase = season_phase(header["date"], season, career.rollover)   # the DB grain
-    squad_tids = [t for t, p in players.items()
-                  if p["club_tid"] in (career.managed_tid, career.reserve_tid)]
-    # the same weekly series also carries an ON-LOAN bit (bit 5), which gives exact loan
-    # windows for players we loan OUT — see fmparser/injuries.py for the decode + validation.
-    injuries, loans = {}, {}
-    if season and snap_season is not None:
-        try:
-            injuries, loans = INJ.extract_availability(mm, squad_tids, snap_season)
-        except ValueError as e:                  # the progress pool not located
-            print(f"  WARNING: player progress not read ({e}); no injuries or loans")
-    dump("injuries.json", {str(t): sp for t, sp in injuries.items()}, indent=None)
-    dump("loans.json", {str(t): sp for t, sp in loans.items()}, indent=None)
+    # the weekly Player Progress table, every used row as stored; injury and loan spells are
+    # read from its status bits in the mart (fmparser/tables/player_progress.py)
+    try:
+        progress = PP.scrape_player_progress(mm)
+    except ValueError as e:
+        print(f"  WARNING: {e}; no player progress")
+        progress = []
+    dump("player_progress.json", progress, indent=None)
     write_players_csv(os.path.join(dest, "players.csv"), players)
     write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)
 
@@ -666,8 +656,7 @@ def main():
                    "history_rows": histories["count"] if histories else 0,
                    "staff": len(staff), "competitions": len(competitions),
                    "leagues": len(leagues), "clubs_named": len(club_names),
-                   "injured_players": len(injuries),
-                   "loaned_out_players": len(loans),
+                   "player_progress_rows": len(progress),
                    "world_fixtures": len(world)},
     }
     dump("summary.json", summary)

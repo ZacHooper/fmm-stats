@@ -679,24 +679,16 @@ DDL = [
         assists INTEGER, rating DOUBLE, yellows INTEGER, reds INTEGER
     )""",
 
-    # injury spells for the MANAGED SQUAD, from the weekly Player-Progress table
-    # (fmparser.injuries). One row per spell; captures training injuries too (match_events
-    # only has in-match ones). NOTE: loaned-in players' progress data leaves with them, so the
-    # snapshot taken BEFORE loans expire holds the completest picture. natural key:
-    # (season, phase, tid, seq).
-    """CREATE TABLE IF NOT EXISTS staging.player_injuries (
+    # The weekly Player Progress table (fmparser/tables/player_progress.py), every used row
+    # as stored: the managed squad and reserves, back to each player's first week at the
+    # club. A week may appear more than once and the copies may disagree; `status` is the
+    # raw bitfield. Injury and loan-out spells are read from it in the mart
+    # (mart.progress_weeks). natural key: none -- (season, phase, tid, week) repeats.
+    """CREATE TABLE IF NOT EXISTS staging.player_progress (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
-        seq INTEGER NOT NULL, spell_start DATE, spell_end DATE, weeks_out INTEGER
-    )""",
-
-    # LOAN-OUT spells for the managed squad, from bit 5 of the same weekly Player-Progress
-    # status field (fmparser.injuries.ON_LOAN). Exact weekly windows for players we loaned
-    # OUT — players loaned IN to us are never flagged here (see staging.players.loaned_in for
-    # those). Same two-calendar-year visibility caveat as injuries: union across snapshots.
-    # natural key: (season, phase, tid, seq).
-    """CREATE TABLE IF NOT EXISTS staging.player_loans (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
-        seq INTEGER NOT NULL, spell_start DATE, spell_end DATE, weeks INTEGER
+        week DATE NOT NULL, status INTEGER NOT NULL,
+        line_0 INTEGER, line_1 INTEGER, line_2 INTEGER,
+        line_3 INTEGER, line_4 INTEGER, line_5 INTEGER
     )""",
 
     # GLOBAL config (not per-label): the set of club TIDs whose YOUTH products are eligible
@@ -1127,39 +1119,14 @@ def load_core(con, d, season, phase):
     if os.path.exists(hist_path):
         counts.update(load_history(con, season, phase, _load_json(hist_path)))
 
-    # --- injuries (weekly Player-Progress -> spells; managed squad only) ------
-    inj_path = os.path.join(d, "injuries.json")
-    if os.path.exists(inj_path):
-        inj = _load_json(inj_path)
-        irows = []
-        for k, spells in inj.items():
-            tid = _int(k)
-            if tid is None:
-                continue
-            for seq, sp in enumerate(spells):
-                start, end, weeks = sp
-                irows.append((season, phase, tid, seq,
-                              datetime.date.fromisoformat(start),
-                              datetime.date.fromisoformat(end), _int(weeks)))
-        counts["player_injuries"] = _insert(
-            con, "player_injuries",
-            ["season", "phase", "tid", "seq", "spell_start", "spell_end", "weeks_out"], irows)
-
-    # --- loan-out spells (same weekly table, bit 5) --------------------------
-    loan_path = os.path.join(d, "loans.json")
-    if os.path.exists(loan_path):
-        lrows = []
-        for k, spells in _load_json(loan_path).items():
-            tid = _int(k)
-            if tid is None:
-                continue
-            for seq, (start, end, weeks) in enumerate(spells):
-                lrows.append((season, phase, tid, seq,
-                              datetime.date.fromisoformat(start),
-                              datetime.date.fromisoformat(end), _int(weeks)))
-        counts["player_loans"] = _insert(
-            con, "player_loans",
-            ["season", "phase", "tid", "seq", "spell_start", "spell_end", "weeks"], lrows)
+    # --- the weekly Player Progress table, as stored ------------------------
+    pp_path = os.path.join(d, "player_progress.json")
+    if os.path.exists(pp_path):
+        lines = [f"line_{i}" for i in range(6)]
+        counts["player_progress"] = _insert(
+            con, "player_progress", ["season", "phase", "tid", "week", "status", *lines],
+            [(season, phase, r["tid"], datetime.date.fromisoformat(r["week"]), r["status"],
+              *(r[c] for c in lines)) for r in _load_json(pp_path)])
 
     # --- clubs ---------------------------------------------------------------
     clubs = _load_json(os.path.join(d, "clubs.json"))
@@ -1549,8 +1516,7 @@ def load_world(con, d, season, phase):
 def _clear_group(con, group, season, phase):
     if group == "core":
         for t in ("players", "player_attributes_exact", "staff_attributes", "player_positions",
-                  "player_history", "player_history_seasons", "player_injuries",
-                  "player_loans",
+                  "player_history", "player_history_seasons", "player_progress",
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
                   "nation_coefficients", "nation_languages",
                   "club_affiliates", "competitions", "leagues", "matches", "match_events",
@@ -1986,23 +1952,44 @@ def seed_event_types(con):
                     sorted(M.EVENT_TYPE.items()))
 
 
-def seed_career(con):
-    """Record which career this store holds in staging.app_config (`career_key`,
-    `career_rating_method`), matched on the managed club the mart derives from the data.
+def seed_career(con, key=None):
+    """Record which career this store holds in staging.app_config: `career_key`,
+    `career_rating_method` and `career_managed_tid`, the club we manage.
 
-    fmstats reads the store, never fmparser, and the tactic we play is the one career fact the
-    save does not carry — so the loader, which may read both, writes it down. Runs after
-    create_mart: it needs mart.managed_club."""
-    row = con.execute("SELECT club_tid FROM mart.managed_club").fetchone()
-    car = next((c for c in careers.CAREERS.values() if row and c.managed_tid == row[0]), None)
+    fmstats reads the store, never fmparser, so the loader, which may read both, writes down
+    the career facts the mart needs: the tactic we play (the save does not carry it) and our
+    club (mart.our_clubs is it plus its reserve side). `key` is the career the loaded extracts
+    name in their summary.json; without one (a --refresh-only) the store's own recorded key
+    is kept. Runs before create_mart."""
+    if key is None:
+        row = con.execute("SELECT value FROM staging.app_config "
+                          "WHERE key = 'career_key'").fetchone()
+        key = row[0] if row else None
+    car = careers.CAREERS.get(key) if key else None
     if car is None:
-        print(f"  ! managed club {row[0] if row else None} is not a registered career "
-              f"(fmparser/careers.py); career keys left unset")
+        print(f"  ! career {key!r} is not a registered career (fmparser/careers.py); "
+              f"career keys left unset")
         return
-    for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method)):
+    for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
+                 ("career_managed_tid", str(car.managed_tid))):
         con.execute("DELETE FROM staging.app_config WHERE key = ?", [k])
         if v is not None:
             con.execute("INSERT INTO staging.app_config VALUES (?, ?)", [k, v])
+
+
+def _extract_career(dirs):
+    """The career key the extracts' summary.json files name, or None. Every extract loaded
+    into one store must name the same career."""
+    keys = set()
+    for d in dirs:
+        sp = os.path.join(d, "summary.json")
+        if os.path.exists(sp):
+            k = (_load_json(sp).get("career") or {}).get("key")
+            if k:
+                keys.add(k)
+    if len(keys) > 1:
+        raise SystemExit(f"extracts from more than one career in one load: {sorted(keys)}")
+    return keys.pop() if keys else None
 
 
 def seed_config_bundle(con):
@@ -2154,8 +2141,8 @@ def main():
             seed_role_weights(con)
             seed_event_types(con)
             create_views(con)
-            mart_objects = create_mart(con)
             seed_career(con)
+            mart_objects = create_mart(con)
             print(f"{args.db}: role-weight seeds + {len(VIEWS)} views + {len(mart_objects)} "
                   f"mart objects rebuilt (nothing loaded)")
         finally:
@@ -2202,8 +2189,8 @@ def main():
         rebuild_persons(con)
         seed_event_types(con)
         create_views(con)
+        seed_career(con, _extract_career(dirs))
         mart_objects = create_mart(con)
-        seed_career(con)
         print(f"done: {ok} loaded, {fail} failed. views refreshed, "
               f"{len(mart_objects)} mart objects rebuilt.")
     finally:

@@ -117,32 +117,32 @@ def _est_count(attrs):
 # ATTACHed copy (see tests/validate_mart.py) — the mart objects are then built locally
 # while the source stays untouched.
 
-# Classic gaps-and-islands interval merge, applied per tid to a CTE named `raw`
-# (person_id, tid, spell_start, spell_end). Spells that overlap or merely touch (<= 1 day
-# apart) collapse into one; genuinely separate spells stay separate. Partitioned on tid
-# rather than person_id because person_id can be NULL — a recycled tid's spells are years
-# apart, so the gap test keeps them as distinct islands anyway.
-_MERGE_SPELLS = """
+# The weekly Player Progress status bits (staging.player_progress.status).
+PROGRESS_INJURED = 3        # bits 0-1: injured that week (training injuries included)
+PROGRESS_OFF_SEASON = 16    # bit 4: the off-season week at the season boundary
+PROGRESS_ON_LOAN = 32       # bit 5: out on loan that week (never set on a loan IN)
+
+
+def _week_spells(flag, gap_days):
+    """Gaps-and-islands over mart.progress_weeks: runs of weeks with `flag` set, a new spell
+    wherever the next such week is more than `gap_days` after the last. One row per spell:
+    (tid, person_id, spell_start, spell_end, weeks)."""
+    return f"""
     SELECT tid, any_value(person_id) AS person_id,
-           MIN(spell_start) AS spell_start, MAX(spell_end) AS spell_end
+           MIN(week) AS spell_start, MAX(week) AS spell_end, COUNT(*) AS weeks
     FROM (
-        SELECT *, SUM(new_island) OVER (PARTITION BY tid ORDER BY spell_start,
-                                        spell_end) AS island
+        SELECT *, SUM(new_spell) OVER (PARTITION BY tid ORDER BY week) AS spell
         FROM (
-            SELECT *, CASE WHEN prev_max_end IS NULL
-                             OR spell_start > prev_max_end + INTERVAL 1 DAY
-                           THEN 1 ELSE 0 END AS new_island
-            FROM (
-                SELECT raw.*, MAX(spell_end) OVER (
-                           PARTITION BY tid ORDER BY spell_start, spell_end
-                           ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                       ) AS prev_max_end
-                FROM raw
-            )
+            SELECT tid, person_id, week,
+                   CASE WHEN week - LAG(week) OVER (PARTITION BY tid ORDER BY week)
+                             <= {gap_days} THEN 0 ELSE 1 END AS new_spell
+            FROM mart.progress_weeks
+            WHERE status & {flag} <> 0
         )
     )
-    GROUP BY tid, island
+    GROUP BY tid, spell
 """
+
 
 MACROS = [
     # Orderable phase key. Date-phases ('YYYY-MM-DD') already sort correctly as strings;
@@ -189,18 +189,31 @@ SELECT
 FROM {S}.extracts e
 """
 
-# Our club tids, derived from the data rather than from fmparser.careers, so the mart
-# travels with the published store (where no career registry is available) and stays
-# career-agnostic. `player_injuries` is scraped for the MANAGED SQUAD only, so the clubs
-# its players belong to are exactly ours. The >= 3 floor guards against a single
-# loaned-out player's row reading as his destination club.
+# Our club tids: the club we manage, which the loader records from the career
+# (staging.app_config `career_managed_tid`), and its reserve side, the club whose record
+# names it as its main club. The two squad arrays (staging.club_squad) between them hold our
+# whole squad. A store loaded before the loader recorded the managed tid falls back to the
+# club in the most named-competition matches -- the save's match list is our own matches.
 OUR_CLUBS = """
 CREATE OR REPLACE VIEW mart.our_clubs AS
-SELECT p.club_tid
-FROM {S}.player_injuries i
-JOIN {S}.players p USING (season, phase, tid)
-GROUP BY p.club_tid
-HAVING COUNT(DISTINCT i.tid) >= 3
+WITH recorded AS (
+    SELECT CAST(value AS INTEGER) AS club_tid
+    FROM {S}.app_config WHERE key = 'career_managed_tid'
+),
+managed AS (
+    SELECT club_tid FROM recorded
+    UNION ALL
+    SELECT * FROM (
+        SELECT t FROM (SELECT home_tid AS t FROM {S}.matches WHERE competition IS NOT NULL
+                       UNION ALL
+                       SELECT away_tid FROM {S}.matches WHERE competition IS NOT NULL)
+        WHERE NOT EXISTS (SELECT 1 FROM recorded)
+        GROUP BY t ORDER BY COUNT(*) DESC LIMIT 1)
+)
+SELECT club_tid FROM managed
+UNION
+SELECT DISTINCT cd.tid FROM {S}.club_details cd
+WHERE cd.main_club_tid IN (SELECT club_tid FROM managed)
 """
 
 # Our clubs split into the FIRST TEAM and the reserve side. `mart.our_clubs` holds both, which
@@ -1798,7 +1811,8 @@ r AS (
 spells AS (
     SELECT
         r.person_id, r.tid,
-        (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = r.tid)  AS name,
+        COALESCE((SELECT pe.name FROM {S}.persons pe WHERE pe.person_id = r.person_id),
+             (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = r.tid))  AS name,
         'loan_in' AS spell_type, r.club_tid,
         CAST(NULL AS VARCHAR) AS club, r.season,
         CASE WHEN {window} = 'winter' THEN winter_cut(r.season)
@@ -1819,29 +1833,32 @@ SELECT person_id, tid, name, spell_type, club_tid, club, season,
 FROM spells WHERE valid_to >= valid_from
 """
 
-# loan_out spells, lifted from the parsed weekly Player-Progress flag — these carry REAL
-# dates, unlike loan-ins. One normalisation is needed: `_merge_ranges(gap_days=8)` glues a
-# loan to its renewal when the weekly flag never drops for more than 8 days across the
-# summer, producing 75-77 week spells that span two seasons (5 of 10 at the latest
-# snapshot). The one-season rule says those are two loans, so the interval is clipped to
-# each season it touches.
+# One row per tracked player per week, from staging.player_progress. The table is re-read on
+# every snapshot and a week can be stored more than once in one save, so every copy of a
+# (tid, week) from every snapshot is OR-ed into one status. Each save holds the managed
+# squad and reserves back to their first week at the club; a player's weeks leave the save
+# with him, so a departed player's weeks come from the snapshots taken while he was ours.
+PROGRESS_WEEKS = f"""
+CREATE OR REPLACE VIEW mart.progress_weeks AS
+SELECT pp.tid, any_value(ps.person_id) AS person_id, pp.week,
+       bit_or(pp.status) AS status,
+       bit_or(pp.status) & {PROGRESS_INJURED} <> 0     AS injured,
+       bit_or(pp.status) & {PROGRESS_OFF_SEASON} <> 0  AS off_season,
+       bit_or(pp.status) & {PROGRESS_ON_LOAN} <> 0     AS on_loan
+FROM {{S}}.player_progress pp
+LEFT JOIN {{S}}.person_slices ps USING (season, phase, tid)
+GROUP BY pp.tid, pp.week
+"""
+
+# Loan-out spells from the weekly on-loan bit -- REAL dates, unlike loan-ins. The gap allowed
+# between flagged weeks is 22 days because the weekly series pauses over the off-season week
+# at the season boundary, which would otherwise split one continuous loan in two. That same
+# tolerance glues a loan to its renewal when the flag never drops across the summer
+# (75-77 week spells over two seasons); the one-season rule says those are two loans, so
+# each spell is clipped to every season it touches.
 LOAN_OUT = """
 CREATE OR REPLACE VIEW mart.loan_out_spells AS
--- `player_loans` is re-scraped every snapshot, and the weekly Player-Progress table has a
--- limited visibility window, so ONE real loan comes back with DIFFERENT spell_start values
--- from different snapshots (an early snapshot sees it starting 2023-01-06; a later one
--- sees the same loan from 2022-07-14). Deduping on (tid, spell_start) therefore keeps
--- several partial copies of the same loan, which then overlap. The fix is a proper
--- interval merge — union every observation of a player's loan state, then split.
-WITH raw AS (
-    SELECT ps.person_id, l.tid, l.spell_start, l.spell_end
-    FROM {S}.player_loans l
-    LEFT JOIN {S}.person_slices ps USING (season, phase, tid)
-),
-merged AS ({merge}),
--- Only NOW split at the season line: a merged 75-77 week block is a loan plus its
--- renewal (`_merge_ranges(gap_days=8)` glues them when the weekly flag never drops across
--- the summer), and the one-season-max rule says those are two loans.
+WITH merged AS (""" + _week_spells(PROGRESS_ON_LOAN, 22) + """),
 split AS (
     SELECT merged.*, UNNEST(range(CAST(season_of(merged.spell_start) AS INT),
                                   CAST(season_of(merged.spell_end) AS INT) + 1)) AS s
@@ -1849,7 +1866,8 @@ split AS (
 )
 SELECT
     person_id, tid,
-    (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = split.tid) AS name,
+    COALESCE((SELECT pe.name FROM {S}.persons pe WHERE pe.person_id = split.person_id),
+             (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = split.tid)) AS name,
     'loan_out' AS spell_type,
     CAST(NULL AS INTEGER) AS club_tid,   -- destination club is not in the save
     CAST(NULL AS VARCHAR) AS club,
@@ -1861,23 +1879,16 @@ FROM split
 WHERE GREATEST(spell_start, season_start(s)) <= LEAST(spell_end, season_end(s))
 """
 
-# Injury spells, lifted as parsed. Deliberately NOT split at the season boundary: the
-# one-season rule is about loans, and a long-term injury genuinely does run continuously
-# across a summer.
+# Injury spells from the weekly injured bits, consecutive weeks up to 8 days apart.
+# Deliberately NOT split at the season boundary: the one-season rule is about loans, and a
+# long-term injury genuinely does run continuously across a summer.
 INJURED = """
 CREATE OR REPLACE VIEW mart.injury_spells AS
--- Same interval merge as loan_out (the same re-scrape/visibility-window effect applies),
--- but deliberately NOT split at the season line: the one-season rule is about loans, and a
--- long-term injury genuinely does run continuously across a summer.
-WITH raw AS (
-    SELECT ps.person_id, i.tid, i.spell_start, i.spell_end
-    FROM {S}.player_injuries i
-    LEFT JOIN {S}.person_slices ps USING (season, phase, tid)
-),
-merged AS ({merge})
+WITH merged AS (""" + _week_spells(PROGRESS_INJURED, 8) + """)
 SELECT
     merged.person_id, merged.tid,
-    (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = merged.tid) AS name,
+    COALESCE((SELECT pe.name FROM {S}.persons pe WHERE pe.person_id = merged.person_id),
+             (SELECT any_value(p.name) FROM {S}.players p WHERE p.tid = merged.tid)) AS name,
     'injured' AS spell_type,
     CAST(NULL AS INTEGER) AS club_tid,
     CAST(NULL AS VARCHAR) AS club,
@@ -3069,7 +3080,8 @@ LEFT JOIN {S}.person_slices ps
        ON (ps.season, ps.phase, ps.tid) = (cs.season, cs.phase, cs.player_tid)
 """
 
-# Players owned by our managed club / reserves who are actively on loan to an external club.
+# Players owned by our managed club / reserves who are actively on loan to an external club,
+# with the loan spell of the snapshot's season as far as that snapshot has seen it.
 OUR_LOANEES_OUT = """
 CREATE OR REPLACE VIEW mart.our_loanees_out AS
 WITH our_reserves AS (
@@ -3081,7 +3093,8 @@ SELECT s.season, s.phase, s.snap_ix, s.phase_date,
        p.tid, p.name,
        cs.club_tid AS loan_club_tid,
        c.name      AS loan_club_name,
-       l.spell_start, l.spell_end
+       l.valid_from AS spell_start,
+       LEAST(l.valid_to, s.phase_date) AS spell_end   -- as far as this snapshot has seen
 FROM our_reserves r
 JOIN mart.snapshots s USING (season, phase)
 JOIN {S}.club_squad cs
@@ -3091,8 +3104,8 @@ JOIN {S}.clubs c
   ON (c.season, c.phase, c.tid) = (cs.season, cs.phase, cs.club_tid)
 JOIN {S}.players p
   ON (p.season, p.phase, p.tid) = (cs.season, cs.phase, cs.player_tid)
-LEFT JOIN {S}.player_loans l
-  ON (l.season, l.phase, l.tid) = (p.season, p.phase, p.tid)
+LEFT JOIN mart.loan_out_spells l
+  ON l.tid = p.tid AND l.season = s.season AND l.valid_from <= s.phase_date
 """
 
 # --- analysis views: the answers fmq and the scouting skills ask for most -------------
@@ -3543,7 +3556,6 @@ ORDER = [
     ("mart.staff", STAFF),
     ("mart.club_managers", CLUB_MANAGERS),
     ("mart.club_roster", CLUB_ROSTER),
-    ("mart.our_loanees_out", OUR_LOANEES_OUT),
     ("mart.player_snapshots", PLAYER_SNAPSHOTS),
     ("mart.player_position_levels", PLAYER_POSITION_LEVELS),
     ("mart.player_primary_position", PLAYER_PRIMARY_POSITION),
@@ -3565,8 +3577,10 @@ ORDER = [
     ("mart.club_runs", CLUB_RUNS),
     ("mart.at_club_spells", AT_CLUB),
     ("mart.loan_in_spells", LOAN_IN),
+    ("mart.progress_weeks", PROGRESS_WEEKS),
     ("mart.loan_out_spells", LOAN_OUT),
     ("mart.injury_spells", INJURED),
+    ("mart.our_loanees_out", OUR_LOANEES_OUT),
     ("mart.player_spells", PLAYER_SPELLS),
     ("mart.squad_on", SQUAD_ON),
     ("mart.snapshot_squad", SNAPSHOT_SQUAD),
@@ -3601,6 +3615,10 @@ LATE_STAGING = {
         round_index INTEGER, round_name_id BIGINT, round_teams INTEGER, legs INTEGER)""",
     "round_names": """CREATE TABLE {S}.round_names (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR)""",
+    "player_progress": """CREATE TABLE {S}.player_progress (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        week DATE NOT NULL, status INTEGER NOT NULL, line_0 INTEGER, line_1 INTEGER,
+        line_2 INTEGER, line_3 INTEGER, line_4 INTEGER, line_5 INTEGER)""",
     "training": """CREATE TABLE {S}.training (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         intensity INTEGER, focus_role INTEGER, focus_attribute INTEGER,
@@ -3621,7 +3639,7 @@ def create_mart(con, src="staging"):
     for stmt in MACROS:
         con.execute(stmt)
     for name, sql in ORDER:
-        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, merge=_MERGE_SPELLS))
+        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL))
     return [n for n, _ in ORDER]
 
 

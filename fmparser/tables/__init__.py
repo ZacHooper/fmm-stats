@@ -4,7 +4,8 @@
 from .cities import CITIES_TABLE, CITY, CITY_RECORD, scrape_cities
 from .clubs import CLUB_TABLE, club_details, locate_clubs, scrape_clubs
 from .history import HISTORY_TABLE, history_heads, locate_history, scrape_history
-from .player_progress import PLAYER_PROGRESS_TABLE, locate_player_progress, progress_series
+from .player_progress import (PLAYER_PROGRESS_TABLE, locate_player_progress,
+                              scrape_player_progress)
 from .training import TRAINING_TABLE, locate_training, scrape_training, training_table_spans
 from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LIST_TRAILERS_TABLE,
                            locate_player_lists, player_lists_table_spans,
@@ -221,7 +222,7 @@ __all__ = [
     # Player progress
     "PLAYER_PROGRESS_TABLE",
     "locate_player_progress",
-    "progress_series",
+    "scrape_player_progress",
     # Training
     "TRAINING_TABLE",
     "locate_training",

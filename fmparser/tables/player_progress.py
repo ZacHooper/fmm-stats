@@ -18,8 +18,11 @@ every save of both careers -- with no count in front of it:
                           goalkeeper; unread
 
 An unused row is one fixed template (tid, lines, day and the +24 block all 0xff; year
-0x07E4). A player has two rows per week, in slots anywhere in the pool: the game recycles
-rows, and the two copies can disagree on the status bits.
+0x07E4). The players tracked are the managed club's squad and reserves (35 on
+frem-2027-06-15), back to their first week at the club. A week is usually one row; a few are
+two to four, in slots anywhere in the pool (the game recycles rows), and the copies can
+disagree on the status bits and the lines. `scrape_player_progress` hands every used row over
+as stored; what the bits mean for a player is read in the mart.
 
 Located from a run of unused rows, then walked both ways, row by row, while each row is an
 unused row or a dated one (`+18` 0, a day of the year, a year from the 0x07E4 sentinel to the
@@ -33,22 +36,18 @@ from ..save import cache_key as _cache_key
 from .save_header import read_save_header
 
 __all__ = [
-    "INJURED",
-    "OFF_SEASON",
-    "ON_LOAN",
     "PLAYER_PROGRESS_TABLE",
     "PROGRESS_ROW",
     "ROWS",
     "locate_player_progress",
-    "progress_series",
+    "scrape_player_progress",
 ]
 
 ROWS = 62_400                    # rows in the pool, on every save
 NO_PLAYER = 0xFFFFFFFF
 EMPTY_YEAR = 0x07E4
-INJURED = 3                      # bits 0-1 of `status`
-OFF_SEASON = 16                  # bit 4
-ON_LOAN = 32                     # bit 5
+NO_LINE = 0xFFFF
+LINES = tuple(f"line_{i}" for i in range(6))
 
 PROGRESS_ROW = Record("player_progress_row", 70, [
     Field(0, 4, "player_tid", U32, note="0xffffffff = unused row"),
@@ -111,19 +110,18 @@ PLAYER_PROGRESS_TABLE = TableDef(
 )
 
 
-def progress_series(mm: Any) -> Dict[int, Dict[datetime.date, int]]:
-    """{player_tid: {week date: status}} over every used row, the status bits of a week's
-    two rows OR-ed together. Raises `ValueError` if the pool is not located."""
-    run = locate_player_progress(mm)
-    if run is None:
+def scrape_player_progress(mm: Any) -> List[Dict[str, Any]]:
+    """Every used row, in pool order: {tid, week, status, line_0..line_5}, `week` an ISO date
+    and a line None where it reads 0xffff. Raises `ValueError` if the pool is not located."""
+    rows = PLAYER_PROGRESS_TABLE.scrape(mm)
+    if not rows:
         raise ValueError(f"player_progress: the {ROWS}-row pool is not located")
-    cols = PROGRESS_ROW.columns(mm, run[0], run[1], ["player_tid", "status", "day", "year"])
-    out: Dict[int, Dict[datetime.date, int]] = {}
-    for tid, status, day, year in zip(cols["player_tid"], cols["status"], cols["day"],
-                                      cols["year"]):
-        if tid == NO_PLAYER:
+    out = []
+    for r in rows:
+        if r["player_tid"] == NO_PLAYER:
             continue
-        date = datetime.date(year, 1, 1) + datetime.timedelta(days=day)
-        weeks = out.setdefault(tid, {})
-        weeks[date] = weeks.get(date, 0) | status
+        week = datetime.date(r["year"], 1, 1) + datetime.timedelta(days=r["day"])
+        rec = {"tid": r["player_tid"], "week": week.isoformat(), "status": r["status"]}
+        rec.update((k, None if r[k] == NO_LINE else r[k]) for k in LINES)
+        out.append(rec)
     return out
