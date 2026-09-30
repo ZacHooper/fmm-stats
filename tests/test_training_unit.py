@@ -5,7 +5,8 @@
             like a table with the wrong count; the span includes the count
   SCRAPE    players only (unused rows and staff left out), with intensity, role, attribute
             focus and the position decoded from its (band, column) pair
-  FRAMING   a row whose tid is neither its index nor unused fails the scrape
+  STATUS    squad status for players under contract only; a free agent's byte is not read
+  FRAMING   a row whose tid is neither its index nor unused fails both scrapes
 """
 import os
 import struct
@@ -20,10 +21,12 @@ STRIDE = 61                         # the row width measured on every save, not 
 COUNT = 12_000
 
 
-def row(tid, role=0xFFFF, attr=0, intensity=2, band=0, column=0, staff_flag=0):
+def row(tid, role=0xFFFF, attr=0, intensity=2, band=0, column=0, staff_flag=0,
+        contracted=0, status=0):
     r = bytearray(STRIDE)
     struct.pack_into("<IIBIIIHHHHBB", r, 0, tid, 1000 + (tid & 0xFFFF), 7, 50_000, 47_000, 0,
                      intensity, role, staff_flag, attr, band, column)
+    r[37], r[39] = contracted, status
     return bytes(r)
 
 
@@ -36,10 +39,13 @@ def table(overrides):
 
 def build():
     body = table({
-        0: row(0, role=1, attr=6, band=0x01, column=0x00),               # GK, Sweeper Keeper
-        1: row(1, role=4, attr=18, intensity=3, band=0x84, column=0x00),  # DL, Wing-Back
-        2: row(2, role=21, attr=17, band=0x40, column=0x02),              # ST, Adv. Forward
-        3: row(3, role=10, attr=18, band=0x10, column=0x08),              # MR, Inv. Winger
+        0: row(0, role=1, attr=6, band=0x01, column=0x00,                # GK, Sweeper Keeper
+               contracted=T.CONTRACTED, status=3),
+        1: row(1, role=4, attr=18, intensity=3, band=0x84, column=0x00,  # DL, Wing-Back
+               contracted=T.CONTRACTED, status=T.LOAN_STATUS),
+        2: row(2, role=21, attr=17, band=0x40, column=0x02, status=92),  # ST, a free agent
+        3: row(3, role=10, attr=18, band=0x10, column=0x08,              # MR, Inv. Winger
+               contracted=T.CONTRACTED, status=0),
         5: b"\xff" * 4 + bytes(STRIDE - 4),                               # an unused row
     })
     # a decoy: tids 0-3 in place behind an implausible count
@@ -71,24 +77,35 @@ def test_scrape():
     print("  PASS players only; role, attribute, intensity and the decoded position")
 
 
+def test_status():
+    print("TESTING the squad status scrape")
+    T._CACHE.clear()
+    buf, _ = build()
+    status = T.scrape_squad_status(buf)
+    assert list(status.items()) == [(0, 3), (1, T.LOAN_STATUS), (3, 0)], status
+    print("  PASS contracted players only, in tid order; a free agent's status byte unread")
+
+
 def test_framing():
     print("TESTING a row out of place fails the scrape")
-    T._CACHE.clear()
     buf, base = build()
     broken = bytearray(buf)
     struct.pack_into("<I", broken, base + 7 * STRIDE, 9)           # row 7 claims tid 9
-    try:
-        T.scrape_training(bytes(broken))
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("a row out of place must fail the scrape")
+    for scrape in (T.scrape_training, T.scrape_squad_status):
+        T._CACHE.clear()
+        try:
+            scrape(bytes(broken))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"{scrape.__name__}: a row out of place must fail the scrape")
     print("  PASS")
 
 
 def main():
     test_locate()
     test_scrape()
+    test_status()
     test_framing()
     return 0
 

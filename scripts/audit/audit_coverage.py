@@ -140,10 +140,8 @@ def claims(mm, n):
         start = ARCH.locate(mm)[0]
         measured("archive (zstd container)", [(start, n)])
         names = list(ARCH.members(mm))
-        import re as _re
-        patterns = [_re.compile("^" + _re.escape(t.member).replace("<uid>", r"\d+") + "$")
-                    for t in T.TABLES.values() if getattr(t, "member", None)]
-        parsed = [m for m in names if any(p.match(m) for p in patterns)]
+        parsed = {m for t in T.TABLES.values() if getattr(t, "member", None)
+                  for m in ARCH.member_names(t.member, names)}
         print(f"  ~ archive: {len(parsed)} of {len(names)} members have a table "
               f"({', '.join(sorted({t.member for t in T.TABLES.values() if getattr(t, 'member', None)}))}); "
               f"the container is claimed whole", file=sys.stderr)

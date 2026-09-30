@@ -8,7 +8,7 @@ When you finish something, **delete its entry**. Do not tick it off, and do not 
 "CLOSED" note: what was learned goes into the reference doc the entry points at. Item numbers
 are for conversation only and are renumbered freely; never cite one in code or a commit.
 
-Last reviewed **2026-09-30**, after the match table, the last module on the migration list, joined the `core` framework.
+Last reviewed **2026-09-30**, after the framework goal closed: every table on `core`, and every record's padding measured by a table walk.
 
 ---
 
@@ -24,9 +24,10 @@ is organised around them:
 | **Stats** | `load_duckdb.py`, `fmstats/` | clean and join the data within a save and across saves |
 | **Site** | `site/`, `scripts/export_data.py` | a human-friendly view of the mart |
 
-**The parser is the focus.** Two goals: every table on the `core` framework
-([`parser-architecture.md`](parser-architecture.md)), and every byte of the save processed —
-then, a much longer tail, understood.
+**The parser is the focus.** Every table is on the `core` framework
+([`parser-architecture.md`](parser-architecture.md)), and every record a table reads has its
+padding measured. What is left is new bytes (every byte of the save processed), then, a much
+longer tail, understanding the bytes already read -- and moving the joins out of extract.
 
 | | |
 |---|---|
@@ -69,33 +70,23 @@ Live traps, each of which has produced numbers that looked fine and were not:
 
 ---
 
-## Parser — the framework: every table on `core`
-
-### 2. Padding that is data, and records no table walk reaches
-`audit_records.py`'s PADDING check measures every `PAD` span on every record a table reads.
-It found 35 that vary; they are now `UNKNOWN` `RAW` (undecoded data), which #5 and #10 list.
-Four records carrying `PAD` are walked by no table and so are not measured:
-`comp_man_header`, `comp_man_stage`, `comp_rules_header`, `contract_status`. Each is measured
-when a table walk reaches it.
-
----
-
 ## Parser — coverage: every byte processed
 
-On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1% unclaimed**
+On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1% unclaimed**
 (`audit_coverage.py`). The gaps, largest first, with what is known about each:
 
 ### 3. The unclaimed regions of the career half
-- **54.25–59.92 M**, **51.97–54.10 M** — around our match region. Unexamined. One populated
+- **54.21–59.27 M** (5.1 MB) — around our match region. Unexamined. One populated
   player-list block sits in this stretch on older saves (`Jeppe Corfitzen` at 56,336,372 on
   `frem-2026-06-11`), so start with #4's structure.
-- **Straight after the club-records table** (46.67 M on `frem-2027-08-08`): `[count u32]` =
+- **53.99–54.14 M** — straight after the training table (0.16 MB). Unexamined.
+- **Straight after the club-records table** (46.66 M on `frem-2027-08-08`): `[count u32]` =
   162 on every save, then variable-length rows carrying 21-byte matches shaped like the club
   team records (`[f32 value][year][day]…[club][opp][for][against]`). Likely the competitions'
   own record books. Walk it from its count, as the club records were.
 - **34.12–38.53 M** — the transfer band ([`transfer-history-record.md`](transfer-history-record.md):
   decoded, not parsed).
-- **13.96–16.68 M** — 85% filler, no count headers.
+- **13.96–16.68 M** — 85% filler, no count headers; and **13.68–13.96 M** before it.
 - A **stride-65 per-season table** (`[flag u8][value u16][tid u16][year u16]`) right after the
   550-byte `0xFF` wall that ends our matches; settle whether it is `table-framing.md`'s
   per-season series near 44.6 MB.
@@ -137,7 +128,9 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   - the Progress bar: a green fill, or a full yellow bar when the player is unlikely to improve
     further. Not the stored `pa - ca` (0 on yellow and near-empty bars alike); the green-fill
     rows are the ones with `+17` and `+41` non-zero. Diff two saves a few weeks apart.
-  - `+8` u8, `+9`/`+13` u32 (money-like; `+9` round), and the three dates at `+49/+53/+57`.
+  - `+8` u8, `+9`/`+13` u32 (money-like; `+9` round), `+31..36`, `+38`, `+40..48` and the
+    three dates at `+49/+53/+57`. The row also carries the squad status (`+37` contracted,
+    `+39` status), so it is a per-person status row as much as a training one.
   - surfacing it: each squad player's training focus on the site's Squad page.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
@@ -229,7 +222,10 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
   copy of +69, byte-identical on all 1,027 matches measured. A tactics screenshot for one
   match would settle the per-starter items.
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
-  (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records.
+  (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records;
+  the competition stage record (`comp_man_stage` +1..29, +50..55, and +72/+76, the second
+  halves of the FourCCs at +70/+74); the competition rules header (+8..19, +26..29 an f32,
+  +30..47).
 
 ### 10a. Every player's current-season stats by competition type (minor)
 The Player History screen's "This Season" panel splits the current season into Non
@@ -258,7 +254,7 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 `players.json` is a pre-joined row built in `extract.py` from about seven tables: the person
 table, the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three name id-tables
 + browse strings + the squad snapshot (`name`, by precedence: squad-list name, then common name,
-then legal name), the club table (`club`, `parent_club`), the contract-status records
+then legal name), the club table (`club`, `parent_club`), the training table's squad status
 (`squad_status`, loan flags) and the player attributes. None of that is extraction. Extract should dump each table as the save holds it,
 the loader write it to `staging`, and `fmstats/mart.py` do the joins — the name precedence a
 view (`mart.person_names`), `wage_gbp = wage_units × 520` a derivation.
@@ -399,8 +395,6 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   in `fm-parser-project.md` and `day1-league-membership.md`, and re-sync `MEMORY.md`.
 - **Old TODO numbers** are still cited as live work in `table-framing.md`, `date-search.md`
   and `agent-context/light-results-rolling-buffer.md`.
-- **`savefile-map.md`** has a "Table Engine Migration Status Summary" that should defer to #1
-  here rather than duplicate it.
 
 ---
 

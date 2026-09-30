@@ -6,7 +6,8 @@ from .clubs import CLUB_TABLE, club_details, locate_clubs, scrape_clubs
 from .history import HISTORY_TABLE, history_heads, locate_history, scrape_history
 from .player_progress import (PLAYER_PROGRESS_TABLE, locate_player_progress,
                               scrape_player_progress)
-from .training import TRAINING_TABLE, locate_training, scrape_training, training_table_spans
+from .training import (LOAN_STATUS, TRAINING_TABLE, locate_training, scrape_squad_status,
+                       scrape_training, training_table_spans)
 from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LIST_TRAILERS_TABLE,
                            locate_player_lists, player_lists_table_spans,
                            scrape_player_lists)
@@ -17,13 +18,10 @@ from .contracts import (
     CONTRACT,
     CONTRACT_DETAIL,
     CONTRACT_RECORD,
-    CONTRACT_STATUS,
     CONTRACT_STRIDE,
     CONTRACT_TABLE,
-    LOAN_STATUS,
     contracts_table_spans,
     locate_contracts,
-    scrape_contract_status,
     scrape_contracts,
 )
 from .comp_rules import (
@@ -278,13 +276,12 @@ __all__ = [
     "CONTRACT",
     "CONTRACT_DETAIL",
     "CONTRACT_RECORD",
-    "CONTRACT_STATUS",
     "CONTRACT_STRIDE",
     "CONTRACT_TABLE",
     "LOAN_STATUS",
     "contracts_table_spans",
     "locate_contracts",
-    "scrape_contract_status",
+    "scrape_squad_status",
     "scrape_contracts",
     # Currencies
     "CURRENCIES_TABLE",

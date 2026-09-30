@@ -71,6 +71,7 @@ UNKNOWNS, carried rather than guessed:
     also entry 0's name, so the leading copy may be a root-member pointer or may be
     something else entirely. Unnamed.
 """
+import re
 import struct
 
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
@@ -228,6 +229,14 @@ def directory(mm):
 def members(mm):
     """{filename: Entry} — e.g. 'fix_man.dat', 'comp_100104.dat'."""
     return {e.filename: e for e in directory(mm)[1]}
+
+
+def member_names(member, names):
+    """The archive members a table is read from: `member` itself, or where it names a family
+    of members with `<uid>` (`comp_<uid>.dat`), every member of that family, in `names`'
+    order."""
+    pat = re.compile("^" + re.escape(member).replace(re.escape("<uid>"), r"\d+") + "$")
+    return [n for n in names if pat.match(n)]
 
 
 def read_member(mm, entry):

@@ -46,7 +46,7 @@ that do not fit the four regimes.
 | **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), player progress (62,400 × 70 B, seeded from its unused-row template and walked both ways), the record blocks inside each club-records row (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
-| **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status |
+| **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | none: both records once read this way are table rows (below) |
 | **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | squad snapshot |
 
 The rest of this part is one section per shape: what it looks like in the bytes, how to find
@@ -241,6 +241,14 @@ keyed on a tid/uid/sid and then have to decide which copy is the live one.
   Keep the failure in mind when reading any other "provably impossible" in these notes: the
   measurement was right, the stride it was compared against was not, and at 78 bytes the ids
   come out `0, 2, 4, ...`, which is exactly what a phase reset looks like.
+- **Contract status** was the other one: a 40-byte record found by searching the file for
+  `87 00` and keeping the hits whose `[tid][uid]` matched the person table. Every hit is a
+  row of the **training table** (shape A, `[count u32][61 B rows]`, `tid == row`): the gaps
+  between hits are all multiples of 61, and the search had been finding that table one row
+  at a time. `87` is the row's `contracted` byte (+37; `00` on a free agent and on staff), and
+  the squad status is +39. `training.scrape_squad_status` reads it from the table, identical
+  to the search on all 31 saves of both careers, and the 29 bytes the old record declared as
+  padding are the row's training columns.
 
 **How it fails.** By picking the wrong copy, which produces *correct-looking* values for the
 wrong point in time. Validate every hit against the info spine, exactly as the scrapers in
@@ -459,10 +467,17 @@ in which class you reach for.
    `undeclared` counts are the list to add. Nested containers are `Nested(RECORD)`, lists of
    containers `ListOf(RECORD)`, and each nested record is declared the same way.
 4. **Define the table** -- `TableDef(...)` / `TaggedTableDef(...)` -- and read it with
-   `TABLE.scrape(mm)`; register it in `tables/__init__.py`'s `TABLES`.
+   `TABLE.scrape(mm)`; register it in `tables/__init__.py`'s `TABLES`. A record stored in
+   front of the rows -- a table's own header (`comp_man.dat`'s), or the header before each
+   tagged row (every `comp_<uid>.dat`'s) -- is the table's `header=`, so the audit measures it
+   with the rows. An archive table names its member (`member="fix_man.dat"`), or a family of
+   them (`member="comp_<uid>.dat"`, `archive.member_names`).
 5. **Audit it.** Nothing to add: every `Record` and `TaggedRecord` registers itself, and
    `audit_records.py` audits every registered schema of both kinds (byte coverage for packed,
-   tag coverage for tagged). `audit_records.py --map` prints both.
+   tag coverage for tagged), and measures every `PAD` span on every record a table walk
+   reaches, headers included. A registered record no walk reaches is listed as "not
+   measured": that is either a table missing its `header=` or a record read some other way,
+   and both are bugs. `audit_records.py --map` prints both.
 6. **Test it** -- extent and coverage on every save, plus ground truth for what you read
    (`tests/test_rule_files.py`: 3F Superliga has 12 teams).
 

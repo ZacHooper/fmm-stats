@@ -20,17 +20,18 @@ def build_synthetic_compman_blob(
     year_start: int = 2021,
     year_end: int = 2027,
 ) -> bytes:
-    """Build a minimal valid comp_man.dat payload."""
+    """Build a minimal valid comp_man.dat member, its 6-byte member header included."""
     buf = bytearray()
 
-    # 36-byte HEADER
+    # 42-byte HEADER, from the member header
     hdr = bytearray(CS.HEADER_STRIDE)
-    struct.pack_into("<HHH", hdr, 0, 1, 2, 3)
-    struct.pack_into("<HH", hdr, 6, year_start, year_end)
-    struct.pack_into("<I", hdr, 10, n_stages)
-    struct.pack_into("<H", hdr, 14, 2000)
-    struct.pack_into("<II", hdr, 16, 100, 200)
-    hdr[32:36] = b"\xff\xff\xff\xff"
+    hdr[0:6] = b"\x03\x01tad."
+    struct.pack_into("<HHH", hdr, 6, 1, 2, 3)
+    struct.pack_into("<HH", hdr, 12, year_start, year_end)
+    struct.pack_into("<I", hdr, 16, n_stages)
+    struct.pack_into("<H", hdr, 20, 2000)
+    struct.pack_into("<II", hdr, 22, 100, 200)
+    hdr[38:42] = b"\xff\xff\xff\xff"
     buf += hdr
 
     # n_stages * 78-byte STAGES
@@ -66,7 +67,13 @@ def test_compman_header_and_stages():
     assert stgs[0]["kickoff_time"] == 1500
     assert stgs[0]["match_week"] == 10
     assert stgs[1]["match_week"] == 11
-    print("  PASS compman header and stages parsing")
+
+    from fmparser.core import record_instances
+    found = [(r.name, off) for r, off in record_instances(blob, CS.COMP_STAGES_TABLE)]
+    assert found[0] == ("comp_man_header", 0), found[:2]
+    assert found[1:] == [("comp_man_stage", CS.HEADER_STRIDE + k * CS.STRIDE) for k in range(3)]
+    assert CS.COMP_STAGES_TABLE.scrape(blob) == stgs, "the registered table reads the member"
+    print("  PASS compman header and stages parsing; the audit sees the header and every stage")
 
 
 def test_compman_honour_schema():

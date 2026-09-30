@@ -10,7 +10,7 @@ metadata:
 **IGNORE `staging.players.loaned_out` and `squad_status` for availability / selection.** The
 user confirmed (2026-07-28) it's outdated: e.g. Selahattin Seyhun (tid 22908) reads
 `loaned_out=True` but is a first-choice starter — ST eff 407 (86th pct), 26 goals in 2255
-mins last season. It comes from `scrape_contract_status` (a separate structure), NOT the
+mins last season. It comes from the training table's squad-status byte (`training.scrape_squad_status`), NOT the
 attribute-snapshot reads we fixed in [[seyhun-attr-investigation]], so it was never corrected
 and appears to be a stale copy / wrong code interpretation.
 

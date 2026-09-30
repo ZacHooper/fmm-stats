@@ -30,8 +30,7 @@ def test_compman_cases():
 
         with open(p, "rb") as f:
             mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-            raw = A.extract(mm, "comp_man.dat")
-            blob = raw[6:]
+            blob = A.extract(mm, "comp_man.dat")
 
         hdr = CS.header(blob)
         assert hdr["n_stages"] == expected_stages, f"{fname}: expected {expected_stages}, got {hdr['n_stages']}"
