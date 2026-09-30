@@ -146,9 +146,12 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   x 61 B]`, row k = person tid k, `ffffffff` = not a player. Confirmed: `+0` tid, `+4` uid,
   `+21` intensity u16 (3 = the red high-intensity icon, 2 = normal; 1 and 0 also occur),
   `+23` Focus Role u16 (the snapshot role ids -- a snapshot's role IS the training focus role
-  on its date), `+27` Attr focus u16 (1 CRO, 3 PAS, 5 TAC, 6 HAN, 9 REF, 11 CRE, 18 PAC,
-  19 STA; 0, 2, 4, 8, 10, 12-15, 17 still to read), `+29` Focus Pos as the match slot
-  array's `(band, column)` pair. Unread: the Progress bar, `+8` u8, `+9`/`+13` u32
+  on its date), `+27` Attr focus u16 (1 CRO, 3 PAS, 5 TAC, 6 HAN, 8 AIR, 9 REF, 11 CRE,
+  14 POS, 17 STR, 18 PAC, 19 STA -- 34/34 squad rows on three screenshots; 0, 2, 4, 10, 12,
+  13, 15 still to read), `+29` Focus Pos as the match slot
+  array's `(band, column)` pair. Unread: the Progress bar (a green fill, or a full yellow bar when the player is unlikely
+  to improve further -- not the stored `pa - ca`, which reads 0 for yellow and near-empty bars
+  alike; green-fill rows are the ones with `+17` and `+41` non-zero), `+8` u8, `+9`/`+13` u32
   (money-like; `+9` round), `+17` u32, `+31..+48`, three dates at `+49/+53/+57`. Walk it by
   the count; check every save of both careers; then load it per snapshot.
 - **Competition teams of the year are not snapshots**: the game shows only the current
