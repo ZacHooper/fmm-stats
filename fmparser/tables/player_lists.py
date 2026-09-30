@@ -120,14 +120,17 @@ ATTRIBUTES = {
 _ATTR_AT = 28
 
 # The role a snapshot's profile shows, by id, as read off the Scrapbook Profile screens of
-# players holding each id. Not the squad number. Ids 2, 7, 8, 11, 14, 18, 20, 23 and 27-31 are
-# seen but not yet named; 4, 22 and 24 are the likely reads below and not yet confirmed.
+# players holding each id. Not the squad number. Ids run in position blocks -- 0-1 keepers,
+# 3-7 defenders, 8-12 wide, 13-17 central midfield, 18-24 strikers -- and 25-32 follow as a
+# second, later set in the same order. 22 and 24 are the likely reads, not yet confirmed;
+# 2, 8, 11, 18, 20, 23, 27-29 and 31 are unnamed.
 ROLES = {0: "Goalkeeper", 1: "Sweeper Keeper", 3: "Full-Back", 4: "Wing-Back",
-         5: "Central Defender", 6: "Ball Playing Defender", 9: "Winger",
-         10: "Inverted Winger", 12: "Inside Forward", 13: "Central Midfielder",
-         15: "Ball Winning Midfielder", 16: "Box to Box Midfielder", 17: "Advanced Playmaker",
-         19: "Target Forward", 21: "Advanced Forward", 22: "Complete Forward",
-         24: "Trequartista", 25: "Libero", 26: "Shadow Striker", 32: "Roaming Playmaker"}
+         5: "Central Defender", 6: "Ball Playing Defender", 7: "No-Nonsense Centre-Back",
+         9: "Winger", 10: "Inverted Winger", 12: "Inside Forward", 13: "Central Midfielder",
+         14: "Deep Lying Playmaker", 15: "Ball Winning Midfielder", 16: "Box to Box Midfielder",
+         17: "Advanced Playmaker", 19: "Target Forward", 21: "Advanced Forward",
+         22: "Complete Forward", 24: "Trequartista", 25: "Libero", 26: "Shadow Striker",
+         30: "Defensive Midfielder", 32: "Roaming Playmaker"}
 
 
 # The attribute block's other bytes, by index (the Scrapbook Profile screen, verified on
