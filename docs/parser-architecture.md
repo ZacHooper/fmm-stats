@@ -41,13 +41,13 @@ that do not fit the four regimes.
 
 | shape | how you find it | the validator that bounds it | used by |
 |---|---|---|---|
-| **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`); training (`[u32 count]` + 61 B rows, `tid == row`, a fixed gap after the progress pool); club records (`[u16 count]` straight after the history pool, one variable-length row per club) |
+| **A. Count-framed** | `[≥8 × 0xFF][count][record 0]` — the table declares its own size | `id == slot index`, on every declared record; for a tagged block, all `count` fields read strictly | competition table; ~20 tables carry the frame ([`table-framing.md`](table-framing.md)); the data dictionary's 667 rule files (`[u32 n][n tagged fields]`); training (`[u32 count]` + 61 B rows, `tid == row`, a fixed gap after the progress pool); club records (`[u16 count]` straight after the history pool, one variable-length row per club); **our matches** (`[u8 count]`, one `5,102 + 17 n` byte row per match, seeded from any row and walked back to the count) |
 | **B. Linked list** | each row holds the NEXT row's index (`FFFFFFFF` ends a chain); the rows it has not moved name the pool's base | the forest check on every row: no row reached twice, no pointer out of the pool, and every row on a chain from a head (`core.forest`) | career-history pool |
 | **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), player progress (62,400 × 70 B, seeded from its unused-row template and walked both ways), the record blocks inside each club-records row (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
 | **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
 | **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | contract status |
-| **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | our matches, squad snapshot |
+| **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | squad snapshot |
 
 The rest of this part is one section per shape: what it looks like in the bytes, how to find
 it, and **the way it fails** — because every one of these has cost real debugging time, and the
@@ -257,7 +257,12 @@ Before assuming a region needs one, look in front of its first record for a coun
 A): the club-records region was bounded this way until the u16 in front of it turned out to
 be the club count.
 
-**Markers and delimiters.** `matches.find_match_region` finds our own games, each opened by a delimiter cluster.
+**Our matches were read as this shape, and were not it.** The old `matches.py` found each
+game by a delimiter cluster (`21 22 55 15 0a 00 00 00`, repeated) and scanned forward from it
+for a header. The cluster is the per-starter tactic items at the END of the previous row, so
+the season's first match -- which has no previous row -- was never found: one match short on
+every save, both careers, for the life of the parser. The table has a u8 count in front of
+row 0 and rows whose length the row declares (`tables/matches.py`); see shape A.
 
 **How it fails.** *Drift.* Every window in `regions.py` was tuned on one career and is wrong
 for the other — Frem's contract-expiry records sit at ~29–31 M, nowhere near the Bucaspor
@@ -308,11 +313,14 @@ locator produced a plausible short result instead of an error. All four now rais
 |---|---|---|
 | `attributes.snapshot_bounds` | `SNAPSHOT_LO/HI` 62.3–63.2 MB | the *default career's* snapshot; any other career got an empty read |
 | `rule_files.find_region` | `TAGGED_LO/HI` — **and cached it** | one blind lookup served to every later caller for the life of the process |
-| `matches.extract_season` | `MATCH_LO` = 55 MB | 55 MB is *inside* Frem's own match region (~53.8 MB), so it dropped the start of that career |
+| `matches.extract_season` (retired) | `MATCH_LO` = 55 MB | 55 MB is *inside* Frem's own match region (~53.8 MB), so it dropped the start of that career |
 | `lightresults.build` | `LIGHT_LO/HI` 47.0–50.5 MB | Bucaspor-tuned; and measured across all 34 archived saves the locator never once returned empty, so this was dead code with a failure mode attached |
 
-`matches` reports rather than raises, because a 0-match save is a real thing and that is what
-one looks like; it scans from 0 instead of from a constant.
+The match table is not located on a save whose table is empty (after the July rollover, or on
+a career's first day), and that is correct there, not a locator failure. What tells the two
+apart is an independent table: the extract requires the match table to hold exactly our clubs'
+games in the world fixture list since the rollover (`matches.check_against_fixtures`), which
+agrees match for match on every save measured.
 
 ---
 
@@ -335,7 +343,7 @@ The modules:
 | module | what it holds |
 |---|---|
 | `fmparser/core/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `tag4`. Pure `(buffer, offset) -> value`. |
-| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), `FixedList` (`[n x item]`, n fixed by the layout), and the tagged format (`read_tree`). |
+| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), `FixedList` (`[n x item]`, n fixed by the layout), `Block` (a named run of segments), and the tagged format (`read_tree`). |
 | `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
 | `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged), `LinkedTableDef` (a linked pool, with `forest` / `follow`); `record_instances` lists every record a walk reads. |
 
@@ -440,9 +448,12 @@ in which class you reach for.
 3. **Declare the record.** Packed: a `Field` per byte range. A variable-length row is a
    sequence of segments -- `Record`s for the fixed stretches, `PString` for a
    length-prefixed string, `CountedList(name, count, item)` for `[count][count x item]`,
-   `FixedList(name, item, n)` for n preallocated slots --
+   `FixedList(name, item, n)` for n preallocated slots, `Block(name, *segments)` for a
+   structure the row holds more than once (a match's home and away team blocks, one layout
+   read twice into `{"home": {...}}` and `{"away": {...}}`) --
    and the walk steps through them in order (`tables/nations.py`: three strings and three
-   counted lists between fixed stretches). Tagged: a `Tag` per tag you
+   counted lists between fixed stretches; `tables/matches.py`: a counted event list, 50 event
+   slots and two team blocks of 20 player slots). Tagged: a `Tag` per tag you
    read, and `unread=` for every other tag seen. Build `unread` from the saves, not by
    hand: declare the tags you know, run `TABLE.coverage(mm)` over every save, and its
    `undeclared` counts are the list to add. Nested containers are `Nested(RECORD)`, lists of

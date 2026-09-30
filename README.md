@@ -61,7 +61,7 @@ fmparser/             the library
   save.py             mmap loader + search helpers
   regions.py          career config + region windows (the save-specific bits)
   staging.py          sweep each region into keyed tables (info spine, attributes)
-  matches.py          per-match stats, events, team stats, formation
+  tables/matches.py   our matches: events, both sides' player lines, score, formation
   attributes.py       own-squad (exact) + record locator + estimator
   model.py            frozen regression coefficients + predict()
   reference.py        club / competition names, player info field

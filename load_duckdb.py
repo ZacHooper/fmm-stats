@@ -34,7 +34,7 @@ from extract import parse_label
 from fmparser.model import ATTR_ORDER
 from fmparser import model as _A
 from fmparser import careers
-from fmparser import matches as M
+from fmparser.tables.matches import EVENT_TYPE
 from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
@@ -45,9 +45,11 @@ from fmstats.mart import create_mart, drop_mart
 _TS_KEYS = ["shots", "shots_on_target", "rating", "players_used", "passes",
             "passes_completed", "tackles", "tackles_won", "crosses", "interceptions"]
 
-# match-XI stat fields (authoritative list from matches.py). tid_int -> tid,
-# posOrder -> pos_order; the rest map straight through.
-_XI = M._XI_FIELDS  # noqa: SLF001 (intentional reuse of the canonical list)
+# a player's match line, as fmparser/tables/matches.py PLAYER_SLOT names it. posOrder ->
+# pos_order; the rest map straight through.
+_XI = ["posOrder", "tid", "rating", "goals", "assists", "passA", "passC", "keyPass",
+       "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC", "dribbles",
+       "mistakes", "mistGoal", "shotA", "shotO", "condition", "subOn", "subOff", "yellow"]
 
 # The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
 # store cannot drift from the record. See fmparser/tables/player_attributes.py HIDDEN_OFFSETS and
@@ -558,13 +560,13 @@ DDL = [
         formation_defensive_name VARCHAR
     )""",
 
-    # natural key: (season, phase, anchor)
+    # natural key: (season, phase, anchor); anchor is the match row's offset in the save
     """CREATE TABLE IF NOT EXISTS staging.matches (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, anchor BIGINT NOT NULL,
         date DATE, competition VARCHAR, comp_id INTEGER, home_flag INTEGER,
         home_tid INTEGER, away_tid INTEGER, attendance INTEGER,
         score_home INTEGER, score_away INTEGER, star_home INTEGER, star_away INTEGER,
-        formation VARCHAR,
+        formation VARCHAR, player_of_match INTEGER,
         home_shots INTEGER, home_shots_on_target INTEGER, home_rating DOUBLE,
         home_players_used INTEGER, home_passes INTEGER, home_passes_completed INTEGER,
         home_tackles INTEGER, home_tackles_won INTEGER, home_crosses INTEGER,
@@ -1342,60 +1344,118 @@ def load_core(con, d, season, phase):
             ["season", "phase", "league_cid", "club_tid", "source"], rows)
 
     # --- matches + events + player stats -------------------------------------
+    # matches.json is the match table as stored (fmparser/tables/matches.py); what the game
+    # does not store -- a competition's name, play-off leg labels, a side's star and its
+    # summed team stats, which starter stood where -- is derived here, in _match_derived.
     season_matches = _load_json(os.path.join(d, "matches.json"))
+    comp_names = {int(k): v.get("name") for k, v in (comps or {}).items()}
+    labels = _match_competitions(season_matches, comp_names)
     m_cols = (["season", "phase", "anchor", "date", "competition", "comp_id",
                "home_flag", "home_tid", "away_tid", "attendance", "score_home",
-               "score_away", "star_home", "star_away", "formation"]
+               "score_away", "star_home", "star_away", "formation", "player_of_match"]
               + [f"home_{k}" for k in _TS_KEYS] + [f"away_{k}" for k in _TS_KEYS])
     ev_cols = ["season", "phase", "anchor", "seq", "minute", "added", "min_display",
                "tid", "type", "type_byte", "b0"]
-    # `position` is not in _XI: that list mirrors the stat block's own fields, and the
-    # decoded starting position comes from the slot array instead (NULL for the
-    # opposition and for substitutes). See fmparser/matches.parse_slot_positions.
+    # `position` is not in _XI: that list mirrors the player slot's own fields, and the
+    # starting position comes from our side's position array instead (NULL for the
+    # opposition and for substitutes).
     mps_cols = (["season", "phase", "anchor", "side", "tid", "team_tid",
                  "opponent_tid", "date", "competition", "pos_order", "rating"]
-                + [f for f in _XI if f not in ("posOrder", "tid_int", "rating")]
+                + [f for f in _XI if f not in ("posOrder", "tid", "rating")]
                 + ["position"])
     m_rows, ev_rows, mps_rows = [], [], []
-    for m in season_matches:
-        anchor = _int(m.get("anchor"))
+    for m, comp in zip(season_matches, labels):
+        anchor = _int(m.get("offset"))
         score = m.get("score") or {}
-        ts = m.get("team_stats") or {}
-        h = ts.get("home") or {}
-        a = ts.get("away") or {}
+        dv = _match_derived(m)
+        h, a = dv["team_stats"]["home"] or {}, dv["team_stats"]["away"] or {}
         home_tid, away_tid = _int(m.get("home_tid")), _int(m.get("away_tid"))
-        mdate, comp = _date(m.get("date")), m.get("competition")
+        mdate = _date(m.get("date"))
         m_rows.append((
             season, phase, anchor, mdate, comp, _int(m.get("comp_id")),
             _int(m.get("home_flag")), home_tid, away_tid, _int(m.get("attendance")),
             _int(score.get("home")), _int(score.get("away")),
-            _int(m.get("star_home")), _int(m.get("star_away")), m.get("formation"),
+            dv["star"]["home"], dv["star"]["away"], m.get("formation"),
+            _int(m.get("player_of_match")),
             *[_num(h.get(k)) for k in _TS_KEYS], *[_num(a.get(k)) for k in _TS_KEYS],
         ))
         for i, e in enumerate(m.get("events") or []):
-            ev_rows.append((season, phase, anchor, i, _int(e.get("min")),
-                            _int(e.get("added")), e.get("min_display"),
-                            _int(e.get("tid")), e.get("type"),
+            minute, added = _int(e.get("minute")) + 1, _int(e.get("added"))
+            ev_rows.append((season, phase, anchor, i, minute, added,
+                            f"{minute}+{added}" if added else str(minute),
+                            _int(e.get("tid")),
+                            EVENT_TYPE.get(e["type_byte"], f"?{e['type_byte']:02x}"),
                             _int(e.get("type_byte")), _int(e.get("b0"))))
         for side, team_tid, opp_tid in (("home", home_tid, away_tid),
                                         ("away", away_tid, home_tid)):
             side_seen = set()
-            for x in m.get(f"{side}_xi") or []:
-                tid = _int(x.get("tid_int"))
+            for x, position in zip(m.get(f"{side}_xi") or [], dv["positions"][side]):
+                tid = _int(x.get("tid"))
                 if tid is None or tid in side_seen:
                     continue
                 side_seen.add(tid)
                 mps_rows.append((
                     season, phase, anchor, side, tid, team_tid, opp_tid, mdate, comp,
                     _int(x.get("posOrder")), _int(x.get("rating")),
-                    *[_int(x.get(f)) for f in _XI
-                      if f not in ("posOrder", "tid_int", "rating")],
-                    x.get("position"),
+                    *[_int(x.get(f)) for f in _XI if f not in ("posOrder", "tid", "rating")],
+                    position,
                 ))
     counts["matches"] = _insert(con, "matches", m_cols, m_rows)
     counts["match_events"] = _insert(con, "match_events", ev_cols, ev_rows)
     counts["match_player_stats"] = _insert(con, "match_player_stats", mps_cols, mps_rows)
     return counts
+
+
+def _match_competitions(matches, comp_names):
+    """Each match's competition label: the competition's name, and for the play-offs (cid
+    227) ' Play-Off', plus the leg for a tie played twice -- ' (First Leg)' / ' (Second Leg)'
+    by date."""
+    labels = [comp_names.get(m.get("comp_id")) for m in matches]
+    legs = {}
+    for i, m in enumerate(matches):
+        if m.get("comp_id") == 227:
+            labels[i] = f"{labels[i]} Play-Off"
+            legs.setdefault(frozenset((m["home_tid"], m["away_tid"])), []).append(i)
+    for tie in legs.values():
+        if len(tie) == 2:
+            for k, i in enumerate(sorted(tie, key=lambda i: matches[i]["date"] or "")):
+                labels[i] += f" ({'First Leg' if k == 0 else 'Second Leg'})"
+    return labels
+
+
+def _match_derived(m):
+    """What a match row implies but does not store: per side, the star (best rating, then
+    goals, assists, completed passes), the team stats summed over the player lines (the
+    rating averaged over players who appeared), and each player's starting position -- our
+    side only, since the table holds only our shape."""
+    out = {"star": {}, "team_stats": {}, "positions": {}}
+    positions = m.get("positions")
+    for side in ("home", "away"):
+        team = m.get(f"{side}_xi") or []
+        ours = m.get("club_tid") == m.get(f"{side}_tid")
+        out["positions"][side] = [
+            positions[p["posOrder"] - 1] if ours and positions and 1 <= p["posOrder"] <= 11
+            else None for p in team]
+        if not team:
+            out["star"][side] = None
+            out["team_stats"][side] = None
+            continue
+        out["star"][side] = max(team, key=lambda p: (p["rating"], p["goals"], p["assists"],
+                                                     p["passC"]))["tid"]
+        played = [p["rating"] for p in team if p["posOrder"] <= 11 or p["subOn"] != 0xFF]
+        out["team_stats"][side] = {
+            "shots": sum(p["shotA"] for p in team),
+            "shots_on_target": sum(p["shotO"] for p in team),
+            "rating": round(sum(played) / len(played), 1) if played else None,
+            "players_used": len(played),
+            "passes": sum(p["passA"] for p in team),
+            "passes_completed": sum(p["passC"] for p in team),
+            "tackles": sum(p["tackA"] for p in team),
+            "tackles_won": sum(p["tackW"] for p in team),
+            "crosses": sum(p["crossA"] for p in team),
+            "interceptions": sum(p["intercept"] for p in team),
+        }
+    return out
 
 
 def _num(v):
@@ -1746,6 +1806,7 @@ _MIGRATIONS = [
     # 2026-08-29: real on-pitch position per starter, decoded from the 11 slot pairs that
     # follow the formation string. See docs/agent-context/match-position-encoding.md.
     "ALTER TABLE staging.match_player_stats ADD COLUMN IF NOT EXISTS position VARCHAR",
+    "ALTER TABLE staging.matches ADD COLUMN IF NOT EXISTS player_of_match INTEGER",
     # 2026-09: mistakes leading to a goal. Decoded all along (matches.FIELDS offset 23) but
     # dropped from _XI_FIELDS before serialisation, so it never reached the extract JSON.
     # Existing stores get the column as NULL: the value is missing from output/*.json, so a
@@ -1943,13 +2004,13 @@ def seed_reference(con):
 
 def seed_event_types(con):
     """(Re)seed staging.event_types, the byte -> name map the mart labels match events with,
-    from the parser's own table (fmparser.matches.EVENT_TYPE). Replaced wholesale on every load
-    and --refresh-only, so naming a byte reaches the store without a re-extract."""
+    from the parser's own table (fmparser.tables.matches.EVENT_TYPE). Replaced wholesale on
+    every load and --refresh-only, so naming a byte reaches the store without a re-extract."""
     con.execute("CREATE TABLE IF NOT EXISTS staging.event_types "
                 "(code INTEGER PRIMARY KEY, name VARCHAR NOT NULL)")
     con.execute("DELETE FROM staging.event_types")
     con.executemany("INSERT INTO staging.event_types VALUES (?, ?)",
-                    sorted(M.EVENT_TYPE.items()))
+                    sorted(EVENT_TYPE.items()))
 
 
 def seed_career(con, key=None):

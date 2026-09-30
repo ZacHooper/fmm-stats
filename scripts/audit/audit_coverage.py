@@ -153,13 +153,6 @@ def claims(mm, n):
     from fmparser.tables import save_header as HDR
     measured("tables.save_header", [(0, HDR.SAVE_HEADER.span)])
     declared("reference.name_table", 0, 520_000)
-    try:
-        from fmparser import matches as M
-        reg = M.find_match_region(mm)
-        if reg:
-            declared("matches.rich", reg[0], reg[1])
-    except Exception as exc:
-        print(f"  ! matches failed: {exc}", file=sys.stderr)
     return out
 
 

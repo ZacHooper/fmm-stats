@@ -20,7 +20,7 @@ Two encodings seen so far:
    `fmparser/tables/rule_files.py`) — separate `dyom`,`mont`,`year` fields. Less useful as a
    search key.
 
-The **detailed-match header** (fmparser/matches.py) is `[home:u16][away:u16][day:u16]
+The **detailed-match header** (fmparser/tables/matches.py) is `[home:u16][away:u16][day:u16]
 [year:u16][att:u16]`, with the comp cid at `date_off-3`. That's your ground-truth layout.
 
 ## Search recipe (validated)
@@ -106,7 +106,7 @@ Regenerate this table any time:
 ## Environment / tools
 - `from fmparser.save import Save` → `Save('21-22-end.fms').mm` (read-only mmap). Never write
   to the `.fms`.
-- `fmparser/matches.py` (detailed matches, header layout), `fmparser/lightresults.py`
+- `fmparser/tables/matches.py` (detailed matches, header layout), `fmparser/lightresults.py`
   (partial results, record layout with cid at +10), `fmparser/reference.py::resolve_club`
   (TID→name), `fmparser/staging.py::scrape_players` (valid club TID set).
 - Known club TIDs: Bucaspor 6567, Karacabey 6353, Galatasaray 955, Alanyaspor 1693. White

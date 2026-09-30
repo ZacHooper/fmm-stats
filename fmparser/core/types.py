@@ -188,6 +188,41 @@ class FixedList:
                             for i in range(self.n)]}, end
 
 
+class Block:
+    """A named run of segments read into one nested dict: `{name: {...}}`.
+
+    A segment of a `TableDef` row, for a structure the row holds more than once -- a match's
+    home and away team blocks are one layout, stored twice. Each segment is a `Record`, a
+    `CountedList`, a `FixedList` or another `Block`, read in order from `offset`.
+    """
+    __slots__ = ("name", "segments")
+
+    def __init__(self, name: str, *segments: Any):
+        self.name = name
+        self.segments = segments
+
+    def __repr__(self) -> str:
+        return f"Block({self.name!r}, {len(self.segments)} segments)"
+
+    def read(self, mm: Any, offset: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
+        """`({name: {...}}, next_offset)`, or None when a segment overruns `limit`."""
+        out: Dict[str, Any] = {}
+        pos = offset
+        for seg in self.segments:
+            if hasattr(seg, "read") and not hasattr(seg, "fields"):
+                res = seg.read(mm, pos, limit)
+                if res is None:
+                    return None
+                part, pos = res
+                out.update(part)
+            else:
+                if pos + seg.span > limit:
+                    return None
+                out.update(seg.read(mm, pos))
+                pos += seg.span
+        return {self.name: out}, pos
+
+
 # ---- the TAGGED format -----------------------------------------------------------------------
 # The save's data dictionary (`tables/rule_files.py`) and the archive's `comp_<uid>.dat`
 # members (`tables/comp_rules.py`) store key-value fields in one format:

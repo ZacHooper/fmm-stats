@@ -439,9 +439,9 @@ GROUP BY g.season, g.club_tid
 #
 # Coverage: our matches only, so this is our season's goal timings, not the league's.
 #
-# shootout_goal / shootout_miss (bytes 0x07/0x08) are named in fmparser/matches.py -- see the
-# comment there for the arithmetic that settles the direction. ?0e remains unidentified: 2
-# events, both in reserve fixtures, minutes 38 and 59.
+# shootout_goal / shootout_miss (bytes 0x07/0x08) are named in fmparser/tables/matches.py --
+# see the comment there for the arithmetic that settles the direction. ?0e remains
+# unidentified.
 MATCH_EVENTS = """
 CREATE OR REPLACE VIEW mart.match_events AS
 WITH ev AS (

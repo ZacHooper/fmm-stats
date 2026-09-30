@@ -6,9 +6,11 @@ checked exhaustively first and is a dead end (see "What is NOT there").
 
 ## The encoding
 
-Directly after the `FORMATION_MARKER` (`76 b9 f4 07`) + the ASCII formation string (e.g.
-`"4-1-4-1"`), skip the zero padding, then read **11 pairs of 2 bytes — one per starting slot, in
-XI order** (same order as `posOrder` 1..11).
+In the match row's tail (`fmparser/tables/matches.py` `MATCH_TAIL`): the `FORMATION_MARKER`
+(`76 b9 f4 07`) at +33, the ASCII formation string (e.g. `"4-1-4-1"`) in a fixed 32-byte
+zero-padded field at +37, then at **+69, 11 pairs of 2 bytes — one per starting slot, in XI
+order** (same order as `posOrder` 1..11). The offset is fixed: the old scan ("skip the zero
+padding after the string") landed on +69 in all 1,027 matches over 30 saves.
 
 ```
 pair = [band_byte][column_byte]
@@ -198,20 +200,11 @@ recover events by scanning *backwards* from the header for byte patterns (`parse
 Per match, ~5,170 bytes (`frem-2024-11-10.fms`, 35 anchors, 270 KB region). Before this
 investigation ~45% was parsed:
 
-| Region | Size | Status |
-|---|---|---|
-| `DELIM_UNIT` cluster | 80 B | parsed (anchor detection) |
-| pre-header gap | ~256 B | events, via fragile backward scan |
-| HEADER `[home u16][away u16][day u16][year u16][att u16]` | 10 B | parsed |
-| post-header block | **988 B (fixed)** | **goal list, 17-byte records** |
-| HOME XI | 18 × 62 B | parsed (54-byte block + 8-byte delim) |
-| gap between XIs | 247 B (681 when truncated) | **unparsed bench blocks — see bug above** |
-| AWAY XI | 18 × 62 B | parsed |
-| trailer → formation | 203 B | still unknown |
-| `FORMATION_MARKER` + string | 13 B | parsed (string only) |
-| **slot array** | **22 B** | **position encoding (this note)** |
-| slot array (duplicate) | 22 B | confirmed a verbatim repeat, not new data |
-| tail → next anchor | ~1,120 B | derived-from-slots (probable), not decoded to a meaning |
+The match row's full layout, every byte declared, is `fmparser/tables/matches.py` (and
+`scripts/audit/audit_records.py --map`). The positions are `MATCH_TAIL` +69; the duplicate at
++102 is byte-identical on all 1,027 matches measured, and three unnamed blocks of our tactic
+follow it (per-starter items at +1196, a coordinate grid at +220..1182) -- see
+`docs/TODO.md`'s unnamed-fields entry.
 
 Only one formation string and one slot array exist per match — confirmed no second occurrence
 anywhere in a match's span (searched, one hit). No mid-match change record exists; see "Positions
