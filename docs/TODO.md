@@ -78,10 +78,7 @@ locator (`parser-architecture.md` Part 1). `core` reads arrays of both row kinds
 byte-identical `tests/assert_identical.py`, the module's save test, `audit_records.py`, and one
 deliberate break:
 
-1. **The key-search tables (shape F)** (`injuries.py`, `squad.py`) — arrays whose start and
-   stride are not mapped yet. Research first: find each array's bounds, then it is an ordinary
-   array.
-2. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
+1. **`matches.py` (shape G)** — arrays ending at a delimiter; the header and stat block are
    already `Record`s. Move what fits; name what stays bespoke and why. Assert in code that the
    region is empty at a season boundary (0 anchors is correct there, not a locator failure).
 
@@ -107,7 +104,6 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1%
   162 on every save, then variable-length rows carrying 21-byte matches shaped like the club
   team records (`[f32 value][year][day]…[club][opp][for][against]`). Likely the competitions'
   own record books. Walk it from its count, as the club records were.
-- **45.36–51.22 M** — a stride-70 pool. Unnamed.
 - **34.12–38.53 M** — the transfer band ([`transfer-history-record.md`](transfer-history-record.md):
   decoded, not parsed).
 - **13.96–16.68 M** — 85% filler, no count headers.
@@ -117,13 +113,62 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 35.3% read, 1.2% declared, **25.1%
 
 Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 
-### 4. Player-list blocks
-~1.38 MB of blocks of **100 slots × 200 B** (+14 B per block), most slots an empty template.
-Populated slots hold a ~160 B binary core then `[full name][first][last][""][last][club short
-name][competition name]` — our squad lists and world/scouting lists. `attributes.snapshot_bounds`
-reads the five that are our squad; the other ~55 are unopened. Open: what the core holds beyond
-the 23 attributes, what selects the players in the world lists, and whether a block names its
-list. Find them by `14 01 00 0a 00` at gaps of exactly 200, in runs of exactly 100.
+### 4. Player lists: what is still unread
+`tables/player_lists.py` reads all 66 lists, identified against the game's screens on
+`frem-2027-06-15`: 0–30 the World Best XI pool of each season, 31–61 the Manager's Best
+Eleven pool of each season (every player who played for the manager, loanees included; it
+follows the manager, not the club), 62/64 and 63/65 the World and Manager's All-Time pools.
+Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as of its date
+(Nuamah's and Mikkel Andersson's 2022 snapshots verified field by field). `squad.py` reads the manager's lists; nothing else is emitted. Open:
+- **Which copy of each All-Time pair is live**: 63 carries this season's "New Entry" dates,
+  65 last season's. Confirm across a season boundary.
+- **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan
+  end and what the other two are; +22..+27; attribute-block indices 9 and 35; the u32 at
+  +83; +95 (4 bytes), +103 (5), +117 (3); the 46 bytes at +122; the trailer's first byte and
+  11 more bytes. The profile's up/down arrows beside some attributes (a change since an
+  earlier value) are somewhere unread: compare two profiles of one player. Squad number is not stored (the
+  profile's card is live: current club and number).
+- **Kits on the Best Eleven screens** are drawn from the snapshot's registration club's kit
+  record (Nuamah in FC Nordsjaelland's, a goalkeeper in the club's goalkeeper kit), not from
+  the snapshot: its `colour_1`/`colour_2` are the team he played FOR (Frem, for every
+  loanee). The kit STYLE is the first of the two unread flag bytes before each of the club
+  record's six kits (`tables/clubs.py` `_kit_fields`): Liverpool's plain home kit is 01,
+  Frem's red/blue stripes 31, Barcelona 30, Newcastle 25, FC Nordsjaelland 0c, Frem's
+  goalkeeper kit 0d, ff an unused kit. Name the ids from kits whose design is known; the
+  second byte (00/01/02) is unread.
+- **Snapshot role ids** (`+21`, `player_lists.ROLES`): all 33 assigned; the 12 in
+  `ROLES_INFERRED` are placed by position block and holders' attributes. The player-role table
+  below gives every player's CURRENT role, so `docs/role-ids.csv` now names famous players in
+  each role, whose live profiles can be checked directly.
+- **Training table -- found, not yet a TableDef.** It is the Club Squad > Training page
+  (checked row by row against a screenshot of frem-2027-06-15, 13/13 players). Right after
+  Player Progress (53.1 MB on 2027-06-15, 52.0 MB on 2027-08-08): `[count u32 = 32,966][32,966
+  x 61 B]`, row k = person tid k, `ffffffff` = not a player. Confirmed: `+0` tid, `+4` uid,
+  `+21` intensity u16 (3 = the red high-intensity icon, 2 = normal; 1 and 0 also occur),
+  `+23` Focus Role u16 (the snapshot role ids -- a snapshot's role IS the training focus role
+  on its date), `+27` Attr focus u16 (1 CRO, 3 PAS, 5 TAC, 6 HAN, 9 REF, 11 CRE, 18 PAC,
+  19 STA; 0, 2, 4, 8, 10, 12-15, 17 still to read), `+29` Focus Pos as the match slot
+  array's `(band, column)` pair. Unread: the Progress bar, `+8` u8, `+9`/`+13` u32
+  (money-like; `+9` round), `+17` u32, `+31..+48`, three dates at `+49/+53/+57`. Walk it by
+  the count; check every save of both careers; then load it per snapshot.
+- **Competition teams of the year are not snapshots**: the game shows only the current
+  season's, and a player opens his live profile, so there is nothing stored per year to find.
+- **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
+  `attribute_snapshot_date`, the date of the player attribute snapshot the squad's exact
+  attributes came from. Agreement
+  with the attributes stored on the player's own record falls with its age (84% under a
+  month, ~80% to seven months, ~60% at nine or more), and entries up to two years old are in
+  use (`frem-2026-06-11`: 2024-06-29). Decide in the mart when an old entry should give way
+  to the estimate.
+- Emit the lists (`player_lists.json` -> `staging`): every World Best XI and Manager's Best
+  Eleven, with each player's profile as it was.
+
+### 4a. Player progress: what is still unread
+`tables/player_progress.py` reads the pool; `injuries.py` uses the status bits. Open: the six
+u16 skill lines at +4 (which line is which on the Player Progress graph), status bits 3 (8)
+and 6 (64), and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
+the week's attribute values?). Named, the table could give every squad player's weekly
+development, not just injuries and loans.
 
 ### 5. Reference-half tables not yet read
 - The unnamed count-framed tables in [`table-framing.md`'s register](table-framing.md#the-complete-register).
@@ -291,6 +336,19 @@ reads the newest snapshot only.
   section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
   and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
   near-misses on the larger store: feet for Dribbling, height/weight for Shooting.
+- **Retrain on time-aligned rows.** Our squad's "exact" attributes and value are player
+  attribute snapshots (`tables/player_lists.py`), dated by `attribute_snapshot_date`, and a
+  player who has not played this season carries one up to two years old. Both fits pair a
+  snapshot with the CURRENT save's record bytes, CA and reputation
+  (`scripts/fit_attribute_model.py` joins `staging.players` to `player_attributes_exact` on
+  `(season, phase, tid)`; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
+  snapshot to predict a 2026 player -- and the same stale snapshot is repeated in every
+  store snapshot until he plays again. Train only on rows whose snapshot is fresh relative to
+  the save (written at the last monthly update, ~31 days before `phase`), or pair each
+  distinct snapshot with the store snapshot nearest its date, once per snapshot. Needs a
+  rebuild so the store carries `attribute_snapshot_date`. Re-score on the held-out players
+  (`scripts/holdout_score.py`) before and after; expect a small change, but it is a flaw in the
+  labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
 - **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
   snapshots.
 

@@ -153,18 +153,6 @@ def claims(mm, n):
     from fmparser.tables import save_header as HDR
     measured("tables.save_header", [(0, HDR.SAVE_HEADER.span)])
     declared("reference.name_table", 0, 520_000)
-    # DERIVED, not declared: `snapshot_bounds` locates this by marker cluster and now
-    # RAISES rather than falling back to `regions.SNAPSHOT_LO/HI`. Claiming the static
-    # window here would have reported 0.9 MB as covered on every career whose snapshot is
-    # somewhere else.
-    try:
-        from fmparser import squad as _SQ
-        from fmparser import careers as _C
-        s_lo, s_hi = _SQ.squad_snapshot_bounds(mm, _C.resolve_career().squad_markers)
-        declared("attributes.snapshot", s_lo, s_hi)
-    except Exception as exc:
-        print(f"  ! squad snapshot not located: {exc}", file=sys.stderr)
-
     try:
         from fmparser import matches as M
         reg = M.find_match_region(mm)

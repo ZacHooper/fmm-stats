@@ -161,7 +161,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     — a player in the reserves has a live record only under the RESERVE marker, and the
     copy under the first-team marker is frozen at the day he dropped out of that list.
     A player loaned IN has no record under either — his exact attrs+value sit under a
-    third marker shape entirely, [parent_club_tid][managed_tid]; see attributes.loan_marker."""
+    third marker shape entirely, [parent_club_tid][managed_tid]; see squad.loan_marker."""
     if isinstance(markers, (bytes, bytearray)):          # back-compat: a single marker
         markers = (bytes(markers),)
     attrs = scrape_player_attributes(mm)        # {sid: attribute record}
@@ -174,8 +174,8 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     status = scrape_contract_status(mm, info)   # {tid: squad-status code}
     contracts = scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
-    # names + exact attributes for the managed squad (snapshot), incl. loaned-IN players
-    bounds = SQ.squad_snapshot_bounds(mm, markers)
+    # names + exact attributes for the managed squad (our club's squad lists), incl.
+    # loaned-IN players
     club_of_marker = {m: int.from_bytes(m[:2], "little") for m in markers}
     managed_tid = club_of_marker[markers[0]]             # the first team
 
@@ -206,7 +206,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
 
     per_tid = {}
     for m in markers:
-        for tid, v in SQ.own_squad_full(mm, *bounds, marker=m).items():
+        for tid, v in SQ.own_squad_full(mm, marker=m).items():
             per_tid.setdefault(tid, {})[m] = v
     own, own_marker = {}, {}
     for tid, per in per_tid.items():
@@ -229,7 +229,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     # fine even stale) but NOT as proof the loan is still live: verified on this exact
     # career, Ernest Nuamah reads loaned_in=True, club_tid=346 across EIGHT CONSECUTIVE
     # snapshots spanning 2023-01-06 to 2024-11-10 — almost two years, far longer than any
-    # real loan, and eight other names showed the identical pattern. The squad-list entry
+    # real loan, and eight other names showed the identical pattern. The squad-list snapshot
     # simply never got cleared. Attaching the exact-record's real attrs+value to a stale
     # ghost would be worse than the false-owned-marker case attr_record's docstring already
     # guards against: it fabricates a plausible-looking CURRENT transfer value for a player
@@ -250,17 +250,16 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
         r = None
         if li.get("loaned_in") and li.get("parent_club_tid") and tid in our_squad_tids:
             # A loanee's exact record is anchored by [parent_club_tid][managed_tid], not
-            # [club][0xffff] — see attributes.loan_marker(). Try it first: a loanee never
+            # [club][0xffff] — see squad.loan_marker(). Try it first: a loanee never
             # appears under our own club markers, so the fallback below would just spend a
             # full scan finding nothing before we get here anyway.
-            r = SQ.attr_record(mm, tid, bounds=bounds,
-                               marker=SQ.loan_marker(managed_tid, li["parent_club_tid"]))
+            r = SQ.attr_record(mm, tid, marker=SQ.loan_marker(managed_tid, li["parent_club_tid"]))
         if r is None:
-            _, r = _pick(SQ.attr_records(mm, tid, bounds=bounds, markers=markers), tid, strict=True)
+            _, r = _pick(SQ.attr_records(mm, tid, markers=markers), tid, strict=True)
         if r:
-            own_exact[tid] = {"attrs": SQ.decode_confirmed_attributes(r["attrs"]),
+            own_exact[tid] = {"attrs": r["attrs"],
                               "feet": {"left": r["feet"][0], "right": r["feet"][1]},
-                              "value": r["value"]}
+                              "value": r["value"], "snapshot_date": r["snapshot_date"]}
 
     # career history: the whole pool as stored, plus each player's head row (the attribute
     # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
@@ -359,6 +358,9 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                 row["estimated"] = {a: False for a in MOD.ATTR_ORDER}
                 row["feet"] = own_exact[tid]["feet"]
                 row["value"] = own_exact[tid]["value"]
+                # the date of the player attribute snapshot these came from (squad.py):
+                # the attributes are as of then, not as of the save
+                row["attribute_snapshot_date"] = own_exact[tid]["snapshot_date"]
             else:
                 # Everyone else: write ONLY what the record states plainly. The 15 entangled
                 # attributes and Teamwork are DERIVED, and derivation is the database's job --
@@ -616,7 +618,8 @@ def main():
     dump("round_names.json",
          [{"id": i, "name": n} for i, n in sorted(round_names.items())], indent=None)
     # injury spells for the managed squad, from the weekly Player-Progress table. Captures TRAINING
-    # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py.
+    # injuries too (match_events only has in-match ones). Our squad only. See fmparser/injuries.py
+    # and fmparser/tables/player_progress.py.
     # NB: `season` here is the MATCHES list; injuries key off the end-year int, derived below.
     # A match-less save (a new career's first, or one just past the rollover) holds the
     # prior campaign's weeks, already captured -- skip it rather than file them under the new one.
@@ -626,8 +629,12 @@ def main():
                   if p["club_tid"] in (career.managed_tid, career.reserve_tid)]
     # the same weekly series also carries an ON-LOAN bit (bit 5), which gives exact loan
     # windows for players we loan OUT — see fmparser/injuries.py for the decode + validation.
-    injuries, loans = (INJ.extract_availability(mm, squad_tids, snap_season)
-                       if season and snap_season is not None else ({}, {}))
+    injuries, loans = {}, {}
+    if season and snap_season is not None:
+        try:
+            injuries, loans = INJ.extract_availability(mm, squad_tids, snap_season)
+        except ValueError as e:                  # the progress pool not located
+            print(f"  WARNING: player progress not read ({e}); no injuries or loans")
     dump("injuries.json", {str(t): sp for t, sp in injuries.items()}, indent=None)
     dump("loans.json", {str(t): sp for t, sp in loans.items()}, indent=None)
     write_players_csv(os.path.join(dest, "players.csv"), players)
