@@ -138,7 +138,9 @@ store (`staging.player_scrapbook`); `staging.squad_scrapbook` picks our squad's.
 - **How far to trust an "exact" squad attribute**: `staging.players.scrapbook_date` is the
   date of the scrapbook entry the squad's exact attributes came from. A squad player's
   entries are rewritten monthly only while he plays that season, so one who has not played
-  carries last season's (Johan Maarup on `frem-2026-06-11`: 2025-06-30). Agreement with the
+  carries last season's (Johan Maarup on `frem-2026-06-11`: 2025-06-30). Over the Frem
+  rebuild, 459 of 1,062 squad rows with an entry have one at most 31 days old and 279 have
+  one over six months old. Agreement with the
   attributes stored on the player's own record falls with its age (84% under a month, ~80% to
   seven months, ~60% at nine or more). Decide in `staging.squad_scrapbook` when an old entry
   should give way to the estimate.
