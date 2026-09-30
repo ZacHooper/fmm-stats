@@ -32,11 +32,8 @@ from fmparser.save import Save
 from fmparser import model as MOD
 from fmparser import clubs_comps as R
 from fmparser import squad as SQ
-from fmparser.tables.contracts import (
-    LOAN_STATUS,
-    scrape_contract_status,
-    scrape_contracts,
-)
+from fmparser.tables.contracts import scrape_contracts
+from fmparser.tables.training import LOAN_STATUS, scrape_squad_status
 from fmparser.tables.person_info import (
     NO_CLUB,
     PERSON_FIELDS,
@@ -173,7 +170,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     formations = ST.formation_catalog(mm)
     staff_attrs = ST.scrape_staff_attributes(
         mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
-    status = scrape_contract_status(mm, info)   # {tid: squad-status code}
+    status = scrape_squad_status(mm)            # {tid: squad-status code}
     contracts = scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
     # names + exact attributes for the managed squad (our club's squad lists), incl.

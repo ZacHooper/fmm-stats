@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""`training` -- the Club Squad > Training page: every player's training focus.
+"""`training` -- the Club Squad > Training page: every player's training focus, and his
+squad status.
 
 One row per person, in a count-framed array a fixed distance after the Player Progress pool
 (`tables/player_progress.py`):
@@ -23,8 +24,13 @@ One row per person, in a count-framed array a fixed distance after the Player Pr
     +27  focus_attribute u16       the Attr column, a code (named in `fmstats/definitions.py`)
     +29  focus_band u8             the Focus Pos, as the pair the match slot array uses
     +30  focus_column u8           (`core.primitives.pitch_position`)
-    +31  30 bytes                  unread: nine u16 (the fourth reads 135 on every row), and
-                                   from +49 three [day-of-year u16][year u16] dates
+    +31  6 bytes                   unread: three u16
+    +37  contracted u8             0x87 on a player under contract; 0 on a free agent and on
+                                   every member of staff
+    +38  u8                        unread; 0 on every row measured
+    +39  squad_status u8           the player's squad status code; 65 = loaned out
+                                   (`LOAN_STATUS`). Read only where `contracted` is set
+    +40  21 bytes                  unread: from +49 three [day-of-year u16][year u16] dates
 
 Read against the Training page of frem-2027-06-15, all 34 squad rows on screen: role,
 position, attribute and intensity agree on every row. A player attribute snapshot's `role`
@@ -44,16 +50,21 @@ from ..save import cache_key as _cache_key
 from .player_progress import PROGRESS_ROW, locate_player_progress
 
 __all__ = [
+    "CONTRACTED",
+    "LOAN_STATUS",
     "TRAINING_ROW",
     "TRAINING_TABLE",
     "focus_position",
     "locate_training",
+    "scrape_squad_status",
     "scrape_training",
     "training_table_spans",
 ]
 
 NO_PERSON = 0xFFFFFFFF
 NO_ROLE = 0xFFFF
+CONTRACTED = 0x87          # `contracted` on a player under contract
+LOAN_STATUS = 65           # `squad_status` of a player out on loan
 
 TRAINING_ROW = Record("training_row", 61, [
     Field(0,  4, "tid",             U32, note="== the row index; 0xffffffff = unused row"),
@@ -68,7 +79,11 @@ TRAINING_ROW = Record("training_row", 61, [
     Field(27, 2, "focus_attribute", U16, note="an attribute-focus code"),
     Field(29, 1, "focus_band",      U8,  note="the match slot array's band byte"),
     Field(30, 1, "focus_column",    U8,  note="the match slot array's column byte"),
-    Field(31, 30, UNKNOWN,          RAW),
+    Field(31, 6, UNKNOWN,           RAW),
+    Field(37, 1, "contracted",      U8,  note="0x87 under contract; 0 on a free agent, staff"),
+    Field(38, 1, UNKNOWN,           RAW),
+    Field(39, 1, "squad_status",    U8,  note="squad status code; 65 = loaned out"),
+    Field(40, 21, UNKNOWN,          RAW),
 ])
 
 _STRIDE = TRAINING_ROW.span
@@ -137,4 +152,23 @@ def scrape_training(mm: Any) -> List[Dict[str, Any]]:
         out.append({"tid": r["tid"], "intensity": r["intensity"],
                     "focus_role": r["focus_role"], "focus_attribute": r["focus_attribute"],
                     "focus_position": focus_position(r["focus_band"], r["focus_column"])})
+    return out
+
+
+def scrape_squad_status(mm: Any) -> Dict[int, int]:
+    """{tid: squad status code} for every player under contract, in tid order. Raises
+    `ValueError` if the table is not located or a row's tid is neither its index nor unused."""
+    run = locate_training(mm)
+    if not run:
+        raise ValueError("training: the table is not located")
+    base, count = run
+    out: Dict[int, int] = {}
+    for k in range(count):
+        r = TRAINING_ROW.read_fields(mm, base + k * _STRIDE, ("tid", "contracted", "squad_status"))
+        if r["tid"] == NO_PERSON:
+            continue
+        if r["tid"] != k:
+            raise ValueError(f"training: row {k} holds tid {r['tid']}")
+        if r["contracted"] == CONTRACTED:
+            out[k] = r["squad_status"]
     return out

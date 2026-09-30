@@ -92,6 +92,9 @@ def main() -> int:
     blob = build()
     check(CR.HEADER.read(blob, 0)["season_year"] == 2026, "header season_year")
     check(CR.locate_comp_rules(blob) == [(CR.HEADER.span, 4)], "locator [(offset, count)]")
+    from fmparser.core import record_instances
+    check([(r.name, o) for r, o in record_instances(blob, CR.COMP_RULES_TABLE)]
+          == [("comp_rules_header", 0)], "the audit reaches the member header")
     fields = CR.scrape(blob)
     check([f[0] for f in fields] == ["ftye", "desc", "stgs", "SubF"],
           f"top-level tags {[f[0] for f in fields]}")

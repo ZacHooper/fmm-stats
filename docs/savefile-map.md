@@ -33,9 +33,10 @@ structures by their own invariant.** Never by a remembered offset.
 preceded by a run of ≥8 `0xFF` (see [`table-framing.md`](table-framing.md)). `struct` = found
 by a structural test described in the notes.
 
-### Table Engine Migration Status Summary
-* **Migrated to `TableDef` (21 tables)**: `player_attributes`, `staff`, `round_names`, `clubs`, `competitions`, `nations`, `stadiums`, `cities`, `currencies`, `languages`, `contracts`, `match_slots`, `surnames`, `first_names`, `nicknames`, `person_info` (status/spine), plus Shape D archive tables `fixtures`, `comp_stages`, `comp_honours`. **As `TaggedTableDef` (2 tables)**: `comp_rules` (a declared 54-byte `HEADER`, then one row of the header's declared count of tagged fields) and `rule_files` (the data dictionary). **As `LinkedTableDef` (1 table)**: `history` (the Shape B career-history pool, every record read, forest-checked). **`player_lists`** (66 lists, seeded from an empty list and walked both ways) and **`club_records`** are `TableDef`s too (count-framed, a counted list of league histories and four `FixedList` record blocks per club).
-* **Non-Table / Structural Walks**: `tables/rule_files.py` (Shape A count-framed tagged blocks, a `TaggedTableDef`).
+### How the tables are read
+Every table the parser reads is a `core` table (`TableDef`, `TaggedTableDef` or
+`LinkedTableDef`); the status column below says which. How each shape is found and
+walked is [`parser-architecture.md`](parser-architecture.md).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
@@ -70,7 +71,7 @@ by a structural test described in the notes.
 | 48,166,114 | 48,353,064 | 0.19 MB | **UNIDENTIFIED** — `[count u32]` = 162 on every save and variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows (TODO #3); the same size on every save of a career | — | — | — |
 | 48,353,064 | 52,721,064 | 4.37 MB | **player progress** — 62,400 rows × 70 B (the same count on every save): `[tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16]`, usually one row per player per week, a few weeks two to four; the Player Progress page, injured / on-loan bits | **fixed pool**, rows recycled | Shape C (seeded from unused rows, walked both ways) | **MIGRATED** (`PLAYER_PROGRESS_TABLE`) |
 | 52,721,064 | 53,479,282 | 0.76 MB | **UNIDENTIFIED**, mostly zero; the training table sits exactly 758,222 B after the progress pool on every Frem save | — | — | — |
-| 53,479,282 | 55,490,212 | 2.01 MB | **training** — `[count u32 = 32,966][32,966 × 61 B]`, row k = person tid k (`ffffffff` unused, role `ffff` on staff): intensity `+21`, Focus Role `+23`, attribute focus `+27`, Focus Pos `+29/+30` as the match slot pair; the Club Squad > Training page | rewritten as focus changes | Shape A (count-framed, `tid == row`) | **MIGRATED** (`TRAINING_TABLE`) |
+| 53,479,282 | 55,490,212 | 2.01 MB | **training** — `[count u32 = 32,966][32,966 × 61 B]`, row k = person tid k (`ffffffff` unused, role `ffff` on staff): intensity `+21`, Focus Role `+23`, attribute focus `+27`, Focus Pos `+29/+30` as the match slot pair, `contracted` `+37` (`87` under contract) and squad status `+39`; the Club Squad > Training page | rewritten as focus changes | Shape A (count-framed, `tid == row`) | **MIGRATED** (`TRAINING_TABLE`) |
 | 55,490,212 | 55,884,748 | 0.39 MB | **UNIDENTIFIED**; ends in a sorted run of 430 u32 tids behind `ff` filler, then 73 bytes | — | — | — |
 | 55,884,748 | 56,178,674 | 0.29 MB | **our matches** — `[count u8 = 57]`, then one row per match: `[home, away, cid, day][n u8][n x 17 B events][5,093 B body]` -- the body repeats the head from our side, then 50 event slots, two team blocks (`[77 B][20 x 62 B player slots][46 B]`, our score at +52) and our tactic (formation string, 11 starting positions, per-starter items, a coordinate grid) | **emptied on the rollover day; appends in-season** | Shape A (u8 count, row length from its event count) | **MIGRATED** (`MATCHES_TABLE`) |
 | 56,313,477 | 56,314,027 | **550 B** | exact `0xFF` wall, identical regardless of match count | — | — | — |

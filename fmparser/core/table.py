@@ -41,6 +41,7 @@ class TableDef:
 
     `locator(mm)` returns `(base, count)`, or a list of such runs where one table is stored
     as several arrays (the world fixture list), or None. The engine walks every run in order.
+    `header` is the record in front of the first run, if the table has one.
     """
     name: str
     segments: Tuple[Any, ...]  # Sequence of Record | PString | CustomSegment
@@ -56,6 +57,8 @@ class TableDef:
     # Fixed-stride tables only: read just these fields, in this order (key order is part of
     # the extract output bytes)
     fields: Optional[Tuple[str, ...]] = None
+    # The record stored straight in front of the first run: the table's own header
+    header: Optional[Record] = None
 
     @property
     def is_fixed_stride(self) -> bool:
@@ -231,9 +234,15 @@ def _segment_instances(mm: Any, seg: Any, pos: int) -> List[Tuple[Record, int]]:
 
 
 def record_instances(mm: Any, table: Any) -> Iterator[Tuple[Record, int]]:
-    """Every packed record a table's walk reads, as (Record, offset): each row's fixed
-    segments, each element of its counted lists, and a linked table's header and rows. The
-    walk stops where `walk_table` stops, at the first row that breaks the invariant."""
+    """Every packed record a table's walk reads, as (Record, offset): the table's header,
+    each row's fixed segments, each element of its counted lists, a linked table's rows, and
+    the header in front of each tagged row. The walk stops where `walk_table` stops, at the
+    first row that breaks the invariant."""
+    if isinstance(table, TaggedTableDef):
+        if table.header is not None:
+            for start, _ in table.locator(mm) or []:
+                yield table.header, start - table.header.span
+        return
     if isinstance(table, LinkedTableDef):
         base, count = table.run(mm)
         if table.header is not None:
@@ -243,7 +252,10 @@ def record_instances(mm: Any, table: Any) -> Iterator[Tuple[Record, int]]:
         return
     limit = len(mm)
     index = 0
-    for base, count in table.runs(mm):
+    runs = table.runs(mm)
+    if runs and table.header is not None:
+        yield table.header, runs[0][0] - table.header.span
+    for base, count in runs:
         pos = base
         for i in range(count):
             if table.is_fixed_stride:
@@ -484,12 +496,13 @@ class TaggedTableDef:
     `locator(mm) -> [(offset, n)]` finds the rows; `schema` is the `TaggedRecord` every row
     reads with, or a function `block -> TaggedRecord` where the rows are of several kinds.
     A row declaring 0 fields is a stub: `blocks` returns it, `scrape` and `coverage` skip
-    it."""
+    it. `header` is the packed record in front of each row, if the rows have one."""
     name: str
     locator: Callable[[Any], List[Tuple[int, int]]]
     schema: Union[TaggedRecord, Callable[[TaggedBlock], TaggedRecord]]
     # The archive member the table is read from (shape D), or None for the save itself
     member: Optional[str] = None
+    header: Optional[Record] = None
 
     def schema_for(self, block: TaggedBlock) -> TaggedRecord:
         return self.schema if isinstance(self.schema, TaggedRecord) else self.schema(block)

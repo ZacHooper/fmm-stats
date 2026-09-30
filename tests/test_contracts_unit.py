@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Synthetic unit tests for contracts and contract status (fmparser/tables/contracts.py).
+"""Synthetic unit tests for the contract grid (fmparser/tables/contracts.py).
 
 Tests:
-1. `CONTRACT` and `CONTRACT_STATUS` record schema layouts and spans.
+1. `CONTRACT` record schema layout and span.
 2. `CONTRACT_TABLE` FixedTableDef registration and operations.
 3. Direct O(1) arithmetic lookup and decoding logic via `scrape_contracts()`:
    - tid matching slot index
@@ -10,10 +10,7 @@ Tests:
    - wage calculation from wage_units * WAGE_GBP_PER_UNIT
    - date decoding (start_date, expiry, expiry_year)
    - out-of-bounds guards (missing/blank slots)
-4. Contract status scraping (`scrape_contract_status`):
-   - loan status detection (LOAN_STATUS = 65)
-   - squad status unpacking
-5. Header frame locating (`locate_contracts`):
+4. Header frame locating (`locate_contracts`):
    - 11-byte 0x12 frame matching and capacity header parsing
 """
 import os
@@ -50,27 +47,12 @@ def build_contract_slot_bytes(
     return bytes(buf)
 
 
-def build_status_record_bytes(
-    tid: int,
-    uid: int,
-    marker: int = 0x0087,
-    squad_status: int = CT.LOAN_STATUS,
-) -> bytes:
-    """Pack a 40-byte CONTRACT_STATUS record."""
-    buf = bytearray(40)
-    struct.pack_into("<I", buf, 0, tid)
-    struct.pack_into("<I", buf, 4, uid)
-    struct.pack_into("<H", buf, 37, marker)
-    struct.pack_into("<B", buf, 39, squad_status)
-    return bytes(buf)
-
 
 def test_contract_schema_and_table_def():
     print("TESTING CONTRACT schema and FixedTableDef")
     assert CT.CONTRACT.span == 83
     assert CT.CONTRACT_STRIDE == 83
     assert CT.CONTRACT_RECORD == 83
-    assert CT.LOAN_STATUS == 65
 
     # Check key field offsets
     field_map = {f.name: f for f in CT.CONTRACT.fields}
@@ -124,27 +106,6 @@ def test_contract_scraping_and_decoding():
     print("  PASS direct arithmetic, marker filtering, and wage conversion")
 
 
-def test_contract_status_scraping():
-    print("TESTING scrape_contract_status")
-    records = [
-        build_status_record_bytes(tid=10, uid=100, squad_status=CT.LOAN_STATUS),
-        build_status_record_bytes(tid=11, uid=101, squad_status=3),  # regular first team
-    ]
-    raw_buf = bytearray(b"".join(records))
-
-    info_map = {10: {"uid": 100}, 11: {"uid": 101}}
-    status_map = CT.scrape_contract_status(raw_buf, info=info_map)
-
-    assert len(status_map) == 2
-    assert status_map[10] == CT.LOAN_STATUS
-    assert status_map[11] == 3
-
-    # Mismatched UID should be rejected
-    mismatch_info = {10: {"uid": 999}}
-    mismatch_map = CT.scrape_contract_status(raw_buf, info=mismatch_info)
-    assert len(mismatch_map) == 0
-    print("  PASS contract and loan status decoding")
-
 
 def test_contracts_locator_frame():
     print("TESTING locate_contracts frame matching")
@@ -174,7 +135,6 @@ def test_contracts_locator_frame():
 def main():
     test_contract_schema_and_table_def()
     test_contract_scraping_and_decoding()
-    test_contract_status_scraping()
     test_contracts_locator_frame()
     return 0
 

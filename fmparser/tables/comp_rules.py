@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import archive as A
 from ..core import (
-    FOURCC, INT, PAD, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
+    FOURCC, INT, PAD, RAW, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
     TaggedRecord, TaggedSchemaError, TaggedTableDef, TaggedTableError)
 
 __all__ = [
@@ -53,11 +53,11 @@ MEMBER_PATTERN = re.compile(r"^comp_(\d+)\.dat$")
 HEADER = Record("comp_rules_header", 54, [
     Field(0,  6,  UNKNOWN, PAD, note="member header [03][01]['tad.'] (fixtures.MEMBER_HEADER)"),
     Field(6,  2,  UNKNOWN, PAD, note="constant 0x01d9 on every member"),
-    Field(8,  12, UNKNOWN, PAD),
+    Field(8,  12, UNKNOWN, RAW),
     Field(20, 2,  "season_year", U16, note="start year of the current season; 0 on a stub"),
     Field(22, 4,  UNKNOWN, PAD),
-    Field(26, 4,  UNKNOWN, PAD, note="f32; 1.0 on most competitions"),
-    Field(30, 18, UNKNOWN, PAD),
+    Field(26, 4,  UNKNOWN, RAW, note="f32; 1.0 on most competitions"),
+    Field(30, 18, UNKNOWN, RAW),
     Field(48, 2,  "base_year", U16, note="2000 on every member"),
     Field(50, 4,  "n_fields", U32, note="declared count of top-level tagged fields"),
 ])
@@ -167,6 +167,7 @@ COMP_RULES_TABLE = TaggedTableDef(
     member="comp_<uid>.dat",
     locator=locate_comp_rules,
     schema=FILE,
+    header=HEADER,
 )
 
 

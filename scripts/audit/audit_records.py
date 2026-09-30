@@ -49,7 +49,7 @@ from fmparser.tables import staff as ST       # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser import clubs_comps as R           # noqa: E402
-from fmparser.tables.contracts import CONTRACT_DETAIL, CONTRACT_STATUS  # noqa: E402
+from fmparser.tables.contracts import CONTRACT_DETAIL  # noqa: E402
 from fmparser.tables.person_info import INFO_LAYOUT, scrape_person_info   # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402
 from fmparser.tables import fixtures as FX           # noqa: E402
@@ -58,7 +58,7 @@ from fmparser.tables import comp_honours as CH         # noqa: E402
 from fmparser.tables import comp_rules as CRU          # noqa: E402
 from fmparser.tables import rule_files as RF           # noqa: E402
 from fmparser import tables as _all_tables                # noqa: E402,F401  (registers every Record)
-from fmparser.core import (PAD, REGISTRY, TAGGED_REGISTRY, TaggedTableDef,  # noqa: E402
+from fmparser.core import (PAD, REGISTRY, TAGGED_REGISTRY,  # noqa: E402
                            record_instances, tag_map)
 
 
@@ -150,12 +150,13 @@ def _extent(name, ids):
 
 
 def _table_sources(mm, table, members):
-    """The buffers a table is read from: the save, or its archive member."""
+    """The buffers a table is read from: the save, or each of its archive members."""
     if not getattr(table, "member", None):
         yield mm
-    elif table.member in members:
-        from fmparser.core import archive as ARCH
-        yield ARCH.read_member(mm, members[table.member])
+        return
+    from fmparser.core import archive as ARCH
+    for name in ARCH.member_names(table.member, members):
+        yield ARCH.read_member(mm, members[name])
 
 
 def _padding(mm):
@@ -169,8 +170,6 @@ def _padding(mm):
     values = collections.defaultdict(collections.Counter)    # (record, field) -> values
     count = collections.Counter()
     for table in _all_tables.TABLES.values():
-        if isinstance(table, TaggedTableDef):
-            continue
         for buf in _table_sources(mm, table, members):
             for rec, off in record_instances(buf, table):
                 count[rec.name] += 1

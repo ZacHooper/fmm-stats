@@ -245,7 +245,7 @@ you find it in the first place.)
    `[day-of-year u16][year u16]` (see DOB in `staging.scrape_players`); seasons coded `1971 + n`.
    **Contract-detail record** (`staging.scrape_contracts`, section ~16–40M, `[tid u32][0x01][wage
    u16][6×00][expiry day-of-year u16][expiry year u16]`): **wage £/yr = `u16@+5` × ~520** (validated
-   £15.5K–£17.75M, ±2%; the `0x01`-marked record is separate from the `0x87` status record), and
+   £15.5K–£17.75M, ±2%; the squad status is on the training row, `tables/training.py`), and
    **expiry = full date @+13** (some Danish deals expire 31 Dec, not 30 Jun — keep the day, not just
    the year).
 

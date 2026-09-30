@@ -186,12 +186,13 @@ consecutive, so the letter is the group's place among its siblings (`mart.match_
 
 Decoded 2026-09-21. A prior investigation reported "stride 78, exact tiling coincidence; record 133
 lands mid-way through tagged tags `mmus`/`solc`". Both halves of that reading were misunderstandings:
-`comp_man.dat` **is a strict 78-byte grid preceded by a 36-byte header and followed by an auxiliary tail**:
+`comp_man.dat` **is a strict 78-byte grid preceded by a 42-byte header and followed by an auxiliary tail**:
 
-1. **36-byte Header:** byte `+10` is a `u32` declaring the exact count of 78-byte records
+1. **42-byte Header:** the 6-byte member header every member opens with, then at byte `+16`
+   a `u32` declaring the exact count of 78-byte records
    (`n_stages` = 2,157 on day one `frem-2021-07-01`, 2,316 on `frem-2026-06-11`, 2,181 on
    `frem-2026-07-02`, 2,269 on `bucaspor-2023-05-20`).
-2. **78-byte Stage Calendar Grid:** runs from offset 36 to `36 + n_stages * 78` (e.g. byte 180,684
+2. **78-byte Stage Calendar Grid:** runs from offset 42 to `42 + n_stages * 78` (e.g. byte 180,690
    on 2026). Record index `k` in this grid corresponds directly to `stage_key == k` in `fix_man.dat`.
    `mmus` (`summ`) and `solc` (`clos`) in record 133 are not stray tagged dictionary fields —
    record 133 is the **Superliga Championship Split**, and those are 4-byte FourCC status tags sitting
@@ -210,7 +211,7 @@ lands mid-way through tagged tags `mmus`/`solc`". Both halves of that reading we
      Verified: Premier Division (`cid 5`, 2025 winner Chelsea 431, runner-up Liverpool 471, 3rd Man City 473);
      FA Cup (`cid 275`, 2025 winner Liverpool 471, runner-up Tottenham 518).
 
-Parsed by `fmparser/compman.py` (`HEADER`, `STAGE`, `HONOUR`).
+Parsed by `fmparser/tables/comp_stages.py` (`HEADER`, `STAGE`) and `comp_honours.py` (`HONOUR`).
 
 ## `fix_man.dat` — the fixture list, and exactly how far it is decoded
 

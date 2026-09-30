@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""`contracts` — the 83-byte Contract Grid and Contract Status records.
+"""`contracts` — the 83-byte Contract Grid.
 
 The contract grid is a dense preallocated grid (~29-33 MB) of 83-byte records,
 one per person slot (`slot_index == tid`). Declared capacity (~59k-61k slots) is
 preceded by an 11-byte `0x12` delimiter frame and a 4-byte slot capacity header.
 Active contracts carry `marker == 0x01` at offset +4.
 
-Contract status records (40 bytes) map player `squad_status` codes and loan status
-(`LOAN_STATUS = 65`) keyed by `[tid u32][uid u32]` matching the info spine.
+A player's squad status (and loan status) is on his training row, `tables/training.py`.
 """
 import struct
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from ..core import primitives as P
 from ..save import cache_key as _cache_key
 from ..core import DATE, Field, PAD, RAW, Record, U16, U32, U8, UNKNOWN, TableDef, table_spans
 
@@ -23,19 +21,15 @@ __all__ = [
     "CONTRACT",
     "CONTRACT_DETAIL",
     "CONTRACT_RECORD",
-    "CONTRACT_STATUS",
     "CONTRACT_STRIDE",
     "CONTRACT_TABLE",
-    "LOAN_STATUS",
     "contracts_table_spans",
     "locate_contracts",
-    "scrape_contract_status",
     "scrape_contracts",
 ]
 
 CONTRACT_STRIDE = 83
 CONTRACT_RECORD = 83
-LOAN_STATUS = 65
 
 CONTRACT = Record("contract", CONTRACT_STRIDE, [
     Field(0,  4, "tid",                  U32, note="== the slot index"),
@@ -52,14 +46,6 @@ CONTRACT = Record("contract", CONTRACT_STRIDE, [
 
 # Alias for backward-compatibility with audit scripts
 CONTRACT_DETAIL = CONTRACT
-
-CONTRACT_STATUS = Record("contract_status", 40, [
-    Field(0, 4, "tid", U32),
-    Field(4, 4, "uid", U32, note="both must match the info spine -- 8 exact bytes"),
-    Field(8, 29, UNKNOWN, PAD),
-    Field(37, 2, "marker", U16, note="0x0087; marker searched across file"),
-    Field(39, 1, "squad_status", U8),
-], is_head=True)
 
 _CONTRACTS_CACHE: Dict[Any, Optional[Tuple[int, int]]] = {}
 
@@ -143,33 +129,3 @@ def scrape_contracts(
     tids = tids_or_info.keys() if isinstance(tids_or_info, dict) else tids_or_info
     return {t: grid[t] for t in tids if t in grid}
 
-
-def scrape_contract_status(
-    mm: Any,
-    info: Dict[int, Dict[str, Any]],
-    lo: Optional[int] = None,
-    hi: Optional[int] = None,
-) -> Dict[int, int]:
-    """{tid: squad_status_code} from contract status records.
-
-    Keyed by [TID:u32][UID:u32] matching both tid and uid from the info spine.
-    """
-    lo = 0 if lo is None else lo
-    hi = len(mm) if hi is None else hi
-    uid_of = {tid: p["uid"] for tid, p in info.items()}
-    out: Dict[int, int] = {}
-    p = lo
-
-    while True:
-        m = mm.find(b"\x87\x00", p, hi)
-        if m == -1:
-            break
-        p = m + 1
-        if m - 37 < 0:
-            continue
-        base = m - CONTRACT_STATUS.field("marker").offset
-        rec = CONTRACT_STATUS.read_fields(mm, base, ("tid", "uid", "squad_status"))
-        if uid_of.get(rec["tid"]) == rec["uid"]:
-            out[rec["tid"]] = rec["squad_status"]
-
-    return out
