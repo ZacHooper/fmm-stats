@@ -136,24 +136,19 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   Frem's red/blue stripes 31, Barcelona 30, Newcastle 25, FC Nordsjaelland 0c, Frem's
   goalkeeper kit 0d, ff an unused kit. Name the ids from kits whose design is known; the
   second byte (00/01/02) is unread.
-- **Snapshot role ids** (`+21`, `player_lists.ROLES`): all 33 assigned; the 12 in
-  `ROLES_INFERRED` are placed by position block and holders' attributes. The player-role table
-  below gives every player's CURRENT role, so `docs/role-ids.csv` now names famous players in
-  each role, whose live profiles can be checked directly.
-- **Training table -- found, not yet a TableDef.** It is the Club Squad > Training page
-  (checked row by row against a screenshot of frem-2027-06-15, 13/13 players). Right after
-  Player Progress (53.1 MB on 2027-06-15, 52.0 MB on 2027-08-08): `[count u32 = 32,966][32,966
-  x 61 B]`, row k = person tid k, `ffffffff` = not a player. Confirmed: `+0` tid, `+4` uid,
-  `+21` intensity u16 (3 = the red high-intensity icon, 2 = normal; 1 and 0 also occur),
-  `+23` Focus Role u16 (the snapshot role ids -- a snapshot's role IS the training focus role
-  on its date), `+27` Attr focus u16 (1 CRO, 3 PAS, 5 TAC, 6 HAN, 8 AIR, 9 REF, 11 CRE,
-  14 POS, 17 STR, 18 PAC, 19 STA -- 34/34 squad rows on three screenshots; 0, 2, 4, 10, 12,
-  13, 15 still to read), `+29` Focus Pos as the match slot
-  array's `(band, column)` pair. Unread: the Progress bar (a green fill, or a full yellow bar when the player is unlikely
-  to improve further -- not the stored `pa - ca`, which reads 0 for yellow and near-empty bars
-  alike; green-fill rows are the ones with `+17` and `+41` non-zero), `+8` u8, `+9`/`+13` u32
-  (money-like; `+9` round), `+17` u32, `+31..+48`, three dates at `+49/+53/+57`. Walk it by
-  the count; check every save of both careers; then load it per snapshot.
+- **Training table: the unread bytes and codes** (`tables/training.py`, `mart.training_focus`).
+  Read and loaded: Focus Role, Focus Pos, attribute focus, intensity, for every player on
+  every snapshot. Still open:
+  - the 12 role names in `ROLES_INFERRED` (2, 8, 11, 18, 20, 22, 23, 24, 27-29, 31). The
+    quickest proof is to set a dozen players' Focus Role to each, save, and read the ids;
+    `docs/role-ids.csv` names famous players holding each role for checking on profiles.
+  - attribute-focus codes 0, 2, 4, 10, 12, 13, 15 (13 is the AI's most common, 5,067 players).
+  - intensity 0 and 1: only 3 (High) and 2 (Normal) are read off the screen.
+  - the Progress bar: a green fill, or a full yellow bar when the player is unlikely to improve
+    further. Not the stored `pa - ca` (0 on yellow and near-empty bars alike); the green-fill
+    rows are the ones with `+17` and `+41` non-zero. Diff two saves a few weeks apart.
+  - `+8` u8, `+9`/`+13` u32 (money-like; `+9` round), and the three dates at `+49/+53/+57`.
+  - surfacing it: each squad player's training focus on the site's Squad page.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry

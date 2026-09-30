@@ -35,6 +35,7 @@ from fmparser.model import ATTR_ORDER
 from fmparser import model as _A
 from fmparser import careers
 from fmparser import matches as M
+from fmparser.tables import training as TRN
 from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
@@ -340,6 +341,15 @@ DDL = [
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         club_tid INTEGER NOT NULL, cid INTEGER, year INTEGER,
         position INTEGER, teams INTEGER
+    )""",
+
+    # The Training page, one row per player: focus role and position, attribute focus and
+    # intensity (fmparser.tables.training). Every player in the world, not just ours.
+    # natural key: (season, phase, tid)
+    """CREATE TABLE IF NOT EXISTS staging.training (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        intensity INTEGER, focus_role INTEGER, focus_attribute INTEGER,
+        focus_position VARCHAR
     )""",
 
     # The club record's trailer (fmparser.tables.clubs.CLUB_TABLE). Facts the club
@@ -1241,6 +1251,17 @@ def load_core(con, d, season, phase):
             con, "club_league_history",
             ["season", "phase", "club_tid", "cid", "year", "position", "teams"], rows)
 
+    tr_path = os.path.join(d, "training.json")
+    if os.path.exists(tr_path):
+        rows = [(season, phase, _int(v.get("tid")), _int(v.get("intensity")),
+                 _int(v.get("focus_role")), _int(v.get("focus_attribute")),
+                 v.get("focus_position"))
+                for v in _load_json(tr_path)]
+        counts["training"] = _insert(
+            con, "training",
+            ["season", "phase", "tid", "intensity", "focus_role", "focus_attribute",
+             "focus_position"], rows)
+
     # --- stadiums + cities ----------------------------------------------------
     sd_path = os.path.join(d, "stadiums.json")
     if os.path.exists(sd_path):
@@ -1535,7 +1556,7 @@ def _clear_group(con, group, season, phase):
                   "nation_coefficients", "nation_languages",
                   "club_affiliates", "competitions", "leagues", "matches", "match_events",
                   "match_player_stats", "club_records", "player_records",
-                  "club_league_history"):
+                  "club_league_history", "training"):
             _delete(con, t, season, phase)
         _delete(con, "league_members", season, phase, "AND source='members'")
         # club->league (exact club-record map) is a core artifact (main-dir club_league.json)
@@ -1966,6 +1987,23 @@ def seed_event_types(con):
                     sorted(M.EVENT_TYPE.items()))
 
 
+def seed_training_codes(con):
+    """(Re)seed the Training page's code tables from the parser's own maps
+    (fmparser.tables.training): staging.training_roles (role id -> name, and whether the name
+    is inferred rather than read off the game) and staging.training_attributes (attribute
+    focus code -> the abbreviation the page shows). Replaced wholesale, like event_types."""
+    con.execute("CREATE TABLE IF NOT EXISTS staging.training_roles "
+                "(id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, inferred BOOLEAN NOT NULL)")
+    con.execute("DELETE FROM staging.training_roles")
+    con.executemany("INSERT INTO staging.training_roles VALUES (?, ?, ?)",
+                    [(k, v, k in TRN.ROLES_INFERRED) for k, v in sorted(TRN.ROLES.items())])
+    con.execute("CREATE TABLE IF NOT EXISTS staging.training_attributes "
+                "(code INTEGER PRIMARY KEY, abbrev VARCHAR NOT NULL)")
+    con.execute("DELETE FROM staging.training_attributes")
+    con.executemany("INSERT INTO staging.training_attributes VALUES (?, ?)",
+                    sorted(TRN.ATTRIBUTE_FOCUS.items()))
+
+
 def seed_career(con):
     """Record which career this store holds in staging.app_config (`career_key`,
     `career_rating_method`), matched on the managed club the mart derives from the data.
@@ -2133,6 +2171,7 @@ def main():
             # staging.role_weights survives this.
             seed_role_weights(con)
             seed_event_types(con)
+            seed_training_codes(con)
             create_views(con)
             mart_objects = create_mart(con)
             seed_career(con)
@@ -2181,6 +2220,7 @@ def main():
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
         rebuild_persons(con)
         seed_event_types(con)
+        seed_training_codes(con)
         create_views(con)
         mart_objects = create_mart(con)
         seed_career(con)

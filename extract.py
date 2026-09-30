@@ -52,6 +52,7 @@ from fmparser import careers as C
 from fmparser.tables import history as H
 from fmparser import injuries as INJ
 from fmparser.tables import club_records as CRE
+from fmparser.tables import training as TRN
 from fmparser.tables import (
     cities,
     currencies,
@@ -555,6 +556,13 @@ def main():
         dump("club_records.json", recs["team_records"], indent=None)
         dump("player_records.json", recs["player_records"], indent=None)
         dump("club_league_history.json", recs["league_history"], indent=None)
+    # The Training page, for every player in the world: focus role, focus position, attribute
+    # focus and intensity (fmparser/tables/training.py). A player attribute snapshot's role is
+    # this focus role on the snapshot's date.
+    try:
+        dump("training.json", TRN.scrape_training(mm), indent=None)
+    except ValueError as e:
+        print(f"  WARNING: training not read ({e})")
     # Stadiums + cities: capacity and real lat/long. Reference data, so it repeats per
     # snapshot exactly like clubs.json does — the club record's stadium_id joins
     # club -> stadium -> city -> coordinates. See fmparser/tables/stadiums.py and cities.py.

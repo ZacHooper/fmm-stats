@@ -81,6 +81,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..core import F32, Field, PString, RAW, Record, TableDef, U8, U16, U32, UNKNOWN
 from ..save import cache_key as _cache_key
 from .player_attributes import POSITIONS
+from .training import ROLES, ROLES_INFERRED
 
 __all__ = [
     "ATTRIBUTES",
@@ -120,22 +121,8 @@ ATTRIBUTES = {
 }
 _ATTR_AT = 28
 
-# The role a snapshot's profile shows, by id. Not the squad number. The ids run in position
-# order -- 0-1 GK, 2 SW, 3-4 full-back, 5-7 DC, 8-12 wide, 13-17 central midfield, 18-24
-# striker -- and 25-32 follow as a second set. Every id is one of the game's 33 roles; those
-# in ROLES_INFERRED are assigned from their block and their holders' attributes rather than
-# read off a profile screen.
-ROLES = {0: "Goalkeeper", 1: "Sweeper Keeper", 2: "Sweeper", 3: "Full-Back", 4: "Wing-Back",
-         5: "Central Defender", 6: "Ball Playing Defender", 7: "No-Nonsense Centre-Back",
-         8: "Wide Midfielder", 9: "Winger", 10: "Inverted Winger", 11: "Defensive Winger",
-         12: "Inside Forward", 13: "Central Midfielder", 14: "Deep Lying Playmaker",
-         15: "Ball Winning Midfielder", 16: "Box to Box Midfielder", 17: "Advanced Playmaker",
-         18: "Poacher", 19: "Target Forward", 20: "Deep Lying Forward", 21: "Advanced Forward",
-         22: "Complete Forward", 23: "Pressing Forward", 24: "Trequartista", 25: "Libero",
-         26: "Shadow Striker", 27: "Inverted Wing-Back", 28: "Defensive Full-Back",
-         29: "Anchor", 30: "Defensive Midfielder", 31: "Attacking Midfielder",
-         32: "Roaming Playmaker"}
-ROLES_INFERRED = frozenset({2, 8, 11, 18, 20, 22, 23, 24, 27, 28, 29, 31})
+# The role a snapshot's profile shows is the player's training Focus Role on the snapshot's
+# date (`tables/training.py`), in the same role ids.
 
 
 # The attribute block's other bytes, by index (the Scrapbook Profile screen, verified on

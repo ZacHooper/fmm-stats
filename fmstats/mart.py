@@ -3131,6 +3131,26 @@ JOIN {S}.players p USING (season, phase, tid)
 WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
 """
 
+# The Training page, per player per snapshot: what he is being trained as (focus position and
+# role), the attribute he is focusing on, and the intensity. Every player in the world has a
+# row -- the AI clubs set their players' focus too -- so this is also each player's role as his
+# club sees it. A role name with `focus_role_inferred` is placed by position block and its
+# holders' attributes, not yet read off the game; an attribute code with no abbreviation is one
+# not yet read off the page. Intensity is labelled only where the screen confirmed it.
+TRAINING_FOCUS = """
+CREATE OR REPLACE VIEW mart.training_focus AS
+SELECT ps.season, ps.phase, ps.snap_ix, t.tid, ps.person_id, ps.name, ps.club_tid, ps.club,
+       t.focus_position,
+       t.focus_role, r.name AS focus_role_name, r.inferred AS focus_role_inferred,
+       t.focus_attribute, a.abbrev AS focus_attribute_abbrev,
+       t.intensity,
+       CASE t.intensity WHEN 3 THEN 'High' WHEN 2 THEN 'Normal' END AS intensity_label
+FROM {S}.training t
+JOIN mart.player_snapshots ps USING (season, phase, tid)
+LEFT JOIN {S}.training_roles r ON r.id = t.focus_role
+LEFT JOIN {S}.training_attributes a ON a.code = t.focus_attribute
+"""
+
 # Head-to-head records from the match record, one row per (club, opponent, venue) with an
 # 'all' row alongside H and A. Competitive matches only — a friendly says nothing about a
 # fixture. Covers every club the store has matches for, which is every club we or our
@@ -3531,6 +3551,7 @@ ORDER = [
     ("mart.squad_finances", SQUAD_FINANCES),
     ("mart.club_squad_latest", CLUB_SQUAD_LATEST),
     ("mart.player_development", PLAYER_DEVELOPMENT),
+    ("mart.training_focus", TRAINING_FOCUS),
     ("mart.player_vs_club", PLAYER_VS_CLUB),
     ("mart.player_growth", PLAYER_GROWTH),
     ("mart.player_attribute_growth", PLAYER_ATTRIBUTE_GROWTH),
@@ -3555,6 +3576,14 @@ LATE_STAGING = {
         round_index INTEGER, round_name_id BIGINT, round_teams INTEGER, legs INTEGER)""",
     "round_names": """CREATE TABLE {S}.round_names (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR)""",
+    "training": """CREATE TABLE {S}.training (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        intensity INTEGER, focus_role INTEGER, focus_attribute INTEGER,
+        focus_position VARCHAR)""",
+    "training_roles": """CREATE TABLE {S}.training_roles (
+        id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, inferred BOOLEAN NOT NULL)""",
+    "training_attributes": """CREATE TABLE {S}.training_attributes (
+        code INTEGER PRIMARY KEY, abbrev VARCHAR NOT NULL)""",
 }
 
 
