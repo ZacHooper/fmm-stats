@@ -32,6 +32,7 @@ Checks, in order:
 from __future__ import annotations
 
 import argparse
+import datetime
 import os
 import sys
 
@@ -1123,6 +1124,33 @@ def main():
         if got is None:
             continue  # store predates the snapshot
         check(f"training_focus: {name} on 2027-06-15", tuple(got) == want, f"{got}")
+
+    # our clubs: the managed club the loader records, and the reserve side whose record names
+    # it as main club; the weekly progress rows, one per player per week; spells pinned to the
+    # Player Progress page's injured and on-loan bands
+    ours = {r[0] for r in con.execute("SELECT club_tid FROM mart.our_clubs").fetchall()}
+    managed = con.execute("SELECT club_tid FROM mart.managed_club").fetchone()
+    reserves = {r[0] for r in con.execute(f"""
+        SELECT DISTINCT tid FROM {src}.club_details
+        WHERE main_club_tid = ?""", [managed[0] if managed else None]).fetchall()}
+    check("our_clubs: the managed club and its reserve side, nothing else",
+          managed is not None and ours == {managed[0]} | reserves,
+          f"our_clubs {sorted(ours)}, managed {managed}, reserves {sorted(reserves)}")
+    dup = con.execute("""
+        SELECT COUNT(*) FROM (SELECT tid, week FROM mart.progress_weeks
+                              GROUP BY ALL HAVING COUNT(*) > 1)""").fetchone()[0]
+    check("progress_weeks: one row per player per week", dup == 0, f"{dup} duplicated")
+    pinned = [("loan_out_spells", "Magnus Davidsen", "2023-07-14", "2024-06-01"),
+              ("injury_spells", "Johan Nordberg", "2023-08-15", "2024-03-02")]
+    for view, name, start, end in pinned:
+        n = con.execute(f"""
+            SELECT COUNT(*) FROM mart.{view} WHERE name = ?
+               AND valid_from = CAST(? AS DATE) AND valid_to = CAST(? AS DATE)""",
+                        [name, start, end]).fetchone()[0]
+        if con.execute("SELECT MAX(phase_date) FROM mart.snapshots").fetchone()[0] \
+                < datetime.date.fromisoformat(end):
+            continue  # store predates the spell's end
+        check(f"{view}: {name} {start} to {end}", n == 1, f"{n} matching spells")
 
     print()
     if FAILURES:

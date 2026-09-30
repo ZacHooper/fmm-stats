@@ -163,7 +163,8 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   Eleven, with each player's profile as it was.
 
 ### 4a. Player progress: what is still unread
-`tables/player_progress.py` reads the pool; `injuries.py` uses the status bits. Open: the six
+`tables/player_progress.py` hands every used row to `staging.player_progress` (the six lines
+and the raw status included); the mart draws injury and loan spells from the bits. Open: the six
 u16 skill lines at +4 (which line is which on the Player Progress graph), status bits 3 (8)
 and 6 (64), and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
 the week's attribute values?). Named, the table could give every squad player's weekly
@@ -223,6 +224,11 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **Career history** (`tables/history.py`): the history lines' `yellows` / `reds` are in `staging.player_history_seasons` but not yet in
   `mart.player_career_seasons` -- add them after the next publish, since the published store
   lacks the columns and the mart re-binds against it.
+- **Injury and loan spells on the published store**: the R2 copy predates
+  `staging.player_progress`, so `mart.injury_spells` / `mart.loan_out_spells` read empty there
+  until the next rebuild + publish, and it has no `career_managed_tid`, so `mart.our_clubs`
+  falls back to the club in the most named-competition matches. After the publish, drop that
+  fallback from `OUR_CLUBS` in `fmstats/mart.py`.
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
   (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records.
 
