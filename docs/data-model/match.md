@@ -14,7 +14,7 @@ erDiagram
     dim_round       ||--o{ dim_match : "contains"
     dim_date        ||--o{ dim_match : "played on"
     dim_stadium     ||--o{ dim_match : "played at"
-    dim_referee     |o--o{ dim_match : "refereed by"
+    dim_referee     ||--o{ dim_match : "refereed by"
     dim_team        ||--o{ dim_match : "home / away"
     dim_stadium     |o--o{ dim_team : "home ground"
 
@@ -43,7 +43,7 @@ erDiagram
         int home_team_key FK
         int away_team_key FK
         int stadium_key FK
-        int referee_key FK "optional, link not yet found"
+        int referee_key FK
         int attendance
         string group_label
         int tie_id
@@ -104,7 +104,7 @@ erDiagram
 | `dim_match` | round (+ stage, competition), season, date + kick-off, home/away team, stadium, referee, attendance, group/tie/leg labels, how it was decided, display score |
 | `dim_stadium` | name, city, capacity |
 | `dim_team` | adds `home_stadium_key`. **Neutral venue is derived**: the match stadium isn't the home team's ground. |
-| `dim_referee` | official. The parser reads the officials table (`fmparser/tables/officials.py`), but no match → referee link has been found yet, so the key is optional. |
+| `dim_referee` | match official: name, nation |
 | `dim_manager` | each side's manager on the day |
 | `dim_formation` | shape, e.g. 4-2-3-1 |
 | `dim_event_type` | goal, own goal, shootout kick, card, sub, injury… (the loader already seeds `staging.event_types`) |
@@ -136,5 +136,5 @@ a reason to overwrite the score.
 
 ## Out of scope
 
-Stats beyond goals (which column each comes from is decided per stat when it is built),
-in-match tactics, and the referee link (semantically present, not yet located in the save).
+Stats beyond goals (which column each comes from is decided per stat when it is built) and
+in-match tactics.
