@@ -343,7 +343,7 @@ The modules:
 | module | what it holds |
 |---|---|
 | `fmparser/core/primitives.py` | the byte readers — `u8/u16/u32/i16/i32/f32`, `ymd`, `tag4`. Pure `(buffer, offset) -> value`. |
-| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), `FixedList` (`[n x item]`, n fixed by the layout), `Block` (a named run of segments), and the tagged format (`read_tree`). |
+| `fmparser/core/types.py` | how a value is ENCODED: the packed kinds (`U8` .. `PAD`, `UNKNOWN`), the variable-length segments whose length the bytes declare (`PString`, `CountedList`), `FixedList` (`[n x item]`, n fixed by the layout, the item a `Record` or a `Struct` -- a fixed-width element that holds a list of its own), and the tagged format (`read_tree`). |
 | `fmparser/core/schema.py` | what a record MEANS: `Record` + `Field` (packed), `TaggedRecord` + `Tag` (tagged), `validate()` / `validate_tagged()`. |
 | `fmparser/core/table.py` | where the rows are and how to walk them: `TableDef` (packed), `TaggedTableDef` (tagged), `LinkedTableDef` (a linked pool, with `forest` / `follow`); `record_instances` lists every record a walk reads. |
 
@@ -448,9 +448,9 @@ in which class you reach for.
 3. **Declare the record.** Packed: a `Field` per byte range. A variable-length row is a
    sequence of segments -- `Record`s for the fixed stretches, `PString` for a
    length-prefixed string, `CountedList(name, count, item)` for `[count][count x item]`,
-   `FixedList(name, item, n)` for n preallocated slots, `Block(name, *segments)` for a
-   structure the row holds more than once (a match's home and away team blocks, one layout
-   read twice into `{"home": {...}}` and `{"away": {...}}`) --
+   `FixedList(name, item, n)` for n preallocated slots, whose item may be a
+   `Struct(name, *segments)` when each element holds a list itself (a match's two team
+   blocks: `FixedList("teams", Struct(head, FixedList(players, 20), tail), 2)`) --
    and the walk steps through them in order (`tables/nations.py`: three strings and three
    counted lists between fixed stretches; `tables/matches.py`: a counted event list, 50 event
    slots and two team blocks of 20 player slots). Tagged: a `Tag` per tag you

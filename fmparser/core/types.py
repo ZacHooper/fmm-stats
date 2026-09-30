@@ -160,9 +160,10 @@ class FixedList:
     """A packed list whose length the LAYOUT fixes: `[n x item]`, n the same on every row.
 
     A segment of a `TableDef` row, like `CountedList` but with no count in the bytes: the
-    game preallocates n slots and fills them in place. Each element is read as `item` (a
-    `Record`); an element that is an unwritten slot is still read, and the table's
-    `post_process` decides what an empty slot looks like.
+    game preallocates n slots and fills them in place. Each element is read as `item` -- a
+    `Record`, or a `Struct` when the element itself holds a list; an element that is an
+    unwritten slot is still read, and the table's `post_process` decides what an empty slot
+    looks like.
     """
     __slots__ = ("name", "item", "n")
 
@@ -188,39 +189,34 @@ class FixedList:
                             for i in range(self.n)]}, end
 
 
-class Block:
-    """A named run of segments read into one nested dict: `{name: {...}}`.
+class Struct:
+    """A fixed-width element made of segments: `Record`s and `FixedList`s, in order.
 
-    A segment of a `TableDef` row, for a structure the row holds more than once -- a match's
-    home and away team blocks are one layout, stored twice. Each segment is a `Record`, a
-    `CountedList`, a `FixedList` or another `Block`, read in order from `offset`.
+    The item of a `FixedList` whose elements hold a list of their own -- a match stores two
+    team blocks back to back, each `[head][20 player slots][tail]`. Every segment is fixed
+    width, so the Struct has a span and a list of them strides like a list of Records.
+    `read(mm, offset)` returns one dict: each Record's fields and each list under its name.
     """
-    __slots__ = ("name", "segments")
+    __slots__ = ("name", "segments", "span")
 
     def __init__(self, name: str, *segments: Any):
         self.name = name
         self.segments = segments
+        self.span = sum(seg.span for seg in segments)
 
     def __repr__(self) -> str:
-        return f"Block({self.name!r}, {len(self.segments)} segments)"
+        return f"Struct({self.name!r}, {len(self.segments)} segments, span {self.span})"
 
-    def read(self, mm: Any, offset: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
-        """`({name: {...}}, next_offset)`, or None when a segment overruns `limit`."""
+    def read(self, mm: Any, offset: int) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
         pos = offset
         for seg in self.segments:
-            if hasattr(seg, "read") and not hasattr(seg, "fields"):
-                res = seg.read(mm, pos, limit)
-                if res is None:
-                    return None
-                part, pos = res
-                out.update(part)
+            if isinstance(seg, FixedList):
+                out.update(seg.read(mm, pos, len(mm))[0])
             else:
-                if pos + seg.span > limit:
-                    return None
                 out.update(seg.read(mm, pos))
-                pos += seg.span
-        return {self.name: out}, pos
+            pos += seg.span
+        return out
 
 
 # ---- the TAGGED format -----------------------------------------------------------------------

@@ -9,8 +9,8 @@ row is a composite sequence of typed segments, walked by offset:
 1. Fixed Record layouts (from `schema.py`).
 2. Variable-length segments whose length the bytes declare (`types.py`): `PString`, a
    length-prefixed string, and `CountedList`, `[count][count x Record]`; `FixedList`,
-   `[n x Record]` with n fixed by the layout; and `Block`, a named run of segments read into
-   one nested dict, for a structure a row holds more than once.
+   `[n x item]` with n fixed by the layout, whose item is a `Record` or a `Struct` (a
+   fixed-width element holding a list of its own).
 3. Custom dynamic segments implementing `read(mm, pos, limit)`.
 
 `LinkedTableDef` -- a fixed pool of PACKED rows, each holding the index of the next row in
@@ -209,23 +209,23 @@ def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> 
 
 
 def _segment_instances(mm: Any, seg: Any, pos: int) -> List[Tuple[Record, int]]:
-    """The packed records one already-read list or block segment at `pos` holds."""
-    from .types import KIND_WIDTH, Block, CountedList, FixedList
+    """The packed records one list segment at `pos` holds, recursing into Struct items."""
+    from .types import KIND_WIDTH, CountedList, FixedList, Struct
     if isinstance(seg, CountedList):
         cw = KIND_WIDTH[seg.count]
         n = int.from_bytes(mm[pos:pos + cw], "little")
         return [(seg.item, pos + cw + i * seg.item.span) for i in range(n)]
     if isinstance(seg, FixedList):
-        return [(seg.item, pos + i * seg.item.span) for i in range(seg.n)]
-    if isinstance(seg, Block):
         out: List[Tuple[Record, int]] = []
-        for sub in seg.segments:
-            if isinstance(sub, Record):
-                out.append((sub, pos))
-                pos += sub.span
+        for i in range(seg.n):
+            at = pos + i * seg.item.span
+            if isinstance(seg.item, Struct):
+                for sub in seg.item.segments:
+                    out.extend([(sub, at)] if isinstance(sub, Record)
+                               else _segment_instances(mm, sub, at))
+                    at += sub.span
             else:
-                out.extend(_segment_instances(mm, sub, pos))
-                pos = sub.read(mm, pos, len(mm))[1]
+                out.append((seg.item, at))
         return out
     return []
 

@@ -20,8 +20,8 @@ BODY, 5,093 bytes:
       +0  BODY_HEAD, 78 B         our side, the match header, attendance, Player of the Match
      +78  50 x event, 17 B        the event list again, in 50 preallocated slots; the first n
                                   equal the counted list, the rest are unwritten or stale
-    +928  home TEAM block         [77 B team head][20 x player slot, 62 B][46 B team tail]
-   +2291  away TEAM block         the same layout
+    +928  2 x TEAM block          home then away, each [77 B team head]
+                                  [20 x player slot, 62 B][46 B team tail]
    +3654  TAIL, 1,439 B           our side's formation string and its 11 starting positions
 
 A player slot is preallocated: an unused one keeps its slot number (`posOrder`) and has tid
@@ -39,7 +39,7 @@ import datetime
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..core import (Block, CountedList, Field, FixedList, HEX2, PAD, RAW, Record, TableDef,
+from ..core import (CountedList, Field, FixedList, HEX2, PAD, RAW, Record, Struct, TableDef,
                     U8, U16, U32, UNKNOWN)
 from ..core.primitives import pitch_position
 from ..save import cache_key as _cache_key
@@ -52,6 +52,7 @@ __all__ = [
     "MATCHES_TABLE",
     "MatchTableError",
     "PLAYER_SLOT",
+    "TEAM",
     "TEAM_HEAD",
     "TEAM_TAIL",
     "MATCH_TAIL",
@@ -194,14 +195,12 @@ MATCH_TAIL = Record("match_tail", 1439, [
 ])
 
 
-def _team(side: str) -> Block:
-    return Block(side, TEAM_HEAD, FixedList("players", PLAYER_SLOT, PLAYER_SLOTS), TEAM_TAIL)
-
-
+# One team's block; the body holds two, home then away.
+TEAM = Struct("match_team", TEAM_HEAD, FixedList("players", PLAYER_SLOT, PLAYER_SLOTS),
+              TEAM_TAIL)
 _BODY_SEGMENTS = (BODY_HEAD, FixedList("event_slots", EVENT, EVENT_SLOTS),
-                  _team("home"), _team("away"), MATCH_TAIL)
-TEAM_SPAN = TEAM_HEAD.span + PLAYER_SLOTS * PLAYER_SLOT.span + TEAM_TAIL.span
-BODY_SPAN = BODY_HEAD.span + EVENT_SLOTS * EVENT.span + 2 * TEAM_SPAN + MATCH_TAIL.span
+                  FixedList("teams", TEAM, 2), MATCH_TAIL)
+BODY_SPAN = BODY_HEAD.span + EVENT_SLOTS * EVENT.span + 2 * TEAM.span + MATCH_TAIL.span
 MARKER_AT = BODY_SPAN - MATCH_TAIL.span + 33          # the formation marker, in the body
 ROW_FIXED = MATCH_HEAD.span + 1 + BODY_SPAN            # a row is ROW_FIXED + 17 n
 
@@ -301,6 +300,7 @@ def _match(r: Dict[str, Any]) -> Dict[str, Any]:
                 + datetime.timedelta(days=r["day"])).isoformat()
     except ValueError:
         date = None
+    home, away = r["teams"]
     pos = r["positions"]
     positions = [pitch_position(pos[2 * i], pos[2 * i + 1]) for i in range(11)]
     return {
@@ -312,13 +312,13 @@ def _match(r: Dict[str, Any]) -> Dict[str, Any]:
         "club_tid": r["club_tid"],
         "home_flag": r["home_flag"],
         "attendance": r["attendance"],
-        "score": {"home": r["home"]["goals"], "away": r["away"]["goals"]},
+        "score": {"home": home["goals"], "away": away["goals"]},
         "player_of_match": r["player_of_match"],
         "formation": r["formation"].rstrip(b"\x00").decode("ascii"),
         "positions": None if None in positions else positions,
         "events": [{k: e[k] for k in _EVENT_KEYS} for e in r["events"]],
-        "home_xi": [p for p in r["home"]["players"] if p["tid"] != NO_PLAYER],
-        "away_xi": [p for p in r["away"]["players"] if p["tid"] != NO_PLAYER],
+        "home_xi": [p for p in home["players"] if p["tid"] != NO_PLAYER],
+        "away_xi": [p for p in away["players"] if p["tid"] != NO_PLAYER],
     }
 
 
