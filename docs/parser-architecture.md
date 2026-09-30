@@ -220,7 +220,8 @@ the strings that end at a given byte have exactly one start. Both walks stop whe
 longer parses, and the region must come out as 66 lists (31 world, 31 club, 4 more) on
 every save. Extract hands every entry over as stored (`player_scrapbook.json`); which of
 them are our squad's is the store's question (`staging.squad_scrapbook`: a player in our
-squad arrays, his latest entry in lists 31-61). The managed squad used to be found by key
+squad arrays, his latest entry in lists 31-61, used for the entangled attributes while it
+is at most a year old). The managed squad used to be found by key
 search -- clusters of our club marker -- and on the early saves the cluster sat on lists
 62-65, stale copies whose attributes match the stored ones less often (1,589 vs 1,754) than
 our current season list's.

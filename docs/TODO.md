@@ -135,15 +135,6 @@ store (`staging.player_scrapbook`); `staging.squad_scrapbook` picks our squad's.
   - surfacing it: each squad player's training focus on the site's Squad page.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
-- **How far to trust an "exact" squad attribute**: `staging.players.scrapbook_date` is the
-  date of the scrapbook entry the squad's exact attributes came from. A squad player's
-  entries are rewritten monthly only while he plays that season, so one who has not played
-  carries last season's (Johan Maarup on `frem-2026-06-11`: 2025-06-30). Over the Frem
-  rebuild, 459 of 1,062 squad rows with an entry have one at most 31 days old and 279 have
-  one over six months old. Agreement with the
-  attributes stored on the player's own record falls with its age (84% under a month, ~80% to
-  seven months, ~60% at nine or more). Decide in `staging.squad_scrapbook` when an old entry
-  should give way to the estimate.
 - **Surface the World Best XI pools**: every season's pool is in `staging.player_scrapbook`
   (lists 0-30, 62/64); nothing reads it yet.
 

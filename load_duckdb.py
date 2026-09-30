@@ -305,19 +305,29 @@ def _scrapbook_date(e):
             + datetime.timedelta(e["scrapbook_day"]))
 
 
+# How old a squad player's scrapbook entry may be and still stand in for his entangled
+# attributes, value and feet. Measured against entries at most a month old on every save of
+# both careers: an entry up to a year old matches on 76-97% of the 23 attributes, the
+# estimate on 71%; past two years the estimate is as good.
+SCRAPBOOK_MAX_AGE_DAYS = 365
+
+
 def _squad_views(S="staging"):
     """Our squad's exact values, as views over the tables the loader writes.
 
     `staging.squad_scrapbook`: every player in our squad on each snapshot -- the first team's
     or the reserve side's squad array (staging.club_squad; the reserve side is the club whose
     record names ours as its main club) -- with his latest entry in the Manager's Best
-    Eleven lists: the squad's entries are rewritten on the 1st of every month, so the latest
-    is the current one. A player in the squad whose own record names another club is on
-    loan to us from it. A player with no entry yet has none of the entry's columns.
+    Eleven lists. The entries are rewritten on the 1st of every month while he plays that
+    season, and frozen otherwise. A player in the squad whose own record names another club
+    is on loan to us from it. A player with no entry yet has none of the entry's columns.
 
     `staging.players` and `staging.player_attributes_exact` are the raw tables with the
-    squad's name, club, feet, value and 23 attributes taken from that entry. Everyone else
-    keeps his own record, and his attributes are estimated (staging.player_attributes)."""
+    squad's values in their place: his name from the entry; his feet, value and the 16
+    entangled attributes from it while it is at most `SCRAPBOOK_MAX_AGE_DAYS` old
+    (`scrapbook_date` is set only then). The seven plain attributes always come from his
+    own record, which states them outright and is current. Everyone else keeps his own
+    record, and his entangled attributes are estimated (staging.player_attributes)."""
     lo, hi = CLUB_LISTS.start, CLUB_LISTS.stop - 1
     entry_cols = ", ".join(f'k."{c}"' for c, _, _ in SCRAPBOOK_COLS
                            if c not in ("player_tid",))
@@ -356,34 +366,38 @@ LEFT JOIN {S}.clubs c ON c.season = q.season AND c.phase = q.phase AND c.tid = q
 LEFT JOIN latest k ON k.season = q.season AND k.phase = q.phase AND k.player_tid = q.tid"""
 
     has = "k.scrapbook_date IS NOT NULL"
+    fresh = (f"({has} AND TRY_CAST(k.phase AS DATE) - k.scrapbook_date"
+             f" <= {SCRAPBOOK_MAX_AGE_DAYS})")
     over = {
         "name": f"CASE WHEN {has} THEN k.full_name ELSE r.name END",
         "club_tid": "CASE WHEN k.loaned_in THEN k.squad_club_tid ELSE r.club_tid END",
         "club": "CASE WHEN k.loaned_in THEN k.squad_club ELSE r.club END",
-        "foot_left": f"CASE WHEN {has} THEN k.foot_left ELSE r.foot_left END",
-        "foot_right": f"CASE WHEN {has} THEN k.foot_right ELSE r.foot_right END",
+        "foot_left": f"CASE WHEN {fresh} THEN k.foot_left ELSE r.foot_left END",
+        "foot_right": f"CASE WHEN {fresh} THEN k.foot_right ELSE r.foot_right END",
     }
-    added_after = {"foot_right": [("player_value", "k.value"),
+    added_after = {"foot_right": [("player_value", f"CASE WHEN {fresh} THEN k.value END"),
                                   ("loaned_in", "COALESCE(k.loaned_in, FALSE)"),
                                   ("parent_club_tid", "CASE WHEN k.loaned_in THEN k.own_club_tid END"),
                                   ("parent_club", "CASE WHEN k.loaned_in THEN k.own_club END")]}
-    return squad, over, added_after, has
+    return squad, over, added_after, fresh
 
 
 def _players_views(con, S="staging"):
     """The three squad views, in dependency order (see `_squad_views`)."""
-    squad, over, added_after, has = _squad_views(S)
+    squad, over, added_after, fresh = _squad_views(S)
     cols = [r[1] for r in con.execute(f"PRAGMA table_info('{S}.players_raw')").fetchall()]
     sel = []
     for c in cols:
         sel.append(f'{over[c]} AS "{c}"' if c in over else f'r."{c}"')
         sel += [f'{e} AS "{n}"' for n, e in added_after.get(c, [])]
-    sel.append('k.scrapbook_date AS "scrapbook_date"')
+    sel.append(f'CASE WHEN {fresh} THEN k.scrapbook_date END AS "scrapbook_date"')
     players = (f"CREATE OR REPLACE VIEW {S}.players AS\nSELECT " + ",\n       ".join(sel)
                + f"\nFROM {S}.players_raw r\nLEFT JOIN {S}.squad_scrapbook k"
                f" ON k.season = r.season AND k.phase = r.phase AND k.tid = r.tid")
-    attrs = ",\n       ".join(f'CASE WHEN {has} THEN k."{a}" ELSE e."{a}" END AS "{a}"'
-                               for a in ATTR_ORDER)
+    attrs = ",\n       ".join(
+        f'e."{a}"' if a in _A.EXACT_SINGLE
+        else f'CASE WHEN {fresh} THEN k."{a}" ELSE e."{a}" END AS "{a}"'
+        for a in ATTR_ORDER)
     exact = (f"CREATE OR REPLACE VIEW {S}.player_attributes_exact AS\n"
              f"SELECT e.season, e.phase, e.tid,\n       {attrs}\n"
              f"FROM {S}.player_attributes_exact_raw e\nLEFT JOIN {S}.squad_scrapbook k"
