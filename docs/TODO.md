@@ -136,10 +136,19 @@ Each entry is a **player attribute snapshot**: the player's Scrapbook Profile as
   Frem's red/blue stripes 31, Barcelona 30, Newcastle 25, FC Nordsjaelland 0c, Frem's
   goalkeeper kit 0d, ff an unused kit. Name the ids from kits whose design is known; the
   second byte (00/01/02) is unread.
-- **Snapshot role ids** (`+21`, `player_lists.ROLES`): all 33 assigned. 21 are read off
-  Scrapbook Profiles; the 12 in `ROLES_INFERRED` (2, 8, 11, 18, 20, 22, 23, 24, 27, 28, 29, 31)
-  are the roles left over once the others were named, placed by position block and their
-  holders' attributes. Confirm them from `docs/role-ids.csv`; 18 Poacher (88 snapshots) first.
+- **Snapshot role ids** (`+21`, `player_lists.ROLES`): all 33 assigned; the 12 in
+  `ROLES_INFERRED` are placed by position block and holders' attributes. The player-role table
+  below gives every player's CURRENT role, so `docs/role-ids.csv` now names famous players in
+  each role, whose live profiles can be checked directly.
+- **Player-role table -- found, not yet a TableDef.** Right after Player Progress (52.0 MB on
+  frem-2027-08-08): `[count u32 = 32,966][32,966 x 61 B]`, row k = person tid k, `ffffffff`
+  = not a player (5,218 blank rows are staff). Read so far: `+0` tid, `+4` uid, `+23` role
+  u16 (the snapshot role ids; 31/32 of our squad equal their live snapshot, Chukwuani 16 vs
+  32), `+29` position as the match slot-array's `(band, column)` pair -- the position the role
+  is played in. Plausibly the training role/position (the user's read). Unread: `+8` u8,
+  `+9`/`+13` u32 (money-like; `+9` round), `+17` u32, `+21` u16 (0-3), `+27` u16 (not an
+  attribute index), `+31..+48`, three dates at `+49/+53/+57`. Walk it by the count; check it
+  on every save of both careers; then load role + position per snapshot.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
 - **How far to trust an "exact" squad attribute**: `players.json` / `staging.players` carry
