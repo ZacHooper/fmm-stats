@@ -13,6 +13,7 @@ Structure (validated on Karacabey 3-3 Bucaspor, ground_truth_match1.json):
 from datetime import date, timedelta
 
 from .core import Field, HEX2, HEX4, PAD, Record, U8, U32, UNKNOWN
+from .core.primitives import pitch_position
 from collections import defaultdict
 
 # per-match delimiter cluster (same in every FMM22 save)
@@ -298,23 +299,7 @@ def parse_formation(mm, anchor, next_anchor):
 # slot, in posOrder order — giving each starter's actual on-pitch position. This is the
 # ONLY place position is stored; the per-player stat block holds none (exhaustively
 # ruled out). Full write-up + validation: docs/agent-context/match-position-encoding.md.
-POSITION_BANDS = {0x01: "GK", 0x04: "D", 0x08: "DM", 0x10: "M", 0x20: "AM", 0x40: "ST"}
-LEFT_FLAG = 0x80        # band byte: player is the wide-LEFT one of his band
-WIDE_RIGHT = 0x08       # column byte: player is the wide-RIGHT one of his band
-
-
-def slot_position(band_byte, col_byte):
-    """One (band, column) pair -> an FM position code ('DR', 'DMC', 'AML', ...)."""
-    band = POSITION_BANDS.get(band_byte & ~LEFT_FLAG)
-    if band is None:
-        return None
-    if band == "GK":
-        return "GK"
-    if band == "ST":
-        return "FC"
-    if col_byte == WIDE_RIGHT:
-        return band + "R"
-    return band + ("L" if band_byte & LEFT_FLAG else "C")
+slot_position = pitch_position    # one (band, column) pair -> a position code
 
 
 def parse_slot_positions(mm, anchor, next_anchor):

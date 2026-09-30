@@ -93,6 +93,27 @@ def ymd_from(year: int, day: int) -> Optional[str]:
         return None
 
 
+# A pitch position as a (band, column) byte pair -- the match slot array and the training
+# Focus Pos both store it this way.
+POSITION_BANDS = {0x01: "GK", 0x04: "D", 0x08: "DM", 0x10: "M", 0x20: "AM", 0x40: "ST"}
+LEFT_FLAG = 0x80          # band byte: the wide-LEFT player of his band
+WIDE_RIGHT = 0x08         # column byte: the wide-RIGHT player of his band
+
+
+def pitch_position(band_byte: int, col_byte: int) -> Optional[str]:
+    """One (band, column) pair -> an FM position code ('GK', 'DR', 'DMC', 'AML', 'FC', ...)."""
+    band = POSITION_BANDS.get(band_byte & ~LEFT_FLAG)
+    if band is None:
+        return None
+    if band == "GK":
+        return "GK"
+    if band == "ST":
+        return "FC"
+    if col_byte == WIDE_RIGHT:
+        return band + "R"
+    return band + ("L" if band_byte & LEFT_FLAG else "C")
+
+
 def tag4(mm: Any, off: int) -> str:
     """A 4-byte tag, stored reversed."""
     return bytes(mm[off:off + 4])[::-1].decode("latin-1").strip()

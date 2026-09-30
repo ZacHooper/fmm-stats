@@ -342,6 +342,15 @@ DDL = [
         position INTEGER, teams INTEGER
     )""",
 
+    # The Training page, one row per player: focus role and position, attribute focus and
+    # intensity (fmparser.tables.training). Every player in the world, not just ours.
+    # natural key: (season, phase, tid)
+    """CREATE TABLE IF NOT EXISTS staging.training (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        intensity INTEGER, focus_role INTEGER, focus_attribute INTEGER,
+        focus_position VARCHAR
+    )""",
+
     # The club record's trailer (fmparser.tables.clubs.CLUB_TABLE). Facts the club
     # record asserts directly, rather than inferred.
     # natural key: (season, phase, tid)
@@ -1241,6 +1250,17 @@ def load_core(con, d, season, phase):
             con, "club_league_history",
             ["season", "phase", "club_tid", "cid", "year", "position", "teams"], rows)
 
+    tr_path = os.path.join(d, "training.json")
+    if os.path.exists(tr_path):
+        rows = [(season, phase, _int(v.get("tid")), _int(v.get("intensity")),
+                 _int(v.get("focus_role")), _int(v.get("focus_attribute")),
+                 v.get("focus_position"))
+                for v in _load_json(tr_path)]
+        counts["training"] = _insert(
+            con, "training",
+            ["season", "phase", "tid", "intensity", "focus_role", "focus_attribute",
+             "focus_position"], rows)
+
     # --- stadiums + cities ----------------------------------------------------
     sd_path = os.path.join(d, "stadiums.json")
     if os.path.exists(sd_path):
@@ -1535,7 +1555,7 @@ def _clear_group(con, group, season, phase):
                   "nation_coefficients", "nation_languages",
                   "club_affiliates", "competitions", "leagues", "matches", "match_events",
                   "match_player_stats", "club_records", "player_records",
-                  "club_league_history"):
+                  "club_league_history", "training"):
             _delete(con, t, season, phase)
         _delete(con, "league_members", season, phase, "AND source='members'")
         # club->league (exact club-record map) is a core artifact (main-dir club_league.json)

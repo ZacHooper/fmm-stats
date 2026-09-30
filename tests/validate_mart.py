@@ -1100,6 +1100,30 @@ def main():
             continue  # store predates the move
         check(f"transfers: {name} -> {to_club} fee", got == want, f"{got} vs {want}")
 
+    # The Training page: one row per player per snapshot, every role id named, and our squad
+    # as the in-game Training screen showed it on 2027-06-15.
+    dup = con.execute("""
+        SELECT COUNT(*) FROM (SELECT season, phase, tid FROM mart.training_focus
+                              GROUP BY ALL HAVING COUNT(*) > 1)
+    """).fetchone()[0]
+    check("training_focus: one row per player per snapshot", dup == 0, f"{dup} duplicated")
+    unnamed = con.execute("SELECT COUNT(*) FROM mart.training_focus "
+                          "WHERE focus_role_name IS NULL").fetchone()[0]
+    check("training_focus: every focus role is named", unnamed == 0, f"{unnamed} unnamed")
+    screen = {"Gregers Dehn": ("DL", "Wing-Back", "CRE", "High"),
+              "Andreas Garly": ("MC", "Box to Box Midfielder", "STR", "High"),
+              "Aske Fredeløkke": ("GK", "Sweeper Keeper", "HAN", "Normal"),
+              "Johannes Tjørnelund": ("DMC", "Ball Winning Midfielder", "STR", "Normal"),
+              "Ruben Minerba": ("DC", "Central Defender", "AIR", "Normal")}
+    for name, want in screen.items():
+        got = con.execute("""
+            SELECT focus_position, focus_role_name, focus_attribute_abbrev, intensity_label
+            FROM mart.training_focus WHERE phase = '2027-06-15' AND name = ?""",
+                          [name]).fetchone()
+        if got is None:
+            continue  # store predates the snapshot
+        check(f"training_focus: {name} on 2027-06-15", tuple(got) == want, f"{got}")
+
     print()
     if FAILURES:
         print(f"{len(FAILURES)} CHECK(S) FAILED:")
