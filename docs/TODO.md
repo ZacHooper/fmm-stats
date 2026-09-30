@@ -252,6 +252,10 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 ## Parser ↔ stats: decoupling
 
 ### 12. Extract dumps tables; the mart does the joins
+**Plan: [`plans/2026-09-30-extract-dumps-tables.md`](plans/2026-09-30-extract-dumps-tables.md)**
+-- five phases, each a view behind the `staging` name consumers already read, gated
+row-for-row against a store built from `main`.
+
 `players.json` is a pre-joined row built in `extract.py` from about seven tables: the person
 table, the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three name id-tables
 + browse strings (`name`: the common name, then the legal name), the club table (`club`),
