@@ -306,8 +306,8 @@ def main():
 
     # -- 5b. first team vs reserves ---------------------------------------------------
     # our_clubs holds both sides. Filtering results on it folds the reserve fixtures into
-    # the first team's, which is how a season review silently reports 58 games instead of
-    # 38 — caught by running the rewritten fm-season-review template.
+    # the first team's, which is how a season review silently reports 59 games instead of
+    # 39 — caught by running the rewritten fm-season-review template.
     print("\n5b. managed club vs reserves")
     split = con.execute("""
         SELECT
@@ -320,9 +320,10 @@ def main():
               AND (home_tid IN (SELECT club_tid FROM mart.our_clubs)
                 OR away_tid IN (SELECT club_tid FROM mart.our_clubs)))    AS both
     """).fetchone()
-    check("managed_club isolates the first team's 38 games", split[0] == 38,
+    # 2024 opens with the 2023-07-08 friendly at club 2426: 32 league, 1 cup, 6 friendlies.
+    check("managed_club isolates the first team's 39 games", split[0] == 39,
           f"first team {split[0]}, both sides {split[1]}")
-    check("our_clubs really does include more (the reserve fixtures)", split[1] == 58,
+    check("our_clubs really does include more (the reserve fixtures)", split[1] == 59,
           f"got {split[1]}")
     check("managed_club resolves to exactly one club",
           con.execute("SELECT COUNT(*) FROM mart.managed_club").fetchone()[0] == 1)
