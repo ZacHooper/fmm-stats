@@ -252,9 +252,10 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 ## Parser ↔ stats: decoupling
 
 ### 12. Extract dumps tables; the mart does the joins
-**Plan: [`plans/2026-09-30-extract-dumps-tables.md`](plans/2026-09-30-extract-dumps-tables.md)**
--- five phases, each a view behind the `staging` name consumers already read, gated
-row-for-row against a store built from `main`.
+**Plan: [`plans/2026-09-30-extract-cleanup.md`](plans/2026-09-30-extract-cleanup.md)**
+-- nine PRs: header dates and save renames, dead outputs, whole reference tables, then each
+`build_database` join as a view behind the `staging` name consumers already read, and a
+file-order cursor; each gated row-for-row against a store built from `main`.
 
 `players.json` is a pre-joined row built in `extract.py` from about seven tables: the person
 table, the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three name id-tables
@@ -424,6 +425,8 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   `bucaspor/22-23-start` and `bucaspor/fm_save3` 2022-06-20 (check whether they are the same
   save), `bucaspor/fm_save1-24-mid` 2023-11-08. Stale `output/` dirs and the pre-rewrite git
   backup on the local machine can go.
+  Renaming the 20 manifest saves whose name is not their header date is PR 1 of the
+  extract clean-up (#12); settle these duplicates in the same pass.
 - **`careers.py` hardcodes `reserve_tid`** — the club record's `main_club_tid` could derive it.
 - **`tests/test_attribute_model.py` skips without a repo-local store** — open it through
   `fmstats.store.open_store()` as `tests/test_fmq.py` does.
