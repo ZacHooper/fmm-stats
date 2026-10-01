@@ -583,28 +583,21 @@ DDL = [
     )""",
 
     # natural key: (season, phase, cid)
+    # The whole competition table, every named slot (fmparser/tables/competitions.py).
+    # `level` is the 0-indexed division tier: unlike ranking by reputation it places
+    # PARALLEL divisions on the same tier.
+    # natural key: (season, phase, cid)
     """CREATE TABLE IF NOT EXISTS staging.competitions (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         cid INTEGER NOT NULL, uid BIGINT, name VARCHAR, short VARCHAR, code VARCHAR,
-        type VARCHAR, type_id INTEGER, nation_id INTEGER, num_teams INTEGER,
-        matches_in_save INTEGER, level INTEGER, parent_cid INTEGER
-    )""",
-
-    # natural key: (season, phase, cid)
-    """CREATE TABLE IF NOT EXISTS staging.leagues (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
-        cid INTEGER NOT NULL, name VARCHAR, type VARCHAR, nation_id INTEGER,
-        nation VARCHAR, reputation INTEGER, member_count INTEGER, fixtures INTEGER,
-        -- 0-indexed division tier from the competition record. Unlike ranking by
-        -- reputation this places PARALLEL divisions on the same tier.
+        type VARCHAR, type_id INTEGER, nation_id INTEGER, reputation INTEGER,
         level INTEGER, parent_cid INTEGER
     )""",
 
-    # natural key: (season, phase, league_cid, club_tid, source)
-    """CREATE TABLE IF NOT EXISTS staging.league_members (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
-        league_cid INTEGER NOT NULL, club_tid INTEGER NOT NULL,
-        source VARCHAR NOT NULL
+    # Each nation's team-count rules (fmparser/tables/rule_files.team_counts): how many
+    # teams a competition has. natural key: (season, phase, uid)
+    """CREATE TABLE IF NOT EXISTS staging.competition_team_counts (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, uid BIGINT NOT NULL, teams INTEGER
     )""",
 
     # Each person's own record as the save stores it. staging.players is a VIEW over this plus
@@ -613,7 +606,7 @@ DDL = [
     """CREATE TABLE IF NOT EXISTS staging.players_raw (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         tid INTEGER NOT NULL, name VARCHAR, is_staff BOOLEAN NOT NULL DEFAULT FALSE,
-        club_tid INTEGER, club VARCHAR, league_cid INTEGER, league VARCHAR,
+        club_tid INTEGER, club VARCHAR,
         dob DATE, nationality_id INTEGER, has_attributes BOOLEAN,
         squad_status INTEGER, loaned_out BOOLEAN, is_gk INTEGER,
         ca INTEGER, pa INTEGER, reputation INTEGER, positions JSON,
@@ -963,7 +956,10 @@ VIEWS["v_player_ratings"] = f"""
 # simple club_tid filter on top. Deliberately exposes no ca/pa.
 VIEWS["v_player_rating_ranks"] = """
     SELECT r.season, r.phase, r.method, r.role, r.tid, r.rating,
-           p.name, p.club, p.club_tid, p.league_cid,
+           p.name, p.club, p.club_tid,
+           -- the club record's league: league_id, unless the club plays in another division
+           CASE WHEN d.other_division = 65535 AND d.league_id NOT IN (0, 65535)
+                THEN d.league_id END AS league_cid,
            ROUND(100 * PERCENT_RANK() OVER (
                PARTITION BY r.season, r.phase, r.method, r.role
                ORDER BY r.rating), 1) AS pctile,
@@ -972,6 +968,8 @@ VIEWS["v_player_rating_ranks"] = """
                ORDER BY r.rating DESC) AS rank_overall
     FROM v_player_ratings r
     JOIN staging.players p USING (season, phase, tid)
+    LEFT JOIN staging.club_details d
+           ON (d.season, d.phase, d.tid) = (p.season, p.phase, p.club_tid)
     WHERE NOT p.is_staff
 """
 
@@ -1168,7 +1166,6 @@ def load_core(con, d, season, phase):
         prows.append((
             season, phase, tid, v.get("name"), False,
             _int(v.get("club_tid")), v.get("club"),
-            _int(v.get("league_cid")), v.get("league"),
             _date(v.get("dob")), _int(v.get("nationality_id")),
             v.get("has_attributes"), _int(v.get("squad_status")),
             v.get("loaned_out"), _int(v.get("is_gk")),
@@ -1209,7 +1206,7 @@ def load_core(con, d, season, phase):
                               + tuple(v.get(c) for c in STAFF_ATTR_COLS[3:]))
             srows.append((
                 season, phase, tid, v.get("name"), True,
-                _int(v.get("club_tid")), v.get("club"), None, None,
+                _int(v.get("club_tid")), v.get("club"),
                 _date(v.get("dob")), _int(v.get("nationality_id")),
                 False, None, None, None, None, None, None,
                 json.dumps({}), None, None,
@@ -1225,7 +1222,7 @@ def load_core(con, d, season, phase):
             ))
 
     pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
-             "league_cid", "league", "dob", "nationality_id", "has_attributes",
+             "dob", "nationality_id", "has_attributes",
              "squad_status", "loaned_out", "is_gk", "ca", "pa", "reputation",
              "positions", "foot_left", "foot_right",
              "wage_units", "wage_gbp", "contract_expiry", "contract_expiry_year",
@@ -1273,56 +1270,53 @@ def load_core(con, d, season, phase):
             [(season, phase, r["tid"], datetime.date.fromisoformat(r["week"]), r["status"],
               *(r[c] for c in lines)) for r in _load_json(pp_path)])
 
-    # --- clubs ---------------------------------------------------------------
-    clubs = _load_json(os.path.join(d, "clubs.json"))
-    crows = [(season, phase, _int(k), v) for k, v in clubs.items() if _int(k) is not None]
-    counts["clubs"] = _insert(con, "clubs", ["season", "phase", "tid", "name"], crows)
-
-    # --- club details + the squad/staff/affiliate arrays ----------------------
-    cd_path = os.path.join(d, "club_details.json")
-    if os.path.exists(cd_path):
-        details = _load_json(cd_path)
-        cd_cols = ["season", "phase", "tid", "based_id", "nation_id", "colours", "kits",
-                   "status", "academy", "facilities", "att_avg", "att_min", "att_max",
-                   "reserves", "league_id", "other_division", "other_last_position",
-                   "stadium_id", "last_league", "league_pos", "reputation",
-                   "club_type", "main_club_tid", "squad_size", "staff_size"]
-        cd_rows, sq_rows, st_rows, af_rows = [], [], [], []
-        for v in details.values():
-            tid = _int(v.get("tid"))
-            if tid is None:
-                continue
-            squad = v.get("squad") or []
-            staff = v.get("staff") or []
-            cd_rows.append((
-                season, phase, tid, _int(v.get("based_id")), _int(v.get("nation_id")),
-                json.dumps(v.get("colours") or []), json.dumps(v.get("kits") or []),
-                _int(v.get("status")), _int(v.get("academy")), _int(v.get("facilities")),
-                _int(v.get("att_avg")), _int(v.get("att_min")), _int(v.get("att_max")),
-                _int(v.get("reserves")), _int(v.get("league_id")),
-                _int(v.get("other_division")), _int(v.get("other_last_position")),
-                _int(v.get("stadium_id")), _int(v.get("last_league")),
-                _int(v.get("league_pos")), _int(v.get("reputation")),
-                _int(v.get("club_type")), _int(v.get("main_club_tid")),
-                len(squad), len(staff)))
-            for i, pt in enumerate(squad):
-                sq_rows.append((season, phase, tid, _int(pt), i))
-            for i, stid in enumerate(staff):
-                st_rows.append((season, phase, tid, _int(stid), i))
-            for i, a in enumerate(v.get("affiliates") or []):
-                af_rows.append((season, phase, tid, i, _int(a.get("club1_tid")),
-                                _int(a.get("club2_tid")), _int(a.get("start_day")),
-                                _int(a.get("start_year")), _int(a.get("end_day")),
-                                _int(a.get("end_year"))))
-        counts["club_details"] = _insert(con, "club_details", cd_cols, cd_rows)
-        counts["club_squad"] = _insert(
-            con, "club_squad", ["season", "phase", "club_tid", "player_tid", "slot"], sq_rows)
-        counts["club_staff"] = _insert(
-            con, "club_staff", ["season", "phase", "club_tid", "staff_tid", "slot"], st_rows)
-        counts["club_affiliates"] = _insert(
-            con, "club_affiliates",
-            ["season", "phase", "club_tid", "seq", "club1_tid", "club2_tid",
-             "start_day", "start_year", "end_day", "end_year"], af_rows)
+    # --- clubs: the whole club table, names + the record's trailer ------------
+    details = _load_json(os.path.join(d, "clubs.json"))
+    if any(not isinstance(v, dict) for v in details.values()):
+        raise SystemExit(f"{d}/clubs.json is the old name-only map; re-extract this save")
+    counts["clubs"] = _insert(con, "clubs", ["season", "phase", "tid", "name"], [
+        (season, phase, _int(v["tid"]), v.get("name")) for v in details.values()])
+    cd_cols = ["season", "phase", "tid", "based_id", "nation_id", "colours", "kits",
+               "status", "academy", "facilities", "att_avg", "att_min", "att_max",
+               "reserves", "league_id", "other_division", "other_last_position",
+               "stadium_id", "last_league", "league_pos", "reputation",
+               "club_type", "main_club_tid", "squad_size", "staff_size"]
+    cd_rows, sq_rows, st_rows, af_rows = [], [], [], []
+    for v in details.values():
+        tid = _int(v.get("tid"))
+        if tid is None:
+            continue
+        squad = v.get("squad") or []
+        staff = v.get("staff") or []
+        cd_rows.append((
+            season, phase, tid, _int(v.get("based_id")), _int(v.get("nation_id")),
+            json.dumps(v.get("colours") or []), json.dumps(v.get("kits") or []),
+            _int(v.get("status")), _int(v.get("academy")), _int(v.get("facilities")),
+            _int(v.get("att_avg")), _int(v.get("att_min")), _int(v.get("att_max")),
+            _int(v.get("reserves")), _int(v.get("league_id")),
+            _int(v.get("other_division")), _int(v.get("other_last_position")),
+            _int(v.get("stadium_id")), _int(v.get("last_league")),
+            _int(v.get("league_pos")), _int(v.get("reputation")),
+            _int(v.get("club_type")), _int(v.get("main_club_tid")),
+            len(squad), len(staff)))
+        for i, pt in enumerate(squad):
+            sq_rows.append((season, phase, tid, _int(pt), i))
+        for i, stid in enumerate(staff):
+            st_rows.append((season, phase, tid, _int(stid), i))
+        for i, a in enumerate(v.get("affiliates") or []):
+            af_rows.append((season, phase, tid, i, _int(a.get("club1_tid")),
+                            _int(a.get("club2_tid")), _int(a.get("start_day")),
+                            _int(a.get("start_year")), _int(a.get("end_day")),
+                            _int(a.get("end_year"))))
+    counts["club_details"] = _insert(con, "club_details", cd_cols, cd_rows)
+    counts["club_squad"] = _insert(
+        con, "club_squad", ["season", "phase", "club_tid", "player_tid", "slot"], sq_rows)
+    counts["club_staff"] = _insert(
+        con, "club_staff", ["season", "phase", "club_tid", "staff_tid", "slot"], st_rows)
+    counts["club_affiliates"] = _insert(
+        con, "club_affiliates",
+        ["season", "phase", "club_tid", "seq", "club1_tid", "club2_tid",
+         "start_day", "start_year", "end_day", "end_year"], af_rows)
 
     # --- club history records (team + player) ---------------------------------
     cr_path = os.path.join(d, "club_records.json")
@@ -1445,46 +1439,17 @@ def load_core(con, d, season, phase):
     # --- competitions --------------------------------------------------------
     comps = _load_json(os.path.join(d, "competitions.json"))
     comp_cols = ["season", "phase", "cid", "uid", "name", "short", "code", "type",
-                 "type_id", "nation_id", "num_teams", "matches_in_save",
-                 "level", "parent_cid"]
+                 "type_id", "nation_id", "reputation", "level", "parent_cid"]
     comp_rows = [(season, phase, _int(v.get("cid")), _int(v.get("uid")), v.get("name"),
                   v.get("short"), v.get("code"), v.get("type"), _int(v.get("type_id")),
-                  _int(v.get("nation_id")), _int(v.get("num_teams")),
-                  _int(v.get("matches_in_save")),
+                  _int(v.get("nation_id")), _int(v.get("reputation")),
                   _int(v.get("level")), _int(v.get("parent_cid"))) for v in comps.values()]
     counts["competitions"] = _insert(con, "competitions", comp_cols, comp_rows)
-
-    # --- leagues + members (source='members') --------------------------------
-    lg_path = os.path.join(d, "leagues.json")
-    if os.path.exists(lg_path):
-        leagues = _load_json(lg_path)
-        lg_cols = ["season", "phase", "cid", "name", "type", "nation_id", "nation",
-                   "reputation", "member_count", "fixtures", "level", "parent_cid"]
-        lg_rows, mem_rows = [], []
-        for v in leagues.values():
-            cid = _int(v.get("cid"))
-            lg_rows.append((season, phase, cid, v.get("name"), v.get("type"),
-                            _int(v.get("nation_id")), v.get("nation"),
-                            _int(v.get("reputation")),
-                            _int(v.get("member_count")), _int(v.get("fixtures")),
-                            _int(v.get("level")), _int(v.get("parent_cid"))))
-            for m in v.get("members") or []:
-                mem_rows.append((season, phase, cid, _int(m), "members"))
-        counts["leagues"] = _insert(con, "leagues", lg_cols, lg_rows)
-        counts["league_members(members)"] = _insert(
-            con, "league_members",
-            ["season", "phase", "league_cid", "club_tid", "source"], mem_rows)
-
-    # --- club -> league (source='club_league') ------------------------------
-    # extract.py writes club_league.json (main dir) from the club records — exact and
-    # available on day-1, before any match. This is what the dashboard resolves on.
-    cl_path = os.path.join(d, "club_league.json")
-    if os.path.exists(cl_path):
-        rows = [(season, phase, _int(v.get("league_cid")), _int(k), "club_league")
-                for k, v in _load_json(cl_path).items() if v.get("league_cid") is not None]
-        counts["league_members(club_league)"] = _insert(
-            con, "league_members",
-            ["season", "phase", "league_cid", "club_tid", "source"], rows)
+    tc_path = os.path.join(d, "competition_team_counts.json")
+    if os.path.exists(tc_path):
+        counts["competition_team_counts"] = _insert(
+            con, "competition_team_counts", ["season", "phase", "uid", "teams"],
+            [(season, phase, int(u), _int(n)) for u, n in _load_json(tc_path).items()])
 
     # --- matches + events + player stats -------------------------------------
     # matches.json is the match table as stored (fmparser/tables/matches.py); what the game
@@ -1628,26 +1593,16 @@ def load_light(con, d, season, phase):
             ["season", "phase", "home_tid", "away_tid", "cid", "seq", "home",
              "away", "scoreH", "scoreA", "competition", "copies"], rows)
 
-    # NOTE: club->league (source='club_league') is loaded by load_core from the MAIN-dir
-    # club_league.json — the exact, complete club-record map (light-results ∪ club records).
-    # It is deliberately NOT reloaded here: the light_results/club_league.json is only the
-    # light-results-derived SUBSET (drops clubs whose league isn't a resolved league-type,
-    # e.g. Frem's Danish 3. Division cid 1147), and reloading it used to clobber the exact
-    # map. See _clear_group: 'club_league' now belongs to the 'core' group.
     return counts
 
 
 def _backfill_competition(con, season, phase):
-    """Detailed `matches` (and their per-player `match_player_stats`) carry a `comp_id`
-    but a NULL `competition` NAME for LEAGUE games: the extractor resolves cup/friendly
-    names but league names live in `staging.leagues`, not competitions.json (light-results
-    also drops unresolved league-type cids like Denmark's 3. Division = 1147 — see the note
-    in load_light). Backfill the name from `leagues` by comp_id, then propagate to the
-    per-player stat lines by anchor, so competition filters/tables aren't blank for the
-    league (the bulk of games)."""
+    """A match whose `competition` NAME is still NULL takes it from the competition table by
+    comp_id, and the per-player stat lines follow by anchor, so competition filters and
+    tables are never blank."""
     con.execute("""
         UPDATE staging.matches m SET competition = l.nm
-        FROM (SELECT cid, any_value(name) AS nm FROM staging.leagues
+        FROM (SELECT cid, any_value(name) AS nm FROM staging.competitions
               WHERE name IS NOT NULL GROUP BY cid) l
         WHERE m.competition IS NULL AND m.comp_id = l.cid
           AND m.season = ? AND m.phase = ?
@@ -1723,13 +1678,10 @@ def _clear_group(con, group, season, phase):
                   "player_history", "player_history_seasons", "player_progress",
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
                   "nation_coefficients", "nation_languages",
-                  "club_affiliates", "competitions", "leagues", "matches", "match_events",
-                  "match_player_stats", "club_records", "player_records",
+                  "club_affiliates", "competitions", "competition_team_counts", "matches",
+                  "match_events", "match_player_stats", "club_records", "player_records",
                   "club_league_history", "training"):
             _delete(con, t, season, phase)
-        _delete(con, "league_members", season, phase, "AND source='members'")
-        # club->league (exact club-record map) is a core artifact (main-dir club_league.json)
-        _delete(con, "league_members", season, phase, "AND source='club_league'")
     elif group == "light":
         _delete(con, "results", season, phase)
     elif group == "standings":
@@ -1926,7 +1878,6 @@ _MIGRATIONS = [
     "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS wage_gbp BIGINT",
     "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS contract_expiry DATE",
     "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
-    "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS reputation INTEGER",
     # 2026-08-19: career history re-decoded (linked-list chains + the P-38 link), which also
     # yielded assists, average rating and the debut season. See fmparser/tables/history.py.
     "ALTER TABLE staging.player_history ADD COLUMN IF NOT EXISTS debut_season INTEGER",
@@ -1987,8 +1938,6 @@ _MIGRATIONS = [
     # 2026-09-16: competition LEVEL (0 = top flight) + parent cid, and the reputation read
     # moved from the trailer's p+8 to p+9 -- the old offset straddled the background colour
     # and returned roughly 256x the real value. See fmparser/clubs_comps.py.
-    "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS level INTEGER",
-    "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS parent_cid INTEGER",
     "ALTER TABLE staging.competitions ADD COLUMN IF NOT EXISTS level INTEGER",
     "ALTER TABLE staging.competitions ADD COLUMN IF NOT EXISTS parent_cid INTEGER",
     # history.player_snapshots is built with `CREATE TABLE ... AS SELECT p.*, a.*`, so its
@@ -2044,7 +1993,18 @@ _MIGRATIONS = [
     # 2026-10-01: phase is the save's header date, so the label-derivation and match-date
     # columns carry nothing (data-layers plan, step 2).
 ] + [f"ALTER TABLE staging.extracts DROP COLUMN IF EXISTS {c}"
-     for c in ("label_auto", "latest_match", "date_from", "date_to")]
+     for c in ("label_auto", "latest_match", "date_from", "date_to")] + [
+    # 2026-10-01: extract writes the whole club and competition tables; the league tables
+    # it used to assemble, and the league label on each player, are derived in the mart
+    # (data-layers plan, step 4).
+    "DROP TABLE IF EXISTS staging.leagues",
+    "DROP TABLE IF EXISTS staging.league_members",
+    "ALTER TABLE staging.competitions DROP COLUMN IF EXISTS num_teams",
+    "ALTER TABLE staging.competitions DROP COLUMN IF EXISTS matches_in_save",
+    "ALTER TABLE staging.competitions ADD COLUMN IF NOT EXISTS reputation INTEGER",
+    "ALTER TABLE staging.players_raw DROP COLUMN IF EXISTS league_cid",
+    "ALTER TABLE staging.players_raw DROP COLUMN IF EXISTS league",
+]
 
 
 def _migrate(con):

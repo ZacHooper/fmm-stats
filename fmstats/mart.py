@@ -267,47 +267,36 @@ SELECT key, value FROM {S}.app_config
 
 # --- dimensions -------------------------------------------------------------------
 
-# Club -> league, AS AT each snapshot. This one object replaces hand-rolled copies of
-# the same arg_max CTE across older queries and scripts/export_data.py, and two of
-# those copies were wrong in the same two ways: they built the sort key from the raw `phase`
-# column instead of phase_ord() — so a legacy start/mid/end store sorted 'mid' after 'end' —
-# and they left off the `ord <= snapshot` bound, which resolves a club to whatever division
-# it ended up in rather than the one it was in at the time. Harmless when exporting the
-# newest snapshot, silently wrong for any older one, and Frem climbed three divisions in
-# three seasons, so it is exactly the kind of wrong that reads as plausible.
-#
-# `nation` is resolved by cid across ALL snapshots, not per-snapshot, deliberately matching
-# the existing `lgn` CTE — a league's country does not change, and per-snapshot resolution
-# would drop it for any snapshot where the row happens to carry NULL.
+# Club -> league, AS AT each snapshot, from the club record: its league id, unless the club
+# plays in another division (`other_division` set). On the rollover day a club moving
+# division carries `other_division` and no league, so a club's league is the newest one its
+# record named on or before the snapshot: Frem climbed three divisions in three seasons, and
+# each snapshot says which one it was in at the time, never the one it ended up in.
+# League name, reputation and type come from the competition table, the nation from the
+# competition's nation id, on the snapshot itself.
 CLUB_LEAGUES = """
 CREATE OR REPLACE VIEW mart.club_leagues AS
-WITH lm AS (
-    SELECT club_tid, league_cid,
-           LPAD(CAST(season AS VARCHAR), 4, '0') || phase_ord(phase) AS ord
-    FROM {S}.league_members
-    WHERE source = 'club_league' AND league_cid IS NOT NULL
+WITH named AS (
+    SELECT s.snap_ix, d.tid AS club_tid, d.league_id AS league_cid
+    FROM {S}.club_details d
+    JOIN mart.snapshots s USING (season, phase)
+    WHERE d.other_division = 65535 AND d.league_id NOT IN (0, 65535)
 ),
 asat AS (
-    SELECT s.season, s.phase, s.snap_ix, lm.club_tid,
-           arg_max(lm.league_cid, lm.ord) AS league_cid
+    SELECT s.season, s.phase, s.snap_ix, n.club_tid,
+           arg_max(n.league_cid, n.snap_ix) AS league_cid
     FROM mart.snapshots s
-    JOIN lm ON lm.ord <= LPAD(CAST(s.season AS VARCHAR), 4, '0') || s.phase_ord
-    GROUP BY s.season, s.phase, s.snap_ix, lm.club_tid
-),
-lg AS (
-    SELECT season, phase, cid, any_value(name) AS league_name,
-           max(reputation) AS league_reputation, max(type) AS league_type
-    FROM {S}.leagues GROUP BY season, phase, cid
-),
-nat AS (
-    SELECT cid, any_value(nation) AS nation
-    FROM {S}.leagues WHERE nation IS NOT NULL GROUP BY cid
+    JOIN named n ON n.snap_ix <= s.snap_ix
+    GROUP BY s.season, s.phase, s.snap_ix, n.club_tid
 )
 SELECT a.season, a.phase, a.snap_ix, a.club_tid, a.league_cid,
-       lg.league_name, nat.nation, lg.league_reputation, lg.league_type
+       c.name AS league_name, n.name AS nation, c.reputation AS league_reputation,
+       c.type AS league_type
 FROM asat a
-LEFT JOIN lg  ON (lg.season, lg.phase, lg.cid) = (a.season, a.phase, a.league_cid)
-LEFT JOIN nat ON nat.cid = a.league_cid
+LEFT JOIN {S}.competitions c
+       ON (c.season, c.phase, c.cid) = (a.season, a.phase, a.league_cid)
+LEFT JOIN {S}.nations n
+       ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nation_id)
 """
 
 # The club dimension. squad_size counts the clubs whose squads actually parsed, which is why
@@ -359,12 +348,35 @@ LEFT JOIN mart.club_leagues cl
        ON (cl.season, cl.phase, cl.club_tid) = (c.season, c.phase, c.tid)
 LEFT JOIN {S}.club_details d
        ON (d.season, d.phase, d.tid) = (c.season, c.phase, c.tid)
-LEFT JOIN {S}.stadiums st ON st.id = d.stadium_id
-LEFT JOIN (SELECT DISTINCT cid, name FROM {S}.leagues) ll ON ll.cid = d.last_league
+LEFT JOIN {S}.stadiums st
+       ON (st.season, st.phase, st.id) = (d.season, d.phase, d.stadium_id)
+LEFT JOIN {S}.competitions ll
+       ON (ll.season, ll.phase, ll.cid) = (d.season, d.phase, d.last_league)
 LEFT JOIN {S}.players p
        ON (p.season, p.phase) = (c.season, c.phase)
       AND p.club_tid = c.tid AND p.tid IS NOT NULL AND NOT p.is_staff
 GROUP BY c.season, c.phase, c.tid
+"""
+
+# The clubs the site lists: a club with a rated player, a club in one of our matches, or a
+# club on a career-history line of two seasons or more. mart.clubs is the whole club table
+# (11k+ slots, national sides, reserve sides with no squad); this is the subset worth
+# naming in a club picker.
+LISTED_CLUBS = """
+CREATE OR REPLACE VIEW mart.listed_clubs AS
+SELECT DISTINCT season, phase, club_tid FROM (
+    SELECT season, phase, club_tid FROM {S}.players
+    WHERE NOT is_staff AND has_attributes AND club_tid <> 65535
+    UNION ALL
+    SELECT season, phase, home_tid FROM {S}.matches
+    UNION ALL
+    SELECT season, phase, away_tid FROM {S}.matches
+    UNION ALL
+    SELECT h.season, h.phase, h.club_tid FROM {S}.player_history_seasons h
+    JOIN (SELECT season, phase, tid FROM {S}.player_history_seasons
+          GROUP BY ALL HAVING COUNT(*) > 1) k USING (season, phase, tid)
+) x
+SEMI JOIN {S}.clubs c ON (c.season, c.phase, c.tid) = (x.season, x.phase, x.club_tid)
 """
 
 # Real attendance, from the MATCH records -- not from club_details.
@@ -499,10 +511,10 @@ LEFT JOIN {S}.event_types et ON et.code = ev.type_byte
 
 # The COMPETITION dimension -- every competition our matches reference, not just leagues.
 #
-# mart.leagues covers the world's leagues. It does NOT cover cups or friendlies, which live
-# only in staging.competitions, so until now a match's `competition` was a bare string with
-# nothing to join to and no way to say "league games only". That quietly mixes cup and
-# friendly goals into any total a caller builds.
+# mart.leagues covers the world's leagues. This covers every competition in the save's
+# competition table, cups and friendlies included, so a match's `competition` has something to
+# join to and a caller can say "league games only" instead of mixing cup and friendly goals
+# into a total.
 #
 # `kind` is the useful column: league / cup / friendly from the save's own type, and RESERVE
 # derived structurally -- a competition every one of whose matches involves a club of ours
@@ -514,18 +526,23 @@ LEFT JOIN {S}.event_types et ON et.code = ev.type_byte
 # than the literal 1342 so it holds for any career.
 COMPETITIONS = """
 CREATE OR REPLACE VIEW mart.competitions AS
-WITH cmp AS (   -- the competitions our save actually carries detail for
-    SELECT CAST(season AS INTEGER) AS season, cid,
-           max_by(name, phase) AS name, max_by(short, phase) AS short,
-           max_by(code, phase) AS code, max_by(type, phase) AS type,
-           max_by(num_teams, phase) AS num_teams, max_by(level, phase) AS level
-    FROM {S}.competitions GROUP BY season, cid
-), lg AS (      -- the world's leagues
-    SELECT CAST(season AS INTEGER) AS season, cid,
-           max_by(name, phase) AS name, max_by(type, phase) AS type,
-           max_by(nation, phase) AS nation, max_by(reputation, phase) AS reputation,
-           max_by(level, phase) AS level, max_by(member_count, phase) AS member_count
-    FROM {S}.leagues GROUP BY season, cid
+WITH cmp AS (   -- the whole competition table, newest snapshot of each season
+    SELECT CAST(c.season AS INTEGER) AS season, c.cid,
+           max_by(c.name, c.phase) AS name, max_by(c.short, c.phase) AS short,
+           max_by(c.code, c.phase) AS code, max_by(c.type, c.phase) AS type,
+           max_by(n.name, c.phase) AS nation, max_by(c.reputation, c.phase) AS reputation,
+           max_by(tc.teams, c.phase) AS num_teams, max_by(c.level, c.phase) AS level
+    FROM {S}.competitions c
+    LEFT JOIN {S}.nations n ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nation_id)
+    LEFT JOIN {S}.competition_team_counts tc
+           ON (tc.season, tc.phase, tc.uid) = (c.season, c.phase, c.uid)
+    GROUP BY c.season, c.cid
+), members AS ( -- clubs whose record names the competition as their league
+    SELECT CAST(season AS INTEGER) AS season, league_cid AS cid,
+           max_by(n, phase) AS member_count
+    FROM (SELECT season, phase, league_cid, COUNT(*) AS n FROM mart.club_leagues
+          GROUP BY season, phase, league_cid)
+    GROUP BY season, league_cid
 ), fx AS (      -- what we hold fixtures for, and whether they are all reserve games
     SELECT CAST(season_of(date) AS INTEGER) AS season, comp_id AS cid,
            COUNT(*) AS games,
@@ -538,25 +555,24 @@ WITH cmp AS (   -- the competitions our save actually carries detail for
           WHERE date IS NOT NULL AND comp_id IS NOT NULL)
     GROUP BY 1, 2
 )
-SELECT COALESCE(cmp.season, lg.season, fx.season)  AS season,
-       COALESCE(cmp.cid, lg.cid, fx.cid)           AS cid,
-       COALESCE(cmp.name, lg.name)                 AS name,
-       cmp.short, cmp.code, lg.nation, lg.reputation,
-       COALESCE(cmp.num_teams, lg.member_count)    AS num_teams,
-       COALESCE(cmp.level, lg.level)               AS level,
+SELECT COALESCE(cmp.season, fx.season)       AS season,
+       COALESCE(cmp.cid, fx.cid)                 AS cid,
+       cmp.name,
+       cmp.short, cmp.code, cmp.nation, cmp.reputation,
+       COALESCE(cmp.num_teams, mb.member_count)  AS num_teams,
+       cmp.level,
        CASE WHEN COALESCE(fx.all_reserve, FALSE) AND cmp.type IS NULL THEN 'reserve'
-            ELSE COALESCE(cmp.type, lg.type) END   AS kind,
-       COALESCE(fx.games, 0)                       AS games_in_store,
+            ELSE cmp.type END                    AS kind,
+       COALESCE(fx.games, 0)                     AS games_in_store,
        -- a display label that never comes back NULL, so a caller grouping by competition
-       -- does not silently drop the reserve league the way `competition` currently does
-       COALESCE(cmp.name, lg.name,
+       -- does not silently drop a competition the save leaves unnamed
+       COALESCE(cmp.name,
                 CASE WHEN COALESCE(fx.all_reserve, FALSE) THEN 'Reserve League (derived)' END,
-                'Competition #' || CAST(COALESCE(cmp.cid, lg.cid, fx.cid) AS VARCHAR))
-                                                   AS label
+                'Competition #' || CAST(COALESCE(cmp.cid, fx.cid) AS VARCHAR))
+                                                 AS label
 FROM cmp
-FULL OUTER JOIN lg  ON lg.cid = cmp.cid AND lg.season = cmp.season
-FULL OUTER JOIN fx  ON fx.cid = COALESCE(cmp.cid, lg.cid)
-                   AND fx.season = COALESCE(cmp.season, lg.season)
+LEFT JOIN members mb ON (mb.season, mb.cid) = (cmp.season, cmp.cid)
+FULL OUTER JOIN fx   ON (fx.season, fx.cid) = (cmp.season, cmp.cid)
 """
 
 
@@ -570,18 +586,16 @@ FULL OUTER JOIN fx  ON fx.cid = COALESCE(cmp.cid, lg.cid)
 # sight, and renaming it to slip past that check would break the house rule for real.
 LEAGUES = """
 CREATE OR REPLACE VIEW mart.leagues AS
-WITH lg AS (
-    SELECT season, phase, cid,
-           any_value(name) AS name, any_value(nation) AS nation,
-           max(type) AS type, max(reputation) AS reputation,
-           max(member_count) AS member_count,
-           max(level) AS level, max(parent_cid) AS parent_cid
-    FROM {S}.leagues WHERE name IS NOT NULL
-    GROUP BY season, phase, cid
-),
-counted AS (
+WITH counted AS (   -- a league is a competition some club's record names as its league
     SELECT season, phase, league_cid AS cid, COUNT(*) AS club_count
     FROM mart.club_leagues GROUP BY season, phase, league_cid
+),
+lg AS (
+    SELECT c.season, c.phase, c.cid, c.name, n.name AS nation, c.type, c.reputation,
+           k.club_count AS member_count, c.level, c.parent_cid
+    FROM {S}.competitions c
+    JOIN counted k ON (k.season, k.phase, k.cid) = (c.season, c.phase, c.cid)
+    LEFT JOIN {S}.nations n ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nation_id)
 ),
 rated AS (
     SELECT cl.season, cl.phase, cl.league_cid AS cid,
@@ -3535,6 +3549,7 @@ ORDER = [
     ("mart.reserve_clubs", RESERVE_CLUBS),
     ("mart.club_leagues", CLUB_LEAGUES),
     ("mart.clubs", CLUBS),
+    ("mart.listed_clubs", LISTED_CLUBS),
     ("mart.world_fixtures", WORLD_FIXTURES),
     ("mart.world_club_fixtures", WORLD_CLUB_FIXTURES),
     ("mart.fixture_stages", FIXTURE_STAGES),

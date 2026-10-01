@@ -6,8 +6,7 @@ superseded by an earlier/better candidate for the same key? Closes the gap `DECL
 open in `scripts/audit/audit_coverage.py` -- "a parser scanned this window" is not "every candidate
 is accounted for."
 
-Currently covers `clubs_comps.py`'s CLUB scan (`_build_refdata_index` /
-`diagnose_refdata_scan`). Attribute and contract table walks share the same
+Currently covers the club and competition tables (`tables/clubs.py`, `tables/competitions.py`). Attribute and contract table walks share the same
 shape and are the next candidates once they get the equivalent `_eval_*_candidate` refactor --
 see docs/TODO.md.
 
@@ -42,7 +41,6 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
-from fmparser import clubs_comps as R    # noqa: E402
 from fmparser.tables import clubs as CL, competitions as CO  # noqa: E402
 from fmparser.tables.person_info import NO_CLUB as _NO_CLUB, scrape_person_info as _scrape_players  # noqa: E402
 from fmparser.tables.matches import scrape_matches   # noqa: E402
@@ -98,11 +96,10 @@ def report_cross_reference(mm, clubs, declared_clubs, comps, declared_comps):
     print("  parsing the season and squads to collect referenced ids "
           "(this is the slow part) ...", file=sys.stderr)
     season = scrape_matches(mm)
-    all_clubs, _comps = R._build_refdata_index(mm)
 
     needed_cids = {m["comp_id"] for m in season if m.get("comp_id")}
-    needed_cids |= {c["league"] for c in all_clubs.values() if c.get("league")}
-    resolved_cids = {cid for cid in needed_cids if R.find_comp_record(mm, cid)}
+    needed_cids |= {c["league"] for c in clubs.values() if c.get("league")}
+    resolved_cids = {cid for cid in needed_cids if cid in comps}
     missing_cids = sorted(needed_cids - resolved_cids)
 
     players = _scrape_players(mm)
@@ -110,7 +107,7 @@ def report_cross_reference(mm, clubs, declared_clubs, comps, declared_comps):
                    | {m["away_tid"] for m in season if m.get("away_tid")}
                    | {p["club_tid"] for p in players.values()
                       if p.get("club_tid") and p["club_tid"] != _NO_CLUB})
-    resolved_tids = {tid for tid in needed_tids if R.club_record(mm, tid)}
+    resolved_tids = {tid for tid in needed_tids if tid in clubs}
     missing_tids = sorted(needed_tids - resolved_tids)
 
     print(f"\n  competitions: {len(needed_cids)} referenced, {len(resolved_cids)} resolve, "

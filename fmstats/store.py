@@ -55,7 +55,7 @@ MART_VERSION = hashlib.sha256(
     "\x00".join([*MACROS, *(sql for _, sql in ORDER)]).encode()).hexdigest()[:16]
 # staging tables the loader seeds that the current mart reads; a store published before one
 # existed cannot have its mart refreshed until it is re-seeded
-_MART_INPUTS = ("event_types",)
+_MART_INPUTS = ("event_types", "competition_team_counts")
 # a view every current consumer needs; its absence means the store's mart is out of date
 _PROBE_VIEW = "player_vs_club"
 
@@ -216,9 +216,12 @@ def _sync_mart(path):
         try:
             create_mart(con)
             con.execute("COMMIT")
-        except duckdb.Error:
+        except duckdb.Error as e:
             con.execute("ROLLBACK")
-            raise
+            print(f"store: this checkout's mart does not bind on {path} ({e}); reading it "
+                  f"as published. Republish the store to bring it up to date.",
+                  file=sys.stderr)
+            return False
         con.execute("CHECKPOINT")
     finally:
         con.close()

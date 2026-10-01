@@ -15,8 +15,8 @@ Writes output/<label>/, one JSON file per table (see the `dump(...)` calls in ma
     matches.json                 this season's matches as stored: events, both sides' player
                                  lines, the stored score, our formation and starting positions
     world_fixtures.json          the archive's world fixture list, with scores
-    clubs.json, club_details.json, leagues.json, club_league.json, competitions.json, ...
-                                 reference tables
+    clubs.json, competitions.json, nations.json, stadiums.json, ...
+                                 reference tables, whole (every slot the save declares)
     summary.json                 season, phase, counts
 
 The label defaults to the save's file name without `.fms` (`frem-2023-07-02`); saves are
@@ -29,7 +29,6 @@ import json
 import os
 from collections import Counter
 
-from fmparser.core import follow
 from fmparser.save import Save
 from fmparser import model as MOD
 from fmparser import clubs_comps as R
@@ -55,6 +54,8 @@ from fmparser.tables import training as TRN
 from fmparser.tables import matches as MT
 from fmparser.tables import (
     cities,
+    clubs as CL,
+    competitions as CO,
     currencies,
     languages,
     nations,
@@ -87,23 +88,8 @@ HIDDEN_FIELDS = tuple(PA.HIDDEN_OFFSETS.values())
 SRC_FIELDS = tuple(PA.SRC_OFFSETS.values()) + tuple(PA.PLAIN_OFFSETS.values())
 
 
-def _history_clubs(hist):
-    """Every club on a player's history chain that has a season on it (two rows or more)."""
-    rows = hist["rows"]
-    nxt, club = rows["next"], rows["club"]
-    pointed = set(nxt)
-    out = set()
-    for head in hist["heads"].values():
-        if not 0 <= head < hist["count"] or head in pointed:
-            continue                           # no history yet, or not a chain's first row
-        chain = list(follow(nxt, head, H.END))
-        if len(chain) > 1:
-            out.update(club[k] for k in chain)
-    return out
-
-
-def build_database(mm, season, info):
-    """Whole-DB player rows via staging + join. Returns (players, club_names).
+def build_database(mm, info, club_names):
+    """Whole-DB player rows via staging + join. Returns (players, staff, histories).
     `info` is the shared player-info spine ({tid: identity}) scraped once in main().
     Every row is the player's own record as stored. Our squad's exact attributes, feet,
     value and name come from their scrapbook entries (`player_scrapbook.json`), which the
@@ -136,29 +122,10 @@ def build_database(mm, season, info):
         print(f"  WARNING: history table not parsed ({e}); continuing without history")
         histories = None
 
-    # resolve club names only for clubs that actually have loaded players (they exist,
-    # so the lookup is cheap) plus clubs that appeared in matches or on a player's history
-    # chain -- every row of a chain with a season on it, so origin clubs get named too
-    club_ids = {p["club_tid"] for p in info.values()
-                if p["sid"] in attrs and p["club_tid"] != NO_CLUB}
-    for m in season:
-        club_ids.add(m["home_tid"])
-        club_ids.add(m["away_tid"])
-    if histories:
-        club_ids.update(_history_clubs(histories))
-    club_ids.discard(NO_CLUB)
-    club_names, club_leagues = {}, {}
-    for ct in club_ids:
-        rec = R.club_record(mm, ct, "long")
-        if rec:
-            club_names[ct] = rec["name"]
-            if rec["league"]:               # club->league from the club record (day-1 safe)
-                club_leagues[ct] = rec["league"]
-
     def club_label(ct):
         if ct == NO_CLUB:
             return "Free agent"
-        return club_names.get(ct, f"#{ct}")
+        return club_names.get(ct) or f"#{ct}"
 
     players, staff = {}, {}
     for tid, p in info.items():
@@ -223,7 +190,7 @@ def build_database(mm, season, info):
                         "attributes": None, "estimated": None,
                         **{k: None for k in TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS}})
         players[str(tid)] = row
-    return players, staff, club_names, club_leagues, histories
+    return players, staff, histories
 
 
 def scrapbook_entries(mm):
@@ -232,59 +199,6 @@ def scrapbook_entries(mm):
     return [{"list": lst["index"], "list_season": lst["season"], "slot": e["slot"],
              **{k: v for k, v in e.items() if k not in ("offset", "slot")}}
             for lst in PL.scrape_player_lists(mm) for e in lst["entries"]]
-
-
-def build_leagues(mm, club_leagues, nations_map=None):
-    """Leagues reference built from club->league facts and reference comp records."""
-    leagues = {}
-    for code in sorted(set(club_leagues.values())):
-        if not code or code == 0xFFFF:
-            continue
-        d = R.comp_detail(mm, code) or {}
-        nid = d.get("nation_id")
-        members = sorted(t for t, c in club_leagues.items() if c == code)
-        nat_name = nations_map.get(nid, {}).get("name") if nations_map and nid is not None else None
-        leagues[code] = {
-            "cid": code,
-            "name": d.get("name") or R.league_name(mm, code),
-            "type": d.get("type", "league"),
-            "nation_id": nid,
-            "nation": nat_name,
-            "reputation": d.get("reputation"),
-            "level": d.get("level"),
-            "parent_cid": d.get("parent_cid"),
-            "members": members,
-            "member_count": len(members),
-            "fixtures": 0,
-        }
-    return leagues
-
-
-def league_label(detail):
-    """Human league name: the resolved name, else 'Nation (unnamed)' when only the nation
-    is known (foreign comps without a name record), else None."""
-    if not detail:
-        return None
-    if detail.get("name"):
-        return detail["name"]
-    if detail.get("nation"):
-        return f"{detail['nation']} (unnamed)"
-    return None
-
-
-def build_competitions(mm, season):
-    """Reference for every competition in the season: name/short/code, type, nation, and
-    num_teams (each nation's team-count rules in the data dictionary,
-    fmparser/tables/rule_files.team_counts)."""
-    counts = RULE_FILES.team_counts(mm)
-    comps = {}
-    for cid in sorted({m["comp_id"] for m in season if m.get("comp_id")}):
-        d = R.comp_detail(mm, cid) or {"cid": cid}
-        if "uid" in d:
-            d["num_teams"] = counts.get(d["uid"])
-        d["matches_in_save"] = sum(1 for m in season if m.get("comp_id") == cid)
-        comps[str(cid)] = d
-    return comps
 
 
 def main():
@@ -311,18 +225,18 @@ def main():
     os.makedirs(dest, exist_ok=True)
 
     info = scrape_person_info(mm)            # player-info spine (scraped once, shared)
-    players, staff, club_names, club_leagues, histories = build_database(mm, season, info)
-    competitions = build_competitions(mm, season)
-
-    # leagues reference + club->league. The club record gives membership directly: exact,
-    # current as of the save date, and available on a day-1 save before any match.
+    # The whole club table, every declared slot: names, uid, league, and the record's
+    # trailer (facilities, colours, the 40-slot squad and 11-slot staff arrays, affiliates).
+    clubs = {}
+    for tid, c in CL.scrape_clubs(mm).items():
+        d = CL.club_details(mm, tid)
+        clubs[str(tid)] = {"tid": tid, "uid": c["uid"],
+                           **{k: v for k, v in d.items() if k != "tid"}}
+    club_names = {int(t): c["name"] for t, c in clubs.items()}
+    players, staff, histories = build_database(mm, info, club_names)
+    # The whole competition table, every named slot.
+    competitions = {str(cid): c for cid, c in sorted(CO.scrape_competitions(mm).items())}
     nations_map = nations.scrape_nations(mm)
-    leagues = build_leagues(mm, club_leagues, nations_map=nations_map)
-    club2league = dict(club_leagues)
-    for p in players.values():
-        lc = club2league.get(p["club_tid"])
-        p["league_cid"] = lc
-        p["league"] = league_label(leagues.get(lc))
 
     def dump(name, obj, indent=1):
         with open(os.path.join(dest, name), "w", newline="") as f:
@@ -336,15 +250,11 @@ def main():
         dump("history.json", histories, indent=None)
     dump("matches.json", season)
     dump("competitions.json", competitions)
-    # Full club records: facts, colours, and the fixed 40-slot SQUAD + 11-slot STAFF arrays.
-    # See tables.clubs.CLUB_TABLE. Only clubs we already resolved a name for, so this
-    # inherits the same validation rather than trusting the raw index.
-    club_details = {}
-    for ct in sorted(club_names):
-        d = R.club_details(mm, ct)
-        if d and "squad" in d:
-            club_details[str(ct)] = d
-    dump("club_details.json", club_details, indent=None)
+    # Each nation's team-count rules: {competition uid: teams}
+    # (fmparser/tables/rule_files.team_counts).
+    dump("competition_team_counts.json",
+         {str(u): n for u, n in sorted(RULE_FILES.team_counts(mm).items())})
+    dump("clubs.json", clubs, indent=None)
     # Club History, per club: the Team Records and Player Records tables (every written slot)
     # and the league history (fmparser/tables/club_records.py). A record match is here
     # because it set a record: NOTHING should build a fixture list from it.
@@ -380,15 +290,6 @@ def main():
     dump("languages.json", {str(k): v for k, v in sorted(languages.scrape_languages(mm).items())})
     dump("currencies.json", {str(k): v for k, v in sorted(currencies.scrape_currencies(mm).items())})
     dump("nations.json", {str(k): v for k, v in sorted(nations_map.items())})
-    dump("leagues.json", {str(c): d for c, d in sorted(leagues.items())})
-    # club -> league for the whole DB (source='club_league'): from the club records ONLY —
-    # a pure snapshot of which competition each club is in on the save date. This is what the
-    # dashboard resolves on. Any historical/derived view belongs in the DuckDB ETL, which has
-    # the raw fixture list (staging.results, each row carrying its cid) to derive it from.
-    dump("club_league.json",
-         {str(t): {"league_cid": c, "league_name": (leagues.get(c) or {}).get("name")}
-          for t, c in sorted(club2league.items())})
-    dump("clubs.json", {str(t): n for t, n in sorted(club_names.items())})
     # The WORLD fixture list, from the zstd archive at the tail of the save
     # (fmparser/tables/fixtures.py -> fmparser/core/archive.py). ~27k matches over ~1,750 clubs against
     # the ~60 of our own in the match table (tables/matches.py).
@@ -406,7 +307,7 @@ def main():
     # Degrades to an empty file rather than failing the extract: the archive needs
     # `uv sync --extra archive`, and a save could in principle carry no archive at all.
     try:
-        world = FIX.fixtures(mm, valid_clubs=set(club_names))
+        world = FIX.fixtures(mm)
     except ImportError as e:
         print(f"  NOTE: world fixtures skipped ({e}); run `uv sync --extra archive`")
         world = []
@@ -462,7 +363,7 @@ def main():
         "counts": {"matches": len(season), "players": len(players), "players_with_attributes": attributed,
                    "history_rows": histories["count"] if histories else 0,
                    "staff": len(staff), "competitions": len(competitions),
-                   "leagues": len(leagues), "clubs_named": len(club_names),
+                   "clubs": len(clubs),
                    "player_progress_rows": len(progress),
                    "world_fixtures": len(world)},
     }
@@ -471,7 +372,7 @@ def main():
     print(f"extracted -> {dest}/")
     print(f"  matches {len(season)}  players {len(players)} "
           f"({attributed} with attributes)  staff {len(staff)}  "
-          f"leagues {len(leagues)}  clubs {len(club_names)}")
+          f"competitions {len(competitions)}  clubs {len(clubs)}")
     print(f"  label {label}  season {snap_season}  phase {snap_phase}")
     s.close()
 
