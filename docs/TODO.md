@@ -290,6 +290,12 @@ Also:
 
 ## Stats
 
+### 12a. Build the layered models (raw → stg → int → mart)
+Rename `staging` to `raw`, then build the semantic model in [`data-model/`](data-model/README.md)
+as stg → int → `dim_*` / `fact_*` marts and move the site's marts onto it. Phased plan, gates and
+blockers: [`plans/2026-10-01-warehouse-build.md`](plans/2026-10-01-warehouse-build.md). Person
+identity (#14), history reclamation (#15) and extra-time minutes (#16) block phases of it.
+
 ### 13. League tables outside Denmark
 `mart.league_tables` rebuilds tables from the fixture list. Against each club's own
 `last_league_pos` (the first snapshot of the next season), measured 2026-09-29:
