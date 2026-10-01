@@ -135,8 +135,12 @@ ATTACH the full store for that, not a scrub issue).
 - **`load_duckdb.py` is the L** — JSON into `raw` tables, plus the reference seeds only the
   parser can supply (`raw.event_types`, the career keys in `raw.app_config`). It is glue:
   it may import both sides.
-- **`fmstats/` is the T** — `fmstats/mart.py` derives every analytical table from `raw`,
-  and `scout`/`stats`/`league` analyse the mart. It imports neither fmparser nor `extract`: it
+- **`fmstats/` is the T** — `fmstats/models/` declares the `stg` and `int` layers (views over
+  `raw`: the squad's exact values, the attribute decode, the person bridge, role ratings; each
+  model with its grain and keys, checked by `tests/validate_models.py`), `fmstats/mart.py`
+  derives every analytical table from them and `raw`, and `scout`/`stats`/`league` analyse the
+  mart. The old names (`raw.players`, `raw.persons`, `v_player_ratings`, ...) are views over
+  the models (`fmstats/models/compat.py`) until their consumers move to the mart. It imports neither fmparser nor `extract`: it
   reads a `.duckdb` file, local or the R2 copy, and nothing else. The raw schema plus
   `fmstats/contract.py` (the attribute column names) is the whole interface.
 

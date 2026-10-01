@@ -8,12 +8,12 @@ Load fm-parser extract bundles into a DuckDB store.
     uv run python load_duckdb.py output/2022-end --include core,light
     uv run python load_duckdb.py output --all --reset
 
-The tables in the `raw` schema are a 1:1 mirror of the JSON/CSV that the
-extractors write to output/<label>/ (same grain, minimal reshaping) — every row
-stamped with season (int end-year, 21/22 -> 2022) and phase (start/mid/end).
-Analytical views in the default `main` schema are the transformed layer on top;
-see create_views(). Loads are idempotent: re-loading a label replaces exactly
-that (season, phase) slice.
+The tables in the `raw` schema are a 1:1 mirror of the JSON that the extractors
+write to output/<label>/ (same grain, minimal reshaping) — every row stamped with
+season (int end-year, 21/22 -> 2022) and phase (the save's in-game date). The
+modelled layers on top are fmstats/models/ (stg, int) and fmstats/mart.py, built by
+create_views() and create_mart(). Loads are idempotent: re-loading a label replaces
+exactly that (season, phase) slice.
 
 duckdb is imported only here; the extractors stay pure-stdlib.
 """
@@ -30,10 +30,10 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 
 # The field lists and reference constants the parser declares.
 from fmparser.model import ATTR_ORDER
-from fmparser import model as _A
 from fmparser import careers
 from fmparser.tables.matches import EVENT_TYPE
-from fmparser.tables.player_lists import CLUB_LISTS
+from fmstats import models
+from fmstats.models import compat as models_compat
 from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
@@ -125,145 +125,9 @@ def _seed_attribute_model(con, force=False):
     return len(rows)
 
 
-# Feature expressions, in the model's own vocabulary. `own`/`partner` are the wrapped 0-255
-# source bytes; everything else is read straight off the stored record.
-_UW = "(CASE WHEN {c} < 128 THEN {c} + 256 ELSE {c} END)"
-_MEAN9 = ("((p.heading_src + p.unselfishness_src + p.pace_src + p.strength_src + p.stamina_src"
-          " + p.technique_src + p.aggression_src + p.leadership_src + p.agility_src) / 9.0)")
-# fwd: attacking-ness of the player's best position, exactly as attributes.fwd_of computes it.
-# The tie-break is load-bearing. Python's `max(positions, key=positions.get)` returns the
-# FIRST key at the maximum in insertion order, and insertion order is attributes.POSITIONS --
-# so a player equally good at DC and ST resolves to DC. Ordering by position NAME instead put
-# 588 of 581,486 values one point out, every one of them on an attribute that uses fwd.
+# The 15 positions in the order the player record carries their familiarities.
 _POSITIONS = ["GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC", "AMR",
               "ST", "DML", "DMR"]
-_POS_RANK = " ".join(f"WHEN '{p}' THEN {i}" for i, p in enumerate(_POSITIONS))
-_FWD = """(SELECT CASE WHEN t.position IN ('ST','AML','AMR','AMC') THEN 1.0
-                       WHEN t.position IN ('ML','MR','MC','DMC','DML','DMR') THEN 0.5
-                       ELSE 0.0 END
-            FROM {S}.player_positions t
-           WHERE (t.season, t.phase, t.tid) = (p.season, p.phase, p.tid)
-           ORDER BY t.familiarity DESC, (CASE t.position """ + _POS_RANK + """ END)
-           LIMIT 1)"""
-_SRC_BY_OFFSET = None
-
-
-# The two plain-byte composites, declared once in fmparser.attributes and rendered to SQL
-# here: attribute -> ((byte column, byte column), weights, is_estimate).
-_COMPOSITE = {
-    "Teamwork": (("unselfishness_src", "work_rate"), _A.TEAMWORK_W, False),
-    "Aerial":   (("heading_src", "jumping"), _A.AERIAL_W, True),
-}
-
-
-def _composite_sql(b1, b2, w):
-    """floor(w1*b1 + w2*b2 + off), clipped 1-20 -- the SQL twin of attributes._composite."""
-    wa, wb, off = w
-    return (f"GREATEST(1, LEAST(20, CAST(floor({_d(wa)} * p.{b1} + {_d(wb)} * p.{b2}"
-            f" + {_d(off)}) AS INTEGER)))")
-
-
-def _d(c):
-    """A coefficient as an explicit DOUBLE. Written bare, DuckDB reads a 16-digit literal as
-    DECIMAL(18) and the first multiplication by a byte value overflows."""
-    return f"CAST({c!r} AS DOUBLE)"
-
-
-def _model_expr(attr, spec, S):
-    """SQL for one attribute's fitted value, from the coefficient rows."""
-    from fmparser.tables.player_attributes import SRC_OFFSETS, PLAIN_OFFSETS, HIDDEN_OFFSETS
-    # HIDDEN_OFFSETS is in here because Aerial's PARTNER byte is Jumping (P-28), which is
-    # stored under its own name rather than as a `_src` column.
-    cols = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}
-    own_off, partner_off = spec["own"], spec["partner"]
-    own = _UW.format(c=f'p."{cols[own_off]}"')
-    parts = []
-    for feat, c in spec["coef"].items():
-        if feat == "own":
-            e = own
-        elif feat == "partner":
-            e = _UW.format(c=f'p."{cols[partner_off]}"')
-        elif feat == "CA":
-            e = "p.ca"
-        elif feat == "PA":
-            e = "p.pa"
-        elif feat == "mean9":
-            e = _MEAN9
-        elif feat == "own*CA":
-            e = f"({own} * p.ca / 100.0)"
-        elif feat == "fwd":
-            e = _FWD.format(S=S)
-        elif feat in _PLAYER_HIDDEN.values():
-            e = f'p."{feat}"'
-        elif feat.startswith("NAT_") and feat[4:] in _POSITIONS:
-            e = (f"CASE WHEN COALESCE((SELECT t.familiarity FROM {S}.player_positions t "
-                 f"WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid) "
-                 f"AND t.position = '{feat[4:]}'), 0) >= 20 THEN 1.0 ELSE 0.0 END")
-        elif feat in _POSITIONS:
-            # A refit may use the 15 position familiarities directly instead of collapsing
-            # them into `fwd` -- the frozen model has no position term at all, and Passing
-            # alone varies from MC to GK at matched ability, so this is the obvious thing for
-            # a refit to reach for.
-            e = (f"COALESCE((SELECT t.familiarity FROM {S}.player_positions t "
-                 f"WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid) "
-                 f"AND t.position = '{feat}'), 0)")
-        elif feat == "intercept":
-            parts.append(_d(c))
-            continue
-        else:
-            raise ValueError(f"unknown model feature {feat!r}")
-        parts.append(f"({_d(c)} * {e})")
-    total = " + ".join(parts)
-    return f"GREATEST(1, LEAST(20, CAST(round({total}) AS INTEGER)))"
-
-
-def _drop_stale_attr_table(con, S="raw"):
-    """raw.player_attributes was a TABLE until 2026-09-17 and is a VIEW now.
-
-    `CREATE OR REPLACE VIEW` cannot replace a table, so a store predating the change fails
-    every load with "Existing object player_attributes is of type Table". Dropping it is safe
-    and lossless: every column the table held is now derived from player_attributes_exact plus
-    raw.attribute_model, which is exactly what the view computes."""
-    kind = con.execute(
-        "SELECT table_type FROM information_schema.tables "
-        "WHERE table_schema = ? AND table_name = 'player_attributes'", [S]).fetchone()
-    if kind and kind[0] == "BASE TABLE":
-        con.execute(f"DROP TABLE {S}.player_attributes")
-
-
-def _player_attributes_view(con, S="raw"):
-    """Build raw.player_attributes from the exact values plus the model in the DB."""
-    _drop_stale_attr_table(con, S)
-    rows = con.execute("""SELECT attribute, feature, coef, own_offset, partner_offset
-                          FROM raw.attribute_model""").fetchall()
-    spec = {}
-    for attr, feat, coef, own, partner in rows:
-        d = spec.setdefault(attr, {"own": own, "partner": partner, "coef": {}})
-        d["coef"][feat] = coef
-    sel = []
-    for a in ATTR_ORDER:
-        if a in _COMPOSITE:
-            # Not fits -- closed forms over two PLAIN 1-20 bytes, so no model and no CA. The
-            # weights come from attributes.TEAMWORK_W / AERIAL_W rather than being retyped
-            # here, so the SQL cannot drift from `attributes.teamwork()` / `aerial()`.
-            #
-            # The `_est` flags differ ON PURPOSE. Teamwork's formula is EXACT, so FALSE --
-            # flipping it would silently reclassify every non-squad player's Teamwork as
-            # estimated and change `is_estimated` across the mart. Aerial's is ~71% exact, so
-            # it is an estimate and stays TRUE.
-            (b1, b2), w, est = _COMPOSITE[a]
-            sel.append(f'COALESCE(e."{a}", {_composite_sql(b1, b2, w)}) AS "{a}"')
-            sel.append(f'(e."{a}" IS NULL) AS "{a}_est"' if est else f'FALSE AS "{a}_est"')
-        elif a in spec:
-            sel.append(f'COALESCE(e."{a}", {_model_expr(a, spec[a], S)}) AS "{a}"')
-            sel.append(f'(e."{a}" IS NULL) AS "{a}_est"')
-        else:
-            sel.append(f'e."{a}" AS "{a}"')
-            sel.append(f'FALSE AS "{a}_est"')
-    return (f"CREATE OR REPLACE VIEW {S}.player_attributes AS\nSELECT "
-            f"p.season, p.phase, p.tid,\n       " + ",\n       ".join(sel) +
-            f"\nFROM {S}.players p JOIN {S}.player_attributes_exact e"
-            f" USING (season, phase, tid)")
 
 
 def _attr_cols_ddl():
@@ -301,106 +165,6 @@ def _scrapbook_date(e):
     """An entry's date: `scrapbook_day` is the 0-based day of `scrapbook_year`."""
     return (datetime.date(e["scrapbook_year"], 1, 1)
             + datetime.timedelta(e["scrapbook_day"]))
-
-
-# How old a squad player's scrapbook entry may be and still stand in for his entangled
-# attributes, value and feet. Measured against entries at most a month old on every save of
-# both careers: an entry up to a year old matches on 76-97% of the 23 attributes, the
-# estimate on 71%; past two years the estimate is as good.
-SCRAPBOOK_MAX_AGE_DAYS = 365
-
-
-def _squad_views(S="raw"):
-    """Our squad's exact values, as views over the tables the loader writes.
-
-    `raw.squad_scrapbook`: every player in our squad on each snapshot -- the first team's
-    or the reserve side's squad array (raw.club_squad; the reserve side is the club whose
-    record names ours as its main club) -- with his latest entry in the Manager's Best
-    Eleven lists. The entries are rewritten on the 1st of every month while he plays that
-    season, and frozen otherwise. A player in the squad whose own record names another club
-    is on loan to us from it. A player with no entry yet has none of the entry's columns.
-
-    `raw.players` and `raw.player_attributes_exact` are the raw tables with the
-    squad's values in their place: his name from the entry; his feet, value and the 16
-    entangled attributes from it while it is at most `SCRAPBOOK_MAX_AGE_DAYS` old
-    (`scrapbook_date` is set only then). The seven plain attributes always come from his
-    own record, which states them outright and is current. Everyone else keeps his own
-    record, and his entangled attributes are estimated (raw.player_attributes)."""
-    lo, hi = CLUB_LISTS.start, CLUB_LISTS.stop - 1
-    entry_cols = ", ".join(f'k."{c}"' for c, _, _ in SCRAPBOOK_COLS
-                           if c not in ("player_tid",))
-    squad = f"""CREATE OR REPLACE VIEW {S}.squad_scrapbook AS
-WITH managed AS (
-    SELECT CAST(value AS INTEGER) AS club_tid FROM {S}.app_config
-    WHERE key = 'career_managed_tid'
-),
-ours AS (
-    SELECT e.season, e.phase, m.club_tid, 0 AS reserve
-    FROM {S}.extracts e CROSS JOIN managed m
-    UNION ALL
-    SELECT d.season, d.phase, d.tid, 1
-    FROM {S}.club_details d JOIN managed m ON d.main_club_tid = m.club_tid
-),
-squad AS (
-    SELECT q.season, q.phase, q.player_tid AS tid,
-           arg_min(q.club_tid, o.reserve) AS squad_club_tid
-    FROM {S}.club_squad q JOIN ours o USING (season, phase, club_tid)
-    GROUP BY q.season, q.phase, q.player_tid
-),
-latest AS (
-    SELECT * FROM {S}.player_scrapbook
-    WHERE list BETWEEN {lo} AND {hi}
-    QUALIFY row_number() OVER (PARTITION BY season, phase, player_tid
-                               ORDER BY scrapbook_date DESC, list DESC) = 1
-)
-SELECT q.season, q.phase, q.tid, q.squad_club_tid, c.name AS squad_club,
-       r.club_tid NOT IN (SELECT o.club_tid FROM ours o
-                          WHERE o.season = q.season AND o.phase = q.phase) AS loaned_in,
-       r.club_tid AS own_club_tid, r.club AS own_club,
-       {entry_cols}
-FROM squad q
-JOIN {S}.players_raw r ON r.season = q.season AND r.phase = q.phase AND r.tid = q.tid
-LEFT JOIN {S}.clubs c ON c.season = q.season AND c.phase = q.phase AND c.tid = q.squad_club_tid
-LEFT JOIN latest k ON k.season = q.season AND k.phase = q.phase AND k.player_tid = q.tid"""
-
-    has = "k.scrapbook_date IS NOT NULL"
-    fresh = (f"({has} AND TRY_CAST(k.phase AS DATE) - k.scrapbook_date"
-             f" <= {SCRAPBOOK_MAX_AGE_DAYS})")
-    over = {
-        "name": f"CASE WHEN {has} THEN k.full_name ELSE r.name END",
-        "club_tid": "CASE WHEN k.loaned_in THEN k.squad_club_tid ELSE r.club_tid END",
-        "club": "CASE WHEN k.loaned_in THEN k.squad_club ELSE r.club END",
-        "foot_left": f"CASE WHEN {fresh} THEN k.foot_left ELSE r.foot_left END",
-        "foot_right": f"CASE WHEN {fresh} THEN k.foot_right ELSE r.foot_right END",
-    }
-    added_after = {"foot_right": [("player_value", f"CASE WHEN {fresh} THEN k.value END"),
-                                  ("loaned_in", "COALESCE(k.loaned_in, FALSE)"),
-                                  ("parent_club_tid", "CASE WHEN k.loaned_in THEN k.own_club_tid END"),
-                                  ("parent_club", "CASE WHEN k.loaned_in THEN k.own_club END")]}
-    return squad, over, added_after, fresh
-
-
-def _players_views(con, S="raw"):
-    """The three squad views, in dependency order (see `_squad_views`)."""
-    squad, over, added_after, fresh = _squad_views(S)
-    cols = [r[1] for r in con.execute(f"PRAGMA table_info('{S}.players_raw')").fetchall()]
-    sel = []
-    for c in cols:
-        sel.append(f'{over[c]} AS "{c}"' if c in over else f'r."{c}"')
-        sel += [f'{e} AS "{n}"' for n, e in added_after.get(c, [])]
-    sel.append(f'CASE WHEN {fresh} THEN k.scrapbook_date END AS "scrapbook_date"')
-    players = (f"CREATE OR REPLACE VIEW {S}.players AS\nSELECT " + ",\n       ".join(sel)
-               + f"\nFROM {S}.players_raw r\nLEFT JOIN {S}.squad_scrapbook k"
-               f" ON k.season = r.season AND k.phase = r.phase AND k.tid = r.tid")
-    attrs = ",\n       ".join(
-        f'e."{a}"' if a in _A.EXACT_SINGLE
-        else f'CASE WHEN {fresh} THEN k."{a}" ELSE e."{a}" END AS "{a}"'
-        for a in ATTR_ORDER)
-    exact = (f"CREATE OR REPLACE VIEW {S}.player_attributes_exact AS\n"
-             f"SELECT e.season, e.phase, e.tid,\n       {attrs}\n"
-             f"FROM {S}.player_attributes_exact_raw e\nLEFT JOIN {S}.squad_scrapbook k"
-             f" ON k.season = e.season AND k.phase = e.phase AND k.tid = e.tid")
-    return [squad, players, exact]
 
 
 def _exact_cols_ddl():
@@ -851,17 +615,6 @@ DDL = [
     # keyed on tid alone splices two people into one career. `dob` separates every recycled slot
     # (2332 changes, 0 collisions, 0 nulls), so (tid,dob) is the person key. See docs/IDS.md.
     # person_id is a stable VARCHAR '<tid>-<dob>' (stable across loads, unlike a dense_rank).
-    """CREATE TABLE IF NOT EXISTS raw.persons (
-        person_id VARCHAR NOT NULL, tid INTEGER NOT NULL, dob DATE,
-        name VARCHAR, first_seen VARCHAR, last_seen VARCHAR, slices INTEGER
-    )""",
-    # (season,phase,tid) -> person_id. The join bridge every fact table uses; facts keep their
-    # tid column untouched, so nothing downstream has to change shape.
-    """CREATE TABLE IF NOT EXISTS raw.person_slices (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
-        tid INTEGER NOT NULL, person_id VARCHAR NOT NULL
-    )""",
-
     # Multi-snapshot archive. raw.* always holds ONE snapshot per (season,phase) =
     # the latest loaded; when a load supersedes a DIFFERENT label in that slice, the
     # outgoing snapshot's players+attributes are copied here first (tagged by label +
@@ -902,66 +655,6 @@ APP_CONFIG_DEFAULTS = {
 # standings that do not parse for this career. The mart and fmq.py answer all five questions.
 RETIRED_VIEWS = ("v_ca_progression", "v_transfers", "v_league_table", "v_match_results",
                  "v_top_scorers")
-
-VIEWS = {
-    "v_player_attributes": """
-        SELECT p.*, a.* EXCLUDE (season, phase, tid)
-        FROM raw.players p
-        JOIN raw.player_attributes a USING (season, phase, tid)
-    """,
-}
-
-# Weighted role rating (immersion-safe: derived purely from the 23 attributes, no CA/PA).
-# rating = SUM(attribute_value * weight) per (method/tactic, role); attributes not listed
-# for that role default to weight 1 (matches fm-data-entry get_weighted_df).
-_UNPIVOT = ", ".join(f'"{a}"' for a in ATTR_ORDER)
-VIEWS["v_player_ratings"] = f"""
-    WITH long AS (
-        UNPIVOT raw.player_attributes ON {_UNPIVOT} INTO NAME attribute VALUE value
-    ),
-    combos AS (
-    -- Every method x every role, NOT the pairs that happen to appear in role_weights. A role
-    -- with no rows there is a FLAT role - every attribute at weight 1 - which is a legitimate and
-    -- deliberate state: scripts/derive_weight_set.py ships one when no weighting beat a flat
-    -- baseline out-of-fold. Built from the pairs present, such a role vanishes from the ratings
-    -- entirely and every position mapping to it disappears from the depth chart: two methods
-    -- shipped with AML/AMR flat and the squad's 13 AMLs and 10 AMRs had no fit rows at all.
-    -- COALESCE(weight, 1) below already yields the right number; combos just has to ask for
-    -- the row.
-    SELECT m.method, r.role
-    FROM (SELECT DISTINCT method FROM raw.role_weights) m
-    CROSS JOIN (SELECT DISTINCT role FROM raw.position_role_map) r
-    )
-    SELECT l.season, l.phase, l.tid, c.method, c.role,
-           SUM(l.value * COALESCE(w.weight, 1)) AS rating
-    FROM long l
-    CROSS JOIN combos c
-    LEFT JOIN raw.role_weights w
-      ON w.method = c.method AND w.role = c.role AND w.attribute = LOWER(l.attribute)
-    GROUP BY l.season, l.phase, l.tid, c.method, c.role
-"""
-
-# Relative standing of each rating (immersion-safe): percentile vs the whole loaded
-# population at that (season, phase, method, role). Squad-relative views are then a
-# simple club_tid filter on top. Deliberately exposes no ca/pa.
-VIEWS["v_player_rating_ranks"] = """
-    SELECT r.season, r.phase, r.method, r.role, r.tid, r.rating,
-           p.name, p.club, p.club_tid,
-           -- the club record's league: league_id, unless the club plays in another division
-           CASE WHEN d.other_division = 65535 AND d.league_id NOT IN (0, 65535)
-                THEN d.league_id END AS league_cid,
-           ROUND(100 * PERCENT_RANK() OVER (
-               PARTITION BY r.season, r.phase, r.method, r.role
-               ORDER BY r.rating), 1) AS pctile,
-           RANK() OVER (
-               PARTITION BY r.season, r.phase, r.method, r.role
-               ORDER BY r.rating DESC) AS rank_overall
-    FROM v_player_ratings r
-    JOIN raw.players p USING (season, phase, tid)
-    LEFT JOIN raw.club_details d
-           ON (d.season, d.phase, d.tid) = (p.season, p.phase, p.club_tid)
-    WHERE NOT p.is_staff
-"""
 
 # tables each group owns, and the DELETE scope for idempotent reload
 GROUPS = ("core", "light", "world")
@@ -1801,10 +1494,8 @@ def create_schema(con):
     # that would have added it sat four lines further down.
     def _build_view():
         _migrate(con)
-        for stmt in _players_views(con):
-            con.execute(stmt)
         _seed_attribute_model(con)
-        con.execute(_player_attributes_view(con))
+        models.build(con, ["int.player_attributes"])
 
     _rename_staging(con)
     _raw_tables(con)
@@ -2186,53 +1877,21 @@ def seed_config_bundle(con):
 
 # person_id for a slice row; '?' when dob is unknown so the row still gets a stable key
 # (28 tids appear in match stats but in no players slice at all — they keep tid-only identity).
-_PERSON_ID = "concat(CAST(tid AS VARCHAR), '-', COALESCE(CAST(dob AS VARCHAR), '?'))"
+def create_views(con):
+    """The stg/int models (fmstats/models/) and the compatibility views over them. The
+    attribute coefficients are seeded first: int.player_attributes is generated from them."""
+    con.execute(ATTR_MODEL_DDL)
+    _seed_attribute_model(con)
+    for name in RETIRED_VIEWS:
+        con.execute(f"DROP VIEW IF EXISTS {name}")
+    return models.build(con)
 
 
-def _psort(col="phase"):
-    """Chronological sort key for a phase. Phases are in-game dates now; legacy stores may
-    still hold the old start/mid/end words, which sort as epoch (before any real date)."""
-    return (f"CASE {col} WHEN 'start' THEN '0000-00-00' WHEN 'mid' THEN '0000-00-01' "
-            f"WHEN 'end' THEN '0000-00-02' ELSE {col} END")
-
-
-def rebuild_persons(con):
-    """Rebuild the (tid,dob) -> person_id bridge from raw.players.
-
-    Cheap and idempotent: derived entirely from players, so it is rebuilt wholesale after every
-    load rather than maintained incrementally. Needs no re-extraction — dob is already present
-    in every players slice."""
-    ordr = _psort("phase")
-    con.execute("DELETE FROM raw.person_slices")
-    con.execute(f"""INSERT INTO raw.person_slices (season, phase, tid, person_id)
-                    SELECT season, phase, tid, {_PERSON_ID} FROM raw.players""")
-    con.execute("DELETE FROM raw.persons")
-    con.execute(f"""
-        INSERT INTO raw.persons (person_id, tid, dob, name, first_seen, last_seen, slices)
-        SELECT {_PERSON_ID}, tid, dob,
-               arg_max(name, {ordr}) AS name,
-               arg_min(phase, {ordr}) AS first_seen,
-               arg_max(phase, {ordr}) AS last_seen,
-               COUNT(*) AS slices
-        FROM raw.players GROUP BY tid, dob""")
-    n, t = con.execute("SELECT COUNT(*), COUNT(DISTINCT tid) FROM raw.persons").fetchone()
+def report_persons(con):
+    n, t = con.execute("SELECT COUNT(*), COUNT(DISTINCT tid) FROM int.persons").fetchone()
     if n > t:
         print(f"  identity bridge: {n} persons across {t} tids "
               f"({n - t} recycled slot(s) — see docs/IDS.md)")
-
-
-def create_views(con):
-    # The attribute model first: raw.player_attributes is a VIEW built from the
-    # coefficient table, and most of what follows reads it.
-    for stmt in _players_views(con):
-        con.execute(stmt)
-    con.execute(ATTR_MODEL_DDL)
-    _seed_attribute_model(con)
-    con.execute(_player_attributes_view(con))
-    for name in RETIRED_VIEWS:
-        con.execute(f"DROP VIEW IF EXISTS {name}")
-    for name, sql in VIEWS.items():
-        con.execute(f"CREATE OR REPLACE VIEW {name} AS {sql}")
 
 
 def reset_schema(con):
@@ -2242,9 +1901,12 @@ def reset_schema(con):
     con.execute("DROP SCHEMA IF EXISTS raw CASCADE")
     con.execute("DROP SCHEMA IF EXISTS staging CASCADE")
     con.execute("DROP SCHEMA IF EXISTS history CASCADE")
-    for name in (*VIEWS, *RETIRED_VIEWS):
+    con.execute("DROP SCHEMA IF EXISTS int CASCADE")
+    con.execute("DROP SCHEMA IF EXISTS stg CASCADE")
+    for name in RETIRED_VIEWS:
         con.execute(f"DROP VIEW IF EXISTS {name}")
-    con.execute("DROP VIEW IF EXISTS raw.player_attributes")
+    for name in models_compat.VIEWS:
+        con.execute(f"DROP VIEW IF EXISTS {name}")
 
 
 def discover_labels(root):
@@ -2274,7 +1936,7 @@ def main():
     ap.add_argument("--refresh-only", action="store_true",
                     help="rebuild the SQL views, the mart layer AND the role-weight seeds "
                          "against an existing store, loading nothing. All three are just "
-                         "definitions, so a change to fmstats/mart.py, VIEWS or "
+                         "definitions, so a change to fmstats/mart.py, fmstats/models/ or "
                          "seeds/role_weights.csv does not reach a store until something "
                          "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()
@@ -2304,10 +1966,10 @@ def main():
             # raw.role_weights survives this.
             seed_role_weights(con)
             seed_event_types(con)
-            create_views(con)
+            built = create_views(con)
             seed_career(con)
             mart_objects = create_mart(con)
-            print(f"{args.db}: role-weight seeds + {len(VIEWS)} views + {len(mart_objects)} "
+            print(f"{args.db}: role-weight seeds + {len(built)} models + {len(mart_objects)} "
                   f"mart objects rebuilt (nothing loaded)")
         finally:
             con.close()
@@ -2348,9 +2010,9 @@ def main():
             except Exception as e:  # one bad label must not abort a batch
                 fail += 1
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
-        rebuild_persons(con)
         seed_event_types(con)
         create_views(con)
+        report_persons(con)
         seed_career(con, _extract_career(dirs))
         mart_objects = create_mart(con)
         print(f"done: {ok} loaded, {fail} failed. views refreshed, "

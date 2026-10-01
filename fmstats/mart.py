@@ -1473,7 +1473,7 @@ JOIN (SELECT season, arg_max(phase, phase_ord(phase)) AS phase
 # choices each silently deleted real football:
 #
 #   1. Aggregating on person_id and dropping the rows where it is NULL. person_slices is
-#      derived purely from raw.players (load_duckdb.rebuild_persons), so a player with
+#      derived purely from raw.players (int.persons, fmstats/models/people.py), so a player with
 #      match rows but no roster row in ANY snapshot never gets an identity — 76 tids here,
 #      42 of them ours. Filtering them out cost 196 of our appearances and 25 of our 2024
 #      goals, 22% of the season. So the aggregation key is `player_key`, which falls back to
@@ -2783,7 +2783,8 @@ mine AS (
 domestic AS (
     SELECT t.season, t.phase, t.tid,
            MAX(t.months)                    AS months,
-           ARG_MAX(t.club_tid, t.months)    AS club_tid
+           -- equal months go to the more recent spell, then the lower tid
+           ARG_MAX(t.club_tid, (t.months, t.last_to, -t.club_tid)) AS club_tid
     FROM mart.player_training t
     JOIN mart.club_nations cn
       ON (cn.season, cn.phase, cn.club_tid) = (t.season, t.phase, t.club_tid)
