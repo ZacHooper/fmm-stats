@@ -1542,7 +1542,7 @@ def create_schema(con):
         _seed_attribute_model(con)
         if (models_compat._kind(con, "history.player_snapshots") is None
                 or models_compat._kind(con, "int.player_attributes") is None):
-            build_models(con, "+int_player_attributes")
+            build_models(con, "+int_player_attributes", test=False)   # no data to test yet
 
     _rename_staging(con)
     _raw_tables(con)
@@ -1983,18 +1983,20 @@ def create_views(con):
 TRANSFORM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "transform")
 
 
-def build_models(con, select=None):
-    """Run the dbt project (transform/) against the store `con` is open on -- every model, or
-    the `select` expression -- then create the compatibility views over what it built. dbt
-    runs in this process, so it shares the open database rather than contending for the
-    file's lock. Returns the names of the models built."""
+def build_models(con, select=None, test=True):
+    """Build the dbt project (transform/) in the store `con` is open on -- every model, or the
+    `select` expression -- then create the compatibility views over it. With `test`, this is
+    `dbt build`: each model's data and unit tests run straight after it, a failure stops the
+    models downstream of it, and this raises. dbt runs in this process, so it shares the open
+    database rather than contending for the file's lock. Returns the models built."""
     from dbt.cli.main import dbtRunner
     path = con.execute("SELECT path FROM duckdb_databases() "
                        "WHERE database_name = current_database()").fetchone()[0]
     if not path:
         raise RuntimeError("the models are built by dbt, which needs the store as a file; "
                            "this connection is to an in-memory database")
-    args = ["run", "--project-dir", TRANSFORM_DIR, "--profiles-dir", TRANSFORM_DIR, "--quiet"]
+    args = ["build" if test else "run", "--project-dir", TRANSFORM_DIR,
+            "--profiles-dir", TRANSFORM_DIR, "--quiet"]
     if select:
         args += ["--select", select]
     before = os.environ.get("FM_DUCKDB")
@@ -2007,8 +2009,9 @@ def build_models(con, select=None):
         else:
             os.environ["FM_DUCKDB"] = before
     if not res.success:
-        raise RuntimeError(f"dbt run failed: {res.exception or 'see the errors above'}")
-    built = [r.node.relation_name for r in res.result if r.status == "success"]
+        raise RuntimeError(f"dbt {args[0]} failed: {res.exception or 'see the errors above'}")
+    built = [r.node.relation_name for r in res.result
+             if r.node.resource_type == "model" and r.status == "success"]
     models_compat.create(con)
     return built
 

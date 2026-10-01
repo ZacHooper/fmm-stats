@@ -138,9 +138,12 @@ ATTACH the full store for that, not a scrub issue).
 - **`transform/` and `fmstats/` are the T.** `transform/` is a **dbt** project (dbt-duckdb)
   that builds the `stg` and `int` layers as views over `raw` — the squad's exact values,
   display names, the attribute decode, the person bridge, role ratings — and, from data-layers
-  step 16, the `dim_*`/`fact_*` tables; each model's grain and keys are dbt tests. The loader
-  runs it in-process (`load_duckdb.build_models`), so `--refresh-only` rebuilds it too; by hand
-  it is `cd transform && FM_DUCKDB=<store> uv run dbt build --profiles-dir .`. A model file is
+  step 16, the `dim_*`/`fact_*` tables. Each model's grain and keys are dbt data tests, and its
+  rules are dbt **unit tests** (fixed rows in, the rows it must produce out:
+  `models/int/_int_unit_tests.yml`). The loader runs `dbt build` in-process
+  (`load_duckdb.build_models`), so every load and `--refresh-only` tests what it builds, and a
+  failing test fails the load; by hand it is
+  `cd transform && FM_DUCKDB=<store> uv run dbt build --profiles-dir .`. A model file is
   `<layer>_<name>.sql` and its relation `<layer>.<name>`; references leave out the catalog, so
   a copy of the store under another name still binds. Its SQL is generated from the `vars` in
   `transform/dbt_project.yml`, which `tests/test_boundary.py` checks against

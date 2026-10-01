@@ -1,0 +1,161 @@
+# Unit tests: fixed input rows -> the rows a model must produce. They run inside `dbt build`
+# and touch no data (dbt reads only the input tables' column types from the store).
+version: 2
+unit_tests:
+  - name: person_names_common_then_legal
+    description: >
+      The common name first, else first + last; NULL when either is missing.
+    model: int_person_names
+    given:
+      - input: source('raw', 'players_raw')
+        rows:
+          - {season: 1, phase: p, tid: 1, first_name_id: 5, last_name_id: 7, common_name_id: 0}
+          - {season: 1, phase: p, tid: 2, first_name_id: 5, last_name_id: 7, common_name_id: 4294967295}
+          - {season: 1, phase: p, tid: 3, first_name_id: 6, last_name_id: 99, common_name_id: 4294967295}
+      - input: ref('stg_name_ids')
+        rows:
+          - {season: 1, phase: p, name_table: first_names, id: 5, ordinal: 0}
+          - {season: 1, phase: p, name_table: surnames, id: 7, ordinal: 1}
+          - {season: 1, phase: p, name_table: nicknames, id: 0, ordinal: 2}
+          - {season: 1, phase: p, name_table: first_names, id: 6, ordinal: 3}
+      - input: ref('stg_name_strings')
+        rows:
+          - {season: 1, phase: p, ordinal: 0, name: Adenor}
+          - {season: 1, phase: p, ordinal: 1, name: Bachi}
+          - {season: 1, phase: p, ordinal: 2, name: Tite}
+          - {season: 1, phase: p, ordinal: 3, name: Kim}
+    expect:
+      rows:
+        - {tid: 1, name: Tite}
+        - {tid: 2, name: Adenor Bachi}
+        - {tid: 3, name: null}
+
+  - name: person_names_stored_name_stands_in
+    description: >
+      A store loaded before the name ids were handed over keeps the resolved name in
+      raw.players_raw.name, and it stands in for a person with no ids.
+    model: int_person_names
+    overrides:
+      macros:
+        column_names: [season, phase, tid, name, first_name_id, last_name_id, common_name_id]
+    given:
+      - input: source('raw', 'players_raw')
+        format: sql
+        rows: |
+          SELECT 1 AS season, 'p' AS phase, 4 AS tid, 'Stored Name' AS name,
+                 CAST(NULL AS BIGINT) AS first_name_id, CAST(NULL AS BIGINT) AS last_name_id,
+                 CAST(NULL AS BIGINT) AS common_name_id
+      - input: ref('stg_name_ids')
+        rows: []
+      - input: ref('stg_name_strings')
+        rows: []
+    expect:
+      rows:
+        - {tid: 4, name: Stored Name}
+
+  - name: squad_scrapbook_latest_club_list_entry
+    description: >
+      Our squad is the first-team and reserve arrays; each player's entry is his latest in
+      the club lists (the World Best XI lists are not ours); a player whose own record names
+      another club is on loan to us; a player outside both arrays is not in the squad.
+    model: int_squad_scrapbook
+    overrides:
+      macros:   # the entry columns the model carries, as raw.player_scrapbook lists them
+        column_names: [season, phase, list, slot, player_tid, full_name, club_tid, scrapbook_date, Pace, Teamwork]
+    given:
+      - input: source('raw', 'app_config')
+        rows: [{key: career_managed_tid, value: '346'}]
+      - input: source('raw', 'extracts')
+        rows: [{season: 2026, phase: '2026-06-11'}]
+      - input: source('raw', 'club_details')
+        rows: [{season: 2026, phase: '2026-06-11', tid: 7296, main_club_tid: 346}]
+      - input: source('raw', 'club_squad')
+        rows:
+          - {season: 2026, phase: '2026-06-11', club_tid: 346, player_tid: 1}
+          - {season: 2026, phase: '2026-06-11', club_tid: 346, player_tid: 2}
+          - {season: 2026, phase: '2026-06-11', club_tid: 7296, player_tid: 3}
+          - {season: 2026, phase: '2026-06-11', club_tid: 346, player_tid: 5}
+      - input: source('raw', 'players_raw')
+        rows:
+          - {season: 2026, phase: '2026-06-11', tid: 1, club_tid: 346, club: club 346}
+          - {season: 2026, phase: '2026-06-11', tid: 2, club_tid: 900, club: club 900}
+          - {season: 2026, phase: '2026-06-11', tid: 3, club_tid: 7296, club: club 7296}
+          - {season: 2026, phase: '2026-06-11', tid: 4, club_tid: 900, club: club 900}
+          - {season: 2026, phase: '2026-06-11', tid: 5, club_tid: 346, club: club 346}
+      - input: source('raw', 'clubs')
+        rows:
+          - {season: 2026, phase: '2026-06-11', tid: 346, name: Frem}
+          - {season: 2026, phase: '2026-06-11', tid: 7296, name: Frem Reserves}
+      - input: source('raw', 'player_scrapbook')
+        rows:
+          - {season: 2026, phase: '2026-06-11', list: 31, player_tid: 1, scrapbook_date: '2026-01-31', Teamwork: 6}
+          - {season: 2026, phase: '2026-06-11', list: 32, player_tid: 1, scrapbook_date: '2026-05-31', Teamwork: 7}
+          - {season: 2026, phase: '2026-06-11', list: 0, player_tid: 1, scrapbook_date: '2026-10-28', Teamwork: 19}
+          - {season: 2026, phase: '2026-06-11', list: 32, player_tid: 2, scrapbook_date: '2026-05-31', Teamwork: 8}
+          - {season: 2026, phase: '2026-06-11', list: 32, player_tid: 3, scrapbook_date: '2026-05-31', Teamwork: 9}
+          - {season: 2026, phase: '2026-06-11', list: 31, player_tid: 4, scrapbook_date: '2026-01-31', Teamwork: 10}
+    expect:
+      rows:
+        - {tid: 1, squad_club_tid: 346, squad_club: Frem, loaned_in: false, own_club_tid: 346, scrapbook_date: '2026-05-31', Teamwork: 7}
+        - {tid: 2, squad_club_tid: 346, squad_club: Frem, loaned_in: true, own_club_tid: 900, scrapbook_date: '2026-05-31', Teamwork: 8}
+        - {tid: 3, squad_club_tid: 7296, squad_club: Frem Reserves, loaned_in: false, own_club_tid: 7296, scrapbook_date: '2026-05-31', Teamwork: 9}
+        - {tid: 5, squad_club_tid: 346, squad_club: Frem, loaned_in: false, own_club_tid: 346, scrapbook_date: null, Teamwork: null}
+
+  - name: players_take_a_fresh_entry
+    description: >
+      A squad player takes his name from his entry, and his feet and value from it while it is
+      at most a year old; a loanee is listed under our club with his parent club; a player
+      outside the squad keeps his own record.
+    model: int_players
+    overrides:
+      macros:   # the raw.players_raw columns the model passes through or replaces
+        column_names: [season, phase, tid, first_name_id, last_name_id, common_name_id, is_staff, club_tid, club, has_attributes, foot_left, foot_right]
+    given:
+      - input: source('raw', 'players_raw')
+        rows:
+          - {season: 2026, phase: '2026-06-11', tid: 1, is_staff: false, club_tid: 346, club: club 346, foot_left: 5, foot_right: 20}
+          - {season: 2026, phase: '2026-06-11', tid: 2, is_staff: false, club_tid: 900, club: club 900, foot_left: 5, foot_right: 20}
+          - {season: 2026, phase: '2026-06-11', tid: 4, is_staff: false, club_tid: 900, club: club 900, foot_left: 5, foot_right: 20}
+          - {season: 2026, phase: '2026-06-11', tid: 6, is_staff: false, club_tid: 7296, club: club 7296, foot_left: 5, foot_right: 20}
+      - input: ref('int_person_names')
+        rows:
+          - {season: 2026, phase: '2026-06-11', tid: 1, name: Record One}
+          - {season: 2026, phase: '2026-06-11', tid: 2, name: Record Two}
+          - {season: 2026, phase: '2026-06-11', tid: 4, name: Ghost Four}
+          - {season: 2026, phase: '2026-06-11', tid: 6, name: Record Six}
+      - input: ref('int_squad_scrapbook')
+        rows:
+          - {season: 2026, phase: '2026-06-11', tid: 1, squad_club_tid: 346, squad_club: Frem, loaned_in: false, own_club_tid: 346, own_club: club 346, full_name: Owned One, scrapbook_date: '2026-05-31', value: 200, foot_left: 20, foot_right: 1}
+          - {season: 2026, phase: '2026-06-11', tid: 2, squad_club_tid: 346, squad_club: Frem, loaned_in: true, own_club_tid: 900, own_club: club 900, full_name: Loanee Two, scrapbook_date: '2026-05-31', value: 300, foot_left: 20, foot_right: 1}
+          - {season: 2026, phase: '2026-06-11', tid: 6, squad_club_tid: 7296, squad_club: Frem Reserves, loaned_in: false, own_club_tid: 7296, own_club: club 7296, full_name: Old Six, scrapbook_date: '2025-05-16', value: 600, foot_left: 20, foot_right: 1}
+      - input: ref('stg_training')
+        rows: []
+      - input: ref('stg_contracts')
+        rows: []
+    expect:
+      rows:
+        - {tid: 1, name: Owned One, club_tid: 346, club: club 346, foot_left: 20, player_value: 200, loaned_in: false, parent_club_tid: null, scrapbook_date: '2026-05-31'}
+        - {tid: 2, name: Loanee Two, club_tid: 346, club: Frem, foot_left: 20, player_value: 300, loaned_in: true, parent_club_tid: 900, scrapbook_date: '2026-05-31'}
+        - {tid: 4, name: Ghost Four, club_tid: 900, club: club 900, foot_left: 5, player_value: null, loaned_in: false, parent_club_tid: null, scrapbook_date: null}
+        - {tid: 6, name: Old Six, club_tid: 7296, club: club 7296, foot_left: 5, player_value: null, loaned_in: false, parent_club_tid: null, scrapbook_date: null}
+
+  - name: exact_attributes_from_a_fresh_entry
+    description: >
+      The seven plain attributes always come from the player's own record; the entangled ones
+      from his squad entry while it is at most a year old, else NULL (left to the decode).
+    model: int_player_attributes_exact
+    given:
+      - input: source('raw', 'player_attributes_exact_raw')
+        rows:
+          - {season: 2026, phase: '2026-06-11', tid: 1, Pace: 11}
+          - {season: 2026, phase: '2026-06-11', tid: 4, Pace: 14}
+          - {season: 2026, phase: '2026-06-11', tid: 6, Pace: 16}
+      - input: ref('int_squad_scrapbook')
+        rows:
+          - {season: 2026, phase: '2026-06-11', tid: 1, scrapbook_date: '2026-05-31', Pace: 99, Teamwork: 7}
+          - {season: 2026, phase: '2026-06-11', tid: 6, scrapbook_date: '2025-05-16', Pace: 99, Teamwork: 12}
+    expect:
+      rows:
+        - {tid: 1, Pace: 11, Teamwork: 7}
+        - {tid: 4, Pace: 14, Teamwork: null}
+        - {tid: 6, Pace: 16, Teamwork: null}
