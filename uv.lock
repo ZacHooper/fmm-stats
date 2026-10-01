@@ -39,10 +39,6 @@ source = { virtual = "." }
 dependencies = [
     { name = "duckdb" },
     { name = "pandas" },
-]
-
-[package.optional-dependencies]
-archive = [
     { name = "zstandard" },
 ]
 
@@ -50,9 +46,8 @@ archive = [
 requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
     { name = "pandas", specifier = ">=2.2" },
-    { name = "zstandard", marker = "extra == 'archive'", specifier = ">=0.22" },
+    { name = "zstandard", specifier = ">=0.22" },
 ]
-provides-extras = ["archive"]
 
 [[package]]
 name = "numpy"

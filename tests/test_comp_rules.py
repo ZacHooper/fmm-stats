@@ -13,7 +13,7 @@ Guard the competition rules (fmparser/tables/comp_rules.py) on real saves.
             3F Superliga   Preliminary Phase, Championship Group
             Sydbank Pokalen  Third Round (round 2), Quarter/Semi Final two-legged
 
-    uv sync --extra archive
+    uv sync
     uv run python tests/test_comp_rules.py
 """
 import glob
@@ -60,7 +60,7 @@ def main() -> int:
     try:
         import zstandard  # noqa: F401
     except ImportError:
-        print("SKIP: needs `uv sync --extra archive`")
+        print("SKIP: needs `uv sync`")
         return SKIP
     failures = []
     ground_seen = False

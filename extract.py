@@ -300,7 +300,7 @@ def main():
     #     stage_index/round_index index into the competition's own rules member, which a
     #     match's comp_id reaches through the competition uid (competition_rounds below).
     #
-    # Reading the archive needs zstandard (`uv run --extra archive`); without it the extract
+    # Reading the archive needs zstandard (a project dependency); without it the extract
     # stops unless --no-archive says to go on without the fixtures and rules. An archive that
     # is there but does not read degrades to an empty file with a NOTE.
     try:
@@ -308,7 +308,7 @@ def main():
     except ImportError as e:
         if not args.no_archive:
             raise SystemExit(f"the save's archive needs zstandard ({e}): run extract as "
-                             f"`uv run --extra archive python extract.py ...`, or pass "
+                             f"`uv run python extract.py ...`, or pass "
                              f"--no-archive to extract without the fixtures and rules")
         world = []
     except Exception as e:

@@ -308,7 +308,7 @@ Parsed by `fmparser/fixtures.py` (`FIXTURE`).
 ## Using it
 
 ```bash
-uv sync --extra archive          # zstd is not in the stdlib before Python 3.14
+uv sync                          # installs zstandard: zstd is not in the stdlib before 3.14
 uv run python scripts/audit_archive.py                      # all saves
 uv run python scripts/audit_archive.py <save.fms>           # one save + the listing
 uv run python tests/test_archive.py
@@ -319,9 +319,6 @@ from fmparser.core import archive as A
 name, ents = A.directory(mm)          # ('sicomps', [Entry(...), ...])
 blob = A.extract(mm, "fix_man.dat")   # decompressed, header included
 ```
-
-`uv sync --extra archive` replaces the environment, so pair it with `--extra dashboard` if
-you want Streamlit at the same time.
 
 ## Method notes worth carrying
 

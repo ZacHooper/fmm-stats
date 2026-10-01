@@ -178,7 +178,7 @@ with a directory. Its `fix_man.dat` is the world fixture list — 26,954 rows ac
 
 See [`save-archive.md`](save-archive.md) for the container and
 [`archive-coverage.md`](archive-coverage.md) for what each member is worth against what we
-already parse. The reader is `fmparser/core/archive.py`; it needs `uv sync --extra archive`.
+already parse. The reader is `fmparser/core/archive.py`; it needs `uv sync`.
 
 **The rule that found it, which generalises past this shape:** **rank an unknown region by
 BLOCK ENTROPY, never by printable fraction.** This region was ranked the best remaining target
