@@ -75,7 +75,7 @@ def build(db, min_minutes, competition=None, who="us"):
         own squad), so positions come from `mart.player_position_levels`, which covers every club.
     """
     # mart.match_player_facts is already deduped to one phase per season — never aggregate
-    # staging.match_player_stats here, it is a ring buffer and stores a match up to 5 times.
+    # raw.match_player_stats here, it is a ring buffer and stores a match up to 5 times.
     agg = ", ".join(f"SUM({c}) {c}" for c in COUNTS)
     side = ("team_tid IN (SELECT club_tid FROM mart.managed_club)" if who == "us"
             else "team_tid NOT IN (SELECT club_tid FROM mart.our_clubs)")

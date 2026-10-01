@@ -1,13 +1,13 @@
 """Names for the game's own codes: what the raw ids the parser hands over MEAN.
 
-The parser reads an id (`staging.training.focus_role`, a snapshot's role byte); what that id is
+The parser reads an id (`raw.training.focus_role`, a snapshot's role byte); what that id is
 called is interpretation, so it lives here, on the transform side. `fmstats/mart.py` renders each
 map as a mart view (`mart.roles`, `mart.training_attributes`), so SQL, the site and `fmq` share
 one set of names, and naming a code reaches a store with `load_duckdb.py --refresh-only`, with
 no re-extract.
 """
 
-# Player roles, by id: the training Focus Role (`staging.training.focus_role`) and the role a
+# Player roles, by id: the training Focus Role (`raw.training.focus_role`) and the role a
 # player attribute snapshot shows, which is the same thing on the snapshot's date. The ids run
 # in position order -- 0-1 GK, 2 SW, 3-4 full-back, 5-7 DC, 8-12 wide, 13-17 central midfield,
 # 18-24 striker -- and 25-32 follow as a second set in the same order.
@@ -26,7 +26,7 @@ ROLES = {0: "Goalkeeper", 1: "Sweeper Keeper", 2: "Sweeper", 3: "Full-Back", 4: 
 # holders' attributes -- rather than read off a Scrapbook Profile or the Training page.
 ROLES_INFERRED = frozenset({2, 8, 11, 18, 20, 22, 23, 24, 27, 28, 29, 31})
 
-# The Training page's Attr column, by the attribute-focus code (`staging.training.
+# The Training page's Attr column, by the attribute-focus code (`raw.training.
 # focus_attribute`): the codes read off the page. 0, 2, 4, 10, 12, 13 and 15 also occur and
 # are not yet named.
 TRAINING_ATTRIBUTES = {1: "CRO", 3: "PAS", 5: "TAC", 6: "HAN", 8: "AIR", 9: "REF", 11: "CRE",

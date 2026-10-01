@@ -36,7 +36,7 @@ CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_K
                    ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
                    URL_STYLE 'path', REGION 'auto');
 ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
-SELECT * FROM fm.staging.players LIMIT 5;
+SELECT * FROM fm.raw.players LIMIT 5;
 ```
 
 ### Which object to ATTACH (updated 2026-08-25)
@@ -46,10 +46,10 @@ Two are published, and for ANALYSIS you almost always want the smaller one:
 | object | size | holds | use it when |
 |---|---:|---|---|
 | `site-data/fm-frem-mart.duckdb` | **~24 MB** | the `mart` schema only, as real tables | analysing the career — squads, growth, spells, match facts, clubs, leagues, current attributes |
-| `site-data/fm-frem.duckdb` | **~34 MB** | full `staging` (+ `mart` views) | you need raw staging, or per-snapshot history for a player who was never ours |
+| `site-data/fm-frem.duckdb` | **~34 MB** | full `raw` (+ `mart` views) | you need the raw tables (named `staging` in the copy until its next republish), or per-snapshot history for a player who was never ours |
 
 `mart` bakes in the four correctness rules (latest-phase-per-season, snapshot-scoped joins,
-`person_id`-not-`tid`, 255-sentinel minutes) that raw `staging` makes you re-derive — so the
+`person_id`-not-`tid`, 255-sentinel minutes) that the `raw` tables makes you re-derive — so the
 slim object is both smaller AND harder to get wrong. Prefer it.
 
 Since the 2026-08-25 site refactor the mart is also what generates the web app, so it covers
@@ -163,7 +163,7 @@ plus ongoing hosting, to fix what was actually just a network-allowlist gap.
 ## What was built
 
 - **`scripts/publish_duckdb.py`** — clones `fm-<career>.duckdb`, `UPDATE`s
-  `staging.players SET ca = NULL, pa = NULL` in the clone (the only table/columns holding raw
+  `raw.players SET ca = NULL, pa = NULL` in the clone (the only table/columns holding raw
   ability — see `load_duckdb.py`'s schema), `CHECKPOINT`s, and uploads the clone to R2 at
   `site-data/fm-<career>.duckdb` via `rclone copyto`. The live store is opened through
   `_dbopen.open_readonly` (same single-writer-safe fallback every other read-only tool uses) and
@@ -190,7 +190,7 @@ plus ongoing hosting, to fix what was actually just a network-allowlist gap.
 
 The JSON export enforces "never surface raw CA/PA" per-field (`export_data.py`'s
 `check_immersion`). Raw SQL access has no per-field filter to hide behind once it's shipped —
-whoever holds the R2 credentials can `SELECT ca FROM staging.players` directly. So the rule is
+whoever holds the R2 credentials can `SELECT ca FROM raw.players` directly. So the rule is
 enforced by scrubbing the *data* in the published copy instead of trying to gate the *query*.
 
 ## What's still open — for whoever picks this up next

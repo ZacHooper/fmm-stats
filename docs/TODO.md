@@ -100,7 +100,7 @@ Eleven pool of each season (every player who played for the manager, loanees inc
 follows the manager, not the club), 62/64 and 63/65 the World and Manager's All-Time pools.
 Each entry is a **scrapbook entry**: the player's Scrapbook Profile as of its date
 (Nuamah's and Mikkel Andersson's 2022 entries verified field by field). Every entry is in the
-store (`staging.player_scrapbook`); `staging.squad_scrapbook` picks our squad's. Open:
+store (`raw.player_scrapbook`); `raw.squad_scrapbook` picks our squad's. Open:
 - **Which copy of each All-Time pair is live**: 63 carries this season's "New Entry" dates,
   65 last season's. Confirm across a season boundary.
 - **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan
@@ -135,11 +135,11 @@ store (`staging.player_scrapbook`); `staging.squad_scrapbook` picks our squad's.
   - surfacing it: each squad player's training focus on the site's Squad page.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
-- **Surface the World Best XI pools**: every season's pool is in `staging.player_scrapbook`
+- **Surface the World Best XI pools**: every season's pool is in `raw.player_scrapbook`
   (lists 0-30, 62/64); nothing reads it yet.
 
 ### 4a. Player progress: what is still unread
-`tables/player_progress.py` hands every used row to `staging.player_progress` (the six lines
+`tables/player_progress.py` hands every used row to `raw.player_progress` (the six lines
 and the raw status included); the mart draws injury and loan spells from the bits. Open: the six
 u16 skill lines at +4 (which line is which on the Player Progress graph), status bits 3 (8)
 and 6 (64), and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
@@ -194,16 +194,16 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
 - **`att_avg` / `att_min` / `att_max`** in the club record: read correctly, but the names from
   fmm-editor fail every check (a 12,500 ceiling, multiples of 100, Barcelona's max below its
-  avg). Not attendance — `mart.club_attendance` is. Carried in `staging.club_details` only.
-- **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `staging.clubs` —
+  avg). Not attendance — `mart.club_attendance` is. Carried in `raw.club_details` only.
+- **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `raw.clubs` —
   probably youth/academy or defunct clubs in another structure.
-- **Career history** (`tables/history.py`): the history lines' `yellows` / `reds` are in `staging.player_history_seasons` but not yet in
+- **Career history** (`tables/history.py`): the history lines' `yellows` / `reds` are in `raw.player_history_seasons` but not yet in
   `mart.player_career_seasons` -- add them after the next publish, since the published store
   lacks the columns and the mart re-binds against it.
 - **Drop the `mart.our_clubs` fallback**: the published store (rebuilt 2026-09-30) carries
   `career_managed_tid`, so the fallback in `OUR_CLUBS` (`fmstats/mart.py`) -- the club in the
   most named-competition matches -- has nothing left to serve. Remove it.
-- **Surface Player of the Match**: `staging.matches.player_of_match` is the game's own pick,
+- **Surface Player of the Match**: `raw.matches.player_of_match` is the game's own pick,
   in the store since 2026-09-30; nothing reads it yet. Add it to `mart.matches`.
 - **The match record** (`tables/matches.py`): the event's last 8 bytes (two u32, never a tid
   of the match), the player slot's 33 unnamed bytes (+54..61 two more u32; +2 equals the
@@ -248,7 +248,7 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 **Plan: [`plans/2026-10-01-data-layers.md`](plans/2026-10-01-data-layers.md)** -- 18 steps, one PR
 each. Extract hands over every table as the save stores it (header dates, dead outputs, whole
 reference tables, then contracts, names and person records, and a file-order cursor); the store
-renames `staging` to `raw` and models it as raw → stg → int → mart, ending in the `dim_*` /
+renames `raw` to `raw` and models it as raw → stg → int → mart, ending in the `dim_*` /
 `fact_*` tables of [`data-model/`](data-model/README.md), and the site's marts move onto them.
 Every step is gated row-for-row against a store built from `main`. Person identity (#14),
 history reclamation (#15) and extra-time minutes (#16) block steps of it.
@@ -263,7 +263,7 @@ history reclamation (#15) and extra-time minutes (#16) block steps of it.
 Denmark 40/40 tables exact, Germany 23/26, England 85/121, Belgium 14/21, **Spain 0/48** (51 of
 588 clubs agree — worse than chance, so a systematic error, not tie-breaks). Settle it on one
 Spanish season against an in-game table before quoting any non-Danish table.
-**`staging.club_league_history` is that table**: the game's own final position for every club
+**`raw.club_league_history` is that table**: the game's own final position for every club
 in every league season (`tables/club_records.py`; `year` is the season's start year). Check
 the rebuilt tables against it, league by league, then consider serving finished seasons from
 it directly.
@@ -290,7 +290,7 @@ reads the newest snapshot only.
   (`extra_time` in `mart.match_stages`, for competitions we play); carry it to the minutes.
 
 ### 16a. Retire the stuck-loan workarounds
-`staging.players.loaned_in` is now true only for a player in our squad arrays whose own record
+`raw.players.loaned_in` is now true only for a player in our squad arrays whose own record
 names another club, so it clears when a loan ends. The mart and exporter still carry code for
 the flag that never cleared: the "SET-ONLY" notes and the `ever_loaned_in` run exclusion in
 `fmstats/mart.py` (`mart.at_club_spells`, "SECOND GHOST"), and the loan note in
@@ -314,7 +314,7 @@ the flag that never cleared: the "SET-ONLY" notes and the `ever_loaned_in` run e
   entries (`tables/player_lists.py`), dated by `scrapbook_date`, and a
   player who has not played this season carries one up to two years old. Both fits pair an
   entry with the CURRENT save's record bytes, CA and reputation
-  (`scripts/fit_attribute_model.py` joins `staging.players` to `player_attributes_exact` on
+  (`scripts/fit_attribute_model.py` joins `raw.players` to `player_attributes_exact` on
   `(season, phase, tid)`; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
   entry to predict a 2026 player -- and the same stale entry is repeated in every
   store snapshot until he plays again. Train only on rows whose entry is fresh relative to
@@ -381,7 +381,7 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
 - **Save housekeeping** (needs Zac): every manifest save is now named `<career>-<header date>`
   in R2 and the manifest, so on the local machine delete `~/fm-saves/*/` copies under the old
   names, the stale `output/` dirs and the pre-rewrite git backup, and rebuild the stores
-  (`scripts/rebuild.py`; an old store's `staging.extracts` still names the old labels, and
+  (`scripts/rebuild.py`; an old store's `raw.extracts` still names the old labels, and
   `export_manifest.py` from it would put them back). The four `unfiled/` saves are dated by
   their headers: `frem/denmark-mid-22` 2021-10-02, `bucaspor/22-23-start` and
   `bucaspor/fm_save3` 2022-06-20 (check whether they are the same save),

@@ -64,14 +64,14 @@ club record at all, 2 Belgian sides the light results mislabelled anyway). Zero 
 
 **Corollary — the extract emits a SNAPSHOT; derivation belongs in the ETL.** `club_league.json` is
 "which competition is each club in on the save date", nothing more. The raw fixture list is loaded
-separately (`staging.results`, every row carrying its cid), so any historical view can be derived in
+separately (`raw.results`, every row carrying its cid), so any historical view can be derived in
 SQL without contaminating the snapshot. Related: `dashboard/db.effective_table` used to resolve
 club→league by taking the newest mapping **store-wide with no season filter**, which leaked a later
 season's promotions back into historical slices; it now resolves as-at the requested (season, phase)
 and only falls back to earlier snapshots.
 
 **Sanity check to run after any change here:** every division in the managed nation must come out the
-right size. `SELECT league_cid, COUNT(DISTINCT club_tid) FROM staging.league_members WHERE
+right size. `SELECT league_cid, COUNT(DISTINCT club_tid) FROM raw.league_members WHERE
 source='club_league' AND phase=<p> GROUP BY 1` → Denmark should be 12/12/12/12 for cids 2/3/4/1147.
 A club with 0–3 players can legitimately sit in a division (Brønshøj had 3, FC Sydvest 0), so squad
 size is NOT a validity filter — don't "fix" the count by dropping those.

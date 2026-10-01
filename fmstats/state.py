@@ -3,7 +3,7 @@ mirrored between `state/` on disk and R2.
 
 Why this exists. These are the only things in the project a human authors that aren't code: the
 DuckDB store is derived (rebuildable from saves + seeds) and `output/` is regenerable, but a
-shortlist entry typed on a phone exists nowhere else. It used to live in `staging.shortlist`
+shortlist entry typed on a phone exists nowhere else. It used to live in `raw.shortlist`
 inside the store, which meant it was destroyed by any rebuild and invisible to a second machine.
 
 Why one object per entry rather than one JSONL file. R2 has no append: writing to a shared file

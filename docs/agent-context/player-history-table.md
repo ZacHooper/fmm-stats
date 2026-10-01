@@ -180,7 +180,7 @@ the docstring itself said not to trust. Every row we emit now comes from a store
   because several stat signatures are unique in 265k rows.
 - **Read the screenshots directly** rather than working from a typed summary of them — the
   "base is 1970?" detour came entirely from one transcription slip.
-- Club names from `staging.clubs` contain junk (tid 334 = B.93 renders as "Player of the
+- Club names from `raw.clubs` contain junk (tid 334 = B.93 renders as "Player of the
   Month"). Don't diagnose a parser bug from a club NAME; check the tid.
 
 ---
@@ -319,7 +319,7 @@ cluster/pointer index, unconfirmed. Big annotated start-dump: **~/Downloads/hist
 
 **FULL FEATURE BUILT on branch `player-history-parser` (4 commits, NOT merged to main, 2026-08):**
 85cd5e1 parser (`fmparser/history.py` + extract.py→history.json), 6e2608f anchor-fit alignment +
-confidence tiers, ee060f1 ETL (`staging.player_history` / `player_history_seasons` /
+confidence tiers, ee060f1 ETL (`raw.player_history` / `player_history_seasons` /
 `eligible_origin_clubs`, seed `seeds/eligible_origin_clubs.csv` = Danish Capital Region), b38660f
 dashboard (`db.eligibility_frame` + `dashboard/pages/9_Recruitment.py`). The Recruitment page is the
 Athletic-Bilbao board: browse players whose ORIGIN club is on the eligible list, high/medium confidence

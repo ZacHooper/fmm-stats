@@ -25,7 +25,7 @@ uv run python scripts/check_rating_parity.py site-data/lab.json  # must PASS
 `mart.player_position_fit`. CLAUDE.md requires that equality and, until this was written, no
 committed test enforced it. **A weight-set built in the Lab** comes back via
 `scripts/import_weight_set.py` (writes `state/weights/<name>.json`, which syncs to R2; `--promote`
-makes it a real method in `staging.role_weights`).
+makes it a real method in `raw.role_weights`).
 
 ## Run the tool, don't hand-roll it
 `scripts/attribute_stat_correlations.py` is the validated implementation. It already handles every

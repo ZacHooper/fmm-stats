@@ -297,7 +297,7 @@ and it is cheap — the FT screen already has everything needed.
 
 - Anchor the match against the **season baseline**, not against feel. Pull it:
   `m = scout.match_history(st)` filtered to the season, then shots / shots-on-target / conversion /
-  passes per game. **Use that helper rather than raw `staging.match_player_stats`** — one match is
+  passes per game. **Use that helper rather than raw `raw.match_player_stats`** — one match is
   stored under up to five `anchor`s and the obvious `(anchor, tid)` dedup is a no-op (trap 4 in
   [`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md)).
 - **The FT stat screen lists starters and substitutes separately** — scroll before totalling, or a
@@ -518,7 +518,7 @@ scout.grade_scout(OPP, result_note="what held, what didn't, and why",
 Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL yourself:
 - **Attribute columns are Capitalised** in `club_attributes`/`squad_frame` — a lowercase
   `['pace', ...]` filter silently yields an empty list.
-- **A raw `club_tid` filter on `staging.players` is not safe even within a single snapshot** —
+- **A raw `club_tid` filter on `raw.players` is not safe even within a single snapshot** —
   this used to say it was; it isn't. `club_attributes()` (and therefore `squad_frame`, and
   therefore every rating/key-player/matchup this skill touches) now filters on GENUINE presence
   (an `at_club`/`loan_in` spell from `mart.player_spells` covering the snapshot date), not raw
@@ -543,7 +543,7 @@ Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL 
 - Cross-snapshot per-player aggregates (e.g. "has this player grown since we last played them")
   must key on `person_id`, not `tid` — FM recycles retired players' slots.
 - opponent `name` **resolves for every club** (the ETL id-resolver) — `squad_key_players` and
-  `squad_frame` already carry it; you shouldn't need to re-join `staging.players` for it.
+  `squad_frame` already carry it; you shouldn't need to re-join `raw.players` for it.
 
 ## No local store at all
 Nothing to do: `store.open_store()` already reads the published full store from R2. Only if rclone
@@ -564,7 +564,7 @@ thinner report under this skill's name.
 - **Opponent attributes are model estimates (±1)** for technical/mental (Pace/physical are exact;
   check the `*_est` flags in `mart.player_snapshots` if you need to know which). Treat as
   directional, not precise.
-- **Squad status and loan flags are unreliable** (`staging.players.loaned_in`/`.loaned_out` — set
+- **Squad status and loan flags are unreliable** (`raw.players.loaned_in`/`.loaned_out` — set
   once, never cleared). `scout_report`'s squad frame is snapshot-club-tid based, not flag based, so
   this mainly bites if you're tempted to assert loan status in prose — don't, from the flags alone.
 - League-membership counts over-report (resolved across labels) — ignore for a single scout.

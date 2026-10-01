@@ -143,7 +143,7 @@ class ExportDB:
         pool = self.q(f"""
             SELECT l.tid, l.position, l.league_cid, p.ca
             FROM mart.player_position_levels l
-            JOIN staging.players p USING (season, phase, tid)
+            JOIN raw.players p USING (season, phase, tid)
             WHERE l.season = ? AND l.phase = ? AND l.league_cid IN ({cph})""",
                       [season, phase, *cids])
         scale, in_pool = {}, set()
@@ -178,9 +178,9 @@ class ExportDB:
             FROM here
             JOIN mart.club_leagues cl
               ON (cl.season, cl.phase, cl.club_tid) = (?, ?, here.club_tid)
-            JOIN staging.players p
+            JOIN raw.players p
               ON (p.season, p.phase, p.tid) = (?, ?, here.tid)
-            JOIN staging.player_positions pp
+            JOIN raw.player_positions pp
               ON (pp.season, pp.phase, pp.tid) = (?, ?, here.tid)
             WHERE cl.league_cid IN ({cph}) AND NOT p.is_staff AND p.ca IS NOT NULL
               AND pp.familiarity >= ?""",
@@ -230,8 +230,8 @@ class ExportDB:
         tph = ",".join("?" * len(tids))
         mine = self.q(f"""
             SELECT pp.tid, pp.position, pp.familiarity, p.ca
-            FROM staging.player_positions pp
-            JOIN staging.players p USING (season, phase, tid)
+            FROM raw.player_positions pp
+            JOIN raw.players p USING (season, phase, tid)
             WHERE pp.season = ? AND pp.phase = ? AND pp.tid IN ({tph})
               AND pp.familiarity >= ? AND p.ca IS NOT NULL
             ORDER BY pp.tid, pp.familiarity DESC, pp.position""",

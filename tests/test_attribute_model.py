@@ -3,7 +3,7 @@
 coefficients -- and, when the store still carries the frozen seed, with fmparser/model.py.
 
 Two implementations of one formula exist now: `model.predict` in Python, and the SQL that
-`load_duckdb._player_attributes_view` generates from `staging.attribute_model`. That is the
+`load_duckdb._player_attributes_view` generates from `raw.attribute_model`. That is the
 hazard CLAUDE.md already calls out for `v_player_ratings` vs `site/js/data.js`.
 
 The invariant is NOT "SQL matches model.py" -- that breaks by design the moment anyone refits,
@@ -52,24 +52,24 @@ def main(argv):
     spec, tags = {}, set()
     for attr, feat, coef, own, partner, fitted in con.execute(
             "SELECT attribute, feature, coef, own_offset, partner_offset, fitted "
-            "FROM staging.attribute_model").fetchall():
+            "FROM raw.attribute_model").fetchall():
         d = spec.setdefault(attr, {"own": own, "partner": partner, "coef": {}})
         d["coef"][feat] = coef
         tags.add(fitted)
     if not spec:
-        return skip("staging.attribute_model is empty")
+        return skip("raw.attribute_model is empty")
     print(f"  coefficients in store: {', '.join(sorted(tags))}")
 
     byte_cols = sorted(set(COLS.values()))
     rows = con.execute(f"""
         SELECT p.tid, p.ca, p.pa,
                {', '.join('p."' + c + '"' for c in byte_cols)},
-               {', '.join(f'''COALESCE((SELECT t.familiarity FROM staging.player_positions t
+               {', '.join(f'''COALESCE((SELECT t.familiarity FROM raw.player_positions t
                     WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid)
                       AND t.position = '{q}'), 0)''' for q in POS)},
                {', '.join('a."' + a + '"' for a in ATTR_ORDER)},
                {', '.join('a."' + a + '_est"' for a in ATTR_ORDER)}
-        FROM staging.players p JOIN staging.player_attributes a USING (season, phase, tid)
+        FROM raw.players p JOIN raw.player_attributes a USING (season, phase, tid)
         WHERE p.ca IS NOT NULL AND p.passing_src IS NOT NULL
         USING SAMPLE {SAMPLE} ROWS
     """).fetchall()
@@ -145,9 +145,9 @@ def main(argv):
     # this file exists to catch. Also pins the `_est` asymmetry: Teamwork's formula is exact
     # (FALSE), Aerial's is ~71% (TRUE), and swapping them would quietly reclassify every
     # non-squad player across the mart.
-    JOINS = ("FROM staging.players p "
-             "JOIN staging.player_attributes a USING (season, phase, tid) "
-             "JOIN staging.player_attributes_exact e USING (season, phase, tid) ")
+    JOINS = ("FROM raw.players p "
+             "JOIN raw.player_attributes a USING (season, phase, tid) "
+             "JOIN raw.player_attributes_exact e USING (season, phase, tid) ")
     for attr, fn, b1, b2, est in (
             ("Teamwork", A.teamwork, "unselfishness_src", "work_rate", False),
             ("Aerial", A.aerial, "heading_src", "jumping", True)):
@@ -168,7 +168,7 @@ def main(argv):
             print(f"  OK  {len(rows):,} {attr} values match the closed form, _est = {est}")
 
     stray = [a for a in EXACT_SINGLE
-             if con.execute(f'SELECT count(*) FROM staging.player_attributes '
+             if con.execute(f'SELECT count(*) FROM raw.player_attributes '
                             f'WHERE "{a}_est"').fetchone()[0]]
     if stray:
         ok = False

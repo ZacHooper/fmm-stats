@@ -21,10 +21,10 @@ CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_K
                    ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
                    URL_STYLE 'path', REGION 'auto');
 ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);   -- squad, seasons, spells
-ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb'      AS f (READ_ONLY);   -- staging.club_records / player_records only
+ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb'      AS f (READ_ONLY);   -- raw.club_records / player_records only
 ```
-You need the **full store** (`f`), not just the mart, for `staging.club_records` and
-`staging.player_records` — the "is this still a club record" check isn't in the mart schema.
+You need the **full store** (`f`), not just the mart, for `raw.club_records` and
+`raw.player_records` — the "is this still a club record" check isn't in the mart schema.
 Everything else (squad, spells, career history, match facts) comes from the mart object; it's
 smaller and already has the correctness rules applied.
 
@@ -75,7 +75,7 @@ When someone has no recent minutes anywhere in the mart, check the RAW status di
 writing them off:
 ```sql
 SELECT season, phase, tid, name, club_tid, is_staff
-FROM f.staging.players WHERE tid=<tid> ORDER BY phase
+FROM f.raw.players WHERE tid=<tid> ORDER BY phase
 ```
 (needs the full store, `f` — `mart.squad_current`/`mart.staff` are our-club-scoped and won't
 show a player who moved to an untracked club). Three real outcomes turned up doing this, not
@@ -83,15 +83,15 @@ two:
 1. **Genuinely retired** — no more rows at all, or the last rows fade out with no destination.
 2. **Became club staff** — `is_staff` flips to `True`, with a real (if obscure) `club_tid`.
    This is a coaching/backroom move, not retirement from football — say so, and name the club
-   if `f.staging.clubs`/`mart.staff` resolves one (see §4's gotcha for why their playing
+   if `f.raw.clubs`/`mart.staff` resolves one (see §4's gotcha for why their playing
    history stops here even though they haven't left the game).
 3. **Kept playing somewhere the mart doesn't reach** — `is_staff` stays `False` and `club_tid`
-   changes to something `mart.clubs`/`f.staging.clubs` *can* still name, just not a club we've
+   changes to something `mart.clubs`/`f.raw.clubs` *can* still name, just not a club we've
    ever played or that's in our tracked leagues.
 
 A genuinely current *Frem* player has recent `mart.squad_current` rows or a still-open
 (`valid_to` `NULL`) `at_club` spell corroborated by recent minutes — check both. But "not
-current at Frem" is not the same claim as "retired," and the raw `staging.players` check above
+current at Frem" is not the same claim as "retired," and the raw `raw.players` check above
 is the only way to tell which one it actually is.
 
 **Before trusting outcome 3, or ANY row that reappears after a staff spell or an unexplained
@@ -103,14 +103,14 @@ neither of them could place were still showing up: `dob` for both changed the mo
 reappeared as players — the tid had been handed to a completely different, much younger person,
 and the raw data simply carried the OLD display name forward onto the new occupant. **A tid is
 a recycled slot** (this is documented in `fmparser/mart.py`'s own comments on
-`player_career_seasons`), and nothing about `staging.players.name` guarantees it gets refreshed
+`player_career_seasons`), and nothing about `raw.players.name` guarantees it gets refreshed
 when that happens. The only reliable check:
 ```sql
-SELECT DISTINCT dob FROM f.staging.players WHERE tid=<tid>
+SELECT DISTINCT dob FROM f.raw.players WHERE tid=<tid>
 ```
 More than one distinct `dob` for a tid means at least two different real people are being read
 as one — find the transition point (`SELECT season, phase, name, dob, club_tid, is_staff FROM
-f.staging.players WHERE tid=<tid> ORDER BY phase`) and treat everything from that point on as a
+f.raw.players WHERE tid=<tid> ORDER BY phase`) and treat everything from that point on as a
 different person. A retired player whose ID was later recycled is still just retired — write
 them up that way, and don't invent a second act for someone else's story.
 
@@ -137,11 +137,11 @@ FROM mart.player_career_seasons WHERE tid=<tid> ORDER BY seq
   *empty* for a few players even though the raw chain clearly exists. The first write-up of
   this skill guessed it was a free-agent-origin thing ("no backstory for a player minted
   unattached at world creation") — **that guess was wrong**, caught by checking the raw
-  `f.staging.player_history_seasons` table directly across every snapshot instead of trusting
+  `f.raw.player_history_seasons` table directly across every snapshot instead of trusting
   the published mart:
   ```sql
   SELECT season, phase, seq, hist_season, end_year, club_tid, apps
-  FROM f.staging.player_history_seasons WHERE tid=<tid> ORDER BY season, phase, seq
+  FROM f.raw.player_history_seasons WHERE tid=<tid> ORDER BY season, phase, seq
   ```
   The real mechanism: **the chain is walked from the PLAYER attribute record, and it stops
   being populated the moment `is_staff` flips to `True` for that tid** — confirmed on two
@@ -161,7 +161,7 @@ FROM mart.player_career_seasons WHERE tid=<tid> ORDER BY seq
   `player_career_seasons`/raw history has **nothing before their first Frem season at all** — no
   youth rows, no prior-club stats, ever, in any snapshot. Caught on a Class-of-2022/23 player
   ("Thomas De Clercq," supposedly signed from Belgium's KSV Bornem): `SELECT DISTINCT dob FROM
-  f.staging.players WHERE tid=<tid>` returned **two** birth dates. The full timeline showed the
+  f.raw.players WHERE tid=<tid>` returned **two** birth dates. The full timeline showed the
   real De Clercq (b. 1983) at Frem only through early 2022, becoming staff shortly after — and a
   brand new tid occupant (b. 2005, a completely different person, "Johan Nordberg") from
   2022-07-01 onward, with zero history of his own, who is who actually played all 22 apps that
@@ -208,12 +208,12 @@ nice detail and it's easy to miss if you only look at the season in question.
   like it happened in one step.
 - **Still-standing records** (needs the full store, `f`, not the mart):
   ```sql
-  SELECT * FROM f.staging.club_records
+  SELECT * FROM f.raw.club_records
   WHERE club_tid IN (SELECT club_tid FROM m.mart.managed_club)
-    AND phase = (SELECT MAX(phase) FROM f.staging.club_records WHERE club_tid IN (SELECT club_tid FROM m.mart.managed_club))
+    AND phase = (SELECT MAX(phase) FROM f.raw.club_records WHERE club_tid IN (SELECT club_tid FROM m.mart.managed_club))
   ORDER BY category, slot
   ```
-  and the equivalent on `f.staging.player_records` for individual season records.
+  and the equivalent on `f.raw.player_records` for individual season records.
   `record_table` says which Club History screen a row is from: `'overall'` (the all-time
   records) or `'season'` (the current season's, where `record_season` reads 2020 and means
   nothing). A "still-standing" record is an `'overall'` row. Cross-check
@@ -255,12 +255,12 @@ write-up that inclusion here means "featured that season," not "notable."
 
 ## Gotchas, summarised
 - Retirement isn't "no more `at_club` rows for us" — but it also isn't the automatic fallback
-  once "still here" is ruled out. Check raw `staging.players.is_staff` and `club_tid` for
+  once "still here" is ruled out. Check raw `raw.players.is_staff` and `club_tid` for
   anyone who drops off before calling them retired (§3) — the real options are retired, moved
   into coaching/staff, or still playing somewhere the mart just doesn't resolve a name for.
 - **A tid is a recycled slot, and `name` does not reliably change when the occupant does.**
   Before writing up ANYONE whose story involves a gap, a staff detour, or an origin that doesn't
-  quite add up, run `SELECT DISTINCT dob FROM f.staging.players WHERE tid=<tid>` (§3, §4). More
+  quite add up, run `SELECT DISTINCT dob FROM f.raw.players WHERE tid=<tid>` (§3, §4). More
   than one `dob` means you're reading two different people as one. This produced two confirmed,
   wrong storylines in earlier drafts of this skill's own output: two "retired" players who
   looked like they'd come back to play at small foreign clubs (they hadn't — different, younger
@@ -273,7 +273,7 @@ write-up that inclusion here means "featured that season," not "notable."
 - `player_career_seasons` on the **published mart object** is latest-snapshot-only and goes
   empty the moment a tid becomes staff — even if their full real history exists in earlier
   snapshots. Before writing "no data survives" for anyone, check the raw
-  `f.staging.player_history_seasons` across every snapshot, not just the mart (§4).
+  `f.raw.player_history_seasons` across every snapshot, not just the mart (§4).
 - `fee` is in **£000s**, and `~65532` is a sentinel, not a windfall.
 - Always tag the league/country next to an unfamiliar club name.
 - Don't infer a multi-season promotion trail from `club_leagues` (latest-only) — read it off

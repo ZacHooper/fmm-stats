@@ -115,7 +115,7 @@ where it matters most and where it cannot be checked directly.
    46→54% and COSTS Aerial 89→77%, Handling 94→82%, Kicking 82→71%. One global encoding has to
    eat one of those losses; per-attribute selection does not.
 3. **GK/outfield as separate fits** measured +2.6 (65.6 → 68.2%) in scratch analysis. **NOT in
-   the tool** — it needs a `group` column on `staging.attribute_model` and a CASE in the
+   the tool** — it needs a `group` column on `raw.attribute_model` and a CASE in the
    generated view, and it rests on 16 GK rows. Worth doing on the full store, not before.
 
 ## CA is ONE shared shift, not fourteen separate effects
@@ -286,7 +286,7 @@ there, the same thing `blend_w` turned out to be.
 
 ### Two traps that make a naive version of this look like it works
 
-- **Circularity.** `staging.player_attributes`' entangled values are model output that USED CA
+- **Circularity.** `raw.player_attributes`' entangled values are model output that USED CA
   as an input. Regress CA on them and you recover CA from itself: R² 0.945, sd 6.6 — better
   than the truth. Fit on CA-independent inputs only.
 - **COALESCE.** The same view returns the EXACT value wherever one exists, i.e. on every truth
@@ -304,7 +304,7 @@ indicator than the raw GK familiarity already in the `gk` set, not as the positi
 redistribution it was motivated by. Part of the +0.7 is also just fighting the pool penalty,
 since testing it means offering 4 candidates instead of 2.
 
-**Not built.** It needs `staging.ca_weights` + a migration + a mart view + a new SQL feature
+**Not built.** It needs `raw.ca_weights` + a migration + a mart view + a new SQL feature
 expression + test changes, and 0.7 points that have never been checked on a second career is
 not worth a schema change. Revisit only after the Bucaspor hold-out says the current
 coefficients generalise at all.
@@ -343,8 +343,8 @@ uv run python tests/test_attribute_model.py --db fm-frem.duckdb             # gu
 
 The fit refuses below 400 exact rows (`--min-rows` overrides, for pipeline smoke tests only —
 never to produce coefficients to keep). No save file and no re-extract is needed: the raw bytes
-are in `staging.players` and the exact values our own squad carries are in
-`staging.player_attributes_exact`.
+are in `raw.players` and the exact values our own squad carries are in
+`raw.player_attributes_exact`.
 
 ## Two things worth doing before trusting any of this further
 

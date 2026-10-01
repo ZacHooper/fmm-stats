@@ -7,7 +7,7 @@ metadata:
   originSessionId: e454ef70-998b-4f22-a5f3-5cc24a02618f
 ---
 
-**How the weight-sets work.** `staging.role_weights(method, role, attribute, category, weight)` drives
+**How the weight-sets work.** `raw.role_weights(method, role, attribute, category, weight)` drives
 every rating. `v_player_ratings` computes `rating = SUM(attr_value * COALESCE(weight, 1))` per
 (method, role) — so **an attribute NOT listed for a role still counts at weight 1** (baseline), it
 is not zero. You tune a tactic by *elevating* the attributes that matter above 1: convention is
@@ -15,7 +15,7 @@ key=4 / important=3 / useful=2 (category is just the label for the number). To *
 attribute vs another method, simply leave it off the list (drops to 1) — that's how frem_counter
 "removes" black_hawk's striker aggression weighting. There is no way to score *below* 1 (can't
 penalise). Roles = 10: GK, LB, RB, CB, DM, CM, AMC, AML, AMR, ST (position→role via
-staging.position_role_map). Magnitudes differ by role (raw SUM) but pctile/pos_index standardise
+raw.position_role_map). Magnitudes differ by role (raw SUM) but pctile/pos_index standardise
 WITHIN position, so cross-role scale doesn't matter.
 
 **Seeding (durable + portable).** Built-in methods live in `seeds/role_weights.csv` and are

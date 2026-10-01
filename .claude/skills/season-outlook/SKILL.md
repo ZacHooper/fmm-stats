@@ -29,11 +29,11 @@ allowed CA-derived exception).
   date-aware already. **Never a bare SQL `max(phase)`** — legacy word-phases (`start`) sort as epoch
   and would win over a real date.
 - **The opponent set comes from the USER** (the stage/run-in list). Don't try to auto-derive it from
-  `staging.standings` — a Danish promo/relegation split isn't modelled, and the stored table often
+  `raw.standings` — a Danish promo/relegation split isn't modelled, and the stored table often
   **lags the live game** (see standings note). Resolve each name → **first-team** tid via
-  `staging.clubs` (skip the `… Reserves` row).
+  `raw.clubs` (skip the `… Reserves` row).
 - **Live table position** — ASK / take from the user (points, position, games left). Our stored
-  `staging.standings` is a real table (`pos/played/won/drawn/lost/points`) but reflects the latest
+  `raw.standings` is a real table (`pos/played/won/drawn/lost/points`) but reflects the latest
   *imported* save, which can be behind where the user actually is. Use it as directional; **trust the
   user's stated live points when they differ.**
 
@@ -214,7 +214,7 @@ minutes exist, `match_player_stats` gives per-match `subOn`/`subOff`/`pos_order`
 Minutes come from **`mart.match_player_facts`**, which already has `minutes`, `started` and
 `appeared` computed and — critically — is deduped to one phase per season.
 
-> **Never aggregate `staging.match_player_stats` directly here.** It is a ring buffer re-scraped
+> **Never aggregate `raw.match_player_stats` directly here.** It is a ring buffer re-scraped
 > on every import, so a season with 3 snapshots holds each match up to 3 times. The old version of
 > this skill summed it with no phase filter and inflated every minutes total accordingly, which is
 > exactly the signal this section rests on. `mart` applies the dedup once.
@@ -237,7 +237,7 @@ else:
     WHERE f.season={S} AND f.team_tid IN (SELECT club_tid FROM mart.managed_club)
     GROUP BY f.person_id""")
     # Names/age: join mart.player_growth_season on (person_id, season) — it carries name, age and
-    # minutes already. Stamina: staging.player_attributes is WIDE (SELECT tid, Stamina).
+    # minutes already. Stamina: raw.player_attributes is WIDE (SELECT tid, Stamina).
     # min_pct = mins / (TEAM_GAMES*90) * 100.  (condition deliberately NOT pulled — see note above.)
 ```
 
@@ -329,7 +329,7 @@ Eyeball it: **Team analysis** (unit filters per opponent) + the **Development / 
 - **Any Fit number quoted from a doc must carry the date and squad it was computed on** — a mid-22
   Fit table was quoted at a 2026 squad and put a wrong claim into `scout-opponent`.
 - **Attribute columns are Capitalised** (`Pace`, `Stamina`…) in `squad_frame`; and
-  `staging.player_attributes` is a **WIDE** table (`SELECT tid, Stamina, Pace`), NOT long. A lowercase
+  `raw.player_attributes` is a **WIDE** table (`SELECT tid, Stamina, Pace`), NOT long. A lowercase
   or `attribute='Stamina'` query yields empty / errors.
 - **`phase` is a date** — take the latest from `st.phase` (`mart.snapshots.snap_ix`), never a bare `max`.
 - **Reserves rows** share a club's name — take the first team tid.

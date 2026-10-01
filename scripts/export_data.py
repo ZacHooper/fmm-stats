@@ -188,7 +188,7 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
                   {profile_join}
                   WHERE p.season=? AND p.phase=? AND p.has_attributes{where}
                   -- deterministic order, so a no-op re-export is a no-op. Neither this query
-                  -- nor its staging predecessor had an ORDER BY, and a join's output order is
+                  -- nor its raw predecessor had an ORDER BY, and a join's output order is
                   -- not stable, so this 4 MB array could rewrite itself wholesale. The client
                   -- keys everything by tid, so the order is ours to choose.
                   ORDER BY p.tid""", params)
@@ -994,8 +994,6 @@ def main():
             "in-game scout's formation and style before advising on a match.",
             "Opponent attribute values are model estimates (±1) except pace and physicals.",
             "Squad status and loan flags are unreliable; rank by minutes played instead.",
-            "staging.standings parses only partially for this career, so there is no league "
-            "table; divisions are ranked by squad strength instead.",
             "Ratings shown are computed in the browser from attributes x role weights, so "
             "they follow whichever tactic is selected.",
             "Squad registration (A/B lists, home grown) is a SELF-IMPOSED rule — FMM22 does "

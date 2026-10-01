@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-01): in progress. Done: steps 1, 2, 3 and 4.**
+> **Status (2026-10-01): in progress. Done: steps 1–5.**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
@@ -217,10 +217,12 @@ migrations, the views it writes), `fmstats/mart.py`, `fmstats/*` (scout, stats, 
 - The views the loader writes today (`squad_scrapbook`, `players` / `player_attributes_exact`
   over their `_raw` tables, the attribute decode view) move with the rename as a documented
   exception to "raw has no logic"; step 6 moves them out.
-- Older published copies: `fmstats/store.py` reads a cached copy whose raw tables this
-  checkout's mart cannot bind to "as published", using the mart materialised in it (step 4 put
-  that fallback in). The copies are republished at step 18; until then `fmq` against R2 answers
-  from the mart as last published.
+- Older published copies: `fmstats/store.py` exposes a cached copy's `staging` tables as `raw`
+  views (Python in `fmstats` reads `raw.*` directly, not only through the mart), and reads a
+  copy whose raw tables this checkout's mart cannot bind to "as published", using the mart
+  materialised in it (step 4). The copies are republished at step 18.
+- The migration copies each table into `raw` from its own DDL and drops `staging`: DuckDB
+  cannot rename a schema or move a table. It refuses a published (compacted) copy.
 
 **Check**: the migration run on a copy of the gate store, every table and view equal to its old
 self; the site export from the migrated copy unchanged; `validate_mart.py`, `run_tests.py`; `fmq`

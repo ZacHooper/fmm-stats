@@ -20,7 +20,7 @@ first). Combine **attribute-weighted ratings** (talent/profile) with **actual ma
   **Phases are in-game DATES (`YYYY-MM-DD`), not the words `start`/`mid`/`end`** — a query
   hardcoding `phase='start'` returns zero rows on any current store.
 - **Squad** — `mart.squad_on(<date>)`, which resolves membership from spells. Do **not** filter on
-  `staging.players.loaned_in`: that flag is set-only and never cleared, so it accumulates expired
+  `raw.players.loaned_in`: that flag is set-only and never cleared, so it accumulates expired
   loans (9 flagged at Frem's latest snapshot, 6 of them gone for a year or more).
 - **First team vs reserves** — `mart.managed_club` and `mart.reserve_clubs`. Use `managed_club`
   for match stats; `mart.our_clubs` (both) for squad membership.
@@ -33,11 +33,11 @@ equivalent, if you need it:
 ```sql
 select pp.tid, prm.role, pp.familiarity, r.rating base,
        r.rating*(0.5+0.5*pp.familiarity/20.0) eff, p.name, p.dob, p.club_tid
-from staging.player_positions pp
-join staging.position_role_map prm on prm.position=pp.position
+from raw.player_positions pp
+join raw.position_role_map prm on prm.position=pp.position
 join v_player_ratings r on (r.season,r.phase,r.tid)=(pp.season,pp.phase,pp.tid)
      and r.method=<method> and r.role=prm.role
-join staging.players p on (p.season,p.phase,p.tid)=(pp.season,pp.phase,pp.tid)
+join raw.players p on (p.season,p.phase,p.tid)=(pp.season,pp.phase,pp.tid)
 where (pp.season,pp.phase)=(<S>,<P>)
   and p.club_tid in (select club_tid from mart.our_clubs) and not p.is_staff
 ```
@@ -61,7 +61,7 @@ group by person_id
 > midfielder is best) only on `mr_adj` — the game rates a DM ~0.47 below a central midfielder for
 > the same game. Per-role splits: `mart.player_role_seasons` / `fmq.py output --by-position`.
 >
-> Never aggregate `staging.match_player_stats` directly: it is a ring buffer re-scraped every
+> Never aggregate `raw.match_player_stats` directly: it is a ring buffer re-scraped every
 > import, so summing without a phase filter multiplies every total by the number of snapshots in
 > that season. And an unused sub still gets a row carrying a flat **6.00** rating — average it in
 > and every figure sags toward 6.

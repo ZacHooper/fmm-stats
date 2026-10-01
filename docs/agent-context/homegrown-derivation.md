@@ -15,9 +15,9 @@ it "Home grown" read as a definition ("home grown = Danish") rather than as a qu
 
 ## The finding that unlocked it: origin tids in the 64000–65534 band are ACADEMY teams
 
-`staging.player_history.origin_club_tid` is the head of the career-history chain — the club a
+`raw.player_history.origin_club_tid` is the head of the career-history chain — the club a
 player came out of. For most players it resolves to a real club. For roughly 388 tids per
-snapshot it renders as `#65189` and matches nothing in `staging.clubs`.
+snapshot it renders as `#65189` and matches nothing in `raw.clubs`.
 
 **Those are not garbage.** The players sharing one of these tids are overwhelmingly at ONE club:
 

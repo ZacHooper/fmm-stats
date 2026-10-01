@@ -10,7 +10,7 @@ metadata:
 **STATUS 2026-07-27: Option 1 SHIPPED + re-imported.** `attr_record()` now returns the
 LAST (freshest) match within `snapshot_bounds` (was: first = stale block A), and extracts
 the **player transfer value** from `M+4` (u32; Sertgöz £2K, Seyhun £98K — confirmed). Wired
-value through extract.py → players.json → `staging.players.player_value` (BIGINT, added via
+value through extract.py → players.json → `raw.players.player_value` (BIGINT, added via
 `ALTER TABLE ADD COLUMN IF NOT EXISTS`, NOT --reset — that would wipe custom tactics
 buca_433/personal + app_config). Re-extracted + re-loaded all 6 saves into fm.duckdb.
 Verified: Seyhun 2023-mid/end + 2024-start now Shooting 16/Tackling 4/Decisions 6/Movement 7

@@ -120,7 +120,7 @@ decompressed bytes, measured on four saves:
 
 The 147 `comp_<id>.dat` ids are **not our `cid` space — they are the competition `uid`**. The
 competition record in the main save holds its uid immediately before its name, and
-`fmparser/clubs_comps.py` already reads it into `staging.competitions.uid`: `cid 2` 3F
+`fmparser/clubs_comps.py` already reads it into `raw.competitions.uid`: `cid 2` 3F
 Superliga is `comp_6.dat`, `cid 256` European Champions Cup `comp_1301394.dat`, `cid 258`
 EURO Cup `comp_1301396.dat`, `cid 263` Sydbank Pokalen `comp_1301406.dat`. See the next
 section for what the members hold.
@@ -128,7 +128,7 @@ section for what the members hold.
 ## `comp_<uid>.dat` — each competition's rules: stages, rounds and their names
 
 Decoded 2026-09-28; parsed by `fmparser/tables/comp_rules.py`, loaded as
-`staging.competition_rounds`. Each member is a declared 54-byte `HEADER` record
+`raw.competition_rounds`. Each member is a declared 54-byte `HEADER` record
 (`season_year` +20, `base_year` +48, `n_fields` +50; the rest declared UNKNOWN, see
 `audit_records.py --map`) followed by a **tagged tree** in the data dictionary's tagged format,
 read as a `TaggedTableDef` row -- the same engine and tagged reader the dictionary's rule
@@ -162,7 +162,7 @@ stages group rules). The read tags:
 
 A name id is either `stnm`'s scalar value or the `stgn` child of an `stnm` container (both
 occur), and resolves through the **round-name catalog** in the main save (273 records,
-`fmparser/tables/rounds.py`, loaded as `staging.round_names`): 17 Quarter Final, 18 Semi
+`fmparser/tables/rounds.py`, loaded as `raw.round_names`): 17 Quarter Final, 18 Semi
 Final, 20 Final, 73 Group Stage, 76–91 Group A–P, 108 Championship Group, 149–152 First–
 Fourth Qualifying Round, 164/165 First/Second Knockout Round, 236 Preliminary Phase,
 2000016479 League Path, 2000016478 Champions Path.
@@ -178,7 +178,7 @@ the save and `tests/validate_mart.py` from `mart.match_stages`.
 in `fix_man.dat`, no unnamed fixture byte is constant within a stage and distinct between
 competitions, and `comp_man`'s tail blocks are a day-by-day calendar of stage keys, not a
 competition map. The link runs through the matches the store holds: a match's `comp_id` →
-`staging.competitions.uid` → rules, and its fixture's `stage_key` then labels that stage for
+`raw.competitions.uid` → rules, and its fixture's `stage_key` then labels that stage for
 every club. A knockout round is one `stage_key`; **a group stage is one `stage_key` per group**,
 consecutive, so the letter is the group's place among its siblings (`mart.match_stages`).
 

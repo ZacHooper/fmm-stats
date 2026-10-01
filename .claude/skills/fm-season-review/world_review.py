@@ -36,7 +36,7 @@ from fmstats.store import open_store  # noqa: E402
 # fmparser.clubs_comps.comp_detail): cid 256 'European Champions Cup' (reputation 200),
 # 258 'EURO Cup' (150), 505 'EURO Cup II' (130). cid 257 'European Cup Winners Cup' is also
 # in the table but dormant (level 100, never in the fixture list). The store's
-# staging.competitions only carries competitions with a match in OUR data, so 505 is absent
+# raw.competitions only carries competitions with a match in OUR data, so 505 is absent
 # from it and cannot be looked up there. The comp_man roll of honour (comp_cid 505: Sevilla
 # beat Gladbach in 25/26) confirms the third tier is EC2 and matches this reconstruction.
 EURO_TIERS = ("European Champions Cup", "EURO Cup", "EURO Cup II")

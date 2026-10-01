@@ -16,7 +16,7 @@ Found 2026-09 while scouting Brøndby; fixed the same session in `staging.scrape
 Brøndby's team sheet named two men — **"Waldo" (AML)** and **"Peque Polo" (FC)** — who
 appeared in **no** Brøndby snapshot in the store, in any season. They were not new
 signings: the club's own squad screen gave them **11 and 22 apps** that season. And
-`staging.match_player_stats` (a different scraper, keyed on tid, so it never depended on
+`raw.match_player_stats` (a different scraper, keyed on tid, so it never depended on
 the sentinel) had them under bare tids **19471** and **20905**, playing against us four
 times since 2024. In the 1-2 defeat on 2026-03-22, tid 20905 **scored both goals rated
 10** and tid 19471 assisted — the two players our scouting data could not see decided the

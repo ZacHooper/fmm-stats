@@ -7,7 +7,7 @@ metadata:
   originSessionId: 681be847-7279-4c83-87e8-ccd414e19fd8
 ---
 
-**IGNORE `staging.players.loaned_out` and `squad_status` for availability / selection.** The
+**IGNORE `raw.players.loaned_out` and `squad_status` for availability / selection.** The
 user confirmed (2026-07-28) it's outdated: e.g. Selahattin Seyhun (tid 22908) reads
 `loaned_out=True` but is a first-choice starter — ST eff 407 (86th pct), 26 goals in 2255
 mins last season. It comes from the training table's squad-status byte (`training.scrape_squad_status`), NOT the

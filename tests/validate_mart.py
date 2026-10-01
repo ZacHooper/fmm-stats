@@ -64,9 +64,9 @@ def connect(args):
                 URL_STYLE 'path', REGION 'auto')"""
         )
         con.execute(f"ATTACH '{R2_KEY}' AS fm (READ_ONLY)")
-        return con, "fm.staging"
+        return con, "fm.raw"
     con.execute(f"ATTACH '{args.db}' AS fm (READ_ONLY)")
-    return con, "fm.staging"
+    return con, "fm.raw"
 
 
 # The method-dependent rating layer: 27M and 9.4M rows. Left as views; the one check that
@@ -527,7 +527,7 @@ def main():
           f"{kept} outfielder rows survive the filter")
 
     # player_seasons dropped rows with a NULL person_id, and person_slices only covers tids
-    # that appear in staging.players — so 42 of OUR tids with match rows but no roster row
+    # that appear in raw.players — so 42 of OUR tids with match rows but no roster row
     # were deleted, taking 25 of our 2024 goals (22% of the season) with them. It also
     # any_value()'d team_tid while callers filtered on it. Assert exact parity against the
     # fact table, for EVERY season: any future regression of either kind shows up here.

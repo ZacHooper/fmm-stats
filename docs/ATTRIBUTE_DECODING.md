@@ -3,7 +3,7 @@
 > **STATUS: PART REFERENCE, PART SUPERSEDED.** §1 (the 78-byte record) and §7 (the managed-squad
 > snapshot region, the stale-attribute bug, the reserve marker) are live and still the only
 > write-up of either. **§4 and §6 are history** — the estimation model left this document in
-> PR #51 and now lives in the `staging.attribute_model` TABLE, refit and cross-career validated;
+> PR #51 and now lives in the `raw.attribute_model` TABLE, refit and cross-career validated;
 > read [`attribute-model.md`](attribute-model.md) instead. Open work is in [`TODO.md`](TODO.md).
 
 Status of the effort to read **every league player's attributes** (not just our own
@@ -131,7 +131,7 @@ value that carries a leadership modifier it wasn't given. Add Leadership as an i
 ## 4. The ESTIMATION model (Class-B) — SUPERSEDED, kept as the 2024 baseline
 
 > **Do not use these coefficients.** They are the original 28-player Bucaspor fit, and they are
-> no longer what runs: coefficients live in the `staging.attribute_model` table, are refit by
+> no longer what runs: coefficients live in the `raw.attribute_model` table, are refit by
 > `scripts/fit_attribute_model.py`, and score **59.4% exact on Frem / 59.5% on the Bucaspor
 > hold-out** for the nine outfield entangled attributes against a **94.8% ceiling**. The ±1
 > rates below are also measured on the fitting set itself, so they are optimistic by
@@ -266,7 +266,7 @@ Overall on the 28 training players: **63% exact, 93% within ±1**
 > **Superseded by `fmparser/tables/player_lists.py`.** The "snapshot" is our club's lists in
 > the player-list table: 66 lists of 100 entries, lists 31-61 our squad one season each. The
 > copies below are those season lists (and the stale pair in lists 62-65); the store takes
-> a squad player's latest entry in them (`staging.squad_scrapbook`, `load_duckdb.py`). Offsets relative to `M` below are the entry
+> a squad player's latest entry in them (`raw.squad_scrapbook`, `load_duckdb.py`). Offsets relative to `M` below are the entry
 > tail's `+87`.
 
 Separate from the 5 MB global record (§1): the managed club keeps its own squad snapshot

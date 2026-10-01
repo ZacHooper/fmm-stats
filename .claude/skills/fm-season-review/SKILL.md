@@ -40,13 +40,13 @@ NEXT campaign (e.g. `2027-08-08` is season 2028, with a few games), so "latest s
 matches" lands on a season barely begun. Check `SELECT season, phase FROM mart.snapshots ORDER
 BY phase DESC` and review the most recent season whose last snapshot is in June.
 
-**1. Query `mart`, never `staging`**
+**1. Query `mart`, never `raw`**
 **[REQUEST]** "Run the end of season review for Frem."
-**[BAD]** *Aggregates `staging.match_player_stats` directly and hand-rolls the phase dedup.*
+**[BAD]** *Aggregates `raw.match_player_stats` directly and hand-rolls the phase dedup.*
 **[GOOD]** *Reads `mart.player_seasons` / `mart.match_player_facts`, which have it applied.*
-**[WHY]** `staging.*` holds one full row set per `(season, phase)` SNAPSHOT and
+**[WHY]** `raw.*` holds one full row set per `(season, phase)` SNAPSHOT and
 `match_player_stats` is a ring buffer that re-scrapes match history on every import. Summing
-across phases double-counts; joining `staging.players` on a bare `tid` multiplies every stat row
+across phases double-counts; joining `raw.players` on a bare `tid` multiplies every stat row
 by the number of snapshots the player appears in. `mart` applies all four rules once — see
 `fmstats/mart.py`. If `mart` is missing the store predates it: rebuild with
 `uv run python load_duckdb.py …` (which now builds it) rather than working around it.
@@ -258,7 +258,7 @@ competition should show 8 groups and 32–40 clubs. If it doesn't, the reconstru
 wrong and the per-nation tables can't be trusted.
 - The tiers are **European Champions Cup** (cid 256), **EURO Cup** (258) and **EURO Cup II**
   (505, code EC2). These names come from the save's competition records. EURO Cup II isn't
-  in `staging.competitions`, which only keeps competitions with a match in our own data, so
+  in `raw.competitions`, which only keeps competitions with a match in our own data, so
   the names are fixed in `EURO_TIERS`. The dormant `European Cup Winners Cup` (257) is never
   played.
 - **Cross-check against the roll of honour.** The `comp_honours` grid in `comp_man.dat`
