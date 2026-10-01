@@ -19,10 +19,8 @@ This writes `output/<label>/`:
 
 | file | contents |
 |------|----------|
-| `players.json` / `players.csv` | **whole player DB** (~24k): 23 attributes (exact + estimated), CA/PA, positions, feet, reputation, club, DOB, nationality |
+| `players.json` | **whole player DB** (~24k): 23 attributes (exact + estimated), CA/PA, positions, feet, reputation, club, DOB, nationality |
 | `matches.json` | every match: per-player stats (23 fields), events, team stats, formation, man-of-the-match |
-| `player_match_stats.csv` | flat one-row-per-(match, player), carrying the team actually played for |
-| `transfers.json` | players whose current club differs from a team they played for this season |
 | `staff.json` | ~7k non-players (managers/coaches/scouts): identity only |
 | `clubs.json` | club TID → name |
 | `summary.json` | counts, date range, competitions, how the label was derived |
