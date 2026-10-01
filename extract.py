@@ -9,20 +9,21 @@ join. The player INFO section is the identity spine (one row per player, ~31k, w
 every foreign key); attributes join on SID, clubs on club_tid, names on TID. See
 fmparser/tables/.
 
-Writes output/<label>/:
-    players.json / players.csv   whole player DB: identity + attributes where they exist
+Writes output/<label>/, one JSON file per table (see the `dump(...)` calls in main()):
+    players.json, staff.json     the person spine joined to the attribute / staff records
+    history.json                 career history chains
     matches.json                 this season's matches as stored: events, both sides' player
                                  lines, the stored score, our formation and starting positions
-    player_match_stats.csv       flat one-row-per-(match, player), with the team played for
-    transfers.json               players whose current club differs from a team they played for
-    clubs.json                   club TID -> name
-    summary.json                 counts, date range, how the label was derived
+    world_fixtures.json          the archive's world fixture list, with scores
+    clubs.json, club_details.json, leagues.json, club_league.json, competitions.json, ...
+                                 reference tables
+    summary.json                 season, phase, counts
 
 The label defaults to <season-end-year>-<period>, from the save's latest match date
-(Aug-Sep=start, Jul=end, everything else in-season=mid). Override with --label.
+(Aug-Sep=start, Jul=end, everything else in-season=mid). Override with --label. `phase`
+(the store's key) is the save's own in-game date, from its header.
 """
 import argparse
-import csv
 import json
 import os
 from collections import Counter
@@ -105,11 +106,11 @@ def season_phase(save_date, matches, rollover):
 _PHASES = ("start", "mid", "end")
 
 # The tail of the global attribute record (attributes.record_tail). Named once here so the
-# rec-present branch, the identity-only fill and the CSV header cannot drift apart.
+# rec-present branch and the identity-only fill cannot drift apart.
 TAIL_FIELDS = ("current_reputation", "world_reputation", "international_retired",
                "squad_number", "preferred_squad_number", "height_cm", "weight_kg")
 # The 9 unnamed 1-20 attribute bytes (attributes.HIDDEN_OFFSETS). Carried, not named --
-# every identity-only row has to fill them too, or the CSV header and the rows disagree.
+# every identity-only row has to fill them too.
 HIDDEN_FIELDS = tuple(PA.HIDDEN_OFFSETS.values())
 # The entangled 0-255 source bytes, carried RAW so the estimation model can be
 # retrained against the store instead of a 25-minute re-extract. See
@@ -284,25 +285,6 @@ def scrapbook_entries(mm):
             for lst in PL.scrape_player_lists(mm) for e in lst["entries"]]
 
 
-_STAT_FIELDS = ["posOrder", "rating", "goals", "assists", "passA", "passC",
-                "keyPass", "tackA", "tackW", "intercept", "shotA", "shotO",
-                "condition", "subOn", "subOff", "yellow"]
-
-
-def flatten_matches(season):
-    """One row per (match, player), carrying the team actually played for."""
-    rows = []
-    for m in season:
-        for side, team, opp in (("home_xi", m["home_tid"], m["away_tid"]),
-                                ("away_xi", m["away_tid"], m["home_tid"])):
-            for p in m[side]:
-                row = {"date": m["date"], "comp_id": m["comp_id"],
-                       "tid": p["tid"], "team_tid": team, "opponent_tid": opp}
-                row.update({k: p[k] for k in _STAT_FIELDS})
-                rows.append(row)
-    return rows
-
-
 def build_leagues(mm, club_leagues, nations_map=None):
     """Leagues reference built from club->league facts and reference comp records."""
     leagues = {}
@@ -356,38 +338,6 @@ def build_competitions(mm, season):
     return comps
 
 
-def write_players_csv(path, players):
-    with open(path, "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["tid", "name", "club", "club_tid", "loan", "league", "league_cid",
-                    "GK", "CA", "PA", "rep", "dob", "nat", "positions"]
-                   + list(TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS) + MOD.ATTR_ORDER)
-        # attributed players first (by CA desc), then identity-only rows
-        def sortkey(p):
-            return (0 if p["has_attributes"] else 1, -(p["ca"] or 0), p["tid"])
-        for p in sorted(players.values(), key=sortkey):
-            pos = "/".join(k for k, v in sorted(p["positions"].items(),
-                                                key=lambda kv: -kv[1]))
-            attr = p["attributes"] or {}
-            w.writerow([p["tid"], p["name"] or "", p["club"], p["club_tid"],
-                        "Y" if p.get("loaned_out") else "",
-                        p.get("league") or "", p.get("league_cid") or "",
-                        "Y" if p["is_gk"] else "", p["ca"] or "", p["pa"] or "",
-                        p["reputation"] or "", p["dob"] or "", p["nationality_id"], pos]
-                       + [("" if p.get(k) is None else p[k])
-                          for k in TAIL_FIELDS + HIDDEN_FIELDS]
-                       + [attr.get(a, "") for a in MOD.ATTR_ORDER])
-
-
-def write_match_stats_csv(path, rows):
-    with open(path, "w", newline="") as f:
-        w = csv.writer(f)
-        cols = ["date", "comp_id", "tid", "team_tid", "opponent_tid"] + _STAT_FIELDS
-        w.writerow(cols)
-        for r in rows:
-            w.writerow([r[c] for c in cols])
-
-
 def main():
     ap = argparse.ArgumentParser(description="Extract an FMM22 save's current state.")
     ap.add_argument("save", help="path to the .fms save file")
@@ -411,7 +361,6 @@ def main():
 
     info = scrape_person_info(mm)            # player-info spine (scraped once, shared)
     players, staff, club_names, club_leagues, histories = build_database(mm, season, info)
-    match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
     # leagues reference + club->league. The club record gives membership directly: exact,
@@ -549,8 +498,6 @@ def main():
         print(f"  WARNING: {e}; no player progress")
         progress = []
     dump("player_progress.json", progress, indent=None)
-    write_players_csv(os.path.join(dest, "players.csv"), players)
-    write_match_stats_csv(os.path.join(dest, "player_match_stats.csv"), match_rows)
 
     attributed = sum(1 for p in players.values() if p["has_attributes"])
     dates = sorted(m["date"] for m in season if m["date"])
@@ -566,8 +513,7 @@ def main():
         "latest_match": latest, "date_range": [dates[0], dates[-1]] if dates else None,
         "competitions": {str(c): n for c, n
                          in sorted(Counter(m["comp_id"] for m in season).items())},
-        "counts": {"matches": len(season), "player_match_lines": len(match_rows),
-                   "players": len(players), "players_with_attributes": attributed,
+        "counts": {"matches": len(season), "players": len(players), "players_with_attributes": attributed,
                    "history_rows": histories["count"] if histories else 0,
                    "staff": len(staff), "competitions": len(competitions),
                    "leagues": len(leagues), "clubs_named": len(club_names),

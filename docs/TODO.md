@@ -244,57 +244,18 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 
 ## Parser ↔ stats: decoupling
 
-### 12. Extract dumps tables; the mart does the joins
-**Plan: [`plans/2026-09-30-extract-cleanup.md`](plans/2026-09-30-extract-cleanup.md)**
--- nine PRs: header dates and save renames, dead outputs, whole reference tables, then each
-`build_database` join as a view behind the `staging` name consumers already read, and a
-file-order cursor; each gated row-for-row against a store built from `main`.
-
-`players.json` is a pre-joined row built in `extract.py` from about seven tables: the person
-table, the contract grid (`wage_units`, `wage_gbp`, `contract_expiry`), the three name id-tables
-+ browse strings (`name`: the common name, then the legal name), the club table (`club`),
-the training table's squad status
-(`squad_status`, loan flags) and the player attributes. None of that is extraction. Extract should dump each table as the save holds it,
-the loader write it to `staging`, and `fmstats/mart.py` do the joins — the name precedence a
-view (`mart.person_names`), `wage_gbp = wage_units × 520` a derivation.
-
-A table at a time, contracts and names first, then club labels and the rest:
-1. extract dumps the table (`contracts.json`, `name_tables.json`, ...) and the loader writes a
-   `staging` table;
-2. the mart joins it; every consumer of the old column (`staging.players.name`, wages, club
-   labels — mart views, `fmq`, the scout, `scripts/export_data.py`) reads the mart instead;
-3. the gate is row-for-row: the mart gives the same name / wage / label for every person as
-   today's store (`assert_identical` changes by design — re-record with the note).
-
-When this lands, `fmparser/clubs_comps.py`'s lookups go with it: `club_record`, `league_name`,
-`comp_detail`, `club_details` and the name resolvers exist only for extract's pre-joins. What
-remains is the two
-tables themselves (`tables/clubs.py`, `tables/competitions.py`). The same goes for
-`extract._history_clubs`, which walks history chains only to decide which club names
-`clubs.json` carries: once `clubs.json` is the whole club table it has nothing to do.
-`staging.player_history`'s `confidence` (always 'exact') and `origin_club` (always NULL) go
-then too.
-
-Also:
-- **Move the loader's remaining transforms into `fmstats`**, so `load_duckdb.py` only writes
-  JSON into `staging`: the squad views (`staging.squad_scrapbook`, and `staging.players` /
-  `staging.player_attributes_exact` over their `_raw` tables), the attribute-model decode
-  view (`staging.player_attributes`),
-  `rebuild_persons` (the `(tid, dob) -> person_id` bridge) and `v_player_ratings` /
-  `v_player_rating_ranks`. Verify with a real `rebuild.py`, not `--refresh-only`.
-- **Delete `staging.standings`.** Extract no longer writes `light_results/standings`, but the
-  loader still creates the table, has `load_standings` and a `standings` group, and
-  `scripts/export_data.py` still explains its absence.
+### 12. Extract dumps tables; the store models them
+**Plan: [`plans/2026-10-01-data-layers.md`](plans/2026-10-01-data-layers.md)** -- 18 steps, one PR
+each. Extract hands over every table as the save stores it (header dates, dead outputs, whole
+reference tables, then contracts, names and person records, and a file-order cursor); the store
+renames `staging` to `raw` and models it as raw → stg → int → mart, ending in the `dim_*` /
+`fact_*` tables of [`data-model/`](data-model/README.md), and the site's marts move onto them.
+Every step is gated row-for-row against a store built from `main`. Person identity (#14),
+history reclamation (#15) and extra-time minutes (#16) block steps of it.
 
 ---
 
 ## Stats
-
-### 12a. Build the layered models (raw → stg → int → mart)
-Rename `staging` to `raw`, then build the semantic model in [`data-model/`](data-model/README.md)
-as stg → int → `dim_*` / `fact_*` marts and move the site's marts onto it. Phased plan, gates and
-blockers: [`plans/2026-10-01-warehouse-build.md`](plans/2026-10-01-warehouse-build.md). Person
-identity (#14), history reclamation (#15) and extra-time minutes (#16) block phases of it.
 
 ### 13. League tables outside Denmark
 `mart.league_tables` rebuilds tables from the fixture list. Against each club's own

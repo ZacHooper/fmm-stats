@@ -32,6 +32,7 @@ UNIT_TESTS = {
     "test_comp_rules_unit.py",
     "test_compman_unit.py",
     "test_core_unit.py",
+    "test_diff_stores_unit.py",
     "test_contracts_unit.py",
     "test_fixtures_unit.py",
     "test_history_unit.py",
