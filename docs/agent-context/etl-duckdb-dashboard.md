@@ -25,9 +25,9 @@ Turkish ground-truth tests pass unchanged.
 **Layers**
 - `load_duckdb.py` (run via `uv run`) → `fm.duckdb`, `staging.*` schema (1:1 mirror of the
   extract files), every row stamped `season` (int end-year, 21/22→2022, Aus-FY style) +
-  `phase` (start/mid/end). Idempotent per-label DELETE+INSERT. No enforced PKs (ART index made
+  `phase` (the save's header date). Idempotent per-label DELETE+INSERT. No enforced PKs (ART index made
   bulk reload hang — natural keys are documented in comments, enforced by the loader). Ledger in
-  `staging.extracts`. Label math lives in `extract.parse_label` / `auto_label`.
+  `staging.extracts`. `extract.season_phase` places the snapshot from the save's header.
 - Transformed layer = the `mart` schema (fmstats/mart.py) plus three views in `main`
   (v_player_attributes, **v_player_ratings**, **v_player_rating_ranks**). `load_duckdb.py` drops
   v_match_results, v_league_table, v_top_scorers, v_ca_progression and v_transfers if present:

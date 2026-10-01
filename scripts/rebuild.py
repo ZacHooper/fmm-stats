@@ -11,12 +11,15 @@ also means each machine builds its own store, so there is no multi-writer proble
 For each active manifest row:
   1. ensure the raw save exists at $FM_SAVES_DIR/<career>/<save_file>, fetching and gunzipping
      it from R2 if it doesn't;
-  2. `extract.py <save> --career <career> --label <label>`;
-  3. `load_duckdb.py output/<label> --db fm-<career>.duckdb --season S --phase P`.
+  2. `extract.py <save> --career <career>`, which names the output after the save;
+  3. check the extract's season/phase (the save's header date and its campaign) against the
+     manifest row, and fail loudly on a mismatch;
+  4. `load_duckdb.py output/<label> --db fm-<career>.duckdb`.
 
-Season and phase are passed EXPLICITLY from the manifest rather than re-derived. A save whose
-in-game date differs from its last match date would otherwise land on a different phase, adding
-a duplicate slice instead of replacing the intended one.
+The save names its own snapshot, so the manifest's season/phase are a CHECK, not an input: a
+mismatch means the manifest or the save is wrong, and loading it anyway would add a slice
+under a key the recipe does not expect. `--trust-manifest` loads the manifest's values
+regardless.
 
 Compression note: gzip is byte-exact, so a decompressed save is identical to the original and
 every structural scan behaves the same. That only holds because we decompress FIRST — mmap a
@@ -28,6 +31,7 @@ Budget ~1 min per snapshot (~12 min for Frem's 12).
 import argparse
 import csv
 import gzip
+import json
 import os
 import shutil
 import subprocess
@@ -120,6 +124,21 @@ def _extract_is_current(out_dir):
     return f'"{_EXTRACT_MARKER}"' in head
 
 
+def check_against_manifest(out_dir, row):
+    """None when the extract's season/phase and label match the manifest row, else a message."""
+    try:
+        with open(os.path.join(out_dir, "summary.json")) as f:
+            summ = json.load(f)
+    except (OSError, ValueError) as e:
+        return f"no readable summary.json ({e})"
+    got = (str(summ.get("season")), summ.get("phase"))
+    want = (row["season"], row["phase"])
+    if got != want:
+        return (f"the save says season {got[0]} phase {got[1]}, the manifest says season "
+                f"{want[0]} phase {want[1]}")
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -135,6 +154,9 @@ def main():
     ap.add_argument("--db", help="write to this store instead of the career's own "
                                  "fm-<key>.duckdb — use it to rebuild into a scratch file and "
                                  "diff against the live one before trusting a change")
+    ap.add_argument("--trust-manifest", action="store_true",
+                    help="load each snapshot under the manifest's season/phase even when the "
+                         "save's own header date disagrees")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
     a = ap.parse_args()
 
@@ -181,13 +203,28 @@ def main():
                 if save is None:
                     failed.append(label)
                     continue
-                if not run([sys.executable, "extract.py", save, "--career", career,
-                            "--label", label], a.dry_run):
+                if os.path.splitext(os.path.basename(save))[0] != label:
+                    print(f"    ! the manifest's label {label!r} is not the save's name "
+                          f"{os.path.basename(save)!r}")
+                    failed.append(label)
+                    continue
+                if not run([sys.executable, "extract.py", save, "--career", career],
+                           a.dry_run):
                     print("    ! extract failed")
                     failed.append(label)
                     continue
-            if not run([sys.executable, "load_duckdb.py", os.path.join("output", label),
-                        "--db", db_path, "--season", str(season), "--phase", phase], a.dry_run):
+            load = [sys.executable, "load_duckdb.py", os.path.join("output", label),
+                    "--db", db_path]
+            if not a.dry_run:
+                problem = check_against_manifest(out_dir, r)
+                if problem and not a.trust_manifest:
+                    print(f"    ! {problem} -- fix the manifest, or pass --trust-manifest")
+                    failed.append(label)
+                    continue
+                if problem:
+                    print(f"    ~ {problem}; loading the manifest's values (--trust-manifest)")
+                    load += ["--season", str(season), "--phase", phase]
+            if not run(load, a.dry_run):
                 print("    ! load failed")
                 failed.append(label)
                 continue

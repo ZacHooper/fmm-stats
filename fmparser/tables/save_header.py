@@ -8,10 +8,10 @@ one with no matches. Which campaign it belongs to depends on the career's rollov
 day the game starts the new season: it follows the home calendar (Denmark 30 June, Turkey
 20 June -- `careers.Career.rollover`), and a save dated on or after it is the next campaign.
 
-The one save a date cannot place is a new career's first, dated before the rollover with no
-match played: the database starts already rolled over (its last league positions are the
-season just gone), so it belongs to the campaign about to start. `campaign()` returns None
-for it and the caller supplies the season.
+A new career's first save is dated before the rollover with no match played: the database
+starts already rolled over (its last league positions are the season just gone), so it
+belongs to the campaign about to start. A match-less save before the rollover only happens
+there, so `campaign()` places it in the next campaign.
 """
 import datetime
 import re
@@ -46,11 +46,11 @@ def read_save_header(mm: Any) -> Dict[str, Optional[str]]:
     return out
 
 
-def campaign(date: str, has_matches: bool, rollover: Tuple[int, int]) -> Optional[int]:
+def campaign(date: str, has_matches: bool, rollover: Tuple[int, int]) -> int:
     """The campaign's end-year for a save dated `date`: on or after the `rollover`
-    (month, day) is the next one. None for a match-less save before it -- a new career's
+    (month, day) is the next one, and so is a match-less save before it -- a new career's
     first save, which the database already places in the campaign about to start."""
     d = datetime.date.fromisoformat(date)
-    if (d.month, d.day) >= tuple(rollover):
+    if (d.month, d.day) >= tuple(rollover) or not has_matches:
         return d.year + 1
-    return d.year if has_matches else None
+    return d.year

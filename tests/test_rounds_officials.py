@@ -12,10 +12,10 @@ from fmparser.tables import rounds as RO
 
 SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 CASES = [
-    ("frem", "frem-2021-07-01.fms", 273, 622),
+    ("frem", "frem-2021-06-27.fms", 273, 622),
     ("frem", "frem-2023-07-02.fms", 273, 622),
     ("frem", "frem-2026-06-11.fms", 273, 622),
-    ("bucaspor", "bucaspor-2023-03-25.fms", 273, 1109),
+    ("bucaspor", "bucaspor-2023-04-01.fms", 273, 1109),
 ]
 
 

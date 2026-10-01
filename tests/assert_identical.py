@@ -18,12 +18,12 @@ each emitted file, key order included.
 
 Four saves, chosen to span the file's regimes rather than to be many:
 
-    frem-2021-07-01       day one -- preallocated grids are EMPTY here, so a walk that depends
+    frem-2021-06-27       day one -- preallocated grids are EMPTY here, so a walk that depends
                           on rows existing fails on this save and nothing else
     frem-2023-07-02       the day after a July rollover -- 0 matches, transfer band collapsed
     frem-2026-06-11       late career, full grids, and the save every in-game ground truth
                           screenshot was taken against
-    bucaspor-2023-03-25   the other career, in another country -- the only guard we have that
+    bucaspor-2023-04-01   the other career, in another country -- the only guard we have that
                           a decode generalises instead of fitting Denmark
 
 Determinism was measured before this was written (2026-09-20): two extracts of
@@ -54,10 +54,10 @@ SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 # `careers.py` is the registry -- but our naming convention puts the key first, so this stays
 # a list of names rather than a parser.
 DEFAULT_SAVES = [
-    ("frem", "frem-2021-07-01.fms"),
+    ("frem", "frem-2021-06-27.fms"),
     ("frem", "frem-2023-07-02.fms"),
     ("frem", "frem-2026-06-11.fms"),
-    ("bucaspor", "bucaspor-2023-03-25.fms"),
+    ("bucaspor", "bucaspor-2023-04-01.fms"),
 ]
 
 

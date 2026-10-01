@@ -11,10 +11,10 @@ a 57% base rate for three random adjacent bytes), and world ranking must be near
 across nations.
 
 Ground truth is the 25 Nov 2024 Manager Profile screenshots for the seven Danish Superliga
-managers, matched against `frem-2024-11-10.fms`, plus a second Style-only set read off
+managers, matched against `frem-2024-11-22.fms`, plus a second Style-only set read off
 `frem-2026-07-02.fms` (checked only if that save is present). Run:
 
-    python3 tests/test_staff_records.py [path/to/frem-2024-11-10.fms]
+    python3 tests/test_staff_records.py [path/to/frem-2024-11-22.fms]
 
 Skips cleanly if the save is not present (it is gitignored; fetch with rclone or
 scripts/rebuild.py).
@@ -36,7 +36,7 @@ from fmparser.tables.player_attributes import scrape_player_attributes     # noq
 from fmparser.tables import languages, nations                    # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 
-SAVE_NAME = "frem-2024-11-10.fms"
+SAVE_NAME = "frem-2024-11-22.fms"
 
 # tid -> (preferred formation, reputation tier, the 10 coaching attributes)
 MANAGERS = {

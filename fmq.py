@@ -80,7 +80,7 @@ def _reserve_of(st, club_tid):
 
 # --------------------------------------------------------------------------- basic
 def cmd_labels(st, a):
-    _show(st.con.execute("""SELECT label, season, phase, phase_date, latest_match, is_preseason
+    _show(st.con.execute("""SELECT label, season, phase, phase_date
                             FROM mart.snapshots ORDER BY snap_ix""").df())
 
 

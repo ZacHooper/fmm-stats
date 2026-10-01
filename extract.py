@@ -2,7 +2,7 @@
 """
 Extract the current state of an FMM22 save into a labelled output bundle.
 
-    python3 extract.py path/to/save.fms [--label 2022-end] [--out output]
+    uv run python extract.py path/to/<career>-<date>.fms --career <key> [--out output]
 
 Architecture: scrape each region of the save independently into keyed tables, then
 join. The player INFO section is the identity spine (one row per player, ~31k, with
@@ -19,9 +19,10 @@ Writes output/<label>/, one JSON file per table (see the `dump(...)` calls in ma
                                  reference tables
     summary.json                 season, phase, counts
 
-The label defaults to <season-end-year>-<period>, from the save's latest match date
-(Aug-Sep=start, Jul=end, everything else in-season=mid). Override with --label. `phase`
-(the store's key) is the save's own in-game date, from its header.
+The label defaults to the save's file name without `.fms` (`frem-2023-07-02`); saves are
+named `<career>-<header date>`, so label, save and `phase` are one string. `phase` (the
+store's key) is the save's own in-game date, from its header title, and `season` the
+campaign it belongs to; a save whose header does not read is refused.
 """
 import argparse
 import json
@@ -63,47 +64,15 @@ from fmparser.tables import (
 )
 
 
-def _period(month):
-    # Phase is only a coarse hint (a real in-season date is what actually orders
-    # snapshots — see history.player_snapshots.snapshot_date). Keep the guess minimal:
-    # only pre-season (Aug/Sep) reads as "start" and only the July wrap reads as "end";
-    # everything Oct–Jun is "mid". The old Mar–Jul→"end" band mislabelled winter/spring
-    # in-season saves (e.g. a 19-Mar save) as "end", so it was dropped.
-    if month in (8, 9):
-        return "start"
-    if month == 7:
-        return "end"
-    return "mid"          # Oct–Jun (in-season)
-
-
-def auto_label(season):
-    """<season-end-year>-<period> from the latest match date. This is only the cosmetic
-    output-DIR name; the authoritative (season, phase) the DB keys on is written explicitly
-    into summary.json by season_phase() below."""
-    dates = sorted(m["date"] for m in season if m["date"])
-    if not dates:
-        return "unknown", None
-    latest = dates[-1]
-    year, month = int(latest[:4]), int(latest[5:7])
-    end_year = year + 1 if month >= 8 else year
-    return f"{end_year}-{_period(month)}", latest
-
-
 def season_phase(save_date, matches, rollover):
-    """Authoritative (season:int|None, phase:str|None) for the snapshot.
+    """(season, phase) for the snapshot: phase is the save's own in-game date, from its header
+    title (`save_header`), and season the campaign it belongs to, from the career's rollover
+    day. A save whose header does not read cannot be placed and is refused."""
+    if save_date is None:
+        raise SystemExit("the save's header title has no readable date, so the snapshot "
+                         "cannot be placed; is this an FMM22 save?")
+    return HDR.campaign(save_date, any(m["date"] for m in matches), rollover), save_date
 
-    phase is the save's own in-game date, from its header title (`save_header`); the latest
-    match date stands in only if the title does not read. season is the campaign end-year,
-    from the career's rollover day. None for a new career's first save (no matches, dated
-    before the rollover), which the loader places with --season."""
-    dates = sorted(m["date"] for m in matches if m["date"])
-    phase = save_date or (dates[-1] if dates else None)
-    if phase is None:
-        return None, None
-    return HDR.campaign(phase, bool(dates), rollover), phase
-
-
-_PHASES = ("start", "mid", "end")
 
 # The tail of the global attribute record (attributes.record_tail). Named once here so the
 # rec-present branch and the identity-only fill cannot drift apart.
@@ -116,26 +85,6 @@ HIDDEN_FIELDS = tuple(PA.HIDDEN_OFFSETS.values())
 # retrained against the store instead of a 25-minute re-extract. See
 # attributes.SRC_OFFSETS: scraping and inference are different jobs.
 SRC_FIELDS = tuple(PA.SRC_OFFSETS.values()) + tuple(PA.PLAIN_OFFSETS.values())
-
-
-def parse_label(label):
-    """Inverse of auto_label: label string -> (season:int, phase:str).
-
-    season is the end-year of the campaign (21/22 -> 2022), matching auto_label.
-    Handles the current form '2022-end' and the legacy form '21-22-end'
-    (where the second two-digit group is the end year). Raises ValueError on
-    anything else so callers can fall back to summary.json or --season/--phase.
-    """
-    parts = label.split("-")
-    if len(parts) < 2 or parts[-1] not in _PHASES:
-        raise ValueError(f"unrecognised label {label!r}")
-    phase = parts[-1]
-    head = parts[:-1]
-    if len(head) == 1 and head[0].isdigit() and len(head[0]) == 4:
-        return int(head[0]), phase          # 2022-end
-    if len(head) == 2 and all(p.isdigit() and len(p) == 2 for p in head):
-        return 2000 + int(head[1]), phase    # 21-22-end -> 2022
-    raise ValueError(f"unrecognised label {label!r}")
 
 
 def _history_clubs(hist):
@@ -341,7 +290,8 @@ def build_competitions(mm, season):
 def main():
     ap = argparse.ArgumentParser(description="Extract an FMM22 save's current state.")
     ap.add_argument("save", help="path to the .fms save file")
-    ap.add_argument("--label", help="output label (default: auto <year>-<period>)")
+    ap.add_argument("--label", help="output folder name (default: the save's file name "
+                    "without .fms, e.g. frem-2023-07-02)")
     ap.add_argument("--out", default="output", help="output root (default: output/)")
     ap.add_argument("--career", help="managed-career key from fmparser/careers.py "
                     f"(default: {C.DEFAULT_CAREER}). Known: {', '.join(sorted(C.CAREERS))}")
@@ -354,8 +304,9 @@ def main():
     s = Save(args.save)
     mm = s.mm
     season = MT.scrape_matches(mm)
-    auto, latest = auto_label(season)
-    label = args.label or auto
+    header = HDR.read_save_header(mm)
+    snap_season, snap_phase = season_phase(header["date"], season, career.rollover)   # the DB grain
+    label = args.label or os.path.splitext(os.path.basename(args.save))[0]
     dest = os.path.join(args.out, label)
     os.makedirs(dest, exist_ok=True)
 
@@ -465,7 +416,6 @@ def main():
     dump("world_fixtures.json", world, indent=None)
     # The match table against the fixture list: the same games, since the rollover. This is
     # what tells an empty table after the rollover from a table the locator missed.
-    header = HDR.read_save_header(mm)
     if world and header["date"]:
         until = header["date"]
         since = f"{until[:4]}-{career.rollover[0]:02d}-{career.rollover[1]:02d}"
@@ -489,7 +439,6 @@ def main():
                    else {})
     dump("round_names.json",
          [{"id": i, "name": n} for i, n in sorted(round_names.items())], indent=None)
-    snap_season, snap_phase = season_phase(header["date"], season, career.rollover)   # the DB grain
     # the weekly Player Progress table, every used row as stored; injury and loan spells are
     # read from its status bits in the mart (fmparser/tables/player_progress.py)
     try:
@@ -500,17 +449,14 @@ def main():
     dump("player_progress.json", progress, indent=None)
 
     attributed = sum(1 for p in players.values() if p["has_attributes"])
-    dates = sorted(m["date"] for m in season if m["date"])
     summary = {
-        "label": label, "label_auto": auto,
+        "label": label,
         "season": snap_season, "phase": snap_phase,
-        "label_source": "argument" if args.label else "auto",
         "career": {"key": career.key, "name": career.name,
                    "managed_tid": career.managed_tid,
                    "reserve_tid": career.reserve_tid, "db": career.db},
         "save": os.path.abspath(args.save),
         "save_date": header["date"], "save_title": header["title"],
-        "latest_match": latest, "date_range": [dates[0], dates[-1]] if dates else None,
         "competitions": {str(c): n for c, n
                          in sorted(Counter(m["comp_id"] for m in season).items())},
         "counts": {"matches": len(season), "players": len(players), "players_with_attributes": attributed,
@@ -526,7 +472,7 @@ def main():
     print(f"  matches {len(season)}  players {len(players)} "
           f"({attributed} with attributes)  staff {len(staff)}  "
           f"leagues {len(leagues)}  clubs {len(club_names)}")
-    print(f"  label {label} (auto {auto}, latest match {latest})")
+    print(f"  label {label}  season {snap_season}  phase {snap_phase}")
     s.close()
 
 

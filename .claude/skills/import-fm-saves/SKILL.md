@@ -1,11 +1,11 @@
 ---
 name: import-fm-saves
-description: Parse new FMM22 .fms save files and load them into the career's DuckDB store (fm-<career>.duckdb) so they appear in the Streamlit dashboard. Use when the user drops new save files (e.g. in ~/Downloads) and wants them reflected in the dashboard/ETL. Handles season/phase labelling, auto-label collisions, and clash detection.
+description: Parse new FMM22 .fms save files and load them into the career's DuckDB store (fm-<career>.duckdb) so they appear in the Streamlit dashboard. Use when the user drops new save files (e.g. in ~/Downloads) and wants them reflected in the dashboard/ETL. Handles season/phase placement and clash detection.
 ---
 
 # Import FMM saves into the dashboard
 
-End-to-end: `.fms` save → extract (JSON/CSV) → light-results → load into `fm-<career>.duckdb`
+End-to-end: `.fms` save → extract (JSON) → load into `fm-<career>.duckdb`
 (staging schema) → verify. Run from the repo root (the directory containing `extract.py`
 and `load_duckdb.py`). Saves are read from wherever the user drops them (commonly
 `~/Downloads`); adjust the paths in the commands below to your machine.
@@ -23,18 +23,19 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
   `<career>-<date>.fms` from the in-game date in its own header title, so you never rename later:
   `uv run python scripts/archive_save.py <save.fms> --career frem --upload`.
   That moves it to `$FM_SAVES_DIR`, gzips it, hash-verifies the round-trip, and pushes to R2.
-  **Use the same string as the `--label`** — save file, `output/` dir and DB label are one
-  vocabulary now. The header dates a 0-match save too; `--phase` is only an override.
+  `extract.py` names its `output/` dir after the save, so save file, `output/` dir and DB
+  label are one string with no `--label`. The header dates a 0-match save too.
 - **Refresh the rebuild recipe after loading** — `uv run python scripts/export_manifest.py`, then
   commit `seeds/manifest.csv`. Without this the new snapshot can't be rebuilt on another machine.
 - **The stores are NOT committed** (96 MiB, rewrites wholesale, near GitHub's file limit). They're
   derived: `uv run python scripts/rebuild.py --career frem` rebuilds from saves + manifest.
 - **Season = end-year of the campaign** (22/23 → 2023, Aus-financial-year style).
 - **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), written explicitly into `summary.json`
-  (`season` + `phase`) by `extract.py`. **The loader auto-derives both — normally pass NEITHER
+  (`season` + `phase`) by `extract.py`. **The loader takes both from there — pass NEITHER
   `--season` nor `--phase`.** `phase` is the header date; `season` follows the career's
-  rollover day (`Career.rollover`, Frem 30 June). The one exception is a new career's first save (0 matches, dated before the rollover):
-  pass `--season` for it. Only pass `--season/--phase` otherwise to force/override a slice.
+  rollover day (`Career.rollover`, Frem 30 June), and a new career's first save (0 matches,
+  dated before the rollover) belongs to the campaign about to start. A save whose header
+  does not read is refused. `--season/--phase` only force a slice.
   (Legacy stores may still hold the words `start/mid/end`; those keep working and sort correctly
   alongside dates — the ordering treats words as epoch.)
 - **Loading replaces the exact `(season, phase=date)` slice** (idempotent DELETE+INSERT). Because
@@ -71,8 +72,8 @@ so old slices pick up the new decode. The store knows the full manifest —
 SELECT label, season, phase, save_path FROM staging.extracts ORDER BY season, phase;
 ```
 
-Then just run the rebuild script — it does exactly this from `seeds/manifest.csv`, passing
-season/phase explicitly so nothing lands on the wrong slice:
+Then just run the rebuild script — it does exactly this from `seeds/manifest.csv`, and checks
+each extract's season/phase against the manifest row so nothing lands on the wrong slice:
 
 ```bash
 uv run python scripts/rebuild.py --career frem            # add --skip-existing to reuse output/
@@ -84,9 +85,8 @@ faster when only the ETL changed.
 
 Before starting: **`pkill -f streamlit`** (it holds the DuckDB write lock). No need to back the
 store up any more — it's rebuildable from `seeds/manifest.csv` + the R2 archive, which is the
-whole point. `scripts/rebuild.py` already passes season/phase from the manifest; don't let them
-re-derive, or a save whose in-game date differs from its last match date lands on a different
-phase and you get a duplicate slice instead of a replaced one. `--reset` is now safe for the things that used to be at risk: role_weights,
+whole point. `scripts/rebuild.py` fails a snapshot whose save dates itself differently from
+its manifest row (`--trust-manifest` loads the manifest's values anyway). `--reset` is now safe for the things that used to be at risk: role_weights,
 eligible_origin_clubs and app_config all seed from `seeds/` (all 7 tactic methods are in
 `role_weights.csv`, and `config_bundle.json` carries the app settings), while the shortlist and
 saved scouts have left the store entirely for `state/` + R2. A tactic inserted straight into the
@@ -101,26 +101,24 @@ check against a screenshot.
    exist, identify the *new* ones (recent mtime + descriptive names). Confirm the set with the
    user if ambiguous.
 
-2. **Extract each save to a filename-based output dir** (so nothing is clobbered before you
-   decide labels). For each save `<stem>.fms`:
+2. **Archive, then extract each save** ("Archive the save FIRST" above names it
+   `<career>-<date>.fms`). For each archived save:
    ```bash
-   python3 extract.py "$HOME/Downloads/<stem>.fms" --label "<stem>" --out output
-   python3 dump_lightresults.py "$HOME/Downloads/<stem>.fms" --label "<stem>" --out output
+   uv run --extra archive python extract.py "$FM_SAVES_DIR/<career>/<career>-<date>.fms" --career <career>
    ```
+   The output lands in `output/<career>-<date>/`.
    These are slow (~1–2 min each, 65 MB mmap). Run all in one **background** bash block and
    wait for a `DONE` sentinel via Monitor.
 
-3. **Inspect each `output/<stem>/summary.json`**: read `label_auto`, `latest_match`,
-   `date_range`, `competitions`, `counts`. Also check `clubs.json` for the career's managed +
-   reserve tids (frem: `346`/`7296`) as a career sanity check. Build a mapping table of **file → intended (season, phase)**, resolving:
-   - filename intent (`-23-mid` → 2023/mid) over the date heuristic,
-   - 0-match start saves → the season/phase the user names,
-   - the Mar–Jul "end" collision (see above).
+3. **Inspect each `output/<label>/summary.json`**: read `season`, `phase`, `save_title`,
+   `competitions`, `counts`. Also check `clubs.json` for the career's managed + reserve tids
+   (frem: `346`/`7296`) as a career sanity check. Build a table of **file → (season, phase)**
+   from the summaries.
 
 4. **Detect clashes** and surface them to the user *before* loading:
    - Does an intended `(season, phase)` already exist in `staging.extracts`? Loading will
      **replace** it. Confirm that's intended (usually yes — a cleaner/newer re-export). Compare
-     player counts / date ranges to check it's the same career point vs a genuinely different one.
+     player and match counts to check it's the same career point vs a genuinely different one.
    - Do two new saves map to the same `(season, phase)`? One will overwrite the other — resolve
      the labels with the user.
    Present the mapping table + any clashes, then proceed (the user has usually pre-approved).

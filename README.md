@@ -10,9 +10,7 @@ Nothing is written back to the save.
 ## Usage
 
 ```bash
-python3 extract.py path/to/save.fms
-# or pin the label yourself:
-python3 extract.py path/to/save.fms --label 2022-end
+uv run --extra archive python extract.py ~/fm-saves/frem/frem-2023-07-02.fms --career frem
 ```
 
 This writes `output/<label>/`:
@@ -23,12 +21,12 @@ This writes `output/<label>/`:
 | `matches.json` | every match: per-player stats (23 fields), events, team stats, formation, man-of-the-match |
 | `staff.json` | ~7k non-players (managers/coaches/scouts): identity only |
 | `clubs.json` | club TID → name |
-| `summary.json` | counts, date range, competitions, how the label was derived |
+| `summary.json` | season, phase (the save's header date), counts, competitions |
 
-The label defaults to `<season-end-year>-<period>`, read from the save's latest match
-date (`Aug–Sep`→start, `Oct–Feb`→mid, `Mar–Jul`→end). Override with `--label`.
-A zero-match save (fresh season) still produces the full player DB — the player list
-comes from the info spine, not from matches — but can't auto-derive a year, so pass `--label`.
+The label is the save's file name without `.fms`. Saves are named `<career>-<header date>`
+(`scripts/archive_save.py` does it), so the label, the save and the snapshot's `phase` are one
+string. A zero-match save (fresh season) still produces the full player DB — the player list
+comes from the info spine, not from matches — and its header dates it like any other.
 
 ## What you get (and how much to trust it)
 

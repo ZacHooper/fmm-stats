@@ -47,7 +47,7 @@ NAMED_MEMBERS = {
 _IS_COMP = re.compile(r"comp_\d+\.dat$")
 
 # One save per career is enough for the per-member decompression (it is the slow part).
-CASES = [("frem", "frem-2026-06-11.fms"), ("bucaspor", "bucaspor-2023-05-20.fms")]
+CASES = [("frem", "frem-2026-06-11.fms"), ("bucaspor", "bucaspor-2023-06-19.fms")]
 
 
 def check(path):
