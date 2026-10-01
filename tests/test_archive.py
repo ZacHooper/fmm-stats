@@ -21,7 +21,7 @@ Every assertion is structural. None of them names an offset:
   MEMBERS   the twelve named subsystems are present in BOTH careers -- the cross-career
             check that makes this the format's shape rather than Frem's.
 
-    uv sync --extra archive
+    uv sync
     uv run python tests/test_archive.py
 """
 import mmap

@@ -6,11 +6,12 @@ Extract the current state of an FMM22 save into a labelled output bundle.
 
 Architecture: scrape each region of the save independently into keyed tables, then
 join. The player INFO section is the identity spine (one row per player, ~31k, with
-every foreign key); attributes join on SID, clubs on club_tid, names on TID. See
+every foreign key); attributes join on SID, clubs on club_tid, names on their name ids. See
 fmparser/tables/.
 
 Writes output/<label>/, one JSON file per table (see the `dump(...)` calls in main()):
     players.json, staff.json     the person spine joined to the attribute / staff records
+    names.json                   the name tables the persons' name ids index
     history.json                 career history chains
     matches.json                 this season's matches as stored: events, both sides' player
                                  lines, the stored score, our formation and starting positions
@@ -31,7 +32,6 @@ from collections import Counter
 
 from fmparser.save import Save
 from fmparser import model as MOD
-from fmparser import clubs_comps as R
 from fmparser.tables.contracts import scrape_contracts
 from fmparser.tables.person_info import (
     NO_CLUB,
@@ -51,6 +51,7 @@ from fmparser.tables import player_progress as PP
 from fmparser.tables import club_records as CRE
 from fmparser.tables import training as TRN
 from fmparser.tables import matches as MT
+from fmparser.tables import names as NM
 from fmparser.tables import (
     cities,
     clubs as CL,
@@ -73,6 +74,10 @@ def season_phase(save_date, matches, rollover):
                          "cannot be placed; is this an FMM22 save?")
     return HDR.campaign(save_date, any(m["date"] for m in matches), rollover), save_date
 
+
+# A person's name ids, as stored: they index the name tables in names.json (the common name,
+# the game's display name when set, indexes the nicknames table; FFFFFFFF = none).
+NAME_FIELDS = ("first_name_id", "last_name_id", "common_name_id")
 
 # The tail of the global attribute record (attributes.record_tail). Named once here so the
 # rec-present branch and the identity-only fill cannot drift apart.
@@ -101,15 +106,6 @@ def build_database(mm, info, club_names):
     staff_attrs = ST.scrape_staff_attributes(
         mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
 
-    # whole-DB name resolver: first/last name ids -> strings.
-    R.build_name_resolver(mm)
-
-    def full_name(tid, p):
-        # The common name first: it is the display name, and without it 2,424 people appear
-        # under their full legal names ('Tite' as Adenor Leonardo Bachi). Legal name last.
-        return (R.resolve_common_name(mm, p.get("common_name_id"))
-                or R.resolve_name(mm, p["first_name_id"], p["last_name_id"]))
-
     # career history: the whole pool as stored, plus each player's head row (the attribute
     # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
     # can't be located or fails its forest check, extraction proceeds without history.
@@ -133,7 +129,7 @@ def build_database(mm, info, club_names):
         # handles them correctly (a player-coach has a real SID -> counted as a player).
         # Not worth special-casing further for now.
         if p["sid"] == "ffffffff":
-            row = {"tid": tid, "name": full_name(tid, p),
+            row = {"tid": tid, **{k: p[k] for k in NAME_FIELDS},
                    "club": club_label(p["club_tid"]),
                    "club_tid": p["club_tid"], "dob": p["dob"],
                    "nationality_id": p["nationality_id"],
@@ -151,7 +147,7 @@ def build_database(mm, info, club_names):
             continue
         rec = attrs.get(p["sid"])
         club_tid = p["club_tid"]
-        row = {"tid": tid, "name": full_name(tid, p),
+        row = {"tid": tid, **{k: p[k] for k in NAME_FIELDS},
                "club": club_label(club_tid), "club_tid": club_tid,
                "dob": p["dob"], "nationality_id": p["nationality_id"],
                **{k: p[k] for k in PERSON_FIELDS},
@@ -235,6 +231,8 @@ def main():
             json.dump(obj, f, ensure_ascii=False, indent=indent)
 
     dump("players.json", players, indent=None)     # ~24k players -> compact
+    # the name tables the persons' name ids index: browse strings + three id-tables
+    dump("names.json", NM.scrape_names(mm), indent=None)
     dump("staff.json", staff, indent=None)         # ~7k non-players (identity only)
     # the career-history pool, every row column-wise, and each player's head row
     # (fmparser/tables/history.py); the loader reads the chains
@@ -300,7 +298,7 @@ def main():
     #     stage_index/round_index index into the competition's own rules member, which a
     #     match's comp_id reaches through the competition uid (competition_rounds below).
     #
-    # Reading the archive needs zstandard (`uv run --extra archive`); without it the extract
+    # Reading the archive needs zstandard (a project dependency); without it the extract
     # stops unless --no-archive says to go on without the fixtures and rules. An archive that
     # is there but does not read degrades to an empty file with a NOTE.
     try:
@@ -308,7 +306,7 @@ def main():
     except ImportError as e:
         if not args.no_archive:
             raise SystemExit(f"the save's archive needs zstandard ({e}): run extract as "
-                             f"`uv run --extra archive python extract.py ...`, or pass "
+                             f"`uv run python extract.py ...`, or pass "
                              f"--no-archive to extract without the fixtures and rules")
         world = []
     except Exception as e:

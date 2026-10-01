@@ -153,7 +153,7 @@ def main():
                   f"{row['value']:>7.2f} (expected {val})")
 
     print("\nPLAYER RECORDS — Overall block, slot / value / player:")
-    from fmparser import clubs_comps as R
+    from fmparser.tables.names import scrape_names
     pblocks = defaultdict(list)
     for r in player:
         pblocks[r["offset"] - r["slot"] * 22].append(r)
@@ -167,10 +167,14 @@ def main():
         ok = False
         print("  FAIL could not find the Overall player block")
     else:
-        R.build_name_resolver(mm)
+        nt = scrape_names(mm)
+        name_of = {t: {r["id"]: nt["strings"][r["ordinal"]] for r in nt[t]
+                       if r["ordinal"] < len(nt["strings"])}
+                   for t in ("first_names", "surnames")}
         for (cat, val, who), row in zip(PLAYER_BLOCK, pt):
             p = info.get(row["player_tid"])
-            nm = R.resolve_name(mm, p["first_name_id"], p["last_name_id"]) if p else ""
+            nm = (f'{name_of["first_names"].get(p["first_name_id"])} '
+                  f'{name_of["surnames"].get(p["last_name_id"])}') if p else ""
             good = (row["category"] == cat
                     and abs(row["value"] - val) < max(0.005, abs(val) * 1e-6)
                     and who.lower() in str(nm).lower())

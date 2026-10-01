@@ -104,7 +104,7 @@ check against a screenshot.
 2. **Archive, then extract each save** ("Archive the save FIRST" above names it
    `<career>-<date>.fms`). For each archived save:
    ```bash
-   uv run --extra archive python extract.py "$FM_SAVES_DIR/<career>/<career>-<date>.fms" --career <career>
+   uv run python extract.py "$FM_SAVES_DIR/<career>/<career>-<date>.fms" --career <career>
    ```
    The output lands in `output/<career>-<date>/`.
    These are slow (~1–2 min each, 65 MB mmap). Run all in one **background** bash block and

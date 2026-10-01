@@ -54,8 +54,8 @@ and both careers carry the same twelve named members, so the shape is the format
 Frem's.
 
 DEPENDENCY. zstd is not in the standard library before Python 3.14, so this module needs
-`zstandard` and every other fmparser module stays stdlib+numpy as before. Install with
-`uv sync --extra archive`; the import error names the command.
+`zstandard` (a project dependency, so `uv sync` / `uv run` install it); every other fmparser
+module is stdlib + numpy. The import error names the command.
 
 UNKNOWNS, carried rather than guessed:
   * the two u64s that end each directory entry are 0xFFFFFFF1886E0900 on every entry of
@@ -108,7 +108,7 @@ def _zstd():
     except ImportError as exc:                        # pragma: no cover - environment
         raise MissingZstandard(
             "reading the save archive needs the `zstandard` package: "
-            "run `uv sync --extra archive`"
+            "run `uv sync`"
         ) from exc
     return zstandard
 

@@ -12,7 +12,7 @@ Guard the data dictionary's rule files (fmparser/tables/rule_files.py) on real s
   ARCHIVE   every configured comp_<uid>.dat member names a rule file the dictionary holds
   TEAMS     team_counts(): 3F Superliga (uid 6) and 3. Division (uid 2000016262) have 12
 
-    uv sync --extra archive
+    uv sync
     uv run python tests/test_rule_files.py
 """
 import glob

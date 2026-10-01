@@ -165,7 +165,7 @@ def _padding(mm):
     try:
         members = ARCH.members(mm)
     except (ImportError, ARCH.ArchiveError) as e:
-        print(f"  SKIP archive tables: {e} (uv sync --extra archive)")
+        print(f"  SKIP archive tables: {e} (uv sync)")
         members = {}
     values = collections.defaultdict(collections.Counter)    # (record, field) -> values
     count = collections.Counter()
@@ -299,7 +299,7 @@ def main():
         try:
             ok &= _tagged_coverage(mm)
         except ImportError as e:
-            print(f"  SKIP: {e} (uv sync --extra archive)")
+            print(f"  SKIP: {e} (uv sync)")
 
         print("\ntagged records (data dictionary rule files) -- tag coverage + tiling:")
         ok &= _dictionary_coverage(mm)

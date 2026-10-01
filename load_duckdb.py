@@ -60,6 +60,9 @@ from fmparser.tables.player_attributes import PLAIN_OFFSETS as _PLAIN           
 SRC_COLS = list(_SRC.values()) + list(_PLAIN.values())
 from fmparser.tables.person_info import PERSON_FIELDS as _PERSON        # noqa: E402
 PERSON_COLS = list(_PERSON)
+# A person's name ids, and the name tables they index (names.json).
+NAME_ID_COLS = ["first_name_id", "last_name_id", "common_name_id"]
+NAME_TABLES = ("first_names", "surnames", "nicknames")
 # Everything off the info record is a small integer except the one date.
 PERSON_DATE_COLS = {"joined_date"}
 _PERSON_SQL = {c: ("DATE" if c in PERSON_DATE_COLS else "INTEGER") for c in PERSON_COLS}
@@ -377,7 +380,9 @@ DDL = [
     # natural key: (season, phase, tid)
     """CREATE TABLE IF NOT EXISTS raw.players_raw (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
-        tid INTEGER NOT NULL, name VARCHAR, is_staff BOOLEAN NOT NULL DEFAULT FALSE,
+        tid INTEGER NOT NULL,
+        first_name_id BIGINT, last_name_id BIGINT, common_name_id BIGINT,
+        is_staff BOOLEAN NOT NULL DEFAULT FALSE,
         club_tid INTEGER, club VARCHAR,
         dob DATE, nationality_id INTEGER, has_attributes BOOLEAN,
         is_gk INTEGER,
@@ -536,6 +541,17 @@ DDL = [
         stage_index INTEGER, stage_code VARCHAR, stage_type INTEGER, stage_teams INTEGER,
         stage_name_id BIGINT, n_groups INTEGER,
         round_index INTEGER, round_name_id BIGINT, round_teams INTEGER, legs INTEGER
+    )""",
+
+    # The name tables a person's name ids index, as stored: the browse strings (natural key:
+    # (season, phase, ordinal)) and the used slots of the three id-tables, first_names /
+    # surnames / nicknames (natural key: (season, phase, name_table, id)).
+    """CREATE TABLE IF NOT EXISTS raw.name_strings (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, ordinal INTEGER NOT NULL, name VARCHAR
+    )""",
+    """CREATE TABLE IF NOT EXISTS raw.name_ids (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, name_table VARCHAR NOT NULL,
+        id BIGINT NOT NULL, ordinal BIGINT
     )""",
 
     # natural key: (season, phase, id). The game's stage/round/leg name catalog.
@@ -855,7 +871,7 @@ def load_core(con, d, season, phase):
         seen.add(tid)
         feet = v.get("feet") or {}
         prows.append((
-            season, phase, tid, v.get("name"), False,
+            season, phase, tid, *(_int(v.get(c)) for c in NAME_ID_COLS), False,
             _int(v.get("club_tid")), v.get("club"),
             _date(v.get("dob")), _int(v.get("nationality_id")),
             v.get("has_attributes"), _int(v.get("is_gk")),
@@ -893,7 +909,7 @@ def load_core(con, d, season, phase):
                 sarows.append((season, phase, tid)
                               + tuple(v.get(c) for c in STAFF_ATTR_COLS[3:]))
             srows.append((
-                season, phase, tid, v.get("name"), True,
+                season, phase, tid, *(_int(v.get(c)) for c in NAME_ID_COLS), True,
                 _int(v.get("club_tid")), v.get("club"),
                 _date(v.get("dob")), _int(v.get("nationality_id")),
                 False, None, None, None, None,
@@ -908,7 +924,7 @@ def load_core(con, d, season, phase):
                   for c in PERSON_COLS),
             ))
 
-    pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
+    pcols = ["season", "phase", "tid", *NAME_ID_COLS, "is_staff", "club_tid", "club",
              "dob", "nationality_id", "has_attributes",
              "is_gk", "ca", "pa", "reputation",
              "positions", "foot_left", "foot_right",
@@ -919,6 +935,19 @@ def load_core(con, d, season, phase):
     counts["staff"] = _insert(con, "players_raw", pcols, srows)
     counts["staff_attributes"] = _insert(con, "staff_attributes", STAFF_ATTR_COLS, sarows)
     counts["player_attributes"] = _insert(con, "player_attributes_exact_raw", acols, arows)
+
+    # the name tables the name ids above index
+    names_path = os.path.join(d, "names.json")
+    if os.path.exists(names_path):
+        nt = _load_json(names_path)
+        counts["name_strings"] = _insert(con, "name_strings",
+                                         ["season", "phase", "ordinal", "name"],
+                                         [(season, phase, i, s)
+                                          for i, s in enumerate(nt.get("strings") or [])])
+        counts["name_ids"] = _insert(con, "name_ids",
+                                     ["season", "phase", "name_table", "id", "ordinal"],
+                                     [(season, phase, t, r["id"], r["ordinal"])
+                                      for t in NAME_TABLES for r in nt.get(t) or []])
 
     # every scrapbook entry of the 66 player lists, as stored
     sb_path = os.path.join(d, "player_scrapbook.json")
@@ -1350,7 +1379,8 @@ def load_world(con, d, season, phase):
 # DELETE scope so a reload of one group leaves the others intact
 def _clear_group(con, group, season, phase):
     if group == "core":
-        for t in ("players_raw", "player_attributes_exact_raw", "player_scrapbook",
+        for t in ("players_raw", "name_strings", "name_ids",
+                  "player_attributes_exact_raw", "player_scrapbook",
                   "staff_attributes", "player_positions",
                   "player_history", "player_history_seasons", "player_progress",
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
@@ -1713,7 +1743,14 @@ _MIGRATIONS = [
     "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS squad_status INTEGER",
 ] + [f"ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS {c}"
      for c in ("squad_status", "loaned_out", "wage_units", "wage_gbp", "contract_expiry",
-               "contract_expiry_year")]
+               "contract_expiry_year")] + [
+    # 2026-10-01: extract hands over each person's name ids and the name tables they index;
+    # the display name is int.person_names' (data-layers plan, step 8). A store loaded before
+    # keeps its resolved names in raw.players_raw.name, which int.person_names falls back to
+    # for the snapshots that have no ids.
+] + [f"ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS {c} BIGINT" for c in NAME_ID_COLS
+] + [stmt for stmt in DDL
+     if "raw.name_strings (" in stmt or "raw.name_ids (" in stmt]
 
 
 def _backfill_contracts(con):

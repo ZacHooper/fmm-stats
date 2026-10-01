@@ -10,7 +10,7 @@ Nothing is written back to the save.
 ## Usage
 
 ```bash
-uv run --extra archive python extract.py ~/fm-saves/frem/frem-2023-07-02.fms --career frem
+uv run python extract.py ~/fm-saves/frem/frem-2023-07-02.fms --career frem
 ```
 
 This writes `output/<label>/`:

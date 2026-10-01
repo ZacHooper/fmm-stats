@@ -6,18 +6,14 @@ requires-python = ">=3.13"
 dependencies = [
     "duckdb>=1.1",
     "pandas>=2.2",
+    # The save's tail is a zstd-compressed archive (fmparser/core/archive.py); zstd only
+    # enters the stdlib in 3.14. A dependency, not an extra: `uv run` syncs to the
+    # dependency set and drops any extra a call does not name.
+    "zstandard>=0.22",
 ]
 
-# The extractors (extract.py, dump_*.py, fmparser/*) are pure-stdlib and must stay
-# dependency-free. duckdb is imported only by load_duckdb.py / fmq.py, run via uv.
+# The extractors (extract.py, fmparser/*) need only numpy (with pandas) and zstandard;
+# duckdb is imported only by load_duckdb.py / fmq.py / fmstats. Everything runs via uv.
 # package = false: this is a workspace of scripts, not an installable package.
 [tool.uv]
 package = false
-
-[project.optional-dependencies]
-# The save's tail is a zstd-compressed archive (fmparser/archive.py). zstd only enters the
-# stdlib in 3.14, so reading it needs this package; nothing else in the parser imports it
-# and archive.py raises a message naming this extra if it is missing.
-archive = [
-    "zstandard>=0.22",
-]

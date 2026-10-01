@@ -39,7 +39,7 @@ import numpy as np                                   # noqa: E402
 from fmparser.tables import history as H             # noqa: E402
 from fmparser.tables import currencies, languages, nations  # noqa: E402
 from fmparser.tables import cities, stadiums         # noqa: E402
-from fmparser import clubs_comps as R                  # noqa: E402
+from fmparser.tables import names as NM                   # noqa: E402
 from fmparser.tables import clubs as CL, competitions as CO  # noqa: E402
 from fmparser.tables import staff as ST              # noqa: E402
 from fmparser.tables import person_info as PI       # noqa: E402
@@ -221,7 +221,7 @@ def t_currencies(mm):
 def t_browse_names(mm):
     """The flat [len][utf-8] name table at the file's front -- no ids at all, so `n` is the
     only target. It is also the only table here whose start the parser already pins exactly."""
-    start, end, names = R._walk_browse_bounds(mm)
+    start, end, names = NM.walk_browse_bounds(mm)
     if not names:
         return None
     return Table("browse_names", start, n=len(names), note=f"{end - start} bytes of strings")
@@ -230,11 +230,11 @@ def t_browse_names(mm):
 def t_name_id_tables(mm):
     """The two id->ordinal tables, 16B stride, id == slot index. Already walked by their own
     invariant (`_discover_id_tables`), so a declared count would be confirmation, not news."""
-    browse = R._walk_browse(mm)
+    browse = NM.walk_browse(mm)
     if not browse:
         return []
     out = []
-    for i, (base, n) in enumerate(R._discover_id_tables(mm, len(browse))):
+    for i, (base, n) in enumerate(NM.discover_id_tables(mm, len(browse))):
         out.append(Table(f"name_id_table_{i}", base, ids=range(n),
                          note=f"{n} entries x 16B"))
     return out
@@ -493,8 +493,8 @@ def confirm(mm):
             f"{'' if ok else ' -- NOT person-shaped'}")
 
     # ---- the two name id-tables: the LAST declared slot must be a valid entry
-    browse = R._walk_browse(mm)
-    for i, (base, walked) in enumerate(R._discover_id_tables(mm, len(browse))):
+    browse = NM.walk_browse(mm)
+    for i, (base, walked) in enumerate(NM.discover_id_tables(mm, len(browse))):
         declared = _u(mm, base - 4, 4)
         if not (walked <= declared <= walked * 4):
             add(f"name_id_table_{i}", declared, False, f"not count-shaped vs walked {walked}")
