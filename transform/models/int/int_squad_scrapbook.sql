@@ -1,38 +1,84 @@
-{%- set entry_cols = column_names(source('raw', 'player_scrapbook'))
-       | reject('in', ['season', 'phase', 'player_tid']) | list -%}
-{%- set lists = var('club_lists') -%}
-WITH managed AS (
-    SELECT CAST(value AS INTEGER) AS club_tid FROM {{ source('raw', 'app_config') }}
-    WHERE key = 'career_managed_tid'
+-- Every player in our first-team or reserve squad array, with his latest entry
+-- in our club's Manager's Best Eleven lists. A player whose own record names
+-- another club is on loan to us from it.
+{%- set lists = var('club_lists') %}
+
+with managed as (
+    select cast(value as integer) as club_tid
+    from {{ source('raw', 'app_config') }}
+    where key = 'career_managed_tid'
 ),
-ours AS (
-    SELECT e.season, e.phase, m.club_tid, 0 AS reserve
-    FROM {{ source('raw', 'extracts') }} e CROSS JOIN managed m
-    UNION ALL
-    SELECT d.season, d.phase, d.tid, 1
-    FROM {{ source('raw', 'club_details') }} d JOIN managed m ON d.main_club_tid = m.club_tid
+
+ours as (
+    select
+        extracts.season,
+        extracts.phase,
+        managed.club_tid,
+        0 as reserve
+    from {{ source('raw', 'extracts') }} as extracts
+    cross join managed
+    union all
+    select
+        details.season,
+        details.phase,
+        details.tid as club_tid,
+        1 as reserve
+    from {{ source('raw', 'club_details') }} as details
+    inner join managed on details.main_club_tid = managed.club_tid
 ),
-squad AS (
-    SELECT q.season, q.phase, q.player_tid AS tid,
-           arg_min(q.club_tid, o.reserve) AS squad_club_tid
-    FROM {{ source('raw', 'club_squad') }} q JOIN ours o USING (season, phase, club_tid)
-    GROUP BY q.season, q.phase, q.player_tid
+
+squad as (
+    select
+        squads.season,
+        squads.phase,
+        squads.player_tid as tid,
+        arg_min(squads.club_tid, ours.reserve) as squad_club_tid
+    from {{ source('raw', 'club_squad') }} as squads
+    inner join ours
+        on
+            squads.season = ours.season
+            and squads.phase = ours.phase
+            and squads.club_tid = ours.club_tid
+    group by squads.season, squads.phase, squads.player_tid
 ),
-latest AS (
-    SELECT * FROM {{ source('raw', 'player_scrapbook') }}
-    WHERE list BETWEEN {{ lists[0] }} AND {{ lists[1] }}
-    QUALIFY row_number() OVER (PARTITION BY season, phase, player_tid
-                               ORDER BY scrapbook_date DESC, list DESC) = 1
+
+latest as (
+    select entries.*
+    from {{ source('raw', 'player_scrapbook') }} as entries
+    where entries.list between {{ lists[0] }} and {{ lists[1] }}
+    qualify row_number() over (
+        partition by entries.season, entries.phase, entries.player_tid
+        order by entries.scrapbook_date desc, entries.list desc
+    ) = 1
 )
-SELECT q.season, q.phase, q.tid, q.squad_club_tid, c.name AS squad_club,
-       r.club_tid NOT IN (SELECT o.club_tid FROM ours o
-                          WHERE o.season = q.season AND o.phase = q.phase) AS loaned_in,
-       r.club_tid AS own_club_tid, r.club AS own_club
-       {%- for c in entry_cols %},
-       k."{{ c }}"{% endfor %}
-FROM squad q
-JOIN {{ source('raw', 'players_raw') }} r
-  ON r.season = q.season AND r.phase = q.phase AND r.tid = q.tid
-LEFT JOIN {{ source('raw', 'clubs') }} c
-       ON c.season = q.season AND c.phase = q.phase AND c.tid = q.squad_club_tid
-LEFT JOIN latest k ON k.season = q.season AND k.phase = q.phase AND k.player_tid = q.tid
+
+select
+    squad.season,
+    squad.phase,
+    squad.tid,
+    squad.squad_club_tid,
+    clubs.name as squad_club,
+    record.club_tid not in (
+        select ours.club_tid
+        from ours
+        where ours.season = squad.season and ours.phase = squad.phase
+    ) as loaned_in,
+    record.club_tid as own_club_tid,
+    record.club as own_club,
+    latest.* exclude (season, phase, player_tid)  -- noqa: RF02
+from squad
+inner join {{ source('raw', 'players_raw') }} as record
+    on
+        squad.season = record.season
+        and squad.phase = record.phase
+        and squad.tid = record.tid
+left join {{ source('raw', 'clubs') }} as clubs
+    on
+        squad.season = clubs.season
+        and squad.phase = clubs.phase
+        and squad.squad_club_tid = clubs.tid
+left join latest
+    on
+        squad.season = latest.season
+        and squad.phase = latest.phase
+        and squad.tid = latest.player_tid

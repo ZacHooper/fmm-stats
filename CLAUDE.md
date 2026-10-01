@@ -149,7 +149,12 @@ ATTACH the full store for that, not a scrub issue).
   attached under that name: `ATTACH 'copy.duckdb' AS "fm-frem"` (`select sql from
   duckdb_views()` shows it). Tables are unaffected. Its SQL is generated from the `vars` in
   `transform/dbt_project.yml`, which `tests/test_boundary.py` checks against
-  `fmstats/contract.py`. **Test big views on a sample** (`transform/tests/`): a test that
+  `fmstats/contract.py`. **Its SQL is linted and formatted with sqlfluff**
+  (`transform/.sqlfluff`: lower-case keywords, trailing commas, explicit aliases, 80 columns):
+  `uv run python scripts/lint_sql.py` (`--fix` to apply), which lints against an empty store it
+  builds, so no data is needed; keep generated columns as SQL in the loop with plain `{% %}`
+  tags and a literal `{% if not loop.last %},{% endif %}` rather than SQL built in Jinja
+  strings. **Test big views on a sample** (`transform/tests/`): a test that
   reads all 16M ratings costs ~45 s, the sample ~0.6 s. `fmstats/mart.py` derives the old
   analytical tables from the models and `raw` (it is not being moved to dbt: the plan retires
   most of it), and `scout`/`stats`/`league` analyse the mart. The old names (`raw.players`,

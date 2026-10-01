@@ -1,1 +1,7 @@
-SELECT season, phase, ordinal, name FROM {{ source('raw', 'name_strings') }}
+-- The browse string table: every name string the save holds, by ordinal.
+select
+    season,
+    phase,
+    ordinal,
+    name
+from {{ source('raw', 'name_strings') }}

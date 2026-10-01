@@ -1,20 +1,55 @@
-{#- One slice (newest snapshot, first method, first role): one row per non-staff player with
-    attributes, percentiles spanning 0..100, and the best rating ranked 1. Returns a row per
-    broken expectation. -#}
-{%- set s = rating_sample() -%}
-{%- set snap = "season = " ~ s.season ~ " AND phase = '" ~ s.phase ~ "'" -%}
-WITH ranks AS (
-    SELECT * FROM {{ ref('int_player_rating_ranks') }}
-    WHERE {{ snap }} AND method = '{{ s.method }}' AND role = '{{ s.role }}'
+-- One slice (newest snapshot, first method, first role): one row per non-staff
+-- player with attributes, percentiles spanning 0..100, and the best rating
+-- ranked 1. Returns a row when any of those breaks.
+{%- set s = rating_sample() %}
+{%- set in_snapshot %}
+    season = {{ s.season }} and phase = '{{ s.phase }}'
+{%- endset %}
+
+with ranks as (
+    select
+        tid,
+        rating,
+        pctile,
+        rank_overall
+    from {{ ref('int_player_rating_ranks') }}
+    where
+        {{ in_snapshot }}
+        and method = '{{ s.method }}'
+        and role = '{{ s.role }}'
 ),
-players AS (
-    SELECT count(*) AS players FROM {{ ref('int_players') }}
-    WHERE {{ snap }} AND has_attributes AND NOT is_staff
+
+players as (
+    select count(*) as players
+    from {{ ref('int_players') }}
+    where {{ in_snapshot }} and has_attributes and not is_staff
 ),
-facts AS (
-    SELECT count(*) AS n, count(DISTINCT tid) AS tids, min(pctile) AS lo, max(pctile) AS hi,
-           min(rank_overall) AS top, arg_max(rank_overall, rating) AS best_rank
-    FROM ranks
+
+facts as (
+    select
+        count(*) as n,
+        count(distinct tid) as tids,
+        min(pctile) as lo,
+        max(pctile) as hi,
+        min(rank_overall) as top_rank,
+        arg_max(rank_overall, rating) as best_rank
+    from ranks
 )
-SELECT * FROM facts, players
-WHERE n <> players OR tids <> n OR lo <> 0 OR hi <> 100 OR top <> 1 OR best_rank <> 1
+
+select
+    facts.n,
+    facts.tids,
+    facts.lo,
+    facts.hi,
+    facts.top_rank,
+    facts.best_rank,
+    players.players
+from facts
+cross join players
+where
+    facts.n != players.players
+    or facts.tids != facts.n
+    or facts.lo != 0
+    or facts.hi != 100
+    or facts.top_rank != 1
+    or facts.best_rank != 1

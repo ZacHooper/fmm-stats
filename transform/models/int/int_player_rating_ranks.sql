@@ -1,17 +1,43 @@
-{#- each rating's percentile and rank among everyone at that snapshot -#}
-SELECT r.season, r.phase, r.method, r.role, r.tid, r.rating,
-       p.name, p.club, p.club_tid,
-       -- the club record's league: league_id, unless the club plays in another division
-       CASE WHEN d.other_division = 65535 AND d.league_id NOT IN (0, 65535)
-            THEN d.league_id END AS league_cid,
-       ROUND(100 * PERCENT_RANK() OVER (
-           PARTITION BY r.season, r.phase, r.method, r.role
-           ORDER BY r.rating), 1) AS pctile,
-       RANK() OVER (
-           PARTITION BY r.season, r.phase, r.method, r.role
-           ORDER BY r.rating DESC) AS rank_overall
-FROM {{ ref('int_player_ratings') }} r
-JOIN {{ ref('int_players') }} p USING (season, phase, tid)
-LEFT JOIN {{ source('raw', 'club_details') }} d
-       ON (d.season, d.phase, d.tid) = (p.season, p.phase, p.club_tid)
-WHERE NOT p.is_staff
+-- Each rating's percentile and rank among every player at that snapshot.
+select
+    ratings.season,
+    ratings.phase,
+    ratings.method,
+    ratings.role,
+    ratings.tid,
+    ratings.rating,
+    players.name,
+    players.club,
+    players.club_tid,
+    -- the club record's league: league_id, unless it plays in another division
+    case
+        when
+            details.other_division = 65535
+            and details.league_id not in (0, 65535)
+            then details.league_id
+    end as league_cid,
+    round(
+        100 * percent_rank() over (
+            partition by
+                ratings.season, ratings.phase, ratings.method, ratings.role
+            order by ratings.rating
+        ),
+        1
+    ) as pctile,
+    rank() over (
+        partition by
+            ratings.season, ratings.phase, ratings.method, ratings.role
+        order by ratings.rating desc
+    ) as rank_overall
+from {{ ref('int_player_ratings') }} as ratings
+inner join {{ ref('int_players') }} as players
+    on
+        ratings.season = players.season
+        and ratings.phase = players.phase
+        and ratings.tid = players.tid
+left join {{ source('raw', 'club_details') }} as details
+    on
+        players.season = details.season
+        and players.phase = details.phase
+        and players.club_tid = details.tid
+where not players.is_staff
