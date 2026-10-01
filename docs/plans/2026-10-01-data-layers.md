@@ -62,8 +62,9 @@ From the extract plan (Zac, 2026-09-30):
 From the data-model work (Zac, 2026-10-01):
 5. **Layers are raw → stg → int → mart**, and `staging` is renamed `raw`.
 6. **Natural keys, no surrogates.** The store is always rebuilt from scratch, so the save's own
-   ids are stable within a build: `person_id` (never `tid`, which is recycled), team `tid`,
-   competition `cid`, match = (date, home, away).
+   ids are stable within a build: `person_id` = `<tid>-<dob>` (never `tid` alone: the game hands
+   a retired person's slot to a newgen), team `tid`, competition `cid`, match = (date, home,
+   away).
 7. **New marts are named `dim_*` / `fact_*`** and live in `mart` next to the old views, which no
    existing name collides with; the old views are retired one by one.
 8. **The two models** (attributes, transfer value) are fitted offline; their coefficients are raw
@@ -77,8 +78,10 @@ From the data-model work (Zac, 2026-10-01):
 1. **Every model is declared**, not just written as SQL: name, layer, kind, grain (key columns),
    foreign keys, upstream models, SQL. The build order, the tests and the docs all read the
    declaration, the way `Record` declarations drive both the parser and `audit_records.py`.
-2. **Materialisation:** stg are views; int and mart dims/facts are tables (the rules run once per
-   build); derived marts (`standings`, `tie_results`, records) are views.
+2. **Materialisation: only the mart is materialised.** stg and int are views; the build runs
+   them once and writes the mart as tables, so no agent and no site ever reads upstream of the
+   mart. An int model becomes a table only for a measured, serious performance reason, noted in
+   its declaration.
 3. **One source per fact; everything else is a check.** Checks report mismatches and never alter
    the build.
 4. **Every step is gated row-for-row** against a store built from `main` (Part 3).
@@ -317,7 +320,8 @@ events vs score, rebuilt tables vs `club_league_history`, outcomes vs the roll o
 **Blocked by** TODO #16 (extra-time minutes); settle how two-legged ties are stored first.
 
 ## 15. Person and the two models
-- **int**: person identity, `int_player_attributes` (exact where stored, estimated otherwise,
+- **int**: person identity (`person_id` = `<tid>-<dob>`, built across **every** snapshot so a
+  retired player whose slot has gone to a newgen keeps his history), `int_player_attributes` (exact where stored, estimated otherwise,
   with the rule for when an old exact entry gives way to the estimate), `int_player_value`
   (coefficients moved from `fmstats/value_model.py` to a raw seed), seasons unioned across
   snapshots.
@@ -406,9 +410,9 @@ Mismatches are reported, never fixed by the build:
 | #22 docs rewrite | coordinate with steps 5 and 18 |
 
 ## Risks
-- **Query cost.** Compatibility views over several joins are read many times by the old mart. If a
-  rebuild or `fmq` slows noticeably, materialise the int model as a table and keep the view
-  definition as the tested source of truth.
+- **Query cost.** stg and int are views, and until step 17 the old mart reads the compatibility
+  views many times. If a rebuild slows seriously, materialise that one int model and note why in
+  its declaration; nothing downstream of the mart is affected either way.
 - **Published stores.** `publish_duckdb.py` compacts tables only; a view over a compacted table's
   expansion view works (the scrapbook PR relies on it). Check the published copy with `fmq` after
   steps 4, 5, 9 and 18.
