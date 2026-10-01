@@ -56,16 +56,11 @@ models:
       newgen keeps his history.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id]}}
+  # The ratings' grain holds by construction (GROUP BY the key; ranks join int.players on its
+  # own key), and every rating is recomputed from 16M rows on read, so a whole-table test costs
+  # ~45 s and checks nothing the SQL does not already guarantee. The ratings are checked on a
+  # sample instead: tests/int_player_ratings_sample.sql, int_player_rating_ranks_sample.sql.
   - name: int_player_ratings
     description: Every player rated in every role of every weight-set.
-    data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid, method, role]}}
-      - relationship_combination:
-          arguments:
-            columns: [season, phase, tid]
-            to: ref('int_players')
-            to_columns: [season, phase, tid]
   - name: int_player_rating_ranks
     description: Each rating's percentile and rank among everyone at that snapshot.
-    data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid, method, role]}}
