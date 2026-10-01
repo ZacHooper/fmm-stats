@@ -118,7 +118,8 @@ TRAINING_TABLE = TableDef(
     name="training",
     segments=(TRAINING_ROW,),
     locator=locate_training,
-    fields=("tid", "intensity", "focus_role", "focus_attribute", "focus_band", "focus_column"),
+    fields=("tid", "intensity", "focus_role", "focus_attribute", "focus_band", "focus_column",
+            "contracted", "squad_status"),
 )
 
 
@@ -136,7 +137,9 @@ def focus_position(band: int, column: int) -> Optional[str]:
 
 def scrape_training(mm: Any) -> List[Dict[str, Any]]:
     """Every player's row, in tid order: {tid, intensity, focus_role, focus_attribute,
-    focus_position}. Unused rows and staff (no role) are left out. Raises `ValueError` if
+    focus_position, contracted, squad_status}, the last two as stored (`squad_status` means
+    something only where `contracted` is `CONTRACTED`). Unused rows and staff (no role) are
+    left out. Raises `ValueError` if
     the table is not located or a row's tid is neither its index nor unused."""
     rows = TRAINING_TABLE.scrape(mm)
     if not rows:
@@ -151,7 +154,8 @@ def scrape_training(mm: Any) -> List[Dict[str, Any]]:
             continue
         out.append({"tid": r["tid"], "intensity": r["intensity"],
                     "focus_role": r["focus_role"], "focus_attribute": r["focus_attribute"],
-                    "focus_position": focus_position(r["focus_band"], r["focus_column"])})
+                    "focus_position": focus_position(r["focus_band"], r["focus_column"]),
+                    "contracted": r["contracted"], "squad_status": r["squad_status"]})
     return out
 
 

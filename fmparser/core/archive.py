@@ -98,11 +98,15 @@ class ArchiveError(Exception):
     pass
 
 
+class MissingZstandard(ArchiveError, ImportError):
+    """zstandard is not installed, so no archive member can be read."""
+
+
 def _zstd():
     try:
         import zstandard
     except ImportError as exc:                        # pragma: no cover - environment
-        raise ArchiveError(
+        raise MissingZstandard(
             "reading the save archive needs the `zstandard` package: "
             "run `uv sync --extra archive`"
         ) from exc

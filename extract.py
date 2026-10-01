@@ -33,7 +33,6 @@ from fmparser.save import Save
 from fmparser import model as MOD
 from fmparser import clubs_comps as R
 from fmparser.tables.contracts import scrape_contracts
-from fmparser.tables.training import LOAN_STATUS, scrape_squad_status
 from fmparser.tables.person_info import (
     NO_CLUB,
     PERSON_FIELDS,
@@ -101,8 +100,6 @@ def build_database(mm, info, club_names):
     formations = ST.formation_catalog(mm)
     staff_attrs = ST.scrape_staff_attributes(
         mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
-    status = scrape_squad_status(mm)            # {tid: squad-status code}
-    contracts = scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
     # whole-DB name resolver: first/last name ids -> strings.
     R.build_name_resolver(mm)
@@ -153,20 +150,12 @@ def build_database(mm, info, club_names):
             staff[str(tid)] = row
             continue
         rec = attrs.get(p["sid"])
-        sc = status.get(tid)
         club_tid = p["club_tid"]
-        c = contracts.get(tid)                  # contract detail (wage + expiry); may be None
         row = {"tid": tid, "name": full_name(tid, p),
                "club": club_label(club_tid), "club_tid": club_tid,
                "dob": p["dob"], "nationality_id": p["nationality_id"],
                **{k: p[k] for k in PERSON_FIELDS},
-               "has_attributes": rec is not None,
-               "squad_status": sc,
-               "loaned_out": sc == LOAN_STATUS and p["club_tid"] != NO_CLUB,
-               "wage_units": c["wage_units"] if c else None,
-               "wage_gbp": c["wage_gbp"] if c else None,
-               "contract_expiry": c["expiry"] if c else None,
-               "contract_expiry_year": c["expiry_year"] if c else None}
+               "has_attributes": rec is not None}
         if rec:
             row["is_gk"] = int(rec["positions"].get("GK", 0) == 20)
             row["ca"], row["pa"] = rec["ca"], rec["pa"]
@@ -207,6 +196,9 @@ def main():
     ap.add_argument("--label", help="output folder name (default: the save's file name "
                     "without .fms, e.g. frem-2023-07-02)")
     ap.add_argument("--out", default="output", help="output root (default: output/)")
+    ap.add_argument("--no-archive", action="store_true",
+                    help="extract without the save's archive (the world fixtures and the "
+                         "competition rules) when zstandard is not installed")
     ap.add_argument("--career", help="managed-career key from fmparser/careers.py "
                     f"(default: {C.DEFAULT_CAREER}). Known: {', '.join(sorted(C.CAREERS))}")
     args = ap.parse_args()
@@ -271,8 +263,12 @@ def main():
     # the World and Manager's Best Eleven pools, season by season and all-time. Our squad's
     # exact attributes are its entries in the manager's lists; the store picks them.
     dump("player_scrapbook.json", scrapbook_entries(mm), indent=None)
+    # The contract grid, every used slot as stored (fmparser/tables/contracts.py): marker
+    # 0x01 is a current contract; wages and the player's contract are read in the store.
+    dump("contracts.json", scrape_contracts(mm), indent=None)
     # The Training page, for every player in the world: focus role, focus position, attribute
-    # focus and intensity (fmparser/tables/training.py). A scrapbook entry's role is this
+    # focus and intensity, and the row's contract flag and squad status as stored
+    # (fmparser/tables/training.py). A scrapbook entry's role is this
     # focus role on the entry's date.
     try:
         dump("training.json", TRN.scrape_training(mm), indent=None)
@@ -304,12 +300,16 @@ def main():
     #     stage_index/round_index index into the competition's own rules member, which a
     #     match's comp_id reaches through the competition uid (competition_rounds below).
     #
-    # Degrades to an empty file rather than failing the extract: the archive needs
-    # `uv sync --extra archive`, and a save could in principle carry no archive at all.
+    # Reading the archive needs zstandard (`uv run --extra archive`); without it the extract
+    # stops unless --no-archive says to go on without the fixtures and rules. An archive that
+    # is there but does not read degrades to an empty file with a NOTE.
     try:
         world = FIX.fixtures(mm)
     except ImportError as e:
-        print(f"  NOTE: world fixtures skipped ({e}); run `uv sync --extra archive`")
+        if not args.no_archive:
+            raise SystemExit(f"the save's archive needs zstandard ({e}): run extract as "
+                             f"`uv run --extra archive python extract.py ...`, or pass "
+                             f"--no-archive to extract without the fixtures and rules")
         world = []
     except Exception as e:
         print(f"  NOTE: world fixtures unavailable ({type(e).__name__}: {e})")
@@ -329,9 +329,8 @@ def main():
     # (uid, stage_index, round_index) -> 'League Path' / 'Third Qualifying Round'.
     try:
         comp_rounds = CRU.competition_rounds(mm)
-    except ImportError as e:
-        print(f"  NOTE: competition rules skipped ({e}); run `uv sync --extra archive`")
-        comp_rounds = []
+    except ImportError:
+        comp_rounds = []                     # --no-archive; refused above otherwise
     except Exception as e:
         print(f"  NOTE: competition rules unavailable ({type(e).__name__}: {e})")
         comp_rounds = []

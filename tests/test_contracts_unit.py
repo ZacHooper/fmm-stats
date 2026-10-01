@@ -4,12 +4,10 @@
 Tests:
 1. `CONTRACT` record schema layout and span.
 2. `CONTRACT_TABLE` FixedTableDef registration and operations.
-3. Direct O(1) arithmetic lookup and decoding logic via `scrape_contracts()`:
+3. `scrape_contracts()` emits every used slot as stored:
    - tid matching slot index
-   - marker decoding (0x01 active vs non-active markers)
-   - wage calculation from wage_units * WAGE_GBP_PER_UNIT
-   - date decoding (start_date, expiry, expiry_year)
-   - out-of-bounds guards (missing/blank slots)
+   - the marker as stored (0x01 current, anything else lapsed), lapsed slots included
+   - wage units and the two dates (start_date, expiry)
 4. Header frame locating (`locate_contracts`):
    - 11-byte 0x12 frame matching and capacity header parsing
 """
@@ -23,7 +21,6 @@ sys.path.insert(0, ROOT)
 from fmparser.core import DATE, Field, PAD, Record, U16, U32, U8
 from fmparser.tables import TABLES  # noqa: E402
 from fmparser.tables import contracts as CT  # noqa: E402
-from fmparser.tables.contracts import WAGE_GBP_PER_UNIT  # noqa: E402
 
 
 def build_contract_slot_bytes(
@@ -81,30 +78,15 @@ def test_contract_scraping_and_decoding():
 
     # Synthetic buffer of 3 slots (tid 0, 1, 2)
     contracts = CT.scrape_contracts(raw_buf)
-    assert len(contracts) == 2, f"expected 2 active contracts, got {len(contracts)}"
-    assert 0 in contracts
-    assert 1 in contracts
-    assert 2 not in contracts  # inactive marker 0x10 ignored
+    assert [c["tid"] for c in contracts] == [0, 1, 2], contracts
+    assert [c["marker"] for c in contracts] == [0x01, 0x01, 0x10]
+    assert set(contracts[0]) == {"tid", "marker", "wage_units", "expiry", "start_date"}
 
-    c0 = contracts[0]
-    assert c0["wage_units"] == 50
-    assert c0["wage_gbp"] == 50 * WAGE_GBP_PER_UNIT
-    assert c0["expiry_year"] == 2025
-    assert c0["expiry"] == "2025-06-30"
-
-    c1 = contracts[1]
-    assert c1["wage_units"] == 200
-    assert c1["wage_gbp"] == 200 * WAGE_GBP_PER_UNIT
-    assert c1["expiry_year"] == 2028
-
-    # Test targeted lookup by tids_or_info
-    info_map = {0: {}, 5: {}}  # tid 5 is beyond buffer capacity
-    partial = CT.scrape_contracts(raw_buf, tids_or_info=info_map)
-    assert len(partial) == 1
-    assert 0 in partial
-    assert 5 not in partial
-    print("  PASS direct arithmetic, marker filtering, and wage conversion")
-
+    c0, c1 = contracts[0], contracts[1]
+    assert c0["wage_units"] == 50 and c0["expiry"] == "2025-06-30"
+    assert c1["wage_units"] == 200 and c1["expiry"][:4] == "2028"
+    assert c0["start_date"][:4] == "2020"
+    print("  PASS every used slot as stored, lapsed included")
 
 
 def test_contracts_locator_frame():

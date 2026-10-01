@@ -115,7 +115,7 @@ the exact-standings parser (Task: fmparser/standings.py) lands; opponent formati
 are exact; other clubs' 14/23 attributes are model-estimated (so league-wide ratings approximate).
 
 Squad definition (db.squad/squad_tids): OUR_CLUBS = (6567 first team, 11320 reserves).
-Loaned-out players sit in reserves (club_tid=11320, loaned_out=True), so club_tid IN OUR_CLUBS
+Loaned-out players sit in reserves (club_tid=11320), so club_tid IN OUR_CLUBS
 captures first team + reserves + loans; status flag = First team/Reserve/Loan. Team-level
 (Team page) stays club_tid=6567 (league entity). League/nation ranking resolves club→league
 across ALL labels (arg_max latest) so season-start labels borrow the club's prior league.

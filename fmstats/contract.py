@@ -60,3 +60,11 @@ POSITIONS = ("GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC"
 # The scrapbook lists that hold our club's squad, one per season
 # (`fmparser.tables.player_lists.CLUB_LISTS`).
 CLUB_LISTS = range(31, 62)
+
+# The training row's contract flag on a player under contract
+# (`fmparser.tables.training.CONTRACTED`).
+CONTRACTED = 0x87
+
+# Pounds a year per contract wage unit, from ground truth across the range (De Bruyne 34,000
+# units = £17.75M; Hull and Frem players at the low end), within about 2%.
+WAGE_GBP_PER_UNIT = 520
