@@ -1,0 +1,73 @@
+# The T of extract-load-transform for the new layers: stg (one model per raw table), int
+# (joins and rules) and, from step 16 on, the dim_/fact_ tables. The old mart
+# (fmstats/mart.py) is not built here; it reads int through the compatibility views.
+name: fm_stats
+version: "1.0"
+profile: fm_stats
+model-paths: ["models"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  fm_stats:
+    stg:
+      +schema: stg
+      +materialized: view
+    int:
+      +schema: int
+      +materialized: view
+
+vars:
+  # What the SQL is generated from: the raw schema's attribute columns and codes, mirrored
+  # from fmstats/contract.py (tests/test_boundary.py checks the two agree).
+  attr_order: [Aerial, Crossing, Dribbling, Shooting, Passing, Tackling, Technique,
+               Aggression, Creativity, Decisions, Leadership, Movement, Positioning,
+               Teamwork, Pace, Stamina, Strength, Agility, Handling, Kicking, Reflexes,
+               Communication, Throwing]
+  exact_single: [Pace, Strength, Stamina, Technique, Aggression, Leadership, Agility]
+  attribute_columns:          # record offset -> raw.players_raw column
+    "-34": crossing_src
+    "-33": dribbling_src
+    "-32": tackling_src
+    "-31": finishing_src
+    "-30": long_shot_src
+    "-27": passing_src
+    "-26": decision_src
+    "-12": creativity_src
+    "-11": movement_src
+    "-10": positioning_src
+    "-7": handling_src
+    "-6": kicking_src
+    "-4": aerial_gk_src
+    "-3": reflexes_src
+    "-2": communication_src
+    "-1": throwing_src
+    "-29": heading_src
+    "-25": unselfishness_src
+    "-24": pace_src
+    "-23": strength_src
+    "-22": stamina_src
+    "-21": technique_src
+    "-19": aggression_src
+    "-16": leadership_src
+    "-5": agility_src
+    "-28": jumping
+    "-20": consistency
+    "-18": big_match
+    "-17": injury_prone
+    "-15": versatility
+    "-14": set_pieces
+    "-13": penalty
+    "-9": work_rate
+    "-8": flair
+  hidden_attributes: [jumping, consistency, big_match, injury_prone, versatility, set_pieces,
+                      penalty, work_rate, flair]
+  composites:                 # clip(floor(w1*b1 + w2*b2 + offset), 1, 20)
+    Teamwork: {bytes: [unselfishness_src, work_rate], w: [0.50, 0.50, 0.0], estimate: false}
+    Aerial: {bytes: [heading_src, jumping], w: [0.24, 0.76, 0.8], estimate: true}
+  positions: [GK, SW, DL, DC, DR, DMC, ML, MC, MR, AML, AMC, AMR, ST, DML, DMR]
+  club_lists: [31, 61]        # first and last scrapbook list holding our squad
+  contracted: 135             # the training row's contract flag (0x87)
+  wage_gbp_per_unit: 520
+  scrapbook_max_age_days: 365

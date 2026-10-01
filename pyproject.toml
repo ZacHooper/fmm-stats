@@ -17,3 +17,9 @@ dependencies = [
 # package = false: this is a workspace of scripts, not an installable package.
 [tool.uv]
 package = false
+
+[dependency-groups]
+transform = [
+    "dbt-core>=1.12.5",
+    "dbt-duckdb>=1.11.0",
+]
