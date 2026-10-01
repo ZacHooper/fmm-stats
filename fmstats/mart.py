@@ -1473,7 +1473,7 @@ JOIN (SELECT season, arg_max(phase, phase_ord(phase)) AS phase
 # choices each silently deleted real football:
 #
 #   1. Aggregating on person_id and dropping the rows where it is NULL. person_slices is
-#      derived purely from raw.players (int.persons, fmstats/models/people.py), so a player with
+#      derived purely from raw.players (int.persons, transform/models/int/int_persons.sql), so a player with
 #      match rows but no roster row in ANY snapshot never gets an identity — 76 tids here,
 #      42 of them ours. Filtering them out cost 196 of our appearances and 25 of our 2024
 #      goals, 22% of the season. So the aggregation key is `player_key`, which falls back to

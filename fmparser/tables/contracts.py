@@ -7,8 +7,8 @@ preceded by an 11-byte `0x12` delimiter frame and a 4-byte slot capacity header.
 Active contracts carry `marker == 0x01` at offset +4.
 
 Every used slot is emitted as stored, lapsed contracts included: what counts as a player's
-current contract, and his wage in pounds, are decided in the store (`fmstats/models/`). A
-player's squad status (and loan status) is on his training row, `tables/training.py`.
+current contract, and his wage in pounds, are decided in the store (the dbt models in `transform/`). A
+player's squad status is on his training row, `tables/training.py`.
 """
 import struct
 from typing import Any, Dict, List, Optional, Tuple

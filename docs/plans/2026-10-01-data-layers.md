@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-01): in progress. Done: steps 1–8.**
+> **Status (2026-10-01): in progress. Done: steps 1–8; the stg/int layers are a dbt project (`transform/`).**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
@@ -45,8 +45,10 @@ save ─▶ fmparser (E) ─▶ raw (L) ─▶ stg ─▶ int ─▶ mart ─▶
 | **int** | `int` | the logic: snapshot dedupe and latest-phase rules, joins across tables, spells, contract reconstruction, derived standings and outcomes, model scoring | joins and rules live here and only here |
 | **mart** | `mart` | the `dim_*` / `fact_*` tables from `docs/data-model/`, plus consumer-shaped marts built on them | what users, agents and the site read |
 
-stg, int and mart are T-layer code in one package, `fmstats/models/`, with a sub-module per layer
-and per area. It reads the store only, so `tests/test_boundary.py` covers it unchanged.
+stg, int and the `dim_*` / `fact_*` tables are a **dbt** project, `transform/` (decided after
+step 8; it replaced the Python framework step 6 built, output identical). The old consumer
+marts in `fmstats/mart.py` stay in Python and are not moved: the plan retires most of them. dbt
+builds in schemas `stg`, `int` and (from step 16) `mart`, beside the old mart objects there.
 
 ## Decisions
 
@@ -229,6 +231,8 @@ self; the site export from the migrated copy unchanged; `validate_mart.py`, `run
 against the current R2 copy, read as published.
 
 ## 6. The models framework, and the loader's views moved into it
+*(Done; the framework below was then replaced by the dbt project `transform/`, output identical,
+and `validate_models.py` by `dbt test`.)*
 - **`fmstats/models/`**: the declaration (name, layer, kind, grain, foreign keys, upstream, SQL),
   `build(con)` in dependency order, and `tests/validate_models.py` generated from the
   declarations: grain uniqueness, foreign keys resolve, keys not null. A separate checks report
@@ -390,7 +394,7 @@ The check fits what the step touches, and no step waits on a full rebuild:
   a sweep of the whole store.
 - **One full rebuild of both careers**, at step 18, run in the background; and the republish of
   the R2 copies happens there.
-- `validate_mart.py` (and `validate_models.py` from step 6) on the gate store;
+- `validate_mart.py` and `dbt test` on the gate store;
 - a reviewed diff of `export_data.py` run against both gate stores (no-op unless the PR says
   why); `site/api` itself is committed only from a full store;
 - `assert_identical.py` re-recorded with a note naming the files that changed and why;

@@ -11,8 +11,8 @@ Load fm-parser extract bundles into a DuckDB store.
 The tables in the `raw` schema are a 1:1 mirror of the JSON that the extractors
 write to output/<label>/ (same grain, minimal reshaping) — every row stamped with
 season (int end-year, 21/22 -> 2022) and phase (the save's in-game date). The
-modelled layers on top are fmstats/models/ (stg, int) and fmstats/mart.py, built by
-create_views() and create_mart(). Loads are idempotent: re-loading a label replaces
+modelled layers on top are the dbt project in transform/ (stg, int) and fmstats/mart.py,
+built by create_views() and create_mart(). Loads are idempotent: re-loading a label replaces
 exactly that (season, phase) slice.
 
 duckdb is imported only here; the extractors stay pure-stdlib.
@@ -33,8 +33,7 @@ from fmparser.model import ATTR_ORDER
 from fmparser import careers
 from fmparser.tables.matches import EVENT_TYPE
 from fmparser.tables.training import CONTRACTED as _CONTRACTED
-from fmstats import models
-from fmstats.models import compat as models_compat
+from fmstats import compat as models_compat
 from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
@@ -1538,7 +1537,7 @@ def create_schema(con):
     def _build_view():
         _migrate(con)
         _seed_attribute_model(con)
-        models.build(con, ["int.player_attributes"])
+        build_models(con, "+int_player_attributes")
 
     _rename_staging(con)
     _raw_tables(con)
@@ -1966,13 +1965,47 @@ def seed_config_bundle(con):
 # person_id for a slice row; '?' when dob is unknown so the row still gets a stable key
 # (28 tids appear in match stats but in no players slice at all — they keep tid-only identity).
 def create_views(con):
-    """The stg/int models (fmstats/models/) and the compatibility views over them. The
-    attribute coefficients are seeded first: int.player_attributes is generated from them."""
+    """The stg/int models (the dbt project in transform/) and the compatibility views over
+    them. The attribute coefficients are seeded first: int.player_attributes is generated
+    from them. Returns the models built."""
     con.execute(ATTR_MODEL_DDL)
     _seed_attribute_model(con)
     for name in RETIRED_VIEWS:
         con.execute(f"DROP VIEW IF EXISTS {name}")
-    return models.build(con)
+    return build_models(con)
+
+
+TRANSFORM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "transform")
+
+
+def build_models(con, select=None):
+    """Run the dbt project (transform/) against the store `con` is open on -- every model, or
+    the `select` expression -- then create the compatibility views over what it built. dbt
+    runs in this process, so it shares the open database rather than contending for the
+    file's lock. Returns the names of the models built."""
+    from dbt.cli.main import dbtRunner
+    path = con.execute("SELECT path FROM duckdb_databases() "
+                       "WHERE database_name = current_database()").fetchone()[0]
+    if not path:
+        raise RuntimeError("the models are built by dbt, which needs the store as a file; "
+                           "this connection is to an in-memory database")
+    args = ["run", "--project-dir", TRANSFORM_DIR, "--profiles-dir", TRANSFORM_DIR, "--quiet"]
+    if select:
+        args += ["--select", select]
+    before = os.environ.get("FM_DUCKDB")
+    os.environ["FM_DUCKDB"] = os.path.abspath(path)
+    try:
+        res = dbtRunner().invoke(args)
+    finally:
+        if before is None:
+            os.environ.pop("FM_DUCKDB", None)
+        else:
+            os.environ["FM_DUCKDB"] = before
+    if not res.success:
+        raise RuntimeError(f"dbt run failed: {res.exception or 'see the errors above'}")
+    built = [r.node.relation_name for r in res.result if r.status == "success"]
+    models_compat.create(con)
+    return built
 
 
 def report_persons(con):
@@ -2024,7 +2057,7 @@ def main():
     ap.add_argument("--refresh-only", action="store_true",
                     help="rebuild the SQL views, the mart layer AND the role-weight seeds "
                          "against an existing store, loading nothing. All three are just "
-                         "definitions, so a change to fmstats/mart.py, fmstats/models/ or "
+                         "definitions, so a change to fmstats/mart.py, transform/ or "
                          "seeds/role_weights.csv does not reach a store until something "
                          "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()

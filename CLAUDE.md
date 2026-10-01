@@ -135,14 +135,24 @@ ATTACH the full store for that, not a scrub issue).
 - **`load_duckdb.py` is the L** — JSON into `raw` tables, plus the reference seeds only the
   parser can supply (`raw.event_types`, the career keys in `raw.app_config`). It is glue:
   it may import both sides.
-- **`fmstats/` is the T** — `fmstats/models/` declares the `stg` and `int` layers (views over
-  `raw`: the squad's exact values, display names, the attribute decode, the person bridge, role ratings; each
-  model with its grain and keys, checked by `tests/validate_models.py`), `fmstats/mart.py`
-  derives every analytical table from them and `raw`, and `scout`/`stats`/`league` analyse the
-  mart. The old names (`raw.players`, `raw.persons`, `v_player_ratings`, ...) are views over
-  the models (`fmstats/models/compat.py`) until their consumers move to the mart. It imports neither fmparser nor `extract`: it
-  reads a `.duckdb` file, local or the R2 copy, and nothing else. The raw schema plus
-  `fmstats/contract.py` (the attribute column names) is the whole interface.
+- **`transform/` and `fmstats/` are the T.** `transform/` is a **dbt** project (dbt-duckdb)
+  that builds the `stg` and `int` layers as views over `raw` — the squad's exact values,
+  display names, the attribute decode, the person bridge, role ratings — and, from data-layers
+  step 16, the `dim_*`/`fact_*` tables; each model's grain and keys are dbt tests. The loader
+  runs it in-process (`load_duckdb.build_models`), so `--refresh-only` rebuilds it too; by hand
+  it is `cd transform && FM_DUCKDB=<store> uv run dbt build --profiles-dir .`. A model file is
+  `<layer>_<name>.sql` and its relation `<layer>.<name>`; references leave out the catalog, so
+  a copy of the store under another name still binds. Its SQL is generated from the `vars` in
+  `transform/dbt_project.yml`, which `tests/test_boundary.py` checks against
+  `fmstats/contract.py`. **Test big views on a sample** (`transform/tests/`): a test that
+  reads all 16M ratings costs ~45 s, the sample ~0.6 s. `fmstats/mart.py` derives the old
+  analytical tables from the models and `raw` (it is not being moved to dbt: the plan retires
+  most of it), and `scout`/`stats`/`league` analyse the mart. The old names (`raw.players`,
+  `raw.persons`, `v_player_ratings`, ...) are views over the models (`fmstats/compat.py`) until
+  their consumers move to the mart. fmstats imports neither fmparser nor `extract`: it reads a
+  `.duckdb` file, local or the R2 copy, and nothing else, and `fmq` needs no dbt (only the
+  loader builds the models). The raw schema plus `fmstats/contract.py` (the attribute column
+  names) is the whole interface.
 
 `tests/test_boundary.py` enforces both import rules. A fact only the parser knows reaches
 fmstats by the loader writing it into the store, never by fmstats importing it.

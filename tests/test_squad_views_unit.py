@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic unit tests for the squad views (fmstats/models/people.py). No save needed.
+"""Synthetic unit tests for the squad models (transform/models/int/). No save needed.
 
   EXACT     a player in our first-team or reserve squad array takes his name from his
             latest entry in the Manager's Best Eleven lists, and his feet, value and 16
@@ -16,6 +16,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+
+import tempfile  # noqa: E402
 
 import duckdb  # noqa: E402
 
@@ -50,7 +52,8 @@ def entry(con, lst, tid, name, day, attr, value, club=FIRST, loan=0xFFFF):
 
 
 def build():
-    con = duckdb.connect()
+    # dbt builds the models, and needs the store as a file
+    con = duckdb.connect(os.path.join(tempfile.mkdtemp(prefix="squad_views_"), "t.duckdb"))
     L.create_schema(con)
     con.execute("INSERT INTO raw.app_config VALUES ('career_managed_tid', ?)", [str(FIRST)])
     con.execute("INSERT INTO raw.extracts (season, phase, label, source_dir, loaded_at) "

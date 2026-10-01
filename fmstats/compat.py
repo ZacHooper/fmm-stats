@@ -1,7 +1,8 @@
-"""The names consumers used before the models existed, as views over the models.
+"""The names consumers used before the stg/int models existed, as views over the models.
 
-Each goes when its last consumer reads the mart instead (data-layers plan, step 17). A view
-here is created only once the model it reads has been built.
+The models themselves are the dbt project in `transform/`; these views are created after it
+has built them. Each goes when its last consumer reads the mart instead (data-layers plan,
+step 17).
 """
 
 # old name -> (the model it reads, its SELECT)
@@ -22,13 +23,25 @@ VIEWS = {
 }
 
 
-def create(con, built):
-    """Create the compatibility views whose model is in `built`. `CREATE OR REPLACE VIEW`
+def _kind(con, name):
+    """'BASE TABLE', 'VIEW' or None for `schema.table`."""
+    schema, table = name.split(".")
+    row = con.execute("SELECT table_type FROM information_schema.tables "
+                      "WHERE table_schema = ? AND table_name = ?", [schema, table]).fetchone()
+    return row[0] if row else None
+
+
+def create(con):
+    """Create every compatibility view whose model has been built. `CREATE OR REPLACE VIEW`
     cannot replace a table, and older stores hold some of these names as tables (raw.persons,
-    raw.person_slices, raw.player_attributes), so a table of the name is dropped first."""
-    from . import _kind
+    raw.person_slices, raw.player_attributes), so a table of the name is dropped first.
+    Returns the views created."""
+    made = []
     for name, (model, sql) in VIEWS.items():
-        if model in built:
-            if _kind(con, name) == "BASE TABLE":
-                con.execute(f"DROP TABLE {name}")
-            con.execute(f"CREATE OR REPLACE VIEW {name} AS {sql}")
+        if _kind(con, model) is None:
+            continue
+        if _kind(con, name) == "BASE TABLE":
+            con.execute(f"DROP TABLE {name}")
+        con.execute(f"CREATE OR REPLACE VIEW {name} AS {sql}")
+        made.append(name)
+    return made

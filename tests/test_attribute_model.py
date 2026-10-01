@@ -3,7 +3,7 @@
 coefficients -- and, when the store still carries the frozen seed, with fmparser/model.py.
 
 Two implementations of one formula exist now: `model.predict` in Python, and the SQL that
-`fmstats/models/people.py` (int.player_attributes) generates from `raw.attribute_model`. That is the
+the dbt model int.player_attributes (`transform/macros/attribute_decode.sql`) generates from `raw.attribute_model`. That is the
 hazard CLAUDE.md already calls out for `v_player_ratings` vs `site/js/data.js`.
 
 The invariant is NOT "SQL matches model.py" -- that breaks by design the moment anyone refits,
