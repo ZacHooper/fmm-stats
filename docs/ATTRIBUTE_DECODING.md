@@ -265,8 +265,8 @@ Overall on the 28 training players: **63% exact, 93% within ±1**
 
 > **Superseded by `fmparser/tables/player_lists.py`.** The "snapshot" is our club's lists in
 > the player-list table: 66 lists of 100 entries, lists 31-61 our squad one season each. The
-> copies below are those season lists (and the stale pair in lists 62-65); `fmparser/squad.py`
-> reads the latest season list a player is in. Offsets relative to `M` below are the entry
+> copies below are those season lists (and the stale pair in lists 62-65); the store takes
+> a squad player's latest entry in them (`staging.squad_scrapbook`, `load_duckdb.py`). Offsets relative to `M` below are the entry
 > tail's `+87`.
 
 Separate from the 5 MB global record (§1): the managed club keeps its own squad snapshot

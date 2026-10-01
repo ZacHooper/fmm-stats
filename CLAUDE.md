@@ -2,8 +2,9 @@
 
 Reverse-engineering **Football Manager Mobile 2022** `.fms` save files into a queryable
 DuckDB store + a Streamlit dashboard. **Career-aware:** the one genuinely career-specific
-fact is the club you manage (its TID), which is how the parser finds your squad's exact
-names+attributes. Careers are registered in **`fmparser/careers.py`** and each has its own
+fact is the club you manage (its TID), which is how the store finds your squad's exact
+names+attributes (each player in our squad arrays: the 7 plain attributes from his own record,
+the rest from his latest scrapbook entry while it is at most a year old, `staging.squad_scrapbook`). Careers are registered in **`fmparser/careers.py`** and each has its own
 DuckDB store (`fm-<key>.duckdb`):
 
 | key | club | managed tid | reserve | store | state |

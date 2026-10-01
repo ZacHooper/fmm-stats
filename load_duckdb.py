@@ -35,6 +35,7 @@ from fmparser.model import ATTR_ORDER
 from fmparser import model as _A
 from fmparser import careers
 from fmparser.tables.matches import EVENT_TYPE
+from fmparser.tables.player_lists import CLUB_LISTS
 from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
@@ -273,6 +274,137 @@ def _attr_cols_ddl():
     return ",\n    ".join(cols)
 
 
+# staging.player_scrapbook's columns after (season, phase): (column, SQL type, key in
+# player_scrapbook.json). The 23 attributes take the names staging.player_attributes uses.
+SCRAPBOOK_COLS = (
+    [("list", "INTEGER", "list"), ("list_season", "INTEGER", "list_season"),
+     ("slot", "INTEGER", "slot"), ("player_tid", "INTEGER", "player_tid"),
+     ("full_name", "VARCHAR", "full_name"), ("first_name", "VARCHAR", "first_name"),
+     ("last_name", "VARCHAR", "last_name"), ("club_name", "VARCHAR", "club"),
+     ("competition", "VARCHAR", "competition"),
+     ("club_tid", "INTEGER", "club_tid"), ("loan_club_tid", "INTEGER", "loan_club_tid"),
+     ("scrapbook_date", "DATE", None), ("age", "INTEGER", "age"), ("role", "INTEGER", "role")]
+    + [(a, "INTEGER", f"attr_{a.lower()}") for a in ATTR_ORDER]
+    + [(c, "INTEGER", c) for c in ("condition", "morale", "form_1", "form_2", "form_3",
+                                   "form_4", "form_5")]
+    + [("avg_rating", "DOUBLE", "avg_rating")]
+    + [(f"pos_{p.lower()}", "INTEGER", f"pos_{p.lower()}") for p in _POSITIONS]
+    + [("value", "BIGINT", "value"), ("wage", "BIGINT", "wage")]
+    + [(c, "INTEGER", c) for c in ("caps", "intl_goals", "u21_caps", "u21_goals", "apps",
+                                   "goals", "conceded", "assists", "yellows", "foot_left",
+                                   "foot_right", "colour_1", "colour_2")])
+
+
+def _scrapbook_cols_ddl():
+    return ",\n        ".join(f'"{c}" {t}' for c, t, _ in SCRAPBOOK_COLS)
+
+
+def _scrapbook_date(e):
+    """An entry's date: `scrapbook_day` is the 0-based day of `scrapbook_year`."""
+    return (datetime.date(e["scrapbook_year"], 1, 1)
+            + datetime.timedelta(e["scrapbook_day"]))
+
+
+# How old a squad player's scrapbook entry may be and still stand in for his entangled
+# attributes, value and feet. Measured against entries at most a month old on every save of
+# both careers: an entry up to a year old matches on 76-97% of the 23 attributes, the
+# estimate on 71%; past two years the estimate is as good.
+SCRAPBOOK_MAX_AGE_DAYS = 365
+
+
+def _squad_views(S="staging"):
+    """Our squad's exact values, as views over the tables the loader writes.
+
+    `staging.squad_scrapbook`: every player in our squad on each snapshot -- the first team's
+    or the reserve side's squad array (staging.club_squad; the reserve side is the club whose
+    record names ours as its main club) -- with his latest entry in the Manager's Best
+    Eleven lists. The entries are rewritten on the 1st of every month while he plays that
+    season, and frozen otherwise. A player in the squad whose own record names another club
+    is on loan to us from it. A player with no entry yet has none of the entry's columns.
+
+    `staging.players` and `staging.player_attributes_exact` are the raw tables with the
+    squad's values in their place: his name from the entry; his feet, value and the 16
+    entangled attributes from it while it is at most `SCRAPBOOK_MAX_AGE_DAYS` old
+    (`scrapbook_date` is set only then). The seven plain attributes always come from his
+    own record, which states them outright and is current. Everyone else keeps his own
+    record, and his entangled attributes are estimated (staging.player_attributes)."""
+    lo, hi = CLUB_LISTS.start, CLUB_LISTS.stop - 1
+    entry_cols = ", ".join(f'k."{c}"' for c, _, _ in SCRAPBOOK_COLS
+                           if c not in ("player_tid",))
+    squad = f"""CREATE OR REPLACE VIEW {S}.squad_scrapbook AS
+WITH managed AS (
+    SELECT CAST(value AS INTEGER) AS club_tid FROM {S}.app_config
+    WHERE key = 'career_managed_tid'
+),
+ours AS (
+    SELECT e.season, e.phase, m.club_tid, 0 AS reserve
+    FROM {S}.extracts e CROSS JOIN managed m
+    UNION ALL
+    SELECT d.season, d.phase, d.tid, 1
+    FROM {S}.club_details d JOIN managed m ON d.main_club_tid = m.club_tid
+),
+squad AS (
+    SELECT q.season, q.phase, q.player_tid AS tid,
+           arg_min(q.club_tid, o.reserve) AS squad_club_tid
+    FROM {S}.club_squad q JOIN ours o USING (season, phase, club_tid)
+    GROUP BY q.season, q.phase, q.player_tid
+),
+latest AS (
+    SELECT * FROM {S}.player_scrapbook
+    WHERE list BETWEEN {lo} AND {hi}
+    QUALIFY row_number() OVER (PARTITION BY season, phase, player_tid
+                               ORDER BY scrapbook_date DESC, list DESC) = 1
+)
+SELECT q.season, q.phase, q.tid, q.squad_club_tid, c.name AS squad_club,
+       r.club_tid NOT IN (SELECT o.club_tid FROM ours o
+                          WHERE o.season = q.season AND o.phase = q.phase) AS loaned_in,
+       r.club_tid AS own_club_tid, r.club AS own_club,
+       {entry_cols}
+FROM squad q
+JOIN {S}.players_raw r ON r.season = q.season AND r.phase = q.phase AND r.tid = q.tid
+LEFT JOIN {S}.clubs c ON c.season = q.season AND c.phase = q.phase AND c.tid = q.squad_club_tid
+LEFT JOIN latest k ON k.season = q.season AND k.phase = q.phase AND k.player_tid = q.tid"""
+
+    has = "k.scrapbook_date IS NOT NULL"
+    fresh = (f"({has} AND TRY_CAST(k.phase AS DATE) - k.scrapbook_date"
+             f" <= {SCRAPBOOK_MAX_AGE_DAYS})")
+    over = {
+        "name": f"CASE WHEN {has} THEN k.full_name ELSE r.name END",
+        "club_tid": "CASE WHEN k.loaned_in THEN k.squad_club_tid ELSE r.club_tid END",
+        "club": "CASE WHEN k.loaned_in THEN k.squad_club ELSE r.club END",
+        "foot_left": f"CASE WHEN {fresh} THEN k.foot_left ELSE r.foot_left END",
+        "foot_right": f"CASE WHEN {fresh} THEN k.foot_right ELSE r.foot_right END",
+    }
+    added_after = {"foot_right": [("player_value", f"CASE WHEN {fresh} THEN k.value END"),
+                                  ("loaned_in", "COALESCE(k.loaned_in, FALSE)"),
+                                  ("parent_club_tid", "CASE WHEN k.loaned_in THEN k.own_club_tid END"),
+                                  ("parent_club", "CASE WHEN k.loaned_in THEN k.own_club END")]}
+    return squad, over, added_after, fresh
+
+
+def _players_views(con, S="staging"):
+    """The three squad views, in dependency order (see `_squad_views`)."""
+    squad, over, added_after, fresh = _squad_views(S)
+    cols = [r[1] for r in con.execute(f"PRAGMA table_info('{S}.players_raw')").fetchall()]
+    sel = []
+    for c in cols:
+        sel.append(f'{over[c]} AS "{c}"' if c in over else f'r."{c}"')
+        sel += [f'{e} AS "{n}"' for n, e in added_after.get(c, [])]
+    sel.append(f'CASE WHEN {fresh} THEN k.scrapbook_date END AS "scrapbook_date"')
+    players = (f"CREATE OR REPLACE VIEW {S}.players AS\nSELECT " + ",\n       ".join(sel)
+               + f"\nFROM {S}.players_raw r\nLEFT JOIN {S}.squad_scrapbook k"
+               f" ON k.season = r.season AND k.phase = r.phase AND k.tid = r.tid")
+    attrs = ",\n       ".join(
+        f'e."{a}"' if a in _A.EXACT_SINGLE
+        else f'CASE WHEN {fresh} THEN k."{a}" ELSE e."{a}" END AS "{a}"'
+        for a in ATTR_ORDER)
+    exact = (f"CREATE OR REPLACE VIEW {S}.player_attributes_exact AS\n"
+             f"SELECT e.season, e.phase, e.tid,\n       {attrs}\n"
+             f"FROM {S}.player_attributes_exact_raw e\nLEFT JOIN {S}.squad_scrapbook k"
+             f" ON k.season = e.season AND k.phase = e.phase AND k.tid = e.tid")
+    return [squad, players, exact]
+
+
 def _exact_cols_ddl():
     # No `_est` columns here: a NULL IS the "not stated" flag, and the view derives the rest.
     return ",\n    ".join(f'"{a}" INTEGER' for a in ATTR_ORDER)
@@ -480,16 +612,17 @@ DDL = [
         source VARCHAR NOT NULL
     )""",
 
+    # Each person's own record as the save stores it. staging.players is a VIEW over this plus
+    # our squad's scrapbook entries (squad_scrapbook, below).
     # natural key: (season, phase, tid)
-    """CREATE TABLE IF NOT EXISTS staging.players (
+    """CREATE TABLE IF NOT EXISTS staging.players_raw (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         tid INTEGER NOT NULL, name VARCHAR, is_staff BOOLEAN NOT NULL DEFAULT FALSE,
         club_tid INTEGER, club VARCHAR, league_cid INTEGER, league VARCHAR,
         dob DATE, nationality_id INTEGER, has_attributes BOOLEAN,
         squad_status INTEGER, loaned_out BOOLEAN, is_gk INTEGER,
         ca INTEGER, pa INTEGER, reputation INTEGER, positions JSON,
-        foot_left INTEGER, foot_right INTEGER, player_value BIGINT,
-        loaned_in BOOLEAN, parent_club_tid INTEGER, parent_club VARCHAR,
+        foot_left INTEGER, foot_right INTEGER,
         wage_units INTEGER, wage_gbp BIGINT, contract_expiry DATE, contract_expiry_year INTEGER,
         -- tail of the global attribute record (see fmparser.attributes.record_tail).
         -- `reputation` above is HOME reputation; these are the other two.
@@ -530,13 +663,26 @@ DDL = [
     )""",
 
     # natural key: (season, phase, tid)
-    # What the SAVE STATES outright: exact values only, NULL where the record does not carry
-    # one plainly. staging.player_attributes is a VIEW over this plus staging.attribute_model.
-    f"""CREATE TABLE IF NOT EXISTS staging.player_attributes_exact (
+    # What the player's own record states outright: exact values only, NULL where the record
+    # does not carry one plainly. staging.player_attributes_exact is a VIEW over this with our
+    # squad's scrapbook values in their place; staging.player_attributes is a VIEW over that
+    # plus staging.attribute_model.
+    f"""CREATE TABLE IF NOT EXISTS staging.player_attributes_exact_raw (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         {_exact_cols_ddl()}
     )""",
     ATTR_MODEL_DDL,
+
+    # Every scrapbook entry in the save's 66 player lists (fmparser/tables/player_lists.py):
+    # the World Best XI pools (lists 0-30), the Manager's Best Eleven pools (31-61, every player
+    # who played for the manager, season by season) and the two all-time pairs (62-65). Each is
+    # the player's Scrapbook Profile as of `scrapbook_date`. `list_season` is 65535 while the
+    # list's season is in progress.
+    # natural key: (season, phase, list, slot)
+    f"""CREATE TABLE IF NOT EXISTS staging.player_scrapbook (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        {_scrapbook_cols_ddl()}
+    )""",
 
     # Coaching ability + the manager formation triple, from the STAFF attribute record
     # (fmparser/staff.py). Separate from staging.players because only ~4.2k of ~7.5k staff
@@ -1034,9 +1180,6 @@ def load_core(con, d, season, phase):
             _int(v.get("ca")), _int(v.get("pa")), _int(v.get("reputation")),
             json.dumps(v.get("positions") or {}),
             _int(feet.get("left")), _int(feet.get("right")),
-            _int(v.get("value")),
-            bool(v.get("loaned_in")), _int(v.get("parent_club_tid")),
-            v.get("parent_club"),
             _int(v.get("wage_units")), _int(v.get("wage_gbp")),
             _date(v.get("contract_expiry")), _int(v.get("contract_expiry_year")),
             _int(v.get("current_reputation")), _int(v.get("world_reputation")),
@@ -1047,7 +1190,6 @@ def load_core(con, d, season, phase):
             *(_int(v.get(c)) for c in SRC_COLS),
             *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
               for c in PERSON_COLS),
-            _date(v.get("attribute_snapshot_date")),
         ))
         # EXACT values only. `estimated` marks which of the extract's values the save states
         # outright; anything else is stored NULL and derived by staging.player_attributes.
@@ -1075,8 +1217,7 @@ def load_core(con, d, season, phase):
                 _int(v.get("club_tid")), v.get("club"), None, None,
                 _date(v.get("dob")), _int(v.get("nationality_id")),
                 False, None, None, None, None, None, None,
-                json.dumps({}), None, None, None,
-                False, None, None,
+                json.dumps({}), None, None,
                 None, None, None, None,
                 # record_tail + the hidden block: staff have no global attribute record
                 # (PlayerId == -1), so both are NULL. Sized from the parser's own tables so
@@ -1086,22 +1227,29 @@ def load_core(con, d, season, phase):
                 # ...but the PERSON block is on the info record, so staff DO have it.
                 *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
                   for c in PERSON_COLS),
-                None,
             ))
 
     pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
              "league_cid", "league", "dob", "nationality_id", "has_attributes",
              "squad_status", "loaned_out", "is_gk", "ca", "pa", "reputation",
-             "positions", "foot_left", "foot_right", "player_value",
-             "loaned_in", "parent_club_tid", "parent_club",
+             "positions", "foot_left", "foot_right",
              "wage_units", "wage_gbp", "contract_expiry", "contract_expiry_year",
              "current_reputation", "world_reputation", "international_retired",
              "squad_number", "preferred_squad_number", "height_cm", "weight_kg"
-             ] + PLAYER_HIDDEN_COLS + SRC_COLS + PERSON_COLS + ["attribute_snapshot_date"]
-    counts["players"] = _insert(con, "players", pcols, prows)
-    counts["staff"] = _insert(con, "players", pcols, srows)
+             ] + PLAYER_HIDDEN_COLS + SRC_COLS + PERSON_COLS
+    counts["players"] = _insert(con, "players_raw", pcols, prows)
+    counts["staff"] = _insert(con, "players_raw", pcols, srows)
     counts["staff_attributes"] = _insert(con, "staff_attributes", STAFF_ATTR_COLS, sarows)
-    counts["player_attributes"] = _insert(con, "player_attributes_exact", acols, arows)
+    counts["player_attributes"] = _insert(con, "player_attributes_exact_raw", acols, arows)
+
+    # every scrapbook entry of the 66 player lists, as stored
+    sb_path = os.path.join(d, "player_scrapbook.json")
+    if os.path.exists(sb_path):
+        sb = [(season, phase) + tuple(_scrapbook_date(e) if key is None else e.get(key)
+                                      for _, _, key in SCRAPBOOK_COLS)
+              for e in _load_json(sb_path)]
+        counts["player_scrapbook"] = _insert(
+            con, "player_scrapbook", ["season", "phase"] + [c for c, _, _ in SCRAPBOOK_COLS], sb)
 
     # long-form positions (every position a player can play + familiarity)
     pprows = []
@@ -1575,7 +1723,8 @@ def load_world(con, d, season, phase):
 # DELETE scope so a reload of one group leaves the others intact
 def _clear_group(con, group, season, phase):
     if group == "core":
-        for t in ("players", "player_attributes_exact", "staff_attributes", "player_positions",
+        for t in ("players_raw", "player_attributes_exact_raw", "player_scrapbook",
+                  "staff_attributes", "player_positions",
                   "player_history", "player_history_seasons", "player_progress",
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
                   "nation_coefficients", "nation_languages",
@@ -1766,9 +1915,12 @@ def create_schema(con):
     # that would have added it sat four lines further down.
     def _build_view():
         _migrate(con)
+        for stmt in _players_views(con):
+            con.execute(stmt)
         _seed_attribute_model(con)
         con.execute(_player_attributes_view(con))
 
+    _raw_tables(con)
     made_view = False
     for stmt in DDL:
         if not made_view and re.search(r"staging\.player_attributes\b(?!_exact)", stmt):
@@ -1780,19 +1932,32 @@ def create_schema(con):
     _migrate(con)          # again: tables created later in DDL get their columns too
 
 
+def _raw_tables(con, S="staging"):
+    """staging.players and staging.player_attributes_exact were TABLES until 2026-09-30 and
+    are VIEWS over `players_raw` / `player_attributes_exact_raw` now: rename a store's
+    tables to the raw names, and drop the columns the players view now derives."""
+    for old in ("players", "player_attributes_exact"):
+        kind = con.execute(
+            "SELECT table_type FROM information_schema.tables "
+            "WHERE table_schema = ? AND table_name = ?", [S, old]).fetchone()
+        if kind and kind[0] == "BASE TABLE":
+            con.execute(f"ALTER TABLE {S}.{old} RENAME TO {old}_raw")
+    if con.execute("SELECT 1 FROM information_schema.tables "
+                   "WHERE table_schema = ? AND table_name = 'players_raw'", [S]).fetchone():
+        for c in ("player_value", "loaned_in", "parent_club_tid", "parent_club",
+                  "attribute_snapshot_date"):
+            con.execute(f"ALTER TABLE {S}.players_raw DROP COLUMN IF EXISTS {c}")
+
+
 # Column additions for stores created before a schema change (CREATE TABLE IF NOT EXISTS
 # won't add columns to an existing table). Each is idempotent.
 _MIGRATIONS = [
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS attribute_snapshot_date DATE",
     "ALTER TABLE staging.club_records ADD COLUMN IF NOT EXISTS record_table VARCHAR",
     "ALTER TABLE staging.player_records ADD COLUMN IF NOT EXISTS record_table VARCHAR",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS loaned_in BOOLEAN",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS parent_club_tid INTEGER",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS parent_club VARCHAR",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS wage_units INTEGER",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS wage_gbp BIGINT",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry DATE",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS wage_units INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS wage_gbp BIGINT",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS contract_expiry DATE",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
     "ALTER TABLE staging.leagues ADD COLUMN IF NOT EXISTS reputation INTEGER",
     # 2026-08-19: career history re-decoded (linked-list chains + the P-38 link), which also
     # yielded assists, average rating and the debut season. See fmparser/tables/history.py.
@@ -1817,8 +1982,8 @@ _MIGRATIONS = [
     # nyongrand/fmm-editor; see docs/agent-context/fmm-editor-record-comparison.md. Same
     # caveat as mistGoal above: the values are absent from existing output/*.json, so
     # --refresh-only adds the columns as NULL and a backfill needs a full re-extract.
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS current_reputation INTEGER",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS world_reputation INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS current_reputation INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS world_reputation INTEGER",
     """CREATE TABLE IF NOT EXISTS staging.world_fixtures (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         home_tid INTEGER NOT NULL, away_tid INTEGER NOT NULL,
@@ -1846,11 +2011,11 @@ _MIGRATIONS = [
     """CREATE TABLE IF NOT EXISTS staging.round_names (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR
     )""",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS international_retired BOOLEAN",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS squad_number INTEGER",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS preferred_squad_number INTEGER",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS height_cm INTEGER",
-    "ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS weight_kg INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS international_retired BOOLEAN",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS squad_number INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS preferred_squad_number INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS height_cm INTEGER",
+    "ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS weight_kg INTEGER",
     # 2026-09-16: competition LEVEL (0 = top flight) + parent cid, and the reputation read
     # moved from the trailer's p+8 to p+9 -- the old offset straddled the background colour
     # and returned roughly 256x the real value. See fmparser/clubs_comps.py.
@@ -1889,7 +2054,7 @@ _MIGRATIONS = [
     # different excuse. Now carried, and named from fmm-editor's Player.cs. Same caveat:
     # absent from existing output/*.json, so --refresh-only adds them as NULL and a backfill
     # needs a full re-extract.
-] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} INTEGER"
+] + [f"ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS {c} INTEGER"
      for c in PLAYER_HIDDEN_COLS] + [
     # history.player_snapshots froze its columns at CREATE TABLE ... AS SELECT time, so it
     # needs the same additions or the archive silently stops carrying them.
@@ -1900,11 +2065,11 @@ _MIGRATIONS = [
     # 2026-09-16: the info record's personality block and international record. Decoded and
     # verified against screenshots back in BUGS #14, then never wired into the parser -- the
     # same identified-and-discarded failure as the record tail.
-] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} INTEGER"
+] + [f"ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS {c} INTEGER"
      for c in SRC_COLS] + [
 ] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} INTEGER"
      for c in SRC_COLS] + [
-] + [f"ALTER TABLE staging.players ADD COLUMN IF NOT EXISTS {c} {t}"
+] + [f"ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS {c} {t}"
      for c, t in _PERSON_SQL.items()] + [
 ] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} {t}"
      for c, t in _PERSON_SQL.items()]
@@ -2125,6 +2290,8 @@ def rebuild_persons(con):
 def create_views(con):
     # The attribute model first: staging.player_attributes is a VIEW built from the
     # coefficient table, and most of what follows reads it.
+    for stmt in _players_views(con):
+        con.execute(stmt)
     con.execute(ATTR_MODEL_DDL)
     _seed_attribute_model(con)
     con.execute(_player_attributes_view(con))
