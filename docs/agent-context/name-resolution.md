@@ -34,6 +34,8 @@ browse table (adjacent entries Andersen id1450 / Sørensen id160), and there's n
 so id→string needs these separate id-index tables, which sit mid-file inside the big binary section
 (not adjacent to the names). Found via searching the whole file for the `[ordinal][id]` u32 pair.
 
+**Where it lives now (2026-10-01, data-layers step 8):** extract no longer resolves names. It dumps `names.json` (`fmparser/tables/names.py` `scrape_names`: the browse strings plus the used slots of the three id-tables, first names / surnames / nicknames, each `{id, ordinal}`) and each person's `first_name_id` / `last_name_id` / `common_name_id`; the loader lands them as `raw.name_strings`, `raw.name_ids` and three `raw.players_raw` columns, and the display name -- common name, else first + last -- is the model `int.person_names`. Our squad's names still come from their scrapbook entries (`int.players`). The history below is how the tables were found.
+
 **SHIPPED (2026-08).** `reference.build_name_resolver(mm, validate=…)` auto-discovers the browse table
 (`_walk_browse`) + both id-index tables (`_discover_id_tables`, anchors on id=8192, walks the dense
 run back to base). Orientation: larger table = surnames, then a self-check against the managed squad's

@@ -27,9 +27,12 @@ FIRST, RESERVE, OTHER = 346, 7296, 900
 
 
 def raw(con, tid, name, club, pace):
-    con.execute("INSERT INTO raw.players_raw (season, phase, tid, name, is_staff, club_tid,"
-                " club, foot_left, foot_right) VALUES (?, ?, ?, ?, FALSE, ?, ?, 5, 20)",
-                [S, P, tid, name, club, f"club {club}"])
+    # his name is his common name: nicknames id `tid` -> browse ordinal `tid`
+    con.execute("INSERT INTO raw.players_raw (season, phase, tid, common_name_id, is_staff,"
+                " club_tid, club, foot_left, foot_right) VALUES (?, ?, ?, ?, FALSE, ?, ?, 5, 20)",
+                [S, P, tid, tid, club, f"club {club}"])
+    con.execute("INSERT INTO raw.name_ids VALUES (?, ?, 'nicknames', ?, ?)", [S, P, tid, tid])
+    con.execute("INSERT INTO raw.name_strings VALUES (?, ?, ?, ?)", [S, P, tid, name])
     cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
     vals = [pace if a == "Pace" else None for a in ATTR_ORDER]
     con.execute(f"INSERT INTO raw.player_attributes_exact_raw (season, phase, tid, {cols}) "

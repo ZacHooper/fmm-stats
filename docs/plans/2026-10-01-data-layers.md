@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-01): in progress. Done: steps 1–7.**
+> **Status (2026-10-01): in progress. Done: steps 1–8.**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
@@ -265,7 +265,8 @@ The smallest of the three record steps; it proves the raw → stg → int → co
   attribute record keyed by `sid`: all 34 attribute bytes, positions, CA/PA, the tail) and
   `staff_attributes.json` (keyed by `id2`, formation indices), plus the formation catalog;
 - stg models over each; int does the `sid` / `id2` joins, the player/staff split,
-  `has_attributes`, `is_gk`, `loaned_out` and the `EXACT_SINGLE` masking; the players and
+  `has_attributes`, `is_gk` and the `EXACT_SINGLE` masking (no `loaned_out`: loans are
+  `fact_loan_spell`, step 16); the players and
   exact-attributes compatibility views read int;
 - `build_database` is deleted, and with it extract's import of `fmparser.model`.
 

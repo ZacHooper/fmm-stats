@@ -136,7 +136,7 @@ ATTACH the full store for that, not a scrub issue).
   parser can supply (`raw.event_types`, the career keys in `raw.app_config`). It is glue:
   it may import both sides.
 - **`fmstats/` is the T** — `fmstats/models/` declares the `stg` and `int` layers (views over
-  `raw`: the squad's exact values, the attribute decode, the person bridge, role ratings; each
+  `raw`: the squad's exact values, display names, the attribute decode, the person bridge, role ratings; each
   model with its grain and keys, checked by `tests/validate_models.py`), `fmstats/mart.py`
   derives every analytical table from them and `raw`, and `scout`/`stats`/`league` analyse the
   mart. The old names (`raw.players`, `raw.persons`, `v_player_ratings`, ...) are views over
