@@ -17,8 +17,12 @@ data-layers step 7 stopped deriving it.
 `squad_status` is still carried (`raw.training.squad_status`, `mart.player_snapshots`) as the
 raw contract term it is — a code on the training row, not a statement about availability.
 
-**Who is out on loan:** `mart.loan_out_spells`, drawn from the weekly Player Progress rows
-(`raw.player_progress` via `mart.progress_weeks`). **Who is ours:** `mart.squad_current` /
+**Who is out on loan:** `mart.loan_out_spells` for now, drawn from the weekly Player Progress
+rows (`raw.player_progress` via `mart.progress_weeks`). In the semantic model
+([`docs/data-model/contract-transfer.md`](../data-model/contract-transfer.md)) a loan is
+`fact_loan_spell`, in the contracts-and-transfers area (data-layers step 16): a spell on top of
+an unchanged contract, never a transfer and never a contract at the borrowing club. The
+squad-status "loaned out" code is kept only as a CHECK against that spell, never as its source. **Who is ours:** `mart.squad_current` /
 `mart.squad_on('<date>')`. `loaned_in` survives in `mart.player_snapshots` only for the parent
 club's name; the save never clears it, so it is not evidence a loan is live.
 
