@@ -196,6 +196,9 @@ def main():
     ap.add_argument("--label", help="output folder name (default: the save's file name "
                     "without .fms, e.g. frem-2023-07-02)")
     ap.add_argument("--out", default="output", help="output root (default: output/)")
+    ap.add_argument("--no-archive", action="store_true",
+                    help="extract without the save's archive (the world fixtures and the "
+                         "competition rules) when zstandard is not installed")
     ap.add_argument("--career", help="managed-career key from fmparser/careers.py "
                     f"(default: {C.DEFAULT_CAREER}). Known: {', '.join(sorted(C.CAREERS))}")
     args = ap.parse_args()
@@ -297,12 +300,16 @@ def main():
     #     stage_index/round_index index into the competition's own rules member, which a
     #     match's comp_id reaches through the competition uid (competition_rounds below).
     #
-    # Degrades to an empty file rather than failing the extract: the archive needs
-    # `uv sync --extra archive`, and a save could in principle carry no archive at all.
+    # Reading the archive needs zstandard (`uv run --extra archive`); without it the extract
+    # stops unless --no-archive says to go on without the fixtures and rules. An archive that
+    # is there but does not read degrades to an empty file with a NOTE.
     try:
         world = FIX.fixtures(mm)
     except ImportError as e:
-        print(f"  NOTE: world fixtures skipped ({e}); run `uv sync --extra archive`")
+        if not args.no_archive:
+            raise SystemExit(f"the save's archive needs zstandard ({e}): run extract as "
+                             f"`uv run --extra archive python extract.py ...`, or pass "
+                             f"--no-archive to extract without the fixtures and rules")
         world = []
     except Exception as e:
         print(f"  NOTE: world fixtures unavailable ({type(e).__name__}: {e})")
@@ -322,9 +329,8 @@ def main():
     # (uid, stage_index, round_index) -> 'League Path' / 'Third Qualifying Round'.
     try:
         comp_rounds = CRU.competition_rounds(mm)
-    except ImportError as e:
-        print(f"  NOTE: competition rules skipped ({e}); run `uv sync --extra archive`")
-        comp_rounds = []
+    except ImportError:
+        comp_rounds = []                     # --no-archive; refused above otherwise
     except Exception as e:
         print(f"  NOTE: competition rules unavailable ({type(e).__name__}: {e})")
         comp_rounds = []
