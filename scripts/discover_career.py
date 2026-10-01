@@ -18,7 +18,7 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fmparser.save import Save          # noqa: E402
 from fmparser.tables.player_lists import CLUB_LISTS, NO_CLUB, scrape_player_lists  # noqa: E402
-from fmparser import clubs_comps as R       # noqa: E402
+from fmparser.tables.clubs import scrape_clubs  # noqa: E402
 from fmparser.tables.save_header import read_save_header  # noqa: E402
 
 
@@ -43,9 +43,10 @@ def discover(path):
             club_players[club].add(e["player_tid"])
 
     ranked = sorted(club_players.items(), key=lambda kv: len(kv[1]), reverse=True)
+    clubs = scrape_clubs(mm)
     print(f"{'players':>7} {'tid':>6}  club")
     for clubtid, players in ranked[:12]:
-        name = R.resolve_club(mm, clubtid, "long") or "?"
+        name = (clubs.get(clubtid) or {}).get("name") or "?"
         flag = "  <-- matches nickname" if nick and nick.lower() in name.lower() else ""
         print(f"{len(players):>7} {clubtid:>6}  {name}{flag}")
     print("\nAdd the managed first team (and its Reserves tid) to fmparser/careers.py.")

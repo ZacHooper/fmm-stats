@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-01): in progress. Done: steps 1, 2 and 3.**
+> **Status (2026-10-01): in progress. Done: steps 1, 2, 3 and 4.**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
@@ -217,13 +217,14 @@ migrations, the views it writes), `fmstats/mart.py`, `fmstats/*` (scout, stats, 
 - The views the loader writes today (`squad_scrapbook`, `players` / `player_attributes_exact`
   over their `_raw` tables, the attribute decode view) move with the rename as a documented
   exception to "raw has no logic"; step 6 moves them out.
-- `fmstats/store.py`: a cached copy of an older published store still says `staging`, so before
-  re-creating the mart views it creates `raw` as views over `staging` in the local cache. The
-  published copies are not republished until step 18; `fmq` keeps working against them.
+- Older published copies: `fmstats/store.py` reads a cached copy whose raw tables this
+  checkout's mart cannot bind to "as published", using the mart materialised in it (step 4 put
+  that fallback in). The copies are republished at step 18; until then `fmq` against R2 answers
+  from the mart as last published.
 
 **Check**: the migration run on a copy of the gate store, every table and view equal to its old
 self; the site export from the migrated copy unchanged; `validate_mart.py`, `run_tests.py`; `fmq`
-against the current R2 copy through the alias.
+against the current R2 copy, read as published.
 
 ## 6. The models framework, and the loader's views moved into it
 - **`fmstats/models/`**: the declaration (name, layer, kind, grain, foreign keys, upstream, SQL),
@@ -435,7 +436,7 @@ Mismatches are reported, never fixed by the build:
   its declaration; nothing downstream of the mart is affected either way.
 - **Published stores.** `publish_duckdb.py` compacts tables only; a view over a compacted table's
   expansion view works (the scrapbook PR relies on it). Check the published copy with `fmq` after
-  steps 4, 5 and 9 (through the step-5 alias), and republish at 18.
+  steps 4, 5 and 9 (read as published), and republish at 18.
 - **Store size.** Whole tables (step 4) and the mart tables (13–16) grow the store; check against
   the R2 budget at step 18.
 

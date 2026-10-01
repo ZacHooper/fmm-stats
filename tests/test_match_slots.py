@@ -31,7 +31,7 @@ from tests.harness import skip  # noqa: E402
 from fmparser.tables import match_slots as MS      # noqa: E402
 from fmparser.core import primitives as P        # noqa: E402
 from fmparser.core import schema as SC          # noqa: E402
-from fmparser import clubs_comps as R        # noqa: E402
+from fmparser.tables import clubs as CL  # noqa: E402
 from fmparser.save import Save             # noqa: E402
 
 SAVES = os.path.expanduser("~/fm-saves/frem")
@@ -112,7 +112,7 @@ def main():
               f"{r2[0]/1e6:.4f}M..{r2[1]/1e6:.4f}M  {s2:,} slots")
 
     # ---- the fixture group actually decodes ----
-    idx = R._build_refdata_index(mm)[0]
+    idx = CL.scrape_clubs(mm)
     clubs = set(idx)
     rows = MS.scrape(mm, valid_clubs=clubs)
     raw = MS.scrape(mm)
@@ -145,7 +145,7 @@ def main():
     # The real test: on a fixture where both clubs share a league (so the correct cid is
     # known independently of the row), does any offset actually EQUAL that cid? A real field
     # would hit ~100% for at least one offset; coincidence tops out under ~10%.
-    idx_full, comps = R._build_refdata_index(mm)
+    idx_full = CL.scrape_clubs(mm)
 
     def league_of(tid):
         c = idx_full.get(tid)

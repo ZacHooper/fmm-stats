@@ -1,93 +1,13 @@
 #!/usr/bin/env python3
-"""Reference-data resolvers: club and competition names, player names, the player info field.
+"""The person name resolver and `info_offset`.
 
-The club and competition tables themselves are `tables/clubs.py` and `tables/competitions.py`
-(re-exported here); this module answers lookups over them -- `resolve_club`, `club_record`,
-`league_name`, `comp_detail` -- plus the name resolver and `info_offset`.
+Clubs and competitions are read from their own tables, `tables/clubs.py` and
+`tables/competitions.py`.
 """
 import struct
 
 from .core import primitives as P
-from .tables.clubs import CLUB_TABLE, ClubTableError, club_details, scrape_clubs  # noqa: F401
-from .tables.competitions import (COMP_TABLE, COMP_TYPES, CompTableError,  # noqa: F401
-                                  comp_refs, scrape_competitions)
 from .save import cache_key as _cache_key
-
-_REFDATA_INDEX_CACHE = {}   # _cache_key -> ({tid: club_record}, {cid: comp_record})
-
-
-def _build_refdata_index(mm):
-    """({tid: club}, {cid: competition}) for the whole save, both from their tables."""
-    key = _cache_key(mm)
-    cached = _REFDATA_INDEX_CACHE.get(key)
-    if cached is not None:
-        return cached
-    result = (scrape_clubs(mm), scrape_competitions(mm))
-    _REFDATA_INDEX_CACHE[key] = result
-    return result
-
-
-def resolve_club(mm, tid, want="long"):
-    """Club name for a TID, or None. Requires the full club shape (long name
-    followed by a valid short name) so regions/stadiums/collisions are rejected."""
-    rec = _build_refdata_index(mm)[0].get(tid)
-    if not rec:
-        return None
-    return rec["short"] if want == "short" else rec["name"]
-
-
-def club_record(mm, tid, want="long"):
-    """A club's record: {'name','short','league','country'} or None.
-
-    `league` is the club's league code, read from `[code u16][ff ff]` at +158 past the
-    three name strings (the club.dat model — see docs; verified: Man City=5 English Prem,
-    Boldklubben Frem=1147 Danish 3. Division). This is club->league membership that exists
-    on day-1, before any match is played. The club DB is split across several file
-    segments; the index prefers the copy carrying the league field (secondary copies read
-    0 / ff ff), same as the old per-tid scan. `country` is the compete-in country code
-    (Denmark=138/0x8a, England=139/0x8b)."""
-    rec = _build_refdata_index(mm)[0].get(tid)
-    if not rec:
-        return None
-    return {"name": rec["name"] if want == "long" else rec["short"],
-            "short": rec["short"], "league": rec["league"], "country": rec["country"]}
-
-
-# ---------------- competitions ----------------
-def find_comp_record(mm, cid):
-    """The competition record for `cid` -> full detail dict, or None if that slot is blank.
-
-    Straight lookup into `scrape_competitions`'s output -- there is no searching and no
-    validation involved, because the table is walked in full by arithmetic from its own
-    declared start and count. `cid` IS the slot index.
-
-    It used to be a search, and the docstring here used to describe the gates that search
-    needed: a `[type][0x02][0x00][nation]` "trailer signature", a type-byte whitelist, a
-    `_MIN_COMP_REP` reputation floor, "first record passing all of that in file order wins".
-    Every one of those is gone (2026-09-18), along with the bugs they caused -- cid 2
-    resolving to 'Belfort' instead of '3F Superliga' when a uid rule skipped every top
-    flight, 'Ivory Coast' and 'World' arriving as competitions from neighbouring tables,
-    ~100 real leagues dropped by a length cap and a Europe-only continent test. A record is
-    now whatever the table says is in slot `cid`, and nothing else can end up here.
-    """
-    return _build_refdata_index(mm)[1].get(cid)
-
-
-def league_name(mm, code, want="long"):
-    """Name for a club-record league code (e.g. 1147 -> '3. Division', 2 -> '3F Superliga').
-    League names can start with a digit ('3. Division', '2. Bundesliga')."""
-    r = find_comp_record(mm, code)
-    if not r:
-        return None
-    return (r["short"] or r["name"]) if want == "short" else r["name"]
-
-
-def comp_detail(mm, cid):
-    """Full competition record: cid, uid, name, short, code, type, type_id, nation_id,
-    reputation, level, parent_cid. `type_id` is the real field; `type` is a display label
-    for the five sourced values only (see COMP_TYPES). Read by `COMP_TABLE`."""
-    return find_comp_record(mm, cid)
-
 
 # ---------------- player info field ----------------
 # +16 is the NICKNAME field. FFFFFFFF is the "no nickname" sentinel; a player who HAS one
