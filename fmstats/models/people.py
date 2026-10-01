@@ -69,8 +69,11 @@ LEFT JOIN raw.clubs c ON c.season = q.season AND c.phase = q.phase AND c.tid = q
 LEFT JOIN latest k ON k.season = q.season AND k.phase = q.phase AND k.player_tid = q.tid"""
 
 
-# int.players: a column of raw.players_raw is replaced where our squad's entry says otherwise,
-# and four columns follow foot_right.
+# int.players: a column of raw.players_raw is replaced where our squad's entry says otherwise;
+# the player's squad status follows has_attributes, and the squad-entry columns and his current
+# contract follow foot_right. Staff carry neither a squad status nor a contract. (The staff test
+# sits in the columns, not in the joins' ON: a condition on the left table there turns DuckDB's
+# hash join into a nested loop, 0.02 s -> 36 s.)
 _OVER = {
     "name": f"CASE WHEN {_HAS} THEN k.full_name ELSE r.name END",
     "club_tid": "CASE WHEN k.loaned_in THEN k.squad_club_tid ELSE r.club_tid END",
@@ -78,11 +81,22 @@ _OVER = {
     "foot_left": f"CASE WHEN {_FRESH} THEN k.foot_left ELSE r.foot_left END",
     "foot_right": f"CASE WHEN {_FRESH} THEN k.foot_right ELSE r.foot_right END",
 }
-_ADDED_AFTER = {"foot_right": [
-    ("player_value", f"CASE WHEN {_FRESH} THEN k.value END"),
-    ("loaned_in", "COALESCE(k.loaned_in, FALSE)"),
-    ("parent_club_tid", "CASE WHEN k.loaned_in THEN k.own_club_tid END"),
-    ("parent_club", "CASE WHEN k.loaned_in THEN k.own_club END")]}
+_ADDED_AFTER = {
+    "has_attributes": [
+        ("squad_status", "CASE WHEN NOT r.is_staff THEN t.squad_status END"),
+        ("loaned_out", f"CASE WHEN NOT r.is_staff THEN COALESCE(t.squad_status = "
+                       f"{C.LOAN_STATUS} AND r.club_tid IS DISTINCT FROM {C.NO_CLUB}, FALSE) END")],
+    "foot_right": [
+        ("player_value", f"CASE WHEN {_FRESH} THEN k.value END"),
+        ("loaned_in", "COALESCE(k.loaned_in, FALSE)"),
+        ("parent_club_tid", "CASE WHEN k.loaned_in THEN k.own_club_tid END"),
+        ("parent_club", "CASE WHEN k.loaned_in THEN k.own_club END"),
+        ("wage_units", "CASE WHEN NOT r.is_staff THEN c.wage_units END"),
+        ("wage_gbp", f"CASE WHEN NOT r.is_staff THEN "
+                     f"CAST(c.wage_units AS BIGINT) * {C.WAGE_GBP_PER_UNIT} END"),
+        ("contract_expiry", "CASE WHEN NOT r.is_staff THEN c.expiry END"),
+        ("contract_expiry_year",
+         "CASE WHEN NOT r.is_staff THEN CAST(year(c.expiry) AS INTEGER) END")]}
 
 
 def _players(con):
@@ -93,7 +107,11 @@ def _players(con):
     sel.append(f'CASE WHEN {_FRESH} THEN k.scrapbook_date END AS "scrapbook_date"')
     return ("SELECT " + ",\n       ".join(sel)
             + "\nFROM raw.players_raw r\nLEFT JOIN int.squad_scrapbook k"
-            " ON k.season = r.season AND k.phase = r.phase AND k.tid = r.tid")
+            " ON k.season = r.season AND k.phase = r.phase AND k.tid = r.tid"
+            "\nLEFT JOIN stg.training t ON t.season = r.season AND t.phase = r.phase"
+            " AND t.tid = r.tid"
+            "\nLEFT JOIN stg.contracts c ON c.season = r.season AND c.phase = r.phase"
+            " AND c.tid = r.tid AND c.is_current")
 
 
 def _player_attributes_exact(con):
@@ -216,9 +234,10 @@ MODELS = [
               "his latest Manager's Best Eleven entry. A player whose own record names "
               "another club is on loan to us from it."),
     Model("int.players", _players, grain=("season", "phase", "tid"),
-          upstream=("int.squad_scrapbook",),
-          doc="Each person's own record; for our squad the name from the entry, and feet and "
-              f"value from it while it is at most {SCRAPBOOK_MAX_AGE_DAYS} days old."),
+          upstream=("int.squad_scrapbook", "stg.training", "stg.contracts"),
+          doc="Each person's own record, with his squad status and current contract; for our "
+              "squad the name from the entry, and feet and value from it while it is at most "
+              f"{SCRAPBOOK_MAX_AGE_DAYS} days old."),
     Model("int.player_attributes_exact", _player_attributes_exact,
           grain=("season", "phase", "tid"), upstream=("int.squad_scrapbook",),
           fks={"season, phase, tid": "int.players(season, phase, tid)"},

@@ -160,7 +160,7 @@ The method section below is the field guide; that doc is the map.
 **Two commands are the feedback loop for any parser change, and they are cheap:**
 ```bash
 uv run python tests/run_tests.py            # whole suite; exit 2 means NOTHING ran
-uv run --extra archive python tests/assert_identical.py   # 4 saves x 24 files, per-file SHA-256, ~35s
+uv run --extra archive python tests/assert_identical.py   # 4 saves x 23 files, per-file SHA-256, ~35s
 ```
 `assert_identical.py` is the **acceptance gate**: a restructuring commit must leave the
 extracted JSON byte-identical, and `extract.py` dumps with no `sort_keys`, so **key order is

@@ -70,11 +70,13 @@ def test_scrape():
     rows = T.scrape_training(buf)
     assert [r["tid"] for r in rows] == [0, 1, 2, 3], [r["tid"] for r in rows]
     assert rows[0] == {"tid": 0, "intensity": 2, "focus_role": 1, "focus_attribute": 6,
-                       "focus_position": "GK"}, rows[0]
+                       "focus_position": "GK", "contracted": T.CONTRACTED,
+                       "squad_status": 3}, rows[0]
     assert [r["focus_position"] for r in rows] == ["GK", "DL", "ST", "MR"]
     assert rows[1]["intensity"] == 3 and rows[2]["focus_attribute"] == 17
     assert rows[1]["focus_role"] == 4
-    print("  PASS players only; role, attribute, intensity and the decoded position")
+    print("  PASS players only; role, attribute, intensity, the decoded position, and the "
+          "contract flag and squad status as stored")
 
 
 def test_status():

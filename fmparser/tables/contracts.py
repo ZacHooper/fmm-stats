@@ -6,16 +6,15 @@ one per person slot (`slot_index == tid`). Declared capacity (~59k-61k slots) is
 preceded by an 11-byte `0x12` delimiter frame and a 4-byte slot capacity header.
 Active contracts carry `marker == 0x01` at offset +4.
 
-A player's squad status (and loan status) is on his training row, `tables/training.py`.
+Every used slot is emitted as stored, lapsed contracts included: what counts as a player's
+current contract, and his wage in pounds, are decided in the store (`fmstats/models/`). A
+player's squad status (and loan status) is on his training row, `tables/training.py`.
 """
 import struct
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
 from ..core import DATE, Field, PAD, RAW, Record, U16, U32, U8, UNKNOWN, TableDef, table_spans
-
-# £/yr per wage unit (from ground truth: De Bruyne 34000u=£17.75M, Hull/Frem across the range).
-WAGE_GBP_PER_UNIT = 520
 
 __all__ = [
     "CONTRACT",
@@ -90,15 +89,6 @@ def locate_contracts(mm: Any) -> Optional[Tuple[int, int]]:
     return None
 
 
-def _active_contract(rec: Dict[str, Any], offset: int) -> Optional[Dict[str, Any]]:
-    """An active contract as extract emits it, or None: marker 0x01 and a 2018-2045 expiry."""
-    if rec["marker"] != 0x01 or not 2018 <= rec["expiry_year"] <= 2045:
-        return None
-    w = rec["wage_units"]
-    return {"tid": rec["tid"], "wage_units": w, "wage_gbp": w * WAGE_GBP_PER_UNIT,
-            "expiry": rec["expiry"], "expiry_year": rec["expiry_year"]}
-
-
 # A preallocated grid (shape C): the u32 at base-6 is the CAPACITY (59,632 on Frem), not a
 # headcount. Slots are dense from tid 0 (33,127 used on Frem) and the rest are empty, tid
 # FFFFFFFF -- so `tid == slot` is the invariant that ends the used part.
@@ -107,7 +97,7 @@ CONTRACT_TABLE = TableDef(
     segments=(CONTRACT,),
     locator=locate_contracts,
     invariant=lambda rec, slot: rec["tid"] == slot,
-    post_process=_active_contract,
+    fields=("tid", "marker", "wage_units", "expiry", "start_date"),
 )
 
 
@@ -116,16 +106,7 @@ def contracts_table_spans(mm: Any) -> List[Tuple[int, int]]:
     return table_spans(mm, CONTRACT_TABLE, include_count_header=True)
 
 
-def scrape_contracts(
-    mm: Any,
-    tids_or_info: Optional[Union[Iterable[int], Dict[int, Any]]] = None,
-) -> Dict[int, Dict[str, Any]]:
-    """{tid: {wage_units, wage_gbp, expiry, expiry_year}} for every active contract in the
-    grid, or for those of the given tids (in their order)."""
-    grid = {r["tid"]: {k: v for k, v in r.items() if k != "tid"}
-            for r in CONTRACT_TABLE.scrape(mm)}
-    if tids_or_info is None:
-        return grid
-    tids = tids_or_info.keys() if isinstance(tids_or_info, dict) else tids_or_info
-    return {t: grid[t] for t in tids if t in grid}
-
+def scrape_contracts(mm: Any) -> List[Dict[str, Any]]:
+    """Every used slot of the grid, in tid order: {tid, marker, wage_units, expiry,
+    start_date}. marker 0x01 is a current contract."""
+    return CONTRACT_TABLE.scrape(mm)

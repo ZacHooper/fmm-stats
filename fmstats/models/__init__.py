@@ -52,9 +52,9 @@ class Model:
 
 
 def _registry():
-    from . import people, ratings          # noqa: F401  (each module declares its models)
+    from . import people, ratings, stg     # noqa: F401  (each module declares its models)
     out = {}
-    for m in (*people.MODELS, *ratings.MODELS):
+    for m in (*stg.MODELS, *people.MODELS, *ratings.MODELS):
         if m.name in out:
             raise ValueError(f"model {m.name} declared twice")
         if m.schema not in SCHEMAS:

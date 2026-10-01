@@ -32,6 +32,7 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 from fmparser.model import ATTR_ORDER
 from fmparser import careers
 from fmparser.tables.matches import EVENT_TYPE
+from fmparser.tables.training import CONTRACTED as _CONTRACTED
 from fmstats import models
 from fmstats.models import compat as models_compat
 from fmstats.mart import create_mart, drop_mart
@@ -235,12 +236,20 @@ DDL = [
     )""",
 
     # The Training page, one row per player: focus role and position, attribute focus and
-    # intensity (fmparser.tables.training). Every player in the world, not just ours.
+    # intensity, and the row's contract flag and squad status as stored
+    # (fmparser.tables.training). Every player in the world, not just ours.
     # natural key: (season, phase, tid)
     """CREATE TABLE IF NOT EXISTS raw.training (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         intensity INTEGER, focus_role INTEGER, focus_attribute INTEGER,
-        focus_position VARCHAR
+        focus_position VARCHAR, contracted INTEGER, squad_status INTEGER
+    )""",
+
+    # The contract grid, every used slot as stored (fmparser.tables.contracts); marker 1 is
+    # a current contract. natural key: (season, phase, tid)
+    """CREATE TABLE IF NOT EXISTS raw.contracts (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
+        marker INTEGER, wage_units INTEGER, expiry DATE, start_date DATE
     )""",
 
     # The club record's trailer (fmparser.tables.clubs.CLUB_TABLE). Facts the club
@@ -371,10 +380,9 @@ DDL = [
         tid INTEGER NOT NULL, name VARCHAR, is_staff BOOLEAN NOT NULL DEFAULT FALSE,
         club_tid INTEGER, club VARCHAR,
         dob DATE, nationality_id INTEGER, has_attributes BOOLEAN,
-        squad_status INTEGER, loaned_out BOOLEAN, is_gk INTEGER,
+        is_gk INTEGER,
         ca INTEGER, pa INTEGER, reputation INTEGER, positions JSON,
         foot_left INTEGER, foot_right INTEGER,
-        wage_units INTEGER, wage_gbp BIGINT, contract_expiry DATE, contract_expiry_year INTEGER,
         -- tail of the global attribute record (see fmparser.attributes.record_tail).
         -- `reputation` above is HOME reputation; these are the other two.
         current_reputation INTEGER, world_reputation INTEGER, international_retired BOOLEAN,
@@ -850,13 +858,10 @@ def load_core(con, d, season, phase):
             season, phase, tid, v.get("name"), False,
             _int(v.get("club_tid")), v.get("club"),
             _date(v.get("dob")), _int(v.get("nationality_id")),
-            v.get("has_attributes"), _int(v.get("squad_status")),
-            v.get("loaned_out"), _int(v.get("is_gk")),
+            v.get("has_attributes"), _int(v.get("is_gk")),
             _int(v.get("ca")), _int(v.get("pa")), _int(v.get("reputation")),
             json.dumps(v.get("positions") or {}),
             _int(feet.get("left")), _int(feet.get("right")),
-            _int(v.get("wage_units")), _int(v.get("wage_gbp")),
-            _date(v.get("contract_expiry")), _int(v.get("contract_expiry_year")),
             _int(v.get("current_reputation")), _int(v.get("world_reputation")),
             v.get("international_retired"),
             _int(v.get("squad_number")), _int(v.get("preferred_squad_number")),
@@ -891,9 +896,8 @@ def load_core(con, d, season, phase):
                 season, phase, tid, v.get("name"), True,
                 _int(v.get("club_tid")), v.get("club"),
                 _date(v.get("dob")), _int(v.get("nationality_id")),
-                False, None, None, None, None, None, None,
+                False, None, None, None, None,
                 json.dumps({}), None, None,
-                None, None, None, None,
                 # record_tail + the hidden block: staff have no global attribute record
                 # (PlayerId == -1), so both are NULL. Sized from the parser's own tables so
                 # this padding cannot fall out of step with the column list below.
@@ -906,9 +910,8 @@ def load_core(con, d, season, phase):
 
     pcols = ["season", "phase", "tid", "name", "is_staff", "club_tid", "club",
              "dob", "nationality_id", "has_attributes",
-             "squad_status", "loaned_out", "is_gk", "ca", "pa", "reputation",
+             "is_gk", "ca", "pa", "reputation",
              "positions", "foot_left", "foot_right",
-             "wage_units", "wage_gbp", "contract_expiry", "contract_expiry_year",
              "current_reputation", "world_reputation", "international_retired",
              "squad_number", "preferred_squad_number", "height_cm", "weight_kg"
              ] + PLAYER_HIDDEN_COLS + SRC_COLS + PERSON_COLS
@@ -1043,12 +1046,22 @@ def load_core(con, d, season, phase):
     if os.path.exists(tr_path):
         rows = [(season, phase, _int(v.get("tid")), _int(v.get("intensity")),
                  _int(v.get("focus_role")), _int(v.get("focus_attribute")),
-                 v.get("focus_position"))
+                 v.get("focus_position"), _int(v.get("contracted")),
+                 _int(v.get("squad_status")))
                 for v in _load_json(tr_path)]
         counts["training"] = _insert(
             con, "training",
             ["season", "phase", "tid", "intensity", "focus_role", "focus_attribute",
-             "focus_position"], rows)
+             "focus_position", "contracted", "squad_status"], rows)
+
+    ct_path = os.path.join(d, "contracts.json")
+    if os.path.exists(ct_path):
+        counts["contracts"] = _insert(
+            con, "contracts",
+            ["season", "phase", "tid", "marker", "wage_units", "expiry", "start_date"],
+            [(season, phase, _int(v["tid"]), _int(v.get("marker")), _int(v.get("wage_units")),
+              _date(v.get("expiry")), _date(v.get("start_date")))
+             for v in _load_json(ct_path)])
 
     # --- stadiums + cities ----------------------------------------------------
     sd_path = os.path.join(d, "stadiums.json")
@@ -1344,7 +1357,7 @@ def _clear_group(con, group, season, phase):
                   "nation_coefficients", "nation_languages",
                   "club_affiliates", "competitions", "competition_team_counts", "matches",
                   "match_events", "match_player_stats", "club_records", "player_records",
-                  "club_league_history", "training"):
+                  "club_league_history", "training", "contracts"):
             _delete(con, t, season, phase)
     elif group == "light":
         _delete(con, "results", season, phase)
@@ -1567,10 +1580,6 @@ def _raw_tables(con, S="raw"):
 _MIGRATIONS = [
     "ALTER TABLE raw.club_records ADD COLUMN IF NOT EXISTS record_table VARCHAR",
     "ALTER TABLE raw.player_records ADD COLUMN IF NOT EXISTS record_table VARCHAR",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS wage_units INTEGER",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS wage_gbp BIGINT",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS contract_expiry DATE",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS contract_expiry_year INTEGER",
     # 2026-08-19: career history re-decoded (linked-list chains + the P-38 link), which also
     # yielded assists, average rating and the debut season. See fmparser/tables/history.py.
     "ALTER TABLE raw.player_history ADD COLUMN IF NOT EXISTS debut_season INTEGER",
@@ -1697,10 +1706,52 @@ _MIGRATIONS = [
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS reputation INTEGER",
     "ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS league_cid",
     "ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS league",
-]
+    # 2026-10-01: extract hands over the contract grid and the training row's contract flag
+    # and squad status as stored; the players' contract and status columns are int.players'
+    # (data-layers plan, step 7).
+    "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS contracted INTEGER",
+    "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS squad_status INTEGER",
+] + [f"ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS {c}"
+     for c in ("squad_status", "loaned_out", "wage_units", "wage_gbp", "contract_expiry",
+               "contract_expiry_year")]
+
+
+def _backfill_contracts(con):
+    """A store loaded before extract handed over the contract grid holds each player's current
+    contract and squad status as columns of raw.players_raw. Move them to raw.contracts and
+    raw.training, where int.players reads them, before the migration drops the columns; a
+    snapshot already in raw.contracts is left alone. Idempotent: a no-op once the columns are
+    gone. Lapsed contracts and start dates were never extracted, so they stay absent until the
+    snapshot is re-extracted."""
+    cols = {r[0] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = 'raw' AND table_name = 'players_raw'").fetchall()}
+    if "wage_units" not in cols or "squad_status" not in cols:
+        return
+    con.execute(_ddl_for("raw.contracts"))
+    con.execute("ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS contracted INTEGER")
+    con.execute("ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS squad_status INTEGER")
+    con.execute("""
+        INSERT INTO raw.contracts (season, phase, tid, marker, wage_units, expiry, start_date)
+        SELECT p.season, p.phase, p.tid, 1, p.wage_units, p.contract_expiry, NULL
+        FROM raw.players_raw p
+        WHERE p.wage_units IS NOT NULL AND NOT p.is_staff
+          AND NOT EXISTS (SELECT 1 FROM raw.contracts c
+                          WHERE (c.season, c.phase) = (p.season, p.phase))""")
+    con.execute(f"""
+        UPDATE raw.training t SET contracted = {_CONTRACTED}, squad_status = p.squad_status
+        FROM raw.players_raw p
+        WHERE (t.season, t.phase, t.tid) = (p.season, p.phase, p.tid)
+          AND p.squad_status IS NOT NULL AND t.contracted IS NULL""")
+
+
+def _ddl_for(table):
+    """The DDL statement that creates `table`."""
+    return next(stmt for stmt in DDL if f"CREATE TABLE IF NOT EXISTS {table} (" in stmt)
 
 
 def _migrate(con):
+    _backfill_contracts(con)
     for stmt in _MIGRATIONS:
         try:
             con.execute(stmt)
