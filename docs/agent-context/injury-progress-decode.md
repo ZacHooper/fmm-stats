@@ -52,7 +52,7 @@ spells / 9 players**.
 
 Productionization: the parser hands every used row over as stored
 (`tables/player_progress.py` `scrape_player_progress` → `player_progress.json` →
-`staging.player_progress`); the mart reads the bits: `mart.progress_weeks` (one row per player
+`raw.player_progress`); the mart reads the bits: `mart.progress_weeks` (one row per player
 per week, every copy from every snapshot OR-ed), then `mart.injury_spells` (bits 0-1, weeks up
 to 8 days apart) and `mart.loan_out_spells` (bit 5, 22 days). The table tracks only the managed
 squad and reserves, back to each player's first week at the club.
@@ -60,11 +60,11 @@ squad and reserves, back to each player's first week at the club.
 **Loan history = THREE sources, best-first** (see `db.player_loan_spells`):
 0. **`mart.loan_out_spells`** — bit5 of THIS table: exact weekly windows for loans OUT. No club
    name (the weekly record doesn't carry one); fold in a matching history row to name it.
-1. `staging.player_history_seasons.fee = 'loan'` — a season at a named club with apps/goals,
+1. `raw.player_history_seasons.fee = 'loan'` — a season at a named club with apps/goals,
    for any player, back through their whole career. Only some snapshots parsed it fully
    (Frem: `start` + `2022-03-19` have ~20k players; later phases ~100), so take the snapshot
    with the most rows for that player.
-2. `staging.players.loaned_in` + `parent_club` across dated snapshots — for players loaned IN
+2. `raw.players.loaned_in` + `parent_club` across dated snapshots — for players loaned IN
    to us; bounds are SNAPSHOT dates, not real transfer dates.
 
 **Cross-save union is mandatory for both.** A player's weeks leave the save with him (a loanee's

@@ -188,7 +188,7 @@ def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
                   {profile_join}
                   WHERE p.season=? AND p.phase=? AND p.has_attributes{where}
                   -- deterministic order, so a no-op re-export is a no-op. Neither this query
-                  -- nor its staging predecessor had an ORDER BY, and a join's output order is
+                  -- nor its raw predecessor had an ORDER BY, and a join's output order is
                   -- not stable, so this 4 MB array could rewrite itself wholesale. The client
                   -- keys everything by tid, so the order is ours to choose.
                   ORDER BY p.tid""", params)
@@ -324,7 +324,9 @@ def main():
 
     clubs = db.q("""SELECT club_tid AS tid, name, league_cid, squad_size AS players,
                            nation, reputation AS club_reputation
-                    FROM mart.clubs WHERE season=? AND phase=?
+                    FROM mart.clubs
+                    SEMI JOIN mart.listed_clubs USING (season, phase, club_tid)
+                    WHERE season=? AND phase=?
                     -- ORDER BY is not cosmetic: without it DuckDB's group-by order varies
                     -- run to run, so a re-export with identical data rewrote all 4,337 rows
                     -- of this array and every real diff hid in the churn. The committed JSON
@@ -332,7 +334,13 @@ def main():
                     -- deterministic.
                     ORDER BY club_tid""", [season, phase])
     leagues = db.q("""SELECT cid, name, nation, reputation, member_count AS clubs
-                      FROM mart.leagues WHERE season=? AND phase=? AND name IS NOT NULL
+                      FROM mart.leagues l
+                      WHERE season=? AND phase=? AND name IS NOT NULL
+                        -- the leagues of the clubs the site lists (mart.listed_clubs)
+                        AND EXISTS (SELECT 1 FROM mart.club_leagues cl
+                                    SEMI JOIN mart.listed_clubs USING (season, phase, club_tid)
+                                    WHERE (cl.season, cl.phase, cl.league_cid)
+                                        = (l.season, l.phase, l.cid))
                       ORDER BY reputation DESC NULLS LAST, cid""", [season, phase])
     # Division-strength index, straight off mart.leagues. It is the average player ability per
     # league normalised 0-100 — immersion-safe in the same way the Level percentile is, a
@@ -879,6 +887,7 @@ def main():
         dk_df = db.q("""SELECT cp.club_tid, cp.club, cp.league_name, cp.stadium, cp.capacity,
                               cp.latitude, cp.longitude, l.tier
                        FROM mart.club_places cp
+                       SEMI JOIN mart.listed_clubs USING (season, phase, club_tid)
                        JOIN mart.leagues l
                             ON (l.season, l.phase, l.cid) = (cp.season, cp.phase, cp.league_cid)
                        WHERE cp.season=? AND cp.phase=? AND l.nation=?
@@ -985,8 +994,6 @@ def main():
             "in-game scout's formation and style before advising on a match.",
             "Opponent attribute values are model estimates (±1) except pace and physicals.",
             "Squad status and loan flags are unreliable; rank by minutes played instead.",
-            "staging.standings parses only partially for this career, so there is no league "
-            "table; divisions are ranked by squad strength instead.",
             "Ratings shown are computed in the browser from attributes x role weights, so "
             "they follow whichever tactic is selected.",
             "Squad registration (A/B lists, home grown) is a SELF-IMPOSED rule — FMM22 does "

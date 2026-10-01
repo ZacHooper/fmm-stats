@@ -2,7 +2,7 @@
 """Refit the entangled-attribute model AGAINST THE STORE, and optionally write it back.
 
 Since the estimation moved into the database (2026-09-17) this needs no save file and no
-re-extract: `staging.players` carries the raw record bytes and `player_attributes_exact`
+re-extract: `raw.players` carries the raw record bytes and `player_attributes_exact`
 carries the values the save states outright. Our own squad has all 23 exact, from the
 managed-club snapshot -- those rows are the ground truth, and there is one per player PER
 SNAPSHOT.
@@ -18,7 +18,7 @@ Two rules the 2024 fit could not follow with 28 players, and which this enforces
     the protocol changed is worse than useless, so the frozen coefficients are re-scored here
     rather than compared against the number in model.py's docstring.
 
-`--write` replaces staging.attribute_model. Nothing takes effect until the views are rebuilt:
+`--write` replaces raw.attribute_model. Nothing takes effect until the views are rebuilt:
     uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 """
 import argparse
@@ -184,11 +184,11 @@ def load(db):
         SELECT p.tid, p.ca, p.pa,
                {', '.join('p."' + c + '"' for c in byte_cols)},
                {', '.join('e."' + a + '"' for a in ATTR_ORDER)},
-               {', '.join(f'''COALESCE((SELECT t.familiarity FROM staging.player_positions t
+               {', '.join(f'''COALESCE((SELECT t.familiarity FROM raw.player_positions t
                     WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid)
                       AND t.position = '{q}'), 0)''' for q in POS)}
-        FROM staging.players p
-        JOIN staging.player_attributes_exact e USING (season, phase, tid)
+        FROM raw.players p
+        JOIN raw.player_attributes_exact e USING (season, phase, tid)
         WHERE p.ca IS NOT NULL AND p.passing_src IS NOT NULL
           AND e."Passing" IS NOT NULL          -- exact rows only: our own squad
     """
@@ -258,7 +258,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", default="fm-frem.duckdb")
-    ap.add_argument("--write", action="store_true", help="replace staging.attribute_model")
+    ap.add_argument("--write", action="store_true", help="replace raw.attribute_model")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--min-players", type=int, default=20,
                     help="refuse to refit an attribute whose own population has fewer distinct "
@@ -429,7 +429,7 @@ def main():
     if a.write:
         _write(a.db, out)
     else:
-        print("report only — pass --write to replace staging.attribute_model")
+        print("report only — pass --write to replace raw.attribute_model")
     return 0
 
 
@@ -449,7 +449,7 @@ def _fwd(r, pi):
 def _write(db, out):
     import duckdb
     con = duckdb.connect(db)
-    con.execute("DELETE FROM staging.attribute_model")
+    con.execute("DELETE FROM raw.attribute_model")
     rows = []
     for attr, own, partner, names, coef, *_ in out:
         flat = []
@@ -460,9 +460,9 @@ def _write(db, out):
                      ["GK"] if nm == "GK_FAM" else [nm])
         for nm, c in list(zip(flat, coef)) + [("intercept", coef[-1])]:
             rows.append((attr, nm, float(c), own, partner, "refit-2026-09-17"))
-    con.executemany("INSERT INTO staging.attribute_model VALUES (?,?,?,?,?,?)", rows)
+    con.executemany("INSERT INTO raw.attribute_model VALUES (?,?,?,?,?,?)", rows)
     con.close()
-    print(f"wrote {len(rows)} coefficients to staging.attribute_model in {db}")
+    print(f"wrote {len(rows)} coefficients to raw.attribute_model in {db}")
     print("run:  uv run python load_duckdb.py --refresh-only --db " + db)
 
 

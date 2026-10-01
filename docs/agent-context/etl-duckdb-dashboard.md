@@ -23,18 +23,18 @@ shows a day-1 guard); squad attributes/ratings still work. Bucaspor stays the de
 Turkish ground-truth tests pass unchanged.
 
 **Layers**
-- `load_duckdb.py` (run via `uv run`) → `fm.duckdb`, `staging.*` schema (1:1 mirror of the
+- `load_duckdb.py` (run via `uv run`) → `fm.duckdb`, `raw.*` schema (1:1 mirror of the
   extract files), every row stamped `season` (int end-year, 21/22→2022, Aus-FY style) +
   `phase` (the save's header date). Idempotent per-label DELETE+INSERT. No enforced PKs (ART index made
   bulk reload hang — natural keys are documented in comments, enforced by the loader). Ledger in
-  `staging.extracts`. `extract.season_phase` places the snapshot from the save's header.
+  `raw.extracts`. `extract.season_phase` places the snapshot from the save's header.
 - Transformed layer = the `mart` schema (fmstats/mart.py) plus three views in `main`
   (v_player_attributes, **v_player_ratings**, **v_player_rating_ranks**). `load_duckdb.py` drops
   v_match_results, v_league_table, v_top_scorers, v_ca_progression and v_transfers if present:
   they summed every snapshot of the match history (goal totals 2-3x), surfaced raw CA/PA, or read
   standings that do not parse.
-- Layering: `fmparser/` extracts, `load_duckdb.py` loads (and seeds `staging.event_types` and
-  the `career_*` keys in `staging.app_config`, the two parser facts the transform needs), and
+- Layering: `fmparser/` extracts, `load_duckdb.py` loads (and seeds `raw.event_types` and
+  the `career_*` keys in `raw.app_config`, the two parser facts the transform needs), and
   `fmstats/` transforms and analyses. fmstats never imports fmparser, and
   `tests/test_boundary.py` enforces it; the store is the only interface.
 - `fmq.py` = query CLI over the `fmstats/` package (`labels`, `sql`, `output`, `matches`, `moves`,
@@ -44,7 +44,7 @@ Turkish ground-truth tests pass unchanged.
 - The Streamlit `dashboard/` was removed; `site/` is the UI. Its scouting helpers live on in
   `fmstats/scout.py`.
 
-**Career history is LIVE (2026-08-19) — `staging.player_history` + `player_history_seasons`.**
+**Career history is LIVE (2026-08-19) — `raw.player_history` + `player_history_seasons`.**
 Every player's whole club career: origin (youth) club, debut season, and one row per season with
 club, fee, apps, goals, assists and average rating. Populated on **all 18 snapshots across both
 careers** (21.4k-23.6k players per frem slice, 22.1k-23.1k per buca slice); before this rewrite 8
@@ -52,7 +52,7 @@ of the 11 frem slices held ZERO rows, so any note claiming history is unreliable
 of date. `confidence` is always `'exact'` now — the link is a stored pointer (`u32 @ P-38` in the
 player's attribute record), not a positional guess, so **origin club can be trusted outright** and
 the old high/medium/low tiering is gone. Consumers: **`pages/9_Recruitment.py`** (the
-Athletic-Bilbao strategy — players whose youth club is in `staging.eligible_origin_clubs`, seeded
+Athletic-Bilbao strategy — players whose youth club is in `raw.eligible_origin_clubs`, seeded
 from `seeds/eligible_origin_clubs.csv`; 575 eligible in the newest frem snapshot),
 `db.eligibility_frame()`, `pages/2_Squad_Tool.py` bio, and `db.player_loan_spells()` source (2),
 which reads `fee = 'loan'` rows to recover loan spells across a player's whole career. Decode
@@ -91,9 +91,9 @@ Leadership/Teamwork/Aggression (`_LOW_SIGNAL`) and pure-GK attrs (outfield) deni
 position-relative z-score was TRIED and rejected — it put Crossing on every DMC (low-variance
 inflation) and dropped high-value attrs; value+role-relevance is the shipped approach.
 
-**Positional / effective rating** (added in 2nd feedback round): `staging.player_positions`
-(long: every position a player can play + familiarity 1-20; 14 FM codes) + `staging.position_role_map`
-(14 codes→10 rating roles) + `staging.app_config` (key/value, editable via Config page). Effective
+**Positional / effective rating** (added in 2nd feedback round): `raw.player_positions`
+(long: every position a player can play + familiarity 1-20; 14 FM codes) + `raw.position_role_map`
+(14 codes→10 rating roles) + `raw.app_config` (key/value, editable via Config page). Effective
 rating = base role rating × familiarity multiplier (config-driven curve: linear_floor default
 floor 0.5 / tiers / proportional). `db.effective_table()` gives per-player-per-position eff +
 percentile/rank scoped to league / nation / global (via club→club_league→leagues.nation). Home &
@@ -102,7 +102,7 @@ snapshots by taking the latest phase per season (end ⊇ mid). Attribute groups 
 Physical/Goalkeeping; radar + development charts highlight role-weighted attrs (★key ▲imp △useful).
 
 **Weighted role rating** (immersion-safe alt to CA/PA — user does NOT want CA/PA surfaced ever):
-`staging.role_weights(method, role, attribute, category, weight)` is a GLOBAL table seeded from
+`raw.role_weights(method, role, attribute, category, weight)` is a GLOBAL table seeded from
 `seeds/role_weights.csv` (ported from fm-data-entry's `black_hawk`+`personal` dicts; key=4,
 important=3, useful=2, else=1). rating = Σ attr×weight per (method=tactic, role); unlisted attrs
 ×1. Verified EXACT match to fm-data-entry `get_weighted_df`. New tactics = new `method` rows,

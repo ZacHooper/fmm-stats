@@ -4,7 +4,7 @@ The default is the PUBLISHED full store — `site-data/fm-<career>.duckdb` on R2
 `scripts/publish_duckdb.py --upload` — cached at `$FM_CACHE_DIR` (default
 `~/.cache/fmm-stats/`). A fresh clone has no local store and building one takes ~1 min per
 snapshot, while the published copy downloads in seconds and carries everything a query needs:
-`mart`, `staging` and the method-dependent rating layer.
+`mart`, `raw` and the method-dependent rating layer.
 
 The cache is re-checked against R2 at most once per `FM_STORE_TTL` seconds (default 600), and
 only re-downloaded when the remote object's size or modification time differs. The download
@@ -24,7 +24,7 @@ we manage, its reserve side, the tactic we are rated on — is read from the sto
 The published copy is only as fresh as the last publish, which is a manual step after an
 import, so `describe()` names the snapshot date alongside the source on every run.
 
-The `mart` schema is a layer of VIEW definitions over `staging`, so the published copy carries
+The `mart` schema is a layer of VIEW definitions over `raw`, so the published copy carries
 whatever definitions the publishing machine had. The cache is ours, so after each download —
 and whenever `fmstats/mart.py` changes — `open_store` re-creates the mart on it from this
 checkout's definitions. The data is untouched; only the views are. An explicit `--db` store is
@@ -53,9 +53,9 @@ STORE_TTL = int(os.environ.get("FM_STORE_TTL", "600"))
 DEFAULT_CAREER = "frem"
 MART_VERSION = hashlib.sha256(
     "\x00".join([*MACROS, *(sql for _, sql in ORDER)]).encode()).hexdigest()[:16]
-# staging tables the loader seeds that the current mart reads; a store published before one
+# raw tables the loader seeds that the current mart reads; a store published before one
 # existed cannot have its mart refreshed until it is re-seeded
-_MART_INPUTS = ("event_types",)
+_MART_INPUTS = ("event_types", "competition_team_counts")
 # a view every current consumer needs; its absence means the store's mart is out of date
 _PROBE_VIEW = "player_vs_club"
 
@@ -76,7 +76,7 @@ class Career:
     @classmethod
     def from_store(cls, con, key):
         """Our club and reserve side from the mart's data-derived views; the key and the
-        tactic from the `career_*` keys the loader writes to staging.app_config."""
+        tactic from the `career_*` keys the loader writes to raw.app_config."""
         managed = con.execute("SELECT club_tid FROM mart.managed_club").fetchone()
         if managed is None:
             raise SystemExit("the store has no managed club (mart.managed_club is empty)")
@@ -84,12 +84,12 @@ class Career:
         reserve = con.execute("SELECT min(club_tid) FROM mart.reserve_clubs").fetchone()[0]
         name = con.execute("SELECT name FROM mart.clubs WHERE club_tid = ? "
                            "ORDER BY season DESC, phase DESC LIMIT 1", [managed]).fetchone()
-        cfg = dict(con.execute("SELECT key, value FROM staging.app_config "
+        cfg = dict(con.execute("SELECT key, value FROM raw.app_config "
                                "WHERE key IN ('career_key', 'career_rating_method')").fetchall())
         stored = cfg.get("career_key")
         if stored is None:
             print("store: note — the loader has not recorded this store's career "
-                  "(staging.app_config career_*), so the tactic falls back to "
+                  "(raw.app_config career_*), so the tactic falls back to "
                   "app_config.default_method; `load_duckdb.py --refresh-only` records it",
                   file=sys.stderr)
         elif stored != key:
@@ -183,6 +183,29 @@ def _refresh_cache(name, force=False):
     return True
 
 
+def _alias_raw(con):
+    """A copy published before the landed tables' schema was named `raw` still calls it
+    `staging`: expose each of its tables and views as a `raw` view, so this checkout's queries
+    read it unchanged. A no-op once the copy has a `raw` schema."""
+    have = {r[0] for r in con.execute(
+        "SELECT schema_name FROM information_schema.schemata").fetchall()}
+    if "raw" in have or "staging" not in have:
+        return
+    con.execute("CREATE SCHEMA raw")
+    for (name,) in con.execute("SELECT table_name FROM information_schema.tables "
+                               "WHERE table_schema = 'staging'").fetchall():
+        con.execute(f'CREATE VIEW raw."{name}" AS SELECT * FROM staging."{name}"')
+
+
+def _has_raw(path):
+    con = duckdb.connect(path, read_only=True)
+    try:
+        return bool(con.execute("SELECT 1 FROM information_schema.schemata "
+                                "WHERE schema_name = 'raw'").fetchone())
+    finally:
+        con.close()
+
+
 def _sync_mart(path):
     """Re-create the mart views on a cached store when they were built from different
     definitions than this checkout's. Returns False (and leaves the store as it was) when the
@@ -193,7 +216,7 @@ def _sync_mart(path):
             seen = json.load(f)
     except (OSError, json.JSONDecodeError):
         seen = {}
-    if seen.get("mart_version") == MART_VERSION:
+    if seen.get("mart_version") == MART_VERSION and _has_raw(path):
         return True
     try:
         con = duckdb.connect(path)
@@ -202,13 +225,14 @@ def _sync_mart(path):
               f"published.", file=sys.stderr)
         return False
     try:
+        _alias_raw(con)
         missing = [t for t in _MART_INPUTS if not con.execute(
-            "SELECT 1 FROM information_schema.tables WHERE table_schema = 'staging' "
+            "SELECT 1 FROM information_schema.tables WHERE table_schema = 'raw' "
             "AND table_name = ?", [t]).fetchone()]
         if missing:
-            print(f"store: {path} predates staging.{', staging.'.join(missing)}, which the "
-                  f"current mart reads; reading it as published. Fix it with `uv run python "
-                  f"load_duckdb.py --refresh-only --db {path}`, or republish the store.",
+            print(f"store: {path} predates raw.{', raw.'.join(missing)}, which the "
+                  f"current mart reads; reading it as published. Republish the store to "
+                  f"bring it up to date.",
                   file=sys.stderr)
             return False
         # one transaction, so a definition that fails to bind leaves the published mart whole
@@ -216,9 +240,12 @@ def _sync_mart(path):
         try:
             create_mart(con)
             con.execute("COMMIT")
-        except duckdb.Error:
+        except duckdb.Error as e:
             con.execute("ROLLBACK")
-            raise
+            print(f"store: this checkout's mart does not bind on {path} ({e}); reading it "
+                  f"as published. Republish the store to bring it up to date.",
+                  file=sys.stderr)
+            return False
         con.execute("CHECKPOINT")
     finally:
         con.close()

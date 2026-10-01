@@ -164,11 +164,11 @@ SELECT * FROM m.mart.player_growth_season WHERE season = 2024 ORDER BY growth DE
 ```
 
 **Attach the mart object (~87 MB), not the full store (~101 MB), unless you need raw
-`staging`.** `site-data/fm-frem-mart.duckdb` holds the `mart` schema as real tables, with the
+`raw`.** `site-data/fm-frem-mart.duckdb` holds the `mart` schema as real tables, with the
 four correctness rules already applied — latest-phase-per-season (match stats are a ring
-buffer; summing across phases double-counts), snapshot-scoped joins (`staging.players` is one
+buffer; summing across phases double-counts), snapshot-scoped joins (`raw.players` is one
 row per SNAPSHOT), `person_id` not `tid` (FM recycles retired slots), and the 255-sentinel
-minutes arithmetic. Querying raw `staging` means re-deriving all four correctly yourself.
+minutes arithmetic. Querying the `raw` tables means re-deriving all four correctly yourself.
 
 Since 2026-08-25 the mart is what GENERATES the files above, so anything in this document is
 answerable from it: `mart.player_snapshots` (bio, contract, the 23 attributes wide),
@@ -201,7 +201,7 @@ it disagrees with the save's recorded finishes often enough — Spain 0 of 39 ta
 should not be quoted without saying so.
 
 Reach for the full store — `ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm` — only when
-you need raw `staging`, or per-snapshot history for a player who was never ours. It carries the
+you need the `raw` tables, or per-snapshot history for a player who was never ours. It carries the
 `mart` views too.
 
 **Scoping in the published mart object.** The growth family is scoped to our clubs (first team +
@@ -238,7 +238,7 @@ rather than averaging the averages.
 `m.mart.squad_current` (a plain view, newest snapshot, one row per person with `is_loan_in` and
 `is_reserve`). `squad_on` returns one row per SPELL, so a borrowed player appears twice.
 
-**Do not trust `staging.players.loaned_in` / `.loaned_out`.** The save sets them and never
+**Do not trust `raw.players.loaned_in` / `.loaned_out`.** The save sets them and never
 clears them, so they accumulate: at the newest snapshot the flag claimed nine loanees where
 three loans were live. The spell tables are the answer — that is what they exist for.
 
@@ -268,39 +268,39 @@ Raw SQL gets you the underlying tables directly, which means you also own the tw
 Python app. Skip either one and the numbers are wrong, not just imprecise — e.g. a naive query
 for a player's season goals can come back **10-20× too high**.
 
-1. **`staging.match_player_stats` is a ring buffer, not a season table.** Every import snapshot
+1. **`raw.match_player_stats` is a ring buffer, not a season table.** Every import snapshot
    re-scrapes however much match history the save still holds, so **later snapshots in the same
    season are supersets of earlier ones** — summing `goals` across every `(season, phase)` row
    double- (or 10×-) counts every match that appears in more than one snapshot. Always restrict
    to **one `phase` per `season`** — the latest one, since later fully contains earlier:
    ```sql
    WITH chosen AS (
-     SELECT season, MAX(phase) AS phase FROM staging.match_player_stats GROUP BY season
+     SELECT season, MAX(phase) AS phase FROM raw.match_player_stats GROUP BY season
    )
    SELECT m.tid, SUM(m.goals) AS goals
-   FROM staging.match_player_stats m JOIN chosen USING (season, phase)
+   FROM raw.match_player_stats m JOIN chosen USING (season, phase)
    WHERE m.team_tid = <club tid> AND m.competition = '<competition name>'
    GROUP BY m.tid;
    ```
    (`MAX(phase)` works because phases are `YYYY-MM-DD` strings within a season here; the
    dashboard's own helper uses an `arg_max` that also tolerates the legacy `start/mid/end`
    words — see `dashboard/db.py::player_match_totals` for that fuller form.)
-   **This applies to `staging` only.** The `mart` match views are already deduplicated:
+   **This applies to `raw` only.** The `mart` match views are already deduplicated:
    `mart.match_player_facts`, `mart.matches` and `mart.club_matches` keep one phase per season
    (via `mart.chosen_match_phase`) and hold one row per player, or per club, per match;
    `mart.match_events` is deduplicated by fixture. Do not add your own dedup on top. `mart.match_player_facts` also carries `name` from the same
    snapshot, so it needs no name join at all.
-2. **`staging.players` is ALSO one row per snapshot, not one row per player.** A naive
-   `JOIN staging.players p ON p.tid = m.tid` multiplies every stat row by however many snapshots
+2. **`raw.players` is ALSO one row per snapshot, not one row per player.** A naive
+   `JOIN raw.players p ON p.tid = m.tid` multiplies every stat row by however many snapshots
    that player appears in (16+ across this store's history) — the same 10-20× inflation as #1,
    from a completely different cause. Either join on the **same** `(season, phase)` as the stats
-   row (`JOIN staging.players p ON p.tid = m.tid AND p.season = m.season AND p.phase = m.phase`),
+   row (`JOIN raw.players p ON p.tid = m.tid AND p.season = m.season AND p.phase = m.phase`),
    or look the name up once from a single fixed snapshot (`db.latest_snapshot()`'s `(season,
    phase)` pair, or any one row via `WHERE tid = ... ORDER BY season DESC, phase DESC LIMIT 1`).
 3. **`club_tid` at the latest snapshot can still show a loan-in whose loan lapsed years ago —
    this is real save data, not a bug you can filter around.** A loan is renewed by the game
    every season, but the byte marker that records "who's on this club's squad list" apparently
-   does not always get cleared when a renewal doesn't happen, so `staging.players`/
+   does not always get cleared when a renewal doesn't happen, so `raw.players`/
    `mart.player_snapshots`/`mart.player_position_levels` can keep listing a departed loanee at
    `club_tid = <our club>` indefinitely — confirmed against the raw `.fms` bytes, not an
    extraction glitch. **For "who is on our books right now" (or as of any date), use
@@ -313,11 +313,11 @@ for a player's season goals can come back **10-20× too high**.
    `player_snapshots`/`players`/`player_position_levels` — it will include names who left the
    club, sometimes years ago (Haarbo, Nuamah and 4 others in this store, as of writing).
 
-**This copy is NOT scrubbed** — `staging.players.ca`/`.pa` (raw ability) are present and
+**This copy is NOT scrubbed** — `raw.players.ca`/`.pa` (raw ability) are present and
 queryable, same as a local store, since Level %ile / Fit ratings (`mart.player_position_fit`,
 `mart.player_position_levels`) both need `ca` to compute and came back completely empty when
 this copy used to NULL it out. That means the immersion rule above is now YOUR responsibility
-here, not something the export already handled for you: `SELECT ca FROM staging.players` will
+here, not something the export already handled for you: `SELECT ca FROM raw.players` will
 return a real number, and the house rule says don't put it in front of the manager. Compute with
 it (ratings, percentiles, ranks) freely; never print the raw value itself — same as everywhere
 else in this project. Everything else in the store (attributes, matches, history, contracts, …)

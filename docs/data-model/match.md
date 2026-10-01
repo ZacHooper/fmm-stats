@@ -113,7 +113,7 @@ erDiagram
 | `dim_referee` | match official: name, nation |
 | `dim_manager` | each side's manager on the day |
 | `dim_formation` | shape, e.g. 4-2-3-1 |
-| `dim_event_type` | goal, own goal, shootout kick, card, sub, injury… (the loader already seeds `staging.event_types`) |
+| `dim_event_type` | goal, own goal, shootout kick, card, sub, injury… (the loader already seeds `raw.event_types`) |
 | `dim_period` | 1st half, 2nd half, ET 1st, ET 2nd, shootout |
 | `dim_player`, `dim_date` | the usual |
 

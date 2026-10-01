@@ -10,7 +10,7 @@ Written after a season-long "why can't we score" investigation that produced two
 killed four attractive-looking ones. The negative results are the more valuable half — each was
 compelling enough to have been written into a briefing before it was tested.
 
-Method: `staging.match_player_stats` aggregated per match. **Read trap 4 in
+Method: `raw.match_player_stats` aggregated per match. **Read trap 4 in
 [[player-analysis-methods]] first** — one match is stored under up to five `anchor`s and the obvious
 dedup is a no-op.
 

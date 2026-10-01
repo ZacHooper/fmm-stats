@@ -27,7 +27,7 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser.save import Save                        # noqa: E402
-from fmparser import clubs_comps as R                   # noqa: E402
+from fmparser.tables.clubs import scrape_clubs           # noqa: E402
 
 # tid -> (long name, short name as the game displays it). The first two are the screenshot
 # ground truth; the other three came out of the same band and are held so a future gate
@@ -61,7 +61,7 @@ def main():
 
     print(f"save: {path}")
     with Save(path) as s:
-        index = R._build_refdata_index(s.mm)[0]
+        index = scrape_clubs(s.mm)
         print(f"clubs indexed: {len(index)}")
         failures = []
         for tid, (long_name, short_name) in sorted(EXPECTED.items()):

@@ -83,8 +83,8 @@ attribute history stay queryable instead of being overwritten or discarded.
 **IMPLEMENTED (2026-08-19), phases 1-2.** The loader materialises the bridge — no re-extraction
 needed, since `dob` is already in every `players` slice:
 
-- `staging.persons(person_id, tid, dob, name, first_seen, last_seen, slices)`
-- `staging.person_slices(season, phase, tid, person_id)` — the join bridge for every fact table
+- `raw.persons(person_id, tid, dob, name, first_seen, last_seen, slices)`
+- `raw.person_slices(season, phase, tid, person_id)` — the join bridge for every fact table
 - `person_id` is the stable VARCHAR `'<tid>-<dob>'` (`'<tid>-?'` when dob is unknown — 28 tids
   appear in match stats but in no `players` slice at all). Rebuilt wholesale by
   `load_duckdb.rebuild_persons()` after each load; cheap and idempotent.

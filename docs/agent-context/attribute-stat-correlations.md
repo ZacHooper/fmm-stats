@@ -303,7 +303,7 @@ which is how it was caught: the second run of a best-XI query disagreed with the
 
 It now deletes exactly the methods the CSV names (`SELECT DISTINCT method FROM read_csv_auto`), so
 the list cannot go stale again. Verified idempotent over two consecutive refreshes: 743 rows, zero
-duplicates. **If ratings ever look inflated, check `staging.role_weights` for duplicate
+duplicates. **If ratings ever look inflated, check `raw.role_weights` for duplicate
 (method, role, attribute) rows first** — the symptom is a plausible-looking number, not an error.
 
 ### Determinism: the position pick used to drift between runs

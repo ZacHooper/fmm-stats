@@ -16,7 +16,7 @@ AWS S3 (`*.s3.us-east-1.amazonaws.com`) instead of R2 in a network-proxied sandb
                        ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
                        URL_STYLE 'path', REGION 'auto');
     ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
-    SELECT * FROM fm.staging.players LIMIT 5;
+    SELECT * FROM fm.raw.players LIMIT 5;
 
 Deliberately NOT served through the Worker (`worker/index.js`): that would mean going out to
 `*.workers.dev`, which a network-restricted agent sandbox may not be able to reach, whereas the
@@ -47,7 +47,7 @@ then just `LOAD httpfs;` (no `INSTALL`) picks it up from the local cache. Re-ven
     rclone copyto ~/.duckdb/extensions/v$v/linux_amd64/httpfs.duckdb_extension \
         r2:fmm-stats/vendor/duckdb-extensions/v$v/linux_amd64/httpfs.duckdb_extension
 
-The published copy carries staging.players.ca/.pa (raw ability) UNCHANGED — it is not scrubbed.
+The published copy carries raw.players.ca/.pa (raw ability) UNCHANGED — it is not scrubbed.
 The immersion house rule (CLAUDE.md: never SURFACE the raw ability number) is enforced at the
 presentation layer — the dashboard, the skills, and export_data.py's JSON API (checked at build
 time by scripts/export_data.py) — not by hiding the column from SQL. A query against this store
@@ -75,7 +75,7 @@ import duckdb
 # ---------------------------------------------------------------------------------------
 # Compaction (--compact, on by default)
 #
-# The live store is ~107 MB, of which ~45 MB is pure cross-snapshot duplication: staging
+# The live store is ~107 MB, of which ~45 MB is pure cross-snapshot duplication: raw
 # mirrors the parser, one FULL row set per (season, phase), so an immutable fact is restored
 # verbatim in every later snapshot. player_history_seasons is the extreme case — 3,383,704
 # rows collapse to 470,092 distinct ones (7.2x), because a player's 2019 season row cannot
@@ -86,10 +86,10 @@ import duckdb
 # Interval-per-group would be LOSSY — 59 groups in this career appear, vanish and reappear —
 # so runs are found with gaps-and-islands, not min/max, which is exact.
 #
-# The published copy then exposes staging.<table> as a VIEW that expands the runs back, so
+# The published copy then exposes raw.<table> as a VIEW that expands the runs back, so
 # every query already documented against the full store (docs/agent-context/
 # remote-duckdb-access.md, site/AGENTS.md) keeps working against the identical schema. The
-# RLE tables sit behind it as staging._rle_<table>. Verified row-for-row with a symmetric
+# RLE tables sit behind it as raw._rle_<table>. Verified row-for-row with a symmetric
 # EXCEPT ALL against the source before upload — this refuses to publish otherwise.
 #
 # player_history measured 1.0x (no duplication at all — every row is snapshot-unique), where
@@ -98,30 +98,30 @@ SKIP_RLE = {"player_history"}
 
 
 def compact(con):
-    """RLE every snapshot-scoped staging table in `con`, exposing expansion views under the
+    """RLE every snapshot-scoped raw table in `con`, exposing expansion views under the
     original names. Returns (tables_compacted, source_rows, encoded_rows)."""
-    con.execute("""CREATE OR REPLACE TABLE staging._snapshots AS
+    con.execute("""CREATE OR REPLACE TABLE raw._snapshots AS
         SELECT row_number() OVER (ORDER BY season, phase) AS snap_ix, season, phase
-        FROM (SELECT DISTINCT season, phase FROM staging.extracts)""")
+        FROM (SELECT DISTINCT season, phase FROM raw.extracts)""")
 
     tabs = [t for (t,) in con.execute(
-        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'staging' "
+        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'raw' "
         "AND NOT starts_with(table_name, '_') ORDER BY table_name").fetchall()]
 
     done, n_src, n_rle = 0, 0, 0
     for t in tabs:
         cols = [c for (c,) in con.execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'staging' "
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'raw' "
             f"AND table_name = '{t}' ORDER BY ordinal_position").fetchall()]
         body = [c for c in cols if c not in ("season", "phase")]
         if t in SKIP_RLE or not body or not {"season", "phase"} <= set(cols):
             continue
         kl = ", ".join(f'"{c}"' for c in body)
 
-        con.execute(f"""CREATE TABLE staging."_rle_{t}" AS
+        con.execute(f"""CREATE TABLE raw."_rle_{t}" AS
             WITH ph AS (
-              SELECT p.*, n.snap_ix FROM staging."{t}" p
-              JOIN staging._snapshots n USING (season, phase)),
+              SELECT p.*, n.snap_ix FROM raw."{t}" p
+              JOIN raw._snapshots n USING (season, phase)),
             marked AS (
               SELECT {kl}, snap_ix,
                      snap_ix - row_number() OVER (PARTITION BY {kl} ORDER BY snap_ix) AS grp
@@ -130,20 +130,20 @@ def compact(con):
             FROM marked GROUP BY {kl}, grp""")
 
         sel = "season, phase, " + kl
-        expand = (f'SELECT n.season, n.phase, {kl} FROM staging."_rle_{t}" r '
-                  f"JOIN staging._snapshots n ON n.snap_ix BETWEEN r.snap_lo AND r.snap_hi")
-        miss = con.execute(f'SELECT count(*) FROM ((SELECT {sel} FROM staging."{t}") '
+        expand = (f'SELECT n.season, n.phase, {kl} FROM raw."_rle_{t}" r '
+                  f"JOIN raw._snapshots n ON n.snap_ix BETWEEN r.snap_lo AND r.snap_hi")
+        miss = con.execute(f'SELECT count(*) FROM ((SELECT {sel} FROM raw."{t}") '
                            f"EXCEPT ALL ({expand}))").fetchone()[0]
         extra = con.execute(f"SELECT count(*) FROM (({expand}) EXCEPT ALL "
-                            f'(SELECT {sel} FROM staging."{t}"))').fetchone()[0]
+                            f'(SELECT {sel} FROM raw."{t}"))').fetchone()[0]
         if miss or extra:
-            raise SystemExit(f"compaction of staging.{t} is LOSSY "
+            raise SystemExit(f"compaction of raw.{t} is LOSSY "
                              f"(missing={miss}, extra={extra}) — refusing to publish")
 
-        n_src += con.execute(f'SELECT count(*) FROM staging."{t}"').fetchone()[0]
-        n_rle += con.execute(f'SELECT count(*) FROM staging."_rle_{t}"').fetchone()[0]
-        con.execute(f'DROP TABLE staging."{t}"')
-        con.execute(f'CREATE VIEW staging."{t}" AS {expand}')
+        n_src += con.execute(f'SELECT count(*) FROM raw."{t}"').fetchone()[0]
+        n_rle += con.execute(f'SELECT count(*) FROM raw."_rle_{t}"').fetchone()[0]
+        con.execute(f'DROP TABLE raw."{t}"')
+        con.execute(f'CREATE VIEW raw."{t}" AS {expand}')
         done += 1
 
     con.execute("CHECKPOINT")

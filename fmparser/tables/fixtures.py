@@ -4,7 +4,7 @@
 Located inside the save's zstd tail archive member `fix_man.dat`.
 Contains world match fixtures tiled across contiguous 92-byte segments.
 """
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Tuple
 
 from ..core import archive as A
 from ..core import Field, PAD, RAW, Record, TableDef, U8, U16, U32, UNKNOWN
@@ -166,19 +166,15 @@ def read_fixture(blob: Any, o: int) -> Dict[str, Any]:
     return _process_fixture(r, o)
 
 
-def scrape(blob: Any, valid_clubs: Optional[Set[int]] = None) -> List[Dict[str, Any]]:
+def scrape(blob: Any) -> List[Dict[str, Any]]:
     """[{home_tid, away_tid, date, year, round, ...}] for every match in decompressed
-    fix_man.dat; with `valid_clubs`, only matches between two of those clubs."""
-    rows = FIXTURES_TABLE.scrape(blob)
-    if valid_clubs is None:
-        return rows
-    return [r for r in rows if r["home_tid"] in valid_clubs and r["away_tid"] in valid_clubs]
+    fix_man.dat."""
+    return FIXTURES_TABLE.scrape(blob)
 
 
-def fixtures(mm: Any, valid_clubs: Optional[Set[int]] = None) -> List[Dict[str, Any]]:
-    """Extract fixtures from save mmap via member fix_man.dat."""
-    blob = A.extract(mm, MEMBER)
-    return scrape(blob, valid_clubs=valid_clubs)
+def fixtures(mm: Any) -> List[Dict[str, Any]]:
+    """Every match in the save's fixture list (member fix_man.dat)."""
+    return scrape(A.extract(mm, MEMBER))
 
 
 def summary(mm: Any) -> Dict[str, Any]:

@@ -50,7 +50,7 @@ export async function view() {
   const oppName = (m) => m.opponent || `#${m.opp_tid}`;
 
   // Real home-game attendance per season, from mart.club_attendance (same source as "Biggest
-  // Crowd" below — staging.matches.attendance — just aggregated once server-side).
+  // Crowd" below — raw.matches.attendance — just aggregated once server-side).
   const af = M.attendance_fields || [];
   const attBySeason = new Map((M.attendance || [])
     .map((r) => Object.fromEntries(af.map((n, i) => [n, r[i]])))

@@ -110,20 +110,20 @@ def test_load():
     # chain end nothing else points at once 2 is cut): a debut line alone is a history.
     hist["rows"]["next"][2] = END
     con = duckdb.connect()
-    con.execute("CREATE SCHEMA staging")
+    con.execute("CREATE SCHEMA raw")
     for ddl in L.DDL:
-        if "staging.player_history" in ddl:
+        if "raw.player_history" in ddl:
             con.execute(ddl)
     L.load_history(con, 2027, "2027-08-08", hist)
     ph = con.execute("SELECT tid, origin_club_tid, last_season_club_tid, record_offset, "
-                     "debut_season, debut_end_year FROM staging.player_history "
+                     "debut_season, debut_end_year FROM raw.player_history "
                      "ORDER BY tid").fetchall()
     assert ph == [(7, 100, 200, hist["base"], 48, 2019),
                   (8, 300, 300, hist["base"] + 48, 47, 2018),
                   (11, 400, 400, hist["base"] + 80, 51, 2022)], ph
     s = con.execute("SELECT tid, seq, end_year, club_tid, fee, apps, goals, assists, rating, "
                     "yellows, reds "
-                    "FROM staging.player_history_seasons ORDER BY tid, seq").fetchall()
+                    "FROM raw.player_history_seasons ORDER BY tid, seq").fetchall()
     assert s == [(7, -1, 2019, 100, "stay", 0, 0, 0, None, 0, 0),
                  (7, 0, 2020, 100, "stay", 10, 2, 0, 6.5, 0, 0),
                  (7, 1, 2021, 200, "loan", 5, 0, 0, None, 0, 0),

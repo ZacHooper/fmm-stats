@@ -6,7 +6,7 @@ description: Parse new FMM22 .fms save files and load them into the career's Duc
 # Import FMM saves into the dashboard
 
 End-to-end: `.fms` save → extract (JSON) → load into `fm-<career>.duckdb`
-(staging schema) → verify. Run from the repo root (the directory containing `extract.py`
+(raw schema) → verify. Run from the repo root (the directory containing `extract.py`
 and `load_duckdb.py`). Saves are read from wherever the user drops them (commonly
 `~/Downloads`); adjust the paths in the commands below to your machine.
 
@@ -69,7 +69,7 @@ Different job from importing a new save: re-extract and reload every snapshot al
 so old slices pick up the new decode. The store knows the full manifest —
 
 ```sql
-SELECT label, season, phase, save_path FROM staging.extracts ORDER BY season, phase;
+SELECT label, season, phase, save_path FROM raw.extracts ORDER BY season, phase;
 ```
 
 Then just run the rebuild script — it does exactly this from `seeds/manifest.csv`, and checks
@@ -116,7 +116,7 @@ check against a screenshot.
    from the summaries.
 
 4. **Detect clashes** and surface them to the user *before* loading:
-   - Does an intended `(season, phase)` already exist in `staging.extracts`? Loading will
+   - Does an intended `(season, phase)` already exist in `raw.extracts`? Loading will
      **replace** it. Confirm that's intended (usually yes — a cleaner/newer re-export). Compare
      player and match counts to check it's the same career point vs a genuinely different one.
    - Do two new saves map to the same `(season, phase)`? One will overwrite the other — resolve
@@ -134,7 +134,7 @@ check against a screenshot.
    (Only add `--season/--phase` to force a slice. The loader auto-migrates older stores — drops the
    legacy `phase IN (start,mid,end)` CHECK on first load so date-phases are accepted.)
 
-6. **Verify**: query `staging.extracts` (all labels + row counts), squad sizes per label
+6. **Verify**: query `raw.extracts` (all labels + row counts), squad sizes per label
    (`club_tid in (346,7296)` for frem), and run an `AppTest` smoke over the dashboard pages to
    confirm rendering — all 14 should pass, including against a read-only store. Report the final snapshot table.
 
@@ -148,7 +148,7 @@ check against a screenshot.
    uv run python scripts/export_data.py --upload-all                 # -> site/api/*.json + R2 all.json
    uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2 full copy (~34 MB)
    uv run python scripts/publish_mart.py   --career frem --upload    # -> R2 analysis copy (~24 MB)
-   # BOTH R2 copies are needed: publish_duckdb ships `staging` (+ the `mart` schema) for
+   # BOTH R2 copies are needed: publish_duckdb ships `raw` (+ the `mart` schema) for
    # re-derivation, publish_mart ships the mart alone for analysis. They are SEPARATE
    # objects — running one does not refresh the other, and neither is written by
    # load_duckdb.py, so an import leaves both stale until these run.

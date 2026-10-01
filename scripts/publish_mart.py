@@ -4,7 +4,7 @@
     uv run python scripts/publish_mart.py --career frem --upload
 
 `publish_duckdb.py` ships the whole store (~107 MB) so a remote agent can run arbitrary SQL
-over `staging`. That stays. This is the companion artefact for the far commoner case: someone
+over `raw`. That stays. This is the companion artefact for the far commoner case: someone
 wants to ANALYSE the career, not re-derive it, and every correctness rule they'd otherwise
 have to remember (latest-phase-per-season, snapshot-scoped joins, person_id-not-tid, the
 255-sentinel minutes arithmetic) is already baked into the mart. See fmstats/mart.py.
@@ -201,13 +201,13 @@ def build(src_path, dest, scope_ours=True):
     if os.path.exists(work):
         os.remove(work)
 
-    # The mart's views + macros are built in a WORK db pointed at the source's staging, rather
+    # The mart's views + macros are built in a WORK db pointed at the source's raw, rather
     # than read out of the source's own `mart` schema: that way this script works against a
     # store built before the mart existed, and always emits the CURRENT mart definition.
     con = duckdb.connect(work)
     try:
         con.execute(f"ATTACH '{src_path}' AS s (READ_ONLY)")
-        create_mart(con, src="s.staging")
+        create_mart(con, src="s.raw")
 
         con.execute(f"ATTACH '{dest}' AS out")
         con.execute("CREATE SCHEMA out.mart")

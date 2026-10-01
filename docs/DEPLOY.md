@@ -42,7 +42,7 @@ ability number, and that number never leaves the machine that runs the export (h
 parses every file it writes and fails the build on a raw-ability key at any depth.
 
 **The exporter reads only the `mart` schema.** Since 2026-08-25 `export_data.py` touches no
-`staging` table and no `main` view: the four snapshot-shape rules (latest-phase-per-season,
+`raw` table and no `main` view: the four snapshot-shape rules (latest-phase-per-season,
 snapshot-scoped joins, `person_id` not `tid`, 255-sentinel minutes) live in `fmstats/mart.py`
 and both the site and the Streamlit dashboard read them from there. Practical consequence: a
 change to `mart.py` does not reach a store until something re-runs it, so
@@ -156,7 +156,7 @@ CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_K
                    ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
                    URL_STYLE 'path', REGION 'auto');
 ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
-SELECT * FROM fm.staging.players LIMIT 5;
+SELECT * FROM fm.raw.players LIMIT 5;
 ```
 
 Use `TYPE s3` with an explicit `ENDPOINT`, not the `TYPE r2`/`ACCOUNT_ID` shorthand — in
@@ -180,7 +180,7 @@ that drop it straight into DuckDB's extension cache, after which `LOAD httpfs` a
 
 **What's published is a compacted copy, not the live store — but not a scrubbed one.**
 `scripts/publish_duckdb.py` clones `fm-<career>.duckdb` and uploads that clone to
-`site-data/fm-<career>.duckdb`; `staging.players.ca`/`.pa` (raw ability) travel unchanged. They
+`site-data/fm-<career>.duckdb`; `raw.players.ca`/`.pa` (raw ability) travel unchanged. They
 used to be NULLed here, but `mart.player_position_fit`/`player_position_levels` both need `ca`
 to compute (Level %ile, Fit ratings), so a scrubbed copy meant a remote scout report always
 came back "0 rated players" regardless of the opponent. The immersion house rule (never
@@ -214,9 +214,9 @@ exclude it (tested: the file is uploaded and the exclusion ignored), so just pre
 
 Not a phone problem — these genuinely need the local DuckDB store, because they **write** to it:
 
-- **Tactics** — editing a weight-set writes to `staging.role_weights`. Change it in the dashboard
+- **Tactics** — editing a weight-set writes to `raw.role_weights`. Change it in the dashboard
   (or `seeds/role_weights.csv`) and re-export; the app reads all seven tactics but can't add one.
-- **Config** — the familiarity curve and default tactic write to `staging.app_config`.
+- **Config** — the familiarity curve and default tactic write to `raw.app_config`.
 
 And one that could be ported but isn't yet:
 

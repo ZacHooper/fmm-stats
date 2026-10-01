@@ -265,13 +265,13 @@ drift per save and per career.
 
 | table | rows | keyed by | verified against |
 |---|---|---|---|
-| `staging.stadiums` | 15,987 | club record's `stadium_id` | Parken 38,065 and Aalborg Portland Park 13,800 — the real capacities, exactly |
-| `staging.cities` | 10,928 | stadium's `city_id` | Copenhagen 55.6761/12.5683, Aalborg 57.0488/9.9217 |
-| `staging.languages` | 77 | the language ids on every person record | 7=English, 10=German, 31=Danish — the ids inferred from the managers' lists |
-| `staging.currencies` | 94 | — | Danish Krone 8.699, Czech Koruna 29.81 per GBP |
-| `staging.nations` | 227 | `nationality_id` on every person | Denmark→Copenhagen→Parken, England→London→Wembley, Norway→Oslo→Ullevaal, Sweden→Stockholm→Friends Arena |
-| `staging.nation_ranking_history` | 5,040 | nation | ranked nations only; the count GROWS with career length (10 in 2022, 24 by 2026) |
-| `staging.nation_coefficients` | 1,441 | nation | UEFA-only (131 of 227): Germany 20.0, England 19.86, Italy 19.29 |
+| `raw.stadiums` | 15,987 | club record's `stadium_id` | Parken 38,065 and Aalborg Portland Park 13,800 — the real capacities, exactly |
+| `raw.cities` | 10,928 | stadium's `city_id` | Copenhagen 55.6761/12.5683, Aalborg 57.0488/9.9217 |
+| `raw.languages` | 77 | the language ids on every person record | 7=English, 10=German, 31=Danish — the ids inferred from the managers' lists |
+| `raw.currencies` | 94 | — | Danish Krone 8.699, Czech Koruna 29.81 per GBP |
+| `raw.nations` | 227 | `nationality_id` on every person | Denmark→Copenhagen→Parken, England→London→Wembley, Norway→Oslo→Ullevaal, Sweden→Stockholm→Friends Arena |
+| `raw.nation_ranking_history` | 5,040 | nation | ranked nations only; the count GROWS with career length (10 in 2022, 24 by 2026) |
+| `raw.nation_coefficients` | 1,441 | nation | UEFA-only (131 of 227): Germany 20.0, England 19.86, Italy 19.29 |
 
 `mart.club_places` joins club → stadium → city, so every club has a ground, a capacity and
 real coordinates. `mart.languages` / `mart.currencies` / `mart.nations` expose the lookups;

@@ -56,7 +56,7 @@ WITH c AS (
 SELECT p.season, p.phase, p.tid, p.name, s.club,
        p.ca, p.pa, p.reputation, p.is_gk, s.age,
        lr.lrp, lr.is_res, p.player_value AS val
-FROM staging.players p
+FROM raw.players p
 JOIN mart.player_snapshots s USING (season, phase, tid)
 JOIN lr ON lr.season = p.season AND lr.phase = p.phase AND lr.club_tid = s.club_tid
 WHERE p.ca IS NOT NULL AND s.age IS NOT NULL AND lr.lrp IS NOT NULL

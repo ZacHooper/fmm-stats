@@ -39,7 +39,7 @@ def test_compman_cases():
         assert len(stg) == expected_stages, f"{fname}: stage count mismatch {len(stg)} != {expected_stages}"
 
         hon = CH.honours(blob)
-        if "2021-07-01" in fname:
+        if "2021-06-27" in fname:
             assert len(hon) == 0, f"{fname}: day-one should have 0 honours, got {len(hon)}"
             print(f"  PASS {fname:<25} header ok, {len(stg):,} stages, 0 honours (day one)")
         else:

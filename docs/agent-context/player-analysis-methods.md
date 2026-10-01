@@ -18,7 +18,7 @@ produced this doc.
 `site-data/fm-<career>-mart.duckdb` contains only the latest snapshot (~24k rows, one phase). A
 player appearing once there is NOT evidence he is new — it is the table's shape. **Per-snapshot
 attribute history lives in the FULL store**, `site-data/fm-<career>.duckdb` →
-`staging.player_attributes` (~24k players × 20 snapshots ≈ 482k rows). `mart.player_attribute_growth`
+`raw.player_attributes` (~24k players × 20 snapshots ≈ 482k rows). `mart.player_attribute_growth`
 also keeps history but is scoped to ~58 own-squad players. Joining the growth table to
 `mart.player_snapshots` on `(person_id, snap_ix)` silently keeps only the latest snapshot's rows
 (1,242 of 24,081) — join to the full store instead, or derive age from `dob` + `phase_date`.
@@ -46,7 +46,7 @@ lag the live game. Cross-check against `site/api/core.json`'s `ours.squad_tids` 
 See [[loan-status-unreliable]].
 
 **4. ONE MATCH IS STORED UNDER SEVERAL `anchor`s — deduping on `(anchor, tid)` does NOTHING.**
-`staging.match_player_stats` is the ring buffer, and every snapshot that still holds a match writes
+`raw.match_player_stats` is the ring buffer, and every snapshot that still holds a match writes
 its own copy under a fresh `anchor`. Measured on Frem: of 178 first-team matches, only **20 have a
 single anchor** — 66 have two, **77 have three**, 6 have four and 9 have five. And `(anchor, tid)`
 is already unique (max 1 row), so the obvious
@@ -59,10 +59,10 @@ during a per-player pull of one match: every row came back triplicated, and the 
 MATCH level — pick one anchor per `(date, opponent_tid)`, newest snapshot first — and only then
 join players:
 ```sql
-WITH pick AS (SELECT anchor FROM staging.match_player_stats
+WITH pick AS (SELECT anchor FROM raw.match_player_stats
               WHERE team_tid = 346 AND date = DATE '2024-09-15'
               ORDER BY season DESC, phase DESC LIMIT 1)
-SELECT * FROM staging.match_player_stats WHERE anchor = (SELECT anchor FROM pick);
+SELECT * FROM raw.match_player_stats WHERE anchor = (SELECT anchor FROM pick);
 ```
 Sanity-check any aggregate against a known-real scale: our shots per game are ~7, so a bucket
 averaging 1.6 or 39 is a dedup bug, not a finding. A second symptom of the same class: mixing the
@@ -144,7 +144,7 @@ not a growth-rate one — see the retraction above for why conflating the two ov
 
 ## Reusable setup
 
-Attach both objects — the mart for shaped tables, the full store for `staging` and history:
+Attach both objects — the mart for shaped tables, the full store for `raw` and history:
 
 ```python
 con.execute("SET enable_progress_bar=false;")          # else progress bars flood tool output
@@ -173,7 +173,7 @@ not `-mart`: the mart omits the rating layer that Fit and Level need.
 
 | You'll reach for | It's actually |
 |---|---|
-| a position on `mart.player_snapshots` | **it has none** — neither `pos` nor `position`. Positions live in `effective_table` / `squad_frame` (column `position`) and, per started match, in `staging.match_player_stats.position` |
+| a position on `mart.player_snapshots` | **it has none** — neither `pos` nor `position`. Positions live in `effective_table` / `squad_frame` (column `position`) and, per started match, in `raw.match_player_stats.position` |
 | `mart.clubs.tid` | **`club_tid`** |
 | `mart.role_weights.position` | **`role`** (10 roles: GK/LB/RB/CB/DM/CM/AMC/AML/AMR/ST), and attribute names are **lowercase** |
 | `squad_key_players(club_tid, season=…)` | **`squad_key_players(frame, club_tid, method, rank_by=…)`** — pass a `squad_frame`, not a club |

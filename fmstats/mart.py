@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The `mart` layer — the snapshot-shaped staging tables, restated as facts and spells.
+"""The `mart` layer — the snapshot-shaped raw tables, restated as facts and spells.
 
-`staging.*` mirrors the parser: one full row set per `(season, phase)` snapshot. That shape
+`raw.*` mirrors the parser: one full row set per `(season, phase)` snapshot. That shape
 is deliberate and worth keeping (it is what makes mid-season development trajectories
 possible at all), but it forces four correctness rules onto every consumer:
 
@@ -10,7 +10,7 @@ possible at all), but it forces four correctness rules onto every consumer:
      snapshots in a season are supersets of earlier ones. Summing across phases
      double-counts. Verified for this store: every 2024 phase starts at the same first
      match and the latest holds all 38.
-  2. SNAPSHOT-SCOPED JOIN. `staging.players` is one row per SNAPSHOT, not per player. A
+  2. SNAPSHOT-SCOPED JOIN. `raw.players` is one row per SNAPSHOT, not per player. A
      bare `tid` join multiplies every fact row by the number of snapshots the player is in.
   3. PERSON IDENTITY. `tid` is a slot, not a person — FM recycles retired players' tids
      (1,908 recycled slots here). Any cross-snapshot per-player aggregate must key on
@@ -24,7 +24,7 @@ in ~10 copy-pasted CASE expressions across `load_duckdb.py`, older queries and
 ad-hoc agent SQL over the published R2 copy — inherits them instead of re-deriving them.
 
 The other half of the module is `mart.player_spells`, which replaces the state flags that
-cannot be trusted. `staging.players.loaned_in` is SET-ONLY: nothing in the save clears it
+cannot be trusted. `raw.players.loaned_in` is SET-ONLY: nothing in the save clears it
 when a loan lapses rather than being renewed, so it accumulates monotonically (0 -> 4 -> 7
 -> 8 -> 9 across this store's 16 snapshots, never once decrementing). At the latest
 snapshot 6 of the 9 flagged loan-ins last played for us in 2022 or 2023. The rows are not
@@ -112,12 +112,12 @@ def _sum(attrs):
 def _est_count(attrs):
     return " + ".join(f'CASE WHEN a."{a}_est" THEN 1 ELSE 0 END' for a in attrs)
 
-# Every statement is formatted with {S} = the staging schema to read from. That is
-# "staging" against a real store, and "fm.staging" when validating against a read-only
+# Every statement is formatted with {S} = the raw schema to read from. That is
+# "raw" against a real store, and "fm.raw" when validating against a read-only
 # ATTACHed copy (see tests/validate_mart.py) — the mart objects are then built locally
 # while the source stays untouched.
 
-# The weekly Player Progress status bits (staging.player_progress.status).
+# The weekly Player Progress status bits (raw.player_progress.status).
 PROGRESS_INJURED = 3        # bits 0-1: injured that week (training injuries included)
 PROGRESS_OFF_SEASON = 16    # bit 4: the off-season week at the season boundary
 PROGRESS_ON_LOAN = 32       # bit 5: out on loan that week (never set on a loan IN)
@@ -153,7 +153,7 @@ MACROS = [
                 WHEN 'end'   THEN '0000-00-02' ELSE p END""",
 
     # Season of a calendar date. A campaign runs Jul Y-1 .. Jun Y and is named for its
-    # END year (Aus-FY style), matching `staging.*.season`.
+    # END year (Aus-FY style), matching `raw.*.season`.
     """CREATE OR REPLACE MACRO season_of(d) AS
          CASE WHEN EXTRACT(MONTH FROM d) >= 7
               THEN EXTRACT(YEAR FROM d) + 1 ELSE EXTRACT(YEAR FROM d) END""",
@@ -188,8 +188,8 @@ FROM {S}.extracts e
 """
 
 # Our club tids: the club we manage, which the loader records from the career
-# (staging.app_config `career_managed_tid`), and its reserve side, the club whose record
-# names it as its main club. The two squad arrays (staging.club_squad) between them hold our
+# (raw.app_config `career_managed_tid`), and its reserve side, the club whose record
+# names it as its main club. The two squad arrays (raw.club_squad) between them hold our
 # whole squad. A store loaded before the loader recorded the managed tid falls back to the
 # club in the most named-competition matches -- the save's match list is our own matches.
 OUR_CLUBS = """
@@ -267,47 +267,36 @@ SELECT key, value FROM {S}.app_config
 
 # --- dimensions -------------------------------------------------------------------
 
-# Club -> league, AS AT each snapshot. This one object replaces hand-rolled copies of
-# the same arg_max CTE across older queries and scripts/export_data.py, and two of
-# those copies were wrong in the same two ways: they built the sort key from the raw `phase`
-# column instead of phase_ord() — so a legacy start/mid/end store sorted 'mid' after 'end' —
-# and they left off the `ord <= snapshot` bound, which resolves a club to whatever division
-# it ended up in rather than the one it was in at the time. Harmless when exporting the
-# newest snapshot, silently wrong for any older one, and Frem climbed three divisions in
-# three seasons, so it is exactly the kind of wrong that reads as plausible.
-#
-# `nation` is resolved by cid across ALL snapshots, not per-snapshot, deliberately matching
-# the existing `lgn` CTE — a league's country does not change, and per-snapshot resolution
-# would drop it for any snapshot where the row happens to carry NULL.
+# Club -> league, AS AT each snapshot, from the club record: its league id, unless the club
+# plays in another division (`other_division` set). On the rollover day a club moving
+# division carries `other_division` and no league, so a club's league is the newest one its
+# record named on or before the snapshot: Frem climbed three divisions in three seasons, and
+# each snapshot says which one it was in at the time, never the one it ended up in.
+# League name, reputation and type come from the competition table, the nation from the
+# competition's nation id, on the snapshot itself.
 CLUB_LEAGUES = """
 CREATE OR REPLACE VIEW mart.club_leagues AS
-WITH lm AS (
-    SELECT club_tid, league_cid,
-           LPAD(CAST(season AS VARCHAR), 4, '0') || phase_ord(phase) AS ord
-    FROM {S}.league_members
-    WHERE source = 'club_league' AND league_cid IS NOT NULL
+WITH named AS (
+    SELECT s.snap_ix, d.tid AS club_tid, d.league_id AS league_cid
+    FROM {S}.club_details d
+    JOIN mart.snapshots s USING (season, phase)
+    WHERE d.other_division = 65535 AND d.league_id NOT IN (0, 65535)
 ),
 asat AS (
-    SELECT s.season, s.phase, s.snap_ix, lm.club_tid,
-           arg_max(lm.league_cid, lm.ord) AS league_cid
+    SELECT s.season, s.phase, s.snap_ix, n.club_tid,
+           arg_max(n.league_cid, n.snap_ix) AS league_cid
     FROM mart.snapshots s
-    JOIN lm ON lm.ord <= LPAD(CAST(s.season AS VARCHAR), 4, '0') || s.phase_ord
-    GROUP BY s.season, s.phase, s.snap_ix, lm.club_tid
-),
-lg AS (
-    SELECT season, phase, cid, any_value(name) AS league_name,
-           max(reputation) AS league_reputation, max(type) AS league_type
-    FROM {S}.leagues GROUP BY season, phase, cid
-),
-nat AS (
-    SELECT cid, any_value(nation) AS nation
-    FROM {S}.leagues WHERE nation IS NOT NULL GROUP BY cid
+    JOIN named n ON n.snap_ix <= s.snap_ix
+    GROUP BY s.season, s.phase, s.snap_ix, n.club_tid
 )
 SELECT a.season, a.phase, a.snap_ix, a.club_tid, a.league_cid,
-       lg.league_name, nat.nation, lg.league_reputation, lg.league_type
+       c.name AS league_name, n.name AS nation, c.reputation AS league_reputation,
+       c.type AS league_type
 FROM asat a
-LEFT JOIN lg  ON (lg.season, lg.phase, lg.cid) = (a.season, a.phase, a.league_cid)
-LEFT JOIN nat ON nat.cid = a.league_cid
+LEFT JOIN {S}.competitions c
+       ON (c.season, c.phase, c.cid) = (a.season, a.phase, a.league_cid)
+LEFT JOIN {S}.nations n
+       ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nation_id)
 """
 
 # The club dimension. squad_size counts the clubs whose squads actually parsed, which is why
@@ -342,7 +331,7 @@ SELECT
     any_value(d.stadium_id)                 AS stadium_id,
     any_value(st.name)                      AS stadium,
     any_value(st.capacity)                  AS stadium_capacity,
-    -- ATTENDANCE IS DELIBERATELY NOT HERE. staging.club_details carries att_avg/att_min/
+    -- ATTENDANCE IS DELIBERATELY NOT HERE. raw.club_details carries att_avg/att_min/
     -- att_max, we read those bytes correctly (league_id lands exactly at p+158 beside them),
     -- and the NAMES are borrowed from fmm-editor's Club.cs and have never been checked
     -- against the game. They do not survive the check: the values are static across every
@@ -359,22 +348,45 @@ LEFT JOIN mart.club_leagues cl
        ON (cl.season, cl.phase, cl.club_tid) = (c.season, c.phase, c.tid)
 LEFT JOIN {S}.club_details d
        ON (d.season, d.phase, d.tid) = (c.season, c.phase, c.tid)
-LEFT JOIN {S}.stadiums st ON st.id = d.stadium_id
-LEFT JOIN (SELECT DISTINCT cid, name FROM {S}.leagues) ll ON ll.cid = d.last_league
+LEFT JOIN {S}.stadiums st
+       ON (st.season, st.phase, st.id) = (d.season, d.phase, d.stadium_id)
+LEFT JOIN {S}.competitions ll
+       ON (ll.season, ll.phase, ll.cid) = (d.season, d.phase, d.last_league)
 LEFT JOIN {S}.players p
        ON (p.season, p.phase) = (c.season, c.phase)
       AND p.club_tid = c.tid AND p.tid IS NOT NULL AND NOT p.is_staff
 GROUP BY c.season, c.phase, c.tid
 """
 
+# The clubs the site lists: a club with a rated player, a club in one of our matches, or a
+# club on a career-history line of two seasons or more. mart.clubs is the whole club table
+# (11k+ slots, national sides, reserve sides with no squad); this is the subset worth
+# naming in a club picker.
+LISTED_CLUBS = """
+CREATE OR REPLACE VIEW mart.listed_clubs AS
+SELECT DISTINCT season, phase, club_tid FROM (
+    SELECT season, phase, club_tid FROM {S}.players
+    WHERE NOT is_staff AND has_attributes AND club_tid <> 65535
+    UNION ALL
+    SELECT season, phase, home_tid FROM {S}.matches
+    UNION ALL
+    SELECT season, phase, away_tid FROM {S}.matches
+    UNION ALL
+    SELECT h.season, h.phase, h.club_tid FROM {S}.player_history_seasons h
+    JOIN (SELECT season, phase, tid FROM {S}.player_history_seasons
+          GROUP BY ALL HAVING COUNT(*) > 1) k USING (season, phase, tid)
+) x
+SEMI JOIN {S}.clubs c ON (c.season, c.phase, c.tid) = (x.season, x.phase, x.club_tid)
+"""
+
 # Real attendance, from the MATCH records -- not from club_details.
 #
-# staging.club_details carries att_avg/att_min/att_max and they are NOT this: they correlate
+# raw.club_details carries att_avg/att_min/att_max and they are NOT this: they correlate
 # -0.31 with what clubs actually draw, while stadium capacity correlates +0.93, and one club
 # (Herfolge, tid 5277) sits on the worldwide 12,500 ceiling while really drawing 2,318. What
 # they are is open (docs/TODO.md, "Unnamed fields"); what they are not is attendance.
 #
-# staging.matches.attendance is the real figure and it checks out against the game: FCK read
+# raw.matches.attendance is the real figure and it checks out against the game: FCK read
 # 32,962 against a reported ~30k, and Frem's own average tracks the climb exactly --
 # 1,826 in 2021 in the 3. Division, 4,630 in 2023, 11,029 in 2025 in the Superliga.
 #
@@ -385,7 +397,7 @@ GROUP BY c.season, c.phase, c.tid
 CLUB_ATTENDANCE = """
 CREATE OR REPLACE VIEW mart.club_attendance AS
 WITH g AS (
-    -- SEASON COMES FROM THE MATCH DATE, not from the snapshot. `staging.matches.season` is
+    -- SEASON COMES FROM THE MATCH DATE, not from the snapshot. `raw.matches.season` is
     -- the season of the SAVE the match was read out of, so one physical fixture appears
     -- under every later snapshot and gets counted again each time -- Frem's 20-odd home
     -- games read as 95. Keying on (date, home, away) collapses the copies, and season_of()
@@ -426,7 +438,7 @@ GROUP BY g.season, g.club_tid
 
 # Match EVENTS -- goals with their minute, plus cards, injuries and missed penalties.
 #
-# staging.match_events was parsed and surfaced nowhere. `tid` is the PLAYER (Nordberg, Ementa,
+# raw.match_events was parsed and surfaced nowhere. `tid` is the PLAYER (Nordberg, Ementa,
 # Jakobsen), not the club, and the types are: goal, own_goal, penalty, missed_penalty,
 # disallowed_goal, red_card, injury, plus three byte values still unnamed (?07, ?08, ?0e) which
 # are carried verbatim rather than dropped.
@@ -468,7 +480,7 @@ SELECT CAST(season_of(ev.date) AS INTEGER) AS season,
        ev.date, ev.competition, ev.comp_id,
        ev.home_tid, ev.away_tid,
        ev.minute, ev.added, ev.min_display,
-       -- The LABEL comes from staging.event_types, not staging.match_events.type. That
+       -- The LABEL comes from raw.event_types, not raw.match_events.type. That
        -- column is written at EXTRACT time, so naming a byte would otherwise mean a
        -- 25-minute re-extract before the store agreed. The loader seeds event_types from
        -- the parser's table on every load and --refresh-only; an unnamed byte keeps the
@@ -499,10 +511,10 @@ LEFT JOIN {S}.event_types et ON et.code = ev.type_byte
 
 # The COMPETITION dimension -- every competition our matches reference, not just leagues.
 #
-# mart.leagues covers the world's leagues. It does NOT cover cups or friendlies, which live
-# only in staging.competitions, so until now a match's `competition` was a bare string with
-# nothing to join to and no way to say "league games only". That quietly mixes cup and
-# friendly goals into any total a caller builds.
+# mart.leagues covers the world's leagues. This covers every competition in the save's
+# competition table, cups and friendlies included, so a match's `competition` has something to
+# join to and a caller can say "league games only" instead of mixing cup and friendly goals
+# into a total.
 #
 # `kind` is the useful column: league / cup / friendly from the save's own type, and RESERVE
 # derived structurally -- a competition every one of whose matches involves a club of ours
@@ -514,18 +526,23 @@ LEFT JOIN {S}.event_types et ON et.code = ev.type_byte
 # than the literal 1342 so it holds for any career.
 COMPETITIONS = """
 CREATE OR REPLACE VIEW mart.competitions AS
-WITH cmp AS (   -- the competitions our save actually carries detail for
-    SELECT CAST(season AS INTEGER) AS season, cid,
-           max_by(name, phase) AS name, max_by(short, phase) AS short,
-           max_by(code, phase) AS code, max_by(type, phase) AS type,
-           max_by(num_teams, phase) AS num_teams, max_by(level, phase) AS level
-    FROM {S}.competitions GROUP BY season, cid
-), lg AS (      -- the world's leagues
-    SELECT CAST(season AS INTEGER) AS season, cid,
-           max_by(name, phase) AS name, max_by(type, phase) AS type,
-           max_by(nation, phase) AS nation, max_by(reputation, phase) AS reputation,
-           max_by(level, phase) AS level, max_by(member_count, phase) AS member_count
-    FROM {S}.leagues GROUP BY season, cid
+WITH cmp AS (   -- the whole competition table, newest snapshot of each season
+    SELECT CAST(c.season AS INTEGER) AS season, c.cid,
+           max_by(c.name, c.phase) AS name, max_by(c.short, c.phase) AS short,
+           max_by(c.code, c.phase) AS code, max_by(c.type, c.phase) AS type,
+           max_by(n.name, c.phase) AS nation, max_by(c.reputation, c.phase) AS reputation,
+           max_by(tc.teams, c.phase) AS num_teams, max_by(c.level, c.phase) AS level
+    FROM {S}.competitions c
+    LEFT JOIN {S}.nations n ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nation_id)
+    LEFT JOIN {S}.competition_team_counts tc
+           ON (tc.season, tc.phase, tc.uid) = (c.season, c.phase, c.uid)
+    GROUP BY c.season, c.cid
+), members AS ( -- clubs whose record names the competition as their league
+    SELECT CAST(season AS INTEGER) AS season, league_cid AS cid,
+           max_by(n, phase) AS member_count
+    FROM (SELECT season, phase, league_cid, COUNT(*) AS n FROM mart.club_leagues
+          GROUP BY season, phase, league_cid)
+    GROUP BY season, league_cid
 ), fx AS (      -- what we hold fixtures for, and whether they are all reserve games
     SELECT CAST(season_of(date) AS INTEGER) AS season, comp_id AS cid,
            COUNT(*) AS games,
@@ -538,25 +555,24 @@ WITH cmp AS (   -- the competitions our save actually carries detail for
           WHERE date IS NOT NULL AND comp_id IS NOT NULL)
     GROUP BY 1, 2
 )
-SELECT COALESCE(cmp.season, lg.season, fx.season)  AS season,
-       COALESCE(cmp.cid, lg.cid, fx.cid)           AS cid,
-       COALESCE(cmp.name, lg.name)                 AS name,
-       cmp.short, cmp.code, lg.nation, lg.reputation,
-       COALESCE(cmp.num_teams, lg.member_count)    AS num_teams,
-       COALESCE(cmp.level, lg.level)               AS level,
+SELECT COALESCE(cmp.season, fx.season)       AS season,
+       COALESCE(cmp.cid, fx.cid)                 AS cid,
+       cmp.name,
+       cmp.short, cmp.code, cmp.nation, cmp.reputation,
+       COALESCE(cmp.num_teams, mb.member_count)  AS num_teams,
+       cmp.level,
        CASE WHEN COALESCE(fx.all_reserve, FALSE) AND cmp.type IS NULL THEN 'reserve'
-            ELSE COALESCE(cmp.type, lg.type) END   AS kind,
-       COALESCE(fx.games, 0)                       AS games_in_store,
+            ELSE cmp.type END                    AS kind,
+       COALESCE(fx.games, 0)                     AS games_in_store,
        -- a display label that never comes back NULL, so a caller grouping by competition
-       -- does not silently drop the reserve league the way `competition` currently does
-       COALESCE(cmp.name, lg.name,
+       -- does not silently drop a competition the save leaves unnamed
+       COALESCE(cmp.name,
                 CASE WHEN COALESCE(fx.all_reserve, FALSE) THEN 'Reserve League (derived)' END,
-                'Competition #' || CAST(COALESCE(cmp.cid, lg.cid, fx.cid) AS VARCHAR))
-                                                   AS label
+                'Competition #' || CAST(COALESCE(cmp.cid, fx.cid) AS VARCHAR))
+                                                 AS label
 FROM cmp
-FULL OUTER JOIN lg  ON lg.cid = cmp.cid AND lg.season = cmp.season
-FULL OUTER JOIN fx  ON fx.cid = COALESCE(cmp.cid, lg.cid)
-                   AND fx.season = COALESCE(cmp.season, lg.season)
+LEFT JOIN members mb ON (mb.season, mb.cid) = (cmp.season, cmp.cid)
+FULL OUTER JOIN fx   ON (fx.season, fx.cid) = (cmp.season, cmp.cid)
 """
 
 
@@ -570,18 +586,16 @@ FULL OUTER JOIN fx  ON fx.cid = COALESCE(cmp.cid, lg.cid)
 # sight, and renaming it to slip past that check would break the house rule for real.
 LEAGUES = """
 CREATE OR REPLACE VIEW mart.leagues AS
-WITH lg AS (
-    SELECT season, phase, cid,
-           any_value(name) AS name, any_value(nation) AS nation,
-           max(type) AS type, max(reputation) AS reputation,
-           max(member_count) AS member_count,
-           max(level) AS level, max(parent_cid) AS parent_cid
-    FROM {S}.leagues WHERE name IS NOT NULL
-    GROUP BY season, phase, cid
-),
-counted AS (
+WITH counted AS (   -- a league is a competition some club's record names as its league
     SELECT season, phase, league_cid AS cid, COUNT(*) AS club_count
     FROM mart.club_leagues GROUP BY season, phase, league_cid
+),
+lg AS (
+    SELECT c.season, c.phase, c.cid, c.name, n.name AS nation, c.type, c.reputation,
+           k.club_count AS member_count, c.level, c.parent_cid
+    FROM {S}.competitions c
+    JOIN counted k ON (k.season, k.phase, k.cid) = (c.season, c.phase, c.cid)
+    LEFT JOIN {S}.nations n ON (n.season, n.phase, n.id) = (c.season, c.phase, c.nation_id)
 ),
 rated AS (
     SELECT cl.season, cl.phase, cl.league_cid AS cid,
@@ -650,7 +664,7 @@ FROM (
 #
 # The loan outlook (scripts/_export_db.py build_loans) answers "how many bodies would be ahead
 # of him at that club, and where would he sit in that division" — and it needs the raw ability
-# number to do it, reading staging.players.ca directly, for two reasons:
+# number to do it, reading raw.players.ca directly, for two reasons:
 #
 #   1. There is nothing to materialise. The pool is an arbitrary club's squad at an arbitrary
 #      familiarity floor, so the only precomputable form is a TOTAL ABILITY ORDINAL over every
@@ -712,7 +726,7 @@ GROUP BY l.season, l.phase, l.tid, c.method, c.role
 # Tactic fit: the role rating discounted by how familiar the player is with the position, then
 # ranked against everyone who plays that position, globally / in his nation / in his division.
 #
-# The familiarity curve is read from staging.app_config INSIDE the view rather than baked in
+# The familiarity curve is read from raw.app_config INSIDE the view rather than baked in
 # by the caller. Previously generated dynamically in Python (_mult_sql), which
 # means the mart definition would otherwise depend on whatever config the process that built
 # it happened to see — and publish_mart rebuilds the mart from a source store, so the two
@@ -1179,7 +1193,7 @@ WHERE NOT p.is_staff
 # The club name is resolved WITHIN THE SAME SNAPSHOT on purpose — a tid is a recycled slot,
 # so resolving it against a different snapshot can name the wrong club entirely.
 #
-# THE DEBUT LINE IS A SEASON LIKE ANY OTHER. `is_debut` (staging seq -1) is the oldest season
+# THE DEBUT LINE IS A SEASON LIKE ANY OTHER. `is_debut` (raw seq -1) is the oldest season
 # the save holds for the player, at his origin club: a youth season for anyone whose chain the
 # game has not reclaimed, and for an academy intake his youth-team season with its
 # appearances. It counts where every other line counts — the training months, a career total —
@@ -1459,7 +1473,7 @@ JOIN (SELECT season, arg_max(phase, phase_ord(phase)) AS phase
 # choices each silently deleted real football:
 #
 #   1. Aggregating on person_id and dropping the rows where it is NULL. person_slices is
-#      derived purely from staging.players (load_duckdb.rebuild_persons), so a player with
+#      derived purely from raw.players (load_duckdb.rebuild_persons), so a player with
 #      match rows but no roster row in ANY snapshot never gets an identity — 76 tids here,
 #      42 of them ours. Filtering them out cost 196 of our appearances and 25 of our 2024
 #      goals, 22% of the season. So the aggregation key is `player_key`, which falls back to
@@ -1831,7 +1845,7 @@ SELECT person_id, tid, name, spell_type, club_tid, club, season,
 FROM spells WHERE valid_to >= valid_from
 """
 
-# One row per tracked player per week, from staging.player_progress. The table is re-read on
+# One row per tracked player per week, from raw.player_progress. The table is re-read on
 # every snapshot and a week can be stored more than once in one save, so every copy of a
 # (tid, week) from every snapshot is OR-ed into one status. Each save holds the managed
 # squad and reserves back to their first week at the club; a player's weeks leave the save
@@ -2178,7 +2192,7 @@ LEFT JOIN mins m USING (person_id, season)
 #
 # KNOWN, NOT FIXED HERE: unlike player_growth_tenure (fixed 2026-09-01 to gate `ours` on
 # mart.player_spells), this still keys off mart.club_runs directly, which is raw
-# staging.players.club_tid — exposed to the same lapsed-loan ghost (see the GHOST NOTE on
+# raw.players.club_tid — exposed to the same lapsed-loan ghost (see the GHOST NOTE on
 # mart.at_club_spells: "club_runs itself is untouched, so growth-at-club tracking for loan
 # spells is unaffected" — a deliberate call at the time, not an oversight, but the same class
 # of bug player_growth_tenure just got fixed for). A lapsed loanee's run here still spans
@@ -2240,7 +2254,7 @@ FROM bounds b
 #
 # `ours` is spell-based (EXISTS against mart.player_spells), not a raw `g.club_tid` check —
 # see the GHOST NOTE on mart.at_club_spells above for why the raw column can't be trusted:
-# `staging.players.club_tid` is a per-snapshot fact, but a lapsed loan leaves it pointing at
+# `raw.players.club_tid` is a per-snapshot fact, but a lapsed loan leaves it pointing at
 # us indefinitely (the squad-list record is written once and never cleared). A raw check
 # here fabricated a 967-day, +24-attribute "tenure" for Ernest Nuamah (2022-03-19 through the
 # newest snapshot) out of a loan that actually ended 2023-06-30 — confirmed against the raw
@@ -3056,7 +3070,7 @@ SELECT * EXCLUDE (rn) FROM (
 """
 
 # The 40-slot squad array, one row per occupied slot. This is SQUAD MEMBERSHIP (it
-# includes loaned-IN players and excludes reserve-team players); staging.players.club_tid
+# includes loaned-IN players and excludes reserve-team players); raw.players.club_tid
 # is OWNERSHIP. They legitimately disagree:
 #   * the array INCLUDES loaned-IN players (they are in the squad, owned elsewhere);
 #   * the array EXCLUDES players who are in the club's RESERVE side, which club_tid lumps
@@ -3288,15 +3302,17 @@ done AS (
     LEFT JOIN shape prev
            ON (prev.season_year, prev.league_key) = (s.season_year - 1, s.league_key)
 ),
-named AS (
-    SELECT m.season_year, m.league_key, COUNT(*) AS n_clubs,
-           mode(cl.league_cid) AS league_cid, mode(cl.league_name) AS league_name,
-           mode(cl.nation) AS nation
+named AS (     -- the league most of the table's clubs belong to; ties go to the lower cid
+    SELECT m.season_year, m.league_key, cl.league_cid,
+           any_value(cl.league_name) AS league_name, any_value(cl.nation) AS nation,
+           SUM(COUNT(*)) OVER (PARTITION BY m.season_year, m.league_key) AS n_clubs
     FROM members m
     JOIN mart.snapshots sn ON sn.season = m.season_year + 1 AND sn.is_latest_in_season
     JOIN mart.club_leagues cl
       ON (cl.season, cl.phase, cl.club_tid) = (sn.season, sn.phase, m.club_tid)
-    GROUP BY m.season_year, m.league_key
+    GROUP BY m.season_year, m.league_key, cl.league_cid
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY m.season_year, m.league_key
+                               ORDER BY COUNT(*) DESC, cl.league_cid) = 1
 ),
 league_size AS (
     SELECT sn.season - 1 AS season_year, cl.league_cid, COUNT(*) AS n_members
@@ -3386,7 +3402,7 @@ FROM tot LEFT JOIN nm USING (person_id)
 # need for the window inference `at_club_spells` does.
 #
 # THE FEE comes from the player's career history in the snapshot that first shows the new
-# club (`staging.player_history_seasons`): the fee sits on the SELLING club's row, in £000s. The row
+# club (`raw.player_history_seasons`): the fee sits on the SELLING club's row, in £000s. The row
 # is the latest one for the old club that is either followed by the new club's row or is the
 # chain's last row — a move made during the season has no row for the buying club yet.
 #   numeric < 65000   -> a fee, `fee_gbp = code * 1000`
@@ -3402,7 +3418,7 @@ FROM tot LEFT JOIN nm USING (person_id)
 # Kaiser £7.383M from FCK.
 #
 # MOVE_TYPE: 'internal' is a move between a club and its own reserve/B side — the club
-# record's `main_club_tid` (staging.club_details) links a reserve side to its first team; the
+# record's `main_club_tid` (raw.club_details) links a reserve side to its first team; the
 # career history does not give the two sides separate rows, so an internal move never has a
 # fee. It is taken as the modal link over all snapshots because not every snapshot carries a
 # record for every reserve side. Our own loans are flagged on the player row (`loaned_in` +
@@ -3535,6 +3551,7 @@ ORDER = [
     ("mart.reserve_clubs", RESERVE_CLUBS),
     ("mart.club_leagues", CLUB_LEAGUES),
     ("mart.clubs", CLUBS),
+    ("mart.listed_clubs", LISTED_CLUBS),
     ("mart.world_fixtures", WORLD_FIXTURES),
     ("mart.world_club_fixtures", WORLD_CLUB_FIXTURES),
     ("mart.fixture_stages", FIXTURE_STAGES),
@@ -3624,8 +3641,8 @@ LATE_STAGING = {
 }
 
 
-def create_mart(con, src="staging"):
-    """(Re)create the macros and the `mart` schema against `src` staging tables."""
+def create_mart(con, src="raw"):
+    """(Re)create the macros and the `mart` schema against `src` raw tables."""
     con.execute("CREATE SCHEMA IF NOT EXISTS mart")
     # Staging tables a newer loader writes: present empty on a store built before them, so
     # the views over them build (and return nothing) instead of failing the whole mart.

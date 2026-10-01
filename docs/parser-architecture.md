@@ -219,7 +219,7 @@ entry's strings from their end: a string of length n ends n bytes after a u32 ho
 the strings that end at a given byte have exactly one start. Both walks stop where a list no
 longer parses, and the region must come out as 66 lists (31 world, 31 club, 4 more) on
 every save. Extract hands every entry over as stored (`player_scrapbook.json`); which of
-them are our squad's is the store's question (`staging.squad_scrapbook`: a player in our
+them are our squad's is the store's question (`raw.squad_scrapbook`: a player in our
 squad arrays, his latest entry in lists 31-61, used for the entangled attributes while it
 is at most a year old). The managed squad used to be found by key
 search -- clusters of our club marker -- and on the early saves the cluster sat on lists

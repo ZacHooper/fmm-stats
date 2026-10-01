@@ -9,7 +9,7 @@ or backed up (it had grown to 96 MiB and was rewriting wholesale on every import
 Regenerate after importing a save:  uv run python scripts/export_manifest.py
 
 Columns: career, save_file, label, season, phase, active
-  save_file  basename only. `staging.extracts.save_path` used to hold an absolute path
+  save_file  basename only. `raw.extracts.save_path` used to hold an absolute path
              (/Users/<you>/Downloads/...), which silently made the recipe machine-specific.
   phase      the snapshot's in-game DATE. Passed explicitly on rebuild — letting the loader
              re-derive it can land a save on a different phase and duplicate the slice instead
@@ -47,7 +47,7 @@ def rows_for(car, existing):
         print(f"  {car.key:10s} (store locked by a running dashboard — read a copy)")
     try:
         rows = con.execute(
-            "SELECT label, save_path, season, phase FROM staging.extracts "
+            "SELECT label, save_path, season, phase FROM raw.extracts "
             "ORDER BY season, phase").fetchall()
     finally:
         con.close()
@@ -83,7 +83,7 @@ def read_existing():
 
 
 def main():
-    print("reading staging.extracts from each career store")
+    print("reading raw.extracts from each career store")
     existing = read_existing()
     rows = [r for car in careers.CAREERS.values() for r in rows_for(car, existing)]
     if not rows:

@@ -27,12 +27,12 @@ FIRST, RESERVE, OTHER = 346, 7296, 900
 
 
 def raw(con, tid, name, club, pace):
-    con.execute("INSERT INTO staging.players_raw (season, phase, tid, name, is_staff, club_tid,"
+    con.execute("INSERT INTO raw.players_raw (season, phase, tid, name, is_staff, club_tid,"
                 " club, foot_left, foot_right) VALUES (?, ?, ?, ?, FALSE, ?, ?, 5, 20)",
                 [S, P, tid, name, club, f"club {club}"])
     cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
     vals = [pace if a == "Pace" else None for a in ATTR_ORDER]
-    con.execute(f"INSERT INTO staging.player_attributes_exact_raw (season, phase, tid, {cols}) "
+    con.execute(f"INSERT INTO raw.player_attributes_exact_raw (season, phase, tid, {cols}) "
                 f"VALUES (?, ?, ?, {', '.join('?' * len(ATTR_ORDER))})", [S, P, tid] + vals)
 
 
@@ -42,22 +42,22 @@ def entry(con, lst, tid, name, day, attr, value, club=FIRST, loan=0xFFFF):
     cols += list(ATTR_ORDER)
     vals = [S, P, lst, tid, tid, name, club, loan, datetime.date(2026, 1, 1)
             + datetime.timedelta(day), value, 20, 1] + [attr] * len(ATTR_ORDER)
-    con.execute(f"INSERT INTO staging.player_scrapbook ({', '.join(chr(34) + c + chr(34) for c in cols)}) "
+    con.execute(f"INSERT INTO raw.player_scrapbook ({', '.join(chr(34) + c + chr(34) for c in cols)}) "
                 f"VALUES ({', '.join('?' * len(cols))})", vals)
 
 
 def build():
     con = duckdb.connect()
     L.create_schema(con)
-    con.execute("INSERT INTO staging.app_config VALUES ('career_managed_tid', ?)", [str(FIRST)])
-    con.execute("INSERT INTO staging.extracts (season, phase, label, source_dir, loaded_at) "
+    con.execute("INSERT INTO raw.app_config VALUES ('career_managed_tid', ?)", [str(FIRST)])
+    con.execute("INSERT INTO raw.extracts (season, phase, label, source_dir, loaded_at) "
                 "VALUES (?, ?, 'x', 'x', now())", [S, P])
-    con.execute("INSERT INTO staging.club_details (season, phase, tid, main_club_tid) "
+    con.execute("INSERT INTO raw.club_details (season, phase, tid, main_club_tid) "
                 "VALUES (?, ?, ?, ?)", [S, P, RESERVE, FIRST])
     for tid, name in ((FIRST, "Frem"), (RESERVE, "Frem Reserves"), (OTHER, "Other FC")):
-        con.execute("INSERT INTO staging.clubs VALUES (?, ?, ?, ?)", [S, P, tid, name])
+        con.execute("INSERT INTO raw.clubs VALUES (?, ?, ?, ?)", [S, P, tid, name])
     squad = [(FIRST, 1), (FIRST, 2), (RESERVE, 3), (FIRST, 5), (RESERVE, 6)]
-    con.executemany("INSERT INTO staging.club_squad VALUES (?, ?, ?, ?, 0)",
+    con.executemany("INSERT INTO raw.club_squad VALUES (?, ?, ?, ?, 0)",
                     [(S, P, c, t) for c, t in squad])
     raw(con, 1, "Owned One", FIRST, 11)          # first team, two entries
     raw(con, 2, "Loanee Two", OTHER, 12)         # in our array, owned by OTHER
@@ -79,9 +79,9 @@ def main():
     con = build()
     rows = {r[0]: r[1:] for r in con.execute(
         "SELECT tid, name, club_tid, club, foot_left, player_value, loaned_in, parent_club_tid,"
-        " parent_club, scrapbook_date FROM staging.players ORDER BY tid").fetchall()}
-    pace = dict(con.execute('SELECT tid, "Pace" FROM staging.player_attributes_exact').fetchall())
-    teamwork = dict(con.execute('SELECT tid, "Teamwork" FROM staging.player_attributes_exact')
+        " parent_club, scrapbook_date FROM raw.players ORDER BY tid").fetchall()}
+    pace = dict(con.execute('SELECT tid, "Pace" FROM raw.player_attributes_exact').fetchall())
+    teamwork = dict(con.execute('SELECT tid, "Teamwork" FROM raw.player_attributes_exact')
                     .fetchall())
 
     print("TESTING a squad player takes his latest Manager's list entry")

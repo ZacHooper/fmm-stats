@@ -30,7 +30,7 @@ def club_names(db):
     try:
         import duckdb
         con = duckdb.connect(db, read_only=True)
-        rows = con.execute("SELECT tid, arg_max(name, phase) FROM staging.clubs "
+        rows = con.execute("SELECT tid, arg_max(name, phase) FROM raw.clubs "
                            "WHERE name IS NOT NULL GROUP BY tid").fetchall()
         con.close()
         return dict(rows)
@@ -44,13 +44,13 @@ def player_lines(hist, tid):
     import duckdb
     import load_duckdb as L
     con = duckdb.connect()
-    con.execute("CREATE SCHEMA staging")
+    con.execute("CREATE SCHEMA raw")
     for ddl in L.DDL:
-        if "staging.player_history" in ddl:
+        if "raw.player_history" in ddl:
             con.execute(ddl)
     L.load_history(con, 0, "", hist)
     lines = con.execute("SELECT end_year, club_tid, apps, goals, assists, rating, fee "
-                        "FROM staging.player_history_seasons WHERE tid = ? ORDER BY seq",
+                        "FROM raw.player_history_seasons WHERE tid = ? ORDER BY seq",
                         [tid]).fetchall()
     return lines
 

@@ -220,7 +220,7 @@ are STARTING positions only" above.
    end of the tail (2-6 bytes, unidentified) is the most promising remaining thread if anyone
    wants to keep pulling it.
 
-Already done: the bench-truncation bug is fixed, `position` is emitted through `staging` →
+Already done: the bench-truncation bug is fixed, `position` is emitted through `raw` →
 `mart` (`fmstats/mart.py`'s `unit` derivation replaces the old `pos_order IN (2,3) →
 Fullbacks` bucketing, which was wrong for any back-3 shape), and `parse_events` still uses the
 old backward-scan heuristic — the 988-byte goal-list table would be a cleaner replacement

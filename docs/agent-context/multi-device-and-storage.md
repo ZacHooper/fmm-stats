@@ -40,7 +40,7 @@ Reads `seeds/manifest.csv` (`career,save_file,label,season,phase,active`), fetch
 `<save>.fms.gz` from R2, gunzips into `$FM_SAVES_DIR/<career>/`, then extracts and loads.
 
 Two things that are easy to get wrong:
-- **`staging.extracts.save_path` stores a BASENAME.** It used to store an absolute
+- **`raw.extracts.save_path` stores a BASENAME.** It used to store an absolute
   `/Users/<you>/Downloads/...` path, which silently made the rebuild recipe machine-specific — the
   manifest could not have rebuilt anything anywhere else. Fixed in `load_duckdb.py`.
 - **Season and phase are passed explicitly** from the manifest, never re-derived. A save whose
@@ -81,7 +81,7 @@ add from the phone: it PUTs one object and is done.
 - Degrades to local-only with no rclone or no configured remote — an offline laptop shows the
   last-synced state rather than erroring. `FM_STATE_OFFLINE=1` forces that.
 
-**Side effect worth knowing:** moving the shortlist out of `staging.shortlist` removed a
+**Side effect worth knowing:** moving the shortlist out of `raw.shortlist` removed a
 `CREATE TABLE IF NOT EXISTS` that ran on first read, which was why **Squad Tool and Team Builder
 crashed against a read-only store**. All 14 pages now pass read-only — a prerequisite for any
 hosted/read-only deployment.
@@ -89,16 +89,16 @@ hosted/read-only deployment.
 ## Naming convention (applied 2026-08-21 to all 19 snapshots)
 
 **`<career>-<YYYY-MM-DD>[-<tag>].fms`**, and the **label is the same string** — save file,
-`output/` dir and `staging.extracts.label` are one vocabulary instead of three. The date is the
+`output/` dir and `raw.extracts.label` are one vocabulary instead of three. The date is the
 save's *in-game* date, i.e. exactly `phase`, half the store's natural key. `season` is omitted
 because it's derivable (a phase in July or later belongs to the next campaign). An optional
 `-<tag>` may follow as a human note; nothing parses it, so it can't break a rebuild.
 
 `scripts/canonicalise_names.py` renames across **all five** places a name appears, and doing
 fewer is worse than doing none: the local raw + `.gz`, the R2 object, `output/<label>/`,
-`staging.extracts.save_path` AND `.label`, and saved-scout object keys (which embed
+`raw.extracts.save_path` AND `.label`, and saved-scout object keys (which embed
 `snapshot_label`). The subtle one is the store: **`seeds/manifest.csv` is GENERATED from it**, so
-renaming files without updating `staging.extracts` reverts the manifest on the next export and a
+renaming files without updating `raw.extracts` reverts the manifest on the next export and a
 rebuild then hunts for saves that no longer exist.
 
 New saves are born canonical via `archive_save.py --phase <date>`. The date **cannot** be derived
@@ -119,13 +119,13 @@ Rebuilt a snapshot into a scratch store (`scripts/rebuild.py --db /tmp/verify.du
 it against the live one: **identical** — 23,800 players, 39 first-team + 7 reserve, same names. So
 the recipe is faithful. But two anchors I'd written down were measuring the wrong thing:
 
-- **Division sizes must be counted on `staging.league_members`, NOT `effective_table`.**
+- **Division sizes must be counted on `raw.league_members`, NOT `effective_table`.**
   `effective_table` only contains players with ratings, so a club with no rated players is
   invisible: the 3. Division shows **11**, not 12, because FC Sydvest has 0 players. That's
   exactly the trap `day1-league-membership.md` warns about — squad size is not a validity filter.
   The correct check:
   ```sql
-  SELECT league_cid, COUNT(DISTINCT club_tid) FROM staging.league_members
+  SELECT league_cid, COUNT(DISTINCT club_tid) FROM raw.league_members
   WHERE source='club_league' AND phase='<p>' AND league_cid IN (2,3,4,1147) GROUP BY 1
   ```
   → 12/12/12/12. Passes on both live and rebuilt.
@@ -152,7 +152,7 @@ that differed both favoured the rebuild:
   The only phases that already agreed were `2021-07-01` (day-1, no light results) and
   `2023-07-02` (already reloaded) — exactly as expected. **A rebuild propagates parser fixes to
   every snapshot for free**, which is a second reason to treat the store as disposable.
-- **`staging.shortlist` is absent** from the rebuild — correct, it lives in `state/` now.
+- **`raw.shortlist` is absent** from the rebuild — correct, it lives in `state/` now.
 
 The rebuilt store is also **80 MB vs 96 MiB**: DuckDB doesn't reclaim space across 12 rounds of
 DELETE+INSERT, so a sequential build is simply more compact.
@@ -162,7 +162,7 @@ the same `output/<label>` dirs and clobber each other. That produced 4 spurious 
 which succeeded on a serial retry.
 
 One benign difference between a full store and a single-snapshot one: `effective_table`'s `lgn`
-CTE resolves league→nation from `staging.leagues` across **all** phases with no phase filter, so a
+CTE resolves league→nation from `raw.leagues` across **all** phases with no phase filter, so a
 store holding fewer snapshots knows fewer leagues' nations (17,090 vs 16,566 nation-null rows).
 Harmless, but don't mistake it for a decode regression.
 
@@ -184,7 +184,7 @@ Harmless, but don't mistake it for a decode regression.
   lost on any fresh clone. Both are archived now. Don't assume `~/Downloads` is the only place.
 - **The shortlist had diverged.** A 2026-08-19 copy of the store held 17 entries the live store
   lacked, and the live store held 3 that copy lacked — two lineages, not a prune, presumably from
-  a reload that wiped `staging.shortlist`. The live 7 were migrated; the 17 were preserved to
+  a reload that wiped `raw.shortlist`. The live 7 were migrated; the 17 were preserved to
   `~/fm-saves/_recovered/` rather than merged blind. Exactly the failure mode the R2 move prevents.
 - **`seeds/config_bundle.json` never existed** even though `load_duckdb.seed_config_bundle()` had
   always read it, so a rebuilt store came up unconfigured. It now carries the 3 app settings

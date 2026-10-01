@@ -27,7 +27,7 @@ a real player with attributes: primary position matches 12.4% (chance ~10%), GK-
 stores with **0 collisions and 0 nulls**. Name is mutable and non-unique; dob is neither.
 
 **IMPLEMENTED 2026-08-19 (phases 1-2), no re-extraction needed** (dob already in every players
-slice): loader builds `staging.persons` + `staging.person_slices`; `person_id` = `'<tid>-<dob>'`.
+slice): loader builds `raw.persons` + `raw.person_slices`; `person_id` = `'<tid>-<dob>'`.
 `db.keep_current_person(df)` drops rows belonging to a previous occupant of a tid (no-ops when
 nothing in the frame was recycled); `db.person_history(tid)` audits a slot. Guarded: Development
 attribute chart, player_role_series, squad_role_series, primary_position_map, injuries/loans.
@@ -61,16 +61,16 @@ gotcha first bit), [[reserve-marker-stale-attrs]], [[name-resolution]].
    **(a) `is_staff` flipping `True` truncates the player-history walk.** Two Frem players (tid
    9231, 9430) had `mart.player_career_seasons` come back completely empty despite a full, real,
    multi-season history (including their move away from Frem) in every prior snapshot.
-   `f.staging.player_history_seasons` by tid across every season/phase shows the chain intact
+   `f.raw.player_history_seasons` by tid across every season/phase shows the chain intact
    and growing right up to `2026-07-02`, then **zero rows at `2027-04-25`**, the very next
-   snapshot, for both — a hard cutoff, not a gradual shortening. `staging.players.is_staff`
+   snapshot, for both — a hard cutoff, not a gradual shortening. `raw.players.is_staff`
    reads `False` at `2026-07-02` and `True` at `2027-04-25` for both.
 
-   **(b) A `tid` is a recycled slot, and `staging.players.name` does NOT reliably change when a
+   **(b) A `tid` is a recycled slot, and `raw.players.name` does NOT reliably change when a
    new person takes it over — confirmed by comparing `dob`, not just believing the name.** Two
    more Frem players (tid 9584 "Mikkel Bruhn", tid 9400 "Mikkel Andersson") went through the
    same `is_staff` cutoff as (a) — full history, then `is_staff=True`, unattached, for several
-   snapshots — and were read as "retired." But `SELECT DISTINCT dob FROM staging.players WHERE
+   snapshots — and were read as "retired." But `SELECT DISTINCT dob FROM raw.players WHERE
    tid=<tid>` returns **two** birth dates for each: the original (1990-10-16 for Bruhn,
    1990-03-17 for Andersson) through the `is_staff=True` snapshots, then a completely different,
    much younger `dob` (2009-10-19 / 2008-08-26) from the snapshot where `is_staff` flips back to

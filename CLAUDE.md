@@ -4,7 +4,7 @@ Reverse-engineering **Football Manager Mobile 2022** `.fms` save files into a qu
 DuckDB store + a Streamlit dashboard. **Career-aware:** the one genuinely career-specific
 fact is the club you manage (its TID), which is how the store finds your squad's exact
 names+attributes (each player in our squad arrays: the 7 plain attributes from his own record,
-the rest from his latest scrapbook entry while it is at most a year old, `staging.squad_scrapbook`). Careers are registered in **`fmparser/careers.py`** and each has its own
+the rest from his latest scrapbook entry while it is at most a year old, `raw.squad_scrapbook`). Careers are registered in **`fmparser/careers.py`** and each has its own
 DuckDB store (`fm-<key>.duckdb`):
 
 | key | club | managed tid | reserve | store | state |
@@ -89,14 +89,14 @@ labelled in the game's own words — 'League Path · Third Qualifying Round', 'G
 'Championship Group' — with the leg, the tie aggregate and whether the club went through;
 from each competition's rules member in the save archive), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
 (every club's genuine squad now), `mart.injury_spells` / `mart.loan_out_spells` (drawn from the
-weekly Player Progress rows the parser hands over as stored, `staging.player_progress`, via
+weekly Player Progress rows the parser hands over as stored, `raw.player_progress`, via
 `mart.progress_weeks`), `mart.training_focus` (the Training page for every player on every snapshot: focus
 position and role, attribute focus, intensity -- a Scrapbook Profile's role is this focus role
 on its date; role and attribute names come from `mart.roles` / `mart.training_attributes`,
 rendered from `fmstats/definitions.py` -- the parser hands over ids only), and `mart.player_development` (a
 **development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
 ceiling' — the only form potential ever leaves the mart in; there are deliberately no stars). Use the full `site-data/fm-frem.duckdb` only
-when you need raw `staging` or per-snapshot history for a player who was never ours.
+when you need the `raw` tables or per-snapshot history for a player who was never ours. (The published copies name that schema `staging` until they are next republished, data-layers step 18; `fmq` reads them as published.)
 
 Two gotchas worth knowing before you query it: **macros do not resolve across an `ATTACH`, and
 that breaks ORDINARY VIEWS too, not just the obvious macro calls** — `mart.clubs` fails with
@@ -132,12 +132,12 @@ ATTACH the full store for that, not a scrub issue).
 ## Three layers: extract, load, transform
 - **`fmparser/` is the E** — save bytes to `output/<label>/*.json`. It imports neither duckdb
   nor fmstats.
-- **`load_duckdb.py` is the L** — JSON into `staging` tables, plus the reference seeds only the
-  parser can supply (`staging.event_types`, the career keys in `staging.app_config`). It is glue:
+- **`load_duckdb.py` is the L** — JSON into `raw` tables, plus the reference seeds only the
+  parser can supply (`raw.event_types`, the career keys in `raw.app_config`). It is glue:
   it may import both sides.
-- **`fmstats/` is the T** — `fmstats/mart.py` derives every analytical table from `staging`,
+- **`fmstats/` is the T** — `fmstats/mart.py` derives every analytical table from `raw`,
   and `scout`/`stats`/`league` analyse the mart. It imports neither fmparser nor `extract`: it
-  reads a `.duckdb` file, local or the R2 copy, and nothing else. The staging schema plus
+  reads a `.duckdb` file, local or the R2 copy, and nothing else. The raw schema plus
   `fmstats/contract.py` (the attribute column names) is the whole interface.
 
 `tests/test_boundary.py` enforces both import rules. A fact only the parser knows reaches
@@ -177,7 +177,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 - **history-chain-pointers** — the history pool is a forest of linked lists; how the `P-38` player link works (its "stats on the previous row" rule was a framing error — see [`docs/parser-architecture.md`](docs/parser-architecture.md) shape B).
 - **fmm-editor-record-comparison** — field-by-field map of our parsers vs the FMM26 database layouts (`nyongrand/fmm-editor`). **Read before decoding any new field** — it names the record you're in.
 - **[`docs/ca-weighting.md`](docs/ca-weighting.md)** — how the save hands us each of the 23 displayed attributes (direct byte / plain-byte composite / CA-modelled), **FM's per-position CA weight tables** recovered from 155k snapshots, and the **94.8% label ceiling** every attribute-accuracy figure is measured against. Read before quoting an accuracy number or reasoning about what the game rewards in a position.
-- **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `staging.attribute_model`.
+- **[`docs/attribute-model.md`](docs/attribute-model.md)** — the entangled-attribute decoder: CA enters as ONE shared per-player shift, not per attribute. Read before touching `raw.attribute_model`.
 - **[`docs/table-framing.md`](docs/table-framing.md)** — the save declares its own table sizes (`[8xFF][count][records]`); the declared-vs-read audit, the five defects it found, and the inventory of walkable tables still to be named. **Read before walking a new table.**
 - **[`docs/record-expansion.md`](docs/record-expansion.md)** — the 2026-09-16 parser expansion: the staff record (manager formation triple + Style), the club/stadium/city/nation records, and the traps it hit.
 - **[`docs/save-archive.md`](docs/save-archive.md)** — the save's last ~1.3 MB is a **zstd archive** (`sicomps`, 159 named members, 6.6 MB decompressed), read by `fmparser/core/archive.py` after `uv sync --extra archive`. Its `fix_man.dat` is the **world fixture list with scores** — 26,954 rows, verified 282/285 against our own matches in both careers. Read before touching fixtures/results, and note the rule that found it: **rank an unknown region by BLOCK ENTROPY, never by printable fraction** — compressed bytes are 37% printable by construction (`scripts/audit/entropy_profile.py`).
@@ -339,7 +339,7 @@ browser localStorage — it is a plan, not save data, and nothing writes it back
 `state/registrations/<year>-<summer|winter>.json` in R2, same token as the shortlist) as the
 history of what was registered and the starting point for the next window.
 
-**`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `staging`
+**`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `raw`
 table, no `main` view. Add a field to the site by adding it to `fmstats/mart.py` first. And
 because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
 is the regression test: a no-op export must produce a no-op diff.
@@ -386,7 +386,7 @@ no multi-writer problem to solve:
   copies had already taken `.git` to 257 MB. Rebuild it instead:
   `uv run python scripts/rebuild.py --career frem` (~12 min for 12 snapshots).
 - **`seeds/manifest.csv` is the recipe** — which save produced which snapshot. Regenerate with
-  `scripts/export_manifest.py` after an import. `staging.extracts.save_path` holds a **basename**;
+  `scripts/export_manifest.py` after an import. `raw.extracts.save_path` holds a **basename**;
   an absolute path there silently makes the recipe machine-specific.
 - **Saves live in `$FM_SAVES_DIR`** (default `~/fm-saves/<career>/`), raw for parsing plus a
   verified `.gz` beside each. `scripts/archive_save.py` does the move, the gzip, and a hash
@@ -410,7 +410,7 @@ career-scoped. `season` is omitted because it's derivable (a phase in July or la
 next campaign).
 
 **The label is the same string** — `extract.py` names `output/<label>/` after the save, and
-`staging.extracts.label` uses it, so save file, extract dir and DB label are one vocabulary.
+`raw.extracts.label` uses it, so save file, extract dir and DB label are one vocabulary.
 `scripts/rebuild.py` refuses a manifest row whose label is not its save's name, or whose
 season/phase the save's header does not give.
 
@@ -424,7 +424,7 @@ way in, from the in-game date in the save's own header title (`9/8/27 - Mr Manag
 rollover day (`Career.rollover`: Frem 30 June, Bucaspor 20 June). `scripts/canonicalise_names.py` (deleted; restore from git if needed) retro-fitted the
 convention across saves, `.gz`, R2 objects, `output/` dirs, both stores' `save_path` + `label`,
 and saved-scout keys — all five, because the manifest is generated FROM the store, so renaming
-files without updating `staging.extracts` silently reverts the manifest on the next export.
+files without updating `raw.extracts` silently reverts the manifest on the next export.
 
 Saves with no manifest row have no date and so no canonical name; they live in
 `<career>/unfiled/`.
@@ -474,7 +474,7 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - **A back line doesn't play a back line.** `scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`matchup_table()`) for that reading, not `strength`.
 - **Quality is not output.** `scout_report()['h2h_players']` is each opponent player's production in matches against us, with `still_there` for whether he is at the club now. Read it next to `key_players`: against OB the two men who hurt us most (5 goals; 11 key passes) sat at 53 and 23 on Level %ile, below six team-mates the ranking put first.
 - We play a **4-2-3-1**, rated with **`frem_minmax_4231`** — the career's `rating_method` in `fmparser/careers.py`, which the loader records in the store
-(`staging.app_config.career_rating_method`) and `fmq scout` uses by default. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.
+(`raw.app_config.career_rating_method`) and `fmq scout` uses by default. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.
   **`frem_minmax_4231` and `frem_minmax_4411` are different in kind** — not hand-built from a tactic
   author's stated player traits but DERIVED from the match data by `scripts/derive_weight_set.py`,
   role by role, with every block that failed to beat a flat weighting left flat on purpose, and

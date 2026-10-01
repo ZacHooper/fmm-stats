@@ -32,7 +32,7 @@ def spec_from(db):
     out, tags = {}, set()
     for a, f, c, o, p, fit in con.execute(
             "SELECT attribute,feature,coef,own_offset,partner_offset,fitted "
-            "FROM staging.attribute_model").fetchall():
+            "FROM raw.attribute_model").fetchall():
         out.setdefault(a, {"own": o, "partner": p, "coef": {}})["coef"][f] = c
         tags.add(fit)
     con.close()
@@ -58,10 +58,10 @@ def main():
     rows = con.execute(f"""
         SELECT p.ca, p.pa, {', '.join('p."' + c + '"' for c in bc)},
                {', '.join('e."' + x + '"' for x in ATTR_ORDER)},
-               {', '.join(f'''COALESCE((SELECT t.familiarity FROM staging.player_positions t
+               {', '.join(f'''COALESCE((SELECT t.familiarity FROM raw.player_positions t
                     WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid)
                       AND t.position = '{q}'), 0)''' for q in POS)}
-        FROM staging.players p JOIN staging.player_attributes_exact e USING (season, phase, tid)
+        FROM raw.players p JOIN raw.player_attributes_exact e USING (season, phase, tid)
         WHERE p.ca IS NOT NULL AND p.passing_src IS NOT NULL AND e."Passing" IS NOT NULL
     """).fetchall()
     if not rows:

@@ -36,7 +36,6 @@ sys.path.insert(0, ROOT)
 from tests.harness import skip  # noqa: E402
 
 from fmparser.tables import nations as LK    # noqa: E402
-from fmparser import clubs_comps as R    # noqa: E402
 from fmparser.tables import clubs as CL, competitions as CO, rounds as RD  # noqa: E402
 from fmparser.tables import nations as NA  # noqa: E402
 from fmparser.save import Save         # noqa: E402
@@ -100,12 +99,13 @@ def main():
 
     # ---- known resolutions still hold ----
     print("KNOWN RESOLUTIONS")
+    all_clubs, all_comps = CL.scrape_clubs(mm), CO.scrape_competitions(mm)
     for tid, name in KNOWN_CLUBS.items():
-        rec = R.club_record(mm, tid)
+        rec = all_clubs.get(tid)
         ok &= _check(bool(rec) and rec["name"] == name,
                      f"club tid={tid} -> {rec['name'] if rec else None} (expected {name!r})")
     for cid, name in KNOWN_COMPS.items():
-        rec = R.find_comp_record(mm, cid)
+        rec = all_comps.get(cid)
         ok &= _check(bool(rec) and rec["name"] == name,
                      f"comp cid={cid} -> {rec['name'] if rec else None} (expected {name!r})")
 
@@ -137,32 +137,32 @@ def main():
     # populate it and they don't share one meaning, so `comp_refs` names the fields and not
     # the list. See its docstring.
     print("\nCOMPETITION REFERENCE LIST")
-    clubs_by_uid = {c["uid"]: c["name"] for c in R._build_refdata_index(mm)[0].values()}
-    mls = R.comp_refs(mm, 22)                  # Major League Soccer
+    clubs_by_uid = {c["uid"]: c["name"] for c in all_clubs.values()}
+    mls = CO.comp_refs(mm, 22)                  # Major League Soccer
     hits = [n for n in (clubs_by_uid.get(e["ref"]) for e in mls) if n]
     ok &= _check(len(mls) == 28, f"cid=22 (MLS) declares 28 entries ({len(mls)})")
     ok &= _check(all(w in hits for w in ("D.C. United", "LA Galaxy", "Atlanta United FC")),
                  f"MLS refs resolve to real MLS clubs by UID "
                  f"({len(hits)}/{len(mls)} resolve; e.g. {hits[:3]})")
-    lib = R.comp_refs(mm, 61)                  # Copa Libertadores
+    lib = CO.comp_refs(mm, 61)                  # Copa Libertadores
     ok &= _check(all(e["season"] == 0 or 1990 <= e["season"] <= 2060 for e in lib),
                  f"every Copa Libertadores season is a plausible year or the 0 sentinel "
                  f"({len(lib)} entries)")
     # the populations that stop this list being called one thing -- if any of these change
     # shape the "it isn't one concept" conclusion needs revisiting, so pin them
-    ok &= _check(all(e["ref"] == 0xFFFFFFFF for e in R.comp_refs(mm, 279)),
+    ok &= _check(all(e["ref"] == 0xFFFFFFFF for e in CO.comp_refs(mm, 279)),
                  "cid=279 (Scottish Cup) is 13 entries that are ALL the empty sentinel")
-    ok &= _check(not R.comp_refs(mm, 256) and len(R.comp_refs(mm, 61)) == 94,
+    ok &= _check(not CO.comp_refs(mm, 256) and len(CO.comp_refs(mm, 61)) == 94,
                  "European Champions Cup has NO entries while Copa Libertadores has 94 "
                  "-- the asymmetry that rules out a single label")
-    ok &= _check(all(e["ref"] > 0xFFFF0000 for e in R.comp_refs(mm, 254)),
+    ok &= _check(all(e["ref"] > 0xFFFF0000 for e in CO.comp_refs(mm, 254)),
                  "cid=254 (Copa América) holds national-team refs, not club uids")
     # the sign rule: ref < 0 is a national team and -ref is that nation's scrape_nations uid.
     # Pinned on Copa América because the answer is checkable without the save -- CONMEBOL has
     # exactly ten members, so ten refs resolving to exactly those ten is not a coincidence a
     # shape check could produce.
     nat_by_uid = {r["uid"]: r["name"] for r in LK.scrape_nations(mm).values()}
-    conmebol = sorted(nat_by_uid.get(-(e["ref"] - (1 << 32))) for e in R.comp_refs(mm, 254))
+    conmebol = sorted(nat_by_uid.get(-(e["ref"] - (1 << 32))) for e in CO.comp_refs(mm, 254))
     ok &= _check(conmebol == CONMEBOL,
                  f"Copa América's 10 refs are -(nation uid) for CONMEBOL's 10 members "
                  f"({conmebol})")
@@ -193,7 +193,7 @@ def main():
                     if len(cl) != cl_dec:
                         failures.append(f"{os.path.basename(path)}: club {len(cl)} != {cl_dec}")
                     by_career.setdefault(career, set()).add((dec, len(c), blank, cl_dec, len(cl)))
-                except (R.CompTableError, R.ClubTableError) as exc:
+                except (CO.CompTableError, CL.ClubTableError) as exc:
                     failures.append(f"{os.path.basename(path)}: {exc}")
                 m.close()
         ok &= _check(not failures,
@@ -215,11 +215,6 @@ def main():
     _start, declared_clubs = CL.locate_clubs(mm)
     ok &= _check(len(clubs) == declared_clubs and list(clubs) == list(range(declared_clubs)),
                  f"all {declared_clubs} declared clubs read, in tid order")
-    real_clubs, real_comps = R._build_refdata_index(mm)
-    ok &= _check(real_clubs == clubs,
-                 "_build_refdata_index clubs == scrape_clubs (single source of truth)")
-    ok &= _check(real_comps == comps,
-                 "_build_refdata_index comps == scrape_competitions (single source of truth)")
 
     print("\n" + ("PASS: refdata scan resolves clubs (gated) and competitions (pure "
                   "structural walk) as expected" if ok else "FAIL: see above"))
