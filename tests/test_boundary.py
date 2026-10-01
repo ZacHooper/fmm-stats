@@ -4,8 +4,9 @@
   * nothing under fmparser/ imports duckdb or fmstats — the parser writes JSON and knows no store;
   * nothing under fmstats/ imports fmparser or extract — it reads the store the loader wrote,
     so it runs anywhere a .duckdb file exists;
-  * fmstats.contract.ATTR_ORDER, the attribute columns the mart's SQL is generated from, equals
-    fmparser.model.ATTR_ORDER, the list the extract writes.
+  * every constant in fmstats.contract (the attribute columns, the record's byte names, the
+    composite weights, the position order, the squad lists) equals the fmparser constant it
+    mirrors.
 
 The loader (load_duckdb.py), scripts/ and tests/ are the glue and may import both.
 Static: parses the source, needs no save and no store.
@@ -44,11 +45,25 @@ def main():
         print(f"  FAIL {b}")
     print(f"  {'FAIL' if bad else 'ok  '} import boundary: {len(bad)} violation(s)")
 
-    from fmparser.model import ATTR_ORDER as extracted
-    from fmstats.contract import ATTR_ORDER as declared
-    same = list(extracted) == list(declared)
-    print(f"  {'ok  ' if same else 'FAIL'} fmstats.contract.ATTR_ORDER == fmparser.model.ATTR_ORDER")
-    return FAIL if bad or not same else PASS
+    from fmparser import model as M
+    from fmparser.tables import player_attributes as PA
+    from fmparser.tables.player_lists import CLUB_LISTS
+    from fmstats import contract as C
+    pairs = [
+        ("ATTR_ORDER", list(C.ATTR_ORDER), list(M.ATTR_ORDER)),
+        ("EXACT_SINGLE", set(C.EXACT_SINGLE), set(M.EXACT_SINGLE)),
+        ("SRC_OFFSETS", C.SRC_OFFSETS, PA.SRC_OFFSETS),
+        ("PLAIN_OFFSETS", C.PLAIN_OFFSETS, PA.PLAIN_OFFSETS),
+        ("HIDDEN_OFFSETS", C.HIDDEN_OFFSETS, PA.HIDDEN_OFFSETS),
+        ("COMPOSITES weights", {a: w for a, (_, w, _) in C.COMPOSITES.items()},
+         {"Teamwork": M.TEAMWORK_W, "Aerial": M.AERIAL_W}),
+        ("POSITIONS", list(C.POSITIONS), list(PA.POSITIONS)),
+        ("CLUB_LISTS", C.CLUB_LISTS, CLUB_LISTS),
+    ]
+    differ = [name for name, declared, extracted in pairs if declared != extracted]
+    for name, _, _ in pairs:
+        print(f"  {'FAIL' if name in differ else 'ok  '} fmstats.contract.{name} matches fmparser")
+    return FAIL if bad or differ else PASS
 
 
 if __name__ == "__main__":

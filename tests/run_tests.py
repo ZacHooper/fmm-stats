@@ -38,6 +38,7 @@ UNIT_TESTS = {
     "test_history_unit.py",
     "test_layouts.py",
     "test_matches_unit.py",
+    "test_models_unit.py",
     "test_person_info_unit.py",
     "test_player_lists_unit.py",
     "test_player_progress_unit.py",

@@ -86,8 +86,9 @@ needed, since `dob` is already in every `players` slice:
 - `raw.persons(person_id, tid, dob, name, first_seen, last_seen, slices)`
 - `raw.person_slices(season, phase, tid, person_id)` — the join bridge for every fact table
 - `person_id` is the stable VARCHAR `'<tid>-<dob>'` (`'<tid>-?'` when dob is unknown — 28 tids
-  appear in match stats but in no `players` slice at all). Rebuilt wholesale by
-  `load_duckdb.rebuild_persons()` after each load; cheap and idempotent.
+  appear in match stats but in no `players` slice at all). `int.persons` /
+  `int.person_slices` (`fmstats/models/people.py`) are views over every snapshot, so they are
+  always current.
 
 `dashboard/db.py` helpers: `current_person_ids(tids)`, `person_history(tid)` (every identity that
 has held a tid), and **`keep_current_person(df)`** — drops rows of any frame with season/phase/tid

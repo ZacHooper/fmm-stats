@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic unit tests for the squad views (load_duckdb._players_views). No save needed.
+"""Synthetic unit tests for the squad views (fmstats/models/people.py). No save needed.
 
   EXACT     a player in our first-team or reserve squad array takes his name from his
             latest entry in the Manager's Best Eleven lists, and his feet, value and 16
