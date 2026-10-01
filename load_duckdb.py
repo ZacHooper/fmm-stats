@@ -1534,10 +1534,15 @@ def create_schema(con):
     # fails identically. That deadlock cost a full 25-save rebuild on 2026-09-17: the nine
     # PLAIN_OFFSETS columns were missing, the view asked for `p.heading_src`, and the ALTER
     # that would have added it sat four lines further down.
+    # The build is needed only while that table (or the models themselves) does not exist
+    # yet: on every later load the models from the last build serve the snapshot archive,
+    # and create_views rebuilds them once the load is done.
     def _build_view():
         _migrate(con)
         _seed_attribute_model(con)
-        build_models(con, "+int_player_attributes")
+        if (models_compat._kind(con, "history.player_snapshots") is None
+                or models_compat._kind(con, "int.player_attributes") is None):
+            build_models(con, "+int_player_attributes")
 
     _rename_staging(con)
     _raw_tables(con)
