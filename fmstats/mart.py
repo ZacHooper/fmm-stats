@@ -1173,10 +1173,10 @@ SELECT
     p.foot_left, p.foot_right, p.nationality_id,
     p.player_value, p.wage_units, p.wage_gbp,
     p.contract_expiry, p.contract_expiry_year,
-    -- The raw loan flags, carried but NOT to be trusted for "is he ours right now": both are
-    -- set-only and never cleared by the save. mart.squad_on(d) is the answer to that
-    -- question; these are here for provenance and for the parent-club name.
-    p.loaned_in, p.loaned_out, p.parent_club_tid, p.parent_club,
+    -- loaned_in: a player in our squad array whose own record names another club. Not to be
+    -- trusted for "is he ours right now" (mart.squad_on(d) answers that); carried for the
+    -- parent-club name. Loans OUT are read from Player Progress (mart.loan_out_spells).
+    p.loaned_in, p.parent_club_tid, p.parent_club,
     ({_est_count(ATTR_ORDER)})                                AS est_attrs,
     ({_est_count(ATTR_ORDER)}) > 0                            AS is_estimated,
     {", ".join(f'a."{col}"' for col in ATTR_ORDER)}

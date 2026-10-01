@@ -83,9 +83,7 @@ _OVER = {
 }
 _ADDED_AFTER = {
     "has_attributes": [
-        ("squad_status", "CASE WHEN NOT r.is_staff THEN t.squad_status END"),
-        ("loaned_out", f"CASE WHEN NOT r.is_staff THEN COALESCE(t.squad_status = "
-                       f"{C.LOAN_STATUS} AND r.club_tid IS DISTINCT FROM {C.NO_CLUB}, FALSE) END")],
+        ("squad_status", "CASE WHEN NOT r.is_staff THEN t.squad_status END")],
     "foot_right": [
         ("player_value", f"CASE WHEN {_FRESH} THEN k.value END"),
         ("loaned_in", "COALESCE(k.loaned_in, FALSE)"),

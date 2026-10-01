@@ -49,7 +49,6 @@ def main():
     from fmparser.tables import player_attributes as PA
     from fmparser.tables.player_lists import CLUB_LISTS
     from fmparser.tables import training as TR
-    from fmparser.tables.person_info import NO_CLUB
     from fmstats import contract as C
     pairs = [
         ("ATTR_ORDER", list(C.ATTR_ORDER), list(M.ATTR_ORDER)),
@@ -62,8 +61,6 @@ def main():
         ("POSITIONS", list(C.POSITIONS), list(PA.POSITIONS)),
         ("CLUB_LISTS", C.CLUB_LISTS, CLUB_LISTS),
         ("CONTRACTED", C.CONTRACTED, TR.CONTRACTED),
-        ("LOAN_STATUS", C.LOAN_STATUS, TR.LOAN_STATUS),
-        ("NO_CLUB", C.NO_CLUB, NO_CLUB),
     ]
     differ = [name for name, declared, extracted in pairs if declared != extracted]
     for name, _, _ in pairs:

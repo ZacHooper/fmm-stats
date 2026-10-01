@@ -61,13 +61,9 @@ POSITIONS = ("GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC"
 # (`fmparser.tables.player_lists.CLUB_LISTS`).
 CLUB_LISTS = range(31, 62)
 
-# The training row's contract flag on a player under contract, and the squad status of a
-# player out on loan (`fmparser.tables.training.CONTRACTED` / `LOAN_STATUS`).
+# The training row's contract flag on a player under contract
+# (`fmparser.tables.training.CONTRACTED`).
 CONTRACTED = 0x87
-LOAN_STATUS = 65
-
-# "No club": a person's club_tid when he is a free agent (`fmparser.tables.person_info.NO_CLUB`).
-NO_CLUB = 0xFFFF
 
 # Pounds a year per contract wage unit, from ground truth across the range (De Bruyne 34,000
 # units = £17.75M; Hull and Frem players at the low end), within about 2%.

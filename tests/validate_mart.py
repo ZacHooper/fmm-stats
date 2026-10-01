@@ -432,8 +432,8 @@ def main():
     """).fetchone()[0]
     check("tenure gives one row per current-squad player", frag == 0,
           f"{frag} players still fragmented")
-    # Left the club permanently as of the 2025-07-01 snapshot (now at club_tid 153,
-    # loaned_out=False - a transfer, not a loan), so tenure correctly stops at 2025-06-29
+    # Left the club permanently as of the 2025-07-01 snapshot (now at club_tid 153 -
+    # a transfer, not a loan), so tenure correctly stops at 2025-06-29
     # rather than reaching for a later snapshot where he's elsewhere. Growth is LOWER than
     # earlier pins (35, not 40) for a legitimate reason, not a regression: the 2024-11-10
     # reading it used to end on was is_estimated=True (a rough +/-1 guess, 165); 2025-06-10

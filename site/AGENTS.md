@@ -52,7 +52,7 @@ WITH long AS (
                              club, league_cid, league_name, nation, dob, age, is_gk,
                              has_attributes, squad_status, reputation, foot_left, foot_right,
                              nationality_id, player_value, wage_units, wage_gbp, contract_expiry,
-                             contract_expiry_year, loaned_in, loaned_out, parent_club_tid,
+                             contract_expiry_year, loaned_in, parent_club_tid,
                              parent_club, est_attrs, is_estimated)
            FROM m.mart.player_snapshots WHERE tid = 9858)
   ON COLUMNS(*) INTO NAME attribute VALUE value)
@@ -238,9 +238,11 @@ rather than averaging the averages.
 `m.mart.squad_current` (a plain view, newest snapshot, one row per person with `is_loan_in` and
 `is_reserve`). `squad_on` returns one row per SPELL, so a borrowed player appears twice.
 
-**Do not trust `raw.players.loaned_in` / `.loaned_out`.** The save sets them and never
-clears them, so they accumulate: at the newest snapshot the flag claimed nine loanees where
-three loans were live. The spell tables are the answer — that is what they exist for.
+**Do not trust `raw.players.loaned_in`.** The save sets it and never clears it, so it
+accumulates: at the newest snapshot the flag claimed nine loanees where three loans were live.
+The spell tables are the answer — that is what they exist for. There is no `loaned_out`
+column: a loan out is read from Player Progress (`mart.loan_out_spells`), never from the
+training row's squad status.
 
 `mart.squad_on('YYYY-MM-DD')` is a table macro — call it, don't select from it.
 

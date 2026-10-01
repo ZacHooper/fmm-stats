@@ -1,25 +1,30 @@
 ---
 name: loan-status-unreliable
-description: The loaned_out / squad_status flag in fm.duckdb is stale/wrong — never use it to judge availability or filter squad selection
+description: Squad status is not a loan flag and not availability — loans out come from Player Progress (mart.loan_out_spells); there is no loaned_out column
 metadata: 
   node_type: memory
   type: project
   originSessionId: 681be847-7279-4c83-87e8-ccd414e19fd8
 ---
 
-**IGNORE `raw.players.loaned_out` and `squad_status` for availability / selection.** The
-user confirmed (2026-07-28) it's outdated: e.g. Selahattin Seyhun (tid 22908) reads
-`loaned_out=True` but is a first-choice starter — ST eff 407 (86th pct), 26 goals in 2255
-mins last season. It comes from the training table's squad-status byte (`training.scrape_squad_status`), NOT the
-attribute-snapshot reads we fixed in [[seyhun-attr-investigation]], so it was never corrected
-and appears to be a stale copy / wrong code interpretation.
+**There is no `loaned_out` column any more, and `squad_status` must not be used to infer
+one.** `loaned_out` used to be derived from the training row's squad-status byte, and it was
+wrong: Selahattin Seyhun (tid 22908, Bucaspor) read `loaned_out=True` while a first-choice
+starter — ST eff 407 (86th pct), 26 goals in 2255 mins. The user confirmed (2026-07-28) the
+flag was outdated, and (2026-10-01) that training should not decide who is loaned out, so the
+data-layers step 7 stopped deriving it.
+
+`squad_status` is still carried (`raw.training.squad_status`, `mart.player_snapshots`) as the
+raw contract term it is — a code on the training row, not a statement about availability.
+
+**Who is out on loan:** `mart.loan_out_spells`, drawn from the weekly Player Progress rows
+(`raw.player_progress` via `mart.progress_weeks`). **Who is ours:** `mart.squad_current` /
+`mart.squad_on('<date>')`. `loaned_in` survives in `mart.player_snapshots` only for the parent
+club's name; the save never clears it, so it is not evidence a loan is live.
 
 **How to apply:** when analysing the squad (rotation, best XI, scouting, availability), treat
-EVERYONE in `db.squad()` as available and rank by **minutes played** (`match_player_stats`,
-`team_tid=6567`) + eff rating + age. Do NOT filter on `status=='First team'` /
-`loaned_out` — doing so silently drops real regulars (it hid Seyhun, Yusuf Can Abay (MC, eff
-427/99th pct), and Özcan Sertgöz from a rotation analysis). The dashboard still labels some
-players "Loan"/"Reserve" from this field — that labelling is not trustworthy.
+everyone in the squad as available and rank by **minutes played** + rating + age. Do NOT
+filter on `squad_status` — doing so silently drops real regulars (it hid Seyhun, Yusuf Can
+Abay (MC, eff 427/99th pct), and Özcan Sertgöz from a rotation analysis).
 
-Possible cleanup later: suppress or re-derive the loan/status field, or stop surfacing it.
 Related: [[etl-duckdb-dashboard]] [[preseason-squad-review]]

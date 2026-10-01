@@ -527,8 +527,8 @@ Gotchas that still cost time if you bypass `scout_report` and reach for raw SQL 
   Brøndby scout's "our attacking outlets" 16 months after he left. If you bypass `club_attributes`
   for a raw query, reproduce this check yourself (`mart.player_spells`, `spell_type IN ('at_club',
   'loan_in')`, date between `valid_from`/`valid_to`) rather than trusting `club_tid` alone — and
-  never trust `loaned_in`/`loaned_out` for loan STATUS prose either, same reason: set once, never
-  cleared.
+  never trust `loaned_in` for loan STATUS prose either, same reason: set once, never cleared
+  (loans out: `mart.loan_out_spells`).
 - **The MIRROR of that trap: a spell filter at a SEASON-BOUNDARY snapshot DROPS players who are
   genuinely ours.** A raw `club_tid` keeps players who have left; the spell check loses players who
   are still here, because a loan with a 30 June expiry looks lapsed at a 2 July snapshot and the
@@ -564,8 +564,8 @@ thinner report under this skill's name.
 - **Opponent attributes are model estimates (±1)** for technical/mental (Pace/physical are exact;
   check the `*_est` flags in `mart.player_snapshots` if you need to know which). Treat as
   directional, not precise.
-- **Squad status and loan flags are unreliable** (`raw.players.loaned_in`/`.loaned_out` — set
-  once, never cleared). `scout_report`'s squad frame is snapshot-club-tid based, not flag based, so
+- **Squad status and the loan-in flag are unreliable** (`raw.players.loaned_in` is set once,
+  never cleared; there is no `loaned_out` — loans out are `mart.loan_out_spells`). `scout_report`'s squad frame is snapshot-club-tid based, not flag based, so
   this mainly bites if you're tempted to assert loan status in prose — don't, from the flags alone.
 - League-membership counts over-report (resolved across labels) — ignore for a single scout.
 - **Check how stale the snapshot is against the fixture date, and say so.** `st.phase_date`

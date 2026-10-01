@@ -2,7 +2,8 @@
 
   stg.contracts  the contract grid's used slots; `is_current` = marker 1
   stg.training   the Training page; squad_status kept only where the row's contract flag
-                 says the player is under contract
+                 says the player is under contract. squad_status is a contract term; it is
+                 not a loan flag (loans are read from Player Progress, mart.loan_out_spells)
 """
 from .. import contract as C
 from . import Model
@@ -21,5 +22,5 @@ SELECT season, phase, tid, intensity, focus_role, focus_attribute, focus_positio
 FROM raw.training""",
           grain=("season", "phase", "tid"),
           doc="One row per player (staff have none): training focus, whether the row says he "
-              "is under contract, and his squad status (65 = loaned out) where he is."),
+              "is under contract, and his squad status where he is."),
 ]
