@@ -157,16 +157,17 @@ def main():
     # 9 pre-2025 loanees, plus 5 real 2025 loan-ins the loan-value-decode fix (2026-08-30)
     # newly makes visible — they used to fall through to the +/-1 estimate path with no
     # value at all and so never generated a loan_in_spells row; see
-    # docs/agent-context/loan-value-marker.md. Secka and Chukwuani's loans are still open as
-    # of the 2025-11-30 snapshot, so they now carry into 2026 too — genuine continuation, not
-    # drift. 3 more (Gülstorff, Lejbowicz, Sørensen) are new real 2026 loan-ins.
+    # docs/agent-context/loan-value-marker.md. Chukwuani's loan is still open at the
+    # 2025-11-30 snapshot, so it carries into 2026. Secka's ends by 2025-06-10 (back at his
+    # parent club) and he is ours outright from 2025-06-29: his own record names Frem from
+    # then on. 3 more (Gülstorff, Lejbowicz, Sørensen) are new real 2026 loan-ins.
     truth = {
         "Emil Hojlund": [2022], "Marcelo Randolf": [2022], "Daniel Bisgaard Haarbo": [2022],
         "Ernest Nuamah": [2022, 2023], "Jeppe Erenbjerg": [2023], "Nicklas Strunck": [2023],
         "Marc Nielsen": [2023, 2024], "Jeppe Corfitzen": [2023, 2024],
         "Jonas Jensen-Abbew": [2024],
         "Andreas Schjelderup": [2025], "Emil Rosberg Moller": [2025],
-        "Marinus Larsen": [2025], "Mounir Secka": [2025, 2026], "Tochi Chukwuani": [2025, 2026],
+        "Marinus Larsen": [2025], "Mounir Secka": [2025], "Tochi Chukwuani": [2025, 2026],
         "Lauge Gülstorff": [2026], "Mikkel Lejbowicz": [2026], "Oliver Sorensen": [2026],
     }
     got = con.execute("""
@@ -180,7 +181,7 @@ def main():
         actual = got_norm.get(nm)
         # Require the known seasons as a PREFIX, not full equality. A loan already over when
         # the truth table was written never grows, so prefix == equality for it. One still
-        # open (e.g. Secka, Chukwuani) correctly gains a season every time the save moves
+        # open (e.g. Chukwuani) correctly gains a season every time the save moves
         # another year on — pinning the full list would fail every such snapshot on schedule,
         # for a reason that isn't a bug.
         check(f"{nm}: starts {seasons}",

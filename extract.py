@@ -31,7 +31,6 @@ from fmparser.core import follow
 from fmparser.save import Save
 from fmparser import model as MOD
 from fmparser import clubs_comps as R
-from fmparser import squad as SQ
 from fmparser.tables.contracts import scrape_contracts
 from fmparser.tables.training import LOAN_STATUS, scrape_squad_status
 from fmparser.tables.person_info import (
@@ -47,6 +46,7 @@ from fmparser.tables import rule_files as RULE_FILES
 from fmparser.tables import save_header as HDR
 from fmparser import careers as C
 from fmparser.tables import history as H
+from fmparser.tables import player_lists as PL
 from fmparser.tables import player_progress as PP
 from fmparser.tables import club_records as CRE
 from fmparser.tables import training as TRN
@@ -152,17 +152,12 @@ def _history_clubs(hist):
     return out
 
 
-def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
+def build_database(mm, season, info):
     """Whole-DB player rows via staging + join. Returns (players, club_names).
     `info` is the shared player-info spine ({tid: identity}) scraped once in main().
-    `markers` are the managed club's squad markers (careers.Career.squad_markers): the
-    first team plus, when the career has one, the reserve side. Both lists must be scanned
-    — a player in the reserves has a live record only under the RESERVE marker, and the
-    copy under the first-team marker is frozen at the day he dropped out of that list.
-    A player loaned IN has no record under either — his exact attrs+value sit under a
-    third marker shape entirely, [parent_club_tid][managed_tid]; see squad.loan_marker."""
-    if isinstance(markers, (bytes, bytearray)):          # back-compat: a single marker
-        markers = (bytes(markers),)
+    Every row is the player's own record as stored. Our squad's exact attributes, feet,
+    value and name come from their scrapbook entries (`player_scrapbook.json`), which the
+    store joins on (`staging.players`)."""
     attrs = scrape_player_attributes(mm)        # {sid: attribute record}
     # Staff get a SEPARATE attribute record, keyed by the info field's `id2` (+64), holding
     # coaching ability and the preferred/attacking/defensive formation triple. See
@@ -173,92 +168,14 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
     status = scrape_squad_status(mm)            # {tid: squad-status code}
     contracts = scrape_contracts(mm, info)      # {tid: {wage_units, wage_gbp, expiry, expiry_year}}
 
-    # names + exact attributes for the managed squad (our club's squad lists), incl.
-    # loaned-IN players
-    club_of_marker = {m: int.from_bytes(m[:2], "little") for m in markers}
-    managed_tid = club_of_marker[markers[0]]             # the first team
-
-    def _pick(per_marker, tid, strict=False):
-        """(marker, entry) under the club the player is CURRENTLY in.
-
-        Players sit in both squad lists after moving between them; the current club breaks
-        the tie and is what makes the reserve copy win for a reserve player.
-
-        `strict` decides what happens when NO marker matches the current club — i.e. the
-        player has left both our lists (sold, released, or out on loan) and the only copies
-        are frozen at the day he left. For NAMES that copy is still fine, so the loose form
-        falls back to the last one found. For ATTRIBUTES it is actively wrong — verified on
-        Hervé Buur, whose frozen copy read Pace 10 four days before the true value of 16,
-        while the ordinary estimated scrape (the one every non-managed player already uses)
-        got 16 exactly. So the strict form returns None and lets the caller fall through to
-        estimate_player, trading a false 'exact' for an honest +/-1."""
-        if not per_marker:
-            return None, None
-        cur = (info.get(tid) or {}).get("club_tid")
-        for m, v in per_marker.items():
-            if club_of_marker[m] == cur:
-                return m, v
-        if strict:
-            return None, None
-        m = list(per_marker)[-1]
-        return m, per_marker[m]
-
-    per_tid = {}
-    for m in markers:
-        for tid, v in SQ.own_squad_full(mm, marker=m).items():
-            per_tid.setdefault(tid, {})[m] = v
-    own, own_marker = {}, {}
-    for tid, per in per_tid.items():
-        own_marker[tid], own[tid] = _pick(per, tid)
-    own_names = {t: v["name"] for t, v in own.items()}
-
     # whole-DB name resolver: first/last name ids -> strings.
     R.build_name_resolver(mm)
 
     def full_name(tid, p):
-        # Order matters. `own_names` is the managed squad's names straight off the squad
-        # snapshot -- what the GAME shows us -- so it wins outright. Then the common name,
-        # which is also a display name and is the reason 2,424 people used to appear under
-        # their full legal names ('Tite' as Adenor Leonardo Bachi). Legal name last.
-        return (own_names.get(tid)
-                or R.resolve_common_name(mm, p.get("common_name_id"))
+        # The common name first: it is the display name, and without it 2,424 people appear
+        # under their full legal names ('Tite' as Adenor Leonardo Bachi). Legal name last.
+        return (R.resolve_common_name(mm, p.get("common_name_id"))
                 or R.resolve_name(mm, p["first_name_id"], p["last_name_id"]))
-
-    # A loanee's squad-list "loaned_in" flag is trusted for NAME purposes (that copy is
-    # fine even stale) but NOT as proof the loan is still live: verified on this exact
-    # career, Ernest Nuamah reads loaned_in=True, club_tid=346 across EIGHT CONSECUTIVE
-    # snapshots spanning 2023-01-06 to 2024-11-10 — almost two years, far longer than any
-    # real loan, and eight other names showed the identical pattern. The squad-list snapshot
-    # simply never got cleared. Attaching the exact-record's real attrs+value to a stale
-    # ghost would be worse than the false-owned-marker case attr_record's docstring already
-    # guards against: it fabricates a plausible-looking CURRENT transfer value for a player
-    # who may not even be at the club any more.
-    #
-    # Gate on the club's squad array: only attach exact loanee attributes if the player is
-    # actually in our senior or reserve squad array.
-    our_club_ids = set(club_of_marker.values())
-    our_squad_tids = {
-        tid
-        for ct in our_club_ids
-        for tid in (R.club_details(mm, ct) or {}).get("squad", [])
-    }
-
-    own_exact = {}
-    for tid in own_names:
-        li = own.get(tid) or {}
-        r = None
-        if li.get("loaned_in") and li.get("parent_club_tid") and tid in our_squad_tids:
-            # A loanee's exact record is anchored by [parent_club_tid][managed_tid], not
-            # [club][0xffff] — see squad.loan_marker(). Try it first: a loanee never
-            # appears under our own club markers, so the fallback below would just spend a
-            # full scan finding nothing before we get here anyway.
-            r = SQ.attr_record(mm, tid, marker=SQ.loan_marker(managed_tid, li["parent_club_tid"]))
-        if r is None:
-            _, r = _pick(SQ.attr_records(mm, tid, markers=markers), tid, strict=True)
-        if r:
-            own_exact[tid] = {"attrs": r["attrs"],
-                              "feet": {"left": r["feet"][0], "right": r["feet"][1]},
-                              "value": r["value"], "snapshot_date": r["snapshot_date"]}
 
     # career history: the whole pool as stored, plus each player's head row (the attribute
     # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
@@ -320,13 +237,7 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
             continue
         rec = attrs.get(p["sid"])
         sc = status.get(tid)
-        li = own.get(tid)                       # snapshot membership (owned or loaned-in)
-        loaned_in = bool(li and li["loaned_in"])
-        # A loaned-IN player plays for us: present them under the managed club (so squad /
-        # ratings / percentiles include them), but keep their real owner in parent_club_tid.
-        club_tid = (club_of_marker.get(own_marker.get(tid), managed_tid)
-                    if loaned_in else p["club_tid"])
-        parent_tid = li["parent_club_tid"] if loaned_in else None
+        club_tid = p["club_tid"]
         c = contracts.get(tid)                  # contract detail (wage + expiry); may be None
         row = {"tid": tid, "name": full_name(tid, p),
                "club": club_label(club_tid), "club_tid": club_tid,
@@ -335,9 +246,6 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                "has_attributes": rec is not None,
                "squad_status": sc,
                "loaned_out": sc == LOAN_STATUS and p["club_tid"] != NO_CLUB,
-               "loaned_in": loaned_in,
-               "parent_club_tid": parent_tid,
-               "parent_club": club_label(parent_tid) if parent_tid else None,
                "wage_units": c["wage_units"] if c else None,
                "wage_gbp": c["wage_gbp"] if c else None,
                "contract_expiry": c["expiry"] if c else None,
@@ -347,30 +255,18 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
             row["ca"], row["pa"] = rec["ca"], rec["pa"]
             row["reputation"] = rec["reputation"]
             row["positions"] = rec["positions"]
-            # the rest of the global record (see attributes.record_tail). Present for every
-            # attributed player, own squad or not — it is read off the global record, not
-            # the managed-club snapshot.
+            # the rest of the global record (see attributes.record_tail), for every
+            # attributed player.
             for k in TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS:
                 row[k] = rec[k]
-            if tid in own_exact:           # own squad: exact snapshot attributes
-                row["attributes"] = {a: own_exact[tid]["attrs"][a] for a in MOD.ATTR_ORDER}
-                row["estimated"] = {a: False for a in MOD.ATTR_ORDER}
-                row["feet"] = own_exact[tid]["feet"]
-                row["value"] = own_exact[tid]["value"]
-                # the date of the player attribute snapshot these came from (squad.py):
-                # the attributes are as of then, not as of the save
-                row["attribute_snapshot_date"] = own_exact[tid]["snapshot_date"]
-            else:
-                # Everyone else: write ONLY what the record states plainly. The 15 entangled
-                # attributes and Teamwork are DERIVED, and derivation is the database's job --
-                # staging.player_attributes is a view over these exact values plus
-                # staging.attribute_model. Estimating here is what used to make retraining the
-                # model cost a full re-extract of every save.
-                row["attributes"] = {a: (rec["attributes"][a] if a in MOD.EXACT_SINGLE else None)
-                                     for a in MOD.ATTR_ORDER}
-                row["estimated"] = {a: a not in MOD.EXACT_SINGLE and a != "Teamwork"
-                                    for a in MOD.ATTR_ORDER}
-                row["feet"] = rec["feet"]
+            # Only what the record states plainly. The 15 entangled attributes and Teamwork
+            # are DERIVED, and derivation is the database's job -- staging.player_attributes
+            # is a view over these exact values plus staging.attribute_model.
+            row["attributes"] = {a: (rec["attributes"][a] if a in MOD.EXACT_SINGLE else None)
+                                 for a in MOD.ATTR_ORDER}
+            row["estimated"] = {a: a not in MOD.EXACT_SINGLE and a != "Teamwork"
+                                for a in MOD.ATTR_ORDER}
+            row["feet"] = rec["feet"]
         else:                              # identity only (free agents / no record)
             row.update({"is_gk": None, "ca": None, "pa": None, "reputation": None,
                         "positions": {}, "feet": None,
@@ -378,6 +274,14 @@ def build_database(mm, season, info, markers=(SQ.CLUB_MARKER,)):
                         **{k: None for k in TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS}})
         players[str(tid)] = row
     return players, staff, club_names, club_leagues, histories
+
+
+def scrapbook_entries(mm):
+    """Every used scrapbook entry, list by list: its list, the list's season (0xffff while
+    in progress), its slot, and the entry's named fields."""
+    return [{"list": lst["index"], "list_season": lst["season"], "slot": e["slot"],
+             **{k: v for k, v in e.items() if k not in ("offset", "slot")}}
+            for lst in PL.scrape_player_lists(mm) for e in lst["entries"]]
 
 
 _STAT_FIELDS = ["posOrder", "rating", "goals", "assists", "passA", "passC",
@@ -506,8 +410,7 @@ def main():
     os.makedirs(dest, exist_ok=True)
 
     info = scrape_person_info(mm)            # player-info spine (scraped once, shared)
-    players, staff, club_names, club_leagues, histories = build_database(
-        mm, season, info, career.squad_markers)
+    players, staff, club_names, club_leagues, histories = build_database(mm, season, info)
     match_rows = flatten_matches(season)
     competitions = build_competitions(mm, season)
 
@@ -554,9 +457,13 @@ def main():
         dump("club_records.json", recs["team_records"], indent=None)
         dump("player_records.json", recs["player_records"], indent=None)
         dump("club_league_history.json", recs["league_history"], indent=None)
+    # Every scrapbook entry in the 66 player lists, as stored (fmparser/tables/player_lists.py):
+    # the World and Manager's Best Eleven pools, season by season and all-time. Our squad's
+    # exact attributes are its entries in the manager's lists; the store picks them.
+    dump("player_scrapbook.json", scrapbook_entries(mm), indent=None)
     # The Training page, for every player in the world: focus role, focus position, attribute
-    # focus and intensity (fmparser/tables/training.py). A player attribute snapshot's role is
-    # this focus role on the snapshot's date.
+    # focus and intensity (fmparser/tables/training.py). A scrapbook entry's role is this
+    # focus role on the entry's date.
     try:
         dump("training.json", TRN.scrape_training(mm), indent=None)
     except ValueError as e:
