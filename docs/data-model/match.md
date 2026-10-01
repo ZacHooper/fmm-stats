@@ -9,6 +9,11 @@ every match-level fact hangs off it. What happens in the game is recorded at thr
 **team × match** (one row per side), **player × match** (the lineup and each player's stats) and
 **event** (goals, cards, subs, shootout kicks, each with a minute and a period).
 
+**Every match in the world is in `dim_match`**, but only ours carry detail. The world fixture
+list (`fix_man`) gives every match its date, teams and score; events, player stats and lineups
+exist only for matches we play. `has_detail` says which is which, so a world match with no events
+is never read as a match with no goals.
+
 ```mermaid
 erDiagram
     dim_round       ||--o{ dim_match : "contains"
@@ -50,6 +55,7 @@ erDiagram
         int leg
         string decided_by "90 / ET / pens"
         string score_display "convenience only"
+        bool has_detail "events and player stats exist"
     }
     dim_team {
         int team_key PK
@@ -67,7 +73,7 @@ erDiagram
         string venue "H / A / N"
         int manager_key FK
         int formation_key FK
-        int goals_for "from the scoreline"
+        int goals_for "from the world fixture list"
         int goals_against
         int pens_for "shootout"
         int pens_against
@@ -125,14 +131,14 @@ erDiagram
 
 | Question | Source | Why |
 |---|---|---|
-| The scoreline | **the save's recorded score** → `fact_team_match.goals_for/against` | sourced directly, so it doesn't depend on the events being complete |
+| The scoreline | **the world fixture list (`fix_man`)** → `fact_team_match.goals_for/against` | one source for every match in the world, ours included, so scores are consistent everywhere |
 | Who scored, and when | **events** | only events carry **own goals** (credited to the other side, with no player tally) and **shootout kicks** |
 | A player's goal tally | events, excluding own goals and shootout kicks | a shootout kick isn't a goal |
-| Shootout result | events (period = shootout) → `pens_for/against` | not in player stats |
+| Shootout result | the world fixture list → `pens_for/against`; events give who took each kick | the fixture list carries shootout scores for every match |
 
-The two sources check each other: for every match, goal events per side (outside the shootout)
-must equal the recorded scoreline. A mismatch means events are missing or misattributed, never
-a reason to overwrite the score.
+Events are a **check** on the score: for every match with detail, goal events per side (outside
+the shootout) must equal the fixture-list score. The fixture list is the trusted side, so a
+mismatch is investigated on the events side and never overwrites the score.
 
 ## Out of scope
 

@@ -22,7 +22,6 @@ erDiagram
     dim_club          ||--o{ fact_staff_spell : "employs"
     dim_staff         ||--o{ fact_staff_spell : "works at"
     dim_club          ||--o{ fact_transfer : "from / to"
-    dim_club          ||--o{ fact_club_record : "holds"
 
     dim_club {
         int club_key PK
@@ -42,6 +41,13 @@ erDiagram
         int stadium_key FK
         int training_facilities
         int youth_facilities
+        int academy
+        string status "professional / semi-pro / amateur"
+        int attendance_avg
+        int attendance_min
+        int attendance_max
+        json colours_kits
+        list affiliates
         int balance
         int transfer_budget
         int wage_budget
@@ -68,11 +74,6 @@ erDiagram
         int fee
         string type "permanent / loan"
     }
-    fact_club_record {
-        int club_key FK
-        string record_type
-        string value
-    }
 ```
 
 ## Dimensions
@@ -88,10 +89,10 @@ erDiagram
 
 | Level | Holds | Why |
 |---|---|---|
-| **Club snapshot** | stadium, facilities, finances | shared: one ground, one training complex, one bank account |
+| **Club snapshot** | stadium, facilities, academy, status, attendance, colours and kits, finances, affiliates | shared: one ground, one training complex, one bank account |
 | **Team snapshot** | reputation | each side has its own. **Assumed per team**; if the save turns out to hold one per club, it moves to the club snapshot. Club reputation is a view over the first team's value. |
 | **Team facts** | matches, participation, competition outcomes | a *team* plays and enters competitions (see the competition and match docs) |
-| **Club facts** | staff spells, transfers, records | staff are employed by the club; a transfer is club to club (first team ↔ reserves is not a transfer) |
+| **Club facts** | staff spells, transfers | staff are employed by the club; a transfer is club to club (first team ↔ reserves is not a transfer) |
 
 **Rollup rule:** team facts roll up to the club through `club_key`. Club facts are **never split
 down** to teams.
@@ -105,8 +106,11 @@ down** to teams.
   from here.
 - **Transfers:** one row per move, and the club plays two roles (from / to), like home/away. A
   per-club in/out view gives it the `team_match`-style orientation.
-- **Records:** a **view** where derivable from match facts (biggest win, top scorer); stored only
-  where the save holds them and we can't derive them (records from before the career started).
+- **Affiliates:** a list on the club snapshot; a change shows up between snapshots, and a count
+  is the list's length. No separate fact.
+- **Records:** **views** over our own facts (biggest win, top scorer). The save's club and player
+  record tables only go back to 2020, the season before the career, so they hold nothing worth
+  storing; they are **checks** against the derived views.
 - **Competition history** is `fact_competition_outcome` from the competition model, rolled up
   to the club. It is not a separate fact here.
 

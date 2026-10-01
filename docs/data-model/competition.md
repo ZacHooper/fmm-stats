@@ -123,12 +123,14 @@ flowchart TD
     W1 --> O[(fact_competition_outcome)]
     W2 --> O
     W3 --> O
-    G[save's recorded outcome] -. ground truth .-> O
+    G[save's roll of honour, league history, standings] -. check .-> O
 ```
 
-Stored, so consumers don't re-derive it. Where the save records outcomes (the standings record,
-[`../standings-record.md`](../standings-record.md)), the save is the source and our derivation
-is the check.
+Stored, so consumers don't re-derive it. **Derived from our own fixtures and standings.** The
+save's roll of honour, club league history and standings record
+([`../standings-record.md`](../standings-record.md)) barely predate the career (league history
+starts with Frem's first season), so they add nothing we can't rebuild. They are **checks** on
+the derived outcome.
 
 ## Out of scope
 
