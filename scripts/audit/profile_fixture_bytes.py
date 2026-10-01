@@ -54,8 +54,8 @@ from fmparser.core import PAD, UNKNOWN
 # The saves the acceptance gate uses: day one (empty grids), mid-career, the ground-truth
 # fixture, and the other career. Same set as tests/assert_identical.py, for the same reason --
 # a structure that holds on all four is structure and not a career's accident.
-DEFAULT_SAVES = ["frem-2021-07-01", "frem-2026-06-11", "frem-2026-06-29",
-                 "bucaspor-2023-05-20"]
+DEFAULT_SAVES = ["frem-2021-06-27", "frem-2026-06-11", "frem-2026-06-29",
+                 "bucaspor-2023-06-19"]
 
 GROUP_KEY_OFFSET = 31         # the competition/stage key; see fixtures.FIXTURE
 GROUP_KEY_WIDTH = 4

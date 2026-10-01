@@ -16,7 +16,7 @@ this ground truth rather than a restatement of what the parser already does:
 Requires a 2026 Frem save (gitignored). Pass one, else the canonical name is looked for in
 $FM_SAVES_DIR. Skips cleanly if none is found.
 
-    uv run python tests/test_club_uid_gate.py [path/to/frem-2026-03-22.fms]
+    uv run python tests/test_club_uid_gate.py [path/to/frem-2026-03-28.fms]
 """
 import os
 import sys
@@ -40,7 +40,7 @@ EXPECTED = {
     7123: ("FDC Vista Gelendzhik", "Vista Gelendzhik"),
 }
 
-CANDIDATES = ["frem-2026-03-22.fms"]
+CANDIDATES = ["frem-2026-03-28.fms"]
 
 
 def find_save(argv):

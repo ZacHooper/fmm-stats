@@ -29,8 +29,7 @@ import sys
 import duckdb
 import pandas as pd     # bulk-insert path in _insert(); see its docstring for why
 
-# Reuse the season/phase math and field lists from the extractors (pure-stdlib import).
-from extract import parse_label
+# The field lists and reference constants the parser declares.
 from fmparser.model import ATTR_ORDER
 from fmparser import model as _A
 from fmparser import careers
@@ -426,12 +425,8 @@ DDL = [
         season INTEGER NOT NULL,
         phase VARCHAR NOT NULL,
         label VARCHAR NOT NULL,
-        label_auto VARCHAR,
         source_dir VARCHAR NOT NULL,
         save_path VARCHAR,
-        latest_match DATE,
-        date_from DATE,
-        date_to DATE,
         loaded_at TIMESTAMP NOT NULL,
         row_counts JSON
     )""",
@@ -1799,35 +1794,17 @@ def _detect_groups(d):
 # ---------------------------------------------------------------------------
 
 def resolve_season_phase(label, d, override):
-    # 1) explicit --season/--phase override always wins (manual force / re-slice).
-    if override[0] is not None and override[1] is not None:
-        return override
+    """(season, phase): the --season/--phase override, else what extract.py wrote into
+    summary.json (phase = the save's header date, season = its campaign). An extract without
+    them cannot be placed and is refused."""
     summ_path = os.path.join(d, "summary.json")
     summ = _load_json(summ_path) if os.path.exists(summ_path) else {}
-    # 2) authoritative explicit fields written by extract.py: season (the campaign end-year)
-    #    and phase (the save's in-game date, from its header title).
-    s_season, s_phase = summ.get("season"), summ.get("phase")
-    if s_season is not None:
-        season = override[0] if override[0] is not None else int(s_season)
-        phase = override[1] or s_phase or f"{season - 1:04d}-07-01"
-        return season, phase
-    # 2b) a new career's first save: dated, but its campaign is given on the CLI.
-    if override[0] is not None:
-        return override[0], (override[1] or s_phase or f"{override[0] - 1:04d}-07-01")
-    # 3) legacy fallback: parse the label string (old 'YYYY-mid' form).
-    try:
-        return parse_label(label)
-    except ValueError:
-        pass
-    auto = summ.get("label_auto")
-    if auto:
-        try:
-            return parse_label(auto)
-        except ValueError:
-            pass
-    raise SystemExit(
-        f"cannot derive season/phase from label {label!r}; "
-        f"pass --season and --phase explicitly")
+    season = override[0] if override[0] is not None else summ.get("season")
+    phase = override[1] or summ.get("phase")
+    if season is None or phase is None:
+        raise SystemExit(f"{label}: summary.json carries no season/phase (an extract from "
+                         f"before header dates?); re-extract it or pass --season and --phase")
+    return int(season), phase
 
 
 def load_label(con, d, include, override=(None, None)):
@@ -1848,24 +1825,16 @@ def load_label(con, d, include, override=(None, None)):
         # multi-snapshot: archive a superseded (different-label) snapshot before overwrite
         if "core" in groups:
             prior = con.execute(
-                "SELECT label, COALESCE(date_to, latest_match) FROM staging.extracts "
-                "WHERE season=? AND phase=?", [season, phase]).fetchone()
+                "SELECT label FROM staging.extracts WHERE season=? AND phase=?",
+                [season, phase]).fetchone()
             if prior and prior[0] != label:
-                n = _archive_snapshot(con, season, phase, prior[0], prior[1])
-                new_end = _date((summ.get("date_range") or [None, None])[1]) \
-                    or _date(summ.get("latest_match"))
-                warn = ""
-                if prior[1] and new_end and new_end < prior[1]:
-                    warn = (f"  ⚠ this snapshot ({new_end}) is OLDER than the one it replaces "
-                            f"({prior[1]}) — it will become current")
-                print(f"  archived superseded {prior[0]} ({prior[1]}) -> history "
-                      f"({n} players){warn}")
+                n = _archive_snapshot(con, season, phase, prior[0], _date(phase))
+                print(f"  archived superseded {prior[0]} ({phase}) -> history ({n} players)")
         counts = {}
         for g in groups:
             _clear_group(con, g, season, phase)
             counts.update(_GROUP_FN[g](con, d, season, phase))
         _backfill_competition(con, season, phase)
-        rng = summ.get("date_range") or [None, None]
         _delete(con, "extracts", season, phase)
         # save_path is stored as a BASENAME, not the absolute path the extract recorded.
         # staging.extracts is the rebuild recipe (scripts/export_manifest.py reads it), and an
@@ -1874,12 +1843,11 @@ def load_label(con, d, include, override=(None, None)):
         # $FM_SAVES_DIR/<career>/ instead. source_dir stays absolute: it points at output/,
         # which is a local build artefact rather than part of the recipe.
         con.execute(
-            "INSERT INTO staging.extracts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            [season, phase, label, summ.get("label_auto"), os.path.abspath(d),
+            "INSERT INTO staging.extracts (season, phase, label, source_dir, save_path, "
+            "loaded_at, row_counts) VALUES (?,?,?,?,?,?,?)",
+            [season, phase, label, os.path.abspath(d),
              os.path.basename(summ.get("save") or "") or None,
-             _date(summ.get("latest_match")),
-             _date(rng[0]), _date(rng[1]), datetime.datetime.now(),
-             json.dumps(counts)])
+             datetime.datetime.now(), json.dumps(counts)])
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -2072,7 +2040,11 @@ _MIGRATIONS = [
 ] + [f"ALTER TABLE staging.players_raw ADD COLUMN IF NOT EXISTS {c} {t}"
      for c, t in _PERSON_SQL.items()] + [
 ] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} {t}"
-     for c, t in _PERSON_SQL.items()]
+     for c, t in _PERSON_SQL.items()] + [
+    # 2026-10-01: phase is the save's header date, so the label-derivation and match-date
+    # columns carry nothing (data-layers plan, step 2).
+] + [f"ALTER TABLE staging.extracts DROP COLUMN IF EXISTS {c}"
+     for c in ("label_auto", "latest_match", "date_from", "date_to")]
 
 
 def _migrate(con):
@@ -2386,11 +2358,9 @@ def main():
         seen = {}
         for d in dirs:
             label = os.path.basename(os.path.normpath(d))
-            try:
-                sp = parse_label(label)
-            except ValueError:
-                continue
-            seen.setdefault(sp, []).append(label)
+            summ = _load_json(os.path.join(d, "summary.json"))
+            if summ.get("season") is not None and summ.get("phase"):
+                seen.setdefault((summ["season"], summ["phase"]), []).append(label)
         for sp, labels in seen.items():
             if len(labels) > 1:
                 print(f"! WARNING: labels {labels} all map to season {sp[0]} "

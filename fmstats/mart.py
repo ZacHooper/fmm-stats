@@ -181,8 +181,6 @@ SELECT
     e.label,
     phase_ord(e.phase)              AS phase_ord,
     TRY_CAST(e.phase AS DATE)       AS phase_date,
-    e.latest_match,
-    e.latest_match IS NULL          AS is_preseason,
     ROW_NUMBER() OVER (ORDER BY e.season, phase_ord(e.phase))   AS snap_ix,
     phase_ord(e.phase) = MAX(phase_ord(e.phase))
         OVER (PARTITION BY e.season)                            AS is_latest_in_season

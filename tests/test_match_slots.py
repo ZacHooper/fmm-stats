@@ -96,7 +96,7 @@ def main():
     print(f"  {'ok  ' if good else 'FAIL'} {os.path.basename(REF):<24} "
           f"{lo/1e6:.4f}M..{hi/1e6:.4f}M  {slots:,} slots (expected {EXPECT_SLOTS:,}), "
           f"{n_tr:,} trailers")
-    for other in ("frem-2026-06-29.fms", "frem-2026-03-22.fms", "frem-2023-07-02.fms"):
+    for other in ("frem-2026-06-29.fms", "frem-2026-03-28.fms", "frem-2023-07-02.fms"):
         p = os.path.join(SAVES, other)
         if not os.path.exists(p):
             continue

@@ -13,10 +13,10 @@ from fmparser.tables import comp_honours as CH
 
 SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 CASES = [
-    ("frem", "frem-2021-07-01.fms", 2157),
+    ("frem", "frem-2021-06-27.fms", 2157),
     ("frem", "frem-2026-06-11.fms", 2316),
     ("frem", "frem-2026-07-02.fms", 2181),
-    ("bucaspor", "bucaspor-2023-05-20.fms", 2269),
+    ("bucaspor", "bucaspor-2023-06-19.fms", 2269),
 ]
 
 

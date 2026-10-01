@@ -156,7 +156,7 @@ The method section below is the field guide; that doc is the map.
 **Two commands are the feedback loop for any parser change, and they are cheap:**
 ```bash
 uv run python tests/run_tests.py            # whole suite; exit 2 means NOTHING ran
-uv run python tests/assert_identical.py     # 4 saves x 22 files, per-file SHA-256, ~35s
+uv run --extra archive python tests/assert_identical.py   # 4 saves x 24 files, per-file SHA-256, ~35s
 ```
 `assert_identical.py` is the **acceptance gate**: a restructuring commit must leave the
 extracted JSON byte-identical, and `extract.py` dumps with no `sort_keys`, so **key order is
@@ -357,7 +357,7 @@ is the regression test: a no-op export must produce a no-op diff.
   python. The old "extractors need bare `python3`" rule was a portability trap: it made a second
   machine depend on numpy being installed outside uv. Bare `python3` still works here if the system
   interpreter happens to have numpy.
-- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **Plain `uv sync` is lean on purpose** — `duckdb` + `pandas` only, which is everything the ETL, `fmq.py` (including `fmq.py scout`), and an agent skill scouting or querying the store need.
+- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **Plain `uv sync` is lean on purpose** — `duckdb` + `pandas` only, which is everything the ETL, `fmq.py` (including `fmq.py scout`), and an agent skill scouting or querying the store need. **A plain `uv run` re-syncs to that lean set and REMOVES the `archive` extra**, after which extract writes `world_fixtures.json` and `competition_rounds.json` as empty files with only a NOTE line: extract and run `tests/assert_identical.py` as `uv run --extra archive python …`.
 - **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. It re-creates the mart views on the cached copy from this checkout's `fmstats/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
 - **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
@@ -409,8 +409,10 @@ name states identity rather than nicknaming it: unique by construction, chronolo
 career-scoped. `season` is omitted because it's derivable (a phase in July or later belongs to the
 next campaign).
 
-**The label is the same string** — `output/<label>/` and `staging.extracts.label` both use it, so
-save file, extract dir and DB label are one vocabulary instead of three.
+**The label is the same string** — `extract.py` names `output/<label>/` after the save, and
+`staging.extracts.label` uses it, so save file, extract dir and DB label are one vocabulary.
+`scripts/rebuild.py` refuses a manifest row whose label is not its save's name, or whose
+season/phase the save's header does not give.
 
 An optional `-<tag>` may follow the date as a human note (`frem-2023-07-02-window-open.fms`).
 Nothing parses it, so it can never break a rebuild — only `<career>-<date>` carries meaning.
@@ -437,8 +439,8 @@ uv run python fmq.py --help                               # output, matches, mov
 
 # importing a NEW save
 uv run python scripts/archive_save.py ~/Downloads/<save>.fms --career frem --upload
-uv run python extract.py ~/fm-saves/frem/<save>.fms --career frem --label <l>
-uv run python load_duckdb.py output/<l> --db fm-frem.duckdb   # season+phase auto-derived
+uv run --extra archive python extract.py ~/fm-saves/frem/<save>.fms --career frem   # -> output/<save name>
+uv run python load_duckdb.py output/<l> --db fm-frem.duckdb   # season+phase from the header
 uv run python scripts/export_manifest.py                  # refresh the rebuild recipe, then commit
 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids

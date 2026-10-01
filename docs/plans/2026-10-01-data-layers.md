@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-01): in progress. Done: steps 1 and 3.**
+> **Status (2026-10-01): in progress. Done: steps 1, 2 and 3.**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
@@ -96,7 +96,7 @@ One PR each, merged green, in this order.
 | 2 | Header dates only: rename saves, drop labels and match dates | extract | full `rebuild.py`; manifest check passes on every row |
 | 3 | Delete dead outputs | extract | exactly two fewer files; every other file byte-identical |
 | 4 | Whole reference tables (clubs, competitions, fixtures) | extract | `diff_stores` on the existing mart rows; reviewed `git diff site/api` |
-| 5 | Rename `staging` → `raw` | layers | `git diff site/api` empty; R2 copy republished |
+| 5 | Rename `staging` → `raw` | layers | migrated store equals its old self; site export unchanged |
 | 6 | The models framework, and the loader's views moved into it | layers | every moved view equals its old self row-for-row |
 | 7 | Contracts and squad status | both | `diff_stores` on the players compatibility view |
 | 8 | Names | both | same |
@@ -217,11 +217,13 @@ migrations, the views it writes), `fmstats/mart.py`, `fmstats/*` (scout, stats, 
 - The views the loader writes today (`squad_scrapbook`, `players` / `player_attributes_exact`
   over their `_raw` tables, the attribute decode view) move with the rename as a documented
   exception to "raw has no logic"; step 6 moves them out.
-- `fmstats/store.py`'s view re-creation on cached copies must handle an older published store
-  that still says `staging` (alias, or refuse with a message to refresh).
+- `fmstats/store.py`: a cached copy of an older published store still says `staging`, so before
+  re-creating the mart views it creates `raw` as views over `staging` in the local cache. The
+  published copies are not republished until step 18; `fmq` keeps working against them.
 
-**Check**: `git diff site/api` empty; `validate_mart.py`, `run_tests.py` pass; the R2 copy and the
-mart object republished, and `fmq` run against them.
+**Check**: the migration run on a copy of the gate store, every table and view equal to its old
+self; the site export from the migrated copy unchanged; `validate_mart.py`, `run_tests.py`; `fmq`
+against the current R2 copy through the alias.
 
 ## 6. The models framework, and the loader's views moved into it
 - **`fmstats/models/`**: the declaration (name, layer, kind, grain, foreign keys, upstream, SQL),
@@ -366,9 +368,27 @@ the mart object rebuilt.
 # Part 3 — Shared
 
 ## Gates, every PR
-- `diff_stores.py` on every changed table or view, every save of both careers;
-- `validate_mart.py` (and `validate_models.py` from step 6) on a full rebuild;
-- a reviewed `git diff site/api` (no-op unless the PR says why);
+The check fits what the step touches, and no step waits on a full rebuild:
+
+| Step touches | Check | Time |
+|---|---|---|
+| extract only | `assert_identical.py` | ~35 s |
+| mart / views only | copy the baseline store, `load_duckdb.py --refresh-only`, diff the changed views | ~1–2 min |
+| extract + loader | re-extract the gate saves, load, diff the changed tables | ~3–4 min |
+
+- **The gate saves**: `frem-2021-06-27` (day one, empty grids), `frem-2023-06-30` (season end),
+  `frem-2023-07-02` (after the rollover, 0 matches), `frem-2026-03-28` (mid-season),
+  `frem-2026-06-11` (the ground-truth save), `frem-2027-08-09` (newest); plus
+  `bucaspor-2023-04-01` for the player-record steps (7–9). Both sides of a diff hold the same
+  snapshots, because the views that read across snapshots depend on which exist.
+- **The baseline is built once**: each step's branch store is the next step's old side.
+- **Diffs are scoped and keyed**: `diff_stores.py` on the tables and views the step names, never
+  a sweep of the whole store.
+- **One full rebuild of both careers**, at step 18, run in the background; and the republish of
+  the R2 copies happens there.
+- `validate_mart.py` (and `validate_models.py` from step 6) on the gate store;
+- a reviewed diff of `export_data.py` run against both gate stores (no-op unless the PR says
+  why); `site/api` itself is committed only from a full store;
 - `assert_identical.py` re-recorded with a note naming the files that changed and why;
 - `run_tests.py`, and `test_boundary.py` in particular: extract imports neither duckdb nor
   fmstats, fmstats imports no fmparser.
@@ -415,7 +435,7 @@ Mismatches are reported, never fixed by the build:
   its declaration; nothing downstream of the mart is affected either way.
 - **Published stores.** `publish_duckdb.py` compacts tables only; a view over a compacted table's
   expansion view works (the scrapbook PR relies on it). Check the published copy with `fmq` after
-  steps 4, 5, 9 and 18.
+  steps 4, 5 and 9 (through the step-5 alias), and republish at 18.
 - **Store size.** Whole tables (step 4) and the mart tables (13–16) grow the store; check against
   the R2 budget at step 18.
 

@@ -261,7 +261,7 @@ def main():
             print("\n".join(tag_map(rec)))
         return 0
     save = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
-        "~/fm-saves/frem/frem-2024-11-10.fms")
+        "~/fm-saves/frem/frem-2024-11-22.fms")
     if not os.path.exists(save):
         print(f"SKIP: {save} not found (fetch with rclone or scripts/rebuild.py)")
         return 0

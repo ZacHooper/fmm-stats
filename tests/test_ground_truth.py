@@ -35,7 +35,7 @@ NOT_LOANED = {22498, 33913, 30975}
 # naming canonicalisation retired them, kept so an un-migrated machine still finds it.
 # `harness.find_save` looks under $FM_SAVES_DIR as well as the repo root -- looking ONLY in
 # the repo root is why this test silently stopped running.
-CANDIDATES = ["bucaspor-2022-06-01.fms", "21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
+CANDIDATES = ["bucaspor-2022-06-19.fms", "21-22-end.fms", "21-22-mid.fms", "fm_save1.fms"]
 
 # --- ground truth (Karacabey 3-3 Bucaspor, 30 Apr 2022, + two scouted opponents) ---
 MATCH = {"home_tid": 6353, "away_tid": 6567}

@@ -378,15 +378,14 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   `rclone config update r2 access_key_id <NEW> secret_access_key <NEW>`.
 - **Position write-ups** for DM, CM, AML, AMC, AMR and ST, plus a verdict on 4-1-2-2-1, against
   the current Superliga squad.
-- **Save housekeeping** (needs Zac): the local duplicates `frem-2024-06-02.fms` and
-  `frem-2024-06-28.fms` are byte-identical copies of the manifest's `frem-2024-05-25` and
-  `frem-2024-06-03`, which their headers date 2024-06-02 and 2024-06-28 -- the extra copies can
-  go. The four `unfiled/` saves are dated by their headers: `frem/denmark-mid-22` 2021-10-02,
-  `bucaspor/22-23-start` and `bucaspor/fm_save3` 2022-06-20 (check whether they are the same
-  save), `bucaspor/fm_save1-24-mid` 2023-11-08. Stale `output/` dirs and the pre-rewrite git
-  backup on the local machine can go.
-  Renaming the 20 manifest saves whose name is not their header date is PR 1 of the
-  extract clean-up (#12); settle these duplicates in the same pass.
+- **Save housekeeping** (needs Zac): every manifest save is now named `<career>-<header date>`
+  in R2 and the manifest, so on the local machine delete `~/fm-saves/*/` copies under the old
+  names, the stale `output/` dirs and the pre-rewrite git backup, and rebuild the stores
+  (`scripts/rebuild.py`; an old store's `staging.extracts` still names the old labels, and
+  `export_manifest.py` from it would put them back). The four `unfiled/` saves are dated by
+  their headers: `frem/denmark-mid-22` 2021-10-02, `bucaspor/22-23-start` and
+  `bucaspor/fm_save3` 2022-06-20 (check whether they are the same save),
+  `bucaspor/fm_save1-24-mid` 2023-11-08; register or delete them.
 - **`careers.py` hardcodes `reserve_tid`** — the club record's `main_club_tid` could derive it.
 - **`tests/test_attribute_model.py` skips without a repo-local store** — open it through
   `fmstats.store.open_store()` as `tests/test_fmq.py` does.
