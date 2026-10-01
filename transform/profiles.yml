@@ -1,0 +1,9 @@
+# The store to build in: $FM_DUCKDB (the loader sets it to the store it is loading).
+fm_stats:
+  target: store
+  outputs:
+    store:
+      type: duckdb
+      path: "{{ env_var('FM_DUCKDB', '../fm-frem.duckdb') }}"
+      schema: main
+      threads: 4

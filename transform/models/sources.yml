@@ -1,0 +1,22 @@
+version: 2
+sources:
+  - name: raw
+    schema: raw
+    description: The landed tables the loader writes from the extract's JSON, as stored.
+    tables:
+      - name: players_raw
+      - name: player_attributes_exact_raw
+      - name: player_scrapbook
+      - name: player_positions
+      - name: name_strings
+      - name: name_ids
+      - name: contracts
+      - name: training
+      - name: clubs
+      - name: club_squad
+      - name: club_details
+      - name: extracts
+      - name: app_config
+      - name: attribute_model
+      - name: role_weights
+      - name: position_role_map
