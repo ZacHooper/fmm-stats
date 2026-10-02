@@ -612,8 +612,8 @@ DDL = [
     )""",
 
     # GLOBAL reference table (not per-label). One row per (method, role, attribute).
-    # `method` names a tactic/weight-set: 'black_hawk'/'personal' are seeded from
-    # seeds/role_weights.csv; user-defined tactics are added by inserting new methods
+    # `method` names a tactic/weight-set: frem_minmax_4231 and frem_attacking_ss are seeded
+    # from seeds/role_weights.csv; user-defined tactics are added by inserting new methods
     # (e.g. from a dashboard) and are preserved across reloads. Attributes not listed
     # for a (method, role) default to weight 1 in v_player_ratings.
     """CREATE TABLE IF NOT EXISTS raw.role_weights (
@@ -670,7 +670,7 @@ POSITION_ROLE = {
 APP_CONFIG_DEFAULTS = {
     "familiarity_curve": "linear_floor",   # linear_floor | tiers | proportional
     "familiarity_floor": "0.5",            # floor for linear_floor curve
-    "default_method": "black_hawk",
+    "default_method": "frem_attacking_ss",
 }
 
 # Dropped if present, never created. Each reads raw across every snapshot without the
@@ -1834,9 +1834,16 @@ def _drop_extracts_phase_check(con):
     con.execute("ALTER TABLE raw._extracts_mig RENAME TO extracts")
 
 
+# Weight-sets the seed no longer ships. Every player is rated in every role of every set, so
+# each retired set is removed from an existing store too, not just left out of the seed.
+RETIRED_METHODS = ("black_hawk", "personal", "frem_counter", "frem_gegenpress",
+                   "frem_lowblock_overload", "frem_game_state", "frem_minmax_4411")
+
+
 def seed_role_weights(con):
     """(Re)seed the tactic weight-sets from seeds/role_weights.csv, leaving any user-defined
-    tactic untouched. Idempotent: deletes exactly the methods the CSV names, then inserts it."""
+    tactic untouched. Idempotent: deletes exactly the methods the CSV names, and the retired
+    ones, then inserts it."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
                         "role_weights.csv")
     if not os.path.exists(path):
@@ -1845,6 +1852,8 @@ def seed_role_weights(con):
     con.execute(
         "DELETE FROM raw.role_weights WHERE method IN "
         "(SELECT DISTINCT method FROM read_csv_auto(?))", [path])
+    con.execute("DELETE FROM raw.role_weights WHERE method IN ("
+                + ", ".join("?" * len(RETIRED_METHODS)) + ")", list(RETIRED_METHODS))
     con.execute(
         "INSERT INTO raw.role_weights (method, role, attribute, category, weight) "
         "SELECT method, role, attribute, category, weight FROM read_csv_auto(?)", [path])
