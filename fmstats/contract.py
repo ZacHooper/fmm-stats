@@ -64,6 +64,15 @@ CLUB_LISTS = range(31, 62)
 # A u16 id field's "none" value (0xFFFF): no club, no league, no reference
 # (`fmparser.core.primitives.NO_ID16`). The stg models read it as NULL.
 NO_ID16 = 0xFFFF
+# ...and in a u32 field (`NO_ID32`); a person's attribute-record link (`sid`, read as hex) when
+# he has none, which makes him staff.
+NO_ID32 = 0xFFFFFFFF
+NO_SID = "ffffffff"
+# The manager's displayed Style, banded from the staff record's attacking_intent (<= ceiling),
+# and the reputation tier, banded from world_reputation (< ceiling)
+# (`fmparser.tables.staff._STYLE_BANDS` / `_TIER_BANDS`).
+STAFF_STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
+STAFF_TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
 
 # The training row's contract flag on a player under contract
 # (`fmparser.tables.training.CONTRACTED`).

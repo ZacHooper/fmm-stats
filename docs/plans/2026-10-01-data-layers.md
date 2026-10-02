@@ -265,6 +265,20 @@ The smallest of the three record steps; it proves the raw → stg → int → co
 - `clubs_comps.build_name_resolver` / `resolve_name` / `resolve_common_name` go.
 
 ## 9. Person, player and staff records
+*(Done: extract dumps `persons.json`, `attribute_records.json`, `staff_records.json` and
+`formations.json` as stored, into `raw.person_records` / `attribute_records` / `staff_records` /
+`formations` (`stg_persons`, `stg_player_attributes` with one column per position,
+`stg_staff_attributes`, `stg_formations`). int splits a player into what he is and how he is
+rated: `int_player_info` (person ⋈ attribute record on `sid`: identity, club, CA/PA,
+reputation, value, contract, training, `has_attributes`, `is_goalkeeper`) and
+`int_player_attributes` (the 23 displayed attributes, stated or decoded, with one
+`is_estimated` flag, plus the hidden attributes, personality, positions and feet, all wide),
+fed by `int_player_attributes_exact` and `int_player_attribute_estimates`;
+`int_staff_snapshots` joins the staff record on `id2` (formation names, Style and reputation
+tier banded in SQL). This is step 15's int half: step 15 keeps the mart, where
+`fact_player_snapshot` joins `int_player_info` to `int_player_attributes`. The old shapes are
+legacy models (`players`, `player_positions`, `staff_attributes`). `id2 = 0` is a real link
+(tid 0's record); the old extract treated it as "none".)*
 - extract dumps `persons.json` (the person table as stored), `player_attributes.json` (the
   attribute record keyed by `sid`: all 34 attribute bytes, positions, CA/PA, the tail) and
   `staff_attributes.json` (keyed by `id2`, formation indices), plus the formation catalog;
@@ -278,8 +292,10 @@ The smallest of the three record steps; it proves the raw → stg → int → co
 and `player_attributes` (the decoded view) are taken; name the new raw tables by what they are
 (`raw.person_records`, `raw.attribute_records`, `raw.staff_records`).
 
-**Checks for 7–9**: `diff_stores` on the players and exact-attributes compatibility views, every
-save of both careers; `assert_identical` re-recorded with the new files named.
+**Checks for 7–9**: `diff_stores` on the players and exact-attributes compatibility views over
+the four `assert_identical` saves (both careers); `assert_identical` re-recorded with the new
+files named. A sample is enough because these views are per-snapshot: each snapshot's rows come
+from its own extract alone, and the old mart reads only them.
 
 ## 10. Extract cleanup
 - delete `clubs_comps.py`; its `info_offset` (a byte sweep gated on a DOB window) goes with
@@ -300,6 +316,9 @@ save of both careers; `assert_identical` re-recorded with the new files named.
 **Check**: `assert_identical` byte-identical (only the order of `dump()` calls changes).
 
 ## 12. stg for every raw table
+*(Partly done by the int redesign (#129): a stg model, keyed by `snapshot_date`, for every
+source the person and player models read, and int shaped by `docs/data-model/`, with
+`models/legacy/` keeping the old `(season, phase)` shapes for the old mart until step 17.)*
 One stg model per raw table still without one: rename to the model's vocabulary, cast, decode
 codes to names where the code table is in the store, attach `person_id` where a `tid` appears,
 drop unused slots (`tid = 0xffffffff` and the like). No joins across sources.
@@ -331,6 +350,9 @@ events vs score, rebuilt tables vs `club_league_history`, outcomes vs the roll o
 **Blocked by** TODO #16 (extra-time minutes); settle how two-legged ties are stored first.
 
 ## 15. Person and the two models
+*(int half largely done in steps 8–9: person identity (`int_person_snapshots`, `int_persons`),
+`int_player_info`, `int_player_attributes` and `int_staff_snapshots`. What is left of the int
+half is `int_player_value` and the seasons; the mart half is all to do.)*
 - **int**: person identity (`person_id` = `<tid>-<dob>`, built across **every** snapshot so a
   retired player whose slot has gone to a newgen keeps his history), `int_player_attributes` (exact where stored, estimated otherwise,
   with the rule for when an old exact entry gives way to the estimate), `int_player_value`

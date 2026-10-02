@@ -75,5 +75,5 @@ select
     null as model_rating
 where (select count(distinct expected.tid) as n from expected) < 50
 -- rating_sample() reads these:
--- depends_on: {{ ref('stg_snapshots') }} {{ ref('stg_persons') }}
+-- depends_on: {{ ref('stg_snapshots') }} {{ ref('int_player_info') }}
 -- depends_on: {{ ref('stg_role_weights') }} {{ ref('stg_position_roles') }}

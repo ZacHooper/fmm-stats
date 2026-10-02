@@ -9,9 +9,11 @@ unit_tests:
     given:
       - input: ref('stg_persons')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, is_staff: false, club_tid: 7296}
-          - {snapshot_date: '2026-06-11', tid: 2, is_staff: false, club_tid: 900}
-          - {snapshot_date: '2026-06-11', tid: 3, is_staff: false, club_tid: null}
+          - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000', club_tid: 7296}
+          - {snapshot_date: '2026-06-11', tid: 2, sid: 'bb000000', club_tid: 900}
+          - {snapshot_date: '2026-06-11', tid: 3, sid: 'cc000000', club_tid: null}
+      - input: ref('stg_player_attributes')
+        rows: []
       - input: ref('int_managed_squad')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, team_tid: 346}
@@ -22,11 +24,9 @@ unit_tests:
           - {snapshot_date: '2026-06-11', tid: 900, main_club_tid: null}
       - input: ref('stg_career')
         rows: [{managed_club_tid: 346}]
-      - input: ref('stg_player_positions')
-        rows: []
       - input: ref('stg_snapshots')
         rows: [{snapshot_date: '2026-06-11', season: 2026}]
-      - input: ref('int_player_snapshots')
+      - input: ref('int_player_info')
         rows: []
       - input: ref('int_person_names')
         rows: []

@@ -89,25 +89,24 @@ unit_tests:
         - {player_tid: 1, entry_date: '2026-05-31', Teamwork: 7, is_fresh: true}
         - {player_tid: 6, entry_date: '2025-05-16', Teamwork: 12, is_fresh: false}
 
-  - name: player_snapshots_take_our_entries
+  - name: player_info_takes_our_entries
     description: >
       A squad player takes his name from his entry, and his value from it while it is fresh; a
-      player outside the squad keeps his own name and has no value, even with an entry; staff
-      are not players.
-    model: int_player_snapshots
+      player outside the squad keeps his own name and has no value, even with an entry.
+    model: int_player_info
     given:
       - input: ref('stg_persons')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, is_staff: false, club_tid: 346}
-          - {snapshot_date: '2026-06-11', tid: 4, is_staff: false, club_tid: 900}
-          - {snapshot_date: '2026-06-11', tid: 6, is_staff: false, club_tid: 7296}
-          - {snapshot_date: '2026-06-11', tid: 8, is_staff: true, club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000', club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 4, sid: 'dd000000', club_tid: 900}
+          - {snapshot_date: '2026-06-11', tid: 6, sid: 'ff000000', club_tid: 7296}
       - input: ref('int_person_snapshots')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, person_id: 1-x}
           - {snapshot_date: '2026-06-11', tid: 4, person_id: 4-x}
           - {snapshot_date: '2026-06-11', tid: 6, person_id: 6-x}
-          - {snapshot_date: '2026-06-11', tid: 8, person_id: 8-x}
+      - input: ref('stg_player_attributes')
+        rows: []
       - input: ref('int_person_names')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, name: Record One}
@@ -132,17 +131,63 @@ unit_tests:
         - {tid: 4, name: Record Four, club_tid: 900, value: null, scrapbook_entry_date: null}
         - {tid: 6, name: Entry Six, club_tid: 7296, value: null, scrapbook_entry_date: null}
 
+  - name: player_info_joins_the_record_on_sid
+    description: >
+      A player's attribute record is the one with his sid; a player without one keeps his row
+      with has_attributes false; staff (no sid) are not players; a goalkeeper is a player whose
+      GK familiarity is 20.
+    model: int_player_info
+    given:
+      - input: ref('stg_persons')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000'}
+          - {snapshot_date: '2026-06-11', tid: 2, sid: 'bb000000'}
+          - {snapshot_date: '2026-06-11', tid: 3, sid: 'cc000000'}
+          - {snapshot_date: '2026-06-11', tid: 4, sid: null}
+      - input: ref('int_person_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, person_id: 1-x}
+          - {snapshot_date: '2026-06-11', tid: 2, person_id: 2-x}
+          - {snapshot_date: '2026-06-11', tid: 3, person_id: 3-x}
+          - {snapshot_date: '2026-06-11', tid: 4, person_id: 4-x}
+      - input: ref('stg_player_attributes')
+        rows:
+          - {snapshot_date: '2026-06-11', sid: 'aa000000', pos_gk: 20, pos_dc: null, ca: 80}
+          - {snapshot_date: '2026-06-11', sid: 'bb000000', pos_gk: 3, pos_dc: 20, ca: 90}
+      - input: ref('int_person_names')
+        rows: []
+      - input: ref('int_managed_squad')
+        rows: []
+      - input: ref('int_scrapbook_entries')
+        rows: []
+      - input: ref('stg_contracts')
+        rows: []
+      - input: ref('stg_training')
+        rows: []
+    expect:
+      rows:
+        - {tid: 1, has_attributes: true, is_goalkeeper: true, ca: 80}
+        - {tid: 2, has_attributes: true, is_goalkeeper: false, ca: 90}
+        - {tid: 3, has_attributes: false, is_goalkeeper: null, ca: null}
+
   - name: exact_attributes_from_a_fresh_entry
     description: >
-      The seven plain attributes always come from the player's own record; the entangled ones
-      from his squad entry while it is fresh, else as stated (NULL, left to the decode).
+      The seven plain attributes are the player's record bytes as stored (Pace is pace_src);
+      the entangled ones come from his squad entry while it is fresh, else NULL (left to the
+      decode); a player without an attribute record has no row.
     model: int_player_attributes_exact
     given:
-      - input: ref('stg_player_attributes_stated')
+      - input: ref('stg_persons')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, Pace: 11}
-          - {snapshot_date: '2026-06-11', tid: 4, Pace: 14}
-          - {snapshot_date: '2026-06-11', tid: 6, Pace: 16}
+          - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000'}
+          - {snapshot_date: '2026-06-11', tid: 4, sid: 'dd000000'}
+          - {snapshot_date: '2026-06-11', tid: 6, sid: 'ff000000'}
+          - {snapshot_date: '2026-06-11', tid: 7, sid: 'ee000000'}
+      - input: ref('stg_player_attributes')
+        rows:
+          - {snapshot_date: '2026-06-11', sid: 'aa000000', pace_src: 11, crossing_src: 200}
+          - {snapshot_date: '2026-06-11', sid: 'dd000000', pace_src: 14, crossing_src: 200}
+          - {snapshot_date: '2026-06-11', sid: 'ff000000', pace_src: 16, crossing_src: 200}
       - input: ref('int_managed_squad')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, team_tid: 346}
@@ -154,6 +199,69 @@ unit_tests:
           - {snapshot_date: '2026-06-11', player_tid: 6, is_fresh: false, Pace: 99, Teamwork: 12}
     expect:
       rows:
-        - {tid: 1, Pace: 11, Teamwork: 7}
-        - {tid: 4, Pace: 14, Teamwork: null}
-        - {tid: 6, Pace: 16, Teamwork: null}
+        - {tid: 1, Pace: 11, Teamwork: 7, Crossing: null}
+        - {tid: 4, Pace: 14, Teamwork: null, Crossing: null}
+        - {tid: 6, Pace: 16, Teamwork: null, Crossing: null}
+
+  - name: attributes_estimated_unless_stated
+    description: >
+      A displayed attribute is the stated value where there is one, the decoded one otherwise;
+      is_estimated is true when the estimable attributes are decoded. The plain attributes and
+      Teamwork never make a player estimated.
+    model: int_player_attributes
+    given:
+      - input: ref('int_player_attributes_exact')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, Pace: 11, Teamwork: 7, Aerial: 15, Crossing: 15, Dribbling: 15, Shooting: 15, Passing: 15, Tackling: 15, Creativity: 15, Decisions: 15, Movement: 15, Positioning: 15, Handling: 15, Kicking: 15, Reflexes: 15, Communication: 15, Throwing: 15}
+          - {snapshot_date: '2026-06-11', tid: 2, Pace: 14, Crossing: null, Aerial: null, Teamwork: null}
+      - input: ref('int_player_attribute_estimates')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, Crossing: 9, Aerial: 9, Teamwork: 9}
+          - {snapshot_date: '2026-06-11', tid: 2, Crossing: 9, Aerial: 9, Teamwork: 9}
+      - input: ref('stg_persons')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000'}
+          - {snapshot_date: '2026-06-11', tid: 2, sid: 'bb000000'}
+      - input: ref('stg_player_attributes')
+        rows:
+          - {snapshot_date: '2026-06-11', sid: 'aa000000', pos_dc: 20}
+          - {snapshot_date: '2026-06-11', sid: 'bb000000', pos_dc: 15}
+    expect:
+      rows:
+        - {tid: 1, Pace: 11, Crossing: 15, Aerial: 15, Teamwork: 7, is_estimated: false, pos_dc: 20}
+        - {tid: 2, Pace: 14, Crossing: 9, Aerial: 9, Teamwork: 9, is_estimated: true, pos_dc: 15}
+
+  - name: staff_style_and_tier_banded
+    description: >
+      Style bands attacking_intent (<= 7 Defensive, <= 13 Normal, else Attacking) and the tier
+      bands world_reputation (< 3000 Regional, < 5800 National, else Continental); a formation
+      id names its catalog entry; a staff member without a staff record keeps his row.
+    model: int_staff_snapshots
+    given:
+      - input: ref('stg_persons')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 10, sid: null, id2: 0}
+          - {snapshot_date: '2026-06-11', tid: 11, sid: null, id2: 1}
+          - {snapshot_date: '2026-06-11', tid: 12, sid: null, id2: 2}
+          - {snapshot_date: '2026-06-11', tid: 13, sid: 'aa000000', id2: null}
+      - input: ref('int_person_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 10, person_id: 10-x}
+          - {snapshot_date: '2026-06-11', tid: 11, person_id: 11-x}
+          - {snapshot_date: '2026-06-11', tid: 12, person_id: 12-x}
+          - {snapshot_date: '2026-06-11', tid: 13, person_id: 13-x}
+      - input: ref('int_person_names')
+        rows: []
+      - input: ref('stg_staff_attributes')
+        rows:
+          - {snapshot_date: '2026-06-11', id2: 0, attacking_intent: 7, world_reputation: 2999, formation_preferred: 1, formation_attacking: 0, formation_defensive: 0}
+          - {snapshot_date: '2026-06-11', id2: 1, attacking_intent: 14, world_reputation: 5800, formation_preferred: 0, formation_attacking: 0, formation_defensive: 0}
+      - input: ref('stg_formations')
+        rows:
+          - {snapshot_date: '2026-06-11', formation_id: 0, name: 4-4-2}
+          - {snapshot_date: '2026-06-11', formation_id: 1, name: 4-4-2 Diamond}
+    expect:
+      rows:
+        - {tid: 10, has_staff_record: true, style: Defensive, reputation_tier: Regional, formation_preferred_name: 4-4-2 Diamond}
+        - {tid: 11, has_staff_record: true, style: Attacking, reputation_tier: Continental, formation_preferred_name: 4-4-2}
+        - {tid: 12, has_staff_record: false, style: null, reputation_tier: null, formation_preferred_name: null}

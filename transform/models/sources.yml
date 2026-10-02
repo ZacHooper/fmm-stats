@@ -4,10 +4,11 @@ sources:
     schema: raw
     description: The landed tables the loader writes from the extract's JSON, as stored.
     tables:
-      - name: players_raw
-      - name: player_attributes_exact_raw
+      - name: person_records
+      - name: attribute_records
+      - name: staff_records
+      - name: formations
       - name: player_scrapbook
-      - name: player_positions
       - name: name_strings
       - name: name_ids
       - name: contracts

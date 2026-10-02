@@ -1,46 +1,30 @@
--- Every person's own record (players and staff share it), one row per person
--- per snapshot. club_tid is NULL for a free agent (the save's var('no_id16')).
--- The *_src columns are the record's attribute bytes as stored; the attribute
--- decode (int.player_attribute_estimates) reads them.
+-- The person table, one record per person (players and staff) per snapshot:
+-- identity, club, personality, and the two links. A player's attribute record
+-- is the one with his `sid` (NULL for staff, stored var('no_sid')); a staff
+-- member's staff record the one with his `id2` (NULL for players, stored
+-- var('no_id32')). club_tid is NULL for a free agent (var('no_id16')).
 select
     cast(phase as date) as snapshot_date,
-    tid,
+    cast(tid as integer) as tid,
+    uid,
     first_name_id,
     last_name_id,
     common_name_id,
-    is_staff,
-    nullif(club_tid, {{ var('no_id16') }}) as club_tid,
     dob,
     nationality_id,
     second_nationality_id,
     ethnicity,
-    has_attributes,
-    is_gk = 1 as is_goalkeeper,
-    ca,
-    pa,
-    reputation,
-    current_reputation,
-    world_reputation,
-    foot_left,
-    foot_right,
-    international_retired,
-    squad_number,
-    preferred_squad_number,
-    height_cm,
-    weight_kg,
-    {% for column in var('hidden_attributes') %}
-    {{ column }},
-    {% endfor %}
-    {% for column in var('attribute_columns').values()
-        if column not in var('hidden_attributes') %}
-    {{ column }},
-    {% endfor %}
-    {% for column in var('personality') %}
-    {{ column }},
-    {% endfor %}
+    type_flag,
+    unknown_date,
     international_caps,
     international_goals,
     u21_caps,
     u21_goals,
-    joined_date
-from {{ source('raw', 'players_raw') }}
+    cast(nullif(club_tid, {{ var('no_id16') }}) as integer) as club_tid,
+    joined_date,
+    {% for column in var('personality') %}
+    {{ column }},
+    {% endfor %}
+    nullif(sid, '{{ var('no_sid') }}') as sid,
+    nullif(id2, {{ var('no_id32') }}) as id2
+from {{ source('raw', 'person_records') }}

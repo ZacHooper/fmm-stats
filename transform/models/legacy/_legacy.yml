@@ -18,3 +18,9 @@ models:
     description: The old v_player_ratings shape.
   - name: legacy_player_rating_ranks
     description: The old v_player_rating_ranks shape.
+  - name: legacy_player_positions
+    description: The old raw.player_positions shape.
+  - name: legacy_staff_attributes
+    description: The old raw.staff_attributes shape, staff with a staff record.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}

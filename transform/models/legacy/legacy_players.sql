@@ -1,22 +1,41 @@
--- The old raw.players shape (every person, staff included), built from
--- stg.persons and int.player_snapshots for fmstats/mart.py until step 17 moves
--- it to the dim/fact tables. Only the old mart reads it.
+-- The old raw.players shape (every person, staff included), built from the
+-- person and attribute records and int.player_snapshots for fmstats/mart.py
+-- until step 17 moves it to the dim/fact tables. Only the old mart reads it.
 --   * A player in our squad whose record names another club is loaned_in:
 --     club_tid is the team that lists him and parent_club_tid his own club.
 --   * A free agent's club_tid is the save's var('no_id16') and his club
 --     'Free agent', as the parser stored them.
 --   * squad_status is the training row's byte, which the old mart still
 --     shows; it is not a squad status (int.player_snapshots leaves it out).
---   * positions is the record's position familiarities as JSON, in the
---     record's order; '{}' for a person with none (staff).
+--   * positions is the player's position familiarities as JSON, in the
+--     record's order; '{}' for a person with none (staff, or a player with no
+--     record).
 
-with loans as (
+with records as (
+    select
+        person.*,
+        record.* exclude (snapshot_date, sid),  -- noqa: RF02
+        person.sid is null as is_staff,
+        coalesce(info.has_attributes, false) as has_attributes,
+        info.is_goalkeeper
+    from {{ ref('stg_persons') }} as person
+    left join {{ ref('stg_player_attributes') }} as record
+        on
+            person.snapshot_date = record.snapshot_date
+            and person.sid = record.sid
+    left join {{ ref('int_player_info') }} as info
+        on
+            person.snapshot_date = info.snapshot_date
+            and person.tid = info.tid
+),
+
+loans as (
     select
         squad.snapshot_date,
         squad.tid,
         squad.team_tid
     from {{ ref('int_managed_squad') }} as squad
-    inner join {{ ref('stg_persons') }} as record
+    inner join records as record
         on
             squad.snapshot_date = record.snapshot_date
             and squad.tid = record.tid
@@ -30,22 +49,6 @@ with loans as (
         != career.managed_club_tid
 ),
 
-positions as (
-    select
-        snapshot_date,
-        tid,
-        cast('{' || string_agg(
-            '"' || position || '": ' || familiarity, ', '
-            order by case position
-                {%- for pos in var('positions') %}
-                when '{{ pos }}' then {{ loop.index0 }}
-                {%- endfor %}
-            end
-        ) || '}' as json) as positions
-    from {{ ref('stg_player_positions') }}
-    group by snapshot_date, tid
-),
-
 people as (
     select
         record.*,
@@ -53,7 +56,7 @@ people as (
         loans.tid is not null as loaned_in,
         case when loans.tid is not null then record.club_tid end
             as parent_club_tid
-    from {{ ref('stg_persons') }} as record
+    from records as record
     left join loans
         on
             record.snapshot_date = loans.snapshot_date
@@ -77,7 +80,13 @@ select
     people.ca,
     people.pa,
     people.reputation,
-    coalesce(positions.positions, cast('{}' as json)) as positions,
+    cast('{' || concat_ws(
+        ', ',
+        {% for pos in var('positions') %}
+        '"{{ pos }}": '
+        || people.pos_{{ pos | lower }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ) || '}' as json) as positions,
     people.foot_left,
     people.foot_right,
     players.value as player_value,
@@ -115,7 +124,7 @@ select
     players.scrapbook_entry_date as scrapbook_date
 from people
 {{ join_snapshots('people') }}
-left join {{ ref('int_player_snapshots') }} as players
+left join {{ ref('int_player_info') }} as players
     on
         people.snapshot_date = players.snapshot_date
         and people.tid = players.tid
@@ -135,7 +144,3 @@ left join {{ ref('stg_training') }} as training
     on
         people.snapshot_date = training.snapshot_date
         and people.tid = training.tid
-left join positions
-    on
-        people.snapshot_date = positions.snapshot_date
-        and people.tid = positions.tid

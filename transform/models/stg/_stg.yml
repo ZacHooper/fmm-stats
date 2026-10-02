@@ -41,26 +41,12 @@ models:
       - unique_combination: {arguments: {columns: [snapshot_date]}}
   - name: stg_career
     description: The career this store holds and the club it manages, one row.
-  - name: stg_persons
-    description: >
-      Every person's own record per snapshot, players and staff; the attribute bytes as
-      stored (the *_src columns), club_tid NULL for a free agent.
-    data_tests:
-      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_team_squads
     description: Every team's squad array, one row per player listed.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid, player_tid]}}
   - name: stg_clubs
     description: Every club-shaped record's name per snapshot.
-    data_tests:
-      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
-  - name: stg_player_positions
-    description: Each player's familiarity with every position he has any for.
-    data_tests:
-      - unique_combination: {arguments: {columns: [snapshot_date, tid, position]}}
-  - name: stg_player_attributes_stated
-    description: The attributes a player's own record states outright; NULL where it does not.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_scrapbook_entries
@@ -77,3 +63,23 @@ models:
     description: The role each position is rated in.
     data_tests:
       - unique_combination: {arguments: {columns: [position]}}
+  - name: stg_persons
+    description: >
+      The person table per snapshot, players and staff: identity, club, personality, and the
+      links to the player attributes (sid, NULL for staff) and staff attributes (id2).
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: stg_player_attributes
+    description: >
+      The player attribute table per snapshot, keyed by sid: the 34 attribute bytes as stored,
+      a familiarity column per position, feet, CA/PA and the record's tail.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, sid]}}
+  - name: stg_staff_attributes
+    description: The staff attribute table per snapshot, keyed by id2.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, id2]}}
+  - name: stg_formations
+    description: The formation catalog the staff records index.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, formation_id]}}

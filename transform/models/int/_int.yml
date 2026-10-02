@@ -1,5 +1,11 @@
 version: 2
 models:
+  - name: int_staff_snapshots
+    description: >
+      Each staff member on each snapshot, with his staff record where the save holds one,
+      the formation names, Style and the reputation tier.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: int_person_names
     description: >
       Each person's name parts on each snapshot; `name` is the display name: the common name
@@ -39,10 +45,11 @@ models:
       for one recent enough to stand in for his record.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, player_tid]}}
-  - name: int_player_snapshots
+  - name: int_player_info
     description: >
-      Each player on each snapshot: his record, the name and value our squad's entries give,
-      his current contract and his training.
+      Each player on each snapshot, everything except how he is rated: identity, club, CA/PA,
+      reputation, build, caps, the name and value our squad's entries give, his current
+      contract and his training.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
       - relationship_combination:
@@ -59,7 +66,7 @@ models:
       - relationship_combination:
           arguments:
             columns: [snapshot_date, tid]
-            to: ref('int_player_snapshots')
+            to: ref('int_player_info')
             to_columns: [snapshot_date, tid]
   - name: int_player_attribute_estimates
     description: >
@@ -69,14 +76,15 @@ models:
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: int_player_attributes
     description: >
-      All 23 attributes, with an `_est` flag each: stated where the save states them, the
-      decode from int.player_attribute_estimates otherwise.
+      Everything a player is rated on: the 23 displayed attributes (stated where the save
+      states them, decoded otherwise, with one is_estimated flag), the hidden attributes,
+      personality, position familiarities and feet.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
       - relationship_combination:
           arguments:
             columns: [snapshot_date, tid]
-            to: ref('int_player_snapshots')
+            to: ref('int_player_info')
             to_columns: [snapshot_date, tid]
   # The ratings' grain holds by construction (GROUP BY the key; ranks window over it), and
   # every rating is recomputed on read, so a whole-table test costs tens of seconds and checks

@@ -52,6 +52,7 @@ def main():
     from fmparser.tables.player_lists import CLUB_LISTS
     from fmparser.tables import training as TR
     from fmparser.core import primitives as PRIM
+    from fmparser.tables import staff as ST
     from fmstats import contract as C
     pairs = [
         ("ATTR_ORDER", list(C.ATTR_ORDER), list(M.ATTR_ORDER)),
@@ -65,6 +66,10 @@ def main():
         ("CLUB_LISTS", C.CLUB_LISTS, CLUB_LISTS),
         ("CONTRACTED", C.CONTRACTED, TR.CONTRACTED),
         ("NO_ID16", C.NO_ID16, PRIM.NO_ID16),
+        ("NO_ID32", C.NO_ID32, PRIM.NO_ID32),
+        ("NO_SID", C.NO_SID, PRIM.NO_ID32.to_bytes(4, "little").hex()),
+        ("STAFF_STYLE_BANDS", C.STAFF_STYLE_BANDS, ST._STYLE_BANDS),
+        ("STAFF_TIER_BANDS", C.STAFF_TIER_BANDS, ST._TIER_BANDS),
     ]
     differ = [name for name, declared, extracted in pairs if declared != extracted]
     for name, _, _ in pairs:
@@ -84,6 +89,10 @@ def main():
         ("club_lists", range(v["club_lists"][0], v["club_lists"][1] + 1), C.CLUB_LISTS),
         ("contracted", v["contracted"], C.CONTRACTED),
         ("no_id16", v["no_id16"], C.NO_ID16),
+        ("no_id32", v["no_id32"], C.NO_ID32),
+        ("no_sid", v["no_sid"], C.NO_SID),
+        ("staff_style_bands", tuple(map(tuple, v["staff_style_bands"])), C.STAFF_STYLE_BANDS),
+        ("staff_tier_bands", tuple(map(tuple, v["staff_tier_bands"])), C.STAFF_TIER_BANDS),
         ("wage_gbp_per_unit", v["wage_gbp_per_unit"], C.WAGE_GBP_PER_UNIT),
     ]
     dbt_differ = [name for name, declared, mirrored in dbt if declared != mirrored]
