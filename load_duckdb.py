@@ -1947,7 +1947,7 @@ def _extract_career(dirs):
 def seed_config_bundle(con):
     """Apply a committed config bundle (seeds/config_bundle.json) as the baked default —
     the same shape the dashboard exports (db.export_config_bundle). Runs AFTER
-    seed_role_weights/seed_reference so it wins for overlapping methods (e.g. 'personal').
+    seed_role_weights/seed_reference so it wins for overlapping methods.
     Absent file = no-op. app_config keys and included tactics are replaced authoritatively."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
                         "config_bundle.json")

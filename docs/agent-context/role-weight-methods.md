@@ -7,6 +7,11 @@ metadata:
   originSessionId: e454ef70-998b-4f22-a5f3-5cc24a02618f
 ---
 
+**2026-10-02: the store ships two weight-sets only, `frem_minmax_4231` and `frem_attacking_ss`.**
+The rest (`black_hawk`, `personal`, `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`,
+`frem_game_state`, `frem_minmax_4411`) are retired (`load_duckdb.RETIRED_METHODS`): every player is
+rated in every role of every set, and they were unused. The notes below on them are history.
+
 **How the weight-sets work.** `raw.role_weights(method, role, attribute, category, weight)` drives
 every rating. `v_player_ratings` computes `rating = SUM(attr_value * COALESCE(weight, 1))` per
 (method, role) — so **an attribute NOT listed for a role still counts at weight 1** (baseline), it
