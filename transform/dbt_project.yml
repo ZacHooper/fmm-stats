@@ -82,10 +82,20 @@ vars:
   contracted: 135             # the training row's contract flag (0x87)
   no_id16: 65535              # a u16 id field's "none" (0xFFFF); stg models read it as NULL
   no_id32: 4294967295         # the same in a u32 field (0xFFFFFFFF)
+  no_id8: 255                 # the same in a u8 field (0xFF): no stage, no minute
   no_sid: ffffffff            # a person's attribute-record link when he has none (staff)
   # Displayed manager Style from the staff record's attacking_intent (<= ceiling), and the
   # reputation tier from world_reputation (< ceiling); fmparser/tables/staff.py
   staff_style_bands: [[7, Defensive], [13, Normal], [20, Attacking]]
   staff_tier_bands: [[3000, Regional], [5800, National], [1000000000, Continental]]
   wage_gbp_per_unit: 520
+  progress_bits:              # Player Progress status bitfield (stg_player_progress)
+    is_injured: 3             # bits 0-1
+    is_off_season: 16         # bit 4
+    is_on_loan: 32            # bit 5
+  # A career-history line's transfer fee code (stg_player_history_seasons): below the floor it
+  # is the fee in units of fee_unit_gbp; fee_contract_ended (0xFFFC) is a contract run out.
+  fee_code_floor: 65000
+  fee_unit_gbp: 1000
+  fee_contract_ended: 65532
   scrapbook_max_age_days: 365

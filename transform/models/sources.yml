@@ -21,3 +21,29 @@ sources:
       - name: attribute_model
       - name: role_weights
       - name: position_role_map
+      - name: stadiums
+      - name: cities
+      - name: languages
+      - name: currencies
+      - name: nations
+      - name: nation_ranking_history
+      - name: nation_coefficients
+      - name: nation_languages
+      - name: club_staff
+      - name: club_affiliates
+      - name: club_league_history
+      - name: club_records
+      - name: player_records
+      - name: competitions
+      - name: competition_team_counts
+      - name: competition_rounds
+      - name: round_names
+      - name: world_fixtures
+      - name: matches
+      - name: match_events
+      - name: match_player_stats
+      - name: player_history
+      - name: player_history_seasons
+      - name: player_progress
+      - name: event_types
+      - name: eligible_origin_clubs

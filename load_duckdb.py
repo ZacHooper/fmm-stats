@@ -4,7 +4,7 @@ Load fm-parser extract bundles into a DuckDB store.
 
     uv run python load_duckdb.py output/frem-2023-07-02 --db fm-frem.duckdb [--career frem]
     uv run python load_duckdb.py output --all --db fm-frem.duckdb --career frem
-    uv run python load_duckdb.py output/frem-2023-07-02 --include core,light
+    uv run python load_duckdb.py output/frem-2023-07-02 --include core,world
     uv run python load_duckdb.py output --all --reset --career frem
 
 The tables in the `raw` schema are a 1:1 mirror of the JSON that the extractors
@@ -352,8 +352,8 @@ DDL = [
     )""",
 
     # The languages each nation speaks, with how well (proficiency 0..100: Denmark reads
-    # Danish 100, English 70, Swedish 50).
-    # natural key: (season, phase, nation_id, language_id)
+    # Danish 100, English 70, Swedish 50). A nation can list a language more than once
+    # (Iceland: English at 50, 70 and 95), so there is no natural key.
     """CREATE TABLE IF NOT EXISTS raw.nation_languages (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         nation_id INTEGER NOT NULL, language_id INTEGER NOT NULL, proficiency INTEGER
@@ -464,14 +464,6 @@ DDL = [
         -- decoded from the slot array after the formation string. NULL for the
         -- opposition (the save stores no shape for them) and for substitutes.
         position VARCHAR
-    )""",
-
-    # natural key: (season, phase, home_tid, away_tid, cid, seq)
-    """CREATE TABLE IF NOT EXISTS raw.results (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
-        home_tid INTEGER NOT NULL, away_tid INTEGER NOT NULL, cid INTEGER NOT NULL,
-        seq INTEGER NOT NULL, home VARCHAR, away VARCHAR,
-        scoreH INTEGER, scoreA INTEGER, competition VARCHAR, copies INTEGER
     )""",
 
     # natural key: (season, phase, home_tid, away_tid, date)
@@ -629,7 +621,7 @@ RETIRED_VIEWS = ("v_ca_progression", "v_transfers", "v_league_table", "v_match_r
                  "v_top_scorers")
 
 # tables each group owns, and the DELETE scope for idempotent reload
-GROUPS = ("core", "light", "world")
+GROUPS = ("core", "world")
 
 
 # ---------------------------------------------------------------------------
@@ -1195,29 +1187,6 @@ def _num(v):
     return v
 
 
-def load_light(con, d, season, phase):
-    counts = {}
-    ld = os.path.join(d, "light_results")
-
-    res_path = os.path.join(ld, "results.csv")
-    if os.path.exists(res_path):
-        rows, seq = [], {}
-        with open(res_path, newline="") as f:
-            for r in csv.DictReader(f):
-                key = (_int(r["home_tid"]), _int(r["away_tid"]), _int(r["cid"]))
-                seq[key] = seq.get(key, -1) + 1
-                rows.append((season, phase, key[0], key[1], key[2], seq[key],
-                             r.get("home") or None, r.get("away") or None,
-                             _int(r.get("scoreH")), _int(r.get("scoreA")),
-                             r.get("competition") or None, _int(r.get("copies"))))
-        counts["results"] = _insert(
-            con, "results",
-            ["season", "phase", "home_tid", "away_tid", "cid", "seq", "home",
-             "away", "scoreH", "scoreA", "competition", "copies"], rows)
-
-    return counts
-
-
 def _backfill_competition(con, season, phase):
     """A match whose `competition` NAME is still NULL takes it from the competition table by
     comp_id, and the per-player stat lines follow by anchor, so competition filters and
@@ -1285,14 +1254,12 @@ def _clear_group(con, group, season, phase):
                   "match_events", "match_player_stats", "club_records", "player_records",
                   "club_league_history", "training", "contracts"):
             _delete(con, t, season, phase)
-    elif group == "light":
-        _delete(con, "results", season, phase)
     elif group == "world":
         for tbl in ("world_fixtures", "competition_rounds", "round_names"):
             _delete(con, tbl, season, phase)
 
 
-_GROUP_FN = {"core": load_core, "light": load_light, "world": load_world}
+_GROUP_FN = {"core": load_core, "world": load_world}
 
 
 def _archive_snapshot(con, season, phase, label, snap_date):
@@ -1330,10 +1297,6 @@ def _detect_groups(d):
     present = []
     if os.path.exists(os.path.join(d, "persons.json")):
         present.append("core")
-    ld = os.path.join(d, "light_results")
-    if os.path.exists(os.path.join(ld, "results.csv")) or \
-       os.path.exists(os.path.join(ld, "club_league.json")):
-        present.append("light")
     if os.path.exists(os.path.join(d, "world_fixtures.json")):
         present.append("world")
     return present
@@ -1632,6 +1595,9 @@ _MIGRATIONS = [
     # 2026-10-02: a player's history head is his attribute record's own field, not a
     # second map in history.json (data-layers plan, step 11).
     "ALTER TABLE raw.attribute_records ADD COLUMN IF NOT EXISTS history_head BIGINT",
+    # 2026-10-02: extract writes no light results, so raw.results was always empty
+    # (data-layers plan, step 12).
+    "DROP TABLE IF EXISTS raw.results",
 ]
 
 

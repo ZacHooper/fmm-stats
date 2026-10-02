@@ -253,6 +253,29 @@ renames `staging` to `raw` and models it as raw → stg → int → mart, ending
 Every step is gated row-for-row against a store built from `main`. Person identity (#14),
 history reclamation (#15) and extra-time minutes (#16) block steps of it.
 
+### 12a. After the plan: raw mirrors the save, one table per table
+Low priority; do it once the data-layers plan is finished. Raw is still not one table per save
+table:
+- **Split by the loader.** `nations.json` becomes four raw tables (nations, ranking
+  history, coefficients, languages), `clubs.json` five (`clubs`, `club_details`,
+  `club_squad`, `club_staff`, `club_affiliates`) and the Club History table three
+  (`club_records`, `player_records`, `club_league_history`). Fix: keep each as one raw table
+  with its lists as `LIST(STRUCT)` columns, and unnest in stg.
+- **Derived by the loader.** `raw.player_history` and `raw.player_history_seasons` are both
+  walked from the history pool in `load_history`, and the fee codes are renamed there
+  (`'stay'`/`'loan'`/`'free'`). The summary is only each chain's first and last line plus the
+  head offset. Fix: `raw.history_rows` holds the pool as stored, an int model walks the
+  chains from `history_head` (recursive CTE), and the summary becomes a view or goes.
+- **Cut down by extract.** `competition_team_counts` is one field of each rule file, and
+  `competition_rounds` flattens each `comp_<uid>.dat` member. Fix: dump `rule_files` and
+  `comp_rules` whole.
+- **Parsed but never extracted.** `officials` (match officials), `comp_honours` (roll of
+  honour) and `comp_stages` (stages calendar) from `comp_man.dat`, and `match_slots`. Each needs
+  an extract step, a raw table and a stg model.
+- **Not parsed.** The transfer band's 143-byte records are decoded on paper
+  ([`transfer-history-record.md`](transfer-history-record.md)) but have no parser module, and
+  the save wipes them each July (#3).
+
 ---
 
 ## Stats
