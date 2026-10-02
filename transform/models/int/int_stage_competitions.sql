@@ -3,20 +3,29 @@
 -- competition (docs/TODO.md), so a stage is labelled from:
 --   'our_match'        one of our own matches in it (the match table's cid);
 --   'league_structure' else the league rule of mart.league_tables: a league's
---                      regular stage is a stage at stage_index 0 played over
---                      more than one matchday; a split league's championship
+--                      regular stage is a stage at stage_index 0 whose
+--                      stage_key has fixtures on more than one matchday in
+--                      some season (a league keeps its stage_key from season
+--                      to season, so a season one matchday old counts too);
+--                      a split league's championship
 --                      and relegation groups are the season's other such
 --                      stages whose every club, home and away, is one of its
 --                      clubs. The league is the one most of its clubs belong
 --                      to on the season's last snapshot (the snapshot of
---                      season competition_season + 1), and the stage must
---                      hold at least var('league_min_share') of that league's
---                      clubs, which keeps a cup group out.
--- This is a heuristic: it matches the game's final positions for every Danish
--- division and the Premier League, and fails for Spain (docs/TODO.md #13). A
--- stage neither labels (a cup abroad), and a fixture with no competition
--- season (a friendly), has no row.
-with played as (
+--                      season competition_season + 1), and the stage's clubs
+--                      with a league must number at least
+--                      var('league_min_share') of that league's, which keeps
+--                      a cup group out. They are counted whatever league they
+--                      are in: a snapshot after the last matchday already
+--                      has the promoted and relegated clubs in their new
+--                      leagues.
+-- This is a heuristic. The tables it gives (int_standings) match the game's
+-- final positions for every complete Danish, English and German league in the
+-- gate stores; Spain's differ only where teams are level on points, which
+-- Spain breaks by head to head (docs/TODO.md #13). A stage neither labels (a
+-- cup abroad), and a fixture with no competition season (a friendly), has no
+-- row.
+with fixtures as (
     select
         stage_key,
         competition_season,
@@ -27,21 +36,30 @@ with played as (
         home_team_tid,
         away_team_tid
     from {{ ref('int_world_matches') }}
-    where competition_season is not null and home_goals is not null
+    where competition_season is not null
 ),
 
 from_ours as (
     select
-        played.stage_key,
-        played.competition_season,
+        fixtures.stage_key,
+        fixtures.competition_season,
         mode(ours.cid) as cid
-    from played
+    from fixtures
     inner join {{ ref('int_our_matches') }} as ours
         on
-            played.match_date = ours.match_date
-            and played.home_team_tid = ours.home_team_tid
-            and played.away_team_tid = ours.away_team_tid
-    group by played.stage_key, played.competition_season
+            fixtures.match_date = ours.match_date
+            and fixtures.home_team_tid = ours.home_team_tid
+            and fixtures.away_team_tid = ours.away_team_tid
+    group by fixtures.stage_key, fixtures.competition_season
+),
+
+season_matchdays as (
+    select
+        competition_season,
+        stage_key,
+        count(distinct matchday) as n_matchdays
+    from fixtures
+    group by competition_season, stage_key
 ),
 
 multi_round as (
@@ -49,22 +67,27 @@ multi_round as (
         competition_season,
         stage_key,
         min(stage_index) as stage_index
-    from played
+    from fixtures
+    where
+        stage_key in (
+            select season_matchdays.stage_key
+            from season_matchdays
+            where season_matchdays.n_matchdays > 1
+        )
     group by competition_season, stage_key
-    having count(distinct matchday) > 1
 ),
 
 sides as (
     select
-        played.competition_season,
-        played.stage_key,
-        played.home_team_tid as team_tid,
-        played.away_team_tid as opponent_tid
-    from played
+        fixtures.competition_season,
+        fixtures.stage_key,
+        fixtures.home_team_tid as team_tid,
+        fixtures.away_team_tid as opponent_tid
+    from fixtures
     inner join multi_round
         on
-            played.competition_season = multi_round.competition_season
-            and played.stage_key = multi_round.stage_key
+            fixtures.competition_season = multi_round.competition_season
+            and fixtures.stage_key = multi_round.stage_key
 ),
 
 base_members as (
@@ -126,7 +149,9 @@ member_leagues as (
         members.competition_season,
         members.league_key,
         teams.league_cid,
-        count(*) as n_teams
+        sum(count(*)) over (
+            partition by members.competition_season, members.league_key
+        ) as n_teams
     from base_members as members
     inner join season_snapshot
         on members.competition_season = season_snapshot.competition_season

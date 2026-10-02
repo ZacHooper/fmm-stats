@@ -40,3 +40,10 @@ cross join (
 ) as raw
 where stg.n <> raw.n
 {% endtest %}
+
+{#- Every value of the column lies in [min_value, max_value]. -#}
+{% test in_range(model, column_name, min_value, max_value) %}
+select {{ column_name }}
+from {{ model }}
+where {{ column_name }} not between {{ min_value }} and {{ max_value }}
+{% endtest %}

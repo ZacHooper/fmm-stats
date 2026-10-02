@@ -391,9 +391,9 @@ managed club equal `mart.our_clubs` (a `validate_mart.py` check), and its reserv
 `careers.py`'s `reserve_tid` (7296, 11320).
 
 ## 14. Competition and match
-Two PRs. **14a** (done): the extra-time score, competitions, stages, rounds, matches and the
-team-match fact. **14b**: player-match facts (minutes with extra time), events, participation,
-outcomes, `standings` and `tie_results`.
+Two PRs, both done. **14a**: the extra-time score, competitions, stages, rounds, matches and
+the team-match fact. **14b**: player-match facts (minutes with extra time), events,
+participation, outcomes, `standings` and `tie_results`.
 
 What the save says, measured before modelling it:
 - **Extra time is in the fixture list.** `fix_man`'s `+7`/`+12` bytes are the score after extra
@@ -402,9 +402,10 @@ What the save says, measured before modelling it:
   writes them (`home_extra_goals` / `away_extra_goals`; `stg`: `goals_aet`).
 - **A two-legged tie is one round played twice**, home and away swapped, both fixtures
   carrying the round's `round_index`; the rules mark the round `legs = 2`. `int_matches`
-  numbers the legs by date and gives the pairing a `tie_id`. (Whether a second leg's
-  extra-time bytes are that match's score or the aggregate is unverified: no labelled
-  two-legged tie on the gate saves went to extra time.)
+  numbers the legs by date and gives the pairing a `tie_id`. A second leg's extra-time bytes
+  are that match's own score, not the aggregate (Salzburg–Frem, 2027-07-28: 2-4 aet after a
+  1-0 first leg; the aggregate would read 2-5). **No away-goals rule**: both two-legged ties of
+  ours level on aggregate went to extra time though Frem led on away goals.
 - **Rules change between seasons** (a round of 16 teams in 4 groups becomes 32 in 8; 32
   entries on the gate store), so stages and rounds are keyed by the **competition season**,
   the fixture's own season label (`season_year`: 2025 for a 2025/26 league and for a
@@ -436,9 +437,45 @@ as a league game has the same league in `dim_match` (Frem 19,544 of 19,550, Buca
 labels ~2,000 reserve-group matches `league_tables` drops at its 80% check (its
 `club_leagues` carries a league forward, which inflates the league's size).
 
-**Check (14b)**: vs `mart.match_player_facts`; `mart.league_tables` for **Denmark only** (other
-countries are open analysis, TODO #13); events vs score, rebuilt tables vs
-`club_league_history`, outcomes vs the roll of honour.
+What 14b reads, measured first:
+- **An event names its side.** Extract always gave each event's side (home/away, the player's
+  team, own goals included); the loader now keeps it (`raw.match_events.side`), so an event's
+  team is read, not joined through the player lines. Event minutes run past 90 in extra time
+  (`120+2` for shoot-out kicks), and sub minutes do too (on at 105).
+- **The match table calls the striker `FC`**; the positions list calls him `ST`.
+  `stg_match_player_stats` maps it (var `match_position_codes`).
+- **Reserve groups have no rules member**, so they have no `dim_stage` rows; a stage with no
+  rules is a league stage when its competition's type is a league's or the league rule
+  labelled it (`int_standings`).
+
+14b models: `int_event_types`, `int_match_events`, `int_player_matches`, `int_ties`,
+`int_standings`, `int_participations`, `int_competition_outcomes`; mart `dim_event_type`,
+`dim_period`, `fact_player_match`, `fact_match_event`, `fact_participation`,
+`fact_competition_outcome`, and the views `standings` and `tie_results`. Two fixes to 14a's
+league rule, both to match `mart.league_tables`: the 80% check counts all the stage's clubs
+with a league, whatever league (a snapshot after the last matchday has the promoted and
+relegated clubs in their new leagues already, which left the 24-club English leagues at 75%),
+and a stage key counts as multi-matchday when it is in any season (a league keeps its key
+from season to season, so a season one matchday old is labelled).
+
+**Check (14b)**, on the oracle stores plus one of three Frem saves holding our extra-time and
+shoot-out matches (2023-06-29, 2027-06-29, 2027-08-09):
+- `fact_player_match` equals `mart.match_player_facts` on every row (1,988 / 2,567 / 4,562):
+  started, appeared, stats, position, person; minutes differ only on the 3 extra-time and
+  shoot-out matches (109 rows), where the old view capped at 90 and a sub on at 105 read −15.
+- Goal events per side equal the fixture-list score on all 255 matches with detail, extra time
+  and shoot-outs included; each player's goals equal his goal events on all 4,562 lines.
+- `standings` totals (played, points, goals) equal `mart.league_tables` on every row it has
+  in Denmark (136 / 208) and elsewhere (1,449 / 957 / 1,769), except the Greek play-off
+  group's first round (8 Bucaspor rows), which the old view leaves out.
+- Against the game's final positions (`club_league_history`), complete single-stage tables
+  agree for England (21/21) and Germany (9/9), and Danish split leagues with points carried
+  over 8/8 on the extra-time store (the others are incomplete: a snapshot's fixture list
+  holds only part of the season before). Spain agrees on 4 of 27 tables, and every miss is
+  teams level on points: head to head decides all 41 such pairs it separates (TODO #13).
+- Tie winners equal `mart.match_stages.went_through` on all 21 rows of our ties.
+- Outcomes vs the roll of honour: not checked, since the roll of honour is not extracted
+  (TODO 12a).
 
 ## 15. Person and the two models
 *(int half largely done in steps 8–9: person identity (`int_person_snapshots`, `int_persons`),
@@ -529,7 +566,6 @@ Mismatches are reported, never fixed by the build:
 |---|---|---|
 | #14 Person identity | step 15 | `dim_person` keys everything |
 | #15 History lost to reclamation | step 15 | `fact_player_season` unions history across snapshots |
-| #16 Extra-time minutes | step 14b | `fact_player_match.minutes` (the fixture list now gives extra time) |
 | Contract signed dates (unread training-row dates) | step 16 | exact end dates instead of snapshot bounds |
 
 ## Other TODOs this touches

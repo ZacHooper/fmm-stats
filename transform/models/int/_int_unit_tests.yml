@@ -378,6 +378,42 @@ unit_tests:
         - {stage_key: 1, competition_season: 2025, cid: 2, competition_source: our_match}
         - {stage_key: 2, competition_season: 2025, cid: 50, competition_source: league_structure}
         - {stage_key: 3, competition_season: 2025, cid: 50, competition_source: league_structure}
+  - name: stage_competitions_season_in_progress_after_promotion
+    description: >
+      A league keeps its stage_key from season to season, so a season one matchday old is a
+      league stage too; and its clubs are counted whatever league they are in on the season's
+      last snapshot, which may already have a promoted club in its new league (three of its
+      four clubs still in five-club league 50 is below the share, four clubs with a league is
+      not).
+    model: int_stage_competitions
+    given:
+      - input: ref('int_world_matches')
+        rows:
+          - {stage_key: 2, competition_season: 2025, stage_index: 0, matchday: 0, match_date: '2025-08-01', home_team_tid: 10, away_team_tid: 11, home_goals: 1}
+          - {stage_key: 2, competition_season: 2025, stage_index: 0, matchday: 1, match_date: '2025-08-08', home_team_tid: 11, away_team_tid: 12, home_goals: 1}
+          - {stage_key: 2, competition_season: 2026, stage_index: 0, matchday: 0, match_date: '2026-08-01', home_team_tid: 10, away_team_tid: 12, home_goals: 2}
+          - {stage_key: 2, competition_season: 2026, stage_index: 0, matchday: 0, match_date: '2026-08-01', home_team_tid: 11, away_team_tid: 13, home_goals: 0}
+      - input: ref('int_our_matches')
+        rows: []
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', season: 2026}
+          - {snapshot_date: '2027-06-29', season: 2027}
+      - input: ref('int_team_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', team_tid: 10, league_cid: 50}
+          - {snapshot_date: '2026-06-11', team_tid: 11, league_cid: 50}
+          - {snapshot_date: '2026-06-11', team_tid: 12, league_cid: 50}
+          - {snapshot_date: '2027-06-29', team_tid: 10, league_cid: 50}
+          - {snapshot_date: '2027-06-29', team_tid: 11, league_cid: 50}
+          - {snapshot_date: '2027-06-29', team_tid: 12, league_cid: 60}
+          - {snapshot_date: '2027-06-29', team_tid: 13, league_cid: 50}
+          - {snapshot_date: '2027-06-29', team_tid: 14, league_cid: 50}
+          - {snapshot_date: '2027-06-29', team_tid: 15, league_cid: 50}
+    expect:
+      rows:
+        - {stage_key: 2, competition_season: 2025, cid: 50, competition_source: league_structure}
+        - {stage_key: 2, competition_season: 2026, cid: 50, competition_source: league_structure}
 
   - name: matches_tie_and_leg
     description: >
@@ -408,3 +444,121 @@ unit_tests:
         - {match_date: '2025-03-01', cid: 900, tie_id: 900-2024-1-0-1-2, leg: 1}
         - {match_date: '2025-03-08', cid: 900, tie_id: 900-2024-1-0-1-2, leg: 2}
         - {match_date: '2025-03-02', cid: 2, tie_id: null, leg: null}
+  - name: player_matches_minutes_count_extra_time
+    description: >
+      A player's minutes run to the end of the match, 120 when it went to extra time: a starter
+      plays 120, a substitute on at 105 plays 15, a starter sent off at 60 plays 60, and an
+      unused substitute none. In a 90-minute match a starter taken off at 70 plays 70.
+    model: int_player_matches
+    given:
+      - input: ref('int_our_matches')
+        rows:
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, anchor: 10, source_snapshot_date: '2025-06-01'}
+          - {match_date: '2025-03-08', home_team_tid: 1, away_team_tid: 3, anchor: 11, source_snapshot_date: '2025-06-01'}
+      - input: ref('stg_match_player_stats')
+        rows:
+          - {snapshot_date: '2025-06-01', anchor: 10, player_tid: 100, team_tid: 1, pos_order: 1, sub_on_minute: null, sub_off_minute: null}
+          - {snapshot_date: '2025-06-01', anchor: 10, player_tid: 101, team_tid: 1, pos_order: 14, sub_on_minute: 105, sub_off_minute: null}
+          - {snapshot_date: '2025-06-01', anchor: 10, player_tid: 102, team_tid: 2, pos_order: 4, sub_on_minute: null, sub_off_minute: null}
+          - {snapshot_date: '2025-06-01', anchor: 10, player_tid: 103, team_tid: 2, pos_order: 16, sub_on_minute: null, sub_off_minute: null}
+          - {snapshot_date: '2025-06-01', anchor: 11, player_tid: 100, team_tid: 1, pos_order: 1, sub_on_minute: null, sub_off_minute: 70}
+      - input: ref('int_match_events')
+        rows:
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, player_tid: 102, minute: 60, event_type_code: 5}
+      - input: ref('int_event_types')
+        rows:
+          - {code: 5, ends_appearance: true}
+      - input: ref('int_matches')
+        rows:
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, decided_by: ET}
+          - {match_date: '2025-03-08', home_team_tid: 1, away_team_tid: 3, decided_by: '90'}
+      - input: ref('int_person_snapshots')
+        rows: []
+    expect:
+      rows:
+        - {match_date: '2025-03-01', player_tid: 100, started: true, appeared: true, minutes: 120}
+        - {match_date: '2025-03-01', player_tid: 101, started: false, appeared: true, minutes: 15}
+        - {match_date: '2025-03-01', player_tid: 102, started: true, appeared: true, minutes: 60}
+        - {match_date: '2025-03-01', player_tid: 103, started: false, appeared: false, minutes: 0}
+        - {match_date: '2025-03-08', player_tid: 100, started: true, appeared: true, minutes: 70}
+  - name: match_events_period_and_credited_side
+    description: >
+      An event's period is the one its minute falls in, stoppage time staying in the period it
+      extends, and a shoot-out kick is its own period; an own goal counts for the other side.
+    model: int_match_events
+    given:
+      - input: ref('int_our_matches')
+        rows:
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, anchor: 10, source_snapshot_date: '2025-06-01'}
+      - input: ref('stg_match_events')
+        rows:
+          - {snapshot_date: '2025-06-01', anchor: 10, seq: 0, minute: 45, added: 2, side: home, player_tid: 100, type_byte: 1}
+          - {snapshot_date: '2025-06-01', anchor: 10, seq: 1, minute: 46, added: 0, side: home, player_tid: 100, type_byte: 2}
+          - {snapshot_date: '2025-06-01', anchor: 10, seq: 2, minute: 105, added: 1, side: away, player_tid: 200, type_byte: 1}
+          - {snapshot_date: '2025-06-01', anchor: 10, seq: 3, minute: 120, added: 2, side: away, player_tid: 200, type_byte: 7}
+      - input: ref('int_event_types')
+        rows:
+          - {code: 1, is_shootout: false, scores_for: for}
+          - {code: 2, is_shootout: false, scores_for: against}
+          - {code: 7, is_shootout: true, scores_for: null}
+      - input: ref('int_person_snapshots')
+        rows: []
+    expect:
+      rows:
+        - {event_index: 0, period: first_half, player_team_tid: 1, team_tid: 1}
+        - {event_index: 1, period: second_half, player_team_tid: 1, team_tid: 2}
+        - {event_index: 2, period: extra_time_first_half, player_team_tid: 2, team_tid: 2}
+        - {event_index: 3, period: shootout, player_team_tid: 2, team_tid: 2}
+  - name: ties_aggregate_then_shootout
+    description: >
+      A tie is won on aggregate, then on the last leg's shoot-out, with no away-goals rule; it is
+      undecided until all its legs are played.
+    model: int_ties
+    given:
+      - input: ref('int_matches')
+        rows:
+          - {tie_id: a, cid: 9, competition_season: 2024, stage_index: 0, round_index: 0, match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, home_goals: 1, away_goals: 0, home_pens: null, away_pens: null, decided_by: '90'}
+          - {tie_id: a, cid: 9, competition_season: 2024, stage_index: 0, round_index: 0, match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 1, home_goals: 2, away_goals: 1, home_pens: 4, away_pens: 3, decided_by: pens}
+          - {tie_id: b, cid: 9, competition_season: 2024, stage_index: 0, round_index: 0, match_date: '2025-03-01', home_team_tid: 3, away_team_tid: 4, home_goals: 0, away_goals: 2, home_pens: null, away_pens: null, decided_by: '90'}
+          - {tie_id: b, cid: 9, competition_season: 2024, stage_index: 0, round_index: 0, match_date: '2025-03-08', home_team_tid: 4, away_team_tid: 3, home_goals: 1, away_goals: 2, home_pens: null, away_pens: null, decided_by: '90'}
+          - {tie_id: c, cid: 9, competition_season: 2024, stage_index: 0, round_index: 0, match_date: '2025-03-01', home_team_tid: 5, away_team_tid: 6, home_goals: 3, away_goals: 0, home_pens: null, away_pens: null, decided_by: '90'}
+          - {tie_id: c, cid: 9, competition_season: 2024, stage_index: 0, round_index: 0, match_date: '2025-03-08', home_team_tid: 6, away_team_tid: 5, home_goals: null, away_goals: null, home_pens: null, away_pens: null, decided_by: null}
+      - input: ref('int_rounds')
+        rows:
+          - {cid: 9, competition_season: 2024, stage_index: 0, round_index: 0, legs: 2}
+    expect:
+      rows:
+        - {tie_id: a, team_a_tid: 1, team_b_tid: 2, goals_a: 2, goals_b: 2, pens_a: 3, pens_b: 4, decided_by: pens, is_decided: true, winner_tid: 2}
+        - {tie_id: b, team_a_tid: 3, team_b_tid: 4, goals_a: 2, goals_b: 3, pens_a: null, pens_b: null, decided_by: '90', is_decided: true, winner_tid: 4}
+        - {tie_id: c, team_a_tid: 5, team_b_tid: 6, goals_a: 3, goals_b: 0, pens_a: null, pens_b: null, decided_by: null, is_decided: false, winner_tid: null}
+  - name: standings_cumulative_by_matchday
+    description: >
+      A league stage's table after each matchday holds the totals of every match up to it, a
+      team without a match that matchday keeping its totals, ranked by points, goal difference,
+      goals scored.
+    model: int_standings
+    given:
+      - input: ref('int_matches')
+        rows:
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, cid: 9, competition_season: 2024, stage_index: 0, stage_key: 5, matchday: 1, home_goals: 2, away_goals: 0}
+          - {match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 3, cid: 9, competition_season: 2024, stage_index: 0, stage_key: 5, matchday: 2, home_goals: 3, away_goals: 0}
+      - input: ref('int_competitions')
+        rows:
+          - {cid: 9, type: league}
+      - input: ref('int_stages')
+        rows:
+          - {cid: 9, competition_season: 2024, stage_index: 0, stage_format: league}
+      - input: ref('int_team_matches')
+        rows:
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, team_tid: 1, goals_for: 2, goals_against: 0, result: W, points: 3}
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, team_tid: 2, goals_for: 0, goals_against: 2, result: L, points: 0}
+          - {match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 3, team_tid: 2, goals_for: 3, goals_against: 0, result: W, points: 3}
+          - {match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 3, team_tid: 3, goals_for: 0, goals_against: 3, result: L, points: 0}
+    expect:
+      rows:
+        - {matchday: 1, through_date: '2025-03-01', team_tid: 1, position: 1, played: 1, points: 3, goal_difference: 2}
+        - {matchday: 1, through_date: '2025-03-01', team_tid: 3, position: 2, played: 0, points: 0, goal_difference: 0}
+        - {matchday: 1, through_date: '2025-03-01', team_tid: 2, position: 3, played: 1, points: 0, goal_difference: -2}
+        - {matchday: 2, through_date: '2025-03-08', team_tid: 1, position: 1, played: 1, points: 3, goal_difference: 2}
+        - {matchday: 2, through_date: '2025-03-08', team_tid: 2, position: 2, played: 2, points: 3, goal_difference: 1}
+        - {matchday: 2, through_date: '2025-03-08', team_tid: 3, position: 3, played: 1, points: 0, goal_difference: -3}

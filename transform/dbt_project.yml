@@ -80,6 +80,9 @@ vars:
   personality: [adaptability, ambition, determination, loyalty, pressure, professionalism,
                 sportsmanship, temperament]
   positions: [GK, SW, DL, DC, DR, DMC, ML, MC, MR, AML, AMC, AMR, ST, DML, DMR]
+  # A match line's position code where it differs from the positions' own
+  # (stg_match_player_stats): the match table's striker is FC.
+  match_position_codes: {FC: ST}
   team_types: {0: first, 1: national, 2: reserve, 3: national_u21}  # club_details.club_type
   # A club_type-0 record that names a parent club is a second side in the senior pyramid
   # (Las Palmas C, Cartagena B), not a first team (int_teams).
@@ -100,6 +103,24 @@ vars:
   # (int_stage_competitions; mart.league_tables uses the same rule), so a cup group drawn from
   # one division is not that division.
   league_min_share: 0.8
+  # A competition of these types (stg_competitions.type) is played as a league, so a stage
+  # of it the rules do not describe (a reserve group has no rules member) is a league stage
+  # (int_standings).
+  league_competition_types: [league, reserve_league]
+  # A match's length in minutes, without and with extra time (int_player_matches).
+  match_minutes: {regulation: 90, extra_time: 120}
+  starters: 11                # a match line's pos_order up to this is a starter
+  # Each match period by the last minute it holds (int_match_events); a shoot-out kick is
+  # its own period, whatever minute the save gives it.
+  match_periods: [[45, first_half], [90, second_half], [105, extra_time_first_half],
+                  [120, extra_time_second_half]]
+  shootout_period: shootout
+  # Event types by name (raw.event_types) that the models give a role (int_event_types):
+  # a sending-off ends a player's match, a shoot-out kick is not a goal, and a scoring
+  # event counts for the player's side or, an own goal, for the other side.
+  sending_off_events: [red_card]
+  shootout_events: [shootout_goal, shootout_miss]
+  scoring_events: {goal: for, penalty: for, own_goal: against}
   progress_bits:              # Player Progress status bitfield (stg_player_progress)
     is_injured: 3             # bits 0-1
     is_off_season: 16         # bit 4

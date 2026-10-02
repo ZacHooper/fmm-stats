@@ -194,6 +194,41 @@ models:
       Every match twice, once per side.
     data_tests:
       - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, team_tid]}}
+  - name: int_event_types
+    description: >
+      Every match event type, named or not, with the roles the models give it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [code]}}
+  - name: int_match_events
+    description: >
+      The events of our own matches once each, with period and the side each counts for.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, event_index]}}
+  - name: int_player_matches
+    description: >
+      Each player's line in our own matches once, with minutes that count extra time and a sending-off.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, player_tid]}}
+  - name: int_ties
+    description: >
+      Each knockout tie once: its teams, aggregate, last leg's shoot-out and winner.
+    data_tests:
+      - unique_combination: {arguments: {columns: [tie_id]}}
+  - name: int_standings
+    description: >
+      Each league or group stage's table after every matchday it has played.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, stage_key, matchday, team_tid]}}
+  - name: int_participations
+    description: >
+      Each team in each competition season it has a labelled match in.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid, cid, competition_season]}}
+  - name: int_competition_outcomes
+    description: >
+      How each participation ended: final position, table position, winner.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid, cid, competition_season]}}
   - name: int_competitions
     description: >
       Each competition once: the values that do not change between snapshots.

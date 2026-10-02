@@ -446,7 +446,8 @@ DDL = [
     """CREATE TABLE IF NOT EXISTS raw.match_events (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, anchor BIGINT NOT NULL,
         seq INTEGER NOT NULL, minute INTEGER, added INTEGER, min_display VARCHAR,
-        tid INTEGER, type VARCHAR, type_byte INTEGER, b0 INTEGER
+        tid INTEGER, type VARCHAR, type_byte INTEGER, b0 INTEGER,
+        side VARCHAR CHECK (side IN ('home','away'))
     )""",
 
     # natural key: (season, phase, anchor, side, tid)
@@ -1080,7 +1081,7 @@ def load_core(con, d, season, phase):
                "score_away", "star_home", "star_away", "formation", "player_of_match"]
               + [f"home_{k}" for k in _TS_KEYS] + [f"away_{k}" for k in _TS_KEYS])
     ev_cols = ["season", "phase", "anchor", "seq", "minute", "added", "min_display",
-               "tid", "type", "type_byte", "b0"]
+               "tid", "type", "type_byte", "b0", "side"]
     # `position` is not in _XI: that list mirrors the player slot's own fields, and the
     # starting position comes from our side's position array instead (NULL for the
     # opposition and for substitutes).
@@ -1110,7 +1111,8 @@ def load_core(con, d, season, phase):
                             f"{minute}+{added}" if added else str(minute),
                             _int(e.get("tid")),
                             EVENT_TYPE.get(e["type_byte"], f"?{e['type_byte']:02x}"),
-                            _int(e.get("type_byte")), _int(e.get("b0"))))
+                            _int(e.get("type_byte")), _int(e.get("b0")),
+                            ("home", "away")[e["side"]]))
         for side, team_tid, opp_tid in (("home", home_tid, away_tid),
                                         ("away", away_tid, home_tid)):
             side_seen = set()
@@ -1607,6 +1609,8 @@ _MIGRATIONS = [
     # 2026-10-02: the fixture list's score after extra time (data-layers step 14).
     "ALTER TABLE raw.world_fixtures ADD COLUMN IF NOT EXISTS home_extra_goals INTEGER",
     "ALTER TABLE raw.world_fixtures ADD COLUMN IF NOT EXISTS away_extra_goals INTEGER",
+    # 2026-10-02: the event player's side, always extracted (data-layers step 14b).
+    "ALTER TABLE raw.match_events ADD COLUMN IF NOT EXISTS side VARCHAR",
 ]
 
 
