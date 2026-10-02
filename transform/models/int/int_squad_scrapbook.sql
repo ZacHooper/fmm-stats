@@ -23,7 +23,7 @@ ours as (
         details.phase,
         details.tid as club_tid,
         1 as reserve
-    from {{ source('raw', 'club_details') }} as details
+    from {{ ref('stg_club_details') }} as details
     inner join managed on details.main_club_tid = managed.club_tid
 ),
 

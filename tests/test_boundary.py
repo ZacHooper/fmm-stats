@@ -51,6 +51,7 @@ def main():
     from fmparser.tables import player_attributes as PA
     from fmparser.tables.player_lists import CLUB_LISTS
     from fmparser.tables import training as TR
+    from fmparser.core import primitives as PRIM
     from fmstats import contract as C
     pairs = [
         ("ATTR_ORDER", list(C.ATTR_ORDER), list(M.ATTR_ORDER)),
@@ -63,6 +64,7 @@ def main():
         ("POSITIONS", list(C.POSITIONS), list(PA.POSITIONS)),
         ("CLUB_LISTS", C.CLUB_LISTS, CLUB_LISTS),
         ("CONTRACTED", C.CONTRACTED, TR.CONTRACTED),
+        ("NO_ID16", C.NO_ID16, PRIM.NO_ID16),
     ]
     differ = [name for name, declared, extracted in pairs if declared != extracted]
     for name, _, _ in pairs:
@@ -81,6 +83,7 @@ def main():
         ("positions", list(v["positions"]), list(C.POSITIONS)),
         ("club_lists", range(v["club_lists"][0], v["club_lists"][1] + 1), C.CLUB_LISTS),
         ("contracted", v["contracted"], C.CONTRACTED),
+        ("no_id16", v["no_id16"], C.NO_ID16),
         ("wage_gbp_per_unit", v["wage_gbp_per_unit"], C.WAGE_GBP_PER_UNIT),
     ]
     dbt_differ = [name for name, declared, mirrored in dbt if declared != mirrored]

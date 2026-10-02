@@ -74,5 +74,6 @@ vars:
   positions: [GK, SW, DL, DC, DR, DMC, ML, MC, MR, AML, AMC, AMR, ST, DML, DMR]
   club_lists: [31, 61]        # first and last scrapbook list holding our squad
   contracted: 135             # the training row's contract flag (0x87)
+  no_id16: 65535              # a u16 id field's "none" (0xFFFF); stg models read it as NULL
   wage_gbp_per_unit: 520
   scrapbook_max_age_days: 365

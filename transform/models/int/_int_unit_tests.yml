@@ -64,7 +64,7 @@ unit_tests:
         rows: [{key: career_managed_tid, value: '346'}]
       - input: source('raw', 'extracts')
         rows: [{season: 2026, phase: '2026-06-11'}]
-      - input: source('raw', 'club_details')
+      - input: ref('stg_club_details')
         rows: [{season: 2026, phase: '2026-06-11', tid: 7296, main_club_tid: 346}]
       - input: source('raw', 'club_squad')
         rows:

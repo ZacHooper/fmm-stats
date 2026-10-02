@@ -12,6 +12,12 @@ models:
       named by the raw.players_raw column that holds it rather than its record offset.
     data_tests:
       - unique_combination: {arguments: {columns: [attribute, feature]}}
+  - name: stg_club_details
+    description: >
+      Each club's own record per snapshot, with the save's 0xFFFF "none" read as NULL and
+      league_cid the club's league.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
   - name: stg_training
     description: >
       One row per player (staff have none): training focus, whether the row says he is under

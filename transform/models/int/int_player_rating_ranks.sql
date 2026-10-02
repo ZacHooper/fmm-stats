@@ -9,13 +9,7 @@ select
     players.name,
     players.club,
     players.club_tid,
-    -- the club record's league: league_id, unless it plays in another division
-    case
-        when
-            details.other_division = 65535
-            and details.league_id not in (0, 65535)
-            then details.league_id
-    end as league_cid,
+    details.league_cid,
     round(
         100 * percent_rank() over (
             partition by
@@ -35,7 +29,7 @@ inner join {{ ref('int_players') }} as players
         ratings.season = players.season
         and ratings.phase = players.phase
         and ratings.tid = players.tid
-left join {{ source('raw', 'club_details') }} as details
+left join {{ ref('stg_club_details') }} as details
     on
         players.season = details.season
         and players.phase = details.phase
