@@ -63,10 +63,16 @@ def connect(args):
                 ENDPOINT '{os.environ["R2_ACCOUNT_ID"]}.r2.cloudflarestorage.com',
                 URL_STYLE 'path', REGION 'auto')"""
         )
-        con.execute(f"ATTACH '{R2_KEY}' AS fm (READ_ONLY)")
-        return con, "fm.raw"
-    con.execute(f"ATTACH '{args.db}' AS fm (READ_ONLY)")
-    return con, "fm.raw"
+        return con, _attach(con, R2_KEY)
+    return con, _attach(con, args.db)
+
+
+def _attach(con, path):
+    """Attach the store under its file name (`fm-frem`), the catalog dbt wrote into its
+    views, which bind under no other name; returns its raw schema."""
+    name = os.path.splitext(os.path.basename(path))[0]
+    con.execute(f"ATTACH '{path}' AS \"{name}\" (READ_ONLY)")
+    return f'"{name}".raw'
 
 
 # The method-dependent rating layer: 27M and 9.4M rows. Left as views; the one check that
