@@ -174,7 +174,8 @@ The method section below is the field guide; that doc is the map.
 
 **Two commands are the feedback loop for any parser change, and they are cheap:**
 ```bash
-uv run python tests/run_tests.py            # whole suite; exit 2 means NOTHING ran
+uv run python tests/run_tests.py            # the suite, in parallel, ~20 s; exit 2 means NOTHING ran
+                                            # (--store adds test_fmq, over the published copy)
 uv run python tests/assert_identical.py   # 4 saves x 23 files, per-file SHA-256, ~35s
 ```
 `assert_identical.py` is the **acceptance gate**: a restructuring commit must leave the

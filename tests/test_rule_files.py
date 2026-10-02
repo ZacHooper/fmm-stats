@@ -15,7 +15,6 @@ Guard the data dictionary's rule files (fmparser/tables/rule_files.py) on real s
     uv sync
     uv run python tests/test_rule_files.py
 """
-import glob
 import mmap
 import os
 import sys
@@ -34,7 +33,8 @@ TEAMS = {6: 12, 2000016262: 12}         # 3F Superliga, 3. Division -- both 12-t
 
 
 def saves():
-    return sorted(glob.glob(os.path.join(SAVES, "*", "*.fms")))
+    from tests.harness import sample_saves
+    return sample_saves()
 
 
 def archive_files(mm):

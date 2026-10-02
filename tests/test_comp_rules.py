@@ -16,7 +16,6 @@ Guard the competition rules (fmparser/tables/comp_rules.py) on real saves.
     uv sync
     uv run python tests/test_comp_rules.py
 """
-import glob
 import mmap
 import os
 import sys
@@ -49,7 +48,8 @@ GROUND = {
 
 
 def saves():
-    return sorted(glob.glob(os.path.join(SAVES, "*", "*.fms")))
+    from tests.harness import sample_saves
+    return sample_saves()
 
 
 def main() -> int:

@@ -1,31 +1,22 @@
 #!/usr/bin/env python3
 """
-Guard `clubs_comps.py`'s club/competition reference-data resolution.
+Guard the club and competition tables (`tables/clubs.py`, `tables/competitions.py`) against
+the save's own ground truth.
 
-The two halves are resolved differently and are tested differently.
-
-CLUBS still resolve via the candidate-scan-plus-gates cascade (`_eval_club_candidate`),
-guarded here by the diagnosis-vs-real-scan drift check: both call sites must agree on how
-many tids they accept, because each keeps its own acceptance bookkeeping.
-
-COMPETITIONS are a pure structural walk (`tables.competitions.COMP_TABLE`) with no plausibility gate at
-all -- the table announces its own start (a u16 record count right after a run of 0xFF
-filler) and `cid == slot index` holds for every declared slot. So the test asserts the
-INVARIANT, not a snapshot number: `named + blank == the count the table itself declares`,
-over EVERY save in the archive, across BOTH careers. That is deliberate. Frem declares 1372
-records and Bucaspor 1371, so a hardcoded total only ever tests one career, while the
-invariant tests all of them -- and cross-career is the whole reason the Bucaspor saves are
-kept (CLAUDE.md). The walk failing on Turkey is exactly the regression this must catch.
-
-It also pins the `id(mm)` cache-key bug, which is why the multi-save loop deliberately lets
-each mmap be garbage-collected instead of holding it alive: CPython reuses the id, and with
-the caches keyed on a bare `id(mm)` that served the PREVIOUS save's competition-table offset
-to the next save. 30 of 32 saves failed that way before `save.cache_key` existed. A test that
-holds its mmaps alive cannot see it.
+  KNOWN       clubs and competitions that must keep resolving to their names
+  WALK        the competition table is a structural walk with no plausibility gate: it
+              announces its own count, and `named + blank == declared` on every save,
+              whatever the career (Frem declares 1372, Bucaspor 1371)
+  LAYOUT      round names, clubs, competitions and nations sit back to back
+  REFERENCES  checkable facts of the competition reference lists (MLS's 28 entries,
+              CONMEBOL's members)
+  CROSS-CAREER  the walk on one save per career (`tests/harness.SAMPLE_SAVES`), the mmaps
+              deliberately not pinned: CPython reuses `id(mm)`, and caches keyed on it
+              served the previous save's offsets to the next, which `save.cache_key`
+              prevents. Two saves are enough to see it.
 
     uv run python tests/test_refdata_scan.py
 """
-import glob
 import mmap
 import os
 import sys
@@ -41,9 +32,10 @@ from fmparser.tables import nations as NA  # noqa: E402
 from fmparser.save import Save         # noqa: E402
 
 SAVE = os.path.expanduser("~/fm-saves/frem/frem-2026-06-11.fms")
-# Every save of every career, for the cross-career invariant checks below. Bucaspor is
-# archived and never rebuilt, but it is the only cross-career regression test the parser has.
-ALL_SAVES = sorted(glob.glob(os.path.expanduser("~/fm-saves/*/*.fms")))
+# One save per career for the cross-career invariant checks below. Bucaspor is archived and
+# never rebuilt, but it is the only cross-career regression test the parser has.
+from tests.harness import sample_saves  # noqa: E402
+ALL_SAVES = sample_saves()
 
 # tid -> expected long name, for clubs that must keep resolving.
 KNOWN_CLUBS = {

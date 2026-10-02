@@ -30,6 +30,17 @@ def skip(reason):
     return SKIP
 
 
+# One save per career, for a check that walks a whole table or region of the save: two
+# careers prove a read generalises (Denmark and Turkey), and a third save adds time, not
+# coverage. They are among the saves tests/assert_identical.py extracts.
+SAMPLE_SAVES = ("frem-2023-07-02.fms", "bucaspor-2023-04-01.fms")
+
+
+def sample_saves():
+    """The SAMPLE_SAVES that exist, one per career."""
+    return [p for p in (find_save(n) for n in SAMPLE_SAVES) if p]
+
+
 def find_save(*names):
     """The first of `names` that exists, or None.
 
