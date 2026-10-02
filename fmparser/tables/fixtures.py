@@ -38,12 +38,12 @@ FIXTURE = Record("world_fixture", STRIDE, [
     Field(1,  1, "opener", U8, note="always 0x14; this is what the stride histogram keys on"),
     # +2..+15: the goals and shoot-out block
     Field(2,  4, UNKNOWN, PAD),
-    Field(6,  1, "home_goals", U8, note="home score; 0xFF = unplayed"),
-    Field(7,  1, "home_extra_goals", U8, note="home extra-time/aggregate score; 0xFF = none"),
+    Field(6,  1, "home_goals", U8, note="home score after 90 minutes; 0xFF = unplayed"),
+    Field(7,  1, "home_extra_goals", U8, note="home score after extra time; 0xFF = no extra time"),
     Field(8,  1, "home_pens", U8, note="home penalty shoot-out score; 0xFF = none"),
     Field(9,  2, UNKNOWN, RAW),
-    Field(11, 1, "away_goals", U8, note="away score; 0xFF = unplayed"),
-    Field(12, 1, "away_extra_goals", U8, note="away extra-time/aggregate score; 0xFF = none"),
+    Field(11, 1, "away_goals", U8, note="away score after 90 minutes; 0xFF = unplayed"),
+    Field(12, 1, "away_extra_goals", U8, note="away score after extra time; 0xFF = no extra time"),
     Field(13, 1, "away_pens", U8, note="away penalty shoot-out score; 0xFF = none"),
     Field(14, 2, UNKNOWN, RAW),
     Field(16, 8,  UNKNOWN, PAD, note="constant zero"),
@@ -118,6 +118,8 @@ def locate_fixtures(blob: Any) -> List[Tuple[int, int]]:
 def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
     hg = None if r["home_goals"] == 0xFF else r["home_goals"]
     ag = None if r["away_goals"] == 0xFF else r["away_goals"]
+    hx = None if r["home_extra_goals"] == 0xFF else r["home_extra_goals"]
+    ax = None if r["away_extra_goals"] == 0xFF else r["away_extra_goals"]
     hp = None if r["home_pens"] == 0xFF else r["home_pens"]
     ap = None if r["away_pens"] == 0xFF else r["away_pens"]
     rnd = None if r["round"] == NO_ROUND else r["round"]
@@ -131,6 +133,8 @@ def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
         "round": rnd,
         "home_goals": hg,
         "away_goals": ag,
+        "home_extra_goals": hx,
+        "away_extra_goals": ax,
         "home_pens": hp,
         "away_pens": ap,
         "stage_key": r["stage_key"],
@@ -145,8 +149,8 @@ def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
 # The fields each fixture is read from, in the order _process_fixture consumes them.
 _FIELDS = (
     "home_tid", "away_tid", "day_raw", "year", "round",
-    "home_goals", "away_goals", "home_pens", "away_pens",
-    "stage_key", "seq_id", "season_year",
+    "home_goals", "away_goals", "home_extra_goals", "away_extra_goals",
+    "home_pens", "away_pens", "stage_key", "seq_id", "season_year",
     "stage_attr_76", "stage_attr_77", "stage_attr_83",
 )
 

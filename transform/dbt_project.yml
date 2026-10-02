@@ -95,6 +95,11 @@ vars:
   staff_style_bands: [[7, Defensive], [13, Normal], [20, Attacking]]
   staff_tier_bands: [[3000, Regional], [5800, National], [1000000000, Continental]]
   wage_gbp_per_unit: 520
+  stage_formats: {0: knockout, 1: league, 2: group}   # competition_rounds.stage_type
+  # A league's regular stage must hold at least this share of the league's clubs
+  # (int_stage_competitions; mart.league_tables uses the same rule), so a cup group drawn from
+  # one division is not that division.
+  league_min_share: 0.8
   progress_bits:              # Player Progress status bitfield (stg_player_progress)
     is_injured: 3             # bits 0-1
     is_off_season: 16         # bit 4

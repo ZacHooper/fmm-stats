@@ -154,3 +154,53 @@ models:
       Each stadium on each snapshot: name and capacity then.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, stadium_id]}}
+  - name: int_world_matches
+    description: >
+      Every match in the world fixture list once, from the latest snapshot holding it, with the score after 90 minutes and after extra time and how it was decided.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid]}}
+  - name: int_our_matches
+    description: >
+      Our own matches once each, from the latest snapshot holding them.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid]}}
+  - name: int_stage_competitions
+    description: >
+      Each labelled stage's competition and how it was found (our_match, team_league).
+    data_tests:
+      - unique_combination: {arguments: {columns: [stage_key, competition_season]}}
+  - name: int_competition_seasons
+    description: >
+      Each labelled competition season and the snapshot whose rules it was played under.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, competition_season]}}
+  - name: int_stages
+    description: >
+      Each stage of each labelled competition season, from its rules.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index]}}
+  - name: int_rounds
+    description: >
+      Each round of a knockout stage, from its rules.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, round_index]}}
+  - name: int_matches
+    description: >
+      Every match in the world once, placed in its competition, stage and round where known, with its tie and leg.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid]}}
+  - name: int_team_matches
+    description: >
+      Every match twice, once per side.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, team_tid]}}
+  - name: int_competitions
+    description: >
+      Each competition once: the values that do not change between snapshots.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid]}}
+  - name: int_competition_snapshots
+    description: >
+      Each competition on each snapshot: its reputation.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, cid]}}

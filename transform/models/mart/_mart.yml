@@ -90,3 +90,68 @@ models:
             columns: [stadium_id]
             to: ref('dim_stadium')
             to_columns: [stadium_id]
+  - name: dim_competition
+    description: >
+      Each competition: names, type, nation, tier and parent.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid]}}
+  - name: fact_competition_snapshot
+    description: >
+      Each competition on each snapshot: reputation.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, snapshot_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid]
+            to: ref('dim_competition')
+            to_columns: [cid]
+  - name: dim_stage
+    description: >
+      Each stage of a competition season: format, name, teams, groups, final stage.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid]
+            to: ref('dim_competition')
+            to_columns: [cid]
+  - name: dim_round
+    description: >
+      Each round of a knockout stage: name, teams, legs.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, round_index]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid, competition_season, stage_index]
+            to: ref('dim_stage')
+            to_columns: [cid, competition_season, stage_index]
+  - name: dim_match
+    description: >
+      Every match in the world: competition, stage and round where known, tie and leg, how it was decided, has_detail for ours.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid]
+            to: ref('dim_competition')
+            to_columns: [cid]
+      - relationship_combination:
+          arguments:
+            columns: [home_team_tid]
+            to: ref('dim_team')
+            to_columns: [team_tid]
+      - relationship_combination:
+          arguments:
+            columns: [away_team_tid]
+            to: ref('dim_team')
+            to_columns: [team_tid]
+  - name: fact_team_match
+    description: >
+      Each match twice, once per side: goals, shoot-out, result, points.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, team_tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [match_date, home_team_tid, away_team_tid]
+            to: ref('dim_match')
+            to_columns: [match_date, home_team_tid, away_team_tid]
