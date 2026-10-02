@@ -28,7 +28,7 @@ __all__ = [
     "SURNAMES_TABLE",
     "FIRST_NAMES_TABLE",
     "NICKNAMES_TABLE",
-    "scrape_names",
+    "scrape_name_ids",
 ]
 
 NAME_ID_STRIDE = 16
@@ -224,17 +224,13 @@ NICKNAMES_TABLE = TableDef(
 _UNUSED = 0xFFFFFFFF
 
 
-def scrape_names(mm: Any) -> Dict[str, Any]:
-    """The browse strings and the three id-tables, as stored.
-
-    `strings` is the browse table in order (a string's index is its ordinal); each id-table
-    is its used slots as {id, ordinal} (a used slot's id is its slot index; an unused slot is
-    all FF). A person's first, last and common name ids index these tables. A table that is
-    not located is absent."""
+def scrape_name_ids(mm: Any) -> Dict[str, List[Dict[str, int]]]:
+    """The three id-tables, as stored: each is its used slots as {id, ordinal} (a used
+    slot's id is its slot index; an unused slot is all FF), `ordinal` indexing the browse
+    strings (`walk_browse`). A person's first, last and common name ids index these tables.
+    A table that is not located is absent."""
     tabs = locate_name_tables(mm)
-    out: Dict[str, Any] = {"strings": walk_browse(mm)}
-    for table in (FIRST_NAMES_TABLE, SURNAMES_TABLE, NICKNAMES_TABLE):
-        if table.name in tabs:
-            out[table.name] = [{"id": r["id"], "ordinal": r["ordinal"]}
-                               for r in table.scrape(mm) if r["id"] != _UNUSED]
-    return out
+    return {table.name: [{"id": r["id"], "ordinal": r["ordinal"]}
+                         for r in table.scrape(mm) if r["id"] != _UNUSED]
+            for table in (FIRST_NAMES_TABLE, SURNAMES_TABLE, NICKNAMES_TABLE)
+            if table.name in tabs}

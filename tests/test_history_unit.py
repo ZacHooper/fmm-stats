@@ -105,7 +105,7 @@ def test_load():
         return
     body = pool()
     hist = over(body).scrape(body)
-    hist["heads"] = {"7": 0, "8": 3, "9": 1, "10": END, "11": 5}
+    heads = {7: 0, 8: 3, 9: 1, 10: END, 11: 5}
     # 9 is mid-chain and 10 has none: no history. 11 is a chain of one record (5 is a
     # chain end nothing else points at once 2 is cut): a debut line alone is a history.
     hist["rows"]["next"][2] = END
@@ -114,7 +114,7 @@ def test_load():
     for ddl in L.DDL:
         if "raw.player_history" in ddl:
             con.execute(ddl)
-    L.load_history(con, 2027, "2027-08-08", hist)
+    L.load_history(con, 2027, "2027-08-08", hist, heads)
     ph = con.execute("SELECT tid, origin_club_tid, last_season_club_tid, record_offset, "
                      "debut_season, debut_end_year FROM raw.player_history "
                      "ORDER BY tid").fetchall()

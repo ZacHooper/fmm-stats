@@ -274,7 +274,7 @@ def main():
 
     if a.career:
         os.environ["FM_CAREER"] = a.career
-    from fmparser import careers as C
+    import careers as C
     car = C.resolve_career(a.career or C.DEFAULT_CAREER)
     store = os.environ.get("FM_DUCKDB") or os.path.join(REPO, car.db)
     if not os.path.exists(store):

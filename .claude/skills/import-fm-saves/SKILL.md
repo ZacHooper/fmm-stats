@@ -15,10 +15,12 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 - **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`.
   numpy (needed by `fmparser/tables/history.py`) is in the uv env, so nothing here depends on a system
   python any more.
-- **The parser is career-aware** — pass `--career <key>` (`frem` is the active one; `bucaspor` is
-  archived). Verify the extract's `clubs.json` contains that career's managed + reserve tids
-  (frem: `"346"` and `"7296"`). If not, the extraction is garbage for that save; stop and tell
-  the user. All saves loaded into one store must be the same career.
+- **The extract takes no career; the loader does** — `load_duckdb.py --career <key>` (`frem` is
+  the active one; `bucaspor` is archived), or no flag at all to use the career the store
+  already records. The loader refuses a career other than the store's, and refuses the save
+  if its match table disagrees with the world fixture list for that career's two clubs --
+  the sign of a save from another career, or of a misread table. All saves loaded into one
+  store must be the same career.
 - **Archive the save FIRST** — it's the only irreplaceable artefact, and it is named
   `<career>-<date>.fms` from the in-game date in its own header title, so you never rename later:
   `uv run python scripts/archive_save.py <save.fms> --career frem --upload`.
@@ -30,11 +32,11 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 - **The stores are NOT committed** (96 MiB, rewrites wholesale, near GitHub's file limit). They're
   derived: `uv run python scripts/rebuild.py --career frem` rebuilds from saves + manifest.
 - **Season = end-year of the campaign** (22/23 → 2023, Aus-financial-year style).
-- **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), written explicitly into `summary.json`
-  (`season` + `phase`) by `extract.py`. **The loader takes both from there — pass NEITHER
-  `--season` nor `--phase`.** `phase` is the header date; `season` follows the career's
-  rollover day (`Career.rollover`, Frem 30 June), and a new career's first save (0 matches,
-  dated before the rollover) belongs to the campaign about to start. A save whose header
+- **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), the header date `extract.py` writes into
+  `summary.json` (`save_date`). **The loader derives both — pass NEITHER `--season` nor
+  `--phase`.** `phase` is the header date; `season` follows the career's rollover day
+  (`Career.rollover`, Frem 30 June), and a new career's first save (0 matches, dated before
+  the rollover) belongs to the campaign about to start. A save whose header
   does not read is refused. `--season/--phase` only force a slice.
   (Legacy stores may still hold the words `start/mid/end`; those keep working and sort correctly
   alongside dates — the ordering treats words as epoch.)
@@ -104,16 +106,15 @@ check against a screenshot.
 2. **Archive, then extract each save** ("Archive the save FIRST" above names it
    `<career>-<date>.fms`). For each archived save:
    ```bash
-   uv run python extract.py "$FM_SAVES_DIR/<career>/<career>-<date>.fms" --career <career>
+   uv run python extract.py "$FM_SAVES_DIR/<career>/<career>-<date>.fms"
    ```
    The output lands in `output/<career>-<date>/`.
    These are slow (~1–2 min each, 65 MB mmap). Run all in one **background** bash block and
    wait for a `DONE` sentinel via Monitor.
 
-3. **Inspect each `output/<label>/summary.json`**: read `season`, `phase`, `save_title`,
-   `competitions`, `counts`. Also check `clubs.json` for the career's managed + reserve tids
-   (frem: `346`/`7296`) as a career sanity check. Build a table of **file → (season, phase)**
-   from the summaries.
+3. **Inspect each `output/<label>/summary.json`**: read `save_date` (the phase), `save_title`
+   (its "(Nickname)" names the career's club), `competitions`, `counts`. Build a table of
+   **file → save date** from the summaries; the loader places each in its season.
 
 4. **Detect clashes** and surface them to the user *before* loading:
    - Does an intended `(season, phase)` already exist in `raw.extracts`? Loading will
@@ -123,8 +124,8 @@ check against a screenshot.
      the labels with the user.
    Present the mapping table + any clashes, then proceed (the user has usually pre-approved).
 
-5. **Load each** (season + phase=date auto-derive from `summary.json` — no flags needed). Use the
-   career's store `fm-<key>.duckdb`. Kill any running Streamlit first so the DB isn't locked. Run in
+5. **Load each** (season + phase=date are derived from `summary.json` and the store's career — no
+   flags needed; a NEW store needs `--career <key>`). Use the career's store `fm-<key>.duckdb`. Kill any running Streamlit first so the DB isn't locked. Run in
    **background**, wait for a `DONE` sentinel:
    ```bash
    pkill -f streamlit 2>/dev/null; sleep 1

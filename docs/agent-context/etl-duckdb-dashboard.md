@@ -11,9 +11,10 @@ The fm-parser extract outputs (`output/<label>/` JSON/CSV) are loaded into a Duc
 and consumed by a Streamlit dashboard. Built 2026-07 on top of the existing extractors.
 
 **Career-aware (added 2026-08).** The parser is no longer hardcoded to one club. Careers live
-in `fmparser/careers.py` (`bucaspor`→6567/11320/`fm-buca.duckdb`; `frem`→346/7296/`fm-frem.duckdb`),
-each with its own DuckDB store (one file per career). `extract.py --career <key>` threads the
-club marker through `attributes.py` (snapshot names+exact attrs). `scripts/discover_career.py
+in `careers.py` (`bucaspor`→6567/11320/`fm-buca.duckdb`; `frem`→346/7296/`fm-frem.duckdb`),
+each with its own DuckDB store (one file per career). Extract takes no career (since data-layers
+step 11); `load_duckdb.py --career <key>` places each snapshot in its campaign and records the
+career in `raw.app_config`. `scripts/discover_career.py
 <save>` finds a new career's tids (reads the header "(Nickname)" + ranks name-preceded club
 markers). `dashboard/db.py` resolves the ACTIVE career (sidebar "Career" selector, or env
 `FM_CAREER`/`FM_DUCKDB`) and reassigns `DB_PATH`/`MANAGED_CLUB_TID`/`RESERVE_CLUB_TID`/`OUR_CLUBS`
@@ -64,7 +65,7 @@ dicts/DataFrames: coverage (partial-squad warning, which withholds the squad-der
 overall/strength (Fit index + Level %ile quality), face-off `matchups`, `key_players` (their squad
 by Level %ile), `h2h` (competitive, per-venue records), `h2h_players` (each opponent player's
 output against us, `still_there`), the opposing manager's formation/Style, and rule-based `flags`.
-The method defaults to the career's `rating_method` (`fmparser/careers.py`). Helpers:
+The method defaults to the career's `rating_method` (`careers.py`). Helpers:
 `scout.resolve_club` (exact > initials > prefix > substring, diacritic-insensitive),
 `save_scout` / `grade_scout` for the R2-mirrored log (`fmstats/state.py`). CLI: `uv run python
 fmq.py scout <team|tid> [--venue --fixture --note]`. The `scout-opponent` skill drives it.

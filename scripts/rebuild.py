@@ -11,10 +11,10 @@ also means each machine builds its own store, so there is no multi-writer proble
 For each active manifest row:
   1. ensure the raw save exists at $FM_SAVES_DIR/<career>/<save_file>, fetching and gunzipping
      it from R2 if it doesn't;
-  2. `extract.py <save> --career <career>`, which names the output after the save;
-  3. check the extract's season/phase (the save's header date and its campaign) against the
-     manifest row, and fail loudly on a mismatch;
-  4. `load_duckdb.py output/<label> --db fm-<career>.duckdb`.
+  2. `extract.py <save>`, which names the output after the save;
+  3. check the save's header date, and the campaign the career's rollover places it in,
+     against the manifest row's phase and season, and fail loudly on a mismatch;
+  4. `load_duckdb.py output/<label> --db fm-<career>.duckdb --career <career>`.
 
 The save names its own snapshot, so the manifest's season/phase are a CHECK, not an input: a
 mismatch means the manifest or the save is wrong, and loading it anyway would add a slice
@@ -41,7 +41,7 @@ import time
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-from fmparser import careers                                          # noqa: E402
+import careers                                                       # noqa: E402
 
 MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")
 SAVES_DIR = os.path.expanduser(os.environ.get("FM_SAVES_DIR", "~/fm-saves"))
@@ -102,13 +102,12 @@ def run(cmd, dry_run=False):
     return r.returncode == 0
 
 
-# A field every CURRENT extract carries and no old one does. `--skip-existing` reuses an
-# output dir without looking inside it, so an extract written before the raw attribute bytes
-# landed loads CLEANLY and silently produces a store whose byte columns are entirely NULL --
-# no error, no warning, and every model built on it is worthless. That cost a Bucaspor
-# hold-out on 2026-09-17: 7 snapshots, 229 exact truth rows, and `passing_src` NULL in all of
-# them. Cheap to check, so check it.
-_EXTRACT_MARKER = "passing_src"
+# The newest field every CURRENT extract carries and no old one does. `--skip-existing`
+# reuses an output dir without looking inside it, so an extract written before a field
+# landed loads CLEANLY and silently produces a store whose column is entirely NULL -- no
+# error, no warning (a Bucaspor hold-out lost 7 snapshots of `passing_src` that way). Move
+# this to the newest field whenever the extract gains one.
+_EXTRACT_MARKER = "history_head"
 
 
 def _extract_is_current(out_dir):
@@ -125,14 +124,19 @@ def _extract_is_current(out_dir):
     return f'"{_EXTRACT_MARKER}"' in head
 
 
-def check_against_manifest(out_dir, row):
-    """None when the extract's season/phase and label match the manifest row, else a message."""
+def check_against_manifest(out_dir, row, career):
+    """None when the extract's header date, and the campaign the career places it in, match
+    the manifest row's phase and season, else a message."""
     try:
         with open(os.path.join(out_dir, "summary.json")) as f:
-            summ = json.load(f)
+            date = json.load(f).get("save_date")
+        with open(os.path.join(out_dir, "matches.json")) as f:
+            played = any(m["date"] for m in json.load(f))
     except (OSError, ValueError) as e:
-        return f"no readable summary.json ({e})"
-    got = (str(summ.get("season")), summ.get("phase"))
+        return f"no readable summary.json/matches.json ({e})"
+    if date is None:
+        return "the save's header carries no date"
+    got = (str(career.campaign(date, played)), date)
     want = (row["season"], row["phase"])
     if got != want:
         return (f"the save says season {got[0]} phase {got[1]}, the manifest says season "
@@ -209,15 +213,14 @@ def main():
                           f"{os.path.basename(save)!r}")
                     failed.append(label)
                     continue
-                if not run([sys.executable, "extract.py", save, "--career", career],
-                           a.dry_run):
+                if not run([sys.executable, "extract.py", save], a.dry_run):
                     print("    ! extract failed")
                     failed.append(label)
                     continue
             load = [sys.executable, "load_duckdb.py", os.path.join("output", label),
-                    "--db", db_path]
+                    "--db", db_path, "--career", career]
             if not a.dry_run:
-                problem = check_against_manifest(out_dir, r)
+                problem = check_against_manifest(out_dir, r, car)
                 if problem and not a.trust_manifest:
                     print(f"    ! {problem} -- fix the manifest, or pass --trust-manifest")
                     failed.append(label)

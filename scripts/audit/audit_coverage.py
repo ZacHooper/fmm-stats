@@ -110,27 +110,14 @@ def claims(mm, n):
             print(f"  ~ {who}: {summary}", file=sys.stderr)
 
     # ---- MEASURED: every registered table, from the spans its own walk reports ------------
-    # A module's own `<name>_table_spans` is preferred where it has one: it adds framing the
-    # TableDef does not own (person_info's header byte after its count). Tables read from an
-    # archive member, not the save, are covered by the archive container below.
+    # (`fmparser.tables.table_spans`). Tables read from an archive member, not the save, are
+    # covered by the archive container below.
     import fmparser.tables as T
-    from fmparser.core import LinkedTableDef, TableDef, TaggedTableDef
     for name, table in T.TABLES.items():
         if getattr(table, "member", None):
             continue                                   # read from an archive member
-        own = getattr(T, f"{name}_table_spans", None)
         try:
-            if own is not None:
-                spans = own(mm)
-            elif isinstance(table, TaggedTableDef):
-                spans = [(b.start - 4, b.end) for b in table.blocks(mm)]   # with the u32 count
-            elif isinstance(table, (TableDef, LinkedTableDef)):
-                spans = table.spans(mm)
-            else:
-                print(f"  ! TABLES[{name!r}] is a {type(table).__name__}, not a table",
-                      file=sys.stderr)
-                continue
-            measured(f"tables.{name}", spans)
+            measured(f"tables.{name}", T.table_spans(mm, name))
         except Exception as exc:
             print(f"  ! tables.{name} failed: {exc}", file=sys.stderr)
 

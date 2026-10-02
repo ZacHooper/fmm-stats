@@ -161,7 +161,7 @@ Everything below is parameterised off the active career — pull these from `st`
 - **Snapshot** — `st.season, st.phase` (the latest row of `mart.snapshots` by `snap_ix`, already
   chronological across seasons/phases — don't hand-roll a `max(phase)` or a `phase_key` sort).
 - **Our rating basis** — `scout_report` defaults to the career's `rating_method`
-  (`fmparser/careers.py`): **`frem_minmax_4231`** for Frem, matching the 4-2-3-1 we actually play;
+  (`careers.py`): **`frem_minmax_4231`** for Frem, matching the 4-2-3-1 we actually play;
   `buca_433` for archived Bucaspor. `app_config.default_method` still reads `frem_attacking_ss`,
   the site's display default — not our tactic, so don't pass it. The method only decides how players are RATED — the game plan is a shape
   plus settings, see the game-plan section below.

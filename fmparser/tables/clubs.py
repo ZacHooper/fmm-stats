@@ -3,7 +3,7 @@
 
 It follows the round-name table directly: `[0xFF x 6][count u32]`, then the records in tid
 order, walked by declaration with `tid == slot index` (CLUB_TABLE). Slots 0.. are national
-teams, stored club-shaped. `club_details` reports one club's whole record.
+teams, stored club-shaped. `scrape_clubs` reports every club's whole record.
 """
 from typing import Any, Dict, Optional, Tuple
 
@@ -155,16 +155,8 @@ def _club_rows(mm: Any) -> list:
     return _CLUB_ROWS_CACHE[key]
 
 
-def _club(row):
-    """A club's names, uid, league membership and country."""
-    code = row["league_id"]
-    league = code if (row["other_division"] == 0xFFFF and code and code != 0xFFFF) else None
-    return {"name": row["name"], "short": row["short"], "uid": row["uid"],
-            "league": league, "country": row["based_id"]}
-
-
 def scrape_clubs(mm: Any) -> Dict[int, Dict[str, Any]]:
-    """{tid: club} for every declared slot."""
+    """{tid: club} for every declared slot: the whole record, names and trailer (`_club`)."""
     return {r["tid"]: _club(r) for r in _club_rows(mm)}
 
 
@@ -187,10 +179,14 @@ def _rgb(c):
     return "#%02x%02x%02x" % (((c >> 10) & 0x1f) << 3, ((c >> 5) & 0x1f) << 3, (c & 0x1f) << 3)
 
 
-def _club_detail(row):
-    """The club record's trailer as `club_details` reports it."""
-    main = row["main_club_tid"]
+def _club(row):
+    """One club record: its names, uid, league membership and the whole trailer. A club is
+    a league member when `other_division` is FFFF and `league_id` names a league."""
+    code, main = row["league_id"], row["main_club_tid"]
+    league = code if (row["other_division"] == 0xFFFF and code and code != 0xFFFF) else None
     return {
+        "tid": row["tid"], "uid": row["uid"], "name": row["name"], "short": row["short"],
+        "league_cid": league, "country": row["based_id"],
         "based_id": row["based_id"], "nation_id": row["nation_id"],
         "colours": [_rgb(row[f"colour_{i}"]) for i in range(6)],
         # 6 kits of 10 colours; stored whole because which slot is home vs away is not
@@ -209,15 +205,3 @@ def _club_detail(row):
         "main_club_tid": main if 0 < main < 70000 else None,
         "club_type": row["club_type"],
     }
-
-
-def club_details(mm, tid):
-    """Full club record (names + the whole trailer) for a tid, or None."""
-    rows = _club_rows(mm)
-    if not 0 <= tid < len(rows):
-        return None
-    row = rows[tid]
-    out = {"tid": tid, "name": row["name"], "short": row["short"],
-           "league_cid": _club(row)["league"], "country": row["based_id"]}
-    out.update(_club_detail(row))
-    return out

@@ -188,14 +188,14 @@ anchored on the table's own base rather than on the first record the walk happen
 > `next = base + count * 16 + 12` lands exactly on the next base and the chain terminates by
 > itself. Following it finds a **9,480-slot common-name table** that nothing had ever opened,
 > which is why 2,424 people were displayed under their full legal names (`Tite` as 'Adenor
-> Leonardo Bachi'). `int.person_names` reads it (extract dumps it in `names.json`); the walked counts now equal the
+> Leonardo Bachi'). `int.person_names` reads it (extract dumps it in `name_ids.json`); the walked counts now equal the
 > declared ones.
 
 **The two name id-tables** are walked by an `id == slot index` invariant that breaks at the
 first free slot (`id = 0xFFFFFFFF`); 3,523 such slots are scattered through the surname
 table. The declared counts are exact — the last declared slot reads `id=32147,
 ordinal=45941`, the final browse entry. Nothing downstream depends on the walked count today
-(`names.json` carries the used slots by id), so this is latent rather than live; the size heuristic
+(`name_ids.json` carries the used slots by id), so this is latent rather than live; the size heuristic
 that orients first names vs surnames would be more robust reading the declared counts.
 
 **Player attributes** over-read by 13. All 26,505 declared slots pass the position check, and

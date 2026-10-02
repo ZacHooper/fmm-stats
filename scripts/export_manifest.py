@@ -25,7 +25,7 @@ sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 from fmstats.dbopen import open_readonly                              # noqa: E402
-from fmparser import careers                                         # noqa: E402
+import careers                                                        # noqa: E402
 
 MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")
 FIELDS = ["career", "save_file", "label", "season", "phase", "active"]

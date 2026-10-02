@@ -2,15 +2,16 @@
 """
 Load fm-parser extract bundles into a DuckDB store.
 
-    uv run python load_duckdb.py output/2022-end [--db fm.duckdb]
-    uv run python load_duckdb.py output --all
-    uv run python load_duckdb.py output/my-label --season 2024 --phase mid
-    uv run python load_duckdb.py output/2022-end --include core,light
-    uv run python load_duckdb.py output --all --reset
+    uv run python load_duckdb.py output/frem-2023-07-02 --db fm-frem.duckdb [--career frem]
+    uv run python load_duckdb.py output --all --db fm-frem.duckdb --career frem
+    uv run python load_duckdb.py output/frem-2023-07-02 --include core,light
+    uv run python load_duckdb.py output --all --reset --career frem
 
 The tables in the `raw` schema are a 1:1 mirror of the JSON that the extractors
 write to output/<label>/ (same grain, minimal reshaping) — every row stamped with
-season (int end-year, 21/22 -> 2022) and phase (the save's in-game date). The
+season (int end-year, 21/22 -> 2022) and phase (the save's in-game date). The extract is
+career-agnostic; the career (`--career`, else the one the store records, careers.py) places
+each snapshot in its campaign and names our clubs for the match-table check. The
 modelled layers on top are the dbt project in transform/ (stg, int) and fmstats/mart.py,
 built by create_views() and create_mart(). Loads are idempotent: re-loading a label replaces
 exactly that (season, phase) slice.
@@ -30,8 +31,8 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 
 # The field lists and reference constants the parser declares.
 from fmparser.model import ATTR_ORDER
-from fmparser import careers
-from fmparser.tables.matches import EVENT_TYPE
+import careers
+from fmparser.tables.matches import EVENT_TYPE, check_against_fixtures
 from fmstats import compat as models_compat
 from fmstats.mart import create_mart, drop_mart
 
@@ -80,7 +81,7 @@ def _record_columns(record):
 # cannot fall out of step with it.
 PERSON_RECORD_COLS = _record_columns(_PERSON_INFO)
 ATTRIBUTE_RECORD_COLS = (
-    [("sid", "VARCHAR"), ("positions", "JSON"), ("foot_left", "INTEGER"),
+    [("sid", "VARCHAR"), ("history_head", "BIGINT"), ("positions", "JSON"), ("foot_left", "INTEGER"),
      ("foot_right", "INTEGER"), ("ca", "INTEGER"), ("pa", "INTEGER"), ("reputation", "INTEGER"),
      ("current_reputation", "INTEGER"), ("world_reputation", "INTEGER"),
      ("international_retired", "BOOLEAN"), ("squad_number", "INTEGER"),
@@ -714,8 +715,9 @@ HISTORY_END = 0xFFFFFFFF
 HISTORY_SEASON_BASE = 1971          # end_year = 1971 + the row's season code
 
 # Reading a player's career out of the raw history pool (fmparser/tables/history.py: every
-# 16-byte record as stored, plus each player's head record). One record is one line of the
-# in-game Player History screen: a season, its club, its fee and its numbers.
+# 16-byte record as stored), each player's chain starting at his attribute record's
+# `history_head`. One record is one line of the in-game Player History screen: a season,
+# its club, its fee and its numbers.
 #
 # A player's records are one chain, followed by `next` from his head. The head must be a
 # chain's first record (nothing points at it) inside the pool; anything else means no
@@ -766,16 +768,17 @@ JOIN _hist_rows last ON last.row = l.row
 """
 
 
-def load_history(con, season, phase, hist):
+def load_history(con, season, phase, hist, heads):
     """raw.player_history (one row per player) and raw.player_history_seasons (one
-    per season line), read from the raw history pool. The pool itself is not stored."""
+    per season line), read from the raw history pool, each player's chain from his head
+    row (`heads`, {tid: his attribute record's `history_head`}). The pool itself is not
+    stored."""
     rows = hist["rows"]
     df = pd.DataFrame({"row": range(hist["count"]),
                        **{k: rows[k] for k in ("club", "fee", "next", "season", "apps",
                                                "goals", "assists", "rating", "yellows",
                                                "reds")}})
-    heads = pd.DataFrame({"tid": [int(t) for t in hist["heads"]],
-                          "head": list(hist["heads"].values())}, dtype="int64")
+    heads = pd.DataFrame({"tid": list(heads), "head": list(heads.values())}, dtype="int64")
     con.register("_hist_rows", df)
     con.register("_hist_heads", heads)
     try:
@@ -836,14 +839,16 @@ def load_core(con, d, season, phase):
             con, "formations", ["season", "phase", "formation_id", "name"],
             [(season, phase, i, n) for i, n in enumerate(_load_json(formations_path))])
 
-    # the name tables the name ids above index
-    names_path = os.path.join(d, "names.json")
-    if os.path.exists(names_path):
-        nt = _load_json(names_path)
+    # the name tables the name ids above index: the browse strings and the three id-tables
+    strings_path = os.path.join(d, "browse_names.json")
+    if os.path.exists(strings_path):
         counts["name_strings"] = _insert(con, "name_strings",
                                          ["season", "phase", "ordinal", "name"],
                                          [(season, phase, i, s)
-                                          for i, s in enumerate(nt.get("strings") or [])])
+                                          for i, s in enumerate(_load_json(strings_path))])
+    ids_path = os.path.join(d, "name_ids.json")
+    if os.path.exists(ids_path):
+        nt = _load_json(ids_path)
         counts["name_ids"] = _insert(con, "name_ids",
                                      ["season", "phase", "name_table", "id", "ordinal"],
                                      [(season, phase, t, r["id"], r["ordinal"])
@@ -859,9 +864,14 @@ def load_core(con, d, season, phase):
             con, "player_scrapbook", ["season", "phase"] + [c for c, _, _ in SCRAPBOOK_COLS], sb)
 
     # --- career history (origin club + season-by-season) ---------------------
+    # each player's chain starts at his attribute record's history_head
     hist_path = os.path.join(d, "history.json")
     if os.path.exists(hist_path):
-        counts.update(load_history(con, season, phase, _load_json(hist_path)))
+        heads = dict(con.execute(
+            "SELECT p.tid, a.history_head FROM raw.person_records p "
+            "JOIN raw.attribute_records a USING (season, phase, sid) "
+            "WHERE p.season = ? AND p.phase = ?", [season, phase]).fetchall())
+        counts.update(load_history(con, season, phase, _load_json(hist_path), heads))
 
     # --- the weekly Player Progress table, as stored ------------------------
     pp_path = os.path.join(d, "player_progress.json")
@@ -1333,23 +1343,52 @@ def _detect_groups(d):
 # per-label orchestration
 # ---------------------------------------------------------------------------
 
-def resolve_season_phase(label, d, override):
-    """(season, phase): the --season/--phase override, else what extract.py wrote into
-    summary.json (phase = the save's header date, season = its campaign). An extract without
-    them cannot be placed and is refused."""
-    summ_path = os.path.join(d, "summary.json")
-    summ = _load_json(summ_path) if os.path.exists(summ_path) else {}
-    season = override[0] if override[0] is not None else summ.get("season")
-    phase = override[1] or summ.get("phase")
-    if season is None or phase is None:
-        raise SystemExit(f"{label}: summary.json carries no season/phase (an extract from "
+def _matches(d):
+    path = os.path.join(d, "matches.json")
+    return _load_json(path) if os.path.exists(path) else []
+
+
+def save_date(d):
+    """The save's in-game date, from its header (summary.json `save_date`), or None."""
+    path = os.path.join(d, "summary.json")
+    return (_load_json(path) if os.path.exists(path) else {}).get("save_date")
+
+
+def resolve_season_phase(label, d, career, override=(None, None)):
+    """(season, phase): the --season/--phase override, else the save's header date as phase
+    and, as season, the campaign that date falls in by the career's rollover
+    (`careers.campaign`). An extract with no header date cannot be placed and is refused."""
+    phase = override[1] or save_date(d)
+    if phase is None:
+        raise SystemExit(f"{label}: summary.json carries no save_date (an extract from "
                          f"before header dates?); re-extract it or pass --season and --phase")
+    season = override[0]
+    if season is None:
+        season = career.campaign(phase, any(m["date"] for m in _matches(d)))
     return int(season), phase
 
 
-def load_label(con, d, include, override=(None, None)):
+def check_matches(d, career):
+    """The match table against the world fixture list: the same games, our two clubs'
+    fixtures played since the career's last rollover on or before the save date (the game
+    empties the table that day). This is what tells an empty table after the rollover from a
+    table the locator missed. Raises `MatchTableError`; no fixture list, no check."""
+    path = os.path.join(d, "world_fixtures.json")
+    world = _load_json(path) if os.path.exists(path) else []
+    until = save_date(d)
+    if not world or until is None:
+        return
+    since = f"{until[:4]}-{career.rollover[0]:02d}-{career.rollover[1]:02d}"
+    if since > until:
+        since = f"{int(until[:4]) - 1}{since[4:]}"
+    check_against_fixtures(_matches(d), world, (career.managed_tid, career.reserve_tid),
+                           since, until)
+
+
+def load_label(con, d, include, career, override=(None, None)):
     label = os.path.basename(os.path.normpath(d))
-    season, phase = resolve_season_phase(label, d, override)
+    season, phase = resolve_season_phase(label, d, career, override)
+    check_matches(d, career)
     groups = [g for g in _detect_groups(d) if g in include]
     if not groups:
         print(f"  {label}: nothing to load (no matching groups present)")
@@ -1590,6 +1629,9 @@ _MIGRATIONS = [
     # assemble go; a snapshot loaded before has no person records until it is re-extracted.
     "DROP TABLE IF EXISTS raw.players_raw",
     "DROP TABLE IF EXISTS raw.player_attributes_exact_raw",
+    # 2026-10-02: a player's history head is his attribute record's own field, not a
+    # second map in history.json (data-layers plan, step 11).
+    "ALTER TABLE raw.attribute_records ADD COLUMN IF NOT EXISTS history_head BIGINT",
 ]
 
 
@@ -1710,22 +1752,30 @@ def seed_event_types(con):
                     sorted(EVENT_TYPE.items()))
 
 
+def store_career(con):
+    """The career key the store records (raw.app_config `career_key`), or None."""
+    try:
+        row = con.execute("SELECT value FROM raw.app_config "
+                          "WHERE key = 'career_key'").fetchone()
+    except duckdb.CatalogException:
+        return None
+    return row[0] if row else None
+
+
 def seed_career(con, key=None):
     """Record which career this store holds in raw.app_config: `career_key`,
     `career_rating_method` and `career_managed_tid`, the club we manage.
 
     fmstats reads the store, never fmparser, so the loader, which may read both, writes down
     the career facts the mart needs: the tactic we play (the save does not carry it) and our
-    club (mart.our_clubs is it plus its reserve side). `key` is the career the loaded extracts
-    name in their summary.json; without one (a --refresh-only) the store's own recorded key
-    is kept. Runs before create_mart."""
+    club (mart.our_clubs is it plus its reserve side). `key` is the career being loaded;
+    without one (a --refresh-only) the store's own recorded key is kept. Runs before
+    create_mart."""
     if key is None:
-        row = con.execute("SELECT value FROM raw.app_config "
-                          "WHERE key = 'career_key'").fetchone()
-        key = row[0] if row else None
+        key = store_career(con)
     car = careers.CAREERS.get(key) if key else None
     if car is None:
-        print(f"  ! career {key!r} is not a registered career (fmparser/careers.py); "
+        print(f"  ! career {key!r} is not a registered career (careers.py); "
               f"career keys left unset")
         return
     for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
@@ -1733,21 +1783,6 @@ def seed_career(con, key=None):
         con.execute("DELETE FROM raw.app_config WHERE key = ?", [k])
         if v is not None:
             con.execute("INSERT INTO raw.app_config VALUES (?, ?)", [k, v])
-
-
-def _extract_career(dirs):
-    """The career key the extracts' summary.json files name, or None. Every extract loaded
-    into one store must name the same career."""
-    keys = set()
-    for d in dirs:
-        sp = os.path.join(d, "summary.json")
-        if os.path.exists(sp):
-            k = (_load_json(sp).get("career") or {}).get("key")
-            if k:
-                keys.add(k)
-    if len(keys) > 1:
-        raise SystemExit(f"extracts from more than one career in one load: {sorted(keys)}")
-    return keys.pop() if keys else None
 
 
 def seed_config_bundle(con):
@@ -1889,9 +1924,13 @@ def main():
                     help="load every subdir of PATH containing summary.json")
     ap.add_argument("--include", default=",".join(GROUPS),
                     help=f"comma list of groups to load (default all: {','.join(GROUPS)})")
+    ap.add_argument("--career", help="the career these saves belong to (careers.py): "
+                    "places each snapshot in its campaign and checks its matches against "
+                    "the fixture list (default: the career the store records)")
     ap.add_argument("--season", type=int)
     ap.add_argument("--phase", help="snapshot phase; normally the in-game date "
-                    "'YYYY-MM-DD' (auto-derived from summary.json — rarely needed). "
+                    "'YYYY-MM-DD' (the save's header date, from summary.json — rarely "
+                    "needed). "
                     "Legacy words start/mid/end still accepted.")
     ap.add_argument("--reset", action="store_true",
                     help="drop and recreate the raw schema + views first")
@@ -1941,21 +1980,27 @@ def main():
     if not dirs:
         raise SystemExit(f"no labels found under {args.path}")
 
-    # collision pre-flight: two on-disk labels -> same (season, phase)
+    # collision pre-flight: two on-disk labels -> the same save date, so the same snapshot
     if args.all:
         seen = {}
         for d in dirs:
-            label = os.path.basename(os.path.normpath(d))
-            summ = _load_json(os.path.join(d, "summary.json"))
-            if summ.get("season") is not None and summ.get("phase"):
-                seen.setdefault((summ["season"], summ["phase"]), []).append(label)
-        for sp, labels in seen.items():
+            if save_date(d):
+                seen.setdefault(save_date(d), []).append(os.path.basename(os.path.normpath(d)))
+        for date, labels in seen.items():
             if len(labels) > 1:
-                print(f"! WARNING: labels {labels} all map to season {sp[0]} "
-                      f"phase {sp[1]!r}; loaded in order, last wins ({labels[-1]}).")
+                print(f"! WARNING: labels {labels} are all saves of {date}; loaded in "
+                      f"order, last wins ({labels[-1]}).")
 
     con = duckdb.connect(args.db)
     try:
+        recorded = store_career(con)
+        if args.career and recorded and args.career != recorded:
+            raise SystemExit(f"{args.db} holds the {recorded!r} career, not {args.career!r}")
+        key = args.career or recorded
+        if key is None:
+            raise SystemExit(f"{args.db} records no career: pass --career "
+                             f"({', '.join(sorted(careers.CAREERS))})")
+        career = careers.resolve_career(key)
         if args.reset:
             reset_schema(con)
         create_schema(con)
@@ -1967,7 +2012,7 @@ def main():
         ok, fail = 0, 0
         for d in dirs:
             try:
-                load_label(con, d, include, (args.season, args.phase))
+                load_label(con, d, include, career, (args.season, args.phase))
                 ok += 1
             except Exception as e:  # one bad label must not abort a batch
                 fail += 1
@@ -1975,7 +2020,7 @@ def main():
         seed_event_types(con)
         create_views(con)
         report_persons(con)
-        seed_career(con, _extract_career(dirs))
+        seed_career(con, career.key)
         mart_objects = create_mart(con)
         print(f"done: {ok} loaded, {fail} failed. views refreshed, "
               f"{len(mart_objects)} mart objects rebuilt.")

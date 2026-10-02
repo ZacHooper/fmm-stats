@@ -149,7 +149,7 @@ def main():
 
     def league_of(tid):
         c = idx_full.get(tid)
-        return c.get("league") if c else None
+        return c.get("league_cid") if c else None
 
     same_league = [(r, league_of(r["away_tid"])) for r in rows
                    if league_of(r["away_tid"]) is not None
