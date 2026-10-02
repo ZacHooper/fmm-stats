@@ -71,14 +71,11 @@ Compare best-XI mean position index for both clubs. Are we favourites, evens, or
 by how much? This decides the whole plan, so state it plainly before recommending anything.
 
 ### 6. Game plan and tactic recommendation
-Combine the manager's scout report with what you found. Recommend **one base method plus the lever
-to pull if the game turns**. Available methods are in `core.tactics`; for this career the shape is:
-
-- **`frem_attacking_ss`** — the default. Proactive; use when we're better or even.
-- **`frem_counter`** — when they're stronger, or when they carry pace we can hit in behind.
-- **`frem_lowblock_overload`** — when they'll sit in a deep block and we have to break them down.
-- **`frem_gegenpress`** — when they'll try to play out from the back and their build-up is weak.
-- **`frem_game_state`** — closing out a lead.
+Combine the manager's scout report with what you found. Recommend **one base plan plus the lever
+to pull if the game turns**, as in-game settings (mentality, line, press, tempo). Players are rated
+with the two weight-sets the store ships: **`frem_minmax_4231`**, the 4-2-3-1 we play (derived from
+the match data), and **`frem_attacking_ss`**, the strikerless view and the site's default. A
+weight-set rates players; it is not a tactic and sets no instruction.
 
 Two rules worth honouring: don't open in a high-press duel game against a side that edges us
 physically and plays direct — that plays to their one advantage. And if the level gap is large in

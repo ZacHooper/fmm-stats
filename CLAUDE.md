@@ -494,14 +494,14 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - **A back line doesn't play a back line.** `scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`matchup_table()`) for that reading, not `strength`.
 - **Quality is not output.** `scout_report()['h2h_players']` is each opponent player's production in matches against us, with `still_there` for whether he is at the club now. Read it next to `key_players`: against OB the two men who hurt us most (5 goals; 11 key passes) sat at 53 and 23 on Level %ile, below six team-mates the ranking put first.
 - We play a **4-2-3-1**, rated with **`frem_minmax_4231`** — the career's `rating_method` in `fmparser/careers.py`, which the loader records in the store
-(`raw.app_config.career_rating_method`) and `fmq scout` uses by default. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. Other Frem weight-sets: `frem_counter`, `frem_gegenpress`, `frem_lowblock_overload`, `frem_game_state`.
-  **`frem_minmax_4231` and `frem_minmax_4411` are different in kind** — not hand-built from a tactic
+(`raw.app_config.career_rating_method`) and `fmq scout` uses by default. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. **These two are the only weight-sets the store ships** (`seeds/role_weights.csv`): every player is rated in every role of every set, and the others were unused, so they are retired (`load_duckdb.RETIRED_METHODS` deletes them from an existing store too).
+  **`frem_minmax_4231` is different in kind** — not hand-built from a tactic
   author's stated player traits but DERIVED from the match data by `scripts/derive_weight_set.py`,
   role by role, with every block that failed to beat a flat weighting left flat on purpose, and
   **every individual weight that failed to clear the evidence floor dropped or downgraded by
   `audit_block()`** — a block that beats flat does not license every line inside it. Two weights are
   held against the measurement on purpose and both are named in `HELD`. Read the script's docstring
-  before editing either method; hand-editing a derived set throws the audit trail away, and a
+  before editing it; hand-editing a derived set throws the audit trail away, and a
   judgement call belongs in `HELD` with its argument, not in the CSV.
 - **Code comments describe current reality, not past parser history.** Comments must document the actual binary layout, field semantics, and game engine mechanics factually. Avoid narrative archaeology ("we didn't used to parse this", "until now this was broken", "for the life of this parser"). State what the data is so future readers have an authoritative, noise-free specification.
 

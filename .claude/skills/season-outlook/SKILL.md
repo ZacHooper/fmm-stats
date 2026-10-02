@@ -323,8 +323,8 @@ Eyeball it: **Team analysis** (unit filters per opponent) + the **Development / 
   table is in [`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md).
 - **Don't hand-roll the primary-position/club filter** — `scout.squad_frame` does it and applies the
   spell check; a bare `club_tid` filter includes players whose loan lapsed without being renewed.
-- **A `role_weights` method is a rating weight-set, NOT a tactic.** Recommending `frem_counter` sets
-  no mentality, line, press, tempo or final-third instruction — name the in-game settings too. The
+- **A `role_weights` method is a rating weight-set, NOT a tactic.** Rating players with
+  `frem_minmax_4231` sets no mentality, line, press, tempo or final-third instruction — name the in-game settings too. The
   full menu surface is [`fmm-tactic-options`](../../../docs/agent-context/fmm-tactic-options.md).
 - **Any Fit number quoted from a doc must carry the date and squad it was computed on** — a mid-22
   Fit table was quoted at a 2026 squad and put a wrong claim into `scout-opponent`.

@@ -38,7 +38,7 @@ not beat flat out-of-fold is reported as not beating flat — see `--show` outpu
 
     uv run python scripts/derive_weight_set.py --show frem_minmax_4231
     uv run python scripts/derive_weight_set.py --out /tmp/set.json frem_minmax_4231
-    uv run python scripts/derive_weight_set.py --all --csv seeds/role_weights.csv   # write both
+    uv run python scripts/derive_weight_set.py --all --csv seeds/role_weights.csv   # write the set
     uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 """
 from __future__ import annotations
@@ -105,32 +105,6 @@ BRIEFS = {
         "hold": {
             "CB": {"tackling": 3, "positioning": 3},
             "DM": {"positioning": 3, "tackling": 3, "teamwork": 3, "passing": 4},
-        },
-    },
-    "frem_minmax_4411": {
-        "label": "4-4-1-1, pressing counter for the big games, min-maxed from the match data",
-        # NOT a low block and NOT a cautious plan -- away at Midtjylland the cautious plan drew 1-1
-        # with 3 shots and the front-foot plan won 6-0. This is the same press in a shape that puts
-        # more bodies back for the sides that can hurt us (FC Kobenhavn now, European opposition if
-        # we qualify), with a genuine COUNTER element the 4-2-3-1 does not have: the wide midfielders
-        # win it back and then break and shoot, the central pair win it and carry.
-        "roles": {
-            "GK":  ["keep_it"],
-            "LB":  ["win_it_back", "win_the_air"],
-            "RB":  ["win_it_back", "win_the_air"],
-            "CB":  ["win_the_air", "win_it_back"],
-            "DM":  ["win_it_back", "keep_it"],
-            "CM":  ["win_it_back", "keep_it", "progress_it"],
-            "AML": ["win_it_back", "progress_it", "finish"],
-            "AMR": ["win_it_back", "progress_it", "finish"],
-            "AMC": ["finish", "progress_it"],
-            "ST":  ["finish", "win_the_air"],
-        },
-        "hold": {
-            "CB": {"tackling": 3, "positioning": 3},
-            "DM": {"positioning": 3, "tackling": 3, "teamwork": 3, "passing": 4},
-            "LB": {"tackling": 3, "positioning": 3},
-            "RB": {"tackling": 3, "positioning": 3},
         },
     },
 }
