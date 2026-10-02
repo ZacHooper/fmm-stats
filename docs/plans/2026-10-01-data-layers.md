@@ -286,8 +286,10 @@ legacy models (`players`, `player_positions`, `staff_attributes`). `id2 = 0` is 
 and `player_attributes` (the decoded view) are taken; name the new raw tables by what they are
 (`raw.person_records`, `raw.attribute_records`, `raw.staff_records`).
 
-**Checks for 7–9**: `diff_stores` on the players and exact-attributes compatibility views, every
-save of both careers; `assert_identical` re-recorded with the new files named.
+**Checks for 7–9**: `diff_stores` on the players and exact-attributes compatibility views over
+the four `assert_identical` saves (both careers); `assert_identical` re-recorded with the new
+files named. A sample is enough because these views are per-snapshot: each snapshot's rows come
+from its own extract alone, and the old mart reads only them.
 
 ## 10. Extract cleanup
 - move `clubs_comps.info_offset` (used by `tables/player_attributes.py`) into
