@@ -1,38 +1,28 @@
--- All 23 attributes with an `_est` flag each: stated where the save states
--- them, decoded from the record's attribute columns and stg.attribute_model
--- otherwise (macros/attribute_decode.sql). The two composites are closed forms
--- over two plain 1-20 attribute columns: Teamwork's is exact (`_est` false),
--- Aerial's matches about 71% of the time, so it is an estimate.
-{%- set spec = attribute_model() %}
+-- All 23 attributes with an `_est` flag each: the stated value where the save
+-- states it, otherwise the decoded one from int.player_attribute_estimates.
+-- `_est` is true when the value shown is a decode that can be wrong; Teamwork's
+-- closed form is exact, so its flag is always false.
 {%- set composites = var('composites') %}
 
 select
-    record.season,
-    record.phase,
-    record.tid,
+    stated.season,
+    stated.phase,
+    stated.tid,
     {% for attribute in var('attr_order') %}
-    {% set stated = 'stated."' ~ attribute ~ '"' %}
     {% set c = composites.get(attribute) %}
-    {% if c %}
-    {% set derived = composite(c.columns[0], c.columns[1], c.w) %}
-    {% elif attribute in spec %}
-    {% set derived = model_expr(spec[attribute]) %}
+    {% set value = 'stated."' ~ attribute ~ '"' %}
+    {% if attribute in var('exact_single') %}
+    {% set flag = 'false' %}
     {% else %}
-    {% set derived = none %}
+    {% set flag = 'false' if c and not c.estimate else value ~ ' is null' %}
+    {% set value = 'coalesce(' ~ value ~ ', estimate."' ~ attribute ~ '")' %}
     {% endif %}
-    {% set estimated = (c and c.estimate) or (not c and attribute in spec) %}
-    {% set flag = '(' ~ stated ~ ' is null)' if estimated else 'false' %}
-    {% if derived %}
-    coalesce({{ stated }}, {{ derived }}) as "{{ attribute }}",
-    {% else %}
-    {{ stated }} as "{{ attribute }}",
-    {% endif %}
+    {{ value }} as "{{ attribute }}",
     {{ flag }} as "{{ attribute }}_est"{% if not loop.last %},{% endif %}
     {% endfor %}
-from {{ ref('int_players') }} as record
-inner join {{ ref('int_player_attributes_exact') }} as stated
+from {{ ref('int_player_attributes_exact') }} as stated
+inner join {{ ref('int_player_attribute_estimates') }} as estimate
     on
-        record.season = stated.season
-        and record.phase = stated.phase
-        and record.tid = stated.tid
--- depends_on: {{ ref('stg_attribute_model') }} (read by attribute_model())
+        stated.season = estimate.season
+        and stated.phase = estimate.phase
+        and stated.tid = estimate.tid
