@@ -115,12 +115,20 @@ _CATALOG_MARKER = bytes.fromhex("76b9f407")
 _CATALOG_STRIDE = 1262
 
 
-def formation_catalog(mm: Any) -> List[str]:
-    """The 21 formation templates in declaration order -> ['4-4-2', '4-4-2 Diamond', ...]."""
+def formation_catalog_span(mm: Any) -> Optional[Tuple[int, int]]:
+    """(start, end) of the 21-template formation catalog, or None when it is not found."""
     pos = mm.find(_CATALOG_MARKER)
     if pos == -1:
+        return None
+    return pos - 16, pos - 16 + 21 * _CATALOG_STRIDE
+
+
+def formation_catalog(mm: Any) -> List[str]:
+    """The 21 formation templates in declaration order -> ['4-4-2', '4-4-2 Diamond', ...]."""
+    span = formation_catalog_span(mm)
+    if span is None:
         return []
-    start = pos - 16
+    start = span[0]
     names = []
     for i in range(21):
         o = start + i * _CATALOG_STRIDE

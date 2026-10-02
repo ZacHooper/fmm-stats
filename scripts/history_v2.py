@@ -39,7 +39,7 @@ def club_names(db):
         return {}
 
 
-def player_lines(hist, tid):
+def player_lines(hist, heads, tid):
     """[season lines] for one player, debut line first, read by the loader's own SQL."""
     import duckdb
     import load_duckdb as L
@@ -48,7 +48,7 @@ def player_lines(hist, tid):
     for ddl in L.DDL:
         if "raw.player_history" in ddl:
             con.execute(ddl)
-    L.load_history(con, 0, "", hist)
+    L.load_history(con, 0, "", hist, heads)
     lines = con.execute("SELECT end_year, club_tid, apps, goals, assists, rating, fee "
                         "FROM raw.player_history_seasons WHERE tid = ? ORDER BY seq",
                         [tid]).fetchall()
@@ -70,14 +70,16 @@ def main():
             return
         names = club_names(a.db)
         info, attrs = scrape_person_info(mm), scrape_player_attributes(mm)
-        hist = H.scrape_history(mm, info, attrs)
+        hist = H.scrape_history(mm)
+        heads = {t: attrs[p["sid"]]["history_head"] for t, p in info.items()
+                 if p["sid"] in attrs}
         rows = hist["rows"]
         if a.chain is not None:
             for k in follow(rows["next"], a.chain, H.END):
                 print(f"    {k:7d}  " + "  ".join(f"{c}={rows[c][k]}" for c in rows))
             return
-        print(f"  tid {a.player} -> head record {hist['heads'].get(str(a.player))}")
-        lines = player_lines(hist, a.player)
+        print(f"  tid {a.player} -> head record {heads.get(a.player)}")
+        lines = player_lines(hist, heads, a.player)
         if not lines:
             print(f"  tid {a.player}: no history"); return
         tot = [0, 0, 0]

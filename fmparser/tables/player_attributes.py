@@ -131,6 +131,7 @@ def _process_player_attribute(rec: Dict[str, Any], offset: int) -> Dict[str, Any
     P = offset + 42
     out = {
         "sid": rec["sid"],
+        "history_head": rec["history_head"],
         "offset": offset,
         "P": P,
         "positions": {POSITIONS[k]: v for k, v in enumerate(pos_raw) if v > 1},

@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Managed-career registry.
+"""Managed-career registry: the loader's side, never the parser's.
 
-This parser targets ONE managed career per database. The only genuinely
-career-specific fact is the club you manage (its TID) — that TID is how the
-snapshot reader finds your squad's exact names + attributes. Everything else in
-the extraction is career-agnostic.
+One store holds one managed career. The career-specific facts are the club you manage (its
+TID) and its reserve side, the day its season rolls over, the tactic it plays and the
+store's file name. `extract.py` needs none of them: a save's tables read the same whatever
+career it belongs to. The loader writes them into the store (`raw.app_config`), places each
+snapshot in its campaign (`campaign`), and checks the match table against the fixture list
+for our two clubs.
 
 Starting a new career: find its club TID with `scripts/discover_career.py <save>`
 (it reads the "(Nickname)" the save header opens with and resolves it to a club),
-add a row below, and run `extract.py <save> --career <key>`.
+add a row below, and load with `load_duckdb.py <extract> --career <key>`.
 """
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 
 
@@ -31,6 +34,24 @@ class Career:
     # so it is per career: measured as the day the managed club's record changes its last
     # league position (Frem 29 June old / 30 June new; Bucaspor 19 June old / 20 June new).
     rollover: tuple = (6, 30)
+
+    def campaign(self, date: str, has_matches: bool) -> int:
+        """The campaign a save dated `date` belongs to (`campaign`)."""
+        return campaign(date, has_matches, self.rollover)
+
+
+def campaign(date: str, has_matches: bool, rollover: tuple) -> int:
+    """The campaign's end-year for a save dated `date` (ISO): on or after the `rollover`
+    (month, day) is the next one, and so is a match-less save before it.
+
+    A new career's first save is dated before the rollover with no match played: the
+    database starts already rolled over (its last league positions are the season just
+    gone), so it belongs to the campaign about to start. A match-less save before the
+    rollover only happens there."""
+    d = datetime.date.fromisoformat(date)
+    if (d.month, d.day) >= tuple(rollover) or not has_matches:
+        return d.year + 1
+    return d.year
 
 
 # `active=False` means: keep the saves in the archive, but don't rebuild the store. The

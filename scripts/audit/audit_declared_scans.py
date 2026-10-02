@@ -98,7 +98,7 @@ def report_cross_reference(mm, clubs, declared_clubs, comps, declared_comps):
     season = scrape_matches(mm)
 
     needed_cids = {m["comp_id"] for m in season if m.get("comp_id")}
-    needed_cids |= {c["league"] for c in clubs.values() if c.get("league")}
+    needed_cids |= {c["league_cid"] for c in clubs.values() if c.get("league_cid")}
     resolved_cids = {cid for cid in needed_cids if cid in comps}
     missing_cids = sorted(needed_cids - resolved_cids)
 

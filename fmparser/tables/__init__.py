@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""The savefile table registry: every table definition, by name (`TABLES`). The engine is
-`fmparser/core/table.py`."""
-from .cities import CITIES_TABLE, CITY, CITY_RECORD, scrape_cities
-from .clubs import CLUB_TABLE, club_details, locate_clubs, scrape_clubs
-from .history import HISTORY_TABLE, history_heads, locate_history, scrape_history
+"""The savefile table registry: every table definition, by name (`TABLES`), and where each
+sits in a save (`table_spans`, `first_record`). The engine is `fmparser/core/table.py`."""
+from typing import Any, List, Optional, Tuple
+
+from ..core import LinkedTableDef, TaggedTableDef
+from .cities import CITIES_TABLE, CITY, CITY_RECORD, cities_table_spans, scrape_cities
+from .clubs import CLUB_TABLE, locate_clubs, scrape_clubs
+from .history import HISTORY_TABLE, locate_history, scrape_history
 from .player_progress import (PLAYER_PROGRESS_TABLE, locate_player_progress,
                               scrape_player_progress)
 from .training import (LOAN_STATUS, TRAINING_TABLE, locate_training, scrape_squad_status,
@@ -215,12 +218,43 @@ TABLES = {
     "surnames": SURNAMES_TABLE,
 }
 
+
+
+def table_spans(mm: Any, name: str) -> List[Tuple[int, int]]:
+    """[(start, end)]: the bytes a registered table covers, framing included. A module's own
+    `<name>_table_spans` is used where it has one (it adds framing the definition does not
+    own: person_info's header byte after its count); a tagged table's blocks carry their u32
+    count."""
+    own = globals().get(f"{name}_table_spans")
+    if own is not None:
+        return own(mm)
+    table = TABLES[name]
+    if isinstance(table, TaggedTableDef):
+        return [(b.start - 4, b.end) for b in table.blocks(mm)]
+    return table.spans(mm)
+
+
+def first_record(mm: Any, name: str) -> Optional[int]:
+    """The offset of a registered table's first record, behind its frame; None when the
+    table is not located (an empty match table)."""
+    table = TABLES[name]
+    if isinstance(table, LinkedTableDef):
+        loc = table.locator(mm)
+        return loc[0] if loc else None
+    if isinstance(table, TaggedTableDef):
+        locs = table.locator(mm) or []
+        return locs[0][0] if locs else None
+    runs = table.runs(mm)
+    return runs[0][0] if runs else None
+
+
 __all__ = [
     # Engine
     "TABLES",
+    "first_record",
+    "table_spans",
     # History
     "HISTORY_TABLE",
-    "history_heads",
     "locate_history",
     "scrape_history",
     # Player progress
@@ -251,7 +285,6 @@ __all__ = [
     # Clubs and competitions
     "CLUB_TABLE",
     "COMP_TABLE",
-    "club_details",
     "comp_refs",
     "locate_clubs",
     "locate_competitions",

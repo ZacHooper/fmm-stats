@@ -107,7 +107,7 @@ manifest row have no date and so no canonical name; they live in `<career>/unfil
 
 ## Careers
 
-`Career.active` (in `fmparser/careers.py`) marks a career archived. **Only `frem` is built.**
+`Career.active` (in `careers.py`) marks a career archived. **Only `frem` is built.**
 Bucaspor's saves stay in R2 because they're the only cross-career regression test the parser has,
 but its store isn't rebuilt — and since `db.available_careers()` keys off whether the store *file*
 exists, not building one is all it takes to drop it from the dashboard. Rebuild with

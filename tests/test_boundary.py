@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The layer boundary: fmparser extracts, fmstats transforms, and neither imports the other's side.
 
-  * nothing under fmparser/ imports duckdb or fmstats — the parser writes JSON and knows no store;
+  * nothing under fmparser/, nor extract.py, imports duckdb, fmstats or careers — the parser
+    writes JSON, knows no store and no career: a save reads the same whatever career it is;
   * nothing under fmstats/ imports fmparser or extract — it reads the store the loader wrote,
     so it runs anywhere a .duckdb file exists;
   * every constant in fmstats.contract (the attribute columns, the record's byte names, the
@@ -21,7 +22,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tests.harness import FAIL, PASS, ROOT                                  # noqa: E402
 
-RULES = {"fmparser": {"duckdb", "fmstats"}, "fmstats": {"fmparser", "extract"}}
+RULES = {"fmparser": {"duckdb", "fmstats", "careers"},
+         "extract.py": {"duckdb", "fmstats", "careers"},
+         "fmstats": {"fmparser", "extract", "careers"}}
 
 
 def imports(path):
@@ -37,12 +40,13 @@ def imports(path):
 def main():
     bad = []
     for pkg, banned in RULES.items():
-        for d, _, files in os.walk(os.path.join(ROOT, pkg)):
-            for f in files:
-                if f.endswith(".py"):
-                    p = os.path.join(d, f)
-                    bad += [f"{os.path.relpath(p, ROOT)}:{ln} imports {mod}"
-                            for ln, mod in imports(p) if mod in banned]
+        root = os.path.join(ROOT, pkg)
+        paths = ([root] if pkg.endswith(".py") else
+                 [os.path.join(d, f) for d, _, files in os.walk(root)
+                  for f in files if f.endswith(".py")])
+        for p in paths:
+            bad += [f"{os.path.relpath(p, ROOT)}:{ln} imports {mod}"
+                    for ln, mod in imports(p) if mod in banned]
     for b in bad:
         print(f"  FAIL {b}")
     print(f"  {'FAIL' if bad else 'ok  '} import boundary: {len(bad)} violation(s)")

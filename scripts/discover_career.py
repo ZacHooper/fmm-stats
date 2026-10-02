@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover the managed club in an FMM save — to add a new career to fmparser/careers.py.
+"""Discover the managed club in an FMM save — to add a new career to careers.py.
 
     python3 scripts/discover_career.py path/to/new-save.fms
 
@@ -8,8 +8,8 @@ club's squad is written season by season into the player-list table's club lists
 (`fmparser/tables/player_lists.py`, lists 31-61), each scrapbook entry naming the club that holds
 the player. So we print the header nickname, then rank the clubs those lists name by how many
 distinct players each holds: the managed first team and its reserves are the only clubs
-there. Match against the nickname, then add the tids to careers.py and extract with
-`--career <key>`.
+there. Match against the nickname, then add the tids to careers.py, extract, and load with
+`load_duckdb.py --career <key>`.
 """
 import os
 import sys
@@ -49,7 +49,7 @@ def discover(path):
         name = (clubs.get(clubtid) or {}).get("name") or "?"
         flag = "  <-- matches nickname" if nick and nick.lower() in name.lower() else ""
         print(f"{len(players):>7} {clubtid:>6}  {name}{flag}")
-    print("\nAdd the managed first team (and its Reserves tid) to fmparser/careers.py.")
+    print("\nAdd the managed first team (and its Reserves tid) to careers.py.")
     s.close()
 
 

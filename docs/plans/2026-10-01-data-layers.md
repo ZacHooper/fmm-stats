@@ -104,7 +104,7 @@ One PR each, merged green, in this order.
 | 8 | Names | both | same |
 | 9 | Person, player and staff records; `build_database` deleted | both | same |
 | 10 | Extract cleanup | extract | `run_tests.py`; `assert_identical` re-recorded |
-| 11 | Save order and the cursor | extract | `assert_identical` byte-identical |
+| 11 | Save order and the cursor; extract takes no career | both | `assert_identical` re-recorded; gate stores diffed |
 | 12 | stg for every raw table | layers | each stg row count equals its source |
 | 13 | Reference, nation, club | layers | vs `mart.clubs`, `mart.our_clubs` |
 | 14 | Competition and match | layers | vs `mart.club_matches`, `match_stages`, `league_tables`, `match_player_facts` |
@@ -304,16 +304,32 @@ from its own extract alone, and the old mart reads only them.
 - drop `raw.player_history`'s constant `confidence` / `origin_club` columns (migration).
 
 ## 11. Save order and the cursor
-- `main()` becomes a flat list of steps `(name, scrape, dump)` in file order (appendix), the
-  archive tables last.
-- Each locator gains an optional `lo=0`; audit scripts keep calling it without one. Cursor = the
-  end of the previous table's spans; an empty table (matches on a 0-match save) leaves it where it
-  was. On a miss, raise an error naming the table, the cursor and the previous table;
-  `--no-cursor` re-runs every locator from 0.
-- Keep the five "starts right after" chains; the cursor is only a lower bound for the rest.
-- Test: locator starts only go up on the test saves, both careers.
+Done, with the career moved out of extract in the same PR, so every step reads one table and
+nothing else:
+- `extract.py` is a flat list of steps (`steps()`: table name, where it sits, its read), in
+  file order (appendix), the archive last. Each table is one dump: names split into
+  `browse_names.json` and `name_ids.json` (two tables, 38 MB apart); the club table is one
+  reader (`clubs.scrape_clubs`, the whole record) instead of two merged in extract.
+- History takes no input: a player's head row is his attribute record's own `history_head`
+  (now in `attribute_records.json`), and the loader joins persons to it
+  (`raw.attribute_records.history_head`), not a `heads` map in `history.json`.
+- Extract takes no career. `careers.py` moved to the repo root, on the loader's side
+  (`test_boundary` bans it from fmparser and extract); the loader takes `--career` (else the
+  store's own), places each snapshot (`careers.campaign`, moved from `save_header`) and runs
+  the match table vs fixture list check. `summary.json` loses `season`, `phase` and `career`.
+- The cursor is a CHECK, not a search bound: each located table's first record must sit at
+  or after the end of the table before it, else extract stops naming both;
+  `--no-cursor` skips it. Locators do not take `lo`: a lower bound only changes a locator's
+  answer when it would otherwise land before its predecessor, which is exactly what the
+  check refuses, and on every measured save no locator does. Threading `lo` through ~20
+  locators and their caches would change no output; add it to the one locator that ever
+  needs it.
+- `tests/test_extract_order.py`: the steps' first records only go up, both careers.
 
-**Check**: `assert_identical` byte-identical (only the order of `dump()` calls changes).
+**Check**: `assert_identical` re-recorded (`attribute_records`, `history`, `summary` change;
+`names.json` becomes `browse_names.json` + `name_ids.json`; every other file byte-identical);
+the gate saves loaded with main's loader and with the branch's, every raw/stg/int/legacy/mart
+relation diffed.
 
 ## 12. stg for every raw table
 *(Partly done by the int redesign (#129): a stg model, keyed by `snapshot_date`, for every

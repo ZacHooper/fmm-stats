@@ -5,7 +5,7 @@ its locator; everything else is the table's own declaration.
 
   COMP   a named slot, one with a reference list, and a blank slot (empty names, FF name-end)
   CLUB   the trailer's counted lists (affiliates, squad, the 9-byte tail), a national team's
-         negative uid, league membership, and the club_details view of a row
+         negative uid, league membership, and the whole record of a row
   WALK   a slot out of order ends the walk there
 """
 import dataclasses
@@ -91,19 +91,20 @@ def test_club():
     buf = b"".join(rows_b)
     rows = over(CL.CLUB_TABLE, buf, 3).scrape(buf)
     assert [r["tid"] for r in rows] == [0, 1, 2]
-    assert rows[0]["uid"] == -961 and CL._club(rows[0])["league"] is None
-    assert CL._club(rows[1]) == {"name": "Arsenal", "short": "ARS", "uid": 10001,
-                                 "league": 10, "country": 1}
-    assert CL._club(rows[2])["league"] is None, "no FFFF marker: not a league member"
-    d = CL._club_detail(rows[1])
+    assert rows[0]["uid"] == -961 and CL._club(rows[0])["league_cid"] is None
+    d = CL._club(rows[1])
+    assert {k: d[k] for k in ("tid", "uid", "name", "short", "league_cid", "country")} == {
+        "tid": 1, "uid": 10001, "name": "Arsenal", "short": "ARS", "league_cid": 10,
+        "country": 1}
+    assert CL._club(rows[2])["league_cid"] is None, "no FFFF marker: not a league member"
     assert d["affiliates"] == [{"club1_tid": 1, "club2_tid": 7, "start_day": 1,
                                 "start_year": 2020, "end_day": 1, "end_year": 2021}]
     assert d["squad"] == [5, 6] and d["staff"] == [9]
     assert d["league_pos"] == 3 and d["reputation"] == 500
-    assert CL._club_detail(rows[2])["main_club_tid"] == 1
+    assert CL._club(rows[2])["main_club_tid"] == 1
     assert len(rows_b[1]) - len(rows_b[0]) == len("Arsenal") - len("Argentina") \
         + len("ARS") - len("Argentina") + 21 + 2 * 9, "affiliates and tail sized by count"
-    print("  PASS national team, league membership, counted lists, club_details")
+    print("  PASS national team, league membership, counted lists, the whole record")
 
 
 def test_walk_stops():

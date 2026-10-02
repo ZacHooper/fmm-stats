@@ -50,9 +50,8 @@ ORACLE_DIR = os.path.join(REPO, ".oracle")
 BASELINE = os.path.join(ORACLE_DIR, "baseline.json")
 SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 
-# (career key, save basename). The career cannot be derived from the file name in general --
-# `careers.py` is the registry -- but our naming convention puts the key first, so this stays
-# a list of names rather than a parser.
+# (career folder under $FM_SAVES_DIR, save basename). Only the folder: extract reads a save
+# the same whatever career it belongs to.
 DEFAULT_SAVES = [
     ("frem", "frem-2021-06-27.fms"),
     ("frem", "frem-2023-07-02.fms"),
@@ -87,8 +86,7 @@ def extract(career, name, quiet=True):
     # the directory is the harness's own; clear it so a file the extract no longer writes
     # reads as DISAPPEARED instead of being hashed from an earlier run
     shutil.rmtree(dest, ignore_errors=True)
-    cmd = [sys.executable, os.path.join(REPO, "extract.py"), path,
-           "--career", career, "--label", label]
+    cmd = [sys.executable, os.path.join(REPO, "extract.py"), path, "--label", label]
     r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"extract failed for {name}:\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}")

@@ -10,7 +10,7 @@ Nothing is written back to the save.
 ## Usage
 
 ```bash
-uv run python extract.py ~/fm-saves/frem/frem-2023-07-02.fms --career frem
+uv run python extract.py ~/fm-saves/frem/frem-2023-07-02.fms
 ```
 
 This writes `output/<label>/`:
@@ -18,11 +18,17 @@ This writes `output/<label>/`:
 | file | contents |
 |------|----------|
 | `persons.json` | the person table (~33k, players and staff): identity, club, DOB, nationality, personality, and the links to the two attribute tables |
-| `attribute_records.json` | the player attribute table (~26k), keyed by `sid`: the 34 attribute bytes as stored, CA/PA, positions, feet, reputation |
+| `attribute_records.json` | the player attribute table (~26k), keyed by `sid`: the 34 attribute bytes as stored, CA/PA, positions, feet, reputation, and `history_head` (where his career history starts) |
 | `staff_records.json` | the staff attribute table, keyed by `id2`: coaching ability, reputation, the manager's formation triple (indices into `formations.json`) |
+| `browse_names.json`, `name_ids.json` | the browse strings and the first-name / surname / nickname id-tables that index them |
+| `history.json` | the career-history pool, every row; a player's chain starts at his `history_head` |
 | `matches.json` | every match: per-player stats (23 fields), events, team stats, formation, man-of-the-match |
-| `clubs.json` | club TID → name |
-| `summary.json` | season, phase (the save's header date), counts, competitions |
+| `clubs.json` | the whole club table: names, uid, league, and the record's trailer |
+| `summary.json` | the save's header date and title, counts, competitions |
+
+One file per table, in the order the save stores them (`steps()` in `extract.py`). The
+extract takes no career: the loader places the snapshot in its campaign
+(`load_duckdb.py --career <key>`, `careers.py`).
 
 The label is the save's file name without `.fms`. Saves are named `<career>-<header date>`
 (`scripts/archive_save.py` does it), so the label, the save and the snapshot's `phase` are one

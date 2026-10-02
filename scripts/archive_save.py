@@ -33,7 +33,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
-from fmparser import careers                                          # noqa: E402
+import careers                                                       # noqa: E402
 from fmparser.tables.save_header import SAVE_HEADER, read_save_header  # noqa: E402
 
 SAVES_DIR = os.path.expanduser(os.environ.get("FM_SAVES_DIR", "~/fm-saves"))

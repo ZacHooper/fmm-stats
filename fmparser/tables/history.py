@@ -31,8 +31,8 @@ The invariant is that the pointers form a forest -- every record on exactly one 
 The 8 bytes after the last record (`21 04 81 00 xx 00 00 00` on every save) are not claimed:
 they read as neither a record nor part of the club-records grid that follows.
 
-What the parser emits is the pool as stored: every record, column-wise, and each player's
-head. Reading a player's chain is done after the parse, over these records
+What the parser emits is the pool as stored: every record, column-wise. Reading a player's
+chain, from his `history_head`, is done after the parse, over these records
 (`load_duckdb.py`).
 """
 import dataclasses
@@ -42,7 +42,6 @@ from typing import Any, Dict, Optional, Tuple
 
 from ..core import Field, LinkedTableDef, Record, U8, U16, U32
 from ..save import cache_key as _cache_key
-from .player_attributes import PLAYER
 
 __all__ = [
     "END",
@@ -50,7 +49,6 @@ __all__ = [
     "HISTORY_ROW",
     "HISTORY_TABLE",
     "history_end",
-    "history_heads",
     "locate_history",
     "scrape_history",
 ]
@@ -158,27 +156,11 @@ HISTORY_TABLE = LinkedTableDef(
 )
 
 
-def history_heads(mm: Any, info: Dict[int, Dict[str, Any]],
-                  attrs: Dict[str, Dict[str, Any]]) -> Dict[int, int]:
-    """{tid: history_head} for every person with a player attribute record: the row his
-    chain starts at, as stored. A head outside the pool (a player with no history yet) is
-    emitted as stored too."""
-    head = PLAYER.field("history_head")
-    out = {}
-    for tid, p in info.items():
-        rec = attrs.get(p["sid"])
-        if rec is not None:
-            out[tid] = PLAYER.read_field(mm, head, rec["offset"])
-    return out
-
-
-def scrape_history(mm: Any, info: Dict[int, Dict[str, Any]],
-                   attrs: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """{base, count, header, rows, heads}: the whole pool column-wise, plus each player's
-    head row. Raises `LinkedTableError` if the pool is not located or is not a forest."""
-    out = HISTORY_TABLE.scrape(mm)
-    out["heads"] = {str(t): h for t, h in history_heads(mm, info, attrs).items()}
-    return out
+def scrape_history(mm: Any) -> Dict[str, Any]:
+    """{base, count, header, rows}: the whole pool column-wise. A player's chain starts at
+    his attribute record's `history_head` (tables/player_attributes.py). Raises
+    `LinkedTableError` if the pool is not located or is not a forest."""
+    return HISTORY_TABLE.scrape(mm)
 
 
 def history_end(mm: Any) -> int:

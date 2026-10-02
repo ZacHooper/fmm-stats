@@ -4,7 +4,7 @@ Reverse-engineering **Football Manager Mobile 2022** `.fms` save files into a qu
 DuckDB store + a Streamlit dashboard. **Career-aware:** the one genuinely career-specific
 fact is the club you manage (its TID), which is how the store finds your squad's exact
 names+attributes (each player in our squad arrays: the 7 plain attributes from his own record,
-the rest from his latest scrapbook entry while it is at most a year old, `int.scrapbook_entries`). Careers are registered in **`fmparser/careers.py`** and each has its own
+the rest from his latest scrapbook entry while it is at most a year old, `int.scrapbook_entries`). Careers are registered in **`careers.py`** and each has its own
 DuckDB store (`fm-<key>.duckdb`):
 
 | key | club | managed tid | reserve | store | state |
@@ -18,10 +18,12 @@ decode that generalises — but its store isn't rebuilt. `db.available_careers()
 the store FILE exists, so not building one is all it takes to drop a career from the dashboard.
 Rebuild it any time with `scripts/rebuild.py --career bucaspor --include-inactive`.
 
-Extract with `--career <key>`. **Starting a new career:** run
+Extract takes no career (a save's tables read the same whatever career it is); the loader
+does: `load_duckdb.py --career <key>`, else the career the store already records.
+**Starting a new career:** run
 `python3 scripts/discover_career.py <save.fms>` — it reads the "(Nickname)" the save header
 opens with and ranks candidate clubs; add the winning first-team + reserve tids to
-`careers.py`, then extract. All saves for a career must be that same career.
+`careers.py`, then extract and load. All saves for a career must be that same career.
 
 ## Resuming work
 **[`docs/TODO.md`](docs/TODO.md)** is the ONE doc you read to resume — where the project is
@@ -130,11 +132,16 @@ one remaining reason to fall back to a real local rebuild is data more recent th
 ATTACH the full store for that, not a scrub issue).
 
 ## Three layers: extract, load, transform
-- **`fmparser/` is the E** — save bytes to `output/<label>/*.json`. It imports neither duckdb
-  nor fmstats.
+- **`fmparser/` is the E** — save bytes to `output/<label>/*.json`, one file per table as
+  stored. It imports neither duckdb, fmstats nor `careers.py`: a save reads the same whatever
+  career it belongs to. `extract.py` is a flat list of steps (`steps()`), one per table, in
+  the order the save stores them, with a cursor that refuses a table found before the end
+  of the one before it (`--no-cursor` skips that check).
 - **`load_duckdb.py` is the L** — JSON into `raw` tables, plus the reference seeds only the
   parser can supply (`raw.event_types`, the career keys in `raw.app_config`). It is glue:
-  it may import both sides.
+  it may import both sides. It owns the career (`careers.py`, `--career`): it places each
+  snapshot in its campaign by the career's rollover, and checks the match table against the
+  world fixture list for our two clubs.
 - **`transform/` and `fmstats/` are the T.** `transform/` is a **dbt** project (dbt-duckdb)
   that builds the `stg` and `int` layers as views over `raw` — one stg model per raw table,
   keyed by `snapshot_date`, and int models shaped by the semantic model (`docs/data-model/`):
@@ -449,8 +456,9 @@ Nothing parses it, so it can never break a rebuild — only `<career>-<date>` ca
 New saves: `scripts/archive_save.py <file> --career frem --upload` names it canonically on the
 way in, from the in-game date in the save's own header title (`9/8/27 - Mr Manager (Frem)`,
 `fmparser/tables/save_header.py`) -- a 0-match save included. `--phase` overrides it.
-`extract.py` takes `phase` from the same header, and `season` from it with the career's
-rollover day (`Career.rollover`: Frem 30 June, Bucaspor 20 June). `scripts/canonicalise_names.py` (deleted; restore from git if needed) retro-fitted the
+`extract.py` writes the same header date into `summary.json`; the loader takes `phase` from
+it and `season` from it with the career's rollover day (`Career.rollover`: Frem 30 June,
+Bucaspor 20 June). `scripts/canonicalise_names.py` (deleted; restore from git if needed) retro-fitted the
 convention across saves, `.gz`, R2 objects, `output/` dirs, both stores' `save_path` + `label`,
 and saved-scout keys — all five, because the manifest is generated FROM the store, so renaming
 files without updating `raw.extracts` silently reverts the manifest on the next export.
@@ -468,8 +476,8 @@ uv run python fmq.py --help                               # output, matches, mov
 
 # importing a NEW save
 uv run python scripts/archive_save.py ~/Downloads/<save>.fms --career frem --upload
-uv run python extract.py ~/fm-saves/frem/<save>.fms --career frem   # -> output/<save name>
-uv run python load_duckdb.py output/<l> --db fm-frem.duckdb   # season+phase from the header
+uv run python extract.py ~/fm-saves/frem/<save>.fms                # -> output/<save name>
+uv run python load_duckdb.py output/<l> --db fm-frem.duckdb   # season+phase from the header + the store's career
 uv run python scripts/export_manifest.py                  # refresh the rebuild recipe, then commit
 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids
@@ -502,7 +510,7 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - **Rating an opponent: Level %ile, not Fit %ile.** `pos_index`/`pctile_*` (`effective_table`) are OUR tactic's role-weighted Fit — how well an attribute set suits `frem_attacking_ss`, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `fmstats.scout.scout_report()`'s `key_players` and its `matchups` table (see next bullet) use `level_*`; only use `pos_index` for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
 - **A back line doesn't play a back line.** `scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`matchup_table()`) for that reading, not `strength`.
 - **Quality is not output.** `scout_report()['h2h_players']` is each opponent player's production in matches against us, with `still_there` for whether he is at the club now. Read it next to `key_players`: against OB the two men who hurt us most (5 goals; 11 key passes) sat at 53 and 23 on Level %ile, below six team-mates the ranking put first.
-- We play a **4-2-3-1**, rated with **`frem_minmax_4231`** — the career's `rating_method` in `fmparser/careers.py`, which the loader records in the store
+- We play a **4-2-3-1**, rated with **`frem_minmax_4231`** — the career's `rating_method` in `careers.py`, which the loader records in the store
 (`raw.app_config.career_rating_method`) and `fmq scout` uses by default. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. **These two are the only weight-sets the store ships** (`seeds/role_weights.csv`): every player is rated in every role of every set, and the others were unused, so they are retired (`load_duckdb.RETIRED_METHODS` deletes them from an existing store too).
   **`frem_minmax_4231` is different in kind** — not hand-built from a tactic
   author's stated player traits but DERIVED from the match data by `scripts/derive_weight_set.py`,
