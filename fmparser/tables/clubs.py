@@ -57,8 +57,9 @@ def _kit_fields(k):
 # nyongrand/fmm-editor's FMM26 `Club` (docs/agent-context/fmm-editor-record-comparison.md),
 # verified on the Danish Superliga: league_id reads 2 for every top-flight club, attendances
 # rank the clubs by size, and the colours decode to the right kits. A colour is RGB555
-# (0x7FFF is white). `based_id` and `nation_id` agree on all but 72 clubs (a based-in vs
-# competes-in split, which is which not verified).
+# (0x7FFF is white). `based_id` is the nation whose league the club plays in and `nation_id`
+# the club's home nation; they differ on 72 clubs (Cardiff City: England, Wales; The New
+# Saints, of Oswestry: Wales, England; FC Balzers: Switzerland, Liechtenstein).
 CLUB_TRAILER = Record("club_trailer", 167, (
     Field(0, 2, "based_id", U16),
     Field(2, 2, "nation_id", U16),

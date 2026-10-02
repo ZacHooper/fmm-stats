@@ -18,10 +18,10 @@ One row per person, in a count-framed array a fixed distance after the Player Pr
                                    green fill
     +21  intensity u16             the Int column: 3 = high (the red icon), 2 = normal;
                                    1 and 0 also occur
-    +23  focus_role u16            the Focus Role, a role id (named in `fmstats/definitions.py`); 0xffff on a
+    +23  focus_role u16            the Focus Role, a role id (named in `seeds/roles.csv`); 0xffff on a
                                    member of staff
     +25  u16                       0 on a player, 0xffff on a member of staff
-    +27  focus_attribute u16       the Attr column, a code (named in `fmstats/definitions.py`)
+    +27  focus_attribute u16       the Attr column, a code (named in `seeds/training_attributes.csv`)
     +29  focus_band u8             the Focus Pos, as the pair the match slot array uses
     +30  focus_column u8           (`core.primitives.pitch_position`)
     +31  6 bytes                   unread: three u16

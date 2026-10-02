@@ -1,0 +1,16 @@
+code,unit,display_order
+GK,goalkeeper,1
+SW,defence,2
+DL,defence,3
+DC,defence,4
+DR,defence,5
+DML,defence,6
+DMC,midfield,7
+DMR,defence,8
+ML,midfield,9
+MC,midfield,10
+MR,midfield,11
+AML,attack,12
+AMC,attack,13
+AMR,attack,14
+ST,attack,15

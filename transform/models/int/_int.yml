@@ -94,3 +94,63 @@ models:
     description: Every player rated in every role of every weight-set.
   - name: int_player_rating_ranks
     description: Each rating's percentile and rank among every player at that snapshot.
+  - name: int_teams
+    description: >
+      Every club-shaped record on each snapshot as a team: the club that owns it (its parent, else itself), its team type and whether it is the first team.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, club_tid]
+            to: ref('int_club_snapshots')
+            to_columns: [snapshot_date, club_tid]
+  - name: int_club_snapshots
+    description: >
+      Each club on each snapshot, from its first team's record: nations, ground, colours and kits, affiliates.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, club_tid]}}
+  - name: int_team_snapshots
+    description: >
+      Each team on each snapshot, from its own record: reputation, status, training facilities, league, last season's finish, ground (else the club's).
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+  - name: int_club_list
+    description: >
+      Each club once, as its latest snapshot gives it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [club_tid]}}
+  - name: int_team_list
+    description: >
+      Each team once, as its latest snapshot gives it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [club_tid]
+            to: ref('int_club_list')
+            to_columns: [club_tid]
+  - name: int_nation_snapshots
+    description: >
+      Each nation on each snapshot: world ranking, the ranking and coefficient histories and the languages spoken, as lists.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, nation_id]}}
+  - name: int_nations
+    description: >
+      Each nation once, as a place: the values that do not change between snapshots.
+    data_tests:
+      - unique_combination: {arguments: {columns: [nation_id]}}
+  - name: int_cities
+    description: >
+      Each city once, as its latest snapshot gives it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [city_id]}}
+  - name: int_stadiums
+    description: >
+      Each stadium once: uid and city, which do not change between snapshots.
+    data_tests:
+      - unique_combination: {arguments: {columns: [stadium_id]}}
+  - name: int_stadium_snapshots
+    description: >
+      Each stadium on each snapshot: name and capacity then.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, stadium_id]}}

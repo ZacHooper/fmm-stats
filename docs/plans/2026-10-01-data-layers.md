@@ -106,7 +106,7 @@ One PR each, merged green, in this order.
 | 10 | Extract cleanup | extract | `run_tests.py`; `assert_identical` re-recorded |
 | 11 | Save order and the cursor; extract takes no career | both | `assert_identical` re-recorded; gate stores diffed |
 | 12 | stg for every raw table | layers | `rows_match_source` on every stg model |
-| 13 | Reference, nation, club | layers | vs `mart.clubs`, `mart.our_clubs` |
+| 13 | Reference, nation, club | layers | vs `mart.clubs` row for row; `dim_team` = `mart.our_clubs` |
 | 14 | Competition and match | layers | vs `mart.club_matches`, `match_stages`, `league_tables`, `match_player_facts` |
 | 15 | Person and the two models | layers | vs `mart.player_snapshots`, `player_value_est`, `injury_spells`, `player_seasons` |
 | 16 | Contracts and transfers | layers | vs `mart.player_spells`, `at_club_spells`, `transfers`, `loan_out_spells`, `squad_current` |
@@ -350,15 +350,45 @@ less the rows it documents dropping: none do), plus a grain test wherever the so
 key; broken on purpose once (a `where` on `stg_stadiums` fails it).
 
 ## 13. Reference, nation, club
-- **int**: club ↔ team via `main_club_tid` (national sides are club-shaped in the first slots,
-  `club_type = national`); snapshot dedupe for slowly changing club data.
-- **mart**: `dim_position`, `dim_role`, `dim_city`, `dim_stadium`, `dim_nation`,
-  `fact_nation_snapshot`, `dim_club`, `dim_team`, `fact_club_snapshot` (facilities, academy,
-  status, attendance, colours and kits, finances, affiliates), `fact_team_snapshot` (reputation,
-  assumed per team).
+The first `dim_*` / `fact_*` tables, built by dbt in `models/mart/` as tables in the `mart`
+schema beside the old views (`load_duckdb._drop_unbuilt` drops only the `dim_`/`fact_` tables
+the project no longer defines).
+- **The save stores every team as a whole club record**, so the team, not the club, is the
+  unit it holds. `int_teams`: a team that names a parent in `main_club_tid` belongs to that
+  club, else it is its club's first team. `team_type` is `first`, `reserve`, `b_team` (a
+  first-team-typed record with a parent: a second side in the senior pyramid, Las Palmas C),
+  `national` or `national_u21`. `int_team_squads` reads its team type and club from it.
+- **Club vs team, measured, not assumed**: reputation and status are each team's (Frem 4691,
+  its reserves 3530), on `fact_team_snapshot` with the training and youth facilities. A reserve
+  side's record holds defaults for the facilities (training 10 and youth 0 on every reserve
+  side, never changing), so it has its club's; a B team has its own. Ground, colours and kits
+  are the first team's, on `fact_club_snapshot` (a reserve side stores no ground and empty
+  kits); a team's ground is its own, else its club's. The record's attendance fields are not
+  modelled (`mart.clubs` says why).
+- **Dimensions hold what does not change between snapshots**; what changes is on a snapshot
+  fact. A stadium's name and capacity change (Valby Stadion 4,400, 9,400, 15,000), so they are
+  on `fact_stadium_snapshot`; a nation's languages, ranking and coefficients on
+  `fact_nation_snapshot`. Measured on the gate stores, the nation, city, club-name and
+  club/nation id fields never change.
+- `based_id` is the nation whose league a club plays in (Cardiff City: England; home nation
+  Wales): `league_nation_id`.
+- **Codes named by seeds**: `seeds/roles.csv`, `training_attributes.csv` and `positions.csv`
+  (the unit of each position) replace `fmstats/definitions.py`; the loader seeds them into raw
+  (`seed_codes`) and `fmstats/mart.py` renders `mart.roles` / `mart.training_attributes` from
+  the same files. A role carries no position: the save does not say where one is played.
+- Mart models are named by their relation (`dim_city.sql` -> `mart.dim_city`), not
+  `mart_<name>`. A dimension's row is its id's latest snapshot (`latest()`: the max
+  `snapshot_date` the id appears in). Cities have no name in the save.
 
-**Check**: vs `mart.clubs`; first team ↔ reserves matches `mart.our_clubs`; `careers.py`'s
-hardcoded `reserve_tid` can now be read from `dim_team`.
+**Check**: `fact_team_snapshot` against `mart.clubs` on all 33,993 (Frem) and 12,278 (Bucaspor)
+rows: name, reputation, last season's finish, staff size and status agree on every row, and
+so do facilities and academy for every team but a reserve side (which now has its club's). The differences are all explained: the save's 0xFFFF reads
+NULL; a reserve, U21 or B side with no ground gets its club's, and a reserve side its club's
+facilities; and `mart.club_leagues` carries a
+league forward from an earlier snapshot where the record names none (217 Frem rows), a
+cross-snapshot rule that moves with the league tables in step 14. `dim_team`'s teams of the
+managed club equal `mart.our_clubs` (a `validate_mart.py` check), and its reserve is
+`careers.py`'s `reserve_tid` (7296, 11320).
 
 ## 14. Competition and match
 - **int**: match identity across snapshots (the latest-phase rule), stage and round labelling from
@@ -464,7 +494,6 @@ Mismatches are reported, never fixed by the build:
 | #15 History lost to reclamation | step 15 | `fact_player_season` unions history across snapshots |
 | #16 Extra-time minutes | step 14 | `fact_player_match.minutes` |
 | Two-legged ties: one round or two? | step 14 | how `tie_results` groups |
-| Reputation per team or per club | step 13 | modelled per team; moves if the save says otherwise |
 | Contract signed dates (unread training-row dates) | step 16 | exact end dates instead of snapshot bounds |
 
 ## Other TODOs this touches

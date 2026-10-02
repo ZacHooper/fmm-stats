@@ -1,0 +1,34 @@
+id,name,inferred
+0,Goalkeeper,false
+1,Sweeper Keeper,false
+2,Sweeper,true
+3,Full-Back,false
+4,Wing-Back,false
+5,Central Defender,false
+6,Ball Playing Defender,false
+7,No-Nonsense Centre-Back,false
+8,Wide Midfielder,true
+9,Winger,false
+10,Inverted Winger,false
+11,Defensive Winger,true
+12,Inside Forward,false
+13,Central Midfielder,false
+14,Deep Lying Playmaker,false
+15,Ball Winning Midfielder,false
+16,Box to Box Midfielder,false
+17,Advanced Playmaker,false
+18,Poacher,true
+19,Target Forward,false
+20,Deep Lying Forward,true
+21,Advanced Forward,false
+22,Complete Forward,true
+23,Pressing Forward,true
+24,Trequartista,true
+25,Libero,false
+26,Shadow Striker,false
+27,Inverted Wing-Back,true
+28,Defensive Full-Back,true
+29,Anchor,true
+30,Defensive Midfielder,false
+31,Attacking Midfielder,true
+32,Roaming Playmaker,false

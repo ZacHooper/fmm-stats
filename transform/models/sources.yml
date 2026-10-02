@@ -47,3 +47,6 @@ sources:
       - name: player_progress
       - name: event_types
       - name: eligible_origin_clubs
+      - name: roles
+      - name: training_attributes
+      - name: positions
