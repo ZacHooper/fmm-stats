@@ -20,13 +20,9 @@ from ..core import (CountedList, DATE, Field, HEX4, PAD, RAW, Record, TableDef, 
                     UNKNOWN, table_spans)
 
 __all__ = [
-    "DOB_YEAR_HI",
-    "DOB_YEAR_LO",
     "INFO_HEAD",
     "INFO_LAYOUT",
-    "NAME_ID_MAX",
     "NO_CLUB",
-    "NO_NICKNAME",
     "PERSONALITY",
     "PERSON_FIELDS",
     "PERSON_INFO",
@@ -41,10 +37,6 @@ __all__ = [
 ]
 
 NO_CLUB = P.NO_ID16
-NO_NICKNAME = b"\xff\xff\xff\xff"
-DOB_YEAR_LO = 1955
-DOB_YEAR_HI = 2030
-NAME_ID_MAX = 65536
 
 # The 8 personality bytes at info+52..59, in order.
 PERSONALITY = (

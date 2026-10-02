@@ -3,8 +3,8 @@
 
 Tests:
 1. `PERSON_INFO` record layout, 68-byte head span, field offsets.
-2. Constants integrity: `PERSONALITY` (8 attributes), `PERSON_FIELDS`, `DOB_YEAR_LO/HI`.
-3. Sentiment and sentinel constants (`NO_CLUB`, `NO_NICKNAME`, `NAME_ID_MAX`).
+2. Constants integrity: `PERSONALITY` (8 attributes), `PERSON_FIELDS`.
+3. The sentinel constant (`NO_CLUB`).
 4. Header frame locating (`locate_person_info`):
    - 8-byte 0xFF sentinel frame + uint32 count
 5. Post-processing and record decoding (`_decode_info`):
@@ -87,10 +87,6 @@ def test_person_info_schema_and_constants():
         assert field in PI.PERSON_FIELDS
 
     assert PI.NO_CLUB == 0xFFFF
-    assert PI.NAME_ID_MAX == 65536
-    assert PI.NO_NICKNAME == b"\xff\xff\xff\xff"
-    assert PI.DOB_YEAR_LO == 1955
-    assert PI.DOB_YEAR_HI == 2030
 
     field_map = {f.name: f for f in PI.PERSON_INFO.fields}
     assert field_map["tid"].offset == 0

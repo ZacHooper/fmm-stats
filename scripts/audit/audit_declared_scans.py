@@ -20,7 +20,7 @@ them is the walk's own structural summary (declared == named + blank) plus the c
 below, which is the half that still answers a real question.
 
 Two things this script exists specifically to avoid getting wrong, both caught while building
-it against the comp gates (see `clubs_comps.diagnose_refdata_scan`'s docstring), and both of
+it against the comp gates, and both of
 which now apply to the CLUB gates:
 
   1. A raw reject-reason count is not "how many real records are we losing" -- a candidate
