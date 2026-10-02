@@ -1,7 +1,9 @@
 -- Each stage of each labelled competition season, from its rules: format
 -- (var('stage_formats'): knockout, league or group), team count, groups and
 -- name. is_final_stage marks the competition season's last stage, whose
--- outcome decides the winner.
+-- outcome decides the winner. A rules member can list a stage twice with
+-- different team counts (competition 95's first round as 12 teams and as 8,
+-- in the same snapshot); stage_teams is NULL where its versions disagree.
 {%- set formats = var('stage_formats') %}
 
 with stages as (
@@ -11,7 +13,10 @@ with stages as (
         rounds.stage_index,
         any_value(rounds.stage_code) as stage_code,
         any_value(rounds.stage_type) as stage_type,
-        any_value(rounds.stage_teams) as stage_teams,
+        case
+            when count(distinct rounds.stage_teams) = 1
+                then any_value(rounds.stage_teams)
+        end as stage_teams,
         any_value(rounds.n_groups) as n_groups,
         any_value(rounds.stage_name_id) as stage_name_id,
         any_value(rounds.snapshot_date) as rules_snapshot_date
