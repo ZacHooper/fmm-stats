@@ -269,7 +269,7 @@ The smallest of the three record steps; it proves the raw → stg → int → co
 `formations.json` as stored, into `raw.person_records` / `attribute_records` / `staff_records` /
 `formations`. stg models over each; int does the joins: `int_player_records` (person ⋈
 attribute record on `sid`, `has_attributes`, `is_goalkeeper`), `int_player_positions`,
-`int_player_attributes_stated` (the seven plain bytes), `int_staff_snapshots` (person ⋈ staff
+`int_player_attributes_exact` (the seven plain bytes, plus our squad's fresh scrapbook entries), `int_staff_snapshots` (person ⋈ staff
 record on `id2`, formation names, Style and reputation tier banded in SQL). The old shapes are
 legacy models (`players`, `player_positions`, `staff_attributes`). `id2 = 0` is a real link
 (tid 0's record); the old extract treated it as "none".)*

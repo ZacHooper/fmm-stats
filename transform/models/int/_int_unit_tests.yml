@@ -131,15 +131,17 @@ unit_tests:
 
   - name: exact_attributes_from_a_fresh_entry
     description: >
-      The seven plain attributes always come from the player's own record; the entangled ones
-      from his squad entry while it is fresh, else as stated (NULL, left to the decode).
+      The seven plain attributes are the player's record bytes as stored (Pace is pace_src);
+      the entangled ones come from his squad entry while it is fresh, else NULL (left to the
+      decode); a player without an attribute record has no row.
     model: int_player_attributes_exact
     given:
-      - input: ref('int_player_attributes_stated')
+      - input: ref('int_player_records')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, Pace: 11}
-          - {snapshot_date: '2026-06-11', tid: 4, Pace: 14}
-          - {snapshot_date: '2026-06-11', tid: 6, Pace: 16}
+          - {snapshot_date: '2026-06-11', tid: 1, has_attributes: true, pace_src: 11, crossing_src: 200}
+          - {snapshot_date: '2026-06-11', tid: 4, has_attributes: true, pace_src: 14, crossing_src: 200}
+          - {snapshot_date: '2026-06-11', tid: 6, has_attributes: true, pace_src: 16, crossing_src: 200}
+          - {snapshot_date: '2026-06-11', tid: 7, has_attributes: false, pace_src: null}
       - input: ref('int_managed_squad')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, team_tid: 346}
@@ -151,9 +153,9 @@ unit_tests:
           - {snapshot_date: '2026-06-11', player_tid: 6, is_fresh: false, Pace: 99, Teamwork: 12}
     expect:
       rows:
-        - {tid: 1, Pace: 11, Teamwork: 7}
-        - {tid: 4, Pace: 14, Teamwork: null}
-        - {tid: 6, Pace: 16, Teamwork: null}
+        - {tid: 1, Pace: 11, Teamwork: 7, Crossing: null}
+        - {tid: 4, Pace: 14, Teamwork: null, Crossing: null}
+        - {tid: 6, Pace: 16, Teamwork: null, Crossing: null}
 
   - name: player_records_join_on_sid
     description: >
@@ -180,20 +182,6 @@ unit_tests:
         - {tid: 1, has_attributes: true, is_goalkeeper: true, ca: 80}
         - {tid: 2, has_attributes: true, is_goalkeeper: false, ca: 90}
         - {tid: 3, has_attributes: false, is_goalkeeper: null, ca: null}
-
-  - name: stated_attributes_are_the_plain_bytes
-    description: >
-      The seven exact_single attributes are the record's plain bytes as stored; every other
-      attribute is NULL; a player without an attribute record has no row.
-    model: int_player_attributes_stated
-    given:
-      - input: ref('int_player_records')
-        rows:
-          - {snapshot_date: '2026-06-11', tid: 1, has_attributes: true, pace_src: 12, heading_src: 3, crossing_src: 200}
-          - {snapshot_date: '2026-06-11', tid: 2, has_attributes: false, pace_src: null}
-    expect:
-      rows:
-        - {tid: 1, Pace: 12, Aerial: null, Crossing: null}
 
   - name: staff_style_and_tier_banded
     description: >
