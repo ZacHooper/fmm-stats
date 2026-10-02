@@ -903,11 +903,11 @@ def main():
     # Origin-club stadiums for the CURRENT squad — mart.squad_current is already "who's really
     # ours right now" (see CLAUDE.md's squad_current/squad_on note), so this can't repeat the
     # raw-club_tid mistake that catches a lapsed loan. A player with no resolvable origin club
-    # (17% of the pool; see docs/TODO.md, "Unnamed fields") or `confidence='low'` can't be plotted — counted, not
+    # (17% of the pool; see docs/TODO.md, "Unnamed fields") can't be plotted — counted, not
     # silently dropped.
     origins_df = db.q("""WITH o AS (
                             SELECT sc.person_id, sc.name, po.origin_parent_tid,
-                                   po.origin_parent_club, po.confidence
+                                   po.origin_parent_club
                             FROM mart.squad_current sc
                             LEFT JOIN mart.player_origin po
                                  ON (po.season, po.phase, po.tid) = (?, ?, sc.tid)
@@ -922,7 +922,7 @@ def main():
                           FROM o
                           LEFT JOIN mart.club_places cp
                                ON (cp.season, cp.phase, cp.club_tid) = (?, ?, o.origin_parent_tid)
-                          WHERE o.origin_parent_tid IS NOT NULL AND o.confidence != 'low'
+                          WHERE o.origin_parent_tid IS NOT NULL
                           GROUP BY o.origin_parent_tid
                           ORDER BY o.origin_parent_tid""",
                       [season, phase, season, phase])
@@ -936,8 +936,7 @@ def main():
     unresolved = db.q("""SELECT COUNT(*) AS n FROM mart.squad_current sc
                          LEFT JOIN mart.player_origin po
                               ON (po.season, po.phase, po.tid) = (?, ?, sc.tid)
-                         WHERE po.origin_parent_tid IS NULL OR po.confidence = 'low'
-                            OR po.confidence IS NULL""", [season, phase])
+                         WHERE po.origin_parent_tid IS NULL""", [season, phase])
     n_unresolved = int(unresolved.iloc[0]["n"])
 
     emit("world.json", {

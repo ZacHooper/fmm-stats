@@ -120,7 +120,7 @@ decompressed bytes, measured on four saves:
 
 The 147 `comp_<id>.dat` ids are **not our `cid` space — they are the competition `uid`**. The
 competition record in the main save holds its uid immediately before its name, and
-`fmparser/clubs_comps.py` already reads it into `raw.competitions.uid`: `cid 2` 3F
+`fmparser/tables/competitions.py` already reads it into `raw.competitions.uid`: `cid 2` 3F
 Superliga is `comp_6.dat`, `cid 256` European Champions Cup `comp_1301394.dat`, `cid 258`
 EURO Cup `comp_1301396.dat`, `cid 263` Sydbank Pokalen `comp_1301406.dat`. See the next
 section for what the members hold.

@@ -1213,12 +1213,9 @@ LEFT JOIN {S}.person_slices ps
        ON (ps.season, ps.phase, ps.tid) = (h.season, h.phase, h.tid)
 """
 
-# Where a player came from — the raw reading, with no eligibility verdict on it.
-#
-# confidence='low' blanks the origin rather than dropping the row: an unreliable origin must
-# not read as a known one, but the player still exists. Since the career-history chain head
-# became a STORED POINTER (u32 @ P-38 in the attribute record) rather than a positional
-# guess, every row here is 'exact' in practice and the blanking is a guard, not a filter.
+# Where a player came from — the raw reading, with no eligibility verdict on it. The
+# career-history chain head is a stored pointer (u32 @ P-38 in the attribute record), so every
+# origin here is exact.
 #
 # THIS IS SPLIT FROM mart.player_origin ON PURPOSE, and the split is what makes the capital
 # rule correct. `origin_club_tid` is very often an ACADEMY side rather than a senior club —
@@ -1232,13 +1229,10 @@ PLAYER_ORIGIN_BASE = """
 CREATE OR REPLACE VIEW mart.player_origin_base AS
 SELECT
     h.season, h.phase, h.tid, ps.person_id,
-    CASE WHEN h.confidence = 'low' THEN NULL ELSE h.origin_club_tid END AS origin_club_tid,
-    CASE WHEN h.confidence = 'low' THEN NULL
-         ELSE COALESCE(oc.name, '#' || h.origin_club_tid) END           AS origin_club,
-    CASE WHEN h.confidence = 'low' THEN NULL
-         ELSE COALESCE(lc.name, '#' || h.last_season_club_tid) END      AS last_season_club,
-    h.debut_end_year                                                    AS origin_end_year,
-    h.confidence
+    h.origin_club_tid,
+    COALESCE(oc.name, '#' || h.origin_club_tid)                         AS origin_club,
+    COALESCE(lc.name, '#' || h.last_season_club_tid)                    AS last_season_club,
+    h.debut_end_year                                                    AS origin_end_year
 FROM {S}.player_history h
 LEFT JOIN {S}.clubs oc ON (oc.season, oc.phase, oc.tid) = (h.season, h.phase, h.origin_club_tid)
 LEFT JOIN {S}.clubs lc ON (lc.season, lc.phase, lc.tid) = (h.season, h.phase, h.last_season_club_tid)
@@ -1251,7 +1245,7 @@ LEFT JOIN {S}.person_slices ps
 # the PARENT. An academy-origin player is a product of the club that runs the academy, so
 # "came out of FC København" has to be true whether the save recorded FCK or FCK's youth side.
 #
-# There is no confidence column and no threshold to tune. mart.youth_clubs resolves the academy
+# There is no threshold to tune. mart.youth_clubs resolves the academy
 # arithmetically (youth_tid = 65535 - club_tid), so `origin_parent_tid` is either exactly right
 # or absent, and `eligible` is a fact about the parent rather than a judgement about a vote.
 PLAYER_ORIGIN = """
@@ -1259,10 +1253,9 @@ CREATE OR REPLACE VIEW mart.player_origin AS
 SELECT
     b.*,
     COALESCE(y.club_tid, b.origin_club_tid)                            AS origin_parent_tid,
-    CASE WHEN b.confidence = 'low' THEN NULL
-         ELSE COALESCE(pc.name, b.origin_club) END                     AS origin_parent_club,
+    COALESCE(pc.name, b.origin_club)                                   AS origin_parent_club,
     y.youth_tid IS NOT NULL                                            AS via_academy,
-    (e.club_tid IS NOT NULL AND b.confidence <> 'low')                 AS eligible
+    e.club_tid IS NOT NULL                                             AS eligible
 FROM mart.player_origin_base b
 LEFT JOIN mart.youth_clubs y
        ON (y.season, y.phase, y.youth_tid) = (b.season, b.phase, b.origin_club_tid)

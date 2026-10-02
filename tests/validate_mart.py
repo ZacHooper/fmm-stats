@@ -791,7 +791,7 @@ def main():
     # senior club onto something else.
     lost = con.execute(f"""
         SELECT COUNT(*) FROM mart.player_origin o
-        WHERE o.season = ? AND o.phase = ? AND NOT o.eligible AND o.confidence <> 'low'
+        WHERE o.season = ? AND o.phase = ? AND NOT o.eligible
           AND o.origin_club_tid IN (SELECT club_tid FROM {src}.eligible_origin_clubs)
     """, [S, P]).fetchone()[0]
     check("resolving academies never REMOVES capital eligibility", lost == 0,
