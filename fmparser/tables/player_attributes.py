@@ -209,11 +209,11 @@ def scrape_player_attributes(mm: Any) -> Dict[str, Dict[str, Any]]:
 
 
 def record_for(mm: Any, tid: int) -> Optional[Dict[str, Any]]:
-    """Locate a player's global attribute record via SID. Returns a dict or None."""
-    from .person_info import info_offset
-    io = info_offset(mm, tid)
-    if io is None:
+    """A player's attribute record: his person record's `sid`, from the walked person
+    table, looked up in the attribute table. None for staff or an unknown tid."""
+    from .person_info import scrape_person_info
+    person = scrape_person_info(mm).get(tid)
+    if person is None:
         return None
-    sid = mm[io + 60:io + 64].hex()
-    return PLAYER_ATTRIBUTES_TABLE.id_map(mm, key_field="sid").get(sid)
+    return PLAYER_ATTRIBUTES_TABLE.id_map(mm, key_field="sid").get(person["sid"])
 

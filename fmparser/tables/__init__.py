@@ -124,13 +124,9 @@ from .nations import (
 )
 from .officials import OFFICIAL, OFFICIAL_STRIDE, OFFICIALS_TABLE, scrape_officials
 from .person_info import (
-    DOB_YEAR_HI,
-    DOB_YEAR_LO,
     INFO_HEAD,
     INFO_LAYOUT,
-    NAME_ID_MAX,
     NO_CLUB,
-    NO_NICKNAME,
     PERSONALITY,
     PERSON_FIELDS,
     PERSON_INFO,
@@ -338,13 +334,9 @@ __all__ = [
     "OFFICIALS_TABLE",
     "scrape_officials",
     # Person Info
-    "DOB_YEAR_HI",
-    "DOB_YEAR_LO",
     "INFO_HEAD",
     "INFO_LAYOUT",
-    "NAME_ID_MAX",
     "NO_CLUB",
-    "NO_NICKNAME",
     "PERSONALITY",
     "PERSON_FIELDS",
     "PERSON_INFO",

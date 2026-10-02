@@ -326,8 +326,8 @@ Useful in its own right: a per-manager previous-club / affinity table we did not
 **3. The nickname trap applies to staff as well.** A nickname-safe sweep of this save finds
 **33,873 info records, 7,584 staff-shaped — and 614 of those staff (8%) carry a nickname**, so
 the `FFFFFFFF`-anchored scan used to find managers in rounds 1–3 is blind to roughly one staff
-member in twelve. Future manager discovery must use `tables/person_info.info_offset`'s validator
-(nickname sentinel OR plausible nickname id), not the sentinel alone. All 7 confirmed managers
+member in twelve. Future manager discovery must walk the person table (`tables/person_info`,
+`tid == slot index`), not scan for the sentinel. All 7 confirmed managers
 happen to have no nickname, so the existing ground truth stands.
 
 **4. Style and Formation: the negative is now far stronger than "we searched nearby".**

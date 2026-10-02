@@ -12,7 +12,6 @@ then the records in tid order from 0 -- a career-constant pool, walked by declar
   [u16 m][m x 8 B]                              relationships: a club (kind 1) or a person
                                                 (kind 3) this person is linked to
 """
-import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import primitives as P
@@ -21,13 +20,9 @@ from ..core import (CountedList, DATE, Field, HEX4, PAD, RAW, Record, TableDef, 
                     UNKNOWN, table_spans)
 
 __all__ = [
-    "DOB_YEAR_HI",
-    "DOB_YEAR_LO",
     "INFO_HEAD",
     "INFO_LAYOUT",
-    "NAME_ID_MAX",
     "NO_CLUB",
-    "NO_NICKNAME",
     "PERSONALITY",
     "PERSON_FIELDS",
     "PERSON_INFO",
@@ -35,7 +30,6 @@ __all__ = [
     "PERSON_LANGUAGE",
     "PERSON_MID",
     "RELATIONSHIP",
-    "info_offset",
     "locate_person_info",
     "person_info_table_spans",
     "scrape_person_info",
@@ -43,10 +37,6 @@ __all__ = [
 ]
 
 NO_CLUB = P.NO_ID16
-NO_NICKNAME = b"\xff\xff\xff\xff"
-DOB_YEAR_LO = 1955
-DOB_YEAR_HI = 2030
-NAME_ID_MAX = 65536
 
 # The 8 personality bytes at info+52..59, in order.
 PERSONALITY = (
@@ -227,28 +217,3 @@ def scrape_person_info(mm: Any) -> Dict[int, Dict[str, Any]]:
 
 
 scrape_players = scrape_person_info
-
-
-def info_offset(mm: Any, tid: int) -> Optional[int]:
-    """Offset of a player's info record, or None.
-
-    Located by searching the file for the tid's bytes rather than walking the table, and
-    validated on the nickname field at +16 -- the NO_NICKNAME sentinel or a plausible name id
-    (below NAME_ID_MAX); the sentinel is not required, since a player who has a nickname
-    carries a real id there -- and on a DOB year at +22 of 1955..2012. That year gate is
-    narrower than the table walk's DOB_YEAR_LO..DOB_YEAR_HI: a player born after 2012 is not
-    found here.
-    """
-    le = struct.pack("<I", tid)
-    pos = 0
-    while True:
-        i = mm.find(le, pos)
-        if i == -1:
-            return None
-        pos = i + 1
-        nick = mm[i + 16:i + 20]
-        if nick != NO_NICKNAME and int.from_bytes(nick, "little") >= NAME_ID_MAX:
-            continue
-        year = int.from_bytes(mm[i + 22:i + 24], "little")
-        if 1955 <= year <= 2012:
-            return i
