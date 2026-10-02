@@ -22,6 +22,9 @@ models:
     int:
       +schema: int
       +materialized: view
+    legacy:                   # the old shapes fmstats/mart.py reads (fmstats/compat.py)
+      +schema: legacy
+      +materialized: view
 
 vars:
   # What the SQL is generated from: the raw schema's attribute columns and codes, mirrored
@@ -71,7 +74,10 @@ vars:
   composites:                 # clip(floor(w1*b1 + w2*b2 + offset), 1, 20)
     Teamwork: {columns: [unselfishness_src, work_rate], w: [0.50, 0.50, 0.0], estimate: false}
     Aerial: {columns: [heading_src, jumping], w: [0.24, 0.76, 0.8], estimate: true}
+  personality: [adaptability, ambition, determination, loyalty, pressure, professionalism,
+                sportsmanship, temperament]
   positions: [GK, SW, DL, DC, DR, DMC, ML, MC, MR, AML, AMC, AMR, ST, DML, DMR]
+  team_types: {0: first, 1: national, 2: reserve, 3: national_u21}  # club_details.club_type
   club_lists: [31, 61]        # first and last scrapbook list holding our squad
   contracted: 135             # the training row's contract flag (0x87)
   no_id16: 65535              # a u16 id field's "none" (0xFFFF); stg models read it as NULL

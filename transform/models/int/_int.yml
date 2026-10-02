@@ -2,55 +2,14 @@ version: 2
 models:
   - name: int_person_names
     description: >
-      Each person's name ids and the strings they index; `name` is the display name: the
-      common name when he has one, else first + last.
+      Each person's name parts on each snapshot; `name` is the display name: the common name
+      when he has one, else first + last.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
-  - name: int_squad_scrapbook
-    description: >
-      Every player in our first-team or reserve squad array on each snapshot, with his latest
-      Manager's Best Eleven entry. A player whose own record names another club is on loan to
-      us from it.
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: int_person_snapshots
+    description: (snapshot_date, tid) -> person_id, the join every fact uses.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
-  - name: int_players
-    description: >
-      Each person's own record, with his squad status and current contract; for our squad the
-      name from the entry, and feet and value from it while it is at most a year old.
-    data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
-  - name: int_player_attributes_exact
-    description: >
-      The attributes the save states outright; for our squad the 16 entangled ones from a fresh
-      entry. NULL where the save does not state it.
-    data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
-      - relationship_combination:
-          arguments:
-            columns: [season, phase, tid]
-            to: ref('int_players')
-            to_columns: [season, phase, tid]
-  - name: int_player_attribute_estimates
-    description: >
-      Every attribute the save does not always state, decoded from the player's own record:
-      the two composites' closed forms and the fitted stg.attribute_model coefficients.
-    data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
-  - name: int_player_attributes
-    description: >
-      All 23 attributes, with an `_est` flag each: stated where the save states them, the
-      decode from int.player_attribute_estimates otherwise.
-    data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
-      - relationship_combination:
-          arguments:
-            columns: [season, phase, tid]
-            to: ref('int_players')
-            to_columns: [season, phase, tid]
-  - name: int_person_slices
-    description: (season, phase, tid) -> person_id, the join every fact table uses.
-    data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
       - relationship_combination:
           arguments:
             columns: [person_id]
@@ -62,11 +21,68 @@ models:
       newgen keeps his history.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id]}}
-  # The ratings' grain holds by construction (GROUP BY the key; ranks join int.players on its
-  # own key), and every rating is recomputed from 16M rows on read, so a whole-table test costs
-  # ~45 s and checks nothing the SQL does not already guarantee. The ratings are checked on a
-  # sample instead: tests/int_player_ratings_sample.sql, int_player_rating_ranks_sample.sql.
+  - name: int_team_squads
+    description: >
+      Every team's squad listing on each snapshot, with the team's type and the club that owns
+      it. A player can be listed by more than one team.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid, player_tid]}}
+  - name: int_managed_squad
+    description: >
+      Our squad on each snapshot: every player the managed club's teams list, in the first team
+      when both list him.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: int_scrapbook_entries
+    description: >
+      Each player's latest entry in our club's Scrapbook lists on each snapshot, with is_fresh
+      for one recent enough to stand in for his record.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, player_tid]}}
+  - name: int_player_snapshots
+    description: >
+      Each player on each snapshot: his record, the name and value our squad's entries give,
+      his current contract and his training.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, tid]
+            to: ref('int_person_snapshots')
+            to_columns: [snapshot_date, tid]
+  - name: int_player_attributes_exact
+    description: >
+      The attributes the save states outright; for our squad the 16 entangled ones from a fresh
+      entry. NULL where the save does not state it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, tid]
+            to: ref('int_player_snapshots')
+            to_columns: [snapshot_date, tid]
+  - name: int_player_attribute_estimates
+    description: >
+      Every attribute the save does not always state, decoded from the player's own record:
+      the two composites' closed forms and the fitted stg.attribute_model coefficients.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: int_player_attributes
+    description: >
+      All 23 attributes, with an `_est` flag each: stated where the save states them, the
+      decode from int.player_attribute_estimates otherwise.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, tid]
+            to: ref('int_player_snapshots')
+            to_columns: [snapshot_date, tid]
+  # The ratings' grain holds by construction (GROUP BY the key; ranks window over it), and
+  # every rating is recomputed on read, so a whole-table test costs tens of seconds and checks
+  # nothing the SQL does not already guarantee. The ratings are checked on a sample instead:
+  # tests/int_player_ratings_sample.sql, int_player_rating_ranks_sample.sql.
   - name: int_player_ratings
     description: Every player rated in every role of every weight-set.
   - name: int_player_rating_ranks
-    description: Each rating's percentile and rank among everyone at that snapshot.
+    description: Each rating's percentile and rank among every player at that snapshot.

@@ -6,8 +6,7 @@
 {%- set no_id = var('no_id16') %}
 
 select
-    season,
-    phase,
+    cast(phase as date) as snapshot_date,
     tid,
     based_id,
     nation_id,

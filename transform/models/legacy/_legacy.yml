@@ -1,0 +1,20 @@
+version: 2
+# The old shapes fmstats/mart.py reads through fmstats/compat.py, on the (season, phase) key.
+# They go as their last consumers move to the dim/fact tables (data-layers step 17).
+models:
+  - name: legacy_players
+    description: The old raw.players shape, every person on every snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: legacy_person_slices
+    description: The old raw.person_slices shape.
+  - name: legacy_persons
+    description: The old raw.persons shape.
+  - name: legacy_player_attributes_exact
+    description: The old raw.player_attributes_exact shape.
+  - name: legacy_player_attributes
+    description: The old raw.player_attributes shape.
+  - name: legacy_player_ratings
+    description: The old v_player_ratings shape.
+  - name: legacy_player_rating_ranks
+    description: The old v_player_rating_ranks shape.

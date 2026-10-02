@@ -4,30 +4,28 @@
 -- sample comes back short. A role a weight-set does not list is flat.
 {%- set s = rating_sample() %}
 {%- set in_sample %}
-    season = {{ s.season }}
-    and phase = '{{ s.phase }}'
+    snapshot_date = '{{ s.snapshot_date }}'
     and tid in ({{ s.tids | join(', ') }})
 {%- endset %}
 
 with methods as (
-    select distinct method from {{ source('raw', 'role_weights') }}
+    select distinct method from {{ ref('stg_role_weights') }}
 ),
 
 roles as (
-    select distinct role from {{ source('raw', 'position_role_map') }}
+    select distinct role from {{ ref('stg_position_roles') }}
 ),
 
 expected as (
     select
-        attributes.season,
-        attributes.phase,
+        attributes.snapshot_date,
         attributes.tid,
         methods.method,
         roles.role,
         {% for attribute in var('attr_order') %}
         attributes."{{ attribute }}" * coalesce((
             select weights.weight
-            from {{ source('raw', 'role_weights') }} as weights
+            from {{ ref('stg_role_weights') }} as weights
             where
                 weights.method = methods.method
                 and weights.role = roles.role
@@ -42,8 +40,7 @@ expected as (
 
 model as (
     select
-        season,
-        phase,
+        snapshot_date,
         tid,
         method,
         role,
@@ -61,8 +58,7 @@ select
 from expected
 full outer join model
     on
-        expected.season = model.season
-        and expected.phase = model.phase
+        expected.snapshot_date = model.snapshot_date
         and expected.tid = model.tid
         and expected.method = model.method
         and expected.role = model.role
@@ -78,3 +74,6 @@ select
     null as expected_rating,
     null as model_rating
 where (select count(distinct expected.tid) as n from expected) < 50
+-- rating_sample() reads these:
+-- depends_on: {{ ref('stg_snapshots') }} {{ ref('stg_persons') }}
+-- depends_on: {{ ref('stg_role_weights') }} {{ ref('stg_position_roles') }}

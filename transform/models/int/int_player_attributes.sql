@@ -5,8 +5,7 @@
 {%- set composites = var('composites') %}
 
 select
-    stated.season,
-    stated.phase,
+    stated.snapshot_date,
     stated.tid,
     {% for attribute in var('attr_order') %}
     {% set c = composites.get(attribute) %}
@@ -23,6 +22,5 @@ select
 from {{ ref('int_player_attributes_exact') }} as stated
 inner join {{ ref('int_player_attribute_estimates') }} as estimate
     on
-        stated.season = estimate.season
-        and stated.phase = estimate.phase
+        stated.snapshot_date = estimate.snapshot_date
         and stated.tid = estimate.tid

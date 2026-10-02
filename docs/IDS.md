@@ -87,7 +87,7 @@ needed, since `dob` is already in every `players` slice:
 - `raw.person_slices(season, phase, tid, person_id)` — the join bridge for every fact table
 - `person_id` is the stable VARCHAR `'<tid>-<dob>'` (`'<tid>-?'` when dob is unknown — 28 tids
   appear in match stats but in no `players` slice at all). `int.persons` /
-  `int.person_slices` (`transform/models/int/`) are views over every snapshot, so they are
+  `int.person_snapshots` (`transform/models/int/`) are views over every snapshot, so they are
   always current.
 
 `dashboard/db.py` helpers: `current_person_ids(tids)`, `person_history(tid)` (every identity that

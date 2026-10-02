@@ -4,7 +4,7 @@ Reverse-engineering **Football Manager Mobile 2022** `.fms` save files into a qu
 DuckDB store + a Streamlit dashboard. **Career-aware:** the one genuinely career-specific
 fact is the club you manage (its TID), which is how the store finds your squad's exact
 names+attributes (each player in our squad arrays: the 7 plain attributes from his own record,
-the rest from his latest scrapbook entry while it is at most a year old, `raw.squad_scrapbook`). Careers are registered in **`fmparser/careers.py`** and each has its own
+the rest from his latest scrapbook entry while it is at most a year old, `int.scrapbook_entries`). Careers are registered in **`fmparser/careers.py`** and each has its own
 DuckDB store (`fm-<key>.duckdb`):
 
 | key | club | managed tid | reserve | store | state |
@@ -136,9 +136,12 @@ ATTACH the full store for that, not a scrub issue).
   parser can supply (`raw.event_types`, the career keys in `raw.app_config`). It is glue:
   it may import both sides.
 - **`transform/` and `fmstats/` are the T.** `transform/` is a **dbt** project (dbt-duckdb)
-  that builds the `stg` and `int` layers as views over `raw` — the squad's exact values,
-  display names, the attribute decode, the person bridge, role ratings — and, from data-layers
-  step 16, the `dim_*`/`fact_*` tables. Each model's grain and keys are dbt data tests, and its
+  that builds the `stg` and `int` layers as views over `raw` — one stg model per raw table,
+  keyed by `snapshot_date`, and int models shaped by the semantic model (`docs/data-model/`):
+  person snapshots, team squads, our managed squad, scrapbook entries, player snapshots, the
+  attribute decode, role ratings — and, from data-layers step 16, the `dim_*`/`fact_*` tables.
+  `models/legacy/` rebuilds the old `(season, phase)` shapes from them for `fmstats/mart.py`
+  (through `fmstats/compat.py`) until step 17 moves the old mart over. Each model's grain and keys are dbt data tests, and its
   rules are dbt **unit tests** (fixed rows in, the rows it must produce out:
   `models/int/_int_unit_tests.yml`). The loader runs `dbt build` in-process
   (`load_duckdb.build_models`), so every load and `--refresh-only` tests what it builds, and a
