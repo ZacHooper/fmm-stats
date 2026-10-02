@@ -292,8 +292,9 @@ files named. A sample is enough because these views are per-snapshot: each snaps
 from its own extract alone, and the old mart reads only them.
 
 ## 10. Extract cleanup
-- move `clubs_comps.info_offset` (used by `tables/player_attributes.py`) into
-  `tables/person_info.py` and delete `clubs_comps.py`;
+- delete `clubs_comps.py`; its `info_offset` (a byte sweep gated on a DOB window) goes with
+  it, and `tables/player_attributes.record_for` reads the player's `sid` off the walked person
+  table instead;
 - drop `raw.player_history`'s constant `confidence` / `origin_club` columns (migration).
 
 ## 11. Save order and the cursor

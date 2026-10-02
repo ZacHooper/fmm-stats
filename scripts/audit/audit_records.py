@@ -48,7 +48,6 @@ from fmparser.tables import player_attributes as A          # noqa: E402
 from fmparser.tables import staff as ST       # noqa: E402
 from fmparser.tables import cities as PL_CITIES, stadiums as PL_STADIUMS  # noqa: E402
 from fmparser.tables import currencies, languages, nations  # noqa: E402
-from fmparser import clubs_comps as R           # noqa: E402
 from fmparser.tables.contracts import CONTRACT_DETAIL  # noqa: E402
 from fmparser.tables.person_info import INFO_LAYOUT, scrape_person_info   # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes     # noqa: E402

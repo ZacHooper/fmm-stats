@@ -516,14 +516,13 @@ DDL = [
 
     # career-history summary, one row per player, read from the raw pool in history.json by
     # `load_history`. origin_club_tid = youth/debut club = the Athletic-Bilbao eligibility
-    # key; debut_season = the season on the chain's first record, the debut line. `confidence`
-    # is always 'exact' (the player -> history link is a stored pointer, the attribute
-    # record's `history_head`) and `origin_club` is always NULL (the mart names it); both are
-    # kept for the schema. natural key: (season, phase, tid).
+    # key; debut_season = the season on the chain's first record, the debut line. The player
+    # -> history link is a stored pointer (the attribute record's `history_head`), so every
+    # row is exact; the mart names the clubs. natural key: (season, phase, tid).
     """CREATE TABLE IF NOT EXISTS raw.player_history (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
-        origin_club_tid INTEGER, origin_club VARCHAR,
-        last_season_club_tid INTEGER, confidence VARCHAR, record_offset BIGINT,
+        origin_club_tid INTEGER,
+        last_season_club_tid INTEGER, record_offset BIGINT,
         debut_season INTEGER, debut_end_year INTEGER
     )""",
 
@@ -757,7 +756,7 @@ FROM _hist_chain c JOIN _hist_rows r ON r.row = c.row
 _HISTORY_SUMMARY_SQL = f"""
 WITH ends AS (
     SELECT tid, max(seq) AS last_seq FROM _hist_chain GROUP BY tid)
-SELECT ?, ?, e.tid, head.club, NULL, last.club, 'exact', ? + 16 * h.row,
+SELECT ?, ?, e.tid, head.club, last.club, ? + 16 * h.row,
        head.season, {HISTORY_SEASON_BASE} + head.season
 FROM ends e
 JOIN _hist_chain h ON (h.tid, h.seq) = (e.tid, 0)
@@ -783,8 +782,8 @@ def load_history(con, season, phase, hist):
         con.execute(f"CREATE OR REPLACE TEMP TABLE _hist_chain AS {_HISTORY_CHAIN_SQL}")
         on_chains = con.execute("SELECT count(*) FROM _hist_chain").fetchone()[0]
         con.execute("INSERT INTO raw.player_history (season, phase, tid, origin_club_tid, "
-                    "origin_club, last_season_club_tid, confidence, record_offset, "
-                    "debut_season, debut_end_year) " + _HISTORY_SUMMARY_SQL,
+                    "last_season_club_tid, record_offset, debut_season, debut_end_year) "
+                    + _HISTORY_SUMMARY_SQL,
                     [season, phase, hist["base"]])
         con.execute("INSERT INTO raw.player_history_seasons (season, phase, tid, seq, "
                     "hist_season, end_year, club_tid, fee, apps, goals, assists, rating, "
@@ -1532,7 +1531,7 @@ _MIGRATIONS = [
     )""",
     # 2026-09-16: competition LEVEL (0 = top flight) + parent cid, and the reputation read
     # moved from the trailer's p+8 to p+9 -- the old offset straddled the background colour
-    # and returned roughly 256x the real value. See fmparser/clubs_comps.py.
+    # and returned roughly 256x the real value. See fmparser/tables/competitions.py.
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS level INTEGER",
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS parent_cid INTEGER",
     # history.player_snapshots is built with `CREATE TABLE ... AS SELECT p.*, a.*`, so its
@@ -1582,6 +1581,10 @@ _MIGRATIONS = [
     # the display name is int.person_names' (data-layers plan, step 8).
 ] + [stmt for stmt in DDL
      if "raw.name_strings (" in stmt or "raw.name_ids (" in stmt] + [
+    # 2026-10-02: the history summary's `confidence` was always 'exact' and `origin_club`
+    # always NULL (data-layers plan, step 10).
+] + [f"ALTER TABLE raw.player_history DROP COLUMN IF EXISTS {c}"
+     for c in ("confidence", "origin_club")] + [
     # 2026-10-02: extract dumps the person, attribute and staff tables as stored, and the
     # stg/int models join them (data-layers plan, step 9). The tables extract used to
     # assemble go; a snapshot loaded before has no person records until it is re-extracted.
