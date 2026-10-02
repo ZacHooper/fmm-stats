@@ -6,10 +6,6 @@ models:
       whether the save holds one.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
-  - name: int_player_positions
-    description: Each player's position familiarities, by tid.
-    data_tests:
-      - unique_combination: {arguments: {columns: [snapshot_date, tid, position]}}
   - name: int_staff_snapshots
     description: >
       Each staff member on each snapshot, with his staff record where the save holds one,

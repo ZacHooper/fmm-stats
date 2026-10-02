@@ -25,22 +25,6 @@ with records as (
     where sid is null
 ),
 
-positions as (
-    select
-        snapshot_date,
-        tid,
-        cast('{' || string_agg(
-            '"' || position || '": ' || familiarity, ', '
-            order by case position
-                {%- for pos in var('positions') %}
-                when '{{ pos }}' then {{ loop.index0 }}
-                {%- endfor %}
-            end
-        ) || '}' as json) as positions
-    from {{ ref('int_player_positions') }}
-    group by snapshot_date, tid
-),
-
 loans as (
     select
         squad.snapshot_date,
@@ -92,7 +76,13 @@ select
     people.ca,
     people.pa,
     people.reputation,
-    coalesce(positions.positions, cast('{}' as json)) as positions,
+    cast('{' || concat_ws(
+        ', ',
+        {% for pos in var('positions') %}
+        '"{{ pos }}": '
+        || people.pos_{{ pos | lower }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ) || '}' as json) as positions,
     people.foot_left,
     people.foot_right,
     players.value as player_value,
@@ -150,7 +140,3 @@ left join {{ ref('stg_training') }} as training
     on
         people.snapshot_date = training.snapshot_date
         and people.tid = training.tid
-left join positions
-    on
-        people.snapshot_date = positions.snapshot_date
-        and people.tid = positions.tid

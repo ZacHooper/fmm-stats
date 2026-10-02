@@ -38,42 +38,26 @@
   + record.aggression_src + record.leadership_src + record.agility_src) / 9.0)
 {%- endmacro %}
 
-{#- fwd: attacking-ness of the player's best position; a tie goes to the
-    position the record lists first (var positions), so a player equally good
-    at DC and ST resolves to DC. -#}
+{#- fwd: attacking-ness of the player's best position (the highest pos_*
+    familiarity on his record); a tie goes to the position the record lists
+    first (var positions), so a player equally good at DC and ST resolves to
+    DC. greatest() compares the structs field by field: familiarity, then the
+    earlier position. -#}
 {% macro fwd() -%}
-(
-    select
-        case
-            when positions.position in ('ST', 'AML', 'AMR', 'AMC') then 1.0
-            when positions.position in ('ML', 'MR', 'MC', 'DMC', 'DML', 'DMR')
-                then 0.5
-            else 0.0
-        end
-    from {{ ref('int_player_positions') }} as positions
-    where
-        positions.snapshot_date = record.snapshot_date
-        and positions.tid = record.tid
-    order by
-        positions.familiarity desc,
-        case positions.position
-            {%- for pos in var('positions') %}
-            when '{{ pos }}' then {{ loop.index0 }}
-            {%- endfor %}
-        end
-    limit 1
-)
+greatest(
+    {%- for pos in var('positions') %}
+    {'familiarity': coalesce(record.pos_{{ pos | lower }}, 0),
+     'earlier': -{{ loop.index0 }},
+     'fwd': {{ '1.0' if pos in ('ST', 'AML', 'AMR', 'AMC')
+               else '0.5' if pos in ('ML', 'MR', 'MC', 'DMC', 'DML', 'DMR')
+               else '0.0' }}}{% if not loop.last %},{% endif %}
+    {%- endfor %}
+).fwd
 {%- endmacro %}
 
+{#- A position's familiarity on the player's record, 0 where it is not rated. -#}
 {% macro familiarity(pos) -%}
-coalesce((
-    select positions.familiarity
-    from {{ ref('int_player_positions') }} as positions
-    where
-        positions.snapshot_date = record.snapshot_date
-        and positions.tid = record.tid
-        and positions.position = '{{ pos }}'
-), 0)
+coalesce(record.pos_{{ pos | lower }}, 0)
 {%- endmacro %}
 
 {#- floor(w1*b1 + w2*b2 + offset), clipped 1-20 -#}

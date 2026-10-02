@@ -1,7 +1,8 @@
--- Each player on each snapshot (staff are not players): his own record, the
--- name and value our squad's scrapbook entries give, his current contract and
--- his training. club_tid is the club whose books he is on, from his record;
--- which team he plays in is int.team_squads'. For a player in our squad the
+-- Each player on each snapshot (staff are not players): his own record, with
+-- his familiarity in every position (pos_*), the name and value our squad's
+-- scrapbook entries give, his current contract and his training. club_tid is
+-- the club whose books he is on, from his record; which team he plays in is
+-- int.team_squads'. For a player in our squad the
 -- name comes from his latest entry, and the value from it while it is fresh
 -- (the record holds no value); scrapbook_entry_date says which entry that was.
 
@@ -35,6 +36,9 @@ select
     record.weight_kg,
     record.squad_number,
     record.preferred_squad_number,
+    {% for position in var('positions') %}
+    record.pos_{{ position | lower }},
+    {% endfor %}
     {% for column in var('hidden_attributes') + var('personality') %}
     record.{{ column }},
     {% endfor %}
