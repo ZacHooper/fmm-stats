@@ -26,8 +26,8 @@ select
     {% endif %}
     {{ expr }} as "{{ attribute }}"{% if not loop.last %},{% endif %}
     {% endfor %}
-from {{ ref('stg_persons') }} as record
+from {{ ref('int_player_records') }} as record
 where record.has_attributes
--- the decode macros read stg.attribute_model and stg.player_positions
+-- the decode macros read stg.attribute_model and int.player_positions
 -- depends_on: {{ ref('stg_attribute_model') }}
--- depends_on: {{ ref('stg_player_positions') }}
+-- depends_on: {{ ref('int_player_positions') }}

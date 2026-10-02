@@ -55,7 +55,7 @@ select
     training.focus_attribute as training_focus_attribute,
     training.focus_position as training_focus_position,
     case when entry.is_fresh then entry.entry_date end as scrapbook_entry_date
-from {{ ref('stg_persons') }} as record
+from {{ ref('int_player_records') }} as record
 inner join {{ ref('int_person_snapshots') }} as people
     on
         record.snapshot_date = people.snapshot_date
@@ -77,4 +77,3 @@ left join {{ ref('stg_training') }} as training
     on
         record.snapshot_date = training.snapshot_date
         and record.tid = training.tid
-where not record.is_staff

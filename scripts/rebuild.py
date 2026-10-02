@@ -112,8 +112,9 @@ _EXTRACT_MARKER = "passing_src"
 
 
 def _extract_is_current(out_dir):
-    """Does this extract carry the fields the loader now expects? Reads one player row."""
-    f = os.path.join(out_dir, "players.json")
+    """Does this extract carry the fields the loader now expects? Reads one attribute
+    record."""
+    f = os.path.join(out_dir, "attribute_records.json")
     if not os.path.exists(f):
         return False
     try:

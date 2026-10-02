@@ -248,7 +248,7 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 **Plan: [`plans/2026-10-01-data-layers.md`](plans/2026-10-01-data-layers.md)** -- 18 steps, one PR
 each. Extract hands over every table as the save stores it (header dates, dead outputs, whole
 reference tables, then contracts, names and person records, and a file-order cursor); the store
-renames `raw` to `raw` and models it as raw → stg → int → mart, ending in the `dim_*` /
+renames `staging` to `raw` and models it as raw → stg → int → mart, ending in the `dim_*` /
 `fact_*` tables of [`data-model/`](data-model/README.md), and the site's marts move onto them.
 Every step is gated row-for-row against a store built from `main`. Person identity (#14),
 history reclamation (#15) and extra-time minutes (#16) block steps of it.

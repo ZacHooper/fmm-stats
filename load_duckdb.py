@@ -32,7 +32,6 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 from fmparser.model import ATTR_ORDER
 from fmparser import careers
 from fmparser.tables.matches import EVENT_TYPE
-from fmparser.tables.training import CONTRACTED as _CONTRACTED
 from fmstats import compat as models_compat
 from fmstats.mart import create_mart, drop_mart
 
@@ -53,37 +52,45 @@ _XI = ["posOrder", "tid", "rating", "goals", "assists", "passA", "passC", "keyPa
 # The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
 # store cannot drift from the record. See fmparser/tables/player_attributes.py HIDDEN_OFFSETS and
 # fmparser/tables/staff.py HIDDEN_OFFSETS for why they are carried but not named.
+from fmparser.core import DATE as _DATE, HEX4 as _HEX4, U32 as _U32     # noqa: E402
 from fmparser.tables.player_attributes import HIDDEN_OFFSETS as _PLAYER_HIDDEN  # noqa: E402
 from fmparser.tables.player_attributes import SRC_OFFSETS as _SRC              # noqa: E402
 from fmparser.tables.player_attributes import PLAIN_OFFSETS as _PLAIN            # noqa: E402
-SRC_COLS = list(_SRC.values()) + list(_PLAIN.values())
 from fmparser.tables.person_info import PERSON_FIELDS as _PERSON        # noqa: E402
+from fmparser.tables.person_info import PERSON_INFO as _PERSON_INFO     # noqa: E402
+from fmparser.tables.staff import STAFF as _STAFF                       # noqa: E402
+SRC_COLS = list(_SRC.values()) + list(_PLAIN.values())
 PERSON_COLS = list(_PERSON)
-# A person's name ids, and the name tables they index (names.json).
-NAME_ID_COLS = ["first_name_id", "last_name_id", "common_name_id"]
-NAME_TABLES = ("first_names", "surnames", "nicknames")
 # Everything off the info record is a small integer except the one date.
 PERSON_DATE_COLS = {"joined_date"}
 _PERSON_SQL = {c: ("DATE" if c in PERSON_DATE_COLS else "INTEGER") for c in PERSON_COLS}
-from fmparser.tables.staff import HIDDEN_OFFSETS as _STAFF_HIDDEN      # noqa: E402
 PLAYER_HIDDEN_COLS = list(_PLAYER_HIDDEN.values())
-STAFF_HIDDEN_COLS = list(_STAFF_HIDDEN.values())
+NAME_TABLES = ("first_names", "surnames", "nicknames")
 
 
-# Column order for raw.staff_attributes. Must match the DDL below; the value tuple is
-# built from this list so the two cannot drift.
-STAFF_ATTR_COLS = [
-    "season", "phase", "tid",
-    "ca", "pa", "home_reputation", "current_reputation", "world_reputation",
-    "reputation_tier",
-    "attacking_intent", "style",
-    "financial_control", "outfield_coaching", "goalkeeping_coaching", "discipline",
-    "judging_ability", "judging_potential", "people_management", "motivating",
-    "tactical_knowledge", "youth_coaching",
-] + STAFF_HIDDEN_COLS + [
-    "formation_preferred", "formation_attacking", "formation_defensive",
-    "formation_preferred_name", "formation_attacking_name", "formation_defensive_name",
-]
+def _record_columns(record):
+    """[(column, SQL type)] for every field a parser Record emits, in layout order: a date
+    is DATE, a hex id VARCHAR, a u32 BIGINT, anything narrower INTEGER."""
+    sql = {_DATE: "DATE", _HEX4: "VARCHAR", _U32: "BIGINT"}
+    return [(f.name, sql.get(f.kind, "INTEGER")) for f in record.fields if f.emits]
+
+
+# The three person tables as extract dumps them (persons.json, attribute_records.json,
+# staff_records.json): each column list is the parser's own record layout, so the loader
+# cannot fall out of step with it.
+PERSON_RECORD_COLS = _record_columns(_PERSON_INFO)
+ATTRIBUTE_RECORD_COLS = (
+    [("sid", "VARCHAR"), ("positions", "JSON"), ("foot_left", "INTEGER"),
+     ("foot_right", "INTEGER"), ("ca", "INTEGER"), ("pa", "INTEGER"), ("reputation", "INTEGER"),
+     ("current_reputation", "INTEGER"), ("world_reputation", "INTEGER"),
+     ("international_retired", "BOOLEAN"), ("squad_number", "INTEGER"),
+     ("preferred_squad_number", "INTEGER"), ("height_cm", "INTEGER"), ("weight_kg", "INTEGER")]
+    + [(c, "INTEGER") for c in PLAYER_HIDDEN_COLS + SRC_COLS])
+STAFF_RECORD_COLS = _record_columns(_STAFF)
+
+
+def _cols_ddl(cols):
+    return ",\n        ".join(f"{c} {t}" for c, t in cols)
 
 
 # ---------------------------------------------------------------------------- attribute model
@@ -168,11 +175,6 @@ def _scrapbook_date(e):
     """An entry's date: `scrapbook_day` is the 0-based day of `scrapbook_year`."""
     return (datetime.date(e["scrapbook_year"], 1, 1)
             + datetime.timedelta(e["scrapbook_day"]))
-
-
-def _exact_cols_ddl():
-    # No `_est` columns here: a NULL IS the "not stated" flag, and the view derives the rest.
-    return ",\n    ".join(f'"{a}" INTEGER' for a in ATTR_ORDER)
 
 
 # NB: no enforced PRIMARY KEYs. DuckDB maintains an ART index per PK, and bulk
@@ -374,65 +376,39 @@ DDL = [
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, uid BIGINT NOT NULL, teams INTEGER
     )""",
 
-    # Each person's own record as the save stores it. raw.players is a VIEW over this plus
-    # our squad's scrapbook entries (squad_scrapbook, below).
+    # The person table as the save stores it, one record per person (players and staff):
+    # identity, club, personality, and the links to a player's attribute record (`sid`,
+    # 'ffffffff' for staff) and a staff member's staff record (`id2`). The stg/int models
+    # join the three; raw.players is the old mart's view over them.
     # natural key: (season, phase, tid)
-    """CREATE TABLE IF NOT EXISTS raw.players_raw (
+    f"""CREATE TABLE IF NOT EXISTS raw.person_records (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
-        tid INTEGER NOT NULL,
-        first_name_id BIGINT, last_name_id BIGINT, common_name_id BIGINT,
-        is_staff BOOLEAN NOT NULL DEFAULT FALSE,
-        club_tid INTEGER, club VARCHAR,
-        dob DATE, nationality_id INTEGER, has_attributes BOOLEAN,
-        is_gk INTEGER,
-        ca INTEGER, pa INTEGER, reputation INTEGER, positions JSON,
-        foot_left INTEGER, foot_right INTEGER,
-        -- tail of the global attribute record (see fmparser.attributes.record_tail).
-        -- `reputation` above is HOME reputation; these are the other two.
-        current_reputation INTEGER, world_reputation INTEGER, international_retired BOOLEAN,
-        squad_number INTEGER, preferred_squad_number INTEGER,
-        height_cm INTEGER, weight_kg INTEGER,
-        -- The 9 attribute bytes the player screen does not show (attributes.HIDDEN_OFFSETS),
-        -- named from fmm-editor's Player.cs. Nothing derives from them; see that module for
-        -- why the order is trusted.
-        jumping INTEGER, consistency INTEGER, big_match INTEGER, injury_prone INTEGER,
-        versatility INTEGER, set_pieces INTEGER, penalty INTEGER, work_rate INTEGER,
-        flair INTEGER,
-        -- The 16 ENTANGLED source bytes (0-255), raw and undecoded (attributes.SRC_OFFSETS).
-        -- Stored so the estimation model can be retrained against the store rather than a
-        -- full re-extract: scraping and inference are different jobs. Joined to the exact
-        -- values our own squad carries (estimated = false), this table IS the training set.
-        crossing_src INTEGER, dribbling_src INTEGER, tackling_src INTEGER,
-        finishing_src INTEGER, long_shot_src INTEGER, passing_src INTEGER,
-        decision_src INTEGER, creativity_src INTEGER, movement_src INTEGER,
-        positioning_src INTEGER, handling_src INTEGER, kicking_src INTEGER,
-        aerial_gk_src INTEGER, reflexes_src INTEGER, communication_src INTEGER,
-        throwing_src INTEGER,
-        -- ...and the nine PLAIN bytes, so the whole 34-slot attribute block is here verbatim.
-        -- heading_src and unselfishness_src are the load-bearing two: displayed Aerial and
-        -- Teamwork are DERIVED from them, so without these the model could not be refitted
-        -- against the store alone.
-        heading_src INTEGER, unselfishness_src INTEGER, pace_src INTEGER,
-        strength_src INTEGER, stamina_src INTEGER, technique_src INTEGER,
-        aggression_src INTEGER, leadership_src INTEGER, agility_src INTEGER,
-        -- From the INFO record (staging.PERSON_FIELDS), so STAFF carry these too -- they are
-        -- facts about a person, not about a player. The 8 personality values are the ones the
-        -- Manager Profile screen shows.
-        adaptability INTEGER, ambition INTEGER, determination INTEGER, loyalty INTEGER,
-        pressure INTEGER, professionalism INTEGER, sportsmanship INTEGER, temperament INTEGER,
-        international_caps INTEGER, international_goals INTEGER,
-        u21_caps INTEGER, u21_goals INTEGER, joined_date DATE,
-        second_nationality_id INTEGER, ethnicity INTEGER
+        {_cols_ddl(PERSON_RECORD_COLS)}
     )""",
 
-    # natural key: (season, phase, tid)
-    # What the player's own record states outright: exact values only, NULL where the record
-    # does not carry one plainly. raw.player_attributes_exact is a VIEW over this with our
-    # squad's scrapbook values in their place; raw.player_attributes is a VIEW over that
-    # plus raw.attribute_model.
-    f"""CREATE TABLE IF NOT EXISTS raw.player_attributes_exact_raw (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
-        {_exact_cols_ddl()}
+    # The player attribute table as stored, one record per player who has one, keyed by
+    # `sid`: the 34 attribute bytes (the 16 entangled *_src bytes raw, the nine plain ones,
+    # the nine hidden ones), positions, feet, CA/PA and the record's tail. The entangled
+    # bytes are kept undecoded so the attribute model can be refitted against the store.
+    # natural key: (season, phase, sid)
+    f"""CREATE TABLE IF NOT EXISTS raw.attribute_records (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        {_cols_ddl(ATTRIBUTE_RECORD_COLS)}
+    )""",
+
+    # The staff attribute table as stored, keyed by `id2`: coaching ability, reputation and
+    # the manager's formation triple (indices into raw.formations).
+    # natural key: (season, phase, id2)
+    f"""CREATE TABLE IF NOT EXISTS raw.staff_records (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        {_cols_ddl(STAFF_RECORD_COLS)}
+    )""",
+
+    # The formation catalog the staff records index, in declaration order.
+    # natural key: (season, phase, formation_id)
+    """CREATE TABLE IF NOT EXISTS raw.formations (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, formation_id INTEGER NOT NULL,
+        name VARCHAR
     )""",
     ATTR_MODEL_DDL,
 
@@ -447,27 +423,6 @@ DDL = [
         {_scrapbook_cols_ddl()}
     )""",
 
-    # Coaching ability + the manager formation triple, from the STAFF attribute record
-    # (fmparser/staff.py). Separate from raw.players because only ~4.2k of ~7.5k staff
-    # have one, and none of these columns mean anything for a player.
-    # natural key: (season, phase, tid)
-    """CREATE TABLE IF NOT EXISTS raw.staff_attributes (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
-        ca INTEGER, pa INTEGER,
-        home_reputation INTEGER, current_reputation INTEGER, world_reputation INTEGER,
-        reputation_tier VARCHAR,
-        attacking_intent INTEGER, style VARCHAR,
-        financial_control INTEGER, outfield_coaching INTEGER, goalkeeping_coaching INTEGER,
-        discipline INTEGER, judging_ability INTEGER, judging_potential INTEGER,
-        people_management INTEGER, motivating INTEGER, tactical_knowledge INTEGER,
-        youth_coaching INTEGER,
-        -- the 6 unnamed 1-20 attribute bytes (staff.HIDDEN_OFFSETS)
-        hidden_s18 INTEGER, hidden_s20 INTEGER, hidden_s24 INTEGER,
-        hidden_s26 INTEGER, hidden_s27 INTEGER, hidden_s28 INTEGER,
-        formation_preferred INTEGER, formation_attacking INTEGER, formation_defensive INTEGER,
-        formation_preferred_name VARCHAR, formation_attacking_name VARCHAR,
-        formation_defensive_name VARCHAR
-    )""",
 
     # natural key: (season, phase, anchor); anchor is the match row's offset in the save
     """CREATE TABLE IF NOT EXISTS raw.matches (
@@ -558,12 +513,6 @@ DDL = [
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR
     )""",
 
-    # natural key: (season, phase, tid, position). Long form of players.positions —
-    # every position a player can play (14 FM codes) with familiarity 1..20.
-    """CREATE TABLE IF NOT EXISTS raw.player_positions (
-        season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
-        position VARCHAR NOT NULL, familiarity INTEGER
-    )""",
 
     # career-history summary, one row per player, read from the raw pool in history.json by
     # `load_history`. origin_club_tid = youth/debut club = the Athletic-Bilbao eligibility
@@ -858,82 +807,35 @@ def load_history(con, season, phase, hist):
 def load_core(con, d, season, phase):
     counts = {}
 
-    # --- players + staff (identity spine) + wide attributes ------------------
-    players = _load_json(os.path.join(d, "players.json"))
-    prows, arows = [], []
-    seen = set()
-    acols = ["season", "phase", "tid"] + ATTR_ORDER
-    for v in players.values():
-        tid = _int(v.get("tid"))
-        if tid is None or tid in seen:
-            continue
-        seen.add(tid)
-        feet = v.get("feet") or {}
-        prows.append((
-            season, phase, tid, *(_int(v.get(c)) for c in NAME_ID_COLS), False,
-            _int(v.get("club_tid")), v.get("club"),
-            _date(v.get("dob")), _int(v.get("nationality_id")),
-            v.get("has_attributes"), _int(v.get("is_gk")),
-            _int(v.get("ca")), _int(v.get("pa")), _int(v.get("reputation")),
-            json.dumps(v.get("positions") or {}),
-            _int(feet.get("left")), _int(feet.get("right")),
-            _int(v.get("current_reputation")), _int(v.get("world_reputation")),
-            v.get("international_retired"),
-            _int(v.get("squad_number")), _int(v.get("preferred_squad_number")),
-            _int(v.get("height_cm")), _int(v.get("weight_kg")),
-            *(_int(v.get(c)) for c in PLAYER_HIDDEN_COLS),
-            *(_int(v.get(c)) for c in SRC_COLS),
-            *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
-              for c in PERSON_COLS),
-        ))
-        # EXACT values only. `estimated` marks which of the extract's values the save states
-        # outright; anything else is stored NULL and derived by raw.player_attributes.
-        attrs, est = v.get("attributes"), v.get("estimated") or {}
-        if attrs:
-            arows.append(
-                (season, phase, tid)
-                + tuple(None if est.get(a) else _int(attrs.get(a)) for a in ATTR_ORDER)
-            )
+    # --- the person table and the two attribute tables it links, as stored ----
+    def rows(path, cols):
+        """Each record of a person-table dump as a row of `cols`, in the dump's order."""
+        out = []
+        for v in _load_json(path):
+            row = [season, phase]
+            for c, t in cols:
+                x = v.get(c)
+                if t == "DATE":
+                    x = _date(x)
+                elif t == "JSON":
+                    x = json.dumps(x or {})
+                row.append(x)
+            out.append(tuple(row))
+        return out
 
-    srows, sarows = [], []
-    staff_path = os.path.join(d, "staff.json")
-    if os.path.exists(staff_path):
-        for v in _load_json(staff_path).values():
-            tid = _int(v.get("tid"))
-            if tid is None or tid in seen:
-                continue
-            seen.add(tid)
-            # only ~4.2k of ~7.5k staff carry an attribute record
-            if v.get("formation_preferred") is not None:
-                sarows.append((season, phase, tid)
-                              + tuple(v.get(c) for c in STAFF_ATTR_COLS[3:]))
-            srows.append((
-                season, phase, tid, *(_int(v.get(c)) for c in NAME_ID_COLS), True,
-                _int(v.get("club_tid")), v.get("club"),
-                _date(v.get("dob")), _int(v.get("nationality_id")),
-                False, None, None, None, None,
-                json.dumps({}), None, None,
-                # record_tail + the hidden block: staff have no global attribute record
-                # (PlayerId == -1), so both are NULL. Sized from the parser's own tables so
-                # this padding cannot fall out of step with the column list below.
-                *([None] * 7), *([None] * len(PLAYER_HIDDEN_COLS)),
-                *([None] * len(SRC_COLS)),
-                # ...but the PERSON block is on the info record, so staff DO have it.
-                *(_date(v.get(c)) if c in PERSON_DATE_COLS else _int(v.get(c))
-                  for c in PERSON_COLS),
-            ))
-
-    pcols = ["season", "phase", "tid", *NAME_ID_COLS, "is_staff", "club_tid", "club",
-             "dob", "nationality_id", "has_attributes",
-             "is_gk", "ca", "pa", "reputation",
-             "positions", "foot_left", "foot_right",
-             "current_reputation", "world_reputation", "international_retired",
-             "squad_number", "preferred_squad_number", "height_cm", "weight_kg"
-             ] + PLAYER_HIDDEN_COLS + SRC_COLS + PERSON_COLS
-    counts["players"] = _insert(con, "players_raw", pcols, prows)
-    counts["staff"] = _insert(con, "players_raw", pcols, srows)
-    counts["staff_attributes"] = _insert(con, "staff_attributes", STAFF_ATTR_COLS, sarows)
-    counts["player_attributes"] = _insert(con, "player_attributes_exact_raw", acols, arows)
+    for name, table, cols in (("persons.json", "person_records", PERSON_RECORD_COLS),
+                              ("attribute_records.json", "attribute_records",
+                               ATTRIBUTE_RECORD_COLS),
+                              ("staff_records.json", "staff_records", STAFF_RECORD_COLS)):
+        # every u32 column is stored on every record, so it can be typed (see _insert)
+        counts[table] = _insert(con, table, ["season", "phase"] + [c for c, _ in cols],
+                                rows(os.path.join(d, name), cols),
+                                dtypes={c: "int64" for c, t in cols if t == "BIGINT"})
+    formations_path = os.path.join(d, "formations.json")
+    if os.path.exists(formations_path):
+        counts["formations"] = _insert(
+            con, "formations", ["season", "phase", "formation_id", "name"],
+            [(season, phase, i, n) for i, n in enumerate(_load_json(formations_path))])
 
     # the name tables the name ids above index
     names_path = os.path.join(d, "names.json")
@@ -956,19 +858,6 @@ def load_core(con, d, season, phase):
               for e in _load_json(sb_path)]
         counts["player_scrapbook"] = _insert(
             con, "player_scrapbook", ["season", "phase"] + [c for c, _, _ in SCRAPBOOK_COLS], sb)
-
-    # long-form positions (every position a player can play + familiarity)
-    pprows = []
-    for v in players.values():
-        tid = _int(v.get("tid"))
-        pos = v.get("positions") or {}
-        if tid is None or not pos:
-            continue
-        for code, fam in pos.items():
-            pprows.append((season, phase, tid, code, _int(fam)))
-    counts["player_positions"] = _insert(
-        con, "player_positions",
-        ["season", "phase", "tid", "position", "familiarity"], pprows)
 
     # --- career history (origin club + season-by-season) ---------------------
     hist_path = os.path.join(d, "history.json")
@@ -1378,9 +1267,8 @@ def load_world(con, d, season, phase):
 # DELETE scope so a reload of one group leaves the others intact
 def _clear_group(con, group, season, phase):
     if group == "core":
-        for t in ("players_raw", "name_strings", "name_ids",
-                  "player_attributes_exact_raw", "player_scrapbook",
-                  "staff_attributes", "player_positions",
+        for t in ("person_records", "attribute_records", "staff_records", "formations",
+                  "name_strings", "name_ids", "player_scrapbook",
                   "player_history", "player_history_seasons", "player_progress",
                   "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
                   "nation_coefficients", "nation_languages",
@@ -1431,7 +1319,7 @@ def _archive_snapshot(con, season, phase, label, snap_date):
 
 def _detect_groups(d):
     present = []
-    if os.path.exists(os.path.join(d, "players.json")):
+    if os.path.exists(os.path.join(d, "persons.json")):
         present.append("core")
     ld = os.path.join(d, "light_results")
     if os.path.exists(os.path.join(ld, "results.csv")) or \
@@ -1546,7 +1434,6 @@ def create_schema(con):
                          test=False)   # no data to test yet
 
     _rename_staging(con)
-    _raw_tables(con)
     made_view = False
     for stmt in DDL:
         if not made_view and re.search(r"raw\.player_attributes\b(?!_exact)", stmt):
@@ -1593,23 +1480,6 @@ def _rename_staging(con):
     print(f"  migrated {len(tables)} tables from schema `staging` to `raw`")
 
 
-def _raw_tables(con, S="raw"):
-    """raw.players and raw.player_attributes_exact were TABLES until 2026-09-30 and
-    are VIEWS over `players_raw` / `player_attributes_exact_raw` now: rename a store's
-    tables to the raw names, and drop the columns the players view now derives."""
-    for old in ("players", "player_attributes_exact"):
-        kind = con.execute(
-            "SELECT table_type FROM information_schema.tables "
-            "WHERE table_schema = ? AND table_name = ?", [S, old]).fetchone()
-        if kind and kind[0] == "BASE TABLE":
-            con.execute(f"ALTER TABLE {S}.{old} RENAME TO {old}_raw")
-    if con.execute("SELECT 1 FROM information_schema.tables "
-                   "WHERE table_schema = ? AND table_name = 'players_raw'", [S]).fetchone():
-        for c in ("player_value", "loaned_in", "parent_club_tid", "parent_club",
-                  "attribute_snapshot_date"):
-            con.execute(f"ALTER TABLE {S}.players_raw DROP COLUMN IF EXISTS {c}")
-
-
 # Column additions for stores created before a schema change (CREATE TABLE IF NOT EXISTS
 # won't add columns to an existing table). Each is idempotent.
 _MIGRATIONS = [
@@ -1633,13 +1503,6 @@ _MIGRATIONS = [
     # Existing stores get the column as NULL: the value is missing from output/*.json, so a
     # backfill needs a full re-extract (scripts/rebuild.py), not --refresh-only.
     "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS mistGoal INTEGER",
-    # 2026-09-16: the global attribute record runs P-42..P+35, but we stopped reading at
-    # P+22 — the last 13 bytes were never parsed. Field order confirmed against
-    # nyongrand/fmm-editor; see docs/agent-context/fmm-editor-record-comparison.md. Same
-    # caveat as mistGoal above: the values are absent from existing output/*.json, so
-    # --refresh-only adds the columns as NULL and a backfill needs a full re-extract.
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS current_reputation INTEGER",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS world_reputation INTEGER",
     """CREATE TABLE IF NOT EXISTS raw.world_fixtures (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         home_tid INTEGER NOT NULL, away_tid INTEGER NOT NULL,
@@ -1667,11 +1530,6 @@ _MIGRATIONS = [
     """CREATE TABLE IF NOT EXISTS raw.round_names (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, id BIGINT NOT NULL, name VARCHAR
     )""",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS international_retired BOOLEAN",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS squad_number INTEGER",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS preferred_squad_number INTEGER",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS height_cm INTEGER",
-    "ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS weight_kg INTEGER",
     # 2026-09-16: competition LEVEL (0 = top flight) + parent cid, and the reputation read
     # moved from the trailer's p+8 to p+9 -- the old offset straddled the background colour
     # and returned roughly 256x the real value. See fmparser/clubs_comps.py.
@@ -1692,39 +1550,15 @@ _MIGRATIONS = [
     # and the UEFA coefficients a European campaign is seeded from). Same trap as every other
     # addition here: raw.nations is CREATE TABLE IF NOT EXISTS, so a store built an hour
     # earlier keeps the narrower shape until these run.
-    # 2026-09-16 (later): the staff record is 39 bytes, and +14 -- one of its seven HIDDEN
-    # attribute bytes -- is the manager's attacking intent, which Style is banded from. See
-    # fmparser/staff.py. Absent from existing output/*.json, so --refresh-only adds the
-    # columns as NULL; a backfill needs a full re-extract.
-    "ALTER TABLE raw.staff_attributes ADD COLUMN IF NOT EXISTS attacking_intent INTEGER",
-    "ALTER TABLE raw.staff_attributes ADD COLUMN IF NOT EXISTS style VARCHAR",
     "ALTER TABLE raw.nations ADD COLUMN IF NOT EXISTS rival_nation_id INTEGER",
     "ALTER TABLE raw.nations ADD COLUMN IF NOT EXISTS is_ranked BOOLEAN",
     "ALTER TABLE raw.nations ADD COLUMN IF NOT EXISTS world_ranking INTEGER",
     "ALTER TABLE raw.nations ADD COLUMN IF NOT EXISTS ranking_points INTEGER",
-    # 2026-09-16 (later still): the HIDDEN attributes. Both records carry 1-20 attribute bytes
-    # we can identify as attributes but cannot name -- 9 on the player record, 6 on the staff
-    # record. They were parsed and discarded, which is the record-tail failure with a
-    # different excuse. Now carried, and named from fmm-editor's Player.cs. Same caveat:
-    # absent from existing output/*.json, so --refresh-only adds them as NULL and a backfill
-    # needs a full re-extract.
-] + [f"ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in PLAYER_HIDDEN_COLS] + [
     # history.player_snapshots froze its columns at CREATE TABLE ... AS SELECT time, so it
-    # needs the same additions or the archive silently stops carrying them.
+    # needs the hidden attributes, the attribute bytes and the person block added too, or
+    # the archive silently stops carrying them.
 ] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in PLAYER_HIDDEN_COLS] + [
-] + [f"ALTER TABLE raw.staff_attributes ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in STAFF_HIDDEN_COLS] + [
-    # 2026-09-16: the info record's personality block and international record. Decoded and
-    # verified against screenshots back in BUGS #14, then never wired into the parser -- the
-    # same identified-and-discarded failure as the record tail.
-] + [f"ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in SRC_COLS] + [
-] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in SRC_COLS] + [
-] + [f"ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS {c} {t}"
-     for c, t in _PERSON_SQL.items()] + [
+     for c in PLAYER_HIDDEN_COLS + SRC_COLS] + [
 ] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} {t}"
      for c, t in _PERSON_SQL.items()] + [
     # 2026-10-01: phase is the save's header date, so the label-derivation and match-date
@@ -1739,51 +1573,21 @@ _MIGRATIONS = [
     "ALTER TABLE raw.competitions DROP COLUMN IF EXISTS num_teams",
     "ALTER TABLE raw.competitions DROP COLUMN IF EXISTS matches_in_save",
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS reputation INTEGER",
-    "ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS league_cid",
-    "ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS league",
     # 2026-10-01: extract hands over the contract grid and the training row's contract flag
     # and squad status as stored; the players' contract columns are int.player_snapshots'
     # (data-layers plan, step 7).
     "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS contracted INTEGER",
     "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS squad_status INTEGER",
-] + [f"ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS {c}"
-     for c in ("squad_status", "loaned_out", "wage_units", "wage_gbp", "contract_expiry",
-               "contract_expiry_year")] + [
     # 2026-10-01: extract hands over each person's name ids and the name tables they index;
-    # the display name is int.person_names' (data-layers plan, step 8). A snapshot loaded
-    # before has no ids, so its names come back once it is re-extracted.
-] + [f"ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS {c} BIGINT" for c in NAME_ID_COLS
+    # the display name is int.person_names' (data-layers plan, step 8).
 ] + [stmt for stmt in DDL
-     if "raw.name_strings (" in stmt or "raw.name_ids (" in stmt]
-
-
-def _backfill_contracts(con):
-    """A store loaded before extract handed over the contract grid holds each player's current
-    contract and squad status as columns of raw.players_raw. Move them to raw.contracts and
-    raw.training, where the int models read them, before the migration drops the columns; a
-    snapshot already in raw.contracts is left alone. Idempotent: a no-op once the columns are
-    gone. Lapsed contracts and start dates were never extracted, so they stay absent until the
-    snapshot is re-extracted."""
-    cols = {r[0] for r in con.execute(
-        "SELECT column_name FROM information_schema.columns "
-        "WHERE table_schema = 'raw' AND table_name = 'players_raw'").fetchall()}
-    if "wage_units" not in cols or "squad_status" not in cols:
-        return
-    con.execute(_ddl_for("raw.contracts"))
-    con.execute("ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS contracted INTEGER")
-    con.execute("ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS squad_status INTEGER")
-    con.execute("""
-        INSERT INTO raw.contracts (season, phase, tid, marker, wage_units, expiry, start_date)
-        SELECT p.season, p.phase, p.tid, 1, p.wage_units, p.contract_expiry, NULL
-        FROM raw.players_raw p
-        WHERE p.wage_units IS NOT NULL AND NOT p.is_staff
-          AND NOT EXISTS (SELECT 1 FROM raw.contracts c
-                          WHERE (c.season, c.phase) = (p.season, p.phase))""")
-    con.execute(f"""
-        UPDATE raw.training t SET contracted = {_CONTRACTED}, squad_status = p.squad_status
-        FROM raw.players_raw p
-        WHERE (t.season, t.phase, t.tid) = (p.season, p.phase, p.tid)
-          AND p.squad_status IS NOT NULL AND t.contracted IS NULL""")
+     if "raw.name_strings (" in stmt or "raw.name_ids (" in stmt] + [
+    # 2026-10-02: extract dumps the person, attribute and staff tables as stored, and the
+    # stg/int models join them (data-layers plan, step 9). The tables extract used to
+    # assemble go; a snapshot loaded before has no person records until it is re-extracted.
+    "DROP TABLE IF EXISTS raw.players_raw",
+    "DROP TABLE IF EXISTS raw.player_attributes_exact_raw",
+]
 
 
 def _ddl_for(table):
@@ -1792,7 +1596,6 @@ def _ddl_for(table):
 
 
 def _migrate(con):
-    _backfill_contracts(con)
     for stmt in _MIGRATIONS:
         try:
             con.execute(stmt)

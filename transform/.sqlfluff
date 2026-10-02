@@ -37,7 +37,7 @@ capitalisation_policy = lower
 
 # Real column names in the store: names, scrapbook values, weight-set methods and roles.
 [sqlfluff:rules:references.keywords]
-ignore_words = name, value, method, role
+ignore_words = name, value, method, role, position
 
 [sqlfluff:rules:aliasing.table]
 aliasing = explicit

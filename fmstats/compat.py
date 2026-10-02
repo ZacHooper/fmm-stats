@@ -15,6 +15,10 @@ VIEWS = {
                               "SELECT * FROM legacy.player_attributes"),
     "raw.person_slices": ("legacy.person_slices", "SELECT * FROM legacy.person_slices"),
     "raw.persons": ("legacy.persons", "SELECT * FROM legacy.persons"),
+    "raw.player_positions": ("legacy.player_positions",
+                             "SELECT * FROM legacy.player_positions"),
+    "raw.staff_attributes": ("legacy.staff_attributes",
+                             "SELECT * FROM legacy.staff_attributes"),
     "main.v_player_attributes": ("legacy.player_attributes", """
         SELECT p.*, a.* EXCLUDE (season, phase, tid)
         FROM legacy.players p JOIN legacy.player_attributes a USING (season, phase, tid)"""),
@@ -35,7 +39,7 @@ def _kind(con, name):
 def create(con):
     """Create every compatibility view whose model has been built. `CREATE OR REPLACE VIEW`
     cannot replace a table, and older stores hold some of these names as tables (raw.persons,
-    raw.person_slices, raw.player_attributes), so a table of the name is dropped first.
+    raw.person_slices, raw.player_attributes, raw.player_positions, raw.staff_attributes), so a table of the name is dropped first.
     Returns the views created."""
     made = []
     for name, (model, sql) in VIEWS.items():

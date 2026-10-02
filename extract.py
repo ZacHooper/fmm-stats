@@ -4,13 +4,16 @@ Extract the current state of an FMM22 save into a labelled output bundle.
 
     uv run python extract.py path/to/<career>-<date>.fms --career <key> [--out output]
 
-Architecture: scrape each region of the save independently into keyed tables, then
-join. The player INFO section is the identity spine (one row per player, ~31k, with
-every foreign key); attributes join on SID, clubs on club_tid, names on their name ids. See
-fmparser/tables/.
+Architecture: scrape each table of the save independently and dump it as stored; joining
+them is the store's job. The person table is the identity spine (one record per person,
+~33k, with every foreign key); a player's attribute record joins on its `sid`, a staff
+member's on its `id2`, clubs on club_tid, names on their name ids. See fmparser/tables/.
 
 Writes output/<label>/, one JSON file per table (see the `dump(...)` calls in main()):
-    players.json, staff.json     the person spine joined to the attribute / staff records
+    persons.json                 the person table, every record
+    attribute_records.json       the player attribute table, keyed by sid
+    staff_records.json           the staff attribute table, keyed by id2
+    formations.json              the formation catalog the staff records index
     names.json                   the name tables the persons' name ids index
     history.json                 career history chains
     matches.json                 this season's matches as stored: events, both sides' player
@@ -31,13 +34,8 @@ import os
 from collections import Counter
 
 from fmparser.save import Save
-from fmparser import model as MOD
 from fmparser.tables.contracts import scrape_contracts
-from fmparser.tables.person_info import (
-    NO_CLUB,
-    PERSON_FIELDS,
-    scrape_person_info,
-)
+from fmparser.tables.person_info import scrape_person_info
 from fmparser.tables.player_attributes import scrape_player_attributes
 from fmparser.tables import fixtures as FIX
 from fmparser.tables import comp_rules as CRU
@@ -59,7 +57,6 @@ from fmparser.tables import (
     currencies,
     languages,
     nations,
-    player_attributes as PA,
     staff as ST,
     stadiums,
 )
@@ -75,107 +72,22 @@ def season_phase(save_date, matches, rollover):
     return HDR.campaign(save_date, any(m["date"] for m in matches), rollover), save_date
 
 
-# A person's name ids, as stored: they index the name tables in names.json (the common name,
-# the game's display name when set, indexes the nicknames table; FFFFFFFF = none).
-NAME_FIELDS = ("first_name_id", "last_name_id", "common_name_id")
-
-# The tail of the global attribute record (attributes.record_tail). Named once here so the
-# rec-present branch and the identity-only fill cannot drift apart.
-TAIL_FIELDS = ("current_reputation", "world_reputation", "international_retired",
-               "squad_number", "preferred_squad_number", "height_cm", "weight_kg")
-# The 9 unnamed 1-20 attribute bytes (attributes.HIDDEN_OFFSETS). Carried, not named --
-# every identity-only row has to fill them too.
-HIDDEN_FIELDS = tuple(PA.HIDDEN_OFFSETS.values())
-# The entangled 0-255 source bytes, carried RAW so the estimation model can be
-# retrained against the store instead of a 25-minute re-extract. See
-# attributes.SRC_OFFSETS: scraping and inference are different jobs.
-SRC_FIELDS = tuple(PA.SRC_OFFSETS.values()) + tuple(PA.PLAIN_OFFSETS.values())
+def attribute_records(mm):
+    """Every player attribute record as stored, in table order. `positions` is the 15
+    position-rating bytes decoded to {position: familiarity} (ratings above 1)."""
+    out = []
+    for rec in scrape_player_attributes(mm).values():
+        row = {k: v for k, v in rec.items() if k not in ("offset", "P", "feet", "attributes")}
+        row["foot_left"], row["foot_right"] = rec["feet"]["left"], rec["feet"]["right"]
+        out.append(row)
+    return out
 
 
-def build_database(mm, info, club_names):
-    """Whole-DB player rows via staging + join. Returns (players, staff, histories).
-    `info` is the shared player-info spine ({tid: identity}) scraped once in main().
-    Every row is the player's own record as stored. Our squad's exact attributes, feet,
-    value and name come from their scrapbook entries (`player_scrapbook.json`), which the
-    store joins on (`staging.players`)."""
-    attrs = scrape_player_attributes(mm)        # {sid: attribute record}
-    # Staff get a SEPARATE attribute record, keyed by the info field's `id2` (+64), holding
-    # coaching ability and the preferred/attacking/defensive formation triple. See
-    # fmparser/staff.py.
-    formations = ST.formation_catalog(mm)
-    staff_attrs = ST.scrape_staff_attributes(
-        mm, (p["id2"] for p in info.values() if p["sid"] == "ffffffff"))
-
-    # career history: the whole pool as stored, plus each player's head row (the attribute
-    # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
-    # can't be located or fails its forest check, extraction proceeds without history.
-    try:
-        histories = H.scrape_history(mm, info, attrs)
-    except Exception as e:                       # locator/forest failure -> skip history
-        print(f"  WARNING: history table not parsed ({e}); continuing without history")
-        histories = None
-
-    def club_label(ct):
-        if ct == NO_CLUB:
-            return "Free agent"
-        return club_names.get(ct) or f"#{ct}"
-
-    players, staff = {}, {}
-    for tid, p in info.items():
-        # SID == ffffffff means no linked player record -> staff (manager/coach/scout).
-        # Confirmed: these average age 45 (68% over 40) vs 26 for players. There's also
-        # an explicit type flag at info+33 (1=player/0=staff) that agrees ~99%; the ~0.7%
-        # disagreement is likely player-coaches (both roles). We classify by SID, which
-        # handles them correctly (a player-coach has a real SID -> counted as a player).
-        # Not worth special-casing further for now.
-        if p["sid"] == "ffffffff":
-            row = {"tid": tid, **{k: p[k] for k in NAME_FIELDS},
-                   "club": club_label(p["club_tid"]),
-                   "club_tid": p["club_tid"], "dob": p["dob"],
-                   "nationality_id": p["nationality_id"],
-                   **{k: p[k] for k in PERSON_FIELDS}}
-            sa = staff_attrs.get(p["id2"])
-            if sa:
-                row.update({k: sa[k] for k in ST.STAFF_FIELDS})
-                # store the catalog index AND the resolved name: the index is the save's
-                # own id, the name is what a human reads.
-                for slot in ST.FORMATION_SLOTS.values():
-                    ix = sa[slot]
-                    row[f"{slot}_name"] = (formations[ix]
-                                           if ix < len(formations) else None)
-            staff[str(tid)] = row
-            continue
-        rec = attrs.get(p["sid"])
-        club_tid = p["club_tid"]
-        row = {"tid": tid, **{k: p[k] for k in NAME_FIELDS},
-               "club": club_label(club_tid), "club_tid": club_tid,
-               "dob": p["dob"], "nationality_id": p["nationality_id"],
-               **{k: p[k] for k in PERSON_FIELDS},
-               "has_attributes": rec is not None}
-        if rec:
-            row["is_gk"] = int(rec["positions"].get("GK", 0) == 20)
-            row["ca"], row["pa"] = rec["ca"], rec["pa"]
-            row["reputation"] = rec["reputation"]
-            row["positions"] = rec["positions"]
-            # the rest of the global record (see attributes.record_tail), for every
-            # attributed player.
-            for k in TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS:
-                row[k] = rec[k]
-            # Only what the record states plainly. The 15 entangled attributes and Teamwork
-            # are DERIVED, and derivation is the database's job -- staging.player_attributes
-            # is a view over these exact values plus staging.attribute_model.
-            row["attributes"] = {a: (rec["attributes"][a] if a in MOD.EXACT_SINGLE else None)
-                                 for a in MOD.ATTR_ORDER}
-            row["estimated"] = {a: a not in MOD.EXACT_SINGLE and a != "Teamwork"
-                                for a in MOD.ATTR_ORDER}
-            row["feet"] = rec["feet"]
-        else:                              # identity only (free agents / no record)
-            row.update({"is_gk": None, "ca": None, "pa": None, "reputation": None,
-                        "positions": {}, "feet": None,
-                        "attributes": None, "estimated": None,
-                        **{k: None for k in TAIL_FIELDS + HIDDEN_FIELDS + SRC_FIELDS}})
-        players[str(tid)] = row
-    return players, staff, histories
+def staff_records(mm):
+    """Every staff attribute record as stored, in table order (formation indices into
+    formations.json)."""
+    return [{k: v for k, v in rec.items() if k not in ("offset", "reputation_tier", "style")}
+            for rec in ST.STAFF_TABLE.id_map(mm, key_field="id2").values()]
 
 
 def scrapbook_entries(mm):
@@ -220,8 +132,15 @@ def main():
         d = CL.club_details(mm, tid)
         clubs[str(tid)] = {"tid": tid, "uid": c["uid"],
                            **{k: v for k, v in d.items() if k != "tid"}}
-    club_names = {int(t): c["name"] for t, c in clubs.items()}
-    players, staff, histories = build_database(mm, info, club_names)
+    attrs = scrape_player_attributes(mm)     # {sid: attribute record}
+    # career history: the whole pool as stored, plus each player's head row (the attribute
+    # record's `history_head`). Reading a chain is the loader's job. Never fatal: if the pool
+    # can't be located or fails its forest check, extraction proceeds without history.
+    try:
+        histories = H.scrape_history(mm, info, attrs)
+    except Exception as e:                       # locator/forest failure -> skip history
+        print(f"  WARNING: history table not parsed ({e}); continuing without history")
+        histories = None
     # The whole competition table, every named slot.
     competitions = {str(cid): c for cid, c in sorted(CO.scrape_competitions(mm).items())}
     nations_map = nations.scrape_nations(mm)
@@ -230,10 +149,15 @@ def main():
         with open(os.path.join(dest, name), "w", newline="") as f:
             json.dump(obj, f, ensure_ascii=False, indent=indent)
 
-    dump("players.json", players, indent=None)     # ~24k players -> compact
+    # The person table, every record in tid order: a player links his attribute record by
+    # `sid`, a staff member (sid ffffffff) his staff record by `id2`.
+    persons = [info[t] for t in sorted(info)]
+    dump("persons.json", persons, indent=None)
+    dump("attribute_records.json", attribute_records(mm), indent=None)
+    dump("staff_records.json", staff_records(mm), indent=None)
+    dump("formations.json", ST.formation_catalog(mm))
     # the name tables the persons' name ids index: browse strings + three id-tables
     dump("names.json", NM.scrape_names(mm), indent=None)
-    dump("staff.json", staff, indent=None)         # ~7k non-players (identity only)
     # the career-history pool, every row column-wise, and each player's head row
     # (fmparser/tables/history.py); the loader reads the chains
     if histories:
@@ -346,7 +270,9 @@ def main():
         progress = []
     dump("player_progress.json", progress, indent=None)
 
-    attributed = sum(1 for p in players.values() if p["has_attributes"])
+    players = [p for p in persons if p["sid"] != "ffffffff"]
+    attributed = sum(1 for p in players if p["sid"] in attrs)
+    staff = len(persons) - len(players)
     summary = {
         "label": label,
         "season": snap_season, "phase": snap_phase,
@@ -359,7 +285,7 @@ def main():
                          in sorted(Counter(m["comp_id"] for m in season).items())},
         "counts": {"matches": len(season), "players": len(players), "players_with_attributes": attributed,
                    "history_rows": histories["count"] if histories else 0,
-                   "staff": len(staff), "competitions": len(competitions),
+                   "staff": staff, "competitions": len(competitions),
                    "clubs": len(clubs),
                    "player_progress_rows": len(progress),
                    "world_fixtures": len(world)},
@@ -368,7 +294,7 @@ def main():
 
     print(f"extracted -> {dest}/")
     print(f"  matches {len(season)}  players {len(players)} "
-          f"({attributed} with attributes)  staff {len(staff)}  "
+          f"({attributed} with attributes)  staff {staff}  "
           f"competitions {len(competitions)}  clubs {len(clubs)}")
     print(f"  label {label}  season {snap_season}  phase {snap_phase}")
     s.close()

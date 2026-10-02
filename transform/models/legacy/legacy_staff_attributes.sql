@@ -1,0 +1,38 @@
+-- The old raw.staff_attributes shape: every staff member with a staff record,
+-- from int.staff_snapshots, on the (season, phase) key.
+select
+    {{ legacy_key() }},
+    staff.tid,
+    staff.ca,
+    staff.pa,
+    staff.home_reputation,
+    staff.current_reputation,
+    staff.world_reputation,
+    staff.reputation_tier,
+    staff.attacking_intent,
+    staff.style,
+    staff.financial_control,
+    staff.outfield_coaching,
+    staff.goalkeeping_coaching,
+    staff.discipline,
+    staff.judging_ability,
+    staff.judging_potential,
+    staff.people_management,
+    staff.motivating,
+    staff.tactical_knowledge,
+    staff.youth_coaching,
+    staff.hidden_s18,
+    staff.hidden_s20,
+    staff.hidden_s24,
+    staff.hidden_s26,
+    staff.hidden_s27,
+    staff.hidden_s28,
+    staff.formation_preferred,
+    staff.formation_attacking,
+    staff.formation_defensive,
+    staff.formation_preferred_name,
+    staff.formation_attacking_name,
+    staff.formation_defensive_name
+from {{ ref('int_staff_snapshots') }} as staff
+{{ join_snapshots('staff') }}
+where staff.has_staff_record

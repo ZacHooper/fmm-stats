@@ -34,7 +34,7 @@ vars:
                Teamwork, Pace, Stamina, Strength, Agility, Handling, Kicking, Reflexes,
                Communication, Throwing]
   exact_single: [Pace, Strength, Stamina, Technique, Aggression, Leadership, Agility]
-  attribute_columns:          # record offset -> raw.players_raw column (stg_attribute_model)
+  attribute_columns:          # record offset -> attribute-record column (stg_attribute_model)
     "-34": crossing_src
     "-33": dribbling_src
     "-32": tackling_src
@@ -81,5 +81,11 @@ vars:
   club_lists: [31, 61]        # first and last scrapbook list holding our squad
   contracted: 135             # the training row's contract flag (0x87)
   no_id16: 65535              # a u16 id field's "none" (0xFFFF); stg models read it as NULL
+  no_id32: 4294967295         # the same in a u32 field (0xFFFFFFFF)
+  no_sid: ffffffff            # a person's attribute-record link when he has none (staff)
+  # Displayed manager Style from the staff record's attacking_intent (<= ceiling), and the
+  # reputation tier from world_reputation (< ceiling); fmparser/tables/staff.py
+  staff_style_bands: [[7, Defensive], [13, Normal], [20, Attacking]]
+  staff_tier_bands: [[3000, Regional], [5800, National], [1000000000, Continental]]
   wage_gbp_per_unit: 520
   scrapbook_max_age_days: 365

@@ -1,11 +1,11 @@
 {#- The attribute decode: one SQL expression per derived attribute, generated
     from its coefficient rows in raw.attribute_model. `own` and `partner` are
     the wrapped 0-255 source columns (named in stg.attribute_model); everything
-    else is read straight off the stored record (stg.persons, alias `record`). -#}
+    else is read straight off the stored record (int.player_records, alias `record`). -#}
 
 {#- {attribute: {own, partner, coef: {feature: coefficient}}}, from
     stg.attribute_model in its seeded order (the sum's order, which floating
-    point makes part of the result). own / partner name the stg.persons columns
+    point makes part of the result). own / partner name the int.player_records columns
     the attribute reads. -#}
 {% macro attribute_model() %}
     {%- set spec = {} -%}
@@ -50,7 +50,7 @@
                 then 0.5
             else 0.0
         end
-    from {{ ref('stg_player_positions') }} as positions
+    from {{ ref('int_player_positions') }} as positions
     where
         positions.snapshot_date = record.snapshot_date
         and positions.tid = record.tid
@@ -68,7 +68,7 @@
 {% macro familiarity(pos) -%}
 coalesce((
     select positions.familiarity
-    from {{ ref('stg_player_positions') }} as positions
+    from {{ ref('int_player_positions') }} as positions
     where
         positions.snapshot_date = record.snapshot_date
         and positions.tid = record.tid

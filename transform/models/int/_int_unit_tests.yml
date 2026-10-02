@@ -7,7 +7,7 @@ unit_tests:
       The common name first, else first + last; NULL when either is missing.
     model: int_person_names
     given:
-      - input: ref('stg_persons')
+      - input: ref('stg_person_records')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, first_name_id: 5, last_name_id: 7, common_name_id: 0}
           - {snapshot_date: '2026-06-11', tid: 2, first_name_id: 5, last_name_id: 7, common_name_id: 4294967295}
@@ -92,22 +92,19 @@ unit_tests:
   - name: player_snapshots_take_our_entries
     description: >
       A squad player takes his name from his entry, and his value from it while it is fresh; a
-      player outside the squad keeps his own name and has no value, even with an entry; staff
-      are not players.
+      player outside the squad keeps his own name and has no value, even with an entry.
     model: int_player_snapshots
     given:
-      - input: ref('stg_persons')
+      - input: ref('int_player_records')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, is_staff: false, club_tid: 346}
-          - {snapshot_date: '2026-06-11', tid: 4, is_staff: false, club_tid: 900}
-          - {snapshot_date: '2026-06-11', tid: 6, is_staff: false, club_tid: 7296}
-          - {snapshot_date: '2026-06-11', tid: 8, is_staff: true, club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 1, club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 4, club_tid: 900}
+          - {snapshot_date: '2026-06-11', tid: 6, club_tid: 7296}
       - input: ref('int_person_snapshots')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, person_id: 1-x}
           - {snapshot_date: '2026-06-11', tid: 4, person_id: 4-x}
           - {snapshot_date: '2026-06-11', tid: 6, person_id: 6-x}
-          - {snapshot_date: '2026-06-11', tid: 8, person_id: 8-x}
       - input: ref('int_person_names')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, name: Record One}
@@ -138,7 +135,7 @@ unit_tests:
       from his squad entry while it is fresh, else as stated (NULL, left to the decode).
     model: int_player_attributes_exact
     given:
-      - input: ref('stg_player_attributes_stated')
+      - input: ref('int_player_attributes_stated')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, Pace: 11}
           - {snapshot_date: '2026-06-11', tid: 4, Pace: 14}
@@ -157,3 +154,78 @@ unit_tests:
         - {tid: 1, Pace: 11, Teamwork: 7}
         - {tid: 4, Pace: 14, Teamwork: null}
         - {tid: 6, Pace: 16, Teamwork: null}
+
+  - name: player_records_join_on_sid
+    description: >
+      A player's attribute record is the one with his sid; a player without one keeps his
+      person record with has_attributes false; staff (no sid) are not players; a goalkeeper is
+      a player whose GK familiarity is 20.
+    model: int_player_records
+    given:
+      - input: ref('stg_person_records')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000', club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 2, sid: 'bb000000', club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 3, sid: 'cc000000', club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 4, sid: null, club_tid: 346}
+      - input: ref('stg_attribute_records')
+        format: sql
+        rows: |
+          SELECT DATE '2026-06-11' AS snapshot_date, 'aa000000' AS sid,
+                 '{"GK": 20}'::JSON AS positions, 80 AS ca
+          UNION ALL
+          SELECT DATE '2026-06-11', 'bb000000', '{"DC": 20, "GK": 3}'::JSON, 90
+    expect:
+      rows:
+        - {tid: 1, has_attributes: true, is_goalkeeper: true, ca: 80}
+        - {tid: 2, has_attributes: true, is_goalkeeper: false, ca: 90}
+        - {tid: 3, has_attributes: false, is_goalkeeper: null, ca: null}
+
+  - name: stated_attributes_are_the_plain_bytes
+    description: >
+      The seven exact_single attributes are the record's plain bytes as stored; every other
+      attribute is NULL; a player without an attribute record has no row.
+    model: int_player_attributes_stated
+    given:
+      - input: ref('int_player_records')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, has_attributes: true, pace_src: 12, heading_src: 3, crossing_src: 200}
+          - {snapshot_date: '2026-06-11', tid: 2, has_attributes: false, pace_src: null}
+    expect:
+      rows:
+        - {tid: 1, Pace: 12, Aerial: null, Crossing: null}
+
+  - name: staff_style_and_tier_banded
+    description: >
+      Style bands attacking_intent (<= 7 Defensive, <= 13 Normal, else Attacking) and the tier
+      bands world_reputation (< 3000 Regional, < 5800 National, else Continental); a formation
+      id names its catalog entry; a staff member without a staff record keeps his row.
+    model: int_staff_snapshots
+    given:
+      - input: ref('stg_person_records')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 10, sid: null, id2: 0}
+          - {snapshot_date: '2026-06-11', tid: 11, sid: null, id2: 1}
+          - {snapshot_date: '2026-06-11', tid: 12, sid: null, id2: 2}
+          - {snapshot_date: '2026-06-11', tid: 13, sid: 'aa000000', id2: null}
+      - input: ref('int_person_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 10, person_id: 10-x}
+          - {snapshot_date: '2026-06-11', tid: 11, person_id: 11-x}
+          - {snapshot_date: '2026-06-11', tid: 12, person_id: 12-x}
+          - {snapshot_date: '2026-06-11', tid: 13, person_id: 13-x}
+      - input: ref('int_person_names')
+        rows: []
+      - input: ref('stg_staff_records')
+        rows:
+          - {snapshot_date: '2026-06-11', id2: 0, attacking_intent: 7, world_reputation: 2999, formation_preferred: 1, formation_attacking: 0, formation_defensive: 0}
+          - {snapshot_date: '2026-06-11', id2: 1, attacking_intent: 14, world_reputation: 5800, formation_preferred: 0, formation_attacking: 0, formation_defensive: 0}
+      - input: ref('stg_formations')
+        rows:
+          - {snapshot_date: '2026-06-11', formation_id: 0, name: 4-4-2}
+          - {snapshot_date: '2026-06-11', formation_id: 1, name: 4-4-2 Diamond}
+    expect:
+      rows:
+        - {tid: 10, has_staff_record: true, style: Defensive, reputation_tier: Regional, formation_preferred_name: 4-4-2 Diamond}
+        - {tid: 11, has_staff_record: true, style: Attacking, reputation_tier: Continental, formation_preferred_name: 4-4-2}
+        - {tid: 12, has_staff_record: false, style: null, reputation_tier: null, formation_preferred_name: null}

@@ -265,6 +265,14 @@ The smallest of the three record steps; it proves the raw → stg → int → co
 - `clubs_comps.build_name_resolver` / `resolve_name` / `resolve_common_name` go.
 
 ## 9. Person, player and staff records
+*(Done: extract dumps `persons.json`, `attribute_records.json`, `staff_records.json` and
+`formations.json` as stored, into `raw.person_records` / `attribute_records` / `staff_records` /
+`formations`. stg models over each; int does the joins: `int_player_records` (person ⋈
+attribute record on `sid`, `has_attributes`, `is_goalkeeper`), `int_player_positions`,
+`int_player_attributes_stated` (the seven plain bytes), `int_staff_snapshots` (person ⋈ staff
+record on `id2`, formation names, Style and reputation tier banded in SQL). The old shapes are
+legacy models (`players`, `player_positions`, `staff_attributes`). `id2 = 0` is a real link
+(tid 0's record); the old extract treated it as "none".)*
 - extract dumps `persons.json` (the person table as stored), `player_attributes.json` (the
   attribute record keyed by `sid`: all 34 attribute bytes, positions, CA/PA, the tail) and
   `staff_attributes.json` (keyed by `id2`, formation indices), plus the formation catalog;
@@ -299,6 +307,9 @@ save of both careers; `assert_identical` re-recorded with the new files named.
 **Check**: `assert_identical` byte-identical (only the order of `dump()` calls changes).
 
 ## 12. stg for every raw table
+*(Partly done by the int redesign (#129): a stg model, keyed by `snapshot_date`, for every
+source the person and player models read, and int shaped by `docs/data-model/`, with
+`models/legacy/` keeping the old `(season, phase)` shapes for the old mart until step 17.)*
 One stg model per raw table still without one: rename to the model's vocabulary, cast, decode
 codes to names where the code table is in the store, attach `person_id` where a `tid` appears,
 drop unused slots (`tid = 0xffffffff` and the like). No joins across sources.

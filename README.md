@@ -17,16 +17,19 @@ This writes `output/<label>/`:
 
 | file | contents |
 |------|----------|
-| `players.json` | **whole player DB** (~24k): 23 attributes (exact + estimated), CA/PA, positions, feet, reputation, club, DOB, nationality |
+| `persons.json` | the person table (~33k, players and staff): identity, club, DOB, nationality, personality, and the links to the two attribute tables |
+| `attribute_records.json` | the player attribute table (~26k), keyed by `sid`: the 34 attribute bytes as stored, CA/PA, positions, feet, reputation |
+| `staff_records.json` | the staff attribute table, keyed by `id2`: coaching ability, reputation, the manager's formation triple (indices into `formations.json`) |
 | `matches.json` | every match: per-player stats (23 fields), events, team stats, formation, man-of-the-match |
-| `staff.json` | ~7k non-players (managers/coaches/scouts): identity only |
 | `clubs.json` | club TID → name |
 | `summary.json` | season, phase (the save's header date), counts, competitions |
 
 The label is the save's file name without `.fms`. Saves are named `<career>-<header date>`
 (`scripts/archive_save.py` does it), so the label, the save and the snapshot's `phase` are one
 string. A zero-match save (fresh season) still produces the full player DB — the player list
-comes from the info spine, not from matches — and its header dates it like any other.
+comes from the person table, not from matches — and its header dates it like any other.
+Extract dumps each table as the save stores it; the store joins them (the person to his
+attribute record on `sid`, to his staff record on `id2`) and decodes the attributes.
 
 ## What you get (and how much to trust it)
 

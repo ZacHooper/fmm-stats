@@ -26,7 +26,7 @@ select
     end as "{{ attribute }}"{% if not loop.last %},{% endif %}
     {% endif %}
     {% endfor %}
-from {{ ref('stg_player_attributes_stated') }} as stated
+from {{ ref('int_player_attributes_stated') }} as stated
 left join fresh_entries as entry
     on
         stated.snapshot_date = entry.snapshot_date
