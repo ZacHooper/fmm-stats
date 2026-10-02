@@ -7,12 +7,12 @@ unit_tests:
       not; a free agent keeps the parser's 0xFFFF and 'Free agent'.
     model: legacy_players
     given:
-      - input: ref('int_player_records')
-        rows:
-          - {snapshot_date: '2026-06-11', tid: 1, club_tid: 7296}
-          - {snapshot_date: '2026-06-11', tid: 2, club_tid: 900}
-          - {snapshot_date: '2026-06-11', tid: 3, club_tid: null}
       - input: ref('stg_persons')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000', club_tid: 7296}
+          - {snapshot_date: '2026-06-11', tid: 2, sid: 'bb000000', club_tid: 900}
+          - {snapshot_date: '2026-06-11', tid: 3, sid: 'cc000000', club_tid: null}
+      - input: ref('stg_player_attributes')
         rows: []
       - input: ref('int_managed_squad')
         rows:
@@ -26,7 +26,7 @@ unit_tests:
         rows: [{managed_club_tid: 346}]
       - input: ref('stg_snapshots')
         rows: [{snapshot_date: '2026-06-11', season: 2026}]
-      - input: ref('int_player_snapshots')
+      - input: ref('int_player_info')
         rows: []
       - input: ref('int_person_names')
         rows: []

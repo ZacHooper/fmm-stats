@@ -1,11 +1,11 @@
 {#- The attribute decode: one SQL expression per derived attribute, generated
     from its coefficient rows in raw.attribute_model. `own` and `partner` are
     the wrapped 0-255 source columns (named in stg.attribute_model); everything
-    else is read straight off the stored record (int.player_records, alias `record`). -#}
+    else is read straight off the stored record (stg.player_attributes, alias `record`). -#}
 
 {#- {attribute: {own, partner, coef: {feature: coefficient}}}, from
     stg.attribute_model in its seeded order (the sum's order, which floating
-    point makes part of the result). own / partner name the int.player_records columns
+    point makes part of the result). own / partner name the stg.player_attributes columns
     the attribute reads. -#}
 {% macro attribute_model() %}
     {%- set spec = {} -%}
@@ -101,3 +101,18 @@ greatest(1, least(20, cast(round(
     {{ parts | join('\n    + ') }}
 ) as integer)))
 {%- endmacro %}
+
+{#- The attributes a player's record can leave to the decode: every displayed
+    attribute but the seven plain ones (var exact_single) and a composite whose
+    closed form is exact (Teamwork). -#}
+{% macro estimable_attributes() %}
+    {%- set out = [] -%}
+    {%- for attribute in var('attr_order') -%}
+        {%- set c = var('composites').get(attribute) -%}
+        {%- if attribute not in var('exact_single')
+              and not (c and not c.estimate) -%}
+            {%- do out.append(attribute) -%}
+        {%- endif -%}
+    {%- endfor -%}
+    {{ return(out) }}
+{% endmacro %}

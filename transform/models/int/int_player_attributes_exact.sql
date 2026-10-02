@@ -15,8 +15,8 @@ with fresh_entries as (
 )
 
 select
-    record.snapshot_date,
-    record.tid,
+    person.snapshot_date,
+    person.tid,
     {% for attribute in var('attr_order') %}
     {% if attribute in var('exact_single') %}
     record.{{ attribute | lower }}_src as "{{ attribute }}"
@@ -24,9 +24,12 @@ select
     entry."{{ attribute }}"
     {%- endif %}{% if not loop.last %},{% endif %}
     {% endfor %}
-from {{ ref('int_player_records') }} as record
+from {{ ref('stg_persons') }} as person
+inner join {{ ref('stg_player_attributes') }} as record
+    on
+        person.snapshot_date = record.snapshot_date
+        and person.sid = record.sid
 left join fresh_entries as entry
     on
-        record.snapshot_date = entry.snapshot_date
-        and record.tid = entry.player_tid
-where record.has_attributes
+        person.snapshot_date = entry.snapshot_date
+        and person.tid = entry.player_tid

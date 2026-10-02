@@ -1,7 +1,7 @@
 -- The old raw.player_positions shape: one row per position a player's record
--- rates, from int.player_records' pos_* columns, on the (season, phase) key.
+-- rates, from int.player_attributes' pos_* columns, on the (season, phase) key.
 with long as (
-    unpivot {{ ref('int_player_records') }}
+    unpivot {{ ref('int_player_attributes') }}
     on
     {% for position in var('positions') %}
     pos_{{ position | lower }}{% if not loop.last %},{% endif %}

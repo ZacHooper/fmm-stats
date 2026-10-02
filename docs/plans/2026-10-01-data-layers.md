@@ -267,9 +267,16 @@ The smallest of the three record steps; it proves the raw → stg → int → co
 ## 9. Person, player and staff records
 *(Done: extract dumps `persons.json`, `attribute_records.json`, `staff_records.json` and
 `formations.json` as stored, into `raw.person_records` / `attribute_records` / `staff_records` /
-`formations`. stg models over each; int does the joins: `int_player_records` (person ⋈
-attribute record on `sid`, `has_attributes`, `is_goalkeeper`), `int_player_attributes_exact` (the seven plain bytes, plus our squad's fresh scrapbook entries), `int_staff_snapshots` (person ⋈ staff
-record on `id2`, formation names, Style and reputation tier banded in SQL). The old shapes are
+`formations` (`stg_persons`, `stg_player_attributes` with one column per position,
+`stg_staff_attributes`, `stg_formations`). int splits a player into what he is and how he is
+rated: `int_player_info` (person ⋈ attribute record on `sid`: identity, club, CA/PA,
+reputation, value, contract, training, `has_attributes`, `is_goalkeeper`) and
+`int_player_attributes` (the 23 displayed attributes, stated or decoded, with one
+`is_estimated` flag, plus the hidden attributes, personality, positions and feet, all wide),
+fed by `int_player_attributes_exact` and `int_player_attribute_estimates`;
+`int_staff_snapshots` joins the staff record on `id2` (formation names, Style and reputation
+tier banded in SQL). This is step 15's int half: step 15 keeps the mart, where
+`fact_player_snapshot` joins `int_player_info` to `int_player_attributes`. The old shapes are
 legacy models (`players`, `player_positions`, `staff_attributes`). `id2 = 0` is a real link
 (tid 0's record); the old extract treated it as "none".)*
 - extract dumps `persons.json` (the person table as stored), `player_attributes.json` (the
@@ -343,6 +350,9 @@ events vs score, rebuilt tables vs `club_league_history`, outcomes vs the roll o
 **Blocked by** TODO #16 (extra-time minutes); settle how two-legged ties are stored first.
 
 ## 15. Person and the two models
+*(int half largely done in steps 8–9: person identity (`int_person_snapshots`, `int_persons`),
+`int_player_info`, `int_player_attributes` and `int_staff_snapshots`. What is left of the int
+half is `int_player_value` and the seasons; the mart half is all to do.)*
 - **int**: person identity (`person_id` = `<tid>-<dob>`, built across **every** snapshot so a
   retired player whose slot has gone to a newgen keeps his history), `int_player_attributes` (exact where stored, estimated otherwise,
   with the rule for when an old exact entry gives way to the estimate), `int_player_value`

@@ -14,7 +14,7 @@
     {%- endif -%}
     {%- set snapshot_date = snapshots[0][0] -%}
     {%- set tids = run_query(
-        "select tid from " ~ ref('int_player_records')
+        "select tid from " ~ ref('int_player_info')
         ~ " where snapshot_date = '" ~ snapshot_date ~ "' and has_attributes"
         ~ " order by hash(tid) limit 50").columns[0].values() -%}
     {%- set first = run_query(

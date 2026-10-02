@@ -138,8 +138,9 @@ ATTACH the full store for that, not a scrub issue).
 - **`transform/` and `fmstats/` are the T.** `transform/` is a **dbt** project (dbt-duckdb)
   that builds the `stg` and `int` layers as views over `raw` — one stg model per raw table,
   keyed by `snapshot_date`, and int models shaped by the semantic model (`docs/data-model/`):
-  person snapshots, team squads, our managed squad, scrapbook entries, player snapshots, the
-  attribute decode, role ratings — and, from data-layers step 16, the `dim_*`/`fact_*` tables.
+  person snapshots, team squads, our managed squad, scrapbook entries, a player's info
+  (`int_player_info`) and his ratings (`int_player_attributes`, the decode behind it), staff,
+  role ratings — and, from data-layers step 16, the `dim_*`/`fact_*` tables.
   `models/legacy/` rebuilds the old `(season, phase)` shapes from them for `fmstats/mart.py`
   (through `fmstats/compat.py`) until step 17 moves the old mart over. Each model's grain and keys are dbt data tests, and its
   rules are dbt **unit tests** (fixed rows in, the rows it must produce out:

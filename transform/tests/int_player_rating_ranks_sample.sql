@@ -54,5 +54,5 @@ where
     or facts.top_rank != 1
     or facts.best_rank != 1
 -- rating_sample() reads these:
--- depends_on: {{ ref('stg_snapshots') }} {{ ref('int_player_records') }}
+-- depends_on: {{ ref('stg_snapshots') }} {{ ref('int_player_info') }}
 -- depends_on: {{ ref('stg_role_weights') }} {{ ref('stg_position_roles') }}

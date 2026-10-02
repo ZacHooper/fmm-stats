@@ -13,16 +13,20 @@
 
 with records as (
     select
-        *,
-        false as is_staff
-    from {{ ref('int_player_records') }}
-    union all by name
-    select
-        *,
-        true as is_staff,
-        false as has_attributes
-    from {{ ref('stg_persons') }}
-    where sid is null
+        person.*,
+        record.* exclude (snapshot_date, sid),  -- noqa: RF02
+        person.sid is null as is_staff,
+        coalesce(info.has_attributes, false) as has_attributes,
+        info.is_goalkeeper
+    from {{ ref('stg_persons') }} as person
+    left join {{ ref('stg_player_attributes') }} as record
+        on
+            person.snapshot_date = record.snapshot_date
+            and person.sid = record.sid
+    left join {{ ref('int_player_info') }} as info
+        on
+            person.snapshot_date = info.snapshot_date
+            and person.tid = info.tid
 ),
 
 loans as (
@@ -120,7 +124,7 @@ select
     players.scrapbook_entry_date as scrapbook_date
 from people
 {{ join_snapshots('people') }}
-left join {{ ref('int_player_snapshots') }} as players
+left join {{ ref('int_player_info') }} as players
     on
         people.snapshot_date = players.snapshot_date
         and people.tid = players.tid
