@@ -31,7 +31,7 @@ vars:
                Teamwork, Pace, Stamina, Strength, Agility, Handling, Kicking, Reflexes,
                Communication, Throwing]
   exact_single: [Pace, Strength, Stamina, Technique, Aggression, Leadership, Agility]
-  attribute_columns:          # record offset -> raw.players_raw column
+  attribute_columns:          # record offset -> raw.players_raw column (stg_attribute_model)
     "-34": crossing_src
     "-33": dribbling_src
     "-32": tackling_src
@@ -69,8 +69,8 @@ vars:
   hidden_attributes: [jumping, consistency, big_match, injury_prone, versatility, set_pieces,
                       penalty, work_rate, flair]
   composites:                 # clip(floor(w1*b1 + w2*b2 + offset), 1, 20)
-    Teamwork: {bytes: [unselfishness_src, work_rate], w: [0.50, 0.50, 0.0], estimate: false}
-    Aerial: {bytes: [heading_src, jumping], w: [0.24, 0.76, 0.8], estimate: true}
+    Teamwork: {columns: [unselfishness_src, work_rate], w: [0.50, 0.50, 0.0], estimate: false}
+    Aerial: {columns: [heading_src, jumping], w: [0.24, 0.76, 0.8], estimate: true}
   positions: [GK, SW, DL, DC, DR, DMC, ML, MC, MR, AML, AMC, AMR, ST, DML, DMR]
   club_lists: [31, 61]        # first and last scrapbook list holding our squad
   contracted: 135             # the training row's contract flag (0x87)

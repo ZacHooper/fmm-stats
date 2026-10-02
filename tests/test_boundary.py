@@ -76,7 +76,7 @@ def main():
         ("attribute_columns", {int(k): c for k, c in v["attribute_columns"].items()},
          {**C.SRC_OFFSETS, **C.PLAIN_OFFSETS, **C.HIDDEN_OFFSETS}),
         ("hidden_attributes", v["hidden_attributes"], list(C.HIDDEN_OFFSETS.values())),
-        ("composites", {a: (tuple(d["bytes"]), tuple(d["w"]), d["estimate"])
+        ("composites", {a: (tuple(d["columns"]), tuple(d["w"]), d["estimate"])
                         for a, d in v["composites"].items()}, C.COMPOSITES),
         ("positions", list(v["positions"]), list(C.POSITIONS)),
         ("club_lists", range(v["club_lists"][0], v["club_lists"][1] + 1), C.CLUB_LISTS),

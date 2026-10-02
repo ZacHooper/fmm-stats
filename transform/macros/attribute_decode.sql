@@ -1,6 +1,6 @@
 {#- The attribute decode: one SQL expression per derived attribute, generated from its
     coefficient rows in raw.attribute_model. `own`/`partner` are the wrapped 0-255 source
-    bytes; everything else is read straight off the stored record. -#}
+    columns (named in stg.attribute_model); everything else is read straight off the stored record. -#}
 
 {% macro uw(c) -%}(CASE WHEN {{ c }} < 128 THEN {{ c }} + 256 ELSE {{ c }} END){%- endmacro %}
 
@@ -36,14 +36,13 @@ GREATEST(1, LEAST(20, CAST(floor({{ dbl(w[0]) }} * p.{{ b1 }} + {{ dbl(w[1]) }} 
 
 {#- One attribute's fitted value from its coefficient rows. -#}
 {% macro model_expr(spec) -%}
-{%- set cols = var('attribute_columns') -%}
-{%- set own = uw('p."' ~ cols[spec.own | string] ~ '"') -%}
+{%- set own = uw('p."' ~ spec.own ~ '"') -%}
 {%- set parts = [] -%}
 {%- for feat, c in spec.coef.items() -%}
     {%- if feat == 'intercept' -%}{%- do parts.append(dbl(c)) -%}
     {%- else -%}
         {%- if feat == 'own' -%}{%- set e = own -%}
-        {%- elif feat == 'partner' -%}{%- set e = uw('p."' ~ cols[spec.partner | string] ~ '"') -%}
+        {%- elif feat == 'partner' -%}{%- set e = uw('p."' ~ spec.partner ~ '"') -%}
         {%- elif feat == 'CA' -%}{%- set e = 'p.ca' -%}
         {%- elif feat == 'PA' -%}{%- set e = 'p.pa' -%}
         {%- elif feat == 'mean9' -%}{%- set e = mean9() -%}

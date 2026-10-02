@@ -6,6 +6,12 @@ models:
       A person's current contract is the slot with is_current.
     data_tests:
       - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: stg_attribute_model
+    description: >
+      The attribute decoder's coefficients, one row per (attribute, feature), with each input
+      named by the raw.players_raw column that holds it rather than its record offset.
+    data_tests:
+      - unique_combination: {arguments: {columns: [attribute, feature]}}
   - name: stg_training
     description: >
       One row per player (staff have none): training focus, whether the row says he is under
