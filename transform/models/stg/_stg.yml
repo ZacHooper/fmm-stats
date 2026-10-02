@@ -5,18 +5,21 @@ models:
       Every used slot of the contract grid as stored; lapsed contracts keep their dates.
       A person's current contract is the slot with is_current.
     data_tests:
+      - rows_match_source: {arguments: {table: contracts}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_attribute_model
     description: >
       The attribute decoder's coefficients, one row per (attribute, feature), with each input
       named by the raw.players_raw column that holds it rather than its record offset.
     data_tests:
+      - rows_match_source: {arguments: {table: attribute_model}}
       - unique_combination: {arguments: {columns: [attribute, feature]}}
   - name: stg_club_details
     description: >
       Each club's own record per snapshot, with the save's 0xFFFF "none" read as NULL and
       league_cid the club's league.
     data_tests:
+      - rows_match_source: {arguments: {table: club_details}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_training
     description: >
@@ -24,62 +27,228 @@ models:
       contract, and his squad status where he is. Squad status is a contract term, not a loan
       flag.
     data_tests:
+      - rows_match_source: {arguments: {table: training}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_name_strings
     description: The browse string table, every name string the save holds, by ordinal.
     data_tests:
+      - rows_match_source: {arguments: {table: name_strings}}
       - unique_combination: {arguments: {columns: [snapshot_date, ordinal]}}
   - name: stg_name_ids
     description: >
       The used slots of the three name id-tables; a person's first, last and common name ids
       index first_names, surnames and nicknames, which give the ordinal of the string.
     data_tests:
+      - rows_match_source: {arguments: {table: name_ids}}
       - unique_combination: {arguments: {columns: [snapshot_date, name_table, id]}}
   - name: stg_snapshots
     description: One row per loaded save, its in-game date and season.
     data_tests:
+      - rows_match_source: {arguments: {table: extracts}}
       - unique_combination: {arguments: {columns: [snapshot_date]}}
   - name: stg_career
     description: The career this store holds and the club it manages, one row.
   - name: stg_team_squads
     description: Every team's squad array, one row per player listed.
     data_tests:
+      - rows_match_source: {arguments: {table: club_squad}}
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid, player_tid]}}
   - name: stg_clubs
     description: Every club-shaped record's name per snapshot.
     data_tests:
+      - rows_match_source: {arguments: {table: clubs}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_scrapbook_entries
     description: >
       Every Scrapbook Profile entry in every list, a copy of the player's profile as it was on
       entry_date.
     data_tests:
+      - rows_match_source: {arguments: {table: player_scrapbook}}
       - unique_combination: {arguments: {columns: [snapshot_date, list, slot]}}
   - name: stg_role_weights
     description: Each weight-set's attribute weights per role.
     data_tests:
+      - rows_match_source: {arguments: {table: role_weights}}
       - unique_combination: {arguments: {columns: [method, role, attribute]}}
   - name: stg_position_roles
     description: The role each position is rated in.
     data_tests:
+      - rows_match_source: {arguments: {table: position_role_map}}
       - unique_combination: {arguments: {columns: [position]}}
   - name: stg_persons
     description: >
       The person table per snapshot, players and staff: identity, club, personality, and the
       links to the player attributes (sid, NULL for staff) and staff attributes (id2).
     data_tests:
+      - rows_match_source: {arguments: {table: person_records}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_player_attributes
     description: >
       The player attribute table per snapshot, keyed by sid: the 34 attribute bytes as stored,
       a familiarity column per position, feet, CA/PA and the record's tail.
     data_tests:
+      - rows_match_source: {arguments: {table: attribute_records}}
       - unique_combination: {arguments: {columns: [snapshot_date, sid]}}
   - name: stg_staff_attributes
     description: The staff attribute table per snapshot, keyed by id2.
     data_tests:
+      - rows_match_source: {arguments: {table: staff_records}}
       - unique_combination: {arguments: {columns: [snapshot_date, id2]}}
   - name: stg_formations
     description: The formation catalog the staff records index.
     data_tests:
+      - rows_match_source: {arguments: {table: formations}}
       - unique_combination: {arguments: {columns: [snapshot_date, formation_id]}}
+  - name: stg_stadiums
+    description: >
+      The stadium table per snapshot, a city id of "none" read as NULL.
+    data_tests:
+      - rows_match_source: {arguments: {table: stadiums}}
+      - unique_combination: {arguments: {columns: [snapshot_date, stadium_id]}}
+  - name: stg_cities
+    description: >
+      The city table per snapshot, a region id of "none" read as NULL.
+    data_tests:
+      - rows_match_source: {arguments: {table: cities}}
+      - unique_combination: {arguments: {columns: [snapshot_date, city_id]}}
+  - name: stg_languages
+    description: >
+      The language table per snapshot, with its home nation (NULL for none).
+    data_tests:
+      - rows_match_source: {arguments: {table: languages}}
+      - unique_combination: {arguments: {columns: [snapshot_date, language_id]}}
+  - name: stg_currencies
+    description: >
+      The currency table per snapshot, with units per pound.
+    data_tests:
+      - rows_match_source: {arguments: {table: currencies}}
+      - unique_combination: {arguments: {columns: [snapshot_date, uid]}}
+  - name: stg_nations
+    description: >
+      The nation table per snapshot, its "none" ids read as NULL.
+    data_tests:
+      - rows_match_source: {arguments: {table: nations}}
+      - unique_combination: {arguments: {columns: [snapshot_date, nation_id]}}
+  - name: stg_nation_ranking_history
+    description: >
+      Each nation's world-ranking history, oldest first.
+    data_tests:
+      - rows_match_source: {arguments: {table: nation_ranking_history}}
+      - unique_combination: {arguments: {columns: [snapshot_date, nation_id, seq]}}
+  - name: stg_nation_coefficients
+    description: >
+      Each European nation's country coefficients, oldest first; the last is the season in progress and reads 0.
+    data_tests:
+      - rows_match_source: {arguments: {table: nation_coefficients}}
+      - unique_combination: {arguments: {columns: [snapshot_date, nation_id, seq]}}
+  - name: stg_nation_languages
+    description: >
+      The languages each nation speaks, with proficiency, as stored; a nation can list a
+      language more than once (Iceland: English at 50, 70 and 95), so there is no key.
+    data_tests:
+      - rows_match_source: {arguments: {table: nation_languages}}
+  - name: stg_club_staff
+    description: >
+      Each club's staff array (the manager is not in it).
+    data_tests:
+      - rows_match_source: {arguments: {table: club_staff}}
+      - unique_combination: {arguments: {columns: [snapshot_date, club_tid, staff_tid]}}
+  - name: stg_club_affiliates
+    description: >
+      Each club's affiliations as its record lists them, dates as stored.
+    data_tests:
+      - rows_match_source: {arguments: {table: club_affiliates}}
+      - unique_combination: {arguments: {columns: [snapshot_date, club_tid, seq]}}
+  - name: stg_club_league_history
+    description: >
+      Each club's league seasons: league, final position and size.
+    data_tests:
+      - rows_match_source: {arguments: {table: club_league_history}}
+      - unique_combination: {arguments: {columns: [snapshot_date, club_tid, season, league_cid]}}
+  - name: stg_club_records
+    description: >
+      Club History's Team Records, every written slot; a record stored twice stays twice.
+    data_tests:
+      - rows_match_source: {arguments: {table: club_records}}
+      - unique_combination: {arguments: {columns: [snapshot_date, byte_offset]}}
+  - name: stg_player_records
+    description: >
+      Club History's Player Records, every written slot.
+    data_tests:
+      - rows_match_source: {arguments: {table: player_records}}
+      - unique_combination: {arguments: {columns: [snapshot_date, byte_offset]}}
+  - name: stg_competitions
+    description: >
+      The competition table per snapshot, every named slot.
+    data_tests:
+      - rows_match_source: {arguments: {table: competitions}}
+      - unique_combination: {arguments: {columns: [snapshot_date, cid]}}
+  - name: stg_competition_team_counts
+    description: >
+      How many teams each competition has, from the rule files.
+    data_tests:
+      - rows_match_source: {arguments: {table: competition_team_counts}}
+      - unique_combination: {arguments: {columns: [snapshot_date, competition_uid]}}
+  - name: stg_competition_rounds
+    description: >
+      Each competition's stages and rounds, from its rules member in the save archive.
+    data_tests:
+      - rows_match_source: {arguments: {table: competition_rounds}}
+  - name: stg_round_names
+    description: >
+      The game's stage, round and leg name catalog.
+    data_tests:
+      - rows_match_source: {arguments: {table: round_names}}
+      - unique_combination: {arguments: {columns: [snapshot_date, round_name_id]}}
+  - name: stg_world_fixtures
+    description: >
+      The world fixture list with scores, every match in the save's archive.
+    data_tests:
+      - rows_match_source: {arguments: {table: world_fixtures}}
+  - name: stg_matches
+    description: >
+      Our own matches with detail, keyed by the match row's offset.
+    data_tests:
+      - rows_match_source: {arguments: {table: matches}}
+      - unique_combination: {arguments: {columns: [snapshot_date, anchor]}}
+  - name: stg_match_events
+    description: >
+      The events of our own matches, in order.
+    data_tests:
+      - rows_match_source: {arguments: {table: match_events}}
+      - unique_combination: {arguments: {columns: [snapshot_date, anchor, seq]}}
+  - name: stg_match_player_stats
+    description: >
+      Each player's line in our own matches, both sides; a 0xFF minute or condition reads NULL.
+    data_tests:
+      - rows_match_source: {arguments: {table: match_player_stats}}
+      - unique_combination: {arguments: {columns: [snapshot_date, anchor, side, player_tid]}}
+  - name: stg_player_history
+    description: >
+      Each player's career-history summary: origin club, last season's club, debut season.
+    data_tests:
+      - rows_match_source: {arguments: {table: player_history}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: stg_player_history_seasons
+    description: >
+      Each player's career history, one row per season line, with the fee code decoded.
+    data_tests:
+      - rows_match_source: {arguments: {table: player_history_seasons}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid, seq]}}
+  - name: stg_player_progress
+    description: >
+      The weekly Player Progress rows as stored; a week can repeat, so there is no key.
+    data_tests:
+      - rows_match_source: {arguments: {table: player_progress}}
+  - name: stg_event_types
+    description: >
+      The match event type codes and names.
+    data_tests:
+      - rows_match_source: {arguments: {table: event_types}}
+      - unique_combination: {arguments: {columns: [code]}}
+  - name: stg_eligible_origin_clubs
+    description: >
+      The clubs whose youth products count as local under the origin rule.
+    data_tests:
+      - rows_match_source: {arguments: {table: eligible_origin_clubs}}
+      - unique_combination: {arguments: {columns: [club_tid]}}

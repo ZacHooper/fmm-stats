@@ -105,7 +105,7 @@ One PR each, merged green, in this order.
 | 9 | Person, player and staff records; `build_database` deleted | both | same |
 | 10 | Extract cleanup | extract | `run_tests.py`; `assert_identical` re-recorded |
 | 11 | Save order and the cursor; extract takes no career | both | `assert_identical` re-recorded; gate stores diffed |
-| 12 | stg for every raw table | layers | each stg row count equals its source |
+| 12 | stg for every raw table | layers | `rows_match_source` on every stg model |
 | 13 | Reference, nation, club | layers | vs `mart.clubs`, `mart.our_clubs` |
 | 14 | Competition and match | layers | vs `mart.club_matches`, `match_stages`, `league_tables`, `match_player_facts` |
 | 15 | Person and the two models | layers | vs `mart.player_snapshots`, `player_value_est`, `injury_spells`, `player_seasons` |
@@ -332,14 +332,22 @@ the gate saves loaded with main's loader and with the branch's, every raw/stg/in
 relation diffed.
 
 ## 12. stg for every raw table
-*(Partly done by the int redesign (#129): a stg model, keyed by `snapshot_date`, for every
-source the person and player models read, and int shaped by `docs/data-model/`, with
-`models/legacy/` keeping the old `(season, phase)` shapes for the old mart until step 17.)*
-One stg model per raw table still without one: rename to the model's vocabulary, cast, decode
-codes to names where the code table is in the store, attach `person_id` where a `tid` appears,
-drop unused slots (`tid = 0xffffffff` and the like). No joins across sources.
+*(Started by the int redesign (#129), which gave every source the person and player models
+read a stg model; finished here.)* Every raw table has one stg model (43), keyed by
+`snapshot_date`: renamed to the model's vocabulary (`stadium_id`, `home_team_tid`,
+`match_date`, `passes_completed`, ...), cast, and with each "none" sentinel read as NULL
+(`no_id16` 0xFFFF, `no_id8` 0xFF; a free agent's history line has a NULL club). Coded seasons
+become the project's season (`1971 + n`, a league history's start year + 1), and a career-history
+fee code is decoded to `fee_kind` and `fee_gbp` (`fee_code_floor`, `fee_unit_gbp`,
+`fee_contract_ended`). No stg model joins another source, and none drops a row. `person_id`
+stays an int concern (`int_persons`), since attaching it would join the person table.
+Unnamed fields (`unk*`, the records' and affiliates' day-of-year dates) are carried as stored.
+`raw.results` was retired: extract no longer writes light results, so it was always empty.
+`raw.nation_languages` has no key: Iceland lists English at 50, 70 and 95.
 
-**Check**: each stg row count equals its raw source minus the documented drops.
+**Check**: `rows_match_source` on every stg model (each one's row count equals its raw source,
+less the rows it documents dropping: none do), plus a grain test wherever the source has a
+key; broken on purpose once (a `where` on `stg_stadiums` fails it).
 
 ## 13. Reference, nation, club
 - **int**: club ↔ team via `main_club_tid` (national sides are club-shaped in the first slots,

@@ -27,3 +27,16 @@ where
             {% endfor %}
     )
 {% endtest %}
+
+{#- The stg rule: a stg model has one row per row of its raw source, less the
+    rows `dropped` names (a SQL condition on the source; none by default). -#}
+{% test rows_match_source(model, table, dropped=none) %}
+select stg.n as stg_rows, raw.n as raw_rows
+from (select count(*) as n from {{ model }}) as stg
+cross join (
+    select count(*) as n
+    from {{ source('raw', table) }}
+    {% if dropped %}where not ({{ dropped }}){% endif %}
+) as raw
+where stg.n <> raw.n
+{% endtest %}
