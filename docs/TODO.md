@@ -164,6 +164,15 @@ development, not just injuries and loans.
   seeding (`strq`, `advs`, `rank`), TV and scheduling (`tvds`, `drdt`).
 - The archive's own framing: the two u64s ending each directory entry, `'sicomps'` and the byte
   after it, the `[08][00][00]` and u32 in the record header, the 13 bytes before member 0.
+- **Which competition a fixture belongs to.** A `fix_man` fixture names its stage
+  (`stage_key`, an index into `comp_man.dat`'s 78-byte stage grid) but no readable
+  competition. The link was searched for on the 182 stage instances of our own matches (13
+  competitions, every save) and found nowhere decoded: no fixture field and no stage-record
+  field is constant within a competition and distinct between them, a stage's key sits in its
+  own `comp_<uid>.dat` 42 times in 182 (6% background in the others), and `rgman.dat` /
+  `rule_group.dat` hold the uid beside the key 14 and 16 times. Until it is found, the store
+  labels a stage from our own match in it or from its teams' shared league
+  (`dim_match.competition_source`). First place to look: the stage record's unread `+1..+30`.
 
 ### 7. The data dictionary's state between the rule files
 The 667 rule files (`fmparser/tables/rule_files.py`) read 99.2% of their span and are identical

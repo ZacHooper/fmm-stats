@@ -466,7 +466,9 @@ DDL = [
         position VARCHAR
     )""",
 
-    # natural key: (season, phase, home_tid, away_tid, date)
+    # natural key: (season, phase, home_tid, away_tid, date). home_goals / away_goals are the
+    # score after 90 minutes, home_extra_goals / away_extra_goals the score after extra time
+    # (NULL when there was none), home_pens / away_pens the shoot-out.
     """CREATE TABLE IF NOT EXISTS raw.world_fixtures (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         home_tid INTEGER NOT NULL, away_tid INTEGER NOT NULL,
@@ -476,7 +478,8 @@ DDL = [
         home_pens INTEGER, away_pens INTEGER,
         stage_key INTEGER, seq_id INTEGER,
         season_year INTEGER,
-        stage_index INTEGER, round_index INTEGER, subr INTEGER
+        stage_index INTEGER, round_index INTEGER, subr INTEGER,
+        home_extra_goals INTEGER, away_extra_goals INTEGER
     )""",
 
     # natural key: (season, phase, uid, stage_index, round_index). Each competition's
@@ -1213,7 +1216,8 @@ def load_world(con, d, season, phase):
     data = _load_json(path) if os.path.exists(path) else []
     cols = ["season", "phase", "home_tid", "away_tid", "date", "year", "round",
             "home_goals", "away_goals", "home_pens", "away_pens",
-            "stage_key", "seq_id", "season_year", "stage_index", "round_index", "subr"]
+            "stage_key", "seq_id", "season_year", "stage_index", "round_index", "subr",
+            "home_extra_goals", "away_extra_goals"]
     rows = []
     for r in data:
         rows.append((
@@ -1222,7 +1226,8 @@ def load_world(con, d, season, phase):
             _int(r.get("home_goals")), _int(r.get("away_goals")),
             _int(r.get("home_pens")), _int(r.get("away_pens")),
             _int(r.get("stage_key")), _int(r.get("seq_id")), _int(r.get("season_year")),
-            _int(r.get("stage_index")), _int(r.get("round_index")), _int(r.get("subr"))
+            _int(r.get("stage_index")), _int(r.get("round_index")), _int(r.get("subr")),
+            _int(r.get("home_extra_goals")), _int(r.get("away_extra_goals"))
         ))
     if rows:
         out["world_fixtures"] = _insert(con, "world_fixtures", cols, rows)
@@ -1513,7 +1518,8 @@ _MIGRATIONS = [
         home_pens INTEGER, away_pens INTEGER,
         stage_key INTEGER, seq_id INTEGER,
         season_year INTEGER,
-        stage_index INTEGER, round_index INTEGER, subr INTEGER
+        stage_index INTEGER, round_index INTEGER, subr INTEGER,
+        home_extra_goals INTEGER, away_extra_goals INTEGER
     )""",
 
     # natural key: (season, phase, uid, stage_index, round_index). Each competition's
@@ -1598,6 +1604,9 @@ _MIGRATIONS = [
     # 2026-10-02: extract writes no light results, so raw.results was always empty
     # (data-layers plan, step 12).
     "DROP TABLE IF EXISTS raw.results",
+    # 2026-10-02: the fixture list's score after extra time (data-layers step 14).
+    "ALTER TABLE raw.world_fixtures ADD COLUMN IF NOT EXISTS home_extra_goals INTEGER",
+    "ALTER TABLE raw.world_fixtures ADD COLUMN IF NOT EXISTS away_extra_goals INTEGER",
 ]
 
 
