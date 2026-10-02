@@ -341,23 +341,32 @@ unit_tests:
         - {match_date: '2023-03-01', home_goals_90: 1, away_goals_90: 0, home_goals: 1, away_goals: 0, decided_by: '90', source_snapshot_date: '2023-06-26'}
         - {match_date: '2023-08-01', home_goals_90: null, away_goals_90: null, home_goals: null, away_goals: null, decided_by: null, source_snapshot_date: '2023-06-26'}
 
-  - name: stage_competitions_from_our_match_else_one_whole_league
+  - name: stage_competitions_from_our_match_else_league_structure
     description: >
-      A stage takes its competition from one of our matches in it; else, when its teams are
-      exactly one league's teams, that league; a cup of mixed leagues stays unlabelled, and so
-      does a stage holding only part of a league.
+      A stage takes its competition from one of our matches in it. Else a multi-matchday stage
+      at stage_index 0 is a league's regular stage, named by the league most of its clubs
+      belong to on the season's last snapshot when it holds enough of that league; a later
+      stage whose every club is one of its clubs (a split group) belongs to the same league;
+      a single-matchday stage (a cup tie) and a stage with outsiders stay unlabelled.
     model: int_stage_competitions
     given:
       - input: ref('int_world_matches')
         rows:
-          - {stage_key: 1, competition_season: 2025, match_date: '2025-08-01', home_team_tid: 346, away_team_tid: 344, source_snapshot_date: '2026-06-11'}
-          - {stage_key: 2, competition_season: 2025, match_date: '2025-08-01', home_team_tid: 10, away_team_tid: 11, source_snapshot_date: '2026-06-11'}
-          - {stage_key: 2, competition_season: 2025, match_date: '2025-08-08', home_team_tid: 12, away_team_tid: 10, source_snapshot_date: '2026-06-11'}
-          - {stage_key: 3, competition_season: 2025, match_date: '2025-09-01', home_team_tid: 10, away_team_tid: 20, source_snapshot_date: '2026-06-11'}
-          - {stage_key: 4, competition_season: 2025, match_date: '2025-09-02', home_team_tid: 11, away_team_tid: 12, source_snapshot_date: '2026-06-11'}
+          - {stage_key: 1, competition_season: 2025, stage_index: 0, matchday: 0, match_date: '2025-08-01', home_team_tid: 346, away_team_tid: 344, home_goals: 1}
+          - {stage_key: 2, competition_season: 2025, stage_index: 0, matchday: 0, match_date: '2025-08-01', home_team_tid: 10, away_team_tid: 11, home_goals: 1}
+          - {stage_key: 2, competition_season: 2025, stage_index: 0, matchday: 1, match_date: '2025-08-08', home_team_tid: 12, away_team_tid: 10, home_goals: 0}
+          - {stage_key: 2, competition_season: 2025, stage_index: 0, matchday: 2, match_date: '2025-08-15', home_team_tid: 11, away_team_tid: 12, home_goals: 2}
+          - {stage_key: 3, competition_season: 2025, stage_index: 1, matchday: 0, match_date: '2026-03-01', home_team_tid: 10, away_team_tid: 11, home_goals: 1}
+          - {stage_key: 3, competition_season: 2025, stage_index: 1, matchday: 1, match_date: '2026-03-08', home_team_tid: 11, away_team_tid: 10, home_goals: 1}
+          - {stage_key: 4, competition_season: 2025, stage_index: 0, matchday: 0, match_date: '2025-09-01', home_team_tid: 10, away_team_tid: 20, home_goals: 3}
+          - {stage_key: 5, competition_season: 2025, stage_index: 1, matchday: 0, match_date: '2026-03-02', home_team_tid: 12, away_team_tid: 20, home_goals: 0}
+          - {stage_key: 5, competition_season: 2025, stage_index: 1, matchday: 1, match_date: '2026-03-09', home_team_tid: 20, away_team_tid: 12, home_goals: 0}
       - input: ref('int_our_matches')
         rows:
           - {match_date: '2025-08-01', home_team_tid: 346, away_team_tid: 344, cid: 2}
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', season: 2026}
       - input: ref('int_team_snapshots')
         rows:
           - {snapshot_date: '2026-06-11', team_tid: 10, league_cid: 50}
@@ -367,7 +376,8 @@ unit_tests:
     expect:
       rows:
         - {stage_key: 1, competition_season: 2025, cid: 2, competition_source: our_match}
-        - {stage_key: 2, competition_season: 2025, cid: 50, competition_source: team_league}
+        - {stage_key: 2, competition_season: 2025, cid: 50, competition_source: league_structure}
+        - {stage_key: 3, competition_season: 2025, cid: 50, competition_source: league_structure}
 
   - name: matches_tie_and_leg
     description: >

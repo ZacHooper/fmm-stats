@@ -412,9 +412,12 @@ What the save says, measured before modelling it:
   one of its fixtures and its rules.
 - **A fixture names its stage, not its competition**, and no decoded byte of the fixture, the
   `comp_man` stage record or the rules members holds the link (TODO #6). A stage is labelled
-  from one of our matches in it (`our_match`), else when its teams are exactly one league's
-  teams (`team_league`); the rest (cups abroad) stay NULL. 40% of the Frem gate store's world
-  matches are labelled, 52% of Bucaspor's. Competition reputation changes between snapshots
+  from one of our matches in it (`our_match`), else by `mart.league_tables`' league rule
+  (`league_structure`: a multi-matchday stage at index 0 is a league's regular stage, the
+  season's other stages wholly inside its clubs are its split groups, named by the majority
+  league with an 80% membership check). That rule is a heuristic, verified against the game's
+  final positions for Denmark and the Premier League and failing for Spain (TODO #13); the
+  rest (cups abroad) stay NULL. Competition reputation changes between snapshots
   (`fact_competition_snapshot`).
 
 14a models: `int_world_matches` (one row per match, latest snapshot), `int_our_matches`,
@@ -427,7 +430,11 @@ What the save says, measured before modelling it:
 (goals, result, venue; Frem 114, Bucaspor 140), and `dim_match.cid` our match table's
 competition on all of them. Against `mart.match_stages` (4,116 / 3,408 rows) the score differs
 only on other clubs' extra-time matches (12 + 2 Frem, 20 + 2 Bucaspor), where the old view had
-the 90-minute score. `dim_match` holds every row `mart.world_fixtures` does.
+the 90-minute score. `dim_match` holds every row `mart.world_fixtures` does. Every match `mart.league_tables` counts
+as a league game has the same league in `dim_match` (Frem 19,544 of 19,550, Bucaspor all
+13,527; none differ). The 6 are one 4-club stage that fits two base stages; `dim_match` also
+labels ~2,000 reserve-group matches `league_tables` drops at its 80% check (its
+`club_leagues` carries a league forward, which inflates the league's size).
 
 **Check (14b)**: vs `mart.match_player_facts`; `mart.league_tables` for **Denmark only** (other
 countries are open analysis, TODO #13); events vs score, rebuilt tables vs

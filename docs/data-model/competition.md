@@ -143,5 +143,7 @@ Rules per season, promotion/qualification links (you can derive them from partic
 
 **A fixture names its stage, not its competition** (no decoded field holds the link; TODO #6).
 `dim_match.competition_source` says how a match's competition was found: one of our matches
-in its stage (`our_match`), or a stage whose teams are exactly one league's (`team_league`).
-Other stages (cups abroad) have no competition.
+in its stage (`our_match`), or the league rule `mart.league_tables` uses (`league_structure`:
+a league's regular stage is a multi-matchday stage at index 0, its split groups the season's
+other stages wholly inside its clubs). The rule is a heuristic, exact for Denmark and the
+Premier League, wrong for Spain (TODO #13). Other stages (cups abroad) have no competition.
