@@ -1,0 +1,66 @@
+version: 2
+models:
+  - name: int_person_names
+    description: >
+      Each person's name ids and the strings they index; `name` is the display name: the
+      common name when he has one, else first + last.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: int_squad_scrapbook
+    description: >
+      Every player in our first-team or reserve squad array on each snapshot, with his latest
+      Manager's Best Eleven entry. A player whose own record names another club is on loan to
+      us from it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: int_players
+    description: >
+      Each person's own record, with his squad status and current contract; for our squad the
+      name from the entry, and feet and value from it while it is at most a year old.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: int_player_attributes_exact
+    description: >
+      The attributes the save states outright; for our squad the 16 entangled ones from a fresh
+      entry. NULL where the save does not state it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [season, phase, tid]
+            to: ref('int_players')
+            to_columns: [season, phase, tid]
+  - name: int_player_attributes
+    description: >
+      All 23 attributes, with an `_est` flag each: stated where the save states them, decoded
+      from the record's bytes and raw.attribute_model otherwise.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [season, phase, tid]
+            to: ref('int_players')
+            to_columns: [season, phase, tid]
+  - name: int_person_slices
+    description: (season, phase, tid) -> person_id, the join every fact table uses.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('int_persons')
+            to_columns: [person_id]
+  - name: int_persons
+    description: >
+      One row per person across every snapshot, so a retired player whose slot has gone to a
+      newgen keeps his history.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id]}}
+  # The ratings' grain holds by construction (GROUP BY the key; ranks join int.players on its
+  # own key), and every rating is recomputed from 16M rows on read, so a whole-table test costs
+  # ~45 s and checks nothing the SQL does not already guarantee. The ratings are checked on a
+  # sample instead: tests/int_player_ratings_sample.sql, int_player_rating_ranks_sample.sql.
+  - name: int_player_ratings
+    description: Every player rated in every role of every weight-set.
+  - name: int_player_rating_ranks
+    description: Each rating's percentile and rank among everyone at that snapshot.

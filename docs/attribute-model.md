@@ -290,8 +290,8 @@ there, the same thing `blend_w` turned out to be.
   as an input. Regress CA on them and you recover CA from itself: R² 0.945, sd 6.6 — better
   than the truth. Fit on CA-independent inputs only.
 - **COALESCE.** The same view returns the EXACT value wherever one exists, i.e. on every truth
-  row, so the decode error read off it is identically **zero**. Use `fmstats.models.people._model_expr`,
-  which is the model branch with no COALESCE. Both of these bit during this investigation.
+  row, so the decode error read off it is identically **zero**. Use the `model_expr` macro
+  (`transform/macros/attribute_decode.sql`), which is the model branch with no COALESCE. Both of these bit during this investigation.
 
 ## `blend_w` earns +0.7, and mostly as a goalkeeper flag
 

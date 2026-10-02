@@ -13,7 +13,18 @@ dependencies = [
 ]
 
 # The extractors (extract.py, fmparser/*) need only numpy (with pandas) and zstandard;
-# duckdb is imported only by load_duckdb.py / fmq.py / fmstats. Everything runs via uv.
+# duckdb is imported only by load_duckdb.py / fmq.py / fmstats, dbt only by load_duckdb.py.
+# Everything runs via uv.
 # package = false: this is a workspace of scripts, not an installable package.
 [tool.uv]
 package = false
+# The loader builds the stg/int models with dbt (transform/), so the dbt group is installed by
+# default: `uv run` syncs to the default groups and would drop a non-default one. A machine
+# that only queries a built store (fmq.py) can leave it out with `uv sync --no-group transform`.
+default-groups = ["transform"]
+
+[dependency-groups]
+transform = [
+    "dbt-core>=1.12.5",
+    "dbt-duckdb>=1.11.0",
+]

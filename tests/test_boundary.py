@@ -6,7 +6,9 @@
     so it runs anywhere a .duckdb file exists;
   * every constant in fmstats.contract (the attribute columns, the record's byte names, the
     composite weights, the position order, the squad lists) equals the fmparser constant it
-    mirrors.
+    mirrors;
+  * every var the dbt project (transform/dbt_project.yml) generates its SQL from equals the
+    fmstats.contract constant it mirrors.
 
 The loader (load_duckdb.py), scripts/ and tests/ are the glue and may import both.
 Static: parses the source, needs no save and no store.
@@ -65,7 +67,26 @@ def main():
     differ = [name for name, declared, extracted in pairs if declared != extracted]
     for name, _, _ in pairs:
         print(f"  {'FAIL' if name in differ else 'ok  '} fmstats.contract.{name} matches fmparser")
-    return FAIL if bad or differ else PASS
+
+    import yaml
+    v = yaml.safe_load(open(os.path.join(ROOT, "transform", "dbt_project.yml")))["vars"]
+    dbt = [
+        ("attr_order", v["attr_order"], list(C.ATTR_ORDER)),
+        ("exact_single", list(v["exact_single"]), list(C.EXACT_SINGLE)),
+        ("attribute_columns", {int(k): c for k, c in v["attribute_columns"].items()},
+         {**C.SRC_OFFSETS, **C.PLAIN_OFFSETS, **C.HIDDEN_OFFSETS}),
+        ("hidden_attributes", v["hidden_attributes"], list(C.HIDDEN_OFFSETS.values())),
+        ("composites", {a: (tuple(d["columns"]), tuple(d["w"]), d["estimate"])
+                        for a, d in v["composites"].items()}, C.COMPOSITES),
+        ("positions", list(v["positions"]), list(C.POSITIONS)),
+        ("club_lists", range(v["club_lists"][0], v["club_lists"][1] + 1), C.CLUB_LISTS),
+        ("contracted", v["contracted"], C.CONTRACTED),
+        ("wage_gbp_per_unit", v["wage_gbp_per_unit"], C.WAGE_GBP_PER_UNIT),
+    ]
+    dbt_differ = [name for name, declared, mirrored in dbt if declared != mirrored]
+    for name, _, _ in dbt:
+        print(f"  {'FAIL' if name in dbt_differ else 'ok  '} dbt var {name} matches fmstats.contract")
+    return FAIL if bad or differ or dbt_differ else PASS
 
 
 if __name__ == "__main__":

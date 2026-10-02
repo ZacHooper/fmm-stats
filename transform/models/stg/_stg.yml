@@ -1,0 +1,31 @@
+version: 2
+models:
+  - name: stg_contracts
+    description: >
+      Every used slot of the contract grid as stored; lapsed contracts keep their dates.
+      A person's current contract is the slot with is_current.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: stg_attribute_model
+    description: >
+      The attribute decoder's coefficients, one row per (attribute, feature), with each input
+      named by the raw.players_raw column that holds it rather than its record offset.
+    data_tests:
+      - unique_combination: {arguments: {columns: [attribute, feature]}}
+  - name: stg_training
+    description: >
+      One row per player (staff have none): training focus, whether the row says he is under
+      contract, and his squad status where he is. Squad status is a contract term, not a loan
+      flag.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: stg_name_strings
+    description: The browse string table, every name string the save holds, by ordinal.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, ordinal]}}
+  - name: stg_name_ids
+    description: >
+      The used slots of the three name id-tables; a person's first, last and common name ids
+      index first_names, surnames and nicknames, which give the ordinal of the string.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, name_table, id]}}
