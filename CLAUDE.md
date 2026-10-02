@@ -144,8 +144,10 @@ ATTACH the full store for that, not a scrub issue).
   (`load_duckdb.build_models`), so every load and `--refresh-only` tests what it builds, and a
   failing test fails the load; by hand it is
   `cd transform && FM_DUCKDB=<store> uv run dbt build --profiles-dir .`. A model file is
-  `<layer>_<name>.sql` and its relation `<layer>.<name>`; references leave out the catalog, so
-  a copy of the store under another name still binds. Its SQL is generated from the `vars` in
+  `<layer>_<name>.sql` and its relation `<layer>.<name>`. dbt writes the store's catalog name
+  (its file name, `fm-<career>`) into every view, so a copy of the store binds only when
+  attached under that name: `ATTACH 'copy.duckdb' AS "fm-frem"` (`select sql from
+  duckdb_views()` shows it). Tables are unaffected. Its SQL is generated from the `vars` in
   `transform/dbt_project.yml`, which `tests/test_boundary.py` checks against
   `fmstats/contract.py`. **Test big views on a sample** (`transform/tests/`): a test that
   reads all 16M ratings costs ~45 s, the sample ~0.6 s. `fmstats/mart.py` derives the old
