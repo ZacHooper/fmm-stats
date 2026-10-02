@@ -1,12 +1,17 @@
 -- Each player's familiarity with every position his attribute record rates
--- above 1, by tid.
-select
-    person.snapshot_date,
-    person.tid,
-    positions.position,
-    positions.familiarity
-from {{ ref('stg_person_records') }} as person
-inner join {{ ref('stg_attribute_positions') }} as positions
+-- above 1, one row per position, by tid.
+with long as (
+    unpivot {{ ref('int_player_records') }}
     on
-        person.snapshot_date = positions.snapshot_date
-        and person.sid = positions.sid
+    {% for position in var('positions') %}
+    pos_{{ position | lower }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+    into name position_column value familiarity
+)
+
+select
+    snapshot_date,
+    tid,
+    upper(replace(position_column, 'pos_', '')) as position,
+    familiarity
+from long

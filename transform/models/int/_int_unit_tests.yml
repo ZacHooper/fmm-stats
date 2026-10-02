@@ -7,7 +7,7 @@ unit_tests:
       The common name first, else first + last; NULL when either is missing.
     model: int_person_names
     given:
-      - input: ref('stg_person_records')
+      - input: ref('stg_persons')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, first_name_id: 5, last_name_id: 7, common_name_id: 0}
           - {snapshot_date: '2026-06-11', tid: 2, first_name_id: 5, last_name_id: 7, common_name_id: 4294967295}
@@ -162,19 +162,19 @@ unit_tests:
       a player whose GK familiarity is 20.
     model: int_player_records
     given:
-      - input: ref('stg_person_records')
+      - input: ref('stg_persons')
         rows:
           - {snapshot_date: '2026-06-11', tid: 1, sid: 'aa000000', club_tid: 346}
           - {snapshot_date: '2026-06-11', tid: 2, sid: 'bb000000', club_tid: 346}
           - {snapshot_date: '2026-06-11', tid: 3, sid: 'cc000000', club_tid: 346}
           - {snapshot_date: '2026-06-11', tid: 4, sid: null, club_tid: 346}
-      - input: ref('stg_attribute_records')
+      - input: ref('stg_player_attributes')
         format: sql
         rows: |
           SELECT DATE '2026-06-11' AS snapshot_date, 'aa000000' AS sid,
-                 '{"GK": 20}'::JSON AS positions, 80 AS ca
+                 20 AS pos_gk, NULL::INTEGER AS pos_dc, 80 AS ca
           UNION ALL
-          SELECT DATE '2026-06-11', 'bb000000', '{"DC": 20, "GK": 3}'::JSON, 90
+          SELECT DATE '2026-06-11', 'bb000000', 3, 20, 90
     expect:
       rows:
         - {tid: 1, has_attributes: true, is_goalkeeper: true, ca: 80}
@@ -202,7 +202,7 @@ unit_tests:
       id names its catalog entry; a staff member without a staff record keeps his row.
     model: int_staff_snapshots
     given:
-      - input: ref('stg_person_records')
+      - input: ref('stg_persons')
         rows:
           - {snapshot_date: '2026-06-11', tid: 10, sid: null, id2: 0}
           - {snapshot_date: '2026-06-11', tid: 11, sid: null, id2: 1}
@@ -216,7 +216,7 @@ unit_tests:
           - {snapshot_date: '2026-06-11', tid: 13, person_id: 13-x}
       - input: ref('int_person_names')
         rows: []
-      - input: ref('stg_staff_records')
+      - input: ref('stg_staff_attributes')
         rows:
           - {snapshot_date: '2026-06-11', id2: 0, attacking_intent: 7, world_reputation: 2999, formation_preferred: 1, formation_attacking: 0, formation_defensive: 0}
           - {snapshot_date: '2026-06-11', id2: 1, attacking_intent: 14, world_reputation: 5800, formation_preferred: 0, formation_attacking: 0, formation_defensive: 0}
@@ -229,3 +229,17 @@ unit_tests:
         - {tid: 10, has_staff_record: true, style: Defensive, reputation_tier: Regional, formation_preferred_name: 4-4-2 Diamond}
         - {tid: 11, has_staff_record: true, style: Attacking, reputation_tier: Continental, formation_preferred_name: 4-4-2}
         - {tid: 12, has_staff_record: false, style: null, reputation_tier: null, formation_preferred_name: null}
+
+  - name: player_positions_one_row_per_rated_position
+    description: >
+      Each pos_* column the record rates becomes a row named by its position code; a position
+      the record leaves at the floor (NULL) has no row.
+    model: int_player_positions
+    given:
+      - input: ref('int_player_records')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, pos_gk: null, pos_dc: 20, pos_dmc: 12}
+    expect:
+      rows:
+        - {tid: 1, position: DC, familiarity: 20}
+        - {tid: 1, position: DMC, familiarity: 12}

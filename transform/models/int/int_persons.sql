@@ -8,7 +8,7 @@ select
     min(record.snapshot_date) as first_seen,
     max(record.snapshot_date) as last_seen,
     count(*) as snapshots
-from {{ ref('stg_person_records') }} as record
+from {{ ref('stg_persons') }} as record
 left join {{ ref('int_person_names') }} as person_names
     on
         record.snapshot_date = person_names.snapshot_date

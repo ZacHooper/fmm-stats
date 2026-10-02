@@ -8,13 +8,11 @@ select
     attributes.sid is not null as has_attributes,
     case
         when attributes.sid is not null
-            then coalesce(
-                cast(json_extract(attributes.positions, '$.GK') as integer), 0
-            ) = 20
+            then coalesce(attributes.pos_gk, 0) = 20
     end as is_goalkeeper,
     attributes.* exclude (snapshot_date, sid)  -- noqa: RF02
-from {{ ref('stg_person_records') }} as person
-left join {{ ref('stg_attribute_records') }} as attributes
+from {{ ref('stg_persons') }} as person
+left join {{ ref('stg_player_attributes') }} as attributes
     on
         person.snapshot_date = attributes.snapshot_date
         and person.sid = attributes.sid

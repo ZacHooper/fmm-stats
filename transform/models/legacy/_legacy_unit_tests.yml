@@ -12,7 +12,9 @@ unit_tests:
           - {snapshot_date: '2026-06-11', tid: 1, club_tid: 7296}
           - {snapshot_date: '2026-06-11', tid: 2, club_tid: 900}
           - {snapshot_date: '2026-06-11', tid: 3, club_tid: null}
-      - input: ref('stg_person_records')
+      - input: ref('stg_persons')
+        rows: []
+      - input: ref('int_player_positions')
         rows: []
       - input: ref('int_managed_squad')
         rows:

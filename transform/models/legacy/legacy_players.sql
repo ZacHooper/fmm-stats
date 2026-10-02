@@ -7,8 +7,9 @@
 --     'Free agent', as the parser stored them.
 --   * squad_status is the training row's byte, which the old mart still
 --     shows; it is not a squad status (int.player_snapshots leaves it out).
---   * positions is the attribute record's position familiarities as JSON;
---     '{}' for a person with none (staff, or a player with no record).
+--   * positions is the player's position familiarities as JSON, in the
+--     record's order; '{}' for a person with none (staff, or a player with no
+--     record).
 
 with records as (
     select
@@ -20,8 +21,24 @@ with records as (
         *,
         true as is_staff,
         false as has_attributes
-    from {{ ref('stg_person_records') }}
+    from {{ ref('stg_persons') }}
     where sid is null
+),
+
+positions as (
+    select
+        snapshot_date,
+        tid,
+        cast('{' || string_agg(
+            '"' || position || '": ' || familiarity, ', '
+            order by case position
+                {%- for pos in var('positions') %}
+                when '{{ pos }}' then {{ loop.index0 }}
+                {%- endfor %}
+            end
+        ) || '}' as json) as positions
+    from {{ ref('int_player_positions') }}
+    group by snapshot_date, tid
 ),
 
 loans as (
@@ -75,7 +92,7 @@ select
     people.ca,
     people.pa,
     people.reputation,
-    coalesce(people.positions, cast('{}' as json)) as positions,
+    coalesce(positions.positions, cast('{}' as json)) as positions,
     people.foot_left,
     people.foot_right,
     players.value as player_value,
@@ -133,3 +150,7 @@ left join {{ ref('stg_training') }} as training
     on
         people.snapshot_date = training.snapshot_date
         and people.tid = training.tid
+left join positions
+    on
+        people.snapshot_date = positions.snapshot_date
+        and people.tid = positions.tid

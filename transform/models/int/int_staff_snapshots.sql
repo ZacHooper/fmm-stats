@@ -26,7 +26,7 @@ select
         when staff.attacking_intent <= {{ ceiling }} then '{{ label }}'
         {% endfor %}
     end as style
-from {{ ref('stg_person_records') }} as person
+from {{ ref('stg_persons') }} as person
 inner join {{ ref('int_person_snapshots') }} as people
     on
         person.snapshot_date = people.snapshot_date
@@ -35,7 +35,7 @@ left join {{ ref('int_person_names') }} as person_names
     on
         person.snapshot_date = person_names.snapshot_date
         and person.tid = person_names.tid
-left join {{ ref('stg_staff_records') }} as staff
+left join {{ ref('stg_staff_attributes') }} as staff
     on
         person.snapshot_date = staff.snapshot_date
         and person.id2 = staff.id2

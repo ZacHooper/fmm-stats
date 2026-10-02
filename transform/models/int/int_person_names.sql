@@ -11,7 +11,7 @@ select
     coalesce(
         nicknames.name, first_names.name || ' ' || surnames.name
     ) as name
-from {{ ref('stg_person_records') }} as record
+from {{ ref('stg_persons') }} as record
 {{ name_join('first_names', 'first_name_id') }}
 {{ name_join('surnames', 'last_name_id') }}
 {{ name_join('nicknames', 'common_name_id') }}

@@ -7,4 +7,4 @@ select
     tid,
     {{ person_id() }} as person_id,
     sid is null as is_staff
-from {{ ref('stg_person_records') }}
+from {{ ref('stg_persons') }}

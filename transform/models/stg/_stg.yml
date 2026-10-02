@@ -63,23 +63,19 @@ models:
     description: The role each position is rated in.
     data_tests:
       - unique_combination: {arguments: {columns: [position]}}
-  - name: stg_person_records
+  - name: stg_persons
     description: >
       The person table per snapshot, players and staff: identity, club, personality, and the
-      links to the attribute record (sid, NULL for staff) and staff record (id2).
+      links to the player attributes (sid, NULL for staff) and staff attributes (id2).
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
-  - name: stg_attribute_records
+  - name: stg_player_attributes
     description: >
       The player attribute table per snapshot, keyed by sid: the 34 attribute bytes as stored,
-      positions, feet, CA/PA and the record's tail.
+      a familiarity column per position, feet, CA/PA and the record's tail.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, sid]}}
-  - name: stg_attribute_positions
-    description: Each attribute record's position familiarities, one row per position.
-    data_tests:
-      - unique_combination: {arguments: {columns: [snapshot_date, sid, position]}}
-  - name: stg_staff_records
+  - name: stg_staff_attributes
     description: The staff attribute table per snapshot, keyed by id2.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, id2]}}
