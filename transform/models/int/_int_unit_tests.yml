@@ -79,30 +79,33 @@ unit_tests:
         - {team_tid: 7296, player_tid: 2, team_type: reserve, club_tid: 346}
         - {team_tid: 99, player_tid: 3, team_type: null, club_tid: 99}
 
-  - name: team_snapshots_ground_falls_back_to_the_club
+  - name: team_snapshots_ground_and_youth_fall_back_to_the_club
     description: >
-      A team plays at its own ground, else its club's (a reserve side stores none).
+      A team plays at its own ground, else its club's (a reserve side stores none); a reserve
+      side has its club's training and youth facilities (its record holds defaults), any other
+      team its own.
     model: int_team_snapshots
     given:
       - input: ref('int_teams')
         rows:
-          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
-          - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346}
-          - {snapshot_date: '2026-06-11', team_tid: 6150, club_tid: 1032}
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346, team_type: first}
+          - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346, team_type: reserve}
+          - {snapshot_date: '2026-06-11', team_tid: 6150, club_tid: 1032, team_type: b_team}
       - input: ref('stg_club_details')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 346, stadium_id: 181, reputation: 4691}
-          - {snapshot_date: '2026-06-11', tid: 7296, stadium_id: null, reputation: 3530}
-          - {snapshot_date: '2026-06-11', tid: 6150, stadium_id: 900, reputation: 2300}
+          - {snapshot_date: '2026-06-11', tid: 346, stadium_id: 181, reputation: 4691, facilities: 12, academy: 14}
+          - {snapshot_date: '2026-06-11', tid: 7296, stadium_id: null, reputation: 3530, facilities: 10, academy: 0}
+          - {snapshot_date: '2026-06-11', tid: 1032, stadium_id: 500, reputation: 5873, facilities: 15, academy: 16}
+          - {snapshot_date: '2026-06-11', tid: 6150, stadium_id: 900, reputation: 2300, facilities: 7, academy: 9}
       - input: ref('int_club_snapshots')
         rows:
           - {snapshot_date: '2026-06-11', club_tid: 346, stadium_id: 181}
           - {snapshot_date: '2026-06-11', club_tid: 1032, stadium_id: 500}
     expect:
       rows:
-        - {team_tid: 346, reputation: 4691, stadium_id: 181}
-        - {team_tid: 7296, reputation: 3530, stadium_id: 181}
-        - {team_tid: 6150, reputation: 2300, stadium_id: 900}
+        - {team_tid: 346, reputation: 4691, stadium_id: 181, training_facilities: 12, youth_facilities: 14}
+        - {team_tid: 7296, reputation: 3530, stadium_id: 181, training_facilities: 12, youth_facilities: 14}
+        - {team_tid: 6150, reputation: 2300, stadium_id: 900, training_facilities: 7, youth_facilities: 9}
 
   - name: managed_squad_first_team_over_reserve
     description: >

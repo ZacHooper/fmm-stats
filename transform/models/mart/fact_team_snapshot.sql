@@ -1,5 +1,6 @@
 -- Each team on each snapshot: what each side holds on its own (reputation,
--- status, training facilities, league, last season's finish, ground).
+-- status, training and youth facilities, league, last season's finish,
+-- ground).
 select
     team_tid,
     snapshot_date,
@@ -7,6 +8,7 @@ select
     reputation,
     status,
     training_facilities,
+    youth_facilities,
     league_cid,
     other_division_cid,
     last_league_cid,

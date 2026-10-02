@@ -1,31 +1,31 @@
 version: 2
 models:
-  - name: mart_dim_position
+  - name: dim_position
     description: >
       The fifteen positions: code, unit, display order.
     data_tests:
       - unique_combination: {arguments: {columns: [position]}}
-  - name: mart_dim_role
+  - name: dim_role
     description: >
       The player roles by id; a role names no position.
     data_tests:
       - unique_combination: {arguments: {columns: [role_id]}}
-  - name: mart_dim_city
+  - name: dim_city
     description: >
       Each city, as its latest snapshot gives it.
     data_tests:
       - unique_combination: {arguments: {columns: [city_id]}}
-  - name: mart_dim_stadium
+  - name: dim_stadium
     description: >
-      Each stadium, as its latest snapshot gives it.
+      Each stadium and its city; name and capacity are on fact_stadium_snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [stadium_id]}}
-  - name: mart_dim_nation
+  - name: dim_nation
     description: >
-      Each nation as a place, with the languages it speaks.
+      Each nation as a place; ranking, coefficients and languages are on fact_nation_snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [nation_id]}}
-  - name: mart_fact_nation_snapshot
+  - name: fact_nation_snapshot
     description: >
       Each nation on each snapshot: ranking and the two histories.
     data_tests:
@@ -33,14 +33,14 @@ models:
       - relationship_combination:
           arguments:
             columns: [nation_id]
-            to: ref('mart_dim_nation')
+            to: ref('dim_nation')
             to_columns: [nation_id]
-  - name: mart_dim_club
+  - name: dim_club
     description: >
       Each club: its first team's name and nations.
     data_tests:
       - unique_combination: {arguments: {columns: [club_tid]}}
-  - name: mart_dim_team
+  - name: dim_team
     description: >
       Each team, the side that plays, with the club that owns it and its team type.
     data_tests:
@@ -48,9 +48,9 @@ models:
       - relationship_combination:
           arguments:
             columns: [club_tid]
-            to: ref('mart_dim_club')
+            to: ref('dim_club')
             to_columns: [club_tid]
-  - name: mart_fact_club_snapshot
+  - name: fact_club_snapshot
     description: >
       Each club on each snapshot: what its teams share.
     data_tests:
@@ -58,14 +58,14 @@ models:
       - relationship_combination:
           arguments:
             columns: [club_tid]
-            to: ref('mart_dim_club')
+            to: ref('dim_club')
             to_columns: [club_tid]
       - relationship_combination:
           arguments:
             columns: [stadium_id]
-            to: ref('mart_dim_stadium')
+            to: ref('dim_stadium')
             to_columns: [stadium_id]
-  - name: mart_fact_team_snapshot
+  - name: fact_team_snapshot
     description: >
       Each team on each snapshot: what each side holds on its own.
     data_tests:
@@ -73,10 +73,20 @@ models:
       - relationship_combination:
           arguments:
             columns: [team_tid]
-            to: ref('mart_dim_team')
+            to: ref('dim_team')
             to_columns: [team_tid]
       - relationship_combination:
           arguments:
             columns: [stadium_id]
-            to: ref('mart_dim_stadium')
+            to: ref('dim_stadium')
+            to_columns: [stadium_id]
+  - name: fact_stadium_snapshot
+    description: >
+      Each stadium on each snapshot: name, capacity, expansion capacity.
+    data_tests:
+      - unique_combination: {arguments: {columns: [stadium_id, snapshot_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [stadium_id]
+            to: ref('dim_stadium')
             to_columns: [stadium_id]

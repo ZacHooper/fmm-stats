@@ -1,6 +1,6 @@
 -- Each club on each snapshot: what its teams share, read from its first team's
 -- record (int_teams). A reserve side stores no stadium and empty kits of its
--- own, so the club's ground, colours, kits and academy are the first team's.
+-- own, so the club's ground, colours and kits are the first team's.
 -- nation_id is the club's home nation and league_nation_id the nation whose
 -- league it plays in (Cardiff City: Wales, England). affiliates is the club
 -- record's list of affiliation links, dates as stored.
@@ -30,7 +30,6 @@ select
     details.nation_id,
     details.league_nation_id,
     details.stadium_id,
-    details.academy,
     details.colours,
     details.kits,
     coalesce(affiliates.affiliates, []) as affiliates,

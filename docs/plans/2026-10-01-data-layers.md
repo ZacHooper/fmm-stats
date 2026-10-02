@@ -358,25 +358,33 @@ the project no longer defines).
   club, else it is its club's first team. `team_type` is `first`, `reserve`, `b_team` (a
   first-team-typed record with a parent: a second side in the senior pyramid, Las Palmas C),
   `national` or `national_u21`. `int_team_squads` reads its team type and club from it.
-- **Club vs team, measured, not assumed**: reputation, status and training facilities differ
-  between a first team and its reserves (Frem 4691/12, reserves 3530/10), so they are on
-  `fact_team_snapshot`; ground, academy, colours and kits are the first team's, on
-  `fact_club_snapshot` (a reserve side stores no ground and empty kits). A team's ground is its
-  own, else its club's. The record's attendance fields are not modelled (`mart.clubs` says why).
+- **Club vs team, measured, not assumed**: reputation and status are each team's (Frem 4691,
+  its reserves 3530), on `fact_team_snapshot` with the training and youth facilities. A reserve
+  side's record holds defaults for the facilities (training 10 and youth 0 on every reserve
+  side, never changing), so it has its club's; a B team has its own. Ground, colours and kits
+  are the first team's, on `fact_club_snapshot` (a reserve side stores no ground and empty
+  kits); a team's ground is its own, else its club's. The record's attendance fields are not
+  modelled (`mart.clubs` says why).
+- **Dimensions hold what does not change between snapshots**; what changes is on a snapshot
+  fact. A stadium's name and capacity change (Valby Stadion 4,400, 9,400, 15,000), so they are
+  on `fact_stadium_snapshot`; a nation's languages, ranking and coefficients on
+  `fact_nation_snapshot`. Measured on the gate stores, the nation, city, club-name and
+  club/nation id fields never change.
 - `based_id` is the nation whose league a club plays in (Cardiff City: England; home nation
   Wales): `league_nation_id`.
 - **Codes named by seeds**: `seeds/roles.csv`, `training_attributes.csv` and `positions.csv`
   (the unit of each position) replace `fmstats/definitions.py`; the loader seeds them into raw
   (`seed_codes`) and `fmstats/mart.py` renders `mart.roles` / `mart.training_attributes` from
   the same files. A role carries no position: the save does not say where one is played.
-- Dimensions take each id's latest snapshot (`latest()` macro, `int_*_list` / `int_cities` /
-  `int_stadiums` / `int_nations`); `dim_nation` lists its languages, `fact_nation_snapshot` the
-  ranking and coefficient histories. Cities have no name in the save.
+- Mart models are named by their relation (`dim_city.sql` -> `mart.dim_city`), not
+  `mart_<name>`. A dimension's row is its id's latest snapshot (`latest()`: the max
+  `snapshot_date` the id appears in). Cities have no name in the save.
 
 **Check**: `fact_team_snapshot` against `mart.clubs` on all 33,993 (Frem) and 12,278 (Bucaspor)
-rows: name, reputation, facilities, last season's finish, staff size, status and the first
-teams' academy agree on every row. The differences are all explained: the save's 0xFFFF reads
-NULL; a reserve, U21 or B side with no ground gets its club's; and `mart.club_leagues` carries a
+rows: name, reputation, last season's finish, staff size and status agree on every row, and
+so do facilities and academy for every team but a reserve side (which now has its club's). The differences are all explained: the save's 0xFFFF reads
+NULL; a reserve, U21 or B side with no ground gets its club's, and a reserve side its club's
+facilities; and `mart.club_leagues` carries a
 league forward from an earlier snapshot where the record names none (217 Frem rows), a
 cross-snapshot rule that moves with the league tables in step 14. `dim_team`'s teams of the
 managed club equal `mart.our_clubs` (a `validate_mart.py` check), and its reserve is

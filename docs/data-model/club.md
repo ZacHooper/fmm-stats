@@ -6,7 +6,7 @@ and [`match.md`](match.md), where the **team** is the side that plays.
 **Core idea:** a **club** owns one or more **teams** (Frem: first team 346, reserves 7296). The
 club holds what the teams share (ground, colours and kits, academy, money, staff, contracts); a
 team holds what each side has on its own (matches, competitions, reputation, status, training
-facilities). Things that change are recorded as
+and youth facilities). Things that change are recorded as
 **periodic snapshots** at each save date, with an `is_current` flag for convenience.
 
 ```mermaid
@@ -40,7 +40,6 @@ erDiagram
         int club_key FK
         date snapshot_date FK
         int stadium_key FK
-        int academy
         json colours_kits
         list affiliates
         int balance
@@ -54,6 +53,7 @@ erDiagram
         int reputation
         int status
         int training_facilities
+        int youth_facilities
         int league_key FK
         int last_league_position
         int stadium_key FK "own ground, else the club's"
@@ -83,14 +83,14 @@ erDiagram
 | `dim_club` | static identity: name, nation |
 | `dim_team` | the side that plays: its club, team type, `is_first_team`. Every team has a club, even when a club has only one team. |
 | `dim_snapshot_date` | the save dates, the project's `phase` |
-| `dim_stadium`, `dim_staff`, `dim_nation` | the usual |
+| `dim_stadium`, `dim_staff`, `dim_nation` | the usual; a stadium's name and capacity change over a career (Valby Stadion 4,400, 9,400, 15,000), so they are on a stadium snapshot |
 
 ## What sits where
 
 | Level | Holds | Why |
 |---|---|---|
-| **Club snapshot** | ground, academy, colours and kits, finances, affiliates | shared: read from the first team's record. A reserve side stores no ground and empty kits. |
-| **Team snapshot** | reputation, status, training facilities, league, last season's finish, ground | each side's own record. **The save holds these per team**: Frem reads reputation 4691 and facilities 12, its reserves 3530 and 10 (459 of 3,918 reserve sides differ from their first team on reputation, 3,830 on facilities). A team's ground is its own, else its club's. |
+| **Club snapshot** | ground, colours and kits, finances, affiliates | shared: read from the first team's record. A reserve side stores no ground and empty kits. |
+| **Team snapshot** | reputation, status, training and youth facilities, league, last season's finish, ground | each side's own record. **Reputation is per team**: Frem 4691, its reserves 3530, and 357 reserve sides' reputations move between snapshots. A reserve side's record holds defaults for the two facilities (training 10, youth 0, on every reserve side and never changing), so a reserve side has its club's; a B team has its own. A team's ground is its own, else its club's. |
 
 **The save stores every team as a whole club record.** A team that names another in
 `main_club_tid` belongs to that club; one that names none is its club's first team. So

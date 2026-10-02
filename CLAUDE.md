@@ -156,7 +156,8 @@ ATTACH the full store for that, not a scrub issue).
   (`load_duckdb.build_models`), so every load and `--refresh-only` tests what it builds, and a
   failing test fails the load; by hand it is
   `cd transform && FM_DUCKDB=<store> uv run dbt build --profiles-dir .`. A model file is
-  `<layer>_<name>.sql` and its relation `<layer>.<name>`. dbt writes the store's catalog name
+  `<layer>_<name>.sql` and its relation `<layer>.<name>`, except in `models/mart/`, where the
+  file is named for the relation itself (`dim_city.sql` -> `mart.dim_city`). dbt writes the store's catalog name
   (its file name, `fm-<career>`) into every view, so a copy of the store binds only when
   attached under that name: `ATTACH 'copy.duckdb' AS "fm-frem"` (`select sql from
   duckdb_views()` shows it). Tables are unaffected. Its SQL is generated from the `vars` in
