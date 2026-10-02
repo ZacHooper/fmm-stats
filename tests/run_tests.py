@@ -12,6 +12,10 @@ Green now means something ran.
     uv run python tests/run_tests.py
     uv run python tests/run_tests.py -k layouts        # substring filter
     uv run python tests/run_tests.py -v                # stream each test's own output
+    uv run python tests/run_tests.py --store           # also the tests over a built store
+
+Tests run in parallel, one process each. The tests in STORE_TESTS read a built or published
+store rather than the saves, and run only with --store or when named with -k.
 
 Exit codes: 0 all good, 1 something failed, 2 nothing ran at all.
 """
@@ -25,6 +29,9 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKIP = 77
+
+# Tests over the published / cached store (fmq and the query layer), not the saves.
+STORE_TESTS = {"test_fmq.py"}
 
 UNIT_TESTS = {
     "test_club_comp_unit.py",
@@ -68,8 +75,10 @@ def main():
     ap.add_argument("-k", dest="filter", help="only tests whose filename contains this")
     ap.add_argument("-u", "--unit", action="store_true",
                     help="run only fast, zero-save-dependency unit tests")
-    ap.add_argument("-j", "--jobs", type=int, default=1,
-                    help="number of parallel test worker processes (default: 1)")
+    ap.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 1,
+                    help="number of parallel test worker processes (default: one per CPU)")
+    ap.add_argument("--store", action="store_true",
+                    help=f"also run the tests over a built store ({', '.join(sorted(STORE_TESTS))})")
     ap.add_argument("-v", "--verbose", action="store_true",
                     help="stream each test's output instead of only its verdict")
     args = ap.parse_args()
@@ -79,6 +88,8 @@ def main():
         tests = [t for t in tests if os.path.basename(t) in UNIT_TESTS]
     if args.filter:
         tests = [t for t in tests if args.filter in os.path.basename(t)]
+    elif not args.store:
+        tests = [t for t in tests if os.path.basename(t) not in STORE_TESTS]
     if not tests:
         print("no tests matched")
         return 2
