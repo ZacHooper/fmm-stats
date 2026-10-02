@@ -52,10 +52,12 @@ Spell overlap semantics:
 """
 from __future__ import annotations
 
+import csv
+import os
+
 import duckdb
 
 from .contract import ATTR_ORDER
-from . import definitions as D
 
 # Which attributes are VESTIGIAL for which role. The UI swaps a block of attributes in and
 # out by role; the engine still stores all 23 for everyone, but the ones the role does not
@@ -3151,9 +3153,22 @@ JOIN {S}.players p USING (season, phase, tid)
 WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
 """
 
-# The game's own codes, named (fmstats/definitions.py): the parser hands over ids, the mart
-# says what they are called. Rendered as VALUES views, so a newly named code reaches a store
-# with --refresh-only.
+# The game's own codes, named (seeds/roles.csv, seeds/training_attributes.csv): the parser
+# hands over ids, the mart says what they are called. Rendered as VALUES views from the seed
+# files rather than read from raw, so a newly named code reaches any store, the published copy
+# included, with --refresh-only. The loader seeds the same files into raw for the models.
+_SEEDS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "seeds")
+
+
+def _seed_rows(name, cols):
+    """The rows of seeds/<name> as tuples of `cols`, typed: digits as int, true/false as bool."""
+    def typed(v):
+        return (int(v) if v.lstrip("-").isdigit()
+                else v == "true" if v in ("true", "false") else v)
+    with open(os.path.join(_SEEDS, name), newline="", encoding="utf-8") as fh:
+        return [tuple(typed(r[c]) for c in cols) for r in csv.DictReader(fh)]
+
+
 def _values_view(name, cols, rows):
     body = ",\n    ".join("(" + ", ".join(_sql_literal(v) for v in r) + ")" for r in rows)
     return (f"CREATE OR REPLACE VIEW {name} AS\nSELECT * FROM (VALUES\n    {body}\n) "
@@ -3169,9 +3184,10 @@ def _sql_literal(v):
 
 
 ROLES_VIEW = _values_view("mart.roles", ("id", "name", "inferred"),
-                          [(k, v, k in D.ROLES_INFERRED) for k, v in sorted(D.ROLES.items())])
+                          _seed_rows("roles.csv", ("id", "name", "inferred")))
 TRAINING_ATTRIBUTES_VIEW = _values_view("mart.training_attributes", ("code", "abbrev"),
-                                        sorted(D.TRAINING_ATTRIBUTES.items()))
+                                        _seed_rows("training_attributes.csv",
+                                                   ("code", "abbrev")))
 
 # The Training page, per player per snapshot: what he is being trained as (focus position and
 # role), the attribute he is focusing on, and the intensity. Every player in the world has a

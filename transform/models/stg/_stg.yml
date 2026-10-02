@@ -252,3 +252,18 @@ models:
     data_tests:
       - rows_match_source: {arguments: {table: eligible_origin_clubs}}
       - unique_combination: {arguments: {columns: [club_tid]}}
+  - name: stg_roles
+    description: Player role names by id, from seeds/roles.csv.
+    data_tests:
+      - rows_match_source: {arguments: {table: roles}}
+      - unique_combination: {arguments: {columns: [role_id]}}
+  - name: stg_training_attributes
+    description: The Training page Attr codes, from seeds/training_attributes.csv.
+    data_tests:
+      - rows_match_source: {arguments: {table: training_attributes}}
+      - unique_combination: {arguments: {columns: [code]}}
+  - name: stg_positions
+    description: The position codes with their unit and display order, from seeds/positions.csv.
+    data_tests:
+      - rows_match_source: {arguments: {table: positions}}
+      - unique_combination: {arguments: {columns: [position]}}

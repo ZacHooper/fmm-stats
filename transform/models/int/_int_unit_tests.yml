@@ -30,27 +30,79 @@ unit_tests:
         - {tid: 2, name: Adenor Bachi}
         - {tid: 3, name: null}
 
+  - name: teams_owned_by_their_club
+    description: >
+      A team that names a parent belongs to it, else it owns itself and is its club's first
+      team. A first-team-typed record with a parent is a b_team; a reserve-typed one a reserve;
+      a national U21 side belongs to its senior side.
+    model: int_teams
+    given:
+      - input: ref('stg_club_details')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 346, club_type: 0, main_club_tid: null}
+          - {snapshot_date: '2026-06-11', tid: 7296, club_type: 2, main_club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 1032, club_type: 0, main_club_tid: null}
+          - {snapshot_date: '2026-06-11', tid: 6150, club_type: 0, main_club_tid: 1032}
+          - {snapshot_date: '2026-06-11', tid: 20, club_type: 1, main_club_tid: null}
+          - {snapshot_date: '2026-06-11', tid: 7400, club_type: 3, main_club_tid: 20}
+      - input: ref('stg_clubs')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 346, name: Frem}
+          - {snapshot_date: '2026-06-11', tid: 6150, name: Las Palmas C}
+    expect:
+      rows:
+        - {team_tid: 346, club_tid: 346, name: Frem, team_type: first, is_first_team: true}
+        - {team_tid: 7296, club_tid: 346, name: null, team_type: reserve, is_first_team: false}
+        - {team_tid: 1032, club_tid: 1032, name: null, team_type: first, is_first_team: true}
+        - {team_tid: 6150, club_tid: 1032, name: Las Palmas C, team_type: b_team, is_first_team: false}
+        - {team_tid: 20, club_tid: 20, name: null, team_type: national, is_first_team: true}
+        - {team_tid: 7400, club_tid: 20, name: null, team_type: national_u21, is_first_team: false}
+
   - name: team_squads_owned_by_their_club
     description: >
-      A reserve side is owned by the first team its record names; a first team or a national
-      side owns itself; the team type is named from the club type.
+      Each listing carries its team's type and club (int_teams); a team with no record owns
+      itself.
     model: int_team_squads
     given:
       - input: ref('stg_team_squads')
         rows:
           - {snapshot_date: '2026-06-11', team_tid: 346, player_tid: 1, slot: 0}
           - {snapshot_date: '2026-06-11', team_tid: 7296, player_tid: 2, slot: 0}
-          - {snapshot_date: '2026-06-11', team_tid: 20, player_tid: 1, slot: 4}
-      - input: ref('stg_club_details')
+          - {snapshot_date: '2026-06-11', team_tid: 99, player_tid: 3, slot: 0}
+      - input: ref('int_teams')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 346, club_type: 0, main_club_tid: null}
-          - {snapshot_date: '2026-06-11', tid: 7296, club_type: 2, main_club_tid: 346}
-          - {snapshot_date: '2026-06-11', tid: 20, club_type: 1, main_club_tid: null}
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346, team_type: first}
+          - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346, team_type: reserve}
     expect:
       rows:
         - {team_tid: 346, player_tid: 1, team_type: first, club_tid: 346}
         - {team_tid: 7296, player_tid: 2, team_type: reserve, club_tid: 346}
-        - {team_tid: 20, player_tid: 1, team_type: national, club_tid: 20}
+        - {team_tid: 99, player_tid: 3, team_type: null, club_tid: 99}
+
+  - name: team_snapshots_ground_falls_back_to_the_club
+    description: >
+      A team plays at its own ground, else its club's (a reserve side stores none).
+    model: int_team_snapshots
+    given:
+      - input: ref('int_teams')
+        rows:
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 6150, club_tid: 1032}
+      - input: ref('stg_club_details')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 346, stadium_id: 181, reputation: 4691}
+          - {snapshot_date: '2026-06-11', tid: 7296, stadium_id: null, reputation: 3530}
+          - {snapshot_date: '2026-06-11', tid: 6150, stadium_id: 900, reputation: 2300}
+      - input: ref('int_club_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', club_tid: 346, stadium_id: 181}
+          - {snapshot_date: '2026-06-11', club_tid: 1032, stadium_id: 500}
+    expect:
+      rows:
+        - {team_tid: 346, reputation: 4691, stadium_id: 181}
+        - {team_tid: 7296, reputation: 3530, stadium_id: 181}
+        - {team_tid: 6150, reputation: 2300, stadium_id: 900}
 
   - name: managed_squad_first_team_over_reserve
     description: >

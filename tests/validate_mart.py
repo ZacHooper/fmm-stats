@@ -330,6 +330,20 @@ def main():
           con.execute("SELECT COUNT(*) FROM mart.managed_club").fetchone()[0] == 1)
     check("reserve_clubs is the complement",
           con.execute("SELECT COUNT(*) FROM mart.reserve_clubs").fetchone()[0] == 1)
+    # The club model (mart.dim_team) owns the same two teams our_clubs lists: the managed
+    # first team and the reserve side whose record names it.
+    diff = con.execute("""
+        SELECT COUNT(*) FROM (
+            (SELECT club_tid FROM mart.our_clubs
+             EXCEPT SELECT team_tid FROM mart.dim_team
+                    WHERE club_tid = (SELECT club_tid FROM mart.managed_club))
+            UNION ALL
+            (SELECT team_tid FROM mart.dim_team
+                    WHERE club_tid = (SELECT club_tid FROM mart.managed_club)
+             EXCEPT SELECT club_tid FROM mart.our_clubs))
+    """).fetchone()[0]
+    check("dim_team's teams of the managed club are our_clubs", diff == 0,
+          f"{diff} teams in one and not the other")
 
     # -- 6. growth ------------------------------------------------------------------
     print("\n6. growth")

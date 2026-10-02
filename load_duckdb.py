@@ -1718,6 +1718,26 @@ def seed_event_types(con):
                     sorted(EVENT_TYPE.items()))
 
 
+# The game's codes, named: seeds/<file> -> raw.<table>, replaced on every load and
+# --refresh-only, so naming a code reaches a store with no re-extract. fmstats/mart.py
+# renders mart.roles and mart.training_attributes from the same files.
+CODE_SEEDS = (("roles", "roles.csv", "id INTEGER, name VARCHAR, inferred BOOLEAN"),
+              ("training_attributes", "training_attributes.csv",
+               "code INTEGER, abbrev VARCHAR"),
+              ("positions", "positions.csv",
+               "code VARCHAR, unit VARCHAR, display_order INTEGER"))
+
+
+def seed_codes(con):
+    """(Re)seed raw.roles, raw.training_attributes and raw.positions from seeds/."""
+    seeds = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds")
+    for table, name, cols in CODE_SEEDS:
+        types = ", ".join(f"'{c.split()[0]}': '{c.split()[1]}'" for c in cols.split(", "))
+        con.execute(f"CREATE OR REPLACE TABLE raw.{table} AS SELECT * FROM "
+                    f"read_csv(?, header = true, columns = {{{types}}})",
+                    [os.path.join(seeds, name)])
+
+
 def store_career(con):
     """The career key the store records (raw.app_config `career_key`), or None."""
     try:
@@ -1838,8 +1858,9 @@ MODEL_SCHEMAS = ("stg", "int", "legacy")
 
 
 def _drop_unbuilt(con, results):
-    """Drop the views in the model schemas that the project no longer defines (a renamed or
-    removed model), so a store refreshed across a rename holds only what dbt built."""
+    """Drop the views in the model schemas, and the dim_ / fact_ tables in mart, that the
+    project no longer defines (a renamed or removed model), so a store refreshed across a
+    rename holds only what dbt built."""
     built = {(r.node.schema, r.node.alias) for r in results
              if r.node.resource_type == "model"}
     for schema, name in con.execute(
@@ -1848,6 +1869,14 @@ def _drop_unbuilt(con, results):
             f"{MODEL_SCHEMAS}").fetchall():
         if (schema, name) not in built:
             con.execute(f'DROP VIEW "{schema}"."{name}"')
+    # dbt's mart tables share the schema with fmstats/mart.py's views; only the dim_ / fact_
+    # names are dbt's.
+    for (name,) in con.execute(
+            "SELECT table_name FROM duckdb_tables() WHERE database_name = current_database() "
+            "AND schema_name = 'mart' "
+            "AND regexp_matches(table_name, '^(dim|fact)_')").fetchall():
+        if ("mart", name) not in built:
+            con.execute(f'DROP TABLE mart."{name}"')
 
 
 def report_persons(con):
@@ -1933,6 +1962,7 @@ def main():
             # raw.role_weights survives this.
             seed_role_weights(con)
             seed_event_types(con)
+            seed_codes(con)
             built = create_views(con)
             seed_career(con)
             mart_objects = create_mart(con)
@@ -1984,6 +2014,7 @@ def main():
                 fail += 1
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
         seed_event_types(con)
+        seed_codes(con)
         create_views(con)
         report_persons(con)
         seed_career(con, career.key)

@@ -4,8 +4,9 @@ Conceptual model only; names are not final tables. Links to [`competition.md`](c
 and [`match.md`](match.md), where the **team** is the side that plays.
 
 **Core idea:** a **club** owns one or more **teams** (Frem: first team 346, reserves 7296). The
-club holds what the teams share (stadium, facilities, money, staff, contracts); a team holds what
-each side has on its own (matches, competitions, reputation). Things that change are recorded as
+club holds what the teams share (ground, colours and kits, academy, money, staff, contracts); a
+team holds what each side has on its own (matches, competitions, reputation, status, training
+facilities). Things that change are recorded as
 **periodic snapshots** at each save date, with an `is_current` flag for convenience.
 
 ```mermaid
@@ -32,20 +33,14 @@ erDiagram
         int team_key PK
         int club_key FK
         string name
-        string team_type "first / reserve / youth"
+        string team_type "first / reserve / b_team / national / national_u21"
         bool is_first_team
     }
     fact_club_snapshot {
         int club_key FK
         date snapshot_date FK
         int stadium_key FK
-        int training_facilities
-        int youth_facilities
         int academy
-        string status "professional / semi-pro / amateur"
-        int attendance_avg
-        int attendance_min
-        int attendance_max
         json colours_kits
         list affiliates
         int balance
@@ -57,6 +52,11 @@ erDiagram
         int team_key FK
         date snapshot_date FK
         int reputation
+        int status
+        int training_facilities
+        int league_key FK
+        int last_league_position
+        int stadium_key FK "own ground, else the club's"
         bool is_current
     }
     fact_staff_spell {
@@ -89,8 +89,16 @@ erDiagram
 
 | Level | Holds | Why |
 |---|---|---|
-| **Club snapshot** | stadium, facilities, academy, status, attendance, colours and kits, finances, affiliates | shared: one ground, one training complex, one bank account |
-| **Team snapshot** | reputation | each side has its own. **Assumed per team**; if the save turns out to hold one per club, it moves to the club snapshot. Club reputation is a view over the first team's value. |
+| **Club snapshot** | ground, academy, colours and kits, finances, affiliates | shared: read from the first team's record. A reserve side stores no ground and empty kits. |
+| **Team snapshot** | reputation, status, training facilities, league, last season's finish, ground | each side's own record. **The save holds these per team**: Frem reads reputation 4691 and facilities 12, its reserves 3530 and 10 (459 of 3,918 reserve sides differ from their first team on reputation, 3,830 on facilities). A team's ground is its own, else its club's. |
+
+**The save stores every team as a whole club record.** A team that names another in
+`main_club_tid` belongs to that club; one that names none is its club's first team. So
+`team_type` is: `first` (no parent), `reserve` (a reserve side, outside the senior pyramid),
+`b_team` (a second or third side in the senior pyramid, e.g. Las Palmas C: first-team-typed
+but with a parent), `national` and `national_u21` (the U21 side belongs to the senior side).
+The record's attendance fields are not attendance (`mart.clubs` says why), so they are not
+modelled.
 | **Team facts** | matches, participation, competition outcomes | a *team* plays and enters competitions (see the competition and match docs) |
 | **Club facts** | staff spells, transfers | staff are employed by the club; a transfer is club to club (first team ↔ reserves is not a transfer) |
 

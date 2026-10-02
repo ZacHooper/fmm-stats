@@ -1,6 +1,8 @@
 -- Each club's own record, one row per club per snapshot. A u16 id field holds
 -- var('no_id16') (0xFFFF) for "none"; here every such field reads NULL
--- instead. league_cid is the club's league: league_id, unless the record names
+-- instead. league_nation_id is the nation whose league the club plays in and
+-- nation_id its home nation (Cardiff City: England, Wales). league_cid is the
+-- club's league: league_id, unless the record names
 -- another division in other_division (0xFFFF when league_id is the club's own
 -- league) or league_id is 0.
 {%- set no_id = var('no_id16') %}
@@ -8,7 +10,7 @@
 select
     cast(phase as date) as snapshot_date,
     tid,
-    based_id,
+    based_id as league_nation_id,
     nation_id,
     colours,
     kits,

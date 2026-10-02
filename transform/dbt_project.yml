@@ -1,5 +1,5 @@
 # The T of extract-load-transform for the new layers: stg (one model per raw table), int
-# (joins and rules) and, from step 16 on, the dim_/fact_ tables. The old mart
+# (joins and rules) and, from step 13 on, the dim_/fact_ tables (mart). The old mart
 # (fmstats/mart.py) is not built here; it reads int through the compatibility views.
 name: fm_stats
 version: "1.0"
@@ -25,6 +25,9 @@ models:
     legacy:                   # the old shapes fmstats/mart.py reads (fmstats/compat.py)
       +schema: legacy
       +materialized: view
+    mart:                     # the dim_ / fact_ tables, beside the old mart views
+      +schema: mart
+      +materialized: table
 
 vars:
   # What the SQL is generated from: the raw schema's attribute columns and codes, mirrored
@@ -78,6 +81,9 @@ vars:
                 sportsmanship, temperament]
   positions: [GK, SW, DL, DC, DR, DMC, ML, MC, MR, AML, AMC, AMR, ST, DML, DMR]
   team_types: {0: first, 1: national, 2: reserve, 3: national_u21}  # club_details.club_type
+  # A club_type-0 record that names a parent club is a second side in the senior pyramid
+  # (Las Palmas C, Cartagena B), not a first team (int_teams).
+  b_team: {club_type: 0, team_type: b_team}
   club_lists: [31, 61]        # first and last scrapbook list holding our squad
   contracted: 135             # the training row's contract flag (0x87)
   no_id16: 65535              # a u16 id field's "none" (0xFFFF); stg models read it as NULL

@@ -95,7 +95,7 @@ weekly Player Progress rows the parser hands over as stored, `raw.player_progres
 `mart.progress_weeks`), `mart.training_focus` (the Training page for every player on every snapshot: focus
 position and role, attribute focus, intensity -- a Scrapbook Profile's role is this focus role
 on its date; role and attribute names come from `mart.roles` / `mart.training_attributes`,
-rendered from `fmstats/definitions.py` -- the parser hands over ids only), and `mart.player_development` (a
+rendered from `seeds/roles.csv` / `seeds/training_attributes.csv` -- the parser hands over ids only), and `mart.player_development` (a
 **development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
 ceiling' — the only form potential ever leaves the mart in; there are deliberately no stars). Use the full `site-data/fm-frem.duckdb` only
 when you need the `raw` tables or per-snapshot history for a player who was never ours. (The published copies name that schema `staging` until they are next republished, data-layers step 18; `fmq` reads them as published.)
@@ -147,7 +147,8 @@ ATTACH the full store for that, not a scrub issue).
   keyed by `snapshot_date`, and int models shaped by the semantic model (`docs/data-model/`):
   person snapshots, team squads, our managed squad, scrapbook entries, a player's info
   (`int_player_info`) and his ratings (`int_player_attributes`, the decode behind it), staff,
-  role ratings — and, from data-layers step 16, the `dim_*`/`fact_*` tables.
+  role ratings — and the `dim_*`/`fact_*` tables (`models/mart/`, tables in `mart` beside the
+  old views; from data-layers step 13).
   `models/legacy/` rebuilds the old `(season, phase)` shapes from them for `fmstats/mart.py`
   (through `fmstats/compat.py`) until step 17 moves the old mart over. Each model's grain and keys are dbt data tests, and its
   rules are dbt **unit tests** (fixed rows in, the rows it must produce out:
