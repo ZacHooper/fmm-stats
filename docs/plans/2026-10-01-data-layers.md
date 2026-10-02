@@ -107,7 +107,7 @@ One PR each, merged green, in this order.
 | 11 | Save order and the cursor; extract takes no career | both | `assert_identical` re-recorded; gate stores diffed |
 | 12 | stg for every raw table | layers | `rows_match_source` on every stg model |
 | 13 | Reference, nation, club | layers | vs `mart.clubs` row for row; `dim_team` = `mart.our_clubs` |
-| 14 | Competition and match | layers | vs `mart.club_matches`, `match_stages`, `league_tables`, `match_player_facts` |
+| 14 | Competition and match (14a, 14b) | both | vs `mart.club_matches`, `match_stages`; then `league_tables`, `match_player_facts` |
 | 15 | Person and the two models | layers | vs `mart.player_snapshots`, `player_value_est`, `injury_spells`, `player_seasons` |
 | 16 | Contracts and transfers | layers | vs `mart.player_spells`, `at_club_spells`, `transfers`, `loan_out_spells`, `squad_current` |
 | 17 | Move the site's marts | layers | `git diff site/api` empty; `validate_mart.py` |
@@ -391,17 +391,47 @@ managed club equal `mart.our_clubs` (a `validate_mart.py` check), and its reserv
 `careers.py`'s `reserve_tid` (7296, 11320).
 
 ## 14. Competition and match
-- **int**: match identity across snapshots (the latest-phase rule), stage and round labelling from
-  the rules members, outcome derivation.
-- **mart**: `dim_competition`, `dim_stage`, `dim_round`, `dim_match` (every match in the world,
-  `has_detail` for ours), `fact_team_match` (score from the world fixture list),
-  `fact_player_match`, `fact_match_event`, `fact_participation`, `fact_competition_outcome`;
-  views `standings`, `tie_results`.
+Two PRs. **14a** (done): the extra-time score, competitions, stages, rounds, matches and the
+team-match fact. **14b**: player-match facts (minutes with extra time), events, participation,
+outcomes, `standings` and `tie_results`.
 
-**Check**: vs `mart.club_matches`, `mart.match_stages`, `mart.match_player_facts`;
-`mart.league_tables` for **Denmark only** (other countries are open analysis, TODO #13); checks:
-events vs score, rebuilt tables vs `club_league_history`, outcomes vs the roll of honour.
-**Blocked by** TODO #16 (extra-time minutes); settle how two-legged ties are stored first.
+What the save says, measured before modelling it:
+- **Extra time is in the fixture list.** `fix_man`'s `+7`/`+12` bytes are the score after extra
+  time (0xFF = none): equal to our match table's final score on all 5 extra-time matches among
+  our 575, every save of both careers; the other 570 equal the 90-minute score. Extract now
+  writes them (`home_extra_goals` / `away_extra_goals`; `stg`: `goals_aet`).
+- **A two-legged tie is one round played twice**, home and away swapped, both fixtures
+  carrying the round's `round_index`; the rules mark the round `legs = 2`. `int_matches`
+  numbers the legs by date and gives the pairing a `tie_id`. (Whether a second leg's
+  extra-time bytes are that match's score or the aggregate is unverified: no labelled
+  two-legged tie on the gate saves went to extra time.)
+- **Rules change between seasons** (a round of 16 teams in 4 groups becomes 32 in 8; 32
+  entries on the gate store), so stages and rounds are keyed by the **competition season**,
+  the fixture's own season label (`season_year`: 2025 for a 2025/26 league and for a
+  calendar-year 2025 one), with each season's rules from the earliest snapshot holding both
+  one of its fixtures and its rules.
+- **A fixture names its stage, not its competition**, and no decoded byte of the fixture, the
+  `comp_man` stage record or the rules members holds the link (TODO #6). A stage is labelled
+  from one of our matches in it (`our_match`), else when its teams are exactly one league's
+  teams (`team_league`); the rest (cups abroad) stay NULL. 40% of the Frem gate store's world
+  matches are labelled, 52% of Bucaspor's. Competition reputation changes between snapshots
+  (`fact_competition_snapshot`).
+
+14a models: `int_world_matches` (one row per match, latest snapshot), `int_our_matches`,
+`int_stage_competitions`, `int_competition_seasons`, `int_stages`, `int_rounds`, `int_matches`,
+`int_team_matches`, `int_competitions`; mart `dim_competition`, `fact_competition_snapshot`,
+`dim_stage`, `dim_round`, `dim_match` (every world match, `has_detail` for ours,
+`competition_source`), `fact_team_match` (2 rows per match, the final score).
+
+**Check (14a)**: `fact_team_match` equals `mart.club_matches` on every row of our matches
+(goals, result, venue; Frem 114, Bucaspor 140), and `dim_match.cid` our match table's
+competition on all of them. Against `mart.match_stages` (4,116 / 3,408 rows) the score differs
+only on other clubs' extra-time matches (12 + 2 Frem, 20 + 2 Bucaspor), where the old view had
+the 90-minute score. `dim_match` holds every row `mart.world_fixtures` does.
+
+**Check (14b)**: vs `mart.match_player_facts`; `mart.league_tables` for **Denmark only** (other
+countries are open analysis, TODO #13); events vs score, rebuilt tables vs
+`club_league_history`, outcomes vs the roll of honour.
 
 ## 15. Person and the two models
 *(int half largely done in steps 8–9: person identity (`int_person_snapshots`, `int_persons`),
@@ -492,8 +522,7 @@ Mismatches are reported, never fixed by the build:
 |---|---|---|
 | #14 Person identity | step 15 | `dim_person` keys everything |
 | #15 History lost to reclamation | step 15 | `fact_player_season` unions history across snapshots |
-| #16 Extra-time minutes | step 14 | `fact_player_match.minutes` |
-| Two-legged ties: one round or two? | step 14 | how `tie_results` groups |
+| #16 Extra-time minutes | step 14b | `fact_player_match.minutes` (the fixture list now gives extra time) |
 | Contract signed dates (unread training-row dates) | step 16 | exact end dates instead of snapshot bounds |
 
 ## Other TODOs this touches

@@ -4,8 +4,9 @@ Conceptual model only; names are not final tables.
 
 **Core idea:** a competition is a fixed sequence of **stages**. Each stage's **format** decides
 what it produces: a league-format stage produces a ranking, and a knockout stage produces the
-winners of its ties. **The winner is the outcome of the final stage.** Rules are fixed per
-competition in FMM, so **season is only a key**. (competition, season) is the grain shared by
+winners of its ties. **The winner is the outcome of the final stage.** Rules can change
+between seasons (a round of 16 teams in 4 groups becomes 32 in 8), so a stage and a round are
+keyed by the competition's own season label. (competition, season) is the grain shared by
 participation, outcomes and standings.
 
 ```mermaid
@@ -137,5 +138,10 @@ the derived outcome.
 Rules per season, promotion/qualification links (you can derive them from participation plus
 `level`), and match detail (next ticket).
 
-**Open question:** does the save store a two-legged tie as one round with a leg number, or as
-two rounds? Check `mart.match_stages`.
+**Two-legged ties** are one round played twice, home and away swapped, the round marked
+`legs = 2` in the rules; `dim_match` carries `tie_id` and `leg` (numbered by date).
+
+**A fixture names its stage, not its competition** (no decoded field holds the link; TODO #6).
+`dim_match.competition_source` says how a match's competition was found: one of our matches
+in its stage (`our_match`), or a stage whose teams are exactly one league's (`team_league`).
+Other stages (cups abroad) have no competition.

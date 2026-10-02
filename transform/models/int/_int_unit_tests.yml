@@ -320,3 +320,81 @@ unit_tests:
         - {tid: 10, has_staff_record: true, style: Defensive, reputation_tier: Regional, formation_preferred_name: 4-4-2 Diamond}
         - {tid: 11, has_staff_record: true, style: Attacking, reputation_tier: Continental, formation_preferred_name: 4-4-2}
         - {tid: 12, has_staff_record: false, style: null, reputation_tier: null, formation_preferred_name: null}
+
+  - name: world_matches_final_score_and_decided_by
+    description: >
+      A match's row is the latest snapshot holding it; the final score is the score after extra
+      time where there was any, and decided_by says 90, ET or pens (NULL unplayed).
+    model: int_world_matches
+    given:
+      - input: ref('stg_world_fixtures')
+        rows:
+          - {snapshot_date: '2023-01-10', match_date: '2023-02-22', home_team_tid: 368, away_team_tid: 346, home_goals: null, away_goals: null, home_goals_aet: null, away_goals_aet: null, home_pens: null, away_pens: null}
+          - {snapshot_date: '2023-06-26', match_date: '2023-02-22', home_team_tid: 368, away_team_tid: 346, home_goals: 0, away_goals: 0, home_goals_aet: 0, away_goals_aet: 1, home_pens: null, away_pens: null}
+          - {snapshot_date: '2023-06-26', match_date: '2023-01-04', home_team_tid: 992, away_team_tid: 993, home_goals: 2, away_goals: 2, home_goals_aet: 2, away_goals_aet: 2, home_pens: 2, away_pens: 4}
+          - {snapshot_date: '2023-06-26', match_date: '2023-03-01', home_team_tid: 346, away_team_tid: 344, home_goals: 1, away_goals: 0, home_goals_aet: null, away_goals_aet: null, home_pens: null, away_pens: null}
+          - {snapshot_date: '2023-06-26', match_date: '2023-08-01', home_team_tid: 346, away_team_tid: 337, home_goals: null, away_goals: null, home_goals_aet: null, away_goals_aet: null, home_pens: null, away_pens: null}
+    expect:
+      rows:
+        - {match_date: '2023-02-22', home_goals_90: 0, away_goals_90: 0, home_goals: 0, away_goals: 1, decided_by: ET, source_snapshot_date: '2023-06-26'}
+        - {match_date: '2023-01-04', home_goals_90: 2, away_goals_90: 2, home_goals: 2, away_goals: 2, decided_by: pens, source_snapshot_date: '2023-06-26'}
+        - {match_date: '2023-03-01', home_goals_90: 1, away_goals_90: 0, home_goals: 1, away_goals: 0, decided_by: '90', source_snapshot_date: '2023-06-26'}
+        - {match_date: '2023-08-01', home_goals_90: null, away_goals_90: null, home_goals: null, away_goals: null, decided_by: null, source_snapshot_date: '2023-06-26'}
+
+  - name: stage_competitions_from_our_match_else_one_whole_league
+    description: >
+      A stage takes its competition from one of our matches in it; else, when its teams are
+      exactly one league's teams, that league; a cup of mixed leagues stays unlabelled, and so
+      does a stage holding only part of a league.
+    model: int_stage_competitions
+    given:
+      - input: ref('int_world_matches')
+        rows:
+          - {stage_key: 1, competition_season: 2025, match_date: '2025-08-01', home_team_tid: 346, away_team_tid: 344, source_snapshot_date: '2026-06-11'}
+          - {stage_key: 2, competition_season: 2025, match_date: '2025-08-01', home_team_tid: 10, away_team_tid: 11, source_snapshot_date: '2026-06-11'}
+          - {stage_key: 2, competition_season: 2025, match_date: '2025-08-08', home_team_tid: 12, away_team_tid: 10, source_snapshot_date: '2026-06-11'}
+          - {stage_key: 3, competition_season: 2025, match_date: '2025-09-01', home_team_tid: 10, away_team_tid: 20, source_snapshot_date: '2026-06-11'}
+          - {stage_key: 4, competition_season: 2025, match_date: '2025-09-02', home_team_tid: 11, away_team_tid: 12, source_snapshot_date: '2026-06-11'}
+      - input: ref('int_our_matches')
+        rows:
+          - {match_date: '2025-08-01', home_team_tid: 346, away_team_tid: 344, cid: 2}
+      - input: ref('int_team_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', team_tid: 10, league_cid: 50}
+          - {snapshot_date: '2026-06-11', team_tid: 11, league_cid: 50}
+          - {snapshot_date: '2026-06-11', team_tid: 12, league_cid: 50}
+          - {snapshot_date: '2026-06-11', team_tid: 20, league_cid: 60}
+    expect:
+      rows:
+        - {stage_key: 1, competition_season: 2025, cid: 2, competition_source: our_match}
+        - {stage_key: 2, competition_season: 2025, cid: 50, competition_source: team_league}
+
+  - name: matches_tie_and_leg
+    description: >
+      A knockout match belongs to the tie of its round's pairing; in a two-legged round the legs
+      are numbered by date, and a league match has neither.
+    model: int_matches
+    given:
+      - input: ref('int_world_matches')
+        rows:
+          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, competition_season: 2024, stage_key: 7, stage_index: 1, round_index: 0}
+          - {match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 1, competition_season: 2024, stage_key: 7, stage_index: 1, round_index: 0}
+          - {match_date: '2025-03-02', home_team_tid: 3, away_team_tid: 4, competition_season: 2024, stage_key: 8, stage_index: 0, round_index: null}
+      - input: ref('int_stage_competitions')
+        rows:
+          - {stage_key: 7, competition_season: 2024, cid: 900, competition_source: our_match}
+          - {stage_key: 8, competition_season: 2024, cid: 2, competition_source: team_league}
+      - input: ref('int_stages')
+        rows:
+          - {cid: 900, competition_season: 2024, stage_index: 1, stage_format: knockout}
+          - {cid: 2, competition_season: 2024, stage_index: 0, stage_format: league}
+      - input: ref('int_rounds')
+        rows:
+          - {cid: 900, competition_season: 2024, stage_index: 1, round_index: 0, legs: 2}
+      - input: ref('int_our_matches')
+        rows: []
+    expect:
+      rows:
+        - {match_date: '2025-03-01', cid: 900, tie_id: 900-2024-1-0-1-2, leg: 1}
+        - {match_date: '2025-03-08', cid: 900, tie_id: 900-2024-1-0-1-2, leg: 2}
+        - {match_date: '2025-03-02', cid: 2, tie_id: null, leg: null}

@@ -131,7 +131,7 @@ erDiagram
 
 | Question | Source | Why |
 |---|---|---|
-| The scoreline | **the world fixture list (`fix_man`)** → `fact_team_match.goals_for/against` | one source for every match in the world, ours included, so scores are consistent everywhere |
+| The scoreline | **the world fixture list (`fix_man`)** → `fact_team_match.goals_for/against`, the final score (after extra time where there was any; the fixture holds both) | one source for every match in the world, ours included, so scores are consistent everywhere |
 | Who scored, and when | **events** | only events carry **own goals** (credited to the other side, with no player tally) and **shootout kicks** |
 | A player's goal tally | events, excluding own goals and shootout kicks | a shootout kick isn't a goal |
 | Shootout result | the world fixture list → `pens_for/against`; events give who took each kick | the fixture list carries shootout scores for every match |
