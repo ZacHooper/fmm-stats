@@ -30,10 +30,16 @@ models:
             columns: [season, phase, tid]
             to: ref('int_players')
             to_columns: [season, phase, tid]
+  - name: int_player_attribute_estimates
+    description: >
+      Every attribute the save does not always state, decoded from the player's own record:
+      the two composites' closed forms and the fitted stg.attribute_model coefficients.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
   - name: int_player_attributes
     description: >
-      All 23 attributes, with an `_est` flag each: stated where the save states them, decoded
-      from the record's bytes and raw.attribute_model otherwise.
+      All 23 attributes, with an `_est` flag each: stated where the save states them, the
+      decode from int.player_attribute_estimates otherwise.
     data_tests:
       - unique_combination: {arguments: {columns: [season, phase, tid]}}
       - relationship_combination:

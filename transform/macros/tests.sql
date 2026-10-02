@@ -1,18 +1,29 @@
-{# The grain test: the key columns are unique together and never NULL. dbt's built-in unique /
-   not_null take one column; every grain here is composite. #}
+{#- The grain test: the key columns are unique together and never NULL. dbt's
+    built-in unique / not_null take one column; every grain here is composite. -#}
 {% test unique_combination(model, columns) %}
-SELECT {{ columns | join(', ') }}, count(*) AS n
-FROM {{ model }}
-GROUP BY ALL
-HAVING count(*) > 1 OR {{ columns | join(' IS NULL OR ') }} IS NULL
+select
+    {{ columns | join(',\n    ') }},
+    count(*) as n
+from {{ model }}
+group by all
+having count(*) > 1 or {{ columns | join(' is null or ') }} is null
 {% endtest %}
 
-{# Every non-NULL key in `columns` exists in `to` as `to_columns`. #}
+{#- Every non-NULL key in `columns` exists in `to` as `to_columns`. -#}
 {% test relationship_combination(model, columns, to, to_columns) %}
-SELECT x.*
-FROM {{ model }} x
-WHERE {% for c in columns %}x.{{ c }} IS NOT NULL{{ ' AND ' if not loop.last }}{% endfor %}
-  AND NOT EXISTS (
-      SELECT 1 FROM {{ to }} t
-      WHERE {% for c in columns %}t.{{ to_columns[loop.index0] }} = x.{{ c }}{{ ' AND ' if not loop.last }}{% endfor %})
+select child.*
+from {{ model }} as child
+where
+    {% for c in columns -%}
+    child.{{ c }} is not null and
+    {% endfor -%}
+    not exists (
+        select 1
+        from {{ to }} as parent
+        where
+            {% for c in columns -%}
+            parent.{{ to_columns[loop.index0] }} = child.{{ c }}
+            {%- if not loop.last %} and{% endif %}
+            {% endfor %}
+    )
 {% endtest %}

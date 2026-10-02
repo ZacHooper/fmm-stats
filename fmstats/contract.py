@@ -61,6 +61,10 @@ POSITIONS = ("GK", "SW", "DL", "DC", "DR", "DMC", "ML", "MC", "MR", "AML", "AMC"
 # (`fmparser.tables.player_lists.CLUB_LISTS`).
 CLUB_LISTS = range(31, 62)
 
+# A u16 id field's "none" value (0xFFFF): no club, no league, no reference
+# (`fmparser.core.primitives.NO_ID16`). The stg models read it as NULL.
+NO_ID16 = 0xFFFF
+
 # The training row's contract flag on a player under contract
 # (`fmparser.tables.training.CONTRACTED`).
 CONTRACTED = 0x87
