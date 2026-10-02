@@ -2,8 +2,7 @@
 -- he is under contract, and his squad status where he is. Squad status is a
 -- contract term, not a loan flag.
 select
-    season,
-    phase,
+    cast(phase as date) as snapshot_date,
     tid,
     intensity,
     focus_role,

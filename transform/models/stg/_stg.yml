@@ -5,7 +5,7 @@ models:
       Every used slot of the contract grid as stored; lapsed contracts keep their dates.
       A person's current contract is the slot with is_current.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_attribute_model
     description: >
       The attribute decoder's coefficients, one row per (attribute, feature), with each input
@@ -17,21 +17,63 @@ models:
       Each club's own record per snapshot, with the save's 0xFFFF "none" read as NULL and
       league_cid the club's league.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_training
     description: >
       One row per player (staff have none): training focus, whether the row says he is under
       contract, and his squad status where he is. Squad status is a contract term, not a loan
       flag.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
   - name: stg_name_strings
     description: The browse string table, every name string the save holds, by ordinal.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, ordinal]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, ordinal]}}
   - name: stg_name_ids
     description: >
       The used slots of the three name id-tables; a person's first, last and common name ids
       index first_names, surnames and nicknames, which give the ordinal of the string.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, phase, name_table, id]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, name_table, id]}}
+  - name: stg_snapshots
+    description: One row per loaded save, its in-game date and season.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date]}}
+  - name: stg_career
+    description: The career this store holds and the club it manages, one row.
+  - name: stg_persons
+    description: >
+      Every person's own record per snapshot, players and staff; the attribute bytes as
+      stored (the *_src columns), club_tid NULL for a free agent.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: stg_team_squads
+    description: Every team's squad array, one row per player listed.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid, player_tid]}}
+  - name: stg_clubs
+    description: Every club-shaped record's name per snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: stg_player_positions
+    description: Each player's familiarity with every position he has any for.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid, position]}}
+  - name: stg_player_attributes_stated
+    description: The attributes a player's own record states outright; NULL where it does not.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: stg_scrapbook_entries
+    description: >
+      Every Scrapbook Profile entry in every list, a copy of the player's profile as it was on
+      entry_date.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, list, slot]}}
+  - name: stg_role_weights
+    description: Each weight-set's attribute weights per role.
+    data_tests:
+      - unique_combination: {arguments: {columns: [method, role, attribute]}}
+  - name: stg_position_roles
+    description: The role each position is rated in.
+    data_tests:
+      - unique_combination: {arguments: {columns: [position]}}

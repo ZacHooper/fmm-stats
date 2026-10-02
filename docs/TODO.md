@@ -100,7 +100,7 @@ Eleven pool of each season (every player who played for the manager, loanees inc
 follows the manager, not the club), 62/64 and 63/65 the World and Manager's All-Time pools.
 Each entry is a **scrapbook entry**: the player's Scrapbook Profile as of its date
 (Nuamah's and Mikkel Andersson's 2022 entries verified field by field). Every entry is in the
-store (`raw.player_scrapbook`); `raw.squad_scrapbook` picks our squad's. Open:
+store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's latest in our club lists, and `int.managed_squad` says who is ours. Open:
 - **Which copy of each All-Time pair is live**: 63 carries this season's "New Entry" dates,
   65 last season's. Confirm across a season boundary.
 - **Unread bytes**: which of the three "1 Jan 2021" dates (+4/+12/+16) is the profile's loan

@@ -3,13 +3,11 @@
 {% macro name_join(table, id_column) %}
 left join {{ ref('stg_name_ids') }} as {{ table }}_slot
     on
-        record.season = {{ table }}_slot.season
-        and record.phase = {{ table }}_slot.phase
+        record.snapshot_date = {{ table }}_slot.snapshot_date
         and {{ table }}_slot.name_table = '{{ table }}'
         and record.{{ id_column }} = {{ table }}_slot.id
 left join {{ ref('stg_name_strings') }} as {{ table }}
     on
-        {{ table }}_slot.season = {{ table }}.season
-        and {{ table }}_slot.phase = {{ table }}.phase
+        {{ table }}_slot.snapshot_date = {{ table }}.snapshot_date
         and {{ table }}_slot.ordinal = {{ table }}.ordinal
 {%- endmacro %}

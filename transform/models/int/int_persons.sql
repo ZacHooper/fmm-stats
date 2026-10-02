@@ -1,12 +1,16 @@
 -- One row per person across every snapshot, so a retired player whose slot has
--- gone to a newgen keeps his history.
+-- gone to a newgen keeps his history. name is the latest one.
 select
-    {{ person_id() }} as person_id,
-    tid,
-    dob,
-    arg_max(name, {{ phase_ord() }}) as name,
-    arg_min(phase, {{ phase_ord() }}) as first_seen,
-    arg_max(phase, {{ phase_ord() }}) as last_seen,
-    count(*) as slices
-from {{ ref('int_players') }}
-group by tid, dob
+    {{ person_id('record.tid', 'record.dob') }} as person_id,
+    record.tid,
+    record.dob,
+    arg_max(person_names.name, record.snapshot_date) as name,
+    min(record.snapshot_date) as first_seen,
+    max(record.snapshot_date) as last_seen,
+    count(*) as snapshots
+from {{ ref('stg_persons') }} as record
+left join {{ ref('int_person_names') }} as person_names
+    on
+        record.snapshot_date = person_names.snapshot_date
+        and record.tid = person_names.tid
+group by record.tid, record.dob

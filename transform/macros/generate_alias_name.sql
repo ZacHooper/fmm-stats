@@ -1,5 +1,5 @@
 {# A model file is named <layer>_<name> (dbt needs unique names); its relation is <layer>.<name>,
-   e.g. models/int/int_players.sql -> int.players. #}
+   e.g. models/int/int_player_snapshots.sql -> int.player_snapshots. #}
 {% macro generate_alias_name(custom_alias_name=none, node=none) -%}
     {%- if custom_alias_name -%}
         {{ custom_alias_name | trim }}

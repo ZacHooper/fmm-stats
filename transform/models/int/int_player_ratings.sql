@@ -13,11 +13,11 @@ with long as (
 ),
 
 methods as (
-    select distinct method from {{ source('raw', 'role_weights') }}
+    select distinct method from {{ ref('stg_role_weights') }}
 ),
 
 roles as (
-    select distinct role from {{ source('raw', 'position_role_map') }}
+    select distinct role from {{ ref('stg_position_roles') }}
 ),
 
 -- Every method x every role, not only the pairs role_weights lists: a role with
@@ -32,17 +32,16 @@ combos as (
 )
 
 select
-    long.season,
-    long.phase,
+    long.snapshot_date,
     long.tid,
     combos.method,
     combos.role,
     sum(long.value * coalesce(weights.weight, 1)) as rating
 from long
 cross join combos
-left join {{ source('raw', 'role_weights') }} as weights
+left join {{ ref('stg_role_weights') }} as weights
     on
         combos.method = weights.method
         and combos.role = weights.role
         and lower(long.attribute) = weights.attribute
-group by long.season, long.phase, long.tid, combos.method, combos.role
+group by long.snapshot_date, long.tid, combos.method, combos.role

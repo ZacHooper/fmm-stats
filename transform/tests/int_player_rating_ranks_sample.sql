@@ -1,9 +1,9 @@
 -- One slice (newest snapshot, first method, first role): one row per non-staff
--- player with attributes, percentiles spanning 0..100, and the best rating
+-- player, percentiles spanning 0..100, and the best rating
 -- ranked 1. Returns a row when any of those breaks.
 {%- set s = rating_sample() %}
 {%- set in_snapshot %}
-    season = {{ s.season }} and phase = '{{ s.phase }}'
+    snapshot_date = '{{ s.snapshot_date }}'
 {%- endset %}
 
 with ranks as (
@@ -21,8 +21,8 @@ with ranks as (
 
 players as (
     select count(*) as players
-    from {{ ref('int_players') }}
-    where {{ in_snapshot }} and has_attributes and not is_staff
+    from {{ ref('int_player_attributes') }}
+    where {{ in_snapshot }}
 ),
 
 facts as (
@@ -53,3 +53,6 @@ where
     or facts.hi != 100
     or facts.top_rank != 1
     or facts.best_rank != 1
+-- rating_sample() reads these:
+-- depends_on: {{ ref('stg_snapshots') }} {{ ref('stg_persons') }}
+-- depends_on: {{ ref('stg_role_weights') }} {{ ref('stg_position_roles') }}

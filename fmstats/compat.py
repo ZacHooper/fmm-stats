@@ -5,21 +5,22 @@ has built them. Each goes when its last consumer reads the mart instead (data-la
 step 17).
 """
 
-# old name -> (the model it reads, its SELECT)
+# old name -> (the model it reads, its SELECT). The legacy models keep the old shapes on the
+# (season, phase) key; the int models they read are keyed by snapshot_date.
 VIEWS = {
-    "raw.squad_scrapbook": ("int.squad_scrapbook", "SELECT * FROM int.squad_scrapbook"),
-    "raw.players": ("int.players", "SELECT * FROM int.players"),
-    "raw.player_attributes_exact": ("int.player_attributes_exact",
-                                    "SELECT * FROM int.player_attributes_exact"),
-    "raw.player_attributes": ("int.player_attributes", "SELECT * FROM int.player_attributes"),
-    "raw.person_slices": ("int.person_slices", "SELECT * FROM int.person_slices"),
-    "raw.persons": ("int.persons", "SELECT * FROM int.persons"),
-    "main.v_player_attributes": ("int.player_attributes", """
+    "raw.players": ("legacy.players", "SELECT * FROM legacy.players"),
+    "raw.player_attributes_exact": ("legacy.player_attributes_exact",
+                                    "SELECT * FROM legacy.player_attributes_exact"),
+    "raw.player_attributes": ("legacy.player_attributes",
+                              "SELECT * FROM legacy.player_attributes"),
+    "raw.person_slices": ("legacy.person_slices", "SELECT * FROM legacy.person_slices"),
+    "raw.persons": ("legacy.persons", "SELECT * FROM legacy.persons"),
+    "main.v_player_attributes": ("legacy.player_attributes", """
         SELECT p.*, a.* EXCLUDE (season, phase, tid)
-        FROM int.players p JOIN int.player_attributes a USING (season, phase, tid)"""),
-    "main.v_player_ratings": ("int.player_ratings", "SELECT * FROM int.player_ratings"),
-    "main.v_player_rating_ranks": ("int.player_rating_ranks",
-                                   "SELECT * FROM int.player_rating_ranks"),
+        FROM legacy.players p JOIN legacy.player_attributes a USING (season, phase, tid)"""),
+    "main.v_player_ratings": ("legacy.player_ratings", "SELECT * FROM legacy.player_ratings"),
+    "main.v_player_rating_ranks": ("legacy.player_rating_ranks",
+                                   "SELECT * FROM legacy.player_rating_ranks"),
 }
 
 

@@ -1541,8 +1541,9 @@ def create_schema(con):
         _migrate(con)
         _seed_attribute_model(con)
         if (models_compat._kind(con, "history.player_snapshots") is None
-                or models_compat._kind(con, "int.player_attributes") is None):
-            build_models(con, "+int_player_attributes", test=False)   # no data to test yet
+                or models_compat._kind(con, "legacy.player_attributes") is None):
+            build_models(con, "+legacy_players +legacy_player_attributes",
+                         test=False)   # no data to test yet
 
     _rename_staging(con)
     _raw_tables(con)
@@ -1741,7 +1742,7 @@ _MIGRATIONS = [
     "ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS league_cid",
     "ALTER TABLE raw.players_raw DROP COLUMN IF EXISTS league",
     # 2026-10-01: extract hands over the contract grid and the training row's contract flag
-    # and squad status as stored; the players' contract and status columns are int.players'
+    # and squad status as stored; the players' contract columns are int.player_snapshots'
     # (data-layers plan, step 7).
     "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS contracted INTEGER",
     "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS squad_status INTEGER",
@@ -1749,9 +1750,8 @@ _MIGRATIONS = [
      for c in ("squad_status", "loaned_out", "wage_units", "wage_gbp", "contract_expiry",
                "contract_expiry_year")] + [
     # 2026-10-01: extract hands over each person's name ids and the name tables they index;
-    # the display name is int.person_names' (data-layers plan, step 8). A store loaded before
-    # keeps its resolved names in raw.players_raw.name, which int.person_names falls back to
-    # for the snapshots that have no ids.
+    # the display name is int.person_names' (data-layers plan, step 8). A snapshot loaded
+    # before has no ids, so its names come back once it is re-extracted.
 ] + [f"ALTER TABLE raw.players_raw ADD COLUMN IF NOT EXISTS {c} BIGINT" for c in NAME_ID_COLS
 ] + [stmt for stmt in DDL
      if "raw.name_strings (" in stmt or "raw.name_ids (" in stmt]
@@ -1760,7 +1760,7 @@ _MIGRATIONS = [
 def _backfill_contracts(con):
     """A store loaded before extract handed over the contract grid holds each player's current
     contract and squad status as columns of raw.players_raw. Move them to raw.contracts and
-    raw.training, where int.players reads them, before the migration drops the columns; a
+    raw.training, where the int models read them, before the migration drops the columns; a
     snapshot already in raw.contracts is left alone. Idempotent: a no-op once the columns are
     gone. Lapsed contracts and start dates were never extracted, so they stay absent until the
     snapshot is re-extracted."""
@@ -1980,7 +1980,7 @@ def seed_config_bundle(con):
 # (28 tids appear in match stats but in no players slice at all — they keep tid-only identity).
 def create_views(con):
     """The stg/int models (the dbt project in transform/) and the compatibility views over
-    them. The attribute coefficients are seeded first: int.player_attributes is generated
+    them. The attribute coefficients are seeded first: int.player_attribute_estimates is generated
     from them. Returns the models built."""
     con.execute(ATTR_MODEL_DDL)
     _seed_attribute_model(con)
@@ -2021,8 +2021,26 @@ def build_models(con, select=None, test=True):
         raise RuntimeError(f"dbt {args[0]} failed: {res.exception or 'see the errors above'}")
     built = [r.node.relation_name for r in res.result
              if r.node.resource_type == "model" and r.status == "success"]
+    if not select:
+        _drop_unbuilt(con, res.result)
     models_compat.create(con)
     return built
+
+
+MODEL_SCHEMAS = ("stg", "int", "legacy")
+
+
+def _drop_unbuilt(con, results):
+    """Drop the views in the model schemas that the project no longer defines (a renamed or
+    removed model), so a store refreshed across a rename holds only what dbt built."""
+    built = {(r.node.schema, r.node.alias) for r in results
+             if r.node.resource_type == "model"}
+    for schema, name in con.execute(
+            "SELECT schema_name, view_name FROM duckdb_views() WHERE NOT internal "
+            "AND database_name = current_database() AND schema_name IN "
+            f"{MODEL_SCHEMAS}").fetchall():
+        if (schema, name) not in built:
+            con.execute(f'DROP VIEW "{schema}"."{name}"')
 
 
 def report_persons(con):
