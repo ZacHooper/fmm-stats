@@ -4,7 +4,11 @@
     test sits in the columns, not in the joins' ON: a condition on the left table there turns
     DuckDB's hash join into a nested loop, 0.02 s -> 36 s.) The name ids are
     int.person_names'. -#}
+{#- The SELECT list is built by walking raw.players_raw's columns in their stored order, so
+    raw.players keeps that order and a column the loader adds passes straight through. -#}
 {%- set cols = column_names(source('raw', 'players_raw')) -%}
+{#- over: the raw columns whose value is replaced -- column name -> the SQL that replaces it.
+    k is the player's squad entry (int.squad_scrapbook), n his display name, r his record. -#}
 {%- set over = {
     'name': 'CASE WHEN ' ~ has_entry() ~ ' THEN k.full_name ELSE n.name END',
     'club_tid': 'CASE WHEN k.loaned_in THEN k.squad_club_tid ELSE r.club_tid END',
@@ -12,6 +16,8 @@
     'foot_left': 'CASE WHEN ' ~ fresh_entry() ~ ' THEN k.foot_left ELSE r.foot_left END',
     'foot_right': 'CASE WHEN ' ~ fresh_entry() ~ ' THEN k.foot_right ELSE r.foot_right END',
 } -%}
+{#- added_after: new columns, each placed straight after the named raw column, as
+    (new column, its SQL). t is his training row, c his current contract. -#}
 {%- set added_after = {
     'has_attributes': [
         ('squad_status', 'CASE WHEN NOT r.is_staff THEN t.squad_status END')],
@@ -27,6 +33,12 @@
         ('contract_expiry_year',
          'CASE WHEN NOT r.is_staff THEN CAST(year(c.expiry) AS INTEGER) END')],
 } -%}
+{#- The walk: for each raw column (the three name ids are skipped; int.person_names owns them)
+      1. emit it -- its `over` expression if it has one, else r."<column>" unchanged;
+      2. then emit the new columns `added_after` places behind it;
+      3. and after tid, emit the display name when players_raw has no `name` column of its own
+         (a store loaded before the name ids has one, and step 1 replaces it in place).
+    scrapbook_date goes last. `sel` collects the expressions; the SELECT joins them. -#}
 {%- set sel = [] -%}
 {%- for c in cols if c not in ('first_name_id', 'last_name_id', 'common_name_id') -%}
     {%- do sel.append(over[c] ~ ' AS "' ~ c ~ '"' if c in over else 'r."' ~ c ~ '"') -%}
