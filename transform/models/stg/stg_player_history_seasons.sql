@@ -1,5 +1,6 @@
 -- Each player's career history, one row per season line: seq -1 is the debut
--- line, 0.. follow it. A loan year has two lines, the parent club's (0 apps)
+-- line, 0.. follow it. hist_season is the save's own season index (the end
+-- year less 1971), season the end year. A loan year has two lines, the parent club's (0 apps)
 -- and the loan club's. club_tid is NULL on a line with no club, the game's
 -- Free agent (var('no_id16')). goals is goals conceded for a goalkeeper;
 -- rating is NULL where the save holds none: before the career it stores 0 or
@@ -15,6 +16,7 @@ select
     cast(phase as date) as snapshot_date,
     tid,
     seq,
+    hist_season,
     end_year as season,
     nullif(club_tid, {{ var('no_id16') }}) as club_tid,
     fee as fee_code,

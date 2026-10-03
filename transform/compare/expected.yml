@@ -188,3 +188,9 @@ player_primary_position:
       reason: >
         A league pool one of our loanees left or joined: the old view counts him in our league,
         the new one in his parent's, so both pools and every percentile in them move
+player_value_est: {key: [season, phase, tid]}
+player_career_seasons: {key: [season, phase, tid, seq]}
+player_development: {key: [season, phase, tid]}
+roles: {key: [id]}
+training_attributes: {key: [code]}
+training_focus: {key: [season, phase, tid]}
