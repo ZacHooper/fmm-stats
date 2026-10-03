@@ -1,5 +1,5 @@
 -- Each player's line in our own matches, both sides, once: keyed
--- (match_date, home_team_tid, away_team_tid, player_tid), from the snapshot
+-- (match_id, player_tid), from the snapshot
 -- int_our_matches reads the match from. started is a place in the XI
 -- (pos_order up to var('starters')), appeared a start or a substitution on.
 -- minutes runs from kick-off, or the minute he came on, to the minute he went
@@ -13,9 +13,7 @@
 
 with lines as (
     select
-        ours.match_date,
-        ours.home_team_tid,
-        ours.away_team_tid,
+        ours.match_id,
         stats.*
     from {{ ref('int_our_matches') }} as ours
     inner join {{ ref('stg_match_player_stats') }} as stats
@@ -26,9 +24,7 @@ with lines as (
 
 sent_off as (
     select
-        events.match_date,
-        events.home_team_tid,
-        events.away_team_tid,
+        events.match_id,
         events.player_tid,
         min(events.minute) as sent_off_minute
     from {{ ref('int_match_events') }} as events
@@ -53,21 +49,14 @@ placed as (
     from lines
     left join sent_off
         on
-            lines.match_date = sent_off.match_date
-            and lines.home_team_tid = sent_off.home_team_tid
-            and lines.away_team_tid = sent_off.away_team_tid
+            lines.match_id = sent_off.match_id
             and lines.player_tid = sent_off.player_tid
     left join {{ ref('int_matches') }} as matches
-        on
-            lines.match_date = matches.match_date
-            and lines.home_team_tid = matches.home_team_tid
-            and lines.away_team_tid = matches.away_team_tid
+        on lines.match_id = matches.match_id
 )
 
 select
-    placed.match_date,
-    placed.home_team_tid,
-    placed.away_team_tid,
+    placed.match_id,
     placed.player_tid,
     persons.person_id,
     placed.team_tid,

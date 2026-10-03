@@ -142,6 +142,11 @@ mismatch is investigated on the events side and never overwrites the score.
 
 ## As built (data-layers step 14b)
 
+- **`match_id`** keys every match table: the match's date and its two teams packed into one
+  BIGINT, `yyyymmdd × 10¹⁰ + home_tid × 10⁵ + away_tid` (Salzburg v Frem on 2027-07-28 is
+  `202707280012500346`; `macros/match_id.sql`). It is the same in every snapshot and rebuild,
+  sorts by date and reads back by eye. `dim_match` holds the date and teams; the facts carry
+  `match_id` only, and `dim_match` tests that every tid stays below 10⁵.
 - **`fact_player_match.minutes`** runs from kick-off, or the minute a player came on, to the
   minute he went off, was sent off or the match ended: 90, or 120 when the match went to extra
   time or penalties. A dismissal is in the events only (`dim_event_type.ends_appearance`).

@@ -39,9 +39,7 @@ with games as (
             and matches.stage_index = stage_rows.stage_index
     inner join {{ ref('int_team_matches') }} as sides
         on
-            matches.match_date = sides.match_date
-            and matches.home_team_tid = sides.home_team_tid
-            and matches.away_team_tid = sides.away_team_tid
+            matches.match_id = sides.match_id
     where
         coalesce(
             stage_rows.stage_format,

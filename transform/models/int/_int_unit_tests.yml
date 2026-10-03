@@ -453,8 +453,8 @@ unit_tests:
     given:
       - input: ref('int_our_matches')
         rows:
-          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, anchor: 10, source_snapshot_date: '2025-06-01'}
-          - {match_date: '2025-03-08', home_team_tid: 1, away_team_tid: 3, anchor: 11, source_snapshot_date: '2025-06-01'}
+          - {match_id: 1, match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, anchor: 10, source_snapshot_date: '2025-06-01'}
+          - {match_id: 2, match_date: '2025-03-08', home_team_tid: 1, away_team_tid: 3, anchor: 11, source_snapshot_date: '2025-06-01'}
       - input: ref('stg_match_player_stats')
         rows:
           - {snapshot_date: '2025-06-01', anchor: 10, player_tid: 100, team_tid: 1, pos_order: 1, sub_on_minute: null, sub_off_minute: null}
@@ -464,23 +464,23 @@ unit_tests:
           - {snapshot_date: '2025-06-01', anchor: 11, player_tid: 100, team_tid: 1, pos_order: 1, sub_on_minute: null, sub_off_minute: 70}
       - input: ref('int_match_events')
         rows:
-          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, player_tid: 102, minute: 60, event_type_code: 5}
+          - {match_id: 1, player_tid: 102, minute: 60, event_type_code: 5}
       - input: ref('int_event_types')
         rows:
           - {code: 5, ends_appearance: true}
       - input: ref('int_matches')
         rows:
-          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, decided_by: ET}
-          - {match_date: '2025-03-08', home_team_tid: 1, away_team_tid: 3, decided_by: '90'}
+          - {match_id: 1, decided_by: ET}
+          - {match_id: 2, decided_by: '90'}
       - input: ref('int_person_snapshots')
         rows: []
     expect:
       rows:
-        - {match_date: '2025-03-01', player_tid: 100, started: true, appeared: true, minutes: 120}
-        - {match_date: '2025-03-01', player_tid: 101, started: false, appeared: true, minutes: 15}
-        - {match_date: '2025-03-01', player_tid: 102, started: true, appeared: true, minutes: 60}
-        - {match_date: '2025-03-01', player_tid: 103, started: false, appeared: false, minutes: 0}
-        - {match_date: '2025-03-08', player_tid: 100, started: true, appeared: true, minutes: 70}
+        - {match_id: 1, player_tid: 100, started: true, appeared: true, minutes: 120}
+        - {match_id: 1, player_tid: 101, started: false, appeared: true, minutes: 15}
+        - {match_id: 1, player_tid: 102, started: true, appeared: true, minutes: 60}
+        - {match_id: 1, player_tid: 103, started: false, appeared: false, minutes: 0}
+        - {match_id: 2, player_tid: 100, started: true, appeared: true, minutes: 70}
   - name: match_events_period_and_credited_side
     description: >
       An event's period is the one its minute falls in, stoppage time staying in the period it
@@ -489,7 +489,7 @@ unit_tests:
     given:
       - input: ref('int_our_matches')
         rows:
-          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, anchor: 10, source_snapshot_date: '2025-06-01'}
+          - {match_id: 1, match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, anchor: 10, source_snapshot_date: '2025-06-01'}
       - input: ref('stg_match_events')
         rows:
           - {snapshot_date: '2025-06-01', anchor: 10, seq: 0, minute: 45, added: 2, side: home, player_tid: 100, type_byte: 1}
@@ -540,8 +540,8 @@ unit_tests:
     given:
       - input: ref('int_matches')
         rows:
-          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, cid: 9, competition_season: 2024, stage_index: 0, stage_key: 5, matchday: 1, home_goals: 2, away_goals: 0}
-          - {match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 3, cid: 9, competition_season: 2024, stage_index: 0, stage_key: 5, matchday: 2, home_goals: 3, away_goals: 0}
+          - {match_id: 1, match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, cid: 9, competition_season: 2024, stage_index: 0, stage_key: 5, matchday: 1, home_goals: 2, away_goals: 0}
+          - {match_id: 2, match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 3, cid: 9, competition_season: 2024, stage_index: 0, stage_key: 5, matchday: 2, home_goals: 3, away_goals: 0}
       - input: ref('int_competitions')
         rows:
           - {cid: 9, type: league}
@@ -550,10 +550,10 @@ unit_tests:
           - {cid: 9, competition_season: 2024, stage_index: 0, stage_format: league}
       - input: ref('int_team_matches')
         rows:
-          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, team_tid: 1, goals_for: 2, goals_against: 0, result: W, points: 3}
-          - {match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, team_tid: 2, goals_for: 0, goals_against: 2, result: L, points: 0}
-          - {match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 3, team_tid: 2, goals_for: 3, goals_against: 0, result: W, points: 3}
-          - {match_date: '2025-03-08', home_team_tid: 2, away_team_tid: 3, team_tid: 3, goals_for: 0, goals_against: 3, result: L, points: 0}
+          - {match_id: 1, team_tid: 1, goals_for: 2, goals_against: 0, result: W, points: 3}
+          - {match_id: 1, team_tid: 2, goals_for: 0, goals_against: 2, result: L, points: 0}
+          - {match_id: 2, team_tid: 2, goals_for: 3, goals_against: 0, result: W, points: 3}
+          - {match_id: 2, team_tid: 3, goals_for: 0, goals_against: 3, result: L, points: 0}
     expect:
       rows:
         - {matchday: 1, through_date: '2025-03-01', team_tid: 1, position: 1, played: 1, points: 3, goal_difference: 2}

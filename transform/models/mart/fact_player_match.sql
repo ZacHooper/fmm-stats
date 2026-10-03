@@ -1,11 +1,10 @@
 -- Each player's line in our own matches, both sides: the team he played for
 -- that day, whether he started and appeared, his minutes (extra time
 -- included, a sending-off ending them; stoppage time not counted) and his
--- stats. Matches carry player lines only where dim_match.has_detail.
+-- stats. Matches carry player lines only where dim_match.has_detail; the
+-- match's date and teams are on dim_match (match_id).
 select
-    match_date,
-    home_team_tid,
-    away_team_tid,
+    match_id,
     player_tid,
     person_id,
     team_tid,

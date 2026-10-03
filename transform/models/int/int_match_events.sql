@@ -1,5 +1,5 @@
--- The events of our own matches once each, keyed (match_date, home_team_tid,
--- away_team_tid, event_index): a match's events come from the snapshot
+-- The events of our own matches once each, keyed (match_id, event_index): a
+-- match's events come from the snapshot
 -- int_our_matches reads the match from. period is the period the minute falls
 -- in (var('match_periods')), and a shoot-out kick its own; stoppage time
 -- (added_minutes) stays in the period it extends. player_team_tid is the
@@ -11,9 +11,7 @@
 
 with events as (
     select
-        ours.match_date,
-        ours.home_team_tid,
-        ours.away_team_tid,
+        ours.match_id,
         events.seq,
         events.minute,
         events.added,
@@ -37,9 +35,7 @@ with events as (
 )
 
 select
-    events.match_date,
-    events.home_team_tid,
-    events.away_team_tid,
+    events.match_id,
     events.seq as event_index,
     events.minute,
     events.added as added_minutes,

@@ -1,10 +1,9 @@
 -- The events of our own matches, in order (event_index): minute, stoppage
 -- time, period, type, the player and the side the event counts for (an own
--- goal counts for the other side; player_team_tid is the scorer's own).
+-- goal counts for the other side; player_team_tid is the scorer's own). The
+-- match's date and teams are on dim_match (match_id).
 select
-    match_date,
-    home_team_tid,
-    away_team_tid,
+    match_id,
     event_index,
     minute,
     added_minutes,

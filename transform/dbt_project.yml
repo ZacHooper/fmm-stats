@@ -109,6 +109,9 @@ vars:
   league_competition_types: [league, reserve_league]
   # A match's length in minutes, without and with extra time (int_player_matches).
   match_minutes: {regulation: 90, extra_time: 120}
+  # match_id packs a match's date and its two team tids into one BIGINT (macros/match_id.sql);
+  # every tid must stay below this base.
+  match_id_tid_base: 100000
   starters: 11                # a match line's pos_order up to this is a starter
   # Each match period by the last minute it holds (int_match_events); a shoot-out kick is
   # its own period, whatever minute the save gives it.

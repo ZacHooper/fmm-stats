@@ -129,6 +129,7 @@ models:
     description: >
       Every match in the world: competition, stage and round where known, tie and leg, how it was decided, has_detail for ours.
     data_tests:
+      - unique_combination: {arguments: {columns: [match_id]}}
       - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid]}}
       - relationship_combination:
           arguments:
@@ -145,16 +146,23 @@ models:
             columns: [away_team_tid]
             to: ref('dim_team')
             to_columns: [team_tid]
+    columns:
+      - name: home_team_tid
+        data_tests:
+          - in_range: {arguments: {min_value: 0, max_value: "{{ var('match_id_tid_base') - 1 }}"}}
+      - name: away_team_tid
+        data_tests:
+          - in_range: {arguments: {min_value: 0, max_value: "{{ var('match_id_tid_base') - 1 }}"}}
   - name: fact_team_match
     description: >
       Each match twice, once per side: goals, shoot-out, result, points.
     data_tests:
-      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, team_tid]}}
+      - unique_combination: {arguments: {columns: [match_id, team_tid]}}
       - relationship_combination:
           arguments:
-            columns: [match_date, home_team_tid, away_team_tid]
+            columns: [match_id]
             to: ref('dim_match')
-            to_columns: [match_date, home_team_tid, away_team_tid]
+            to_columns: [match_id]
   - name: dim_event_type
     description: >
       Every match event type, named or not, with its role in the score and in a player's minutes.
@@ -169,12 +177,12 @@ models:
     description: >
       Each player's line in our own matches, both sides: started, appeared, minutes with extra time, stats.
     data_tests:
-      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, player_tid]}}
+      - unique_combination: {arguments: {columns: [match_id, player_tid]}}
       - relationship_combination:
           arguments:
-            columns: [match_date, home_team_tid, away_team_tid]
+            columns: [match_id]
             to: ref('dim_match')
-            to_columns: [match_date, home_team_tid, away_team_tid]
+            to_columns: [match_id]
       - relationship_combination:
           arguments:
             columns: [team_tid]
@@ -194,12 +202,12 @@ models:
     description: >
       The events of our own matches in order: minute, period, type, player and the side it counts for.
     data_tests:
-      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, event_index]}}
+      - unique_combination: {arguments: {columns: [match_id, event_index]}}
       - relationship_combination:
           arguments:
-            columns: [match_date, home_team_tid, away_team_tid]
+            columns: [match_id]
             to: ref('dim_match')
-            to_columns: [match_date, home_team_tid, away_team_tid]
+            to_columns: [match_id]
       - relationship_combination:
           arguments:
             columns: [event_type_code]

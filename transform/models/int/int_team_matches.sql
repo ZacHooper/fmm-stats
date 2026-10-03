@@ -4,6 +4,7 @@
 -- final score (a shoot-out decides a tie, not the result) and points.
 with sides as (
     select
+        match_id,
         match_date,
         home_team_tid,
         away_team_tid,
@@ -17,6 +18,7 @@ with sides as (
     from {{ ref('int_matches') }}
     union all
     select
+        match_id,
         match_date,
         home_team_tid,
         away_team_tid,

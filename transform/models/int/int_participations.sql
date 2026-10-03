@@ -20,9 +20,7 @@ with entries as (
     from {{ ref('int_matches') }} as matches
     inner join {{ ref('int_team_matches') }} as sides
         on
-            matches.match_date = sides.match_date
-            and matches.home_team_tid = sides.home_team_tid
-            and matches.away_team_tid = sides.away_team_tid
+            matches.match_id = sides.match_id
     where matches.cid is not null and matches.competition_season is not null
 )
 
