@@ -3,7 +3,12 @@
 -- spell for each season he appeared for one of our teams, from that season's
 -- window start to its end, cut at the last snapshot listing him on loan unless
 -- the newest still does. Seasons start on 1 July (var('site_calendar')).
-with flagged as (
+with newest as (
+    select max(phase_date) as phase_date
+    from {{ ref('site_snapshots') }}
+),
+
+flagged as (
     select
         person_id,
         max(snapshot_date) as last_flagged_date
@@ -25,7 +30,9 @@ seasons_played as (
     cross join {{ site_calendar() }} as career
     where
         matches.appeared
-        and matches.team_tid in (select o.club_tid from {{ ref('site_our_clubs') }} as o)
+        and matches.team_tid in (
+            select o.club_tid from {{ ref('site_our_clubs') }} as o
+        )
     group by all
 ),
 
@@ -59,15 +66,14 @@ spells as (
             else {{ season_start('r.season') }}
         end as valid_from,
         case
-            when
-                r.last_flagged_date
-                >= (select max(s.phase_date) from {{ ref('site_snapshots') }} as s)
+            when r.last_flagged_date >= newest.phase_date
                 then {{ season_end('r.season') }}
             else least({{ season_end('r.season') }}, r.last_flagged_date)
         end as valid_to,
         {{ arrival_window('r') }} as arrival_window
     from r
     cross join {{ site_calendar() }} as career
+    cross join newest
     left join {{ ref('dim_person') }} as people
         on r.person_id = people.person_id
 )

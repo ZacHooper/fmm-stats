@@ -34,6 +34,19 @@ The plan is [`docs/plans/2026-10-01-data-layers.md`](../docs/plans/2026-10-01-da
   `tests/validate_mart.py`; `scout`, `stats`, `league`, `fmq` and the site export all read the
   old views.
 
+## The site schema (data-layers step 17)
+`transform/models/site/` rebuilds each old consumer view on the new tables as `site.<same
+name>`, with the same columns, beside `mart.<name>`; nothing reads `site` until step 19.
+- **A site view ports the old view's rules, not new ones**: same columns, same calendar (seasons
+  start on 1 July, `var('site_calendar')`), so the pair can be compared. A difference the new
+  tables make on purpose (65535 read as NULL, a loanee at his parent's team, a fee the history
+  now finds) is listed in `transform/compare/expected.yml` with its reason.
+- **Check one**: `uv run python scripts/compare_marts.py <store>` (every site view against its old
+  one, failing on anything unlisted); `--exports OLD NEW` diffs the real export against
+  `export_data.py --schema site --out <scratch>`, which reads every view `site` has and the
+  rest from `mart`.
+- `site.squad_on` is a table macro, created after the build (`macros/site.sql`, on-run-end).
+
 ## Building on the model
 - **New data goes into the model, not into `mart.py`.** A fact or dimension the model names is
   built in `transform/`, in its layer. A new view in `mart.py` is only for a consumer that

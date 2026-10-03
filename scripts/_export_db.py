@@ -3,6 +3,7 @@
 Reads solely from DuckDB (via fmstats.dbopen); no dependency on the retired Streamlit dashboard.
 """
 import bisect
+import re
 
 import pandas as pd
 
@@ -53,6 +54,36 @@ def _json_clean(o):
     if isinstance(o, float) and o != o:   # NaN
         return None
     return o
+
+
+class SchemaSwap:
+    """A connection whose SQL reads `<schema>.<name>` for every `mart.<name>` the schema also
+    defines (a view or a macro), and `mart` for the rest: the step-17 export of the consumer
+    views rebuilt on the new layers (`site`), beside the real one. Everything else passes
+    through to the connection."""
+
+    def __init__(self, con, schema):
+        self._con = con
+        self.schema = schema
+        self.names = {r[0] for r in con.execute(
+            "SELECT view_name FROM duckdb_views() WHERE database_name = current_database() "
+            "AND schema_name = ? UNION SELECT function_name FROM duckdb_functions() "
+            "WHERE database_name = current_database() AND schema_name = ?",
+            [schema, schema]).fetchall()}
+
+    def _swap(self, sql):
+        return re.sub(r"\bmart\.([a-z_]+)",
+                      lambda m: (f"{self.schema}.{m.group(1)}" if m.group(1) in self.names
+                                 else m.group(0)), sql)
+
+    def execute(self, sql, *args):
+        return self._con.execute(self._swap(sql), *args)
+
+    def sql(self, sql, *args):
+        return self._con.sql(self._swap(sql), *args)
+
+    def __getattr__(self, name):
+        return getattr(self._con, name)
 
 
 class ExportDB:

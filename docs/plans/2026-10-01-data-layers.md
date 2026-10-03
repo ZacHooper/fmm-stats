@@ -681,6 +681,49 @@ or deleted in this step.
 old `mart.*` byte-for-byte unchanged (`diff_stores.py` on the old views); `git diff site/api`
 empty (the real export still reads `mart`).
 
+**17a done** (squads, spells, transfers, managers and the foundation views; 22 views and the
+`squad_on` macro). Built: the `site` schema (`models/site/`, views; `MODEL_SCHEMAS` drops what it
+no longer defines), `scripts/compare_marts.py` with `transform/compare/expected.yml`, and
+`export_data.py --schema site`. The site views keep the old 1 July season calendar
+(`var('site_calendar')`), so the comparison tests the data, not a calendar change; the career's
+rollover day is adopted at step 19. `fact_staff_snapshot` gained the person record's fields
+(nationality, personality, caps, joined date) and `squad_membership` the tid, which the old
+`staff` and `club_roster` shapes carry. Listed differences, all from the new tables being more
+exact:
+- no club: 65535 / "Free agent" in the old views, NULL in the new (no consumer reads either);
+- a loanee in our squad: the legacy players view puts him at the team that lists him, his own
+  record names his parent's team (`club_roster`, `club_runs`, `transfers`);
+- another club's loanee: the old `club_roster` flags loans in our squad only;
+- `transfers`: the loan-return joined date is not a move date (#141), so 681 move dates
+  (Frem B) and the age, season and window from them fall back to the snapshot; a fee the old
+  lookup missed is found (2,675 on B, Adam Sørensen's £6M among them), a "stay" line read where
+  the seller's fee line sits (11), a loan made permanent (3).
+- `club_squad_latest` no longer lists free agents as the squad of club 65535.
+- `club_roster`: a loanee in our squad also listed by his parent club's own reserve or B side
+  (the legacy flag calls that listing a loan in; 2 rows on Frem A); `transfers`: a loan to us is
+  no club change on the new layers (3 old rows on Frem A), a free agent signed whose history code
+  read 'loan' (1).
+
+The comparison found one bug in step 16's `int_transfers`: a club change took the latest move to
+that club within a season of the later snapshot, so a later return counted for an earlier change
+(Aitor Ruibal: 1013 → Espanyol in 2022/23 read as his 2024/25 return from 207 for £18.5M). A club
+change now takes the latest move no later than the later snapshot's season, one season later
+only when there is none; the unit test carries his case.
+
+**Check** (Frem A = 2021-06-27 / 2023-07-02 / 2026-06-11, Frem B = 2023-06-29 / 2027-06-29 /
+2027-08-09, Bucaspor 2023-04-01; built from main, refreshed from the branch; every data and unit
+test passes on all three):
+- `compare_marts.py`: all 22 views clean but for listed differences on all three stores (exit
+  0); `site.squad_on` = `mart.squad_on` on every snapshot (33 / 37 / 39 on B).
+- The two exports (`--schema site` against the real one): Bucaspor identical; Frem A and B
+  identical but for `squad.json`'s moves (10 and 5 players), each a listed difference: a
+  loan-return date not taken as a move date (Ellegaard, Minerba), a fee now found (Adam
+  Sørensen £6M, Joachim Rothmann £401K), a loan to us no longer a move (Chukwuani, Gülstorff,
+  Oliver Sørensen).
+- The old views: `validate_mart.py` identical to the baseline on all three; `git diff site/api`
+  empty (the real export still reads `mart`).
+- `run_tests.py`: 30 passed, 4 skipped; `lint_sql.py` clean.
+
 ## 18. End to end on a new save
 The proof the user asked for before anything is turned off: take a save the store has never seen
 and run the import exactly as a new save is run (`archive_save.py`, `extract.py`,

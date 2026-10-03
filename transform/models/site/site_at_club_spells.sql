@@ -5,8 +5,8 @@
 -- elsewhere and no later than the run's first snapshot; valid_to is the day
 -- before the next spell, or before the first snapshot that no longer shows
 -- him, NULL while the run reaches the newest snapshot. Seasons start on 1
--- July, the old mart's calendar (var('site_calendar')). The first match per club and season is
--- fact_player_match's.
+-- July, the old mart's calendar (var('site_calendar')). The first match per
+-- club and season is fact_player_match's.
 with first_matches as (
     select
         matches.player_tid as tid,

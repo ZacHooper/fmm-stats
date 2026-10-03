@@ -5,6 +5,12 @@ explain (data-layers step 17).
 
     uv run python scripts/compare_marts.py fm-frem.duckdb
     uv run python scripts/compare_marts.py fm-frem.duckdb --view transfers --samples 5
+    uv run python scripts/compare_marts.py fm-frem.duckdb --exports OLD_DIR NEW_DIR
+
+`--exports` also diffs two exports (`export_data.py` and `export_data.py --schema site`) file by
+file: each JSON file equal, or which of its keys differ and, for a dict of players, which
+players (generated_at and the file sizes in index.json always differ and are skipped). It
+reports, and does not fail: an export difference follows from a view difference above.
 
 For each view the yml names its key. Rows are matched on the key (NULLs match NULLs); then
   only_old   a key the old view has and the new one does not
@@ -124,12 +130,47 @@ def compare(con, view, spec, samples):
     return report
 
 
+def compare_exports(old_dir, new_dir, samples):
+    """Print, per JSON file of two export directories, whether it is equal and, if not, which
+    keys differ (and which entries of a dict-valued key)."""
+    import json
+    names = sorted(set(os.listdir(old_dir)) | set(os.listdir(new_dir)))
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        a_path, b_path = os.path.join(old_dir, name), os.path.join(new_dir, name)
+        if not (os.path.exists(a_path) and os.path.exists(b_path)):
+            print(f"  {name:20} only in {'old' if os.path.exists(a_path) else 'new'}")
+            continue
+        a, b = json.load(open(a_path)), json.load(open(b_path))
+        if name == "index.json":
+            for d in (a, b):
+                d.pop("generated_at", None)
+                d.pop("counts", None)
+        if a == b:
+            print(f"  {name:20} equal")
+            continue
+        keys = [k for k in (set(a) | set(b)) if a.get(k) != b.get(k)] if isinstance(a, dict) \
+            else ["(top level)"]
+        print(f"  {name:20} differs in {sorted(keys)}")
+        for k in keys:
+            va, vb = (a.get(k), b.get(k)) if isinstance(a, dict) else (a, b)
+            if isinstance(va, dict) and isinstance(vb, dict):
+                entries = sorted(e for e in set(va) | set(vb) if va.get(e) != vb.get(e))
+                print(f"    {k}: {len(entries)} entries differ")
+                for e in entries[:samples]:
+                    print(f"      {e}: old {va.get(e)}")
+                    print(f"      {' ' * len(str(e))}  new {vb.get(e)}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("store")
     ap.add_argument("--view", action="append", help="compare only these views")
     ap.add_argument("--expected", default=EXPECTED)
+    ap.add_argument("--exports", nargs=2, metavar=("OLD_DIR", "NEW_DIR"),
+                    help="also diff two export directories, file by file")
     ap.add_argument("--samples", type=int, default=3,
                     help="unexplained rows to print per kind (0 for none)")
     a = ap.parse_args()
@@ -163,6 +204,9 @@ def main():
             print("      " + df.to_string(max_cols=12, max_colwidth=24).replace("\n", "\n      "))
         if status != "ok":
             worst = max(worst, 1)
+    if a.exports:
+        print("exports:")
+        compare_exports(*a.exports, a.samples)
     sys.exit(worst)
 
 

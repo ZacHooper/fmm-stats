@@ -36,6 +36,15 @@ club_roster:
       reason: >
         Another club's loanee: the old view knows loans only for our squad (the save's loan
         flag is set only there), the new one reads every club's from its squad array
+    - columns: [on_loan_in]
+      when: >
+        o.on_loan_in and not n.on_loan_in
+        and o.club_tid not in (select club_tid from mart.our_clubs)
+        and o.owner_club_tid in (select club_tid from mart.our_clubs)
+      reason: >
+        A loanee in our squad whom his parent club's own reserve or B side still lists: the
+        legacy view puts him at our team and calls every other listing a loan in, but this
+        listing is his own club's
 club_runs:
   key: [tid, person_id, run_id]
   differences:
@@ -100,6 +109,16 @@ transfers:
       reason: >
         The old lookup took an earlier line of the selling club; fact_transfer takes its last
         line before the buyer's, where the fee sits (John Patrick's £861K, line 12)
+    - rows: only_old
+      when: "o.move_type = 'loan' and o.to_club_tid in (select club_tid from mart.our_clubs)"
+      reason: >
+        A loan to us: the legacy players view moves our loanee to the team that lists him, a
+        "loan" club change; his own record never leaves his parent club, so no change shows
+    - columns: [move_type, fee_type, fee_gbp]
+      when: "o.from_club_tid = 65535 and n.move_type = 'free_agent_signing'"
+      reason: >
+        A free agent signed: the old view types the move by the history's code ('loan' on one
+        Frem A row); from no club, the new view calls it a free agent signing
     - columns: [move_type, fee_type, fee_gbp]
       when: "o.move_type = 'loan' and n.move_type = 'transfer'"
       reason: >

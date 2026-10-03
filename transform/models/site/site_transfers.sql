@@ -64,15 +64,20 @@ typed as (
             and moves.snapshot_date = transfers.moved_by
             and moves.club_tid = transfers.to_club_tid
             and moves.club_tid is distinct from moves.prev_club_tid
+),
+
+dated as (
+    select
+        *,
+        coalesce(move_date, snapshot_date) as moved_on
+    from typed
 )
 
 select
     typed.person_id,
     typed.tid,
     people.name,
-    date_diff(
-        'year', people.dob, coalesce(typed.move_date, typed.snapshot_date)
-    ) as age,
+    date_diff('year', people.dob, typed.moved_on) as age,
     typed.prev_team_tid as from_club_tid,
     from_teams.name as from_club,
     typed.team_tid as to_club_tid,
@@ -81,20 +86,18 @@ select
     typed.prev_phase as after_phase,
     typed.phase as by_phase,
     case
-        when month(coalesce(typed.move_date, typed.snapshot_date)) >= 6
-            then year(coalesce(typed.move_date, typed.snapshot_date)) + 1
-        else year(coalesce(typed.move_date, typed.snapshot_date))
+        when month(typed.moved_on) >= 6 then year(typed.moved_on) + 1
+        else year(typed.moved_on)
     end as season,
     case
-        when month(coalesce(typed.move_date, typed.snapshot_date)) between 6 and 9
-            then 'summer'
-        when month(coalesce(typed.move_date, typed.snapshot_date)) in (12, 1, 2)
-            then 'winter'
+        when month(typed.moved_on) between 6 and 9 then 'summer'
+        when month(typed.moved_on) in (12, 1, 2) then 'winter'
         else 'outside'
     end as transfer_window,
     typed.move_type,
     case
-        when typed.fee_kind = 'fee' then cast(typed.transfer_fee_gbp // 1000 as varchar)
+        when typed.fee_kind = 'fee'
+            then cast(typed.transfer_fee_gbp // 1000 as varchar)
         when typed.fee_kind = 'contract_ended' then '65532'
         when typed.fee_kind in ('free', 'stay', 'loan') then typed.fee_kind
     end as fee_code,
@@ -109,7 +112,7 @@ select
         when typed.move_type in ('free_agent_signing', 'released') then 0
         when typed.move_type = 'transfer' then typed.transfer_fee_gbp
     end as fee_gbp
-from typed
+from dated as typed
 inner join {{ ref('dim_person') }} as people
     on typed.person_id = people.person_id
 left join {{ ref('dim_team') }} as from_teams

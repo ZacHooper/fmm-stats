@@ -1,0 +1,86 @@
+version: 2
+models:
+  - name: site_snapshots
+    description: mart.snapshots rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase]}}
+  - name: site_our_clubs
+    description: mart.our_clubs rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [club_tid]}}
+  - name: site_managed_club
+    description: mart.managed_club rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [club_tid]}}
+  - name: site_reserve_clubs
+    description: mart.reserve_clubs rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [club_tid]}}
+  - name: site_app_config
+    description: mart.app_config rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [key]}}
+  - name: site_role_weights
+    description: mart.role_weights rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [method, role, attribute]}}
+  - name: site_position_roles
+    description: mart.position_roles rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [position]}}
+  - name: site_staff
+    description: mart.staff rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, tid]}}
+  - name: site_club_managers
+    description: mart.club_managers rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, club_tid]}}
+  - name: site_club_roster
+    description: mart.club_roster rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, club_tid, tid]}}
+  - name: site_club_runs
+    description: mart.club_runs rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [tid, person_id, run_id]}}
+  - name: site_at_club_spells
+    description: mart.at_club_spells rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, tid, valid_from]}}
+  - name: site_loan_in_spells
+    description: mart.loan_in_spells rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, season, club_tid]}}
+  - name: site_progress_weeks
+    description: mart.progress_weeks rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [tid, week]}}
+  - name: site_loan_out_spells
+    description: mart.loan_out_spells rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, season, valid_from]}}
+  - name: site_injury_spells
+    description: mart.injury_spells rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, valid_from]}}
+  - name: site_player_spells
+    description: mart.player_spells rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, spell_type, valid_from]}}
+  - name: site_snapshot_squad
+    description: mart.snapshot_squad rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, phase, person_id]}}
+  - name: site_squad_current
+    description: mart.squad_current rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, club_tid]}}
+  - name: site_club_squad_latest
+    description: mart.club_squad_latest rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [club_tid, person_id]}}
+  - name: site_transfers
+    description: mart.transfers rebuilt on the new layers (fmstats/mart.py has its rules).
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, by_phase]}}

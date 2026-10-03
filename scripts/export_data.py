@@ -4,6 +4,7 @@
     uv run python scripts/export_data.py                      # newest snapshot, default career
     uv run python scripts/export_data.py --season 2024 --phase 2023-07-02
     uv run python scripts/export_data.py --upload-all         # push all.json to R2
+    uv run python scripts/export_data.py --schema site --out /tmp/site-api   # data-layers step 17
 
 Design: ship DATA, not rendered answers. The app computes ratings itself, because a role
 rating is just `SUM(attribute x weight)` and the whole weight table is 5 KB — so shipping
@@ -270,7 +271,16 @@ def main():
     ap.add_argument("--skip-all", action="store_true",
                     help="skip the 3.9 MB every-player export (faster iteration)")
     ap.add_argument("--no-check", action="store_true")
+    ap.add_argument("--schema", default="mart",
+                    help="read the consumer views from this schema instead of mart: 'site' is "
+                         "their rebuild on the new layers (data-layers step 17), which this "
+                         "exports beside the real export for comparison, never into site/api")
     a = ap.parse_args()
+    if a.schema != "mart":
+        if os.path.abspath(a.out) == os.path.join(REPO, "site", "api"):
+            ap.error(f"--schema {a.schema} needs --out: it never writes site/api")
+        if a.upload_all:
+            ap.error(f"--schema {a.schema} never uploads")
 
     if a.career:
         os.environ["FM_CAREER"] = a.career
@@ -282,6 +292,10 @@ def main():
     con, used = _dbopen.open_readonly(store, tag="export")
     if used != os.path.abspath(store):
         print(f"(live store is locked — exporting from a copy at {used})")
+    if a.schema != "mart":
+        import _export_db
+        con = _export_db.SchemaSwap(con, a.schema)
+        print(f"reading {len(con.names)} views and macros from {a.schema}, the rest from mart")
     os.environ["FM_DUCKDB"] = used
     os.environ["FM_DUCKDB_READONLY"] = "1"
 

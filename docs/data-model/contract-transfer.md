@@ -169,6 +169,11 @@ season and that date, and the date lies within a season of the move's. Seasons c
 game: Grosso's free move from Brøndby is 2024/25 (his Frem line shows "Bos"), as the history
 says; Frederik Balslev's £1K to Hvidovre is right (a loan with an option to buy).
 
+A club change between two snapshots takes the latest move to that club no later than the later
+snapshot's season (one season later only when there is none, a June signing): a player can come
+back to the club afterwards (Aitor Ruibal, 1013 → Espanyol in 2022/23, back at Espanyol in
+2024/25), found by step 17's comparison.
+
 A free agent whose contract ran out in June and who signs in July is labelled by the game with
 the season just ended, and the history often has no Free-agent line for the gap:
 `from_club_tid` is then the club whose contract ran out and `was_free_agent` says the snapshot
