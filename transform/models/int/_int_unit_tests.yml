@@ -772,6 +772,20 @@ unit_tests:
           - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
           - {snapshot_date: '2026-06-11', team_tid: 3082, club_tid: 3082}
           - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346}
+      - input: ref('int_team_clubs')
+        rows:
+          - {team_tid: 100, club_tid: 100, is_youth_side: false}
+          - {team_tid: 200, club_tid: 200, is_youth_side: false}
+          - {team_tid: 300, club_tid: 300, is_youth_side: false}
+          - {team_tid: 400, club_tid: 400, is_youth_side: false}
+          - {team_tid: 401, club_tid: 400, is_youth_side: false}
+          - {team_tid: 500, club_tid: 500, is_youth_side: false}
+          - {team_tid: 337, club_tid: 337, is_youth_side: false}
+          - {team_tid: 346, club_tid: 346, is_youth_side: false}
+          - {team_tid: 3082, club_tid: 3082, is_youth_side: false}
+          - {team_tid: 7296, club_tid: 346, is_youth_side: false}
+          - {team_tid: 65189, club_tid: 346, is_youth_side: true}
+          - {team_tid: 65198, club_tid: 337, is_youth_side: true}
       - input: ref('int_player_career_lines')
         rows:
           - {person_id: 9-2000-01-01, line_index: 0, season: 2020, club_tid: 100, fee_kind: stay, fee_gbp: null}
@@ -953,3 +967,31 @@ unit_tests:
         - {person_id: b, team_tid: 7296, record_club_tid: 346, is_loan_in: false, is_managed_club: true}
         - {person_id: c, team_tid: 346, record_club_tid: 1003, is_loan_in: true, is_managed_club: true}
         - {person_id: c, team_tid: 1003, record_club_tid: 1003, is_loan_in: false, is_managed_club: false}
+
+  - name: team_clubs_resolve_youth_sides
+    description: >
+      A recorded team belongs to its club as its latest snapshot gives it; a youth side a
+      career line names belongs to the club whose tid is its u16 complement (65535 - 65189 =
+      346); a line tid that is neither is left out.
+    model: int_team_clubs
+    given:
+      - input: ref('int_teams')
+        rows:
+          - {snapshot_date: '2023-07-02', team_tid: 7296, club_tid: 999}
+          - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 344, club_tid: 344}
+      - input: ref('int_player_career_lines')
+        rows:
+          - {person_id: a, line_index: 0, club_tid: 65189}
+          - {person_id: b, line_index: 0, club_tid: 65191}
+          - {person_id: c, line_index: 0, club_tid: 6863}
+          - {person_id: c, line_index: 1, club_tid: 346}
+          - {person_id: d, line_index: 0, club_tid: null}
+    expect:
+      rows:
+        - {team_tid: 7296, club_tid: 346, is_youth_side: false}
+        - {team_tid: 346, club_tid: 346, is_youth_side: false}
+        - {team_tid: 344, club_tid: 344, is_youth_side: false}
+        - {team_tid: 65189, club_tid: 346, is_youth_side: true}
+        - {team_tid: 65191, club_tid: 344, is_youth_side: true}

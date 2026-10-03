@@ -12,16 +12,14 @@
 -- transfer, and the move out of it is a free agent signing (from_club_tid
 -- NULL).
 --
--- Youth sides. A club's academy is a team with no club record whose tid is
--- the u16 complement of its club's (var('youth_tid_base') - club tid: Frem
--- 346 -> "Frem Yth" 65189, FCK 344 -> 65191; mart.youth_clubs and
--- docs/agent-context/homegrown-derivation.md), on its products' first line
--- with a fee code not understood. A youth line counts for its club, with
--- youth_team_tid naming the academy. The move out of it into the club's own
--- senior side is a graduation (transfer_type 'graduation', no fee; from and
--- to club the same); out of it to another club, a move from the academy's
--- club. A first line at a tid that is neither a team nor an academy (a club
--- the save holds no record for) keeps its tid.
+-- Youth sides. A club's academy is a team with no club record whose tid is the
+-- u16 complement of its club's (int.team_clubs: Frem 346 -> "Frem Yth" 65189),
+-- on its products' first line with a fee code not understood. A youth line
+-- counts for its club, with youth_team_tid naming the academy. The move out of
+-- it into the club's own senior side is a graduation (transfer_type
+-- 'graduation', no fee; from and to club the same); out of it to another club,
+-- a move from the academy's club. A first line at a tid that is neither a team
+-- nor an academy (a club the save holds no record for) keeps its tid.
 --
 -- A move made during a season has no line for the buying club until the
 -- season ends, so each player's history ends with his club on his newest
@@ -59,38 +57,20 @@ with career as (
     select * from {{ ref('stg_career') }}
 ),
 
--- each team's club, as its latest snapshot gives it
-teams as (
-    select
-        team_tid,
-        club_tid
-    from {{ ref('int_teams') }}
-    qualify
-        snapshot_date = max(snapshot_date) over (partition by team_tid)
-),
-
 history as (
     select
         career_lines.person_id,
         career_lines.line_index,
         career_lines.season,
-        coalesce(teams.club_tid, academies.club_tid, career_lines.club_tid)
-            as club_tid,
+        coalesce(teams.club_tid, career_lines.club_tid) as club_tid,
         career_lines.fee_kind,
         career_lines.fee_gbp,
         case
-            when teams.team_tid is null and academies.team_tid is not null
-                then career_lines.club_tid
+            when teams.is_youth_side then career_lines.club_tid
         end as youth_team_tid
     from {{ ref('int_player_career_lines') }} as career_lines
-    left join teams
+    left join {{ ref('int_team_clubs') }} as teams
         on career_lines.club_tid = teams.team_tid
-    -- the club whose academy the line's team is, for a team with no record
-    left join teams as academies
-        on
-            teams.team_tid is null
-            and {{ var('youth_tid_base') }} - career_lines.club_tid
-            = academies.team_tid
     where career_lines.fee_kind is distinct from 'loan'
 ),
 

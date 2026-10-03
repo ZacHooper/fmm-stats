@@ -318,3 +318,9 @@ models:
       Who each team's squad array lists on each snapshot, with the club his own record names.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, snapshot_date, team_tid]}}
+  - name: int_team_clubs
+    description: >
+      The club each team tid belongs to: every recorded team, and every youth side a career
+      line names (its tid the u16 complement of its club's).
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid]}}

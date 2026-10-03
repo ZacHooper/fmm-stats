@@ -627,7 +627,14 @@ test passes on all three):
   Frem's youth side, its tid the u16 complement of Frem's (65535 - 346, as `mart.youth_clubs`
   already resolves academies): a youth line counts for its club and the move into the club's
   senior side is a graduation (3,082 / 4,976 / 272), the move to another club a move from the
-  academy's club (47 / 64 / 19); all agree with `mart.youth_clubs`. Seasons (Grosso's free move 2024/25), Balslev's £1K (a loan with an
+  academy's club (47 / 64 / 19); all agree with `mart.youth_clubs`. The same rule now resolves
+  `dim_person`'s origin (new model `int_team_clubs`, every team and academy tid to its club):
+  `origin_club_tid` is the club, `origin_team_tid` the line's team, `origin_youth_team_tid` the
+  academy. Against `mart.player_origin` (each person's newest snapshot) the academy flag agrees
+  on every person (30,691 / 32,267 / 25,809); the club agrees on 23,182 / 23,093 / 21,618, and
+  every other row is one of: an older line a later snapshot dropped (4,169 / 6,052 / 0), "none"
+  read as NULL rather than 65535 (2,491 / 2,091 / 3,196), or a reserve or B side whose club the
+  new column gives (849 / 1,031 / 995). Seasons (Grosso's free move 2024/25), Balslev's £1K (a loan with an
   option to buy), Dehn's £14M, Sørensen's £6M, Sidhu's £3.3M and Maarup's loans all as the
   tables give them. The counts above are after these fixes; the loan-out dates in B and
   Bucaspor's checks drop to 36 and 9 within a day, Maarup's and one Bucaspor player's two loans

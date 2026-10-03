@@ -1,8 +1,8 @@
--- Every player contract, keyed (person_id, first_seen_date): the club, the
--- date it was signed (and started), its wage, expiry and team as first and last seen, and how it
--- ended (int.contracts for the rules). The end is a bound: last_seen_date is
--- the last snapshot it was in force, ended_by_date the next one. A loan never
--- makes a contract at the borrowing club.
+-- Every player contract, keyed (person_id, first_seen_date): the club, the date
+-- it was signed (and started), its wage, expiry and team as first and last
+-- seen, and how it ended (int.contracts for the rules). The end is a bound:
+-- last_seen_date is the last snapshot it was in force, ended_by_date the next
+-- one. A loan never makes a contract at the borrowing club.
 select
     person_id,
     first_seen_date,

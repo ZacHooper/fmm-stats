@@ -267,7 +267,8 @@ models:
   - name: dim_person
     description: >
       Every person in any snapshot: name, date of birth, and the club and season of the oldest
-      career line any snapshot holds.
+      career line any snapshot holds; an academy's line counts for its club, with the academy
+      in origin_youth_team_tid.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id]}}
   - name: fact_player_snapshot

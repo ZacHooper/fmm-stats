@@ -3,15 +3,27 @@
 -- his name (the latest), date of birth, and the club and season of the oldest
 -- career-history line any snapshot holds for him (origin_*; NULL for a person
 -- who was never a player). That line is his first only where no snapshot had
--- yet dropped any (int.player_career_lines). Everything that changes is on
--- the snapshot facts.
+-- yet dropped any (int.player_career_lines). origin_team_tid is the team the
+-- line names (a first, reserve or B side, or a youth side) and
+-- origin_club_tid the club that owns it (int.team_clubs): a youth side's line
+-- counts for the club whose academy it is, with origin_youth_team_tid naming
+-- the academy (Frem's "Frem Yth" 65189), so a club's own products are
+-- origin_club_tid = that club. A line at a club the save holds no record for
+-- keeps its tid as the club. Everything that
+-- changes is on the snapshot facts.
 with origins as (
     select
-        person_id,
-        club_tid as origin_club_tid,
-        season as origin_season
-    from {{ ref('int_player_career_lines') }}
-    where line_index = 0
+        career_lines.person_id,
+        career_lines.club_tid as origin_team_tid,
+        coalesce(teams.club_tid, career_lines.club_tid) as origin_club_tid,
+        case
+            when teams.is_youth_side then career_lines.club_tid
+        end as origin_youth_team_tid,
+        career_lines.season as origin_season
+    from {{ ref('int_player_career_lines') }} as career_lines
+    left join {{ ref('int_team_clubs') }} as teams
+        on career_lines.club_tid = teams.team_tid
+    where career_lines.line_index = 0
 )
 
 select
@@ -19,7 +31,9 @@ select
     persons.tid,
     persons.dob,
     persons.name,
+    origins.origin_team_tid,
     origins.origin_club_tid,
+    origins.origin_youth_team_tid,
     origins.origin_season,
     persons.first_seen as first_seen_date,
     persons.last_seen as last_seen_date
