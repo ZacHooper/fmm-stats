@@ -48,40 +48,16 @@ another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoi
   it may import both sides. It owns the career (`careers.py`, `--career`): it places each
   snapshot in its campaign by the career's rollover, and checks the match table against the
   world fixture list for our two clubs.
-- **`transform/` and `fmstats/` are the T.** `transform/` is a **dbt** project (dbt-duckdb)
-  that builds the `stg` and `int` layers as views over `raw` — one stg model per raw table,
-  keyed by `snapshot_date`, and int models shaped by the semantic model (`docs/data-model/`):
-  person snapshots, team squads, our managed squad, scrapbook entries, a player's info
-  (`int_player_info`) and his ratings (`int_player_attributes`, the decode behind it), staff,
-  role ratings — and the `dim_*`/`fact_*` tables (`models/mart/`, tables in `mart` beside the
-  old views; from data-layers step 13).
-  `models/legacy/` rebuilds the old `(season, phase)` shapes from them for `fmstats/mart.py`
-  (through `fmstats/compat.py`) until step 17 moves the old mart over. Each model's grain and keys are dbt data tests, and its
-  rules are dbt **unit tests** (fixed rows in, the rows it must produce out:
-  `models/int/_int_unit_tests.yml`). The loader runs `dbt build` in-process
-  (`load_duckdb.build_models`), so every load and `--refresh-only` tests what it builds, and a
-  failing test fails the load; by hand it is
-  `cd transform && FM_DUCKDB=<store> uv run dbt build --profiles-dir .`. A model file is
-  `<layer>_<name>.sql` and its relation `<layer>.<name>`, except in `models/mart/`, where the
-  file is named for the relation itself (`dim_city.sql` -> `mart.dim_city`). dbt writes the store's catalog name
-  (its file name, `fm-<career>`) into every view, so a copy of the store binds only when
-  attached under that name: `ATTACH 'copy.duckdb' AS "fm-frem"` (`select sql from
-  duckdb_views()` shows it). Tables are unaffected. Its SQL is generated from the `vars` in
-  `transform/dbt_project.yml`, which `tests/test_boundary.py` checks against
-  `fmstats/contract.py`. **Its SQL is linted and formatted with sqlfluff**
-  (`transform/.sqlfluff`: lower-case keywords, trailing commas, explicit aliases, 80 columns):
-  `uv run python scripts/lint_sql.py` (`--fix` to apply), which lints against an empty store it
-  builds, so no data is needed; keep generated columns as SQL in the loop with plain `{% %}`
-  tags and a literal `{% if not loop.last %},{% endif %}` rather than SQL built in Jinja
-  strings. **Test big views on a sample** (`transform/tests/`): a test that
-  reads all 16M ratings costs ~45 s, the sample ~0.6 s. `fmstats/mart.py` derives the old
-  analytical tables from the models and `raw` (it is not being moved to dbt: the plan retires
-  most of it), and `scout`/`stats`/`league` analyse the mart. The old names (`raw.players`,
-  `raw.persons`, `v_player_ratings`, ...) are views over the models (`fmstats/compat.py`) until
-  their consumers move to the mart. fmstats imports neither fmparser nor `extract`: it reads a
-  `.duckdb` file, local or the R2 copy, and nothing else, and `fmq` needs no dbt (only the
-  loader builds the models). The raw schema plus `fmstats/contract.py` (the attribute column
-  names) is the whole interface.
+- **`transform/` and `fmstats/` are the T, and the semantic model
+  ([`docs/data-model/`](docs/data-model/README.md)) is their foundation.** `transform/` is a
+  **dbt** project building raw → stg → int → the model's `dim_*`/`fact_*` tables in `mart`;
+  `fmstats/mart.py` is the old consumer mart that the data-layers plan
+  ([`docs/plans/2026-10-01-data-layers.md`](docs/plans/2026-10-01-data-layers.md)) retires
+  view by view. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either** — it
+  loads automatically under both directories and carries the model, where the refactor stands,
+  and the rules. fmstats imports neither fmparser nor `extract`: it reads a `.duckdb` file,
+  local or the R2 copy, and `fmq` needs no dbt (only the loader builds the models). The raw
+  schema plus `fmstats/contract.py` (the attribute column names) is the whole interface.
 
 `tests/test_boundary.py` enforces both import rules. A fact only the parser knows reaches
 fmstats by the loader writing it into the store, never by fmstats importing it.
