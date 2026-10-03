@@ -512,7 +512,8 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
   matches, per competition), `dim_award`, `fact_player_award` (World Best XI pools: each
   season's list as its latest snapshot holds it, and the newest All-Time pool, list 62; the
   game's eleven are not stored, and 64 is the All-Time pool as of last season's end).
-- Not built: languages (no person-language table is read).
+- Career-history rating: 0xFFFF, the save's "none" (7,380 pre-career lines), reads NULL like
+  0. Not built: languages (no person-language table is read).
 
 **Check** (Frem 2021-06-27 / 2023-07-02 / 2026-06-11):
 - `fact_player_snapshot` = `mart.player_snapshots` on all 77,997 rows: person, age, every

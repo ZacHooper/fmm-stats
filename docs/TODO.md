@@ -342,11 +342,12 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   `mart.fact_player_match.minutes` counts extra time; the old view keeps the cap until step 17
   moves its consumers.
 
-### 16b. Career-history rating
-`raw.player_history_seasons.rating` reads 655.35 (0xFFFF / 100) on 35,849 lines of the
-2026-06-11 save, from seasons 1996-2025, and 647.x on a few more; `stg_player_history_seasons`
-says it is NULL before the career, which is not the whole story. Find what the 0xFFFF and the
-647.x lines have in common before reading `mart.fact_player_season.rating` as a number.
+### 16b. Career-history rating on youth-team lines
+49 career-history lines across the Frem gate store's snapshots (45 once unioned), every one at an academy tid with 38-40 apps,
+read a rating of 646.75-647.63 (u16 64675-64763). As a signed value that is -7.73 to -8.61,
+an ordinary average negated, so a youth-team line may store its rating that way. Prove it
+against a youth player's in-game history screen before reading these as ratings;
+`stg_player_history_seasons` passes them through. (0xFFFF, the save's "none", reads NULL.)
 
 ### 16a. Retire the stuck-loan workarounds
 `raw.players.loaned_in` is now true only for a player in our squad arrays whose own record
