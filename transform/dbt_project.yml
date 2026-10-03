@@ -135,7 +135,12 @@ vars:
     is_injured: 3             # bits 0-1
     is_off_season: 16         # bit 4
     is_on_loan: 32            # bit 5
-  injury_spell_gap_days: 8    # injured weeks further apart than this are two spells
+  # Spells read from those bits (int_progress_spells): flagged weeks further apart than
+  # gap_days are two spells. A loan's gap spans the off-season week, when the series pauses.
+  progress_spells:
+    injured: {flag: is_injured, gap_days: 8}
+    off_season: {flag: is_off_season, gap_days: 8}
+    on_loan: {flag: is_on_loan, gap_days: 22}
   # A career-history line's transfer fee code (stg_player_history_seasons): below the floor it
   # is the fee in units of fee_unit_gbp; fee_contract_ended (0xFFFC) is a contract run out.
   fee_code_floor: 65000

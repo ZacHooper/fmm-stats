@@ -1,23 +1,6 @@
 # Unit tests for the mart's own rules (see models/int/_int_unit_tests.yml).
 version: 2
 unit_tests:
-  - name: injury_spells_split_on_gap
-    description: >
-      Injured weeks up to var('injury_spell_gap_days') apart are one spell; a longer gap starts
-      a new one. Weeks without the injured flag do not count.
-    model: fact_injury_spell
-    given:
-      - input: ref('int_progress_weeks')
-        rows:
-          - {person_id: 7-2001-01-01, week_date: '2026-01-05', is_injured: true}
-          - {person_id: 7-2001-01-01, week_date: '2026-01-12', is_injured: true}
-          - {person_id: 7-2001-01-01, week_date: '2026-01-19', is_injured: false}
-          - {person_id: 7-2001-01-01, week_date: '2026-01-26', is_injured: true}
-    expect:
-      rows:
-        - {person_id: 7-2001-01-01, start_date: '2026-01-05', end_date: '2026-01-12', weeks: 2}
-        - {person_id: 7-2001-01-01, start_date: '2026-01-26', end_date: '2026-01-26', weeks: 1}
-
   - name: player_award_resolves_recycled_tid_by_age
     description: >
       An entry names the person who held its tid when it was written: the one whose date of

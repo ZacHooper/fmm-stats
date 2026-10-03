@@ -642,3 +642,31 @@ unit_tests:
       rows:
         - {tid: 1, value_estimate: 5000, is_in_trusted_band: false}
         - {tid: 2, value_estimate: 4000, is_in_trusted_band: false}
+
+  - name: progress_spells_per_flag_and_gap
+    description: >
+      A week's flags are every stored copy's OR-ed together, across snapshots. Injured weeks
+      up to 8 days apart are one spell and a longer gap starts another; a loan's weeks 14
+      days apart (over the off-season week) stay one spell.
+    model: int_progress_spells
+    given:
+      - input: ref('int_person_snapshots')
+        rows:
+          - {snapshot_date: '2026-03-01', tid: 7, person_id: 7-2001-01-01}
+          - {snapshot_date: '2026-08-01', tid: 7, person_id: 7-2001-01-01}
+      - input: ref('stg_player_progress')
+        rows:
+          - {snapshot_date: '2026-03-01', tid: 7, week_date: '2026-01-05', is_injured: true, is_off_season: false, is_on_loan: false}
+          - {snapshot_date: '2026-03-01', tid: 7, week_date: '2026-01-12', is_injured: false, is_off_season: false, is_on_loan: false}
+          - {snapshot_date: '2026-08-01', tid: 7, week_date: '2026-01-12', is_injured: true, is_off_season: false, is_on_loan: false}
+          - {snapshot_date: '2026-08-01', tid: 7, week_date: '2026-01-26', is_injured: true, is_off_season: false, is_on_loan: false}
+          - {snapshot_date: '2026-08-01', tid: 7, week_date: '2026-06-22', is_injured: false, is_off_season: false, is_on_loan: true}
+          - {snapshot_date: '2026-08-01', tid: 7, week_date: '2026-06-29', is_injured: false, is_off_season: true, is_on_loan: false}
+          - {snapshot_date: '2026-08-01', tid: 7, week_date: '2026-07-06', is_injured: false, is_off_season: false, is_on_loan: true}
+    expect:
+      rows:
+        - {person_id: 7-2001-01-01, spell_type: injured, start_date: '2026-01-05', end_date: '2026-01-12', weeks: 2}
+        - {person_id: 7-2001-01-01, spell_type: injured, start_date: '2026-01-26', end_date: '2026-01-26', weeks: 1}
+        - {person_id: 7-2001-01-01, spell_type: off_season, start_date: '2026-06-29', end_date: '2026-06-29', weeks: 1}
+        - {person_id: 7-2001-01-01, spell_type: on_loan, start_date: '2026-06-22', end_date: '2026-07-06', weeks: 2}
+
