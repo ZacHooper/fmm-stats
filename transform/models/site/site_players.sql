@@ -7,7 +7,7 @@
 --   origin_club_tid    the club he came out of, and origin_club its name
 --                      (dim_person: an academy counts for its club)
 --   capital_eligible   that club is on the capital-region signing list
---                      (seeds/eligible_origin_clubs.csv)
+--                      (seeds/eligible_origin_clubs.csv); NULL with no origin
 --   development        how far he is from his ceiling, as a word: ability
 --                      against potential, in var('site_development_bands')
 --   positions          each position his record lists, by code: his
@@ -107,7 +107,10 @@ select
     players.weight_kg,
     people.origin_club_tid,
     origin.name as origin_club,
-    eligible.club_tid is not null as capital_eligible,
+    case
+        when people.origin_club_tid is not null
+            then eligible.club_tid is not null
+    end as capital_eligible,
     nations.name as nationality,
     players.foot_left,
     players.foot_right,

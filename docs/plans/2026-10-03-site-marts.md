@@ -48,10 +48,22 @@ Measured on Frem store B (2023-06-29 / 2027-06-29 / 2027-08-09) against the old 
 - A loanee is at the team his record names, his parent's: Tochi Chukwuani (on loan from
   Nordsjælland) is no longer a Frem player row, and the squad counts, league pools, Level
   %iles and skill_idx move by one around him.
-- Origin is the club, an academy counting for its club: `ours.origin` reads "Boldklubben
-  Frem" where it read "#65189", and `all.json`'s `origin_club_tid` is the club's tid.
+- Origin is `dim_person`'s: the club of the oldest career line with a club that any snapshot
+  holds, a youth, reserve or B side counting for its club. `ours.origin` reads "Boldklubben
+  Frem" where it read "#65189", and `all.json`'s `origin_club_tid` is the club's tid. Against
+  the old view (the save's chain head, on the newest snapshot) on store B: our squad agrees
+  everywhere; worldwide 4,389 players read an earlier origin, from lines a later save has
+  reclaimed; 657 read the club that owns the team the old view named; 1,146 the old view gave
+  the "no club" sentinel 65535 now have their first club. The capital flag follows the
+  origin, and is NULL with none. Step 16's `dim_person` took the oldest line even when it
+  had no club, which lost 706 origins: a season unattached before his first club is now
+  skipped.
+- On Bucaspor the capital list (Frem's Danish club tids) matched 28 players by coincidence
+  of tid (2532 is a Real San Sebastián B team in that save); they now read false.
 - A club on a career line the save has since reclaimed is still listed (148 empty clubs in
   `clubs.json`): the model keeps every line it has seen.
+- Our loanees are in `core.json`'s players wherever their records are (a loanee to us is at
+  his parent club's team), since the app finds our squad by `squad_tids`.
 - `ours.status`: a player another club's squad lists on loan is 'Loan' on the day the save
   shows it. The old export read Player Progress, whose last week (2027-08-04) was before the
   save (2027-08-09), so nine loans that had started read 'First team'.
@@ -91,7 +103,12 @@ Measured on Frem store B (2023-06-29 / 2027-06-29 / 2027-08-09) against the old 
   loans to us (Ruben Minerba's two loan seasons: 27.0 -> 21.0).
 - The window, the seasons and the B-list date turn on the career's rollover day.
 
+- Bucaspor: an academy season counts for Bucaspor (58968 = 65535 - 6567), so 2779 reads 21.4
+  months where he read 0.
+
 **World** (`world.json`)
+- A squad player whose history names no club is unresolved: the old view counted the 65535
+  sentinel as a resolved origin (Bucaspor: 0 -> 12 unresolved, the map unchanged).
 - Clubs in the Danish Lower Division and B teams in the senior pyramid are on the home map:
   `dim_competition` gives that league its nation, which the old view lacked. Reserve sides
   are left off, as before, now by their team type.

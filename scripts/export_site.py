@@ -79,7 +79,8 @@ def player_row(r, attrs, profile=False):
             for p in (r["positions"] or [])],
            num(r["squad_number"]), num(r["height_cm"]), num(r["weight_kg"])]
     if profile:
-        row += [num(r["origin_club_tid"]), bool(r["capital_eligible"])]
+        row += [num(r["origin_club_tid"]),
+                None if r["capital_eligible"] is None else bool(r["capital_eligible"])]
         row += [day(r[c]) if c == "joined_date" else num(r[c]) for c in PROFILE_COLS]
     return row
 
