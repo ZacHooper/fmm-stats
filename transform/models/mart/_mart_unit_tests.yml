@@ -32,9 +32,10 @@ unit_tests:
 
   - name: person_origin_resolves_the_academy
     description: >
-      A person's origin is his oldest career line's club: a youth side's line counts for the
-      club whose academy it is (origin_youth_team_tid names the academy), a recorded team's
-      for its club, and a line at a club the save holds no record for keeps its tid.
+      A person's origin is his oldest career line with a club: a youth side's line counts for
+      the club whose academy it is (origin_youth_team_tid names the academy), a recorded team's
+      for its club, and a line at a club the save holds no record for keeps its tid. Seasons
+      without a club before his first are skipped; with no club line at all he has none.
     model: dim_person
     given:
       - input: ref('int_persons')
@@ -43,12 +44,19 @@ unit_tests:
           - {person_id: b, tid: 2, dob: '1999-01-01', name: B}
           - {person_id: c, tid: 3, dob: '1990-01-01', name: C}
           - {person_id: d, tid: 4, dob: '1970-01-01', name: Staff}
+          - {person_id: e, tid: 5, dob: '1995-01-01', name: E}
+          - {person_id: f, tid: 6, dob: '1996-01-01', name: F}
       - input: ref('int_player_career_lines')
         rows:
           - {person_id: a, line_index: 0, season: 2024, club_tid: 65189}
           - {person_id: a, line_index: 1, season: 2025, club_tid: 346}
           - {person_id: b, line_index: 0, season: 2018, club_tid: 7296}
           - {person_id: c, line_index: 0, season: 2010, club_tid: 6863}
+          - {person_id: e, line_index: 0, season: 2013, club_tid: null}
+          - {person_id: e, line_index: 1, season: 2014, club_tid: null}
+          - {person_id: e, line_index: 2, season: 2015, club_tid: 51}
+          - {person_id: e, line_index: 3, season: 2016, club_tid: 346}
+          - {person_id: f, line_index: 0, season: 2014, club_tid: null}
       - input: ref('int_team_clubs')
         rows:
           - {team_tid: 346, club_tid: 346, is_youth_side: false}
@@ -60,3 +68,5 @@ unit_tests:
         - {person_id: b, origin_team_tid: 7296, origin_club_tid: 346, origin_youth_team_tid: null, origin_season: 2018}
         - {person_id: c, origin_team_tid: 6863, origin_club_tid: 6863, origin_youth_team_tid: null, origin_season: 2010}
         - {person_id: d, origin_team_tid: null, origin_club_tid: null, origin_youth_team_tid: null, origin_season: null}
+        - {person_id: e, origin_team_tid: 51, origin_club_tid: 51, origin_youth_team_tid: null, origin_season: 2015}
+        - {person_id: f, origin_team_tid: null, origin_club_tid: null, origin_youth_team_tid: null, origin_season: null}

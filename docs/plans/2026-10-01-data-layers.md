@@ -110,7 +110,7 @@ One PR each, merged green, in this order.
 | 14 | Competition and match (14a, 14b) | both | vs `mart.club_matches`, `match_stages`; then `league_tables`, `match_player_facts` |
 | 15 | Person and the two models | layers | vs `mart.player_snapshots`, `player_value_est`, `injury_spells`, `player_seasons` |
 | 16 | Contracts and transfers | layers | vs `mart.player_spells`, `at_club_spells`, `transfers`, `loan_out_spells`, `squad_current` |
-| 17 | Consumer marts designed on the model | layers | the export from the new marts = the old export, or a listed intended difference |
+| 17 | Consumer marts designed on the model (the site) | layers | the export from the new marts = the old export, or a listed intended difference |
 | 18 | End to end on a new save | both | a new save imported the normal way; the export diff clean but for listed differences |
 | 19 | Switch over | layers | consumers read the new marts; `git diff site/api` only the listed differences |
 | 20 | Retire and publish | layers | old views dropped; publish verify; size within the R2 budget |
@@ -650,31 +650,29 @@ test passes on all three):
   in the sandbox). `lint_sql.py` clean.
 
 ## 17. Consumer marts designed on the model
-The site and `fmq` get a small set of marts designed for what they read, built on the `dim_*` /
+The web app gets a small set of marts designed for what it reads, built on the `dim_*` /
 `fact_*` tables, **beside** the old views, which stay exactly as they are and are still what
 every consumer reads. Nothing is switched or deleted in this step. The old ~80 views are not
 ported one for one: their shapes are what grew, not what is read, and copying them would
 rebuild their quirks (65535 as a club, a loanee at the team listing him, the 1 July calendar)
-only to delete them at step 19.
+only to delete them at step 19. `fmq`, `scout`, `stats` and `league` are not part of it: they
+get their own rework once the site has switched.
 
-- **Design first**: the first commit is the design, from what is read: each site JSON file and
-  each `fmq` / `scout` / `stats` / `league` command, the fields it uses, and the mart that
-  serves them, roughly one per consumer shape (squad, player, club, transfers and loans,
-  development, matches and tables). Reviewed before any is built.
-- **Where**: a dbt schema `site`, views over the model's tables, each a thin select; a rule two
-  consumers share lives in int or the mart tables, not in a site view. They follow the model's
-  rules: `snapshot_date`, NULL where the save gives nothing, the career's rollover day.
-- **The check is what users see**: the export gains a path that reads the new marts and writes
-  the same JSON to a scratch directory, never `site/api`, and the two exports are diffed file
-  by file. Every difference is either fixed or listed as intended, with its reason; anything
-  else fails. Hard derived logic (transfers, loans, contracts, origin) is also diffed row for
-  row against its old view.
-- **Order**, one PR per consumer area once the design is agreed; the primary-position rule
-  (TODO #21) is one of them.
+- **Where**: a dbt schema `site` (`transform/models/site/`), one view per thing a page shows,
+  each a thin select over the model; a rule two consumers share lives in int or the mart
+  tables. They follow the model's rules: `snapshot_date`, NULL where the save gives nothing,
+  the career's rollover day.
+- **The exporter**: `scripts/export_site.py` reads only `site.*` and shapes rows into the same
+  JSON `export_data.py` writes, into a scratch directory, never `site/api`; every rule it used
+  to carry (squad status, the B-list, the loan ranks) is SQL.
+- **The check is what users see**: `scripts/diff_exports.py OLD NEW` diffs the two exports
+  file by file. Every difference is fixed or listed as intended, with its reason.
 
-**Check**: per PR, the export diff clean but for listed intended differences on the gate
-stores; the old `mart.*` unchanged; `git diff site/api` empty (the real export still reads
-`mart`).
+**As built**: the design, the marts and every intended difference are in
+[`2026-10-03-site-marts.md`](2026-10-03-site-marts.md).
+
+**Check**: on the gate stores, the export diff shows only the listed intended differences;
+the old `mart.*` unchanged; `git diff site/api` empty (the real export still reads `mart`).
 
 ## 18. End to end on a new save
 The proof wanted before anything is turned off: take a save the store has never seen and run

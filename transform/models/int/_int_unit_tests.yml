@@ -1012,3 +1012,122 @@ unit_tests:
         - {team_tid: 344, club_tid: 344, is_youth_side: false}
         - {team_tid: 65189, club_tid: 346, is_youth_side: true}
         - {team_tid: 65191, club_tid: 344, is_youth_side: true}
+
+  - name: our_squad_from_the_squad_arrays
+    description: >
+      Our squad is who our teams' squads list, a player whose record names another club
+      on loan to us, plus every player whose record names our club and whom another club's
+      side lists: out on loan there. A national side's call-up is not a loan. Reserve only
+      when our first team does not list him.
+    model: int_our_squad
+    given:
+      - input: ref('stg_career')
+        rows:
+          - {managed_club_tid: 346}
+      - input: ref('squad_membership')
+        rows:
+          - {snapshot_date: '2027-08-09', person_id: a, team_tid: 346, club_tid: 346, team_type: first, record_club_tid: 346, is_loan_in: false}
+          - {snapshot_date: '2027-08-09', person_id: b, team_tid: 7296, club_tid: 346, team_type: reserve, record_club_tid: 346, is_loan_in: false}
+          - {snapshot_date: '2027-08-09', person_id: c, team_tid: 346, club_tid: 346, team_type: first, record_club_tid: 2465, is_loan_in: true}
+          - {snapshot_date: '2027-08-09', person_id: d, team_tid: 327, club_tid: 327, team_type: first, record_club_tid: 346, is_loan_in: true}
+          - {snapshot_date: '2027-08-09', person_id: e, team_tid: 138, club_tid: 138, team_type: national, record_club_tid: 346, is_loan_in: true}
+          - {snapshot_date: '2027-08-09', person_id: e, team_tid: 346, club_tid: 346, team_type: first, record_club_tid: 346, is_loan_in: false}
+          - {snapshot_date: '2027-08-09', person_id: f, team_tid: 346, club_tid: 346, team_type: first, record_club_tid: 346, is_loan_in: false}
+          - {snapshot_date: '2027-08-09', person_id: f, team_tid: 7296, club_tid: 346, team_type: reserve, record_club_tid: 346, is_loan_in: false}
+    expect:
+      rows:
+        - {person_id: a, status: First team, is_loan_in: false, loaned_to_club_tid: null}
+        - {person_id: b, status: Reserve, is_loan_in: false, loaned_to_club_tid: null}
+        - {person_id: c, status: First team, is_loan_in: true, loaned_to_club_tid: null}
+        - {person_id: d, status: Loan, is_loan_in: false, loaned_to_club_tid: 327}
+        - {person_id: e, status: First team, is_loan_in: false, loaned_to_club_tid: null}
+        - {person_id: f, status: First team, is_loan_in: false, loaned_to_club_tid: null}
+
+  - name: squad_training_months_in_the_window
+    description: >
+      A youth side's season counts for its club; a season runs rollover to rollover (366 days
+      across a leap year), so contiguous seasons merge with no gap; a season with two lines
+      splits evenly, the loan leg crediting the borrowing club; the season in progress is
+      credited from the day he joined to the snapshot.
+    model: int_squad_training
+    given:
+      - input: ref('stg_career')
+        rows:
+          - {managed_club_tid: 346, rollover_month: 6, rollover_day: 30}
+      - input: ref('int_our_squad')
+        rows:
+          - {snapshot_date: '2026-08-29', person_id: p, loaned_to_club_tid: null, is_loan_in: false}
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2026-08-29', season: 2027}
+      - input: ref('dim_person')
+        rows:
+          - {person_id: p, dob: '2005-01-01'}
+      - input: ref('fact_player_snapshot')
+        rows:
+          - {snapshot_date: '2026-08-29', person_id: p, club_tid: 346, joined_date: '2026-07-15'}
+      - input: ref('fact_player_season')
+        rows:
+          - {person_id: p, line_index: 0, season: 2024, team_tid: 65189}
+          - {person_id: p, line_index: 1, season: 2025, team_tid: 346}
+          - {person_id: p, line_index: 2, season: 2026, team_tid: 346}
+          - {person_id: p, line_index: 3, season: 2026, team_tid: 337}
+      - input: ref('dim_team')
+        rows:
+          - {team_tid: 346, club_tid: 346}
+          - {team_tid: 337, club_tid: 337}
+      - input: ref('int_team_clubs')
+        rows:
+          - {team_tid: 346, club_tid: 346}
+          - {team_tid: 337, club_tid: 337}
+          - {team_tid: 65189, club_tid: 346}
+    expect:
+      rows:
+        # 2023-06-30 .. 2025-12-30 (366 + 365 + 183 days) and 2026-07-15 .. 2026-08-29 (45)
+        - {person_id: p, club_tid: 346, months: 31.5, last_to: '2026-08-29'}
+        # 2025-12-30 .. 2026-06-30, 182 days
+        - {person_id: p, club_tid: 337, months: 6.0, last_to: '2026-06-30'}
+
+  - name: player_match_ratings_restated_by_role
+    description: >
+      rating_adj is a starter's rating as a z-score within his role, on the scale of the
+      outfield roles pooled. The baseline is the managed team's competitive starts:
+      goalkeepers are out of the pool, friendlies and reserve games out of the baseline. A
+      substitute, a start with no position and a role with no spread read NULL.
+    model: int_player_match_ratings
+    given:
+      - input: ref('stg_career')
+        rows:
+          - {managed_club_tid: 346}
+      - input: ref('dim_match')
+        rows:
+          - {match_id: 1, cid: 2}
+          - {match_id: 2, cid: 2}
+          - {match_id: 3, cid: 2}
+          - {match_id: 4, cid: 65}
+      - input: ref('dim_competition')
+        rows:
+          - {cid: 2, type: league}
+          - {cid: 65, type: friendly}
+      - input: ref('fact_player_match')
+        rows:
+          - {match_id: 1, player_tid: 10, team_tid: 346, started: true, rating: 6, position: DC}
+          - {match_id: 2, player_tid: 10, team_tid: 346, started: true, rating: 7, position: DC}
+          - {match_id: 3, player_tid: 10, team_tid: 346, started: true, rating: 8, position: DC}
+          - {match_id: 1, player_tid: 1, team_tid: 346, started: true, rating: 5, position: GK}
+          - {match_id: 2, player_tid: 1, team_tid: 346, started: true, rating: 5, position: GK}
+          - {match_id: 4, player_tid: 11, team_tid: 346, started: true, rating: 10, position: DC}
+          - {match_id: 3, player_tid: 12, team_tid: 7296, started: true, rating: 10, position: DC}
+          - {match_id: 3, player_tid: 13, team_tid: 346, started: false, rating: 6, position: null}
+          - {match_id: 2, player_tid: 14, team_tid: 346, started: true, rating: 7, position: null}
+    expect:
+      rows:
+        - {match_id: 1, player_tid: 10, role: Centre-back, rating_adj: 6.0}
+        - {match_id: 2, player_tid: 10, role: Centre-back, rating_adj: 7.0}
+        - {match_id: 3, player_tid: 10, role: Centre-back, rating_adj: 8.0}
+        - {match_id: 1, player_tid: 1, role: GK, rating_adj: null}
+        - {match_id: 2, player_tid: 1, role: GK, rating_adj: null}
+        - {match_id: 4, player_tid: 11, role: Centre-back, rating_adj: 10.0}
+        - {match_id: 3, player_tid: 12, role: Centre-back, rating_adj: 10.0}
+        - {match_id: 3, player_tid: 13, role: null, rating_adj: null}
+        - {match_id: 2, player_tid: 14, role: null, rating_adj: null}

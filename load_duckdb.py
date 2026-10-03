@@ -1871,7 +1871,7 @@ def build_models(con, select=None, test=True):
     return built
 
 
-MODEL_SCHEMAS = ("stg", "int", "legacy")
+MODEL_SCHEMAS = ("stg", "int", "legacy", "site")
 
 
 def _drop_unbuilt(con, results):

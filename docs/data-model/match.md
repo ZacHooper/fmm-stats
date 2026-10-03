@@ -160,7 +160,13 @@ mismatch is investigated on the events side and never overwrites the score.
 - **Checks** on the gate stores: goal events per side equal the fixture-list score on every
   match with detail, and each player's `goals` equals his goal events on every line.
 
+- **Team stats** (shots, shots on target, passes and completed, tackles and won, crosses,
+  interceptions; `var('team_match_stats')`) and the managed side's **formation** are on
+  `fact_team_match` for our own matches with detail, from the match table's home / away
+  columns (`int_team_matches`); NULL for every other match, which the save holds no detail
+  for. A position-adjusted rating per appearance is `int_player_match_ratings`.
+
 ## Out of scope
 
-Stats beyond goals (which column each comes from is decided per stat when it is built) and
-in-match tactics.
+Other stats beyond goals (which column each comes from is decided per stat when it is built)
+and in-match tactics.
