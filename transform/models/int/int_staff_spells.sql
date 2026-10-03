@@ -6,9 +6,10 @@
 -- is there on the newest).
 --
 -- role: the save names no job. A club's staff array lists its coaches and not
--- its manager, so the manager is the staff member on a team's books whom its
--- staff array does not list, the highest home reputation where more than one
--- is not listed (manager_candidates counts them); everyone else is 'staff'.
+-- its manager, so the manager is the staff member with a staff record on a
+-- team's books whom its staff array does not list, the highest home
+-- reputation where more than one is not listed (manager_candidates counts
+-- them); everyone else is 'staff'.
 -- A team whose own record the save does not hold has no array, so its staff
 -- read 'staff'. club_tid is the club that owns the team.
 with snapshots as (
@@ -40,7 +41,7 @@ unlisted as (
             staff.snapshot_date = listed.snapshot_date
             and staff.club_tid = listed.club_tid
             and staff.tid = listed.staff_tid
-    where listed.staff_tid is null
+    where listed.staff_tid is null and staff.has_staff_record
 ),
 
 roles as (

@@ -6,7 +6,8 @@
 -- replaced, never edited, so its start date is its identity: measured on the
 -- gate stores, a contract whose start date is unchanged keeps it through
 -- changes of wage and of team within the club (a move to the reserves), and a
--- new start date always lies between the two snapshots that bound it.
+-- new start date always lies between the two snapshots that bound it (on the
+-- earlier one's own day at the earliest: signed after that save was made).
 --
 -- start_date is the stored start date where it is no later than the first
 -- snapshot holding the contract; the save's day-one database holds start dates
