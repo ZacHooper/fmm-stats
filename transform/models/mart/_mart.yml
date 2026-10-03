@@ -264,3 +264,99 @@ models:
             columns: [cid]
             to: ref('dim_competition')
             to_columns: [cid]
+  - name: dim_person
+    description: >
+      Every person in any snapshot: name, date of birth, and the club and season of the oldest
+      career line any snapshot holds.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id]}}
+  - name: fact_player_snapshot
+    description: >
+      Each player on each snapshot: team, ratings, ability, value (stated or estimated),
+      reputation, contract, training, nationality, caps.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, snapshot_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+      - relationship_combination:
+          arguments:
+            columns: [team_tid]
+            to: ref('dim_team')
+            to_columns: [team_tid]
+      - relationship_combination:
+          arguments:
+            columns: [nationality_id]
+            to: ref('dim_nation')
+            to_columns: [nation_id]
+    columns:
+      - name: contract_status
+        data_tests:
+          - accepted_values: {arguments: {values: [contracted, expired, free_agent]}}
+  - name: fact_staff_snapshot
+    description: >
+      Each member of staff on each snapshot: team, coaching ability, reputation, formations,
+      Style.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, snapshot_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+  - name: fact_injury_spell
+    description: >
+      Each injury of a player in our squad or reserves, from the weekly Player Progress rows.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, start_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+  - name: fact_player_season
+    description: >
+      Every season line of every player's career history, unioned across snapshots.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, line_index]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+  - name: fact_player_competition_season
+    description: >
+      Each player's season in each competition for each team, summed from our own matches.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, player_tid, team_tid, cid]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid]
+            to: ref('dim_competition')
+            to_columns: [cid]
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+  - name: dim_award
+    description: The awards the save records (var('awards')).
+    data_tests:
+      - unique_combination: {arguments: {columns: [award_id]}}
+  - name: fact_player_award
+    description: >
+      Each player's place in a World Best XI pool, with the scrapbook entry that earned it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [award_id, player_tid, entry_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [award_id]
+            to: ref('dim_award')
+            to_columns: [award_id]
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]

@@ -491,9 +491,52 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
   flags), `fact_staff_snapshot`, `fact_injury_spell`, `fact_player_season`, `dim_award`,
   `fact_player_award` (from `raw.player_scrapbook`, lists 0–30 and 62/64).
 
-**Check**: vs `mart.player_snapshots`, `mart.player_value_est`, `mart.injury_spells`,
-`mart.player_seasons`, `mart.player_career_seasons`. **Blocked by** TODO #14 (person identity) and
-#15 (history reclamation).
+**Done.** As built:
+- **Identity**: a person never turns back into a player once he loses his player record (2,520
+  of 37,436 people across three Frem snapshots: 1,766 retire with no record, 633 become staff),
+  so "is_staff flipping empties his history" (#14) is retirement, and the history union below
+  is the fix. Old scrapbook entries can carry a tid since given to a newgen, so awards resolve
+  by tid and name.
+- **History** (#15): the game keeps a player's newest lines and drops his oldest (and removes
+  a loan year's 0-app parent line once the season is over), so `int_player_career_lines`
+  takes the newest snapshot's lines plus what each older snapshot held that its successor
+  dropped. 3,437 of 30,691 people had a richer history in an older snapshot; the union holds
+  370,417 lines against the newest snapshots' 345,315.
+- **Value**: coefficients in `seeds/value_model.csv` (`raw.value_model`), scored by
+  `int_player_value`. The league reputation the store reads is the competition record's u16
+  at +9 (58-136 in Denmark); the model was fitted on the u16 at +8 (256x that), so every
+  estimate on main read £0-£300. The intercept is restated (+ llrp·ln 256), which also fixes
+  `mart.player_value_est`. A reserve side takes its first team's league reputation, as fitted.
+- **mart**: `dim_person`, `fact_player_snapshot`, `fact_staff_snapshot`, `fact_injury_spell`,
+  `fact_player_season` (career history, every player), `fact_player_competition_season` (our
+  matches, per competition), `dim_award`, `fact_player_award` (World Best XI pools: each
+  season's list as its latest snapshot holds it, and the newest All-Time pool, list 62; the
+  game's eleven are not stored, and 64 is the All-Time pool as of last season's end).
+- Not built: languages (no person-language table is read).
+
+**Check** (Frem 2021-06-27 / 2023-07-02 / 2026-06-11):
+- `fact_player_snapshot` = `mart.player_snapshots` on all 77,997 rows: person, age, every
+  attribute, estimated flag, hidden and personality, stated value, wage, expiry, nationality,
+  keeper, reputation, squad status, feet. Team differs on 1,597: free agents read NULL, not
+  65535, and 4 loanees in carry their parent team (the record's), not ours.
+- `int_player_value` = `mart.player_value_est` on every first-team and b-team row (one
+  rounding difference); reserve rows differ by the league rule above, and 634 reserve players
+  of Belgian clubs get no estimate (Belgian club records name no league, so their first-team
+  players have none in either view).
+- `int_player_value` median error against our stated values 1.7-2.3x per snapshot (the
+  model's documented 2.27x).
+- `fact_injury_spell` = `mart.injury_spells`, 106/106.
+- `fact_player_competition_season` = `mart.player_seasons` (competitive) on all 562 rows, every
+  stat.
+- `fact_player_season`: each person's newest-snapshot lines in `mart.player_career_seasons`
+  are exactly the union's newest lines (345,315/345,315); club 65535 reads NULL.
+- Frem 2023-06-29 / 2027-06-29 / 2027-08-09: snapshots equal on all 78,609 rows (team: 1,052
+  free agents, 1 loanee); injuries 126/126; competition seasons 1,379 rows, minutes higher on
+  103, every one a season with an extra-time match (the old view caps at 90); awards 600
+  season-pool and 100 All-Time entries, all resolved to a person.
+- Bucaspor 2023-04-01: snapshots equal on all 25,880 rows (171 free agents); injuries 60/60;
+  competition seasons 1,041/1,041; 92 of 100 All-Time entries have a season (8 are from before
+  the career).
 
 ## 16. Contracts and transfers
 - **int**: contract reconstruction from snapshots (`last_seen` / `ended_by`), loan and staff
@@ -564,8 +607,6 @@ Mismatches are reported, never fixed by the build:
 ## Blockers
 | TODO | Blocks | Why |
 |---|---|---|
-| #14 Person identity | step 15 | `dim_person` keys everything |
-| #15 History lost to reclamation | step 15 | `fact_player_season` unions history across snapshots |
 | Contract signed dates (unread training-row dates) | step 16 | exact end dates instead of snapshot bounds |
 
 ## Other TODOs this touches

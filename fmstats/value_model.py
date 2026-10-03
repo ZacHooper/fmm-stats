@@ -56,26 +56,33 @@ WHAT WAS TRIED AND DID NOT WORK:
 
 Because the model trains only on the managed club, a career whose club has never changed
 division has no league-reputation variation to learn from and `llrp` will be meaningless.
-Frem's climb from 3. Division (league rep 14,860) to the Superliga (34,817) is what makes
+Frem's climb from 3. Division (league rep 58) to the Superliga (136) is what makes
 that term identifiable here.
 
 See docs/agent-context/player-value-estimation.md for the full write-up.
 """
+import os
 
-# Fitted by scripts/fit_value_model.py on fm-frem (734 rows, 80 players, 22 snapshots).
+# Fitted by scripts/fit_value_model.py on fm-frem (734 rows, 80 players, 22 snapshots). The
+# coefficients are seeds/value_model.csv, the one copy: the loader seeds raw.value_model from
+# it for int.player_value, and this module reads the same file for mart.player_value_est.
+#
+# The intercept is restated for the league reputation the store now reads (the competition
+# record's u16 at +9, 58-136 for the Danish leagues). The fit read the u16 at +8, i.e.
+# 256 x that value plus the byte below it, so the intercept gains llrp * ln(256); the byte
+# below moves a value by about 0.1%.
 N_TRAIN, CV_R2, MEDIAN_ERR = 734, 0.717, 2.27
 
-COEF = {
-    "intercept": -15.709785904652186,
-    "ca": 0.03659055295951037,
-    "pa": 0.036010820101851644,
-    "lrep": 1.664648140224399,
-    "llrp": 1.523479823028052,
-    "gk": 0.5408672263979569,
-    "acap": -0.7062381656990232,
-    "acap2": 0.011750387401089924,
-    "res": 0.21543260349017093,
-}
+
+def _load_coef():
+    import csv
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "seeds", "value_model.csv")
+    with open(path, newline="") as fh:
+        return {row["term"]: float(row["coefficient"]) for row in csv.DictReader(fh)}
+
+
+COEF = _load_coef()
 
 # The band the model was actually validated in. Outside it, say so rather than quoting.
 TRUSTED_LO, TRUSTED_HI = 20_000, 5_000_000

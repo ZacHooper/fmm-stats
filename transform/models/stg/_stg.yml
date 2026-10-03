@@ -82,6 +82,10 @@ models:
     data_tests:
       - rows_match_source: {arguments: {table: person_records}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+    columns:
+      - name: dob
+        description: Every person has a date of birth; person_id and age are built on it.
+        data_tests: [not_null]
   - name: stg_player_attributes
     description: >
       The player attribute table per snapshot, keyed by sid: the 34 attribute bytes as stored,
@@ -257,6 +261,11 @@ models:
     data_tests:
       - rows_match_source: {arguments: {table: roles}}
       - unique_combination: {arguments: {columns: [role_id]}}
+  - name: stg_value_model
+    description: The transfer-value model's coefficients by term, from seeds/value_model.csv.
+    data_tests:
+      - rows_match_source: {arguments: {table: value_model}}
+      - unique_combination: {arguments: {columns: [term]}}
   - name: stg_training_attributes
     description: The Training page Attr codes, from seeds/training_attributes.csv.
     data_tests:

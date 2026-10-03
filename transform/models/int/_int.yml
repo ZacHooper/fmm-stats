@@ -57,6 +57,35 @@ models:
             columns: [snapshot_date, tid]
             to: ref('int_person_snapshots')
             to_columns: [snapshot_date, tid]
+  - name: int_team_leagues
+    description: >
+      Each team's league on each snapshot (the newest its record named on or before it) and
+      that league's reputation then.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+  - name: int_player_value
+    description: >
+      The transfer-value model (stg.value_model) scored for every player it has inputs for,
+      with whether the estimate lies in the band it was validated in.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, tid]
+            to: ref('int_player_info')
+            to_columns: [snapshot_date, tid]
+  - name: int_player_career_lines
+    description: >
+      Every career-history line each person has held in any snapshot, in order: the newest
+      snapshot's lines, after the lines older snapshots held that later ones dropped.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, line_index]}}
+  - name: int_progress_weeks
+    description: >
+      Each tracked player's weeks, once, every snapshot's Player Progress copies OR-ed into one
+      status with its flags named.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, week_date]}}
   - name: int_player_attributes_exact
     description: >
       The attributes the save states outright; for our squad the 16 entangled ones from a fresh

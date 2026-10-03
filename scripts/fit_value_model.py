@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fit the player transfer-value model and print coefficients for `fmstats/value_model.py`.
+Fit the player transfer-value model and print coefficients for `seeds/value_model.csv`.
 
 WHY THIS EXISTS. The save stores a transfer value ONLY for the club you manage — it lives
 in our club's entries of the player-list table (`fmparser/tables/player_lists.py`), and that
@@ -22,8 +22,9 @@ USAGE
     uv run python scripts/fit_value_model.py --db fm-frem.duckdb
     uv run python scripts/fit_value_model.py --compare           # also score rival specs
 
-Paste the printed COEF block into `fmstats/value_model.py` and re-run
-`load_duckdb.py --refresh-only` so `mart.player_value_est` picks it up.
+Paste the printed rows into `seeds/value_model.csv`, update N_TRAIN / CV_R2 / MEDIAN_ERR in
+`fmstats/value_model.py`, and re-run `load_duckdb.py --refresh-only` so the seed reaches
+`raw.value_model` (int.player_value) and `mart.player_value_est` picks it up.
 
 READ THE LIMITS IN `docs/agent-context/player-value-estimation.md` BEFORE TRUSTING A NUMBER.
 Short version: median error ~2.2x, so it ranks targets and gets the order of magnitude
@@ -145,13 +146,13 @@ def main():
     print(f"  70% within       {np.quantile(berr, 0.7):.2f}x")
 
     beta = np.linalg.lstsq(design(d), d.y.values, rcond=None)[0]
-    print("\n# --- paste into fmstats/value_model.py ---")
-    print(f"N_TRAIN, CV_R2, MEDIAN_ERR = {len(d)}, {score:.3f}, {np.median(err):.2f}")
-    print("COEF = {")
-    print(f'    "intercept": {float(beta[0])!r},')
+    print("\n# --- paste into seeds/value_model.csv ---")
+    print("term,coefficient")
+    print(f"intercept,{float(beta[0])!r}")
     for name, value in zip(FEATURES, beta[1:]):
-        print(f'    "{name}": {float(value)!r},')
-    print("}")
+        print(f"{name},{float(value)!r}")
+    print(f"\n# fmstats/value_model.py: N_TRAIN, CV_R2, MEDIAN_ERR = "
+          f"{len(d)}, {score:.3f}, {np.median(err):.2f}")
 
 
 if __name__ == "__main__":

@@ -164,3 +164,25 @@ The history is rebuilt from snapshots: a changed club, expiry or wage means a ne
 "Who is in a team on a date" is the snapshot's `team_key` on or before that date, **checked
 against the contract and loan spells**. A lapsed loan can leave a stale team pointer in the raw
 data, so the snapshot alone is not trusted.
+
+## As built (data-layers step 15)
+
+Keys are natural: a person is `person_id` (`<tid>-<dob>`), a snapshot `snapshot_date`.
+
+| Table | Grain | Notes |
+|---|---|---|
+| `dim_person` | `person_id` | name (latest), dob, `origin_club_tid` / `origin_season`: the oldest career line any snapshot holds, his first only where no snapshot had dropped any |
+| `fact_player_snapshot` | `person_id`, `snapshot_date` | `team_tid` is the team whose books he is on (a loanee's parent team) and `club_tid` its club; ratings with `attributes_are_estimated`; `value` stated where the save states it, else the model's (`value_is_estimated`, `value_in_trusted_band`); `contract_status` from his current contract's expiry; `is_contracted` the save's own flag |
+| `fact_staff_snapshot` | `person_id`, `snapshot_date` | a person with no player record who has a staff record or is on a team's books |
+| `fact_injury_spell` | `person_id`, `start_date` | runs of injured weeks in Player Progress (our squad and reserves) |
+| `fact_player_season` | `person_id`, `line_index` | career history, every player, unioned across snapshots: the game drops a player's oldest lines as it adds new ones, and all of them when he retires |
+| `fact_player_competition_season` | `season`, `player_tid`, `team_tid`, `cid` | our own matches summed per competition; `person_id` NULL for reserve placeholders |
+| `dim_award`, `fact_player_award` | `award_id`; `award_id`, `player_tid`, `entry_date` | the World Best XI pools (each season's, and the All-Time pool), with the scrapbook entry that earned the place; an entry's person is resolved by tid and name, since an old entry's tid can belong to a newgen now |
+
+Seasons are two facts, not the one the diagram draws: what the game reports for a whole season
+(`fact_player_season`) and what our own matches show per competition
+(`fact_player_competition_season`). The career history has no competition, and our matches
+cover only the clubs we played.
+
+Not built: languages (no person-language table is read), and the team a player is listed in
+(the squad-membership view is step 16).

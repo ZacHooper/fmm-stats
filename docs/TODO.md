@@ -326,16 +326,11 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
 ### 14. Person identity across snapshots
 - **`player_spells` holds a second, wrong name for some people** (Jonathan Bech also "Jose
   Almeida"); `mart.at_club_spells` is clean. Likely a recycled tid resolved at the wrong
-  snapshot.
-- **`is_staff` flipping to true empties a player's history** in that snapshot (tids 9231,
-  9430). Both are in [`agent-context/tid-recycling.md`](agent-context/tid-recycling.md).
-
-### 15. History lost to the pool's reclamation
-The career-history pool is fixed-size; 25.2% of sids have a SHORTER chain in 2026 than on day one
-([`table-framing.md`](table-framing.md)). Quantify it in the store (how many people have their
-richest history in an older snapshot), and if material, union history across snapshots in
-`fmstats/mart.py` — which also fixes the mart-only R2 object, where `player_career_seasons`
-reads the newest snapshot only.
+  snapshot. Step 16 rebuilds the spells on `person_id`.
+- **A scrapbook entry's tid can name a newgen** once the player it was written for has
+  retired (Lewandowski's 2024 World Best XI entry, tid now "Fabio Voeste" on 2027-08-09).
+  `mart.fact_player_award` resolves an entry by tid AND name; anything else reading old
+  entries (`int.scrapbook_entries` is only our current squad, so safe) must do the same.
 
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
@@ -344,6 +339,12 @@ reads the newest snapshot only.
   full 120 reads 90 and an extra-time substitute goes negative (Lucas Lodberg, 2023-02-22: −15).
   `mart.fact_player_match.minutes` counts extra time; the old view keeps the cap until step 17
   moves its consumers.
+
+### 16b. Career-history rating
+`raw.player_history_seasons.rating` reads 655.35 (0xFFFF / 100) on 35,849 lines of the
+2026-06-11 save, from seasons 1996-2025, and 647.x on a few more; `stg_player_history_seasons`
+says it is NULL before the career, which is not the whole story. Find what the 0xFFFF and the
+647.x lines have in common before reading `mart.fact_player_season.rating` as a number.
 
 ### 16a. Retire the stuck-loan workarounds
 `raw.players.loaned_in` is now true only for a player in our squad arrays whose own record
