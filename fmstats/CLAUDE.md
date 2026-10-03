@@ -19,13 +19,12 @@ The plan is [`docs/plans/2026-10-01-data-layers.md`](../docs/plans/2026-10-01-da
 | raw | written by `load_duckdb.py` | each table as the save stores it, one row set per snapshot, plus seeds | no logic |
 | stg | `transform/models/stg/` (views) | one model per raw table: rename, cast, decode codes, sentinels to NULL | 1:1 with its source: no joins, no dropped rows (`rows_match_source`) |
 | int | `transform/models/int/` (views) | snapshot rules, joins across tables, spells, derived standings and outcomes | joins and business rules live here and only here |
-| mart | `transform/models/mart/` (tables) | the model's `dim_*` / `fact_*`, plus thin consumer views (`standings`, `tie_results`) | the only layer users, agents and the site read |
+| mart | `transform/models/mart/` (tables) | the model's `dim_*` / `fact_*`, plus thin consumer views (`standings`, `tie_results`, `squad_membership`) | the only layer users, agents and the site read |
 
-- **Built (steps 13–14):** reference, nation, club and team, competition, stage, round, match,
-  team-match, player-match, events, participation, outcomes.
-- **Not built:** person (`dim_person`, `fact_player_snapshot`, `fact_player_season`, awards,
-  injuries; step 15) and contracts, transfers and loans (step 16). Until then those questions
-  are answered by the old views.
+- **Built (steps 13–16):** reference, nation, club and team, competition, stage, round, match,
+  team-match, player-match, events, participation, outcomes; person, player and staff
+  snapshots, seasons, awards, injuries; contracts, transfers, loans, staff spells and squad
+  membership (`squad_membership`: who a squad array lists, never a record's club).
 - **`fmstats/mart.py` is the old consumer mart**: ~87 views in one file, each re-applying the
   same rules to raw. Step 17 rewrites each one over the new tables, or deletes it when the site
   can read a new table directly. `fmstats/compat.py` and `transform/models/legacy/` keep the old

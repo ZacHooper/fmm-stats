@@ -18,10 +18,11 @@
 -- A free agent (no club) holds no contract, whatever the grid's slot says.
 --
 -- Wage, expiry and team are read on the first and the last snapshot holding
--- the contract: measured, 225 of 3,893 contracts seen twice or more change
--- wage under one start date, 3 change expiry and 544 team. The squad status
--- on the training row changes under one start date on 1,995 of them, so it
--- is not a contract term and stays on the player snapshot.
+-- the contract: on the Frem gate stores, of the contracts seen twice or more
+-- (3,893 and 21,605), 225 and 330 change wage under one start date, 3 and 6
+-- expiry, 544 and 1,919 team. The squad status on the training row changes
+-- under one start date on 1,996 and 2,599 of them, so it is not a contract
+-- term and stays on the player snapshot.
 --
 -- last_seen_date is the last snapshot the contract was in force, ended_by_date
 -- the store's next snapshot (when it was replaced or gone; NULL while it is

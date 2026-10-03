@@ -132,6 +132,10 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
   - `+8` u8, `+9`/`+13` u32 (money-like; `+9` round), `+31..36`, `+38`, `+40..48` and the
     three dates at `+49/+53/+57`. The row also carries the squad status (`+37` contracted,
     `+39` status), so it is a per-person status row as much as a training one.
+  - squad status 65, read as "loaned out" (`tables/training.py`), mostly does not mark a loan:
+    on the step-16 gate stores 67 of 1,475 status-65 snapshots are listed on loan by another
+    club and 1,334 have no loan spell that season, while 9,292 listed loanees carry another
+    status. Name the code before reading loans from it.
   - surfacing it: each squad player's training focus on the site's Squad page.
 - **Competition teams of the year are not snapshots**: the game shows only the current
   season's, and a player opens his live profile, so there is nothing stored per year to find.
@@ -324,9 +328,6 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   saw whole is partial. On the full career every season is seen whole.
 
 ### 14. Person identity across snapshots
-- **`player_spells` holds a second, wrong name for some people** (Jonathan Bech also "Jose
-  Almeida"); `mart.at_club_spells` is clean. Likely a recycled tid resolved at the wrong
-  snapshot. Step 16 rebuilds the spells on `person_id`.
 - **A scrapbook entry's tid can name a newgen** once the player it was written for has
   retired (Lewandowski's 2024 World Best XI entry, tid now "Fabio Voeste" on 2027-08-09).
   `mart.fact_player_award` resolves an entry to its `person_id` (`<tid>-<dob>`): the person
