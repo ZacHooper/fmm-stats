@@ -4,8 +4,8 @@
 -- false: our own squad), wage and contract expiry, the 23 attributes, the
 -- profile (bio, reputation, personality, the attributes the game does not
 -- show) and:
---   origin_club_tid    the club he came out of (dim_person: an academy counts
---                      for its club)
+--   origin_club_tid    the club he came out of, and origin_club its name
+--                      (dim_person: an academy counts for its club)
 --   capital_eligible   that club is on the capital-region signing list
 --                      (seeds/eligible_origin_clubs.csv)
 --   development        how far he is from his ceiling, as a word: ability
@@ -47,7 +47,8 @@ levels as (
                             listed.position,
                             listed.ca is null
                         order by listed.ca
-                    )
+                    ),
+                    1
                 )
         end as level_global,
         case
@@ -60,7 +61,8 @@ levels as (
                             leagues.league_cid,
                             listed.ca is null
                         order by listed.ca
-                    )
+                    ),
+                    1
                 )
         end as level_league
     from listed
@@ -104,6 +106,7 @@ select
     players.height_cm,
     players.weight_kg,
     people.origin_club_tid,
+    origin.name as origin_club,
     eligible.club_tid is not null as capital_eligible,
     nations.name as nationality,
     players.foot_left,
@@ -138,6 +141,8 @@ left join {{ ref('int_player_info') }} as info
         and players.tid = info.tid
 left join {{ ref('dim_nation') }} as nations
     on players.nationality_id = nations.nation_id
+left join {{ ref('dim_club') }} as origin
+    on people.origin_club_tid = origin.club_tid
 left join {{ ref('stg_eligible_origin_clubs') }} as eligible
     on people.origin_club_tid = eligible.club_tid
 left join positions

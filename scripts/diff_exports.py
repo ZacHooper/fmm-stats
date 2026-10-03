@@ -10,7 +10,7 @@ differs: a dict's entries, a list's rows (matched on their first slot where the 
 arrays, so a player row is matched on its tid), or the value. `generated_at` and the byte
 counts in index.json always differ and are skipped.
 
-Every difference is a regression or an intended change; `transform/site/differences.md`
+Every difference is a regression or an intended change; `docs/plans/2026-10-03-site-marts.md`
 lists the intended ones. Exit 0 when the two are equal, 1 otherwise.
 """
 import argparse
