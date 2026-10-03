@@ -313,6 +313,76 @@ def main():
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
                 "season runs, so an early game may be absent from a late save."})
 
+    # ------------------------------------------------------------ loans.json
+    min_fam = int(cfg["min_familiarity"])
+    fallback = cfg["fallback_formation"]
+    loan_ladder = [(r["cid"], r["name"]) for r in s.rows(
+        """SELECT DISTINCT c.league_cid AS cid, l.name, c.ladder_rank
+           FROM site.loan_clubs c
+           JOIN site.leagues l ON l.snapshot_date = c.snapshot_date AND l.cid = c.league_cid
+           WHERE c.snapshot_date = ? ORDER BY c.ladder_rank""", [d])]
+    formations = {str(r["team_tid"]): r["formation"] for r in s.rows(
+        "SELECT team_tid, formation FROM site.loan_clubs WHERE snapshot_date = ? "
+        "ORDER BY league_cid, team_tid", [d])}
+    slots = {}
+    for r in s.rows("SELECT * FROM site.formation_slots "
+                    "ORDER BY formation_order, position_order"):
+        slots.setdefault(r["formation"], {})[r["position"]] = r["slots"]
+    loans = {}
+    for r in s.rows("""SELECT * FROM site.loan_outlook WHERE snapshot_date = ?
+                       ORDER BY person_id, familiarity DESC, position, ladder_rank,
+                                club_tid""", [d]):
+        if r["person_id"] not in tid_of:
+            continue
+        entry = loans.setdefault(str(tid_of[r["person_id"]]),
+                                 {"loaned_to": r["loaned_to_club_tid"], "positions": {}})
+        rows = entry["positions"].setdefault(r["position"], [])
+        if not rows or rows[-1][0] != r["league_cid"]:
+            rows.append([r["league_cid"], pct(r["lvl"]), r["n"], []])
+        if r["club_tid"] is not None:
+            rows[-1][3].append([r["club_tid"], r["rank"], r["slots"], pct(r["line"])])
+    emit("loans.json", {
+        "snapshot": {"season": season, "phase": phase, "min_familiarity": min_fam},
+        "ladder": [{"cid": c, "name": n} for c, n in loan_ladder],
+        "formations": formations,
+        "fallback_formation": fallback,
+        "slots": slots,
+        "row_fields": ["league_cid", "lvl", "n", "clubs"],
+        "club_fields": ["club_tid", "rank", "slots", "line"],
+        "players": dict(sorted(loans.items(), key=lambda kv: int(kv[0]))),
+        "note": "lvl = his Level %ile at the position in that division. Per club: rank = his "
+                "place among that club's players at the position (1 = first choice), slots = "
+                "how many start there in the manager's preferred formation, line = Level %ile "
+                "of the weakest of them (null = the club has no natural player for that slot, "
+                "so he walks in). He starts iff rank <= slots. " + E.IMMERSION})
+
+    # ------------------------------------------------------------ forecast.json
+    cells, buckets = {}, {}
+    for r in s.rows("""SELECT attribute, age_now, value_now, horizon_age, median, p25, p75,
+                              bucket
+                       FROM site.forecast
+                       ORDER BY attribute, age_now, value_now, horizon_age"""):
+        buckets[r["attribute"]] = r["bucket"]
+        cells.setdefault(r["attribute"], {}).setdefault(str(r["age_now"]), {}).setdefault(
+            str(r["value_now"]), {})[str(r["horizon_age"])] = [
+                round(float(r["median"]), 1), round(float(r["p25"])), round(float(r["p75"]))]
+    emit("forecast.json", {
+        "attrs": attrs,
+        "buckets": dict(sorted(buckets.items())),
+        "horizons": [21, 24],
+        "cells": cells,
+        "ageCurve": [[r["age"], round(float(r["median"]), 1), round(float(r["p25"]), 1),
+                      round(float(r["p75"]), 1)]
+                     for r in s.rows("SELECT age, median, p25, p75 FROM site.age_curve "
+                                     "ORDER BY age")],
+        "note": "Empirical lookup over the whole save (~25k players tracked across snapshots), "
+                "not a per-player prediction: current value + age predicts a future value well "
+                "(R^2=0.85 for Crossing), but a starting attribute like Technique does NOT "
+                "predict how FAST another attribute grows (+0.000 R^2 beyond current value) — "
+                "a technical player is simply already ahead, not accelerating. Fixed attributes "
+                "(Agility, Technique) never move in real play; unmodelled ones are decoded too "
+                "coarsely outside our own squad to forecast honestly. " + E.IMMERSION})
+
     # ------------------------------------------------------------ registration.json
     rules = s.rows("""SELECT tier, league_name, a_list_max, hg_min, hg_club_min, b_list_under_age,
                              min_matchday_age, nation, u21_on

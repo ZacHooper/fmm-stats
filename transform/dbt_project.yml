@@ -39,6 +39,7 @@ vars:
                Aggression, Creativity, Decisions, Leadership, Movement, Positioning,
                Teamwork, Pace, Stamina, Strength, Agility, Handling, Kicking, Reflexes,
                Communication, Throwing]
+  gk_only_attributes: [Handling, Kicking, Reflexes, Communication, Throwing]
   exact_single: [Pace, Strength, Stamina, Technique, Aggression, Leadership, Agility]
   attribute_columns:          # record offset -> attribute-record column (stg_attribute_model)
     "-34": crossing_src
@@ -178,6 +179,38 @@ vars:
   home_grown_window_ages: [15, 22]
   home_grown_months: 36
   days_in_month: 30.44
+  # Starting slots per position for each formation an AI manager can prefer (the names in
+  # fact_staff_snapshot.formation_preferred_name), for the loan outlook (site_loan_outlook):
+  # in a back-four 4-2-3-1 the two deep midfielders decode as MC, a back five's wide men are
+  # DML/DMR, and a 5-2-2-1's two behind the striker are central (AMC), confirmed in game. A
+  # club whose manager's formation is unknown or not listed plays the fallback.
+  formation_slots:
+    "4-4-2": {GK: 1, DL: 1, DC: 2, DR: 1, ML: 1, MC: 2, MR: 1, ST: 2}
+    "4-4-2 Diamond": {GK: 1, DL: 1, DC: 2, DR: 1, DMC: 1, MC: 2, AMC: 1, ST: 2}
+    "4-1-2-2-1": {GK: 1, DL: 1, DC: 2, DR: 1, DMC: 1, MC: 2, AML: 1, AMR: 1, ST: 1}
+    "4-1-4-1": {GK: 1, DL: 1, DC: 2, DR: 1, DMC: 1, ML: 1, MC: 2, MR: 1, ST: 1}
+    "4-2-3-1": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 2, AML: 1, AMC: 1, AMR: 1, ST: 1}
+    "4-2-2-2": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 2, AML: 1, AMR: 1, ST: 2}
+    "4-3-1-2": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 3, AMC: 1, ST: 2}
+    "4-3-3": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 3, AML: 1, AMR: 1, ST: 1}
+    "4-4-1-1": {GK: 1, DL: 1, DC: 2, DR: 1, ML: 1, MC: 2, MR: 1, AMC: 1, ST: 1}
+    "4-3-2-1": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 3, AMC: 2, ST: 1}
+    "4-5-1": {GK: 1, DL: 1, DC: 2, DR: 1, ML: 1, MC: 3, MR: 1, ST: 1}
+    "5-1-2-2": {GK: 1, DML: 1, DC: 3, DMR: 1, DMC: 1, MC: 2, ST: 2}
+    "5-2-1-2": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 2, AMC: 1, ST: 2}
+    "5-2-2-1": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 2, AMC: 2, ST: 1}
+    "5-3-2": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 3, ST: 2}
+  fallback_formation: "4-2-3-1"
+  # The loan outlook ranks a player in our division and the next tiers - 1 below it; a
+  # position counts as one he can be picked at from min_familiarity.
+  loan_outlook: {tiers: 4, min_familiarity: 15}
+  # The attribute forecast (site_forecast): a cell is a player's value of an attribute at an
+  # age, and the values the players in it reach at each horizon age, from the snapshot
+  # closest to it within a year; a cell needs min_players. An attribute's bucket compares
+  # its year-on-year growth between two exact reads with its growth where either is decoded,
+  # over ages growth_ages, pairs of snapshots gap_days apart (site_age_curve too).
+  forecast: {horizons: [21, 24], ages: [15, 24], min_players: 30, growth_ages: [16, 22],
+             gap_days: [350, 380], fixed_below: 0.1, decoded_floor: 0.02, max_ratio: 2}
   # The registration rules for the managed club's league: the A-list cap, the home-grown
   # minimums (overall, and trained at the club) that bind in the top hg_tiers tiers, the
   # B-list age (under it at the last new year before the season's second calendar year) and

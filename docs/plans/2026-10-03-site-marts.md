@@ -85,3 +85,14 @@ Measured on Frem store B (2023-06-29 / 2027-06-29 / 2027-08-09) against the old 
 - Clubs in the Danish Lower Division and B teams in the senior pyramid are on the home map:
   `dim_competition` gives that league its nation, which the old view lacked. Reserve sides
   are left off, as before, now by their team type.
+
+**Loan outlook** (`loans.json`; `site.loan_outlook`)
+- Computed in SQL, from the ability inside the view; only ranks, slot counts and percentiles
+  leave it, and the exporter no longer reads a raw table. The formation slot table is
+  `var('formation_slots')`.
+- Who is at a club is who its squads list (`squad_membership`), not the dated spells: a player
+  on loan counts at the club he is on loan to on the day the save shows it. Frederik
+  Lindgaard, on loan from AB at 2413, is that club's natural left winger (its line reads 42,
+  not "walks in"), and our nine loanees out count at their host clubs and carry `loaned_to`.
+
+**Forecast** (`forecast.json`): identical.
