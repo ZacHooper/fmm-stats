@@ -118,8 +118,9 @@ step-16 gate stores (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 and 2023-06-29 / 
 | `fact_staff_spell` | `person_id`, `first_seen_date` | runs of snapshots on one team's books in one role (`manager` / `staff`) |
 | `squad_membership` (view) | `person_id`, `snapshot_date`, `team_tid` | who each squad array lists, with the club his record names and `is_loan_in` |
 
-**The contract start date is the contract's identity, and the exact end of the one before.**
-`stg_contracts.start_date` is the date the current contract took effect:
+**The contract's stored start date is the day it was signed: its identity, and the exact end of
+the one before.** A new contract starts the day it is signed (the game's rule, Zac).
+`stg_contracts.start_date` is that date, `fact_contract.signed_date`:
 - A contract whose start date is unchanged between two snapshots keeps it through changes of
   wage and of team within the club; a new start date always falls between the two snapshots
   that bound it: on every successor contract, 64,749 of 64,750 inside
@@ -129,11 +130,14 @@ step-16 gate stores (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 and 2023-06-29 / 
 - The day-one save is the exception: the game's starting database holds start dates up to eight
   months ahead on 10,445 current contracts already in force (10,443 of the rebuilt contracts),
   clustered on 1 July 2021 and the window ends, and 7,733 of their players' joined dates are as
-  far ahead. Those are not when the contracts began; `start_date` reads NULL there (`stored_start_date` keeps the value). No later save
-  holds a future start date.
-- Whether it is the signing or the commencement day is not settled (a pre-contract signed in
-  January and starting in July would tell them apart); either way it is the day the previous
-  contract stopped being the current one.
+  far ahead. Those are not when the contracts were signed; `signed_date` reads NULL there
+  (`stored_signed_date` keeps the value). No later save holds a future start date.
+- The data agrees with the rule and cannot contradict it. Renewals start on every day of the
+  year (on Frem A: May 10,510, April 3,847, July 3,578, September 2,311, January 2,194…), not on
+  season starts. A free move at a contract's end gets a new contract starting the day he joined,
+  never months before (16 of ~6,000 start earlier), so a deal agreed and completed later is not
+  seen: the grid holds a contract only once it is current, and for a transfer the signing and
+  the start are one day.
 
 **Squad status is not a contract term.** The training row's squad status changes under one
 start date on 1,996 of 3,893 contracts seen more than once (Frem A) and 2,599 of 21,605 (Frem B),

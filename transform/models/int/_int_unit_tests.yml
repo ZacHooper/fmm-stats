@@ -671,7 +671,7 @@ unit_tests:
         - {person_id: 7-2001-01-01, spell_type: on_loan, start_date: '2026-06-22', end_date: '2026-07-06', weeks: 2}
 
 
-  - name: contracts_rebuilt_by_start_date
+  - name: contracts_rebuilt_by_signed_date
     description: >
       A contract is a run of snapshots with one stored start date at one club: a move to the
       reserves or a wage rise under the same start date is the same contract. A day-one start
@@ -733,12 +733,12 @@ unit_tests:
           - {snapshot_date: '2023-07-02', tid: 4, is_current: true, wage_units: 9, expiry: '2025-06-30', start_date: '2022-01-01'}
     expect:
       rows:
-        - {person_id: 1-2000-01-01, first_seen_date: '2021-06-27', club_tid: 346, start_date: null, stored_start_date: '2021-08-01', first_team_tid: 7296, last_team_tid: 346, first_wage_gbp: 5200, last_wage_gbp: 6240, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: renewed}
-        - {person_id: 1-2000-01-01, first_seen_date: '2026-06-11', club_tid: 346, start_date: '2024-01-05', stored_start_date: '2024-01-05', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 10400, last_wage_gbp: 10400, last_seen_date: '2026-06-11', ended_by_date: null, end_reason: null}
-        - {person_id: 2-1995-01-01, first_seen_date: '2021-06-27', club_tid: 346, start_date: '2020-07-01', stored_start_date: '2020-07-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 2600, last_wage_gbp: 2600, last_seen_date: '2021-06-27', ended_by_date: '2023-07-02', end_reason: transferred}
-        - {person_id: 2-1995-01-01, first_seen_date: '2023-07-02', club_tid: 500, start_date: '2022-07-01', stored_start_date: '2022-07-01', first_team_tid: 500, last_team_tid: 500, first_wage_gbp: 4160, last_wage_gbp: 4160, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: released}
-        - {person_id: 3-1990-01-01, first_seen_date: '2021-06-27', club_tid: 346, start_date: '2019-07-01', stored_start_date: '2019-07-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 1560, last_wage_gbp: 1560, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: expired}
-        - {person_id: 4-1985-01-01, first_seen_date: '2023-07-02', club_tid: 346, start_date: '2022-01-01', stored_start_date: '2022-01-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 4680, last_wage_gbp: 4680, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: retired}
+        - {person_id: 1-2000-01-01, first_seen_date: '2021-06-27', club_tid: 346, signed_date: null, stored_signed_date: '2021-08-01', first_team_tid: 7296, last_team_tid: 346, first_wage_gbp: 5200, last_wage_gbp: 6240, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: renewed}
+        - {person_id: 1-2000-01-01, first_seen_date: '2026-06-11', club_tid: 346, signed_date: '2024-01-05', stored_signed_date: '2024-01-05', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 10400, last_wage_gbp: 10400, last_seen_date: '2026-06-11', ended_by_date: null, end_reason: null}
+        - {person_id: 2-1995-01-01, first_seen_date: '2021-06-27', club_tid: 346, signed_date: '2020-07-01', stored_signed_date: '2020-07-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 2600, last_wage_gbp: 2600, last_seen_date: '2021-06-27', ended_by_date: '2023-07-02', end_reason: transferred}
+        - {person_id: 2-1995-01-01, first_seen_date: '2023-07-02', club_tid: 500, signed_date: '2022-07-01', stored_signed_date: '2022-07-01', first_team_tid: 500, last_team_tid: 500, first_wage_gbp: 4160, last_wage_gbp: 4160, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: released}
+        - {person_id: 3-1990-01-01, first_seen_date: '2021-06-27', club_tid: 346, signed_date: '2019-07-01', stored_signed_date: '2019-07-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 1560, last_wage_gbp: 1560, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: expired}
+        - {person_id: 4-1985-01-01, first_seen_date: '2023-07-02', club_tid: 346, signed_date: '2022-01-01', stored_signed_date: '2022-01-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 4680, last_wage_gbp: 4680, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: retired}
 
   - name: transfers_from_career_lines
     description: >

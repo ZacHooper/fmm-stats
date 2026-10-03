@@ -557,14 +557,16 @@ first (TODO #3) gives real transfer dates instead of season-plus-snapshot bounds
 
 **Done.** As built ([`contract-transfer.md`](../data-model/contract-transfer.md) "As built" has
 the rules and their measurements):
-- **`start_date` settled**: it is the date the current contract took effect, so it is a
-  contract's identity and the exact end of the one before. On the gate stores every successor
+- **`start_date` settled**: a contract starts the day it is signed (the game's rule, Zac), and
+  the stored start date is that day (`fact_contract.signed_date`): a contract's identity and the
+  exact end of the one before. Renewals start on every day of the year, and a free move's new
+  contract starts the day he joined, never earlier; a deal agreed before it completes is not
+  visible, since the grid holds only the current contract. On the gate stores every successor
   contract's start date lies between the two snapshots that bound the change (64,749 of 64,750
   strictly, the last on the earlier snapshot's own day), and an unchanged start date survives
   changes of wage and of team. The day-one save's 10,445 future start dates (joined dates as far
-  ahead) are the starting database's, not real: they read NULL (`stored_start_date` keeps them).
-  Whether it is the signing or the commencement day is not settled. This settles the plan's one
-  blocker without the training-row dates.
+  ahead) are the starting database's, not real: they read NULL (`stored_signed_date` keeps
+  them). This settles the plan's one blocker without the training-row dates.
 - **int**: `int_contracts` (a run of snapshots with one start date at one club; first/last wage,
   expiry and team; `last_seen` / `ended_by`; `end_reason` renewed / transferred / expired /
   released / retired), `int_transfers` (club changes between career lines, loan lines skipped,

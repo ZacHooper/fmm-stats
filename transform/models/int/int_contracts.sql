@@ -9,11 +9,15 @@
 -- new start date always lies between the two snapshots that bound it (on the
 -- earlier one's own day at the earliest: signed after that save was made).
 --
--- start_date is the stored start date where it is no later than the first
--- snapshot holding the contract; the save's day-one database holds start dates
--- up to eight months ahead on contracts already in force (and joined dates as
--- far ahead), which are not when those contracts began, so they read NULL.
--- stored_start_date keeps the stored value either way.
+-- signed_date is the stored start date: a contract starts the day it is
+-- signed (the game's rule). Renewals start on every day of the year, and a
+-- free move's new contract starts the day he joined, never months before,
+-- so a deal agreed and completed later is not seen: the grid holds a contract
+-- only once it is current. It reads NULL where it is later than the first
+-- snapshot holding the contract: the save's day-one database holds start
+-- dates up to eight months ahead on contracts already in force (and joined
+-- dates as far ahead), which are not when those were signed.
+-- stored_signed_date keeps the stored value either way.
 --
 -- A free agent (no club) holds no contract, whatever the grid's slot says.
 --
@@ -27,7 +31,7 @@
 -- last_seen_date is the last snapshot the contract was in force, ended_by_date
 -- the store's next snapshot (when it was replaced or gone; NULL while it is
 -- in force on the newest snapshot). The real end lies between the two; the
--- next contract's start_date, where it lies between them, is the exact end.
+-- next contract's signed_date, where it lies between them, is the exact end.
 -- end_reason is read from the person on ended_by_date:
 --   renewed      a new contract at the same club
 --   transferred  a contract at another club
@@ -146,8 +150,8 @@ select
     case
         when contracts.stored_start_date <= contracts.first_seen_date
             then contracts.stored_start_date
-    end as start_date,
-    contracts.stored_start_date,
+    end as signed_date,
+    contracts.stored_start_date as stored_signed_date,
     contracts.first_team_tid,
     contracts.last_team_tid,
     cast(contracts.first_wage_units as bigint)
