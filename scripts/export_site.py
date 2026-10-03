@@ -258,6 +258,61 @@ def main():
                 "ongoing. Injuries are recorded for our squad only, and a spell at another "
                 "club is seen only while the save covers it. " + E.IMMERSION})
 
+    # ------------------------------------------------------------ matches.json
+    def rowify(rows, fields, rename=None):
+        rename = rename or {}
+        return [[day(r[rename.get(f, f)]) if f == "date" else r[rename.get(f, f)]
+                 for f in fields] for r in rows]
+
+    stats = [c[0][4:] for c in con.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'site' "
+        "AND table_name = 'matches' AND column_name LIKE 'our\\_%' ESCAPE '\\' "
+        "ORDER BY ordinal_position").fetchall()]
+    mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
+               "result", "pts", "formation", "attendance", "stage_kind", "stage", "matchday",
+               "leg", "tie_gf", "tie_ga", "went_through", "extra_time", "pens_for",
+               "pens_against"] + [f"{side}_{st}" for st in stats for side in ("our", "opp")]
+    matches = s.rows("SELECT * FROM site.matches ORDER BY season, match_date, opp_tid")
+    pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
+               "goals", "assists", "minutes", "started", "position", "passA", "passC",
+               "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
+               "dribbles", "shotA", "shotO", "mistakes", "yellow"]
+    prename = {"date": "match_date", "passA": "passes", "passC": "passes_completed",
+               "keyPass": "key_passes", "tackA": "tackles", "tackW": "tackles_won",
+               "intercept": "interceptions", "headA": "headers", "headW": "headers_won",
+               "crossA": "crosses", "crossC": "crosses_completed", "shotA": "shots",
+               "shotO": "shots_on_target", "yellow": "yellows"}
+    apps = s.rows("SELECT * FROM site.match_players ORDER BY season, match_date, tid")
+    for r in apps:
+        r["rating_adj"] = None if r["rating_adj"] is None else round(r["rating_adj"], 2)
+    names = {r["person_id"]: r["name"] for r in s.rows(
+        """SELECT person_id, arg_max(name, snapshot_date) AS name FROM site.players
+           WHERE person_id IN (SELECT DISTINCT person_id FROM site.match_players)
+           GROUP BY person_id""")}
+    att_fields = ["season", "n_games", "avg_att", "max_att"]
+    fin_fields = ["season", "phase", "n_owned", "n_loan_in", "value_gbp", "n_value_est",
+                  "wage_gbp"]
+    fin = s.rows("SELECT *, snapshot_date AS phase FROM site.finances ORDER BY snapshot_date")
+    for r in fin:
+        r["phase"] = day(r["phase"])
+        for k in ("value_gbp", "wage_gbp"):
+            r[k] = None if r[k] is None else float(r[k])
+    emit("matches.json", {
+        "match_fields": mfields,
+        "matches": rowify(matches, mfields, {"date": "match_date"}),
+        "player_fields": pfields,
+        "player_rows": rowify(apps, pfields, prename),
+        "player_names": {str(t): names[p] for t, p in sorted(
+            {(r["tid"], r["person_id"]) for r in apps}) if names.get(p)},
+        "attendance_fields": att_fields,
+        "attendance": rowify(s.rows("SELECT * FROM site.attendance ORDER BY season"),
+                             att_fields),
+        "finance_fields": fin_fields,
+        "finances": rowify(fin, fin_fields),
+        "note": "Only the managed club's matches are richly parsed, so these are our records. "
+                "Match detail lives in a fixed-size ring buffer the game overwrites as a "
+                "season runs, so an early game may be absent from a late save."})
+
     # ------------------------------------------------------------ index.json
     files = {k: f"{E.SITE_URL}/api/{k}.json" for k in
              ("core", "clubs", "squad", "forecast", "loans", "matches", "registration",

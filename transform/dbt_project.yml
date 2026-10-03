@@ -122,6 +122,14 @@ vars:
   # match_id packs a match's date and its two team tids into one BIGINT (macros/match_id.sql);
   # every tid must stay below this base.
   match_id_tid_base: 100000
+  # The team stats the match table holds per side (stg_matches home_ / away_), carried onto
+  # fact_team_match for our matches.
+  team_match_stats: [shots, shots_on_target, passes, passes_completed, tackles, tackles_won,
+                     crosses, interceptions]
+  # The role a position's match ratings are compared within (int_player_match_ratings).
+  rating_roles: {GK: GK, DC: Centre-back, DL: Full-back, DR: Full-back, DML: Wing-back,
+                 DMR: Wing-back, DMC: DM, MC: Central mid, ML: Wide mid, MR: Wide mid,
+                 AMC: Attacking mid, AML: Winger, AMR: Winger, ST: Forward}
   starters: 11                # a match line's pos_order up to this is a starter
   # Each match period by the last minute it holds (int_match_events); a shoot-out kick is
   # its own period, whatever minute the save gives it.
@@ -164,6 +172,9 @@ vars:
   value_trusted_band: [20000, 5000000]
   # The web app's marts (models/site). A league's skill_idx needs this many rated players.
   site_skill_min_players: 20
+  # A competition's groups start within this many days of each other (site_matches' group
+  # letter).
+  site_group_draw_days: 3
   # A player's development word: the first band whose share of his potential his ability
   # reaches (site_players).
   site_development_bands: [[0.97, At his ceiling], [0.90, Nearly there], [0.75, Developing],

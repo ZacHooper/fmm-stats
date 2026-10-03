@@ -55,3 +55,14 @@ Measured on Frem store B (2023-06-29 / 2027-06-29 / 2027-08-09) against the old 
 - Career history: a youth line reads its club's name; a fee reads "£53,000", not the save's
   code; "contract ended" for a contract run out; NULL for a code not understood; lines the
   save has reclaimed are kept.
+
+**Matches** (`matches.json`)
+- The team stats and the managed side's formation are on `fact_team_match` now (our matches
+  with detail; NULL elsewhere), so `site.matches` reads one table for the score and the
+  stats.
+- `extra_time` is the fixture list's `decided_by` (ET or pens): two cup ties that stayed
+  goalless through extra time read false before, because the old test compared scores.
+- A forward's position reads `ST`, the code the player rows use, not the match table's `FC`.
+- Minutes in a match that went to extra time run to 120 (`fact_player_match`), not 90.
+- Squad value: a player with no value of his own is valued by `int_player_value`, which reads
+  a reserve side's league reputation off its first team (data-layers step 15).
