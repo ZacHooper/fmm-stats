@@ -136,3 +136,55 @@ transfers:
       reason: >
         A loanee in our squad: the legacy players view puts him at the team that lists him (a
         "transfer" to us); his record names his parent's team (a move within that club)
+club_leagues: {key: [season, phase, club_tid]}
+player_snapshots:
+  key: [season, phase, tid]
+  differences:
+    - columns: [club_tid, club]
+      when: "o.club_tid = 65535 and n.club_tid is null"
+      reason: no club, 65535 / "Free agent" in the old view, NULL in the new
+    - columns: [club_tid, club, league_cid, league_name, nation]
+      when: "o.tid in (select tid from mart.player_snapshots p where p.loaned_in and p.season = o.season and p.phase = o.phase)"
+      reason: >
+        A loanee in our squad: the legacy players view puts him at the team that lists him, his
+        own record (the new view) at his parent's team, and so in his parent's league
+player_position_levels:
+  key: [season, phase, tid, position]
+  differences:
+    - columns: [club_tid, club]
+      when: "o.club_tid = 65535 and n.club_tid is null"
+      reason: no club, 65535 / "Free agent" in the old view, NULL in the new
+    - columns: [club_tid, club, league_cid, nation]
+      when: "o.tid in (select tid from mart.player_snapshots p where p.loaned_in and p.season = o.season and p.phase = o.phase)"
+      reason: >
+        A loanee in our squad: the legacy players view puts him at the team that lists him, his
+        own record (the new view) at his parent's team, and so in his parent's league
+    - columns: [level_league, n_league, level_nation, n_nation, level_global, n_global]
+      when: >
+        o.league_cid in (select p.league_cid from mart.player_snapshots p
+                         where p.loaned_in and p.season = o.season and p.phase = o.phase)
+        or n.league_cid in (select p.league_cid from site.player_snapshots p
+                            where p.loaned_in and p.season = n.season and p.phase = n.phase)
+      reason: >
+        A league pool one of our loanees left or joined: the old view counts him in our league,
+        the new one in his parent's, so both pools and every percentile in them move
+player_primary_position:
+  key: [season, phase, tid]
+  differences:
+    - columns: [club_tid, club]
+      when: "o.club_tid = 65535 and n.club_tid is null"
+      reason: no club, 65535 / "Free agent" in the old view, NULL in the new
+    - columns: [club_tid, club, league_cid, nation]
+      when: "o.tid in (select tid from mart.player_snapshots p where p.loaned_in and p.season = o.season and p.phase = o.phase)"
+      reason: >
+        A loanee in our squad: the legacy players view puts him at the team that lists him, his
+        own record (the new view) at his parent's team, and so in his parent's league
+    - columns: [level_league, n_league, level_nation, n_nation, level_global, n_global]
+      when: >
+        o.league_cid in (select p.league_cid from mart.player_snapshots p
+                         where p.loaned_in and p.season = o.season and p.phase = o.phase)
+        or n.league_cid in (select p.league_cid from site.player_snapshots p
+                            where p.loaned_in and p.season = n.season and p.phase = n.phase)
+      reason: >
+        A league pool one of our loanees left or joined: the old view counts him in our league,
+        the new one in his parent's, so both pools and every percentile in them move
