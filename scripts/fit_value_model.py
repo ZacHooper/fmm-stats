@@ -38,7 +38,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-# Features, in the order value_model.COEF stores them.
+# Features, in the order seeds/value_model.csv stores them.
 FEATURES = ["ca", "pa", "lrep", "llrp", "gk", "acap", "acap2", "res"]
 
 TRAIN_SQL = """

@@ -1364,6 +1364,8 @@ WITH c AS (
     FROM c LEFT JOIN par p
       ON p.season = c.season AND p.phase = c.phase
      AND p.name = regexp_replace(c.name, ' Reserves$', '')
+), k AS (
+    {coef_sql}
 )
 SELECT
     s.season, s.phase, s.snap_ix, p.tid, s.person_id, p.name, p.club, p.club_tid, s.age,
@@ -1375,12 +1377,15 @@ SELECT
 FROM {S}.players p
 JOIN mart.player_snapshots s USING (season, phase, tid)
 JOIN lr ON lr.season = p.season AND lr.phase = p.phase AND lr.club_tid = p.club_tid
+CROSS JOIN k
 WHERE NOT p.is_staff AND p.ca IS NOT NULL AND p.pa IS NOT NULL
   AND p.reputation > 0 AND lr.lrp > 0 AND s.age IS NOT NULL
 """
 
-# Bake the frozen coefficients in now, leaving only {S} for create_mart's .format().
+# Fill in the model's SQL now, leaving {S} and {coef} (the coefficients row, which
+# create_mart reads from {S}.value_model) for create_mart's .format().
 PLAYER_VALUE_EST = (PLAYER_VALUE_EST
+                    .replace("{coef_sql}", "{coef}")
                     .replace("{value_sql}", _vm.sql_expr())
                     .replace("{lo}", str(_vm.TRUSTED_LO))
                     .replace("{hi}", str(_vm.TRUSTED_HI)))
@@ -3663,8 +3668,16 @@ def create_mart(con, src="raw"):
             con.execute(stmt.format(S=src))
     for stmt in MACROS:
         con.execute(stmt)
+    # The value model's coefficients, from the store; a store loaded before they were seeded
+    # gets a NULL row, so mart.player_value_est builds with no estimates. Nothing is written
+    # to `src`, which may be attached read-only.
+    try:
+        con.execute(f"SELECT 1 FROM {src}.value_model LIMIT 0")
+        coef = _vm.coefficients_sql(src)
+    except duckdb.CatalogException:
+        coef = _vm.null_coefficients_sql()
     for name, sql in ORDER:
-        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL))
+        con.execute(sql.format(S=src, window=_ARRIVAL_WINDOW_SQL, coef=coef))
     return [n for n, _ in ORDER]
 
 

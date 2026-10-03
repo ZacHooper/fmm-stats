@@ -506,7 +506,8 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
   `int_player_value`. The league reputation the store reads is the competition record's u16
   at +9 (58-136 in Denmark); the model was fitted on the u16 at +8 (256x that), so every
   estimate on main read £0-£300. The intercept is restated (+ llrp·ln 256), which also fixes
-  `mart.player_value_est`. A reserve side takes its first team's league reputation, as fitted.
+  `mart.player_value_est`: it reads the coefficients from `raw.value_model` too (fmstats reads
+  only the store), and a store loaded before the seed gets NULL estimates until reloaded. A reserve side takes its first team's league reputation, as fitted.
 - **mart**: `dim_person`, `fact_player_snapshot`, `fact_staff_snapshot`, `fact_injury_spell`,
   `fact_player_season` (career history, every player), `fact_player_competition_season` (our
   matches, per competition), `dim_award`, `fact_player_award` (World Best XI pools: each

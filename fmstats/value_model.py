@@ -61,11 +61,12 @@ that term identifiable here.
 
 See docs/agent-context/player-value-estimation.md for the full write-up.
 """
-import os
 
 # Fitted by scripts/fit_value_model.py on fm-frem (734 rows, 80 players, 22 snapshots). The
-# coefficients are seeds/value_model.csv, the one copy: the loader seeds raw.value_model from
-# it for int.player_value, and this module reads the same file for mart.player_value_est.
+# coefficients are seeds/value_model.csv, which the loader writes to raw.value_model; the
+# view reads them from the store (fmstats reads a store and nothing else), and so does
+# int.player_value. A store loaded before the seed has no such table, so its estimates read
+# NULL (null_coefficients_sql) until it is reloaded.
 #
 # The intercept is restated for the league reputation the store now reads (the competition
 # record's u16 at +9, 58-136 for the Danish leagues). The fit read the u16 at +8, i.e.
@@ -73,55 +74,36 @@ import os
 # below moves a value by about 0.1%.
 N_TRAIN, CV_R2, MEDIAN_ERR = 734, 0.717, 2.27
 
-
-def _load_coef():
-    import csv
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "seeds", "value_model.csv")
-    with open(path, newline="") as fh:
-        return {row["term"]: float(row["coefficient"]) for row in csv.DictReader(fh)}
-
-
-COEF = _load_coef()
+TERMS = ("intercept", "ca", "pa", "lrep", "llrp", "gk", "acap", "acap2", "res")
 
 # The band the model was actually validated in. Outside it, say so rather than quoting.
 TRUSTED_LO, TRUSTED_HI = 20_000, 5_000_000
 
 
-def predict(ca, pa, reputation, league_reputation, age, is_gk=False, is_reserve=False):
-    """Estimated transfer value in GBP. Returns None if a required input is missing."""
-    import math
-    if None in (ca, pa, reputation, league_reputation, age):
-        return None
-    if reputation <= 0 or league_reputation <= 0:
-        return None
-    capped = min(float(age), 28.0)
-    z = (COEF["intercept"]
-         + COEF["ca"] * ca
-         + COEF["pa"] * pa
-         + COEF["lrep"] * math.log(reputation)
-         + COEF["llrp"] * math.log(league_reputation)
-         + COEF["gk"] * (1.0 if is_gk else 0.0)
-         + COEF["acap"] * capped
-         + COEF["acap2"] * capped ** 2
-         + COEF["res"] * (1.0 if is_reserve else 0.0))
-    return math.exp(z)
+def coefficients_sql(src):
+    """One row, one column per term, from `src`.value_model."""
+    cols = ",\n       ".join(
+        f"MAX(coefficient) FILTER (WHERE term = '{t}') AS {t}" for t in TERMS)
+    return f"SELECT {cols}\nFROM {src}.value_model"
+
+
+def null_coefficients_sql():
+    """The same row with every coefficient NULL, for a store with no value_model."""
+    cols = ", ".join(f"CAST(NULL AS DOUBLE) AS {t}" for t in TERMS)
+    return f"SELECT {cols}"
 
 
 def sql_expr(ca="p.ca", pa="p.pa", rep="p.reputation", lrp="lr.lrp",
-             age="s.age", gk="p.is_gk", res="lr.is_res"):
-    """The same model as a DuckDB scalar expression, for mart.player_value_est."""
-    # Each coefficient is CAST to DOUBLE explicitly: DuckDB reads a bare decimal literal as
-    # DECIMAL, and -15.7097859046521860 does not fit the DECIMAL(18,17) it infers.
-    def k(name):
-        return f"CAST({COEF[name]!r} AS DOUBLE)"
+             age="s.age", gk="p.is_gk", res="lr.is_res", k="k"):
+    """The model as a DuckDB scalar expression over a coefficients row aliased `k`
+    (coefficients_sql), for mart.player_value_est."""
     return f"""EXP(
-        {k('intercept')}
-      + {k('ca')} * {ca}
-      + {k('pa')} * {pa}
-      + {k('lrep')} * LN({rep})
-      + {k('llrp')} * LN({lrp})
-      + {k('gk')} * CAST({gk} AS DOUBLE)
-      + {k('acap')} * LEAST({age}, 28)
-      + {k('acap2')} * LEAST({age}, 28) * LEAST({age}, 28)
-      + {k('res')} * CAST({res} AS DOUBLE))"""
+        {k}.intercept
+      + {k}.ca * {ca}
+      + {k}.pa * {pa}
+      + {k}.lrep * LN({rep})
+      + {k}.llrp * LN({lrp})
+      + {k}.gk * CAST({gk} AS DOUBLE)
+      + {k}.acap * LEAST({age}, 28)
+      + {k}.acap2 * LEAST({age}, 28) * LEAST({age}, 28)
+      + {k}.res * CAST({res} AS DOUBLE))"""
