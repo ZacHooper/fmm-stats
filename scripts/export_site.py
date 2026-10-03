@@ -91,7 +91,6 @@ def main():
     ap.add_argument("--snapshot", help="the snapshot date to export (default: the newest)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--method", help="default weight-set (the app can switch client-side)")
-    ap.add_argument("--min-fam", type=int, default=15)
     ap.add_argument("--skip-all", action="store_true", help="skip the every-player file")
     ap.add_argument("--no-check", action="store_true")
     a = ap.parse_args()
@@ -104,6 +103,8 @@ def main():
     car = C.resolve_career(a.career or C.DEFAULT_CAREER)
     store = os.environ.get("FM_DUCKDB") or os.path.join(REPO, car.db)
     con, used = _dbopen.open_readonly(store, tag="export-site")
+    if used != os.path.abspath(store):
+        print(f"(live store is locked — exporting from a copy at {used})")
     from fmparser.model import ATTR_ORDER
     attrs = list(ATTR_ORDER)
 
@@ -472,7 +473,7 @@ def main():
         "career": {"key": car.key, "name": car.name, "managed_tid": managed,
                    "reserve_tid": reserve},
         "snapshot": {"season": season, "phase": phase, "default_method": method,
-                     "min_familiarity": a.min_fam},
+                     "min_familiarity": int(cfg["min_familiarity"])},
         "snapshots": [{"season": r["season"], "phase": day(r["snapshot_date"]),
                        "label": r["label"]}
                       for r in s.rows("SELECT season, snapshot_date, label "

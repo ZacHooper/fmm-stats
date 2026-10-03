@@ -11,13 +11,15 @@ with career as (
 ),
 
 roles as (
-    select *
+    select
+        position_roles.position,
+        position_roles.role
     from (
         values
         {% for position, role in var('rating_roles').items() %}
         ('{{ position }}', '{{ role }}'){% if not loop.last %},{% endif %}
         {% endfor %}
-    )
+    ) as position_roles (position, role)
 ),
 
 rated as (
