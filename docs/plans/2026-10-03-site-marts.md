@@ -107,8 +107,9 @@ Measured on Frem store B (2023-06-29 / 2027-06-29 / 2027-08-09) against the old 
   months where he read 0.
 
 **World** (`world.json`)
-- A squad player whose history names no club is unresolved: the old view counted the 65535
-  sentinel as a resolved origin (Bucaspor: 0 -> 12 unresolved, the map unchanged).
+- The origins map follows `dim_person`: on Bucaspor ten academy products, which the old view
+  placed at the youth tid or the "no club" sentinel 65535, are on Bucaspor's own pin, and two
+  players are at their first club.
 - Clubs in the Danish Lower Division and B teams in the senior pyramid are on the home map:
   `dim_competition` gives that league its nation, which the old view lacked. Reserve sides
   are left off, as before, now by their team type.
