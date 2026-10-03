@@ -28,6 +28,9 @@ models:
     mart:                     # the dim_ / fact_ tables, beside the old mart views
       +schema: mart
       +materialized: table
+    site:                     # the web app's marts: one view per thing a page shows, read by
+      +schema: site           # scripts/export_site.py (data-layers step 17)
+      +materialized: view
 
 vars:
   # What the SQL is generated from: the raw schema's attribute columns and codes, mirrored
@@ -159,3 +162,14 @@ vars:
   # value_age_cap, and value_trusted_band is the range it was validated in, in GBP.
   value_age_cap: 28
   value_trusted_band: [20000, 5000000]
+  # The web app's marts (models/site). A league's skill_idx needs this many rated players.
+  site_skill_min_players: 20
+  # A player's development word: the first band whose share of his potential his ability
+  # reaches (site_players).
+  site_development_bands: [[0.97, At his ceiling], [0.90, Nearly there], [0.75, Developing],
+                           [0, Lots to come]]
+  # The personality and hidden attributes the profile sheet shows, in its order.
+  site_profile_traits: [adaptability, ambition, determination, loyalty, pressure,
+                        professionalism, sportsmanship, temperament, jumping, consistency,
+                        big_match, injury_prone, versatility, set_pieces, penalty, work_rate,
+                        flair]
