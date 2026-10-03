@@ -1,18 +1,50 @@
--- Every career-history line each person has held in any snapshot, once:
--- keyed (person_id, line_index), line_index counting from the oldest line any
--- snapshot holds (0). The game keeps a player's newest lines and drops his
--- oldest as it adds new ones, so each snapshot holds a run of his lines whose
--- seq restarts at -1 on the oldest it kept; it also removes a loan year's
--- 0-app parent-club line once the season is over; and a person who stops
--- being a player (retires, or turns to coaching) loses them all. So the
--- newest snapshot holding a person gives all his lines, and each older one
--- the lines its successor dropped from the front: those before the
--- successor's oldest line, found among its own by the same season, club, fee
--- code and apps (else the same season, club and fee code, for a season still
--- being played; else the same season and club; else after all of them).
--- Each line's figures are from the latest snapshot holding it. Lines are in
--- the save's order, which is not always season order (a contract that ran out
--- can be followed by the next club's line for the season before).
+-- Every career-history line each player has held in any snapshot, once.
+-- Keyed (person_id, line_index); line_index is 0 for his oldest line.
+--
+-- Why one snapshot is not enough. The game trims a player's history:
+--   * it keeps his newest lines and drops his oldest as it adds new ones;
+--   * it removes a loan year's 0-app parent-club line once that season ends;
+--   * it drops all his lines when he stops being a player (retires, or
+--     turns to coaching).
+-- So an older snapshot can hold lines a newer one has lost.
+--
+-- The rule. The newest snapshot holding a person gives all his lines. Each
+-- older snapshot adds only the lines its successor dropped from the front:
+-- those before the line the successor starts with. Each line's figures come
+-- from the latest snapshot holding it. One person, season and club per line:
+--
+--   snapshot      lines it holds, oldest first
+--   2021-06-27    2010 A  2011 A  2012 B*
+--   2023-07-02            2011 A  2012 B  2013 B'  2013 C
+--   2026-06-11                    2012 B           2013 C  2014 B
+--                 ------  ------  ------           ------  ------
+--   kept          2010 A  2011 A  2012 B           2013 C  2014 B
+--   taken from    2021    2023    2026             2026    2026
+--
+--   * a season in progress in 2021; the newest copy (2026's) has its final apps
+--   ' a loan year's parent-club line: 2026 removed it, and it comes after
+--     the line 2026 starts with, so it is not added back
+--
+-- Finding where the successor starts. Its first line is looked up among the
+-- older snapshot's lines by season, club, fee code and apps; else by season,
+-- club and fee code (a season still being played, whose apps grow); else by
+-- season and club. With no match at all, every older line is added.
+--
+-- A recycled tid. The game gives a retired player's tid to a newgen. Lines
+-- are stored by tid, so each snapshot's lines are first joined to the person
+-- who held the tid on that snapshot (int.person_snapshots), and the union
+-- is per person_id ('<tid>-<dob>'):
+--
+--   snapshot      tid 9 holds            lines join to
+--   2023-07-02    a player born 1993     9-1993-04-27
+--   2026-06-11    a newgen born 2008     9-2008-03-01
+--
+-- The two never share a person_id, so their lines never meet; the retired
+-- player's history ends with the last snapshot that held him.
+--
+-- Lines are in the save's order, which is not always season order: a
+-- contract that ran out can be followed by the next club's line for the
+-- season before.
 
 with lines as (
     select
