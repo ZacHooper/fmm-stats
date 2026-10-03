@@ -113,13 +113,14 @@ step-16 gate stores (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 and 2023-06-29 / 
 | Table | Grain | Notes |
 |---|---|---|
 | `fact_contract` | `person_id`, `first_seen_date` | a run of snapshots whose current contract keeps one stored start date at one club; `start_date`, wage, expiry and team (first and last seen), `last_seen_date` / `ended_by_date`, `end_reason` |
-| `fact_transfer` | `person_id`, `to_line_index` | each club change in the career history (loan lines skipped) plus the club on his newest snapshot; fee from the seller's line; snapshot bounds, `move_date` and the two contracts for a move the store watched |
+| `fact_transfer` | `person_id`, `to_line_index` | each club change in the career history (loan lines skipped) plus the club on his newest snapshot, and each graduation from a youth side; fee from the seller's line; snapshot bounds, `move_date` and the two contracts for a move the store watched |
 | `fact_loan_spell` | `person_id`, `season`, `borrowing_club_tid` | loan lines and squad listings; parent club; real dates for our own loans out |
 | `fact_staff_spell` | `person_id`, `first_seen_date` | runs of snapshots on one team's books in one role (`manager` / `staff`) |
 | `squad_membership` (view) | `person_id`, `snapshot_date`, `team_tid` | who each squad array lists, with the club his record names and `is_loan_in` |
 
-**The contract start date is the contract's identity, and the exact end of the one before.**
-`stg_contracts.start_date` is the date the current contract took effect:
+**The contract's stored start date is the day it was signed: its identity, and the exact end of
+the one before.** A new contract starts the day it is signed (the game's rule, Zac).
+`stg_contracts.start_date` is that date, `fact_contract.signed_date`:
 - A contract whose start date is unchanged between two snapshots keeps it through changes of
   wage and of team within the club; a new start date always falls between the two snapshots
   that bound it: on every successor contract, 64,749 of 64,750 inside
@@ -129,11 +130,14 @@ step-16 gate stores (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 and 2023-06-29 / 
 - The day-one save is the exception: the game's starting database holds start dates up to eight
   months ahead on 10,445 current contracts already in force (10,443 of the rebuilt contracts),
   clustered on 1 July 2021 and the window ends, and 7,733 of their players' joined dates are as
-  far ahead. Those are not when the contracts began; `start_date` reads NULL there (`stored_start_date` keeps the value). No later save
-  holds a future start date.
-- Whether it is the signing or the commencement day is not settled (a pre-contract signed in
-  January and starting in July would tell them apart); either way it is the day the previous
-  contract stopped being the current one.
+  far ahead. Those are not when the contracts were signed; `signed_date` reads NULL there
+  (`stored_signed_date` keeps the value). No later save holds a future start date.
+- The data agrees with the rule and cannot contradict it. Renewals start on every day of the
+  year (on Frem A: May 10,510, April 3,847, July 3,578, September 2,311, January 2,194…), not on
+  season starts. A free move at a contract's end gets a new contract starting the day he joined,
+  never months before (16 of ~6,000 start earlier), so a deal agreed and completed later is not
+  seen: the grid holds a contract only once it is current, and for a transfer the signing and
+  the start are one day.
 
 **Squad status is not a contract term.** The training row's squad status changes under one
 start date on 1,996 of 3,893 contracts seen more than once (Frem A) and 2,599 of 21,605 (Frem B),
@@ -142,20 +146,44 @@ expiry on 3 and 6, team (within the club) on 544 and 1,919; all three are kept f
 
 **Transfers.** The fee code sits on the selling club's last line before the move; a loan's
 `loan` code on the borrowing club's line. A move made during a season has no buying-club line
-until the season ends, so the club on the newest snapshot closes each history. `joined_date`
-lies between the two snapshots of every club change measured (13,473/13,473), so it is
-`move_date`. A free agent whose contract ran out in June and who signs in July is labelled by
-the game with the season just ended, and the history often has no Free-agent line for the gap:
+until the season ends, so the club on the newest snapshot closes each history.
+
+**Graduations.** A club's youth side has no club record; its tid is the u16 complement of its
+club's (`65535 - club_tid`: Frem 346 → "Frem Yth" 65189, FCK 344 → 65191; `mart.youth_clubs`,
+[`homegrown-derivation.md`](../agent-context/homegrown-derivation.md)), and it appears on its
+products' first line with a fee code not understood. A youth line counts for its club
+(`youth_team_tid` keeps the academy). The move from it into the club's own senior side is a
+**graduation** (`transfer_type = 'graduation'`, no fee, from and to club the same). On Frem A
+3,082 graduations (2,008 from the history, 1,074 academy products whose only line is the youth
+one, seen at their club on the newest snapshot), and 47 products who went straight to another
+club, a move from the academy's club; on B 4,976 and 64; on Bucaspor 272 and 19. Every academy
+resolves to its club the same way `mart.youth_clubs` does (3,129/3,129, 5,040/5,040,
+291/291). No snapshot shows a player on a youth side's books, so a graduation is dated by its
+season only.
+
+**Joined dates.** `joined_date` lies between the two snapshots of every club change measured
+(13,473/13,473), but **the game resets it when a player returns from a loan** (confirmed in game
+on Matteo Grosso, Ruben Minerba and Frederik Ellegaard, all of whose records carry a loan-return
+date), so it is `move_date` only where the buying club did not loan him out between the move's
+season and that date, and the date lies within a season of the move's. Seasons confirmed in
+game: Grosso's free move from Brøndby is 2024/25 (his Frem line shows "Bos"), as the history
+says; Frederik Balslev's £1K to Hvidovre is right (a loan with an option to buy).
+
+A free agent whose contract ran out in June and who signs in July is labelled by the game with
+the season just ended, and the history often has no Free-agent line for the gap:
 `from_club_tid` is then the club whose contract ran out and `was_free_agent` says the snapshot
 before the move showed him without a club.
 
-**Loans.** The game removes a loan year's 0-app parent line once the season ends, so the line
+**Loans.** The game can remove a loan year's 0-app parent line once the season ends (it keeps
+them for some players: Johan Maarup's Frem lines stand beside each of his loans), so the line
 before a loan can name the club before the parent. The parent is the listing's record club,
 else our club where Player Progress flags him on loan that season, else the club a later
 snapshot shows him at with a joined date before the loan's season, else the line before.
 Player Progress's on-loan weeks mark only loans out (no run overlaps a loan to us) and can run
 past the rollover day (Bucaspor's to 28 June, its rollover 20 June), so a run is cut at a season
-boundary only where a loan of ours in the next season meets it.
+boundary only where a loan of ours in the next season meets it. Two loans of ours in one season
+get no dates (Maarup's 2026/27 shows AB and a 0-app FC Botoşani line, the loan he went on
+next), since the runs cannot be told apart.
 
 **Staff.** A club's staff array lists its coaches, not its manager: the manager is the person
 with a staff record on a team's books whom its array does not list, the higher home reputation

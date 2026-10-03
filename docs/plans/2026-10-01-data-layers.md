@@ -557,21 +557,26 @@ first (TODO #3) gives real transfer dates instead of season-plus-snapshot bounds
 
 **Done.** As built ([`contract-transfer.md`](../data-model/contract-transfer.md) "As built" has
 the rules and their measurements):
-- **`start_date` settled**: it is the date the current contract took effect, so it is a
-  contract's identity and the exact end of the one before. On the gate stores every successor
+- **`start_date` settled**: a contract starts the day it is signed (the game's rule, Zac), and
+  the stored start date is that day (`fact_contract.signed_date`): a contract's identity and the
+  exact end of the one before. Renewals start on every day of the year, and a free move's new
+  contract starts the day he joined, never earlier; a deal agreed before it completes is not
+  visible, since the grid holds only the current contract. On the gate stores every successor
   contract's start date lies between the two snapshots that bound the change (64,749 of 64,750
   strictly, the last on the earlier snapshot's own day), and an unchanged start date survives
   changes of wage and of team. The day-one save's 10,445 future start dates (joined dates as far
-  ahead) are the starting database's, not real: they read NULL (`stored_start_date` keeps them).
-  Whether it is the signing or the commencement day is not settled. This settles the plan's one
-  blocker without the training-row dates.
+  ahead) are the starting database's, not real: they read NULL (`stored_signed_date` keeps
+  them). This settles the plan's one blocker without the training-row dates.
 - **int**: `int_contracts` (a run of snapshots with one start date at one club; first/last wage,
   expiry and team; `last_seen` / `ended_by`; `end_reason` renewed / transferred / expired /
   released / retired), `int_transfers` (club changes between career lines, loan lines skipped,
   plus the newest snapshot's club for a move the history has no line for yet; fee from the
   seller's line; snapshot bounds and `move_date` = the record's joined date, which lies inside
-  the window on 13,473/13,473 club changes), `int_loan_spells` (loan lines and squad listings;
-  real dates for our loans out from Player Progress), `int_staff_spells` (team and role;
+  the window on 13,473/13,473 club changes but is reset by a return from loan, so it is kept only
+  where no loan out lies between; a youth side's line counts for its club, by the u16 complement
+  of the club's tid, and the move into the club's senior side is a graduation),
+  `int_loan_spells` (loan lines and squad listings; real dates for our loans out from Player
+  Progress, none where two loans of ours share a season), `int_staff_spells` (team and role;
   manager = the unlisted staff member with a staff record), `int_squad_membership`.
 - **mart**: `fact_contract`, `fact_transfer`, `fact_loan_spell`, `fact_staff_spell`, and the
   `squad_membership` view. Everything is keyed by `person_id`; squad membership is the squad
@@ -616,6 +621,24 @@ test passes on all three):
   carry `person_id` and no name, so they cannot.
 - Checks: status 65 ("loaned out") is listed on loan by another club on only 67 of 1,475
   status-65 snapshots (TODO #4); the contracted flag is set on 708 / 1,014 / 170 free agents.
+- Confirmed in game (Zac, 1 Mar 2028 save): the joined date resets on a return from loan
+  (Grosso, Minerba, Ellegaard), so `move_date` is cleared where a loan out lies between the move
+  and it (710 of 13,472 watched moves on A, 681 of 11,331 on B). "Frem Yth" (tid 65189) is
+  Frem's youth side, its tid the u16 complement of Frem's (65535 - 346, as `mart.youth_clubs`
+  already resolves academies): a youth line counts for its club and the move into the club's
+  senior side is a graduation (3,082 / 4,976 / 272), the move to another club a move from the
+  academy's club (47 / 64 / 19); all agree with `mart.youth_clubs`. The same rule now resolves
+  `dim_person`'s origin (new model `int_team_clubs`, every team and academy tid to its club):
+  `origin_club_tid` is the club, `origin_team_tid` the line's team, `origin_youth_team_tid` the
+  academy. Against `mart.player_origin` (each person's newest snapshot) the academy flag agrees
+  on every person (30,691 / 32,267 / 25,809); the club agrees on 23,182 / 23,093 / 21,618, and
+  every other row is one of: an older line a later snapshot dropped (4,169 / 6,052 / 0), "none"
+  read as NULL rather than 65535 (2,491 / 2,091 / 3,196), or a reserve or B side whose club the
+  new column gives (849 / 1,031 / 995). Seasons (Grosso's free move 2024/25), Balslev's £1K (a loan with an
+  option to buy), Dehn's £14M, Sørensen's £6M, Sidhu's £3.3M and Maarup's loans all as the
+  tables give them. The counts above are after these fixes; the loan-out dates in B and
+  Bucaspor's checks drop to 36 and 9 within a day, Maarup's and one Bucaspor player's two loans
+  in one season now reading NULL.
 - `validate_mart.py`: identical output on baseline and branch copies of all three stores (each
   stops at the same full-store-only assertion). `run_tests.py`: 30 passed, 4 skipped (saves not
   in the sandbox). `lint_sql.py` clean.

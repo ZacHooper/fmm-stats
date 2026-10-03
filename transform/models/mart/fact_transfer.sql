@@ -1,7 +1,9 @@
--- Every permanent move between clubs, keyed (person_id, to_line_index): from
--- the career history, and the club on the newest snapshot for a move the
--- history has no line for yet (int.transfers for the rules). from_club_tid is
--- NULL for a free agent signed. Club level: first team <-> reserves is no move,
+-- Every permanent move between clubs, and every graduation from a club's
+-- youth side into its senior side, keyed (person_id, to_line_index): from the
+-- career history, and the club on the newest snapshot for a move the history
+-- has no line for yet (int.transfers for the rules). from_club_tid is NULL
+-- for a free agent signed; youth_team_tid names the academy a move left (its
+-- club is from_club_tid). Club level: first team <-> reserves is no move,
 -- and which team he joins is on fact_player_snapshot. moved_after / moved_by
 -- bound a move made while the store was watching, and move_date is the day he
 -- joined where the save gives it; was_free_agent, that he had no club on
@@ -19,6 +21,7 @@ select
     transfers.person_id,
     transfers.to_line_index,
     transfers.from_club_tid,
+    transfers.youth_team_tid,
     transfers.to_club_tid,
     transfers.season,
     transfers.moved_after,

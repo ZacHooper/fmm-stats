@@ -267,7 +267,8 @@ models:
   - name: dim_person
     description: >
       Every person in any snapshot: name, date of birth, and the club and season of the oldest
-      career line any snapshot holds.
+      career line any snapshot holds; an academy's line counts for its club, with the academy
+      in origin_youth_team_tid.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id]}}
   - name: fact_player_snapshot
@@ -378,8 +379,9 @@ models:
             to_columns: [club_tid]
   - name: fact_transfer
     description: >
-      Every permanent move between clubs, with its fee, season and, for a move made while the
-      store was watching, its snapshot bounds and the two contracts it ends and starts.
+      Every permanent move between clubs and every graduation from a youth side, with its
+      fee, season and, for a move made while the store was watching, its snapshot bounds and
+      the two contracts it ends and starts.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, to_line_index]}}
       - relationship_combination:
