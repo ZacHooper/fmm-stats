@@ -661,8 +661,8 @@ or deleted in this step.
   the old columns (`season`, `phase`, `tid`) where consumers read them.
 - **Which**: the ~37 views `scripts/export_data.py` / `_export_db.py` read, then the ones `fmq`,
   `scout`, `stats` and `league` read that the export does not (~24, overlapping), then
-  `validate_mart.py`'s. The inventory is the first commit: a table of every old view, who reads
-  it, and the new tables it will be built on.
+  `validate_mart.py`'s. The inventory, every old view with who reads it and the new tables it
+  is built on, is [`2026-10-03-site-marts-inventory.md`](2026-10-03-site-marts-inventory.md).
 - **The parallel export**: `export_data.py --schema site --out <scratch>` writes the same JSON
   from the new views, never into `site/api`.
 - **The comparison**: `scripts/compare_marts.py STORE` diffs every `site.X` against `mart.X`
