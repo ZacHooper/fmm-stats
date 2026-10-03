@@ -112,15 +112,15 @@ These are point-in-time notes — verify file/line claims against the current co
 ## The web app
 `site/` is the static web app (Cloudflare Pages), the primary UI; Streamlit stays for what writes to DuckDB. **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-**`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `raw`
-table, no `main` view. Add a field to the site by adding it to `fmstats/mart.py` first. And
-because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
+**`scripts/export_data.py` reads only the `mart` schema** — no `raw` table, no `main` view.
+Add a field to the site by adding it to `fmstats/mart.py` first (see
+[`fmstats/CLAUDE.md`](fmstats/CLAUDE.md)). And because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
 is the regression test: a no-op export must produce a no-op diff.
 
 ## Toolchain
 - **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`; numpy (used by `fmparser/tables/history.py`) is in the uv env, so no system python is needed.
 - **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. If zstandard (the save archive's codec) is somehow missing, extract stops with a message rather than write empty fixture files (`--no-archive` goes on without them).
-- **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. It re-creates the mart views on the cached copy from this checkout's `fmstats/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
+- **`fmq.py` and the `fmstats/` package are the query layer** — read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either. `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. **Facts go in the mart, opinions stay in `fmstats`.**
 - **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style); the game's new season
