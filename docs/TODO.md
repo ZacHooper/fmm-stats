@@ -340,7 +340,7 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   penalties or deflections; until settled, no conversion rate from these columns.
 - **Extra-time minutes in the old mart**: `mart.match_player_facts.minutes` caps at 90, so a
   full 120 reads 90 and an extra-time substitute goes negative (Lucas Lodberg, 2023-02-22: −15).
-  `mart.fact_player_match.minutes` counts extra time; the old view keeps the cap until step 17
+  `mart.fact_player_match.minutes` counts extra time; the old view keeps the cap until step 19
   moves its consumers.
 
 ### 16b. Career-history rating on youth-team lines

@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-03): in progress. Done: steps 1–16; the stg/int layers are a dbt project (`transform/`).**
+> **Status (2026-10-03): in progress. Done: steps 1–16; 17–20 replanned to build the new consumer views beside the old ones and prove them on a new save before switching; the stg/int layers are a dbt project (`transform/`).**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
@@ -110,15 +110,21 @@ One PR each, merged green, in this order.
 | 14 | Competition and match (14a, 14b) | both | vs `mart.club_matches`, `match_stages`; then `league_tables`, `match_player_facts` |
 | 15 | Person and the two models | layers | vs `mart.player_snapshots`, `player_value_est`, `injury_spells`, `player_seasons` |
 | 16 | Contracts and transfers | layers | vs `mart.player_spells`, `at_club_spells`, `transfers`, `loan_out_spells`, `squad_current` |
-| 17 | Move the site's marts | layers | `git diff site/api` empty; `validate_mart.py` |
-| 18 | Retire and publish | layers | site diffs clean; publish verify; size within the R2 budget |
+| 17 | The site's marts, rebuilt side by side (17a–17d) | layers | each new view = its old view row for row, or a listed difference with its reason |
+| 18 | End to end on a new save | both | a new save imported the normal way; the comparison clean but for listed differences |
+| 19 | Switch over | layers | consumers read the new views; `git diff site/api` only the listed differences |
+| 20 | Retire and publish | layers | old views dropped; publish verify; size within the R2 budget |
 
 **Why this order.** Steps 1–4 fix the inputs first: the whole club and competition tables and the
 unfiltered fixture list are exactly what the dimensions need, and step 1's diff tool is the gate
 everything later uses. The rename (5) comes before steps 7–9 so the new dumps land as `raw.*`
 instead of adding more names to rename, and the framework (6) exists by the time those joins need
 a home: they become stg/int models directly, never loader views. Steps 10–11 are independent and
-can move. Steps 12–18 build the model on clean inputs.
+can move. Steps 12–16 build the model on clean inputs. Steps 17–20 change the consumers in the
+order that keeps the old path live until the new one is proven (Zac, 2026-10-03): build every
+consumer view again on the new tables beside the old one (17), prove the pair agree on a save the
+store has never seen, imported end to end (18), only then point the consumers at them (19), and
+only then delete the old ones (20).
 
 ---
 
@@ -222,7 +228,7 @@ migrations, the views it writes), `fmstats/mart.py`, `fmstats/*` (scout, stats, 
 - Older published copies: `fmstats/store.py` exposes a cached copy's `staging` tables as `raw`
   views (Python in `fmstats` reads `raw.*` directly, not only through the mart), and reads a
   copy whose raw tables this checkout's mart cannot bind to "as published", using the mart
-  materialised in it (step 4). The copies are republished at step 18.
+  materialised in it (step 4). The copies are republished at step 20.
 - The migration copies each table into `raw` from its own DDL and drops `staging`: DuckDB
   cannot rename a schema or move a table. It refuses a published (compacted) copy.
 
@@ -243,7 +249,7 @@ and `validate_models.py` by `dbt test`.)*
   transforms"): the squad views, the attribute decode view (→ `int_player_attributes`, step 15
   extends it), `rebuild_persons` (the `(tid, dob) → person_id` bridge, → int) and
   `v_player_ratings` / `v_player_rating_ranks`. The old names stay as compatibility views over
-  the models until their consumers move (step 17), so nothing downstream changes.
+  the models until their consumers move (step 19), so nothing downstream changes.
 - After this, `load_duckdb.py` only writes JSON into `raw`.
 
 **Check**: each moved view equals its old self row-for-row (`diff_stores`); a real `rebuild.py`,
@@ -643,19 +649,62 @@ test passes on all three):
   stops at the same full-store-only assertion). `run_tests.py`: 30 passed, 4 skipped (saves not
   in the sandbox). `lint_sql.py` clean.
 
-## 17. Move the site's marts
-Each existing mart view rewritten over the `dim_*` / `fact_*` tables, one view per commit. Per
-view: if the site can read a new table directly, the view goes; otherwise it becomes a thin shape
-over the new tables. The compatibility views from steps 6–9 go as their last consumers move. The
-one primary-position rule (TODO #21) lands here, since the depth chart and `data.js` switch to
-the mart anyway.
+## 17. The site's marts, rebuilt side by side
+Every old view a consumer reads is built again over the `dim_*` / `fact_*` tables, **beside** the
+old one, which stays exactly as it is and is still what every consumer reads. Nothing is switched
+or deleted in this step.
 
-**Check**: `git diff site/api` empty after `export_data.py`, every commit; `validate_mart.py`.
+- **Where**: a dbt schema `site`, one model per old view, **same name and columns** as the
+  `mart.*` view it replaces (`site.player_snapshots` beside `mart.player_snapshots`), so a
+  consumer moves later by changing one schema name. Views, not tables, unless a measured cost
+  says otherwise (store size, step 20). Keys are the new ones underneath, but the output keeps
+  the old columns (`season`, `phase`, `tid`) where consumers read them.
+- **Which**: the ~37 views `scripts/export_data.py` / `_export_db.py` read, then the ones `fmq`,
+  `scout`, `stats` and `league` read that the export does not (~24, overlapping), then
+  `validate_mart.py`'s. The inventory is the first commit: a table of every old view, who reads
+  it, and the new tables it will be built on.
+- **The parallel export**: `export_data.py --schema site --out <scratch>` writes the same JSON
+  from the new views, never into `site/api`.
+- **The comparison**: `scripts/compare_marts.py STORE` diffs every `site.X` against `mart.X`
+  (keyed, row for row, through `diff_stores.py`'s machinery) and the two export directories
+  file by file. Differences the new tables make on purpose are listed in
+  `transform/compare/expected.yml`, each with its key, column, count and reason (loans at the
+  borrowing club; a reserve-side origin read as its club; extra-time minutes; the rollover-day
+  season cut; 65535 read as NULL); anything not listed fails.
+- **Order**, one PR per area, each gated by the comparison on the step-16 gate stores:
+  17a squads, spells, transfers, managers (step 16's views); 17b person, origin, development and
+  value views; 17c match, competition, league and table views; 17d clubs, nations, finances and
+  the rest. The one primary-position rule (TODO #21) is built here as `site.player_primary_position`,
+  but the depth chart and `data.js` move only at step 19.
 
-## 18. Retire and publish
-Old views dropped; `fmq sql`, CLAUDE.md, `site/AGENTS.md` and `remote-duckdb-access.md` pointed at
-the new tables, with the immersion rule scoped to the presentation layer; the published store and
-the mart object rebuilt.
+**Check**: per PR, `compare_marts.py` clean but for listed differences on the gate stores; the
+old `mart.*` byte-for-byte unchanged (`diff_stores.py` on the old views); `git diff site/api`
+empty (the real export still reads `mart`).
+
+## 18. End to end on a new save
+The proof the user asked for before anything is turned off: take a save the store has never seen
+and run the import exactly as a new save is run (`archive_save.py`, `extract.py`,
+`load_duckdb.py`, which builds both paths), into a full store; then the parallel export and
+`compare_marts.py`. Repeat on each new save until it is clean twice in a row with no new listed
+differences.
+
+**Check**: a full rebuild of Frem from the manifest, then one new save imported on top; the
+comparison clean but for listed differences; both exports produced; `validate_mart.py` as today.
+The run's report is committed (`docs/plans/` or the PR), not the store.
+
+## 19. Switch over
+The consumers read `site.*`: the export (`--schema` default), `fmq`, `scout`, `stats`, `league`,
+`validate_mart.py`, the depth chart and `data.js` (TODO #21). Each listed difference now shows in
+`site/api`, reviewed once.
+
+**Check**: `git diff site/api` is exactly the listed differences; `validate_mart.py`; `fmq` and a
+scout report run against the full store.
+
+## 20. Retire and publish
+Old views and the compatibility views dropped (`fmstats/mart.py`, `fmstats/compat.py`,
+`transform/models/legacy/`); `fmq sql`, CLAUDE.md, `site/AGENTS.md` and
+`remote-duckdb-access.md` pointed at the new tables, with the immersion rule scoped to the
+presentation layer; the published store and the mart object rebuilt.
 
 **Check**: site diffs clean; `publish_*` verify passes; size within the R2 budget.
 
@@ -680,7 +729,7 @@ The check fits what the step touches, and no step waits on a full rebuild:
 - **The baseline is built once**: each step's branch store is the next step's old side.
 - **Diffs are scoped and keyed**: `diff_stores.py` on the tables and views the step names, never
   a sweep of the whole store.
-- **One full rebuild of both careers**, at step 18, run in the background; and the republish of
+- **One full rebuild of both careers**, at step 20, run in the background; and the republish of
   the R2 copies happens there.
 - `validate_mart.py` and `dbt test` on the gate store;
 - a reviewed diff of `export_data.py` run against both gate stores (no-op unless the PR says
@@ -715,25 +764,25 @@ contract's stored start date is the exact end of the one before; step 16's notes
 | #17 views that hide their confidence | explicit int columns when those views move (steps 15–17) |
 | #18 refit models on time-aligned rows | easier after step 15: fits read flagged, dated snapshots |
 | #19 scripts failing at import | port straight onto the new marts after step 15 or 17 |
-| #20 mart candidates left out on size | revisit after step 18 |
-| #21 one primary-position rule | step 17 |
+| #20 mart candidates left out on size | revisit after step 20 |
+| #21 one primary-position rule | built at step 17, switched at step 19 |
 | #22 docs rewrite | coordinate with steps 5 and 18 |
 
 ## Risks
-- **Query cost.** stg and int are views, and until step 17 the old mart reads the compatibility
+- **Query cost.** stg and int are views, and until step 19 the old mart reads the compatibility
   views many times. If a rebuild slows seriously, materialise that one int model and note why in
   its declaration; nothing downstream of the mart is affected either way.
 - **Published stores.** `publish_duckdb.py` compacts tables only; a view over a compacted table's
   expansion view works (the scrapbook PR relies on it). Check the published copy with `fmq` after
   steps 4, 5 and 9 (read as published), and republish at 18.
 - **Store size.** Whole tables (step 4) and the mart tables (13–16) grow the store; check against
-  the R2 budget at step 18.
+  the R2 budget at step 20; the `site` views add little, being views.
 
 ## Out of scope
 - Naming unknown bytes; dumps carry `RAW` spans as they are today.
 - New parsing: gaps the model names (referee link, call-ups, contract dates) stay TODO items.
 - Analytics beyond the two models (role weights, ratings, home-grown rules): they move to read
-  the new marts in step 17 but are not redesigned.
+  the new marts in steps 17–19 but are not redesigned.
 - Site changes beyond what moving the marts requires.
 
 ---
