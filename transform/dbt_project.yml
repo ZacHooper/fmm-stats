@@ -28,6 +28,9 @@ models:
     mart:                     # the dim_ / fact_ tables, beside the old mart views
       +schema: mart
       +materialized: table
+    site:                     # the old consumer views rebuilt on the mart tables (step 17):
+      +schema: site           # same names and columns as fmstats/mart.py's, read by nothing
+      +materialized: view     # until step 19 switches the consumers
 
 vars:
   # What the SQL is generated from: the raw schema's attribute columns and codes, mirrored

@@ -1,0 +1,38 @@
+# The rebuilt consumer views (transform/models/site/) against the old ones (fmstats/mart.py):
+# each view's key, and every difference the new layers make on purpose, with its reason.
+# scripts/compare_marts.py fails on any difference not listed here. `when` is SQL over o (the
+# old row) and n (the new row). See the script's docstring.
+snapshots: {key: [season, phase]}
+our_clubs: {key: [club_tid]}
+managed_club: {key: [club_tid]}
+reserve_clubs: {key: [club_tid]}
+app_config: {key: [key]}
+role_weights: {key: [method, role, attribute]}
+position_roles: {key: [position]}
+staff:
+  key: [season, phase, tid]
+  differences: &free_agent_club
+    - columns: [club_tid, club]
+      when: "o.club_tid = 65535 and n.club_tid is null"
+      reason: >
+        No club: the old view keeps the save's 65535 and its "Free agent" pseudo-club, the new
+        layers read it as NULL (no consumer reads 65535 or the label)
+club_managers: {key: [season, phase, club_tid]}
+club_roster:
+  key: [season, phase, club_tid, tid]
+  differences:
+    - columns: [owner_club_tid]
+      when: "o.owner_club_tid = 65535 and n.owner_club_tid is null"
+      reason: a free agent (a national side's call-up), 65535 in the old view, NULL in the new
+    - columns: [owner_club_tid]
+      when: >
+        o.owner_club_tid in (select club_tid from mart.our_clubs)
+        and n.owner_club_tid not in (select club_tid from mart.our_clubs)
+      reason: >
+        A loanee in our squad: the legacy players view puts him at the team that lists him, his
+        own record (the new value) names his parent team
+    - columns: [on_loan_in]
+      when: "o.club_tid not in (select club_tid from mart.our_clubs) and n.on_loan_in"
+      reason: >
+        Another club's loanee: the old view knows loans only for our squad (the save's loan
+        flag is set only there), the new one reads every club's from its squad array

@@ -10,6 +10,7 @@ select
     squads.club_tid,
     squads.team_type,
     squads.slot,
+    squads.tid,
     squads.record_team_tid,
     squads.record_club_tid,
     squads.is_loan_in,
