@@ -143,6 +143,11 @@ vars:
     on_loan: {flag: is_on_loan, gap_days: 22}
   # A career-history line's transfer fee code (stg_player_history_seasons): below the floor it
   # is the fee in units of fee_unit_gbp; fee_contract_ended (0xFFFC) is a contract run out.
+  # A loan is a club's own side listing another club's player (int_loan_spells); a national
+  # side's call-up is not one.
+  loan_team_types: [first, b_team, reserve]
+  # The training row's squad status of a player out on loan (fmparser/tables/training.py).
+  loaned_out_status: 65
   fee_code_floor: 65000
   fee_unit_gbp: 1000
   fee_contract_ended: 65532

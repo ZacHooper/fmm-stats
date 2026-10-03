@@ -670,3 +670,233 @@ unit_tests:
         - {person_id: 7-2001-01-01, spell_type: off_season, start_date: '2026-06-29', end_date: '2026-06-29', weeks: 1}
         - {person_id: 7-2001-01-01, spell_type: on_loan, start_date: '2026-06-22', end_date: '2026-07-06', weeks: 2}
 
+
+  - name: contracts_rebuilt_by_start_date
+    description: >
+      A contract is a run of snapshots with one stored start date at one club: a move to the
+      reserves or a wage rise under the same start date is the same contract. A day-one start
+      date after the first snapshot holding the contract reads NULL. Each contract ends
+      renewed (a new start date at the same club), transferred (another club), expired or
+      released (no contract next, the expiry passed or not) or retired (no player record
+      next); the one in force on the newest snapshot has no end.
+    model: int_contracts
+    given:
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2021-06-27'}
+          - {snapshot_date: '2023-07-02'}
+          - {snapshot_date: '2026-06-11'}
+      - input: ref('int_person_snapshots')
+        rows:
+          - {snapshot_date: '2021-06-27', tid: 1, person_id: 1-2000-01-01, is_staff: false}
+          - {snapshot_date: '2023-07-02', tid: 1, person_id: 1-2000-01-01, is_staff: false}
+          - {snapshot_date: '2026-06-11', tid: 1, person_id: 1-2000-01-01, is_staff: false}
+          - {snapshot_date: '2021-06-27', tid: 2, person_id: 2-1995-01-01, is_staff: false}
+          - {snapshot_date: '2023-07-02', tid: 2, person_id: 2-1995-01-01, is_staff: false}
+          - {snapshot_date: '2026-06-11', tid: 2, person_id: 2-1995-01-01, is_staff: false}
+          - {snapshot_date: '2021-06-27', tid: 3, person_id: 3-1990-01-01, is_staff: false}
+          - {snapshot_date: '2023-07-02', tid: 3, person_id: 3-1990-01-01, is_staff: false}
+          - {snapshot_date: '2026-06-11', tid: 3, person_id: 3-1990-01-01, is_staff: false}
+          - {snapshot_date: '2023-07-02', tid: 4, person_id: 4-1985-01-01, is_staff: false}
+          - {snapshot_date: '2026-06-11', tid: 4, person_id: 4-1985-01-01, is_staff: true}
+      - input: ref('stg_persons')
+        rows:
+          - {snapshot_date: '2021-06-27', tid: 1, club_tid: 7296}
+          - {snapshot_date: '2023-07-02', tid: 1, club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 1, club_tid: 346}
+          - {snapshot_date: '2021-06-27', tid: 2, club_tid: 346}
+          - {snapshot_date: '2023-07-02', tid: 2, club_tid: 500}
+          - {snapshot_date: '2026-06-11', tid: 2, club_tid: null}
+          - {snapshot_date: '2021-06-27', tid: 3, club_tid: 346}
+          - {snapshot_date: '2023-07-02', tid: 3, club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 3, club_tid: null}
+          - {snapshot_date: '2023-07-02', tid: 4, club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 4, club_tid: 346}
+      - input: ref('int_teams')
+        rows:
+          - {snapshot_date: '2021-06-27', team_tid: 7296, club_tid: 346}
+          - {snapshot_date: '2021-06-27', team_tid: 346, club_tid: 346}
+          - {snapshot_date: '2023-07-02', team_tid: 346, club_tid: 346}
+          - {snapshot_date: '2023-07-02', team_tid: 500, club_tid: 500}
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
+      - input: ref('stg_contracts')
+        rows:
+          - {snapshot_date: '2021-06-27', tid: 1, is_current: true, wage_units: 10, expiry: '2023-06-30', start_date: '2021-08-01'}
+          - {snapshot_date: '2023-07-02', tid: 1, is_current: true, wage_units: 12, expiry: '2023-06-30', start_date: '2021-08-01'}
+          - {snapshot_date: '2026-06-11', tid: 1, is_current: true, wage_units: 20, expiry: '2027-06-30', start_date: '2024-01-05'}
+          - {snapshot_date: '2021-06-27', tid: 2, is_current: true, wage_units: 5, expiry: '2022-06-30', start_date: '2020-07-01'}
+          - {snapshot_date: '2023-07-02', tid: 2, is_current: true, wage_units: 8, expiry: '2026-06-30', start_date: '2022-07-01'}
+          - {snapshot_date: '2026-06-11', tid: 2, is_current: true, wage_units: 8, expiry: '2026-06-30', start_date: '2022-07-01'}
+          - {snapshot_date: '2021-06-27', tid: 3, is_current: true, wage_units: 3, expiry: '2022-06-30', start_date: '2019-07-01'}
+          - {snapshot_date: '2023-07-02', tid: 3, is_current: true, wage_units: 3, expiry: '2022-06-30', start_date: '2019-07-01'}
+          - {snapshot_date: '2026-06-11', tid: 3, is_current: false, wage_units: 3, expiry: '2022-06-30', start_date: '2019-07-01'}
+          - {snapshot_date: '2023-07-02', tid: 4, is_current: true, wage_units: 9, expiry: '2025-06-30', start_date: '2022-01-01'}
+    expect:
+      rows:
+        - {person_id: 1-2000-01-01, first_seen_date: '2021-06-27', club_tid: 346, start_date: null, stored_start_date: '2021-08-01', first_team_tid: 7296, last_team_tid: 346, first_wage_gbp: 5200, last_wage_gbp: 6240, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: renewed}
+        - {person_id: 1-2000-01-01, first_seen_date: '2026-06-11', club_tid: 346, start_date: '2024-01-05', stored_start_date: '2024-01-05', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 10400, last_wage_gbp: 10400, last_seen_date: '2026-06-11', ended_by_date: null, end_reason: null}
+        - {person_id: 2-1995-01-01, first_seen_date: '2021-06-27', club_tid: 346, start_date: '2020-07-01', stored_start_date: '2020-07-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 2600, last_wage_gbp: 2600, last_seen_date: '2021-06-27', ended_by_date: '2023-07-02', end_reason: transferred}
+        - {person_id: 2-1995-01-01, first_seen_date: '2023-07-02', club_tid: 500, start_date: '2022-07-01', stored_start_date: '2022-07-01', first_team_tid: 500, last_team_tid: 500, first_wage_gbp: 4160, last_wage_gbp: 4160, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: released}
+        - {person_id: 3-1990-01-01, first_seen_date: '2021-06-27', club_tid: 346, start_date: '2019-07-01', stored_start_date: '2019-07-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 1560, last_wage_gbp: 1560, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: expired}
+        - {person_id: 4-1985-01-01, first_seen_date: '2023-07-02', club_tid: 346, start_date: '2022-01-01', stored_start_date: '2022-01-01', first_team_tid: 346, last_team_tid: 346, first_wage_gbp: 4680, last_wage_gbp: 4680, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11', end_reason: retired}
+
+  - name: transfers_from_career_lines
+    description: >
+      A move is a club change between two lines that are not loans, at club level, with the
+      fee from the selling club's line: a loan line between two lines at one club is no move,
+      a move into a Free agent line is a release (no row), the move out of it a free agent
+      signing (no from club, free), and a reserve side's line is its club's. The club on the
+      newest snapshot ends the history: a move to it the history has no line for yet is a
+      move too, seasoned by its joined date and bounded by the two snapshots that show it.
+    model: int_transfers
+    given:
+      - input: ref('stg_career')
+        rows:
+          - {managed_club_tid: 346, rollover_month: 6, rollover_day: 30}
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2022-07-02', season: 2023}
+          - {snapshot_date: '2026-06-11', season: 2026}
+      - input: ref('int_teams')
+        rows:
+          - {snapshot_date: '2026-06-11', team_tid: 401, club_tid: 400}
+          - {snapshot_date: '2026-06-11', team_tid: 500, club_tid: 500}
+      - input: ref('int_player_career_lines')
+        rows:
+          - {person_id: 9-2000-01-01, line_index: 0, season: 2020, club_tid: 100, fee_kind: stay, fee_gbp: null}
+          - {person_id: 9-2000-01-01, line_index: 1, season: 2021, club_tid: 200, fee_kind: loan, fee_gbp: null}
+          - {person_id: 9-2000-01-01, line_index: 2, season: 2021, club_tid: 100, fee_kind: fee, fee_gbp: 500000}
+          - {person_id: 9-2000-01-01, line_index: 3, season: 2022, club_tid: 300, fee_kind: contract_ended, fee_gbp: null}
+          - {person_id: 9-2000-01-01, line_index: 4, season: 2022, club_tid: null, fee_kind: free, fee_gbp: null}
+          - {person_id: 9-2000-01-01, line_index: 5, season: 2023, club_tid: 400, fee_kind: stay, fee_gbp: null}
+          - {person_id: 9-2000-01-01, line_index: 6, season: 2024, club_tid: 401, fee_kind: fee, fee_gbp: 1000000}
+      - input: ref('int_player_info')
+        rows:
+          - {snapshot_date: '2022-07-02', person_id: 9-2000-01-01, club_tid: null, joined_date: '2022-06-30'}
+          - {snapshot_date: '2026-06-11', person_id: 9-2000-01-01, club_tid: 500, joined_date: '2026-01-02'}
+    expect:
+      rows:
+        - {person_id: 9-2000-01-01, to_line_index: 3, from_line_index: 2, from_club_tid: 100, to_club_tid: 300, season: 2022, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 500000, transfer_type: permanent, is_from_snapshot: false}
+        - {person_id: 9-2000-01-01, to_line_index: 5, from_line_index: 4, from_club_tid: null, to_club_tid: 400, season: 2023, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
+        - {person_id: 9-2000-01-01, to_line_index: 7, from_line_index: 6, from_club_tid: 400, to_club_tid: 500, season: 2026, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: '2026-01-02', was_free_agent: true, fee_gbp: 1000000, transfer_type: permanent, is_from_snapshot: true}
+
+  - name: loan_spells_from_lines_and_squads
+    description: >
+      A loan line is a season at the borrowing club with the parent the club of the last line
+      before it that is not a loan; a club's own side listing another club's player is a
+      loan too (a national side is not); the two merge on player, season and borrowing club,
+      the listing's parent winning. Our own loans out take their first and last week on loan
+      from Player Progress, clipped to each season by the career's rollover day.
+    model: int_loan_spells
+    given:
+      - input: ref('stg_career')
+        rows:
+          - {managed_club_tid: 346, rollover_month: 6, rollover_day: 30}
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2024-11-01', season: 2025}
+      - input: ref('int_teams')
+        rows:
+          - {snapshot_date: '2024-11-01', team_tid: 346, club_tid: 346}
+      - input: ref('int_player_career_lines')
+        rows:
+          - {person_id: q, line_index: 0, season: 2024, club_tid: 346, fee_kind: stay}
+          - {person_id: q, line_index: 1, season: 2024, club_tid: 600, fee_kind: loan}
+          - {person_id: r, line_index: 0, season: 2020, club_tid: 900, fee_kind: stay}
+          - {person_id: r, line_index: 1, season: 2020, club_tid: 800, fee_kind: loan}
+          - {person_id: s, line_index: 0, season: 2025, club_tid: 950, fee_kind: stay}
+          - {person_id: s, line_index: 1, season: 2025, club_tid: 700, fee_kind: loan}
+      - input: ref('int_squad_membership')
+        rows:
+          - {person_id: q, snapshot_date: '2024-11-01', team_tid: 700, club_tid: 700, team_type: first, is_loan_in: true, record_club_tid: 346}
+          - {person_id: r, snapshot_date: '2024-11-01', team_tid: 20, club_tid: 20, team_type: national, is_loan_in: true, record_club_tid: 900}
+          - {person_id: s, snapshot_date: '2024-11-01', team_tid: 700, club_tid: 700, team_type: first, is_loan_in: true, record_club_tid: 951}
+      - input: ref('int_progress_spells')
+        rows:
+          - {person_id: q, spell_type: on_loan, start_date: '2023-08-04', end_date: '2025-02-01'}
+          - {person_id: q, spell_type: injured, start_date: '2023-09-01', end_date: '2023-09-15'}
+    expect:
+      rows:
+        - {person_id: q, season: 2024, borrowing_club_tid: 600, borrowing_team_tid: 600, parent_club_tid: 346, start_date: '2023-08-04', end_date: '2024-06-29', first_seen_date: null, has_line: true}
+        - {person_id: q, season: 2025, borrowing_club_tid: 700, borrowing_team_tid: 700, parent_club_tid: 346, start_date: '2024-06-30', end_date: '2025-02-01', first_seen_date: '2024-11-01', has_line: false}
+        - {person_id: r, season: 2020, borrowing_club_tid: 800, borrowing_team_tid: 800, parent_club_tid: 900, start_date: null, end_date: null, first_seen_date: null, has_line: true}
+        - {person_id: s, season: 2025, borrowing_club_tid: 700, borrowing_team_tid: 700, parent_club_tid: 951, start_date: null, end_date: null, first_seen_date: '2024-11-01', has_line: true}
+
+  - name: staff_spells_by_team_and_role
+    description: >
+      A spell is a run of snapshots on one team's books in one role. The manager is the staff
+      member on a team's books its staff array does not list, the higher home reputation when
+      two are not; a team with no record of its own has no array, so its staff are staff.
+      Leaving the team, or a change of role, ends a spell.
+    model: int_staff_spells
+    given:
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2023-07-02'}
+          - {snapshot_date: '2026-06-11'}
+      - input: ref('int_staff_snapshots')
+        rows:
+          - {snapshot_date: '2023-07-02', tid: 10, person_id: m, club_tid: 346, home_reputation: 5000}
+          - {snapshot_date: '2023-07-02', tid: 11, person_id: c, club_tid: 346, home_reputation: 4000}
+          - {snapshot_date: '2023-07-02', tid: 12, person_id: x, club_tid: 346, home_reputation: 3000}
+          - {snapshot_date: '2023-07-02', tid: 13, person_id: y, club_tid: 999, home_reputation: 9000}
+          - {snapshot_date: '2026-06-11', tid: 10, person_id: m, club_tid: null, home_reputation: 5000}
+          - {snapshot_date: '2026-06-11', tid: 11, person_id: c, club_tid: 346, home_reputation: 4000}
+          - {snapshot_date: '2026-06-11', tid: 12, person_id: x, club_tid: 346, home_reputation: 3000}
+      - input: ref('stg_club_details')
+        rows:
+          - {snapshot_date: '2023-07-02', tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 346}
+      - input: ref('stg_club_staff')
+        rows:
+          - {snapshot_date: '2023-07-02', club_tid: 346, staff_tid: 11}
+          - {snapshot_date: '2026-06-11', club_tid: 346, staff_tid: 12}
+      - input: ref('int_teams')
+        rows:
+          - {snapshot_date: '2023-07-02', team_tid: 346, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
+    expect:
+      rows:
+        - {person_id: m, first_seen_date: '2023-07-02', team_tid: 346, club_tid: 346, role: manager, manager_candidates: 2, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11'}
+        - {person_id: c, first_seen_date: '2023-07-02', team_tid: 346, club_tid: 346, role: staff, manager_candidates: null, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11'}
+        - {person_id: c, first_seen_date: '2026-06-11', team_tid: 346, club_tid: 346, role: manager, manager_candidates: 1, last_seen_date: '2026-06-11', ended_by_date: null}
+        - {person_id: x, first_seen_date: '2023-07-02', team_tid: 346, club_tid: 346, role: staff, manager_candidates: null, last_seen_date: '2026-06-11', ended_by_date: null}
+        - {person_id: y, first_seen_date: '2023-07-02', team_tid: 999, club_tid: 999, role: staff, manager_candidates: null, last_seen_date: '2023-07-02', ended_by_date: '2026-06-11'}
+
+  - name: squad_membership_is_the_listing
+    description: >
+      Membership is the squad array: a player listed by a team of a club other than the one
+      his record names is a loan in, and is listed by his parent team too while it keeps him;
+      a reserve side's player belongs to its club.
+    model: int_squad_membership
+    given:
+      - input: ref('int_team_squads')
+        rows:
+          - {snapshot_date: '2026-06-11', team_tid: 346, player_tid: 1, slot: 0, team_type: first, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 7296, player_tid: 2, slot: 0, team_type: reserve, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 346, player_tid: 3, slot: 1, team_type: first, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 1003, player_tid: 3, slot: 4, team_type: first, club_tid: 1003}
+      - input: ref('int_person_snapshots')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, person_id: a}
+          - {snapshot_date: '2026-06-11', tid: 2, person_id: b}
+          - {snapshot_date: '2026-06-11', tid: 3, person_id: c}
+      - input: ref('stg_persons')
+        rows:
+          - {snapshot_date: '2026-06-11', tid: 1, club_tid: 346}
+          - {snapshot_date: '2026-06-11', tid: 2, club_tid: 7296}
+          - {snapshot_date: '2026-06-11', tid: 3, club_tid: 1003}
+      - input: ref('int_teams')
+        rows:
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 1003, club_tid: 1003}
+      - input: ref('stg_career')
+        rows:
+          - {managed_club_tid: 346, rollover_month: 6, rollover_day: 30}
+    expect:
+      rows:
+        - {person_id: a, team_tid: 346, record_club_tid: 346, is_loan_in: false, is_managed_club: true}
+        - {person_id: b, team_tid: 7296, record_club_tid: 346, is_loan_in: false, is_managed_club: true}
+        - {person_id: c, team_tid: 346, record_club_tid: 1003, is_loan_in: true, is_managed_club: true}
+        - {person_id: c, team_tid: 1003, record_club_tid: 1003, is_loan_in: false, is_managed_club: false}

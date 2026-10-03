@@ -1765,13 +1765,14 @@ def store_career(con):
 
 def seed_career(con, key=None):
     """Record which career this store holds in raw.app_config: `career_key`,
-    `career_rating_method` and `career_managed_tid`, the club we manage.
+    `career_rating_method`, `career_managed_tid`, the club we manage, and
+    `career_rollover`, the day ('MM-DD') its new season starts.
 
     fmstats reads the store, never fmparser, so the loader, which may read both, writes down
     the career facts the mart needs: the tactic we play (the save does not carry it) and our
     club (mart.our_clubs is it plus its reserve side). `key` is the career being loaded;
     without one (a --refresh-only) the store's own recorded key is kept. Runs before
-    create_mart."""
+    the models (stg.career reads these keys) and create_mart."""
     if key is None:
         key = store_career(con)
     car = careers.CAREERS.get(key) if key else None
@@ -1780,7 +1781,8 @@ def seed_career(con, key=None):
               f"career keys left unset")
         return
     for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
-                 ("career_managed_tid", str(car.managed_tid))):
+                 ("career_managed_tid", str(car.managed_tid)),
+                 ("career_rollover", "{:02d}-{:02d}".format(*car.rollover))):
         con.execute("DELETE FROM raw.app_config WHERE key = ?", [k])
         if v is not None:
             con.execute("INSERT INTO raw.app_config VALUES (?, ?)", [k, v])
@@ -1978,8 +1980,8 @@ def main():
             seed_role_weights(con)
             seed_event_types(con)
             seed_codes(con)
-            built = create_views(con)
             seed_career(con)
+            built = create_views(con)
             mart_objects = create_mart(con)
             print(f"{args.db}: role-weight seeds + {len(built)} models + {len(mart_objects)} "
                   f"mart objects rebuilt (nothing loaded)")
@@ -2030,9 +2032,9 @@ def main():
                 print(f"  ! FAILED {os.path.basename(os.path.normpath(d))}: {e}")
         seed_event_types(con)
         seed_codes(con)
+        seed_career(con, career.key)
         create_views(con)
         report_persons(con)
-        seed_career(con, career.key)
         mart_objects = create_mart(con)
         print(f"done: {ok} loaded, {fail} failed. views refreshed, "
               f"{len(mart_objects)} mart objects rebuilt.")
