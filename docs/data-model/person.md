@@ -177,7 +177,7 @@ Keys are natural: a person is `person_id` (`<tid>-<dob>`), a snapshot `snapshot_
 | `fact_injury_spell` | `person_id`, `start_date` | runs of injured weeks in Player Progress (our squad and reserves) |
 | `fact_player_season` | `person_id`, `line_index` | career history, every player, unioned across snapshots: the game drops a player's oldest lines as it adds new ones, and all of them when he retires |
 | `fact_player_competition_season` | `season`, `player_tid`, `team_tid`, `cid` | our own matches summed per competition; `person_id` NULL for reserve placeholders |
-| `dim_award`, `fact_player_award` | `award_id`; `award_id`, `player_tid`, `entry_date` | the World Best XI pools (each season's, and the All-Time pool), with the scrapbook entry that earned the place; an entry's person is resolved by tid and name, since an old entry's tid can belong to a newgen now |
+| `dim_award`, `fact_player_award` | `award_id`; `award_id`, `person_id`, `entry_date` | the World Best XI pools (each season's, and the All-Time pool), with the scrapbook entry that earned the place; an entry holds a tid, which can belong to a newgen now, so its `person_id` is the person with that tid whose dob gives the entry's age on its date |
 
 Seasons are two facts, not the one the diagram draws: what the game reports for a whole season
 (`fact_player_season`) and what our own matches show per competition

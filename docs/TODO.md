@@ -329,8 +329,10 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   snapshot. Step 16 rebuilds the spells on `person_id`.
 - **A scrapbook entry's tid can name a newgen** once the player it was written for has
   retired (Lewandowski's 2024 World Best XI entry, tid now "Fabio Voeste" on 2027-08-09).
-  `mart.fact_player_award` resolves an entry by tid AND name; anything else reading old
-  entries (`int.scrapbook_entries` is only our current squad, so safe) must do the same.
+  `mart.fact_player_award` resolves an entry to its `person_id` (`<tid>-<dob>`): the person
+  with that tid whose dob gives the entry's age on its date (or one less: the stored age lags a
+  birthday by a day or two). Anything else reading old entries must do the same
+  (`int.scrapbook_entries` is only our current squad, so safe).
 
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably

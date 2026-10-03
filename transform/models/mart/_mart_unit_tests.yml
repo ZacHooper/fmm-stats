@@ -18,11 +18,13 @@ unit_tests:
         - {person_id: 7-2001-01-01, start_date: '2026-01-05', end_date: '2026-01-12', weeks: 2}
         - {person_id: 7-2001-01-01, start_date: '2026-01-26', end_date: '2026-01-26', weeks: 1}
 
-  - name: player_award_resolves_recycled_tid_by_name
+  - name: player_award_resolves_recycled_tid_by_age
     description: >
-      An entry names the person who held its tid under its name, not whoever holds the tid
-      now. A season's pool is the latest snapshot's; an in-progress list takes the snapshot's
-      season and is not final; an All-Time entry takes the season of the entry it copies.
+      An entry names the person who held its tid when it was written: the one whose date of
+      birth gives the entry's age on its date (or one less, a birthday a day or two before),
+      not the newgen holding the tid now. A season's pool is the latest snapshot's; an
+      in-progress list takes the snapshot's season and is not final; an All-Time entry takes
+      the season of the entry it copies.
     model: fact_player_award
     given:
       - input: ref('stg_snapshots')
@@ -31,21 +33,16 @@ unit_tests:
           - {snapshot_date: '2027-08-09', season: 2028}
       - input: ref('stg_scrapbook_entries')
         rows:
-          - {snapshot_date: '2027-08-09', list: 0, list_season: 2022, player_tid: 5, entry_date: '2022-03-01', full_name: Robert Lewandowski}
-          - {snapshot_date: '2027-08-09', list: 1, list_season: 65535, player_tid: 6, entry_date: '2027-08-01', full_name: Kim Lund}
-          - {snapshot_date: '2027-08-09', list: 62, list_season: 65535, player_tid: 5, entry_date: '2022-03-01', full_name: Robert Lewandowski}
-      - input: ref('int_person_snapshots')
+          - {snapshot_date: '2027-08-09', list: 0, list_season: 2022, player_tid: 5, entry_date: '2022-03-01', age: 33, full_name: Robert Lewandowski}
+          - {snapshot_date: '2027-08-09', list: 1, list_season: 65535, player_tid: 6, entry_date: '2027-05-01', age: 30, full_name: Marc-André ter Stegen}
+          - {snapshot_date: '2027-08-09', list: 62, list_season: 65535, player_tid: 5, entry_date: '2022-03-01', age: 33, full_name: Robert Lewandowski}
+      - input: ref('int_persons')
         rows:
-          - {snapshot_date: '2023-06-29', tid: 5, person_id: 5-1988-08-21}
-          - {snapshot_date: '2027-08-09', tid: 5, person_id: 5-2010-02-02}
-          - {snapshot_date: '2027-08-09', tid: 6, person_id: 6-2005-05-05}
-      - input: ref('int_person_names')
-        rows:
-          - {snapshot_date: '2023-06-29', tid: 5, name: Robert Lewandowski}
-          - {snapshot_date: '2027-08-09', tid: 5, name: Fabio Voeste}
-          - {snapshot_date: '2027-08-09', tid: 6, name: Kim Lund}
+          - {person_id: 5-1988-08-21, tid: 5, dob: '1988-08-21'}
+          - {person_id: 5-2010-02-02, tid: 5, dob: '2010-02-02'}
+          - {person_id: 6-1996-04-30, tid: 6, dob: '1996-04-30'}
     expect:
       rows:
-        - {award_id: world_best_xi, season: 2022, player_tid: 5, person_id: 5-1988-08-21, is_final: true}
-        - {award_id: world_best_xi, season: 2028, player_tid: 6, person_id: 6-2005-05-05, is_final: false}
-        - {award_id: world_best_xi_all_time, season: 2022, player_tid: 5, person_id: 5-1988-08-21, is_final: true}
+        - {award_id: world_best_xi, season: 2022, person_id: 5-1988-08-21, player_tid: 5, is_final: true}
+        - {award_id: world_best_xi, season: 2028, person_id: 6-1996-04-30, player_tid: 6, is_final: false}
+        - {award_id: world_best_xi_all_time, season: 2022, person_id: 5-1988-08-21, player_tid: 5, is_final: true}

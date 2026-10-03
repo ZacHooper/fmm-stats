@@ -349,7 +349,7 @@ models:
     description: >
       Each player's place in a World Best XI pool, with the scrapbook entry that earned it.
     data_tests:
-      - unique_combination: {arguments: {columns: [award_id, player_tid, entry_date]}}
+      - unique_combination: {arguments: {columns: [award_id, person_id, entry_date]}}
       - relationship_combination:
           arguments:
             columns: [award_id]

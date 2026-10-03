@@ -495,8 +495,8 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
 - **Identity**: a person never turns back into a player once he loses his player record (2,520
   of 37,436 people across three Frem snapshots: 1,766 retire with no record, 633 become staff),
   so "is_staff flipping empties his history" (#14) is retirement, and the history union below
-  is the fix. Old scrapbook entries can carry a tid since given to a newgen, so awards resolve
-  by tid and name.
+  is the fix. Old scrapbook entries can carry a tid since given to a newgen, so an award resolves
+  to its `person_id`: the person with that tid whose dob gives the entry's age on its date.
 - **History** (#15): the game keeps a player's newest lines and drops his oldest (and removes
   a loan year's 0-app parent line once the season is over), so `int_player_career_lines`
   takes the newest snapshot's lines plus what each older snapshot held that its successor
@@ -533,7 +533,7 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
 - Frem 2023-06-29 / 2027-06-29 / 2027-08-09: snapshots equal on all 78,609 rows (team: 1,052
   free agents, 1 loanee); injuries 126/126; competition seasons 1,379 rows, minutes higher on
   103, every one a season with an extra-time match (the old view caps at 90); awards 600
-  season-pool and 100 All-Time entries, all resolved to a person.
+  season-pool and 100 All-Time entries, every entry resolved to a person_id (Lewandowski, whose tid is now a newgen's, to 1105-1988-08-21).
 - Bucaspor 2023-04-01: snapshots equal on all 25,880 rows (171 free agents); injuries 60/60;
   competition seasons 1,041/1,041; 92 of 100 All-Time entries have a season (8 are from before
   the career).
