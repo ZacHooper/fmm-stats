@@ -546,14 +546,37 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
 
 ## 16. Contracts and transfers
 - **int**: contract reconstruction from snapshots (`last_seen` / `ended_by`), loan and staff
-  spells.
+  spells, transfers.
 - **mart**: `fact_contract`, `fact_transfer`, `fact_loan_spell`, `fact_staff_spell`, a
   squad-membership view.
 
+**What step 15 leaves to build on** (all keyed by `person_id`, which fixes the wrong second
+names in `player_spells`, TODO #14):
+- **Contracts**: `stg_contracts` (every used slot, current and lapsed: wage, expiry,
+  `start_date`), the current one on `int_player_info` / `fact_player_snapshot`
+  (`contract_start`, `contract_expiry`, `contract_status`), and the save's own flag and squad
+  status on `stg_training` (`is_contracted`, `squad_status`). `start_date` looks like the
+  signed date (renewals in Dec 2025 differ from `joined_date`), but the day-one save holds a
+  future `start_date` on 10,445 contracts: settle what it is before using it as the end of the
+  contract it replaced.
+- **Transfers**: `int_player_career_lines` is every player's career history unioned across
+  snapshots, so a club change between consecutive lines is a move, with the fee on the selling
+  club's line (`fee_kind`, `fee_gbp`), before the career too. The transfer band
+  ([`transfer-history-record.md`](../transfer-history-record.md), TODO #3) is decoded but not
+  parsed and its fees are not located; parsing it is new parsing (out of scope), so transfers
+  come from history lines and snapshot bounds, and the band stays a later improvement.
+- **Loans**: `int_progress_spells` (`spell_type = 'on_loan'`) has our loans out with real week
+  dates, not split at season boundaries (`mart.loan_out_spells` splits them by the one-season
+  rule). Loans in: our squad listing (`int_team_squads`, `int_managed_squad`) against the
+  player's own record naming another club; the 'loan' fee code on history lines for everyone
+  else. Loans will be deprecated once transfers are modelled well, so keep them thin.
+- **Staff**: `stg_club_staff` (the club record's staff block), `fact_staff_snapshot`.
+- **Squad membership**: the old rule (`mart.squad_on`, `squad_current`, `snapshot_squad`) is
+  the snapshot's team checked against contract and loan spells, never a bare `club_tid`.
+
 **Check**: vs `mart.player_spells`, `mart.at_club_spells`, `mart.transfers`,
 `mart.loan_out_spells`, `mart.squad_current` / `squad_on`; checks: transfer ↔ contract both ways,
-contracted flag vs `contract_status`, "loaned out" code vs loan spells. Parsing the transfer band
-first (TODO #3) gives real transfer dates instead of season-plus-snapshot bounds.
+contracted flag vs `contract_status`, "loaned out" code vs loan spells.
 
 ## 17. Move the site's marts
 Each existing mart view rewritten over the `dim_*` / `fact_*` tables, one view per commit. Per
@@ -613,7 +636,7 @@ Mismatches are reported, never fixed by the build:
 ## Blockers
 | TODO | Blocks | Why |
 |---|---|---|
-| Contract signed dates (unread training-row dates) | step 16 | exact end dates instead of snapshot bounds |
+| What `stg_contracts.start_date` is (future dates on the day-one save) | step 16 | exact end dates instead of snapshot bounds |
 
 ## Other TODOs this touches
 | TODO | Relation |
