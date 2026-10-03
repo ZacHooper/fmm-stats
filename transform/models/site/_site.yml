@@ -54,8 +54,7 @@ models:
   - name: site_player_moves
     description: The dated moves the development chart marks.
     data_tests:
-      - unique_combination:
-          arguments: {columns: [person_id, move_type, move_date, from_club_tid, to_club_tid]}
+      - unique_combination: {arguments: {columns: [person_id, move_type, move_date]}}
   - name: site_player_career
     description: Each player's career history, one row per line.
     data_tests:

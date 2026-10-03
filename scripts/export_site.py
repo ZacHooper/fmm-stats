@@ -164,6 +164,7 @@ def main():
                       JOIN site.players p USING (snapshot_date, person_id)
                       WHERE q.snapshot_date = ? ORDER BY p.tid""", [d])
     by_pid = {p["person_id"]: p for p in players}
+    squad_pids = {q["person_id"] for q in squad}
     keep_teams = {c["team_tid"] for c in clubs
                   if c["league_cid"] in {cid for cid, _ in ladder[:3]}} | set(our_tids)
 
@@ -198,8 +199,10 @@ def main():
             "profile": {str(q["tid"]): player_row(by_pid[q["person_id"]], attrs, True)[14:]
                         for q in squad}},
         "note": E.IMMERSION,
+        # the ladder clubs' players, and our squad wherever their records are: a loanee to
+        # us is at his parent club's team, and the app finds our squad by squad_tids
         "players": [player_row(p, attrs) for p in players
-                    if p["team_tid"] in keep_teams]})
+                    if p["team_tid"] in keep_teams or p["person_id"] in squad_pids]})
 
     emit("clubs.json", {
         "club_fields": ["tid", "name", "league_cid", "league_name", "nation", "reputation"],

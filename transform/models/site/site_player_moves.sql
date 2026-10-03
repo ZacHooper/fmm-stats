@@ -1,12 +1,13 @@
--- The dated moves the development chart marks, one row per move:
+-- The dated moves the development chart marks, one row per move, keyed
+-- (person_id, move_type, move_date):
 --   transfer  a move between clubs (fact_transfer) with a known date: the date
 --             his record says he joined; fee_type 'fee' for a fee paid, 'free'
 --             for a free move, 'none' for a graduation from a youth side,
 --             'unknown' where the history's fee code is not understood
 --   internal  a move between our first team and reserve side: the first
 --             snapshot on the new team
--- from_club_tid and to_club_tid are clubs for a transfer, our teams for an
--- internal move.
+-- from_club_tid and to_club_tid are clubs for a transfer (from_club_tid NULL
+-- for a free agent's signing), our teams for an internal move.
 with career as (
     select * from {{ ref('stg_career') }}
 ),
