@@ -102,3 +102,84 @@ used to check that the model agrees with itself:
 - **Contracted flag** in the save ↔ derived `contract_status`.
 - **"Loaned out" squad-status code** in the save ↔ a loan spell covering the date.
 - **Expiry passed** ↔ `contract_status` is expired or the player has left.
+
+## As built (data-layers step 16)
+
+Keys are natural: a person is `person_id` (`<tid>-<dob>`), a contract `(person_id,
+first_seen_date)`, a transfer `(person_id, to_line_index)`. Every rule below was measured on the
+step-16 gate stores (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 and 2023-06-29 / 2027-06-29 /
+2027-08-09; Bucaspor 2023-04-01).
+
+| Table | Grain | Notes |
+|---|---|---|
+| `fact_contract` | `person_id`, `first_seen_date` | a run of snapshots whose current contract keeps one stored start date at one club; `start_date`, wage, expiry and team (first and last seen), `last_seen_date` / `ended_by_date`, `end_reason` |
+| `fact_transfer` | `person_id`, `to_line_index` | each club change in the career history (loan lines skipped) plus the club on his newest snapshot; fee from the seller's line; snapshot bounds, `move_date` and the two contracts for a move the store watched |
+| `fact_loan_spell` | `person_id`, `season`, `borrowing_club_tid` | loan lines and squad listings; parent club; real dates for our own loans out |
+| `fact_staff_spell` | `person_id`, `first_seen_date` | runs of snapshots on one team's books in one role (`manager` / `staff`) |
+| `squad_membership` (view) | `person_id`, `snapshot_date`, `team_tid` | who each squad array lists, with the club his record names and `is_loan_in` |
+
+**The contract start date is the contract's identity, and the exact end of the one before.**
+`stg_contracts.start_date` is the date the current contract took effect:
+- A contract whose start date is unchanged between two snapshots keeps it through changes of
+  wage and of team within the club; a new start date always falls between the two snapshots
+  that bound it: on every successor contract, 64,749 of 64,750 inside
+  `(last_seen, first_seen]` and the last on the earlier snapshot's own day (signed after that
+  save was made). So a different start date is a new contract, and a different wage or team
+  is not (the model above said any change of terms was).
+- The day-one save is the exception: the game's starting database holds start dates up to eight
+  months ahead on 10,445 current contracts already in force (10,443 of the rebuilt contracts),
+  clustered on 1 July 2021 and the window ends, and 7,733 of their players' joined dates are as
+  far ahead. Those are not when the contracts began; `start_date` reads NULL there (`stored_start_date` keeps the value). No later save
+  holds a future start date.
+- Whether it is the signing or the commencement day is not settled (a pre-contract signed in
+  January and starting in July would tell them apart); either way it is the day the previous
+  contract stopped being the current one.
+
+**Squad status is not a contract term.** The training row's squad status changes under one
+start date on 1,996 of 3,893 contracts seen more than once (Frem A) and 2,599 of 21,605 (Frem B),
+so it stays on `fact_player_snapshot`. Wage changes under one start date on 225 and 330 of them,
+expiry on 3 and 6, team (within the club) on 544 and 1,919; all three are kept first and last.
+
+**Transfers.** The fee code sits on the selling club's last line before the move; a loan's
+`loan` code on the borrowing club's line. A move made during a season has no buying-club line
+until the season ends, so the club on the newest snapshot closes each history. `joined_date`
+lies between the two snapshots of every club change measured (13,473/13,473), so it is
+`move_date`. A free agent whose contract ran out in June and who signs in July is labelled by
+the game with the season just ended, and the history often has no Free-agent line for the gap:
+`from_club_tid` is then the club whose contract ran out and `was_free_agent` says the snapshot
+before the move showed him without a club.
+
+**Loans.** The game removes a loan year's 0-app parent line once the season ends, so the line
+before a loan can name the club before the parent. The parent is the listing's record club,
+else our club where Player Progress flags him on loan that season, else the club a later
+snapshot shows him at with a joined date before the loan's season, else the line before.
+Player Progress's on-loan weeks mark only loans out (no run overlaps a loan to us) and can run
+past the rollover day (Bucaspor's to 28 June, its rollover 20 June), so a run is cut at a season
+boundary only where a loan of ours in the next season meets it.
+
+**Staff.** A club's staff array lists its coaches, not its manager: the manager is the person
+with a staff record on a team's books whom its array does not list, the higher home reputation
+where two are not (`manager_candidates`). It names the same manager as the old
+`mart.club_managers` on every snapshot of the gate stores.
+
+**Seasons from dates** use the career's rollover day, which the loader now records in the store
+(`raw.app_config.career_rollover`, from `careers.py`) for the `season_of` / `season_start` /
+`season_end` macros. TODO #11 still wants it read from the game.
+
+### Checks (reported, not stored)
+
+| Check | Frem A | Frem B | Bucaspor |
+|---|---|---|---|
+| contract ended by a transfer has a transfer naming it | 11,338 / 12,523 | 8,564 / 11,056 | (one snapshot) |
+| the rest: net moves through a club no snapshot saw (A→B→C between two snapshots; the history names B→C) | 1,185 | 2,492 | |
+| a watched transfer starts a contract at the buying club | 13,460 / 13,472 | 11,320 / 11,331 | |
+| the rest: no contract on record on `moved_by` | 12 | 11 | |
+| the save's contracted flag on a free agent (no club, no contract) | 708 | 1,014 | 170 |
+| contracted flag with no contract slot marked current | 231 | 199 | 192 |
+| status 65 ("loaned out") snapshots listed on loan by another club | 33 / 442 | 17 / 579 | 17 / 454 |
+| listed loanees whose status is not 65 | 4,749 | 1,936 | 2,607 |
+
+Status 65 does not mark a loan in most rows; TODO #4 has it as an unread code.
+
+Not built: a staff member's job beyond manager / staff (the save names none), and loan dates
+for any club but ours (the save gives none).

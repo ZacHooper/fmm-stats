@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-01): in progress. Done: steps 1–8; the stg/int layers are a dbt project (`transform/`).**
+> **Status (2026-10-03): in progress. Done: steps 1–16; the stg/int layers are a dbt project (`transform/`).**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
@@ -555,6 +555,71 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
 contracted flag vs `contract_status`, "loaned out" code vs loan spells. Parsing the transfer band
 first (TODO #3) gives real transfer dates instead of season-plus-snapshot bounds.
 
+**Done.** As built ([`contract-transfer.md`](../data-model/contract-transfer.md) "As built" has
+the rules and their measurements):
+- **`start_date` settled**: it is the date the current contract took effect, so it is a
+  contract's identity and the exact end of the one before. On the gate stores every successor
+  contract's start date lies between the two snapshots that bound the change (64,749 of 64,750
+  strictly, the last on the earlier snapshot's own day), and an unchanged start date survives
+  changes of wage and of team. The day-one save's 10,445 future start dates (joined dates as far
+  ahead) are the starting database's, not real: they read NULL (`stored_start_date` keeps them).
+  Whether it is the signing or the commencement day is not settled. This settles the plan's one
+  blocker without the training-row dates.
+- **int**: `int_contracts` (a run of snapshots with one start date at one club; first/last wage,
+  expiry and team; `last_seen` / `ended_by`; `end_reason` renewed / transferred / expired /
+  released / retired), `int_transfers` (club changes between career lines, loan lines skipped,
+  plus the newest snapshot's club for a move the history has no line for yet; fee from the
+  seller's line; snapshot bounds and `move_date` = the record's joined date, which lies inside
+  the window on 13,473/13,473 club changes), `int_loan_spells` (loan lines and squad listings;
+  real dates for our loans out from Player Progress), `int_staff_spells` (team and role;
+  manager = the unlisted staff member with a staff record), `int_squad_membership`.
+- **mart**: `fact_contract`, `fact_transfer`, `fact_loan_spell`, `fact_staff_spell`, and the
+  `squad_membership` view. Everything is keyed by `person_id`; squad membership is the squad
+  array, never a record's club.
+- **Squad status is not a contract term**: it changes under one start date on 1,996 of 3,893
+  and 2,599 of 21,605 contracts seen more than once, so it stays on `fact_player_snapshot`.
+- **The loader records the career's rollover day** (`raw.app_config.career_rollover`) and seeds
+  the career before dbt builds, for the `season_of` / `season_start` / `season_end` macros.
+- Not done: the transfer band (TODO #3) stays unparsed.
+
+**Check** (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 = A, 2023-06-29 / 2027-06-29 / 2027-08-09 =
+B; Bucaspor 2023-04-01; each built from main, then refreshed from the branch; every data and unit
+test passes on all three):
+- `fact_transfer` vs `mart.transfers` (club changes between snapshots): every old `transfer` row
+  is a new row with the same `moved_by` (A 12,531/12,531; B 11,064/11,065) and every bounded new
+  row is an old row (A 13,472/13,472; B 11,331/11,331). To club equal on all but 1 (A), and the
+  one B row missing is the same case: a loanee at Frem, whom the legacy players view puts at the
+  listing team (the new tables read his record: a loan, and on A a move to 1003 who loaned him
+  to us). From club differs on 1,185 (A) and 2,492 (B): net moves A→B→C between two snapshots,
+  where the old view names A and the history B. Fee equal on 11,010 / 8,378; the new one finds
+  a fee the old one could not on 1,510 / 2,675 (the old lookup needs the buyer's line in the
+  snapshot that first shows the move). Old free-agent signings 939/940 and 264/264 (the A one
+  re-signed at the club that released him, so his history shows no move); internal moves (5,034
+  / 3,706) and releases (642 / 441) are not transfers.
+- Contract ↔ transfer: 11,338 of 12,523 (A) and 8,564 of 11,056 (B) contracts ended by a
+  transfer are named by one; the rest are the net moves above. Watched transfers starting a
+  contract: 13,460/13,472 and 11,320/11,331 (the rest hold no contract on record that day).
+- `fact_loan_spell` vs `mart.loan_out_spells`: A 29/29, B 38/38, Bucaspor 13/13 found; dates
+  equal on 16, 11, 11; every other one within a day (the old view's season cut is 1 July, the
+  new one the career's rollover: 30 June for Frem) except Bucaspor's 2, one run across a renewal
+  cut at its rollover, 20 June. vs `mart.loan_in_spells`: 4/4 and 2/2; the new table also finds
+  all 17 of `validate_mart.py`'s known loan-ins from three snapshots (the old view finds 4 and 2:
+  it sees only seasons a snapshot flagged).
+- `fact_staff_spell` managers = `mart.club_managers` on every snapshot: 4,373, 3,798, 1,636,
+  both ways.
+- `squad_membership` = `mart.squad_current` (36, 39, 38, loan flags equal) and =
+  `mart.snapshot_squad` for our clubs on every snapshot. For all clubs, `snapshot_squad` keeps
+  free agents (1,593 / 1,052 / 171) and players no squad lists (43 / 58 / 32), and puts a loanee
+  at his parent club; `squad_membership` puts him at the borrowing club (4,782 / 1,952 / 2,624)
+  and also lists the 4 (A) and 1 (B) of our loanees their parent's reserves still list.
+- `mart.player_spells`' second names (TODO #14) do not occur on these stores; the new spells
+  carry `person_id` and no name, so they cannot.
+- Checks: status 65 ("loaned out") is listed on loan by another club on only 67 of 1,475
+  status-65 snapshots (TODO #4); the contracted flag is set on 708 / 1,014 / 170 free agents.
+- `validate_mart.py`: identical output on baseline and branch copies of all three stores (each
+  stops at the same full-store-only assertion). `run_tests.py`: 30 passed, 4 skipped (saves not
+  in the sandbox). `lint_sql.py` clean.
+
 ## 17. Move the site's marts
 Each existing mart view rewritten over the `dim_*` / `fact_*` tables, one view per commit. Per
 view: if the site can read a new table directly, the view goes; otherwise it becomes a thin shape
@@ -611,15 +676,14 @@ Mismatches are reported, never fixed by the build:
 - the save's club and player record tables vs the derived records.
 
 ## Blockers
-| TODO | Blocks | Why |
-|---|---|---|
-| Contract signed dates (unread training-row dates) | step 16 | exact end dates instead of snapshot bounds |
+None open. (Contract dates, which blocked step 16, turned out to be read already: the
+contract's stored start date is the exact end of the one before; step 16's notes.)
 
 ## Other TODOs this touches
 | TODO | Relation |
 |---|---|
-| #3 transfer band | parse before step 16 for real transfer dates |
-| #4 role names, training-row bytes | `dim_role` completeness; contract dates |
+| #3 transfer band | step 16 dates a watched move by the record's joined date; the band is still the only per-move list outside the career history |
+| #4 role names, training-row bytes | `dim_role` completeness |
 | #5 continent table | `dim_nation.continent` |
 | #6, #8 competition rules | `dim_stage` progression and tie-breakers |
 | #9 standings record | a check on derived outcomes |

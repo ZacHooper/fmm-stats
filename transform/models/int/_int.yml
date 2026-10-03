@@ -275,3 +275,46 @@ models:
       Each competition on each snapshot: its reputation.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, cid]}}
+  - name: int_contracts
+    description: >
+      Every player contract, rebuilt from the snapshots: a run of a person's snapshots whose
+      current contract keeps one start date at one club, with its snapshot bounds and how it
+      ended.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, first_seen_date]}}
+    columns:
+      - name: end_reason
+        data_tests:
+          - accepted_values:
+              arguments: {values: [renewed, transferred, expired, released, retired]}
+  - name: int_transfers
+    description: >
+      Every permanent move between clubs a player's career history shows, plus a move to the
+      club on his newest snapshot the history has no line for yet; with the snapshot bounds
+      of a move made while the store was watching.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, to_line_index]}}
+    columns:
+      - name: transfer_type
+        data_tests:
+          - accepted_values: {arguments: {values: [permanent, free]}}
+  - name: int_loan_spells
+    description: >
+      Every loan the career histories and the squads show, per player, season and borrowing
+      club; real dates for our own loans out.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, season, borrowing_club_tid]}}
+  - name: int_staff_spells
+    description: >
+      Each staff member's runs of snapshots on one team's books in one role.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, first_seen_date]}}
+    columns:
+      - name: role
+        data_tests:
+          - accepted_values: {arguments: {values: [manager, staff]}}
+  - name: int_squad_membership
+    description: >
+      Who each team's squad array lists on each snapshot, with the club his own record names.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, snapshot_date, team_tid]}}

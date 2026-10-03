@@ -360,3 +360,82 @@ models:
             columns: [person_id]
             to: ref('dim_person')
             to_columns: [person_id]
+  - name: fact_contract
+    description: >
+      Every player contract: club, start date, wage and expiry, snapshot bounds and how it
+      ended.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, first_seen_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+      - relationship_combination:
+          arguments:
+            columns: [club_tid]
+            to: ref('dim_club')
+            to_columns: [club_tid]
+  - name: fact_transfer
+    description: >
+      Every permanent move between clubs, with its fee, season and, for a move made while the
+      store was watching, its snapshot bounds and the two contracts it ends and starts.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, to_line_index]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+      - relationship_combination:
+          arguments:
+            columns: [person_id, ended_contract_first_seen_date]
+            to: ref('fact_contract')
+            to_columns: [person_id, first_seen_date]
+      - relationship_combination:
+          arguments:
+            columns: [person_id, new_contract_first_seen_date]
+            to: ref('fact_contract')
+            to_columns: [person_id, first_seen_date]
+  - name: fact_loan_spell
+    description: >
+      Every loan, per player, season and borrowing club: parent club, borrowing team, the
+      snapshots listing him there, real dates for our own loans out.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, season, borrowing_club_tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+  - name: fact_staff_spell
+    description: >
+      Each staff member's spells on a team's books, with the team's club and the role.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, first_seen_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+      - relationship_combination:
+          arguments:
+            columns: [team_tid]
+            to: ref('dim_team')
+            to_columns: [team_tid]
+  - name: squad_membership
+    description: >
+      Who is in each team's squad on each snapshot (the squad array, not the record's club).
+      A view.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, snapshot_date, team_tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+      - relationship_combination:
+          arguments:
+            columns: [team_tid]
+            to: ref('dim_team')
+            to_columns: [team_tid]

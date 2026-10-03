@@ -184,5 +184,5 @@ Seasons are two facts, not the one the diagram draws: what the game reports for 
 (`fact_player_competition_season`). The career history has no competition, and our matches
 cover only the clubs we played.
 
-Not built: languages (no person-language table is read), and the team a player is listed in
-(the squad-membership view is step 16).
+Not built: languages (no person-language table is read). The team a player is listed in is
+`squad_membership` ([`contract-transfer.md`](contract-transfer.md), step 16).
