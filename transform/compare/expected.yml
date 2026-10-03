@@ -36,3 +36,84 @@ club_roster:
       reason: >
         Another club's loanee: the old view knows loans only for our squad (the save's loan
         flag is set only there), the new one reads every club's from its squad array
+club_runs:
+  key: [tid, person_id, run_id]
+  differences:
+    - columns: [club_tid, club]
+      when: "o.club_tid = 65535 and n.club_tid is null"
+      reason: no club, 65535 / "Free agent" in the old view, NULL in the new
+    - columns: [club_tid, club]
+      when: >
+        o.club_tid in (select club_tid from mart.our_clubs)
+        and n.club_tid not in (select club_tid from mart.our_clubs) and o.ever_loaned_in
+      reason: >
+        A loanee in our squad: the legacy players view puts him at the team that lists him, his
+        own record (the new value) names his parent team; the run is a loan run either way and
+        at_club_spells drops it
+at_club_spells:
+  key: [person_id, tid, valid_from]
+  differences: *free_agent_club
+loan_in_spells: {key: [person_id, season, club_tid]}
+progress_weeks: {key: [tid, week]}
+loan_out_spells: {key: [person_id, season, valid_from]}
+injury_spells: {key: [person_id, valid_from]}
+player_spells:
+  key: [person_id, spell_type, valid_from]
+  differences: *free_agent_club
+snapshot_squad:
+  key: [season, phase, person_id]
+  differences:
+    - columns: [club_tid]
+      when: "o.club_tid = 65535 and n.club_tid is null"
+      reason: a free agent, 65535 in the old view, NULL in the new
+squad_current: {key: [person_id, club_tid]}
+club_squad_latest:
+  key: [club_tid, person_id]
+  differences:
+    - rows: only_old
+      when: "o.club_tid = 65535"
+      reason: >
+        Free agents: the old view lists them as the squad of the "Free agent" pseudo-club 65535;
+        a free agent is no club's squad, and the new view leaves him out
+transfers:
+  key: [person_id, by_phase]
+  differences:
+    - columns: [from_club_tid, from_club]
+      when: "o.from_club_tid = 65535 and n.from_club_tid is null"
+      reason: from no club, 65535 / "Free agent" in the old view, NULL in the new
+    - columns: [to_club_tid, to_club]
+      when: "o.to_club_tid = 65535 and n.to_club_tid is null"
+      reason: to no club, 65535 / "Free agent" in the old view, NULL in the new
+    - columns: [move_date, age, season, transfer_window]
+      when: "o.move_date is not null and n.move_date is null"
+      reason: >
+        The record's joined date is a loan-return date, which the game writes when a player
+        comes back from a loan (confirmed in game, #141): fact_transfer does not take it as the
+        move's date, so the age, season and window fall back to the snapshot's
+    - columns: [fee_type, fee_gbp]
+      when: "o.fee_type = 'unknown' and n.fee_type in ('fee', 'free')"
+      reason: >
+        The old lookup found no fee code (it needs the buyer's line in the snapshot that first
+        shows the move); fact_transfer reads it from the unioned career history
+    - columns: [fee_type, fee_gbp]
+      when: "o.fee_code = 'stay' and n.fee_type = 'fee'"
+      reason: >
+        The old lookup took an earlier line of the selling club; fact_transfer takes its last
+        line before the buyer's, where the fee sits (John Patrick's £861K, line 12)
+    - columns: [move_type, fee_type, fee_gbp]
+      when: "o.move_type = 'loan' and n.move_type = 'transfer'"
+      reason: >
+        A loan made permanent: the old view types the move by the loan line's code,
+        fact_transfer skips loan lines and takes the seller's fee (#140)
+    - columns: [fee_code]
+      when: "o.fee_code is null or n.fee_code is null or o.fee_code in ('stay', 'loan')"
+      reason: >
+        The code is the seller line's where fact_transfer explains the change, else none; the
+        old view read one from its own lookup, also for internal moves and releases
+    - columns: [to_club_tid, to_club, move_type, fee_type, fee_gbp]
+      when: >
+        o.to_club_tid in (select club_tid from mart.our_clubs)
+        and n.to_club_tid not in (select club_tid from mart.our_clubs)
+      reason: >
+        A loanee in our squad: the legacy players view puts him at the team that lists him (a
+        "transfer" to us); his record names his parent's team (a move within that club)

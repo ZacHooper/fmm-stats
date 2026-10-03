@@ -14,6 +14,10 @@ flags:
   send_anonymous_usage_stats: false
   partial_parse: true
 
+# site.squad_on is a table macro, which no model can be (macros/site.sql).
+on-run-end:
+  - "{{ create_site_macros() }}"
+
 models:
   fm_stats:
     stg:
@@ -154,6 +158,10 @@ vars:
   # A club's youth side has no record of its own; its tid is this minus its club's (the u16
   # complement: Frem 346 -> 65189; int_transfers, mart.youth_clubs).
   youth_tid_base: 65535
+  # The old mart's fixed season calendar (fmstats/mart.py's season_of / season_start: a season
+  # starts on 1 July), which the site views keep so they reproduce the old views; adopting the
+  # career's rollover day there is a reviewed change at the switch-over (data-layers step 19).
+  site_calendar: {month: 7, day: 1}
   fee_code_floor: 65000
   fee_unit_gbp: 1000
   fee_contract_ended: 65532
