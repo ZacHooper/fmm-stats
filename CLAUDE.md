@@ -32,104 +32,10 @@ Everything else in `docs/` is reference you read when a task sends you there. Wh
 something, DELETE its TODO entry rather than marking it done — otherwise that file rots into
 another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoing.
 
-## Answering a quick football question — don't default to a local rebuild
-A question like "who was our top scorer last season" does NOT need
-`scripts/rebuild.py` (~1 min/snapshot, dozens of minutes total) if a local `fm-<career>.duckdb`
-isn't already sitting there. **`fmq.py` reads the already-published R2 copy by default** —
-same data, cached locally on first use (~5 s for 101 MB), so the common questions are one line:
-```bash
-uv run python fmq.py output --season 2024 --include-departed   # top scorers/assists/key passes
-uv run python fmq.py output --club OB --vs Frem                # who from OB produces against us
-uv run python fmq.py matches --opp OB                          # head-to-head, one row per match
-uv run python fmq.py table --season 2026                       # final table, from the fixture list
-uv run python fmq.py sql "SELECT ..."                          # anything else, against the same copy
-```
-For arbitrary SQL without the CLI, `ATTACH` the R2 copy directly instead:
-```sql
-INSTALL httpfs; LOAD httpfs;
-CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
-                   ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
-                   URL_STYLE 'path', REGION 'auto');
-ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);
-
--- "who was our top scorer" — AGGREGATE FIRST, NAME SECOND. Both halves matter:
---   * mart.player_seasons is one row per (player, season, CLUB, COMPETITION), so a league
---     campaign and a cup run are separate rows and have to be summed.
---   * at_club_spells has one row PER SPELL, so joining it before aggregating multiplies
---     every stat by the number of spells that player has — Jakobsen has 5, and his 34 goals
---     come back as 170. Resolve the name in a scalar subquery, after the aggregate.
-WITH tot AS (
-  SELECT ps.person_id,
-         SUM(ps.goals) AS goals,
-         SUM(ps.apps)  AS apps,
-         ROUND(SUM(ps.avg_rating * ps.apps) / NULLIF(SUM(ps.apps), 0), 2) AS avg_rating
-  FROM m.mart.player_seasons ps
-  WHERE ps.season = 2024 AND ps.team_tid IN (SELECT club_tid FROM m.mart.managed_club)
-  GROUP BY ps.person_id)
-SELECT (SELECT any_value(name) FROM m.mart.at_club_spells s
-         WHERE s.person_id = tot.person_id) AS name,
-       goals, apps, avg_rating
-FROM tot ORDER BY goals DESC LIMIT 5;
--- -> Adam Jakobsen 34, Anosike Ementa 12, Anton Pedersen 9 ...
-```
-`avg_rating` is re-weighted by appearances rather than re-averaged: averaging a 33-game league
-average with a 1-game cup average would give the cup 33x the weight it earned.
-**Attach the mart object (~87 MB), not the full store (~101 MB)** — it holds the `mart` schema
-as real tables with the correctness rules already applied, so a top-scorer query is one
-`SELECT` rather than a re-derivation of latest-phase/person_id/minutes logic. Since the
-2026-08-25 refactor the mart is also what GENERATES the web app, so it covers the dimensions
-too (`mart.clubs`, `mart.leagues`, `mart.player_snapshots` with the 23 attributes wide,
-`mart.player_position_levels` for Level %ile, `mart.club_matches` already oriented per club,
-`mart.role_weights` so ratings are computable), and the common questions each have a view:
-`mart.league_tables` (tables rebuilt from the fixture list; verified for Denmark only),
-`mart.head_to_head`, `mart.player_vs_club` (each player's output against each opponent),
-`mart.transfers` (every club move with its fee, from the career history; `season` = the campaign
-the player moves for),
-`mart.squad_finances` (our squad value + wage bill on every snapshot date — owned players only, loanees out of both, the modelled share counted),
-`mart.player_primary_position` (the one primary-position rule), `mart.match_stages` (every fixture of a competition we play,
-labelled in the game's own words — 'League Path · Third Qualifying Round', 'Group D',
-'Championship Group' — with the leg, the tie aggregate and whether the club went through;
-from each competition's rules member in the save archive), `mart.match_ratings` / `mart.player_role_seasons` (the game's match rating next to a **position-adjusted** `rating_adj` — compare across positions only on the adjusted one; see `docs/plans/2026-09-23-match-rating-normalisation.md`) and `mart.club_squad_latest`
-(every club's genuine squad now), `mart.injury_spells` / `mart.loan_out_spells` (drawn from the
-weekly Player Progress rows the parser hands over as stored, `raw.player_progress`, via
-`mart.progress_weeks`), `mart.training_focus` (the Training page for every player on every snapshot: focus
-position and role, attribute focus, intensity -- a Scrapbook Profile's role is this focus role
-on its date; role and attribute names come from `mart.roles` / `mart.training_attributes`,
-rendered from `seeds/roles.csv` / `seeds/training_attributes.csv` -- the parser hands over ids only), and `mart.player_development` (a
-**development** word per player: 'Lots to come' / 'Developing' / 'Nearly there' / 'At his
-ceiling' — the only form potential ever leaves the mart in; there are deliberately no stars). Use the full `site-data/fm-frem.duckdb` only
-when you need the `raw` tables or per-snapshot history for a player who was never ours. (The published copies name that schema `staging` until they are next republished, data-layers step 18; `fmq` reads them as published.)
-
-Two gotchas worth knowing before you query it: **macros do not resolve across an `ATTACH`, and
-that breaks ORDINARY VIEWS too, not just the obvious macro calls** — `mart.clubs` fails with
-`Scalar Function with name phase_ord does not exist` purely because its own SQL calls
-`phase_ord`, which lives in `main` and resolves to your LOCAL database. The error names a
-missing function, so it does not look like an ATTACH problem at all. **`USE m` first and
-qualify nothing**, which fixes every case including `mart.squad_on(d)`; and
-**a raw `club_tid` filter for "our squad" is NOT SAFE, on ANY table** — `player_snapshots`,
-`player_position_levels`, `players`, all of them — because a loan that lapsed without being
-renewed can leave a departed player's `club_tid` still pointing at our club indefinitely (this
-is real save data, confirmed against the raw bytes, not an extraction bug). **Use
-`mart.squad_current` (current squad) or `mart.squad_on('<date>')` (as of any date) for "who's
-ours" — never a bare `club_tid = <our tid>` filter.** Confirmed live, not theoretical: Ernest
-Nuamah's loan ended 2023-06-30, but his row a season later still read `club_tid=346,
-loaned_in=True`, and turned up as one of "our" attacking outlets in a scout report built on a
-raw filter. `mart.squad_current` is scoped to `mart.our_clubs`, so it only answers this for OUR
-squad — `fmstats/scout.py`'s `club_attributes()` (and everything built on it: `squad_frame`,
-`scout_report`) reads `mart.snapshot_squad`, the same spell-based check for an ARBITRARY club,
-since a scout report needs "who's really on the opponent's books" too, not just ours.
-`.claude/hooks/session-start.sh` sets up everything this needs (`rclone`, the `r2:` remote, the
-`httpfs` extension) automatically on a Claude Code web session — see
-[`docs/agent-context/remote-duckdb-access.md`](docs/agent-context/remote-duckdb-access.md) for
-the full story and [`site/AGENTS.md`](site/AGENTS.md)'s "Query cookbook" for the three traps
-in `match_player_stats`/`players`/`club_tid` that make a naive query wrong, not just imprecise. The R2 copy
-carries raw `ca`/`pa` unscrubbed (as of 2026-09-01) — immersion is enforced by never *surfacing*
-the number, not by hiding it from SQL, so `mart.player_position_fit`/`player_position_levels`
-(Level %ile, Fit ratings — both need `ca` to compute) work against it same as a local store. The
-one remaining reason to fall back to a real local rebuild is data more recent than the last
-`publish_duckdb.py --upload` (re-run after every import — not automatic); the mart-ONLY object
-(`fm-<career>-mart.duckdb`) still omits the rating layer regardless (too big to materialise —
-ATTACH the full store for that, not a scrub issue).
+## Answering a quick football question — use the `query-fm-data` skill, not a local rebuild
+`fmq.py` reads the published R2 mart by default (`uv run python fmq.py output --season 2024 --include-departed`, `matches --opp OB`, `table --season 2026`, `sql "..."`). The `query-fm-data` skill has the mart view catalogue and the ATTACH recipe. Two rules that make a query WRONG, not imprecise:
+- **Never use a bare `club_tid = <our tid>` filter for "our squad"** — a lapsed loan can leave a departed player's `club_tid` on our club indefinitely (real save data). Use `mart.squad_current` / `mart.squad_on('<date>')`, or `mart.snapshot_squad` for any other club.
+- **Macros (and views calling them, e.g. `mart.clubs` → `phase_ord`) do not resolve across an `ATTACH`** — `USE m` first and qualify nothing. Aggregate `player_seasons` BEFORE joining `at_club_spells` (one row per spell multiplies stats).
 
 ## Three layers: extract, load, transform
 - **`fmparser/` is the E** — save bytes to `output/<label>/*.json`, one file per table as
@@ -142,68 +48,22 @@ ATTACH the full store for that, not a scrub issue).
   it may import both sides. It owns the career (`careers.py`, `--career`): it places each
   snapshot in its campaign by the career's rollover, and checks the match table against the
   world fixture list for our two clubs.
-- **`transform/` and `fmstats/` are the T.** `transform/` is a **dbt** project (dbt-duckdb)
-  that builds the `stg` and `int` layers as views over `raw` — one stg model per raw table,
-  keyed by `snapshot_date`, and int models shaped by the semantic model (`docs/data-model/`):
-  person snapshots, team squads, our managed squad, scrapbook entries, a player's info
-  (`int_player_info`) and his ratings (`int_player_attributes`, the decode behind it), staff,
-  role ratings — and the `dim_*`/`fact_*` tables (`models/mart/`, tables in `mart` beside the
-  old views; from data-layers step 13).
-  `models/legacy/` rebuilds the old `(season, phase)` shapes from them for `fmstats/mart.py`
-  (through `fmstats/compat.py`) until step 17 moves the old mart over. Each model's grain and keys are dbt data tests, and its
-  rules are dbt **unit tests** (fixed rows in, the rows it must produce out:
-  `models/int/_int_unit_tests.yml`). The loader runs `dbt build` in-process
-  (`load_duckdb.build_models`), so every load and `--refresh-only` tests what it builds, and a
-  failing test fails the load; by hand it is
-  `cd transform && FM_DUCKDB=<store> uv run dbt build --profiles-dir .`. A model file is
-  `<layer>_<name>.sql` and its relation `<layer>.<name>`, except in `models/mart/`, where the
-  file is named for the relation itself (`dim_city.sql` -> `mart.dim_city`). dbt writes the store's catalog name
-  (its file name, `fm-<career>`) into every view, so a copy of the store binds only when
-  attached under that name: `ATTACH 'copy.duckdb' AS "fm-frem"` (`select sql from
-  duckdb_views()` shows it). Tables are unaffected. Its SQL is generated from the `vars` in
-  `transform/dbt_project.yml`, which `tests/test_boundary.py` checks against
-  `fmstats/contract.py`. **Its SQL is linted and formatted with sqlfluff**
-  (`transform/.sqlfluff`: lower-case keywords, trailing commas, explicit aliases, 80 columns):
-  `uv run python scripts/lint_sql.py` (`--fix` to apply), which lints against an empty store it
-  builds, so no data is needed; keep generated columns as SQL in the loop with plain `{% %}`
-  tags and a literal `{% if not loop.last %},{% endif %}` rather than SQL built in Jinja
-  strings. **Test big views on a sample** (`transform/tests/`): a test that
-  reads all 16M ratings costs ~45 s, the sample ~0.6 s. `fmstats/mart.py` derives the old
-  analytical tables from the models and `raw` (it is not being moved to dbt: the plan retires
-  most of it), and `scout`/`stats`/`league` analyse the mart. The old names (`raw.players`,
-  `raw.persons`, `v_player_ratings`, ...) are views over the models (`fmstats/compat.py`) until
-  their consumers move to the mart. fmstats imports neither fmparser nor `extract`: it reads a
-  `.duckdb` file, local or the R2 copy, and nothing else, and `fmq` needs no dbt (only the
-  loader builds the models). The raw schema plus `fmstats/contract.py` (the attribute column
-  names) is the whole interface.
+- **`transform/` and `fmstats/` are the T, and the semantic model
+  ([`docs/data-model/`](docs/data-model/README.md)) is their foundation.** `transform/` is a
+  **dbt** project building raw → stg → int → the model's `dim_*`/`fact_*` tables in `mart`;
+  `fmstats/mart.py` is the old consumer mart that the data-layers plan
+  ([`docs/plans/2026-10-01-data-layers.md`](docs/plans/2026-10-01-data-layers.md)) retires
+  view by view. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either** — it
+  loads automatically under both directories and carries the model, where the refactor stands,
+  and the rules. fmstats imports neither fmparser nor `extract`: it reads a `.duckdb` file,
+  local or the R2 copy, and `fmq` needs no dbt (only the loader builds the models). The raw
+  schema plus `fmstats/contract.py` (the attribute column names) is the whole interface.
 
 `tests/test_boundary.py` enforces both import rules. A fact only the parser knows reaches
 fmstats by the loader writing it into the store, never by fmstats importing it.
 
-## How the parser works — [`docs/parser-architecture.md`](docs/parser-architecture.md)
-**The one doc to read before changing `fmparser/`.** It carries the idea the parser is
-organised around — *a locator shape tells you how to FIND a record, a declared layout tells
-you how to READ it* — as the **seven-shape locator table** (count-framed / linked list /
-preallocated grid / archive member / seeded chain / key search / terminated array), one section per shape with
-how you find it, the invariant that bounds it, and **how it fails**. Then the declared-layout
-rule (`core/types.py` / `core/schema.py` / `core/table.py`), what is deliberately *not* declarable,
-what each audit script can actually tell you, and what porting to FMM26 will involve.
-The method section below is the field guide; that doc is the map.
-
-**Two commands are the feedback loop for any parser change, and they are cheap:**
-```bash
-uv run python tests/run_tests.py            # the suite, in parallel, ~20 s; exit 2 means NOTHING ran
-                                            # (--store adds test_fmq, over the published copy)
-uv run python tests/assert_identical.py   # 4 saves x 23 files, per-file SHA-256, ~35s
-```
-`assert_identical.py` is the **acceptance gate**: a restructuring commit must leave the
-extracted JSON byte-identical, and `extract.py` dumps with no `sort_keys`, so **key order is
-part of the test** — a reader that returns the right values in the wrong order fails, which is
-correct, because `load_duckdb.py` reads some files positionally. When a change SHOULD alter
-output, re-record in the same commit and say why:
-`tests/assert_identical.py --record --note '<why>'`. The baseline is gitignored (`.oracle/`)
-because it is keyed to your local saves. Before trusting a green run, remember its own rule: a
-gate that has never failed is not evidence — break something on purpose once.
+## The parser — read [`fmparser/CLAUDE.md`](fmparser/CLAUDE.md) before any save-format work
+It holds the parser architecture pointer, the feedback loop (`tests/run_tests.py`, the `tests/assert_identical.py` acceptance gate) and the region-first reverse-engineering method, including **never validate a field by joining on it** and **prove a record's extent, not just its fields**. It loads automatically under `fmparser/`; read it explicitly when the work starts in `scripts/audit/` or a raw save.
 
 ## Read this first — accumulated project knowledge
 The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent-context/)**
@@ -225,178 +85,18 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
 
-## Reverse-engineering method: ALWAYS region-first, then structural
-When locating a **new field** in the save, do NOT start by guessing byte offsets. Follow this order —
-it has repeatedly turned multi-hour hunts into quick finds. (Which *kind* of locator you are
-building is [`docs/parser-architecture.md`](docs/parser-architecture.md) Part 1; this is how
-you find it in the first place.)
+## The web app
+`site/` is the static web app (Cloudflare Pages), the primary UI; Streamlit stays for what writes to DuckDB. **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-0. **Profile it by BLOCK ENTROPY first** — `uv run python scripts/audit/entropy_profile.py <save.fms>`.
-   Filler reads ~1.4 bits/byte, ordinary records 3–6, dense records/strings 6–7.5, and **>7.9 is
-   COMPRESSED** — no stride search will ever bite there. This is not optional book-keeping: the
-   file's last 1.3 MB was ranked the best remaining target for being "25.8% printable" when
-   uniform random bytes are **37.1% printable by construction**, and it cost four hunts. Never
-   rank an unknown region by printable fraction.
-1. **Audit coverage and unmapped sections first** — `uv run python scripts/audit/audit_coverage.py [save.fms]`.
-   The save is audited by declared table bounds and split by long runs of `00`/`ff` filler; this
-   shows you *where* to look and exposes regions we haven't mapped. Cross-check against `docs/savefile-map.md`.
-2. **Find records structurally, never by absolute offset** — every window in `regions.py` **drifts** per
-   save and per career (e.g. Frem's contract-expiry records sit at ~29–31M, nowhere near the Bucaspor
-   `CONTRACT_LO=54M`). Locate a record by an embedded key (tid / uid / sid) plus a validating signature
-   (a marker byte, a plausible year, an in-range value) and **validate every hit against the info spine**,
-   exactly like the scrapers in `fmparser/staging.py`.
-3. **Identify an unknown field with ground truth + contrast** — read the real values off an in-game
-   screenshot for several players, then either (a) find the offset whose per-player value matches, or
-   (b) find the offset that is *constant within a group and differs between groups* (how contract expiry
-   was cracked: 6/2022 players vs 6/2023 players). **Money and dates are DISPLAYED ROUNDED** (value `1923`
-   shows as "£2K"), so search a ±few-% band, not the exact number.
-4. **When value-matching fails everywhere, DIFF TWO SAVES** — the definitive tool. Take two snapshots
-   where the value changed for some players and find the field that changed iff the value did. Fields not
-   stored adjacent to a player id (wages appear to live in a positional finance table) only fall to this.
-5. **A monotonic-looking `u32` column may be a POINTER, not a counter.** Big tables here are
-   **linked lists**, not arrays: the field holds the *next row's index*, with `FFFFFFFF` = end of
-   chain. On a fresh save the rows are contiguous so row `k` holds `k+1` and the field is
-   indistinguishable from a counter — the two readings only diverge once the game starts appending
-   into recycled slots. Tell them apart with the **in-degree test**: build the pointer graph and
-   check `max in-degree == 1` and `#(in-degree-0 rows) == #(FFFFFFFF rows)`. If that holds it is a
-   forest of chains, record starts are the in-degree-0 rows, and you need no delimiter heuristics
-   at all. If fields look like they belong to the NEXT or PREVIOUS row, suspect the FRAMING before
-   writing a reading rule: career history was read for years as "season+stats from row `k-1`,
-   club+fee from row `k`", and the truth was that the row starts 8 bytes earlier —
-   `[stats][club, fee, next]`, one complete season line per record. Always confirm a whole
-   record against ground truth — an in-game TOTAL line is the cheapest check, since an
-   off-by-one either double-counts a row or drops one.
-6. **If a table has no id in it, look for the pointer running the OTHER way.** Career history holds
-   no tid/sid/uid anywhere; the *attribute* record points at it (`u32 @ P-38`). Before concluding a
-   join is unsolvable, search the file for the target's row index / offset as a u32 — one hit outside
-   the table is the link. See `docs/IDS.md`.
-7. **LOOK IN FRONT OF RECORD 0 — the save declares its own table sizes.** The framing is
-   `[8 bytes of 0xFF][record count][record 0]`, and **20 tables use it**, exactly (u16 for the
-   variable-length string-record tables, u32 for the fixed-width grids). Comparing each declared
-   count against what the parser reads found five defects in tables that passed every check we
-   had, two of them losing real records on every save ever built. Test for a run of `>= 8` FF,
-   never `== 8` (the preceding record can end in FF). It also works as a SEARCH strategy, but
-   only with a real validator behind it — the sentinel alone occurs 566,078 times in one save;
-   derive a candidate stride from the count and then require `id == slot index` on every
-   declared record. Read [`docs/table-framing.md`](docs/table-framing.md) before walking any new
-   table, and note what it says you CANNOT find that way.
-8. **Encodings cheat-sheet:** money = raw currency (`2000` = £2K) but shown rounded; dates =
-   `[day-of-year u16][year u16]` (see DOB in `staging.scrape_players`); seasons coded `1971 + n`.
-   **Contract-detail record** (`staging.scrape_contracts`, section ~16–40M, `[tid u32][0x01][wage
-   u16][6×00][expiry day-of-year u16][expiry year u16]`): **wage £/yr = `u16@+5` × ~520** (validated
-   £15.5K–£17.75M, ±2%; the squad status is on the training row, `tables/training.py`), and
-   **expiry = full date @+13** (some Danish deals expire 31 Dec, not 30 Jun — keep the day, not just
-   the year).
-
-### Before you call a record decoded: prove the EXTENT, not just the fields
-Ground truth on the fields you read says nothing about the fields you didn't. The player record
-decoded perfectly for four years while missing its last 13 bytes; the city walk had Parken and
-Copenhagen exact while dropping 31 real cities and inventing 3. Both passed every check we had.
-Run **`uv run python scripts/audit/audit_records.py [save.fms]`**:
-
-- **STRIDE** — the modal gap between consecutive records IS the stride you claim, and the rest
-  are multiples of it (skipped records, not noise). This is what settled the staff record at 39
-  bytes and left Style nowhere to hide.
-- **COVERAGE** — every byte in `[0, stride)` is a named field or declared `UNKNOWN` in the
-  record's `Record` declaration (the audit reads every registered `Record`, so there is no
-  second list to update). **A byte that is neither is a byte you are stepping over by
-  accident.**
-- **EXTENT** — a keyed table is dense from id 0. A gap means the walk dropped a row; an
-  overshoot means it invented one.
-
-**Never validate a field by JOINING ON IT.** A check that matches candidate rows *on* the
-date and then reports "282 of 285 agree on date" cannot fail when every date is uniformly
-wrong — a shift makes fewer rows join, and a high agreement rate among the rows that did join
-still reads as a pass. That is exactly how `fix_man`'s dates shipped a day late: the day-of-
-year is 1-indexed and `ymd_from` is 0-indexed, and the validation was measuring agreement
-among rows it had already filtered for agreement. **Join on something else (an id, a score)
-and let the field under test come out as OUTPUT**; re-measured that way it was 51/51 and 60/60
-rows needing exactly −1, across both careers, in one run.
-
-**Adjacent bytes are not one field until you show they are.** This has now cost two decodes.
-The staff record was measured against the PLAYER record's 78-byte stride, so `id2` read 0, 2,
-4, … and the write-up concluded "multi-segment, a grid walk is provably impossible" — it is a
-dense 39-byte array. The fixture record's `+78..81` were read as one u32, which offered only
-"u8 plus padding" or "u32", and both look wrong — `+78` is a round counter and `+79`/`+80`/
-`+81` are three separate small columns. In both cases every measurement was correct and the
-grouping was the error. Non-zero neighbours argue against PADDING, never against a narrow
-field.
-
-Two rules follow, and the recent bugs all break them:
-- **Bound a table walk by the table's own invariant, never a tuned constant.** A miss counter or
-  a plausibility window makes the row count a function of the constant. The city table's real
-  invariant is `id == slot index`.
-- **One declarative layout per record is the schema.** `staging.INFO_LAYOUT` is a table of
-  `(offset, width, name, kind)` with `UNKNOWN` rows as first-class entries: `_decode_info` reads
-  FROM it and `scripts/audit/audit_records.py` checks AGAINST it, so the parser and its audit cannot
-  drift. **`uv run python scripts/audit/audit_records.py --map` prints the per-byte schema** — that is
-  the record documentation, generated rather than retyped, so it cannot go stale.
-- **Bound a record by its own invariant, not a plausibility window.** The person table was
-  once read by a sentinel sweep that produced 77 "empty slots" with joined dates in 1290 and
-  2570 — misaligned reads, not data. Walked from its count frame with `tid == slot index`, all
-  32,966 records are real people and none needs a date window or a range test.
-- **Carry what you cannot name — then go and name it.** A byte identified as an attribute but
-  not labelled is still data, so both records' hidden attributes are carried. The PLAYER nine
-  are now NAMED from `nyongrand/fmm-editor`'s `Player.cs` (`jumping`, `consistency`,
-  `big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`, `work_rate`, `flair`) —
-  the order is confirmed by seven independently-verified anchors plus the fact that the 18
-  slots FMM22 fills are exactly the ability-independent attributes and the 16 it leaves are
-  exactly the technical/GK values it computes from CA. The STAFF six stay `hidden_s*`, named by
-  OFFSET, because fmm-editor has **no `Staff.cs`** — it stops at the `Unknown6b` link that
-  leads there, so there is no upstream order to borrow and no ground truth of our own.
-  Nothing derives from any of the fifteen and none is surfaced. Guessing a name is how `-140`
-  became a Style candidate; sourcing one and checking it twice is not guessing.
-
-## The web app (one UI for phone and desktop)
-`site/` is a static single-page app on Cloudflare Pages — the primary UI, since Streamlit can't be
-hosted without a server. Its sections collate the 13 dashboard pages: **Squad** (one configurable
-table merging the squad list, Development + projections, Player Stats and Registration — the
-A/B lists as a column, the quotas as one hover/tap card, saved windows under the table; see
-below), **Builder**, **Recruitment** (search + shortlist + the capital rule), **Matches**,
-**History**, **World**. Every owned player's profile sheet ends in a **Loan outlook**
-(`site/js/loans.js`, data `api/loans.json`): his Level %ile in each division from ours down to
-3. Division, against each club's starter line at his position in its manager's preferred
-formation — see `build_loans` in `scripts/_export_db.py`. It ships DATA
-and computes on the client, so switching tactic re-rates every player with no rebuild.
-**Streamlit stays** for what writes to DuckDB (Tactics, Config) and for Team Builder.
-Read [`docs/DEPLOY.md`](docs/DEPLOY.md) before touching it.
-
-### Squad registration is a HOUSE RULE, not something the save models
-FMM22 has no A-list, no B-list and no home-grown requirement. The Squad page's registration
-columns and card (`site/js/registration.js`) enforce the Danish Herre-DM rules ([`docs/danish-registration-rules.md`](docs/danish-registration-rules.md))
-on ourselves: a 25-man A-list needing 8 home grown of whom 4 club-trained (tiers 1–2 only), plus
-an unlimited B-list for players under 21 at the last new year. Home-grown status is **derived** —
-never report it as a fact the game asserts. The data layer is the registration family in
-`fmstats/mart.py` (`mart.squad_registration` for our squad, `mart.player_homegrown` for
-everyone, `mart.player_training` for the club-by-club months); the derivation and its two
-deliberate departures from a literal reading are in
-[`docs/agent-context/homegrown-derivation.md`](docs/agent-context/homegrown-derivation.md) and
-[`site/guides/registration.md`](site/guides/registration.md). The A/B plan itself lives in
-browser localStorage — it is a plan, not save data, and nothing writes it back. A plan can be
-**saved against a transfer window** (`site/js/regwindows.js` → `/api/registrations` →
-`state/registrations/<year>-<summer|winter>.json` in R2, same token as the shortlist) as the
-history of what was registered and the starting point for the next window.
-
-**`scripts/export_data.py` reads only the `mart` schema** (since 2026-08-25) — no `raw`
-table, no `main` view. Add a field to the site by adding it to `fmstats/mart.py` first. And
-because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
+**`scripts/export_data.py` reads only the `mart` schema** — no `raw` table, no `main` view.
+Add a field to the site by adding it to `fmstats/mart.py` first (see
+[`fmstats/CLAUDE.md`](fmstats/CLAUDE.md)). And because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
 is the regression test: a no-op export must produce a no-op diff.
 
-## Skills (in `.claude/skills/`, auto-discovered)
-- **import-fm-saves** — parse new `.fms` saves → load into the career's DuckDB store. Use when new saves appear.
-- **scout-opponent** — technical-analyst opposition briefing (combines our data + the user's in-game scout report).
-- **preseason-squad-review** — squad review at a season boundary.
-- **developing-with-streamlit** — conventions for editing the dashboard.
-
 ## Toolchain
-- **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`.
-  The extractors are stdlib-only **except numpy** (`fmparser/tables/history.py` locates the 265k-record
-  history pool from its own pointers), and numpy is in the uv env, so there's nothing left that needs a system
-  python. The old "extractors need bare `python3`" rule was a portability trap: it made a second
-  machine depend on numpy being installed outside uv. Bare `python3` still works here if the system
-  interpreter happens to have numpy.
-- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. **`uv sync` is lean on purpose** — `duckdb`, `pandas` and `zstandard` (the save archive's codec, so extract reads the fixtures and rules) are the whole dependency set, and there are no extras for a `uv run` to drop. If zstandard is somehow missing, extract stops with a message rather than write empty fixture files (`--no-archive` goes on without them).
-- **`fmq.py` and the `fmstats/` package are the query layer.** `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. It re-creates the mart views on the cached copy from this checkout's `fmstats/mart.py` whenever they differ, so a view added here works against an older published store without republishing it. **Facts go in the mart, opinions stay in `fmstats`:** a rule that gives every consumer the same answer (a table, a record, a primary position) is a mart view so the site, remote SQL and `fmq` share it; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation stay in Python. `fmstats/scout.py` is the scouting engine (`scout_report`, `save_scout`, `grade_scout`), `fmstats/stats.py` per-player output, `fmstats/league.py` league tables rebuilt from the fixture list, `fmstats/state.py` the R2-mirrored scout log.
+- **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`; numpy (used by `fmparser/tables/history.py`) is in the uv env, so no system python is needed.
+- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. If zstandard (the save archive's codec) is somehow missing, extract stops with a message rather than write empty fixture files (`--no-archive` goes on without them).
+- **`fmq.py` and the `fmstats/` package are the query layer** — read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either. `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. **Facts go in the mart, opinions stay in `fmstats`.**
 - **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style); the game's new season
