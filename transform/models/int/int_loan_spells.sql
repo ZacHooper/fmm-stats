@@ -31,8 +31,10 @@
 -- season it starts in, and is cut at a season boundary only where a loan of
 -- ours in the next season meets it, since the flag can run unbroken from a
 -- loan into its renewal; a loan's last weeks can lie past the rollover day
--- (Bucaspor's run to 28 June, its rollover 20 June). Elsewhere the save gives
--- no loan dates and they read NULL.
+-- (Bucaspor's run to 28 June, its rollover 20 June). With two loans of ours
+-- in one season the runs cannot be told apart, so both read NULL (Johan
+-- Maarup's 2026/27: AB, and a 0-app line at FC Botosani, where he went
+-- next). Elsewhere the save gives no loan dates and they read NULL.
 with career as (
     select * from {{ ref('stg_career') }}
 ),
@@ -212,12 +214,14 @@ loans as (
 ),
 
 ours as (
-    select distinct
+    select
         loans.person_id,
-        loans.season
+        loans.season,
+        count(*) as loans
     from loans
     cross join career
     where loans.parent_club_tid = career.managed_club_tid
+    group by loans.person_id, loans.season
 ),
 
 -- each slice goes to the latest loan of ours in its season or before, back
@@ -267,11 +271,15 @@ select
     loans.borrowing_team_tid,
     loans.parent_club_tid,
     case
-        when loans.parent_club_tid = career.managed_club_tid
+        when
+            loans.parent_club_tid = career.managed_club_tid
+            and ours.loans = 1
             then dated.start_date
     end as start_date,
     case
-        when loans.parent_club_tid = career.managed_club_tid
+        when
+            loans.parent_club_tid = career.managed_club_tid
+            and ours.loans = 1
             then dated.end_date
     end as end_date,
     loans.first_seen_date,
@@ -283,3 +291,7 @@ left join dated
     on
         loans.person_id = dated.person_id
         and loans.season = dated.season
+left join ours
+    on
+        loans.person_id = ours.person_id
+        and loans.season = ours.season

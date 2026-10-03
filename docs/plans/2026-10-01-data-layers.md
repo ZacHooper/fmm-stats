@@ -570,8 +570,10 @@ the rules and their measurements):
   released / retired), `int_transfers` (club changes between career lines, loan lines skipped,
   plus the newest snapshot's club for a move the history has no line for yet; fee from the
   seller's line; snapshot bounds and `move_date` = the record's joined date, which lies inside
-  the window on 13,473/13,473 club changes), `int_loan_spells` (loan lines and squad listings;
-  real dates for our loans out from Player Progress), `int_staff_spells` (team and role;
+  the window on 13,473/13,473 club changes but is reset by a return from loan, so it is kept only
+  where no loan out lies between; no move out of a youth side, a team with no club record),
+  `int_loan_spells` (loan lines and squad listings; real dates for our loans out from Player
+  Progress, none where two loans of ours share a season), `int_staff_spells` (team and role;
   manager = the unlisted staff member with a staff record), `int_squad_membership`.
 - **mart**: `fact_contract`, `fact_transfer`, `fact_loan_spell`, `fact_staff_spell`, and the
   `squad_membership` view. Everything is keyed by `person_id`; squad membership is the squad
@@ -616,6 +618,16 @@ test passes on all three):
   carry `person_id` and no name, so they cannot.
 - Checks: status 65 ("loaned out") is listed on loan by another club on only 67 of 1,475
   status-65 snapshots (TODO #4); the contracted flag is set on 708 / 1,014 / 170 free agents.
+- Confirmed in game (Zac, 1 Mar 2028 save): the joined date resets on a return from loan
+  (Grosso, Minerba, Ellegaard), so `move_date` is cleared where a loan out lies between the move
+  and it (710 of 13,472 watched moves on A, 681 of 11,331 on B); "Frem Yth" (tid 65189) is
+  Frem's youth side, and the 3,129 / 5,040 / 291 moves out of a youth side are dropped (a
+  graduate's promotion), keeping the 2 / 4 whose snapshot shows a released academy player
+  signed as a free agent. Seasons (Grosso's free move 2024/25), Balslev's £1K (a loan with an
+  option to buy), Dehn's £14M, Sørensen's £6M, Sidhu's £3.3M and Maarup's loans all as the
+  tables give them. The counts above are after these fixes; the loan-out dates in B and
+  Bucaspor's checks drop to 36 and 9 within a day, Maarup's and one Bucaspor player's two loans
+  in one season now reading NULL.
 - `validate_mart.py`: identical output on baseline and branch copies of all three stores (each
   stops at the same full-store-only assertion). `run_tests.py`: 30 passed, 4 skipped (saves not
   in the sandbox). `lint_sql.py` clean.

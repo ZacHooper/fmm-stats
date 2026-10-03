@@ -745,9 +745,12 @@ unit_tests:
       A move is a club change between two lines that are not loans, at club level, with the
       fee from the selling club's line: a loan line between two lines at one club is no move,
       a move into a Free agent line is a release (no row), the move out of it a free agent
-      signing (no from club, free), and a reserve side's line is its club's. The club on the
-      newest snapshot ends the history: a move to it the history has no line for yet is a
-      move too, seasoned by its joined date and bounded by the two snapshots that show it.
+      signing (no from club, free), a reserve side's line is its club's, and a move out of a
+      youth side (a team with no club record) is none unless the snapshot before shows a free
+      agent. The club on the newest snapshot ends the
+      history: a move to it the history has no line for yet is a move too, seasoned by its
+      joined date and bounded by the two snapshots that show it. A joined date reset by a
+      return from loan is not the move's date.
     model: int_transfers
     given:
       - input: ref('stg_career')
@@ -759,8 +762,15 @@ unit_tests:
           - {snapshot_date: '2026-06-11', season: 2026}
       - input: ref('int_teams')
         rows:
+          - {snapshot_date: '2026-06-11', team_tid: 100, club_tid: 100}
+          - {snapshot_date: '2026-06-11', team_tid: 200, club_tid: 200}
+          - {snapshot_date: '2026-06-11', team_tid: 300, club_tid: 300}
+          - {snapshot_date: '2026-06-11', team_tid: 400, club_tid: 400}
           - {snapshot_date: '2026-06-11', team_tid: 401, club_tid: 400}
           - {snapshot_date: '2026-06-11', team_tid: 500, club_tid: 500}
+          - {snapshot_date: '2026-06-11', team_tid: 337, club_tid: 337}
+          - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
+          - {snapshot_date: '2026-06-11', team_tid: 3082, club_tid: 3082}
       - input: ref('int_player_career_lines')
         rows:
           - {person_id: 9-2000-01-01, line_index: 0, season: 2020, club_tid: 100, fee_kind: stay, fee_gbp: null}
@@ -770,8 +780,22 @@ unit_tests:
           - {person_id: 9-2000-01-01, line_index: 4, season: 2022, club_tid: null, fee_kind: free, fee_gbp: null}
           - {person_id: 9-2000-01-01, line_index: 5, season: 2023, club_tid: 400, fee_kind: stay, fee_gbp: null}
           - {person_id: 9-2000-01-01, line_index: 6, season: 2024, club_tid: 401, fee_kind: fee, fee_gbp: 1000000}
+          - {person_id: 8-2003-01-01, line_index: 0, season: 2024, club_tid: 65189, fee_kind: unknown, fee_gbp: null}
+          - {person_id: 8-2003-01-01, line_index: 1, season: 2025, club_tid: 337, fee_kind: free, fee_gbp: null}
+          - {person_id: 8-2003-01-01, line_index: 2, season: 2025, club_tid: 346, fee_kind: stay, fee_gbp: null}
+          - {person_id: 8-2003-01-01, line_index: 3, season: 2025, club_tid: 2532, fee_kind: loan, fee_gbp: null}
+          - {person_id: 8-2003-01-01, line_index: 4, season: 2026, club_tid: 346, fee_kind: stay, fee_gbp: null}
+          - {person_id: 7-2008-01-01, line_index: 0, season: 2025, club_tid: 65015, fee_kind: unknown, fee_gbp: null}
+          - {person_id: 7-2008-01-01, line_index: 1, season: 2026, club_tid: 3082, fee_kind: stay, fee_gbp: null}
+      - input: ref('int_loan_spells')
+        rows:
+          - {person_id: 8-2003-01-01, season: 2025, borrowing_club_tid: 2532, parent_club_tid: 346}
       - input: ref('int_player_info')
         rows:
+          - {snapshot_date: '2022-07-02', person_id: 8-2003-01-01, club_tid: 337, joined_date: '2022-08-04'}
+          - {snapshot_date: '2026-06-11', person_id: 8-2003-01-01, club_tid: 346, joined_date: '2026-01-05'}
+          - {snapshot_date: '2022-07-02', person_id: 7-2008-01-01, club_tid: null, joined_date: '2021-07-01'}
+          - {snapshot_date: '2026-06-11', person_id: 7-2008-01-01, club_tid: 3082, joined_date: '2025-08-01'}
           - {snapshot_date: '2022-07-02', person_id: 9-2000-01-01, club_tid: null, joined_date: '2022-06-30'}
           - {snapshot_date: '2026-06-11', person_id: 9-2000-01-01, club_tid: 500, joined_date: '2026-01-02'}
     expect:
@@ -779,6 +803,8 @@ unit_tests:
         - {person_id: 9-2000-01-01, to_line_index: 3, from_line_index: 2, from_club_tid: 100, to_club_tid: 300, season: 2022, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 500000, transfer_type: permanent, is_from_snapshot: false}
         - {person_id: 9-2000-01-01, to_line_index: 5, from_line_index: 4, from_club_tid: null, to_club_tid: 400, season: 2023, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
         - {person_id: 9-2000-01-01, to_line_index: 7, from_line_index: 6, from_club_tid: 400, to_club_tid: 500, season: 2026, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: '2026-01-02', was_free_agent: true, fee_gbp: 1000000, transfer_type: permanent, is_from_snapshot: true}
+        - {person_id: 7-2008-01-01, to_line_index: 1, from_line_index: 0, from_club_tid: null, to_club_tid: 3082, season: 2026, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: '2025-08-01', was_free_agent: true, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
+        - {person_id: 8-2003-01-01, to_line_index: 2, from_line_index: 1, from_club_tid: 337, to_club_tid: 346, season: 2025, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: null, was_free_agent: false, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
 
   - name: loan_spells_from_lines_and_squads
     description: >
@@ -788,7 +814,7 @@ unit_tests:
       shows him at with a joined date before the loan's season, else the club of the last
       line before the loan that is not a loan. Our own loans out take their first and last
       week on loan from Player Progress, cut at a season boundary only where a loan of ours
-      in the next season meets the run.
+      in the next season meets the run; two loans of ours in one season get no dates.
     model: int_loan_spells
     given:
       - input: ref('stg_career')
@@ -812,6 +838,10 @@ unit_tests:
           - {person_id: t, line_index: 1, season: 2022, club_tid: 1625, fee_kind: loan}
           - {person_id: u, line_index: 0, season: 2023, club_tid: 346, fee_kind: stay}
           - {person_id: u, line_index: 1, season: 2024, club_tid: 600, fee_kind: loan}
+          - {person_id: v, line_index: 0, season: 2026, club_tid: 346, fee_kind: stay}
+          - {person_id: v, line_index: 1, season: 2027, club_tid: 325, fee_kind: loan}
+          - {person_id: v, line_index: 2, season: 2028, club_tid: 346, fee_kind: stay}
+          - {person_id: v, line_index: 3, season: 2027, club_tid: 3756, fee_kind: loan}
       - input: ref('int_player_info')
         rows:
           - {snapshot_date: '2024-11-01', person_id: t, club_tid: 6567, joined_date: '2020-08-25'}
@@ -825,6 +855,7 @@ unit_tests:
           - {person_id: q, spell_type: on_loan, start_date: '2023-08-04', end_date: '2025-02-01'}
           - {person_id: q, spell_type: injured, start_date: '2023-09-01', end_date: '2023-09-15'}
           - {person_id: u, spell_type: on_loan, start_date: '2023-08-01', end_date: '2024-07-05'}
+          - {person_id: v, spell_type: on_loan, start_date: '2026-07-14', end_date: '2027-06-20'}
     expect:
       rows:
         - {person_id: q, season: 2024, borrowing_club_tid: 600, borrowing_team_tid: 600, parent_club_tid: 346, start_date: '2023-08-04', end_date: '2024-06-29', first_seen_date: null, has_line: true}
@@ -833,6 +864,8 @@ unit_tests:
         - {person_id: s, season: 2025, borrowing_club_tid: 700, borrowing_team_tid: 700, parent_club_tid: 951, start_date: null, end_date: null, first_seen_date: '2024-11-01', has_line: true}
         - {person_id: t, season: 2022, borrowing_club_tid: 1625, borrowing_team_tid: 1625, parent_club_tid: 6567, start_date: null, end_date: null, first_seen_date: null, has_line: true}
         - {person_id: u, season: 2024, borrowing_club_tid: 600, borrowing_team_tid: 600, parent_club_tid: 346, start_date: '2023-08-01', end_date: '2024-07-05', first_seen_date: null, has_line: true}
+        - {person_id: v, season: 2027, borrowing_club_tid: 325, borrowing_team_tid: 325, parent_club_tid: 346, start_date: null, end_date: null, first_seen_date: null, has_line: true}
+        - {person_id: v, season: 2027, borrowing_club_tid: 3756, borrowing_team_tid: 3756, parent_club_tid: 346, start_date: null, end_date: null, first_seen_date: null, has_line: true}
 
   - name: staff_spells_by_team_and_role
     description: >

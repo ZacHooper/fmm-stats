@@ -142,20 +142,30 @@ expiry on 3 and 6, team (within the club) on 544 and 1,919; all three are kept f
 
 **Transfers.** The fee code sits on the selling club's last line before the move; a loan's
 `loan` code on the borrowing club's line. A move made during a season has no buying-club line
-until the season ends, so the club on the newest snapshot closes each history. `joined_date`
-lies between the two snapshots of every club change measured (13,473/13,473), so it is
-`move_date`. A free agent whose contract ran out in June and who signs in July is labelled by
+until the season ends, so the club on the newest snapshot closes each history. A youth side
+("Frem Yth", tid 65189) has no club record and appears only on its graduates' first line, with a
+fee code not understood; the club that owns it is not stored, so a move out of it is not a
+transfer. `joined_date` lies between the two snapshots of every club change measured
+(13,473/13,473), but **the game resets it when a player returns from a loan** (confirmed in game
+on Matteo Grosso, Ruben Minerba and Frederik Ellegaard, all of whose records carry a loan-return
+date), so it is `move_date` only where the buying club did not loan him out between the move's
+season and that date, and the date lies within a season of the move's. Seasons confirmed in
+game: Grosso's free move from Brøndby is 2024/25 (his Frem line shows "Bos"), as the history
+says; Frederik Balslev's £1K to Hvidovre is right (a loan with an option to buy). A free agent whose contract ran out in June and who signs in July is labelled by
 the game with the season just ended, and the history often has no Free-agent line for the gap:
 `from_club_tid` is then the club whose contract ran out and `was_free_agent` says the snapshot
 before the move showed him without a club.
 
-**Loans.** The game removes a loan year's 0-app parent line once the season ends, so the line
+**Loans.** The game can remove a loan year's 0-app parent line once the season ends (it keeps
+them for some players: Johan Maarup's Frem lines stand beside each of his loans), so the line
 before a loan can name the club before the parent. The parent is the listing's record club,
 else our club where Player Progress flags him on loan that season, else the club a later
 snapshot shows him at with a joined date before the loan's season, else the line before.
 Player Progress's on-loan weeks mark only loans out (no run overlaps a loan to us) and can run
 past the rollover day (Bucaspor's to 28 June, its rollover 20 June), so a run is cut at a season
-boundary only where a loan of ours in the next season meets it.
+boundary only where a loan of ours in the next season meets it. Two loans of ours in one season
+get no dates (Maarup's 2026/27 shows AB and a 0-app FC Botoşani line, the loan he went on
+next), since the runs cannot be told apart.
 
 **Staff.** A club's staff array lists its coaches, not its manager: the manager is the person
 with a staff record on a team's books whom its array does not list, the higher home reputation

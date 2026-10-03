@@ -9,7 +9,13 @@
 -- is a move to the borrowing club). A line with no club (the game's Free
 -- agent) is a spell without a club: a move into it is a release, not a
 -- transfer, and the move out of it is a free agent signing (from_club_tid
--- NULL).
+-- NULL). A line at a team with no club record is a youth side (Frem's is
+-- "Frem Yth", tid 65189, on its graduates' first line; every such line on
+-- the gate stores is a player's first, with a fee code not understood), and
+-- which club owns it is not stored, so a move out of it is not a transfer
+-- (a graduate's promotion to his own club) unless the snapshot before shows
+-- him a free agent: an academy player released and signed by a club, a free
+-- agent signing with no from club.
 --
 -- A move made during a season has no line for the buying club until the
 -- season ends, so each player's history ends with his club on his newest
@@ -29,9 +35,14 @@
 --
 -- Snapshot bounds. A move made while the store was watching shows on the
 -- player's snapshots as a club change: moved_after is the last snapshot with
--- him elsewhere (or a free agent), moved_by the first at the buying club, and
--- move_date the date he joined the club where his record's joined date lies
--- between the two (it does on every club change measured). was_free_agent:
+-- him elsewhere (or a free agent), moved_by the first at the buying club.
+-- move_date is the date his record says he joined the club, where it lies
+-- between the two (it does on every club change measured) and is the move's
+-- own: the game resets the joined date when a player returns from a loan
+-- (confirmed in game on Matteo Grosso, Ruben Minerba and Frederik
+-- Ellegaard), so it is NULL where the buying club loaned him out between the
+-- move's season and that date, or the date lies more than a season from the
+-- move's season. was_free_agent:
 -- he had no club on moved_after. The history often has no line for that
 -- spell (a contract that ran out in June, a signing in July), so from_club_tid
 -- is then the club whose contract ran out. Each club change
@@ -59,7 +70,9 @@ history as (
         career_lines.season,
         coalesce(teams.club_tid, career_lines.club_tid) as club_tid,
         career_lines.fee_kind,
-        career_lines.fee_gbp
+        career_lines.fee_gbp,
+        career_lines.club_tid is not null and teams.team_tid is null
+            as is_youth_side
     from {{ ref('int_player_career_lines') }} as career_lines
     left join teams
         on career_lines.club_tid = teams.team_tid
@@ -127,7 +140,8 @@ newest as (
         ) as season,
         snapshots.club_tid,
         cast(null as varchar) as fee_kind,
-        cast(null as bigint) as fee_gbp
+        cast(null as bigint) as fee_gbp,
+        false as is_youth_side
     from snapshots
     inner join last_lines as last_line
         on snapshots.person_id = last_line.person_id
@@ -160,6 +174,7 @@ moves as (
             person_id,
             line_index as from_line_index,
             club_tid as from_club_tid,
+            is_youth_side,
             fee_kind,
             fee_gbp,
             lead(line_index) over w as to_line_index,
@@ -202,27 +217,54 @@ bounded as (
         row_number() over (
             partition by person_id, to_line_index order by moved_by
         ) = 1
+),
+
+-- moves after which the buying club loaned the player out, up to the season
+-- of the date his record says he joined it
+loaned_between as (
+    select distinct
+        moves.person_id,
+        moves.to_line_index
+    from moves
+    inner join bounded
+        on
+            moves.person_id = bounded.person_id
+            and moves.to_line_index = bounded.to_line_index
+    cross join career
+    inner join {{ ref('int_loan_spells') }} as loans
+        on
+            moves.person_id = loans.person_id
+            and moves.to_club_tid = loans.parent_club_tid
+            and loans.season
+            between moves.season and {{ season_of('bounded.move_date') }}
 )
 
 select
     moves.person_id,
     moves.to_line_index,
     moves.from_line_index,
-    moves.from_club_tid,
+    case when not moves.is_youth_side then moves.from_club_tid end
+        as from_club_tid,
     moves.to_club_tid,
     moves.season,
     bounded.moved_after,
     bounded.moved_by,
-    bounded.move_date,
+    case
+        when
+            {{ season_of('bounded.move_date') }}
+            between moves.season - 1 and moves.season + 1
+            and loaned_between.person_id is null
+            then bounded.move_date
+    end as move_date,
     bounded.was_free_agent,
     moves.fee_kind,
     case
-        when moves.from_club_tid is null then 0
+        when moves.from_club_tid is null or moves.is_youth_side then 0
         when moves.fee_kind = 'fee' then moves.fee_gbp
         when moves.fee_kind in ('free', 'stay', 'contract_ended') then 0
     end as fee_gbp,
     case
-        when moves.from_club_tid is null then 'free'
+        when moves.from_club_tid is null or moves.is_youth_side then 'free'
         when moves.fee_kind = 'fee' and moves.fee_gbp > 0 then 'permanent'
         when moves.fee_kind = 'fee' then 'free'
         when moves.fee_kind in ('free', 'stay', 'contract_ended') then 'free'
@@ -233,3 +275,9 @@ left join bounded
     on
         moves.person_id = bounded.person_id
         and moves.to_line_index = bounded.to_line_index
+left join loaned_between
+    on
+        moves.person_id = loaned_between.person_id
+        and moves.to_line_index = loaned_between.to_line_index
+cross join career
+where not moves.is_youth_side or bounded.was_free_agent
