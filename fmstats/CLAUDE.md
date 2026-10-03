@@ -26,9 +26,10 @@ The plan is [`docs/plans/2026-10-01-data-layers.md`](../docs/plans/2026-10-01-da
   snapshots, seasons, awards, injuries; contracts, transfers, loans, staff spells and squad
   membership (`squad_membership`: who a squad array lists, never a record's club).
 - **`fmstats/mart.py` is the old consumer mart**: ~87 views in one file, each re-applying the
-  same rules to raw. Step 17 builds each one again over the new tables, beside it, as
-  `site.<same name>`; step 18 proves the pair agree on a new save imported end to end; step 19
-  points the consumers at `site.*`; step 20 deletes the old ones. Until step 19 the old views
+  same rules to raw. Step 17 designs a small set of consumer marts
+  on the new tables, for what the site and `fmq` read, beside the old views (not a port of
+  each); step 18 proves their export matches the old one on a new save imported end to end;
+  step 19 points the consumers at them; step 20 deletes the old ones. Until step 19 the old views
   are what everything reads, and they stay untouched. `fmstats/compat.py` and `transform/models/legacy/` keep the old
   shapes alive for it until then. **Nothing reads the new tables yet** except
   `tests/validate_mart.py`; `scout`, `stats`, `league`, `fmq` and the site export all read the

@@ -51,8 +51,10 @@
 -- spell (a contract that ran out in June, a signing in July), so from_club_tid
 -- is then the club whose contract ran out. Each club change
 -- belongs to the latest move to that club whose season lies within one of the
--- two snapshots' seasons; a move made before the store's first snapshot, or a
--- move undone between two snapshots (A -> B -> A), has none.
+-- two snapshots' seasons, no later than the later snapshot's where one is (a
+-- player can return to the club after it: Aitor Ruibal, 1013 -> Espanyol in
+-- 2022/23, back at Espanyol in 2024/25); a move made before the store's first
+-- snapshot, or a move undone between two snapshots (A -> B -> A), has none.
 with career as (
     select * from {{ ref('stg_career') }}
 ),
@@ -188,7 +190,10 @@ moves as (
         )
 ),
 
--- each club change, the move it shows
+-- each club change, the move it shows: the latest move to that club whose
+-- season is no later than the later snapshot's, else one a season later (a
+-- signing in June for the season to come), so a later return to the club is
+-- not taken for it
 placed as (
     select
         changes.person_id,
@@ -196,7 +201,12 @@ placed as (
         changes.moved_by,
         changes.move_date,
         changes.from_club_tid is null as was_free_agent,
-        max(moves.to_line_index) as to_line_index
+        coalesce(
+            max(moves.to_line_index) filter (
+                where moves.season <= changes.season_by
+            ),
+            max(moves.to_line_index)
+        ) as to_line_index
     from changes
     inner join moves
         on

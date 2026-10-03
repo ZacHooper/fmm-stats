@@ -110,9 +110,9 @@ One PR each, merged green, in this order.
 | 14 | Competition and match (14a, 14b) | both | vs `mart.club_matches`, `match_stages`; then `league_tables`, `match_player_facts` |
 | 15 | Person and the two models | layers | vs `mart.player_snapshots`, `player_value_est`, `injury_spells`, `player_seasons` |
 | 16 | Contracts and transfers | layers | vs `mart.player_spells`, `at_club_spells`, `transfers`, `loan_out_spells`, `squad_current` |
-| 17 | The site's marts, rebuilt side by side (17a–17d) | layers | each new view = its old view row for row, or a listed difference with its reason |
-| 18 | End to end on a new save | both | a new save imported the normal way; the comparison clean but for listed differences |
-| 19 | Switch over | layers | consumers read the new views; `git diff site/api` only the listed differences |
+| 17 | Consumer marts designed on the model | layers | the export from the new marts = the old export, or a listed intended difference |
+| 18 | End to end on a new save | both | a new save imported the normal way; the export diff clean but for listed differences |
+| 19 | Switch over | layers | consumers read the new marts; `git diff site/api` only the listed differences |
 | 20 | Retire and publish | layers | old views dropped; publish verify; size within the R2 budget |
 
 **Why this order.** Steps 1–4 fix the inputs first: the whole club and competition tables and the
@@ -649,53 +649,47 @@ test passes on all three):
   stops at the same full-store-only assertion). `run_tests.py`: 30 passed, 4 skipped (saves not
   in the sandbox). `lint_sql.py` clean.
 
-## 17. The site's marts, rebuilt side by side
-Every old view a consumer reads is built again over the `dim_*` / `fact_*` tables, **beside** the
-old one, which stays exactly as it is and is still what every consumer reads. Nothing is switched
-or deleted in this step.
+## 17. Consumer marts designed on the model
+The site and `fmq` get a small set of marts designed for what they read, built on the `dim_*` /
+`fact_*` tables, **beside** the old views, which stay exactly as they are and are still what
+every consumer reads. Nothing is switched or deleted in this step. The old ~80 views are not
+ported one for one: their shapes are what grew, not what is read, and copying them would
+rebuild their quirks (65535 as a club, a loanee at the team listing him, the 1 July calendar)
+only to delete them at step 19.
 
-- **Where**: a dbt schema `site`, one model per old view, **same name and columns** as the
-  `mart.*` view it replaces (`site.player_snapshots` beside `mart.player_snapshots`), so a
-  consumer moves later by changing one schema name. Views, not tables, unless a measured cost
-  says otherwise (store size, step 20). Keys are the new ones underneath, but the output keeps
-  the old columns (`season`, `phase`, `tid`) where consumers read them.
-- **Which**: the ~37 views `scripts/export_data.py` / `_export_db.py` read, then the ones `fmq`,
-  `scout`, `stats` and `league` read that the export does not (~24, overlapping), then
-  `validate_mart.py`'s. The inventory is the first commit: a table of every old view, who reads
-  it, and the new tables it will be built on.
-- **The parallel export**: `export_data.py --schema site --out <scratch>` writes the same JSON
-  from the new views, never into `site/api`.
-- **The comparison**: `scripts/compare_marts.py STORE` diffs every `site.X` against `mart.X`
-  (keyed, row for row, through `diff_stores.py`'s machinery) and the two export directories
-  file by file. Differences the new tables make on purpose are listed in
-  `transform/compare/expected.yml`, each with its key, column, count and reason (loans at the
-  borrowing club; a reserve-side origin read as its club; extra-time minutes; the rollover-day
-  season cut; 65535 read as NULL); anything not listed fails.
-- **Order**, one PR per area, each gated by the comparison on the step-16 gate stores:
-  17a squads, spells, transfers, managers (step 16's views); 17b person, origin, development and
-  value views; 17c match, competition, league and table views; 17d clubs, nations, finances and
-  the rest. The one primary-position rule (TODO #21) is built here as `site.player_primary_position`,
-  but the depth chart and `data.js` move only at step 19.
+- **Design first**: the first commit is the design, from what is read: each site JSON file and
+  each `fmq` / `scout` / `stats` / `league` command, the fields it uses, and the mart that
+  serves them, roughly one per consumer shape (squad, player, club, transfers and loans,
+  development, matches and tables). Reviewed before any is built.
+- **Where**: a dbt schema `site`, views over the model's tables, each a thin select; a rule two
+  consumers share lives in int or the mart tables, not in a site view. They follow the model's
+  rules: `snapshot_date`, NULL where the save gives nothing, the career's rollover day.
+- **The check is what users see**: the export gains a path that reads the new marts and writes
+  the same JSON to a scratch directory, never `site/api`, and the two exports are diffed file
+  by file. Every difference is either fixed or listed as intended, with its reason; anything
+  else fails. Hard derived logic (transfers, loans, contracts, origin) is also diffed row for
+  row against its old view.
+- **Order**, one PR per consumer area once the design is agreed; the primary-position rule
+  (TODO #21) is one of them.
 
-**Check**: per PR, `compare_marts.py` clean but for listed differences on the gate stores; the
-old `mart.*` byte-for-byte unchanged (`diff_stores.py` on the old views); `git diff site/api`
-empty (the real export still reads `mart`).
+**Check**: per PR, the export diff clean but for listed intended differences on the gate
+stores; the old `mart.*` unchanged; `git diff site/api` empty (the real export still reads
+`mart`).
 
 ## 18. End to end on a new save
-The proof the user asked for before anything is turned off: take a save the store has never seen
-and run the import exactly as a new save is run (`archive_save.py`, `extract.py`,
-`load_duckdb.py`, which builds both paths), into a full store; then the parallel export and
-`compare_marts.py`. Repeat on each new save until it is clean twice in a row with no new listed
-differences.
+The proof wanted before anything is turned off: take a save the store has never seen and run
+the import exactly as a new save is run (`archive_save.py`, `extract.py`, `load_duckdb.py`,
+which builds both paths), into a full store; then both exports and their diff. Repeat on each
+new save until it is clean twice in a row with no new listed differences.
 
 **Check**: a full rebuild of Frem from the manifest, then one new save imported on top; the
-comparison clean but for listed differences; both exports produced; `validate_mart.py` as today.
-The run's report is committed (`docs/plans/` or the PR), not the store.
+export diff clean but for listed differences; `validate_mart.py` as today. The run's report is
+committed (`docs/plans/` or the PR), not the store.
 
 ## 19. Switch over
-The consumers read `site.*`: the export (`--schema` default), `fmq`, `scout`, `stats`, `league`,
-`validate_mart.py`, the depth chart and `data.js` (TODO #21). Each listed difference now shows in
-`site/api`, reviewed once.
+The consumers read the new marts: the export, `fmq`, `scout`, `stats`, `league`,
+`validate_mart.py`, the depth chart and `data.js` (TODO #21). Each listed difference now shows
+in `site/api`, reviewed once.
 
 **Check**: `git diff site/api` is exactly the listed differences; `validate_mart.py`; `fmq` and a
 scout report run against the full store.
