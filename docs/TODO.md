@@ -326,16 +326,13 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
 ### 14. Person identity across snapshots
 - **`player_spells` holds a second, wrong name for some people** (Jonathan Bech also "Jose
   Almeida"); `mart.at_club_spells` is clean. Likely a recycled tid resolved at the wrong
-  snapshot.
-- **`is_staff` flipping to true empties a player's history** in that snapshot (tids 9231,
-  9430). Both are in [`agent-context/tid-recycling.md`](agent-context/tid-recycling.md).
-
-### 15. History lost to the pool's reclamation
-The career-history pool is fixed-size; 25.2% of sids have a SHORTER chain in 2026 than on day one
-([`table-framing.md`](table-framing.md)). Quantify it in the store (how many people have their
-richest history in an older snapshot), and if material, union history across snapshots in
-`fmstats/mart.py` — which also fixes the mart-only R2 object, where `player_career_seasons`
-reads the newest snapshot only.
+  snapshot. Step 16 rebuilds the spells on `person_id`.
+- **A scrapbook entry's tid can name a newgen** once the player it was written for has
+  retired (Lewandowski's 2024 World Best XI entry, tid now "Fabio Voeste" on 2027-08-09).
+  `mart.fact_player_award` resolves an entry to its `person_id` (`<tid>-<dob>`): the person
+  with that tid whose dob gives the entry's age on its date (or one less: the stored age lags a
+  birthday by a day or two). Anything else reading old entries must do the same
+  (`int.scrapbook_entries` is only our current squad, so safe).
 
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
@@ -344,6 +341,13 @@ reads the newest snapshot only.
   full 120 reads 90 and an extra-time substitute goes negative (Lucas Lodberg, 2023-02-22: −15).
   `mart.fact_player_match.minutes` counts extra time; the old view keeps the cap until step 17
   moves its consumers.
+
+### 16b. Career-history rating on youth-team lines
+49 career-history lines across the Frem gate store's snapshots (45 once unioned), every one at an academy tid with 38-40 apps,
+read a rating of 646.75-647.63 (u16 64675-64763). As a signed value that is -7.73 to -8.61,
+an ordinary average negated, so a youth-team line may store its rating that way. Prove it
+against a youth player's in-game history screen before reading these as ratings;
+`stg_player_history_seasons` passes them through. (0xFFFF, the save's "none", reads NULL.)
 
 ### 16a. Retire the stuck-loan workarounds
 `raw.players.loaned_in` is now true only for a player in our squad arrays whose own record

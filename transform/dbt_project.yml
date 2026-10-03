@@ -88,6 +88,13 @@ vars:
   # (Las Palmas C, Cartagena B), not a first team (int_teams).
   b_team: {club_type: 0, team_type: b_team}
   club_lists: [31, 61]        # first and last scrapbook list holding our squad
+  # The World Best XI pools (fact_player_award): one scrapbook list per season, first and
+  # last; and the All-Time pool's current copy (64 holds it as of last season's end).
+  world_best_xi_lists: [0, 30]
+  world_best_xi_all_time_list: 62
+  awards:
+    world_best_xi: World Best XI pool
+    world_best_xi_all_time: World Best XI All-Time pool
   contracted: 135             # the training row's contract flag (0x87)
   no_id16: 65535              # a u16 id field's "none" (0xFFFF); stg models read it as NULL
   no_id32: 4294967295         # the same in a u32 field (0xFFFFFFFF)
@@ -128,9 +135,19 @@ vars:
     is_injured: 3             # bits 0-1
     is_off_season: 16         # bit 4
     is_on_loan: 32            # bit 5
+  # Spells read from those bits (int_progress_spells): flagged weeks further apart than
+  # gap_days are two spells. A loan's gap spans the off-season week, when the series pauses.
+  progress_spells:
+    injured: {flag: is_injured, gap_days: 8}
+    off_season: {flag: is_off_season, gap_days: 8}
+    on_loan: {flag: is_on_loan, gap_days: 22}
   # A career-history line's transfer fee code (stg_player_history_seasons): below the floor it
   # is the fee in units of fee_unit_gbp; fee_contract_ended (0xFFFC) is a contract run out.
   fee_code_floor: 65000
   fee_unit_gbp: 1000
   fee_contract_ended: 65532
   scrapbook_max_age_days: 365
+  # The transfer-value model (int_player_value, seeds/value_model.csv): age enters capped at
+  # value_age_cap, and value_trusted_band is the range it was validated in, in GBP.
+  value_age_cap: 28
+  value_trusted_band: [20000, 5000000]

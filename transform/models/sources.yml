@@ -50,3 +50,4 @@ sources:
       - name: roles
       - name: training_attributes
       - name: positions
+      - name: value_model

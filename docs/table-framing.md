@@ -545,15 +545,19 @@ Four things follow, and they make the pool model concrete:
    2026); the group that gained rows had a median age of **22**. Falling max-chain-length
    (39 -> 26) corroborates it independently of sid identity.
 
-**The mechanism is most likely reclamation at career end, but this is NOT proven.** The age
-split is the evidence; `club_tid` cannot settle it, because a lapsed loan leaves a departed
-player's club pointing at his old club indefinitely (the reason `mart.squad_current` exists) —
-and indeed 97.6% of the shortened group vs 97.7% of the lengthened group still "have a club",
-which tells us nothing.
+**The mechanism: at the season rollover the game reuses the oldest lines of players who are
+still playing.** Confirmed in game. Raheem Sterling's Player History showed Liverpool 2010/11 to
+2013/14 on 22 Dec 2021. On 2 Jul 2027 it starts at 2016/17 Man City, and its TOTAL row
+(477 apps, 214 goals) is the sum of the 11 lines still shown. In the pool, record 80769 held his
+2015/16 Man City line on 2027-06-15 and 2027-06-29; on 2027-07-02 it holds a 2026/27 line for
+a Liège player. The five records that held tid 9225's 2008-2012 lines in the day-one save hold
+five other players' 2023-2025 seasons in the 2026 save, while he plays on into 2025. On the Frem
+gate store, 639 players still active in their newest snapshot have lost seasons with
+appearances (1,717 lines). The game can also unlink a loan year's 0-app parent-club line from the
+middle of a chain (tids 20024 and 26705), and a retired player's lines all go.
 
-**The consequence holds either way: an EARLIER snapshot can carry career history a LATER one has
-already dropped.** We keep a per-snapshot extract of every save, so that history is not lost to
-us — but only if something unions it across snapshots, and nothing currently does.
+**An EARLIER snapshot can carry career history a LATER one has already dropped**, so history is
+unioned across snapshots: `int.player_career_lines` (dbt) and `mart.fact_player_season`.
 
 ## The convention does NOT extend to the career half of the file (39 MB +)
 

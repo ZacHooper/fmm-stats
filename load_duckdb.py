@@ -1731,18 +1731,20 @@ def seed_event_types(con):
                     sorted(EVENT_TYPE.items()))
 
 
-# The game's codes, named: seeds/<file> -> raw.<table>, replaced on every load and
+# The game's codes, named, and the value model's coefficients: seeds/<file> -> raw.<table>, replaced on every load and
 # --refresh-only, so naming a code reaches a store with no re-extract. fmstats/mart.py
 # renders mart.roles and mart.training_attributes from the same files.
 CODE_SEEDS = (("roles", "roles.csv", "id INTEGER, name VARCHAR, inferred BOOLEAN"),
               ("training_attributes", "training_attributes.csv",
                "code INTEGER, abbrev VARCHAR"),
               ("positions", "positions.csv",
-               "code VARCHAR, unit VARCHAR, display_order INTEGER"))
+               "code VARCHAR, unit VARCHAR, display_order INTEGER"),
+              ("value_model", "value_model.csv", "term VARCHAR, coefficient DOUBLE"))
 
 
 def seed_codes(con):
-    """(Re)seed raw.roles, raw.training_attributes and raw.positions from seeds/."""
+    """(Re)seed raw.roles, raw.training_attributes, raw.positions and raw.value_model from
+    seeds/."""
     seeds = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds")
     for table, name, cols in CODE_SEEDS:
         types = ", ".join(f"'{c.split()[0]}': '{c.split()[1]}'" for c in cols.split(", "))

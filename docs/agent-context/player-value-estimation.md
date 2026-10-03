@@ -81,7 +81,7 @@ Effect sizes, holding everything else equal — age is the second-biggest term a
 * **In-sample fit on our own expensive players is visibly loose** — Garly £1,574,253 actual vs
   £186,803 estimated. The view exposes `value_actual` beside `value_est` precisely so this
   stays checkable rather than hidden.
-* **`llrp` is only identifiable because Frem climbed divisions** (league rep 14,860 → 34,817
+* **`llrp` is only identifiable because Frem climbed divisions** (league rep 58 → 136, read as 14,860 → 34,817 when the model was fitted
   across the training window). A career that never changed division has no variation to fit it
   from and the term will be meaningless there.
 

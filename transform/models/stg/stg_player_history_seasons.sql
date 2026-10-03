@@ -2,7 +2,9 @@
 -- line, 0.. follow it. A loan year has two lines, the parent club's (0 apps)
 -- and the loan club's. club_tid is NULL on a line with no club, the game's
 -- Free agent (var('no_id16')). goals is goals conceded for a goalkeeper;
--- rating is NULL before the career.
+-- rating is NULL where the save holds none: before the career it stores 0 or
+-- var('no_id16') (0xFFFF). A youth-team line can read 646-648
+-- (docs/TODO.md #16b).
 --
 -- fee is the code on the selling club's line: a number below
 -- var('fee_code_floor') is the fee in var('fee_unit_gbp')s; 'free', 'stay' and
@@ -30,7 +32,9 @@ select
     apps,
     goals,
     assists,
-    rating,
+    case
+        when round(rating * 100) <> {{ var('no_id16') }} then rating
+    end as rating,
     yellows,
     reds
 from {{ source('raw', 'player_history_seasons') }}
