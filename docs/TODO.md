@@ -164,15 +164,29 @@ development, not just injuries and loans.
   seeding (`strq`, `advs`, `rank`), TV and scheduling (`tvds`, `drdt`).
 - The archive's own framing: the two u64s ending each directory entry, `'sicomps'` and the byte
   after it, the `[08][00][00]` and u32 in the record header, the 13 bytes before member 0.
-- **Which competition a fixture belongs to.** A `fix_man` fixture names its stage
-  (`stage_key`, an index into `comp_man.dat`'s 78-byte stage grid) but no readable
-  competition. The link was searched for on the 182 stage instances of our own matches (13
-  competitions, every save) and found nowhere decoded: no fixture field and no stage-record
-  field is constant within a competition and distinct between them, a stage's key sits in its
-  own `comp_<uid>.dat` 42 times in 182 (6% background in the others), and `rgman.dat` /
-  `rule_group.dat` hold the uid beside the key 14 and 16 times. Until it is found, the store
-  labels a stage from our own match in it or by `mart.league_tables`' league rule
-  (`dim_match.competition_source`), a heuristic that is wrong for Spain (#13). First place to look: the stage record's unread `+1..+30`.
+- **Which competition a fixture belongs to: finish the link.** A `fix_man` fixture names its
+  stage (`stage_key`, the row number in `comp_man.dat`'s 78-byte stage grid) and its place in
+  that stage (`stage_index` +76, `round_index` +77, which are the rules' `indx` and position in
+  `rnds`). `comp_<uid>.dat` (`tables/comp_rules.py`) gives each competition's stages, and its
+  file name is the competition's uid. The missing step is stage key → uid. Known so far:
+  - A key belongs to one competition, and keeps it from season to season: over the 29
+    published saves our matches label 28 keys in 9 competitions, none in two, and 7 keys carry
+    the same competition across seasons (202 Friendlies, 337/350 Sydbank Pokalen).
+  - A key is finer than a rules stage: one per knockout round (the Pokalen's stage 0 uses 8
+    keys), one per group, one per leg of a two-legged round (EURO Cup 258/259).
+  - Searched on 2023-06-29, 2027-06-29 and 2027-08-09, and the key → uid link is in none of:
+    the fixture record; the `comp_man` stage row (every byte, u16 and u32 position; the
+    Superliga's and 2. Division's rows are near byte-identical and hold neither uid nor cid);
+    `comp_man`'s tail (a 5-year daily calendar of `(key, year)` items, then the roll of honour,
+    which carries the cid but no keys); every tag of `comp_<uid>.dat`, read or unread, and the
+    binary block after its trailer (some of a competition's keys never occur there, e.g. 45
+    in `comp_6.dat`); the main save's competition record (whose 21-byte tail is three club
+    uids and three years: holders and recent finishers, to verify against the roll of honour).
+  - Not yet searched: `rgman.dat` / `rule_group.dat` (which hold uid and key near each other
+    14 and 16 times) and the unmapped parts of the save ([`savefile-map.md`](savefile-map.md)).
+  Until it is found, the store labels a stage from our own match in it or by the league rule
+  (`dim_match.competition_source`); cups abroad stay unlabelled. Once found, `int_stage_competitions`
+  becomes a join and the league rule goes.
 
 ### 7. The data dictionary's state between the rule files
 The 667 rule files (`fmparser/tables/rule_files.py`) read 99.2% of their span and are identical
