@@ -109,9 +109,17 @@ erDiagram
 
 ## Views, not stored
 
-- **`tie_results`**: matches grouped by `tie_id` → aggregate, winner, decided by.
-- **`standings`**: league-format stages only. Cumulative team-match rows ranked by the stage's
-  tie-breakers, keyed by date as well as round. Knockout stages use `tie_results` instead.
+- **`tie_results`**: matches grouped by `tie_id` → the two teams (team_a the first leg's home
+  side), aggregate, the last leg's shoot-out, decided by and winner. A tie is decided once all
+  its legs are played: on aggregate, then on the shoot-out. **There is no away-goals rule**:
+  ties level on aggregate went to extra time whichever side had scored more away.
+- **`standings`**: league and group stages. One row per team per matchday, the totals up to it
+  (`through_date` is the latest match date they include), ranked by points, goal difference and
+  goals scored. The stage's own tie-breakers are in its rules but not read yet, so Spain, which
+  ranks level points by head to head, comes out wrong at ties (TODO #13). A stage holds only its
+  own matches: a split league's groups are stages of their own. A stage with no rules member (a
+  reserve group) is a league stage when its competition is typed a league or the league rule
+  labelled it. Knockout stages use `tie_results` instead.
 
 ## Winner
 
@@ -127,16 +135,21 @@ flowchart TD
     G[save's roll of honour, league history, standings] -. check .-> O
 ```
 
-Stored, so consumers don't re-derive it. **Derived from our own fixtures and standings.** The
-save's roll of honour, club league history and standings record
-([`../standings-record.md`](../standings-record.md)) barely predate the career (league history
-starts with Frem's first season), so they add nothing we can't rebuild. They are **checks** on
-the derived outcome.
+Stored, so consumers don't re-derive it. **A league's final position is the game's own**
+(`final_position`, from the club league history, which holds every finished league season
+since the career began), because a table rebuilt from fixtures does not know each league's
+tie-breakers or split-league rules. The rebuilt table gives `table_position` (the latest
+matchday of the stage the team reached), which is all there is for a season in progress. A
+knockout competition's winner is the winner of its final stage's last tie. `is_winner` is NULL
+until the save decides it. The roll of honour, a check on both, is not extracted yet.
 
 ## Out of scope
 
-Rules per season, promotion/qualification links (you can derive them from participation plus
-`level`), and match detail (next ticket).
+Promotion/qualification links (you can derive them from participation plus `level`).
+
+**Participation** is a team's competition seasons with a labelled match: a stage the save does
+not let us label (a cup abroad, and a round of our own cups without one of our matches) counts
+for nothing, so `fact_participation` under-counts there.
 
 **Two-legged ties** are one round played twice, home and away swapped, the round marked
 `legs = 2` in the rules; `dim_match` carries `tie_id` and `leg` (numbered by date).

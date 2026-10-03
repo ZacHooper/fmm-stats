@@ -36,10 +36,7 @@ with placed as (
             and matches.stage_index = rounds.stage_index
             and matches.round_index = rounds.round_index
     left join {{ ref('int_our_matches') }} as ours
-        on
-            matches.match_date = ours.match_date
-            and matches.home_team_tid = ours.home_team_tid
-            and matches.away_team_tid = ours.away_team_tid
+        on matches.match_id = ours.match_id
 ),
 
 tied as (
@@ -57,6 +54,7 @@ tied as (
 )
 
 select
+    match_id,
     match_date,
     home_team_tid,
     away_team_tid,

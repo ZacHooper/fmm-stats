@@ -1,7 +1,9 @@
 -- Our own matches once each: the match table is emptied at the rollover and
 -- grows through a season, so a match's row is the latest snapshot holding it.
--- cid is the competition the match table names.
+-- cid is the competition the match table names; match_id is the same key as
+-- int_world_matches'.
 select
+    {{ match_id('match_date', 'home_team_tid', 'away_team_tid') }} as match_id,
     match_date,
     home_team_tid,
     away_team_tid,

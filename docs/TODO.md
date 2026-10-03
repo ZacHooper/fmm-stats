@@ -164,15 +164,29 @@ development, not just injuries and loans.
   seeding (`strq`, `advs`, `rank`), TV and scheduling (`tvds`, `drdt`).
 - The archive's own framing: the two u64s ending each directory entry, `'sicomps'` and the byte
   after it, the `[08][00][00]` and u32 in the record header, the 13 bytes before member 0.
-- **Which competition a fixture belongs to.** A `fix_man` fixture names its stage
-  (`stage_key`, an index into `comp_man.dat`'s 78-byte stage grid) but no readable
-  competition. The link was searched for on the 182 stage instances of our own matches (13
-  competitions, every save) and found nowhere decoded: no fixture field and no stage-record
-  field is constant within a competition and distinct between them, a stage's key sits in its
-  own `comp_<uid>.dat` 42 times in 182 (6% background in the others), and `rgman.dat` /
-  `rule_group.dat` hold the uid beside the key 14 and 16 times. Until it is found, the store
-  labels a stage from our own match in it or by `mart.league_tables`' league rule
-  (`dim_match.competition_source`), a heuristic that is wrong for Spain (#13). First place to look: the stage record's unread `+1..+30`.
+- **Which competition a fixture belongs to: finish the link.** A `fix_man` fixture names its
+  stage (`stage_key`, the row number in `comp_man.dat`'s 78-byte stage grid) and its place in
+  that stage (`stage_index` +76, `round_index` +77, which are the rules' `indx` and position in
+  `rnds`). `comp_<uid>.dat` (`tables/comp_rules.py`) gives each competition's stages, and its
+  file name is the competition's uid. The missing step is stage key → uid. Known so far:
+  - A key belongs to one competition, and keeps it from season to season: over the 29
+    published saves our matches label 28 keys in 9 competitions, none in two, and 7 keys carry
+    the same competition across seasons (202 Friendlies, 337/350 Sydbank Pokalen).
+  - A key is finer than a rules stage: one per knockout round (the Pokalen's stage 0 uses 8
+    keys), one per group, one per leg of a two-legged round (EURO Cup 258/259).
+  - Searched on 2023-06-29, 2027-06-29 and 2027-08-09, and the key → uid link is in none of:
+    the fixture record; the `comp_man` stage row (every byte, u16 and u32 position; the
+    Superliga's and 2. Division's rows are near byte-identical and hold neither uid nor cid);
+    `comp_man`'s tail (a 5-year daily calendar of `(key, year)` items, then the roll of honour,
+    which carries the cid but no keys); every tag of `comp_<uid>.dat`, read or unread, and the
+    binary block after its trailer (some of a competition's keys never occur there, e.g. 45
+    in `comp_6.dat`); the main save's competition record (whose 21-byte tail is three club
+    uids and three years: holders and recent finishers, to verify against the roll of honour).
+  - Not yet searched: `rgman.dat` / `rule_group.dat` (which hold uid and key near each other
+    14 and 16 times) and the unmapped parts of the save ([`savefile-map.md`](savefile-map.md)).
+  Until it is found, the store labels a stage from our own match in it or by the league rule
+  (`dim_match.competition_source`); cups abroad stay unlabelled. Once found, `int_stage_competitions`
+  becomes a join and the league rule goes.
 
 ### 7. The data dictionary's state between the rule files
 The 667 rule files (`fmparser/tables/rule_files.py`) read 99.2% of their span and are identical
@@ -259,8 +273,8 @@ each. Extract hands over every table as the save stores it (header dates, dead o
 reference tables, then contracts, names and person records, and a file-order cursor); the store
 renames `staging` to `raw` and models it as raw → stg → int → mart, ending in the `dim_*` /
 `fact_*` tables of [`data-model/`](data-model/README.md), and the site's marts move onto them.
-Every step is gated row-for-row against a store built from `main`. Person identity (#14),
-history reclamation (#15) and extra-time minutes (#16) block steps of it.
+Every step is gated row-for-row against a store built from `main`. Person identity (#14) and
+history reclamation (#15) block steps of it.
 
 ### 12a. After the plan: raw mirrors the save, one table per table
 Low priority; do it once the data-layers plan is finished. Raw is still not one table per save
@@ -290,15 +304,24 @@ table:
 ## Stats
 
 ### 13. League tables outside Denmark
-`mart.league_tables` rebuilds tables from the fixture list. Against each club's own
-`last_league_pos` (the first snapshot of the next season), measured 2026-09-29:
-Denmark 40/40 tables exact, Germany 23/26, England 85/121, Belgium 14/21, **Spain 0/48** (51 of
-588 clubs agree — worse than chance, so a systematic error, not tie-breaks). Settle it on one
-Spanish season against an in-game table before quoting any non-Danish table.
-**`raw.club_league_history` is that table**: the game's own final position for every club
-in every league season (`tables/club_records.py`; `year` is the season's start year). Check
-the rebuilt tables against it, league by league, then consider serving finished seasons from
-it directly.
+`mart.standings` (and the old `mart.league_tables`) rebuild tables from the fixture list and
+rank level points by goal difference, then goals scored. Against the game's own final
+positions (`raw.club_league_history`; `fact_competition_outcome.final_position`), measured on
+the step-14b gate stores: complete single-stage tables agree for England (21/21) and Germany
+(9/9), Danish split leagues with points carried over 8/8. What is still wrong:
+- **Spain ranks level points by head to head.** Its labels and totals are right; every
+  disagreement is teams level on points, and head to head decides all 41 such pairs it
+  separates. The tie-breakers are probably in the competition's rules member (`comp_<uid>.dat`,
+  TODO #6); read them there rather than hard-coding a nation's rule.
+- **Split leagues**: `standings` holds each stage's own matches. Whether points carry into the
+  championship and relegation groups, and Belgium's (which disagree, 0/2), is also a rules
+  question.
+- **The World Cup groups are labelled as the Nations League** (2026, cid 47): national teams
+  name that competition as their league, so the league rule takes a four-team World Cup group
+  for one of its groups. The old view does the same.
+- **Complete tables need complete fixtures**: a snapshot's fixture list holds only part of the
+  season before (2023-07-02 has 2021/22 from January), so the table of a season no snapshot
+  saw whole is partial. On the full career every season is seen whole.
 
 ### 14. Person identity across snapshots
 - **`player_spells` holds a second, wrong name for some people** (Jonathan Bech also "Jose
@@ -317,9 +340,10 @@ reads the newest snapshot only.
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
   penalties or deflections; until settled, no conversion rate from these columns.
-- **Extra-time minutes**: `mart.match_player_facts.minutes` caps at 90, so a full 120 reads
-  90 and an extra-time substitute goes negative (Lucas Lodberg, 2023-02-22: −15). The flag exists
-  (`extra_time` in `mart.match_stages`, for competitions we play); carry it to the minutes.
+- **Extra-time minutes in the old mart**: `mart.match_player_facts.minutes` caps at 90, so a
+  full 120 reads 90 and an extra-time substitute goes negative (Lucas Lodberg, 2023-02-22: −15).
+  `mart.fact_player_match.minutes` counts extra time; the old view keeps the cap until step 17
+  moves its consumers.
 
 ### 16a. Retire the stuck-loan workarounds
 `raw.players.loaned_in` is now true only for a player in our squad arrays whose own record

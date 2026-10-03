@@ -140,6 +140,26 @@ Events are a **check** on the score: for every match with detail, goal events pe
 the shootout) must equal the fixture-list score. The fixture list is the trusted side, so a
 mismatch is investigated on the events side and never overwrites the score.
 
+## As built (data-layers step 14b)
+
+- **`match_id`** keys every match table: the match's date and its two teams packed into one
+  BIGINT, `yyyymmdd × 10¹⁰ + home_tid × 10⁵ + away_tid` (Salzburg v Frem on 2027-07-28 is
+  `202707280012500346`; `macros/match_id.sql`). It is the same in every snapshot and rebuild,
+  sorts by date and reads back by eye. `dim_match` holds the date and teams; the facts carry
+  `match_id` only, and `dim_match` tests that every tid stays below 10⁵.
+- **`fact_player_match.minutes`** runs from kick-off, or the minute a player came on, to the
+  minute he went off, was sent off or the match ended: 90, or 120 when the match went to extra
+  time or penalties. A dismissal is in the events only (`dim_event_type.ends_appearance`).
+  Stoppage time is not counted. `started` is a place in the XI, `appeared` a start or a
+  substitution on. `position` uses `dim_position`'s codes (the match table's `FC` is `ST`).
+- **`fact_match_event`** reads each event's side from the save: `player_team_tid` is the
+  player's team and `team_tid` the side the event counts for, the other side for an own goal
+  (`dim_event_type.scores_for`). `period` is the one the minute falls in (`dim_period`: first
+  half to 45, second to 90, extra time to 105 and 120); stoppage time stays in the period it
+  extends, and a shoot-out kick is the `shootout` period.
+- **Checks** on the gate stores: goal events per side equal the fixture-list score on every
+  match with detail, and each player's `goals` equals his goal events on every line.
+
 ## Out of scope
 
 Stats beyond goals (which column each comes from is decided per stat when it is built) and

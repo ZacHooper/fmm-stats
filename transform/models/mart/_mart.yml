@@ -129,6 +129,7 @@ models:
     description: >
       Every match in the world: competition, stage and round where known, tie and leg, how it was decided, has_detail for ours.
     data_tests:
+      - unique_combination: {arguments: {columns: [match_id]}}
       - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid]}}
       - relationship_combination:
           arguments:
@@ -145,13 +146,121 @@ models:
             columns: [away_team_tid]
             to: ref('dim_team')
             to_columns: [team_tid]
+    columns:
+      - name: home_team_tid
+        data_tests:
+          - in_range: {arguments: {min_value: 0, max_value: "{{ var('match_id_tid_base') - 1 }}"}}
+      - name: away_team_tid
+        data_tests:
+          - in_range: {arguments: {min_value: 0, max_value: "{{ var('match_id_tid_base') - 1 }}"}}
   - name: fact_team_match
     description: >
       Each match twice, once per side: goals, shoot-out, result, points.
     data_tests:
-      - unique_combination: {arguments: {columns: [match_date, home_team_tid, away_team_tid, team_tid]}}
+      - unique_combination: {arguments: {columns: [match_id, team_tid]}}
       - relationship_combination:
           arguments:
-            columns: [match_date, home_team_tid, away_team_tid]
+            columns: [match_id]
             to: ref('dim_match')
-            to_columns: [match_date, home_team_tid, away_team_tid]
+            to_columns: [match_id]
+  - name: dim_event_type
+    description: >
+      Every match event type, named or not, with its role in the score and in a player's minutes.
+    data_tests:
+      - unique_combination: {arguments: {columns: [event_type_code]}}
+  - name: dim_period
+    description: >
+      The periods of a match in order, with the minutes each holds.
+    data_tests:
+      - unique_combination: {arguments: {columns: [period]}}
+  - name: fact_player_match
+    description: >
+      Each player's line in our own matches, both sides: started, appeared, minutes with extra time, stats.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_id, player_tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [match_id]
+            to: ref('dim_match')
+            to_columns: [match_id]
+      - relationship_combination:
+          arguments:
+            columns: [team_tid]
+            to: ref('dim_team')
+            to_columns: [team_tid]
+      - relationship_combination:
+          arguments:
+            columns: [position]
+            to: ref('dim_position')
+            to_columns: [position]
+    columns:
+      - name: minutes
+        data_tests:
+          - not_null
+          - in_range: {arguments: {min_value: 0, max_value: 120}}
+  - name: fact_match_event
+    description: >
+      The events of our own matches in order: minute, period, type, player and the side it counts for.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_id, event_index]}}
+      - relationship_combination:
+          arguments:
+            columns: [match_id]
+            to: ref('dim_match')
+            to_columns: [match_id]
+      - relationship_combination:
+          arguments:
+            columns: [event_type_code]
+            to: ref('dim_event_type')
+            to_columns: [event_type_code]
+      - relationship_combination:
+          arguments:
+            columns: [period]
+            to: ref('dim_period')
+            to_columns: [period]
+    columns:
+      - name: period
+        data_tests: [not_null]
+      - name: team_tid
+        data_tests: [not_null]
+  - name: tie_results
+    description: >
+      Each knockout tie: teams, aggregate, shoot-out, how it was decided and the winner. A view.
+    data_tests:
+      - unique_combination: {arguments: {columns: [tie_id]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid, competition_season, stage_index]
+            to: ref('dim_stage')
+            to_columns: [cid, competition_season, stage_index]
+  - name: standings
+    description: >
+      Each league or group stage's table after every matchday. A view.
+    data_tests:
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, stage_key, matchday, team_tid]}}
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, stage_key, matchday, position]}}
+  - name: fact_participation
+    description: >
+      Each team in each competition season it has a labelled match in, and how far it went.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid, cid, competition_season]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid]
+            to: ref('dim_competition')
+            to_columns: [cid]
+      - relationship_combination:
+          arguments:
+            columns: [team_tid]
+            to: ref('dim_team')
+            to_columns: [team_tid]
+  - name: fact_competition_outcome
+    description: >
+      How each team's competition season ended: stage reached, final and table position, winner.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid, cid, competition_season]}}
+      - relationship_combination:
+          arguments:
+            columns: [cid]
+            to: ref('dim_competition')
+            to_columns: [cid]

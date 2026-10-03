@@ -2,7 +2,7 @@
 -- the player has none of reads NULL (var('no_id8')): sub_on_minute is NULL for
 -- a starter or an unused substitute, sub_off_minute for a player not taken
 -- off. position is a starter's place in our own XI, NULL for the opposition
--- and for substitutes.
+-- and for substitutes, in the positions' codes (var('match_position_codes')).
 select
     cast(phase as date) as snapshot_date,
     anchor,
@@ -35,5 +35,10 @@ select
     nullif(subon, {{ var('no_id8') }}) as sub_on_minute,
     nullif(suboff, {{ var('no_id8') }}) as sub_off_minute,
     yellow as yellows,
-    position
+    case position
+        {% for code, position in var('match_position_codes').items() %}
+        when '{{ code }}' then '{{ position }}'
+        {% endfor %}
+        else position
+    end as position
 from {{ source('raw', 'match_player_stats') }}
