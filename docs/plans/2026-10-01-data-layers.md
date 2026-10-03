@@ -497,8 +497,12 @@ half is `int_player_value` and the seasons; the mart half is all to do.)*
   so "is_staff flipping empties his history" (#14) is retirement, and the history union below
   is the fix. Old scrapbook entries can carry a tid since given to a newgen, so an award resolves
   to its `person_id`: the person with that tid whose dob gives the entry's age on its date.
-- **History** (#15): the game keeps a player's newest lines and drops his oldest (and removes
-  a loan year's 0-app parent line once the season is over), so `int_player_career_lines`
+- **History** (#15): at the season rollover the game frees the oldest history lines of players
+  who are still playing and reuses the records for the season just ended (Sterling's
+  Liverpool years and first Man City season are gone from his in-game Player History by
+  2 Jul 2027; record 80769 held his 2015/16 line on 2027-06-29 and a Liege player's 2026/27
+  line on 2027-07-02). It can also unlink a loan year's 0-app parent line. So
+  `int_player_career_lines`
   takes the newest snapshot's lines plus what each older snapshot held that its successor
   dropped. 3,437 of 30,691 people had a richer history in an older snapshot; the union holds
   370,417 lines against the newest snapshots' 345,315.

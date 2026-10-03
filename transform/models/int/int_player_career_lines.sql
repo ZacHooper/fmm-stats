@@ -2,7 +2,12 @@
 -- Keyed (person_id, line_index); line_index is 0 for his oldest line.
 --
 -- Why one snapshot is not enough. The game trims a player's history:
---   * it keeps his newest lines and drops his oldest as it adds new ones;
+--   * at the season rollover, writing the season just ended into its fixed
+--     pool of history records, it frees the oldest lines of players who are
+--     still playing and reuses them (Raheem Sterling's Liverpool seasons
+--     are gone from his in-game Player History, and so is his first season
+--     at Man City, whose record holds a Liege player's 2026/27 line from the
+--     2027-07-02 save on);
 --   * it removes a loan year's 0-app parent-club line once that season ends;
 --   * it drops all his lines when he stops being a player (retires, or
 --     turns to coaching).

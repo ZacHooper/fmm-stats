@@ -175,7 +175,7 @@ Keys are natural: a person is `person_id` (`<tid>-<dob>`), a snapshot `snapshot_
 | `fact_player_snapshot` | `person_id`, `snapshot_date` | `team_tid` is the team whose books he is on (a loanee's parent team) and `club_tid` its club; ratings with `attributes_are_estimated`; `value` stated where the save states it, else the model's (`value_is_estimated`, `value_in_trusted_band`); `contract_status` from his current contract's expiry; `is_contracted` the save's own flag |
 | `fact_staff_snapshot` | `person_id`, `snapshot_date` | a person with no player record who has a staff record or is on a team's books |
 | `fact_injury_spell` | `person_id`, `start_date` | runs of injured weeks in Player Progress (our squad and reserves) |
-| `fact_player_season` | `person_id`, `line_index` | career history, every player, unioned across snapshots: the game drops a player's oldest lines as it adds new ones, and all of them when he retires |
+| `fact_player_season` | `person_id`, `line_index` | career history, every player, unioned across snapshots: at each season rollover the game reuses the records of some active players' oldest lines (confirmed in game on Raheem Sterling), and drops all of a player's lines when he retires |
 | `fact_player_competition_season` | `season`, `player_tid`, `team_tid`, `cid` | our own matches summed per competition; `person_id` NULL for reserve placeholders |
 | `dim_award`, `fact_player_award` | `award_id`; `award_id`, `person_id`, `entry_date` | the World Best XI pools (each season's, and the All-Time pool), with the scrapbook entry that earned the place; an entry holds a tid, which can belong to a newgen now, so its `person_id` is the person with that tid whose dob gives the entry's age on its date |
 
