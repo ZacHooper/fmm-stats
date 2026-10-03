@@ -571,7 +571,8 @@ the rules and their measurements):
   plus the newest snapshot's club for a move the history has no line for yet; fee from the
   seller's line; snapshot bounds and `move_date` = the record's joined date, which lies inside
   the window on 13,473/13,473 club changes but is reset by a return from loan, so it is kept only
-  where no loan out lies between; no move out of a youth side, a team with no club record),
+  where no loan out lies between; a youth side's line counts for its club, by the u16 complement
+  of the club's tid, and the move into the club's senior side is a graduation),
   `int_loan_spells` (loan lines and squad listings; real dates for our loans out from Player
   Progress, none where two loans of ours share a season), `int_staff_spells` (team and role;
   manager = the unlisted staff member with a staff record), `int_squad_membership`.
@@ -620,10 +621,11 @@ test passes on all three):
   status-65 snapshots (TODO #4); the contracted flag is set on 708 / 1,014 / 170 free agents.
 - Confirmed in game (Zac, 1 Mar 2028 save): the joined date resets on a return from loan
   (Grosso, Minerba, Ellegaard), so `move_date` is cleared where a loan out lies between the move
-  and it (710 of 13,472 watched moves on A, 681 of 11,331 on B); "Frem Yth" (tid 65189) is
-  Frem's youth side, and the 3,129 / 5,040 / 291 moves out of a youth side are dropped (a
-  graduate's promotion), keeping the 2 / 4 whose snapshot shows a released academy player
-  signed as a free agent. Seasons (Grosso's free move 2024/25), Balslev's £1K (a loan with an
+  and it (710 of 13,472 watched moves on A, 681 of 11,331 on B). "Frem Yth" (tid 65189) is
+  Frem's youth side, its tid the u16 complement of Frem's (65535 - 346, as `mart.youth_clubs`
+  already resolves academies): a youth line counts for its club and the move into the club's
+  senior side is a graduation (3,082 / 4,976 / 272), the move to another club a move from the
+  academy's club (47 / 64 / 19); all agree with `mart.youth_clubs`. Seasons (Grosso's free move 2024/25), Balslev's £1K (a loan with an
   option to buy), Dehn's £14M, Sørensen's £6M, Sidhu's £3.3M and Maarup's loans all as the
   tables give them. The counts above are after these fixes; the loan-out dates in B and
   Bucaspor's checks drop to 36 and 9 within a day, Maarup's and one Bucaspor player's two loans

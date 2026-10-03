@@ -113,7 +113,7 @@ step-16 gate stores (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 and 2023-06-29 / 
 | Table | Grain | Notes |
 |---|---|---|
 | `fact_contract` | `person_id`, `first_seen_date` | a run of snapshots whose current contract keeps one stored start date at one club; `start_date`, wage, expiry and team (first and last seen), `last_seen_date` / `ended_by_date`, `end_reason` |
-| `fact_transfer` | `person_id`, `to_line_index` | each club change in the career history (loan lines skipped) plus the club on his newest snapshot; fee from the seller's line; snapshot bounds, `move_date` and the two contracts for a move the store watched |
+| `fact_transfer` | `person_id`, `to_line_index` | each club change in the career history (loan lines skipped) plus the club on his newest snapshot, and each graduation from a youth side; fee from the seller's line; snapshot bounds, `move_date` and the two contracts for a move the store watched |
 | `fact_loan_spell` | `person_id`, `season`, `borrowing_club_tid` | loan lines and squad listings; parent club; real dates for our own loans out |
 | `fact_staff_spell` | `person_id`, `first_seen_date` | runs of snapshots on one team's books in one role (`manager` / `staff`) |
 | `squad_membership` (view) | `person_id`, `snapshot_date`, `team_tid` | who each squad array lists, with the club his record names and `is_loan_in` |
@@ -142,17 +142,31 @@ expiry on 3 and 6, team (within the club) on 544 and 1,919; all three are kept f
 
 **Transfers.** The fee code sits on the selling club's last line before the move; a loan's
 `loan` code on the borrowing club's line. A move made during a season has no buying-club line
-until the season ends, so the club on the newest snapshot closes each history. A youth side
-("Frem Yth", tid 65189) has no club record and appears only on its graduates' first line, with a
-fee code not understood; the club that owns it is not stored, so a move out of it is not a
-transfer. `joined_date` lies between the two snapshots of every club change measured
+until the season ends, so the club on the newest snapshot closes each history.
+
+**Graduations.** A club's youth side has no club record; its tid is the u16 complement of its
+club's (`65535 - club_tid`: Frem 346 → "Frem Yth" 65189, FCK 344 → 65191; `mart.youth_clubs`,
+[`homegrown-derivation.md`](../agent-context/homegrown-derivation.md)), and it appears on its
+products' first line with a fee code not understood. A youth line counts for its club
+(`youth_team_tid` keeps the academy). The move from it into the club's own senior side is a
+**graduation** (`transfer_type = 'graduation'`, no fee, from and to club the same). On Frem A
+3,082 graduations (2,008 from the history, 1,074 academy products whose only line is the youth
+one, seen at their club on the newest snapshot), and 47 products who went straight to another
+club, a move from the academy's club; on B 4,976 and 64; on Bucaspor 272 and 19. Every academy
+resolves to its club the same way `mart.youth_clubs` does (3,129/3,129, 5,040/5,040,
+291/291). No snapshot shows a player on a youth side's books, so a graduation is dated by its
+season only.
+
+**Joined dates.** `joined_date` lies between the two snapshots of every club change measured
 (13,473/13,473), but **the game resets it when a player returns from a loan** (confirmed in game
 on Matteo Grosso, Ruben Minerba and Frederik Ellegaard, all of whose records carry a loan-return
 date), so it is `move_date` only where the buying club did not loan him out between the move's
 season and that date, and the date lies within a season of the move's. Seasons confirmed in
 game: Grosso's free move from Brøndby is 2024/25 (his Frem line shows "Bos"), as the history
-says; Frederik Balslev's £1K to Hvidovre is right (a loan with an option to buy). A free agent whose contract ran out in June and who signs in July is labelled by
-the game with the season just ended, and the history often has no Free-agent line for the gap:
+says; Frederik Balslev's £1K to Hvidovre is right (a loan with an option to buy).
+
+A free agent whose contract ran out in June and who signs in July is labelled by the game with
+the season just ended, and the history often has no Free-agent line for the gap:
 `from_club_tid` is then the club whose contract ran out and `was_free_agent` says the snapshot
 before the move showed him without a club.
 

@@ -148,6 +148,9 @@ vars:
   loan_team_types: [first, b_team, reserve]
   # The training row's squad status of a player out on loan (fmparser/tables/training.py).
   loaned_out_status: 65
+  # A club's youth side has no record of its own; its tid is this minus its club's (the u16
+  # complement: Frem 346 -> 65189; int_transfers, mart.youth_clubs).
+  youth_tid_base: 65535
   fee_code_floor: 65000
   fee_unit_gbp: 1000
   fee_contract_ended: 65532

@@ -1,7 +1,8 @@
--- Every permanent move between clubs a player's career history shows, keyed
--- (person_id, to_line_index): one row per club change between two of his
--- lines (int.player_career_lines), at club level (a team's lines count for
--- the club that owns it, so first team <-> reserves is no move).
+-- Every permanent move between clubs a player's career history shows, and
+-- every graduation from a youth side, keyed (person_id, to_line_index): one
+-- row per club change between two of his lines (int.player_career_lines), at
+-- club level (a team's lines count for the club that owns it, so first team
+-- <-> reserves is no move).
 --
 -- Which lines. A loan line (fee code 'loan', on the borrowing club's line) is
 -- a loan, not a move: loan lines are skipped, and a club change across them is
@@ -9,13 +10,18 @@
 -- is a move to the borrowing club). A line with no club (the game's Free
 -- agent) is a spell without a club: a move into it is a release, not a
 -- transfer, and the move out of it is a free agent signing (from_club_tid
--- NULL). A line at a team with no club record is a youth side (Frem's is
--- "Frem Yth", tid 65189, on its graduates' first line; every such line on
--- the gate stores is a player's first, with a fee code not understood), and
--- which club owns it is not stored, so a move out of it is not a transfer
--- (a graduate's promotion to his own club) unless the snapshot before shows
--- him a free agent: an academy player released and signed by a club, a free
--- agent signing with no from club.
+-- NULL).
+--
+-- Youth sides. A club's academy is a team with no club record whose tid is
+-- the u16 complement of its club's (var('youth_tid_base') - club tid: Frem
+-- 346 -> "Frem Yth" 65189, FCK 344 -> 65191; mart.youth_clubs and
+-- docs/agent-context/homegrown-derivation.md), on its products' first line
+-- with a fee code not understood. A youth line counts for its club, with
+-- youth_team_tid naming the academy. The move out of it into the club's own
+-- senior side is a graduation (transfer_type 'graduation', no fee; from and
+-- to club the same); out of it to another club, a move from the academy's
+-- club. A first line at a tid that is neither a team nor an academy (a club
+-- the save holds no record for) keeps its tid.
 --
 -- A move made during a season has no line for the buying club until the
 -- season ends, so each player's history ends with his club on his newest
@@ -68,14 +74,23 @@ history as (
         career_lines.person_id,
         career_lines.line_index,
         career_lines.season,
-        coalesce(teams.club_tid, career_lines.club_tid) as club_tid,
+        coalesce(teams.club_tid, academies.club_tid, career_lines.club_tid)
+            as club_tid,
         career_lines.fee_kind,
         career_lines.fee_gbp,
-        career_lines.club_tid is not null and teams.team_tid is null
-            as is_youth_side
+        case
+            when teams.team_tid is null and academies.team_tid is not null
+                then career_lines.club_tid
+        end as youth_team_tid
     from {{ ref('int_player_career_lines') }} as career_lines
     left join teams
         on career_lines.club_tid = teams.team_tid
+    -- the club whose academy the line's team is, for a team with no record
+    left join teams as academies
+        on
+            teams.team_tid is null
+            and {{ var('youth_tid_base') }} - career_lines.club_tid
+            = academies.team_tid
     where career_lines.fee_kind is distinct from 'loan'
 ),
 
@@ -141,7 +156,7 @@ newest as (
         snapshots.club_tid,
         cast(null as varchar) as fee_kind,
         cast(null as bigint) as fee_gbp,
-        false as is_youth_side
+        cast(null as integer) as youth_team_tid
     from snapshots
     inner join last_lines as last_line
         on snapshots.person_id = last_line.person_id
@@ -174,7 +189,7 @@ moves as (
             person_id,
             line_index as from_line_index,
             club_tid as from_club_tid,
-            is_youth_side,
+            youth_team_tid,
             fee_kind,
             fee_gbp,
             lead(line_index) over w as to_line_index,
@@ -187,7 +202,10 @@ moves as (
     where
         to_line_index is not null
         and to_club_tid is not null
-        and from_club_tid is distinct from to_club_tid
+        and (
+            youth_team_tid is not null
+            or from_club_tid is distinct from to_club_tid
+        )
 ),
 
 -- each club change, the move it shows
@@ -243,8 +261,8 @@ select
     moves.person_id,
     moves.to_line_index,
     moves.from_line_index,
-    case when not moves.is_youth_side then moves.from_club_tid end
-        as from_club_tid,
+    moves.from_club_tid,
+    moves.youth_team_tid,
     moves.to_club_tid,
     moves.season,
     bounded.moved_after,
@@ -259,12 +277,17 @@ select
     bounded.was_free_agent,
     moves.fee_kind,
     case
-        when moves.from_club_tid is null or moves.is_youth_side then 0
+        when moves.youth_team_tid is not null then null
+        when moves.from_club_tid is null then 0
         when moves.fee_kind = 'fee' then moves.fee_gbp
         when moves.fee_kind in ('free', 'stay', 'contract_ended') then 0
     end as fee_gbp,
     case
-        when moves.from_club_tid is null or moves.is_youth_side then 'free'
+        when
+            moves.youth_team_tid is not null
+            and moves.from_club_tid = moves.to_club_tid
+            then 'graduation'
+        when moves.from_club_tid is null then 'free'
         when moves.fee_kind = 'fee' and moves.fee_gbp > 0 then 'permanent'
         when moves.fee_kind = 'fee' then 'free'
         when moves.fee_kind in ('free', 'stay', 'contract_ended') then 'free'
@@ -280,4 +303,3 @@ left join loaned_between
         moves.person_id = loaned_between.person_id
         and moves.to_line_index = loaned_between.to_line_index
 cross join career
-where not moves.is_youth_side or bounded.was_free_agent

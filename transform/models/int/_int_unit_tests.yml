@@ -745,9 +745,9 @@ unit_tests:
       A move is a club change between two lines that are not loans, at club level, with the
       fee from the selling club's line: a loan line between two lines at one club is no move,
       a move into a Free agent line is a release (no row), the move out of it a free agent
-      signing (no from club, free), a reserve side's line is its club's, and a move out of a
-      youth side (a team with no club record) is none unless the snapshot before shows a free
-      agent. The club on the newest snapshot ends the
+      signing (no from club, free), and a reserve side's line is its club's. A youth side's
+      tid is its club's u16 complement (65535 - 346 = 65189): the move out of it into its
+      club's senior side is a graduation, to another club a move from its club. The club on the newest snapshot ends the
       history: a move to it the history has no line for yet is a move too, seasoned by its
       joined date and bounded by the two snapshots that show it. A joined date reset by a
       return from loan is not the move's date.
@@ -771,6 +771,7 @@ unit_tests:
           - {snapshot_date: '2026-06-11', team_tid: 337, club_tid: 337}
           - {snapshot_date: '2026-06-11', team_tid: 346, club_tid: 346}
           - {snapshot_date: '2026-06-11', team_tid: 3082, club_tid: 3082}
+          - {snapshot_date: '2026-06-11', team_tid: 7296, club_tid: 346}
       - input: ref('int_player_career_lines')
         rows:
           - {person_id: 9-2000-01-01, line_index: 0, season: 2020, club_tid: 100, fee_kind: stay, fee_gbp: null}
@@ -780,12 +781,14 @@ unit_tests:
           - {person_id: 9-2000-01-01, line_index: 4, season: 2022, club_tid: null, fee_kind: free, fee_gbp: null}
           - {person_id: 9-2000-01-01, line_index: 5, season: 2023, club_tid: 400, fee_kind: stay, fee_gbp: null}
           - {person_id: 9-2000-01-01, line_index: 6, season: 2024, club_tid: 401, fee_kind: fee, fee_gbp: 1000000}
-          - {person_id: 8-2003-01-01, line_index: 0, season: 2024, club_tid: 65189, fee_kind: unknown, fee_gbp: null}
+          - {person_id: 8-2003-01-01, line_index: 0, season: 2024, club_tid: 65198, fee_kind: unknown, fee_gbp: null}
           - {person_id: 8-2003-01-01, line_index: 1, season: 2025, club_tid: 337, fee_kind: free, fee_gbp: null}
           - {person_id: 8-2003-01-01, line_index: 2, season: 2025, club_tid: 346, fee_kind: stay, fee_gbp: null}
           - {person_id: 8-2003-01-01, line_index: 3, season: 2025, club_tid: 2532, fee_kind: loan, fee_gbp: null}
           - {person_id: 8-2003-01-01, line_index: 4, season: 2026, club_tid: 346, fee_kind: stay, fee_gbp: null}
-          - {person_id: 7-2008-01-01, line_index: 0, season: 2025, club_tid: 65015, fee_kind: unknown, fee_gbp: null}
+          - {person_id: 7-2008-01-01, line_index: 0, season: 2025, club_tid: 65189, fee_kind: unknown, fee_gbp: null}
+          - {person_id: 6-2008-01-01, line_index: 0, season: 2024, club_tid: 65189, fee_kind: unknown, fee_gbp: null}
+          - {person_id: 6-2008-01-01, line_index: 1, season: 2025, club_tid: 7296, fee_kind: stay, fee_gbp: null}
           - {person_id: 7-2008-01-01, line_index: 1, season: 2026, club_tid: 3082, fee_kind: stay, fee_gbp: null}
       - input: ref('int_loan_spells')
         rows:
@@ -800,11 +803,13 @@ unit_tests:
           - {snapshot_date: '2026-06-11', person_id: 9-2000-01-01, club_tid: 500, joined_date: '2026-01-02'}
     expect:
       rows:
-        - {person_id: 9-2000-01-01, to_line_index: 3, from_line_index: 2, from_club_tid: 100, to_club_tid: 300, season: 2022, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 500000, transfer_type: permanent, is_from_snapshot: false}
-        - {person_id: 9-2000-01-01, to_line_index: 5, from_line_index: 4, from_club_tid: null, to_club_tid: 400, season: 2023, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
-        - {person_id: 9-2000-01-01, to_line_index: 7, from_line_index: 6, from_club_tid: 400, to_club_tid: 500, season: 2026, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: '2026-01-02', was_free_agent: true, fee_gbp: 1000000, transfer_type: permanent, is_from_snapshot: true}
-        - {person_id: 7-2008-01-01, to_line_index: 1, from_line_index: 0, from_club_tid: null, to_club_tid: 3082, season: 2026, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: '2025-08-01', was_free_agent: true, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
-        - {person_id: 8-2003-01-01, to_line_index: 2, from_line_index: 1, from_club_tid: 337, to_club_tid: 346, season: 2025, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: null, was_free_agent: false, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
+        - {person_id: 9-2000-01-01, to_line_index: 3, from_line_index: 2, from_club_tid: 100, youth_team_tid: null, to_club_tid: 300, season: 2022, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 500000, transfer_type: permanent, is_from_snapshot: false}
+        - {person_id: 9-2000-01-01, to_line_index: 5, from_line_index: 4, from_club_tid: null, youth_team_tid: null, to_club_tid: 400, season: 2023, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
+        - {person_id: 9-2000-01-01, to_line_index: 7, from_line_index: 6, from_club_tid: 400, youth_team_tid: null, to_club_tid: 500, season: 2026, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: '2026-01-02', was_free_agent: true, fee_gbp: 1000000, transfer_type: permanent, is_from_snapshot: true}
+        - {person_id: 7-2008-01-01, to_line_index: 1, from_line_index: 0, from_club_tid: 346, youth_team_tid: 65189, to_club_tid: 3082, season: 2026, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: '2025-08-01', was_free_agent: true, fee_gbp: null, transfer_type: null, is_from_snapshot: false}
+        - {person_id: 8-2003-01-01, to_line_index: 1, from_line_index: 0, from_club_tid: 337, youth_team_tid: 65198, to_club_tid: 337, season: 2025, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: null, transfer_type: graduation, is_from_snapshot: false}
+        - {person_id: 6-2008-01-01, to_line_index: 1, from_line_index: 0, from_club_tid: 346, youth_team_tid: 65189, to_club_tid: 346, season: 2025, moved_after: null, moved_by: null, move_date: null, was_free_agent: null, fee_gbp: null, transfer_type: graduation, is_from_snapshot: false}
+        - {person_id: 8-2003-01-01, to_line_index: 2, from_line_index: 1, from_club_tid: 337, youth_team_tid: null, to_club_tid: 346, season: 2025, moved_after: '2022-07-02', moved_by: '2026-06-11', move_date: null, was_free_agent: false, fee_gbp: 0, transfer_type: free, is_from_snapshot: false}
 
   - name: loan_spells_from_lines_and_squads
     description: >

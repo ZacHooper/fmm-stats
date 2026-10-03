@@ -289,15 +289,15 @@ models:
               arguments: {values: [renewed, transferred, expired, released, retired]}
   - name: int_transfers
     description: >
-      Every permanent move between clubs a player's career history shows, plus a move to the
-      club on his newest snapshot the history has no line for yet; with the snapshot bounds
-      of a move made while the store was watching.
+      Every permanent move between clubs a player's career history shows, every graduation
+      from a youth side, plus a move to the club on his newest snapshot the history has no
+      line for yet; with the snapshot bounds of a move made while the store was watching.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, to_line_index]}}
     columns:
       - name: transfer_type
         data_tests:
-          - accepted_values: {arguments: {values: [permanent, free]}}
+          - accepted_values: {arguments: {values: [permanent, free, graduation]}}
   - name: int_loan_spells
     description: >
       Every loan the career histories and the squads show, per player, season and borrowing
