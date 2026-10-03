@@ -53,6 +53,7 @@ select
     teams.team_tid,
     teams.club_tid,
     teams.name,
+    teams.team_type,
     leagues.league_cid,
     competitions.name as league_name,
     nations.name as nation,

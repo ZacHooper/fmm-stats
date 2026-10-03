@@ -66,3 +66,22 @@ Measured on Frem store B (2023-06-29 / 2027-06-29 / 2027-08-09) against the old 
 - Minutes in a match that went to extra time run to 120 (`fact_player_match`), not 90.
 - Squad value: a player with no value of his own is valued by `int_player_value`, which reads
   a reserve side's league reputation off its first team (data-layers step 15).
+
+**Registration** (`registration.json`; `int_squad_training`, `site.registration`)
+- A season on an academy side counts as time at its club (Frem's youth side 65189 is Frem):
+  the old view never mapped the youth tid, so every academy product read about 12 months
+  short (Johan Maarup 17.3 -> 29.3, his home-grown date 2029-02 -> 2028-02).
+- A career season runs from one rollover day to the next, so three seasons are 36.0 months.
+  The old 364-day season left a gap each year that only the observed spells filled, and a
+  player could miss club-trained status by a day: 10404 reads 36.0 (was 35.9, not home
+  grown), 10527 keeps 36.0.
+- The season in progress is credited from its start, or the day he joined, to the club whose
+  squad lists him, a loan to the borrowing club. The old spells guessed a 1 July arrival
+  (5562, signed 2027-06-25, read a year with us he never spent: 13.3 -> 1.3) and credited
+  loans to us (Ruben Minerba's two loan seasons: 27.0 -> 21.0).
+- The window, the seasons and the B-list date turn on the career's rollover day.
+
+**World** (`world.json`)
+- Clubs in the Danish Lower Division and B teams in the senior pyramid are on the home map:
+  `dim_competition` gives that league its nation, which the old view lacked. Reserve sides
+  are left off, as before, now by their team type.

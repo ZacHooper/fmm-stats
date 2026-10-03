@@ -313,6 +313,84 @@ def main():
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
                 "season runs, so an early game may be absent from a late save."})
 
+    # ------------------------------------------------------------ registration.json
+    rules = s.rows("""SELECT tier, league_name, a_list_max, hg_min, hg_club_min, b_list_under_age,
+                             min_matchday_age, nation, u21_on
+                      FROM site.registration_rules WHERE snapshot_date = ?""", [d])
+    reg_fields = ["tid", "age", "b_list", "hg_club", "hg_basis", "hg_association",
+                  "months_club", "months_to_go", "hg_eta", "window_open", "origin_club",
+                  "origin_nation", "via_academy"]
+    reg = s.rows("SELECT * FROM site.registration WHERE snapshot_date = ?", [d])
+    emit("registration.json", {
+        "snapshot": {"season": season, "phase": phase},
+        "rules": ({**rules[0], "u21_on": day(rules[0]["u21_on"])} if rules else None),
+        "fields": reg_fields,
+        "players": sorted(
+            [[tid_of[r["person_id"]], num(r["age"]), bool(r["b_list"]), bool(r["hg_club"]),
+              r["hg_basis"], bool(r["hg_association"]),
+              None if r["months_club"] is None else float(r["months_club"]),
+              None if r["months_to_go"] is None else float(r["months_to_go"]),
+              day(r["hg_eta"]), bool(r["window_open"]), r["origin_club"], r["origin_nation"],
+              bool(r["via_academy"])]
+             for r in reg if r["person_id"] in tid_of]),
+        "note": "Squad registration is a self-imposed rule — FMM22 does not model it. "
+                "Home-grown status is derived from origin club, career history and observed "
+                "spells; see docs/danish-registration-rules.md."})
+
+    # ------------------------------------------------------------ world.json
+    our_nation = s.scalar("SELECT nation FROM site.clubs WHERE snapshot_date = ? "
+                          "AND team_tid = ?", [d, managed])
+    nations = [{"name": r["name"], "rank": r["world_rank"],
+                "points": None if r["ranking_points"] is None else float(r["ranking_points"]),
+                "coefficient": None if r["coefficient"] is None else float(r["coefficient"]),
+                "rival": r["rival"]}
+               for r in s.rows("SELECT * FROM site.nations WHERE snapshot_date = ? "
+                               "ORDER BY world_rank, name", [d])]
+
+    def place(r):
+        return {"stadium": r["stadium"], "capacity": num(r["capacity"]),
+                "lat": None if r["latitude"] is None else float(r["latitude"]),
+                "lon": None if r["longitude"] is None else float(r["longitude"])}
+
+    home = [{"tid": r["team_tid"], "club": r["club"], "league": r["league_name"],
+             **place(r), "tier": r["tier"]}
+            for r in s.rows("""SELECT * FROM site.places
+                               WHERE snapshot_date = ? AND is_listed AND team_type <> 'reserve'
+                                 AND nation = ?
+                                 AND latitude IS NOT NULL AND longitude IS NOT NULL
+                               ORDER BY team_tid""", [d, our_nation])]
+    home = [{k: h[k] for k in ("tid", "club", "league", "stadium", "capacity", "lat", "lon",
+                               "tier")} for h in home]
+    origins = s.rows("""SELECT p.origin_club_tid AS team_tid, any_value(pl.club) AS club,
+                               list(p.name ORDER BY p.name) AS players,
+                               any_value(pl.stadium) AS stadium,
+                               any_value(pl.capacity) AS capacity,
+                               any_value(pl.latitude) AS latitude,
+                               any_value(pl.longitude) AS longitude
+                        FROM site.squad q
+                        JOIN site.players p USING (snapshot_date, person_id)
+                        LEFT JOIN site.places pl
+                          ON pl.snapshot_date = q.snapshot_date
+                         AND pl.team_tid = p.origin_club_tid
+                        WHERE q.snapshot_date = ? AND p.origin_club_tid IS NOT NULL
+                        GROUP BY p.origin_club_tid ORDER BY p.origin_club_tid""", [d])
+    unresolved = s.scalar("""SELECT count(*) FROM site.squad q
+                             JOIN site.players p USING (snapshot_date, person_id)
+                             WHERE q.snapshot_date = ? AND p.origin_club_tid IS NULL""", [d])
+    emit("world.json", {
+        "our_nation": our_nation,
+        "nations": nations,
+        "places": {"denmark": home,
+                   "origins": [{"tid": r["team_tid"], "club": r["club"],
+                                "players": list(r["players"]), **place(r)}
+                               for r in origins if r["latitude"] is not None]},
+        "origins_unresolved": unresolved,
+        "note": "Nations: world ranking + UEFA coefficient (mart.nations). Maps: club stadiums "
+                "in our nation's leagues, and our current squad's resolved origin clubs — a "
+                f"player's origin club can't always be resolved ({unresolved} of the current "
+                "squad aren't shown on the origins map for that reason, not because they lack "
+                "one)."})
+
     # ------------------------------------------------------------ index.json
     files = {k: f"{E.SITE_URL}/api/{k}.json" for k in
              ("core", "clubs", "squad", "forecast", "loans", "matches", "registration",
