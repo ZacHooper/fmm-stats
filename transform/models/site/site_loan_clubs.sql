@@ -28,7 +28,8 @@ select
     case
         when
             managers.formation in (
-                select formation from {{ ref('site_formation_slots') }}
+                select slots.formation
+                from {{ ref('site_formation_slots') }} as slots
             )
             then managers.formation
     end as formation
@@ -43,4 +44,6 @@ left join managers
         and clubs.team_tid = managers.team_tid
 where
     leagues.ladder_rank < {{ var('loan_outlook').tiers }}
-    and clubs.team_tid not in (select team_tid from {{ ref('site_our_teams') }})
+    and clubs.team_tid not in (
+        select ours.team_tid from {{ ref('site_our_teams') }} as ours
+    )

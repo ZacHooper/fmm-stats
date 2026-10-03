@@ -52,55 +52,57 @@ squad as (
     where people.dob is not null
 ),
 
-lines as (
+season_lines as (
     select
-        lines.person_id,
-        lines.season,
-        coalesce(teams.club_tid, team_clubs.club_tid, lines.team_tid)
+        career_lines.person_id,
+        career_lines.season,
+        coalesce(teams.club_tid, team_clubs.club_tid, career_lines.team_tid)
             as club_tid,
         row_number() over (
-            partition by lines.person_id, lines.season
-            order by lines.line_index
+            partition by career_lines.person_id, career_lines.season
+            order by career_lines.line_index
         ) as leg,
-        count(*) over (partition by lines.person_id, lines.season) as legs
-    from {{ ref('fact_player_season') }} as lines
+        count(*)
+            over (partition by career_lines.person_id, career_lines.season)
+            as legs
+    from {{ ref('fact_player_season') }} as career_lines
     left join {{ ref('dim_team') }} as teams
-        on lines.team_tid = teams.team_tid
+        on career_lines.team_tid = teams.team_tid
     left join {{ ref('int_team_clubs') }} as team_clubs
-        on lines.team_tid = team_clubs.team_tid
-    where lines.team_tid is not null and lines.season is not null
+        on career_lines.team_tid = team_clubs.team_tid
+    where career_lines.team_tid is not null and career_lines.season is not null
 ),
 
 intervals as (
     select
         squad.snapshot_date,
         squad.person_id,
-        lines.club_tid,
-        {{ season_start('lines.season') }}
+        season_lines.club_tid,
+        {{ season_start('season_lines.season') }}
         + cast(
-            (lines.leg - 1)
+            (season_lines.leg - 1)
             * date_diff(
                 'day',
-                {{ season_start('lines.season') }},
-                {{ season_start('lines.season + 1') }}
+                {{ season_start('season_lines.season') }},
+                {{ season_start('season_lines.season + 1') }}
             )
-            / lines.legs as integer
+            / season_lines.legs as integer
         ) as from_date,
-        {{ season_start('lines.season') }}
+        {{ season_start('season_lines.season') }}
         + cast(
-            lines.leg
+            season_lines.leg
             * date_diff(
                 'day',
-                {{ season_start('lines.season') }},
-                {{ season_start('lines.season + 1') }}
+                {{ season_start('season_lines.season') }},
+                {{ season_start('season_lines.season + 1') }}
             )
-            / lines.legs as integer
+            / season_lines.legs as integer
         ) as to_date
     from squad
     cross join career
-    inner join lines
-        on squad.person_id = lines.person_id
-    where lines.season <= squad.season
+    inner join season_lines
+        on squad.person_id = season_lines.person_id
+    where season_lines.season <= squad.season
     union all
     select
         squad.snapshot_date,
@@ -116,7 +118,9 @@ intervals as (
             when squad.loaned_to_club_tid is null
                 then greatest(
                     {{ season_start('squad.season') }},
-                    coalesce(squad.joined_date, {{ season_start('squad.season') }})
+                    coalesce(
+                        squad.joined_date, {{ season_start('squad.season') }}
+                    )
                 )
             else {{ season_start('squad.season') }}
         end as from_date,

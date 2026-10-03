@@ -20,8 +20,8 @@ with career as (
 ),
 
 our_nation as (
-    select nation_id from {{ ref('dim_club') }}
-    inner join career on dim_club.club_tid = career.managed_club_tid
+    select clubs.nation_id from {{ ref('dim_club') }} as clubs
+    inner join career on clubs.club_tid = career.managed_club_tid
 ),
 
 training as (
@@ -33,8 +33,8 @@ training as (
         ) as months_club,
         max(training.months) filter (
             where
-                training.club_tid <> career.managed_club_tid
-                and clubs.nation_id = (select nation_id from our_nation)
+            training.club_tid <> career.managed_club_tid
+            and clubs.nation_id = (select our_nation.nation_id from our_nation)
         ) as months_domestic
     from {{ ref('int_squad_training') }} as training
     cross join career
@@ -54,7 +54,7 @@ players as (
         people.origin_youth_team_tid is not null as via_academy,
         origins.name as origin_club,
         origin_nations.name as origin_nation,
-        origins.nation_id = (select nation_id from our_nation)
+        origins.nation_id = (select our_nation.nation_id from our_nation)
             as origin_is_domestic,
         people.origin_club_tid = career.managed_club_tid as origin_is_ours,
         coalesce(training.months_club, 0) as months_club,
@@ -89,7 +89,9 @@ select
     dob,
     age,
     dob > make_date(
-        cast(season as integer) - 1 - {{ var('registration').b_list_under_age }},
+        cast(season as integer)
+        - 1
+        - {{ var('registration').b_list_under_age }},
         1,
         1
     ) as b_list,
@@ -107,7 +109,9 @@ select
     ) as hg_association,
     months_club,
     case
-        when months_club < {{ months }} then round({{ months }} - months_club, 1)
+        when
+            months_club < {{ months }}
+            then round({{ months }} - months_club, 1)
     end as months_to_go,
     case
         when
@@ -118,11 +122,12 @@ select
                 as integer
             )
             <= window_to
-            then snapshot_date
-            + cast(
-                ({{ months }} - months_club) * {{ var('days_in_month') }}
-                as integer
-            )
+            then
+                snapshot_date
+                + cast(
+                    ({{ months }} - months_club) * {{ var('days_in_month') }}
+                    as integer
+                )
     end as hg_eta,
     snapshot_date <= window_to as window_open,
     origin_club,

@@ -1,5 +1,6 @@
 -- Where each player we own would get games on loan, keyed (snapshot_date,
--- person_id, position, league_cid, club_tid): for every position he can be
+-- person_id, position, league_cid, club_tid), club_tid NULL in a division
+-- where no club starts anyone at the position: for every position he can be
 -- picked at (familiarity var('loan_outlook').min_familiarity or more), in each
 -- division of the loan ladder (site.loan_clubs) and at each club in it whose
 -- formation starts someone there:
@@ -79,7 +80,8 @@ naturals as (
         listed.position,
         listed.ca,
         row_number() over (
-            partition by rostered.snapshot_date, rostered.team_tid, listed.position
+            partition by
+                rostered.snapshot_date, rostered.team_tid, listed.position
             order by listed.ca desc, listed.tid asc
         ) as place
     from (
@@ -152,18 +154,20 @@ hosts as (
         clubs.team_tid as club_tid,
         clubs.slots,
         1 + count(naturals.person_id) filter (
-            where naturals.ca >= owned.ca and naturals.person_id <> owned.person_id
+            where naturals.ca >= owned.ca
+            and naturals.person_id <> owned.person_id
         ) as rank,
         count(naturals.person_id) filter (
             where naturals.person_id <> owned.person_id
-        ) as others,
+        ) as other_players,
         -- the slots-th best other than him: one place further down when he is
         -- among the club's own starters
         clubs.slots
         + coalesce(
             max(
                 case
-                    when naturals.person_id = owned.person_id
+                    when
+                        naturals.person_id = owned.person_id
                         and naturals.place <= clubs.slots
                         then 1
                 end
@@ -198,7 +202,9 @@ lines as (
         hosts.club_tid,
         count(pool.person_id) filter (where pool.ca < starter.ca) as below,
         count(pool.person_id)
-        - count(pool.person_id) filter (where pool.person_id = starter.person_id)
+        - count(pool.person_id) filter (
+            where pool.person_id = starter.person_id
+        )
             as n
     from hosts
     inner join naturals as starter
@@ -212,7 +218,7 @@ lines as (
             hosts.snapshot_date = pool.snapshot_date
             and hosts.league_cid = pool.league_cid
             and hosts.position = pool.position
-    where hosts.others >= hosts.slots
+    where hosts.other_players >= hosts.slots
     group by
         hosts.snapshot_date,
         hosts.person_id,
@@ -237,7 +243,7 @@ select
     hosts.slots,
     case
         when lines.n > 0 then round_even(100.0 * lines.below / lines.n, 0)
-    end as line
+    end as line  -- noqa: RF04
 from owned
 inner join levels
     on

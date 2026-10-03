@@ -6,27 +6,28 @@
 -- pounds, or loan / free / stay / contract ended; NULL for a code not
 -- understood.
 select
-    lines.person_id,
-    lines.line_index,
-    lines.season,
-    lines.team_tid,
-    coalesce(teams.name, youth_clubs.name, '#' || lines.team_tid) as club,
-    lines.fee_kind,
-    lines.fee_gbp,
-    case lines.fee_kind
-        when 'fee' then '£' || format('{:,}', lines.fee_gbp)
+    career_lines.person_id,
+    career_lines.line_index,
+    career_lines.season,
+    career_lines.team_tid,
+    coalesce(teams.name, youth_clubs.name, '#' || career_lines.team_tid)
+        as club,
+    career_lines.fee_kind,
+    career_lines.fee_gbp,
+    case career_lines.fee_kind
+        when 'fee' then '£' || format('{:,}', career_lines.fee_gbp)
         when 'contract_ended' then 'contract ended'
         when 'unknown' then null
-        else lines.fee_kind
+        else career_lines.fee_kind
     end as fee_label,
-    lines.apps,
-    lines.goals,
-    lines.assists,
-    lines.rating
-from {{ ref('fact_player_season') }} as lines
+    career_lines.apps,
+    career_lines.goals,
+    career_lines.assists,
+    career_lines.rating
+from {{ ref('fact_player_season') }} as career_lines
 left join {{ ref('dim_team') }} as teams
-    on lines.team_tid = teams.team_tid
+    on career_lines.team_tid = teams.team_tid
 left join {{ ref('int_team_clubs') }} as team_clubs
-    on lines.team_tid = team_clubs.team_tid and team_clubs.is_youth_side
+    on career_lines.team_tid = team_clubs.team_tid and team_clubs.is_youth_side
 left join {{ ref('dim_club') }} as youth_clubs
     on team_clubs.club_tid = youth_clubs.club_tid

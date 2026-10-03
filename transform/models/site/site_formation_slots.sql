@@ -7,8 +7,14 @@ from (
     {% for formation, slots in var('formation_slots').items() %}
     {% set outer = loop %}
     {% for position, n in slots.items() %}
-    ('{{ formation }}', '{{ position }}', {{ n }}, {{ outer.index }}, {{ loop.index }})
+    (
+        '{{ formation }}',
+        '{{ position }}',
+        {{ n }},
+        {{ outer.index }},
+        {{ loop.index }}
+    )
     {%- if not (outer.last and loop.last) %},{% endif %}
     {% endfor %}
     {% endfor %}
-) as slots (formation, position, slots, formation_order, position_order)
+)

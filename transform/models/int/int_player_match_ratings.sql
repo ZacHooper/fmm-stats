@@ -17,7 +17,7 @@ roles as (
         {% for position, role in var('rating_roles').items() %}
         ('{{ position }}', '{{ role }}'){% if not loop.last %},{% endif %}
         {% endfor %}
-    ) as roles (position, role)
+    )
 ),
 
 rated as (
@@ -74,9 +74,10 @@ select
     rated.role,
     case
         when rated.started and rated.role is not null
-            then pool.pool_mean
-            + (rated.rating - baseline.role_mean)
-            / nullif(baseline.role_sd, 0) * pool.pool_sd
+            then
+                pool.pool_mean
+                + (rated.rating - baseline.role_mean)
+                / nullif(baseline.role_sd, 0) * pool.pool_sd
     end as rating_adj
 from rated
 cross join pool

@@ -10,7 +10,11 @@
 -- exact pairs exist or the decoded reads grow at more than max_ratio times
 -- (or less than 1/max_ratio of) the exact ones, else 'forecastable'.
 {% set f = var('forecast') %}
-with snapshots as (
+with horizons as (
+    select unnest({{ f.horizons }}) as horizon_age
+),
+
+snapshots as (
     select
         person_id,
         snapshot_date,
@@ -38,9 +42,7 @@ target_pool as (
         snapshots.*,
         horizons.horizon_age
     from snapshots
-    cross join (
-        select unnest({{ f.horizons }}) as horizon_age
-    ) as horizons
+    cross join horizons
     where abs(snapshots.age - horizons.horizon_age) <= 1
     qualify row_number() over (
         partition by snapshots.person_id, horizons.horizon_age
@@ -54,7 +56,7 @@ target_pool as (
 pairs as (
     {% for attribute in var('attr_order') %}
     select
-        '{{ attribute }}' as attribute,
+        '{{ attribute }}' as attribute,  -- noqa: RF04
         now_pool.age as age_now,
         target_pool.horizon_age,
         now_pool."{{ attribute }}" as value_now,
@@ -63,7 +65,7 @@ pairs as (
     inner join target_pool
         on
             now_pool.person_id = target_pool.person_id
-            and target_pool.horizon_age > now_pool.age
+            and now_pool.age < target_pool.horizon_age
     {% if not loop.last %}union all{% endif %}
     {% endfor %}
 ),
@@ -88,7 +90,7 @@ cells as (
 yearly as (
     {% for attribute in var('attr_order') %}
     select
-        '{{ attribute }}' as attribute,
+        '{{ attribute }}' as attribute,  -- noqa: RF04
         not earlier.is_estimated and not later.is_estimated as both_exact,
         later."{{ attribute }}" - earlier."{{ attribute }}" as delta
     from snapshots as earlier

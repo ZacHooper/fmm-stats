@@ -36,13 +36,15 @@ played as (
 careers as (
     select distinct
         people.snapshot_date,
-        lines.team_tid
-    from {{ ref('fact_player_season') }} as lines
+        career_lines.team_tid
+    from {{ ref('fact_player_season') }} as career_lines
     inner join {{ ref('fact_player_snapshot') }} as people
-        on lines.person_id = people.person_id
+        on career_lines.person_id = people.person_id
     inner join snapshots
         on people.snapshot_date = snapshots.snapshot_date
-    where lines.season <= snapshots.season and lines.team_tid is not null
+    where
+        career_lines.season <= snapshots.season
+        and career_lines.team_tid is not null
     qualify count(*) over (
         partition by people.snapshot_date, people.person_id
     ) > 1

@@ -58,13 +58,14 @@ groups as (
         on
             world.competition_season = ours.competition_season
             and world.stage_key = ours.stage_key
-    inner join first_dates as others
+    inner join first_dates as other_groups
         on
-            ours.competition_season = others.competition_season
-            and ours.stage_index = others.stage_index
-            and others.stage_key <= ours.stage_key
-            and others.stage_key > ours.stage_key - coalesce(stages.n_groups, 1)
-            and abs(date_diff('day', others.first_date, ours.first_date))
+            ours.competition_season = other_groups.competition_season
+            and ours.stage_index = other_groups.stage_index
+            and ours.stage_key >= other_groups.stage_key
+            and other_groups.stage_key
+            > ours.stage_key - coalesce(stages.n_groups, 1)
+            and abs(date_diff('day', other_groups.first_date, ours.first_date))
             <= {{ var('site_group_draw_days') }}
     group by world.match_id
 )
@@ -98,33 +99,39 @@ select
     end as stage_kind,
     case stages.stage_format
         when 'league' then stages.name
-        when 'group' then 'Group ' || chr(64 + cast(groups.group_number as integer))
+        when
+            'group'
+            then 'Group ' || chr(64 + cast(groups.group_number as integer))
         else concat_ws(' · ', stages.name, rounds.name)
-    end as stage,
+    end as stage,  -- noqa: RF04
     case
         when stages.stage_format in ('league', 'group')
             then matches.matchday + 1
     end as matchday,
     case when rounds.legs = 2 then matches.leg end as leg,
     case
-        when ties.legs = 2 and ties.legs_played = 2
+        when tie_rows.legs = 2 and tie_rows.legs_played = 2
             then
                 case
-                    when ties.team_a_tid = sides.team_tid then ties.goals_a
-                    else ties.goals_b
+                    when
+                        tie_rows.team_a_tid = sides.team_tid
+                        then tie_rows.goals_a
+                    else tie_rows.goals_b
                 end
     end as tie_gf,
     case
-        when ties.legs = 2 and ties.legs_played = 2
+        when tie_rows.legs = 2 and tie_rows.legs_played = 2
             then
                 case
-                    when ties.team_a_tid = sides.team_tid then ties.goals_b
-                    else ties.goals_a
+                    when
+                        tie_rows.team_a_tid = sides.team_tid
+                        then tie_rows.goals_b
+                    else tie_rows.goals_a
                 end
     end as tie_ga,
     case
-        when stages.stage_format = 'knockout' and ties.is_decided
-            then ties.winner_tid = sides.team_tid
+        when stages.stage_format = 'knockout' and tie_rows.is_decided
+            then tie_rows.winner_tid = sides.team_tid
     end as went_through,
     matches.decided_by in ('ET', 'pens') as extra_time,
     sides.pens_for,
@@ -138,11 +145,11 @@ cross join career
 inner join {{ ref('fact_team_match') }} as sides
     on
         ours.match_id = sides.match_id
-        and sides.team_tid = career.managed_club_tid
+        and career.managed_club_tid = sides.team_tid
 inner join {{ ref('fact_team_match') }} as against
     on
         ours.match_id = against.match_id
-        and against.team_tid = sides.opponent_tid
+        and sides.opponent_tid = against.team_tid
 inner join {{ ref('dim_match') }} as matches
     on ours.match_id = matches.match_id
 left join {{ ref('dim_team') }} as opponents
@@ -158,7 +165,7 @@ left join {{ ref('dim_round') }} as rounds
         and matches.competition_season = rounds.competition_season
         and matches.stage_index = rounds.stage_index
         and matches.round_index = rounds.round_index
-left join {{ ref('tie_results') }} as ties
-    on matches.tie_id = ties.tie_id
+left join {{ ref('tie_results') }} as tie_rows
+    on matches.tie_id = tie_rows.tie_id
 left join groups
     on ours.match_id = groups.match_id

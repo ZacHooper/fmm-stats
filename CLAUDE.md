@@ -191,6 +191,8 @@ uv run python tests/validate_mart.py --db fm-frem.duckdb   # assert the mart's i
 
 # refreshing the web app (after an import) — see docs/DEPLOY.md
 uv run python scripts/export_data.py --upload-all         # -> site/api/*.json; fails on a CA leak
+uv run python scripts/export_site.py --out /tmp/new       # the same JSON from the site marts (step 17)
+uv run python scripts/diff_exports.py site/api /tmp/new   # ... and how it differs from the published
 uv run python scripts/publish_duckdb.py --career frem --upload  # -> R2, for remote-agent SQL
 uv run python -m http.server -d site 8000                # preview before pushing
 git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys on push

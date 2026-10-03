@@ -12,10 +12,10 @@ with career as (
 ),
 
 ours as (
-    select team_tid
-    from {{ ref('dim_team') }}
+    select teams.team_tid
+    from {{ ref('dim_team') }} as teams
     inner join career
-        on dim_team.club_tid = career.managed_club_tid
+        on teams.club_tid = career.managed_club_tid
 ),
 
 transfers as (
@@ -38,10 +38,10 @@ transfers as (
 
 internal as (
     select
-        person_id,
-        snapshot_date as move_date,
-        previous_team_tid as from_club_tid,
-        team_tid as to_club_tid,
+        steps.person_id,
+        steps.snapshot_date as move_date,
+        steps.previous_team_tid as from_club_tid,
+        steps.team_tid as to_club_tid,
         'internal' as move_type,
         'none' as fee_type,
         cast(null as bigint) as fee_gbp
@@ -56,9 +56,9 @@ internal as (
         from {{ ref('fact_player_snapshot') }}
     ) as steps
     where
-        team_tid in (select team_tid from ours)
-        and previous_team_tid in (select team_tid from ours)
-        and team_tid <> previous_team_tid
+        steps.team_tid in (select ours.team_tid from ours)
+        and steps.previous_team_tid in (select ours.team_tid from ours)
+        and steps.team_tid <> steps.previous_team_tid
 )
 
 select * from transfers

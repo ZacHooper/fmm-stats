@@ -1,5 +1,5 @@
 -- Where each player was, as dated spells, for the development chart: one row
--- per spell, keyed (person_id, spell_type, from_date, club_tid).
+-- per spell, keyed (person_id, spell_type, from_date).
 --   at_club   a run of his consecutive snapshots on one team's books (the team
 --             his record names, so first team and reserves are two spells),
 --             from the date his record says he joined, where that lies
@@ -61,7 +61,9 @@ at_club as (
                 case
                     when
                         joined_date <= snapshot_date
-                        and (previous_date is null or joined_date > previous_date)
+                        and (
+                            previous_date is null or joined_date > previous_date
+                        )
                         then joined_date
                 end,
                 snapshot_date
@@ -96,7 +98,10 @@ loans_in as (
         case
             when
                 loans.last_seen_date
-                < (select max(snapshot_date) from snapshots)
+                < (
+                    select max(latest.snapshot_date) as latest_date
+                    from snapshots as latest
+                )
                 then loans.last_seen_date
         end as to_date
     from {{ ref('fact_loan_spell') }} as loans

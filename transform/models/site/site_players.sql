@@ -9,7 +9,7 @@
 --   capital_eligible   that club is on the capital-region signing list
 --                      (seeds/eligible_origin_clubs.csv)
 --   development        how far he is from his ceiling, as a word: ability
---                      against potential, banded by var('site_development_bands')
+--                      against potential, in var('site_development_bands')
 --   positions          each position his record lists, by code: his
 --                      familiarity there and his Level %ile, the share of the
 --                      players listing it whose ability is below his, among all

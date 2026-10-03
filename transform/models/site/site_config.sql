@@ -7,9 +7,9 @@ select
 from {{ ref('stg_app_config') }}
 union all
 select
-    'min_familiarity' as key,
+    'min_familiarity' as key,  -- noqa: RF04
     '{{ var("loan_outlook").min_familiarity }}' as value
 union all
 select
-    'fallback_formation' as key,
+    'fallback_formation' as key,  -- noqa: RF04
     '{{ var("fallback_formation") }}' as value

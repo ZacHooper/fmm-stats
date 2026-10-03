@@ -12,14 +12,14 @@ with totals as (
         case
             when is_goalkeeper
                 then
-                    {% for attribute in var('attr_order') %}
+                {% for attribute in var('attr_order') %}
                     "{{ attribute }}"{% if not loop.last %} +{% endif %}
-                    {% endfor %}
+                {% endfor %}
             else
                 {% for attribute in var('attr_order')
                     if attribute not in var('gk_only_attributes') %}
                 "{{ attribute }}"{% if not loop.last %} +{% endif %}
-                {% endfor %}
+            {% endfor %}
         end as attr_total
     from {{ ref('fact_player_snapshot') }}
     where has_attributes

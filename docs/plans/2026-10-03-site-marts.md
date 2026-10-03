@@ -21,14 +21,24 @@ The web app's JSON rebuilt on the model: a small set of views in the dbt schema 
 
 | Mart | Grain | Feeds |
 |---|---|---|
-| `site.snapshots` | snapshot | every file's snapshot fields |
-| `site.config`, `site.role_weights`, `site.position_roles` | key; method × role × attribute; position | `core.json` tactics and familiarity |
-| `site.our_teams` | team of the club we manage | career block |
+| `site.snapshots` | snapshot | every file's snapshot fields, `index.snapshots` |
+| `site.config`, `site.role_weights`, `site.position_roles` | key; method × role × attribute; position | tactics, familiarity, loan settings |
+| `site.our_teams` | team of the club we manage | the career block |
 | `site.clubs` | snapshot × team | `core.clubs`, `clubs.json` |
 | `site.leagues` | snapshot × league, with skill_idx and the comparison ladder | `core.leagues`, ladders |
 | `site.players` | snapshot × person, with positions and Level %iles | `core.players`, `all.json`, the profile |
-| `site.squad` | snapshot × person in our squad | `ours.*` |
+| `site.squad` (`int_our_squad`) | snapshot × person in our squad | `ours.*`, every squad-scoped file |
 | `site.player_spells`, `site.player_moves`, `site.player_career` | spell; move; career line | `squad.json` |
+| `site.matches`, `site.match_players` (`int_player_match_ratings`) | match; appearance | `matches.json` |
+| `site.attendance`, `site.finances` | season; snapshot | `matches.json` |
+| `site.registration` (`int_squad_training`), `site.registration_rules` | snapshot × person; snapshot | `registration.json` |
+| `site.nations`, `site.places` | snapshot × nation; snapshot × team | `world.json` |
+| `site.loan_clubs`, `site.formation_slots`, `site.loan_outlook` | snapshot × team; formation × position; owned player × position × division × club | `loans.json` |
+| `site.forecast`, `site.age_curve` | attribute × age × value × horizon; age | `forecast.json` |
+
+The model gained what the site needed and the save holds: team stats and our formation on
+`fact_team_match`. Constants the old exporter carried are vars (`formation_slots`,
+`registration`, `forecast`, `loan_outlook`, `rating_roles`).
 
 ## Intended differences
 
