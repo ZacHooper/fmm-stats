@@ -29,6 +29,7 @@ but raw bytes.
 Budget ~1 min per snapshot (~12 min for Frem's 12).
 """
 import argparse
+import concurrent.futures
 import csv
 import gzip
 import json
@@ -163,6 +164,12 @@ def main():
                     help="load each snapshot under the manifest's season/phase even when the "
                          "save's own header date disagrees")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
+    ap.add_argument("--jobs", "-j", type=int, default=os.cpu_count() or 4,
+                    help="concurrent extract jobs (default: number of CPU cores)")
+    ap.add_argument("--serial-extract", action="store_true",
+                    help="extract saves serially instead of concurrently")
+    ap.add_argument("--per-snapshot-build", action="store_true",
+                    help="rebuild views and marts on every snapshot (legacy slow behavior)")
     a = ap.parse_args()
 
     rows = read_manifest()
@@ -190,20 +197,26 @@ def main():
         car = careers.resolve_career(career)
         db_path = a.db or car.db
         print(f"\n=== {car.name} ({career}) -> {db_path} — {len(crows)} snapshots ===")
-        for i, r in enumerate(crows, 1):
-            label, season, phase = r["label"], r["season"], r["phase"]
-            print(f"  [{i}/{len(crows)}] {label}  season={season} phase={phase}")
-            if not r["save_file"]:
-                print("    ! no save recorded in the manifest — cannot rebuild")
-                failed.append(label)
-                continue
-            out_dir = os.path.join(REPO, "output", label)
-            if a.skip_existing and os.path.isdir(out_dir) and _extract_is_current(out_dir):
-                print(f"    reusing existing {os.path.relpath(out_dir, REPO)}")
-            else:
+
+        # Pipelined rebuild: worker pool extracts concurrently, main thread ingests into DuckDB
+        extract_workers = 1 if a.serial_extract else max(1, a.jobs)
+        futures = {}
+
+        def _do_extract(save_path):
+            return subprocess.run([sys.executable, "extract.py", save_path],
+                                  cwd=REPO, capture_output=True, text=True)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=extract_workers) as pool:
+            # Pre-flight saves and submit extracts ahead of ingestion
+            for r in crows:
+                label = r["label"]
+                if not r["save_file"]:
+                    continue
+                out_dir = os.path.join(REPO, "output", label)
+                if a.skip_existing and os.path.isdir(out_dir) and _extract_is_current(out_dir):
+                    continue
                 if a.skip_existing and os.path.isdir(out_dir):
-                    print("    existing extract predates the current player record "
-                          "— re-extracting")
+                    print(f"  [{label}] existing extract predates the current player record — re-extracting")
                 save = fetch_save(career, r["save_file"], a.dry_run)
                 if save is None:
                     failed.append(label)
@@ -213,26 +226,57 @@ def main():
                           f"{os.path.basename(save)!r}")
                     failed.append(label)
                     continue
-                if not run([sys.executable, "extract.py", save], a.dry_run):
-                    print("    ! extract failed")
+                if not a.dry_run:
+                    futures[label] = pool.submit(_do_extract, save)
+
+            # Ingestion loop: consumes extracts as they finish in manifest order
+            for i, r in enumerate(crows, 1):
+                label, season, phase = r["label"], r["season"], r["phase"]
+                if label in failed:
+                    continue
+                print(f"  [{i}/{len(crows)}] {label}  season={season} phase={phase}")
+                out_dir = os.path.join(REPO, "output", label)
+
+                if label in futures:
+                    res = futures[label].result()
+                    if res.returncode != 0:
+                        print(f"    ! extract failed: {(res.stderr or '').strip()}")
+                        failed.append(label)
+                        continue
+
+                if not a.dry_run and not os.path.isdir(out_dir):
+                    print(f"    ! missing extract directory {out_dir}")
                     failed.append(label)
                     continue
-            load = [sys.executable, "load_duckdb.py", os.path.join("output", label),
-                    "--db", db_path, "--career", career]
-            if not a.dry_run:
-                problem = check_against_manifest(out_dir, r, car)
-                if problem and not a.trust_manifest:
-                    print(f"    ! {problem} -- fix the manifest, or pass --trust-manifest")
+
+                load = [sys.executable, "load_duckdb.py", os.path.join("output", label),
+                        "--db", db_path, "--career", career]
+                if not a.per_snapshot_build:
+                    load.append("--skip-views")
+
+                if not a.dry_run:
+                    problem = check_against_manifest(out_dir, r, car)
+                    if problem and not a.trust_manifest:
+                        print(f"    ! {problem} -- fix the manifest, or pass --trust-manifest")
+                        failed.append(label)
+                        continue
+                    if problem:
+                        print(f"    ~ {problem}; loading the manifest's values (--trust-manifest)")
+                        load += ["--season", str(season), "--phase", phase]
+                if not run(load, a.dry_run):
+                    print("    ! load failed")
                     failed.append(label)
                     continue
-                if problem:
-                    print(f"    ~ {problem}; loading the manifest's values (--trust-manifest)")
-                    load += ["--season", str(season), "--phase", phase]
-            if not run(load, a.dry_run):
-                print("    ! load failed")
-                failed.append(label)
-                continue
-            done += 1
+                done += 1
+
+        # Phase 3: Single-pass dbt build & mart views
+        if not a.per_snapshot_build and not a.dry_run and done > 0:
+            print(f"\n  building models and mart for {career} (single-pass)...")
+            build_cmd = [sys.executable, "load_duckdb.py", "--refresh-only",
+                         "--db", db_path, "--career", career]
+            if not run(build_cmd, a.dry_run):
+                print(f"  ! mart/views build failed for {career}")
+                return 1
 
     mins = (time.time() - t0) / 60
     print(f"\n{'would rebuild' if a.dry_run else 'rebuilt'} {done}/{len(rows)} snapshots "
