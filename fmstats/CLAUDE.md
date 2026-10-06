@@ -19,21 +19,34 @@ The plan is [`docs/plans/2026-10-01-data-layers.md`](../docs/plans/2026-10-01-da
 | raw | written by `load_duckdb.py` | each table as the save stores it, one row set per snapshot, plus seeds | no logic |
 | stg | `transform/models/stg/` (views) | one model per raw table: rename, cast, decode codes, sentinels to NULL | 1:1 with its source: no joins, no dropped rows (`rows_match_source`) |
 | int | `transform/models/int/` (views) | snapshot rules, joins across tables, spells, derived standings and outcomes | joins and business rules live here and only here |
-| mart | `transform/models/mart/` (tables) | the model's `dim_*` / `fact_*`, plus thin consumer views (`standings`, `tie_results`, `squad_membership`) | the only layer users, agents and the site read |
+| mart | `transform/models/mart/` (tables) | the model's `dim_*` / `fact_*`, plus thin consumer views (`mart_standings`, `mart_tie_results`, `mart_squad_membership`) | the only layer users, agents and the site read |
 
 - **Built (steps 13–16):** reference, nation, club and team, competition, stage, round, match,
   team-match, player-match, events, participation, outcomes; person, player and staff
   snapshots, seasons, awards, injuries; contracts, transfers, loans, staff spells and squad
-  membership (`squad_membership`: who a squad array lists, never a record's club).
+  membership (`mart_squad_membership`: who a squad array lists, never a record's club).
 - **`fmstats/mart.py` is the old consumer mart**: ~87 views in one file, each re-applying the
-  same rules to raw. Step 17 designs a small set of consumer marts
-  on the new tables, for what the site and `fmq` read, beside the old views (not a port of
-  each); step 18 proves their export matches the old one on a new save imported end to end;
-  step 19 points the consumers at them; step 20 deletes the old ones. Until step 19 the old views
+  same rules to raw. Step 17 built the web app's marts on the new tables (`site`, below),
+  beside the old views; step 18 proves their export matches the old one on a new save
+  imported end to end; step 19 points the site at them; step 20 deletes the old ones.
+  `fmq`, `scout`, `stats` and `league` get their own rework after that. Until step 19 the old views
   are what everything reads, and they stay untouched. `fmstats/compat.py` and `transform/models/legacy/` keep the old
   shapes alive for it until then. **Nothing reads the new tables yet** except
   `tests/validate_mart.py`; `scout`, `stats`, `league`, `fmq` and the site export all read the
   old views.
+
+## The site schema (data-layers step 17)
+`transform/models/site/` holds the web app's marts: one view per thing a page shows
+(`site.players`, `site.squad`, `site.matches`, `site.loan_outlook`, ...), each a thin select
+over the model. `scripts/export_site.py` reads only `site.*` and writes the same JSON as
+`export_data.py`; nothing else reads `site` until step 19.
+- **No rules in the exporter.** Squad status, the B-list, origin, Level %iles and the loan
+  ranks are SQL; the exporter shapes rows and rounds for display. Ability may order rows
+  inside a site view (the levels, the loan ranks) and never leaves it.
+- **Check a change** by exporting both ways into scratch directories and diffing them:
+  `export_data.py --out OLD`, `export_site.py --out NEW`, `scripts/diff_exports.py OLD NEW`.
+  [`docs/plans/2026-10-03-site-marts.md`](../docs/plans/2026-10-03-site-marts.md) lists every
+  intended difference; a new one goes there with its reason.
 
 ## Building on the model
 - **New data goes into the model, not into `mart.py`.** A fact or dimension the model names is

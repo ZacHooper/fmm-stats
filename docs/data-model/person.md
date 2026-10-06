@@ -171,7 +171,7 @@ Keys are natural: a person is `person_id` (`<tid>-<dob>`), a snapshot `snapshot_
 
 | Table | Grain | Notes |
 |---|---|---|
-| `dim_person` | `person_id` | name (latest), dob, and his origin: the oldest career line any snapshot holds (his first only where no snapshot had dropped any). `origin_team_tid` is the team it names, `origin_club_tid` the club that owns it: a youth side counts for the club whose academy it is (tid = 65535 − club tid, "Frem Yth" 65189), with `origin_youth_team_tid` naming the academy (step 16) |
+| `dim_person` | `person_id` | name (latest), dob, and his origin: the oldest career line with a club any snapshot holds (his first only where no snapshot had dropped any; a season unattached before his first club is skipped). `origin_team_tid` is the team it names, `origin_club_tid` the club that owns it: a youth side counts for the club whose academy it is (tid = 65535 − club tid, "Frem Yth" 65189), with `origin_youth_team_tid` naming the academy (step 16) |
 | `fact_player_snapshot` | `person_id`, `snapshot_date` | `team_tid` is the team whose books he is on (a loanee's parent team) and `club_tid` its club; ratings with `attributes_are_estimated`; `value` stated where the save states it, else the model's (`value_is_estimated`, `value_in_trusted_band`); `contract_status` from his current contract's expiry; `is_contracted` the save's own flag |
 | `fact_staff_snapshot` | `person_id`, `snapshot_date` | a person with no player record who has a staff record or is on a team's books |
 | `fact_injury_spell` | `person_id`, `start_date` | runs of injured weeks in Player Progress (our squad and reserves) |

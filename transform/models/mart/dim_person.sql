@@ -1,16 +1,17 @@
 -- Every person in any snapshot, keyed person_id ('<tid>-<dob>': the game hands
 -- a retired person's tid to a newgen, so tid alone would join two careers):
 -- his name (the latest), date of birth, and the club and season of the oldest
--- career-history line any snapshot holds for him (origin_*; NULL for a person
--- who was never a player). That line is his first only where no snapshot had
--- yet dropped any (int.player_career_lines). origin_team_tid is the team the
--- line names (a first, reserve or B side, or a youth side) and
--- origin_club_tid the club that owns it (int.team_clubs): a youth side's line
--- counts for the club whose academy it is, with origin_youth_team_tid naming
--- the academy (Frem's "Frem Yth" 65189), so a club's own products are
--- origin_club_tid = that club. A line at a club the save holds no record for
--- keeps its tid as the club. Everything that
--- changes is on the snapshot facts.
+-- career-history line with a club any snapshot holds for him (origin_*: a
+-- season without one, unattached before his first club, is not where he came
+-- from; NULL for a person who was never at a club). That line is his first
+-- only where no snapshot had yet dropped any (int.player_career_lines).
+-- origin_team_tid is the team the line names (a first, reserve or B side, or a
+-- youth side) and origin_club_tid the club that owns it (int.team_clubs): a
+-- youth side's line counts for the club whose academy it is, with
+-- origin_youth_team_tid naming the academy (Frem's "Frem Yth" 65189), so a
+-- club's own products are origin_club_tid = that club. A line at a club the
+-- save holds no record for keeps its tid as the club. Everything that changes
+-- is on the snapshot facts.
 with origins as (
     select
         career_lines.person_id,
@@ -23,7 +24,10 @@ with origins as (
     from {{ ref('int_player_career_lines') }} as career_lines
     left join {{ ref('int_team_clubs') }} as teams
         on career_lines.club_tid = teams.team_tid
-    where career_lines.line_index = 0
+    where career_lines.club_tid is not null
+    qualify row_number() over (
+        partition by career_lines.person_id order by career_lines.line_index
+    ) = 1
 )
 
 select

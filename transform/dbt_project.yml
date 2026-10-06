@@ -28,6 +28,9 @@ models:
     mart:                     # the dim_ / fact_ tables, beside the old mart views
       +schema: mart
       +materialized: table
+    site:                     # the web app's marts: one view per thing a page shows, read by
+      +schema: site           # scripts/export_site.py (data-layers step 17)
+      +materialized: view
 
 vars:
   # What the SQL is generated from: the raw schema's attribute columns and codes, mirrored
@@ -36,6 +39,7 @@ vars:
                Aggression, Creativity, Decisions, Leadership, Movement, Positioning,
                Teamwork, Pace, Stamina, Strength, Agility, Handling, Kicking, Reflexes,
                Communication, Throwing]
+  gk_only_attributes: [Handling, Kicking, Reflexes, Communication, Throwing]
   exact_single: [Pace, Strength, Stamina, Technique, Aggression, Leadership, Agility]
   attribute_columns:          # record offset -> attribute-record column (stg_attribute_model)
     "-34": crossing_src
@@ -119,6 +123,14 @@ vars:
   # match_id packs a match's date and its two team tids into one BIGINT (macros/match_id.sql);
   # every tid must stay below this base.
   match_id_tid_base: 100000
+  # The team stats the match table holds per side (stg_matches home_ / away_), carried onto
+  # fact_team_match for our matches.
+  team_match_stats: [shots, shots_on_target, passes, passes_completed, tackles, tackles_won,
+                     crosses, interceptions]
+  # The role a position's match ratings are compared within (int_player_match_ratings).
+  rating_roles: {GK: GK, DC: Centre-back, DL: Full-back, DR: Full-back, DML: Wing-back,
+                 DMR: Wing-back, DMC: DM, MC: Central mid, ML: Wide mid, MR: Wide mid,
+                 AMC: Attacking mid, AML: Winger, AMR: Winger, ST: Forward}
   starters: 11                # a match line's pos_order up to this is a starter
   # Each match period by the last minute it holds (int_match_events); a shoot-out kick is
   # its own period, whatever minute the save gives it.
@@ -159,3 +171,61 @@ vars:
   # value_age_cap, and value_trusted_band is the range it was validated in, in GBP.
   value_age_cap: 28
   value_trusted_band: [20000, 5000000]
+  # The web app's marts (models/site). A league's skill_idx needs this many rated players.
+  site_skill_min_players: 20
+  # Squad registration, a house rule (docs/danish-registration-rules.md; int_squad_training,
+  # site_registration). The home-grown window runs from the season a player turns the first
+  # age to the end of the season he turns the second; a month is days_in_month days.
+  home_grown_window_ages: [15, 22]
+  home_grown_months: 36
+  days_in_month: 30.44
+  # Starting slots per position for each formation an AI manager can prefer (the names in
+  # fact_staff_snapshot.formation_preferred_name), for the loan outlook (site_loan_outlook):
+  # in a back-four 4-2-3-1 the two deep midfielders decode as MC, a back five's wide men are
+  # DML/DMR, and a 5-2-2-1's two behind the striker are central (AMC), confirmed in game. A
+  # club whose manager's formation is unknown or not listed plays the fallback.
+  formation_slots:
+    "4-4-2": {GK: 1, DL: 1, DC: 2, DR: 1, ML: 1, MC: 2, MR: 1, ST: 2}
+    "4-4-2 Diamond": {GK: 1, DL: 1, DC: 2, DR: 1, DMC: 1, MC: 2, AMC: 1, ST: 2}
+    "4-1-2-2-1": {GK: 1, DL: 1, DC: 2, DR: 1, DMC: 1, MC: 2, AML: 1, AMR: 1, ST: 1}
+    "4-1-4-1": {GK: 1, DL: 1, DC: 2, DR: 1, DMC: 1, ML: 1, MC: 2, MR: 1, ST: 1}
+    "4-2-3-1": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 2, AML: 1, AMC: 1, AMR: 1, ST: 1}
+    "4-2-2-2": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 2, AML: 1, AMR: 1, ST: 2}
+    "4-3-1-2": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 3, AMC: 1, ST: 2}
+    "4-3-3": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 3, AML: 1, AMR: 1, ST: 1}
+    "4-4-1-1": {GK: 1, DL: 1, DC: 2, DR: 1, ML: 1, MC: 2, MR: 1, AMC: 1, ST: 1}
+    "4-3-2-1": {GK: 1, DL: 1, DC: 2, DR: 1, MC: 3, AMC: 2, ST: 1}
+    "4-5-1": {GK: 1, DL: 1, DC: 2, DR: 1, ML: 1, MC: 3, MR: 1, ST: 1}
+    "5-1-2-2": {GK: 1, DML: 1, DC: 3, DMR: 1, DMC: 1, MC: 2, ST: 2}
+    "5-2-1-2": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 2, AMC: 1, ST: 2}
+    "5-2-2-1": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 2, AMC: 2, ST: 1}
+    "5-3-2": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 3, ST: 2}
+  fallback_formation: "4-2-3-1"
+  # The loan outlook ranks a player in our division and the next tiers - 1 below it; a
+  # position counts as one he can be picked at from min_familiarity.
+  loan_outlook: {tiers: 4, min_familiarity: 15}
+  # The attribute forecast (site_forecast): a cell is a player's value of an attribute at an
+  # age, and the values the players in it reach at each horizon age, from the snapshot
+  # closest to it within a year; a cell needs min_players. An attribute's bucket compares
+  # its year-on-year growth between two exact reads with its growth where either is decoded,
+  # over ages growth_ages, pairs of snapshots gap_days apart (site_age_curve too).
+  forecast: {horizons: [21, 24], ages: [15, 24], min_players: 30, growth_ages: [16, 22],
+             gap_days: [350, 380], fixed_below: 0.1, decoded_floor: 0.02, max_ratio: 2}
+  # The registration rules for the managed club's league: the A-list cap, the home-grown
+  # minimums (overall, and trained at the club) that bind in the top hg_tiers tiers, the
+  # B-list age (under it at the last new year before the season's second calendar year) and
+  # the youngest age on a matchday squad.
+  registration: {a_list_max: 25, hg_min: 8, hg_club_min: 4, hg_tiers: 2,
+                 b_list_under_age: 21, min_matchday_age: 16}
+  # A competition's groups start within this many days of each other (site_matches' group
+  # letter).
+  site_group_draw_days: 3
+  # A player's development word: the first band whose share of his potential his ability
+  # reaches (site_players).
+  site_development_bands: [[0.97, At his ceiling], [0.90, Nearly there], [0.75, Developing],
+                           [0, Lots to come]]
+  # The personality and hidden attributes the profile sheet shows, in its order.
+  site_profile_traits: [adaptability, ambition, determination, loyalty, pressure,
+                        professionalism, sportsmanship, temperament, jumping, consistency,
+                        big_match, injury_prone, versatility, set_pieces, penalty, work_rate,
+                        flair]

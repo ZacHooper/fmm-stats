@@ -1,0 +1,120 @@
+version: 2
+# The web app's marts (data-layers step 17), read by scripts/export_site.py only. Each states
+# its grain; docs/plans/2026-10-03-site-marts.md has the design and the differences from the
+# old export.
+models:
+  - name: site_snapshots
+    description: The store's snapshots, the newest flagged.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date]}}
+  - name: site_config
+    description: The settings the web app reads, one row per key.
+    data_tests:
+      - unique_combination: {arguments: {columns: [key]}}
+  - name: site_role_weights
+    description: Each weight-set's attribute weights per role.
+    data_tests:
+      - unique_combination: {arguments: {columns: [method, role, attribute]}}
+  - name: site_position_roles
+    description: The role each position is rated in.
+    data_tests:
+      - unique_combination: {arguments: {columns: [position]}}
+  - name: site_our_teams
+    description: The teams of the club we manage.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid]}}
+  - name: site_clubs
+    description: Every team on every snapshot, with its league and whether it is listed.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+  - name: site_leagues
+    description: Every league on every snapshot, with skill_idx and the comparison ladder.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, cid]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, ladder_rank]},
+                             config: {where: "ladder_rank is not null"}}
+  - name: site_players
+    description: Every rated player on every snapshot, with positions and Level %iles.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, person_id]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: site_squad
+    description: Our squad on each snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, person_id]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, person_id]
+            to: ref('fact_player_snapshot')
+            to_columns: [snapshot_date, person_id]
+  - name: site_player_spells
+    description: Where each player was, as dated spells.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, spell_type, from_date]}}
+  - name: site_player_moves
+    description: The dated moves the development chart marks.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, move_type, move_date]}}
+  - name: site_player_career
+    description: Each player's career history, one row per line.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, line_index]}}
+  - name: site_matches
+    description: The managed team's matches with detail, from its side.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_id]}}
+  - name: site_match_players
+    description: Each appearance for one of our teams in a match with detail.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_id, person_id]}}
+  - name: site_attendance
+    description: The managed team's home crowds per season.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season]}}
+  - name: site_finances
+    description: Our squad's value and wage bill on each snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date]}}
+  - name: site_registration_rules
+    description: The registration rules that apply to us on each snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date]}}
+  - name: site_registration
+    description: Each player in our squad as the registration page reads him.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, person_id]}}
+  - name: site_nations
+    description: Every ranked nation on every snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, nation_id]}}
+  - name: site_places
+    description: Where each team plays on each snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+  - name: site_formation_slots
+    description: How many start at each position in each formation.
+    data_tests:
+      - unique_combination: {arguments: {columns: [formation, position]}}
+  - name: site_loan_clubs
+    description: The clubs a player of ours could be loaned to on each snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+  - name: site_loan_outlook
+    description: >
+      Where each player we own would get games on loan: a row per club that starts someone at
+      his position, or one with no club where no club in the division does.
+    data_tests:
+      - unique_combination:
+          arguments: {columns: [snapshot_date, person_id, position, league_cid, club_tid]}
+          config: {where: "club_tid is not null"}
+      - unique_combination:
+          arguments: {columns: [snapshot_date, person_id, position, league_cid]}
+          config: {where: "club_tid is null"}
+  - name: site_forecast
+    description: The attribute forecast lookup.
+    data_tests:
+      - unique_combination: {arguments: {columns: [attribute, age_now, value_now, horizon_age]}}
+  - name: site_age_curve
+    description: Attribute points gained in a year, by age.
+    data_tests:
+      - unique_combination: {arguments: {columns: [age]}}
