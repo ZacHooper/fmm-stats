@@ -57,9 +57,6 @@ It holds:
 | `match_player_facts`, `at_club_spells`, `player_spells`, `club_matches`, `matches` | **not scoped** | opposition analysis is a first-class use — all opponent appearances and all ~3,330 clubs are kept |
 | `player_role_ratings`, `player_position_fit` | **absent** | 27M and 9.4M rows, the method-dependent rating layer. Views in the local store only; they need the ability number, which the published copy does not have |
 
-`scripts/publish_mart.py` refuses to upload anything over 40 MB, so a new object that
-materialises far bigger than expected fails loudly instead of quietly shipping.
-
 #### The macro gotcha, and the view that avoids it
 
 `mart.squad_on(d)` is a **parameterised table macro**, and a macro's body resolves unqualified
@@ -102,9 +99,8 @@ ORDER BY g.delta DESC;
 > `SELECT COUNT(DISTINCT attribute) FROM mart.player_attribute_growth WHERE is_gk_attr` — it
 > must be 5, not 23.
 
-**Both objects are stale until explicitly republished.** `load_duckdb.py` writes the LOCAL
-store only; `scripts/publish_duckdb.py --upload` and `scripts/publish_mart.py --upload` are
-separate steps, and running one does not refresh the other. See the import skill's checklist.
+**The remote database is stale until explicitly republished.** `load_duckdb.py` writes the LOCAL
+store only; `scripts/publish_duckdb.py --upload` is a separate step after an import.
 
 `worker/index.js`'s `/api/db` route and its `CAREER_RE` constant were removed since nothing
 serves this way anymore. `export_data.py`'s `index.json["files"]["database"]` now points at the
