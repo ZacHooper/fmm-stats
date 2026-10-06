@@ -7,6 +7,9 @@
 -- no reputation, or no league reputation gets no row.
 -- is_in_trusted_band: the estimate lies in var('value_trusted_band'), the
 -- range the model was validated in.
+-- Which league counts is a CASE over both joins, not a condition on the team
+-- in either join's ON: a condition on the left side alone turns DuckDB's hash
+-- join into a nested loop over every (player, team-league) pair.
 {%- set terms = ['intercept', 'ca', 'pa', 'lrep', 'llrp', 'gk', 'acap', 'acap2',
     'res'] %}
 {%- set reserve = var('team_types')[2] %}
@@ -28,8 +31,11 @@ inputs as (
         player.ca,
         player.pa,
         player.reputation,
-        coalesce(own_league.league_reputation, first_league.league_reputation)
-            as league_reputation,
+        case
+            when teams.team_type = '{{ reserve }}'
+                then first_league.league_reputation
+            else own_league.league_reputation
+        end as league_reputation,
         player.is_goalkeeper,
         coalesce(teams.team_type = '{{ reserve }}', false) as is_reserve,
         least(
@@ -49,12 +55,10 @@ inputs as (
         on
             player.snapshot_date = own_league.snapshot_date
             and player.club_tid = own_league.team_tid
-            and teams.team_type is distinct from '{{ reserve }}'
     left join {{ ref('int_team_leagues') }} as first_league
         on
             teams.snapshot_date = first_league.snapshot_date
             and teams.club_tid = first_league.team_tid
-            and teams.team_type = '{{ reserve }}'
 ),
 
 scored as (
