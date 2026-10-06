@@ -1,3 +1,10 @@
+-- A table, not a view: it expands every snapshot's history lines (8M rows on
+-- Frem's 31 snapshots) to keep 439k, and int_transfers, int_loan_spells,
+-- int_team_clubs, dim_person and fact_player_season all read it, int_transfers
+-- twice. As a view each read re-ran the expansion: int_transfers took 15 s
+-- with it and 2.4 s on the table, which builds in under 3 s.
+{{ config(materialized='table') }}
+
 -- Every career-history line each player has held in any snapshot, once.
 -- Keyed (person_id, line_index); line_index is 0 for his oldest line.
 --
