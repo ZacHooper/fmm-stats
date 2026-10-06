@@ -20,6 +20,9 @@
 -- stored_signed_date keeps the stored value either way.
 --
 -- A free agent (no club) holds no contract, whatever the grid's slot says.
+-- That rule is a CASE on the joined columns, not a condition in the left
+-- join's ON: a condition on the left side alone turns DuckDB's hash join into
+-- a nested loop over every (person, contract) pair.
 --
 -- Wage, expiry and team are read on the first and the last snapshot holding
 -- the contract: on the Frem gate stores, of the contracts seen twice or more
@@ -52,9 +55,12 @@ held as (
         people.snapshot_date,
         coalesce(teams.club_tid, person.club_tid) as club_tid,
         person.club_tid as team_tid,
-        contracts.start_date,
-        contracts.expiry,
-        contracts.wage_units
+        case when person.club_tid is not null then contracts.start_date end
+            as start_date,
+        case when person.club_tid is not null then contracts.expiry end
+            as expiry,
+        case when person.club_tid is not null then contracts.wage_units end
+            as wage_units
     from {{ ref('int_person_snapshots') }} as people
     inner join {{ ref('stg_persons') }} as person
         on
@@ -69,7 +75,6 @@ held as (
             person.snapshot_date = contracts.snapshot_date
             and person.tid = contracts.tid
             and contracts.is_current
-            and person.club_tid is not null
     where not people.is_staff
 ),
 
