@@ -1953,6 +1953,8 @@ def main():
                     "Legacy words start/mid/end still accepted.")
     ap.add_argument("--reset", action="store_true",
                     help="drop and recreate the raw schema + views first")
+    ap.add_argument("--skip-views", action="store_true",
+                    help="load raw tables only; skip dbt build, mart views, and person reporting")
     ap.add_argument("--refresh-only", action="store_true",
                     help="rebuild the SQL views, the mart layer AND the role-weight seeds "
                          "against an existing store, loading nothing. All three are just "
@@ -1987,8 +1989,9 @@ def main():
             seed_role_weights(con)
             seed_event_types(con)
             seed_codes(con)
-            seed_career(con)
+            seed_career(con, args.career)
             built = create_views(con)
+            report_persons(con)
             mart_objects = create_mart(con)
             print(f"{args.db}: role-weight seeds + {len(built)} models + {len(mart_objects)} "
                   f"mart objects rebuilt (nothing loaded)")
@@ -2040,11 +2043,14 @@ def main():
         seed_event_types(con)
         seed_codes(con)
         seed_career(con, career.key)
-        create_views(con)
-        report_persons(con)
-        mart_objects = create_mart(con)
-        print(f"done: {ok} loaded, {fail} failed. views refreshed, "
-              f"{len(mart_objects)} mart objects rebuilt.")
+        if not args.skip_views:
+            create_views(con)
+            report_persons(con)
+            mart_objects = create_mart(con)
+            print(f"done: {ok} loaded, {fail} failed. views refreshed, "
+                  f"{len(mart_objects)} mart objects rebuilt.")
+        else:
+            print(f"done: {ok} loaded, {fail} failed (raw only; views skipped).")
     finally:
         con.close()
 
