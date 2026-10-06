@@ -134,8 +134,10 @@ def _output_by_position(st, tid, title, a):
         return
     df = df.dropna(subset=["player"])
     if not a.include_departed:
-        here = set(st.con.execute("SELECT person_id FROM mart.club_squad_latest "
-                                  "WHERE club_tid = ?", [tid]).df()["person_id"])
+        here = set(st.con.execute(
+            "SELECT person_id FROM mart.squad_membership "
+            "WHERE (club_tid = ? OR team_tid = ?) AND is_current", [tid, tid]
+        ).df()["person_id"])
         df = df[df["person_id"].isin(here)]
     for c in ("g", "a", "kp"):
         df[c] = df[c].astype("Int64")

@@ -341,19 +341,54 @@ def match_history(st, club_tid=None):
 
 
 def h2h_players(st, opp_tid, us_tid=None):
-    """The opponent's per-player output in competitive matches against us (mart.player_vs_club),
+    """The opponent's per-player output in competitive matches against us,
     with `still_there` = in the opponent's squad at the store's latest snapshot
-    (mart.club_squad_latest). Level %ile rankings are a poor guide to who actually hurts us —
+    (mart.squad_membership). Level %ile rankings are a poor guide to who actually hurts us —
     in the OB fixture the two lowest-rated regulars were the top scorer and top creator — so
     this is the output record to read alongside `key_players`."""
+    us = us_tid or st.career.managed_tid
     return _q(st.con, """
-        SELECT v.* EXCLUDE (team_tid, opponent_tid, first_played),
-               v.person_id IN (SELECT person_id FROM mart.club_squad_latest
-                               WHERE club_tid = ?) AS still_there
-        FROM mart.player_vs_club v
-        WHERE v.team_tid = ? AND v.opponent_tid = ?
-        ORDER BY goals + assists DESC, key_passes DESC, shots DESC, name""",
-              [opp_tid, opp_tid, us_tid or st.career.managed_tid])
+        WITH tot AS (
+            SELECT f.person_id,
+                   COUNT(*) AS apps,
+                   SUM(f.started::INT) AS starts,
+                   SUM(f.minutes) AS minutes,
+                   SUM(f.goals) AS goals,
+                   SUM(f.assists) AS assists,
+                   SUM(f.key_passes) AS key_passes,
+                   SUM(f.shots) AS shots,
+                   SUM(f.shots_on_target) AS on_target,
+                   SUM(f.crosses_completed) AS crosses_completed,
+                   SUM(f.dribbles) AS dribbles,
+                   ROUND(AVG(f.rating), 2) AS avg_rating,
+                   MAX(m.match_date) AS last_played
+            FROM mart.fact_player_match f
+            JOIN mart.dim_match m USING (match_id)
+            JOIN mart.dim_competition c ON c.cid = m.cid
+            WHERE f.team_tid = ? AND f.opponent_tid = ? AND c.type != 'friendly' AND f.appeared
+              AND f.person_id IS NOT NULL
+            GROUP BY f.person_id
+        )
+        SELECT p.name,
+               tot.person_id,
+               tot.apps,
+               tot.starts,
+               tot.minutes,
+               tot.goals,
+               tot.assists,
+               tot.key_passes,
+               tot.shots,
+               tot.on_target,
+               tot.crosses_completed,
+               tot.dribbles,
+               tot.avg_rating,
+               tot.last_played,
+               tot.person_id IN (SELECT person_id FROM mart.squad_membership
+                                 WHERE (club_tid = ? OR team_tid = ?) AND is_current) AS still_there
+        FROM tot
+        LEFT JOIN mart.dim_person p USING (person_id)
+        ORDER BY tot.goals + tot.assists DESC, tot.key_passes DESC, tot.shots DESC, p.name""",
+              [opp_tid, us, opp_tid, opp_tid])
 
 
 def head_to_head(st, opp_tid, club_tid=None):
