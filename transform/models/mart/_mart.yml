@@ -223,7 +223,7 @@ models:
         data_tests: [not_null]
       - name: team_tid
         data_tests: [not_null]
-  - name: tie_results
+  - name: mart_tie_results
     description: >
       Each knockout tie: teams, aggregate, shoot-out, how it was decided and the winner. A view.
     data_tests:
@@ -233,7 +233,7 @@ models:
             columns: [cid, competition_season, stage_index]
             to: ref('dim_stage')
             to_columns: [cid, competition_season, stage_index]
-  - name: standings
+  - name: mart_standings
     description: >
       Each league or group stage's table after every matchday. A view.
     data_tests:
@@ -425,7 +425,7 @@ models:
             columns: [team_tid]
             to: ref('dim_team')
             to_columns: [team_tid]
-  - name: squad_membership
+  - name: mart_squad_membership
     description: >
       Who is in each team's squad on each snapshot (the squad array, not the record's club).
       A view.

@@ -165,7 +165,7 @@ left join {{ ref('dim_round') }} as rounds
         and matches.competition_season = rounds.competition_season
         and matches.stage_index = rounds.stage_index
         and matches.round_index = rounds.round_index
-left join {{ ref('tie_results') }} as tie_rows
+left join {{ ref('mart_tie_results') }} as tie_rows
     on matches.tie_id = tie_rows.tie_id
 left join groups
     on ours.match_id = groups.match_id

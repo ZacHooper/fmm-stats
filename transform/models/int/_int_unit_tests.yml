@@ -1024,7 +1024,7 @@ unit_tests:
       - input: ref('stg_career')
         rows:
           - {managed_club_tid: 346}
-      - input: ref('squad_membership')
+      - input: ref('mart_squad_membership')
         rows:
           - {snapshot_date: '2027-08-09', person_id: a, team_tid: 346, club_tid: 346, team_type: first, record_club_tid: 346, is_loan_in: false}
           - {snapshot_date: '2027-08-09', person_id: b, team_tid: 7296, club_tid: 346, team_type: reserve, record_club_tid: 346, is_loan_in: false}

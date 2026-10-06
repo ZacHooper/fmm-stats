@@ -89,7 +89,7 @@ naturals as (
             squads.snapshot_date,
             squads.team_tid,
             squads.person_id
-        from {{ ref('squad_membership') }} as squads
+        from {{ ref('mart_squad_membership') }} as squads
         inner join {{ ref('site_loan_clubs') }} as clubs
             on
                 squads.snapshot_date = clubs.snapshot_date

@@ -1,5 +1,5 @@
 -- Our squad on each snapshot, keyed (snapshot_date, person_id), from the
--- squad arrays (squad_membership), never a record's club:
+-- squad arrays (mart_squad_membership), never a record's club:
 --   * every player our first team or reserve side lists, with is_loan_in for
 --     one whose record names another club;
 --   * every player whose record names our club and whom another club's side
@@ -16,7 +16,7 @@ listed as (
         squads.person_id,
         bool_or(squads.team_tid = career.managed_club_tid) as on_first_team,
         bool_or(squads.is_loan_in) as is_loan_in
-    from {{ ref('squad_membership') }} as squads
+    from {{ ref('mart_squad_membership') }} as squads
     inner join career
         on squads.club_tid = career.managed_club_tid
     group by squads.snapshot_date, squads.person_id
@@ -27,7 +27,7 @@ loaned_out as (
         squads.snapshot_date,
         squads.person_id,
         min(squads.club_tid) as loaned_to_club_tid
-    from {{ ref('squad_membership') }} as squads
+    from {{ ref('mart_squad_membership') }} as squads
     inner join career
         on
             squads.record_club_tid = career.managed_club_tid

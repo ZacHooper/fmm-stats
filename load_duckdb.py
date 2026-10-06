@@ -1886,12 +1886,19 @@ def _drop_unbuilt(con, results):
             f"{MODEL_SCHEMAS}").fetchall():
         if (schema, name) not in built:
             con.execute(f'DROP VIEW "{schema}"."{name}"')
-    # dbt's mart tables share the schema with fmstats/mart.py's views; only the dim_ / fact_
-    # names are dbt's.
+    # dbt's mart tables and consumer views share the schema with fmstats/mart.py's views; only
+    # the dim_ / fact_ / mart_ names (and the retired unprefixed consumer views) are dbt's.
+    for (name,) in con.execute(
+            "SELECT view_name FROM duckdb_views() WHERE database_name = current_database() "
+            "AND schema_name = 'mart' "
+            "AND (regexp_matches(view_name, '^mart_') "
+            "     OR view_name IN ('standings', 'tie_results', 'squad_membership'))").fetchall():
+        if ("mart", name) not in built:
+            con.execute(f'DROP VIEW mart."{name}"')
     for (name,) in con.execute(
             "SELECT table_name FROM duckdb_tables() WHERE database_name = current_database() "
             "AND schema_name = 'mart' "
-            "AND regexp_matches(table_name, '^(dim|fact)_')").fetchall():
+            "AND regexp_matches(table_name, '^(dim|fact|mart)_')").fetchall():
         if ("mart", name) not in built:
             con.execute(f'DROP TABLE mart."{name}"')
 
