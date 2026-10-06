@@ -39,27 +39,14 @@ ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
 SELECT * FROM fm.raw.players LIMIT 5;
 ```
 
-### Which object to ATTACH (updated 2026-08-25)
+### Which object to ATTACH
 
-Two are published, and for ANALYSIS you almost always want the smaller one:
+The primary DuckDB store published to R2 is `site-data/fm-frem.duckdb`.
 
-| object | size | holds | use it when |
-|---|---:|---|---|
-| `site-data/fm-frem-mart.duckdb` | **~24 MB** | the `mart` schema only, as real tables | analysing the career — squads, growth, spells, match facts, clubs, leagues, current attributes |
-| `site-data/fm-frem.duckdb` | **~34 MB** | full `raw` (+ `mart` views) | you need the raw tables (named `staging` in the copy until its next republish), or per-snapshot history for a player who was never ours |
-
-`mart` bakes in the four correctness rules (latest-phase-per-season, snapshot-scoped joins,
-`person_id`-not-`tid`, 255-sentinel minutes) that the `raw` tables makes you re-derive — so the
-slim object is both smaller AND harder to get wrong. Prefer it.
-
-Since the 2026-08-25 site refactor the mart is also what generates the web app, so it covers
-the dimensions too: `mart.clubs`, `mart.leagues` (with `skill_idx`, the division-strength
-index), `mart.club_leagues` (club->league **as at** a snapshot), `mart.comparison_ladder`,
-`mart.player_snapshots` (bio, contract and the 23 attributes wide), `mart.player_position_levels`
-(the Level percentiles), `mart.player_career_seasons`, `mart.player_origin`, `mart.club_matches`
-(every match already oriented per club: venue, opponent, gf/ga, result, pts, our_/opp_ stats),
-and `mart.role_weights` / `mart.position_roles` / `mart.app_config` so a role rating is
-computable from the artefact alone.
+It holds:
+- **`site.*`**: Presentation marts powering the web app and quick analysis (`site.players`, `site.squad`, `site.matches`, `site.loan_outlook`, `site.leagues`, `site.standings`, `site.clubs`). All presentation views strictly exclude raw ability (`ca`/`pa`) and provide clean percentiles, ranks, and rounded numbers.
+- **`mart.*`**: Dimensional warehouse tables (`mart.dim_*`, `mart.fact_*`, `mart.squad_membership`).
+- **`raw.*`**: Ingested save file tables.
 
 #### Scoping — what is and is not in the published copy
 

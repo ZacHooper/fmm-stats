@@ -50,10 +50,9 @@ another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoi
   world fixture list for our two clubs.
 - **`transform/` and `fmstats/` are the T, and the semantic model
   ([`docs/data-model/`](docs/data-model/README.md)) is their foundation.** `transform/` is a
-  **dbt** project building raw → stg → int → the model's `dim_*`/`fact_*` tables in `mart`;
-  `fmstats/mart.py` is the old consumer mart that the data-layers plan
-  ([`docs/plans/2026-10-01-data-layers.md`](docs/plans/2026-10-01-data-layers.md)) retires
-  view by view. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either** — it
+  **dbt** project building raw → stg → int → the model's `dim_*`/`fact_*` tables in `mart`,
+  and presentation marts in `site.*`. Consumers (`export_data.py`, `fmq`, `scout`, `stats`)
+  read directly from `site.*` and `mart.*`. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either** — it
   loads automatically under both directories and carries the model, where the refactor stands,
   and the rules. fmstats imports neither fmparser nor `extract`: it reads a `.duckdb` file,
   local or the R2 copy, and `fmq` needs no dbt (only the loader builds the models). The raw
@@ -184,23 +183,20 @@ uv run python scripts/export_manifest.py                  # refresh the rebuild 
 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids
 
-# after editing fmstats/mart.py or load_duckdb.py's VIEWS — they are definitions, not data,
-# so they do not reach an existing store until something re-runs them
+# after editing transform/ models or load_duckdb.py's VIEWS
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 uv run python tests/validate_mart.py --db fm-frem.duckdb   # assert the mart's invariants
 
 # refreshing the web app (after an import) — see docs/DEPLOY.md
 uv run python scripts/export_data.py --upload-all         # -> site/api/*.json; fails on a CA leak
-uv run python scripts/export_site.py --out /tmp/new       # the same JSON from the site marts (step 17)
-uv run python scripts/diff_exports.py site/api /tmp/new   # ... and how it differs from the published
+uv run python scripts/export_site.py --out /tmp/new       # delegates to export_data.py
 uv run python scripts/publish_duckdb.py --career frem --upload  # -> R2, for remote-agent SQL
 uv run python -m http.server -d site 8000                # preview before pushing
 git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys on push
 ```
 
 ## House rules
-- **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings, `pos_index`, percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_*` in `effective_table`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from the query so only the percentile ever leaves. It sits next to the tactic **Fit %ile** (`pctile_*`). Keep raw `ca`/`pa` out of every surfaced frame; don't remove Level %ile thinking it breaks this
-  rule. **`scripts/export_data.py`'s `check_immersion()` enforces this for published JSON** — it
+- **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings, `pos_index`, percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_*` in `effective_table`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from presentation views so only the percentile ever leaves. The underlying warehouse facts (`mart.fact_player_snapshot`) retain CA/PA so percentiles can be derived, but presentation layers (`site.*`, `scripts/export_data.py`, `fmq` output) strictly exclude raw ability. **`scripts/export_data.py`'s `check_immersion()` enforces this for published JSON** — it
   parses every emitted file and fails the build on a raw-ability key at any depth, so anything new you add to the
   export is checked automatically.
 - **The loan outlook is computed in the exporter** (`scripts/_export_db.py` `build_loans`),

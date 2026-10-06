@@ -33,8 +33,6 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 from fmparser.model import ATTR_ORDER
 import careers
 from fmparser.tables.matches import EVENT_TYPE, check_against_fixtures
-from fmstats import compat as models_compat
-from fmstats.mart import create_mart, drop_mart
 
 # ---------------------------------------------------------------------------
 # schema
@@ -1436,10 +1434,6 @@ def create_schema(con):
     def _build_view():
         _migrate(con)
         _seed_attribute_model(con)
-        if (models_compat._kind(con, "history.player_snapshots") is None
-                or models_compat._kind(con, "legacy.player_attributes") is None):
-            build_models(con, "+legacy_players +legacy_player_attributes",
-                         test=False)   # no data to test yet
 
     _rename_staging(con)
     made_view = False
@@ -1867,11 +1861,10 @@ def build_models(con, select=None, test=True):
              if r.node.resource_type == "model" and r.status == "success"]
     if not select:
         _drop_unbuilt(con, res.result)
-    models_compat.create(con)
     return built
 
 
-MODEL_SCHEMAS = ("stg", "int", "legacy", "site")
+MODEL_SCHEMAS = ("stg", "int", "site")
 
 
 def _drop_unbuilt(con, results):
@@ -1911,17 +1904,14 @@ def report_persons(con):
 
 
 def reset_schema(con):
-    # mart first: its views depend on raw, so dropping raw out from under them
-    # would leave dangling definitions behind.
-    drop_mart(con)
     con.execute("DROP SCHEMA IF EXISTS raw CASCADE")
     con.execute("DROP SCHEMA IF EXISTS staging CASCADE")
     con.execute("DROP SCHEMA IF EXISTS history CASCADE")
     con.execute("DROP SCHEMA IF EXISTS int CASCADE")
     con.execute("DROP SCHEMA IF EXISTS stg CASCADE")
+    con.execute("DROP SCHEMA IF EXISTS site CASCADE")
+    con.execute("DROP SCHEMA IF EXISTS mart CASCADE")
     for name in RETIRED_VIEWS:
-        con.execute(f"DROP VIEW IF EXISTS {name}")
-    for name in models_compat.VIEWS:
         con.execute(f"DROP VIEW IF EXISTS {name}")
 
 
@@ -1992,9 +1982,7 @@ def main():
             seed_career(con, args.career)
             built = create_views(con)
             report_persons(con)
-            mart_objects = create_mart(con)
-            print(f"{args.db}: role-weight seeds + {len(built)} models + {len(mart_objects)} "
-                  f"mart objects rebuilt (nothing loaded)")
+            print(f"{args.db}: role-weight seeds + {len(built)} models rebuilt (nothing loaded)")
         finally:
             con.close()
         return
@@ -2044,11 +2032,9 @@ def main():
         seed_codes(con)
         seed_career(con, career.key)
         if not args.skip_views:
-            create_views(con)
+            built = create_views(con)
             report_persons(con)
-            mart_objects = create_mart(con)
-            print(f"done: {ok} loaded, {fail} failed. views refreshed, "
-                  f"{len(mart_objects)} mart objects rebuilt.")
+            print(f"done: {ok} loaded, {fail} failed. {len(built)} models rebuilt.")
         else:
             print(f"done: {ok} loaded, {fail} failed (raw only; views skipped).")
     finally:
