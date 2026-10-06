@@ -68,8 +68,7 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | `api/registration.json` | 1 KB | git | the A/B lists + derived home-grown status |
 | `api/index.json` | 1 KB | git | manifest |
 | `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
-| `fm-<career>.duckdb` (raw `ca`/`pa` included) | ~34 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL instead of the fixed shapes above |
-| `fm-<career>-mart.duckdb` | ~24 MB | **R2** | `site-data/fm-<career>-mart.duckdb` — the `mart` schema as real tables. Prefer this for analysis: it is what generates the files above, so anything the site shows is answerable from it |
+| `fm-<career>.duckdb` (raw `ca`/`pa` included) | ~34 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL across `site.*`, `mart.*`, and `raw.*` |
 
 ## One-time setup
 
@@ -128,14 +127,12 @@ Turn wifi **off** — that's the actual test.
 
 ```bash
 uv run python scripts/export_data.py --upload-all
-uv run python scripts/publish_duckdb.py --career frem --upload   # full copy, ~34 MB — see below
-uv run python scripts/publish_mart.py   --career frem --upload   # analysis copy, ~24 MB
+uv run python scripts/publish_duckdb.py --career frem --upload   # compacted copy carries raw, mart, site
 git add site docs && git commit -m "site: <snapshot>" && git push
 ```
 
-**Neither R2 database is refreshed by an import.** `load_duckdb.py` writes the LOCAL store
-only; the two `publish_*` scripts are separate objects in R2 and separate commands — running
-one does not update the other. Skip them and a remote agent's `ATTACH` silently reads the
+**The R2 database is not refreshed automatically by an import.** `load_duckdb.py` writes the LOCAL store
+only; `publish_duckdb.py --upload` is a separate command. Skip it and a remote agent's `ATTACH` silently reads the
 previous snapshot, which looks like a working query returning stale answers.
 
 `--upload-all` pushes the every-player file to R2; drop it to skip (the app then falls back to
