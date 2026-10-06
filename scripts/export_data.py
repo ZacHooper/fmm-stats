@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Export the career as JSON for the web app — the data half of the static site.
+"""Export the career as JSON for the web app from the site marts (`site.*`).
 
     uv run python scripts/export_data.py                      # newest snapshot, default career
-    uv run python scripts/export_data.py --season 2024 --phase 2023-07-02
+    uv run python scripts/export_data.py --snapshot 2028-05-09
+    uv run python scripts/export_data.py --season 2028 --phase 2028-05-09
     uv run python scripts/export_data.py --upload-all         # push all.json to R2
 
 Design: ship DATA, not rendered answers. The app computes ratings itself, because a role
@@ -14,7 +15,7 @@ offline, for every player, with no rebuild.
 The one thing the browser cannot derive is **level**: ability percentiles come from the game's
 overall-ability number, and that number must never leave the machine (house rule — see
 CLAUDE.md). So level percentiles are precomputed here, per (player, position) and per scope,
-and the ability itself is dropped. `--check` proves no raw-ability key made it out.
+and the ability itself is dropped. `check_immersion()` proves no raw-ability key made it out.
 
 Three files by size, because the budget is a phone on cellular:
 
@@ -22,13 +23,8 @@ Three files by size, because the budget is a phone on cellular:
                             Loaded on boot; covers squad, compare, recruitment, the profile.
   api/all.json    ~3.9 MB   EVERY player in the save. Lazy — only fetched when you search
                             outside the ladder. **Goes to R2, never to git**: it rewrites
-                            wholesale each import and minified JSON deltas badly, which is
-                            exactly how .git reached 257 MB with the DuckDB stores in it.
+                            wholesale each import and minified JSON deltas badly.
   the rest        ~200 KB   squad detail, the loan outlook, matches. Small, committed.
-
-Everything else the app shows — records, awards, per-player match aggregates, H2H, growth
-trajectories — is computed in the browser from `matches.json` and `squad.json`, so those
-sections need no exporter support and no new file when a question changes.
 """
 import argparse
 import datetime
@@ -43,6 +39,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
+from _export_db import _json_clean                                         # noqa: E402
 from fmstats import dbopen as _dbopen                                     # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
@@ -52,6 +49,22 @@ SITE_URL = os.environ.get("FM_SITE_URL", "https://fmm-stats.zac-g-hooper.workers
 BANNED_KEYS = {"ca", "pa", "current_ability", "potential_ability", "aca"}
 IMMERSION = ("Ability is expressed as percentiles and division ranks only — the raw ability "
              "number never leaves the machine that built this.")
+
+# --------------------------------------------------------------------------- player rows
+PLAYER_FIELDS = ["tid", "name", "club_tid", "dob", "value", "wage", "expiry",
+                 "attrs", "positions", "shirt", "height", "weight"]
+ALL_PLAYER_FIELDS = PLAYER_FIELDS + ["origin_club_tid", "capital_eligible"]
+
+PROFILE_EXTRA_FIELDS = [
+    "nationality", "foot_left", "foot_right", "preferred_squad_number", "joined_date",
+    "international_caps", "international_goals", "u21_caps", "u21_goals",
+    "reputation", "current_reputation", "world_reputation",
+    "adaptability", "ambition", "determination", "loyalty", "pressure",
+    "professionalism", "sportsmanship", "temperament", "jumping", "consistency",
+    "big_match", "injury_prone", "versatility", "set_pieces", "penalty",
+    "work_rate", "flair"]
+PROFILE_FIELDS = ALL_PLAYER_FIELDS + PROFILE_EXTRA_FIELDS
+PROFILE_COLS = PROFILE_EXTRA_FIELDS
 
 
 def jdefault(o):
@@ -64,7 +77,7 @@ def jdefault(o):
     return str(o)
 
 
-def write_json(path, payload, clean):
+def write_json(path, payload, clean=_json_clean):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(clean(payload), f, ensure_ascii=False, default=jdefault,
@@ -76,11 +89,7 @@ def write_json(path, payload, clean):
 
 
 def check_immersion(paths):
-    """Refuse any raw-ability key at any depth, in any emitted file.
-
-    A parse rather than a grep: `{"CA": ...}` would slip past a case-sensitive grep, and the
-    word 'ca' inside prose would false-positive. Percentiles and ranks are the only sanctioned
-    ability exposure and they never use these names."""
+    """Refuse any raw-ability key at any depth, in any emitted file."""
     bad = []
 
     def walk(o, f):
@@ -100,756 +109,211 @@ def check_immersion(paths):
     return bad
 
 
-# --------------------------------------------------------------------------- player rows
-PLAYER_FIELDS = ["tid", "name", "club_tid", "dob", "value", "wage", "expiry",
-                 "attrs", "positions", "shirt", "height", "weight"]
-# shirt/height/weight come from the global attribute record's tail (attributes.record_tail).
-# The three REPUTATION fields from that same tail are deliberately NOT exported: core.json
-# loads on every page view so it stays lean, and reputation tracks ability closely enough to
-# be an awkward thing to publish next to the Level percentile. They live in the store for
-# querying and for value_model.
-# all.json only: origin_club_tid + capital_eligible ride along here rather than in core.json's
-# PLAYER_FIELDS because core.json loads on every page view (see the "ours only" note on
-# mart.player_origin in the core.json block below) — all.json is already the lazy, R2-only,
-# search-outside-our-pyramid payload, so two more columns cost nothing extra to load.
-ALL_PLAYER_FIELDS = PLAYER_FIELDS + ["origin_club_tid", "capital_eligible"]
+class Site:
+    """The site marts of one store, at one snapshot."""
 
-# The profile-popup-only tail: bio, reputation, personality and the 9 named attributes the
-# in-game screen doesn't show. Rides on all.json (via loadPlayersByTid, fetched only when a
-# profile sheet actually opens) rather than core.json for the same lean-payload reason as
-# origin/capital above — reputation especially was previously left out of core.json entirely
-# (see the note on PLAYER_FIELDS) because that file loads on every page view; the lazy path
-# ships it without relitigating that call. Deliberately excludes the 16 `*_src` bytes (raw
-# attribute-model training bytes — internal decode artifacts, not meaningful player detail) and
-# `est_attrs`/`is_estimated` (QA-internal).
-PROFILE_EXTRA_FIELDS = [
-    "nationality", "foot_left", "foot_right", "preferred_squad_number", "joined_date",
-    "international_caps", "international_goals", "u21_caps", "u21_goals",
-    "reputation", "current_reputation", "world_reputation",
-    "adaptability", "ambition", "determination", "loyalty", "pressure",
-    "professionalism", "sportsmanship", "temperament",
-    "jumping", "consistency", "big_match", "injury_prone", "versatility",
-    "set_pieces", "penalty", "work_rate", "flair",
-]
-PROFILE_FIELDS = ALL_PLAYER_FIELDS + PROFILE_EXTRA_FIELDS
-# The SELECT list behind PROFILE_EXTRA_FIELDS, in the same order, over mart.player_snapshots `p`
-# joined to mart.nations `n` (PROFILE_JOIN). One definition for all.json and core.json's squad.
-PROFILE_COLS = (
-    "n.name AS nationality, p.foot_left, p.foot_right, p.preferred_squad_number, "
-    "p.joined_date, p.international_caps, p.international_goals, p.u21_caps, "
-    "p.u21_goals, p.reputation, p.current_reputation, p.world_reputation, "
-    "p.adaptability, p.ambition, p.determination, p.loyalty, p.pressure, "
-    "p.professionalism, p.sportsmanship, p.temperament, "
-    "p.jumping, p.consistency, p.big_match, p.injury_prone, p.versatility, "
-    "p.set_pieces, p.penalty, p.work_rate, p.flair")
-PROFILE_JOIN = """LEFT JOIN mart.nations n
-                                 ON (n.season, n.phase, n.id) = (p.season, p.phase, p.nationality_id)"""
+    def __init__(self, con, snapshot):
+        self.con = con
+        self.d = snapshot
+
+    def rows(self, sql, params=()):
+        cur = self.con.execute(sql, list(params))
+        cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+    def scalar(self, sql, params=()):
+        r = self.con.execute(sql, list(params)).fetchone()
+        return r[0] if r else None
 
 
-def player_rows(db, pd, season, phase, ATTR_ORDER, club_tids=None, levels=None,
-                 include_origin=False, include_profile=False):
-    """Columnar player rows: positional arrays, no repeated keys (that alone is ~40% of the
-    bytes at this row count). `positions` is [[code, familiarity, lvl_league, lvl_global], ...]
-    — the level percentiles are the sanctioned form of ability, precomputed because the
-    browser can't derive them without the number itself.
-
-    Raw attributes ship deliberately: site/js/data.js computes role ratings client-side from
-    attributes x weights, which is what lets a tactic switch re-rate everyone with no rebuild.
-    mart.player_snapshots therefore carries the 23 attributes wide, and no ability at all.
-
-    include_origin appends [origin_club_tid, capital_eligible] per row (ALL_PLAYER_FIELDS) —
-    the tid, not the club name, since the caller already has every club's name from core.json's
-    unfiltered `clubs` array and can resolve it client-side, same as the current-club column.
-
-    include_profile appends PROFILE_EXTRA_FIELDS — the player-popup bio/reputation/personality/
-    hidden-attribute tail. Nationality is resolved to a name here (a join against mart.nations)
-    rather than shipping an id, so the profile sheet doesn't need a second lookup file to render
-    it."""
-    cols = ", ".join(f'"{a}"' for a in ATTR_ORDER)
-    where, params = "", [season, phase]
-    if club_tids is not None:
-        where = f" AND club_tid IN ({','.join('?' * len(club_tids))})"
-        params += list(club_tids)
-    origin_join, origin_cols = "", ""
-    if include_origin:
-        origin_cols = ", o.origin_club_tid, o.eligible AS capital_eligible"
-        origin_join = """LEFT JOIN mart.player_origin o
-                                ON (o.season, o.phase, o.tid) = (p.season, p.phase, p.tid)"""
-    profile_join, profile_cols = "", ""
-    if include_profile:
-        profile_cols = ", " + PROFILE_COLS
-        profile_join = PROFILE_JOIN
-    df = db.q(f"""SELECT p.tid, p.name, p.club_tid, p.dob, p.player_value, p.wage_gbp,
-                         p.contract_expiry,
-                         p.squad_number, p.height_cm, p.weight_kg,
-                         {cols}{origin_cols}{profile_cols}
-                  FROM mart.player_snapshots p
-                  {origin_join}
-                  {profile_join}
-                  WHERE p.season=? AND p.phase=? AND p.has_attributes{where}
-                  -- deterministic order, so a no-op re-export is a no-op. Neither this query
-                  -- nor its raw predecessor had an ORDER BY, and a join's output order is
-                  -- not stable, so this 4 MB array could rewrite itself wholesale. The client
-                  -- keys everything by tid, so the order is ours to choose.
-                  ORDER BY p.tid""", params)
-    pos = db.q("SELECT tid, position, familiarity FROM mart.player_position_levels "
-               "WHERE season=? AND phase=? ORDER BY tid, position", [season, phase])
-    pmap = {}
-    for r in pos.itertuples():
-        lv = (levels or {}).get((int(r.tid), r.position), (None, None))
-        pmap.setdefault(int(r.tid), []).append(
-            [r.position, int(r.familiarity), lv[0], lv[1]])
-
-    def iv(v):
-        return None if pd.isna(v) else int(v)
-
-    def sv(v):
-        return None if pd.isna(v) else str(v)[:10]
-
-    rows = []
-    for r in df.to_dict("records"):
-        tid = int(r["tid"])
-        row = [tid, r["name"] if isinstance(r["name"], str) else None,
-               iv(r["club_tid"]), sv(r["dob"]), iv(r["player_value"]),
-               iv(r["wage_gbp"]), sv(r["contract_expiry"]),
-               [iv(r[a]) for a in ATTR_ORDER], pmap.get(tid, []),
-               iv(r["squad_number"]), iv(r["height_cm"]), iv(r["weight_kg"])]
-        if include_origin:
-            row += [iv(r["origin_club_tid"]),
-                    None if pd.isna(r["capital_eligible"]) else bool(r["capital_eligible"])]
-        if include_profile:
-            row += [r["nationality"] if isinstance(r["nationality"], str) else None,
-                    iv(r["foot_left"]), iv(r["foot_right"]), iv(r["preferred_squad_number"]),
-                    sv(r["joined_date"]),
-                    iv(r["international_caps"]), iv(r["international_goals"]),
-                    iv(r["u21_caps"]), iv(r["u21_goals"]),
-                    iv(r["reputation"]), iv(r["current_reputation"]), iv(r["world_reputation"]),
-                    iv(r["adaptability"]), iv(r["ambition"]), iv(r["determination"]),
-                    iv(r["loyalty"]), iv(r["pressure"]), iv(r["professionalism"]),
-                    iv(r["sportsmanship"]), iv(r["temperament"]),
-                    iv(r["jumping"]), iv(r["consistency"]), iv(r["big_match"]),
-                    iv(r["injury_prone"]), iv(r["versatility"]), iv(r["set_pieces"]),
-                    iv(r["penalty"]), iv(r["work_rate"]), iv(r["flair"])]
-        rows.append(row)
-    return rows
+def day(v):
+    return None if v is None else str(v)[:10]
 
 
-def level_map(db, season, phase):
-    """{(tid, position): (lvl_league, lvl_global)} — the only ability that ever ships, and
-    only as a percentile.
+def num(v):
+    """An integer-valued number as int, else as it is."""
+    if v is None:
+        return None
+    if isinstance(v, float):
+        return int(v) if v.is_integer() else v
+    return int(v) if hasattr(v, "__int__") and not isinstance(v, bool) else v
 
-    NO `method` ARGUMENT, deliberately. This used to read db.effective_table, which joins the
-    27M-row v_player_ratings and takes a method; but the level percentiles are PERCENT_RANK
-    over the ability number, so the ratings only ever shaped row membership — and membership
-    is identical for every method, because v_player_ratings CROSS JOINs every (method, role)
-    onto every player. Verified across 16 snapshots x 7 methods: byte-identical either way.
-    So the old signature offered a knob that could not change the answer, while paying a 27M
-    row scan for it. mart.player_position_levels is the narrow tactic-free form."""
-    lv = db.q("""SELECT tid, position, level_league, level_global
-                 FROM mart.player_position_levels WHERE season=? AND phase=?""",
-              [season, phase])
 
-    def pc(v):
-        return None if v != v else int(round(float(v)))
+def pct(v):
+    return None if v is None else int(round(float(v)))
 
-    return {(int(r.tid), r.position): (pc(r.level_league), pc(r.level_global))
-            for r in lv.itertuples()}
+
+def player_row(r, attrs, profile=False):
+    """One player as the app's positional row (PLAYER_FIELDS, then
+    ALL_PLAYER_FIELDS' two and PROFILE_EXTRA_FIELDS with `profile`)."""
+    row = [r["tid"], r["name"], r["team_tid"], day(r["dob"]), num(r["value"]),
+           num(r["wage_gbp"]), day(r["contract_expiry"]),
+           [num(r[a]) for a in attrs],
+           [[p["position"], p["familiarity"], pct(p["level_league"]), pct(p["level_global"])]
+            for p in (r["positions"] or [])],
+           num(r["squad_number"]), num(r["height_cm"]), num(r["weight_kg"])]
+    if profile:
+        row += [num(r["origin_club_tid"]),
+                None if r["capital_eligible"] is None else bool(r["capital_eligible"])]
+        row += [day(r[c]) if c == "joined_date" else num(r[c]) for c in PROFILE_COLS]
+    return row
+
+
+INDEX_CAVEATS = [
+    "Opponent tactics and formation are NOT in the save — ask the manager for the in-game "
+    "scout's formation and style before advising on a match.",
+    "Opponent attribute values are model estimates (±1) except pace and physicals.",
+    "Squad status and loan flags are unreliable; rank by minutes played instead.",
+    "Ratings shown are computed in the browser from attributes x role weights, so they "
+    "follow whichever tactic is selected.",
+    "Squad registration (A/B lists, home grown) is a SELF-IMPOSED rule — FMM22 does not model "
+    "it and the save contains none of it. Home-grown status is derived; see "
+    "guides/registration.md for what the evidence is and where it is thin."]
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--career")
-    ap.add_argument("--season", type=int)
-    ap.add_argument("--phase")
-    ap.add_argument("--method", help="default weight-set (the app can switch client-side)")
-    ap.add_argument("--min-fam", type=int, default=None)
+    ap.add_argument("--snapshot", help="the snapshot date to export (default: the newest)")
+    ap.add_argument("--season", type=int, help="snapshot season")
+    ap.add_argument("--phase", help="snapshot phase (date)")
     ap.add_argument("--out", default=os.path.join(REPO, "site", "api"))
+    ap.add_argument("--method", help="default weight-set (the app can switch client-side)")
     ap.add_argument("--upload-all", action="store_true",
                     help="rclone all.json to R2 (where the Pages Function streams it from)")
-    ap.add_argument("--skip-all", action="store_true",
-                    help="skip the 3.9 MB every-player export (faster iteration)")
+    ap.add_argument("--skip-all", action="store_true", help="skip the every-player file")
     ap.add_argument("--no-check", action="store_true")
     a = ap.parse_args()
 
-    if a.career:
-        os.environ["FM_CAREER"] = a.career
+    out = os.path.abspath(a.out)
     import careers as C
     car = C.resolve_career(a.career or C.DEFAULT_CAREER)
     store = os.environ.get("FM_DUCKDB") or os.path.join(REPO, car.db)
-    if not os.path.exists(store):
-        raise SystemExit(f"no store at {store} — build it with scripts/rebuild.py")
     con, used = _dbopen.open_readonly(store, tag="export")
     if used != os.path.abspath(store):
         print(f"(live store is locked — exporting from a copy at {used})")
-    os.environ["FM_DUCKDB"] = used
-    os.environ["FM_DUCKDB_READONLY"] = "1"
-
-    import pandas as pd
-    import _export_db
-    db = _export_db.ExportDB(con, car)
     from fmparser.model import ATTR_ORDER
+    attrs = list(ATTR_ORDER)
 
-    season, phase = a.season, a.phase
-    if season is None or phase is None:
-        s, p = db.latest_snapshot()
-        season, phase = season or s, phase or p
+    if a.snapshot:
+        d = a.snapshot
+    elif a.season and a.phase:
+        d = con.execute("SELECT snapshot_date FROM site.snapshots WHERE season = ? AND phase = ?",
+                        [a.season, a.phase]).fetchone()
+        if not d:
+            raise SystemExit(f"no snapshot {a.season}/{a.phase} in this store")
+        d = d[0]
+    else:
+        d = con.execute(
+            "SELECT snapshot_date FROM site.snapshots WHERE is_latest").fetchone()[0]
+
+    s = Site(con, d)
+    season = s.scalar("SELECT season FROM site.snapshots WHERE snapshot_date = ?", [d])
     if season is None:
-        raise SystemExit("no snapshots loaded in this store")
-    method = a.method or db.config().get("default_method") or db.methods()[0]
-    min_fam = _export_db.DEFAULT_MIN_FAM if a.min_fam is None else a.min_fam
-    out = os.path.abspath(a.out)
+        raise SystemExit(f"no snapshot {d} in this store")
+    phase = day(d)
+    cfg = dict(con.execute("SELECT key, value FROM site.config").fetchall())
+    method = a.method or cfg.get("default_method")
+    ours = s.rows("SELECT team_tid, is_managed FROM site.our_teams "
+                  "ORDER BY is_first_team DESC, team_tid")
+    managed = next(t["team_tid"] for t in ours if t["is_managed"])
+    reserve = next((t["team_tid"] for t in ours if not t["is_managed"]), None)
+    our_tids = [t["team_tid"] for t in ours]
     os.makedirs(out, exist_ok=True)
-    built = datetime.datetime.now().isoformat(timespec="seconds")
-    print(f"exporting {car.key} {season}/{phase} · default tactic {method} -> {out}")
+    print(f"exporting {car.key} {season}/{phase} from site.* -> {out}")
 
     written = []
 
     def emit(name, payload):
-        n, gz = write_json(os.path.join(out, name), payload, db._json_clean)
+        n, gz = write_json(os.path.join(out, name), payload, _json_clean)
         written.append((name, n, gz))
         print(f"  {name:22} {n / 1024:8.0f} KB raw  {gz / 1024:7.0f} KB gzip")
-        return n
 
-    # ---------------------------------------------------------------- reference tables
-    # Everything here comes from mart.* — see fmstats/mart.py. The three queries this
-    # replaced each carried their own copy of the club->league arg_max CTE, and the two in
-    # this file were the wrong copies: no `ord <=` bound, and a sort key built from the raw
-    # `phase` column. mart.club_leagues resolves as-at, once.
-    ladder = [(int(c), n) for c, n in db.q(
-        """SELECT cid, name FROM mart.comparison_ladder
-           WHERE season=? AND phase=? ORDER BY ladder_rank LIMIT 3""",
-        [season, phase]).itertuples(index=False) if c is not None]
-    ladder_cids = [c for c, _ in ladder]
-
-    clubs = db.q("""SELECT club_tid AS tid, name, league_cid, squad_size AS players,
-                           nation, reputation AS club_reputation
-                    FROM mart.clubs
-                    SEMI JOIN mart.listed_clubs USING (season, phase, club_tid)
-                    WHERE season=? AND phase=?
-                    -- ORDER BY is not cosmetic: without it DuckDB's group-by order varies
-                    -- run to run, so a re-export with identical data rewrote all 4,337 rows
-                    -- of this array and every real diff hid in the churn. The committed JSON
-                    -- is this refactor's regression test, which only works if the export is
-                    -- deterministic.
-                    ORDER BY club_tid""", [season, phase])
-    leagues = db.q("""SELECT cid, name, nation, reputation, member_count AS clubs
-                      FROM mart.leagues l
-                      WHERE season=? AND phase=? AND name IS NOT NULL
-                        -- the leagues of the clubs the site lists (mart.listed_clubs)
-                        AND EXISTS (SELECT 1 FROM mart.club_leagues cl
-                                    SEMI JOIN mart.listed_clubs USING (season, phase, club_tid)
-                                    WHERE (cl.season, cl.phase, cl.league_cid)
-                                        = (l.season, l.phase, l.cid))
-                      ORDER BY reputation DESC NULLS LAST, cid""", [season, phase])
-    # Division-strength index, straight off mart.leagues. It is the average player ability per
-    # league normalised 0-100 — immersion-safe in the same way the Level percentile is, a
-    # CA-DERIVED INDEX and never the number. This used to be ~20 lines here that computed the
-    # raw averages, normalised them in pandas, and then `del`-ed the frame so the ability
-    # could not leak by accident. The normalisation now happens inside the view, so there is
-    # no raw average in this process to leak in the first place.
-    skill_idx = {int(r.cid): (float(r.skill_idx), int(r.rated)) for r in db.q(
-        """SELECT cid, skill_idx, rated FROM mart.leagues
-           WHERE season=? AND phase=? AND skill_idx IS NOT NULL""",
-        [season, phase]).itertuples()}
-
-    rw = db.q("SELECT method, role, attribute, weight FROM mart.role_weights")
+    # ------------------------------------------------------------ reference tables
+    ladder = [(r["cid"], r["name"]) for r in s.rows(
+        "SELECT cid, name FROM site.leagues WHERE snapshot_date = ? "
+        "AND ladder_rank IS NOT NULL ORDER BY ladder_rank", [d])]
+    clubs = s.rows("""SELECT team_tid, name, league_cid, league_name, nation, reputation,
+                             squad_size
+                      FROM site.clubs WHERE snapshot_date = ? AND is_listed
+                      ORDER BY team_tid""", [d])
+    listed_leagues = {c["league_cid"] for c in clubs}
+    leagues = [r for r in s.rows("""SELECT cid, name, nation, reputation, member_count,
+                                           skill_idx, rated
+                                    FROM site.leagues
+                                    WHERE snapshot_date = ? AND name IS NOT NULL
+                                    ORDER BY reputation DESC NULLS LAST, cid""", [d])
+               if r["cid"] in listed_leagues]
     tactics = {}
-    for r in rw.itertuples():
-        tactics.setdefault(r.method, {}).setdefault(r.role, {})[r.attribute] = int(r.weight)
-    prm = db.q("SELECT position, role FROM mart.position_roles")
-    curve, floor = db.familiarity_params()
+    for r in s.rows("SELECT method, role, attribute, weight FROM site.role_weights "
+                    "ORDER BY method, role, attribute"):
+        tactics.setdefault(r["method"], {}).setdefault(r["role"], {})[r["attribute"]] = \
+            int(r["weight"])
+    pos_role = {r["position"]: r["role"] for r in
+                s.rows("SELECT position, role FROM site.position_roles ORDER BY position")}
+    floor = float(cfg.get("familiarity_floor", 0.5))
 
-    # ---------------------------------------------------------------- our squad extras
-    # WHO IS OURS, AND WHO IS ONLY BORROWED, comes from the dated spell model rather than the
-    # players.loaned_in flag. That flag is set-only: the save never clears it, so it accumulated
-    # 0 -> 4 -> 7 -> 8 -> 9 across sixteen snapshots and reported nine loanees at a snapshot
-    # where three loans were actually live. mart.squad_on(d) intersects real spells with the
-    # date, so a loan that ended in 2022 cannot come back in 2024. index.json's own caveat list
-    # has warned readers off the flag for a while; this stops shipping it.
-    #
-    # squad_on returns one row per SPELL, so a genuine loanee appears twice (an at_club run and
-    # a loan_in spell). Aggregate to one row per tid before using it as a squad.
-    # `status` keeps its existing meaning — "Loan" is OUT on loan, i.e. away at another club —
-    # so it reads mart.loan_out_spells, while loan-INs stay in the separate `loaned_in` list the
-    # app already treats differently. Both now come from dated spells rather than a flag.
-    sq = db.q("""SELECT s.tid,
-                        any_value(s.name)                        AS name,
-                        max(s.club_tid)                          AS club_tid,
-                        bool_or(s.spell_type = 'loan_in')        AS is_loan_in,
-                        bool_or(o.tid IS NOT NULL)               AS is_loan_out
-                 FROM mart.squad_on(?) s
-                 LEFT JOIN mart.loan_out_spells o
-                        ON o.tid = s.tid
-                       AND CAST(? AS DATE) BETWEEN o.valid_from AND o.valid_to
-                 GROUP BY s.tid ORDER BY s.tid""", [phase, phase])
-    loaned_in = [int(t) for t, f in zip(sq["tid"], sq["is_loan_in"]) if f]
-    reserve_tids = {int(t) for (t,) in
-                    db.q("SELECT club_tid FROM mart.reserve_clubs").itertuples(index=False)}
-    status = {int(t): ("Loan" if out else
-                       "Reserve" if int(c) in reserve_tids else "First team")
-              for t, c, out in zip(sq["tid"], sq["club_tid"], sq["is_loan_out"])}
+    # ------------------------------------------------------------ players
+    players = s.rows("SELECT * FROM site.players WHERE snapshot_date = ? ORDER BY tid", [d])
+    squad = s.rows("""SELECT q.person_id, p.tid, q.status, q.is_loan_in,
+                             q.loaned_to_club_tid
+                      FROM site.squad q
+                      JOIN site.players p USING (snapshot_date, person_id)
+                      WHERE q.snapshot_date = ? ORDER BY p.tid""", [d])
+    by_pid = {p["person_id"]: p for p in players}
+    squad_pids = {q["person_id"] for q in squad}
+    keep_teams = {c["team_tid"] for c in clubs
+                  if c["league_cid"] in {cid for cid, _ in ladder[:3]}} | set(our_tids)
 
-    elig = db.q("""SELECT tid, origin_club, eligible FROM mart.player_origin
-                   WHERE season=? AND phase=?""", [season, phase])
-    origin = dict(zip(elig["tid"], elig["origin_club"])) if not elig.empty else {}
-    capital = {int(t) for t, e in zip(elig["tid"], elig["eligible"]) if e} \
-        if not elig.empty else set()
-
-    # How far each of ours is from his ceiling, as a WORD (mart.player_development) — the
-    # only form potential leaves the mart in, so this is immersion-safe by construction.
-    dev = db.q("""SELECT tid, development FROM mart.player_development
-                  WHERE season=? AND phase=?""", [season, phase])
-    development = dict(zip(dev["tid"].astype(int), dev["development"])) if not dev.empty else {}
-
-    # The profile tail (PROFILE_EXTRA_FIELDS: bio, reputation, personality, the hidden nine) for
-    # our squad, so every field the profile sheet shows is also a Squad column, and our own
-    # profiles open without the lazy /api/all fetch. ~40 players, so it costs a few KB.
-    prof = db.q(f"""SELECT p.tid, {PROFILE_COLS} FROM mart.player_snapshots p {PROFILE_JOIN}
-                    WHERE p.season=? AND p.phase=?""", [season, phase])
-
-    def jv(v):
-        if v is None or (not isinstance(v, str) and pd.isna(v)):
-            return None
-        if isinstance(v, str):
-            return v
-        if hasattr(v, "isoformat"):
-            return v.isoformat()[:10]
-        return int(v) if float(v).is_integer() else float(v)
-    profile_tail = {int(r[0]): [jv(v) for v in r[1:]] for r in prof.itertuples(index=False)}
-
-    levels = level_map(db, season, phase)
-
-    # ---------------------------------------------------------------- core.json
-    keep = set(int(t) for t in clubs.loc[clubs["league_cid"].isin(ladder_cids), "tid"])
-    keep |= {int(t) for t in db.OUR_CLUBS if t}
-    core_players = player_rows(db, pd, season, phase, ATTR_ORDER,
-                               club_tids=sorted(keep), levels=levels)
     emit("core.json", {
-        # Schema and reference tables FIRST, "players" LAST: players is most of this file's 277
-        # KB, so a client that truncates mid-fetch (a small agent's fetcher, a flaky connection)
-        # still gets a complete, usable schema + weights + club/league index — only the tail of
-        # the player list is lost, not everything needed to interpret it.
-        "attrs": list(ATTR_ORDER),
+        "attrs": attrs,
         "fields": PLAYER_FIELDS,
-        # only clubs with a squad: an empty club can't be rendered anywhere, and they were
-        # half the rows. The count is reported so their absence is stated, not silent.
-        "clubs": [[int(r.tid), r.name, None if pd.isna(r.league_cid) else int(r.league_cid),
-                   int(r.players), r.nation if isinstance(r.nation, str) else None,
-                   None if pd.isna(r.club_reputation) else int(r.club_reputation)]
-                  for r in clubs.itertuples() if int(r.players) > 0],
-        "clubs_without_players": int((clubs["players"] == 0).sum()),
+        "clubs": [[c["team_tid"], c["name"], c["league_cid"], c["squad_size"], c["nation"],
+                   c["reputation"]] for c in clubs if c["squad_size"] > 0],
+        "clubs_without_players": sum(1 for c in clubs if c["squad_size"] == 0),
         "club_fields": ["tid", "name", "league_cid", "players", "nation", "reputation"],
-        "leagues": [[int(r.cid), r.name, r.nation,
-                     None if pd.isna(r.reputation) else int(r.reputation),
-                     None if pd.isna(r.clubs) else int(r.clubs),
-                     skill_idx.get(int(r.cid), (None, None))[0],
-                     skill_idx.get(int(r.cid), (None, None))[1]]
-                    for r in leagues.itertuples()],
+        "leagues": [[r["cid"], r["name"], r["nation"], r["reputation"], r["member_count"],
+                     None if r["skill_idx"] is None else float(r["skill_idx"]), r["rated"]]
+                    for r in leagues],
         "league_fields": ["cid", "name", "nation", "reputation", "clubs", "skill_idx", "rated"],
         "tactics": tactics,
-        "pos_role": dict(zip(prm["position"], prm["role"])),
-        "familiarity": {"curve": curve, "floor": floor},
+        "pos_role": pos_role,
+        "familiarity": {"curve": cfg.get("familiarity_curve", "linear_floor"),
+                        "floor": floor},
         "ours": {
-            "clubs": [int(t) for t in db.OUR_CLUBS if t],
-            "managed_tid": db.MANAGED_CLUB_TID, "reserve_tid": db.RESERVE_CLUB_TID,
-            "status": {str(int(t)): s for t, s in status.items()},
-            "loaned_in": loaned_in,
-            # The spell-derived squad, not "club_tid IN ours.clubs" — a loan-in whose
-            # loaned_in flag stuck (see fmstats/mart.py's AT_CLUB "SECOND GHOST" note) still
-            # shows club_tid = ours in the raw per-snapshot player_rows below (that row is
-            # accurate: the byte marker really does still list him there), but he is not
-            # actually on the books any more. `sq` is already the mart.squad_on(phase)-based
-            # roster used for status/loaned_in above, so it is the correct membership test —
-            # site/js/data.js's ourPlayers() intersects against this instead of raw club_tid.
-            "squad_tids": [int(t) for t in sq["tid"]],
-            # our squad only: eligibility_frame covers the whole snapshot, and shipping all
-            # 23,799 origin clubs put 556 KB into a file loaded on every page view
-            "origin": {str(int(t)): origin[t] for t in sq["tid"]
-                       if origin.get(t)},
-            "capital_eligible": sorted(capital & {int(t) for t in sq["tid"]}),
-            "development": {str(int(t)): development[int(t)] for t in sq["tid"]
-                            if development.get(int(t))},
+            "clubs": our_tids,
+            "managed_tid": managed, "reserve_tid": reserve,
+            "status": {str(q["tid"]): q["status"] for q in squad},
+            "loaned_in": [q["tid"] for q in squad if q["is_loan_in"]],
+            "squad_tids": [q["tid"] for q in squad],
+            "origin": {str(q["tid"]): by_pid[q["person_id"]]["origin_club"]
+                       for q in squad if by_pid[q["person_id"]].get("origin_club")},
+            "capital_eligible": sorted(q["tid"] for q in squad
+                                       if by_pid[q["person_id"]]["capital_eligible"]),
+            "development": {str(q["tid"]): by_pid[q["person_id"]]["development"]
+                            for q in squad if by_pid[q["person_id"]]["development"]},
             "profile_fields": PROFILE_EXTRA_FIELDS,
-            "profile": {str(int(t)): profile_tail[int(t)] for t in sq["tid"]
-                        if int(t) in profile_tail}},
+            "profile": {str(q["tid"]): player_row(by_pid[q["person_id"]], attrs, True)[14:]
+                        for q in squad}},
         "note": IMMERSION,
-        "players": core_players})
+        # the ladder clubs' players, and our squad wherever their records are: a loanee to
+        # us is at his parent club's team, and the app finds our squad by squad_tids
+        "players": [player_row(p, attrs) for p in players
+                    if p["team_tid"] in keep_teams or p["person_id"] in squad_pids]})
 
-    # ---------------------------------------------------------------- clubs.json
-    # Name/tid resolution for EVERY club in the save, not just the ladder subset in core.json —
-    # so an agent scouting a club outside the ladder can resolve it without fetching /api/all
-    # (1.3 MB) just to find a club name.
-    league_names = dict(zip(leagues["cid"], leagues["name"]))
     emit("clubs.json", {
         "club_fields": ["tid", "name", "league_cid", "league_name", "nation", "reputation"],
-        "clubs": [[int(r.tid), r.name,
-                   None if pd.isna(r.league_cid) else int(r.league_cid),
-                   None if pd.isna(r.league_cid) else league_names.get(int(r.league_cid)),
-                   r.nation if isinstance(r.nation, str) else None,
-                   None if pd.isna(r.club_reputation) else int(r.club_reputation)]
-                  for r in clubs.itertuples()],
+        "clubs": [[c["team_tid"], c["name"], c["league_cid"], c["league_name"], c["nation"],
+                   c["reputation"]] for c in clubs],
         "note": "Every club in the save. No players or attributes here — see core.json (ladder "
                 "clubs, full attributes) or /api/all (every player) for those."})
 
-    # ---------------------------------------------------------------- squad.json
-    # Attributes at EVERY snapshot, so the app can draw growth under any tactic — the
-    # trajectory is the thing Development exists for, and it can't be recovered from one slice.
-    ours_tids = sorted({int(t) for t in db.q(
-        """SELECT DISTINCT tid FROM mart.player_snapshots
-           WHERE club_tid IN (SELECT club_tid FROM mart.our_clubs)""")["tid"]})
-    # note: ours_tids is EVER-ours (career history is worth keeping for a player who left);
-    # trajectories below use only the CURRENT squad.
-    # Every snapshot the player EXISTS in, not only the ones he spent with us. A summer
-    # signing was in the save all along at another club, and his growth before he arrived is
-    # exactly what you want to see when judging him — filtering on club_tid gave every new
-    # arrival a blank trend.
-    #
-    # Widening to the whole file means crossing tid recycling: a tid retired and reissued to a
-    # newgen would splice two different people into one trajectory. keep_current_person drops
-    # the slices where this tid belonged to somebody else (a no-op for tids never reused).
-    # The recycling problem is solved by KEYING ON person_id rather than by filtering after the
-    # fact. keep_current_person used to fetch the slices and drop the rows where this tid
-    # belonged to somebody else; selecting the person's own rows never picks them up in the
-    # first place. Same answer, and it is the mart's rule 3 instead of a pandas pass.
-    cur_tids = sorted({int(t) for t in sq["tid"]})
-    cols = ", ".join(f'"{x}"' for x in ATTR_ORDER)
-    hist = db.q(f"""WITH me AS (
-                        SELECT DISTINCT person_id, tid FROM mart.player_snapshots
-                        WHERE season=? AND phase=? AND tid IN ({','.join('?' * len(cur_tids))}))
-                    SELECT ps.season, ps.phase, me.tid, {cols}
-                    FROM mart.player_snapshots ps
-                    JOIN me ON me.person_id = ps.person_id
-                    WHERE ps.has_attributes
-                    ORDER BY me.tid, ps.season, ps.phase""",
-                 [season, phase, *cur_tids]) if cur_tids else pd.DataFrame()
-    traj = {}
-    for r in hist.to_dict("records"):
-        traj.setdefault(str(int(r["tid"])), []).append(
-            [int(r["season"]), r["phase"],
-             [None if pd.isna(r[x]) else int(r[x]) for x in ATTR_ORDER]])
-    # Career history repeats in every snapshot, so read it from the requested one only —
-    # a UNION across snapshots would multiply every season row by 12.
-    careers = db.q(f"""SELECT tid, end_year, club_tid, club, fee, apps, goals, assists, rating
-                       FROM mart.player_career_seasons
-                       WHERE season=? AND phase=?
-                         AND tid IN ({','.join('?' * len(ours_tids))})
-                       ORDER BY tid, seq""", [season, phase, *ours_tids]) \
-        if ours_tids else pd.DataFrame()
-    chist = {}
-    for r in (careers.to_dict("records") if not careers.empty else []):
-        chist.setdefault(str(int(r["tid"])), []).append({
-            "end_year": None if pd.isna(r["end_year"]) else int(r["end_year"]),
-            "club": r["club"] if isinstance(r["club"], str) else (
-                None if pd.isna(r["club_tid"]) else f"#{int(r['club_tid'])}"),
-            "fee": r["fee"] if isinstance(r["fee"], str) else None,
-            "apps": None if pd.isna(r["apps"]) else int(r["apps"]),
-            "goals": None if pd.isna(r["goals"]) else int(r["goals"]),
-            "assists": None if pd.isna(r["assists"]) else int(r["assists"]),
-            "rating": None if pd.isna(r["rating"]) else round(float(r["rating"]), 2)})
-    # Spells and moves for the current squad, so the development chart can show where each
-    # player was at every point on his curve. Keyed by person_id like the trajectories, so a
-    # recycled tid can't splice in somebody else's spells. Spells are the mart's spell model
-    # (at a club / on loan here / out on loan / injured; injuries are scraped for the managed
-    # squad only). Moves are mart.transfers minus clubs moving a player between their own
-    # sides — except reserves <-> first team at ours, which is a promotion worth marking.
-    me_cte = f"""WITH me AS (SELECT DISTINCT person_id, tid FROM mart.player_snapshots
-                            WHERE season=? AND phase=? AND tid IN ({','.join('?' * len(cur_tids))}))"""
-    spells, moves = {}, {}
-    if cur_tids:
-        sp = db.q(f"""{me_cte}
-                      SELECT me.tid, s.spell_type, s.club_tid,
-                             CAST(s.valid_from AS DATE) AS valid_from,
-                             CAST(s.valid_to AS DATE) AS valid_to
-                      FROM mart.player_spells s JOIN me USING (person_id)
-                      ORDER BY me.tid, s.valid_from, s.spell_type, s.club_tid""",
-                  [season, phase, *cur_tids])
-        for r in sp.to_dict("records"):
-            spells.setdefault(str(int(r["tid"])), []).append(
-                [r["spell_type"], None if pd.isna(r["club_tid"]) else int(r["club_tid"]),
-                 str(r["valid_from"])[:10],
-                 None if pd.isna(r["valid_to"]) else str(r["valid_to"])[:10]])
-        mv = db.q(f"""{me_cte}
-                      SELECT me.tid, t.move_date, t.from_club_tid, t.to_club_tid, t.move_type,
-                             t.fee_type, t.fee_gbp
-                      FROM mart.transfers t JOIN me USING (person_id)
-                      WHERE t.move_date IS NOT NULL
-                        AND (t.move_type <> 'internal'
-                             OR (t.from_club_tid IN (SELECT club_tid FROM mart.our_clubs)
-                                 AND t.to_club_tid IN (SELECT club_tid FROM mart.our_clubs)))
-                      ORDER BY me.tid, t.move_date, t.to_club_tid""",
-                  [season, phase, *cur_tids])
-        for r in mv.to_dict("records"):
-            moves.setdefault(str(int(r["tid"])), []).append(
-                [str(r["move_date"])[:10],
-                 None if pd.isna(r["from_club_tid"]) else int(r["from_club_tid"]),
-                 None if pd.isna(r["to_club_tid"]) else int(r["to_club_tid"]),
-                 r["move_type"], r["fee_type"],
-                 None if pd.isna(r["fee_gbp"]) else int(r["fee_gbp"])])
-    emit("squad.json", {"attrs": list(ATTR_ORDER), "trajectories": traj,
-                        "career_history": chist,
-                        "spell_fields": ["type", "club_tid", "from", "to"],
-                        "spells": spells,
-                        "move_fields": ["date", "from_club_tid", "to_club_tid", "move_type",
-                                        "fee_type", "fee_gbp"],
-                        "moves": moves,
-                        "note": "spells: type is at_club / loan_in / loan_out / injured; `to` "
-                                "null = ongoing. Injuries are recorded for our squad only, and "
-                                "a spell at another club is seen only while the save covers "
-                                "it. " + IMMERSION})
-
-    # ---------------------------------------------------------------- forecast.json
-    # Given his CURRENT value of an attribute and his age, what will it be at 21 / 24? Built
-    # entirely from mart.attribute_forecast (fmstats/mart.py) — a lookup keyed on
-    # (attribute, age_now, value_now, horizon_age), not a fitted formula: growth turned out to
-    # be a level phenomenon (current value predicts future value directly, R^2=0.85 for
-    # Crossing) rather than a rate one, so there is no coefficient to ship, just the empirical
-    # table. `bucket` is derived in SQL per attribute — 'forecastable' where the decode tracks
-    # real growth, 'fixed' where nothing moves (Agility, Technique), 'unmodelled' where the
-    # decode compresses real growth too much to trust (Movement, Positioning, Aerial, ...).
-    # ORDER BY on all three reads is load-bearing, not tidiness: `cells` and `buckets` are
-    # dicts built in row order and `ageCurve` is a list, so an unordered scan emits the same
-    # data as different BYTES run to run — which is exactly what stops `git diff site/api`
-    # being the regression test it is supposed to be (see CLAUDE.md).
-    fc = db.q("""SELECT attribute, age_now, value_now, horizon_age, median, p25, p75
-                 FROM mart.attribute_forecast
-                 ORDER BY attribute, age_now, value_now, horizon_age""")
-    buckets = {r.attribute: r.bucket for r in
-               db.q("SELECT DISTINCT attribute, bucket FROM mart.attribute_forecast "
-                    "ORDER BY attribute").itertuples()}
-    cells = {}
-    for r in fc.itertuples():
-        by_age = cells.setdefault(r.attribute, {}).setdefault(str(int(r.age_now)), {})
-        by_value = by_age.setdefault(str(int(r.value_now)), {})
-        by_value[str(int(r.horizon_age))] = [round(float(r.median), 1),
-                                              round(float(r.p25)), round(float(r.p75))]
-    curve = db.q("SELECT age, median, p25, p75 FROM mart.growth_age_curve ORDER BY age")
-    emit("forecast.json", {
-        "attrs": list(ATTR_ORDER),
-        "buckets": buckets,
-        "horizons": [21, 24],
-        "cells": cells,
-        "ageCurve": [[int(r.age), round(float(r.median), 1), round(float(r.p25), 1),
-                      round(float(r.p75), 1)] for r in curve.itertuples()],
-        "note": "Empirical lookup over the whole save (~25k players tracked across snapshots), "
-                "not a per-player prediction: current value + age predicts a future value well "
-                "(R^2=0.85 for Crossing), but a starting attribute like Technique does NOT "
-                "predict how FAST another attribute grows (+0.000 R^2 beyond current value) — "
-                "a technical player is simply already ahead, not accelerating. Fixed attributes "
-                "(Agility, Technique) never move in real play; unmodelled ones are decoded too "
-                "coarsely outside our own squad to forecast honestly. " + IMMERSION})
-
-    # ---------------------------------------------------------------- registration.json
-    # The squad-registration house rule (docs/danish-registration-rules.md). FMM models none
-    # of this, so every field here is derived — see fmstats/mart.py's registration family for
-    # how "home grown" is recovered from origin clubs, career history and our own spells.
-    #
-    # Built from mart.player_homegrown at the REQUESTED snapshot rather than from
-    # mart.squad_registration, which pins itself to the newest one: exporting an older
-    # snapshot has to give that snapshot's squad, not today's.
-    rules = db.q("""SELECT tier, league_name, a_list_max, hg_min, hg_club_min,
-                           b_list_under_age, min_matchday_age, nation
-                    FROM mart.registration_rules WHERE season=? AND phase=?""",
-                 [season, phase])
-    reg = db.q(f"""SELECT h.tid, h.age, h.dob, h.hg_club, h.hg_club_basis, h.hg_association,
-                          h.months_club, h.months_to_hg_club, h.hg_club_eta, h.window_open,
-                          h.origin_club, h.origin_nation, h.via_academy
-                   FROM mart.player_homegrown h
-                   WHERE h.season=? AND h.phase=? AND h.tid IN ({','.join('?' * len(cur_tids))})
-                   ORDER BY h.tid""", [season, phase, *cur_tids]) \
-        if cur_tids else pd.DataFrame()
-    REG_FIELDS = ["tid", "age", "b_list", "hg_club", "hg_basis", "hg_association",
-                  "months_club", "months_to_go", "hg_eta", "window_open", "origin_club",
-                  "origin_nation", "via_academy"]
-    # "Under 21 at the last new year before the tournament year" — a fixed date, so a player
-    # who turns 21 in the autumn keeps his B-list place for the whole season.
-    u21_on = datetime.date(season - 1, 1, 1)
-    b_list_born_after = pd.Timestamp(season - 22, 1, 1)
-    emit("registration.json", {
-        "snapshot": {"season": season, "phase": phase},
-        "rules": ({**{k: (None if pd.isna(v) else v) for k, v in
-                      rules.iloc[0].to_dict().items()},
-                   "u21_on": u21_on.isoformat()} if not rules.empty else None),
-        "fields": REG_FIELDS,
-        "players": [[int(r["tid"]), None if pd.isna(r["age"]) else int(r["age"]),
-                     bool(not pd.isna(r["dob"]) and pd.Timestamp(r["dob"]) > b_list_born_after),
-                     bool(r["hg_club"]), r["hg_club_basis"], bool(r["hg_association"]),
-                     None if pd.isna(r["months_club"]) else round(float(r["months_club"]), 1),
-                     None if pd.isna(r["months_to_hg_club"]) else
-                     round(float(r["months_to_hg_club"]), 1),
-                     None if pd.isna(r["hg_club_eta"]) else str(r["hg_club_eta"])[:10],
-                     bool(r["window_open"]), r["origin_club"], r["origin_nation"],
-                     bool(r["via_academy"])]
-                    for r in (reg.to_dict("records") if not reg.empty else [])],
-        "note": "Squad registration is a self-imposed rule — FMM22 does not model it. "
-                "Home-grown status is derived from origin club, career history and observed "
-                "spells; see docs/danish-registration-rules.md."})
-
-    # ---------------------------------------------------------------- loans.json
-    # Where each owned player would get games on loan: his Level %ile in every division from
-    # ours down to the third below, and each club's starter line at his position under that
-    # manager's preferred formation. A RENDERED answer, computed here, because it orders
-    # players by the ability number and that never leaves this machine. Tactic-free.
-    L = db.build_loans(season, phase, min_fam=min_fam)
-    if "error" in L:
-        print(f"  ! loan outlook unavailable: {L['error']}")
-        emit("loans.json", {"error": L["error"]})
-    else:
-        emit("loans.json", {
-            "snapshot": {"season": season, "phase": phase, "min_familiarity": min_fam},
-            "ladder": [{"cid": c, "name": n} for c, n in L["ladder"]],
-            "formations": {str(t): f for t, f in L["formations"].items()},
-            "fallback_formation": L["fallback_formation"],
-            "slots": _export_db.FORMATION_SLOTS,
-            "row_fields": ["league_cid", "lvl", "n", "clubs"],
-            "club_fields": ["club_tid", "rank", "slots", "line"],
-            "players": L["players"],
-            "note": "lvl = his Level %ile at the position in that division. Per club: rank = "
-                    "his place among that club's players at the position (1 = first choice), "
-                    "slots = how many start there in the manager's preferred formation, line = "
-                    "Level %ile of the weakest of them (null = the club has no natural player "
-                    "for that slot, so he walks in). He starts iff rank <= slots. " + IMMERSION})
-
-    # ---------------------------------------------------------------- matches.json
-    # Raw-ish: the app computes records, awards, H2H, per-player aggregates and differentials
-    # from this. One dataset instead of four pages' worth of precomputed answers.
-    # mart.club_matches is every match seen from one club's side, already oriented — venue,
-    # opponent, gf/ga, result, pts and each team stat split into our_/opp_. The Python this
-    # replaces ran a query per season in a loop and then flipped seventeen columns in pandas.
-    # mart.match_stages adds the game's own stage/round label, the leg and the tie outcome
-    # (League Path · Third Qualifying Round, leg 2, 3-3 on aggregate, through on penalties).
-    hist_m = db.q("""SELECT m.*, s.stage_kind, s.stage_label AS stage, s.matchday, s.leg,
-                            s.tie_gf, s.tie_ga, s.went_through, s.extra_time,
-                            s.pens_for, s.pens_against
-                     FROM mart.club_matches m
-                     LEFT JOIN mart.match_stages s
-                       ON (s.club_tid, s.date, s.opp_tid) = (m.club_tid, m.date, m.opp_tid)
-                     WHERE m.club_tid IN (SELECT club_tid FROM mart.managed_club)
-                     ORDER BY m.season, m.date, m.opp_tid""")
-    # mart.match_ratings = match_player_facts + the position-adjusted rating (rating_adj).
-    mps = db.q("""SELECT * REPLACE (ROUND(rating_adj, 2) AS rating_adj)
-                  FROM mart.match_ratings
-                  WHERE team_tid IN (SELECT club_tid FROM mart.our_clubs) AND appeared
-                  ORDER BY season, date, tid""")
-    mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
-               "result", "pts", "formation", "attendance", "stage_kind", "stage", "matchday",
-               "leg", "tie_gf", "tie_ga", "went_through", "extra_time", "pens_for",
-               "pens_against"]
-    if not hist_m.empty:      # dedupe: opp_tid is already in the identity block above
-        mfields += [c for c in hist_m.columns
-                    if c.startswith(("our_", "opp_")) and c not in mfields]
-    pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
-               "goals", "assists", "minutes", "started", "position", "passA", "passC", "keyPass",
-               "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
-               "dribbles", "shotA", "shotO", "mistakes", "yellow"]
-
-    # Real home-game attendance per season (mart.club_attendance groups on home_tid, so this is
-    # our own gate, same convention as the "Biggest Crowd" award below) — avg/min alongside the
-    # max that award already surfaces, no fill-rate (that needs stadium_capacity, out of scope
-    # here and already unreliable per the att_avg/att_min/att_max caveat in docs/TODO.md, which
-    # doesn't apply to this real-attendance view).
-    att = db.q("""SELECT season, n_games, avg_att, max_att
-                  FROM mart.club_attendance
-                  WHERE club_tid IN (SELECT club_tid FROM mart.managed_club)
-                  ORDER BY season""")
-    att_fields = ["season", "n_games", "avg_att", "max_att"]
-
-    # Squad value + wage bill on every snapshot date (owned players only — see
-    # mart.squad_finances). History reads each season's last row; Squad reads the current one.
-    fin_fields = ["season", "phase", "n_owned", "n_loan_in", "value_gbp", "n_value_est",
-                  "wage_gbp"]
-    fin = db.q(f"""SELECT {", ".join(fin_fields)} FROM mart.squad_finances
-                   ORDER BY snap_ix""")
-
-    # Name resolution for every tid who ever appeared for us — core.json's `players` array only
-    # covers the CURRENT squad (see the core.json block above), so a player who left the save
-    # after racking up matches/goals has no name anywhere else on the site. Bounded to "everyone
-    # who ever played a match for our club", a few hundred rows at most, not all.json territory.
-    # RESERVE-LEAGUE PLACEHOLDERS, and why `person_id IS NOT NULL` is the test. The save
-    # simulates the reserve league with anonymous filler: those stat blocks carry tids from a
-    # band (33007-33106 on Frem) that appears in no club's squad in any snapshot, and the SAME
-    # tid turns out for up to nine different reserve sides in a season, so it is a per-match
-    # roster slot, not a person. The info spine knows nothing about them, which is exactly why
-    # they have no person_id — a structural signal, where "we failed to find a name" is only a
-    # symptom. Shipping them put "#33015" second in the all-time average-rating table. A real
-    # player's reserve appearances carry a person_id and are unaffected.
-    if mps is not None and not mps.empty:
-        keep = mps["person_id"].notna()
-        dropped = int((~keep).sum())
-        if dropped:
-            print(f"  matches.json           dropped {dropped} anonymous reserve-league rows "
-                  f"({mps.loc[~keep, 'tid'].nunique()} placeholder tids, no person_id)")
-        mps = mps[keep]
-
-    # Name resolution for every player who ever appeared for us — core.json's `players` array
-    # only covers the CURRENT squad (see the core.json block above), so a player who left the
-    # save after racking up matches/goals has no name anywhere else on the site. Bounded to
-    # "everyone who ever played a match for our club", a few hundred rows at most, not all.json
-    # territory.
-    #
-    # Resolved by PERSON, not by tid. A tid is a recycled slot (docs/agent-context/
-    # tid-recycling.md): grouping snapshots by tid alone sweeps in the eras when that slot
-    # belonged to somebody else entirely, and ANY_VALUE then picked between them by scan order
-    # — 7 of our 74 players came back under a stranger's name, and a DIFFERENT stranger on the
-    # next export (tid 4240 alternated between Johan Nordberg and Thomas De Clercq). Keying on
-    # the person_id the match row itself carries is both correct and stable. No tid serves two
-    # different people among our own appearances, so one name per tid is still well defined.
-    player_names = {}
-    if mps is not None and not mps.empty:
-        pairs = mps[["tid", "person_id"]].dropna().drop_duplicates()
-        pids = sorted({str(x) for x in pairs["person_id"]})      # person_id is '<tid>-<dob>'
-        if pids:
-            nm = db.q(f"""SELECT person_id, name FROM (
-                            SELECT person_id, name, ROW_NUMBER() OVER (
-                                PARTITION BY person_id
-                                ORDER BY phase_date DESC, tid DESC, name) AS rn
-                            FROM mart.player_snapshots
-                            WHERE person_id IN ({','.join('?' * len(pids))})
-                              AND name IS NOT NULL)
-                          WHERE rn = 1""", pids)
-            by_person = {str(r.person_id): r.name for r in nm.itertuples()
-                         if isinstance(r.name, str)}
-            player_names = {str(int(r.tid)): by_person[str(r.person_id)]
-                            for r in pairs.sort_values("tid").itertuples()
-                            if str(r.person_id) in by_person}
-
-    def rowify(df, fields):
-        if df is None or df.empty:
-            return []
-        have = [f for f in fields if f in df.columns]
-        recs = df[have].to_dict("records")
-        return [[None if pd.isna(r[f]) else (r[f].isoformat()[:10]
-                                             if hasattr(r[f], "isoformat") else
-                                             (bool(r[f]) if isinstance(r[f], bool) else r[f]))
-                 for f in have] for r in recs]
-
-    emit("matches.json", {
-        "match_fields": [f for f in mfields if not hist_m.empty and f in hist_m.columns],
-        "matches": rowify(hist_m, mfields),
-        "player_fields": [f for f in pfields if mps is not None and not mps.empty
-                          and f in mps.columns],
-        "player_rows": rowify(mps, pfields),
-        "player_names": player_names,
-        "attendance_fields": att_fields if att is not None and not att.empty else [],
-        "attendance": rowify(att, att_fields),
-        "finance_fields": fin_fields if fin is not None and not fin.empty else [],
-        "finances": rowify(fin, fin_fields),
-        "note": "Only the managed club's matches are richly parsed, so these are our records. "
-                "Match detail lives in a fixed-size ring buffer the game overwrites as a "
-                "season runs, so an early game may be absent from a late save."})
-
-    # ---------------------------------------------------------------- all.json (R2, not git)
     all_path = os.path.join(out, "all.json")
-    if a.skip_all:
-        print("  all.json               skipped (--skip-all)")
-    else:
-        rows = player_rows(db, pd, season, phase, ATTR_ORDER, levels=levels,
-                           include_origin=True, include_profile=True)
-        n, gz = write_json(all_path, {"attrs": list(ATTR_ORDER), "fields": PROFILE_FIELDS,
-                                      "players": rows, "note": IMMERSION}, db._json_clean)
-        print(f"  all.json               {n / 1024:8.0f} KB raw  {gz / 1024:7.0f} KB gzip  "
-              f"({len(rows)} players — R2 only, NOT git)")
-        written.append(("all.json", n, gz))
+    if not a.skip_all:
+        emit("all.json", {"attrs": attrs, "fields": PROFILE_FIELDS,
+                          "players": [player_row(p, attrs, True) for p in players],
+                          "note": IMMERSION})
         if a.upload_all:
             if shutil.which("rclone") is None:
                 print("  ! rclone not installed — all.json not uploaded")
@@ -860,158 +324,293 @@ def main():
                 print("  uploaded all.json to R2" if r.returncode == 0
                       else f"  ! upload failed: {(r.stderr or '').strip()[:120]}")
 
-    # ---------------------------------------------------------------- world.json
-    # Nations (world ranking + coefficients) and two maps' worth of club/stadium places — a
-    # separate, lazily-fetched file (like loans.json/matches.json) rather than core.json,
-    # since the World page is one of several sections, not something every page view needs.
-    # The Leagues tab needs no new data at all: it's the reputation ladder already shipped in
-    # core.json's `leagues` array (D.S.leagues client-side).
-    our_nation = db.q("""SELECT nation FROM mart.club_leagues
-                         WHERE season=? AND phase=? AND club_tid IN
-                               (SELECT club_tid FROM mart.managed_club)""", [season, phase])
-    our_nation = (our_nation.iloc[0]["nation"] if not our_nation.empty
-                  and pd.notna(our_nation.iloc[0]["nation"]) else None)
+    # ------------------------------------------------------------ squad.json
+    # Trajectories, spells and moves for the current squad; career history for everyone
+    # ever in our squad who is in this snapshot. Keyed by the tid each holds on it.
+    tid_of = {p["person_id"]: p["tid"] for p in players}
+    cur = [q["person_id"] for q in squad]
+    cols = ", ".join(f'"{x}"' for x in attrs)
+    traj, spells, moves, chist = {}, {}, {}, {}
+    for r in s.rows(f"""SELECT person_id, season, snapshot_date, {cols}
+                        FROM site.players JOIN site.snapshots USING (snapshot_date)
+                        WHERE person_id IN (SELECT unnest(?))
+                        ORDER BY person_id, snapshot_date""", [cur]):
+        traj.setdefault(str(tid_of[r["person_id"]]), []).append(
+            [r["season"], day(r["snapshot_date"]), [num(r[x]) for x in attrs]])
+    for r in s.rows("""SELECT person_id, spell_type, club_tid, from_date, to_date
+                       FROM site.player_spells WHERE person_id IN (SELECT unnest(?))
+                       ORDER BY person_id, from_date, spell_type, club_tid""", [cur]):
+        spells.setdefault(str(tid_of[r["person_id"]]), []).append(
+            [r["spell_type"], r["club_tid"], day(r["from_date"]), day(r["to_date"])])
+    for r in s.rows("""SELECT person_id, move_date, from_club_tid, to_club_tid, move_type,
+                              fee_type, fee_gbp
+                       FROM site.player_moves WHERE person_id IN (SELECT unnest(?))
+                       ORDER BY person_id, move_date, to_club_tid""", [cur]):
+        moves.setdefault(str(tid_of[r["person_id"]]), []).append(
+            [day(r["move_date"]), r["from_club_tid"], r["to_club_tid"], r["move_type"],
+             r["fee_type"], num(r["fee_gbp"])])
+    ever = [pid for (pid,) in con.execute(
+        "SELECT DISTINCT person_id FROM site.squad").fetchall() if pid in tid_of]
+    for r in s.rows("""SELECT person_id, season, club, fee_label, apps, goals, assists, rating
+                       FROM site.player_career WHERE person_id IN (SELECT unnest(?))
+                       ORDER BY person_id, line_index""", [ever]):
+        chist.setdefault(str(tid_of[r["person_id"]]), []).append({
+            "end_year": r["season"], "club": r["club"], "fee": r["fee_label"],
+            "apps": r["apps"], "goals": r["goals"], "assists": r["assists"],
+            "rating": None if r["rating"] is None else round(float(r["rating"]), 2)})
+    emit("squad.json", {
+        "attrs": attrs, "trajectories": dict(sorted(traj.items(), key=lambda kv: int(kv[0]))),
+        "career_history": dict(sorted(chist.items(), key=lambda kv: int(kv[0]))),
+        "spell_fields": ["type", "club_tid", "from", "to"],
+        "spells": dict(sorted(spells.items(), key=lambda kv: int(kv[0]))),
+        "move_fields": ["date", "from_club_tid", "to_club_tid", "move_type", "fee_type",
+                        "fee_gbp"],
+        "moves": dict(sorted(moves.items(), key=lambda kv: int(kv[0]))),
+        "note": "spells: type is at_club / loan_in / loan_out / injured; `to` null = "
+                "ongoing. Injuries are recorded for our squad only, and a spell at another "
+                "club is seen only while the save covers it. " + IMMERSION})
 
-    nations_df = db.q("""SELECT name, world_ranking, ranking_points, total_coefficient, rival
-                         FROM mart.nations
-                         WHERE season=? AND phase=? AND is_ranked
-                         ORDER BY world_ranking, name""", [season, phase])
-    nations = [{"name": r.name, "rank": int(r.world_ranking) + 1,   # 0-indexed in the save
-               "points": None if pd.isna(r.ranking_points) else float(r.ranking_points),
-               "coefficient": None if pd.isna(r.total_coefficient) else float(r.total_coefficient),
-               "rival": r.rival if isinstance(r.rival, str) else None}
-              for r in nations_df.itertuples()]
+    # ------------------------------------------------------------ matches.json
+    def rowify(rows, fields, rename=None):
+        rename = rename or {}
+        return [[day(r[rename.get(f, f)]) if f == "date" else r[rename.get(f, f)]
+                 for f in fields] for r in rows]
 
-    places_dk = []
-    if our_nation:
-        dk_df = db.q("""SELECT cp.club_tid, cp.club, cp.league_name, cp.stadium, cp.capacity,
-                              cp.latitude, cp.longitude, l.tier
-                       FROM mart.club_places cp
-                       SEMI JOIN mart.listed_clubs USING (season, phase, club_tid)
-                       JOIN mart.leagues l
-                            ON (l.season, l.phase, l.cid) = (cp.season, cp.phase, cp.league_cid)
-                       WHERE cp.season=? AND cp.phase=? AND l.nation=?
-                         AND cp.latitude IS NOT NULL AND cp.longitude IS NOT NULL
-                       ORDER BY cp.club_tid""",
-                     [season, phase, our_nation])
-        places_dk = [{"tid": int(r.club_tid), "club": r.club, "league": r.league_name,
-                     "stadium": r.stadium, "capacity": None if pd.isna(r.capacity) else int(r.capacity),
-                     "lat": float(r.latitude), "lon": float(r.longitude),
-                     "tier": None if pd.isna(r.tier) else int(r.tier)}
-                    for r in dk_df.itertuples()]
+    stats = [c[0][4:] for c in con.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'site' "
+        "AND table_name = 'matches' AND column_name LIKE 'our\\_%' ESCAPE '\\' "
+        "ORDER BY ordinal_position").fetchall()]
+    mfields = ["season", "date", "competition", "venue", "opponent", "opp_tid", "gf", "ga",
+               "result", "pts", "formation", "attendance", "stage_kind", "stage", "matchday",
+               "leg", "tie_gf", "tie_ga", "went_through", "extra_time", "pens_for",
+               "pens_against"] + [f"{side}_{st}" for st in stats for side in ("our", "opp")]
+    matches = s.rows("SELECT * FROM site.matches ORDER BY season, match_date, opp_tid")
+    pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
+               "goals", "assists", "minutes", "started", "position", "passA", "passC",
+               "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
+               "dribbles", "shotA", "shotO", "mistakes", "yellow"]
+    prename = {"date": "match_date", "passA": "passes", "passC": "passes_completed",
+               "keyPass": "key_passes", "tackA": "tackles", "tackW": "tackles_won",
+               "intercept": "interceptions", "headA": "headers", "headW": "headers_won",
+               "crossA": "crosses", "crossC": "crosses_completed", "shotA": "shots",
+               "shotO": "shots_on_target", "yellow": "yellows"}
+    apps = s.rows("SELECT * FROM site.match_players ORDER BY season, match_date, tid")
+    for r in apps:
+        r["rating_adj"] = None if r["rating_adj"] is None else round(r["rating_adj"], 2)
+    names = {r["person_id"]: r["name"] for r in s.rows(
+        """SELECT person_id, arg_max(name, snapshot_date) AS name FROM site.players
+           WHERE person_id IN (SELECT DISTINCT person_id FROM site.match_players)
+           GROUP BY person_id""")}
+    att_fields = ["season", "n_games", "avg_att", "max_att"]
+    fin_fields = ["season", "phase", "n_owned", "n_loan_in", "value_gbp", "n_value_est",
+                  "wage_gbp"]
+    fin = s.rows("SELECT *, snapshot_date AS phase FROM site.finances ORDER BY snapshot_date")
+    for r in fin:
+        r["phase"] = day(r["phase"])
+        for k in ("value_gbp", "wage_gbp"):
+            r[k] = None if r[k] is None else float(r[k])
+    emit("matches.json", {
+        "match_fields": mfields,
+        "matches": rowify(matches, mfields, {"date": "match_date"}),
+        "player_fields": pfields,
+        "player_rows": rowify(apps, pfields, prename),
+        "player_names": {str(t): names[p] for t, p in sorted(
+            {(r["tid"], r["person_id"]) for r in apps}) if names.get(p)},
+        "attendance_fields": att_fields,
+        "attendance": rowify(s.rows("SELECT * FROM site.attendance ORDER BY season"),
+                             att_fields),
+        "finance_fields": fin_fields,
+        "finances": rowify(fin, fin_fields),
+        "note": "Only the managed club's matches are richly parsed, so these are our records. "
+                "Match detail lives in a fixed-size ring buffer the game overwrites as a "
+                "season runs, so an early game may be absent from a late save."})
 
-    # Origin-club stadiums for the CURRENT squad — mart.squad_current is already "who's really
-    # ours right now" (see CLAUDE.md's squad_current/squad_on note), so this can't repeat the
-    # raw-club_tid mistake that catches a lapsed loan. A player with no resolvable origin club
-    # (17% of the pool; see docs/TODO.md, "Unnamed fields") can't be plotted — counted, not
-    # silently dropped.
-    origins_df = db.q("""WITH o AS (
-                            SELECT sc.person_id, sc.name, po.origin_parent_tid,
-                                   po.origin_parent_club
-                            FROM mart.squad_current sc
-                            LEFT JOIN mart.player_origin po
-                                 ON (po.season, po.phase, po.tid) = (?, ?, sc.tid)
-                          )
-                          SELECT o.origin_parent_tid AS club_tid,
-                                 any_value(o.origin_parent_club) AS club,
-                                 list(o.name ORDER BY o.name) AS players,
-                                 any_value(cp.stadium) AS stadium,
-                                 any_value(cp.capacity) AS capacity,
-                                 any_value(cp.latitude) AS latitude,
-                                 any_value(cp.longitude) AS longitude
-                          FROM o
-                          LEFT JOIN mart.club_places cp
-                               ON (cp.season, cp.phase, cp.club_tid) = (?, ?, o.origin_parent_tid)
-                          WHERE o.origin_parent_tid IS NOT NULL
-                          GROUP BY o.origin_parent_tid
-                          ORDER BY o.origin_parent_tid""",
-                      [season, phase, season, phase])
-    places_origin = [{"tid": int(r.club_tid), "club": r.club, "players": list(r.players),
-                      "stadium": r.stadium,
-                      "capacity": None if pd.isna(r.capacity) else int(r.capacity),
-                      "lat": None if pd.isna(r.latitude) else float(r.latitude),
-                      "lon": None if pd.isna(r.longitude) else float(r.longitude)}
-                     for r in origins_df.itertuples()]
-    places_origin_mapped = [p for p in places_origin if p["lat"] is not None]
-    unresolved = db.q("""SELECT COUNT(*) AS n FROM mart.squad_current sc
-                         LEFT JOIN mart.player_origin po
-                              ON (po.season, po.phase, po.tid) = (?, ?, sc.tid)
-                         WHERE po.origin_parent_tid IS NULL""", [season, phase])
-    n_unresolved = int(unresolved.iloc[0]["n"])
+    # ------------------------------------------------------------ loans.json
+    min_fam = int(cfg["min_familiarity"])
+    fallback = cfg["fallback_formation"]
+    loan_ladder = [(r["cid"], r["name"]) for r in s.rows(
+        """SELECT DISTINCT c.league_cid AS cid, l.name, c.ladder_rank
+           FROM site.loan_clubs c
+           JOIN site.leagues l ON l.snapshot_date = c.snapshot_date AND l.cid = c.league_cid
+           WHERE c.snapshot_date = ? ORDER BY c.ladder_rank""", [d])]
+    formations = {str(r["team_tid"]): r["formation"] for r in s.rows(
+        "SELECT team_tid, formation FROM site.loan_clubs WHERE snapshot_date = ? "
+        "ORDER BY league_cid, team_tid", [d])}
+    slots = {}
+    for r in s.rows("SELECT * FROM site.formation_slots "
+                    "ORDER BY formation_order, position_order"):
+        slots.setdefault(r["formation"], {})[r["position"]] = r["slots"]
+    loans = {}
+    for r in s.rows("""SELECT * FROM site.loan_outlook WHERE snapshot_date = ?
+                       ORDER BY person_id, familiarity DESC, position, ladder_rank,
+                                club_tid""", [d]):
+        if r["person_id"] not in tid_of:
+            continue
+        entry = loans.setdefault(str(tid_of[r["person_id"]]),
+                                 {"loaned_to": r["loaned_to_club_tid"], "positions": {}})
+        rows = entry["positions"].setdefault(r["position"], [])
+        if not rows or rows[-1][0] != r["league_cid"]:
+            rows.append([r["league_cid"], pct(r["lvl"]), r["n"], []])
+        if r["club_tid"] is not None:
+            rows[-1][3].append([r["club_tid"], r["rank"], r["slots"], pct(r["line"])])
+    emit("loans.json", {
+        "snapshot": {"season": season, "phase": phase, "min_familiarity": min_fam},
+        "ladder": [{"cid": c, "name": n} for c, n in loan_ladder],
+        "formations": formations,
+        "fallback_formation": fallback,
+        "slots": slots,
+        "row_fields": ["league_cid", "lvl", "n", "clubs"],
+        "club_fields": ["club_tid", "rank", "slots", "line"],
+        "players": dict(sorted(loans.items(), key=lambda kv: int(kv[0]))),
+        "note": "lvl = his Level %ile at the position in that division. Per club: rank = his "
+                "place among that club's players at the position (1 = first choice), slots = "
+                "how many start there in the manager's preferred formation, line = Level %ile "
+                "of the weakest of them (null = the club has no natural player for that slot, "
+                "so he walks in). He starts iff rank <= slots. " + IMMERSION})
 
+    # ------------------------------------------------------------ forecast.json
+    cells, buckets = {}, {}
+    for r in s.rows("""SELECT attribute, age_now, value_now, horizon_age, median, p25, p75,
+                              bucket
+                       FROM site.forecast
+                       ORDER BY attribute, age_now, value_now, horizon_age"""):
+        buckets[r["attribute"]] = r["bucket"]
+        cells.setdefault(r["attribute"], {}).setdefault(str(r["age_now"]), {}).setdefault(
+            str(r["value_now"]), {})[str(r["horizon_age"])] = [
+                round(float(r["median"]), 1), round(float(r["p25"])), round(float(r["p75"]))]
+    emit("forecast.json", {
+        "attrs": attrs,
+        "buckets": dict(sorted(buckets.items())),
+        "horizons": [21, 24],
+        "cells": cells,
+        "ageCurve": [[r["age"], round(float(r["median"]), 1), round(float(r["p25"]), 1),
+                      round(float(r["p75"]), 1)]
+                     for r in s.rows("SELECT age, median, p25, p75 FROM site.age_curve "
+                                     "ORDER BY age")],
+        "note": "Empirical lookup over the whole save (~25k players tracked across snapshots), "
+                "not a per-player prediction: current value + age predicts a future value well "
+                "(R^2=0.85 for Crossing), but a starting attribute like Technique does NOT "
+                "predict how FAST another attribute grows (+0.000 R^2 beyond current value) — "
+                "a technical player is simply already ahead, not accelerating. Fixed attributes "
+                "(Agility, Technique) never move in real play; unmodelled ones are decoded too "
+                "coarsely outside our own squad to forecast honestly. " + IMMERSION})
+
+    # ------------------------------------------------------------ registration.json
+    rules = s.rows("""SELECT tier, league_name, a_list_max, hg_min, hg_club_min, b_list_under_age,
+                             min_matchday_age, nation, u21_on
+                      FROM site.registration_rules WHERE snapshot_date = ?""", [d])
+    reg_fields = ["tid", "age", "b_list", "hg_club", "hg_basis", "hg_association",
+                  "months_club", "months_to_go", "hg_eta", "window_open", "origin_club",
+                  "origin_nation", "via_academy"]
+    reg = s.rows("SELECT * FROM site.registration WHERE snapshot_date = ?", [d])
+    emit("registration.json", {
+        "snapshot": {"season": season, "phase": phase},
+        "rules": ({**rules[0], "u21_on": day(rules[0]["u21_on"])} if rules else None),
+        "fields": reg_fields,
+        "players": sorted(
+            [[tid_of[r["person_id"]], num(r["age"]), bool(r["b_list"]), bool(r["hg_club"]),
+              r["hg_basis"], bool(r["hg_association"]),
+              None if r["months_club"] is None else float(r["months_club"]),
+              None if r["months_to_go"] is None else float(r["months_to_go"]),
+              day(r["hg_eta"]), bool(r["window_open"]), r["origin_club"], r["origin_nation"],
+              bool(r["via_academy"])]
+             for r in reg if r["person_id"] in tid_of]),
+        "note": "Squad registration is a self-imposed rule — FMM22 does not model it. "
+                "Home-grown status is derived from origin club, career history and observed "
+                "spells; see docs/danish-registration-rules.md."})
+
+    # ------------------------------------------------------------ world.json
+    our_nation = s.scalar("SELECT nation FROM site.clubs WHERE snapshot_date = ? "
+                          "AND team_tid = ?", [d, managed])
+    nations = [{"name": r["name"], "rank": r["world_rank"],
+                "points": None if r["ranking_points"] is None else float(r["ranking_points"]),
+                "coefficient": None if r["coefficient"] is None else float(r["coefficient"]),
+                "rival": r["rival"]}
+               for r in s.rows("SELECT * FROM site.nations WHERE snapshot_date = ? "
+                               "ORDER BY world_rank, name", [d])]
+
+    def place(r):
+        return {"stadium": r["stadium"], "capacity": num(r["capacity"]),
+                "lat": None if r["latitude"] is None else float(r["latitude"]),
+                "lon": None if r["longitude"] is None else float(r["longitude"])}
+
+    home = [{"tid": r["team_tid"], "club": r["club"], "league": r["league_name"],
+             **place(r), "tier": r["tier"]}
+            for r in s.rows("""SELECT * FROM site.places
+                               WHERE snapshot_date = ? AND is_listed AND team_type <> 'reserve'
+                                 AND nation = ?
+                                 AND latitude IS NOT NULL AND longitude IS NOT NULL
+                               ORDER BY team_tid""", [d, our_nation])]
+    home = [{k: h[k] for k in ("tid", "club", "league", "stadium", "capacity", "lat", "lon",
+                               "tier")} for h in home]
+    origins = s.rows("""SELECT p.origin_club_tid AS team_tid, any_value(pl.club) AS club,
+                               list(p.name ORDER BY p.name) AS players,
+                               any_value(pl.stadium) AS stadium,
+                               any_value(pl.capacity) AS capacity,
+                               any_value(pl.latitude) AS latitude,
+                               any_value(pl.longitude) AS longitude
+                        FROM site.squad q
+                        JOIN site.players p USING (snapshot_date, person_id)
+                        LEFT JOIN site.places pl
+                          ON pl.snapshot_date = q.snapshot_date
+                         AND pl.team_tid = p.origin_club_tid
+                        WHERE q.snapshot_date = ? AND p.origin_club_tid IS NOT NULL
+                        GROUP BY p.origin_club_tid ORDER BY p.origin_club_tid""", [d])
+    unresolved = s.scalar("""SELECT count(*) FROM site.squad q
+                             JOIN site.players p USING (snapshot_date, person_id)
+                             WHERE q.snapshot_date = ? AND p.origin_club_tid IS NULL""", [d])
     emit("world.json", {
         "our_nation": our_nation,
         "nations": nations,
-        "places": {"denmark": places_dk, "origins": places_origin_mapped},
-        "origins_unresolved": n_unresolved,
+        "places": {"denmark": home,
+                   "origins": [{"tid": r["team_tid"], "club": r["club"],
+                                "players": list(r["players"]), **place(r)}
+                               for r in origins if r["latitude"] is not None]},
+        "origins_unresolved": unresolved,
         "note": "Nations: world ranking + UEFA coefficient (mart.nations). Maps: club stadiums "
                 "in our nation's leagues, and our current squad's resolved origin clubs — a "
-                f"player's origin club can't always be resolved ({n_unresolved} of the current "
-                "squad aren't shown on the origins map for that reason, not because they lack "
-                "one)."})
+                "player's origin club can't always be resolved ("
+                f"{unresolved} of the current squad aren't shown on the origins map for that "
+                "reason, not because they lack one)."})
 
-    # ---------------------------------------------------------------- index.json
+    # ------------------------------------------------------------ index.json
+    files = {k: f"{SITE_URL}/api/{k}.json" for k in
+             ("core", "clubs", "squad", "forecast", "loans", "matches", "registration",
+              "world")}
+    files["all_players"] = f"{SITE_URL}/api/all"
+    files["database"] = f"s3://fmm-stats/site-data/fm-{car.key}.duckdb"
     emit("index.json", {
-        "generated_at": built,
-        "career": {"key": car.key, "name": car.name,
-                   "managed_tid": db.MANAGED_CLUB_TID, "reserve_tid": db.RESERVE_CLUB_TID},
+        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "career": {"key": car.key, "name": car.name, "managed_tid": managed,
+                   "reserve_tid": reserve},
         "snapshot": {"season": season, "phase": phase, "default_method": method,
-                     "min_familiarity": min_fam},
-        "snapshots": db.labels_df()[["season", "phase", "label"]].to_dict("records"),
-        "ladder": [{"cid": c, "name": n} for c, n in ladder],
-        # Absolute URLs throughout: an agent fetcher generally only follows links it has already
-        # seen, so a bare relative path like "api/core.json" is one it has to construct itself
-        # and may refuse to. This file is meant to be the whole bootstrap — every link in it has
-        # to be independently followable.
-        "files": {"core": f"{SITE_URL}/api/core.json", "clubs": f"{SITE_URL}/api/clubs.json",
-                  "squad": f"{SITE_URL}/api/squad.json",
-                  "forecast": f"{SITE_URL}/api/forecast.json",
-                  "loans": f"{SITE_URL}/api/loans.json",
-                  "matches": f"{SITE_URL}/api/matches.json",
-                  "registration": f"{SITE_URL}/api/registration.json",
-                  "world": f"{SITE_URL}/api/world.json",
-                  "all_players": f"{SITE_URL}/api/all",
-                  # not JSON — a DuckDB file an agent ATTACHes over its native S3 protocol for
-                  # arbitrary SQL. See AGENTS.md "Prefer SQL?". Scrubbed (ca/pa NULLed) by
-                  # publish_duckdb.py; may be stale or absent if that hasn't run for this
-                  # snapshot. Not an HTTP URL — s3://<bucket>/<key>, read with R2 credentials.
-                  "database": f"s3://fmm-stats/site-data/fm-{car.key}.duckdb"},
-        # An agent handed only this URL should be able to bootstrap itself. AGENTS.md explains
-        # the columnar format, the rating formula it has to compute, and the immersion rule;
-        # the guides are per-task procedures.
+                     "min_familiarity": int(cfg["min_familiarity"])},
+        "snapshots": [{"season": r["season"], "phase": day(r["snapshot_date"]),
+                       "label": r["label"]}
+                      for r in s.rows("SELECT season, snapshot_date, label "
+                                      "FROM site.snapshots ORDER BY snapshot_date")],
+        "ladder": [{"cid": c, "name": n} for c, n in ladder[:3]],
+        "files": files,
         "agent_guide": f"{SITE_URL}/AGENTS.md",
         "guides": {"scout an opponent": f"{SITE_URL}/guides/scout.md",
                    "register the squad": f"{SITE_URL}/guides/registration.md"},
         "how_to_read_this": ("Rows in core/matches are POSITIONAL ARRAYS with a sibling "
-                            "*_fields array naming the slots. Role ratings are NOT stored — "
-                            "compute SUM(attribute x weight) from core.tactics, where an "
-                            "attribute the role does not list weighs 1. Read AGENTS.md first."),
+                             "*_fields array naming the slots. Role ratings are NOT stored — "
+                             "compute SUM(attribute x weight) from core.tactics, where an "
+                             "attribute the role does not list weighs 1. Read AGENTS.md "
+                             "first."),
         "counts": {n: {"bytes": b, "gzip": g} for n, b, g in written},
         "immersion_rule": IMMERSION,
-        "caveats": [
-            "Opponent tactics and formation are NOT in the save — ask the manager for the "
-            "in-game scout's formation and style before advising on a match.",
-            "Opponent attribute values are model estimates (±1) except pace and physicals.",
-            "Squad status and loan flags are unreliable; rank by minutes played instead.",
-            "Ratings shown are computed in the browser from attributes x role weights, so "
-            "they follow whichever tactic is selected.",
-            "Squad registration (A/B lists, home grown) is a SELF-IMPOSED rule — FMM22 does "
-            "not model it and the save contains none of it. Home-grown status is derived; "
-            "see guides/registration.md for what the evidence is and where it is thin."]})
+        "caveats": INDEX_CAVEATS})
 
     if not a.no_check:
-        paths = [os.path.join(out, n) for n, _b, _g in written]
-        bad = check_immersion(paths)
+        bad = check_immersion([os.path.join(out, n) for n, _b, _g in written])
         if bad:
             print("\nIMMERSION RULE VIOLATED — raw ability leaked into exported JSON:")
             for f, k in bad:
                 print(f"  {f}: key {k!r}")
-            con.close()
             return 1
         print("  immersion check: no raw-ability key in any exported file ✓")
-    total = sum(b for _n, b, _g in written)
-    gztot = sum(g for _n, _b, g in written)
-    print(f"  {len(written)} files — {total / 1024:.0f} KB raw, {gztot / 1024:.0f} KB gzip")
     con.close()
     return 0
 
