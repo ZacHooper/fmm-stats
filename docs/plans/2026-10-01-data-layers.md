@@ -689,6 +689,13 @@ The consumers read the new marts: the export, `fmq`, `scout`, `stats`, `league`,
 `validate_mart.py`, the depth chart and `data.js` (TODO #21). Each listed difference now shows
 in `site/api`, reviewed once.
 
+**19a. Site export switchover (this PR)**: `scripts/export_data.py` switched to read `site.*` directly
+(via the `Site` helper, replacing `scripts/export_site.py` which now delegates to it). `site/api/*.json`
+regenerated from the store for snapshot `2028-05-09`; diff matches the intended differences in
+`docs/plans/2026-10-03-site-marts.md`.
+
+**19b. Query layer and consumers**: `fmq` and remaining tools switched over.
+
 **Check**: `git diff site/api` is exactly the listed differences; `validate_mart.py`; `fmq` and a
 scout report run against the full store.
 

@@ -88,9 +88,9 @@ These are point-in-time notes — verify file/line claims against the current co
 ## The web app
 `site/` is the static web app (Cloudflare Pages), the primary UI; Streamlit stays for what writes to DuckDB. **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-**`scripts/export_data.py` reads only the `mart` schema** — no `raw` table, no `main` view.
-Add a field to the site by adding it to `fmstats/mart.py` first (see
-[`fmstats/CLAUDE.md`](fmstats/CLAUDE.md)). And because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
+**`scripts/export_data.py` reads only the `site` schema** (`site.*`, `transform/models/site/`) — no `raw` table, no `main` view.
+Add a field to the site by adding it to the `site` dbt models first (see
+[`docs/plans/2026-10-03-site-marts.md`](docs/plans/2026-10-03-site-marts.md)). And because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
 is the regression test: a no-op export must produce a no-op diff.
 
 ## Toolchain
