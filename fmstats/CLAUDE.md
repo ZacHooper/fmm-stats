@@ -21,25 +21,18 @@ The plan is [`docs/plans/2026-10-01-data-layers.md`](../docs/plans/2026-10-01-da
 | int | `transform/models/int/` (views) | snapshot rules, joins across tables, spells, derived standings and outcomes | joins and business rules live here and only here |
 | mart | `transform/models/mart/` (tables) | the model's `dim_*` / `fact_*`, plus thin consumer views (`mart_standings`, `mart_tie_results`, `mart_squad_membership`) | the only layer users, agents and the site read |
 
-- **Built (steps 13–16):** reference, nation, club and team, competition, stage, round, match,
+- **Built:** reference, nation, club and team, competition, stage, round, match,
   team-match, player-match, events, participation, outcomes; person, player and staff
   snapshots, seasons, awards, injuries; contracts, transfers, loans, staff spells and squad
   membership (`mart_squad_membership`: who a squad array lists, never a record's club).
-- **`fmstats/mart.py` is the old consumer mart**: ~87 views in one file, each re-applying the
-  same rules to raw. Step 17 built the web app's marts on the new tables (`site`, below),
-  beside the old views; step 18 proves their export matches the old one on a new save
-  imported end to end; step 19 points the site at them; step 20 deletes the old ones.
-  `fmq`, `scout`, `stats` and `league` get their own rework after that. Until step 19 the old views
-  are what everything reads, and they stay untouched. `fmstats/compat.py` and `transform/models/legacy/` keep the old
-  shapes alive for it until then. **Nothing reads the new tables yet** except
-  `tests/validate_mart.py`; `scout`, `stats`, `league`, `fmq` and the site export all read the
-  old views.
+- **The dbt mart layer**: `transform/models/mart/` and `transform/models/site/` hold all dimensional
+  and consumer marts. `fmq`, `scout`, `stats`, `league`, `tests/validate_mart.py`, and the site export
+  all read directly from `site.*` and `mart.*`.
 
-## The site schema (data-layers step 17)
+## The site schema
 `transform/models/site/` holds the web app's marts: one view per thing a page shows
 (`site.players`, `site.squad`, `site.matches`, `site.loan_outlook`, ...), each a thin select
-over the model. `scripts/export_site.py` reads only `site.*` and writes the same JSON as
-`export_data.py`; nothing else reads `site` until step 19.
+over the model. `scripts/export_data.py` reads only `site.*`.
 - **No rules in the exporter.** Squad status, the B-list, origin, Level %iles and the loan
   ranks are SQL; the exporter shapes rows and rounds for display. Ability may order rows
   inside a site view (the levels, the loan ranks) and never leaves it.
@@ -80,27 +73,16 @@ over the model. `scripts/export_site.py` reads only `site.*` and writes the same
   against a store built from `main`, plus `tests/validate_mart.py`. The plan's Part 3 lists the
   gate saves and the check per kind of change.
 
-## Changing an old view in `fmstats/mart.py` (until step 20 retires it)
+## Working with marts
 - **Facts go in the mart, opinions stay in Python.** A rule every consumer must share is a
-  view; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation
-  stay in `scout`/`stats`/`league`. The site export reads only `mart`.
-- **The SQL constants are `str.format` templates**: write the raw schema as `{S}`, double
-  literal braces, and write `{{S}}` inside an f-string constant (`PLAYER_ROLE_RATINGS`).
-- **`ORDER` is build order**: `create_mart` runs it top to bottom.
-- **A definition is not data**: re-run it with
-  `uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb`, then
-  `uv run python tests/validate_mart.py --db fm-frem.duckdb` (`--r2` builds against the
-  published copy in memory). `fmq` re-creates the views on its cached R2 copy whenever
-  `store.MART_VERSION` changes; a view reading a raw table older stores lack goes in
-  `store._MART_INPUTS`.
-- **Macros don't resolve across an `ATTACH`**: a view calling `phase_ord`/`season_of` fails
-  for a remote agent who hasn't run `USE m`.
-- **The rating formula has three copies that must agree**:
-  `transform/models/legacy/legacy_player_ratings.sql` (behind `v_player_ratings`),
+  view or model; parameters, fuzzy lookup, modelling choices (best XI, flag thresholds) and presentation
+  stay in `scout`/`stats`/`league`. The site export reads only `site.*`.
+- **The rating formula has copies that must agree**:
   `mart.player_role_ratings`, and `site/js/data.js`'s `rating()`.
-- **Raw ability may be used inside a view, never exposed by one** (`ca`, `pa`, `aca`,
-  `current_ability`, `potential_ability`). `publish_mart.py`'s `FORBIDDEN`,
-  `export_data.py`'s `check_immersion()` and `validate_mart.py` §8 each check it.
+- **Raw ability is kept in the warehouse, never exposed by the presentation layer.**
+  `fact_player_snapshot` carries `ca`/`pa` so percentiles can be computed, while `site.*`,
+  `export_data.py`'s `check_immersion()` and `validate_mart.py` §8 enforce that no raw ability column
+  ever reaches the presentation or export layer.
 
 fmstats imports neither `fmparser/` nor `extract` (`tests/test_boundary.py`); it reads a
 `.duckdb` file and nothing else. Every function takes an open `store.Store`.

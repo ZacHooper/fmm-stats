@@ -1,6 +1,5 @@
-# The T of extract-load-transform for the new layers: stg (one model per raw table), int
-# (joins and rules) and, from step 13 on, the dim_/fact_ tables (mart). The old mart
-# (fmstats/mart.py) is not built here; it reads int through the compatibility views.
+# The T of extract-load-transform: stg (one model per raw table), int
+# (joins and rules), the dim_/fact_ tables (mart), and site (web app marts).
 name: fm_stats
 version: "1.0"
 profile: fm_stats
@@ -22,10 +21,7 @@ models:
     int:
       +schema: int
       +materialized: view
-    legacy:                   # the old shapes fmstats/mart.py reads (fmstats/compat.py)
-      +schema: legacy
-      +materialized: view
-    mart:                     # the dim_ / fact_ tables, beside the old mart views
+    mart:                     # the dim_ / fact_ tables
       +schema: mart
       +materialized: table
     site:                     # the web app's marts: one view per thing a page shows, read by

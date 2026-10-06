@@ -17,7 +17,7 @@
 Reads the career's published store from R2 by default (cached; see fmstats/store.py) and says
 which snapshot it is reading on stderr. `--db <path>` reads a local store instead, `--refresh`
 re-checks R2 now, `--offline` never touches the network. Every report is built on the `mart`
-schema, which already applies the correctness rules (one row per match, genuine squad
+and `site` schemas, which already apply the correctness rules (one row per match, genuine squad
 membership, person_id rather than recycled tids).
 """
 import argparse

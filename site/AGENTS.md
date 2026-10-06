@@ -44,23 +44,11 @@ or the default-of-1 wrong.
 
 His attributes move with every import, so this figure is only a self-check against the snapshot
 named above — it read 449 one snapshot earlier and 448 in 2022. The method is what matters. To
-re-derive it from the published mart object rather than from the JSON:
+read it directly from the database or re-derive it:
 
 ```sql
-WITH long AS (
-  UNPIVOT (SELECT * EXCLUDE (season, phase, snap_ix, phase_date, tid, person_id, name, club_tid,
-                             club, league_cid, league_name, nation, dob, age, is_gk,
-                             has_attributes, squad_status, reputation, foot_left, foot_right,
-                             nationality_id, player_value, wage_units, wage_gbp, contract_expiry,
-                             contract_expiry_year, loaned_in, parent_club_tid,
-                             parent_club, est_attrs, is_estimated)
-           FROM m.mart.player_snapshots WHERE tid = 9858)
-  ON COLUMNS(*) INTO NAME attribute VALUE value)
-SELECT SUM(l.value * COALESCE(w.weight, 1)) AS rating
-FROM long l
-LEFT JOIN m.mart.role_weights w
-       ON w.method = 'frem_attacking_ss' AND w.role = 'ST'
-      AND w.attribute = LOWER(l.attribute);
+-- Read directly from the site mart:
+SELECT name, pos, rating, effective FROM m.site.players WHERE tid = 9858;
 ```
 
 Ratings are only comparable **within a position**. A keeper scores ~324 and a striker ~404 purely
@@ -159,50 +147,27 @@ INSTALL httpfs; LOAD httpfs;
 CREATE SECRET r2 (TYPE s3, KEY_ID '<R2_ACCESS_KEY>', SECRET '<R2_SECRET_ACCESS_KEY>',
                    ENDPOINT '<R2_ACCOUNT_ID>.r2.cloudflarestorage.com',
                    URL_STYLE 'path', REGION 'auto');
-ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);
-SELECT * FROM m.mart.player_growth_season WHERE season = 2024 ORDER BY growth DESC;
+ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS m (READ_ONLY);
+SELECT * FROM m.site.players WHERE club_tid = 346 LIMIT 10;
 ```
 
-**Attach the mart object (~87 MB), not the full store (~101 MB), unless you need raw
-`raw`.** `site-data/fm-frem-mart.duckdb` holds the `mart` schema as real tables, with the
-four correctness rules already applied — latest-phase-per-season (match stats are a ring
-buffer; summing across phases double-counts), snapshot-scoped joins (`raw.players` is one
-row per SNAPSHOT), `person_id` not `tid` (FM recycles retired slots), and the 255-sentinel
-minutes arithmetic. Querying the `raw` tables means re-deriving all four correctly yourself.
+**Attach the DuckDB store directly.** `site-data/fm-frem.duckdb` holds both `site.*` (presentation marts backing the web app) and `mart.*` (dimensional warehouse facts and dimensions).
 
-Since 2026-08-25 the mart is what GENERATES the files above, so anything in this document is
-answerable from it: `mart.player_snapshots` (bio, contract, the 23 attributes wide),
-`mart.player_position_levels` (Level percentiles + familiarity), `mart.clubs`, `mart.leagues`
-(incl. `skill_idx`), `mart.club_leagues` (club→league **as at** a snapshot), `mart.club_matches`
-(every match already oriented per club — venue, opponent, gf/ga, result, pts, `our_`/`opp_`
-stats), `mart.player_career_seasons`, `mart.player_origin`, and `mart.role_weights` /
-`mart.position_roles` / `mart.app_config` so ratings are computable without the JSON.
-
-The questions asked most often have a view of their own, so they are one `SELECT`:
-
-| Question | View | Grain |
-|---|---|---|
-| league table, any season | `mart.league_tables` | season × league × club (`pos`, `p`…`pts`, `group`, `complete`, `nation`) |
-| our record against a club | `mart.head_to_head` | club × opponent × venue (`H`, `A`, `all`) |
-| who has hurt us / who we score against | `mart.player_vs_club` | player × his club × opponent (goals, assists, key passes, shots…) |
-| where a player plays | `mart.player_primary_position` | snapshot × player (most familiar, then best Level %ile) |
-| who is at a club now | `mart.club_squad_latest` | club × player, newest snapshot, every club |
+- **`site.*` (Presentation Layer):** `site.players`, `site.squad`, `site.matches`, `site.loan_outlook`, `site.leagues`, `site.standings`, `site.clubs`. All presentation marts exclude raw ability and shape data for display.
+- **`mart.*` (Dimensional Warehouse):** `mart.dim_person`, `mart.dim_club`, `mart.dim_competition`, `mart.dim_match`, `mart.fact_player_match`, `mart.fact_player_snapshot`, `mart.squad_membership`.
 
 ```sql
 -- who from OB has produced against us, and is still there
-SELECT v.name, v.goals, v.assists, v.key_passes
-FROM m.mart.player_vs_club v
-WHERE v.team_tid = 371 AND v.opponent_tid = 346
-  AND v.person_id IN (SELECT person_id FROM m.mart.club_squad_latest WHERE club_tid = 371)
-ORDER BY v.goals + v.assists DESC;
+SELECT p.name, SUM(f.goals) AS goals, SUM(f.assists) AS assists, SUM(f.key_passes) AS key_passes
+FROM m.mart.fact_player_match f
+JOIN m.mart.dim_match match USING (match_id)
+JOIN m.mart.dim_competition comp ON comp.cid = match.cid
+JOIN m.mart.dim_person p USING (person_id)
+WHERE f.team_tid = 371 AND f.opponent_tid = 346 AND comp.type != 'friendly'
+  AND f.person_id IN (SELECT person_id FROM m.mart.squad_membership WHERE (club_tid = 371 OR team_tid = 371) AND is_current)
+GROUP BY p.name, f.person_id
+ORDER BY goals + assists DESC;
 ```
-`league_tables` is only verified for Denmark (every table, every completed season); elsewhere
-it disagrees with the save's recorded finishes often enough — Spain 0 of 39 tables — that it
-should not be quoted without saying so.
-
-Reach for the full store — `ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm` — only when
-you need the `raw` tables, or per-snapshot history for a player who was never ours. It carries the
-`mart` views too.
 
 **Scoping in the published mart object.** The growth family is scoped to our clubs (first team +
 reserves), since `player_attribute_growth` unscoped is 8.88M rows / 108 MB and ours are 0.24% of

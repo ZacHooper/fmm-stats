@@ -42,7 +42,6 @@ from dataclasses import dataclass
 
 import duckdb
 
-from fmstats.mart import MACROS, ORDER, create_mart
 from fmstats import state
 from fmstats.dbopen import open_readonly
 
@@ -51,13 +50,9 @@ CACHE_DIR = os.environ.get("FM_CACHE_DIR") or os.path.join(
     os.path.expanduser("~"), ".cache", "fmm-stats")
 STORE_TTL = int(os.environ.get("FM_STORE_TTL", "600"))
 DEFAULT_CAREER = "frem"
-MART_VERSION = hashlib.sha256(
-    "\x00".join([*MACROS, *(sql for _, sql in ORDER)]).encode()).hexdigest()[:16]
-# raw tables the loader seeds that the current mart reads; a store published before one
-# existed cannot have its mart refreshed until it is re-seeded
-_MART_INPUTS = ("event_types", "competition_team_counts")
-# a view every current consumer needs; its absence means the store's mart is out of date
-_PROBE_VIEW = "player_vs_club"
+MART_VERSION = "2.0-dbt"
+# a model every current consumer needs; its absence means the store's mart is out of date
+_PROBE_VIEW = "fact_player_match"
 
 
 @dataclass
@@ -207,51 +202,7 @@ def _has_raw(path):
 
 
 def _sync_mart(path):
-    """Re-create the mart views on a cached store when they were built from different
-    definitions than this checkout's. Returns False (and leaves the store as it was) when the
-    file cannot be opened for writing, e.g. another process has it open."""
-    stamp = _stamp(path)
-    try:
-        with open(stamp, encoding="utf-8") as f:
-            seen = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        seen = {}
-    if seen.get("mart_version") == MART_VERSION and _has_raw(path):
-        return True
-    try:
-        con = duckdb.connect(path)
-    except duckdb.Error as e:
-        print(f"store: could not refresh the mart definitions on {path} ({e}); reading it as "
-              f"published.", file=sys.stderr)
-        return False
-    try:
-        _alias_raw(con)
-        missing = [t for t in _MART_INPUTS if not con.execute(
-            "SELECT 1 FROM information_schema.tables WHERE table_schema = 'raw' "
-            "AND table_name = ?", [t]).fetchone()]
-        if missing:
-            print(f"store: {path} predates raw.{', raw.'.join(missing)}, which the "
-                  f"current mart reads; reading it as published. Republish the store to "
-                  f"bring it up to date.",
-                  file=sys.stderr)
-            return False
-        # one transaction, so a definition that fails to bind leaves the published mart whole
-        con.execute("BEGIN")
-        try:
-            create_mart(con)
-            con.execute("COMMIT")
-        except duckdb.Error as e:
-            con.execute("ROLLBACK")
-            print(f"store: this checkout's mart does not bind on {path} ({e}); reading it "
-                  f"as published. Republish the store to bring it up to date.",
-                  file=sys.stderr)
-            return False
-        con.execute("CHECKPOINT")
-    finally:
-        con.close()
-    seen["mart_version"] = MART_VERSION
-    with open(stamp, "w", encoding="utf-8") as f:
-        json.dump(seen, f)
+    """No-op: the mart is now compiled into the DuckDB store via dbt."""
     return True
 
 
