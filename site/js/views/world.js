@@ -1,12 +1,20 @@
 /**
- * World — the reputation ladder (leagues + nations), and two maps: our nation's clubs by
+ * World — the reputation ladders (leagues, clubs, nations), each a sortable table with a chart
+ * of how the entities in it moved across every snapshot, plus two maps: our nation's clubs by
  * division, and the stadiums of our current squad's origin clubs.
  *
- * Leagues needs no fetch of its own: `D.S.leagues` is already loaded from core.json. Nations
- * and the two maps come from api/world.json, fetched only when this page is opened.
+ * Leagues and clubs need no fetch of their own for the table: `D.S.leagues`/`D.S.clubs` are
+ * already loaded from core.json. Nations, the maps and the history behind every chart come from
+ * api/world.json, fetched only when this page is opened.
+ *
+ * The table and its chart are one tool: tapping a row adds it to (or takes it off) the chart,
+ * plotted rows carry their line's colour in the table, and the chart's quick picks read the table
+ * as filtered and sorted ("first 8 in the table", "biggest risers in the table").
  */
 import * as D from "../data.js";
-import { el, clear, bar, num, pill, DASH } from "../ui.js";
+import { el, clear, bar, num, pill, sparkline, toast, DASH } from "../ui.js";
+import { playerTable } from "../table.js";
+import { lineChart, SLOTS } from "../linechart.js";
 
 const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
 const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
@@ -31,25 +39,31 @@ function loadLeaflet() {
   return leafletPromise;
 }
 
+const LS_TAB = "fmworld:tab";
+const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } };
+
 export async function view() {
   const world = await D.loadWorld();
+  const H = history(world);
   const out = el("div");
-  out.append(el("h2", { text: "World" }));
+  out.append(el("div.sechead", {}, [el("h2", { text: "World" })]));
+  out.append(headline(world, H));
 
-  const tabs = el("div.prow");
+  const tabs = el("div.prow.wtabs");
   const panel = el("div");
   const TABS = [
-    ["Leagues", leaguesPanel],
-    ["Clubs", clubsPanel],
-    ["Nations", () => nationsPanel(world)],
+    ["Leagues", () => leaguesPanel(H)],
+    ["Clubs", () => clubsPanel(H)],
+    ["Nations", () => nationsPanel(world, H)],
     ["Maps", () => mapsPanel(world)],
   ];
-  let active = 0;
+  let active = Math.min(Math.max(+lsGet(LS_TAB) || 0, 0), TABS.length - 1);
   const drawTabs = () => {
     tabs.replaceChildren(...TABS.map(([label], i) => el(`button.chip${i === active ? ".on" : ""}`, {
       text: label,
       onclick: async () => {
-        active = i; drawTabs();
+        active = i; lsSet(LS_TAB, i); drawTabs();
         clear(panel).append(el("div.spinner", { text: "…" }));
         clear(panel).append(await TABS[i][1]());
       },
@@ -61,138 +75,477 @@ export async function view() {
   return out;
 }
 
-// --------------------------------------------------------------------------- leagues
-function leaguesPanel() {
+// --------------------------------------------------------------------------- history
+/** Decodes world.json's run-length history ([i0, v0, i1, v1, ...] change points) into one
+ *  value per snapshot date. An older export without history yields empty series, and every
+ *  chart then says so instead of breaking the page. */
+function history(world) {
+  const h = world?.history;
+  const dates = h?.dates || [];
+  const n = dates.length;
+  const expand = (flat) => {
+    const out = new Array(n).fill(null);
+    if (!flat) return out;
+    for (let k = 0; k < flat.length; k += 2) {
+      const end = k + 2 < flat.length ? flat[k + 2] : n;
+      out.fill(flat[k + 1], flat[k], end);
+    }
+    return out;
+  };
+  // "a season ago": the snapshot nearest 365 days before the newest one
+  const last = n ? Date.parse(dates[n - 1]) : 0;
+  let ago = 0;
+  dates.forEach((d, i) => {
+    if (Math.abs(Date.parse(d) - last + 365 * 864e5) < Math.abs(Date.parse(dates[ago]) - last + 365 * 864e5)) ago = i;
+  });
+  return {
+    dates, n, ago: n > 1 ? ago : null,
+    league: (cid) => {
+      const r = h?.leagues?.[cid];
+      return { tier: r?.tier ?? null, reputation: expand(r?.reputation), skill_idx: expand(r?.skill_idx) };
+    },
+    club: (tid) => ({ reputation: expand(h?.clubs?.[tid]) }),
+    nation: (name) => {
+      const r = h?.nations?.[name];
+      return { world_rank: expand(r?.world_rank), ranking_points: expand(r?.ranking_points),
+               coefficient: expand(r?.coefficient) };
+    },
+  };
+}
+
+/** Change over the last season: now minus the value a year ago (null if either is missing). */
+function delta(H, values) {
+  if (H.ago == null || !values?.length) return null;
+  const a = values[H.ago], b = values[values.length - 1];
+  return a == null || b == null ? null : b - a;
+}
+
+function deltaCell(v, { dp = 0, invert = false } = {}) {
+  if (v == null) return el("span.dim", { text: DASH });
+  if (!v) return el("span.dim", { text: "0" });
+  const good = invert ? v < 0 : v > 0;
+  return el(`span.${good ? "up" : "down"}`, { text: `${v > 0 ? "+" : "−"}${num(Math.abs(v), dp)}` });
+}
+
+// --------------------------------------------------------------------------- headline
+/** Where we stand: our league, our club and our nation, each ranked and with a season's move. */
+function headline(world, H) {
   const ourCid = D.ourLeagueCid();
   const lgs = [...D.S.leagues.values()].filter((l) => l.reputation != null)
     .sort((a, b) => b.reputation - a.reputation);
-  const ourLg = D.S.leagues.get(ourCid);
-  const ourRank = lgs.findIndex((l) => l.cid === ourCid) + 1;
-  const wrap = el("div");
-  wrap.append(el("h3", { text: `League reputation ladder · ${lgs.length} leagues` }));
-  // No cutoff. A top-60 truncation hid most of the pyramid, including divisions we could
-  // plausibly loan into — and a silently truncated list reads as a complete one.
-  const nationFilter = el("select.btn");
-  const nations = [...new Set(lgs.map((l) => l.nation).filter(Boolean))].sort();
-  nationFilter.append(el("option", { value: "", text: "All nations" }),
-    ...nations.map((n) => el("option", { value: n, text: n })));
-  const ladderBox = el("div");
-  const drawLadder = () => {
-    const want = nationFilter.value;
-    const rows = lgs.filter((l) => !want || l.nation === want);
-    ladderBox.replaceChildren(el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["#", "League", "Nation", "Reputation", "Skill idx", "Clubs", "Rated"]
-        .map((h, i) => el(`th${i === 0 || i >= 3 ? ".num" : ""}`, { text: h })))]),
-      el("tbody", {}, rows.map((l) => el("tr", {}, [
-        el("td.num", { text: lgs.indexOf(l) + 1 }),
-        el("td.name", {}, [l.name, l.cid === ourCid ? pill(" us", "good") : null]),
-        el("td", { text: l.nation || DASH }),
-        el("td.num", { text: l.reputation }),
-        el("td.num", {}, [bar(l.skillIdx)]),
-        el("td.num", { text: l.clubs || DASH }),
-        el("td.num", { text: l.rated ?? DASH }),
-      ]))),
-    ])]), el("p.note", {
-      html: "<b>Reputation</b> is a value parsed straight from each competition record. "
-        + "<b>Skill idx</b> is the average player ability in that league normalised 0-100 across "
-        + "ranked leagues — a CA-derived index in the same sanctioned form as a Level percentile, "
-        + "never the number itself. Only leagues with 20+ rated players get one. "
-        + "<b>Clubs</b> counts actual club records, not the competition record's member count — "
-        + "that field is unreliable (it reads 5 for a 12-team division), so it isn't shown. "
-        + (ourLg ? `<br>${ourLg.name}: reputation ${ourLg.reputation}, `
-          + `skill idx ${ourLg.skillIdx ?? "—"}, ranked ${ourRank} of ${lgs.length} loaded leagues.` : ""),
-    }));
+  const lg = D.S.leagues.get(ourCid);
+  const club = D.S.clubs.get(D.S.ours.managed_tid);
+  const nationClubs = [...D.S.clubs.values()]
+    .filter((c) => c.reputation != null && c.nation === club?.nation)
+    .sort((a, b) => b.reputation - a.reputation);
+  const nation = (world?.nations || []).find((n) => n.name === world?.our_nation);
+  const tile = (label, value, sub, d) => el("div.kpi.wkpi", {}, [
+    el("span", { text: label }),
+    el("b", { text: value }),
+    el("div.wsub", {}, [sub, d ? " · " : null, d]),
+  ]);
+  const tiles = [];
+  if (lg) {
+    tiles.push(tile(lg.name, `#${lgs.indexOf(lg) + 1}`,
+      `of ${lgs.length} leagues · rep ${lg.reputation}`,
+      deltaCell(delta(H, H.league(ourCid).reputation))));
+  }
+  if (club) {
+    tiles.push(tile(club.name, `#${nationClubs.indexOf(club) + 1}`,
+      `in ${club.nation || "nation"} · rep ${num(club.reputation)}`,
+      deltaCell(delta(H, H.club(club.tid).reputation))));
+  }
+  if (nation) {
+    tiles.push(tile(nation.name, `#${nation.rank}`,
+      `in the world · coef ${num(nation.coefficient, 1)}`,
+      deltaCell(delta(H, H.nation(nation.name).world_rank), { invert: true })));
+  }
+  return tiles.length ? el("div.kpis", {}, tiles) : el("div");
+}
+
+// --------------------------------------------------------------------------- table + chart
+/**
+ * A sortable table and, under it, a chart of the same entities over time.
+ *
+ * @param {object} c
+ *   H         the decoded history (history(world))
+ *   key       persistence key (table sort/columns, chart metric + selection)
+ *   rows      [{tid, name, _search, ...}] — `tid` is the series key
+ *   series    (row) => {metricId: values[]} — its history, one value per snapshot
+ *   metrics   [{id, label, dp?, invert?}] chartable metrics; the first is the default
+ *   catalogue, defaults, sort, searchPlaceholder — passed to playerTable (`name` must exist)
+ *   toolbar   extra filter controls for the table; `filter` the matching predicate
+ *   quick     (ctx) => [{label, group?, keys: () => [tid]}] quick picks; ctx has
+ *             {tableRows(), metric, top(rows, n)}
+ *   initial   () => [tid] the selection the first time the panel is ever opened
+ *   ours      Set of tids to emphasise
+ *   note      the table's footnote
+ */
+function tableAndChart(c) {
+  const LS = `fmworld:${c.key}`;
+  const saved = lsGet(LS) || {};
+  const byKey = new Map(c.rows.map((r) => [r.tid, r]));
+  let metric = c.metrics.find((m) => m.id === saved.metric) || c.metrics[0];
+  // tid -> colour slot. A slot sticks to its entity until it is removed, so a line never
+  // changes colour because another one came or went.
+  const picked = new Map((saved.picked || []).filter(([k]) => byKey.has(k)));
+  if (!saved.picked) c.initial().slice(0, SLOTS).forEach((k, i) => byKey.has(k) && picked.set(k, i));
+  const persist = () => lsSet(LS, { metric: metric.id, picked: [...picked] });
+
+  const freeSlot = () => { for (let s = 0; s < SLOTS; s++) if (![...picked.values()].includes(s)) return s; return null; };
+  const add = (k) => {
+    if (picked.has(k) || !byKey.has(k)) return;
+    const s = freeSlot();
+    if (s == null) { toast(`Up to ${SLOTS} lines at once — remove one first.`); return; }
+    picked.set(k, s);
   };
-  nationFilter.addEventListener("change", drawLadder);
-  drawLadder();
-  wrap.append(el("div.tbar", {}, [nationFilter]), ladderBox);
-  return wrap;
+  const setAll = (keys) => {
+    picked.clear();
+    keys.filter((k) => byKey.has(k)).slice(0, SLOTS).forEach((k, i) => picked.set(k, i));
+  };
+  const changed = () => { persist(); table.redraw(); drawChart(); };
+
+  // Swatch on the name, so the table doubles as the chart's key.
+  const nameDef = c.catalogue.name;
+  const catalogue = {
+    ...c.catalogue,
+    name: {
+      ...nameDef,
+      render: (r) => el("span.wname", {}, [
+        el(`i.wsw${picked.has(r.tid) ? `.s${picked.get(r.tid)}` : ".off"}`, {
+          title: picked.has(r.tid) ? "On the chart — tap the row to remove" : "Tap the row to chart it",
+        }),
+        nameDef.render ? nameDef.render(r) : r.name,
+      ]),
+    },
+  };
+  const table = playerTable({
+    key: `world-${c.key}`, rows: c.rows, catalogue, defaults: c.defaults, sort: c.sort,
+    sticky: ["name"], searchPlaceholder: c.searchPlaceholder, toolbar: c.toolbar, filter: c.filter,
+    rowClass: (r) => (picked.has(r.tid) ? "picked" : null),
+    onRow: (r) => { if (picked.has(r.tid)) picked.delete(r.tid); else add(r.tid); changed(); },
+  });
+
+  // ---- chart controls
+  const metricSeg = el("span.seg");
+  const drawSeg = () => metricSeg.replaceChildren(...c.metrics.map((m) => el(`button${m === metric ? ".on" : ""}`, {
+    type: "button", text: m.label,
+    onclick: () => { metric = m; drawSeg(); persist(); drawChart(); },
+  })));
+  drawSeg();
+
+  const top = (rows, n = SLOTS) => rows.slice(0, n).map((r) => r.tid);
+  const ctx = { tableRows: () => table.rows(), get metric() { return metric; }, top };
+  const moved = (sign) => {
+    const scored = table.rows().map((r) => ({ r, d: delta(c.H, c.series(r)[metric.id]) }))
+      .filter((x) => x.d != null && x.d !== 0)
+      .map((x) => ({ ...x, d: metric.invert ? -x.d : x.d }))
+      .filter((x) => sign * x.d > 0)
+      .sort((a, b) => sign * (b.d - a.d));
+    return scored.slice(0, SLOTS).map((x) => x.r.tid);
+  };
+  const picks = [
+    { label: `First ${SLOTS} in the table`, keys: () => top(table.rows()) },
+    { label: "Biggest risers in the table (a season)", keys: () => moved(1) },
+    { label: "Biggest fallers in the table (a season)", keys: () => moved(-1) },
+    ...c.quick(ctx),
+  ];
+  const quick = el("select.btn.wquick", { "aria-label": "Quick pick" });
+  const groups = new Map();
+  quick.append(el("option", { value: "", text: "Quick pick…" }));
+  picks.forEach((p, i) => {
+    const o = el("option", { value: String(i), text: p.label });
+    if (!p.group) { quick.append(o); return; }
+    if (!groups.has(p.group)) { groups.set(p.group, el("optgroup", { label: p.group })); quick.append(groups.get(p.group)); }
+    groups.get(p.group).append(o);
+  });
+  quick.addEventListener("change", () => {
+    const p = picks[+quick.value];
+    quick.value = "";
+    if (!p) return;
+    const keys = p.keys();
+    if (!keys.length) { toast("Nothing in the table fits that pick."); return; }
+    setAll(keys); changed();
+  });
+
+  // add one by name — a datalist, so it's a native picker on a phone too
+  const listId = `wl-${c.key}`;
+  const label = (r) => (r.sub ? `${r.name} · ${r.sub}` : r.name);
+  const byLabel = new Map(c.rows.map((r) => [label(r), r.tid]));
+  const finder = el("input.search.wfind", { type: "search", placeholder: "Add to chart…", list: listId, "aria-label": "Add to chart" });
+  const datalist = el("datalist", { id: listId }, c.rows.map((r) => el("option", { value: label(r) })));
+  finder.addEventListener("change", () => {
+    const k = byLabel.get(finder.value);
+    if (k == null) return;
+    finder.value = "";
+    add(k); changed();
+  });
+  const clearBtn = el("button.btn", { type: "button", text: "Clear", onclick: () => { picked.clear(); changed(); } });
+
+  const legend = el("div.wlegend");
+  const chartBox = el("div");
+  const head = el("div.whead", {}, [el("h3", { text: "Over time" }), metricSeg]);
+  function drawChart() {
+    const sel = [...picked].map(([k, slot]) => ({ r: byKey.get(k), slot }));
+    legend.replaceChildren(...sel.map(({ r, slot }) => el("span.wchip", {}, [
+      el(`i.wsw.s${slot}`), r.name,
+      el("button.x", { type: "button", text: "✕", title: `Remove ${r.name}`,
+        onclick: () => { picked.delete(r.tid); changed(); } }),
+    ])), sel.length ? el("span.dim.wcount", { text: `${sel.length}/${SLOTS}` }) : null);
+    chartBox.replaceChildren(lineChart({
+      dates: c.H.dates, dp: metric.dp ?? 0, invert: !!metric.invert, label: metric.label,
+      series: sel.map(({ r, slot }) => ({ key: r.tid, label: r.name, slot, ours: c.ours?.has(r.tid),
+        values: c.series(r)[metric.id] })),
+    }));
+  }
+  drawChart();
+
+  const node = el("div", {}, [
+    table.node,
+    c.note ? el("p.note", { html: c.note }) : null,
+    el("div.card.wchart", {}, [
+      head,
+      el("div.tbar", {}, [quick, finder, datalist, clearBtn]),
+      legend, chartBox,
+      el("p.note", { text: "Tap a table row to add or remove its line. Quick picks read the table as "
+        + "it stands — filter or sort it first to aim them. The x-axis is the calendar; a gap in a "
+        + "line is a snapshot with no value, not a zero." }),
+    ]),
+  ]);
+  // The filter selects belong to the caller; a change to one redraws the table through this.
+  node.redrawTable = () => table.redraw();
+  return node;
+}
+const nationOptions = (rows) => {
+  const sel = el("select.btn");
+  const nations = [...new Set(rows.map((r) => r.nation).filter(Boolean))].sort();
+  sel.append(el("option", { value: "", text: "All nations" }), ...nations.map((n) => el("option", { value: n, text: n })));
+  return sel;
+};
+
+// --------------------------------------------------------------------------- leagues
+function leaguesPanel(H) {
+  const ourCid = D.ourLeagueCid();
+  const ourNation = D.S.leagues.get(ourCid)?.nation;
+  const lgs = [...D.S.leagues.values()].filter((l) => l.reputation != null)
+    .sort((a, b) => b.reputation - a.reputation)
+    .map((l, i) => {
+      const h = H.league(l.cid);
+      return { ...l, tid: l.cid, rank: i + 1, tier: h.tier, hist: h, sub: l.nation,
+               dRep: delta(H, h.reputation), _search: `${l.name} ${l.nation || ""}`.toLowerCase() };
+    });
+  const ourLg = lgs.find((l) => l.cid === ourCid);
+
+  const nationSel = nationOptions(lgs);
+  const tierSel = el("select.btn", {}, [el("option", { value: "", text: "All tiers" }),
+    ...[...new Set(lgs.map((l) => l.tier).filter((t) => t != null))].sort((a, b) => a - b)
+      .map((t) => el("option", { value: String(t), text: `Tier ${t}` }))]);
+  const filter = (l) => (!nationSel.value || l.nation === nationSel.value)
+    && (!tierSel.value || String(l.tier) === tierSel.value);
+
+  const byRep = (rows) => [...rows].sort((a, b) => b.reputation - a.reputation);
+  const nations = [...new Set(lgs.map((l) => l.nation).filter(Boolean))]
+    .map((n) => ({ n, best: Math.max(...lgs.filter((l) => l.nation === n).map((l) => l.reputation)) }))
+    .sort((a, b) => b.best - a.best).map((x) => x.n);
+  const tiers = [...new Set(lgs.map((l) => l.tier).filter((t) => t != null))].sort((a, b) => a - b);
+
+  const node = tableAndChart({
+    key: "leagues", H, rows: lgs, ours: new Set([ourCid]),
+    series: (r) => r.hist,
+    metrics: [{ id: "reputation", label: "Reputation" }, { id: "skill_idx", label: "Skill idx", dp: 1 }],
+    catalogue: {
+      rank: { label: "#", align: "num", get: (r) => r.rank, help: "Rank by reputation, worldwide" },
+      name: { label: "League", get: (r) => r.name,
+              render: (r) => el("span", {}, [r.name, r.cid === ourCid ? pill(" us", "good") : null]) },
+      nation: { label: "Nation", get: (r) => r.nation },
+      tier: { label: "Tier", align: "num", get: (r) => r.tier, help: "Division level in its nation, 1 = top flight" },
+      reputation: { label: "Reputation", align: "num", get: (r) => r.reputation },
+      dRep: { label: "± season", align: "num", get: (r) => r.dRep, render: (r) => deltaCell(r.dRep),
+              help: "Reputation change over the last season" },
+      trend: { label: "Trend", get: (r) => r.dRep, sort: (r) => r.dRep,
+               render: (r) => sparkline(r.hist.reputation, { w: 64, h: 16 }), help: "Reputation across every snapshot" },
+      skillIdx: { label: "Skill idx", align: "num", get: (r) => r.skillIdx, render: (r) => bar(r.skillIdx) },
+      clubs: { label: "Clubs", align: "num", get: (r) => r.clubs || null },
+      rated: { label: "Rated", align: "num", get: (r) => r.rated, help: "Rated players behind the skill index" },
+    },
+    defaults: ["rank", "name", "nation", "tier", "reputation", "dRep", "trend", "skillIdx", "clubs"],
+    sort: { by: "reputation", dir: "desc" },
+    searchPlaceholder: "Search leagues or nations…",
+    toolbar: [nationSel, tierSel], filter,
+    initial: () => byRep(lgs.filter((l) => l.nation === ourNation)).map((l) => l.cid),
+    quick: () => [
+      ...(ourNation ? [{ label: `${ourNation}'s divisions`, keys: () => byRep(lgs.filter((l) => l.nation === ourNation)).map((l) => l.cid) }] : []),
+      { label: `Top ${SLOTS} in the world`, keys: () => byRep(lgs).slice(0, SLOTS).map((l) => l.cid) },
+      ...(ourLg ? [{ label: "Our neighbours on the ladder", keys: () => {
+        const i = ourLg.rank - 1;
+        return lgs.slice(Math.max(0, i - 3), i + 5).map((l) => l.cid);
+      } }] : []),
+      ...tiers.map((t) => ({ group: "Top of a tier", label: `Tier ${t}`,
+        keys: () => byRep(lgs.filter((l) => l.tier === t)).map((l) => l.cid) })),
+      ...nations.map((n) => ({ group: "A nation's divisions", label: n,
+        keys: () => byRep(lgs.filter((l) => l.nation === n)).map((l) => l.cid) })),
+    ],
+    note: "<b>Reputation</b> is a value parsed straight from each competition record. "
+      + "<b>Skill idx</b> is the average player ability in that league normalised 0-100 across "
+      + "ranked leagues — a CA-derived index in the same sanctioned form as a Level percentile, "
+      + "never the number itself. Only leagues with 20+ rated players get one. "
+      + "<b>Clubs</b> counts actual club records, not the competition record's member count — "
+      + "that field is unreliable (it reads 5 for a 12-team division), so it isn't shown. "
+      + "<b>± season</b> compares the newest snapshot with the one nearest a year earlier.",
+  });
+  [nationSel, tierSel].forEach((s) => s.addEventListener("change", () => node.redrawTable()));
+  return panelWrap(`League reputation · ${lgs.length} leagues`, node);
 }
 
 // --------------------------------------------------------------------------- clubs
-function clubsPanel() {
+function clubsPanel(H) {
   const ourTids = new Set(D.S.ours.clubs || []);
+  const ourCid = D.ourLeagueCid();
+  const us = D.S.clubs.get(D.S.ours.managed_tid);
   const clubs = [...D.S.clubs.values()].filter((c) => c.reputation != null)
-    .map((c) => ({ ...c, leagueName: D.S.leagues.get(c.leagueCid)?.name || null }))
-    .sort((a, b) => b.reputation - a.reputation);
-  const wrap = el("div");
-  wrap.append(el("h3", { text: `Club reputation · ${clubs.length} clubs` }));
+    .sort((a, b) => b.reputation - a.reputation)
+    .map((c, i) => {
+      const h = H.club(c.tid);
+      const leagueName = D.S.leagues.get(c.leagueCid)?.name || null;
+      return { ...c, rank: i + 1, leagueName, hist: h, sub: [leagueName, c.nation].filter(Boolean).join(", "),
+               dRep: delta(H, h.reputation),
+               _search: `${c.name} ${c.nation || ""} ${leagueName || ""}`.toLowerCase() };
+    });
 
-  const nationFilter = el("select.btn");
-  const nations = [...new Set(clubs.map((c) => c.nation).filter(Boolean))].sort();
-  nationFilter.append(el("option", { value: "", text: "All nations" }),
-    ...nations.map((n) => el("option", { value: n, text: n })));
-
-  const leagueFilter = el("select.btn");
+  const nationSel = nationOptions(clubs);
+  const leagueSel = el("select.btn");
   const drawLeagueOptions = () => {
-    const want = nationFilter.value;
+    const want = nationSel.value;
     const inScope = want ? clubs.filter((c) => c.nation === want) : clubs;
     const lgs = [...new Map(inScope.filter((c) => c.leagueName)
       .map((c) => [c.leagueCid, c.leagueName])).entries()]
       .sort((a, b) => a[1].localeCompare(b[1]));
-    const prev = leagueFilter.value;
-    leagueFilter.replaceChildren(el("option", { value: "", text: "All leagues" }),
+    const prev = leagueSel.value;
+    leagueSel.replaceChildren(el("option", { value: "", text: "All leagues" }),
       ...lgs.map(([cid, name]) => el("option", { value: cid, text: name })));
-    leagueFilter.value = lgs.some(([cid]) => String(cid) === prev) ? prev : "";
+    leagueSel.value = lgs.some(([cid]) => String(cid) === prev) ? prev : "";
   };
-
-  const clubBox = el("div");
-  const drawClubs = () => {
-    const wantNation = nationFilter.value;
-    const wantLeague = leagueFilter.value;
-    const rows = clubs.filter((c) => (!wantNation || c.nation === wantNation)
-      && (!wantLeague || String(c.leagueCid) === wantLeague));
-    clubBox.replaceChildren(el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["#", "Club", "Nation", "League", "Reputation", "Squad"]
-        .map((h, i) => el(`th${i === 0 || i === 4 || i === 5 ? ".num" : ""}`, { text: h })))]),
-      el("tbody", {}, rows.map((c) => el("tr", {}, [
-        el("td.num", { text: clubs.indexOf(c) + 1 }),
-        el("td.name", {}, [c.name, ourTids.has(c.tid) ? pill(" us", "good") : null]),
-        el("td", { text: c.nation || DASH }),
-        el("td", { text: c.leagueName || DASH }),
-        el("td.num", { text: c.reputation }),
-        el("td.num", { text: c.players }),
-      ]))),
-    ])]), el("p.note", {
-      text: `${rows.length} of ${clubs.length} clubs shown. Reputation is parsed straight from `
-        + "each club's own record (distinct from its league's reputation, on the Leagues tab). "
-        + "Only clubs with a parsed squad appear at all — an empty club can't be rendered "
-        + "anywhere on the site.",
-    }));
-  };
-  nationFilter.addEventListener("change", () => { drawLeagueOptions(); drawClubs(); });
-  leagueFilter.addEventListener("change", drawClubs);
   drawLeagueOptions();
-  drawClubs();
-  wrap.append(el("div.tbar", {}, [nationFilter, leagueFilter]), clubBox);
-  return wrap;
+  const filter = (c) => (!nationSel.value || c.nation === nationSel.value)
+    && (!leagueSel.value || String(c.leagueCid) === leagueSel.value);
+
+  const byRep = (rows) => [...rows].sort((a, b) => b.reputation - a.reputation);
+  // Quick picks by league follow the league ladder: ours and its nation first, then the rest by
+  // reputation, so the useful options are at the top of a long list.
+  const leagues = [...new Set(clubs.map((c) => c.leagueCid).filter((x) => x != null))]
+    .map((cid) => D.S.leagues.get(cid)).filter(Boolean)
+    .sort((a, b) => (b.nation === us?.nation) - (a.nation === us?.nation) || (b.reputation ?? 0) - (a.reputation ?? 0));
+  const nations = [...new Set(clubs.map((c) => c.nation).filter(Boolean))].sort();
+
+  const node = tableAndChart({
+    key: "clubs", H, rows: clubs, ours: ourTids,
+    series: (r) => r.hist,
+    metrics: [{ id: "reputation", label: "Reputation" }],
+    catalogue: {
+      rank: { label: "#", align: "num", get: (r) => r.rank, help: "Rank by reputation, worldwide" },
+      name: { label: "Club", get: (r) => r.name,
+              render: (r) => el("span", {}, [r.name, ourTids.has(r.tid) ? pill(" us", "good") : null]) },
+      nation: { label: "Nation", get: (r) => r.nation },
+      league: { label: "League", get: (r) => r.leagueName },
+      reputation: { label: "Reputation", align: "num", get: (r) => r.reputation },
+      dRep: { label: "± season", align: "num", get: (r) => r.dRep, render: (r) => deltaCell(r.dRep),
+              help: "Reputation change over the last season" },
+      trend: { label: "Trend", get: (r) => r.dRep, sort: (r) => r.dRep,
+               render: (r) => sparkline(r.hist.reputation, { w: 64, h: 16 }), help: "Reputation across every snapshot" },
+      players: { label: "Squad", align: "num", get: (r) => r.players },
+    },
+    defaults: ["rank", "name", "nation", "league", "reputation", "dRep", "trend", "players"],
+    sort: { by: "reputation", dir: "desc" },
+    searchPlaceholder: "Search clubs, leagues or nations…",
+    toolbar: [nationSel, leagueSel], filter,
+    initial: () => {
+      const mine = byRep(clubs.filter((c) => c.leagueCid === ourCid)).map((c) => c.tid);
+      return [...(us ? [us.tid] : []), ...mine.filter((t) => t !== us?.tid)];
+    },
+    quick: () => [
+      ...(ourCid != null ? [{ label: "Our league's top clubs (and us)", keys: () => {
+        const mine = byRep(clubs.filter((c) => c.leagueCid === ourCid)).map((c) => c.tid);
+        return [...(us ? [us.tid] : []), ...mine.filter((t) => t !== us?.tid)];
+      } }] : []),
+      { label: `Top ${SLOTS} in the world`, keys: () => byRep(clubs).slice(0, SLOTS).map((c) => c.tid) },
+      ...leagues.map((l) => ({ group: "A league's top clubs", label: `${l.name}${l.nation ? ` (${l.nation})` : ""}`,
+        keys: () => byRep(clubs.filter((c) => c.leagueCid === l.cid)).map((c) => c.tid) })),
+      ...nations.map((n) => ({ group: "A nation's top clubs", label: n,
+        keys: () => byRep(clubs.filter((c) => c.nation === n)).map((c) => c.tid) })),
+    ],
+    note: "Reputation is parsed straight from each club's own record (distinct from its league's "
+      + "reputation, on the Leagues tab). Only clubs with a parsed squad appear at all — an empty "
+      + "club can't be rendered anywhere on the site. League and nation are where the club is "
+      + "<i>now</i>; its line on the chart runs through every division it has been in.",
+  });
+  nationSel.addEventListener("change", () => { drawLeagueOptions(); node.redrawTable(); });
+  leagueSel.addEventListener("change", () => node.redrawTable());
+  return panelWrap(`Club reputation · ${clubs.length} clubs`, node);
 }
 
 // --------------------------------------------------------------------------- nations
-function nationsPanel(world) {
-  const wrap = el("div");
-  const rows = world?.nations || [];
-  if (!rows.length) {
-    wrap.append(el("p.note", { text: "No nation data in this export." }));
-    return wrap;
-  }
-  wrap.append(el("h3", { text: `World ranking · ${rows.length} nations` }));
-  wrap.append(el("div.scroll", {}, [el("table", {}, [
-    el("thead", {}, [el("tr", {}, ["#", "Nation", "Points", "Coefficient", "Rival"]
-      .map((h, i) => el(`th${i === 0 || i === 2 || i === 3 ? ".num" : ""}`, { text: h })))]),
-    el("tbody", {}, rows.map((n) => el("tr", {}, [
-      el("td.num", { text: n.rank }),
-      el("td.name", { text: n.name }),
-      el("td.num", { text: n.points == null ? DASH : num(n.points, 0) }),
-      el("td.num", { text: n.coefficient == null ? DASH : num(n.coefficient, 1) }),
-      el("td", { text: n.rival || DASH }),
-    ]))),
-  ])]));
-  wrap.append(el("p.note", {
-    text: "World ranking + UEFA-style coefficient (sum of the nation's own competition history), "
-      + "parsed from the save's national-team records. Only ranked nations are shown.",
-  }));
-  return wrap;
+function nationsPanel(world, H) {
+  const src = world?.nations || [];
+  if (!src.length) return el("p.note", { text: "No nation data in this export." });
+  const ourName = world?.our_nation;
+  const rows = src.map((n) => {
+    const h = H.nation(n.name);
+    return { ...n, tid: n.name, hist: h, dRank: delta(H, h.world_rank),
+             dPts: delta(H, h.ranking_points), dCoef: delta(H, h.coefficient),
+             _search: `${n.name} ${n.rival || ""}`.toLowerCase() };
+  });
+  const ours = rows.find((n) => n.name === ourName);
+  const byRank = (rs) => [...rs].sort((a, b) => a.rank - b.rank);
+
+  const node = tableAndChart({
+    key: "nations", H, rows, ours: new Set([ourName]),
+    series: (r) => r.hist,
+    metrics: [{ id: "ranking_points", label: "Points" }, { id: "coefficient", label: "Coefficient", dp: 1 },
+              { id: "world_rank", label: "Rank", invert: true }],
+    catalogue: {
+      rank: { label: "#", align: "num", get: (r) => r.rank, help: "World ranking" },
+      dRank: { label: "± rank", align: "num", get: (r) => (r.dRank == null ? null : -r.dRank),
+               render: (r) => deltaCell(r.dRank == null ? null : -r.dRank),
+               help: "Places climbed (+) or dropped (−) over the last season" },
+      name: { label: "Nation", get: (r) => r.name,
+              render: (r) => el("span", {}, [r.name, r.name === ourName ? pill(" us", "good") : null]) },
+      points: { label: "Points", align: "num", get: (r) => r.points },
+      dPts: { label: "± pts", align: "num", get: (r) => r.dPts, render: (r) => deltaCell(r.dPts),
+              help: "Ranking points change over the last season" },
+      coefficient: { label: "Coefficient", align: "num", get: (r) => r.coefficient, dp: 1 },
+      dCoef: { label: "± coef", align: "num", get: (r) => r.dCoef, render: (r) => deltaCell(r.dCoef, { dp: 1 }),
+               help: "Coefficient change over the last season" },
+      trend: { label: "Trend", get: (r) => r.dPts, sort: (r) => r.dPts,
+               render: (r) => sparkline(r.hist.ranking_points, { w: 64, h: 16 }), help: "Ranking points across every snapshot" },
+      rival: { label: "Rival", get: (r) => r.rival },
+    },
+    defaults: ["rank", "dRank", "name", "points", "dPts", "trend", "coefficient", "dCoef", "rival"],
+    sort: { by: "rank", dir: "asc" },
+    searchPlaceholder: "Search nations…",
+    initial: () => {
+      const top = byRank(rows).slice(0, SLOTS - 1).map((n) => n.name);
+      return ours && !top.includes(ourName) ? [ourName, ...top] : top;
+    },
+    quick: () => [
+      { label: `Top ${SLOTS} in the world`, keys: () => byRank(rows).slice(0, SLOTS).map((n) => n.name) },
+      ...(ours ? [
+        { label: `Around ${ourName} in the ranking`, keys: () => {
+          const r = byRank(rows), i = r.indexOf(ours);
+          return [ourName, ...r.slice(Math.max(0, i - 3), i + 5).map((n) => n.name).filter((n) => n !== ourName)];
+        } },
+        ...(ours.rival ? [{ label: `${ourName} and ${ours.rival}`, keys: () => [ourName, ours.rival] }] : []),
+      ] : []),
+    ],
+    note: "World ranking + UEFA-style coefficient (sum of the nation's own competition history), "
+      + "parsed from the save's national-team records. Only ranked nations are shown. "
+      + "On the chart, <b>Rank</b> is drawn with #1 at the top.",
+  });
+  return panelWrap(`World ranking · ${rows.length} nations`, node);
+}
+
+/** A panel's title over its table + chart. */
+function panelWrap(title, node) {
+  return el("div", {}, [el("h3", { text: title }), node]);
 }
 
 // --------------------------------------------------------------------------- maps

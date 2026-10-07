@@ -81,6 +81,7 @@ export function playerTable(o) {
     });
   }
 
+  let shownRows = [];
   function draw() {
     o.prepare?.(state.filters || []);
     const cols = visibleCols();
@@ -96,6 +97,7 @@ export function playerTable(o) {
     rows = applyFilters(rows, state.filters, o.catalogue);
     filters?.sync();
     rows = sortRows(rows, cols);
+    shownRows = rows;
     count.textContent = `${rows.length}${rows.length === o.rows.length ? "" : ` of ${o.rows.length}`}`;
 
     const thead = el("thead", {}, [el("tr", {}, cols.map((c) => {
@@ -162,7 +164,9 @@ export function playerTable(o) {
   // `persist` so a caller that writes `state` itself (squad.js's Position dropdown drives the Pos
   // column filter) saves it the same way the filter panel does, instead of that one control's
   // choice being the only one that doesn't survive a reload.
-  return { node: host, redraw: draw, state, persist: () => save(o.key, state) };
+  // `rows()` is what the table shows right now — searched, filtered and sorted — so a caller can
+  // act on "the table as you see it" (world.js charts its first rows) without re-deriving it.
+  return { node: host, redraw: draw, state, persist: () => save(o.key, state), rows: () => shownRows };
 }
 
 function columnPicker(o, state, changed) {
