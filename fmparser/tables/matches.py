@@ -175,6 +175,8 @@ TEAM_TAIL = Record("match_team_tail", 46, [
 # team sheet (posOrder) is the full-time one, so after an in-match change it no longer lines
 # up with these slots -- each player's position is the team head's `positions`
 # (docs/agent-context/match-position-encoding.md). +220..+1182 is a grid of u16 coordinates.
+# +1196..+1283 is eleven 8-byte rows, one per kick-off slot in that slot order: five bytes
+# then 00 00 00, the first two a role family (inside forward 81 42, full-back 01 23 / 41 22).
 MATCH_TAIL = Record("match_tail", 1439, [
     Field(0,    5,   UNKNOWN, RAW),
     Field(5,    4,   UNKNOWN, PAD),

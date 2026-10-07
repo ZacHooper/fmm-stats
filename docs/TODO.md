@@ -241,11 +241,12 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
   opponent's score on the goalkeeper's slot), the team head and tail (75 and 46 bytes), the
   body head's +19..51 and +67..77 (one u8 reads 90-96 on detailed matches: the final whistle's
   minute?), and our tactic in the tail: +0..32 small bitfields (team instructions?), eleven
-  per-starter 8-byte items at +1196 (4 flag bytes and a value -- 10/9/6/5 -- that tracks the
-  position: probably role or duty), a u16 coordinate grid at +220..1182 that changes with
+  per-starter 8-byte rows at +1196 (bytes 0-1 are the role family, partly mapped; bytes 2-4
+  vary per match, maybe a duty or role variant: see `agent-context/match-position-encoding.md`
+  "Per-starter tactic rows"), a u16 coordinate grid at +220..1182 that changes with
   the back line, and team-looking u16 values after +1295. The positions at +102 are a second
-  copy of +69, byte-identical on all 1,027 matches measured. A tactics screenshot for one
-  match would settle the per-starter items.
+  copy of +69, byte-identical on all 1,027 matches measured. A Formation-tab screenshot for one
+  match would settle the per-starter rows.
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
   (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records;
   the competition stage record (`comp_man_stage` +1..29, +50..55, and +72/+76, the second

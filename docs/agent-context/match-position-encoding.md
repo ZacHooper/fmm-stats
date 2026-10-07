@@ -141,6 +141,63 @@ same as the post-match stats screen. Who started where, after a mid-match change
 recorded. The kick-off formation is, but the full-time team sheet is the only player order
 the match keeps.
 
+### No record of when or how the shape changed (searched 2026-10-07)
+
+A match keeps two shapes, kick-off (tail +69) and full time (team head +30), plus each
+substitute's minute. Nothing in between. Searched over 169 competitive Frem matches, split
+into 118 whose kick-off and full-time position sets differ and 51 whose sets are equal:
+
+- **Events** carry goals, own goals, penalties, missed penalties, red cards, injuries,
+  shoot-out kicks and disallowed goals (`EVENT_TYPE`; plus an unnamed type 14, 6 events).
+  No substitution or tactic-change event.
+- **Team head +6** equals +30 byte for byte on all 169. It is a copy, not a half-time shape.
+- **Team head +0..29, +52..76 and tail +0..68**: no byte separates the two groups. The bytes
+  that lean one way track which formation was played, not whether it changed.
+- **The per-starter rows at +1196** (below) follow the kick-off slots, not the full-time ones.
+
+So "who moved where, and when" is inferred: match the two shapes slot by slot and read the
+timing off the substitution minutes.
+
+## Per-starter tactic rows: tail +1196 (partly decoded, 2026-10-07)
+
+Eleven 8-byte rows from tail +1196, one per kick-off slot in the order of the +69 array:
+five bytes, then `00 00 00`. They follow the kick-off slot (byte 0 agrees with the slot's
+position on 83% of rows) better than the full-time position (76%) or the player (74%), so
+they are the pre-match per-slot settings: role, and something that changes match to match.
+
+**Bytes 0-1: the role family. Stable, and lines up with the manager's stated roles** (Z,
+Frem 4-2-3-1: GK, FB both sides, CD, BWM + BBM in the two MCs, AP at AMC, IF on the AML
+almost always, IF or W on the AMR, PF or AF up top):
+
+| bytes 0-1 | where it sits | reading |
+|---|---|---|
+| `24 48` | GK, 152 of 180 matches | goalkeeper |
+| `01 23` / `41 22` | DR / DL | full-back, one code mirrored by side |
+| `21 22` | nearly every DC; the AMC; the AMR in stretches | plain central (CD); on the AMR, a **winger** (Z, 2026-10-07) |
+| `21 82` | one MC most matches | BBM |
+| `21 90` | the other MC, and the FC | BWM and PF: shared, both pressing roles (unconfirmed) |
+| `81 42` | the AML almost always, the AMR usually | **inside forward** (Z, 2026-10-07) |
+
+Byte 0 reads like a lateral flag: `0x20` central, `0x80` wide-inverted, `0x01` / `0x40`
+right / left full-back, `0x24` / `0x30` keeper. Unproven beyond this table.
+
+**Bytes 2-4 vary from match to match within a role**: byte 2 is `55`, `95` or rarely `a5`;
+byte 3 ∈ {15, 16, 19, 1a, 25, 26, 29, 2a}; byte 4 ∈ {05, 06, 09, 0a}. E.g. the right-back
+flips `95 16 06` ↔ `55 16 06`, the striker `55 29 09` ↔ `55 19 09`. Z's candidates: a
+full-back's FB → WB / IWB switch, the striker's PF → AF. Not separated without a match
+whose in-game roles are known.
+
+**The AMR history**: `81 42` (IF) in 24/25, mixed in 25/26-27/28, with `21 22` (W) runs in
+the July 2027 pre-season and on 16 Apr, 1 May and 8 May 2028.
+
+**An unexplained all-plain pattern**: in 8 matches every outfielder reads
+`21 22 55 15 0a` and the keeper `24 22 55 15 0a` (league 29 Aug, 10 Sep, 19 Sep, 3 Oct,
+28 Nov 2027; EURO Cup 17 Feb, 24 Feb, 9 Mar 2028). Z played them all, so it is not
+instant simulation. Not explained.
+
+**To finish the decode**: one match with the in-game Formation tab's roles, ideally one
+where a full-back or the striker has a different byte 2-4 from the match before.
+
 ## Reserve fixtures have no positions at all
 
 All 13 reserve (tid 7296) matches in `frem-2024-11-10.fms` carry a **byte-identical** slot array
@@ -221,14 +278,13 @@ Per match, ~5,170 bytes (`frem-2024-11-10.fms`, 35 anchors, 270 KB region). Befo
 investigation ~45% was parsed:
 
 The match row's full layout, every byte declared, is `fmparser/tables/matches.py` (and
-`scripts/audit/audit_records.py --map`). The positions are `MATCH_TAIL` +69; the duplicate at
+`scripts/audit/audit_records.py --map`). The kick-off positions are `MATCH_TAIL` +69 (each player's position is the team head's +30); the duplicate at
 +102 is byte-identical on all 1,027 matches measured, and three unnamed blocks of our tactic
-follow it (per-starter items at +1196, a coordinate grid at +220..1182) -- see
+follow it (per-starter rows at +1196, partly decoded above; a coordinate grid at +220..1182) -- see
 `docs/TODO.md`'s unnamed-fields entry.
 
 Only one formation string and one slot array exist per match — confirmed no second occurrence
-anywhere in a match's span (searched, one hit). No mid-match change record exists; see "Positions
-are STARTING positions only" above.
+anywhere in a match's span (searched, one hit). No mid-match change record exists; see "No record of when or how the shape changed" above.
 
 ## Status (2026-08-29): position decode SHIPPED. Two threads still open.
 
