@@ -54,10 +54,10 @@ The store is read directly with DuckDB (e.g. `python3 -c "import duckdb..."` or 
   and presentation marts in `site.*`. Consumers (`export_data.py`, scripts, and agents)
   read directly from `site.*` and `mart.*`. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either** — it
   explains the schemas and the rules. `fmstats/store.py` opens a store, whether the
-  local or the R2 copy. The raw
-  schema plus `fmstats/contract.py` (the attribute column names) is the whole interface.
+  local or the R2 copy.
 
-`tests/test_boundary.py` enforces both import rules. A fact only the parser knows reaches
+`tests/test_boundary.py` enforces the boundary rules: fmparser never imports DuckDB,
+and dbt project variables are asserted directly against fmparser. A fact only the parser knows reaches
 fmstats by the loader writing it into the store, never by fmstats importing it.
 
 ## The parser — read [`fmparser/CLAUDE.md`](fmparser/CLAUDE.md) before any save-format work
