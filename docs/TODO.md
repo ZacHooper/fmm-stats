@@ -344,12 +344,6 @@ an ordinary average negated, so a youth-team line may store its rating that way.
 against a youth player's in-game history screen before reading these as ratings;
 `stg_player_history_seasons` passes them through. (0xFFFF, the save's "none", reads NULL.)
 
-### 17. Views that hide their confidence
-- **`mart.player_origin`**: `eligible=False` cannot be told from *unknown* when the origin club
-  does not resolve (#10). Add the distinction; until then treat it as "ask Zac".
-- **`mart.club_managers`**: a sole structural hit and a `home_reputation` fallback look the
-  same. Expose the candidate count.
-
 ### 18. Models
 - **Refit the transfer-value model** with `current_reputation` and `world_reputation` (parsed,
   unused; `fmstats/value_model.py` fits on `reputation` alone).
@@ -434,19 +428,6 @@ asserts a property of the real data. Scoped 2026-10-07 from the check labels, th
   monotone-forecast and four-band (an immersion guard) checks.
 
 Then delete the script, and point the CLAUDE.md "after editing" command at `dbt test`.
-
-### 20. Mart candidates left out on size
-Squad moves between consecutive snapshots (on `mart.club_roster`, scoped to clubs we have
-played), and `pos_index` as a column on `mart.player_position_fit`.
-
----
-
-## Site
-
-### 21. One primary-position rule
-`mart.player_primary_position` is the rule, but `scripts/_export_db.py` (the depth chart:
-highest tactic rating) and `site/js/data.js` `playerRoles()` (most familiar, first row on a
-tie) each carry their own. Switch both to the view in one diff and review `git diff site/api`.
 
 ---
 
