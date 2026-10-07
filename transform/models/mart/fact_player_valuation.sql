@@ -18,3 +18,4 @@ left join {{ ref('int_player_value') }} as valuation
     on
         info.snapshot_date = valuation.snapshot_date
         and info.tid = valuation.tid
+order by info.person_id, info.snapshot_date

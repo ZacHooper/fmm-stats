@@ -18,3 +18,4 @@ select
     staff_size,
     is_current
 from {{ ref('int_team_snapshots') }}
+order by team_tid, snapshot_date

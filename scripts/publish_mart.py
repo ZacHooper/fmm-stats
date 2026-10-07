@@ -37,6 +37,20 @@ def build(src_path, dest):
     con.execute(f"ATTACH '{src_path}' AS src (READ_ONLY)")
     con.execute("CREATE SCHEMA mart")
 
+    TABLE_SORT_KEYS = {
+        'fact_player_state_scd': 'person_id, valid_from',
+        'fact_player_valuation': 'person_id, snapshot_date',
+        'fact_stadium_snapshot': 'stadium_id, snapshot_date',
+        'fact_team_snapshot': 'team_tid, snapshot_date',
+        'fact_staff_snapshot': 'person_id, snapshot_date',
+        'fact_team_match': 'match_id',
+        'fact_club_snapshot': 'club_tid, snapshot_date',
+        'fact_contract': 'person_id, first_seen_date',
+        'fact_transfer': 'person_id, season',
+        'fact_player_season': 'person_id, season',
+        'fact_loan_spell': 'person_id, season',
+    }
+
     # Copy all base tables
     tables = [t for (t,) in con.execute(
         "SELECT table_name FROM duckdb_tables() "
@@ -46,9 +60,11 @@ def build(src_path, dest):
     t0 = time.time()
     for i, t in enumerate(tables, 1):
         t_tab = time.time()
-        con.execute(f'CREATE TABLE mart."{t}" AS SELECT * FROM src.mart."{t}"')
+        order_clause = f" ORDER BY {TABLE_SORT_KEYS[t]}" if t in TABLE_SORT_KEYS else ""
+        con.execute(f'CREATE TABLE mart."{t}" AS SELECT * FROM src.mart."{t}"{order_clause}')
         cnt = con.execute(f'SELECT count(*) FROM mart."{t}"').fetchone()[0]
-        print(f"    [{i:2d}/{len(tables)}] mart.{t:<32s} {cnt:>9,} rows [{time.time() - t_tab:.2f}s]", flush=True)
+        sort_note = f" (sorted by {TABLE_SORT_KEYS[t]})" if t in TABLE_SORT_KEYS else ""
+        print(f"    [{i:2d}/{len(tables)}] mart.{t:<32s} {cnt:>9,} rows [{time.time() - t_tab:.2f}s]{sort_note}", flush=True)
 
     # Recreate fact_player_snapshot view over SCD2 and Valuation
     con.execute("""

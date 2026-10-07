@@ -7,3 +7,4 @@ select
     expansion_capacity,
     is_current
 from {{ ref('int_stadium_snapshots') }}
+order by stadium_id, snapshot_date

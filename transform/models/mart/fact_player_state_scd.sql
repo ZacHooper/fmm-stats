@@ -219,3 +219,4 @@ select
     pos_{{ position | lower }}{% if not loop.last %},{% endif %}
     {% endfor %}
 from intervals
+order by person_id, valid_from

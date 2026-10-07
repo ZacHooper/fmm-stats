@@ -14,3 +14,4 @@ select
     last_seen_date,
     has_line
 from {{ ref('int_loan_spells') }}
+order by person_id, season

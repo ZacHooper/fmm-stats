@@ -23,3 +23,4 @@ select
     reds,
     last_seen_date
 from {{ ref('int_player_career_lines') }}
+order by person_id, season

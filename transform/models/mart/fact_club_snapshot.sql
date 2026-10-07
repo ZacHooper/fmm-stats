@@ -7,4 +7,5 @@ select
     affiliates,
     is_current
 from {{ ref('int_club_snapshots') }}
+order by club_tid, snapshot_date
 
