@@ -21,7 +21,7 @@ sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 import careers as C                                                      # noqa: E402
-from fmstats import dbopen as _dbopen                                    # noqa: E402
+import dbopen as _dbopen                                                  # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 MAX_MB = 200  # Guardrail against runaway materialization

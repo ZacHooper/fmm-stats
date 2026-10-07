@@ -582,19 +582,6 @@ DDL = [
     # keyed on tid alone splices two people into one career. `dob` separates every recycled slot
     # (2332 changes, 0 collisions, 0 nulls), so (tid,dob) is the person key. See docs/IDS.md.
     # person_id is a stable VARCHAR '<tid>-<dob>' (stable across loads, unlike a dense_rank).
-    # Multi-snapshot archive. raw.* always holds ONE snapshot per (season,phase) =
-    # the latest loaded; when a load supersedes a DIFFERENT label in that slice, the
-    # outgoing snapshot's players+attributes are copied here first (tagged by label +
-    # in-game date). Lets multiple in-season checkpoints coexist for progression without
-    # touching the single-snapshot raw layer the dashboard/scout rely on.
-    "CREATE SCHEMA IF NOT EXISTS history",
-    """CREATE TABLE IF NOT EXISTS history.player_snapshots AS
-       SELECT CAST(NULL AS VARCHAR) AS snapshot_label,
-              CAST(NULL AS DATE) AS snapshot_date,
-              CAST(NULL AS TIMESTAMP) AS archived_at,
-              p.*, a.* EXCLUDE (season, phase, tid)
-       FROM raw.players p JOIN raw.player_attributes a USING (season, phase, tid)
-       LIMIT 0""",
 ]
 
 # Which methods the seed CSV owns is read FROM THE CSV, not listed here. The hardcoded list this
@@ -1268,37 +1255,6 @@ def _clear_group(con, group, season, phase):
 _GROUP_FN = {"core": load_core, "world": load_world}
 
 
-def _archive_snapshot(con, season, phase, label, snap_date):
-    """Copy the current (season,phase) players+attributes into history.player_snapshots
-    before the slice is overwritten, so a superseded in-season checkpoint is retained for
-    progression. Idempotent per snapshot_label."""
-    con.execute("DELETE FROM history.player_snapshots WHERE snapshot_label=?", [label])
-    # Name every column instead of relying on `p.*, a.*`.
-    #
-    # This table is created with `CREATE TABLE IF NOT EXISTS ... AS SELECT p.*, a.*`, so its
-    # column set is frozen the first time a store is built. A positional INSERT then breaks
-    # the moment raw.players gains a column: adding the 7 record-tail fields turned every
-    # archive into "table player_snapshots has 78 columns but 85 values were supplied", which
-    # failed the whole snapshot load. Resolving the columns against the archive table's OWN
-    # schema makes the insert order-independent and additive-safe.
-    def cols(tbl):
-        return [r[1] for r in con.execute(f"PRAGMA table_info('{tbl}')").fetchall()]
-    have = set(cols("history.player_snapshots"))
-    pc = [c for c in cols("raw.players") if c in have]
-    ac = [c for c in cols("raw.player_attributes")
-          if c in have and c not in ("season", "phase", "tid")]
-    target = ", ".join(['snapshot_label', 'snapshot_date', 'archived_at']
-                       + [f'"{c}"' for c in pc] + [f'"{c}"' for c in ac])
-    con.execute(
-        f"""INSERT INTO history.player_snapshots ({target})
-            SELECT ?, ?, ?, {", ".join([f'p."{c}"' for c in pc] + [f'a."{c}"' for c in ac])}
-            FROM raw.players p JOIN raw.player_attributes a USING (season, phase, tid)
-            WHERE p.season=? AND p.phase=?""",
-        [label, snap_date, datetime.datetime.now(), season, phase])
-    return con.execute("SELECT COUNT(*) FROM history.player_snapshots "
-                       "WHERE snapshot_label=?", [label]).fetchone()[0]
-
-
 def _detect_groups(d):
     present = []
     if os.path.exists(os.path.join(d, "persons.json")):
@@ -1370,14 +1326,6 @@ def load_label(con, d, include, career, override=(None, None)):
 
     con.execute("BEGIN TRANSACTION")
     try:
-        # multi-snapshot: archive a superseded (different-label) snapshot before overwrite
-        if "core" in groups:
-            prior = con.execute(
-                "SELECT label FROM raw.extracts WHERE season=? AND phase=?",
-                [season, phase]).fetchone()
-            if prior and prior[0] != label:
-                n = _archive_snapshot(con, season, phase, prior[0], _date(phase))
-                print(f"  archived superseded {prior[0]} ({phase}) -> history ({n} players)")
         counts = {}
         for g in groups:
             _clear_group(con, g, season, phase)
@@ -1419,33 +1367,13 @@ def _crosscheck(label, counts, expected):
 # ---------------------------------------------------------------------------
 
 def create_schema(con):
-    # raw.player_attributes is a VIEW now (exact values + the model in
-    # raw.attribute_model), and one DDL statement reads it -- history.player_snapshots is
-    # a CREATE TABLE ... AS SELECT that joins it. So the view has to be built partway through
-    # the sequence: after the tables it reads exist, before the first statement that needs it.
-    # _migrate MUST run before the view is built, not after. The view reads byte columns off
-    # raw.players; on a store created before those columns existed, building it first
-    # throws and _migrate never runs -- so the store can never heal and EVERY subsequent load
-    # fails identically. That deadlock cost a full 25-save rebuild on 2026-09-17: the nine
-    # PLAIN_OFFSETS columns were missing, the view asked for `p.heading_src`, and the ALTER
-    # that would have added it sat four lines further down.
-    # The build is needed only while that table (or the models themselves) does not exist
-    # yet: on every later load the models from the last build serve the snapshot archive,
-    # and create_views rebuilds them once the load is done.
-    def _build_view():
-        _migrate(con)
-        _seed_attribute_model(con)
-
+    # _migrate runs after the DDL, so a store created before a column existed gains it
+    # before the attribute model (or anything else) reads it.
     _rename_staging(con)
-    made_view = False
     for stmt in DDL:
-        if not made_view and re.search(r"raw\.player_attributes\b(?!_exact)", stmt):
-            _build_view()
-            made_view = True
         con.execute(stmt)
-    if not made_view:
-        _build_view()
-    _migrate(con)          # again: tables created later in DDL get their columns too
+    _migrate(con)
+    _seed_attribute_model(con)
 
 
 def _rename_staging(con):
@@ -1539,17 +1467,6 @@ _MIGRATIONS = [
     # and returned roughly 256x the real value. See fmparser/tables/competitions.py.
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS level INTEGER",
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS parent_cid INTEGER",
-    # history.player_snapshots is built with `CREATE TABLE ... AS SELECT p.*, a.*`, so its
-    # columns froze when the store was first created. Mirror the raw.players additions
-    # here too, otherwise the archive silently stops carrying them. _archive_snapshot names
-    # its columns explicitly, so these can be appended in any order.
-    "ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS current_reputation INTEGER",
-    "ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS world_reputation INTEGER",
-    "ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS international_retired BOOLEAN",
-    "ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS squad_number INTEGER",
-    "ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS preferred_squad_number INTEGER",
-    "ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS height_cm INTEGER",
-    "ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS weight_kg INTEGER",
     # 2026-09-16: the national-team block on the nation record (world ranking, points, rival,
     # and the UEFA coefficients a European campaign is seeded from). Same trap as every other
     # addition here: raw.nations is CREATE TABLE IF NOT EXISTS, so a store built an hour
@@ -1558,13 +1475,6 @@ _MIGRATIONS = [
     "ALTER TABLE raw.nations ADD COLUMN IF NOT EXISTS is_ranked BOOLEAN",
     "ALTER TABLE raw.nations ADD COLUMN IF NOT EXISTS world_ranking INTEGER",
     "ALTER TABLE raw.nations ADD COLUMN IF NOT EXISTS ranking_points INTEGER",
-    # history.player_snapshots froze its columns at CREATE TABLE ... AS SELECT time, so it
-    # needs the hidden attributes, the attribute bytes and the person block added too, or
-    # the archive silently stops carrying them.
-] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} INTEGER"
-     for c in PLAYER_HIDDEN_COLS + SRC_COLS] + [
-] + [f"ALTER TABLE history.player_snapshots ADD COLUMN IF NOT EXISTS {c} {t}"
-     for c, t in _PERSON_SQL.items()] + [
     # 2026-10-01: phase is the save's header date, so the label-derivation and match-date
     # columns carry nothing (data-layers plan, step 2).
 ] + [f"ALTER TABLE raw.extracts DROP COLUMN IF EXISTS {c}"
