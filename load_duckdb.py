@@ -1152,13 +1152,13 @@ def _match_competitions(matches, comp_names):
 def _match_derived(m):
     """What a match row implies but does not store: per side, the star (best rating, then
     goals, assists, completed passes), the team stats summed over the player lines (the
-    rating averaged over players who appeared), and each player's starting position -- our
-    side only, since the table holds only our shape."""
+    rating averaged over players who appeared), and each starter's full-time position from
+    his side's team sheet -- our side only."""
     out = {"star": {}, "team_stats": {}, "positions": {}}
-    positions = m.get("positions")
     for side in ("home", "away"):
         team = m.get(f"{side}_xi") or []
         ours = m.get("club_tid") == m.get(f"{side}_tid")
+        positions = m.get(f"{side}_positions")
         out["positions"][side] = [
             positions[p["posOrder"] - 1] if ours and positions and 1 <= p["posOrder"] <= 11
             else None for p in team]

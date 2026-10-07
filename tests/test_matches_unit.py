@@ -4,7 +4,8 @@
   LOCATE    the table is seeded from any row's formation marker and walked back to row 0,
             whose count byte is the table's; no row, no table
   SCRAPE    every row as stored: the head's events (a row is 5,102 + 17 n bytes), the stored
-            score, used player slots only, our formation and starting positions
+            score, used player slots only, our kick-off formation and each side's
+            full-time positions from its team head
   INVARIANT a count that declares more rows than walk raises; a body that does not repeat
             its head is not a row
   FIXTURES  the table must hold exactly our clubs' fixtures since the rollover
@@ -25,6 +26,8 @@ TEAM = MT.TEAM_HEAD.span + MT.PLAYER_SLOTS * MT.PLAYER_SLOT.span + MT.TEAM_TAIL.
 TAIL0 = TEAM0 + 2 * TEAM
 # our 3-1-4-2 on the day: GK, then ten outfield (band, column) pairs
 POSITIONS = bytes.fromhex("0100040404020401080210089000100410012004")[:20] + b"\x20\x01"
+# the home side's team sheet at full time: a 4-1-2-2-1, in posOrder order
+FULL_TIME = bytes.fromhex("010004088400040404010802100410012008a0004002")
 
 
 def event(kind, minute, side, tid):
@@ -46,6 +49,8 @@ def body(home, away, comp, day, year, club, goals, players, formation=b"3-1-4-2"
     struct.pack_into("<I", b, 63, players[0][0][0])            # Player of the Match
     for side, at in ((0, TEAM0), (1, TEAM0 + TEAM)):
         b[at + 3] = goals[1 - side]
+        if side == 0:
+            b[at + 30:at + 52] = FULL_TIME
         b[at + 52] = goals[side]
         for k in range(MT.PLAYER_SLOTS):
             used = players[side][k] if k < len(players[side]) else None
@@ -102,11 +107,14 @@ def test_scrape():
                               "side": 1, "tid": 201}, m["events"]
     assert [p["tid"] for p in m["home_xi"]] == [101, 102], "used slots only"
     assert [p["posOrder"] for p in m["away_xi"]] == [1]
-    assert m["formation"] == "3-1-4-2" and len(m["positions"]) == 11
-    assert m["positions"][0] == "GK", m["positions"]
+    assert m["formation"] == "3-1-4-2" and len(m["kickoff_positions"]) == 11
+    assert m["kickoff_positions"][0] == "GK", m["kickoff_positions"]
+    assert m["home_positions"] == ["GK", "DR", "DL", "DC", "DC", "DMC", "MC", "MC", "AMR",
+                                   "AML", "FC"], m["home_positions"]
+    assert m["away_positions"] is None, "an unwritten team sheet is not eleven positions"
     assert ms[1]["home_flag"] == 0 and ms[1]["score"] == {"home": 0, "away": 2}
     assert ms[2]["events"] == []
-    print("  PASS events, stored score, used slots, formation and positions per match")
+    print("  PASS events, stored score, used slots, kick-off formation, full-time positions")
 
 
 def test_invariant():
