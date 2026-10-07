@@ -157,15 +157,16 @@ function headline(world, H) {
       deltaCell(delta(H, H.club(club.tid).reputation))));
   }
   if (nation) {
-    // each rank with its own season's move, so the UEFA one can't read as the world one's
+    // a rank's move as places climbed (+), the same way round as the tables' ± rank
     const h = H.nation(nation.name);
     const moved = (vs) => deltaCell(delta(H, vs) == null ? null : -delta(H, vs));
-    tiles.push(el("div.kpi.wkpi", {}, [
-      el("span", { text: nation.name }),
-      el("b", { text: `#${nation.rank}` }),
-      el("div.wsub", {}, ["in the world ", moved(h.world_rank),
-        ...(nation.uefa_rank ? [el("br"), `UEFA #${nation.uefa_rank} `, moved(h.uefa_rank)] : [])]),
-    ]));
+    tiles.push(tile(nation.name, `#${nation.rank}`,
+      `in the world · ${num(nation.points)} pts`, moved(h.world_rank)));
+    if (nation.uefa_rank) {
+      const members = (world.nations || []).filter((n) => n.uefa_rank != null).length;
+      tiles.push(tile(`${nation.name} · UEFA`, `#${nation.uefa_rank}`,
+        `of ${members} · coef ${num(h.coefficient_5.at(-1), 3)}`, moved(h.uefa_rank)));
+    }
   }
   return tiles.length ? el("div.kpis", {}, tiles) : el("div");
 }

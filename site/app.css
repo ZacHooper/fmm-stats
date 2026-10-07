@@ -439,3 +439,6 @@ button.hcinfo:hover,button.hcinfo.on{border-color:var(--accent2);color:var(--acc
 @media(pointer:coarse){button.hcinfo{position:relative}
   button.hcinfo::after{content:"";position:absolute;inset:-8px}}
 td.strong{font-weight:700}
+/* the World headline: one row on a desktop, two by two on a phone */
+.wkpi{flex:1 1 0}
+@media(max-width:620px){.wkpi{flex:1 1 calc(50% - 4px)}}
