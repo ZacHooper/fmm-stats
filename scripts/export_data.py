@@ -34,6 +34,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
@@ -172,6 +173,7 @@ INDEX_CAVEATS = [
 
 
 def main():
+    t0 = time.time()
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--career")
@@ -612,6 +614,7 @@ def main():
             return 1
         print("  immersion check: no raw-ability key in any exported file ✓")
     con.close()
+    print(f"done: {len(written)} endpoints exported in {time.time() - t0:.1f}s")
     return 0
 
 
