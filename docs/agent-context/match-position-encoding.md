@@ -1,8 +1,41 @@
-# Match position encoding — SOLVED (2026-08-29)
+# Match position encoding
 
-**Every starter's on-pitch position (GK/DR/DL/DC/DMC/DML/DMR/MR/ML/MC/AMR/AML/AMC/FC) is in the
-save, immediately after the formation string.** It is NOT in the per-player stat block — that was
-checked exhaustively first and is a dead end (see "What is NOT there").
+**Each starter's position is in his side's TEAM HEAD, at +30: 11 × `[band][column]` pairs in
+posOrder order, the full-time team sheet.** It is what the post-match stats screen shows,
+row for row. The match tail's +69 array (after the formation string) is a different thing:
+our side's **kick-off** formation, in that formation's own slot order. It does not say which
+player took which slot. Reading a player's position as `tail[posOrder - 1]` is right only
+when nothing changed in the match, and wrong in about 40% of ours.
+
+## Each player's position: the team head (2026-10-07)
+
+`fmparser/tables/matches.py` `TEAM_HEAD`, per side (home block, then away block):
+
+| offset | bytes | |
+|---|---|---|
+| +6  | 22 | the same 11 pairs, or `0xff` throughout (friendlies and reserve fixtures) |
+| +28 | 2  | unnamed |
+| +30 | 22 | `positions`: 11 × (band, column), in posOrder order, always written |
+
+Same pair encoding as below. **Both sides have it**: the opponent's block carries the
+opponent's eleven positions too (all 70 Bucaspor and 126 Frem matches checked decode to 11
+valid positions on both sides). So the claim that only our shape is stored is wrong.
+
+**Why the tail array misleads.** The game re-sorts the team sheet by position after an
+in-match change, and the match record keeps that full-time order for posOrder. The tail
+keeps the kick-off formation. Once the shape changes, the k-th name and the k-th kick-off
+slot no longer belong together. Ground truth, Frem 1-4 Brøndby, 2028-04-10 (the stats
+screenshot): the tail holds 4-2-3-1 (`… 10 04 10 01 20 08 a0 00 20 02 40 02`). The screen
+and the team head both read GK DR DL DC DC **DMC MC MC AMR AML FC**: Kaiser, Chukwuani,
+Garly, Sidhu, Behrndtz, Nordberg. Reading the tail made Garly AMR, Sidhu AML and Behrndtz AMC.
+
+**Measured over 180 Frem matches (four saves, 2024–2028):** a best-fit assignment of the XI
+to the array, by each player's own position familiarity, beats the stored order by 25+ points
+on **72 matches read from the tail** and **1 read from the team head** (a pre-season
+friendly). The team head is a perfect fit on 153. This uses familiarity only as a check, and
+it agrees with the screenshot.
+
+The sections below on the tail stay accurate for what the tail is: the kick-off shape.
 
 ## The encoding
 
@@ -57,35 +90,24 @@ def fm_position(band_byte, col_byte):
   across ten distinct shapes (4-4-2, 4-1-2-2-1, 3-2-2-1-2, 5-1-2-1-1, 4-2-2-2, 3-3-2-2, …). This
   is a free, self-contained regression test — no screenshots needed.
 
-## The trap: the save stores ONE moment (the START), the stats screen can show another
+## The tail stores the kick-off moment; the stats screen shows full time (the team head)
 
-**If the manager changes formation mid-match — including reshuffling roles around a
-substitution — the stored formation + slot array will NOT match the post-match stats screen.**
-Two confirmed cases:
+The tail's formation string and slot array are the shape the side **kicked off** in. A
+formation change or a reshuffle around a substitution leaves them as they were. The post-match
+stats screen shows the full-time team sheet, which is the team head's `positions`.
+Confirmed cases where the two differ:
 
-- **Vejle, 2024-11-10**: stored `3-2-2-1-2`, in-game tactics screenshot showed `3-1-4-2`.
-- **Frem 1-3 FCN, 2024-08-04**: stored `5-1-2-1-1` (verified against 3 independent checks —
-  unique anchor for that date, header tids/score exact match to the screenshot, formation
-  marker 1,187 B clear of the next match), full-time screenshot showed `4-1-2-2-1` (Ellegaard
-  AMR / Tånnander AML, not the AMC + 5th CB the save stores). Manager confirmed he subbed Garly
-  for Ellegaard and reshuffled others around it.
+- **Vejle, 2024-11-10**: tail `3-2-2-1-2`, in-game tactics screenshot `3-1-4-2`.
+- **Frem 1-3 FCN, 2024-08-04**: tail `5-1-2-1-1`, full-time screenshot `4-1-2-2-1` (the manager
+  subbed Garly for Ellegaard and reshuffled around it).
+- **Frem 1-4 Brøndby, 2028-04-10**: tail `4-2-3-1`, full-time screenshot and team head
+  `4-1-2-2-1` (above).
 
-**Searched the whole match span for a second formation record and found none** — one
-`FORMATION_MARKER` occurrence only, and the 22-byte slot array is immediately duplicated once
-(same bytes, twice) rather than a second, later state. **The save appears to commit to a single
-formation — most likely the starting XI's shape — and never revisits it.** That is the working
-theory, not a proven fact: we have not found a change-event to positively confirm it, only the
-absence of a second array in every match checked so far.
-
-**Practical consequence: treat every decoded position as "who started where," full stop.** There
-is currently no way to recover a mid-match reshuffle from the save, and no way to tell, from the
-byte data alone, whether a given match had one. A full-time stats screenshot is therefore
-**only valid ground truth if the manager is sure nothing changed that game** — a pre-kickoff
-Tactics → Formation screenshot is safer, since it can't be contaminated by in-match changes.
-
-**Always validate the decode against the save's own formation string (34/34, self-checking) as
-the first check, since it needs no screenshot at all.** See [[ground-truth-beats-my-parse]] — that
-note still holds, but the ground truth here has to be a moment-matched one.
+The tail has one formation record per match. Its slot array is duplicated once at +102, byte for
+byte. **Validate a decode against a screenshot of the same moment:** a full-time stats screen
+against the team head, and a pre-kick-off Tactics → Formation screen against the tail. Collapsing
+the tail's 11 bands back into a formation string reproduces the stored string (34/34). That
+check needs no screenshot.
 
 ## Known limitation: bands with 4+ members lose the inner left/right split
 
@@ -112,14 +134,12 @@ that uses the full ordinal rank, not just the two edges, once there's enough gro
 the right mapping (rank 0 of N → leftmost, rank N-1 of N → rightmost, for whatever N that match's
 band actually has).
 
-## Positions are STARTING positions only — nothing past kick-off is recoverable
+## The tail is the kick-off shape only (each player's full-time position is the team head)
 
-See "The trap" above for the full story. The load-bearing rule for any consumer of `position`:
-**it describes who started where, and that is the only thing the save commits to.** A manager
-reshuffling around a substitution (confirmed real example: subbing a DM off for an AM and moving
-players to cover) changes nothing in the stored array. Do not read `position` as "what this player
-did all match," and do not use a full-time stats screenshot as ground truth unless the manager
-confirms nothing changed that game.
+`mart.fact_player_match.position` is the team head's: where each starter **finished**, the
+same as the post-match stats screen. Who started where, after a mid-match change, is not
+recorded. The kick-off formation is, but the full-time team sheet is the only player order
+the match keeps.
 
 ## Reserve fixtures have no positions at all
 

@@ -232,6 +232,10 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
   most named-competition matches -- has nothing left to serve. Remove it.
 - **Surface Player of the Match**: `raw.matches.player_of_match` is the game's own pick,
   in the store since 2026-09-30; nothing reads it yet. Add it to `mart.matches`.
+- **Opposition positions**: `matches.json` carries both sides' full-time positions
+  (`home_positions` / `away_positions`, the team head's +30), but the loader keeps the
+  opponent's `position` NULL. Fill it so scouting and `match_ratings` can split the opposition
+  by position. Check the reserve fixtures first: AI-managed sides may carry a default shape.
 - **The match record** (`tables/matches.py`): the event's last 8 bytes (two u32, never a tid
   of the match), the player slot's 33 unnamed bytes (+54..61 two more u32; +2 equals the
   opponent's score on the goalkeeper's slot), the team head and tail (75 and 46 bytes), the

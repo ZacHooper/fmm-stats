@@ -22,12 +22,13 @@ BODY, 5,093 bytes:
                                   equal the counted list, the rest are unwritten or stale
     +928  2 x TEAM block          home then away, each [77 B team head]
                                   [20 x player slot, 62 B][46 B team tail]
-   +3654  TAIL, 1,439 B           our side's formation string and its 11 starting positions
+   +3654  TAIL, 1,439 B           our side's kick-off formation string and its 11 slots
 
 A player slot is preallocated: an unused one keeps its slot number (`posOrder`) and has tid
 0xffffffff. Sixteen slots are always used, eighteen in most competitions, twenty in
-friendlies. Only OUR side's shape is stored (the formation and positions in the tail): the
-body's `club_tid` is the managed club or its reserve side, whichever played.
+friendlies. Each team head carries that side's eleven full-time positions in posOrder order;
+the tail adds OUR side's kick-off formation. The body's `club_tid` is the managed club or its
+reserve side, whichever played.
 
 Found by any row -- a row's body carries the formation marker at a fixed offset, and the
 row's own head/body repeat proves it -- then walked back to row 0, whose count byte must
@@ -119,10 +120,16 @@ BODY_HEAD = Record("match_body_head", 78, [
     Field(67, 11, UNKNOWN, RAW),
 ])
 
+# `positions` is the side's eleven positions at full time, in posOrder order: the team sheet
+# the post-match stats screen shows, which the game re-sorts by position after an in-match
+# change. +6 holds the same 22 bytes, or 0xff throughout on friendlies and reserve fixtures.
 TEAM_HEAD = Record("match_team_head", 77, [
     Field(0,  3, UNKNOWN, RAW),
     Field(3,  1, "goals_against", U8, note="= the other team block's goals"),
-    Field(4,  48, UNKNOWN, RAW),
+    Field(4,  2, UNKNOWN, RAW),
+    Field(6,  22, UNKNOWN, RAW, note="= positions, or all 0xff"),
+    Field(28, 2, UNKNOWN, RAW),
+    Field(30, 22, "positions", RAW, note="11 x (band, column): primitives.pitch_position"),
     Field(52, 1, "goals", U8, note="the side's score, own goals for it included"),
     Field(53, 24, UNKNOWN, RAW),
 ])
@@ -163,8 +170,10 @@ TEAM_TAIL = Record("match_team_tail", 46, [
     Field(20, 26, UNKNOWN, RAW),
 ])
 
-# The tail is OUR side's shape. `positions` is 11 (band, column) pairs, one per starting
-# slot in posOrder order -- the only place a player's on-pitch position is stored
+# The tail is OUR side's kick-off shape: the formation string and its 11 (band, column)
+# slots in the formation's own slot order. It does not say which player took which slot: the
+# team sheet (posOrder) is the full-time one, so after an in-match change it no longer lines
+# up with these slots -- each player's position is the team head's `positions`
 # (docs/agent-context/match-position-encoding.md). +220..+1182 is a grid of u16 coordinates.
 MATCH_TAIL = Record("match_tail", 1439, [
     Field(0,    5,   UNKNOWN, RAW),
@@ -177,7 +186,7 @@ MATCH_TAIL = Record("match_tail", 1439, [
     Field(26,   7,   UNKNOWN, PAD),
     Field(33,   4,   UNKNOWN, PAD, note="the formation marker 76 b9 f4 07"),
     Field(37,   32,  "formation", RAW, note="ASCII, zero-padded: '4-2-3-1'"),
-    Field(69,   22,  "positions", RAW, note="11 x (band, column): primitives.pitch_position"),
+    Field(69,   22,  "kickoff_positions", RAW, note="11 x (band, column): the formation's slots"),
     Field(91,   13,  UNKNOWN, PAD),
     Field(104,  20,  UNKNOWN, RAW),
     Field(124,  96,  UNKNOWN, PAD),
@@ -294,6 +303,12 @@ def matches_table_spans(mm: Any) -> List[Tuple[int, int]]:
 _EVENT_KEYS = ("b0", "type_byte", "minute", "added", "side", "tid")
 
 
+def _positions(pairs: bytes) -> Optional[List[str]]:
+    """Eleven (band, column) pairs as position codes; None if any pair is not a position."""
+    positions = [pitch_position(pairs[2 * i], pairs[2 * i + 1]) for i in range(11)]
+    return None if None in positions else positions
+
+
 def _match(r: Dict[str, Any]) -> Dict[str, Any]:
     try:
         date = (datetime.date(r["year"], 1, 1)
@@ -301,8 +316,6 @@ def _match(r: Dict[str, Any]) -> Dict[str, Any]:
     except ValueError:
         date = None
     home, away = r["teams"]
-    pos = r["positions"]
-    positions = [pitch_position(pos[2 * i], pos[2 * i + 1]) for i in range(11)]
     return {
         "offset": r["offset"],
         "date": date,
@@ -315,7 +328,9 @@ def _match(r: Dict[str, Any]) -> Dict[str, Any]:
         "score": {"home": home["goals"], "away": away["goals"]},
         "player_of_match": r["player_of_match"],
         "formation": r["formation"].rstrip(b"\x00").decode("ascii"),
-        "positions": None if None in positions else positions,
+        "kickoff_positions": _positions(r["kickoff_positions"]),
+        "home_positions": _positions(home["positions"]),
+        "away_positions": _positions(away["positions"]),
         "events": [{k: e[k] for k in _EVENT_KEYS} for e in r["events"]],
         "home_xi": [p for p in home["players"] if p["tid"] != NO_PLAYER],
         "away_xi": [p for p in away["players"] if p["tid"] != NO_PLAYER],
