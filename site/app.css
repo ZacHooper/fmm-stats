@@ -431,3 +431,10 @@ span.hc.on{color:var(--accent2);border-bottom:2px solid var(--accent2);font-weig
 .hcarrow{position:absolute;left:var(--ax,50%);top:-6px;width:10px;height:10px;margin-left:-5px;
   background:var(--card);border:1px solid var(--line);border-right:0;border-bottom:0;transform:rotate(45deg)}
 .hcard.above .hcarrow{top:auto;bottom:-6px;transform:rotate(225deg)}
+button.hcinfo{margin-left:7px;width:18px;height:18px;padding:0;border-radius:50%;cursor:pointer;
+  border:1px solid var(--line);background:var(--bg);color:var(--dim);font:italic 600 11px/16px Georgia,serif;
+  vertical-align:middle;flex:none}
+button.hcinfo:hover,button.hcinfo.on{border-color:var(--accent2);color:var(--accent2)}
+/* a 18px dot is too small a target for a thumb: widen the hit area without the visual */
+@media(pointer:coarse){button.hcinfo{position:relative}
+  button.hcinfo::after{content:"";position:absolute;inset:-8px}}

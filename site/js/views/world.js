@@ -508,7 +508,7 @@ function nationsPanel(world, H) {
                render: (r) => deltaCell(r.dRank == null ? null : -r.dRank),
                help: "Places climbed (+) or dropped (−) over the last season" },
       name: { label: "Nation", get: (r) => r.name,
-              render: (r) => el("span", {}, [r.name, r.name === ourName ? pill(" us", "good") : null]) },
+              render: (r) => el("span", {}, [r.name, r.name === ourName ? pill(" us", "good") : null, coefInfo(r)]) },
       points: { label: "Points", align: "num", get: (r) => r.points },
       dPts: { label: "± pts", align: "num", get: (r) => r.dPts, render: (r) => deltaCell(r.dPts),
               help: "Ranking points change over the last season" },
@@ -541,8 +541,8 @@ function nationsPanel(world, H) {
     ],
     note: "World ranking + UEFA-style coefficient (sum of the nation's own competition history), "
       + "parsed from the save's national-team records. Only ranked nations are shown. "
-      + "<b>5 seasons</b> sums the last five completed seasons; hover or tap either coefficient "
-      + "for the season-by-season breakdown. Only European coefficients move during the save — "
+      + "<b>5 seasons</b> sums the last five completed seasons; hover or tap either coefficient, "
+      + "or the ⓘ beside a nation's name, for the season-by-season breakdown. Only European coefficients move during the save — "
       + "every other nation's is the game's starting value, never updated. "
       + "On the chart, <b>Rank</b> is drawn with #1 at the top.",
   });
@@ -570,6 +570,16 @@ function coefCell(n, v) {
   const node = el("span.hc", { text: num(v, 1), tabindex: "0" });
   if (n.seasons) hoverCard(node, () => coefCard(n));
   return node;
+}
+
+/** The same breakdown from a button beside the nation's name — on a phone the coefficient
+ *  columns sit off-screen to the right, and the rest of the row toggles the chart. */
+function coefInfo(n) {
+  if (!n.seasons) return null;
+  const b = el("button.hcinfo", { type: "button", text: "i", title: `${n.name}: coefficient by season`,
+    "aria-label": `${n.name}: coefficient by season` });
+  hoverCard(b, () => coefCard(n));
+  return b;
 }
 
 function coefCard(n) {
