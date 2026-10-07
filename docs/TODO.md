@@ -431,6 +431,12 @@ Then delete the script, and point the CLAUDE.md "after editing" command at `dbt 
 
 ---
 
+## Site
+
+Nothing open.
+
+---
+
 ## Docs
 
 ### 22. Rewrite the docs around the three functions
