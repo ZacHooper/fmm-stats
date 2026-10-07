@@ -512,14 +512,17 @@ function nationsPanel(world, H) {
       points: { label: "Points", align: "num", get: (r) => r.points },
       dPts: { label: "± pts", align: "num", get: (r) => r.dPts, render: (r) => deltaCell(r.dPts),
               help: "Ranking points change over the last season" },
-      coefficient: { label: "Coefficient", align: "num", get: (r) => r.coefficient, dp: 1 },
+      coefficient: { label: "Coefficient", align: "num", get: (r) => r.coefficient,
+                     render: (r) => coefCell(r, r.coefficient), help: "Sum of every season the save keeps (ten, plus the one in progress) — hover or tap for the seasons" },
+      coef5: { label: "5 seasons", align: "num", get: (r) => coefSum(r, 5),
+               render: (r) => coefCell(r, coefSum(r, 5)), help: "Coefficient over the last five completed seasons — hover or tap for the seasons" },
       dCoef: { label: "± coef", align: "num", get: (r) => r.dCoef, render: (r) => deltaCell(r.dCoef, { dp: 1 }),
                help: "Coefficient change over the last season" },
       trend: { label: "Trend", get: (r) => r.dPts, sort: (r) => r.dPts,
                render: (r) => sparkline(r.hist.ranking_points, { w: 64, h: 16 }), help: "Ranking points across every snapshot" },
       rival: { label: "Rival", get: (r) => r.rival },
     },
-    defaults: ["rank", "dRank", "name", "points", "dPts", "trend", "coefficient", "dCoef", "rival"],
+    defaults: ["rank", "dRank", "name", "points", "dPts", "trend", "coef5", "coefficient", "dCoef", "rival"],
     sort: { by: "rank", dir: "asc" },
     searchPlaceholder: "Search nations…",
     initial: () => {
@@ -538,10 +541,97 @@ function nationsPanel(world, H) {
     ],
     note: "World ranking + UEFA-style coefficient (sum of the nation's own competition history), "
       + "parsed from the save's national-team records. Only ranked nations are shown. "
+      + "<b>5 seasons</b> sums the last five completed seasons; hover or tap either coefficient "
+      + "for the season-by-season breakdown. Only European coefficients move during the save — "
+      + "every other nation's is the game's starting value, never updated. "
       + "On the chart, <b>Rank</b> is drawn with #1 at the top.",
   });
   return panelWrap(`World ranking · ${rows.length} nations`, node);
 }
+
+// --------------------------------------------------------------------------- coefficients
+/** The completed seasons of a nation's coefficient history, newest first: [{label, v}].
+ *  `seasons` is oldest first with the season in progress last; `season` is the end year of the
+ *  newest completed one (null where the history never moves, so no season can be named). */
+function completedSeasons(n) {
+  const s = n.seasons || [];
+  const done = s.slice(0, -1).reverse();
+  return done.map((v, k) => {
+    const end = n.season != null ? n.season - k : null;
+    return { v, label: end != null ? `${String(end - 1).slice(2)}/${String(end).slice(2)}` : `${k + 1} back` };
+  });
+}
+const coefSum = (n, k) => (n.seasons ? completedSeasons(n).slice(0, k).reduce((a, x) => a + x.v, 0) : null);
+
+/** A coefficient that opens its season-by-season breakdown: on hover where there is hover, on a
+ *  tap everywhere. The tap is kept from the row, which would otherwise toggle its chart line. */
+function coefCell(n, v) {
+  if (v == null) return el("span.dim", { text: DASH });
+  const node = el("span.hc", { text: num(v, 1), tabindex: "0" });
+  if (n.seasons) hoverCard(node, () => coefCard(n));
+  return node;
+}
+
+function coefCard(n) {
+  const done = completedSeasons(n).slice(0, 10);
+  const live = (n.seasons || []).at(-1);
+  const max = Math.max(...done.map((x) => x.v), live || 0) || 1;
+  const row = (label, v, cls = "") => el(`tr${cls}`, {}, [
+    el("td", { text: label }),
+    el("td.cbar", {}, [el("span", { style: `width:${((100 * v) / max).toFixed(0)}%` })]),
+    el("td.num", { text: num(v, 2) }),
+  ]);
+  const tot = (k) => el("div.ctot", {}, [el("span", { text: `Last ${k} seasons` }),
+    el("b", { text: num(done.slice(0, k).reduce((a, x) => a + x.v, 0), 2) })]);
+  return [
+    el("strong", { text: `${n.name} · coefficient` }),
+    el("div.ctots", {}, [tot(5), tot(10)]),
+    el("table.ctable", {}, [el("tbody", {}, [
+      live ? row(n.season != null ? `${String(n.season).slice(2)}/${String(n.season + 1).slice(2)} so far` : "In progress", live, ".now") : null,
+      ...done.map((x, k) => row(x.label, x.v, k === 4 ? ".cut" : "")),
+    ])]),
+    n.live ? null : el("p.note", { text: "The game's starting values — this nation's coefficient never changes in the save." }),
+  ];
+}
+
+let openCard = null;
+/** A small floating card for `anchor`, built by `build()` each time it opens. Fixed-position on
+ *  the page rather than inside the anchor, so a table's scroll box can't clip it. */
+function hoverCard(anchor, build) {
+  let card = null, pinned = false;
+  const close = () => { card?.remove(); card = null; pinned = false; if (openCard?.anchor === anchor) openCard = null; };
+  const open = () => {
+    if (card) return;
+    if (openCard) openCard.close();
+    card = el("div.hcard", {}, build());
+    document.body.append(card);
+    openCard = { anchor, close, place };
+    place();
+  };
+  // Beside the anchor, below it if it fits; follows it on scroll, and closes once it's gone.
+  function place() {
+    if (!card) return;
+    const r = anchor.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    if (r.bottom < 0 || r.top > vh || !anchor.isConnected) { close(); return; }
+    card.style.left = `${Math.max(8, Math.min(r.right - w, vw - w - 8))}px`;
+    card.style.top = `${r.bottom + 6 + h <= vh ? r.bottom + 6 : Math.max(8, r.top - h - 6)}px`;
+  }
+  if (matchMedia("(hover: hover)").matches) {
+    anchor.addEventListener("pointerenter", open);
+    anchor.addEventListener("pointerleave", () => { if (!pinned) close(); });
+  }
+  anchor.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (card && pinned) { close(); return; }
+    open(); pinned = true;
+  });
+  anchor.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); anchor.click(); } });
+}
+// One card at a time; a tap elsewhere or Escape closes it.
+document.addEventListener("click", (e) => { if (openCard && !e.target.closest(".hcard")) openCard.close(); });
+addEventListener("scroll", () => openCard?.place(), { passive: true, capture: true });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") openCard?.close(); });
 
 /** A panel's title over its table + chart. */
 function panelWrap(title, node) {

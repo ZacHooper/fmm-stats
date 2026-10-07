@@ -527,6 +527,11 @@ def main():
     nations = [{"name": r["name"], "rank": r["world_rank"],
                 "points": None if r["ranking_points"] is None else float(r["ranking_points"]),
                 "coefficient": None if r["coefficient"] is None else float(r["coefficient"]),
+                # per season, oldest first, the last the season in progress; `season` is the
+                # end year of the newest completed one, `live` whether the game updates them
+                "seasons": [num(round(float(v), 2)) for v in r["coefficient_history"] or []]
+                if any(r["coefficient_history"] or []) else None,
+                "season": r["coefficient_season"], "live": bool(r["coefficient_is_live"]),
                 "rival": r["rival"]}
                for r in s.rows("SELECT * FROM site.nations WHERE snapshot_date = ? "
                                "ORDER BY world_rank, name", [d])]
@@ -615,7 +620,10 @@ def main():
                                 "players": list(r["players"]), **place(r)}
                                for r in origins if r["latitude"] is not None]},
         "origins_unresolved": unresolved,
-        "note": "Nations: world ranking + UEFA coefficient (mart.nations). Maps: club stadiums "
+        "note": "Nations: world ranking + UEFA coefficient (mart.nations); `seasons` is the "
+                "coefficient per season, oldest first, the last the season in progress, `season` "
+                "the end year of the newest completed one, `live` false where the game never "
+                "updates them. Maps: club stadiums "
                 "in our nation's leagues, and our current squad's resolved origin clubs — a "
                 "player's origin club can't always be resolved ("
                 f"{unresolved} of the current squad aren't shown on the origins map for that "

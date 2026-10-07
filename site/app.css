@@ -407,3 +407,23 @@ svg.lchart .hit{fill:transparent;cursor:crosshair}
 .lcrow{display:flex;align-items:center;gap:6px}
 .lcrow i.sw{display:inline-block;width:9px;height:9px;border-radius:50%}
 .lcrow .v{margin-left:auto;padding-left:12px;font-weight:600;font-variant-numeric:tabular-nums}
+span.hc{cursor:pointer;border-bottom:1px dotted var(--dim)}
+span.hc:hover{color:var(--accent2);border-bottom-color:var(--accent2)}
+.hcard{position:fixed;z-index:60;width:260px;max-width:calc(100vw - 16px);background:var(--card);
+  border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:12.5px;
+  box-shadow:0 6px 22px rgba(0,0,0,.18)}
+.hcard .note{margin-top:8px}
+.ctots{display:flex;gap:8px;margin:8px 0}
+.ctot{flex:1;background:var(--bg);border-radius:8px;padding:5px 8px}
+.ctot span{display:block;color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.ctot b{font-size:16px;font-variant-numeric:tabular-nums}
+.ctable{width:100%;border-collapse:collapse}
+.ctable td{padding:2px 0;border:0;position:static;background:none}
+.ctable td:first-child{color:var(--dim);width:72px;white-space:nowrap}
+.ctable td.num{width:44px;font-weight:600}
+.ctable td.cbar{padding:0 8px}
+.ctable td.cbar span{display:block;height:7px;border-radius:0 4px 4px 0;background:var(--s0);min-width:1px}
+.ctable tr.now td.cbar span{background:var(--dim);opacity:.5}
+.ctable tr.now td:first-child{font-style:italic}
+.ctable tr.cut td{border-bottom:1px dashed var(--line)}
+.ctable tr.cut + tr td{padding-top:4px}
