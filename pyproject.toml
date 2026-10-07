@@ -18,9 +18,8 @@ dependencies = [
 # package = false: this is a workspace of scripts, not an installable package.
 [tool.uv]
 package = false
-# The loader builds the stg/int models with dbt (transform/), so the dbt group is installed by
-# default: `uv run` syncs to the default groups and would drop a non-default one. A machine
-# that only queries a built store (fmq.py) can leave it out with `uv sync --no-group transform`.
+# The loader builds the stg/int models with dbt (fmstats/), so the dbt group is installed by
+# default. An environment that only runs extract needs no duckdb or dbt.
 default-groups = ["transform"]
 
 [dependency-groups]
