@@ -391,7 +391,9 @@ the flag that never cleared: the "SET-ONLY" notes and the `ever_loaned_in` run e
 `dashboard/db.py`. Port onto `fmstats` (`store.open_store()`, `scout.effective_table`,
 `stats.player_output`). The `attribute-profiles` skill calls scripts deleted in #82/#73
 (`export_attribute_lab.py`, `check_rating_parity.py`, `import_weight_set.py`): restore them
-from git or rewrite the skill.
+from git or rewrite the skill. The `query-fm-data` skill is stale too: it steers queries to
+`site.*` and the mart-only object (`fm-frem-mart.duckdb`) rather than the `mart` facts and dims,
+and still describes the `staging` schema name the republished copies no longer use.
 
 ### 20. Mart candidates left out on size
 Squad moves between consecutive snapshots (on `mart.club_roster`, scoped to clubs we have
