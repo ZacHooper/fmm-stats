@@ -1,6 +1,6 @@
 # Data layers: extract dumps tables, the store models them (2026-10-01)
 
-> **Status (2026-10-03): in progress. Done: steps 1–16; 17–20 replanned to build the new consumer views beside the old ones and prove them on a new save before switching; the stg/int layers are a dbt project (`transform/`).**
+> **Status (2026-10-07): done. Steps 17–20 landed as #145–#149; the layers are the dbt project `fmstats/`. What is left over is in `docs/TODO.md`.**
 >
 > **Goal:** two halves of one job. `extract.py` becomes a flat list of `dump(TABLE.scrape(mm))`
 > steps that hand over every table as the save stores it, with no joins, lookups, labels or
