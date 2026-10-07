@@ -427,3 +427,7 @@ span.hc:hover{color:var(--accent2);border-bottom-color:var(--accent2)}
 .ctable tr.now td:first-child{font-style:italic}
 .ctable tr.cut td{border-bottom:1px dashed var(--line)}
 .ctable tr.cut + tr td{padding-top:4px}
+span.hc.on{color:var(--accent2);border-bottom:2px solid var(--accent2);font-weight:700}
+.hcarrow{position:absolute;left:var(--ax,50%);top:-6px;width:10px;height:10px;margin-left:-5px;
+  background:var(--card);border:1px solid var(--line);border-right:0;border-bottom:0;transform:rotate(45deg)}
+.hcard.above .hcarrow{top:auto;bottom:-6px;transform:rotate(225deg)}

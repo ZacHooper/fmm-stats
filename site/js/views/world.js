@@ -599,12 +599,17 @@ let openCard = null;
  *  the page rather than inside the anchor, so a table's scroll box can't clip it. */
 function hoverCard(anchor, build) {
   let card = null, pinned = false;
-  const close = () => { card?.remove(); card = null; pinned = false; if (openCard?.anchor === anchor) openCard = null; };
+  const close = () => {
+    card?.remove(); card = null; pinned = false;
+    anchor.classList.remove("on");
+    if (openCard?.anchor === anchor) openCard = null;
+  };
   const open = () => {
     if (card) return;
     if (openCard) openCard.close();
-    card = el("div.hcard", {}, build());
+    card = el("div.hcard", {}, [...build(), el("i.hcarrow")]);
     document.body.append(card);
+    anchor.classList.add("on");   // which cell the card belongs to, when it opens over others
     openCard = { anchor, close, place };
     place();
   };
@@ -614,8 +619,13 @@ function hoverCard(anchor, build) {
     const r = anchor.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
     const vw = document.documentElement.clientWidth, vh = window.innerHeight;
     if (r.bottom < 0 || r.top > vh || !anchor.isConnected) { close(); return; }
-    card.style.left = `${Math.max(8, Math.min(r.right - w, vw - w - 8))}px`;
-    card.style.top = `${r.bottom + 6 + h <= vh ? r.bottom + 6 : Math.max(8, r.top - h - 6)}px`;
+    const left = Math.max(8, Math.min(r.right - w, vw - w - 8));
+    const below = r.bottom + 8 + h <= vh;
+    card.style.left = `${left}px`;
+    card.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - h - 8)}px`;
+    // the pointer sits over the anchor's middle, on whichever edge faces it
+    card.classList.toggle("above", !below);
+    card.style.setProperty("--ax", `${Math.min(Math.max(r.left + r.width / 2 - left, 14), w - 14)}px`);
   }
   if (matchMedia("(hover: hover)").matches) {
     anchor.addEventListener("pointerenter", open);
