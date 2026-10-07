@@ -31,7 +31,7 @@ rated as (
         matches.rating,
         roles.role,
         competitions.type = 'friendly' as is_friendly
-    from {{ ref('fact_player_match') }} as matches
+    from {{ ref('int_player_matches') }} as matches
     inner join {{ ref('dim_match') }} as match_dims
         on matches.match_id = match_dims.match_id
     left join {{ ref('dim_competition') }} as competitions

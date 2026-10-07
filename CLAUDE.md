@@ -34,8 +34,8 @@ another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoi
 
 ## Answering a quick football question — use the `query-fm-data` skill, not a local rebuild
 The store is read directly with DuckDB (e.g. `python3 -c "import duckdb..."` or SQL CLI). The `query-fm-data` skill has the mart view catalogue and the ATTACH recipe. Two rules that make a query WRONG, not imprecise:
-- **Never use a bare `club_tid = <our tid>` filter for "our squad"** — a lapsed loan can leave a departed player's `club_tid` on our club indefinitely (real save data). Use `mart.squad_current` / `mart.squad_on('<date>')`, or `mart.snapshot_squad` for any other club.
-- **Macros (and views calling them, e.g. `mart.clubs` → `phase_ord`) do not resolve across an `ATTACH`** — `USE m` first and qualify nothing. Aggregate `player_seasons` BEFORE joining `at_club_spells` (one row per spell multiplies stats).
+- **Never use a bare `club_tid = <our tid>` filter for "our squad"** — a lapsed loan can leave a departed player's `club_tid` on our club indefinitely (real save data). Use `mart.mart_squad_membership WHERE is_current AND is_managed_club` (or `site.site_squad`), or `mart.mart_squad_membership WHERE is_current AND (team_tid = <opp_tid> OR club_tid = <opp_tid>)` for an opponent club.
+- **Macros do not resolve across an `ATTACH`** — `USE m` first and qualify nothing. Aggregate stats on `person_id` BEFORE joining person info.
 
 ## Three layers: extract, load, transform
 - **`fmparser/` is the E** — save bytes to `output/<label>/*.json`, one file per table as
@@ -180,7 +180,7 @@ uv run python scripts/discover_career.py <save.fms>       # find a new career's 
 
 # after editing fmstats/ models or load_duckdb.py's VIEWS
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
-uv run python tests/validate_mart.py --db fm-frem.duckdb   # assert the mart's invariants
+uv run python tests/test_boundary.py
 
 # refreshing the web app (after an import) — see docs/DEPLOY.md
 uv run python scripts/export_data.py --upload-all         # -> site/api/*.json; fails on a CA leak

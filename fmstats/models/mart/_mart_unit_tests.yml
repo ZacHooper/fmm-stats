@@ -62,11 +62,14 @@ unit_tests:
           - {team_tid: 346, club_tid: 346, is_youth_side: false}
           - {team_tid: 7296, club_tid: 346, is_youth_side: false}
           - {team_tid: 65189, club_tid: 346, is_youth_side: true}
+      - input: ref('stg_eligible_origin_clubs')
+        rows:
+          - {club_tid: 346}
     expect:
       rows:
-        - {person_id: a, origin_team_tid: 65189, origin_club_tid: 346, origin_youth_team_tid: 65189, origin_season: 2024}
-        - {person_id: b, origin_team_tid: 7296, origin_club_tid: 346, origin_youth_team_tid: null, origin_season: 2018}
-        - {person_id: c, origin_team_tid: 6863, origin_club_tid: 6863, origin_youth_team_tid: null, origin_season: 2010}
-        - {person_id: d, origin_team_tid: null, origin_club_tid: null, origin_youth_team_tid: null, origin_season: null}
-        - {person_id: e, origin_team_tid: 51, origin_club_tid: 51, origin_youth_team_tid: null, origin_season: 2015}
-        - {person_id: f, origin_team_tid: null, origin_club_tid: null, origin_youth_team_tid: null, origin_season: null}
+        - {person_id: a, origin_team_tid: 65189, origin_club_tid: 346, origin_youth_team_tid: 65189, origin_season: 2024, capital_eligible: true}
+        - {person_id: b, origin_team_tid: 7296, origin_club_tid: 346, origin_youth_team_tid: null, origin_season: 2018, capital_eligible: true}
+        - {person_id: c, origin_team_tid: 6863, origin_club_tid: 6863, origin_youth_team_tid: null, origin_season: 2010, capital_eligible: false}
+        - {person_id: d, origin_team_tid: null, origin_club_tid: null, origin_youth_team_tid: null, origin_season: null, capital_eligible: false}
+        - {person_id: e, origin_team_tid: 51, origin_club_tid: 51, origin_youth_team_tid: null, origin_season: 2015, capital_eligible: false}
+        - {person_id: f, origin_team_tid: null, origin_club_tid: null, origin_youth_team_tid: null, origin_season: null, capital_eligible: false}

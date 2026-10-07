@@ -13,7 +13,7 @@ select
     match_dims.match_date,
     ours.competition,
     matches.rating,
-    ratings.rating_adj,
+    matches.rating_adj,
     matches.goals,
     matches.assists,
     matches.minutes,
@@ -41,9 +41,5 @@ inner join {{ ref('dim_match') }} as match_dims
     on matches.match_id = match_dims.match_id
 inner join {{ ref('int_our_matches') }} as ours
     on matches.match_id = ours.match_id
-left join {{ ref('int_player_match_ratings') }} as ratings
-    on
-        matches.match_id = ratings.match_id
-        and matches.player_tid = ratings.player_tid
 cross join {{ ref('stg_career') }} as career
 where matches.appeared and matches.person_id is not null

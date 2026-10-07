@@ -153,7 +153,7 @@ SELECT * FROM m.site.players WHERE club_tid = 346 LIMIT 10;
 **Attach the DuckDB store directly.** `site-data/fm-frem.duckdb` holds both `site.*` (presentation marts backing the web app) and `mart.*` (dimensional warehouse facts and dimensions).
 
 - **`site.*` (Presentation Layer):** `site.players`, `site.squad`, `site.matches`, `site.loan_outlook`, `site.leagues`, `site.standings`, `site.clubs`. All presentation marts exclude raw ability and shape data for display.
-- **`mart.*` (Dimensional Warehouse):** `mart.dim_person`, `mart.dim_club`, `mart.dim_competition`, `mart.dim_match`, `mart.fact_player_match`, `mart.fact_player_snapshot`, `mart.squad_membership`.
+- **`mart.*` (Dimensional Warehouse):** `mart.dim_person` (includes `capital_eligible`, `origin_club_tid`), `mart.dim_club`, `mart.dim_competition`, `mart.dim_match`, `mart.fact_player_match` (includes `rating_adj`), `mart.fact_player_snapshot` (includes Level %iles in `positions`), `mart.mart_squad_membership`.
 
 ```sql
 -- who from OB has produced against us, and is still there
@@ -163,7 +163,7 @@ JOIN m.mart.dim_match match USING (match_id)
 JOIN m.mart.dim_competition comp ON comp.cid = match.cid
 JOIN m.mart.dim_person p USING (person_id)
 WHERE f.team_tid = 371 AND f.opponent_tid = 346 AND comp.type != 'friendly'
-  AND f.person_id IN (SELECT person_id FROM m.mart.squad_membership WHERE (club_tid = 371 OR team_tid = 371) AND is_current)
+  AND f.person_id IN (SELECT person_id FROM m.mart.mart_squad_membership WHERE (club_tid = 371 OR team_tid = 371) AND is_current)
 GROUP BY p.name, f.person_id
 ORDER BY goals + assists DESC;
 ```
@@ -199,8 +199,7 @@ rather than averaging the averages.
 
 **`mart.squad_on(d)` is a macro and macros do not cross an `ATTACH`** — its body looks for
 `mart.player_spells` in YOUR catalog, not in `m`. Either `USE m` first, or use
-`m.mart.squad_current` (a plain view, newest snapshot, one row per person with `is_loan_in` and
-`is_reserve`). `squad_on` returns one row per SPELL, so a borrowed player appears twice.
+`m.mart.mart_squad_membership WHERE is_current AND is_managed_club` (a plain view, newest snapshot, one row per person with `is_loan_in`).
 
 **Do not trust `raw.players.loaned_in`.** The save sets it and never clears it, so it
 accumulates: at the newest snapshot the flag claimed nine loanees where three loans were live.
@@ -269,13 +268,9 @@ for a player's season goals can come back **10-20× too high**.
    does not always get cleared when a renewal doesn't happen, so `raw.players`/
    `mart.player_snapshots`/`mart.player_position_levels` can keep listing a departed loanee at
    `club_tid = <our club>` indefinitely — confirmed against the raw `.fms` bytes, not an
-   extraction glitch. **For "who is on our books right now" (or as of any date), use
-   `mart.squad_current`** (current squad, one row per person, `is_loan_in` correct) or
-   **`mart.squad_on('<date>')`** (same question for an arbitrary date — call it after `USE m`
-   or via the `m.mart.squad_current`/`squad_on` forms, since a macro's body does not resolve
-   across an `ATTACH`). Both are built from `mart.loan_in_spells`, which requires match
-   appearance evidence before it will call someone loaned-in for a season — a lapsed loan
-   cannot come back. **Never** infer "current squad" from a raw `club_tid` filter on
+    extraction glitch. **For "who is on our books right now", use
+    `mart.mart_squad_membership WHERE is_current AND is_managed_club`** (or `site.site_squad`).
+    **Never** infer "current squad" from a raw `club_tid` filter on
    `player_snapshots`/`players`/`player_position_levels` — it will include names who left the
    club, sometimes years ago (Haarbo, Nuamah and 4 others in this store, as of writing).
 

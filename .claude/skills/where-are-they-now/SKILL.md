@@ -77,8 +77,8 @@ writing them off:
 SELECT season, phase, tid, name, club_tid, is_staff
 FROM f.raw.players WHERE tid=<tid> ORDER BY phase
 ```
-(needs the full store, `f` — `mart.squad_current`/`mart.staff` are our-club-scoped and won't
-show a player who moved to an untracked club). Three real outcomes turned up doing this, not
+(needs the full store, `f` — `mart.mart_squad_membership`/`mart.staff` are our-club-scoped and won't
+resolve former players at other clubs).
 two:
 1. **Genuinely retired** — no more rows at all, or the last rows fade out with no destination.
 2. **Became club staff** — `is_staff` flips to `True`, with a real (if obscure) `club_tid`.
@@ -89,7 +89,7 @@ two:
    changes to something `mart.clubs`/`f.raw.clubs` *can* still name, just not a club we've
    ever played or that's in our tracked leagues.
 
-A genuinely current *Frem* player has recent `mart.squad_current` rows or a still-open
+A genuinely current *Frem* player has recent `mart.mart_squad_membership` (`WHERE is_current`) rows or a still-open
 (`valid_to` `NULL`) `at_club` spell corroborated by recent minutes — check both. But "not
 current at Frem" is not the same claim as "retired," and the raw `raw.players` check above
 is the only way to tell which one it actually is.

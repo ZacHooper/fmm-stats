@@ -317,8 +317,8 @@ Eyeball it: **Team analysis** (unit filters per opponent) + the **Development / 
 
 ## Gotchas (shared with scout-opponent)
 - **`mart.player_snapshots` has NO position column** (nor `pos`) — it is the 23 attributes wide plus
-  `age`/`reputation`. Positions come from `effective_table`/`squad_frame`. And **`mart.squad_current`
-  carries no `age`** (`person_id, tid, name, club_tid, is_loan_in, is_reserve, valid_from, as_of`) —
+  `age`/`reputation`. Positions come from `effective_table`/`squad_frame`. And **`mart.mart_squad_membership`**
+  (`WHERE is_current AND is_managed_club`) determines who is currently ours: never trust raw `club_tid` alone, which can linger after loans.
   join `mart.player_snapshots` for age. Both of these cost a query on the 2026-03 run; the fuller
   table is in [`player-analysis-methods`](../../../docs/agent-context/player-analysis-methods.md).
 - **Don't hand-roll the primary-position/club filter** — `scout.squad_frame` does it and applies the

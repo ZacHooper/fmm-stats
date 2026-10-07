@@ -230,7 +230,7 @@ Two caveats recorded deliberately:
   against Technique's +0.29) — so the game charges little CA for it and our Level-%ile scouting
   *understates* pacy strikers. Do not generalise the 3 to other roles without measuring them.
 
-It re-ranked our strikers immediately. Our actual current squad at ST (`mart.squad_current`, not
+It re-ranked our strikers immediately. Our actual current squad at ST (`mart.mart_squad_membership WHERE is_current AND is_managed_club`, not
 a raw `club_tid` filter — which pollutes the list with departed loanees):
 
 | | old | new |
