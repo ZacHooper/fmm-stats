@@ -61,7 +61,7 @@ def main():
     }
 
     import yaml
-    v = yaml.safe_load(open(os.path.join(ROOT, "transform", "dbt_project.yml")))["vars"]
+    v = yaml.safe_load(open(os.path.join(ROOT, "fmstats", "dbt_project.yml")))["vars"]
     dbt = [
         ("attr_order", v["attr_order"], list(M.ATTR_ORDER)),
         ("exact_single", list(v["exact_single"]), list(M.EXACT_SINGLE)),

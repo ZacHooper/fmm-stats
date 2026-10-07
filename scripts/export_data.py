@@ -41,7 +41,7 @@ sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 from _export_db import _json_clean                                         # noqa: E402
-from fmstats import dbopen as _dbopen                                     # noqa: E402
+from dbopen import open_readonly as _open_readonly                    # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 # Absolute, because an agent that only ever saw index.json (no page it was linked from) has no
@@ -192,7 +192,7 @@ def main():
     import careers as C
     car = C.resolve_career(a.career or C.DEFAULT_CAREER)
     store = os.environ.get("FM_DUCKDB") or os.path.join(REPO, car.db)
-    con, used = _dbopen.open_readonly(store, tag="export")
+    con, used = _open_readonly(store, tag="export")
     if used != os.path.abspath(store):
         print(f"(live store is locked — exporting from a copy at {used})")
     from fmparser.model import ATTR_ORDER
