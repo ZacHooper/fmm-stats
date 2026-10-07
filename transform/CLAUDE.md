@@ -17,8 +17,7 @@ The layer rules and the semantic model this project builds are shared with `fmst
   name: `ATTACH 'copy.duckdb' AS "fm-frem"` (`select sql from duckdb_views()` shows it).
   Tables are unaffected.
 - **Generated SQL comes from the `vars`** in `dbt_project.yml` (attribute order, exact
-  attributes, record offsets), which `tests/test_boundary.py` checks against
-  `fmstats/contract.py`. Keep generated columns as SQL in the loop with plain `{% %}` tags and a
+  attributes, record offsets), which `tests/test_boundary.py` checks directly against `fmparser`.
   literal `{% if not loop.last %},{% endif %}`, not SQL built in Jinja strings.
 - **Lint and format with sqlfluff** (`.sqlfluff`: lower-case keywords, trailing commas,
   explicit aliases, 80 columns): `uv run python scripts/lint_sql.py` (`--fix` to apply). It lints

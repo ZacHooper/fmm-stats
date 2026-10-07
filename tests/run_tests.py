@@ -31,7 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKIP = 77
 
 # Tests over the published / cached store (fmq and the query layer), not the saves.
-STORE_TESTS = {"test_fmq.py"}
+STORE_TESTS = set()
 
 UNIT_TESTS = {
     "test_club_comp_unit.py",

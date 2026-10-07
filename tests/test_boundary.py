@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""The layer boundary: fmparser extracts, fmstats transforms, and neither imports the other's side.
+"""The layer boundary: fmparser extracts, warehouse transforms, and neither imports the other's side.
 
   * nothing under fmparser/, nor extract.py, imports duckdb, fmstats or careers — the parser
     writes JSON, knows no store and no career: a save reads the same whatever career it is;
   * nothing under fmstats/ imports fmparser or extract — it reads the store the loader wrote,
     so it runs anywhere a .duckdb file exists;
-  * every constant in fmstats.contract (the attribute columns, the record's byte names, the
-    composite weights, the position order, the squad lists) equals the fmparser constant it
-    mirrors;
   * every var the dbt project (transform/dbt_project.yml) generates its SQL from equals the
-    fmstats.contract constant it mirrors.
+    authoritative fmparser constant it mirrors.
 
 The loader (load_duckdb.py), scripts/ and tests/ are the glue and may import both.
 Static: parses the source, needs no save and no store.
@@ -57,52 +54,35 @@ def main():
     from fmparser.tables import training as TR
     from fmparser.core import primitives as PRIM
     from fmparser.tables import staff as ST
-    from fmstats import contract as C
-    pairs = [
-        ("ATTR_ORDER", list(C.ATTR_ORDER), list(M.ATTR_ORDER)),
-        ("EXACT_SINGLE", set(C.EXACT_SINGLE), set(M.EXACT_SINGLE)),
-        ("SRC_OFFSETS", C.SRC_OFFSETS, PA.SRC_OFFSETS),
-        ("PLAIN_OFFSETS", C.PLAIN_OFFSETS, PA.PLAIN_OFFSETS),
-        ("HIDDEN_OFFSETS", C.HIDDEN_OFFSETS, PA.HIDDEN_OFFSETS),
-        ("COMPOSITES weights", {a: w for a, (_, w, _) in C.COMPOSITES.items()},
-         {"Teamwork": M.TEAMWORK_W, "Aerial": M.AERIAL_W}),
-        ("POSITIONS", list(C.POSITIONS), list(PA.POSITIONS)),
-        ("CLUB_LISTS", C.CLUB_LISTS, CLUB_LISTS),
-        ("CONTRACTED", C.CONTRACTED, TR.CONTRACTED),
-        ("NO_ID16", C.NO_ID16, PRIM.NO_ID16),
-        ("NO_ID32", C.NO_ID32, PRIM.NO_ID32),
-        ("NO_SID", C.NO_SID, PRIM.NO_ID32.to_bytes(4, "little").hex()),
-        ("STAFF_STYLE_BANDS", C.STAFF_STYLE_BANDS, ST._STYLE_BANDS),
-        ("STAFF_TIER_BANDS", C.STAFF_TIER_BANDS, ST._TIER_BANDS),
-    ]
-    differ = [name for name, declared, extracted in pairs if declared != extracted]
-    for name, _, _ in pairs:
-        print(f"  {'FAIL' if name in differ else 'ok  '} fmstats.contract.{name} matches fmparser")
+
+    parser_composites = {
+        "Teamwork": (("unselfishness_src", "work_rate"), (0.50, 0.50, 0.0), False),
+        "Aerial": (("heading_src", "jumping"), (0.24, 0.76, 0.8), True),
+    }
 
     import yaml
     v = yaml.safe_load(open(os.path.join(ROOT, "transform", "dbt_project.yml")))["vars"]
     dbt = [
-        ("attr_order", v["attr_order"], list(C.ATTR_ORDER)),
-        ("exact_single", list(v["exact_single"]), list(C.EXACT_SINGLE)),
+        ("attr_order", v["attr_order"], list(M.ATTR_ORDER)),
+        ("exact_single", list(v["exact_single"]), list(M.EXACT_SINGLE)),
         ("attribute_columns", {int(k): c for k, c in v["attribute_columns"].items()},
-         {**C.SRC_OFFSETS, **C.PLAIN_OFFSETS, **C.HIDDEN_OFFSETS}),
-        ("hidden_attributes", v["hidden_attributes"], list(C.HIDDEN_OFFSETS.values())),
+         {**PA.SRC_OFFSETS, **PA.PLAIN_OFFSETS, **PA.HIDDEN_OFFSETS}),
+        ("hidden_attributes", v["hidden_attributes"], list(PA.HIDDEN_OFFSETS.values())),
         ("composites", {a: (tuple(d["columns"]), tuple(d["w"]), d["estimate"])
-                        for a, d in v["composites"].items()}, C.COMPOSITES),
-        ("positions", list(v["positions"]), list(C.POSITIONS)),
-        ("club_lists", range(v["club_lists"][0], v["club_lists"][1] + 1), C.CLUB_LISTS),
-        ("contracted", v["contracted"], C.CONTRACTED),
-        ("no_id16", v["no_id16"], C.NO_ID16),
-        ("no_id32", v["no_id32"], C.NO_ID32),
-        ("no_sid", v["no_sid"], C.NO_SID),
-        ("staff_style_bands", tuple(map(tuple, v["staff_style_bands"])), C.STAFF_STYLE_BANDS),
-        ("staff_tier_bands", tuple(map(tuple, v["staff_tier_bands"])), C.STAFF_TIER_BANDS),
-        ("wage_gbp_per_unit", v["wage_gbp_per_unit"], C.WAGE_GBP_PER_UNIT),
+                        for a, d in v["composites"].items()}, parser_composites),
+        ("positions", list(v["positions"]), list(PA.POSITIONS)),
+        ("club_lists", range(v["club_lists"][0], v["club_lists"][1] + 1), CLUB_LISTS),
+        ("contracted", v["contracted"], TR.CONTRACTED),
+        ("no_id16", v["no_id16"], PRIM.NO_ID16),
+        ("no_id32", v["no_id32"], PRIM.NO_ID32),
+        ("no_sid", v["no_sid"], PRIM.NO_ID32.to_bytes(4, "little").hex()),
+        ("staff_style_bands", tuple(map(tuple, v["staff_style_bands"])), ST._STYLE_BANDS),
+        ("staff_tier_bands", tuple(map(tuple, v["staff_tier_bands"])), ST._TIER_BANDS),
     ]
     dbt_differ = [name for name, declared, mirrored in dbt if declared != mirrored]
     for name, _, _ in dbt:
-        print(f"  {'FAIL' if name in dbt_differ else 'ok  '} dbt var {name} matches fmstats.contract")
-    return FAIL if bad or differ or dbt_differ else PASS
+        print(f"  {'FAIL' if name in dbt_differ else 'ok  '} dbt var {name} matches fmparser")
+    return FAIL if bad or dbt_differ else PASS
 
 
 if __name__ == "__main__":

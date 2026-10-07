@@ -123,8 +123,7 @@ Read `index.json` → `caveats` for the live list. The ones that bite hardest:
    shape and comparison; don't hang an argument on a single point.
 3. **Squad status and loan flags are unreliable.** Rank by minutes played (`matches.json`).
 4. **The save's standings records do not parse for this career.** League tables are rebuilt
-   from the world fixture list instead: `mart.league_tables` (SQL, below) or
-   `uv run python fmq.py table`. Danish tables are verified against the save's own record of
+   from the world fixture list instead (`mart.mart_standings`). Danish tables are verified against the save's own record of
    every club's final position; other countries' are not.
 5. **`clubs` in `league_fields` is the competition record's member count and is wrong** (5 for a
    12-team division). Count clubs in `core.clubs` by `league_cid` instead — that's exact.

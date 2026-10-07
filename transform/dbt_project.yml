@@ -29,8 +29,8 @@ models:
       +materialized: view
 
 vars:
-  # What the SQL is generated from: the raw schema's attribute columns and codes, mirrored
-  # from fmstats/contract.py (tests/test_boundary.py checks the two agree).
+  # What the SQL is generated from: the raw schema's attribute columns and codes,
+  # asserted directly against fmparser by tests/test_boundary.py.
   attr_order: [Aerial, Crossing, Dribbling, Shooting, Passing, Tackling, Technique,
                Aggression, Creativity, Decisions, Leadership, Movement, Positioning,
                Teamwork, Pace, Stamina, Strength, Agility, Handling, Kicking, Reflexes,
