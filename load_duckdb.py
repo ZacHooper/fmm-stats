@@ -25,6 +25,7 @@ import json
 import os
 import re
 import sys
+import time
 
 import duckdb
 import pandas as pd     # bulk-insert path in _insert(); see its docstring for why
@@ -1843,11 +1844,14 @@ def build_models(con, select=None, test=True):
         raise RuntimeError("the models are built by dbt, which needs the store as a file; "
                            "this connection is to an in-memory database")
     args = ["build" if test else "run", "--project-dir", TRANSFORM_DIR,
-            "--profiles-dir", TRANSFORM_DIR, "--quiet"]
+            "--profiles-dir", TRANSFORM_DIR]
     if select:
         args += ["--select", select]
     before = os.environ.get("FM_DUCKDB")
     os.environ["FM_DUCKDB"] = os.path.abspath(path)
+    t_dbt = time.time()
+    action = args[0]
+    print(f"  building models via dbt ({action}) in {os.path.basename(path)}...", flush=True)
     try:
         res = dbtRunner().invoke(args)
     finally:
@@ -1856,9 +1860,10 @@ def build_models(con, select=None, test=True):
         else:
             os.environ["FM_DUCKDB"] = before
     if not res.success:
-        raise RuntimeError(f"dbt {args[0]} failed: {res.exception or 'see the errors above'}")
+        raise RuntimeError(f"dbt {action} failed: {res.exception or 'see the errors above'}")
     built = [r.node.relation_name for r in res.result
              if r.node.resource_type == "model" and r.status == "success"]
+    print(f"  dbt {action} complete: {len(built)} models in {time.time() - t_dbt:.1f}s", flush=True)
     if not select:
         _drop_unbuilt(con, res.result)
     return built

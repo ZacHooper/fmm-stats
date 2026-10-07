@@ -109,6 +109,7 @@ def compact(con):
         "AND NOT starts_with(table_name, '_') ORDER BY table_name").fetchall()]
 
     done, n_src, n_rle = 0, 0, 0
+    t0_comp = time.time()
     for t in tabs:
         cols = [c for (c,) in con.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_schema = 'raw' "
@@ -117,6 +118,7 @@ def compact(con):
         if t in SKIP_RLE or not body or not {"season", "phase"} <= set(cols):
             continue
         kl = ", ".join(f'"{c}"' for c in body)
+        t_tab = time.time()
 
         con.execute(f"""CREATE TABLE raw."_rle_{t}" AS
             WITH ph AS (
@@ -140,13 +142,18 @@ def compact(con):
             raise SystemExit(f"compaction of raw.{t} is LOSSY "
                              f"(missing={miss}, extra={extra}) — refusing to publish")
 
-        n_src += con.execute(f'SELECT count(*) FROM raw."{t}"').fetchone()[0]
-        n_rle += con.execute(f'SELECT count(*) FROM raw."_rle_{t}"').fetchone()[0]
+        src_cnt = con.execute(f'SELECT count(*) FROM raw."{t}"').fetchone()[0]
+        rle_cnt = con.execute(f'SELECT count(*) FROM raw."_rle_{t}"').fetchone()[0]
+        n_src += src_cnt
+        n_rle += rle_cnt
         con.execute(f'DROP TABLE raw."{t}"')
         con.execute(f'CREATE VIEW raw."{t}" AS {expand}')
         done += 1
+        ratio = src_cnt / max(rle_cnt, 1)
+        print(f"    [{done:2d}] raw.{t:<26s} {src_cnt:>9,} -> {rle_cnt:>8,} rows ({ratio:.1f}x) [{time.time() - t_tab:.2f}s]", flush=True)
 
     con.execute("CHECKPOINT")
+    print(f"  compacted {done} tables in {time.time() - t0_comp:.1f}s", flush=True)
     return done, n_src, n_rle
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -229,12 +236,14 @@ def main():
                              f"configure the '{R2_REMOTE}' remote, or drop --upload and push "
                              f"{os.path.basename(dest)} to R2 yourself.")
         remote = f"{R2_REMOTE}/site-data/fm-{car.key}.duckdb"
-        print(f"uploading to {remote} ...")
+        print(f"uploading {os.path.basename(dest)} ({size / 1024 / 1024:.1f} MB) to {remote} ...", flush=True)
         t0 = time.time()
-        r = subprocess.run(["rclone", "copyto", dest, remote], capture_output=True, text=True)
+        r = subprocess.run(["rclone", "copyto", "--stats", "15s", "-v", dest, remote])
         if r.returncode != 0:
-            raise SystemExit(f"upload failed: {(r.stderr or '').strip()[:300]}")
-        print(f"uploaded in {time.time() - t0:.0f}s")
+            raise SystemExit(f"upload failed with exit code {r.returncode}")
+        elapsed = time.time() - t0
+        speed_mb = (size / 1024 / 1024) / max(elapsed, 0.1)
+        print(f"uploaded in {elapsed:.1f}s ({speed_mb:.1f} MB/s)", flush=True)
         return 0
     finally:
         if not keep and os.path.exists(dest):
