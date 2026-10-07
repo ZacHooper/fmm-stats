@@ -1,5 +1,4 @@
--- Each player's line in our own matches, both sides: the team he played for
--- that day, whether he started and appeared, his minutes (extra time
+-- One row per (match_id, player_tid). Minute intervals (a sub's minutes
 -- included, a sending-off ending them; stoppage time not counted) and his
 -- stats. Matches carry player lines only where dim_match.has_detail; the
 -- match's date and teams are on dim_match (match_id).
