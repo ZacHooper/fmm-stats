@@ -33,7 +33,7 @@ something, DELETE its TODO entry rather than marking it done — otherwise that 
 another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoing.
 
 ## Answering a quick football question — use the `query-fm-data` skill, not a local rebuild
-`fmq.py` reads the published R2 mart by default (`uv run python fmq.py output --season 2024 --include-departed`, `matches --opp OB`, `table --season 2026`, `sql "..."`). The `query-fm-data` skill has the mart view catalogue and the ATTACH recipe. Two rules that make a query WRONG, not imprecise:
+The store is read directly with DuckDB (e.g. `python3 -c "import duckdb..."` or SQL CLI). The `query-fm-data` skill has the mart view catalogue and the ATTACH recipe. Two rules that make a query WRONG, not imprecise:
 - **Never use a bare `club_tid = <our tid>` filter for "our squad"** — a lapsed loan can leave a departed player's `club_tid` on our club indefinitely (real save data). Use `mart.squad_current` / `mart.squad_on('<date>')`, or `mart.snapshot_squad` for any other club.
 - **Macros (and views calling them, e.g. `mart.clubs` → `phase_ord`) do not resolve across an `ATTACH`** — `USE m` first and qualify nothing. Aggregate `player_seasons` BEFORE joining `at_club_spells` (one row per spell multiplies stats).
 
@@ -51,11 +51,10 @@ another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoi
 - **`transform/` and `fmstats/` are the T, and the semantic model
   ([`docs/data-model/`](docs/data-model/README.md)) is their foundation.** `transform/` is a
   **dbt** project building raw → stg → int → the model's `dim_*`/`fact_*` tables in `mart`,
-  and presentation marts in `site.*`. Consumers (`export_data.py`, `fmq`, `scout`, `stats`)
+  and presentation marts in `site.*`. Consumers (`export_data.py`, scripts, and agents)
   read directly from `site.*` and `mart.*`. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either** — it
-  loads automatically under both directories and carries the model, where the refactor stands,
-  and the rules. fmstats imports neither fmparser nor `extract`: it reads a `.duckdb` file,
-  local or the R2 copy, and `fmq` needs no dbt (only the loader builds the models). The raw
+  explains the schemas and the rules. `fmstats/store.py` opens a store, whether the
+  local or the R2 copy. The raw
   schema plus `fmstats/contract.py` (the attribute column names) is the whole interface.
 
 `tests/test_boundary.py` enforces both import rules. A fact only the parser knows reaches
@@ -96,7 +95,7 @@ is the regression test: a no-op export must produce a no-op diff.
 - **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`; numpy (used by `fmparser/tables/history.py`) is in the uv env, so no system python is needed.
 - **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. If zstandard (the save archive's codec) is somehow missing, extract stops with a message rather than write empty fixture files (`--no-archive` goes on without them).
 - **`fmq.py` and the `fmstats/` package are the query layer** — read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either. `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. **Facts go in the mart, opinions stay in `fmstats`.**
-- **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by `fmq.py` and the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
+- **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style); the game's new season
   starts on the career's rollover day (Frem **30 June**, Bucaspor 20 June). **`phase` = the save's in-game DATE** ('YYYY-MM-DD', from the save's
@@ -169,11 +168,10 @@ Saves with no manifest row have no date and so no canonical name; they live in
 
 ## Common commands
 ```bash
-uv sync                                                   # one-time env setup (duckdb + pandas — lean)
-uv run python scripts/rebuild.py --career frem            # rebuild the store from saves + manifest
-uv run python fmq.py scout <team> --venue H --fixture <date>   # opposition briefing (saved to the log)
-uv run python fmq.py grade <team> --fixture <date> --result "W 2-1 (H)" --note "..."   # after the match
-uv run python fmq.py --help                               # output, matches, moves, growth, table, sql
+uv run python extract.py ~/fm-saves/frem/<save>.fms                # -> output/<save name>
+uv run python load_duckdb.py output/<save name>                    # -> fm-frem.duckdb (runs dbt)
+uv run python scripts/publish_duckdb.py --career frem --upload     # compacts & uploads store to R2
+uv run python scripts/publish_mart.py --career frem --upload       # builds & uploads standalone mart to R2
 
 # importing a NEW save
 uv run python scripts/archive_save.py ~/Downloads/<save>.fms --career frem --upload
