@@ -527,6 +527,13 @@ def main():
     nations = [{"name": r["name"], "rank": r["world_rank"],
                 "points": None if r["ranking_points"] is None else float(r["ranking_points"]),
                 "coefficient": None if r["coefficient"] is None else float(r["coefficient"]),
+                # per season, oldest first, the last the season in progress; `season` is the
+                # end year of the newest completed one, `live` whether the game updates them
+                "seasons": [num(round(float(v), 3)) for v in r["coefficient_history"] or []]
+                if any(r["coefficient_history"] or []) else None,
+                "season": r["coefficient_season"], "live": bool(r["coefficient_is_live"]),
+                # the UEFA association ranking: members only, on the five newest seasons
+                "uefa": bool(r["is_uefa"]), "uefa_rank": r["uefa_rank"],
                 "rival": r["rival"]}
                for r in s.rows("SELECT * FROM site.nations WHERE snapshot_date = ? "
                                "ORDER BY world_rank, name", [d])]
@@ -561,19 +568,74 @@ def main():
     unresolved = s.scalar("""SELECT count(*) FROM site.squad q
                              JOIN site.players p USING (snapshot_date, person_id)
                              WHERE q.snapshot_date = ? AND p.origin_club_tid IS NULL""", [d])
+    # History for the World chart: every snapshot's value for each league, club and nation the
+    # page lists. Run-length encoded per series as a flat [i0, v0, i1, v1, ...] of change
+    # points (i indexes `dates`; v null = absent from that snapshot on): a club's reputation
+    # holds still for months at a time, so this is ~5x smaller than one value per snapshot.
+    hist_dates = [r["snapshot_date"] for r in s.rows(
+        "SELECT snapshot_date FROM site.snapshots ORDER BY snapshot_date")]
+    at = {dt: i for i, dt in enumerate(hist_dates)}
+
+    def rle(points):
+        out, last = [], object()
+        for i in range(len(hist_dates)):
+            v = points.get(i)
+            if v != last:
+                out += [i, v]
+                last = v
+        return out
+
+    def series(sql, key, fields):
+        acc = {}
+        for r in s.rows(sql):
+            per = acc.setdefault(r[key], {f: {} for f in fields})
+            for f, conv in fields.items():
+                per[f][at[r["snapshot_date"]]] = conv(r[f])
+        return {k: {f: rle(v) for f, v in per.items()} for k, per in acc.items()}
+
+    flt = lambda dp: (lambda v: None if v is None else num(round(float(v), dp)))  # noqa: E731
+    lg_hist = series("SELECT snapshot_date, cid, reputation, skill_idx FROM site.leagues",
+                     "cid", {"reputation": num, "skill_idx": flt(1)})
+    tiers = {r["cid"]: r["tier"] for r in s.rows(
+        "SELECT cid, tier FROM site.leagues WHERE snapshot_date = ?", [d])}
+    club_hist = series("SELECT snapshot_date, team_tid, reputation FROM site.clubs",
+                       "team_tid", {"reputation": num})
+    nation_hist = series("""SELECT snapshot_date, name, world_rank, ranking_points, coefficient,
+                                   coefficient_5, uefa_rank
+                            FROM site.nations""", "name",
+                         {"world_rank": num, "ranking_points": flt(0), "coefficient": flt(2),
+                          "coefficient_5": flt(3), "uefa_rank": num})
+    history = {
+        "dates": [day(dt) for dt in hist_dates],
+        "leagues": {str(r["cid"]): {"tier": tiers.get(r["cid"]), **lg_hist[r["cid"]]}
+                    for r in leagues if r["cid"] in lg_hist},
+        "clubs": {str(c["team_tid"]): club_hist[c["team_tid"]]["reputation"]
+                  for c in clubs if c["squad_size"] > 0 and c["team_tid"] in club_hist},
+        "nations": {n["name"]: nation_hist[n["name"]] for n in nations
+                    if n["name"] in nation_hist},
+    }
+
     emit("world.json", {
         "our_nation": our_nation,
         "nations": nations,
+        "history": history,
         "places": {"denmark": home,
                    "origins": [{"tid": r["team_tid"], "club": r["club"],
                                 "players": list(r["players"]), **place(r)}
                                for r in origins if r["latitude"] is not None]},
         "origins_unresolved": unresolved,
-        "note": "Nations: world ranking + UEFA coefficient (mart.nations). Maps: club stadiums "
+        "note": "Nations: world ranking + UEFA coefficient (mart.nations); `seasons` is the "
+                "coefficient per season, oldest first, the last the season in progress, `season` "
+                "the end year of the newest completed one, `live` false where the game never "
+                "updates them; `uefa_rank` the UEFA association ranking (members, by their five "
+                "newest completed seasons). Maps: club stadiums "
                 "in our nation's leagues, and our current squad's resolved origin clubs — a "
                 "player's origin club can't always be resolved ("
                 f"{unresolved} of the current squad aren't shown on the origins map for that "
-                "reason, not because they lack one)."})
+                "reason, not because they lack one). History: each listed league's reputation "
+                "and skill index, each club's reputation and each nation's rank, points, "
+                "coefficient, five-season coefficient and UEFA rank on every snapshot in `history.dates`, run-length encoded as flat "
+                "[index, value, ...] change points (a null value: absent from then on)."})
 
     # ------------------------------------------------------------ index.json
     files = {k: f"{SITE_URL}/api/{k}.json" for k in
