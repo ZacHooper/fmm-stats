@@ -108,7 +108,8 @@ function history(world) {
     nation: (name) => {
       const r = h?.nations?.[name];
       return { world_rank: expand(r?.world_rank), ranking_points: expand(r?.ranking_points),
-               coefficient: expand(r?.coefficient) };
+               coefficient: expand(r?.coefficient), coefficient_5: expand(r?.coefficient_5),
+               uefa_rank: expand(r?.uefa_rank) };
     },
   };
 }
@@ -156,9 +157,15 @@ function headline(world, H) {
       deltaCell(delta(H, H.club(club.tid).reputation))));
   }
   if (nation) {
-    tiles.push(tile(nation.name, `#${nation.rank}`,
-      `in the world · coef ${num(nation.coefficient, 1)}`,
-      deltaCell(delta(H, H.nation(nation.name).world_rank), { invert: true })));
+    // each rank with its own season's move, so the UEFA one can't read as the world one's
+    const h = H.nation(nation.name);
+    const moved = (vs) => deltaCell(delta(H, vs) == null ? null : -delta(H, vs));
+    tiles.push(el("div.kpi.wkpi", {}, [
+      el("span", { text: nation.name }),
+      el("b", { text: `#${nation.rank}` }),
+      el("div.wsub", {}, ["in the world ", moved(h.world_rank),
+        ...(nation.uefa_rank ? [el("br"), `UEFA #${nation.uefa_rank} `, moved(h.uefa_rank)] : [])]),
+    ]));
   }
   return tiles.length ? el("div.kpis", {}, tiles) : el("div");
 }
@@ -484,9 +491,29 @@ function clubsPanel(H) {
 }
 
 // --------------------------------------------------------------------------- nations
+const LS_NATIONS = "fmworld:nations-view";
+/** Nations: the world ranking, or the UEFA association ranking — two tables, one switch. */
 function nationsPanel(world, H) {
   const src = world?.nations || [];
   if (!src.length) return el("p.note", { text: "No nation data in this export." });
+  const uefa = src.some((n) => n.uefa_rank != null);
+  const views = [["world", "World ranking", () => worldRanking(world, H)],
+                 ...(uefa ? [["uefa", "UEFA coefficients", () => uefaRanking(world, H)]] : [])];
+  let view = views.find(([k]) => k === lsGet(LS_NATIONS)) || views[0];
+  const seg = el("span.seg");
+  const box = el("div");
+  const draw = () => {
+    seg.replaceChildren(...views.map((v) => el(`button${v === view ? ".on" : ""}`, {
+      type: "button", text: v[1], onclick: () => { view = v; lsSet(LS_NATIONS, v[0]); draw(); },
+    })));
+    box.replaceChildren(view[2]());
+  };
+  draw();
+  return el("div", {}, [views.length > 1 ? el("div.prow", {}, [seg]) : null, box]);
+}
+
+function worldRanking(world, H) {
+  const src = world.nations;
   const ourName = world?.our_nation;
   const rows = src.map((n) => {
     const h = H.nation(n.name);
@@ -549,6 +576,79 @@ function nationsPanel(world, H) {
   return panelWrap(`World ranking · ${rows.length} nations`, node);
 }
 
+/**
+ * The UEFA association ranking, as the game ranks it: members only, by the sum of their five
+ * newest completed seasons (`uefa_rank` comes ranked from site.nations). One column per season,
+ * oldest on the left, so a row reads like the in-game table.
+ */
+function uefaRanking(world, H) {
+  const ourName = world?.our_nation;
+  const rows = world.nations.filter((n) => n.uefa_rank != null).map((n) => {
+    const h = H.nation(n.name);
+    const done = completedSeasons(n);           // newest first
+    // the total the ranking is on, unrounded upstream — summing the rounded seasons can be a
+    // thousandth out (Spain: 92.999 against the ranking's 93.000)
+    const exact = h.coefficient_5.at(-1);
+    return { ...n, tid: n.name, hist: h, last5: done.slice(0, 5).reverse(), coef5: exact ?? coefSum(n, 5),
+             dUefa: delta(H, h.uefa_rank), dCoef5: delta(H, h.coefficient_5),
+             _search: n.name.toLowerCase() };
+  });
+  const ours = rows.find((n) => n.name === ourName);
+  const byRank = (rs) => [...rs].sort((a, b) => a.uefa_rank - b.uefa_rank);
+  // every member's history moves together, so the first row's labels name every row's seasons
+  const labels = (rows.find((r) => r.season != null) || rows[0])?.last5.map((x) => x.label) || [];
+  const seasonCols = Object.fromEntries(labels.map((label, i) => [`s${i}`, {
+    label, align: "num", get: (r) => r.last5[i]?.v ?? null, render: (r) => coefFmt(r.last5[i]?.v),
+    help: `Coefficient earned in ${label}`,
+  }]));
+
+  const node = tableAndChart({
+    key: "uefa", H, rows, ours: new Set([ourName]),
+    series: (r) => r.hist,
+    metrics: [{ id: "coefficient_5", label: "Coefficient", dp: 3 }, { id: "uefa_rank", label: "Rank", invert: true }],
+    catalogue: {
+      rank: { label: "#", align: "num", get: (r) => r.uefa_rank, help: "UEFA association ranking" },
+      dRank: { label: "± rank", align: "num", get: (r) => (r.dUefa == null ? null : -r.dUefa),
+               render: (r) => deltaCell(r.dUefa == null ? null : -r.dUefa),
+               help: "Places climbed (+) or dropped (−) over the last season" },
+      name: { label: "Nation", get: (r) => r.name,
+              render: (r) => el("span", {}, [r.name, r.name === ourName ? pill(" us", "good") : null, coefInfo(r)]) },
+      ...seasonCols,
+      coef5: { label: "Total", align: "num", get: (r) => r.coef5, cls: "strong",
+               render: (r) => coefCell(r, r.coef5, 3), help: "The five seasons summed — what the ranking is on" },
+      dCoef5: { label: "± total", align: "num", get: (r) => r.dCoef5, render: (r) => deltaCell(r.dCoef5, { dp: 1 }),
+                help: "Change in the five-season total over the last season" },
+      trend: { label: "Trend", get: (r) => r.dCoef5, sort: (r) => r.dCoef5,
+               render: (r) => sparkline(r.hist.coefficient_5, { w: 64, h: 16 }), help: "Five-season total across every snapshot" },
+      coefficient: { label: "10 seasons", align: "num", get: (r) => coefSum(r, 10),
+                     render: (r) => coefCell(r, coefSum(r, 10)), help: "The ten completed seasons the save keeps, summed" },
+    },
+    // the total before the seasons: on a phone only the first few columns are on screen
+    defaults: ["rank", "dRank", "name", "coef5", "dCoef5", ...Object.keys(seasonCols), "trend"],
+    sort: { by: "rank", dir: "asc" },
+    searchPlaceholder: "Search UEFA nations…",
+    initial: () => {
+      const top = byRank(rows).slice(0, SLOTS - 1).map((n) => n.name);
+      return ours && !top.includes(ourName) ? [ourName, ...top] : top;
+    },
+    quick: () => [
+      { label: `Top ${SLOTS} in Europe`, keys: () => byRank(rows).slice(0, SLOTS).map((n) => n.name) },
+      ...(ours ? [{ label: `Around ${ourName} in the ranking`, keys: () => {
+        const r = byRank(rows), i = r.indexOf(ours);
+        return [ourName, ...r.slice(Math.max(0, i - 3), i + 5).map((n) => n.name).filter((n) => n !== ourName)];
+      } }] : []),
+      ...(ours?.rival && rows.some((r) => r.name === ours.rival)
+        ? [{ label: `${ourName} and ${ours.rival}`, keys: () => [ourName, ours.rival] }] : []),
+    ],
+    note: "UEFA's association ranking as the game keeps it: each member's coefficient from its "
+      + "clubs' European results, ranked on the <b>five newest completed seasons</b> (ties to the "
+      + "better newest season). The season in progress isn't counted — the save holds it at 0 "
+      + "until the season closes in June, when the oldest season drops off and the ranking moves. "
+      + "Hover or tap a total, or the ⓘ, for all ten seasons the save keeps.",
+  });
+  return panelWrap(`UEFA coefficients · ${rows.length} nations`, node);
+}
+
 // --------------------------------------------------------------------------- coefficients
 /** The completed seasons of a nation's coefficient history, newest first: [{label, v}].
  *  `seasons` is oldest first with the season in progress last; `season` is the end year of the
@@ -561,13 +661,15 @@ function completedSeasons(n) {
     return { v, label: end != null ? `${String(end - 1).slice(2)}/${String(end).slice(2)}` : `${k + 1} back` };
   });
 }
+/** A coefficient as UEFA prints one: three decimals. */
+const coefFmt = (v) => (v == null ? DASH : num(v, 3));
 const coefSum = (n, k) => (n.seasons ? completedSeasons(n).slice(0, k).reduce((a, x) => a + x.v, 0) : null);
 
 /** A coefficient that opens its season-by-season breakdown: on hover where there is hover, on a
  *  tap everywhere. The tap is kept from the row, which would otherwise toggle its chart line. */
-function coefCell(n, v) {
+function coefCell(n, v, dp = 1) {
   if (v == null) return el("span.dim", { text: DASH });
-  const node = el("span.hc", { text: num(v, 1), tabindex: "0" });
+  const node = el("span.hc", { text: dp === 3 ? coefFmt(v) : num(v, dp), tabindex: "0" });
   if (n.seasons) hoverCard(node, () => coefCard(n));
   return node;
 }
@@ -589,10 +691,10 @@ function coefCard(n) {
   const row = (label, v, cls = "") => el(`tr${cls}`, {}, [
     el("td", { text: label }),
     el("td.cbar", {}, [el("span", { style: `width:${((100 * v) / max).toFixed(0)}%` })]),
-    el("td.num", { text: num(v, 2) }),
+    el("td.num", { text: coefFmt(v) }),
   ]);
   const tot = (k) => el("div.ctot", {}, [el("span", { text: `Last ${k} seasons` }),
-    el("b", { text: num(done.slice(0, k).reduce((a, x) => a + x.v, 0), 2) })]);
+    el("b", { text: coefFmt(done.slice(0, k).reduce((a, x) => a + x.v, 0)) })]);
   return [
     el("strong", { text: `${n.name} · coefficient` }),
     el("div.ctots", {}, [tot(5), tot(10)]),

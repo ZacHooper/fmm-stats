@@ -529,9 +529,11 @@ def main():
                 "coefficient": None if r["coefficient"] is None else float(r["coefficient"]),
                 # per season, oldest first, the last the season in progress; `season` is the
                 # end year of the newest completed one, `live` whether the game updates them
-                "seasons": [num(round(float(v), 2)) for v in r["coefficient_history"] or []]
+                "seasons": [num(round(float(v), 3)) for v in r["coefficient_history"] or []]
                 if any(r["coefficient_history"] or []) else None,
                 "season": r["coefficient_season"], "live": bool(r["coefficient_is_live"]),
+                # the UEFA association ranking: members only, on the five newest seasons
+                "uefa": bool(r["is_uefa"]), "uefa_rank": r["uefa_rank"],
                 "rival": r["rival"]}
                for r in s.rows("SELECT * FROM site.nations WHERE snapshot_date = ? "
                                "ORDER BY world_rank, name", [d])]
@@ -598,9 +600,11 @@ def main():
         "SELECT cid, tier FROM site.leagues WHERE snapshot_date = ?", [d])}
     club_hist = series("SELECT snapshot_date, team_tid, reputation FROM site.clubs",
                        "team_tid", {"reputation": num})
-    nation_hist = series("""SELECT snapshot_date, name, world_rank, ranking_points, coefficient
+    nation_hist = series("""SELECT snapshot_date, name, world_rank, ranking_points, coefficient,
+                                   coefficient_5, uefa_rank
                             FROM site.nations""", "name",
-                         {"world_rank": num, "ranking_points": flt(0), "coefficient": flt(2)})
+                         {"world_rank": num, "ranking_points": flt(0), "coefficient": flt(2),
+                          "coefficient_5": flt(3), "uefa_rank": num})
     history = {
         "dates": [day(dt) for dt in hist_dates],
         "leagues": {str(r["cid"]): {"tier": tiers.get(r["cid"]), **lg_hist[r["cid"]]}
@@ -623,13 +627,14 @@ def main():
         "note": "Nations: world ranking + UEFA coefficient (mart.nations); `seasons` is the "
                 "coefficient per season, oldest first, the last the season in progress, `season` "
                 "the end year of the newest completed one, `live` false where the game never "
-                "updates them. Maps: club stadiums "
+                "updates them; `uefa_rank` the UEFA association ranking (members, by their five "
+                "newest completed seasons). Maps: club stadiums "
                 "in our nation's leagues, and our current squad's resolved origin clubs — a "
                 "player's origin club can't always be resolved ("
                 f"{unresolved} of the current squad aren't shown on the origins map for that "
                 "reason, not because they lack one). History: each listed league's reputation "
-                "and skill index, each club's reputation and each nation's rank, points and "
-                "coefficient on every snapshot in `history.dates`, run-length encoded as flat "
+                "and skill index, each club's reputation and each nation's rank, points, "
+                "coefficient, five-season coefficient and UEFA rank on every snapshot in `history.dates`, run-length encoded as flat "
                 "[index, value, ...] change points (a null value: absent from then on)."})
 
     # ------------------------------------------------------------ index.json

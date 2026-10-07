@@ -420,7 +420,7 @@ span.hc:hover{color:var(--accent2);border-bottom-color:var(--accent2)}
 .ctable{width:100%;border-collapse:collapse}
 .ctable td{padding:2px 0;border:0;position:static;background:none}
 .ctable td:first-child{color:var(--dim);width:72px;white-space:nowrap}
-.ctable td.num{width:44px;font-weight:600}
+.ctable td.num{width:52px;font-weight:600}
 .ctable td.cbar{padding:0 8px}
 .ctable td.cbar span{display:block;height:7px;border-radius:0 4px 4px 0;background:var(--s0);min-width:1px}
 .ctable tr.now td.cbar span{background:var(--dim);opacity:.5}
@@ -438,3 +438,4 @@ button.hcinfo:hover,button.hcinfo.on{border-color:var(--accent2);color:var(--acc
 /* a 18px dot is too small a target for a thumb: widen the hit area without the visual */
 @media(pointer:coarse){button.hcinfo{position:relative}
   button.hcinfo::after{content:"";position:absolute;inset:-8px}}
+td.strong{font-weight:700}

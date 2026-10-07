@@ -127,6 +127,9 @@ vars:
   rating_roles: {GK: GK, DC: Centre-back, DL: Full-back, DR: Full-back, DML: Wing-back,
                  DMR: Wing-back, DMC: DM, MC: Central mid, ML: Wide mid, MR: Wide mid,
                  AMC: Attacking mid, AML: Winger, AMR: Winger, ST: Forward}
+  # The save's continent code for Europe (nations.continent_id): UEFA's members, the nations
+  # whose coefficient history the game keeps up to date (site_nations).
+  uefa_continent_id: 2
   starters: 11                # a match line's pos_order up to this is a starter
   # Each match period by the last minute it holds (int_match_events); a shoot-out kick is
   # its own period, whatever minute the save gives it.

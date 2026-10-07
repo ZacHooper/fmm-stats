@@ -13,6 +13,10 @@
 -- coefficient_is_live: whether the nation's history changes anywhere in the
 -- store. Some never do (every African nation's reads the same on every
 -- snapshot): those are the game's starting values, which it doesn't update.
+--
+-- is_uefa, coefficient_5, uefa_rank: the UEFA association ranking. A UEFA
+-- member (continent var('uefa_continent_id')) is ranked by the sum of its five
+-- newest completed seasons, ties going to the better newest season.
 with nations as (
     select
         *,
@@ -41,22 +45,44 @@ moved as (
             partition by nation_id
         ) > 1 as coefficient_is_live
     from nations
+),
+
+ranked as (
+    select
+        moved.snapshot_date,
+        moved.nation_id,
+        nation_names.name,
+        moved.world_ranking + 1 as world_rank,
+        moved.ranking_points,
+        list_sum(moved.coefficient_history) as coefficient,
+        moved.coefficient_history,
+        moved.coefficient_season,
+        moved.coefficient_is_live,
+        nation_names.continent_id = {{ var('uefa_continent_id') }} as is_uefa,
+        case
+            when len(moved.coefficient_history) > 1
+                then list_sum(moved.coefficient_history[-6:-2])
+        end as coefficient_5,
+        rivals.name as rival
+    from moved
+    inner join {{ ref('dim_nation') }} as nation_names
+        on moved.nation_id = nation_names.nation_id
+    left join {{ ref('dim_nation') }} as rivals
+        on nation_names.rival_nation_id = rivals.nation_id
+    where moved.is_ranked
 )
 
 select
-    moved.snapshot_date,
-    moved.nation_id,
-    nation_names.name,
-    moved.world_ranking + 1 as world_rank,
-    moved.ranking_points,
-    list_sum(moved.coefficient_history) as coefficient,
-    moved.coefficient_history,
-    moved.coefficient_season,
-    moved.coefficient_is_live,
-    rivals.name as rival
-from moved
-inner join {{ ref('dim_nation') }} as nation_names
-    on moved.nation_id = nation_names.nation_id
-left join {{ ref('dim_nation') }} as rivals
-    on nation_names.rival_nation_id = rivals.nation_id
-where moved.is_ranked
+    *,
+    case
+        when is_uefa and coefficient_5 is not null
+            then row_number() over (
+                partition by
+                    snapshot_date, is_uefa and coefficient_5 is not null
+                order by
+                    coefficient_5 desc,
+                    coefficient_history[-2] desc,
+                    name asc
+            )
+    end as uefa_rank
+from ranked
