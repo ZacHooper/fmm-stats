@@ -44,3 +44,4 @@ select
     snapshot_date = max(snapshot_date) over () as is_current
 from {{ ref('int_staff_snapshots') }}
 where has_staff_record or club_tid is not null
+order by person_id, snapshot_date

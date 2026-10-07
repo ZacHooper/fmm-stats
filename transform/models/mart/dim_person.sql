@@ -35,6 +35,12 @@ select
     persons.tid,
     persons.dob,
     persons.name,
+    persons.ethnicity,
+    persons.height_cm,
+    persons.weight_kg,
+    persons.preferred_squad_number,
+    persons.foot_left,
+    persons.foot_right,
     origins.origin_team_tid,
     origins.origin_club_tid,
     origins.origin_youth_team_tid,
@@ -44,3 +50,4 @@ select
 from {{ ref('int_persons') }} as persons
 left join origins
     on persons.person_id = origins.person_id
+

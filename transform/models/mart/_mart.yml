@@ -37,7 +37,7 @@ models:
             to_columns: [nation_id]
   - name: dim_club
     description: >
-      Each club: its first team's name and nations.
+      Each club: its first team's name, nations, and static colours/kits taken from the latest snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [club_tid]}}
   - name: dim_team
@@ -52,7 +52,7 @@ models:
             to_columns: [club_tid]
   - name: fact_club_snapshot
     description: >
-      Each club on each snapshot: what its teams share.
+      Each club on each snapshot: what its teams share (ground and affiliates; colours and kits live on dim_club).
     data_tests:
       - unique_combination: {arguments: {columns: [club_tid, snapshot_date]}}
       - relationship_combination:
@@ -271,9 +271,29 @@ models:
       in origin_youth_team_tid.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id]}}
+  - name: fact_player_valuation
+    description: >
+      Each player's transfer valuation and reputation on each snapshot: value, estimation flag, trusted band, and reputation trio.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, snapshot_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+  - name: fact_player_state_scd
+    description: >
+      Player state as an SCD Type 2 table (valid_from, valid_to): attributes, club, contract, caps.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, valid_from]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
   - name: fact_player_snapshot
     description: >
-      Each player on each snapshot: team, ratings, ability, value (stated or estimated),
+      Each player on each snapshot (view over SCD2 state + valuation): team, ratings, ability, value (stated or estimated),
       reputation, contract, training, nationality, caps.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, snapshot_date]}}
@@ -296,6 +316,7 @@ models:
       - name: contract_status
         data_tests:
           - accepted_values: {arguments: {values: [contracted, expired, free_agent]}}
+
   - name: fact_staff_snapshot
     description: >
       Each member of staff on each snapshot: team, coaching ability, reputation, formations,

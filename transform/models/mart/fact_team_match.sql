@@ -19,3 +19,4 @@ select
     {{ stat }}{% if not loop.last %},{% endif %}
     {% endfor %}
 from {{ ref('int_team_matches') }}
+order by match_id

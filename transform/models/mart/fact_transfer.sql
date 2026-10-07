@@ -45,3 +45,4 @@ left join contracts as started
         transfers.person_id = started.person_id
         and transfers.moved_by = started.first_seen_date
         and transfers.to_club_tid = started.club_tid
+order by transfers.person_id, transfers.season

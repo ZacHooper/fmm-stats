@@ -20,3 +20,4 @@ select
     end_reason,
     ended_by_date is null as is_current
 from {{ ref('int_contracts') }}
+order by person_id, first_seen_date

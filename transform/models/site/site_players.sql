@@ -103,8 +103,8 @@ select
     players."{{ attribute }}",
     {% endfor %}
     players.squad_number,
-    players.height_cm,
-    players.weight_kg,
+    people.height_cm,
+    people.weight_kg,
     people.origin_club_tid,
     origin.name as origin_club,
     case
@@ -112,10 +112,11 @@ select
             then eligible.club_tid is not null
     end as capital_eligible,
     nations.name as nationality,
-    players.foot_left,
-    players.foot_right,
-    players.preferred_squad_number,
+    people.foot_left,
+    people.foot_right,
+    people.preferred_squad_number,
     players.joined_date,
+
     players.international_caps,
     players.international_goals,
     players.u21_caps,
