@@ -24,7 +24,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
-from fmstats.dbopen import open_readonly                              # noqa: E402
+from dbopen import open_readonly                              # noqa: E402
 import careers                                                        # noqa: E402
 
 MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")
@@ -46,6 +46,12 @@ def rows_for(car, existing):
     if opened != store:
         print(f"  {car.key:10s} (store locked by a running dashboard — read a copy)")
     try:
+        has_raw = con.execute(
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'raw' AND table_name = 'extracts'"
+        ).fetchone()[0] > 0
+        if not has_raw:
+            print(f"  {car.key:10s} (legacy store without raw.extracts — kept {len(existing.get(car.key, []))} existing rows)")
+            return existing.get(car.key, [])
         rows = con.execute(
             "SELECT label, save_path, season, phase FROM raw.extracts "
             "ORDER BY season, phase").fetchall()

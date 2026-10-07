@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lint (or fix) the dbt project's SQL with sqlfluff (transform/.sqlfluff).
+"""Lint (or fix) the dbt project's SQL with sqlfluff (fmstats/.sqlfluff).
 
     uv run python scripts/lint_sql.py          # lint models/ and tests/
     uv run python scripts/lint_sql.py --fix    # apply the fixes sqlfluff can make
@@ -28,7 +28,7 @@ def main(argv):
                        cwd=ROOT, check=True, capture_output=True)
         cmd = ["sqlfluff", "fix" if "--fix" in argv else "lint", "models", "tests"]
         env = {**os.environ, "FM_DUCKDB": store}
-        return subprocess.run(cmd, cwd=os.path.join(ROOT, "transform"), env=env).returncode
+        return subprocess.run(cmd, cwd=os.path.join(ROOT, "fmstats"), env=env).returncode
 
 
 if __name__ == "__main__":

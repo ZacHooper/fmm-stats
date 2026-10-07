@@ -160,7 +160,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
-from fmstats import dbopen as _dbopen                                     # noqa: E402
+from dbopen import open_readonly as _open_readonly                    # noqa: E402
 
 R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
 
@@ -190,7 +190,7 @@ def main():
     # Reuse the existing single-writer-safe fallback: refuses a byte copy of a store that's
     # mid-write (a .wal beside it, or written in the last 90s), copies to a temp path if a live
     # dashboard holds the write lock, otherwise just confirms the original is safe to copy.
-    con, used = _dbopen.open_readonly(store, tag="publish")
+    con, used = _open_readonly(store, tag="publish")
     con.close()
 
     keep = bool(a.out)

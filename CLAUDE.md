@@ -48,17 +48,15 @@ The store is read directly with DuckDB (e.g. `python3 -c "import duckdb..."` or 
   it may import both sides. It owns the career (`careers.py`, `--career`): it places each
   snapshot in its campaign by the career's rollover, and checks the match table against the
   world fixture list for our two clubs.
-- **`transform/` and `fmstats/` are the T, and the semantic model
-  ([`docs/data-model/`](docs/data-model/README.md)) is their foundation.** `transform/` is a
+- **`fmstats/` is the T, and the semantic model
+  ([`docs/data-model/`](docs/data-model/README.md)) is its foundation.** `fmstats/` is a
   **dbt** project building raw → stg → int → the model's `dim_*`/`fact_*` tables in `mart`,
   and presentation marts in `site.*`. Consumers (`export_data.py`, scripts, and agents)
-  read directly from `site.*` and `mart.*`. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either** — it
-  explains the schemas and the rules. `fmstats/store.py` opens a store, whether the
-  local or the R2 copy.
+  read directly from `site.*` and `mart.*`. **Read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing it** — it
+  explains the schemas and the rules.
 
 `tests/test_boundary.py` enforces the boundary rules: fmparser never imports DuckDB,
-and dbt project variables are asserted directly against fmparser. A fact only the parser knows reaches
-fmstats by the loader writing it into the store, never by fmstats importing it.
+and dbt project variables in `fmstats/dbt_project.yml` are asserted directly against fmparser.
 
 ## The parser — read [`fmparser/CLAUDE.md`](fmparser/CLAUDE.md) before any save-format work
 It holds the parser architecture pointer, the feedback loop (`tests/run_tests.py`, the `tests/assert_identical.py` acceptance gate) and the region-first reverse-engineering method, including **never validate a field by joining on it** and **prove a record's extent, not just its fields**. It loads automatically under `fmparser/`; read it explicitly when the work starts in `scripts/audit/` or a raw save.
@@ -86,16 +84,15 @@ These are point-in-time notes — verify file/line claims against the current co
 ## The web app
 `site/` is the static web app (Cloudflare Pages), the primary UI; Streamlit stays for what writes to DuckDB. **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-**`scripts/export_data.py` reads only the `site` schema** (`site.*`, `transform/models/site/`) — no `raw` table, no `main` view.
+**`scripts/export_data.py` reads only the `site` schema** (`site.*`, `fmstats/models/site/`) — no `raw` table, no `main` view.
 Add a field to the site by adding it to the `site` dbt models first (see
 [`docs/plans/2026-10-03-site-marts.md`](docs/plans/2026-10-03-site-marts.md)). And because `site/api/*.json` is git-tracked and the export is deterministic, `git diff site/api`
 is the regression test: a no-op export must produce a no-op diff.
 
 ## Toolchain
 - **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`; numpy (used by `fmparser/tables/history.py`) is in the uv env, so no system python is needed.
-- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`; CLI is `uv run python fmq.py …`. If zstandard (the save archive's codec) is somehow missing, extract stops with a message rather than write empty fixture files (`--no-archive` goes on without them).
-- **`fmq.py` and the `fmstats/` package are the query layer** — read [`fmstats/CLAUDE.md`](fmstats/CLAUDE.md) before changing either. `fmstats/store.py` picks the store — the R2 published copy, cached at `~/.cache/fmm-stats/` and re-checked every 10 min (`--db <path>` / `$FM_DUCKDB` for a local build, `--refresh`, `--offline`) — and every command prints which snapshot it read. `--career <key>` names the file `fm-<key>.duckdb`; the club we manage, its reserve side and our tactic are read from the store itself (`store.Career.from_store`), not from `careers.py`. **Facts go in the mart, opinions stay in `fmstats`.**
-- **DuckDB is single-writer**: a process writing the store holds the lock. `fmstats.dbopen.open_readonly` (used by the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
+- **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`. If zstandard (the save archive's codec) is somehow missing, extract stops with a message rather than write empty fixture files (`--no-archive` goes on without them).
+- **DuckDB is single-writer**: a process writing the store holds the lock. `scripts/dbopen.py`'s `open_readonly` (used by the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
 - **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style); the game's new season
   starts on the career's rollover day (Frem **30 June**, Bucaspor 20 June). **`phase` = the save's in-game DATE** ('YYYY-MM-DD', from the save's
@@ -181,7 +178,7 @@ uv run python scripts/export_manifest.py                  # refresh the rebuild 
 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids
 
-# after editing transform/ models or load_duckdb.py's VIEWS
+# after editing fmstats/ models or load_duckdb.py's VIEWS
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 uv run python tests/validate_mart.py --db fm-frem.duckdb   # assert the mart's invariants
 

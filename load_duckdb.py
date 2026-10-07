@@ -1828,7 +1828,7 @@ def create_views(con):
     return build_models(con)
 
 
-TRANSFORM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "transform")
+TRANSFORM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fmstats")
 
 
 def build_models(con, select=None, test=True):
