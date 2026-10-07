@@ -4,20 +4,25 @@ Conceptual model only; names are not final tables. Links to [`club.md`](club.md)
 staff spells) and [`match.md`](match.md) (player match performance).
 
 **Core idea:** the entity is a **person**. **Player** and **staff** are roles, and one person
-can hold both at once (a player-manager). Static biography sits on the person. Everything that
-changes (attributes, value, reputation, nationality, languages, team) is a **periodic snapshot**
-per role. Things with a lifespan (contracts, loans, injuries) are **spells**.
+can hold both at once (a player-manager). Static biography and physical constants sit on `dim_person`.
+Everything that changes is modeled based on churn frequency:
+- High-churn market values and reputation live in **`fact_player_valuation`** at snapshot grain.
+- Slow-moving attributes, positions, and contracts live in **`fact_player_state_scd`** as an SCD Type 2 interval (`valid_from`, `valid_to`).
+- A consumer view **`fact_player_snapshot`** reconciles both layers into standard `(person_id, snapshot_date)` grain for backward compatibility.
+- Staff snapshots remain periodic snapshots at save dates.
+- Things with a lifespan (contracts, loans, injuries) are **spells**.
 
 **The warehouse keeps everything**, raw ability (CA/PA) included. The immersion rule applies
 where data reaches a user (the site, user-facing marts), not here.
 
 ```mermaid
 erDiagram
-    dim_person        ||--o{ fact_player_snapshot : "as a player"
+    dim_person        ||--o{ fact_player_state_scd : "as a player (SCD2)"
+    dim_person        ||--o{ fact_player_valuation : "valuation & reputation"
     dim_person        ||--o{ fact_staff_snapshot : "as staff"
-    dim_snapshot_date ||--o{ fact_player_snapshot : "on"
+    dim_snapshot_date ||--o{ fact_player_valuation : "on"
     dim_snapshot_date ||--o{ fact_staff_snapshot : "on"
-    dim_team          ||--o{ fact_player_snapshot : "in team"
+    dim_team          ||--o{ fact_player_state_scd : "in team"
 
     dim_person        ||--o{ fact_contract : "signs"
     dim_club          ||--o{ fact_contract : "with"
@@ -37,24 +42,41 @@ erDiagram
         date date_of_birth
         int origin_club_key FK
         bool is_goalkeeper
+        int height_cm
+        int weight_kg
+        string ethnicity
+        int foot_left
+        int foot_right
+        int preferred_squad_number
     }
-    fact_player_snapshot {
+    fact_player_valuation {
         int person_key FK
         date snapshot_date FK
+        int value
+        bool value_is_estimated
+        bool value_in_trusted_band
+        int reputation
+        int current_reputation
+        int world_reputation
+    }
+    fact_player_state_scd {
+        int person_key FK
+        date valid_from
+        date valid_to
+        bool is_current
         int team_key FK
         int ca
         int pa
-        int attributes "one column each: technical / mental / physical / GK"
-        int hidden_attributes "personality, consistency, injury proneness..."
-        int positions "one column per position"
-        int value
-        int reputation
+        int attributes "technical / mental / physical / GK"
+        int hidden_attributes "personality, consistency..."
+        int positions "ratings per position"
         int primary_nation_key FK
-        list secondary_nations
-        list languages "language + proficiency"
-        string training "intensity, focus role, focus attribute, focus position"
-        string contract_status "derived: contracted / expired, still at club / free agent"
-        bool is_current
+        int secondary_nationality_id
+        string training "intensity, focus role, attribute, position"
+        string contract_status "contracted / expired / free agent"
+        int wage_gbp
+        date contract_start
+        date contract_expiry
     }
     fact_staff_snapshot {
         int person_key FK
@@ -63,6 +85,7 @@ erDiagram
         int reputation
         bool is_current
     }
+
     fact_contract {
         int contract_key PK
         int person_key FK
@@ -109,18 +132,18 @@ erDiagram
 
 | Dimension | Holds |
 |---|---|
-| `dim_person` | what never changes: name, date of birth, origin club, keeper or outfield |
+| `dim_person` | what never changes: name, date of birth, origin club, keeper or outfield, static physical traits (height, weight, ethnicity, footedness, preferred squad number) |
 | `dim_award` | team of the week/month/season, individual awards; with the competition or body that gives it |
 | `dim_snapshot_date`, `dim_club`, `dim_team`, `dim_competition`, `dim_nation` | shared with the other models |
 
 Current club and current team are **not** attributes of the person: team comes from the current
 snapshot, and the owning club comes from the current contract.
 
-## Snapshots
+## Snapshots, Valuation & State SCD
 
-- **`fact_player_snapshot`**: person × snapshot date. Every attribute is a column, positional
-  ratings and hidden/personality attributes included, alongside value, reputation, team and
-  `is_current`.
+- **`fact_player_valuation`**: person × snapshot date. Houses volatile, high-frequency continuous metrics: `value` (stated or estimated), `value_is_estimated`, `value_in_trusted_band`, and the reputation trio (`reputation`, `current_reputation`, `world_reputation`).
+- **`fact_player_state_scd`**: person × validity interval (`valid_from`, `valid_to`, `is_current`). Houses slowly-changing player attributes, positions, hidden personality traits, team, and contract state. Collapses static periods to save storage.
+- **`fact_player_snapshot` (view)**: reconstructed view joining `fact_player_valuation` with `fact_player_state_scd` where `snapshot_date BETWEEN valid_from AND valid_to`. Preserves snapshot-grain queryability across all attributes for backward compatibility.
 - **Nationality:** `primary_nation` plus a list of `secondary_nations` (a player can have more
   than two). The one allowed change of primary nation shows up between snapshots with no extra
   modelling.
@@ -171,8 +194,10 @@ Keys are natural: a person is `person_id` (`<tid>-<dob>`), a snapshot `snapshot_
 
 | Table | Grain | Notes |
 |---|---|---|
-| `dim_person` | `person_id` | name (latest), dob, and his origin: the oldest career line with a club any snapshot holds (his first only where no snapshot had dropped any; a season unattached before his first club is skipped). `origin_team_tid` is the team it names, `origin_club_tid` the club that owns it: a youth side counts for the club whose academy it is (tid = 65535 − club tid, "Frem Yth" 65189), with `origin_youth_team_tid` naming the academy (step 16) |
-| `fact_player_snapshot` | `person_id`, `snapshot_date` | `team_tid` is the team whose books he is on (a loanee's parent team) and `club_tid` its club; ratings with `attributes_are_estimated`; `value` stated where the save states it, else the model's (`value_is_estimated`, `value_in_trusted_band`); `contract_status` from his current contract's expiry; `is_contracted` the save's own flag |
+| `dim_person` | `person_id` | name (latest), dob, origin club, and static physical constants (height, weight, ethnicity, footedness, preferred squad number) |
+| `fact_player_valuation` | `person_id`, `snapshot_date` | volatile snapshot-grain metrics: `value` (stated or estimated), `value_is_estimated`, `value_in_trusted_band`, `reputation`, `current_reputation`, `world_reputation` |
+| `fact_player_state_scd` | `person_id`, `valid_from` | SCD Type 2 intervals for ratings, team affiliation, training, and contract state; `valid_to` marks the end of unchanged interval |
+| `fact_player_snapshot` | `person_id`, `snapshot_date` | consumer view joining `fact_player_valuation` to `fact_player_state_scd` over `snapshot_date BETWEEN valid_from AND valid_to` |
 | `fact_staff_snapshot` | `person_id`, `snapshot_date` | a person with no player record who has a staff record or is on a team's books |
 | `fact_injury_spell` | `person_id`, `start_date` | runs of injured weeks in Player Progress (our squad and reserves) |
 | `fact_player_season` | `person_id`, `line_index` | career history, every player, unioned across snapshots: at each season rollover the game reuses the records of some active players' oldest lines (confirmed in game on Raheem Sterling), and drops all of a player's lines when he retires |

@@ -28,6 +28,8 @@ erDiagram
         int club_key PK
         string name
         int nation_key FK
+        json colours
+        json kits
     }
     dim_team {
         int team_key PK
@@ -40,11 +42,7 @@ erDiagram
         int club_key FK
         date snapshot_date FK
         int stadium_key FK
-        json colours_kits
         list affiliates
-        int balance
-        int transfer_budget
-        int wage_budget
         bool is_current
     }
     fact_team_snapshot {
@@ -80,7 +78,7 @@ erDiagram
 
 | Dimension | Holds |
 |---|---|
-| `dim_club` | static identity: name, nation |
+| `dim_club` | static identity: name, nation; colours and kits (taken from latest snapshot to avoid snapshot replication) |
 | `dim_team` | the side that plays: its club, team type, `is_first_team`. Every team has a club, even when a club has only one team. |
 | `dim_snapshot_date` | the save dates, the project's `phase` |
 | `dim_stadium`, `dim_staff`, `dim_nation` | the usual; a stadium's name and capacity change over a career (Valby Stadion 4,400, 9,400, 15,000), so they are on a stadium snapshot |
@@ -89,7 +87,7 @@ erDiagram
 
 | Level | Holds | Why |
 |---|---|---|
-| **Club snapshot** | ground, colours and kits, finances, affiliates | shared: read from the first team's record. A reserve side stores no ground and empty kits. |
+| **Club snapshot** | ground, affiliates | shared: read from the first team's record. A reserve side stores no ground. Colours and kits live on `dim_club`. |
 | **Team snapshot** | reputation, status, training and youth facilities, league, last season's finish, ground | each side's own record. **Reputation is per team**: Frem 4691, its reserves 3530, and 357 reserve sides' reputations move between snapshots. A reserve side's record holds defaults for the two facilities (training 10, youth 0, on every reserve side and never changing), so a reserve side has its club's; a B team has its own. A team's ground is its own, else its club's. |
 
 **The save stores every team as a whole club record.** A team that names another in

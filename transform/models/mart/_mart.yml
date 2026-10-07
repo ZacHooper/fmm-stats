@@ -37,7 +37,7 @@ models:
             to_columns: [nation_id]
   - name: dim_club
     description: >
-      Each club: its first team's name and nations.
+      Each club: its first team's name, nations, and static colours/kits taken from the latest snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [club_tid]}}
   - name: dim_team
@@ -52,7 +52,7 @@ models:
             to_columns: [club_tid]
   - name: fact_club_snapshot
     description: >
-      Each club on each snapshot: what its teams share.
+      Each club on each snapshot: what its teams share (ground and affiliates; colours and kits live on dim_club).
     data_tests:
       - unique_combination: {arguments: {columns: [club_tid, snapshot_date]}}
       - relationship_combination:

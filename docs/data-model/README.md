@@ -59,7 +59,9 @@ date).
 | `fact_club_snapshot` | | | ✓ | | | | stadium |
 | `fact_team_snapshot` | | ✓ | | | | | |
 | `fact_staff_spell` | ✓ | | ✓ | | | | |
-| `fact_player_snapshot` | ✓ | ✓ | | | | ✓ (nationality) | role, position |
+| `fact_player_valuation` | ✓ | | | | | | market value, reputation |
+| `fact_player_state_scd` | ✓ | ✓ | | | | ✓ (nationality) | role, position, ratings, contract (SCD2) |
+| `fact_player_snapshot` (view) | ✓ | ✓ | | | | ✓ (nationality) | role, position (valuation + SCD2 view) |
 | `fact_staff_snapshot` | ✓ | | | | | | |
 | `fact_player_season` | ✓ | | ✓ | | ✓ | | |
 | `fact_player_award` | ✓ | | | | | | award |
@@ -75,7 +77,9 @@ date).
 
 ## Shared rules
 
-- **Changing things are periodic snapshots** keyed by save date, with `is_current`.
+- **Changing things are periodic snapshots or SCD Type 2 intervals**:
+  - High-churn continuous metrics (e.g. transfer valuation, reputation) are periodic snapshots keyed by save date.
+  - Slower-moving attributes, contracts, and registrations use SCD Type 2 intervals (`valid_from`, `valid_to`) to avoid data duplication across snapshots.
 - **Things with a lifespan are spells** (contracts, loans, injuries, staff, call-ups).
 - **One source per fact, the rest are checks**: scores come from the world fixture list, and
   events, the save's records, honours and league history check what we derive.
