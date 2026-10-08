@@ -41,7 +41,7 @@ step with the schema the way a copy in this repo would:
 
 `<SITE>` is **`https://fmm-stats.zac-g-hooper.workers.dev`** (override with the `FM_SITE`
 environment variable). It's a Worker with static assets, not a Pages project — so the dynamic
-endpoints are `/api/all` and `/api/shortlist`, served by `worker/index.js`.
+endpoints are `/api/all` and `/api/shortlist`, served by `site-worker/index.js`.
 
 For a local check with no deployment, `uv run python -m http.server -d site 8000` serves the same
 files at `http://localhost:8000` (both Functions are absent, so `/api/all` falls back to

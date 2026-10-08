@@ -4,12 +4,12 @@
 
 One app for phone and desktop. It's a **static single-page app** — no server, no build step, no
 Node toolchain — that ships the data and computes on the client. It runs as a **Cloudflare Worker
-with static assets**: files in `site/` are served directly, and `worker/index.js` handles the two
+with static assets**: files in `site/` are served directly, and `site-worker/index.js` handles the two
 things files can't do.
 
 > **Not Pages.** This started as a Pages project with a `functions/` directory; that directory is
 > not read by the Workers runtime, so both endpoints 404'd with an empty body (the asset handler's
-> 404, not ours). The logic now lives in `worker/index.js` and `functions/` is gone. If you ever
+> 404, not ours). The logic now lives in `site-worker/index.js` and `functions/` is gone. If you ever
 > move to a real Pages project, that's the thing to reinstate.
 
 ```
@@ -17,13 +17,13 @@ laptop:  import save  ->  export_data.py  ->  git commit + push   (small JSON, t
                                      \
                                       -> R2: site-data/all.json   (4 MB, never in git)
                                                         |
-Cloudflare Workers Builds (GitHub) ---------------- deploys site/ + worker/ in seconds
+Cloudflare Workers Builds (GitHub) ---------------- deploys site/ + site-worker/ in seconds
 ```
 
 **Routing.** Cloudflare serves a matching static asset *first* and only invokes the Worker when
 nothing matches. So `api/index.json`, `api/core.json` and the rest come straight off disk, and
 only `/api/all`, `/api/shortlist` and `/api/registrations` (saved registration windows) — which
-have no file behind them — reach `worker/index.js`.
+have no file behind them — reach `site-worker/index.js`.
 `not_found_handling` is `"none"` on purpose: the app is hash-routed (`#/squad`), so every real
 path is a real file, and an SPA rewrite would return `index.html` for the API paths instead of
 letting them through.

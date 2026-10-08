@@ -17,7 +17,7 @@ step per import.
 
 ## Two ways to serve the file, and why the second one won
 
-**v1 (original PR, removed): a Worker route.** `worker/index.js` had a `/api/db?career=` route
+**v1 (original PR, removed): a Worker route.** `site-worker/index.js` had a `/api/db?career=` route
 forwarding `Range` headers to R2, so a caller would `ATTACH
 'https://fmm-stats.zac-g-hooper.workers.dev/api/db?career=frem'`. This worked (verified via the
 PR's Cloudflare branch preview) but was the wrong host for the actual target audience: a Claude
@@ -100,7 +100,7 @@ ORDER BY g.delta DESC;
 **The remote database is stale until explicitly republished.** `load_duckdb.py` writes the LOCAL
 store only; `scripts/publish_duckdb.py --upload` is a separate step after an import.
 
-`worker/index.js`'s `/api/db` route and its `CAREER_RE` constant were removed since nothing
+`site-worker/index.js`'s `/api/db` route and its `CAREER_RE` constant were removed since nothing
 serves this way anymore. `export_data.py`'s `index.json["files"]["database"]` now points at the
 `s3://` key instead of the Worker URL.
 

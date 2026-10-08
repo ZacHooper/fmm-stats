@@ -82,7 +82,10 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
 
 ## The web app
-`site/` is the static web app (Cloudflare Pages), the UI. **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
+The web app is three things at the repo root, deployed together as one Cloudflare Worker with static assets:
+`site/` (the static UI and its JSON, served as files), `site-worker/` (the Worker script for the
+endpoints with no file behind them: `/api/all`, `/api/shortlist`, `/api/registrations`) and
+`wrangler.jsonc` (the deploy config tying them together). **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 **`scripts/export_data.py` reads only the `site` schema** (`site.*`, `fmstats/models/site/`) — no `raw` table, no `main` view.
 Add a field to the site by adding it to the `site` dbt models first (see
@@ -128,7 +131,7 @@ no multi-writer problem to solve:
   still lands. That only holds because we decompress *first*: mmap a `.gz` and every offset is
   garbage, so `extract.py` must never see anything but raw bytes.
 - **Live state is `state/<kind>/<id>.json` on R2** — the shortlist and registrations (written by
-  the web app's `/api/shortlist` and friends, `worker/index.js`) and saved scouts (written with
+  the web app's `/api/shortlist` and friends, `site-worker/index.js`) and saved scouts (written with
   `rclone`, see the `scout-opponent` skill). One object per entry, deliberately: R2 has no append,
   so a shared file would mean read-modify-write and two devices adding at once would silently lose
   one. Adds are collision-free, a delete is an object delete, sync is a plain union (`rclone copy`
