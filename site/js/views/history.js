@@ -161,6 +161,7 @@ export async function view() {
     hofTable("Most Minutes Played", topAgg((a) => a.min)),
     hofTable(`Highest Average Rating (min ${RATING_AWARD_APPS} apps)`, topRatingAgg(), 2),
     hofTable("Most Hat-tricks", topHatTricks()),
+    hofTable("Most Player of the Match Awards", topAgg((a) => a.potm)),
   ].filter(Boolean)));
 
   // ---------------------------------------------------------------- team records (all-time, single match)
@@ -343,6 +344,7 @@ function seasonPlayerAwards(rows, matches, s) {
     top((a) => (ageAt(a.tid) != null && ageAt(a.tid) <= 21 ? a.rating : null),
       "Young Gun (U21)", 2, `highest average rating, U21, min ${ratingMinApps} apps`,
       false, ratingPool),
+    top((a) => a.potm || null, "Man of the Match", 0, "most Player of the Match awards, the game's own pick"),
     top((a) => a.goals, "Golden boot", 0, "most goals"),
     hattrickAward,
     top((a) => a.assists, "Playmaker", 0, "most assists"),

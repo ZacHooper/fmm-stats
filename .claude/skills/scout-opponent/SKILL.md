@@ -179,10 +179,12 @@ GROUP BY ROLLUP (venue) ORDER BY venue;
 
 -- ── 7. who has actually hurt us (output, not quality), and whether he is still there ──
 WITH prod AS (
-    SELECT f.person_id, count(*) FILTER (WHERE f.appeared) AS apps, sum(f.goals) AS goals,
+    SELECT f.person_id, mode(f.position) AS played_as,  -- his usual full-time position vs us
+           count(*) FILTER (WHERE f.appeared) AS apps, sum(f.goals) AS goals,
            sum(f.assists) AS assists, sum(f.key_passes) AS key_passes, sum(f.shots) AS shots,
            sum(f.shots_on_target) AS on_target,
            round(avg(f.rating) FILTER (WHERE f.appeared), 2) AS avg_rating,
+           count(*) FILTER (WHERE f.is_player_of_match) AS potm,
            max(m.match_date) AS last_played
     FROM mart.fact_player_match f
     JOIN mart.dim_match m USING (match_id)

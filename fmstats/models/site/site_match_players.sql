@@ -19,6 +19,7 @@ select
     matches.assists,
     matches.minutes,
     matches.started,
+    matches.is_player_of_match,
     matches.position,
     matches.passes,
     matches.passes_completed,

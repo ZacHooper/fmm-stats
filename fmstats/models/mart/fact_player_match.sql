@@ -2,7 +2,9 @@
 -- included, a sending-off ending them; stoppage time not counted) and his
 -- stats. Matches carry player lines only where dim_match.has_detail; the
 -- match's date and teams are on dim_match (match_id).
--- rating_adj is the rating restated for the position played (int_player_match_ratings).
+-- rating_adj is the rating restated for the position played
+-- (int_player_match_ratings); is_player_of_match is the game's own pick, one
+-- player per match.
 select
     matches.match_id,
     matches.player_tid,
@@ -14,6 +16,7 @@ select
     ratings.role,
     matches.started,
     matches.appeared,
+    matches.is_player_of_match,
     matches.sub_on_minute,
     matches.sub_off_minute,
     matches.sent_off_minute,
