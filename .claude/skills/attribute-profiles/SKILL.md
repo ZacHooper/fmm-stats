@@ -22,7 +22,11 @@ uv run python scripts/attribute_stat_correlations.py --csv /tmp/attr.csv  # long
 ```
 Flags: `--db` (the store; default the career's), `--career`, `--stat` (repeatable), `--who
 us|opponents`, `--competition` (an ILIKE pattern), `--min-minutes` (default 450), `--top`
-(attributes per stat, default 7), `--csv`. Stats: `intercept_90 tackW_90 tackA_90 keyPass_90
+(attributes per stat, default 7), `--positions played|familiar`, `--csv`. Each player-season sits
+at the position he **started** most that season, both sides (`fact_player_match.position`), else
+his most familiar; `--positions familiar` is the old grouping, kept for comparison. In the Superliga it moves
+15% of our player-seasons and 30% of opponents' (wing-backs and holding players out of defence,
+a forward who plays the 10 out of attack). Stats: `intercept_90 tackW_90 tackA_90 keyPass_90
 assists_90 goals_90 shotA_90 shotO_90 passA_90 passC_90 headA_90 headW_90 crossA_90 crossC_90
 dribbles_90 mistakes_90`, the ratios `pass_pct sot_pct head_pct tack_pct cross_pct`, and `rating`.
 Remote session with no local store: `rclone copy r2:fmm-stats/site-data/fm-frem.duckdb

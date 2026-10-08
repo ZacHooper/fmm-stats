@@ -574,8 +574,8 @@ def main():
 
     asc = _load_asc()
     db = asc.connect(a.db or f"fm-{a.career}.duckdb")
-    ours, attrs = asc.build(db, a.min_minutes, a.competition, "us")
-    opp, _ = asc.build(db, a.min_minutes, a.competition, "opponents")
+    ours, attrs = asc.build(db, a.min_minutes, a.competition, "us", positions="familiar")
+    opp, _ = asc.build(db, a.min_minutes, a.competition, "opponents", positions="familiar")
     frame = pd.concat([ours, opp], ignore_index=True)
     frame = frame.merge(dominant_competition(db), on=["person_id", "season"], how="left")
     frame["comp"] = frame.comp.fillna("?")

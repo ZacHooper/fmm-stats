@@ -363,7 +363,9 @@ opponent controlled) beside rating and per-90; resample by player and check leav
 start from a base block (`frem_attacking_ss`, or a role's in-game key attributes) and let the
 data veto. Then ship: CB, CM, AMC, AML/AMR as now (confirmed against results); ST on the
 target-man brief (aerial, shooting, strength key; movement, pace, aggression, dribbling
-secondary) as a `HELD` judgement; LB/RB and DM marked not measurable.
+secondary) as a `HELD` judgement; LB/RB and DM marked not measurable. Group players by the
+position they started in: `attribute_stat_correlations.build(positions="played")` does it, but
+the derivation still passes `positions="familiar"` so it does not move before this rework.
 
 ### 19a. Port `tests/validate_mart.py` to dbt tests
 The script stops at its first query: it reads the legacy mart views #149 retired (50 names,
@@ -407,7 +409,15 @@ Then delete the script, and point the CLAUDE.md "after editing" command at `dbt 
 
 ## Site
 
-Nothing open.
+### 23. Opponent view: click a team for how it plays us
+Both sides' full-time positions are now in `fact_player_match`, but the site ships our players
+only (`site_match_players`). Explore a popup from any opponent (Matches, a league table):
+its best players by Level %ile at the positions they actually play, an expected XI in the shape it
+last lined up in against us (the `scout-opponent` step 9 / `season-outlook` `lined_up` logic),
+and its past matches against us under the same filters as the other match sections, with an
+option to show each meeting's line-up. Per-match detail is secondary; the aggregate view is the
+point. Needs a `site.*` model for opponent line-ups and a small export (`matches.json` or its
+own file), and it serves `scout-from-site` too.
 
 ---
 

@@ -84,7 +84,7 @@ RATIOS = {"pass_pct": ("passC", "passA"), "sot_pct": ("shotO", "shotA"),
           "cross_pct": ("crossC", "crossA")}
 
 
-def build(db, min_minutes, competition=None, who="us"):
+def build(db, min_minutes, competition=None, who="us", positions="played"):
     """One row per (person_id, season): minutes + stat totals + that season's attributes.
 
     `competition` is a SQL ILIKE pattern (e.g. "%Superliga%"). Our club has played in four
@@ -97,8 +97,12 @@ def build(db, min_minutes, competition=None, who="us"):
       * we only see an opponent in the 2-4 games he plays against us, so each observation is a
         handful of matches of noise and every correlation is ATTENUATED toward zero — compare
         signs and rank order with the `us` run, never magnitudes;
-      * positions are each player's most familiar, from `mart.fact_player_snapshot`, which
-        covers every club (an opponent's match position is not stored).
+
+    `positions="played"` puts each player-season at the position he started most in that season
+    (`fact_player_match.position`, both sides), else -- a substitute who never started -- at his
+    most familiar. `positions="familiar"` uses the most familiar throughout, from
+    `mart.fact_player_snapshot`; `derive_weight_set.py` asks for it, so its derivation does not
+    move until it is rebuilt on purpose.
     """
     # Our own matches only (both sides), summed per competition season; the rating is the
     # average over the matches he appeared in.
@@ -127,7 +131,19 @@ def build(db, min_minutes, competition=None, who="us"):
                         FROM mart.fact_player_snapshot f
                         JOIN stg.snapshots n USING (snapshot_date)
                         WHERE f.ca IS NOT NULL)""")
-    f = f.merge(pos[pos.rn == 1][["person_id", "season", "position"]], on=["person_id", "season"])
+    pos = pos[pos.rn == 1][["person_id", "season", "position"]]
+    if positions == "played":
+        # Started most, the alphabetical position on a tie (the same determinism fix as above).
+        played = db.q("""SELECT m.person_id, n.season, m.position AS "position"
+                         FROM int.player_matches m
+                         JOIN stg.snapshots n ON n.snapshot_date = m.source_snapshot_date
+                         WHERE m.started AND m.position IS NOT NULL AND m.person_id IS NOT NULL
+                         GROUP BY m.person_id, n.season, m.position
+                         QUALIFY ROW_NUMBER() OVER (PARTITION BY m.person_id, n.season
+                                                    ORDER BY count(*) DESC, m.position) = 1""")
+        pos = (played.set_index(["person_id", "season"])
+               .combine_first(pos.set_index(["person_id", "season"])).reset_index())
+    f = f.merge(pos, on=["person_id", "season"])
 
     # That season's attributes: the latest snapshot in it.
     snap = db.q(f"""SELECT f.person_id, n.season, {', '.join(f'f."{a}"' for a in ATTRS)}
@@ -206,12 +222,15 @@ def main():
     p.add_argument("--min-minutes", type=int, default=450,
                    help="drop player-seasons below this (default 450 — ~5 full games)")
     p.add_argument("--top", type=int, default=7, help="attributes to show per stat")
+    p.add_argument("--positions", choices=["played", "familiar"], default="played",
+                   help="group by the position started most that season (default) or the most "
+                        "familiar one")
     p.add_argument("--csv", help="write the full long-form matrix here")
     a = p.parse_args()
 
     db = connect(a.db or f"fm-{a.career}.duckdb")
 
-    m, attrs = build(db, a.min_minutes, a.competition, a.who)
+    m, attrs = build(db, a.min_minutes, a.competition, a.who, a.positions)
     print(f"{len(m)} {'OPPONENT ' if a.who == 'opponents' else ''}player-seasons "
           f"at >= {a.min_minutes} minutes"
           + (f" in {a.competition}" if a.competition else " (ALL competitions/divisions pooled)") + "  |  "
