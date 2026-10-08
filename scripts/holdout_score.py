@@ -12,9 +12,11 @@ truth. Nothing is written and nothing is refitted -- if the numbers hold up, the
 import argparse, math, os, sys
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.getcwd())
-from fmparser.model import ATTR_ORDER                                       # noqa: E402
-from fmparser.tables.player_attributes import (SRC_OFFSETS, PLAIN_OFFSETS)     # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _attribute_rows import exact_rows                                        # noqa: E402
+from fmparser.model import ATTR_ORDER, EXACT_SINGLE, aerial, teamwork         # noqa: E402
+from fmparser.tables.player_attributes import (                               # noqa: E402
+    HIDDEN_OFFSETS, PLAIN_OFFSETS, SRC_OFFSETS)
 from fmparser import model as MOD                                             # noqa: E402
 
 COLS = {**SRC_OFFSETS, **PLAIN_OFFSETS, **HIDDEN_OFFSETS}
@@ -55,15 +57,8 @@ def main():
     print(f"scored on:    {a.on}, WITHOUT refitting\n")
     con = duckdb.connect(a.on, read_only=True)
     bc = sorted(set(COLS.values()))
-    rows = con.execute(f"""
-        SELECT p.ca, p.pa, {', '.join('p."' + c + '"' for c in bc)},
-               {', '.join('e."' + x + '"' for x in ATTR_ORDER)},
-               {', '.join(f'''COALESCE((SELECT t.familiarity FROM raw.player_positions t
-                    WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid)
-                      AND t.position = '{q}'), 0)''' for q in POS)}
-        FROM raw.players p JOIN raw.player_attributes_exact e USING (season, phase, tid)
-        WHERE p.ca IS NOT NULL AND p.passing_src IS NOT NULL AND e."Passing" IS NOT NULL
-    """).fetchall()
+    # drop the tid: the layout below starts at ca
+    rows = [r[1:] for r in exact_rows(con, bc, ATTR_ORDER, POS)]
     if not rows:
         print("no exact rows in the target store — nothing to score")
         return 0
@@ -90,14 +85,14 @@ def main():
             fam = r[pi:pi + len(POS)]
             own = MOD.uw(r[bi[COLS[d["own"]]]])
             m9 = sum(r[bi[c]] for c in MEAN9) / 9.0
-            v = {"own": own, "CA": r[0], "PA": r[1], "mean9": m9, "intercept": 1.0,
+            top = POS[max(range(len(POS)), key=lambda i: (fam[i], -i))] if max(fam) else ""
+            fwd = 1.0 if top in ("ST", "AML", "AMR", "AMC") else (
+                  0.5 if top in ("ML", "MR", "MC", "DMC", "DML", "DMR") else 0.0)
+            v = {"own": own, "fwd": fwd, "CA": r[0], "PA": r[1], "mean9": m9, "intercept": 1.0,
                  "own*CA": own * r[0] / 100.0, "GK": fam[POS.index("GK")],
                  "partner": MOD.uw(r[bi[COLS[d["partner"]]]]) if d["partner"] else 0.0}
             v.update({p: fam[k] for k, p in enumerate(POS)})
             v.update({f"NAT_{p}": (1.0 if fam[k] >= 20 else 0.0) for k, p in enumerate(POS)})
-            top = POS[max(range(len(POS)), key=lambda i: (fam[i], -i))] if max(fam) else ""
-            fwd = 1.0 if top in ("ST", "AML", "AMR", "AMC") else (
-                  0.5 if top in ("ML", "MR", "MC", "DMC", "DML", "DMR") else 0.0)
             got.append(max(1, min(20, int(_rhu(sum(c * v[f] for f, c in d["coef"].items()))))))
             b = bytearray(120)
             for off, name in COLS.items():

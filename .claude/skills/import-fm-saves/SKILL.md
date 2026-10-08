@@ -1,9 +1,9 @@
 ---
 name: import-fm-saves
-description: Parse new FMM22 .fms save files and load them into the career's DuckDB store (fm-<career>.duckdb) so they appear in the Streamlit dashboard. Use when the user drops new save files (e.g. in ~/Downloads) and wants them reflected in the dashboard/ETL. Handles season/phase placement and clash detection.
+description: Parse new FMM22 .fms save files and load them into the career's DuckDB store (fm-<career>.duckdb) so they appear in the store and, once published, the web app (site/). Use when the user drops new save files (e.g. in ~/Downloads) and wants them reflected in the store/site. Handles season/phase placement and clash detection.
 ---
 
-# Import FMM saves into the dashboard
+# Import FMM saves into the store
 
 End-to-end: `.fms` save → extract (JSON) → load into `fm-<career>.duckdb`
 (raw schema) → verify. Run from the repo root (the directory containing `extract.py`
@@ -43,14 +43,14 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
 - **Loading replaces the exact `(season, phase=date)` slice** (idempotent DELETE+INSERT). Because
   phase is the date, **two different in-season snapshots now COEXIST** (different dates) instead of
   colliding — re-importing the *same* date overwrites it (the "newer export replaces old" mechanism).
-  A superseded *different* label in the same slice is archived to `history.player_snapshots` first.
-- After loading, tell the user to **restart Streamlit** (`pkill -f streamlit && uv run streamlit
-  run dashboard/Home.py`); it auto-reconnects to the rebuilt DB on mtime change thereafter.
+- **Every load runs `dbt build`** over the `fmstats/` project in-process (`load_duckdb.build_models`):
+  it rebuilds `stg`/`int`/`mart`/`site` and runs every dbt data and unit test, and a failing test
+  stops the models downstream of it and fails the load.
 
-## Player history is live (since 2026-08-19)
+## Player history
 
 `player_history` + `player_history_seasons` populate on every save now, ~21-23k players each. If
-a slice loads with **0 history rows** that is a regression, not the old known gap — check the
+a slice loads with **0 history rows** that is a regression — check the
 `WARNING: history table not parsed` line in the extract output. The history table refuses to emit
 a pool that fails its forest check, so it fails loudly rather than writing garbage. The loader
 prints how many of the pool's records sit on a player's chain.
@@ -85,14 +85,14 @@ Budget ~1 min per snapshot (12 snapshots ≈ 12 min); run it in the background a
 `--skip-existing` re-loads from existing `output/` dirs without re-extracting, which is much
 faster when only the ETL changed.
 
-Before starting: **`pkill -f streamlit`** (it holds the DuckDB write lock). No need to back the
-store up any more — it's rebuildable from `seeds/manifest.csv` + the R2 archive, which is the
-whole point. `scripts/rebuild.py` fails a snapshot whose save dates itself differently from
-its manifest row (`--trust-manifest` loads the manifest's values anyway). `--reset` is now safe for the things that used to be at risk: role_weights,
-eligible_origin_clubs and app_config all seed from `seeds/` (all 7 tactic methods are in
-`role_weights.csv`, and `config_bundle.json` carries the app settings), while the shortlist and
-saved scouts have left the store entirely for `state/` + R2. A tactic inserted straight into the
-DB and never exported to `seeds/role_weights.csv` would still be lost.
+Before starting, make sure nothing else holds the store open for writing (DuckDB is
+single-writer; another loader or a read-write session blocks it). No need to back the store up —
+it's rebuildable from `seeds/manifest.csv` + the R2 archive, which is the whole point. `scripts/rebuild.py` fails a snapshot whose save dates itself differently from
+its manifest row (`--trust-manifest` loads the manifest's values anyway). `--reset` loses nothing
+that isn't rebuilt: role_weights, eligible_origin_clubs and app_config all seed from `seeds/` (both
+shipped weight-sets are in `role_weights.csv`, and `config_bundle.json` carries the app settings),
+and the shortlist and saved scouts live in `state/` + R2, not the store. A weight-set inserted
+straight into the DB and never exported to `seeds/role_weights.csv` would be lost.
 
 Afterwards, verify rather than assume: row counts per slice, plus a ground-truth anchor you can
 check against a screenshot.
@@ -125,19 +125,24 @@ check against a screenshot.
    Present the mapping table + any clashes, then proceed (the user has usually pre-approved).
 
 5. **Load each** (season + phase=date are derived from `summary.json` and the store's career — no
-   flags needed; a NEW store needs `--career <key>`). Use the career's store `fm-<key>.duckdb`. Kill any running Streamlit first so the DB isn't locked. Run in
-   **background**, wait for a `DONE` sentinel:
+   flags needed; a NEW store needs `--career <key>`). Use the career's store `fm-<key>.duckdb`;
+   nothing else may hold it open for writing. Run in **background**, wait for a `DONE` sentinel:
    ```bash
-   pkill -f streamlit 2>/dev/null; sleep 1
    uv run python load_duckdb.py output/<stem> --db fm-<key>.duckdb
    # …repeat per save… ; echo LOADS_DONE
    ```
    (Only add `--season/--phase` to force a slice. The loader auto-migrates older stores — drops the
    legacy `phase IN (start,mid,end)` CHECK on first load so date-phases are accepted.)
 
-6. **Verify**: query `raw.extracts` (all labels + row counts), squad sizes per label
-   (`club_tid in (346,7296)` for frem), and run an `AppTest` smoke over the dashboard pages to
-   confirm rendering — all 14 should pass, including against a read-only store. Report the final snapshot table.
+6. **Verify**: the load's dbt summary must show no failing test. Then query `raw.extracts` (all
+   labels + row counts) and our squad size per snapshot from the squad arrays, and report the
+   final snapshot table:
+   ```sql
+   SELECT snapshot_date, team_tid, count(*) AS players
+   FROM mart.squad_membership WHERE is_managed_club
+   GROUP BY ALL ORDER BY snapshot_date DESC, team_tid LIMIT 6;
+   ```
+   Preview the web app after the export in step 7 (`uv run python -m http.server -d site 8000`).
 
 7. **Refresh the remote artefacts** — not automatic, easy to forget since the store itself is
    already correct without it. Three things read stale data otherwise: the deployed web app, a
@@ -159,13 +164,15 @@ check against a screenshot.
    snapshot data and nothing else. A large reordering with no numbers changed means something
    lost its `ORDER BY` — worth chasing rather than committing.
 
-8. **Sanity-check the mart** — `uv run python tests/validate_mart.py --db fm-frem.duckdb`.
-   It asserts the spell invariants, the ring-buffer dedup, the loan-in ground truth, the season
-   totals, and (section 7) the four bugs that once shipped plausible-looking wrong numbers.
-   Cheap, and it is the check that catches a new snapshot breaking an assumption.
+8. **Sanity-check the models** — the `dbt build` each load runs is the check (grain,
+   relationships, `rows_match_source`, the unit tests). After editing `fmstats/` models, rerun it
+   without loading anything: `uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb`.
+   It is structural: also eyeball one ground-truth number (a squad size, a score) against the
+   in-game screen.
 
 ## Gotchas seen before
 - `output/` and `*.duckdb` are gitignored; extraction writes lots of JSON there — fine.
-- DuckDB single-writer: a running Streamlit server holds the file; `pkill -f streamlit` before loading.
+- DuckDB single-writer: any process with the store open for writing blocks a load; a read-only
+  reader blocks it too while connected.
 - `load_duckdb.py` collision pre-flight only triggers with `--all`; for explicit single loads you
   do the clash reasoning yourself (step 4).

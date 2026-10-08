@@ -24,10 +24,13 @@ A team instruction (closing down, Work Into Box) moves a whole column at once an
 up here as anything but noise.
 """
 import argparse, os, sys
+from types import SimpleNamespace
 
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dbopen import open_readonly                                          # noqa: E402
 
 # Collapse the 14 positions to three outfield groups — no squad has the sample for finer.
 POS_GROUP = {"GK": "GK",
@@ -51,8 +54,31 @@ MIN_SD = 1.5
 MIN_N = 12                                    # too few rows to correlate anything at all
 
 # counting stats -> per 90; the ratios are computed from their own numerator/denominator
-COUNTS = ["intercept", "tackW", "tackA", "keyPass", "assists", "goals", "shotA", "shotO",
-          "passA", "passC", "headA", "headW", "crossA", "crossC", "dribbles", "mistakes"]
+# The stat names are the match report's; each maps to its mart.fact_player_competition_season
+# column.
+COUNT_COLUMNS = {"intercept": "interceptions", "tackW": "tackles_won", "tackA": "tackles",
+                 "keyPass": "key_passes", "assists": "assists", "goals": "goals",
+                 "shotA": "shots", "shotO": "shots_on_target", "passA": "passes",
+                 "passC": "passes_completed", "headA": "headers", "headW": "headers_won",
+                 "crossA": "crosses", "crossC": "crosses_completed", "dribbles": "dribbles",
+                 "mistakes": "mistakes"}
+COUNTS = list(COUNT_COLUMNS)
+
+# Our first team; "opponents" are every team that is not one of our club's.
+US = "s.team_tid = (SELECT managed_club_tid FROM stg.career)"
+NOT_OURS = """s.team_tid NOT IN (SELECT team_tid FROM mart.dim_team
+                                 WHERE club_tid = (SELECT managed_club_tid FROM stg.career))"""
+# Competitive = not a friendly, by name, as the match report labels it.
+SEASONS_FROM = """mart.fact_player_competition_season s
+                  JOIN mart.dim_competition c USING (cid)
+                  WHERE s.person_id IS NOT NULL AND s.minutes > 0
+                    AND c.name NOT ILIKE '%friend%'"""
+
+
+def connect(path):
+    """A read-only store with a `q(sql) -> DataFrame` method, as `build()` takes it."""
+    con, _ = open_readonly(path, tag=os.path.basename(sys.argv[0]))
+    return SimpleNamespace(q=lambda sql: con.execute(sql).df())
 RATIOS = {"pass_pct": ("passC", "passA"), "sot_pct": ("shotO", "shotA"),
           "head_pct": ("headW", "headA"), "tack_pct": ("tackW", "tackA"),
           "cross_pct": ("crossC", "crossA")}
@@ -71,39 +97,43 @@ def build(db, min_minutes, competition=None, who="us"):
       * we only see an opponent in the 2-4 games he plays against us, so each observation is a
         handful of matches of noise and every correlation is ATTENUATED toward zero — compare
         signs and rank order with the `us` run, never magnitudes;
-      * `match_player_facts.unit`/`position` are NULL for opponents (the mart only positions our
-        own squad), so positions come from `mart.player_position_levels`, which covers every club.
+      * positions are each player's most familiar, from `mart.fact_player_snapshot`, which
+        covers every club (an opponent's match position is not stored).
     """
-    # mart.match_player_facts is already deduped to one phase per season — never aggregate
-    # raw.match_player_stats here, it is a ring buffer and stores a match up to 5 times.
-    agg = ", ".join(f"SUM({c}) {c}" for c in COUNTS)
-    side = ("team_tid IN (SELECT club_tid FROM mart.managed_club)" if who == "us"
-            else "team_tid NOT IN (SELECT club_tid FROM mart.our_clubs)")
-    comp = ("AND competition ILIKE '" + competition.replace("'", "''") + "'") if competition else ""
-    f = db.q(f"""SELECT person_id, season, SUM(minutes) mins, {agg}, AVG(rating) rating
-                 FROM mart.match_player_facts
-                 WHERE {side} AND is_competitive AND minutes > 0 {comp}
-                 GROUP BY person_id, season""")
+    # Our own matches only (both sides), summed per competition season; the rating is the
+    # average over the matches he appeared in.
+    agg = ", ".join(f"SUM(s.{col}) {c}" for c, col in COUNT_COLUMNS.items())
+    side = US if who == "us" else NOT_OURS
+    comp = ("AND c.name ILIKE '" + competition.replace("'", "''") + "'") if competition else ""
+    f = db.q(f"""SELECT s.person_id, s.season, SUM(s.minutes) mins, {agg},
+                        SUM(s.avg_rating * s.apps) / SUM(s.apps) rating
+                 FROM {SEASONS_FROM} AND {side} {comp}
+                 GROUP BY s.person_id, s.season""")
 
-    # Positions from player_position_levels, which names every club — match_player_facts.position
-    # is NULL for opponents. Primary position = highest familiarity in that season.
+    # Positions from the snapshot facts, which name every club's players. Primary position =
+    # highest familiarity in that season, the latest snapshot's on a tie.
     #
-    # The trailing `"position"` in the ORDER BY is a DETERMINISM fix, not a preference. 6,148
-    # (person, season) pairs are equally familiar at two positions in the same snapshot, and
+    # The trailing `position` in the ORDER BY is a DETERMINISM fix, not a preference. Thousands
+    # of (person, season) pairs are equally familiar at two positions in the same snapshot, and
     # without a final tiebreaker DuckDB's parallel ROW_NUMBER resolves them differently run to
-    # run: n drifted (CB 111 or 112, ST 39 or 40) and coefficients moved in the second decimal
-    # with nothing about the data changing. Alphabetical is arbitrary — the point is that it is
-    # the SAME arbitrary choice every time, so a figure quoted in the docs can be reproduced.
-    pos = db.q("""SELECT person_id, season, "position",
+    # run: n drifts and coefficients move in the second decimal with nothing about the data
+    # changing. Alphabetical is arbitrary -- the point is that it is the SAME arbitrary choice
+    # every time, so a figure quoted in the docs can be reproduced.
+    pos = db.q("""SELECT person_id, season, p.position AS "position",
                          ROW_NUMBER() OVER (PARTITION BY person_id, season
-                                            ORDER BY familiarity DESC, snap_ix DESC,
-                                                     "position") rn
-                  FROM mart.player_position_levels""")   # "position" is a DuckDB reserved word
+                                            ORDER BY p.familiarity DESC, snapshot_date DESC,
+                                                     p.position) rn
+                  FROM (SELECT f.person_id, n.season, f.snapshot_date, unnest(f.positions) p
+                        FROM mart.fact_player_snapshot f
+                        JOIN stg.snapshots n USING (snapshot_date)
+                        WHERE f.ca IS NOT NULL)""")
     f = f.merge(pos[pos.rn == 1][["person_id", "season", "position"]], on=["person_id", "season"])
 
-    snap = db.q("SELECT * FROM mart.player_snapshots")
-    snap["_k"] = snap.phase.map(db.phase_key)            # phase is a DATE; never sort it as text
-    snap = snap.sort_values("_k").groupby(["person_id", "season"], as_index=False).last()
+    # That season's attributes: the latest snapshot in it.
+    snap = db.q(f"""SELECT f.person_id, n.season, {', '.join(f'f."{a}"' for a in ATTRS)}
+                    FROM mart.fact_player_snapshot f JOIN stg.snapshots n USING (snapshot_date)
+                    QUALIFY ROW_NUMBER() OVER (PARTITION BY f.person_id, n.season
+                                               ORDER BY f.snapshot_date DESC) = 1""")
 
     attrs = [a for a in ATTRS if a in snap.columns]
     m = f.merge(snap[["person_id", "season"] + attrs], on=["person_id", "season"], how="inner")
@@ -164,7 +194,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--career", default=os.environ.get("FM_CAREER", "frem"))
-    p.add_argument("--db", help="path to the store (default: db.py's resolved path)")
+    p.add_argument("--db", help="path to the store (default: fm-<career>.duckdb)")
     p.add_argument("--stat", action="append", help="repeatable; default = all")
     p.add_argument("--who", choices=["us", "opponents"], default="us",
                    help="'opponents' runs the same analysis on players we have faced — the "
@@ -179,11 +209,7 @@ def main():
     p.add_argument("--csv", help="write the full long-form matrix here")
     a = p.parse_args()
 
-    os.environ["FM_CAREER"] = a.career
-    if a.db:
-        os.environ["FM_DUCKDB"] = a.db
-    os.environ.setdefault("FM_DUCKDB_READONLY", "1")
-    from dashboard import db
+    db = connect(a.db or f"fm-{a.career}.duckdb")
 
     m, attrs = build(db, a.min_minutes, a.competition, a.who)
     print(f"{len(m)} {'OPPONENT ' if a.who == 'opponents' else ''}player-seasons "
@@ -195,9 +221,8 @@ def main():
         print("  ⚠️  we only see an opponent in the 2-4 games he plays us; >270 minutes leaves "
               "almost nobody.\n      Use --min-minutes 180 and read signs, not magnitudes.")
     if not a.competition:
-        comps = db.q("""SELECT DISTINCT competition FROM mart.match_player_facts
-                        WHERE team_tid IN (SELECT club_tid FROM mart.managed_club)
-                          AND is_competitive AND competition NOT ILIKE '%Pokal%'""").competition.tolist()
+        comps = db.q(f"""SELECT DISTINCT c.name AS competition FROM {SEASONS_FROM}
+                         AND {US} AND c.name NOT ILIKE '%Pokal%'""").competition.tolist()
         if len(comps) > 1:
             print(f"  ⚠️  pooling {len(comps)} different divisions ({', '.join(sorted(comps))}).\n"
                   f"      Standard changes what an attribute buys — Aggression on interceptions runs\n"

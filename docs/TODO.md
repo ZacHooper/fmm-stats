@@ -8,7 +8,7 @@ When you finish something, **delete its entry**. Do not tick it off, and do not 
 "CLOSED" note: what was learned goes into the reference doc the entry points at. Item numbers
 are for conversation only and are renumbered freely; never cite one in code or a commit.
 
-Last reviewed **2026-09-30**, after the framework goal closed: every table on `core`, and every record's padding measured by a table walk.
+Last reviewed **2026-10-07**, after the data-layers refactor closed: extract dumps every table as stored, and the store models it raw → stg → int → `mart` (`dim_*`/`fact_*`) → `site` in dbt.
 
 ---
 
@@ -24,15 +24,16 @@ is organised around them:
 | **Stats** | `load_duckdb.py`, `fmstats/` | clean and join the data within a save and across saves |
 | **Site** | `site/`, `scripts/export_data.py` | a human-friendly view of the mart |
 
-**The parser is the focus.** Every table is on the `core` framework
-([`parser-architecture.md`](parser-architecture.md)), and every record a table reads has its
-padding measured. What is left is new bytes (every byte of the save processed), then, a much
-longer tail, understanding the bytes already read -- and moving the joins out of extract.
+Every parser table is on the `core` framework ([`parser-architecture.md`](parser-architecture.md))
+and the store is a dbt project ([`fmstats/CLAUDE.md`](../fmstats/CLAUDE.md)). The near-term work
+is moving the scripts and skills onto the model (#19) and giving it real-data tests (#19a); the
+long tail is the parser: new bytes (every byte of the save processed), then understanding the
+bytes already read.
 
 | | |
 |---|---|
 | career | **Boldklubben Frem** (Denmark, `--career frem`, managed tid 346, reserves 7296) |
-| store | `fm-frem.duckdb`, latest snapshot **2027-08-08** (published copy on R2; `fmq.py` reads it by default) |
+| store | `fm-frem.duckdb`, latest snapshot **2028-05-09** (31 snapshots) (published copy on R2) |
 | division | **3F Superliga** since 2025, after three straight promotions from 3. Division |
 | tactic | **4-2-3-1**, rated with `frem_minmax_4231` |
 | hold-out | **Bucaspor** (Turkey) is archived, and is the only cross-career parser regression test |
@@ -215,6 +216,8 @@ decoded but never parsed ([`standings-record.md`](standings-record.md)). The reb
 tables (#13) make it less urgent for Denmark, but it is the direct way to settle Spain.
 
 ### 10. Unnamed fields in records we already read
+Bytes the parser reads but cannot name yet. Fields that are named but not yet in the model are
+#15.
 - **Staff** `+34..+38`: five catalog indices. The six hidden staff attributes stay named by
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 85% of
   staff read 1–4, distinctive enough for a small ground-truth set.
@@ -224,18 +227,6 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
   avg). Not attendance — `mart.club_attendance` is. Carried in `raw.club_details` only.
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `raw.clubs` —
   probably youth/academy or defunct clubs in another structure.
-- **Career history** (`tables/history.py`): the history lines' `yellows` / `reds` are in `raw.player_history_seasons` but not yet in
-  `mart.player_career_seasons` -- add them after the next publish, since the published store
-  lacks the columns and the mart re-binds against it.
-- **Drop the `mart.our_clubs` fallback**: the published store (rebuilt 2026-09-30) carries
-  `career_managed_tid`, so the fallback in `OUR_CLUBS` (`fmstats/mart.py`) -- the club in the
-  most named-competition matches -- has nothing left to serve. Remove it.
-- **Surface Player of the Match**: `raw.matches.player_of_match` is the game's own pick,
-  in the store since 2026-09-30; nothing reads it yet. Add it to `mart.matches`.
-- **Opposition positions**: `matches.json` carries both sides' full-time positions
-  (`home_positions` / `away_positions`, the team head's +30), but the loader keeps the
-  opponent's `position` NULL. Fill it so scouting and `match_ratings` can split the opposition
-  by position. Check the reserve fixtures first: AI-managed sides may carry a default shape.
 - **The match record** (`tables/matches.py`): the event's last 8 bytes (two u32, never a tid
   of the match), the player slot's 33 unnamed bytes (+54..61 two more u32; +2 equals the
   opponent's score on the goalkeeper's slot), the team head and tail (75 and 46 bytes), the
@@ -276,17 +267,8 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 
 ## Parser ↔ stats: decoupling
 
-### 12. Extract dumps tables; the store models them
-**Plan: [`plans/2026-10-01-data-layers.md`](plans/2026-10-01-data-layers.md)** -- 18 steps, one PR
-each. Extract hands over every table as the save stores it (header dates, dead outputs, whole
-reference tables, then contracts, names and person records, and a file-order cursor); the store
-renames `staging` to `raw` and models it as raw → stg → int → mart, ending in the `dim_*` /
-`fact_*` tables of [`data-model/`](data-model/README.md), and the site's marts move onto them.
-Every step is gated row-for-row against a store built from `main`. Person identity (#14) and
-history reclamation (#15) block steps of it.
-
-### 12a. After the plan: raw mirrors the save, one table per table
-Low priority; do it once the data-layers plan is finished. Raw is still not one table per save
+### 12a. Raw mirrors the save, one table per table
+Low priority. Raw is still not one table per save
 table:
 - **Split by the loader.** `nations.json` becomes four raw tables (nations, ranking
   history, coefficients, languages), `clubs.json` five (`clubs`, `club_details`,
@@ -340,13 +322,20 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   birthday by a day or two). Anything else reading old entries must do the same
   (`int.scrapbook_entries` is only our current squad, so safe).
 
+### 15. Surface what the parser already reads
+Named fields that stop short of the mart.
+- **Player of the Match**: `raw.matches.player_of_match` is the game's own pick. It reaches
+  `int.our_matches` and stops there; carry it onto `dim_match` (or `fact_team_match`) and then
+  the site's match page.
+- **Opposition positions**: the parser reads both sides' full-time positions (the team head's
+  +30, `home_positions` / `away_positions` in `matches.json`), but `load_duckdb.py` fills
+  `raw.match_player_stats.position` for our side only. Fill the opponent's too, so scouting and
+  `rating_adj` can split the opposition by position, then rebuild (the role baselines move).
+  Check the reserve fixtures first: AI-managed sides may carry a default shape.
+
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
   penalties or deflections; until settled, no conversion rate from these columns.
-- **Extra-time minutes in the old mart**: `mart.match_player_facts.minutes` caps at 90, so a
-  full 120 reads 90 and an extra-time substitute goes negative (Lucas Lodberg, 2023-02-22: −15).
-  `mart.fact_player_match.minutes` counts extra time; the old view keeps the cap until step 19
-  moves its consumers.
 
 ### 16b. Career-history rating on youth-team lines
 49 career-history lines across the Frem gate store's snapshots (45 once unioned), every one at an academy tid with 38-40 apps,
@@ -355,23 +344,12 @@ an ordinary average negated, so a youth-team line may store its rating that way.
 against a youth player's in-game history screen before reading these as ratings;
 `stg_player_history_seasons` passes them through. (0xFFFF, the save's "none", reads NULL.)
 
-### 16a. Retire the stuck-loan workarounds
-`raw.players.loaned_in` is now true only for a player in our squad arrays whose own record
-names another club, so it clears when a loan ends. The mart and exporter still carry code for
-the flag that never cleared: the "SET-ONLY" notes and the `ever_loaned_in` run exclusion in
-`fmstats/mart.py` (`mart.at_club_spells`, "SECOND GHOST"), and the loan note in
-`scripts/export_data.py`. Remove them one at a time on a rebuilt store, each gated by
-`validate_mart.py` and a no-op `git diff site/api`.
-
-### 17. Views that hide their confidence
-- **`mart.player_origin`**: `eligible=False` cannot be told from *unknown* when the origin club
-  does not resolve (#10). Add the distinction; until then treat it as "ask Zac".
-- **`mart.club_managers`**: a sole structural hit and a `home_reputation` fallback look the
-  same. Expose the candidate count.
-
 ### 18. Models
 - **Refit the transfer-value model** with `current_reputation` and `world_reputation` (parsed,
-  unused; `fmstats/value_model.py` fits on `reputation` alone).
+  unused; `scripts/fit_value_model.py` fits on `reputation` alone, from
+  `int.player_value_inputs`). The seeded coefficients were fitted with Frem Reserves players on
+  their own reserve league's reputation; the inputs now give them the first team's league, as
+  the scorer always has, so a refit moves the `res` and `llrp` terms.
 - **Attribute decoder** ([`attribute-model.md`](attribute-model.md) — read its "ruled out"
   section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
   and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
@@ -380,8 +358,8 @@ the flag that never cleared: the "SET-ONLY" notes and the `ever_loaned_in` run e
   entries (`tables/player_lists.py`), dated by `scrapbook_date`, and a
   player who has not played this season carries one up to two years old. Both fits pair an
   entry with the CURRENT save's record bytes, CA and reputation
-  (`scripts/fit_attribute_model.py` joins `raw.players` to `player_attributes_exact` on
-  `(season, phase, tid)`; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
+  (`scripts/_attribute_rows.py` joins `stg.player_attributes` to
+  `int.player_attributes_exact` on the snapshot; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
   entry to predict a 2026 player -- and the same stale entry is repeated in every
   store snapshot until he plays again. Train only on rows whose entry is fresh relative to
   the save (written at the last monthly update, ~31 days before `phase`), or pair each
@@ -390,15 +368,17 @@ the flag that never cleared: the "SET-ONLY" notes and the `ever_loaned_in` run e
   labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
 - **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
   snapshots.
-
-### 19. Scripts that fail at import
-`scripts/derive_weight_set.py` and `scripts/attribute_stat_correlations.py` import the deleted
-`dashboard/db.py`. Port onto `fmstats` (`store.open_store()`, `scout.effective_table`,
-`stats.player_output`). The `attribute-profiles` skill calls scripts deleted in #82/#73
-(`export_attribute_lab.py`, `check_rating_parity.py`, `import_weight_set.py`): restore them
-from git or rewrite the skill. The `query-fm-data` skill is stale too: it steers queries to
-`site.*` and the mart-only object (`fm-frem-mart.duckdb`) rather than the `mart` facts and dims,
-and still describes the `staging` schema name the republished copies no longer use.
+- **Re-derive `frem_minmax_4231` with ability controlled.** `scripts/derive_weight_set.py`
+  correlates attributes with per-90 output over our player-seasons AND opponents' (706 of 890
+  rows at 180+ minutes; ST is 14 of ours and 59 opponents at a median 240 minutes). An
+  opponent's attributes are mostly decoder estimates, which carry CA as one shared shift
+  (`attribute-model.md`), so for them any estimated attribute tracks overall ability and
+  "predicts" output: Tackling correlates 0.33-0.47 with ST goals, shots on target and headers.
+  Control for ability (Level %ile, or CA in the partial correlation) or restrict opponents to
+  the attributes the save states, then re-derive and review each block before shipping. On the
+  current store the shipped set does not reproduce (DM and AMC go flat, CM inherits
+  `frem_attacking_ss`, ST gains Tackling 3 and Leadership 2), and the input difference behind
+  it was not isolated: the old views no longer fit in memory to compare against.
 
 ### 19a. Port `tests/validate_mart.py` to dbt tests
 The script stops at its first query: it reads the legacy mart views #149 retired (50 names,
@@ -430,27 +410,19 @@ asserts a property of the real data. Scoped 2026-10-07 from the check labels, th
   spells. Tag them `known_answers` and enable them only for `var('career') == 'frem'`. They
   assume a full rebuild.
 - **Retired with their view, drop (~15):** growth/tenure/attribute-growth and the keeper-block
-  total, `squad_on` vs roster, `at_club_spells` ghosts (see 16a), `our_clubs`/`managed_club`
+  total, `squad_on` vs roster, `at_club_spells` ghosts, `our_clubs`/`managed_club`
   (now `dim_team`), `player_position_fit` coverage, `player_role_seasons`, and the
   "CM − DM > 0.2" penalty, which is a finding, not an invariant. Before dropping, check
   whether `site.forecast`/`site.age_curve` and `site_players.development` should keep their
   monotone-forecast and four-band (an immersion guard) checks.
 
-Then delete the script, and point 16a's gate and the CLAUDE.md "after editing" command at
-`dbt test`.
-
-### 20. Mart candidates left out on size
-Squad moves between consecutive snapshots (on `mart.club_roster`, scoped to clubs we have
-played), and `pos_index` as a column on `mart.player_position_fit`.
+Then delete the script, and point the CLAUDE.md "after editing" command at `dbt test`.
 
 ---
 
 ## Site
 
-### 21. One primary-position rule
-`mart.player_primary_position` is the rule, but `scripts/_export_db.py` (the depth chart:
-highest tactic rating) and `site/js/data.js` `playerRoles()` (most familiar, first row on a
-tie) each carry their own. Switch both to the view in one diff and review `git diff site/api`.
+Nothing open.
 
 ---
 
@@ -473,6 +445,10 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
 - **`docs/agent-context/`**: retire the superseded notes (`light-results-rolling-buffer`,
   `master-schedule-plan`), fold duplicates into the reference docs, fix the stale commit SHAs
   in `fm-parser-project.md` and `day1-league-membership.md`, and re-sync `MEMORY.md`.
+- **Dead code on retired views**: `scripts/_export_db.py` still carries `build_loans` and the
+  queries on `mart.snapshots`; `export_data.py` imports only `_json_clean` from it (the loan
+  outlook is `site.loan_outlook`). `site/AGENTS.md` still says the opponent's formation is not
+  in the save, and `agent-context/etl-duckdb-dashboard.md` describes `fmq` and `scout.py`.
 - **Old TODO numbers** are still cited as live work in `table-framing.md`, `date-search.md`
   and `agent-context/light-results-rolling-buffer.md`.
 
@@ -494,7 +470,5 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   `bucaspor/fm_save3` 2022-06-20 (check whether they are the same save),
   `bucaspor/fm_save1-24-mid` 2023-11-08; register or delete them.
 - **`careers.py` hardcodes `reserve_tid`** — the club record's `main_club_tid` could derive it.
-- **`tests/test_attribute_model.py` skips without a repo-local store** — open it through
-  `fmstats.store.open_store()` as `tests/test_fmq.py` does.
 - **Loader speed**: `orjson` for the JSON decode and flattened row construction in `load_core`
   measured ~2.9 s → ~1.6 s per snapshot.

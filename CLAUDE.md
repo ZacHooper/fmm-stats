@@ -1,7 +1,7 @@
 # fm-parser — project guide for agents
 
 Reverse-engineering **Football Manager Mobile 2022** `.fms` save files into a queryable
-DuckDB store + a Streamlit dashboard. **Career-aware:** the one genuinely career-specific
+DuckDB store + a static web app (`site/`). **Career-aware:** the one genuinely career-specific
 fact is the club you manage (its TID), which is how the store finds your squad's exact
 names+attributes (each player in our squad arrays: the 7 plain attributes from his own record,
 the rest from his latest scrapbook entry while it is at most a year old, `int.scrapbook_entries`). Careers are registered in **`careers.py`** and each has its own
@@ -14,8 +14,8 @@ DuckDB store (`fm-<key>.duckdb`):
 
 **Only Frem is built.** Bucaspor's saves stay in the archive because they're the only
 cross-career regression test the parser has — a decode that works on Denmark *and* Turkey is a
-decode that generalises — but its store isn't rebuilt. `db.available_careers()` keys off whether
-the store FILE exists, so not building one is all it takes to drop a career from the dashboard.
+decode that generalises — but its store isn't rebuilt. A career with no store file has nothing to
+query or publish, so not building one is all it takes to drop it.
 Rebuild it any time with `scripts/rebuild.py --career bucaspor --include-inactive`.
 
 Extract takes no career (a save's tables read the same whatever career it is); the loader
@@ -33,9 +33,9 @@ something, DELETE its TODO entry rather than marking it done — otherwise that 
 another changelog, which is what retiring the four `*_HANDOFF.md` docs was undoing.
 
 ## Answering a quick football question — use the `query-fm-data` skill, not a local rebuild
-The store is read directly with DuckDB (e.g. `python3 -c "import duckdb..."` or SQL CLI). The `query-fm-data` skill has the mart view catalogue and the ATTACH recipe. Two rules that make a query WRONG, not imprecise:
-- **Never use a bare `club_tid = <our tid>` filter for "our squad"** — a lapsed loan can leave a departed player's `club_tid` on our club indefinitely (real save data). Use `mart.mart_squad_membership WHERE is_current AND is_managed_club` (or `site.site_squad`), or `mart.mart_squad_membership WHERE is_current AND (team_tid = <opp_tid> OR club_tid = <opp_tid>)` for an opponent club.
-- **Macros do not resolve across an `ATTACH`** — `USE m` first and qualify nothing. Aggregate stats on `person_id` BEFORE joining person info.
+The store is read directly with DuckDB (e.g. `python3 -c "import duckdb..."` or SQL CLI). The `query-fm-data` skill has the mart catalogue, the ATTACH recipe and a runner for multi-statement recipes. Two rules that make a query WRONG, not imprecise:
+- **Never use a bare `club_tid = <our tid>` filter for "our squad"** — a lapsed loan can leave a departed player's `club_tid` on our club indefinitely (real save data). Use `mart.squad_membership` (the squad arrays): `WHERE is_current AND is_managed_club` for our squad today (`team_tid` splits first team from reserves), `snapshot_date = '<date>'` for another snapshot, `team_tid = <tid>` for any other club.
+- **dbt bakes the store's file name into every view as its catalog** — open `fm-frem.duckdb` (or a copy under that same file name), or `ATTACH` the published copy `AS "fm-frem"` and `USE` it; under any other name every view (`mart.squad_membership`, `site.*`, `int.*`) fails with `Catalog "fm-frem" does not exist`. Aggregate `fact_player_match` BEFORE joining dimensions (aggregate first, name second).
 
 ## Three layers: extract, load, transform
 - **`fmparser/` is the E** — save bytes to `output/<label>/*.json`, one file per table as
@@ -67,7 +67,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 [`docs/agent-context/MEMORY.md`](docs/agent-context/MEMORY.md) — it indexes the rest:
 - **multi-device-and-storage** — git / R2 / local tiers; the store is DISPOSABLE (rebuild, never commit). **Read before touching data layout.**
 - **fm-parser-project** — the save-format reverse-engineering story + goals.
-- **etl-duckdb-dashboard** — how the ETL + dashboard + `fmq.py` CLI + scouting tooling work. **The main reference.**
+- **etl-duckdb-dashboard** — how the ETL works. Its dashboard, `fmq.py` and `fmstats/scout.py` sections describe code that is not in the repo; the skills hold the current recipes.
 - **history-chain-pointers** — the history pool is a forest of linked lists; how the `P-38` player link works (its "stats on the previous row" rule was a framing error — see [`docs/parser-architecture.md`](docs/parser-architecture.md) shape B).
 - **fmm-editor-record-comparison** — field-by-field map of our parsers vs the FMM26 database layouts (`nyongrand/fmm-editor`). **Read before decoding any new field** — it names the record you're in.
 - **[`docs/ca-weighting.md`](docs/ca-weighting.md)** — how the save hands us each of the 23 displayed attributes (direct byte / plain-byte composite / CA-modelled), **FM's per-position CA weight tables** recovered from 155k snapshots, and the **94.8% label ceiling** every attribute-accuracy figure is measured against. Read before quoting an accuracy number or reasoning about what the game rewards in a position.
@@ -82,7 +82,7 @@ The durable context an agent needs lives in **[`docs/agent-context/`](docs/agent
 These are point-in-time notes — verify file/line claims against the current code before asserting them as fact.
 
 ## The web app
-`site/` is the static web app (Cloudflare Pages), the primary UI; Streamlit stays for what writes to DuckDB. **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
+`site/` is the static web app (Cloudflare Pages), the UI. **Before touching `site/`, read [`site/CLAUDE.md`](site/CLAUDE.md)** (sections, loan outlook, the Danish registration HOUSE RULE) and [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 **`scripts/export_data.py` reads only the `site` schema** (`site.*`, `fmstats/models/site/`) — no `raw` table, no `main` view.
 Add a field to the site by adding it to the `site` dbt models first (see
@@ -93,7 +93,7 @@ is the regression test: a no-op export must produce a no-op diff.
 - **Run everything under uv** — `uv run python extract.py …`, `uv run python load_duckdb.py …`; numpy (used by `fmparser/tables/history.py`) is in the uv env, so no system python is needed.
 - **Everything else is uv** — `uv sync` to set up; loader is `uv run python load_duckdb.py …`. If zstandard (the save archive's codec) is somehow missing, extract stops with a message rather than write empty fixture files (`--no-archive` goes on without them).
 - **DuckDB is single-writer**: a process writing the store holds the lock. `scripts/dbopen.py`'s `open_readonly` (used by the publish/export scripts) copies the store to a temp file when it is locked, and refuses when a `.wal` says a write is in flight.
-- **Career selection**: the dashboard shows a sidebar **Career** selector (defaults to the newest store); it repoints the DB + "us" club. Override anywhere with env `FM_CAREER=<key>` (and `FM_DUCKDB=<path>` to force a specific store).
+- **Career selection**: `--career <key>` on the loader and scripts, else env `FM_CAREER=<key>`, else `frem` (`careers.DEFAULT_CAREER`); `FM_DUCKDB=<path>` points dbt at a specific store.
 - Season = **end-year** of the campaign (22/23 → 2023, Aus-FY style); the game's new season
   starts on the career's rollover day (Frem **30 June**, Bucaspor 20 June). **`phase` = the save's in-game DATE** ('YYYY-MM-DD', from the save's
   header title), so multiple
@@ -112,7 +112,7 @@ no multi-writer problem to solve:
 | Published | `site/` (the web app + small JSON) | **git** -> Cloudflare Pages | regenerated by `export_data.py`; see [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | Published (big) | `site-data/all.json` (every player, 4 MB) | **R2**, streamed by a Pages Function | NEVER git — rewrites wholesale per import |
 | Published (SQL) | `site-data/fm-<career>.duckdb` (run-length compacted, carries `raw.*`, `mart.*`, and `site.*`) | **R2**, `ATTACH`ed directly | NEVER git — `scripts/publish_duckdb.py`, an explicit step after an import |
-| Published (queryable) | `site-data/fm-<career>.duckdb` (raw `ca`/`pa` included, unscrubbed) | **R2** (`site-data/`), read via DuckDB's native S3 protocol | for a remote agent: `ATTACH 's3://fmm-stats/site-data/fm-<career>.duckdb' (READ_ONLY)` over httpfs with a `CREATE SECRET (TYPE s3, ENDPOINT '<account-id>.r2.cloudflarestorage.com', …)` (not the `TYPE r2`/`ACCOUNT_ID` shorthand — it mis-routed to AWS S3 in testing), using the R2 creds a Claude Code session here already carries — arbitrary SQL, not just the fixed JSON shapes. Not served through the Worker (`*.workers.dev` is often unreachable from a restricted sandbox; the R2 endpoint usually isn't). Published by `scripts/publish_duckdb.py --upload`; see its docstring for the exact `ATTACH` syntax and the httpfs-install-over-HTTP gotcha. NEVER git. |
+| Published (queryable) | `site-data/fm-<career>.duckdb` (raw `ca`/`pa` included, unscrubbed) | **R2** (`site-data/`), read via DuckDB's native S3 protocol | for a remote agent: `ATTACH 's3://fmm-stats/site-data/fm-<career>.duckdb' AS "fm-<career>" (READ_ONLY)` (the views need that catalog name) over httpfs with a `CREATE SECRET (TYPE s3, ENDPOINT '<account-id>.r2.cloudflarestorage.com', …)` (not the `TYPE r2`/`ACCOUNT_ID` shorthand — it mis-routed to AWS S3 in testing), using the R2 creds a Claude Code session here already carries — arbitrary SQL, not just the fixed JSON shapes. Not served through the Worker (`*.workers.dev` is often unreachable from a restricted sandbox; the R2 endpoint usually isn't). Published by `scripts/publish_duckdb.py --upload`; see its docstring for the exact `ATTACH` syntax and the httpfs-install-over-HTTP gotcha. NEVER git. |
 
 - **The store is NOT committed and must not be.** It reached 96 MiB (within 4 MiB of GitHub's hard
   per-file limit), rewrites wholesale on every import, and only gzips to 44 MB — 19 committed
@@ -127,13 +127,13 @@ no multi-writer problem to solve:
   **gzip cannot affect parsing** — decompression is byte-exact, so every offset in `regions.py`
   still lands. That only holds because we decompress *first*: mmap a `.gz` and every offset is
   garbage, so `extract.py` must never see anything but raw bytes.
-- **Live state is `state/<kind>/<id>.json`**, mirrored to R2 by `dashboard/state.py` — the
-  shortlist and saved scouts. One object per entry, deliberately: R2 has no append, so a shared
-  file would mean read-modify-write and two devices adding at once would silently lose one. Adds
-  are collision-free, a delete is an object delete, sync is a plain union (`rclone copy` both
-  ways). Degrades to local-only with no rclone or no remote configured.
-- `FM_SAVES_DIR`, `FM_R2_REMOTE` (default `r2:fmm-stats`), `FM_STATE_OFFLINE=1` to skip all
-  syncing, `FM_STATE_TTL` for the pull throttle.
+- **Live state is `state/<kind>/<id>.json` on R2** — the shortlist and registrations (written by
+  the web app's `/api/shortlist` and friends, `worker/index.js`) and saved scouts (written with
+  `rclone`, see the `scout-opponent` skill). One object per entry, deliberately: R2 has no append,
+  so a shared file would mean read-modify-write and two devices adding at once would silently lose
+  one. Adds are collision-free, a delete is an object delete, sync is a plain union (`rclone copy`
+  both ways).
+- `FM_SAVES_DIR`, `FM_R2_REMOTE` (default `r2:fmm-stats`).
 
 ## Save + label naming convention
 **`<career>-<YYYY-MM-DD>[-<tag>].fms`** — e.g. `frem-2023-07-02.fms`. The date is the save's
@@ -178,7 +178,8 @@ uv run python scripts/export_manifest.py                  # refresh the rebuild 
 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids
 
-# after editing fmstats/ models or load_duckdb.py's VIEWS
+# after editing fmstats/ models or load_duckdb.py's VIEWS — rebuilds the models and runs
+# `dbt build`, so every dbt data and unit test runs as part of it
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 uv run python tests/test_boundary.py
 
@@ -191,22 +192,23 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 ```
 
 ## House rules
-- **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings, `pos_index`, percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_*` in `effective_table`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from presentation views so only the percentile ever leaves. The underlying warehouse facts (`mart.fact_player_snapshot`) retain CA/PA so percentiles can be derived, but presentation layers (`site.*`, `scripts/export_data.py`, `fmq` output) strictly exclude raw ability. **`scripts/export_data.py`'s `check_immersion()` enforces this for published JSON** — it
+- **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings (Fit), percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_league`/`level_global` in `mart.fact_player_snapshot.positions`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from presentation views so only the percentile ever leaves. The underlying warehouse facts (`mart.fact_player_snapshot`) retain CA/PA so percentiles can be derived, but presentation layers (`site.*`, `scripts/export_data.py`, skill output) strictly exclude raw ability. **`scripts/export_data.py`'s `check_immersion()` enforces this for published JSON** — it
   parses every emitted file and fails the build on a raw-ability key at any depth, so anything new you add to the
   export is checked automatically.
-- **The loan outlook is computed in the exporter** (`scripts/_export_db.py` `build_loans`),
-  because it orders players by ability; the browser only draws it. Ranking counts a club's
+- **The loan outlook is computed in the store** (`site.loan_outlook`,
+  `fmstats/models/site/site_loan_outlook.sql`), because it orders players by ability; the export
+  ships only percentiles and ranks and the browser only draws it. Ranking counts a club's
   natural players only (familiarity 15+): a club with none for a slot is an open door, not a
   guess at who the AI would play out of position.
 - **The web app computes ratings itself** (`site/js/data.js`) from attributes × role weights, so a
-  change to the rating formula must land in BOTH the SQL (`v_player_ratings`) and the JS. They are
-  verified equal to the last decimal over 36,920 combinations — keep it that way.
-- **The exact XI on the day is NOT in the save — but the MANAGER's own preferences now are, and that's the baseline.** `mart.club_managers` names the opposition manager and carries his **preferred / attacking / defensive formation** and a derived **Style** (Attacking / Normal / Defensive, banded from a hidden attribute — see [`docs/record-expansion.md`](docs/record-expansion.md) §F), wired into `fmstats/scout.py`'s `opponent_manager()`/`scout_report()['manager']`. Use it as the default formation/style for a scout report **without asking the user first** — the Style bands are confirmed 7/7 in-game. Asking for the in-game scout's read is now an optional refinement (this week's actual team news — injuries, suspensions — which the manager record can't give you), not a prerequisite. Opponent **player names ARE resolved now** (the ETL id-resolver names every club — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
-- **Rating an opponent: Level %ile, not Fit %ile.** `pos_index`/`pctile_*` (`effective_table`) are OUR tactic's role-weighted Fit — how well an attribute set suits `frem_attacking_ss`, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `fmstats.scout.scout_report()`'s `key_players` and its `matchups` table (see next bullet) use `level_*`; only use `pos_index` for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
-- **A back line doesn't play a back line.** `scout_report()`'s `strength` table pairs each unit with itself (Defense-us vs Defense-them) — useful for "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defense, their attack vs our defense, and midfield vs midfield. Use `matchups` (`matchup_table()`) for that reading, not `strength`.
-- **Quality is not output.** `scout_report()['h2h_players']` is each opponent player's production in matches against us, with `still_there` for whether he is at the club now. Read it next to `key_players`: against OB the two men who hurt us most (5 goals; 11 key passes) sat at 53 and 23 on Level %ile, below six team-mates the ranking put first.
+  change to the rating formula must land in BOTH the SQL (`int.player_ratings`,
+  `fmstats/models/int/int_player_ratings.sql`) and the JS. They must agree to the last decimal.
+- **The exact XI on the day is NOT in the save — but the MANAGER's own preferences are, and that's the baseline.** `mart.fact_staff_snapshot` (joined from `mart.fact_staff_spell`, `role = 'manager' AND is_current`) carries each manager's **preferred / attacking / defensive formation** and a derived **Style** (Attacking / Normal / Defensive, banded from a hidden attribute — see [`docs/record-expansion.md`](docs/record-expansion.md) §F); the `scout-opponent` skill reads it. Use it as the default formation/style for a scout report **without asking the user first** — the Style bands are confirmed 7/7 in-game. Asking for the in-game scout's read is an optional refinement (this week's actual team news — injuries, suspensions — which the manager record can't give you), not a prerequisite. Opponent **player names ARE resolved** (`mart.dim_person` names every club's players — use real names alongside position + percentile). Opponent attributes are model estimates (±1) except pace/physicals.
+- **Rating an opponent: Level %ile, not Fit %ile.** Fit (`int.player_ratings` × familiarity) is OUR tactic's role-weighted rating — how well an attribute set suits the weight-set we rate with, which is only a fair question for OUR OWN squad (we actually run it). `level_*` (Level %ile, per position in `fact_player_snapshot.positions`) is CA-derived and tactic-agnostic — the number to reach for when sizing up a stranger. `scout-opponent`'s key players and face-offs use `level_*`; only use Fit for an opponent when the question really is "how would they fit our system" (e.g. a signing target).
+- **A back line doesn't play a back line.** Comparing each unit with itself (defence-us vs defence-them) says "how strong is each line in isolation", but the contest that actually happens on the pitch is our attack vs their defence, their attack vs our defence, and midfield vs midfield. `scout-opponent`'s face-off step pairs them that way; read that, not the unit-against-itself table.
+- **Quality is not output.** `scout-opponent`'s who-has-hurt-us step is each opponent player's production in matches against us (`mart.fact_player_match`), with `still_there` for whether he is at the club now. Read it next to the key players: against OB the two men who hurt us most (5 goals; 11 key passes) sat at 53 and 23 on Level %ile, below six team-mates the ranking put first.
 - We play a **4-2-3-1**, rated with **`frem_minmax_4231`** — the career's `rating_method` in `careers.py`, which the loader records in the store
-(`raw.app_config.career_rating_method`) and `fmq scout` uses by default. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. **These two are the only weight-sets the store ships** (`seeds/role_weights.csv`): every player is rated in every role of every set, and the others were unused, so they are retired (`load_duckdb.RETIRED_METHODS` deletes them from an existing store too).
+(`raw.app_config.career_rating_method`, `site.config`) and the skills rate with. **`frem_attacking_ss`** (the strikerless SS setup) is still `app_config.default_method`, the web app's display default (`seeds/config_bundle.json`), but not what we play. `buca_433` belongs to the archived Turkish career. **These two are the only weight-sets the store ships** (`seeds/role_weights.csv`): every player is rated in every role of every set, and the others were unused, so they are retired (`load_duckdb.RETIRED_METHODS` deletes them from an existing store too).
   **`frem_minmax_4231` is different in kind** — not hand-built from a tactic
   author's stated player traits but DERIVED from the match data by `scripts/derive_weight_set.py`,
   role by role, with every block that failed to beat a flat weighting left flat on purpose, and

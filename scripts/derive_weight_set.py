@@ -172,10 +172,10 @@ def dominant_competition(db, who_sql=None):
     A player-season can straddle a league and a cup, and after a promotion a club's seasons sit in
     different divisions, so "his division" has to be derived per row rather than assumed.
     """
-    r = db.q("""SELECT person_id, season, competition, SUM(minutes) m
-                FROM mart.match_player_facts
-                WHERE is_competitive AND minutes > 0
-                GROUP BY person_id, season, competition""")
+    asc = _load_asc()
+    r = db.q(f"""SELECT s.person_id, s.season, c.name AS competition, SUM(s.minutes) m
+                 FROM {asc.SEASONS_FROM}
+                 GROUP BY s.person_id, s.season, c.name""")
     r = r.sort_values(["m", "competition"], ascending=[False, True])
     top = r.groupby(["person_id", "season"], as_index=False).first()
     return top.rename(columns={"competition": "comp"})[["person_id", "season", "comp"]]
@@ -183,7 +183,7 @@ def dominant_competition(db, who_sql=None):
 
 def role_positions(db):
     """role -> [position], from the store rather than a second copy of the mapping here."""
-    r = db.q('SELECT DISTINCT role, "position" FROM mart.position_roles')
+    r = db.q('SELECT DISTINCT role, "position" FROM stg.position_roles')
     return {k: sorted(v) for k, v in r.groupby("role")["position"].apply(list).items()}
 
 
@@ -542,7 +542,7 @@ def derive(asc, frame, attrs, rolepos, brief, stored, base, seed):
 
 
 def stored_methods(db):
-    r = db.q("SELECT method, role, attribute, weight FROM mart.role_weights WHERE weight > 1")
+    r = db.q("SELECT method, role, attribute, weight FROM stg.role_weights WHERE weight > 1")
     out = {}
     for (m, role), g in r.groupby(["method", "role"]):
         out.setdefault(m, {})[role] = dict(zip(g.attribute, g.weight))
@@ -572,13 +572,8 @@ def main():
     if a.out and len(names) != 1:
         p.error("--out writes one method; use --csv for several")
 
-    os.environ["FM_CAREER"] = a.career
-    if a.db:
-        os.environ["FM_DUCKDB"] = a.db
-    os.environ.setdefault("FM_DUCKDB_READONLY", "1")
-    from dashboard import db
-
     asc = _load_asc()
+    db = asc.connect(a.db or f"fm-{a.career}.duckdb")
     ours, attrs = asc.build(db, a.min_minutes, a.competition, "us")
     opp, _ = asc.build(db, a.min_minutes, a.competition, "opponents")
     frame = pd.concat([ours, opp], ignore_index=True)

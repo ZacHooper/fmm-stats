@@ -12,7 +12,7 @@ import time
 import duckdb
 
 # A store written more recently than this is treated as having a live writer. Long enough to
-# span the gap between two loads in a rebuild; short enough that an idle dashboard clears it.
+# span the gap between two loads in a rebuild; short enough that an idle reader clears it.
 QUIET_SECONDS = 90
 
 
@@ -24,7 +24,7 @@ def open_readonly(path, tag="tool", allow_dirty_copy=False):
     mid-transaction is NOT transactionally consistent: it captures whatever happened to be
     durable, so a store being written by a rebuild reads back with an arbitrary subset of
     snapshots present. That cost real debugging time — a rebuild in progress looked like a
-    finished rebuild with two failed snapshots. A dashboard idling on the file is fine (no
+    finished rebuild with two failed snapshots. A reader idling on the file is fine (no
     .wal, nothing in flight); a writer mid-run is not. Pass allow_dirty_copy=True only if you
     genuinely want a best-effort read of a moving target."""
     src = os.path.abspath(path)
@@ -41,8 +41,10 @@ def open_readonly(path, tag="tool", allow_dirty_copy=False):
                 f"a byte copy would not be transactionally consistent, and would read back "
                 f"with an arbitrary subset of snapshots. Wait for the writer to finish, or "
                 f"pass allow_dirty_copy=True if you accept a partial view.\n"
-                f"An idle dashboard holds the lock but does not touch mtime, so it clears this "
+                f"An idle reader holds the lock but does not touch mtime, so it clears this "
                 f"check after {QUIET_SECONDS}s.")
-        tmp = os.path.join(tempfile.gettempdir(), f"fm_{tag}_{os.path.basename(src)}")
+        # The copy keeps the store's file name: dbt bakes it into every view as the catalog,
+        # so under any other name the views do not bind.
+        tmp = os.path.join(tempfile.mkdtemp(prefix=f"fm_{tag}_"), os.path.basename(src))
         shutil.copy2(src, tmp)
         return duckdb.connect(tmp, read_only=True), tmp

@@ -6,12 +6,13 @@
 -- from; NULL for a person who was never at a club). That line is his first
 -- only where no snapshot had yet dropped any (int.player_career_lines).
 -- origin_team_tid is the team the line names (a first, reserve or B side, or a
--- youth side) and    origin_club_tid the club that owns it (int.team_clubs): a
+-- youth side) and origin_club_tid the club that owns it (int.team_clubs): a
 -- youth side's line counts for the club whose academy it is, with
 -- origin_youth_team_tid naming the academy (Frem's "Frem Yth" 65189), so a
 -- club's own products are origin_club_tid = that club. A line at a club the
--- save holds no record for keeps its tid as the club. capital_eligible is whether
--- origin_club_tid is on the capital-region signing list (seeds/eligible_origin_clubs.csv).
+-- save holds no record for keeps its tid as the club. capital_eligible is
+-- whether origin_club_tid is on the capital-region signing list
+-- (seeds/eligible_origin_clubs.csv), false for a person with no origin club.
 -- Everything that changes is on the snapshot facts.
 with origins as (
     select
@@ -49,10 +50,9 @@ select
     origins.origin_club_tid,
     origins.origin_youth_team_tid,
     origins.origin_season,
-    origins.capital_eligible,
+    coalesce(origins.capital_eligible, false) as capital_eligible,
     persons.first_seen as first_seen_date,
     persons.last_seen as last_seen_date
 from {{ ref('int_persons') }} as persons
 left join origins
     on persons.person_id = origins.person_id
-

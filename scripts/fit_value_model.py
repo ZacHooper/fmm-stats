@@ -22,9 +22,9 @@ USAGE
     uv run python scripts/fit_value_model.py --db fm-frem.duckdb
     uv run python scripts/fit_value_model.py --compare           # also score rival specs
 
-Paste the printed rows into `seeds/value_model.csv`, update N_TRAIN / CV_R2 / MEDIAN_ERR in
-`fmstats/value_model.py`, and re-run `load_duckdb.py --refresh-only` so the seed reaches
-`raw.value_model` (int.player_value) and `mart.player_value_est` picks it up.
+Paste the printed rows into `seeds/value_model.csv`, record the fit's CV R2 and median error
+in `docs/agent-context/player-value-estimation.md`, and re-run `load_duckdb.py --refresh-only`
+so the seed reaches `raw.value_model` and `int.player_value` (`mart.fact_player_valuation`).
 
 READ THE LIMITS IN `docs/agent-context/player-value-estimation.md` BEFORE TRUSTING A NUMBER.
 Short version: median error ~2.2x, so it ranks targets and gets the order of magnitude
@@ -36,31 +36,20 @@ import os
 import sys
 
 import numpy as np
-import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dbopen import open_readonly  # noqa: E402
 
 # Features, in the order seeds/value_model.csv stores them.
 FEATURES = ["ca", "pa", "lrep", "llrp", "gk", "acap", "acap2", "res"]
 
+# The model's own inputs (int.player_value_inputs), so the fit sees exactly what the
+# scorer (int.player_value) does; the label is the value the save states for our squad.
 TRAIN_SQL = """
-WITH c AS (
-    SELECT season, phase, club_tid, name, league_reputation FROM mart.clubs
-), par AS (
-    SELECT season, phase, name, MAX(league_reputation) lr FROM c GROUP BY 1, 2, 3
-), lr AS (
-    SELECT c.season, c.phase, c.club_tid,
-           COALESCE(c.league_reputation, p.lr)        AS lrp,
-           (c.league_reputation IS NULL)::INT         AS is_res
-    FROM c LEFT JOIN par p
-      ON p.season = c.season AND p.phase = c.phase
-     AND p.name = regexp_replace(c.name, ' Reserves$', '')
-)
-SELECT p.season, p.phase, p.tid, p.name, s.club,
-       p.ca, p.pa, p.reputation, p.is_gk, s.age,
-       lr.lrp, lr.is_res, p.player_value AS val
-FROM raw.players p
-JOIN mart.player_snapshots s USING (season, phase, tid)
-JOIN lr ON lr.season = p.season AND lr.phase = p.phase AND lr.club_tid = s.club_tid
-WHERE p.ca IS NOT NULL AND s.age IS NOT NULL AND lr.lrp IS NOT NULL
+SELECT snapshot_date, tid, ca, pa, reputation, is_goalkeeper AS is_gk, age,
+       league_reputation AS lrp, is_reserve::INT AS is_res, value AS val
+FROM int.player_value_inputs
+WHERE ca IS NOT NULL AND age IS NOT NULL AND league_reputation IS NOT NULL
 """
 
 
@@ -108,17 +97,13 @@ def grouped_cv(df, feats, seed=0, folds=5):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", help="store to fit against (default: the career's)")
+    ap.add_argument("--db", default="fm-frem.duckdb", help="store to fit against")
     ap.add_argument("--compare", action="store_true", help="score alternative specs too")
     args = ap.parse_args()
-    if args.db:
-        os.environ["FM_DUCKDB"] = args.db
-    os.environ.setdefault("FM_DUCKDB_READONLY", "1")
-    import db  # noqa: E402  (needs the env vars above)
-
-    d = prep(db.q(TRAIN_SQL + " AND p.player_value > 0"))
+    con, _ = open_readonly(args.db, tag="fit_value_model")
+    d = prep(con.execute(TRAIN_SQL + " AND value > 0").df())
     d["y"] = np.log(d.val.astype(float))
-    print(f"{len(d)} labelled rows, {d.tid.nunique()} players, {d.phase.nunique()} snapshots")
+    print(f"{len(d)} labelled rows, {d.tid.nunique()} players, {d.snapshot_date.nunique()} snapshots")
     print(f"value range £{d.val.min():,.0f} - £{d.val.max():,.0f}\n")
 
     if args.compare:
@@ -151,8 +136,7 @@ def main():
     print(f"intercept,{float(beta[0])!r}")
     for name, value in zip(FEATURES, beta[1:]):
         print(f"{name},{float(value)!r}")
-    print(f"\n# fmstats/value_model.py: N_TRAIN, CV_R2, MEDIAN_ERR = "
-          f"{len(d)}, {score:.3f}, {np.median(err):.2f}")
+    print(f"\n# fit: n={len(d)}, CV R2={score:.3f}, median error={np.median(err):.2f}x")
 
 
 if __name__ == "__main__":

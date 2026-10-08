@@ -63,6 +63,18 @@ models:
       that league's reputation then.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+  - name: int_player_value_inputs
+    description: >
+      The transfer-value model's inputs for every player: ability, reputation, the league
+      reputation it counts (a reserve side's is its first team's), age and the value the
+      save states. What int_player_value scores and scripts/fit_value_model.py fits on.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, tid]
+            to: ref('int_player_info')
+            to_columns: [snapshot_date, tid]
   - name: int_player_value
     description: >
       The transfer-value model (stg.value_model) scored for every player it has inputs for,
