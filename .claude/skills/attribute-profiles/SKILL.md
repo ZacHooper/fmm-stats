@@ -9,41 +9,69 @@ description: Measure how a player's ATTRIBUTES drive his on-pitch STATS — whic
 good a player is; this says how he behaves. Use it when the question is about a **behaviour**
 (win the ball high, create chances, hit the target, give it away) rather than about quality.
 
-## There is a dashboard for this — offer it
-[**The Attribute Lab**](https://claude.ai/code/artifact/bae40c5f-a50a-485b-b4be-3d2735e2a5f5) is
-the explorable version: every statistic against every attribute, per unit, across the four
-measurements — plus a workbench for rewriting a role's weights with the measured evidence beside
-each slider, the squad re-ranking live underneath, and outcome presets ("build this role to win
-it back / create / finish") that derive weights from the correlations instead of from taste.
-
-Rebuild its data after an import, and re-verify the arithmetic, then republish the page:
-```bash
-uv run python scripts/export_attribute_lab.py                    # -> site-data/lab.json
-uv run python scripts/check_rating_parity.py site-data/lab.json  # must PASS
-```
-`check_rating_parity.py` asserts the page computes `base_rating`/`eff` identically to
-`mart.player_position_fit`. CLAUDE.md requires that equality and, until this was written, no
-committed test enforced it. **A weight-set built in the Lab** comes back via
-`scripts/import_weight_set.py` (writes `state/weights/<name>.json`, which syncs to R2; `--promote`
-makes it a real method in `raw.role_weights`).
-
-## Run the tool, don't hand-roll it
-`scripts/attribute_stat_correlations.py` is the validated implementation. It already handles every
-trap below.
-
+## Run the tool, or the recipe
+`scripts/attribute_stat_correlations.py` is the full implementation — every stat, both
+`--who us` and `--who opponents`, the `MIN_SD` floor, the CSV export:
 ```bash
 # ALWAYS filter to the division you are playing in — see trap 5
 uv run python scripts/attribute_stat_correlations.py --competition '%Superliga%' --min-minutes 360
 uv run python scripts/attribute_stat_correlations.py --competition '%Superliga%' --stat intercept_90 --top 10
+uv run python scripts/attribute_stat_correlations.py --competition '%Superliga%' --who opponents
 uv run python scripts/attribute_stat_correlations.py                      # pooled; prints a warning
 uv run python scripts/attribute_stat_correlations.py --csv /tmp/attr.csv  # long-form for further cuts
 ```
-Remote session with no local store: `rclone copy r2:fmm-stats/site-data/fm-frem.duckdb "$SCRATCH"`
-then pass `--db "$SCRATCH/fm-frem.duckdb"`. Pull the **full** store, not `-mart` (no rating layer).
+Flags: `--db` (the store; default the career's), `--career`, `--stat` (repeatable), `--who
+us|opponents`, `--competition` (an ILIKE pattern), `--min-minutes` (default 450), `--top`
+(attributes per stat, default 7), `--csv`. Stats: `intercept_90 tackW_90 tackA_90 keyPass_90
+assists_90 goals_90 shotA_90 shotO_90 passA_90 passC_90 headA_90 headW_90 crossA_90 crossC_90
+dribbles_90 mistakes_90`, the ratios `pass_pct sot_pct head_pct tack_pct cross_pct`, and `rating`.
+Remote session with no local store: `rclone copy r2:fmm-stats/site-data/fm-frem.duckdb
+"$SCRATCH/db/"` (keep the file name — the views carry the catalog name `fm-frem`) and pass `--db
+"$SCRATCH/db/fm-frem.duckdb"`. Pull the **full** store, not `-mart` (no `site` layer).
 
-Stats available: `intercept_90 tackW_90 tackA_90 keyPass_90 assists_90 goals_90 shotA_90 shotO_90
-passA_90 passC_90 headA_90 headW_90 crossA_90 crossC_90 dribbles_90 mistakes_90`, the ratios
-`pass_pct sot_pct head_pct tack_pct cross_pct`, and `rating`.
+**The same measurement in SQL**, for one stat or a cut the tool doesn't offer (a position, a
+stat it doesn't list). It builds player-seasons from `site.match_players` (our first team's
+appearances, `season` our campaign) against the attributes on that season's last snapshot, and
+correlates inside each unit, blanking an attribute whose spread in the unit is under 1.5. Swap
+`interceptions_90` for another column of `ps` (`key_passes_90`, `headers_won_90`,
+`shots_on_target_90`, `dribbles_90`, `mistakes_90`, `rating`), or group by `position` instead of
+`unit`. Run it with the runner in [`query-fm-data`](../query-fm-data/SKILL.md):
+```sql
+-- one row per player-season: our competitive matches in one division, and the attributes he
+-- had THAT season (its last snapshot) — never career totals against today's attributes
+CREATE OR REPLACE TEMP TABLE ps AS
+WITH seasons AS (SELECT season, max(snapshot_date) AS d FROM site.snapshots GROUP BY season),
+out AS (
+    SELECT person_id, season, mode(position) AS position, sum(minutes) AS mins,
+           90.0 * sum(interceptions) / sum(minutes) AS interceptions_90,
+           90.0 * sum(key_passes) / sum(minutes) AS key_passes_90,
+           90.0 * sum(headers_won) / sum(minutes) AS headers_won_90,
+           90.0 * sum(shots_on_target) / sum(minutes) AS shots_on_target_90,
+           90.0 * sum(dribbles) / sum(minutes) AS dribbles_90,
+           90.0 * sum(mistakes) / sum(minutes) AS mistakes_90,
+           avg(rating) AS rating
+    FROM site.match_players
+    WHERE competition ILIKE '%Superliga%'
+    GROUP BY person_id, season HAVING sum(minutes) >= 360
+)
+SELECT out.*, dp.unit, f.* EXCLUDE (person_id, snapshot_date, tid, team_tid, club_tid, age, ca, pa, positions)
+FROM out
+JOIN seasons USING (season)
+JOIN mart.fact_player_snapshot f ON f.person_id = out.person_id AND f.snapshot_date = seasons.d
+JOIN mart.dim_position dp ON dp.position = out.position;
+-- each attribute against one stat, inside each unit (never across the squad)
+WITH long AS (
+    UNPIVOT (SELECT unit, interceptions_90, Aerial, Crossing, Dribbling, Shooting, Passing,
+                    Tackling, Technique, Aggression, Creativity, Decisions, Leadership,
+                    Movement, Positioning, Teamwork, Pace, Stamina, Strength, Agility FROM ps)
+    ON COLUMNS(* EXCLUDE (unit, interceptions_90)) INTO NAME attribute VALUE value
+)
+SELECT attribute, unit, count(*) AS n, round(stddev_samp(value), 1) AS sd,
+       CASE WHEN stddev_samp(value) >= 1.5 THEN round(corr(value, interceptions_90), 2) END AS r
+FROM long WHERE unit <> 'goalkeeper'
+GROUP BY attribute, unit
+ORDER BY unit, r DESC NULLS LAST;
+```
 
 Current baseline findings, with the dates and samples they were computed on:
 [`attribute-stat-correlations`](../../../docs/agent-context/attribute-stat-correlations.md).
@@ -73,7 +101,7 @@ column is probably a player.
 **5. Filter to the division. Standard changes what an attribute buys.** Frem has climbed from
 3. Division to the Superliga, so an unfiltered run pools four standards. Interceptions, pooled:
 Aggression runs **+0.34 in the lower divisions and −0.32 in the Superliga**; Strength **+.40 → +.02**.
-Positioning stays positive in both (.45 / .22) and so does Tackling (.19 / .47). The tool warns when you pool; pass `--competition '%Superliga%'`. Lower `--min-minutes` to ~360 to keep the
+Positioning stays positive in both (.45 / .22) and so does Tackling (.19 / .47). The tool warns when you pool; pass `--competition '%Superliga%'` (the recipe filters `competition`). Lower `--min-minutes` to ~360 to keep the
 sample usable when you narrow it, and say the n.
 
 **4. This is description under OUR instructions, not physics — so check it against `--who
@@ -98,17 +126,19 @@ whether an instruction does it more cheaply; that has been the right answer twic
   to midfield goals (r=.06) purely because every midfielder we have ever fielded sits between 8
   and 12 — the analysis cannot see what a 16 would do. **The tool now enforces the extreme case
   itself**: a cell whose predictor varies by less than `MIN_SD = 1.5` in that unit prints `·`
-  rather than a number, as does one whose outcome never varies. That is what keeps the five
+  rather than a number, as does one whose outcome never varies (the recipe applies the same
+  floor and returns NULL). That is what keeps the five
   keeper attributes — sd ~0.7 among outfielders against a real attribute's ~2.6 — from
   manufacturing "Throwing +0.4 for strikers". It does not catch the milder cases, so keep
   checking.
 - **Read the position, not just the unit — then check one against the other.** The three outfield
   units average away opposite effects: Pace against match rating is +0.21 for the whole Attack
   unit, +0.49 at ST and −0.19 at AMC, and the Defence unit's +0.06 is really "what pace does for a
-  centre-back" because 111 of its ~199 rows are centre-backs. `lab.json` carries per-position
-  correlations under `@<POS>` keys wherever the cut has the sample. They are the sharpest and the
+  centre-back" because 111 of its ~199 rows are centre-backs. Per-position correlations are the
+  sharpest read where the cut has the sample. They are the sharpest and the
   thinnest read at once — 20-110 player-seasons, usually visible in one cut only — so treat one as
-  a direction and corroborate it against the unit.
+  a direction and corroborate it against the unit. Group the recipe by `position` instead of
+  `unit` for that cut.
 - **Goalkeepers have their own unit, and a hard limit.** All 23 attributes are covered and the GK
   unit has 59 player-seasons league-wide, but a keeper's match row holds passes and little else —
   no saves, no clean sheets, no goals conceded. Measure his distribution and his rating; say
@@ -121,7 +151,7 @@ whether an instruction does it more cheaply; that has been the right answer twic
 - **A negative correlation is usually a role signal, not a defect.** Aerial correlates −0.58 with
   dribbles because aerial players are centre-backs and target men, not because heading stops you
   dribbling. Ask "who has this attribute?" before concluding "this attribute causes that".
-- **Cross-check against `mart.role_weights`.** An attribute the role is not scored on is noise —
+- **Cross-check against `site.role_weights`** (lowercase attribute names). An attribute the role is not scored on is noise —
   see [`scouting-attribute-reads`](../../../docs/agent-context/scouting-attribute-reads.md) for the
   Movement/Positioning duel pair that this repeatedly gets wrong.
 - **Say the sample size in the report**, every time, next to the number.
@@ -130,6 +160,13 @@ whether an instruction does it more cheaply; that has been the right answer twic
 A short table of the 5-8 attributes that matter for the stat asked about, with the per-unit columns
 kept (they are often the interesting part — Tackling drives interceptions at +0.75 in midfield and
 +0.35 in defence), the `n`, and one sentence on the mechanism. Then the practical call: which
-players in the current squad have that profile
-(`db.squad_frame(S, P, method, [db.MANAGED_CLUB_TID])` carries the 23 attributes), and whether a
-team instruction would do the job instead.
+players in the current squad have that profile, and whether a team instruction would do the job
+instead:
+```sql
+SELECT d.name, sm.team_tid, f.age, f.Tackling, f.Positioning, f.Aggression, f.Decisions
+FROM mart.squad_membership sm
+JOIN mart.fact_player_snapshot f USING (person_id, snapshot_date)
+JOIN mart.dim_person d USING (person_id)
+WHERE sm.is_current AND sm.is_managed_club
+ORDER BY f.Tackling + f.Positioning DESC LIMIT 10;
+```
