@@ -16,7 +16,7 @@ academy as (
             and team_clubs.club_tid = career.managed_club_tid
         ) as resolves,
         (
-            select count(*)
+            select count(*) as alumni
             from {{ ref('dim_person') }} as people
             where
                 people.origin_youth_team_tid = 65189
@@ -60,7 +60,7 @@ checks as (
     select
         'our club has no record' as check_name,
         null as got
-    where not exists (select 1 from home)
+    where not exists (select 1 as found from home)
 )
 
 select checks.*

@@ -23,8 +23,8 @@ players as (
         people.name,
         snapshots.snapshot_date,
         snapshots.attributes_are_estimated,
-        exists (
-            select 1
+        exists(
+            select 1 as found
             from {{ ref('mart_squad_membership') }} as squads
             where
                 squads.person_id = snapshots.person_id
@@ -68,42 +68,39 @@ tenures as (
     group by name
 ),
 
+garly as (
+    select
+        count(*) as window_snapshots,
+        count(*) filter (where step < 0) as window_falls
+    from garly_window
+),
+
+garly_totals as (
+    select
+        max_by(attr_total, snapshot_date) as latest_total,
+        max(attr_total) filter (where snapshot_date = '2024-06-28')
+        - max(attr_total) filter (where snapshot_date = '2023-07-02')
+            as growth_2024
+    from players
+    where name = 'Andreas Garly'
+),
+
 answers as (
     select
-        (select count(*) from garly_window) as garly_snapshots,
-        (select count(*) from garly_window where step < 0) as garly_falls,
-        (
-            select max_by(players.attr_total, players.snapshot_date)
-            from players
-            where players.name = 'Andreas Garly'
-        ) as garly_latest_total,
-        (
-            select
-                max(players.attr_total) filter (
-                    where players.snapshot_date = '2024-06-28'
-                )
-                - max(players.attr_total) filter (
-                    where players.snapshot_date = '2023-07-02'
-                )
-            from players
-            where players.name = 'Andreas Garly'
-        ) as garly_2024_growth,
-        (
-            select tenures.growth from tenures
-            where tenures.name = 'Andreas Garly'
-        ) as garly_tenure_growth,
-        (
-            select tenures.end_estimated from tenures
-            where tenures.name = 'Andreas Garly'
-        ) as garly_tenure_estimated,
-        (
-            select tenures.growth from tenures
-            where tenures.name = 'Oliver Møller-Jensen'
-        ) as mj_tenure_growth,
-        (
-            select tenures.last_date from tenures
-            where tenures.name = 'Oliver Møller-Jensen'
-        ) as mj_last_date
+        garly.window_snapshots as garly_snapshots,
+        garly.window_falls as garly_falls,
+        garly_totals.latest_total as garly_latest_total,
+        garly_totals.growth_2024 as garly_2024_growth,
+        garly_tenure.growth as garly_tenure_growth,
+        garly_tenure.end_estimated as garly_tenure_estimated,
+        mj_tenure.growth as mj_tenure_growth,
+        mj_tenure.last_date as mj_last_date
+    from garly
+    cross join garly_totals
+    left join tenures as garly_tenure
+        on garly_tenure.name = 'Andreas Garly'
+    left join tenures as mj_tenure
+        on mj_tenure.name = 'Oliver Møller-Jensen'
 ),
 
 checks as (

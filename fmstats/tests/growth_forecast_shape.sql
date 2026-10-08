@@ -30,7 +30,7 @@ curve as (
 
 select
     'forecast inverted' as check_name,
-    attribute,
+    attribute as attribute_name,
     age_now as age,
     horizon_age,
     value_now
@@ -39,7 +39,7 @@ where median < previous_median - 1
 union all
 select
     'age curve negative' as check_name,
-    null as attribute,
+    null as attribute_name,
     age,
     null as horizon_age,
     null as value_now
@@ -48,7 +48,7 @@ where median < 0
 union all
 select
     'age curve not falling' as check_name,
-    null as attribute,
+    null as attribute_name,
     null as age,
     null as horizon_age,
     null as value_now
@@ -57,6 +57,6 @@ where not coalesce((
         max(median) filter (where age = 16)
         >= max(median) filter (where age = 20)
         and max(median) filter (where age = 20)
-        >= max(median) filter (where age = 24)
+        >= max(median) filter (where age = 24) as falls
     from curve
 ), false)

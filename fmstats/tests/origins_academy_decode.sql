@@ -85,7 +85,7 @@ select
     null as tid,
     null as person_id
 where not exists (
-    select 1
+    select 1 as found
     from people
     where people.origin_youth_team_tid is not null
 )

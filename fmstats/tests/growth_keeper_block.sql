@@ -17,12 +17,12 @@ with blocks as (
 )
 
 select
-    roles.is_goalkeeper,
+    sides.is_goalkeeper,
     blocks.block_mean
-from (values (false), (true)) as roles (is_goalkeeper)
+from (values (false), (true)) as sides (is_goalkeeper)
 left join blocks
-    on roles.is_goalkeeper = blocks.is_goalkeeper
+    on sides.is_goalkeeper = blocks.is_goalkeeper
 where
     blocks.block_mean is null
-    or (roles.is_goalkeeper and blocks.block_mean <= 40)
-    or (not roles.is_goalkeeper and blocks.block_mean >= 10)
+    or (sides.is_goalkeeper and blocks.block_mean <= 40)
+    or (not sides.is_goalkeeper and blocks.block_mean >= 10)

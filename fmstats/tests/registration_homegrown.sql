@@ -52,7 +52,7 @@ where
     )
 union all
 select
-    'empty group: ' || groups.name as check_name,
+    'empty group: ' || group_names.group_name as check_name,
     null as snapshot_date,
     null as person_id
 from (
@@ -62,11 +62,12 @@ from (
         count(*) filter (where b_list) as n_b_list
     from registration
 ) as counts
-cross join (values ('squad'), ('club-trained'), ('b-list')) as groups (name)
+cross join
+    (values ('squad'), ('club-trained'), ('b-list')) as group_names (group_name)
 where
-    case groups.name
+    case group_names.group_name
         when 'squad' then counts.n
         when 'club-trained' then counts.n_club
         else counts.n_b_list
     end = 0
-    and exists (select 1 from {{ ref('stg_snapshots') }})
+    and exists (select 1 as found from {{ ref('stg_snapshots') }})

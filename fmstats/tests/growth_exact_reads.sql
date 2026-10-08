@@ -9,8 +9,8 @@ with snapshots as (
         players.snapshot_date,
         players.person_id,
         players.attributes_are_estimated,
-        exists (
-            select 1
+        exists(
+            select 1 as found
             from {{ ref('mart_squad_membership') }} as squads
             where
                 squads.person_id = players.person_id
