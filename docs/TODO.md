@@ -216,8 +216,7 @@ decoded but never parsed ([`standings-record.md`](standings-record.md)). The reb
 tables (#13) make it less urgent for Denmark, but it is the direct way to settle Spain.
 
 ### 10. Unnamed fields in records we already read
-Bytes the parser reads but cannot name yet. Fields that are named but not yet in the model are
-#15.
+Bytes the parser reads but cannot name yet.
 - **Staff** `+34..+38`: five catalog indices. The six hidden staff attributes stay named by
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 85% of
   staff read 1–4, distinctive enough for a small ground-truth set.
@@ -342,17 +341,6 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   birthday by a day or two). Anything else reading old entries must do the same
   (`int.scrapbook_entries` is only our current squad, so safe).
 
-### 15. Surface what the parser already reads
-Named fields that stop short of the mart.
-- **Player of the Match**: `raw.matches.player_of_match` is the game's own pick. It reaches
-  `int.our_matches` and stops there; carry it onto `dim_match` (or `fact_team_match`) and then
-  the site's match page.
-- **Opposition positions**: the parser reads both sides' full-time positions (the team head's
-  +30, `home_positions` / `away_positions` in `matches.json`), but `load_duckdb.py` fills
-  `raw.match_player_stats.position` for our side only. Fill the opponent's too, so scouting and
-  `rating_adj` can split the opposition by position, then rebuild (the role baselines move).
-  Check the reserve fixtures first: AI-managed sides may carry a default shape.
-
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
   penalties or deflections; until settled, no conversion rate from these columns.
@@ -375,7 +363,9 @@ opponent controlled) beside rating and per-90; resample by player and check leav
 start from a base block (`frem_attacking_ss`, or a role's in-game key attributes) and let the
 data veto. Then ship: CB, CM, AMC, AML/AMR as now (confirmed against results); ST on the
 target-man brief (aerial, shooting, strength key; movement, pace, aggression, dribbling
-secondary) as a `HELD` judgement; LB/RB and DM marked not measurable.
+secondary) as a `HELD` judgement; LB/RB and DM marked not measurable. Group players by the
+position they started in: `attribute_stat_correlations.build(positions="played")` does it, but
+the derivation still passes `positions="familiar"` so it does not move before this rework.
 
 ### 19a. Port `tests/validate_mart.py` to dbt tests
 The script stops at its first query: it reads the legacy mart views #149 retired (50 names,
@@ -419,7 +409,15 @@ Then delete the script, and point the CLAUDE.md "after editing" command at `dbt 
 
 ## Site
 
-Nothing open.
+### 23. Opponent view: click a team for how it plays us
+Both sides' full-time positions are now in `fact_player_match`, but the site ships our players
+only (`site_match_players`). Explore a popup from any opponent (Matches, a league table):
+its best players by Level %ile at the positions they actually play, an expected XI in the shape it
+last lined up in against us (the `scout-opponent` step 9 / `season-outlook` `lined_up` logic),
+and its past matches against us under the same filters as the other match sections, with an
+option to show each meeting's line-up. Per-match detail is secondary; the aggregate view is the
+point. Needs a `site.*` model for opponent line-ups and a small export (`matches.json` or its
+own file), and it serves `scout-from-site` too.
 
 ---
 

@@ -1,8 +1,8 @@
 -- Each player's line in our own matches, both sides. A minute or condition
 -- the player has none of reads NULL (var('no_id8')): sub_on_minute is NULL for
 -- a starter or an unused substitute, sub_off_minute for a player not taken
--- off. position is a starter's full-time place in our XI, NULL for the opposition
--- and for substitutes, in the positions' codes (var('match_position_codes')).
+-- off. position is a starter's full-time place in his side's XI, NULL for
+-- substitutes, in the positions' codes (var('match_position_codes')).
 select
     cast(phase as date) as snapshot_date,
     anchor,

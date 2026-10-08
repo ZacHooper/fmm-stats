@@ -109,7 +109,8 @@ SS and the shipped set are within noise of each other at every role where the da
 - Opponents are 706 of the derivation's 890 player-seasons, seen over 2-4 games each, with
   attributes that are mostly decoder estimates carrying ability as a shared shift
   ([`attribute-model.md`](../attribute-model.md)); the derivation's partial correlations control
-  for the flat attribute total, which absorbs some of that. Opponent match positions are parsed
-  but not loaded (TODO #15), so opponents cannot enter the per-match tests yet.
+  for the flat attribute total, which absorbs some of that. Opponents' full-time positions are
+  in `fact_player_match.position` too, so they can enter the per-match tests, with those
+  estimated attributes.
 
 See [[attribute-stat-correlations]] (what attributes make a player DO, per 90), [[fmm-tactic-options]].

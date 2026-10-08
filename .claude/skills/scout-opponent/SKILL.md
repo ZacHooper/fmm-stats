@@ -72,25 +72,36 @@ SET VARIABLE opp_formation = coalesce((
     WHERE sp.team_tid = getvariable('opp') AND sp.role = 'manager' AND sp.is_current),
     '4-2-3-1');
 
--- ── 1. the frame: both current first-team squads, each player at his most familiar
---       position, with his Level %iles there and the attributes the duel reads use ──
+-- ── 1. the frame: both current first-team squads, each player at the position he has
+--       started most in the last year of our matches (for them: against us), else his most
+--       familiar, with his Level %iles there and the attributes the duel reads use ──
 CREATE OR REPLACE TEMP TABLE frame AS
 WITH squad AS (
     SELECT person_id, team_tid, snapshot_date, is_loan_in
     FROM mart.squad_membership
     WHERE is_current AND team_tid IN (getvariable('us'), getvariable('opp'))
 ),
+played AS (
+    SELECT f.team_tid, f.person_id, mode(f.position) AS played_as
+    FROM mart.fact_player_match f JOIN mart.dim_match m USING (match_id)
+    WHERE f.started AND f.team_tid IN (getvariable('us'), getvariable('opp'))
+      AND m.match_date > (SELECT max(match_date) FROM mart.dim_match WHERE has_detail)
+                         - INTERVAL 1 YEAR
+    GROUP BY ALL
+),
 pos AS (
     SELECT s.team_tid, s.person_id, s.is_loan_in, f.age, f.attributes_are_estimated,
            p.position, p.familiarity, p.level_league, p.level_global,
            f.Pace, f.Movement, f.Positioning, f.Aerial, f.Strength, f.Tackling,
            f.Passing, f.Technique, f.Creativity, f.Decisions, f.Shooting, f.Stamina,
-           f.Dribbling, f.Crossing,
+           f.Dribbling, f.Crossing, pl.played_as,
            row_number() OVER (PARTITION BY s.team_tid, s.person_id
-                              ORDER BY p.familiarity DESC, p.level_league DESC) AS rk
+                              ORDER BY coalesce(p.position = pl.played_as, false) DESC,
+                                       p.familiarity DESC, p.level_league DESC) AS rk
     FROM squad s
     JOIN mart.fact_player_snapshot f USING (person_id, snapshot_date)
     CROSS JOIN unnest(f.positions) AS u(p)
+    LEFT JOIN played pl ON pl.team_tid = s.team_tid AND pl.person_id = s.person_id
 )
 SELECT pos.* EXCLUDE (rk), dp.unit, dperson.name
 FROM pos
@@ -179,10 +190,12 @@ GROUP BY ROLLUP (venue) ORDER BY venue;
 
 -- ── 7. who has actually hurt us (output, not quality), and whether he is still there ──
 WITH prod AS (
-    SELECT f.person_id, count(*) FILTER (WHERE f.appeared) AS apps, sum(f.goals) AS goals,
+    SELECT f.person_id, mode(f.position) AS played_as,  -- his usual full-time position vs us
+           count(*) FILTER (WHERE f.appeared) AS apps, sum(f.goals) AS goals,
            sum(f.assists) AS assists, sum(f.key_passes) AS key_passes, sum(f.shots) AS shots,
            sum(f.shots_on_target) AS on_target,
            round(avg(f.rating) FILTER (WHERE f.appeared), 2) AS avg_rating,
+           count(*) FILTER (WHERE f.is_player_of_match) AS potm,
            max(m.match_date) AS last_played
     FROM mart.fact_player_match f
     JOIN mart.dim_match m USING (match_id)
@@ -209,7 +222,32 @@ WHERE sm.is_current AND t.team_type = 'reserve' AND p.familiarity >= 15
 QUALIFY row_number() OVER (PARTITION BY sm.person_id ORDER BY p.level_global DESC) = 1
 ORDER BY p.level_global DESC LIMIT 6;
 
--- ── 9. their wide men: which foot, which flank, and is he good enough for it to matter ──
+-- ── 9. how they lined up against us: the last three meetings, shape and XI ──
+WITH meetings AS (
+    SELECT match_id, match_date FROM mart.dim_match
+    WHERE has_detail AND getvariable('opp') IN (home_team_tid, away_team_tid)
+      AND getvariable('us') IN (home_team_tid, away_team_tid)
+    ORDER BY match_date DESC LIMIT 3
+),
+xi AS (
+    SELECT mt.match_id, mt.match_date, f.position, dp.display_order, p.name
+    FROM meetings mt
+    JOIN mart.fact_player_match f USING (match_id)
+    JOIN mart.dim_position dp USING (position)
+    LEFT JOIN mart.dim_person p USING (person_id)
+    WHERE f.team_tid = getvariable('opp') AND f.started
+),
+shapes AS (   -- the formation whose slots are exactly these eleven positions
+    SELECT formation, list_sort(list(position)) AS slots
+    FROM site.formation_slots, range(slots) GROUP BY formation
+)
+SELECT xi.match_date, coalesce(any_value(s.formation), 'unlisted') AS shape,
+       string_agg(xi.position || ' ' || coalesce(xi.name, '?'), ', ' ORDER BY xi.display_order) AS xi
+FROM xi LEFT JOIN shapes s
+    ON s.slots = (SELECT list_sort(list(position)) FROM xi x2 WHERE x2.match_id = xi.match_id)
+GROUP BY xi.match_id, xi.match_date ORDER BY xi.match_date DESC;
+
+-- ── 10. their wide men: which foot, which flank, and is he good enough for it to matter ──
 WITH sq AS (
     SELECT person_id, snapshot_date FROM mart.squad_membership
     WHERE is_current AND team_tid = getvariable('opp')
@@ -264,9 +302,26 @@ What each step is for, and how to read it:
 - **Step 6, head-to-head** — one row per match from `site.matches` (our first team, from our
   side), plus the per-venue record over competitive matches.
 - **Step 8, their reserves** — see "Their squad is not their first-team list" below.
-- **Step 9, their wide men** — foot against flank, read with "Wide men: foot against flank" below.
+- **Step 9, how they lined up against us** — the shape and full-time XI of the last three
+  meetings (398 of 400 opposition elevens match a listed formation). When the shape differs from
+  the manager's preferred one, say so, and re-run steps 2-3 with `opp_formation` set to it. The
+  frame (step 1) already puts each man at the slot he played against us in the last year
+  (`played_as`), so a full-back who plays wing-back for them is rated there.
+- **Step 10, their wide men** — foot against flank, read with "Wide men: foot against flank" below.
   A player natural on both flanks gets one row per flank; `played_v_us` says which one his
   manager actually uses against us.
+
+**Partial data — withhold, don't hedge.** When the coverage line shows fewer than 11 rated
+players for either side, do not state the quality gap, the face-offs, danger men or defensive soft
+spots at all; say the squad is not in our data and keep the H2H, which comes from match history,
+not the frame. Emitting them with full confidence off however few players exist is worse than
+nothing: scouting Hajduk Split off **two** rated players produced "We're stronger — team index 126
+vs 116" and "Their defence: weak in the air (Aerial 5) — target it", where the Aerial 5 was ONE
+full-back standing in for a back four. Acting on it means bombarding the box: 21 crosses, 17
+headers won to 7, six corners to nil, one goal, lost 1-3.
+
+If a report needs something the pulls don't return (a deeper individual-attribute cut), add that
+one query rather than re-deriving what is already there.
 
 ## Wide men: foot against flank — only a GOOD inside forward is a threat
 
@@ -304,18 +359,6 @@ How to use it:
 
 Samples are small (6–24 goals a cell): shots on target is the steadier column. Re-measure with the
 recipe in [`wide-footedness`](../../../docs/agent-context/wide-footedness.md).
-
-**Partial data — withhold, don't hedge.** When the coverage line shows fewer than 11 rated
-players for either side, do not state the quality gap, the face-offs, danger men or defensive soft
-spots at all; say the squad is not in our data and keep the H2H, which comes from match history,
-not the frame. Emitting them with full confidence off however few players exist is worse than
-nothing: scouting Hajduk Split off **two** rated players produced "We're stronger — team index 126
-vs 116" and "Their defence: weak in the air (Aerial 5) — target it", where the Aerial 5 was ONE
-full-back standing in for a back four. Acting on it means bombarding the box: 21 crosses, 17
-headers won to 7, six corners to nil, one goal, lost 1-3.
-
-If a report needs something the pulls don't return (a deeper individual-attribute cut), add that
-one query rather than re-deriving what is already there.
 
 ## Reading attributes: check the role weights before calling anything a weakness
 
@@ -460,7 +503,8 @@ Everything is parameterised off the active career:
     invalidated the briefing's route to goal.
   - **When a predicted man's best slot in our data differs from the slot the screen assigns him, say
     so** — cheap, checkable, and it has fired correctly (the `positions` list on `fact_player_snapshot` had Çorlu's best slot
-    as ST against the screen's AMR; he played ST). Caveat: `level_*` is CA-derived, so for a very
+    as ST against the screen's AMR; he played ST). Where he has played us, `played_as` in the
+    frame is the stronger evidence: it is where he actually stood. Caveat: `level_*` is CA-derived, so for a very
     high-quality player it reads high at *every* slot and the ordering is mostly familiarity — only
     flag a difference that is large and football-plausible.
 - **Their squad is not their first-team list — read the RESERVE club too** (step 8), and
@@ -838,7 +882,7 @@ briefing, which is why it was removed. Four or five bullets, each in the form
 - <plus the non-player threats, still with their numbers: the "Their attack vs our defense" row of
   step 3, the direct/set-piece route and the aerial group that delivers it, shot volume
   from the H2H, and anything the partial-data rule withholds.>
-- <a 70+ Level wide man who cuts inside (step 9 `profile`), with the full-back he faces — see
+- <a 70+ Level wide man who cuts inside (step 10 `profile`), with the full-back he faces — see
   "Wide men: foot against flank". Same-foot wingers and sub-70 inside forwards are not a
   threat line on footedness alone.>
 - <their BENCH, when it holds a counter-profile to our plan or a player stronger than a predicted

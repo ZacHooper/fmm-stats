@@ -8,7 +8,7 @@ metadata:
 
 Measured 2026-10-08 on the published Frem store (matches 2021-07 to 2028-05), from the team-head
 positions in `mart.fact_player_match.position` ([[match-position-encoding]]), which carry both
-sides' eleven. Read by `scout-opponent` step 9.
+sides' eleven. Read by `scout-opponent` step 10.
 
 **Definitions.** Starters only, minutes > 0, our FIRST-TEAM matches only. A player is
 *two-footed* when his weaker foot is 15+ (`dim_person.foot_left` / `foot_right`, 1–20); otherwise
