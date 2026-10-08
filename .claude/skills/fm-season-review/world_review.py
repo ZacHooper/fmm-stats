@@ -3,43 +3,63 @@
     uv run python .claude/skills/fm-season-review/world_review.py --season 2027
     uv run python .claude/skills/fm-season-review/world_review.py --season 2027 --db fm-frem.duckdb
 
-`--season` is the END-YEAR (26/27 -> 2027). Reads the store through fmstats.store, so with no
---db it uses the R2 published copy. The season must be complete in the store: its window is
-1 Jul (season-1) .. 30 Jun (season), and the transfer diff needs a snapshot at each end.
+`--season` is the END-YEAR (26/27 -> 2027). Reads the career's local store read-only
+(`fm-<career>.duckdb`, `--db` to name another). The season must be complete in the store: its
+window is 1 Jul (season-1) .. 30 Jun (season), and the coefficient move needs a snapshot at each
+end.
 
-Everything here is derived from the mart. Two pieces are reconstructions the mart does not
-model, so each says how it can go wrong:
+Everything here is derived from the dbt models (`mart.*`, `site.*`, and `int.matches` for the
+fixture list's stage keys). Two pieces are reconstructions the models do not hold, so each says
+how it can go wrong:
 
-* TRANSFERS come from mart.transfers (fmstats/mart.py), which reads each move's fee from
-  the career history. `season` there is the campaign a player moves FOR, so June signings
-  belong to the NEXT season's market. Only clubs the save tracks in detail are covered, so
-  totals are a floor.
-* CONTINENTAL CUPS. The fixture list has stage keys, not competition ids, and the keys move
-  every season. Competitions are rebuilt from the finals backwards: a late-season
-  single-match cross-nation stage is a final, the two-legged stages its finalists played
-  are its knockout rounds, and a group belongs to whichever competition's knockout rounds
-  hold at least two of its clubs (the top two stay in the competition; a third-placed club
-  drops a tier, which is why "any club" would be wrong). Tiers are ranked by the average club
-  reputation of the group stage and named from EURO_TIERS.
-* CLUB NATION comes from mart.clubs at the last snapshot. Clubs from nations the save does
-  not load have no nation; they are shown as '?<club>' and can be named by hand.
+* TRANSFERS come from mart.fact_transfer, which reads each move's fee from the career history.
+  `season` there is the campaign a player moves FOR, so June signings belong to the NEXT
+  season's market. Only clubs the save tracks in detail are covered, so totals are a floor.
+* CONTINENTAL CUPS. The world fixture list has stage keys, not competition ids, for other
+  clubs' continental matches, and the keys move every season. Competitions are rebuilt from the
+  finals backwards: a late-season single-match cross-nation stage is a final, the two-legged
+  stages its finalists played are its knockout rounds, and a group belongs to whichever
+  competition's knockout rounds hold at least two of its clubs (the top two stay in the
+  competition; a third-placed club drops a tier, which is why "any club" would be wrong). Tiers
+  are ranked by the average club reputation of the group stage and named from EURO_TIERS.
+* CLUB NATION is mart.dim_club's nation. Clubs from nations the save does not load have none;
+  they are shown as '?<club>' and can be named by hand.
 """
 import argparse
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from fmstats.store import open_store  # noqa: E402
+import duckdb
+
+REPO = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO))
+import careers as C  # noqa: E402
 
 
-# The European club competitions by tier, from the save's own competition records (read with
-# fmparser.clubs_comps.comp_detail): cid 256 'European Champions Cup' (reputation 200),
-# 258 'EURO Cup' (150), 505 'EURO Cup II' (130). cid 257 'European Cup Winners Cup' is also
-# in the table but dormant (level 100, never in the fixture list). The store's
-# raw.competitions only carries competitions with a match in OUR data, so 505 is absent
-# from it and cannot be looked up there. The comp_man roll of honour (comp_cid 505: Sevilla
-# beat Gladbach in 25/26) confirms the third tier is EC2 and matches this reconstruction.
+# The European club competitions by tier, from the save's own competition records:
+# cid 256 'European Champions Cup' (reputation 200), 258 'EURO Cup' (150), 505 'EURO Cup II'
+# (130). cid 257 'European Cup Winners Cup' is also in the table but dormant (never in the
+# fixture list). The comp_man roll of honour (comp_cid 505: Sevilla beat Gladbach in 25/26)
+# confirms the third tier is EC2 and matches this reconstruction.
 EURO_TIERS = ("European Champions Cup", "EURO Cup", "EURO Cup II")
+
+
+def connect(path):
+    """Read-only connection to the store. dbt bakes the store's file name into every view as
+    its catalog, so a locked store is copied to a temp DIRECTORY under the same file name."""
+    path = os.path.abspath(path)
+    try:
+        return duckdb.connect(path, read_only=True)
+    except duckdb.Error:
+        if os.path.exists(path + ".wal"):
+            sys.exit(f"{os.path.basename(path)} is being written (a .wal exists); try again "
+                     "when the writer has finished")
+        tmp = os.path.join(tempfile.mkdtemp(prefix="world_review_"), os.path.basename(path))
+        shutil.copy2(path, tmp)
+        return duckdb.connect(tmp, read_only=True)
 
 
 def show(con, sql, title=None):
@@ -52,8 +72,8 @@ def show(con, sql, title=None):
 
 def phases(con, season):
     first, last = con.execute(
-        "SELECT min(phase), max(phase) FROM mart.snapshots WHERE season = ?", [season]
-    ).fetchone()
+        "SELECT min(snapshot_date), max(snapshot_date) FROM site.snapshots WHERE season = ?",
+        [season]).fetchone()
     if first is None:
         sys.exit(f"no snapshots for season {season}")
     return first, last
@@ -61,37 +81,75 @@ def phases(con, season):
 
 def home_nation(con):
     return con.execute(
-        """SELECT c.nation FROM mart.clubs c JOIN mart.managed_club m USING (club_tid)
-           ORDER BY c.phase DESC LIMIT 1"""
-    ).fetchone()[0]
+        """SELECT n.name FROM site.our_teams t JOIN mart.dim_club c USING (club_tid)
+           JOIN mart.dim_nation n USING (nation_id) WHERE t.is_managed""").fetchone()[0]
+
+
+def setup(con, season, last):
+    """cn: each club first team's nation and reputation at the season's last snapshot;
+    cnc: each club's nation (transfers are club to club); wf: every world fixture of the
+    season between two first teams, once per side."""
+    lo, hi = f"{season - 1}-07-01", f"{season}-06-30"
+    con.execute(f"""
+    CREATE OR REPLACE TEMP TABLE cn AS
+    SELECT t.team_tid AS club_tid, n.name AS nation, ts.reputation AS rep
+    FROM mart.dim_team t
+    JOIN mart.dim_club c USING (club_tid)
+    LEFT JOIN mart.dim_nation n ON n.nation_id = c.nation_id
+    LEFT JOIN mart.fact_team_snapshot ts
+           ON ts.team_tid = t.team_tid AND ts.snapshot_date = DATE '{last}'
+    WHERE t.team_type = 'first'""")
+    con.execute("""
+    CREATE OR REPLACE TEMP TABLE cnc AS
+    SELECT c.club_tid, c.name AS club, n.name AS nation
+    FROM mart.dim_club c LEFT JOIN mart.dim_nation n USING (nation_id)""")
+    con.execute(f"""
+    CREATE OR REPLACE TEMP TABLE wf AS
+    SELECT tm.team_tid AS club_tid, tm.opponent_tid AS opp_tid, a.name AS club,
+           b.name AS opponent, m.match_date AS date, tm.venue, tm.goals_for AS gf,
+           tm.goals_against AS ga, tm.pens_for, tm.pens_against, m.stage_key, m.stage_index
+    FROM mart.fact_team_match tm
+    JOIN int.matches m USING (match_id)
+    JOIN mart.dim_team a ON a.team_tid = tm.team_tid AND a.team_type = 'first'
+    JOIN mart.dim_team b ON b.team_tid = tm.opponent_tid AND b.team_type = 'first'
+    WHERE m.match_date BETWEEN DATE '{lo}' AND DATE '{hi}' AND tm.goals_for IS NOT NULL""")
+    return lo, hi
 
 
 def transfers(con, season, nation):
-    # mart.transfers: one row per club move, `season` = the campaign the player moves FOR
-    # (a June signing counts toward next season). Fees in £; see the view's comment in
-    # fmstats/mart.py for how they are read and what fee_type means.
+    # mart.fact_transfer: one row per permanent move or graduation, `season` = the campaign
+    # the player moves FOR (a June signing counts toward next season). Fees in £. A
+    # graduation (academy to senior side) is not a market move and is left out.
     con.execute(f"""
     CREATE OR REPLACE TEMP TABLE mv AS
-    SELECT t.*, round(t.fee_gbp / 1e6, 2) AS fee_m,
-           fc.nation AS from_nation, tc.nation AS to_nation
-    FROM mart.transfers t
-    LEFT JOIN cn fc ON fc.club_tid = t.from_club_tid
-    LEFT JOIN cn tc ON tc.club_tid = t.to_club_tid
-    WHERE t.season = {season} AND t.move_type <> 'internal'
-    """)
-    show(con, """SELECT count(*) FILTER (WHERE move_type = 'transfer') AS transfers,
-                        count(*) FILTER (WHERE fee_type = 'fee') AS paid,
-                        count(*) FILTER (WHERE fee_type = 'free') AS free,
+    SELECT t.*, p.name,
+           extract(year FROM age(coalesce(t.move_date, t.moved_by, DATE '{season}-06-30'),
+                                 p.dob)) AS age,
+           round(t.fee_gbp / 1e6, 2) AS fee_m,
+           fc.club AS from_club, tc.club AS to_club,
+           fc.nation AS from_nation, tc.nation AS to_nation,
+           CASE WHEN coalesce(t.move_date, t.moved_by) IS NULL THEN 'undated'
+                WHEN month(coalesce(t.move_date, t.moved_by)) BETWEEN 6 AND 9 THEN 'summer'
+                ELSE 'winter' END AS transfer_window
+    FROM mart.fact_transfer t
+    JOIN mart.dim_person p USING (person_id)
+    LEFT JOIN cnc fc ON fc.club_tid = t.from_club_tid
+    LEFT JOIN cnc tc ON tc.club_tid = t.to_club_tid
+    WHERE t.season = {season} AND t.transfer_type IN ('permanent', 'free')""")
+    show(con, """SELECT count(*) AS transfers,
+                        count(*) FILTER (WHERE transfer_type = 'permanent') AS paid,
+                        count(*) FILTER (WHERE transfer_type = 'free') AS free,
                         round(sum(fee_gbp) / 1e6, 1) AS total_m,
                         count(*) FILTER (WHERE fee_gbp >= 10e6) AS over_10m FROM mv""",
          "WORLD TRANSFERS (£M)")
-    show(con, """SELECT transfer_window, count(*) FILTER (WHERE fee_type = 'fee') AS paid,
+    show(con, """SELECT transfer_window, count(*) FILTER (WHERE transfer_type = 'permanent') AS paid,
                         round(sum(fee_gbp) / 1e6, 1) AS total_m FROM mv GROUP BY 1 ORDER BY 1""",
-         "BY WINDOW")
+         "BY WINDOW (move date, else the first snapshot showing it)")
     show(con, """SELECT name, age, from_club, to_club, move_date, fee_m FROM mv
-                 WHERE fee_type = 'fee' ORDER BY fee_gbp DESC LIMIT 10""", "TOP 10 DEALS")
+                 WHERE transfer_type = 'permanent' ORDER BY fee_gbp DESC LIMIT 10""",
+         "TOP 10 DEALS")
     show(con, """SELECT to_club, round(sum(fee_gbp) / 1e6, 1) AS spent_m,
-                        count(*) FILTER (WHERE fee_type = 'fee') AS n
+                        count(*) FILTER (WHERE transfer_type = 'permanent') AS n
                  FROM mv GROUP BY 1 ORDER BY 2 DESC NULLS LAST LIMIT 6""", "BIGGEST SPENDERS")
     show(con, """SELECT from_club, round(sum(fee_gbp) / 1e6, 1) AS received_m
                  FROM mv GROUP BY 1 ORDER BY 2 DESC NULLS LAST LIMIT 6""", "BIGGEST SELLERS")
@@ -103,42 +161,39 @@ def transfers(con, season, nation):
                  ORDER BY greatest(coalesce(spent, 0), coalesce(received, 0)) DESC LIMIT 8""",
          "BY LEAGUE NATION")
     show(con, f"""SELECT name, age, from_club, to_club, move_date, fee_m FROM mv
-                  WHERE (to_nation = '{nation}' OR from_nation = '{nation}') AND fee_type = 'fee'
+                  WHERE (to_nation = '{nation}' OR from_nation = '{nation}')
+                    AND transfer_type = 'permanent'
                   ORDER BY fee_gbp DESC LIMIT 10""", f"{nation.upper()}: BIGGEST DEALS")
     show(con, f"""SELECT round(sum(fee_gbp) FILTER (WHERE to_nation = '{nation}') / 1e6, 2) AS spent_m,
                          round(sum(fee_gbp) FILTER (WHERE from_nation = '{nation}') / 1e6, 2) AS received_m,
                          round(sum(fee_gbp) FILTER (WHERE from_nation = '{nation}'
                                AND to_nation IS DISTINCT FROM '{nation}') / 1e6, 2) AS exports_m
                   FROM mv""", f"{nation.upper()}: MARKET TOTALS")
-    show(con, """SELECT name, age, from_club, to_club, move_date, move_type, fee_type, fee_m FROM mv
-                 WHERE from_club_tid IN (SELECT club_tid FROM mart.our_clubs)
-                    OR to_club_tid IN (SELECT club_tid FROM mart.our_clubs)
+    show(con, """SELECT name, age, from_club, to_club, move_date, transfer_type, fee_kind, fee_m
+                 FROM mv
+                 WHERE from_club_tid IN (SELECT club_tid FROM site.our_teams)
+                    OR to_club_tid IN (SELECT club_tid FROM site.our_teams)
                  ORDER BY move_date NULLS LAST""", "OUR LEDGER")
 
 
-def continental(con, season, last):
-    lo, hi = f"{season - 1}-07-01", f"{season}-06-30"
-    con.execute(f"""
-    CREATE OR REPLACE TEMP TABLE cn AS
-    SELECT club_tid, any_value(nation) AS nation, any_value(reputation) AS rep
-    FROM mart.clubs WHERE phase = '{last}' GROUP BY 1""")
-    # Continental = non-friendly stages (stage_index 255 is the friendly pool) that are mostly
-    # cross-nation: a knockout draw can pair two clubs of one nation, so "all" would drop the round.
-    # The majority is taken over matches where BOTH nations are known: a club from an
-    # unloaded nation has none, and counting NULL as "different" drags domestic stages in,
-    # while counting it as "same" drops any group that holds such a club.
-    con.execute(f"""
+def continental(con, season, lo, hi):
+    # Continental = competitive stages (stage_index is NULL for the friendly pool) that are
+    # mostly cross-nation: a knockout draw can pair two clubs of one nation, so "all" would
+    # drop the round. The majority is taken over matches where BOTH nations are known: a club
+    # with no nation, counted as "different", drags domestic stages in, and counted as "same"
+    # drops any group that holds such a club.
+    con.execute("""
     CREATE OR REPLACE TEMP TABLE xf AS
     SELECT f.*, coalesce(a.nation, '?' || f.club) AS nation, b.nation AS opp_nation, a.rep
-    FROM mart.world_club_fixtures f
+    FROM wf f
     LEFT JOIN cn a ON a.club_tid = f.club_tid
     LEFT JOIN cn b ON b.club_tid = f.opp_tid
-    WHERE f.date BETWEEN DATE '{lo}' AND DATE '{hi}' AND f.stage_index <> 255
+    WHERE f.stage_index IS NOT NULL
       AND f.stage_key IN (
-          SELECT f2.stage_key FROM mart.world_club_fixtures f2
+          SELECT f2.stage_key FROM wf f2
           LEFT JOIN cn a2 ON a2.club_tid = f2.club_tid
           LEFT JOIN cn b2 ON b2.club_tid = f2.opp_tid
-          WHERE f2.date BETWEEN DATE '{lo}' AND DATE '{hi}' AND f2.stage_index <> 255
+          WHERE f2.stage_index IS NOT NULL
           GROUP BY 1
           HAVING count(*) FILTER (WHERE a2.nation <> b2.nation) * 2
                  >= count(*) FILTER (WHERE a2.nation IS NOT NULL AND b2.nation IS NOT NULL)
@@ -241,7 +296,7 @@ def continental(con, season, last):
                  FROM g GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 3 DESC""", "CLUBS THROUGH THE GROUPS")
     show(con, """SELECT comp, rnd, date, club, gf, ga, opponent FROM ef WHERE venue = 'H'
                  ORDER BY abs(gf - ga) DESC, gf + ga DESC LIMIT 5""", "BIGGEST SCORELINES")
-    return lo, hi
+    return True
 
 
 def home_nation_europe(con, nation, lo, hi):
@@ -253,46 +308,55 @@ def home_nation_europe(con, nation, lo, hi):
          f"{nation.upper()} IN EUROPE (every cross-nation tie, qualifiers included)")
 
 
-def coefficients(con, first, last):
-    # seq 0..9 is a rolling ten-season history, oldest first; seq 9 at the season's last
-    # snapshot is the season just finished. The 5-year ranking is the sum of seq 5..9.
+def coefficients(con, season):
+    # site.nations: coefficient_history is oldest first, its last entry the season in progress;
+    # coefficient_season is the newest COMPLETED one (the second to last entry) and
+    # uefa_rank the 5-season ranking. "now" is the latest snapshot on which season S is the
+    # newest completed season, "before" the latest on which S-1 was.
     show(con, f"""
-    WITH n AS (SELECT nation, sum(coefficient) FILTER (WHERE seq = 9) AS season,
-                      max(coefficient) FILTER (WHERE seq BETWEEN 0 AND 8) AS best_prev,
-                      sum(coefficient) FILTER (WHERE seq BETWEEN 5 AND 9) AS five
-               FROM mart.nation_coefficients WHERE phase = '{last}' GROUP BY 1),
-    o AS (SELECT nation, sum(coefficient) FILTER (WHERE seq BETWEEN 5 AND 9) AS five_before
-          FROM mart.nation_coefficients WHERE phase = '{first}' GROUP BY 1)
-    SELECT n.nation, round(season, 2) AS season_coef, rank() OVER (ORDER BY season DESC) AS season_rank,
-           round(best_prev, 2) AS best_prev_9yrs, rank() OVER (ORDER BY five DESC) AS rank_5yr_now,
-           rank() OVER (ORDER BY five_before DESC) AS rank_5yr_before
-    FROM n JOIN o USING (nation) ORDER BY season DESC LIMIT 20""", "NATION COEFFICIENTS (season + 5-yr rank move)")
+    WITH now AS (
+        SELECT name, coefficient_history[-2] AS season_coef,
+               list_max(coefficient_history[1:-3]) AS best_prev, uefa_rank, coefficient_5
+        FROM site.nations WHERE is_uefa AND coefficient_season = {season}
+        QUALIFY snapshot_date = max(snapshot_date) OVER ()),
+    before AS (
+        SELECT name, uefa_rank FROM site.nations WHERE is_uefa AND coefficient_season = {season - 1}
+        QUALIFY snapshot_date = max(snapshot_date) OVER ())
+    SELECT now.name AS nation, round(season_coef, 2) AS season_coef,
+           rank() OVER (ORDER BY season_coef DESC) AS season_rank,
+           round(best_prev, 2) AS best_prev, now.uefa_rank AS rank_5yr_now,
+           before.uefa_rank AS rank_5yr_before
+    FROM now LEFT JOIN before USING (name) ORDER BY season_coef DESC LIMIT 20""",
+         "UEFA NATION COEFFICIENTS (season + 5-yr rank move)")
 
 
 def domestic(con, season, last, nation, lo, hi):
     show(con, f"""
     SELECT f.stage_key, f.date, f.club, f.gf, f.ga, f.pens_for AS pf, f.pens_against AS pa, f.opponent
-    FROM mart.world_club_fixtures f
+    FROM wf f
     JOIN cn a ON a.club_tid = f.club_tid JOIN cn b ON b.club_tid = f.opp_tid
     WHERE a.nation = '{nation}' AND b.nation = '{nation}' AND f.venue = 'H'
-      AND f.date BETWEEN DATE '{season}-03-01' AND DATE '{hi}'
-      AND f.stage_key IN (SELECT stage_key FROM mart.world_club_fixtures
-                          WHERE date BETWEEN DATE '{lo}' AND DATE '{hi}' GROUP BY 1 HAVING count(*) <= 8)
+      AND f.date >= DATE '{season}-03-01'
+      AND f.stage_key IN (SELECT stage_key FROM wf GROUP BY 1 HAVING count(*) <= 8)
     ORDER BY f.date""",
          f"{nation.upper()} CUP CANDIDATES (the final is the lone match after a 2-club/2-leg semi stage)")
     show(con, f"""
-    WITH top AS (SELECT DISTINCT club_tid, league_name FROM mart.clubs c
-                 JOIN mart.leagues l ON l.cid = c.league_cid AND l.phase = c.phase
-                 WHERE c.phase = '{last}' AND l.tier = 1
-                   AND c.nation IN ('{nation}', 'England', 'Germany', 'Spain', 'Italy', 'France')),
-    s AS (SELECT person_id, any_value(name) AS name, max(is_gk) AS gk, any_value(age) AS age
-          FROM mart.player_snapshots WHERE phase = '{last}' GROUP BY 1),
-    h AS (SELECT c.person_id, c.club, c.club_tid, c.apps, c.goals FROM mart.player_career_seasons c
-          WHERE c.phase = '{last}' AND c.end_year = {season})
-    SELECT league_name, name, age, club, apps, goals FROM h JOIN top USING (club_tid) JOIN s USING (person_id)
-    WHERE s.gk = 0
-    QUALIFY row_number() OVER (PARTITION BY league_name ORDER BY goals DESC) <= 3
-    ORDER BY league_name, goals DESC""",
+    WITH top AS (SELECT ts.team_tid, l.name AS league_name
+                 FROM mart.fact_team_snapshot ts
+                 JOIN site.leagues l ON l.cid = ts.league_cid AND l.snapshot_date = ts.snapshot_date
+                 WHERE ts.snapshot_date = DATE '{last}' AND l.tier = 1
+                   AND l.nation IN ('{nation}', 'England', 'Germany', 'Spain', 'Italy', 'France')),
+    gk AS (SELECT person_id FROM mart.fact_player_snapshot
+           WHERE snapshot_date = DATE '{last}' AND is_goalkeeper)
+    SELECT top.league_name, p.name, extract(year FROM age(DATE '{season}-06-30', p.dob)) AS age,
+           t.name AS club, s.apps, s.goals
+    FROM mart.fact_player_season s
+    JOIN top USING (team_tid)
+    JOIN mart.dim_person p USING (person_id)
+    JOIN mart.dim_team t USING (team_tid)
+    WHERE s.season = {season} AND s.person_id NOT IN (SELECT person_id FROM gk)
+    QUALIFY row_number() OVER (PARTITION BY top.league_name ORDER BY s.goals DESC) <= 3
+    ORDER BY top.league_name, s.goals DESC""",
          "TOP SCORERS, top divisions (all comps; GKs excluded, their 'goals' are conceded)")
 
 
@@ -300,19 +364,18 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, required=True, help="END-YEAR: 26/27 -> 2027")
     ap.add_argument("--career")
-    ap.add_argument("--db")
+    ap.add_argument("--db", help="store path (default: the career's fm-<career>.duckdb)")
     ap.add_argument("--nation", help="home nation for the national section (default: our club's)")
     a = ap.parse_args()
-    st = open_store(career=a.career, db=a.db)
-    con = st.con
+    db = a.db or str(REPO / C.resolve_career(a.career or os.environ.get("FM_CAREER")).db)
+    con = connect(db)
     first, last = phases(con, a.season)
     nation = a.nation or home_nation(con)
     print(f"=== {a.season - 1}/{str(a.season)[2:]} WORLD REVIEW · snapshots {first} -> {last} · home nation {nation} ===")
-    r = continental(con, a.season, last)
-    if r:
-        home_nation_europe(con, nation, *r)
-    coefficients(con, first, last)
-    lo, hi = f"{a.season - 1}-07-01", f"{a.season}-06-30"
+    lo, hi = setup(con, a.season, last)
+    if continental(con, a.season, lo, hi):
+        home_nation_europe(con, nation, lo, hi)
+    coefficients(con, a.season)
     domestic(con, a.season, last, nation, lo, hi)
     transfers(con, a.season, nation)
 
