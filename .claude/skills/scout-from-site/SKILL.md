@@ -18,8 +18,6 @@ the store does:
 - Ability *ranks* only for our own squad (`loans.json`); for an opponent you get ability
   *percentiles* per player-position, not their rank inside another division.
 - No injury or loan-spell history, no awards tables, no per-competition league detail.
-- No opposing-manager record: his formations and Style are in the store
-  (`mart.fact_staff_snapshot`) but not in the site's JSON.
 - **Nothing you produce here reaches the scout log.** The log is `state/scouts/` on R2, written
   with rclone (`scout-opponent`, "Check for a prior scout"), so a report written from the site
   leaves no record and the next agent will find no trace of it — which has already led to "I'm
@@ -57,9 +55,9 @@ files at `http://localhost:8000` (both Functions are absent, so `/api/all` falls
 
 ## Non-negotiables
 
-- **Ask for the in-game scout's formation and style.** The site does not carry the opposing
-  manager's formations or Style (the store does — `scout-opponent` reads them). Do the
-  squad-profile half while you wait if you like, but label it provisional.
+- **Their shape comes from `matches.json`:** the manager's formations and Style (`managers`) and
+  how they lined up in each meeting with us (`opponent_player_rows`). Asking for the in-game
+  scout's screen is an optional refinement, not a prerequisite.
 - **Never surface a raw ability number**, and never reconstruct one. Percentiles, ranks, attributes
   and match stats only. The export omits it deliberately.
 - **Opponent attributes are model estimates (±1)** outside pace and physicals — don't hang an

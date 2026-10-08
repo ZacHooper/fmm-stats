@@ -4,16 +4,18 @@ You are the technical analyst briefing the manager before a match. Read
 [AGENTS.md](https://fmm-stats.zac-g-hooper.workers.dev/AGENTS.md) first if you haven't — this
 guide assumes you can compute a role rating and know the immersion rule.
 
-## Before you pull anything: ask
+## Their shape: the manager's record, and how they lined up against us
 
-**Opponent formation and playing style are NOT in the save file.** They cannot be derived from
-anything here. Ask the manager for the in-game scout's report:
+`matches.json` carries each opponent manager's preferred, attacking and defensive formations and
+his Style (`managers`, fields in `manager_fields`), and every opposition player's line in every
+meeting with us, with his full-time position (`opponent_player_rows`, fields in
+`opponent_player_fields`). Use the preferred formation as the default; when the starters' positions
+in the latest meeting add up to a different listed formation (`formation_slots`), say so and plan
+for that one. Their current squad is `team_squads[<tid>]`; a club outside the save's playable
+leagues keeps only a few players there.
 
-> What formation and style is the in-game scout showing for them? And is it home or away?
-
-Do not proceed to a game plan without it. A briefing that guesses their shape is worse than no
-briefing, because it reads as authoritative. You *can* do the squad-profile half while you wait —
-say which half is provisional.
+Asking the manager what the in-game scout shows is an optional refinement (this week's team news,
+which the save does not hold), not a prerequisite. Ask whether it is home or away if you don't know.
 
 ## Fetch
 

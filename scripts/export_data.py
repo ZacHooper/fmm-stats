@@ -161,8 +161,8 @@ def player_row(r, attrs, profile=False):
 
 
 INDEX_CAVEATS = [
-    "Opponent tactics and formation are NOT in the save — ask the manager for the in-game "
-    "scout's formation and style before advising on a match.",
+    "Each opponent manager's preferred, attacking and defensive formations and his Style are in "
+    "matches.json (`managers`); this week's team news is not in the save.",
     "Opponent attribute values are model estimates (±1) except pace and physicals.",
     "Squad status and loan flags are unreliable; rank by minutes played instead.",
     "Ratings shown are computed in the browser from attributes x role weights, so they "
@@ -399,10 +399,32 @@ def main():
     apps = s.rows("SELECT * FROM site.match_players ORDER BY season, match_date, tid")
     for r in apps:
         r["rating_adj"] = None if r["rating_adj"] is None else round(r["rating_adj"], 2)
+    # The opposition's lines in the same matches, for the club sheet: how a club lined up
+    # against us and who hurt us. Same fields as ours, plus the team they played for.
+    ofields = ["team_tid"] + pfields
+    opp_apps = s.rows("SELECT * FROM site.opponent_match_players "
+                      "ORDER BY season, match_date, team_tid, tid")
+    for r in opp_apps:
+        r["rating_adj"] = None if r["rating_adj"] is None else round(r["rating_adj"], 2)
     names = {r["person_id"]: r["name"] for r in s.rows(
         """SELECT person_id, arg_max(name, snapshot_date) AS name FROM site.players
-           WHERE person_id IN (SELECT DISTINCT person_id FROM site.match_players)
+           WHERE person_id IN (SELECT person_id FROM site.match_players
+                               UNION SELECT person_id FROM site.opponent_match_players)
            GROUP BY person_id""")}
+    opponents = "SELECT DISTINCT opp_tid FROM site.matches"
+    manager_fields = ["name", "formation_preferred", "formation_attacking",
+                      "formation_defensive", "style"]
+    managers = {str(r["team_tid"]): [r[k] for k in manager_fields] for r in s.rows(
+        f"SELECT * FROM site.club_managers WHERE team_tid IN ({opponents}) ORDER BY team_tid")}
+    squads = {}
+    for r in s.rows(f"""SELECT team_tid, tid FROM site.team_squads
+                        WHERE team_tid IN ({opponents})
+                           OR team_tid IN (SELECT team_tid FROM site.our_teams WHERE is_managed)
+                        ORDER BY team_tid, tid"""):
+        squads.setdefault(str(r["team_tid"]), []).append(r["tid"])
+    slots = {}
+    for r in s.rows("SELECT * FROM site.formation_slots ORDER BY formation_order, position_order"):
+        slots.setdefault(r["formation"], {})[r["position"]] = r["slots"]
     att_fields = ["season", "n_games", "avg_att", "max_att"]
     fin_fields = ["season", "phase", "n_owned", "n_loan_in", "value_gbp", "n_value_est",
                   "wage_gbp"]
@@ -416,8 +438,14 @@ def main():
         "matches": rowify(matches, mfields, {"date": "match_date"}),
         "player_fields": pfields,
         "player_rows": rowify(apps, pfields, prename),
+        "opponent_player_fields": ofields,
+        "opponent_player_rows": rowify(opp_apps, ofields, prename),
         "player_names": {str(t): names[p] for t, p in sorted(
-            {(r["tid"], r["person_id"]) for r in apps}) if names.get(p)},
+            {(r["tid"], r["person_id"]) for r in apps + opp_apps}) if names.get(p)},
+        "manager_fields": manager_fields,
+        "managers": managers,
+        "team_squads": squads,
+        "formation_slots": slots,
         "attendance_fields": att_fields,
         "attendance": rowify(s.rows("SELECT * FROM site.attendance ORDER BY season"),
                              att_fields),

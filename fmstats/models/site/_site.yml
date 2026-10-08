@@ -67,6 +67,18 @@ models:
     description: Each appearance for the managed (senior) team in a match with detail.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id, person_id]}}
+  - name: site_opponent_match_players
+    description: Each appearance against the managed (senior) team in a match with detail.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_id, person_id]}}
+  - name: site_team_squads
+    description: Every team's current squad, from the squad arrays.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid, person_id]}}
+  - name: site_club_managers
+    description: Each team's current manager, his three formations and his Style.
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid]}}
   - name: site_attendance
     description: The managed team's home crowds per season.
     data_tests:
