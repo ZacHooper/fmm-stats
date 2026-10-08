@@ -606,16 +606,18 @@ unit_tests:
   - name: player_value_inputs_reserve_takes_first_team_league
     description: >
       A reserve side's player takes his first team's league reputation and is_reserve; a
-      first-team player takes his own league's.
+      first-team player takes his own league's. Terms: logs of the reputations, league and
+      wage (a reputation of 0 gives no log), age past the hinge, contract years left capped,
+      and the potential still to come only under the youth age.
     model: int_player_value_inputs
     given:
       - input: ref('int_player_info')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, club_tid: 346, ca: 100, pa: 120, reputation: 50, is_goalkeeper: false, value: 250000}
-          - {snapshot_date: '2026-06-11', tid: 2, club_tid: 7296, ca: 80, pa: 140, reputation: 20, is_goalkeeper: false, value: null}
+          - {snapshot_date: '2026-06-11', tid: 1, person_id: a, club_tid: 346, ca: 100, pa: 120, reputation: 50, current_reputation: 40, world_reputation: 30, is_goalkeeper: false, wage_gbp: 1000, contract_expiry: '2036-06-11', value: 250000}
+          - {snapshot_date: '2026-06-11', tid: 2, person_id: b, club_tid: 7296, ca: 80, pa: 140, reputation: 0, current_reputation: 0, world_reputation: 0, is_goalkeeper: true, wage_gbp: 0, contract_expiry: '2025-01-01', value: null}
       - input: ref('stg_persons')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, dob: '2000-01-01'}
+          - {snapshot_date: '2026-06-11', tid: 1, dob: '1996-01-01'}
           - {snapshot_date: '2026-06-11', tid: 2, dob: '2007-01-01'}
       - input: ref('int_teams')
         rows:
@@ -627,35 +629,70 @@ unit_tests:
           - {snapshot_date: '2026-06-11', team_tid: 7296, league_reputation: 1}
     expect:
       rows:
-        - {tid: 1, league_reputation: 100, is_reserve: false, age: 26, value: 250000}
-        - {tid: 2, league_reputation: 100, is_reserve: true, age: 19, value: null}
+        - {tid: 1, league_reputation: 100, is_reserve: false, age: 30, value: 250000, gk: 0, res: 0, age2: 900, age_over: 2, yrs_left: 6, pagap_young: 0, lwage: 6.907755278982137, lrep: 3.912023005428146}
+        - {tid: 2, league_reputation: 100, is_reserve: true, age: 19, value: null, gk: 1, res: 1, age2: 361, age_over: 0, yrs_left: 0, pagap_young: 240, lwage: 0.0, lrep: null}
 
   - name: player_value_scores_the_seeded_model
     description: >
-      log(value) is the seeded linear model, with age capped at var('value_age_cap'); a
-      player with no reputation gets no row.
+      log(value) is the intercept plus each var('value_terms') term times its seeded
+      coefficient; a player with any term missing gets no row.
     model: int_player_value
     given:
       - input: ref('stg_value_model')
         rows:
           - {term: intercept, coefficient: 0}
-          - {term: ca, coefficient: 0}
-          - {term: pa, coefficient: 0}
           - {term: lrep, coefficient: 1}
           - {term: llrp, coefficient: 1}
-          - {term: gk, coefficient: 0}
-          - {term: acap, coefficient: 0}
-          - {term: acap2, coefficient: 0}
           - {term: res, coefficient: 0.6931471805599453}
+          - {term: ca, coefficient: 0}
+          - {term: pa, coefficient: 0}
+          - {term: gk, coefficient: 0}
+          - {term: age, coefficient: 0}
+          - {term: age2, coefficient: 0}
+          - {term: age_over, coefficient: 0}
+          - {term: lcrep, coefficient: 0}
+          - {term: lwrep, coefficient: 0}
+          - {term: lwage, coefficient: 0}
+          - {term: yrs_left, coefficient: 0}
+          - {term: ca_llrp, coefficient: 0}
+          - {term: lrep_llrp, coefficient: 0}
+          - {term: pagap_young, coefficient: 0}
+          - {term: wage_llrp, coefficient: 0}
       - input: ref('int_player_value_inputs')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, ca: 100, pa: 120, reputation: 50, league_reputation: 100, is_goalkeeper: false, is_reserve: false, age: 26}
-          - {snapshot_date: '2026-06-11', tid: 2, ca: 80, pa: 140, reputation: 20, league_reputation: 100, is_goalkeeper: false, is_reserve: true, age: 19}
-          - {snapshot_date: '2026-06-11', tid: 3, ca: 90, pa: 90, reputation: 0, league_reputation: 100, is_goalkeeper: false, is_reserve: false, age: 31}
+          - {snapshot_date: '2026-06-11', tid: 1, ca: 0, pa: 0, lrep: 3.912023005428146, llrp: 4.605170185988092, gk: 0, res: 0, age: 0, age2: 0, age_over: 0, lcrep: 0, lwrep: 0, lwage: 0, yrs_left: 0, ca_llrp: 0, lrep_llrp: 0, pagap_young: 0, wage_llrp: 0}
+          - {snapshot_date: '2026-06-11', tid: 2, ca: 0, pa: 0, lrep: 2.995732273553991, llrp: 4.605170185988092, gk: 0, res: 1, age: 0, age2: 0, age_over: 0, lcrep: 0, lwrep: 0, lwage: 0, yrs_left: 0, ca_llrp: 0, lrep_llrp: 0, pagap_young: 0, wage_llrp: 0}
+          - {snapshot_date: '2026-06-11', tid: 3, ca: 0, pa: 0, lrep: null, llrp: 4.605170185988092, gk: 0, res: 0, age: 0, age2: 0, age_over: 0, lcrep: 0, lwrep: 0, lwage: 0, yrs_left: 0, ca_llrp: 0, lrep_llrp: 0, pagap_young: 0, wage_llrp: 0}
     expect:
       rows:
         - {tid: 1, value_estimate: 5000, is_in_trusted_band: false}
         - {tid: 2, value_estimate: 4000, is_in_trusted_band: false}
+
+  - name: player_value_labels_pair_the_nearest_snapshot
+    description: >
+      A stated value pairs with the same tid's inputs on the nearest snapshot within the gap
+      limit, and only while the tid's age agrees with the entry's (a reused tid does not).
+      Several copies of one entry are one row; our club's lists set is_our_club.
+    model: int_player_value_labels
+    given:
+      - input: ref('stg_scrapbook_entries')
+        rows:
+          - {snapshot_date: '2026-03-01', list: 40, player_tid: 1, entry_date: '2026-02-01', value: 500000, age: 25}
+          - {snapshot_date: '2026-06-01', list: 40, player_tid: 1, entry_date: '2026-02-01', value: 500000, age: 25}
+          - {snapshot_date: '2026-06-01', list: 5, player_tid: 2, entry_date: '2026-05-20', value: 9000000, age: 30}
+          - {snapshot_date: '2026-06-01', list: 5, player_tid: 3, entry_date: '2025-01-01', value: 100000, age: 22}
+          - {snapshot_date: '2026-06-01', list: 5, player_tid: 4, entry_date: '2026-02-20', value: 200000, age: 33}
+      - input: ref('int_player_value_inputs')
+        rows:
+          - {snapshot_date: '2026-01-20', tid: 1, person_id: a, age: 25, value: 1}
+          - {snapshot_date: '2026-03-01', tid: 1, person_id: a, age: 25, value: 1}
+          - {snapshot_date: '2026-06-01', tid: 2, person_id: b, age: 30, value: 1}
+          - {snapshot_date: '2026-06-01', tid: 3, person_id: c, age: 23, value: 1}
+          - {snapshot_date: '2026-03-01', tid: 4, person_id: d, age: 19, value: 1}
+    expect:
+      rows:
+        - {tid: 1, entry_date: '2026-02-01', snapshot_date: '2026-01-20', stated_value: 500000, is_our_club: true, gap_days: 12}
+        - {tid: 2, entry_date: '2026-05-20', snapshot_date: '2026-06-01', stated_value: 9000000, is_our_club: false, gap_days: 12}
 
   - name: progress_spells_per_flag_and_gap
     description: >

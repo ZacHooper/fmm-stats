@@ -65,15 +65,29 @@ models:
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
   - name: int_player_value_inputs
     description: >
-      The transfer-value model's inputs for every player: ability, reputation, the league
-      reputation it counts (a reserve side's is its first team's), age and the value the
-      save states. What int_player_value scores and scripts/fit_value_model.py fits on.
+      The transfer-value model's inputs for every player -- ability, the reputation trio, the
+      league reputation it counts (a reserve side's is its first team's), age, wage, contract
+      expiry and the value the save states -- and one column per model term
+      (var('value_terms')), which int_player_value scores.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
       - relationship_combination:
           arguments:
             columns: [snapshot_date, tid]
             to: ref('int_player_info')
+            to_columns: [snapshot_date, tid]
+  - name: int_player_value_labels
+    description: >
+      The transfer-value model's training rows: each value the save states (a scrapbook
+      entry's, ours and the world's best players') paired with the player's model inputs on the
+      nearest snapshot within var('value_label_max_gap_days'), the same person by age.
+      scripts/fit_value_model.py fits on it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [tid, entry_date]}}
+      - relationship_combination:
+          arguments:
+            columns: [snapshot_date, tid]
+            to: ref('int_player_value_inputs')
             to_columns: [snapshot_date, tid]
   - name: int_player_value
     description: >

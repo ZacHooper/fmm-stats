@@ -1,142 +1,124 @@
 #!/usr/bin/env python3
 """
-Fit the player transfer-value model and print coefficients for `seeds/value_model.csv`.
+Fit the player transfer-value model and write its coefficients to `seeds/value_model.csv`.
 
-WHY THIS EXISTS. The save stores a transfer value ONLY for the club you manage — it lives
-in our club's entries of the player-list table (`fmparser/tables/player_lists.py`), and that
-record does not exist for any other club. Verified three ways on frem-2026-03-22:
+WHAT THE SAVE STATES. A transfer value is stored only on a Scrapbook Profile -- a copy of a
+player's profile screen as it was on its date (`fmparser/tables/player_lists.py`). Our own
+squad has one per player (the Manager's Best Eleven lists), and the World Best XI and All-Time
+pools hold one for every player who made them: the world's best, at every elite club. Nothing
+else in the save holds a value (`docs/agent-context/player-value-estimation.md`), so every
+other player's price is this model's estimate.
 
-  1. Searching the whole 63 MB file for `[club_tid u16][ff ff]` under each of five
-     opponents' own club ids returns ZERO records.
-  2. Taking our 51 players whose true value is known and testing every byte offset from
-     P-300 to P+300 of the GLOBAL attribute record (the one every player has) for a u32
-     matching that value returns ZERO matches at any offset.
-  3. Our own values appear EXACTLY ONCE each in the entire file. If a general valuation
-     table existed, our players would be in it too and there would be a second hit.
+THE TRAINING ROWS are `int.player_value_labels`: each stated value paired with the player's
+model inputs on the snapshot nearest its date (within `value_label_max_gap_days`), so a label
+is never asked to predict a player as he was a year later. The terms are built once, in
+`int.player_value_inputs`, which `int.player_value` also scores: the fit and the scorer cannot
+drift apart. The term list is `value_terms` in `fmstats/dbt_project.yml`.
 
-So a target's price cannot be read; it has to be estimated. The managed club's own
-squad is the only labelled data there is, which is what this fits on.
+VALIDATION is 5-fold cross-validation GROUPED BY PLAYER -- a player appears in many entries and
+snapshots, and an ungrouped split leaks him into his own test set -- averaged over five splits.
+Error is the median factor between estimate and stated value (2.0x = half or double), reported
+by ESTIMATED value, since the estimate is all a user of the model sees; that table is what
+`value_trusted_band` is read from.
 
 USAGE
-    uv run python scripts/fit_value_model.py                     # refit, print coefficients
-    uv run python scripts/fit_value_model.py --db fm-frem.duckdb
-    uv run python scripts/fit_value_model.py --compare           # also score rival specs
+    uv run python scripts/fit_value_model.py                  # refit and report
+    uv run python scripts/fit_value_model.py --write          # ... and write seeds/value_model.csv
+    uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb    # then reseed and rescore
 
-Paste the printed rows into `seeds/value_model.csv`, record the fit's CV R2 and median error
-in `docs/agent-context/player-value-estimation.md`, and re-run `load_duckdb.py --refresh-only`
-so the seed reaches `raw.value_model` and `int.player_value` (`mart.fact_player_valuation`).
-
-READ THE LIMITS IN `docs/agent-context/player-value-estimation.md` BEFORE TRUSTING A NUMBER.
-Short version: median error ~2.2x, so it ranks targets and gets the order of magnitude
-right; it does not tell you whether a specific deal clears a budget. And an ASKING PRICE
-is not a value — the one pair we have measured ran 31x (Røssner: £95k value, £3M ask).
+READ THE LIMITS IN `docs/agent-context/player-value-estimation.md` BEFORE TRUSTING A NUMBER. An
+asking price is not a value (the one pair measured ran 31x: Røssner, £95k value, £3M ask).
 """
 import argparse
+import csv
 import os
 import sys
 
 import numpy as np
+import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dbopen import open_readonly  # noqa: E402
 
-# Features, in the order seeds/value_model.csv stores them.
-FEATURES = ["ca", "pa", "lrep", "llrp", "gk", "acap", "acap2", "res"]
-
-# The model's own inputs (int.player_value_inputs), so the fit sees exactly what the
-# scorer (int.player_value) does; the label is the value the save states for our squad.
-TRAIN_SQL = """
-SELECT snapshot_date, tid, ca, pa, reputation, is_goalkeeper AS is_gk, age,
-       league_reputation AS lrp, is_reserve::INT AS is_res, value AS val
-FROM int.player_value_inputs
-WHERE ca IS NOT NULL AND age IS NOT NULL AND league_reputation IS NOT NULL
-"""
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SEED = os.path.join(REPO, "seeds", "value_model.csv")
+BANDS = [0, 2e4, 1e5, 5e5, 1e6, 2e6, 5e6, 1e7, 3e7, 1e8, float("inf")]
 
 
-def prep(df):
-    """Feature matrix columns. Age is CAPPED AT 28 on purpose — see the docstring note."""
-    df = df.copy()
-    for col in ("age", "ca", "pa"):
-        df[col] = df[col].astype(float)
-    df["lrep"] = np.log(df.reputation.astype(float))    # player reputation
-    df["llrp"] = np.log(df.lrp.astype(float))           # league reputation
-    df["gk"] = df.is_gk.astype(float)
-    # The raw age quadratic turns UPWARD past ~28, claiming a 33-year-old is worth more
-    # than a 26-year-old. That is not ageing, it is composition: the 29+ band is 8 players
-    # in 100 rows and two of them are our best veterans, while the 26-28 band is low-CA
-    # squad filler. A hinge spec reproduced the same upturn, so it is the data and not the
-    # functional form. Capping at 28 costs ~0.004 CV R2 and stops the model saying
-    # something absurd about a 33-year-old.
-    df["acap"] = df.age.clip(upper=28)
-    df["acap2"] = df.acap ** 2
-    df["res"] = df.is_res.astype(float)                 # reserve side (no league rep of its own)
-    return df
+def project_vars():
+    with open(os.path.join(REPO, "fmstats", "dbt_project.yml")) as fh:
+        return yaml.safe_load(fh)["vars"]
 
 
-def design(df):
-    return np.column_stack([np.ones(len(df))] + [df[f].values for f in FEATURES])
+def design(rows, terms):
+    return np.column_stack([np.ones(len(rows))] + [rows[t].to_numpy(float) for t in terms])
 
 
-def r2(y, pred):
-    return 1 - ((y - pred) ** 2).sum() / ((y - y.mean()) ** 2).sum()
-
-
-def grouped_cv(df, feats, seed=0, folds=5):
-    """5-fold CV GROUPED BY PLAYER. Ungrouped CV leaks badly here: the same player appears
-    in up to 22 snapshots, so a random split puts him in train and test at once."""
-    X = np.column_stack([np.ones(len(df))] + [df[f].values for f in feats])
-    y = df.y.values
+def grouped_cv(rows, terms, seed, folds=5):
     rng = np.random.default_rng(seed)
-    pred = np.zeros(len(df))
-    for fold in np.array_split(rng.permutation(df.tid.unique()), folds):
-        te = df.tid.isin(fold).values
-        beta = np.linalg.lstsq(X[~te], y[~te], rcond=None)[0]
-        pred[te] = X[te] @ beta
-    return r2(y, pred), pred
+    pred = np.zeros(len(rows))
+    for fold in np.array_split(rng.permutation(rows.person_id.unique()), folds):
+        test = rows.person_id.isin(fold).to_numpy()
+        beta = np.linalg.lstsq(design(rows[~test], terms), rows.y[~test], rcond=None)[0]
+        pred[test] = design(rows[test], terms) @ beta
+    return pred
+
+
+def report(label, pred, rows):
+    err = np.exp(np.abs(rows.y.to_numpy() - pred))
+    r2 = 1 - ((rows.y - pred) ** 2).sum() / ((rows.y - rows.y.mean()) ** 2).sum()
+    ours = rows.is_our_club.to_numpy()
+    print(f"{label}: R2 {r2:.3f}, median error {np.median(err):.2f}x "
+          f"(our squad {np.median(err[ours]):.2f}x, n={ours.sum()}; "
+          f"the world's {np.median(err[~ours]):.2f}x, n={(~ours).sum()})")
+    est = np.exp(pred)
+    print(f"  {'estimated value':>24s}  {'n':>5s}  median  70% within")
+    for lo, hi in zip(BANDS, BANDS[1:]):
+        m = (est >= lo) & (est < hi)
+        if m.any():
+            top = "      " if hi == float("inf") else f"£{hi / 1e6:7.2f}M"
+            print(f"  £{lo / 1e6:7.2f}M - {top}  {m.sum():5d}  {np.median(err[m]):5.2f}x  "
+                  f"{np.quantile(err[m], 0.7):5.2f}x")
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", default="fm-frem.duckdb", help="store to fit against")
-    ap.add_argument("--compare", action="store_true", help="score alternative specs too")
+    ap.add_argument("--write", action="store_true", help="write seeds/value_model.csv")
     args = ap.parse_args()
-    con, _ = open_readonly(args.db, tag="fit_value_model")
-    d = prep(con.execute(TRAIN_SQL + " AND value > 0").df())
-    d["y"] = np.log(d.val.astype(float))
-    print(f"{len(d)} labelled rows, {d.tid.nunique()} players, {d.snapshot_date.nunique()} snapshots")
-    print(f"value range £{d.val.min():,.0f} - £{d.val.max():,.0f}\n")
 
-    if args.compare:
-        core = ["ca", "pa", "lrep", "llrp", "gk"]
-        specs = {
-            "ca only": ["ca"],
-            "no league rep": ["ca", "pa", "lrep", "gk", "acap", "acap2", "res"],
-            "raw age quadratic": core + ["age", "age2"],
-            "SHIPPED (age capped, +res)": FEATURES,
-        }
-        d["age2"] = d.age ** 2
-        for name, feats in specs.items():
-            score, pred = grouped_cv(d, feats)
-            err = np.median(np.exp(np.abs(d.y.values - pred)))
-            print(f"  {name:28s} CV R2={score:.3f}  median err={err:.2f}x")
+    terms = project_vars()["value_terms"]
+    con, _ = open_readonly(args.db, tag="fit_value_model")
+    rows = con.execute(f"""
+        SELECT person_id, entry_date, stated_value, is_our_club, {', '.join(terms)}
+        FROM int.player_value_labels
+        WHERE {' AND '.join(f'{t} IS NOT NULL' for t in terms)}""").df()
+    rows["y"] = np.log(rows.stated_value.astype(float))
+    print(f"{len(rows)} labelled values, {rows.person_id.nunique()} players "
+          f"({rows.is_our_club.sum()} from our squad), "
+          f"£{rows.stated_value.min():,.0f} - £{rows.stated_value.max():,.0f}\n")
+
+    seeded = dict(con.execute("SELECT term, coefficient FROM stg.value_model").fetchall())
+    if set(terms) <= set(seeded):
+        beta = np.array([seeded["intercept"]] + [seeded[t] for t in terms])
+        report("seeded coefficients, as they are", design(rows, terms) @ beta, rows)
         print()
 
-    score, pred = grouped_cv(d, FEATURES)
-    err = np.exp(np.abs(d.y.values - pred))
-    band = d[(d.val >= 20_000) & (d.val <= 5_000_000)]
-    berr = err[(d.val >= 20_000) & (d.val <= 5_000_000)]
-    print(f"grouped-CV R2      {score:.3f}")
-    print(f"median error       {np.median(err):.2f}x  (all {len(d)} rows)")
-    print(f"  shopping range   {np.median(berr):.2f}x  (£20k-£5M, n={len(band)})")
-    print(f"  70% within       {np.quantile(berr, 0.7):.2f}x")
+    pred = np.mean([grouped_cv(rows, terms, seed) for seed in range(5)], axis=0)
+    report("refit, grouped 5-fold CV by player (mean of 5 splits)", pred, rows)
 
-    beta = np.linalg.lstsq(design(d), d.y.values, rcond=None)[0]
-    print("\n# --- paste into seeds/value_model.csv ---")
-    print("term,coefficient")
-    print(f"intercept,{float(beta[0])!r}")
-    for name, value in zip(FEATURES, beta[1:]):
-        print(f"{name},{float(value)!r}")
-    print(f"\n# fit: n={len(d)}, CV R2={score:.3f}, median error={np.median(err):.2f}x")
+    beta = np.linalg.lstsq(design(rows, terms), rows.y, rcond=None)[0]
+    coefficients = [("intercept", float(beta[0]))] + [(t, float(b)) for t, b in zip(terms, beta[1:])]
+    print("\nterm,coefficient")
+    for term, value in coefficients:
+        print(f"{term},{value!r}")
+    if args.write:
+        with open(SEED, "w", newline="") as fh:
+            out = csv.writer(fh, lineterminator="\n")
+            out.writerow(["term", "coefficient"])
+            out.writerows([(t, repr(v)) for t, v in coefficients])
+        print(f"\nwrote {SEED}; run: uv run python load_duckdb.py --refresh-only --db {args.db}")
 
 
 if __name__ == "__main__":
