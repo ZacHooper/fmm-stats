@@ -346,7 +346,10 @@ against a youth player's in-game history screen before reading these as ratings;
 
 ### 18. Models
 - **Refit the transfer-value model** with `current_reputation` and `world_reputation` (parsed,
-  unused; `fmstats/value_model.py` fits on `reputation` alone).
+  unused; `scripts/fit_value_model.py` fits on `reputation` alone, from
+  `int.player_value_inputs`). The seeded coefficients were fitted with Frem Reserves players on
+  their own reserve league's reputation; the inputs now give them the first team's league, as
+  the scorer always has, so a refit moves the `res` and `llrp` terms.
 - **Attribute decoder** ([`attribute-model.md`](attribute-model.md) — read its "ruled out"
   section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
   and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
@@ -355,8 +358,8 @@ against a youth player's in-game history screen before reading these as ratings;
   entries (`tables/player_lists.py`), dated by `scrapbook_date`, and a
   player who has not played this season carries one up to two years old. Both fits pair an
   entry with the CURRENT save's record bytes, CA and reputation
-  (`scripts/fit_attribute_model.py` joins `raw.players` to `player_attributes_exact` on
-  `(season, phase, tid)`; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
+  (`scripts/_attribute_rows.py` joins `stg.player_attributes` to
+  `int.player_attributes_exact` on the snapshot; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
   entry to predict a 2026 player -- and the same stale entry is repeated in every
   store snapshot until he plays again. Train only on rows whose entry is fresh relative to
   the save (written at the last monthly update, ~31 days before `phase`), or pair each
@@ -365,31 +368,17 @@ against a youth player's in-game history screen before reading these as ratings;
   labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
 - **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
   snapshots.
-
-### 19. Move the scripts and skills onto the model
-#149, #154 and #155 retired the legacy `mart.*` views, the `raw.players` /
-`raw.player_attributes_exact` compat views, `dashboard/db.py`, `fmq` and `fmstats/scout.py`.
-These still use them, so each fails at import or at its first query:
-- **The model fits** -- blocks #18. `scripts/fit_attribute_model.py`, `fit_value_model.py`
-  and `holdout_score.py` read `raw.players` joined to `raw.player_attributes_exact`. Port them
-  to `stg.persons` ⋈ `stg.player_attributes` (`sid`) for the record bytes, CA/PA and reputation,
-  and `int.player_attributes_exact` for the labels (`tests/test_attribute_model.py` has the
-  join). Gate: refit on the same rows and reproduce the stored `stg.attribute_model` and
-  `stg.value_model` coefficients, and `holdout_score.py`'s published figures, before changing
-  anything. `holdout_score.py` also fails at import (`HIDDEN_OFFSETS` undefined).
-- **The weight-set scripts**: `scripts/derive_weight_set.py` and
-  `attribute_stat_correlations.py` import `dashboard.db` and read `mart.match_player_facts`,
-  `mart.managed_club`, `mart.position_roles` and `mart.role_weights`. Swap `db.q` for a
-  read-only connection (`scripts/dbopen.py`) and the views for `fact_player_match`,
-  `dim_team`, `stg.position_roles` and `stg.role_weights`. Gate: re-derive
-  `frem_minmax_4231` and get a byte-identical `seeds/role_weights.csv`.
-- **The skills**: query-fm-data, scout-opponent, fm-season-review, preseason-squad-review,
-  season-outlook and where-are-they-now cite `fmq`, `fmstats.scout`, `squad_current`,
-  `squad_on` or `effective_table`; attribute-profiles calls scripts deleted in #82/#73
-  (`export_attribute_lab.py`, `check_rating_parity.py`, `import_weight_set.py`). Rewrite each
-  as SQL recipes against `mart.dim_*`/`fact_*` and `site.*`, and test each by running it once
-  on the published store. query-fm-data first: the others lean on its catalogue.
-- **CLAUDE.md**: its house rules and "Common commands" cite the same names (with #22).
+- **Re-derive `frem_minmax_4231` with ability controlled.** `scripts/derive_weight_set.py`
+  correlates attributes with per-90 output over our player-seasons AND opponents' (706 of 890
+  rows at 180+ minutes; ST is 14 of ours and 59 opponents at a median 240 minutes). An
+  opponent's attributes are mostly decoder estimates, which carry CA as one shared shift
+  (`attribute-model.md`), so for them any estimated attribute tracks overall ability and
+  "predicts" output: Tackling correlates 0.33-0.47 with ST goals, shots on target and headers.
+  Control for ability (Level %ile, or CA in the partial correlation) or restrict opponents to
+  the attributes the save states, then re-derive and review each block before shipping. On the
+  current store the shipped set does not reproduce (DM and AMC go flat, CM inherits
+  `frem_attacking_ss`, ST gains Tackling 3 and Leadership 2), and the input difference behind
+  it was not isolated: the old views no longer fit in memory to compare against.
 
 ### 19a. Port `tests/validate_mart.py` to dbt tests
 The script stops at its first query: it reads the legacy mart views #149 retired (50 names,
@@ -456,6 +445,10 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
 - **`docs/agent-context/`**: retire the superseded notes (`light-results-rolling-buffer`,
   `master-schedule-plan`), fold duplicates into the reference docs, fix the stale commit SHAs
   in `fm-parser-project.md` and `day1-league-membership.md`, and re-sync `MEMORY.md`.
+- **Dead code on retired views**: `scripts/_export_db.py` still carries `build_loans` and the
+  queries on `mart.snapshots`; `export_data.py` imports only `_json_clean` from it (the loan
+  outlook is `site.loan_outlook`). `site/AGENTS.md` still says the opponent's formation is not
+  in the save, and `agent-context/etl-duckdb-dashboard.md` describes `fmq` and `scout.py`.
 - **Old TODO numbers** are still cited as live work in `table-framing.md`, `date-search.md`
   and `agent-context/light-results-rolling-buffer.md`.
 

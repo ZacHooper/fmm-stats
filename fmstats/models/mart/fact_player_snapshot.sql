@@ -1,7 +1,8 @@
--- Fact: one row per (person_id, snapshot_date).
--- Current state + 23 playing attributes + valuation (split from SCD2 to keep wide row count small).
--- Materialized as a view over fact_player_state_scd + fact_player_valuation to serve site models
--- and consumer queries without duplicating data on disk.
+-- One row per (person_id, snapshot_date): the player's state, attributes and
+-- valuation on that snapshot, and in positions each position he can play with
+-- its familiarity and Level %ile (level_league, level_global). A view over
+-- fact_player_state_scd and fact_player_valuation, so the snapshot grain costs
+-- no disk.
 {{ config(materialized='view') }}
 
 with listed as (

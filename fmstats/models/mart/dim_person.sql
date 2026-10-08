@@ -10,9 +10,9 @@
 -- youth side's line counts for the club whose academy it is, with
 -- origin_youth_team_tid naming the academy (Frem's "Frem Yth" 65189), so a
 -- club's own products are origin_club_tid = that club. A line at a club the
--- save holds no record for keeps its tid as the club. capital_eligible is whether
--- origin_club_tid is on the capital-region signing list (seeds/eligible_origin_clubs.csv),
--- false for a person with no origin club.
+-- save holds no record for keeps its tid as the club. capital_eligible is
+-- whether origin_club_tid is on the capital-region signing list
+-- (seeds/eligible_origin_clubs.csv), false for a person with no origin club.
 -- Everything that changes is on the snapshot facts.
 with origins as (
     select
@@ -56,4 +56,3 @@ select
 from {{ ref('int_persons') }} as persons
 left join origins
     on persons.person_id = origins.person_id
-
