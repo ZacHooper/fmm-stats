@@ -40,7 +40,7 @@ via `attributes.record_tail()`, shared by both record readers.
 
 Proof it is real: **GK average 188.2 cm / 78.2 kg vs outfield 180.4 / 71.8** over 26,518
 records. `reputation` (P+21) was always HOME reputation; left named as-is because
-`value_model.py` is fitted on that column.
+`scripts/fit_value_model.py` fits on that column.
 
 ## B — Staff record + the manager formation triple. SHIPPED
 
@@ -163,10 +163,6 @@ unnamed.
   `export_data.py --upload-all` will produce a real (expected) `git diff site/api`. The user has
   since said the site is not the priority — **the three reputation fields were deliberately NOT
   exported** (core.json loads on every page view and reputation is ability-adjacent).
-- **Value-model refit.** `value_model.py` fits on `reputation` alone, which is its strongest
-  single term. We now have `current_reputation` and `world_reputation` as well, plus height and
-  weight. Re-run `scripts/fit_value_model.py` after a clean rebuild. The user specifically
-  called reputation out as important for transfer value.
 - `careers.py` still hardcodes `reserve_tid`; `main_club_tid` could replace it.
 - `mart.squad_current` still uses the spell model; `roster_vs_spells` exists to judge the switch.
 - Unparsed: the **Region** table, and the nation record's counted language list.
