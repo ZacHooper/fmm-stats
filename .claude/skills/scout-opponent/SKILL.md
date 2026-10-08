@@ -277,6 +277,27 @@ FROM wide w
 JOIN mart.dim_person d USING (person_id)
 LEFT JOIN vs_us v USING (person_id)
 ORDER BY w.position, w.level_league DESC;
+
+-- ── 11. their strikers' weaker foot and their full-backs' foot against flank ──
+WITH sq AS (
+    SELECT person_id, snapshot_date FROM mart.squad_membership
+    WHERE is_current AND team_tid = getvariable('opp')
+)
+SELECT d.name, p.position, p.familiarity, p.level_league, p.level_global,
+       d.foot_left, d.foot_right, least(d.foot_left, d.foot_right) AS weaker_foot,
+       CASE WHEN p.position = 'ST' THEN
+                CASE WHEN least(d.foot_left, d.foot_right) >= 10 THEN 'uses both feet'
+                     ELSE 'one-footed (show him onto his ' ||
+                          CASE WHEN d.foot_left > d.foot_right THEN 'right' ELSE 'left' END || ')' END
+            WHEN least(d.foot_left, d.foot_right) >= 15 THEN 'two-footed'
+            WHEN (d.foot_left > d.foot_right) = (p.position IN ('DL', 'DML')) THEN 'same foot (overlaps, crosses)'
+            ELSE 'inverted (no overlap)' END AS profile
+FROM sq
+JOIN mart.fact_player_snapshot f USING (person_id, snapshot_date)
+CROSS JOIN unnest(f.positions) AS u(p)
+JOIN mart.dim_person d USING (person_id)
+WHERE p.position IN ('ST', 'DL', 'DR', 'DML', 'DMR') AND p.familiarity >= 15
+ORDER BY p.position = 'ST' DESC, p.position, p.level_league DESC;
 ```
 
 What each step is for, and how to read it:
@@ -310,6 +331,8 @@ What each step is for, and how to read it:
 - **Step 10, their wide men** — foot against flank, read with "Wide men: foot against flank" below.
   A player natural on both flanks gets one row per flank; `played_v_us` says which one his
   manager actually uses against us.
+- **Step 11, their strikers and full-backs** — a striker's weaker foot and a full-back's foot
+  against flank, read with "Strikers and full-backs: the foot" below.
 
 **Partial data — withhold, don't hedge.** When the coverage line shows fewer than 11 rated
 players for either side, do not state the quality gap, the face-offs, danger men or defensive soft
@@ -359,6 +382,43 @@ How to use it:
 
 Samples are small (6–24 goals a cell): shots on target is the steadier column. Re-measure with the
 recipe in [`wide-footedness`](../../../docs/agent-context/wide-footedness.md).
+
+## Strikers and full-backs: the foot
+
+Same method and matches as the wide men (first-team only, starters, Level %ile at the position as
+of the match).
+
+**A striker who can use both feet (weaker foot 10+) is a volume shooter — if he is any good.**
+Opposition strikers against us:
+
+| Striker Level %ile | Weaker foot 10+: goals per 90 / shots per 90 / on target | Weaker foot below 10 |
+|---|---|---|
+| 80+ (80 v 47 starts) | **0.52** / 2.28 / **56%** | 0.41 / 1.79 / 45% |
+| 50–80 (89 v 53 starts) | **0.42** / 2.01 / **54%** | 0.29 / 1.72 / 45% |
+| below 50 (38 v 45 starts) | 0.25 / 1.88 / 42% | 0.26 / 1.44 / 49% |
+
+- Above Level 50 the two-footed striker shoots more and hits the target more often; per shot on
+  target he converts no better. So the counter is to stop the shot, not to trust the keeper: our
+  CBs and DM close him down early. Name it in "Their threats" when he is 50+.
+- A one-footed striker can be shown onto his weaker side (`profile` names it). Below Level 50,
+  footedness is not a threat signal.
+- Not measurable on our side: our strikers have almost all been one-footed (Ementa, 73 goals in
+  96 starts, weaker foot 7); only 25 of our striker starts had a weaker foot of 10+.
+
+**An inverted full-back (stronger foot opposite his flank) does not create.**
+
+| | Starts | Assists per 90 | Crosses per 90 | Tackles won per 90 |
+|---|---|---|---|---|
+| Frem, inverted (5 players, Level 77) | 49 | **0.00** (0 assists) | 1.63 | 3.83 |
+| Frem, same foot (18 players, Level 43) | 448 | 0.19 (80 assists) | 3.66 | 3.19 |
+| Opposition, inverted | 44 | 0.03 | 1.61 | 3.19 |
+| Opposition, same foot | 496 | 0.06 | 2.05 | 3.28 |
+
+- Their inverted full-back means no overlapping crosser on that flank: their width there comes
+  from the wide man alone (step 10), and our wide man on that side has less to track back for.
+- For our plan: when a flank needs a full-back's width (Wing-Back, *Look for overlap*), pick a
+  same-foot one. Our same-foot full-backs are a real assist source; our better inverted ones play
+  as defenders. Small sample (5 of our players, 28 opponents) — a strong pointer, not a law.
 
 ## Reading attributes: check the role weights before calling anything a weakness
 
@@ -885,6 +945,8 @@ briefing, which is why it was removed. Four or five bullets, each in the form
 - <a 70+ Level wide man who cuts inside (step 10 `profile`), with the full-back he faces — see
   "Wide men: foot against flank". Same-foot wingers and sub-70 inside forwards are not a
   threat line on footedness alone.>
+- <a 50+ Level striker who uses both feet (step 11), and who closes him down. An inverted
+  full-back is not a threat line; it is a gap — say which flank has no overlap.>
 - <their BENCH, when it holds a counter-profile to our plan or a player stronger than a predicted
   starter — this is where the briefing has been caught out most often.>
 

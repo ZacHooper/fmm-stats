@@ -1,6 +1,6 @@
 ---
 name: wide-footedness
-description: "Foot against flank for wide players (AML/AMR/ML/MR), ours and opponents', measured on our first-team matches: inside forwards out-shoot same-foot wingers, but for opponents only at Level %ile 70+. Recipe to re-measure."
+description: "Footedness by position, ours and opponents', on our first-team matches: wide men (inside forwards out-shoot same-foot wingers, opponents only at Level 70+), strikers (a weaker foot of 10+ means more shots and more on target above Level 50), full-backs (inverted ones produce no assists). Recipes to re-measure."
 metadata:
   node_type: memory
   type: reference
@@ -8,7 +8,7 @@ metadata:
 
 Measured 2026-10-08 on the published Frem store (matches 2021-07 to 2028-05), from the team-head
 positions in `mart.fact_player_match.position` ([[match-position-encoding]]), which carry both
-sides' eleven. Read by `scout-opponent` step 10.
+sides' eleven. Read by `scout-opponent` steps 10 (wide men) and 11 (strikers, full-backs).
 
 **Definitions.** Starters only, minutes > 0, our FIRST-TEAM matches only. A player is
 *two-footed* when his weaker foot is 15+ (`dim_person.foot_left` / `foot_right`, 1–20); otherwise
@@ -92,4 +92,60 @@ SELECT ours, band, kind,
        round(90 * sum(crosses) / sum(minutes), 2) AS cr90
 FROM w2 WHERE kind <> 'two-footed' AND lvl IS NOT NULL
 GROUP BY ALL ORDER BY ALL;
+```
+
+## Strikers: the weaker foot
+
+Opposition strikers (position ST) against us, by Level band and weaker foot
+(`least(foot_left, foot_right)`), per 90:
+
+| Level | Weaker foot | Starts | Goals | On target | Goals | Shots | On target % | Goals per on target |
+|---|---|---|---|---|---|---|---|---|
+| 80+ | 10+ | 80 | 35 | 86 | 0.52 | 2.28 | 56.2 | 40.7 |
+| 80+ | <10 | 47 | 16 | 31 | 0.41 | 1.79 | 44.9 | 51.6 |
+| 50–80 | 10+ | 89 | 31 | 81 | 0.42 | 2.01 | 54.4 | 38.3 |
+| 50–80 | <10 | 53 | 13 | 34 | 0.29 | 1.72 | 44.7 | 38.2 |
+| <50 | 10+ | 38 | 8 | 25 | 0.25 | 1.88 | 41.7 | 32.0 |
+| <50 | <10 | 45 | 10 | 27 | 0.26 | 1.44 | 49.1 | 37.0 |
+
+Above Level 50 a usable weaker foot means more shots and a higher share on target, not better
+conversion once on target. Ours can't be read: 240 of 265 Frem striker starts had a weaker foot
+below 10 (Ementa 73 goals in 96 starts, weaker foot 7).
+
+## Full-backs: foot against flank
+
+DL/DML/DR/DMR starters. *Inverted* = stronger foot opposite the flank; *two-footed* = weaker 15+.
+
+| | Starts | Players | Level | Assists | Assists per 90 | Key passes | Crosses | Cross % | Dribbles | Tackles won | Interceptions | Rating |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Frem inverted | 49 | 5 | 77 | 0 | 0.000 | 0.64 | 1.63 | 33.8 | 0.25 | 3.83 | 4.76 | 6.98 |
+| Frem same foot | 448 | 18 | 43 | 80 | 0.194 | 0.64 | 3.66 | 23.1 | 1.01 | 3.19 | 4.78 | 7.03 |
+| Opp inverted | 44 | 28 | 51 | 1 | 0.026 | 0.36 | 1.61 | 20.6 | 0.23 | 3.19 | 3.98 | 6.43 |
+| Opp same foot | 496 | 216 | 64 | 29 | 0.063 | 0.48 | 2.05 | 20.7 | 0.39 | 3.28 | 4.08 | 6.54 |
+
+Holds in both Level bands (below and above 50): inverted full-backs have no assists in any band,
+and cross about half as often. Ours are our better full-backs (Level 77), so it is not a quality
+effect. Small: 5 of our players, 28 opponents.
+
+## Recipe: strikers and full-backs
+
+Same `w` / `w2` build as above with `f.position IN ('DL', 'DR', 'DML', 'DMR', 'ST')`,
+`least(p.foot_left, p.foot_right) AS weak`, and the full-back `kind` taken on
+`f.position IN ('DL', 'DML')` as the left flank. Then:
+
+```sql
+-- strikers
+SELECT ours, CASE WHEN lvl < 50 THEN '<50' WHEN lvl < 80 THEN '50-80' ELSE '80+' END AS level_band,
+       weak >= 10 AS uses_both, count(*) AS starts, sum(goals) AS goals,
+       round(90 * sum(goals) / sum(minutes), 2) AS g90,
+       round(90 * sum(shots) / sum(minutes), 2) AS sh90,
+       round(100.0 * sum(shots_on_target) / nullif(sum(shots), 0), 1) AS on_target_pct
+FROM w2 WHERE position = 'ST' AND lvl IS NOT NULL GROUP BY ALL ORDER BY ALL;
+
+-- full-backs
+SELECT ours, kind, count(*) AS starts, sum(assists) AS assists,
+       round(90 * sum(assists) / sum(minutes), 3) AS a90,
+       round(90 * sum(crosses) / sum(minutes), 2) AS cr90,
+       round(90 * sum(tackles_won) / sum(minutes), 2) AS tw90
+FROM w2 WHERE position <> 'ST' GROUP BY ALL ORDER BY ALL;
 ```
