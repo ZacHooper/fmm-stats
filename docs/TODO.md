@@ -368,17 +368,18 @@ against a youth player's in-game history screen before reading these as ratings;
   labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
 - **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
   snapshots.
-- **Re-derive `frem_minmax_4231` with ability controlled.** `scripts/derive_weight_set.py`
-  correlates attributes with per-90 output over our player-seasons AND opponents' (706 of 890
-  rows at 180+ minutes; ST is 14 of ours and 59 opponents at a median 240 minutes). An
-  opponent's attributes are mostly decoder estimates, which carry CA as one shared shift
-  (`attribute-model.md`), so for them any estimated attribute tracks overall ability and
-  "predicts" output: Tackling correlates 0.33-0.47 with ST goals, shots on target and headers.
-  Control for ability (Level %ile, or CA in the partial correlation) or restrict opponents to
-  the attributes the save states, then re-derive and review each block before shipping. On the
-  current store the shipped set does not reproduce (DM and AMC go flat, CM inherits
-  `frem_attacking_ss`, ST gains Tackling 3 and Leadership 2), and the input difference behind
-  it was not isolated: the old views no longer fit in memory to compare against.
+- **Rebuild the weight-set method on team results**
+  ([`agent-context/role-weight-methods.md`](agent-context/role-weight-methods.md), "What the match
+  data says"). `scripts/derive_weight_set.py` fits blocks from per-90 output on 12-26 players a
+  role, which the data cannot support: its blocks flip between runs (re-derived on the current
+  store, DM and AMC go flat and ST gains Tackling 3 / Leadership 2; the shipped set does not
+  reproduce, and the input difference behind it was not isolated). Change it to: score a block
+  against team results per match (points, goal difference, goals against; within season, venue and
+  opponent controlled) beside rating and per-90; resample by player and check leave-one-player-out;
+  start from a base block (`frem_attacking_ss`, or a role's in-game key attributes) and let the
+  data veto. Then ship: CB, CM, AMC, AML/AMR as now (confirmed against results); ST on the
+  target-man brief (aerial, shooting, strength key; movement, pace, aggression, dribbling
+  secondary) as a `HELD` judgement; LB/RB and DM marked not measurable.
 
 ### 19a. Port `tests/validate_mart.py` to dbt tests
 The script stops at its first query: it reads the legacy mart views #149 retired (50 names,
