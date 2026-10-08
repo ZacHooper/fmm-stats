@@ -388,10 +388,10 @@ def main():
                "pens_against"] + [f"{side}_{st}" for st in stats for side in ("our", "opp")]
     matches = s.rows("SELECT * FROM site.matches ORDER BY season, match_date, opp_tid")
     pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
-               "goals", "assists", "minutes", "started", "position", "passA", "passC",
+               "goals", "assists", "minutes", "started", "potm", "position", "passA", "passC",
                "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
                "dribbles", "shotA", "shotO", "mistakes", "yellow"]
-    prename = {"date": "match_date", "passA": "passes", "passC": "passes_completed",
+    prename = {"date": "match_date", "potm": "is_player_of_match_award", "passA": "passes", "passC": "passes_completed",
                "keyPass": "key_passes", "tackA": "tackles", "tackW": "tackles_won",
                "intercept": "interceptions", "headA": "headers", "headW": "headers_won",
                "crossA": "crosses", "crossC": "crosses_completed", "shotA": "shots",

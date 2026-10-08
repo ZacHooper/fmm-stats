@@ -538,7 +538,7 @@ export function pointsRemaining(p, toAge = 24) {
 // --------------------------------------------------------------------------- match stats
 export const MATCH_SUMS = ["goals", "assists", "passA", "passC", "keyPass", "tackA", "tackW",
   "intercept", "headA", "headW", "crossA", "crossC", "dribbles", "shotA", "shotO",
-  "mistakes", "yellow"];
+  "mistakes", "yellow", "potm"];
 
 /** Display name -> how to derive it. Mirrors db.MATCH_STAT_DEFS so the column vocabulary is
  *  the same one the Streamlit pages use; a second vocabulary would be a second product. */
@@ -548,6 +548,7 @@ export const STAT_DEFS = {
   "Rating": (a) => a.rating,
   "Rating (adj)": (a) => a.ratingAdj,
   "Goals": (a) => a.goals, "Assists": (a) => a.assists, "G+A": (a) => a.goals + a.assists,
+  "POTM": (a) => a.potm,
   "Key passes": (a) => a.keyPass, "Pass att": (a) => a.passA, "Tackle att": (a) => a.tackA,
   "Shot att": (a) => a.shotA, "Interceptions": (a) => a.intercept, "Dribbles": (a) => a.dribbles,
   "G/90": (a) => per90(a, "goals"), "A/90": (a) => per90(a, "assists"),

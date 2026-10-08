@@ -216,8 +216,7 @@ decoded but never parsed ([`standings-record.md`](standings-record.md)). The reb
 tables (#13) make it less urgent for Denmark, but it is the direct way to settle Spain.
 
 ### 10. Unnamed fields in records we already read
-Bytes the parser reads but cannot name yet. Fields that are named but not yet in the model are
-#15.
+Bytes the parser reads but cannot name yet.
 - **Staff** `+34..+38`: five catalog indices. The six hidden staff attributes stay named by
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 85% of
   staff read 1–4, distinctive enough for a small ground-truth set.
@@ -341,17 +340,6 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   with that tid whose dob gives the entry's age on its date (or one less: the stored age lags a
   birthday by a day or two). Anything else reading old entries must do the same
   (`int.scrapbook_entries` is only our current squad, so safe).
-
-### 15. Surface what the parser already reads
-Named fields that stop short of the mart.
-- **Player of the Match**: `raw.matches.player_of_match` is the game's own pick. It reaches
-  `int.our_matches` and stops there; carry it onto `dim_match` (or `fact_team_match`) and then
-  the site's match page.
-- **Opposition positions**: the parser reads both sides' full-time positions (the team head's
-  +30, `home_positions` / `away_positions` in `matches.json`), but `load_duckdb.py` fills
-  `raw.match_player_stats.position` for our side only. Fill the opponent's too, so scouting and
-  `rating_adj` can split the opposition by position, then rebuild (the role baselines move).
-  Check the reserve fixtures first: AI-managed sides may carry a default shape.
 
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably

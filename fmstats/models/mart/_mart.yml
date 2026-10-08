@@ -176,9 +176,13 @@ models:
   - name: fact_player_match
     description: >
       Each player's line in our own matches, both sides: started, appeared, minutes with extra time,
-      raw rating, position-adjusted rating (rating_adj), role, and match performance stats.
+      full-time position, raw rating, position-adjusted rating (rating_adj), role, the game's
+      Player of the Match, and match performance stats.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id, player_tid]}}
+      - unique_combination:
+          arguments: {columns: [match_id]}
+          config: {where: "is_player_of_match"}
       - relationship_combination:
           arguments:
             columns: [match_id]

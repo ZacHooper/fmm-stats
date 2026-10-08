@@ -6,14 +6,16 @@
 -- off, was sent off or the match ended: var('match_minutes'), extra time
 -- included where the match had it (decided_by 'ET' or 'pens'). The save marks
 -- a dismissal only with its event (int_event_types.ends_appearance), and
--- stoppage time is not counted. position is a starter's full-time place in our XI,
--- NULL for the opposition and for substitutes. person_id is NULL for a player
--- the snapshot holds no person record for.
+-- stoppage time is not counted. position is a starter's full-time place in his
+-- side's XI, NULL for substitutes. is_player_of_match is the game's own Player
+-- of the Match (int_our_matches.player_of_match). person_id is NULL for a
+-- player the snapshot holds no person record for.
 {%- set minutes = var('match_minutes') %}
 
 with lines as (
     select
         ours.match_id,
+        ours.player_of_match as player_of_match_tid,
         stats.*
     from {{ ref('int_our_matches') }} as ours
     inner join {{ ref('stg_match_player_stats') }} as stats
@@ -65,6 +67,9 @@ select
     placed.position,
     placed.started,
     placed.appeared,
+    coalesce(
+        placed.player_tid = placed.player_of_match_tid, false
+    ) as is_player_of_match,
     placed.sub_on_minute,
     placed.sub_off_minute,
     placed.sent_off_minute,

@@ -460,9 +460,8 @@ DDL = [
         intercept INTEGER, headA INTEGER, headW INTEGER, crossA INTEGER, crossC INTEGER,
         dribbles INTEGER, mistakes INTEGER, mistGoal INTEGER, shotA INTEGER, shotO INTEGER,
         condition INTEGER, subOn INTEGER, subOff INTEGER, yellow INTEGER,
-        -- real on-pitch position of a STARTER in our own XI ('DR','DMC','AML',...),
-        -- decoded from the slot array after the formation string. NULL for the
-        -- opposition (the save stores no shape for them) and for substitutes.
+        -- a STARTER's full-time position ('DR','DMC','AML',...), from his side's team
+        -- head: both sides. NULL for substitutes.
         position VARCHAR
     )""",
 
@@ -1068,9 +1067,9 @@ def load_core(con, d, season, phase):
               + [f"home_{k}" for k in _TS_KEYS] + [f"away_{k}" for k in _TS_KEYS])
     ev_cols = ["season", "phase", "anchor", "seq", "minute", "added", "min_display",
                "tid", "type", "type_byte", "b0", "side"]
-    # `position` is not in _XI: that list mirrors the player slot's own fields, and the
-    # starting position comes from our side's position array instead (NULL for the
-    # opposition and for substitutes).
+    # `position` is not in _XI: that list mirrors the player slot's own fields, and a
+    # starter's position comes from his side's position array instead (NULL for
+    # substitutes).
     mps_cols = (["season", "phase", "anchor", "side", "tid", "team_tid",
                  "opponent_tid", "date", "competition", "pos_order", "rating"]
                 + [f for f in _XI if f not in ("posOrder", "tid", "rating")]
@@ -1140,14 +1139,13 @@ def _match_derived(m):
     """What a match row implies but does not store: per side, the star (best rating, then
     goals, assists, completed passes), the team stats summed over the player lines (the
     rating averaged over players who appeared), and each starter's full-time position from
-    his side's team sheet -- our side only."""
+    his side's team sheet."""
     out = {"star": {}, "team_stats": {}, "positions": {}}
     for side in ("home", "away"):
         team = m.get(f"{side}_xi") or []
-        ours = m.get("club_tid") == m.get(f"{side}_tid")
         positions = m.get(f"{side}_positions")
         out["positions"][side] = [
-            positions[p["posOrder"] - 1] if ours and positions and 1 <= p["posOrder"] <= 11
+            positions[p["posOrder"] - 1] if positions and 1 <= p["posOrder"] <= 11
             else None for p in team]
         if not team:
             out["star"][side] = None
