@@ -94,8 +94,10 @@ For each opponent pull, vs us: **Level-%ile quality gap**, **per-unit quality**,
 **top threats by Level %ile**, and the **duel edges** above. Rank by quality (difficulty). The
 recipe builds the same frame `scout-opponent` does — each current squad player (from
 `mart.squad_membership`, never a `club_tid` filter, which keeps lapsed loans) at his most familiar
-position, each side's XI the best N per unit for its manager's preferred formation — for the whole
-group at once (~20 s). Run it with the runner in [`query-fm-data`](../query-fm-data/SKILL.md);
+position (or the one he has actually started in against us), each side's XI the best N per unit
+for its manager's preferred formation — for the whole group at once (~20 s). `lined_up` is the
+shape each opponent started in the last time it played us: where it differs from the preferred
+formation, say so in the group table and set that team's row in `shapes` to it before the XI. Run it with the runner in [`query-fm-data`](../query-fm-data/SKILL.md);
 set the `grp` tids to the user's set.
 ```sql
 -- the user's set, by first-team tid (look each up with scout-opponent's club lookup)
@@ -103,28 +105,57 @@ CREATE OR REPLACE TEMP TABLE grp AS
 SELECT * FROM (VALUES (2465), (360), (337), (364), (326)) AS g(team_tid);
 SET VARIABLE us = (SELECT team_tid FROM site.our_teams WHERE is_managed);
 
--- each side's shape: ours, and each opponent manager's preferred formation
+-- each side's shape: ours, and each opponent manager's preferred formation; lined_up is the
+-- shape that opponent started in the last time it played us (NULL if never, 'unlisted' if
+-- its eleven match no listed formation)
 CREATE OR REPLACE TEMP TABLE shapes AS
-SELECT getvariable('us') AS team_tid, '4-2-3-1' AS formation
+WITH met AS (
+    SELECT f.team_tid, m.match_date, list_sort(list(f.position)) AS xi
+    FROM mart.fact_player_match f JOIN mart.dim_match m USING (match_id)
+    WHERE f.started AND f.team_tid IN (SELECT team_tid FROM grp)
+    GROUP BY f.team_tid, m.match_date
+    QUALIFY row_number() OVER (PARTITION BY f.team_tid ORDER BY m.match_date DESC) = 1
+),
+listed AS (
+    SELECT formation, list_sort(list(position)) AS xi
+    FROM site.formation_slots, range(slots) GROUP BY formation
+)
+SELECT getvariable('us') AS team_tid, '4-2-3-1' AS formation,
+       NULL AS lined_up, NULL::DATE AS lined_up_on
 UNION ALL
-SELECT g.team_tid, coalesce(s.formation_preferred_name, '4-2-3-1')
+SELECT g.team_tid, coalesce(s.formation_preferred_name, '4-2-3-1'),
+       CASE WHEN met.xi IS NOT NULL THEN coalesce(listed.formation, 'unlisted') END,
+       met.match_date
 FROM grp g
 LEFT JOIN mart.fact_staff_spell sp
        ON sp.team_tid = g.team_tid AND sp.role = 'manager' AND sp.is_current
-LEFT JOIN mart.fact_staff_snapshot s ON s.person_id = sp.person_id AND s.is_current;
+LEFT JOIN mart.fact_staff_snapshot s ON s.person_id = sp.person_id AND s.is_current
+LEFT JOIN met ON met.team_tid = g.team_tid
+LEFT JOIN listed ON listed.xi = met.xi;
 
--- the frame: every current squad player at his most familiar position
+-- the frame: every current squad player at the position he has started most in the last year
+-- of our matches (for an opponent: against us), else his most familiar
 CREATE OR REPLACE TEMP TABLE frame AS
-WITH pos AS (
+WITH played AS (
+    SELECT f.team_tid, f.person_id, mode(f.position) AS played_as
+    FROM mart.fact_player_match f JOIN mart.dim_match m USING (match_id)
+    WHERE f.started AND f.team_tid IN (SELECT team_tid FROM shapes)
+      AND m.match_date > (SELECT max(match_date) FROM mart.dim_match WHERE has_detail)
+                         - INTERVAL 1 YEAR
+    GROUP BY ALL
+),
+pos AS (
     SELECT sm.team_tid, sm.person_id, f.age, p.position, p.familiarity,
            p.level_league, p.level_global,
            f.Pace, f.Movement, f.Positioning, f.Aerial, f.Strength, f.Tackling,
            f.Passing, f.Decisions, f.Creativity, f.Shooting, f.Stamina,
            row_number() OVER (PARTITION BY sm.team_tid, sm.person_id
-                              ORDER BY p.familiarity DESC, p.level_league DESC) AS rk
+                              ORDER BY coalesce(p.position = pl.played_as, false) DESC,
+                                       p.familiarity DESC, p.level_league DESC) AS rk
     FROM mart.squad_membership sm
     JOIN mart.fact_player_snapshot f USING (person_id, snapshot_date)
     CROSS JOIN unnest(f.positions) AS u(p)
+    LEFT JOIN played pl ON pl.team_tid = sm.team_tid AND pl.person_id = sm.person_id
     WHERE sm.is_current AND sm.team_tid IN (SELECT team_tid FROM shapes)
 )
 SELECT pos.* EXCLUDE (rk), dp.unit, d.name
@@ -160,7 +191,7 @@ h2h AS (
     FROM site.matches WHERE stage_kind IS NOT NULL GROUP BY 1
 ),
 u AS (SELECT * FROM units)
-SELECT t.name, sh.formation, team.n AS rated, round(team.q, 1) AS level,
+SELECT t.name, sh.formation, sh.lined_up, sh.lined_up_on, team.n AS rated, round(team.q, 1) AS level,
        round((SELECT q FROM team WHERE team_tid = getvariable('us')) - team.q, 1) AS gap,
        round(d.q, 1) AS def, round(m.q, 1) AS mid, round(a.q, 1) AS att, round(g.q, 1) AS gk,
        round(ua.q - d.q, 1) AS we_attack_edge, round(ud.q - a.q, 1) AS they_attack_edge,
