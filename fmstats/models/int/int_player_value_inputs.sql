@@ -1,43 +1,95 @@
 -- The transfer-value model's inputs for every player, one row per
--- (snapshot_date, tid): what int.player_value scores and
--- scripts/fit_value_model.py fits on. The model's league reputation is that of
--- the league his team plays in (int.team_leagues); a reserve side's is its
--- first team's, with is_reserve set. value is the value the save states, our
--- own squad's only (int.player_info.value).
+-- (snapshot_date, tid): his raw inputs, then one column per model term
+-- (var('value_terms')), which int.player_value scores and
+-- int.player_value_labels pairs with the save's stated values for
+-- scripts/fit_value_model.py. A term is NULL where its input is missing (no
+-- league, no contract), and such a player gets no estimate.
+-- The model's league reputation is that of the league his team plays in
+-- (int.team_leagues); a reserve side's is its first team's, with is_reserve
+-- set. value is the value the save states, our own squad's only
+-- (int.player_info.value).
 -- Which league counts is a CASE over both joins, not a condition on the team
 -- in either join's ON: a condition on the left side alone turns DuckDB's hash
 -- join into a nested loop over every (player, team-league) pair.
 {%- set reserve = var('team_types')[2] %}
 
+with inputs as (
+    select
+        player.snapshot_date,
+        player.tid,
+        player.person_id,
+        player.ca,
+        player.pa,
+        player.reputation,
+        player.current_reputation,
+        player.world_reputation,
+        case
+            when teams.team_type = '{{ reserve }}'
+                then first_league.league_reputation
+            else own_league.league_reputation
+        end as league_reputation,
+        player.is_goalkeeper,
+        coalesce(teams.team_type = '{{ reserve }}', false) as is_reserve,
+        {{ age_on('person.dob', 'player.snapshot_date') }} as age,
+        player.wage_gbp,
+        player.contract_expiry,
+        player.value
+    from {{ ref('int_player_info') }} as player
+    inner join {{ ref('stg_persons') }} as person
+        on
+            player.snapshot_date = person.snapshot_date
+            and player.tid = person.tid
+    left join {{ ref('int_teams') }} as teams
+        on
+            player.snapshot_date = teams.snapshot_date
+            and player.club_tid = teams.team_tid
+    left join {{ ref('int_team_leagues') }} as own_league
+        on
+            player.snapshot_date = own_league.snapshot_date
+            and player.club_tid = own_league.team_tid
+    left join {{ ref('int_team_leagues') }} as first_league
+        on
+            teams.snapshot_date = first_league.snapshot_date
+            and teams.club_tid = first_league.team_tid
+),
+
+logs as (
+    select
+        *,
+        case
+            when league_reputation > 0 then ln(league_reputation)
+        end as llrp,
+        ln(greatest(current_reputation, 1)) as lcrep
+    from inputs
+)
+
+-- The terms, in var('value_terms') order: ability and potential, the logs of
+-- the player's current reputation and his league's, contract years left
+-- (capped at var('value_contract_years_cap')), and age as two kinks with a
+-- flat middle: the years he is under var('value_youth_age') and the years he
+-- is over var('value_decline_age').
 select
-    player.snapshot_date,
-    player.tid,
-    player.ca,
-    player.pa,
-    player.reputation,
-    case
-        when teams.team_type = '{{ reserve }}'
-            then first_league.league_reputation
-        else own_league.league_reputation
-    end as league_reputation,
-    player.is_goalkeeper,
-    coalesce(teams.team_type = '{{ reserve }}', false) as is_reserve,
-    {{ age_on('person.dob', 'player.snapshot_date') }} as age,
-    player.value
-from {{ ref('int_player_info') }} as player
-inner join {{ ref('stg_persons') }} as person
-    on
-        player.snapshot_date = person.snapshot_date
-        and player.tid = person.tid
-left join {{ ref('int_teams') }} as teams
-    on
-        player.snapshot_date = teams.snapshot_date
-        and player.club_tid = teams.team_tid
-left join {{ ref('int_team_leagues') }} as own_league
-    on
-        player.snapshot_date = own_league.snapshot_date
-        and player.club_tid = own_league.team_tid
-left join {{ ref('int_team_leagues') }} as first_league
-    on
-        teams.snapshot_date = first_league.snapshot_date
-        and teams.club_tid = first_league.team_tid
+    snapshot_date,
+    tid,
+    person_id,
+    ca,
+    pa,
+    reputation,
+    current_reputation,
+    world_reputation,
+    league_reputation,
+    is_goalkeeper,
+    is_reserve,
+    age,
+    wage_gbp,
+    contract_expiry,
+    value,
+    lcrep,
+    llrp,
+    least(
+        greatest(date_diff('day', snapshot_date, contract_expiry) / 365.25, 0),
+        {{ var('value_contract_years_cap') }}
+    ) as yrs_left,
+    greatest({{ var('value_youth_age') }} - age, 0) as youth_years,
+    greatest(age - {{ var('value_decline_age') }}, 0) as decline_years
+from logs

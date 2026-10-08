@@ -166,10 +166,19 @@ vars:
   fee_unit_gbp: 1000
   fee_contract_ended: 65532
   scrapbook_max_age_days: 365
-  # The transfer-value model (int_player_value, seeds/value_model.csv): age enters capped at
-  # value_age_cap, and value_trusted_band is the range it was validated in, in GBP.
-  value_age_cap: 28
-  value_trusted_band: [20000, 5000000]
+  # The transfer-value model (int_player_value_inputs builds the terms, int_player_value
+  # scores seeds/value_model.csv, scripts/fit_value_model.py fits it): log(value) is linear
+  # in value_terms -- CA, PA, log current reputation, log league reputation, contract years
+  # left (capped at value_contract_years_cap), the years under value_youth_age and the years
+  # over value_decline_age. The labels are the save's stated values (scrapbook entries)
+  # paired with the snapshot at most value_label_max_gap_days from their date.
+  # value_trusted_band (GBP) is where the estimate held to ~1.5x in grouped cross-validation.
+  value_terms: [ca, pa, lcrep, llrp, yrs_left, youth_years, decline_years]
+  value_youth_age: 21
+  value_decline_age: 30
+  value_contract_years_cap: 6
+  value_label_max_gap_days: 31
+  value_trusted_band: [1000000, 1000000000]
   # The web app's marts (models/site). A league's skill_idx needs this many rated players.
   site_skill_min_players: 20
   # Squad registration, a house rule (docs/danish-registration-rules.md; int_squad_training,

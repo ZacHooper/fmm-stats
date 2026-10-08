@@ -1,5 +1,9 @@
 # What attributes actually make a player DO things
 
+> What a player DOES per 90 is not how WELL he plays the role: per-90 counts carry opportunity and
+> team context (a dominant side's centre-backs defend less). For judging a role's weights, use team
+> results per match -- see [[role-weight-methods]].
+
 **Computed 2026-09-11 on the `frem-2026-03-22` store.** Four cuts, because a single one has twice
 produced a claim that did not survive contact with a second:
 

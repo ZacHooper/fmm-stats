@@ -263,6 +263,26 @@ new career needs it measured again. The game holds it -- most likely each nation
 the data dictionary's rule files (#7, #8) -- so decode it there. The fixture list does not
 change at the rollover, and no fixed-offset season field exists in the first 14 MB.
 
+
+### 11a. Attribute decoder (low priority: exploring the game)
+- **Attribute decoder** ([`attribute-model.md`](attribute-model.md) — read its "ruled out"
+  section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
+  and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
+  near-misses on the larger store: feet for Dribbling, height/weight for Shooting.
+- **Retrain on time-aligned rows.** Our squad's "exact" attributes are scrapbook entries
+  (`tables/player_lists.py`), dated by `scrapbook_date`, and a player who has not played this
+  season carries one up to two years old. The fit pairs an entry with the CURRENT save's
+  record bytes and CA (`scripts/_attribute_rows.py` joins `stg.player_attributes` to
+  `int.player_attributes_exact` on the snapshot), so some rows ask a 2024 entry to predict a
+  2026 player -- and the same stale entry is repeated in every store snapshot until he plays
+  again. Pair each distinct entry with the snapshot nearest its date, once per entry, as
+  `int.player_value_labels` does for values; the World Best XI entries would add elite
+  players to the labels the same way. Re-score on the held-out players
+  (`scripts/holdout_score.py`) before and after; expect a small change, but it is a flaw in the
+  labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
+- **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
+  snapshots.
+
 ---
 
 ## Parser ↔ stats: decoupling
@@ -344,41 +364,18 @@ an ordinary average negated, so a youth-team line may store its rating that way.
 against a youth player's in-game history screen before reading these as ratings;
 `stg_player_history_seasons` passes them through. (0xFFFF, the save's "none", reads NULL.)
 
-### 18. Models
-- **Refit the transfer-value model** with `current_reputation` and `world_reputation` (parsed,
-  unused; `scripts/fit_value_model.py` fits on `reputation` alone, from
-  `int.player_value_inputs`). The seeded coefficients were fitted with Frem Reserves players on
-  their own reserve league's reputation; the inputs now give them the first team's league, as
-  the scorer always has, so a refit moves the `res` and `llrp` terms.
-- **Attribute decoder** ([`attribute-model.md`](attribute-model.md) — read its "ruled out"
-  section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
-  and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
-  near-misses on the larger store: feet for Dribbling, height/weight for Shooting.
-- **Retrain on time-aligned rows.** Our squad's "exact" attributes and value are scrapbook
-  entries (`tables/player_lists.py`), dated by `scrapbook_date`, and a
-  player who has not played this season carries one up to two years old. Both fits pair an
-  entry with the CURRENT save's record bytes, CA and reputation
-  (`scripts/_attribute_rows.py` joins `stg.player_attributes` to
-  `int.player_attributes_exact` on the snapshot; `scripts/fit_value_model.py` likewise), so some rows ask a 2024
-  entry to predict a 2026 player -- and the same stale entry is repeated in every
-  store snapshot until he plays again. Train only on rows whose entry is fresh relative to
-  the save (written at the last monthly update, ~31 days before `phase`), or pair each
-  distinct entry with the store snapshot nearest its date, once per entry. Re-score on the held-out players
-  (`scripts/holdout_score.py`) before and after; expect a small change, but it is a flaw in the
-  labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
-- **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
-  snapshots.
-- **Re-derive `frem_minmax_4231` with ability controlled.** `scripts/derive_weight_set.py`
-  correlates attributes with per-90 output over our player-seasons AND opponents' (706 of 890
-  rows at 180+ minutes; ST is 14 of ours and 59 opponents at a median 240 minutes). An
-  opponent's attributes are mostly decoder estimates, which carry CA as one shared shift
-  (`attribute-model.md`), so for them any estimated attribute tracks overall ability and
-  "predicts" output: Tackling correlates 0.33-0.47 with ST goals, shots on target and headers.
-  Control for ability (Level %ile, or CA in the partial correlation) or restrict opponents to
-  the attributes the save states, then re-derive and review each block before shipping. On the
-  current store the shipped set does not reproduce (DM and AMC go flat, CM inherits
-  `frem_attacking_ss`, ST gains Tackling 3 and Leadership 2), and the input difference behind
-  it was not isolated: the old views no longer fit in memory to compare against.
+### 18. Rebuild the weight-set method on team results
+([`agent-context/role-weight-methods.md`](agent-context/role-weight-methods.md), "What the match
+data says"). `scripts/derive_weight_set.py` fits blocks from per-90 output on 12-26 players a
+role, which the data cannot support: its blocks flip between runs (re-derived on the current
+store, DM and AMC go flat and ST gains Tackling 3 / Leadership 2; the shipped set does not
+reproduce, and the input difference behind it was not isolated). Change it to: score a block
+against team results per match (points, goal difference, goals against; within season, venue and
+opponent controlled) beside rating and per-90; resample by player and check leave-one-player-out;
+start from a base block (`frem_attacking_ss`, or a role's in-game key attributes) and let the
+data veto. Then ship: CB, CM, AMC, AML/AMR as now (confirmed against results); ST on the
+target-man brief (aerial, shooting, strength key; movement, pace, aggression, dribbling
+secondary) as a `HELD` judgement; LB/RB and DM marked not measurable.
 
 ### 19a. Port `tests/validate_mart.py` to dbt tests
 The script stops at its first query: it reads the legacy mart views #149 retired (50 names,
