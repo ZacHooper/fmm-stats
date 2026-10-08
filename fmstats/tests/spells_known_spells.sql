@@ -32,14 +32,14 @@ injured_on_loan as (
         on
             injuries.person_id = loans.person_id
             and injuries.from_date <= loans.to_date
-            and loans.from_date <= injuries.to_date
+            and injuries.to_date >= loans.from_date
     where
         injuries.spell_type = 'injured'
         and loans.spell_type = 'loan_out'
 )
 
 select
-    'a known spell is missing' as check,  -- noqa: RF04
+    'a known spell is missing' as "check",  -- noqa: RF04
     expected.name,
     expected.spell_type,
     expected.from_date
@@ -48,7 +48,7 @@ cross join career
 where
     career.career_key = 'frem'
     and not exists (
-        select 1
+        select 1 as found
         from spells
         where
             spells.name = expected.name
@@ -58,7 +58,7 @@ where
     )
 union all
 select
-    'no injury overlaps a loan out' as check,  -- noqa: RF04
+    'no injury overlaps a loan out' as "check",  -- noqa: RF04
     null as name,
     null as spell_type,
     null as from_date

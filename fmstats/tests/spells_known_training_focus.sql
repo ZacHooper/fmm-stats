@@ -19,14 +19,14 @@ actual as (
     select
         people.name,
         players.training_focus_position as focus_position,
-        roles.name as focus_role,
+        focus_roles.name as focus_role,
         attributes.abbrev as focus_attribute,
         players.training_intensity as intensity
     from {{ ref('fact_player_snapshot') }} as players
     inner join {{ ref('dim_person') }} as people
         on players.person_id = people.person_id
-    left join {{ ref('dim_role') }} as roles
-        on players.training_focus_role = roles.role_id
+    left join {{ ref('dim_role') }} as focus_roles
+        on players.training_focus_role = focus_roles.role_id
     left join {{ ref('stg_training_attributes') }} as attributes
         on players.training_focus_attribute = attributes.code
     where players.snapshot_date = date '2027-06-15'

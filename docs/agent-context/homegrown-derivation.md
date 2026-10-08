@@ -10,7 +10,7 @@ rule — FMM22 models none of it. Data layer: the registration family in `fmstat
 **Vocabulary, because it trips people up:** "home grown" is the UMBRELLA — `hg_club`
 (trained at us, counts toward both the 4 and the 8) plus `hg_association` (trained at another
 club of our association, counts toward the 8 only). `hg_club` implies `hg_association`, and
-`validate_mart.py` asserts it. The site's column is called "Trained at" for this reason: naming
+the dbt test `registration_homegrown` asserts it. The site's column is called "Trained at" for this reason: naming
 it "Home grown" read as a definition ("home grown = Danish") rather than as a quota.
 
 ## The finding that unlocked it: origin tids in the 64000–65534 band are ACADEMY teams
@@ -39,7 +39,7 @@ lookup, not an inference: **no vote, no majority, no confidence score**. It also
 sentinel — 65535 is the complement of tid 0, "no club" — which is why it stays excluded.
 
 The two id spaces cannot collide: club tids occupy 51–11077 and their complements 54458–65484.
-All 618 academies in the high band resolve, 618/618, and `validate_mart.py` asserts both the rule
+All 618 academies in the high band resolve, 618/618, and the dbt test `origins_academy_decode` asserts both the rule
 and the non-collision.
 
 **This replaced a majority vote** over where each cohort's alumni played (2026-09-12). The vote
@@ -63,7 +63,7 @@ extract does not carry, most likely. They map to nothing, which is the honest an
 to invent a parent for them, which is how four players got capital eligibility they had not earned.
 
 **65535 is 0xFFFF, the u16 "no origin" sentinel** (2,096 players), not a club. Excluded
-explicitly; `validate_mart.py` asserts it never enters `youth_clubs`.
+explicitly; `origins_academy_decode` asserts it is never read as a club.
 
 ## Eligibility is applied to the PARENT, downstream of the lookup
 

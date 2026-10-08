@@ -12,13 +12,13 @@ with transfers as (
 unreadable as (
     select
         count(*) filter (where fee_kind = 'unknown') * 1.0
-        / nullif(count(*), 0) as share
+        / nullif(count(*), 0) as unknown_share
     from transfers
     where transfer_type is distinct from 'graduation'
 )
 
 select
-    'a move to the same club that is not a graduation' as check,  -- noqa: RF04
+    'same-club move that is not a graduation' as "check",  -- noqa: RF04
     person_id,
     to_line_index
 from transfers
@@ -27,14 +27,14 @@ where
     <> coalesce(transfer_type = 'graduation', false)
 union all
 select
-    'fee_gbp NULL disagrees with fee_kind' as check,  -- noqa: RF04
+    'fee_gbp NULL disagrees with fee_kind' as "check",  -- noqa: RF04
     person_id,
     to_line_index
 from transfers
 where (fee_gbp is null) <> (fee_kind = 'unknown')
 union all
 select
-    'transfer_type disagrees with the fee' as check,  -- noqa: RF04
+    'transfer_type disagrees with the fee' as "check",  -- noqa: RF04
     person_id,
     to_line_index
 from transfers
@@ -45,7 +45,7 @@ where
     <> coalesce(fee_gbp = 0, false)
 union all
 select
-    'a move outside its snapshot gap' as check,  -- noqa: RF04
+    'a move outside its snapshot gap' as "check",  -- noqa: RF04
     person_id,
     to_line_index
 from transfers
@@ -56,8 +56,8 @@ where
     or move_date > moved_by
 union all
 select
-    '5% or more of club-to-club moves have no fee' as check,  -- noqa: RF04
+    '5% or more of club-to-club moves have no fee' as "check",  -- noqa: RF04
     null as person_id,
     null as to_line_index
 from unreadable
-where unreadable.share >= 0.05
+where unreadable.unknown_share >= 0.05

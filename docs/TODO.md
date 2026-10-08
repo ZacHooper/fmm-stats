@@ -25,10 +25,10 @@ is organised around them:
 | **Site** | `site/`, `scripts/export_data.py` | a human-friendly view of the mart |
 
 Every parser table is on the `core` framework ([`parser-architecture.md`](parser-architecture.md))
-and the store is a dbt project ([`fmstats/CLAUDE.md`](../fmstats/CLAUDE.md)). The near-term work
-is moving the scripts and skills onto the model (#19) and giving it real-data tests (#19a); the
-long tail is the parser: new bytes (every byte of the save processed), then understanding the
-bytes already read.
+and the store is a dbt project ([`fmstats/CLAUDE.md`](../fmstats/CLAUDE.md)) whose build tests
+the real data as well as its structure (`fmstats/tests/`). The near-term work is the weight-set
+method (#18) and the docs (#22); the long tail is the parser: new bytes (every byte of the save
+processed), then understanding the bytes already read.
 
 | | |
 |---|---|
@@ -366,44 +366,6 @@ target-man brief (aerial, shooting, strength key; movement, pace, aggression, dr
 secondary) as a `HELD` judgement; LB/RB and DM marked not measurable. Group players by the
 position they started in: `attribute_stat_correlations.build(positions="played")` does it, but
 the derivation still passes `positions="familiar"` so it does not move before this rework.
-
-### 19a. Port `tests/validate_mart.py` to dbt tests
-The script stops at its first query: it reads the legacy mart views #149 retired (50 names,
-~200 references, e.g. `mart.our_clubs`, `managed_club`, `player_growth`, `squad_on`), and only
-a handful have a same-named successor. The dbt suite does NOT make it redundant: its 478 nodes
-are structural (`unique_combination`, `relationship_combination`, `rows_match_source`, a few
-`not_null`/`in_range`/`accepted_values`) plus 33 unit tests on toy fixtures. Nothing in dbt
-asserts a property of the real data. Scoped 2026-10-07 from the check labels, the script's
-~90 checks split four ways:
-- **Already covered, drop (~15):** the grain checks (`mart.<obj> is unique on ...`, "one row
-  per player per snapshot/week"); `unique_combination` on the successor models covers them.
-- **Generic data invariants, port as singular dbt tests (~30):** these hold for any career, so
-  they belong in `fmstats/tests/`. Spells: no same-type overlap, no inverted range, latest
-  snapshot a superset. Matches: both sides mirror, result/points agree with the score, no
-  minutes after a red card, event side resolves, a two-legged tie has at most two legs,
-  `player_seasons` reproduces the match facts. Tables: positions 1..n with no gaps, the
-  save's own final positions reproduced. Head-to-head totals equal the matches they sum.
-  Academies: u16 complement, no club/academy collision, 0xFFFF is not a club, eligibility
-  never removed. Homegrown: months at most the window, club-trained implies
-  association-trained, never NULL, B-list fixed-date. `rating_adj`: every position maps to a
-  role, each role's baseline mean equals the pool mean, at least 30 starts per role, set
-  exactly for positioned starts, raw average unchanged. `level_*` in [0,100]. No raw-ability
-  column in `site` (`check_immersion()` guards the JSON, not the schema). Division resolved
-  as-at. Transfers fee coverage. Every training focus named.
-- **Frem known answers, port as tagged singular tests (~25):** the 14+ loan-ins incl. Oliver
-  Jeppe, winter/summer windows, 2024 league goals 73 (70 + 3 OGs), golden boot Jakobsen 30,
-  first team 39 / reserve 59 games, Garly and Møller-Jensen growth, youth tid 65189, tier-25
-  rule set, fixture-stage labels, named transfer fees, training focus on 2027-06-15, named
-  spells. Tag them `known_answers` and enable them only for `var('career') == 'frem'`. They
-  assume a full rebuild.
-- **Retired with their view, drop (~15):** growth/tenure/attribute-growth and the keeper-block
-  total, `squad_on` vs roster, `at_club_spells` ghosts, `our_clubs`/`managed_club`
-  (now `dim_team`), `player_position_fit` coverage, `player_role_seasons`, and the
-  "CM − DM > 0.2" penalty, which is a finding, not an invariant. Before dropping, check
-  whether `site.forecast`/`site.age_curve` and `site_players.development` should keep their
-  monotone-forecast and four-band (an immersion guard) checks.
-
-Then delete the script, and point the CLAUDE.md "after editing" command at `dbt test`.
 
 ---
 

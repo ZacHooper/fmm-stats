@@ -6,8 +6,8 @@ select
     training.tid,
     training.focus_role
 from {{ ref('stg_training') }} as training
-left join {{ ref('dim_role') }} as roles
-    on training.focus_role = roles.role_id
+left join {{ ref('dim_role') }} as focus_roles
+    on training.focus_role = focus_roles.role_id
 where
     training.focus_role is not null
-    and roles.name is null
+    and focus_roles.name is null

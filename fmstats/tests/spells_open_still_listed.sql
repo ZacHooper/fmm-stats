@@ -14,7 +14,7 @@ open_spells as (
 )
 
 select
-    'open team spell not on newest snapshot' as check,  -- noqa: RF04
+    'open team spell not on newest snapshot' as "check",  -- noqa: RF04
     open_spells.person_id,
     open_spells.spell_type,
     open_spells.club_tid,
@@ -24,7 +24,7 @@ cross join latest
 where
     open_spells.spell_type = 'at_club'
     and not exists (
-        select 1
+        select 1 as found
         from {{ ref('fact_player_snapshot') }} as players
         where
             players.person_id = open_spells.person_id
@@ -33,7 +33,7 @@ where
     )
 union all
 select
-    'open loan-in not in current squad' as check,  -- noqa: RF04
+    'open loan-in not in current squad' as "check",  -- noqa: RF04
     open_spells.person_id,
     open_spells.spell_type,
     open_spells.club_tid,
@@ -42,7 +42,7 @@ from open_spells
 where
     open_spells.spell_type = 'loan_in'
     and not exists (
-        select 1
+        select 1 as found
         from {{ ref('mart_squad_membership') }} as squads
         where
             squads.person_id = open_spells.person_id

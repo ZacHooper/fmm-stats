@@ -20,7 +20,7 @@ kept as (
 )
 
 select
-    'stored match missing from dim_match' as check,  -- noqa: RF04
+    'stored match missing from dim_match' as "check",  -- noqa: RF04
     stored.match_date,
     stored.home_team_tid,
     stored.away_team_tid
@@ -33,7 +33,7 @@ left join kept
 where kept.match_date is null
 union all
 select
-    'dim_match match no snapshot stores' as check,  -- noqa: RF04
+    'dim_match match no snapshot stores' as "check",  -- noqa: RF04
     kept.match_date,
     kept.home_team_tid,
     kept.away_team_tid

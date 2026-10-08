@@ -35,3 +35,10 @@ The raw tables (written by the loader) are the extract. `fmstats/` turns them in
   against an empty store it builds, so no data is needed.
 - **Test big views on a sample** (`tests/`, `macros/sample.sql`): a test that reads all 16M
   ratings takes ~45 s; the sample takes ~0.6 s.
+- **Real-data checks are singular tests in `tests/`**, named by theme (`matches_`, `spells_`,
+  `tables_`, `ratings_`, `origins_`, `registration_`, `growth_`). Each returns the failing rows,
+  with a `"check"` column where one file asserts several things. A generic invariant holds for
+  any career; a known answer about Frem (a named player, a season's total) is tagged
+  `known_answers` and returns nothing unless `stg_career.career_key = 'frem'`. Known answers
+  assume a full rebuild. `yml` tests cover grain and relationships; these cover what the data
+  says.

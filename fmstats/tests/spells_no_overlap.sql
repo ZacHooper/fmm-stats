@@ -13,7 +13,7 @@ with spells as (
 )
 
 select
-    'two spells of one type overlap' as check,  -- noqa: RF04
+    'two spells of one type overlap' as "check",  -- noqa: RF04
     spells.person_id,
     spells.spell_type,
     spells.from_date
@@ -23,10 +23,10 @@ inner join spells as later
         spells.person_id = later.person_id
         and spells.spell_type = later.spell_type
         and spells.from_date < later.from_date
-        and later.from_date <= spells.to_date
+        and spells.to_date >= later.from_date
 union all
 select
-    'a spell ends before it starts' as check,  -- noqa: RF04
+    'a spell ends before it starts' as "check",  -- noqa: RF04
     person_id,
     spell_type,
     from_date
@@ -34,7 +34,7 @@ from spells
 where to_date < from_date
 union all
 select
-    'a loan ends before it starts' as check,  -- noqa: RF04
+    'a loan ends before it starts' as "check",  -- noqa: RF04
     person_id,
     'loan' as spell_type,
     coalesce(start_date, first_seen_date) as from_date
@@ -46,7 +46,7 @@ where
     or (first_seen_date is null) <> (last_seen_date is null)
 union all
 select
-    'an injury ends before it starts' as check,  -- noqa: RF04
+    'an injury ends before it starts' as "check",  -- noqa: RF04
     person_id,
     'injured' as spell_type,
     start_date as from_date
