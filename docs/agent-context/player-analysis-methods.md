@@ -40,10 +40,9 @@ do take `mean9`, which is a mild cross-attribute channel; CA enters most of them
 CA-derived **Level %ile** (never the raw number — see [[level-vs-fit-percentile]]) when the question
 is "does attribute X matter beyond overall quality".
 
-**3. `mart.squad_current` omits loan players whose spell data lapsed.** Both loanees and recent
-signings can read `club_tid = ours` while being absent from `squad_current`, and the site export can
-lag the live game. Cross-check against `site/api/core.json`'s `ours.squad_tids` and ask the user.
-See [[loan-status-unreliable]].
+3. `mart.mart_squad_membership` is the single source of truth for squad lists. Both loanees and recent
+signings can read `club_tid = ours` in raw tables while being absent from active membership.
+Filter `WHERE is_current AND is_managed_club` for our squad, or `WHERE is_current AND (club_tid = <them> OR team_tid = <them>)` for an opponent.
 
 **4. ONE MATCH IS STORED UNDER SEVERAL `anchor`s — deduping on `(anchor, tid)` does NOTHING.**
 `raw.match_player_stats` is the ring buffer, and every snapshot that still holds a match writes
@@ -196,7 +195,7 @@ nm = db.q(f"SELECT tid,name FROM mart.player_snapshots WHERE season={S} AND phas
        .set_index("tid")["name"].to_dict()
 df["name"] = df.tid.map(nm).fillna("(gone)")   # "(gone)" = left the club since the snapshot
 ```
-For "is this player still ours", `mart.squad_current` is the only safe answer — a raw `club_tid`
+For "is this player still ours", `mart.mart_squad_membership WHERE is_current AND is_managed_club` is the only safe answer — a raw `club_tid`
 filter returned two departed centre-backs as our two best.
 
 ## Findings from the first run (2025 season, 3F Superliga)

@@ -80,7 +80,7 @@ percentiles. Growth totals (`mart.player_growth*`) are attribute-derived and fin
 
 **7. Rank across positions on the ADJUSTED rating**
 **[BAD]** *Player of the Season = highest raw `avg_rating`.*
-**[GOOD]** *Rank on `avg_rating_adj` (mart.player_seasons / mart.match_ratings); show the raw
+**[GOOD]** *Rank on `avg_rating_adj` (mart.fact_player_season / mart.fact_player_match); show the raw
 average beside it.*
 **[WHY]** The game's rating is position-biased: a DM rates ~0.47 below a central midfielder and a
 forward ~0.47 above one for the same performance, so a raw ranking is partly "who plays furthest
@@ -148,22 +148,22 @@ print(con.execute(f"""
 """).df().to_string(index=False))
 
 # 2. POSITIONAL UNITS — pure starters only (rule 3), grouped by the role actually played
-#    (mart.match_ratings.role, from the decoded position — never bucket pos_order, which is
+#    (mart.fact_player_match.role, from the decoded position — never bucket pos_order, which is
 #    depth order and shifts with the shape). Within a unit compare either rating; the
 #    adjusted one is what makes a DM and a winger comparable (rule 7).
 print("\n--- PLAYERS BY ROLE (10+ starts) ---")
 print(con.execute(f"""
-    WITH nm AS (SELECT person_id, any_value(name) AS name FROM mart.at_club_spells GROUP BY 1)
+    WITH nm AS (SELECT person_id, any_value(name) AS name FROM mart.dim_person GROUP BY 1)
     SELECT f.role, nm.name, COUNT(*) AS starts, ROUND(AVG(f.rating),2) AS avg_rating,
            ROUND(AVG(f.rating_adj),2) AS avg_rating_adj,
-           SUM(f.goals) AS goals, SUM(f.assists) AS assists, SUM(f.keyPass) AS key_passes,
-           SUM(f.tackW + f.intercept) AS def_actions, SUM(f.mistakes) AS mistakes
-    FROM mart.match_ratings f
-    JOIN mart.rating_roles r USING (position, role)
+           SUM(f.goals) AS goals, SUM(f.assists) AS assists, SUM(f.key_pass) AS key_passes,
+           SUM(f.tackles_won + f.interceptions) AS def_actions, SUM(f.mistakes) AS mistakes
+    FROM mart.fact_player_match f
+    JOIN mart.dim_match m USING (match_id)
     JOIN nm USING (person_id)
-    WHERE f.season = {SEASON} AND f.team_tid IN {OURS} AND f.started AND f.is_competitive
+    WHERE m.season = {SEASON} AND f.team_tid IN {OURS} AND f.is_starter AND m.is_competitive
     GROUP BY f.role, nm.name HAVING COUNT(*) >= 10
-    ORDER BY any_value(r.role_order), avg_rating_adj DESC
+    ORDER BY f.role, avg_rating_adj DESC
 """).df().to_string(index=False))
 
 # 3. AWARDS — appeared-only (rule 2). mart.player_seasons is per competition; roll it up.

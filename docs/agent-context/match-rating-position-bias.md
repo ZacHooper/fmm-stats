@@ -158,11 +158,9 @@ values for that match against `docs/agent-context/match-position-encoding.md`.
 
 ## Implemented (2026-09-23)
 
-The correction is in the mart: `mart.match_ratings` carries `role` and `rating_adj` (game units,
-restated on the outfield scale rather than the 100/15 index above), `mart.player_role_seasons` the
-per-role split, and `mart.player_seasons.avg_rating_adj` the season figure. `fmq.py output
---by-position` and the season-review awards read them. Design:
-[`docs/plans/2026-09-23-match-rating-normalisation.md`](../plans/2026-09-23-match-rating-normalisation.md).
+The correction is in the mart: `mart.fact_player_match` carries `role` and `rating_adj` (game units,
+restated on the outfield scale rather than the 100/15 index above), and `mart.fact_player_season` carries
+the season figure.
 
 ## 2027-05 refresh — still true, plus what the DM rating actually measures
 

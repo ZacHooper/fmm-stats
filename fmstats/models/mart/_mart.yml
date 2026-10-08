@@ -175,7 +175,8 @@ models:
       - unique_combination: {arguments: {columns: [period]}}
   - name: fact_player_match
     description: >
-      Each player's line in our own matches, both sides: started, appeared, minutes with extra time, stats.
+      Each player's line in our own matches, both sides: started, appeared, minutes with extra time,
+      raw rating, position-adjusted rating (rating_adj), role, and match performance stats.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id, player_tid]}}
       - relationship_combination:
@@ -266,9 +267,8 @@ models:
             to_columns: [cid]
   - name: dim_person
     description: >
-      Every person in any snapshot: name, date of birth, and the club and season of the oldest
-      career line any snapshot holds; an academy's line counts for its club, with the academy
-      in origin_youth_team_tid.
+      Every person in any snapshot: name, date of birth, origin club, origin academy
+      (origin_youth_team_tid), capital_eligible flag, and season of the oldest career line.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id]}}
   - name: fact_player_valuation

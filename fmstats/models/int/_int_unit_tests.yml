@@ -1109,7 +1109,7 @@ unit_tests:
         rows:
           - {cid: 2, type: league}
           - {cid: 65, type: friendly}
-      - input: ref('fact_player_match')
+      - input: ref('int_player_matches')
         rows:
           - {match_id: 1, player_tid: 10, team_tid: 346, started: true, rating: 6, position: DC}
           - {match_id: 2, player_tid: 10, team_tid: 346, started: true, rating: 7, position: DC}

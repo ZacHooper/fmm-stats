@@ -71,12 +71,10 @@ Two ways round it:
 
 ```sql
 USE m;  SELECT * FROM mart.squad_on('2024-06-30');   -- any date
-SELECT * FROM m.mart.squad_current;                   -- the newest snapshot, no USE needed
+SELECT * FROM m.mart.mart_squad_membership WHERE is_current AND is_managed_club; -- current squad
 ```
 
-`mart.squad_current` is a plain view for exactly this reason, and it is **one row per person**
-(`squad_on` returns one per spell, so a borrowed player appears twice — once `at_club`, once
-`loan_in`). It carries `is_loan_in` and `is_reserve`.
+`mart.mart_squad_membership` is a view for exactly this reason, and it is **one row per person**. It carries `is_loan_in`.
 
 #### Reading attribute growth
 

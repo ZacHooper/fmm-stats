@@ -40,6 +40,7 @@ def build(src_path, dest):
     TABLE_SORT_KEYS = {
         'fact_player_state_scd': 'person_id, valid_from',
         'fact_player_valuation': 'person_id, snapshot_date',
+        'fact_player_match': 'match_id, player_tid',
         'fact_stadium_snapshot': 'stadium_id, snapshot_date',
         'fact_team_snapshot': 'team_tid, snapshot_date',
         'fact_staff_snapshot': 'person_id, snapshot_date',
@@ -122,12 +123,68 @@ def build(src_path, dest):
             scd.pos_gk, scd.pos_sw, scd.pos_dl, scd.pos_dc, scd.pos_dr, scd.pos_dmc,
             scd.pos_ml, scd.pos_mc, scd.pos_mr, scd.pos_aml, scd.pos_amc, scd.pos_amr,
             scd.pos_st, scd.pos_dml, scd.pos_dmr,
+            positions.positions,
             val.snapshot_date = max(val.snapshot_date) over () as is_current
         FROM mart.fact_player_valuation val
         JOIN mart.fact_player_state_scd scd
           ON val.person_id = scd.person_id
          AND val.snapshot_date >= scd.valid_from
          AND val.snapshot_date <= scd.valid_to
+        LEFT JOIN (
+            WITH listed AS (
+                SELECT
+                    val.snapshot_date,
+                    val.person_id,
+                    scd.team_tid,
+                    scd.ca,
+                    unnest(['GK', 'SW', 'DL', 'DC', 'DR', 'DMC', 'ML', 'MC', 'MR', 'AML', 'AMC', 'AMR', 'ST', 'DML', 'DMR']) AS position,
+                    unnest([scd.pos_gk, scd.pos_sw, scd.pos_dl, scd.pos_dc, scd.pos_dr, scd.pos_dmc, scd.pos_ml, scd.pos_mc, scd.pos_mr, scd.pos_aml, scd.pos_amc, scd.pos_amr, scd.pos_st, scd.pos_dml, scd.pos_dmr]) AS familiarity
+                FROM mart.fact_player_valuation val
+                JOIN mart.fact_player_state_scd scd
+                  ON val.person_id = scd.person_id
+                 AND val.snapshot_date >= scd.valid_from
+                 AND val.snapshot_date <= scd.valid_to
+                WHERE familiarity > 0
+            ),
+            levels AS (
+                SELECT
+                    listed.snapshot_date,
+                    listed.person_id,
+                    listed.position,
+                    listed.familiarity,
+                    CASE
+                        WHEN listed.ca IS NOT NULL
+                            THEN ROUND(100 * PERCENT_RANK() OVER (
+                                PARTITION BY listed.snapshot_date, listed.position, listed.ca IS NULL
+                                ORDER BY listed.ca
+                            ), 1)
+                    END AS level_global,
+                    CASE
+                        WHEN listed.ca IS NOT NULL
+                            THEN ROUND(100 * PERCENT_RANK() OVER (
+                                PARTITION BY listed.snapshot_date, listed.position, team.league_cid, listed.ca IS NULL
+                                ORDER BY listed.ca
+                            ), 1)
+                    END AS level_league
+                FROM listed
+                LEFT JOIN mart.fact_team_snapshot team
+                  ON listed.snapshot_date = team.snapshot_date
+                 AND listed.team_tid = team.team_tid
+            )
+            SELECT
+                snapshot_date,
+                person_id,
+                LIST({
+                    'position': position,
+                    'familiarity': familiarity,
+                    'level_league': level_league,
+                    'level_global': level_global
+                } ORDER BY position) AS positions
+            FROM levels
+            GROUP BY snapshot_date, person_id
+        ) positions
+          ON val.snapshot_date = positions.snapshot_date
+         AND val.person_id = positions.person_id
         LEFT JOIN mart.dim_person person
           ON val.person_id = person.person_id
     """)
