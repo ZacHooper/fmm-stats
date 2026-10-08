@@ -182,8 +182,10 @@ uv run python scripts/export_manifest.py                  # refresh the rebuild 
 uv run python scripts/discover_career.py <save.fms>       # find a new career's club tids
 
 # after editing fmstats/ models or load_duckdb.py's VIEWS — rebuilds the models and runs
-# `dbt build`, so every dbt data and unit test runs as part of it
+# `dbt build`, so every dbt data and unit test runs as part of it, including the real-data
+# checks in fmstats/tests/ (the Frem known answers carry the tag `known_answers`)
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
+cd fmstats && FM_DUCKDB=../fm-frem.duckdb uv run dbt test --profiles-dir .   # tests only, ~2 min
 uv run python tests/test_boundary.py
 
 # refreshing the web app (after an import) — see docs/DEPLOY.md

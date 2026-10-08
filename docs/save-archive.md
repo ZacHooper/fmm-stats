@@ -172,7 +172,7 @@ Path Third Qualifying Round (stage 0, round 0), Playoff (stage 2), Group D, Firs
 Round (stage 4, round 0); Champions Cup League Path Third Qualifying Round (stage 1, round 1)
 and Playoff (round 2); 3F Superliga Preliminary Phase (stage 0) and Championship Group (stage
 1); Sydbank Pokalen Third Round (round 2). All reproduce, in `tests/test_comp_rules.py` from
-the save and `tests/validate_mart.py` from `mart.match_stages`.
+the save and the dbt test `fmstats/tests/matches_frem_fixture_labels.sql` from `site.matches`.
 
 **The fixture record still carries no competition.** None of the members' uids occurs anywhere
 in `fix_man.dat`, no unnamed fixture byte is constant within a stage and distinct between
