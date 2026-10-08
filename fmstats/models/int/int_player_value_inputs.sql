@@ -2,8 +2,8 @@
 -- (snapshot_date, tid): his raw inputs, then one column per model term
 -- (var('value_terms')), which int.player_value scores and
 -- int.player_value_labels pairs with the save's stated values for
--- scripts/fit_value_model.py. A term is NULL where its input is missing or not
--- positive (a log of 0), and such a player gets no estimate.
+-- scripts/fit_value_model.py. A term is NULL where its input is missing (no
+-- league, no contract), and such a player gets no estimate.
 -- The model's league reputation is that of the league his team plays in
 -- (int.team_leagues); a reserve side's is its first team's, with is_reserve
 -- set. value is the value the save states, our own squad's only
@@ -56,22 +56,18 @@ with inputs as (
 logs as (
     select
         *,
-        case when reputation > 0 then ln(reputation) end as lrep,
         case
             when league_reputation > 0 then ln(league_reputation)
         end as llrp,
-        ln(greatest(current_reputation, 1)) as lcrep,
-        ln(greatest(world_reputation, 1)) as lwrep,
-        ln(greatest(wage_gbp, 1)) as lwage
+        ln(greatest(current_reputation, 1)) as lcrep
     from inputs
 )
 
--- The terms, in var('value_terms') order: ability, the reputation trio and
--- the league's, goalkeeper and reserve flags, age as a quadratic with a hinge
--- past var('value_age_hinge'), wage, contract years left (capped at
--- var('value_contract_years_cap')), and four interactions: ability and
--- reputation with the league's reputation, the potential still to come for a
--- player under var('value_youth_age'), and wage with the league's reputation.
+-- The terms, in var('value_terms') order: ability and potential, the logs of
+-- the player's current reputation and his league's, contract years left
+-- (capped at var('value_contract_years_cap')), and age as two kinks with a
+-- flat middle: the years he is under var('value_youth_age') and the years he
+-- is over var('value_decline_age').
 select
     snapshot_date,
     tid,
@@ -88,21 +84,12 @@ select
     wage_gbp,
     contract_expiry,
     value,
-    lrep,
-    llrp,
-    cast(is_goalkeeper as int) as gk,
-    cast(is_reserve as int) as res,
-    age * age as age2,
-    greatest(age - {{ var('value_age_hinge') }}, 0) as age_over,
     lcrep,
-    lwrep,
-    lwage,
+    llrp,
     least(
         greatest(date_diff('day', snapshot_date, contract_expiry) / 365.25, 0),
         {{ var('value_contract_years_cap') }}
     ) as yrs_left,
-    ca * llrp as ca_llrp,
-    lrep * llrp as lrep_llrp,
-    (pa - ca) * greatest({{ var('value_youth_age') }} - age, 0) as pagap_young,
-    lwage * llrp as wage_llrp
+    greatest({{ var('value_youth_age') }} - age, 0) as youth_years,
+    greatest(age - {{ var('value_decline_age') }}, 0) as decline_years
 from logs

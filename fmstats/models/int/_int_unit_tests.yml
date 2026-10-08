@@ -606,9 +606,9 @@ unit_tests:
   - name: player_value_inputs_reserve_takes_first_team_league
     description: >
       A reserve side's player takes his first team's league reputation and is_reserve; a
-      first-team player takes his own league's. Terms: logs of the reputations, league and
-      wage (a reputation of 0 gives no log), age past the hinge, contract years left capped,
-      and the potential still to come only under the youth age.
+      first-team player takes his own league's. Terms: logs of current and league reputation
+      (a current reputation of 0 counts as 1), contract years left capped, and age as the
+      years under the youth age and over the decline age.
     model: int_player_value_inputs
     given:
       - input: ref('int_player_info')
@@ -629,8 +629,8 @@ unit_tests:
           - {snapshot_date: '2026-06-11', team_tid: 7296, league_reputation: 1}
     expect:
       rows:
-        - {tid: 1, league_reputation: 100, is_reserve: false, age: 30, value: 250000, gk: 0, res: 0, age2: 900, age_over: 2, yrs_left: 6, pagap_young: 0, lwage: 6.907755278982137, lrep: 3.912023005428146}
-        - {tid: 2, league_reputation: 100, is_reserve: true, age: 19, value: null, gk: 1, res: 1, age2: 361, age_over: 0, yrs_left: 0, pagap_young: 240, lwage: 0.0, lrep: null}
+        - {tid: 1, league_reputation: 100, is_reserve: false, age: 30, value: 250000, lcrep: 3.6888794541139363, llrp: 4.605170185988092, yrs_left: 6, youth_years: 0, decline_years: 0}
+        - {tid: 2, league_reputation: 100, is_reserve: true, age: 19, value: null, lcrep: 0.0, llrp: 4.605170185988092, yrs_left: 0, youth_years: 2, decline_years: 0}
 
   - name: player_value_scores_the_seeded_model
     description: >
@@ -641,28 +641,18 @@ unit_tests:
       - input: ref('stg_value_model')
         rows:
           - {term: intercept, coefficient: 0}
-          - {term: lrep, coefficient: 1}
-          - {term: llrp, coefficient: 1}
-          - {term: res, coefficient: 0.6931471805599453}
           - {term: ca, coefficient: 0}
           - {term: pa, coefficient: 0}
-          - {term: gk, coefficient: 0}
-          - {term: age, coefficient: 0}
-          - {term: age2, coefficient: 0}
-          - {term: age_over, coefficient: 0}
-          - {term: lcrep, coefficient: 0}
-          - {term: lwrep, coefficient: 0}
-          - {term: lwage, coefficient: 0}
+          - {term: lcrep, coefficient: 1}
+          - {term: llrp, coefficient: 1}
           - {term: yrs_left, coefficient: 0}
-          - {term: ca_llrp, coefficient: 0}
-          - {term: lrep_llrp, coefficient: 0}
-          - {term: pagap_young, coefficient: 0}
-          - {term: wage_llrp, coefficient: 0}
+          - {term: youth_years, coefficient: 0.6931471805599453}
+          - {term: decline_years, coefficient: 0}
       - input: ref('int_player_value_inputs')
         rows:
-          - {snapshot_date: '2026-06-11', tid: 1, ca: 0, pa: 0, lrep: 3.912023005428146, llrp: 4.605170185988092, gk: 0, res: 0, age: 0, age2: 0, age_over: 0, lcrep: 0, lwrep: 0, lwage: 0, yrs_left: 0, ca_llrp: 0, lrep_llrp: 0, pagap_young: 0, wage_llrp: 0}
-          - {snapshot_date: '2026-06-11', tid: 2, ca: 0, pa: 0, lrep: 2.995732273553991, llrp: 4.605170185988092, gk: 0, res: 1, age: 0, age2: 0, age_over: 0, lcrep: 0, lwrep: 0, lwage: 0, yrs_left: 0, ca_llrp: 0, lrep_llrp: 0, pagap_young: 0, wage_llrp: 0}
-          - {snapshot_date: '2026-06-11', tid: 3, ca: 0, pa: 0, lrep: null, llrp: 4.605170185988092, gk: 0, res: 0, age: 0, age2: 0, age_over: 0, lcrep: 0, lwrep: 0, lwage: 0, yrs_left: 0, ca_llrp: 0, lrep_llrp: 0, pagap_young: 0, wage_llrp: 0}
+          - {snapshot_date: '2026-06-11', tid: 1, ca: 0, pa: 0, lcrep: 3.912023005428146, llrp: 4.605170185988092, yrs_left: 0, youth_years: 0, decline_years: 0}
+          - {snapshot_date: '2026-06-11', tid: 2, ca: 0, pa: 0, lcrep: 2.995732273553991, llrp: 4.605170185988092, yrs_left: 0, youth_years: 1, decline_years: 0}
+          - {snapshot_date: '2026-06-11', tid: 3, ca: 0, pa: 0, lcrep: 2.995732273553991, llrp: null, yrs_left: 0, youth_years: 0, decline_years: 0}
     expect:
       rows:
         - {tid: 1, value_estimate: 5000, is_in_trusted_band: false}

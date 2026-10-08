@@ -47,16 +47,32 @@ Nothing else. The value is derived by the game, not stored in coarse form.
 
 ## 3. The model
 
-Built in the store and fitted by `scripts/fit_value_model.py` (refitted 2026-10-08):
+Built in the store and fitted by `scripts/fit_value_model.py` (refitted 2026-10-08). Seven
+terms, each a rule a game designer could have written:
 
-- **Terms** (`int.player_value_inputs`, list `value_terms` in `fmstats/dbt_project.yml`):
-  ability and potential; the reputation trio (home, current, world) and the league's
-  reputation, as logs; goalkeeper and reserve flags; age as a quadratic with a hinge past 28;
-  log wage; contract years left (capped at 6); and four interactions -- ability x league
-  reputation, reputation x league reputation, wage x league reputation, and the potential still
-  to come for a player under 23. `log(value) = intercept + SUM(term x coefficient)`,
-  coefficients in `seeds/value_model.csv`, scored by `int.player_value` into
-  `mart.fact_player_valuation` (`value_is_estimated`, `value_in_trusted_band`).
+```
+value ~ k x current_rep^2.92 x league_rep^2.18 x 1.030^PA x 1.015^CA
+          x 1.10^(contract years left, up to 6)
+          x 1.29^(years under 21) x 0.79^(years over 30)
+```
+
+| factor | effect |
+|---|---|
+| double the player's **current reputation** | **x7.4** |
+| double his **league's reputation** | **x4.5** |
+| +10 PA | x1.34 |
+| +10 CA | x1.17 |
+| +1 contract year left | x1.10 |
+| each year **under 21** | x1.29 (an 18-year-old is ~2.1x a 21-year-old, all else equal) |
+| ages 21-30 | no age effect |
+| each year **over 30** | x0.79 (a 33-year-old is ~half a 30-year-old) |
+
+Reputation -- the player's and his league's -- is most of a price; potential counts about twice
+what ability does per point. In the store: `log(value) = intercept + SUM(term x coefficient)`
+over `value_terms` (`fmstats/dbt_project.yml`), the terms built in `int.player_value_inputs`,
+the coefficients in `seeds/value_model.csv`, scored by `int.player_value` into
+`mart.fact_player_valuation` (`value_is_estimated`, `value_in_trusted_band`).
+
 - **Labels** (`int.player_value_labels`): every stated value -- ours and the World Best XI's
   -- paired with the player's inputs on the snapshot nearest the entry's date, within 31 days,
   the same person by age. **1,576 labels from 572 players** (378 from our squad), against the
@@ -65,43 +81,43 @@ Built in the store and fitted by `scripts/fit_value_model.py` (refitted 2026-10-
 - **Validation**: 5-fold cross-validation **grouped by player** (a player appears in many
   entries; an ungrouped split leaks him into his own test set), mean of five splits.
 
-| | CV R² | median error | under £1M | £1-10M | over £10M | our squad |
-|---|---|---|---|---|---|---|
-| previous model (our squad, age capped), on these labels | 0.913 | 1.91x | 2.21x | 2.40x | 1.76x | 2.28x |
-| **shipped**, refitted | **0.949** | **1.34x** | 2.4x | **1.4-1.5x** | **1.2-1.3x** | 2.22x |
+| | CV R² | median error | £1-10M | over £10M | our squad |
+|---|---|---|---|---|---|
+| previous model (our squad only, age capped at 28), on these labels | 0.913 | 1.91x | 2.40x | 1.76x | 2.28x |
+| a 17-term fit (wage, home/world reputation, interactions) | 0.949 | 1.34x | 1.4-1.5x | 1.2-1.3x | 2.22x |
+| **shipped: the 7 terms above** | **0.939** | **1.36x** | **1.5-1.6x** | **1.2-1.3x** | **2.35x** |
+
+Against our squad's stated values on 2028-05-09 (40 players) the shipped model is 2.16x off,
+the 17-term fit 2.29x, the previous model 3.25x.
 
 Error by **estimated** value -- the figure a user of the model sees, and what
 `value_trusted_band` (**£1M and up**) is read from:
 
 | estimated | n | median | 70% within |
 |---|---|---|---|
-| under £20k | 170 | 2.23x | 3.77x |
-| £20k - £100k | 77 | 3.38x | 5.34x |
-| £100k - £500k | 114 | 2.71x | 4.13x |
-| £500k - £1M | 43 | 2.15x | 2.41x |
-| £1M - £2M | 47 | 1.51x | 1.93x |
-| £2M - £10M | 140 | 1.39-1.40x | 1.54-1.66x |
-| £10M - £30M | 352 | 1.33x | 1.51x |
-| £30M and up | 633 | 1.19-1.20x | 1.30-1.32x |
+| under £20k | 168 | 2.42x | 3.74x |
+| £20k - £100k | 69 | 3.24x | 6.61x |
+| £100k - £500k | 122 | 2.60x | 4.19x |
+| £500k - £1M | 51 | 1.73x | 2.34x |
+| £1M - £10M | 186 | 1.53-1.62x | 1.71-2.03x |
+| £10M - £30M | 373 | 1.32x | 1.47x |
+| £30M and up | 607 | 1.19-1.26x | 1.32-1.54x |
 
 The elite labels fix the old model's blind spot (it had two training rows above reputation 7082
-and put William Clem, true £17.5M, at £4.6M) and also improve our own squad (2.22x against
-2.28x; trained on our squad alone, time-aligned, it scores 2.5x): they pin down the slopes the
-small sample could not.
+and put William Clem, true £17.5M, at £4.6M).
 
 ## 4. Limits -- read before quoting a number
 
 * **Under £1M it ranks; it does not price.** 2-3x typical error, the band most of our own
-  squad and the Danish lower leagues sit in. Above £1M it is within ~1.5x.
+  squad and the Danish lower leagues sit in. From £1M up it is within ~1.5x.
 * **The top end extrapolates a little.** The highest label is £176M (Mbappé, 2023); the
-  model's top estimate is his, £214M at 29 on 2028-05-09, above his own latest entry (£164M,
-  2027). The squared-ability term was dropped because it put him at £300M.
-* **A single coefficient means nothing alone**: ability enters directly and through its
-  interaction with league reputation (ca -0.04, ca x llrp +0.013), so read an effect only
-  through the model as a whole.
-* **Reserve-side players** take their first team's league reputation with the `res` term.
-* Wage and contract expiry exist for practically every player (25,590 of 25,662 on
-  2028-05-09); the 72 without them get no estimate.
+  model's top estimate is his, £204M at 29 on 2028-05-09, above his own latest entry (£164M,
+  2027).
+* **Home and world reputation, wage and the reserve flag are not terms.** Current reputation
+  carries the reputation signal; wage is set by the game from the same inputs, so it predicts
+  value without explaining it (the 17-term fit with it is 0.02x better).
+* Contract expiry exists for practically every player (25,590 of 25,662 on 2028-05-09); the
+  rest get no estimate.
 
 ## 5. AN ASKING PRICE IS NOT A VALUE — and this is the big one
 
@@ -117,7 +133,7 @@ and was not. **Never present an estimate as a fee.**
 
 Contract length is the obvious candidate for modelling the markup. On our squad alone it did
 not predict value (it lowered grouped-CV R² in every spec); with the elite labels it earns a
-small place in the value model (+0.09 per year left, up to 6), but nothing like the markups
+small place in the value model (x1.10 per year left, up to 6), nothing like the markups
 below, so the ask is still unmodelled.
 
 **The one lever left is logging in-game asking prices as labels.** Every quote the manager
@@ -127,10 +143,13 @@ anchors for the value model itself.
 
 ## 6. Also rejected
 
-* **A squared-ability term** -- marginally better in CV but extrapolated the very top to
-  £300M.
-* **A separate curve for low-reputation leagues** -- 2.15x on our squad against 2.22x, for
-  twice the coefficients and a league threshold; the single model's interactions get the same
-  £1-10M error.
+* **A 17-term fit** -- adds home and world reputation, wage, goalkeeper and reserve flags and four
+  interactions with league reputation; 0.02x better overall and 0.13x on our squad in CV, but
+  its coefficients only mean anything together (ability alone reads negative), and it is no
+  better on our squad's current stated values.
+* **A smooth age curve** (age, age², a hinge at 28) -- invented a dip at 23 and a bump at 28;
+  the flat middle with two kinks fits as well or better.
+* **A squared-ability term** -- put Mbappé at £300M.
+* **A separate curve for low-reputation leagues** -- a small gain for twice the coefficients.
 * **Training on our squad alone** -- 2.5x on our squad, worse than pooling with the world's
   best.

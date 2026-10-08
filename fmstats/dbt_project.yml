@@ -168,15 +168,14 @@ vars:
   scrapbook_max_age_days: 365
   # The transfer-value model (int_player_value_inputs builds the terms, int_player_value
   # scores seeds/value_model.csv, scripts/fit_value_model.py fits it): log(value) is linear
-  # in value_terms. Age bends past value_age_hinge; the potential still to come counts for
-  # players under value_youth_age; contract years left are capped at
-  # value_contract_years_cap. The labels are the save's stated values (scrapbook entries)
+  # in value_terms -- CA, PA, log current reputation, log league reputation, contract years
+  # left (capped at value_contract_years_cap), the years under value_youth_age and the years
+  # over value_decline_age. The labels are the save's stated values (scrapbook entries)
   # paired with the snapshot at most value_label_max_gap_days from their date.
   # value_trusted_band (GBP) is where the estimate held to ~1.5x in grouped cross-validation.
-  value_terms: [ca, pa, lrep, llrp, gk, res, age, age2, age_over, lcrep, lwrep, lwage,
-    yrs_left, ca_llrp, lrep_llrp, pagap_young, wage_llrp]
-  value_age_hinge: 28
-  value_youth_age: 23
+  value_terms: [ca, pa, lcrep, llrp, yrs_left, youth_years, decline_years]
+  value_youth_age: 21
+  value_decline_age: 30
   value_contract_years_cap: 6
   value_label_max_gap_days: 31
   value_trusted_band: [1000000, 1000000000]
