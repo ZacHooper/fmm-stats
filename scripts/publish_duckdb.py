@@ -18,7 +18,7 @@ AWS S3 (`*.s3.us-east-1.amazonaws.com`) instead of R2 in a network-proxied sandb
     ATTACH 's3://fmm-stats/site-data/fm-frem.duckdb' AS fm (READ_ONLY);
     SELECT * FROM fm.raw.players LIMIT 5;
 
-Deliberately NOT served through the Worker (`worker/index.js`): that would mean going out to
+Deliberately NOT served through the Worker (`site-worker/index.js`): that would mean going out to
 `*.workers.dev`, which a network-restricted agent sandbox may not be able to reach, whereas the
 account-scoped R2 endpoint (`<account-id>.r2.cloudflarestorage.com`) commonly is allowed since
 it's the same host `rclone`/this script already upload through.
