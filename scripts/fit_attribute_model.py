@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Refit the entangled-attribute model AGAINST THE STORE, and optionally write it back.
 
-Since the estimation moved into the database (2026-09-17) this needs no save file and no
-re-extract: `raw.players` carries the raw record bytes and `player_attributes_exact`
-carries the values the save states outright. Our own squad has all 23 exact, from the
-managed-club snapshot -- those rows are the ground truth, and there is one per player PER
-SNAPSHOT.
+This needs no save file and no re-extract: `stg.player_attributes` carries the raw record
+bytes and `int.player_attributes_exact` the values the save states outright
+(`scripts/_attribute_rows.py`). Our own squad has all 23 exact -- those rows are the ground
+truth, and there is one per player PER SNAPSHOT.
 
     uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb            # report only
     uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb --write    # then refresh
@@ -30,13 +29,17 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+
+from _attribute_rows import exact_rows                               # noqa: E402
+from dbopen import open_readonly                                     # noqa: E402
 from fmparser import model as MOD                                    # noqa: E402
 from fmparser.model import ATTR_ORDER                                    # noqa: E402
 from fmparser.tables.player_attributes import (SRC_OFFSETS, PLAIN_OFFSETS,  # noqa: E402
                                                HIDDEN_OFFSETS)
 
-# The nine attributes the player screen does not show. The frozen model could not use them --
-# they were parsed and discarded until 2026-09-16 -- and there is obvious structure to exploit:
+# The nine attributes the player screen does not show. The frozen model does not use them,
+# and there is obvious structure to exploit:
 # set_pieces ought to predict Crossing, penalty Shooting, flair Creativity, work_rate Movement.
 HIDDEN = [n for n in HIDDEN_OFFSETS.values()]
 
@@ -177,22 +180,9 @@ def _shared_predict(own, partner, ca, gc, arg, has_partner):
 
 
 def load(db):
-    import duckdb
-    con = duckdb.connect(db, read_only=True)
+    con, _ = open_readonly(db, tag="fit_attribute_model")
     byte_cols = sorted(set(COLS.values()))
-    sql = f"""
-        SELECT p.tid, p.ca, p.pa,
-               {', '.join('p."' + c + '"' for c in byte_cols)},
-               {', '.join('e."' + a + '"' for a in ATTR_ORDER)},
-               {', '.join(f'''COALESCE((SELECT t.familiarity FROM raw.player_positions t
-                    WHERE (t.season,t.phase,t.tid)=(p.season,p.phase,p.tid)
-                      AND t.position = '{q}'), 0)''' for q in POS)}
-        FROM raw.players p
-        JOIN raw.player_attributes_exact e USING (season, phase, tid)
-        WHERE p.ca IS NOT NULL AND p.passing_src IS NOT NULL
-          AND e."Passing" IS NOT NULL          -- exact rows only: our own squad
-    """
-    rows = con.execute(sql).fetchall()
+    rows = exact_rows(con, byte_cols, ATTR_ORDER, POS)
     bi = {c: 3 + i for i, c in enumerate(byte_cols)}
     ai = 3 + len(byte_cols)
     pi = ai + len(ATTR_ORDER)
