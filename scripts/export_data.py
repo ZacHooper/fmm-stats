@@ -391,7 +391,7 @@ def main():
                "goals", "assists", "minutes", "started", "potm", "position", "passA", "passC",
                "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
                "dribbles", "shotA", "shotO", "mistakes", "yellow"]
-    prename = {"date": "match_date", "potm": "is_player_of_match", "passA": "passes", "passC": "passes_completed",
+    prename = {"date": "match_date", "potm": "is_player_of_match_award", "passA": "passes", "passC": "passes_completed",
                "keyPass": "key_passes", "tackA": "tackles", "tackW": "tackles_won",
                "intercept": "interceptions", "headA": "headers", "headW": "headers_won",
                "crossA": "crosses", "crossC": "crosses_completed", "shotA": "shots",

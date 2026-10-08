@@ -344,7 +344,7 @@ function seasonPlayerAwards(rows, matches, s) {
     top((a) => (ageAt(a.tid) != null && ageAt(a.tid) <= 21 ? a.rating : null),
       "Young Gun (U21)", 2, `highest average rating, U21, min ${ratingMinApps} apps`,
       false, ratingPool),
-    top((a) => a.potm || null, "Man of the Match", 0, "most Player of the Match awards, the game's own pick"),
+    top((a) => a.potm || null, "Man of the Match", 0, "most Player of the Match awards, competitive matches"),
     top((a) => a.goals, "Golden boot", 0, "most goals"),
     hattrickAward,
     top((a) => a.assists, "Playmaker", 0, "most assists"),
