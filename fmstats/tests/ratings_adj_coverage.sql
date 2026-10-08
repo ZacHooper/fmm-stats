@@ -2,8 +2,8 @@
 -- position maps to a rating role (var('rating_roles')), rating_adj is set for
 -- every start with a role and for nothing else, the adjustment adds no player
 -- lines, and the raw rating is the one the match record holds. One row per
--- offending player line, plus one if the row counts differ.
-with lines as (
+-- offending player line and check, plus one if the row counts differ.
+with player_lines as (
     select
         facts.match_id,
         facts.player_tid,
@@ -21,22 +21,33 @@ with lines as (
 )
 
 select
-    case
-        when lines.position is not null and lines.role is null
-            then 'position maps to no rating role'
-        when lines.rating is distinct from lines.recorded_rating
-            then 'raw rating differs from the match record'
-        else 'rating_adj set for a line it should not be, or missing'
-    end as check_name,
-    lines.match_id,
-    lines.player_tid,
-    lines.position,
-    lines.started
-from lines
+    'position maps to no rating role' as check_name,
+    player_lines.match_id,
+    player_lines.player_tid,
+    player_lines.position,
+    player_lines.started
+from player_lines
+where player_lines.position is not null and player_lines.role is null
+union all
+select
+    'rating_adj set exactly for starts with a role' as check_name,
+    player_lines.match_id,
+    player_lines.player_tid,
+    player_lines.position,
+    player_lines.started
+from player_lines
 where
-    (lines.position is not null and lines.role is null)
-    or lines.rating is distinct from lines.recorded_rating
-    or (lines.rating_adj is null) <> (not lines.started or lines.role is null)
+    (player_lines.rating_adj is null)
+    <> (not player_lines.started or player_lines.role is null)
+union all
+select
+    'raw rating differs from the match record' as check_name,
+    player_lines.match_id,
+    player_lines.player_tid,
+    player_lines.position,
+    player_lines.started
+from player_lines
+where player_lines.rating is distinct from player_lines.recorded_rating
 union all
 select
     'row counts differ' as check_name,

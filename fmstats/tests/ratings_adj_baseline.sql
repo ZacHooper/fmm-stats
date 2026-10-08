@@ -31,10 +31,10 @@ pool as (
     where role <> 'GK'
 ),
 
-roles as (
+role_means as (
     select
         role,
-        count(*) as starts,
+        count(*) as baseline_starts,
         avg(rating_adj) as mean_adj
     from base
     group by role
@@ -42,24 +42,25 @@ roles as (
 
 select
     case
-        when roles.starts < 30 then 'fewer than 30 baseline starts'
+        when role_means.baseline_starts < 30
+            then 'fewer than 30 baseline starts'
         else 'role mean differs from the pool mean'
     end as check_name,
-    roles.role,
-    roles.starts,
-    roles.mean_adj,
+    role_means.role,
+    role_means.baseline_starts,
+    role_means.mean_adj,
     pool.pool_mean
-from roles
+from role_means
 cross join pool
 where
-    roles.starts < 30
-    or abs(roles.mean_adj - pool.pool_mean) > 0.01
-    or roles.mean_adj is null
+    role_means.baseline_starts < 30
+    or abs(role_means.mean_adj - pool.pool_mean) > 0.01
+    or role_means.mean_adj is null
 union all
 select
     'empty baseline' as check_name,
     null as role,
-    0 as starts,
+    0 as baseline_starts,
     null as mean_adj,
     null as pool_mean
-where not exists (select 1 from roles)
+where not exists (select 1 as found from role_means)

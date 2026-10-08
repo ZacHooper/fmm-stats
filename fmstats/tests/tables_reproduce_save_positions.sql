@@ -47,7 +47,7 @@ stage_tables as (
     where
         standings.is_latest
         and exists (
-            select 1
+            select 1 as found
             from finishes
             where
                 standings.cid = finishes.cid
@@ -75,7 +75,7 @@ rebuilt as (
         seasons.competition_season,
         seasons.team_tid,
         (
-            select count(*)
+            select count(*) as teams_above
             from seasons as above
             where
                 seasons.cid = above.cid
@@ -133,4 +133,8 @@ select
     null as team_tid,
     null as final_position,
     null as rebuilt_position
-where not exists (select 1 from compared where compared.is_managed)
+where not exists (
+    select 1 as found
+    from compared
+    where compared.is_managed
+)

@@ -6,18 +6,29 @@ with levels as (
         snapshot_date,
         person_id,
         ca is null as is_unranked,
-        unnest(positions, recursive := true)
+        unnest(positions) as listed
     from {{ ref('fact_player_snapshot') }}
+),
+
+flat as (
+    select
+        levels.snapshot_date,
+        levels.person_id,
+        levels.is_unranked,
+        levels.listed.position as listed_position,
+        levels.listed.level_league,
+        levels.listed.level_global
+    from levels
 )
 
 select
     snapshot_date,
     person_id,
-    position,
+    listed_position,
     is_unranked,
     level_league,
     level_global
-from levels
+from flat
 where
     (level_league is null) <> is_unranked
     or (level_global is null) <> is_unranked

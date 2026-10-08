@@ -31,9 +31,8 @@ expected as (
         ladder.league_cid,
         ladder.step
     from (values (1147, 1), (4, 2), (3, 3), (2, 4)) as ladder (league_cid, step)
-    where exists (
-        select 1 from career where career.managed_club_tid = 346
-    )
+    cross join career
+    where career.managed_club_tid = 346
 )
 
 select

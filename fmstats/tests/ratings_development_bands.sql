@@ -43,7 +43,7 @@ select
     bands.word as development
 from bands
 where not exists (
-    select 1
+    select 1 as found
     from players
     where players.development = bands.word
 )

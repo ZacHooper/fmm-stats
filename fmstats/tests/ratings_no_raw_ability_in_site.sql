@@ -3,13 +3,13 @@
 -- development word. Read from the catalogue, so a site model added later is
 -- held too. One row per offending column.
 select
-    columns.table_name,
-    columns.column_name
-from information_schema.columns as columns
+    catalogue.table_name,
+    catalogue.column_name
+from information_schema.columns as catalogue
 where
-    columns.table_catalog = '{{ ref("site_players").database }}'
-    and columns.table_schema = '{{ ref("site_players").schema }}'
-    and lower(columns.column_name) in (
+    catalogue.table_catalog = '{{ ref("site_players").database }}'
+    and catalogue.table_schema = '{{ ref("site_players").schema }}'
+    and lower(catalogue.column_name) in (
         'ca', 'pa', 'aca', 'current_ability', 'potential_ability'
     )
 -- The catalogue is read once every site model is built:
