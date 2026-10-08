@@ -132,18 +132,20 @@ def build(src_path, dest):
          AND val.snapshot_date <= scd.valid_to
         LEFT JOIN (
             WITH listed AS (
-                SELECT
-                    val.snapshot_date,
-                    val.person_id,
-                    scd.team_tid,
-                    scd.ca,
-                    unnest(['GK', 'SW', 'DL', 'DC', 'DR', 'DMC', 'ML', 'MC', 'MR', 'AML', 'AMC', 'AMR', 'ST', 'DML', 'DMR']) AS position,
-                    unnest([scd.pos_gk, scd.pos_sw, scd.pos_dl, scd.pos_dc, scd.pos_dr, scd.pos_dmc, scd.pos_ml, scd.pos_mc, scd.pos_mr, scd.pos_aml, scd.pos_amc, scd.pos_amr, scd.pos_st, scd.pos_dml, scd.pos_dmr]) AS familiarity
-                FROM mart.fact_player_valuation val
-                JOIN mart.fact_player_state_scd scd
-                  ON val.person_id = scd.person_id
-                 AND val.snapshot_date >= scd.valid_from
-                 AND val.snapshot_date <= scd.valid_to
+                SELECT * FROM (
+                    SELECT
+                        val.snapshot_date,
+                        val.person_id,
+                        scd.team_tid,
+                        scd.ca,
+                        unnest(['GK', 'SW', 'DL', 'DC', 'DR', 'DMC', 'ML', 'MC', 'MR', 'AML', 'AMC', 'AMR', 'ST', 'DML', 'DMR']) AS position,
+                        unnest([scd.pos_gk, scd.pos_sw, scd.pos_dl, scd.pos_dc, scd.pos_dr, scd.pos_dmc, scd.pos_ml, scd.pos_mc, scd.pos_mr, scd.pos_aml, scd.pos_amc, scd.pos_amr, scd.pos_st, scd.pos_dml, scd.pos_dmr]) AS familiarity
+                    FROM mart.fact_player_valuation val
+                    JOIN mart.fact_player_state_scd scd
+                      ON val.person_id = scd.person_id
+                     AND val.snapshot_date >= scd.valid_from
+                     AND val.snapshot_date <= scd.valid_to
+                )
                 WHERE familiarity > 0
             ),
             levels AS (
