@@ -11,6 +11,7 @@ import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
 import { el, num, pill, DASH, multiSelect } from "../ui.js";
 import { openProfile } from "../profile.js";
+import { openClub } from "../club.js";
 
 const RES = { W: "good", D: "flat", L: "bad" };
 
@@ -187,7 +188,7 @@ export async function view() {
 
     // ---- head to head
     body.append(el("h3", { text: "Head to head" }));
-    body.append(summaryTable(ms, oppName, "Opponent", true));
+    body.append(summaryTable(ms, oppName, "Opponent", true, null, (m) => openClub(m.opp_tid)));
 
     // ---- team stat differentials: ours vs theirs, per match average
     const stats = f.filter((n) => n.startsWith("our_")).map((n) => n.slice(4));
@@ -241,7 +242,7 @@ export async function view() {
           el("td", { text: comp(m) }),
           el("td", { text: stageText(m) }),
           el("td", { text: m.venue }),
-          el("td.name", { text: m.opponent || `#${m.opp_tid}` }),
+          el("td.name", {}, [clubLink(m)]),
           el("td.num", { text: scoreText(m), title: scoreTitle(m) }),
           el("td", {}, [pill(m.result, RES[m.result] || "flat")]),
           el("td", { text: m.formation || DASH }),
@@ -294,7 +295,7 @@ function stageText(m) {
 }
 
 // 2–2 aet · 1–3 p · agg 3–3, with a ✓/✗ on the match that settled a tie
-function scoreText(m) {
+export function scoreText(m) {
   let s = `${m.gf}–${m.ga}`;
   if (m.extra_time) s += " aet";
   if (m.pens_for != null) s += ` (${m.pens_for}–${m.pens_against} p)`;
@@ -313,11 +314,11 @@ function scoreTitle(m) {
   return t.join(" · ");
 }
 
-function summaryTable(ms, keyFn, label, sortByPlayed = false, order = null) {
+function summaryTable(ms, keyFn, label, sortByPlayed = false, order = null, open = null) {
   const g = new Map();
   for (const m of ms) {
     const k = keyFn(m);
-    const r = g.get(k) || { k, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+    const r = g.get(k) || { k, m, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
     r.p++; r.gf += m.gf || 0; r.ga += m.ga || 0; r.pts += m.pts || 0;
     if (m.result === "W") r.w++; else if (m.result === "D") r.d++; else if (m.result === "L") r.l++;
     g.set(k, r);
@@ -328,7 +329,7 @@ function summaryTable(ms, keyFn, label, sortByPlayed = false, order = null) {
   return el("div.scroll", {}, [el("table", {}, [
     el("thead", {}, [el("tr", {}, [label, "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm"]
       .map((h, i) => el(`th${i ? ".num" : ""}`, { text: h })))]),
-    el("tbody", {}, rows.map((r) => el("tr", {}, [
+    el("tbody", {}, rows.map((r) => el(open ? "tr.click" : "tr", open ? { onclick: () => open(r.m) } : {}, [
       el("td.name", { text: r.k }), el("td.num", { text: r.p }), el("td.num", { text: r.w }),
       el("td.num", { text: r.d }), el("td.num", { text: r.l }), el("td.num", { text: r.gf }),
       el("td.num", { text: r.ga }),
@@ -336,6 +337,14 @@ function summaryTable(ms, keyFn, label, sortByPlayed = false, order = null) {
       el("td.num", { text: num(r.pts / r.p, 2) }),
     ]))),
   ])]);
+}
+
+/** An opponent's name that opens its club sheet. */
+function clubLink(m) {
+  const name = m.opponent || `#${m.opp_tid}`;
+  return m.opp_tid == null ? name : el("a", {
+    href: "#", text: name, onclick: (e) => { e.preventDefault(); openClub(m.opp_tid); },
+  });
 }
 
 const avg = (ms, k) => {

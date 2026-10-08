@@ -12,7 +12,10 @@ below), **Builder**, **Recruitment** (search + shortlist + the capital rule), **
 (`site/js/loans.js`, data `api/loans.json`): his Level %ile in each division from ours down to
 3. Division, against each club's starter line at his position in its manager's preferred
 formation — see `build_loans` in `scripts/_export_db.py`. It ships DATA
-and computes on the client, so switching tactic re-rates every player with no rebuild.
+and computes on the client, so switching tactic re-rates every player with no rebuild. An opponent's name on **Matches** opens its **club sheet**
+(`site/js/club.js`, data in `api/matches.json`): manager, shapes and our record as tiles, then
+tabs for the expected XI (in the shape it last played us, or its manager's), the squad, and every
+meeting with its line-up and who hurt us at both ends.
 **Streamlit stays** for what writes to DuckDB (Tactics, Config) and for Team Builder.
 Read [`docs/DEPLOY.md`](docs/DEPLOY.md) before touching it.
 

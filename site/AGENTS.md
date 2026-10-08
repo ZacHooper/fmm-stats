@@ -82,7 +82,7 @@ from the base URL of this doc.
 | [`api/squad.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/squad.json) | 177 KB (19 KB gz) | our squad's attributes at **every** snapshot (growth) + career history + each player's `spells` (at a club / on loan here / out on loan / injured, with dates; a loan's host club is the career-history row with `fee` = `loan` for that season) and `moves` (transfers with fees), keyed by tid, fields in `spell_fields` / `move_fields` |
 | [`api/forecast.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/forecast.json) | small | the attribute-forecast lookup: given a player's current value of an attribute and his age, what players like him actually had at 21/24. A LEVEL model, not a growth-rate one — a starting attribute like Technique does not predict how fast another attribute grows (+0.000 R² beyond current value), so don't use one attribute to forecast a different one |
 | [`api/loans.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/loans.json) | 44 KB (8 KB gz) | the loan outlook for every owned player: per natural position (familiarity 15+) and per division from ours down to 3. Division, his Level %ile there and, per club, his rank among its natural players at the position, how many start in its manager's preferred formation, and the starter line. Read its `note` and `*_fields` |
-| [`api/matches.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/matches.json) | 115 KB | every parsed match + every per-player-per-match row |
+| [`api/matches.json`](https://fmm-stats.zac-g-hooper.workers.dev/api/matches.json) | 1 MB (171 KB gz) | every parsed match + every per-player-per-match row, ours (`player_rows`) and the opposition's (`opponent_player_rows`, with each starter's full-time position); each opponent manager's formations and Style (`managers`); every opponent's current squad (`team_squads`); each formation's slots (`formation_slots`) |
 | [`/api/all`](https://fmm-stats.zac-g-hooper.workers.dev/api/all) | 1.3 MB gz (full); a few KB filtered | **every player in the save** (~23,800), full attributes. Add `?club=<tid>[,<tid>...]` and/or `?tid=<tid>[,<tid>...]` to get back only those players instead of the whole file — the response keeps the same shape (`attrs`/`fields`/`players`/`note`) plus `count` and `filtered_by`. Use `clubs.json` first to find the tid, then `/api/all?club=<tid>` for that club's full attributes. |
 
 ## Columnar format — the main gotcha
@@ -116,9 +116,9 @@ tids, career-origin clubs and capital-region eligibility.
 
 Read `index.json` → `caveats` for the live list. The ones that bite hardest:
 
-1. **Opponent tactics and formation are NOT in the save.** There is no way to derive them.
-   If you are asked to prepare for a match, **ask the manager for the in-game scout's formation
-   and style.** Guessing produces a confident, useless briefing.
+1. **An opponent's shape is its manager's record plus how it lined up against us** —
+   `matches.json` `managers` and `opponent_player_rows` (see `guides/scout.md`). This week's team
+   news is not in the save; the in-game scout's screen is an optional refinement.
 2. **Opponent attribute values are model estimates (±1)** except pace and physicals. Fine for
    shape and comparison; don't hang an argument on a single point.
 3. **Squad status and loan flags are unreliable.** Rank by minutes played (`matches.json`).
