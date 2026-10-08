@@ -246,6 +246,37 @@ SELECT xi.match_date, coalesce(any_value(s.formation), 'unlisted') AS shape,
 FROM xi LEFT JOIN shapes s
     ON s.slots = (SELECT list_sort(list(position)) FROM xi x2 WHERE x2.match_id = xi.match_id)
 GROUP BY xi.match_id, xi.match_date ORDER BY xi.match_date DESC;
+
+-- ── 10. their wide men: which foot, which flank, and is he good enough for it to matter ──
+WITH sq AS (
+    SELECT person_id, snapshot_date FROM mart.squad_membership
+    WHERE is_current AND team_tid = getvariable('opp')
+),
+wide AS (
+    SELECT sq.person_id, p.position, p.familiarity, p.level_league, p.level_global
+    FROM sq
+    JOIN mart.fact_player_snapshot f USING (person_id, snapshot_date)
+    CROSS JOIN unnest(f.positions) AS u(p)
+    WHERE p.position IN ('AML', 'AMR', 'ML', 'MR') AND p.familiarity >= 15
+),
+vs_us AS (                               -- where he actually lined up against us
+    SELECT person_id, string_agg(DISTINCT position, '/') AS played_v_us, count(*) AS starts_v_us
+    FROM mart.fact_player_match
+    WHERE team_tid = getvariable('opp') AND opponent_tid = getvariable('us')
+      AND started AND position IN ('AML', 'AMR', 'ML', 'MR')
+    GROUP BY person_id
+)
+SELECT d.name, w.position, w.familiarity, w.level_league, w.level_global,
+       d.foot_left, d.foot_right,
+       CASE WHEN least(d.foot_left, d.foot_right) >= 15 THEN 'two-footed'
+            WHEN (d.foot_left > d.foot_right) = (w.position LIKE '%L') THEN 'winger (same foot)'
+            ELSE 'cuts inside' END AS profile,
+       CASE WHEN w.position LIKE '%L' THEN 'our RB' ELSE 'our LB' END AS faces,
+       v.played_v_us, v.starts_v_us
+FROM wide w
+JOIN mart.dim_person d USING (person_id)
+LEFT JOIN vs_us v USING (person_id)
+ORDER BY w.position, w.level_league DESC;
 ```
 
 What each step is for, and how to read it:
@@ -276,6 +307,9 @@ What each step is for, and how to read it:
   the manager's preferred one, say so, and re-run steps 2-3 with `opp_formation` set to it. The
   frame (step 1) already puts each man at the slot he played against us in the last year
   (`played_as`), so a full-back who plays wing-back for them is rated there.
+- **Step 10, their wide men** — foot against flank, read with "Wide men: foot against flank" below.
+  A player natural on both flanks gets one row per flank; `played_v_us` says which one his
+  manager actually uses against us.
 
 **Partial data — withhold, don't hedge.** When the coverage line shows fewer than 11 rated
 players for either side, do not state the quality gap, the face-offs, danger men or defensive soft
@@ -288,6 +322,43 @@ headers won to 7, six corners to nil, one goal, lost 1-3.
 
 If a report needs something the pulls don't return (a deeper individual-attribute cut), add that
 one query rather than re-deriving what is already there.
+
+## Wide men: foot against flank — only a GOOD inside forward is a threat
+
+Measured over every opposition starter at AML/AMR/ML/MR in our first-team matches (2021–2028,
+~550 starts, ~250 players; "cuts inside" = stronger foot opposite his flank, "two-footed" = weaker
+foot 15+), with each player's Level %ile at that position as of the match:
+
+| Opposition wide AM | Cuts inside: goals / on target per 90 | Same foot: goals / on target per 90 |
+|---|---|---|
+| Level %ile **70+** (102 v 78 starts) | **0.23 / 0.64** | 0.16 / 0.42 |
+| Level %ile below 70 (91 v 69 starts) | 0.10–0.18 / 0.31–0.40 | 0.17–0.21 / 0.32–0.39 |
+
+| Opposition wide player, by flank (AM + M) | Starts | Goals | On target | Goals per 90 |
+|---|---|---|---|---|
+| Right-footer on their **left** (faces our RB) | 151 | **24** | **59** | **0.18** |
+| Right-footer on their right | 126 | 19 | 40 | 0.17 |
+| Left-footer on their right | 83 | 11 | 34 | 0.15 |
+| Left-footer on their **left** | 65 | 6 | 17 | 0.10 |
+
+How to use it:
+- **A 70+ Level inside forward is a named threat** — about 1.5x a same-foot winger's shots on
+  target. Put him in "Their threats" with the full-back he faces (`faces`) and that full-back's
+  Positioning/Pace/Tackling from step 4; the containing levers are man-marking him with that
+  full-back, or the DM sitting on that side.
+- **Below 70 Level, foot is not a threat signal** — don't build a plan on it.
+- **A same-foot winger, even a good one, mostly crosses** — same-foot wingers attempt more crosses
+  and dribbles than inside forwards and shoot less. Read him with the aerial duel (our CBs v their box
+  targets), not as a goal threat himself. Simon Adingra (Nordsjælland, Level 91 at AML, left foot
+  20 / right 7) is the case: six starts at AML against us, 35 crosses, 6 shots on target, one goal.
+- **Their left flank onto our right-back is where the inside-forward goals have come from** (24 of
+  60). Check our RB's Positioning first when a good right-footer is listed at AML/ML.
+- **Our own wide men show the same thing in reverse** — inside forwards out-score same-foot wingers
+  at every Level band (0.31 v 0.13 goals per 90 below 40, 0.28 v 0.10 at 70+), so for our side of
+  the plan prefer the opposite-foot option on each flank.
+
+Samples are small (6–24 goals a cell): shots on target is the steadier column. Re-measure with the
+recipe in [`wide-footedness`](../../../docs/agent-context/wide-footedness.md).
 
 ## Reading attributes: check the role weights before calling anything a weakness
 
@@ -711,6 +782,11 @@ will attribute the opponent's roles to us.
   slots, and `person_id` carries the date of birth that tells two occupants apart.
 - Opponent `name` **resolves for every club** (`mart.dim_person`).
 - `positions` lists only the positions a player has some familiarity at (1–20; 15+ is natural).
+- **Opponent match stats: first-team matches only.** `mart.fact_player_match` also holds our
+  reserves' matches, and the opponent's shot counts there are incomplete (goals exceed shots on
+  target), so a per-90 over "all matches against us" is wrong. Filter to
+  `opponent_tid = getvariable('us')` (or `match_id`s where our first team played). In first-team
+  matches the player rows add up exactly to `mart.fact_team_match`.
 
 ## No local store
 Attach the published full store over R2 — **as `"fm-frem"`**, since the views carry that catalog
@@ -806,6 +882,9 @@ briefing, which is why it was removed. Four or five bullets, each in the form
 - <plus the non-player threats, still with their numbers: the "Their attack vs our defense" row of
   step 3, the direct/set-piece route and the aerial group that delivers it, shot volume
   from the H2H, and anything the partial-data rule withholds.>
+- <a 70+ Level wide man who cuts inside (step 10 `profile`), with the full-back he faces — see
+  "Wide men: foot against flank". Same-foot wingers and sub-70 inside forwards are not a
+  threat line on footedness alone.>
 - <their BENCH, when it holds a counter-profile to our plan or a player stronger than a predicted
   starter — this is where the briefing has been caught out most often.>
 
