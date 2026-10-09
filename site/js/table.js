@@ -105,8 +105,12 @@ export function playerTable(o) {
       const on = state.sortBy === c.id;
       const movable = !sticky.includes(c.id);
       return el(`th${c.align === "num" ? ".num" : ""}${on ? ".sorted" : ""}${movable ? ".drag" : ""}`, {
-        title: (c.help || c.label) + (movable ? " — drag to move" : ""),
         dataset: { col: c.id },
+        "aria-label": c.help ? `${c.label}: ${c.help}` : c.label,
+        onmouseenter: (e) => colTip.show(e.currentTarget, c, {
+          sorted: on ? state.sortDir : null, movable,
+        }),
+        onmouseleave: () => colTip.hide(),
         onclick: () => {
           if (state.sortBy === c.id) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
           else { state.sortBy = c.id; state.sortDir = c.align === "num" ? "desc" : "asc"; }
@@ -274,6 +278,43 @@ function dragColumns(tr, scroll, moved) {
     window.addEventListener("contextmenu", noMenu);
   });
 }
+
+/**
+ * The column header tooltip: the column's name and group, what it means, any note the column
+ * carries (how its numbers are made, what a Δ is), and how it is sorted. One element for every
+ * table, placed on the screen rather than in the table so a scroll box can't clip it. Hover
+ * only, after a short pause: on a phone a tap sorts and a long press moves the column.
+ */
+const colTip = (() => {
+  let box = null, timer = null;
+  const hide = () => { clearTimeout(timer); box?.classList.remove("on"); };
+  function show(th, c, { sorted, movable }) {
+    if (!matchMedia("(hover: hover)").matches || document.body.classList.contains("coldrag")) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (!box) { box = el("div.coltip", { role: "tooltip" }); document.body.append(box); }
+      // replaceChildren() writes a null argument as the text "null": drop the absent parts
+      box.replaceChildren(...[
+        el("div.cthead", {}, [el("b", { text: c.label }),
+          c.group && c.group !== c.label ? el("span", { text: c.group }) : null]),
+        c.help && c.help !== c.label ? el("p", { text: c.help }) : null,
+        c.note ? el("p.ctnote", { text: c.note }) : null,
+        el("p.ctfoot", { text: [
+          sorted ? `Sorted ${sorted === "asc" ? "low to high" : "high to low"} · click to reverse` : "Click to sort",
+          movable ? "drag to move" : null,
+        ].filter(Boolean).join(" · ") }),
+      ].filter(Boolean));
+      box.classList.add("on");
+      const r = th.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+      const w = box.offsetWidth;
+      box.style.left = `${Math.max(8, Math.min(r.left + r.width / 2 - w / 2, vw - w - 8))}px`;
+      box.style.top = `${r.bottom + 6}px`;
+    }, 280);
+  }
+  addEventListener("scroll", hide, true);
+  addEventListener("pointerdown", hide, true);
+  return { show, hide };
+})();
 
 function columnPicker(o, state, changed) {
   const groups = {};
@@ -663,7 +704,7 @@ export function metricColumns(D, { agg = null, role = null } = {}) {
       if (i < 0) continue;
       cat[`attr:${a}`] = {
         label: a, group: `Attributes · ${group}`, align: "num",
-        help: `${a} (1-20)${role ? "" : ""}`,
+        help: `${a} attribute, 1–20`,
         get: (r) => r.player?.attrs?.[i] ?? null,
       };
     }
@@ -677,7 +718,7 @@ export function metricColumns(D, { agg = null, role = null } = {}) {
     const put = (names, group, dp) => names.forEach((n) => {
       cat[`stat:${n}`] = {
         label: n, group, align: "num", dp,
-        help: `${n} — from parsed match data for our club`,
+        help: D.statHelp(n), note: "From our own matches, competitive only.",
         get: (r) => D.statValue(n, agg.get(r.tid)),
       };
     });

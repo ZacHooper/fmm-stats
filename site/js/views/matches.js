@@ -446,7 +446,8 @@ export async function view() {
         };
         cat[id] = {
           ...c, label: `${c.label} Δ`, sort: delta, filterValue: delta,
-          help: `${c.help} — sorted on the difference from his own average over every match`,
+          note: "Δ: the number, then ▲/▼ for the difference from his own average over every "
+            + "match. Sorting and filtering use the difference.",
           render: (r) => {
             const v = c.get(r);
             if (v == null) return null;
