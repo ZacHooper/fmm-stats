@@ -510,7 +510,7 @@ export function openProfile(tid, { role = null } = {}) {
           text: a.ratingAdj == null ? DASH : num(a.ratingAdj, 2),
           title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
         }),
-        el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 1) : DASH }),
+        el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 2) : DASH }),
       ];
     };
     const out = el("div", {}, [el("div.scroll.fit", {}, [el("table", {}, [

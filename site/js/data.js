@@ -606,12 +606,15 @@ export function statHelp(name) {
   return name;
 }
 /** Decimal places for a match stat, the one rule every table and sheet uses: match ratings
- *  to 2, as the game shows them; per-90 and per-game rates to 1, which is as fine as a season's
- *  sample supports and keeps a wide table readable; counts, minutes and percentages whole. */
+ *  to 2, as the game shows them; per-90 and per-game rates to 1, which keeps a wide table
+ *  readable — except the RARE events, which mostly sit well under one a game, where one decimal
+ *  would show 0.14 and 0.06 goals per 90 both as 0.1; counts, minutes and percentages whole. */
+const RARE = new Set(["G", "A", "G+A", "SoT", "Mistakes", "Yellows"]);
 export function statDp(name) {
   if (name === "Rating" || name === "Rating (adj)") return 2;
   if (name === "Min/gm") return 0;
-  return /\/(90|gm)$/.test(name) ? 1 : 0;
+  const m = /^(.+)\/(90|gm)$/.exec(name);
+  return m ? (RARE.has(m[1]) ? 2 : 1) : 0;
 }
 const per90 = (a, k) => (a.min ? (90 * a[k]) / a.min : null);
 const perGm = (a, k) => (a.apps ? a[k] / a.apps : null);
