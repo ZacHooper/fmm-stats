@@ -431,7 +431,7 @@ export async function view() {
     }
     return el("div", {}, [
       el("div.prow", {}, [views, opts]),
-      el("div.scroll", {}, [el(`table.board${figures ? ".figs" : ""}`, {}, [
+      el("div.scroll", {}, [el(`table.board${figures ? ".withfig" : ""}`, {}, [
         el("thead", {}, [el("tr", {}, [el("th", { text: "Season" }), ...order.map((l) => el("th", { text: l }))])]),
         el("tbody", {}, seasons.map((s) => el("tr", {}, [
           el("td.name", {}, [el("button.link", { text: seasonLabel(s), title: "This season's awards in full",
@@ -443,8 +443,8 @@ export async function view() {
             const open = c.tid != null;
             return el(`td${open ? ".click" : ""}`, { title: `${c.fig} — ${c.note}`, onclick: open ? () => openPlayer(c.tid) : null }, [
               el("span.who", {}, [c.text, n > 1 ? el("span.times", { text: ` ×${n}` }) : null]),
-              figures && kind === "player" ? el("span.fig", { text: c.fig }) : null,
-              figures && kind === "team" ? el("span.fig", { text: c.note }) : null,
+              figures && kind === "player" ? el("span.bfig", { text: c.fig }) : null,
+              figures && kind === "team" ? el("span.bfig", { text: c.note }) : null,
             ]);
           }),
         ]))),
