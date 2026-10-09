@@ -16,8 +16,8 @@
  */
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
-import { el, num, pill, bar, DASH, multiSelect } from "../ui.js";
-import { openProfile } from "../profile.js";
+import { el, num, pill, bar, DASH, multiSelect, hashParams, setHashParams } from "../ui.js";
+import { openPlayer } from "../profile.js";
 import { openClub } from "../club.js";
 
 const RES = { W: "good", D: "flat", L: "bad" };
@@ -38,14 +38,9 @@ const LS_MINP = "fm:matches:minp";
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
-/** `#/matches?tab=splits&split=round` — the router ignores everything after the `?`. */
-const params = () => new URLSearchParams((location.hash.split("?")[1]) || "");
-function setParams(kv) {
-  const p = params();
-  for (const [k, v] of Object.entries(kv)) { if (v == null) p.delete(k); else p.set(k, v); }
-  const q = p.toString();
-  history.replaceState(null, "", `#/matches${q ? `?${q}` : ""}`);
-}
+// `#/matches?tab=splits&split=round` (ui.js hashParams).
+const params = hashParams;
+const setParams = setHashParams;
 
 // Match stats that are COUNTS. Comparing a count over a filtered set with the same count over
 // every match is meaningless (fewer matches, fewer goals), so "vs his norm" only marks rates.
@@ -61,7 +56,7 @@ export async function view() {
   const f = M.match_fields;
   const all = M.matches.map((r) => Object.fromEntries(f.map((n, i) => [n, r[i]])));
   const comp = (m) => m.competition || "?";
-  const isFriendly = (m) => /friend/i.test(comp(m));
+  const isFriendly = (m) => D.isFriendly(m.competition);
 
   const seasons = [...new Set(all.map((m) => m.season))].sort((a, b) => b - a);
   // The game's own stage labels (mart.match_stages). A group's letter changes every season,
@@ -297,8 +292,8 @@ export async function view() {
       top.length ? el("div.scroll.fit", {}, [el("table", {}, [
         el("thead", {}, [el("tr", {}, ["Player", "Apps", "Min", "Rating", "G+A"].map((h, i) =>
           el(`th${i ? ".num" : ""}`, { text: h })))]),
-        el("tbody", {}, top.map((a) => el(`tr${D.hasProfile(a.tid) ? ".click" : ""}`, {
-          onclick: () => D.hasProfile(a.tid) && openProfile(a.tid),
+        el("tbody", {}, top.map((a) => el("tr.click", {
+          onclick: () => openPlayer(a.tid),
         }, [
           el("td.name", { text: D.matchName(a.tid) }),
           el("td.num", { text: a.apps }), el("td.num", { text: num(a.min) }),
@@ -433,7 +428,7 @@ export async function view() {
       filter: (r) => (agg.get(r.tid)?.min || 0) >= minMin,
       toolbar: [minSel, normBtn],
       searchPlaceholder: "Search players…",
-      onRow: (r) => D.hasProfile(r.tid) && openProfile(r.tid),
+      onRow: (r) => openPlayer(r.tid),
       empty: minMin ? `Nobody has ${minMin}+ minutes in these matches.` : "Nobody appeared in the filtered matches.",
     }).node);
     box.append(el("p.note", { text: vsNorm

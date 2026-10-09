@@ -106,7 +106,8 @@ export function loanOutlook(p, pos) {
       clear(chips).append(el("span.dim", { text: "At:" }), ...positions.map((q) =>
         el(`button.chip${q === cur ? ".on" : ""}`, { text: q, onclick: () => { cur = q; pickedCid = null; render(); } })));
       const loanedTo = mine.loaned_to;
-      clear(body).append(
+      // Native append() writes a null argument as the text "null" — drop the absent parts.
+      clear(body).append(...[
         el("p.lhead", { html: (loanedTo
           ? `On loan at <b>${D.S.clubs.get(loanedTo)?.name || `#${loanedTo}`}</b>. ` : "")
           + (best
@@ -119,7 +120,7 @@ export function loanOutlook(p, pos) {
           el("span.ltick.key"), " one he wouldn't — tap a division for its clubs"]),
         picked ? el("h4", { text: `${picked.name} · ${cur}` }) : null,
         picked ? clubTable(picked, loanedTo, cur) : null,
-      );
+      ].filter(Boolean));
     }
     render();
     box.append(chips, body, el("details.info", {}, [el("summary", { text: "ⓘ How to read this" }), el("p.note", {

@@ -591,10 +591,14 @@ export const ATTR_GROUPS = {
   Goalkeeping: ["Agility", "Handling", "Kicking", "Reflexes", "Throwing", "Communication"],
 };
 
-/** Aggregate the per-match rows once into per-player totals, keyed by tid. Filterable
- *  re-aggregation (by season/competition) goes through matchRows() instead. */
+/** A friendly, by its competition name. Friendlies say nothing about form or a player's
+ *  record (pre-season run-outs, reserves fixtures), so every total and award leaves them out. */
+export const isFriendly = (competition) => /friend/i.test(competition || "");
+
+/** Aggregate the per-match rows once into per-player totals, keyed by tid — competitive
+ *  matches only. Filterable re-aggregation (by season/competition) goes through matchRows(). */
 function buildMatchAgg() {
-  S.matchAgg = aggregate(matchRows());
+  S.matchAgg = aggregate(matchRows().filter((r) => !isFriendly(r.competition)));
 }
 
 export function matchRows(filter = null) {

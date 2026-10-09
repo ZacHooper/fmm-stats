@@ -311,3 +311,18 @@ export function multiSelect({ noun, plural, options, onChange, search = false, s
   sync();
   return { node: wrap, selected: sel, sync };
 }
+
+/**
+ * View state in the URL, after the route: `#/matches?tab=splits&split=round`. The router reads
+ * only the part before the `?`, and replaceState fires no hashchange, so a view can keep its
+ * open tab (or any small choice) in the address without re-rendering itself — a reload or a
+ * shared link lands on the same view.
+ */
+export const hashParams = () => new URLSearchParams(location.hash.split("?")[1] || "");
+export function setHashParams(kv) {
+  const route = (location.hash.split("?")[0] || "#/").replace(/^#?\/?/, "");
+  const p = hashParams();
+  for (const [k, v] of Object.entries(kv)) { if (v == null) p.delete(k); else p.set(k, String(v)); }
+  const q = p.toString();
+  history.replaceState(null, "", `#/${route}${q ? `?${q}` : ""}`);
+}

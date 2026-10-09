@@ -488,3 +488,68 @@ table.latest td.name{white-space:normal}
 .mseg{display:inline-flex;flex-wrap:wrap;gap:4px}
 .mseg .chip{margin:0}
 @media(max-width:600px){.kpis .kpi>b{font-size:16px}.kpis .kpi{padding:7px 10px}}
+
+/* ---- History (views/history.js) */
+.kpi.wide{flex:2 1 260px}
+.kpi.wide>b{font-size:15px}
+a.plink{color:inherit;font-weight:600;text-decoration:none;border-bottom:1px solid var(--line)}
+a.plink:hover{color:var(--accent);border-bottom-color:var(--accent)}
+td.hl{font-weight:700;color:var(--accent)}
+/* how far a run got: plain text, coloured only when it ended (out) or won */
+.run{font-size:12px;color:var(--dim);white-space:nowrap}
+.run.out{color:var(--bad)}
+.run.win{color:var(--good);font-weight:700}
+
+/* Seasons · timeline: a rail on the left; story left, figures right on a wide screen */
+.tl{position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:6px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.tlitem{position:relative;padding:2px 0 14px;margin-bottom:12px;border-bottom:1px solid var(--line2)}
+.tlitem:last-child{border-bottom:0}
+.tldot{position:absolute;left:-21px;top:7px;width:12px;height:12px;border-radius:50%;
+  background:var(--card);border:2px solid var(--accent)}
+.tlhead{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
+.tlhead>b{font-size:17px}
+.tlwdl{font-size:13.5px}
+.tlgrid{display:grid;gap:10px;grid-template-columns:1fr}
+.tlstory{display:flex;flex-direction:column;gap:6px;font-size:13px;min-width:0}
+.tlcups{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.tlcups li{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.tlstars{display:flex;flex-direction:column;gap:2px}
+.tlawards{align-self:flex-start;font-size:12.5px}
+.tlfigs{display:grid;gap:6px;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));align-content:start}
+.tlfig{border:1px solid var(--line);border-radius:9px;padding:5px 9px;background:var(--card)}
+.tlfig>b{display:block;font-size:14px}
+.tlfig>span{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+@media(min-width:860px){
+  .tlgrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+  .tlfigs{grid-template-columns:repeat(5,minmax(0,1fr))}
+}
+
+/* Records + one season's awards: the record book */
+table.book td{white-space:normal}
+table.book td.name{white-space:nowrap}
+
+/* Awards · honours board: seasons down the side, an award per column. Every award column
+   is the same width, and the header is set in plain case and bottom-aligned, so a two-line
+   award name and a one-line one finish on the same line above their column. */
+table.board{width:max-content;min-width:100%;table-layout:fixed}
+table.board th,table.board td{width:150px;min-width:150px;max-width:150px;white-space:normal;vertical-align:top}
+table.board th{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--ink);
+  vertical-align:bottom;line-height:1.25;padding-top:10px;padding-bottom:8px}
+table.board th:first-child,table.board td:first-child{width:76px;min-width:76px;max-width:76px}
+table.board td{font-size:12.5px;overflow-wrap:anywhere}
+table.board td .who{display:block;font-weight:600}
+table.board td .bfig{display:block;color:var(--dim);font-size:11.5px}
+table.board td.click{cursor:pointer}
+table.board td.click:hover .who{color:var(--accent)}
+table.board .times{color:var(--accent);font-weight:700;font-size:11px}
+@media(max-width:600px){.hide-sm{display:none}}
+/* Awards · what an award is for: a tip under its header, on hover or (no hover) on tap */
+table.board th.tipped{cursor:help;position:sticky}
+table.board th.tipped .thlbl{border-bottom:1px dotted var(--dim)}
+table.board .thtip{display:none;position:absolute;top:100%;left:4px;z-index:5;width:210px;
+  padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+  box-shadow:0 6px 18px rgba(0,0,0,.14);font-weight:400;font-size:12px;color:var(--ink);line-height:1.35}
+table.board th.tipleft .thtip{left:auto;right:4px}
+table.board th.tipped.open .thtip{display:block;position:fixed;right:auto;z-index:50}
+@media(hover:hover){table.board th.tipped:hover .thtip{display:block}}

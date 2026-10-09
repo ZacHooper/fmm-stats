@@ -12,7 +12,7 @@
  */
 import * as D from "./data.js";
 import { el, clear, num, pill, sheet, multiSelect, DASH } from "./ui.js";
-import { openProfile } from "./profile.js";
+import { openPlayer } from "./profile.js";
 import { scoreText } from "./views/matches.js";
 
 const TAB_KEY = "fm:club:tab";
@@ -96,7 +96,7 @@ function nameCell(tid) {
   return el("td.name", { text: D.matchName(tid) });
 }
 function playerRow(tid, cells) {
-  return D.hasProfile(tid) ? el("tr.click", { onclick: () => openProfile(tid) }, cells) : el("tr", {}, cells);
+  return el("tr.click", { onclick: () => openPlayer(tid) }, cells);
 }
 function table(head, rows, numFrom = 2) {
   return el("div.scroll", {}, [el("table", {}, [
