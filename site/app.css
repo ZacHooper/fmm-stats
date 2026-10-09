@@ -516,13 +516,12 @@ td.hl{font-weight:700;color:var(--accent)}
 .tlcups li{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .tlstars{display:flex;flex-direction:column;gap:2px}
 .tlawards{align-self:flex-start;font-size:12.5px}
-.tlfigs{display:grid;gap:6px;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));align-content:start}
+.tlfigs{display:grid;gap:6px;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start}
 .tlfig{border:1px solid var(--line);border-radius:9px;padding:5px 9px;background:var(--card)}
 .tlfig>b{display:block;font-size:14px}
 .tlfig>span{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
 @media(min-width:860px){
   .tlgrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
-  .tlfigs{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 
 /* Records + one season's awards: the record book */
@@ -568,8 +567,11 @@ td.best{color:var(--good);font-weight:700}
 .coltip .ctfoot{margin-top:6px;padding-top:5px;border-top:1px solid var(--line2);color:var(--dim);font-size:11px}
 .fitpick{margin:0 0 8px}
 /* Transfers (transfers.js, History): money in green, money out red; pre-career record rows dimmed */
-td.pos{color:var(--good);font-weight:600}
-td.neg{color:var(--bad);font-weight:600}
+td.gain{color:var(--good);font-weight:600}
+td.loss{color:var(--bad);font-weight:600}
 .tlfig.up>b{color:var(--good)}
 .tlfig.down>b{color:var(--bad)}
 tr.pre td{color:var(--dim)}
+.tlfig small{display:block;color:var(--dim);font-size:11px;margin-top:1px}
+.tlmoney{font-size:12px}
+@media(min-width:860px){.tlfigs{grid-template-columns:repeat(4,minmax(0,1fr))}}

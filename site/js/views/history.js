@@ -219,18 +219,23 @@ export async function view() {
   // sits on the left (league, record, cups) and the season's people and figures on the right.
   function timelineEntry(r) {
     const { pots, boot } = seasonStars(r.season);
-    const fig = (label, value, title) => el("div.tlfig", { title }, [el("b", { text: value }), el("span", { text: label })]);
+    const fig = (label, value, title, cls = "") => el(`div.tlfig${cls}`, { title }, [el("b", { text: value }), el("span", { text: label })]);
+    // Four figures: results, goals, crowd, transfers. Squad value and wages are a dim line
+    // under the story — the full table has them as columns.
+    const tx = r.tx;
     const figs = [
       fig("Pts/gm", r.ppg == null ? DASH : num(r.ppg, 2)),
       fig("Goals", `${r.gf}:${r.ga}`),
       r.att ? fig("Avg crowd", r.att.avg_att.toLocaleString(), `Biggest: ${r.att.max_att.toLocaleString()}`) : null,
-      r.fin ? fig("Squad value", money(r.fin.value_gbp), `At ${r.fin.phase}, owned players`) : null,
-      r.fin ? fig("Wage bill", money(r.fin.wage_gbp), `At ${r.fin.phase}, owned players`) : null,
-      r.tx ? fig("Spent", money(r.tx.spent), `${r.tx.nIn} in (paid and free)`) : null,
-      r.tx ? fig("Received", money(r.tx.received), `${r.tx.nOut} out (paid and free)`) : null,
-      r.tx ? el(`div.tlfig${r.tx.net > 0 ? ".up" : r.tx.net < 0 ? ".down" : ""}`, { title: "Received less spent, on fees" },
-        [el("b", { text: netText(r.tx.net) }), el("span", { text: "Transfer net" })]) : null,
+      tx ? el(`div.tlfig${tx.net > 0 ? ".up" : tx.net < 0 ? ".down" : ""}`, {
+        title: `Received less spent on fees · ${tx.nIn} in, ${tx.nOut} out (paid and free)`,
+      }, [el("b", { text: netText(tx.net) }), el("span", { text: "Transfers" }),
+        el("small", { text: `${money(tx.spent)} in · ${money(tx.received)} out` })]) : null,
     ].filter(Boolean);
+    const money2 = [
+      r.fin ? `Squad value ${money(r.fin.value_gbp)}` : null,
+      r.fin ? `wage bill ${money(r.fin.wage_gbp)}` : null,
+    ].filter(Boolean).join(" · ");
     return el("div.tlitem", {}, [
       el("div.tldot"),
       el("div.tlhead", {}, [
@@ -248,6 +253,7 @@ export async function view() {
             pots ? el("div", {}, [el("span.dim", { text: "Player of the season " }), who(pots.who), el("span.dim", { text: ` ${pots.value}` })]) : null,
             boot ? el("div", {}, [el("span.dim", { text: "Golden boot " }), who(boot.who), el("span.dim", { text: ` ${boot.value}` })]) : null,
           ]),
+          money2 ? el("div.dim.tlmoney", { text: money2, title: r.fin ? `At ${r.fin.phase}, owned players` : null }) : null,
           el("button.link.tlawards", { text: "All awards ›", onclick: () => show("awards", { season: r.season, view: "season" }) }),
         ]),
         el("div.tlfigs", {}, figs),
@@ -278,7 +284,7 @@ export async function view() {
         el("td.num", r.fin ? { text: money(r.fin.wage_gbp), title: finTitle(r.fin) } : { text: DASH }),
         el("td.num", { text: r.tx ? money(r.tx.spent) : DASH }),
         el("td.num", { text: r.tx ? money(r.tx.received) : DASH }),
-        el(`td.num${r.tx?.net > 0 ? ".pos" : r.tx?.net < 0 ? ".neg" : ""}`, { text: r.tx ? netText(r.tx.net) : DASH }),
+        el(`td.num${r.tx?.net > 0 ? ".gain" : r.tx?.net < 0 ? ".loss" : ""}`, { text: r.tx ? netText(r.tx.net) : DASH }),
         el("td", { text: r.comps.join(", ") || DASH }),
         el("td.num", { text: r.snaps }),
       ]))),

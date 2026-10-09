@@ -80,93 +80,116 @@ function dealsTable(deals, { rank = true } = {}) {
 }
 
 const LS_SEASON = "fm:world:transfer-season";
+const LS_VIEW = "fm:world:transfer-view";
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
 /**
- * World › Transfers: one season's market (the season review's blocks — totals, windows, the
- * biggest deals, who spent and who sold, by league nation, our nation's market) and the world
- * record as it stood, season by season.
+ * World › Transfers: one season's market — four tiles, then ONE table at a time, picked like
+ * the Matches page's tabs: the biggest deals (the world's or our nation's), the clubs that
+ * spent or sold most, the market by league nation, and the records (the biggest deal each
+ * season and the world record as it stood).
  */
 export async function worldTransfersPanel() {
   const T = await D.loadTransfers();
   if (!T) return el("p.note", { text: "No transfer data in this export." });
   const seasons = Object.keys(T.markets).map(Number).sort((a, b) => b - a);
   const box = el("div");
-  let cur = Number((() => { try { return localStorage.getItem(LS_SEASON); } catch { return null; } })());
+  let cur = Number(lsGet(LS_SEASON));
   if (!seasons.includes(cur)) cur = seasons[0];
   const career0 = seasons[seasons.length - 1];
-
+  const home = T.home_nation || "Our nation";
+  const VIEWS = [["deals", "Deals"], ["clubs", "Clubs"], ["nations", "Nations"], ["records", "Records"]];
+  let view = VIEWS.some(([k]) => k === lsGet(LS_VIEW)) ? lsGet(LS_VIEW) : "deals";
+  let scope = "world";              // deals: the world's, or our nation's
+  let side = "spenders";            // clubs: who spent most, or who sold most
   let allTop = false;
-  function draw() {
-    const m = T.markets[String(cur)];
-    const deal = (rows) => rowsOf(T.deal_fields, rows);
-    const top = deal(m.top);
-    const club = (rows) => rowsOf(T.spender_fields, rows);
-    const tbl = (head, body) => el("div.scroll", {}, [el("table.book", {}, [
-      el("thead", {}, [el("tr", {}, head.map(([h, n]) => el(`th${n ? ".num" : ""}`, { text: h })))]),
-      el("tbody", {}, body),
-    ])]);
-    const clubTable = (rows, label) => tbl([[label, 0], ["Fee", 1], ["Paid moves", 1]], club(rows).map((c) => el("tr", {}, [
-      el("td.name", {}, [clubLink(c.club_tid, c.club)]), el("td.num.hl", { text: money(c.fee) }), el("td.num", { text: c.paid_moves }),
-    ])));
-    const nations = rowsOf(T.nation_fields, m.nations);
-    const windows = rowsOf(T.window_fields, m.windows);
-    const record = top[0];
-    const progression = rowsOf(T.deal_fields, T.records).slice().reverse();
-    box.replaceChildren(
-      el("div.prow", {}, [el("span.mseg", {}, seasons.map((y) => el(`button.chip${y === cur ? ".on" : ""}`, {
-        text: seasonLabel(y),
-        onclick: () => { cur = y; allTop = false; try { localStorage.setItem(LS_SEASON, String(y)); } catch { /* ignore */ } draw(); },
-      })))]),
-      el("div.kpis", {}, [
-        kpi("Spent on fees", money(m.total)),
-        kpi("Paid moves", num(m.paid), `${num(m.free)} free`),
-        kpi("£10M+ deals", num(m.over_10m)),
-        record ? kpi("Biggest deal", money(record.fee), `${record.name} · ${record.from_club} → ${record.to_club}`) : null,
-        ...windows.filter((w) => w.window !== "undated").map((w) => kpi(`${w.window[0].toUpperCase()}${w.window.slice(1)} window`, money(w.total), `${num(w.paid)} paid`)),
-      ]),
-      el("h3", { text: `Biggest deals · ${seasonLabel(cur)}` }),
-      dealsTable(allTop ? top : top.slice(0, 10)),
-      top.length > 10 ? el("button.link", { text: allTop ? "Show the top 10" : `Show all ${top.length}`,
+
+  const deal = (rows) => rowsOf(T.deal_fields, rows);
+  const chips = (opts, on, set) => el("span.mseg", {}, opts.map(([k, l]) => el(`button.chip${k === on ? ".on" : ""}`, {
+    text: l, onclick: () => { set(k); draw(); },
+  })));
+  const tbl = (head, body) => el("div.scroll", {}, [el("table.book", {}, [
+    el("thead", {}, [el("tr", {}, head.map(([h, n]) => el(`th${n ? ".num" : ""}`, { text: h })))]),
+    el("tbody", {}, body),
+  ])]);
+
+  function deals(m) {
+    const rows = scope === "world" ? deal(m.top) : deal(m.home_top);
+    const shown = allTop ? rows : rows.slice(0, 10);
+    return [
+      el("div.prow", {}, [chips([["world", "World"], ["home", home]], scope, (k) => { scope = k; allTop = false; })]),
+      dealsTable(shown),
+      rows.length > 10 ? el("button.link", { text: allTop ? "Show the top 10" : `Show all ${rows.length}`,
         onclick: () => { allTop = !allTop; draw(); } }) : null,
-      el("div.grid2", {}, [
-        el("div", {}, [el("h3", { text: "Biggest spenders" }), clubTable(m.spenders, "Club")]),
-        el("div", {}, [el("h3", { text: "Biggest sellers" }), clubTable(m.sellers, "Club")]),
-      ]),
-      el("h3", { text: "By league nation" }),
-      tbl([["Nation", 0], ["Spent", 1], ["Received", 1], ["Net", 1]], nations.map((n) => el("tr", {}, [
+    ];
+  }
+
+  function clubs(m) {
+    const rows = rowsOf(T.spender_fields, side === "spenders" ? m.spenders : m.sellers);
+    return [
+      el("div.prow", {}, [chips([["spenders", "Biggest spenders"], ["sellers", "Biggest sellers"]], side, (k) => { side = k; })]),
+      tbl([["Club", 0], [side === "spenders" ? "Spent" : "Received", 1], ["Paid moves", 1]], rows.map((c) => el("tr", {}, [
+        el("td.name", {}, [clubLink(c.club_tid, c.club)]), el("td.num.hl", { text: money(c.fee) }),
+        el("td.num", { text: c.paid_moves }),
+      ]))),
+    ];
+  }
+
+  function nations(m) {
+    const rows = rowsOf(T.nation_fields, m.nations);
+    return [tbl([["Nation", 0], ["Spent", 1], ["Received", 1], ["Net", 1]], rows.map((n) => {
+      const net = (n.received || 0) - (n.spent || 0);
+      return el(`tr${n.nation === home ? ".picked" : ""}`, {}, [
         el("td.name", { text: n.nation }), el("td.num", { text: n.spent ? money(n.spent) : DASH }),
         el("td.num", { text: n.received ? money(n.received) : DASH }),
-        el("td.num", { text: netText((n.received || 0) - (n.spent || 0)) }),
-      ]))),
-      el("h3", { text: `${T.home_nation || "Our nation"}: biggest deals in or out` }),
-      dealsTable(deal(m.home_top)),
+        el(`td.num${net > 0 ? ".gain" : net < 0 ? ".loss" : ""}`, { text: netText(net) }),
+      ]);
+    })), el("p.note", { text: "Spent by the league nation's clubs, received for their players; the 12 biggest markets." })];
+  }
+
+  function records() {
+    const head = [["Season", 0], ["Player", 0], ["Age", 1], ["From", 0], ["To", 0], ["Fee", 1]];
+    const row = (d, cls, first) => el(`tr${cls}`, {}, [
+      el("td.name", {}, [seasonLabel(d.season), first ? pill("record", "good") : null]),
+      el("td", {}, [playerLink(d.tid, d.name)]), el("td.num", { text: d.age ?? DASH }),
+      el("td", {}, [clubLink(d.from_tid, d.from_club)]), el("td", {}, [clubLink(d.to_tid, d.to_club)]),
+      el("td.num.hl", { text: money(d.fee) }),
+    ]);
+    const best = seasons.map((y) => deal(T.markets[String(y)].top)[0]).filter(Boolean);
+    const progression = deal(T.records).slice().reverse();
+    return [
       el("h3", { text: "Biggest deal each season" }),
-      el("div.scroll", {}, [el("table.book", {}, [
-        el("thead", {}, [el("tr", {}, [["Season", 0], ["Player", 0], ["Age", 1], ["From", 0], ["To", 0], ["Fee", 1]]
-          .map(([h, n]) => el(`th${n ? ".num" : ""}`, { text: h })))]),
-        el("tbody", {}, seasons.map((y) => [y, rowsOf(T.deal_fields, T.markets[String(y)].top)[0]]).filter(([, d]) => d)
-          .map(([y, d]) => el(`tr${y === cur ? ".picked" : ""}`, {}, [
-            el("td.name", { text: seasonLabel(y) }), el("td", {}, [playerLink(d.tid, d.name)]),
-            el("td.num", { text: d.age ?? DASH }), el("td", {}, [clubLink(d.from_tid, d.from_club)]),
-            el("td", {}, [clubLink(d.to_tid, d.to_club)]), el("td.num.hl", { text: money(d.fee) }),
-          ]))),
-      ])]),
+      tbl(head, best.map((d) => row(d, d.season === cur ? ".picked" : "", false))),
       el("h3", { text: "World record progression" }),
+      tbl(head, progression.map((d, i) => row(d, d.season < career0 ? ".pre" : "", i === 0))),
       el("p.note", { text: "Each paid move that beat every fee before it. Seasons before "
         + `${seasonLabel(career0)} come from the history the save keeps for players still in it, `
         + "so the early record is only as complete as that." }),
-      el("div.scroll", {}, [el("table.book", {}, [
-        el("thead", {}, [el("tr", {}, [["Season", 0], ["Player", 0], ["Age", 1], ["From", 0], ["To", 0], ["Fee", 1]]
-          .map(([h, n]) => el(`th${n ? ".num" : ""}`, { text: h })))]),
-        el("tbody", {}, progression.map((d, i) => el(`tr${d.season < career0 ? ".pre" : ""}`, {}, [
-          el("td.name", {}, [seasonLabel(d.season), i === 0 ? pill("record", "good") : null]),
-          el("td", {}, [playerLink(d.tid, d.name)]), el("td.num", { text: d.age ?? DASH }),
-          el("td", {}, [clubLink(d.from_tid, d.from_club)]), el("td", {}, [clubLink(d.to_tid, d.to_club)]),
-          el("td.num.hl", { text: money(d.fee) }),
-        ]))),
-      ])]),
+    ];
+  }
+
+  function draw() {
+    const m = T.markets[String(cur)];
+    const record = deal(m.top)[0];
+    const windows = rowsOf(T.window_fields, m.windows).filter((w) => w.window !== "undated" && w.total);
+    const PANELS = { deals, clubs, nations, records };
+    box.replaceChildren(...[
+      el("div.prow", {}, [chips(seasons.map((y) => [y, seasonLabel(y)]), cur, (y) => {
+        cur = y; allTop = false; lsSet(LS_SEASON, String(y));
+      })]),
+      el("div.kpis", {}, [
+        kpi("Spent on fees", money(m.total), windows.map((w) => `${w.window} ${money(w.total)}`).join(" · ") || null),
+        kpi("Paid moves", num(m.paid), `${num(m.free)} free`),
+        kpi("£10M+ deals", num(m.over_10m)),
+        record ? kpi("Biggest deal", money(record.fee), `${record.name} · ${record.from_club} → ${record.to_club}`) : null,
+      ]),
+      el("div.prow.mtabs", {}, VIEWS.map(([k, l]) => el(`button.chip${k === view ? ".on" : ""}`, {
+        text: l, onclick: () => { view = k; lsSet(LS_VIEW, k); draw(); },
+      }))),
+      ...PANELS[view](m),
       el("p.note", { text: T.note }),
-    );
+    ].filter(Boolean));
   }
   draw();
   return box;
