@@ -87,6 +87,10 @@ models:
     description: Our squad's value and wage bill on each snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date]}}
+  - name: site_transfers
+    description: Every transfer, named, aged and placed by window, nation and our direction.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, to_line_index]}}
   - name: site_registration_rules
     description: The registration rules that apply to us on each snapshot.
     data_tests:
