@@ -170,19 +170,25 @@ export async function view() {
         body.append(summaryTable(staged, phaseOf, "Phase", false,
           (a, b) => PHASES.indexOf(a.k) - PHASES.indexOf(b.k)));
         body.append(el("h3", { text: "By round" }));
-        const firstAt = new Map();
+        // Pooled across competitions: a Third Qualifying Round is the same hurdle in either
+        // European cup, so the round alone is the key. The access path ("League Path · ") goes
+        // too, or one cup's Playoff and the other's would split. Rows run phase by phase, then
+        // in the order the rounds are played.
+        const bare = (m) => String(roundOf(m)).split(" · ").pop();
+        const at = new Map();
         for (const m of staged) {
-          const k = `${comp(m)} · ${roundOf(m)}`;
-          if (!firstAt.has(k)) firstAt.set(k, [comp(m), orderOf(m)]);
+          const o = at.get(bare(m)) || { ph: PHASES.indexOf(m.stage_kind), n: 0, s: 0 };
+          o.n++; o.s += seasonDay(m);
+          at.set(bare(m), o);
         }
-        body.append(summaryTable(staged, (m) => `${comp(m)} · ${roundOf(m)}`, "Round", false,
-          (a, b) => {
-            const [ca, oa] = firstAt.get(a.k), [cb, ob] = firstAt.get(b.k);
-            return ca.localeCompare(cb) || oa - ob;
-          }));
+        body.append(summaryTable(staged, bare, "Round", false, (a, b) => {
+          const x = at.get(a.k), y = at.get(b.k);
+          return x.ph - y.ph || x.s / x.n - y.s / y.n;
+        }));
         body.append(el("p.note", { text: "Stages and rounds are the game's own labels, read "
-          + "from each competition's rules in the save. Groups are pooled as \"Group stage\" "
-          + "across seasons; the results below keep the letter." }));
+          + "from each competition's rules in the save, pooled across competitions (a round is "
+          + "the same round in either cup). Groups are pooled as \"Group stage\" across "
+          + "seasons; the results below keep the letter." }));
       }
     }
 
