@@ -51,6 +51,14 @@ const TABS = [
 const LS_TAB = "fm:history:tab";
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
+// A tap anywhere but an award header, or any scroll, closes an open award tip (the honours
+// board on a no-hover device): the tip is placed on the screen, so it would drift otherwise.
+const closeTips = (e) => {
+  if (e?.target?.closest?.("th.tipped")) return;
+  for (const th of document.querySelectorAll("table.board th.open")) th.classList.remove("open");
+};
+document.addEventListener("click", closeTips);
+document.addEventListener("scroll", () => closeTips(), true);
 const seasonLabel = (s) => `${s - 1}/${String(s).slice(2)}`;
 const day = (d) => String(d).slice(0, 10);
 
@@ -431,10 +439,32 @@ export async function view() {
         times.set(`${s}|${label}`, n);
       }
     }
+    const meaning = awardMeanings(cells);
     return el("div", {}, [
       el("div.prow", {}, [views, opts]),
       el("div.scroll", {}, [el(`table.board${figures ? ".withfig" : ""}`, {}, [
-        el("thead", {}, [el("tr", {}, [el("th", { text: "Season" }), ...order.map((l) => el("th", { text: l }))])]),
+        el("thead", {}, [el("tr", {}, [el("th", { text: "Season" }), ...order.map((l, i) => {
+          // What the award is for: shown on hover, or on a tap where there is no hover. The
+          // last couple of columns open their tip leftward so it stays inside the table.
+          const tip = kind === "player" ? meaning.get(l) : null;
+          if (!tip) return el("th", { text: l });
+          // A tapped tip is placed on the screen (fixed) rather than in the table, so the
+          // scroll box can't clip it and it never runs off the edge of a phone.
+          return el(`th.tipped${i >= order.length - 2 ? ".tipleft" : ""}`, {
+            "aria-label": `${l}: ${tip}`,
+            onclick: (e) => {
+              const th = e.currentTarget, open = !th.classList.contains("open");
+              for (const o of th.parentNode.querySelectorAll("th.open")) o.classList.remove("open");
+              if (!open) return;
+              const r = th.getBoundingClientRect(), box = th.querySelector(".thtip");
+              const w = Math.min(230, document.documentElement.clientWidth - 16);
+              box.style.width = `${w}px`;
+              box.style.left = `${Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8))}px`;
+              box.style.top = `${r.bottom + 4}px`;
+              th.classList.add("open");
+            },
+          }, [el("span.thlbl", { text: l }), el("span.thtip", { text: tip })]);
+        })])]),
         el("tbody", {}, seasons.map((s) => el("tr", {}, [
           el("td.name", {}, [el("button.link", { text: seasonLabel(s), title: "This season's awards in full",
             onclick: () => { setHashParams({ view: "season", season: s }); draw(); } })]),
@@ -453,34 +483,26 @@ export async function view() {
       ])]),
       el("p.note", { text: "Newest season first. ×2, ×3 … counts a player's repeat wins of the same "
         + "award. Hover or tap a cell for how it was decided; a season opens that season in full." }),
-      kind === "player" ? awardKey(order, cells) : null,
+      kind === "player" ? el("p.note", { text: "Hover an award (tap on a phone) for what it rewards. "
+        + "To qualify a player needs about 30% of the season's matches (at least 3); Player of the "
+        + `season and Young Gun, both average ratings, need about 60% (up to ${RATING_AWARD_APPS}). `
+        + "Appearances count substitutes; Young Gun is U21 at the season's 1 January." }) : null,
     ]);
   }
 
-  // What each player award rewards, in the board's column order. The wording is the award's
-  // own "decided by" note (or its `means`, where the note describes the winning match), so the
-  // key can't drift from the computation. The appearance bar is
-  // the one part that changes season to season (it scales with games played), so it is stated
-  // once rather than per award.
-  function awardKey(order, cells) {
+  // What each player award rewards. The wording is the award's own "decided by" note (or its
+  // `means`, where the note describes the winning match), so the tip can't drift from the
+  // computation. The appearance bar changes season to season, so it is stated once under the
+  // board instead.
+  function awardMeanings(cells) {
     const meaning = new Map();
     for (const s of seasons) {
       for (const [label, c] of cells.get(s)) {
-        // `means` where an award's note describes the winning match rather than the award.
         const text = c.means || c.note;
         if (!meaning.has(label) && text) meaning.set(label, text.replace(/,? ?min \d+ apps/, ""));
       }
     }
-    const items = order.filter((l) => meaning.has(l));
-    if (!items.length) return null;
-    return el("div.awardkey", {}, [
-      el("h4", { text: "What each award is for" }),
-      el("dl", {}, items.flatMap((l) => [el("dt", { text: l }), el("dd", { text: meaning.get(l) })])),
-      el("p.note", { text: "To qualify a player needs about 30% of the season's matches (at least 3). "
-        + "Player of the season and Young Gun, both average-rating awards, need about 60% (up to "
-        + `${RATING_AWARD_APPS}), since an average over a handful of games is noise. Appearances `
-        + "count substitutes. Young Gun is U21 at the season's 1 January." }),
-    ]);
+    return meaning;
   }
 
   function seasonAwards(q) {
@@ -592,6 +614,17 @@ function seasonPlayerAwards(rows, matches, s) {
   const superSub = bestSub ? { label: "Supersub", who: bestSub.a.tid, value: num(bestSub.v),
     note: "goals+assists off the bench" } : null;
 
+  // The Stormtrooper: couldn't hit a barn door — the largest share of his shots that missed
+  // the target. A share, not a count, or it just crowns the busiest striker; 20 shots so a
+  // 3-of-4 cameo can't win it.
+  const trooper = pool.filter((a) => a.shotA >= 20)
+    .map((a) => ({ a, v: (a.shotA - a.shotO) / a.shotA })).sort((x, y) => y.v - x.v)[0];
+  const stormtrooper = trooper ? {
+    label: "The Stormtrooper", who: trooper.a.tid, value: `${num(100 * trooper.v)}%`,
+    note: `${trooper.a.shotA - trooper.a.shotO} of ${trooper.a.shotA} shots off target`,
+    means: "largest share of his shots off target (20+ shots)", silly: true,
+  } : null;
+
   return [
     top((a) => a.rating, "Player of the season", 2,
       `highest average match rating, min ${ratingMinApps} apps`, false, ratingPool),
@@ -619,6 +652,7 @@ function seasonPlayerAwards(rows, matches, s) {
     top((a) => (a.apps ? a.yellow / a.apps : null), "Most booked", 2, "yellows per game", true),
     top((a) => (a.shotA >= 10 && a.goals === 0 ? a.shotA : null), "Wasteful", 0,
       "most shots without scoring (10+ shots)", true),
+    stormtrooper,
   ].filter(Boolean);
 }
 

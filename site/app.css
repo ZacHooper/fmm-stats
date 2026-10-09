@@ -544,11 +544,12 @@ table.board td.click{cursor:pointer}
 table.board td.click:hover .who{color:var(--accent)}
 table.board .times{color:var(--accent);font-weight:700;font-size:11px}
 @media(max-width:600px){.hide-sm{display:none}}
-/* Awards · the key under the honours board */
-.awardkey{margin-top:10px;padding:10px 14px;border:1px solid var(--line);border-radius:11px;background:var(--card)}
-.awardkey h4{margin:0 0 8px}
-.awardkey dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0;font-size:12.5px}
-.awardkey dt{font-weight:600}
-.awardkey dd{margin:0;color:var(--dim)}
-@media(min-width:860px){.awardkey dl{grid-template-columns:max-content 1fr max-content 1fr}}
-.awardkey .note{margin:10px 0 0}
+/* Awards · what an award is for: a tip under its header, on hover or (no hover) on tap */
+table.board th.tipped{cursor:help;position:sticky}
+table.board th.tipped .thlbl{border-bottom:1px dotted var(--dim)}
+table.board .thtip{display:none;position:absolute;top:100%;left:4px;z-index:5;width:210px;
+  padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+  box-shadow:0 6px 18px rgba(0,0,0,.14);font-weight:400;font-size:12px;color:var(--ink);line-height:1.35}
+table.board th.tipleft .thtip{left:auto;right:4px}
+table.board th.tipped.open .thtip{display:block;position:fixed;right:auto;z-index:50}
+@media(hover:hover){table.board th.tipped:hover .thtip{display:block}}
