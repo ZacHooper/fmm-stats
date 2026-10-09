@@ -484,7 +484,8 @@ export function openProfile(tid, { role = null } = {}) {
     // What he has actually done there for us: his competitive STARTS at each position (the game
     // records a position for the starting eleven only, so a sub appearance can't be placed), and
     // the position-adjusted rating over them — one scale across positions, so the rows compare.
-    // The best of those with enough starts to mean something is marked. Needs matches.json,
+    // The best of those with enough starts to mean something is marked. Only his listed
+    // positions are shown; a start somewhere he isn't listed is out of position. Needs matches.json,
     // which not every page has loaded: the tab fetches it and redraws.
     const played = playedAt(tid);
     if (!played && !matchesTried) {
@@ -492,11 +493,9 @@ export function openProfile(tid, { role = null } = {}) {
       D.loadMatches().then(() => { if (curTab === "fit") showTab("fit", false); }).catch(() => null);
     }
     const MIN_STARTS = 3;
-    const bestAdj = played ? Math.max(...[...played.values()]
-      .filter((a) => a.starts >= MIN_STARTS && a.ratingAdj != null).map((a) => a.ratingAdj)) : null;
-    // positions he has started at for us but isn't listed at, after the ones he is
-    const extra = played ? [...played.keys()].filter((q) => !roles.some((r) => r.pos === q))
-      .sort((a, b) => D.POS_ORDER.indexOf(a) - D.POS_ORDER.indexOf(b)) : [];
+    // the best is picked among his listed positions only — the rows the table shows
+    const bestAdj = played ? Math.max(...roles.map((r) => played.get(r.pos))
+      .filter((a) => a && a.starts >= MIN_STARTS && a.ratingAdj != null).map((a) => a.ratingAdj)) : null;
     const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
     if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
     heads.push("Squad rank", "Starts", "Rating (adj)", "G+A/90");
@@ -514,14 +513,13 @@ export function openProfile(tid, { role = null } = {}) {
         el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 2) : DASH }),
       ];
     };
-    const blank = (n) => Array.from({ length: n }, () => el("td.num", { text: DASH }));
     const out = el("div", {}, [el("div.scroll.fit", {}, [el("table", {}, [
       el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
         text: h,
         title: h === "Rating (adj)" ? "Average position-adjusted match rating over his competitive starts there"
           : h === "Starts" ? "Competitive starts for us at this position" : null,
       })))]),
-      el("tbody", {}, [...roles.map((r) => {
+      el("tbody", {}, roles.map((r) => {
         const cells = [
           el("td", { text: r.pos }), el("td", { text: r.role }),
           el("td.num", {}, [bar(r.fam, { max: 20, lo: 60 })]),
@@ -533,10 +531,7 @@ export function openProfile(tid, { role = null } = {}) {
         cells.push(el("td.num", { text: tpool.length ? `${D.rankIn(tpool, r.eff)}/${tpool.length}` : DASH }));
         cells.push(...playedCells(r.pos));
         return el("tr", {}, cells);
-      }), ...extra.map((q) => el("tr", {}, [
-        el("td", { text: q }), el("td.dim", { text: "not listed" }),
-        ...blank(hisPlayers ? 5 : 4), ...playedCells(q),
-      ]))]),
+      })),
     ])])]);
     if (traj.length > 1) {
       out.append(el("h4", { text: `Development as ${shown.role} · ${traj.length} snapshots` }),
@@ -564,8 +559,8 @@ export function openProfile(tid, { role = null } = {}) {
         + "for us at the position, his <b>Rating (adj)</b> over them — the match rating adjusted "
         + "for position, so it compares across rows — and <b>G+A/90</b>. The best adjusted rating "
         + `with ${3}+ starts is marked; fewer starts are greyed. Substitute appearances aren't `
-        + "counted (the game records positions for starters only). A position he has started at "
-        + "but isn't listed at appears at the bottom.",
+        + "counted (the game records positions for starters only), and neither are starts at a "
+        + "position he isn't listed at.",
     })]));
     return out;
   }
