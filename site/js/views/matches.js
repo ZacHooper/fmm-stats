@@ -17,7 +17,7 @@
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
 import { el, num, pill, bar, DASH, multiSelect, hashParams, setHashParams } from "../ui.js";
-import { openProfile } from "../profile.js";
+import { openPlayer } from "../profile.js";
 import { openClub } from "../club.js";
 
 const RES = { W: "good", D: "flat", L: "bad" };
@@ -292,8 +292,8 @@ export async function view() {
       top.length ? el("div.scroll.fit", {}, [el("table", {}, [
         el("thead", {}, [el("tr", {}, ["Player", "Apps", "Min", "Rating", "G+A"].map((h, i) =>
           el(`th${i ? ".num" : ""}`, { text: h })))]),
-        el("tbody", {}, top.map((a) => el(`tr${D.hasProfile(a.tid) ? ".click" : ""}`, {
-          onclick: () => D.hasProfile(a.tid) && openProfile(a.tid),
+        el("tbody", {}, top.map((a) => el("tr.click", {
+          onclick: () => openPlayer(a.tid),
         }, [
           el("td.name", { text: D.matchName(a.tid) }),
           el("td.num", { text: a.apps }), el("td.num", { text: num(a.min) }),
@@ -428,7 +428,7 @@ export async function view() {
       filter: (r) => (agg.get(r.tid)?.min || 0) >= minMin,
       toolbar: [minSel, normBtn],
       searchPlaceholder: "Search players…",
-      onRow: (r) => D.hasProfile(r.tid) && openProfile(r.tid),
+      onRow: (r) => openPlayer(r.tid),
       empty: minMin ? `Nobody has ${minMin}+ minutes in these matches.` : "Nobody appeared in the filtered matches.",
     }).node);
     box.append(el("p.note", { text: vsNorm

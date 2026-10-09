@@ -1,11 +1,10 @@
 /**
  * History — the club's own story, in five tabs that each answer one question:
  *
- *   Seasons        what happened each year?      one card per season, newest first (or the full table)
+ *   Seasons        what happened each year?      one entry per season, newest first (or the full table)
  *   Hall of Fame   who are our greats?           one leaderboard at a time, with each player's career line
- *   Records        what are the bests?           single-match and run records as cards
- *   Awards         who won what this season?     one season's player and team awards
- *   Honours board  who won what, every year?     award × season, winners only
+ *   Records        what are the bests?           the record book: single-match bests and runs
+ *   Awards         who won what?                 the honours board (season × award), or one season in full
  *
  * Its own section rather than a tab on Matches, because Matches answers "how are we playing"
  * and this answers "what have we done". Everything is computed in the browser from the same
@@ -16,13 +15,13 @@
  * long-ago game may simply not be in the save any more.
  *
  * Some winners here — especially in the Hall of Fame, which spans a player's whole time at the
- * club — are no longer on the current squad. `D.matchName`/`D.hasProfile` cover that: a
- * departed player still gets a real name (matches.json's `player_names`, resolved for anyone
- * who ever played for us) but his row isn't clickable, since there's no profile left to open.
+ * club — are no longer on the current squad. `D.matchName` still names them (matches.json's
+ * `player_names`, for anyone who ever played for us), and `openPlayer` still opens them: the full
+ * profile when the save holds him, otherwise his record for us.
  */
 import * as D from "../data.js";
 import { el, num, money, pill, bar, DASH, hashParams, setHashParams } from "../ui.js";
-import { openProfile } from "../profile.js";
+import { openPlayer } from "../profile.js";
 import { openClub } from "../club.js";
 
 // How far a season got in one competition: the stage of its last match there.
@@ -48,7 +47,6 @@ const TABS = [
   ["fame", "Hall of Fame"],
   ["records", "Records"],
   ["awards", "Awards"],
-  ["honours", "Honours board"],
 ];
 const LS_TAB = "fm:history:tab";
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -145,6 +143,8 @@ export async function view() {
   out.append(tabRow, panel);
 
   const known = (t) => TABS.some(([k]) => k === t);
+  // "honours" was its own tab before the board moved into Awards; an old link still lands there.
+  if (hashParams().get("tab") === "honours") setHashParams({ tab: "awards", board: null, view: "board" });
   let tab = [hashParams().get("tab"), lsGet(LS_TAB)].find(known) || TABS[0][0];
   function show(t, extra = {}) {
     tab = t; lsSet(LS_TAB, t); setHashParams({ tab: t, ...extra });
@@ -155,65 +155,123 @@ export async function view() {
     tabRow.replaceChildren(...TABS.map(([k, label]) => el(`button.chip${k === tab ? ".on" : ""}`, {
       text: label, role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => show(k),
     })));
-    const PANELS = { seasons: seasonsTab, fame, records, awards, honours };
+    const PANELS = { seasons: seasonsTab, fame, records, awards };
     panel.replaceChildren(PANELS[tab]());
   }
 
+  // A player's name as a link — every name on the page opens something (openPlayer).
+  const who = (tid) => el("a.plink", { href: "#", text: D.matchName(tid),
+    onclick: (e) => { e.preventDefault(); e.stopPropagation(); openPlayer(tid); } });
+  const club = (tid, name) => (tid == null ? name : el("a.plink", { href: "#", text: name,
+    onclick: (e) => { e.preventDefault(); e.stopPropagation(); openClub(tid); } }));
+
   // ---------------------------------------------------------------- Seasons
+  // Per season: the two headline awards, each with its figure, and how each competition went.
+  const seasonStars = (s) => {
+    const aw = playerAwards(s);
+    const get = (label) => aw.find((a) => a.label === label) || null;
+    return { pots: get("Player of the season"), boot: get("Golden boot") };
+  };
+  const runText = (x) => (x.winners ? "Winners" : x.where ? `${x.where}${x.out ? " · out" : ""}` : DASH);
+  const runCls = (x) => (x.winners ? "win" : x.out ? "out" : "");
+  const extras = (r) => [
+    r.att ? `Avg crowd ${r.att.avg_att.toLocaleString()}` : null,
+    r.fin ? `Squad value ${money(r.fin.value_gbp)}` : null,
+    r.fin ? `Wages ${money(r.fin.wage_gbp)}` : null,
+  ].filter(Boolean).join(" · ");
+
+  // Three layouts, live side by side until one is chosen — `?layout=` picks.
+  const LAYOUTS = [["timeline", "Timeline"], ["ledger", "Ledger"], ["table", "Table"], ["full", "Full table"]];
   function seasonsTab() {
-    const asTable = hashParams().get("view") === "table";
-    const seg = el("span.mseg", {}, [["cards", "Cards"], ["table", "Full table"]].map(([k, l]) =>
-      el(`button.chip${(k === "table") === asTable ? ".on" : ""}`, {
-        text: l, onclick: () => { setHashParams({ view: k === "table" ? k : null }); draw(); },
-      })));
+    const want = hashParams().get("layout");
+    const layout = (LAYOUTS.find(([k]) => k === want) || LAYOUTS[0])[0];
+    const seg = el("span.mseg", {}, LAYOUTS.map(([k, l]) => el(`button.chip${k === layout ? ".on" : ""}`, {
+      text: l, onclick: () => { setHashParams({ layout: k === LAYOUTS[0][0] ? null : k }); draw(); },
+    })));
+    const body = layout === "timeline" ? el("div.tl", {}, prog.map(timelineEntry))
+      : layout === "ledger" ? el("div.ledger", {}, prog.map(ledgerRow))
+        : layout === "table" ? curatedTable() : seasonTable();
     return el("div", {}, [
-      el("div.prow", {}, [seg]),
-      asTable ? seasonTable() : el("div.scards", {}, prog.map(seasonCard)),
+      el("div.prow", {}, [el("span.dim", { text: "Layout" }), seg]),
+      body,
       el("p.note", { text: "Friendlies excluded. Match counts come from the newest snapshot of each "
-        + "season and can fall short of the true fixture list — match detail sits in a fixed-size "
-        + "ring buffer the game overwrites as a season runs, so a short season is missing games, "
-        + "not lost ones. How far a run got is the stage of its last match, in the game's own words; "
-        + "\"out\" is a tie lost, and no marker means still alive at the newest snapshot. Crowds are "
-        + "home games only; squad value and wage bill are at the season's last snapshot, owned "
-        + "players only." }),
+        + "season and can fall short of the true fixture list (match detail sits in a ring buffer "
+        + "the game overwrites). How far a run got is the stage of its last match, in the game's own "
+        + "words; \"out\" is a tie lost. Crowds are home games only; squad value and wage bill are "
+        + "at the season's last snapshot, owned players only." }),
     ]);
   }
 
-  function seasonCard(r) {
-    const aw = playerAwards(r.season);
-    const pick = (label) => aw.find((a) => a.label === label);
-    const star = (label, short) => {
-      const a = pick(label);
-      return a ? el("div.star", {}, [el("span.dim", { text: short }), " ",
-        D.hasProfile(a.who) ? el("a", { href: "#", text: D.matchName(a.who),
-          onclick: (e) => { e.preventDefault(); openProfile(a.who); } }) : D.matchName(a.who),
-        el("span.dim", { text: ` · ${a.value}` })]) : null;
-    };
-    const runPill = (x) => x.winners ? pill("Winners", "good") : x.out ? pill(x.where, "bad") : pill(x.where, "flat");
-    const foot = [
-      r.att ? `Avg crowd ${r.att.avg_att.toLocaleString()}` : null,
-      r.fin ? `Squad value ${money(r.fin.value_gbp)}` : null,
-      r.fin ? `Wages ${money(r.fin.wage_gbp)}` : null,
-    ].filter(Boolean).join(" · ");
-    return el("div.card.scard", {}, [
-      el("div.sechead", {}, [
-        el("div", {}, [el("b.stitle", { text: seasonLabel(r.season) }),
-          r.league ? el("span.dim", { text: ` ${r.league.comp}` }) : null]),
-        r.league ? runPill(r.league) : null,
-      ]),
-      el("div.sline", {}, [
-        el("b", { text: `${r.w}-${r.d}-${r.l}` }),
-        el("span.dim", { text: ` · ${r.gf}:${r.ga} · ` }),
-        r.ppg == null ? DASH : bar(r.ppg, { max: 3, lo: 34, dp: 2 }),
-        el("span.dim", { text: " pts/gm" }),
-      ]),
-      r.cups.length ? el("div.cups", {}, r.cups.map((c) => el("span.cup", {}, [el("span", { text: c.comp }), runPill(c)]))) : null,
-      el("div.stars", {}, [star("Player of the season", "Player of the season"), star("Golden boot", "Golden boot")]),
-      el("div.sfoot", {}, [
-        el("span.dim", { text: foot || `${r.p} matches parsed` }),
-        el("button.link", { text: "Awards ›", onclick: () => show("awards", { season: r.season }) }),
+  // Timeline: one column, a rail down the left, each season a short story.
+  function timelineEntry(r) {
+    const { pots, boot } = seasonStars(r.season);
+    return el("div.tlitem", {}, [
+      el("div.tldot"),
+      el("div.tlbody", {}, [
+        el("div.tlhead", {}, [
+          el("b", { text: seasonLabel(r.season) }),
+          el("span", { text: r.league?.comp || "" }),
+          r.league ? el(`span.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null,
+        ]),
+        el("div.tlrec", {}, [
+          el("span", {}, [el("b", { text: `${r.w}-${r.d}-${r.l}` }), el("span.dim", { text: " W-D-L" })]),
+          el("span", {}, [el("b", { text: `${r.gf}:${r.ga}` }), el("span.dim", { text: " goals" })]),
+          el("span", {}, [r.ppg == null ? DASH : bar(r.ppg, { max: 3, lo: 34, dp: 2 }), el("span.dim", { text: " pts/gm" })]),
+        ]),
+        r.cups.length ? el("ul.tlcups", {}, r.cups.map((c) => el("li", {}, [
+          el("span", { text: c.comp }), el(`span.run.${runCls(c) || "plain"}`, { text: runText(c) }),
+        ]))) : null,
+        el("div.tlstars", {}, [
+          pots ? el("span", {}, [el("span.dim", { text: "Player of the season " }), who(pots.who), el("span.dim", { text: ` ${pots.value}` })]) : null,
+          boot ? el("span", {}, [el("span.dim", { text: "Golden boot " }), who(boot.who), el("span.dim", { text: ` ${boot.value}` })]) : null,
+        ]),
+        el("div.tlfoot", {}, [el("span.dim", { text: extras(r) }),
+          el("button.link", { text: "Awards ›", onclick: () => show("awards", { season: r.season, view: "season" }) })]),
       ]),
     ]);
+  }
+
+  // Ledger: one row per season with aligned columns on a wide screen; stacks on a phone.
+  function ledgerRow(r) {
+    const { pots, boot } = seasonStars(r.season);
+    return el("div.lrow", {}, [
+      el("div.lseason", {}, [el("b", { text: seasonLabel(r.season) }), el("span.dim", { text: r.league?.comp || "" }),
+        r.league ? el(`span.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null]),
+      el("div.lrec", {}, [
+        el("b", { text: `${r.w}-${r.d}-${r.l}` }),
+        el("span.dim", { text: `${r.gf}:${r.ga}` }),
+        r.ppg == null ? DASH : bar(r.ppg, { max: 3, lo: 34, dp: 2 }),
+      ]),
+      el("div.lcups", {}, r.cups.length ? r.cups.map((c) => el("div", {}, [
+        el("span", { text: c.comp }), " ", el(`span.run.${runCls(c) || "plain"}`, { text: runText(c) }),
+      ])) : [el("span.dim", { text: "No cup matches" })]),
+      el("div.lstars", {}, [
+        pots ? el("div", {}, [el("span.lbl", { text: "Player of the season" }), who(pots.who), el("span.dim", { text: ` ${pots.value}` })]) : null,
+        boot ? el("div", {}, [el("span.lbl", { text: "Golden boot" }), who(boot.who), el("span.dim", { text: ` ${boot.value}` })]) : null,
+      ]),
+    ]);
+  }
+
+  // Table: the seven columns worth reading, every name a link; the full table keeps the rest.
+  function curatedTable() {
+    return el("div.scroll", {}, [el("table.curated", {}, [
+      el("thead", {}, [el("tr", {}, [["Season", 0], ["League", 0], ["W-D-L", 1], ["Pts/gm", 1], ["Cups", 0],
+        ["Player of the season", 0], ["Golden boot", 0]].map(([h, n]) => el(`th${n ? ".num" : ""}`, { text: h })))]),
+      el("tbody", {}, prog.map((r) => {
+        const { pots, boot } = seasonStars(r.season);
+        return el("tr", {}, [
+          el("td.name", { text: seasonLabel(r.season) }),
+          el("td", {}, [el("div", { text: r.league?.comp || DASH }),
+            r.league ? el(`div.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null]),
+          el("td.num", { text: `${r.w}-${r.d}-${r.l}` }),
+          el("td.num", {}, [r.ppg == null ? DASH : bar(r.ppg, { max: 3, lo: 34, dp: 2 })]),
+          el("td", {}, r.cups.length ? r.cups.map((c) => el("div", {}, [`${c.comp} `,
+            el(`span.run.${runCls(c) || "plain"}`, { text: runText(c) })])) : [DASH]),
+          el("td", {}, pots ? [who(pots.who), el("span.dim", { text: ` ${pots.value}` })] : [DASH]),
+          el("td", {}, boot ? [who(boot.who), el("span.dim", { text: ` ${boot.value}` })] : [DASH]),
+        ]);
+      })),
+    ])]);
   }
 
   function seasonTable() {
@@ -245,6 +303,8 @@ export async function view() {
   // ---------------------------------------------------------------- Hall of Fame
   // One leaderboard at a time, picked with chips, each row carrying the player's whole career
   // line for us — so "top scorer" also says how many games it took and whether he is still here.
+  // A board for a count also carries its rate (goals -> G/90), which is what separates a
+  // prolific striker from one who simply stayed a long time.
   const career = D.S.matchAgg;
   const span = new Map();            // tid -> [first season, last season]
   for (const r of rows) {
@@ -254,121 +314,220 @@ export async function view() {
   }
   const hatTricks = new Map();
   for (const r of rows) if (r.goals >= 3) hatTricks.set(r.tid, (hatTricks.get(r.tid) || 0) + 1);
+  const p90 = (n, a) => (a.min ? (90 * n) / a.min : null);
   const BOARDS = [
-    ["apps", "Appearances", (a) => a.apps, 0],
-    ["goals", "Goals", (a) => a.goals, 0],
-    ["assists", "Assists", (a) => a.assists, 0],
-    ["ga", "Goal involvements", (a) => a.goals + a.assists, 0],
-    ["min", "Minutes", (a) => a.min, 0],
-    ["rating", `Average rating (${RATING_AWARD_APPS}+ apps)`, (a) => (a.apps >= RATING_AWARD_APPS ? a.rating : null), 2],
-    ["hat", "Hat-tricks", (a) => hatTricks.get(a.tid) || null, 0],
-    ["potm", "Player of the Match", (a) => a.potm, 0],
+    // key, label, value, dp, [rate label, rate(a), dp]
+    ["apps", "Appearances", (a) => a.apps, 0, ["Min/gm", (a) => (a.apps ? a.min / a.apps : null), 0]],
+    ["goals", "Goals", (a) => a.goals, 0, ["G/90", (a) => p90(a.goals, a), 2]],
+    ["assists", "Assists", (a) => a.assists, 0, ["A/90", (a) => p90(a.assists, a), 2]],
+    ["ga", "Goal involvements", (a) => a.goals + a.assists, 0, ["G+A/90", (a) => p90(a.goals + a.assists, a), 2]],
+    ["min", "Minutes", (a) => a.min, 0, ["Min/gm", (a) => (a.apps ? a.min / a.apps : null), 0]],
+    ["rating", `Average rating`, (a) => (a.apps >= RATING_AWARD_APPS ? a.rating : null), 2, null],
+    ["hat", "Hat-tricks", (a) => hatTricks.get(a.tid) || null, 0, ["Games per", (a) => (hatTricks.get(a.tid) ? a.apps / hatTricks.get(a.tid) : null), 0]],
+    ["potm", "Player of the Match", (a) => a.potm, 0, ["Per 10 apps", (a) => (a.apps ? (10 * a.potm) / a.apps : null), 1]],
   ];
   function fame() {
     const want = hashParams().get("board");
-    const [key, label, fn, dp] = BOARDS.find((b) => b[0] === want) || BOARDS[0];
+    const [, label, fn, dp, rate] = BOARDS.find((b) => b[0] === want) || BOARDS[0];
+    const key = (BOARDS.find((b) => b[0] === want) || BOARDS[0])[0];
     const list = [...career.values()].map((a) => ({ a, v: fn(a) }))
       .filter((x) => x.v != null && Number.isFinite(x.v) && x.v > 0)
       .sort((x, y) => y.v - x.v).slice(0, 15);
     const here = (tid) => { const p = D.S.players.get(tid); return !!p && D.isOurs(p); };
+    // The career line, less the column the board already shows.
+    const line = [["apps", "Apps", (a) => a.apps], ["goals", "Goals", (a) => a.goals],
+      ["assists", "Assists", (a) => a.assists], ["rating", "Rating", (a) => (a.rating == null ? DASH : num(a.rating, 2))]]
+      .filter(([k]) => k !== key);
+    const cols = [["#", 1], ["Player", 0], [label, 1], ...(rate ? [[rate[0], 1]] : []),
+      ...line.map(([, h]) => [h, 1]), ["Seasons", 0], ["", 0]];
     return el("div", {}, [
       el("div.prow", {}, [el("span.mseg", {}, BOARDS.map(([k, l]) => el(`button.chip${k === key ? ".on" : ""}`, {
-        text: l.replace(/ \(.*\)$/, ""), onclick: () => { setHashParams({ board: k }); draw(); },
+        text: l, onclick: () => { setHashParams({ board: k }); draw(); },
       })))]),
       el("div.scroll", {}, [el("table", {}, [
-        el("thead", {}, [el("tr", {}, [
-          ["#", 1], ["Player", 0], [label, 1], ["Apps", 1], ["Goals", 1], ["Assists", 1], ["Rating", 1], ["Seasons", 0], ["", 0],
-        ].map(([h, n], i) => el(`th${n ? ".num" : ""}${i === 2 ? ".sorted" : ""}`, { text: h })))]),
+        el("thead", {}, [el("tr", {}, cols.map(([h, n], i) => el(`th${n ? ".num" : ""}${i === 2 ? ".sorted" : ""}`, { text: h })))]),
         el("tbody", {}, list.map(({ a, v }, i) => {
           const sp = span.get(a.tid);
-          return playerRow(a.tid, [
+          return el("tr.click", { onclick: () => openPlayer(a.tid) }, [
             el("td.num.dim", { text: i + 1 }), el("td.name", { text: D.matchName(a.tid) }),
             el("td.num.hl", { text: num(v, dp) }),
-            el("td.num", { text: a.apps }), el("td.num", { text: a.goals }), el("td.num", { text: a.assists }),
-            el("td.num", { text: a.rating == null ? DASH : num(a.rating, 2) }),
+            ...(rate ? [el("td.num", { text: rate[1](a) == null ? DASH : num(rate[1](a), rate[2]) })] : []),
+            ...line.map(([, , f]) => el("td.num", { text: f(a) })),
             el("td", { text: sp ? (sp[0] === sp[1] ? seasonLabel(sp[0]) : `${seasonLabel(sp[0])} – ${seasonLabel(sp[1])}`) : DASH }),
             el("td", {}, [here(a.tid) ? pill("At the club", "good") : pill("Left", "flat")]),
           ]);
         })),
       ])]),
-      el("p.note", { text: "Career totals for us across every parsed match, all seasons combined — "
-        + "including players no longer at the club (their rows don't open a profile)." }),
+      el("p.note", { text: "Career totals for us across every parsed match, all seasons combined, "
+        + `including players who have left. Average rating needs ${RATING_AWARD_APPS}+ appearances.` }),
     ]);
   }
 
   // ---------------------------------------------------------------- Records
+  // The record book: three plain tables, every opponent and every player a link.
   function records() {
     const margin = (m) => (m.gf || 0) - (m.ga || 0);
     const first = (xs, cmp) => [...xs].sort(cmp)[0];
-    const mline = (m) => `${m.venue === "H" ? "v" : "at"} ${oppName(m)} · ${day(m.date)} · ${m.competition || ""}`;
+    // [label, numeric?, hide on a phone?]
+    const book = (head, list) => el("div.scroll", {}, [el("table.book", {}, [
+      el("thead", {}, [el("tr", {}, head.map(([h, n, sm]) => el(`th${n ? ".num" : ""}${sm ? ".hide-sm" : ""}`, { text: h })))]),
+      el("tbody", {}, list),
+    ])]);
+    const matchRow = (label, value, m) => el("tr", {}, [
+      el("td.name", { text: label }), el("td.num.hl", { text: value }),
+      el("td", {}, [m.venue === "H" ? "v " : "at ", club(m.opp_tid, oppName(m))]),
+      el("td.dim.hide-sm", { text: m.competition || DASH }), el("td.dim", { text: day(m.date) }),
+    ]);
     const team = [
       ["Biggest win", first(matches, (a, b) => margin(b) - margin(a) || b.gf - a.gf)],
       ["Heaviest defeat", first(matches, (a, b) => margin(a) - margin(b) || b.ga - a.ga)],
       ["Most goals scored", first(matches, (a, b) => b.gf - a.gf)],
-      ["Most conceded", first(matches, (a, b) => b.ga - a.ga)],
-    ].filter(([, m]) => m).map(([label, m]) => recCard(label, `${m.gf}–${m.ga}`, mline(m),
-      m.opp_tid != null ? () => openClub(m.opp_tid) : null));
-    const home = matches.filter((m) => m.venue === "H" && m.attendance);
-    const gate = first(home, (a, b) => b.attendance - a.attendance);
-    if (gate) team.push(recCard("Biggest home crowd", Number(gate.attendance).toLocaleString(), mline(gate)));
+      ["Most goals conceded", first(matches, (a, b) => b.ga - a.ga)],
+    ].filter(([, m]) => m).map(([label, m]) => matchRow(label, `${m.gf}–${m.ga}`, m));
+    const gate = first(matches.filter((m) => m.venue === "H" && m.attendance), (a, b) => b.attendance - a.attendance);
+    if (gate) team.push(matchRow("Biggest home crowd", Number(gate.attendance).toLocaleString(), gate));
 
     const chron = [...matches].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const runLine = (r) => (r.len ? `${day(r.from)} → ${day(r.to)}` : "");
     const runs = [
       ["Longest unbeaten run", streak(chron, (m) => m.result !== "L")],
       ["Longest winning run", streak(chron, (m) => m.result === "W")],
       ["Clean sheets in a row", streak(chron, (m) => m.ga === 0)],
       ["Longest winless run", streak(chron, (m) => m.result !== "W")],
-    ].map(([label, r]) => recCard(label, `${r.len} games`, runLine(r)));
+    ].map(([label, r]) => el("tr", {}, [
+      el("td.name", { text: label }), el("td.num.hl", { text: `${r.len}` }),
+      el("td.dim", { text: r.len ? `${day(r.from)} → ${day(r.to)}` : DASH }),
+    ]));
 
     const single = (key, label, dp = 0) => {
       const best = rows.filter((r) => r[key] != null).sort((a, b) => b[key] - a[key])[0];
-      return best ? recCard(label, num(best[key], dp),
-        `${D.matchName(best.tid)} · v ${oppByTid.get(best.opponent_tid) || D.S.clubs.get(best.opponent_tid)?.name || `#${best.opponent_tid}`} · ${day(best.date)}`,
-        D.hasProfile(best.tid) ? () => openProfile(best.tid) : null) : null;
+      if (!best) return null;
+      const opp = oppByTid.get(best.opponent_tid) || D.S.clubs.get(best.opponent_tid)?.name || `#${best.opponent_tid}`;
+      return el("tr", {}, [
+        el("td.name", { text: label }), el("td.num.hl", { text: num(best[key], dp) }),
+        el("td", {}, [who(best.tid)]),
+        el("td", {}, ["v ", club(best.opponent_tid, opp)]),
+        el("td.dim.hide-sm", { text: day(best.date) }),
+      ]);
     };
     const players = [
-      single("goals", "Most goals in a match"), single("assists", "Most assists in a match"),
-      single("rating", "Highest match rating", 2), single("keyPass", "Most key passes"),
-      single("tackW", "Most tackles won"), single("intercept", "Most interceptions"),
-      single("passC", "Most completed passes"), single("dribbles", "Most dribbles"),
+      single("goals", "Goals in a match"), single("assists", "Assists in a match"),
+      single("rating", "Match rating", 2), single("keyPass", "Key passes"),
+      single("tackW", "Tackles won"), single("intercept", "Interceptions"),
+      single("passC", "Completed passes"), single("dribbles", "Dribbles"),
     ].filter(Boolean);
     return el("div", {}, [
-      el("h3", { text: "Team · single match" }), el("div.rcards", {}, team),
-      el("h3", { text: "Team · runs" }), el("div.rcards", {}, runs),
-      el("h3", { text: "Players · single match" }), el("div.rcards", {}, players),
+      el("h3", { text: "Team · single match" }),
+      book([["Record", 0], ["", 1], ["Opponent", 0], ["Competition", 0, 1], ["Date", 0]], team),
+      el("h3", { text: "Team · runs" }),
+      book([["Run", 0], ["Games", 1], ["When", 0]], runs),
+      el("h3", { text: "Players · single match" }),
+      book([["Most …", 0], ["", 1], ["Player", 0], ["Opponent", 0], ["Date", 0, 1]], players),
       el("p.note", { text: "All competitive matches in the save, all seasons. A run counts consecutive "
         + "parsed matches, so a gap in the ring buffer can join or split one." }),
     ]);
   }
 
   // ---------------------------------------------------------------- Awards
+  // Two views of one set of awards. The board is the honours board on the clubhouse wall:
+  // seasons down the side, an award per column, the winner in each cell — and the figure
+  // under it when "Figures" is on. "One season" lists a season's awards in full, with how each
+  // was decided.
   function awards() {
-    const want = Number(hashParams().get("season"));
+    const q = hashParams();
+    const view = q.get("view") === "season" ? "season" : "board";
+    const kind = q.get("kind") === "team" ? "team" : "player";
+    const figures = q.get("fig") === "1";
+    const silly = q.get("silly") === "1";
+    const toggle = (label, on, kv, title) => el(`button.chip${on ? ".on" : ""}`, { text: label, title, onclick: () => { setHashParams(kv); draw(); } });
+    const views = el("span.mseg", {}, [
+      toggle("Honours board", view === "board", { view: null }),
+      toggle("One season", view === "season", { view: "season" }),
+    ]);
+    if (view === "season") return el("div", {}, [el("div.prow", {}, [views]), seasonAwards(q)]);
+    const opts = el("span.mseg", {}, [
+      toggle("Player", kind === "player", { kind: null }),
+      toggle("Team", kind === "team", { kind: "team" }),
+      toggle("Figures", figures, { fig: figures ? null : "1" }, "Show each winner's figure under his name"),
+      ...(kind === "player" ? [toggle("Silly awards", silly, { silly: silly ? null : "1" })] : []),
+    ]);
+    const cells = new Map();          // season -> Map(award -> {text, fig, tid})
+    const order = [];
+    for (const s of seasons) {
+      const items = kind === "player"
+        ? playerAwards(s).filter((a) => silly || !a.silly).map((a) => ({ label: a.label, text: D.matchName(a.who), fig: a.value, note: a.note, tid: a.who }))
+        : seasonTeamAwards(matches.filter((m) => m.season === s)).map((a) => ({ label: a.label, text: a.value, fig: a.note, note: a.note }));
+      const m = new Map();
+      for (const it of items) { m.set(it.label, it); if (!order.includes(it.label)) order.push(it.label); }
+      cells.set(s, m);
+    }
+    // repeat winners: a running count, oldest season first
+    const times = new Map();
+    for (const label of order) {
+      const seen = new Map();
+      for (const s of [...seasons].reverse()) {
+        const c = cells.get(s).get(label);
+        if (c?.tid == null) continue;
+        const n = (seen.get(c.tid) || 0) + 1;
+        seen.set(c.tid, n);
+        times.set(`${s}|${label}`, n);
+      }
+    }
+    return el("div", {}, [
+      el("div.prow", {}, [views, opts]),
+      el("div.scroll", {}, [el(`table.board${figures ? ".figs" : ""}`, {}, [
+        el("thead", {}, [el("tr", {}, [el("th", { text: "Season" }), ...order.map((l) => el("th", { text: l }))])]),
+        el("tbody", {}, seasons.map((s) => el("tr", {}, [
+          el("td.name", {}, [el("button.link", { text: seasonLabel(s), title: "This season's awards in full",
+            onclick: () => { setHashParams({ view: "season", season: s }); draw(); } })]),
+          ...order.map((label) => {
+            const c = cells.get(s).get(label);
+            if (!c) return el("td.dim", { text: DASH });
+            const n = times.get(`${s}|${label}`) || 0;
+            const open = c.tid != null;
+            return el(`td${open ? ".click" : ""}`, { title: `${c.fig} — ${c.note}`, onclick: open ? () => openPlayer(c.tid) : null }, [
+              el("span.who", {}, [c.text, n > 1 ? el("span.times", { text: ` ×${n}` }) : null]),
+              figures && kind === "player" ? el("span.fig", { text: c.fig }) : null,
+              figures && kind === "team" ? el("span.fig", { text: c.note }) : null,
+            ]);
+          }),
+        ]))),
+      ])]),
+      el("p.note", { text: "Newest season first. ×2, ×3 … counts a player's repeat wins of the same "
+        + "award. Hover or tap a cell for how it was decided; a season opens that season in full." }),
+    ]);
+  }
+
+  function seasonAwards(q) {
+    const want = Number(q.get("season"));
     const s = seasons.includes(want) ? want : seasons[0];
-    const silly = hashParams().get("silly") !== "0";
+    const silly = q.get("silly") === "1";
     const sm = matches.filter((m) => m.season === s);
     const items = playerAwards(s).filter((a) => silly || !a.silly);
     const team = seasonTeamAwards(sm);
     const games = sm.length;
     const minApps = Math.max(3, Math.round(games * 0.3));
+    const table = (head, body) => el("div.scroll", {}, [el("table.book", {}, [
+      el("thead", {}, [el("tr", {}, head.map(([h, n]) => el(`th${n ? ".num" : ""}`, { text: h })))]),
+      el("tbody", {}, body),
+    ])]);
     return el("div", {}, [
       el("div.prow", {}, [
         el("span.mseg", {}, seasons.map((x) => el(`button.chip${x === s ? ".on" : ""}`, {
           text: seasonLabel(x), onclick: () => { setHashParams({ season: x }); draw(); },
         }))),
-        el(`button.chip${silly ? ".on" : ""}`, {
-          text: "Silly awards", title: "Show the tongue-in-cheek ones too",
-          onclick: () => { setHashParams({ silly: silly ? "0" : null }); draw(); },
-        }),
+        el(`button.chip${silly ? ".on" : ""}`, { text: "Silly awards",
+          onclick: () => { setHashParams({ silly: silly ? null : "1" }); draw(); } }),
       ]),
       el("h3", { text: `Player awards · ${seasonLabel(s)}` }),
-      items.length ? el("div.rcards", {}, items.map((a) => recCard(
-        a.label, D.matchName(a.who), `${a.value} · ${a.note}`,
-        D.hasProfile(a.who) ? () => openProfile(a.who) : null, a.silly))) : el("p.note", { text: "No player data this season." }),
+      items.length ? table([["Award", 0], ["Winner", 0], ["", 1], ["Decided by", 0]], items.map((a) =>
+        el("tr.click", { onclick: () => openPlayer(a.who) }, [
+          el("td.name", {}, [a.label, a.silly ? el("span.dim", { text: " · silly" }) : null]),
+          el("td", {}, [who(a.who)]), el("td.num.hl", { text: a.value }), el("td.dim", { text: a.note }),
+        ]))) : el("p.note", { text: "No player data this season." }),
       el("h3", { text: "Team awards" }),
-      team.length ? el("div.rcards", {}, team.map((a) => recCard(a.label, a.value, a.note)))
-        : el("p.note", { text: "No managed-club matches this season." }),
+      team.length ? table([["Award", 0], ["", 1], ["Detail", 0]], team.map((a) => el("tr", {}, [
+        el("td.name", { text: a.label }), el("td.num.hl", { text: a.value }), el("td.dim", { text: a.note }),
+      ]))) : el("p.note", { text: "No managed-club matches this season." }),
       el("p.note", { text: `${games} parsed matches; minimum ${minApps} appearances to qualify (the bar `
         + "scales with games played, so a two-game cameo can't win anything). The two average-rating "
         + "awards set it higher again, since an average over a dozen games is noise. Appearances "
@@ -376,33 +535,8 @@ export async function view() {
     ]);
   }
 
-  // ---------------------------------------------------------------- Honours board
-  function honours() {
-    const kind = hashParams().get("board") === "team" ? "team" : "player";
-    const seasonsAsc = [...seasons].sort((a, b) => a - b);
-    const seg = el("span.mseg", {}, [["player", "Player awards"], ["team", "Team awards"]].map(([k, l]) =>
-      el(`button.chip${k === kind ? ".on" : ""}`, { text: l, onclick: () => { setHashParams({ board: k === "team" ? k : null }); draw(); } })));
-    const table = kind === "player"
-      ? honoursTable(seasonsAsc, (s) => playerAwards(s).map((a) => [a.label, D.matchName(a.who), `${a.value} — ${a.note}`, a.who]))
-      : honoursTable(seasonsAsc, (s) => seasonTeamAwards(matches.filter((m) => m.season === s)).map((a) => [a.label, a.value, a.note]));
-    return el("div", {}, [
-      el("div.prow", {}, [seg]), table,
-      el("p.note", { text: "Every award's winner, every season — hover or tap a name for the figure. "
-        + "×2, ×3 … counts a player's repeat wins of the same award." }),
-    ]);
-  }
-
   draw();
   return out;
-}
-
-/** One record as a card: what it is, the headline, and the line that places it. */
-function recCard(label, value, sub, onclick = null, silly = false) {
-  return el(`div.rcard${onclick ? ".click" : ""}`, { onclick, title: sub }, [
-    el("span.lbl", {}, [label, silly ? pill("silly", "flat") : null]),
-    el("b", { text: value }),
-    sub ? el("small", { text: sub }) : null,
-  ]);
 }
 
 /** How far a run got: the stage of the competition's last match, and whether it ended there. */
@@ -413,14 +547,6 @@ function reachedParts(ms) {
   const where = last.stage_kind === "Group" ? "Group stage" : String(last.stage).split(" · ").pop();
   const isFinal = /(^|· )Final$/.test(last.stage);
   return { where, out: last.went_through === false, winners: isFinal && !!last.went_through };
-}
-
-/** A table row for a player, clickable only when a profile actually exists to open — a row
- *  resolved solely through matches.json's `player_names` fallback has no profile behind it. */
-function playerRow(tid, cells) {
-  return D.hasProfile(tid)
-    ? el("tr.click", { onclick: () => openProfile(tid) }, cells)
-    : el("tr", {}, cells);
 }
 
 /** Every player award for one season — the full list, including silly ones (the interactive
@@ -603,41 +729,6 @@ function seasonTeamAwards(sm) {
     crowd ? ["Biggest Crowd", crowd] : null,
     cupRun ? ["Cup Run", cupRun] : null,
   ].filter(Boolean).map(([label, v]) => (v ? { label, value: v.value, note: v.note } : null)).filter(Boolean);
-}
-
-/** Award × season, winners only. itemsFor(season) gives [label, winner, detail, tid?] per
- *  award; the detail is the cell's tooltip. A repeat winner carries a running count (×2, ×3),
- *  which is what an honours board is for. */
-function honoursTable(seasonsAsc, itemsFor) {
-  const matrix = new Map(); // label -> Map(season -> [text, title, tid])
-  const order = [];
-  for (const s of seasonsAsc) {
-    for (const [label, text, title, tid] of itemsFor(s)) {
-      if (!matrix.has(label)) { matrix.set(label, new Map()); order.push(label); }
-      matrix.get(label).set(s, [text, title, tid]);
-    }
-  }
-  if (!order.length) return el("p.note", { text: "No awards yet." });
-  return el("div.scroll", {}, [el("table.honours", {}, [
-    el("thead", {}, [el("tr", {}, [el("th", { text: "Award" }),
-      ...seasonsAsc.map((s) => el("th", { text: `${s - 1}/${String(s).slice(2)}` }))])]),
-    el("tbody", {}, order.map((label) => {
-      const wins = new Map();          // tid -> times won so far, left to right
-      return el("tr", {}, [
-        el("td.name", { text: label }),
-        ...seasonsAsc.map((s) => {
-          const c = matrix.get(label).get(s);
-          if (!c) return el("td.dim", { text: DASH });
-          const [text, title, tid] = c;
-          const n = tid == null ? 0 : (wins.get(tid) || 0) + 1;
-          if (tid != null) wins.set(tid, n);
-          const open = tid != null && D.hasProfile(tid);
-          return el(`td${open ? ".click" : ""}`, { title, onclick: open ? () => openProfile(tid) : null },
-            [text, n > 1 ? el("span.times", { text: ` ×${n}`, title: `His ${n} wins of this award` }) : null]);
-        }),
-      ]);
-    })),
-  ])]);
 }
 
 function streak(chron, pred) {

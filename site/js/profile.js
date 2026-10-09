@@ -263,6 +263,37 @@ function careerTable(career) {
  * personality/hidden toggle are remembered across players.
  */
 let squadTried = false;
+/**
+ * Open whatever we know about a player — the one entry point for every clickable name.
+ *
+ * The full profile needs the player in `S.players`, which boot() fills only with our squad and
+ * the division-ladder clubs. Anyone else who is still in the save (a player who left us for
+ * another club) is fetched on demand from all.json. Someone the save no longer holds at all —
+ * retired, or gone abroad out of the database — still has every match he played for us, so he
+ * gets a "former player" sheet built from those rows: his seasons, his record, and his splits.
+ */
+export async function openPlayer(tid) {
+  if (tid == null) return;
+  if (D.S.players.has(tid)) return openProfile(tid);
+  const p = await D.loadProfile(tid);
+  if (p) return openProfile(tid);
+  await D.loadMatches().catch(() => null);
+  const rows = D.matchRows().filter((r) => r.tid === tid);
+  const agg = D.S.matchAgg?.get(tid) || null;
+  const seasons = [...new Set(rows.map((r) => r.season))].sort((a, b) => a - b);
+  const lbl = (y) => `${y - 1}/${String(y).slice(2)}`;
+  sheet(D.matchName(tid), [
+    el("p.note", { text: seasons.length
+      ? `Played for us ${seasons.length === 1 ? `in ${lbl(seasons[0])}` : `from ${lbl(seasons[0])} to ${lbl(seasons.at(-1))}`}. `
+        + "There's no profile to show for him (he has left the save, or it couldn't be fetched), "
+        + "so this is his record for us only — no attributes or ratings."
+      : "Not in this export." }),
+    el("h4", { text: "Match record for us (all seasons)" }),
+    statBlock(agg),
+    splitBlock(tid),
+  ]);
+}
+
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
