@@ -329,6 +329,7 @@ export function openProfile(tid, { role = null } = {}) {
   let matchesTried = false;
   let fitSeason = null;              // the Fit tab's "what he has done" columns: null = all time
   let fitNorm = false;               // ...and whether they show ▲/▼ against his own average
+  let fitPick = false;               // ...and whether the stat-column picker is open
   // The development chart, the attribute growth options and career history all read
   // squad.json. Pages other than Squad don't load it, so fetch it (once, ~20 KB) before the
   // first sheet rather than showing a profile with those parts silently missing.
@@ -518,10 +519,40 @@ export function openProfile(tid, { role = null } = {}) {
       })),
       el(`button.btn${fitNorm ? ".on" : ""}`, {
         text: "vs his norm",
-        title: "Mark each position's rating and G+A/90 against his own average over every start "
+        title: "Mark each position's rating and stats against his own average over every start "
           + "he has made for us — in one season, how each position went against his usual level",
         onclick: () => { fitNorm = !fitNorm; showTab("fit", false); },
       }),
+      el(`button.btn${fitPick ? ".on" : ""}`, {
+        text: "Columns", title: "Pick the match stats shown for each position",
+        onclick: () => { fitPick = !fitPick; showTab("fit", false); },
+      }),
+    ]) : null;
+    // The record's stat columns: the player's unit's defaults (D.UNIT_STATS — a defender opens on
+    // defensive actions, a midfielder on key passes), or what was last picked for that unit.
+    // Kept per unit, so tailoring the defenders' columns doesn't change a striker's.
+    const unit = D.unitOf(roles[0]?.pos || "MC");
+    const STATS_KEY = `fm:fit:stats:${unit}`;
+    const RATES = Object.keys(D.STAT_DEFS).filter((k) => /\/90$|%$/.test(k));
+    const stats = (() => {
+      try {
+        const v = JSON.parse(pref(STATS_KEY, "null"));
+        if (Array.isArray(v)) return v.filter((k) => D.STAT_DEFS[k]);
+      } catch { /* fall through */ }
+      return D.UNIT_STATS[unit];
+    })();
+    const setStats = (list) => { setPref(STATS_KEY, JSON.stringify(list)); showTab("fit", false); };
+    const picker = fitPick ? el("div.picker.fitpick", {}, [
+      el("div.prow", {}, [
+        el("span.dim", { text: `Columns for ${unit === "GK" ? "goalkeepers" : unit.toLowerCase()}` }),
+        el("button.chip.ghost", { text: "Reset", title: `Back to the ${unit} defaults`,
+          onclick: () => { try { localStorage.removeItem(STATS_KEY); } catch { /* ignore */ } showTab("fit", false); } }),
+      ]),
+      ...[["Per 90", (k) => /\/90$/.test(k)], ["Success %", (k) => /%$/.test(k)]].map(([g, test]) =>
+        el("div.pgroup", {}, [el("h4", { text: g }), ...RATES.filter(test).map((k) => el(`button.chip${stats.includes(k) ? ".on" : ""}`, {
+          text: k, title: D.statHelp(k),
+          onclick: () => setStats(stats.includes(k) ? stats.filter((x) => x !== k) : [...stats, k]),
+        }))])),
     ]) : null;
     const played = playedAt(tid, fitSeason);
     // His norm is his average over EVERY competitive start for us, all time and every position —
@@ -540,20 +571,21 @@ export function openProfile(tid, { role = null } = {}) {
       .filter((a) => a && a.starts >= MIN_STARTS && a.ratingAdj != null).map((a) => a.ratingAdj)) : null;
     const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
     if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
-    heads.push("Squad rank", "Starts", "Rating (adj)", "G+A/90");
+    heads.push("Squad rank", "Starts", "Rating (adj)", ...stats);
     const playedCells = (q) => {
       const a = played?.get(q);
-      if (!played) return [el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" })];
-      if (!a) return [el("td.num.dim", { text: "0" }), el("td.num", { text: DASH }), el("td.num", { text: DASH })];
+      const fill = (text, cls = "td.num.dim") => [el(cls, { text }), ...[null, ...stats].map(() => el("td.num", { text: DASH }))];
+      if (!played) return [el("td.num.dim", { text: "…" }), ...[null, ...stats].map(() => el("td.num.dim", { text: "…" }))];
+      if (!a) return fill("0");
       const best = a.starts >= MIN_STARTS && a.ratingAdj != null && a.ratingAdj === bestAdj;
-      const ga90 = (x) => (x?.min ? (90 * (x.goals + x.assists)) / x.min : null);
-      // value, then (vs his norm) ▲/▼ against the same figure over all his starts in the span
-      const withDelta = (v, base) => {
+      // value, then (vs his norm) ▲/▼ against the same figure over every start he has made. The
+      // arrow is the direction; the colour is whether that is good — more mistakes is red.
+      const withDelta = (v, base, dp = 2, lower = false) => {
         if (v == null) return [DASH];
-        if (!fitNorm || base == null) return [num(v, 2)];
-        const d = v - base, flat = Math.abs(d) < 0.005;
-        return [el("span.normcell", {}, [num(v, 2), el(`span.delta${flat ? "" : d > 0 ? ".up" : ".down"}`, {
-          text: flat ? "=" : `${d > 0 ? "▲" : "▼"}${num(Math.abs(d), 2)}`, title: `His norm: ${num(base, 2)}`,
+        if (!fitNorm || base == null) return [num(v, dp)];
+        const d = v - base, flat = Math.abs(d) < 0.5 * 10 ** -dp;
+        return [el("span.normcell", {}, [num(v, dp), el(`span.delta${flat ? "" : (d > 0) !== lower ? ".up" : ".down"}`, {
+          text: flat ? "=" : `${d > 0 ? "▲" : "▼"}${num(Math.abs(d), dp)}`, title: `His norm: ${num(base, dp)}`,
         })])];
       };
       return [
@@ -561,18 +593,19 @@ export function openProfile(tid, { role = null } = {}) {
         el(`td.num${best ? ".best" : ""}${a.starts < MIN_STARTS ? ".dim" : ""}`, {
           title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
         }, withDelta(a.ratingAdj, norm?.ratingAdj)),
-        el("td.num", {}, withDelta(ga90(a), ga90(norm))),
+        ...stats.map((k) => el("td.num", {}, withDelta(D.statValue(k, a), D.statValue(k, norm), D.statDp(k), D.lowerIsBetter(k)))),
       ];
     };
     const oneNote = fitNorm && onePos && fitSeason == null ? el("p.note", {
       text: `Every start he has made for us is at ${[...career.keys()][0]}, so over all time that `
         + "position is his norm. Pick a season to see how it went against his usual level.",
     }) : null;
-    const out = el("div", {}, [seasonChips, oneNote, el("div.scroll.fit", {}, [el("table", {}, [
+    const out = el("div", {}, [seasonChips, picker, oneNote, el("div.scroll.fit", {}, [el("table", {}, [
       el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
         text: h,
         title: h === "Rating (adj)" ? "Average position-adjusted match rating over his competitive starts there"
-          : h === "Starts" ? "Competitive starts for us at this position" : null,
+          : h === "Starts" ? "Competitive starts for us at this position"
+            : D.STAT_DEFS[h] ? `${D.statHelp(h)}, over his competitive starts there` : null,
       })))]),
       el("tbody", {}, roles.map((r) => {
         const cells = [
@@ -612,7 +645,9 @@ export function openProfile(tid, { role = null } = {}) {
         + "stand among our own players at that position if he were part of the squad. "
         + "The last three columns are what he has <i>done</i> there: his competitive <b>Starts</b> "
         + "for us at the position, his <b>Rating (adj)</b> over them — the match rating adjusted "
-        + "for position, so it compares across rows — and <b>G+A/90</b>. The best adjusted rating "
+        + "for position, so it compares across rows — and the match stats a player of his unit is "
+        + "judged on (a defender opens on defensive actions, a forward on goals; <b>Columns</b> "
+        + "changes them, remembered per unit). The best adjusted rating "
         + `with ${3}+ starts is marked; fewer starts are greyed. Substitute appearances aren't `
         + "counted (the game records positions for starters only), and neither are starts at a "
         + "position he isn't listed at. The chips pick the span: all time or one season. "

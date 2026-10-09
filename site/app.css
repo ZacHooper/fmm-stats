@@ -566,3 +566,4 @@ td.best{color:var(--good);font-weight:700}
 .coltip p{margin:3px 0 0}
 .coltip .ctnote{color:var(--dim)}
 .coltip .ctfoot{margin-top:6px;padding-top:5px;border-top:1px solid var(--line2);color:var(--dim);font-size:11px}
+.fitpick{margin:0 0 8px}
