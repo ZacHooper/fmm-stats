@@ -518,12 +518,18 @@ export function openProfile(tid, { role = null } = {}) {
       })),
       el(`button.btn${fitNorm ? ".on" : ""}`, {
         text: "vs his norm",
-        title: "Mark each position's rating and G+A/90 against his own average over all his starts "
-          + "in the same span — where does he play above or below himself?",
+        title: "Mark each position's rating and G+A/90 against his own average over every start "
+          + "he has made for us — in one season, how each position went against his usual level",
         onclick: () => { fitNorm = !fitNorm; showTab("fit", false); },
       }),
     ]) : null;
     const played = playedAt(tid, fitSeason);
+    // His norm is his average over EVERY competitive start for us, all time and every position —
+    // the same norm the Matches page uses. So in one season the marks say how each position went
+    // against his usual level, and over all time they compare the positions with each other.
+    const career = fitNorm ? playedAt(tid, null) : null;
+    const norm = career?.norm || null;
+    const onePos = career && career.size === 1;
     if (!played && !matchesTried) {
       matchesTried = true;
       D.loadMatches().then(() => { if (curTab === "fit") showTab("fit", false); }).catch(() => null);
@@ -554,11 +560,15 @@ export function openProfile(tid, { role = null } = {}) {
         el("td.num", { text: a.starts, title: `${num(a.min)} minutes` }),
         el(`td.num${best ? ".best" : ""}${a.starts < MIN_STARTS ? ".dim" : ""}`, {
           title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
-        }, withDelta(a.ratingAdj, played.norm?.ratingAdj)),
-        el("td.num", {}, withDelta(ga90(a), ga90(played.norm))),
+        }, withDelta(a.ratingAdj, norm?.ratingAdj)),
+        el("td.num", {}, withDelta(ga90(a), ga90(norm))),
       ];
     };
-    const out = el("div", {}, [seasonChips, el("div.scroll.fit", {}, [el("table", {}, [
+    const oneNote = fitNorm && onePos && fitSeason == null ? el("p.note", {
+      text: `Every start he has made for us is at ${[...career.keys()][0]}, so over all time that `
+        + "position is his norm. Pick a season to see how it went against his usual level.",
+    }) : null;
+    const out = el("div", {}, [seasonChips, oneNote, el("div.scroll.fit", {}, [el("table", {}, [
       el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
         text: h,
         title: h === "Rating (adj)" ? "Average position-adjusted match rating over his competitive starts there"
@@ -606,8 +616,8 @@ export function openProfile(tid, { role = null } = {}) {
         + `with ${3}+ starts is marked; fewer starts are greyed. Substitute appearances aren't `
         + "counted (the game records positions for starters only), and neither are starts at a "
         + "position he isn't listed at. The chips pick the span: all time or one season. "
-        + "<b>vs his norm</b> marks each figure ▲/▼ against his own average over all his starts "
-        + "in that span, every position together.",
+        + "<b>vs his norm</b> marks each figure ▲/▼ against his own average over every start he "
+        + "has made for us, all time and every position — the same norm as the Matches page.",
     })]));
     return out;
   }
