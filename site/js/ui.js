@@ -35,6 +35,7 @@ export function num(v, dp = 0) {
 export function money(v) {
   if (v == null) return DASH;
   const a = Math.abs(v);
+  if (a >= 1e9) return `£${(v / 1e9).toFixed(1)}bn`;
   if (a >= 1e6) return `£${(v / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
   if (a >= 1e3) return `£${(v / 1e3).toFixed(a >= 1e4 ? 0 : 1)}K`;
   return `£${v}`;

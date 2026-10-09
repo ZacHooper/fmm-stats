@@ -522,7 +522,7 @@ td.hl{font-weight:700;color:var(--accent)}
 .tlfig>span{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
 @media(min-width:860px){
   .tlgrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
-  .tlfigs{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .tlfigs{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 
 /* Records + one season's awards: the record book */
@@ -567,3 +567,9 @@ td.best{color:var(--good);font-weight:700}
 .coltip .ctnote{color:var(--dim)}
 .coltip .ctfoot{margin-top:6px;padding-top:5px;border-top:1px solid var(--line2);color:var(--dim);font-size:11px}
 .fitpick{margin:0 0 8px}
+/* Transfers (transfers.js, History): money in green, money out red; pre-career record rows dimmed */
+td.pos{color:var(--good);font-weight:600}
+td.neg{color:var(--bad);font-weight:600}
+.tlfig.up>b{color:var(--good)}
+.tlfig.down>b{color:var(--bad)}
+tr.pre td{color:var(--dim)}

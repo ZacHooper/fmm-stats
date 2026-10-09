@@ -63,6 +63,7 @@ pays for it. Everything else is 125 KB gzipped and committed.
 | `api/core.json` | 92 KB | git | on boot — our clubs + the whole division ladder |
 | `api/clubs.json` | 66 KB | git | resolving a club name/tid outside the ladder |
 | `api/matches.json` | 19 KB | git | Matches / History / any match column |
+| `api/transfers.json` | 16 KB | git | History (signings, sales, the season ledger) / World › Transfers |
 | `api/squad.json` | 8 KB | git | growth trajectories + career history |
 | `api/loans.json` | 8 KB | git | a player profile's Loan outlook (owned players) |
 | `api/registration.json` | 1 KB | git | the A/B lists + derived home-grown status |

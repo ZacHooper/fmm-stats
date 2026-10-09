@@ -3,6 +3,7 @@
  *
  *   Seasons        what happened each year?      one entry per season, newest first (or the full table)
  *   Hall of Fame   who are our greats?           one leaderboard at a time, with each player's career line
+ *   Transfers      who came and went?            every move in or out, by season, with key figures
  *   Records        what are the bests?           the record book: single-match bests and runs
  *   Awards         who won what?                 the honours board (season × award), or one season in full
  *
@@ -23,6 +24,7 @@ import * as D from "../data.js";
 import { el, num, money, pill, bar, DASH, hashParams, setHashParams } from "../ui.js";
 import { openPlayer } from "../profile.js";
 import { openClub } from "../club.js";
+import { ourMoves, seasonMoney, feeText, netText, playerLink, clubLink } from "../transfers.js";
 
 // How far a season got in one competition: the stage of its last match there.
 // "3F Superliga (Championship Group)", "Sydbank Pokalen (Fourth Round, out)".
@@ -45,6 +47,7 @@ const RATING_AWARD_APPS = 20;
 const TABS = [
   ["seasons", "Seasons"],
   ["fame", "Hall of Fame"],
+  ["transfers", "Transfers"],
   ["records", "Records"],
   ["awards", "Awards"],
 ];
@@ -102,6 +105,11 @@ export async function view() {
     return awardCache.get(s);
   };
 
+  // Our transfers (transfers.js): the Transfers tab, the Signings and Sales boards, and each
+  // season's spent / received / net. Absent from an older export: those parts just don't show.
+  const moves = ourMoves(await D.loadTransfers());
+  const moneyBySeason = seasonMoney(moves);
+
   // ---------------------------------------------------------------- per-season summary
   const prog = seasons.map((s) => {
     const ms = matches.filter((m) => m.season === s);
@@ -124,6 +132,7 @@ export async function view() {
       snaps: D.S.index.snapshots.filter((x) => x.season === s).length,
       att: attBySeason.get(s) || null,
       fin: finBySeason.get(s) || null,
+      tx: moneyBySeason.get(s) || null,
     };
   });
 
@@ -165,7 +174,7 @@ export async function view() {
     tabRow.replaceChildren(...TABS.map(([k, label]) => el(`button.chip${k === tab ? ".on" : ""}`, {
       text: label, role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => show(k),
     })));
-    const PANELS = { seasons: seasonsTab, fame, records, awards };
+    const PANELS = { seasons: seasonsTab, fame, transfers, records, awards };
     panel.replaceChildren(PANELS[tab]());
   }
 
@@ -201,7 +210,8 @@ export async function view() {
         + "season and can fall short of the true fixture list (match detail sits in a ring buffer "
         + "the game overwrites). How far a run got is the stage of its last match, in the game's own "
         + "words; \"out\" is a tie lost. Crowds are home games only; squad value and wage bill are "
-        + "at the season's last snapshot, owned players only." }),
+        + "at the season's last snapshot, owned players only. Spent and received are transfer fees "
+        + "for the campaign a player moved FOR, so a June signing counts toward the next season." }),
     ]);
   }
 
@@ -216,6 +226,10 @@ export async function view() {
       r.att ? fig("Avg crowd", r.att.avg_att.toLocaleString(), `Biggest: ${r.att.max_att.toLocaleString()}`) : null,
       r.fin ? fig("Squad value", money(r.fin.value_gbp), `At ${r.fin.phase}, owned players`) : null,
       r.fin ? fig("Wage bill", money(r.fin.wage_gbp), `At ${r.fin.phase}, owned players`) : null,
+      r.tx ? fig("Spent", money(r.tx.spent), `${r.tx.nIn} in (paid and free)`) : null,
+      r.tx ? fig("Received", money(r.tx.received), `${r.tx.nOut} out (paid and free)`) : null,
+      r.tx ? el(`div.tlfig${r.tx.net > 0 ? ".up" : r.tx.net < 0 ? ".down" : ""}`, { title: "Received less spent, on fees" },
+        [el("b", { text: netText(r.tx.net) }), el("span", { text: "Transfer net" })]) : null,
     ].filter(Boolean);
     return el("div.tlitem", {}, [
       el("div.tldot"),
@@ -243,8 +257,9 @@ export async function view() {
 
   function seasonTable() {
     const HEAD = ["Season", "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm",
-      "Avg crowd", "Max crowd", "Squad value", "Wage bill", "Competitions · how far", "Snapshots"];
-    const TEXT_COLS = new Set([0, HEAD.length - 2]);
+      "Avg crowd", "Max crowd", "Squad value", "Wage bill", "Spent", "Received", "Net",
+      "Competitions · how far", "Snapshots"];
+    const TEXT_COLS = new Set([0, HEAD.indexOf("Competitions · how far")]);
     const finTitle = (f) => `At ${f.phase} · ${f.n_owned} owned players`
       + (f.n_value_est ? ` · ${f.n_value_est} valued by the model (no value in the save)` : "")
       + (f.n_loan_in ? ` · ${f.n_loan_in} loanee${f.n_loan_in === 1 ? "" : "s"} excluded` : "");
@@ -261,6 +276,9 @@ export async function view() {
         el("td.num", { text: r.att ? r.att.max_att.toLocaleString() : DASH }),
         el("td.num", r.fin ? { text: money(r.fin.value_gbp), title: finTitle(r.fin) } : { text: DASH }),
         el("td.num", r.fin ? { text: money(r.fin.wage_gbp), title: finTitle(r.fin) } : { text: DASH }),
+        el("td.num", { text: r.tx ? money(r.tx.spent) : DASH }),
+        el("td.num", { text: r.tx ? money(r.tx.received) : DASH }),
+        el(`td.num${r.tx?.net > 0 ? ".pos" : r.tx?.net < 0 ? ".neg" : ""}`, { text: r.tx ? netText(r.tx.net) : DASH }),
         el("td", { text: r.comps.join(", ") || DASH }),
         el("td.num", { text: r.snaps }),
       ]))),
@@ -293,13 +311,56 @@ export async function view() {
     ["hat", "Hat-tricks", (a) => hatTricks.get(a.tid) || null, 0, ["Games per", (a) => (hatTricks.get(a.tid) ? a.apps / hatTricks.get(a.tid) : null), 0]],
     ["potm", "Player of the Match", (a) => a.potm, 0, ["Per 10 apps", (a) => (a.apps ? (10 * a.potm) / a.apps : null), 1]],
   ];
+  // Signings and Sales: the biggest fees we have paid and been paid, each with what the player
+  // did for us and the other end of his time here — a signing's later sale, a sale's fee in.
+  const TX_BOARDS = moves.length ? [["signings", "Signings", "in"], ["sales", "Sales", "out"]] : [];
+  function transferBoard(dir) {
+    const paid = moves.filter((m) => m.direction === dir && m.type === "permanent" && m.fee)
+      .sort((a, b) => b.fee - a.fee).slice(0, 15);
+    // the other end of his time here: for a signing his next sale, for a sale his last signing
+    const other = (m) => {
+      const ends = moves.filter((x) => x.tid === m.tid && x.direction !== dir && x.type !== "graduation");
+      return dir === "in" ? ends.filter((x) => x.season >= m.season).sort((a, b) => a.season - b.season)[0]
+        : ends.filter((x) => x.season <= m.season).sort((a, b) => b.season - a.season)[0];
+    };
+    return el("div.scroll", {}, [el("table", {}, [
+      el("thead", {}, [el("tr", {}, [["#", 1], ["Player", 0], ["Fee", 1], [dir === "in" ? "From" : "To", 0], ["Season", 0],
+        ["Age", 1], ["Apps", 1], ["Goals", 1], ["Rating (adj)", 1], [dir === "in" ? "Sold for" : "Bought for", 1], ["", 0]]
+        .map(([h, n], i) => el(`th${n ? ".num" : ""}${i === 2 ? ".sorted" : ""}`, { text: h })))]),
+      el("tbody", {}, paid.map((m, i) => {
+        const a = career.get(m.tid);
+        const o = other(m);
+        const here = (() => { const p = D.S.players.get(m.tid); return !!p && D.isOurs(p); })();
+        return el("tr.click", { onclick: () => openPlayer(m.tid) }, [
+          el("td.num.dim", { text: i + 1 }), el("td.name", { text: m.name }),
+          el("td.num.hl", { text: money(m.fee) }),
+          el("td", {}, [dir === "in" ? clubLink(m.from_tid, m.from_club) : clubLink(m.to_tid, m.to_club)]),
+          el("td", { text: seasonLabel(m.season) }), el("td.num", { text: m.age ?? DASH }),
+          el("td.num", { text: a ? a.apps : 0 }), el("td.num", { text: a ? a.goals : 0 }),
+          el("td.num", { text: a?.ratingAdj != null ? num(a.ratingAdj, 2) : DASH }),
+          el("td.num", { text: o ? feeText(o) : DASH, title: o ? `${seasonLabel(o.season)} · ${o.direction === "in" ? o.from_club || "free agent" : o.to_club}` : null }),
+          el("td", {}, [dir === "in" ? (here ? pill("At the club", "good") : pill("Left", "flat")) : null]),
+        ]);
+      })),
+    ])]);
+  }
+
   function fame() {
     const want = hashParams().get("board");
+    const tx = TX_BOARDS.find((b) => b[0] === want);
     const [, label, fn, dp, rate] = BOARDS.find((b) => b[0] === want) || BOARDS[0];
     const key = (BOARDS.find((b) => b[0] === want) || BOARDS[0])[0];
     const list = [...career.values()].map((a) => ({ a, v: fn(a) }))
       .filter((x) => x.v != null && Number.isFinite(x.v) && x.v > 0)
       .sort((x, y) => y.v - x.v).slice(0, 15);
+    const chips = el("div.prow", {}, [el("span.mseg", {}, [...BOARDS, ...TX_BOARDS].map(([k, l]) => el(`button.chip${k === (tx ? tx[0] : key) ? ".on" : ""}`, {
+      text: l, onclick: () => { setHashParams({ board: k }); draw(); },
+    })))]);
+    if (tx) {
+      return el("div", {}, [chips, transferBoard(tx[2]), el("p.note", { text: "Paid moves only, by fee. "
+        + "Apps, goals and Rating (adj) are his competitive career for us. "
+        + `${tx[2] === "in" ? "Sold for" : "Bought for"} is the other end of his time here, where there was one.` })]);
+    }
     const here = (tid) => { const p = D.S.players.get(tid); return !!p && D.isOurs(p); };
     // The career line, less the column the board already shows.
     const line = [["apps", "Apps", (a) => a.apps], ["goals", "Goals", (a) => a.goals],
@@ -308,9 +369,7 @@ export async function view() {
     const cols = [["#", 1], ["Player", 0], [label, 1], ...(rate ? [[rate[0], 1]] : []),
       ...line.map(([, h]) => [h, 1]), ["Seasons", 0], ["", 0]];
     return el("div", {}, [
-      el("div.prow", {}, [el("span.mseg", {}, BOARDS.map(([k, l]) => el(`button.chip${k === key ? ".on" : ""}`, {
-        text: l, onclick: () => { setHashParams({ board: k }); draw(); },
-      })))]),
+      chips,
       el("div.scroll", {}, [el("table", {}, [
         el("thead", {}, [el("tr", {}, cols.map(([h, n], i) => el(`th${n ? ".num" : ""}${i === 2 ? ".sorted" : ""}`, { text: h })))]),
         el("tbody", {}, list.map(({ a, v }, i) => {
@@ -327,6 +386,68 @@ export async function view() {
       ])]),
       el("p.note", { text: "Career totals for us across every parsed match, all seasons combined, "
         + `including players who have left. Average rating needs ${RATING_AWARD_APPS}+ appearances.` }),
+    ]);
+  }
+
+  // ---------------------------------------------------------------- Transfers
+  // Every move in or out, all seasons or one, with the key figures for the span as tiles.
+  // Free moves and academy graduates are moves too, so they're listed; only paid moves carry
+  // money into the tiles.
+  function transfers() {
+    if (!moves.length) return el("p.note", { text: "No transfer data in this export." });
+    const q = hashParams();
+    const tSeasons = [...new Set(moves.map((m) => m.season))].sort((a, b) => b - a);
+    const want = Number(q.get("tseason"));
+    const yr = tSeasons.includes(want) ? want : null;
+    const dir = ["in", "out"].includes(q.get("dir")) ? q.get("dir") : null;
+    const inSpan = moves.filter((m) => yr == null || m.season === yr);
+    const shown = inSpan.filter((m) => dir == null || m.direction === dir)
+      .sort((a, b) => b.season - a.season || String(b.date || "").localeCompare(String(a.date || "")));
+    const chip = (label, on, kv) => el(`button.chip${on ? ".on" : ""}`, { text: label, onclick: () => { setHashParams(kv); draw(); } });
+    const ins = inSpan.filter((m) => m.direction === "in" && m.type !== "graduation");
+    const outs = inSpan.filter((m) => m.direction === "out");
+    const sum = (xs) => xs.reduce((t, m) => t + (m.fee || 0), 0);
+    const spent = sum(ins), received = sum(outs);
+    const best = (xs) => xs.filter((m) => m.fee).sort((a, b) => b.fee - a.fee)[0];
+    const recIn = best(ins), recOut = best(outs);
+    const grads = inSpan.filter((m) => m.type === "graduation").length;
+    const tile = (label, value, sub, cls = "") => el(`div.kpi${cls}`, {}, [el("b", { text: value }), el("span", { text: label }), sub ? el("small", { text: sub }) : null]);
+    return el("div", {}, [
+      el("div.prow", {}, [
+        el("span.mseg", {}, [chip("All seasons", yr == null, { tseason: null }),
+          ...tSeasons.map((y) => chip(seasonLabel(y), y === yr, { tseason: y }))]),
+      ]),
+      el("div.prow", {}, [el("span.mseg", {}, [chip("In and out", dir == null, { dir: null }),
+        chip("Signings", dir === "in", { dir: "in" }), chip("Departures", dir === "out", { dir: "out" })])]),
+      el("div.kpis.hl", {}, [
+        tile("Spent", money(spent), `${ins.filter((m) => m.fee).length} paid of ${ins.length} signings`),
+        tile("Received", money(received), `${outs.filter((m) => m.fee).length} paid of ${outs.length} departures`),
+        tile("Transfer net", netText(received - spent), "received less spent", received - spent > 0 ? ".good" : received - spent < 0 ? ".bad" : ""),
+        recIn ? tile("Record signing", money(recIn.fee), `${recIn.name} · ${recIn.from_club}`) : null,
+        recOut ? tile("Record sale", money(recOut.fee), `${recOut.name} · ${recOut.to_club}`) : null,
+        tile("Academy graduates", String(grads), "into the first team or reserves"),
+      ]),
+      el("div.scroll", {}, [el("table.book", {}, [
+        // [label, numeric?, hidden on a phone?]
+        el("thead", {}, [el("tr", {}, [["Season", 0], ["Date", 0, 1], ["", 0], ["Player", 0], ["Age", 1, 1], ["Club", 0],
+          ["Fee", 1], ["Apps", 1], ["Goals", 1, 1], ["Rating (adj)", 1]].map(([h, n, sm]) => el(`th${n ? ".num" : ""}${sm ? ".hide-sm" : ""}`, { text: h })))]),
+        el("tbody", {}, shown.length ? shown.map((m) => {
+          const a = career.get(m.tid);
+          return el("tr", {}, [
+            el("td", { text: seasonLabel(m.season) }), el("td.dim.hide-sm", { text: m.date || DASH }),
+            el("td", {}, [m.type === "graduation" ? pill("Academy", "flat") : pill(m.direction === "in" ? "In" : "Out", m.direction === "in" ? "good" : "bad")]),
+            el("td.name", {}, [playerLink(m.tid, m.name)]), el("td.num.hide-sm", { text: m.age ?? DASH }),
+            el("td", {}, [m.type === "graduation" ? el("span.dim", { text: "Youth side" })
+              : m.direction === "in" ? clubLink(m.from_tid, m.from_club) : clubLink(m.to_tid, m.to_club)]),
+            el(`td.num${m.fee ? ".hl" : ".dim"}`, { text: feeText(m) }),
+            el("td.num", { text: a ? a.apps : 0 }), el("td.num.hide-sm", { text: a ? a.goals : 0 }),
+            el("td.num", { text: a?.ratingAdj != null ? num(a.ratingAdj, 2) : DASH }),
+          ]);
+        }) : [el("tr", {}, [el("td.empty", { colspan: 10, text: "No moves." })])]),
+      ])]),
+      el("p.note", { text: "Season is the campaign he moved FOR: a June signing counts toward the "
+        + "next season. Apps, goals and Rating (adj) are his whole competitive career for us. "
+        + "Loans aren't transfers and aren't listed." }),
     ]);
   }
 

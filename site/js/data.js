@@ -155,6 +155,12 @@ export async function loadWorld() {
   }
   return S.world;
 }
+/** Transfers (api/transfers.json): our own moves in full, the world market summarised per
+ *  season, and the world record progression. Loaded by History and World only. */
+export async function loadTransfers() {
+  if (S.transfers === undefined) S.transfers = await j("api/transfers.json").catch(() => null);
+  return S.transfers;
+}
 export async function loadMatches() {
   if (!S.matches) {
     S.matches = await j("api/matches.json");

@@ -1,7 +1,8 @@
 /**
  * World — the reputation ladders (leagues, clubs, nations), each a sortable table with a chart
- * of how the entities in it moved across every snapshot, plus two maps: our nation's clubs by
- * division, and the stadiums of our current squad's origin clubs.
+ * of how the entities in it moved across every snapshot, the transfer market season by season
+ * with the world record (transfers.js), plus two maps: our nation's clubs by division, and the
+ * stadiums of our current squad's origin clubs.
  *
  * Leagues and clubs need no fetch of their own for the table: `D.S.leagues`/`D.S.clubs` are
  * already loaded from core.json. Nations, the maps and the history behind every chart come from
@@ -15,6 +16,7 @@ import * as D from "../data.js";
 import { el, clear, bar, num, pill, sparkline, toast, DASH } from "../ui.js";
 import { playerTable } from "../table.js";
 import { lineChart, SLOTS } from "../linechart.js";
+import { worldTransfersPanel } from "../transfers.js";
 
 const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
 const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
@@ -57,6 +59,8 @@ export async function view() {
     ["Clubs", () => clubsPanel(H)],
     ["Nations", () => nationsPanel(world, H)],
     ["Maps", () => mapsPanel(world)],
+    // last, so a remembered tab index (LS_TAB) still opens the tab it did
+    ["Transfers", () => worldTransfersPanel()],
   ];
   let active = Math.min(Math.max(+lsGet(LS_TAB) || 0, 0), TABS.length - 1);
   const drawTabs = () => {

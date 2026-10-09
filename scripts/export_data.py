@@ -665,10 +665,83 @@ def main():
                 "coefficient, five-season coefficient and UEFA rank on every snapshot in `history.dates`, run-length encoded as flat "
                 "[index, value, ...] change points (a null value: absent from then on)."})
 
+    # ------------------------------------------------------------ transfers.json
+    # Our own moves in full (the History page: signings and sales boards, the season ledger),
+    # and the world market summarised per season in SQL, not shipped whole: the career holds
+    # ~4,500 moves a season, which is what the World page's market reads but no page lists.
+    # Records run over every season the save holds, pre-career history included.
+    deal_fields = ["tid", "name", "age", "season", "date", "window", "type", "fee_kind", "fee",
+                   "from_tid", "from_club", "from_nation", "to_tid", "to_club", "to_nation"]
+    deal_rename = {"date": "move_date", "window": "transfer_window", "type": "transfer_type",
+                   "fee": "fee_gbp", "from_tid": "from_club_tid", "to_tid": "to_club_tid"}
+    ours_fields = deal_fields + ["direction"]
+    ours = s.rows("""SELECT * FROM site.transfers WHERE direction IS NOT NULL AND in_career
+                     ORDER BY season, move_date NULLS LAST, name""")
+    home = s.scalar("""SELECT n.name FROM mart.dim_club c JOIN mart.dim_nation n USING (nation_id)
+                       WHERE c.club_tid = ?""", [managed])
+    markets = {}
+    for (yr,) in s.con.execute("SELECT DISTINCT season FROM site.transfers WHERE in_career "
+                               "ORDER BY season").fetchall():
+        mv = f"(SELECT * FROM site.transfers WHERE season = {int(yr)} AND transfer_type IN ('permanent', 'free'))"
+        tot = s.rows(f"""SELECT count(*) AS n,
+                                count(*) FILTER (WHERE transfer_type = 'permanent') AS paid,
+                                count(*) FILTER (WHERE transfer_type = 'free') AS free,
+                                sum(fee_gbp) AS total,
+                                count(*) FILTER (WHERE fee_gbp >= 10e6) AS over_10m FROM {mv}""")[0]
+        top = s.rows(f"""SELECT * FROM {mv} WHERE transfer_type = 'permanent'
+                         ORDER BY fee_gbp DESC, name LIMIT 25""")
+        by_club = lambda side: [[r["tid"], r["club"], num(r["fee"]), r["n"]] for r in s.rows(
+            f"""SELECT {side}_club_tid AS tid, any_value({side}_club) AS club,
+                       sum(fee_gbp) AS fee, count(*) FILTER (WHERE transfer_type = 'permanent') AS n
+                FROM {mv} WHERE {side}_club_tid IS NOT NULL GROUP BY 1
+                HAVING sum(fee_gbp) > 0 ORDER BY 3 DESC, 2 LIMIT 10""")]
+        nations = [[r["nation"], num(r["spent"]), num(r["received"])] for r in s.rows(
+            f"""WITH sp AS (SELECT to_nation AS nation, sum(fee_gbp) AS spent FROM {mv} GROUP BY 1),
+                     rc AS (SELECT from_nation AS nation, sum(fee_gbp) AS received FROM {mv} GROUP BY 1)
+                SELECT nation, spent, received FROM sp FULL JOIN rc USING (nation)
+                WHERE nation IS NOT NULL
+                ORDER BY greatest(coalesce(spent, 0), coalesce(received, 0)) DESC, nation LIMIT 12""")]
+        home_top = s.rows(f"""SELECT * FROM {mv} WHERE transfer_type = 'permanent'
+                              AND (to_nation = ? OR from_nation = ?)
+                              ORDER BY fee_gbp DESC, name LIMIT 10""", [home, home])
+        windows = [[r["transfer_window"], r["paid"], num(r["total"])] for r in s.rows(
+            f"""SELECT transfer_window, count(*) FILTER (WHERE transfer_type = 'permanent') AS paid,
+                       sum(fee_gbp) AS total FROM {mv} GROUP BY 1 ORDER BY 1""")]
+        markets[str(yr)] = {
+            "n": tot["n"], "paid": tot["paid"], "free": tot["free"], "total": num(tot["total"]),
+            "over_10m": tot["over_10m"], "windows": windows,
+            "top": rowify(top, deal_fields, deal_rename),
+            "spenders": by_club("to"), "sellers": by_club("from"), "nations": nations,
+            "home_top": rowify(home_top, deal_fields, deal_rename)}
+    # The world record as it stood: every paid move that beat every fee before it, in order.
+    records = rowify(s.rows("""
+        SELECT * FROM (
+            SELECT *, max(fee_gbp) OVER (ORDER BY season, move_date NULLS FIRST, fee_gbp
+                                         ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev
+            FROM site.transfers WHERE transfer_type = 'permanent' AND fee_gbp > 0)
+        WHERE prev IS NULL OR fee_gbp > prev
+        ORDER BY season, move_date NULLS FIRST"""), deal_fields, deal_rename)
+    emit("transfers.json", {
+        "home_nation": home,
+        "deal_fields": deal_fields,
+        "ours_fields": ours_fields,
+        "ours": rowify(ours, ours_fields, deal_rename),
+        "markets": markets,
+        "spender_fields": ["club_tid", "club", "fee", "paid_moves"],
+        "nation_fields": ["nation", "spent", "received"],
+        "window_fields": ["window", "paid", "total"],
+        "records": records,
+        "note": "Fees in GBP. `season` is the campaign a player moved FOR: a June signing "
+                "belongs to the next season's market. Window is the move date's month "
+                "(June-September summer), else the first snapshot showing him at the new club. "
+                "Only clubs the save tracks in detail are covered, so market totals are a "
+                "floor. Records run over the pre-career history the save keeps too, which "
+                "covers only players still in it. Loans are not transfers. " + IMMERSION})
+
     # ------------------------------------------------------------ index.json
     files = {k: f"{SITE_URL}/api/{k}.json" for k in
              ("core", "clubs", "squad", "forecast", "loans", "matches", "registration",
-              "world")}
+              "world", "transfers")}
     files["all_players"] = f"{SITE_URL}/api/all"
     files["database"] = f"s3://fmm-stats/site-data/fm-{car.key}.duckdb"
     emit("index.json", {
