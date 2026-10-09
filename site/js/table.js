@@ -100,10 +100,13 @@ export function playerTable(o) {
     shownRows = rows;
     count.textContent = `${rows.length}${rows.length === o.rows.length ? "" : ` of ${o.rows.length}`}`;
 
+    const sticky = o.sticky || [];
     const thead = el("thead", {}, [el("tr", {}, cols.map((c) => {
       const on = state.sortBy === c.id;
-      return el(`th${c.align === "num" ? ".num" : ""}${on ? ".sorted" : ""}`, {
-        title: c.help || c.label,
+      const movable = !sticky.includes(c.id);
+      return el(`th${c.align === "num" ? ".num" : ""}${on ? ".sorted" : ""}${movable ? ".drag" : ""}`, {
+        title: (c.help || c.label) + (movable ? " — drag to move" : ""),
+        dataset: { col: c.id },
         onclick: () => {
           if (state.sortBy === c.id) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
           else { state.sortBy = c.id; state.sortDir = c.align === "num" ? "desc" : "asc"; }
@@ -111,6 +114,10 @@ export function playerTable(o) {
         },
       }, [c.label, on ? el("span.arrow", { text: state.sortDir === "asc" ? "▲" : "▼" }) : null]);
     }))]);
+    dragColumns(thead.firstChild, scroll, (id, target, after) => {
+      moveCol(state, sticky, id, target, after);
+      save(o.key, state); draw();
+    });
 
     const tbody = el("tbody");
     if (!rows.length) {
@@ -169,6 +176,105 @@ export function playerTable(o) {
   return { node: host, redraw: draw, state, persist: () => save(o.key, state), rows: () => shownRows };
 }
 
+/**
+ * Move column `id` next to `target` in `state.cols` (before it, or after it when `after`).
+ * Sticky columns always lead and never move, so dropping onto one puts the column first among
+ * the rest. Ids the catalogue no longer has stay where they were — they are invisible anyway.
+ */
+function moveCol(state, sticky, id, target, after) {
+  if (id === target) return;
+  const cols = state.cols.filter((c) => c !== id);
+  let at;
+  if (sticky.includes(target)) at = cols.findIndex((c) => !sticky.includes(c));
+  else at = cols.indexOf(target) + (after ? 1 : 0);
+  if (at < 0) at = cols.length;
+  cols.splice(at, 0, id);
+  state.cols = cols;
+}
+
+/**
+ * Drag a header cell to reorder the columns. Pointer events rather than HTML5 drag-and-drop,
+ * because the latter barely exists on a phone. A mouse starts dragging once it moves a few
+ * pixels; a finger has to hold still for a moment first (a long press), so an ordinary swipe
+ * still scrolls the table sideways. Near either edge of the scroll box the table scrolls
+ * itself, so a column can travel further than the visible width.
+ *
+ * A real drag swallows the click that follows it, or every move would also re-sort the table.
+ */
+function dragColumns(tr, scroll, moved) {
+  const HOLD = 320, SLOP = 6, EDGE = 36;
+  let d = null;
+  const marks = () => tr.querySelectorAll(".dropl,.dropr")
+    .forEach((t) => t.classList.remove("dropl", "dropr"));
+  const thAt = (x, y) => {
+    const t = document.elementFromPoint(x, y)?.closest("th");
+    return t && t.parentNode === tr ? t : null;
+  };
+  const noScroll = (e) => { if (d?.active) e.preventDefault(); };
+  const noMenu = (e) => { if (d) e.preventDefault(); };
+
+  function start() {
+    d.active = true;
+    d.th.classList.add("dragging");
+    document.body.classList.add("coldrag");
+    navigator.vibrate?.(10);
+  }
+  function move(e) {
+    if (!d || e.pointerId !== d.pid) return;
+    const dist = Math.hypot(e.clientX - d.x, e.clientY - d.y);
+    if (!d.active) {
+      if (d.touch) { if (dist > SLOP * 2) end(); return; }   // a swipe: let it scroll
+      if (dist < SLOP) return;
+      start();
+    }
+    e.preventDefault();
+    const box = scroll.getBoundingClientRect();
+    if (e.clientX < box.left + EDGE) scroll.scrollLeft -= 14;
+    else if (e.clientX > box.right - EDGE) scroll.scrollLeft += 14;
+    marks();
+    const t = thAt(e.clientX, Math.min(Math.max(e.clientY, box.top + 4), box.bottom - 4))
+      || thAt(e.clientX, tr.getBoundingClientRect().top + 4);
+    d.target = null;
+    if (!t || t === d.th) return;
+    const r = t.getBoundingClientRect();
+    d.after = t.classList.contains("drag") && e.clientX > r.left + r.width / 2;
+    d.target = t.dataset.col;
+    t.classList.add(d.after ? "dropr" : "dropl");
+  }
+  function end(e) {
+    if (!d || (e && e.pointerId !== d.pid)) return;
+    const { active, id, target, after, th, timer } = d;
+    clearTimeout(timer);
+    d = null;
+    marks();
+    th.classList.remove("dragging");
+    document.body.classList.remove("coldrag");
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end);
+    window.removeEventListener("touchmove", noScroll);
+    window.removeEventListener("contextmenu", noMenu);
+    if (!active) return;
+    const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
+    window.addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+    if (e?.type === "pointerup" && target) moved(id, target, after);
+  }
+
+  tr.addEventListener("pointerdown", (e) => {
+    const th = e.target.closest("th.drag");
+    if (!th || d || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const touch = e.pointerType !== "mouse";
+    d = { pid: e.pointerId, th, id: th.dataset.col, x: e.clientX, y: e.clientY, touch, active: false };
+    if (touch) d.timer = setTimeout(() => d && start(), HOLD);
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("touchmove", noScroll, { passive: false });
+    window.addEventListener("contextmenu", noMenu);
+  });
+}
+
 function columnPicker(o, state, changed) {
   const groups = {};
   for (const [id, def] of Object.entries(o.catalogue)) {
@@ -176,7 +282,7 @@ function columnPicker(o, state, changed) {
   }
   const panel = el("div.picker.hide");
   const button = el("button.btn", {
-    text: "Columns", title: "Add or remove any column — attributes and match stats included",
+    text: "Columns", title: "Add or remove any column — attributes and match stats included. Drag a column header to move it",
     onclick: () => panel.classList.toggle("hide"),
   });
 
