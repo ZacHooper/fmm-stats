@@ -294,23 +294,35 @@ export async function openPlayer(tid) {
   ]);
 }
 
-/** His competitive starts for us by the position he started at, aggregated (tid's rows only).
- *  null until matches.json is loaded. */
-function playedAt(tid) {
+/** His competitive starts for us by the position he started at, aggregated (tid's rows only),
+ *  in one season or (season null) all of them. null until matches.json is loaded. */
+function playedAt(tid, season = null) {
   if (!D.S.matches) return null;
   const by = new Map();
   for (const r of D.matchRows()) {
     if (r.tid !== tid || !r.position || !r.started || D.isFriendly(r.competition)) continue;
+    if (season != null && r.season !== season) continue;
     if (!by.has(r.position)) by.set(r.position, []);
     by.get(r.position).push(r);
   }
   return new Map([...by].map(([q, rs]) => [q, D.aggregate(rs).get(tid)]));
 }
 
+/** The seasons he has competitive starts for us in, newest first. */
+function startSeasons(tid) {
+  if (!D.S.matches) return [];
+  const s = new Set();
+  for (const r of D.matchRows()) {
+    if (r.tid === tid && r.started && r.position && !D.isFriendly(r.competition)) s.add(r.season);
+  }
+  return [...s].sort((a, b) => b - a);
+}
+
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
   let matchesTried = false;
+  let fitSeason = null;              // the Fit tab's "what he has done" columns: null = all time
   // The development chart, the attribute growth options and career history all read
   // squad.json. Pages other than Squad don't load it, so fetch it (once, ~20 KB) before the
   // first sheet rather than showing a profile with those parts silently missing.
@@ -487,7 +499,19 @@ export function openProfile(tid, { role = null } = {}) {
     // The best of those with enough starts to mean something is marked. Only his listed
     // positions are shown; a start somewhere he isn't listed is out of position. Needs matches.json,
     // which not every page has loaded: the tab fetches it and redraws.
-    const played = playedAt(tid);
+    // Which season the record columns cover — all time, or one season, so a position switch
+    // can be judged on this season's games rather than drowned in his career.
+    const seasons = startSeasons(tid);
+    if (fitSeason != null && !seasons.includes(fitSeason)) fitSeason = null;
+    const lbl = (y) => `${y - 1}/${String(y).slice(2)}`;
+    const seasonChips = seasons.length ? el("div.prow.fitseason", {}, [
+      el("span.dim", { text: "Record at each position:" }),
+      ...[null, ...seasons].map((y) => el(`button.chip${y === fitSeason ? ".on" : ""}`, {
+        text: y == null ? "All time" : lbl(y),
+        onclick: () => { fitSeason = y; showTab("fit", false); },
+      })),
+    ]) : null;
+    const played = playedAt(tid, fitSeason);
     if (!played && !matchesTried) {
       matchesTried = true;
       D.loadMatches().then(() => { if (curTab === "fit") showTab("fit", false); }).catch(() => null);
@@ -513,7 +537,7 @@ export function openProfile(tid, { role = null } = {}) {
         el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 2) : DASH }),
       ];
     };
-    const out = el("div", {}, [el("div.scroll.fit", {}, [el("table", {}, [
+    const out = el("div", {}, [seasonChips, el("div.scroll.fit", {}, [el("table", {}, [
       el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
         text: h,
         title: h === "Rating (adj)" ? "Average position-adjusted match rating over his competitive starts there"
