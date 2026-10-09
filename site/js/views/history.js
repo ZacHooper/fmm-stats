@@ -614,15 +614,17 @@ function seasonPlayerAwards(rows, matches, s) {
   const superSub = bestSub ? { label: "Supersub", who: bestSub.a.tid, value: num(bestSub.v),
     note: "goals+assists off the bench" } : null;
 
-  // The Stormtrooper: couldn't hit a barn door — the largest share of his shots that missed
-  // the target. A share, not a count, or it just crowns the busiest striker; 20 shots so a
-  // 3-of-4 cameo can't win it.
-  const trooper = pool.filter((a) => a.shotA >= 20)
-    .map((a) => ({ a, v: (a.shotA - a.shotO) / a.shotA })).sort((x, y) => y.v - x.v)[0];
+  // The Stormtrooper: one match where he couldn't hit a barn door — the most shots off target
+  // in a single game (a season of it is Wasteful's job). Ties go to the one who didn't score,
+  // then to the one who shot more. Any appearance counts: it is one bad afternoon, not a season.
+  const off = (r) => (r.shotA || 0) - (r.shotO || 0);
+  const trooper = sr.filter((r) => off(r) > 0)
+    .sort((x, y) => off(y) - off(x) || (x.goals || 0) - (y.goals || 0) || (y.shotA || 0) - (x.shotA || 0))[0];
   const stormtrooper = trooper ? {
-    label: "The Stormtrooper", who: trooper.a.tid, value: `${num(100 * trooper.v)}%`,
-    note: `${trooper.a.shotA - trooper.a.shotO} of ${trooper.a.shotA} shots off target`,
-    means: "largest share of his shots off target (20+ shots)", silly: true,
+    label: "The Stormtrooper", who: trooper.tid, value: `${off(trooper)} of ${trooper.shotA} off target`,
+    note: `vs ${D.S.clubs.get(trooper.opponent_tid)?.name || `#${trooper.opponent_tid}`} · `
+      + `${String(trooper.date).slice(0, 10)}${trooper.goals ? ` (scored ${trooper.goals})` : ""}`,
+    means: "most shots off target in a single match", silly: true,
   } : null;
 
   return [
