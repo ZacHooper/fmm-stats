@@ -605,6 +605,14 @@ export function statHelp(name) {
   if (m && STAT_BASE[m[1]]) return `${STAT_BASE[m[1]]} ${m[2] === "90" ? "per 90 minutes played" : "per appearance"}`;
   return name;
 }
+/** Decimal places for a match stat, the one rule every table and sheet uses: match ratings
+ *  to 2, as the game shows them; per-90 and per-game rates to 1, which is as fine as a season's
+ *  sample supports and keeps a wide table readable; counts, minutes and percentages whole. */
+export function statDp(name) {
+  if (name === "Rating" || name === "Rating (adj)") return 2;
+  if (name === "Min/gm") return 0;
+  return /\/(90|gm)$/.test(name) ? 1 : 0;
+}
 const per90 = (a, k) => (a.min ? (90 * a[k]) / a.min : null);
 const perGm = (a, k) => (a.apps ? a[k] / a.apps : null);
 const rate = (n, d) => (d ? (100 * n) / d : null);

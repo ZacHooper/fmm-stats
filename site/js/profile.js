@@ -196,7 +196,7 @@ function statBlock(agg) {
     el("span.dim", { text: title }),
     el("div.kpis.sm", {}, names.map((s) => {
       const v = D.statValue(s, agg);
-      return el("div.kpi", {}, [el("b", { text: v == null ? DASH : num(v, /%$|Apps|Starts|Min$|Goals|Assists/.test(s) ? 0 : 2) }),
+      return el("div.kpi", {}, [el("b", { text: v == null ? DASH : num(v, D.statDp(s)) }),
         el("span", { text: s })]);
     })),
   ])));
@@ -510,7 +510,7 @@ export function openProfile(tid, { role = null } = {}) {
           text: a.ratingAdj == null ? DASH : num(a.ratingAdj, 2),
           title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
         }),
-        el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 2) : DASH }),
+        el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 1) : DASH }),
       ];
     };
     const out = el("div", {}, [el("div.scroll.fit", {}, [el("table", {}, [
