@@ -188,7 +188,7 @@ function bioBlock(p) {
 const STAT_GROUPS = [
   ["Output", ["Apps", "Starts", "Min", "Rating", "Goals", "Assists", "G/90", "A/90"]],
   ["On the ball", ["KeyP/90", "Pass %", "Shot acc %", "Conversion %"]],
-  ["Defending", ["Tackle %", "Header %", "Int/90", "Mistakes/gm"]],
+  ["Defending", ["Tackle %", "Header %", "Int/90", "Mistakes/90"]],
 ];
 function statBlock(agg) {
   if (!agg) return el("p.note", { text: "No parsed match data for this player — only the managed club's matches are richly parsed." });
