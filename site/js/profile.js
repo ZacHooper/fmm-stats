@@ -208,7 +208,7 @@ function statBlock(agg) {
  * The Matches page's Players tab answers the same question for the whole squad at once.
  */
 function splitBlock(tid) {
-  const rows = D.matchRows().filter((r) => r.tid === tid);
+  const rows = D.matchRows().filter((r) => r.tid === tid && !D.isFriendly(r.competition));
   if (!rows.length) return el("span");
   const M = D.S.matches;
   const fi = Object.fromEntries(M.match_fields.map((n, i) => [n, i]));
@@ -278,7 +278,7 @@ export async function openPlayer(tid) {
   const p = await D.loadProfile(tid);
   if (p) return openProfile(tid);
   await D.loadMatches().catch(() => null);
-  const rows = D.matchRows().filter((r) => r.tid === tid);
+  const rows = D.matchRows().filter((r) => r.tid === tid && !D.isFriendly(r.competition));
   const agg = D.S.matchAgg?.get(tid) || null;
   const seasons = [...new Set(rows.map((r) => r.season))].sort((a, b) => a - b);
   const lbl = (y) => `${y - 1}/${String(y).slice(2)}`;
@@ -288,7 +288,7 @@ export async function openPlayer(tid) {
         + "There's no profile to show for him (he has left the save, or it couldn't be fetched), "
         + "so this is his record for us only — no attributes or ratings."
       : "Not in this export." }),
-    el("h4", { text: "Match record for us (all seasons)" }),
+    el("h4", { text: "Match record for us (competitive, all seasons)" }),
     statBlock(agg),
     splitBlock(tid),
   ]);
@@ -512,7 +512,7 @@ export function openProfile(tid, { role = null } = {}) {
   }
 
   function statsTab() {
-    const box = el("div", {}, [el("h4", { text: "Match record for us (all seasons)" })]);
+    const box = el("div", {}, [el("h4", { text: "Match record for us (competitive, all seasons)" })]);
     const statsBox = el("div", {}, [el("p.note", { text: "Loading matches…" })]);
     box.append(statsBox);
     D.loadMatches().then(() => clear(statsBox).append(statBlock(D.S.matchAgg?.get(tid)), splitBlock(tid)))

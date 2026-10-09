@@ -56,7 +56,7 @@ export async function view() {
   const f = M.match_fields;
   const all = M.matches.map((r) => Object.fromEntries(f.map((n, i) => [n, r[i]])));
   const comp = (m) => m.competition || "?";
-  const isFriendly = (m) => /friend/i.test(comp(m));
+  const isFriendly = (m) => D.isFriendly(m.competition);
 
   const seasons = [...new Set(all.map((m) => m.season))].sort((a, b) => b - a);
   // The game's own stage labels (mart.match_stages). A group's letter changes every season,

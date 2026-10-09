@@ -62,8 +62,10 @@ export async function view() {
   }
   const f = M.match_fields;
   const matches = M.matches.map((r) => Object.fromEntries(f.map((n, i) => [n, r[i]])))
-    .filter((m) => !/friend/i.test(m.competition || ""));
-  const rows = D.matchRows();
+    .filter((m) => !D.isFriendly(m.competition));
+  // Competitive matches only, like `matches` above: a pre-season friendly hat-trick is not a
+  // Golden Boot goal.
+  const rows = D.matchRows().filter((r) => !D.isFriendly(r.competition));
   const seasons = [...new Set(matches.map((m) => m.season))].sort((a, b) => b - a);
   const oppName = (m) => m.opponent || `#${m.opp_tid}`;
   const oppByTid = new Map(matches.map((m) => [m.opp_tid, oppName(m)]));
@@ -262,7 +264,7 @@ export async function view() {
   // line for us — so "top scorer" also says how many games it took and whether he is still here.
   // A board for a count also carries its rate (goals -> G/90), which is what separates a
   // prolific striker from one who simply stayed a long time.
-  const career = D.S.matchAgg;
+  const career = D.aggregate(rows);
   const span = new Map();            // tid -> [first season, last season]
   for (const r of rows) {
     const s = span.get(r.tid);
