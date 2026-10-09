@@ -202,6 +202,47 @@ function statBlock(agg) {
   ])));
 }
 
+/**
+ * His record for us split two ways — by competition, and against the opponents he has met
+ * most — so "how does he do in Europe" or "against Brøndby" is answered from his own sheet.
+ * The Matches page's Players tab answers the same question for the whole squad at once.
+ */
+function splitBlock(tid) {
+  const rows = D.matchRows().filter((r) => r.tid === tid);
+  if (!rows.length) return el("span");
+  const M = D.S.matches;
+  const fi = Object.fromEntries(M.match_fields.map((n, i) => [n, i]));
+  const oppNames = new Map(M.matches.map((m) => [m[fi.opp_tid], m[fi.opponent]]));
+  const table = (keyFn, label, { min = 1, limit = 99, name = (k) => k } = {}) => {
+    const g = new Map();
+    for (const r of rows) {
+      const k = keyFn(r);
+      if (!g.has(k)) g.set(k, []);
+      g.get(k).push(r);
+    }
+    const aggs = [...g].map(([k, rs]) => [k, D.aggregate(rs).get(tid)])
+      .filter(([, a]) => a.apps >= min).sort((a, b) => b[1].apps - a[1].apps).slice(0, limit);
+    if (!aggs.length) return null;
+    return el("div.scroll.fit", {}, [el("table", {}, [
+      el("thead", {}, [el("tr", {}, [label, "Apps", "Min", "Rating", "Adj", "G", "A"]
+        .map((h, i) => el(`th${i ? ".num" : ""}`, { text: h })))]),
+      el("tbody", {}, aggs.map(([k, a]) => el("tr", {}, [
+        el("td.name", { text: name(k) }), el("td.num", { text: a.apps }), el("td.num", { text: num(a.min) }),
+        el("td.num", { text: a.rating == null ? DASH : num(a.rating, 2) }),
+        el("td.num", { text: a.ratingAdj == null ? DASH : num(a.ratingAdj, 2) }),
+        el("td.num", { text: a.goals }), el("td.num", { text: a.assists }),
+      ]))),
+    ])]);
+  };
+  const byComp = table((r) => r.competition || "?", "Competition");
+  const byOpp = table((r) => r.opponent_tid, "Opponent",
+    { min: 2, limit: 12, name: (k) => oppNames.get(k) || `#${k}` });
+  return el("div", {}, [
+    byComp ? el("h4", { text: "By competition" }) : null, byComp,
+    byOpp ? el("h4", { text: "Against the sides he has met most (2+ apps)" }) : null, byOpp,
+  ]);
+}
+
 function careerTable(career) {
   return el("div.scroll.fit", {}, [el("table", {}, [
     el("thead", {}, [el("tr", {}, ["Season", "Club", "Apps", "Goals", "Assists", "Rating", "Move"]
@@ -443,7 +484,7 @@ export function openProfile(tid, { role = null } = {}) {
     const box = el("div", {}, [el("h4", { text: "Match record for us (all seasons)" })]);
     const statsBox = el("div", {}, [el("p.note", { text: "Loading matches…" })]);
     box.append(statsBox);
-    D.loadMatches().then(() => clear(statsBox).append(statBlock(D.S.matchAgg?.get(tid))))
+    D.loadMatches().then(() => clear(statsBox).append(statBlock(D.S.matchAgg?.get(tid)), splitBlock(tid)))
       .catch(() => clear(statsBox).append(statBlock(null)));
     if (career.length) box.append(el("h4", { text: "Career history" }), careerTable(career));
     return box;

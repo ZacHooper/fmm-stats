@@ -375,7 +375,13 @@ the derivation still passes `positions="familiar"` so it does not move before th
 
 ## Site
 
-Nothing open.
+### 23. Our full-time formation per match
+The Matches page's formation is the kick-off shape (the match tail's formation string,
+`fmparser/tables/matches.py`). The full-time shape is in the save too: the team head's
+`positions`, 11 starters in posOrder order (`docs/agent-context/match-position-encoding.md`).
+Collapse those bands into a formation string in the dbt site models (not the browser), ship
+it in `site.matches`, then give the Splits tab's Formation split a kick-off / full time /
+changed-in-game choice and the Results tab an "Ended in" column beside "Started in".
 
 ---
 
