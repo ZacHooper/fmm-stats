@@ -151,7 +151,8 @@ the next online visit with no cache version to bump. Offline, the copy answers, 
 is filtered from the cached file, and a toast says so. Shortlist and registration-window
 **writes** still need a connection; a shortlist seen online can still be read.
 
-To take it offline: open the site once online and leave it a few seconds to fill the cache. On
+To take it offline: open the site once online and wait for the footer to read **Saved for
+offline <time>** (install stores the app in seconds; the 7.7 MB every-player file follows). On
 iPhone, a home-screen app ("Add to Home Screen") has storage separate from Safari, so open the
 home-screen app itself once online.
 
