@@ -448,3 +448,43 @@ td.strong{font-weight:700}
 /* the World headline: one row on a desktop, two by two on a phone */
 .wkpi{flex:1 1 0}
 @media(max-width:620px){.wkpi{flex:1 1 calc(50% - 4px)}}
+
+/* ---- Matches (views/matches.js): tabs, form guide, highlights, splits, team-stat edge */
+.mtabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:2px 0 10px;
+  -webkit-overflow-scrolling:touch}
+.mtabs::-webkit-scrollbar{display:none}
+.mtabs .chip{margin:0;white-space:nowrap;padding:5px 12px;font-size:13px}
+.pins{display:inline-flex;gap:6px;flex-wrap:wrap}
+.pins:empty{display:none}
+.formkpi>b{display:flex;gap:3px;flex-wrap:nowrap}
+.fdot{display:inline-block;width:19px;height:19px;line-height:19px;border-radius:5px;text-align:center;
+  font-size:11px;font-weight:700}
+.fdot.good{background:var(--goodbg);color:var(--good)}
+.fdot.flat{background:var(--bg);color:var(--dim);border:1px solid var(--line)}
+.fdot.bad{background:var(--badbg);color:var(--bad)}
+.kpis.hl .kpi{flex:1 1 170px}
+.kpis.hl .kpi>b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+.kpi.click{cursor:pointer}
+.kpi.click:hover{border-color:var(--accent)}
+.card .sechead h3{margin:2px 0 6px}
+.card .scroll{border:0;border-radius:0}
+.normcell{display:inline-flex;gap:5px;align-items:baseline;justify-content:flex-end}
+.delta{font-size:10.5px;color:var(--dim)}
+.delta.up{color:var(--good)}
+.delta.down{color:var(--bad)}
+tr.grp td{background:var(--bg);font-size:12.5px;padding-top:9px}
+tr.grp td:first-child{background:var(--bg)}
+table.edge td,table.edge th{width:1%}
+table.edge .edgecol{width:auto;min-width:120px}
+.edgetrack{position:relative;display:block;height:10px;border-radius:3px;background:var(--line2)}
+.edgetrack::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--dim)}
+.edgebar{position:absolute;top:0;bottom:0;border-radius:3px}
+.edgebar.good{background:var(--good)}
+.edgebar.bad{background:var(--bad)}
+.formkpi{flex:2 1 230px}
+table.latest td.name{white-space:normal}
+@media(max-width:600px){table.latest .wide{display:none}}
+.mseg{display:inline-flex;flex-wrap:wrap;gap:4px}
+.mseg .chip{margin:0}
+@media(max-width:600px){.kpis .kpi>b{font-size:16px}.kpis .kpi{padding:7px 10px}}
