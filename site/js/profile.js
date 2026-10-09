@@ -299,13 +299,18 @@ export async function openPlayer(tid) {
 function playedAt(tid, season = null) {
   if (!D.S.matches) return null;
   const by = new Map();
+  const all = [];
   for (const r of D.matchRows()) {
     if (r.tid !== tid || !r.position || !r.started || D.isFriendly(r.competition)) continue;
     if (season != null && r.season !== season) continue;
     if (!by.has(r.position)) by.set(r.position, []);
     by.get(r.position).push(r);
+    all.push(r);
   }
-  return new Map([...by].map(([q, rs]) => [q, D.aggregate(rs).get(tid)]));
+  const out = new Map([...by].map(([q, rs]) => [q, D.aggregate(rs).get(tid)]));
+  // his norm over the same starts, every position together — what "vs his norm" compares with
+  out.norm = all.length ? D.aggregate(all).get(tid) : null;
+  return out;
 }
 
 /** The seasons he has competitive starts for us in, newest first. */
@@ -323,6 +328,7 @@ export function openProfile(tid, { role = null } = {}) {
   if (!p) return;
   let matchesTried = false;
   let fitSeason = null;              // the Fit tab's "what he has done" columns: null = all time
+  let fitNorm = false;               // ...and whether they show ▲/▼ against his own average
   // The development chart, the attribute growth options and career history all read
   // squad.json. Pages other than Squad don't load it, so fetch it (once, ~20 KB) before the
   // first sheet rather than showing a profile with those parts silently missing.
@@ -510,6 +516,12 @@ export function openProfile(tid, { role = null } = {}) {
         text: y == null ? "All time" : lbl(y),
         onclick: () => { fitSeason = y; showTab("fit", false); },
       })),
+      el(`button.btn${fitNorm ? ".on" : ""}`, {
+        text: "vs his norm",
+        title: "Mark each position's rating and G+A/90 against his own average over all his starts "
+          + "in the same span — where does he play above or below himself?",
+        onclick: () => { fitNorm = !fitNorm; showTab("fit", false); },
+      }),
     ]) : null;
     const played = playedAt(tid, fitSeason);
     if (!played && !matchesTried) {
@@ -528,13 +540,22 @@ export function openProfile(tid, { role = null } = {}) {
       if (!played) return [el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" })];
       if (!a) return [el("td.num.dim", { text: "0" }), el("td.num", { text: DASH }), el("td.num", { text: DASH })];
       const best = a.starts >= MIN_STARTS && a.ratingAdj != null && a.ratingAdj === bestAdj;
+      const ga90 = (x) => (x?.min ? (90 * (x.goals + x.assists)) / x.min : null);
+      // value, then (vs his norm) ▲/▼ against the same figure over all his starts in the span
+      const withDelta = (v, base) => {
+        if (v == null) return [DASH];
+        if (!fitNorm || base == null) return [num(v, 2)];
+        const d = v - base, flat = Math.abs(d) < 0.005;
+        return [el("span.normcell", {}, [num(v, 2), el(`span.delta${flat ? "" : d > 0 ? ".up" : ".down"}`, {
+          text: flat ? "=" : `${d > 0 ? "▲" : "▼"}${num(Math.abs(d), 2)}`, title: `His norm: ${num(base, 2)}`,
+        })])];
+      };
       return [
         el("td.num", { text: a.starts, title: `${num(a.min)} minutes` }),
         el(`td.num${best ? ".best" : ""}${a.starts < MIN_STARTS ? ".dim" : ""}`, {
-          text: a.ratingAdj == null ? DASH : num(a.ratingAdj, 2),
           title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
-        }),
-        el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 2) : DASH }),
+        }, withDelta(a.ratingAdj, played.norm?.ratingAdj)),
+        el("td.num", {}, withDelta(ga90(a), ga90(played.norm))),
       ];
     };
     const out = el("div", {}, [seasonChips, el("div.scroll.fit", {}, [el("table", {}, [
@@ -584,7 +605,9 @@ export function openProfile(tid, { role = null } = {}) {
         + "for position, so it compares across rows — and <b>G+A/90</b>. The best adjusted rating "
         + `with ${3}+ starts is marked; fewer starts are greyed. Substitute appearances aren't `
         + "counted (the game records positions for starters only), and neither are starts at a "
-        + "position he isn't listed at.",
+        + "position he isn't listed at. The chips pick the span: all time or one season. "
+        + "<b>vs his norm</b> marks each figure ▲/▼ against his own average over all his starts "
+        + "in that span, every position together.",
     })]));
     return out;
   }
