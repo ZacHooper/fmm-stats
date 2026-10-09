@@ -553,3 +553,4 @@ table.board .thtip{display:none;position:absolute;top:100%;left:4px;z-index:5;wi
 table.board th.tipleft .thtip{left:auto;right:4px}
 table.board th.tipped.open .thtip{display:block;position:fixed;right:auto;z-index:50}
 @media(hover:hover){table.board th.tipped:hover .thtip{display:block}}
+td.best{color:var(--good);font-weight:700}
