@@ -16,7 +16,7 @@
  */
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
-import { el, num, pill, bar, DASH, multiSelect } from "../ui.js";
+import { el, num, pill, bar, DASH, multiSelect, hashParams, setHashParams } from "../ui.js";
 import { openProfile } from "../profile.js";
 import { openClub } from "../club.js";
 
@@ -38,14 +38,9 @@ const LS_MINP = "fm:matches:minp";
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
-/** `#/matches?tab=splits&split=round` — the router ignores everything after the `?`. */
-const params = () => new URLSearchParams((location.hash.split("?")[1]) || "");
-function setParams(kv) {
-  const p = params();
-  for (const [k, v] of Object.entries(kv)) { if (v == null) p.delete(k); else p.set(k, v); }
-  const q = p.toString();
-  history.replaceState(null, "", `#/matches${q ? `?${q}` : ""}`);
-}
+// `#/matches?tab=splits&split=round` (ui.js hashParams).
+const params = hashParams;
+const setParams = setHashParams;
 
 // Match stats that are COUNTS. Comparing a count over a filtered set with the same count over
 // every match is meaningless (fewer matches, fewer goals), so "vs his norm" only marks rates.

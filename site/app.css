@@ -488,3 +488,35 @@ table.latest td.name{white-space:normal}
 .mseg{display:inline-flex;flex-wrap:wrap;gap:4px}
 .mseg .chip{margin:0}
 @media(max-width:600px){.kpis .kpi>b{font-size:16px}.kpis .kpi{padding:7px 10px}}
+
+/* ---- History (views/history.js): season cards, record cards, honours board */
+.kpi.wide{flex:2 1 260px}
+.kpi.wide>b{font-size:15px}
+.scards{display:grid;gap:10px;grid-template-columns:1fr}
+@media(min-width:860px){.scards{grid-template-columns:1fr 1fr}}
+.scard{margin:0;display:flex;flex-direction:column;gap:7px}
+.scard .sechead{align-items:baseline}
+.stitle{font-size:16px}
+.sline{display:flex;align-items:center;gap:2px;flex-wrap:wrap;font-size:13.5px}
+.cups{display:flex;flex-wrap:wrap;gap:6px}
+.cup{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;border:1px solid var(--line);
+  border-radius:999px;padding:2px 3px 2px 9px}
+.stars{font-size:13px;display:flex;flex-direction:column;gap:2px}
+.stars a{color:var(--ink);font-weight:600}
+.sfoot{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;
+  margin-top:auto;padding-top:6px;border-top:1px solid var(--line2)}
+.rcards{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:6px}
+@media(min-width:860px){.rcards{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}}
+.rcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 12px;
+  display:flex;flex-direction:column;gap:2px;min-width:0}
+.rcard .lbl{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+  display:flex;gap:6px;align-items:center}
+.rcard>b{font-size:16px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rcard small{color:var(--dim);font-size:11.5px}
+.rcard.click{cursor:pointer}
+.rcard.click:hover{border-color:var(--accent)}
+td.hl{font-weight:700;color:var(--accent)}
+table.honours td{font-size:12.5px}
+table.honours .times{color:var(--accent);font-weight:700;font-size:11px}
+table.honours td.click{cursor:pointer}
+table.honours td.click:hover{text-decoration:underline}
