@@ -16,7 +16,7 @@
  */
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
-import { el, num, pill, bar, DASH, multiSelect, hashParams, setHashParams } from "../ui.js";
+import { el, num, pill, bar, DASH, multiSelect, hashParams, setHashParams, clubDot, shirtStyle } from "../ui.js";
 import { openPlayer } from "../profile.js";
 import { openClub } from "../club.js";
 
@@ -317,13 +317,15 @@ export async function view() {
       el("div.sechead", {}, [el("h3", { text: "Latest results" }),
         el("button.link", { text: `All ${ms.length} results ›`, onclick: () => show("results") })]),
       el("div.scroll.fit", {}, [el("table.latest", {}, [el("tbody", {}, recent.slice(0, 8).map((m) =>
-        el("tr", {}, [
+        el("tr.fx", fxEdges(m), [
+          el("td.fxo"),
           el("td.dim", { text: shortDate(m.date), title: String(m.date).slice(0, 10) }),
           el("td", { text: m.venue }),
           el("td.name", {}, [clubLink(m)]),
           el("td.num", { text: scoreText(m), title: scoreTitle(m) }),
           el("td", {}, [pill(m.result, RES[m.result] || "flat")]),
           el("td.dim.wide", { text: comp(m) }),
+          el("td.fxu"),
         ])))])]),
     ]);
 
@@ -523,12 +525,13 @@ export async function view() {
       if (m.season !== season) {
         season = m.season;
         const o = bySeason.get(season);
-        rows.push(el("tr.grp", {}, [el("td", { colspan: 8 }, [
+        rows.push(el("tr.grp", {}, [el("td", { colspan: 10 }, [
           el("b", { text: `${season - 1}/${String(season).slice(2)}` }),
           el("span.dim", { text: ` · ${o.p} played · ${o.w}-${o.d}-${o.l} · ${num(o.pts / o.p, 2)} pts/gm` }),
         ])]));
       }
-      rows.push(el("tr", {}, [
+      rows.push(el("tr.fx", fxEdges(m), [
+        el("td.fxo"),
         el("td", { text: String(m.date).slice(0, 10) }),
         el("td", { text: comp(m) }),
         el("td", { text: stageText(m) }),
@@ -537,14 +540,15 @@ export async function view() {
         el("td.num", { text: scoreText(m), title: scoreTitle(m) }),
         el("td", {}, [pill(m.result, RES[m.result] || "flat")]),
         el("td", { text: m.formation || DASH }),
+        el("td.fxu"),
       ]));
     }
     return el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["Date", "Competition", "Stage", "H/A", "Opponent", "Score", "", "Started in"]
+      el("thead", {}, [el("tr", {}, [el("th.fxo"), ...["Date", "Competition", "Stage", "H/A", "Opponent", "Score", "", "Started in"]
         .map((h, i) => el(`th${i === 5 ? ".num" : ""}`, {
           text: h, title: i === 7 ? "Our kick-off shape — the slots as they stood at kick-off" : null,
-        })))]),
-      el("tbody", {}, rows.length ? rows : [el("tr", {}, [el("td.empty", { colspan: 8, text: "No matches in this filter." })])]),
+        })), el("th.fxu")])]),
+      el("tbody", {}, rows.length ? rows : [el("tr", {}, [el("td.empty", { colspan: 10, text: "No matches in this filter." })])]),
     ])]);
   }
 
@@ -599,7 +603,7 @@ export async function view() {
       el("div.prow", {}, [el("span.dim", { text: "Met at least" }), seg]),
       summaryTable(ms, oppKey, "Opponent", {
         order: (a, b) => b.p - a.p || b.pts / b.p - a.pts / a.p,
-        minP, fmt: (k, r) => oppName(r.m),
+        minP, fmt: (k, r) => el("span.cname", {}, [clubDot(r.m.opp_tid, D.S), oppName(r.m)]),
         open: (r) => openClub(r.m.opp_tid),
         action: (r) => focus("opponent", r.k),
       }),
@@ -663,7 +667,7 @@ function summaryTable(ms, keyFn, label, { order = null, fmt = null, minP = 1, op
     el("thead", {}, [el("tr", {}, [...heads.map((h, i) => el(`th${i ? ".num" : ""}`, { text: h })),
       action ? el("th", { text: "" }) : null])]),
     el("tbody", {}, rows.length ? rows.map((r) => el(open ? "tr.click" : "tr", open ? { onclick: () => open(r) } : {}, [
-      el("td.name", { text: String(fmt ? fmt(r.k, r) : r.k) }), el("td.num", { text: r.p }),
+      el("td.name", {}, [fmt ? fmt(r.k, r) : String(r.k)]), el("td.num", { text: r.p }),
       el("td.num", { text: r.w }), el("td.num", { text: r.d }), el("td.num", { text: r.l }),
       el("td.num", { text: r.gf }), el("td.num", { text: r.ga }),
       el("td.num", { text: signed(r.gf - r.ga) }),
@@ -729,9 +733,17 @@ function scoreTitle(m) {
 /** An opponent's name that opens its club sheet. */
 function clubLink(m) {
   const name = m.opponent || `#${m.opp_tid}`;
-  return m.opp_tid == null ? name : el("a", {
+  return m.opp_tid == null ? name : el("span.cname", {}, [clubDot(m.opp_tid, D.S), el("a", {
     href: "#", text: name, onclick: (e) => { e.preventDefault(); openClub(m.opp_tid); },
-  });
+  })]);
+}
+
+/** A result row's two shirt edges: the opponent's on the left, ours on the right. */
+function fxEdges(m) {
+  return {
+    style: [shirtStyle(m.opp_tid, D.S)?.replace(/--c/g, "--o"),
+      shirtStyle(D.S.ours.managed_tid, D.S)?.replace(/--c/g, "--u")].filter(Boolean).join(";") || null,
+  };
 }
 
 const avg = (ms, k) => {

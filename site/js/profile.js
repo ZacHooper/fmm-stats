@@ -8,7 +8,7 @@
  */
 import * as D from "./data.js";
 import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
-  ATTR_BANDS, DASH } from "./ui.js";
+  ATTR_BANDS, clubName, DASH } from "./ui.js";
 import { loanOutlook } from "./loans.js";
 import { devChart } from "./devchart.js";
 
@@ -377,7 +377,7 @@ export function openProfile(tid, { role = null } = {}) {
   const natural = [...p.positions].filter((q) => q.fam >= 15).sort((x, y) => y.fam - x.fam);
   body.push(el("div.phead", {}, [
     el("div.pline", {}, [
-      el("b", { text: club?.name || DASH }),
+      el("b", {}, [club ? clubName(p.clubTid, D.S) : DASH]),
       status ? pill(status, "flat") : null,
       loanedIn ? pill("On loan here", "warn") : null,
       ...natural.map((q) => el("span.pos", { text: `${q.pos} ${q.fam}`, title: `${q.pos} — familiarity ${q.fam}` })),

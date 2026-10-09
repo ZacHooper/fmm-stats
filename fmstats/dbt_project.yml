@@ -105,6 +105,13 @@ vars:
   staff_style_bands: [[7, Defensive], [13, Normal], [20, Attacking]]
   staff_tier_bands: [[3000, Regional], [5800, National], [1000000000, Continental]]
   wage_gbp_per_unit: 520
+  # The game's stock first kit: ~490 clubs wear it whatever their name colours (VfR Hausen
+  # white on blue, Paro FC white on red), so it says nothing about the club. int_club_snapshots
+  # gives these clubs their name colours as shirt colours instead.
+  default_kit: ['#f8f8f8', '#0030a0', '#000000', '#f8f8f8', '#f8f8f8',
+                '#0030a0', '#000000', '#0030a0', '#000000', '#f8f8f8']
+  # Two shirt colours closer than this (colour_distance) read as one on a 10px dot.
+  shirt_colour_min_distance: 60
   stage_formats: {0: knockout, 1: league, 2: group}   # competition_rounds.stage_type
   # A league's regular stage must hold at least this share of the league's clubs
   # (int_stage_competitions; mart.league_tables uses the same rule), so a cup group drawn from

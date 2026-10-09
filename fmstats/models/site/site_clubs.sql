@@ -1,6 +1,7 @@
 -- Every team on every snapshot, keyed (snapshot_date, team_tid): its name,
 -- club, league (int.team_leagues: the newest its record named), the league's
--- nation, its reputation and how many players its record holds.
+-- nation, its reputation and how many players its record holds, and its
+-- club's home shirt colours (dim_club.shirt_colours: main, then second).
 --
 -- is_listed: a team worth naming in the web app's club pickers, one with a
 -- rated player, one we played that season, or one on a career line of a
@@ -60,6 +61,7 @@ select
     competitions.name as league_name,
     nations.name as nation,
     team_snapshots.reputation,
+    clubs.shirt_colours,
     coalesce(players.squad_size, 0) as squad_size,
     (
         coalesce(players.rated_players, 0) > 0
@@ -67,6 +69,8 @@ select
         or careers.team_tid is not null
     ) as is_listed
 from {{ ref('int_teams') }} as teams
+left join {{ ref('dim_club') }} as clubs
+    on teams.club_tid = clubs.club_tid
 left join {{ ref('fact_team_snapshot') }} as team_snapshots
     on
         teams.snapshot_date = team_snapshots.snapshot_date

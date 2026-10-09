@@ -18,7 +18,7 @@ export const S = {          // everything loaded, one place
   forecast: null, world: null,
   all: null,                // lazy: every player in the save, fetched from R2 on demand
   players: new Map(),       // tid -> player (core, then merged with all)
-  clubs: new Map(),         // tid -> {tid,name,leagueCid,players}
+  clubs: new Map(),         // tid -> {tid,name,leagueCid,players,nation,reputation,shirt}
   leagues: new Map(),       // cid -> {cid,name,nation,reputation,clubs}
   tactics: {}, posRole: {}, fam: { curve: "linear_floor", floor: 0.5 },
   method: null, ours: null, attrs: [],
@@ -86,7 +86,7 @@ export async function boot() {
   S.method = S.index.snapshot.default_method;
   for (const c of core.clubs) S.clubs.set(c[0], {
     tid: c[0], name: c[1] || `#${c[0]}`, leagueCid: c[2], players: c[3],
-    nation: c[4] ?? null, reputation: c[5] ?? null,
+    nation: c[4] ?? null, reputation: c[5] ?? null, shirt: c[6] ?? null,
   });
   for (const l of core.leagues) {
     S.leagues.set(l[0], { cid: l[0], name: l[1], nation: l[2], reputation: l[3],

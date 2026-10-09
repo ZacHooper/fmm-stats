@@ -10,7 +10,7 @@
  * (a winger at a 5-3-2 club) have no tick at all.
  */
 import * as D from "./data.js";
-import { el, clear, pill, DASH } from "./ui.js";
+import { el, clear, pill, clubName, DASH } from "./ui.js";
 
 const ordinal = (n) => {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
@@ -63,7 +63,7 @@ function clubTable(d, loanedTo, pos) {
         : c.rank === c.slots + 1 ? pill("Next in", "warn") : pill("Bench", "flat");
       const shape = D.S.loans.formations[String(c.tid)];
       return el(`tr${c.tid === loanedTo ? ".picked" : ""}`, {}, [
-        el("td.name", { text: (D.S.clubs.get(c.tid)?.name || `#${c.tid}`) + (c.tid === loanedTo ? " · on loan here" : "") }),
+        el("td.name", {}, [clubName(c.tid, D.S), c.tid === loanedTo ? " · on loan here" : null]),
         el("td", { text: shape || `${D.S.loans.fallback_formation}?`,
           title: shape ? "The manager's preferred formation" : "Manager's formation unknown — read as the most common shape" }),
         el("td", { text: `${ordinal(c.rank)} choice · ${c.slots} start` }),
