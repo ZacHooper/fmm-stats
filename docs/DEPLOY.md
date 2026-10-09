@@ -141,6 +141,23 @@ whatever is already in the bucket). `--skip-all` skips generating it entirely fo
 Other flags: `--season/--phase` to pin an older snapshot, `--method` for the default tactic,
 `--min-fam` for the familiarity floor on the position review.
 
+## Offline
+
+`site/sw.js` (a service worker, registered by `app.js`) keeps a copy of the whole app on each
+device — every file in `site/` plus the every-player file from `/api/all` — so it works with no
+connection, global search and player profiles included. It is **network first**: online, each
+request goes to the server and its answer replaces the cached copy, so a new import shows up on
+the next online visit with no cache version to bump. Offline, the copy answers, `/api/all?tid=`
+is filtered from the cached file, and a toast says so. Shortlist and registration-window
+**writes** still need a connection; a shortlist seen online can still be read.
+
+To take it offline: open the site once online and leave it a few seconds to fill the cache. On
+iPhone, a home-screen app ("Add to Home Screen") has storage separate from Safari, so open the
+home-screen app itself once online.
+
+**Adding a file to `site/` means adding it to `SHELL` in `sw.js`** — otherwise it works online and
+breaks only offline. `tests/test_site_offline.py` fails when the two disagree.
+
 ## SQL access for a remote agent
 
 The JSON API only ever answers the fixed shapes `export_data.py` chose to export. A remote agent

@@ -106,6 +106,7 @@ function buildChrome() {
 }
 
 (async function start() {
+  offline();                     // first, so a failed boot still leaves the copy registered
   try {
     await D.boot();
   } catch (e) {
@@ -120,3 +121,20 @@ function buildChrome() {
   addEventListener("hashchange", render);
   render();
 })();
+
+/** Keep a copy on this device (site/sw.js) so the app, every-player file included, works with no
+ *  connection. Each online load asks the worker to refresh that copy; offline, say the data is
+ *  the copy, since the shortlist and registration windows can't be saved until reconnected. */
+function offline() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").then(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      if (navigator.onLine) reg.active?.postMessage({ type: "warm" });
+    }).catch((e) => console.warn("offline copy unavailable:", e));
+  }
+  const say = () => toast(navigator.onLine ? "Back online"
+    : "Offline — showing this device's saved copy. Shortlist edits wait for a connection.", !navigator.onLine);
+  addEventListener("online", say);
+  addEventListener("offline", say);
+  if (!navigator.onLine) say();
+}
