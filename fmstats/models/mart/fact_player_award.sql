@@ -38,7 +38,7 @@ seasonal as (
     select *
     from entries
     where list between {{ seasonal[0] }} and {{ seasonal[1] }}
-    qualify snapshot_date = max(snapshot_date) over (partition by season)
+    qualify snapshot_date = max(snapshot_date) over (partition by list)
 ),
 
 all_time as (

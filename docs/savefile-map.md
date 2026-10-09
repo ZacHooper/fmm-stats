@@ -114,8 +114,16 @@ deletion. Matches go 60 anchors -> 0 over the same pair.
 
 The wipe is a discrete event on rollover day and **the date moves year to year**:
 `2023-06-30` 44 match anchors -> `2023-07-01` 0; `2024-06-28` 59 -> `2024-06-30` 0;
-`2026-06-29` 60 -> `2026-07-02` 0. So a save taken even two days late has already lost the
-season. The reference-half floor the band resets to is stable across five years
+`2026-06-29` 60 -> `2026-07-02` 0; `2028-06-28` 75 -> `2028-06-29` 0. So a save taken even two days late has already lost the
+season.
+
+**The drift mechanism (365-day engine clock):**
+The game advances an internal season counter of exactly 365 days rather than binding to a fixed Gregorian calendar date (e.g. June 30). Because leap years insert February 29th without the 365-day interval compensating, each leap year slips the in-game calendar rollover backwards by exactly one calendar day:
+- **2021–2023 (0 leap days):** Rollover on 30 June (or 1 July).
+- **2024–2027 (1 leap day, Feb 2024):** Rollover slips 1 day to 29 June (28 June had matches; 30 June had 0).
+- **2028+ (2 leap days, Feb 2028):** Rollover slips another day to 28/29 June (28 June 2028 had 75 matches; 29 June 2028 had 0).
+
+The reference-half floor the band resets to is stable across five years
 (17.96 / 17.55 / 17.69 / 17.83 / 17.66 MB measured from the datadict's end to the first name
 id-table), so nothing accumulates here between seasons.
 
