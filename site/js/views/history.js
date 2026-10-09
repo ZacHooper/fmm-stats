@@ -411,7 +411,7 @@ export async function view() {
     const order = [];
     for (const s of seasons) {
       const items = kind === "player"
-        ? playerAwards(s).filter((a) => silly || !a.silly).map((a) => ({ label: a.label, text: D.matchName(a.who), fig: a.value, note: a.note, tid: a.who }))
+        ? playerAwards(s).filter((a) => silly || !a.silly).map((a) => ({ label: a.label, text: D.matchName(a.who), fig: a.value, note: a.note, means: a.means, tid: a.who }))
         : seasonTeamAwards(matches.filter((m) => m.season === s)).map((a) => ({ label: a.label, text: a.value, fig: a.note, note: a.note }));
       const m = new Map();
       for (const it of items) { m.set(it.label, it); if (!order.includes(it.label)) order.push(it.label); }
@@ -451,6 +451,33 @@ export async function view() {
       ])]),
       el("p.note", { text: "Newest season first. ×2, ×3 … counts a player's repeat wins of the same "
         + "award. Hover or tap a cell for how it was decided; a season opens that season in full." }),
+      kind === "player" ? awardKey(order, cells) : null,
+    ]);
+  }
+
+  // What each player award rewards, in the board's column order. The wording is the award's
+  // own "decided by" note (or its `means`, where the note describes the winning match), so the
+  // key can't drift from the computation. The appearance bar is
+  // the one part that changes season to season (it scales with games played), so it is stated
+  // once rather than per award.
+  function awardKey(order, cells) {
+    const meaning = new Map();
+    for (const s of seasons) {
+      for (const [label, c] of cells.get(s)) {
+        // `means` where an award's note describes the winning match rather than the award.
+        const text = c.means || c.note;
+        if (!meaning.has(label) && text) meaning.set(label, text.replace(/,? ?min \d+ apps/, ""));
+      }
+    }
+    const items = order.filter((l) => meaning.has(l));
+    if (!items.length) return null;
+    return el("div.awardkey", {}, [
+      el("h4", { text: "What each award is for" }),
+      el("dl", {}, items.flatMap((l) => [el("dt", { text: l }), el("dd", { text: meaning.get(l) })])),
+      el("p.note", { text: "To qualify a player needs about 30% of the season's matches (at least 3). "
+        + "Player of the season and Young Gun, both average-rating awards, need about 60% (up to "
+        + `${RATING_AWARD_APPS}), since an average over a handful of games is noise. Appearances `
+        + "count substitutes. Young Gun is U21 at the season's 1 January." }),
     ]);
   }
 
@@ -539,6 +566,7 @@ function seasonPlayerAwards(rows, matches, s) {
   const hattrick = sr.filter((r) => r.goals >= 1).sort((a, b) => b.goals - a.goals)[0];
   const hattrickAward = hattrick ? {
     label: "Hat-trick Hero", who: hattrick.tid, value: num(hattrick.goals),
+    means: "most goals in a single match",
     note: `vs ${D.S.clubs.get(hattrick.opponent_tid)?.name || `#${hattrick.opponent_tid}`} · `
       + `${String(hattrick.date).slice(0, 10)}`,
   } : null;

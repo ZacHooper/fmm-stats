@@ -544,3 +544,11 @@ table.board td.click{cursor:pointer}
 table.board td.click:hover .who{color:var(--accent)}
 table.board .times{color:var(--accent);font-weight:700;font-size:11px}
 @media(max-width:600px){.hide-sm{display:none}}
+/* Awards · the key under the honours board */
+.awardkey{margin-top:10px;padding:10px 14px;border:1px solid var(--line);border-radius:11px;background:var(--card)}
+.awardkey h4{margin:0 0 8px}
+.awardkey dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0;font-size:12.5px}
+.awardkey dt{font-weight:600}
+.awardkey dd{margin:0;color:var(--dim)}
+@media(min-width:860px){.awardkey dl{grid-template-columns:max-content 1fr max-content 1fr}}
+.awardkey .note{margin:10px 0 0}
