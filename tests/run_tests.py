@@ -53,6 +53,7 @@ UNIT_TESTS = {
     "test_rounds_officials.py",
     "test_rule_files_unit.py",
     "test_save_header_unit.py",
+    "test_site_offline.py",
     "test_staff_unit.py",
     "test_tables.py",
 }
