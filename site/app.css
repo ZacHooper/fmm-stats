@@ -553,3 +553,16 @@ table.board .thtip{display:none;position:absolute;top:100%;left:4px;z-index:5;wi
 table.board th.tipleft .thtip{left:auto;right:4px}
 table.board th.tipped.open .thtip{display:block;position:fixed;right:auto;z-index:50}
 @media(hover:hover){table.board th.tipped:hover .thtip{display:block}}
+td.best{color:var(--good);font-weight:700}
+/* column header tooltip (table.js colTip) */
+.coltip{position:fixed;z-index:60;max-width:300px;padding:9px 11px;border-radius:9px;
+  background:var(--card);color:var(--ink);border:1px solid var(--line);
+  box-shadow:0 8px 24px rgba(0,0,0,.16);font-size:12.5px;line-height:1.4;pointer-events:none;
+  opacity:0;transform:translateY(-3px);transition:opacity .12s,transform .12s;visibility:hidden}
+.coltip.on{opacity:1;transform:none;visibility:visible}
+.coltip .cthead{display:flex;gap:8px;align-items:baseline;justify-content:space-between;margin-bottom:3px}
+.coltip .cthead b{font-size:13px}
+.coltip .cthead span{color:var(--dim);font-size:11px}
+.coltip p{margin:3px 0 0}
+.coltip .ctnote{color:var(--dim)}
+.coltip .ctfoot{margin-top:6px;padding-top:5px;border-top:1px solid var(--line2);color:var(--dim);font-size:11px}

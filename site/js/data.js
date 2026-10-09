@@ -558,6 +558,9 @@ export const STAT_DEFS = {
   "Int/90": (a) => per90(a, "intercept"), "HeadW/90": (a) => per90(a, "headW"),
   "Shots/90": (a) => per90(a, "shotA"),
   "DefAct/90": (a) => a.min ? (90 * (a.tackW + a.intercept + a.headW)) / a.min : null,
+  "Crosses/90": (a) => per90(a, "crossA"), "Dribbles/90": (a) => per90(a, "dribbles"),
+  "SoT/90": (a) => per90(a, "shotO"), "Mistakes/90": (a) => per90(a, "mistakes"),
+  "Yellows/90": (a) => per90(a, "yellow"),
   "G/gm": (a) => perGm(a, "goals"), "A/gm": (a) => perGm(a, "assists"),
   "G+A/gm": (a) => a.apps ? (a.goals + a.assists) / a.apps : null,
   "KeyP/gm": (a) => perGm(a, "keyPass"), "Passes/gm": (a) => perGm(a, "passA"),
@@ -571,16 +574,49 @@ export const STAT_DEFS = {
   "Header %": (a) => rate(a.headW, a.headA), "Cross %": (a) => rate(a.crossC, a.crossA),
   "Shot acc %": (a) => rate(a.shotO, a.shotA), "Conversion %": (a) => rate(a.goals, a.shotA),
 };
+/** What a match stat means, in words — the column tooltip's definition. Rates are spelt out
+ *  from their base ("Int/90" -> "Interceptions per 90 minutes played"), so a new /90 or /gm stat
+ *  is described the day it is added. */
+const STAT_BASE = {
+  G: "Goals", A: "Assists", "G+A": "Goals + assists", KeyP: "Key passes",
+  Passes: "Passes attempted", Tackles: "Tackles attempted", TackW: "Tackles won",
+  Int: "Interceptions", HeadW: "Headers won", Shots: "Shots", SoT: "Shots on target",
+  DefAct: "Defensive actions (tackles won + interceptions + headers won)",
+  Crosses: "Crosses attempted", Dribbles: "Dribbles", Mistakes: "Mistakes", Yellows: "Yellow cards",
+  Min: "Minutes",
+};
+const STAT_WORDS = {
+  "Apps": "Appearances, starts and substitute appearances together",
+  "Starts": "Matches he started", "Sub": "Appearances off the bench", "Min": "Minutes played",
+  "Goals": "Goals scored", "Assists": "Assists", "G+A": "Goals + assists",
+  "POTM": "Player of the Match awards", "Key passes": "Key passes",
+  "Pass att": "Passes attempted", "Tackle att": "Tackles attempted", "Shot att": "Shots",
+  "Interceptions": "Interceptions", "Dribbles": "Dribbles",
+  "Pass %": "Passes completed, as a share of passes attempted",
+  "Tackle %": "Tackles won, as a share of tackles attempted",
+  "Header %": "Headers won, as a share of headers contested",
+  "Cross %": "Crosses completed, as a share of crosses attempted",
+  "Shot acc %": "Shots on target, as a share of all shots",
+  "Conversion %": "Goals, as a share of all shots",
+};
+export function statHelp(name) {
+  if (STAT_WORDS[name]) return STAT_WORDS[name];
+  const m = /^(.+)\/(90|gm)$/.exec(name);
+  if (m && STAT_BASE[m[1]]) return `${STAT_BASE[m[1]]} ${m[2] === "90" ? "per 90 minutes played" : "per appearance"}`;
+  return name;
+}
 const per90 = (a, k) => (a.min ? (90 * a[k]) / a.min : null);
 const perGm = (a, k) => (a.apps ? a[k] / a.apps : null);
 const rate = (n, d) => (d ? (100 * n) / d : null);
 
+// Rates are per 90 minutes rather than per game: a game counts a 15-minute cameo the same as a
+// full match, so per game understates every substitute. The per-game columns stay pickable.
 export const STAT_PRESETS = {
-  "Forward": ["G/90", "A/90", "Shots/90", "Shot acc %", "Conversion %", "SoT/gm", "KeyP/90", "Dribbles/gm"],
-  "Winger": ["G/90", "A/90", "KeyP/90", "Crosses/gm", "Cross %", "Dribbles/gm", "Shots/90", "Shot acc %"],
-  "Midfielder": ["Passes/90", "Pass %", "KeyP/90", "A/90", "Tackles/gm", "TackW/90", "Int/90", "DefAct/90"],
-  "Defender": ["TackW/90", "Tackle %", "Int/90", "HeadW/90", "Header %", "DefAct/90", "Pass %", "Mistakes/gm"],
-  "Goalkeeper": ["Pass %", "Passes/90", "Mistakes/gm", "Yellows/gm"],
+  "Forward": ["G/90", "A/90", "Shots/90", "Shot acc %", "Conversion %", "SoT/90", "KeyP/90", "Dribbles/90"],
+  "Winger": ["G/90", "A/90", "KeyP/90", "Crosses/90", "Cross %", "Dribbles/90", "Shots/90", "Shot acc %"],
+  "Midfielder": ["Passes/90", "Pass %", "KeyP/90", "A/90", "Tackles/90", "TackW/90", "Int/90", "DefAct/90"],
+  "Defender": ["TackW/90", "Tackle %", "Int/90", "HeadW/90", "Header %", "DefAct/90", "Pass %", "Mistakes/90"],
+  "Goalkeeper": ["Pass %", "Passes/90", "Mistakes/90", "Yellows/90"],
   "Playing time": ["Apps", "Starts", "Sub", "Min", "Min/gm", "Rating", "Rating (adj)"],
 };
 

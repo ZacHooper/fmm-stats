@@ -188,7 +188,7 @@ function bioBlock(p) {
 const STAT_GROUPS = [
   ["Output", ["Apps", "Starts", "Min", "Rating", "Goals", "Assists", "G/90", "A/90"]],
   ["On the ball", ["KeyP/90", "Pass %", "Shot acc %", "Conversion %"]],
-  ["Defending", ["Tackle %", "Header %", "Int/90", "Mistakes/gm"]],
+  ["Defending", ["Tackle %", "Header %", "Int/90", "Mistakes/90"]],
 ];
 function statBlock(agg) {
   if (!agg) return el("p.note", { text: "No parsed match data for this player — only the managed club's matches are richly parsed." });
@@ -294,9 +294,23 @@ export async function openPlayer(tid) {
   ]);
 }
 
+/** His competitive starts for us by the position he started at, aggregated (tid's rows only).
+ *  null until matches.json is loaded. */
+function playedAt(tid) {
+  if (!D.S.matches) return null;
+  const by = new Map();
+  for (const r of D.matchRows()) {
+    if (r.tid !== tid || !r.position || !r.started || D.isFriendly(r.competition)) continue;
+    if (!by.has(r.position)) by.set(r.position, []);
+    by.get(r.position).push(r);
+  }
+  return new Map([...by].map(([q, rs]) => [q, D.aggregate(rs).get(tid)]));
+}
+
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
+  let matchesTried = false;
   // The development chart, the attribute growth options and career history all read
   // squad.json. Pages other than Squad don't load it, so fetch it (once, ~20 KB) before the
   // first sheet rather than showing a profile with those parts silently missing.
@@ -467,11 +481,44 @@ export function openProfile(tid, { role = null } = {}) {
     const ourName = D.S.leagues.get(ourCid)?.name || "our division";
     const hisName = hisCid != null ? D.S.leagues.get(hisCid)?.name : null;
     const oursList = D.ourPlayers();
+    // What he has actually done there for us: his competitive STARTS at each position (the game
+    // records a position for the starting eleven only, so a sub appearance can't be placed), and
+    // the position-adjusted rating over them — one scale across positions, so the rows compare.
+    // The best of those with enough starts to mean something is marked. Only his listed
+    // positions are shown; a start somewhere he isn't listed is out of position. Needs matches.json,
+    // which not every page has loaded: the tab fetches it and redraws.
+    const played = playedAt(tid);
+    if (!played && !matchesTried) {
+      matchesTried = true;
+      D.loadMatches().then(() => { if (curTab === "fit") showTab("fit", false); }).catch(() => null);
+    }
+    const MIN_STARTS = 3;
+    // the best is picked among his listed positions only — the rows the table shows
+    const bestAdj = played ? Math.max(...roles.map((r) => played.get(r.pos))
+      .filter((a) => a && a.starts >= MIN_STARTS && a.ratingAdj != null).map((a) => a.ratingAdj)) : null;
     const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
     if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
-    heads.push("Squad rank");
+    heads.push("Squad rank", "Starts", "Rating (adj)", "G+A/90");
+    const playedCells = (q) => {
+      const a = played?.get(q);
+      if (!played) return [el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" })];
+      if (!a) return [el("td.num.dim", { text: "0" }), el("td.num", { text: DASH }), el("td.num", { text: DASH })];
+      const best = a.starts >= MIN_STARTS && a.ratingAdj != null && a.ratingAdj === bestAdj;
+      return [
+        el("td.num", { text: a.starts, title: `${num(a.min)} minutes` }),
+        el(`td.num${best ? ".best" : ""}${a.starts < MIN_STARTS ? ".dim" : ""}`, {
+          text: a.ratingAdj == null ? DASH : num(a.ratingAdj, 2),
+          title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
+        }),
+        el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 2) : DASH }),
+      ];
+    };
     const out = el("div", {}, [el("div.scroll.fit", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, { text: h })))]),
+      el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
+        text: h,
+        title: h === "Rating (adj)" ? "Average position-adjusted match rating over his competitive starts there"
+          : h === "Starts" ? "Competitive starts for us at this position" : null,
+      })))]),
       el("tbody", {}, roles.map((r) => {
         const cells = [
           el("td", { text: r.pos }), el("td", { text: r.role }),
@@ -482,6 +529,7 @@ export function openProfile(tid, { role = null } = {}) {
         if (hisPlayers) cells.push(el("td.num", {}, [bar(D.pctile(D.poolAt(hisPlayers, r.pos), r.eff))]));
         const tpool = D.teamPool(oursList, r.pos);
         cells.push(el("td.num", { text: tpool.length ? `${D.rankIn(tpool, r.eff)}/${tpool.length}` : DASH }));
+        cells.push(...playedCells(r.pos));
         return el("tr", {}, cells);
       })),
     ])])]);
@@ -506,7 +554,13 @@ export function openProfile(tid, { role = null } = {}) {
         + "against everyone in the division — so it answers <i>is he good enough here</i>, and it "
         + "moves when you change tactic. (Level %ile, which ranks ability rather than tactical "
         + "fit, is on the Squad table and drives the Loan tab.) <b>Squad rank</b> is where he'd "
-        + "stand among our own players at that position if he were part of the squad.",
+        + "stand among our own players at that position if he were part of the squad. "
+        + "The last three columns are what he has <i>done</i> there: his competitive <b>Starts</b> "
+        + "for us at the position, his <b>Rating (adj)</b> over them — the match rating adjusted "
+        + "for position, so it compares across rows — and <b>G+A/90</b>. The best adjusted rating "
+        + `with ${3}+ starts is marked; fewer starts are greyed. Substitute appearances aren't `
+        + "counted (the game records positions for starters only), and neither are starts at a "
+        + "position he isn't listed at.",
     })]));
     return out;
   }
