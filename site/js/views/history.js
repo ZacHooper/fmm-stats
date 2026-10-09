@@ -174,23 +174,16 @@ export async function view() {
   };
   const runText = (x) => (x.winners ? "Winners" : x.where ? `${x.where}${x.out ? " · out" : ""}` : DASH);
   const runCls = (x) => (x.winners ? "win" : x.out ? "out" : "");
-  const extras = (r) => [
-    r.att ? `Avg crowd ${r.att.avg_att.toLocaleString()}` : null,
-    r.fin ? `Squad value ${money(r.fin.value_gbp)}` : null,
-    r.fin ? `Wages ${money(r.fin.wage_gbp)}` : null,
-  ].filter(Boolean).join(" · ");
 
-  // Three layouts, live side by side until one is chosen — `?layout=` picks.
-  const LAYOUTS = [["timeline", "Timeline"], ["ledger", "Ledger"], ["table", "Table"], ["full", "Full table"]];
+  // The timeline reads; the full table is for comparing every figure at once.
+  const LAYOUTS = [["timeline", "Timeline"], ["full", "Full table"]];
   function seasonsTab() {
     const want = hashParams().get("layout");
     const layout = (LAYOUTS.find(([k]) => k === want) || LAYOUTS[0])[0];
     const seg = el("span.mseg", {}, LAYOUTS.map(([k, l]) => el(`button.chip${k === layout ? ".on" : ""}`, {
       text: l, onclick: () => { setHashParams({ layout: k === LAYOUTS[0][0] ? null : k }); draw(); },
     })));
-    const body = layout === "timeline" ? el("div.tl", {}, prog.map(timelineEntry))
-      : layout === "ledger" ? el("div.ledger", {}, prog.map(ledgerRow))
-        : layout === "table" ? curatedTable() : seasonTable();
+    const body = layout === "timeline" ? el("div.tl", {}, prog.map(timelineEntry)) : seasonTable();
     return el("div", {}, [
       el("div.prow", {}, [el("span.dim", { text: "Layout" }), seg]),
       body,
@@ -202,76 +195,40 @@ export async function view() {
     ]);
   }
 
-  // Timeline: one column, a rail down the left, each season a short story.
+  // Timeline: a rail down the left, each season a short story. On a wide screen the story
+  // sits on the left (league, record, cups) and the season's people and figures on the right.
   function timelineEntry(r) {
     const { pots, boot } = seasonStars(r.season);
+    const fig = (label, value, title) => el("div.tlfig", { title }, [el("b", { text: value }), el("span", { text: label })]);
+    const figs = [
+      fig("Pts/gm", r.ppg == null ? DASH : num(r.ppg, 2)),
+      fig("Goals", `${r.gf}:${r.ga}`),
+      r.att ? fig("Avg crowd", r.att.avg_att.toLocaleString(), `Biggest: ${r.att.max_att.toLocaleString()}`) : null,
+      r.fin ? fig("Squad value", money(r.fin.value_gbp), `At ${r.fin.phase}, owned players`) : null,
+      r.fin ? fig("Wage bill", money(r.fin.wage_gbp), `At ${r.fin.phase}, owned players`) : null,
+    ].filter(Boolean);
     return el("div.tlitem", {}, [
       el("div.tldot"),
-      el("div.tlbody", {}, [
-        el("div.tlhead", {}, [
-          el("b", { text: seasonLabel(r.season) }),
-          el("span", { text: r.league?.comp || "" }),
-          r.league ? el(`span.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null,
+      el("div.tlhead", {}, [
+        el("b", { text: seasonLabel(r.season) }),
+        el("span", { text: r.league?.comp || "" }),
+        r.league ? el(`span.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null,
+        el("span.tlwdl", {}, [el("b", { text: `${r.w}-${r.d}-${r.l}` }), el("span.dim", { text: " W-D-L" })]),
+      ]),
+      el("div.tlgrid", {}, [
+        el("div.tlstory", {}, [
+          r.cups.length ? el("ul.tlcups", {}, r.cups.map((c) => el("li", {}, [
+            el("span", { text: c.comp }), el(`span.run.${runCls(c) || "plain"}`, { text: runText(c) }),
+          ]))) : el("div.dim", { text: "No cup matches parsed" }),
+          el("div.tlstars", {}, [
+            pots ? el("div", {}, [el("span.dim", { text: "Player of the season " }), who(pots.who), el("span.dim", { text: ` ${pots.value}` })]) : null,
+            boot ? el("div", {}, [el("span.dim", { text: "Golden boot " }), who(boot.who), el("span.dim", { text: ` ${boot.value}` })]) : null,
+          ]),
+          el("button.link.tlawards", { text: "All awards ›", onclick: () => show("awards", { season: r.season, view: "season" }) }),
         ]),
-        el("div.tlrec", {}, [
-          el("span", {}, [el("b", { text: `${r.w}-${r.d}-${r.l}` }), el("span.dim", { text: " W-D-L" })]),
-          el("span", {}, [el("b", { text: `${r.gf}:${r.ga}` }), el("span.dim", { text: " goals" })]),
-          el("span", {}, [r.ppg == null ? DASH : bar(r.ppg, { max: 3, lo: 34, dp: 2 }), el("span.dim", { text: " pts/gm" })]),
-        ]),
-        r.cups.length ? el("ul.tlcups", {}, r.cups.map((c) => el("li", {}, [
-          el("span", { text: c.comp }), el(`span.run.${runCls(c) || "plain"}`, { text: runText(c) }),
-        ]))) : null,
-        el("div.tlstars", {}, [
-          pots ? el("span", {}, [el("span.dim", { text: "Player of the season " }), who(pots.who), el("span.dim", { text: ` ${pots.value}` })]) : null,
-          boot ? el("span", {}, [el("span.dim", { text: "Golden boot " }), who(boot.who), el("span.dim", { text: ` ${boot.value}` })]) : null,
-        ]),
-        el("div.tlfoot", {}, [el("span.dim", { text: extras(r) }),
-          el("button.link", { text: "Awards ›", onclick: () => show("awards", { season: r.season, view: "season" }) })]),
+        el("div.tlfigs", {}, figs),
       ]),
     ]);
-  }
-
-  // Ledger: one row per season with aligned columns on a wide screen; stacks on a phone.
-  function ledgerRow(r) {
-    const { pots, boot } = seasonStars(r.season);
-    return el("div.lrow", {}, [
-      el("div.lseason", {}, [el("b", { text: seasonLabel(r.season) }), el("span.dim", { text: r.league?.comp || "" }),
-        r.league ? el(`span.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null]),
-      el("div.lrec", {}, [
-        el("b", { text: `${r.w}-${r.d}-${r.l}` }),
-        el("span.dim", { text: `${r.gf}:${r.ga}` }),
-        r.ppg == null ? DASH : bar(r.ppg, { max: 3, lo: 34, dp: 2 }),
-      ]),
-      el("div.lcups", {}, r.cups.length ? r.cups.map((c) => el("div", {}, [
-        el("span", { text: c.comp }), " ", el(`span.run.${runCls(c) || "plain"}`, { text: runText(c) }),
-      ])) : [el("span.dim", { text: "No cup matches" })]),
-      el("div.lstars", {}, [
-        pots ? el("div", {}, [el("span.lbl", { text: "Player of the season" }), who(pots.who), el("span.dim", { text: ` ${pots.value}` })]) : null,
-        boot ? el("div", {}, [el("span.lbl", { text: "Golden boot" }), who(boot.who), el("span.dim", { text: ` ${boot.value}` })]) : null,
-      ]),
-    ]);
-  }
-
-  // Table: the seven columns worth reading, every name a link; the full table keeps the rest.
-  function curatedTable() {
-    return el("div.scroll", {}, [el("table.curated", {}, [
-      el("thead", {}, [el("tr", {}, [["Season", 0], ["League", 0], ["W-D-L", 1], ["Pts/gm", 1], ["Cups", 0],
-        ["Player of the season", 0], ["Golden boot", 0]].map(([h, n]) => el(`th${n ? ".num" : ""}`, { text: h })))]),
-      el("tbody", {}, prog.map((r) => {
-        const { pots, boot } = seasonStars(r.season);
-        return el("tr", {}, [
-          el("td.name", { text: seasonLabel(r.season) }),
-          el("td", {}, [el("div", { text: r.league?.comp || DASH }),
-            r.league ? el(`div.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null]),
-          el("td.num", { text: `${r.w}-${r.d}-${r.l}` }),
-          el("td.num", {}, [r.ppg == null ? DASH : bar(r.ppg, { max: 3, lo: 34, dp: 2 })]),
-          el("td", {}, r.cups.length ? r.cups.map((c) => el("div", {}, [`${c.comp} `,
-            el(`span.run.${runCls(c) || "plain"}`, { text: runText(c) })])) : [DASH]),
-          el("td", {}, pots ? [who(pots.who), el("span.dim", { text: ` ${pots.value}` })] : [DASH]),
-          el("td", {}, boot ? [who(boot.who), el("span.dim", { text: ` ${boot.value}` })] : [DASH]),
-        ]);
-      })),
-    ])]);
   }
 
   function seasonTable() {
