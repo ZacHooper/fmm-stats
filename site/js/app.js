@@ -123,17 +123,47 @@ function buildChrome() {
 })();
 
 /** Keep a copy on this device (site/sw.js) so the app, every-player file included, works with no
- *  connection. Each online load asks the worker to refresh that copy; offline, say the data is
+ *  connection. Each online load asks the worker to refresh that copy, and the footer says when it
+ *  last finished — the signal that it is safe to go offline. Offline, a toast says the data is
  *  the copy, since the shortlist and registration windows can't be saved until reconnected. */
 function offline() {
+  const KEY = "fm:offline-saved";
+  const status = el("div", { id: "offline" });
+  document.getElementById("foot").append(status);
+  const show = () => {
+    let at = null;
+    try { at = localStorage.getItem(KEY); } catch { /* storage blocked: just no timestamp */ }
+    status.textContent = !navigator.onLine
+      ? `Offline · showing the copy saved ${at || "earlier"}`
+      : at ? `Saved for offline ${at}` : "Saving for offline…";
+  };
+  show();
   if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (e.data?.type !== "warmed") return;
+      if (e.data.shell < e.data.total || !e.data.all) {
+        status.textContent = `Offline copy incomplete (${e.data.shell}/${e.data.total} files`
+          + `${e.data.all ? "" : ", every-player file missing"}) — reload while online to retry`;
+        return;
+      }
+      let first = true;
+      try {
+        first = !localStorage.getItem(KEY);
+        localStorage.setItem(KEY, new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" }));
+      } catch { /* storage blocked */ }
+      show();
+      if (first) toast("Saved for offline — this site now works without a connection");
+    });
     navigator.serviceWorker.register("sw.js").then(async () => {
       const reg = await navigator.serviceWorker.ready;
       if (navigator.onLine) reg.active?.postMessage({ type: "warm" });
-    }).catch((e) => console.warn("offline copy unavailable:", e));
+    }).catch((e) => { status.textContent = "Offline copy unavailable in this browser"; console.warn(e); });
   }
-  const say = () => toast(navigator.onLine ? "Back online"
-    : "Offline — showing this device's saved copy. Shortlist edits wait for a connection.", !navigator.onLine);
+  const say = () => {
+    show();
+    toast(navigator.onLine ? "Back online"
+      : "Offline — showing this device's saved copy. Shortlist edits wait for a connection.", !navigator.onLine);
+  };
   addEventListener("online", say);
   addEventListener("offline", say);
   if (!navigator.onLine) say();

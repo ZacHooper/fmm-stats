@@ -15,8 +15,10 @@ from tests.harness import FAIL, PASS, ROOT                                  # no
 
 SITE = os.path.join(ROOT, "site")
 # Not fetched by the app: agent notes, deploy config, the worker itself, and the gitignored
-# every-player file (cached separately, from /api/all or api/all.json).
-NOT_CACHED = {"CLAUDE.md", "AGENTS.md", ".assetsignore", "sw.js", "api/all.json"}
+# every-player file (cached separately, from /api/all or api/all.json). index.html is cached as
+# "./": Cloudflare answers /index.html with a 307 to /, and a redirected response served for a
+# page load is refused by Safari.
+NOT_CACHED = {"CLAUDE.md", "AGENTS.md", ".assetsignore", "sw.js", "api/all.json", "index.html"}
 
 
 def main():

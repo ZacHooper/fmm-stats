@@ -24,7 +24,6 @@ const TIMEOUT_MS = 4000;            // a slow network with a cached copy availab
 
 const SHELL = [
   "./",
-  "index.html",
   "app.css",
   "manifest.webmanifest",
   "icon.svg",
@@ -63,28 +62,37 @@ const SHELL = [
 
 const abs = (path) => new URL(path, self.registration.scope).href;
 
-/** Fetch every file and store it. One failure (all.json absent from a local preview) must not
- *  stop the rest, so each is settled on its own. */
-async function warm() {
+/** Fetch files and store them. One failure (all.json absent from a local preview) must not stop
+ *  the rest, so each is settled on its own. Returns how many of the app's files are stored and
+ *  whether the every-player file is. */
+async function warm(withAll) {
   const cache = await caches.open(CACHE);
   const store = async (path) => {
     const r = await fetch(abs(path), { cache: "no-cache" });
     if (r.ok) await cache.put(abs(path), r);
     return r.ok;
   };
-  await Promise.allSettled(SHELL.map(store));
-  if (!(await store(ALL).catch(() => false))) await store(ALL_LOCAL).catch(() => false);
+  const got = await Promise.allSettled(SHELL.map(store));
+  const shell = got.filter((g) => g.value === true).length;
+  if (!withAll) return { shell, total: SHELL.length };
+  const all = (await store(ALL).catch(() => false)) || (await store(ALL_LOCAL).catch(() => false));
+  return { shell, total: SHELL.length, all };
 }
 
+// Install stores only the app (a few hundred KB gzipped), so it finishes in seconds and the
+// worker takes control. The 7.7 MB every-player file follows on the page's "warm" message:
+// waiting for it here meant a phone that closed the app or lost signal mid-download threw the
+// whole install away and had no offline copy at all.
 self.addEventListener("install", (e) => {
-  e.waitUntil(warm());
+  e.waitUntil(warm(false));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
 self.addEventListener("message", (e) => {
-  if (e.data && e.data.type === "warm") e.waitUntil(warm());
+  if (!(e.data && e.data.type === "warm")) return;
+  e.waitUntil(warm(true).then((r) => e.source && e.source.postMessage({ type: "warmed", ...r })));
 });
 
 self.addEventListener("fetch", (e) => {
@@ -100,7 +108,10 @@ self.addEventListener("fetch", (e) => {
 
 async function networkFirst(req) {
   const cache = await caches.open(CACHE);
-  const cached = await cache.match(req, { ignoreVary: true });
+  // A page load is always the app (it is hash-routed), whatever URL the home-screen icon or a
+  // bookmark carries — so any navigation falls back to the cached page itself.
+  const cached = (await cache.match(req, { ignoreVary: true }))
+    || (req.mode === "navigate" ? await cache.match(abs("./")) : undefined);
   const net = fetch(req).then(async (r) => {
     if (r.ok && r.status === 200) await cache.put(req, r.clone());
     return r;
