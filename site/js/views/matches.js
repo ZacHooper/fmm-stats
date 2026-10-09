@@ -16,7 +16,7 @@
  */
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
-import { el, num, pill, bar, DASH, multiSelect, hashParams, setHashParams } from "../ui.js";
+import { el, num, pill, bar, DASH, multiSelect, hashParams, setHashParams, clubDot } from "../ui.js";
 import { openPlayer } from "../profile.js";
 import { openClub } from "../club.js";
 
@@ -599,7 +599,7 @@ export async function view() {
       el("div.prow", {}, [el("span.dim", { text: "Met at least" }), seg]),
       summaryTable(ms, oppKey, "Opponent", {
         order: (a, b) => b.p - a.p || b.pts / b.p - a.pts / a.p,
-        minP, fmt: (k, r) => oppName(r.m),
+        minP, fmt: (k, r) => el("span.cname", {}, [clubDot(r.m.opp_tid, D.S), oppName(r.m)]),
         open: (r) => openClub(r.m.opp_tid),
         action: (r) => focus("opponent", r.k),
       }),
@@ -663,7 +663,7 @@ function summaryTable(ms, keyFn, label, { order = null, fmt = null, minP = 1, op
     el("thead", {}, [el("tr", {}, [...heads.map((h, i) => el(`th${i ? ".num" : ""}`, { text: h })),
       action ? el("th", { text: "" }) : null])]),
     el("tbody", {}, rows.length ? rows.map((r) => el(open ? "tr.click" : "tr", open ? { onclick: () => open(r) } : {}, [
-      el("td.name", { text: String(fmt ? fmt(r.k, r) : r.k) }), el("td.num", { text: r.p }),
+      el("td.name", {}, [fmt ? fmt(r.k, r) : String(r.k)]), el("td.num", { text: r.p }),
       el("td.num", { text: r.w }), el("td.num", { text: r.d }), el("td.num", { text: r.l }),
       el("td.num", { text: r.gf }), el("td.num", { text: r.ga }),
       el("td.num", { text: signed(r.gf - r.ga) }),
@@ -729,9 +729,9 @@ function scoreTitle(m) {
 /** An opponent's name that opens its club sheet. */
 function clubLink(m) {
   const name = m.opponent || `#${m.opp_tid}`;
-  return m.opp_tid == null ? name : el("a", {
+  return m.opp_tid == null ? name : el("span.cname", {}, [clubDot(m.opp_tid, D.S), el("a", {
     href: "#", text: name, onclick: (e) => { e.preventDefault(); openClub(m.opp_tid); },
-  });
+  })]);
 }
 
 const avg = (ms, k) => {

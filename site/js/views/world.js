@@ -13,7 +13,7 @@
  * as filtered and sorted ("first 8 in the table", "biggest risers in the table").
  */
 import * as D from "../data.js";
-import { el, clear, bar, num, pill, sparkline, toast, DASH } from "../ui.js";
+import { el, clear, bar, num, pill, sparkline, toast, clubDot, DASH } from "../ui.js";
 import { playerTable } from "../table.js";
 import { lineChart, SLOTS } from "../linechart.js";
 import { worldTransfersPanel } from "../transfers.js";
@@ -456,7 +456,7 @@ function clubsPanel(H) {
     catalogue: {
       rank: { label: "#", align: "num", get: (r) => r.rank, help: "Rank by reputation, worldwide" },
       name: { label: "Club", get: (r) => r.name,
-              render: (r) => el("span", {}, [r.name, ourTids.has(r.tid) ? pill(" us", "good") : null]) },
+              render: (r) => el("span.cname", {}, [clubDot(r.tid, D.S), r.name, ourTids.has(r.tid) ? pill(" us", "good") : null]) },
       nation: { label: "Nation", get: (r) => r.nation },
       league: { label: "League", get: (r) => r.leagueName },
       reputation: { label: "Reputation", align: "num", get: (r) => r.reputation },

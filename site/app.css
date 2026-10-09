@@ -4,6 +4,7 @@
   --good:#0b6b3a; --goodbg:#e7f4ec; --warn:#8a5a00; --warnbg:#fdf3e0;
   --bad:#9b1c1c; --badbg:#fdeaea; --bar:#c3d2e2; --barlo:#e2c6c6;
   --up:#0b6b3a; --down:#9b1c1c;
+  --edge:rgba(21,24,29,.22);
   /* chart series, fixed order (World "over time" chart) — validated for CVD separation */
   --s0:#2a78d6; --s1:#eb6834; --s2:#1baf7a; --s3:#eda100;
   --s4:#e87ba4; --s5:#008300; --s6:#4a3aa7; --s7:#e34948;
@@ -14,6 +15,7 @@
   --good:#4ade80; --goodbg:#123020; --warn:#fbbf24; --warnbg:#31240a;
   --bad:#f87171; --badbg:#371414; --bar:#2f4159; --barlo:#57302f;
   --up:#4ade80; --down:#f87171;
+  --edge:rgba(230,233,238,.3);
   --s0:#3987e5; --s1:#d95926; --s2:#199e70; --s3:#c98500;
   --s4:#d55181; --s5:#008300; --s6:#9085e9; --s7:#e66767;
 }}
@@ -107,6 +109,15 @@ tbody tr.picked td{background:var(--goodbg)}
 tbody tr.picked td:first-child{background:var(--goodbg);box-shadow:inset 3px 0 0 var(--good)}
 tbody tr.picked:hover td{background:var(--goodbg)}
 td.name{font-weight:600}
+/* club shirt colours: a split dot beside a club's name, a band on a club's or a player's
+   sheet. Identity only, never on a number. The hairline keeps white and navy kits visible
+   on either theme. */
+.cdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;margin-right:6px;
+  vertical-align:-0.5px;background:linear-gradient(135deg,var(--c1) 50%,var(--c2) 50%);
+  box-shadow:0 0 0 1px var(--edge)}
+.cname{white-space:nowrap}
+.sheetband{height:5px;flex:none;border-radius:13px 13px 0 0;
+  background:linear-gradient(90deg,var(--c1) 0 72%,var(--c2) 72% 100%)}
 td.empty{color:var(--dim);text-align:center;padding:22px}
 .more{padding:8px 10px;font-size:12.5px;color:var(--dim);border-top:1px solid var(--line2)}
 button.link{background:none;border:0;color:var(--accent2);cursor:pointer;font:inherit;padding:0}

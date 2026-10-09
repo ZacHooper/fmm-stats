@@ -11,7 +11,7 @@
  * number for a stranger.
  */
 import * as D from "./data.js";
-import { el, clear, num, pill, sheet, multiSelect, DASH } from "./ui.js";
+import { el, clear, num, pill, sheet, multiSelect, clubName, shirtStyle, DASH } from "./ui.js";
 import { openPlayer } from "./profile.js";
 import { scoreText } from "./views/matches.js";
 
@@ -419,5 +419,5 @@ export async function openClub(tid) {
   }
 
   show(cur, false);
-  sheet(title, body, { wide: true });
+  sheet(clubName(tid, D.S, title), body, { wide: true, band: shirtStyle(tid, D.S) });
 }

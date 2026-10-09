@@ -7,7 +7,7 @@
  * campaign a player moved FOR: a June signing belongs to the next season's market.
  */
 import * as D from "./data.js";
-import { el, num, money, pill, DASH } from "./ui.js";
+import { el, num, money, pill, clubDot, DASH } from "./ui.js";
 import { openPlayer } from "./profile.js";
 import { openClub } from "./club.js";
 
@@ -53,9 +53,9 @@ export const playerLink = (tid, name) => el("a.plink", {
 export function clubLink(tid, name) {
   if (tid == null) return el("span.dim", { text: name || "Free agent" });
   if (!D.S.clubs.has(tid)) return document.createTextNode(name || `#${tid}`);
-  return el("a.plink", {
+  return el("span.cname", {}, [clubDot(tid, D.S), el("a.plink", {
     href: "#", text: name, onclick: (e) => { e.preventDefault(); e.stopPropagation(); openClub(tid); },
-  });
+  })]);
 }
 
 const kpi = (label, value, sub = null) => el("div.kpi", {}, [

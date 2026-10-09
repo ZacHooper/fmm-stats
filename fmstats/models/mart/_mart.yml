@@ -37,7 +37,7 @@ models:
             to_columns: [nation_id]
   - name: dim_club
     description: >
-      Each club: its first team's name, nations, and static colours/kits taken from the latest snapshot.
+      Each club: its first team's name, nations, and static colours/kits taken from the latest snapshot, plus shirt_colours, its home shirt as [main, second].
     data_tests:
       - unique_combination: {arguments: {columns: [club_tid]}}
   - name: dim_team

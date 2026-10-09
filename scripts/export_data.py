@@ -237,7 +237,7 @@ def main():
         "SELECT cid, name FROM site.leagues WHERE snapshot_date = ? "
         "AND ladder_rank IS NOT NULL ORDER BY ladder_rank", [d])]
     clubs = s.rows("""SELECT team_tid, name, league_cid, league_name, nation, reputation,
-                             squad_size
+                             squad_size, shirt_colours
                       FROM site.clubs WHERE snapshot_date = ? AND is_listed
                       ORDER BY team_tid""", [d])
     listed_leagues = {c["league_cid"] for c in clubs}
@@ -272,9 +272,9 @@ def main():
         "attrs": attrs,
         "fields": PLAYER_FIELDS,
         "clubs": [[c["team_tid"], c["name"], c["league_cid"], c["squad_size"], c["nation"],
-                   c["reputation"]] for c in clubs if c["squad_size"] > 0],
+                   c["reputation"], c["shirt_colours"]] for c in clubs if c["squad_size"] > 0],
         "clubs_without_players": sum(1 for c in clubs if c["squad_size"] == 0),
-        "club_fields": ["tid", "name", "league_cid", "players", "nation", "reputation"],
+        "club_fields": ["tid", "name", "league_cid", "players", "nation", "reputation", "shirt"],
         "leagues": [[r["cid"], r["name"], r["nation"], r["reputation"], r["member_count"],
                      None if r["skill_idx"] is None else float(r["skill_idx"]), r["rated"]]
                     for r in leagues],

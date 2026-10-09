@@ -12,7 +12,7 @@
  */
 import * as D from "../data.js";
 import { playerTable, metricColumns } from "../table.js";
-import { el, bar, num, money, monthYear, pill, toast, DASH, debounce } from "../ui.js";
+import { el, bar, num, money, monthYear, pill, toast, DASH, debounce, clubName } from "../ui.js";
 import { openProfile, openCompare } from "../profile.js";
 
 const API = "/api/shortlist";
@@ -103,7 +103,7 @@ async function shortlistPanel() {
             : el("span", { text: e2.name })]),
           el("td", { text: e2.tid ?? DASH }),
           el("td", { text: Object.entries(e2.positions || {}).map(([k, v]) => `${k} ${v}`).join(", ") || DASH }),
-          el("td", { text: club?.name || DASH }),
+          el("td", {}, [club ? clubName(p.clubTid, D.S) : DASH]),
           el("td", { text: p ? money(p.value) : DASH }),
           el("td", { text: e2.note || DASH }),
           el("td", { text: (e2.added_at || "").slice(0, 10) || DASH }),
@@ -294,7 +294,8 @@ async function searchPanel() {
             + "selected position(s), not his overall best.",
           filterValue: (r, filters) => scoped(r, filters, (x) => x.fam),
         },
-        club: { label: "Club", group: "Identity", get: (r) => r.club },
+        club: { label: "Club", group: "Identity", get: (r) => r.club,
+                render: (r) => (r.club ? clubName(r.player.clubTid, D.S, r.club) : DASH) },
         league: { label: "League", group: "Identity", get: (r) => r.league },
         rep: { label: "League rep", group: "Identity", align: "num", get: (r) => r.rep },
         clubRep: { label: "Club rep", group: "Identity", align: "num", get: (r) => r.clubRep },

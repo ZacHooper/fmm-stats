@@ -27,6 +27,26 @@ export const frag = (children) => {
 };
 export const clear = (node) => { while (node.firstChild) node.removeChild(node.firstChild); return node; };
 
+/** A club's home shirt as a split dot, main colour top-left (`core.json` clubs: shirt). It
+ *  marks which club a name is, never how good anything is, so it sits beside the name and
+ *  stays off the numbers. null for a club the app does not hold. */
+export function clubDot(tid, S) {
+  const c = S.clubs.get(tid)?.shirt;
+  if (!c) return null;
+  return el("i.cdot", { style: `--c1:${c[0]};--c2:${c[1]}`, "aria-hidden": "true" });
+}
+/** A club's name with its dot in front; `name` defaults to the club's own. */
+export function clubName(tid, S, name = null) {
+  const n = name ?? (S.clubs.get(tid)?.name || (tid == null ? DASH : `#${tid}`));
+  const dot = clubDot(tid, S);
+  return dot ? el("span.cname", {}, [dot, n]) : document.createTextNode(n);
+}
+/** The two shirt colours as CSS custom properties, for a band or an edge. */
+export const shirtStyle = (tid, S) => {
+  const c = S.clubs.get(tid)?.shirt;
+  return c ? `--c1:${c[0]};--c2:${c[1]}` : null;
+};
+
 export const DASH = "—";
 export function num(v, dp = 0) {
   if (v == null || Number.isNaN(v)) return DASH;
@@ -188,12 +208,15 @@ export function radar(axes, series, { size = 220, keyed = [] } = {}) {
 }
 
 /** A sheet that slides up on a phone and centres on a desktop — used for player profiles. */
-export function sheet(title, body, { wide = false } = {}) {
+/** A bottom sheet. `band`: a club's shirtStyle, drawn as a strip across the top; `title` may
+ *  be a node (a clubName) as well as text. */
+export function sheet(title, body, { wide = false, band = null } = {}) {
   const close = () => back.remove();
   const back = el("div.sheetback", { onclick: (e) => { if (e.target === back) close(); } }, [
     el(`div.sheet${wide ? ".wide" : ""}`, {}, [
+      band ? el("div.sheetband", { style: band }) : null,
       el("div.sheethead", {}, [
-        el("strong", { text: title }),
+        el("strong", {}, [title]),
         el("button.x", { text: "✕", title: "Close", onclick: close }),
       ]),
       el("div.sheetbody", {}, body),

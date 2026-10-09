@@ -30,6 +30,7 @@ erDiagram
         int nation_key FK
         json colours
         json kits
+        list shirt_colours
     }
     dim_team {
         int team_key PK
@@ -78,7 +79,7 @@ erDiagram
 
 | Dimension | Holds |
 |---|---|
-| `dim_club` | static identity: name, nation; colours and kits (taken from latest snapshot to avoid snapshot replication) |
+| `dim_club` | static identity: name, nation; colours and kits (taken from latest snapshot to avoid snapshot replication), and `shirt_colours`, the home shirt as [main, second] (the stock kit some ~490 clubs wear falls back to their name colours) |
 | `dim_team` | the side that plays: its club, team type, `is_first_team`. Every team has a club, even when a club has only one team. |
 | `dim_snapshot_date` | the save dates, the project's `phase` |
 | `dim_stadium`, `dim_staff`, `dim_nation` | the usual; a stadium's name and capacity change over a career (Valby Stadion 4,400, 9,400, 15,000), so they are on a stadium snapshot |
