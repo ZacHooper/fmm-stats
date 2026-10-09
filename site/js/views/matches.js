@@ -50,9 +50,7 @@ const MIN_MINUTES = [0, 90, 180, 450, 900];
 const LS_UNITS = "fm:matches:units";
 const LS_POS = "fm:matches:pos";
 // A position's unit — the same split as the Squad page's Unit filter.
-const UNIT_OF = (pos) => (pos === "GK" ? "GK"
-  : /^D/.test(pos) && pos !== "DMC" ? "Defence"
-    : ["DMC", "MC", "ML", "MR"].includes(pos) ? "Midfield" : "Attack");
+const UNIT_OF = D.unitOf;
 const UNITS = ["GK", "Defence", "Midfield", "Attack"];
 const lsList = (k) => { try { const v = JSON.parse(lsGet(k) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
 
@@ -455,7 +453,9 @@ export async function view() {
             const dp = c.dp ?? 0;
             const flat = dv == null || Math.abs(dv) < 0.5 * 10 ** -dp;
             return el("span.normcell", {}, [num(v, dp), dv == null ? null
-              : el(`span.delta${flat ? "" : dv > 0 ? ".up" : ".down"}`, {
+              // the arrow is the direction; the colour is whether that is good (a rise in
+              // mistakes is red)
+              : el(`span.delta${flat ? "" : (dv > 0) !== D.lowerIsBetter(n) ? ".up" : ".down"}`, {
                 text: flat ? "=" : `${dv > 0 ? "▲" : "▼"}${num(Math.abs(dv), dp)}`,
                 title: `His norm: ${num(D.statValue(n, norm.get(r.tid)), dp)}`,
               })]);

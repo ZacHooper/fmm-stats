@@ -614,6 +614,23 @@ export function statDp(name) {
   if (name === "Min/gm") return 0;
   return /\/(90|gm)$/.test(name) ? 2 : 0;
 }
+/** Stats where less is better: a rise against a player's norm is bad news, not good. */
+const LOWER_BETTER = /^(Mistakes|Yellows)\//;
+export const lowerIsBetter = (name) => LOWER_BETTER.test(name);
+
+/** A position's unit — the split the Squad page's Unit filter and the Matches page's unit chips use. */
+export const unitOf = (pos) => (pos === "GK" ? "GK"
+  : /^D/.test(pos) && pos !== "DMC" ? "Defence"
+    : ["DMC", "MC", "ML", "MR"].includes(pos) ? "Midfield" : "Attack");
+
+/** The match stats a player sheet shows first for a player of each unit — the numbers that
+ *  say whether he is doing that unit's job. */
+export const UNIT_STATS = {
+  GK: ["Pass %", "Passes/90", "Mistakes/90"],
+  Defence: ["DefAct/90", "TackW/90", "Int/90", "HeadW/90"],
+  Midfield: ["KeyP/90", "Passes/90", "Pass %", "DefAct/90"],
+  Attack: ["G/90", "A/90", "Shots/90", "KeyP/90"],
+};
 const per90 = (a, k) => (a.min ? (90 * a[k]) / a.min : null);
 const perGm = (a, k) => (a.apps ? a[k] / a.apps : null);
 const rate = (n, d) => (d ? (100 * n) / d : null);

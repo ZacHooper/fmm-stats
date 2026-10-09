@@ -294,23 +294,43 @@ export async function openPlayer(tid) {
   ]);
 }
 
-/** His competitive starts for us by the position he started at, aggregated (tid's rows only).
- *  null until matches.json is loaded. */
-function playedAt(tid) {
+/** His competitive starts for us by the position he started at, aggregated (tid's rows only),
+ *  in one season or (season null) all of them. null until matches.json is loaded. */
+function playedAt(tid, season = null) {
   if (!D.S.matches) return null;
   const by = new Map();
+  const all = [];
   for (const r of D.matchRows()) {
     if (r.tid !== tid || !r.position || !r.started || D.isFriendly(r.competition)) continue;
+    if (season != null && r.season !== season) continue;
     if (!by.has(r.position)) by.set(r.position, []);
     by.get(r.position).push(r);
+    all.push(r);
   }
-  return new Map([...by].map(([q, rs]) => [q, D.aggregate(rs).get(tid)]));
+  const out = new Map([...by].map(([q, rs]) => [q, D.aggregate(rs).get(tid)]));
+  // his norm over the same starts, every position together — what "vs his norm" compares with
+  out.norm = all.length ? D.aggregate(all).get(tid) : null;
+  return out;
+}
+
+/** The seasons he has competitive starts for us in, newest first. */
+function startSeasons(tid) {
+  if (!D.S.matches) return [];
+  const s = new Set();
+  for (const r of D.matchRows()) {
+    if (r.tid === tid && r.started && r.position && !D.isFriendly(r.competition)) s.add(r.season);
+  }
+  return [...s].sort((a, b) => b - a);
 }
 
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
-  let matchesTried = false;
+  // The Stats tab's By position record (positionRecord): which season it covers (null = all
+  // time), whether it shows ▲/▼ against his own average, and whether the column picker is open.
+  let fitSeason = null;
+  let fitNorm = false;
+  let fitPick = false;
   // The development chart, the attribute growth options and career history all read
   // squad.json. Pages other than Squad don't load it, so fetch it (once, ~20 KB) before the
   // first sheet rather than showing a profile with those parts silently missing.
@@ -473,7 +493,8 @@ export function openProfile(tid, { role = null } = {}) {
 
   function fitTab() {
     // Fit percentile against our own division, and against his own league — "is he good
-    // enough here", under the selected tactic.
+    // enough here", under the selected tactic. What he has actually DONE at each position is on
+    // the Stats tab (positionRecord).
     const ourCid = D.ourLeagueCid();
     const divPlayers = D.leaguePlayers(ourCid);
     const hisCid = D.S.clubs.get(p.clubTid)?.leagueCid;
@@ -481,44 +502,19 @@ export function openProfile(tid, { role = null } = {}) {
     const ourName = D.S.leagues.get(ourCid)?.name || "our division";
     const hisName = hisCid != null ? D.S.leagues.get(hisCid)?.name : null;
     const oursList = D.ourPlayers();
-    // What he has actually done there for us: his competitive STARTS at each position (the game
-    // records a position for the starting eleven only, so a sub appearance can't be placed), and
-    // the position-adjusted rating over them — one scale across positions, so the rows compare.
-    // The best of those with enough starts to mean something is marked. Only his listed
-    // positions are shown; a start somewhere he isn't listed is out of position. Needs matches.json,
+    // The simple version of what he has DONE at each position, all time: competitive starts and
+    // the position-adjusted rating over them, best (3+ starts) marked. The Stats tab's By
+    // position has the detail — seasons, his norm, the stats for his unit. Needs matches.json,
     // which not every page has loaded: the tab fetches it and redraws.
     const played = playedAt(tid);
-    if (!played && !matchesTried) {
-      matchesTried = true;
-      D.loadMatches().then(() => { if (curTab === "fit") showTab("fit", false); }).catch(() => null);
-    }
-    const MIN_STARTS = 3;
-    // the best is picked among his listed positions only — the rows the table shows
+    if (!played) D.loadMatches().then(() => { if (curTab === "fit") showTab("fit", false); }).catch(() => null);
     const bestAdj = played ? Math.max(...roles.map((r) => played.get(r.pos))
-      .filter((a) => a && a.starts >= MIN_STARTS && a.ratingAdj != null).map((a) => a.ratingAdj)) : null;
+      .filter((a) => a && a.starts >= 3 && a.ratingAdj != null).map((a) => a.ratingAdj)) : null;
     const heads = ["Pos", "Role", "Fam", "Rating", `Fit %ile · ${ourName}`];
     if (hisPlayers) heads.push(`Fit %ile · ${hisName}`);
-    heads.push("Squad rank", "Starts", "Rating (adj)", "G+A/90");
-    const playedCells = (q) => {
-      const a = played?.get(q);
-      if (!played) return [el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" }), el("td.num.dim", { text: "…" })];
-      if (!a) return [el("td.num.dim", { text: "0" }), el("td.num", { text: DASH }), el("td.num", { text: DASH })];
-      const best = a.starts >= MIN_STARTS && a.ratingAdj != null && a.ratingAdj === bestAdj;
-      return [
-        el("td.num", { text: a.starts, title: `${num(a.min)} minutes` }),
-        el(`td.num${best ? ".best" : ""}${a.starts < MIN_STARTS ? ".dim" : ""}`, {
-          text: a.ratingAdj == null ? DASH : num(a.ratingAdj, 2),
-          title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
-        }),
-        el("td.num", { text: a.min ? num((90 * (a.goals + a.assists)) / a.min, 2) : DASH }),
-      ];
-    };
+    heads.push("Squad rank", "Starts", "Rating (adj)");
     const out = el("div", {}, [el("div.scroll.fit", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
-        text: h,
-        title: h === "Rating (adj)" ? "Average position-adjusted match rating over his competitive starts there"
-          : h === "Starts" ? "Competitive starts for us at this position" : null,
-      })))]),
+      el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, { text: h })))]),
       el("tbody", {}, roles.map((r) => {
         const cells = [
           el("td", { text: r.pos }), el("td", { text: r.role }),
@@ -529,7 +525,14 @@ export function openProfile(tid, { role = null } = {}) {
         if (hisPlayers) cells.push(el("td.num", {}, [bar(D.pctile(D.poolAt(hisPlayers, r.pos), r.eff))]));
         const tpool = D.teamPool(oursList, r.pos);
         cells.push(el("td.num", { text: tpool.length ? `${D.rankIn(tpool, r.eff)}/${tpool.length}` : DASH }));
-        cells.push(...playedCells(r.pos));
+        const a = played?.get(r.pos);
+        const best = a && a.starts >= 3 && a.ratingAdj != null && a.ratingAdj === bestAdj;
+        cells.push(
+          el(`td.num${a ? "" : ".dim"}`, { text: !played ? "…" : a ? a.starts : 0 }),
+          el(`td.num${best ? ".best" : ""}${a && a.starts < 3 ? ".dim" : ""}`, {
+            text: !played ? "…" : a?.ratingAdj != null ? num(a.ratingAdj, 2) : DASH,
+          }),
+        );
         return el("tr", {}, cells);
       })),
     ])])]);
@@ -555,22 +558,138 @@ export function openProfile(tid, { role = null } = {}) {
         + "moves when you change tactic. (Level %ile, which ranks ability rather than tactical "
         + "fit, is on the Squad table and drives the Loan tab.) <b>Squad rank</b> is where he'd "
         + "stand among our own players at that position if he were part of the squad. "
-        + "The last three columns are what he has <i>done</i> there: his competitive <b>Starts</b> "
-        + "for us at the position, his <b>Rating (adj)</b> over them — the match rating adjusted "
-        + "for position, so it compares across rows — and <b>G+A/90</b>. The best adjusted rating "
-        + `with ${3}+ starts is marked; fewer starts are greyed. Substitute appearances aren't `
-        + "counted (the game records positions for starters only), and neither are starts at a "
-        + "position he isn't listed at.",
+        + "<b>Starts</b> and <b>Rating (adj)</b> are what he has done there for us, all time: "
+        + "competitive starts, and the match rating adjusted for position so the rows compare "
+        + "(best with 3+ starts marked). The Stats tab's By position has the detail — by season, "
+        + "against his norm, and the stats for his unit.",
     })]));
     return out;
+  }
+
+  /**
+   * What he has done for us at each of his listed positions: his competitive STARTS there (the
+   * game records a position for the starting eleven only, so a sub appearance can't be placed),
+   * the position-adjusted rating over them — one scale across positions, so the rows compare —
+   * and the match stats a player of his unit is judged on (D.UNIT_STATS; Columns changes them,
+   * remembered per unit). The best rating with enough starts to mean something is marked; a
+   * start somewhere he isn't listed is out of position and left out.
+   *
+   * The chips pick the span — all time or one season, so a position switch can be judged on
+   * this season's games. "vs his norm" marks each figure against his average over EVERY
+   * competitive start for us, all time and every position (the Matches page's norm): in one
+   * season that says how each position went against his usual level, over all time it compares
+   * the positions. Needs matches.json; the Stats tab loads it first.
+   */
+  function positionRecord() {
+    const seasons = startSeasons(tid);
+    if (fitSeason != null && !seasons.includes(fitSeason)) fitSeason = null;
+    const redraw = () => showTab("stats", false);
+    const lbl = (y) => `${y - 1}/${String(y).slice(2)}`;
+    const unit = D.unitOf(roles[0]?.pos || "MC");
+    const STATS_KEY = `fm:fit:stats:${unit}`;
+    const RATES = Object.keys(D.STAT_DEFS).filter((k) => /\/90$|%$/.test(k));
+    const stats = (() => {
+      try {
+        const v = JSON.parse(pref(STATS_KEY, "null"));
+        if (Array.isArray(v)) return v.filter((k) => D.STAT_DEFS[k]);
+      } catch { /* fall through */ }
+      return D.UNIT_STATS[unit];
+    })();
+    const setStats = (list) => { setPref(STATS_KEY, JSON.stringify(list)); redraw(); };
+    const controls = el("div.prow.fitseason", {}, [
+      ...[null, ...seasons].map((y) => el(`button.chip${y === fitSeason ? ".on" : ""}`, {
+        text: y == null ? "All time" : lbl(y),
+        onclick: () => { fitSeason = y; redraw(); },
+      })),
+      el(`button.btn${fitNorm ? ".on" : ""}`, {
+        text: "vs his norm",
+        title: "Mark each position's rating and stats against his own average over every start "
+          + "he has made for us — in one season, how each position went against his usual level",
+        onclick: () => { fitNorm = !fitNorm; redraw(); },
+      }),
+      el(`button.btn${fitPick ? ".on" : ""}`, {
+        text: "Columns", title: "Pick the match stats shown for each position",
+        onclick: () => { fitPick = !fitPick; redraw(); },
+      }),
+    ]);
+    const picker = fitPick ? el("div.picker.fitpick", {}, [
+      el("div.prow", {}, [
+        el("span.dim", { text: `Columns for ${unit === "GK" ? "goalkeepers" : unit.toLowerCase()}` }),
+        el("button.chip.ghost", { text: "Reset", title: `Back to the ${unit} defaults`,
+          onclick: () => { try { localStorage.removeItem(STATS_KEY); } catch { /* ignore */ } redraw(); } }),
+      ]),
+      ...[["Per 90", (k) => /\/90$/.test(k)], ["Success %", (k) => /%$/.test(k)]].map(([g, test]) =>
+        el("div.pgroup", {}, [el("h4", { text: g }), ...RATES.filter(test).map((k) => el(`button.chip${stats.includes(k) ? ".on" : ""}`, {
+          text: k, title: D.statHelp(k),
+          onclick: () => setStats(stats.includes(k) ? stats.filter((x) => x !== k) : [...stats, k]),
+        }))])),
+    ]) : null;
+    const played = playedAt(tid, fitSeason);
+    const whole = fitNorm ? playedAt(tid, null) : null;
+    const norm = whole?.norm || null;
+    const MIN_STARTS = 3;
+    const bestAdj = Math.max(...roles.map((r) => played.get(r.pos))
+      .filter((a) => a && a.starts >= MIN_STARTS && a.ratingAdj != null).map((a) => a.ratingAdj));
+    // value, then (vs his norm) ▲/▼ against the same figure over every start he has made. The
+    // arrow is the direction; the colour is whether that is good — more mistakes is red.
+    const withDelta = (v, base, dp = 2, lower = false) => {
+      if (v == null) return [DASH];
+      if (!fitNorm || base == null) return [num(v, dp)];
+      const d = v - base, flat = Math.abs(d) < 0.5 * 10 ** -dp;
+      return [el("span.normcell", {}, [num(v, dp), el(`span.delta${flat ? "" : (d > 0) !== lower ? ".up" : ".down"}`, {
+        text: flat ? "=" : `${d > 0 ? "▲" : "▼"}${num(Math.abs(d), dp)}`, title: `His norm: ${num(base, dp)}`,
+      })])];
+    };
+    const cells = (q) => {
+      const a = played.get(q);
+      if (!a) return [el("td.num.dim", { text: "0" }), ...[null, ...stats].map(() => el("td.num", { text: DASH }))];
+      const best = a.starts >= MIN_STARTS && a.ratingAdj != null && a.ratingAdj === bestAdj;
+      return [
+        el("td.num", { text: a.starts, title: `${num(a.min)} minutes` }),
+        el(`td.num${best ? ".best" : ""}${a.starts < MIN_STARTS ? ".dim" : ""}`, {
+          title: a.starts < MIN_STARTS ? `Only ${a.starts} start${a.starts === 1 ? "" : "s"} — too few to read much into` : null,
+        }, withDelta(a.ratingAdj, norm?.ratingAdj)),
+        ...stats.map((k) => el("td.num", {}, withDelta(D.statValue(k, a), D.statValue(k, norm), D.statDp(k), D.lowerIsBetter(k)))),
+      ];
+    };
+    const heads = ["Pos", "Role", "Starts", "Rating (adj)", ...stats];
+    const oneNote = fitNorm && whole?.size === 1 && fitSeason == null ? el("p.note", {
+      text: `Every start he has made for us is at ${[...whole.keys()][0]}, so over all time that `
+        + "position is his norm. Pick a season to see how it went against his usual level.",
+    }) : null;
+    return el("div", {}, [
+      seasons.length ? controls : null, picker, oneNote,
+      el("div.scroll.fit", {}, [el("table", {}, [
+        el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
+          text: h,
+          title: h === "Rating (adj)" ? "Average position-adjusted match rating over his competitive starts there"
+            : h === "Starts" ? "Competitive starts for us at this position"
+              : D.STAT_DEFS[h] ? `${D.statHelp(h)}, over his competitive starts there` : null,
+        })))]),
+        el("tbody", {}, roles.map((r) => el("tr", {}, [
+          el("td", { text: r.pos }), el("td", { text: r.role }), ...cells(r.pos),
+        ]))),
+      ])]),
+      el("p.note", { text: "Competitive starts at his listed positions (the game records positions "
+        + "for starters only). Rating (adj) is adjusted for position, so the rows compare; the best "
+        + `with ${MIN_STARTS}+ starts is marked. vs his norm compares with his average over every `
+        + "start for us, all time and every position." }),
+    ]);
   }
 
   function statsTab() {
     const box = el("div", {}, [el("h4", { text: "Match record for us (competitive, all seasons)" })]);
     const statsBox = el("div", {}, [el("p.note", { text: "Loading matches…" })]);
     box.append(statsBox);
-    D.loadMatches().then(() => clear(statsBox).append(statBlock(D.S.matchAgg?.get(tid)), splitBlock(tid)))
-      .catch(() => clear(statsBox).append(statBlock(null)));
+    const fill = () => clear(statsBox).append(
+      statBlock(D.S.matchAgg?.get(tid)),
+      el("h4", { text: "By position" }), positionRecord(),
+      splitBlock(tid),
+    );
+    // Drawn straight away once matches are loaded, so the By position controls don't flash a
+    // loading line each time they redraw the tab.
+    if (D.S.matches) fill();
+    else D.loadMatches().then(fill).catch(() => clear(statsBox).append(statBlock(null)));
     if (career.length) box.append(el("h4", { text: "Career history" }), careerTable(career));
     return box;
   }
