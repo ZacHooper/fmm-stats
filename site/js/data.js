@@ -605,6 +605,15 @@ export function statHelp(name) {
   if (m && STAT_BASE[m[1]]) return `${STAT_BASE[m[1]]} ${m[2] === "90" ? "per 90 minutes played" : "per appearance"}`;
   return name;
 }
+/** Decimal places for a match stat, the one rule every table and sheet uses: match ratings
+ *  and every per-90 and per-game rate to 2 — a rare event (goals, mistakes) sits well under one
+ *  a game, and one decimal would blur 0.14 and 0.06 into the same 0.1; counts, minutes and
+ *  percentages whole. */
+export function statDp(name) {
+  if (name === "Rating" || name === "Rating (adj)") return 2;
+  if (name === "Min/gm") return 0;
+  return /\/(90|gm)$/.test(name) ? 2 : 0;
+}
 const per90 = (a, k) => (a.min ? (90 * a[k]) / a.min : null);
 const perGm = (a, k) => (a.apps ? a[k] / a.apps : null);
 const rate = (n, d) => (d ? (100 * n) / d : null);

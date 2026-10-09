@@ -715,22 +715,22 @@ export function metricColumns(D, { agg = null, role = null } = {}) {
     const per = Object.keys(D.STAT_DEFS).filter((k) => /\/90$/.test(k));
     const pg = Object.keys(D.STAT_DEFS).filter((k) => /\/gm$/.test(k));
     const pct = Object.keys(D.STAT_DEFS).filter((k) => /%$/.test(k));
-    const put = (names, group, dp) => names.forEach((n) => {
+    const put = (names, group) => names.forEach((n) => {
       cat[`stat:${n}`] = {
-        label: n, group, align: "num", dp,
+        label: n, group, align: "num", dp: D.statDp(n),
         help: D.statHelp(n), note: "From our own matches, competitive only.",
         get: (r) => D.statValue(n, agg.get(r.tid)),
       };
     });
-    put(order, "Match · totals", 0);
-    put(["Rating", "Rating (adj)"], "Match · rating", 2);
+    put(order, "Match · totals");
+    put(["Rating", "Rating (adj)"], "Match · rating");
     cat["stat:Rating"].help = "Average match rating as the game shows it. Biased by position "
       + "(a DM rates ~0.5 below a central midfielder for the same game) — compare within one position";
     cat["stat:Rating (adj)"].help = "Position-adjusted average over his starts: the same "
       + "performance on one scale, in the game's units. Compare players across positions with this";
-    put(per, "Match · per 90", 2);
-    put(pg, "Match · per game", 2);
-    put(pct, "Match · success %", 0);
+    put(per, "Match · per 90");
+    put(pg, "Match · per game");
+    put(pct, "Match · success %");
   }
   return cat;
 }

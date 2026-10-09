@@ -196,7 +196,7 @@ function statBlock(agg) {
     el("span.dim", { text: title }),
     el("div.kpis.sm", {}, names.map((s) => {
       const v = D.statValue(s, agg);
-      return el("div.kpi", {}, [el("b", { text: v == null ? DASH : num(v, /%$|Apps|Starts|Min$|Goals|Assists/.test(s) ? 0 : 2) }),
+      return el("div.kpi", {}, [el("b", { text: v == null ? DASH : num(v, D.statDp(s)) }),
         el("span", { text: s })]);
     })),
   ])));
