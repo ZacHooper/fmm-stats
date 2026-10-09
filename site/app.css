@@ -109,17 +109,13 @@ tbody tr.picked td{background:var(--goodbg)}
 tbody tr.picked td:first-child{background:var(--goodbg);box-shadow:inset 3px 0 0 var(--good)}
 tbody tr.picked:hover td{background:var(--goodbg)}
 td.name{font-weight:600}
-/* club shirt colours: a split dot beside a club's name, a band on its sheet, an edge on a
-   fixture. Identity only, never on a number. The hairline keeps white and navy kits visible
+/* club shirt colours: a split dot beside a club's name, a band on a club's or a player's
+   sheet. Identity only, never on a number. The hairline keeps white and navy kits visible
    on either theme. */
 .cdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;margin-right:6px;
   vertical-align:-0.5px;background:linear-gradient(135deg,var(--c1) 50%,var(--c2) 50%);
   box-shadow:0 0 0 1px var(--edge)}
 .cname{white-space:nowrap}
-/* a result row's shirt edges: opponent left (--o1/--o2), us right (--u1/--u2) */
-.fxo,.fxu{width:4px;min-width:4px;padding:0!important}
-tr.fx>td.fxo{background:linear-gradient(var(--o1) 0 60%,var(--o2) 60% 100%)}
-tr.fx>td.fxu{background:linear-gradient(var(--u1) 0 60%,var(--u2) 60% 100%)}
 .sheetband{height:5px;flex:none;border-radius:13px 13px 0 0;
   background:linear-gradient(90deg,var(--c1) 0 72%,var(--c2) 72% 100%)}
 td.empty{color:var(--dim);text-align:center;padding:22px}

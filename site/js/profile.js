@@ -8,7 +8,7 @@
  */
 import * as D from "./data.js";
 import { el, clear, bar, num, money, monthYear, sparkline, radar, sheet, pill, toast, attrValue,
-  ATTR_BANDS, clubName, DASH } from "./ui.js";
+  ATTR_BANDS, clubName, shirtStyle, DASH } from "./ui.js";
 import { loanOutlook } from "./loans.js";
 import { devChart } from "./devchart.js";
 
@@ -707,7 +707,7 @@ export function openProfile(tid, { role = null } = {}) {
     return box;
   }
 
-  sheet(`${p.name}${a ? ` · ${a}` : ""}`, body, { wide: true });
+  sheet(`${p.name}${a ? ` · ${a}` : ""}`, body, { wide: true, band: shirtStyle(p.clubTid, D.S) });
 }
 
 const fig = (label, value, title) => el("span.fig", { title }, [el("span.dim", { text: label }), el("b", { text: String(value) })]);

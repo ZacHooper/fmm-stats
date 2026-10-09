@@ -22,7 +22,7 @@ tabs for the expected XI (in the shape it last played us, or its manager's), the
 meeting with its line-up and who hurt us at both ends.
 **Club colours** are each club's home shirt (`core.json` clubs: `shirt`, from
 `dim_club.shirt_colours`), drawn by `ui.js` as a split dot beside a club's name (`clubDot`,
-`clubName`), a band across the club sheet and two-tone edges on result rows (`shirtStyle`).
+`clubName`) and a band across the club sheet and a player's sheet, in his club's (`shirtStyle`).
 They mark identity only: never colour a number, a bar or a row with them, because a club in
 red or green would read as the site's bad or good.
 **Streamlit stays** for what writes to DuckDB (Tactics, Config) and for Team Builder.
