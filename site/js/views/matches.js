@@ -47,6 +47,14 @@ const setParams = setHashParams;
 const TOTALS = new Set(["Apps", "Starts", "Sub", "Min", "Goals", "Assists", "G+A", "POTM",
   "Key passes", "Pass att", "Tackle att", "Shot att", "Interceptions", "Dribbles"]);
 const MIN_MINUTES = [0, 90, 180, 450, 900];
+const LS_UNITS = "fm:matches:units";
+const LS_POS = "fm:matches:pos";
+// A position's unit — the same split as the Squad page's Unit filter.
+const UNIT_OF = (pos) => (pos === "GK" ? "GK"
+  : /^D/.test(pos) && pos !== "DMC" ? "Defence"
+    : ["DMC", "MC", "ML", "MR"].includes(pos) ? "Midfield" : "Attack");
+const UNITS = ["GK", "Defence", "Midfield", "Attack"];
+const lsList = (k) => { try { const v = JSON.parse(lsGet(k) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
 
 export async function view() {
   const M = await D.loadMatches();
@@ -145,6 +153,15 @@ export async function view() {
         .map((k) => ({ value: k, label: k, hint: c.get(k) }));
     },
     onChange: () => draw(),
+  });
+  // The Players tab's position filter (see playerAggs). Built once, here, with the other
+  // dropdowns: a multiSelect wires document listeners, so it must not be rebuilt every draw.
+  const seenPos = new Set(D.matchRows().map((r) => r.position).filter(Boolean));
+  const POSITIONS = D.POS_ORDER.filter((p) => seenPos.has(p));
+  const posMs = multiSelect({
+    noun: "position", plural: "positions", selected: lsList(LS_POS).filter((p) => POSITIONS.includes(p)),
+    options: () => POSITIONS.map((p) => ({ value: p, label: p })),
+    onChange: (sel) => { lsSet(LS_POS, JSON.stringify([...sel])); draw(); },
   });
   const oppMs = multiSelect({
     noun: "opponent", plural: "opponents", search: true,
@@ -246,13 +263,43 @@ export async function view() {
   // A player's numbers over the filtered matches, and the same over every match the friendlies
   // toggle allows (his norm). Keyed by tid. Recomputed per draw: a few thousand rows.
   const matchKey = (season, date) => `${season}|${String(date).slice(0, 10)}`;
-  function playerAggs(ms) {
+  //
+  // `at` (a Set of positions, empty = all) narrows the ROWS, not just the players: a player's
+  // numbers become his numbers in the matches he played there, and his norm his average there
+  // over every match. That is what makes "how are the forwards doing" a fair question — Garly's
+  // two games up front are judged against his own games up front, not against his MC norm.
+  // The game records a position only for the starting eleven, so a substitute appearance is
+  // placed at the player's usual position (the one he has started at most).
+  const usual = (() => {
+    const c = new Map();
+    for (const r of D.matchRows()) {
+      if (!r.position) continue;
+      const m = c.get(r.tid) || new Map();
+      m.set(r.position, (m.get(r.position) || 0) + 1);
+      c.set(r.tid, m);
+    }
+    return new Map([...c].map(([tid, m]) => [tid, [...m].sort((a, b) => b[1] - a[1])[0][0]]));
+  })();
+  const posOf = (r) => r.position || usual.get(r.tid) || null;
+  function playerAggs(ms, at = null) {
     const keep = new Set(ms.map((m) => matchKey(m.season, m.date)));
     const base = new Set(all.filter(friendlyOk).map((m) => matchKey(m.season, m.date)));
-    const rows = D.matchRows();
+    const there = at?.size ? (r) => at.has(posOf(r)) : () => true;
+    const rows = D.matchRows().filter(there);
+    const kept = rows.filter((r) => keep.has(matchKey(r.season, r.date)));
+    // where each player played in these matches: his most frequent position among them
+    const played = new Map();
+    for (const r of kept) {
+      const p = posOf(r);
+      if (!p) continue;
+      const m = played.get(r.tid) || new Map();
+      m.set(p, (m.get(p) || 0) + 1);
+      played.set(r.tid, m);
+    }
     return {
-      agg: D.aggregate(rows.filter((r) => keep.has(matchKey(r.season, r.date)))),
+      agg: D.aggregate(kept),
       norm: D.aggregate(rows.filter((r) => base.has(matchKey(r.season, r.date)))),
+      pos: new Map([...played].map(([tid, m]) => [tid, [...m].sort((a, b) => b[1] - a[1])[0][0]])),
     };
   }
   const minMinutes = () => {
@@ -365,18 +412,25 @@ export async function view() {
 
   // ---------------------------------------------------------------- Players
   function players(ms) {
-    const { agg, norm } = playerAggs(ms);
+    // Units and positions combine as "either": Attack + DMC is every attacker and every DMC.
+    const units = new Set(lsList(LS_UNITS).filter((u) => UNITS.includes(u)));
+    const at = new Set([...posMs.selected, ...POSITIONS.filter((p) => units.has(UNIT_OF(p)))]);
+    const { agg, norm, pos } = playerAggs(ms, at);
     const minMin = minMinutes();
     const vsNorm = lsGet(LS_NORM) === "1";
     const rows = [...agg.values()].map((a) => {
       const p = D.S.players.get(a.tid);
-      const best = p ? D.bestRole(p) : null;
       const name = p?.name || D.matchName(a.tid);
-      return { tid: a.tid, player: p || { name, attrs: [] }, r: best, _search: name.toLowerCase() };
+      return { tid: a.tid, player: p || { name, attrs: [] }, _search: name.toLowerCase() };
     });
     const cat = {
       player: { label: "Player", group: "Identity", cls: "name", sort: (r) => r.player.name, get: (r) => r.player.name },
-      pos: { label: "Pos", group: "Identity", get: (r) => r.r?.pos ?? DASH },
+      pos: {
+        label: "Pos", group: "Identity", get: (r) => pos.get(r.tid) ?? DASH,
+        help: "Where he played in these matches — his most frequent position among them "
+          + "(a substitute appearance counts at his usual position)",
+        sort: (r) => { const i = D.POS_ORDER.indexOf(pos.get(r.tid)); return i < 0 ? null : i; },
+      },
       ...metricColumns(D, { agg }),
     };
     // "vs his norm": every rate column shows the filtered value with the difference from his
@@ -417,7 +471,18 @@ export async function view() {
       title: "Mark each rate stat against the player's own average over every match, and sort on the difference",
       onclick: () => { lsSet(LS_NORM, vsNorm ? "0" : "1"); draw(); },
     });
+    const unitChips = el("span.mseg", {}, UNITS.map((u) => el(`button.chip${units.has(u) ? ".on" : ""}`, {
+      text: u, title: `Only ${u === "GK" ? "goalkeepers" : u.toLowerCase()} — his matches there, against his norm there`,
+      onclick: () => {
+        if (units.has(u)) units.delete(u); else units.add(u);
+        lsSet(LS_UNITS, JSON.stringify([...units])); draw();
+      },
+    })));
     const box = el("div");
+    box.append(el("div.prow", {}, [el("span.dim", { text: "Played at" }), unitChips, posMs.node,
+      at.size ? el("button.chip.ghost", { text: "All positions", onclick: () => {
+        lsSet(LS_UNITS, "[]"); posMs.selected.clear(); lsSet(LS_POS, "[]"); posMs.sync(); draw();
+      } }) : null]));
     box.append(playerTable({
       key: "matchgrid", rows, catalogue: cat,
       presets: Object.fromEntries(Object.entries(D.STAT_PRESETS).map(([k, v]) => [k, v.map((s) => `stat:${s}`)])),
@@ -427,14 +492,18 @@ export async function view() {
       sort: { by: "stat:Min", dir: "desc" },
       filter: (r) => (agg.get(r.tid)?.min || 0) >= minMin,
       toolbar: [minSel, normBtn],
+      filters: true,
       searchPlaceholder: "Search players…",
       onRow: (r) => openPlayer(r.tid),
       empty: minMin ? `Nobody has ${minMin}+ minutes in these matches.` : "Nobody appeared in the filtered matches.",
     }).node);
-    box.append(el("p.note", { text: vsNorm
+    box.append(el("p.note", { text: (at.size
+      ? `Only matches where he played ${[...at].join(", ")} count, and his norm is his average there. `
+        + "The game records positions for starters only; a substitute appearance counts at his usual position. "
+      : "") + (vsNorm
       ? "▲/▼ is the difference from his own average over every match (friendlies follow the toggle). "
         + "Narrow the filters — a competition, a round, an opponent — and sort a Δ column to see who steps up."
-      : M.note }));
+      : M.note) }));
     return box;
   }
 
