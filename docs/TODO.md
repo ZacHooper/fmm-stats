@@ -261,6 +261,10 @@ A save's campaign depends on the day its career's new season starts: Denmark 30 
 new career needs it measured again. The game holds it -- most likely each nation's calendar in
 the data dictionary's rule files (#7, #8) -- so decode it there. The fixture list does not
 change at the rollover, and no fixed-offset season field exists in the first 14 MB.
+**Drift mechanism confirmed:** the game's internal season loop ticks a strict 365 days rather than
+aligning with leap years. Every leap year (2024, 2028), the calendar rollover shifts backwards by
+one day (Denmark: 30 June in 2021-2023 -> 29 June in 2024-2027 -> 28/29 June in 2028). Recorded via
+`rollovers` in `careers.py` until dynamically read.
 
 
 ### 11a. Attribute decoder (low priority: exploring the game)

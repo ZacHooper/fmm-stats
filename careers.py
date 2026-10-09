@@ -33,11 +33,22 @@ class Career:
     # (month, day) the game starts this career's new season. It follows the home calendar,
     # so it is per career: measured as the day the managed club's record changes its last
     # league position (Frem 29 June old / 30 June new; Bucaspor 19 June old / 20 June new).
+    # NOTE: The game engine runs a 365-day internal season clock without leap year compensation,
+    # so every leap year (2024, 2028) slips the in-game calendar rollover back by 1 day.
     rollover: tuple = (6, 30)
+    # per-year (year, (month, day)) overrides when a career's rollover date drifts
+    rollovers: tuple = ()
+
+    def rollover_for(self, year: int) -> tuple[int, int]:
+        for y, ro in self.rollovers:
+            if y == year:
+                return ro
+        return self.rollover
 
     def campaign(self, date: str, has_matches: bool) -> int:
         """The campaign a save dated `date` belongs to (`campaign`)."""
-        return campaign(date, has_matches, self.rollover)
+        d = datetime.date.fromisoformat(date)
+        return campaign(date, has_matches, self.rollover_for(d.year))
 
 
 def campaign(date: str, has_matches: bool, rollover: tuple) -> int:
@@ -66,7 +77,8 @@ CAREERS = {
                        rollover=(6, 20)),
     # Danish career — Boldklubben Frem (started 2026-08). tids verified from the save.
     "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb",
-                   rating_method="frem_minmax_4231", rollover=(6, 30)),
+                   rating_method="frem_minmax_4231", rollover=(6, 30),
+                   rollovers=((2028, (6, 29)),)),
 }
 
 DEFAULT_CAREER = "frem"

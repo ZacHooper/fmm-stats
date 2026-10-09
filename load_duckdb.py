@@ -1301,9 +1301,12 @@ def check_matches(d, career):
     until = save_date(d)
     if not world or until is None:
         return
-    since = f"{until[:4]}-{career.rollover[0]:02d}-{career.rollover[1]:02d}"
+    year = int(until[:4])
+    ro = getattr(career, "rollover_for", lambda y: career.rollover)(year)
+    since = f"{until[:4]}-{ro[0]:02d}-{ro[1]:02d}"
     if since > until:
-        since = f"{int(until[:4]) - 1}{since[4:]}"
+        prev_ro = getattr(career, "rollover_for", lambda y: career.rollover)(year - 1)
+        since = f"{year - 1}-{prev_ro[0]:02d}-{prev_ro[1]:02d}"
     check_against_fixtures(_matches(d), world, (career.managed_tid, career.reserve_tid),
                            since, until)
 
