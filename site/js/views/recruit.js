@@ -184,16 +184,18 @@ const parsePositions = (text) => {
 
 // --------------------------------------------------------------------------- search
 /**
- * A position-scoped filter value: read whichever of a row's roles the active Position filter
- * selected, falling back to his single best role when Position isn't filtered — unchanged from
- * before this existed. Multi-valued on purpose (same shape the Pos filter itself already
- * returns): if he has two roles among the selected positions, a range filter matches if EITHER
- * satisfies it, same as "does he have DR or DML".
+ * Point a row at the role it should describe: his best-rated role among the positions the Pos
+ * filter selected, or his overall best when Position isn't filtered. Pos, Fam, Rating and both
+ * Level columns all read row.r, so the cells, the sort and any range filter on them describe the
+ * SAME position — the squad page's scopeRow, minus the squad-only columns. A row that plays none
+ * of the selected positions keeps his best role; the Pos filter has already dropped him.
  */
-function scoped(row, filters, pick) {
-  const sel = filters?.find((f) => f.col === "pos")?.values;
-  const roles = sel?.length ? row.roles.filter((x) => sel.includes(x.pos)) : [row.r];
-  return roles.map(pick);
+function scopeRow(row, scopePos) {
+  let r = null;
+  if (scopePos.length) {
+    for (const q of row.roles) if (scopePos.includes(q.pos) && (!r || q.eff > r.eff)) r = q;
+  }
+  row.r = r || row.roles[0];
 }
 
 async function searchPanel() {
@@ -258,6 +260,7 @@ async function searchPanel() {
         _search: [p.name, club?.name, lg?.name, originClub, best.pos, best.role].filter(Boolean).join(" ").toLowerCase(),
       });
     }
+    let scopePos = [];
     const selected = new Set();
     const cmp = el("button.btn", {
       text: "Compare (0)",
@@ -280,11 +283,12 @@ async function searchPanel() {
         age: { label: "Age", group: "Identity", align: "num", get: (r) => r.age },
         pos: {
           label: "Pos", group: "Identity", get: (r) => r.r.pos,
-          // The COLUMN shows his best position; the FILTER matches any position he is listed at,
-          // because "show me left-backs" means everyone who can play there, not everyone whose
-          // single best role happens to be it. Pair it with a Fam filter to exclude the token
-          // 1-familiarity listings.
-          help: "Best position. Filtering on it matches any position he can play.",
+          // The COLUMN shows the position the row is scoped to; the FILTER matches any position he
+          // is listed at, because "show me left-backs" means everyone who can play there — and
+          // picking one re-rates the row there (scopeRow). Pair it with a Fam filter to exclude
+          // the token 1-familiarity listings.
+          help: "Best position. Filtering on it matches any position he can play, and re-rates "
+            + "the whole row there.",
           filterValue: (r) => r.player.positions.map((x) => x.pos),
         },
         fam: {
@@ -292,7 +296,6 @@ async function searchPanel() {
           render: (r) => bar(r.r.fam, { max: 20, lo: 60 }),
           help: "Familiarity at his best role — or, with a Position filter active, at the "
             + "selected position(s), not his overall best.",
-          filterValue: (r, filters) => scoped(r, filters, (x) => x.fam),
         },
         club: { label: "Club", group: "Identity", get: (r) => r.club,
                 render: (r) => (r.club ? clubName(r.player.clubTid, D.S, r.club) : DASH) },
@@ -324,20 +327,19 @@ async function searchPanel() {
         },
         rating: {
           label: "Rating", group: "Rating", align: "num", sort: (r) => r.r.eff, render: (r) => num(r.r.eff),
-          filterValue: (r, filters) => scoped(r, filters, (x) => x.eff),
+          help: "Rating at his best role — or, with a Position filter active, at the selected "
+            + "position(s).",
         },
         lvl: {
           label: "Level %ile", group: "Rating", align: "num",
           help: "Quality at that position in his own league — or, with a Position filter active, "
             + "at the selected position(s).",
           sort: (r) => r.r.lvlLeague, render: (r) => bar(r.r.lvlLeague),
-          filterValue: (r, filters) => scoped(r, filters, (x) => x.lvlLeague),
         },
         lvlg: {
           label: "Level %ile (world)", group: "Rating", align: "num",
           help: "Quality at that position across every league in the save — the fair way to compare across divisions",
           sort: (r) => r.r.lvlGlobal, render: (r) => bar(r.r.lvlGlobal),
-          filterValue: (r, filters) => scoped(r, filters, (x) => x.lvlGlobal),
         },
         value: { label: "Value", group: "Contract", align: "num", sort: (r) => r.player.value, render: (r) => money(r.player.value) },
         wage: { label: "Wage/yr", group: "Contract", align: "num", sort: (r) => r.player.wage, render: (r) => money(r.player.wage) },
@@ -349,6 +351,15 @@ async function searchPanel() {
       // Only this table gets filters: it is the one holding ~23,000 rows once every player is
       // loaded. The other four are squad-sized, where sort plus the search box is already enough.
       filters: true,
+      // Runs before the filters are applied, so every rating-shaped cell, sort and range filter
+      // reads the role at the selected position(s). Only rescope when the selection changed — a
+      // draw also fires on every sort and keystroke, over ~23,000 rows once everyone is loaded.
+      prepare: (fs) => {
+        const sel = fs.find((f) => f.col === "pos")?.values || [];
+        if (sel.join() === scopePos.join()) return;
+        scopePos = [...sel];
+        for (const row of rows) scopeRow(row, scopePos);
+      },
       defaults: ["age", "pos", "fam", "club", "league", "rating", "lvlg", "value", "expiry", "origin", "capital"],
       sort: { by: "lvlg", dir: "desc" },
       searchPlaceholder: "Search by name, club or league…",
