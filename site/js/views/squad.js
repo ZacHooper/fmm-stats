@@ -190,8 +190,8 @@ export async function view() {
       help: "Position familiarity 0-20, at the position in Pos. The rating is already discounted by it, so a high rating on a low Fam means raw attributes are carrying him somewhere he doesn't play.",
       sort: (r) => r.r.fam, render: (r) => bar(r.r.fam, { max: 20, lo: 60 }),
       // Reads the scoped role like every other rating column, so a Pos filter answers "Fam 18+
-      // AT DR" rather than letting an unrelated best role qualify him — the trap recruit.js's
-      // scoped() filterValue exists to avoid, closed here by scoping the row itself instead.
+      // AT DR" rather than letting an unrelated best role qualify him (recruit.js scopes its
+      // rows the same way).
     },
     also: {
       label: "Also", group: "Identity",
