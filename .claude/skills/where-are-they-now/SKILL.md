@@ -253,6 +253,28 @@ signing, records-that-survive, promotion trail), then tiers as cards. Tiers that
 threshold and any data gaps (§4's chain-gap caveats) in a short footer, not the intro — it reads
 better as a footnote than as a hedge up front.
 
+### House style: reuse [`reference/frem-2324.html`](reference/frem-2324.html)
+The user loved the 23/24 retrospective's look (published 2026-10-11), so it is now the house
+style for this skill. **Start every new run from a copy of that file**: keep its `<style>` block
+and markup structure, and replace only the content (title, season, numbers, player entries).
+Don't redesign it from scratch. What makes it work:
+- **A matchday programme in Frem's colours.** Navy hero with a red rule underneath, red and blue
+  accent tokens, cool blue-grey neutrals, and full light/dark token sets.
+- **Type:** Big Shoulders Display (stadium-signage capitals) for names and numbers, Libre
+  Franklin for body text, DM Mono for eyebrows, stat lines and transfer trails.
+- **The hero is the promotion staircase:** one step per season, with the target season as the
+  lit red step. Retitle the steps to the real league trail. If the target season isn't a
+  promotion year, keep the staircase and light whichever step it is.
+- **A four-cell ledger** (record, Player of the Season, signing of the year, crowd), then a
+  two-column story section: a prose account of the season beside the list of club records that
+  still stand. A record the club would rather forget gets the red `sour` row.
+- **Tiers are programme entries, not boxed cards.** Each entry has a name in display caps, a
+  position chip, a mono stat line for that season, a blue "where now" line, then prose. The 1–2
+  biggest stories (the crux players) get the full-width `.feature` entry with a mono transfer
+  trail (`Frem → X (£fee) → …`).
+- Write the copy plainly: short sentences, real fees and leagues, no invented drama. The filter
+  note and data caveats go in the footer.
+
 **The filter is by apps, not by fame — say so if it surfaces someone forgettable.** A squad
 player who crossed the 10-apps line and is still technically on the books will get a card next
 to the players everyone actually remembers, purely because the query has no way to weigh
