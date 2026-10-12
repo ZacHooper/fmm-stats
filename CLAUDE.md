@@ -200,6 +200,11 @@ git add site && git commit -m "site: <snapshot>" && git push   # Pages deploys o
 - **Immersion: NEVER surface the raw CA/PA number.** Reason with weighted role ratings (Fit), percentiles, match stats, and attributes only. **Allowed exception:** the **Level %ile** (`level_league`/`level_global` in `mart.fact_player_snapshot.positions`) is a tactic-agnostic quality *percentile* derived from CA — the raw ability is `EXCLUDE`-d from presentation views so only the percentile ever leaves. The underlying warehouse facts (`mart.fact_player_snapshot`) retain CA/PA so percentiles can be derived, but presentation layers (`site.*`, `scripts/export_data.py`, skill output) strictly exclude raw ability. **`scripts/export_data.py`'s `check_immersion()` enforces this for published JSON** — it
   parses every emitted file and fails the build on a raw-ability key at any depth, so anything new you add to the
   export is checked automatically.
+- **Hidden/personality attributes: say what the in-game report would say, not the number.** The
+  coach/scout report shows one trait line ("enigmatic", "inconsistent", "thrives in big matches",
+  "mercurial talent", …) and the manager prefers those words to raw hidden values. The mapping and
+  its evidence are in [`docs/agent-context/report-trait-lines.md`](docs/agent-context/report-trait-lines.md).
+  Quote a hidden number only when asked for it.
 - **The loan outlook is computed in the store** (`site.loan_outlook`,
   `fmstats/models/site/site_loan_outlook.sql`), because it orders players by ability; the export
   ships only percentiles and ranks and the browser only draws it. Ranking counts a club's

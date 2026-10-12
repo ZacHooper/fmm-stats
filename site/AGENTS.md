@@ -69,6 +69,22 @@ What you may use, and should:
 So: talk about percentiles, ranks and attributes. Never reconstruct or estimate a single ability
 score for a player, and never present one.
 
+**Hidden and personality attributes: use the game's words, not the number.** The in-game coach
+or scout report describes them in one trait line, and the manager prefers that line to a raw
+value. Translate with the first rule that applies (the report shows only the highest-priority line):
+
+| line | when |
+|---|---|
+| enigmatic | professionalism ≤ 7 (an attitude problem: doesn't reliably apply himself) |
+| very enigmatic | professionalism ≤ 7 **and** consistency ≤ ~6 |
+| inconsistent | consistency ≤ ~6 |
+| tends to struggle in big matches | big match ≤ ~3, or pressure ≤ ~3 |
+| thrives in big matches | pressure ≥ ~18 with big match ≥ ~12 |
+| mercurial talent | flair ≥ 15 |
+
+A working model from 14 in-game checks. The evidence and pending tests are in
+`docs/agent-context/report-trait-lines.md` in the repo.
+
 ## Files
 
 All URLs below are absolute and independently followable — you don't need to construct a path

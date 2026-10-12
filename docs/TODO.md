@@ -383,6 +383,15 @@ Collapse those bands into a formation string in the dbt site models (not the bro
 it in `site.matches`, then give the Splits tab's Formation split a kick-off / full time /
 changed-in-game choice and the Results tab an "Ended in" column beside "Started in".
 
+### 24. Show hidden attributes as report trait lines
+The profile sheet's "+ personality & hidden" toggle (`site/js/profile.js`, `extraAttrColumns`)
+shows raw hidden values. The manager prefers the in-game report's words. Derive the trait line in
+the `site` dbt models from
+[`agent-context/report-trait-lines.md`](agent-context/report-trait-lines.md) (one line, highest
+priority wins), ship it with the profile, and show it in place of the numbers, keeping the numbers
+behind an explicit opt-in. Finish the doc's pending checks first, so the thresholds are pinned
+before they're coded.
+
 ---
 
 ## Docs
