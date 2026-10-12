@@ -84,9 +84,17 @@ function clubTable(d, loanedTo, pos) {
  */
 export function loanOutlook(p, pos) {
   const box = el("div", {}, [el("p.note", { text: "Loading…" })]);
+  // The Squad table's Development word (site.players.development): growth left is half of
+  // the loan question — a player with lots to come wants minutes, one at his ceiling a buyer.
+  const dev = D.S.ours.development?.[String(p.tid)];
+  const devLine = dev ? el("p.lhead", {
+    html: `Development: <b>${dev}</b>`,
+    title: "How far he is from his ceiling: Lots to come · Developing · Nearly there · At his ceiling",
+  }) : null;
   D.loadLoans().then((L) => {
     const mine = L?.players?.[String(p.tid)];
     clear(box);
+    if (devLine) box.append(devLine);
     if (!mine || !Object.keys(mine.positions).length) {
       box.append(el("p.note", { text: L?.error
         ? `Loan outlook unavailable: ${L.error}.`
