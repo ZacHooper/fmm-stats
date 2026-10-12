@@ -75,13 +75,14 @@ value. Translate with the first rule that applies (the report shows only the hig
 
 | line | when |
 |---|---|
-| (very) enigmatic | professionalism ≤ 7 (an attitude problem: doesn't reliably apply himself) |
+| enigmatic | professionalism ≤ 7 (an attitude problem: doesn't reliably apply himself) |
+| very enigmatic | professionalism ≤ 7 **and** consistency ≤ ~6 |
 | inconsistent | consistency ≤ ~6 |
 | tends to struggle in big matches | big match ≤ ~3, or pressure ≤ ~3 |
 | thrives in big matches | pressure ≥ ~18 with big match ≥ ~12 |
 | mercurial talent | flair ≥ 15 |
 
-A working model from 13 in-game checks. The evidence and pending tests are in
+A working model from 14 in-game checks. The evidence and pending tests are in
 `docs/agent-context/report-trait-lines.md` in the repo.
 
 ## Files
