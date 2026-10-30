@@ -626,7 +626,8 @@ this scout will be the first entry once you save it.
 **Save this one when the briefing is written** — nothing writes the log for you. Write a JSON
 object with at least `saved_at` (ISO timestamp), `opponent_tid`, `opponent`, `snapshot_label`,
 `method`, `venue`, `fixture` (the match date off the Next Match screen), `formation`, `style`,
-`note` (the plan in a few lines), plus the numbers you relied on (`overall`, `matchups`,
+`note` (the plan in a few lines), `lambda_for` / `lambda_against` / `predicted_score` (see "The
+scoreline call"), plus the numbers you relied on (`overall`, `matchups`,
 `key_players`, `h2h`) so the grading can check them, and upload it under its key:
 ```bash
 rclone copyto "$SCRATCH/scout.json" "r2:fmm-stats/state/scouts/337-frem-2028-05-09-2028-05-20.json"
@@ -639,6 +640,43 @@ reasoning changes, not just when the fixture does** — the log is what the next
 note carrying reasoning we already know to be wrong is worse than no note. If rclone or the remote
 is missing, the scout reached nobody: tell the user. `season-outlook` and `scout-from-site` never
 write to the log, so an absence there is not proof a team went unscouted.
+
+## The scoreline call — anchor on the baseline, shrink hard, name the MODAL score
+Scoreline calls have run high. The cause is not the inputs, which are unbiased on average, but
+taking an extreme input at face value: a hot H2H, a hot run of form, a big quality edge. Backtested
+over 313 competitive matches (2022–2029, each predictor using only games before the one it
+predicts):
+- **Next-match goals barely follow anything we can see beforehand.** Correlation with our goals:
+  H2H average 0.16, last-five form 0.10, last-12-months average 0.07. A five-game run averaging
+  **2.69 goals was followed by 1.90**; an H2H averaging **2.89 by 2.03**; a cold run (1.03) by 1.57.
+  Roughly **three-quarters of any deviation from the baseline is noise** — move a fifth to a quarter
+  of the way toward it, no further.
+- **Fitted on those 313 games** (λ = expected goals): ours ≈ `0.69 + 0.16·home + 0.12·our_gf_last365
+  + 0.21·h2h_gf + 0.34·opp_concede_ratio`; theirs ≈ `0.68 − 0.24·home + 0.19·our_ga_last365 +
+  0.13·h2h_ga + 0.10·opp_score_ratio`, where `opp_concede_ratio` is the opponent's goals conceded per
+  game over the last 365 days ÷ the goals per game of the teams they played (`opp_score_ratio` the
+  same for goals scored; both 1 when unknown; `h2h_*` falls back to the last-365 figure with no
+  meeting). This is the anchor, not a refinement step — the long-run averages it pulls toward are
+  **1.63 for and 1.00 against** (home 1.77 / 0.91, away 1.46 / 1.06), and a λ outside roughly
+  **1.1–2.4 for us** needs a reason stronger than H2H and form, which have never carried one.
+- **Our goals are close to Poisson**, so the most likely score sits well below the mean: we have
+  scored 0 in 23% of games and 2+ in only 50%. The modal scores across the history are 1-0, 2-1,
+  2-0, 0-0, 1-1. Read the call off λ, don't pick a score that "feels like" a win:
+
+  | λ us \ them | 0.7 | 1.0 | 1.3 | P(we score 2+) |
+  |---|---|---|---|---|
+  | **1.2** | 1-0 · W48 D30 L22 | 1-0 / 1-1 · W41 D29 L31 | 1-1 · W34 D27 L39 | 34% |
+  | **1.6** | 1-0 · W59 D25 L16 | 1-0 / 1-1 · W51 D25 L24 | 1-1 · W44 D24 L31 | 48% |
+  | **2.0** | 1-0 / 2-0 · W67 D20 L13 | 1-0 / 1-1 / 2-0 · W60 D21 L19 | 1-1 / 2-1 · W53 D22 L25 | 59% |
+  | **2.4** | 2-0 · W74 D16 L10 | 2-0 / 2-1 · W67 D18 L15 | 2-1 · W61 D19 L21 | 69% |
+
+  Even at λ = 2.4 — a level we have only averaged over a whole season once — a 3-goal game is not the
+  most likely outcome. A 3-0 or 3-1 call needs λ well above anything the inputs support.
+- **Give the call as λ + W/D/L + the modal score**, e.g. "λ 1.7–1.0: W52 D25 L23, most likely 1-0
+  or 1-1". A single scoreline on its own hides how uncertain it is and invites rounding up.
+- **Save `lambda_for`, `lambda_against` and `predicted_score` in the scout JSON**, and the grading
+  compares them with the result. Calls written only into `note` prose could not be checked when
+  this section was written, which is why the bias went unnoticed.
 
 ## After the match — close the loop (do this when the user posts the FT stats)
 The scout log only becomes calibration if someone checks it. When the user shares a full-time stat
@@ -914,7 +952,8 @@ here and name the players in their XI that our data has never seen.>*
 
 ## Verdict
 <one line: favourites/underdogs + our H2H record + the single biggest threat + our single biggest
-edge. If a prior scout of this opponent exists, one more line: what we said last time and whether
+edge. One line for the scoreline call, in the form "λ <us>–<them>: W<x> D<y> L<z>, most likely
+<score>" — see "The scoreline call" above. If a prior scout of this opponent exists, one more line: what we said last time and whether
 it still holds.>
 
 ## Head-to-head (<competitions>)
