@@ -17,16 +17,20 @@ Two rules the 2024 fit could not follow with 28 players, and which this enforces
     the protocol changed is worse than useless, so the frozen coefficients are re-scored here
     rather than compared against the number in model.py's docstring.
 
-`--write` replaces raw.attribute_model. Nothing takes effect until the views are rebuilt:
+`--write` replaces seeds/attribute_model.csv, which the loader seeds raw.attribute_model from
+on every load. Nothing takes effect until the views are rebuilt:
     uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
 """
 import argparse
+import csv
+import datetime
 import os
 import sys
 
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SEED = os.path.join(ROOT, "seeds", "attribute_model.csv")
 sys.path.insert(0, ROOT)
 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -248,7 +252,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", default="fm-frem.duckdb")
-    ap.add_argument("--write", action="store_true", help="replace raw.attribute_model")
+    ap.add_argument("--write", action="store_true", help="replace seeds/attribute_model.csv")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--min-players", type=int, default=20,
                     help="refuse to refit an attribute whose own population has fewer distinct "
@@ -417,9 +421,9 @@ def main():
     better = sum(1 for o in out if o[5] > o[6])
     print(f"\n{better} of {n} attributes improve on the frozen model.")
     if a.write:
-        _write(a.db, out)
+        _write(out)
     else:
-        print("report only — pass --write to replace raw.attribute_model")
+        print("report only — pass --write to replace seeds/attribute_model.csv")
     return 0
 
 
@@ -436,11 +440,9 @@ def _fwd(r, pi):
     return 1.0 if top in FWD_ATT else (0.5 if top in FWD_MID else 0.0)
 
 
-def _write(db, out):
-    import duckdb
-    con = duckdb.connect(db)
-    con.execute("DELETE FROM raw.attribute_model")
+def _write(out):
     rows = []
+    label = f"refit-{datetime.date.today().isoformat()}"
     for attr, own, partner, names, coef, *_ in out:
         flat = []
         for nm in names:
@@ -449,12 +451,14 @@ def _write(db, out):
                      HIDDEN if nm == "HID" else
                      ["GK"] if nm == "GK_FAM" else [nm])
         for nm, c in list(zip(flat, coef)) + [("intercept", coef[-1])]:
-            rows.append((attr, nm, float(c), own, partner, "refit-2026-09-17"))
-    con.executemany("INSERT INTO raw.attribute_model VALUES (?,?,?,?,?,?)", rows)
-    con.close()
-    print(f"wrote {len(rows)} coefficients to raw.attribute_model in {db}")
-    print("run:  uv run python load_duckdb.py --refresh-only --db " + db)
-
+            rows.append((attr, nm, repr(float(c)), "" if own is None else own,
+                         "" if partner is None else partner, label))
+    with open(SEED, "w", newline="") as f:
+        w = csv.writer(f, lineterminator="\n")
+        w.writerow(["attribute", "feature", "coef", "own_offset", "partner_offset", "fitted"])
+        w.writerows(rows)
+    print(f"wrote {len(rows)} coefficients to {os.path.relpath(SEED, ROOT)}")
+    print("run:  uv run python load_duckdb.py --refresh-only --db <store>")
 
 if __name__ == "__main__":
     raise SystemExit(main())

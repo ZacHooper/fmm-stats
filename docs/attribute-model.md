@@ -1,6 +1,11 @@
 # Attribute model — the decoder, and what is already ruled out
 
-> **STATUS: REFERENCE, not a work plan.** The refit SHIPPED in PR #51. Kept for the model
+> **STATUS: REFERENCE, not a work plan.** The coefficients live in
+> **`seeds/attribute_model.csv`** (written by `scripts/fit_attribute_model.py --write`, seeded into
+> `raw.attribute_model` on every load). The PR #51 refit was written only into a store, so the
+> next rebuild re-seeded the 2024 frozen coefficients and every store ran on them until the
+> 2026-10-30 refit went into the seed. A refit that is not in that CSV does not survive a rebuild.
+> Kept for the model
 > shape, the accuracy numbers and — most valuable — the **"Everything already ruled out"**
 > section near the end, which exists so nobody re-runs a dead end. The leads still worth
 > chasing are in [`TODO.md`](TODO.md).
