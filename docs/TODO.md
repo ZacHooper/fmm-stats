@@ -367,7 +367,10 @@ opponent controlled) beside rating and per-90; resample by player and check leav
 start from a base block (`frem_attacking_ss`, or a role's in-game key attributes) and let the
 data veto. Then ship: CB, CM, AMC, AML/AMR as now (confirmed against results); ST on the
 target-man brief (aerial, shooting, strength key; movement, pace, aggression, dribbling
-secondary) as a `HELD` judgement; LB/RB and DM marked not measurable. Group players by the
+secondary) as a `HELD` judgement; LB/RB marked not measurable. DM is briefed as a Roaming
+Playmaker (all four outcomes) and ships as a held block (creativity, dribbling, movement, passing
+3; pace 2), the manager's call, documented in the brief: keep it held unless the rework measures
+it. Group players by the
 position they started in: `attribute_stat_correlations.build(positions="played")` does it, but
 the derivation still passes `positions="familiar"` so it does not move before this rework.
 

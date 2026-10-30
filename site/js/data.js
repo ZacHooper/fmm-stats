@@ -315,7 +315,7 @@ export function weightOf(attr, role, method = S.method) {
  * Ordering by `eff` alone — which this did until 2026-09-13 — looks like the obvious answer and
  * is the wrong one, because eff is NOT COMPARABLE ACROSS POSITIONS. A role rating is a weighted
  * attribute sum and an attribute the role doesn't list weighs 1, so a role's ceiling is set by
- * its weight total: under `frem_minmax_4231` that is CM 26, GK 26, DM 25 vs LB 11, RB 11. Those
+ * its weight total: under `frem_minmax_4231` that is CM 26, GK 26 vs DM 14, LB 11, RB 11. Those
  * totals are an artefact of how many attributes cleared `derive_weight_set.py`'s evidence floor
  * for each role, not a claim that midfielders count for 2.4 full-backs — so "highest eff" quietly
  * meant "most heavily weighted role", and 11 of our 37 came back MC. Worse, the familiarity shown

@@ -83,16 +83,22 @@ BRIEFS = {
     "frem_minmax_4231": {
         "label": "4-2-3-1, attacking high press, min-maxed from the match data",
         # The front-foot shape we already win with (Attacking / High / Work Into Box). Full-backs
-        # are the width, the double pivot screens, the AMC creates, and the CF is the focal point
-        # of the attack -- which is why ST is briefed "finish AND win the air", not "finish". The
-        # earlier finish-only brief never asked the striker to BE the target, so Aerial and
-        # Strength could not earn a place in a block built around a target man.
+        # are the width, the AMC creates, and the CF is the focal point of the attack -- which is
+        # why ST is briefed "finish AND win the air", not "finish". The earlier finish-only brief
+        # never asked the striker to BE the target, so Aerial and Strength could not earn a place
+        # in a block built around a target man.
+        #
+        # The DM slot is a Roaming Playmaker, not a screen: it wins the ball, keeps it, carries it
+        # forward and creates, so it is briefed on all four. The narrower playmaker briefs
+        # (progress+create, keep+progress+create) score BELOW flat out-of-fold on the DMC sample;
+        # the four-outcome brief is the only one that beats flat, at Dribbling +0.24, Creativity
+        # +0.22, Movement +0.19.
         "roles": {
             "GK":  ["keep_it"],
             "LB":  ["progress_it", "create"],
             "RB":  ["progress_it", "create"],
             "CB":  ["win_the_air", "win_it_back"],
-            "DM":  ["win_it_back", "keep_it"],
+            "DM":  ["win_it_back", "keep_it", "progress_it", "create"],
             "CM":  ["keep_it", "progress_it"],
             "AML": ["progress_it", "create"],
             "AMR": ["progress_it", "create"],
@@ -101,10 +107,18 @@ BRIEFS = {
         },
         # Held on judgement -- see JUDGEMENT_NOTE. The 4-2-3-1's full-backs are NOT held: they are
         # briefed to create, and the manager's call was to hold the non-negotiables for the
-        # centre-backs, the screening pivot, and the full-backs of the BIG-GAME shape only.
+        # centre-backs and the full-backs of the BIG-GAME shape only.
+        #
+        # The Roaming Playmaker block is held because its derived set beats flat in 68% of
+        # out-of-fold splits on 65 DMC seasons, short of WIN_RATE. Creativity, Dribbling and
+        # Movement are held at what they measure (3 each). Passing is unmeasurable at DMC (no
+        # spread) and held at 3 because a playmaker's job is passing. Pace measures +0.07 under
+        # this brief (+0.28 under the old win-it-back+keep-it brief) and is held at 2 on the
+        # manager's judgement. Positioning, Tackling and Teamwork measure -0.21, -0.10 and +0.05
+        # here, so they are not held.
         "hold": {
             "CB": {"tackling": 3, "positioning": 3},
-            "DM": {"positioning": 3, "tackling": 3, "teamwork": 3, "passing": 4},
+            "DM": {"creativity": 3, "dribbling": 3, "movement": 3, "passing": 3, "pace": 2},
         },
     },
 }
