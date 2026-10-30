@@ -94,13 +94,11 @@ def _cols_ddl(cols):
 
 
 # ---------------------------------------------------------------------------- attribute model
-# The estimation model, moved OUT of the parser and INTO the database (2026-09-17).
-#
-# It used to run in extract.py, so only its OUTPUT ever reached the store and retraining meant
-# a ~25-minute re-extract of every save before a candidate could be scored. Now the raw bytes
-# are stored (attributes.SRC_OFFSETS / PLAIN_OFFSETS) and the coefficients live in a table, so
-# a retrain is: write new coefficients, run `--refresh-only`, done. The parser scrapes; the
-# database infers.
+# The estimation model lives in the database, not the parser: the raw bytes are stored
+# (attributes.SRC_OFFSETS / PLAIN_OFFSETS) and the coefficients in raw.attribute_model, seeded
+# from seeds/attribute_model.csv (fitted against the store by scripts/fit_attribute_model.py).
+# A retrain is: `fit_attribute_model.py --write`, run `--refresh-only`, done. The parser
+# scrapes; the database infers.
 #
 # `raw.player_attributes` is a VIEW over `player_attributes_exact` (what the save states
 # outright) and this model (everything else), so every existing consumer is unchanged and the
@@ -109,28 +107,34 @@ ATTR_MODEL_DDL = """CREATE TABLE IF NOT EXISTS raw.attribute_model (
         attribute VARCHAR NOT NULL, feature VARCHAR NOT NULL, coef DOUBLE NOT NULL,
         own_offset INTEGER, partner_offset INTEGER, fitted VARCHAR
     )"""
+ATTR_MODEL_SEED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
+                               "attribute_model.csv")
 
 
-def _seed_attribute_model(con, force=False):
-    """Seed the coefficient table from fmparser.model.FROZEN unless it already holds a fit.
+def _seed_attribute_model(con):
+    """(Re)seed the coefficient table from seeds/attribute_model.csv on every load.
 
-    The frozen dict stays the DEFAULT so a fresh store reproduces today's numbers exactly; a
-    refit overwrites the table and `--refresh-only` picks it up without touching the parser.
+    The CSV is a definition, like seeds/value_model.csv: an edit reaches an existing store on
+    the next `--refresh-only`. Its row order is the order the decode sums the terms in
+    (stg.attribute_model.seq), so it is inserted as written. An attribute the CSV does not
+    cover falls back to fmparser.model.FROZEN, the 2024 Bucaspor fit.
     """
     from fmparser import model as _MOD
-    # Aerial was fitted until 2026-09-17 and is now a closed form. An existing store still
-    # carries its rows; the view no longer reads them, but leaving them there would let a
-    # later refit resurrect it. Prune anything that is no longer a fitted attribute.
-    con.execute("DELETE FROM raw.attribute_model WHERE attribute NOT IN "
-                "(" + ", ".join(repr(a) for a in _MOD.FROZEN) + ")")
-    n = con.execute("SELECT count(*) FROM raw.attribute_model").fetchone()[0]
-    if n and not force:
-        return n
     con.execute("DELETE FROM raw.attribute_model")
     rows = []
+    with open(ATTR_MODEL_SEED, newline="") as f:
+        for r in csv.DictReader(f):
+            rows.append((r["attribute"], r["feature"], float(r["coef"]),
+                         int(r["own_offset"]) if r["own_offset"] else None,
+                         int(r["partner_offset"]) if r["partner_offset"] else None,
+                         r["fitted"]))
+    seeded = {r[0] for r in rows}
     for attr, (own, partner, feats, coef) in _MOD.FROZEN.items():
+        if attr in seeded:
+            continue
         for f, c in list(zip(feats, coef)) + [("intercept", coef[-1])]:
             rows.append((attr, f, float(c), own, partner, "frozen-2024-bucaspor-28"))
+    rows = [r for r in rows if r[0] in _MOD.FROZEN]
     con.executemany("INSERT INTO raw.attribute_model VALUES (?,?,?,?,?,?)", rows)
     return len(rows)
 

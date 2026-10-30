@@ -3,6 +3,10 @@
 Frozen attribute model: decodes the entangled 0-255 sub-attribute bytes into the
 displayed 1-20 value.
 
+The STORE does not use these coefficients: it decodes with seeds/attribute_model.csv, the fit
+against the Frem store (scripts/fit_attribute_model.py). FROZEN is the incumbent that fit is
+scored against, and the fallback for any attribute the seed does not cover.
+
 The coefficients below were fitted once (numpy least-squares grid-search) on the 28
 Bucaspor players — the only set with BOTH the raw record bytes and the displayed
 values. They are frozen here so estimation is a cheap pure-Python dot product with no
