@@ -404,8 +404,10 @@ goals showed our matches cannot fit them (r 0.11 vs flat 0.09). The questionnair
 artifact https://claude.ai/artifact/EG5y2tJG8rsJjE8b7ghR5S; its answers live in that artifact's
 database (`answers/<grp>_<D|O>_<attrA>__<attrB>` with `v` the importance ratio on a 7-step scale,
 1 / ±1.5 / ±2 / ±3, positive toward the alphabetically first attribute; `answers/<grp>_balance`
-with `v` positive toward defending; and `lists/<grp>_<half>`
-for any changed attribute list), read with the ArtifactData tool.
+with `v` positive toward defending; and `screens/<grp>_<half>`
+with `cls` mapping each of the 18 attributes to `key` / `useful` / `none`; only Key attributes
+(2–6 per half) are compared pairwise), read with the ArtifactData tool. Still to decide when the
+answers are in: the multiplier scale for Key weights and the fixed boost for Useful.
 
 ---
 

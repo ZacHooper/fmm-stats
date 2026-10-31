@@ -51,7 +51,17 @@ A half's score is the weighted sum of all 18 outfield attributes: its listed att
 weights, every unlisted attribute at **0.5**. The rest of a player's game still matters, at half
 weight, as the manager asked for the role ratings.
 
+The draft lists above are superseded by the manager's own: each half opens with a sorting step
+in which all 18 attributes are classed Key, Useful or Not relevant, starting blank so the draft
+does not anchor the answer. Key attributes (2–6) are compared pairwise; Useful ones get a fixed
+modest boost; Not relevant ones keep the 0.5 baseline.
+
 ### 3. Weights inside each half, and the balance between halves, come from AHP
+
+The comparisons use a 7-step ratio scale (much / clearly / slightly better, equal: ×3, ×2, ×1.5,
+×1), framed as a trade-off ("identical except +3 Pace or +3 Positioning: which is the better
+defender?"), with sides and order shuffled. The coarse scale avoids the runaway weights a 1–9
+scale produces; the redundancy of all-pairs comparison recovers finer gradations.
 
 The analytic hierarchy process asks pairwise questions ("for a full-back's defending, how much
 more does Positioning matter than Pace?") and turns the answers into weights, with a consistency
