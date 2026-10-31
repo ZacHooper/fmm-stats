@@ -400,7 +400,11 @@ before they're coded.
 per position group, unlisted attributes at 0.5, percentiles within the position, and a per-slot
 Defensive / Balanced / Attacking blend on the Builder (FMM has no duty switch, so player choice
 is the duty). Next step: the manager answers the AHP questionnaire to set the half weights; on/off
-goals showed our matches cannot fit them (r 0.11 vs flat 0.09).
+goals showed our matches cannot fit them (r 0.11 vs flat 0.09). The questionnaire is the
+artifact https://claude.ai/artifact/EG5y2tJG8rsJjE8b7ghR5S; its answers live in that artifact's
+database (`answers/<grp>_<D|O>_<attrA>__<attrB>` with `v` signed toward the alphabetically first
+attribute on the 1–9 scale, `answers/<grp>_balance` with `v` toward defending, and `lists/<grp>_<half>`
+for any changed attribute list), read with the ArtifactData tool.
 
 ---
 
