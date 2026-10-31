@@ -209,6 +209,17 @@ Entry, advancement, promotion and relegation (`strq`, `advs`, `relr`, `prmr`) fo
 competition in the dictionary, not just the ~70 the archive loads. Every configured archive
 member names its dictionary file (`file`), so the two join. `docs/DATADICT.md` (deleted; last
 at commit 7cc46b6) holds guesses at many tag meanings — hypotheses to test, not facts.
+[`competition-formats.md`](competition-formats.md) decodes the Champions Cup's rules
+(`eur_champions_cup_2021`) and the routing tags (`tems`/`fsqt`/`ByTm`/`ftac`/`qurl`); confirm
+those readings across the other continental files and name `vlgr`'s draw-rule types.
+
+### 8a. Mod the Champions Cup into a league phase
+The goal: a save whose Champions Cup plays a single-table league phase instead of eight groups.
+The engine already has the pieces (`nrds 0` + `exlg`, a `cftp` fixture grid;
+[`competition-formats.md`](competition-formats.md) §4). Its §5 lists what is unknown and an
+experiment ladder: a tagged-tree encoder that round-trips `comp_1301394.dat`, then a no-op
+archive repack loaded in game, a scalar edit, a 32-team league phase, and finally 36 teams once
+the nation→seed allocation (probably `rule_group.dat`) is found.
 
 ### 9. The standings record
 A 14-byte record with the exact final position of every club in every loaded competition,
