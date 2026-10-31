@@ -215,11 +215,12 @@ those readings across the other continental files and name `vlgr`'s draw-rule ty
 
 ### 8a. Mod the Champions Cup into a league phase
 The goal: a save whose Champions Cup plays a single-table league phase instead of eight groups.
-The engine already has the pieces (`nrds 0` + `exlg`, a `cftp` fixture grid;
-[`competition-formats.md`](competition-formats.md) §4). Its §5 lists what is unknown and an
-experiment ladder: a tagged-tree encoder that round-trips `comp_1301394.dat`, then a no-op
-archive repack loaded in game, a scalar edit, a 32-team league phase, and finally 36 teams once
-the nation→seed allocation (probably `rule_group.dat`) is found.
+The game rebuilds the competition's archive member from the dictionary every 11 June, so the
+edit goes in the dictionary of a pre-June save (`scripts/mod_save.py`, `fmmod/`). Two test
+saves from `frem-2029-04-25` are on R2 at `mods/frem/`: `final-prize` (does the game take the
+dictionary edit?) and `groups-of-8`. Next: load each in game per
+[`competition-formats.md`](competition-formats.md) §5, then a 32-team league phase (§4), then 36
+teams once the nation→seed allocation (probably `rule_group.dat`) is found.
 
 ### 9. The standings record
 A 14-byte record with the exact final position of every club in every loaded competition,

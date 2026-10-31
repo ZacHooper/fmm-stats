@@ -46,8 +46,30 @@ is active for, and SI uses this for format changes: `inter_concacaf_nations_leag
 and `_2021` hand over in 2021. FMM22 ships **one** Champions Cup file, `eur_champions_cup_2021`,
 with no year window. So the old format never ends.
 
-The rules carry `updy = {11 June}`, which looks like the competition's annual update day. That
-is a hypothesis to test: it may be the day the loaded rules are refreshed for the next season.
+**The archive member is rebuilt from the dictionary on the competition's update day** (`updy`,
+11 June for the Champions Cup). Measured over 13 Frem saves from 2021 to 2029:
+
+| save | Champions Cup member: header season | runtime state |
+|---|---|---|
+| 2025-06-10 | 2024 | 80,096 B |
+| 2025-07-01 | 2025 | 37,025 B |
+| 2029-04-25 | 2028 | 76,970 B |
+| 2029-06-15 | 2029 | 25,569 B |
+
+Competitions with dated rule files show the copy itself. Their member's `file` swaps to the
+dictionary's other version at the rollover: `eng_fm_cup_even_years` → `_odd_years` between
+2025-06-10 and 2025-07-01, and again between 2029-06-15 and 2029-06-30, and `wc_*_2022` →
+`_2026` in 2023. The copy is the rule file plus a few fields the game fills in: of the 147
+members, the 22–23 that differ from their dictionary file differ only in `itvm` (and on single
+competitions `SpDs`, `lgfx` or `apmn`), which look like team lists.
+
+So **a rules change goes in the dictionary, in a save dated before the update day**, and the
+game writes the member itself. Nothing in the save stores the dictionary's offset or the file
+size: no u32 anywhere matches the dictionary's start or end, the archive's start, or the file
+length on two saves. The dictionary also already moves by hundreds of bytes between saves, and
+the tagged format counts fields, never bytes, so a rule file can change length.
+`fmmod/save_patch.py` does this. On a 151-byte longer Champions Cup file, the full extract of
+the patched save is identical to the original's except for record offsets shifted by exactly +151.
 
 ## 3. The Champions Cup's current format, decoded
 
@@ -127,34 +149,41 @@ So a modern-format `stgs` can be written in tags the engine already parses. In o
 which this file does not hold (§3). **A 32-team league phase with 8 games each** keeps today's
 entry exactly as it is and changes only stages 2 and 3, so it is the sensible first target.
 
-## 5. What a save mod has to do, and what is unknown
+## 5. Modding a save
 
-1. **Write tagged trees.** The parser only reads them (`core/types.read_tree`). Build the encoder,
-   and prove it by re-encoding the current `comp_1301394.dat` byte-identically.
-2. **Repack the archive.** Recompress the member and rewrite the directory (`offset`, `stored`,
-   `unpacked` for every later entry), plus the directory's own header and frame. Unknown: the u32
-   in the 13-byte header that opens the archive (17 more than the members' total on Frem, 495
-   less on Bucaspor; `docs/save-archive.md`). It may be a checksum or a size the game checks.
-3. **Decide which copy the game reads.** The dictionary copy is uncompressed in the main save.
-   Making it longer shifts every byte after ~19 MB, and whether the save holds absolute offsets
-   past that point is unknown. If the game refreshes a loaded competition from the dictionary
-   each `updy`, an archive-only edit would be undone on 11 June.
-4. **The runtime state** (72–77 KB after the rules) is undecoded and indexes the current stages.
-   Edit only when the competition is idle (after the Final, before next season's draw), and
-   expect the game may reject state that no longer matches the stages.
-5. **`comp_man.dat` stage keys.** Every fixture's `stage_key` is a row in `comp_man`'s stage
-   grid. Whether the game allocates rows for new stages itself is unknown.
-6. **Save integrity.** It is not known whether FMM22 checks a hash over the save.
+`fmmod/` writes the tagged format (`fmmod/tagged.py`, a lossless reader and writer: all 667 rule
+files and all 147 archive members re-encode byte-identically) and patches one rule file in a
+save's dictionary (`fmmod/save_patch.py`). `scripts/mod_save.py` applies a recipe from
+`fmmod/recipes.py` to the Champions Cup:
 
-A ladder of experiments, each needing only the one before it:
+| recipe | change | length |
+|---|---|---|
+| `final-prize` | Final winner's `wnpz` 20,000,000 → 30,000,000 | same |
+| `groups-of-8` | 4 groups of 8, single round robin (7 matchdays). Top 4 of each group → First Knockout Round (the knockout stage is unchanged), 5th → EURO Cup (where 3rd went), 6th–8th out. Each half of the groups (A–B, C–D) plays on its own 7 of the 14 group dates the file reserves; the spare Dec 5/6 pair comes into use. The group-range draw rules (`vlgr` 13/14) are rescaled and the R16's winners-v-runners-up rule (`type 5`) is dropped | +151 B |
 
-1. **No-op repack:** decompress and recompress `comp_1301394.dat` unchanged (different zstd
-   level), rebuild the directory, then load the save in game. This tests (2) and (6).
-2. **Visible scalar edit:** e.g. the Final's `wnpz` prize, made in the close season. This tests
-   that the game reads the member, and, by simming past 11 June, whether the edit survives `updy`.
-3. **32-team league phase:** replace stages 2–3 as in §4, keeping entry as is. Then check the
-   generated fixtures in `fix_man.dat` (`world_fixtures.json`): 8 per club, a single table.
-4. **36 teams:** after finding the nation→seed allocation.
+`groups-of-8` follows the pattern every group stage in the dictionary follows: one `gpdt` date per
+matchday per half, (group size − 1) × `nrds`.
+
+Still unknown, and only a game load answers them:
+
+1. **Whether the game rebuilds from the save's dictionary or from its own data files.** Our
+   saves show the rebuild happens; they cannot show which copy it reads, because the two are
+   identical.
+2. **Save integrity.** No checksum has been found, and none has been looked for.
+3. **Whether the engine accepts each format.** Groups of 8 are used elsewhere (`ser_super`,
+   `por_national`), but never with this date plan. A 5th-placed club dropping into the EURO Cup's
+   knockout reuses the 3rd-place rule unchanged.
+
+The experiments, in order. Each loads `frem-2029-04-25` (before 11 June) as a sandbox, away
+from the real career:
+
+1. **`final-prize`:** load, play past 11 June, save. Then
+   `dump_comp_rules.py <that save> --uid 1301394 --tags stgs` shows the Final's `wnpz`. 30,000,000
+   confirms the copy; 20,000,000 means the game reads its own data. This tests nothing else.
+2. **`groups-of-8`:** load, play to the group draw (late August) and look at the groups, then
+   on to the first matchdays. Saves at both points let us check `fix_man.dat`'s fixtures.
+3. **32-team league phase** (§4), once groups of 8 work.
+4. **36 teams**, after finding the nation→seed allocation.
 
 ## Commands
 
@@ -164,4 +193,5 @@ uv run python scripts/audit/dump_comp_rules.py $S --uid 1301394                 
 uv run python scripts/audit/dump_comp_rules.py $S --uid 1301394 --tags stgs      # just the stages
 uv run python scripts/audit/dump_comp_rules.py $S --file inter_concacaf_nations_league_qual --grid
 uv run python scripts/audit/dump_comp_rules.py $S --find exlg                    # who uses a tag
+uv run python scripts/mod_save.py $S groups-of-8                                 # -> frem-2029-04-25-mod-groups-of-8.fms
 ```
