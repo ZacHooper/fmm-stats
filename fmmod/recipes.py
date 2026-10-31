@@ -11,7 +11,7 @@ from . import tagged as T
 
 CHAMPIONS_CUP = "eur_champions_cup_2021"
 R16_NAME = 164                     # round-name catalog: First Knockout Round
-FINAL_NAME = 20
+FIRST_QUAL_NAME = 149              # First Qualifying Round
 
 
 def _stage(nodes: List[T.Node], indx: int) -> T.Node:
@@ -28,11 +28,16 @@ def _round(stage: T.Node, name_id: int) -> T.Node:
     return next(r for r in stage["rnds"].kids if _name_id(r["stnm"]) == name_id)
 
 
-def final_prize(nodes: List[T.Node], cash: int = 30_000_000) -> None:
-    """The Final winner's prize (`wnpz.cash`, 20,000,000 in the shipped file). The same
-    length as the original, so it tests only whether the game carries a dictionary edit into
-    the archive member on the update day."""
-    _round(_stage(nodes, 3), FINAL_NAME)["wnpz"]["cash"].int = cash
+def one_leg_q1(nodes: List[T.Node]) -> None:
+    """The Champions Path First Qualifying Round (34 clubs, 12/19 July) as one match per tie
+    instead of two legs: a visible probe of whether the game carries a dictionary edit into the
+    archive member on the update day. It takes the single-leg Preliminary Rounds' shape: `nmlg`
+    1 and one `date`, whose `mtrl` (0 on a first leg, 3 on a deciding match) becomes the second
+    leg's 3; the second leg's `dat2` goes."""
+    q1 = _round(_stage(nodes, 0), FIRST_QUAL_NAME)
+    q1["nmlg"].int = 1
+    q1["date"]["mtrl"].value = q1["dat2"]["mtrl"].value
+    q1.remove("dat2")
 
 
 # Group-stage date slots: the 14 `fxds` entries named Group Stage, indexed 0..13 by the
@@ -46,23 +51,26 @@ GROUP_DATES_8 = ([0, 3, 5, 6, 9, 12, 10],      # groups A-B
 def groups_of_8(nodes: List[T.Node]) -> None:
     """32 clubs in 4 groups of 8, single round robin (7 matchdays, 3-4 home games each).
     The top 4 of each group go to the First Knockout Round, so the 16-team knockout stage is
-    unchanged; 5th drops to the EURO Cup (where 3rd went), 6th-8th are out."""
+    unchanged. 5th and 6th drop to the EURO Cup's First Knockout Round, which takes exactly 8
+    clubs from this stage (the 8 third-placed clubs today) against its own 8 group runners-up;
+    7th and 8th are out."""
     g = _stage(nodes, 2)
     g["ngps"].int = 4
     g["ngrt"].int = 8
     g["nrds"].int = 1
 
-    # qualification: top 4 to round 164; place index 4 (5th) to the EURO Cup's knockout.
+    # qualification: top 4 to round 164; place indices 4-5 (5th, 6th) to the EURO Cup's
+    # knockout; 6-7 out. `topp`/`btpl` are 0-based places, inclusive.
     qurl = g["qurl"].kids
     qurl[0]["nrpl"].int = 4
-    qurl[1]["topp"].int = qurl[1]["btpl"].int = 4
+    qurl[1]["topp"].int, qurl[1]["btpl"].int = 4, 5
     to_euro, out = g["ftac"].kids
-    to_euro["topp"].int = to_euro["btpl"].int = 4
-    out["topp"].int, out["btpl"].int = 5, 7
+    to_euro["topp"].int, to_euro["btpl"].int = 4, 5
+    out["topp"].int, out["btpl"].int = 6, 7
 
     # finishing place -> `rkli` tier: places 1-4 can still reach any tier from the R16 on
-    # (0-4), 5th is tier 5 (as 3rd was), 6th-8th tier 6 (as 4th was).
-    tiers = [(k, 0, 4) for k in range(4)] + [(5, 5, 5)] + [(6, 6, 6)] * 3
+    # (0-4), 5th-6th tier 5 (as 3rd was), 7th-8th tier 6 (as 4th was).
+    tiers = [(k, 0, 4) for k in range(4)] + [(5, 5, 5)] * 2 + [(6, 6, 6)] * 2
     g.set(T.lst("rank", *(T.c(None, T.u8("team", i), T.u8("crk", crk), T.u8("hgrk", hi),
                                 T.u8("lwrk", lo))
                           for i, (crk, hi, lo) in enumerate(tiers))))
@@ -95,6 +103,6 @@ def groups_of_8(nodes: List[T.Node]) -> None:
 
 
 RECIPES: Dict[str, object] = {
-    "final-prize": final_prize,
+    "one-leg-q1": one_leg_q1,
     "groups-of-8": groups_of_8,
 }

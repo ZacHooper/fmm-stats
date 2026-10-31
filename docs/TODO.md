@@ -217,8 +217,8 @@ those readings across the other continental files and name `vlgr`'s draw-rule ty
 The goal: a save whose Champions Cup plays a single-table league phase instead of eight groups.
 The game rebuilds the competition's archive member from the dictionary every 11 June, so the
 edit goes in the dictionary of a pre-June save (`scripts/mod_save.py`, `fmmod/`). Two test
-saves from `frem-2029-04-25` are on R2 at `mods/frem/`: `final-prize` (does the game take the
-dictionary edit?) and `groups-of-8`. Next: load each in game per
+saves from `frem-2029-04-25` are on R2 at `mods/frem/`: `one-leg-q1` (does the game take the
+dictionary edit? the First Qualifying Round goes single-leg) and `groups-of-8`. Next: load each in game per
 [`competition-formats.md`](competition-formats.md) §5, then a 32-team league phase (§4), then 36
 teams once the nation→seed allocation (probably `rule_group.dat`) is found.
 

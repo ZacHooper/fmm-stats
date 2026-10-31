@@ -158,8 +158,8 @@ save's dictionary (`fmmod/save_patch.py`). `scripts/mod_save.py` applies a recip
 
 | recipe | change | length |
 |---|---|---|
-| `final-prize` | Final winner's `wnpz` 20,000,000 → 30,000,000 | same |
-| `groups-of-8` | 4 groups of 8, single round robin (7 matchdays). Top 4 of each group → First Knockout Round (the knockout stage is unchanged), 5th → EURO Cup (where 3rd went), 6th–8th out. Each half of the groups (A–B, C–D) plays on its own 7 of the 14 group dates the file reserves; the spare Dec 5/6 pair comes into use. The group-range draw rules (`vlgr` 13/14) are rescaled and the R16's winners-v-runners-up rule (`type 5`) is dropped | +151 B |
+| `one-leg-q1` | Champions Path First Qualifying Round (34 clubs, 12/19 July) as one match per tie: `nmlg` 1, the `date` made the deciding match (`mtrl` 3), `dat2` dropped. It keeps `sbsn 3`, which picks its date slot (12 July) | −45 B |
+| `groups-of-8` | 4 groups of 8, single round robin (7 matchdays). Top 4 of each group → First Knockout Round (the knockout stage is unchanged), 5th and 6th → EURO Cup, 7th and 8th out. The EURO Cup's First Knockout Round takes exactly 8 clubs from this stage (its `strq` names Champions Cup stage 2; today the 8 third-placed clubs) against its own 8 group runners-up, so two places per group keep it full. Each half of the groups (A–B, C–D) plays on its own 7 of the 14 group dates the file reserves; the spare Dec 5/6 pair comes into use. The group-range draw rules (`vlgr` 13/14) are rescaled and the R16's winners-v-runners-up rule (`type 5`) is dropped | +151 B |
 
 `groups-of-8` follows the pattern every group stage in the dictionary follows: one `gpdt` date per
 matchday per half, (group size − 1) × `nrds`.
@@ -171,15 +171,17 @@ Still unknown, and only a game load answers them:
    identical.
 2. **Save integrity.** No checksum has been found, and none has been looked for.
 3. **Whether the engine accepts each format.** Groups of 8 are used elsewhere (`ser_super`,
-   `por_national`), but never with this date plan. A 5th-placed club dropping into the EURO Cup's
-   knockout reuses the 3rd-place rule unchanged.
+   `por_national`), but never with this date plan. The drop into the EURO Cup reuses the
+   3rd-place rule with a two-place range (`topp 4, btpl 5`); ranges are used elsewhere
+   (`topp 5, btpl 7` here; `exlg`'s `topp 6, btpl 11` in split leagues).
 
 The experiments, in order. Each loads `frem-2029-04-25` (before 11 June) as a sandbox, away
 from the real career:
 
-1. **`final-prize`:** load, play past 11 June, save. Then
-   `dump_comp_rules.py <that save> --uid 1301394 --tags stgs` shows the Final's `wnpz`. 30,000,000
-   confirms the copy; 20,000,000 means the game reads its own data. This tests nothing else.
+1. **`one-leg-q1`:** load, play past 11 June into July. The First Qualifying Round played as
+   single matches (12 July) confirms the game copied the dictionary edit; two legs means it reads
+   its own data. A save from then lets us confirm it in `fix_man.dat` and in the member
+   (`dump_comp_rules.py <save> --uid 1301394 --tags stgs`).
 2. **`groups-of-8`:** load, play to the group draw (late August) and look at the groups, then
    on to the first matchdays. Saves at both points let us check `fix_man.dat`'s fixtures.
 3. **32-team league phase** (§4), once groups of 8 work.

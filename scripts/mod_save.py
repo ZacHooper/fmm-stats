@@ -8,7 +8,7 @@ update day (11 June for the Champions Cup), so the change takes effect for the s
 starts then, and only if the save is dated BEFORE that day (`fmmod/save_patch.py`). The
 archive is not touched. The source save is never modified.
 
-    uv run python scripts/mod_save.py ~/fm-saves/frem/frem-2029-04-25.fms final-prize
+    uv run python scripts/mod_save.py ~/fm-saves/frem/frem-2029-04-25.fms one-leg-q1
     uv run python scripts/mod_save.py ~/fm-saves/frem/frem-2029-04-25.fms groups-of-8 --out /tmp/x.fms
 
 After playing the modded save past the update day and saving, check the member took it:
