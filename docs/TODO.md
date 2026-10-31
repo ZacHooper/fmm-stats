@@ -395,6 +395,13 @@ priority wins), ship it with the profile, and show it in place of the numbers, k
 behind an explicit opt-in. Finish the doc's pending checks first, so the thresholds are pinned
 before they're coded.
 
+### 25. Two-way (attacking / defensive) ratings per position
+[`plans/2026-10-31-two-way-ratings.md`](plans/2026-10-31-two-way-ratings.md): an O and a D half
+per position group, unlisted attributes at 0.5, percentiles within the position, and a per-slot
+Defensive / Balanced / Attacking blend on the Builder (FMM has no duty switch, so player choice
+is the duty). Next step: the manager answers the AHP questionnaire to set the half weights; on/off
+goals showed our matches cannot fit them (r 0.11 vs flat 0.09).
+
 ---
 
 ## Docs
