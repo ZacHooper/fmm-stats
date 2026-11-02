@@ -7,6 +7,9 @@
  */
 import * as D from "./data.js";
 import { el, clear, toast } from "./ui.js";
+import { installSortableTables } from "./sortable.js";
+
+installSortableTables();
 
 const ROUTES = [
   ["squad", "Squad", () => import("./views/squad.js")],

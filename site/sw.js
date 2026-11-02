@@ -40,6 +40,7 @@ const SHELL = [
   "js/profile.js",
   "js/registration.js",
   "js/regwindows.js",
+  "js/sortable.js",
   "js/table.js",
   "js/transfers.js",
   "js/ui.js",

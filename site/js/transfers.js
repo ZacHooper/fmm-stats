@@ -74,7 +74,7 @@ function dealsTable(deals, { rank = true } = {}) {
       el("td.num", { text: d.age ?? DASH }),
       el("td", {}, [clubLink(d.from_tid, d.from_club), d.from_nation ? el("span.dim", { text: ` · ${d.from_nation}` }) : null]),
       el("td", {}, [clubLink(d.to_tid, d.to_club), d.to_nation ? el("span.dim", { text: ` · ${d.to_nation}` }) : null]),
-      el("td.num.hl", { text: feeText(d) }),
+      el("td.num.hl", { text: feeText(d), dataset: { sort: String(d.fee || 0) } }),
     ]))),
   ])]);
 }
