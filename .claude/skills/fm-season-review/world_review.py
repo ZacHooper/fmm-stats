@@ -311,12 +311,12 @@ def home_nation_europe(con, nation, lo, hi):
 def coefficients(con, season):
     # site.nations: coefficient_history is oldest first, its last entry the season in progress;
     # coefficient_season is the newest COMPLETED one (the second to last entry) and
-    # uefa_rank the 5-season ranking. "now" is the latest snapshot on which season S is the
+    # uefa_rank the 10-season ranking (the game's, not UEFA's five). "now" is the latest snapshot on which season S is the
     # newest completed season, "before" the latest on which S-1 was.
     show(con, f"""
     WITH now AS (
         SELECT name, coefficient_history[-2] AS season_coef,
-               list_max(coefficient_history[1:-3]) AS best_prev, uefa_rank, coefficient_5
+               list_max(coefficient_history[1:-3]) AS best_prev, uefa_rank, coefficient_10
         FROM site.nations WHERE is_uefa AND coefficient_season = {season}
         QUALIFY snapshot_date = max(snapshot_date) OVER ()),
     before AS (
@@ -324,10 +324,10 @@ def coefficients(con, season):
         QUALIFY snapshot_date = max(snapshot_date) OVER ())
     SELECT now.name AS nation, round(season_coef, 2) AS season_coef,
            rank() OVER (ORDER BY season_coef DESC) AS season_rank,
-           round(best_prev, 2) AS best_prev, now.uefa_rank AS rank_5yr_now,
-           before.uefa_rank AS rank_5yr_before
+           round(best_prev, 2) AS best_prev, now.uefa_rank AS rank_10yr_now,
+           before.uefa_rank AS rank_10yr_before
     FROM now LEFT JOIN before USING (name) ORDER BY season_coef DESC LIMIT 20""",
-         "UEFA NATION COEFFICIENTS (season + 5-yr rank move)")
+         "UEFA NATION COEFFICIENTS (season + 10-yr rank move)")
 
 
 def domestic(con, season, last, nation, lo, hi):
