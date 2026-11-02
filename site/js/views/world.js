@@ -233,7 +233,7 @@ function tableAndChart(c) {
   };
   const table = playerTable({
     key: `world-${c.key}`, rows: c.rows, catalogue, defaults: c.defaults, sort: c.sort,
-    sticky: ["name"], searchPlaceholder: c.searchPlaceholder, toolbar: c.toolbar, filter: c.filter,
+    sticky: ["name"], rowNumbers: true, searchPlaceholder: c.searchPlaceholder, toolbar: c.toolbar, filter: c.filter,
     rowClass: (r) => (picked.has(r.tid) ? "picked" : null),
     onRow: (r) => { if (picked.has(r.tid)) picked.delete(r.tid); else add(r.tid); changed(); },
   });
