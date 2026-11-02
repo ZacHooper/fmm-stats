@@ -445,7 +445,7 @@ export async function view() {
             el("td.name", {}, [playerLink(m.tid, m.name)]), el("td.num.hide-sm", { text: m.age ?? DASH }),
             el("td", {}, [m.type === "graduation" ? el("span.dim", { text: "Youth side" })
               : m.direction === "in" ? clubLink(m.from_tid, m.from_club) : clubLink(m.to_tid, m.to_club)]),
-            el(`td.num${m.fee ? ".hl" : ".dim"}`, { text: feeText(m) }),
+            el(`td.num${m.fee ? ".hl" : ".dim"}`, { text: feeText(m), dataset: { sort: m.type === "graduation" ? "" : String(m.fee || 0) } }),
             el("td.num", { text: a ? a.apps : 0 }), el("td.num.hide-sm", { text: a ? a.goals : 0 }),
             el("td.num", { text: a?.ratingAdj != null ? num(a.ratingAdj, 2) : DASH }),
           ]);

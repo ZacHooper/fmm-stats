@@ -112,7 +112,7 @@ function history(world) {
     nation: (name) => {
       const r = h?.nations?.[name];
       return { world_rank: expand(r?.world_rank), ranking_points: expand(r?.ranking_points),
-               coefficient: expand(r?.coefficient), coefficient_5: expand(r?.coefficient_5),
+               coefficient: expand(r?.coefficient), coefficient_10: expand(r?.coefficient_10),
                uefa_rank: expand(r?.uefa_rank) };
     },
   };
@@ -169,7 +169,7 @@ function headline(world, H) {
     if (nation.uefa_rank) {
       const members = (world.nations || []).filter((n) => n.uefa_rank != null).length;
       tiles.push(tile(`${nation.name} · UEFA`, `#${nation.uefa_rank}`,
-        `of ${members} · coef ${num(h.coefficient_5.at(-1), 3)}`, moved(h.uefa_rank)));
+        `of ${members} · coef ${num(h.coefficient_10.at(-1), 3)}`, moved(h.uefa_rank)));
     }
   }
   return tiles.length ? el("div.kpis", {}, tiles) : el("div");
@@ -233,7 +233,7 @@ function tableAndChart(c) {
   };
   const table = playerTable({
     key: `world-${c.key}`, rows: c.rows, catalogue, defaults: c.defaults, sort: c.sort,
-    sticky: ["name"], searchPlaceholder: c.searchPlaceholder, toolbar: c.toolbar, filter: c.filter,
+    sticky: ["name"], rowNumbers: true, searchPlaceholder: c.searchPlaceholder, toolbar: c.toolbar, filter: c.filter,
     rowClass: (r) => (picked.has(r.tid) ? "picked" : null),
     onRow: (r) => { if (picked.has(r.tid)) picked.delete(r.tid); else add(r.tid); changed(); },
   });
@@ -582,8 +582,9 @@ function worldRanking(world, H) {
 }
 
 /**
- * The UEFA association ranking, as the game ranks it: members only, by the sum of their five
- * newest completed seasons (`uefa_rank` comes ranked from site.nations). One column per season,
+ * The UEFA association ranking, as the game ranks it: members only, by the sum of their ten
+ * newest completed seasons — the game's ranking, not UEFA's five-season one (`uefa_rank` comes
+ * ranked from site.nations). One column per season,
  * oldest on the left, so a row reads like the in-game table.
  */
 function uefaRanking(world, H) {
@@ -593,24 +594,24 @@ function uefaRanking(world, H) {
     const done = completedSeasons(n);           // newest first
     // the total the ranking is on, unrounded upstream — summing the rounded seasons can be a
     // thousandth out (Spain: 92.999 against the ranking's 93.000)
-    const exact = h.coefficient_5.at(-1);
-    return { ...n, tid: n.name, hist: h, last5: done.slice(0, 5).reverse(), coef5: exact ?? coefSum(n, 5),
-             dUefa: delta(H, h.uefa_rank), dCoef5: delta(H, h.coefficient_5),
+    const exact = h.coefficient_10.at(-1);
+    return { ...n, tid: n.name, hist: h, last10: done.slice(0, 10).reverse(), coef10: exact ?? coefSum(n, 10),
+             dUefa: delta(H, h.uefa_rank), dCoef10: delta(H, h.coefficient_10),
              _search: n.name.toLowerCase() };
   });
   const ours = rows.find((n) => n.name === ourName);
   const byRank = (rs) => [...rs].sort((a, b) => a.uefa_rank - b.uefa_rank);
   // every member's history moves together, so the first row's labels name every row's seasons
-  const labels = (rows.find((r) => r.season != null) || rows[0])?.last5.map((x) => x.label) || [];
+  const labels = (rows.find((r) => r.season != null) || rows[0])?.last10.map((x) => x.label) || [];
   const seasonCols = Object.fromEntries(labels.map((label, i) => [`s${i}`, {
-    label, align: "num", get: (r) => r.last5[i]?.v ?? null, render: (r) => coefFmt(r.last5[i]?.v),
+    label, align: "num", get: (r) => r.last10[i]?.v ?? null, render: (r) => coefFmt(r.last10[i]?.v),
     help: `Coefficient earned in ${label}`,
   }]));
 
   const node = tableAndChart({
     key: "uefa", H, rows, ours: new Set([ourName]),
     series: (r) => r.hist,
-    metrics: [{ id: "coefficient_5", label: "Coefficient", dp: 3 }, { id: "uefa_rank", label: "Rank", invert: true }],
+    metrics: [{ id: "coefficient_10", label: "Coefficient", dp: 3 }, { id: "uefa_rank", label: "Rank", invert: true }],
     catalogue: {
       rank: { label: "#", align: "num", get: (r) => r.uefa_rank, help: "UEFA association ranking" },
       dRank: { label: "± rank", align: "num", get: (r) => (r.dUefa == null ? null : -r.dUefa),
@@ -619,17 +620,17 @@ function uefaRanking(world, H) {
       name: { label: "Nation", get: (r) => r.name,
               render: (r) => el("span", {}, [r.name, r.name === ourName ? pill(" us", "good") : null, coefInfo(r)]) },
       ...seasonCols,
-      coef5: { label: "Total", align: "num", get: (r) => r.coef5, cls: "strong",
-               render: (r) => coefCell(r, r.coef5, 3), help: "The five seasons summed — what the ranking is on" },
-      dCoef5: { label: "± total", align: "num", get: (r) => r.dCoef5, render: (r) => deltaCell(r.dCoef5, { dp: 1 }),
-                help: "Change in the five-season total over the last season" },
-      trend: { label: "Trend", get: (r) => r.dCoef5, sort: (r) => r.dCoef5,
-               render: (r) => sparkline(r.hist.coefficient_5, { w: 64, h: 16 }), help: "Five-season total across every snapshot" },
-      coefficient: { label: "10 seasons", align: "num", get: (r) => coefSum(r, 10),
-                     render: (r) => coefCell(r, coefSum(r, 10)), help: "The ten completed seasons the save keeps, summed" },
+      coef10: { label: "Total", align: "num", get: (r) => r.coef10, cls: "strong",
+                render: (r) => coefCell(r, r.coef10, 3), help: "The ten seasons summed — what the ranking is on" },
+      dCoef10: { label: "± total", align: "num", get: (r) => r.dCoef10, render: (r) => deltaCell(r.dCoef10, { dp: 1 }),
+                 help: "Change in the ten-season total over the last season" },
+      trend: { label: "Trend", get: (r) => r.dCoef10, sort: (r) => r.dCoef10,
+               render: (r) => sparkline(r.hist.coefficient_10, { w: 64, h: 16 }), help: "Ten-season total across every snapshot" },
+      coef5: { label: "5 seasons", align: "num", get: (r) => coefSum(r, 5),
+               render: (r) => coefCell(r, coefSum(r, 5), 3), help: "The newest five completed seasons summed — UEFA's own window, not the game's" },
     },
     // the total before the seasons: on a phone only the first few columns are on screen
-    defaults: ["rank", "dRank", "name", "coef5", "dCoef5", ...Object.keys(seasonCols), "trend"],
+    defaults: ["rank", "dRank", "name", "coef10", "dCoef10", ...Object.keys(seasonCols), "trend"],
     sort: { by: "rank", dir: "asc" },
     searchPlaceholder: "Search UEFA nations…",
     initial: () => {
@@ -646,10 +647,10 @@ function uefaRanking(world, H) {
         ? [{ label: `${ourName} and ${ours.rival}`, keys: () => [ourName, ours.rival] }] : []),
     ],
     note: "UEFA's association ranking as the game keeps it: each member's coefficient from its "
-      + "clubs' European results, ranked on the <b>five newest completed seasons</b> (ties to the "
-      + "better newest season). The season in progress isn't counted — the save holds it at 0 "
+      + "clubs' European results, ranked on the <b>ten newest completed seasons</b> (ties to the "
+      + "better newest season) — the game's window, not UEFA's real-world five. The season in progress isn't counted — the save holds it at 0 "
       + "until the season closes in June, when the oldest season drops off and the ranking moves. "
-      + "Hover or tap a total, or the ⓘ, for all ten seasons the save keeps.",
+      + "Hover or tap a total, or the ⓘ, for the seasons as a chart.",
   });
   return panelWrap(`UEFA coefficients · ${rows.length} nations`, node);
 }

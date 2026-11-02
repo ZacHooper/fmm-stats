@@ -25,6 +25,7 @@ meeting with its line-up and who hurt us at both ends.
 `clubName`) and a band across the club sheet and a player's sheet, in his club's (`shirtStyle`).
 They mark identity only: never colour a number, a bar or a row with them, because a club in
 red or green would read as the site's bad or good.
+**Sorting**: every static table sorts on a header click (`site/js/sortable.js`, one listener installed by `app.js`) — sortable by default; add the class `nosort` to opt a table out, and `data-sort` on a cell whose text isn't its value (a fee reading "Free").
 **Offline**: `sw.js` caches every file here plus `/api/all`, network first — a new file under
 `site/` must be added to its `SHELL` list (`tests/test_site_offline.py` checks). See [`docs/DEPLOY.md`](../docs/DEPLOY.md#offline).
 **Streamlit stays** for what writes to DuckDB (Tactics, Config) and for Team Builder.

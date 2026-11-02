@@ -286,8 +286,8 @@ wrong and the per-nation tables can't be trusted.
 - **A club with no nation** in `mart.dim_club` appears as `?<club>`; name it yourself.
 - **The coefficient table is UEFA members only** (`site.nations.is_uefa`). `best_prev` is the
   best earlier season in the nation's history, so a `season_coef` above it is a best-ever season
-  (Denmark 26/27: 11.10 against a previous best of 8.50). The 5-year rank move
-  (`rank_5yr_before` → `rank_5yr_now`, the UEFA association ranking) is the headline for a
+  (Denmark 26/27: 11.10 against a previous best of 8.50). The 10-year rank move
+  (`rank_10yr_before` → `rank_10yr_now`, the UEFA association ranking on the ten-season sum the game uses) is the headline for a
   nation.
 
 **Transfers come from `mart.fact_transfer`**, one row per permanent move or academy graduation

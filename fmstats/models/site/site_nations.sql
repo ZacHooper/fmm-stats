@@ -14,9 +14,12 @@
 -- store. Some never do (every African nation's reads the same on every
 -- snapshot): those are the game's starting values, which it doesn't update.
 --
--- is_uefa, coefficient_5, uefa_rank: the UEFA association ranking. A UEFA
--- member (continent var('uefa_continent_id')) is ranked by the sum of its five
--- newest completed seasons, ties going to the better newest season.
+-- is_uefa, coefficient_10, uefa_rank: the UEFA association ranking. A UEFA
+-- member (continent var('uefa_continent_id')) is ranked by the sum of its ten
+-- newest completed seasons (every completed season the history holds), ties
+-- going to the better newest season. The game ranks on ten, not UEFA's five:
+-- the in-game table puts Denmark 13th on 2029-06-30, which only the ten-season
+-- sum reproduces (the five-season sum has it 10th).
 with nations as (
     select
         *,
@@ -61,8 +64,8 @@ ranked as (
         nation_names.continent_id = {{ var('uefa_continent_id') }} as is_uefa,
         case
             when len(moved.coefficient_history) > 1
-                then list_sum(moved.coefficient_history[-6:-2])
-        end as coefficient_5,
+                then list_sum(moved.coefficient_history[-11:-2])
+        end as coefficient_10,
         rivals.name as rival
     from moved
     inner join {{ ref('dim_nation') }} as nation_names
@@ -75,12 +78,12 @@ ranked as (
 select
     *,
     case
-        when is_uefa and coefficient_5 is not null
+        when is_uefa and coefficient_10 is not null
             then row_number() over (
                 partition by
-                    snapshot_date, is_uefa and coefficient_5 is not null
+                    snapshot_date, is_uefa and coefficient_10 is not null
                 order by
-                    coefficient_5 desc,
+                    coefficient_10 desc,
                     coefficient_history[-2] desc,
                     name asc
             )

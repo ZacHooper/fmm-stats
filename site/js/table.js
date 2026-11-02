@@ -29,6 +29,8 @@ const PAGE = 400;                  // rows painted per step — see the paging n
  *   toolbar   extra controls to place beside the search box
  *   empty     message when nothing matches
  *   filters   true to offer the "Filters" button (see filterPanel below)
+ *   rowNumbers true to lead each row with its position in the table as shown (after search,
+ *             filter and sort) — a rank by whatever column is sorted, not a fixed field
  *   prepare   optional (activeFilters) => void, run at the top of every draw, BEFORE any
  *             filtering or sorting. The hook for a table whose rows are a function of its own
  *             filter state: squad.js re-points every row at the filtered position here, so the
@@ -101,7 +103,8 @@ export function playerTable(o) {
     count.textContent = `${rows.length}${rows.length === o.rows.length ? "" : ` of ${o.rows.length}`}`;
 
     const sticky = o.sticky || [];
-    const thead = el("thead", {}, [el("tr", {}, cols.map((c) => {
+    const rn = o.rowNumbers ? [el("th.rn", { title: "Row in the table as sorted" })] : [];
+    const thead = el("thead", {}, [el("tr", {}, [...rn, ...cols.map((c) => {
       const on = state.sortBy === c.id;
       const movable = !sticky.includes(c.id);
       return el(`th${c.align === "num" ? ".num" : ""}${on ? ".sorted" : ""}${movable ? ".drag" : ""}`, {
@@ -117,7 +120,7 @@ export function playerTable(o) {
           save(o.key, state); draw();
         },
       }, [c.label, on ? el("span.arrow", { text: state.sortDir === "asc" ? "▲" : "▼" }) : null]);
-    }))]);
+    })])]);
     dragColumns(thead.firstChild, scroll, (id, target, after) => {
       moveCol(state, sticky, id, target, after);
       save(o.key, state); draw();
@@ -125,14 +128,17 @@ export function playerTable(o) {
 
     const tbody = el("tbody");
     if (!rows.length) {
-      tbody.append(el("tr", {}, [el("td.empty", { colspan: cols.length, text: o.empty || "Nothing matches." })]));
+      tbody.append(el("tr", {}, [el("td.empty", { colspan: cols.length + rn.length, text: o.empty || "Nothing matches." })]));
     }
+    let i = 0;
     for (const r of rows.slice(0, state.limit || 400)) {
+      i += 1;
       const extra = o.rowClass ? o.rowClass(r) : null;
       const tr = el("tr", {
         ...(o.onRow ? { class: "click", onclick: () => o.onRow(r) } : {}),
         ...(extra ? { class: (o.onRow ? "click " : "") + extra } : {}),
       });
+      if (o.rowNumbers) tr.append(el("td.rn", { text: String(i) }));
       for (const c of cols) {
         const td = el(`td${c.align === "num" ? ".num" : ""}${c.cls ? "." + c.cls : ""}`);
         if (c.render) {
