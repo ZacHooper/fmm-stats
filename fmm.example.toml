@@ -17,7 +17,7 @@ managed_tid = 0                 # your first team's club tid (discover_career.py
 reserve_tid = 0                 # its reserve / B side, if it has one (delete the line if not)
 # db = "fm-mycareer.duckdb"     # default: fm-<key>.duckdb
 # The day the game starts a new season in this country, as [month, day]. It follows the
-# home calendar (Denmark 30 June, Turkey 20 June). discover_career.py prints a hint.
+# home calendar (Denmark 30 June, Turkey 20 June).
 rollover = [6, 30]
 # Per-year overrides when the in-game calendar drifts (the engine skips leap days):
 # rollovers = { 2028 = [6, 29] }
