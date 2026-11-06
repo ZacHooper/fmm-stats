@@ -205,13 +205,10 @@ export async function view() {
   };
   const runText = (x) => (x.winners ? "Winners" : x.where ? `${x.where}${x.out ? " · out" : ""}` : DASH);
   const runCls = (x) => (x.winners ? "win" : x.out ? "out" : "");
-  // League finish: "1st of 12" once final; "1st so far" while the season runs (a split
-  // league's later stage is a smaller table, so the size is the stage's own).
+  // League finish: the final place once the season is over, else the current table place.
   const finishText = (f) => {
-    if (!f) return null;
-    if (f.final_position != null) return `${ordinal(f.final_position)}${f.n_teams ? ` of ${f.n_teams}` : ""}`;
-    if (f.table_position != null) return `${ordinal(f.table_position)}${f.stage_teams ? ` of ${f.stage_teams}` : ""} so far`;
-    return null;
+    const pos = f?.final_position ?? f?.table_position;
+    return pos == null ? null : ordinal(pos);
   };
   const finishTitle = (f) => (f.final_position != null ? "Final league position"
     : `Current place in the ${f.stage_name || "league"} table — the season isn't finished`);
