@@ -4,6 +4,10 @@
 -- world_best_xi: each season's pool (var('world_best_xi_lists'), one list per
 -- season) as the latest snapshot holding it has it; a pool fills and changes
 -- while its season is played, and is_final marks one whose season has ended.
+-- A pool in progress is the season after the newest closed one: the game
+-- closes it around 20 July, after the career's rollover, so a snapshot dated
+-- between the two still holds last season's pool open (the snapshot's own
+-- season only where no pool has closed yet, the career's first).
 -- world_best_xi_all_time: the newest snapshot's All-Time pool
 -- (var('world_best_xi_all_time_list')), each entry the season's entry it was
 -- copied from (season NULL where no list held holds it, as for an entry
@@ -21,6 +25,9 @@ with entries as (
         scrapbook.*,
         coalesce(
             nullif(scrapbook.list_season, {{ var('no_id16') }}),
+            max(nullif(scrapbook.list_season, {{ var('no_id16') }})) over (
+                partition by scrapbook.snapshot_date
+            ) + 1,
             snapshots.season
         ) as season,
         scrapbook.list_season = {{ var('no_id16') }} as is_in_progress

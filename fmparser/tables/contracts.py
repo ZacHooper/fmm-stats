@@ -4,7 +4,7 @@
 The contract grid is a dense preallocated grid (~29-33 MB) of 83-byte records,
 one per person slot (`slot_index == tid`). Declared capacity (~59k-61k slots) is
 preceded by an 11-byte `0x12` delimiter frame and a 4-byte slot capacity header.
-Active contracts carry `marker == 0x01` at offset +4.
+Active contracts carry marker bit 0 (`marker & 0x01`) at offset +4.
 
 Every used slot is emitted as stored, lapsed contracts included: what counts as a player's
 current contract, and his wage in pounds, are decided in the store (the dbt models in `transform/`). A
@@ -32,7 +32,7 @@ CONTRACT_RECORD = 83
 
 CONTRACT = Record("contract", CONTRACT_STRIDE, [
     Field(0,  4, "tid",                  U32, note="== the slot index"),
-    Field(4,  1, "marker",               U8,  note="0x01 = active contract; other = lapsed/inactive"),
+    Field(4,  1, "marker",               U8,  note="bit 0 = active contract (1, 3, 17, 21); even = lapsed"),
     Field(5,  2, "wage_units",           U16),
     Field(7,  6, UNKNOWN,                PAD),
     Field(13, 4, "expiry",               DATE, note="some Danish deals expire 31 Dec -- keep the DAY"),
@@ -108,5 +108,5 @@ def contracts_table_spans(mm: Any) -> List[Tuple[int, int]]:
 
 def scrape_contracts(mm: Any) -> List[Dict[str, Any]]:
     """Every used slot of the grid, in tid order: {tid, marker, wage_units, expiry,
-    start_date}. marker 0x01 is a current contract."""
+    start_date}. marker bit 0 is a current contract."""
     return CONTRACT_TABLE.scrape(mm)
