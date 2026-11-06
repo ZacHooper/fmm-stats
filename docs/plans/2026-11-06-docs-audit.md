@@ -47,10 +47,13 @@ moved to the author's private notes, or deleted.
 3. **Phase 2, fix what stays.** Work through the checker's list. For each doc: verify its claims
    against the code (point-in-time notes drift), remove history narration, fix or drop dead
    references. A doc that needs more than this is a candidate for merging.
+   Replace every `TODO #N` citation with the entry's title or a link: TODO numbers are
+   renumbered freely (its own rule), and ~25 citations in `data-model/`, `table-framing.md`,
+   `savefile-map.md` and others already point at the wrong entry or a closed one.
 4. **Phase 3, dissolve `agent-context/`.** One note at a time, by the triage table below.
 5. **Phase 4, restructure.** Move into `docs/parser|stats|site/`, write `docs/README.md`, fix
    every link (the checker proves it). One mechanical commit, so review is easy.
-6. **Phase 5, skills.** The same pass over `.claude/skills/`, together with TODO #23 (they
+6. **Phase 5, skills.** The same pass over `.claude/skills/`, together with the TODO entry "Finish making the project career-agnostic" (they
    hardcode Frem).
 
 Each phase is its own PR. Phase 4 must not mix with content edits.
@@ -113,4 +116,4 @@ example), `agent-context/homegrown-derivation.md` (same), `agent-context/seyhun-
 - `docs/agent-context/` is gone and `docs/plans/` holds only open plans.
 - Every remaining doc names its reader and job in its first lines, and `docs/README.md` lists it.
 - A newcomer can get from README to the doc for any part in two clicks.
-- TODO #22 is deleted (this plan replaces it).
+- The TODO entry "Audit and clean up the docs" is deleted.

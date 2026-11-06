@@ -402,48 +402,7 @@ Many docs describe code that no longer exists (~95 dead file references across 3
 [`plans/2026-11-06-docs-audit.md`](plans/2026-11-06-docs-audit.md). Do it before the fresh
 public repo is cut.
 
-### 23. Our full-time formation per match
-The Matches page's formation is the kick-off shape (the match tail's formation string,
-`fmparser/tables/matches.py`). The full-time shape is in the save too: the team head's
-`positions`, 11 starters in posOrder order (`docs/agent-context/match-position-encoding.md`).
-Collapse those bands into a formation string in the dbt site models (not the browser), ship
-it in `site.matches`, then give the Splits tab's Formation split a kick-off / full time /
-changed-in-game choice and the Results tab an "Ended in" column beside "Started in".
-
-### 24. Show hidden attributes as report trait lines
-The profile sheet's "+ personality & hidden" toggle (`site/js/profile.js`, `extraAttrColumns`)
-shows raw hidden values. The manager prefers the in-game report's words. Derive the trait line in
-the `site` dbt models from
-[`agent-context/report-trait-lines.md`](agent-context/report-trait-lines.md) (one line, highest
-priority wins), ship it with the profile, and show it in place of the numbers, keeping the numbers
-behind an explicit opt-in. Finish the doc's pending checks first, so the thresholds are pinned
-before they're coded.
-
----
-
-## Docs
-
-### 22. Rewrite the docs around the three functions
-`docs/` and `docs/agent-context/` grew with the project and describe parts of it that no longer
-exist. The goal is docs that explain the three functions (parser, stats, site) to a newcomer and
-an agent — `parser-architecture.md` is the model for the parser.
-- **~38 dead code paths** are cited across `docs/` and the skills —
-  `dashboard/*`, pre-`core` parser modules (`fmparser/staging.py`, `regions.py`, `places.py`,
-  `lookups.py`, `staff.py`, `attributes.py`, `lightresults.py`, `mapregions.py`, `tagged.py`,
-  ...) and deleted scripts (`map_regions.py`, `audit_archive.py`, `canonicalise_names.py`, ...).
-  Find them with a loop over `grep -rhoE "(fmparser|scripts|tests|dashboard)/[A-Za-z0-9_/]+\.py"`
-  and a `test -e`.
-- **`docs/agent-context/`**: retire the superseded notes (`light-results-rolling-buffer`,
-  `master-schedule-plan`), fold duplicates into the reference docs, fix the stale commit SHAs
-  in `fm-parser-project.md` and `day1-league-membership.md`, and re-sync `MEMORY.md`.
-- **Dead code on retired views**: `scripts/_export_db.py` still carries `build_loans` and the
-  queries on `mart.snapshots`; `export_data.py` imports only `_json_clean` from it (the loan
-  outlook is `site.loan_outlook`). `site/API.md` still says the opponent's formation is not
-  in the save, and `agent-context/etl-duckdb-dashboard.md` describes `fmq` and `scout.py`.
-- **Old TODO numbers** are still cited as live work in `table-framing.md`, `date-search.md`
-  and `agent-context/light-results-rolling-buffer.md`.
-
-### 23. Finish making the project career-agnostic for other players
+### 25. Finish making the project career-agnostic for other players
 The README, `AGENTS.md`, `fmm.toml` and the R2-served site data are done. Still personal:
 - **Skills** (`.claude/skills/`) hardcode Frem (tid 346, `fm-frem`, the Superliga) and assume the
   author's R2 store. Read the career from `fmm.toml` / `site.config`, or label them examples.
