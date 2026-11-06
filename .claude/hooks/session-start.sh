@@ -2,16 +2,20 @@
 # SessionStart hook (Claude Code on the web only — see CLAUDE_CODE_REMOTE guard below).
 # Gets a fresh remote sandbox ready to both develop this project AND answer data questions
 # straight from R2 without any manual setup:
-#   - `uv sync` so extract.py/load_duckdb.py/fmq.py/the dashboard all have their deps.
-#   - `rclone` installed + configured against the `r2:` remote from this environment's
+#   - `uv sync` so extract.py, load_duckdb.py and the scripts have their deps.
+#   - `rclone` installed + configured against an `r2:` remote from this environment's
 #     R2_ACCESS_KEY/R2_SECRET_ACCESS_KEY/R2_ENDPOINT env vars, with a wrapper that works
 #     around a bug in the apt-packaged rclone (see below).
-#   - DuckDB's `httpfs` extension pre-placed from our own R2-vendored copy, so a session can
-#     `ATTACH 's3://fmm-stats/site-data/fm-<career>.duckdb'` immediately — see
-#     docs/agent-context/remote-duckdb-access.md for the full story and the exact ATTACH syntax.
+#   - With FM_R2_REMOTE set (e.g. `r2:my-bucket`, a non-secret environment variable):
+#       * the user's gitignored fmm.toml, CAREER.md and fmstats/known_answers/ fetched from
+#         `<remote>/config/` when the clone has none, so a cloud session knows the career a
+#         laptop does;
+#       * DuckDB's `httpfs` extension pre-placed from a copy vendored in the bucket, so a session
+#         can `ATTACH 's3://<bucket>/site-data/fm-<career>.duckdb'` immediately — see
+#         docs/agent-context/remote-duckdb-access.md for the exact ATTACH syntax.
 #
-# All of this is best-effort: an environment without R2 creds configured still starts up fine,
-# it just skips the R2-specific steps.
+# All of this is best-effort: an environment without R2 creds or FM_R2_REMOTE still starts up
+# fine, it just skips those steps.
 set -uo pipefail
 
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
@@ -51,7 +55,17 @@ acl = private
 no_check_bucket = true
 EOF
 
-  # --- Vendor the DuckDB httpfs extension from our own R2 bucket ---------------------------
+fi
+
+REMOTE="${FM_R2_REMOTE:-}"
+if [ -n "$REMOTE" ] && [ -f ~/.config/rclone/rclone.conf ]; then
+  # --- The user's own settings (gitignored, so a fresh clone has none) ---------------------
+  for f in fmm.toml CAREER.md; do
+    [ -f "$f" ] || rclone copyto "$REMOTE/config/$f" "$f" 2>/dev/null
+  done
+  [ -d fmstats/known_answers ] || rclone copy "$REMOTE/config/known_answers" fmstats/known_answers 2>/dev/null
+
+  # --- Vendor the DuckDB httpfs extension from the bucket ----------------------------------
   # INSTALL httpfs needs extensions.duckdb.org, which a network-restricted sandbox may block
   # outright — and even once that host is allowlisted over HTTPS, DuckDB's installer requests
   # a PLAIN HTTP url by default, which can still 403 on a host+scheme-specific policy. Fetching
@@ -59,14 +73,14 @@ EOF
   # sidesteps both problems entirely. Re-vendor with:
   #   uv run python -c "import duckdb; print(duckdb.__version__)"     # -> <v>
   #   rclone copyto ~/.duckdb/extensions/v<v>/linux_amd64/httpfs.duckdb_extension \
-  #     r2:fmm-stats/vendor/duckdb-extensions/v<v>/linux_amd64/httpfs.duckdb_extension
+  #     $FM_R2_REMOTE/vendor/duckdb-extensions/v<v>/linux_amd64/httpfs.duckdb_extension
   # (only needed again if the project's duckdb version bumps).
   DUCKDB_V=$(uv run python -c "import duckdb; print(duckdb.__version__)" 2>/dev/null)
   if [ -n "$DUCKDB_V" ]; then
     EXT_DIR="$HOME/.duckdb/extensions/v${DUCKDB_V}/linux_amd64"
     if [ ! -f "$EXT_DIR/httpfs.duckdb_extension" ]; then
       mkdir -p "$EXT_DIR"
-      rclone copyto "r2:fmm-stats/vendor/duckdb-extensions/v${DUCKDB_V}/linux_amd64/httpfs.duckdb_extension" \
+      rclone copyto "$REMOTE/vendor/duckdb-extensions/v${DUCKDB_V}/linux_amd64/httpfs.duckdb_extension" \
         "$EXT_DIR/httpfs.duckdb_extension" 2>/dev/null
     fi
   fi

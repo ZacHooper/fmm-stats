@@ -8,14 +8,18 @@ career it belongs to. The loader writes them into the store (`raw.app_config`), 
 snapshot in its campaign (`campaign`), and checks the match table against the fixture list
 for our two clubs.
 
-Starting a new career: find its club TID with `scripts/discover_career.py <save>`
-(it reads the "(Nickname)" the save header opens with and resolves it to a club),
-add a row below, and load with `load_duckdb.py <extract> --career <key>`.
+The careers themselves are the user's and live in `fmm.toml` (see `fmm.example.toml`); this
+module turns each `[careers.<key>]` table into a `Career`. Starting a new career: find its
+club TID with `scripts/discover_career.py <save>` (it reads the "(Nickname)" the save header
+opens with and resolves it to a club), add a `[careers.<key>]` table, and load with
+`load_duckdb.py <extract> --career <key>`.
 """
 from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
+
+import fmconfig
 
 
 @dataclass(frozen=True)
@@ -65,30 +69,43 @@ def campaign(date: str, has_matches: bool, rollover: tuple) -> int:
     return d.year
 
 
-# `active=False` means: keep the saves in the archive, but don't rebuild the store. The
-# dashboard's career selector keys off whether the store FILE exists (db.available_careers),
-# so not building one is all it takes to drop a career from the UI. Bucaspor stays registered
-# and its saves stay in R2 because they're the only cross-career regression test the parser
-# has — a decode that works on Denmark and Turkey is a decode that generalises.
-CAREERS = {
-    # Turkish career (the original) — Bucaspor 1928. Archived: no longer played.
-    "bucaspor": Career("bucaspor", "Bucaspor 1928", 6567, 11320, (228, 227, 117),
-                       "fm-buca.duckdb", active=False, rating_method="buca_433",
-                       rollover=(6, 20)),
-    # Danish career — Boldklubben Frem (started 2026-08). tids verified from the save.
-    "frem": Career("frem", "Boldklubben Frem", 346, 7296, (), "fm-frem.duckdb",
-                   rating_method="frem_minmax_4231", rollover=(6, 30),
-                   rollovers=((2028, (6, 29)),)),
-}
+def _from_config(key: str, t: dict) -> Career:
+    """One `[careers.<key>]` table of fmm.toml -> a Career."""
+    def pair(v):
+        return (int(v[0]), int(v[1]))
+    return Career(
+        key=key,
+        name=t.get("name", key),
+        managed_tid=int(t["managed_tid"]),
+        reserve_tid=int(t["reserve_tid"]) if t.get("reserve_tid") is not None else None,
+        league_comps=tuple(t.get("league_comps", ())),
+        db=t.get("db", f"fm-{key}.duckdb"),
+        active=bool(t.get("active", True)),
+        rating_method=t.get("rating_method"),
+        rollover=pair(t.get("rollover", (6, 30))),
+        rollovers=tuple(sorted((int(y), pair(v)) for y, v in t.get("rollovers", {}).items())),
+    )
 
-DEFAULT_CAREER = "frem"
+
+# Careers are the user's, so they come from fmm.toml (`fmconfig`), never from this file.
+# `active = false` keeps a career's saves in the archive but stops its store being rebuilt:
+# a career with no store file has nothing to query or publish, so not building one drops it.
+CAREERS = {k: _from_config(k, t) for k, t in fmconfig.career_tables().items()}
+
+DEFAULT_CAREER = fmconfig.default_career() or next(
+    (k for k, c in CAREERS.items() if c.active), None)
 
 
 def resolve_career(key: str | None = None) -> Career:
-    """Look up a career by key; defaults to the original Bucaspor career."""
+    """Look up a career by key; defaults to `[careers] default` in fmm.toml."""
     key = key or DEFAULT_CAREER
+    if not CAREERS:
+        raise SystemExit(
+            f"no careers configured ({fmconfig.config_path()} has none). Copy "
+            "fmm.example.toml to fmm.toml and add yours; "
+            "`scripts/discover_career.py <save.fms>` finds your club's tids.")
     try:
         return CAREERS[key]
     except KeyError:
         known = ", ".join(sorted(CAREERS))
-        raise SystemExit(f"unknown career '{key}'. known careers: {known}")
+        raise SystemExit(f"unknown career '{key}'. known careers (fmm.toml): {known}")

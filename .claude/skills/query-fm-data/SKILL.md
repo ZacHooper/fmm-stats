@@ -19,7 +19,7 @@ ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);
 --     filter `appeared`), with goals, assists, minutes, rating, rating_adj.
 --   * a campaign runs from the career's rollover day (Frem: 30 June) — dim_match has the
 --     date and the competition's own season label, not our campaign.
---   * 346 is Frem's first team (careers.py). dim_person resolves names.
+--   * 346 is Frem's first team (fmm.toml). dim_person resolves names.
 WITH tot AS (
   SELECT f.person_id,
          SUM(f.goals) AS goals,

@@ -48,7 +48,7 @@ then just `LOAD httpfs;` (no `INSTALL`) picks it up from the local cache. Re-ven
         r2:fmm-stats/vendor/duckdb-extensions/v$v/linux_amd64/httpfs.duckdb_extension
 
 The published copy carries raw.players.ca/.pa (raw ability) UNCHANGED — it is not scrubbed.
-The immersion house rule (CLAUDE.md: never SURFACE the raw ability number) is enforced at the
+The immersion house rule (AGENTS.md: never SURFACE the raw ability number) is enforced at the
 presentation layer — the dashboard, the skills, and export_data.py's JSON API (checked at build
 time by scripts/export_data.py) — not by hiding the column from SQL. A query against this store
 can compute Level %ile / Fit ratings same as a local rebuild; it just shouldn't print the raw
@@ -60,7 +60,7 @@ scrub was dropped, not a change to what gets surfaced.) The live store is opened
 is never itself touched.
 
 Like all.json, this is a derived, R2-only artefact — NOT git (see the storage-tiers table in
-CLAUDE.md). Re-run after every import that you want reflected remotely.
+AGENTS.md). Re-run after every import that you want reflected remotely.
 """
 import argparse
 import os
@@ -88,7 +88,7 @@ import duckdb
 #
 # The published copy then exposes raw.<table> as a VIEW that expands the runs back, so
 # every query already documented against the full store (docs/agent-context/
-# remote-duckdb-access.md, site/AGENTS.md) keeps working against the identical schema. The
+# remote-duckdb-access.md, site/API.md) keeps working against the identical schema. The
 # RLE tables sit behind it as raw._rle_<table>. Verified row-for-row with a symmetric
 # EXCEPT ALL against the source before upload — this refuses to publish otherwise.
 #
@@ -158,11 +158,12 @@ def compact(con):
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 from dbopen import open_readonly as _open_readonly                    # noqa: E402
 
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+R2_REMOTE = fmconfig.r2_remote()
 
 
 def main():
@@ -235,7 +236,7 @@ def main():
             raise SystemExit(f"rclone not installed — can't upload. Install rclone and "
                              f"configure the '{R2_REMOTE}' remote, or drop --upload and push "
                              f"{os.path.basename(dest)} to R2 yourself.")
-        remote = f"{R2_REMOTE}/site-data/fm-{car.key}.duckdb"
+        remote = f"{fmconfig.require_r2_remote()}/site-data/fm-{car.key}.duckdb"
         print(f"uploading {os.path.basename(dest)} ({size / 1024 / 1024:.1f} MB) to {remote} ...", flush=True)
         t0 = time.time()
         r = subprocess.run(["rclone", "copyto", "--stats", "15s", "-v", dest, remote])

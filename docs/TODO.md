@@ -25,7 +25,7 @@ is organised around them:
 | **Site** | `site/`, `scripts/export_data.py` | a human-friendly view of the mart |
 
 Every parser table is on the `core` framework ([`parser-architecture.md`](parser-architecture.md))
-and the store is a dbt project ([`fmstats/CLAUDE.md`](../fmstats/CLAUDE.md)) whose build tests
+and the store is a dbt project ([`fmstats/AGENTS.md`](../fmstats/AGENTS.md)) whose build tests
 the real data as well as its structure (`fmstats/tests/`). The near-term work is the weight-set
 method (#18) and the docs (#22); the long tail is the parser: new bytes (every byte of the save
 processed), then understanding the bytes already read.
@@ -255,7 +255,7 @@ Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, Leag
 1 yel / 7.00, Continental 2 apps / 7.50 -- take a second player with different numbers to
 rule out coincidence, then search for the values next to his tid.
 
-### 11. Read the season rollover from the game, not from `careers.py`
+### 11. Read the season rollover from the game, not from config
 A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
 20 June, measured from the managed club's record and set per career as `Career.rollover`. A
 new career needs it measured again. The game holds it -- most likely each nation's calendar in
@@ -264,7 +264,7 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 **Drift mechanism confirmed:** the game's internal season loop ticks a strict 365 days rather than
 aligning with leap years. Every leap year (2024, 2028), the calendar rollover shifts backwards by
 one day (Denmark: 30 June in 2021-2023 -> 29 June in 2024-2027 -> 28/29 June in 2028). Recorded via
-`rollovers` in `careers.py` until dynamically read.
+`rollovers` in `fmm.toml` until dynamically read.
 
 
 ### 11a. Attribute decoder (low priority: exploring the game)
@@ -396,29 +396,35 @@ before they're coded.
 
 ## Docs
 
-### 22. Rewrite the docs around the three functions
-`CLAUDE.md`, `docs/` and `docs/agent-context/` grew with the project and describe parts of it
-that no longer exist. The goal is docs that explain the three functions (parser, stats, site)
-to a newcomer and an agent — `parser-architecture.md` is the model for the parser.
-- **CLAUDE.md** still describes the Streamlit dashboard ("Streamlit stays", the
-  `developing-with-streamlit` skill), `regions.py`, `staging.scrape_*`, and
-  `canonicalise_names.py`. Its reverse-engineering method section would sit better in
-  `parser-architecture.md`.
-- **~38 dead code paths** are cited across `docs/`, `CLAUDE.md` and the skills —
-  `dashboard/*`, pre-`core` parser modules (`fmparser/staging.py`, `regions.py`, `places.py`,
-  `lookups.py`, `staff.py`, `attributes.py`, `lightresults.py`, `mapregions.py`, `tagged.py`,
-  ...) and deleted scripts (`map_regions.py`, `audit_archive.py`, `canonicalise_names.py`, ...).
-  Find them with a loop over `grep -rhoE "(fmparser|scripts|tests|dashboard)/[A-Za-z0-9_/]+\.py"`
-  and a `test -e`.
-- **`docs/agent-context/`**: retire the superseded notes (`light-results-rolling-buffer`,
-  `master-schedule-plan`), fold duplicates into the reference docs, fix the stale commit SHAs
-  in `fm-parser-project.md` and `day1-league-membership.md`, and re-sync `MEMORY.md`.
-- **Dead code on retired views**: `scripts/_export_db.py` still carries `build_loans` and the
-  queries on `mart.snapshots`; `export_data.py` imports only `_json_clean` from it (the loan
-  outlook is `site.loan_outlook`). `site/AGENTS.md` still says the opponent's formation is not
-  in the save, and `agent-context/etl-duckdb-dashboard.md` describes `fmq` and `scout.py`.
-- **Old TODO numbers** are still cited as live work in `table-framing.md`, `date-search.md`
-  and `agent-context/light-results-rolling-buffer.md`.
+### 22. Audit and clean up the docs
+Many docs describe code that no longer exists (~95 dead file references across 37 docs on
+2026-11-06). The plan, with a proposed action for every doc, is
+[`plans/2026-11-06-docs-audit.md`](plans/2026-11-06-docs-audit.md). Do it before the fresh
+public repo is cut.
+
+### 25. Finish making the project career-agnostic for other players
+The README, `AGENTS.md`, `fmm.toml` and the R2-served site data are done. Still personal:
+- **Skills** (`.claude/skills/`) hardcode Frem (tid 346, `fm-frem`, the Superliga) and assume the
+  author's R2 store. Read the career from `fmm.toml` / `site.config`, or label them examples.
+- **Generic dbt tests that fail on a short history**: on a store holding only the latest Frem
+  save, `tables_reproduce_save_positions`, `ratings_adj_baseline`, `ratings_adj_coverage` and
+  `unique_combination_fact_player_award_award_id__person_id__entry_date` (44 rows) fail on
+  `main` too. A new user's first load is exactly that store, so each should hold on one
+  snapshot or say why it can't; the award uniqueness one looks like a real duplicate.
+- **`seeds/manifest.csv`** is the author's rebuild recipe (save names and dates). Move it next to
+  the saves (R2) or make `rebuild.py` read a per-user path.
+- **`seeds/config_bundle.json`** makes `frem_attacking_ss` the app's display default; it should
+  default to the career's `rating_method`.
+- **House-rule switch**: the Danish registration rules are always on in the web app
+  (`site/js/registration.js`). Add `[careers.<key>] house_rules` to `fmm.toml` and hide the
+  registration column and card when it's off.
+- **`docs/agent-context/`** is mostly the author's career; split the general findings from the
+  Frem-specific ones and move the latter to the author's own notes.
+- **`scripts/lint_sql.py` fails on `main`** (14 layout violations, plus models that need a
+  store to compile). Fix, then add it to CI.
+- **Public history**: `site/api/*.json` (game data) is in the history of every commit before it
+  was untracked. Rewrite history or start the public repo from a fresh commit before making it
+  public.
 
 ---
 
@@ -437,6 +443,6 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   their headers: `frem/denmark-mid-22` 2021-10-02, `bucaspor/22-23-start` and
   `bucaspor/fm_save3` 2022-06-20 (check whether they are the same save),
   `bucaspor/fm_save1-24-mid` 2023-11-08; register or delete them.
-- **`careers.py` hardcodes `reserve_tid`** — the club record's `main_club_tid` could derive it.
+- **`reserve_tid` is configured by hand (fmm.toml)** — the club record's `main_club_tid` could derive it.
 - **Loader speed**: `orjson` for the JSON decode and flattened row construction in `load_core`
   measured ~2.9 s → ~1.6 s per snapshot.

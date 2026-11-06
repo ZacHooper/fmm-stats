@@ -1,3 +1,9 @@
-# Agent instructions for this directory, not part of the published site
-# (AGENTS.md IS published on purpose: it is the guide for remote agents).
+# Not part of the published site. Gitignore syntax; read by `wrangler deploy` and Workers Builds.
+#
+# api/ is the exported data: it lives in R2 and the Worker serves it (site-worker/index.js), so
+# a deploy never ships whatever export happens to sit on the deploying machine's disk.
+api/
+# Agent instructions for working on this directory (API.md, the guide for agents READING the
+# deployed site, is published on purpose).
 CLAUDE.md
+AGENTS.md

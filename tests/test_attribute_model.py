@@ -4,7 +4,7 @@ coefficients -- and, when the store still carries the frozen seed, with fmparser
 
 Two implementations of one formula exist: `model.predict` in Python, and the SQL that the dbt
 model int.player_attribute_estimates (`fmstats/macros/attribute_decode.sql`) generates from
-`stg.attribute_model`. That is the hazard CLAUDE.md already calls out for `v_player_ratings`
+`stg.attribute_model`. That is the hazard AGENTS.md already calls out for `v_player_ratings`
 vs `site/js/data.js`.
 
 The invariant is NOT "SQL matches model.py" -- that breaks by design the moment anyone refits,

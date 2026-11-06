@@ -18,12 +18,13 @@ import duckdb
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 import careers as C                                                      # noqa: E402
 import dbopen as _dbopen                                                  # noqa: E402
 
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+R2_REMOTE = fmconfig.r2_remote()
 MAX_MB = 200  # Guardrail against runaway materialization
 
 
@@ -237,7 +238,7 @@ def main():
         if shutil.which("rclone") is None:
             raise SystemExit("rclone not installed — cannot upload")
 
-        remote = f"{R2_REMOTE}/site-data/fm-{car.key}-mart.duckdb"
+        remote = f"{fmconfig.require_r2_remote()}/site-data/fm-{car.key}-mart.duckdb"
         print(f"uploading {os.path.basename(dest)} ({mb:.1f} MB) to {remote} ...")
         t0 = time.time()
         r = subprocess.run(["rclone", "copyto", "--stats", "15s", "-v", dest, remote])

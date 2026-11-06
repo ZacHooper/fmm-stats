@@ -119,7 +119,7 @@ tid, age, b_list, hg_club, hg_basis, hg_association, months_club, months_to_go,
 hg_eta, window_open, origin_club, origin_nation, via_academy
 ```
 
-Over SQL (the R2 mart copy — see AGENTS.md), the same thing plus the evidence:
+Over SQL (the R2 mart copy — see API.md), the same thing plus the evidence:
 
 ```sql
 USE m;                                  -- macros do not resolve across an ATTACH

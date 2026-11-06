@@ -141,7 +141,7 @@ vs Aston Villa       0-5   cid=276  +12=2020  +14=264
 ```
 
 opponent+score is constant on row pairs (0,1), (2,3), (4,5); cid+date is constant on pairs
-(1,2), (3,4), (5,6). **Offset by exactly one row.** This is the COLUMN-OFFSET trap CLAUDE.md §5
+(1,2), (3,4), (5,6). **Offset by exactly one row.** This is the COLUMN-OFFSET trap AGENTS.md §5
 records from the career-history table, where a row's stats belong to the season on the previous
 row.
 
@@ -219,7 +219,7 @@ have identified: it is **not** missing fixtures.
 | +20 | 1 | **UNKNOWN** — observed copy index |
 
 **14 of 21 bytes decoded, 7 undecoded.** Do not treat the undecoded seven as padding; they are
-declared UNKNOWN so that the audit counts them, per CLAUDE.md's coverage rule.
+declared UNKNOWN so that the audit counts them, per AGENTS.md's coverage rule.
 
 ## Ruled out while looking
 

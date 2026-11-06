@@ -7,7 +7,7 @@
 > from the parser's own tables and cannot go stale.
 
 **Started and finished 2026-09-16.** Six workstreams, all shipped — the manager STYLE field
-(§F) last, as a derivation rather than a stored field. Read [`CLAUDE.md`](../CLAUDE.md) and
+(§F) last, as a derivation rather than a stored field. Read [`AGENTS.md`](../AGENTS.md) and
 [`agent-context/fmm-editor-record-comparison.md`](agent-context/fmm-editor-record-comparison.md)
 first — the latter is the field-by-field map this all came from.
 
@@ -158,11 +158,8 @@ unnamed.
 - **A full rebuild has NOT been run.** The local store is mixed: 25 snapshots, but only a few
   carry the new tables. `uv run python scripts/rebuild.py --career frem` (~10 min) is the last
   step before trusting anything. `tests/validate_mart.py` passed on the pre-E store.
-- **`site/api/*.json` has not been regenerated.** `export_data.py` and `site/js/data.js` were
-  changed together in workstream A to add shirt/height/weight, so the next
-  `export_data.py --upload-all` will produce a real (expected) `git diff site/api`. The user has
-  since said the site is not the priority — **the three reputation fields were deliberately NOT
-  exported** (core.json loads on every page view and reputation is ability-adjacent).
+- **The three reputation fields are deliberately NOT exported to the site** (core.json loads on
+  every page view and reputation is ability-adjacent).
 - `careers.py` still hardcodes `reserve_tid`; `main_club_tid` could replace it.
 - `mart.squad_current` still uses the spell model; `roster_vs_spells` exists to judge the switch.
 - Unparsed: the **Region** table, and the nation record's counted language list.
@@ -216,7 +213,7 @@ on `claude/pr-51-review-audit-un6rcv`. Full argument in the review comment on PR
 3. **No invariant was added for any of the 11 new staging tables or 9 new mart views**, so
    `validate_mart.py` passing meant nothing. `scripts/audit/audit_records.py` (STRIDE / COVERAGE /
    EXTENT) and density guards in `tests/test_staff_records.py` now cover this; the rules are
-   in `CLAUDE.md`.
+   in `AGENTS.md`.
 
 **The hidden attributes are now carried, and the player nine are NAMED** — `jumping`,
 `consistency`, `big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`,

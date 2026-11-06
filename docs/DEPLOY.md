@@ -1,29 +1,41 @@
 # Deploying the app
 
-**Live at <https://fmm-stats.zac-g-hooper.workers.dev>.**
+Your deployed URL goes in `fmm.toml` (`[site] url`); the export writes it into `index.json` so
+an agent can follow the links.
 
 One app for phone and desktop. It's a **static single-page app** — no server, no build step, no
-Node toolchain — that ships the data and computes on the client. It runs as a **Cloudflare Worker
-with static assets**: files in `site/` are served directly, and `site-worker/index.js` handles the two
-things files can't do.
+Node toolchain — that computes on the client. It runs as a **Cloudflare Worker with static
+assets**: the app's code in `site/` is served directly, and `site-worker/index.js` serves the
+data from R2 and handles the endpoints files can't do.
 
 > **Not Pages.** This started as a Pages project with a `functions/` directory; that directory is
 > not read by the Workers runtime, so both endpoints 404'd with an empty body (the asset handler's
 > 404, not ours). The logic now lives in `site-worker/index.js` and `functions/` is gone. If you ever
 > move to a real Pages project, that's the thing to reinstate.
 
+**Code and data ship separately.** No save-derived data is in git.
+
 ```
-laptop:  import save  ->  export_data.py  ->  git commit + push   (small JSON, the app)
-                                     \
-                                      -> R2: site-data/all.json   (4 MB, never in git)
-                                                        |
-Cloudflare Workers Builds (GitHub) ---------------- deploys site/ + site-worker/ in seconds
+DATA  laptop:  import save -> export_data.py --upload -> R2: site-data/api/*.json, site-data/all.json
+CODE  git push (site/, site-worker/)  -> Cloudflare Workers Builds -> production (main)
+                                                                   -> preview URL (other branches)
 ```
 
+- **A data refresh** is `export_data.py --upload`. No commit, no deploy: the Worker reads the
+  new files on the next request.
+- **A code change** (UI, Worker) is a normal push. It deploys the app and leaves the data alone,
+  so an agent that only touched `site/js/` can push safely.
+- **A branch** gets a preview URL from Workers Builds (enable *non-production branch builds* in
+  the Worker's Settings → Builds). Previews bind the same R2 bucket, so they show real data.
+- **Don't `wrangler deploy` from the laptop.** It uploads `site/` from disk, including a local
+  export in `site/api/`, which would then be served as static files and shadow R2.
+  `site/.assetsignore` lists `api/`, but an earlier test found the exclusion ignored, so let the
+  git build deploy.
+
 **Routing.** Cloudflare serves a matching static asset *first* and only invokes the Worker when
-nothing matches. So `api/index.json`, `api/core.json` and the rest come straight off disk, and
-only `/api/all`, `/api/shortlist` and `/api/registrations` (saved registration windows) — which
-have no file behind them — reach `site-worker/index.js`.
+nothing matches. `site/api/` is not deployed, so `/api/<name>.json` reaches
+`site-worker/index.js`, which reads `site-data/api/<name>.json` from R2. `/api/all`,
+`/api/shortlist` and `/api/registrations` (saved registration windows) are Worker endpoints too.
 `not_found_handling` is `"none"` on purpose: the app is hash-routed (`#/squad`), so every real
 path is a real file, and an SPA rewrite would return `index.html` for the API paths instead of
 letting them through.
@@ -43,20 +55,21 @@ parses every file it writes and fails the build on a raw-ability key at any dept
 
 **The exporter reads only the `mart` schema.** Since 2026-08-25 `export_data.py` touches no
 `raw` table and no `main` view: the four snapshot-shape rules (latest-phase-per-season,
-snapshot-scoped joins, `person_id` not `tid`, 255-sentinel minutes) live in `fmstats/mart.py`
-and both the site and the Streamlit dashboard read them from there. Practical consequence: a
-change to `mart.py` does not reach a store until something re-runs it, so
-`uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb` after editing it (an import
-does this anyway).
+snapshot-scoped joins, `person_id` not `tid`, 255-sentinel minutes) live in the dbt
+`site` models (`fmstats/models/site/`). Practical consequence: a change to a model does not reach
+a store until something rebuilds it, so run
+`uv run python load_duckdb.py --refresh-only` after editing one (an import does this anyway).
 
-`site/api/*.json` is git-tracked and the export is deterministic, which makes
-`git diff site/api` the regression test for any change to the data path — a no-op export must
-produce a no-op diff.
+**The export is deterministic, so a diff is the regression test.** Keep the previous export,
+re-export, and compare: a no-op change to the data path must produce no difference.
 
-**The 4 MB every-player file is not in git.** It rewrites wholesale each import and minified JSON
-deltas badly; committing it would repeat the mistake that took this repo's `.git` to 257 MB with
-the DuckDB stores in it. It lives in R2 and is streamed by a Function, so only a global search
-pays for it. Everything else is 125 KB gzipped and committed.
+```bash
+cp -r site/api /tmp/before && uv run python scripts/export_data.py
+uv run python scripts/diff_exports.py /tmp/before site/api
+```
+
+**None of it is in git.** The data is drawn from the game's database, so it is the user's to
+publish or not, and it rewrites wholesale on every import. It lives in R2 (`site-data/`).
 
 | File | Size (gzip) | Where | When it's fetched |
 |---|---|---|---|
@@ -106,38 +119,36 @@ finds the URL from writing to your bucket. It is not per-user auth and it does r
 Reads of the player data are deliberately unauthenticated — gating them would mean shipping the
 token to every visitor just to look.
 
-Then open **Recruitment → Shortlist** on each device and paste the token once. It's kept in that
-browser's localStorage, never in the page source. What it buys, precisely: it stops someone who
-finds the URL from writing to your bucket. It is not per-user auth and it does reach the browser.
-Reads of the player data are deliberately unauthenticated — requiring a token there would mean
-shipping it to every visitor just to look.
-
 ### 3. Verify from the phone, on cellular
 
 Turn wifi **off** — that's the actual test.
 
-1. <https://fmm-stats.zac-g-hooper.workers.dev> loads with both laptops shut.
+1. Your site URL loads with the laptop shut.
 2. **Squad** → *Columns* → add `Pace` and `G/90`; sort by tapping a header. Wide tables scroll
    inside their own box while the page doesn't move sideways.
 3. Change **tactic** in the header — every rating and Fit %ile changes, Level %ile doesn't.
-4. **Recruitment → Search the save → Load every player** — proves the R2 Function works.
-5. Add a shortlist entry, then on a laptop `rclone copy r2:fmm-stats/state/shortlist
-   state/shortlist` and confirm it shows in the Streamlit Squad Tool.
+4. **Recruitment → Search the save → Load every player** — proves the Worker reads R2.
+5. Add a shortlist entry, then on a laptop `rclone copy <remote>/state/shortlist state/shortlist`
+   and confirm the entry's JSON arrived.
 
 ## Refreshing after an import
 
 ```bash
-uv run python scripts/export_data.py --upload-all
-uv run python scripts/publish_duckdb.py --career frem --upload   # compacted copy carries raw, mart, site
-git add site docs && git commit -m "site: <snapshot>" && git push
+uv run python scripts/export_data.py --upload                    # the app's data -> R2
+uv run python scripts/publish_duckdb.py --upload                 # compacted copy carries raw, mart, site
+uv run python scripts/publish_mart.py --upload                   # the mart alone, for analysis
 ```
+
+**Moving an existing deploy to this layout:** run `export_data.py --upload` once *before* the
+commit that untracks `site/api/` reaches `main`, so the data is in R2 when the build stops
+shipping it.
 
 **The R2 database is not refreshed automatically by an import.** `load_duckdb.py` writes the LOCAL store
 only; `publish_duckdb.py --upload` is a separate command. Skip it and a remote agent's `ATTACH` silently reads the
 previous snapshot, which looks like a working query returning stale answers.
 
-`--upload-all` pushes the every-player file to R2; drop it to skip (the app then falls back to
-whatever is already in the bucket). `--skip-all` skips generating it entirely for fast iteration.
+`--upload` pushes every exported file to R2, after the immersion check has passed; drop it to
+export locally only. `--skip-all` skips generating it entirely for fast iteration.
 Other flags: `--season/--phase` to pin an older snapshot, `--method` for the default tactic,
 `--min-fam` for the familiarity floor on the position review.
 
@@ -199,7 +210,7 @@ that drop it straight into DuckDB's extension cache, after which `LOAD httpfs` a
 used to be NULLed here, but `mart.player_position_fit`/`player_position_levels` both need `ca`
 to compute (Level %ile, Fit ratings), so a scrubbed copy meant a remote scout report always
 came back "0 rated players" regardless of the opponent. The immersion house rule (never
-*surface* the number — see CLAUDE.md) still applies to raw SQL access same as everywhere else;
+*surface* the number — see AGENTS.md) still applies to raw SQL access same as everywhere else;
 it's just enforced by the querier's judgement now rather than by the column being absent. The
 JSON export (`export_data.py` → `site/api/*.json`) is separate and keeps its own build-time
 enforcement (`export_data.py`'s `check_immersion()` fails the build on a raw-ability key at any depth) — that
@@ -207,7 +218,7 @@ path is unaffected. The live store is opened read-only and is never touched — 
 single-writer-safe fallback `export_data.py` uses, so this is safe to run with a dashboard open.
 
 Needs `rclone` configured against the `r2:` remote to actually upload (see the main README /
-CLAUDE.md for setup); without it, `--upload` fails with a clear message and `--out <path>` still
+AGENTS.md for setup); without it, `--upload` fails with a clear message and `--out <path>` still
 lets you produce and inspect the published copy locally.
 
 Preview locally before pushing:
@@ -216,14 +227,9 @@ Preview locally before pushing:
 uv run python -m http.server -d site 8000     # http://localhost:8000
 ```
 
-Everything works except the two Worker endpoints, so the shortlist shows "offline" and global
-search falls back to `site/api/all.json` on disk. That fallback is why the file is still written
-locally even though it's gitignored.
-
-One wrinkle if you ever run `npx wrangler deploy` from the laptop rather than letting Cloudflare
-build from git: it reads `site/` off disk, so it would upload that 4 MB `all.json` as a static
-asset. Harmless — nothing requests it by that path — but wasteful. `.assetsignore` does *not*
-exclude it (tested: the file is uploaded and the exclusion ignored), so just prefer the git build.
+The local export in `site/api/` is served off disk, so the app works with your latest export.
+Everything works except the Worker endpoints, so the shortlist shows "offline" and global search
+falls back to `site/api/all.json`.
 
 ## What is still dashboard-only
 

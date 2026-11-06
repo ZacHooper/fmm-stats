@@ -216,7 +216,7 @@ uses (`club_record`, `resolve_club`, `league_name`, `comp_detail`, `club_details
 Mechanical, but wide. Every `staging.` reference moves: `load_duckdb.py` (DDL, loaders,
 migrations, the views it writes), `fmstats/mart.py`, `fmstats/*` (scout, stats, league, store),
 `fmq.py`, `scripts/export_data.py`, `scripts/_export_db.py`, `scripts/publish_duckdb.py`,
-`scripts/publish_mart.py`, tests, skills, CLAUDE.md, `site/AGENTS.md`,
+`scripts/publish_mart.py`, tests, skills, CLAUDE.md, `site/API.md`,
 `docs/agent-context/remote-duckdb-access.md`.
 
 - A migration renames the schema in an existing store (decision 4).
@@ -701,7 +701,7 @@ scout report run against the full store.
 
 ## 20. Retire and publish
 Old views and the compatibility views dropped (`fmstats/mart.py`, `fmstats/compat.py`,
-`transform/models/legacy/`); `fmq sql`, CLAUDE.md, `site/AGENTS.md` and
+`transform/models/legacy/`); `fmq sql`, CLAUDE.md, `site/API.md` and
 `remote-duckdb-access.md` pointed at the new tables, with the immersion rule scoped to the
 presentation layer; the published store and the mart object rebuilt.
 

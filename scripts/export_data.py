@@ -4,7 +4,7 @@
     uv run python scripts/export_data.py                      # newest snapshot, default career
     uv run python scripts/export_data.py --snapshot 2028-05-09
     uv run python scripts/export_data.py --season 2028 --phase 2028-05-09
-    uv run python scripts/export_data.py --upload-all         # push all.json to R2
+    uv run python scripts/export_data.py --upload             # and push it to R2 (the Worker serves it)
 
 Design: ship DATA, not rendered answers. The app computes ratings itself, because a role
 rating is just `SUM(attribute x weight)` and the whole weight table is 5 KB — so shipping
@@ -14,7 +14,7 @@ offline, for every player, with no rebuild.
 
 The one thing the browser cannot derive is **level**: ability percentiles come from the game's
 overall-ability number, and that number must never leave the machine (house rule — see
-CLAUDE.md). So level percentiles are precomputed here, per (player, position) and per scope,
+AGENTS.md). So level percentiles are precomputed here, per (player, position) and per scope,
 and the ability itself is dropped. `check_immersion()` proves no raw-ability key made it out.
 
 Three files by size, because the budget is a phone on cellular:
@@ -38,15 +38,16 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 from _export_db import _json_clean                                         # noqa: E402
 from dbopen import open_readonly as _open_readonly                    # noqa: E402
 
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+R2_REMOTE = fmconfig.r2_remote()
 # Absolute, because an agent that only ever saw index.json (no page it was linked from) has no
 # base URL to resolve a relative path against — it can only follow links it can already see.
-SITE_URL = os.environ.get("FM_SITE_URL", "https://fmm-stats.zac-g-hooper.workers.dev")
+SITE_URL = fmconfig.site_url()
 BANNED_KEYS = {"ca", "pa", "current_ability", "potential_ability", "aca"}
 IMMERSION = ("Ability is expressed as percentiles and division ranks only — the raw ability "
              "number never leaves the machine that built this.")
@@ -108,6 +109,29 @@ def check_immersion(paths):
             with open(p, encoding="utf-8") as fh:
                 walk(json.load(fh), os.path.basename(p))
     return bad
+
+
+def upload(out, names):
+    """rclone the export to R2: all.json to site-data/, the rest to site-data/api/. Runs only
+    after the immersion check passed, so a leaking export never reaches the bucket.
+    Returns 0 on success."""
+    remote = fmconfig.require_r2_remote()
+    if shutil.which("rclone") is None:
+        print("  ! rclone not installed — nothing uploaded")
+        return 1
+    rest = [n for n in names if n != "all.json"]
+    steps = [["rclone", "copy", out, f"{remote}/site-data/api/"]
+             + [x for n in rest for x in ("--include", n)]]
+    if "all.json" in names:
+        steps.append(["rclone", "copyto", os.path.join(out, "all.json"),
+                      f"{remote}/site-data/all.json"])
+    for cmd in steps:
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f"  ! upload failed: {(r.stderr or '').strip()[:200]}")
+            return 1
+    print(f"  uploaded {len(names)} file(s) to {remote}/site-data/")
+    return 0
 
 
 class Site:
@@ -182,8 +206,9 @@ def main():
     ap.add_argument("--phase", help="snapshot phase (date)")
     ap.add_argument("--out", default=os.path.join(REPO, "site", "api"))
     ap.add_argument("--method", help="default weight-set (the app can switch client-side)")
-    ap.add_argument("--upload-all", action="store_true",
-                    help="rclone all.json to R2 (where the Pages Function streams it from)")
+    ap.add_argument("--upload", "--upload-all", dest="upload", action="store_true",
+                    help="after a clean export, rclone every file to R2, where the Worker "
+                         "serves it (site-data/api/*.json, site-data/all.json)")
     ap.add_argument("--skip-all", action="store_true", help="skip the every-player file")
     ap.add_argument("--no-check", action="store_true")
     a = ap.parse_args()
@@ -311,20 +336,10 @@ def main():
         "note": "Every club in the save. No players or attributes here — see core.json (ladder "
                 "clubs, full attributes) or /api/all (every player) for those."})
 
-    all_path = os.path.join(out, "all.json")
     if not a.skip_all:
         emit("all.json", {"attrs": attrs, "fields": PROFILE_FIELDS,
                           "players": [player_row(p, attrs, True) for p in players],
                           "note": IMMERSION})
-        if a.upload_all:
-            if shutil.which("rclone") is None:
-                print("  ! rclone not installed — all.json not uploaded")
-            else:
-                r = subprocess.run(["rclone", "copyto", all_path,
-                                    f"{R2_REMOTE}/site-data/all.json"],
-                                   capture_output=True, text=True)
-                print("  uploaded all.json to R2" if r.returncode == 0
-                      else f"  ! upload failed: {(r.stderr or '').strip()[:120]}")
 
     # ------------------------------------------------------------ squad.json
     # Trajectories, spells and moves for the current squad; career history for everyone
@@ -761,19 +776,21 @@ def main():
                                       "FROM site.snapshots ORDER BY snapshot_date")],
         "ladder": [{"cid": c, "name": n} for c, n in ladder[:3]],
         "files": files,
-        "agent_guide": f"{SITE_URL}/AGENTS.md",
+        "agent_guide": f"{SITE_URL}/API.md",
         "guides": {"scout an opponent": f"{SITE_URL}/guides/scout.md",
                    "register the squad": f"{SITE_URL}/guides/registration.md"},
         "how_to_read_this": ("Rows in core/matches are POSITIONAL ARRAYS with a sibling "
                              "*_fields array naming the slots. Role ratings are NOT stored — "
                              "compute SUM(attribute x weight) from core.tactics, where an "
-                             "attribute the role does not list weighs 1. Read AGENTS.md "
+                             "attribute the role does not list weighs 1. Read API.md "
                              "first."),
         "counts": {n: {"bytes": b, "gzip": g} for n, b, g in written},
         "immersion_rule": IMMERSION,
         "caveats": INDEX_CAVEATS})
 
-    if not a.no_check:
+    if a.no_check or not fmconfig.hide_ability():
+        print("  immersion check skipped (--no-check, or [immersion] hide_ability = false)")
+    else:
         bad = check_immersion([os.path.join(out, n) for n, _b, _g in written])
         if bad:
             print("\nIMMERSION RULE VIOLATED — raw ability leaked into exported JSON:")
@@ -781,6 +798,9 @@ def main():
                 print(f"  {f}: key {k!r}")
             return 1
         print("  immersion check: no raw-ability key in any exported file ✓")
+    if a.upload:
+        if upload(out, [n for n, _b, _g in written]):
+            return 1
     con.close()
     print(f"done: {len(written)} endpoints exported in {time.time() - t0:.1f}s")
     return 0

@@ -1,7 +1,7 @@
 # Guide: scout an opponent
 
 You are the technical analyst briefing the manager before a match. Read
-[AGENTS.md](https://fmm-stats.zac-g-hooper.workers.dev/AGENTS.md) first if you haven't — this
+[API.md](../API.md) first if you haven't — this
 guide assumes you can compute a role rating and know the immersion rule.
 
 ## Their shape: the manager's record, and how they lined up against us

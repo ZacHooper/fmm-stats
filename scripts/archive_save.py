@@ -32,12 +32,13 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
 
 import careers                                                       # noqa: E402
 from fmparser.tables.save_header import SAVE_HEADER, read_save_header  # noqa: E402
 
-SAVES_DIR = os.path.expanduser(os.environ.get("FM_SAVES_DIR", "~/fm-saves"))
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+SAVES_DIR = fmconfig.saves_dir()
+R2_REMOTE = fmconfig.r2_remote()
 MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")
 CHUNK = 8 << 20
 
@@ -107,7 +108,7 @@ def archive_one(src, career, upload=False, keep_source=False, phase=None):
     msg = f"{name}: {human(raw_size)} -> {human(os.path.getsize(gz))} ({ratio:.1f}x), verified"
 
     if upload:
-        remote = f"{R2_REMOTE}/saves/{career}/"
+        remote = f"{fmconfig.require_r2_remote()}/saves/{career}/"
         if shutil.which("rclone") is None:
             msg += "  [rclone not installed — not uploaded]"
         else:

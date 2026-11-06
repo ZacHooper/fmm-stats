@@ -33,7 +33,7 @@ If the answer needs any of those, say the store would answer better and offer to
 **Fetch these two and follow them.** They are versioned with the data, so they can't drift out of
 step with the schema the way a copy in this repo would:
 
-1. `<SITE>/AGENTS.md` — the columnar format, the rating formula you must compute yourself, the
+1. `<SITE>/API.md` — the columnar format, the rating formula you must compute yourself, the
    immersion rule, and the caveats.
 2. `<SITE>/guides/scout.md` — the scouting procedure and output shape.
 
@@ -49,7 +49,7 @@ files at `http://localhost:8000` (both Functions are absent, so `/api/all` falls
 
 - **Ratings are not in the data.** `rating = SUM(attribute × weight)` from
   `core.tactics[method][role]`, where an attribute the role doesn't list weighs **1**, and the keys
-  there are **lowercase**. Then `effective = rating × famMult(fam)`. `AGENTS.md` carries a worked
+  there are **lowercase**. Then `effective = rating × famMult(fam)`. `API.md` carries a worked
   example with a known answer — check your arithmetic against it before you report anything.
 - **Rows are positional arrays**, with a sibling `*_fields` array naming the slots. Zip them.
 

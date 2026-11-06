@@ -168,7 +168,7 @@ Confirmed-plausible values on the 5 Superliga clubs tested:
 **exactly 40** entries, of which ~24–25 have an info-spine `club_tid` pointing back at that club.
 The uniform 40 suggests FMM22 uses a **fixed 40-slot array** rather than FMM26's count-prefixed
 list — *probable, not confirmed*. If it holds it is a direct answer to the
-`club_tid`-is-not-safe problem in CLAUDE.md: a club's actual registered squad, straight from the
+`club_tid`-is-not-safe problem in AGENTS.md: a club's actual registered squad, straight from the
 save, instead of inferring membership from loan spells. **`MainClub`** would likewise replace the
 hardcoded reserve tids in `careers.py` — but it currently decodes to a negative sentinel, so the
 tail alignment drifts somewhere after `Players[]`. Both need pinning down before use.
@@ -309,7 +309,7 @@ list.
 
 fmm-editor is a **layout oracle, not a drop-in**. It reads standalone `.dat` files with a
 sequential `BinaryReader`; our records are embedded in a 63 MB save and must still be located
-structurally (see CLAUDE.md's region-first method). The win is that once a record is located,
+structurally (see AGENTS.md's region-first method). The win is that once a record is located,
 its field order is no longer guesswork. Clone it fresh when needed —
 `git clone --depth 1 https://github.com/nyongrand/fmm-editor`.
 

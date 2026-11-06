@@ -15,13 +15,18 @@ is the case that used to read as success.
         return skip(f"{os.path.basename(SAVE)} not found (fetch with rclone or rebuild.py)")
 """
 import os
+import sys
 
 PASS = 0
 FAIL = 1
 SKIP = 77
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+import fmconfig  # noqa: E402
+
+SAVES_DIR = fmconfig.saves_dir()
 
 
 def skip(reason):

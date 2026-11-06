@@ -150,9 +150,9 @@ plus ongoing hosting, to fix what was actually just a network-allowlist gap.
   `_dbopen.open_readonly` (same single-writer-safe fallback every other read-only tool uses) and
   is never itself touched. Docstring carries the full verified `ATTACH` syntax plus the httpfs
   install-over-HTTP workaround.
-- Docs updated for the `s3://` access path: `site/AGENTS.md` ("Prefer SQL?" section + a new
+- Docs updated for the `s3://` access path: `site/API.md` ("Prefer SQL?" section + a new
   "Query cookbook" documenting two dedup traps in the raw schema), `docs/DEPLOY.md` ("SQL access
-  for a remote agent"), `CLAUDE.md` (storage-tiers table + a new "Answering a quick football
+  for a remote agent"), `AGENTS.md` (storage-tiers table + a new "Answering a quick football
   question" section steering a fresh agent at this path instead of a local rebuild).
 - **`.claude/hooks/session-start.sh`** (registered in `.claude/settings.json`) — makes every
   piece of this setup automatic for a Claude Code web session: `uv sync`, `rclone` installed +

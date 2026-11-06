@@ -70,7 +70,7 @@ catch — the window only needs to track forward, not open up.
 
 ### 2. `CONTRACT_LO/HI = 54M-58M` clips the contract-status section at both ends
 
-`fmparser/regions.py`. These bounds are **Bucaspor-tuned** (CLAUDE.md already warns the
+`fmparser/regions.py`. These bounds are **Bucaspor-tuned** (AGENTS.md already warns the
 windows drift per career). Actual distribution of tid+uid-validated `0x8700` records in
 `frem-2026-03-22`:
 

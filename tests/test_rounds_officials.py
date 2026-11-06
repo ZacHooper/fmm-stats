@@ -6,11 +6,12 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+import fmconfig  # noqa: E402
 
 from fmparser.tables import officials as OF
 from fmparser.tables import rounds as RO
 
-SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
+SAVES_DIR = fmconfig.saves_dir()
 CASES = [
     ("frem", "frem-2021-06-27.fms", 273, 622),
     ("frem", "frem-2023-07-02.fms", 273, 622),
