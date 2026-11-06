@@ -75,6 +75,49 @@ What it is, in one line. Where it sits in the save, how it is framed.
 ## Output          output/<label>/<table>.json, and the raw table it loads into
 ```
 
+### Column definitions
+Every column concept is defined **once**, as a dbt doc block, and every model's yml points at
+it. The blocks live together in `fmstats/models/_docs/`, one file per family (`ids.md`,
+`time.md`, `match_stats.md`, `money.md`, `player.md`, …):
+
+```markdown
+{% docs apps %}
+Appearances: matches the player took the field in, as starter or substitute. Friendlies
+included unless the model says otherwise.
+{% enddocs %}
+```
+```yaml
+columns:
+  - name: apps
+    description: '{{ doc("apps") }}'
+  - name: from_club_tid          # a role on a shared concept: one sentence, then the block
+    description: 'The club he left. {{ doc("club_tid") }}'
+```
+
+- **A block is named after the canonical column name**, so the lookup is mechanical: the
+  column `apps` uses `doc("apps")`. A role-prefixed column (`from_club_tid`, `home_team_tid`)
+  says its role in one sentence and reuses the base block.
+- **Naming conventions** go at the top of `ids.md`, and the audit enforces them: `*_tid` a
+  team slot, `*_gbp` money in pounds, `is_*` a flag, `n_*` a count, `*_date` a date.
+- **The drift audit**, `scripts/check_dbt_docs.py`, reads `target/manifest.json` (`dbt parse`
+  needs no store, so it runs in CI) and fails when:
+  - a `mart` or `site` column has no `doc()` description;
+  - a `doc()` names a block that doesn't exist, or a block nothing uses;
+  - two columns with the same name use different blocks;
+  - a column name is in a block's **synonym list** (e.g. `apps` lists `matches_played`,
+    `n_games`): that's drift, and the audit names the canonical name to rename it to.
+- **Renames are their own change.** Fixing drift renames columns that `export_data.py`, the
+  site JS and the skills read, so each rename lands with those consumers updated and
+  `diff_exports.py` showing only the renamed keys. The first audit run is the rename list.
+  Already visible in `mart` and `site` (count of models using each name): appearances as
+  `apps`[4], `matches_played`, `n_games`, `played`, `appeared`; `opponent_tid`[4] vs
+  `opp_tid`; `value`[4], `value_gbp`, `value_now`; `fee_kind`[4] vs `fee_type`;
+  `goals_for`/`goals_against` vs `goals_a`/`goals_b`. Some may be genuinely different
+  concepts (a flag, not a count); writing the block decides it.
+- **Scope:** 449 distinct names across `mart` and `site` (141 shared by five or more models).
+  `stg` and `int` get blocks where a name carries through; their model-specific columns can
+  stay inline.
+
 ### Provenance
 Mostly a parser concern, and the weakest part of the docs today. For each table, one
 **ground-truth record**: an in-game screen, the value it shows, the raw bytes, and the parsed
@@ -93,9 +136,10 @@ PR links its last commit), and fix every link.
    `table-framing.md`, `save-archive.md`, the record docs, `IDS.md`, `BUGS.md` and the parser
    notes in `agent-context/`. Then `fmparser/README.md` and a trimmed `fmparser/AGENTS.md`.
    Provenance records start here; the user supplies screenshots table by table.
-2. **Stats.** Column descriptions in the dbt yml: model descriptions are complete (170 of
-   173), and only 11 columns are documented. Then the data-model overview, `fmstats/README.md`,
-   and the modelling note from `ca-weighting.md`, `attribute-model.md`, `ATTRIBUTE_DECODING.md`
+2. **Stats.** Column descriptions, written once as **doc blocks** (see
+   [Column definitions](#column-definitions)): model descriptions are complete (170 of 173),
+   and only 11 columns are documented. Then the data-model overview, `fmstats/README.md`, and
+   the modelling note from `ca-weighting.md`, `attribute-model.md`, `ATTRIBUTE_DECODING.md`
    and the analysis notes.
 3. **Site and skills.** `site/README.md`, a lean `site/API.md`, and the skills, together with
    the TODO entry "Finish making the project career-agnostic".
@@ -122,7 +166,8 @@ Proposed; each is confirmed as it's harvested.
 ## Done when
 - `scripts/check_docs.py` passes in CI.
 - Every parser table has its doc, with at least one provenance record.
-- Every `mart` and `site` column has a dbt description.
+- Every `mart` and `site` column has a `doc()` description, and `scripts/check_dbt_docs.py`
+  passes in CI.
 - `docs/agent-context/` is gone; `docs/plans/` holds only open plans.
 - A newcomer gets from the README to the doc for any part in two clicks, and an agent can load
   one table's or one model's doc without pulling in the rest.
