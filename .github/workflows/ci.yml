@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install
+        run: uv sync
+      # Most parser tests need real saves, which are never in the repo; they skip here and the
+      # runner reports them as skipped. The unit tests run, and the runner fails if none did.
+      - name: Unit tests
+        run: uv run python tests/run_tests.py
+      - name: Layer boundaries
+        run: uv run python tests/test_boundary.py
+      - name: Worker syntax
+        run: node --check site-worker/index.js

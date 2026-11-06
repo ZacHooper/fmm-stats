@@ -429,7 +429,7 @@ wheels = [
 ]
 
 [[package]]
-name = "fm-parser-loader"
+name = "fmm-stats"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

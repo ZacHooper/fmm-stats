@@ -397,14 +397,10 @@ before they're coded.
 ## Docs
 
 ### 22. Rewrite the docs around the three functions
-`CLAUDE.md`, `docs/` and `docs/agent-context/` grew with the project and describe parts of it
-that no longer exist. The goal is docs that explain the three functions (parser, stats, site)
-to a newcomer and an agent — `parser-architecture.md` is the model for the parser.
-- **CLAUDE.md** still describes the Streamlit dashboard ("Streamlit stays", the
-  `developing-with-streamlit` skill), `regions.py`, `staging.scrape_*`, and
-  `canonicalise_names.py`. Its reverse-engineering method section would sit better in
-  `parser-architecture.md`.
-- **~38 dead code paths** are cited across `docs/`, `CLAUDE.md` and the skills —
+`docs/` and `docs/agent-context/` grew with the project and describe parts of it that no longer
+exist. The goal is docs that explain the three functions (parser, stats, site) to a newcomer and
+an agent — `parser-architecture.md` is the model for the parser.
+- **~38 dead code paths** are cited across `docs/` and the skills —
   `dashboard/*`, pre-`core` parser modules (`fmparser/staging.py`, `regions.py`, `places.py`,
   `lookups.py`, `staff.py`, `attributes.py`, `lightresults.py`, `mapregions.py`, `tagged.py`,
   ...) and deleted scripts (`map_regions.py`, `audit_archive.py`, `canonicalise_names.py`, ...).
@@ -419,6 +415,27 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   in the save, and `agent-context/etl-duckdb-dashboard.md` describes `fmq` and `scout.py`.
 - **Old TODO numbers** are still cited as live work in `table-framing.md`, `date-search.md`
   and `agent-context/light-results-rolling-buffer.md`.
+
+### 23. Finish making the project career-agnostic for other players
+The README, `AGENTS.md`, `fmm.toml` and the R2-served site data are done. Still personal:
+- **Skills** (`.claude/skills/`) hardcode Frem (tid 346, `fm-frem`, the Superliga) and assume the
+  author's R2 store. Read the career from `fmm.toml` / `site.config`, or label them examples.
+- **`fmstats/tests/` known answers** are Frem facts (tagged `known_answers`, inert for any other
+  career) — fine to keep; say so where a contributor would trip on them.
+- **`seeds/manifest.csv`** is the author's rebuild recipe (save names and dates). Move it next to
+  the saves (R2) or make `rebuild.py` read a per-user path.
+- **`seeds/config_bundle.json`** makes `frem_attacking_ss` the app's display default; it should
+  default to the career's `rating_method`.
+- **House-rule switch**: the Danish registration rules are always on in the web app
+  (`site/js/registration.js`). Add `[careers.<key>] house_rules` to `fmm.toml` and hide the
+  registration column and card when it's off.
+- **`docs/agent-context/`** is mostly the author's career; split the general findings from the
+  Frem-specific ones and move the latter to the author's own notes.
+- **`scripts/lint_sql.py` fails on `main`** (14 layout violations, plus models that need a
+  store to compile). Fix, then add it to CI.
+- **Public history**: `site/api/*.json` (game data) is in the history of every commit before it
+  was untracked. Rewrite history or start the public repo from a fresh commit before making it
+  public.
 
 ---
 

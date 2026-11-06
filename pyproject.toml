@@ -1,7 +1,9 @@
 [project]
-name = "fm-parser-loader"
+name = "fmm-stats"
 version = "0.1.0"
-description = "DuckDB ETL + query CLI over fm-parser extract outputs"
+description = "Read Football Manager Mobile 2022 save files into a DuckDB store and a stats web app (unofficial)"
+license = "MIT"
+readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "duckdb>=1.1",
@@ -13,7 +15,7 @@ dependencies = [
 ]
 
 # The extractors (extract.py, fmparser/*) need only numpy (with pandas) and zstandard;
-# duckdb is imported only by load_duckdb.py / fmq.py / fmstats, dbt only by load_duckdb.py.
+# duckdb is imported only by load_duckdb.py, the scripts and fmstats; dbt only by load_duckdb.py.
 # Everything runs via uv.
 # package = false: this is a workspace of scripts, not an installable package.
 [tool.uv]
