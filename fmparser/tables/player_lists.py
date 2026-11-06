@@ -70,7 +70,8 @@ loan there.
 Located from an empty list -- 100 template entries, whose tails carry `14 01 00 0a 00` at
 exactly 200-byte gaps -- then walked: forward list by list to the last list that parses,
 and backward by reading each entry's strings from their end (every string is length-
-prefixed, so the start of the strings that end at a given byte is exact).
+prefixed and holds no control bytes, so the start of the strings that end at a given byte
+is exact).
 """
 import re
 import struct
@@ -222,7 +223,11 @@ def _list_end(mm: Any, start: int) -> Optional[int]:
 
 
 def _string_starts(mm: Any, end: int, k: int) -> List[int]:
-    """Every offset from which k length-prefixed strings end exactly at `end`."""
+    """Every offset from which k length-prefixed text strings end exactly at `end`.
+
+    A string holds no control bytes. Without that test a u32 inside the previous list's
+    trailer can read as the length of a string that swallows it and the real one after it,
+    a second parse of the list that ends at the same byte."""
     if k == 0:
         return [end]
     out = []
@@ -230,7 +235,8 @@ def _string_starts(mm: Any, end: int, k: int) -> List[int]:
         p = end - n - 4
         if p < 0:
             break
-        if struct.unpack_from("<I", mm, p)[0] == n:
+        if (struct.unpack_from("<I", mm, p)[0] == n
+                and not any(c < 0x20 for c in mm[p + 4:end])):
             out.extend(_string_starts(mm, p, k - 1))
     return out
 
