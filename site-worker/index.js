@@ -66,7 +66,7 @@ async function allPlayers(request, env) {
   if (!obj) {
     return json({
       error: `${ALL_KEY} is not in the bucket — run: `
-        + "uv run python scripts/export_data.py --upload-all",
+        + "uv run python scripts/export_data.py --upload",
     }, 404);
   }
   const etag = obj.httpEtag;

@@ -158,11 +158,8 @@ unnamed.
 - **A full rebuild has NOT been run.** The local store is mixed: 25 snapshots, but only a few
   carry the new tables. `uv run python scripts/rebuild.py --career frem` (~10 min) is the last
   step before trusting anything. `tests/validate_mart.py` passed on the pre-E store.
-- **`site/api/*.json` has not been regenerated.** `export_data.py` and `site/js/data.js` were
-  changed together in workstream A to add shirt/height/weight, so the next
-  `export_data.py --upload-all` will produce a real (expected) `git diff site/api`. The user has
-  since said the site is not the priority — **the three reputation fields were deliberately NOT
-  exported** (core.json loads on every page view and reputation is ability-adjacent).
+- **The three reputation fields are deliberately NOT exported to the site** (core.json loads on
+  every page view and reputation is ability-adjacent).
 - `careers.py` still hardcodes `reserve_tid`; `main_club_tid` could replace it.
 - `mart.squad_current` still uses the spell model; `roster_vs_spells` exists to judge the switch.
 - Unparsed: the **Region** table, and the nation record's counted language list.

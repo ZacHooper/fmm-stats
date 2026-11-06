@@ -136,6 +136,7 @@ Turn wifi **off** — that's the actual test.
 ```bash
 uv run python scripts/export_data.py --upload                    # the app's data -> R2
 uv run python scripts/publish_duckdb.py --upload                 # compacted copy carries raw, mart, site
+uv run python scripts/publish_mart.py --upload                   # the mart alone, for analysis
 ```
 
 **Moving an existing deploy to this layout:** run `export_data.py --upload` once *before* the

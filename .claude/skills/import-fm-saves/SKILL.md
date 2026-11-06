@@ -125,7 +125,7 @@ check against a screenshot.
    Present the mapping table + any clashes, then proceed (the user has usually pre-approved).
 
 5. **Load each** (season + phase=date are derived from `summary.json` and the store's career — no
-   flags needed; a NEW store needs `--career <key>`). Use the career's store `fm-<key>.duckdb`;
+   flags needed; a NEW store takes `--career <key>`, else `fmm.toml`'s default career). Use the career's store `fm-<key>.duckdb`;
    nothing else may hold it open for writing. Run in **background**, wait for a `DONE` sentinel:
    ```bash
    uv run python load_duckdb.py output/<stem> --db fm-<key>.duckdb
@@ -150,19 +150,22 @@ check against a screenshot.
    `seeds/manifest.csv` (the rebuild recipe — without it another machine can't reproduce this
    snapshot). Full detail in `docs/DEPLOY.md`'s "Refreshing after an import":
    ```bash
+   cp -r site/api /tmp/site-api-before                               # keep the last export to diff
    uv run python scripts/export_manifest.py                          # refresh the rebuild recipe
-   uv run python scripts/export_data.py --upload-all                 # -> site/api/*.json + R2 all.json
-   uv run python scripts/publish_duckdb.py --career frem --upload    # -> R2 full copy (~34 MB)
-   uv run python scripts/publish_mart.py   --career frem --upload    # -> R2 analysis copy (~24 MB)
+   uv run python scripts/export_data.py --upload                     # -> site/api/*.json -> R2 (the live app's data)
+   uv run python scripts/publish_duckdb.py --upload                  # -> R2 full copy
+   uv run python scripts/publish_mart.py   --upload                  # -> R2 analysis copy
    # BOTH R2 copies are needed: publish_duckdb ships `raw` (+ the `mart` schema) for
    # re-derivation, publish_mart ships the mart alone for analysis. They are SEPARATE
    # objects — running one does not refresh the other, and neither is written by
    # load_duckdb.py, so an import leaves both stale until these run.
-   git add site docs seeds && git commit -m "site: <snapshot>" && git push   # Pages deploys on push
+   git add seeds/manifest.csv && git commit -m "manifest: <snapshot>" && git push
    ```
-   `site/api/*.json` is git-tracked and the export is deterministic, so the diff should be
-   snapshot data and nothing else. A large reordering with no numbers changed means something
-   lost its `ORDER BY` — worth chasing rather than committing.
+   The data goes live the moment `export_data.py --upload` finishes: the Worker reads it from R2,
+   so there is no deploy and no data commit (`site/api/` is gitignored). The export is
+   deterministic, so `uv run python scripts/diff_exports.py /tmp/site-api-before site/api`
+   should show snapshot data and nothing else. A large reordering with no numbers changed means
+   something lost its `ORDER BY` — chase it before uploading.
 
 8. **Sanity-check the models** — the `dbt build` each load runs is the check (grain,
    relationships, `rows_match_source`, the unit tests). After editing `fmstats/` models, rerun it
