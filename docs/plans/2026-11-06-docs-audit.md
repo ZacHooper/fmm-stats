@@ -64,7 +64,8 @@ Plus, at the top: `README.md` (human), `AGENTS.md` (agent, short), `CONTRIBUTING
 analysis work (the attribute model, the CA weighting, how weight sets are derived) as
 greenfield work in progress, without the Frem-specific conclusions.
 
-The parser's table docs follow one template, so an agent can load exactly one:
+The parser gets **one doc per table**, so an agent loads exactly the one it needs, and every
+table doc follows the same template:
 
 ```markdown
 # <table>  (fmparser/tables/<table>.py)
@@ -119,11 +120,11 @@ columns:
   stay inline.
 
 ### Provenance
-Mostly a parser concern, and the weakest part of the docs today. For each table, one
-**ground-truth record**: an in-game screen, the value it shows, the raw bytes, and the parsed
-value. It lives in the table doc's Provenance section, and where it can, as a test fixture
-(`tests/fixtures/`) that asserts the parse. The record is written as text, the screen named and
-the value transcribed. The screenshots themselves stay private: they are the game's UI.
+Mostly a parser concern, and the weakest part of the docs today. For each table, at least one
+**ground-truth record**: an in-game screenshot, the value it shows, the raw bytes, and the
+parsed value. Screenshots are committed next to the doc (`docs/parser/img/<table>-<n>.png`,
+cropped to the panel that matters and kept small). The record lives in the table doc's
+Provenance section and, where it can, as a test fixture (`tests/fixtures/`) asserting the parse.
 
 ## Phases
 Each phase **harvests, writes, deletes** in one PR: pull the nuggets out of the docs it
