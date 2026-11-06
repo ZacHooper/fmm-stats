@@ -205,10 +205,15 @@ merged `_rules`. Diff two saves.
 ## Parser — understanding: naming what is read
 
 ### 8. Decode the competition rules
-Entry, advancement, promotion and relegation (`strq`, `advs`, `relr`, `prmr`) for every
-competition in the dictionary, not just the ~70 the archive loads. Every configured archive
-member names its dictionary file (`file`), so the two join. `docs/DATADICT.md` (deleted; last
-at commit 7cc46b6) holds guesses at many tag meanings — hypotheses to test, not facts.
+[`competition-rules.md`](competition-rules.md) is the tag register: promotion, play-off and
+relegation (`prmr`, `tppr`, `relr`), tie-breakers (`sort` 0-3), the play-off bracket (`tems`,
+`ctmp`), `pdad`, `nrds`, `ygap`, `dtrn`, `levl`, and how a parent competition (`chdc`,
+`LtfP`) links parallel leagues -- verified on the English pyramid against the store.
+`scripts/audit/rule_tags.py` flattens every rule file for querying. Open, in order: how a
+parent splits clubs between its children (it reshuffles them every season); the rest of the
+`sort` codes; `ftac`; then a schema in `comp_rules.py` and raw tables for the rules, so the
+store can read promotion/relegation instead of inferring it. `docs/DATADICT.md` (deleted;
+last at commit 7cc46b6) holds guesses at many tag meanings — hypotheses to test, not facts.
 
 ### 9. The standings record
 A 14-byte record with the exact final position of every club in every loaded competition,
