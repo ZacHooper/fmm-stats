@@ -1933,7 +1933,8 @@ def main():
         recorded = store_career(con)
         if args.career and recorded and args.career != recorded:
             raise SystemExit(f"{args.db} holds the {recorded!r} career, not {args.career!r}")
-        key = args.career or recorded
+        # a new store takes the career named on the command line, else fmm.toml's default
+        key = args.career or recorded or careers.DEFAULT_CAREER
         if key is None:
             raise SystemExit(f"{args.db} records no career: pass --career "
                              f"({', '.join(sorted(careers.CAREERS))})")
