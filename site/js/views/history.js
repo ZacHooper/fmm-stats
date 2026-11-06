@@ -64,6 +64,10 @@ document.addEventListener("click", closeTips);
 document.addEventListener("scroll", () => closeTips(), true);
 const seasonLabel = (s) => `${s - 1}/${String(s).slice(2)}`;
 const day = (d) => String(d).slice(0, 10);
+const ordinal = (n) => {
+  const t = n % 100, o = n % 10;
+  return `${n}${t >= 11 && t <= 13 ? "th" : o === 1 ? "st" : o === 2 ? "nd" : o === 3 ? "rd" : "th"}`;
+};
 
 export async function view() {
   const M = await D.loadMatches();
@@ -97,6 +101,13 @@ export async function view() {
     if (!prev || String(o.phase) > String(prev.phase)) finBySeason.set(o.season, o);
   }
 
+  // Where we finished each league season (site.league_finishes): the game's own final place
+  // once the season is over, else our place in the table of the stage we've reached.
+  const lf = M.league_finish_fields || [];
+  const finishBy = new Map((M.league_finishes || [])
+    .map((r) => Object.fromEntries(lf.map((n, i) => [n, r[i]])))
+    .map((o) => [`${o.season}|${o.competition}`, o]));
+
   // Awards are computed once per season and shared by the season cards, the Awards tab and
   // the Honours board.
   const awardCache = new Map();
@@ -128,6 +139,7 @@ export async function view() {
       ga: ms.reduce((a, m) => a + (m.ga || 0), 0),
       ppg: ms.length ? ms.reduce((a, m) => a + (m.pts || 0), 0) / ms.length : null,
       league: runs[0] || null, cups: runs.slice(1),
+      finish: runs[0] ? finishBy.get(`${s}|${runs[0].comp}`) || null : null,
       comps: order.map((c) => reached(ms.filter((m) => m.competition === c), c)),
       snaps: D.S.index.snapshots.filter((x) => x.season === s).length,
       att: attBySeason.get(s) || null,
@@ -193,6 +205,14 @@ export async function view() {
   };
   const runText = (x) => (x.winners ? "Winners" : x.where ? `${x.where}${x.out ? " · out" : ""}` : DASH);
   const runCls = (x) => (x.winners ? "win" : x.out ? "out" : "");
+  // League finish: the final place once the season is over, else the current table place.
+  const finishText = (f) => {
+    const pos = f?.final_position ?? f?.table_position;
+    return pos == null ? null : ordinal(pos);
+  };
+  const finishTitle = (f) => (f.final_position != null ? "Final league position"
+    : `Current place in the ${f.stage_name || "league"} table — the season isn't finished`);
+  const finishCls = (f) => (f.final_position === 1 ? "win" : "plain");
 
   // The timeline reads; the full table is for comparing every figure at once.
   const LAYOUTS = [["timeline", "Timeline"], ["full", "Full table"]];
@@ -241,6 +261,7 @@ export async function view() {
       el("div.tlhead", {}, [
         el("b", { text: seasonLabel(r.season) }),
         el("span", { text: r.league?.comp || "" }),
+        finishText(r.finish) ? el(`b.finish.${finishCls(r.finish)}`, { text: finishText(r.finish), title: finishTitle(r.finish) }) : null,
         r.league ? el(`span.run.${runCls(r.league) || "plain"}`, { text: runText(r.league) }) : null,
         el("span.tlwdl", {}, [el("b", { text: `${r.w}-${r.d}-${r.l}` }), el("span.dim", { text: " W-D-L" })]),
       ]),
@@ -262,7 +283,7 @@ export async function view() {
   }
 
   function seasonTable() {
-    const HEAD = ["Season", "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm",
+    const HEAD = ["Season", "League pos", "P", "W", "D", "L", "GF", "GA", "GD", "Pts/gm",
       "Avg crowd", "Max crowd", "Squad value", "Wage bill", "Spent", "Received", "Net",
       "Competitions · how far", "Snapshots"];
     const TEXT_COLS = new Set([0, HEAD.indexOf("Competitions · how far")]);
@@ -273,7 +294,9 @@ export async function view() {
       el("thead", {}, [el("tr", {}, HEAD
         .map((h, i) => el(`th${TEXT_COLS.has(i) ? "" : ".num"}`, { text: h })))]),
       el("tbody", {}, prog.map((r) => el("tr", {}, [
-        el("td.name", { text: seasonLabel(r.season) }), el("td.num", { text: r.p }), el("td.num", { text: r.w }),
+        el("td.name", { text: seasonLabel(r.season) }),
+        el("td.num", r.finish && finishText(r.finish) ? { text: finishText(r.finish), title: `${r.league.comp} · ${finishTitle(r.finish)}` } : { text: DASH }),
+        el("td.num", { text: r.p }), el("td.num", { text: r.w }),
         el("td.num", { text: r.d }), el("td.num", { text: r.l }), el("td.num", { text: r.gf }),
         el("td.num", { text: r.ga }),
         el("td.num", { text: (r.gf - r.ga >= 0 ? "+" : "") + (r.gf - r.ga) }),
