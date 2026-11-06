@@ -521,6 +521,8 @@ td.hl{font-weight:700;color:var(--accent)}
 .tlhead{display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
 .tlhead>b{font-size:17px}
 .tlwdl{font-size:13.5px}
+.finish{font-size:13.5px;white-space:nowrap}
+.finish.win{color:var(--good)}
 .tlgrid{display:grid;gap:10px;grid-template-columns:1fr}
 .tlstory{display:flex;flex-direction:column;gap:6px;font-size:13px;min-width:0}
 .tlcups{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}

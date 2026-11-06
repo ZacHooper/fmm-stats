@@ -426,6 +426,8 @@ def main():
     for r in s.rows("SELECT * FROM site.formation_slots ORDER BY formation_order, position_order"):
         slots.setdefault(r["formation"], {})[r["position"]] = r["slots"]
     att_fields = ["season", "n_games", "avg_att", "max_att"]
+    finish_fields = ["season", "competition", "final_position", "table_position",
+                     "stage_name", "stage_teams", "n_teams"]
     fin_fields = ["season", "phase", "n_owned", "n_loan_in", "value_gbp", "n_value_est",
                   "wage_gbp"]
     fin = s.rows("SELECT *, snapshot_date AS phase FROM site.finances ORDER BY snapshot_date")
@@ -451,6 +453,9 @@ def main():
                              att_fields),
         "finance_fields": fin_fields,
         "finances": rowify(fin, fin_fields),
+        "league_finish_fields": finish_fields,
+        "league_finishes": rowify(s.rows("SELECT * FROM site.league_finishes "
+                                         "ORDER BY season, competition"), finish_fields),
         "note": "Only the managed club's matches are richly parsed, so these are our records. "
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
                 "season runs, so an early game may be absent from a late save."})
