@@ -396,6 +396,33 @@ before they're coded.
 
 ## Docs
 
+### 22. Audit and clean up the docs
+Many docs describe code that no longer exists (~95 dead file references across 37 docs on
+2026-11-06). The plan, with a proposed action for every doc, is
+[`plans/2026-11-06-docs-audit.md`](plans/2026-11-06-docs-audit.md). Do it before the fresh
+public repo is cut.
+
+### 23. Our full-time formation per match
+The Matches page's formation is the kick-off shape (the match tail's formation string,
+`fmparser/tables/matches.py`). The full-time shape is in the save too: the team head's
+`positions`, 11 starters in posOrder order (`docs/agent-context/match-position-encoding.md`).
+Collapse those bands into a formation string in the dbt site models (not the browser), ship
+it in `site.matches`, then give the Splits tab's Formation split a kick-off / full time /
+changed-in-game choice and the Results tab an "Ended in" column beside "Started in".
+
+### 24. Show hidden attributes as report trait lines
+The profile sheet's "+ personality & hidden" toggle (`site/js/profile.js`, `extraAttrColumns`)
+shows raw hidden values. The manager prefers the in-game report's words. Derive the trait line in
+the `site` dbt models from
+[`agent-context/report-trait-lines.md`](agent-context/report-trait-lines.md) (one line, highest
+priority wins), ship it with the profile, and show it in place of the numbers, keeping the numbers
+behind an explicit opt-in. Finish the doc's pending checks first, so the thresholds are pinned
+before they're coded.
+
+---
+
+## Docs
+
 ### 22. Rewrite the docs around the three functions
 `docs/` and `docs/agent-context/` grew with the project and describe parts of it that no longer
 exist. The goal is docs that explain the three functions (parser, stats, site) to a newcomer and
