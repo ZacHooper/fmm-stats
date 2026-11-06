@@ -420,8 +420,11 @@ an agent — `parser-architecture.md` is the model for the parser.
 The README, `AGENTS.md`, `fmm.toml` and the R2-served site data are done. Still personal:
 - **Skills** (`.claude/skills/`) hardcode Frem (tid 346, `fm-frem`, the Superliga) and assume the
   author's R2 store. Read the career from `fmm.toml` / `site.config`, or label them examples.
-- **`fmstats/tests/` known answers** are Frem facts (tagged `known_answers`, inert for any other
-  career) — fine to keep; say so where a contributor would trip on them.
+- **Generic dbt tests that fail on a short history**: on a store holding only the latest Frem
+  save, `tables_reproduce_save_positions`, `ratings_adj_baseline`, `ratings_adj_coverage` and
+  `unique_combination_fact_player_award_award_id__person_id__entry_date` (44 rows) fail on
+  `main` too. A new user's first load is exactly that store, so each should hold on one
+  snapshot or say why it can't; the award uniqueness one looks like a real duplicate.
 - **`seeds/manifest.csv`** is the author's rebuild recipe (save names and dates). Move it next to
   the saves (R2) or make `rebuild.py` read a per-user path.
 - **`seeds/config_bundle.json`** makes `frem_attacking_ss` the app's display default; it should

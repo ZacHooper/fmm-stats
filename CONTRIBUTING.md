@@ -27,7 +27,9 @@ uv run python tests/test_boundary.py   # the parser never imports the store, and
 ```
 Most parser tests read real saves from `[storage] saves_dir` and skip without them. If your
 change touches the parser, run them against your own saves and say which career and season
-you tested on in the pull request. Loading a save runs the full dbt test suite.
+you tested on in the pull request. Loading a save runs the full dbt test suite. Facts about
+your own save (a player's attributes, a season's totals) make good known-answer tests: keep
+them in the gitignored `fmstats/known_answers/` (see [`fmstats/AGENTS.md`](fmstats/AGENTS.md)).
 
 ## Decoding something new
 Read [`fmparser/AGENTS.md`](fmparser/AGENTS.md) first. The short version: find the record's

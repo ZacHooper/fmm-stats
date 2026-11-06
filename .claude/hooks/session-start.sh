@@ -7,8 +7,9 @@
 #     R2_ACCESS_KEY/R2_SECRET_ACCESS_KEY/R2_ENDPOINT env vars, with a wrapper that works
 #     around a bug in the apt-packaged rclone (see below).
 #   - With FM_R2_REMOTE set (e.g. `r2:my-bucket`, a non-secret environment variable):
-#       * the user's gitignored fmm.toml and CAREER.md fetched from `<remote>/config/` when the
-#         clone has none, so a cloud session knows the career a laptop does;
+#       * the user's gitignored fmm.toml, CAREER.md and fmstats/known_answers/ fetched from
+#         `<remote>/config/` when the clone has none, so a cloud session knows the career a
+#         laptop does;
 #       * DuckDB's `httpfs` extension pre-placed from a copy vendored in the bucket, so a session
 #         can `ATTACH 's3://<bucket>/site-data/fm-<career>.duckdb'` immediately — see
 #         docs/agent-context/remote-duckdb-access.md for the exact ATTACH syntax.
@@ -62,6 +63,7 @@ if [ -n "$REMOTE" ] && [ -f ~/.config/rclone/rclone.conf ]; then
   for f in fmm.toml CAREER.md; do
     [ -f "$f" ] || rclone copyto "$REMOTE/config/$f" "$f" 2>/dev/null
   done
+  [ -d fmstats/known_answers ] || rclone copy "$REMOTE/config/known_answers" fmstats/known_answers 2>/dev/null
 
   # --- Vendor the DuckDB httpfs extension from the bucket ----------------------------------
   # INSTALL httpfs needs extensions.duckdb.org, which a network-restricted sandbox may block
