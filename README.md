@@ -1,108 +1,160 @@
-# fm-parser
+# fmm-stats
 
-Read-only extraction of a **Football Manager Mobile 2022** save. Drop in a `.fms`
-file and get the season's matches and the whole league's player attributes as JSON/CSV.
-Nothing is written back to the save.
+**Turn your Football Manager Mobile 2022 save into a database you can query and a stats app for
+your phone.**
 
-> Scoped to one career (Bucaspor). It's built to run on the *same* save pulled at
-> different points in a season (start / mid / end). See [Portability](#portability).
+FMM22 shows you a lot, but it doesn't let you ask questions of it: who has actually hurt us in
+the last five meetings, which youngster is growing fastest, which club's starter line would my
+loanee walk into. This project reads a `.fms` save file and gives you all of it: every player in
+the world with attributes, every match you've played with per-player stats, the whole world's
+fixtures and results, transfers, contracts, club histories, and how your squad changes across
+saves.
 
-## Usage
+It is **read-only**. Nothing is ever written back to a save, and the game is never modified.
+
+> **Unofficial.** This is a fan project. It is not affiliated with, endorsed by or connected to
+> Sports Interactive or SEGA. *Football Manager* is a trademark of Sports Interactive Limited
+> and SEGA. No game data is included in this repository: you bring your own save, and what you
+> do with the data drawn from it is up to you. See [Disclaimer](#disclaimer).
+
+## What's in it
+
+```
+your save (.fms)
+   │
+   ▼  Parser — fmparser/, extract.py
+output/<save>/*.json        one file per table, exactly as the save stores it
+   │
+   ▼  Stats — load_duckdb.py, fmstats/ (dbt)
+fm-<career>.duckdb          raw → stg → int → mart (dim_* / fact_*) → site
+   │
+   ├──▶ SQL: query it yourself, or ask an agent (skills in .claude/skills/)
+   │
+   ▼  Site — scripts/export_data.py, site/, site-worker/
+a phone-friendly web app    squad, ratings, matches, history, world, recruitment
+```
+
+| part | what it does | start here |
+|---|---|---|
+| **Parser** | Decodes the binary save, table by table, into JSON. Knows nothing about your career. | [`fmparser/AGENTS.md`](fmparser/AGENTS.md), [`docs/savefile-map.md`](docs/savefile-map.md) |
+| **Stats** | Loads each save as a dated snapshot into DuckDB, then a dbt project models it: players, clubs, matches, competitions, contracts, across every snapshot. | [`fmstats/AGENTS.md`](fmstats/AGENTS.md), [`docs/data-model/`](docs/data-model/README.md) |
+| **Site** | A static web app (no build step) that rates players in your tactic's roles in the browser. Optional: deploys as a Cloudflare Worker. | [`site/AGENTS.md`](site/AGENTS.md), [`docs/DEPLOY.md`](docs/DEPLOY.md) |
+| **Skills** | Recipes an AI agent follows: scout an opponent, season review, pre-season squad review, and more. | [`.claude/skills/`](.claude/skills/) |
+
+## Quickstart
+
+You need **Python 3.13+**, **[uv](https://docs.astral.sh/uv/)** and an **FMM22 save file**
+(`.fms`) copied off your device.
 
 ```bash
-uv run python extract.py ~/fm-saves/frem/frem-2023-07-02.fms
+git clone <this repo> && cd fmm-stats
+uv sync
+
+# 1. Tell it about your career
+cp fmm.example.toml fmm.toml
+uv run python scripts/discover_career.py path/to/your-save.fms   # prints your club's tids
+#    -> put managed_tid / reserve_tid (and a career key) into fmm.toml
+
+# 2. Move the save into ~/fm-saves/<career>/, named by its in-game date, then parse it
+uv run python scripts/archive_save.py path/to/your-save.fms --career mycareer
+uv run python extract.py ~/fm-saves/mycareer/mycareer-<date>.fms
+
+# 3. Load it (builds fm-mycareer.duckdb and runs every dbt model and test)
+uv run python load_duckdb.py output/mycareer-<date> --career mycareer
+
+# 4. Look at it
+uv run python scripts/export_data.py
+uv run python -m http.server -d site 8000                      # http://localhost:8000
 ```
 
-This writes `output/<label>/`:
+Add more saves from the same career over time: each becomes a snapshot, so growth, form and
+history build up. Query the store directly with DuckDB:
 
-| file | contents |
-|------|----------|
-| `persons.json` | the person table (~33k, players and staff): identity, club, DOB, nationality, personality, and the links to the two attribute tables |
-| `attribute_records.json` | the player attribute table (~26k), keyed by `sid`: the 34 attribute bytes as stored, CA/PA, positions, feet, reputation, and `history_head` (where his career history starts) |
-| `staff_records.json` | the staff attribute table, keyed by `id2`: coaching ability, reputation, the manager's formation triple (indices into `formations.json`) |
-| `browse_names.json`, `name_ids.json` | the browse strings and the first-name / surname / nickname id-tables that index them |
-| `history.json` | the career-history pool, every row; a player's chain starts at his `history_head` |
-| `matches.json` | every match: per-player stats (23 fields), events, team stats, formation, man-of-the-match |
-| `clubs.json` | the whole club table: names, uid, league, and the record's trailer |
-| `summary.json` | the save's header date and title, counts, competitions |
-
-One file per table, in the order the save stores them (`steps()` in `extract.py`). The
-extract takes no career: the loader places the snapshot in its campaign
-(`load_duckdb.py --career <key>`, `careers.py`).
-
-The label is the save's file name without `.fms`. Saves are named `<career>-<header date>`
-(`scripts/archive_save.py` does it), so the label, the save and the snapshot's `phase` are one
-string. A zero-match save (fresh season) still produces the full player DB — the player list
-comes from the person table, not from matches — and its header dates it like any other.
-Extract dumps each table as the save stores it; the store joins them (the person to his
-attribute record on `sid`, to his staff record on `id2`) and decodes the attributes.
-
-## What you get (and how much to trust it)
-
-| grade | meaning |
-|-------|---------|
-| **Exact** | read directly, or a formula verified against ground truth |
-| **±1** | regression estimate, ~93% within one point (held-out) |
-| **Derived** | computed from stored parts (the game doesn't store it either) |
-
-- **Matches** — player stats, events, score/date/attendance/competition, and formation are **exact**. Shots / shots-on-target / team rating and man-of-the-match are **derived** (the game recomputes them too).
-- **Attributes** — 8 of 23 are **exact** (physical + Teamwork); the other 15 (technical + GK clusters) are **±1**. CA/PA, positions, feet, reputation are **exact**. Your own squad is fully **exact** (from the snapshot); everyone else uses the estimator.
-- **Not recoverable** — possession, clear-cut chances, roles/duties (not in the save). Player names are decodable only for your own club (opponent name index uncracked, and deliberately left off). See [`docs/BUGS.md`](docs/BUGS.md).
-
-## How it works (staging → join)
-
-Each region of the save is scraped independently into a keyed table, then joined — the
-player **info section is the identity spine** (~31k records: `TID`, `SID`, `club_tid`,
-name IDs, DOB). Attributes join on `SID`, clubs on `club_tid`, names on `TID`. This
-decouples *who exists* (info) from *what happened* (matches), so a fresh season with no
-matches still yields the full DB. Non-players (staff) are split out by `SID == ffffffff`.
-See [`fmparser/staging.py`](fmparser/staging.py).
-
-## Layout
-
+```bash
+uv run python -c "import duckdb; con = duckdb.connect('fm-mycareer.duckdb', read_only=True); \
+  print(con.sql('select * from mart.squad_membership where is_current and is_managed_club'))"
 ```
-extract.py            entry point
-fmparser/             the library
-  save.py             mmap loader + search helpers
-  regions.py          career config + region windows (the save-specific bits)
-  staging.py          sweep each region into keyed tables (info spine, attributes)
-  tables/matches.py   our matches: events, both sides' player lines, score, formation
-  attributes.py       own-squad (exact) + record locator + estimator
-  model.py            frozen regression coefficients + predict()
-  reference.py        club / competition names, player info field
-docs/                 TODO.md (start here), BUGS.md, record layouts + reference
-tests/                ground-truth regression guard
-output/               extractions (gitignored)
-```
+
+## Make it yours: `fmm.toml`
+
+Everything personal lives in `fmm.toml` (gitignored; the template is
+[`fmm.example.toml`](fmm.example.toml)): your careers, where saves live, an optional object
+store (Cloudflare R2 or any rclone remote) for backing up saves and publishing the app, your
+site's URL, and **how you like to play**.
+
+The first play-style switch is **immersion**. With `hide_ability = true` (the default) the raw
+current/potential ability number never leaves the database: the app and the agents talk in
+percentiles, role fit and attributes, the way the game's own screens do, and the export refuses
+to publish a raw-ability field. Set it to `false` if you'd rather see the number.
+
+## Using it with an AI agent
+
+The repo is built to be worked on, and asked questions, by coding agents.
+
+- **[`AGENTS.md`](AGENTS.md)** is the agent's guide: the three parts and their boundaries, the
+  rules that make a query wrong rather than imprecise, and where the reference knowledge lives.
+  Each part has its own `AGENTS.md`. Claude Code reads them through one-line `CLAUDE.md` files.
+- **Skills** in [`.claude/skills/`](.claude/skills/) are step-by-step recipes for common asks:
+  `query-fm-data` for any quick question, `scout-opponent`, `season-outlook`,
+  `preseason-squad-review`, `fm-season-review`, `where-are-they-now`, `attribute-profiles`,
+  `import-fm-saves`. They were written around the author's own career, so they work best as
+  templates; the data model they query is general.
+- **`CAREER.md`** (optional, gitignored): write your own notes about the career you're playing
+  (your tactic, house rules, what's happened so far). `AGENTS.md` tells agents to read it.
+- **[`site/API.md`](site/API.md)** is published with the web app, for agents that read your
+  deployed site's JSON rather than the database.
+
+## What you can trust
+
+| | grade |
+|---|---|
+| Your own squad's attributes | **exact**, from the club's own records (scrapbook entries up to a year old) |
+| Other players: physical attributes, positions, feet, age, contracts | **exact** |
+| Other players: technical, mental and goalkeeping attributes | **model estimates**, mostly within ±1 ([`docs/ca-weighting.md`](docs/ca-weighting.md)) |
+| Your matches: scores, events, per-player stats, formations | **exact** |
+| World fixtures and results | **exact** ([`docs/save-archive.md`](docs/save-archive.md)) |
+| Shots, team rating, man of the match | **derived** from stored parts, as the game does |
+| Possession, roles and duties, the exact XI on a given day | **not in the save** |
+
+Known problems and dead ends are in [`docs/BUGS.md`](docs/BUGS.md); open work is in
+[`docs/TODO.md`](docs/TODO.md).
 
 ## Tests
 
 ```bash
-python3 tests/test_ground_truth.py
+uv run python tests/run_tests.py       # parser and unit tests
+uv run python tests/test_boundary.py   # the layer boundaries
 ```
 
-Asserts the known-correct values still parse (the 3-3 match's team stats and formation,
-two scouted opponents within ±1, CA/PA exact). This is the tripwire for a new save that
-shifts offsets — if region-finding breaks, this fails loudly.
-
-## Portability
-
-Everything save-specific lives in `fmparser/regions.py`:
-
-- **Career config** (managed club TID, competition IDs) — stable across the career.
-- **Region windows** (byte ranges for matches / snapshot / global attributes) — these
-  drift as the save grows over a season, so they're generous and every record is
-  validated on read. If a future save moves data out of range, widen them there; the
-  ground-truth test will flag it.
-
-Running on a *different* career or a full-DB export would need the config generalised
-(auto-detect the managed club and its competitions) — not done yet.
+Most parser tests need real saves and **skip** without them (the runner says so plainly; it
+never reports a skip as a pass). The unit tests run anywhere. Loading a save runs the whole dbt
+test suite against your data.
 
 ## How it was worked out
 
-The reverse-engineering story — record layouts, the exact formulas, the attribute
-regression, and everything that turned out **not** to be stored — is in
-[`docs/ATTRIBUTE_DECODING.md`](docs/ATTRIBUTE_DECODING.md),
+The save format is undocumented. The method (map the regions first, prove a record's extent,
+never validate a field by joining on it) and the findings are in
+[`fmparser/AGENTS.md`](fmparser/AGENTS.md), [`docs/savefile-map.md`](docs/savefile-map.md),
+[`docs/table-framing.md`](docs/table-framing.md),
 [`docs/record-expansion.md`](docs/record-expansion.md) and
-[`docs/BUGS.md`](docs/BUGS.md). What the project is doing *next* is in one place,
-[`docs/TODO.md`](docs/TODO.md).
+[`docs/agent-context/`](docs/agent-context/MEMORY.md).
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Disclaimer
+
+This project reads save files that you create by playing a game you own, so that you can get
+more out of that game. It does not modify the game or its saves, bypass any protection, or
+include any of the game's code or database. Player, club and competition data appears only in
+the output you generate from your own save, on your own machine. Please don't redistribute that
+output in bulk.
+
+*Football Manager*, *Football Manager Mobile* and related names are trademarks of Sports
+Interactive Limited and SEGA, used here only to describe what the software is compatible with.
+
+## Licence
+
+[MIT](LICENSE) © Zac Hooper. The licence covers this project's code and documentation, not the
+game or any data drawn from it.
