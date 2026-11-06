@@ -4,7 +4,7 @@
     uv run python scripts/export_data.py                      # newest snapshot, default career
     uv run python scripts/export_data.py --snapshot 2028-05-09
     uv run python scripts/export_data.py --season 2028 --phase 2028-05-09
-    uv run python scripts/export_data.py --upload-all         # push all.json to R2
+    uv run python scripts/export_data.py --upload             # and push it to R2 (the Worker serves it)
 
 Design: ship DATA, not rendered answers. The app computes ratings itself, because a role
 rating is just `SUM(attribute x weight)` and the whole weight table is 5 KB — so shipping
@@ -111,6 +111,29 @@ def check_immersion(paths):
     return bad
 
 
+def upload(out, names):
+    """rclone the export to R2: all.json to site-data/, the rest to site-data/api/. Runs only
+    after the immersion check passed, so a leaking export never reaches the bucket.
+    Returns 0 on success."""
+    remote = fmconfig.require_r2_remote()
+    if shutil.which("rclone") is None:
+        print("  ! rclone not installed — nothing uploaded")
+        return 1
+    rest = [n for n in names if n != "all.json"]
+    steps = [["rclone", "copy", out, f"{remote}/site-data/api/"]
+             + [x for n in rest for x in ("--include", n)]]
+    if "all.json" in names:
+        steps.append(["rclone", "copyto", os.path.join(out, "all.json"),
+                      f"{remote}/site-data/all.json"])
+    for cmd in steps:
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f"  ! upload failed: {(r.stderr or '').strip()[:200]}")
+            return 1
+    print(f"  uploaded {len(names)} file(s) to {remote}/site-data/")
+    return 0
+
+
 class Site:
     """The site marts of one store, at one snapshot."""
 
@@ -183,8 +206,9 @@ def main():
     ap.add_argument("--phase", help="snapshot phase (date)")
     ap.add_argument("--out", default=os.path.join(REPO, "site", "api"))
     ap.add_argument("--method", help="default weight-set (the app can switch client-side)")
-    ap.add_argument("--upload-all", action="store_true",
-                    help="rclone all.json to R2 (where the Pages Function streams it from)")
+    ap.add_argument("--upload", "--upload-all", dest="upload", action="store_true",
+                    help="after a clean export, rclone every file to R2, where the Worker "
+                         "serves it (site-data/api/*.json, site-data/all.json)")
     ap.add_argument("--skip-all", action="store_true", help="skip the every-player file")
     ap.add_argument("--no-check", action="store_true")
     a = ap.parse_args()
@@ -312,20 +336,10 @@ def main():
         "note": "Every club in the save. No players or attributes here — see core.json (ladder "
                 "clubs, full attributes) or /api/all (every player) for those."})
 
-    all_path = os.path.join(out, "all.json")
     if not a.skip_all:
         emit("all.json", {"attrs": attrs, "fields": PROFILE_FIELDS,
                           "players": [player_row(p, attrs, True) for p in players],
                           "note": IMMERSION})
-        if a.upload_all:
-            if shutil.which("rclone") is None:
-                print("  ! rclone not installed — all.json not uploaded")
-            else:
-                r = subprocess.run(["rclone", "copyto", all_path,
-                                    f"{R2_REMOTE}/site-data/all.json"],
-                                   capture_output=True, text=True)
-                print("  uploaded all.json to R2" if r.returncode == 0
-                      else f"  ! upload failed: {(r.stderr or '').strip()[:120]}")
 
     # ------------------------------------------------------------ squad.json
     # Trajectories, spells and moves for the current squad; career history for everyone
@@ -784,6 +798,9 @@ def main():
                 print(f"  {f}: key {k!r}")
             return 1
         print("  immersion check: no raw-ability key in any exported file ✓")
+    if a.upload:
+        if upload(out, [n for n, _b, _g in written]):
+            return 1
     con.close()
     print(f"done: {len(written)} endpoints exported in {time.time() - t0:.1f}s")
     return 0

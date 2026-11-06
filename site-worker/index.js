@@ -7,8 +7,11 @@
  * handler's 404 rather than ours. Same logic, correct host.
  *
  * Routing: Cloudflare serves a matching static asset FIRST and only invokes this script when
- * nothing matches. So `/api/index.json`, `/api/core.json` and friends keep being served straight
- * off disk, and only the paths below — which have no file behind them — reach here.
+ * nothing matches. The app's code (HTML, JS, CSS, guides) is static assets, deployed from git.
+ * The DATA is not: `site/api/` is excluded from the assets (`site/.assetsignore`), so
+ * `/api/<name>.json` reaches here and is read from R2 (`site-data/api/<name>.json`, uploaded by
+ * `scripts/export_data.py --upload`). That keeps the save-derived data out of git, and lets a
+ * code-only push (or a preview build of a branch) deploy without touching the data.
  * `not_found_handling` is "none" because the app is hash-routed (`#/squad`), so every real path
  * is a real file and an SPA rewrite would swallow these endpoints.
  *
@@ -18,6 +21,8 @@
  */
 
 const ALL_KEY = "site-data/all.json";
+const API_PREFIX = "site-data/api/";
+const API_FILE = /^\/api\/([a-z_]+\.json)$/;
 const SHORTLIST_PREFIX = "state/shortlist/";
 const REGISTRATION_PREFIX = "state/registrations/";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
@@ -29,6 +34,8 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/all") return allPlayers(request, env);
+    const file = API_FILE.exec(url.pathname);
+    if (file) return dataFile(request, env, file[1]);
     if (url.pathname === "/api/shortlist") return shortlist(request, env);
     if (url.pathname === "/api/registrations") return registrations(request, env);
     // Not an asset and not an endpoint. Let the asset handler produce the 404 so the response
@@ -95,6 +102,36 @@ async function allPlayers(request, env) {
                    tid: tidFilter ? [...tidFilter] : undefined },
     count: players.length,
   }, 200, { etag, "cache-control": "public, max-age=300, stale-while-revalidate=86400" });
+}
+
+/**
+ * One exported data file (`index.json`, `core.json`, ...) from R2. Same caching as /api/all:
+ * the file only changes when a snapshot is exported, so a conditional request costs a 304.
+ * The name is matched against API_FILE, so only flat `<name>.json` keys under the prefix are
+ * reachable.
+ */
+async function dataFile(request, env, name) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return json({ error: `${request.method} not supported` }, 405);
+  }
+  const obj = await env.FM_STATE.get(API_PREFIX + name);
+  if (!obj) {
+    return json({
+      error: `${API_PREFIX}${name} is not in the bucket — run: `
+        + "uv run python scripts/export_data.py --upload",
+    }, 404);
+  }
+  const etag = obj.httpEtag;
+  if (request.headers.get("if-none-match") === etag) {
+    return new Response(null, { status: 304, headers: { etag } });
+  }
+  return new Response(request.method === "HEAD" ? null : obj.body, {
+    headers: {
+      ...JSON_HEADERS,
+      "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+      etag,
+    },
+  });
 }
 
 /** "12,34, 56" -> Set{12,34,56}; param absent/blank -> null (no filter requested — full file).
