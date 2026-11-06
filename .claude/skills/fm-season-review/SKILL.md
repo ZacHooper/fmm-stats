@@ -50,7 +50,7 @@ match once.*
 **[WHY]** `raw.*` holds one full row set per SNAPSHOT, and the match table is re-read on every
 import, so summing across snapshots double-counts, and joining on a bare `tid` multiplies every
 stat row by the number of snapshots the player appears in. The dbt models apply those rules once
-(`fmstats/CLAUDE.md`). If the models are missing, rebuild with `uv run python load_duckdb.py …`
+(`fmstats/AGENTS.md`). If the models are missing, rebuild with `uv run python load_duckdb.py …`
 rather than working around it.
 
 **2. Appeared ≠ named in the squad**

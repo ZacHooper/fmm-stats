@@ -387,7 +387,7 @@ are structural, not value-based:
    recognizable) is reusable for testing any future candidate location without needing more
    screenshots.
 2. **Diff two saves** where the same manager's formation/style actually changed, per
-   CLAUDE.md method #4 — the only test left that can distinguish "stored but still unfound"
+   AGENTS.md method #4 — the only test left that can distinguish "stored but still unfound"
    from "not persisted in the save at all" (e.g. computed from a static in-app real-manager
    database referenced by identity, the same way real crests/kits aren't in the save either).
 3. Ground truth is no longer the bottleneck (round 3 shows real managers give near-unlimited,

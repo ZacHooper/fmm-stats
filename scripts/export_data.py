@@ -14,7 +14,7 @@ offline, for every player, with no rebuild.
 
 The one thing the browser cannot derive is **level**: ability percentiles come from the game's
 overall-ability number, and that number must never leave the machine (house rule — see
-CLAUDE.md). So level percentiles are precomputed here, per (player, position) and per scope,
+AGENTS.md). So level percentiles are precomputed here, per (player, position) and per scope,
 and the ability itself is dropped. `check_immersion()` proves no raw-ability key made it out.
 
 Three files by size, because the budget is a phone on cellular:
@@ -776,13 +776,13 @@ def main():
                                       "FROM site.snapshots ORDER BY snapshot_date")],
         "ladder": [{"cid": c, "name": n} for c, n in ladder[:3]],
         "files": files,
-        "agent_guide": f"{SITE_URL}/AGENTS.md",
+        "agent_guide": f"{SITE_URL}/API.md",
         "guides": {"scout an opponent": f"{SITE_URL}/guides/scout.md",
                    "register the squad": f"{SITE_URL}/guides/registration.md"},
         "how_to_read_this": ("Rows in core/matches are POSITIONAL ARRAYS with a sibling "
                              "*_fields array naming the slots. Role ratings are NOT stored — "
                              "compute SUM(attribute x weight) from core.tactics, where an "
-                             "attribute the role does not list weighs 1. Read AGENTS.md "
+                             "attribute the role does not list weighs 1. Read API.md "
                              "first."),
         "counts": {n: {"bytes": b, "gzip": g} for n, b, g in written},
         "immersion_rule": IMMERSION,

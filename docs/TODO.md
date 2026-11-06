@@ -25,7 +25,7 @@ is organised around them:
 | **Site** | `site/`, `scripts/export_data.py` | a human-friendly view of the mart |
 
 Every parser table is on the `core` framework ([`parser-architecture.md`](parser-architecture.md))
-and the store is a dbt project ([`fmstats/CLAUDE.md`](../fmstats/CLAUDE.md)) whose build tests
+and the store is a dbt project ([`fmstats/AGENTS.md`](../fmstats/AGENTS.md)) whose build tests
 the real data as well as its structure (`fmstats/tests/`). The near-term work is the weight-set
 method (#18) and the docs (#22); the long tail is the parser: new bytes (every byte of the save
 processed), then understanding the bytes already read.
@@ -255,7 +255,7 @@ Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, Leag
 1 yel / 7.00, Continental 2 apps / 7.50 -- take a second player with different numbers to
 rule out coincidence, then search for the values next to his tid.
 
-### 11. Read the season rollover from the game, not from `careers.py`
+### 11. Read the season rollover from the game, not from config
 A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
 20 June, measured from the managed club's record and set per career as `Career.rollover`. A
 new career needs it measured again. The game holds it -- most likely each nation's calendar in
@@ -264,7 +264,7 @@ change at the rollover, and no fixed-offset season field exists in the first 14 
 **Drift mechanism confirmed:** the game's internal season loop ticks a strict 365 days rather than
 aligning with leap years. Every leap year (2024, 2028), the calendar rollover shifts backwards by
 one day (Denmark: 30 June in 2021-2023 -> 29 June in 2024-2027 -> 28/29 June in 2028). Recorded via
-`rollovers` in `careers.py` until dynamically read.
+`rollovers` in `fmm.toml` until dynamically read.
 
 
 ### 11a. Attribute decoder (low priority: exploring the game)
@@ -415,7 +415,7 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   in `fm-parser-project.md` and `day1-league-membership.md`, and re-sync `MEMORY.md`.
 - **Dead code on retired views**: `scripts/_export_db.py` still carries `build_loans` and the
   queries on `mart.snapshots`; `export_data.py` imports only `_json_clean` from it (the loan
-  outlook is `site.loan_outlook`). `site/AGENTS.md` still says the opponent's formation is not
+  outlook is `site.loan_outlook`). `site/API.md` still says the opponent's formation is not
   in the save, and `agent-context/etl-duckdb-dashboard.md` describes `fmq` and `scout.py`.
 - **Old TODO numbers** are still cited as live work in `table-framing.md`, `date-search.md`
   and `agent-context/light-results-rolling-buffer.md`.
@@ -437,6 +437,6 @@ to a newcomer and an agent — `parser-architecture.md` is the model for the par
   their headers: `frem/denmark-mid-22` 2021-10-02, `bucaspor/22-23-start` and
   `bucaspor/fm_save3` 2022-06-20 (check whether they are the same save),
   `bucaspor/fm_save1-24-mid` 2023-11-08; register or delete them.
-- **`careers.py` hardcodes `reserve_tid`** — the club record's `main_club_tid` could derive it.
+- **`reserve_tid` is configured by hand (fmm.toml)** — the club record's `main_club_tid` could derive it.
 - **Loader speed**: `orjson` for the JSON decode and flattened row construction in `load_core`
   measured ~2.9 s → ~1.6 s per snapshot.

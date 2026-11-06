@@ -69,7 +69,7 @@ rating_index   = 100 + 15 × (rating − unit_mean) / unit_sd  -- 100 = par for 
 ```
 
 `rating_index` deliberately reuses the house convention already used for role ratings
-(100 = pool mean, 15 = one sd — see `site/AGENTS.md`), so the two read the same way.
+(100 = pool mean, 15 = one sd — see `site/API.md`), so the two read the same way.
 
 ```sql
 WITH base AS (            -- baseline: OUR competitive starts, pooled across seasons

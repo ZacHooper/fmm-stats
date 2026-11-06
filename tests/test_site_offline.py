@@ -16,7 +16,7 @@ from tests.harness import FAIL, PASS, ROOT                                  # no
 SITE = os.path.join(ROOT, "site")
 # Not fetched by the app: agent notes, deploy config, the worker itself, and the gitignored
 # every-player file (cached separately, from /api/all or api/all.json).
-NOT_CACHED = {"CLAUDE.md", "AGENTS.md", ".assetsignore", "sw.js", "api/all.json"}
+NOT_CACHED = {"CLAUDE.md", "AGENTS.md", "API.md", ".assetsignore", "sw.js", "api/all.json"}
 EXPORT = os.path.join(ROOT, "scripts", "export_data.py")
 
 

@@ -31,7 +31,7 @@ is contiguous and the counters bound it, so no plausibility window is involved.
 
 Everything else is unread. **Fees are NOT located** — `+52`/`+53` vary with the transfer but not
 linearly with the fee (£200K → 23, £120K → 9, £300K → 53), and searching for the exact amounts
-finds nothing here. Money is displayed ROUNDED (CLAUDE.md §3), so any future search must use a
+finds nothing here. Money is displayed ROUNDED (AGENTS.md §3), so any future search must use a
 band, but a band search over ±25% did not find them either.
 
 ## `+61` is not a transfer date — correcting an earlier claim
@@ -71,7 +71,7 @@ earlier draft should not have implied it did.
 
 ## The column-offset trap applies — read `+0` from the NEXT record
 
-This is CLAUDE.md §5's trap, live: **a row's from-club belongs to the player on the PREVIOUS
+This is AGENTS.md §5's trap, live: **a row's from-club belongs to the player on the PREVIOUS
 row.** Graded against all 11 signings on the screenshot:
 
 | read | matches |

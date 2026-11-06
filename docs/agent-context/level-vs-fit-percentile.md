@@ -18,7 +18,7 @@ metadata:
 **Immersion guard (house rule).** The raw CA/PA number is NEVER surfaced. `effective_table` selects
 `* EXCLUDE (ca)` and computes `level_*` as `PERCENT_RANK(ca)` in the same window as the fit
 percentiles — so only the *percentile* ever leaves the query. `ca`/`pa` must stay out of every
-returned frame. This is an explicit allowed exception to "never surface CA/PA" (see CLAUDE.md); do
+returned frame. This is an explicit allowed exception to "never surface CA/PA" (see AGENTS.md); do
 NOT delete Level %ile thinking it violates the rule. Surfaced as "Fit %ile" / "Level %ile" on Home,
 Squad Tool, and Team pages (both our standouts and opponent key players).
 

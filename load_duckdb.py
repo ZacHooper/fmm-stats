@@ -1688,7 +1688,7 @@ def seed_career(con, key=None):
         key = store_career(con)
     car = careers.CAREERS.get(key) if key else None
     if car is None:
-        print(f"  ! career {key!r} is not a registered career (careers.py); "
+        print(f"  ! career {key!r} is not a registered career (fmm.toml); "
               f"career keys left unset")
         return
     for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
@@ -1850,12 +1850,13 @@ def main():
     ap = argparse.ArgumentParser(description="Load fm-parser extracts into DuckDB")
     ap.add_argument("path", nargs="?", help="output/<label> dir, or output root with --all; "
                                             "not needed with --refresh-only")
-    ap.add_argument("--db", default="fm.duckdb")
+    ap.add_argument("--db", help="the store (default: the career's own, fm-<career>.duckdb "
+                                 "from fmm.toml)")
     ap.add_argument("--all", action="store_true",
                     help="load every subdir of PATH containing summary.json")
     ap.add_argument("--include", default=",".join(GROUPS),
                     help=f"comma list of groups to load (default all: {','.join(GROUPS)})")
-    ap.add_argument("--career", help="the career these saves belong to (careers.py): "
+    ap.add_argument("--career", help="the career these saves belong to (fmm.toml): "
                     "places each snapshot in its campaign and checks its matches against "
                     "the fixture list (default: the career the store records)")
     ap.add_argument("--season", type=int)
@@ -1875,6 +1876,9 @@ def main():
                          "re-runs them; without this the only way was a full re-import.")
     args = ap.parse_args()
 
+    if args.db is None:
+        args.db = (careers.resolve_career(args.career).db
+                   if (args.career or careers.DEFAULT_CAREER) else "fm.duckdb")
     if args.path is None and not args.refresh_only:
         ap.error("path is required (or pass --refresh-only to just rebuild views + mart)")
 
@@ -1888,7 +1892,7 @@ def main():
         try:
             # Schema migrations first. A mart/view definition can depend on a raw COLUMN
             # that a store predating the change does not have, and --refresh-only is the
-            # documented way to apply a definition edit (see CLAUDE.md) — so without this the
+            # documented way to apply a definition edit (see AGENTS.md) — so without this the
             # refresh dies in create_mart with a Binder Error naming the missing column, and
             # the only recovery is a full re-import. Every entry in _MIGRATIONS is idempotent,
             # so running it on an already-current store is a no-op.

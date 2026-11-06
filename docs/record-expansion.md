@@ -7,7 +7,7 @@
 > from the parser's own tables and cannot go stale.
 
 **Started and finished 2026-09-16.** Six workstreams, all shipped — the manager STYLE field
-(§F) last, as a derivation rather than a stored field. Read [`CLAUDE.md`](../CLAUDE.md) and
+(§F) last, as a derivation rather than a stored field. Read [`AGENTS.md`](../AGENTS.md) and
 [`agent-context/fmm-editor-record-comparison.md`](agent-context/fmm-editor-record-comparison.md)
 first — the latter is the field-by-field map this all came from.
 
@@ -216,7 +216,7 @@ on `claude/pr-51-review-audit-un6rcv`. Full argument in the review comment on PR
 3. **No invariant was added for any of the 11 new staging tables or 9 new mart views**, so
    `validate_mart.py` passing meant nothing. `scripts/audit/audit_records.py` (STRIDE / COVERAGE /
    EXTENT) and density guards in `tests/test_staff_records.py` now cover this; the rules are
-   in `CLAUDE.md`.
+   in `AGENTS.md`.
 
 **The hidden attributes are now carried, and the player nine are NAMED** — `jumping`,
 `consistency`, `big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`,

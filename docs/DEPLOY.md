@@ -209,7 +209,7 @@ that drop it straight into DuckDB's extension cache, after which `LOAD httpfs` a
 used to be NULLed here, but `mart.player_position_fit`/`player_position_levels` both need `ca`
 to compute (Level %ile, Fit ratings), so a scrubbed copy meant a remote scout report always
 came back "0 rated players" regardless of the opponent. The immersion house rule (never
-*surface* the number — see CLAUDE.md) still applies to raw SQL access same as everywhere else;
+*surface* the number — see AGENTS.md) still applies to raw SQL access same as everywhere else;
 it's just enforced by the querier's judgement now rather than by the column being absent. The
 JSON export (`export_data.py` → `site/api/*.json`) is separate and keeps its own build-time
 enforcement (`export_data.py`'s `check_immersion()` fails the build on a raw-ability key at any depth) — that
@@ -217,7 +217,7 @@ path is unaffected. The live store is opened read-only and is never touched — 
 single-writer-safe fallback `export_data.py` uses, so this is safe to run with a dashboard open.
 
 Needs `rclone` configured against the `r2:` remote to actually upload (see the main README /
-CLAUDE.md for setup); without it, `--upload` fails with a clear message and `--out <path>` still
+AGENTS.md for setup); without it, `--upload` fails with a clear message and `--out <path>` still
 lets you produce and inspect the published copy locally.
 
 Preview locally before pushing:
