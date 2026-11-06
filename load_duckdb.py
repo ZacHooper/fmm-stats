@@ -33,6 +33,7 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 # The field lists and reference constants the parser declares.
 from fmparser.model import ATTR_ORDER
 import careers
+import fmconfig
 from fmparser.tables.matches import EVENT_TYPE, check_against_fixtures
 
 # ---------------------------------------------------------------------------
@@ -1692,7 +1693,8 @@ def seed_career(con, key=None):
         return
     for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
                  ("career_managed_tid", str(car.managed_tid)),
-                 ("career_rollover", "{:02d}-{:02d}".format(*car.rollover))):
+                 ("career_rollover", "{:02d}-{:02d}".format(*car.rollover)),
+                 ("immersion_hide_ability", str(fmconfig.hide_ability()).lower())):
         con.execute("DELETE FROM raw.app_config WHERE key = ?", [k])
         if v is not None:
             con.execute("INSERT INTO raw.app_config VALUES (?, ?)", [k, v])

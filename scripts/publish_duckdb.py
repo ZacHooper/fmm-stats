@@ -158,11 +158,12 @@ def compact(con):
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 from dbopen import open_readonly as _open_readonly                    # noqa: E402
 
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+R2_REMOTE = fmconfig.r2_remote()
 
 
 def main():
@@ -235,7 +236,7 @@ def main():
             raise SystemExit(f"rclone not installed — can't upload. Install rclone and "
                              f"configure the '{R2_REMOTE}' remote, or drop --upload and push "
                              f"{os.path.basename(dest)} to R2 yourself.")
-        remote = f"{R2_REMOTE}/site-data/fm-{car.key}.duckdb"
+        remote = f"{fmconfig.require_r2_remote()}/site-data/fm-{car.key}.duckdb"
         print(f"uploading {os.path.basename(dest)} ({size / 1024 / 1024:.1f} MB) to {remote} ...", flush=True)
         t0 = time.time()
         r = subprocess.run(["rclone", "copyto", "--stats", "15s", "-v", dest, remote])

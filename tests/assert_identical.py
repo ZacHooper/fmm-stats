@@ -48,7 +48,9 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ORACLE_DIR = os.path.join(REPO, ".oracle")
 BASELINE = os.path.join(ORACLE_DIR, "baseline.json")
-SAVES_DIR = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
+sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
+SAVES_DIR = fmconfig.saves_dir()
 
 # (career folder under $FM_SAVES_DIR, save basename). Only the folder: extract reads a save
 # the same whatever career it belongs to.

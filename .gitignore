@@ -1,3 +1,6 @@
+# Your own settings (careers, storage, deploy URL, play style). Template: fmm.example.toml.
+fmm.toml
+
 # Save files — large, personal, never commit
 *.fms
 

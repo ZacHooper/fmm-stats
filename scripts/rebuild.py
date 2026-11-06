@@ -41,12 +41,13 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
 
 import careers                                                       # noqa: E402
 
 MANIFEST = os.path.join(REPO, "seeds", "manifest.csv")
-SAVES_DIR = os.path.expanduser(os.environ.get("FM_SAVES_DIR", "~/fm-saves"))
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+SAVES_DIR = fmconfig.saves_dir()
+R2_REMOTE = fmconfig.r2_remote()
 
 
 def read_manifest():
@@ -74,9 +75,9 @@ def fetch_save(career, save_file, dry_run=False):
         if dry_run:
             print(f"    would fetch {remote}")
             return raw
-        if not have_rclone():
+        if not have_rclone() or not R2_REMOTE:
             print(f"    ! missing {raw} and rclone isn't installed. Either drop the save "
-                  f"there by hand or install rclone and configure the '{R2_REMOTE}' remote.")
+                  f"there by hand or install rclone and set [storage] r2_remote in fmm.toml.")
             return None
         os.makedirs(local_dir, exist_ok=True)
         print(f"    fetching {remote}")
@@ -187,8 +188,8 @@ def main():
         by_career.setdefault(r["career"], []).append(r)
 
     print(f"rebuilding {len(rows)} snapshot(s) across {len(by_career)} career(s)")
-    print(f"  saves dir : {SAVES_DIR}   (override with FM_SAVES_DIR)")
-    print(f"  r2 remote : {R2_REMOTE}   (override with FM_R2_REMOTE)"
+    print(f"  saves dir : {SAVES_DIR}   (fmm.toml [storage] or FM_SAVES_DIR)")
+    print(f"  r2 remote : {R2_REMOTE}   (fmm.toml [storage] or FM_R2_REMOTE)"
           f"{'' if have_rclone() else '   [rclone NOT installed]'}")
     t0 = time.time()
     done, failed, skipped = 0, [], []

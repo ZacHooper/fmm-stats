@@ -38,15 +38,16 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+import fmconfig  # noqa: E402
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
 from _export_db import _json_clean                                         # noqa: E402
 from dbopen import open_readonly as _open_readonly                    # noqa: E402
 
-R2_REMOTE = os.environ.get("FM_R2_REMOTE", "r2:fmm-stats")
+R2_REMOTE = fmconfig.r2_remote()
 # Absolute, because an agent that only ever saw index.json (no page it was linked from) has no
 # base URL to resolve a relative path against — it can only follow links it can already see.
-SITE_URL = os.environ.get("FM_SITE_URL", "https://fmm-stats.zac-g-hooper.workers.dev")
+SITE_URL = fmconfig.site_url()
 BANNED_KEYS = {"ca", "pa", "current_ability", "potential_ability", "aca"}
 IMMERSION = ("Ability is expressed as percentiles and division ranks only — the raw ability "
              "number never leaves the machine that built this.")
@@ -773,7 +774,9 @@ def main():
         "immersion_rule": IMMERSION,
         "caveats": INDEX_CAVEATS})
 
-    if not a.no_check:
+    if a.no_check or not fmconfig.hide_ability():
+        print("  immersion check skipped (--no-check, or [immersion] hide_ability = false)")
+    else:
         bad = check_immersion([os.path.join(out, n) for n, _b, _g in written])
         if bad:
             print("\nIMMERSION RULE VIOLATED — raw ability leaked into exported JSON:")

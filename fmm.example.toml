@@ -1,0 +1,46 @@
+# fmm.toml — YOUR settings. Copy this file to fmm.toml (gitignored) and edit.
+#
+#   cp fmm.example.toml fmm.toml
+#
+# Environment variables override any value here: FM_CONFIG (path to this file), FM_CAREER,
+# FM_SAVES_DIR, FM_R2_REMOTE, FM_SITE_URL, FM_HIDE_ABILITY.
+
+# ---------------------------------------------------------------------------- careers
+# One table per career you manage. Each career gets its own DuckDB store.
+# Find your club's tids with:  uv run python scripts/discover_career.py <your-save.fms>
+[careers]
+default = "mycareer"            # used when --career is not given
+
+[careers.mycareer]
+name = "My Club"
+managed_tid = 0                 # your first team's club tid (discover_career.py)
+reserve_tid = 0                 # its reserve / B side, if it has one (delete the line if not)
+# db = "fm-mycareer.duckdb"     # default: fm-<key>.duckdb
+# The day the game starts a new season in this country, as [month, day]. It follows the
+# home calendar (Denmark 30 June, Turkey 20 June). discover_career.py prints a hint.
+rollover = [6, 30]
+# Per-year overrides when the in-game calendar drifts (the engine skips leap days):
+# rollovers = { 2028 = [6, 29] }
+# The role-weight set your squad is rated with (seeds/role_weights.csv, column `method`).
+rating_method = "frem_minmax_4231"
+# active = false                # keep the saves, stop rebuilding this career's store
+
+# ---------------------------------------------------------------------------- play style
+# How YOU like to play. These change what the export publishes and what agents tell you.
+[immersion]
+# Never surface the raw current/potential ability (CA/PA) number: the export refuses to
+# publish it, and agents reason with percentiles, role fit and attributes instead. Set false
+# if you don't mind seeing it: agents may then quote it, and the export's guard is lifted.
+hide_ability = true
+
+# ---------------------------------------------------------------------------- storage
+[storage]
+saves_dir = "~/fm-saves"        # raw saves, one folder per career: <saves_dir>/<career>/
+# An rclone remote:bucket for the save archive and published data (Cloudflare R2 or any
+# S3-compatible store). Leave unset to keep everything local.
+# r2_remote = "r2:my-bucket"
+
+# ---------------------------------------------------------------------------- site
+[site]
+# Where your web app is deployed (see docs/DEPLOY.md). Leave unset for local use only.
+# url = "https://my-fmm-stats.example.workers.dev"
