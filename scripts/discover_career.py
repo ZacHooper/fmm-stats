@@ -115,6 +115,6 @@ def discover(path, write=False):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if a != "--write"]
-    if len(args) != 1:
+    if len(args) != 1 or args[0] in ("-h", "--help"):
         sys.exit("usage: uv run python scripts/discover_career.py <save.fms> [--write]")
     sys.exit(discover(args[0], write="--write" in sys.argv[1:]))
