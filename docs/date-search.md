@@ -15,7 +15,7 @@ search but we've never examined: **~36–38 MB and ~63–64 MB**.
 Two encodings seen so far:
 1. **day-of-year + year, both u16 little-endian** — used by detailed matches AND the light
    results. Year: `e5 07`=2021, `e6 07`=2022, `e4 07`=2020. Example: 30 Apr 2022 = day 120 =
-   bytes **`78 00 e6 07`**. (Confirmed: BUGS #12c decoded day 304/2021 = 31 Oct 2021.)
+   bytes **`78 00 e6 07`**.
 2. **day-of-month + month + year** (the tagged data dictionary's rule files,
    `fmparser/tables/rule_files.py`) — separate `dyom`,`mont`,`year` fields. Less useful as a
    search key.
@@ -111,6 +111,7 @@ Regenerate this table any time:
   (TID→name), `fmparser/staging.py::scrape_players` (valid club TID set).
 - Known club TIDs: Bucaspor 6567, Karacabey 6353, Galatasaray 955, Alanyaspor 1693. White
   Group (comp 228) has 18 clubs (see opp column above for most of them).
-- What's already mapped (don't re-derive): 48.1–49.5 MB partial results, 42.83–48.1 MB a
+- What's already mapped (don't re-derive): 48.1–49.5 MB the Club History records
+  ([`docs/parser/club_records.md`](parser/club_records.md)), 42.83–48.1 MB a
   ~375k-entry index (no dates found), 55–63 MB detailed match stats, hard padding boundary
-  at 42.78–42.83 MB. See docs/BUGS.md #12b/#12c.
+  at 42.78–42.83 MB. See docs/BUGS.md #12b.

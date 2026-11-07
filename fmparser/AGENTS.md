@@ -2,7 +2,11 @@
 
 Loaded when working under `fmparser/`. Read this before changing the parser or hunting a new field.
 
-## How the parser works — [`docs/parser-architecture.md`](docs/parser-architecture.md)
+**One doc per table: [`docs/parser/`](../docs/parser/)** (layout, provenance against an in-game
+screen, quirks, output). Read the table's doc before changing its module. Tables without a doc
+yet are still described in the module's docstring and [`docs/savefile-map.md`](../docs/savefile-map.md).
+
+## How the parser works — [`docs/parser-architecture.md`](../docs/parser-architecture.md)
 **The one doc to read before changing `fmparser/`.** It carries the idea the parser is
 organised around — *a locator shape tells you how to FIND a record, a declared layout tells
 you how to READ it* — as the **seven-shape locator table** (count-framed / linked list /
@@ -30,7 +34,7 @@ gate that has never failed is not evidence — break something on purpose once.
 ## Reverse-engineering method: ALWAYS region-first, then structural
 When locating a **new field** in the save, do NOT start by guessing byte offsets. Follow this order —
 it has repeatedly turned multi-hour hunts into quick finds. (Which *kind* of locator you are
-building is [`docs/parser-architecture.md`](docs/parser-architecture.md) Part 1; this is how
+building is [`docs/parser-architecture.md`](../docs/parser-architecture.md) Part 1; this is how
 you find it in the first place.)
 
 0. **Profile it by BLOCK ENTROPY first** — `uv run python scripts/audit/entropy_profile.py <save.fms>`.
@@ -80,7 +84,7 @@ you find it in the first place.)
    never `== 8` (the preceding record can end in FF). It also works as a SEARCH strategy, but
    only with a real validator behind it — the sentinel alone occurs 566,078 times in one save;
    derive a candidate stride from the count and then require `id == slot index` on every
-   declared record. Read [`docs/table-framing.md`](docs/table-framing.md) before walking any new
+   declared record. Read [`docs/table-framing.md`](../docs/table-framing.md) before walking any new
    table, and note what it says you CANNOT find that way.
 8. **Encodings cheat-sheet:** money = raw currency (`2000` = £2K) but shown rounded; dates =
    `[day-of-year u16][year u16]` (see DOB in `staging.scrape_players`); seasons coded `1971 + n`.

@@ -221,6 +221,14 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 85% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
+- **Club facility fields may be swapped** (`tables/clubs.py`, `int.team_snapshots`). On
+  frem-2030-06-22 the Club Information screens fit one star scale only if `academy` (+149) is
+  TRAINING and `facilities` (+150) is YOUTH, the reverse of fmm-editor's names and of
+  `training_facilities` / `youth_facilities` in the store
+  ([`docs/parser/clubs.md`](parser/clubs.md)). Settle it with one more club whose two values
+  differ widely (Stoke City: 16 and 20), then rename in the parser and the store together. In
+  the same record, `main_club_tid`'s `0 < tid` filter drops the one parent that is tid 0
+  (Algeria U21 → Algeria).
 - **`att_avg` / `att_min` / `att_max`** in the club record: read correctly, but the names from
   fmm-editor fail every check (a 12,500 ceiling, multiples of 100, Barcelona's max below its
   avg). Not attendance — `mart.club_attendance` is. Carried in `raw.club_details` only.

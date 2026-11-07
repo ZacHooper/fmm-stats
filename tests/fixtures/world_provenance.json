@@ -1,0 +1,77 @@
+{
+  "_about": "Values read off in-game screens of frem-2030-06-22 (docs/parser/img/), the raw bytes behind them, and what the parser must make of them. Guarded by tests/test_world_provenance.py; the tables are documented in docs/parser/.",
+  "save": "frem-2030-06-22.fms",
+  "save_header": {"title": "22/6/30 - Mr Manager (Frem)", "date": "2030-06-22",
+                  "manager": "Mr Manager", "nickname": "Frem"},
+  "clubs": {
+    "346": {"name": "Boldklubben Frem", "short": "Frem", "based_id": 138, "nation_id": 138,
+            "status": 1, "academy": 18, "facilities": 20, "league_id": 2, "stadium_id": 181,
+            "reputation": 6494,
+            "squad_includes": [13304, 10404, 10198, 9468, 10446, 10527, 10027, 10402, 10447, 29101]},
+    "426": {"name": "Cardiff City", "based_id": 139, "nation_id": 175, "status": 1,
+            "academy": 19, "facilities": 15, "league_id": 6, "stadium_id": 4261,
+            "reputation": 5371, "kit_first_colours": ["#0050b8", "#f07878", "#f8f8f0"],
+            "manager_not_in_staff": 3037}
+  },
+  "stadiums": {
+    "181": {"name": "Valby Idrætspark", "capacity": 30000, "city_id": 58},
+    "4261": {"name": "Cardiff City Stadium", "capacity": 33280},
+    "177": {"name": "Parken", "capacity": 38065, "city_id": 58}
+  },
+  "cities": {"58": {"nation_id": 138, "latitude": 55.6761, "longitude": 12.5683}},
+  "nations": {
+    "138": {"name": "Denmark", "season_columns": [7.4, 8.375], "total": 76.4,
+            "capital_city_id": 58, "national_stadium_id": 177},
+    "150": {"name": "Italy", "season_columns": [19.429, 19.286], "total": 184.571},
+    "158": {"name": "Holland", "season_columns": [16.0, 8.1], "total": 99.9},
+    "129": {"name": "Austria", "season_columns": [8.5, 10.3], "total": 76.1}
+  },
+  "languages": {"31": {"name": "Danish", "nation_id": 138},
+                "112": {"name": "Welsh", "nation_id": 175}},
+  "club_records": {
+    "club_tid": 346,
+    "_team": "slot, value, comp_cid, season, day, opponent_tid, score_for, score_against (Team Records - Overall)",
+    "team": [
+      [0, 1.0, 2, 2028, null, null, null, null],
+      [1, 1.0, 1147, 2021, null, null, null, null],
+      [2, 9.0, 263, 2029, 268, 5256, 8, 1],
+      [3, 8.0, 3, 2023, 139, 328, 2, 6],
+      [4, 8.0, 263, 2021, 244, null, 8, 0],
+      [5, 6.0, 2, 2025, 73, null, 6, 0],
+      [6, -4.0, 3, 2023, 139, 328, 2, 6],
+      [8, 10.0, null, null, null, null, null, null],
+      [9, 23.0, null, null, null, null, null, null],
+      [10, 8.0, null, null, null, null, null, null],
+      [11, 6.0, null, null, null, null, null, null]
+    ],
+    "_player": "slot, player_tid (null: not checked), value, season (Player Records - Overall)",
+    "player": [
+      [0, 9858, 30.0, 2023], [1, 9858, 30.0, 2023], [2, null, 13.0, 2027],
+      [3, 9858, 8.34, 2023], [4, 9858, 12.0, 2023], [5, null, 9.0, 2023],
+      [6, null, 1.0, 2021], [7, 10404, 47.0, 2027], [8, 29751, 5917.0, null],
+      [9, 9231, 12466.0, null], [10, null, 7383382.0, 2026], [11, null, 19000000.0, 2029]
+    ],
+    "_league_history": "cid, start year, position, teams (League History)",
+    "league_history": [[2, 2025, 3, 12], [2, 2024, 6, 12], [3, 2023, 1, 12],
+                       [4, 2022, 1, 12], [1147, 2021, 1, 12]]
+  },
+  "_raw": "byte offset, hex, what it is",
+  "raw": [
+    [0, "32322f362f3330202d204d72204d616e616765722028467265 6d2900", "save title"],
+    [6501332, "5a010000fb010000", "Frem: tid 346, uid 507"],
+    [6501378, "8a008a00", "Frem: based_id, nation_id 138"],
+    [6501526, "011214", "Frem: status 1, academy 18, facilities 20"],
+    [6501541, "b500", "Frem: stadium_id 181"],
+    [6546328, "8b00af00", "Cardiff: based_id 139, nation_id 175"],
+    [6546476, "01130f", "Cardiff: status 1, academy 19, facilities 15"],
+    [12783119, "b50000004b0300003a00307500 00d8d60000", "stadium 181: id, uid, city, capacity, expansion"],
+    [13452966, "3a00460000008a0053b45e42e9174941", "city 58: id, uid, nation, lat, lon"],
+    [12759427, "0b00008440000008 41cdccec4000000641", "Denmark: coefficient count 11, slots 0-3"],
+    [13957127, "1f00200000000600000044616e697368", "language 31: id, uid, 'Danish'"],
+    [13946062, "17000c00000044616e697368204b726f6e65f12f0b41", "Danish Krone, rate 8.699204"],
+    [46718823, "5a0104", "club_records: Frem tid 346, 4 league lists"],
+    [46718835, "020003e9070c00", "League History: 2025/26 cid 2, 3rd of 12"],
+    [46719716, "000010410701ed070c010800ffff025a01881408 01", "Team Records slot 2: 8-1 v Hedensted"],
+    [46720102, "37740000 00e8b845", "Player Records slot 8: tid 29751, 5917 days"]
+  ]
+}

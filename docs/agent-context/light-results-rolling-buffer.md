@@ -37,5 +37,5 @@ Everything the note treated as evidence of a ring buffer has a simpler cause:
 `lightresults.club_leagues()` / `leagues()` remain sound as a club->league MEMBERSHIP source.
 Do not build a fixture list or a league table from them.
 
-Full write-up: [`docs/light-results-record.md`](../light-results-record.md). The hunt for
+Full write-up: [`docs/parser/club_records.md`](../parser/club_records.md). The hunt for
 complete results continues in [`docs/TODO.md`](../TODO.md) #4 — and it is not in this region.

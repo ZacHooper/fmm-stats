@@ -59,15 +59,15 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | *unnamed, 7 B* | 6,263,016 | u32 | 816 | — |
 | *unnamed, 99 B* | 6,268,740 | u32 | 622 | — |
 | *round/leg names* | 6,330,330 | u32 | 273 | — |
-| **clubs + national teams** | **6,340,458** | u32 | **11,331** | ~4,700 via a scan |
+| **[clubs + national teams](parser/clubs.md)** | **6,340,458** | u32 | **11,331** | 11,331 ✓ |
 | competitions | 12,626,907 | u16 | 1,372 | 1,372 ✓ |
-| nations | **12,776,737** | u16 | **251** | 227 |
-| stadiums | 12,816,567 | u16 | 15,987 | 15,987 ✓ |
-| cities | 13,492,220 | u16 | 10,956 | 10,956 ✓ |
+| [nations](parser/nations.md) | **12,776,737** | u16 | **251** | 251 ✓ |
+| [stadiums](parser/stadiums.md) | 12,816,567 | u16 | 15,987 | 15,987 ✓ |
+| [cities](parser/cities.md) | 13,492,220 | u16 | 10,956 | 10,956 ✓ |
 | **awards** | **13,711,352** | u32 | **807** | — |
-| currencies | 13,985,965 | u16 | 173 | 94 |
+| [currencies](parser/currencies.md) | 13,985,965 | u16 | 173 | 173 ✓ |
 | *unnamed, 7 B* | 13,990,354 | u16 | 888 | — |
-| languages | 13,996,580 | u16 | 124 | 77 |
+| [languages](parser/languages.md) | 13,996,580 | u16 | 124 | 124 ✓ |
 | **person table (info spine)** | **572,042** (after a `01` header byte) | u32 | **32,966** | 32,966 ✓ |
 | surname id-table | 37,878,967 | u32 | 32,148 | 28,624 |
 | first-name id-table | 38,393,347 | u32 | 19,128 | 15,366 |
@@ -108,16 +108,16 @@ looks back 128 bytes, and compares any count it finds against the records we act
 | cities | 10956 | 10956 | ✓ |
 | stadiums | 15987 | 15987 | ✓ |
 | history slab | 265423 | 265423 | ✓ already used |
-| **languages** | **124** | 77 | **47 short** |
-| **currencies** | **173** | 94 | **79 short** |
+| languages | 124 | 124 | ✓ |
+| currencies | 173 | 173 | ✓ |
 | **surname id-table** | **32148** | 28624 | 3,524 short |
 | **first-name id-table** | **19128** | 15366 | 3,762 short |
 | **staff attributes** | **4642** | 4150 | 492 short |
 | **player attributes** | **26505** | 26518 | **13 over** |
-| nations | — | 227 | no header at the located start |
+| nations | 251 | 251 | ✓ |
 | browse names | (60000) | 45942 | not a count — see below |
 | **info spine** | **32966** | 32966 | read in full since 2026-09-29, see below |
-| clubs | — | — | no located table at all |
+| clubs | 11331 | 11331 | ✓ |
 
 `--confirm` re-checks each declared count against the **table's own invariant** rather than
 against our parser, which is both cheaper and stronger evidence: **238/238 confirmed, zero
@@ -133,37 +133,14 @@ tally doubles as the constant-across-a-career test.
 > 2,424 people have their real display names. One claim below is also CORRECTED rather than
 > fixed — see "the staff grid" at the end.
 
-### The two that lose real data
+### Three that lost real data
 
-**Nations — a range gate that excludes id 0.** The nation table declares **251** and
-`scrape_nations` returns 227. Its header was missed at first because the locator's "first
-record" was nation id **1** (Angola, 12,776,923): the real record 0 sits 188 bytes earlier at
-**12,776,737** and is `[uid 5][id 0][7]'Algeria'`. `_nation_candidates` requires
-`1 <= nid <= 4096`, so **Algeria is rejected by the gate and missing from the nation table
-entirely.** 24 declared ids are absent in total; whether the other 23 are blank slots or
-further misses is NOT yet established.
-
-**Languages — an empty name field.** `lookups._language_at` stops at slot 77, 'Malayalam',
-whose `OtherName` is zero-length; `_string` requires `1 <= ln`. A walk that tolerates a
-zero-length string reaches **exactly 124** and stops. Among the 47 lost: Berber (Tamazight)
-and the game's own UI locales (Latin American, Brazilian, Chinese Simplified/Traditional,
-English US), which carry uid 1,000,000+.
-
-This is the *same failure* the competition table had — cid 172 'Welsh First Division' with an
-empty code field — found independently one table over. **An empty length-prefixed string is
-data, not a terminator.**
-
-**Currencies — a uid range gate.** `lookups._currency_at` rejects `uid > 4096`. Slot 94 is
-'Macao Pataca', uid 51535. A walk without the gate reaches **exactly 173**, then hits filler.
-Lost: West African CFA franc, Central African CFA Franc, Nigerian Naira, Bolivian Boliviano,
-Guatemalan Quetzal, Honduran Lempira, Nicaraguan Córdoba and 72 more.
-
-This is the **fourth uid range gate in this codebase to cut a table short** — see
-`reference.py` on the other three (`uid >= 1000` skipping every top division, the
-400,000,000 club ceiling, `_CLUB_UID_FILL_LO/HI`). A uid is an identifier, not a range.
-
-Both counts are **identical across both careers** (124 and 173 on all 34 saves) and both
-parsers read the same 77 and 94 everywhere, so this has been a constant, silent loss.
+Nations (a gate that excluded id 0, Algeria), languages (an empty `OtherName` read as the end)
+and currencies (a `uid <= 4096` gate): each lost real records on every save until it was walked
+by its declared count. What each one teaches is a callout in the table's doc:
+[nations](parser/nations.md), [languages](parser/languages.md),
+[currencies](parser/currencies.md). **An empty length-prefixed string is data, not a
+terminator, and a uid is an identifier, not a range.**
 
 ### The three that are structural, not data loss
 
@@ -350,45 +327,11 @@ nickname, so it is NOT the link `_scrape_nicknamed` follows."* The measured rate
 range `_scrape_nicknamed` keys on (`+16`, the `NO_NICKNAME` sentinel). So both halves of that
 comment are wrong: the field is the nickname link, and it now has a table to resolve against.
 
-#### THE CLUB TABLE: 11,331 records at 6,340,458, `tid == slot index`
+#### The club table: 11,331 records at 6,340,458, `tid == slot index`
 
-**The single biggest result of this work, and it came from chaining, not searching.** TODO #16
-recorded that clubs were the one table with no locatable structure — the candidate scan's
-accepted records sprawled across one 6.4 MB run whose first entry was junk, so there was no
-"record 0" to look behind. That was true only because nobody had walked the chain into the
-6.33–12.63 MB gap.
-
-```
-6,340,446   8 x FF                      <- sentinel
-6,340,454   u32 = 11331                 <- declared count
-6,340,458   [tid 0][uid 0xFFFFFFFB][7]'Algeria'[00][7]'Algeria'[00][3]'ALG' ...
-```
-
-- **`tid` IS the slot index, and the table is dense: 11,331 of 11,331 tids resolve, zero gaps**
-  (ids 0..11,330 against a declared 11,331).
-- Ground truth is exact: `tid 346` = `'Boldklubben Frem' / 'Frem' / 'Frem'`, `tid 7296` =
-  `'Boldklubben Frem Reserves'` — the two tids `careers.py` has always used.
-- It runs from 6,340,458 to the competition table's own header at 12,626,905, so **the whole
-  6.3 MB gap is this one table.**
-- It holds more than clubs. Low tids are **national teams** in the club layout, alphabetically
-  (`0 Algeria, 1 Angola, 2 Benin, 3 Botswana, 4 Burkina Faso, 5 Burundi, 6 Cameroon, …`) with
-  descending negative uids (`0xFFFFFFFB, 0xFFFFFFFA, …`); real clubs start around tid 61
-  (`'Asociación Atlética Argentinos Juniors'`); reserve sides sit high (`7296`); and the table
-  **ends with U21 national teams** (`11328 'Tuvalu U21'`, `11329 'Montenegro U21'`,
-  `11330 'Saint Barthélemy U21'`).
-
-That last point resolves the other half of TODO #16 by construction: national teams are not
-invisible records the club scan happens to miss, they are **rows 0..~200 of the club table**,
-and the reason 153 low tids were resolving to `'Footballer of the Year'` and friends is that
-the scan never found this table and was matching award records (13,711,352) instead.
-
-**What is NOT yet done: the record's trailer.** The head is
-`[tid u32][uid u32][len][long][00][len][short][00][len][code]`, and a **fixed** 491-byte
-trailer walks the first 62 records exactly (the whole CAF national-team block) and then
-breaks, so the trailer carries something variable-length. The extent, the count, the index
-invariant and the anchor are all established; converting `_eval_club_candidate` into a pure
-structural walk needs only that trailer decoded, and until then a tid-keyed scan bounded by
-this table's declared extent is already strictly better than scanning 20 MB of REFDATA.
+Found by chaining from the round-name table's declared end, and it runs to the competition
+table's own header: the whole 6.3 MB gap is this one table. National teams and U21 sides are
+rows of it. Documented in [`docs/parser/clubs.md`](parser/clubs.md).
 
 #### The award table: 807 records at 13,711,352
 
@@ -600,7 +543,7 @@ lesson is that **chaining forward from a known table's declared end beats any de
 because the declared count makes each table's extent known and therefore makes the next
 table's header findable with no search at all. The file's bulk lives in regions with different framing entirely — the
 ~47 MB of per-club Club History record tables
-([`light-results-record.md`](light-results-record.md)), the tagged data dictionary
+([`docs/parser/club_records.md`](parser/club_records.md)), the tagged data dictionary
 (`fmparser/tables/rule_files.py`, count-framed tagged blocks with no FF sentinel), the match
 region, and the history slab. None of those is a sentinel-framed grid, so none of them should
 be expected here.

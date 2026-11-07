@@ -45,7 +45,7 @@ that do not fit the four regimes.
 | **B. Linked list** | each row holds the NEXT row's index (`FFFFFFFF` ends a chain); the rows it has not moved name the pool's base | the forest check on every row: no row reached twice, no pointer out of the pool, and every row on a chain from a head (`core.forest`) | career-history pool |
 | **C. Preallocated grid** | ships full of empty-sentinel rows and grows; the slot count is a *bound*, not a headcount | a residue class mod stride, plus the grid's own dense-from-0 invariant | match slots (3,975), player progress (62,400 × 70 B, seeded from its unused-row template and walked both ways), the record blocks inside each club-records row (25,368 empty rows on day one), contract grid (32,961 × 83 B), **staff attributes (4,642 × 39 B, `id2 == slot`)** |
 | **D. Archive member** | zstd container with a directory at the tail | the directory names the member and its length | `fix_man`, `stadium`, `comp_<id>.dat` ×147 |
-| **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, `min_chain` times | stadiums, languages, currencies |
+| **E. Seeded chain** | variable-length records, **no count and no index** | this record's length field lands exactly on the next one, run after run | player lists, browse names |
 | **F. Key search, no table** | find *N* copies of a record by key bytes; disambiguate | the info spine, or recency | none: both records once read this way are table rows (below) |
 | **G. Terminated array** | rows one after another with **no count**; the array ends at a marker, a delimiter or a filler wall | landing exactly on that end | squad snapshot |
 
@@ -198,17 +198,19 @@ single fact turns almost every "can the archive replace our parser?" answer from
 
 ### E. Seeded chain — variable-length, no count, no index
 
-Stadiums, languages and currencies are variable-length records with no framing and no ids to
-check against. The only structure available is that **a record's length fields land exactly on
-the start of the next record**, so `min_chain` consecutive successful parses is a signature
-noise does not produce. `lookups._walk` implements it.
+Variable-length records with no count frame and no ids to check against. The only structure
+available is that **a record's length fields land exactly on the start of the next record**, so
+a run of consecutive successful parses is a signature noise does not produce. Stadiums,
+languages and currencies look like this shape but carry a count frame, so they are walked as
+shape A ([stadiums](parser/stadiums.md), [languages](parser/languages.md),
+[currencies](parser/currencies.md)): look for the frame before settling for a seed.
 
 **How it fails, and it is the subtle one.** The seed is merely *the first place the signature
 matched*, which is not the first record. For languages that is wherever `Name == OtherName`
 first happens to hold — seeding there would silently drop ids 0–6 and every count downstream
-would be short by six with nothing to notice it. `_walk` therefore **rewinds**: it steps back
-looking for a record that ends exactly where the current one starts, and repeats until it
-cannot. A bad seed shifts the whole table and nothing complains.
+would be short by six with nothing to notice it. A seeded walk therefore has to **rewind**:
+step back looking for a record that ends exactly where the current one starts, and repeat until
+it cannot. A bad seed shifts the whole table and nothing complains.
 
 **The player lists are the same shape, walked both ways** (`tables/player_lists.py`). 66
 lists of `[100 scrapbook entries][14-byte trailer]`, each entry eight
