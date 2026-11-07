@@ -48,7 +48,12 @@ _TS_KEYS = ["shots", "shots_on_target", "rating", "players_used", "passes",
 # pos_order; the rest map straight through.
 _XI = ["posOrder", "tid", "rating", "goals", "assists", "passA", "passC", "keyPass",
        "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC", "dribbles",
-       "mistakes", "mistGoal", "shotA", "shotO", "condition", "subOn", "subOff", "yellow"]
+       "mistakes", "mistGoal", "shotA", "shotO", "condition", "subOn", "subOff", "yellow",
+       "sentOff"]
+
+# the counts each side's team head stores (fmparser/tables/matches.py TEAM_HEAD), inlined
+# onto matches as home_* / away_*
+_TH_KEYS = ["corners", "clear_cut_chances", "offsides"]
 
 # The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
 # store cannot drift from the record. See fmparser/tables/player_attributes.py HIDDEN_OFFSETS and
@@ -443,7 +448,9 @@ DDL = [
         away_shots INTEGER, away_shots_on_target INTEGER, away_rating DOUBLE,
         away_players_used INTEGER, away_passes INTEGER, away_passes_completed INTEGER,
         away_tackles INTEGER, away_tackles_won INTEGER, away_crosses INTEGER,
-        away_interceptions INTEGER
+        away_interceptions INTEGER,
+        home_corners INTEGER, home_clear_cut_chances INTEGER, home_offsides INTEGER,
+        away_corners INTEGER, away_clear_cut_chances INTEGER, away_offsides INTEGER
     )""",
 
     # natural key: (season, phase, anchor, seq)
@@ -465,6 +472,8 @@ DDL = [
         intercept INTEGER, headA INTEGER, headW INTEGER, crossA INTEGER, crossC INTEGER,
         dribbles INTEGER, mistakes INTEGER, mistGoal INTEGER, shotA INTEGER, shotO INTEGER,
         condition INTEGER, subOn INTEGER, subOff INTEGER, yellow INTEGER,
+        -- the minute the player was sent off; 255 when he was not
+        sentOff INTEGER,
         -- a STARTER's full-time position ('DR','DMC','AML',...), from his side's team
         -- head: both sides. NULL for substitutes.
         position VARCHAR
@@ -480,10 +489,11 @@ DDL = [
         round INTEGER,
         home_goals INTEGER, away_goals INTEGER,
         home_pens INTEGER, away_pens INTEGER,
-        stage_key INTEGER, seq_id INTEGER,
+        stage_key INTEGER, stadium_id INTEGER,
         season_year INTEGER,
         stage_index INTEGER, round_index INTEGER, subr INTEGER,
-        home_extra_goals INTEGER, away_extra_goals INTEGER
+        home_extra_goals INTEGER, away_extra_goals INTEGER,
+        referee_tid INTEGER
     )""",
 
     # natural key: (season, phase, uid, stage_index, round_index). Each competition's
@@ -1069,7 +1079,8 @@ def load_core(con, d, season, phase):
     m_cols = (["season", "phase", "anchor", "date", "competition", "comp_id",
                "home_flag", "home_tid", "away_tid", "attendance", "score_home",
                "score_away", "star_home", "star_away", "formation", "player_of_match"]
-              + [f"home_{k}" for k in _TS_KEYS] + [f"away_{k}" for k in _TS_KEYS])
+              + [f"home_{k}" for k in _TS_KEYS] + [f"away_{k}" for k in _TS_KEYS]
+              + [f"{side}_{k}" for side in ("home", "away") for k in _TH_KEYS])
     ev_cols = ["season", "phase", "anchor", "seq", "minute", "added", "min_display",
                "tid", "type", "type_byte", "b0", "side"]
     # `position` is not in _XI: that list mirrors the player slot's own fields, and a
@@ -1094,6 +1105,8 @@ def load_core(con, d, season, phase):
             dv["star"]["home"], dv["star"]["away"], m.get("formation"),
             _int(m.get("player_of_match")),
             *[_num(h.get(k)) for k in _TS_KEYS], *[_num(a.get(k)) for k in _TS_KEYS],
+            *[_int(((m.get("team_head") or {}).get(side) or {}).get(k))
+              for side in ("home", "away") for k in _TH_KEYS],
         ))
         for i, e in enumerate(m.get("events") or []):
             minute, added = _int(e.get("minute")) + 1, _int(e.get("added"))
@@ -1207,8 +1220,8 @@ def load_world(con, d, season, phase):
     data = _load_json(path) if os.path.exists(path) else []
     cols = ["season", "phase", "home_tid", "away_tid", "date", "year", "round",
             "home_goals", "away_goals", "home_pens", "away_pens",
-            "stage_key", "seq_id", "season_year", "stage_index", "round_index", "subr",
-            "home_extra_goals", "away_extra_goals"]
+            "stage_key", "stadium_id", "season_year", "stage_index", "round_index", "subr",
+            "home_extra_goals", "away_extra_goals", "referee_tid"]
     rows = []
     for r in data:
         rows.append((
@@ -1216,9 +1229,10 @@ def load_world(con, d, season, phase):
             _int(r["home_tid"]), _int(r["away_tid"]), _date(r["date"]), _int(r["year"]), _int(r.get("round")),
             _int(r.get("home_goals")), _int(r.get("away_goals")),
             _int(r.get("home_pens")), _int(r.get("away_pens")),
-            _int(r.get("stage_key")), _int(r.get("seq_id")), _int(r.get("season_year")),
+            _int(r.get("stage_key")), _int(r.get("stadium_id")), _int(r.get("season_year")),
             _int(r.get("stage_index")), _int(r.get("round_index")), _int(r.get("subr")),
-            _int(r.get("home_extra_goals")), _int(r.get("away_extra_goals"))
+            _int(r.get("home_extra_goals")), _int(r.get("away_extra_goals")),
+            _int(r.get("referee_tid"))
         ))
     if rows:
         out["world_fixtures"] = _insert(con, "world_fixtures", cols, rows)
@@ -1447,10 +1461,11 @@ _MIGRATIONS = [
         round INTEGER,
         home_goals INTEGER, away_goals INTEGER,
         home_pens INTEGER, away_pens INTEGER,
-        stage_key INTEGER, seq_id INTEGER,
+        stage_key INTEGER, stadium_id INTEGER,
         season_year INTEGER,
         stage_index INTEGER, round_index INTEGER, subr INTEGER,
-        home_extra_goals INTEGER, away_extra_goals INTEGER
+        home_extra_goals INTEGER, away_extra_goals INTEGER,
+        referee_tid INTEGER
     )""",
 
     # natural key: (season, phase, uid, stage_index, round_index). Each competition's
@@ -1522,6 +1537,15 @@ _MIGRATIONS = [
     "ALTER TABLE raw.world_fixtures ADD COLUMN IF NOT EXISTS away_extra_goals INTEGER",
     # 2026-10-02: the event player's side, always extracted (data-layers step 14b).
     "ALTER TABLE raw.match_events ADD COLUMN IF NOT EXISTS side VARCHAR",
+    # 2026-11-07: the fixture's +35 is the venue's stadium id, and +72 its referee; the team
+    # head's corners, clear-cut chances and offsides; the player slot's sending-off minute
+    # (docs/parser/fixtures.md, matches.md). A snapshot loaded before has them NULL until it
+    # is re-extracted (scripts/rebuild.py), not --refresh-only.
+    "ALTER TABLE raw.world_fixtures RENAME COLUMN seq_id TO stadium_id",
+    "ALTER TABLE raw.world_fixtures ADD COLUMN IF NOT EXISTS referee_tid INTEGER",
+] + [f"ALTER TABLE raw.matches ADD COLUMN IF NOT EXISTS {side}_{k} INTEGER"
+     for side in ("home", "away") for k in _TH_KEYS] + [
+    "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS sentOff INTEGER",
 ]
 
 
@@ -1551,6 +1575,9 @@ def _migrate(con):
             # the DDL has not reached yet is not an error: it will be created complete, with
             # every column, by the statement that follows.
             if "does not exist" in msg or "not found" in msg:
+                continue
+            # A column rename on a table created with the new name (or already renamed).
+            if "does not have a column" in msg:
                 continue
             raise
     _drop_extracts_phase_check(con)

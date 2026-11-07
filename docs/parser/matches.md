@@ -63,9 +63,12 @@ A row is `5,102 + 17 n` bytes, and the next row starts where it ends. The body:
 | offset | field | type | meaning |
 |---|---|---|---|
 | +3 | `goals_against` | u8 | = the other block's `goals` |
+| +4 | `corners` | u8 | the side's corners, as the stats screen shows them (Quirks) |
+| +5 | `clear_cut_chances` | u8 | the side's clear-cut chances (Quirks) |
 | +6 | | 22 | a copy of `positions`, or `ff` throughout on friendlies and reserve fixtures |
 | +30 | `positions` | 11 × 2 | the side's eleven positions at full time, in `posOrder` order (below) |
 | +52 | `goals` | u8 | the side's score, own goals for it included |
+| +68 | `offsides` | u8 | the side's offsides (Quirks) |
 
 **Player slot, 62 bytes.** Twenty per side, preallocated. An unused slot keeps its
 `posOrder` and has `tid` `ffffffff`. Every byte is a u8 unless marked.
@@ -82,6 +85,7 @@ A row is `5,102 + 17 n` bytes, and the next row starts where it ends. The body:
 | +12 | `headW` | | +42 | `tid`, u32 |
 | +16 | `intercept` | | +48 | `tackA` |
 | +19 | `subOn`, the minute; `ff` = not | | +49 | `tackW` |
+| +20 | `sentOff`, the minute sent off; `ff` = not (Quirks) | | | |
 | +21 | `subOff`, the minute; `ff` = not | | +53 | `yellow`, 1 = booked |
 | +22 | `mistakes` | | | |
 | +23 | `mistGoal`, mistakes leading to a goal | | | |
@@ -152,7 +156,7 @@ AMC FC`, Frem `GK DR DL DC DC DMC MC MC AMR AML FC`, while the tail's kick-off f
 `4-1-3-2` (`… 10 02 10 01 40 04 40 01`): the shape changed in the match. The arrows are
 `subOn`/`subOff` (Holmbjerg off 11, Karlsen on 11), the yellow cards Francis's and Karlsen's
 `yellow`. Strunck's slot, `00 00 00 63 01 01 … ff ff ff 0a ff`, is condition 99, one
-cross, and +20 = 10, the minute of his red card. The five rows shown as `-` (Díaz, Lucas,
+cross, and `sentOff` (+20) = 10, the minute of his red card. The five rows shown as `-` (Díaz, Lucas,
 Nørager, Secka, Maarup) are unused substitutes: `subOn` `ff`, condition 100, rating 6.
 Hedensted 1-8 Frem, Sydbank Pokalen, 26 September 2029 (row at byte 55,846,169):
 
@@ -176,7 +180,7 @@ Vendsyssel 0-2 Frem, Sydbank Pokalen Quarter Final First Leg, 8 December 2029 (r
 Three events (Holmbjerg 47, Kobberrød's red card 53, Maarup 86), attendance 6,764, shots
 1/13 and on target 0/6 from the slots, Team Rating 6.3/7.1 = 89/14 and 86/12 truncated,
 corners 0/8, clear-cut chances 0/2 and offsides 4/4 at team head +4, +5, +68. Kobberrød's slot
-reads 53 at +20 (byte 55,942,054).
+reads `sentOff` 53 at +20 (byte 55,942,054).
 
 Tested by `tests/test_matches_evidence.py`.
 
@@ -219,14 +223,16 @@ Tested by `tests/test_matches_evidence.py`.
 > **Quirk:** team head +4 is corners, +5 clear-cut chances and +68 offsides: 18 of 18 values
 > on three stats screens (2/2, 1/3, 7/9; 0/2, 2/4, 1/2; 8/0 corners, 2/0 chances, 4/4 offsides
 > with Frem away). Over 464 sides on four saves their ranges are plausible (0–13, 0–7, 0–9)
-> and +5 tracks goals (r 0.66). Declared `UNKNOWN` and not read yet (TODO "Match team head:
-> three counts and a minute"). +55 and +57, which matched Vejle's headers won and reds, do
+> and +5 tracks goals (r 0.66). Unlike the screen's other team figures they are stored,
+> not summed from the slots. +55 and +57, which matched Vejle's headers won and reds, do
 > not hold on other matches.
 
 > **Quirk:** player slot +20 is the minute a player was sent off: Strunck 10 and Kobberrød
 > 53, as the reports show them. Over six saves it is set on all 22 players with a red-card
 > event (the event's minute, or one less) and on 10 without one, `ff` otherwise; those ten
-> are probably second-yellow dismissals, which raise no event. Not read yet.
+> are probably second-yellow dismissals, which raise no event. The store keeps both:
+> `int.player_matches.sent_off_minute` is the red-card event's minute (and what `minutes`
+> uses), `dismissal_minute` the slot's.
 
 > **Dead end:** possession and fouls are not in the row. Possession was searched as u8 and
 > u16 and as sum-to-100 pairs, across the whole row and the file around it, and 50/50 on the
@@ -293,9 +299,11 @@ Tested by `tests/test_matches_evidence.py`.
 ## Output
 
 `output/<label>/matches.json`: one object per match, in the order played (`offset, date,
-comp_id, home_tid, away_tid, club_tid, home_flag, attendance, score, player_of_match,
-formation, kickoff_positions, home_positions, away_positions, events, home_xi, away_xi`;
-`home_xi`/`away_xi` hold the used player slots). The loader writes `raw.matches` (with the
-summed team stats and the competition label: a two-legged play-off tie gets First/Second
-Leg by date), `raw.match_events` and `raw.match_player_stats` (each starter's position from
+comp_id, home_tid, away_tid, club_tid, home_flag, attendance, score, team_head,
+player_of_match, formation, kickoff_positions, home_positions, away_positions, events,
+home_xi, away_xi`; `team_head` is `{home: {corners, clear_cut_chances, offsides}, away:
+{…}}`, and `home_xi`/`away_xi` hold the used player slots, `sentOff` included). The loader
+writes `raw.matches` (with the summed team stats, each side's three team-head counts as
+`home_corners` … `away_offsides`, and the competition label: a two-legged play-off tie gets
+First/Second Leg by date), `raw.match_events` and `raw.match_player_stats` (each starter's position from
 his side's `positions`).

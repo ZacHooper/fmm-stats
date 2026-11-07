@@ -20,7 +20,8 @@ def build_fixture_record_bytes(
     home_goals: int = 2,
     away_goals: int = 1,
     stage_key: int = 42,
-    seq_id: int = 1,
+    stadium_id: int = 1,
+    referee_tid: int = 0xFFFFFFFF,
     day_raw: int = 150,  # DOY
     year: int = 2026,
     season_year: int = 2025,
@@ -39,8 +40,8 @@ def build_fixture_record_bytes(
     buf[12] = 0xFF
     buf[13] = 0xFF
 
-    # Stage key +31 (u32), seq_id +35 (u16)
-    struct.pack_into("<IH", buf, 31, stage_key, seq_id)
+    # Stage key +31 (u32), stadium_id +35 (u16)
+    struct.pack_into("<IH", buf, 31, stage_key, stadium_id)
 
     # Home tid +41, away tid +47
     struct.pack_into("<I", buf, 41, home_tid)
@@ -51,6 +52,9 @@ def build_fixture_record_bytes(
 
     # Season year +66
     struct.pack_into("<H", buf, 66, season_year)
+
+    # Referee tid +72
+    struct.pack_into("<I", buf, 72, referee_tid)
 
     # Stage attributes +76, +77, +80, +81, +83
     buf[76] = 1
@@ -71,7 +75,8 @@ def test_fixture_schema_unpack():
         home_goals=3,
         away_goals=0,
         stage_key=101,
-        seq_id=5,
+        stadium_id=5,
+        referee_tid=9727,
         day_raw=200,
         year=2026,
         season_year=2025,
@@ -84,7 +89,8 @@ def test_fixture_schema_unpack():
     assert rec["home_goals"] == 3
     assert rec["away_goals"] == 0
     assert rec["stage_key"] == 101
-    assert rec["seq_id"] == 5
+    assert rec["stadium_id"] == 5
+    assert rec["referee_tid"] == 9727
     assert rec["year"] == 2026
     assert rec["season_year"] == 2025
     assert rec["round"] == 18
@@ -93,6 +99,17 @@ def test_fixture_schema_unpack():
     assert rec["stage_attr_83"] == 9
     assert FX.FIXTURE.span == FX.STRIDE == 92
     print("  PASS FIXTURE schema unpack")
+
+
+def test_fixture_referee_none():
+    print("TESTING referee_tid none")
+    b = build_fixture_record_bytes(stadium_id=3907, referee_tid=FX.NO_REFEREE)
+    rec = FX.read_fixture(b, 0)
+    assert rec["referee_tid"] is None
+    assert rec["stadium_id"] == 3907
+    rec = FX.read_fixture(build_fixture_record_bytes(referee_tid=9727), 0)
+    assert rec["referee_tid"] == 9727
+    print("  PASS referee_tid none reads None, a tid reads through")
 
 
 def test_fixture_segments():
@@ -114,6 +131,7 @@ def test_fixture_segments():
 
 def main():
     test_fixture_schema_unpack()
+    test_fixture_referee_none()
     test_fixture_segments()
     return 0
 

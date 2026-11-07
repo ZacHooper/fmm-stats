@@ -1,6 +1,8 @@
 -- Our own matches, one row per match with detail. anchor is the match row's
 -- offset in the save, its key. is_home says the managed side played at home.
--- star_home / star_away and player_of_match are person tids.
+-- star_home / star_away and player_of_match are person tids. corners,
+-- clear_cut_chances and offsides are each side's counts as the team head
+-- stores them.
 select
     cast(phase as date) as snapshot_date,
     anchor,
@@ -27,6 +29,9 @@ select
     {{ side }}_tackles,
     {{ side }}_tackles_won,
     {{ side }}_crosses,
-    {{ side }}_interceptions{% if not loop.last %},{% endif %}
+    {{ side }}_interceptions,
+    {{ side }}_corners,
+    {{ side }}_clear_cut_chances,
+    {{ side }}_offsides{% if not loop.last %},{% endif %}
     {% endfor %}
 from {{ source('raw', 'matches') }}

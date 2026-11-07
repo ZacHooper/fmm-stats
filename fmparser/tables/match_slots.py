@@ -2,8 +2,9 @@
 """`match_slots` — the 25-byte match-slot table: two clubs and their goals, no venue.
 
 A fixed-stride table (3,975 slots on Frem, 3,943 on Bucaspor) located by its invariant
-trailer constant `b"\\x87\\x01\\xff\\xff"` at +20 on residue class mod 25. The `home_`/`away_`
-names do not hold: the pair is unordered (docs/parser/match_slots.md).
+trailer constant `b"\\x87\\x01\\xff\\xff"` at +20 on residue class mod 25. The two clubs are
+`club_a`/`club_b`: the pair is unordered and says nothing of the venue
+(docs/parser/match_slots.md).
 """
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -31,10 +32,10 @@ TRAILER_OFF = 20
 NO_CLUB = P.NO_ID16
 
 SLOT = Record("match_slot", STRIDE, [
-    Field(0,  2, "away_tid",   U16, note="one club; 0xffff when no match. No venue is stored"),
-    Field(2,  2, "home_tid",   U16, note="the other club: home on about half the slots"),
-    Field(4,  1, "away_goals", U8),
-    Field(5,  1, "home_goals", U8),
+    Field(0,  2, "club_a_tid",   U16, note="one club; 0xffff when no match. No venue is stored"),
+    Field(2,  2, "club_b_tid",   U16, note="the other club: home on about half the slots"),
+    Field(4,  1, "club_a_goals", U8),
+    Field(5,  1, "club_b_goals", U8),
     Field(6,  2, "day",        U16, note="day-of-year, 0-based -- as in the club record"),
     Field(8,  1, UNKNOWN,      U8),
     Field(9,  2, UNKNOWN,      I16),   # call it A. 0..360 on fixture rows.
@@ -135,8 +136,8 @@ def scrape(mm: Any, valid_clubs: Optional[Any] = None) -> List[Dict[str, Any]]:
     rows = MATCH_SLOTS_TABLE.scrape(mm)
     out = []
     for r in rows:
-        a = r["away_tid"]
-        h = r["home_tid"]
+        a = r["club_a_tid"]
+        h = r["club_b_tid"]
         if a in (0, NO_CLUB) or h in (0, NO_CLUB) or a == h:
             continue
         if valid_clubs is not None and (a not in valid_clubs or h not in valid_clubs):

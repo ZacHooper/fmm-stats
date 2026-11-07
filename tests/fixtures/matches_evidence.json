@@ -1168,7 +1168,7 @@
      15
     ]
    ],
-   "_team_head": "the Match Stats screen's corners, clear-cut chances and offsides [Vejle, Frem], against team head +4, +5, +68 (one match: candidates)",
+   "_team_head": "the Match Stats screen's corners, clear-cut chances and offsides [Vejle, Frem], against team head +4, +5, +68 (corners, clear_cut_chances, offsides)",
    "team_head": {
     "4": [
      2,
@@ -1837,7 +1837,7 @@
    "away_tid": 346,
    "home_goals": 2,
    "away_goals": 4,
-   "seq_id": 3907,
+   "stadium_id": 3907,
    "stadium": "Vejle Stadion",
    "stage_index": 0,
    "season_year": 2029,
@@ -1850,7 +1850,7 @@
    "away_tid": 346,
    "home_goals": 1,
    "away_goals": 8,
-   "seq_id": 7838,
+   "stadium_id": 7838,
    "stadium": "Hedensted Stadion",
    "stage_index": 0,
    "season_year": 2029,
@@ -1863,7 +1863,7 @@
    "away_tid": 346,
    "home_goals": 0,
    "away_goals": 2,
-   "seq_id": 190,
+   "stadium_id": 190,
    "stadium": "Nord Energi Arena",
    "stage_index": 0,
    "season_year": 2029,

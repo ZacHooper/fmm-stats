@@ -230,19 +230,6 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
-- **Field names that say the wrong thing, and the referee.** The world fixture's `seq_id`
-  (+35) is the venue's stadium id, not a sequence ([fixtures](parser/fixtures.md)); it
-  reaches the store as `raw.world_fixtures.seq_id`. The match-slot table's
-  `away_tid`/`home_tid` hold no venue: the pair is unordered
-  ([match_slots](parser/match_slots.md)). The round-name trailer's `round_idx` is the next
-  record's index ([rounds](parser/rounds.md)). Rename them (`stadium_id`;
-  `club_a_tid`/`club_b_tid`; `next`), and read the fixture's +72 as `referee_tid` (an
-  official's tid or `ffffffff`), which with an `officials` extract gives `dim_referee` its
-  link. Re-record the extract.
-- **Match team head: three counts and a minute** ([matches](parser/matches.md)): +4 corners,
-  +5 clear-cut chances and +68 offsides (18 of 18 values on three stats screens), and the
-  player slot's +20, the minute a player was sent off (two reports). Read them into
-  `matches.json` and the store.
 - **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
   `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
   it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
@@ -264,8 +251,8 @@ Bytes the parser reads but cannot name yet.
 - **Origin clubs**: 3,936 of 22,624 origin tids resolve to no club in `raw.clubs` —
   probably youth/academy or defunct clubs in another structure.
 - **The match record** (`tables/matches.py`): the event's last 8 bytes (two u32, never a tid
-  of the match), the player slot's 33 unnamed bytes (+54..61 two more u32; +2 equals the
-  opponent's score on the goalkeeper's slot), the team head and tail (75 and 46 bytes), the
+  of the match), the player slot's 32 unnamed bytes (+54..61 two more u32; +2 equals the
+  opponent's score on the goalkeeper's slot), the team head and tail (50 and 46 unnamed bytes), the
   body head's +19..51 and +67..77 (one u8 reads 90-96 on detailed matches: the final whistle's
   minute?), and our tactic in the tail: +0..32 small bitfields (team instructions?), eleven
   per-starter 8-byte rows at +1196 (bytes 0-1 are the role family, partly mapped; bytes 2-4
@@ -341,7 +328,8 @@ table:
 - **Cut down by extract.** `competition_team_counts` is one field of each rule file, and
   `competition_rounds` flattens each `comp_<uid>.dat` member. Fix: dump `rule_files` and
   `comp_rules` whole.
-- **Parsed but never extracted.** `officials` (match officials), `comp_honours` (roll of
+- **Parsed but never extracted.** `officials` (match officials: with
+  `int.world_matches.referee_tid` it gives `dim_referee` its link), `comp_honours` (roll of
   honour) and `comp_stages` (stages calendar) from `comp_man.dat`, and `match_slots`. Each needs
   an extract step, a raw table and a stg model.
 - **Not parsed.** The transfer band's 143-byte records are decoded on paper

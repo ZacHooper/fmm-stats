@@ -35,7 +35,7 @@ ROUND_TRAILER = Record("round_trailer", ROUND_TRAILER_WIDTH, [
     Field(4,  2, "flag2", U16, note="typically 32 (0x0020)"),
     Field(6,  4, "flag3", U32, note="typically 1"),
     Field(10, 2, "flag4", U16, note="typically 32 (0x0020)"),
-    Field(12, 2, "round_idx", U16, note="the next record's index; 0xffff on the last"),
+    Field(12, 2, "next", U16, note="the next record's index; 0xffff ends the chain"),
 ])
 
 _ROUNDS_CACHE: Dict[str, Optional[Tuple[int, int]]] = {}
