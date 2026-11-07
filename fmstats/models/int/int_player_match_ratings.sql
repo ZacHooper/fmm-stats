@@ -4,8 +4,9 @@
 -- every outfield role pooled. The baseline is the managed team's competitive
 -- starts across all seasons (a friendly inflates, an unused substitute carries
 -- a flat rating, reserve games carry anonymous fillers), so it moves slightly
--- with every import. NULL for a substitute and for a side the save records no
--- positions for.
+-- with every import. NULL for a substitute, for a side the save records no
+-- positions for, and for a role whose baseline has fewer than
+-- var('rating_adj_min_starts') starts or no spread (a short history).
 with career as (
     select * from {{ ref('stg_career') }}
 ),
@@ -56,6 +57,7 @@ base as (
 baseline as (
     select
         role,
+        count(*) as baseline_starts,
         avg(rating) as role_mean,
         stddev_samp(rating) as role_sd
     from base
@@ -75,7 +77,11 @@ select
     rated.player_tid,
     rated.role,
     case
-        when rated.started and rated.role is not null
+        when
+            rated.started
+            and rated.role is not null
+            and baseline.baseline_starts >= {{ var('rating_adj_min_starts') }}
+            and baseline.role_sd > 0
             then
                 pool.pool_mean
                 + (rated.rating - baseline.role_mean)

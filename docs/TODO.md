@@ -344,6 +344,11 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   with that tid whose dob gives the entry's age on its date (or one less: the stored age lags a
   birthday by a day or two). Anything else reading old entries must do the same
   (`int.scrapbook_entries` is only our current squad, so safe).
+- **That rule can resolve one entry to two people**: Luka Vodišek (tid 13443) has two
+  `person_id`s on the full Frem store, dob 1998-11-29 and 1998-06-08, both inside the
+  one-year age tolerance, so his 2028 World Best XI entry is two rows. The
+  `fact_player_award` key on `player_tid` warns on it; pick one person per entry (the
+  nearer age, then the later snapshot) and make that test an error again.
 
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably

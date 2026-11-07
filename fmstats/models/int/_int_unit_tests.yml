@@ -1136,6 +1136,9 @@ unit_tests:
       goalkeepers are out of the pool, friendlies and reserve games out of the baseline. A
       substitute, a start with no position and a role with no spread read NULL.
     model: int_player_match_ratings
+    # the fixture's handful of starts stands for a full baseline
+    overrides:
+      vars: {rating_adj_min_starts: 1}
     given:
       - input: ref('stg_career')
         rows:

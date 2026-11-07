@@ -131,6 +131,11 @@ vars:
   team_match_stats: [shots, shots_on_target, passes, passes_completed, tackles, tackles_won,
                      crosses, interceptions]
   # The role a position's match ratings are compared within (int_player_match_ratings).
+  # A role's match ratings are restated (rating_adj) only once the managed team has this many
+  # competitive starts in it: below that the z-score is noise, or undefined (one keeper
+  # rated 7 in every game has no spread). A short history, e.g. a career's first save,
+  # leaves rating_adj NULL for the roles it can't support yet.
+  rating_adj_min_starts: 30
   rating_roles: {GK: GK, DC: Centre-back, DL: Full-back, DR: Full-back, DML: Wing-back,
                  DMR: Wing-back, DMC: DM, MC: Central mid, ML: Wide mid, MR: Wide mid,
                  AMC: Attacking mid, AML: Winger, AMR: Winger, ST: Forward}
