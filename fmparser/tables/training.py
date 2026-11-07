@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """`training` -- the Club Squad > Training page: every player's training focus, and his
-squad status.
+contract flag.
 
 One row per person, in a count-framed array a fixed distance after the Player Progress pool
 (`tables/player_progress.py`):
@@ -28,8 +28,10 @@ One row per person, in a count-framed array a fixed distance after the Player Pr
     +37  contracted u8             0x87 on a player under contract; 0 on a free agent and on
                                    every member of staff
     +38  u8                        unread; 0 on every row measured
-    +39  squad_status u8           the player's squad status code; 65 = loaned out
-                                   (`LOAN_STATUS`). Read only where `contracted` is set
+    +39  unknown_39 u8             unnamed. NOT the squad status: First Team, Rotation, Backup
+                                   and Youngster players all read 171. 65 marks the loanees in
+                                   test_ground_truth (`LOAN_STATUS`) but mostly does not mark a
+                                   loan. Read only where `contracted` is set
     +40  21 bytes                  unread: from +49 three [day-of-year u16][year u16] dates
 
 Read against the Training page of frem-2027-06-15, all 34 squad rows on screen: role,
@@ -56,7 +58,7 @@ __all__ = [
     "TRAINING_TABLE",
     "focus_position",
     "locate_training",
-    "scrape_squad_status",
+    "scrape_unknown_39",
     "scrape_training",
     "training_table_spans",
 ]
@@ -64,7 +66,7 @@ __all__ = [
 NO_PERSON = 0xFFFFFFFF
 NO_ROLE = 0xFFFF
 CONTRACTED = 0x87          # `contracted` on a player under contract
-LOAN_STATUS = 65           # `squad_status` of a player out on loan
+LOAN_STATUS = 65           # `unknown_39` on the loanees test_ground_truth checks
 
 TRAINING_ROW = Record("training_row", 61, [
     Field(0,  4, "tid",             U32, note="== the row index; 0xffffffff = unused row"),
@@ -82,7 +84,7 @@ TRAINING_ROW = Record("training_row", 61, [
     Field(31, 6, UNKNOWN,           RAW),
     Field(37, 1, "contracted",      U8,  note="0x87 under contract; 0 on a free agent, staff"),
     Field(38, 1, UNKNOWN,           RAW),
-    Field(39, 1, "squad_status",    U8,  note="squad status code; 65 = loaned out"),
+    Field(39, 1, "unknown_39",      U8,  note="unnamed; not the squad status"),
     Field(40, 21, UNKNOWN,          RAW),
 ])
 
@@ -119,7 +121,7 @@ TRAINING_TABLE = TableDef(
     segments=(TRAINING_ROW,),
     locator=locate_training,
     fields=("tid", "intensity", "focus_role", "focus_attribute", "focus_band", "focus_column",
-            "contracted", "squad_status"),
+            "contracted", "unknown_39"),
 )
 
 
@@ -137,8 +139,8 @@ def focus_position(band: int, column: int) -> Optional[str]:
 
 def scrape_training(mm: Any) -> List[Dict[str, Any]]:
     """Every player's row, in tid order: {tid, intensity, focus_role, focus_attribute,
-    focus_position, contracted, squad_status}, the last two as stored (`squad_status` means
-    something only where `contracted` is `CONTRACTED`). Unused rows and staff (no role) are
+    focus_position, contracted, unknown_39}, the last two as stored (`unknown_39` is set
+    only where `contracted` is `CONTRACTED`). Unused rows and staff (no role) are
     left out. Raises `ValueError` if
     the table is not located or a row's tid is neither its index nor unused."""
     rows = TRAINING_TABLE.scrape(mm)
@@ -155,12 +157,12 @@ def scrape_training(mm: Any) -> List[Dict[str, Any]]:
         out.append({"tid": r["tid"], "intensity": r["intensity"],
                     "focus_role": r["focus_role"], "focus_attribute": r["focus_attribute"],
                     "focus_position": focus_position(r["focus_band"], r["focus_column"]),
-                    "contracted": r["contracted"], "squad_status": r["squad_status"]})
+                    "contracted": r["contracted"], "unknown_39": r["unknown_39"]})
     return out
 
 
-def scrape_squad_status(mm: Any) -> Dict[int, int]:
-    """{tid: squad status code} for every player under contract, in tid order. Raises
+def scrape_unknown_39(mm: Any) -> Dict[int, int]:
+    """{tid: +39 as stored} for every player under contract, in tid order. Raises
     `ValueError` if the table is not located or a row's tid is neither its index nor unused."""
     run = locate_training(mm)
     if not run:
@@ -168,11 +170,11 @@ def scrape_squad_status(mm: Any) -> Dict[int, int]:
     base, count = run
     out: Dict[int, int] = {}
     for k in range(count):
-        r = TRAINING_ROW.read_fields(mm, base + k * _STRIDE, ("tid", "contracted", "squad_status"))
+        r = TRAINING_ROW.read_fields(mm, base + k * _STRIDE, ("tid", "contracted", "unknown_39"))
         if r["tid"] == NO_PERSON:
             continue
         if r["tid"] != k:
             raise ValueError(f"training: row {k} holds tid {r['tid']}")
         if r["contracted"] == CONTRACTED:
-            out[k] = r["squad_status"]
+            out[k] = r["unknown_39"]
     return out

@@ -125,23 +125,20 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
     24, 27-29, 31). The
     quickest proof is to set a dozen players' Focus Role to each, save, and read the ids;
     `docs/role-ids.csv` names famous players holding each role for checking on profiles.
-  - attribute-focus codes 0, 2, 10, 15. **Seed gap:** codes 4, 12 and 13 are read off the
-    Training list on `frem-2030-06-22` (4 SHO, 12 DEC, 13 MOV; 1,725, 985 and 5,053 players)
-    but are not in `seeds/training_attributes.csv`: add `4,SHO`, `12,DEC`, `13,MOV`.
+  - attribute-focus codes 0, 2, 10, 15.
   - intensity 0 and 1: only 3 (High) and 2 (Normal) are read off the screen.
-  - **Squad status is not located.** Training `+39` (`squad_status`) is not it: ten players
+  - **Squad status is not located.** Training `+39` (now `unknown_39`) is not it: ten players
     whose Transfer Status screen says First Team, Rotation, Backup or Youngster all read 171
-    on `frem-2030-06-22` ([`docs/parser/training.md`](parser/training.md)). Rename the field
-    (`unknown_39`, through raw and stg, with `mart.fact_player_state_scd`) and find the real
+    on `frem-2030-06-22` ([`docs/parser/training.md`](parser/training.md)). Find the real
     one: diff a save before and after changing one player's status in game.
   - the Progress bar: a green fill, or a full yellow bar when the player is unlikely to improve
     further. Not the stored `pa - ca` (0 on yellow and near-empty bars alike); the green-fill
     rows are the ones with `+17` and `+41` non-zero. Diff two saves a few weeks apart.
   - `+8` u8, `+9`/`+13` u32 (money-like; `+9` round), `+31..36`, `+38`, `+40..48` and the
-    three dates at `+49/+53/+57`. The row also carries the squad status (`+37` contracted,
-    `+39` status), so it is a per-person status row as much as a training one.
-  - squad status 65, read as "loaned out" (`tables/training.py`), mostly does not mark a loan:
-    on the step-16 gate stores 67 of 1,475 status-65 snapshots are listed on loan by another
+    three dates at `+49/+53/+57`. The row also carries the contract flag (`+37`) and the
+    unnamed `+39`, so it is a per-person status row as much as a training one.
+  - `unknown_39` 65, read as "loaned out" (`tables/training.py` `LOAN_STATUS`), mostly does
+    not mark a loan: on the step-16 gate stores 67 of 1,475 status-65 snapshots are listed on loan by another
     club and 1,334 have no loan spell that season, while 9,292 listed loanees carry another
     status. Name the code before reading loans from it.
   - surfacing it: each squad player's training focus on the site's Squad page.
@@ -243,17 +240,9 @@ Bytes the parser reads but cannot name yet.
   +5 clear-cut chances and +68 offsides (18 of 18 values on three stats screens), and the
   player slot's +20, the minute a player was sent off (two reports). Read them into
   `matches.json` and the store.
-- **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
-  `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
-  it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
-  `< 5800` edge calls him Continental. Thorup at 5,974 is Continental, so the edge lies in
-  5,858–5,974: move it to 5,900 or above and record Frank in `tests/test_staff_records.py`. Five
-  staff on `frem-2030-06-22` sit at 5,800–5,857 ([`docs/parser/staff.md`](parser/staff.md)).
-- **Staff records with goalkeeping coaching above 20 are dropped** (`tables/staff.py`
-  `_process_staff`): 43 records read 51–99 at +17, retired goalkeepers, and the 1–20 gate
-  drops the whole record from `staff_records.json` ([`docs/parser/staff.md`](parser/staff.md)).
-  Keep every record and name what +17 holds for them. An output change: re-record
-  `tests/assert_identical.py`.
+- **Staff `+17` above 20** (`tables/staff.py`): 43 records on `frem-2030-06-22`, retired
+  goalkeepers, read 51–99 where `goalkeeping_coaching` is 1–20 for everyone else. They are
+  carried as stored ([`docs/parser/staff.md`](parser/staff.md)); name what the byte holds for them.
 - **Club `main_club_tid` drops tid 0** (`tables/clubs.py` `_club`): the `0 < tid` filter
   loses the one parent that is tid 0, so Algeria U21 (11103) has no parent while the other 227
   U21 sides resolve ([`docs/parser/clubs.md`](parser/clubs.md)). An output change: re-record
