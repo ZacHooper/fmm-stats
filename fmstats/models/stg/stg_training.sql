@@ -1,6 +1,6 @@
 -- One row per player (staff have none): training focus, whether the row says
--- he is under contract, and his squad status where he is. Squad status is a
--- contract term, not a loan flag.
+-- he is under contract, and the row's +39 byte where he is. +39 is unnamed: it
+-- is not the squad status and not a loan flag (docs/parser/training.md).
 select
     cast(phase as date) as snapshot_date,
     tid,
@@ -10,6 +10,6 @@ select
     focus_position,
     contracted = {{ var('contracted') }} as is_contracted,
     case
-        when contracted = {{ var('contracted') }} then squad_status
-    end as squad_status
+        when contracted = {{ var('contracted') }} then unknown_39
+    end as unknown_39
 from {{ source('raw', 'training') }}

@@ -460,13 +460,13 @@
    "focus_attribute": 4,
    "focus_position": "ST",
    "contracted": 135,
-   "squad_status": 171
+   "unknown_39": 171
   },
   "10446": {
-   "squad_status": 171
+   "unknown_39": 171
   },
   "10404": {
-   "squad_status": 171
+   "unknown_39": 171
   }
  },
  "progress": {
