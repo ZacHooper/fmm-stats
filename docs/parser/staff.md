@@ -16,7 +16,7 @@ index.
 | +4 | `ca`, `pa` | 2 × u16 | ability; never shown (the immersion rule) | |
 | +8 | `home_reputation` | u16 | | |
 | +10 | `current_reputation` | u16 | | |
-| +12 | `world_reputation` | u16 | sets the profile's Reputation: Regional, National, Continental. The code cuts at 3,000 and 5,800 (`reputation_tier`); the second edge is wrong (Quirks) | nine managers |
+| +12 | `world_reputation` | u16 | sets the profile's Reputation: Regional, National, Continental. The code cuts at 3,000 and 5,900 (`reputation_tier`); the second edge is bracketed, not measured (Quirks) | nine managers |
 | +14 | `attacking_intent` | u8 | hidden 1–20; sets the profile's Style: ≤ 7 Defensive, 8–13 Normal, ≥ 14 Attacking (`style`) | fourteen managers, both band edges |
 | +15 | `financial_control` | u8 | 1–20 | seven managers |
 | +16 | `outfield_coaching` | u8 | | |
@@ -77,7 +77,7 @@ Jens-Jakob Sørensen's shows 4-1-2-2-1 (`formation_preferred` 2). Two managers' 
 | Goalkeeping, Outfield, Youth | 5, 13, 18 | 4, 10, 17 |
 | Style | Attacking (`attacking_intent` 20) | Normal (12) |
 | Formation | 4-1-2-2-1 (`formation_preferred` 2) | 5-3-2 (19; attacking 4-2-3-1, defensive 5-3-2) |
-| Reputation | National (`world_reputation` 4,996) | **National** (5,857; the code says Continental) |
+| Reputation | National (`world_reputation` 4,996) | **National** (5,857) |
 | Adaptability … Temperament (on [person_info](person_info.md)) | 12 14 15 13 12 17 17 | 14 15 15 15 14 14 15 |
 | Czech, 84 caps / 10 goals, 8/8/1990 | nationality 137, caps 84, goals 10 | Danish, uncapped, 9/10/1973 |
 
@@ -105,10 +105,10 @@ Every value on both screens matches.
 > index, a name or an 11-slot position vector, found nothing within ±20,000 bytes. They are
 > in this separate table, reached by `id2`.
 
-> **Quirk:** the National/Continental edge is not 5,800. Thomas Frank reads 5,857 and his
-> profile says National; Thorup (2024) read 5,974 and said Continental. The edge is somewhere
-> in 5,858–5,974, and `reputation_tier` misreads the five staff at 5,800–5,857. Open in TODO as
-> "Staff reputation tier: the National/Continental edge is wrong".
+> **Quirk:** the National/Continental edge is bracketed, not measured. Thomas Frank reads
+> 5,857 and his profile says National; Thorup (2024) read 5,974 and said Continental. The edge
+> lies in 5,858–5,974 and the code cuts at 5,900, so the eleven staff on `frem-2030-06-22`
+> between 5,858 and 5,974 may be one tier out. A profile in that band would pin it.
 
 > **Dead end:** the user's own manager's attributes are not in his staff record. Mr Manager's
 > profile shows Loyalty 19, Domestic Player Bias 19, Financial Control 20, Transfer Acumen 19,

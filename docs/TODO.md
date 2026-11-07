@@ -230,12 +230,6 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
-- **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
-  `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
-  it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
-  `< 5800` edge calls him Continental. Thorup at 5,974 is Continental, so the edge lies in
-  5,858–5,974: move it to 5,900 or above and record Frank in `tests/test_staff_records.py`. Five
-  staff on `frem-2030-06-22` sit at 5,800–5,857 ([`docs/parser/staff.md`](parser/staff.md)).
 - **Staff `+17` above 20** (`tables/staff.py`): 43 records on `frem-2030-06-22`, retired
   goalkeepers, read 51–99 where `goalkeeping_coaching` is 1–20 for everyone else. They are
   carried as stored ([`docs/parser/staff.md`](parser/staff.md)); name what the byte holds for them.
