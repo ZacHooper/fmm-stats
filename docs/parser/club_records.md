@@ -152,8 +152,15 @@ Tested by `tests/test_world_evidence.py` (Frem, this save) and `tests/test_club_
 > **Dead end:** this table is not a fixture list, and the complete results of other clubs'
 > matches are not in it. A match appears because it set a record, once per slot and table it
 > holds, so the same game sits in two slots (highest scoring match and highest scoring league
-> match) and in both the overall and the season table. Where fixtures really are: [save-archive](../save-archive.md)
-> (`fix_man`).
+> match) and in both the overall and the season table. Where fixtures really are:
+> [fixtures](fixtures.md) (`fix_man`).
+
+> **Quirk:** the "14-byte standings record" a search for a doubled cid finds is this table's
+> league list seen from the middle: `[club_tid u16][n u8 = 1][cid u16][cid u16][position u8]
+> [year u16][teams u16]`, the u16 before it being the previous row's last `season`. That
+> search finds 353 hits on frem-2030-06-22, 352 inside this table (the other is not a club row). A league list holds the
+> final position and team count only; a table's other columns are rebuilt from the
+> [fixtures](fixtures.md) (`mart.standings`).
 
 > **Decision:** `scrape_club_records` raises if the walk reads fewer clubs than the count
 > declares or the club tids don't ascend: either means the walk is misframed, and nothing it
