@@ -81,12 +81,13 @@ def test_style_and_reputation_derivatives():
     assert ST.style(20) == "Attacking"
     assert ST.style(None) is None
 
-    # Reputation tier: <3000 Regional, <5800 National, >=5800 Continental
+    # Reputation tier: <3000 Regional, <5900 National, >=5900 Continental
     assert ST.reputation_tier(1500) == "Regional"
     assert ST.reputation_tier(2999) == "Regional"
     assert ST.reputation_tier(3000) == "National"
-    assert ST.reputation_tier(5799) == "National"
-    assert ST.reputation_tier(5800) == "Continental"
+    assert ST.reputation_tier(5857) == "National"     # Thomas Frank, frem-2030-06-22
+    assert ST.reputation_tier(5899) == "National"
+    assert ST.reputation_tier(5900) == "Continental"
     assert ST.reputation_tier(7500) == "Continental"
     assert ST.reputation_tier(None) is None
     print("  PASS style() and reputation_tier() edge cases")

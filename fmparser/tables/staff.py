@@ -87,7 +87,9 @@ STAFF_FIELDS = (("ca", "pa", "home_reputation", "current_reputation", "world_rep
                 + tuple(_ATTRS.values()) + tuple(HIDDEN_OFFSETS.values())
                 + tuple(FORMATION_SLOTS.values()) + ("style",))
 
-_TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
+# The National/Continental edge lies in 5,858-5,974: Thomas Frank (5,857) shows National and
+# Thorup (5,974) Continental. 5,900 sits inside that bracket; the exact cut is unmeasured.
+_TIER_BANDS = ((3000, "Regional"), (5900, "National"), (10**9, "Continental"))
 _STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
 
 
