@@ -54,7 +54,7 @@ HEADER = Record("comp_rules_header", 54, [
     Field(0,  6,  UNKNOWN, PAD, note="member header [03][01]['tad.'] (fixtures.MEMBER_HEADER)"),
     Field(6,  2,  UNKNOWN, PAD, note="constant 0x01d9 on every member"),
     Field(8,  12, UNKNOWN, RAW),
-    Field(20, 2,  "season_year", U16, note="start year of the current season; 0 on a stub"),
+    Field(20, 2,  "season_year", U16, note="start year of the current season; 0 on 44 of the 74 stubs"),
     Field(22, 4,  UNKNOWN, PAD),
     Field(26, 4,  UNKNOWN, RAW, note="f32; 1.0 on most competitions"),
     Field(30, 18, UNKNOWN, RAW),

@@ -3,7 +3,9 @@
 
 Located inside the save's zstd tail archive member `comp_man.dat`: a 42-byte header (the
 member header, then `n_stages` u32 at +16), followed by a pure fixed-stride grid of
-`n_stages` x 78-byte records.
+`n_stages` x 78-byte records. A fixture's `stage_key` is read as a row number here, which is
+unproven. The framing is proven; the field names below are unverified hypotheses, and several
+fail against the data (docs/parser/comp_stages.md).
 """
 from typing import Any, Dict, List, Optional, Tuple
 

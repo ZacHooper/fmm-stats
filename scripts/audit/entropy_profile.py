@@ -2,11 +2,10 @@
 """
 Profile a save by BLOCK ENTROPY — the first thing to run on an unexplored region.
 
-Why this and not a printable-byte count: `docs/savefile-map.md`'s 2026-09-19 gap ranking
-put the file's tail second because it measured "25.8% printable" and read that as text
-density. **95 of 256 byte values are printable, so uniform random bytes measure 37.1%
-printable** — compressed data scores HIGH on exactly the statistic that was meant to mean
-"text". Entropy does not confuse the two, and it separates the file's four regimes in one
+Why this and not a printable-byte count: **95 of 256 byte values are printable, so uniform
+random bytes measure 37.1% printable** — compressed data scores HIGH on exactly the statistic
+that would be read as "text" (the save's compressed tail is the example,
+`docs/parser/savefile-map.md`). Entropy does not confuse the two, and it separates the file's four regimes in one
 pass:
 
     ~0.0 - 1.5   filler (runs of 00 / ff)

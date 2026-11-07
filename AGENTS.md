@@ -80,7 +80,7 @@ are the strict ones.
 - **The exact XI on the day is not in the save, but each manager's preferences are.**
   `mart.fact_staff_snapshot` (via `mart.fact_staff_spell`, `role = 'manager' AND is_current`)
   carries each manager's preferred / attacking / defensive formation and a derived **Style**
-  (Attacking / Normal / Defensive; [`docs/record-expansion.md`](docs/record-expansion.md) §F).
+  (Attacking / Normal / Defensive; [`docs/parser/staff.md`](docs/parser/staff.md)).
   Use it as the default for a scout report without asking first; the in-game scout's read (this
   week's injuries, suspensions) is an optional refinement.
 - **Opponent names are resolved** (`mart.dim_person` names every club's players). Opponent
@@ -109,9 +109,9 @@ this — start at its `MEMORY.md` index. They are point-in-time notes: verify fi
 against the code. The ones to read before particular work:
 - **save-format work:** [`fmparser/AGENTS.md`](fmparser/AGENTS.md) (method, feedback loop,
   *never validate a field by joining on it*), [`docs/table-framing.md`](docs/table-framing.md)
-  (the save declares its own table sizes), [`docs/savefile-map.md`](docs/savefile-map.md) (the
-  whole file, start to end), [`docs/save-archive.md`](docs/save-archive.md) (the zstd archive at
-  the tail, including the world fixture list), and
+  (the save declares its own table sizes), [`docs/parser/savefile-map.md`](docs/parser/savefile-map.md) (the
+  whole file, start to end, and the zstd archive at its tail), the table docs in
+  [`docs/parser/`](docs/parser/), and
   [`fmm-editor-record-comparison`](docs/agent-context/fmm-editor-record-comparison.md) (our
   records vs the FMM database layouts).
 - **attributes:** [`docs/ca-weighting.md`](docs/ca-weighting.md) (how each displayed attribute

@@ -584,7 +584,7 @@ DDL = [
     # newgen (829 swaps in the frem store, 1503 in bucaspor). Within one (season,phase) slice a
     # tid is unambiguous, so single-snapshot views are fine — but ANY cross-save per-player join
     # keyed on tid alone splices two people into one career. `dob` separates every recycled slot
-    # (2332 changes, 0 collisions, 0 nulls), so (tid,dob) is the person key. See docs/IDS.md.
+    # (2332 changes, 0 collisions, 0 nulls), so (tid,dob) is the person key. See docs/parser/person_info.md.
     # person_id is a stable VARCHAR '<tid>-<dob>' (stable across loads, unlike a dense_rank).
 ]
 
@@ -1844,7 +1844,7 @@ def report_persons(con):
     n, t = con.execute("SELECT COUNT(*), COUNT(DISTINCT tid) FROM int.persons").fetchone()
     if n > t:
         print(f"  identity bridge: {n} persons across {t} tids "
-              f"({n - t} recycled slot(s) — see docs/IDS.md)")
+              f"({n - t} recycled slot(s) — see docs/parser/person_info.md)")
 
 
 def reset_schema(con):

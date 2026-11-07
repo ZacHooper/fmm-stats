@@ -5,7 +5,8 @@ nation's competition list, reserve list and rules. They make up the **data dicti
 3.3 MB region at ~16.7–20.0 MB in the reference half ([savefile map](savefile-map.md)), in the
 same tagged format as the archive's [comp_rules](comp_rules.md) members but without their
 54-byte header. Each file is a count-framed block, `[u32 n][n tagged fields]`. The files are
-identical in every save of a career; the bytes between them change.
+byte-identical in every save of a career (27 of 667 differ between the Frem and Bucaspor
+careers); the bytes between them change.
 
 ## Layout
 

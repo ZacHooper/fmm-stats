@@ -3,9 +3,9 @@
 
 The save's tagged data dictionary (~16.7-20.0 MB, drifting per save) is the game's library
 of rule files: 667 of them, each naming its source in a `file` string and its folder in
-`SubF` (`.\\europe\\dan\\`). Within a career the rule files are value-for-value
-identical in every save (Bucaspor's total 60 bytes fewer than Frem's); what changes between
-saves is the bytes BETWEEN them (below). A rule file is a tagged block in the tagged format of
+`SubF` (`.\\europe\\dan\\`). Within a career the rule files are byte-identical in every save (27 of the 667 differ
+between the Frem and Bucaspor careers); what changes between saves is the bytes BETWEEN them
+(below). A rule file is a tagged block in the tagged format of
 the archive's `comp_<uid>.dat` members (`tables/comp_rules.py`) minus their 54-byte header:
 
     [u32 n][n tagged fields]
@@ -37,8 +37,8 @@ in its nation's group and some of its own. Neither the separator (empty after a 
 else runs of `ffffffff`-led u16 entries ending `01`) nor the dated record (41 bytes on
 most, u16 day-of-year + u16 year pairs such as `9d04 eb07`) is decoded; together they are
 the 0.8% of the span `tiling()` reports as unread, and they are the part that is STATE:
-26 of the 666 differ between frem-2027-07-02 and frem-2027-08-08, 216 between
-frem-2021-07-01 and frem-2027-08-08, while no rule file changes at all.
+227 of the 666 differ between frem-2026-03-28 and frem-2030-06-22, while no rule file changes
+at all.
 
 Five schemas cover every rule file (`core.TaggedRecord`), picked per row by `schema_for`:
 a competition's file carries a stage list and reads with `comp_rules.FILE` -- the same
@@ -107,7 +107,7 @@ TEAM_RULE = TaggedRecord("rule_file_team_rule", [
         note="the competition; a u32 uid or a COMP_REF. Absent on the team/nation rules"),
     Tag("ntms", "teams",    INT, note="teams in the competition, on 18% of rules"),
     Tag("nxss", "nxss",     INT, required=True,
-        note="0 on every rule but one: Chile's 5250792 carries 0 (17 teams) and 1 (16)"),
+        note="0 or 1, unnamed: 1 on 51 rules; Chile's 5250792 carries 0 (17 teams) and 1 (16)"),
 ], unread=('umox', 'igmt', 'mntm', 'mxtm', 'type', 'pare', 'team', 'Bktm', 'nati', 'Cexi',
            'STpr', 'spst'))
 

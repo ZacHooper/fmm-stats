@@ -53,7 +53,7 @@ a phone-friendly web app    squad, ratings, matches, history, world, recruitment
 
 | part | what it does | start here |
 |---|---|---|
-| **Parser** | Decodes the binary save, table by table, into JSON. Knows nothing about your career. | [`fmparser/AGENTS.md`](fmparser/AGENTS.md), [`docs/savefile-map.md`](docs/savefile-map.md) |
+| **Parser** | Decodes the binary save, table by table, into JSON. Knows nothing about your career. | [`fmparser/AGENTS.md`](fmparser/AGENTS.md), [`docs/parser/savefile-map.md`](docs/parser/savefile-map.md) |
 | **Stats** | Loads each save as a dated snapshot into DuckDB, then a dbt project models it: players, clubs, matches, competitions, contracts, across every snapshot. | [`fmstats/AGENTS.md`](fmstats/AGENTS.md), [`docs/data-model/`](docs/data-model/README.md) |
 | **Site** | A static web app (no build step) that rates players in your tactic's roles in the browser. Optional: deploys as a Cloudflare Worker. | [`site/AGENTS.md`](site/AGENTS.md), [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | **Skills** | Recipes an AI agent follows: scout an opponent, season review, pre-season squad review, and more. | [`.claude/skills/`](.claude/skills/) |
@@ -127,12 +127,12 @@ The repo is built to be worked on, and asked questions, by coding agents.
 | Other players: physical attributes, positions, feet, age, contracts | **exact** |
 | Other players: technical, mental and goalkeeping attributes | **model estimates**, mostly within ±1 ([`docs/ca-weighting.md`](docs/ca-weighting.md)) |
 | Your matches: scores, events, per-player stats, formations | **exact** |
-| World fixtures and results | **exact** ([`docs/save-archive.md`](docs/save-archive.md)) |
+| World fixtures and results | **exact** ([`docs/parser/fixtures.md`](docs/parser/fixtures.md)) |
 | Shots, team rating, man of the match | **derived** from stored parts, as the game does |
 | Possession, roles and duties, the exact XI on a given day | **not in the save** |
 
-Known problems and dead ends are in [`docs/BUGS.md`](docs/BUGS.md); open work is in
-[`docs/TODO.md`](docs/TODO.md).
+Open work, known problems included, is in [`docs/TODO.md`](docs/TODO.md); dead ends are
+callouts in the doc about the table they concern ([`docs/parser/`](docs/parser/)).
 
 ## Tests
 
@@ -149,9 +149,9 @@ test suite against your data.
 
 The save format is undocumented. The method (map the regions first, prove a record's extent,
 never validate a field by joining on it) and the findings are in
-[`fmparser/AGENTS.md`](fmparser/AGENTS.md), [`docs/savefile-map.md`](docs/savefile-map.md),
-[`docs/table-framing.md`](docs/table-framing.md),
-[`docs/record-expansion.md`](docs/record-expansion.md) and
+[`fmparser/AGENTS.md`](fmparser/AGENTS.md), [`docs/parser/savefile-map.md`](docs/parser/savefile-map.md),
+[`docs/table-framing.md`](docs/table-framing.md), the table docs in
+[`docs/parser/`](docs/parser/) and
 [`docs/agent-context/`](docs/agent-context/MEMORY.md).
 
 ## Contributing

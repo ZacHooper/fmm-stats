@@ -2,7 +2,7 @@
 
 Every result in the loaded world, every club, for this calendar year and the last: the
 Fixtures/Results screens of every club and competition. 92-byte records in the save's zstd
-archive, member `fix_man.dat` ([`docs/save-archive.md`](../save-archive.md) has the
+archive, member `fix_man.dat` ([savefile map](savefile-map.md#the-archive) has the
 container), stored as one grid per calendar year, the current year first. 26,627 records on
 `frem-2030-06-22` (7,915 for 2030, 18,712 for 2029), across both careers' clubs and national
 sides alike. Our own clubs' matches in full detail are [matches](matches.md).

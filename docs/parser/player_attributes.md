@@ -86,6 +86,13 @@ Tested by `tests/test_people_evidence.py`.
 
 ## Quirks
 
+> **Decision:** the nine hidden attributes are named from `nyongrand/fmm-editor`'s `Player.cs`
+> (`jumping`, `consistency`, `big_match`, `injury_prone`, `versatility`, `set_pieces`,
+> `penalty`, `work_rate`, `flair`). The order holds against independently checked anchors, and
+> the 18 slots FMM22 fills plainly are exactly the ability-independent attributes while the 16
+> it leaves wrapped are the technical and goalkeeping values it computes from CA. Nothing
+> derives from them and none is surfaced.
+
 > **Quirk:** a goalkeeper's Aerial is not the outfield formula: Ullits shows 15 from
 > `heading_src` 2 and `jumping` 11. It involves `aerial_gk_src` (wrapped), and is modelled,
 > not parsed.

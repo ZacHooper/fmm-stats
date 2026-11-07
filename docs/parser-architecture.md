@@ -35,7 +35,7 @@ A 64 MB `.fms` is not one format. It is several, and the boundary between them i
 not thematic: a 20-byte fixed grid of cities and a 20-byte fixed grid of match slots are the
 same *kind of thing* to a parser, while the competition table sitting between them is not.
 
-Four **regimes** describe the file (see [`savefile-map.md`](savefile-map.md)). Seven
+Four **regimes** describe the file (see [`parser/savefile-map.md`](parser/savefile-map.md)). Seven
 **shapes** describe the code, because a survey of every locator in `fmparser/` found several
 that do not fit the four regimes.
 
@@ -176,9 +176,8 @@ number was not needed anywhere.
 The tail of the save is a **zstd archive** (`sicomps`): 159 named members, 6.6 MB decompressed,
 with a directory. Its `fix_man.dat` is the world fixture list — 26,954 rows across 1,751 clubs.
 
-See [`save-archive.md`](save-archive.md) for the container and
-[`archive-coverage.md`](archive-coverage.md) for what each member is worth against what we
-already parse. The reader is `fmparser/core/archive.py`; it needs `uv sync`.
+See [`parser/savefile-map.md`](parser/savefile-map.md#the-archive) for the members and what
+each holds. The reader is `fmparser/core/archive.py`; it needs `uv sync`.
 
 **The rule that found it, which generalises past this shape:** **rank an unknown region by
 BLOCK ENTROPY, never by printable fraction.** This region was ranked the best remaining target
