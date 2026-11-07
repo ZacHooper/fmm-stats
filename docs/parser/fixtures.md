@@ -60,6 +60,23 @@ Hedensted 1-8 Frem (`img/matches-7.png`), at offset 1,967,253: +35 `9e 1e` = sta
 Hedensted Stadion; +72 `4b 25 00 00` = 9547, the referee Sandi Putros; `stage_index` 0 and
 `round_index` 2, the Pokalen's Third Round ([rounds](rounds.md)).
 
+**Frem's Club Fixtures for 2029/30, row by row.** The list has 50 rows, and the fixture list
+holds exactly 50 Frem records from July 2029, one per date. Every row matches its record on
+date, opponent (the club's short name), venue and score. The screen prints the score
+home-first, as stored: "19 Aug 29 · 2-0 · AaB · A" is AaB 2-0 Frem, shown red.
+
+![Club Fixtures 2029/30, July–September 2029](img/fixtures-1.png)
+![Club Fixtures, September–October 2029](img/fixtures-2.png)
+![Club Fixtures, October 2029–February 2030](img/fixtures-3.png)
+![Club Fixtures, February–April 2030](img/fixtures-4.png)
+![Club Fixtures, April–June 2030](img/fixtures-5.png)
+
+The labels (Friendly, 3F Superliga Preliminary Phase / Championship Group, Champions Cup
+Group D, Sydbank Pokalen Third Round … Semi Final Second Leg, Champions Cup First Knockout
+Round First/Second Leg) are not in the record. They come from `stage_key`, `stage_index` and
+`round_index` through the rules ([rounds](rounds.md)), and `site.matches` reproduces all 50,
+group letter and leg included.
+
 All 70 of our matches in the [matches](matches.md) table are here with the same date, clubs
 and score. Tested by `tests/test_matches_evidence.py`.
 

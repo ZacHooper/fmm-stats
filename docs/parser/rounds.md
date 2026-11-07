@@ -44,7 +44,14 @@ index 235).
 
 Hedensted 1-8 Frem (`img/matches-7.png`) reads "Sydbank Pokalen / Third Round": the
 fixture's `round_index` is 2, the Pokalen's rules (`comp_1301406.dat`) name round 2 with
-`stnm` 8, and record 8 is "Third Round". Tested by `tests/test_matches_evidence.py`.
+`stnm` 8, and record 8 is "Third Round".
+
+Frem's Club Fixtures list ([fixtures](fixtures.md), `img/fixtures-1..5.png`) labels all 50
+matches. Every label `site.matches` builds from these names matches the screen: the Pokalen's
+Third Round, Fourth Round, Quarter Final and Semi Final; the Superliga's Preliminary Phase
+and Championship Group; the Champions Cup's Group D and First Knockout Round. The group letter
+and the leg are not in this table: the letter is the group's place among its stage's
+`stage_key`s and the leg the tie's date order (`mart.match_stages`). Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
 

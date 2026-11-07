@@ -27,6 +27,7 @@ from tests.harness import find_save, skip  # noqa: E402
 from fmparser.core import archive as A  # noqa: E402
 from fmparser.save import Save  # noqa: E402
 from fmparser.tables import comp_rules, fixtures, matches, officials, rounds  # noqa: E402
+from fmparser.tables.clubs import scrape_clubs  # noqa: E402
 
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "matches_evidence.json")
 
@@ -155,6 +156,23 @@ def main():
                 if (rec["date"], rec["home_tid"], rec["away_tid"]) == (f["date"], f["home_tid"], f["away_tid"]):
                     refs.append(struct.unpack_from("<I", blob, o + 72)[0])
         check(refs == [f["referee_tid"]], f"+72 is the referee {f['referee']} (tid {f['referee_tid']})")
+    fl = fx["fixture_list"]
+    print(f"\nFIXTURES: the Club Fixtures list, {len(fl['rows'])} rows checked one by one")
+    clubs = scrape_clubs(mm)
+    ours = {}
+    for r in world:
+        if fl["club_tid"] in (r["home_tid"], r["away_tid"]) and r["date"] >= fl["rows"][0][0]:
+            ours.setdefault(r["date"], []).append(r)
+    check(len(ours) == len(fl["rows"]) and all(len(v) == 1 for v in ours.values()),
+          f"{len(fl['rows'])} records for the club in the season, one per date (got {len(ours)})")
+    for date, score, opp, venue, label in fl["rows"]:
+        r = (ours.get(date) or [None])[0]
+        home = r is not None and r["home_tid"] == fl["club_tid"]
+        ok = (r is not None and ("H" if home else "A") == venue
+              and f"{r['home_goals']}-{r['away_goals']}" == score
+              and clubs[r["away_tid"] if home else r["home_tid"]]["short"] == opp)
+        check(ok, f"{date} {score} {opp} {venue} ({label})")
+
     print("\nOFFICIALS (the referee on the Match Report)")
     for o in fx["officials"]:
         rec = offs[o["slot_id"]]
