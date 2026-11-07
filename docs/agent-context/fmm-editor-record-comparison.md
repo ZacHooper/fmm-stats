@@ -26,7 +26,7 @@ walks**:
 | offset | field | us |
 |---|---|---|
 | `P-42` | **Id** (this is what we call `sid`) | ✅ |
-| `P-38` | **Uid** | ✅ (the `P-38` player link of [[history-chain-pointers]]) |
+| `P-38` | **Uid** | ✅ (the `P-38` player link of [`history`](../parser/history.md)) |
 | `P-34 … P-8` | 27 outfield attributes | partial |
 | `P-7 … P-1` | 7 GK attributes | partial |
 | `P … P+14` | 15 position ratings | ✅ |
@@ -109,14 +109,14 @@ derive Teamwork from `P-25`+`P-9` where the order says those are **Unselfishness
 derived, so neither is a conflict. (An earlier revision of this file said `P-9` was Positioning;
 that was a slip — Positioning is `P-10`, and it is one of the dead 16.)
 
-## People / info record — FIXED 2026-09-16, see BUGS #14 Round 4
+## People / info record — FIXED 2026-09-16, see [`person_info`](../parser/person_info.md)
 
 Was truncated at +64; the record is variable-length and ends with counted **language** and
 **relationship** lists. Now fully accounted for. `PlayerId` (−1 for staff) is our SID staff rule.
 
 `People.cs` also settles where the **personality block** lives — the 8 bytes Adaptability,
 Ambition, Controversy, Loyality, Pressure, Professionalism, Sportmanship, Temperament are
-declared here, on the INFO record, which is where BUGS #14 verified them byte-exact against 7
+declared here, on the INFO record, which is where the seven managers' profiles verified them byte-exact against 7
 managers' screenshots. `docs/ATTRIBUTE_DECODING.md`'s old `P-50 … P-43` row was wrong and is
 corrected. **One discrepancy to keep in mind:** slot 3 is **Controversy** in FMM26 and reads
 **Determination** on the FMM22 screens we checked. Ours is the ground-truth reading for our game.

@@ -18,36 +18,10 @@ append-and-shift structures once tested properly — real records get inserted, 
 that part of the file, and everything downstream shifts to make room. Matches also does
 something club-records doesn't: it resets to empty at every season boundary.
 
-## 1. The history slab — genuinely a fixed pool, proven exactly
+## 1. The history slab — a fixed pool
 
-`fmparser/history.py`'s `locate()` finds this table by **sampling** 48 points and scoring
-candidates by how many satisfy pointer continuity — fast, and correct in practice, but a
-threshold, not a proof. Redone here with **zero sampling and zero thresholds**, so a candidate
-either satisfies every check on **100% of its declared rows** or it is discarded outright:
-
-1. Deterministic range+fits filter (same first stage `locate()` already uses: the header's high
-   byte is 0, the declared count is in a sane range, the table fits in the file). This leaves
-   millions of candidates.
-2. Progressively longer **exact** prefix checks — every one of the first 16, then 256, then
-   4,096, then 65,536 rows must satisfy `next == 0xFFFFFFFF or next < declared_count`. No
-   candidate survives on a partial match; this is pure funnel-narrowing, not scoring.
-3. On the handful of survivors, a **full check over every declared row**: build the pointer
-   graph and require **max in-degree == 1** and **count(in-degree-0 rows) == count(terminator
-   rows)** — a perfect forest. Exactly one candidate in the whole file clears this on every save
-   tested.
-
-| save | rows | start | end | heads = terminators |
-|---|---|---|---|---|
-| 2023-07-02 | **265,423** | 40,364,927 (`0x0267eb7f`) | 44,611,695 (`0x02a8b86f`) | 34,441 |
-| 2024-06-30 | **265,423** | 40,479,437 (`0x0269aacd`) | 44,726,205 (`0x02aa77bd`) | 44,117 |
-| 2026-06-11 | **265,423** | 42,630,105 (`0x028a7bd9`) | 46,876,873 (`0x02cb48c9`) | 25,622 |
-
-**Row count is exactly 265,423 in all three** — a fixed, per-career allocation (already known to
-differ between careers: Bucaspor's is 295,648, per `table-framing.md`), not something that grows
-as the career plays out. **Absolute position drifts** (start moves ~2.3M bytes over the three
-years, because everything upstream — contracts, transfer history, the name id-tables — grows),
-so the slab must be *relocated* on every save; only its row count and internal shape are the
-fixed things.
+265,423 records on every Frem save, 295,648 on Bucaspor, located by its pointer forest and
+never by sampling: [`docs/parser/history.md`](parser/history.md).
 
 ## 2. The 209-byte handoff — a regularity, NOT the invariant to locate by
 

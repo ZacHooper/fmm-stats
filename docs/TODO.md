@@ -53,7 +53,7 @@ Live traps, each of which has produced numbers that looked fine and were not:
 - **`any_value(x ORDER BY y)` does not order in DuckDB.** `max_by(x, y)` does.
 - **`mart.club_attendance` is our-matches-only** — read `n_games` before trusting `avg_att`.
 - **A tid is a slot, not a person** — check `DISTINCT dob` per tid before telling a story
-  about one ([`agent-context/tid-recycling.md`](agent-context/tid-recycling.md)).
+  about one ([`parser/person_info.md`](parser/person_info.md)).
 
 ### Where to look
 
@@ -125,7 +125,9 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
     24, 27-29, 31). The
     quickest proof is to set a dozen players' Focus Role to each, save, and read the ids;
     `docs/role-ids.csv` names famous players holding each role for checking on profiles.
-  - attribute-focus codes 0, 2, 4, 10, 12, 13, 15 (13 is the AI's most common, 5,067 players).
+  - attribute-focus codes 0, 2, 10, 12, 13, 15 (13 is the AI's most common, 5,053 players).
+    Code 4 is Shooting (Adingra's Training Report, `frem-2030-06-22`) but is not yet in
+    `seeds/training_attributes.csv`: add `4,SHO`.
   - intensity 0 and 1: only 3 (High) and 2 (Normal) are read off the screen.
   - the Progress bar: a green fill, or a full yellow bar when the player is unlikely to improve
     further. Not the stored `pa - ca` (0 on yellow and near-empty bars alike); the green-fill
@@ -145,9 +147,11 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
 
 ### 4a. Player progress: what is still unread
 `tables/player_progress.py` hands every used row to `raw.player_progress` (the six lines
-and the raw status included); the mart draws injury and loan spells from the bits. Open: the six
-u16 skill lines at +4 (which line is which on the Player Progress graph), status bits 3 (8)
-and 6 (64), and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
+and the raw status included); the mart draws injury and loan spells from the bits
+([`docs/parser/player_progress.md`](parser/player_progress.md)). Open: the outfield lines
+`line_3`/`line_4` (Attacking/Defending by their values; read them off an outfield player's
+graph), what the graph's two kinds of marker mean (status bits 4 (16) and 6 (64)), bits 2, 3
+and 7, and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
 the week's attribute values?). Named, the table could give every squad player's weekly
 development, not just injuries and loans.
 
@@ -218,9 +222,14 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 ### 10. Unnamed fields in records we already read
 Bytes the parser reads but cannot name yet.
 - **Staff** `+34..+38`: five catalog indices. The six hidden staff attributes stay named by
-  offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 85% of
+  offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
+- **Staff records with goalkeeping coaching above 20 are dropped** (`tables/staff.py`
+  `_process_staff`): 43 records read 51–99 at +17, retired goalkeepers, and the 1–20 gate
+  drops the whole record from `staff_records.json` ([`docs/parser/staff.md`](parser/staff.md)).
+  Keep every record and name what +17 holds for them. An output change: re-record
+  `tests/assert_identical.py`.
 - **Club `main_club_tid` drops tid 0** (`tables/clubs.py` `_club`): the `0 < tid` filter
   loses the one parent that is tid 0, so Algeria U21 (11103) has no parent while the other 227
   U21 sides resolve ([`docs/parser/clubs.md`](parser/clubs.md)). An output change: re-record
@@ -452,6 +461,9 @@ The README, `AGENTS.md`, `fmm.toml` and the R2-served site data are done. Still 
   their headers: `frem/denmark-mid-22` 2021-10-02, `bucaspor/22-23-start` and
   `bucaspor/fm_save3` 2022-06-20 (check whether they are the same save),
   `bucaspor/fm_save1-24-mid` 2023-11-08; register or delete them.
+- **Youth-intake prospects are not in the person table**: the reserves' Contract screen lists
+  them (no contract, value `Free`), but no person record carries their names
+  ([`docs/parser/contracts.md`](parser/contracts.md)). Find where the intake lives.
 - **`reserve_tid` is configured by hand (fmm.toml)** — the club record's `main_club_tid` could derive it.
 - **Loader speed**: `orjson` for the JSON decode and flattened row construction in `load_core`
   measured ~2.9 s → ~1.6 s per snapshot.

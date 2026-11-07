@@ -28,4 +28,4 @@ been right the whole time, and treating it as noise cost a detour into a wrong s
 - Don't diagnose from a resolved NAME (club/player) — check the id. See [[name-resolution]].
 
 Related: [[user-supplied-save-date-wins]] (same principle for save dates — the user's stated
-in-game date beats the derived one), [[history-chain-pointers]], [[player-history-table]].
+in-game date beats the derived one), [`history`](../parser/history.md).

@@ -185,7 +185,7 @@ Other things that bite: **attribute columns are Capitalised** in the frames
 percentage columns with a list comprehension guarding the zero denominator.
 
 **Resolving names: do NOT go via `at_club_spells`/`person_id` for match stats.** That was the advice
-here and it silently returns the *wrong player* — tids are recycled slots ([[tid-recycling]]), so a
+here and it silently returns the *wrong player* — tids are recycled slots ([`person_info`](../parser/person_info.md)), so a
 scalar subquery picking `any_value(person_id)` can map a current player's tid to a retired one. It
 produced "Jose Almeida" for a player who is actually Jonathan Bech. Build a tid→name map from the
 latest snapshot instead and check for misses:

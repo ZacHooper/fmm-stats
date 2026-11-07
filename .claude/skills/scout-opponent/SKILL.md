@@ -580,7 +580,7 @@ Everything is parameterised off the active career:
   high against reserve peers and is not comparable to a first-teamer's Superliga number (compare on
   `level_global`); and a name in **no** club's squad is *often* a post-snapshot signing but
   **absence is weak evidence**
-  ([`nickname-players-missing`](../../../docs/agent-context/nickname-players-missing.md)). Say
+  ([`names`](../../../docs/parser/names.md)). Say
   **"our data has never seen him"**, not "he must be a new signing" — and the `Selection` screen's
   apps column settles it in one glance. Search for him world-wide by name (`mart.dim_person`, then
   his latest `mart.fact_player_snapshot` row) to rate him off his previous club.
