@@ -27,7 +27,7 @@
 -- Wage, expiry and team are read on the first and the last snapshot holding
 -- the contract: on the Frem gate stores, of the contracts seen twice or more
 -- (3,893 and 21,605), 225 and 330 change wage under one start date, 3 and 6
--- expiry, 544 and 1,919 team. The squad status on the training row changes
+-- expiry, 544 and 1,919 team. The training row's unknown_39 changes
 -- under one start date on 1,996 and 2,599 of them, so it is not a contract
 -- term and stays on the player snapshot.
 --

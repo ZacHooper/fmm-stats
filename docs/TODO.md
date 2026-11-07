@@ -127,19 +127,18 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
     `docs/role-ids.csv` names famous players holding each role for checking on profiles.
   - attribute-focus codes 0, 2, 10, 15.
   - intensity 0 and 1: only 3 (High) and 2 (Normal) are read off the screen.
-  - **Squad status is not located.** Training `+39` (`squad_status`) is not it: ten players
+  - **Squad status is not located.** Training `+39` (now `unknown_39`) is not it: ten players
     whose Transfer Status screen says First Team, Rotation, Backup or Youngster all read 171
-    on `frem-2030-06-22` ([`docs/parser/training.md`](parser/training.md)). Rename the field
-    (`unknown_39`, through raw and stg, with `mart.fact_player_state_scd`) and find the real
+    on `frem-2030-06-22` ([`docs/parser/training.md`](parser/training.md)). Find the real
     one: diff a save before and after changing one player's status in game.
   - the Progress bar: a green fill, or a full yellow bar when the player is unlikely to improve
     further. Not the stored `pa - ca` (0 on yellow and near-empty bars alike); the green-fill
     rows are the ones with `+17` and `+41` non-zero. Diff two saves a few weeks apart.
   - `+8` u8, `+9`/`+13` u32 (money-like; `+9` round), `+31..36`, `+38`, `+40..48` and the
-    three dates at `+49/+53/+57`. The row also carries the squad status (`+37` contracted,
-    `+39` status), so it is a per-person status row as much as a training one.
-  - squad status 65, read as "loaned out" (`tables/training.py`), mostly does not mark a loan:
-    on the step-16 gate stores 67 of 1,475 status-65 snapshots are listed on loan by another
+    three dates at `+49/+53/+57`. The row also carries the contract flag (`+37`) and the
+    unnamed `+39`, so it is a per-person status row as much as a training one.
+  - `unknown_39` 65, read as "loaned out" (`tables/training.py` `LOAN_STATUS`), mostly does
+    not mark a loan: on the step-16 gate stores 67 of 1,475 status-65 snapshots are listed on loan by another
     club and 1,334 have no loan spell that season, while 9,292 listed loanees carry another
     status. Name the code before reading loans from it.
   - surfacing it: each squad player's training focus on the site's Squad page.

@@ -1,7 +1,7 @@
 # training  ([`fmparser/tables/training.py`](../../fmparser/tables/training.py))
 
 Every player's training focus (role, position, attribute, intensity), plus a contract flag
-and a byte the code calls `squad_status` (it isn't). One fixed 61-byte row per person, `[count u32][rows]`, ~0.76 MB
+and an unnamed byte at +39 (`unknown_39`; it is not the squad status). One fixed 61-byte row per person, `[count u32][rows]`, ~0.76 MB
 after the [player_progress](player_progress.md) pool. The count is the person count, the
 same as [person_info](person_info.md)'s (32,966 on Frem, 34,312 on Bucaspor), and row k
 belongs to tid k.
@@ -23,7 +23,7 @@ belongs to tid k.
 | +31 | | 6 B | unnamed: three u16 | |
 | +37 | `contracted` | u8 | `0x87` on a player under contract; 0 on a free agent and on every member of staff | |
 | +38 | | u8 | 0 on every row read | |
-| +39 | `squad_status` | u8 | unnamed: **not** the squad status (Quirks). 171 on most of Frem's squad; 164, 136 and 125 on others | the Transfer Status screen |
+| +39 | `unknown_39` | u8 | unnamed: **not** the squad status (Quirks). 171 on most of Frem's squad; 164, 136 and 125 on others | the Transfer Status screen |
 | +40 | | 21 B | unnamed; from +49, three `[day-of-year u16][year u16]` dates | |
 
 ## Evidence
@@ -43,7 +43,7 @@ b8 67 00 00  5d dd 35 77  1d  a0 86 01 00  76 73 01 00  00 00 00 00
 | Intensity `Normal` | +21 `02 00` | `intensity` 2 |
 | Focus Attribute `Shooting` | +27 `04 00` | `focus_attribute` 4 |
 | (his position, striker) | +29 `40 02` | `focus_position` ST |
-| (under contract) | +37 `87`, +39 `ab` | `contracted`, `squad_status` 171 (not the squad status, see Quirks) |
+| (under contract) | +37 `87`, +39 `ab` | `contracted`, `unknown_39` 171 (not the squad status, see Quirks) |
 
 Frem's whole Club Squad → Training list (37 rows, reserves and loanees included). Every row's
 Attr, Focus Pos, Focus Role and intensity is what the row stores; the two red intensity icons
@@ -58,16 +58,17 @@ Ullits' 1 (Sweeper Keeper), the roles their profiles show. Tested by
 
 ## Quirks
 
-> **Quirk:** `squad_status` (+39) is not the squad status. Club Squad → Transfer Status
+> **Quirk:** +39 (`unknown_39`) is not the squad status, so it is named by its offset. Club Squad → Transfer Status
 > lists First Team (Ullits, Pedersen, Lund Jensen), Rotation (Strunck, Holmbjerg, Secka),
 > Backup (Persson, Kobberrød, Maarup) and Youngster (Thorsen): all ten read 171. The players
 > who read something else (Mattias Jakobsen 136, Victor Jensen 125, Jagvir Sidhu 164) all
-> signed in 2030. Where the squad status is stored is open in TODO as "Squad status is not
-> located".
+> signed in 2030. The field is renamed `unknown_39` through raw, stg and
+> `mart.fact_player_state_scd` / `fact_player_snapshot`. Where the squad status is stored is
+> open in TODO as "Squad status is not located".
 >
 > ![Club Squad - Transfer Status](img/training-3.png)
 
-> **Quirk:** `squad_status` is not a loan flag either. Frem's seven players out on loan (marked
+> **Quirk:** `unknown_39` is not a loan flag either. Frem's seven players out on loan (marked
 > unavailable on the reserves' Contract screen and flagged in [player_progress](player_progress.md))
 > read 164 on six rows and 171 on Mike Kieffer, the same 171 as First Team. On
 > `bucaspor-2022-06-19` six loaned-out reserves read 65 (`LOAN_STATUS`, tested by
@@ -84,5 +85,5 @@ Ullits' 1 (Sweeper Keeper), the roles their profiles show. Tested by
 ## Output
 
 `output/<label>/training.json`: one row per player in tid order (`tid, intensity,
-focus_role, focus_attribute, focus_position, contracted, squad_status`), loaded into
+focus_role, focus_attribute, focus_position, contracted, unknown_39`), loaded into
 `raw.training`.
