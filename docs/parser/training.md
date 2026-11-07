@@ -18,7 +18,7 @@ belongs to tid k.
 | +21 | `intensity` | u16 | 3 high (the red icon), 2 normal; 1 and 0 also occur | the Training list, 37 of 37 rows |
 | +23 | `focus_role` | u16 | Focus Role, a role id (`seeds/roles.csv`); `0xFFFF` on staff | 37 of 37 |
 | +25 | | u16 | 0 on a player, `0xFFFF` on staff | |
-| +27 | `focus_attribute` | u16 | the Attr column, a code (`seeds/training_attributes.csv`) | 37 of 37; codes 4 SHO, 12 DEC and 13 MOV are missing from the seed |
+| +27 | `focus_attribute` | u16 | the Attr column, a code (`seeds/training_attributes.csv`) | 37 of 37 |
 | +29 | `focus_band`, `focus_column` | 2 × u8 | Focus Pos, the pitch pair the match slots use (`core.primitives.pitch_position`) | 37 of 37 |
 | +31 | | 6 B | unnamed: three u16 | |
 | +37 | `contracted` | u8 | `0x87` on a player under contract; 0 on a free agent and on every member of staff | |
@@ -74,9 +74,9 @@ Ullits' 1 (Sweeper Keeper), the roles their profiles show. Tested by
 > `tests/test_ground_truth.py`), but the code does not carry across saves. Loans come from
 > [player_progress](player_progress.md).
 
-> **Quirk:** `seeds/training_attributes.csv` lacks three codes the Training list names: 4
-> SHO, 12 DEC and 13 MOV (1,725, 985 and 5,053 players on this save). Open in TODO under "Training table: the unread bytes
-> and codes".
+> **Quirk:** `seeds/training_attributes.csv` names only the codes read off the Training list:
+> 1, 3–6, 8, 9, 11–14 and 17–19 (4 SHO, 12 DEC and 13 MOV hold 1,725, 985 and 5,053 players
+> on this save). Codes 0, 2, 10 and 15 are stored but not yet named (TODO, "Training table: the unread bytes and codes").
 
 > **Decision:** staff rows (no Focus Role) and unused rows are dropped by `scrape_training`;
 > every player's row is kept, our squad's or not.
