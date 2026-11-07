@@ -181,18 +181,10 @@ def locate_staff(mm: Any) -> Optional[Tuple[int, int]]:
 staff_table = locate_staff
 
 
-def _process_staff(rec: Dict[str, Any], offset: int) -> Optional[Dict[str, Any]]:
-    ca, pa = rec.get("ca", 0), rec.get("pa", 0)
-    if not (0 <= ca <= pa <= 200):
-        return None
-    for attr in STAFF_ATTRS.values():
-        val = rec.get(attr, 0)
-        if not (1 <= val <= 20):
-            return None
-    for fslot in FORMATION_SLOTS.values():
-        if rec.get(fslot, 0) >= 21:
-            return None
-
+def _process_staff(rec: Dict[str, Any], offset: int) -> Dict[str, Any]:
+    """Every declared record is a real staff record (`id2 == slot index`), so none is dropped:
+    a value outside its usual range, such as +17 reading 51-99 on retired goalkeepers, is
+    carried as stored."""
     row = {"id2": rec["id2"], "offset": offset}
     for f, v in rec.items():
         if f != "id2":
