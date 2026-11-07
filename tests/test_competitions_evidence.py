@@ -111,6 +111,14 @@ def main():
     check(len(hit) == 1 and all(hit[0][k] == v for k, v in e.items()),
           "EURO Cup League Path Third Qualifying Round: two legs")
 
+    print("\nCOMP_RULES: the tie-breakers (`sort`, read raw: the parser does not read it yet)")
+    for uid, stage_index, want in fx["sort_lists"]:
+        fields = comp_rules.scrape(A.read_member(mm, ents[f"comp_{uid}.dat"]))
+        stgs = next(v for tag, _, v in fields if tag == "stgs")
+        st = next(kids for _, _, kids in stgs if any(t == "indx" and v == stage_index for t, _, v in kids))
+        got = [v for _, _, v in next(v for t, _, v in st if t == "sort")]
+        check(got == want, f"competition uid {uid}, stage {stage_index}: sort {want}")
+
     print("\nRULE_FILES")
     tc = rule_files.team_counts(mm)
     for uid, n in fx["team_counts"].items():

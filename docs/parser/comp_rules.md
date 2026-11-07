@@ -48,6 +48,33 @@ A name id is stored either as `stnm`'s own value or as the `stgn` child of an `s
 Every other tag a member carries is listed in the schema's `unread` set (seen, deliberately
 not read); `tests/test_comp_rules.py` fails on a tag that is in neither.
 
+**Unread stage tags whose meaning a rules screen shows** (Evidence, below). Not read by the
+parser yet; TODO, "Decode the competition rules".
+
+| tag | what it is | the screen |
+|---|---|---|
+| `nrds` | round-robin rounds: 2 = teams play each other twice | "22 games (teams play each other twice)" for 12 teams |
+| `sort` | the table's tie-breakers after points, a list of codes in order | "League Sorting Rules" |
+| `qurl` | where places go: `{nmsn <stage name id>, stag <stage index>, nrpl <n>}` = the top n; `topp`/`btpl` = a band of positions, 0-based; `comp` = another competition | "Qualification" |
+
+`sort` codes, as the screens and the store's tables show them:
+
+| code | rule | from |
+|---|---|---|
+| 0 | Goal Difference | both screens |
+| 1 | Goals Scored | both screens |
+| 3 | Results Between Teams (head to head) | Champions Cup screen; and Spain's First and Second Division (and all but one Spanish league) read `[3, 0, 1]`, the league whose rebuilt tables disagree with the game only where head to head decides (TODO, "League tables outside Denmark") |
+| 18, 29 | the head-to-head sub-rules, Goal Difference then Goals Scored | Champions Cup screen, the footnote |
+| 5, 39 | both shown as "Away Goals Scored" (5 in the Danish leagues, 39 in the European group stages); what separates them is unknown | both screens |
+| 2 | Games Won | Champions Cup screen (Belgium's leagues start with it) |
+| 16 | Away Games Won | Champions Cup screen |
+| 20 | Discipline Record (two times red cards plus yellow cards) | Champions Cup screen |
+| 7 | Coefficient | Champions Cup screen |
+
+Seen but not on a screen: 6, 13, 14, 22, 30. England's top flight reads `[0, 1, 3]`, the
+Bundesliga `[0, 14, 1, 3, 5]`, Belgium's `[2, 0, 1, 13, 5]` (and `[6, 2, 0, 1, 13, 5]` on its
+play-off stages).
+
 ## Evidence
 
 `frem-2030-06-22`. **`comp_6.dat`, the 3F Superliga** (uid 6). Header:
@@ -100,9 +127,39 @@ July 2030, played 8th–15th August 2030, "Winners qualify for the Playoff". In
 mont 7}`; that it means "the Monday on or before 24 July" fits 22 July 2030 but is one example,
 so unverified.
 
-The disciplinary rules on the same screens (EURO Cup: a ban after 3 yellow cards; the Pokalen:
-after every 2) are not read; where they are stored is not established (TODO, "Decode the
-competition rules").
+**Sorting and qualification.** These two screens are from a later save (in-game 17 September
+2030); the bytes below are frem-2030-06-22's, whose lists are identical to frem-2030-09-14's
+for every loaded competition.
+
+3F Superliga, Rules - Preliminary Phase (`img/comp_rules-3.png`): 22 games, teams play each
+other twice; League Sorting Rules Goal Difference, Goals Scored, Away Goals Scored; "Bottom 6
+teams qualify for Relegation Stage", "Top 6 teams qualify for Championship Group". In
+`comp_6.dat`, stage 0:
+- `nrds` at byte 264: `73 64 72 6e 01 11 02`, 2 rounds of 11 opponents = 22 games;
+- `sort` at 1,788: `74 72 6f 73 01 0b 03 00 00 00 | 01 11 00 | 01 11 01 | 01 11 05`, the
+  list `[0, 1, 5]`;
+- `qurl` at 1,631, two rules: `{nmsn 108 Championship Group, stag 1, nrpl 6}` and
+  `{nmsn 171 Relegation Stage, stag 2, topp 6, btpl 11}`, positions 7–12.
+
+![3F Superliga Rules - Preliminary Phase: 22 games; Goal Difference, Goals Scored, Away Goals Scored; bottom 6 to the Relegation Stage, top 6 to the Championship Group](img/comp_rules-3.png)
+
+European Champions Cup, Rules - Group Stage (`img/comp_rules-4.png`): Results Between Teams\*,
+Goal Difference, Goals Scored, Away Goals Scored, Games Won, Away Games Won, Discipline Record,
+Coefficient, and \* sorted by Goal Difference, Goals Scored; "Team in 3rd position qualifies for
+EURO Cup First Knockout Round", "Top 2 teams qualify for First Knockout Round". In
+`comp_1301394.dat`, stage 2 (`grou`, 8 groups of 4, `nrds` 2):
+- `sort` at 14,284: ten u8 codes `03 12 1d 00 01 27 02 10 14 07`, `[3, 18, 29, 0, 1, 39, 2,
+  16, 20, 7]`: the screen's eight lines in order, the footnote's two sitting after code 3;
+- `qurl` at 11,828: `{nrpl 2, nmsn 164 First Knockout Round}` and `{nmsn 164, comp 1301396
+  (EURO Cup), stag 4, topp 2, btpl 2}`, the third place.
+
+Spain's First Division (`comp_67.dat`, `sort` at 2,515): `01 11 03 | 01 11 00 | 01 11 01`,
+`[3, 0, 1]`. The English Premier Division (`comp_11.dat`, at 3,690): `[0, 1, 3]`.
+
+The disciplinary rules (EURO Cup: a ban after 3 yellow cards; the Pokalen: after every 2; the
+Superliga: a points system, a ban after 19, 17 more, then every 16) and the Superliga's loan
+rules are not read; where they are stored is not established (TODO, "Decode the competition
+rules").
 
 > **Quirk:** a stub (0 fields) is a loaded competition, not a missing one. Read its structure
 > from the dictionary's rule file instead; nothing does so today.

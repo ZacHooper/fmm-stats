@@ -222,7 +222,9 @@ so the two join. Leads from the rules screens ([comp_rules](parser/comp_rules.md
 `date` is a rule, not a date (the Pokalen final's `{spld 'ascension'}` is 30 May 2030), `dat2`
 is the second leg's, `drdt` the draw (`{time 1230, dyow 2, dyom 24, mont 7}` on a Monday 22
 July draw), and `wnpz` / `lspz` / `apmn` carry prize money (`cash`, `curr`). The disciplinary
-rules on the same screens (bans after 2 or 3 yellow cards) are not located. The deleted
+rules on the same screens (bans after 2 or 3 yellow cards, the Superliga's points system)
+are not located. Decoded from screens but not read yet: `nrds` (rounds), `sort` (tie-breakers,
+codes in the doc) and `qurl` (which places go where). The deleted
 data-dictionary doc (last at commit 7cc46b6) holds guesses at many tag meanings — hypotheses
 to test, not facts.
 
@@ -365,8 +367,11 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
 (9/9), Danish split leagues with points carried over 8/8. What is still wrong:
 - **Spain ranks level points by head to head.** Its labels and totals are right; every
   disagreement is teams level on points, and head to head decides all 41 such pairs it
-  separates. The tie-breakers are probably in the competition's rules member (`comp_<uid>.dat`,
-  TODO #6); read them there rather than hard-coding a nation's rule.
+  separates. The tie-breakers are in the competition's rules member: the stage's `sort` list
+  ([comp_rules](parser/comp_rules.md)), `[3, 0, 1]` for Spain (head to head, goal difference,
+  goals scored), `[0, 1, 3]` for England. Read `sort` into `competition_rounds` and rank by it
+  rather than hard-coding a nation's rule; the codes not yet seen on a screen (6, 13, 14, 22,
+  30) need one each.
 - **Split leagues**: `standings` holds each stage's own matches. Whether points carry into the
   championship and relegation groups, and Belgium's (which disagree, 0/2), is also a rules
   question.
