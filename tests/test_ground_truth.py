@@ -21,7 +21,7 @@ from fmparser.save import Save                        # noqa: E402
 from fmparser.tables.matches import scrape_matches    # noqa: E402
 from load_duckdb import _match_derived                # noqa: E402
 from fmparser.tables import player_attributes as A                  # noqa: E402
-from fmparser.tables.training import LOAN_STATUS, scrape_squad_status  # noqa: E402
+from fmparser.tables.training import LOAN_STATUS, scrape_unknown_39  # noqa: E402
 from fmparser import model as MOD                     # noqa: E402
 
 # reserve squad loan ground truth (from an in-game screenshot, 19 Jun 2022):
@@ -102,8 +102,8 @@ def run(save_path=None):
     _check(rate >= 0.90,
            f"within-+/-1 rate {rate:.0%} below 90% ({off_total}/{total} off)", fails)
 
-    # loan status (contract record): known loanees vs playing reserves
-    status = scrape_squad_status(s.mm)
+    # +39 on the training row (unknown_39): these loanees read 65, these playing reserves 112
+    status = scrape_unknown_39(s.mm)
     for tid in LOANED_OUT:
         _check(status.get(tid) == LOAN_STATUS,
                f"{tid} status {status.get(tid)} != loaned ({LOAN_STATUS})", fails)
