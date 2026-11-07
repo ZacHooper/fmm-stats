@@ -81,19 +81,33 @@ def test_style_and_reputation_derivatives():
     assert ST.style(20) == "Attacking"
     assert ST.style(None) is None
 
-    # Reputation tier: <3000 Regional, <5800 National, >=5800 Continental
+    # Reputation tier: <3000 Regional, <5900 National, >=5900 Continental
     assert ST.reputation_tier(1500) == "Regional"
     assert ST.reputation_tier(2999) == "Regional"
     assert ST.reputation_tier(3000) == "National"
-    assert ST.reputation_tier(5799) == "National"
-    assert ST.reputation_tier(5800) == "Continental"
+    assert ST.reputation_tier(5857) == "National"     # Thomas Frank, frem-2030-06-22
+    assert ST.reputation_tier(5899) == "National"
+    assert ST.reputation_tier(5900) == "Continental"
     assert ST.reputation_tier(7500) == "Continental"
     assert ST.reputation_tier(None) is None
     print("  PASS style() and reputation_tier() edge cases")
 
 
+def test_every_record_kept():
+    print("TESTING the table keeps every declared record")
+    # Record 1 is a retired goalkeeper: +17 (goalkeeping_coaching) reads 90, outside 1-20.
+    recs = [bytearray(build_staff_record_bytes(id2=i)) for i in range(3)]
+    recs[1][17] = 90
+    ST._STAFF_CACHE.clear()
+    rows = ST.STAFF_TABLE.id_map(b"".join(bytes(r) for r in recs), key_field="id2")
+    assert list(rows) == [0, 1, 2], list(rows)
+    assert rows[1]["goalkeeping_coaching"] == 90
+    print("  PASS a record with goalkeeping_coaching 90 is kept, as stored")
+
+
 def main():
     test_staff_schema_unpack()
+    test_every_record_kept()
     test_style_and_reputation_derivatives()
     return 0
 

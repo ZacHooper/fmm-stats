@@ -87,7 +87,9 @@ STAFF_FIELDS = (("ca", "pa", "home_reputation", "current_reputation", "world_rep
                 + tuple(_ATTRS.values()) + tuple(HIDDEN_OFFSETS.values())
                 + tuple(FORMATION_SLOTS.values()) + ("style",))
 
-_TIER_BANDS = ((3000, "Regional"), (5800, "National"), (10**9, "Continental"))
+# The National/Continental edge lies in 5,858-5,974: Thomas Frank (5,857) shows National and
+# Thorup (5,974) Continental. 5,900 sits inside that bracket; the exact cut is unmeasured.
+_TIER_BANDS = ((3000, "Regional"), (5900, "National"), (10**9, "Continental"))
 _STYLE_BANDS = ((7, "Defensive"), (13, "Normal"), (20, "Attacking"))
 
 
@@ -179,18 +181,10 @@ def locate_staff(mm: Any) -> Optional[Tuple[int, int]]:
 staff_table = locate_staff
 
 
-def _process_staff(rec: Dict[str, Any], offset: int) -> Optional[Dict[str, Any]]:
-    ca, pa = rec.get("ca", 0), rec.get("pa", 0)
-    if not (0 <= ca <= pa <= 200):
-        return None
-    for attr in STAFF_ATTRS.values():
-        val = rec.get(attr, 0)
-        if not (1 <= val <= 20):
-            return None
-    for fslot in FORMATION_SLOTS.values():
-        if rec.get(fslot, 0) >= 21:
-            return None
-
+def _process_staff(rec: Dict[str, Any], offset: int) -> Dict[str, Any]:
+    """Every declared record is a real staff record (`id2 == slot index`), so none is dropped:
+    a value outside its usual range, such as +17 reading 51-99 on retired goalkeepers, is
+    carried as stored."""
     row = {"id2": rec["id2"], "offset": offset}
     for f, v in rec.items():
         if f != "id2":
