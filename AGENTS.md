@@ -159,10 +159,10 @@ header. The optional `-<tag>` is a human note that nothing parses.
 
 ## Common commands
 ```bash
-uv run python scripts/discover_career.py <save.fms>       # a new career: find the club's tids
+uv run python scripts/discover_career.py <save.fms> --write   # a new career -> fmm.toml
 uv run python scripts/archive_save.py <save.fms> --career <key> [--upload]
 uv run python extract.py <saves_dir>/<key>/<save>.fms     # -> output/<save name>
-uv run python load_duckdb.py output/<save name> --career <key>   # -> fm-<key>.duckdb (runs dbt)
+uv run python load_duckdb.py output/<save name>           # -> fm-<key>.duckdb (runs dbt)
 uv run python scripts/export_manifest.py                  # refresh the rebuild recipe
 
 # after editing fmstats/ models or the loader: rebuild models and run every dbt test
