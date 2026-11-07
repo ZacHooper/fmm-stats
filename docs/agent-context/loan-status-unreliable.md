@@ -7,15 +7,16 @@ metadata:
   originSessionId: 681be847-7279-4c83-87e8-ccd414e19fd8
 ---
 
-**There is no `loaned_out` column any more, and `squad_status` must not be used to infer
-one.** `loaned_out` used to be derived from the training row's squad-status byte, and it was
+**There is no `loaned_out` column any more, and the training row's +39 byte (`unknown_39`,
+formerly `squad_status`) must not be used to infer one.** `loaned_out` used to be derived from the training row's squad-status byte, and it was
 wrong: Selahattin Seyhun (tid 22908, Bucaspor) read `loaned_out=True` while a first-choice
 starter — ST eff 407 (86th pct), 26 goals in 2255 mins. The user confirmed (2026-07-28) the
 flag was outdated, and (2026-10-01) that training should not decide who is loaned out, so the
 data-layers step 7 stopped deriving it.
 
-`squad_status` is still carried (`raw.training.squad_status`, `mart.player_snapshots`) as the
-raw contract term it is — a code on the training row, not a statement about availability.
++39 is still carried (`raw.training.unknown_39`, `mart.fact_player_snapshot.unknown_39`), as
+stored and unnamed: it is not the squad status either
+([`docs/parser/training.md`](../parser/training.md)).
 
 **Who is out on loan:** `mart.loan_out_spells` for now, drawn from the weekly Player Progress
 rows (`raw.player_progress` via `mart.progress_weeks`). In the semantic model
@@ -28,7 +29,7 @@ club's name; the save never clears it, so it is not evidence a loan is live.
 
 **How to apply:** when analysing the squad (rotation, best XI, scouting, availability), treat
 everyone in the squad as available and rank by **minutes played** + rating + age. Do NOT
-filter on `squad_status` — doing so silently drops real regulars (it hid Seyhun, Yusuf Can
+filter on `unknown_39` — doing so silently drops real regulars (it hid Seyhun, Yusuf Can
 Abay (MC, eff 427/99th pct), and Özcan Sertgöz from a rotation analysis).
 
 Related: [[etl-duckdb-dashboard]] [[preseason-squad-review]]

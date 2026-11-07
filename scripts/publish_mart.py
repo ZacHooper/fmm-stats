@@ -106,7 +106,7 @@ def build(src_path, dest):
             scd.contract_expiry,
             scd.contract_status,
             scd.is_contracted,
-            scd.squad_status,
+            scd.unknown_39,
             scd.training_intensity,
             scd.training_focus_role,
             scd.training_focus_attribute,

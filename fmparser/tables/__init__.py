@@ -9,7 +9,7 @@ from .clubs import CLUB_TABLE, locate_clubs, scrape_clubs
 from .history import HISTORY_TABLE, locate_history, scrape_history
 from .player_progress import (PLAYER_PROGRESS_TABLE, locate_player_progress,
                               scrape_player_progress)
-from .training import (LOAN_STATUS, TRAINING_TABLE, locate_training, scrape_squad_status,
+from .training import (LOAN_STATUS, TRAINING_TABLE, locate_training, scrape_unknown_39,
                        scrape_training, training_table_spans)
 from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LIST_TRAILERS_TABLE,
                            locate_player_lists, player_lists_table_spans,
@@ -310,7 +310,7 @@ __all__ = [
     "LOAN_STATUS",
     "contracts_table_spans",
     "locate_contracts",
-    "scrape_squad_status",
+    "scrape_unknown_39",
     "scrape_contracts",
     # Currencies
     "CURRENCIES_TABLE",
