@@ -13,15 +13,15 @@ A count-framed table of 251 variable-length records in the reference block (~12.
 | `NATION_HEAD` | `uid` | u32 | database id; a national team's club record carries `-uid` ([clubs](clubs.md)) | all 251 |
 | | `id` | u16 | the nation id everything else points at; equals the slot index | the walk's invariant |
 | strings | `name`, `nationality`, `code` | `[len u32][utf-8]`, the first two NUL-terminated | `Denmark`, `Danish`, `DEN` | |
-| `NATION_TAIL` | `continent_id` | u16 | 0 Africa … 5 South America; `0xFFFF` on defunct states | |
+| `NATION_TAIL` | `continent_id` | u16 | 0 Africa … 5 South America; `0xFFFF` on defunct states | Denmark 2 = Europe (Team Information) |
 | | `capital_city_id` | u16 → [cities](cities.md) | Denmark → 58, Copenhagen | |
 | | `national_stadium_id` | u16 → [stadiums](stadiums.md) | Denmark → 177, Parken | |
 | `NATION_TEAM` (23 B) +11 | `rival_nation_id` | u16 | `0xFFFF` = none | Denmark → Sweden, England → Scotland, Sweden → Norway |
-| +18 | `is_ranked` | u8 | | |
-| +19 | `world_ranking` | u16 | **unverified** against the game | |
-| +21 | `ranking_points` | u16 | **unverified** | |
+| +18 | `is_ranked` | u8 | | Denmark 1 |
+| +19 | `world_ranking` | u16 | current world ranking | Denmark 22nd (Team Information) |
+| +21 | `ranking_points` | u16 | world ranking points | Denmark 1,699 |
 | +0..+17 | | 18 B | unnamed (`NATION_TEAM` declares them `UNKNOWN`) | |
-| `ranking_history` | | `[u16 n][n × u16]` | past world rankings (oldest first, per the module docstring: **unverified**); 0 entries on an unranked nation | |
+| `ranking_history` | | `[u16 n][n × u16]` | past world rankings; 0 entries on an unranked nation. Order **unverified**: the module docstring says oldest first, but Denmark's last entry is 24 while it is 22nd today | |
 | `NATION_GAP` | | u16 = 0 | | |
 | `coefficients` | | `[u8 n][n × f32]` | continental coefficients by season, oldest first; 11 entries | Coefficients screen (below) |
 | `NATION_GAP2` | | u8 = 0 | | |
@@ -62,6 +62,19 @@ cd cc ec 40  7.4
 The same holds for every row on the screen: Italy 19.429 / 19.286 / 184.571, Holland 16.000 /
 8.100 / 99.900, Austria 8.500 / 10.300 / 76.100. Capital and national stadium check against the
 real world: Denmark → city 58 (Copenhagen's coordinates) and stadium 177 (Parken, 38,065).
+
+Denmark's Team Information screen. `NATION_TAIL` at byte 12,759,346, `NATION_TEAM` at
+12,759,352:
+
+![Denmark: Parken 38,065, Europe, Denmark U21, 22nd (1,699 pts)](img/nations-2.png)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Continent `Europe` | tail +0 `02 00` | `continent_id` 2 |
+| Stadium `Parken`, 38,065 | tail +4 `b1 00` | `national_stadium_id` 177 → [stadiums](stadiums.md) |
+| World Ranking `22nd (1,699 pts)` | team +18 `01`, +19 `16 00`, +21 `a3 06` | `is_ranked` true, `world_ranking` 22, `ranking_points` 1,699 |
+| Youth Squad `Denmark U21` | (the club table) | Denmark U21 (tid 11236) has `main_club_tid` 547, the Denmark national team ([clubs](clubs.md)) |
+
 Tested by `tests/test_world_provenance.py`.
 
 ## Quirks
@@ -72,6 +85,11 @@ Tested by `tests/test_world_provenance.py`.
 
 > **Quirk:** coefficients exist for Europe's 55 nations and for most of Africa and Asia (132
 > nations carry 11 entries); the rest carry none.
+
+> **Quirk:** `NATION_TEAM` +1..+8 read `ff 7f d4 00 00 00 ff 7f` on 250 of 251 nations. The
+> one exception, in both careers (Frem 2023 and 2030, Bucaspor 2023), is Denmark, `fe 7f 00 70 00 70 fe 7f`, which as RGB555 is
+> white, red, red, white: Denmark's colours. A lead, not a decode: why only one nation carries
+> its own is unknown.
 
 > **Quirk:** `continent_id` is `0xFFFF` on 23 defunct or unaffiliated states (C.I.S.,
 > Czechoslovakia, E. Germany, U.S.S.R., W. Germany, …). A gate that requires a real continent

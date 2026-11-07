@@ -50,7 +50,7 @@ NATION_TAIL = Record("nation_tail", 6, (
 
 NATION_TEAM = Record("nation_team", 23, (
     Field(0, 1, UNKNOWN, U8),              # 0..3
-    Field(1, 8, UNKNOWN, RAW),             # ff 7f d4 00 00 00 ff 7f on all but one
+    Field(1, 8, UNKNOWN, RAW),             # ff 7f d4 00 00 00 ff 7f on all but Denmark
     Field(9, 1, UNKNOWN, U8),              # 0 / 1
     Field(10, 1, UNKNOWN, U8),             # 1..5
     Field(11, 2, "rival_nation_id", U16, note="0xffff = none"),

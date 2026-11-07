@@ -24,7 +24,9 @@
   "cities": {"58": {"nation_id": 138, "latitude": 55.6761, "longitude": 12.5683}},
   "nations": {
     "138": {"name": "Denmark", "season_columns": [7.4, 8.375], "total": 76.4,
-            "capital_city_id": 58, "national_stadium_id": 177},
+            "capital_city_id": 58, "national_stadium_id": 177, "continent_id": 2,
+            "is_ranked": true, "world_ranking": 22, "ranking_points": 1699,
+            "youth_squad": ["Denmark U21", 11236, 547]},
     "150": {"name": "Italy", "season_columns": [19.429, 19.286], "total": 184.571},
     "158": {"name": "Holland", "season_columns": [16.0, 8.1], "total": 99.9},
     "129": {"name": "Austria", "season_columns": [8.5, 10.3], "total": 76.1}
@@ -77,6 +79,8 @@
     [6595387, "011410", "Stoke: status 1, academy 20, facilities 16"],
     [12783119, "b50000004b0300003a00307500 00d8d60000", "stadium 181: id, uid, city, capacity, expansion"],
     [13452966, "3a00460000008a0053b45e42e9174941", "city 58: id, uid, nation, lat, lon"],
+    [12759346, "02003a00b100", "Denmark: continent 2, capital 58, stadium 177"],
+    [12759370, "011600a306", "Denmark: is_ranked, world ranking 22, 1699 points"],
     [12759427, "0b00008440000008 41cdccec4000000641", "Denmark: coefficient count 11, slots 0-3"],
     [13957127, "1f00200000000600000044616e697368", "language 31: id, uid, 'Danish'"],
     [13946062, "17000c00000044616e697368204b726f6e65f12f0b41", "Danish Krone, rate 8.699204"],

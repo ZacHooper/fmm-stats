@@ -96,9 +96,16 @@ def main():
               f"{want['name']}: season columns {want['season_columns']} are slots 2-3")
         check(close(sum(co), want["total"], 0.001),
               f"{want['name']}: total {want['total']} is the sum (got {sum(co):.4f})")
-        for k in ("capital_city_id", "national_stadium_id"):
+        for k in ("capital_city_id", "national_stadium_id", "continent_id", "is_ranked",
+                  "world_ranking", "ranking_points"):
             if k in want:
-                check(n[k] == want[k], f"{want['name']} {k} = {want[k]}")
+                check(n[k] == want[k], f"{want['name']} {k} = {want[k]} (got {n[k]})")
+        if "youth_squad" in want:
+            name, u21, senior = want["youth_squad"]
+            c = clubs.scrape_clubs(mm)
+            check(c[u21]["name"] == name and c[u21]["main_club_tid"] == senior
+                  and c[senior]["uid"] == -n["uid"],
+                  f"{want['name']}'s youth squad {name} hangs off its national team {senior}")
     # every national team's club record carries the nation's uid, negated
     nat_uids = {n["uid"] for n in got.values()}
     teams = [c for c in clubs.scrape_clubs(mm).values() if c["uid"] < 0]
