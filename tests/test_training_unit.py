@@ -5,7 +5,7 @@
             like a table with the wrong count; the span includes the count
   SCRAPE    players only (unused rows and staff left out), with intensity, role, attribute
             focus and the position decoded from its (band, column) pair
-  STATUS    squad status for players under contract only; a free agent's byte is not read
+  STATUS    +39 (unknown_39) for players under contract only; a free agent's byte is not read
   FRAMING   a row whose tid is neither its index nor unused fails both scrapes
 """
 import os
@@ -71,21 +71,21 @@ def test_scrape():
     assert [r["tid"] for r in rows] == [0, 1, 2, 3], [r["tid"] for r in rows]
     assert rows[0] == {"tid": 0, "intensity": 2, "focus_role": 1, "focus_attribute": 6,
                        "focus_position": "GK", "contracted": T.CONTRACTED,
-                       "squad_status": 3}, rows[0]
+                       "unknown_39": 3}, rows[0]
     assert [r["focus_position"] for r in rows] == ["GK", "DL", "ST", "MR"]
     assert rows[1]["intensity"] == 3 and rows[2]["focus_attribute"] == 17
     assert rows[1]["focus_role"] == 4
     print("  PASS players only; role, attribute, intensity, the decoded position, and the "
-          "contract flag and squad status as stored")
+          "contract flag and +39 as stored")
 
 
 def test_status():
-    print("TESTING the squad status scrape")
+    print("TESTING the +39 scrape")
     T._CACHE.clear()
     buf, _ = build()
-    status = T.scrape_squad_status(buf)
+    status = T.scrape_unknown_39(buf)
     assert list(status.items()) == [(0, 3), (1, T.LOAN_STATUS), (3, 0)], status
-    print("  PASS contracted players only, in tid order; a free agent's status byte unread")
+    print("  PASS contracted players only, in tid order; a free agent's +39 unread")
 
 
 def test_framing():
@@ -93,7 +93,7 @@ def test_framing():
     buf, base = build()
     broken = bytearray(buf)
     struct.pack_into("<I", broken, base + 7 * STRIDE, 9)           # row 7 claims tid 9
-    for scrape in (T.scrape_training, T.scrape_squad_status):
+    for scrape in (T.scrape_training, T.scrape_unknown_39):
         T._CACHE.clear()
         try:
             scrape(bytes(broken))

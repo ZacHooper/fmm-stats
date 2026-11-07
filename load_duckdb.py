@@ -245,13 +245,13 @@ DDL = [
     )""",
 
     # The Training page, one row per player: focus role and position, attribute focus and
-    # intensity, and the row's contract flag and squad status as stored
+    # intensity, and the row's contract flag and unnamed +39 byte as stored
     # (fmparser.tables.training). Every player in the world, not just ours.
     # natural key: (season, phase, tid)
     """CREATE TABLE IF NOT EXISTS raw.training (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL, tid INTEGER NOT NULL,
         intensity INTEGER, focus_role INTEGER, focus_attribute INTEGER,
-        focus_position VARCHAR, contracted INTEGER, squad_status INTEGER
+        focus_position VARCHAR, contracted INTEGER, unknown_39 INTEGER
     )""",
 
     # The contract grid, every used slot as stored (fmparser.tables.contracts); marker 1 is
@@ -959,12 +959,13 @@ def load_core(con, d, season, phase):
         rows = [(season, phase, _int(v.get("tid")), _int(v.get("intensity")),
                  _int(v.get("focus_role")), _int(v.get("focus_attribute")),
                  v.get("focus_position"), _int(v.get("contracted")),
-                 _int(v.get("squad_status")))
+                 # an extract written before +39 was renamed carries it as squad_status
+                 _int(v.get("unknown_39", v.get("squad_status"))))
                 for v in _load_json(tr_path)]
         counts["training"] = _insert(
             con, "training",
             ["season", "phase", "tid", "intensity", "focus_role", "focus_attribute",
-             "focus_position", "contracted", "squad_status"], rows)
+             "focus_position", "contracted", "unknown_39"], rows)
 
     ct_path = os.path.join(d, "contracts.json")
     if os.path.exists(ct_path):
@@ -1494,10 +1495,9 @@ _MIGRATIONS = [
     "ALTER TABLE raw.competitions DROP COLUMN IF EXISTS matches_in_save",
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS reputation INTEGER",
     # 2026-10-01: extract hands over the contract grid and the training row's contract flag
-    # and squad status as stored; the players' contract columns are int.player_snapshots'
-    # (data-layers plan, step 7).
+    # and +39 byte as stored; the players' contract columns are int.player_snapshots'
+    # (data-layers plan, step 7). The +39 column is added by _rename_training_unknown_39.
     "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS contracted INTEGER",
-    "ALTER TABLE raw.training ADD COLUMN IF NOT EXISTS squad_status INTEGER",
     # 2026-10-01: extract hands over each person's name ids and the name tables they index;
     # the display name is int.person_names' (data-layers plan, step 8).
 ] + [stmt for stmt in DDL
@@ -1553,7 +1553,29 @@ def _migrate(con):
             if "does not exist" in msg or "not found" in msg:
                 continue
             raise
+    _rename_training_unknown_39(con)
     _drop_extracts_phase_check(con)
+
+
+def _rename_training_unknown_39(con):
+    """raw.training's +39 column is `unknown_39`: the byte is not the squad status
+    (docs/parser/training.md). A store whose column is still named `squad_status` keeps its
+    values under the new name; a store with neither gains the column."""
+    # duckdb_tables, not duckdb_columns: a published store's raw.training is a view, whose
+    # columns come from its definition (see _migrate).
+    if not con.execute(
+            "SELECT COUNT(*) FROM duckdb_tables() WHERE database_name = current_database() "
+            "AND schema_name = 'raw' AND table_name = 'training'").fetchone()[0]:
+        return
+    cols = {c for (c,) in con.execute(
+        "SELECT column_name FROM duckdb_columns() WHERE database_name = current_database() "
+        "AND schema_name = 'raw' AND table_name = 'training'").fetchall()}
+    if "unknown_39" in cols:
+        return
+    if "squad_status" in cols:
+        con.execute("ALTER TABLE raw.training RENAME COLUMN squad_status TO unknown_39")
+    else:
+        con.execute("ALTER TABLE raw.training ADD COLUMN unknown_39 INTEGER")
 
 
 def _drop_extracts_phase_check(con):

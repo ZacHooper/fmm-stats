@@ -252,7 +252,7 @@ keyed on a tid/uid/sid and then have to decide which copy is the live one.
   row of the **training table** (shape A, `[count u32][61 B rows]`, `tid == row`): the gaps
   between hits are all multiples of 61, and the search had been finding that table one row
   at a time. `87` is the row's `contracted` byte (+37; `00` on a free agent and on staff), and
-  the squad status is +39. `training.scrape_squad_status` reads it from the table, identical
+  +39 is the unnamed `unknown_39`. `training.scrape_unknown_39` reads it from the table, identical
   to the search on all 31 saves of both careers, and the 29 bytes the old record declared as
   padding are the row's training columns.
 
