@@ -18,10 +18,10 @@ A record is the segments of `CLUB_TABLE`, in this order:
 | `CLUB_TRAILER` (167 B) +0 | `based_id` | u16 | nation whose league the club plays in | Cardiff City = England (screenshot) |
 | +2 | `nation_id` | u16 | the club's home nation | Cardiff City = Wales |
 | +4 | `colour_0..5` | 6 × u16 | club colours, RGB555 (`0x7FFF` is white) | decode to the right kits |
-| +16 | kits | 6 × (2 B + 10 × u16) | six kits: two flag bytes, then ten RGB555 colours. Slot 0 home, 1 away, 2 third | Cardiff's three kits (screenshot) |
+| +16 | kits | 6 × (2 B + 10 × u16) | six kits: two flag bytes, then ten RGB555 colours. Slot 0 home, 1 away, 2 third; slots 3–5 not identified | Cardiff's three kits, Frem's and Stoke's two (screenshots) |
 | +148 | `status` | u8 | 1 = Professional | both screenshots; values 0–3 |
-| +149 | `academy` | u8 | a facilities rating, 1–20. Which screen row it is: see Quirks | |
-| +150 | `facilities` | u8 | a facilities rating, 1–20. See Quirks | |
+| +149 | `academy` | u8 | **Training Facilities**, 1–20 (fmm-editor's name is wrong; see Quirks) | three Club Information screens |
+| +150 | `facilities` | u8 | **Youth Facilities**, 1–20 (fmm-editor's name is wrong) | three Club Information screens |
 | +151 | `att_avg`, `att_min`, `att_max` | 3 × u16 | named from fmm-editor; **not attendance** (TODO "Unnamed fields in records we already read") | |
 | +157 | `reserves` | u8 | | |
 | +158 | `league_id` | u16 | the club's league cid | Frem 2 = 3F Superliga, Cardiff 6 = Sky Bet Championship |
@@ -79,21 +79,35 @@ array's order is not the screen's.
 
 ![Frem's squad selection screen](img/clubs-3.png)
 
+Stoke City, record at 6,595,197, trailer at 6,595,239. The facilities that settle which byte
+is which (see Quirks):
+
+![Stoke City: training State of the art, youth Excellent](img/clubs-4.png)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Training `State of the art` ★★★★★, Youth `Excellent` ★★★★ | +148 `01 14 10` | `status` 1, `academy` = 20, `facilities` = 16 |
+| bet365 Stadium, 30,089 | +163 `bb 02` | `stadium_id` 699 → `bet365 Stadium`, capacity 30,089 |
+| Home red/white stripes, Away green; no third kit | kits 0, 1 | `kits[0]` white/`#c81028`, `kits[1]` black/`#009830`; `kits[2]` is the black-and-white default Frem also carries |
+
 Tested by `tests/test_world_provenance.py`.
 
 ## Quirks
 
-> **Quirk:** `academy` and `facilities` look swapped against the screen. With fmm-editor's
-> names (`academy` = youth, `facilities` = training, as `int.team_snapshots` maps them), Frem
-> reads training 20 / youth 18 and Cardiff training 15 / youth 19, so 18 would show five stars
-> and 19 three and a half. Swapped, both clubs fit one scale: 15 ★★★½ Great, 18–19 ★★★★½
-> Superb, 20 ★★★★★ Top. Two clubs aren't proof; a third Club Information screen with very
-> different values (Stoke City: 16 and 20) settles it. Open in TODO as "Club facility fields
-> may be swapped".
+> **Quirk:** `academy` is Training Facilities and `facilities` is Youth Facilities, the
+> reverse of fmm-editor's names. Three Club Information screens fit one scale this way round
+> and none the other: Frem 18 / 20, Cardiff 19 / 15, Stoke 20 / 16 (training / youth) show
+> 15 ★★★½, 16 ★★★★, 18–19 ★★★★½, 20 ★★★★★, i.e. stars = ⌊value / 2⌋ / 2. Read the
+> fmm-editor way, Frem's 18 would be five stars and Cardiff's 19 three and a half. The store
+> still follows the old names (`int.team_snapshots` puts `facilities` in `training_facilities`),
+> so its two facility columns are swapped: open in TODO as "Club facility fields are swapped".
+
+> **Quirk:** a club with no third kit still fills kit slot 2, with the same black-and-white
+> default (Frem and Stoke show only Home and Away).
 
 > **Quirk:** `main_club_tid` is kept only when `0 < tid < 70000`, so the one parent that IS
 > tid 0 is lost: Algeria U21 (11103) has `main_club_tid` None while the other 227 U21 sides
-> resolve. Open in TODO with the facility fields.
+> resolve. Open in TODO under "Club facility fields are swapped".
 
 > **Quirk:** national teams aren't a block at the front. tids 0–50 are national teams
 > (Algeria, Angola, …), but the other 200 sit among the clubs, up to tid 6343 (Netherlands

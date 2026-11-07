@@ -11,11 +11,14 @@
     "426": {"name": "Cardiff City", "based_id": 139, "nation_id": 175, "status": 1,
             "academy": 19, "facilities": 15, "league_id": 6, "stadium_id": 4261,
             "reputation": 5371, "kit_first_colours": ["#0050b8", "#f07878", "#f8f8f0"],
-            "manager_not_in_staff": 3037}
+            "manager_not_in_staff": 3037},
+    "512": {"name": "Stoke City", "_facilities": "training 5 stars, youth 4 stars on screen",
+            "academy": 20, "facilities": 16, "status": 1, "league_id": 5, "stadium_id": 699}
   },
   "stadiums": {
     "181": {"name": "Valby Idrætspark", "capacity": 30000, "city_id": 58},
     "4261": {"name": "Cardiff City Stadium", "capacity": 33280},
+    "699": {"name": "bet365 Stadium", "capacity": 30089},
     "177": {"name": "Parken", "capacity": 38065, "city_id": 58}
   },
   "cities": {"58": {"nation_id": 138, "latitude": 55.6761, "longitude": 12.5683}},
@@ -28,6 +31,13 @@
   },
   "languages": {"31": {"name": "Danish", "nation_id": 138},
                 "112": {"name": "Welsh", "nation_id": 175}},
+  "currencies": {
+    "_pairs": "one wage on Frem's Contract screen in GBP, then in DKK",
+    "Danish Krone": 8.699204,
+    "pairs": [[37000, 320000], [100000, 870000], [130000, 1150000], [62000, 540000],
+              [350000, 3000000], [41000, 355000], [94000, 810000], [39500, 345000],
+              [600000, 5250000], [38500, 335000]]
+  },
   "club_records": {
     "club_tid": 346,
     "_team": "slot, value, comp_cid, season, day, opponent_tid, score_for, score_against (Team Records - Overall)",
@@ -64,6 +74,7 @@
     [6501541, "b500", "Frem: stadium_id 181"],
     [6546328, "8b00af00", "Cardiff: based_id 139, nation_id 175"],
     [6546476, "01130f", "Cardiff: status 1, academy 19, facilities 15"],
+    [6595387, "011410", "Stoke: status 1, academy 20, facilities 16"],
     [12783119, "b50000004b0300003a00307500 00d8d60000", "stadium 181: id, uid, city, capacity, expansion"],
     [13452966, "3a00460000008a0053b45e42e9174941", "city 58: id, uid, nation, lat, lon"],
     [12759427, "0b00008440000008 41cdccec4000000641", "Denmark: coefficient count 11, slots 0-3"],

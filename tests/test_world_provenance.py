@@ -61,6 +61,8 @@ def main():
     for tid, want in fx["clubs"].items():
         c = got[int(tid)]
         for k, v in want.items():
+            if k.startswith("_"):
+                continue
             if k == "squad_includes":
                 check(set(v) <= set(c["squad"]), f"{tid} squad holds the {len(v)} players on screen")
             elif k == "kit_first_colours":
@@ -115,6 +117,11 @@ def main():
     got = {c["name"]: c for c in currencies.scrape_currencies(mm).values()}
     check(got["United Kingdom Pound"]["exchange_rate"] == 1.0, "United Kingdom Pound = 1.0")
     check(len(got) == 173, f"173 currencies (got {len(got)})")
+    rate = got["Danish Krone"]["exchange_rate"]
+    check(close(rate, fx["currencies"]["Danish Krone"], 1e-6), f"Danish Krone = {rate}")
+    worst = max(abs(gbp * rate - dkk) / dkk for gbp, dkk in fx["currencies"]["pairs"])
+    check(worst < 0.02, f"every DKK wage on screen is the GBP wage x {rate} within 2% "
+                        f"(worst {worst:.1%})")
 
     print("\nCLUB RECORDS (Club History)")
     cr = fx["club_records"]
