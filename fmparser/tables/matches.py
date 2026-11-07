@@ -134,9 +134,10 @@ TEAM_HEAD = Record("match_team_head", 77, [
     Field(53, 24, UNKNOWN, RAW),
 ])
 
-# The player's line for the match. `condition` (+3) is a match-fitness percentage for anyone
-# who played and 0xff for an unused substitute; `subOn`/`subOff` are minutes, 0xff when the
-# player was not substituted.
+# The player's line for the match. `condition` (+3) is a match-fitness percentage; an unused
+# substitute reads 0xff in friendlies and reserve fixtures and has a condition (and a rating
+# of 6) in competitive matches. `subOn`/`subOff` are minutes, 0xff when the player was not
+# substituted.
 _STATS = {
     0: "assists", 3: "condition", 4: "crossA", 5: "crossC", 8: "dribbles",
     10: "goals", 11: "headA", 12: "headW", 16: "intercept", 19: "subOn",
@@ -174,7 +175,7 @@ TEAM_TAIL = Record("match_team_tail", 46, [
 # slots in the formation's own slot order. It does not say which player took which slot: the
 # team sheet (posOrder) is the full-time one, so after an in-match change it no longer lines
 # up with these slots -- each player's position is the team head's `positions`
-# (docs/agent-context/match-position-encoding.md). +220..+1182 is a grid of u16 coordinates.
+# (docs/parser/matches.md). +220..+1182 is a grid of u16 coordinates.
 # +1196..+1283 is eleven 8-byte rows, one per kick-off slot in that slot order: five bytes
 # then 00 00 00, the first two a role family (inside forward 81 42, full-back 01 23 / 41 22).
 MATCH_TAIL = Record("match_tail", 1439, [

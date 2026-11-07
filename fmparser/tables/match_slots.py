@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""`match_slots` — the 25-byte away-first match-slot table.
+"""`match_slots` — the 25-byte match-slot table: two clubs and their goals, no venue.
 
-A fixed-stride table (3,975 slots on Frem, 3,943 on Bucaspor) located by its
-invariant trailer constant `b"\\x87\\x01\\xff\\xff"` at +20 on residue class mod 25.
+A fixed-stride table (3,975 slots on Frem, 3,943 on Bucaspor) located by its invariant
+trailer constant `b"\\x87\\x01\\xff\\xff"` at +20 on residue class mod 25. The `home_`/`away_`
+names do not hold: the pair is unordered (docs/parser/match_slots.md).
 """
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -30,8 +31,8 @@ TRAILER_OFF = 20
 NO_CLUB = P.NO_ID16
 
 SLOT = Record("match_slot", STRIDE, [
-    Field(0,  2, "away_tid",   U16, note="0xffff when the slot references no match"),
-    Field(2,  2, "home_tid",   U16),
+    Field(0,  2, "away_tid",   U16, note="one club; 0xffff when no match. No venue is stored"),
+    Field(2,  2, "home_tid",   U16, note="the other club: home on about half the slots"),
     Field(4,  1, "away_goals", U8),
     Field(5,  1, "home_goals", U8),
     Field(6,  2, "day",        U16, note="day-of-year, 0-based -- as in the club record"),

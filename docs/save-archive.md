@@ -21,8 +21,8 @@ times there and **nowhere else in the file**.
 
 That single fact turns the file's last megabyte from an unparsed region into a **named
 archive with a directory**, and the directory names twelve subsystems plus one file per
-competition. The biggest member, `fix_man.dat`, is **the world fixture list with scores** —
-the thing [`TODO.md`](TODO.md) §4 has been hunting through four separate dead ends.
+competition. The biggest member, `fix_man.dat`, is **the world results list**
+([fixtures](parser/fixtures.md)).
 
 **Correct the measurement, not just the conclusion.** Printable-fraction was the wrong
 statistic to rank gaps by: it cannot separate "text" from "compressed", and it ranked this
@@ -105,7 +105,7 @@ decompressed bytes, measured on four saves:
 
 | member | 2021 | 2023 | 2026 | Bucaspor | what is established |
 |---|---|---|---|---|---|
-| **`fix_man`** | 1.00 MB | 2.95 MB | 2.52 MB | 2.77 MB | **the fixture list with scores** — see below |
+| **`fix_man`** | 1.00 MB | 2.95 MB | 2.52 MB | 2.77 MB | **the world results list**: [fixtures](parser/fixtures.md) |
 | `comp_man` | 194 KB | 211 KB | 232 KB | 212 KB | **the master competition stages calendar & roll of honour** — see below |
 | `stadium` | 132 KB | 134 KB | 133 KB | 134 KB | opens `[u16 3][u32 15984]` then 8-byte pairs; 15,984 is one short of the reference stadium table's declared 15,987. Unexamined beyond that |
 | `comp_hosts` | 22 KB | 25 KB | 31 KB | 25 KB | unexamined |
@@ -213,97 +213,10 @@ lands mid-way through tagged tags `mmus`/`solc`". Both halves of that reading we
 
 Parsed by `fmparser/tables/comp_stages.py` (`HEADER`, `STAGE`) and `comp_honours.py` (`HONOUR`).
 
-## `fix_man.dat` — the fixture list, and exactly how far it is decoded
+## `fix_man.dat` — the world results list
 
-This is the biggest single result in the archive and the reason to open it first, so it is
-reported with its limits attached.
-
-### What is proven
-
-**STRIDE 92.** A gap histogram of the `[u8][0x14][4 x FF]` record opener gives 26,951 of
-26,953 gaps at exactly 92 on frem-2026-06-11.
-
-**SEGMENTS that tile exactly.** The hits fall into **more than one residue class mod 92**,
-so the member is not one grid but a series of them. Splitting on the residue change, every
-segment satisfies `record_count x 92 == segment_span` **exactly**, on six saves across both
-careers:
-
-| save | size | segments | records per segment |
-|---|---|---|---|
-| frem-2021-07-01 | 1.00 MB | 2 | 209 / 114 |
-| frem-2023-06-26 | 2.95 MB | 2 | 7,873 / 18,704 |
-| frem-2026-06-11 | 2.52 MB | 2 | 7,721 / 19,232 |
-| frem-2026-07-02 | 3.12 MB | 2 | 7,817 / 19,232 |
-| bucaspor-2023-05-20 | 2.77 MB | 2 | 8,839 / 20,632 |
-| bucaspor-2024-03-16 | 2.59 MB | **7** | 4,454 / 50 / 29 / 18 / 145 / 68 / 20,645 |
-
-On frem-2026-06-11 the two segments carry **year 2026 (7,721 records)** and **year 2025
-(19,232)** — the segment split is the calendar year, and the counts match the year field
-exactly. The 38 KB between the two segments is **not identified**.
-
-### Fields verified against ground truth
-
-Offsets are from the record's first byte (the `[u8][0x14]` opener):
-
-| offset | field | evidence |
-|---|---|---|
-| +6 | **home goals**, u8 | match goals (0xFF = unplayed) |
-| +7 | **home extra goals**, u8 | extra time / aggregate goals (0xFF = none) |
-| +8 | **home penalties**, u8 | penalty shoot-out score (0xFF = none; e.g. Leicester v Liverpool 23 Sep 2025: 0-0 pens 2-3) |
-| +11 | **away goals**, u8 | match goals (0xFF = unplayed) |
-| +12 | **away extra goals**, u8 | extra time / aggregate goals (0xFF = none) |
-| +13 | **away penalties**, u8 | penalty shoot-out score (0xFF = none) |
-| +31 | **stage key**, u32 | index into `comp_man.dat`'s 78-byte stage calendar grid (409 distinct values on 2026) |
-| +35 | **seq_id**, u16 | per-fixture sequence id within stage |
-| +41 | **home club tid**, u32 | 282/285 against ground truth; HOME-FIRST |
-| +47 | **away club tid**, u32 | 282/285 |
-| +53 | **day of year = `u16 & 0x1FF`** | `& 0x1FF` never exceeds 366 in 26,954 records, twice over; 1-indexed (see `fixtures.DAY_BASE`) |
-| +55 | **year**, u16 | 2025 / 2026 only on a 2026 save |
-| +57 | **day2**, u16 | secondary date day-of-year |
-| +59 | **year2**, u16 | secondary date year |
-| +66 | **season_year**, u16 | season year (2024/2025; 0 on unplayed/friendlies) |
-| +76 | **stage_index**, u8 | stage index within competition (corresponds to `stgs` in `comp_<id>.dat`) |
-| +77 | **round_index**, u8 | round index within stage (corresponds to `rnds` in `comp_<id>.dat`) |
-| +78 | **round**, u8 | matchday counter WITHIN competition; 255 = none / friendly |
-| +83 | **subr**, u8 | stage classification (corresponds to `subr` in `comp_<id>.dat`) |
-
-**Ground truth**: every `mart.club_matches` row for the managed club, in both careers, on
-five saves. **CORRECTED 2026-09-21: the date needs a `-1`** — the day-of-year field is
-one-indexed and the decoder treated it as zero-indexed, so every date read a day late. The
-original check joined rows ON the date, which cannot expose a uniform shift; re-measuring by
-(opponent, score) instead shows 51/51 and 60/60 rows needing exactly -1 across both careers.
-The counts below stand; the dates behind them did not until `fixtures.DAY_BASE` landed.
-
-On those same five saves, **282 of 285 in-window rows match exactly on date, home tid, away tid and both
-scores; 3 disagree, all on the score only; 0 disagree on clubs or date.** Rows outside the
-window are simply absent — on frem-2026-06-11, **51/51** of our 2025 and 2026 matches are
-present and **0/143** of 2021-2024 are, which is what the two-year year field already says.
-
-**This table is home-first.** `fmparser/matchslots.py`'s 25-byte table is away-first and
-gets the orientation wrong on one of every repeated club pair (3/3 measured). This one got
-venue right on all 282.
-
-### The goals block (`+2..+15`) decoded
-
-The goals block carries normal goals, extra time/aggregate goals, and penalty shootouts:
-- Plain matches (97.9%): `+6` and `+11` hold the full score; `+7/+8` and `+12/+13` read `0xFF`.
-- Penalty shootouts: regular score at `+6/+11`, penalty shootout scores at `+8/+13` (verified against Leicester 0-0 Liverpool on 2025-09-23: `+8=2`, `+13=3`).
-- Two-legged ties / extra time: extra goals read at `+7/+12`.
-
-Parsed by `fmparser/fixtures.py` (`FIXTURE`).
-
-### What is NOT established about `fix_man`
-- **No competition field is identified**, and 2026-09-28 looked for one against the
-  competition uids and found none (see `comp_<uid>.dat` above). A fixture's competition comes
-  from a match the store holds in the same `stage_key`, which labels every fixture of a stage
-  we played in (`mart.match_stages`).
-- **The goals at +6/+11 are the 90-minute score.** Extra-time goals sit at +7/+12 and are not
-  emitted; `mart.match_stages` takes the store's full-time score where it holds the match and
-  flags `extra_time` (3 of our matches to date).
-- **~70 of the 92 bytes are unnamed.** There is no `LAYOUTS` entry for this record yet and
-  `scripts/audit/audit_records.py` does not cover it.
-- The 38 KB between segments, and the segment ordering (2026 before 2025), are unexplained.
-- Whether a fixture can appear twice, as it does in `clubrecords.py` and the 25-byte table.
+Decoded in [`docs/parser/fixtures.md`](parser/fixtures.md) (`fmparser/tables/fixtures.py`):
+the 92-byte record, its grids, and what it does not hold.
 
 ## Using it
 

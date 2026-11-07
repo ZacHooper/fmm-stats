@@ -177,7 +177,7 @@ not `-mart`: the mart omits the rating layer that Fit and Level need.
 | `mart.role_weights.position` | **`role`** (10 roles: GK/LB/RB/CB/DM/CM/AMC/AML/AMR/ST), and attribute names are **lowercase** |
 | `squad_key_players(club_tid, season=…)` | **`squad_key_players(frame, club_tid, method, rank_by=…)`** — pass a `squad_frame`, not a club |
 | `squad_frame(club_tid, season, phase, method)` | **`squad_frame(season, phase, method, club_tids)`** — that argument order, and a *list* of tids |
-| a `name` column on match stats | absent — see the name-resolution note below |
+| a `name` column on match stats | absent — name a match row by `person_id` ([matches](../parser/matches.md)) |
 
 Other things that bite: **attribute columns are Capitalised** in the frames
 (`Aerial`, `Pace`) but **lowercase** in `role_weights`; DuckDB rejects `rows`, `dec`, `move`,

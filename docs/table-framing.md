@@ -57,8 +57,8 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | *unnamed, 7 B* | 6,245,275 | u32 | 1,971 | — |
 | *unnamed, 7 B* | 6,259,084 | u32 | 560 | — |
 | *unnamed, 7 B* | 6,263,016 | u32 | 816 | — |
-| *unnamed, 99 B* | 6,268,740 | u32 | 622 | — |
-| *round/leg names* | 6,330,330 | u32 | 273 | — |
+| [officials](parser/officials.md) | 6,268,740 | u32 | 622 | 622 ✓ |
+| [round/leg names](parser/rounds.md) | 6,330,330 | u32 | 273 | 273 ✓ |
 | **[clubs + national teams](parser/clubs.md)** | **6,340,458** | u32 | **11,331** | 11,331 ✓ |
 | competitions | 12,626,907 | u16 | 1,372 | 1,372 ✓ |
 | [nations](parser/nations.md) | **12,776,737** | u16 | **251** | 251 ✓ |
@@ -258,42 +258,9 @@ and it now has an exact, declared anchor instead of a region guess. The trailer 
 the club/comp trailer (an assumed 14 bytes ran the string reads off the end), so the record
 shape still needs pinning before it can be walked.
 
-#### The 622 × 99 B table, measured
+#### The 622 × 99 B table
 
-The richest of the five and the obvious place to start. Every field below was checked across
-all 622 records, not read off one hex dump:
-
-```
-+0   u32   id == slot index                      (622/622)
-+4   u32   ?                                     e.g. 103812
-+8   u32   ?                                     e.g. 442
-+12  u16   20..191     -- CA-shaped
-+14  u16   50..192     -- PA-shaped, and >= +12 on every record
-+16  u16   ?           -- e.g. 5750, reputation-shaped
-+18  6xu8  1..20       -- six attributes on the displayed scale
-+24  5xu8  always 0
-+29  u16   1900        -- the "null date" year staging.INFO_LAYOUT already documents
-+31  16xu32  a PREFIX-PACKED REFERENCE ARRAY, 0xFFFFFFFF = empty slot
-+95  u16   day-of-year 0..328
-+97  u16   year, only 2021 / 2022 / 2023
-```
-
-The array is the interesting part. **The filled slots form a contiguous prefix in 622 of 622
-records** (0 filled in 6 records, then 1 in 291, 2 in 118, 3 in 88, 4 in 74, 5 in 30, 6 in 10,
-7 in 5 — never more than 7 of the 16), which is why the record looked like it had a
-variable-length FF pad: the pad always ENDS at +95 and starts wherever the entries stop.
-
-Its 1,332 filled entries hold 169 distinct values in three bands — 463 under 1,000, 709
-between 1k and 400M, and 160 in the 1.9–2.1bn range that `reference._CLUB_UID_FILL_LO/HI`
-uses for club uids. That looks like a uid space, **but none of the 50 distinct values above
-400M resolves against our club index**, so the target is genuinely unidentified. Treat that
-as unresolved rather than as a refutation: the club index is itself known to be incomplete
-(TODO #16), so a miss there is weak evidence either way. Settling which id space this array
-points into is the first question for the naming pass.
-
-Taken together — CA/PA, a reputation, six 1–20 attributes, a date in the career's own years,
-and a short list of references — this reads as a *person-with-a-list* record. It is NOT named
-here, and the shape is suggestive rather than conclusive.
+The match officials, decoded in [`docs/parser/officials.md`](parser/officials.md).
 
 ### Tile-only (weaker: fixed-width fit, no index field to confirm)
 
@@ -364,7 +331,7 @@ are located by other mechanisms, and that is not an oversight in the search:
 | history slab, 39.8–44.6 MB | **Counted, but a DIFFERENT framing**: `u32 @ start - 12`, no sentinel, not 4-byte aligned. `history.locate` already reads it. The only counted table outside the two reference bands. |
 | just after the slab, 44.6 MB | a per-season series — `[f32][…][u16 year]`, 7.0 in 2021, 10.0 in 2022 — FF-padded, no count. |
 | club history record tables, ~46.8 MB | The first row sits **immediately** after an 8-byte FF run with **no count between them**: the 4 bytes where a count would be read `3F 80 00 00`, i.e. float32 `1.0` — data, not a header. The FF run here is filler that happens to be 8 long. |
-| our matches, ~55.4 MB | **Counted, u8, no sentinel** (found 2026-09-30, `tables/matches.py`). The earlier checks here looked in front of the first *anchor* -- a delimiter cluster that is really the per-starter tactic items at the END of the previous row -- so they looked 300 bytes into the wrong row, and the "near-constant" 64 bytes were that row's tail. Row 0 starts with `[home u16][away u16][cid u16][day u16][n events u8]`; the byte in front of it is the match count on every save, both careers. |
+| [our matches](parser/matches.md), ~55.7 MB | **Counted, u8, no sentinel**: the byte in front of row 0 is the match count on every save, both careers. Row 0 starts with `[home u16][away u16][cid u16][day u16][n events u8]`. |
 | squad snapshot, 51–61 MB | located by `regions.CLUB_MARKER`. |
 
 The cross-save sweep agrees: across all 34 saves there is **not one** count-framed table above

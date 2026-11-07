@@ -106,8 +106,8 @@ carries the previous player's club".
 `+0`/`+2` are two club tids side by side, and `+4..+7` is a constant `01 00 00 01`. The match
 signature reads that constant as a **0-1 scoreline on day 256** — the same fake fixture on every
 record, against whatever clubs happen to be in `+0`/`+2`. A constant score and a constant date
-across many different opponents is the tell. See
-[`light-results-record.md`](light-results-record.md) for the sweep that flagged it.
+across many different opponents is the tell. A whole-file sweep for a
+match signature flagged it ([match_slots](parser/match_slots.md)).
 
 ## Next steps
 

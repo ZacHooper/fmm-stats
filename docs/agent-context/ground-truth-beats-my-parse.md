@@ -25,7 +25,7 @@ been right the whole time, and treating it as noise cost a detour into a wrong s
   off-by-one errors that individual rows hide (an extra row or a dropped one both break the sum).
   Four of five per-season stat lines were also globally unique in a 265k-row table, which made
   "search the whole table for the real numbers and see where they land" decisive.
-- Don't diagnose from a resolved NAME (club/player) — check the id. See [[name-resolution]].
+- Don't diagnose from a resolved NAME (club/player) — check the id. See [matches](../parser/matches.md) (name a match row by `person_id`).
 
 Related: [[user-supplied-save-date-wins]] (same principle for save dates — the user's stated
 in-game date beats the derived one), [`history`](../parser/history.md).
