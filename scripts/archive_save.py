@@ -175,7 +175,7 @@ def main():
         for m in bad:
             print(f"  ! {m}")
         return 1
-    if not a.upload:
+    if not a.upload and R2_REMOTE:
         print(f"upload with:  rclone sync {SAVES_DIR} {R2_REMOTE}/saves --include '*.gz'")
     return 0
 

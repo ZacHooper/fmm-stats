@@ -6,9 +6,11 @@
 -- place on its whole-season points, goal difference and goals scored within
 -- the last league stage it played, below every team whose last stage comes
 -- earlier. A single-stage league is the same rule with one stage. One row per
--- disagreeing team, plus one if nothing was compared. Assumes every season
--- was seen whole (a full rebuild); other nations' tie-breakers are not read
--- (docs/TODO.md #13), so only Denmark is held league-wide.
+-- disagreeing team, plus one if nothing was compared although the managed club
+-- has a finished league season in the store. Every save simulates the Danish
+-- leagues, whatever the career; other nations' tie-breakers are not read, so
+-- only Denmark is held league-wide. A season the store did not see whole
+-- (a first save mid-season) has no final positions to compare yet.
 with career as (
     select managed_club_tid from {{ ref('stg_career') }}
 ),
@@ -133,8 +135,22 @@ select
     null as team_tid,
     null as final_position,
     null as rebuilt_position
-where not exists (
-    select 1 as found
-    from compared
-    where compared.is_managed
-)
+where
+    not exists (
+        select 1 as found
+        from compared
+        where compared.is_managed
+    )
+    -- vacuous only when there was something to compare: the managed club played
+    -- a league season that is over (one before the store's latest)
+    and exists (
+        select 1 as found
+        from {{ ref('mart_standings') }} as standings
+        inner join career
+            on standings.team_tid = career.managed_club_tid
+        where
+            standings.competition_season < (
+                select max(latest.competition_season) as latest_season
+                from {{ ref('mart_standings') }} as latest
+            )
+    )

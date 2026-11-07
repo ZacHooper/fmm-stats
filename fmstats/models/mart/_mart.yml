@@ -374,8 +374,18 @@ models:
   - name: fact_player_award
     description: >
       Each player's place in a World Best XI pool, with the scrapbook entry that earned it.
+      person_id is NULL for a past winner no snapshot in the store still holds (a short
+      history: he left the game's database before the first save), so the row is keyed on
+      player_tid, and on person_id where it is known.
     data_tests:
-      - unique_combination: {arguments: {columns: [award_id, person_id, entry_date]}}
+      # warn, not error: a player whose date of birth reads differently across snapshots
+      # gets two person_ids and so two rows (TODO "Person identity across snapshots")
+      - unique_combination:
+          arguments: {columns: [award_id, player_tid, entry_date]}
+          config: {severity: warn}
+      - unique_combination:
+          arguments: {columns: [award_id, person_id, entry_date]}
+          config: {where: "person_id is not null"}
       - relationship_combination:
           arguments:
             columns: [award_id]

@@ -4,6 +4,10 @@ Reverse-engineering **Football Manager Mobile 2022** `.fms` save files into a qu
 store and a static web app. Read-only: nothing is ever written back to a save. The
 [README](README.md) is the human introduction; this file is the working guide.
 
+**A new player with no `fmm.toml` yet:** follow
+[`.claude/skills/get-started/SKILL.md`](.claude/skills/get-started/SKILL.md), whatever agent you
+are. It takes them from a save file to their stats site, and they don't need to code.
+
 **Before anything else, read the user's own files if they exist** (both are gitignored):
 - **`fmm.toml`** — their careers (managed club tid, rollover day, rating method), storage, site
   URL and **play-style switches**. Template: [`fmm.example.toml`](fmm.example.toml). The
@@ -155,10 +159,10 @@ header. The optional `-<tag>` is a human note that nothing parses.
 
 ## Common commands
 ```bash
-uv run python scripts/discover_career.py <save.fms>       # a new career: find the club's tids
+uv run python scripts/discover_career.py <save.fms> --write   # a new career -> fmm.toml
 uv run python scripts/archive_save.py <save.fms> --career <key> [--upload]
 uv run python extract.py <saves_dir>/<key>/<save>.fms     # -> output/<save name>
-uv run python load_duckdb.py output/<save name> --career <key>   # -> fm-<key>.duckdb (runs dbt)
+uv run python load_duckdb.py output/<save name>           # -> fm-<key>.duckdb (runs dbt)
 uv run python scripts/export_manifest.py                  # refresh the rebuild recipe
 
 # after editing fmstats/ models or the loader: rebuild models and run every dbt test

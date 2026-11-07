@@ -344,6 +344,11 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   with that tid whose dob gives the entry's age on its date (or one less: the stored age lags a
   birthday by a day or two). Anything else reading old entries must do the same
   (`int.scrapbook_entries` is only our current squad, so safe).
+- **That rule can resolve one entry to two people**: Luka Vodišek (tid 13443) has two
+  `person_id`s on the full Frem store, dob 1998-11-29 and 1998-06-08, both inside the
+  one-year age tolerance, so his 2028 World Best XI entry is two rows. The
+  `fact_player_award` key on `player_tid` warns on it; pick one person per entry (the
+  nearer age, then the later snapshot) and make that test an error again.
 
 ### 16. Match facts
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
@@ -398,8 +403,8 @@ before they're coded.
 
 ### 22. Audit and clean up the docs
 Many docs describe code that no longer exists (~95 dead file references across 37 docs on
-2026-11-06). The plan, with a proposed action for every doc, is
-[`plans/2026-11-06-docs-audit.md`](plans/2026-11-06-docs-audit.md). Do it before the fresh
+2026-11-06). The plan, with a brief per phase and a destination for every doc, is
+[`plans/2026-11-07-docs-overhaul.html`](plans/2026-11-07-docs-overhaul.html) (open it in a browser; each phase is a brief an agent can pick up). Do it before the fresh
 public repo is cut.
 
 ### 25. Finish making the project career-agnostic for other players
