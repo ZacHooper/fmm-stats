@@ -12,7 +12,8 @@ across nations.
 
 Ground truth is the 25 Nov 2024 Manager Profile screenshots for the seven Danish Superliga
 managers, matched against `frem-2024-11-22.fms`, plus a second Style-only set read off
-`frem-2026-07-02.fms` (checked only if that save is present). Run:
+`frem-2026-07-02.fms` and a reputation-tier set read off `frem-2030-06-22.fms` (each checked
+only if that save is present). Run:
 
     python3 tests/test_staff_records.py [path/to/frem-2024-11-22.fms]
 
@@ -84,6 +85,14 @@ STYLE_2026 = {
      163: ("Peter Sorensen", "Vejle BK", 6, "Defensive"),
      182: ("Brian Priske", "Brondby IF", 12, "Normal"),
     2015: ("Jon Dahl Tomasson", "AGF", 14, "Attacking"),         # the Attacking edge: 13|14
+}
+
+# Reputation-tier ground truth read off `frem-2030-06-22.fms`: the National/Continental edge.
+# Thomas Frank's Manager Profile (docs/parser/img/staff-3.png) says National at 5,857, which an
+# edge at 5,800 called Continental. tid -> (manager, club, world_reputation, confirmed tier)
+TIER_2030_SAVE = "frem-2030-06-22.fms"
+TIER_2030 = {
+    9140: ("Thomas Frank", "FC Kobenhavn", 5857, "National"),
 }
 
 # In-game Style from the same screenshots, and the attacking_intent (+14) it is banded from.
@@ -369,6 +378,30 @@ def main(argv):
               f"(intent 6-14, both edges)")
     else:
         print(f"  --  {STYLE_2026_SAVE} absent, band-edge check skipped")
+
+    # Third save, reputation tier only: the National/Continental edge.
+    other = os.path.join(os.path.dirname(path), TIER_2030_SAVE)
+    if os.path.exists(other):
+        with open(other, "rb") as f3:
+            mm3 = mmap.mmap(f3.fileno(), 0, access=mmap.ACCESS_READ)
+        info3 = scrape_person_info(mm3)
+        recs3 = ST.scrape_staff_attributes(
+            mm3, [p["id2"] for p in info3.values() if p["sid"] == "ffffffff"])
+        ok = 0
+        for tid, (who, club, rep, want) in TIER_2030.items():
+            p3 = info3.get(tid)
+            r = recs3.get(p3["id2"]) if p3 else None
+            if not r:
+                fails.append(f"{who} (tid {tid}): no staff record in {TIER_2030_SAVE}")
+            elif r["world_reputation"] != rep or r["reputation_tier"] != want:
+                fails.append(f"{who} @ {club}: reputation {r['world_reputation']}/"
+                             f"{r['reputation_tier']!r}, expected {rep}/{want!r}")
+            else:
+                ok += 1
+        print(f"  OK  {ok}/{len(TIER_2030)} tier-edge managers on {TIER_2030_SAVE} "
+              f"(National at 5,857)")
+    else:
+        print(f"  --  {TIER_2030_SAVE} absent, tier-edge check skipped")
 
     if fails:
         print("\nFAIL:")
