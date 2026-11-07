@@ -34,6 +34,7 @@ SKIP = 77
 STORE_TESTS = set()
 
 UNIT_TESTS = {
+    "test_check_docs_unit.py",
     "test_club_comp_unit.py",
     "test_club_records_unit.py",
     "test_comp_rules_unit.py",
