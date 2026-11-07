@@ -57,7 +57,7 @@ Athletic-Bilbao strategy — players whose youth club is in `raw.eligible_origin
 from `seeds/eligible_origin_clubs.csv`; 575 eligible in the newest frem snapshot),
 `db.eligibility_frame()`, `pages/2_Squad_Tool.py` bio, and `db.player_loan_spells()` source (2),
 which reads `fee = 'loan'` rows to recover loan spells across a player's whole career. Decode
-details: `fmparser/history.py` + [[history-chain-pointers]] + [[player-history-table]].
+details: [`docs/parser/history.md`](../parser/history.md).
 
 **Opposition scouting is codified — USE IT instead of ad-hoc pulls.**
 `fmstats.scout.scout_report(st, opp_tid, method=None)` returns the full report as

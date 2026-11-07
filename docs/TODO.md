@@ -53,7 +53,7 @@ Live traps, each of which has produced numbers that looked fine and were not:
 - **`any_value(x ORDER BY y)` does not order in DuckDB.** `max_by(x, y)` does.
 - **`mart.club_attendance` is our-matches-only** — read `n_games` before trusting `avg_att`.
 - **A tid is a slot, not a person** — check `DISTINCT dob` per tid before telling a story
-  about one ([`agent-context/tid-recycling.md`](agent-context/tid-recycling.md)).
+  about one ([`parser/person_info.md`](parser/person_info.md)).
 
 ### Where to look
 
@@ -125,8 +125,15 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
     24, 27-29, 31). The
     quickest proof is to set a dozen players' Focus Role to each, save, and read the ids;
     `docs/role-ids.csv` names famous players holding each role for checking on profiles.
-  - attribute-focus codes 0, 2, 4, 10, 12, 13, 15 (13 is the AI's most common, 5,067 players).
+  - attribute-focus codes 0, 2, 10, 15. **Seed gap:** codes 4, 12 and 13 are read off the
+    Training list on `frem-2030-06-22` (4 SHO, 12 DEC, 13 MOV; 1,725, 985 and 5,053 players)
+    but are not in `seeds/training_attributes.csv`: add `4,SHO`, `12,DEC`, `13,MOV`.
   - intensity 0 and 1: only 3 (High) and 2 (Normal) are read off the screen.
+  - **Squad status is not located.** Training `+39` (`squad_status`) is not it: ten players
+    whose Transfer Status screen says First Team, Rotation, Backup or Youngster all read 171
+    on `frem-2030-06-22` ([`docs/parser/training.md`](parser/training.md)). Rename the field
+    (`unknown_39`, through raw and stg, with `mart.fact_player_state_scd`) and find the real
+    one: diff a save before and after changing one player's status in game.
   - the Progress bar: a green fill, or a full yellow bar when the player is unlikely to improve
     further. Not the stored `pa - ca` (0 on yellow and near-empty bars alike); the green-fill
     rows are the ones with `+17` and `+41` non-zero. Diff two saves a few weeks apart.
@@ -145,9 +152,11 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
 
 ### 4a. Player progress: what is still unread
 `tables/player_progress.py` hands every used row to `raw.player_progress` (the six lines
-and the raw status included); the mart draws injury and loan spells from the bits. Open: the six
-u16 skill lines at +4 (which line is which on the Player Progress graph), status bits 3 (8)
-and 6 (64), and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
+and the raw status included); the mart draws injury and loan spells from the bits
+([`docs/parser/player_progress.md`](parser/player_progress.md)). All six lines are named. Open:
+what the graph's markers mean (status bits 3, 4, 6 and 7 each draw one: tap one in game, or
+match the dates against events), bit 2, the `fffa`/`fffc` fee codes in the history pool, and
+the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
 the week's attribute values?). Named, the table could give every squad player's weekly
 development, not just injuries and loans.
 
@@ -218,9 +227,20 @@ tables (#13) make it less urgent for Denmark, but it is the direct way to settle
 ### 10. Unnamed fields in records we already read
 Bytes the parser reads but cannot name yet.
 - **Staff** `+34..+38`: five catalog indices. The six hidden staff attributes stay named by
-  offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 85% of
+  offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
+- **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
+  `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
+  it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
+  `< 5800` edge calls him Continental. Thorup at 5,974 is Continental, so the edge lies in
+  5,858–5,974: move it to 5,900 or above and record Frank in `tests/test_staff_records.py`. Five
+  staff on `frem-2030-06-22` sit at 5,800–5,857 ([`docs/parser/staff.md`](parser/staff.md)).
+- **Staff records with goalkeeping coaching above 20 are dropped** (`tables/staff.py`
+  `_process_staff`): 43 records read 51–99 at +17, retired goalkeepers, and the 1–20 gate
+  drops the whole record from `staff_records.json` ([`docs/parser/staff.md`](parser/staff.md)).
+  Keep every record and name what +17 holds for them. An output change: re-record
+  `tests/assert_identical.py`.
 - **Club `main_club_tid` drops tid 0** (`tables/clubs.py` `_club`): the `0 < tid` filter
   loses the one parent that is tid 0, so Algeria U21 (11103) has no parent while the other 227
   U21 sides resolve ([`docs/parser/clubs.md`](parser/clubs.md)). An output change: re-record

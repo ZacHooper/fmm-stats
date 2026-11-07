@@ -1,0 +1,799 @@
+{
+ "_about": "Values read off in-game screens of frem-2030-06-22 (docs/parser/img/), the raw bytes behind them, and what the parser must make of them. Guarded by tests/test_people_evidence.py; the tables are documented in docs/parser/.",
+ "save": "frem-2030-06-22.fms",
+ "raw": [
+  [
+   1679999,
+   "93 00 d3 07 a1 00 8a 00",
+   "Lund Jensen: dob 28/5/2003, Polish, other nationality Danish"
+  ],
+  [
+   1680017,
+   "19 01",
+   "Lund Jensen: 25 caps / 1 goal"
+  ],
+  [
+   3325073,
+   "00 00 d2 07 13 00 ff ff",
+   "Adingra: dob 1/1/2002, Ivorian, no other nationality"
+  ],
+  [
+   5587980,
+   "22 51 00 00 5d 76 03 00",
+   "Adingra's attribute record: sid 0x5122, history_head 226909"
+  ],
+  [
+   5588022,
+   "01 01 01 01 01 01 0d 01 01 0f 01 0b 14 01 01 14 07",
+   "Adingra: position ratings, feet 20 / 7"
+  ],
+  [
+   31367776,
+   "b8 67 00 00 01 5e 01",
+   "Adingra's contract: tid, marker 1, wage_units 350"
+  ],
+  [
+   31367789,
+   "b4 00 ef 07",
+   "Adingra's contract expiry: day 180 of 2031"
+  ],
+  [
+   40570893,
+   "27 94 00 00 cc 26 00 00",
+   "first-name slot 9932 -> ordinal 37927"
+  ],
+  [
+   40224321,
+   "93 44 00 00 c4 4f 00 00",
+   "surname slot 20420 -> ordinal 17555"
+  ],
+  [
+   42921761,
+   "39 1c 0c 05 00 00 dc 02 a1 09 ff ff",
+   "history 32723: 2027/28 FC Nordsjaelland 28 12 5 7.32"
+  ],
+  [
+   45789025,
+   "3a 00 00 00 00 00 00 00 a1 09 82 14",
+   "history 211927: 2028/29 FC Nordsjaelland, fee 5250"
+  ],
+  [
+   42876529,
+   "3a 1f 10 06 00 00 d9 02 5a 01 ff ff ff ff ff ff",
+   "history 29896: 2028/29 Frem 31 16 6 7.29, end of chain"
+  ],
+  [
+   54923679,
+   "02 00 12 00 00 00 04 00 40 02",
+   "Adingra's training row: Normal, Poacher, Shooting, ST"
+  ],
+  [
+   54923695,
+   "87 00 ab",
+   "Adingra's training row: contracted, squad status 171"
+  ],
+  [
+   62031769,
+   "0d 00 00 00 53 69 6d 6f 6e 20 41 64 69 6e 67 72 61",
+   "Adingra's list-39 entry: full name"
+  ]
+ ],
+ "persons": {
+  "10446": {
+   "dob": "2003-05-28",
+   "nationality_id": 161,
+   "second_nationality_id": 138,
+   "international_caps": 25,
+   "international_goals": 1,
+   "u21_caps": 15,
+   "languages": {
+    "31": 10,
+    "7": 10,
+    "21": 8,
+    "29": 8,
+    "17": 5,
+    "6": 5,
+    "10": 2
+   },
+   "favoured_club": 344,
+   "favoured_person": 22383
+  },
+  "26552": {
+   "dob": "2002-01-01",
+   "nationality_id": 19,
+   "second_nationality_id": null,
+   "international_caps": 25,
+   "international_goals": 6,
+   "club_tid": 346,
+   "joined_date": "2028-08-15",
+   "languages": {
+    "9": 10,
+    "31": 7,
+    "7": 5
+   },
+   "relationships": 0
+  },
+  "10404": {
+   "dob": "2004-01-28",
+   "nationality_id": 138,
+   "international_caps": 0,
+   "u21_caps": 3,
+   "u21_goals": 0
+  }
+ },
+ "attributes": {
+  "26552": {
+   "squad_number": 10,
+   "foot_left": 20,
+   "foot_right": 7,
+   "positions": {
+    "ML": 13,
+    "AML": 15,
+    "AMR": 11,
+    "ST": 20
+   },
+   "screen": {
+    "Pace": 17,
+    "Strength": 10,
+    "Stamina": 12,
+    "Technique": 16,
+    "Aggression": 10,
+    "Leadership": 9,
+    "Teamwork": 13,
+    "Aerial": 11
+   }
+  },
+  "10404": {
+   "squad_number": 38,
+   "foot_left": 7,
+   "foot_right": 20,
+   "screen": {
+    "Agility": 12,
+    "Pace": 12,
+    "Strength": 10,
+    "Stamina": 14,
+    "Technique": 8,
+    "Aggression": 10,
+    "Leadership": 9,
+    "Teamwork": 11
+   }
+  },
+  "10446": {
+   "squad_number": 5,
+   "foot_left": 20,
+   "foot_right": 8,
+   "screen": {
+    "Pace": 12,
+    "Strength": 16,
+    "Stamina": 18,
+    "Technique": 12,
+    "Aggression": 12,
+    "Leadership": 11,
+    "Teamwork": 12,
+    "Aerial": 14
+   }
+  }
+ },
+ "contracts": {
+  "_screen": "Club Squad - Contract, first team and reserves: [wage in GBP a year as shown, expiry month/year]",
+  "13304": [
+   37000,
+   "6/2035"
+  ],
+  "10404": [
+   100000,
+   "6/2032"
+  ],
+  "10198": [
+   130000,
+   "6/2031"
+  ],
+  "9468": [
+   62000,
+   "6/2033"
+  ],
+  "10446": [
+   350000,
+   "6/2032"
+  ],
+  "10527": [
+   41000,
+   "6/2032"
+  ],
+  "10027": [
+   94000,
+   "6/2031"
+  ],
+  "10402": [
+   39500,
+   "6/2032"
+  ],
+  "10447": [
+   600000,
+   "6/2033"
+  ],
+  "29101": [
+   38500,
+   "6/2033"
+  ],
+  "9954": [
+   250000,
+   "6/2032"
+  ],
+  "23391": [
+   19250,
+   "6/2032"
+  ],
+  "9638": [
+   73000,
+   "6/2031"
+  ],
+  "8805": [
+   100000,
+   "6/2032"
+  ],
+  "10205": [
+   82000,
+   "6/2032"
+  ],
+  "9739": [
+   56000,
+   "6/2035"
+  ],
+  "10164": [
+   600000,
+   "6/2032"
+  ],
+  "10123": [
+   30500,
+   "6/2031"
+  ],
+  "7337": [
+   43500,
+   "6/2033"
+  ],
+  "3505": [
+   36500,
+   "6/2033"
+  ],
+  "10399": [
+   130000,
+   "6/2031"
+  ],
+  "9858": [
+   165000,
+   "6/2032"
+  ],
+  "26779": [
+   100000,
+   "6/2033"
+  ],
+  "26552": [
+   180000,
+   "6/2031"
+  ],
+  "10004": [
+   375000,
+   "6/2032"
+  ],
+  "9589": [
+   4700,
+   "6/2031"
+  ],
+  "29751": [
+   32000,
+   "6/2031"
+  ],
+  "30303": [
+   57000,
+   "6/2030"
+  ],
+  "25699": [
+   10500,
+   "6/2033"
+  ],
+  "8852": [
+   10500,
+   "6/2035"
+  ],
+  "9679": [
+   5750,
+   "6/2032"
+  ],
+  "10227": [
+   6750,
+   "6/2032"
+  ],
+  "18124": [
+   10000,
+   "6/2031"
+  ],
+  "9591": [
+   6750,
+   "6/2033"
+  ],
+  "31273": [
+   7250,
+   "6/2032"
+  ],
+  "32881": [
+   6250,
+   "6/2033"
+  ],
+  "11047": [
+   5750,
+   "6/2032"
+  ],
+  "20597": [
+   5750,
+   "6/2030"
+  ]
+ },
+ "contract_exact": {
+  "26552": {
+   "expiry": "2031-06-30",
+   "start_date": "2028-08-15",
+   "marker": 1
+  }
+ },
+ "history": {
+  "3505": {
+   "_screen": "Player History: Frem 2028/29, FC Botosani 2027/28 and 2026/27 on loan, Frem 2027/28",
+   "lines": [
+    [
+     2028,
+     346,
+     0,
+     0,
+     0,
+     0,
+     65535
+    ],
+    [
+     2027,
+     3756,
+     0,
+     0,
+     0,
+     0,
+     65534
+    ],
+    [
+     2028,
+     3756,
+     11,
+     2,
+     2,
+     672,
+     65534
+    ],
+    [
+     2029,
+     346,
+     13,
+     0,
+     3,
+     669,
+     65535
+    ]
+   ],
+   "order_tail": 4,
+   "this_season": {
+    "apps": 29,
+    "goals": 2,
+    "assists": 7,
+    "yellows": 0
+   },
+   "total": {
+    "apps": 128,
+    "goals": 21,
+    "assists": 33,
+    "yellows": 4,
+    "reds": 0
+   }
+  },
+  "26552": {
+   "_screen": "Player History: [season end year, club tid, apps, goals, assists, rating x100, fee]",
+   "lines": [
+    [
+     2028,
+     2465,
+     28,
+     12,
+     5,
+     732,
+     65535
+    ],
+    [
+     2029,
+     2465,
+     0,
+     0,
+     0,
+     0,
+     5250
+    ],
+    [
+     2029,
+     346,
+     31,
+     16,
+     6,
+     729,
+     65535
+    ]
+   ],
+   "this_season": {
+    "apps": 41,
+    "goals": 10,
+    "assists": 6,
+    "yellows": 1
+   },
+   "total": {
+    "apps": 263,
+    "goals": 89,
+    "assists": 41,
+    "yellows": 3,
+    "reds": 0
+   }
+  },
+  "10404": {
+   "_screen": "loan to B.93 (fee fffe), then a free move from FC Nordsjaelland (fffd)",
+   "fees": [
+    [
+     2022,
+     334,
+     65534
+    ],
+    [
+     2023,
+     2465,
+     65533
+    ]
+   ]
+  }
+ },
+ "training": {
+  "26552": {
+   "focus_role": 18,
+   "intensity": 2,
+   "focus_attribute": 4,
+   "focus_position": "ST",
+   "contracted": 135,
+   "squad_status": 171
+  },
+  "10446": {
+   "squad_status": 171
+  },
+  "10404": {
+   "squad_status": 171
+  }
+ },
+ "progress": {
+  "10404": {
+   "_screen": "2029/30: Physical 12, Mental 8, Goalkeeping 13, Overall 11",
+   "from": "2029-07-01",
+   "lines": {
+    "line_0": 12,
+    "line_1": 8,
+    "line_2": 13,
+    "line_3": null,
+    "line_4": null,
+    "line_5": 11
+   },
+   "markers": {
+    "2029-07-07": 64,
+    "2029-12-29": 16,
+    "2030-04-07": 64,
+    "2030-04-21": 64,
+    "2030-05-19": 64,
+    "2030-05-26": 64
+   }
+  },
+  "3505": {
+   "_screen": "Maarup 2029/30: Attacking 14, Defending 6, Mental 9, Overall 10; Physical 10, then 11 from early September",
+   "from": "2029-06-30",
+   "lines": {
+    "line_1": 9,
+    "line_2": null,
+    "line_3": 14,
+    "line_4": 6,
+    "line_5": 10
+   },
+   "points": {
+    "2029-09-01": {
+     "line_0": 10
+    },
+    "2029-09-08": {
+     "line_0": 11
+    }
+   },
+   "markers": {
+    "2029-12-29": 16,
+    "2030-04-28": 64
+   }
+  },
+  "26779": {
+   "_screen": "Secka 2029/30: Physical 14, Mental 10; Defending 6 -> 7 in August, Attacking 12 -> 13 and Overall 10 -> 11 in May; Injured mid-May to early June",
+   "from": "2029-06-30",
+   "lines": {
+    "line_0": 14,
+    "line_1": 10,
+    "line_2": null
+   },
+   "points": {
+    "2029-07-28": {
+     "line_4": 6
+    },
+    "2029-08-02": {
+     "line_4": 7,
+     "line_3": 12,
+     "line_5": 10
+    },
+    "2030-05-05": {
+     "line_3": 13,
+     "line_5": 11
+    }
+   },
+   "markers": {
+    "2029-08-02": 64,
+    "2029-12-29": 16,
+    "2030-05-10": 1,
+    "2030-05-12": 1,
+    "2030-05-19": 1,
+    "2030-05-26": 1,
+    "2030-06-02": 2
+   }
+  },
+  "on_loan": [
+   9589,
+   29751,
+   30303,
+   8852,
+   9679,
+   18124,
+   20597
+  ],
+  "not_on_loan": [
+   25699,
+   10227
+  ],
+  "week": "2030-06-16"
+ },
+ "names": {
+  "26552": "Simon Adingra",
+  "10404": "Gustav Ullits",
+  "10446": "Valdemar Lund Jensen",
+  "22383": "Presnel Kimpembe",
+  "19158": "Kaiser",
+  "20905": "Peque Polo",
+  "9069": "Vladimír Darida"
+ },
+ "scrapbook": {
+  "list": 39,
+  "26552": {
+   "attr_aerial": 11,
+   "attr_crossing": 11,
+   "attr_dribbling": 16,
+   "attr_passing": 9,
+   "attr_shooting": 15,
+   "attr_tackling": 7,
+   "attr_technique": 16,
+   "attr_aggression": 10,
+   "attr_creativity": 8,
+   "attr_decisions": 13,
+   "attr_leadership": 9,
+   "attr_movement": 17,
+   "attr_positioning": 7,
+   "attr_teamwork": 13,
+   "attr_pace": 17,
+   "attr_stamina": 12,
+   "attr_strength": 10,
+   "role": 18,
+   "foot_left": 20,
+   "foot_right": 7,
+   "wage": 3500
+  },
+  "10404": {
+   "attr_aerial": 15,
+   "attr_agility": 12,
+   "attr_communication": 11,
+   "attr_handling": 17,
+   "attr_kicking": 15,
+   "attr_reflexes": 16,
+   "attr_technique": 8,
+   "attr_aggression": 10,
+   "attr_creativity": 5,
+   "attr_decisions": 8,
+   "attr_leadership": 9,
+   "attr_throwing": 11,
+   "attr_positioning": 11,
+   "attr_teamwork": 11,
+   "attr_pace": 12,
+   "attr_stamina": 14,
+   "attr_strength": 10,
+   "role": 1
+  },
+  "10446": {
+   "attr_aerial": 14,
+   "attr_crossing": 6,
+   "attr_dribbling": 9,
+   "attr_passing": 12,
+   "attr_shooting": 8,
+   "attr_tackling": 15,
+   "attr_technique": 12,
+   "attr_aggression": 12,
+   "attr_creativity": 10,
+   "attr_decisions": 13,
+   "attr_leadership": 11,
+   "attr_movement": 7,
+   "attr_positioning": 14,
+   "attr_teamwork": 12,
+   "attr_pace": 12,
+   "attr_stamina": 18,
+   "attr_strength": 16,
+   "role": 6,
+   "caps": 25,
+   "intl_goals": 1
+  }
+ },
+ "staff": {
+  "_screen": "Staff and Manager Profiles; formation names from formations.json",
+  "9069": {
+   "discipline": 17,
+   "financial_control": 14,
+   "judging_ability": 12,
+   "judging_potential": 15,
+   "people_management": 10,
+   "motivating": 14,
+   "tactical_knowledge": 14,
+   "goalkeeping_coaching": 5,
+   "outfield_coaching": 13,
+   "youth_coaching": 18,
+   "style": "Attacking",
+   "formation": "4-1-2-2-1"
+  },
+  "9140": {
+   "discipline": 12,
+   "financial_control": 9,
+   "judging_ability": 12,
+   "judging_potential": 15,
+   "people_management": 16,
+   "motivating": 14,
+   "tactical_knowledge": 14,
+   "goalkeeping_coaching": 4,
+   "outfield_coaching": 10,
+   "youth_coaching": 17,
+   "style": "Normal",
+   "formation": "5-3-2"
+  },
+  "12304": {
+   "formation": "5-2-1-2"
+  },
+  "10062": {
+   "formation": "4-1-2-2-1"
+  }
+ },
+ "training_list": {
+  "_screen": "Club Squad - Training: [Attr code, Focus Pos, role id, intensity]",
+  "10404": [
+   6,
+   "GK",
+   1,
+   2
+  ],
+  "9468": [
+   18,
+   "DR",
+   4,
+   2
+  ],
+  "10227": [
+   5,
+   "DL",
+   27,
+   2
+  ],
+  "23391": [
+   8,
+   "DC",
+   5,
+   2
+  ],
+  "10447": [
+   3,
+   "DC",
+   6,
+   2
+  ],
+  "10527": [
+   14,
+   "DC",
+   6,
+   2
+  ],
+  "31273": [
+   12,
+   "DMC",
+   15,
+   2
+  ],
+  "8805": [
+   17,
+   "DMC",
+   15,
+   2
+  ],
+  "10164": [
+   13,
+   "AMR",
+   10,
+   2
+  ],
+  "7337": [
+   11,
+   "AMR",
+   10,
+   3
+  ],
+  "25699": [
+   1,
+   "AML",
+   9,
+   2
+  ],
+  "10123": [
+   18,
+   "AML",
+   12,
+   3
+  ],
+  "26552": [
+   4,
+   "ST",
+   18,
+   2
+  ],
+  "9858": [
+   13,
+   "ST",
+   21,
+   2
+  ]
+ },
+ "scrapbook_more": {
+  "_screen": "2029 Manager's Best Eleven = list 38; World Best XI 2029 = list 7 (Calvert-Lewin's Scrapbook Profile 1/3/2029)",
+  "38": [
+   "Gustav Ullits",
+   "Frederik Karlsen",
+   "Adam Sørensen",
+   "Anton Pedersen",
+   "Valdemar Lund Jensen",
+   "Andreas Garly",
+   "Adam Jakobsen",
+   "Johannes Tjørnelund",
+   "Jagvir Sidhu",
+   "Aksel Behrndtz",
+   "Simon Adingra"
+  ],
+  "calvert_lewin": {
+   "attr_shooting": 19,
+   "attr_movement": 20,
+   "attr_decisions": 17,
+   "attr_aerial": 16,
+   "condition": 76,
+   "form_1": 7,
+   "form_2": 8,
+   "form_3": 9,
+   "form_4": 7,
+   "form_5": 9,
+   "caps": 48,
+   "intl_goals": 30,
+   "value": 58998540,
+   "wage": 175000,
+   "role": 18,
+   "scrapbook_year": 2029,
+   "scrapbook_day": 59
+  }
+ }
+}

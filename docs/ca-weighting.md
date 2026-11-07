@@ -66,8 +66,9 @@ managed-club snapshot is **the two sources disagreeing, not a decode error**. Th
 **94.8% exact / 98.7% within ±1**, and the modelled attributes are scored against the same two
 sources. So the decoder's 57.7% is against a ceiling of about 95, and its 88.1% within ±1
 against a ceiling of about 99. Stamina and Strength are the noisiest (87.6%, 88.2%); Agility
-and Technique are essentially clean. Suspect snapshot staleness
-(`docs/agent-context/reserve-marker-stale-attrs.md`) before suspecting the decode.
+and Technique are essentially clean. Suspect a stale scrapbook entry
+(an entry is frozen at its last write, [`docs/parser/player_lists.md`](parser/player_lists.md)) before
+suspecting the decode.
 
 ## Part 2 — what CA is made of, by position
 

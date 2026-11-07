@@ -52,8 +52,8 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 
 | table | record 0 | hdr | declared | we read |
 |---|---|---|---|---|
-| player attributes | 3,996,823 | u32 | 26,505 | 26,518 — **13 over** |
-| staff attributes | 6,064,225 | u32 | 4,642 | 4,150 |
+| [player attributes](parser/player_attributes.md) | 3,996,823 | u32 | 26,505 | 26,505 ✓ |
+| [staff attributes](parser/staff.md) | 6,064,225 | u32 | 4,642 | 4,642 ✓ |
 | *unnamed, 7 B* | 6,245,275 | u32 | 1,971 | — |
 | *unnamed, 7 B* | 6,259,084 | u32 | 560 | — |
 | *unnamed, 7 B* | 6,263,016 | u32 | 816 | — |
@@ -68,13 +68,12 @@ Offsets are **record 0** on frem-2023-07-02 and drift per save; the count sits a
 | [currencies](parser/currencies.md) | 13,985,965 | u16 | 173 | 173 ✓ |
 | *unnamed, 7 B* | 13,990,354 | u16 | 888 | — |
 | [languages](parser/languages.md) | 13,996,580 | u16 | 124 | 124 ✓ |
-| **person table (info spine)** | **572,042** (after a `01` header byte) | u32 | **32,966** | 32,966 ✓ |
-| surname id-table | 37,878,967 | u32 | 32,148 | 28,624 |
-| first-name id-table | 38,393,347 | u32 | 19,128 | 15,366 |
-| **nickname id-table** | **38,699,407** | u32 | **9,480** | **never read** |
+| **[person table](parser/person_info.md)** | **572,042** (after a `01` header byte) | u32 | **32,966** | 32,966 ✓ |
+| [surname id-table](parser/names.md) | 37,878,967 | u32 | 32,148 | 32,148 ✓ |
+| [first-name id-table](parser/names.md) | 38,393,347 | u32 | 19,128 | 19,128 ✓ |
+| [nickname id-table](parser/names.md) | 38,699,407 | u32 | 9,480 | 9,480 ✓ |
 
-Plus the history slab (40,364,927, 265,423 rows): the same idea with different framing — a
-u32 at `start - 12`, no sentinel — and `history.locate` already reads it.
+Plus the [history pool](parser/history.md) (265,423 rows): a `[count u32]` with no sentinel.
 
 **Confirmed adjacencies** (each found by walking one table's declared extent and reading what
 follows): player attributes -> staff -> the three 7 B tables -> the 99 B table -> round/leg
@@ -107,16 +106,16 @@ looks back 128 bytes, and compares any count it finds against the records we act
 | competitions | 1372 | 1372 | ✓ (1272 named + 100 blank slots) |
 | cities | 10956 | 10956 | ✓ |
 | stadiums | 15987 | 15987 | ✓ |
-| history slab | 265423 | 265423 | ✓ already used |
+| [history pool](parser/history.md) | 265423 | 265423 | ✓ |
 | languages | 124 | 124 | ✓ |
 | currencies | 173 | 173 | ✓ |
-| **surname id-table** | **32148** | 28624 | 3,524 short |
-| **first-name id-table** | **19128** | 15366 | 3,762 short |
-| **staff attributes** | **4642** | 4150 | 492 short |
-| **player attributes** | **26505** | 26518 | **13 over** |
+| [surname id-table](parser/names.md) | 32148 | 32148 | ✓ |
+| [first-name id-table](parser/names.md) | 19128 | 19128 | ✓ |
+| [staff attributes](parser/staff.md) | 4642 | 4642 | ✓ |
+| [player attributes](parser/player_attributes.md) | 26505 | 26505 | ✓ |
 | nations | 251 | 251 | ✓ |
 | browse names | (60000) | 45942 | not a count — see below |
-| **info spine** | **32966** | 32966 | read in full since 2026-09-29, see below |
+| [person table](parser/person_info.md) | 32966 | 32966 | ✓ |
 | clubs | 11331 | 11331 | ✓ |
 
 `--confirm` re-checks each declared count against the **table's own invariant** rather than
@@ -142,77 +141,13 @@ by its declared count. What each one teaches is a callout in the table's doc:
 [currencies](parser/currencies.md). **An empty length-prefixed string is data, not a
 terminator, and a uid is an identifier, not a range.**
 
-### The three that are structural, not data loss
+### The people tables
 
-**Staff attributes are a dense array indexed by `id2`** — `id2 == slot index` on **4642 of
-4642**. `scrape_staff_attributes` reads 4150 because it is driven by the id2 values the info
-spine hands it, which is legitimate for its current purpose. Its first record sits 9 slots
-(351 bytes) into the table, which is why the header looked absent until the locator was
-anchored on the table's own base rather than on the first record the walk happened to reach.
-
-> **DONE 2026-09-20, and it settled a contradiction.** The lookup is now arithmetic
-> (`base + id2 * 39`). `staff.py` had asserted the opposite of this section — that the table
-> is "multi-segment, so a stride walk is provably impossible" — and this section was the one
-> that was right. The disagreement was entirely the stride: `staff.py` measured the gaps
-> between ground-truth managers (19,929 and 8,541 bytes) against the **player** record's 78
-> bytes rather than the staff record's 39, and 19,929 and 8,541 are exactly 511 and 219
-> records of 39. At stride 78 `id2 == slot` holds on 1 slot and the ids read 0, 2, 4, …,
-> which looks precisely like a phase reset. Agrees with the old key search on every record it
-> finds (4,449/4,449 Frem, 5,462/5,462 Bucaspor) and output is byte-identical.
-
-> **DONE 2026-09-20 — and there are THREE name id-tables, not two.** They are CHAINED: each
-> one's declared end is followed immediately by the next one's `[8 × 0xFF][count]` frame, so
-> `next = base + count * 16 + 12` lands exactly on the next base and the chain terminates by
-> itself. Following it finds a **9,480-slot common-name table** that nothing had ever opened,
-> which is why 2,424 people were displayed under their full legal names (`Tite` as 'Adenor
-> Leonardo Bachi'). `int.person_names` reads it (extract dumps it in `name_ids.json`); the walked counts now equal the
-> declared ones.
-
-**The two name id-tables** are walked by an `id == slot index` invariant that breaks at the
-first free slot (`id = 0xFFFFFFFF`); 3,523 such slots are scattered through the surname
-table. The declared counts are exact — the last declared slot reads `id=32147,
-ordinal=45941`, the final browse entry. Nothing downstream depends on the walked count today
-(`name_ids.json` carries the used slots by id), so this is latent rather than live; the size heuristic
-that orients first names vs surnames would be more robust reading the declared counts.
-
-**Player attributes** over-read by 13. All 26,505 declared slots pass the position check, and
-the 13 extras are off-grid, past the table's end, and obvious garbage (height 54,539 cm).
-**Zero of the 13 join the info spine**, so none ever surfaces. The declared count would
-replace the scan-and-skip loop with pure arithmetic.
-
-### The info spine DOES declare a count — 2026-09-20, correcting this document
-
-This document used to record "info spine — no header found", and the entry above it said
-`info_spine`'s 25-byte gap holds nothing count-shaped. **The gap was the wrong place to
-look.** The header is not near the first record the sweep happens to reach; it is at the
-table's own base, which is the same mistake the staff grid taught ("anchor on the table's
-base, not on the first record your walk reaches") and it went unlearned for one table.
-
-Take the **first run of >= 8 `0xFF` below 1 MB** — it sits just past the ~53 KB zero filler
-that follows the browse name table — and read the u32 flush against what follows:
-
-| career | header ends | declared | read |
-|---|---|---|---|
-| Frem | 572,037 | **32,966** | 32,966 |
-| Bucaspor | 575,717 | **34,312** | 34,312 |
-
-The count is **byte-identical across a career** (all four Frem saves measured, 2021 to 2026,
-and all three Bucaspor) and **different between careers** — the *per-database pool* class this
-document already defines for the history slab, not a growing count. So the person table is a
-fixed-size pool, and `32,966` is a **bound**, not a measure of how many people exist.
-
-That also settles the loose lead at the end of this document: the `u32 = 32,966` at 14,000,242
-is the *same number in a second place*, so it is at least consistent with being a second copy
-of this pool size rather than a table of its own.
-
-**Settled 2026-09-29.** The count is followed by one header byte, `01` on every save of both
-careers, and record 0 starts after it (572,042 on Frem) -- a real person, tid 0. Each record is
-`[68 B head][17 B][u8 n][n x (language u16, level u8)][u16 m][m x 8 B]`, and walked that way
-from record 0 every declared record is read, `tid == slot index` holds on all of them, and the
-walk ends on the next table's own frame (`fmparser/tables/person_info.py`). There is no
-shortfall: the "92 short" and the "77 empty slots with `uid == 0`" were a sentinel sweep
-reading records out of alignment. The byte that sweep took for the end of each record is the
-last byte of its relationship list, whose count is a u16.
+The staff table is a dense array indexed by `id2`, the name id-tables are three chained
+count-framed tables (surnames, first names, nicknames), the attribute table stops at its
+declared count, and the person table declares its count behind a `01` header byte. Each is
+walked by declaration now: [staff](parser/staff.md), [names](parser/names.md),
+[player_attributes](parser/player_attributes.md), [person_info](parser/person_info.md).
 
 ### Two clean negatives
 
@@ -300,32 +235,9 @@ the check that makes them tables rather than coincidences:
 So **560 is career-invariant** — a fixed enumeration — while the other three scale with the
 database. That difference is itself a clue for the naming pass.
 
-#### The NICKNAME id-table: 9,480 slots at 38,699,407 — and we have never read it
+#### The nickname id-table
 
-Found by chaining past the two name id-tables, which turn out to be **three** consecutive
-blocks: surname (32,148) -> first-name (19,128) -> nickname (9,480), each
-`[8xFF][count][16-byte records]`. `reference._discover_id_tables` returns only the two
-LARGEST, so the third has never been opened.
-
-It resolves through the same browse table, and the ground truth is not ambiguous:
-
-| `common_name_id` | nickname | the name we currently show |
-|---|---|---|
-| 48 | **Tite** | Adenor Leonardo Bachi |
-| 50 | **Renato Gaúcho** | Renato Portaluppi |
-| 22 | **Míchel** | José Miguel González Martín del Campo |
-| 40 | Adnan Hamad | Adnan Hamad Al-Abbasi |
-| 311 | Javi Pérez | Javier Pérez Martínez |
-
-**2,424 of 32,760 people carry one**, and we display every one of them under their full legal
-name instead of the name the game shows.
-
-This also corrects a claim in our own code. `staging.INFO_LAYOUT` says of `common_name_id`:
-*"Only 0.1% of records set it (the rest are ffffffff), nowhere near the ~8% that carry a
-nickname, so it is NOT the link `_scrape_nicknamed` follows."* The measured rate is
-**2,424 / 32,760 = 7.4%**, which IS the ~8% that carry a nickname — and it is the same byte
-range `_scrape_nicknamed` keys on (`+16`, the `NO_NICKNAME` sentinel). So both halves of that
-comment are wrong: the field is the nickname link, and it now has a table to resolve against.
+Read now: [names](parser/names.md).
 
 #### The club table: 11,331 records at 6,340,458, `tid == slot index`
 
@@ -435,72 +347,11 @@ save cannot run: **hold the number against a career's worth of saves and see whe
 | **Per-database pool** | fixed for a career, DIFFERENT between careers, 100% initialised | the **history slab**: 265,423 rows in all 27 Frem saves, **295,648** in Bucaspor |
 | **Engine-wide capacity** | identical across careers, larger than actual usage | the **browse name table**: `60,000` in both careers, holding 45,942 (Frem) / 45,834 (Bucaspor) names — 76.5% utilised |
 
-### The history slab's 265,423 is a POOL, not a growing count
+### The history pool's 265,423 is a pool, not a count
 
-This is the one worth internalising. `history.locate`'s docstring calls it "the exact row
-count", which is true of the physical rows — but it is **byte-identical in all 27 Frem saves,
-from the day-one 2021-07-01 save to 2026-07-02**, five in-game years and 25 snapshots apart,
-while the career history it holds grows the whole time. And every one of the 265,423 rows is
-non-zero even on day one.
-
-So it is a **fixed pool allocated when the database is built, fully initialised, and recycled
-rather than grown** — which is exactly what
-[`history-chain-pointers.md`](agent-context/history-chain-pointers.md) describes from the other
-side (chains running through recycled slots). The practical consequence: **that number can
-never tell you how much history exists**, only how many slots the pool has. It is safe as a
-walk bound and worthless as a measure.
-
-Bucaspor's 295,648 confirms it is per-database rather than a hard-coded engine constant.
-
-**The `start - 8` free-list guess is REFUTED.** That u32 does vary across saves (2,069 on the
-day-one save, then 67,635, 564, 52 for most of the career, 56 at the end), and a free-list head
-into the pool would have fitted neatly. It is not one: the rows it points at (2069, 52, 56) all
-have **in-degree 1**, i.e. they are ordinary mid-chain rows, not chain heads and not free. So
-`start - 8` is most likely not a header field at all — `start - 12` is the only one.
-
-### How the pool actually behaves
-
-Measured across six Frem saves spanning the whole career (day-one 2021 to 2026):
-
-| | 2021-07-01 | 2023-07-02 | 2026-07-02 |
-|---|---|---|---|
-| pool rows | 265,423 | 265,423 | 265,423 |
-| chains (in-degree 0) | 50,776 | 34,441 | 34,460 |
-| mean chain length | 5.23 | 7.71 | 7.70 |
-| **max chain length** | **39** | **31** | **26** |
-| singleton chains | 27,319 (10.3% of pool) | 9,271 (3.5%) | 10,026 (3.8%) |
-| `untouched` (`next == k+1`) | 0.809 | 0.671 | **0.376** |
-
-Four things follow, and they make the pool model concrete:
-
-1. **Every row is always in exactly one chain.** Max in-degree is 1 and heads == terminators in
-   every save, and following every head reaches **100%** of the 265,423 rows. There is no region
-   of orphaned or unallocated rows to find.
-2. **Singleton chains are the free reserve.** 27,319 of them on day one, consumed down to ~9,300
-   by 2023, then holding around 10,000. The pool is not close to exhausting.
-3. **Churn is monotonic and measurable.** `untouched` — the fraction of rows still pointing at
-   their physical successor — decays 0.81 -> 0.38 over five years. That is the cleanest single
-   number for "how much of this pool has been rewritten".
-4. **Rows are RECLAIMED FROM OLDER PLAYERS.** Of 24,145 sids with an attribute record in both
-   the day-one and the 2026 save, 72.0% have a longer chain (five more seasons, as expected) but
-   **25.2% (6,077) have a SHORTER one** — 68,998 rows lost in total, the worst going 39 rows
-   down to 5, and 38 down to 5. The shortened group's median age in 2021 was **31** (so ~36 by
-   2026); the group that gained rows had a median age of **22**. Falling max-chain-length
-   (39 -> 26) corroborates it independently of sid identity.
-
-**The mechanism: at the season rollover the game reuses the oldest lines of players who are
-still playing.** Confirmed in game. Raheem Sterling's Player History showed Liverpool 2010/11 to
-2013/14 on 22 Dec 2021. On 2 Jul 2027 it starts at 2016/17 Man City, and its TOTAL row
-(477 apps, 214 goals) is the sum of the 11 lines still shown. In the pool, record 80769 held his
-2015/16 Man City line on 2027-06-15 and 2027-06-29; on 2027-07-02 it holds a 2026/27 line for
-a Liège player. The five records that held tid 9225's 2008-2012 lines in the day-one save hold
-five other players' 2023-2025 seasons in the 2026 save, while he plays on into 2025. On the Frem
-gate store, 639 players still active in their newest snapshot have lost seasons with
-appearances (1,717 lines). The game can also unlink a loan year's 0-app parent-club line from the
-middle of a chain (tids 20024 and 26705), and a retired player's lines all go.
-
-**An EARLIER snapshot can carry career history a LATER one has already dropped**, so history is
-unioned across snapshots: `int.player_career_lines` (dbt) and `mart.fact_player_season`.
+It is identical on every save of a career and every record is always on a chain, so it bounds
+a walk and says nothing about how much history exists. How the game recycles it is in
+[history](parser/history.md).
 
 ## The convention does NOT extend to the career half of the file (39 MB +)
 

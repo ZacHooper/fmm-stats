@@ -22,7 +22,7 @@ guide."*
 
 **How to apply:** ask for / accept the date, load with
 `--season <end-year> --phase <YYYY-MM-DD>`. A cheap independent cross-check on the real save
-date is the **end of the weekly Player-Progress grid** (see [[injury-progress-decode]]) — it runs
+date is the **end of the weekly Player-Progress grid** ([`docs/parser/player_progress.md`](../parser/player_progress.md)) — it runs
 to the save date, so its last week dates the save even when no matches were played.
 
 Related: [[phase-is-date]] (phase = in-game date convention).

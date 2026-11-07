@@ -6,7 +6,7 @@ metadata:
   type: reference
 ---
 
-Triggered by [[nickname-players-missing]] (PR #42): `scrape_players` anchored on the
+Triggered by the nickname bug (PR #42; [`person_info`](../parser/person_info.md)): `scrape_players` anchored on the
 `FFFFFFFF` "no nickname" sentinel, so every player WITH a nickname was invisible. The
 question this audit answers: **where else does the parser do that?**
 
@@ -128,7 +128,7 @@ Martín — the Spanish/Portuguese/Brazilian concentration PR #42 predicted).
 | 7 | `staging.DOB_YEAR_HI` | `2012` | youngest cohorts are 2009 (711) and 2010 (4) — **~3 seasons**. `DOB_YEAR_LO=1955` is fine: smooth taper (1956:2, 1957:4, 1958:9), not a cliff |
 | 8 | `matches.is_block_start` | `ff` at +17, +18 AND +20, plus `condition` 1..100 | `looks_like_block` was ALREADY relaxed for exactly this reason (its docstring: 26 lost appearances). +18 is non-`ff` in 13 of 1,404 blocks and +20 in 1 — so they are real fields, not constants. 0 runs lost today (all four relaxations give 80 runs / 1,404 blocks) only because a run always starts on a posOrder-1 starter |
 | 9 | `staging.scrape_contracts` | `2018 <= yr <= 2035` | max seen 2031 — ~4 years |
-| 10 | tid floors | spine `100 < tid`, but `own_squad_full` + `discover_career` use `1000 < tid` | 897 spine people sit in (100, 1000]. Given tid recycling ([[tid-recycling]]), a newgen can land there |
+| 10 | tid floors | spine `100 < tid`, but `own_squad_full` + `discover_career` use `1000 < tid` | 897 spine people sit in (100, 1000]. Given tid recycling ([`person_info`](../parser/person_info.md)]]), a newgen can land there |
 | 11 | `staging.scrape_contracts` | `mm[p + 4]` is unbounded | raises `IndexError` if `hi` is near EOF; safe only because the default `hi` is 40M |
 
 ---

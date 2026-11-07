@@ -7,7 +7,7 @@
 > read [`attribute-model.md`](attribute-model.md) instead. Open work is in [`TODO.md`](TODO.md).
 
 Status of the effort to read **every league player's attributes** (not just our own
-squad). This is the deep-dive companion to `BUGS.md` #8/#9.
+squad). The parser's view of the record is [`docs/parser/player_attributes.md`](parser/player_attributes.md).
 
 ## TL;DR
 
@@ -38,9 +38,9 @@ anchored on the SID, which is the record's key.
 
 | Offset | Field | Status |
 | --- | --- | --- |
-| `P-50 … P-43` | ~~Personality~~ — **WRONG, resolved 2026-09-16** | The personality block is on the **INFO** record at `info+52…59`, where BUGS #14 verified all 8 values byte-exact against screenshots, and where fmm-editor's `People.cs` declares them. These offsets are not it and are not even attribute-shaped: five of the eight are 1-20 for **0%** of records. They fall outside a record anchored at `P-42` anyway. **Parsed since 2026-09-16** as `staging.PERSON_FIELDS`, on players and staff alike |
+| `P-50 … P-43` | ~~Personality~~ — **WRONG, resolved 2026-09-16** | The personality block is on the **INFO** record at `info+52…59`, where the seven managers' profiles verified all 8 values byte-exact against screenshots, and where fmm-editor's `People.cs` declares them. These offsets are not it and are not even attribute-shaped: five of the eight are 1-20 for **0%** of records. They fall outside a record anchored at `P-42` anyway. **Parsed since 2026-09-16** as `staging.PERSON_FIELDS`, on players and staff alike |
 | `P-42 … P-39` | **SID** (the record key) | confirmed |
-| `P-38 … P-35` | **history link** (u32) | confirmed — see [history-chain-pointers](agent-context/history-chain-pointers.md) |
+| `P-38 … P-35` | **history link** (u32) | confirmed — see [history](parser/history.md) |
 | `P-34 … P-1` | **34 attribute slots**, exact rough-guide Step-6 order (`slot = guide# ; offset = guide#-35`) | see §2 |
 | `P-28, -20, -18, -17, -15, -14, -13, -9, -8` | **9 attributes the player screen does not show** | **named 2026-09-16** — `jumping, consistency, big_match, injury_prone, versatility, set_pieces, penalty, work_rate, flair` (`attributes.HIDDEN_OFFSETS`), from fmm-editor's `Player.cs` order. Told apart from the rest of the record by shape: attribute bytes are 1-20 for >99.9% of 26,518 records, every other byte spans 0-255. `P-9` (WorkRate) is also Teamwork's second half, now carried in its own right |
 | `P+23 … P+35` | current + world reputation, international-retired, shirt + preferred shirt, height, weight | confirmed 2026-09-16 (`attributes.record_tail`); GK 188.2cm/78.2kg vs outfield 180.7/72.2 over 26,518 |
@@ -241,7 +241,7 @@ Overall on the 28 training players: **63% exact, 93% within ±1**
 - **Verify the wrap threshold** (currently `<128`) against a player with a mid-range
   Class-B attribute near the wrap boundary.
 - ~~**Personality block** (`P-50…P-43`)~~ — **DONE, and it was never here.** The 8 values are
-  plain single bytes at `info+52…59`, verified against 7 managers' screenshots (BUGS #14) and
+  plain single bytes at `info+52…59`, verified against 7 managers' screenshots ([`person_info`](parser/person_info.md)) and
   matching fmm-editor's `People.cs`. One open discrepancy worth a check: slot 3 is
   **Determination** on the FMM22 screens we verified against, but `People.cs` declares it
   **Controversy** for FMM26. Ours is the screenshot-backed reading for our game.

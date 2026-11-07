@@ -38,7 +38,7 @@ biggest). Derived MAJOR-section skeleton (split on zero-gaps ≥8KB):
 | 0.572–16.620M | 16M | FF-heavy **record section** (players/clubs/attributes; records delimited/padded by `ff ff ff ff` runs). Bucaspor "ATTR 3.8-6.6M" + "tagged 13-20M" are sub-regions of this. |
 | 16.636–38.092M | 21M | biggest binary section (matches + more) |
 | 38.1–39.27M | ~1M | heavily **fragmented** zone — many small sparse records with 8KB–115KB gaps between (entities/relationships?) |
-| 39.274–49.458M | 10M | binary; contains the **player-history table @40.6M** ([[player-history-table]]). Then the **758KB** gap. |
+| 39.274–49.458M | 10M | binary; contains the **player-history table @40.6M** ([`history`](../parser/history.md)). Then the **758KB** gap. |
 | 50.216–59.176M | 9M | final section; **inline full names @57.99M & 58.64M** (snapshot copies), squad/snapshot data |
 
 **Key structural facts:** (1) **zero-runs = section delimiters** (big) ; (2) within record sections,
@@ -82,8 +82,8 @@ populate even though its results parse. That region is the next content-location
 
 **`history_table` detector is fresh-save-only (2026-08-17).** The shipped detector keys on "+4 counter
 increments" — but on **established/in-season saves the history table's `+4` counter does NOT reset to 1 and
-is non-monotonic** (see [[player-history-table]]) — SUPERSEDED 2026-08-19: that column is a next-row
-POINTER, not a counter (see [[history-chain-pointers]]); the detector AND the old `find_table_start` miss
+is non-monotonic** — SUPERSEDED 2026-08-19: that column is a next-row
+POINTER, not a counter (see [`history`](../parser/history.md)); the detector AND the old `find_table_start` miss
 it (0 rows on all 2023 Frem saves). Worse, the 20–55 season-code range hits ~14% of random bytes, so the
 save contains **several stride-16 "season-plausible" look-alike regions** (e.g. winter save: a big decoy at
 ~42.5M and the real table at ~44.59M) that a run-finding heuristic can't tell apart. This is the clearest
