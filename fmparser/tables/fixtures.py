@@ -53,7 +53,7 @@ FIXTURE = Record("world_fixture", STRIDE, [
     # partitioning all 26,954 fixtures with nothing left over.
     Field(31, 4,  "stage_key", U32, note="stage key; index into comp_man.dat 78-byte grid"),
     # +35: per-fixture sequence id (256/58 distinct values)
-    Field(35, 2,  "seq_id", U16, note="sequence id within round/stage"),
+    Field(35, 2,  "seq_id", U16, note="the venue's stadium id (docs/parser/fixtures.md)"),
     Field(37, 4,  UNKNOWN, RAW),
     Field(41, 4,  "home_tid", U32, note="282/285 against ground truth; HOME-FIRST"),
     Field(45, 2,  UNKNOWN, RAW, note="secondary home club or aggregate/penalty marker"),

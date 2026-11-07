@@ -32,6 +32,7 @@ Offsets from the record's first byte.
 | +76 | `stage_index` | u8 | the stage's `indx` in the competition's rules ([`tables/comp_rules.py`](../../fmparser/tables/comp_rules.py)); `ff` = none | |
 | +77 | `round_index` | u8 | the round in the stage's `rnds`; `ff` on league stages | |
 | +78 | `round` | u8 | the matchday within the stage, 0-based; for a knockout, the round; `ff` on friendlies | |
+| +72 | (unread) | u32 | **the referee**: an official's tid, `ffffffff` when none (Quirks) | Mikkel Redder, below |
 | +83 | `subr` | u8 | stage class from the rules file; unnamed values | |
 
 The rest (+0, +9, +14..30, +37, +45, +51, +61, +68, +79..82, +84..91) is declared in
@@ -44,7 +45,19 @@ exactly (`count × 92`). The grids are walked in file order.
 
 ## Evidence
 
-Screenshots pending.
+`frem-2030-06-22`, the Vejle 2-4 Frem report ([matches](matches.md),
+`img/matches-1.png`). The fixture sits at offset 1,963,665 of the decompressed `fix_man.dat`:
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Vejle 2 - 4 Frem | +6 `02`, +11 `04`, +41 `8c 04 00 00`, +47 `5a 01 00 00` | home 1164, away 346, 2-4 |
+| 23 Sep 2029 | +53 `0a 07` (`0x070a & 0x1ff` = 266), +55 `ed 07` | day 266, 1-based: 23 September 2029 |
+| Vejle Stadion | +35 `43 0f` | `seq_id` 3907 = stadium 3907, Vejle Stadion, Vejle's own |
+| Referee: Mikkel Redder | +72 `ff 25 00 00` | 9727, the official's tid ([officials](officials.md)) |
+| Preliminary Phase | +76 `00` | `stage_index` 0 → the Superliga's stage 0 → [rounds](rounds.md) 236 |
+
+All 70 of our matches in the [matches](matches.md) table are here with the same date, clubs
+and score. Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
 
@@ -85,6 +98,13 @@ Screenshots pending.
 
 > **Quirk:** a match is held once: no `(date, home, away)` repeats on `frem-2030-06-22`. The
 > two grids are 117 KB apart, and what sits between them is not identified.
+
+> **Quirk:** +72 (inside the unread `+68..75`) is the referee's tid: an [official](officials.md)
+> on 11,254 of 26,627 records, `ffffffff` on the rest, including every friendly, our reserve
+> fixtures and our European matches. Each of our 32 league matches has a referee who lists
+> the Superliga among his competitions, and a referee has two matches on one day on only 7
+> of 11,247 referee-days. Not read yet (TODO "Field names that say the wrong thing, and the
+> referee").
 
 > **Quirk:** national sides appear as club-shaped tids from the club table (tid 0 is Algeria).
 

@@ -33,15 +33,28 @@ name, date of birth and nationality. Not extracted.
 
 ## Evidence
 
-Screenshots pending.
+`frem-2030-06-22`, the Vejle 2-4 Frem report. The fixture's +72 holds 9727
+([fixtures](fixtures.md)); record 244, at byte 6,263,993, is that person.
+
+![Referee: Mikkel Redder (sympathetic)](img/officials-1.png)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Mikkel Redder | `f4 00 00 00 7b b7 9d 01 ff 25 00 00` | `slot_id` 244, `uid` 27113339, `tid` 9727, named by the person table |
+| (a 3F Superliga match) | +31 `06 00 00 00 ff ff ff ff …` | his one competition: uid 6, the 3F Superliga |
+
+His attributes read 17, 5, 14, 13, 15, 15. The screen calls him "sympathetic"; that he
+reads 17 at +18 and 5 at +19 fits a lenient referee, but one referee proves no mapping.
+Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
 
 > **Quirk:** the competitions are uids, not cids (`raw.competitions.uid`). Mike Dean (tid
 > 444) lists 11 and 12: the English Premier Division and the Sky Bet Championship.
 
-> **Quirk:** the match record names no official. No byte of a match row holds an official's
-> tid or uid at a fixed offset, so who refereed a match is not known from the save.
+> **Quirk:** the referee of a match is in the [fixtures](fixtures.md) record (+72, the
+> official's tid), not in our [matches](matches.md) row, which holds no official's tid, uid
+> or slot.
 
 > **Quirk:** `ca` and `pa` are raw ability numbers. Nothing extracts them; if they ever reach
 > the store they fall under the immersion rule (`[immersion] hide_ability`).

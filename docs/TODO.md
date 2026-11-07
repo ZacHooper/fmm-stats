@@ -230,11 +230,19 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
-- **Two field names that say the wrong thing.** The world fixture's `seq_id` (+35) is the
-  venue's stadium id, not a sequence ([fixtures](parser/fixtures.md)); it reaches the store
-  as `raw.world_fixtures.seq_id`. The match-slot table's `away_tid`/`home_tid` hold no venue:
-  the pair is unordered ([match_slots](parser/match_slots.md)). Rename both (`stadium_id`;
-  `club_a_tid`/`club_b_tid`) and re-record the extract.
+- **Field names that say the wrong thing, and the referee.** The world fixture's `seq_id`
+  (+35) is the venue's stadium id, not a sequence ([fixtures](parser/fixtures.md)); it
+  reaches the store as `raw.world_fixtures.seq_id`. The match-slot table's
+  `away_tid`/`home_tid` hold no venue: the pair is unordered
+  ([match_slots](parser/match_slots.md)). The round-name trailer's `round_idx` is the next
+  record's index ([rounds](parser/rounds.md)). Rename them (`stadium_id`;
+  `club_a_tid`/`club_b_tid`; `next`), and read the fixture's +72 as `referee_tid` (an
+  official's tid or `ffffffff`), which with an `officials` extract gives `dim_referee` its
+  link. Re-record the extract.
+- **Match team head: three candidate counts and a minute** ([matches](parser/matches.md)):
+  +4, +5 and +68 equal the Vejle 2-4 Frem screen's corners, clear-cut chances and offsides;
+  the player slot's +20 looks like the sending-off minute. One more Match Stats screen
+  (ideally with a second red or second yellow) would confirm or kill all four.
 - **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
   `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
   it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
@@ -378,6 +386,12 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   nearer age, then the later snapshot) and make that test an error again.
 
 ### 16. Match facts
+- **Team rating is rounded, the screen's is not.** `load_duckdb._match_derived` rounds the
+  mean of the whole-number ratings to 1 dp; Vejle 2-4 Frem (2029-09-23) gives 107/16 = 6.6875
+  → 6.7, and the screen shows 6.6 ([matches](parser/matches.md)). Truncating matches both
+  sides of that match; a second match with a mean ending .05–.09 decides truncation versus
+  finer hidden ratings. Fix in the loader, then `raw.matches.*_rating` and anything averaging
+  it move by 0.1 on some matches.
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
   penalties or deflections; until settled, no conversion rate from these columns.
 

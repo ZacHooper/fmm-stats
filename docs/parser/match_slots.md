@@ -32,7 +32,11 @@ more than any other; `locate` takes the longest run on that class, bridging gaps
 
 ## Evidence
 
-Screenshots pending.
+No screen shows this table. The evidence is the [fixtures](fixtures.md) list: every match
+slot joined to it on the two clubs and the day (174 of 178 on `frem-2030-06-22`) agrees on
+both scores, and disagrees on the venue half the time (Quirks). `tests/test_match_slots.py`
+keeps three slots once checked against screens (Tottenham 5-0 Bournemouth, West Brom 0-2
+Liverpool, Southampton 3-6 Newcastle on `frem-2026-06-11`).
 
 ## Quirks
 

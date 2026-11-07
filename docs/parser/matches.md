@@ -114,7 +114,46 @@ the declared count, no row before row 0 and none after the last.
 
 ## Evidence
 
-Screenshots pending.
+`frem-2030-06-22`, Vejle 2-4 Frem, 3F Superliga, 23 September 2029. The row starts at byte
+55,840,931: `8c 04 5a 01 02 00 09 01 | 08` = home 1164 (Vejle), away 346 (Frem), cid 2, day
+265, eight events.
+
+![Match report: Vejle 2-4 Frem, att 11,459, referee Mikkel Redder; events; Shots 9-11](img/matches-1.png)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Elias Strunck 10 (red) | `01 05 09 00 01 fc 24 00 00` | type `05`, minute 9 + 1, away, tid 9468 |
+| Jens Myhrmann 40 (pen) | `03 27 00 01 21 75 00 00` | type `03`, minute 39 + 1, tid 29985 |
+| Jens Myhrmann 45+2 (struck out) | `29 2c 02 01 21 75 00 00` | type `29` disallowed goal, minute 44 + 1, added 2 |
+| Robert Mudražija 51 | `01 32 00 00 4b 23 00 00` | goal, minute 50 + 1, home, tid 9035 |
+| Att: 11,459 | body head +15 `c3 2c 00 00` | `attendance` 11459 |
+| the star beside Myhrmann (ratings screen) | body head +63 `21 75 00 00` | `player_of_match` 29985 |
+| Preliminary Phase | | the fixture's `stage_index` 0 → [rounds](rounds.md) |
+
+The eight events are stored in minute order, own side in `side`, exactly as listed.
+
+![Match stats: Team Rating 6.6/6.9, Shots 9/11, Passes Completed 174/153, Attempted 221/201](img/matches-2.png)
+
+Every team figure the stats screen shows is the sum of the 18 slots per side: shots 9/11,
+on target 4/6, passes completed 174/153 and attempted 221/201, crosses 0/3 and 10/11,
+tackles won 10/17, headers won 15/18, yellow cards 0/2. Corners (2/2), clear-cut chances
+(1/3) and offsides (7/9) equal team head +4, +5 and +68 (Quirks). Possession (50/50) and
+fouls (12/12) are in neither team head. Team Rating is the exception (Quirks).
+
+![Vejle's Player Ratings, starters](img/matches-3.png)
+![Vejle's Player Ratings, bench](img/matches-4.png)
+![Frem's Player Ratings, starters](img/matches-5.png)
+![Frem's Player Ratings, bench](img/matches-6.png)
+
+All 36 lines, 16 columns each, match the slots row for row in `posOrder` order (S1–S7 are
+`posOrder` 12–18). The position column is `positions`: Vejle `GK DR DL DC DC MC MC AMR AML
+AMC FC`, Frem `GK DR DL DC DC DMC MC MC AMR AML FC`, while the tail's kick-off formation is
+`4-1-3-2` (`… 10 02 10 01 40 04 40 01`): the shape changed in the match. The arrows are
+`subOn`/`subOff` (Holmbjerg off 11, Karlsen on 11), the yellow cards Francis's and Karlsen's
+`yellow`. Strunck's slot, `00 00 00 63 01 01 … ff ff ff 0a ff`, is condition 99, one
+cross, and +20 = 10, the minute of his red card. The five rows shown as `-` (Díaz, Lucas,
+Nørager, Secka, Maarup) are unused substitutes: `subOn` `ff`, condition 100, rating 6.
+Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
 
@@ -142,13 +181,29 @@ Screenshots pending.
 > red card is an event (`05`).
 
 > **Quirk:** the screen's team stats are sums of the player slots, not stored figures:
-> shots `Σ shotA`, on target `Σ shotO`, passes `Σ passA`. The team rating is the mean
-> `rating` of the players who took the field. The loader computes them (`team_stats`).
+> shots `Σ shotA`, on target `Σ shotO`, passes `Σ passA`, and so on. The loader computes
+> them (`team_stats`).
 
-> **Dead end:** possession and clear-cut chances are not stored. Possession was searched as
-> u8 and u16 and as sum-to-100 pairs, across the whole row and the file around it. It is
-> not the pass share either: in the match checked, the side with more passes had less of the
-> ball.
+> **Quirk:** Team Rating is not the rounded mean of the slots' whole-number ratings, which is
+> what the loader stores. Vejle's 16 players who appeared rate 107 in all: 6.6875, which the
+> loader rounds to 6.7, while the screen shows 6.6. Frem's 104/15 = 6.93 shows as 6.9 either
+> way. The screen truncates, or averages ratings finer than the slot stores; one match can't
+> tell which. `raw.matches.home_rating` / `away_rating` can read 0.1 high (TODO "Team rating
+> is rounded, the screen's is not").
+
+> **Quirk:** team head +4, +5 and +68 equal the stats screen's corners (2/2), clear-cut
+> chances (1/3) and offsides (7/9). Over 464 sides on four saves their ranges are plausible
+> (0–13, 0–7, 0–9) and +5 tracks goals (r 0.66). One match: candidates, not names.
+> +55 and +57 (headers won 15/18, reds 0/1 here) do not hold on other matches.
+
+> **Quirk:** player slot +20 is a minute on all 22 players with a red-card event over six
+> saves (the event's minute, or one less), and on 10 players without one; `ff` otherwise.
+> Probably the minute he was sent off. Unverified beyond Strunck's 10.
+
+> **Dead end:** possession and fouls are not in the row. Possession was searched as u8 and
+> u16 and as sum-to-100 pairs, across the whole row and the file around it, and 50/50 on the
+> Vejle screen is in neither team head. It is not the pass share either: Vejle completed 174
+> passes to Frem's 153 at 50/50.
 
 > **Quirk:** `positions` (team head +30) is the full-time team sheet, the order the stats
 > screen shows. The tail's `kickoff_positions` is our kick-off formation in its own slot

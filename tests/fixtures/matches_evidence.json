@@ -1,0 +1,103 @@
+{
+ "_about": "Values read off in-game screens of frem-2030-06-22 (docs/parser/img/matches-*.png, officials-1.png), the raw bytes behind them, and what the parser must make of them. Guarded by tests/test_matches_evidence.py; the tables are documented in docs/parser/.",
+ "save": "frem-2030-06-22.fms",
+ "raw": [
+  [55840931, "8c 04 5a 01 02 00 09 01 08", "Vejle 2-4 Frem row head: home 1164, away 346, cid 2, day 265 (23 Sep), 8 events"],
+  [55841008, "08 29 2c 02 01 21 75 00 00", "event 4: disallowed goal (29), minute 44 + 2, away, Myhrmann (29985): 45+2"],
+  [55841076, "5a 01 8c 04 02 00 00 8c 04 5a 01 09 01 ed 07 c3 2c 00 00", "body head: Frem, v Vejle, cid 2, away, the head again, 2029, attendance 11,459"],
+  [55841139, "21 75 00 00", "body head +63: Player of the Match 29985 (Myhrmann, the star)"],
+  [55842007, "04 02 01", "Vejle team head +3..+5: goals against 4, corners 2, clear-cut chances 1"],
+  [55843370, "02 02 03", "Frem team head +3..+5: goals against 2, corners 2, clear-cut chances 3"],
+  [55842072, "07", "Vejle team head +68: offsides 7"],
+  [55843435, "09", "Frem team head +68: offsides 9"],
+  [55843506, "00 00 00 63 01 01 97 14 00 0a 00 00 00 a4 14 00 00 ff ff ff 0a ff", "Strunck's slot: condition 99, crossA 1, crossC 1, subOn ff, +20 = 10 (sent off), subOff ff"],
+  [55844763, "76 b9 f4 07 34 2d 31 2d 33 2d 32 00", "the tail: formation marker, '4-1-3-2' at kick-off"],
+  [6263993, "f4 00 00 00 7b b7 9d 01 ff 25 00 00", "official record 244: uid 27113339, tid 9727 (Mikkel Redder)"],
+  [6264024, "06 00 00 00 ff ff ff ff", "Redder's competitions: uid 6 (3F Superliga), then empty"],
+  [6310022, "ec 00 00 00 11 00 00 00 50 72 65 6c 69 6d 69 6e 61 72 79 20 50 68 61 73 65 00", "round name 236: 'Preliminary Phase'"]
+ ],
+ "archive_raw": [
+  ["fix_man.dat", 1963700, "43 0f", "the fixture's +35 (seq_id): stadium 3907, Vejle Stadion"],
+  ["fix_man.dat", 1963737, "ff 25 00 00", "the fixture's +72: referee tid 9727, Mikkel Redder"]
+ ],
+ "match": {
+  "date": "2029-09-23", "home_tid": 1164, "away_tid": 346,
+  "comp_id": 2, "attendance": 11459, "score": [2, 4], "player_of_match": 29985,
+  "formation": "4-1-3-2",
+  "home_positions": ["GK", "DR", "DL", "DC", "DC", "MC", "MC", "AMR", "AML", "AMC", "FC"],
+  "away_positions": ["GK", "DR", "DL", "DC", "DC", "DMC", "MC", "MC", "AMR", "AML", "FC"],
+  "_events": "[type, minute as shown, added, side, tid], in the order stored (= minute order)",
+  "events": [
+   ["goal", 5, 0, 0, 24014],
+   ["red_card", 10, 0, 1, 9468],
+   ["goal", 34, 0, 1, 10399],
+   ["penalty", 40, 0, 1, 29985],
+   ["disallowed_goal", 45, 2, 1, 29985],
+   ["goal", 51, 0, 0, 9035],
+   ["goal", 71, 0, 1, 9858],
+   ["goal", 83, 0, 1, 29985]
+  ],
+  "_columns": "the Player Ratings screen: PaA PaC Key Ass TaA TaW Int HeA HeW CrA CrC Dri Mis MiG ShA ShO Con rating; null = the row shows '-' (an unused substitute)",
+  "columns": ["passA", "passC", "keyPass", "assists", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC", "dribbles", "mistakes", "mistGoal", "shotA", "shotO", "condition", "rating"],
+  "home": [
+   ["GK",  "Costa",        16394, [20, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 96, 7], "", ""],
+   ["DR",  "Valentín",     19789, [20, 14, 0, 0, 2, 2, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 87, 7], "off", ""],
+   ["DL",  "Wekesser",     23851, [26, 17, 2, 0, 1, 1, 0, 3, 1, 2, 0, 0, 0, 0, 0, 0, 84, 7], "", ""],
+   ["DC",  "Vanlerberghe", 6694,  [9, 6, 0, 0, 2, 2, 2, 8, 8, 0, 0, 0, 0, 0, 0, 0, 88, 7], "", ""],
+   ["DC",  "Uduokhai",     23805, [19, 16, 0, 0, 0, 0, 1, 3, 1, 0, 0, 0, 0, 0, 0, 0, 86, 6], "", ""],
+   ["MC",  "Mudražija",    9035,  [25, 23, 3, 0, 3, 3, 3, 0, 0, 0, 0, 0, 1, 0, 1, 1, 86, 8], "off", "goal"],
+   ["MC",  "Besuschkow",   25576, [20, 17, 3, 0, 1, 1, 4, 1, 1, 1, 0, 0, 1, 0, 2, 1, 80, 7], "", ""],
+   ["AMR", "Gyökeres",     26046, [17, 15, 1, 0, 0, 0, 0, 2, 1, 3, 0, 0, 1, 0, 0, 0, 83, 7], "off", ""],
+   ["AML", "Moriah-Welsh", 12004, [22, 18, 2, 1, 0, 0, 4, 1, 0, 2, 0, 0, 0, 0, 1, 0, 80, 7], "off", ""],
+   ["AMC", "Demirovic",    24014, [26, 23, 2, 0, 0, 0, 2, 4, 1, 0, 0, 0, 0, 0, 4, 1, 79, 8], "", "goal"],
+   ["FC",  "Nedergaard",   26199, [5, 4, 0, 0, 0, 0, 0, 3, 1, 0, 0, 0, 1, 1, 0, 0, 98, 4], "off", ""],
+   ["S1",  "Díaz",         19873, null, "", ""],
+   ["S2",  "Ezekwem",      25075, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 89, 6], "on", ""],
+   ["S3",  "Lucas",        19731, null, "", ""],
+   ["S4",  "Hetemi",       9999,  [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99, 6], "on", ""],
+   ["S5",  "Dewaele",      6688,  [2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99, 6], "on", ""],
+   ["S6",  "Ponce",        22400, [2, 1, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 98, 6], "on", ""],
+   ["S7",  "Hyllegaard",   9977,  [7, 7, 1, 1, 1, 1, 0, 0, 0, 2, 0, 0, 0, 0, 1, 1, 84, 8], "on", ""]
+  ],
+  "away": [
+   ["GK",  "Ullits",    10404, [19, 14, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 97, 7], "", ""],
+   ["DR",  "Strunck",   9468,  [1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 99, 6], "red", ""],
+   ["DL",  "Sonne",     10198, [14, 8, 0, 1, 2, 2, 3, 0, 0, 4, 2, 0, 4, 0, 0, 0, 86, 8], "", ""],
+   ["DC",  "Pedersen",  10027, [16, 10, 0, 0, 2, 2, 6, 6, 5, 0, 0, 0, 0, 0, 0, 0, 87, 7], "", ""],
+   ["DC",  "Kabongo",   9638,  [24, 14, 0, 0, 4, 4, 4, 5, 4, 0, 0, 0, 2, 0, 0, 0, 85, 7], "", ""],
+   ["DMC", "Garly",     10205, [27, 22, 0, 0, 3, 3, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 84, 6], "", ""],
+   ["MC",  "Holmbjerg", 9739,  [2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 98, 6], "off", ""],
+   ["MC",  "Francis",   10399, [19, 19, 2, 0, 2, 1, 2, 0, 0, 0, 0, 0, 1, 0, 4, 2, 85, 8], "off+yellow", "goal"],
+   ["AMR", "Myhrmann",  29985, [18, 16, 1, 1, 0, 0, 0, 6, 5, 1, 0, 1, 0, 0, 2, 2, 84, 10], "star", "goal x2"],
+   ["AML", "Adingra",   26552, [3, 3, 0, 0, 0, 0, 0, 6, 1, 2, 0, 1, 0, 0, 3, 0, 94, 6], "off", ""],
+   ["FC",  "Jakobsen",  9858,  [28, 21, 6, 1, 1, 1, 0, 2, 1, 0, 0, 2, 0, 0, 2, 2, 83, 9], "", "goal"],
+   ["S1",  "Nørager",   13304, null, "", ""],
+   ["S2",  "Persson",   29101, [5, 2, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 99, 6], "on", ""],
+   ["S3",  "Karlsen",   10402, [18, 15, 0, 0, 2, 2, 3, 2, 2, 1, 0, 2, 1, 0, 0, 0, 89, 6], "on+yellow+off", ""],
+   ["S4",  "Secka",     26779, null, "", ""],
+   ["S5",  "Bak",       23391, [7, 7, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 94, 6], "on", ""],
+   ["S6",  "Maarup",    3505,  null, "", ""],
+   ["S7",  "Thorsen",   10123, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99, 6], "on", ""]
+  ],
+  "_karlsen": "Karlsen came on at 11 and went off at 84 (with Francis, for Persson and Thorsen); his icon draws only the yellow and the substitution on",
+  "_team": "the Match Stats screen, [Vejle, Frem]; each is the sum of the player slots (team rating: the mean over players who appeared)",
+  "team": {
+   "shotA": [9, 11], "shotO": [4, 6], "passC": [174, 153], "passA": [221, 201],
+   "crossC": [0, 3], "crossA": [10, 11], "tackW": [10, 17], "headW": [15, 18],
+   "yellow": [0, 2]
+  },
+  "_rating": "Team Rating on screen is 6.6 / 6.9; the mean of the whole-number ratings of the players who appeared is 107/16 and 104/15. Rounding that gives 6.7 for Vejle, so the screen truncates or averages finer ratings than the slot stores (docs/parser/matches.md)",
+  "rating_screen": [6.6, 6.9],
+  "rating_sum_count": [[107, 16], [104, 15]],
+  "_team_head": "the Match Stats screen's corners, clear-cut chances and offsides [Vejle, Frem], against team head +4, +5, +68 (one match: candidates)",
+  "team_head": {"4": [2, 2], "5": [1, 3], "68": [7, 9]},
+  "not_stored": {"possession": [50, 50], "fouls": [12, 12]}
+ },
+ "fixture": {
+  "date": "2029-09-23", "home_tid": 1164, "away_tid": 346, "home_goals": 2, "away_goals": 4,
+  "seq_id": 3907, "stadium": "Vejle Stadion", "stage_index": 0, "season_year": 2029,
+  "referee_tid": 9727, "referee": "Mikkel Redder"
+ },
+ "official": {"slot_id": 244, "tid": 9727, "uid": 27113339, "competitions": [6]},
+ "round": {"stage_name": "Preliminary Phase", "comp_uid": 6, "stage_index": 0, "name_id": 236}
+}
