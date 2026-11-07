@@ -138,7 +138,8 @@ Every team figure the stats screen shows is the sum of the 18 slots per side: sh
 on target 4/6, passes completed 174/153 and attempted 221/201, crosses 0/3 and 10/11,
 tackles won 10/17, headers won 15/18, yellow cards 0/2. Corners (2/2), clear-cut chances
 (1/3) and offsides (7/9) equal team head +4, +5 and +68 (Quirks). Possession (50/50) and
-fouls (12/12) are in neither team head. Team Rating is the exception (Quirks).
+fouls (12/12) are in neither team head. Team Rating is the slot mean truncated, not rounded
+(Quirks).
 
 ![Vejle's Player Ratings, starters](img/matches-3.png)
 ![Vejle's Player Ratings, bench](img/matches-4.png)
@@ -153,6 +154,20 @@ AMC FC`, Frem `GK DR DL DC DC DMC MC MC AMR AML FC`, while the tail's kick-off f
 `yellow`. Strunck's slot, `00 00 00 63 01 01 … ff ff ff 0a ff`, is condition 99, one
 cross, and +20 = 10, the minute of his red card. The five rows shown as `-` (Díaz, Lucas,
 Nørager, Secka, Maarup) are unused substitutes: `subOn` `ff`, condition 100, rating 6.
+Hedensted 1-8 Frem, Sydbank Pokalen, 26 September 2029 (row at byte 55,846,169):
+
+![Match report: Hedensted 1-8 Frem, Third Round, referee Sandi Putros; the 57th-minute goal has no scorer's name](img/matches-7.png)
+![Hedensted's Player Ratings, starters](img/matches-8.png)
+![Hedensted's Player Ratings, bench](img/matches-9.png)
+
+The nine events and all 18 of Hedensted's lines match. Every Hedensted player is a filler
+tid (Quirks): the goal at 57, event `0a 01 38 00 00 ce 80 00 00` (goal, minute 56 + 1, home,
+tid 32,974), is "Atici" with a goal icon on the ratings screen and a bare `57` in the report.
+Shots 3/14 and on target 2/8 are the slot sums. Team Rating 5.8/7.6 is 82/14 and 92/12
+truncated. Corners 0/2, clear-cut chances 2/4 and offsides 1/2 are team head +4, +5, +68
+again (`08 00 02` and `01 02 04` from +3, then `01` and `02` at +68); possession 42/58 is in
+neither head.
+
 Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
@@ -184,17 +199,17 @@ Tested by `tests/test_matches_evidence.py`.
 > shots `Σ shotA`, on target `Σ shotO`, passes `Σ passA`, and so on. The loader computes
 > them (`team_stats`).
 
-> **Quirk:** Team Rating is not the rounded mean of the slots' whole-number ratings, which is
-> what the loader stores. Vejle's 16 players who appeared rate 107 in all: 6.6875, which the
-> loader rounds to 6.7, while the screen shows 6.6. Frem's 104/15 = 6.93 shows as 6.9 either
-> way. The screen truncates, or averages ratings finer than the slot stores; one match can't
-> tell which. `raw.matches.home_rating` / `away_rating` can read 0.1 high (TODO "Team rating
-> is rounded, the screen's is not").
+> **Quirk:** Team Rating is the mean of the whole-number ratings of the players who appeared,
+> **truncated** to one decimal, not rounded. On four sides: Vejle 107/16 = 6.6875 shows 6.6,
+> Frem 104/15 = 6.93 shows 6.9, Hedensted 82/14 = 5.857 shows 5.8, Frem 92/12 = 7.667 shows
+> 7.6. The loader rounds, so `raw.matches.home_rating` / `away_rating` read 0.1 high on three
+> of those four (TODO "Team rating is rounded, the screen's is not").
 
-> **Quirk:** team head +4, +5 and +68 equal the stats screen's corners (2/2), clear-cut
-> chances (1/3) and offsides (7/9). Over 464 sides on four saves their ranges are plausible
-> (0–13, 0–7, 0–9) and +5 tracks goals (r 0.66). One match: candidates, not names.
-> +55 and +57 (headers won 15/18, reds 0/1 here) do not hold on other matches.
+> **Quirk:** team head +4 is corners, +5 clear-cut chances and +68 offsides: 12 of 12 values
+> on two stats screens (2/2, 1/3, 7/9 and 0/2, 2/4, 1/2). Over 464 sides on four saves their
+> ranges are plausible (0–13, 0–7, 0–9) and +5 tracks goals (r 0.66). Declared `UNKNOWN`
+> and not read yet (TODO "Match team head: three counts and a minute"). +55 and +57, which
+> matched Vejle's headers won and reds, do not hold on other matches.
 
 > **Quirk:** player slot +20 is a minute on all 22 players with a red-card event over six
 > saves (the event's minute, or one less), and on 10 players without one; `ff` otherwise.
@@ -246,9 +261,12 @@ Tested by `tests/test_matches_evidence.py`.
 > **Quirk:** tids 32,967–33,066 are not people. The person table ends at 32,965, and no
 > squad in any snapshot holds them. They are anonymous filler the game fields when a side has
 > too few real players: 179 lines for our reserves on `frem-2030-06-22`, and opponents short
-> of players in cup, European and league matches (Hedensted, 18 lines in one cup tie). One
-> such tid turns out for up to seven clubs in a season. There is no name to find;
-> `scripts/export_data.py` drops match rows it cannot name.
+> of players in cup, European and league matches. Hedensted fielded all 18 in a cup tie
+> (32,967–32,986). One such tid turns out for up to seven clubs in a season. The Player
+> Ratings screen gives each a surname drawn from the nation's pool in the browse-name table
+> (all 18 Hedensted names sit at ordinals 20,773–21,944), but nothing in the save ties a tid
+> to a name, and the report shows Hedensted's scorer with none at all (`57`). There is no name
+> to find; `scripts/export_data.py` drops match rows it cannot name.
 
 > **Quirk:** name a match row's player by `person_id` (`mart.fact_player_match`), never by
 > tid alone. A tid is a recycled slot ([person_info](person_info.md)): grouping names by tid

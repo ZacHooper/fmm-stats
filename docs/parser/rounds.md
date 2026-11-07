@@ -40,7 +40,11 @@ rules (`comp_6.dat`) name stage 0 with `stnm` 236; record 236, at byte 6,310,022
 `ec 00 00 00 | 11 00 00 00 | Preliminary Phase 00 | 01 00 00 00 20 00 01 00 00 00 20 00 eb 00`
 
 id 236, length 17, the name, then the trailer with `round_idx` 235 (the record after it,
-index 235). Tested by `tests/test_matches_evidence.py`.
+index 235).
+
+Hedensted 1-8 Frem (`img/matches-7.png`) reads "Sydbank Pokalen / Third Round": the
+fixture's `round_index` is 2, the Pokalen's rules (`comp_1301406.dat`) name round 2 with
+`stnm` 8, and record 8 is "Third Round". Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
 

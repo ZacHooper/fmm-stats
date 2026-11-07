@@ -56,6 +56,10 @@ exactly (`count × 92`). The grids are walked in file order.
 | Referee: Mikkel Redder | +72 `ff 25 00 00` | 9727, the official's tid ([officials](officials.md)) |
 | Preliminary Phase | +76 `00` | `stage_index` 0 → the Superliga's stage 0 → [rounds](rounds.md) 236 |
 
+Hedensted 1-8 Frem (`img/matches-7.png`), at offset 1,967,253: +35 `9e 1e` = stadium 7838,
+Hedensted Stadion; +72 `4b 25 00 00` = 9547, the referee Sandi Putros; `stage_index` 0 and
+`round_index` 2, the Pokalen's Third Round ([rounds](rounds.md)).
+
 All 70 of our matches in the [matches](matches.md) table are here with the same date, clubs
 and score. Tested by `tests/test_matches_evidence.py`.
 

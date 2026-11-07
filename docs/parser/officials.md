@@ -24,7 +24,7 @@ name, date of birth and nationality. Not extracted.
 | +23 | `running_match` | u8 | 1–20 | name unverified |
 | +24 | | 5 | small values; `00 00 00 00 00` on 486 | |
 | +29 | `null_year` | u16 | 1900 on every record | |
-| +31 | `competitions_raw` | 16 × u32 | the competitions he referees, by competition **uid**, packed from the front; `ffffffff` fills the rest | 1,103 of 1,332 entries are a loaded competition's uid |
+| +31 | `competitions_raw` | 16 × u32 | the leagues he referees, by competition **uid**, packed from the front; `ffffffff` fills the rest | 1,103 of 1,332 entries are a loaded competition's uid |
 | +95 | `day_of_year`, `year` | 2 × u16 | a date: in 2029 or 2030 for 365 officials, day 0 of 2021 for the other 257 (unverified: the last match he took?) | |
 
 **How it is found.** From the end of the [rounds](rounds.md) signature, step back over the
@@ -43,14 +43,20 @@ name, date of birth and nationality. Not extracted.
 | Mikkel Redder | `f4 00 00 00 7b b7 9d 01 ff 25 00 00` | `slot_id` 244, `uid` 27113339, `tid` 9727, named by the person table |
 | (a 3F Superliga match) | +31 `06 00 00 00 ff ff ff ff …` | his one competition: uid 6, the 3F Superliga |
 
-His attributes read 17, 5, 14, 13, 15, 15. The screen calls him "sympathetic"; that he
-reads 17 at +18 and 5 at +19 fits a lenient referee, but one referee proves no mapping.
+Hedensted 1-8 Frem names Sandi Putros, "(firm)": the fixture's +72 is 9547, record 241 at
+byte 6,263,696 (`f1 00 00 00 a5 6a 9d 01 4b 25 00 00`). He too lists only uid 6, though the
+match was a cup tie: the list is not every competition he takes.
+
+Redder ("sympathetic") reads 17 at +18 and 5 at +19; Putros ("firm") reads 4 and 14. That
+fits `allowing_flow` and `discipline` driving the label, but two referees prove no mapping.
 Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
 
-> **Quirk:** the competitions are uids, not cids (`raw.competitions.uid`). Mike Dean (tid
-> 444) lists 11 and 12: the English Premier Division and the Sky Bet Championship.
+> **Quirk:** the competitions are uids, not cids (`raw.competitions.uid`), and they are his
+> leagues, not every competition he takes: Putros lists only the Superliga and refereed a
+> Pokalen tie. Mike Dean (tid 444) lists 11 and 12: the English Premier Division and the Sky
+> Bet Championship.
 
 > **Quirk:** the referee of a match is in the [fixtures](fixtures.md) record (+72, the
 > official's tid), not in our [matches](matches.md) row, which holds no official's tid, uid
