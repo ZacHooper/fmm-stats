@@ -125,10 +125,15 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
     24, 27-29, 31). The
     quickest proof is to set a dozen players' Focus Role to each, save, and read the ids;
     `docs/role-ids.csv` names famous players holding each role for checking on profiles.
-  - attribute-focus codes 0, 2, 10, 12, 13, 15 (13 is the AI's most common, 5,053 players).
-    Code 4 is Shooting (Adingra's Training Report, `frem-2030-06-22`) but is not yet in
-    `seeds/training_attributes.csv`: add `4,SHO`.
+  - attribute-focus codes 0, 2, 10, 15. **Seed gap:** codes 4, 12 and 13 are read off the
+    Training list on `frem-2030-06-22` (4 SHO, 12 DEC, 13 MOV; 1,725, 985 and 5,053 players)
+    but are not in `seeds/training_attributes.csv`: add `4,SHO`, `12,DEC`, `13,MOV`.
   - intensity 0 and 1: only 3 (High) and 2 (Normal) are read off the screen.
+  - **Squad status is not located.** Training `+39` (`squad_status`) is not it: ten players
+    whose Transfer Status screen says First Team, Rotation, Backup or Youngster all read 171
+    on `frem-2030-06-22` ([`docs/parser/training.md`](parser/training.md)). Rename the field
+    (`unknown_39`, through raw and stg, with `mart.fact_player_state_scd`) and find the real
+    one: diff a save before and after changing one player's status in game.
   - the Progress bar: a green fill, or a full yellow bar when the player is unlikely to improve
     further. Not the stored `pa - ca` (0 on yellow and near-empty bars alike); the green-fill
     rows are the ones with `+17` and `+41` non-zero. Diff two saves a few weeks apart.
@@ -225,6 +230,12 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
+- **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
+  `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
+  it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
+  `< 5800` edge calls him Continental. Thorup at 5,974 is Continental, so the edge lies in
+  5,858–5,974: move it to 5,900 or above and record Frank in `tests/test_staff_records.py`. Five
+  staff on `frem-2030-06-22` sit at 5,800–5,857 ([`docs/parser/staff.md`](parser/staff.md)).
 - **Staff records with goalkeeping coaching above 20 are dropped** (`tables/staff.py`
   `_process_staff`): 43 records read 51–99 at +17, retired goalkeepers, and the 1–20 gate
   drops the whole record from `staff_records.json` ([`docs/parser/staff.md`](parser/staff.md)).
@@ -461,9 +472,6 @@ The README, `AGENTS.md`, `fmm.toml` and the R2-served site data are done. Still 
   their headers: `frem/denmark-mid-22` 2021-10-02, `bucaspor/22-23-start` and
   `bucaspor/fm_save3` 2022-06-20 (check whether they are the same save),
   `bucaspor/fm_save1-24-mid` 2023-11-08; register or delete them.
-- **Youth-intake prospects are not in the person table**: the reserves' Contract screen lists
-  them (no contract, value `Free`), but no person record carries their names
-  ([`docs/parser/contracts.md`](parser/contracts.md)). Find where the intake lives.
 - **`reserve_tid` is configured by hand (fmm.toml)** — the club record's `main_club_tid` could derive it.
 - **Loader speed**: `orjson` for the JSON decode and flattened row construction in `load_core`
   measured ~2.9 s → ~1.6 s per snapshot.

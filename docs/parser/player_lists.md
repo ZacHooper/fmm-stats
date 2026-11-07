@@ -38,7 +38,7 @@ The tail, from the end of the strings:
 | +21 | `role` | u8 | the profile's role: the [training](training.md) Focus Role on the entry's date |
 | +22 | | 6 B | unnamed |
 | +28 | `attr_*` | 23 × u8 | the screen's 23 attributes at the indices of `ATTRIBUTES` (0 Aerial … 23 Strength) |
-| +52 | `condition`, `morale` | 2 × u8 | percent; 1–20 (20 = Superb) |
+| +52 | `condition`, `morale` | 2 × u8 | percent; 1–20 (18 and 20 both show Superb) |
 | +54 | `form_1` … `form_5` | 5 × u8 | the last five match ratings, most recent last; `255` = none |
 | +59 | `avg_rating` | f32 | |
 | +37, +63 | | u8 | unnamed (block indices 9 and 35) |
@@ -82,7 +82,24 @@ Profile, all 17 attributes it shows:
 
 Gustav Ullits' entry (slot 16, last written 1 Mar 2030) matches the 17 attributes
 his profile shows, the seven goalkeeping ones included; Valdemar Lund Jensen's (slot 18, 1 May
-2030) matches his, along with his 25 caps and 1 goal. Tested by
+2030) matches his, along with his 25 caps and 1 goal.
+
+The Best Eleven screens draw from these pools. The 2029 Manager's Best Eleven is eleven
+entries of list 38 (2029). Aksel Behrndtz is shown as `SC Freiburg II (loan)`: his entry's
+club marker is `[2079][346]`, owned by Freiburg II, on loan at Frem. The All-Time Manager's
+Best Eleven is lists 63 and 65; each player's year on screen is his entry's `scrapbook_year`
+(Ullits 2026, Dehn 2027, Garly 2029; Noah Donovan `OB (loan) 2027`, marker `[371][346]`), on
+both lists.
+
+![2029 Manager's Best Eleven](img/player_lists-1.png)
+![All-Time Manager's Best Eleven](img/player_lists-2.png)
+
+The World Best XI for 2029 is list 7; the All-Time one is lists 62 and 64, every year shown
+matching (Singo Torino 2023, Davies FC Bayern 2024, Havertz Chelsea 2029). Locatelli's line
+reads `New Entry` and his entry is from 2029, this season. Dominic Calvert-Lewin's Scrapbook
+Profile (1/3/2029), his list-7 entry: all 17 attributes, condition 76%, form 7-8-9-7-9, av.
+rating 7.80, 48 caps / 30 goals, value £59M (58,998,540), wage £9M a year (`wage` 175,000 a
+week), Poacher (`role` 18), Right (8 / 20). Tested by
 `tests/test_people_evidence.py`.
 
 ## Quirks

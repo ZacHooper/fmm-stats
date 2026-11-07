@@ -70,10 +70,9 @@ His scrapbook entry ([player_lists](player_lists.md)) stores the same wage in po
 > club, read 2, 12, 14, 16 or 20 with expiries in 2021–2024. What those markers mean is not
 > known; only bit 0 is read.
 
-> **Quirk:** the reserves' Contract screen also lists youth-intake prospects with no contract
-> (wage and expiry `-`, value `Free`). They aren't in the person table at all (searched by
-> name on `frem-2030-06-22`), so no table here holds them. Open in TODO as "Youth-intake
-> prospects are not in the person table".
+> **Quirk:** the reserves' Contract screen ends with greyed rows with no contract (wage and
+> expiry `-`, value `Free`). They are placeholders, not players: no person record carries
+> their names, and none needs to.
 
 > **Quirk:** a lapsed loan or contract can leave a player's `club_tid` on a club he has left.
 > Whether a player is in a squad comes from the club's squad array ([clubs](clubs.md)), and

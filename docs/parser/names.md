@@ -52,7 +52,11 @@ Valdemar Lund Jensen, and the people in their relationship lists (Presnel Kimpem
 
 A nickname: Vendsyssel's tid 19158 has first name `Juan Carlos`, surname `Lázaro` and
 `common_name_id` 1131 → `Kaiser` (nickname slot at byte 40,736,137, `8e b1 00 00 6b 04 00
-00 …`). `mart.dim_person` names him Kaiser. Brøndby's tid 20905 is Carlos Polo with nickname 1449,
+00 …`). His Player Profile is headed `24. Kaiser`:
+
+![Kaiser, Vendsyssel FF: 4/4/1996, Spanish, Right Only](img/names-1.png)
+
+`mart.dim_person` names him Kaiser. Brøndby's tid 20905 is Carlos Polo with nickname 1449,
 `Peque Polo`, the name Brøndby's team sheet shows. Tested by `tests/test_people_evidence.py`.
 
 ## Quirks

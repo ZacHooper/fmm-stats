@@ -192,6 +192,38 @@ def main():
         bad = {k: (v, e[k]) for k, v in want.items() if e[k] != v}
         check(not bad, f"{tid} {len(want)} fields as on screen {bad or ''}")
 
+    print("\nSTAFF (Staff and Manager Profiles)")
+    from fmparser.tables import staff
+    sbase, _ = staff.locate_staff(mm)
+    cat = staff.formation_catalog(mm)
+    for tid, want in fx["staff"].items():
+        if tid.startswith("_"):
+            continue
+        r = staff.STAFF.read(mm, sbase + 39 * spine[int(tid)]["id2"])
+        for k, v in want.items():
+            got = (staff.style(r["attacking_intent"]) if k == "style" else
+                   cat[r["formation_preferred"]] if k == "formation" else r[k])
+            check(got == v, f"{tid} {k} = {v!r} (got {got!r})")
+
+    print("\nTRAINING LIST (Club Squad - Training)")
+    tb, _ = training.locate_training(mm)
+    for tid, want in fx["training_list"].items():
+        if tid.startswith("_"):
+            continue
+        attr, pos, role, intensity = want
+        r = training.TRAINING_ROW.read(mm, tb + 61 * int(tid))
+        got = [r["focus_attribute"], training.focus_position(r["focus_band"], r["focus_column"]),
+               r["focus_role"], r["intensity"]]
+        check(got == [attr, pos, role, intensity], f"{tid} {[attr, pos, role, intensity]} (got {got})")
+
+    print("\nBEST ELEVEN SCREENS")
+    more = fx["scrapbook_more"]
+    in38 = {e["full_name"] for e in lists[38]["entries"]}
+    check(all(n in in38 for n in more["38"]), "the 2029 Manager's Best Eleven are all in list 38")
+    cl = [e for e in lists[7]["entries"] if e["full_name"] == "Dominic Calvert-Lewin"]
+    bad = {k: (v, cl[0][k]) for k, v in more["calvert_lewin"].items() if cl and cl[0][k] != v}
+    check(cl and not bad, f"Calvert-Lewin's list-7 entry is his Scrapbook Profile {bad or ''}")
+
     print()
     if failures:
         print(f"FAIL: {len(failures)} check(s)")

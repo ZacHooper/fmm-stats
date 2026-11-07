@@ -16,7 +16,7 @@ index.
 | +4 | `ca`, `pa` | 2 × u16 | ability; never shown (the immersion rule) | |
 | +8 | `home_reputation` | u16 | | |
 | +10 | `current_reputation` | u16 | | |
-| +12 | `world_reputation` | u16 | sets the profile's Reputation: below 3,000 Regional, below 5,800 National, else Continental (`reputation_tier`) | seven managers |
+| +12 | `world_reputation` | u16 | sets the profile's Reputation: Regional, National, Continental. The code cuts at 3,000 and 5,800 (`reputation_tier`); the second edge is wrong (Quirks) | nine managers |
 | +14 | `attacking_intent` | u8 | hidden 1–20; sets the profile's Style: ≤ 7 Defensive, 8–13 Normal, ≥ 14 Attacking (`style`) | fourteen managers, both band edges |
 | +15 | `financial_control` | u8 | 1–20 | seven managers |
 | +16 | `outfield_coaching` | u8 | | |
@@ -61,7 +61,27 @@ Manager) has `id2` 3137, record at byte 6,157,665:
 ```
 
 `attacking_intent` 3 (Defensive), formations 17 / 17 / 17 (5-2-1-2), world reputation
-2,300 (Regional). His profile screenshot will confirm these.
+2,300 (Regional). His Staff Profile shows Formation 5-2-1-2, born 17/3/1978, English:
+
+![Tom Little, Staff Profile: Assistant Manager, Formation 5-2-1-2](img/staff-1.png)
+
+Jens-Jakob Sørensen's shows 4-1-2-2-1 (`formation_preferred` 2). Two managers' full profiles:
+
+![Vladimír Darida, SønderjyskE: Attacking, 4-1-2-2-1, National](img/staff-2.png)
+![Thomas Frank, FC København: Normal, 5-3-2, National](img/staff-3.png)
+
+| on screen | Darida (tid 9069) | Frank (tid 9140) |
+|---|---|---|
+| Discipline, Financial Control, Judging Ability, Judging Potential | 17, 14, 12, 15 | 12, 9, 12, 15 |
+| People Management, Motivating, Tactical Knowledge | 10, 14, 14 | 16, 14, 14 |
+| Goalkeeping, Outfield, Youth | 5, 13, 18 | 4, 10, 17 |
+| Style | Attacking (`attacking_intent` 20) | Normal (12) |
+| Formation | 4-1-2-2-1 (`formation_preferred` 2) | 5-3-2 (19; attacking 4-2-3-1, defensive 5-3-2) |
+| Reputation | National (`world_reputation` 4,996) | **National** (5,857; the code says Continental) |
+| Adaptability … Temperament (on [person_info](person_info.md)) | 12 14 15 13 12 17 17 | 14 15 15 15 14 14 15 |
+| Czech, 84 caps / 10 goals, 8/8/1990 | nationality 137, caps 84, goals 10 | Danish, uncapped, 9/10/1973 |
+
+Every value on both screens matches.
 
 ## Quirks
 
@@ -84,6 +104,18 @@ Manager) has `id2` 3137, record at byte 6,157,665:
 > nibble and single-bit searches for 16 managers' Style, and for 9 managers' formations as an
 > index, a name or an 11-slot position vector, found nothing within ±20,000 bytes. They are
 > in this separate table, reached by `id2`.
+
+> **Quirk:** the National/Continental edge is not 5,800. Thomas Frank reads 5,857 and his
+> profile says National; Thorup (2024) read 5,974 and said Continental. The edge is somewhere
+> in 5,858–5,974, and `reputation_tier` misreads the five staff at 5,800–5,857. Open in TODO as
+> "Staff reputation tier: the National/Continental edge is wrong".
+
+> **Dead end:** the user's own manager's attributes are not in his staff record. Mr Manager's
+> profile shows Loyalty 19, Domestic Player Bias 19, Financial Control 20, Transfer Acumen 19,
+> Youth Policy 16; his staff record and personality block read 10 throughout. Only Discipline
+> (10) and the Continental reputation (6,964) match.
+>
+> ![Mr Manager, Manager Profile](img/staff-4.png)
 
 > **Dead end:** Job Status and the manager Rank are not located.
 
