@@ -17,6 +17,23 @@ It is **read-only**. Nothing is ever written back to a save, and the game is nev
 > and SEGA. No game data is included in this repository: you bring your own save, and what you
 > do with the data drawn from it is up to you. See [Disclaimer](#disclaimer).
 
+## Fastest start
+
+You need a Mac, your iPhone with FMM22 on it, and an AI coding agent (such as
+[Claude Code](https://claude.com/claude-code)). No coding.
+
+**1. Copy a save off your iPhone.** Plug the iPhone into the Mac, open **Finder**, click the
+iPhone in the sidebar, open the **Files** tab and expand **FMM22**. Drag a save file (`.fms`)
+into your Downloads folder.
+
+**2. Give your agent this:**
+
+> Clone https://github.com/ZacHooper/fmm-stats and set it up for me with its `get-started`
+> skill. My save is in my Downloads folder.
+
+It installs what's needed, finds your club in the save, builds your stats and opens the site.
+Then ask it things: *scout my next opponent*, *who should start*, *review my season*.
+
 ## What's in it
 
 ```
@@ -41,26 +58,24 @@ a phone-friendly web app    squad, ratings, matches, history, world, recruitment
 | **Site** | A static web app (no build step) that rates players in your tactic's roles in the browser. Optional: deploys as a Cloudflare Worker. | [`site/AGENTS.md`](site/AGENTS.md), [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | **Skills** | Recipes an AI agent follows: scout an opponent, season review, pre-season squad review, and more. | [`.claude/skills/`](.claude/skills/) |
 
-## Quickstart
+## Quickstart for developers
 
-You need **Python 3.13+**, **[uv](https://docs.astral.sh/uv/)** and an **FMM22 save file**
-(`.fms`) copied off your device.
+You need **[uv](https://docs.astral.sh/uv/)** (it fetches Python 3.13) and an **FMM22 save
+file** (`.fms`).
 
 ```bash
-git clone <this repo> && cd fmm-stats
+git clone https://github.com/ZacHooper/fmm-stats && cd fmm-stats
 uv sync
 
-# 1. Tell it about your career
-cp fmm.example.toml fmm.toml
-uv run python scripts/discover_career.py path/to/your-save.fms   # prints your club's tids
-#    -> put managed_tid / reserve_tid (and a career key) into fmm.toml
+# 1. Find your club in the save and write it into fmm.toml (prints the career <key>)
+uv run python scripts/discover_career.py path/to/your-save.fms --write
 
-# 2. Move the save into ~/fm-saves/<career>/, named by its in-game date, then parse it
-uv run python scripts/archive_save.py path/to/your-save.fms --career mycareer
-uv run python extract.py ~/fm-saves/mycareer/mycareer-<date>.fms
+# 2. Move the save into ~/fm-saves/<key>/, named by its in-game date, then parse it
+uv run python scripts/archive_save.py path/to/your-save.fms --career <key>
+uv run python extract.py ~/fm-saves/<key>/<key>-<date>.fms
 
-# 3. Load it (builds fm-mycareer.duckdb and runs every dbt model and test)
-uv run python load_duckdb.py output/mycareer-<date> --career mycareer
+# 3. Load it (builds fm-<key>.duckdb and runs every dbt model and test)
+uv run python load_duckdb.py output/<key>-<date>
 
 # 4. Look at it
 uv run python scripts/export_data.py
@@ -71,7 +86,7 @@ Add more saves from the same career over time: each becomes a snapshot, so growt
 history build up. Query the store directly with DuckDB:
 
 ```bash
-uv run python -c "import duckdb; con = duckdb.connect('fm-mycareer.duckdb', read_only=True); \
+uv run python -c "import duckdb; con = duckdb.connect('fm-<key>.duckdb', read_only=True); \
   print(con.sql('select * from mart.squad_membership where is_current and is_managed_club'))"
 ```
 
@@ -95,9 +110,9 @@ The repo is built to be worked on, and asked questions, by coding agents.
   rules that make a query wrong rather than imprecise, and where the reference knowledge lives.
   Each part has its own `AGENTS.md`. Claude Code reads them through one-line `CLAUDE.md` files.
 - **Skills** in [`.claude/skills/`](.claude/skills/) are step-by-step recipes for common asks:
-  `query-fm-data` for any quick question, `scout-opponent`, `season-outlook`,
-  `preseason-squad-review`, `fm-season-review`, `where-are-they-now`, `attribute-profiles`,
-  `import-fm-saves`. They were written around the author's own career, so they work best as
+  `get-started` to set everything up from a save, `query-fm-data` for any quick question,
+  `scout-opponent`, `season-outlook`, `preseason-squad-review`, `fm-season-review`,
+  `where-are-they-now`, `attribute-profiles`, `import-fm-saves`. They were written around the author's own career, so they work best as
   templates; the data model they query is general.
 - **`CAREER.md`** (optional, gitignored): write your own notes about the career you're playing
   (your tactic, house rules, what's happened so far). `AGENTS.md` tells agents to read it.

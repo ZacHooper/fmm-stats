@@ -73,7 +73,7 @@ that get it there. Each phase is a brief an agent can pick up cold. Written 2026
   <tr><th>phase</th><th>status</th><th>depends on</th><th>branch / PR</th></tr>
   <tr><td>Groundwork: config, data out of git, agent guides, first load works</td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
   <tr><td><a href="#p0">0. Docs checker</a></td><td><span class="tag ready">ready</span></td><td>#192 merged</td><td></td></tr>
-  <tr><td><a href="#p1">1. Player quick start</a></td><td><span class="tag blocked">needs answers</span></td><td>#192 merged; open question 1</td><td></td></tr>
+  <tr><td><a href="#p1">1. Player quick start</a></td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
   <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag ready">ready</span></td><td>0</td><td></td></tr>
   <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag ready">ready</span></td><td>0</td><td></td></tr>
   <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
@@ -283,7 +283,9 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <dt>Verify</dt><dd>Run the skill as a new user: a fresh clone, no <code>fmm.toml</code>, one save under
   a random file name, <code>FM_R2_REMOTE</code> unset. The load must pass and the site must export.
   (This path was proven by hand on 2026-11-07: 525 tests pass, nothing skipped.)</dd>
-  <dt>Blocked on</dt><dd><a href="#questions">Open question 1</a>: how to get a save off the phone.</dd>
+  <dt>Status</dt><dd>Done in #192: <code>.claude/skills/get-started/SKILL.md</code>, the README's
+  "Fastest start" (iPhone and Mac: Finder → the iPhone → Files → FMM22), and the pointer in
+  <code>AGENTS.md</code>. Android and Windows steps are not written yet.</dd>
 </dl>
 </div>
 
@@ -442,10 +444,8 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
 
 <h2 id="questions">Open questions</h2>
 <ol>
-  <li><strong>Getting the save off the phone</strong> (blocks phase 1): which platform, where the
-  <code>.fms</code> file lives, and the exact steps to copy it to a computer.</li>
-  <li><strong>The fast start's agent:</strong> one line for Claude Code ("run the get-started skill"), with
-  <code>AGENTS.md</code> carrying the same recipe for other agents. Confirm.</li>
+  <li><strong>Getting a save off Android, or onto Windows:</strong> not documented yet (the README
+  covers iPhone and Mac).</li>
   <li><strong>Which analysis notes are general enough to stay public</strong> (phase 5 and 6): decided
   note by note with the author.</li>
 </ol>
