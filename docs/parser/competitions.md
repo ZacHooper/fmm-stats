@@ -98,8 +98,18 @@ the EURO Cup's OL and Inter.
 > empty list. Content settles it: the 3. Liga (cid 507) carries 20 entrants, and its holders
 > decode after them and match its 2029/30 top three.
 
-Pending: the in-game League Standards → Reputation screen for `reputation`, and a
-competition's holders for the tail.
+**The holders on screen.** A competition's Past Winners screen opens on 2029/30 on this save,
+a season the roll of honour does not hold yet; the row is the holders tail. On all four lists
+captured it matches: 3F Superliga Frem / FC København (`img/comp_honours-1.png`), Sydbank
+Pokalen FC Nordsjælland / FC Midtjylland (`-2`), English Premier Division Liverpool / Chelsea
+(`-3`), EURO Cup OL / Inter (`-4`). The other nine rows of each list are the roll of honour
+([comp_honours](comp_honours.md)). The Pokalen's tail, at byte 12,617,678:
+`5b 3a 0e 00 | 0e 02 00 00 | ff ff ff ff | ee 07 ed 07 ee 07 | 05 00 | 00`, uids 932,443 (FC
+Nordsjælland) and 526 (FC Midtjylland), no third.
+
+`reputation` has no number on screen: the game shows a competition's reputation as a star
+rating (League Standards → Reputation), so it is checked only by its order (Superliga 144 >
+NordicBet Liga 97 > 2. Division 80 > 3. Division 63 > Denmark's Series 33).
 
 ## Output
 

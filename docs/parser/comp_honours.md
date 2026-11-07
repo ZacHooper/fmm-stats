@@ -67,8 +67,23 @@ competition record's holders tail ([competitions](competitions.md)).
 The Sydbank Pokalen's 2028/29 record, at byte 235,931: cid 263, season 2029, winner AaB (328),
 runner-up Frem (346).
 
-Pending: the in-game Roll of Honour for both competitions, to pin the season label and the
-places.
+**Past Winners**, four competitions, 40 rows checked row by row. The screen lists ten seasons,
+2029/30 down to 2020/21, winner and runner-up. Rows 2028/29 to 2020/21 are this table's records
+(season 2029 down to 2021, so a record's `season` is the end year of the season the screen
+shows); 2029/30 is the competition record's holders tail ([competitions](competitions.md)).
+All 40 agree:
+
+| screen | 2029/30 (holders tail) | 2028/29 … 2020/21 (records) |
+|---|---|---|
+| 3F Superliga, `img/comp_honours-1.png` | Frem / FC København | 9 of 9, from Frem / Brøndby IF to Brøndby IF / FC Midtjylland |
+| Sydbank Pokalen, `-2` | FC Nordsjælland / FC Midtjylland | 9 of 9, from AaB / Frem to Randers FC / SønderjyskE |
+| English Premier Division, `-3` | Liverpool / Chelsea | 9 of 9, from Liverpool / Chelsea to Man City / Man UFC |
+| EURO Cup, `-4` | OL / Inter | 9 of 9, from AS Monaco / Borussia Dortmund to Villarreal / Man UFC |
+
+![3F Superliga Past Winners: 2029/30 Frem, FC København; 2028/29 Frem, Brøndby IF](img/comp_honours-1.png)
+
+The third place a league record carries (FC Nordsjælland for the Superliga's 2028/29) is not
+on this screen.
 
 ## Output
 

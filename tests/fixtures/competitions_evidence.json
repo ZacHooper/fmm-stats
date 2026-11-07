@@ -1,0 +1,88 @@
+{
+ "_about": "Values read off in-game screens of frem-2030-06-22 (Past Winners: 3F Superliga, Sydbank Pokalen, English Premier Division, EURO Cup; Rules: Pokalen Final, EURO Cup League Path Third Qualifying Round; docs/parser/img/comp_honours-*.png, comp_rules-*.png), the raw bytes behind them, and what the parser must make of them. Guarded by tests/test_competitions_evidence.py; the tables are documented in docs/parser/.",
+ "save": "frem-2030-06-22.fms",
+ "raw": [
+  [12587215, "ff ff ff ff ff ff ff ff 5c 05", "competition table frame: 8 x ff, count u16 1,372"],
+  [12587413, "02 00 06 00 00 00", "3F Superliga head: cid 2, uid 6"],
+  [12587459, "00 02 00 8a 00 ff 7f 52 01 90 00 00 ff ff", "Superliga trailer: type 0, continent 2, nation 138, colours, reputation 144, level 0, no parent"],
+  [12587477, "fb 01 00 00 f9 01 00 00 21 02 00 00 ee 07 ed 07 ee 07 01 00 00", "Superliga holders tail: uids 507 Frem, 505 FC København, 545 OB; season 2030, 2029, 2030"],
+  [12617678, "5b 3a 0e 00 0e 02 00 00 ff ff ff ff ee 07 ed 07 ee 07 05 00 00", "Sydbank Pokalen holders: uids 932443 FC Nordsjælland, 526 FC Midtjylland, no third"],
+  [12587752, "a4 02 00 00 76 02 00 00 5a 02 00 00 ee 07 ed 07 ee 07 02 00 00", "Premier Division holders: Liverpool, Chelsea, Arsenal (uids)"],
+  [12617242, "61 03 00 00 6f 04 00 00 ff ff ff ff ee 07 ed 07 ee 07 02 00 00", "EURO Cup holders: OL, Inter, no third (uids)"],
+  [16971955, "6d 74 65 72 01 0b", "dan_comps: the retm team-count list head"]
+ ],
+ "archive_raw": [
+  ["comp_man.dat", 0, "03 01 74 61 64 2e 08 00 14 00 6b 01 ed 07 ee 07 85 08 00 00 d0 07 01 00 00 00 d3 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff", "comp_man header: year_start 2029, year_end 2030, n_stages 2,181"],
+  ["comp_man.dat", 10486, "6d 6d 75 73 73 6f 6c 63", "stage row 133 (Superliga Championship Group key) +70/+74: 'summ', 'clos' reversed"],
+  ["comp_man.dat", 197207, "d1 02 00 00", "roll of honour count u32 = 721; 197,211 + 721 x 55 = member length"],
+  ["comp_man.dat", 236811, "02 00 00 00 ed 07 00 00 5a 01 00 00 51 01 00 00 a1 09 00 00 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 00 00 ec 07 ed 07 01 00 6c 07", "Superliga 2028/29: cid 2, season 2029, Frem 346, Brøndby 337, FC Nordsjælland 2465; 2028-2029"],
+  ["comp_man.dat", 235931, "07 01 00 00 ed 07 00 00 48 01 00 00 5a 01 00 00 ff ff ff ff ff ff ff ff", "Pokalen 2028/29: cid 263, season 2029, AaB 328, Frem 346, no third, no fourth"],
+  ["comp_6.dat", 20, "ed 07", "header season_year 2029"],
+  ["comp_6.dat", 50, "3a 00 00 00", "header n_fields 58"],
+  ["comp_6.dat", 196, "67 61 65 6c 78 64 6e 69 01 11 00", "stage 0: id value 'leag' (reversed), indx u8 0"],
+  ["comp_6.dat", 214, "73 6d 74 6e 01 11 0c", "stage 0 ntms u8 12"],
+  ["comp_1301406.dat", 2462, "6d 6e 74 73 01 11 14", "Pokalen round 6 stnm u8 20 (Final)"],
+  ["comp_1301406.dat", 2531, "64 6c 70 73 01 1a 09 00 00 00 61 73 63 65 6e 73 69 6f 6e", "final's date rule: spld string 'ascension' (30 May 2030)"],
+  ["comp_1301406.dat", 2602, "67 6c 6d 6e 01 11 01", "final nmlg u8 1"],
+  ["comp_1301396.dat", 3248, "6d 6e 74 73 01 12 97 00", "EURO Cup League Path round 0 stnm u16 151 (Third Qualifying Round)"],
+  ["comp_1301396.dat", 3599, "67 6c 6d 6e 01 11 02", "that round's nmlg u8 2"]
+ ],
+ "competition": {"cid": 2, "uid": 6, "name": "3F Superliga", "short": "3F Superliga", "code": "SL", "type_id": 0, "nation_id": 138, "reputation": 144, "level": 0, "parent_cid": null},
+ "past_winners": {
+  "2": [
+   ["2029/30", "Frem", "FC København"],
+   ["2028/29", "Frem", "Brøndby IF"],
+   ["2027/28", "FC Nordsjælland", "FC Midtjylland"],
+   ["2026/27", "FC København", "Frem"],
+   ["2025/26", "FC København", "FC Midtjylland"],
+   ["2024/25", "FC København", "FC Midtjylland"],
+   ["2023/24", "Brøndby IF", "FC København"],
+   ["2022/23", "FC København", "Silkeborg IF"],
+   ["2021/22", "FC København", "FC Nordsjælland"],
+   ["2020/21", "Brøndby IF", "FC Midtjylland"]
+  ],
+  "263": [
+   ["2029/30", "FC Nordsjælland", "FC Midtjylland"],
+   ["2028/29", "AaB", "Frem"],
+   ["2027/28", "SønderjyskE", "FC Nordsjælland"],
+   ["2026/27", "FC Nordsjælland", "Vejle"],
+   ["2025/26", "FC Midtjylland", "SønderjyskE"],
+   ["2024/25", "Brøndby IF", "Vendsyssel FF"],
+   ["2023/24", "FC København", "FC Midtjylland"],
+   ["2022/23", "FC København", "OB"],
+   ["2021/22", "OB", "Silkeborg IF"],
+   ["2020/21", "Randers FC", "SønderjyskE"]
+  ],
+  "5": [
+   ["2029/30", "Liverpool", "Chelsea"],
+   ["2028/29", "Liverpool", "Chelsea"],
+   ["2027/28", "Man City", "Liverpool"],
+   ["2026/27", "Man City", "Liverpool"],
+   ["2025/26", "Liverpool", "Man City"],
+   ["2024/25", "Chelsea", "Liverpool"],
+   ["2023/24", "Liverpool", "Man City"],
+   ["2022/23", "Man City", "Liverpool"],
+   ["2021/22", "Man City", "Liverpool"],
+   ["2020/21", "Man City", "Man UFC"]
+  ],
+  "258": [
+   ["2029/30", "OL", "Inter"],
+   ["2028/29", "AS Monaco", "Borussia Dortmund"],
+   ["2027/28", "Lazio", "Fenerbahçe"],
+   ["2026/27", "RB Leipzig", "Chelsea"],
+   ["2025/26", "FC Augsburg", "Real San Sebastián"],
+   ["2024/25", "Milan", "Qarabağ"],
+   ["2023/24", "Zebre", "Borussia Dortmund"],
+   ["2022/23", "RB Leipzig", "Lazio"],
+   ["2021/22", "Zebre", "Barcelona"],
+   ["2020/21", "Villarreal", "Man UFC"]
+  ]
+ },
+ "holders_offsets": {"2": 12587477, "263": 12617678, "5": 12587752, "258": 12617242},
+ "honours_count": 721,
+ "superliga_stages": [[0, "leag", 1, 12, 236], [1, "cham", 1, 6, 108], [2, "rele", 1, 6, 171]],
+ "pokalen_rounds": [[0, 6, 92, 1], [1, 7, 52, 1], [2, 8, 32, 1], [3, 9, 16, 1], [4, 17, 8, 2], [5, 18, 4, 2], [6, 20, 2, 1]],
+ "euro_third_qualifying": {"uid": 1301396, "stage_index": 0, "stage_code": "bppr", "round_index": 0, "round_name_id": 151, "legs": 2},
+ "team_counts": {"6": 12, "7": 12, "8": 12},
+ "rule_files": 667
+}

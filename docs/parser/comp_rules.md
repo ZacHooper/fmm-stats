@@ -81,8 +81,28 @@ cup's Fixtures screens ([rounds](rounds.md), `img/rounds-1..3.png`).
 in the dictionary, and for all 73 the stage and round list read from the member equals the one
 read from that file (stage code, teams, round, round teams, legs).
 
-Pending: the competition's rules / info screen (teams, promotion and relegation places,
-split rounds) and the Superliga's split.
+**Rules screens.** Sydbank Pokalen, Rules - Final (`img/comp_rules-1.png`): "Date 30th May
+2030", extra time then penalties, "Winner qualifies for the EURO Cup Playoff". The final is
+round 6, `stnm` 20 (member byte 2,462: `6d 6e 74 73 01 11 14`), one leg (`nmlg` at 2,602:
+`67 6c 6d 6e 01 11 01`). Its date is not stored as a date but as a rule, the unread `date`
+container `{spld 'ascension'}` (byte 2,531: `64 6c 70 73 01 1a 09 00 00 00` "ascension"):
+Ascension Day 2030 is Thursday 30 May, and the world fixture list has the Pokalen's final on
+2030-05-30.
+
+![Sydbank Pokalen Rules - Final: 30th May 2030](img/comp_rules-1.png)
+
+EURO Cup, Rules - League Path Third Qualifying Round (`img/comp_rules-2.png`): draw Monday 22nd
+July 2030, played 8th–15th August 2030, "Winners qualify for the Playoff". In
+`comp_1301396.dat` the League Path is stage 0 (`bppr`, 6 teams, name 2000016479), its round 0
+`stnm` 151 Third Qualifying Round (byte 3,248: `6d 6e 74 73 01 12 97 00`) with `nmlg` 2 (byte
+3,599: `67 6c 6d 6e 01 11 02`): two legs, the two dates on screen, and two unread date rules,
+`date` and `dat2` (`in_2` 3 and 4). The draw is the unread `drdt` `{time 1230, dyow 2, dyom 24,
+mont 7}`; that it means "the Monday on or before 24 July" fits 22 July 2030 but is one example,
+so unverified.
+
+The disciplinary rules on the same screens (EURO Cup: a ban after 3 yellow cards; the Pokalen:
+after every 2) are not read; where they are stored is not established (TODO, "Decode the
+competition rules").
 
 > **Quirk:** a stub (0 fields) is a loaded competition, not a missing one. Read its structure
 > from the dictionary's rule file instead; nothing does so today.
