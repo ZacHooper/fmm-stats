@@ -20,7 +20,7 @@ index.
 | +14 | `attacking_intent` | u8 | hidden 1–20; sets the profile's Style: ≤ 7 Defensive, 8–13 Normal, ≥ 14 Attacking (`style`) | fourteen managers, both band edges |
 | +15 | `financial_control` | u8 | 1–20 | seven managers |
 | +16 | `outfield_coaching` | u8 | | |
-| +17 | `goalkeeping_coaching` | u8 | 1–20, but 51–99 on 43 records (Quirks) | |
+| +17 | `goalkeeping_coaching` | u8 | 1–20, but 51–99 on 43 records, carried as stored (Quirks) | |
 | +19 | `discipline` | u8 | | |
 | +21 | `judging_ability` | u8 | | |
 | +22 | `judging_potential` | u8 | | |
@@ -94,11 +94,11 @@ Every value on both screens matches.
 > is the club's staff member missing from it ([clubs](clubs.md)); Frem has none in the list
 > because we manage it.
 
-> **Quirk:** 43 records read 51–99 at +17 (`goalkeeping_coaching`): retired goalkeepers
-> such as Ben Foster and Tom Heaton, most of them free agents. `_process_staff` drops any
-> record with an attribute outside 1–20, so these 43 are missing from `staff_records.json`
-> although the extract promises every record. Open in TODO as "Staff records with
-> goalkeeping coaching above 20 are dropped".
+> **Quirk:** 43 records on `frem-2030-06-22` read 51–99 at +17 (`goalkeeping_coaching`). They
+> belong to retired goalkeepers such as Ben Foster and Tom Heaton, most of them free agents.
+> The extract keeps every record and carries the value as stored, so `staff_records.json`
+> holds all 4,642 records. +17 may mean something else for these 43; that is not named yet.
+> Don't read their 51–99 as a 1–20 coaching rating.
 
 > **Dead end:** formation and Style are not in the person record or anywhere near it. Exact,
 > nibble and single-bit searches for 16 managers' Style, and for 9 managers' formations as an

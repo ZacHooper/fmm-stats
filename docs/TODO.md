@@ -236,11 +236,9 @@ Bytes the parser reads but cannot name yet.
   `< 5800` edge calls him Continental. Thorup at 5,974 is Continental, so the edge lies in
   5,858–5,974: move it to 5,900 or above and record Frank in `tests/test_staff_records.py`. Five
   staff on `frem-2030-06-22` sit at 5,800–5,857 ([`docs/parser/staff.md`](parser/staff.md)).
-- **Staff records with goalkeeping coaching above 20 are dropped** (`tables/staff.py`
-  `_process_staff`): 43 records read 51–99 at +17, retired goalkeepers, and the 1–20 gate
-  drops the whole record from `staff_records.json` ([`docs/parser/staff.md`](parser/staff.md)).
-  Keep every record and name what +17 holds for them. An output change: re-record
-  `tests/assert_identical.py`.
+- **Staff `+17` above 20** (`tables/staff.py`): 43 records on `frem-2030-06-22`, retired
+  goalkeepers, read 51–99 where `goalkeeping_coaching` is 1–20 for everyone else. They are
+  carried as stored ([`docs/parser/staff.md`](parser/staff.md)); name what the byte holds for them.
 - **Club `main_club_tid` drops tid 0** (`tables/clubs.py` `_club`): the `0 < tid` filter
   loses the one parent that is tid 0, so Algeria U21 (11103) has no parent while the other 227
   U21 sides resolve ([`docs/parser/clubs.md`](parser/clubs.md)). An output change: re-record
