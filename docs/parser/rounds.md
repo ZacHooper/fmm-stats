@@ -46,6 +46,12 @@ Hedensted 1-8 Frem (`img/matches-7.png`) reads "Sydbank Pokalen / Third Round": 
 fixture's `round_index` is 2, the Pokalen's rules (`comp_1301406.dat`) name round 2 with
 `stnm` 8, and record 8 is "Third Round".
 
+The cup's own Fixtures screens head each leg the same way: "Quarter Final Second Leg -
+Saturday 15th December 2029", "Semi Final First Leg", "Semi Final Second Leg"
+(`img/rounds-1..3.png`, [fixtures](fixtures.md)). Each leg is one `stage_key`; the round name
+(17 Quarter Final, 18 Semi Final) comes from the rules and the leg (3 First Leg, 4 Second Leg)
+from the tie's date order.
+
 Frem's Club Fixtures list ([fixtures](fixtures.md), `img/fixtures-1..5.png`) labels all 50
 matches. Every label `site.matches` builds from these names matches the screen: the Pokalen's
 Third Round, Fourth Round, Quarter Final and Semi Final; the Superliga's Preliminary Phase

@@ -168,6 +168,16 @@ truncated. Corners 0/2, clear-cut chances 2/4 and offsides 1/2 are team head +4,
 again (`08 00 02` and `01 02 04` from +3, then `01` and `02` at +68); possession 42/58 is in
 neither head.
 
+Vendsyssel 0-2 Frem, Sydbank Pokalen Quarter Final First Leg, 8 December 2029 (row at byte
+55,939,110):
+
+![Match report: Vendsyssel 0-2 Frem, att 6,764, referee Jakob A. Sundberg; Kobberrød sent off 53](img/matches-10.png)
+
+Three events (Holmbjerg 47, Kobberrød's red card 53, Maarup 86), attendance 6,764, shots
+1/13 and on target 0/6 from the slots, Team Rating 6.3/7.1 = 89/14 and 86/12 truncated,
+corners 0/8, clear-cut chances 0/2 and offsides 4/4 at team head +4, +5, +68. Kobberrød's slot
+reads 53 at +20 (byte 55,942,054).
+
 Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
@@ -200,20 +210,23 @@ Tested by `tests/test_matches_evidence.py`.
 > them (`team_stats`).
 
 > **Quirk:** Team Rating is the mean of the whole-number ratings of the players who appeared,
-> **truncated** to one decimal, not rounded. On four sides: Vejle 107/16 = 6.6875 shows 6.6,
-> Frem 104/15 = 6.93 shows 6.9, Hedensted 82/14 = 5.857 shows 5.8, Frem 92/12 = 7.667 shows
-> 7.6. The loader rounds, so `raw.matches.home_rating` / `away_rating` read 0.1 high on three
-> of those four (TODO "Team rating is rounded, the screen's is not").
+> **truncated** to one decimal, not rounded. Six sides on three screens: 107/16 = 6.69 shows
+> 6.6, 104/15 = 6.93 shows 6.9, 82/14 = 5.86 shows 5.8, 92/12 = 7.67 shows 7.6, 89/14 = 6.36
+> shows 6.3, 86/12 = 7.17 shows 7.1. The loader rounds, so `raw.matches.home_rating` /
+> `away_rating` read 0.1 high on five of the six (TODO "Team rating is rounded, the screen's
+> is not").
 
-> **Quirk:** team head +4 is corners, +5 clear-cut chances and +68 offsides: 12 of 12 values
-> on two stats screens (2/2, 1/3, 7/9 and 0/2, 2/4, 1/2). Over 464 sides on four saves their
-> ranges are plausible (0–13, 0–7, 0–9) and +5 tracks goals (r 0.66). Declared `UNKNOWN`
-> and not read yet (TODO "Match team head: three counts and a minute"). +55 and +57, which
-> matched Vejle's headers won and reds, do not hold on other matches.
+> **Quirk:** team head +4 is corners, +5 clear-cut chances and +68 offsides: 18 of 18 values
+> on three stats screens (2/2, 1/3, 7/9; 0/2, 2/4, 1/2; 8/0 corners, 2/0 chances, 4/4 offsides
+> with Frem away). Over 464 sides on four saves their ranges are plausible (0–13, 0–7, 0–9)
+> and +5 tracks goals (r 0.66). Declared `UNKNOWN` and not read yet (TODO "Match team head:
+> three counts and a minute"). +55 and +57, which matched Vejle's headers won and reds, do
+> not hold on other matches.
 
-> **Quirk:** player slot +20 is a minute on all 22 players with a red-card event over six
-> saves (the event's minute, or one less), and on 10 players without one; `ff` otherwise.
-> Probably the minute he was sent off. Unverified beyond Strunck's 10.
+> **Quirk:** player slot +20 is the minute a player was sent off: Strunck 10 and Kobberrød
+> 53, as the reports show them. Over six saves it is set on all 22 players with a red-card
+> event (the event's minute, or one less) and on 10 without one, `ff` otherwise; those ten
+> are probably second-yellow dismissals, which raise no event. Not read yet.
 
 > **Dead end:** possession and fouls are not in the row. Possession was searched as u8 and
 > u16 and as sum-to-100 pairs, across the whole row and the file around it, and 50/50 on the

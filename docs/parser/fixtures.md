@@ -56,6 +56,9 @@ exactly (`count × 92`). The grids are walked in file order.
 | Referee: Mikkel Redder | +72 `ff 25 00 00` | 9727, the official's tid ([officials](officials.md)) |
 | Preliminary Phase | +76 `00` | `stage_index` 0 → the Superliga's stage 0 → [rounds](rounds.md) 236 |
 
+Vendsyssel 0-2 Frem (`img/matches-10.png`): `seq_id` 190 = Nord Energi Arena, +72 = 10510,
+the referee Jakob A. Sundberg.
+
 Hedensted 1-8 Frem (`img/matches-7.png`), at offset 1,967,253: +35 `9e 1e` = stadium 7838,
 Hedensted Stadion; +72 `4b 25 00 00` = 9547, the referee Sandi Putros; `stage_index` 0 and
 `round_index` 2, the Pokalen's Third Round ([rounds](rounds.md)).
@@ -70,6 +73,27 @@ home-first, as stored: "19 Aug 29 · 2-0 · AaB · A" is AaB 2-0 Frem, shown red
 ![Club Fixtures, October 2029–February 2030](img/fixtures-3.png)
 ![Club Fixtures, February–April 2030](img/fixtures-4.png)
 ![Club Fixtures, April–June 2030](img/fixtures-5.png)
+
+**FC København's Club Fixtures, row by row:** 43 rows, 43 records, every one matching on
+date, opponent, venue and score (`img/fixtures-6..10.png`).
+
+![FC København's Club Fixtures 2029/30, July–September 2029](img/fixtures-6.png)
+![September–November 2029](img/fixtures-7.png)
+![November 2029–March 2030](img/fixtures-8.png)
+![March–May 2030](img/fixtures-9.png)
+![April–June 2030](img/fixtures-10.png)
+
+**The cup's round screens** (Sydbank Pokalen Fixtures): eight ties of the Quarter Final Second
+Leg and both Semi Final legs, each one record in its leg's `stage_key` (389, 428, 429) with
+the score shown.
+
+![Quarter Final Second Leg: Brøndby IF (5) 4 - 2 (5)p FC Midtjylland …](img/rounds-1.png)
+![Semi Final First Leg](img/rounds-2.png)
+![Semi Final Second Leg](img/rounds-3.png)
+
+The bracketed numbers are the aggregate, which no record holds. Brøndby 4-2 Midtjylland,
+level 5-5 on aggregate and marked `p`, reads `home_pens` 2, `away_pens` 4 and `ff` in the
+extra-time bytes: a shoot-out straight after the second leg, Midtjylland through.
 
 The labels (Friendly, 3F Superliga Preliminary Phase / Championship Group, Champions Cup
 Group D, Sydbank Pokalen Third Round … Semi Final Second Leg, Champions Cup First Knockout
@@ -101,8 +125,9 @@ and score. Tested by `tests/test_matches_evidence.py`.
 > **Quirk:** `+6`/`+11` are the 90-minute score. A match that went to extra time keeps the
 > 90-minute score there and the after-extra-time score at `+7`/`+12` (2-2, then 3-2). A tie
 > decided on penalties without extra time has the shoot-out at `+8`/`+13` and `ff` at
-> `+7`/`+12`. `mart.match_stages` takes the full-time score from our own matches where it
-> holds them.
+> `+7`/`+12`, as Brøndby 4-2 Midtjylland (pens 2-4) does. No record holds a tie's aggregate,
+> though the screens show it: `site.matches` sums our ties' legs (`tie_gf`, `tie_ga`). `mart.match_stages` takes
+> the full-time score from our own matches where it holds them.
 
 > **Quirk:** `seq_id` is the venue's stadium id ([stadiums](stadiums.md)): the home club's
 > stadium on 17,787 of 26,627 records on `frem-2030-06-22`, and its parent club's on 8,054 more

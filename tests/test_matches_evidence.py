@@ -112,8 +112,31 @@ def check_match(mm, w, all_matches, all_raw):
         check(got == want, f"team head +{off} = {want}")
     heads = b"".join(bytes(mm[teams + k * matches.TEAM.span:teams + k * matches.TEAM.span + 77])
                      for k in range(2))
+    for tid, minute in w.get("sent_off", {}).items():
+        for k in range(2):
+            for j in range(matches.PLAYER_SLOTS):
+                sl = teams + k * matches.TEAM.span + matches.TEAM_HEAD.span + j * matches.PLAYER_SLOT.span
+                if struct.unpack_from("<I", mm, sl + 42)[0] == int(tid):
+                    check(mm[sl + 20] == minute, f"tid {tid}'s slot +20 = {minute}, his red card's minute")
     pos = w["not_stored"]["possession"]
     check(not any(bytes([v]) in heads for v in pos), f"possession {pos} is in neither team head")
+
+
+def check_fixture_list(fl, world, clubs):
+    print(f"\nFIXTURES: club {fl['club_tid']}'s Club Fixtures list, {len(fl['rows'])} rows checked one by one")
+    ours = {}
+    for r in world:
+        if fl["club_tid"] in (r["home_tid"], r["away_tid"]) and r["date"] >= fl["rows"][0][0]:
+            ours.setdefault(r["date"], []).append(r)
+    check(len(ours) == len(fl["rows"]) and all(len(v) == 1 for v in ours.values()),
+          f"{len(fl['rows'])} records for the club in the season, one per date (got {len(ours)})")
+    for date, score, opp, venue, label in fl["rows"]:
+        r = (ours.get(date) or [None])[0]
+        home = r is not None and r["home_tid"] == fl["club_tid"]
+        ok = (r is not None and ("H" if home else "A") == venue
+              and f"{r['home_goals']}-{r['away_goals']}" == score
+              and clubs[r["away_tid"] if home else r["home_tid"]]["short"] == opp)
+        check(ok, f"{date} {score} {opp} {venue} ({label})")
 
 
 def main():
@@ -156,22 +179,18 @@ def main():
                 if (rec["date"], rec["home_tid"], rec["away_tid"]) == (f["date"], f["home_tid"], f["away_tid"]):
                     refs.append(struct.unpack_from("<I", blob, o + 72)[0])
         check(refs == [f["referee_tid"]], f"+72 is the referee {f['referee']} (tid {f['referee_tid']})")
-    fl = fx["fixture_list"]
-    print(f"\nFIXTURES: the Club Fixtures list, {len(fl['rows'])} rows checked one by one")
     clubs = scrape_clubs(mm)
-    ours = {}
-    for r in world:
-        if fl["club_tid"] in (r["home_tid"], r["away_tid"]) and r["date"] >= fl["rows"][0][0]:
-            ours.setdefault(r["date"], []).append(r)
-    check(len(ours) == len(fl["rows"]) and all(len(v) == 1 for v in ours.values()),
-          f"{len(fl['rows'])} records for the club in the season, one per date (got {len(ours)})")
-    for date, score, opp, venue, label in fl["rows"]:
-        r = (ours.get(date) or [None])[0]
-        home = r is not None and r["home_tid"] == fl["club_tid"]
-        ok = (r is not None and ("H" if home else "A") == venue
-              and f"{r['home_goals']}-{r['away_goals']}" == score
-              and clubs[r["away_tid"] if home else r["home_tid"]]["short"] == opp)
-        check(ok, f"{date} {score} {opp} {venue} ({label})")
+    for fl in fx["fixture_lists"]:
+        check_fixture_list(fl, world, clubs)
+    cr = fx["cup_rounds"]
+    print(f"\nFIXTURES: the cup's round screens, {len(cr['rows'])} ties")
+    short = {r["short"]: t for t, r in clubs.items()}
+    for date, home, hg, ag, away, hp, ap in cr["rows"]:
+        hit = [r for r in world if r["date"] == date and r["home_tid"] == short.get(home)
+               and r["away_tid"] == short.get(away) and r["stage_key"] in cr["stage_keys"]]
+        ok = len(hit) == 1 and (hit[0]["home_goals"], hit[0]["away_goals"], hit[0]["home_pens"],
+                                hit[0]["away_pens"], hit[0]["home_extra_goals"]) == (hg, ag, hp, ap, None)
+        check(ok, f"{date} {home} {hg}-{ag} {away}" + (f", pens {hp}-{ap}, no extra time" if hp is not None else ""))
 
     print("\nOFFICIALS (the referee on the Match Report)")
     for o in fx["officials"]:

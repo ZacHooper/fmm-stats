@@ -47,8 +47,12 @@ Hedensted 1-8 Frem names Sandi Putros, "(firm)": the fixture's +72 is 9547, reco
 byte 6,263,696 (`f1 00 00 00 a5 6a 9d 01 4b 25 00 00`). He too lists only uid 6, though the
 match was a cup tie: the list is not every competition he takes.
 
-Redder ("sympathetic") reads 17 at +18 and 5 at +19; Putros ("firm") reads 4 and 14. That
-fits `allowing_flow` and `discipline` driving the label, but two referees prove no mapping.
+Vendsyssel 0-2 Frem names Jakob A. Sundberg, "(firm)": the fixture's +72 is 10510, record
+252.
+
+Redder ("sympathetic") reads 17 at +18 and 5 at +19; Putros ("firm") 4 and 14; Sundberg
+("firm") 11 and 16. The label follows which of `allowing_flow` and `discipline` is higher on
+all three, but three referees prove no mapping.
 Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks

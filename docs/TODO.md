@@ -240,9 +240,9 @@ Bytes the parser reads but cannot name yet.
   official's tid or `ffffffff`), which with an `officials` extract gives `dim_referee` its
   link. Re-record the extract.
 - **Match team head: three counts and a minute** ([matches](parser/matches.md)): +4 corners,
-  +5 clear-cut chances and +68 offsides, 12 of 12 values on two stats screens; read them into
-  `matches.json` and the store. The player slot's +20 looks like the sending-off minute; a
-  screen with a second-yellow dismissal would confirm it.
+  +5 clear-cut chances and +68 offsides (18 of 18 values on three stats screens), and the
+  player slot's +20, the minute a player was sent off (two reports). Read them into
+  `matches.json` and the store.
 - **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
   `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
   it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
@@ -387,10 +387,11 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
 
 ### 16. Match facts
 - **Team rating is rounded, the screen's is not.** `load_duckdb._match_derived` rounds the
-  mean of the whole-number ratings to 1 dp; the game truncates. Four sides on two screens
-  ([matches](parser/matches.md)): 107/16 shows 6.6, 82/14 shows 5.8, 92/12 shows 7.6, and
-  the loader stores 6.7, 5.9 and 7.7. Fix: truncate (`floor(10 × mean) / 10`); then
-  `raw.matches.*_rating` and anything averaging it drop 0.1 on every match whose mean has a second decimal of 5 or more.
+  mean of the whole-number ratings to 1 dp; the game truncates. Six sides on three screens
+  ([matches](parser/matches.md)): the loader is 0.1 high on five (6.7 for 6.6, 5.9 for 5.8,
+  7.7 for 7.6, 6.4 for 6.3, 7.2 for 7.1). Fix: truncate (`floor(10 × mean) / 10`); then
+  `raw.matches.*_rating` and anything averaging it drop 0.1 on every match whose mean has a
+  second decimal of 5 or more.
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
   penalties or deflections; until settled, no conversion rate from these columns.
 
