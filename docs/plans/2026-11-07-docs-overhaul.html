@@ -442,6 +442,51 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <td>deleted</td><td>7</td></tr>
 </table>
 
+<h3 id="worklist">Docs checker: first pass (work list)</h3>
+<p><code>scripts/check_docs.py</code> on 2026-11-07: 144 broken references in 35 docs (141 missing path, 3 missing file). Each phase clears the rows for the docs it harvests; rows in this plan are paths a later phase creates. Rerun the script for the live list.</p>
+<!-- check-docs: off -->
+<details><summary>The list, by doc</summary>
+<table>
+  <tr><th>doc</th><th>n</th><th>line → missing target</th></tr>
+  <tr><td><code>docs/plans/2026-11-07-docs-overhaul.html</code></td><td>18</td><td>118 → <code>docs/parser/img/</code>, 139 → <code>fmparser/README.md</code>, 139 → <code>docs/parser/savefile-map.md</code>, 140 → <code>fmstats/README.md</code>, 141 → <code>site/README.md</code>, 146 → <code>docs/stats/modelling.md</code>, 182 → <code>fmstats/models/_docs/</code>, 197 → <code>scripts/check_dbt_docs.py</code>, 318 → <code>docs/parser/savefile-map.md</code>, 319 → <code>fmparser/README.md</code>, 337 → <code>fmstats/models/_docs/</code>, 340 → <code>scripts/check_dbt_docs.py</code>, 366 → <code>fmstats/README.md</code>, 369 → <code>docs/stats/modelling.md</code>, 383 → <code>site/README.md</code>, 408 → <code>docs/data/</code>, 424 → <code>docs/parser/savefile-map.md</code>, 430 → <code>docs/stats/modelling.md</code></td></tr>
+  <tr><td><code>docs/plans/2026-09-21-table-engine-migration.md</code></td><td>16</td><td>3 → <code>fmparser/tables.py</code>, 6 → <code>fmparser/schemas/</code>, 7 → <code>fmparser/tables.py</code>, 16 → <code>fmparser/tables.py</code>, 24 → <code>fmparser/tables.py</code>, 24 → <code>fmparser/places.py</code>, 24 → <code>fmparser/schemas/places.py</code>, 31 → <code>fmparser/tables.py</code>, 31 → <code>fmparser/staff.py</code>, 31 → <code>fmparser/schemas/staff.py</code>, 38 → <code>fmparser/tables.py</code>, 38 → <code>fmparser/lookups.py</code>, 38 → <code>fmparser/schemas/lookups.py</code>, 44 → <code>scripts/run_tests.py</code>, 45 → <code>scripts/run_tests.py</code>, 46 → <code>scripts/assert_identical.py</code></td></tr>
+  <tr><td><code>docs/plans/2026-10-01-data-layers.md</code></td><td>12</td><td>27 → <code>fmstats/mart.py</code>, 50 → <code>fmstats/mart.py</code>, 143 → <code>scripts/canonicalise_names.py</code>, 199 → <code>fmstats/mart.py</code>, 217 → <code>fmstats/mart.py</code>, 228 → <code>fmstats/store.py</code>, 243 → <code>tests/validate_models.py</code>, 382 → <code>fmstats/definitions.py</code>, 383 → <code>fmstats/mart.py</code>, 493 → <code>fmstats/value_model.py</code>, 703 → <code>fmstats/mart.py</code>, 703 → <code>fmstats/compat.py</code></td></tr>
+  <tr><td><code>docs/BUGS.md</code></td><td>7</td><td>11 → <code>fmparser/places.py</code>, 56 → <code>fmparser/staff.py</code>, 67 → <code>fmparser/staff.py</code>, 316 → <code>fmparser/lookups.py</code>, 410 → <code>fmparser/lightresults.py</code>, 429 → <code>tests/test_lightresults.py</code>, 443 → <code>fmparser/results.py</code></td></tr>
+  <tr><td><code>docs/plans/2026-09-22-parser-optimization-plan.md</code></td><td>7</td><td>69 → <code>fmparser/clubrecords.py</code>, 81 → <code>fmparser/history.py</code>, 92 → <code>fmparser/lightresults.py</code>, 108 → <code>scripts/run_tests.py</code>, 109 → <code>scripts/run_tests.py</code>, 110 → <code>scripts/assert_identical.py</code>, 112 → <code>scripts/validate_mart.py</code></td></tr>
+  <tr><td><code>docs/agent-context/etl-duckdb-dashboard.md</code></td><td>6</td><td>32 → <code>fmstats/mart.py</code>, 43 → <code>fmstats/store.py</code>, 46 → <code>fmstats/scout.py</code>, 60 → <code>fmparser/history.py</code>, 70 → <code>fmstats/state.py</code>, 114 → <code>fmparser/standings.py</code></td></tr>
+  <tr><td><code>docs/agent-context/savefile-boundary-map.md</code></td><td>6</td><td>16 → <code>fmparser/regions.py</code>, 50 → <code>fmparser/mapregions.py</code>, 50 → <code>scripts/map_regions.py</code>, 65 → <code>scripts/map_regions.py</code>, 70 → <code>fmparser/clubrecords.py</code>, 98 → <code>scripts/map_regions.py</code></td></tr>
+  <tr><td><code>docs/agent-context/fm-parser-project.md</code></td><td>5</td><td>14 → <code>docs/DATADICT.md</code>, 14 → <code>fmparser/tagged.py</code>, 16 → <code>fmparser/tagged.py</code>, 18 → <code>fmparser/results.py</code>, 20 → <code>fmparser/staging.py</code></td></tr>
+  <tr><td><code>docs/agent-context/fmm-editor-record-comparison.md</code></td><td>5</td><td>23 → <code>fmparser/attributes.py</code>, 131 → <code>fmparser/staff.py</code>, 183 → <code>scripts/audit_records.py</code>, 261 → <code>fmparser/places.py</code>, 261 → <code>fmparser/lookups.py</code></td></tr>
+  <tr><td><code>docs/agent-context/parser-hardcoded-anchor-audit.md</code></td><td>5</td><td>41 → <code>fmparser/lightresults.py</code>, 73 → <code>fmparser/regions.py</code>, 184 → <code>fmparser/tagged.py</code>, 248 → <code>tests/test_lightresults.py</code>, 370 → <code>tests/test_lightresults.py</code></td></tr>
+  <tr><td><code>docs/record-expansion.md</code></td><td>5</td><td>47 → <code>fmparser/staff.py</code>, 92 → <code>fmparser/places.py</code>, 92 → <code>fmparser/lookups.py</code>, 121 → <code>fmparser/staff.py</code>, 160 → <code>tests/validate_mart.py</code></td></tr>
+  <tr><td><code>docs/save-archive.md</code></td><td>5</td><td>74 → <code>scripts/audit_archive.py</code>, 282 → <code>fmparser/matchslots.py</code>, 293 → <code>fmparser/fixtures.py</code>, 312 → <code>scripts/audit_archive.py</code>, 313 → <code>scripts/audit_archive.py</code></td></tr>
+  <tr><td><code>docs/agent-context/player-history-table.md</code></td><td>4</td><td>12 → <code>fmparser/history.py</code>, 22 → <code>fmparser/history.py</code>, 26 → <code>scripts/find_history_table.py</code>, 321 → <code>fmparser/history.py</code></td></tr>
+  <tr><td><code>docs/career-region-sizing.md</code></td><td>4</td><td>23 → <code>fmparser/history.py</code>, 256 → <code>fmparser/history.py</code>, 265 → <code>fmparser/mapregions.py</code>, 268 → <code>scripts/map_regions.py</code></td></tr>
+  <tr><td><code>docs/date-search.md</code></td><td>4</td><td>102 → <code>fmparser/lightresults.py</code>, 109 → <code>fmparser/lightresults.py</code>, 110 → <code>fmparser/reference.py</code>, 111 → <code>fmparser/staging.py</code></td></tr>
+  <tr><td><code>docs/plans/2026-09-23-match-rating-normalisation.md</code></td><td>4</td><td>139 → <code>fmstats/mart.py</code>, 153 → <code>tests/validate_mart.py</code>, 161 → <code>fmstats/stats.py</code>, 172 → <code>tests/validate_mart.py</code></td></tr>
+  <tr><td><code>fmparser/AGENTS.md</code></td><td>4</td><td>49 → <code>fmparser/staging.py</code>, 5 → <code>docs/parser-architecture.md</code> (missing file), 33 → <code>docs/parser-architecture.md</code> (missing file), 83 → <code>docs/table-framing.md</code> (missing file)</td></tr>
+  <tr><td><code>docs/agent-context/attribute-stat-correlations.md</code></td><td>3</td><td>24 → <code>scripts/export_attribute_lab.py</code>, 24 → <code>scripts/import_weight_set.py</code>, 294 → <code>fmstats/mart.py</code></td></tr>
+  <tr><td><code>docs/parser-architecture.md</code></td><td>3</td><td>348 → <code>scripts/audit_records.LAYOUTS</code>, 559 → <code>scripts/map_regions.py</code>, 560 → <code>fmparser/regions.py</code></td></tr>
+  <tr><td><code>docs/ATTRIBUTE_DECODING.md</code></td><td>2</td><td>255 → <code>fmparser/staging.py</code>, 273 → <code>fmparser/attributes.py</code></td></tr>
+  <tr><td><code>docs/agent-context/homegrown-derivation.md</code></td><td>2</td><td>5 → <code>fmstats/mart.py</code>, 92 → <code>fmparser/reference.py</code></td></tr>
+  <tr><td><code>docs/agent-context/multi-device-and-storage.md</code></td><td>2</td><td>97 → <code>scripts/canonicalise_names.py</code>, 171 → <code>scripts/_dbopen.open_readonly</code></td></tr>
+  <tr><td><code>docs/light-results-record.md</code></td><td>2</td><td>27 → <code>scripts/audit_light_results.py</code>, 204 → <code>scripts/audit_light_results.py</code></td></tr>
+  <tr><td><code>docs/standings-record.md</code></td><td>2</td><td>10 → <code>fmparser/lightresults.py</code>, 69 → <code>fmparser/standings.py</code></td></tr>
+  <tr><td><code>docs/TODO.md</code></td><td>1</td><td>210 → <code>docs/DATADICT.md</code></td></tr>
+  <tr><td><code>docs/agent-context/MEMORY.md</code></td><td>1</td><td>9 → <code>fmparser/clubrecords.py</code></td></tr>
+  <tr><td><code>docs/agent-context/history-chain-pointers.md</code></td><td>1</td><td>44 → <code>fmparser/history.py</code></td></tr>
+  <tr><td><code>docs/agent-context/master-schedule-plan.md</code></td><td>1</td><td>14 → <code>fmparser/matches.py</code></td></tr>
+  <tr><td><code>docs/agent-context/match-position-encoding.md</code></td><td>1</td><td>300 → <code>fmstats/mart.py</code></td></tr>
+  <tr><td><code>docs/agent-context/player-analysis-methods.md</code></td><td>1</td><td>27 → <code>fmparser/attributes.py</code></td></tr>
+  <tr><td><code>docs/agent-context/seyhun-attr-investigation.md</code></td><td>1</td><td>41 → <code>fmparser/attributes.py</code></td></tr>
+  <tr><td><code>docs/fmm-tactic-blueprints.md</code></td><td>1</td><td>383 → <code>fmstats/mart.py</code></td></tr>
+  <tr><td><code>docs/savefile-map.md</code></td><td>1</td><td>200 → <code>scripts/audit_archive.py</code></td></tr>
+  <tr><td><code>docs/table-framing.md</code></td><td>1</td><td>461 → <code>scripts/map_regions.py</code></td></tr>
+  <tr><td><code>site/guides/registration.md</code></td><td>1</td><td>55 → <code>fmstats/mart.py</code></td></tr>
+</table>
+</details>
+<!-- check-docs: on -->
+
 <h2 id="questions">Open questions</h2>
 <ol>
   <li><strong>Getting a save off Android, or onto Windows:</strong> not documented yet (the README
