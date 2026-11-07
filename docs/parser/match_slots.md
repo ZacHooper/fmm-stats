@@ -9,10 +9,10 @@ The complete results list is [fixtures](fixtures.md).
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
-| +0 | `away_tid` | u16 | one club; `ffff` (or 0) when the slot holds no match | |
-| +2 | `home_tid` | u16 | the other club. **The names are wrong: no venue is stored** (Quirks) | `fix_man` |
-| +4 | `away_goals` | u8 | the goals of the club at +0 | |
-| +5 | `home_goals` | u8 | the goals of the club at +2 | |
+| +0 | `club_a_tid` | u16 | one club; `ffff` (or 0) when the slot holds no match | |
+| +2 | `club_b_tid` | u16 | the other club. No venue is stored (Quirks) | `fix_man` |
+| +4 | `club_a_goals` | u8 | the goals of the club at +0 | |
+| +5 | `club_b_goals` | u8 | the goals of the club at +2 | |
 | +6 | `day` | u16 | day of the year, 0-based | `fix_man` |
 | +8 | | u8 | the match's year − 2021 (Quirks) | |
 | +9, +11, +13, +15 | A, B, C, D | i16 | three independent numbers: `A − B == C − D` on every match slot | |
@@ -43,8 +43,8 @@ Liverpool, Southampton 3-6 Newcastle on `frem-2026-06-11`).
 > **Quirk:** the table holds no venue. Joined to the fixture list on the two clubs and the
 > day, the club at +2 is the home side on 83 of 174 slots on `frem-2030-06-22`, 149 of 272
 > on `frem-2026-06-11` and 326 of 652 on `bucaspor-2023-04-01`; the goals always follow
-> their club. The module's `home_`/`away_` names come from an "away-first" reading of a
-> few slots. Read the pair as unordered and take the venue from [fixtures](fixtures.md).
+> their club. Hence `club_a`/`club_b`: read the pair as unordered and take the venue from
+> [fixtures](fixtures.md).
 
 > **Quirk:** only a few hundred slots hold a match (178 on `frem-2030-06-22`, 275 on
 > `frem-2026-06-11`); on the rest `+0..+5` are `ff`. About 2,900 slots carry a day either

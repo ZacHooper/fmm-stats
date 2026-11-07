@@ -107,9 +107,13 @@ def check_match(mm, w, all_matches, all_raw):
     raw = [r for r in all_raw if r["offset"] == m["offset"]][0]
     teams = (raw["offset"] + matches.MATCH_HEAD.span + 1 + matches.EVENT.span * len(raw["events"])
              + matches.BODY_HEAD.span + matches.EVENT_SLOTS * matches.EVENT.span)
+    names = {f.offset: f.name for f in matches.TEAM_HEAD.fields}
     for off, want in w["team_head"].items():
         got = [mm[teams + k * matches.TEAM.span + int(off)] for k in range(2)]
         check(got == want, f"team head +{off} = {want}")
+        name = names.get(int(off))
+        parsed = [m["team_head"][s][name] for s in ("home", "away")] if name else None
+        check(parsed == want, f"team_head {name} = {want} (got {parsed})")
     heads = b"".join(bytes(mm[teams + k * matches.TEAM.span:teams + k * matches.TEAM.span + 77])
                      for k in range(2))
     for tid, minute in w.get("sent_off", {}).items():
@@ -118,6 +122,10 @@ def check_match(mm, w, all_matches, all_raw):
                 sl = teams + k * matches.TEAM.span + matches.TEAM_HEAD.span + j * matches.PLAYER_SLOT.span
                 if struct.unpack_from("<I", mm, sl + 42)[0] == int(tid):
                     check(mm[sl + 20] == minute, f"tid {tid}'s slot +20 = {minute}, his red card's minute")
+        lines = [p for s in ("home", "away") for p in m[f"{s}_xi"] if p["tid"] == int(tid)]
+        check([p["sentOff"] for p in lines] == [minute], f"tid {tid}'s sentOff = {minute}")
+    sent = {str(p["tid"]) for s in ("home", "away") for p in m[f"{s}_xi"] if p["sentOff"] != 0xFF}
+    check(sent == set(w.get("sent_off", {})), f"sentOff is set on exactly {sorted(sent)}")
     pos = w["not_stored"]["possession"]
     check(not any(bytes([v]) in heads for v in pos), f"possession {pos} is in neither team head")
 
@@ -170,7 +178,8 @@ def main():
         rows = [r for r in world
                 if (r["date"], r["home_tid"], r["away_tid"]) == (f["date"], f["home_tid"], f["away_tid"])]
         check(len(rows) == 1, "one fixture record, home-first, dated as on screen (DAY_BASE)")
-        for k in ("home_goals", "away_goals", "seq_id", "stage_index", "season_year"):
+        for k in ("home_goals", "away_goals", "stadium_id", "referee_tid", "stage_index",
+                  "season_year"):
             check(bool(rows) and rows[0][k] == f[k], f"{k} = {f[k]}")
         refs = []
         for s, n in fixtures.segments(blob):

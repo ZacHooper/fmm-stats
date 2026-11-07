@@ -1,8 +1,10 @@
 -- Each player's line in our own matches, both sides. A minute or condition
 -- the player has none of reads NULL (var('no_id8')): sub_on_minute is NULL for
 -- a starter or an unused substitute, sub_off_minute for a player not taken
--- off. position is a starter's full-time place in his side's XI, NULL for
--- substitutes, in the positions' codes (var('match_position_codes')).
+-- off, dismissal_minute for a player not sent off (the slot's own record of a
+-- sending-off, second yellows included). position is a starter's full-time
+-- place in his side's XI, NULL for substitutes, in the positions' codes
+-- (var('match_position_codes')).
 select
     cast(phase as date) as snapshot_date,
     anchor,
@@ -34,6 +36,7 @@ select
     nullif(condition, {{ var('no_id8') }}) as condition,
     nullif(subon, {{ var('no_id8') }}) as sub_on_minute,
     nullif(suboff, {{ var('no_id8') }}) as sub_off_minute,
+    nullif(sentoff, {{ var('no_id8') }}) as dismissal_minute,
     yellow as yellows,
     case position
         {% for code, position in var('match_position_codes').items() %}

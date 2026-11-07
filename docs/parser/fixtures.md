@@ -24,7 +24,7 @@ Offsets from the record's first byte.
 | +13 | `away_pens` | u8 | | |
 | +14 | (unread) | u8 | away side's aggregate; `ff` otherwise (+15 always `ff`) | |
 | +31 | `stage_key` | u32 | the stage: a record index into `comp_man.dat`'s stage grid (`tables/comp_stages.py`) | |
-| +35 | `seq_id` | u16 | **the venue's stadium id**, not a sequence (Quirks) | |
+| +35 | `stadium_id` | u16 | the venue's stadium id (Quirks) | Vejle Stadion, below |
 | +41 | `home_tid` | u32 | home club | our 70 matches, venue right on all |
 | +47 | `away_tid` | u32 | away club | |
 | +53 | `day_raw` | u16 | day of the year **1-based** in the low 9 bits; the top 7 bits (1, 2 or 3) unnamed | |
@@ -33,11 +33,11 @@ Offsets from the record's first byte.
 | +66 | `season_year` | u16 | the campaign's **start** year: 2028 for 2028/29; 0 on friendlies | |
 | +76 | `stage_index` | u8 | the stage's `indx` in the competition's rules ([`tables/comp_rules.py`](../../fmparser/tables/comp_rules.py)); `ff` = none | |
 | +77 | `round_index` | u8 | the round in the stage's `rnds`; `ff` on league stages | |
+| +72 | `referee_tid` | u32 | the referee: an official's tid; `ffffffff` = none, read as null (Quirks) | Mikkel Redder, below |
 | +78 | `round` | u8 | the matchday within the stage, 0-based; for a knockout, the round; `ff` on friendlies | |
-| +72 | (unread) | u32 | **the referee**: an official's tid, `ffffffff` when none (Quirks) | Mikkel Redder, below |
 | +83 | `subr` | u8 | stage class from the rules file; unnamed values | |
 
-The rest (+0, +9, +14..30, +37, +45, +51, +61, +68, +79..82, +84..91) is declared in
+The rest (+0, +9, +14..30, +37, +45, +51, +61, +68..71, +79..82, +84..91) is declared in
 `FIXTURE` and unread; +16..23 is constant zero and +26..30 constant `00 00 00 00 14`.
 `stage_attr_80`/`81` are named for being constant within a stage, nothing more.
 
@@ -54,11 +54,11 @@ exactly (`count × 92`). The grids are walked in file order.
 |---|---|---|
 | Vejle 2 - 4 Frem | +6 `02`, +11 `04`, +41 `8c 04 00 00`, +47 `5a 01 00 00` | home 1164, away 346, 2-4 |
 | 23 Sep 2029 | +53 `0a 07` (`0x070a & 0x1ff` = 266), +55 `ed 07` | day 266, 1-based: 23 September 2029 |
-| Vejle Stadion | +35 `43 0f` | `seq_id` 3907 = stadium 3907, Vejle Stadion, Vejle's own |
-| Referee: Mikkel Redder | +72 `ff 25 00 00` | 9727, the official's tid ([officials](officials.md)) |
+| Vejle Stadion | +35 `43 0f` | `stadium_id` 3907, Vejle Stadion, Vejle's own |
+| Referee: Mikkel Redder | +72 `ff 25 00 00` | `referee_tid` 9727, the official's tid ([officials](officials.md)) |
 | Preliminary Phase | +76 `00` | `stage_index` 0 → the Superliga's stage 0 → [rounds](rounds.md) 236 |
 
-Vendsyssel 0-2 Frem (`img/matches-10.png`): `seq_id` 190 = Nord Energi Arena, +72 = 10510,
+Vendsyssel 0-2 Frem (`img/matches-10.png`): `stadium_id` 190 = Nord Energi Arena, `referee_tid` 10510,
 the referee Jakob A. Sundberg.
 
 Hedensted 1-8 Frem (`img/matches-7.png`), at offset 1,967,253: +35 `9e 1e` = stadium 7838,
@@ -159,10 +159,10 @@ and score. Tested by `tests/test_matches_evidence.py`.
 > (`tie_gf`, `tie_ga`). `mart.match_stages` takes the full-time score from our own matches
 > where it holds them.
 
-> **Quirk:** `seq_id` is the venue's stadium id ([stadiums](stadiums.md)): the home club's
+> **Quirk:** `stadium_id` is the venue's stadium ([stadiums](stadiums.md)): the home club's
 > stadium on 17,787 of 26,627 records on `frem-2030-06-22`, and its parent club's on 8,054 more
 > (reserve and youth sides have no stadium of their own). The rest are other grounds. Every
-> Frem home match reads 181, Frem's stadium. Nothing downstream uses it as a sequence.
+> Frem home match reads 181, Frem's stadium.
 
 > **Quirk:** the record carries no competition. A fixture's competition comes from a match
 > we played in the same `stage_key`, or the stage's rules (`mart.match_stages`). A group stage
@@ -175,12 +175,11 @@ and score. Tested by `tests/test_matches_evidence.py`.
 > **Quirk:** a match is held once: no `(date, home, away)` repeats on `frem-2030-06-22`. The
 > two grids are 117 KB apart, and what sits between them is not identified.
 
-> **Quirk:** +72 (inside the unread `+68..75`) is the referee's tid: an [official](officials.md)
+> **Quirk:** `referee_tid` (+72) is the referee: an [official](officials.md)
 > on 11,254 of 26,627 records, `ffffffff` on the rest, including every friendly, our reserve
 > fixtures and our European matches. Each of our 32 league matches has a referee who lists
 > the Superliga among his competitions, and a referee has two matches on one day on only 7
-> of 11,247 referee-days. Not read yet (TODO "Field names that say the wrong thing, and the
-> referee").
+> of 11,247 referee-days.
 
 > **Quirk:** national sides appear as club-shaped tids from the club table (tid 0 is Algeria).
 
@@ -188,6 +187,6 @@ and score. Tested by `tests/test_matches_evidence.py`.
 
 `output/<label>/world_fixtures.json`: one row per record, in file order (`home_tid,
 away_tid, date, year, round, home_goals, away_goals, home_extra_goals, away_extra_goals,
-home_pens, away_pens, stage_key, seq_id, season_year, stage_index, round_index, subr`), `ff`
-read as null and the date 0-based. Loads into `raw.world_fixtures`. `extract.py --no-archive`
-skips it.
+home_pens, away_pens, stage_key, stadium_id, referee_tid, season_year, stage_index,
+round_index, subr`), `ff` (and `referee_tid`'s `ffffffff`) read as null and the date
+0-based. Loads into `raw.world_fixtures`. `extract.py --no-archive` skips it.

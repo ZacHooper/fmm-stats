@@ -17,6 +17,7 @@ __all__ = [
     "FIXTURES_TABLE",
     "MEMBER",
     "MEMBER_HEADER",
+    "NO_REFEREE",
     "NO_ROUND",
     "OPENER",
     "STRIDE",
@@ -52,8 +53,7 @@ FIXTURE = Record("world_fixture", STRIDE, [
     # +31: the stage/competition key. Takes 409 distinct values on frem-2026-06-11,
     # partitioning all 26,954 fixtures with nothing left over.
     Field(31, 4,  "stage_key", U32, note="stage key; index into comp_man.dat 78-byte grid"),
-    # +35: per-fixture sequence id (256/58 distinct values)
-    Field(35, 2,  "seq_id", U16, note="the venue's stadium id (docs/parser/fixtures.md)"),
+    Field(35, 2,  "stadium_id", U16, note="the venue's stadium id (docs/parser/fixtures.md)"),
     Field(37, 4,  UNKNOWN, RAW),
     Field(41, 4,  "home_tid", U32, note="282/285 against ground truth; HOME-FIRST"),
     Field(45, 2,  UNKNOWN, RAW, note="secondary home club or aggregate/penalty marker"),
@@ -67,7 +67,8 @@ FIXTURE = Record("world_fixture", STRIDE, [
     Field(59, 2,  "year2", U16, note="secondary date year"),
     Field(61, 5,  UNKNOWN, RAW),
     Field(66, 2,  "season_year", U16, note="season year (2024/2025; 0 on unplayed/friendlies)"),
-    Field(68, 8,  UNKNOWN, RAW),
+    Field(68, 4,  UNKNOWN, RAW),
+    Field(72, 4,  "referee_tid", U32, note="the referee's tid (an official); 0xffffffff = none"),
     # Stage attributes: constant in all 409 stage groups on frem-2026-06-11
     Field(76, 1,  "stage_attr_76", U8, note="stage index within competition (from comp_<id>.dat 'stgs')"),
     Field(77, 1,  "stage_attr_77", U8, note="round index within competition stage (from comp_<id>.dat 'rnds')"),
@@ -84,6 +85,7 @@ FIXTURE = Record("world_fixture", STRIDE, [
 MEMBER = "fix_man.dat"
 MEMBER_HEADER = 6             # every member's decompressed payload opens [03][01]['tad.']
 NO_ROUND = 0xFF           # +78 when the match belongs to no matchday (friendlies)
+NO_REFEREE = 0xFFFFFFFF   # +72 when the fixture has no referee
 
 
 def segments(blob: Any) -> List[Tuple[int, int]]:
@@ -138,7 +140,8 @@ def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
         "home_pens": hp,
         "away_pens": ap,
         "stage_key": r["stage_key"],
-        "seq_id": r["seq_id"],
+        "stadium_id": r["stadium_id"],
+        "referee_tid": None if r["referee_tid"] == NO_REFEREE else r["referee_tid"],
         "season_year": None if r["season_year"] == 0 else r["season_year"],
         "stage_index": r["stage_attr_76"],
         "round_index": rnd_idx,
@@ -150,7 +153,7 @@ def _process_fixture(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
 _FIELDS = (
     "home_tid", "away_tid", "day_raw", "year", "round",
     "home_goals", "away_goals", "home_extra_goals", "away_extra_goals",
-    "home_pens", "away_pens", "stage_key", "seq_id", "season_year",
+    "home_pens", "away_pens", "stage_key", "stadium_id", "referee_tid", "season_year",
     "stage_attr_76", "stage_attr_77", "stage_attr_83",
 )
 

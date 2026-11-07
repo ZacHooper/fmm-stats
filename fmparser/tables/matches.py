@@ -123,25 +123,31 @@ BODY_HEAD = Record("match_body_head", 78, [
 # `positions` is the side's eleven positions at full time, in posOrder order: the team sheet
 # the post-match stats screen shows, which the game re-sorts by position after an in-match
 # change. +6 holds the same 22 bytes, or 0xff throughout on friendlies and reserve fixtures.
+# `corners`, `clear_cut_chances` and `offsides` are the side's counts on the match stats
+# screen; the screen's other team figures are sums of the player slots.
 TEAM_HEAD = Record("match_team_head", 77, [
     Field(0,  3, UNKNOWN, RAW),
     Field(3,  1, "goals_against", U8, note="= the other team block's goals"),
-    Field(4,  2, UNKNOWN, RAW),
+    Field(4,  1, "corners", U8),
+    Field(5,  1, "clear_cut_chances", U8),
     Field(6,  22, UNKNOWN, RAW, note="= positions, or all 0xff"),
     Field(28, 2, UNKNOWN, RAW),
     Field(30, 22, "positions", RAW, note="11 x (band, column): primitives.pitch_position"),
     Field(52, 1, "goals", U8, note="the side's score, own goals for it included"),
-    Field(53, 24, UNKNOWN, RAW),
+    Field(53, 15, UNKNOWN, RAW),
+    Field(68, 1, "offsides", U8),
+    Field(69, 8, UNKNOWN, RAW),
 ])
 
 # The player's line for the match. `condition` (+3) is a match-fitness percentage; an unused
 # substitute reads 0xff in friendlies and reserve fixtures and has a condition (and a rating
 # of 6) in competitive matches. `subOn`/`subOff` are minutes, 0xff when the player was not
-# substituted.
+# substituted. `sentOff` is the minute the player was sent off, 0xff when he was not; it is
+# set for a second-yellow dismissal too, which raises no red-card event.
 _STATS = {
     0: "assists", 3: "condition", 4: "crossA", 5: "crossC", 8: "dribbles",
     10: "goals", 11: "headA", 12: "headW", 16: "intercept", 19: "subOn",
-    21: "subOff", 22: "mistakes", 23: "mistGoal", 25: "passA", 26: "passC",
+    20: "sentOff", 21: "subOff", 22: "mistakes", 23: "mistGoal", 25: "passA", 26: "passC",
     27: "keyPass", 32: "rating", 35: "shotA", 36: "shotO", 41: "posOrder",
     48: "tackA", 49: "tackW", 53: "yellow",
 }
@@ -154,7 +160,6 @@ PLAYER_SLOT = Record("match_player_slot", 62, [
     Field(9,  1, UNKNOWN, RAW),
     Field(13, 3, UNKNOWN, RAW),
     Field(17, 2, UNKNOWN, RAW),
-    Field(20, 1, UNKNOWN, RAW),
     Field(24, 1, UNKNOWN, RAW),
     Field(30, 2, UNKNOWN, RAW),
     Field(33, 2, UNKNOWN, RAW),
@@ -304,6 +309,7 @@ def matches_table_spans(mm: Any) -> List[Tuple[int, int]]:
 
 
 _EVENT_KEYS = ("b0", "type_byte", "minute", "added", "side", "tid")
+_TEAM_HEAD_KEYS = ("corners", "clear_cut_chances", "offsides")
 
 
 def _positions(pairs: bytes) -> Optional[List[str]]:
@@ -329,6 +335,8 @@ def _match(r: Dict[str, Any]) -> Dict[str, Any]:
         "home_flag": r["home_flag"],
         "attendance": r["attendance"],
         "score": {"home": home["goals"], "away": away["goals"]},
+        "team_head": {side: {k: t[k] for k in _TEAM_HEAD_KEYS}
+                      for side, t in (("home", home), ("away", away))},
         "player_of_match": r["player_of_match"],
         "formation": r["formation"].rstrip(b"\x00").decode("ascii"),
         "kickoff_positions": _positions(r["kickoff_positions"]),

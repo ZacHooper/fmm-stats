@@ -3,7 +3,8 @@
 Guard the 25-byte match-slot table: STRIDE, COVERAGE, EXTENT, and the ground truth.
 
 This table was found by dropping an assumption, and the test exists mostly to stop that
-assumption creeping back: the record is AWAY-FIRST. Every earlier probe searched for an
+assumption creeping back: the record holds an UNORDERED club pair, `club_a`/`club_b`, with no
+venue (club_b is the home side on about half the slots). Every earlier probe searched for an
 oriented home->away club pair and therefore could not have found it, which is why the region
 sat unread for months while looking like noise.
 
@@ -41,6 +42,7 @@ REF = os.path.join(SAVES, "frem-2026-06-11.fms")
 EXPECT_SLOTS = 3975
 
 # Screenshot-verified, from tests/fixtures/light_results_truth.json. day 143 = 2026-05-24.
+# (club_a, club_b, club_a_goals, club_b_goals, day, label)
 TRUTH = [
     (404, 518, 0, 5, 143, "Tottenham 5-0 Bournemouth"),
     (471, 523, 2, 0, 143, "West Brom 0-2 Liverpool"),
@@ -121,7 +123,7 @@ def main():
     print(f"  {'ok  ' if resolve > 0.95 else 'FAIL'} {len(raw)} slots carry a club pair; "
           f"{len(rows)} resolve to real clubs ({resolve*100:.1f}%)")
     ok &= resolve > 0.95
-    bad = [r for r in rows if r["away_goals"] > 12 or r["home_goals"] > 12]
+    bad = [r for r in rows if r["club_a_goals"] > 12 or r["club_b_goals"] > 12]
     bad_day = [r for r in rows if not (1 <= r["day"] <= 366)]
     print(f"  {'ok  ' if not bad else 'FAIL'} no fixture row scores above 12 "
           f"({len(bad)} violations)")
@@ -151,9 +153,9 @@ def main():
         c = idx_full.get(tid)
         return c.get("league_cid") if c else None
 
-    same_league = [(r, league_of(r["away_tid"])) for r in rows
-                   if league_of(r["away_tid"]) is not None
-                   and league_of(r["away_tid"]) == league_of(r["home_tid"])]
+    same_league = [(r, league_of(r["club_a_tid"])) for r in rows
+                   if league_of(r["club_a_tid"]) is not None
+                   and league_of(r["club_a_tid"]) == league_of(r["club_b_tid"])]
     max_hit_rate = 0.0
     for off in range(MS.STRIDE):
         for width in (1, 2):
@@ -170,13 +172,13 @@ def main():
           f"on {max_hit_rate*100:.1f}% of {len(same_league)} same-league fixtures "
           f"(expected <10%, a real field would show ~100%)")
 
-    print("\nGROUND TRUTH (away-first layout)")
-    by_pair = {(r["away_tid"], r["home_tid"]): r for r in rows}
+    print("\nGROUND TRUTH (club_a, club_b)")
+    by_pair = {(r["club_a_tid"], r["club_b_tid"]): r for r in rows}
     for a, h, ag, hg, day, label in TRUTH:
         r = by_pair.get((a, h))
-        good = bool(r) and r["away_goals"] == ag and r["home_goals"] == hg and r["day"] == day
+        good = bool(r) and r["club_a_goals"] == ag and r["club_b_goals"] == hg and r["day"] == day
         ok &= good
-        got = (f"{r['home_goals']}-{r['away_goals']} day={r['day']}" if r else "not found")
+        got = (f"{r['club_b_goals']}-{r['club_a_goals']} day={r['day']}" if r else "not found")
         print(f"  {'ok  ' if good else 'FAIL'} {label:<44} {got}")
 
     print("\n" + ("PASS: match-slot table matches the bytes and the game"

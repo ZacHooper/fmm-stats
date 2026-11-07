@@ -4,12 +4,14 @@
 -- (pos_order up to var('starters')), appeared a start or a substitution on.
 -- minutes runs from kick-off, or the minute he came on, to the minute he went
 -- off, was sent off or the match ended: var('match_minutes'), extra time
--- included where the match had it (decided_by 'ET' or 'pens'). The save marks
--- a dismissal only with its event (int_event_types.ends_appearance), and
--- stoppage time is not counted. position is a starter's full-time place in his
--- side's XI, NULL for substitutes. is_player_of_match is the game's own Player
--- of the Match (int_our_matches.player_of_match). person_id is NULL for a
--- player the snapshot holds no person record for.
+-- included where the match had it (decided_by 'ET' or 'pens'), and stoppage
+-- time not counted. sent_off_minute is the dismissal event's minute
+-- (int_event_types.ends_appearance), which minutes uses; dismissal_minute is
+-- the player line's own record of a sending-off, which also marks a
+-- second-yellow dismissal that raises no event. position is a starter's
+-- full-time place in his side's XI, NULL for substitutes. is_player_of_match
+-- is the game's own Player of the Match (int_our_matches.player_of_match).
+-- person_id is NULL for a player the snapshot holds no person record for.
 {%- set minutes = var('match_minutes') %}
 
 with lines as (
@@ -73,6 +75,7 @@ select
     placed.sub_on_minute,
     placed.sub_off_minute,
     placed.sent_off_minute,
+    placed.dismissal_minute,
     case
         when placed.appeared
             then least(
