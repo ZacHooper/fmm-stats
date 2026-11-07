@@ -230,6 +230,11 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
+- **Two field names that say the wrong thing.** The world fixture's `seq_id` (+35) is the
+  venue's stadium id, not a sequence ([fixtures](parser/fixtures.md)); it reaches the store
+  as `raw.world_fixtures.seq_id`. The match-slot table's `away_tid`/`home_tid` hold no venue:
+  the pair is unordered ([match_slots](parser/match_slots.md)). Rename both (`stadium_id`;
+  `club_a_tid`/`club_b_tid`) and re-record the extract.
 - **Staff reputation tier: the National/Continental edge is wrong** (`tables/staff.py`
   `_TIER_BANDS`, and the dbt var `staff_tier_bands` that `tests/test_boundary.py` checks against
   it). Thomas Frank reads world reputation 5,857 and his profile says National; the code's
@@ -256,11 +261,9 @@ Bytes the parser reads but cannot name yet.
   body head's +19..51 and +67..77 (one u8 reads 90-96 on detailed matches: the final whistle's
   minute?), and our tactic in the tail: +0..32 small bitfields (team instructions?), eleven
   per-starter 8-byte rows at +1196 (bytes 0-1 are the role family, partly mapped; bytes 2-4
-  vary per match, maybe a duty or role variant: see `agent-context/match-position-encoding.md`
-  "Per-starter tactic rows"), a u16 coordinate grid at +220..1182 that changes with
-  the back line, and team-looking u16 values after +1295. The positions at +102 are a second
-  copy of +69, byte-identical on all 1,027 matches measured. A Formation-tab screenshot for one
-  match would settle the per-starter rows.
+  vary per match, maybe a duty or role variant: see [matches](parser/matches.md)), and
+  team-looking u16 values after +1295 (+220..1182 is the formation's catalog template). A
+  Formation-tab screenshot for one match would settle the per-starter rows.
 - **The `RAW` spans the PADDING check uncovered** in the world fixture (11), the official
   (+24..28), the contract (+17..35, +40..82) and the competition history tail (4) records;
   the competition stage record (`comp_man_stage` +1..29, +50..55, and +72/+76, the second
@@ -407,7 +410,7 @@ the derivation still passes `positions="familiar"` so it does not move before th
 ### 23. Our full-time formation per match
 The Matches page's formation is the kick-off shape (the match tail's formation string,
 `fmparser/tables/matches.py`). The full-time shape is in the save too: the team head's
-`positions`, 11 starters in posOrder order (`docs/agent-context/match-position-encoding.md`).
+`positions`, 11 starters in posOrder order ([matches](parser/matches.md)).
 Collapse those bands into a formation string in the dbt site models (not the browser), ship
 it in `site.matches`, then give the Splits tab's Formation split a kick-off / full time /
 changed-in-game choice and the Results tab an "Ended in" column beside "Started in".

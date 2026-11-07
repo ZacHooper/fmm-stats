@@ -1432,7 +1432,7 @@ _MIGRATIONS = [
     "ALTER TABLE raw.player_history_seasons ADD COLUMN IF NOT EXISTS yellows INTEGER",
     "ALTER TABLE raw.player_history_seasons ADD COLUMN IF NOT EXISTS reds INTEGER",
     # 2026-08-29: real on-pitch position per starter, decoded from the 11 slot pairs that
-    # follow the formation string. See docs/agent-context/match-position-encoding.md.
+    # follow the formation string. See docs/parser/matches.md.
     "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS position VARCHAR",
     "ALTER TABLE raw.matches ADD COLUMN IF NOT EXISTS player_of_match INTEGER",
     # 2026-09: mistakes leading to a goal. Decoded all along (matches.FIELDS offset 23) but

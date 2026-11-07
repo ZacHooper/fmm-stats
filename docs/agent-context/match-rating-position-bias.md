@@ -7,7 +7,7 @@ by position, and it systematically buries DMs and flatters strikers.
 
 This was surfaced by the manager's own read ("I think the game hates the DM role for
 ratings") and then confirmed in the data. It only became measurable once
-[[match-position-encoding]] gave us a real position per starter.
+[matches](../parser/matches.md) gave us a real position per starter.
 
 ## The evidence
 
@@ -154,7 +154,7 @@ distinct column bytes we have not seen. **Until that is tested, do not assume a 
 in a two-DM shape is a wing-back** — in a back-4 double pivot it is probably a second
 holder, whereas in a back-3 it is a wing-back. The manager plans to run a 4-2-3-1 and read
 the position labels off the in-game stats screen to settle it; re-check the column-byte
-values for that match against `docs/agent-context/match-position-encoding.md`.
+values for that match against [`docs/parser/matches.md`](../parser/matches.md).
 
 ## Implemented (2026-09-23)
 

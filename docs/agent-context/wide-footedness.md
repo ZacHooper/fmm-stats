@@ -7,7 +7,7 @@ metadata:
 ---
 
 Measured 2026-10-08 on the published Frem store (matches 2021-07 to 2028-05), from the team-head
-positions in `mart.fact_player_match.position` ([[match-position-encoding]]), which carry both
+positions in `mart.fact_player_match.position` ([matches](../parser/matches.md)), which carry both
 sides' eleven. Read by `scout-opponent` steps 10 (wide men) and 11 (strikers, full-backs).
 
 **Definitions.** Starters only, minutes > 0, our FIRST-TEAM matches only. A player is
