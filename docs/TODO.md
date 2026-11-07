@@ -403,8 +403,8 @@ before they're coded.
 
 ### 22. Audit and clean up the docs
 Many docs describe code that no longer exists (~95 dead file references across 37 docs on
-2026-11-06). The plan, with a proposed action for every doc, is
-[`plans/2026-11-06-docs-audit.md`](plans/2026-11-06-docs-audit.md). Do it before the fresh
+2026-11-06). The plan, with a brief per phase and a destination for every doc, is
+[`plans/2026-11-07-docs-overhaul.html`](plans/2026-11-07-docs-overhaul.html) (open it in a browser; each phase is a brief an agent can pick up). Do it before the fresh
 public repo is cut.
 
 ### 25. Finish making the project career-agnostic for other players
