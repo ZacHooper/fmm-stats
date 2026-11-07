@@ -386,12 +386,6 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   nearer age, then the later snapshot) and make that test an error again.
 
 ### 16. Match facts
-- **Team rating is rounded, the screen's is not.** `load_duckdb._match_derived` rounds the
-  mean of the whole-number ratings to 1 dp; the game truncates. Six sides on three screens
-  ([matches](parser/matches.md)): the loader is 0.1 high on five (6.7 for 6.6, 5.9 for 5.8,
-  7.7 for 7.6, 6.4 for 6.3, 7.2 for 7.1). Fix: truncate (`floor(10 × mean) / 10`); then
-  `raw.matches.*_rating` and anything averaging it drop 0.1 on every match whose mean has a
-  second decimal of 5 or more.
 - **Goals exceed shots** on 260 of 11,161 player-match rows (`goals > shotA`). Probably
   penalties or deflections; until settled, no conversion rate from these columns.
 

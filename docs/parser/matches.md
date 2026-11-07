@@ -209,12 +209,12 @@ Tested by `tests/test_matches_evidence.py`.
 > shots `Σ shotA`, on target `Σ shotO`, passes `Σ passA`, and so on. The loader computes
 > them (`team_stats`).
 
-> **Quirk:** Team Rating is the mean of the whole-number ratings of the players who appeared,
-> **truncated** to one decimal, not rounded. Six sides on three screens: 107/16 = 6.69 shows
-> 6.6, 104/15 = 6.93 shows 6.9, 82/14 = 5.86 shows 5.8, 92/12 = 7.67 shows 7.6, 89/14 = 6.36
-> shows 6.3, 86/12 = 7.17 shows 7.1. The loader rounds, so `raw.matches.home_rating` /
-> `away_rating` read 0.1 high on five of the six (TODO "Team rating is rounded, the screen's
-> is not").
+> **Decision:** the store's team rating is the mean of the whole-number ratings of the
+> players who appeared, **rounded** to one decimal (`load_duckdb._match_derived`). The screen
+> truncates: six sides on three screens show 107/16 = 6.69 as 6.6, 104/15 = 6.93 as 6.9,
+> 82/14 = 5.86 as 5.8, 92/12 = 7.67 as 7.6, 89/14 = 6.36 as 6.3 and 86/12 = 7.17 as 7.1. The
+> rounded mean is the more accurate figure, so `raw.matches.*_rating` can read 0.1 above the
+> screen by design.
 
 > **Quirk:** team head +4 is corners, +5 clear-cut chances and +68 offsides: 18 of 18 values
 > on three stats screens (2/2, 1/3, 7/9; 0/2, 2/4, 1/2; 8/0 corners, 2/0 chances, 4/4 offsides

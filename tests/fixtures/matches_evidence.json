@@ -1153,7 +1153,7 @@
      2
     ]
    },
-   "_rating": "Team Rating on screen is 6.6 / 6.9; the mean of the whole-number ratings of the players who appeared is 107/16 and 104/15. Rounding that gives 6.7 for Vejle, so the screen truncates or averages finer ratings than the slot stores (docs/parser/matches.md)",
+   "_rating": "Team Rating on screen is 6.6 / 6.9: the mean of the whole-number ratings of the players who appeared (107/16, 104/15), truncated. The store rounds by decision (docs/parser/matches.md).",
    "rating_screen": [
     6.6,
     6.9
