@@ -1,9 +1,11 @@
 -- Each team on each snapshot: what each side holds on its own record.
 -- Reputation and status differ between a first team and its reserve side, so
 -- they are the team's. A reserve side's record holds defaults, not values, for
--- the two facilities (training 10 and youth 0 on every reserve side, never
+-- the two facilities (training 0 and youth 10 on every reserve side, never
 -- changing), so a reserve side has its club's; every other team, a b_team
--- included, has its own. youth_facilities is the record's academy byte.
+-- included, has its own. The record's bytes carry fmm-editor's names, which
+-- are the wrong way round: `academy` is Training Facilities and `facilities`
+-- Youth Facilities on the Club Information screen (docs/parser/clubs.md).
 -- last_league_position is the finish LAST season, in last_league_cid, not the
 -- current standing. stadium_id is the team's own ground, else its club's (a
 -- reserve side stores none). The record's att_avg / att_min / att_max are left
@@ -18,12 +20,12 @@ select
     details.reputation,
     details.status,
     case
-        when teams.team_type = '{{ reserve }}' then first_team.facilities
-        else details.facilities
-    end as training_facilities,
-    case
         when teams.team_type = '{{ reserve }}' then first_team.academy
         else details.academy
+    end as training_facilities,
+    case
+        when teams.team_type = '{{ reserve }}' then first_team.facilities
+        else details.facilities
     end as youth_facilities,
     details.league_cid,
     details.other_division_cid,

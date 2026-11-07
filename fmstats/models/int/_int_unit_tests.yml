@@ -83,7 +83,7 @@ unit_tests:
     description: >
       A team plays at its own ground, else its club's (a reserve side stores none); a reserve
       side has its club's training and youth facilities (its record holds defaults), any other
-      team its own.
+      team its own. Training is the record's `academy` byte and youth its `facilities` byte.
     model: int_team_snapshots
     given:
       - input: ref('int_teams')
@@ -103,9 +103,9 @@ unit_tests:
           - {snapshot_date: '2026-06-11', club_tid: 1032, stadium_id: 500}
     expect:
       rows:
-        - {team_tid: 346, reputation: 4691, stadium_id: 181, training_facilities: 12, youth_facilities: 14}
-        - {team_tid: 7296, reputation: 3530, stadium_id: 181, training_facilities: 12, youth_facilities: 14}
-        - {team_tid: 6150, reputation: 2300, stadium_id: 900, training_facilities: 7, youth_facilities: 9}
+        - {team_tid: 346, reputation: 4691, stadium_id: 181, training_facilities: 14, youth_facilities: 12}
+        - {team_tid: 7296, reputation: 3530, stadium_id: 181, training_facilities: 14, youth_facilities: 12}
+        - {team_tid: 6150, reputation: 2300, stadium_id: 900, training_facilities: 9, youth_facilities: 7}
 
   - name: managed_squad_first_team_over_reserve
     description: >
