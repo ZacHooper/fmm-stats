@@ -148,10 +148,10 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
 ### 4a. Player progress: what is still unread
 `tables/player_progress.py` hands every used row to `raw.player_progress` (the six lines
 and the raw status included); the mart draws injury and loan spells from the bits
-([`docs/parser/player_progress.md`](parser/player_progress.md)). Open: the outfield lines
-`line_3`/`line_4` (Attacking/Defending by their values; read them off an outfield player's
-graph), what the graph's two kinds of marker mean (status bits 4 (16) and 6 (64)), bits 2, 3
-and 7, and the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
+([`docs/parser/player_progress.md`](parser/player_progress.md)). All six lines are named. Open:
+what the graph's markers mean (status bits 3, 4, 6 and 7 each draw one: tap one in game, or
+match the dates against events), bit 2, the `fffa`/`fffc` fee codes in the history pool, and
+the 23 u16 at +24 (17 filled for an outfield player, 6 for a goalkeeper --
 the week's attribute values?). Named, the table could give every squad player's weekly
 development, not just injuries and loans.
 

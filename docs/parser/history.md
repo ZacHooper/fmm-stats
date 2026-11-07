@@ -19,13 +19,14 @@ Bucaspor); only its byte position drifts. Nothing in the pool names a player: a 
 | +5 | `yellows` | u8 | 0 before the career | |
 | +6 | `rating` | u16 | average rating × 100; 0 before the career | 729 = 7.29 |
 | +8 | `club` | u16 | club tid; `0xFFFF` = none | |
-| +10 | `fee` | u16 | `ffff` none, `fffe` loan, `fffd` or `0` free, else £000s | 5250 = £5.25M |
+| +10 | `fee` | u16 | `ffff` none, `fffe` loan, `fffd` or `0` free, else £000s; `fffa` (7,788 records) and `fffc` (3,759) also occur, unread | 5250 = £5.25M; `Loan` on screen |
 | +12 | `next` | u32 | the next record of this chain; `0xFFFFFFFF` ends it | |
 
-A chain is a player's lines oldest first. Every record is on exactly one chain (26,033 chains on
-`frem-2030-06-22`); the free records waiting to be reused sit in one-record chains. The first is the oldest season the pool holds for
-him, at his first club. Seasons played during the career are written into records freed
-elsewhere in the pool, so a chain jumps.
+A chain holds a player's lines in the order they were written, roughly oldest first but not
+sorted by season. The first is the oldest line the pool holds for him, at his first club.
+Seasons played during the career are written into records freed elsewhere in the pool, so a
+chain jumps. Every record is on exactly one chain (26,033 chains on `frem-2030-06-22`); the
+free records waiting to be reused sit in one-record chains.
 
 The pool's invariant is that the pointers form a forest: every record is on exactly one
 chain (`core.forest`), checked on every record. `locate_history` finds the base from pairs of
@@ -50,16 +51,35 @@ and the screen's 2029/30 line has 41: 263, as shown. Goals 79 + 10 = 89, assists
 41, yellows 2 + 1 = 3.
 
 Gustav Ullits' chain shows the other fee codes: his 2021/22 loan to B.93 reads `fe ff` on
-the B.93 line, and his free move from FC Nordsjælland reads `fd ff`. Tested by
-`tests/test_people_evidence.py`.
+the B.93 line, and his free move from FC Nordsjælland reads `fd ff`.
+
+Johan Maarup's chain shows loans and the screen's order:
+
+![Maarup, Player History: Frem 2029/30 and 2028/29, FC Botoşani 2027/28 and 2026/27 on loan, Frem 2027/28; TOTAL 128 21 33 4 0](img/history-2.png)
+
+| record | parsed | on screen |
+|---|---|---|
+| 61,933 | 2027/28, Frem, no games | 2027/28 Frem - (bottom row) |
+| 164,135 | 2026/27, FC Botoşani, no games, `fffe` | 2026/27 FC Botoşani Loan - |
+| 155,704 | 2027/28, FC Botoşani, 11 apps, 2 goals, 2 assists, 6.72, `fffe` | 2027/28 FC Botoşani Loan 11 2 2 6.72 |
+| 1,242 | 2028/29, Frem, 13 apps, 0, 3, 6.69, end of chain | 2028/29 Frem 13 - 3 6.69 |
+
+The chain's apps add up to 99 and his 2029/30 line has 29: 128, as shown (goals 19 + 2,
+assists 26 + 7, yellows 4 + 0). Tested by `tests/test_people_evidence.py`.
 
 ## Quirks
+
+> **Quirk:** the screen lists the chain newest first, in chain order, without sorting by
+> season. Maarup's 2027/28 Frem line was written before his 2026/27 Botoşani loan line, so
+> it shows below it. A loan year carries two lines: the loan club's, with `fffe`, and a
+> no-games line at the parent club.
 
 > **Quirk:** the season in progress is not in the pool. Adingra's 2029/30 line (41 games)
 > appears on screen but no record holds it; the pool gains the line when the season ends.
 
-> **Quirk:** a fee sits on the line of the club the player LEFT; the screen prints it on the
-> line of the club he joined. Adingra's £5.25M is stored on his last FC Nordsjælland record
+> **Quirk:** a transfer fee sits on the line of the club the player LEFT; the screen prints
+> it on the line of the club he joined. A loan's `fffe` sits on the loan club's own line,
+> where the screen prints `Loan`. Adingra's £5.25M is stored on his last FC Nordsjælland record
 > and shown beside Frem. `mart.fact_transfer` reads it as the fee of the move away.
 
 > **Quirk:** the pool is recycled from the oldest lines of players still playing, not only

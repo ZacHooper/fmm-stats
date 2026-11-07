@@ -127,6 +127,9 @@ def main():
             check(line in got, f"{tid} line {line}")
         if "lines" in want:
             check(got[-1] == want["lines"][-1], f"{tid} chain ends on {want['lines'][-1]}")
+        if "order_tail" in want:
+            n = want["order_tail"]
+            check(got[-n:] == want["lines"], f"{tid} the last {n} lines in chain order, as the screen lists them")
         for season, club, fee in want.get("fees", []):
             check([season, club, fee] in [[g[0], g[1], g[6]] for g in got],
                   f"{tid} {season} club {club} fee {fee:#x}")
@@ -150,6 +153,9 @@ def main():
         season = [r for r in prog if r["tid"] == int(tid) and r["week"] >= want["from"]]
         check(season and all({k: r[k] for k in want["lines"]} == want["lines"] for r in season),
               f"{tid} every week from {want['from']}: {want['lines']}")
+        for week, pts in want.get("points", {}).items():
+            row = [r for r in season if r["week"] == week]
+            check(row and all({k: r[k] for k in pts} == pts for r in row), f"{tid} {week}: {pts}")
         marks = {r["week"]: r["status"] for r in season if r["status"]}
         check(marks == want["markers"], f"{tid} markers {want['markers']} (got {marks})")
     latest = {r["tid"]: r["status"] for r in prog if r["week"] == pw["week"]}

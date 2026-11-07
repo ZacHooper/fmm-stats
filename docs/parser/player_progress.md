@@ -11,11 +11,11 @@ from their first week at the club: 38 on `frem-2030-06-22`, exactly the two squa
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
 | +0 | `player_tid` | u32 | `0xFFFFFFFF` = an unused row | |
-| +4 | `line_0` | u16 | Physical, 1–20 | Ullits' graph (below) |
+| +4 | `line_0` | u16 | Physical, 1–20 | four graphs (below) |
 | +6 | `line_1` | u16 | Mental | |
 | +8 | `line_2` | u16 | Goalkeeping; `0xFFFF` for an outfield player | |
-| +10 | `line_3` | u16 | Attacking; `0xFFFF` for a goalkeeper | fits: Adingra, a striker, 14; Lund Jensen, a centre-back, 9 (an outfield graph is still to be read) |
-| +12 | `line_4` | u16 | Defending; `0xFFFF` for a goalkeeper | Adingra 8, Lund Jensen 14 |
+| +10 | `line_3` | u16 | Attacking; `0xFFFF` for a goalkeeper | Maarup's and Secka's graphs |
+| +12 | `line_4` | u16 | Defending; `0xFFFF` for a goalkeeper | |
 | +14 | `line_5` | u16 | Overall | |
 | +16 | `status` | u16 | bitfield (below) | |
 | +18 | | u16 | 0 on every used row | |
@@ -27,10 +27,10 @@ from their first week at the club: 38 on `frem-2030-06-22`, exactly the two squa
 
 | bit | value | meaning | how we know |
 |---|---|---|---|
-| 0–1 | 1, 2, 3 | injured that week | runs of these weeks matched twelve injury spells read off the game for Frem's 2021/22 season |
+| 0–1 | 1, 2, 3 | injured that week | Secka's Injured band covers exactly his five rows with bits 0–1 (10 May – 2 June 2030); twelve 2021/22 injury spells matched the same way |
 | 5 | 32 | out on loan | the seven players marked unavailable on the reserves' Contract screen are exactly the seven whose latest week has bit 5 |
-| 4, 6 | 16, 64 | the vertical markers drawn on the graph | Ullits: one row with 16 and five with 64, one marker each, in the same weeks |
-| 3, 2, 7 | 8, 4, 128 | not identified (19, 1 and 1 rows) | |
+| 3, 4, 6, 7 | 8, 16, 64, 128 | a vertical marker on the graph, one per row: 16 draws a yellow icon, 64 and 128 a red one, 8 a white shield | Ullits, Maarup, Secka and Fredrik Bak: every row with one of these bits is a marker, and every marker is such a row |
+| 2 | 4 | not identified (1 row) | |
 
 An unused row is one fixed template: tid, lines, day and the +24 block all `0xFF`, +18 zero,
 year `0x07E4`. `locate_player_progress` finds two of them in a row, then walks both ways
@@ -58,13 +58,35 @@ Ravn, Fredeløkke, Minerba, Bjerring, Brund, Kieffer and Graabæk. Their rows fo
 
 ![Reserves: seven players marked unavailable](img/player_progress-2.png)
 
+Johan Maarup and Mounir Secka, both outfield players, 2029/30:
+
+![Maarup: Attacking 14, Physical 10 then 11, Overall 10, Mental 9, Defending 6](img/player_progress-3.png)
+
+| on screen | parsed |
+|---|---|
+| Maarup: Attacking (blue) 14, Defending (magenta) 6, Mental 9, Overall 10 | `line_3` 14, `line_4` 6, `line_1` 9, `line_5` 10, every week |
+| Maarup: Physical steps from 10 to 11 in early September | `line_0` 10, then 11 from 2029-09-08 |
+| Maarup: markers at 29/12 (yellow) and late April (red) | `status` 16 on 2029-12-29, 64 on 2030-04-28 |
+
+![Secka: an Injured band from mid-May to early June; Attacking 12 to 13 in May](img/player_progress-4.png)
+
+| on screen | parsed |
+|---|---|
+| Secka: Defending steps from 6 to 7 in early August, at a red marker | `line_4` 7 from 2029-08-02, `status` 64 that day |
+| Secka: Attacking 12 to 13 and Overall 10 to 11 in early May | from 2030-05-05 |
+| Secka: the Injured band, mid-May to early June | `status` 1 on 10, 12, 19 and 26 May, 2 on 2 June |
+
 Tested by `tests/test_people_evidence.py`.
 
 ## Quirks
 
 > **Quirk:** bit 4 (16) is not "the off-season week". It falls on 60 rows in 29 different
-> weeks across the year (Ullits' is 29 December), and the graph draws it as a marker. What
-> the 16 and 64 markers stand for is not yet read off the screen.
+> weeks across the year, and the graph draws it as a marker. Three of the four players on
+> these screens carry it on 29 December. What the markers stand for is not yet read off the
+> screen.
+
+> **Quirk:** rows are not always a week apart. Bak's first months have rows 3–5 days apart,
+> and Secka has rows on both 10 and 12 May 2030.
 
 > **Quirk:** a week can have more than one row. 159 of 6,691 player-weeks on this save have
 > two to five, in slots anywhere in the pool (the game reuses rows), and the copies can
