@@ -24,7 +24,26 @@
  "archive_raw": [
   ["fix_man.dat", 1963700, "43 0f", "the fixture's +35 (seq_id): stadium 3907, Vejle Stadion"],
   ["fix_man.dat", 1963737, "ff 25 00 00", "the fixture's +72: referee tid 9727, Mikkel Redder"],
-  ["fix_man.dat", 1967325, "4b 25 00 00", "Hedensted v Frem fixture +72: referee tid 9547, Sandi Putros"]
+  ["fix_man.dat", 1967325, "4b 25 00 00", "Hedensted v Frem fixture +72: referee tid 9547, Sandi Putros"],
+  ["fix_man.dat", 1571935, "00 ff ff ff ff 02", "7 Jul 29 Frem 0-2 FC Fredericia (friendly): +6 home 0, +11 away 2"],
+  ["fix_man.dat", 1571970, "5a 01 00 00 ff 00 57 01 00 00 ff 00 bc 04 ed 07", "the friendly: home 346, away 343, day 0x4bc & 0x1ff = 188 (7 Jul), 2029"],
+  ["fix_man.dat", 1572001, "ff ff ff ff ff ff ff", "the friendly: +72 no referee, +76..78 no stage, round or matchday"],
+  ["fix_man.dat", 1734315, "02 ff ff ff ff 00", "19 Aug 29 AaB 2-0 Frem: the score home-first, as the list prints it"],
+  ["fix_man.dat", 1734350, "48 01 00 00 ff 00 5a 01 00 00 ff 00 e7 06 ed 07", "AaB 328 v Frem 346, day 231 (19 Aug) 2029"],
+  ["fix_man.dat", 1734381, "0e 29 00 00 00 ff 04", "AaB v Frem: referee 10510, stage 0, matchday 5 (round 4)"],
+  ["fix_man.dat", 1909416, "39 01 00 00", "18 Sep 29 OL 0-1 Frem: stage_key 313 (Champions Cup Group D)"],
+  ["fix_man.dat", 1909461, "02 03 00", "OL v Frem: stage 2, round 3, matchday 1"],
+  ["fix_man.dat", 718974, "ee 07", "2 Jun 30 Brondby 3-0 Frem: year 2030"],
+  ["fix_man.dat", 718991, "01 ff 09", "Brondby v Frem: stage 1 (Championship Group), matchday 10"],
+  ["fix_man.dat", 1915003, "00 ff ff ff ff 05", "19 Sep 29 Hvidovre 0-5 FC Kobenhavn: the score"],
+  ["fix_man.dat", 1915073, "00 01 01", "Hvidovre v FCK: stage 0, round 1 (Sydbank Pokalen Second Round)"],
+  ["fix_man.dat", 2485311, "04 ff 02 05 ff 02 ff 04 05 ff", "Brondby (5) 4-2 (5)p Midtjylland: no extra time, pens 2-4, aggregate 5-5 at +9/+14"],
+  ["fix_man.dat", 2485403, "01 ff ff 05 ff 01 ff ff 01 ff", "FC Nordsjaelland (5) 1-1 (1) Skive: aggregate 5-1"],
+  ["fix_man.dat", 2485219, "02 ff ff 04 ff 01 ff ff 01 ff", "Frem (4) 2-1 (1) Vendsyssel: aggregate 4-1"],
+  ["fix_man.dat", 2485495, "01 ff ff 01 ff 02 ff ff 06 ff", "Silkeborg (1) 1-2 (6) FC Kobenhavn: aggregate 1-6"],
+  ["fix_man.dat", 606313, "03 ff ff ff ff 01 ff ff ff ff", "FC Midtjylland 3-1 Frem, semi-final first leg: no aggregate"],
+  ["fix_man.dat", 637869, "01 ff ff 02 ff 00 ff ff 00 ff", "FC Nordsjaelland (2) 1-0 (0) FC Kobenhavn: aggregate 2-0"],
+  ["fix_man.dat", 637777, "00 ff ff 01 ff 00 ff ff 03 ff", "Frem (1) 0-0 (3) FC Midtjylland: aggregate 1-3"]
  ],
  "matches": [
   {

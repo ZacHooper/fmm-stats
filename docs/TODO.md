@@ -233,8 +233,9 @@ Bytes the parser reads but cannot name yet.
   `away_tid`/`home_tid` hold no venue: the pair is unordered
   ([match_slots](parser/match_slots.md)). The round-name trailer's `round_idx` is the next
   record's index ([rounds](parser/rounds.md)). Rename them (`stadium_id`;
-  `club_a_tid`/`club_b_tid`; `next`), and read the fixture's +72 as `referee_tid` (an
-  official's tid or `ffffffff`), which with an `officials` extract gives `dim_referee` its
+  `club_a_tid`/`club_b_tid`; `next`), read the fixture's +9 / +14 as the tie's aggregate
+  (second legs; `ff` otherwise), and read +72 as `referee_tid` (an official's tid or
+  `ffffffff`), which with an `officials` extract gives `dim_referee` its
   link. Re-record the extract.
 - **Match team head: three counts and a minute** ([matches](parser/matches.md)): +4 corners,
   +5 clear-cut chances and +68 offsides (18 of 18 values on three stats screens), and the

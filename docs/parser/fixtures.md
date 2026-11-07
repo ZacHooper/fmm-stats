@@ -18,9 +18,11 @@ Offsets from the record's first byte.
 | +6 | `home_goals` | u8 | home score after 90 minutes | our 70 matches |
 | +7 | `home_extra_goals` | u8 | home score after extra time; `ff` = no extra time | 3-2 after 2-2 |
 | +8 | `home_pens` | u8 | home shoot-out score; `ff` = none | |
+| +9 | (unread) | u8 | home side's **aggregate** on a tie's second leg; `ff` otherwise (+10 is `ff` on every record) | 6 of 6 on the cup screens |
 | +11 | `away_goals` | u8 | away score after 90 minutes | |
 | +12 | `away_extra_goals` | u8 | | |
 | +13 | `away_pens` | u8 | | |
+| +14 | (unread) | u8 | away side's aggregate; `ff` otherwise (+15 always `ff`) | |
 | +31 | `stage_key` | u32 | the stage: a record index into `comp_man.dat`'s stage grid (`tables/comp_stages.py`) | |
 | +35 | `seq_id` | u16 | **the venue's stadium id**, not a sequence (Quirks) | |
 | +41 | `home_tid` | u32 | home club | our 70 matches, venue right on all |
@@ -66,7 +68,17 @@ Hedensted Stadion; +72 `4b 25 00 00` = 9547, the referee Sandi Putros; `stage_in
 **Frem's Club Fixtures for 2029/30, row by row.** The list has 50 rows, and the fixture list
 holds exactly 50 Frem records from July 2029, one per date. Every row matches its record on
 date, opponent (the club's short name), venue and score. The screen prints the score
-home-first, as stored: "19 Aug 29 · 2-0 · AaB · A" is AaB 2-0 Frem, shown red.
+home-first, as stored: "19 Aug 29 · 2-0 · AaB · A" is AaB 2-0 Frem, shown red. One row of
+each kind, byte by byte (offsets in the decompressed member):
+
+| on screen | record | +6 / +11 | +41 / +47 | +53 / +55 | +31 | +66 | +72 | +76..78 |
+|---|---|---|---|---|---|---|---|---|
+| 7 Jul 29 · 0-2 · FC Fredericia · H · Friendly | 1,571,929 | `00` / `02` | `5a 01` 346 / `57 01` 343 | `bc 04` → day 188 = 7 Jul / `ed 07` | `ca 00` 202 | `00 00` (none) | `ff ff ff ff` no referee | `ff ff ff`: no stage, round or matchday |
+| 19 Aug 29 · 2-0 · AaB · A · Preliminary Phase | 1,734,309 | `02` / `00` | `48 01` 328 / `5a 01` 346 | `e7 06` → 231 = 19 Aug / `ed 07` | `2d 00` 45 | `ed 07` 2029 | `0e 29 00 00` 10510 | `00 ff 04`: stage 0, matchday 5 |
+| 18 Sep 29 · 0-1 · OL · A · Champions Cup Group D | 1,909,385 | `00` / `01` | `63 02` 611 / `5a 01` 346 | `05 07` → 261 = 18 Sep / `ed 07` | `39 01` 313 | `ed 07` | `ff ff ff ff` | `02 03 00`: stage 2, round 3, matchday 1 |
+| 2 Jun 30 · 3-0 · Brøndby IF · A · Championship Group | 718,915 | `03` / `00` | `51 01` 337 / `5a 01` 346 | `99 06` → 153 = 2 Jun / `ee 07` 2030 | `85 00` 133 | `ed 07` 2029 | `4b 25 00 00` 9547 | `01 ff 09`: stage 1, matchday 10 |
+
+The day is `u16 & 0x1ff`, 1-based; the top bits (`04`, `06`, `07` above) are not the date.
 
 ![Club Fixtures 2029/30, July–September 2029](img/fixtures-1.png)
 ![Club Fixtures, September–October 2029](img/fixtures-2.png)
@@ -75,7 +87,10 @@ home-first, as stored: "19 Aug 29 · 2-0 · AaB · A" is AaB 2-0 Frem, shown red
 ![Club Fixtures, April–June 2030](img/fixtures-5.png)
 
 **FC København's Club Fixtures, row by row:** 43 rows, 43 records, every one matching on
-date, opponent, venue and score (`img/fixtures-6..10.png`).
+date, opponent, venue and score (`img/fixtures-6..10.png`). "19 Sep 29 · 0-5 · Hvidovre IF ·
+A · Sydbank Pokalen Second Round" is record 1,914,997: +6 `00`, +11 `05`, +41 `67 01` (359),
++47 `58 01` (344), +53 `06 07` → day 262 = 19 Sep, +76..78 `00 01 01` (stage 0, round 1: the
+Pokalen's rules name round 1 with id 7, "Second Round").
 
 ![FC København's Club Fixtures 2029/30, July–September 2029](img/fixtures-6.png)
 ![September–November 2029](img/fixtures-7.png)
@@ -85,15 +100,26 @@ date, opponent, venue and score (`img/fixtures-6..10.png`).
 
 **The cup's round screens** (Sydbank Pokalen Fixtures): eight ties of the Quarter Final Second
 Leg and both Semi Final legs, each one record in its leg's `stage_key` (389, 428, 429) with
-the score shown.
+the score shown. The bracketed numbers on the second legs are the aggregate, and the record
+holds it at +9 / +14:
+
+| on screen | record | +6..+15 | read |
+|---|---|---|---|
+| Brøndby IF (5) 4 - 2 (5)p FC Midtjylland | 2,485,305 | `04 ff 02 05 ff` `02 ff 04 05 ff` | 4-2, no extra time, pens 2-4, aggregate 5-5 |
+| FC Nordsjælland (5) 1 - 1 (1) Skive IK | 2,485,397 | `01 ff ff 05 ff` `01 ff ff 01 ff` | 1-1, aggregate 5-1 |
+| Frem (4) 2 - 1 (1) Vendsyssel FF | 2,485,213 | `02 ff ff 04 ff` `01 ff ff 01 ff` | 2-1, aggregate 4-1 |
+| Silkeborg IF (1) 1 - 2 (6) FC København | 2,485,489 | `01 ff ff 01 ff` `02 ff ff 06 ff` | 1-2, aggregate 1-6 |
+| FC Midtjylland 3 - 1 Frem (first leg) | 606,307 | `03 ff ff ff ff` `01 ff ff ff ff` | 3-1, no aggregate on a first leg |
+| FC Nordsjælland (2) 1 - 0 (0) FC København | 637,863 | `01 ff ff 02 ff` `00 ff ff 00 ff` | 1-0, aggregate 2-0 |
+| Frem (1) 0 - 0 (3) FC Midtjylland | 637,771 | `00 ff ff 01 ff` `00 ff ff 03 ff` | 0-0, aggregate 1-3 |
 
 ![Quarter Final Second Leg: Brøndby IF (5) 4 - 2 (5)p FC Midtjylland …](img/rounds-1.png)
 ![Semi Final First Leg](img/rounds-2.png)
 ![Semi Final Second Leg](img/rounds-3.png)
 
-The bracketed numbers are the aggregate, which no record holds. Brøndby 4-2 Midtjylland,
-level 5-5 on aggregate and marked `p`, reads `home_pens` 2, `away_pens` 4 and `ff` in the
-extra-time bytes: a shoot-out straight after the second leg, Midtjylland through.
+Brøndby 4-2 Midtjylland, level 5-5 on aggregate and marked `p`, has `ff` in the extra-time
+bytes and the shoot-out at +8 / +13: penalties straight after the second leg, Midtjylland
+through.
 
 The labels (Friendly, 3F Superliga Preliminary Phase / Championship Group, Champions Cup
 Group D, Sydbank Pokalen Third Round … Semi Final Second Leg, Champions Cup First Knockout
@@ -125,9 +151,13 @@ and score. Tested by `tests/test_matches_evidence.py`.
 > **Quirk:** `+6`/`+11` are the 90-minute score. A match that went to extra time keeps the
 > 90-minute score there and the after-extra-time score at `+7`/`+12` (2-2, then 3-2). A tie
 > decided on penalties without extra time has the shoot-out at `+8`/`+13` and `ff` at
-> `+7`/`+12`, as Brøndby 4-2 Midtjylland (pens 2-4) does. No record holds a tie's aggregate,
-> though the screens show it: `site.matches` sums our ties' legs (`tie_gf`, `tie_ga`). `mart.match_stages` takes
-> the full-time score from our own matches where it holds them.
+> `+7`/`+12`, as Brøndby 4-2 Midtjylland (pens 2-4) does. A second leg carries the tie's
+> aggregate at `+9`/`+14` (`ff` on every other record): the aggregate of the two legs on
+> 381 of 387 second legs on `frem-2030-06-22`, 380 of 388 on `frem-2026-06-11` and 320 of 324
+> on `bucaspor-2023-04-01` (the rest are where the check paired the leg with an earlier
+> league meeting of the same clubs). Not read yet: `site.matches` sums our ties' legs itself
+> (`tie_gf`, `tie_ga`). `mart.match_stages` takes the full-time score from our own matches
+> where it holds them.
 
 > **Quirk:** `seq_id` is the venue's stadium id ([stadiums](stadiums.md)): the home club's
 > stadium on 17,787 of 26,627 records on `frem-2030-06-22`, and its parent club's on 8,054 more
