@@ -170,7 +170,7 @@ models:
       - unique_combination: {arguments: {columns: [snapshot_date, club_tid]}}
   - name: int_team_snapshots
     description: >
-      Each team on each snapshot, from its own record: reputation, status, training facilities, league, last season's finish, ground (else the club's).
+      Each team on each snapshot, from its own record: reputation, status, training and youth facilities, league, last season's finish, ground (else the club's).
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
   - name: int_club_list
