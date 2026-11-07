@@ -4,6 +4,10 @@ Reverse-engineering **Football Manager Mobile 2022** `.fms` save files into a qu
 store and a static web app. Read-only: nothing is ever written back to a save. The
 [README](README.md) is the human introduction; this file is the working guide.
 
+**A new player with no `fmm.toml` yet:** follow
+[`.claude/skills/get-started/SKILL.md`](.claude/skills/get-started/SKILL.md), whatever agent you
+are. It takes them from a save file to their stats site, and they don't need to code.
+
 **Before anything else, read the user's own files if they exist** (both are gitignored):
 - **`fmm.toml`** — their careers (managed club tid, rollover day, rating method), storage, site
   URL and **play-style switches**. Template: [`fmm.example.toml`](fmm.example.toml). The
