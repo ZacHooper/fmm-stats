@@ -98,16 +98,16 @@ Tested by `tests/test_world_provenance.py`.
 > reverse of fmm-editor's names. Three Club Information screens fit one scale this way round
 > and none the other: Frem 18 / 20, Cardiff 19 / 15, Stoke 20 / 16 (training / youth) show
 > 15 ★★★½, 16 ★★★★, 18–19 ★★★★½, 20 ★★★★★, i.e. stars = ⌊value / 2⌋ / 2. Read the
-> fmm-editor way, Frem's 18 would be five stars and Cardiff's 19 three and a half. The store
-> still follows the old names (`int.team_snapshots` puts `facilities` in `training_facilities`),
-> so its two facility columns are swapped: open in TODO as "Club facility fields are swapped".
+> fmm-editor way, Frem's 18 would be five stars and Cardiff's 19 three and a half. The parser
+> and raw keep the byte names; `int.team_snapshots` maps `academy` to `training_facilities`
+> and `facilities` to `youth_facilities` (#196).
 
 > **Quirk:** a club with no third kit still fills kit slot 2, with the same black-and-white
 > default (Frem and Stoke show only Home and Away).
 
 > **Quirk:** `main_club_tid` is kept only when `0 < tid < 70000`, so the one parent that IS
 > tid 0 is lost: Algeria U21 (11103) has `main_club_tid` None while the other 227 U21 sides
-> resolve. Open in TODO under "Club facility fields are swapped".
+> resolve. Open in TODO as "Club `main_club_tid` drops tid 0".
 
 > **Quirk:** national teams aren't a block at the front. tids 0–50 are national teams
 > (Algeria, Angola, …), but the other 200 sit among the clubs, up to tid 6343 (Netherlands
