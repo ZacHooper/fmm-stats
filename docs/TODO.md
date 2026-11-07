@@ -125,9 +125,7 @@ store (`raw.player_scrapbook`); `int.scrapbook_entries` picks each player's late
     24, 27-29, 31). The
     quickest proof is to set a dozen players' Focus Role to each, save, and read the ids;
     `docs/role-ids.csv` names famous players holding each role for checking on profiles.
-  - attribute-focus codes 0, 2, 10, 15. **Seed gap:** codes 4, 12 and 13 are read off the
-    Training list on `frem-2030-06-22` (4 SHO, 12 DEC, 13 MOV; 1,725, 985 and 5,053 players)
-    but are not in `seeds/training_attributes.csv`: add `4,SHO`, `12,DEC`, `13,MOV`.
+  - attribute-focus codes 0, 2, 10, 15.
   - intensity 0 and 1: only 3 (High) and 2 (Normal) are read off the screen.
   - **Squad status is not located.** Training `+39` (`squad_status`) is not it: ten players
     whose Transfer Status screen says First Team, Rotation, Backup or Youngster all read 171
