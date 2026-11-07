@@ -6,6 +6,7 @@
 --                       noise)
 --   age curve           site_age_curve: the median yearly growth is never
 --                       negative from 16 to 24, and falls from 16 to 20 to 24
+--                       (once the store spans more than one season)
 -- One row per inverted cell or offending age.
 with forecast as (
     select
@@ -52,11 +53,18 @@ select
     null as age,
     null as horizon_age,
     null as value_now
-where not coalesce((
-    select
-        max(median) filter (where age = 16)
-        >= max(median) filter (where age = 20)
-        and max(median) filter (where age = 20)
-        >= max(median) filter (where age = 24) as falls
-    from curve
-), false)
+where
+    not coalesce((
+        select
+            max(median) filter (where age = 16)
+            >= max(median) filter (where age = 20)
+            and max(median) filter (where age = 20)
+            >= max(median) filter (where age = 24) as falls
+        from curve
+    ), false)
+    -- growth is measured between snapshots a season apart, so a store holding
+    -- one season (a career's first saves) has no curve yet
+    and (
+        select count(distinct snapshots.season) as seasons
+        from {{ ref('site_snapshots') }} as snapshots
+    ) > 1
