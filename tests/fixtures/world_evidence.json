@@ -1,5 +1,5 @@
 {
-  "_about": "Values read off in-game screens of frem-2030-06-22 (docs/parser/img/), the raw bytes behind them, and what the parser must make of them. Guarded by tests/test_world_provenance.py; the tables are documented in docs/parser/.",
+  "_about": "Values read off in-game screens of frem-2030-06-22 (docs/parser/img/), the raw bytes behind them, and what the parser must make of them. Guarded by tests/test_world_evidence.py; the tables are documented in docs/parser/.",
   "save": "frem-2030-06-22.fms",
   "save_header": {"title": "22/6/30 - Mr Manager (Frem)", "date": "2030-06-22",
                   "manager": "Mr Manager", "nickname": "Frem"},

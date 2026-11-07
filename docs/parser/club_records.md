@@ -73,7 +73,7 @@ an unused slot is seven `0xFF`.
 The blocks are preallocated and filled in place: a slot is written or not independently of
 the rest of its block.
 
-## Provenance
+## Evidence
 
 `frem-2030-06-22`, Frem's Club History screens. Frem's row starts at byte 46,718,823
 (`5a 01` = tid 346, `04` = four league lists).
@@ -123,7 +123,7 @@ Slot 2, at 46,719,716: `00 00 10 41 | 07 01 | ed 07 | 0c 01 | 08 00 ff ff 02 | 5
 | Highest transfer fee paid: F. Kaiser - £7.5M (2026/27) | | 7,383,382.0, season 2026 |
 | Highest transfer fee received: J. Myhrmann - £19M (2029/30) | | 19,000,000.0, season 2029 |
 
-Tested by `tests/test_world_provenance.py` (Frem, this save) and `tests/test_club_records.py`
+Tested by `tests/test_world_evidence.py` (Frem, this save) and `tests/test_club_records.py`
 (Southampton on `frem-2026-06-11`, slot by slot).
 
 ## Quirks

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Provenance records for the world tables: what the game shows, the bytes behind it, and what the
+Evidence for the world tables: what the game shows, the bytes behind it, and what the
 parser makes of them, on one save.
 
-`tests/fixtures/world_provenance.json` holds values read off in-game screens of frem-2030-06-22
+`tests/fixtures/world_evidence.json` holds values read off in-game screens of frem-2030-06-22
 (the screenshots are in docs/parser/img/, and each table's doc in docs/parser/ maps them). This
 test asserts two things for each: the raw bytes at the recorded offset are what the doc says,
 and the parsed field equals the value on screen. The first catches a different save; the second
 catches a parser change that reads the right bytes into the wrong field.
 
-    uv run python tests/test_world_provenance.py
+    uv run python tests/test_world_evidence.py
 """
 import json
 import os
@@ -24,7 +24,7 @@ from fmparser.save import Save  # noqa: E402
 from fmparser.tables import (cities, club_records, clubs, currencies, languages,  # noqa: E402
                              nations, save_header, stadiums)
 
-FIXTURE = os.path.join(ROOT, "tests", "fixtures", "world_provenance.json")
+FIXTURE = os.path.join(ROOT, "tests", "fixtures", "world_evidence.json")
 
 failures = []
 

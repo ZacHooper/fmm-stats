@@ -14,7 +14,7 @@ into `date` (ISO, year `2000 + yy`), `manager` and `nickname`. When the title do
 that pattern, or the date isn't a real calendar date, those three are `None` and `title` is
 still returned.
 
-## Provenance
+## Evidence
 
 `frem-2030-06-22`, Load Game screen. The highlighted row is the slot this file came from:
 
@@ -26,7 +26,7 @@ still returned.
 | `Mr Manager` | `… 20 2d 20 4d 72 20 4d 61 6e 61 67 65 72` (` - Mr Manager`) | `manager` = `Mr Manager` |
 | `Frem` | `20 28 46 72 65 6d 29 00 …` (` (Frem)` then NULs) | `nickname` = `Frem` |
 
-Tested by `tests/test_world_provenance.py` (needs the save) and, without a save,
+Tested by `tests/test_world_evidence.py` (needs the save) and, without a save,
 `tests/test_save_header_unit.py`.
 
 ## Quirks

@@ -15,7 +15,7 @@ and then record 0, whose `id` is 0. The count is the same in both careers.
 | 14 | 4 | `expansion_capacity` | u32, the most the ground can be expanded to | |
 | 18 | 4 + n + 1 | `name` | `[len u32][utf-8][00]`: the name is NUL-terminated as well as length-prefixed | |
 
-## Provenance
+## Evidence
 
 `frem-2030-06-22`, Frem's Club Information screen. Stadium 181's record is at byte 12,783,119:
 
@@ -30,7 +30,7 @@ and then record 0, whose `id` is 0. The count is the same in both careers.
 | Stadium `Valby Idrætspark` | `11 00 00 00 "Valby Idrætspark" 00` | `name` (17 bytes: `æ` is two) |
 
 Cardiff City's screen agrees as well: stadium 4261 `Cardiff City Stadium`, capacity 33,280
-([clubs](clubs.md)). Tested by `tests/test_world_provenance.py`.
+([clubs](clubs.md)). Tested by `tests/test_world_evidence.py`.
 
 ## Quirks
 

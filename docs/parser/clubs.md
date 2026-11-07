@@ -44,7 +44,7 @@ A record is the segments of `CLUB_TABLE`, in this order:
 `scrape_clubs` derives three fields: `league_cid` (`league_id` when `other_division` is
 `0xFFFF` and the id is real), `country` (= `based_id`), and drops empty squad/staff slots.
 
-## Provenance
+## Evidence
 
 `frem-2030-06-22`. Frem's Club Information screen; Frem's record starts at byte 6,501,332, its
 trailer at 6,501,378.
@@ -90,7 +90,7 @@ is which (see Quirks):
 | bet365 Stadium, 30,089 | +163 `bb 02` | `stadium_id` 699 → `bet365 Stadium`, capacity 30,089 |
 | Home red/white stripes, Away green; no third kit | kits 0, 1 | `kits[0]` white/`#c81028`, `kits[1]` black/`#009830`; `kits[2]` is the black-and-white default Frem also carries |
 
-Tested by `tests/test_world_provenance.py`.
+Tested by `tests/test_world_evidence.py`.
 
 ## Quirks
 

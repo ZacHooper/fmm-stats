@@ -19,7 +19,7 @@ both careers.
 `locate_languages` finds record 0 by its bytes (`id 0`, `uid 1`, length 8, `Albanian`) and
 checks that a run of `0xFF` sits in front of the count.
 
-## Provenance
+## Evidence
 
 No in-game screen lists languages, so the check is the language lists that point here: each
 nation's list ([nations](nations.md)) should name its own languages. On `frem-2030-06-22`,
@@ -32,7 +32,7 @@ Danish is record 31 at byte 13,957,127:
 | … at home in Denmark | `8a 00` · `0b` | `nation_id` 138 · `difficulty` 11 |
 
 England's list is English (7) alone; Wales's is English 100 and Welsh (112, home nation 175
-Wales) 70. Tested by `tests/test_world_provenance.py`.
+Wales) 70. Tested by `tests/test_world_evidence.py`.
 
 ## Quirks
 

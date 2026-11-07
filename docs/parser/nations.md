@@ -31,7 +31,7 @@ A count-framed table of 251 variable-length records in the reference block (~12.
 `scrape_nations` turns `rival_nation_id` outside 1–4096 into `None`, `is_ranked` into a bool,
 and rounds coefficients to 4 places.
 
-## Provenance
+## Evidence
 
 `frem-2030-06-22`, League Standards → Coefficients. Denmark's record starts at byte
 12,759,310; its coefficient list at 12,759,427:
@@ -75,7 +75,7 @@ Denmark's Team Information screen. `NATION_TAIL` at byte 12,759,346, `NATION_TEA
 | World Ranking `22nd (1,699 pts)` | team +18 `01`, +19 `16 00`, +21 `a3 06` | `is_ranked` true, `world_ranking` 22, `ranking_points` 1,699 |
 | Youth Squad `Denmark U21` | (the club table) | Denmark U21 (tid 11236) has `main_club_tid` 547, the Denmark national team ([clubs](clubs.md)) |
 
-Tested by `tests/test_world_provenance.py`.
+Tested by `tests/test_world_evidence.py`.
 
 ## Quirks
 

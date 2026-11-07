@@ -20,7 +20,7 @@ fixed 20-byte records at ~13.49 MB, `[≥ 8 × 0xFF][count u16 = 10956]`, in id 
 `locate_cities` searches 10–20 MB first, then the whole file, for a frame whose first five
 records carry ids 0–4 on the 20-byte stride.
 
-## Provenance
+## Evidence
 
 No in-game screen shows a city or its coordinates, so the ground truth is the real world.
 Both Copenhagen grounds point at city 58 ([stadiums](stadiums.md)); its record, at byte
@@ -34,7 +34,7 @@ Both Copenhagen grounds point at city 58 ([stadiums](stadiums.md)); its record, 
 | Copenhagen 12.5683° E | `e9 17 49 41` | `longitude` 12.568337 |
 | | `14` · `c9 05` · `00` | `attraction` 20 · `region_id` 1481 · unknown |
 
-Tested by `tests/test_world_provenance.py`.
+Tested by `tests/test_world_evidence.py`.
 
 ## Quirks
 

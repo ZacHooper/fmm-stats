@@ -15,7 +15,7 @@ Albanian Lek; the count is the same in both careers.
 `locate_currencies` finds record 0 by its bytes (`uid 2`, length 12, `Albanian Lek`) and
 checks that a run of `0xFF` sits in front of the count.
 
-## Provenance
+## Evidence
 
 `frem-2030-06-22`. The two records that matter for a check, at bytes 13,946,062 and 13,947,605:
 
@@ -43,7 +43,7 @@ Every kroner figure is the pound figure × 8.699204, within the screen's roundin
 The ratio of the two displayed figures runs from 8.57 (£350K → 3M DKK) to 8.85 (£130K →
 1,15M DKK). That spread is display rounding on both screens, not a second rate: every £ figure
 × 8.699204 lands within 2% of its DKK figure (worst: Sonne, 1.7%). Tested by
-`tests/test_world_provenance.py`.
+`tests/test_world_evidence.py`.
 
 ## Quirks
 

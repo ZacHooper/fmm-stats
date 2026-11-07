@@ -2,7 +2,7 @@
 
 Loaded when working under `fmparser/`. Read this before changing the parser or hunting a new field.
 
-**One doc per table: [`docs/parser/`](../docs/parser/)** (layout, provenance against an in-game
+**One doc per table: [`docs/parser/`](../docs/parser/)** (layout, evidence from an in-game
 screen, quirks, output). Read the table's doc before changing its module. Tables without a doc
 yet are still described in the module's docstring and [`docs/savefile-map.md`](../docs/savefile-map.md).
 

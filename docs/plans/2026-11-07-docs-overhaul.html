@@ -115,7 +115,7 @@ agent's context as much as a person's attention.</p>
   current code or a store. A claim you can't check is dropped or marked as unverified.</li>
   <li><strong>Lean.</strong> Link to detail instead of inlining it. One doc, one reader, one job.</li>
   <li><strong>No data in git</strong>: no saves, stores, extracts or exported JSON. In-game
-  screenshots for provenance are fine (<code>docs/parser/img/</code>, cropped, small).</li>
+  screenshots as evidence are fine (<code>docs/parser/img/</code>, cropped, small).</li>
   <li><strong>No career-specific facts in public docs.</strong> Frem is a worked example at most; what
   is only true of one career goes to the author's <code>CAREER.md</code>.</li>
   <li><strong>Cite TODO entries by title</strong>, never by number: numbers are reused.</li>
@@ -161,7 +161,7 @@ One line: what it is. Where it sits in the save and how it is framed.
 ## Layout
 field | type | meaning | how we know
 
-## Provenance
+## Evidence
 The in-game screen each field was checked against: screenshot, value shown, raw bytes,
 parsed value. ![](img/&lt;table&gt;-1.png)
 
@@ -171,7 +171,7 @@ Callouts.
 ## Output
 output/&lt;label&gt;/&lt;table&gt;.json, and the raw table it loads into.</code></pre>
 
-<h3>Provenance</h3>
+<h3>Evidence</h3>
 <p>Mostly a parser concern, and the weakest part of the docs today. Each table gets at least one
 ground-truth record: an in-game screenshot, the value it shows, the raw bytes, and the parsed value.
 Screenshots go in <code>docs/parser/img/&lt;table&gt;-&lt;n&gt;.png</code>, cropped to the panel that
@@ -293,7 +293,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
 <h3>2. Parser: one doc per table</h3>
 <dl>
   <dt>Goal</dt><dd>Every table in <code>fmparser/tables/</code> (27) has a doc an agent can load alone, in the
-  <a href="#framework">template</a>, with at least one provenance record.</dd>
+  <a href="#framework">template</a>, with at least one evidence record.</dd>
   <dt>Read first</dt><dd><code>fmparser/AGENTS.md</code>, <code>docs/parser-architecture.md</code>,
   <code>docs/savefile-map.md</code>, <code>docs/table-framing.md</code>, the table's module.</dd>
   <dt>Split</dt><dd>One PR per group, so several agents can work at once:
@@ -311,7 +311,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
     <ul>
       <li>Write <code>docs/parser/&lt;table&gt;.md</code> from the module's docstring and the current code;
       harvest from the source docs in the <a href="#map">map</a>.</li>
-      <li>Provenance: name the in-game screen to capture, ask the author for the screenshot, map the
+      <li>Evidence: name the in-game screen to capture, ask the author for the screenshot, map the
       value on screen to the raw bytes and the parsed field. Add a fixture test where it can be made
       small.</li>
       <li>Fold <code>BUGS.md</code> items for these tables in as Dead end / Quirk callouts.</li>
@@ -320,7 +320,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
       method and the feedback loop.</li>
     </ul>
   </dd>
-  <dt>Done when</dt><dd>Each table in the group has its doc and a provenance record; retired source docs
+  <dt>Done when</dt><dd>Each table in the group has its doc and an evidence record; retired source docs
   are deleted in the same PR.</dd>
 </dl>
 </div>
