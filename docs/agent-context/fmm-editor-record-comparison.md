@@ -150,8 +150,8 @@ length-prefixed `Unknown5`, `LeaguePos`, **`Reputation u16`**, 20 bytes, `Affili
 (**21 bytes each**: Unknown1, Club1Id, Club2Id, start day/year, end day/year, Unknown2),
 `Players[]`, `Unknown7[11]`, `MainClub`, `Type`.
 
-**A Color is a u16 in RGB555** (`r=(c>>10)&0x1f` etc., each <<3). This corrects BUGS #15, which
-read the trailer's flood of `0x7FFF` as sentinels and guessed "stadium capacity / finance".
+**A Color is a u16 in RGB555** (`r=(c>>10)&0x1f` etc., each <<3). `0x7FFF` is white, not a
+sentinel ([`docs/parser/clubs.md`](../parser/clubs.md)).
 **`0x7FFF` is white** — that region is club colours and kits. Verified: AaB decodes to white +
 red, FCK blue + white, FCM red + dark, OB white + blue.
 

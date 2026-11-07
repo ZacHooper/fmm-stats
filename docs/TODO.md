@@ -221,6 +221,10 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 85% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
+- **Club `main_club_tid` drops tid 0** (`tables/clubs.py` `_club`): the `0 < tid` filter
+  loses the one parent that is tid 0, so Algeria U21 (11103) has no parent while the other 227
+  U21 sides resolve ([`docs/parser/clubs.md`](parser/clubs.md)). An output change: re-record
+  `tests/assert_identical.py`.
 - **`att_avg` / `att_min` / `att_max`** in the club record: read correctly, but the names from
   fmm-editor fail every check (a 12,500 ceiling, multiples of 100, Barcelona's max below its
   avg). Not attendance — `mart.club_attendance` is. Carried in `raw.club_details` only.

@@ -1,47 +1,5 @@
 # Known bugs / follow-ups
 
-## 15. Club record trailer — **DECODED 2026-09-16** (the "finance" reading was wrong)
-
-> **RESOLUTION.** The flood of `0x7FFF` that this entry read as sentinels is **colours**: a
-> `Color` is a u16 in RGB555, and `0x7FFF` is white. The trailer is 6 club colours + 6 kits,
-> then Status/Academy/Facilities, attendances, `LeagueId` (which is what the empirical `+158`
-> always was), stadium id, league position, reputation, affiliates, a fixed **40-slot squad
-> array**, an 11-slot staff array and `main_club_tid`. See `tables.clubs.CLUB_TABLE` and
-> [`docs/record-expansion.md`](record-expansion.md). The stadium/finance guess
-> below is superseded — stadium capacity lives in its own table (`fmparser/places.py`).
-
-While chasing #14's Formation/Style, checked whether the *club's own* record (not the
-manager's) carries a tactical-identity field instead. It doesn't seem to — but it's clearly
-a substantial, mostly-undecoded data block worth coming back to on its own.
-
-**Location:** the club reference record ([TID][UID][len-prefixed long/short/code names],
-same one `reference._build_refdata_index` already reads for name/league/country) has a large
-trailer immediately after the 3 name strings that we hadn't looked past before. For our 7
-known Superliga clubs it sits at (club record start, trailer start):
-```
-AaB          6519248 -> 6519296   FCK          6528473 -> 6528535
-FCN          7736966 -> 7737034   FCM          6537976 -> 6538040
-OB           6544469 -> 6544510   SønderjyskE  7699504 -> 7699563
-Silkeborg    6546212 -> 6546274
-```
-(Trailer start = club record start + `8 + Σ(4 + len)` over the 3 name strings — i.e. skip
-past the length-prefixed long/short/code names; delta varies 41-68 bytes per club because
-names differ in length.)
-
-**Shape, aligned so offset 0 = trailer start (= right after the 3 names):** `+0..1` =
-country u16 (138 = Denmark, confirmed same for all 7). Past that it's a big table absolutely
-dominated by `0x7FFF` (32767) and `0x7FFE` (32638) sentinel-looking values interleaved with
-real-looking numbers, structured in repeating groups — reads like **stadium capacity /
-attendance and finance (wage budget, transfer budget, ticket prices) fields**, not tactics.
-Nothing in the first 300 bytes matches Formation or Style for any of the 7 (same exact-match
-and style-grouping tests as #14, both came back empty here too).
-
-**Not decoded, not chased further this round** — noting it because it's clearly real,
-substantial, decodable data (budgets/stadium info would be genuinely useful for the
-dashboard/scouting side) that just isn't the thing we were looking for. Worth a dedicated
-pass later: ground-truth a club's actual wage budget / stadium capacity from the in-game
-Club Info screen and hunt for it in this trailer the same way #14 did for managers.
-
 ## 14. Manager/staff records — **FORMATION + STYLE SOLVED 2026-09-16**
 
 > **STYLE RESOLUTION (later the same day).** Style is **derived, not stored** — a banding of
@@ -392,49 +350,6 @@ are structural, not value-based:
    database referenced by identity, the same way real crests/kits aren't in the save either).
 3. Ground truth is no longer the bottleneck (round 3 shows real managers give near-unlimited,
    screenshot-free ground truth) — the bottleneck is a candidate *location* to test it against.
-
-## 12c. LIGHT results — MISIDENTIFIED; it is the CLUB RECORDS table ⚠️
-
-> **2026-09-17.** The record layout below decodes correctly, but the region is NOT a list of
-> simulated results. It is the per-club **Club History** tables — Team Records and Player
-> Records — now parsed by `fmparser/tables/club_records.py` and verified slot-for-slot against in-game
-> screenshots. A club has ~12 rows because there are ~12 record CATEGORIES; the ">=2 copies"
-> below is the two-slot pattern ("Highest scoring match" / "Highest scoring LEAGUE match");
-> and the "computed standings" are computed from record-holding matches, which is why they
-> show 5-13 games played. The club->league MEMBERSHIP use is still sound. See
-> [`docs/light-results-record.md`](light-results-record.md). Everything below is kept as the
-> decode history.
-
-Only the MANAGED club's games get detailed per-player records (BUGS #12b). Every OTHER
-loaded game (incl. Turkish Super League) stores a LIGHT result: just teams, score,
-competition and a coarse date. Decoded in `fmparser/lightresults.py`; extracted by
-`dump_lightresults.py` → `output/<label>/light_results/`.
-
-**Record layout (pinned vs ground truth — our own games + the Super League results-day
-screenshot).** Region ~47–50.5 MB; each fixture stored in ≥2 copies **516 bytes apart**:
-```
-+0 home_tid u16 · +2 away_tid u16 · +4 scoreH u8 · +5 scoreA u8
-+8 flags u16 (0x40xx/0xc0xx, a marker) · +10 competition CID u16 ★ · +12 year(2020/2021)
-```
-**The league key is the CID at +10** — 118 Turkish Super League, 228 our 2.League White,
-117 Turkish Cup, 275 English FA Cup, 258 EURO Cup, etc. Prior work chased the `+8` 0x40xx
-value ("compref") and MISSED the real cid two bytes over — that was the whole blocker.
-Validated: `+10` cleanly separates league / cup / European (Galatasaray → 118 league +
-117 cup; Fenerbahçe → 118 + 117 + 258 EURO). Score is `[teamAscore][teamBscore]`; a game
-appears from both perspectives (A-vs-B and B-vs-A), so team order just reflects whose row.
-
-**Delivered:** club→league for the whole DB (341 clubs), every loaded league found and
-(mostly) named — Turkish Super League, Turkish 1./2. League Red+White, Vanarama National
-League N/S, Greek Super League 2 N/S — plus computed standings per league. Guard:
-`tests/test_lightresults.py` (Super League = its real 20 clubs; Alanyaspor 1-0 Başakşehir
-decodes; league/cup split holds).
-
-**Known limits (not blockers):** (1) COVERAGE is partial (~⅓ of a season) — a SECOND
-cid-less result list (~49.36 MB, repeats the home team + a 0x42xx value) isn't parsed, so
-standings points/played are a lower bound and ordering is approximate. (2) NAMING:
-`reference.comp_detail` mis-names some small-cid / foreign comps (e.g. a Turkish reserve
-league shown as "Angola"); the cid grouping is always correct — name these via the data
-dictionary's rule files (`fmparser/tables/rule_files.py`) as a follow-up.
 
 ## 12b. Results sweep -> league membership (PARTIAL, works for local league)
 

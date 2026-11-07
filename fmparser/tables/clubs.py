@@ -58,8 +58,8 @@ def _kit_fields(k):
 # verified on the Danish Superliga: league_id reads 2 for every top-flight club, attendances
 # rank the clubs by size, and the colours decode to the right kits. A colour is RGB555
 # (0x7FFF is white). `based_id` is the nation whose league the club plays in and `nation_id`
-# the club's home nation; they differ on 72 clubs (Cardiff City: England, Wales; The New
-# Saints, of Oswestry: Wales, England; FC Balzers: Switzerland, Liechtenstein).
+# the club's home nation; they differ on a few dozen clubs (Cardiff City: England, Wales;
+# FC Balzers: Switzerland, Liechtenstein). docs/parser/clubs.md is the record's reference.
 CLUB_TRAILER = Record("club_trailer", 167, (
     Field(0, 2, "based_id", U16),
     Field(2, 2, "nation_id", U16),
@@ -190,8 +190,8 @@ def _club(row):
         "league_cid": league, "country": row["based_id"],
         "based_id": row["based_id"], "nation_id": row["nation_id"],
         "colours": [_rgb(row[f"colour_{i}"]) for i in range(6)],
-        # 6 kits of 10 colours; stored whole because which slot is home vs away is not
-        # established.
+        # 6 kits of 10 colours: slot 0 home, 1 away, 2 third (Cardiff City's Club
+        # Information screen, docs/parser/clubs.md).
         "kits": [[_rgb(row[f"kit{k}_{i}"]) for i in range(10)] for k in range(6)],
         "status": row["status"], "academy": row["academy"], "facilities": row["facilities"],
         "att_avg": row["att_avg"], "att_min": row["att_min"], "att_max": row["att_max"],

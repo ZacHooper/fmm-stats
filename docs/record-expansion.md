@@ -60,21 +60,7 @@ manager because we manage it.
 
 ## C — Club record. SHIPPED
 
-`tables.clubs.CLUB_TABLE` reads the whole trailer: colours and kits (a `Color` is u16
-RGB555 — the `0x7FFF` flood BUGS #15 called sentinels is **white**), Status/Academy/Facilities,
-attendances, `LeagueId` (which is what the old empirical `+158` always was), stadium id,
-`LeaguePos`, reputation, affiliates (**21 bytes each**), the fixed **40-slot squad array**, the
-11-slot staff array, and `main_club_tid`.
-
-`main_club_tid` resolves exactly for all 352 reserve sides ("KAA Gent Reserves" → "KAA Gent",
-Frem 7296 → 346) — the structural replacement for the hardcoded `reserve_tid` in `careers.py`,
-**not yet wired**.
-
-`mart.club_roster` + `mart.roster_vs_spells` land the squad array **alongside** the spell model,
-not instead of it. They answer different questions: the array is *who is in this squad*
-(includes loaned-in, excludes reserve-team players), `club_tid` is *who owns him*. On
-frem-2024-11-10, 32 players carry `club_tid=346` while the first-team array holds 29 — the 8
-missing are exactly the 8 in the reserves array. **Nothing has switched over.**
+Documented in [`docs/parser/clubs.md`](parser/clubs.md).
 
 ## D — Competition `Level` + reputation fix. SHIPPED
 
@@ -89,27 +75,9 @@ them tiers 5/6/7/8. Verified a no-op for our position (tier 1, hg_min 8).
 
 ## E — Stadiums, cities, languages, currencies, nations. SHIPPED
 
-`fmparser/places.py` and `fmparser/lookups.py`. All located **structurally** — by chaining, by a
-fixed stride, or by a signature — never by a constant offset.
-
-| table | rows | verified against |
-|---|---|---|
-| stadiums | 15,987 | Parken **38,065**, Aalborg Portland Park **13,800** — exact |
-| cities | 10,928 | Copenhagen 55.6761/12.5683, Aalborg 57.0488/9.9217 |
-| languages | 77 | ids match those inferred from managers' language lists |
-| currencies | 94 | Danish Krone **8.699**, Czech Koruna **29.81** per GBP |
-| nations | 227 | Denmark→Copenhagen→Parken, England→London→Wembley |
-
-Plus the **national-team block**: world ranking, points, rival nation, ranking history, and
-**UEFA country coefficients**. `mart.club_places` joins club → stadium → city.
-
-**Coefficients are verified against three in-game screenshots across two careers** — the
-in-game "Coef" column is `SUM(coefficients)`, matching 11/11 nations on a Frem 2026 screen and
-11/11 on a Bucaspor 2022 screen. See the long ordering note in `lookups.py`: the array is
-chronological and seeded with real UEFA history, and **FMM's own per-season columns read slots
-2 and 3 while labelling them with the two most recent seasons** — a constant 6-slot display
-offset in the game, confirmed on a day-one save. Use the total and the trend; do not map a
-`seq` to the season the game prints beside it.
+Documented one table per doc: [stadiums](parser/stadiums.md), [cities](parser/cities.md),
+[languages](parser/languages.md), [currencies](parser/currencies.md),
+[nations](parser/nations.md) (including how the Coefficients screen reads the list).
 
 ---
 
@@ -162,7 +130,7 @@ unnamed.
   every page view and reputation is ability-adjacent).
 - `careers.py` still hardcodes `reserve_tid`; `main_club_tid` could replace it.
 - `mart.squad_current` still uses the spell model; `roster_vs_spells` exists to judge the switch.
-- Unparsed: the **Region** table, and the nation record's counted language list.
+- Unparsed: the **Region** table.
 
 ## Traps this work hit, all of which produced confidently wrong output first
 
@@ -171,17 +139,8 @@ unnamed.
   `... AS SELECT p.*, a.*`, so its columns froze at 78 and a positional insert failed with
   "78 columns but 85 values" — which **failed two entire snapshot loads**. `_archive_snapshot`
   now names its columns explicitly.
-- **A fixed-size assumption on a growing list.** The nation ranking history is 10 entries in a
-  2022 save and 24 by 2026. Hard-coding 24 silently returned *nothing* for every earlier career
-  — caught only because the user supplied an older save.
 - **Multi-segment tables break stride walks.** Staff records share the 78-byte player stride but
   the table's phase resets; a `+= 78` sweep found 2 of 7 known managers. Key lookups instead.
-- **Club, competition and nation records share a shape** (long name, short name, 3-letter code).
-  A club claimed Belgium's id on a first-wins scan; "densest cluster" alone picked the
-  competition table. Nations need a continent ceiling *and* a position filter.
-- **A loose plausibility test is not a locator.** "Lots of valid lat/lon nearby" selected noise
-  and truncated the city table to a tenth of its size; the real signature is a long run of
-  records spaced *exactly* one record apart.
 - **Run the cross-career check early, not at the end.** Every offset here came from one Danish
   save. Bucaspor (Turkey) is the only generalisation test the parser has, and it is what would
   have caught the ranking-history bug immediately.
@@ -198,19 +157,13 @@ path; it skips cleanly without one.
 
 ## Follow-up review (PR 51 audit, 2026-09-16)
 
-Re-verified against `frem-2024-11-10.fms`; everything above reproduces. Three gaps, all fixed
+Re-verified against `frem-2024-11-10.fms`; everything above reproduces. The gaps, all fixed
 on `claude/pr-51-review-audit-un6rcv`. Full argument in the review comment on PR 51.
 
-1. **The city walk had this document's own bug.** `_CITY_GAP_TOLERANCE = 40` decided where the
-   table ended, so the row count was a function of the constant (40 → 10,928 rows; 200 →
-   11,773; 5,000 → 13,840). It emitted 3 rows that aren't cities and dropped 31 that are —
-   every one of the 31 referenced by a stadium. Now bounded by the table's own invariant
-   (`id == slot index`, true for 10,925/10,925): 10,956 rows, contiguous, no knob. The
-   ground-truth coordinates were exact throughout, which is the lesson.
-2. **Stale claims this work disproved** were still asserted in `lookups.py`, `load_duckdb.py`
+1. **Stale claims this work disproved** were still asserted in `lookups.py`, `load_duckdb.py`
    and two docs — including "ranking history is 24 entries", the very assumption whose
    cross-career failure is listed under Traps below.
-3. **No invariant was added for any of the 11 new staging tables or 9 new mart views**, so
+2. **No invariant was added for any of the 11 new staging tables or 9 new mart views**, so
    `validate_mart.py` passing meant nothing. `scripts/audit/audit_records.py` (STRIDE / COVERAGE /
    EXTENT) and density guards in `tests/test_staff_records.py` now cover this; the rules are
    in `AGENTS.md`.
@@ -310,7 +263,4 @@ borrow, no ground truth of our own, so naming `hidden_s18 … hidden_s28` would 
   slot 3 reads **Determination** on the FMM22 screens and **Controversy** in `People.cs`.
 - **`mart.club_managers` isn't purely structural** — it keeps a `home_reputation` tiebreak and
   exposes no candidate count, so a sole hit and a fallback are indistinguishable.
-- **`_nation_candidates` breaks its `nat_len` loop unconditionally**, dropping a candidate
-  whose `name_len` search then fails. Doesn't bite on these saves.
-- **`CLUB_STANDING` declares 20 undecoded bytes** (`tables/clubs.py`) — width confirmed, content unread.
 - **Every test skips silently and exits 0 without a save**, so nothing runs on a clean clone.

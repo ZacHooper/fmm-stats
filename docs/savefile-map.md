@@ -40,20 +40,21 @@ walked is [`parser-architecture.md`](parser-architecture.md).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
+| 0 | 250 | 250 B | **[save header](parser/save_header.md)** — the slot title, `d/m/yy - manager (nickname)`, NUL-padded | per save | fixed offset | live (`SAVE_HEADER`) |
 | 299 | 515,797 | 0.52 MB | **browse name table** — 45,942 names; the `60,000` in front is a capacity, not a count | static | Shape E | live (`tables.names.walk_browse_bounds`) |
 | 515,797 | ~572,037 | 0.06 MB | filler + a short run of unnamed records | — | — | — |
 | **572,037** | ~3,988,960 | **3.42 MB** | **the PERSON table (info spine)** — declares **32,966** (Frem) / **34,312** (Bucaspor), career-constant, so a **fixed pool**. A `01` header byte follows the count; records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration, all declared, `tid == slot index`, ending on the next table's frame | **preallocated pool** | Shape A | **MIGRATED** (`PERSON_INFO_TABLE`) |
 | 3,988,968 | 6,056,358 | 2.07 MB | **player attributes** — 26,505 × 78 B | static | Shape A | **MIGRATED** (`PLAYER_ATTRIBUTES_TABLE`) |
 | 6,056,370 | 6,237,408 | 0.18 MB | **staff attributes** — 4,642 × 39 B, `id2 == slot index` | static | Shape C | **MIGRATED** (`STAFF_TABLE`) |
 | 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (1,971 / 560 / 816), the 622 × 99 B person-shaped record, the 273-entry round/leg-name strings | static, **unnamed** | Shape A/C | `ROUNDS_TABLE` **MIGRATED**; others chained |
-| 6,332,603 | ~12,607,190 | 6.27 MB | **club + national team table** — 11,331 records, `tid == slot index`, dense. Low tids are national teams; U21 sides are the last rows | static | Shape A | **BLOCKED on nested list** (affiliations array) |
+| 6,332,603 | ~12,607,190 | 6.27 MB | **[club + national team table](parser/clubs.md)** — 11,331 records, `tid == slot index`, dense. National teams have `club_type` 1 (tids 0–50 and scattered); U21 sides are the last rows | static | Shape A | **MIGRATED** (`CLUB_TABLE`) |
 | 12,607,199 | ~12,756,285 | 0.15 MB | **competitions** — 1,372 | static | Shape A | **BLOCKED on nested list** (`n_refs` array) |
-| 12,756,293 | ~12,796,115 | 0.04 MB | **nations** — declared 251, all walked by declaration; ends on the continent table's frame | static | Shape A | **MIGRATED** (`NATIONS_TABLE`) |
-| 12,796,123 | 13,471,770 | 0.68 MB | **stadiums** — 15,987 ✓ | static | Shape A | **MIGRATED** (`STADIUMS_TABLE`) |
-| 13,471,776 | 13,690,902 | 0.22 MB | **cities** — 10,956 ✓ | static | Shape A | **MIGRATED** (`CITIES_TABLE`) |
+| 12,756,293 | ~12,796,115 | 0.04 MB | **[nations](parser/nations.md)** — declared 251, all walked by declaration; ends on the continent table's frame | static | Shape A | **MIGRATED** (`NATIONS_TABLE`) |
+| 12,796,123 | 13,471,770 | 0.68 MB | **[stadiums](parser/stadiums.md)** — 15,987 ✓ | static | Shape A | **MIGRATED** (`STADIUMS_TABLE`) |
+| 13,471,776 | 13,690,902 | 0.22 MB | **[cities](parser/cities.md)** — 10,956 ✓ | static | Shape A | **MIGRATED** (`CITIES_TABLE`) |
 | 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape; plus the 888-record 7 B id list | static, partly unnamed | Shape A | hdr |
-| 13,965,521 | ~13,976,130 | 0.01 MB | **currencies** — declared 173, we read 94 (`uid > 4096` gate) | static | Shape A | **MIGRATED** (`CURRENCIES_TABLE`) |
-| 13,976,136 | ~13,978,480 | 0.002 MB | **languages** — declared 124, we read 77 (zero-length `OtherName`) | static | Shape A | **MIGRATED** (`LANGUAGES_TABLE`) |
+| 13,965,521 | ~13,976,130 | 0.01 MB | **[currencies](parser/currencies.md)** — 173 ✓ | static | Shape A | **MIGRATED** (`CURRENCIES_TABLE`) |
+| 13,976,136 | ~13,978,480 | 0.002 MB | **[languages](parser/languages.md)** — 124 ✓ | static | Shape A | **MIGRATED** (`LANGUAGES_TABLE`) |
 | 13,978,474 | 16,692,615 | 2.71 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 18%); checked and *not* count-framed | — | — | — |
 | 16,692,615 | 20,321,452 | 3.63 MB | **tagged data dictionary** — 667 count-framed competition/nation **rule files** (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | rule files static; separators change | Shape A | **DECLARED** (`tables/rule_files.py`); `team_counts` feeds `competitions.json` |
 | 20,321,452 | 29,171,689 | **8.85 MB** | **FILLER — 97% `0xFF`, 1% `00`, 2% other.** Not a research target | — | — | — |
@@ -67,7 +68,7 @@ walked is [`parser-architecture.md`](parser-architecture.md).
 | 40,962,218 | 41,113,898 | **0.15 MB** | **nickname id-table** — 9,480 × 16 B | static | Shape C | **MIGRATED** (`NICKNAMES_TABLE`) |
 | 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED**, 82% zero — mostly padding | — | — | — |
 | 42,630,093 | 46,876,865 | 4.25 MB | **career-history pool** — `[count u32]` + 265,423 records × 16 B (`[stats][club, fee, next]`, one season line each), pointer forest | **fixed pool** | Shape B | **MIGRATED** (`HISTORY_TABLE`) |
-| 46,876,865 | 48,166,114 | 1.29 MB | **club-records** — `[count u16]` (1,057 clubs Frem, 1,060 Bucaspor), then per club `[tid u16][n u8][n × 212 B league history][Team/Player Records, overall + this season: 4 × 12 slots of 21 / 22 B]` | **one row per club; grows 212 B per new league a club plays in** | Shape A, record blocks C | **MIGRATED** (`CLUB_RECORDS_TABLE`) |
+| 46,876,865 | 48,166,114 | 1.29 MB | **[club-records](parser/club_records.md)** — `[count u16]` (1,057 clubs Frem, 1,060 Bucaspor), then per club `[tid u16][n u8][n × 212 B league history][Team/Player Records, overall + this season: 4 × 12 slots of 21 / 22 B]` | **one row per club; grows 212 B per new league a club plays in** | Shape A, record blocks C | **MIGRATED** (`CLUB_RECORDS_TABLE`) |
 | 48,166,114 | 48,353,064 | 0.19 MB | **UNIDENTIFIED** — `[count u32]` = 162 on every save and variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows (TODO #3); the same size on every save of a career | — | — | — |
 | 48,353,064 | 52,721,064 | 4.37 MB | **player progress** — 62,400 rows × 70 B (the same count on every save): `[tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16]`, usually one row per player per week, a few weeks two to four; the Player Progress page, injured / on-loan bits | **fixed pool**, rows recycled | Shape C (seeded from unused rows, walked both ways) | **MIGRATED** (`PLAYER_PROGRESS_TABLE`) |
 | 52,721,064 | 53,479,282 | 0.76 MB | **UNIDENTIFIED**, mostly zero; the training table sits exactly 758,222 B after the progress pool on every Frem save | — | — | — |
