@@ -162,7 +162,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <span>save <b>frem-2026-06-11.fms</b></span>
     <span>size <b>63,936,873 B</b></span>
     <span>regions <b id="nRegions"></b></span>
-    <span>unidentified <b id="nUnknown"></b></span>
+    <span>not yet understood <b id="nUnknown"></b></span>
   </div>
 </header>
 
@@ -202,8 +202,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 </section>
 
 <section aria-labelledby="h-classes">
-  <h2 id="h-classes">Behaviour classes matter more than offsets</h2>
-  <p>Four kinds of structure live in the file, and the class tells you how to parse it.</p>
+  <h2 id="h-classes">Fixed, grows, or resets: three ways a region behaves</h2>
+  <p>Ask one question of every region: what happens to its size over a career? The answer tells you whether an offset or a count taken from another save still holds. Almost every value in the file changes as you play; this is about the space it takes.</p>
   <div class="classes" id="classes"></div>
   <div class="callout">
     <span class="k">Dead end</span>
@@ -277,60 +277,57 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   var TOTAL = 63936873;
   var DOC = "https://github.com/ZacHooper/fmm-stats/blob/main/docs/parser/";
   var CLASSES = {
-    static:   { label: "Static reference", color: "--c-static",   desc: "Everything 0–20 MB plus the three name id-tables. Count-framed ([≥8×FF][count][record 0]). Walk it by the declared count; the count is exact." },
-    pool:     { label: "Fixed pool",       color: "--c-pool",     desc: "Allocated once at career creation, never resized, recycled internally. The count is a bound, never a measure of how much data exists." },
-    grid:     { label: "Grid that grows",  color: "--c-grid",     desc: "Ships full of empty-sentinel rows and fills up. Club-records also gains 212 B each time a club plays in a new league. On a day-one save these read as empty, not missing." },
-    seasonal: { label: "Wiped each July",  color: "--c-seasonal", desc: "Whatever is in them at the end of June is gone in July. A late-June save each year is the only way to keep a season's transfers or matches." },
-    state:    { label: "Career state",     color: "--c-state" },
-    archive:  { label: "zstd archive",     color: "--c-archive" },
-    unknown:  { label: "Unidentified",     color: "--c-unknown" },
-    filler:   { label: "Filler",           color: "--c-filler" }
+    fixed:    { label: "Fixed size",          color: "--c-static",   desc: "Space reserved when the career starts. The data inside changes (attributes, contracts, training focus), the size never does. Some are reserved pools: their count is a capacity, not how much data there is, and old rows are reused once they fill." },
+    grows:    { label: "Grows",               color: "--c-grid",     desc: "Gets bigger as the career goes on, and is never cleared. Club records gain 212 B each time a club plays in a new league, league titles one entry per title, the archive with each season's competitions." },
+    seasonal: { label: "Resets every July",   color: "--c-seasonal", desc: "Fills up over the season and is emptied on rollover day. A late-June save each year is the only way to keep a season's transfers or matches." },
+    unknown:  { label: "Not yet understood",  color: "--c-unknown" },
+    filler:   { label: "Padding",             color: "--c-filler" }
   };
   // [start, end, class, name, doc, how, parser, note, sub]
   var R = [
-    [0, 250, "state", "Save header", "save_header.md", "fixed offset", "SAVE_HEADER", "The slot title, d/m/yy - manager (nickname), NUL-padded. Per save."],
-    [299, 515797, "static", "Browse name table", "names.md", "Shape E", "walk_browse_bounds", "45,942 names; the 60,000 in front is a capacity, not a count."],
+    [0, 250, "fixed", "Save header", "save_header.md", "fixed offset", "SAVE_HEADER", "The slot title, d/m/yy - manager (nickname), NUL-padded. Per save."],
+    [299, 515797, "fixed", "Browse name table", "names.md", "Shape E", "walk_browse_bounds", "45,942 names; the 60,000 in front is a capacity, not a count."],
     [515797, 572037, "filler", "Filler + a short run of unnamed records", null, "", "", ""],
-    [572037, 3988960, "pool", "PERSON table", "person_info.md", "Shape A", "PERSON_INFO_TABLE", "Declares 32,966 (Frem) / 34,312 (Bucaspor), career-constant, so a fixed pool. Records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration; tid == slot index."],
-    [3988968, 6056358, "static", "Player attributes", "player_attributes.md", "Shape A", "PLAYER_ATTRIBUTES_TABLE", "26,505 × 78 B."],
-    [6056370, 6237408, "static", "Staff attributes", "staff.md", "Shape C", "STAFF_TABLE", "4,642 × 39 B, id2 == slot index."],
-    [6237408, 6332591, "static", "Chained small tables", "officials.md", "Shape A/C", "ROUNDS_TABLE, OFFICIALS_TABLE", "Three 7 B index tables (unread), the 622 × 99 B match officials, the 273-entry round/leg names (rounds.md)."],
-    [6332603, 12607190, "static", "Club + national team table", "clubs.md", "Shape A", "CLUB_TABLE", "11,331 records, tid == slot index, dense. National teams have club_type 1; U21 sides are the last rows."],
-    [12607189, 12756283, "static", "Competitions", "competitions.md", "Shape A", "COMP_TABLE", "[8 × ff][count u16 = 1,372]; 1,272 named + 100 blank slots, cid == slot index. Reputation and holders rewritten."],
-    [12756293, 12796115, "static", "Nations", "nations.md", "Shape A", "NATIONS_TABLE", "Declared 251, all walked by declaration."],
-    [12796123, 13471770, "static", "Stadiums", "stadiums.md", "Shape A", "STADIUMS_TABLE", "15,987 records."],
-    [13471776, 13690902, "static", "Cities", "cities.md", "Shape A", "CITIES_TABLE", "10,956 records."],
-    [13690908, 13965510, "static", "Awards (unread)", null, "Shape A", "hdr", "807 records, club-record shape ([tid][uid], three names: Footballer of the Year, …) with a longer trailer."],
-    [13965521, 13976130, "static", "Currencies", "currencies.md", "Shape A", "CURRENCIES_TABLE", "173 records, then an 888-row 7 B list ([id u32][00 00 00]), unread."],
-    [13976136, 13978480, "static", "Languages", "languages.md", "Shape A", "LANGUAGES_TABLE", "124 records."],
+    [572037, 3988960, "fixed", "PERSON table", "person_info.md", "Shape A", "PERSON_INFO_TABLE", "Declares 32,966 (Frem) / 34,312 (Bucaspor), career-constant, so a fixed pool. Records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration; tid == slot index."],
+    [3988968, 6056358, "fixed", "Player attributes", "player_attributes.md", "Shape A", "PLAYER_ATTRIBUTES_TABLE", "26,505 × 78 B."],
+    [6056370, 6237408, "fixed", "Staff attributes", "staff.md", "Shape C", "STAFF_TABLE", "4,642 × 39 B, id2 == slot index."],
+    [6237408, 6332591, "fixed", "Chained small tables", "officials.md", "Shape A/C", "ROUNDS_TABLE, OFFICIALS_TABLE", "Three 7 B index tables (unread), the 622 × 99 B match officials, the 273-entry round/leg names (rounds.md)."],
+    [6332603, 12607190, "fixed", "Club + national team table", "clubs.md", "Shape A", "CLUB_TABLE", "11,331 records, tid == slot index, dense. National teams have club_type 1; U21 sides are the last rows."],
+    [12607189, 12756283, "fixed", "Competitions", "competitions.md", "Shape A", "COMP_TABLE", "[8 × ff][count u16 = 1,372]; 1,272 named + 100 blank slots, cid == slot index. Reputation and holders rewritten."],
+    [12756293, 12796115, "fixed", "Nations", "nations.md", "Shape A", "NATIONS_TABLE", "Declared 251, all walked by declaration."],
+    [12796123, 13471770, "fixed", "Stadiums", "stadiums.md", "Shape A", "STADIUMS_TABLE", "15,987 records."],
+    [13471776, 13690902, "fixed", "Cities", "cities.md", "Shape A", "CITIES_TABLE", "10,956 records."],
+    [13690908, 13965510, "fixed", "Awards (unread)", null, "Shape A", "hdr", "807 records, club-record shape ([tid][uid], three names: Footballer of the Year, …) with a longer trailer."],
+    [13965521, 13976130, "fixed", "Currencies", "currencies.md", "Shape A", "CURRENCIES_TABLE", "173 records, then an 888-row 7 B list ([id u32][00 00 00]), unread."],
+    [13976136, 13978480, "fixed", "Languages", "languages.md", "Shape A", "LANGUAGES_TABLE", "124 records."],
     [13978474, 16752549, "unknown", "Unidentified", null, "", "", "00 52% / ff 31% / other 17%. Opens with a u32 equal to the person count, then 14-byte units carrying six ff: a per-person table is the lead, its extent unproven. No other count frame in it."],
-    [16752549, 20021621, "static", "Rule files (tagged data dictionary)", "rule_files.md", "Shape A", "RULE_FILES_TABLE", "667 count-framed rule files ([u32 n][n tagged fields]), 99.2% of the span. The 27 KB between them is per-save state, undecoded."],
+    [16752549, 20021621, "fixed", "Rule files (tagged data dictionary)", "rule_files.md", "Shape A", "RULE_FILES_TABLE", "667 count-framed rule files ([u32 n][n tagged fields]), 99.2% of the span. The 27 KB between them is per-save state, undecoded."],
     [20021621, 29171689, "filler", "Filler", null, "", "", "94% 0xFF, 2% 00. Not a research target."],
-    [29171689, 31907618, "grid", "Contract grid", "contracts.md", "Shape C", "CONTRACT_TABLE", "Dense 83-byte records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table). Stable all career."],
+    [29171689, 31907618, "fixed", "Contract grid", "contracts.md", "Shape C", "CONTRACT_TABLE", "Dense 83-byte records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table). Stable all career."],
     [31907618, 35438751, "unknown", "Unidentified", null, "", "", "00 53% / ff 31% / other 17%."],
     [35438751, 38405582, "seasonal", "Seasonal transfer band", "#band", "Shape A", "hdr", "[u32 65,000][u32 count = 20,747][2 B], then 20,747 × 143 B transfer-negotiation rows: every bid, and the accepted one with its fee and contract terms. Its collapse is the file's July shrink."],
     [38404968, 40042185, "unknown", "Unidentified", null, "", "", "00 34% / ff 33% / other 32%."],
-    [40042185, 40141560, "pool", "Match-slot table", "match_slots.md", "Shape C", "MATCH_SLOTS_TABLE", "3,975 × 25 B: two clubs and a score, no venue."],
-    [40141778, 40656146, "static", "Surname id-table", "names.md", "Shape C", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
-    [40656158, 40962206, "static", "First-name id-table", "names.md", "Shape C", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
-    [40962218, 41113898, "static", "Nickname id-table", "names.md", "Shape C", "NICKNAMES_TABLE", "9,480 × 16 B."],
+    [40042185, 40141560, "fixed", "Match-slot table", "match_slots.md", "Shape C", "MATCH_SLOTS_TABLE", "3,975 × 25 B: two clubs and a score, no venue. The 3,975 is a capacity: slots are reused."],
+    [40141778, 40656146, "fixed", "Surname id-table", "names.md", "Shape C", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
+    [40656158, 40962206, "fixed", "First-name id-table", "names.md", "Shape C", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
+    [40962218, 41113898, "fixed", "Nickname id-table", "names.md", "Shape C", "NICKNAMES_TABLE", "9,480 × 16 B."],
     [41113898, 42630093, "unknown", "Unidentified", null, "", "", "82% zero, mostly padding."],
-    [42630093, 46876865, "pool", "Career-history pool", "history.md", "Shape B", "HISTORY_TABLE", "[count u32] + 265,423 records × 16 B ([stats][club, fee, next], one season line each): a pointer forest. The count is a capacity fixed at career creation."],
-    [46876865, 48166114, "grid", "Club records", "club_records.md", "Shape A", "CLUB_RECORDS_TABLE", "[count u16] (1,057 clubs Frem), then per club [tid u16][n u8][n × 212 B league history][Team/Player Records]. Grows 212 B per new league a club plays in."],
+    [42630093, 46876865, "fixed", "Career-history pool", "history.md", "Shape B", "HISTORY_TABLE", "[count u32] + 265,423 records × 16 B ([stats][club, fee, next], one season line each): a pointer forest. The count is a capacity fixed at career creation."],
+    [46876865, 48166114, "grows", "Club records", "club_records.md", "Shape A", "CLUB_RECORDS_TABLE", "[count u16] (1,057 clubs Frem), then per club [tid u16][n u8][n × 212 B league history][Team/Player Records]. Grows 212 B per new league a club plays in."],
     [48166114, 48353064, "unknown", "Unidentified", null, "", "", "[count u32] = 162 on every save, variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows. The same size on every save of a career."],
-    [48353064, 52721064, "grid", "Player progress", "player_progress.md", "Shape C", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same count on every save: [tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16], usually one row per player per week. Rows recycled."],
+    [48353064, 52721064, "fixed", "Player progress", "player_progress.md", "Shape C", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same count on every save: [tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16], usually one row per player per week. Rows recycled."],
     [52721064, 53479282, "unknown", "Unidentified", null, "", "", "All 00 and ff. The training table sits exactly 758,222 B after the progress pool on every Frem save."],
-    [53479282, 55490212, "state", "Training", "training.md", "Shape A", "TRAINING_TABLE", "[count u32 = 32,966][32,966 × 61 B], row k = person tid k: intensity, Focus Role, attribute focus, Focus Pos, contracted flag, squad status. Rewritten as focus changes."],
+    [53479282, 55490212, "fixed", "Training", "training.md", "Shape A", "TRAINING_TABLE", "[count u32 = 32,966][32,966 × 61 B], row k = person tid k: intensity, Focus Role, attribute focus, Focus Pos, contracted flag, squad status. Rewritten as focus changes."],
     [55490212, 55884748, "unknown", "Unidentified", null, "", "", "Ends in a sorted run of 430 u32 tids behind ff filler, then 73 bytes."],
     [55884748, 56178674, "seasonal", "Our matches", "matches.md", "Shape A", "MATCHES_TABLE", "[count u8 = 57], then one row per match: [home, away, cid, day][n u8][n × 17 B events][5,093 B body] with both team blocks and our tactic. Emptied on the rollover day."],
     [56178674, 56313477, "unknown", "Unidentified", null, "", "", "00 45% / other 55%, no ff."],
     [56313477, 56314027, "filler", "0xFF run, 550 B", null, "", "", "550 bytes on every Frem save. Not the end of our matches."],
-    [56314027, 56314300, "state", "League titles", null, "Shape A", "struct", "[u8][cid u16][tid u16][year u16] + 58 B of ff, one 65 B entry per league title our club has won. Grows by one entry a title."],
+    [56314027, 56314300, "grows", "League titles", null, "Shape A", "struct", "[u8][cid u16][tid u16][year u16] + 58 B of ff, one 65 B entry per league title our club has won. Grows by one entry a title."],
     [56314300, 61253092, "unknown", "Unidentified", null, "", "", "00 29% / ff 53% / other 18%. One small player-list block sits at 56,336,372, so the structure below starts earlier than its first empty slot."],
-    [61253092, 62631642, "pool", "Player lists", "player_lists.md", "Shape E", "PLAYER_LISTS_TABLE", "66 lists of [100 scrapbook entries][14 B trailer]. Lists 0–30 world (100 players a season), 31–61 our squad per season, 62–65 two copies of a world/club pair. Filled season by season."],
-    [61896648, 62002727, "pool", "Our club's squad lists (31–61)", "player_lists.md", "", "player_scrapbook.json", "The managed squad, one list per season.", true],
-    [62631781, 62635766, "state", "Unnamed dated table", null, "Shape C", "struct", "14 B units [u32 FFFFFFFF][u16 9][u16 day-of-year][u16 year][u32 ?], dates a fortnight ahead of the save."],
-    [62635766, 63936873, "archive", "sicomps archive", "#h-arch", "Shape D", "archive.locate", "159 zstd members and a directory, 6.58 MB decompressed: fixtures, comp_stages, comp_honours, 147 × comp_<uid>.dat. Grows with the career."]
+    [61253092, 62631642, "fixed", "Player lists", "player_lists.md", "Shape E", "PLAYER_LISTS_TABLE", "66 lists of [100 scrapbook entries][14 B trailer]. Lists 0–30 world (100 players a season), 31–61 our squad per season, 62–65 two copies of a world/club pair. Filled season by season."],
+    [61896648, 62002727, "fixed", "Our club's squad lists (31–61)", "player_lists.md", "", "player_scrapbook.json", "The managed squad, one list per season.", true],
+    [62631781, 62635766, "unknown", "Unnamed dated table", null, "Shape C", "struct", "14 B units [u32 FFFFFFFF][u16 9][u16 day-of-year][u16 year][u32 ?], dates a fortnight ahead of the save."],
+    [62635766, 63936873, "grows", "sicomps archive", "#h-arch", "Shape D", "archive.locate", "159 zstd members and a directory, 6.58 MB decompressed: fixtures, comp_stages, comp_honours, 147 × comp_<uid>.dat. Grows with the career."]
   ];
 
   var $ = function (id) { return document.getElementById(id); };
@@ -467,7 +464,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   });
 
   // class cards
-  ["static", "pool", "grid", "seasonal"].forEach(function (k) {
+  ["fixed", "grows", "seasonal"].forEach(function (k) {
     var members = main.filter(function (r) { return r[2] === k; }).map(function (r) { return r[3]; });
     var d = document.createElement("div"); d.className = "cls";
     d.innerHTML = '<h3><span class="sw" style="background:' + col(k) + '"></span>' + CLASSES[k].label + "</h3><p>" + esc(CLASSES[k].desc) + '</p><div class="m"><b>' + members.length + " regions:</b> " + esc(members.join(", ")) + "</div>";
@@ -504,7 +501,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     ["56.18–56.31 MB", 0.13, 0.07, "between our matches and the 550 B 0xFF run"],
     ["52.72–53.48 MB", 0.76, 0, "all 00 and ff"]
   ];
-  bars($("gapBars"), [{ lab: "0.57–3.99 MB", ghost: 3.42, v: 1.55, c: "var(--c-pool)", txt: "≈ 1.55 MB", why: "inside the person table: records walked, bytes partly unnamed" }].concat(gaps.map(function (g) {
+  bars($("gapBars"), [{ lab: "0.57–3.99 MB", ghost: 3.42, v: 1.55, c: "var(--c-static)", txt: "≈ 1.55 MB", why: "inside the person table: records walked, bytes partly unnamed" }].concat(gaps.map(function (g) {
     return { lab: g[0], ghost: g[1], v: g[2], c: "var(--c-unknown)", txt: g[2] ? "≈ " + g[2].toFixed(2) + " MB" : "0", why: g[3] + " · " + g[1].toFixed(2) + " MB span" };
   })), 9.15);
 
