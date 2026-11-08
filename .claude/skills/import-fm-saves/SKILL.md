@@ -55,8 +55,8 @@ a slice loads with **0 history rows** that is a regression — check the
 a pool that fails its forest check, so it fails loudly rather than writing garbage. The loader
 prints how many of the pool's records sit on a player's chain.
 
-Before touching `fmparser/tables/history.py`, read its docstring and shape B of
-`docs/parser-architecture.md`. The three facts that matter: `+12` is a **next-record pointer**
+Before touching `fmparser/tables/history.py`, read its docstring, `docs/parser/history.md` and shape B in
+`fmparser/AGENTS.md`. The three facts that matter: `+12` is a **next-record pointer**
 (linked lists — record starts are the in-degree-0 records, `FFFFFFFF` ends a chain); **one record
 is one season line** (`[stats][club, fee, next]`); and the player link is `history_head`
 (`u32 @ P-38`) in the **attribute** record, not anything inside the history table

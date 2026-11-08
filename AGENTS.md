@@ -108,12 +108,11 @@ are the strict ones.
 this — start at its `MEMORY.md` index. They are point-in-time notes: verify file/line claims
 against the code. The ones to read before particular work:
 - **save-format work:** [`fmparser/AGENTS.md`](fmparser/AGENTS.md) (method, feedback loop,
-  *never validate a field by joining on it*), [`docs/table-framing.md`](docs/table-framing.md)
-  (the save declares its own table sizes), [`docs/parser/savefile-map.md`](docs/parser/savefile-map.md) (the
+  *never validate a field by joining on it*, how a table is found and a record read),
+  [`docs/parser/savefile-map.md`](docs/parser/savefile-map.md) (the
   whole file, start to end, and the zstd archive at its tail), the table docs in
   [`docs/parser/`](docs/parser/) (each says where FMM22 departs from the FMM26 database
-  layouts in `nyongrand/fmm-editor`; [`docs/parser-architecture.md`](docs/parser-architecture.md)
-  Part 4 says how to use them).
+  layouts in `nyongrand/fmm-editor`).
 - **attributes:** [`docs/ca-weighting.md`](docs/ca-weighting.md) (how each displayed attribute
   is recovered, the per-position CA weights, the 94.8% label ceiling) and
   [`docs/attribute-model.md`](docs/attribute-model.md) (the entangled-attribute decoder).

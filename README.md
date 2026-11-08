@@ -150,7 +150,7 @@ test suite against your data.
 The save format is undocumented. The method (map the regions first, prove a record's extent,
 never validate a field by joining on it) and the findings are in
 [`fmparser/AGENTS.md`](fmparser/AGENTS.md), [`docs/parser/savefile-map.md`](docs/parser/savefile-map.md),
-[`docs/table-framing.md`](docs/table-framing.md), the table docs in
+the table docs in
 [`docs/parser/`](docs/parser/) and
 [`docs/agent-context/`](docs/agent-context/MEMORY.md).
 

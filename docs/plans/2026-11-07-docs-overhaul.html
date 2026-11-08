@@ -294,8 +294,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
 <dl>
   <dt>Goal</dt><dd>Every table in <code>fmparser/tables/</code> (27) has a doc an agent can load alone, in the
   <a href="#framework">template</a>, with at least one evidence record.</dd>
-  <dt>Read first</dt><dd><code>fmparser/AGENTS.md</code>, <code>docs/parser-architecture.md</code>,
-  <code>docs/parser/savefile-map.md</code>, <code>docs/table-framing.md</code>, the table's module.</dd>
+  <dt>Read first</dt><dd><code>fmparser/AGENTS.md</code>, <code>docs/parser/savefile-map.md</code>, the table's module.</dd>
   <dt>Split</dt><dd>One PR per group, so several agents can work at once:
     <ul>
       <li><strong>people</strong>: <code>person_info</code>, <code>player_attributes</code>, <code>player_progress</code>,
@@ -424,15 +423,18 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <td>table docs, <code>docs/parser/savefile-map.md</code>, <code>fmparser/AGENTS.md</code>. <strong>Done</strong>
   (#195–#206, #208): the transfer band's record is a section of the savefile map, the
   career-history pool's size a callout in <code>docs/parser/history.md</code>.
-  <code>table-framing.md</code> and <code>parser-architecture.md</code> stay as the parser's
-  reference on framing and locating.</td><td>2</td></tr>
+  <code>table-framing.md</code> and <code>parser-architecture.md</code> are folded into
+  <code>fmparser/AGENTS.md</code> (the locator shapes, reading a record, the checks), the savefile
+  map (the tables nothing reads yet) and TODO; the finished parser plans
+  (<code>2026-09-21-table-engine-migration.md</code>, <code>2026-09-22-parser-optimization-plan.md</code>)
+  are deleted. No parser doc is left outside <code>fmparser/</code> and <code>docs/parser/</code>.</td><td>2</td></tr>
   <tr><td><code>BUGS.md</code></td><td>callouts in the docs they belong to; open bugs to TODO. <strong>Done</strong> for the parser tables.</td><td>2, 5</td></tr>
   <tr><td><code>agent-context/</code> parser notes: history chains, player history, names, nicknames, match positions,
   ghost anchors, injuries, loan markers, reserve markers, anchor audit, boundary map, tid recycling, fmm-editor comparison,
   the FM parser project note, loan status</td>
   <td>table docs. <strong>Done</strong> (#208 for the last six): the anchor audit's lesson is a
-  Dead end in <code>parser-architecture.md</code>'s method, the fmm-editor comparison a callout in
-  each table doc it concerns plus Part 4 of <code>parser-architecture.md</code>, loan status in
+  rule in <code>fmparser/AGENTS.md</code>, the fmm-editor comparison a callout in each table doc it
+  concerns plus a paragraph in <code>fmparser/AGENTS.md</code>, loan status in
   <code>training.md</code> and <code>player_progress.md</code>; the boundary map and the parser
   project note were superseded whole.</td><td>2</td></tr>
   <tr><td><code>ca-weighting.md</code>, <code>attribute-model.md</code>, <code>ATTRIBUTE_DECODING.md</code>, <code>role-ids.csv</code></td>

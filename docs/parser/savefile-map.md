@@ -3,7 +3,7 @@
 Every table the save holds, in file order, with the doc that describes it. The offsets were
 measured on this one save, by calling the named parser or by the structural test in the
 notes; no offset is carried over from another save. Use them to know what sits next to what,
-never to seek: [locate a table by its own frame or invariant](../parser-architecture.md).
+never to seek: [locate a table by its own frame or invariant](../../fmparser/AGENTS.md#finding-a-table-the-locator-shapes).
 
 ## Read this first: the drift boundary
 
@@ -25,9 +25,9 @@ invariant. Never by a remembered offset.
 ## The map
 
 `hdr` = found by its declared count behind a run of ≥ 8 `0xFF`
-([`table-framing.md`](../table-framing.md)); `struct` = found by the structural test in the
+([shape A](../../fmparser/AGENTS.md#a-count-framed)); `struct` = found by the structural test in the
 notes. The status column names the `core` table that reads it
-([`parser-architecture.md`](../parser-architecture.md) has the shapes).
+([the locator shapes](../../fmparser/AGENTS.md#finding-a-table-the-locator-shapes)).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
@@ -37,16 +37,16 @@ notes. The status column names the `core` table that reads it
 | **572,037** | ~3,988,960 | **3.42 MB** | **[the PERSON table](person_info.md)** — declares **32,966** (Frem) / **34,312** (Bucaspor), career-constant, so a **fixed pool**. A `01` header byte follows the count; records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration, all declared, `tid == slot index`, ending on the next table's frame | **preallocated pool** | Shape A | `PERSON_INFO_TABLE` |
 | 3,988,968 | 6,056,358 | 2.07 MB | **[player attributes](player_attributes.md)** — 26,505 × 78 B | static | Shape A | `PLAYER_ATTRIBUTES_TABLE` |
 | 6,056,370 | 6,237,408 | 0.18 MB | **[staff attributes](staff.md)** — 4,642 × 39 B, `id2 == slot index` | static | Shape C | `STAFF_TABLE` |
-| 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (1,971 / 560 / 816), the 622 × 99 B [match officials](officials.md), the 273-entry [round/leg names](rounds.md) | static | Shape A/C | `ROUNDS_TABLE`, `OFFICIALS_TABLE`; the 7 B tables chained |
+| 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (`[id u32 = slot][3 B]`; 1,971 / 560 / 816 on Frem, 560 a fixed enumeration on both careers; unread), the 622 × 99 B [match officials](officials.md), the 273-entry [round/leg names](rounds.md) | static | Shape A/C | `ROUNDS_TABLE`, `OFFICIALS_TABLE`; the 7 B tables chained |
 | 6,332,603 | ~12,607,190 | 6.27 MB | **[club + national team table](clubs.md)** — 11,331 records, `tid == slot index`, dense. National teams have `club_type` 1 (tids 0–50 and scattered); U21 sides are the last rows | static | Shape A | `CLUB_TABLE` |
 | 12,607,189 | 12,756,283 | 0.15 MB | **[competitions](competitions.md)** — `[8 × ff][count u16 = 1,372]`, record 0 at 12,607,199; 1,272 named + 100 blank slots, `cid == slot index` | static (reputation and holders rewritten) | Shape A | `COMP_TABLE` |
 | 12,756,293 | ~12,796,115 | 0.04 MB | **[nations](nations.md)** — declared 251, all walked by declaration; ends on the continent table's frame | static | Shape A | `NATIONS_TABLE` |
 | 12,796,123 | 13,471,770 | 0.68 MB | **[stadiums](stadiums.md)** — 15,987 ✓ | static | Shape A | `STADIUMS_TABLE` |
 | 13,471,776 | 13,690,902 | 0.22 MB | **[cities](cities.md)** — 10,956 ✓ | static | Shape A | `CITIES_TABLE` |
-| 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape; plus the 888-record 7 B id list | static, partly unnamed | Shape A | hdr |
-| 13,965,521 | ~13,976,130 | 0.01 MB | **[currencies](currencies.md)** — 173 ✓ | static | Shape A | `CURRENCIES_TABLE` |
+| 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape (`[tid][uid]`, three names: `Footballer of the Year`, …) with a longer trailer, unread | static, partly unnamed | Shape A | hdr |
+| 13,965,521 | ~13,976,130 | 0.01 MB | **[currencies](currencies.md)** — 173 ✓; then an 888-row 7 B list (`[id u32][00 00 00]`, ids ascending with gaps, 888 on both careers), unread | static | Shape A | `CURRENCIES_TABLE` |
 | 13,976,136 | ~13,978,480 | 0.002 MB | **[languages](languages.md)** — 124 ✓ | static | Shape A | `LANGUAGES_TABLE` |
-| 13,978,474 | 16,752,549 | 2.77 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 17%); checked and *not* count-framed | — | — | — |
+| 13,978,474 | 16,752,549 | 2.77 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 17%). It opens, on the language table's last byte, with a u32 equal to the person count (32,966 Frem, 34,312 Bucaspor) and then 14-byte units carrying six `ff`: a per-person table is the lead, its extent unproven. No other count frame in it: every candidate count is a multiple of 256 | — | — | — |
 | 16,752,549 | 20,021,621 | 3.27 MB | **[rule files](rule_files.md)** — the tagged data dictionary: 667 count-framed rule files (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | rule files static; the gaps change | Shape A | `RULE_FILES_TABLE`; `team_counts` → `competition_team_counts.json` |
 | 20,021,621 | 29,171,689 | **9.15 MB** | **FILLER — 94% `0xFF`, 2% `00`.** Not a research target | — | — | — |
 | **29,171,689** | **31,907,618** | **2.74 MB** | **[contract grid](contracts.md)** — dense **83-byte** records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table) | **preallocated, stable all career** | Shape C | `CONTRACT_TABLE` |

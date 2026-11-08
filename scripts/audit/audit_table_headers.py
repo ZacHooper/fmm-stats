@@ -438,7 +438,7 @@ def _person_table_base(mm, limit=1_200_000, filler=4096):
     The table's base is the first run of >= 8 0xFF in the first megabyte that is preceded by
     a long run of 0x00 -- the filler behind the browse name table. Requiring the filler is
     what stops an ordinary record ending in FF from being mistaken for a table base, and it
-    needs no offset: `table-framing.md` warns to test for >= 8, never == 8.
+    needs no offset. Test for >= 8, never == 8 (shape A in fmparser/AGENTS.md).
     """
     run = 0
     for p in range(filler, min(limit, len(mm))):
