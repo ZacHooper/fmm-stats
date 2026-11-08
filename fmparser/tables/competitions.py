@@ -60,17 +60,19 @@ COMP_REF_ENTRY = Record("comp_ref_entry", 8, (
     Field(7, 1, UNKNOWN, RAW),
 ))
 
-# The tail holds the competition's holders: +0/+4/+8 are the last finished season's 1st, 2nd
-# and 3rd as club UIDs (a cup: winner, runner-up, 0xFFFFFFFF), and season_0/season_1 that
-# season's end and start years (season_2 repeats season_0). The in-game Past Winners list
-# shows it as its top row.
+# The tail holds the competition's holders: the last finished season's 1st, 2nd and 3rd as
+# club UIDs (0xFFFFFFFF = none; a cup holds winner and runner-up), then that season as the
+# roll of honour writes it (comp_honours +4/+47/+49): its `season`, start year and end year.
+# A league reads (2030, 2029, 2030) for 2029/30, a super cup (2029, 2029, 2030). 0xFFFF x 3
+# when there are no holders. The in-game Past Winners list shows it as its top row, above the
+# roll of honour.
 COMP_HISTORY_TAIL = Record("comp_history_tail", 21, (
-    Field(0,  4, UNKNOWN, RAW),
-    Field(4,  4, UNKNOWN, RAW),
-    Field(8,  4, UNKNOWN, RAW),
-    Field(12, 2, "season_0", U16),
-    Field(14, 2, "season_1", U16),
-    Field(16, 2, "season_2", U16),
+    Field(0,  4, "holders_1st_uid", U32, note="1st place / cup winner, club uid"),
+    Field(4,  4, "holders_2nd_uid", U32, note="2nd place / losing finalist, club uid"),
+    Field(8,  4, "holders_3rd_uid", U32, note="3rd place club uid; ffffffff on a cup"),
+    Field(12, 2, "holders_season", U16, note="the season as the roll of honour numbers it"),
+    Field(14, 2, "holders_start_year", U16),
+    Field(16, 2, "holders_end_year", U16),
     Field(18, 2, UNKNOWN, RAW),
     Field(20, 1, UNKNOWN, PAD),
 ), is_head=True)
@@ -148,3 +150,23 @@ def comp_refs(mm: Any, cid: int) -> list:
     in file order. Empty for a blank slot, a competition with none, or a cid past the table."""
     rows = _comp_rows(mm)
     return rows[cid]["refs"] if 0 <= cid < len(rows) else []
+
+
+_HOLDERS = ("holders_1st_uid", "holders_2nd_uid", "holders_3rd_uid")
+_NO_UID = 0xFFFFFFFF
+_NO_YEAR = 0xFFFF
+
+
+def holders(mm: Any) -> Dict[int, Dict[str, Any]]:
+    """{cid: {season, start_year, end_year, first_uid, second_uid, third_uid}} for every slot
+    whose tail holds a season: the last finished season's top three, by club UID (None where
+    the tail holds 0xFFFFFFFF). Resolve them by uid, never tid."""
+    out = {}
+    for r in _comp_rows(mm):
+        if r["holders_season"] == _NO_YEAR:
+            continue
+        uids = [None if r[k] == _NO_UID else r[k] for k in _HOLDERS]
+        out[r["cid"]] = {"season": r["holders_season"], "start_year": r["holders_start_year"],
+                         "end_year": r["holders_end_year"], "first_uid": uids[0],
+                         "second_uid": uids[1], "third_uid": uids[2]}
+    return out

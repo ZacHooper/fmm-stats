@@ -16,7 +16,7 @@ from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LIST_TRAILERS_TABLE,
                            scrape_player_lists)
 from .club_records import (CLUB_RECORDS_TABLE, club_records_table_spans, locate_club_records,
                            scrape_club_records)
-from .competitions import COMP_TABLE, comp_refs, locate_competitions, scrape_competitions
+from .competitions import COMP_TABLE, comp_refs, holders as comp_holders, locate_competitions, scrape_competitions
 from .contracts import (
     CONTRACT,
     CONTRACT_DETAIL,
@@ -78,7 +78,6 @@ from .comp_stages import (
 from .comp_honours import (
     COMP_HONOURS_TABLE,
     HONOUR as COMP_HONOUR,
-    OPENER as COMP_HONOUR_OPENER,
     STRIDE as COMP_HONOUR_STRIDE,
     honours as extract_comp_honours,
     locate_comp_honours,
@@ -285,6 +284,7 @@ __all__ = [
     # Clubs and competitions
     "CLUB_TABLE",
     "COMP_TABLE",
+    "comp_holders",
     "comp_refs",
     "locate_clubs",
     "locate_competitions",

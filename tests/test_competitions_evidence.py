@@ -73,19 +73,23 @@ def main():
     by_uid = {c["uid"]: c["short"] for c in clubs.values()}
     by_tid = {t: c["short"] for t, c in clubs.items()}
     honours = comp_honours.scrape(A.extract(mm, "comp_man.dat"))
+    held = competitions.holders(mm)
 
     for cid_s, screen in fx["past_winners"].items():
         cid = int(cid_s)
         print(f"\nPAST WINNERS: {comps[cid]['name']}, {len(screen)} rows checked one by one")
         top, rest = screen[0], screen[1:]
-        t = fx["holders_offsets"][cid_s]
-        first, second, third = struct.unpack_from("<III", mm, t)
-        end_year, start_year = rows[cid]["season_0"], rows[cid]["season_1"]
-        check(f"{start_year}/{end_year % 100:02d}" == top[0], f"holders season {top[0]}")
-        check([by_uid.get(first), by_uid.get(second)] == top[1:],
+        h = held[cid]
+        raw = struct.unpack_from("<IIIHHH", mm, fx["holders_offsets"][cid_s])
+        check(raw == tuple(NO_CLUB if v is None else v for v in
+                           (h["first_uid"], h["second_uid"], h["third_uid"]))
+              + (h["season"], h["start_year"], h["end_year"]),
+              "the parsed holders are the tail's bytes")
+        check(f"{h['start_year']}/{h['end_year'] % 100:02d}" == top[0], f"holders season {top[0]}")
+        check([by_uid.get(h["first_uid"]), by_uid.get(h["second_uid"])] == top[1:],
               f"{top[0]} {top[1]} / {top[2]} (the holders tail, by club uid)")
         if comps[cid]["type_id"] not in (0, 1):
-            check(third == NO_CLUB, "a cup holds no third")
+            check(h["third_uid"] is None, "a cup holds no third")
         recs = {h["season"]: h for h in honours if h["comp_cid"] == cid}
         for label, winner, runner in rest:
             h = recs.get(int(label[:4]) + 1)
@@ -94,9 +98,15 @@ def main():
 
     print("\nROLL OF HONOUR framing")
     cm = A.extract(mm, "comp_man.dat")
-    count = struct.unpack_from("<I", cm, 197207)[0]
-    check(count == fx["honours_count"], f"declared count {count}")
-    check(197211 + count * comp_honours.STRIDE == len(cm), "count x 55 tiles to the member's last byte")
+    at = fx["honours_count_at"]
+    count = struct.unpack_from("<I", cm, at)[0]
+    check(count == fx["honours_count"], f"declared count {count} at byte {at}")
+    check(at + 4 + count * comp_honours.STRIDE == len(cm), "count x 55 tiles to the member's last byte")
+    check(comp_honours.locate_comp_honours(cm) == (at + 4, count), "the locator frames it by the count")
+    check(len(honours) == count, f"the parser reads all {count} records, record 0 included")
+    last = honours[-1]
+    check((last["comp_cid"], last["season"], last["start_year"], last["end_year"], last["base_year"])
+          == (2, 2029, 2028, 2029, 1900), "the last record is the Superliga's 2028/29, its own years")
 
     print("\nCOMP_RULES (the stage and round lists)")
     rr = comp_rules.competition_rounds(mm)
