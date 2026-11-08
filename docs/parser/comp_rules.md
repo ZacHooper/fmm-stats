@@ -55,7 +55,8 @@ parser yet; TODO, "Decode the competition rules".
 |---|---|---|
 | `nrds` | round-robin rounds: 2 = teams play each other twice | "22 games (teams play each other twice)" for 12 teams |
 | `sort` | the table's tie-breakers after points, a list of codes in order | "League Sorting Rules" |
-| `relr` | relegation: `{nrpl <n>, comp <uid>}`, the bottom n go down to that competition | "Relegation": "Bottom team is relegated to Pro League B" (`{nrpl 1, comp 2}`) |
+| `relr` | relegation: `{nrpl <n>, comp <uid>}`, the bottom n go down to that competition; `mnpl`/`mxpl` a minimum and maximum where a play-off decides | "Relegation": Belgium `{nrpl 1, comp 2}` "Bottom team is relegated to Pro League B"; Championship `{nrpl 3, comp 13}` bottom 3 to League One; Bundesliga `{nrpl 2, comp 23, mnpl 2, mxpl 3}` bottom 2 to Bundesliga 2 (a third through the 16th-place play-off) |
+| `prmr` | promotion: `{nrpl <n>, comp <uid>}` | "Promotion": Championship `{nrpl 2, mnpl 3, comp 11}`, "Top 2 teams win promotion to Premier Division" (3 with the play-off winner) |
 | `qurl` | where places go: `{nmsn <stage name id>, stag <stage index>, nrpl <n>}` = the top n; `topp`/`btpl` = a band of positions, 0-based; `comp` = another competition | "Qualification" |
 
 `sort` codes, as the screens and the store's tables show them:
@@ -71,9 +72,11 @@ parser yet; TODO, "Decode the competition rules".
 | 2 | Games Won | Champions Cup and Belgian screens |
 | 16 | Away Games Won | Champions Cup screen |
 | 20 | Discipline Record (two times red cards plus yellow cards) | Champions Cup screen |
+| 22 | Discipline Record (three times red cards plus yellow cards) | Sky Bet Championship screen |
+| 14 | probably "A playoff is played for key positions if teams finish with the same record": the one Bundesliga line with no other code (`[0, 14, 1, 3, 5]` for Goal Difference, Goals Scored, Results Between Teams, Away Goals Scored) | Bundesliga screen |
 | 7 | Coefficient | Champions Cup screen |
 
-Seen but not on a screen: 6, 14, 22, 30. England's top flight reads `[0, 1, 3]`, the
+Seen but not on a screen: 6, 30. England's top flight reads `[0, 1, 3]`, the
 Bundesliga `[0, 14, 1, 3, 5]`, Belgium's `[2, 0, 1, 13, 5]` (and `[6, 2, 0, 1, 13, 5]` on its
 play-off stages).
 
@@ -172,6 +175,30 @@ League B Playoff", is not in this stage's `qurl`; it probably comes from the ent
 (`ftac`) of the play-off stage `relp`, which name competitions 1 and 2. Not mapped.
 
 ![Belgian Pro League A Rules: Games Won, Goal Difference, Goals Scored, Games played away from home only, Away Goals Scored](img/comp_rules-5.png)
+
+Sky Bet Championship, Rules (`img/comp_rules-8.png`, in-game 17 September 2030): 46 games;
+Goal Difference, Goals Scored, Results Between Teams, Games Won, Away Goals Scored, Discipline
+Record (three times red cards plus yellow cards); top 2 promoted, 3rd–6th to the play-offs,
+bottom 3 relegated to League One. `comp_12.dat` stage 0 (24 teams, `nrds` 2):
+- `sort` at 3,750: `… 01 11 00 | 01 11 01 | 01 11 03 | 01 11 02 | 01 11 05 | 01 11 16`,
+  `[0, 1, 3, 2, 5, 22]`;
+- `prmr` at 3,349: `{nrpl 2, mnpl 3, comp 11}`; `relr` at 3,390: `{nrpl 3, comp 13}`.
+
+![Sky Bet Championship Rules: sorting, promotion, play-offs, relegation](img/comp_rules-8.png)
+
+Bundesliga, Rules (`img/comp_rules-6.png`, `-7`, in-game 22 June 2030): 34 games; Goal
+Difference, Goals Scored, Results Between Teams\*, Away Goals Scored, \* sorted by Away Goals
+Scored, and "A playoff is played for key positions if teams finish with the same record";
+"Bottom 2 teams are relegated to Bundesliga 2", 16th to the Bundesliga/Bundesliga 2 play-offs.
+`comp_22.dat` stage 0 (18 teams):
+- `sort` at 1,938: `… 01 11 00 | 01 11 0e | 01 11 01 | 01 11 03 | 01 11 05`, `[0, 14, 1, 3, 5]`;
+- `relr` at 1,119: `{nrpl 2, comp 23, mnpl 2, mxpl 3}`.
+
+The head-to-head footnote has no code of its own here (the Champions Cup's has 18 and 29), so
+how the game builds it is not settled. The screen's Continental Qualification lines are not
+in this stage's tags; not mapped.
+
+![Bundesliga Rules: Goal Difference, Goals Scored, Results Between Teams, Away Goals Scored](img/comp_rules-6.png)
 
 Spain's First Division (`comp_67.dat`, `sort` at 2,515): `01 11 03 | 01 11 00 | 01 11 01`,
 `[3, 0, 1]`. The English Premier Division (`comp_11.dat`, at 3,690): `[0, 1, 3]`.

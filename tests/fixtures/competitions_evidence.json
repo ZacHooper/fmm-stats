@@ -34,7 +34,12 @@
   ["comp_67.dat", 2515, "74 72 6f 73 01 0b 03 00 00 00 01 11 03 01 11 00 01 11 01", "Spanish First Division sort [3, 0, 1]: head to head first"],
   ["comp_11.dat", 3690, "74 72 6f 73 01 0b 03 00 00 00 01 11 00 01 11 01 01 11 03", "English Premier Division sort [0, 1, 3]"],
   ["comp_1.dat", 2366, "74 72 6f 73 01 0b 05 00 00 00 01 11 02 01 11 00 01 11 01 01 11 0d 01 11 05", "Belgian Pro League A stage 0 sort [2, 0, 1, 13, 5]: Games Won, GD, GS, away games only, Away Goals Scored"],
-  ["comp_1.dat", 747, "72 6c 65 72 01 0a 03 00 00 00 20 20 64 69 01 01 72 6c 65 72 6c 70 72 6e 01 11 01 70 6d 6f 63 01 11 02", "Belgian Pro League A relr {id 'relr', nrpl 1, comp 2}: bottom team relegated to Pro League B"]
+  ["comp_1.dat", 747, "72 6c 65 72 01 0a 03 00 00 00 20 20 64 69 01 01 72 6c 65 72 6c 70 72 6e 01 11 01 70 6d 6f 63 01 11 02", "Belgian Pro League A relr {id 'relr', nrpl 1, comp 2}: bottom team relegated to Pro League B"],
+  ["comp_12.dat", 3750, "74 72 6f 73 01 0b 06 00 00 00 01 11 00 01 11 01 01 11 03 01 11 02 01 11 05 01 11 16", "Sky Bet Championship sort [0, 1, 3, 2, 5, 22]: ... Games Won, Away Goals Scored, Discipline Record (three times red cards plus yellow cards)"],
+  ["comp_12.dat", 3349, "72 6d 72 70 01 0a 04 00 00 00 20 20 64 69 01 01 72 6d 72 70 6c 70 72 6e 01 11 02 6c 70 6e 6d 01 11 03 70 6d 6f 63 01 11 0b", "Sky Bet Championship prmr {nrpl 2, mnpl 3, comp 11}: top 2 promoted to the Premier Division"],
+  ["comp_12.dat", 3390, "72 6c 65 72 01 0a 03 00 00 00 20 20 64 69 01 01 72 67 6c 72 6c 70 72 6e 01 11 03 70 6d 6f 63 01 11 0d", "Sky Bet Championship relr {nrpl 3, comp 13}: bottom 3 relegated to League One"],
+  ["comp_22.dat", 1938, "74 72 6f 73 01 0b 05 00 00 00 01 11 00 01 11 0e 01 11 01 01 11 03 01 11 05", "Bundesliga sort [0, 14, 1, 3, 5]"],
+  ["comp_22.dat", 1119, "72 6c 65 72 01 0a 05 00 00 00 20 20 64 69 01 01 72 6c 65 72 6c 70 72 6e 01 11 02 70 6d 6f 63 01 0a 02 00 00 00 20 20 64 69 01 01 70 6d 6f 63 70 6d 6f 63 01 11 17 6c 70 6e 6d 01 11 02 6c 70 78 6d 01 11 03", "Bundesliga relr {nrpl 2, comp 23, mnpl 2, mxpl 3}: bottom 2 relegated to Bundesliga 2"]
  ],
  "competition": {"cid": 2, "uid": 6, "name": "3F Superliga", "short": "3F Superliga", "code": "SL", "type_id": 0, "nation_id": 138, "reputation": 144, "level": 0, "parent_cid": null},
  "past_winners": {
@@ -92,7 +97,7 @@
  "superliga_stages": [[0, "leag", 1, 12, 236], [1, "cham", 1, 6, 108], [2, "rele", 1, 6, 171]],
  "pokalen_rounds": [[0, 6, 92, 1], [1, 7, 52, 1], [2, 8, 32, 1], [3, 9, 16, 1], [4, 17, 8, 2], [5, 18, 4, 2], [6, 20, 2, 1]],
  "euro_third_qualifying": {"uid": 1301396, "stage_index": 0, "stage_code": "bppr", "round_index": 0, "round_name_id": 151, "legs": 2},
- "sort_lists": [[6, 0, [0, 1, 5]], [1301394, 2, [3, 18, 29, 0, 1, 39, 2, 16, 20, 7]], [67, 0, [3, 0, 1]], [11, 0, [0, 1, 3]], [1, 0, [2, 0, 1, 13, 5]]],
+ "sort_lists": [[6, 0, [0, 1, 5]], [1301394, 2, [3, 18, 29, 0, 1, 39, 2, 16, 20, 7]], [67, 0, [3, 0, 1]], [11, 0, [0, 1, 3]], [1, 0, [2, 0, 1, 13, 5]], [12, 0, [0, 1, 3, 2, 5, 22]], [22, 0, [0, 14, 1, 3, 5]]],
  "team_counts": {"6": 12, "7": 12, "8": 12},
  "rule_files": 667
 }
