@@ -57,7 +57,7 @@ matches. Every label `site.matches` builds from these names matches the screen: 
 Third Round, Fourth Round, Quarter Final and Semi Final; the Superliga's Preliminary Phase
 and Championship Group; the Champions Cup's Group D and First Knockout Round. The group letter
 and the leg are not in this table: the letter is the group's place among its stage's
-`stage_key`s and the leg the tie's date order (`mart.match_stages`). Tested by `tests/test_matches_evidence.py`.
+`stage_key`s and the leg the tie's date order (`int.matches`, `site.matches`). Tested by `tests/test_matches_evidence.py`.
 
 ## Quirks
 

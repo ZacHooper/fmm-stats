@@ -60,7 +60,7 @@ Before touching `fmparser/tables/history.py`, read its docstring and shape B of
 (linked lists — record starts are the in-degree-0 records, `FFFFFFFF` ends a chain); **one record
 is one season line** (`[stats][club, fee, next]`); and the player link is `history_head`
 (`u32 @ P-38`) in the **attribute** record, not anything inside the history table
-(`docs/IDS.md` § PLAYER → CAREER HISTORY). The parser emits the pool as stored; the chains are
+(`docs/parser/player_attributes.md`, `history_head`). The parser emits the pool as stored; the chains are
 read by `load_duckdb.load_history`. Verify any change with
 `python3 scripts/history_v2.py <save> --player <tid>` — it prints the career TOTAL line, which is
 what you diff against an in-game History screenshot.

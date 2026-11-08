@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """`comp_honours` — the master competition roll of honour / winners table from `comp_man.dat`.
 
-Located inside the save's zstd tail archive member `comp_man.dat`.
-Tail table consisting of 55-byte records opening with `b"\\xff\\xff\\xff\\xff\\xff\\x00\\x00\\x00"`.
+Located inside the save's zstd tail archive member `comp_man.dat`: `[count u32][count x 55 B]`,
+ending on the member's last byte. `locate_comp_honours` finds the first
+`ff ff ff ff ff 00 00 00` instead, which is byte +39 of record 0, so the layout below starts
+39 bytes into each record: a row's cid, season and clubs are its own, its `start_year`,
+`end_year`, `format_flag` and `base_year` are the previous record's, and record 0 is not read.
+docs/parser/comp_honours.md has the real layout.
 """
 from typing import Any, Dict, List, Optional, Tuple
 

@@ -2,7 +2,7 @@
 
 Every result in the loaded world, every club, for this calendar year and the last: the
 Fixtures/Results screens of every club and competition. 92-byte records in the save's zstd
-archive, member `fix_man.dat` ([`docs/save-archive.md`](../save-archive.md) has the
+archive, member `fix_man.dat` ([savefile map](savefile-map.md#the-archive) has the
 container), stored as one grid per calendar year, the current year first. 26,627 records on
 `frem-2030-06-22` (7,915 for 2030, 18,712 for 2029), across both careers' clubs and national
 sides alike. Our own clubs' matches in full detail are [matches](matches.md).
@@ -156,8 +156,7 @@ and score. Tested by `tests/test_matches_evidence.py`.
 > 381 of 387 second legs on `frem-2030-06-22`, 380 of 388 on `frem-2026-06-11` and 320 of 324
 > on `bucaspor-2023-04-01` (the rest are where the check paired the leg with an earlier
 > league meeting of the same clubs). Not read yet: `site.matches` sums our ties' legs itself
-> (`tie_gf`, `tie_ga`). `mart.match_stages` takes the full-time score from our own matches
-> where it holds them.
+> (`tie_gf`, `tie_ga`).
 
 > **Quirk:** `stadium_id` is the venue's stadium ([stadiums](stadiums.md)): the home club's
 > stadium on 17,787 of 26,627 records on `frem-2030-06-22`, and its parent club's on 8,054 more
@@ -165,7 +164,7 @@ and score. Tested by `tests/test_matches_evidence.py`.
 > Frem home match reads 181, Frem's stadium.
 
 > **Quirk:** the record carries no competition. A fixture's competition comes from a match
-> we played in the same `stage_key`, or the stage's rules (`mart.match_stages`). A group stage
+> we played in the same `stage_key`, or the stage's rules (`int.stage_competitions`). A group stage
 > is one `stage_key` per group, and each leg of a two-legged knockout tie is its own
 > `stage_key` (the second leg's `subr` reads 44 on every tie of ours).
 

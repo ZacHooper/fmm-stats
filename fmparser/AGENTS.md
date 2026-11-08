@@ -1,155 +1,106 @@
-# fmparser — reverse-engineering the save format
+# fmparser — how to develop the parser
 
-Loaded when working under `fmparser/`. Read this before changing the parser or hunting a new field.
+Loaded when working under `fmparser/`. What the parser is, for a person: [`README.md`](README.md).
+This file is the method and the feedback loop. The reference lives elsewhere:
 
-**One doc per table: [`docs/parser/`](../docs/parser/)** (layout, evidence from an in-game
-screen, quirks, output). Read the table's doc before changing its module. Tables without a doc
-yet are still described in the module's docstring and [`docs/savefile-map.md`](../docs/savefile-map.md).
+- **one doc per table**, [`docs/parser/`](../docs/parser/): layout, evidence from an in-game
+  screen, quirks, output. Read the table's doc before changing its module.
+- **the whole file**, [`docs/parser/savefile-map.md`](../docs/parser/savefile-map.md): every
+  table in file order, the gaps, the archive at the tail.
+- **how the parser is organised**, [`docs/parser-architecture.md`](../docs/parser-architecture.md):
+  *a locator shape tells you how to FIND a record, a declared layout tells you how to READ it*;
+  the seven locator shapes, how each fails, and what the audit scripts can tell you.
+- **count-framed tables**, [`docs/table-framing.md`](../docs/table-framing.md).
 
-## How the parser works — [`docs/parser-architecture.md`](../docs/parser-architecture.md)
-**The one doc to read before changing `fmparser/`.** It carries the idea the parser is
-organised around — *a locator shape tells you how to FIND a record, a declared layout tells
-you how to READ it* — as the **seven-shape locator table** (count-framed / linked list /
-preallocated grid / archive member / seeded chain / key search / terminated array), one section per shape with
-how you find it, the invariant that bounds it, and **how it fails**. Then the declared-layout
-rule (`core/types.py` / `core/schema.py` / `core/table.py`), what is deliberately *not* declarable,
-what each audit script can actually tell you, and what porting to FMM26 will involve.
-The method section below is the field guide; that doc is the map.
+## The feedback loop
 
-**Two commands are the feedback loop for any parser change, and they are cheap:**
+Two commands, both cheap:
 ```bash
 uv run python tests/run_tests.py            # the suite, in parallel, ~20 s; exit 2 means NOTHING ran
                                             # (--store adds test_fmq, over the published copy)
-uv run python tests/assert_identical.py   # 4 saves x 23 files, per-file SHA-256, ~35s
+uv run python tests/assert_identical.py     # 4 saves x every extract file, per-file SHA-256
 ```
 `assert_identical.py` is the **acceptance gate**: a restructuring commit must leave the
 extracted JSON byte-identical, and `extract.py` dumps with no `sort_keys`, so **key order is
-part of the test** — a reader that returns the right values in the wrong order fails, which is
-correct, because `load_duckdb.py` reads some files positionally. When a change SHOULD alter
+part of the test** (`load_duckdb.py` reads some files positionally). When a change SHOULD alter
 output, re-record in the same commit and say why:
 `tests/assert_identical.py --record --note '<why>'`. The baseline is gitignored (`.oracle/`)
-because it is keyed to your local saves. Before trusting a green run, remember its own rule: a
-gate that has never failed is not evidence — break something on purpose once.
+because it is keyed to your local saves. A gate that has never failed is not evidence: break
+something on purpose once.
 
-## Reverse-engineering method: ALWAYS region-first, then structural
-When locating a **new field** in the save, do NOT start by guessing byte offsets. Follow this order —
-it has repeatedly turned multi-hour hunts into quick finds. (Which *kind* of locator you are
-building is [`docs/parser-architecture.md`](../docs/parser-architecture.md) Part 1; this is how
-you find it in the first place.)
+**A comment-only change must leave the extract byte-identical.** Diff `output/<label>/` before
+and after.
 
-0. **Profile it by BLOCK ENTROPY first** — `uv run python scripts/audit/entropy_profile.py <save.fms>`.
-   Filler reads ~1.4 bits/byte, ordinary records 3–6, dense records/strings 6–7.5, and **>7.9 is
-   COMPRESSED** — no stride search will ever bite there. This is not optional book-keeping: the
-   file's last 1.3 MB was ranked the best remaining target for being "25.8% printable" when
-   uniform random bytes are **37.1% printable by construction**, and it cost four hunts. Never
-   rank an unknown region by printable fraction.
-1. **Audit coverage and unmapped sections first** — `uv run python scripts/audit/audit_coverage.py [save.fms]`.
-   The save is audited by declared table bounds and split by long runs of `00`/`ff` filler; this
-   shows you *where* to look and exposes regions we haven't mapped. Cross-check against `docs/savefile-map.md`.
-2. **Find records structurally, never by absolute offset** — every window in `regions.py` **drifts** per
-   save and per career (e.g. Frem's contract-expiry records sit at ~29–31M, nowhere near the Bucaspor
-   `CONTRACT_LO=54M`). Locate a record by an embedded key (tid / uid / sid) plus a validating signature
-   (a marker byte, a plausible year, an in-range value) and **validate every hit against the info spine**,
-   exactly like the scrapers in `fmparser/staging.py`.
-3. **Identify an unknown field with ground truth + contrast** — read the real values off an in-game
-   screenshot for several players, then either (a) find the offset whose per-player value matches, or
-   (b) find the offset that is *constant within a group and differs between groups* (how contract expiry
-   was cracked: 6/2022 players vs 6/2023 players). **Money and dates are DISPLAYED ROUNDED** (value `1923`
-   shows as "£2K"), so search a ±few-% band, not the exact number.
-4. **When value-matching fails everywhere, DIFF TWO SAVES** — the definitive tool. Take two snapshots
-   where the value changed for some players and find the field that changed iff the value did. Fields not
-   stored adjacent to a player id (wages appear to live in a positional finance table) only fall to this.
-5. **A monotonic-looking `u32` column may be a POINTER, not a counter.** Big tables here are
-   **linked lists**, not arrays: the field holds the *next row's index*, with `FFFFFFFF` = end of
-   chain. On a fresh save the rows are contiguous so row `k` holds `k+1` and the field is
-   indistinguishable from a counter — the two readings only diverge once the game starts appending
-   into recycled slots. Tell them apart with the **in-degree test**: build the pointer graph and
-   check `max in-degree == 1` and `#(in-degree-0 rows) == #(FFFFFFFF rows)`. If that holds it is a
-   forest of chains, record starts are the in-degree-0 rows, and you need no delimiter heuristics
-   at all. If fields look like they belong to the NEXT or PREVIOUS row, suspect the FRAMING before
-   writing a reading rule: career history was read for years as "season+stats from row `k-1`,
-   club+fee from row `k`", and the truth was that the row starts 8 bytes earlier —
-   `[stats][club, fee, next]`, one complete season line per record. Always confirm a whole
-   record against ground truth — an in-game TOTAL line is the cheapest check, since an
-   off-by-one either double-counts a row or drops one.
-6. **If a table has no id in it, look for the pointer running the OTHER way.** Career history holds
-   no tid/sid/uid anywhere; the *attribute* record points at it (`u32 @ P-38`). Before concluding a
-   join is unsolvable, search the file for the target's row index / offset as a u32 — one hit outside
-   the table is the link. See `docs/IDS.md`.
-7. **LOOK IN FRONT OF RECORD 0 — the save declares its own table sizes.** The framing is
-   `[8 bytes of 0xFF][record count][record 0]`, and **20 tables use it**, exactly (u16 for the
-   variable-length string-record tables, u32 for the fixed-width grids). Comparing each declared
-   count against what the parser reads found five defects in tables that passed every check we
-   had, two of them losing real records on every save ever built. Test for a run of `>= 8` FF,
-   never `== 8` (the preceding record can end in FF). It also works as a SEARCH strategy, but
-   only with a real validator behind it — the sentinel alone occurs 566,078 times in one save;
-   derive a candidate stride from the count and then require `id == slot index` on every
-   declared record. Read [`docs/table-framing.md`](../docs/table-framing.md) before walking any new
-   table, and note what it says you CANNOT find that way.
-8. **Encodings cheat-sheet:** money = raw currency (`2000` = £2K) but shown rounded; dates =
-   `[day-of-year u16][year u16]` (see DOB in `staging.scrape_players`); seasons coded `1971 + n`.
-   **Contract-detail record** (`staging.scrape_contracts`, section ~16–40M, `[tid u32][0x01][wage
-   u16][6×00][expiry day-of-year u16][expiry year u16]`; the marker is a bitfield, bit 0 = active,
-   so 3/17/21 are live too): **wage £/yr = `u16@+5` × ~520** (validated
-   £15.5K–£17.75M, ±2%; the squad status is not located yet, see `docs/TODO.md`), and
-   **expiry = full date @+13** (some Danish deals expire 31 Dec, not 30 Jun — keep the day, not just
-   the year).
+**Evidence tests** (`tests/test_*_evidence.py` with `tests/fixtures/*_evidence.json`) pin what
+an in-game screen shows to the raw bytes and to the parsed field. Pin bytes, not only parsed
+values: a list checked only through the parser is the parser checking itself.
 
-### Before you call a record decoded: prove the EXTENT, not just the fields
-Ground truth on the fields you read says nothing about the fields you didn't. The player record
-decoded perfectly for four years while missing its last 13 bytes; the city walk had Parken and
-Copenhagen exact while dropping 31 real cities and inventing 3. Both passed every check we had.
-Run **`uv run python scripts/audit/audit_records.py [save.fms]`**:
+## Reverse-engineering method: region first, then structural
 
-- **STRIDE** — the modal gap between consecutive records IS the stride you claim, and the rest
-  are multiples of it (skipped records, not noise). This is what settled the staff record at 39
-  bytes and left Style nowhere to hide.
-- **COVERAGE** — every byte in `[0, stride)` is a named field or declared `UNKNOWN` in the
-  record's `Record` declaration (the audit reads every registered `Record`, so there is no
-  second list to update). **A byte that is neither is a byte you are stepping over by
-  accident.**
-- **EXTENT** — a keyed table is dense from id 0. A gap means the walk dropped a row; an
+When locating a **new field**, do not start by guessing byte offsets. In this order:
+
+0. **Profile by block entropy**: `uv run python scripts/audit/entropy_profile.py <save.fms>`.
+   Filler reads ~1.4 bits/byte, records 3–6, dense records and strings 6–7.5, and **> 7.9 is
+   compressed**: no stride search will bite there. Never rank a region by printable fraction
+   (uniform random bytes are 37.1% printable).
+1. **Audit coverage**: `uv run python scripts/audit/audit_coverage.py [save.fms]` shows which
+   bytes no table claims. Cross-check against the [savefile map](../docs/parser/savefile-map.md).
+2. **Find records structurally, never by absolute offset.** Everything drifts per save and per
+   career. Locate a record by an embedded key (tid / uid / sid) plus a validating signature, and
+   validate every hit against a table you trust.
+3. **Identify a field with ground truth and contrast.** Read real values off an in-game screen
+   for several rows, then find the offset whose value matches, or the offset that is constant
+   within a group and differs between groups. **Money and dates are displayed rounded**: search
+   a ±few-% band, not the exact number.
+4. **When value-matching fails, diff two saves**: find the field that changed iff the value did.
+5. **A monotonic-looking u32 may be a pointer.** Big tables are often linked lists: the field
+   holds the next row's index, `FFFFFFFF` ends a chain. Tell a pointer from a counter with the
+   **in-degree test**: max in-degree 1 and as many in-degree-0 rows as `FFFFFFFF` rows. If
+   fields look like they belong to the next or previous row, suspect the **framing** before
+   writing a reading rule, and confirm a whole record against an in-game TOTAL line.
+6. **If a table holds no id, look for the pointer running the other way.** Search the file for
+   the target's row index or offset as a u32; one hit outside the table is the link (how the
+   [history](../docs/parser/history.md) pool joins the attribute record).
+7. **Look in front of record 0: the save declares its own table sizes.**
+   `[>= 8 × 0xFF][count][record 0]`. Compare each declared count with what the parser reads;
+   test for `>= 8` FF, never `== 8`. As a search it needs a real validator (`id == slot index`
+   on every declared record): the sentinel alone occurs hundreds of thousands of times. Read
+   [`table-framing.md`](../docs/table-framing.md) first.
+8. **Run the cross-career check early.** Bucaspor (Turkey) is the only generalisation test the
+   parser has; an offset from one Danish save is a hypothesis until it holds there too.
+
+### Before you call a record decoded: prove the extent, not just the fields
+
+Ground truth on the fields you read says nothing about the fields you didn't. Run
+**`uv run python scripts/audit/audit_records.py [save.fms]`**:
+
+- **STRIDE**: the modal gap between records is the stride you claim, the rest multiples of it.
+- **COVERAGE**: every byte of the stride is a named field or a declared `UNKNOWN` in the
+  record's `Record` declaration. A byte that is neither is one you are stepping over by
+  accident.
+- **EXTENT**: a keyed table is dense from id 0. A gap means the walk dropped a row; an
   overshoot means it invented one.
 
-**Never validate a field by JOINING ON IT.** A check that matches candidate rows *on* the
-date and then reports "282 of 285 agree on date" cannot fail when every date is uniformly
-wrong — a shift makes fewer rows join, and a high agreement rate among the rows that did join
-still reads as a pass. That is exactly how `fix_man`'s dates shipped a day late: the day-of-
-year is 1-indexed and `ymd_from` is 0-indexed, and the validation was measuring agreement
-among rows it had already filtered for agreement. **Join on something else (an id, a score)
-and let the field under test come out as OUTPUT**; re-measured that way it was 51/51 and 60/60
-rows needing exactly −1, across both careers, in one run.
+`--map` prints the per-byte schema of every declared record: generated from the parser's own
+declarations, so it cannot go stale.
 
-**Adjacent bytes are not one field until you show they are.** This has now cost two decodes.
-The staff record was measured against the PLAYER record's 78-byte stride, so `id2` read 0, 2,
-4, … and the write-up concluded "multi-segment, a grid walk is provably impossible" — it is a
-dense 39-byte array. The fixture record's `+78..81` were read as one u32, which offered only
-"u8 plus padding" or "u32", and both look wrong — `+78` is a round counter and `+79`/`+80`/
-`+81` are three separate small columns. In both cases every measurement was correct and the
-grouping was the error. Non-zero neighbours argue against PADDING, never against a narrow
-field.
+**Never validate a field by joining on it.** A check that matches rows *on* the date and then
+reports "282 of 285 agree on date" cannot fail when every date is uniformly wrong. Join on
+something else (an id, a score) and let the field under test come out as output.
 
-Two rules follow, and the recent bugs all break them:
-- **Bound a table walk by the table's own invariant, never a tuned constant.** A miss counter or
-  a plausibility window makes the row count a function of the constant. The city table's real
-  invariant is `id == slot index`.
-- **One declarative layout per record is the schema.** `staging.INFO_LAYOUT` is a table of
-  `(offset, width, name, kind)` with `UNKNOWN` rows as first-class entries: `_decode_info` reads
-  FROM it and `scripts/audit/audit_records.py` checks AGAINST it, so the parser and its audit cannot
-  drift. **`uv run python scripts/audit/audit_records.py --map` prints the per-byte schema** — that is
-  the record documentation, generated rather than retyped, so it cannot go stale.
-- **Bound a record by its own invariant, not a plausibility window.** The person table was
-  once read by a sentinel sweep that produced 77 "empty slots" with joined dates in 1290 and
-  2570 — misaligned reads, not data. Walked from its count frame with `tid == slot index`, all
-  32,966 records are real people and none needs a date window or a range test.
-- **Carry what you cannot name — then go and name it.** A byte identified as an attribute but
-  not labelled is still data, so both records' hidden attributes are carried. The PLAYER nine
-  are now NAMED from `nyongrand/fmm-editor`'s `Player.cs` (`jumping`, `consistency`,
-  `big_match`, `injury_prone`, `versatility`, `set_pieces`, `penalty`, `work_rate`, `flair`) —
-  the order is confirmed by seven independently-verified anchors plus the fact that the 18
-  slots FMM22 fills are exactly the ability-independent attributes and the 16 it leaves are
-  exactly the technical/GK values it computes from CA. The STAFF six stay `hidden_s*`, named by
-  OFFSET, because fmm-editor has **no `Staff.cs`** — it stops at the `Unknown6b` link that
-  leads there, so there is no upstream order to borrow and no ground truth of our own.
-  Nothing derives from any of the fifteen and none is surfaced. Guessing a name is how `-140`
-  became a Style candidate; sourcing one and checking it twice is not guessing.
+**Adjacent bytes are not one field until you show they are.** Non-zero neighbours argue against
+padding, never against a narrow field. A field's name is a claim too: check what the screen
+calls it.
+
+**Unknown bytes next to a known field are worth a look on every screen.** Corners, offsides,
+the sending-off minute, the referee and a competition's holders all turned up that way.
+
+Rules that follow:
+- **Bound a walk by the table's own invariant**, never a tuned constant: a miss counter or a
+  plausibility window makes the row count a function of the constant.
+- **One declarative layout per record is the schema** (`core.Record`, `core.TableDef`): the
+  parser reads from it and `audit_records.py` checks against it, so they cannot drift.
+- **Carry what you cannot name, then go and name it**, from an upstream definition or repeated
+  ground truth, never a guess.
+- **Before calling something a bug, ask whether it is a choice.** Record a real data bug as a
+  callout in the table's doc and a TODO entry, and fix it in its own change.

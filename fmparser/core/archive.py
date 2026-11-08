@@ -2,12 +2,9 @@
 """
 The save's TAIL IS A NAMED ARCHIVE of zstd-compressed member files.
 
-Found 2026-09-20 while opening `docs/savefile-map.md`'s densest unexplored gap — the
-1.93 MB after the squad snapshot, recorded there as "71% other / 25.8% printable, by far
-the most TEXT-dense unparsed span in the file". It is not text: 95/256 = 37.1% of uniform
-random bytes are printable, which is exactly what that span measures. The block-entropy
-profile is a flat 7.99 bits/byte from the archive's first frame to EOF, and the reason is
-that every byte of it is COMPRESSED.
+Every byte from the archive's first frame to EOF is compressed: block entropy is a flat 7.99
+bits/byte there, and 37.1% of it is printable, which is what uniform random bytes give
+(95/256), not text. The whole-file map is docs/parser/savefile-map.md.
 
     ... the last uncompressed structure ...
     02 01 'fmf.' 08 00 00 [u32]        <- 13-byte record header (see UNKNOWNS below)
@@ -36,7 +33,7 @@ entries: twelve named subsystems --
 
 -- plus 147 `comp_<digits>.dat`, one per loaded competition. (`comp_man` is a subsystem, not
 a competition: match the digits, not the `comp_` prefix.) `fix_man.dat` is the big one at
-2.52 MB; see docs/save-archive.md for what is and is not known about its contents.
+2.52 MB; see docs/parser/fixtures.md for what is and is not known about its contents.
 
 EXTENT, proven by the structure's own invariants rather than a window, on all 34 saves
 (27 Frem + 7 Bucaspor, `tests/test_archive.py`):

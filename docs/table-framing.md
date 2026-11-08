@@ -280,7 +280,7 @@ look, not as a table.
 
 The obvious next place to look, since the register jumps 23.9 MB from the language table to the
 surname id-table. It was checked, and the answer is no — recorded here so it is not re-checked.
-`scripts/map_regions.py` splits it into three stretches with three different characters:
+Split by its filler runs, it falls into three stretches with three different characters:
 
 | stretch | what it is |
 |---|---|

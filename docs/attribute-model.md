@@ -12,7 +12,7 @@
 
 **2026-09-17.** The estimation model moved out of the parser into the database, and was refit.
 This is where it landed. Read
-[`docs/record-expansion.md`](record-expansion.md) first for how the raw bytes
+[`docs/parser/player_attributes.md`](parser/player_attributes.md) first for how the raw bytes
 got into the store in the first place.
 
 ## Where it stands

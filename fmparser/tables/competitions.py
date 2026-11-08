@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """`competitions` — the competition table, 1,372 slots on Frem (1,371 on Bucaspor).
 
-It follows the club table directly: `[0xFF x 6][count u16]`, then the records in cid order,
-walked by declaration with `cid == slot index` (COMP_TABLE). 100 slots are blank: empty
-names, a placeholder uid.
+It follows the club table directly: `[>= 8 x 0xFF][count u16]`, then the records in cid
+order, walked by declaration with `cid == slot index` (COMP_TABLE). 100 slots are blank:
+empty names, a placeholder uid. docs/parser/competitions.md is the reference.
 """
 from typing import Any, Dict, Optional, Tuple
 
@@ -60,6 +60,10 @@ COMP_REF_ENTRY = Record("comp_ref_entry", 8, (
     Field(7, 1, UNKNOWN, RAW),
 ))
 
+# The tail holds the competition's holders: +0/+4/+8 are the last finished season's 1st, 2nd
+# and 3rd as club UIDs (a cup: winner, runner-up, 0xFFFFFFFF), and season_0/season_1 that
+# season's end and start years (season_2 repeats season_0). The in-game Past Winners list
+# shows it as its top row.
 COMP_HISTORY_TAIL = Record("comp_history_tail", 21, (
     Field(0,  4, UNKNOWN, RAW),
     Field(4,  4, UNKNOWN, RAW),
@@ -74,13 +78,13 @@ COMP_HISTORY_TAIL = Record("comp_history_tail", 21, (
 # The competition table, 1,372 slots on Frem: `[cid u16][uid u32]`, three strings (a
 # NAME_END byte after the long and short names, none after the code), the 14-byte trailer, a counted
 # reference list and a 21-byte tail. A blank slot (100 of them) has empty names and the
-# same shape, uid a `2,000,000,000 + n` placeholder.
+# same shape, and a placeholder uid (from 200,001,338 or from 2,000,134,539).
 #
-# `refs` is `[u32 n][n x 8 B]`: the count's top three bytes are zero on all 46,641 slots in
-# the archive (maximum 134). The list is an explicit entrant list for the 24 competitions
-# that carry one: `ref > 0` is a club UID (resolve by uid, never tid -- 1,095 values also
-# match an unrelated club's tid), `ref < 0` read signed is a national team, `-ref` its
-# nation uid; 0xFFFFFFFF is an empty slot. MLS lists its 28 clubs, Copa Libertadores its
+# `refs` is `[u32 n][n x 8 B]`: the count's top three bytes are zero on every slot (the
+# largest count is 94 on frem-2030-06-22). The list is an explicit entrant list for the 24
+# competitions that carry one: `ref > 0` is a club UID (resolve by uid, never tid -- 131 of
+# the 457 also match an unrelated club's tid), `ref < 0` read signed is a national team,
+# `-ref` its nation uid; 0xFFFFFFFF is an empty slot. MLS lists its 28 clubs, Copa Libertadores its
 # entrants over two seasons with a domestic placing, Copa America CONMEBOL's ten nations.
 COMP_TABLE = TableDef(
     name="competitions",

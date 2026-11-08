@@ -85,6 +85,10 @@ Every value on both screens matches.
 
 ## Quirks
 
+> **Decision:** the six hidden staff attributes stay named by offset (`hidden_s18` …): fmm-editor
+> has no `Staff.cs` to borrow an order from, and there is no ground truth of our own. Guessing a
+> name is how a Style candidate was once picked wrongly.
+
 > **Quirk:** Style is derived, not stored. The record's 39-byte extent leaves no room for a
 > three-valued field, and the bands on `attacking_intent` predicted fourteen managers'
 > Style. `corr(attacking_intent, world_reputation)` is +0.12 on `frem-2030-06-22`, so it is not

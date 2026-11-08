@@ -35,7 +35,7 @@ A 64 MB `.fms` is not one format. It is several, and the boundary between them i
 not thematic: a 20-byte fixed grid of cities and a 20-byte fixed grid of match slots are the
 same *kind of thing* to a parser, while the competition table sitting between them is not.
 
-Four **regimes** describe the file (see [`savefile-map.md`](savefile-map.md)). Seven
+Four **regimes** describe the file (see [`parser/savefile-map.md`](parser/savefile-map.md)). Seven
 **shapes** describe the code, because a survey of every locator in `fmparser/` found several
 that do not fit the four regimes.
 
@@ -176,9 +176,8 @@ number was not needed anywhere.
 The tail of the save is a **zstd archive** (`sicomps`): 159 named members, 6.6 MB decompressed,
 with a directory. Its `fix_man.dat` is the world fixture list — 26,954 rows across 1,751 clubs.
 
-See [`save-archive.md`](save-archive.md) for the container and
-[`archive-coverage.md`](archive-coverage.md) for what each member is worth against what we
-already parse. The reader is `fmparser/core/archive.py`; it needs `uv sync`.
+See [`parser/savefile-map.md`](parser/savefile-map.md#the-archive) for the members and what
+each holds. The reader is `fmparser/core/archive.py`; it needs `uv sync`.
 
 **The rule that found it, which generalises past this shape:** **rank an unknown region by
 BLOCK ENTROPY, never by printable fraction.** This region was ranked the best remaining target
@@ -347,7 +346,7 @@ agrees match for match on every save measured.
 
 That rule predates this refactor — `staging.INFO_LAYOUT` and `matchslots.LAYOUT` already worked
 this way. What was missing was one *dialect*: there were three, and the third
-(`scripts/audit_records.LAYOUTS`) dropped the field's `kind`. That is not cosmetic. It is why
+(the old hand-written `LAYOUTS` in `audit_records.py`) dropped the field's `kind`. That is not cosmetic. It is why
 nothing in the repo could catch a field whose **declared width disagrees with its kind** —
 `staging._read` ignores `width` outright for `DATE` and `HEX4`, so `(20, 2, "dob", DATE)` would
 declare two bytes, read four, and pass every check we had.
@@ -558,8 +557,9 @@ finds, and every step of it exists because skipping it cost someone a day:
 
 0. **Profile by block entropy** — `scripts/audit/entropy_profile.py`. Above 7.9 bits/byte is
    compressed and no stride search will bite. **Never rank a region by printable fraction.**
-1. **Map the file into filler-delimited sections** — `scripts/map_regions.py`. Cross-check
-   `fmparser/regions.py`, whose windows are Bucaspor-tuned and often wrong elsewhere.
+1. **Audit coverage** — `scripts/audit/audit_coverage.py` splits the file by declared table
+   bounds and long filler runs, and shows what no table claims. Cross-check the
+   [savefile map](parser/savefile-map.md).
 2. **Find records structurally, never by absolute offset** — an embedded key plus a validating
    signature, every hit validated against the info spine.
 3. **Identify an unknown field with ground truth + contrast** — read real values off a

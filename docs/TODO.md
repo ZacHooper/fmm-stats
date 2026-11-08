@@ -60,12 +60,12 @@ Live traps, each of which has produced numbers that looked fine and were not:
 | you want | read / run |
 |---|---|
 | how the parser is organised, and how to hook up a table | [`parser-architecture.md`](parser-architecture.md) |
-| where every byte of the file lives | [`savefile-map.md`](savefile-map.md) |
+| where every byte of the file lives | [`parser/savefile-map.md`](parser/savefile-map.md) |
 | which bytes no parser reads | `uv run python scripts/audit/audit_coverage.py` |
 | the per-byte schema of every declared record | `uv run python scripts/audit/audit_records.py --map` |
 | whether a region is text, records or compressed | `uv run python scripts/audit/entropy_profile.py <save.fms>` |
 | count-framed tables, and the dead ends of that search | [`table-framing.md`](table-framing.md) |
-| the compressed archive and the fixture list in it | [`save-archive.md`](save-archive.md) |
+| the compressed archive and the fixture list in it | [`parser/savefile-map.md`](parser/savefile-map.md#the-archive), [`parser/fixtures.md`](parser/fixtures.md) |
 | the attribute decoder, and what is ruled out | [`attribute-model.md`](attribute-model.md) |
 | deploying the site | [`DEPLOY.md`](DEPLOY.md) |
 
@@ -169,7 +169,7 @@ development, not just injuries and loans.
   what its language `level` of 255 means.
 
 ### 6. Archive members and framing not yet read
-[`save-archive.md`](save-archive.md) is the reference.
+[`parser/savefile-map.md`](parser/savefile-map.md#the-archive) is the reference.
 - `comp_hosts.dat` (31 KB, 4-year host cycles) and `rule_group.dat` (plain-text engine logs).
 - `comp_<uid>.dat` beyond the stage list: prize money (`przm`, `wnpz`), qualification and
   seeding (`strq`, `advs`, `rank`), TV and scheduling (`tvds`, `drdt`).
@@ -193,8 +193,12 @@ development, not just injuries and loans.
     binary block after its trailer (some of a competition's keys never occur there, e.g. 45
     in `comp_6.dat`); the main save's competition record (whose 21-byte tail is three club
     uids and three years: holders and recent finishers, to verify against the roll of honour).
+  - That `stage_key` is a row number in `comp_man.dat`'s 78-byte grid is itself unproven: at
+    row `stage_key` the round or stage name the rules give the fixture appears at +70 on 0 of
+    42 keys, and at no offset or nearby row on more than a third
+    ([comp_stages](parser/comp_stages.md)).
   - Not yet searched: `rgman.dat` / `rule_group.dat` (which hold uid and key near each other
-    14 and 16 times) and the unmapped parts of the save ([`savefile-map.md`](savefile-map.md)).
+    14 and 16 times) and the unmapped parts of the save ([`parser/savefile-map.md`](parser/savefile-map.md)).
   Until it is found, the store labels a stage from our own match in it or by the league rule
   (`dim_match.competition_source`); cups abroad stay unlabelled. Once found, `int_stage_competitions`
   becomes a join and the league rule goes.
@@ -213,16 +217,29 @@ merged `_rules`. Diff two saves.
 ### 8. Decode the competition rules
 Entry, advancement, promotion and relegation (`strq`, `advs`, `relr`, `prmr`) for every
 competition in the dictionary, not just the ~70 the archive loads. Every configured archive
-member names its dictionary file (`file`), so the two join. `docs/DATADICT.md` (deleted; last
-at commit 7cc46b6) holds guesses at many tag meanings — hypotheses to test, not facts.
-
-### 9. The standings record
-A 14-byte record with the exact final position of every club in every loaded competition,
-decoded but never parsed ([`standings-record.md`](standings-record.md)). The rebuilt league
-tables (#13) make it less urgent for Denmark, but it is the direct way to settle Spain.
+member names its dictionary file (`file`), and its stage list equals that file's (73 of 73),
+so the two join. Leads from the rules screens ([comp_rules](parser/comp_rules.md)): a round's
+`date` is a rule, not a date (the Pokalen final's `{spld 'ascension'}` is 30 May 2030), `dat2`
+is the second leg's, `drdt` the draw (`{time 1230, dyow 2, dyom 24, mont 7}` on a Monday 22
+July draw), and `wnpz` / `lspz` / `apmn` carry prize money (`cash`, `curr`). The disciplinary
+rules on the same screens (bans after 2 or 3 yellow cards, the Superliga's points system)
+are not located. Decoded from screens but not read yet: `nrds` (rounds), `sort` (tie-breakers,
+codes in the doc), `qurl` (which places go where), `relr` and `prmr` (who goes down or up, and where). The deleted
+data-dictionary doc (last at commit 7cc46b6) holds guesses at many tag meanings — hypotheses
+to test, not facts.
 
 ### 10. Unnamed fields in records we already read
 Bytes the parser reads but cannot name yet.
+- **Frame the roll of honour by its count, and name the competition holders**
+  ([comp_honours](parser/comp_honours.md), [competitions](parser/competitions.md)). The roll
+  of honour is `[count u32][count × 55 B]` ending on `comp_man.dat`'s last byte (7 of 7
+  saves); `locate_comp_honours` starts 39 bytes into record 0, so it drops that record and
+  hands every row the previous record's `start_year`/`end_year`. The competition record's
+  21-byte tail is the last finished season's top three (club uids) and that season; 25 of 26
+  leagues and four Past Winners screens agree. Name both in the module (`COMP_HISTORY_TAIL`),
+  and consider extracting the holders and the roll of honour together: the in-game Past
+  Winners list is exactly the two. Nothing reads either today, so `competitions.json` and
+  the rest of the extract do not change.
 - **Staff** `+34..+38`: five catalog indices. The six hidden staff attributes stay named by
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
@@ -340,8 +357,11 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
 (9/9), Danish split leagues with points carried over 8/8. What is still wrong:
 - **Spain ranks level points by head to head.** Its labels and totals are right; every
   disagreement is teams level on points, and head to head decides all 41 such pairs it
-  separates. The tie-breakers are probably in the competition's rules member (`comp_<uid>.dat`,
-  TODO #6); read them there rather than hard-coding a nation's rule.
+  separates. The tie-breakers are in the competition's rules member: the stage's `sort` list
+  ([comp_rules](parser/comp_rules.md)), `[3, 0, 1]` for Spain (head to head, goal difference,
+  goals scored), `[0, 1, 3]` for England. Read `sort` into `competition_rounds` and rank by it
+  rather than hard-coding a nation's rule; code 6 is not yet seen on a screen (Belgium's
+  Championship Group), and 14 is only probably the Bundesliga's play-off-on-equal-record line.
 - **Split leagues**: `standings` holds each stage's own matches. Whether points carry into the
   championship and relegation groups, and Belgium's (which disagree, 0/2), is also a rules
   question.
