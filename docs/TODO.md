@@ -224,7 +224,7 @@ is the second leg's, `drdt` the draw (`{time 1230, dyow 2, dyom 24, mont 7}` on 
 July draw), and `wnpz` / `lspz` / `apmn` carry prize money (`cash`, `curr`). The disciplinary
 rules on the same screens (bans after 2 or 3 yellow cards, the Superliga's points system)
 are not located. Decoded from screens but not read yet: `nrds` (rounds), `sort` (tie-breakers,
-codes in the doc) and `qurl` (which places go where). The deleted
+codes in the doc), `qurl` (which places go where) and `relr` (who goes down, and where). The deleted
 data-dictionary doc (last at commit 7cc46b6) holds guesses at many tag meanings — hypotheses
 to test, not facts.
 
@@ -370,8 +370,8 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   separates. The tie-breakers are in the competition's rules member: the stage's `sort` list
   ([comp_rules](parser/comp_rules.md)), `[3, 0, 1]` for Spain (head to head, goal difference,
   goals scored), `[0, 1, 3]` for England. Read `sort` into `competition_rounds` and rank by it
-  rather than hard-coding a nation's rule; the codes not yet seen on a screen (6, 13, 14, 22,
-  30) need one each.
+  rather than hard-coding a nation's rule; the codes not yet seen on a screen (6, 14, 22, 30)
+  need one each (Bundesliga, Sky Bet Championship, North American Nations League).
 - **Split leagues**: `standings` holds each stage's own matches. Whether points carry into the
   championship and relegation groups, and Belgium's (which disagree, 0/2), is also a rules
   question.

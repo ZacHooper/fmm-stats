@@ -55,23 +55,25 @@ parser yet; TODO, "Decode the competition rules".
 |---|---|---|
 | `nrds` | round-robin rounds: 2 = teams play each other twice | "22 games (teams play each other twice)" for 12 teams |
 | `sort` | the table's tie-breakers after points, a list of codes in order | "League Sorting Rules" |
+| `relr` | relegation: `{nrpl <n>, comp <uid>}`, the bottom n go down to that competition | "Relegation": "Bottom team is relegated to Pro League B" (`{nrpl 1, comp 2}`) |
 | `qurl` | where places go: `{nmsn <stage name id>, stag <stage index>, nrpl <n>}` = the top n; `topp`/`btpl` = a band of positions, 0-based; `comp` = another competition | "Qualification" |
 
 `sort` codes, as the screens and the store's tables show them:
 
 | code | rule | from |
 |---|---|---|
-| 0 | Goal Difference | both screens |
-| 1 | Goals Scored | both screens |
+| 0 | Goal Difference | all three screens |
+| 1 | Goals Scored | all three screens |
 | 3 | Results Between Teams (head to head) | Champions Cup screen; and Spain's First and Second Division (and all but one Spanish league) read `[3, 0, 1]`, the league whose rebuilt tables disagree with the game only where head to head decides (TODO, "League tables outside Denmark") |
 | 18, 29 | the head-to-head sub-rules, Goal Difference then Goals Scored | Champions Cup screen, the footnote |
-| 5, 39 | both shown as "Away Goals Scored" (5 in the Danish leagues, 39 in the European group stages); what separates them is unknown | both screens |
-| 2 | Games Won | Champions Cup screen (Belgium's leagues start with it) |
+| 5, 39 | both shown as "Away Goals Scored" (5 in the Danish and Belgian leagues, 39 in the European group stages); what separates them is unknown | all three screens |
+| 13 | Games played away from home only (it precedes 5 in Belgium's list) | Belgian screen |
+| 2 | Games Won | Champions Cup and Belgian screens |
 | 16 | Away Games Won | Champions Cup screen |
 | 20 | Discipline Record (two times red cards plus yellow cards) | Champions Cup screen |
 | 7 | Coefficient | Champions Cup screen |
 
-Seen but not on a screen: 6, 13, 14, 22, 30. England's top flight reads `[0, 1, 3]`, the
+Seen but not on a screen: 6, 14, 22, 30. England's top flight reads `[0, 1, 3]`, the
 Bundesliga `[0, 14, 1, 3, 5]`, Belgium's `[2, 0, 1, 13, 5]` (and `[6, 2, 0, 1, 13, 5]` on its
 play-off stages).
 
@@ -152,6 +154,24 @@ EURO Cup First Knockout Round", "Top 2 teams qualify for First Knockout Round". 
   16, 20, 7]`: the screen's eight lines in order, the footnote's two sitting after code 3;
 - `qurl` at 11,828: `{nrpl 2, nmsn 164 First Knockout Round}` and `{nmsn 164, comp 1301396
   (EURO Cup), stag 4, topp 2, btpl 2}`, the third place.
+
+Belgian Pro League A, Rules (`img/comp_rules-5.png`, in-game 17 September 2030): 34 games;
+League Sorting Rules Games Won, Goal Difference, Goals Scored, Games played away from home
+only, Away Goals Scored; top 4 to the Championship Group, 5th–8th to the European Places
+Playoff; bottom team relegated to Pro League B. In `comp_1.dat` (uid 1), stage 0 (`leag`, 18
+teams, `nrds` 2):
+- `sort` at 2,366: `74 72 6f 73 01 0b 05 00 00 00 | 01 11 02 | 01 11 00 | 01 11 01 | 01 11 0d
+  | 01 11 05`, `[2, 0, 1, 13, 5]`, the five lines in order;
+- `qurl` at 2,134: `{nmsn 108, stag 1, topp 0, btpl 3}` (top 4) and `{nmsn 172, stag 2, topp 4,
+  btpl 7}` (5th–8th);
+- `relr` at 747: `72 6c 65 72 01 0a 03 00 00 00 … 6c 70 72 6e 01 11 01 | 70 6d 6f 63 01 11 02`,
+  `{id 'relr', nrpl 1, comp 2}`, one club down to Pro League B (uid 2).
+
+The screen's third qualification line, "Team in 17th position qualifies for Pro League A/Pro
+League B Playoff", is not in this stage's `qurl`; it probably comes from the entry rules
+(`ftac`) of the play-off stage `relp`, which name competitions 1 and 2. Not mapped.
+
+![Belgian Pro League A Rules: Games Won, Goal Difference, Goals Scored, Games played away from home only, Away Goals Scored](img/comp_rules-5.png)
 
 Spain's First Division (`comp_67.dat`, `sort` at 2,515): `01 11 03 | 01 11 00 | 01 11 01`,
 `[3, 0, 1]`. The English Premier Division (`comp_11.dat`, at 3,690): `[0, 1, 3]`.
