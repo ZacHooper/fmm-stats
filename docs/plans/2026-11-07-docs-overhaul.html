@@ -75,7 +75,7 @@ that get it there. Each phase is a brief an agent can pick up cold. Written 2026
   <tr><td><a href="#p0">0. Docs checker</a></td><td><span class="tag done">done</span></td><td>—</td><td>#194</td></tr>
   <tr><td><a href="#p1">1. Player quick start</a></td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
   <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag done">done</span></td><td>0</td><td>world: done, #195; people: done, #197; matches: done, #203, #204; competitions: done, #206; cleanup (the leftover parser docs harvested and deleted): done, #208</td></tr>
-  <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag ready">ready</span></td><td>0</td><td></td></tr>
+  <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag ready">in progress</span></td><td>0</td><td><code>claude/wizardly-edison-0hlfgh</code>, in review</td></tr>
   <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
   <tr><td><a href="#p5">5. Stats: overview and modelling note</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
   <tr><td><a href="#p6">6. Site and skills</a></td><td><span class="tag blocked">waits</span></td><td>1, 4</td><td></td></tr>
@@ -350,6 +350,19 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <dt>Don't</dt><dd>Rename columns here; this phase only documents.</dd>
   <dt>Done when</dt><dd>The checker passes for documentation (renames listed as known), and
   <code>dbt docs generate</code> shows every <code>mart</code>/<code>site</code> column described.</dd>
+  <dt>Status</dt><dd>In review on <code>claude/wizardly-edison-0hlfgh</code>. 393 blocks in
+  <code>fmstats/models/_docs/</code> (one file per family: <code>ids</code>, <code>time</code>,
+  <code>match</code>, <code>match_stats</code>, <code>competitions</code>, <code>places</code>,
+  <code>player</code>, <code>attributes</code>, <code>staff</code>, <code>careers</code>,
+  <code>money</code>, <code>site</code>) describe all 996 columns of the 70 <code>mart</code> and
+  <code>site</code> models. A block lists its drift on a <code>Synonyms:</code> line (a name,
+  <code>model.column</code>, or a glob, with <code>→ target</code> where the rename is not to the
+  block's name). <code>scripts/check_dbt_docs.py --empty-store</code> runs in CI, blocking: it builds
+  an empty store, generates the catalog and fails on an undocumented column, a missing or unused
+  block, a name that is neither its block's nor a role on it, or a convention break that no block
+  lists; listed synonyms are reported as known. <code>stg</code> and <code>int</code> columns are not
+  pointed at blocks yet: every block is named for a column that reaches <code>mart</code> or
+  <code>site</code>.</dd>
 </dl>
 </div>
 
@@ -360,7 +373,56 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <dt>Do</dt><dd>One PR per concept: rename in the models, then every consumer (<code>scripts/export_data.py</code>,
   <code>site/js/</code>, skills, docs). The export diff (<code>scripts/diff_exports.py</code>) must show only
   the renamed keys; ratings in SQL and JS must still agree.</dd>
-  <dt>Done when</dt><dd><code>check_dbt_docs.py</code> reports no synonyms, and is blocking in CI.</dd>
+  <dt>Rename list</dt><dd><code>uv run python scripts/check_dbt_docs.py --catalog --renames</code> prints it
+  (phase 3: 138 columns, 98 renames). By kind:
+    <ul>
+      <li><strong>Abbreviations:</strong> <code>apps</code> → <code>appearances</code> (4 models),
+      <code>avg_rating</code> → <code>average_rating</code>, <code>avg_att</code>/<code>min_att</code>/<code>max_att</code>,
+      <code>gf</code>/<code>ga</code>/<code>pts</code>, <code>tie_gf</code>/<code>tie_ga</code>,
+      <code>opp_tid</code> and the eight <code>opp_*</code> team stats → <code>opponent_*</code>,
+      <code>skill_idx</code>, <code>lvl</code> → <code>level</code>, <code>n_value_est</code>,
+      the <code>hg_*</code> registration columns → <code>home_grown_*</code>,
+      <code>pos_order</code> → <code>lineup_order</code>, the fifteen <code>pos_*</code> → <code>familiarity_*</code>,
+      <code>dob</code> → <code>birth_date</code>.</li>
+      <li><strong>Sides as <code>_a</code>/<code>_b</code>:</strong> <code>mart.tie_results</code>' <code>team_a_tid</code>,
+      <code>goals_a</code>, <code>pens_a</code> (and <code>_b</code>) → <code>home_*</code>/<code>away_*</code>
+      (the first leg's sides).</li>
+      <li><strong>Flags not named <code>is_</code>/<code>has_</code>:</strong> <code>started</code>, <code>appeared</code>,
+      <code>capital_eligible</code>, <code>international_retired</code>, <code>value_is_estimated</code>,
+      <code>value_in_trusted_band</code>, <code>attributes_are_estimated</code>, <code>was_free_agent</code>,
+      <code>ends_appearance</code>, <code>coefficient_is_live</code>, <code>in_career</code>, <code>extra_time</code>,
+      <code>went_through</code>, <code>b_list</code>, <code>hg_club</code>, <code>hg_association</code>,
+      <code>window_open</code>, <code>via_academy</code>.</li>
+      <li><strong>Dates not named <code>*_date</code>:</strong> <code>contract_start</code>, <code>contract_expiry</code>,
+      <code>valid_from</code>, <code>valid_to</code>, <code>moved_after</code>, <code>moved_by</code>,
+      <code>u21_on</code>, <code>hg_eta</code>.</li>
+      <li><strong>Money without <code>_gbp</code>:</strong> <code>value</code> → <code>value_gbp</code> (three models).</li>
+      <li><strong>Categories as <code>_kind</code>:</strong> <code>fee_kind</code> → <code>fee_type</code> (4 models),
+      <code>stage_kind</code> → <code>stage_type</code>.</li>
+      <li><strong>Row counts not <code>n_*</code>:</strong> <code>member_count</code>, <code>rated</code>,
+      <code>manager_candidates</code>, the bare <code>n</code> in three site models.</li>
+      <li><strong>One name, two concepts</strong> (one of the pair moves): <code>role</code> (the weight set's
+      role; <code>fact_player_match</code>'s → <code>rating_role</code>, <code>fact_staff_spell</code>'s →
+      <code>staff_role</code>), <code>status</code> (<code>site.squad</code>'s → <code>squad_status</code>),
+      <code>position</code> (<code>mart.standings</code>' → <code>table_position</code>),
+      <code>squad_size</code> (<code>site.clubs</code> counts players on the books → <code>n_players</code>),
+      <code>rating</code> (a career line's season average → <code>average_rating</code>),
+      <code>nationality</code> (<code>site.players</code>' is the nation's name → <code>nation</code>),
+      <code>site_club_managers.formation_*</code> (names, not codes → <code>formation_*_name</code>),
+      <code>club_tid</code> holding a team (<code>site.loan_outlook</code>, <code>site.player_spells</code> →
+      <code>team_tid</code>).</li>
+      <li><strong>0-based where the game counts from 1:</strong> <code>dim_match</code>/<code>mart.standings</code>
+      <code>matchday</code> → <code>matchday_index</code> (<code>site.matches</code>' is from 1),
+      <code>dim_competition.level</code> → <code>tier_index</code> (<code>tier</code> is from 1).</li>
+      <li><strong>Synonyms of one concept:</strong> <code>matches_played</code> → <code>played</code>.</li>
+    </ul>
+  Order matters where a target is taken today: rename <code>dim_stage.stage_type</code> before
+  <code>stage_kind</code>, and <code>site_player_moves.fee_type</code> (→ <code>move_fee_type</code>) before
+  <code>fee_kind</code>. Decided as different concepts, so not renamed: <code>n_games</code> (home matches
+  with a crowd), <code>games_started</code>, <code>stage_teams</code>/<code>round_teams</code> (the rules'
+  counts), <code>played</code> vs <code>appearances</code> (a team's vs a player's).</dd>
+  <dt>Done when</dt><dd><code>check_dbt_docs.py --strict</code> passes (no column uses a synonym), and CI
+  runs it with <code>--strict</code>.</dd>
 </dl>
 </div>
 
@@ -464,7 +526,8 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
 </table>
 
 <h3 id="worklist">Docs checker: first pass (work list)</h3>
-<p><code>scripts/check_docs.py</code> on 2026-11-07: 144 broken references in 35 docs (141 missing path, 3 missing file). Each phase clears the rows for the docs it harvests; rows in this plan are paths a later phase creates. Rerun the script for the live list: after phase 2 (#208) it reports 46 in 12 docs, none of them parser docs.</p>
+<p><code>scripts/check_docs.py</code> on 2026-11-07: 144 broken references in 35 docs (141 missing path, 3 missing file). Each phase clears the rows for the docs it harvests; rows in this plan are paths a later phase creates. Rerun the script for the live list: after phase 2 (#208) it reports 46 in 12 docs, none of them parser docs; after phase 3, 42 (the
+plan's references to <code>fmstats/models/_docs/</code> and <code>scripts/check_dbt_docs.py</code> now resolve).</p>
 <!-- check-docs: off -->
 <details><summary>The list, by doc</summary>
 <table>
