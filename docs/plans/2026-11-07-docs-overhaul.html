@@ -74,7 +74,7 @@ that get it there. Each phase is a brief an agent can pick up cold. Written 2026
   <tr><td>Groundwork: config, data out of git, agent guides, first load works</td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
   <tr><td><a href="#p0">0. Docs checker</a></td><td><span class="tag done">done</span></td><td>—</td><td>#194</td></tr>
   <tr><td><a href="#p1">1. Player quick start</a></td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
-  <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag done">done</span></td><td>0</td><td>world: done, #195; people: done, #197; matches: done, #203, #204; competitions: done, #206; cleanup (the leftover parser docs harvested and deleted): <code>claude/docs-overhaul-phase-2-cleanup-f6q7de</code>, #208 (in review)</td></tr>
+  <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag done">done</span></td><td>0</td><td>world: done, #195; people: done, #197; matches: done, #203, #204; competitions: done, #206; cleanup (the leftover parser docs harvested and deleted): done, #208</td></tr>
   <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag ready">ready</span></td><td>0</td><td></td></tr>
   <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
   <tr><td><a href="#p5">5. Stats: overview and modelling note</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
@@ -321,6 +321,13 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   </dd>
   <dt>Done when</dt><dd>Each table in the group has its doc and an evidence record; retired source docs
   are deleted in the same PR.</dd>
+  <dt>Status</dt><dd>Done: world #195, people #197, matches #203 and #204, competitions #206, and the
+  cleanup #208, which harvested every leftover parser doc and folded <code>parser-architecture.md</code>
+  and <code>table-framing.md</code> into <code>fmparser/AGENTS.md</code>. The parser's docs are now
+  <code>fmparser/README.md</code>, <code>fmparser/AGENTS.md</code>, <code>docs/parser/&lt;table&gt;.md</code>
+  and <code>docs/parser/savefile-map.md</code>; nothing parser-only is left elsewhere in
+  <code>docs/</code>. Still open from this phase, in TODO: code 6 in a stage's sort list
+  (<code>comp_rules</code>) needs the Belgian Pro League A Championship Group rules screen.</dd>
 </dl>
 </div>
 
@@ -428,7 +435,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   map (the tables nothing reads yet) and TODO; the finished parser plans
   (<code>2026-09-21-table-engine-migration.md</code>, <code>2026-09-22-parser-optimization-plan.md</code>)
   are deleted. No parser doc is left outside <code>fmparser/</code> and <code>docs/parser/</code>.</td><td>2</td></tr>
-  <tr><td><code>BUGS.md</code></td><td>callouts in the docs they belong to; open bugs to TODO. <strong>Done</strong> for the parser tables.</td><td>2, 5</td></tr>
+  <tr><td><code>BUGS.md</code></td><td>callouts in the docs they belong to; open bugs to TODO. <strong>Done</strong>: <code>BUGS.md</code> is gone.</td><td>2, 5</td></tr>
   <tr><td><code>agent-context/</code> parser notes: history chains, player history, names, nicknames, match positions,
   ghost anchors, injuries, loan markers, reserve markers, anchor audit, boundary map, tid recycling, fmm-editor comparison,
   the FM parser project note, loan status</td>
@@ -457,7 +464,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
 </table>
 
 <h3 id="worklist">Docs checker: first pass (work list)</h3>
-<p><code>scripts/check_docs.py</code> on 2026-11-07: 144 broken references in 35 docs (141 missing path, 3 missing file). Each phase clears the rows for the docs it harvests; rows in this plan are paths a later phase creates. Rerun the script for the live list.</p>
+<p><code>scripts/check_docs.py</code> on 2026-11-07: 144 broken references in 35 docs (141 missing path, 3 missing file). Each phase clears the rows for the docs it harvests; rows in this plan are paths a later phase creates. Rerun the script for the live list: after phase 2 (#208) it reports 46 in 12 docs, none of them parser docs.</p>
 <!-- check-docs: off -->
 <details><summary>The list, by doc</summary>
 <table>
