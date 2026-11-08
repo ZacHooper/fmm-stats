@@ -74,7 +74,7 @@ that get it there. Each phase is a brief an agent can pick up cold. Written 2026
   <tr><td>Groundwork: config, data out of git, agent guides, first load works</td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
   <tr><td><a href="#p0">0. Docs checker</a></td><td><span class="tag done">done</span></td><td>—</td><td>#194</td></tr>
   <tr><td><a href="#p1">1. Player quick start</a></td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
-  <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag done">done</span></td><td>0</td><td>world: done, #195; people: done, #197; matches: done, #203, #204; competitions: <code>claude/competitions-phase-2-docs-4c95r0</code>, #206 (in review)</td></tr>
+  <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag done">done</span></td><td>0</td><td>world: done, #195; people: done, #197; matches: done, #203, #204; competitions: done, #206; cleanup (the leftover parser docs harvested and deleted): <code>claude/docs-overhaul-phase-2-cleanup-f6q7de</code>, #208 (in review)</td></tr>
   <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag ready">ready</span></td><td>0</td><td></td></tr>
   <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
   <tr><td><a href="#p5">5. Stats: overview and modelling note</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
@@ -294,8 +294,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
 <dl>
   <dt>Goal</dt><dd>Every table in <code>fmparser/tables/</code> (27) has a doc an agent can load alone, in the
   <a href="#framework">template</a>, with at least one evidence record.</dd>
-  <dt>Read first</dt><dd><code>fmparser/AGENTS.md</code>, <code>docs/parser-architecture.md</code>,
-  <code>docs/parser/savefile-map.md</code>, <code>docs/table-framing.md</code>, the table's module.</dd>
+  <dt>Read first</dt><dd><code>fmparser/AGENTS.md</code>, <code>docs/parser/savefile-map.md</code>, the table's module.</dd>
   <dt>Split</dt><dd>One PR per group, so several agents can work at once:
     <ul>
       <li><strong>people</strong>: <code>person_info</code>, <code>player_attributes</code>, <code>player_progress</code>,
@@ -421,11 +420,23 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <tr><td><code>savefile-map.md</code>, <code>table-framing.md</code>, <code>save-archive.md</code>, <code>archive-coverage.md</code>,
   <code>IDS.md</code>, <code>light-results-record.md</code>, <code>standings-record.md</code>, <code>transfer-history-record.md</code>,
   <code>record-expansion.md</code>, <code>career-region-sizing.md</code>, <code>date-search.md</code>, <code>parser-architecture.md</code></td>
-  <td>table docs, <code>docs/parser/savefile-map.md</code>, <code>fmparser/AGENTS.md</code></td><td>2</td></tr>
-  <tr><td><code>BUGS.md</code></td><td>callouts in the docs they belong to; open bugs to TODO</td><td>2, 5</td></tr>
+  <td>table docs, <code>docs/parser/savefile-map.md</code>, <code>fmparser/AGENTS.md</code>. <strong>Done</strong>
+  (#195–#206, #208): the transfer band's record is a section of the savefile map, the
+  career-history pool's size a callout in <code>docs/parser/history.md</code>.
+  <code>table-framing.md</code> and <code>parser-architecture.md</code> are folded into
+  <code>fmparser/AGENTS.md</code> (the locator shapes, reading a record, the checks), the savefile
+  map (the tables nothing reads yet) and TODO; the finished parser plans
+  (<code>2026-09-21-table-engine-migration.md</code>, <code>2026-09-22-parser-optimization-plan.md</code>)
+  are deleted. No parser doc is left outside <code>fmparser/</code> and <code>docs/parser/</code>.</td><td>2</td></tr>
+  <tr><td><code>BUGS.md</code></td><td>callouts in the docs they belong to; open bugs to TODO. <strong>Done</strong> for the parser tables.</td><td>2, 5</td></tr>
   <tr><td><code>agent-context/</code> parser notes: history chains, player history, names, nicknames, match positions,
-  ghost anchors, injuries, loan markers, reserve markers, anchor audit, boundary map, tid recycling, fmm-editor comparison</td>
-  <td>table docs</td><td>2</td></tr>
+  ghost anchors, injuries, loan markers, reserve markers, anchor audit, boundary map, tid recycling, fmm-editor comparison,
+  the FM parser project note, loan status</td>
+  <td>table docs. <strong>Done</strong> (#208 for the last six): the anchor audit's lesson is a
+  rule in <code>fmparser/AGENTS.md</code>, the fmm-editor comparison a callout in each table doc it
+  concerns plus a paragraph in <code>fmparser/AGENTS.md</code>, loan status in
+  <code>training.md</code> and <code>player_progress.md</code>; the boundary map and the parser
+  project note were superseded whole.</td><td>2</td></tr>
   <tr><td><code>ca-weighting.md</code>, <code>attribute-model.md</code>, <code>ATTRIBUTE_DECODING.md</code>, <code>role-ids.csv</code></td>
   <td><code>docs/stats/modelling.md</code>, the yml</td><td>5</td></tr>
   <tr><td><code>data-model/*</code></td><td>kept as the overview; detail to the yml</td><td>5</td></tr>
@@ -437,7 +448,10 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <tr><td><code>danish-registration-rules.md</code>, <code>agent-context/homegrown-derivation.md</code></td>
   <td><code>site/</code>, as the house-rule example</td><td>6</td></tr>
   <tr><td><code>agent-context/</code> process notes (ground truth beats my parse, user-supplied date wins,
-  day-1 league membership)</td><td>a few lines in <code>fmparser/AGENTS.md</code> or <code>AGENTS.md</code></td><td>2, 7</td></tr>
+  day-1 league membership)</td><td>a few lines in <code>fmparser/AGENTS.md</code> or <code>AGENTS.md</code>. <strong>Done</strong>
+  (#208): ground truth in <code>fmparser/AGENTS.md</code>, the save date in <code>AGENTS.md</code>
+  and <code>docs/parser/save_header.md</code>, day-1 league membership a callout in
+  <code>docs/parser/clubs.md</code>.</td><td>2, 7</td></tr>
   <tr><td><code>agent-context/MEMORY.md</code>, superseded notes, finished plans</td>
   <td>deleted</td><td>7</td></tr>
 </table>

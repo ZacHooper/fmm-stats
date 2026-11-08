@@ -122,7 +122,7 @@ the recipe is faithful. But two anchors I'd written down were measuring the wron
 - **Division sizes must be counted on `raw.league_members`, NOT `effective_table`.**
   `effective_table` only contains players with ratings, so a club with no rated players is
   invisible: the 3. Division shows **11**, not 12, because FC Sydvest has 0 players. That's
-  exactly the trap `day1-league-membership.md` warns about — squad size is not a validity filter.
+  exactly the trap [clubs](../parser/clubs.md) warns about — squad size is not a validity filter.
   The correct check:
   ```sql
   SELECT league_cid, COUNT(DISTINCT club_tid) FROM raw.league_members
@@ -147,7 +147,7 @@ that differed both favoured the rebuild:
 - **`league_members` had 28 FEWER rows** — and that's the fix, not a regression. The live store's
   older 11 slices were extracted before the club→league precedence fix (commit 8d0b4e3); only
   `2023-07-02` had been reloaded after it. Rebuilding applied it everywhere, dropping exactly the
-  4 phantom foreign clubs per phase that `day1-league-membership.md` predicted: KAS Eupen filed
+  4 phantom foreign clubs per phase that results-derived membership had produced: KAS Eupen filed
   into a *Dutch* league, a Belgian side into "Belgian Pro League B", and two with no club record.
   The only phases that already agreed were `2021-07-01` (day-1, no light results) and
   `2023-07-02` (already reloaded) — exactly as expected. **A rebuild propagates parser fixes to

@@ -42,6 +42,5 @@ uv run python extract.py ~/fm-saves/<career>/<save>.fms   # -> output/<save name
 |---|---|
 | one table: layout, in-game evidence, quirks, output | [`docs/parser/<table>.md`](../docs/parser/) |
 | the whole file, start to end | [`docs/parser/savefile-map.md`](../docs/parser/savefile-map.md) |
-| how tables are found and read | [`docs/parser-architecture.md`](../docs/parser-architecture.md) |
-| to change the parser: the method and the tests | [`AGENTS.md`](AGENTS.md) |
+| how tables are found and read, the method and the tests | [`AGENTS.md`](AGENTS.md) |
 | what is still open | [`docs/TODO.md`](../docs/TODO.md) |

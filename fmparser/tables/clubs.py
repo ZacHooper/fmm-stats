@@ -54,7 +54,7 @@ def _kit_fields(k):
 
 
 # The club record's fixed first stretch, after the three names. Field order from
-# nyongrand/fmm-editor's FMM26 `Club` (docs/agent-context/fmm-editor-record-comparison.md),
+# nyongrand/fmm-editor's FMM26 `Club` (FMM22 has one name string fewer, docs/parser/clubs.md),
 # verified on the Danish Superliga: league_id reads 2 for every top-flight club, attendances
 # rank the clubs by size, and the colours decode to the right kits. A colour is RGB555
 # (0x7FFF is white). `based_id` is the nation whose league the club plays in and `nation_id`

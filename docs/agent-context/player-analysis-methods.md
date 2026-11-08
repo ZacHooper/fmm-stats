@@ -210,5 +210,5 @@ filter returned two departed centre-backs as our two best.
   high volume, near-worst accuracy) and 0.75 dribbles/90 despite Dribbling 16. Ratings reward
   involvement; check the completion rate and the per-90 of the player's *best* attribute.
 
-See [[level-vs-fit-percentile]], [[loan-status-unreliable]], [[etl-duckdb-dashboard]],
+See [[level-vs-fit-percentile]], [player_progress](../parser/player_progress.md) (loans), [[etl-duckdb-dashboard]],
 [[remote-duckdb-access]], [[match-rating-position-bias]].

@@ -97,8 +97,15 @@ assists 26 + 7, yellows 4 + 0). Tested by `tests/test_people_evidence.py`.
 > isn't. A rule that starts a new player at every break in the `+1` sequence over-splits an
 > established save by ~2.5×. Read chains from `history_head`.
 
-> **Quirk:** the 8 bytes after the last record (`21 04 81 00 xx 00 00 00` on every save) are
-> not claimed by this table or by [club_records](club_records.md), which follows.
+> **Quirk:** the count is a capacity, the same on every save of a career (265,423 on five
+> Frem saves from 2023 to 2030, 295,648 on both Bucaspor saves). It bounds the walk; it says
+> nothing about how much history exists. The pool recycles rather than grows, which is what
+> sets it apart from [club_records](club_records.md) and [our matches](matches.md): both
+> grow (the [savefile map](savefile-map.md#behaviour-classes-which-matter-more-than-the-offsets)).
+
+> **Quirk:** [club_records](club_records.md) starts on the byte after the last record, with
+> no gap: `21 04 81 00 …` on Frem is its club count (1,057) and its first club's tid (129),
+> `24 04 0e 01 …` on Bucaspor (1,060, tid 270).
 
 ## Output
 

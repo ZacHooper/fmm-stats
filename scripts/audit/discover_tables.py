@@ -5,7 +5,7 @@ Find every WALKABLE table in the save, without knowing what any of them mean.
 Background: `scripts/audit/audit_table_headers.py` established that this file frames its tables as
 `[8 bytes of 0xFF][record count][record 0]`, and that the count is exact -- the competition,
 city, stadium, language, currency, player-attribute, staff-attribute and both name id-tables
-all declare theirs. See docs/table-framing.md.
+all declare theirs. See shape A in fmparser/AGENTS.md.
 
 This script uses that convention as a SEARCH strategy. The goal is an inventory: where the
 tables are, how many records each holds, how wide a record is. Naming them is a separate job,
@@ -21,8 +21,8 @@ Two detectors run, because they fail on different tables and neither subsumes th
 
   TILE   `count * stride` lands exactly on the NEXT sentinel. Catches fixed-width tables with
          no index field (the player attribute grid is keyed by a sid handle, not an ordinal),
-         but it is much weaker on its own -- see docs/table-framing.md for the 5 award-record
-         false positives it produces on Frem, where the "stride" is a numeric accident.
+         but it is much weaker on its own: inside the award table's string records it finds
+         small "tables" whose stride is a numeric accident.
 
 WHAT THIS CANNOT FIND, so absence here is not evidence:
   * VARIABLE-LENGTH tables. Competitions, stadiums, languages and currencies are all
@@ -97,8 +97,8 @@ def _index_table(mm, start, count, hdr, n_file):
     position after it holding 1 at the same relative offset fixes the candidate stride, and
     slot 2 then has to agree before anything expensive runs. Every one of the declared
     records is checked before this returns -- a partial check is how the `id == slot index`
-    walks elsewhere in this project ended up short (see docs/table-framing.md on the name
-    id-tables, where the invariant breaks at the first free slot).
+    walks elsewhere in this project ended up short (the name id-tables, where the invariant
+    breaks at the first free slot).
     """
     for id_w in (4, 2):
         for id_off in ID_OFFSETS:

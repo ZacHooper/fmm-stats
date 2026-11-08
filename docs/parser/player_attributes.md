@@ -25,7 +25,7 @@ the first position byte (`P-34` = +8).
 | +65 | `current_reputation` | u16 | | |
 | +67 | `world_reputation` | u16 | | |
 | +69 | `international_retired` | u8 | | |
-| +70 | | u16 | unnamed | |
+| +70 | | u16 | unnamed. FMM26's layout calls it always zero; here it is non-zero on all but one record, 75 distinct values, 38,918 on 4,444 (`frem-2030-06-22`), high byte one of `98`, `a8`, `88`, `c8`, `89` on most: a flags or enum shape | both careers |
 | +72 | `squad_number` | u8 | | Adingra 10, Ullits 38 |
 | +73 | `preferred_squad_number` | u8 | | |
 | +74 | `height_cm` | u16 | | goalkeepers average 188 cm, outfield players 181 |

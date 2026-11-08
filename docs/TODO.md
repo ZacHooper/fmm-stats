@@ -24,7 +24,7 @@ is organised around them:
 | **Stats** | `load_duckdb.py`, `fmstats/` | clean and join the data within a save and across saves |
 | **Site** | `site/`, `scripts/export_data.py` | a human-friendly view of the mart |
 
-Every parser table is on the `core` framework ([`parser-architecture.md`](parser-architecture.md))
+Every parser table is on the `core` framework ([`fmparser/AGENTS.md`](../fmparser/AGENTS.md))
 and the store is a dbt project ([`fmstats/AGENTS.md`](../fmstats/AGENTS.md)) whose build tests
 the real data as well as its structure (`fmstats/tests/`). The near-term work is the weight-set
 method (#18) and the docs (#22); the long tail is the parser: new bytes (every byte of the save
@@ -59,12 +59,11 @@ Live traps, each of which has produced numbers that looked fine and were not:
 
 | you want | read / run |
 |---|---|
-| how the parser is organised, and how to hook up a table | [`parser-architecture.md`](parser-architecture.md) |
+| how the parser is organised, and how to hook up a table | [`fmparser/AGENTS.md`](../fmparser/AGENTS.md) |
 | where every byte of the file lives | [`parser/savefile-map.md`](parser/savefile-map.md) |
 | which bytes no parser reads | `uv run python scripts/audit/audit_coverage.py` |
 | the per-byte schema of every declared record | `uv run python scripts/audit/audit_records.py --map` |
 | whether a region is text, records or compressed | `uv run python scripts/audit/entropy_profile.py <save.fms>` |
-| count-framed tables, and the dead ends of that search | [`table-framing.md`](table-framing.md) |
 | the compressed archive and the fixture list in it | [`parser/savefile-map.md`](parser/savefile-map.md#the-archive), [`parser/fixtures.md`](parser/fixtures.md) |
 | the attribute decoder, and what is ruled out | [`attribute-model.md`](attribute-model.md) |
 | deploying the site | [`DEPLOY.md`](DEPLOY.md) |
@@ -85,12 +84,22 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1%
   162 on every save, then variable-length rows carrying 21-byte matches shaped like the club
   team records (`[f32 value][year][day]…[club][opp][for][against]`). Likely the competitions'
   own record books. Walk it from its count, as the club records were.
-- **34.12–38.53 M** — the transfer band ([`transfer-history-record.md`](transfer-history-record.md):
-  decoded, not parsed).
-- **13.96–16.68 M** — 85% filler, no count headers; and **13.68–13.96 M** before it.
-- A **stride-65 per-season table** (`[flag u8][value u16][tid u16][year u16]`) right after the
-  550-byte `0xFF` wall that ends our matches; settle whether it is `table-framing.md`'s
-  per-season series near 44.6 MB.
+- **The transfer band: read the rest of the row** (35.4–38.4 M,
+  [savefile map](parser/savefile-map.md#the-transfer-band)). Count-framed and decoded on paper:
+  every bid of the season, the accepted one with its fee and contract terms. Open: the kind
+  codes `01`, `05`, `06`, `09`, `0b`; what +87 holds on a loan (1,508,051 … not money) and on
+  a graduation (65,519); the club at +4; the 2 bytes after the count; the `0d` rows the
+  Transfers screen doesn't list (Chukwuani, Behrndtz, Gernsøe on `frem-2026-06-11`); the 30
+  rows near the end of `bucaspor-2022-06-19` whose index reads 0. Capture the Transfers screen
+  into `docs/parser/img/` as the evidence record. Then a parser table, an extract step and a
+  raw table ("Raw mirrors the save, one table per table").
+- **13.96–16.68 M** — 85% filler. It opens with a u32 equal to the person count (32,966 /
+  34,312) and 14-byte units: walk it as a per-person table and see where it ends.
+- A **league-titles table** at ~56.3 M behind a 550-byte `0xFF` run, 0.13 MB after our
+  matches ([savefile map](parser/savefile-map.md)): `[u8][cid u16][tid u16][year u16]` per
+  65-byte entry, one per league title Frem has won, the first byte the entry count. Name it:
+  the club's titles or the manager's, cups or not, and why `frem-2030-06-22` lacks its 2029
+  title.
 
 Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 
@@ -158,7 +167,12 @@ the week's attribute values?). Named, the table could give every squad player's 
 development, not just injuries and loans.
 
 ### 5. Reference-half tables not yet read
-- The unnamed count-framed tables in [`table-framing.md`'s register](table-framing.md#the-complete-register).
+- The unnamed count-framed tables ([savefile map](parser/savefile-map.md)): the three 7-byte
+  index tables after the staff table, the 807 awards (club-shaped records with a longer
+  trailer) and the 888-row 7-byte list between currencies and languages.
+- **`audit_table_headers.py --confirm` fails the nickname id-table on every save**: its check
+  reads the last declared slot as in use, and that slot is an empty `ffffffff`. A tooling
+  bug, not the data's: check the last *used* slot.
 - The **Region** table, the unnamed bytes of the nation record (`NATION_TEAM`, `NATION_END`),
   and the ~7-entry
   **continent** table right after the nations (`[uid u32][Name][01][CodeName][Demonym][01]`,
@@ -341,9 +355,9 @@ table:
   `int.world_matches.referee_tid` it gives `dim_referee` its link), `comp_honours` (roll of
   honour) and `comp_stages` (stages calendar) from `comp_man.dat`, and `match_slots`. Each needs
   an extract step, a raw table and a stg model.
-- **Not parsed.** The transfer band's 143-byte records are decoded on paper
-  ([`transfer-history-record.md`](transfer-history-record.md)) but have no parser module, and
-  the save wipes them each July (#3).
+- **Not parsed.** The transfer band's 143-byte rows are decoded on paper
+  ([savefile map](parser/savefile-map.md#the-transfer-band)) but have no parser module, and
+  the save wipes them each July ("The transfer band: read the rest of the row").
 
 ---
 

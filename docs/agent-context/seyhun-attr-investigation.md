@@ -136,10 +136,10 @@ that's exactly what `attr_record()` returns today (first match).
 3. Separate anomaly: `fm_save3-23-start.fms` returns **0** records inside
    `snapshot_bounds` (bounds detection landed wrong for that file), yet the DB has 2023-start
    values (Shooting 12) — so extract found them via a different path. `snapshot_bounds`
-   robustness per-save is worth a look (see [[fm-parser-project]]).
+   robustness per-save is worth a look.
 
 **Fix + re-load:** change `attr_record` to select the live record, validate across the
 whole squad against any UI screenshots, then re-run the import ([[etl-duckdb-dashboard]]
 import-fm-saves) so the dashboard reflects corrected values.
 
-Related: [[fm-parser-project]] [[etl-duckdb-dashboard]]
+Related: [[etl-duckdb-dashboard]]

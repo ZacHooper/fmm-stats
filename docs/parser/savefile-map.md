@@ -3,7 +3,7 @@
 Every table the save holds, in file order, with the doc that describes it. The offsets were
 measured on this one save, by calling the named parser or by the structural test in the
 notes; no offset is carried over from another save. Use them to know what sits next to what,
-never to seek: [locate a table by its own frame or invariant](../parser-architecture.md).
+never to seek: [locate a table by its own frame or invariant](../../fmparser/AGENTS.md#finding-a-table-the-locator-shapes).
 
 ## Read this first: the drift boundary
 
@@ -25,9 +25,9 @@ invariant. Never by a remembered offset.
 ## The map
 
 `hdr` = found by its declared count behind a run of ≥ 8 `0xFF`
-([`table-framing.md`](../table-framing.md)); `struct` = found by the structural test in the
+([shape A](../../fmparser/AGENTS.md#a-count-framed)); `struct` = found by the structural test in the
 notes. The status column names the `core` table that reads it
-([`parser-architecture.md`](../parser-architecture.md) has the shapes).
+([the locator shapes](../../fmparser/AGENTS.md#finding-a-table-the-locator-shapes)).
 
 | start | end | size | what | class | shape / how | status |
 |---|---|---|---|---|---|---|
@@ -37,21 +37,21 @@ notes. The status column names the `core` table that reads it
 | **572,037** | ~3,988,960 | **3.42 MB** | **[the PERSON table](person_info.md)** — declares **32,966** (Frem) / **34,312** (Bucaspor), career-constant, so a **fixed pool**. A `01` header byte follows the count; records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration, all declared, `tid == slot index`, ending on the next table's frame | **preallocated pool** | Shape A | `PERSON_INFO_TABLE` |
 | 3,988,968 | 6,056,358 | 2.07 MB | **[player attributes](player_attributes.md)** — 26,505 × 78 B | static | Shape A | `PLAYER_ATTRIBUTES_TABLE` |
 | 6,056,370 | 6,237,408 | 0.18 MB | **[staff attributes](staff.md)** — 4,642 × 39 B, `id2 == slot index` | static | Shape C | `STAFF_TABLE` |
-| 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (1,971 / 560 / 816), the 622 × 99 B [match officials](officials.md), the 273-entry [round/leg names](rounds.md) | static | Shape A/C | `ROUNDS_TABLE`, `OFFICIALS_TABLE`; the 7 B tables chained |
+| 6,237,408 | 6,332,591 | 0.09 MB | the chained small tables: three 7 B index tables (`[id u32 = slot][3 B]`; 1,971 / 560 / 816 on Frem, 560 a fixed enumeration on both careers; unread), the 622 × 99 B [match officials](officials.md), the 273-entry [round/leg names](rounds.md) | static | Shape A/C | `ROUNDS_TABLE`, `OFFICIALS_TABLE`; the 7 B tables chained |
 | 6,332,603 | ~12,607,190 | 6.27 MB | **[club + national team table](clubs.md)** — 11,331 records, `tid == slot index`, dense. National teams have `club_type` 1 (tids 0–50 and scattered); U21 sides are the last rows | static | Shape A | `CLUB_TABLE` |
 | 12,607,189 | 12,756,283 | 0.15 MB | **[competitions](competitions.md)** — `[8 × ff][count u16 = 1,372]`, record 0 at 12,607,199; 1,272 named + 100 blank slots, `cid == slot index` | static (reputation and holders rewritten) | Shape A | `COMP_TABLE` |
 | 12,756,293 | ~12,796,115 | 0.04 MB | **[nations](nations.md)** — declared 251, all walked by declaration; ends on the continent table's frame | static | Shape A | `NATIONS_TABLE` |
 | 12,796,123 | 13,471,770 | 0.68 MB | **[stadiums](stadiums.md)** — 15,987 ✓ | static | Shape A | `STADIUMS_TABLE` |
 | 13,471,776 | 13,690,902 | 0.22 MB | **[cities](cities.md)** — 10,956 ✓ | static | Shape A | `CITIES_TABLE` |
-| 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape; plus the 888-record 7 B id list | static, partly unnamed | Shape A | hdr |
-| 13,965,521 | ~13,976,130 | 0.01 MB | **[currencies](currencies.md)** — 173 ✓ | static | Shape A | `CURRENCIES_TABLE` |
+| 13,690,908 | ~13,965,510 | 0.27 MB | **awards** — 807 records, club-record shape (`[tid][uid]`, three names: `Footballer of the Year`, …) with a longer trailer, unread | static, partly unnamed | Shape A | hdr |
+| 13,965,521 | ~13,976,130 | 0.01 MB | **[currencies](currencies.md)** — 173 ✓; then an 888-row 7 B list (`[id u32][00 00 00]`, ids ascending with gaps, 888 on both careers), unread | static | Shape A | `CURRENCIES_TABLE` |
 | 13,976,136 | ~13,978,480 | 0.002 MB | **[languages](languages.md)** — 124 ✓ | static | Shape A | `LANGUAGES_TABLE` |
-| 13,978,474 | 16,752,549 | 2.77 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 17%); checked and *not* count-framed | — | — | — |
+| 13,978,474 | 16,752,549 | 2.77 MB | **UNIDENTIFIED** (`00` 52% / `ff` 31% / other 17%). It opens, on the language table's last byte, with a u32 equal to the person count (32,966 Frem, 34,312 Bucaspor) and then 14-byte units carrying six `ff`: a per-person table is the lead, its extent unproven. No other count frame in it: every candidate count is a multiple of 256 | — | — | — |
 | 16,752,549 | 20,021,621 | 3.27 MB | **[rule files](rule_files.md)** — the tagged data dictionary: 667 count-framed rule files (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | rule files static; the gaps change | Shape A | `RULE_FILES_TABLE`; `team_counts` → `competition_team_counts.json` |
 | 20,021,621 | 29,171,689 | **9.15 MB** | **FILLER — 94% `0xFF`, 2% `00`.** Not a research target | — | — | — |
 | **29,171,689** | **31,907,618** | **2.74 MB** | **[contract grid](contracts.md)** — dense **83-byte** records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table) | **preallocated, stable all career** | Shape C | `CONTRACT_TABLE` |
 | 31,907,618 | 35,439,434 | 3.53 MB | **UNIDENTIFIED** (`00` 53% / `ff` 31% / other 17%) | — | — | — |
-| **35,439,434** | **38,404,968** | **2.97 MB** | **seasonal transfer band** — 6,362 × 143 B transfer-history records (`tid@+48`, `wage@+53`, `expiry@+61`). The records are **0.91 MB, 31% of the span**; what the other 69% holds is not established, only that it collapses with them | **wiped every July; the span's collapse IS the file's July shrink** | Shape C | struct (residue class mod 143) |
+| **35,438,751** | **38,405,582** | **2.97 MB** | **[seasonal transfer band](#the-transfer-band)** — `[u32 65,000][u32 count = 20,747][2 B]`, then 20,747 × 143 B transfer-negotiation rows, row k holding k at +109: every bid, and the accepted one with its fee and contract terms. The rows fill the whole span | **wiped every July; the span's collapse IS the file's July shrink** | Shape A | hdr (no parser table) |
 | 38,404,968 | 40,042,185 | 1.64 MB | **UNIDENTIFIED** (`00` 34% / `ff` 33% / other 32%) | — | — | — |
 | 40,042,185 | 40,141,560 | 99,375 B | **[match-slot table](match_slots.md)** — 3,975 × 25 B, two clubs and a score, no venue | **fixed pool** | Shape C | `MATCH_SLOTS_TABLE` |
 | 40,141,778 | 40,656,146 | 0.51 MB | **[surname id-table](names.md)** — 32,148 slots, 28,625 used | static | Shape C | `SURNAMES_TABLE` |
@@ -66,8 +66,9 @@ notes. The status column names the `core` table that reads it
 | 53,479,282 | 55,490,212 | 2.01 MB | **[training](training.md)** — `[count u32 = 32,966][32,966 × 61 B]`, row k = person tid k (`ffffffff` unused, role `ffff` on staff): intensity `+21`, Focus Role `+23`, attribute focus `+27`, Focus Pos `+29/+30` as the match slot pair, `contracted` `+37` (`87` under contract) and squad status `+39`; the Club Squad > Training page | rewritten as focus changes | Shape A (count-framed, `tid == row`) | `TRAINING_TABLE` |
 | 55,490,212 | 55,884,748 | 0.39 MB | **UNIDENTIFIED**; ends in a sorted run of 430 u32 tids behind `ff` filler, then 73 bytes | — | — | — |
 | 55,884,748 | 56,178,674 | 0.29 MB | **[our matches](matches.md)** — `[count u8 = 57]`, then one row per match: `[home, away, cid, day][n u8][n x 17 B events][5,093 B body]` -- the body repeats the head from our side, then 50 event slots, two team blocks (`[77 B][20 x 62 B player slots][46 B]`, our score at +52) and our tactic (formation string, 11 starting positions, per-starter items, a coordinate grid) | **emptied on the rollover day; appends in-season** | Shape A (u8 count, row length from its event count) | `MATCHES_TABLE` |
-| 56,313,477 | 56,314,027 | **550 B** | exact `0xFF` wall, identical regardless of match count | — | — | — |
-| 56,314,027 | — | 65 B/rec | **per-season table** — `[flag u8][value u16][tid u16][year u16]`, one record per season, tid constant at our club | grows 1/season | Shape C | struct |
+| 56,178,674 | 56,313,477 | 0.13 MB | **UNIDENTIFIED** (`00` 45% / other 55%, no `ff`) | — | — | — |
+| 56,313,477 | 56,314,027 | **550 B** | `0xFF` run, 550 bytes on every Frem save. It is not the end of our matches: the match table ends 134,803 B earlier | — | — | — |
+| 56,314,027 | — | 65 B/entry | **league titles** — `[u8][cid u16][tid u16][year u16]` + 58 B of `ff`, one entry per league title our club has won: Frem's read 1147 / 2021, 4 / 2022, 3 / 2023 (and 2 / 2028 on `frem-2030-06-22`), each the cid and season of a first place in [club_records](club_records.md)' league history (that save doesn't list its 2029 first place yet). The first entry's leading byte is the entry count (2, 3, 3, 3, 4 on the five Frem saves), the others' is `01`. Unnamed: whether cups or the manager's other clubs land here is unknown | grows by one entry a title | Shape A (u8 count) | struct |
 | ~56,314,300 | ~61,253,092 | 4.94 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%). One small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` / `Res Group 1`), so the structure below starts earlier than its first EMPTY slot | — | — | — |
 | **61,253,092** | **62,631,642** | **1.38 MB** | **[player lists](player_lists.md)** — 66 lists of `[100 scrapbook entries][14 B trailer: u8, season u16 (end year; ffff in progress), 11 B]`; an entry is 8 length-prefixed strings (`[full name][first][last][""][last][club short name][""][competition]`) + a 168 B tail (the 23 attributes, 15 position ratings, tid, club marker, value, feet). Lists 0–30 world (100 players a season), 31–61 our club's squad per season, 62–65 two copies of a world/club pair; an unused entry is 200 B | **fixed pool of 66**, filled season by season | Shape E (seeded both ways) | `PLAYER_LISTS_TABLE` |
 | *61,896,648* | *62,002,727* | *0.11 MB* | ↳ *of which:* our club's squad lists (31–61) — the managed squad, one list per season | — | — | every entry emitted (`player_scrapbook.json`); the store picks our squad's (`raw.squad_scrapbook`) |
@@ -84,6 +85,18 @@ Four kinds of structure live in this file, and the class tells you how to parse 
 | **fixed pool** | career-history pool (265,423 records), match-slot table (3,975 slots) | Allocated once at career creation, never resized, recycled internally. The count is a **bound**, never a measure of how much data exists. |
 | **preallocated grid that also grows** | contract grid (83 B slots), club-records, the player-progress pool | Ships full of empty-sentinel rows and fills up. Club-records additionally gains 212 B each time a club plays in a new league. On a day-one save these read as *empty*, not missing. |
 | **seasonal, wiped each July** | transfer band (35.4–38.4 MB), our matches | Whatever is in them at the end of June is gone in July. A late-June save each year is the only way to keep a season's transfers or matches. |
+
+> **Dead end:** club-records and our matches each once passed for a fixed pool. Neither is:
+> club-records holds 1,057 clubs on every Frem save while its size grows 1,224,589 →
+> 1,345,853 bytes from 2023 to 2030, and our matches grow with the match count and empty on
+> the rollover day. To tell a pool from a structure that grows by insertion, follow one entity
+> across saves (one club's row), never a region's size: the region moves for reasons of its
+> own. And check a "constant" on a third save: two that agree prove nothing.
+
+> **Quirk:** the history pool's count is a capacity fixed at career creation: 265,423 on all
+> five Frem saves (2023–2030), 295,648 on both Bucaspor saves. Club-records starts exactly at
+> its end, on every save; the gap a byte-pattern scan once measured (209 bytes on most saves,
+> 513 on one) was the distance to the first record that scan could decode, not a frame.
 
 ## The July rollover, measured
 
@@ -104,7 +117,7 @@ save, watch the offset delta -- localises every byte of that:
 | tail | −59,274 | |
 
 **The transfer band accounts for its step on its own.** Across that pair its extent goes
-**3.32 MB -> 0.79 MB** (6,877 records -> 1,720) — a 2.53 MB collapse against a 2.54 MB measured
+**3.32 MB -> 0.79 MB** (6,877 -> 1,720 rows carrying contract terms) — a 2.53 MB collapse against a 2.54 MB measured
 deletion. Matches go 60 anchors -> 0 over the same pair.
 
 The wipe is a discrete event on rollover day and **the date moves year to year**:
@@ -134,12 +147,13 @@ Size alone misleads; the filler fraction matters more.
 | span | size | other% | ≈ real bytes | note |
 |---|---|---|---|---|
 | 0.57 – 3.99M | 3.42 MB | 45% | 1.55 MB | the person table ([person_info](person_info.md)); the records are walked, the bytes inside them are partly unnamed |
-| 56.31 – 61.25M | 4.94 MB | 18% | ~0.9 MB | between the per-season table and the player lists |
+| 56.31 – 61.25M | 4.94 MB | 18% | ~0.9 MB | between the league-titles table and the player lists |
 | 31.91 – 35.44M | 3.53 MB | 17% | 0.59 MB | in front of the transfer band |
 | 38.40 – 40.04M | 1.64 MB | 32% | 0.53 MB | between the transfer band and the match-slot table |
 | 13.98 – 16.75M | 2.77 MB | 17% | 0.48 MB | checked: not count-framed |
 | 41.11 – 42.63M | 1.52 MB | 18% | 0.27 MB | 82% zero, mostly padding |
 | 55.49 – 55.88M | 0.39 MB | 33% | 0.13 MB | after the training table; ends in a sorted run of tids |
+| 56.18 – 56.31M | 0.13 MB | 55% | 0.07 MB | between our matches and the 550 B `0xFF` run |
 | 52.72 – 53.48M | 0.76 MB | 0% | 0 | all `00` and `ff` |
 | 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`: padding, not a target |
 
@@ -152,8 +166,7 @@ Size alone misleads; the filler fraction matters more.
 
 - **contract grid** — scan for `[tid u32][0x01][wage u16][6×00][doy u16][year u16]`, keep hits
   whose gaps are exact multiples of 83; the run's extent divided by 83 is the slot count.
-- **transfer band** — the same signature, but every hit in 34–39 MB lands on **one residue
-  class mod 143**, at `+48` of the 143-byte transfer record.
+- **transfer band** — `[u32 65,000][u32 count]` in front of row 0 (the row frame starts 2 bytes after the count), and every row k holds k as a u32 at +109; see [the transfer band](#the-transfer-band).
 - **player-progress pool** — two consecutive unused 70-byte rows, then walked both ways row by
   row (`tables/player_progress.py`).
 - **club-records extent** — the u16 club count after the history pool, walked row by row.
@@ -162,6 +175,80 @@ Size alone misleads; the filler fraction matters more.
 - **the archive** — the first `28 b5 2f fd` (zstd magic) in the file; `archive.locate`.
 - **drift class** — compare any two saves: the reference half moves in tens of KB, the career
   half in megabytes.
+
+## The transfer band
+
+Every transfer negotiation of the season so far, each bid a row; no parser table reads it.
+`[u32 65,000][u32 count][2 B]`, then `count` rows of 143 bytes, row k holding k (u32) at
++109. The 65,000 is a capacity, the count is exact, and the rows fill the band to the end:
+20,747 rows, 2,966,821 bytes on `frem-2026-06-11`. Measured on seven saves:
+
+| save | header at | rows | row k holds k at +109 |
+|---|---|---|---|
+| `frem-2023-07-02` | 35,417,994 | 5,097 | all |
+| `frem-2024-11-22` | 35,462,624 | 15,852 | all |
+| `frem-2026-03-28` | 35,408,609 | 18,621 | all |
+| `frem-2026-06-11` | 35,438,751 | 20,747 | all |
+| `frem-2030-06-22` | 35,421,876 | 19,157 | all |
+| `bucaspor-2022-06-19` | 36,797,816 | 16,527 | all but 30 of the last 54, which read 0 |
+| `bucaspor-2023-04-01` | 36,808,207 | 18,766 | all |
+
+Offsets from the row start (the header's end + 2):
+
+| offset | type | meaning | how we know |
+|---|---|---|---|
+| +0 | u8 | kind: `13` a bid, `0d` the accepted one; `01`, `05`, `06`, `09`, `0b` also occur (74, 11, 69, 17, 5 rows), unread | each signing below: its bids, then one `0d` row |
+| +4 | u16 | a club tid or `ffff`; unread | |
+| +6 | u32 | the player's tid | resolves to a person on 20,747 of 20,747 rows; 8,949 people |
+| +10 | u8 | 1 when the row carries contract terms (6,362 rows) | |
+| +11 | u16 | wage, in the [contract grid](contracts.md)'s wage units | below |
+| +19 | `[day u16][year u16]` | contract expiry | below |
+| +42 | `[day u16][year u16]` | a date in the negotiation: 181–183 / 2025 on the signings below, the start of July | |
+| +87 | u32 | the fee bid, in pounds, on a permanent move; on a loan a larger number that is not money (1,508,051 … 1,558,051), unread | the screen's fees, below |
+| +101 | u16 | the selling club's tid | |
+| +103 | u16 | the buying club's tid | |
+| +109 | u32 | the row's index | every row on six saves |
+| +113 | u32 | a serial, not dense; `ffffffff` on 428 rows | |
+
+The rest is unread. A player has as many rows as bids for him: Gregers Dehn has 21, from 12 buying clubs, two of
+them `0d`. Read a row as a bid, never as a transfer.
+
+**Evidence.** `frem-2026-06-11`, Frem's Transfers screen, 2025/26 Transfers In (11 Jun 2026),
+as transcribed from the author's screenshot (the image is not in the repo). The screen shows
+eleven signings, four fees (£300K, £200K, £130K, £120K) and no dates. Every one has a `0d` row
+with +101 the club he came from and +103 Frem (346); for the four with a fee, the bids rise
+to it and the `0d` row's +87 is the fee on screen, rounded:
+
+| player | rows (+0, +87) | on screen |
+|---|---|---|
+| Johannes Tjørnelund, FC København | `13` 32,000, 200,000, 250,000, 275,000; `0d` 302,162 | £300K |
+| Marcelo Schöne, Brøndby IF | `13` 14,949, 60,000, 120,000, 170,000, 190,000; `0d` 203,676 | £200K |
+| Mads-Emil Wass, FC Roskilde | `13` 21,709; `0d` 130,000 | £130K |
+| Gregers Dehn, FC Roskilde | `13` 2,000, 40,000, 80,000, 100,000, 110,000; `0d` 116,929 | £120K |
+| Mounir Secka (Nordsjælland), Jakob Larsen (Midtjylland) | `0d`, +87 0 | Bosman |
+| Anders Noer, from tid 65191 (not in the club table) | `0d`, +87 65,519 | Graduation |
+| Bertil Juel Andersen (Granada), Mikkel Lejbowicz (København), Lauge Gülstorff (Brøndby), Oliver Sørensen (Midtjylland) | `0d`, +87 1,080,284 / 755,284 / 1,508,051 / 1,508,051 | Loan |
+
+On the accepted row the terms are the contract signed: Tjørnelund +11 `32 00` (50) and +19
+`b3 00 ec 07` (2028-06-28), the contract grid's 50 and 2028-06-28; Schöne 23, Wass 37, Dehn 7,
+all to 2028-06-28. Across the table, of the players whose last accepted row is to the club
+they are at now, 2,203 of 3,030 match their current contract on both wage and expiry
+(`frem-2026-06-11`; 2,548 of 3,474 on `frem-2030-06-22`). The rest differ, renewals since
+being the likely reason (unverified).
+
+> **Quirk:** the row frame starts 2 bytes after the count. Framed from the index instead
+> (index at +8, tid at +48), each row's selling club sits at +0 of the next row, which reads
+> like a column offset. It is a framing error: start from the header.
+
+> **Quirk:** `0d` rows exist that the screen doesn't list as 2025/26 signings: Tochi
+> Chukwuani (Nordsjælland, a loan-sized +87) and two dated April 2026 with +87 0 (Aksel
+> Behrndtz, Chris Gernsøe). Pre-agreed moves for next season would fit; unverified.
+
+> **Dead end:** searching for the fees as £000s u16, or in a ±25% band at fixed offsets from
+> the player tid in the index-framed row. The fee is a u32 in whole pounds at +87, and only
+> the `0d` row holds the agreed one.
+
+What is open is in TODO, "The transfer band: read the rest of the row".
 
 ## The archive
 
