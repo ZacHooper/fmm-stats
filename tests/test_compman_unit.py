@@ -76,30 +76,58 @@ def test_compman_header_and_stages():
     print("  PASS compman header and stages parsing; the audit sees the header and every stage")
 
 
+def _honour(cid, season, tids, start, end):
+    """One 55-byte roll-of-honour record."""
+    buf = bytearray(CH.STRIDE)
+    struct.pack_into("<II", buf, 0, cid, season)
+    struct.pack_into("<IIII", buf, 8, *tids)
+    buf[24:44] = b"\xff" * 20
+    struct.pack_into("<HHHH", buf, 47, start, end, 1, 1900)
+    return bytes(buf)
+
+
 def test_compman_honour_schema():
     print("TESTING compman honour schema")
-    buf = bytearray(CH.STRIDE)
-    buf[0:5] = b"\xff" * 5
-    struct.pack_into("<HHH", buf, 8, 2021, 2027, 2)  # start, end, format_flag
-    struct.pack_into("<H", buf, 14, 1900)
-    struct.pack_into("<II", buf, 16, 2, 2025)  # cid 2, season 2025
-    struct.pack_into("<IIII", buf, 24, 346, 177, 157, 100)  # 1st..4th place TIDs
-    buf[40:55] = b"\xff" * 15
-
-    rec = CH.HONOUR.read(bytes(buf), 0)
+    rec = CH.read_honour(_honour(2, 2029, (346, 337, 2465, 0xFFFFFFFF), 2028, 2029), 0)
     assert rec["comp_cid"] == 2
-    assert rec["season"] == 2025
+    assert rec["season"] == 2029
     assert rec["winner_tid"] == 346
-    assert rec["runner_up_tid"] == 177
-    assert rec["third_place_tid"] == 157
-    assert rec["fourth_place_tid"] == 100
+    assert rec["runner_up_tid"] == 337
+    assert rec["third_place_tid"] == 2465
+    assert rec["fourth_place_tid"] is None
+    assert (rec["start_year"], rec["end_year"], rec["base_year"]) == (2028, 2029, 1900)
     assert CH.HONOUR.span == CH.STRIDE == 55
     print("  PASS compman honour schema")
+
+
+def test_compman_honours_framing():
+    print("TESTING compman honours framed by their count")
+    head = build_synthetic_compman_blob(n_stages=2) + b"\x00" * 37   # stages, then the calendar
+    recs = [_honour(2, 2028, (1, 2, 3, 0xFFFFFFFF), 2027, 2028),
+            _honour(263, 2028, (4, 5, 0xFFFFFFFF, 0xFFFFFFFF), 2027, 2028),
+            _honour(2, 2029, (6, 7, 8, 0xFFFFFFFF), 2028, 2029)]
+    blob = head + struct.pack("<I", len(recs)) + b"".join(recs)
+    assert CH.locate_comp_honours(blob) == (len(head) + 4, 3)
+    rows = CH.scrape(blob)
+    assert [(r["comp_cid"], r["season"], r["winner_tid"]) for r in rows] == [(2, 2028, 1), (263, 2028, 4), (2, 2029, 6)]
+    assert rows[1]["third_place_tid"] is None
+    assert rows[0]["start_year"] == 2027, "record 0 is read, with its own years"
+
+    empty = head + struct.pack("<I", 0)
+    assert CH.locate_comp_honours(empty) == (len(empty), 0) and CH.scrape(empty) == []
+
+    wrong_count = head + struct.pack("<I", 2) + b"".join(recs)
+    assert CH.locate_comp_honours(wrong_count) is None, "a count that does not tile is no frame"
+    broken = bytearray(blob)
+    broken[len(head) + 4 + CH.STRIDE + 30] = 0
+    assert CH.locate_comp_honours(bytes(broken)) is None, "a record without the signature is no frame"
+    print("  PASS compman honours framing")
 
 
 def main():
     test_compman_header_and_stages()
     test_compman_honour_schema()
+    test_compman_honours_framing()
     return 0
 
 

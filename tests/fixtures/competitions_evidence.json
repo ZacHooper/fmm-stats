@@ -95,6 +95,7 @@
  },
  "holders_offsets": {"2": 12587477, "263": 12617678, "5": 12587752, "258": 12617242},
  "honours_count": 721,
+ "honours_count_at": 197207,
  "superliga_stages": [[0, "leag", 1, 12, 236], [1, "cham", 1, 6, 108], [2, "rele", 1, 6, 171]],
  "pokalen_rounds": [[0, 6, 92, 1], [1, 7, 52, 1], [2, 8, 32, 1], [3, 9, 16, 1], [4, 17, 8, 2], [5, 18, 4, 2], [6, 20, 2, 1]],
  "euro_third_qualifying": {"uid": 1301396, "stage_index": 0, "stage_code": "bppr", "round_index": 0, "round_name_id": 151, "legs": 2},

@@ -37,8 +37,8 @@ record   [cid u16][uid u32]
 | entrant `ref` | u32 | club **uid** if positive, national team if negative (`-ref` = the nation's uid), `ffffffff` empty | 457/457 positive refs are club uids, 67/67 negative ones nation uids |
 | entrant `season`, `ordinal` | u16, u8 | season (0 = unset); a small number, unnamed (0–4) | |
 | entrant +7 | u8 | unnamed | |
-| tail +0, +4, +8 | 3 × u32 | **the holders**: the last finished season's 1st, 2nd and 3rd as club **uids**; a cup holds winner and runner-up and `ffffffff` third | 25 of 26 leagues, below; not yet named in the module (`UNKNOWN`) |
-| tail +12 `season_0`, +14 `season_1`, +16 `season_2` | 3 × u16 | that season: end year, start year, end year again; `ffff` × 3 when there are no holders | (2030, 2029, 2030) beside the 2029/30 holders |
+| tail +0, +4, +8 `holders_1st_uid`, `holders_2nd_uid`, `holders_3rd_uid` | 3 × u32 | **the holders**: the last finished season's 1st, 2nd and 3rd as club **uids**; a cup holds winner and runner-up and `ffffffff` third | 25 of 26 leagues, below |
+| tail +12 `holders_season`, +14 `holders_start_year`, +16 `holders_end_year` | 3 × u16 | that season as the [roll of honour](comp_honours.md) writes it (its `season`, `start_year`, `end_year`): (2030, 2029, 2030) for a league's 2029/30, (2029, 2029, 2030) for a super cup's; `ffff` × 3 when there are no holders | below |
 | tail +18 | u16 | 1–5, unnamed | |
 | tail +20 | u8 | 0 on every named slot | |
 
@@ -98,6 +98,16 @@ the EURO Cup's OL and Inter.
 > empty list. Content settles it: the 3. Liga (cid 507) carries 20 entrants, and its holders
 > decode after them and match its 2029/30 top three.
 
+**The holders' season.** The three u16s take the roll of honour's own shape for the
+competition. On frem-2030-06-22, 90 of the 91 competitions with both a tail and a dated roll
+of honour record have the same `season − start_year` and `end_year − start_year` in each:
+leagues (2030, 2029, 2030), calendar-year competitions (2029, 2029, 2029), the one-match
+cups played across New Year's season boundary (European Super Cup, Community Shield, German
+Supercup, …; 2029, 2029, 2030, after their roll of honour's 2028, 2028, 2029), the European International League (2029, 2030, 2030). The one that
+differs, the North American Nations League, changed its season shape within the save's
+history (its last record 2023, 2022, 2023; the tail 2028, 2029, 2029). So `holders_season`
+is the end year for a league but not in general: read the years, not the season.
+
 **The holders on screen.** A competition's Past Winners screen opens on 2029/30 on this save,
 a season the roll of honour does not hold yet; the row is the holders tail. On all four lists
 captured it matches: 3F Superliga Frem / FC København (`img/comp_honours-1.png`), Sydbank
@@ -117,4 +127,5 @@ NordicBet Liga 97 > 2. Division 80 > 3. Division 63 > Denmark's Series 33).
 nation_id, reputation, level, parent_cid}}` for the 1,272 named slots (blanks left out;
 `nation_id` and `parent_cid` null for `ffff`). Loads into `raw.competitions`. Not extracted:
 `continent`, the colours, the entrant list (read with `comp_refs(mm, cid)`) and the holders
-tail.
+(read with `holders(mm)`: `{cid: {season, start_year, end_year, first_uid, second_uid,
+third_uid}}`, `None` for an empty place).

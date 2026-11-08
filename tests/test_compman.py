@@ -2,6 +2,7 @@
 """Test suite for comp_man.dat parser (fmparser/tables/comp_stages.py and comp_honours.py)."""
 import mmap
 import os
+import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,6 +41,13 @@ def test_compman_cases():
         assert len(stg) == expected_stages, f"{fname}: stage count mismatch {len(stg)} != {expected_stages}"
 
         hon = CH.honours(blob)
+        loc = CH.locate_comp_honours(blob)
+        assert loc is not None, f"{fname}: the roll of honour is not framed by its count"
+        base, count = loc
+        assert struct.unpack_from("<I", blob, base - 4)[0] == count, f"{fname}: count u32 not in front of record 0"
+        assert base + count * CH.STRIDE == len(blob), f"{fname}: count x 55 does not end on the member's last byte"
+        assert len(hon) == count, f"{fname}: read {len(hon)} of {count} declared honours"
+        assert all(h["base_year"] == 1900 for h in hon), f"{fname}: a record is mis-framed (base_year != 1900)"
         if "2021-06-27" in fname:
             assert len(hon) == 0, f"{fname}: day-one should have 0 honours, got {len(hon)}"
             print(f"  PASS {fname:<25} header ok, {len(stg):,} stages, 0 honours (day one)")

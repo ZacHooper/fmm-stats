@@ -192,7 +192,7 @@ development, not just injuries and loans.
     which carries the cid but no keys); every tag of `comp_<uid>.dat`, read or unread, and the
     binary block after its trailer (some of a competition's keys never occur there, e.g. 45
     in `comp_6.dat`); the main save's competition record (whose 21-byte tail is three club
-    uids and three years: holders and recent finishers, to verify against the roll of honour).
+    uids and three years: the holders, [competitions](parser/competitions.md)).
   - That `stage_key` is a row number in `comp_man.dat`'s 78-byte grid is itself unproven: at
     row `stage_key` the round or stage name the rules give the fixture appears at +70 on 0 of
     42 keys, and at no offset or nearby row on more than a third
@@ -230,16 +230,6 @@ to test, not facts.
 
 ### 10. Unnamed fields in records we already read
 Bytes the parser reads but cannot name yet.
-- **Frame the roll of honour by its count, and name the competition holders**
-  ([comp_honours](parser/comp_honours.md), [competitions](parser/competitions.md)). The roll
-  of honour is `[count u32][count × 55 B]` ending on `comp_man.dat`'s last byte (7 of 7
-  saves); `locate_comp_honours` starts 39 bytes into record 0, so it drops that record and
-  hands every row the previous record's `start_year`/`end_year`. The competition record's
-  21-byte tail is the last finished season's top three (club uids) and that season; 25 of 26
-  leagues and four Past Winners screens agree. Name both in the module (`COMP_HISTORY_TAIL`),
-  and consider extracting the holders and the roll of honour together: the in-game Past
-  Winners list is exactly the two. Nothing reads either today, so `competitions.json` and
-  the rest of the extract do not change.
 - **Staff** `+34..+38`: five catalog indices. The six hidden staff attributes stay named by
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
@@ -349,8 +339,10 @@ table:
   `competition_rounds` flattens each `comp_<uid>.dat` member. Fix: dump `rule_files` and
   `comp_rules` whole.
 - **Parsed but never extracted.** `officials` (match officials), `comp_honours` (roll of
-  honour) and `comp_stages` (stages calendar) from `comp_man.dat`, and `match_slots`. Each needs
-  an extract step, a raw table and a stg model.
+  honour) and `comp_stages` (stages calendar) from `comp_man.dat`, `match_slots`, and the
+  competition holders (`competitions.holders`). Each needs an extract step, a raw table and a
+  stg model. The roll of honour and the holders belong together: one above the other they are
+  the in-game Past Winners list (holders by club uid, roll of honour by tid).
 - **Not parsed.** The transfer band's 143-byte records are decoded on paper
   ([`transfer-history-record.md`](transfer-history-record.md)) but have no parser module, and
   the save wipes them each July (#3).
