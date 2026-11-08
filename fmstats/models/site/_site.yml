@@ -7,37 +7,264 @@ models:
     description: The store's snapshots, the newest flagged.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: season
+        description: 'The snapshot''s season. {{ doc("season") }}'
+      - name: label
+        description: '{{ doc("label") }}'
+      - name: is_latest
+        description: '{{ doc("is_latest") }}'
   - name: site_config
     description: The settings the web app reads, one row per key.
     data_tests:
       - unique_combination: {arguments: {columns: [key]}}
+    columns:
+      - name: key
+        description: '{{ doc("key") }}'
+      - name: value
+        description: '{{ doc("value") }}'
   - name: site_role_weights
     description: Each weight-set's attribute weights per role.
     data_tests:
       - unique_combination: {arguments: {columns: [method, role, attribute]}}
+    columns:
+      - name: method
+        description: '{{ doc("method") }}'
+      - name: role
+        description: '{{ doc("role") }}'
+      - name: attribute
+        description: '{{ doc("attribute") }}'
+      - name: weight
+        description: '{{ doc("weight") }}'
   - name: site_position_roles
     description: The role each position is rated in.
     data_tests:
       - unique_combination: {arguments: {columns: [position]}}
+    columns:
+      - name: position
+        description: '{{ doc("position") }}'
+      - name: role
+        description: '{{ doc("role") }}'
   - name: site_our_teams
     description: The teams of the club we manage.
     data_tests:
       - unique_combination: {arguments: {columns: [team_tid]}}
+    columns:
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: club_tid
+        description: '{{ doc("club_tid") }}'
+      - name: name
+        description: 'The team''s name. {{ doc("name") }}'
+      - name: is_first_team
+        description: '{{ doc("is_first_team") }}'
+      - name: is_managed
+        description: '{{ doc("is_managed") }}'
   - name: site_clubs
     description: Every team on every snapshot, with its league and whether it is listed.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: club_tid
+        description: '{{ doc("club_tid") }}'
+      - name: name
+        description: 'The team''s name. {{ doc("name") }}'
+      - name: team_type
+        description: '{{ doc("team_type") }}'
+      - name: league_cid
+        description: '{{ doc("league_cid") }}'
+      - name: league_name
+        description: 'The name of the team''s league. {{ doc("name") }}'
+      - name: nation
+        description: '{{ doc("nation") }}'
+      - name: reputation
+        description: 'The team''s, 1-10,000. {{ doc("reputation") }}'
+      - name: shirt_colours
+        description: '{{ doc("shirt_colours") }}'
+      - name: squad_size
+        description: '{{ doc("n_players") }}'
+      - name: is_listed
+        description: '{{ doc("is_listed") }}'
   - name: site_leagues
     description: Every league on every snapshot, with skill_idx and the comparison ladder.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, cid]}}
       - unique_combination: {arguments: {columns: [snapshot_date, ladder_rank]},
                              config: {where: "ladder_rank is not null"}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: cid
+        description: 'The league. {{ doc("cid") }}'
+      - name: name
+        description: 'The league''s name. {{ doc("name") }}'
+      - name: nation
+        description: '{{ doc("nation") }}'
+      - name: type
+        description: '{{ doc("type") }}'
+      - name: reputation
+        description: 'The league''s, 0-200. {{ doc("reputation") }}'
+      - name: tier
+        description: '{{ doc("tier") }}'
+      - name: member_count
+        description: '{{ doc("n_members") }}'
+      - name: skill_idx
+        description: '{{ doc("skill_index") }}'
+      - name: rated
+        description: '{{ doc("n_rated") }}'
+      - name: ladder_rank
+        description: '{{ doc("ladder_rank") }}'
   - name: site_players
     description: Every rated player on every snapshot, with positions and Level %iles.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, person_id]}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: tid
+        description: '{{ doc("tid") }}'
+      - name: name
+        description: 'His name on the snapshot. {{ doc("name") }}'
+      - name: team_tid
+        description: 'The team his record names. {{ doc("team_tid") }}'
+      - name: dob
+        description: '{{ doc("birth_date") }}'
+      - name: value
+        description: 'Only a stated value: NULL where it would be an estimate.
+          {{ doc("value_gbp") }}'
+      - name: wage_gbp
+        description: '{{ doc("wage_gbp") }}'
+      - name: contract_expiry
+        description: '{{ doc("contract_expiry_date") }}'
+      - name: Aerial
+        description: '{{ doc("aerial") }}'
+      - name: Crossing
+        description: '{{ doc("crossing") }}'
+      - name: Dribbling
+        description: '{{ doc("dribbling") }}'
+      - name: Shooting
+        description: '{{ doc("shooting") }}'
+      - name: Passing
+        description: '{{ doc("passing") }}'
+      - name: Tackling
+        description: '{{ doc("tackling") }}'
+      - name: Technique
+        description: '{{ doc("technique") }}'
+      - name: Aggression
+        description: '{{ doc("aggression") }}'
+      - name: Creativity
+        description: '{{ doc("creativity") }}'
+      - name: Decisions
+        description: '{{ doc("decisions") }}'
+      - name: Leadership
+        description: '{{ doc("leadership") }}'
+      - name: Movement
+        description: '{{ doc("movement") }}'
+      - name: Positioning
+        description: '{{ doc("positioning") }}'
+      - name: Teamwork
+        description: '{{ doc("teamwork") }}'
+      - name: Pace
+        description: '{{ doc("pace") }}'
+      - name: Stamina
+        description: '{{ doc("stamina") }}'
+      - name: Strength
+        description: '{{ doc("strength") }}'
+      - name: Agility
+        description: '{{ doc("agility") }}'
+      - name: Handling
+        description: '{{ doc("handling") }}'
+      - name: Kicking
+        description: '{{ doc("kicking") }}'
+      - name: Reflexes
+        description: '{{ doc("reflexes") }}'
+      - name: Communication
+        description: '{{ doc("communication") }}'
+      - name: Throwing
+        description: '{{ doc("throwing") }}'
+      - name: squad_number
+        description: '{{ doc("squad_number") }}'
+      - name: height_cm
+        description: '{{ doc("height_cm") }}'
+      - name: weight_kg
+        description: '{{ doc("weight_kg") }}'
+      - name: origin_club_tid
+        description: '{{ doc("origin_club_tid") }}'
+      - name: origin_club
+        description: '{{ doc("origin_club") }}'
+      - name: capital_eligible
+        description: '{{ doc("is_capital_eligible") }}'
+      - name: nationality
+        description: '{{ doc("nation") }}'
+      - name: foot_left
+        description: '{{ doc("foot_left") }}'
+      - name: foot_right
+        description: '{{ doc("foot_right") }}'
+      - name: preferred_squad_number
+        description: '{{ doc("preferred_squad_number") }}'
+      - name: joined_date
+        description: '{{ doc("joined_date") }}'
+      - name: international_caps
+        description: '{{ doc("international_caps") }}'
+      - name: international_goals
+        description: '{{ doc("international_goals") }}'
+      - name: u21_caps
+        description: '{{ doc("u21_caps") }}'
+      - name: u21_goals
+        description: '{{ doc("u21_goals") }}'
+      - name: reputation
+        description: 'His home reputation. {{ doc("reputation") }}'
+      - name: current_reputation
+        description: '{{ doc("current_reputation") }}'
+      - name: world_reputation
+        description: '{{ doc("world_reputation") }}'
+      - name: adaptability
+        description: '{{ doc("adaptability") }}'
+      - name: ambition
+        description: '{{ doc("ambition") }}'
+      - name: determination
+        description: '{{ doc("determination") }}'
+      - name: loyalty
+        description: '{{ doc("loyalty") }}'
+      - name: pressure
+        description: '{{ doc("pressure") }}'
+      - name: professionalism
+        description: '{{ doc("professionalism") }}'
+      - name: sportsmanship
+        description: '{{ doc("sportsmanship") }}'
+      - name: temperament
+        description: '{{ doc("temperament") }}'
+      - name: jumping
+        description: '{{ doc("jumping") }}'
+      - name: consistency
+        description: '{{ doc("consistency") }}'
+      - name: big_match
+        description: '{{ doc("big_match") }}'
+      - name: injury_prone
+        description: '{{ doc("injury_prone") }}'
+      - name: versatility
+        description: '{{ doc("versatility") }}'
+      - name: set_pieces
+        description: '{{ doc("set_pieces") }}'
+      - name: penalty
+        description: '{{ doc("penalty") }}'
+      - name: work_rate
+        description: '{{ doc("work_rate") }}'
+      - name: flair
+        description: '{{ doc("flair") }}'
+      - name: development
+        description: '{{ doc("development") }}'
+      - name: positions
+        description: '{{ doc("positions") }}'
   - name: site_squad
     description: Our squad on each snapshot.
     data_tests:
@@ -47,78 +274,591 @@ models:
             columns: [snapshot_date, person_id]
             to: ref('fact_player_snapshot')
             to_columns: [snapshot_date, person_id]
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: status
+        description: '{{ doc("squad_status") }}'
+      - name: is_loan_in
+        description: '{{ doc("is_loan_in") }}'
+      - name: loaned_to_club_tid
+        description: '{{ doc("loaned_to_club_tid") }}'
   - name: site_player_spells
     description: Where each player was, as dated spells.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, spell_type, from_date]}}
+    columns:
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: spell_type
+        description: '{{ doc("spell_type") }}'
+      - name: club_tid
+        description: 'The team of an at_club spell (first team and reserves are two), the borrowing
+          club of a loan out, the parent club of a loan in; NULL for an injury.
+          {{ doc("team_tid") }}'
+      - name: from_date
+        description: '{{ doc("from_date") }}'
+      - name: to_date
+        description: '{{ doc("to_date") }}'
   - name: site_player_moves
     description: The dated moves the development chart marks.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, move_type, move_date]}}
+    columns:
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: move_date
+        description: '{{ doc("move_date") }}'
+      - name: from_club_tid
+        description: 'The club he left, or for an internal move our team he left; NULL for a free
+          agent''s signing. {{ doc("from_club_tid") }}'
+      - name: to_club_tid
+        description: 'The club he joined, or for an internal move our team he joined.
+          {{ doc("to_club_tid") }}'
+      - name: move_type
+        description: '{{ doc("move_type") }}'
+      - name: fee_type
+        description: '{{ doc("move_fee_type") }}'
+      - name: fee_gbp
+        description: '{{ doc("fee_gbp") }}'
   - name: site_player_career
     description: Each player's career history, one row per line.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, line_index]}}
+    columns:
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: line_index
+        description: '{{ doc("line_index") }}'
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: team_tid
+        description: 'The team the line names; NULL on a line with no club. {{ doc("team_tid") }}'
+      - name: club
+        description: '{{ doc("club") }}'
+      - name: fee_kind
+        description: '{{ doc("fee_type") }}'
+      - name: fee_gbp
+        description: '{{ doc("fee_gbp") }}'
+      - name: fee_label
+        description: '{{ doc("fee_label") }}'
+      - name: apps
+        description: '{{ doc("appearances") }}'
+      - name: goals
+        description: 'Goals CONCEDED on a goalkeeper''s line. {{ doc("goals") }}'
+      - name: assists
+        description: '{{ doc("assists") }}'
+      - name: rating
+        description: 'The game''s average rating for the season (see fact_player_season.rating).
+          {{ doc("average_rating") }}'
   - name: site_matches
     description: The managed team's matches with detail, from its side.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id]}}
+    columns:
+      - name: match_id
+        description: '{{ doc("match_id") }}'
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: match_date
+        description: '{{ doc("match_date") }}'
+      - name: competition
+        description: 'The match table''s name for the competition. {{ doc("competition") }}'
+      - name: venue
+        description: '{{ doc("venue") }}'
+      - name: opponent
+        description: '{{ doc("opponent") }}'
+      - name: opp_tid
+        description: 'The opposing team. {{ doc("opponent_tid") }}'
+      - name: gf
+        description: 'Ours, the final score. {{ doc("goals_for") }}'
+      - name: ga
+        description: 'Theirs, the final score. {{ doc("goals_against") }}'
+      - name: result
+        description: 'Ours. {{ doc("result") }}'
+      - name: pts
+        description: 'Our points from the match. {{ doc("points") }}'
+      - name: formation
+        description: 'Ours, as the match table stores it. {{ doc("formation") }}'
+      - name: attendance
+        description: '{{ doc("attendance") }}'
+      - name: stage_kind
+        description: '{{ doc("stage_type") }}'
+      - name: stage
+        description: '{{ doc("stage") }}'
+      - name: matchday
+        description: 'From 1 in a league or group stage; NULL otherwise. {{ doc("matchday") }}'
+      - name: leg
+        description: 'Set only in a two-legged tie. {{ doc("leg") }}'
+      - name: tie_gf
+        description: 'Our aggregate in a two-legged tie, once both legs are played; NULL otherwise.
+          {{ doc("goals_for") }}'
+      - name: tie_ga
+        description: 'Their aggregate in a two-legged tie, once both legs are played; NULL
+          otherwise. {{ doc("goals_against") }}'
+      - name: went_through
+        description: '{{ doc("is_through") }}'
+      - name: extra_time
+        description: '{{ doc("has_extra_time") }}'
+      - name: pens_for
+        description: '{{ doc("pens_for") }}'
+      - name: pens_against
+        description: '{{ doc("pens_against") }}'
+      - name: our_shots
+        description: '{{ doc("shots") }}'
+      - name: opp_shots
+        description: '{{ doc("shots") }}'
+      - name: our_shots_on_target
+        description: '{{ doc("shots_on_target") }}'
+      - name: opp_shots_on_target
+        description: '{{ doc("shots_on_target") }}'
+      - name: our_passes
+        description: '{{ doc("passes") }}'
+      - name: opp_passes
+        description: '{{ doc("passes") }}'
+      - name: our_passes_completed
+        description: '{{ doc("passes_completed") }}'
+      - name: opp_passes_completed
+        description: '{{ doc("passes_completed") }}'
+      - name: our_tackles
+        description: '{{ doc("tackles") }}'
+      - name: opp_tackles
+        description: '{{ doc("tackles") }}'
+      - name: our_tackles_won
+        description: '{{ doc("tackles_won") }}'
+      - name: opp_tackles_won
+        description: '{{ doc("tackles_won") }}'
+      - name: our_crosses
+        description: '{{ doc("crosses") }}'
+      - name: opp_crosses
+        description: '{{ doc("crosses") }}'
+      - name: our_interceptions
+        description: '{{ doc("interceptions") }}'
+      - name: opp_interceptions
+        description: '{{ doc("interceptions") }}'
   - name: site_match_players
     description: Each appearance for the managed (senior) team in a match with detail.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id, person_id]}}
+    columns:
+      - name: match_id
+        description: '{{ doc("match_id") }}'
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: tid
+        description: 'The player''s tid on the line (the web app''s player key). {{ doc("tid") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: opponent_tid
+        description: '{{ doc("opponent_tid") }}'
+      - name: match_date
+        description: '{{ doc("match_date") }}'
+      - name: competition
+        description: 'The match table''s name for the competition. {{ doc("competition") }}'
+      - name: rating
+        description: '{{ doc("rating") }}'
+      - name: rating_adj
+        description: '{{ doc("rating_adj") }}'
+      - name: goals
+        description: '{{ doc("goals") }}'
+      - name: assists
+        description: '{{ doc("assists") }}'
+      - name: minutes
+        description: '{{ doc("minutes") }}'
+      - name: started
+        description: '{{ doc("is_starter") }}'
+      - name: is_player_of_match_award
+        description: '{{ doc("is_player_of_match_award") }}'
+      - name: position
+        description: '{{ doc("position") }}'
+      - name: passes
+        description: '{{ doc("passes") }}'
+      - name: passes_completed
+        description: '{{ doc("passes_completed") }}'
+      - name: key_passes
+        description: '{{ doc("key_passes") }}'
+      - name: tackles
+        description: '{{ doc("tackles") }}'
+      - name: tackles_won
+        description: '{{ doc("tackles_won") }}'
+      - name: interceptions
+        description: '{{ doc("interceptions") }}'
+      - name: headers
+        description: '{{ doc("headers") }}'
+      - name: headers_won
+        description: '{{ doc("headers_won") }}'
+      - name: crosses
+        description: '{{ doc("crosses") }}'
+      - name: crosses_completed
+        description: '{{ doc("crosses_completed") }}'
+      - name: dribbles
+        description: '{{ doc("dribbles") }}'
+      - name: shots
+        description: '{{ doc("shots") }}'
+      - name: shots_on_target
+        description: '{{ doc("shots_on_target") }}'
+      - name: mistakes
+        description: '{{ doc("mistakes") }}'
+      - name: yellows
+        description: '{{ doc("yellows") }}'
   - name: site_opponent_match_players
     description: Each appearance against the managed (senior) team in a match with detail.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id, person_id]}}
+    columns:
+      - name: match_id
+        description: '{{ doc("match_id") }}'
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: tid
+        description: 'The player''s tid on the line (the web app''s player key). {{ doc("tid") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: opponent_tid
+        description: '{{ doc("opponent_tid") }}'
+      - name: match_date
+        description: '{{ doc("match_date") }}'
+      - name: competition
+        description: 'The match table''s name for the competition. {{ doc("competition") }}'
+      - name: rating
+        description: '{{ doc("rating") }}'
+      - name: rating_adj
+        description: '{{ doc("rating_adj") }}'
+      - name: goals
+        description: '{{ doc("goals") }}'
+      - name: assists
+        description: '{{ doc("assists") }}'
+      - name: minutes
+        description: '{{ doc("minutes") }}'
+      - name: started
+        description: '{{ doc("is_starter") }}'
+      - name: is_player_of_match_award
+        description: '{{ doc("is_player_of_match_award") }}'
+      - name: position
+        description: '{{ doc("position") }}'
+      - name: passes
+        description: '{{ doc("passes") }}'
+      - name: passes_completed
+        description: '{{ doc("passes_completed") }}'
+      - name: key_passes
+        description: '{{ doc("key_passes") }}'
+      - name: tackles
+        description: '{{ doc("tackles") }}'
+      - name: tackles_won
+        description: '{{ doc("tackles_won") }}'
+      - name: interceptions
+        description: '{{ doc("interceptions") }}'
+      - name: headers
+        description: '{{ doc("headers") }}'
+      - name: headers_won
+        description: '{{ doc("headers_won") }}'
+      - name: crosses
+        description: '{{ doc("crosses") }}'
+      - name: crosses_completed
+        description: '{{ doc("crosses_completed") }}'
+      - name: dribbles
+        description: '{{ doc("dribbles") }}'
+      - name: shots
+        description: '{{ doc("shots") }}'
+      - name: shots_on_target
+        description: '{{ doc("shots_on_target") }}'
+      - name: mistakes
+        description: '{{ doc("mistakes") }}'
+      - name: yellows
+        description: '{{ doc("yellows") }}'
   - name: site_team_squads
     description: Every team's current squad, from the squad arrays.
     data_tests:
       - unique_combination: {arguments: {columns: [team_tid, person_id]}}
+    columns:
+      - name: team_tid
+        description: 'The team whose squad array lists him. {{ doc("team_tid") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: tid
+        description: 'His tid on the latest snapshot: his id in the web app''s player files.
+          {{ doc("tid") }}'
+      - name: is_loan_in
+        description: '{{ doc("is_loan_in") }}'
   - name: site_club_managers
     description: Each team's current manager, his three formations and his Style.
     data_tests:
       - unique_combination: {arguments: {columns: [team_tid]}}
+    columns:
+      - name: team_tid
+        description: 'The team he manages. {{ doc("team_tid") }}'
+      - name: person_id
+        description: 'The manager. {{ doc("person_id") }}'
+      - name: name
+        description: 'The manager''s name. {{ doc("name") }}'
+      - name: formation_preferred
+        description: 'The name of his preferred formation. {{ doc("formation") }}'
+      - name: formation_attacking
+        description: 'The name of his attacking formation. {{ doc("formation") }}'
+      - name: formation_defensive
+        description: 'The name of his defensive formation. {{ doc("formation") }}'
+      - name: style
+        description: '{{ doc("style") }}'
   - name: site_attendance
     description: The managed team's home crowds per season.
     data_tests:
       - unique_combination: {arguments: {columns: [season]}}
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: n_games
+        description: '{{ doc("n_games") }}'
+      - name: avg_att
+        description: '{{ doc("average_attendance") }}'
+      - name: min_att
+        description: '{{ doc("min_attendance") }}'
+      - name: max_att
+        description: '{{ doc("max_attendance") }}'
   - name: site_league_finishes
     description: Where the managed team finished each league season (live table place while running).
     data_tests:
       - unique_combination: {arguments: {columns: [season, competition]}}
+    columns:
+      - name: season
+        description: 'By the career''s rollover day, from the team''s last match in the competition
+          season. {{ doc("season") }}'
+      - name: competition
+        description: 'The league''s name. {{ doc("competition") }}'
+      - name: final_position
+        description: '{{ doc("final_position") }}'
+      - name: table_position
+        description: 'Its place in the table of the stage it has reached (the live place while the
+          season runs). {{ doc("table_position") }}'
+      - name: stage_name
+        description: 'The name of the stage the team has reached. {{ doc("name") }}'
+      - name: stage_teams
+        description: 'The size of the stage reached. {{ doc("stage_teams") }}'
+      - name: n_teams
+        description: '{{ doc("n_teams") }}'
   - name: site_finances
     description: Our squad's value and wage bill on each snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: n_owned
+        description: '{{ doc("n_owned") }}'
+      - name: n_loan_in
+        description: '{{ doc("n_loan_in") }}'
+      - name: value_gbp
+        description: 'Summed over the players we own. {{ doc("value_gbp") }}'
+      - name: n_value_est
+        description: '{{ doc("n_value_estimated") }}'
+      - name: wage_gbp
+        description: 'Summed over the players we own. {{ doc("wage_gbp") }}'
   - name: site_transfers
     description: Every transfer, named, aged and placed by window, nation and our direction.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, to_line_index]}}
+    columns:
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: to_line_index
+        description: '{{ doc("to_line_index") }}'
+      - name: tid
+        description: 'His tid (dim_person''s). {{ doc("tid") }}'
+      - name: name
+        description: 'The player''s name. {{ doc("name") }}'
+      - name: season
+        description: 'The season he moved FOR: a June signing belongs to the next season''s market.
+          {{ doc("season") }}'
+      - name: in_career
+        description: '{{ doc("is_in_career") }}'
+      - name: move_date
+        description: '{{ doc("move_date") }}'
+      - name: transfer_window
+        description: '{{ doc("transfer_window") }}'
+      - name: age
+        description: 'At the move (the window''s date standing in where there is no move date).
+          {{ doc("age") }}'
+      - name: transfer_type
+        description: '{{ doc("transfer_type") }}'
+      - name: fee_kind
+        description: '{{ doc("fee_type") }}'
+      - name: fee_gbp
+        description: '{{ doc("fee_gbp") }}'
+      - name: from_club_tid
+        description: '{{ doc("from_club_tid") }}'
+      - name: from_club
+        description: 'The club he left. {{ doc("club") }}'
+      - name: from_nation
+        description: 'The nation of the club he left (the club''s own nation). {{ doc("nation") }}'
+      - name: to_club_tid
+        description: '{{ doc("to_club_tid") }}'
+      - name: to_club
+        description: 'The club he joined. {{ doc("club") }}'
+      - name: to_nation
+        description: 'The nation of the club he joined (the club''s own nation).
+          {{ doc("nation") }}'
+      - name: direction
+        description: '{{ doc("direction") }}'
   - name: site_registration_rules
     description: The registration rules that apply to us on each snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: tier
+        description: 'The managed team''s league''s tier. {{ doc("tier") }}'
+      - name: league_name
+        description: 'The name of the managed team''s league. {{ doc("name") }}'
+      - name: nation
+        description: 'The nation of the managed team''s league. {{ doc("nation") }}'
+      - name: a_list_max
+        description: '{{ doc("a_list_max") }}'
+      - name: hg_min
+        description: '{{ doc("home_grown_min") }}'
+      - name: hg_club_min
+        description: '{{ doc("home_grown_club_min") }}'
+      - name: b_list_under_age
+        description: '{{ doc("b_list_under_age") }}'
+      - name: min_matchday_age
+        description: '{{ doc("min_matchday_age") }}'
+      - name: u21_on
+        description: '{{ doc("b_list_age_date") }}'
   - name: site_registration
     description: Each player in our squad as the registration page reads him.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, person_id]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: dob
+        description: '{{ doc("birth_date") }}'
+      - name: age
+        description: 'On the snapshot''s date. {{ doc("age") }}'
+      - name: b_list
+        description: '{{ doc("is_b_list") }}'
+      - name: hg_club
+        description: '{{ doc("is_home_grown_club") }}'
+      - name: hg_basis
+        description: '{{ doc("home_grown_basis") }}'
+      - name: hg_association
+        description: '{{ doc("is_home_grown_association") }}'
+      - name: months_club
+        description: '{{ doc("months_club") }}'
+      - name: months_to_go
+        description: '{{ doc("months_to_go") }}'
+      - name: hg_eta
+        description: '{{ doc("home_grown_date") }}'
+      - name: window_open
+        description: '{{ doc("is_window_open") }}'
+      - name: origin_club
+        description: '{{ doc("origin_club") }}'
+      - name: origin_nation
+        description: '{{ doc("origin_nation") }}'
+      - name: via_academy
+        description: '{{ doc("is_academy_product") }}'
   - name: site_nations
     description: Every ranked nation on every snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, nation_id]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: nation_id
+        description: '{{ doc("nation_id") }}'
+      - name: name
+        description: 'The nation''s name. {{ doc("name") }}'
+      - name: world_rank
+        description: '{{ doc("world_rank") }}'
+      - name: ranking_points
+        description: '{{ doc("ranking_points") }}'
+      - name: coefficient
+        description: '{{ doc("coefficient") }}'
+      - name: coefficient_history
+        description: '{{ doc("coefficient_history") }}'
+      - name: coefficient_season
+        description: '{{ doc("coefficient_season") }}'
+      - name: coefficient_is_live
+        description: '{{ doc("is_coefficient_live") }}'
+      - name: is_uefa
+        description: '{{ doc("is_uefa") }}'
+      - name: coefficient_5
+        description: '{{ doc("coefficient_5") }}'
+      - name: rival
+        description: '{{ doc("rival") }}'
+      - name: uefa_rank
+        description: '{{ doc("uefa_rank") }}'
   - name: site_places
     description: Where each team plays on each snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: club
+        description: 'The team''s name. {{ doc("club") }}'
+      - name: team_type
+        description: '{{ doc("team_type") }}'
+      - name: league_cid
+        description: '{{ doc("league_cid") }}'
+      - name: league_name
+        description: 'The name of the team''s league. {{ doc("name") }}'
+      - name: nation
+        description: '{{ doc("nation") }}'
+      - name: is_listed
+        description: '{{ doc("is_listed") }}'
+      - name: tier
+        description: 'The tier of the team''s league. {{ doc("tier") }}'
+      - name: stadium
+        description: 'The team''s stadium (its own, else its club''s). {{ doc("stadium") }}'
+      - name: capacity
+        description: 'Of the team''s stadium on the snapshot. {{ doc("capacity") }}'
+      - name: latitude
+        description: 'Of the stadium''s city. {{ doc("latitude") }}'
+      - name: longitude
+        description: 'Of the stadium''s city. {{ doc("longitude") }}'
   - name: site_formation_slots
     description: How many start at each position in each formation.
     data_tests:
       - unique_combination: {arguments: {columns: [formation, position]}}
+    columns:
+      - name: formation
+        description: '{{ doc("formation") }}'
+      - name: position
+        description: '{{ doc("position") }}'
+      - name: slots
+        description: '{{ doc("slots") }}'
+      - name: formation_order
+        description: '{{ doc("formation_order") }}'
+      - name: position_order
+        description: '{{ doc("position_order") }}'
   - name: site_loan_clubs
     description: The clubs a player of ours could be loaned to on each snapshot.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: league_cid
+        description: '{{ doc("league_cid") }}'
+      - name: ladder_rank
+        description: 'The club''s division''s place on the ladder. {{ doc("ladder_rank") }}'
+      - name: formation
+        description: 'The club''s manager''s preferred formation where var(''formation_slots'')
+          lists it; NULL otherwise (it plays var(''fallback_formation'')). {{ doc("formation") }}'
   - name: site_loan_outlook
     description: >
       Where each player we own would get games on loan: a row per club that starts someone at
@@ -130,11 +870,74 @@ models:
       - unique_combination:
           arguments: {columns: [snapshot_date, person_id, position, league_cid]}
           config: {where: "club_tid is null"}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: loaned_to_club_tid
+        description: '{{ doc("loaned_to_club_tid") }}'
+      - name: position
+        description: 'A position he can be picked at (familiarity
+          var(''loan_outlook'').min_familiarity or more). {{ doc("position") }}'
+      - name: familiarity
+        description: 'His familiarity there. {{ doc("familiarity") }}'
+      - name: league_cid
+        description: '{{ doc("league_cid") }}'
+      - name: ladder_rank
+        description: 'The division''s place on the loan ladder. {{ doc("ladder_rank") }}'
+      - name: lvl
+        description: '{{ doc("level") }}'
+      - name: n
+        description: '{{ doc("n_players") }}'
+      - name: club_tid
+        description: 'A club in the division whose formation starts someone at the position: a team
+          tid (site.loan_clubs), NULL where no club in the division does. {{ doc("team_tid") }}'
+      - name: rank
+        description: '{{ doc("rank") }}'
+      - name: slots
+        description: '{{ doc("slots") }}'
+      - name: line
+        description: '{{ doc("line") }}'
   - name: site_forecast
     description: The attribute forecast lookup.
     data_tests:
       - unique_combination: {arguments: {columns: [attribute, age_now, value_now, horizon_age]}}
+    columns:
+      - name: attribute
+        description: '{{ doc("attribute") }}'
+      - name: age_now
+        description: 'The age the cell starts from. {{ doc("age") }}'
+      - name: value_now
+        description: '{{ doc("value_now") }}'
+      - name: horizon_age
+        description: 'The age the forecast is for (var(''forecast'').horizons). {{ doc("age") }}'
+      - name: n
+        description: '{{ doc("n_players") }}'
+      - name: p25
+        description: '{{ doc("p25") }}'
+      - name: median
+        description: '{{ doc("median") }}'
+      - name: mean
+        description: '{{ doc("mean") }}'
+      - name: p75
+        description: '{{ doc("p75") }}'
+      - name: bucket
+        description: '{{ doc("bucket") }}'
   - name: site_age_curve
     description: Attribute points gained in a year, by age.
     data_tests:
       - unique_combination: {arguments: {columns: [age]}}
+    columns:
+      - name: age
+        description: 'His age at the start of the year measured. {{ doc("age") }}'
+      - name: n
+        description: '{{ doc("n_pairs") }}'
+      - name: p25
+        description: '{{ doc("p25") }}'
+      - name: median
+        description: '{{ doc("median") }}'
+      - name: mean
+        description: '{{ doc("mean") }}'
+      - name: p75
+        description: '{{ doc("p75") }}'
