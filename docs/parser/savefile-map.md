@@ -5,6 +5,11 @@ measured on this one save, by calling the named parser or by the structural test
 notes; no offset is carried over from another save. Use them to know what sits next to what,
 never to seek: [locate a table by its own frame or invariant](../../fmparser/AGENTS.md#finding-a-table-the-locator-shapes).
 
+> **Visual version:** [`savefile-map.html`](savefile-map.html) draws this map to scale, with an
+> offset lookup, a hex/decimal toggle and charts. GitHub shows it as source, so download it or
+> clone the repo and open it in a browser. This file is the source of truth: the HTML copies its
+> regions by hand, so a change to the map lands in both.
+
 ## Read this first: the drift boundary
 
 | anchor | `frem-2021-07-01` | `frem-2026-06-29` | drift over 5 years |
