@@ -346,7 +346,7 @@ agrees match for match on every save measured.
 
 That rule predates this refactor — `staging.INFO_LAYOUT` and `matchslots.LAYOUT` already worked
 this way. What was missing was one *dialect*: there were three, and the third
-(`scripts/audit_records.LAYOUTS`) dropped the field's `kind`. That is not cosmetic. It is why
+(the old hand-written `LAYOUTS` in `audit_records.py`) dropped the field's `kind`. That is not cosmetic. It is why
 nothing in the repo could catch a field whose **declared width disagrees with its kind** —
 `staging._read` ignores `width` outright for `DATE` and `HEX4`, so `(20, 2, "dob", DATE)` would
 declare two bytes, read four, and pass every check we had.
@@ -557,8 +557,9 @@ finds, and every step of it exists because skipping it cost someone a day:
 
 0. **Profile by block entropy** — `scripts/audit/entropy_profile.py`. Above 7.9 bits/byte is
    compressed and no stride search will bite. **Never rank a region by printable fraction.**
-1. **Map the file into filler-delimited sections** — `scripts/map_regions.py`. Cross-check
-   `fmparser/regions.py`, whose windows are Bucaspor-tuned and often wrong elsewhere.
+1. **Audit coverage** — `scripts/audit/audit_coverage.py` splits the file by declared table
+   bounds and long filler runs, and shows what no table claims. Cross-check the
+   [savefile map](parser/savefile-map.md).
 2. **Find records structurally, never by absolute offset** — an embedded key plus a validating
    signature, every hit validated against the info spine.
 3. **Identify an unknown field with ground truth + contrast** — read real values off a

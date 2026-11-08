@@ -67,6 +67,7 @@ parser yet; TODO, "Decode the competition rules".
 | 1 | Goals Scored | all three screens |
 | 3 | Results Between Teams (head to head) | Champions Cup screen; and Spain's First and Second Division (and all but one Spanish league) read `[3, 0, 1]`, the league whose rebuilt tables disagree with the game only where head to head decides (TODO, "League tables outside Denmark") |
 | 18, 29 | the head-to-head sub-rules, Goal Difference then Goals Scored | Champions Cup screen, the footnote |
+| 30 | the head-to-head sub-rule Home Goals Scored: North American Nations League `[0, 1, 3, 30, 22]` reads Goal Difference, Goals Scored, Results Between Teams\* (\* Home Goals Scored), Discipline Record (×3); member byte 1,937 | North American Nations League screen |
 | 5, 39 | both shown as "Away Goals Scored" (5 in the Danish and Belgian leagues, 39 in the European group stages); what separates them is unknown | all three screens |
 | 13 | Games played away from home only (it precedes 5 in Belgium's list) | Belgian screen |
 | 2 | Games Won | Champions Cup and Belgian screens |
@@ -76,7 +77,7 @@ parser yet; TODO, "Decode the competition rules".
 | 14 | probably "A playoff is played for key positions if teams finish with the same record": the one Bundesliga line with no other code (`[0, 14, 1, 3, 5]` for Goal Difference, Goals Scored, Results Between Teams, Away Goals Scored) | Bundesliga screen |
 | 7 | Coefficient | Champions Cup screen |
 
-Seen but not on a screen: 6, 30. England's top flight reads `[0, 1, 3]`, the
+Seen but not on a screen: 6 (Belgium's Championship Group and European Places Playoff stages, `[6, 2, 0, 1, 13, 5]`). England's top flight reads `[0, 1, 3]`, the
 Bundesliga `[0, 14, 1, 3, 5]`, Belgium's `[2, 0, 1, 13, 5]` (and `[6, 2, 0, 1, 13, 5]` on its
 play-off stages).
 

@@ -370,8 +370,8 @@ the step-14b gate stores: complete single-stage tables agree for England (21/21)
   separates. The tie-breakers are in the competition's rules member: the stage's `sort` list
   ([comp_rules](parser/comp_rules.md)), `[3, 0, 1]` for Spain (head to head, goal difference,
   goals scored), `[0, 1, 3]` for England. Read `sort` into `competition_rounds` and rank by it
-  rather than hard-coding a nation's rule; codes 6 and 30 are not yet seen on a screen, and 14
-  is only probably the Bundesliga's play-off-on-equal-record line.
+  rather than hard-coding a nation's rule; code 6 is not yet seen on a screen (Belgium's
+  Championship Group), and 14 is only probably the Bundesliga's play-off-on-equal-record line.
 - **Split leagues**: `standings` holds each stage's own matches. Whether points carry into the
   championship and relegation groups, and Belgium's (which disagree, 0/2), is also a rules
   question.
