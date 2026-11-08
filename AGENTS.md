@@ -111,9 +111,9 @@ against the code. The ones to read before particular work:
   *never validate a field by joining on it*), [`docs/table-framing.md`](docs/table-framing.md)
   (the save declares its own table sizes), [`docs/parser/savefile-map.md`](docs/parser/savefile-map.md) (the
   whole file, start to end, and the zstd archive at its tail), the table docs in
-  [`docs/parser/`](docs/parser/), and
-  [`fmm-editor-record-comparison`](docs/agent-context/fmm-editor-record-comparison.md) (our
-  records vs the FMM database layouts).
+  [`docs/parser/`](docs/parser/) (each says where FMM22 departs from the FMM26 database
+  layouts in `nyongrand/fmm-editor`; [`docs/parser-architecture.md`](docs/parser-architecture.md)
+  Part 4 says how to use them).
 - **attributes:** [`docs/ca-weighting.md`](docs/ca-weighting.md) (how each displayed attribute
   is recovered, the per-position CA weights, the 94.8% label ceiling) and
   [`docs/attribute-model.md`](docs/attribute-model.md) (the entangled-attribute decoder).
@@ -127,8 +127,9 @@ against the code. The ones to read before particular work:
 - **Career selection:** `--career <key>`, else `FM_CAREER`, else `[careers] default` in
   `fmm.toml`. `FM_DUCKDB=<path>` points dbt at a specific store.
 - **Season = end-year** of the campaign (22/23 → 2023). The new season starts on the career's
-  rollover day. **`phase` = the save's in-game date** (`YYYY-MM-DD`, from the save header), so
-  several snapshots per season coexist and sort chronologically.
+  rollover day. **`phase` = the save's in-game date** (`YYYY-MM-DD`, from the save header,
+  never the last match's date), so several snapshots per season coexist and sort
+  chronologically.
 
 ## Where things live
 Nothing derived is in git, and nothing drawn from the game's database is either.

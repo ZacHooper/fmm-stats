@@ -20,4 +20,4 @@ Bridge built in fm-data-entry:
 
 Managed club = **Bucaspor 1928**, fm-parser `club_tid` 6567 (25 players); reserves =
 **Bucaspor 1928 Reserves**, `club_tid` 11320 (11 players). Reserve player NAMES aren't
-decoded in the extract (blank) — loader falls back to `#<tid>`. Related: [[fm-parser-project]].
+decoded in the extract (blank) — loader falls back to `#<tid>`.

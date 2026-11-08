@@ -94,7 +94,8 @@ Tested by `tests/test_people_evidence.py`.
 > mart decides.
 
 > **Decision:** loans out are read from bit 5, not from the [training](training.md) row's
-> squad status, which does not track them.
+> +39 (`unknown_39`), which does not track them. Filter a squad on +39 and real regulars
+> drop out.
 
 ## Output
 

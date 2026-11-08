@@ -35,7 +35,8 @@ Tested by `tests/test_world_evidence.py` (needs the save) and, without a save,
 > same title (the screenshot shows three `22/6/30` slots), so a save's file name, not its
 > title, is what tells two of them apart. Name files `<career>-<YYYY-MM-DD>[-<tag>].fms`.
 
-> **Decision:** the header date is the snapshot's identity (`phase`). Which campaign it
+> **Decision:** the header date is the snapshot's identity (`phase`), never the date of the
+> last match: a player often plays on for weeks past the last fixture before saving. Which campaign it
 > belongs to is the career's rollover rule, applied by the loader (`careers.campaign`), never
 > by the parser.
 

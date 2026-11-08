@@ -95,6 +95,10 @@ Tested by `tests/test_world_evidence.py`.
 > Czechoslovakia, E. Germany, U.S.S.R., W. Germany, …). A gate that requires a real continent
 > drops them, and a gate that requires `id ≥ 1` drops Algeria, id 0. Walk by declaration.
 
+> **Quirk:** Russia reads `is_ranked` true, `world_ranking` 0 and 1,463 points on both
+> careers. A rank of 0 is neither first nor unranked; the game's suspension is the likely
+> reason (unverified).
+
 > **Quirk:** the ranking history's length is not a constant: 11 entries on `bucaspor-2022-06-19`,
 > 24 from 2023 on. Read the count; a hard-coded 24 returns nothing on an early save.
 

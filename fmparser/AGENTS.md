@@ -84,6 +84,10 @@ Ground truth on the fields you read says nothing about the fields you didn't. Ru
 `--map` prints the per-byte schema of every declared record: generated from the parser's own
 declarations, so it cannot go stale.
 
+**When an in-game screen disagrees with the parse, suspect the parse.** One disagreement is a
+lead, not noise: chase it before explaining it away. Read the screenshot itself, not notes
+about it, and prefer a screen with a TOTAL line, which catches a dropped or extra row.
+
 **Never validate a field by joining on it.** A check that matches rows *on* the date and then
 reports "282 of 285 agree on date" cannot fail when every date is uniformly wrong. Join on
 something else (an id, a score) and let the field under test come out as output.

@@ -99,6 +99,10 @@ The screen sorts languages by level and names the bands Natural (10), Fluent (7â
 > **Quirk:** `type_flag` is not the player/staff split. It is 1 on every player, but also on
 > 1,936 non-players. Decide by `sid` (`ffffffff` = not a player) and `id2`.
 
+> **Quirk:** `nyongrand/fmm-editor` names the third personality byte (+54) Controversy for
+> FMM26. FMM22's screens read it as Determination: Lund Jensen's profile says `Determined`, and
+> +54 (16) is his highest of the eight.
+
 > **Dead end:** finding records by scanning for the "no nickname" `ffffffff` at +16, or for
 > the staff `ffffffff` at +60, misses everyone with a nickname (1,583 people) and reads
 > records out of alignment. The walk from the count frame reads all 32,966, with no empty

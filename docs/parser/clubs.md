@@ -123,9 +123,26 @@ Tested by `tests/test_world_evidence.py`.
 > departed player's `club_tid` on the club, so "our squad" comes from this array
 > (`mart.squad_membership`).
 
+> **Quirk:** a club's league is its own record's field (`league_id`, the stg model's
+> `league_cid`), and it is there on a save with no matches played: `frem-2023-07-02`, two days
+> after the rollover with an empty match table, puts 12 clubs in each Danish division (cids 2,
+> 3, 4, 1147), as every Frem save does. It is this season's league; `last_league` is last
+> season's. Never derive a club's league from the competitions of the games it has played:
+> after the rollover those are last season's, and on that save 16 of the 48 clubs in the four
+> divisions have changed division.
+>
+> Sanity check after any change here: `select league_cid, count(*) from stg.club_details
+> where snapshot_date = '<date>' and league_cid in (2, 3, 4, 1147) group by 1` gives 12 for
+> each. Don't filter division members by squad size: a club can hold a place with no players
+> (FC Sydvest 0 and Brønshøj 3 on `frem-2023-07-02`).
+
 > **Quirk:** club, competition and nation records share a shape (long name, short name,
 > code). A scan by shape lands in the wrong table (a club once claimed Belgium's nation id);
 > walk each table from its own frame.
+
+> **Decision:** the field order after the names comes from `nyongrand/fmm-editor`'s FMM26
+> `Club.cs`, except where a screen says otherwise (the two facilities bytes above). FMM22 has
+> three name strings; FMM26 has four (it adds a six-letter name), so read three.
 
 > **Decision:** the whole record is carried, unnamed bytes declared `UNKNOWN`, so
 > `scripts/audit/audit_records.py` accounts for every byte.

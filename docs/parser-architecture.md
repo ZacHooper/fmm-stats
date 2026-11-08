@@ -534,14 +534,18 @@ file, and that is the failure a generic reader introduces most easily. It is cau
 
 This is the payoff, and it is the reason the layouts are data rather than code.
 
-[`agent-context/fmm-editor-record-comparison.md`](agent-context/fmm-editor-record-comparison.md)
-is a field-by-field map of our parsers against the FMM26 database layouts published in
-`nyongrand/fmm-editor`. **Read it before decoding any new field — it names the record you are
-in.** The known divergences are documented there; the one worth internalising is that FMM22's
-`NationalCaps`/`NationalGoals` are `u8` where FMM26 has `i16`, which shifts everything from
-+40 onward two bytes earlier in our file. That shift is what makes the *rest* of the record
-land on offsets we had already verified independently — which is the check that the alignment
-is right, not a fudge to make it fit.
+`nyongrand/fmm-editor` (C#, `FMMLibrary/`) reads the FMM26 pre-game database field by field,
+and the save embeds the same record layouts, so its field order is a **layout oracle**: once a
+record is located, its order is no longer guesswork. It is not a drop-in: it reads standalone
+`.dat` files with a sequential reader, while our records sit inside a 64 MB save and are still
+located structurally. Clone it when needed (`git clone --depth 1
+https://github.com/nyongrand/fmm-editor`). Each table doc records where FMM22 departs from it
+([player_attributes](parser/player_attributes.md), [person_info](parser/person_info.md),
+[clubs](parser/clubs.md), [staff](parser/staff.md), which it doesn't decode at all); the one
+worth internalising is that FMM22's `NationalCaps`/`NationalGoals` are `u8` where FMM26 has
+`i16`, which shifts everything from +40 onward two bytes earlier in our file. That shift is
+what makes the *rest* of the record land on offsets we had already verified independently —
+which is the check that the alignment is right, not a fudge to make it fit.
 
 So the porting story is: **a layout change, validated by `tests/test_layouts.py` with no save
 file at all, then `audit_records.py` against one real save.** The locators are the part that
@@ -571,6 +575,13 @@ finds, and every step of it exists because skipping it cost someone a day:
    one that finds fields not stored adjacent to a player id.
 5. **Bound the table by its own invariant, never a tuned constant** — then declare the layout
    in the same commit you add the field to the parser.
+
+> **Dead end:** a gate that is true for only some of the real records. An equality test
+> against a sentinel, or a range literal, standing where a structural check belongs loses the
+> rest without an error: the output gets smaller, not wrong. Scanning for the "no nickname"
+> `ffffffff` missed every player with a nickname ([person_info](parser/person_info.md)), and
+> byte windows tuned on one career cut the front off the other's tables. A range in this
+> parser is a claim about the data; measure it on both careers.
 
 Encodings cheat-sheet: money = raw currency shown rounded; dates = `[day-of-year u16][year
 u16]`; seasons coded `1971 + n`; 4-byte tags are stored **reversed**; string length prefixes

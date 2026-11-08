@@ -143,7 +143,7 @@ An earlier read of Jeppe on 2025 alone (6 starts DMC at 7.33 vs 3 at MC at 6.33)
 "specialist DM, unambiguous". The full two-season sample said the opposite — MC 7.11 vs DMC
 6.75 competitive — and the apparent flip vanished entirely under a ≥5-start filter. **Require
 a minimum start count before drawing a positional conclusion, and say the n out loud.** See
-[[ground-truth-beats-my-parse]] for the same lesson from the parsing side.
+[`fmparser/AGENTS.md`](../../fmparser/AGENTS.md) ("suspect the parse") for the same lesson from the parsing side.
 
 ## Open question — how are two central DMs encoded?
 
