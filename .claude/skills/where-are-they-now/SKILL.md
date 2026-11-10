@@ -130,7 +130,7 @@ kind of is the crux of this artifact"). It's a season-by-season club/fee/apps/go
 rating table, **worldwide**, not scoped to our club:
 ```sql
 SELECT f.season, t.name AS team, n.name AS nation, f.fee_type, f.fee_gbp,
-       f.appearances, f.goals, f.assists, f.rating
+       f.appearances, f.goals, f.assists, f.average_rating
 FROM mart.fact_player_season f
 JOIN mart.dim_person p USING (person_id)
 LEFT JOIN mart.dim_team t USING (team_tid)

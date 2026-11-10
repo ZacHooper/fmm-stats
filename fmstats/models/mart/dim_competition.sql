@@ -1,4 +1,4 @@
--- Each competition: names, type, nation, division tier (level, 0-indexed;
+-- Each competition: names, type, nation, division tier (tier_index, 0-indexed;
 -- parallel divisions share a tier) and parent. Reputation changes and is on
 -- fact_competition_snapshot.
 select
@@ -10,7 +10,7 @@ select
     type,
     type_id,
     nation_id,
-    level,
+    level as tier_index,
     parent_cid,
     last_seen_date
 from {{ ref('int_competitions') }}

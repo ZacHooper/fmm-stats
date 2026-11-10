@@ -61,7 +61,7 @@ erDiagram
     fact_staff_spell {
         int staff_key FK
         int club_key FK
-        string role "manager / coach / scout"
+        string staff_role "manager / coach / scout"
         date start_date
         date end_date
     }

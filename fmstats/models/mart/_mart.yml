@@ -279,7 +279,7 @@ models:
       - name: nation_id
         description: 'The competition''s nation; NULL for an international one.
           {{ doc("nation_id") }}'
-      - name: level
+      - name: tier_index
         description: '{{ doc("tier_index") }}'
       - name: parent_cid
         description: '{{ doc("parent_cid") }}'
@@ -404,7 +404,7 @@ models:
         description: '{{ doc("stage_index") }}'
       - name: round_index
         description: '{{ doc("round_index") }}'
-      - name: matchday
+      - name: matchday_index
         description: '{{ doc("matchday_index") }}'
       - name: tie_id
         description: '{{ doc("tie_id") }}'
@@ -500,7 +500,7 @@ models:
   - name: fact_player_match
     description: >
       Each player's line in our own matches, both sides: is_starter, has_appeared, minutes with extra time,
-      full-time position, raw rating, position-adjusted rating (rating_adj), role, the game's
+      full-time position, raw rating, position-adjusted rating (rating_adj), rating_role, the game's
       Player of the Match, and match performance stats.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id, player_tid]}}
@@ -538,7 +538,7 @@ models:
         description: '{{ doc("lineup_order") }}'
       - name: position
         description: '{{ doc("position") }}'
-      - name: role
+      - name: rating_role
         description: '{{ doc("rating_role") }}'
       - name: is_starter
         description: '{{ doc("is_starter") }}'
@@ -675,20 +675,18 @@ models:
         description: 'The first leg''s date. {{ doc("first_match_date") }}'
       - name: last_match_date
         description: 'The last leg''s date. {{ doc("last_match_date") }}'
-      - name: team_a_tid
+      - name: home_team_tid
         description: 'The first leg''s home side. {{ doc("home_team_tid") }}'
-      - name: team_b_tid
+      - name: away_team_tid
         description: 'The first leg''s away side. {{ doc("away_team_tid") }}'
-      - name: goals_a
-        description: 'The aggregate of the first leg''s home side. {{ doc("goals_for") }}'
-      - name: goals_b
-        description: 'The aggregate of the first leg''s away side. {{ doc("goals_against") }}'
-      - name: pens_a
-        description: 'The first leg''s home side''s shoot-out goals in the last leg.
-          {{ doc("pens_for") }}'
-      - name: pens_b
-        description: 'The first leg''s away side''s shoot-out goals in the last leg.
-          {{ doc("pens_against") }}'
+      - name: home_goals
+        description: '{{ doc("home_goals") }}'
+      - name: away_goals
+        description: '{{ doc("away_goals") }}'
+      - name: home_pens
+        description: '{{ doc("home_pens") }}'
+      - name: away_pens
+        description: '{{ doc("away_pens") }}'
       - name: decided_by
         description: '{{ doc("decided_by") }}'
       - name: is_decided
@@ -699,8 +697,8 @@ models:
     description: >
       Each league or group stage's table after every matchday. A view.
     data_tests:
-      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, stage_key, matchday, team_tid]}}
-      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, stage_key, matchday, position]}}
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, stage_key, matchday_index, team_tid]}}
+      - unique_combination: {arguments: {columns: [cid, competition_season, stage_index, stage_key, matchday_index, table_position]}}
     columns:
       - name: cid
         description: '{{ doc("cid") }}'
@@ -710,11 +708,11 @@ models:
         description: '{{ doc("stage_index") }}'
       - name: stage_key
         description: '{{ doc("stage_key") }}'
-      - name: matchday
+      - name: matchday_index
         description: '{{ doc("matchday_index") }}'
       - name: through_date
         description: '{{ doc("through_date") }}'
-      - name: position
+      - name: table_position
         description: '{{ doc("table_position") }}'
       - name: team_tid
         description: '{{ doc("team_tid") }}'
@@ -764,7 +762,7 @@ models:
       - name: last_match_date
         description: 'Its last match in the competition season, scheduled or played.
           {{ doc("last_match_date") }}'
-      - name: matches_played
+      - name: played
         description: 'Its played matches in the competition season. {{ doc("played") }}'
       - name: stage_reached
         description: '{{ doc("stage_reached") }}'
@@ -1403,7 +1401,7 @@ models:
           {{ doc("goals") }}'
       - name: assists
         description: '{{ doc("assists") }}'
-      - name: rating
+      - name: average_rating
         description: 'The game''s average rating for the season; NULL where the save holds none, and
           a youth line can read 646-648 (TODO "Career-history rating on youth-team lines").
           {{ doc("average_rating") }}'
@@ -1716,9 +1714,9 @@ models:
         description: 'The team whose books he is on. {{ doc("team_tid") }}'
       - name: club_tid
         description: 'The club that owns the team. {{ doc("club_tid") }}'
-      - name: role
+      - name: staff_role
         description: '{{ doc("staff_role") }}'
-      - name: manager_candidates
+      - name: n_manager_candidates
         description: '{{ doc("n_manager_candidates") }}'
       - name: last_seen_date
         description: '{{ doc("last_seen_date") }}'

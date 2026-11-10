@@ -66,7 +66,6 @@ moves slightly with every import.
 The player's average match rating over the matches he appeared in, to two decimals. On a
 career-history line it is the game's own figure (NULL with no appearances); on a scrapbook
 entry, the profile's.
-Synonyms: `fact_player_season.rating`, `site_player_career.rating`.
 {% enddocs %}
 
 {% docs is_player_of_match %}

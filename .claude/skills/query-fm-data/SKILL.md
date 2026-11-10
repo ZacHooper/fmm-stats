@@ -44,7 +44,7 @@ ORDER BY tot.goals DESC LIMIT 5;
   * **Dimensions**: `dim_person` (name, birth_date, `is_capital_eligible`, `origin_club_tid`),
     `dim_club`, `dim_team`, `dim_competition`, `dim_match`, `dim_stage`, `dim_round`,
     `dim_nation`, `dim_position` (position → unit), `dim_role`, `dim_award`.
-  * **Facts**: `fact_player_match` (stats, `rating`, `rating_adj`, `role`, `position`),
+  * **Facts**: `fact_player_match` (stats, `rating`, `rating_adj`, `rating_role`, `position`),
     `fact_team_match` (each match once per side: score, result, formation, team stats),
     `fact_player_snapshot` (attributes + valuation + `positions` with Level %iles, per
     snapshot), `fact_player_season` (career-history lines, every club), `fact_transfer`,
@@ -104,7 +104,7 @@ other name loses every view.
      `p.level_league`.
    * `is_capital_eligible` (Capital region signing rule) is directly on **`mart.dim_person`**.
    * An opponent manager's preferred / attacking / defensive formation and Style:
-     `mart.fact_staff_spell` (`role = 'manager' AND is_current AND team_tid = <opp>`) joined
+     `mart.fact_staff_spell` (`staff_role = 'manager' AND is_current AND team_tid = <opp>`) joined
      to `mart.fact_staff_snapshot` (`is_current`) on `person_id`.
 4. **Our campaign vs the competition's season:** `site.matches` / `site.match_players` carry
    `season` (our campaign's end-year) for the managed first team's matches; elsewhere derive

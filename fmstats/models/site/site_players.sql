@@ -37,7 +37,7 @@ select
     people.origin_club_tid,
     origin.name as origin_club,
     people.is_capital_eligible,
-    nations.name as nationality,
+    nations.name as nation,
     people.foot_left,
     people.foot_right,
     people.preferred_squad_number,

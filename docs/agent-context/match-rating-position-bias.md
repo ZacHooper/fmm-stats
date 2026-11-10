@@ -158,7 +158,7 @@ values for that match against [`docs/parser/matches.md`](../parser/matches.md).
 
 ## Implemented (2026-09-23)
 
-The correction is in the mart: `mart.fact_player_match` carries `role` and `rating_adj` (game units,
+The correction is in the mart: `mart.fact_player_match` carries `rating_role` and `rating_adj` (game units,
 restated on the outfield scale rather than the 100/15 index above), and `mart.fact_player_season` carries
 the season figure.
 

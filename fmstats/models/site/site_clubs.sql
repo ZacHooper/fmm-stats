@@ -62,7 +62,7 @@ select
     nations.name as nation,
     team_snapshots.reputation,
     clubs.shirt_colours,
-    coalesce(players.squad_size, 0) as squad_size,
+    coalesce(players.squad_size, 0) as n_players,
     (
         coalesce(players.rated_players, 0) > 0
         or played.team_tid is not null

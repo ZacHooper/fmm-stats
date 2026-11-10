@@ -33,7 +33,7 @@ erDiagram
         int competition_key PK
         int nation_key FK
         string type "league / cup / continental / friendly"
-        int level
+        int tier_index
     }
     dim_stage {
         int stage_key PK
@@ -109,8 +109,8 @@ erDiagram
 
 ## Views, not stored
 
-- **`tie_results`**: matches grouped by `tie_id` → the two teams (team_a the first leg's home
-  side), aggregate, the last leg's shoot-out, decided by and winner. A tie is decided once all
+- **`tie_results`**: matches grouped by `tie_id` → the two teams (home and away: the first leg's
+  sides), aggregate, the last leg's shoot-out, decided by and winner. A tie is decided once all
   its legs are played: on aggregate, then on the shoot-out. **There is no away-goals rule**:
   ties level on aggregate went to extra time whichever side had scored more away.
 - **`standings`**: league and group stages. One row per team per matchday, the totals up to it
@@ -145,7 +145,7 @@ until the save decides it. The roll of honour, a check on both, is not extracted
 
 ## Out of scope
 
-Promotion/qualification links (you can derive them from participation plus `level`).
+Promotion/qualification links (you can derive them from participation plus `tier_index`).
 
 **Participation** is a team's competition seasons with a labelled match: a stage the save does
 not let us label (a cup abroad, and a round of our own cups without one of our matches) counts

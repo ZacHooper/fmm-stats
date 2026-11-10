@@ -7,7 +7,7 @@ select
     competition_season,
     first_match_date,
     last_match_date,
-    matches_played,
+    matches_played as played,
     stage_reached,
     round_reached
 from {{ ref('int_participations') }}

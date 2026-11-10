@@ -24,7 +24,6 @@ is rated in (`site.position_roles`) and the weights belong to (`site.role_weight
 The role a match rating is compared within for `rating_adj` (`var('rating_roles')`:
 `Centre-back`, `Full-back`, `Wing-back`, `DM`, `Central mid`, `Wide mid`, `Attacking mid`,
 `Winger`, `Forward`, `GK`), from the position he played; NULL for a substitute.
-Synonyms: `fact_player_match.role`.
 {% enddocs %}
 
 {% docs attribute %}
@@ -62,12 +61,10 @@ natural player at the club other than him. NULL where the club has fewer, so he 
 The players the row counts: on `site.loan_outlook`, the other players listing the position in
 the division (the pool `level` is a share of); on `site.forecast`, the players in the cell;
 on `site.clubs`, the players whose own record names the team.
-Synonyms: `site_loan_outlook.n`, `site_forecast.n`, `site_clubs.squad_size`.
 {% enddocs %}
 
 {% docs n_pairs %}
 The pairs of a player's snapshots, a year apart, the row is computed over.
-Synonyms: `site_age_curve.n`.
 {% enddocs %}
 
 {% docs p25 %}

@@ -71,7 +71,6 @@ national side. The other values are not named.
 {% docs squad_status %}
 Where the player stands in our squad: `Loan` out on loan, `Reserve` listed by our reserve side
 only, else `First team`.
-Synonyms: `site_squad.status`.
 {% enddocs %}
 
 {% docs training_facilities %}
@@ -129,7 +128,6 @@ The opposing team's name.
 
 {% docs nation %}
 A nation's name: on a team or league row, the league's nation.
-Synonyms: `site_players.nationality`.
 {% enddocs %}
 
 {% docs nationality %}

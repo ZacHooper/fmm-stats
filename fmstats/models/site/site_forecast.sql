@@ -76,7 +76,7 @@ cells as (
         age_now,
         value_now,
         horizon_age,
-        count(*) as n,
+        count(*) as n_players,
         quantile_cont(value_later, 0.25) as p25,
         median(value_later) as median,
         avg(value_later) as mean,

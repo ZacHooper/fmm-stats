@@ -15,7 +15,7 @@ select
     competition_source,
     stage_index,
     round_index,
-    matchday,
+    matchday as matchday_index,
     tie_id,
     leg,
     decided_by,

@@ -1,11 +1,11 @@
 -- Every league on every snapshot, keyed (snapshot_date, cid): a competition
 -- some team's record names as its league (int.team_leagues). Its name, nation,
--- reputation, tier (the save's level, 1 the top), member_count (the teams in
+-- reputation, tier (the save's level, 1 the top), n_members (the teams in
 -- it) and two derived fields:
 --
 -- skill_index: the league's average player ability, scaled 0-100 between the
 -- weakest and strongest league on the snapshot, where at least
--- var('site_skill_min_players') players are rated (`rated`). An index, so no
+-- var('site_skill_min_players') players are rated (`n_rated`). An index, so no
 -- ability number leaves the view.
 --
 -- ladder_rank: the comparison ladder a squad player is judged against: 0 is
@@ -59,7 +59,7 @@ leagues as (
         nations.name as nation,
         competitions.type,
         competition_snapshots.reputation,
-        competitions.level + 1 as tier,
+        competitions.tier_index + 1 as tier,
         members.member_count
     from members
     inner join {{ ref('dim_competition') }} as competitions
@@ -117,9 +117,9 @@ select
     leagues.type,
     leagues.reputation,
     leagues.tier,
-    leagues.member_count,
+    leagues.member_count as n_members,
     scaled.skill_index,
-    scaled.rated,
+    scaled.rated as n_rated,
     ladder.ladder_rank
 from leagues
 left join scaled

@@ -4,12 +4,10 @@
 {% docs home_team_tid %}
 The home side. A match is (match_date, home_team_tid, away_team_tid). On a tie, the home side of
 its first leg.
-Synonyms: `team_a_tid` → `home_team_tid`.
 {% enddocs %}
 
 {% docs away_team_tid %}
 The away side. On a tie, the away side of its first leg.
-Synonyms: `team_b_tid` → `away_team_tid`.
 {% enddocs %}
 
 {% docs opponent_tid %}
@@ -25,22 +23,38 @@ neutral-ground final still has one of each).
 Goals the row's side scored: in a match, the final score after extra time where there was any
 (shoot-out goals are `pens_for`); in a standings row, the total over its matches so far; in a
 tie, the aggregate of the final scores.
-Synonyms: `goals_a` → `home_goals`.
 {% enddocs %}
 
 {% docs goals_against %}
 Goals the row's side conceded, counted as `goals_for` is.
-Synonyms: `goals_b` → `away_goals`.
 {% enddocs %}
 
 {% docs pens_for %}
 The row's side's goals in the shoot-out (on a tie, the last leg's); NULL where there was none.
-Synonyms: `pens_a` → `home_pens`.
 {% enddocs %}
 
 {% docs pens_against %}
 The other side's goals in the shoot-out; NULL where there was none.
-Synonyms: `pens_b` → `away_pens`.
+{% enddocs %}
+
+{% docs home_goals %}
+Goals the home side scored, counted as `goals_for` is: on a tie, the aggregate of the side at
+home in the first leg.
+{% enddocs %}
+
+{% docs away_goals %}
+Goals the away side scored, counted as `goals_for` is: on a tie, the aggregate of the side away
+in the first leg.
+{% enddocs %}
+
+{% docs home_pens %}
+The home side's goals in the shoot-out (on a tie, the first leg's home side's, in the last
+leg's shoot-out); NULL where there was none.
+{% enddocs %}
+
+{% docs away_pens %}
+The away side's goals in the shoot-out (on a tie, the first leg's away side's, in the last
+leg's shoot-out); NULL where there was none.
 {% enddocs %}
 
 {% docs result %}
@@ -91,7 +105,6 @@ The matchday in a league or group stage, from 1, as the game shows it.
 {% docs matchday_index %}
 The fixture list's matchday in a league or group stage, from 0 (`matchday` is this + 1). A
 postponed match keeps its matchday. NULL outside a stage.
-Synonyms: `dim_match.matchday`, `mart_standings.matchday`.
 {% enddocs %}
 
 {% docs leg %}
@@ -111,7 +124,6 @@ How many of the tie's legs have been played.
 A formation's name (`4-2-3-1`, `5-2-2-1`). On `fact_team_match`, the managed side's formation
 in that match as the match table stores it (NULL for every other side and match); on the
 formation lists, a formation an AI manager can prefer (`var('formation_slots')`).
-Synonyms: `site_club_managers.formation_*` → `formation_*_name`.
 {% enddocs %}
 
 {% docs minute %}

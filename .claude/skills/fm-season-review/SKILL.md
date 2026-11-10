@@ -135,17 +135,17 @@ FROM site.matches WHERE season = getvariable('season') AND stage_type = 'League'
 GROUP BY 1 ORDER BY 1;
 
 -- FINAL TABLE (mart.standings; the league's own season label is the start year)
-SELECT s.stage_index, s.position, t.name, s.played, s.won, s.drawn, s.lost,
+SELECT s.stage_index, s.table_position, t.name, s.played, s.won, s.drawn, s.lost,
        s.goals_for, s.goals_against, s.points
 FROM mart.standings s JOIN mart.dim_team t USING (team_tid)
 WHERE s.cid = (SELECT dm.cid FROM site.matches sm JOIN mart.dim_match dm USING (match_id)
                WHERE sm.season = getvariable('season') AND sm.stage_type = 'League' LIMIT 1)
   AND s.competition_season = getvariable('season') - 1 AND s.is_latest
-ORDER BY s.stage_index, s.position;
+ORDER BY s.stage_index, s.table_position;
 
 -- 2. POSITIONAL UNITS — pure starters only (rule 3), grouped by the role actually played
---    (fact_player_match.role, from the decoded position). 10+ starts.
-SELECT f.role, p.name, count(*) AS starts, round(avg(f.rating), 2) AS avg_rating,
+--    (fact_player_match.rating_role, from the decoded position). 10+ starts.
+SELECT f.rating_role, p.name, count(*) AS starts, round(avg(f.rating), 2) AS avg_rating,
        round(avg(f.rating_adj), 2) AS avg_rating_adj, sum(f.goals) AS goals,
        sum(f.assists) AS assists, sum(f.key_passes) AS key_passes,
        sum(f.tackles_won + f.interceptions) AS def_actions, sum(f.mistakes) AS mistakes
@@ -154,8 +154,8 @@ JOIN site.matches m USING (match_id)
 JOIN mart.dim_person p USING (person_id)
 WHERE m.season = getvariable('season') AND m.stage_type IS NOT NULL
   AND f.team_tid = getvariable('us') AND f.is_starter
-GROUP BY f.role, f.person_id, p.name HAVING count(*) >= 10
-ORDER BY f.role, avg_rating_adj DESC;
+GROUP BY f.rating_role, f.person_id, p.name HAVING count(*) >= 10
+ORDER BY f.rating_role, avg_rating_adj DESC;
 
 -- 3. AWARDS — appeared-only (rule 2): site.match_players holds appearances only
 CREATE OR REPLACE TEMP TABLE awards AS
