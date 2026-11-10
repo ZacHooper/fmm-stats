@@ -36,8 +36,8 @@ erDiagram
         int from_club_key FK "empty when signing a free agent"
         int to_club_key FK
         int season FK "the campaign he moves for"
-        date moved_after "snapshot bounds"
-        date moved_by
+        date moved_after_date "snapshot bounds"
+        date moved_by_date
         int fee
         string type "permanent / free"
         int ended_contract_key FK
@@ -201,7 +201,7 @@ where two are not (`manager_candidates`). It names the same manager as the old
 | contract ended by a transfer has a transfer naming it | 11,338 / 12,523 | 8,564 / 11,056 | (one snapshot) |
 | the rest: net moves through a club no snapshot saw (A→B→C between two snapshots; the history names B→C) | 1,185 | 2,492 | |
 | a watched transfer starts a contract at the buying club | 13,460 / 13,472 | 11,320 / 11,331 | |
-| the rest: no contract on record on `moved_by` | 12 | 11 | |
+| the rest: no contract on record on `moved_by_date` | 12 | 11 | |
 | the save's contracted flag on a free agent (no club, no contract) | 708 | 1,014 | 170 |
 | contracted flag with no contract slot marked current | 231 | 199 | 192 |
 | status 65 ("loaned out") snapshots listed on loan by another club | 33 / 442 | 17 / 579 | 17 / 454 |

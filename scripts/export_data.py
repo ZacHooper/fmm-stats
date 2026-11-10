@@ -171,8 +171,8 @@ def pct(v):
 def player_row(r, attrs, profile=False):
     """One player as the app's positional row (PLAYER_FIELDS, then
     ALL_PLAYER_FIELDS' two and PROFILE_EXTRA_FIELDS with `profile`)."""
-    row = [r["tid"], r["name"], r["team_tid"], day(r["birth_date"]), num(r["value"]),
-           num(r["wage_gbp"]), day(r["contract_expiry"]),
+    row = [r["tid"], r["name"], r["team_tid"], day(r["birth_date"]), num(r["value_gbp"]),
+           num(r["wage_gbp"]), day(r["contract_expiry_date"]),
            [num(r[a]) for a in attrs],
            [[p["position"], p["familiarity"], pct(p["level_league"]), pct(p["level_global"])]
             for p in (r["positions"] or [])],
@@ -556,7 +556,7 @@ def main():
     # ------------------------------------------------------------ registration.json
     rules = s.rows("""SELECT tier, league_name, a_list_max, home_grown_min AS hg_min,
                              home_grown_club_min AS hg_club_min, b_list_under_age,
-                             min_matchday_age, nation, u21_on
+                             min_matchday_age, nation, b_list_age_date AS u21_on
                       FROM site.registration_rules WHERE snapshot_date = ?""", [d])
     reg_fields = ["tid", "age", "b_list", "hg_club", "hg_basis", "hg_association",
                   "months_club", "months_to_go", "hg_eta", "window_open", "origin_club",
@@ -571,7 +571,7 @@ def main():
               r["home_grown_basis"], bool(r["is_home_grown_association"]),
               None if r["months_club"] is None else float(r["months_club"]),
               None if r["months_to_go"] is None else float(r["months_to_go"]),
-              day(r["hg_eta"]), bool(r["is_window_open"]), r["origin_club"], r["origin_nation"],
+              day(r["home_grown_date"]), bool(r["is_window_open"]), r["origin_club"], r["origin_nation"],
               bool(r["is_academy_product"])]
              for r in reg if r["person_id"] in tid_of]),
         "note": "Squad registration is a self-imposed rule — FMM22 does not model it. "

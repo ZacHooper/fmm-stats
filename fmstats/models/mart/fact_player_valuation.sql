@@ -5,7 +5,7 @@ select
     info.person_id,
     info.snapshot_date,
     info.tid,
-    coalesce(info.value, valuation.value_estimate) as value,
+    coalesce(info.value, valuation.value_estimate) as value_gbp,
     info.value is null and valuation.value_estimate is not null
         as is_value_estimated,
     case when info.value is null then valuation.is_in_trusted_band end

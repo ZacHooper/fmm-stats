@@ -40,7 +40,7 @@ seasons as (
 dated as (
     select
         transfers.*,
-        coalesce(transfers.move_date, transfers.moved_by) as when_date
+        coalesce(transfers.move_date, transfers.moved_by_date) as when_date
     from transfers
 )
 

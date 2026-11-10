@@ -6,7 +6,6 @@ A player's transfer value in £. The save states one only for our own squad (a f
 entry's); everyone else's is the transfer-value model's estimate (int.player_value,
 `is_value_estimated`), NULL where the model lacks an input. On `site.players` only the stated
 value is shown (NULL for an estimate); on `site.finances` it is the sum over the players we own.
-Synonyms: `value`.
 {% enddocs %}
 
 {% docs wage_gbp %}

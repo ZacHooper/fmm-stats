@@ -7,7 +7,7 @@ select
     snapshots.season,
     count(*) filter (where not squad.is_loan_in) as n_owned,
     count(*) filter (where squad.is_loan_in) as n_loan_in,
-    sum(players.value) filter (where not squad.is_loan_in) as value_gbp,
+    sum(players.value_gbp) filter (where not squad.is_loan_in) as value_gbp,
     count(*) filter (
         where not squad.is_loan_in and players.is_value_estimated
     ) as n_value_estimated,

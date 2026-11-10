@@ -1,9 +1,9 @@
 -- The squad-registration rules that apply to us on each snapshot, keyed
--- snapshot_date: the managed team's league, its tier and nation, and the
--- rules for that tier (var('registration'), a house rule:
+-- snapshot_date: the managed team's league, its tier and nation, and the rules
+-- for that tier (var('registration'), a house rule:
 -- docs/danish-registration-rules.md). The home-grown minimums bind in the top
--- tiers only. u21_on is the date the B-list age is taken on: the last new year
--- before the season's second calendar year.
+-- tiers only. b_list_age_date is the date the B-list age is taken on: the last
+-- new year before the season's second calendar year.
 {% set rules = var('registration') %}
 select
     clubs.snapshot_date,
@@ -20,7 +20,7 @@ select
     end as home_grown_club_min,
     {{ rules.b_list_under_age }} as b_list_under_age,
     {{ rules.min_matchday_age }} as min_matchday_age,
-    make_date(cast(snapshots.season as integer) - 1, 1, 1) as u21_on
+    make_date(cast(snapshots.season as integer) - 1, 1, 1) as b_list_age_date
 from {{ ref('site_clubs') }} as clubs
 inner join {{ ref('stg_career') }} as career
     on clubs.team_tid = career.managed_club_tid

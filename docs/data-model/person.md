@@ -7,7 +7,7 @@ staff spells) and [`match.md`](match.md) (player match performance).
 can hold both at once (a player-manager). Static biography and physical constants sit on `dim_person`.
 Everything that changes is modeled based on churn frequency:
 - High-churn market values and reputation live in **`fact_player_valuation`** at snapshot grain.
-- Slow-moving attributes, positions, and contracts live in **`fact_player_state_scd`** as an SCD Type 2 interval (`valid_from`, `valid_to`).
+- Slow-moving attributes, positions, and contracts live in **`fact_player_state_scd`** as an SCD Type 2 interval (`valid_from_date`, `valid_to_date`).
 - A consumer view **`fact_player_snapshot`** reconciles both layers into standard `(person_id, snapshot_date)` grain for backward compatibility.
 - Staff snapshots remain periodic snapshots at save dates.
 - Things with a lifespan (contracts, loans, injuries) are **spells**.
@@ -52,7 +52,7 @@ erDiagram
     fact_player_valuation {
         int person_key FK
         date snapshot_date FK
-        int value
+        int value_gbp
         bool is_value_estimated
         bool is_value_in_trusted_band
         int reputation
@@ -61,8 +61,8 @@ erDiagram
     }
     fact_player_state_scd {
         int person_key FK
-        date valid_from
-        date valid_to
+        date valid_from_date
+        date valid_to_date
         bool is_current
         int team_key FK
         int ca
@@ -75,8 +75,8 @@ erDiagram
         string training "intensity, focus role, attribute, position"
         string contract_status "contracted / expired / free agent"
         int wage_gbp
-        date contract_start
-        date contract_expiry
+        date contract_start_date
+        date contract_expiry_date
     }
     fact_staff_snapshot {
         int person_key FK
@@ -141,9 +141,9 @@ snapshot, and the owning club comes from the current contract.
 
 ## Snapshots, Valuation & State SCD
 
-- **`fact_player_valuation`**: person × snapshot date. Houses volatile, high-frequency continuous metrics: `value` (stated or estimated), `is_value_estimated`, `is_value_in_trusted_band`, and the reputation trio (`reputation`, `current_reputation`, `world_reputation`).
-- **`fact_player_state_scd`**: person × validity interval (`valid_from`, `valid_to`, `is_current`). Houses slowly-changing player attributes, positions, hidden personality traits, team, and contract state. Collapses static periods to save storage.
-- **`fact_player_snapshot` (view)**: reconstructed view joining `fact_player_valuation` with `fact_player_state_scd` where `snapshot_date BETWEEN valid_from AND valid_to`. Preserves snapshot-grain queryability across all attributes for backward compatibility.
+- **`fact_player_valuation`**: person × snapshot date. Houses volatile, high-frequency continuous metrics: `value_gbp` (stated or estimated), `is_value_estimated`, `is_value_in_trusted_band`, and the reputation trio (`reputation`, `current_reputation`, `world_reputation`).
+- **`fact_player_state_scd`**: person × validity interval (`valid_from_date`, `valid_to_date`, `is_current`). Houses slowly-changing player attributes, positions, hidden personality traits, team, and contract state. Collapses static periods to save storage.
+- **`fact_player_snapshot` (view)**: reconstructed view joining `fact_player_valuation` with `fact_player_state_scd` where `snapshot_date BETWEEN valid_from_date AND valid_to_date`. Preserves snapshot-grain queryability across all attributes for backward compatibility.
 - **Nationality:** `primary_nation` plus a list of `secondary_nations` (a player can have more
   than two). The one allowed change of primary nation shows up between snapshots with no extra
   modelling.
@@ -195,9 +195,9 @@ Keys are natural: a person is `person_id` (`<tid>-<dob>`), a snapshot `snapshot_
 | Table | Grain | Notes |
 |---|---|---|
 | `dim_person` | `person_id` | name (latest), birth_date, origin club, and static physical constants (height, weight, ethnicity, footedness, preferred squad number) |
-| `fact_player_valuation` | `person_id`, `snapshot_date` | volatile snapshot-grain metrics: `value` (stated or estimated), `is_value_estimated`, `is_value_in_trusted_band`, `reputation`, `current_reputation`, `world_reputation` |
-| `fact_player_state_scd` | `person_id`, `valid_from` | SCD Type 2 intervals for ratings, team affiliation, training, and contract state; `valid_to` marks the end of unchanged interval |
-| `fact_player_snapshot` | `person_id`, `snapshot_date` | consumer view joining `fact_player_valuation` to `fact_player_state_scd` over `snapshot_date BETWEEN valid_from AND valid_to` |
+| `fact_player_valuation` | `person_id`, `snapshot_date` | volatile snapshot-grain metrics: `value_gbp` (stated or estimated), `is_value_estimated`, `is_value_in_trusted_band`, `reputation`, `current_reputation`, `world_reputation` |
+| `fact_player_state_scd` | `person_id`, `valid_from_date` | SCD Type 2 intervals for ratings, team affiliation, training, and contract state; `valid_to_date` marks the end of unchanged interval |
+| `fact_player_snapshot` | `person_id`, `snapshot_date` | consumer view joining `fact_player_valuation` to `fact_player_state_scd` over `snapshot_date BETWEEN valid_from_date AND valid_to_date` |
 | `fact_staff_snapshot` | `person_id`, `snapshot_date` | a person with no player record who has a staff record or is on a team's books |
 | `fact_injury_spell` | `person_id`, `start_date` | runs of injured weeks in Player Progress (our squad and reserves) |
 | `fact_player_season` | `person_id`, `line_index` | career history, every player, unioned across snapshots: at each season rollover the game reuses the records of some active players' oldest lines (confirmed in game on Raheem Sterling), and drops all of a player's lines when he retires |

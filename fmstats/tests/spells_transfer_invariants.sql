@@ -50,10 +50,10 @@ select
     to_line_index
 from transfers
 where
-    moved_by <= moved_after
-    or (moved_after is null) <> (moved_by is null)
-    or move_date <= moved_after
-    or move_date > moved_by
+    moved_by_date <= moved_after_date
+    or (moved_after_date is null) <> (moved_by_date is null)
+    or move_date <= moved_after_date
+    or move_date > moved_by_date
 union all
 select
     '5% or more of club-to-club moves have no fee' as "check",  -- noqa: RF04
