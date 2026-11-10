@@ -75,9 +75,9 @@ that get it there. Each phase is a brief an agent can pick up cold. Written 2026
   <tr><td><a href="#p0">0. Docs checker</a></td><td><span class="tag done">done</span></td><td>—</td><td>#194</td></tr>
   <tr><td><a href="#p1">1. Player quick start</a></td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
   <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag done">done</span></td><td>0</td><td>world: done, #195; people: done, #197; matches: done, #203, #204; competitions: done, #206; cleanup (the leftover parser docs harvested and deleted): done, #208</td></tr>
-  <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag ready">in progress</span></td><td>0</td><td>in review, #210 (<code>claude/wizardly-edison-0hlfgh</code>)</td></tr>
-  <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
-  <tr><td><a href="#p5">5. Stats: overview and modelling note</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
+  <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag done">done</span></td><td>0</td><td>#210</td></tr>
+  <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag ready">ready</span></td><td>3</td><td></td></tr>
+  <tr><td><a href="#p5">5. Stats: overview and modelling note</a></td><td><span class="tag ready">ready</span></td><td>3</td><td></td></tr>
   <tr><td><a href="#p6">6. Site and skills</a></td><td><span class="tag blocked">waits</span></td><td>1, 4</td><td></td></tr>
   <tr><td><a href="#p7">7. Delete the rest</a></td><td><span class="tag blocked">waits</span></td><td>2, 5, 6</td><td></td></tr>
   <tr><td><a href="#p8">8. Cut the public repo</a></td><td><span class="tag blocked">waits</span></td><td>7</td><td></td></tr>
@@ -350,7 +350,7 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   <dt>Don't</dt><dd>Rename columns here; this phase only documents.</dd>
   <dt>Done when</dt><dd>The checker passes for documentation (renames listed as known), and
   <code>dbt docs generate</code> shows every <code>mart</code>/<code>site</code> column described.</dd>
-  <dt>Status</dt><dd>In review, #210. 393 blocks in
+  <dt>Status</dt><dd>Done in #210. 393 blocks in
   <code>fmstats/models/_docs/</code> (one file per family: <code>ids</code>, <code>time</code>,
   <code>match</code>, <code>match_stats</code>, <code>competitions</code>, <code>places</code>,
   <code>player</code>, <code>attributes</code>, <code>staff</code>, <code>careers</code>,
