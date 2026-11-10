@@ -13,14 +13,14 @@ with listed as (
         scd.team_tid,
         scd.ca,
         '{{ position }}' as position,
-        scd.pos_{{ position | lower }} as familiarity
+        scd.familiarity_{{ position | lower }} as familiarity
     from {{ ref('fact_player_valuation') }} as val
     inner join {{ ref('fact_player_state_scd') }} as scd
         on
             val.person_id = scd.person_id
             and val.snapshot_date >= scd.valid_from
             and val.snapshot_date <= scd.valid_to
-    where scd.pos_{{ position | lower }} > 0
+    where scd.familiarity_{{ position | lower }} > 0
     {% if not loop.last %}union all{% endif %}
     {% endfor %}
 ),
@@ -130,7 +130,7 @@ select
     scd.{{ column }},
     {% endfor %}
     {% for position in var('positions') %}
-    scd.pos_{{ position | lower }},
+    scd.familiarity_{{ position | lower }},
     {% endfor %}
     positions.positions,
     val.snapshot_date = max(val.snapshot_date) over () as is_current

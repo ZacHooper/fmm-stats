@@ -27,14 +27,16 @@ with listed as (
         players.tid,
         players.ca,
         '{{ position }}' as position,
-        players.pos_{{ position | lower }} as familiarity,
+        players.familiarity_{{ position | lower }} as familiarity,
         leagues.league_cid
     from {{ ref('fact_player_snapshot') }} as players
     left join {{ ref('int_team_leagues') }} as leagues
         on
             players.snapshot_date = leagues.snapshot_date
             and players.team_tid = leagues.team_tid
-    where players.pos_{{ position | lower }} > 0 and players.ca is not null
+    where
+        players.familiarity_{{ position | lower }} > 0
+        and players.ca is not null
     {% if not loop.last %}union all{% endif %}
     {% endfor %}
 ),
