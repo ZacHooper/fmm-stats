@@ -1,4 +1,4 @@
--- An exact read of a player's attributes (attributes_are_estimated false)
+-- An exact read of a player's attributes (has_estimated_attributes false)
 -- comes only from our own squad: everyone outside the managed club's squad
 -- arrays is on the model's estimates, and on every snapshot most of our squad
 -- reads exact. A growth or forecast figure that filters on the flag relies on
@@ -8,7 +8,7 @@ with snapshots as (
     select
         players.snapshot_date,
         players.person_id,
-        players.attributes_are_estimated,
+        players.has_estimated_attributes,
         exists(
             select 1 as found
             from {{ ref('mart_squad_membership') }} as squads
@@ -26,7 +26,7 @@ select
     snapshot_date,
     person_id
 from snapshots
-where not in_our_squad and not attributes_are_estimated
+where not in_our_squad and not has_estimated_attributes
 union all
 select
     'our squad mostly estimated' as check_name,
@@ -36,5 +36,5 @@ from snapshots
 where in_our_squad
 group by snapshot_date
 having
-    count(*) filter (where not attributes_are_estimated)
-    <= count(*) filter (where attributes_are_estimated)
+    count(*) filter (where not has_estimated_attributes)
+    <= count(*) filter (where has_estimated_attributes)

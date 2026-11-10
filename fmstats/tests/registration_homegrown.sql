@@ -1,10 +1,11 @@
 -- The registration page's flags for our squad (site_registration):
---   null flag        hg_club, hg_association and b_list are never NULL (a
---                    missing origin or birth date reads as 'no')
+--   null flag        is_home_grown_club, is_home_grown_association and
+--                    is_b_list are never NULL (a missing origin or birth date
+--                    reads as 'no')
 --   not nested       club-trained implies association-trained
 --   basis mismatch   home_grown_basis names a basis exactly when he is
 --                    club-trained
---   b-list by age    b_list is the fixed-date test: born after u21_on less
+--   b-list by age    is_b_list is the fixed-date test: born after u21_on less
 --                    the B-list age (site_registration_rules, the page's
 --                    own statement of the rule), so a player who turns 21
 --                    during the season stays on it all season
@@ -25,21 +26,24 @@ select
     snapshot_date,
     person_id
 from registration
-where hg_club is null or hg_association is null or b_list is null
+where
+    is_home_grown_club is null
+    or is_home_grown_association is null
+    or is_b_list is null
 union all
 select
     'not nested' as check_name,
     snapshot_date,
     person_id
 from registration
-where hg_club and not hg_association
+where is_home_grown_club and not is_home_grown_association
 union all
 select
     'basis mismatch' as check_name,
     snapshot_date,
     person_id
 from registration
-where hg_club is distinct from (home_grown_basis is not null)
+where is_home_grown_club is distinct from (home_grown_basis is not null)
 union all
 select
     'b-list by age' as check_name,
@@ -48,7 +52,7 @@ select
 from registration
 where
     u21_on is not null
-    and b_list is distinct from coalesce(
+    and is_b_list is distinct from coalesce(
         birth_date > cast(u21_on - to_years(b_list_under_age) as date), false
     )
 union all
@@ -59,8 +63,8 @@ select
 from (
     select
         count(*) as n,
-        count(*) filter (where hg_club) as n_club,
-        count(*) filter (where b_list) as n_b_list
+        count(*) filter (where is_home_grown_club) as n_club,
+        count(*) filter (where is_b_list) as n_b_list
     from registration
 ) as counts
 cross join

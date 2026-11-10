@@ -12,7 +12,7 @@ with blocks as (
             {% endfor %}
         ) as block_mean
     from {{ ref('fact_player_snapshot') }}
-    where has_attributes and not attributes_are_estimated
+    where has_attributes and not has_estimated_attributes
     group by is_goalkeeper
 )
 

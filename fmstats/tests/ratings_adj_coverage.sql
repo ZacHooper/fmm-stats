@@ -19,7 +19,7 @@ qualified_roles as (
     left join {{ ref('dim_competition') }} as competitions
         on matches.cid = competitions.cid
     where
-        facts.started
+        facts.is_starter
         and facts.role is not null
         and competitions.type is distinct from 'friendly'
     group by facts.role
@@ -34,7 +34,7 @@ player_lines as (
         facts.player_tid,
         facts.position,
         facts.role,
-        facts.started,
+        facts.is_starter,
         facts.rating,
         facts.rating_adj,
         matches.rating as recorded_rating,
@@ -52,7 +52,7 @@ select
     player_lines.match_id,
     player_lines.player_tid,
     player_lines.position,
-    player_lines.started
+    player_lines.is_starter
 from player_lines
 where player_lines.position is not null and player_lines.role is null
 union all
@@ -61,18 +61,21 @@ select
     player_lines.match_id,
     player_lines.player_tid,
     player_lines.position,
-    player_lines.started
+    player_lines.is_starter
 from player_lines
 where
     (player_lines.rating_adj is null)
-    <> (not player_lines.started or not coalesce(player_lines.role_qualifies, false))
+    <> (
+        not player_lines.is_starter
+        or not coalesce(player_lines.role_qualifies, false)
+    )
 union all
 select
     'raw rating differs from the match record' as check_name,
     player_lines.match_id,
     player_lines.player_tid,
     player_lines.position,
-    player_lines.started
+    player_lines.is_starter
 from player_lines
 where player_lines.rating is distinct from player_lines.recorded_rating
 union all
@@ -81,7 +84,7 @@ select
     null as match_id,
     null as player_tid,
     null as position,
-    null as started
+    null as is_starter
 where
     (select count(*) as n from {{ ref('int_player_match_ratings') }})
     <> (select count(*) as n from {{ ref('int_player_matches') }})

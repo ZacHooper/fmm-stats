@@ -15,7 +15,7 @@ with player_state as (
         info.ca,
         info.pa,
         info.squad_number,
-        info.international_retired,
+        info.international_retired as is_international_retired,
         info.international_caps,
         info.international_goals,
         info.u21_caps,
@@ -39,7 +39,7 @@ with player_state as (
         {% for attribute in var('attr_order') %}
         ratings."{{ attribute }}",
         {% endfor %}
-        ratings.is_estimated as attributes_are_estimated,
+        ratings.is_estimated as has_estimated_attributes,
         {% for column in var('hidden_attributes') %}
         ratings.{{ column }},
         {% endfor %}
@@ -140,7 +140,7 @@ intervals as (
         first(ca) as ca,
         first(pa) as pa,
         first(squad_number) as squad_number,
-        first(international_retired) as international_retired,
+        first(is_international_retired) as is_international_retired,
         first(international_caps) as international_caps,
         first(international_goals) as international_goals,
         first(u21_caps) as u21_caps,
@@ -160,7 +160,7 @@ intervals as (
         {% for attribute in var('attr_order') %}
         first("{{ attribute }}") as "{{ attribute }}",
         {% endfor %}
-        first(attributes_are_estimated) as attributes_are_estimated,
+        first(has_estimated_attributes) as has_estimated_attributes,
         {% for column in var('hidden_attributes') %}
         first({{ column }}) as {{ column }},
         {% endfor %}
@@ -189,7 +189,7 @@ select
     ca,
     pa,
     squad_number,
-    international_retired,
+    is_international_retired,
     international_caps,
     international_goals,
     u21_caps,
@@ -209,7 +209,7 @@ select
     {% for attribute in var('attr_order') %}
     "{{ attribute }}",
     {% endfor %}
-    attributes_are_estimated,
+    has_estimated_attributes,
     {% for column in var('hidden_attributes') %}
     {{ column }},
     {% endfor %}

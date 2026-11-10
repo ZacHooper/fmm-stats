@@ -169,7 +169,7 @@ SELECT * FROM m.site.players WHERE club_tid = 346 LIMIT 10;
 **Attach the DuckDB store directly.** `site-data/fm-frem.duckdb` holds both `site.*` (presentation marts backing the web app) and `mart.*` (dimensional warehouse facts and dimensions).
 
 - **`site.*` (Presentation Layer):** `site.players`, `site.squad`, `site.matches`, `site.loan_outlook`, `site.leagues`, `site.standings`, `site.clubs`. All presentation marts exclude raw ability and shape data for display.
-- **`mart.*` (Dimensional Warehouse):** `mart.dim_person` (includes `capital_eligible`, `origin_club_tid`), `mart.dim_club`, `mart.dim_competition`, `mart.dim_match`, `mart.fact_player_match` (includes `rating_adj`), `mart.fact_player_snapshot` (includes Level %iles in `positions`), `mart.mart_squad_membership`.
+- **`mart.*` (Dimensional Warehouse):** `mart.dim_person` (includes `is_capital_eligible`, `origin_club_tid`), `mart.dim_club`, `mart.dim_competition`, `mart.dim_match`, `mart.fact_player_match` (includes `rating_adj`), `mart.fact_player_snapshot` (includes Level %iles in `positions`), `mart.mart_squad_membership`.
 
 ```sql
 -- who from OB has produced against us, and is still there

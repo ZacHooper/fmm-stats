@@ -20,7 +20,7 @@ snapshots as (
         snapshot_date,
         tid,
         age,
-        attributes_are_estimated as is_estimated,
+        has_estimated_attributes as is_estimated,
         {% for attribute in var('attr_order') %}
         "{{ attribute }}"{% if not loop.last %},{% endif %}
         {% endfor %}

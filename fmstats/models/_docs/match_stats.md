@@ -14,13 +14,11 @@ Matches the player started (a place in the XI).
 
 {% docs is_starter %}
 The player started: a place in the XI (`lineup_order` up to `var('starters')`).
-Synonyms: `started`.
 {% enddocs %}
 
 {% docs has_appeared %}
 The player took the field: he started or came on. An unused substitute has a line but didn't
 appear; never infer it from `rating` or `condition`.
-Synonyms: `appeared`.
 {% enddocs %}
 
 {% docs lineup_order %}

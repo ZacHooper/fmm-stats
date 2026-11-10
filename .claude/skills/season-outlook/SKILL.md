@@ -350,7 +350,7 @@ WITH games AS (
     SELECT count(*) AS n FROM site.matches WHERE season = 2028 AND stage_type IS NOT NULL
 ),
 load AS (
-    SELECT person_id, count(*) AS apps, count(*) FILTER (WHERE started) AS starts,
+    SELECT person_id, count(*) AS apps, count(*) FILTER (WHERE is_starter) AS starts,
            sum(minutes) AS mins, round(avg(rating), 2) AS avg_rating
     FROM site.match_players WHERE season = 2028 AND competition <> 'Friendly'
     GROUP BY person_id

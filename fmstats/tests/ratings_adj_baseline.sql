@@ -22,7 +22,7 @@ base as (
     left join {{ ref('dim_competition') }} as competitions
         on matches.cid = competitions.cid
     where
-        facts.started
+        facts.is_starter
         and facts.role is not null
         and competitions.type is distinct from 'friendly'
 ),
@@ -75,6 +75,6 @@ where
         left join {{ ref('dim_competition') }} as competitions
             on matches.cid = competitions.cid
         where
-            facts.started
+            facts.is_starter
             and competitions.type is distinct from 'friendly'
     )

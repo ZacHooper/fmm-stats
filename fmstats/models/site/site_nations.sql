@@ -10,7 +10,7 @@
 -- second to last: the year of the latest snapshot, up to this one, on which the
 -- list had moved along. NULL before any such move is on record.
 --
--- coefficient_is_live: whether the nation's history changes anywhere in the
+-- is_coefficient_live: whether the nation's history changes anywhere in the
 -- store. Some never do (every African nation's reads the same on every
 -- snapshot): those are the game's starting values, which it doesn't update.
 --
@@ -43,7 +43,7 @@ moved as (
         ) as coefficient_season,
         count(distinct coefficient_history) over (
             partition by nation_id
-        ) > 1 as coefficient_is_live
+        ) > 1 as is_coefficient_live
     from nations
 ),
 
@@ -57,7 +57,7 @@ ranked as (
         list_sum(moved.coefficient_history) as coefficient,
         moved.coefficient_history,
         moved.coefficient_season,
-        moved.coefficient_is_live,
+        moved.is_coefficient_live,
         nation_names.continent_id = {{ var('uefa_continent_id') }} as is_uefa,
         case
             when len(moved.coefficient_history) > 1

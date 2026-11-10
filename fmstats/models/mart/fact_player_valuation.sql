@@ -7,9 +7,9 @@ select
     info.tid,
     coalesce(info.value, valuation.value_estimate) as value,
     info.value is null and valuation.value_estimate is not null
-        as value_is_estimated,
+        as is_value_estimated,
     case when info.value is null then valuation.is_in_trusted_band end
-        as value_in_trusted_band,
+        as is_value_in_trusted_band,
     info.reputation,
     info.current_reputation,
     info.world_reputation

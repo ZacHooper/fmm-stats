@@ -59,10 +59,10 @@ campaign is the date window from the rollover day (Frem 30 June):
 ```sql
 -- match output this season, first team and reserves apart
 SELECT f.person_id, p.name, f.team_tid,
-       count(*) FILTER (WHERE f.appeared) AS apps, count(*) FILTER (WHERE f.started) AS starts,
+       count(*) FILTER (WHERE f.has_appeared) AS apps, count(*) FILTER (WHERE f.is_starter) AS starts,
        sum(f.minutes) AS mins,
-       round(avg(f.rating) FILTER (WHERE f.appeared), 2) AS mr,
-       round(avg(f.rating_adj) FILTER (WHERE f.started), 2) AS mr_adj,
+       round(avg(f.rating) FILTER (WHERE f.has_appeared), 2) AS mr,
+       round(avg(f.rating_adj) FILTER (WHERE f.is_starter), 2) AS mr_adj,
        sum(f.goals) AS g, sum(f.assists) AS a, sum(f.key_passes) AS kp
 FROM mart.fact_player_match f
 JOIN mart.dim_match m USING (match_id)
@@ -78,7 +78,7 @@ ORDER BY f.team_tid, mins DESC;
 > midfielder is best) only on `mr_adj` — the game rates a DM ~0.47 below a central midfielder for
 > the same game. Per-position splits: `scout-opponent`'s position-split query.
 >
-> Filter `appeared` for apps and ratings: an unused sub still gets a row carrying a flat **6.00**
+> Filter `has_appeared` for apps and ratings: an unused sub still gets a row carrying a flat **6.00**
 > rating — average it in and every figure sags toward 6. Reserve matches carry goals, assists,
 > minutes and rating but few of the other stats.
 
@@ -92,7 +92,7 @@ WITH ends AS (
     SELECT min(snapshot_date) AS d0, max(snapshot_date) AS d1 FROM site.snapshots WHERE season = 2027
 ),
 tot AS (
-    SELECT f.person_id, f.snapshot_date, f.age, f.attributes_are_estimated,
+    SELECT f.person_id, f.snapshot_date, f.age, f.has_estimated_attributes,
            Aerial + Crossing + Dribbling + Shooting + Passing + Tackling + Technique
            + Aggression + Creativity + Decisions + Leadership + Movement + Positioning
            + Teamwork + Pace + Stamina + Strength + Agility + Handling + Kicking + Reflexes
@@ -112,7 +112,7 @@ FROM tot a
 JOIN tot b ON b.person_id = a.person_id AND b.snapshot_date > a.snapshot_date
 JOIN mart.dim_person p ON p.person_id = a.person_id
 LEFT JOIN mins ON mins.person_id = a.person_id
-WHERE NOT a.attributes_are_estimated AND NOT b.attributes_are_estimated
+WHERE NOT a.has_estimated_attributes AND NOT b.has_estimated_attributes
 ORDER BY growth DESC LIMIT 8;
 ```
 A season alone badly understates a long server — for growth since joining, see the tenure query

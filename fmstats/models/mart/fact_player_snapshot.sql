@@ -99,15 +99,15 @@ select
     val.current_reputation,
     val.world_reputation,
     scd.squad_number,
-    scd.international_retired,
+    scd.is_international_retired,
     scd.international_caps,
     scd.international_goals,
     scd.u21_caps,
     scd.u21_goals,
     scd.joined_date,
     val.value,
-    val.value_is_estimated,
-    val.value_in_trusted_band,
+    val.is_value_estimated,
+    val.is_value_in_trusted_band,
     scd.scrapbook_entry_date,
     scd.wage_gbp,
     scd.contract_start,
@@ -122,7 +122,7 @@ select
     {% for attribute in var('attr_order') %}
     scd."{{ attribute }}",
     {% endfor %}
-    scd.attributes_are_estimated,
+    scd.has_estimated_attributes,
     {% for column in var('hidden_attributes') %}
     scd.{{ column }},
     {% endfor %}
