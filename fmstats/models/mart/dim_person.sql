@@ -38,7 +38,7 @@ with origins as (
 select
     persons.person_id,
     persons.tid,
-    persons.dob,
+    persons.dob as birth_date,
     persons.name,
     persons.ethnicity,
     persons.height_cm,

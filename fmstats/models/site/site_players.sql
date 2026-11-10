@@ -23,7 +23,7 @@ select
     players.tid,
     info.name,
     players.team_tid,
-    people.dob,
+    people.birth_date,
     case when not players.value_is_estimated then players.value end as value,
     players.wage_gbp,
     players.contract_expiry,

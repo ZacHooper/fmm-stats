@@ -5,8 +5,8 @@
 --   hg_club         trained at the club: he came out of it (an academy
 --                   product, or his origin club is ours), or he has
 --                   var('home_grown_months') months with us in his window
---                   (int.squad_training); hg_basis says which (academy /
---                   youth-origin / clock)
+--                   (int.squad_training); home_grown_basis says which
+--                   (academy / youth-origin / clock)
 --   hg_association  trained in our nation: hg_club, or his origin club is of
 --                   our nation, or he has the months at another club of it
 --   months_club, months_to_go, hg_eta   his months with us, how many he
@@ -48,7 +48,7 @@ players as (
         squad.snapshot_date,
         squad.person_id,
         snapshots.season,
-        people.dob,
+        people.birth_date,
         snapshot_players.age,
         people.origin_club_tid,
         people.origin_youth_team_tid is not null as via_academy,
@@ -60,8 +60,8 @@ players as (
         coalesce(training.months_club, 0) as months_club,
         coalesce(training.months_domestic, 0) as months_domestic,
         {{ season_end(
-            season_of('people.dob + interval ' ~ var('home_grown_window_ages')[1]
-                ~ ' year')
+            season_of('people.birth_date + interval '
+                ~ var('home_grown_window_ages')[1] ~ ' year')
         ) }} as window_to
     from {{ ref('int_our_squad') }} as squad
     cross join career
@@ -86,9 +86,9 @@ players as (
 select
     snapshot_date,
     person_id,
-    dob,
+    birth_date,
     age,
-    dob > make_date(
+    birth_date > make_date(
         cast(season as integer)
         - 1
         - {{ var('registration').b_list_under_age }},
@@ -100,7 +100,7 @@ select
         when origin_is_ours and via_academy then 'academy'
         when origin_is_ours then 'youth-origin'
         when months_club >= {{ months }} then 'clock'
-    end as hg_basis,
+    end as home_grown_basis,
     (
         coalesce(origin_is_ours, false)
         or months_club >= {{ months }}

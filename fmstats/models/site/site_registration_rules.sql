@@ -13,11 +13,11 @@ select
     {{ rules.a_list_max }} as a_list_max,
     case
         when leagues.tier <= {{ rules.hg_tiers }} then {{ rules.hg_min }} else 0
-    end as hg_min,
+    end as home_grown_min,
     case
         when leagues.tier <= {{ rules.hg_tiers }} then {{ rules.hg_club_min }}
         else 0
-    end as hg_club_min,
+    end as home_grown_club_min,
     {{ rules.b_list_under_age }} as b_list_under_age,
     {{ rules.min_matchday_age }} as min_matchday_age,
     make_date(cast(snapshots.season as integer) - 1, 1, 1) as u21_on

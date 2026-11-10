@@ -6,7 +6,6 @@
 Appearances: matches the player took the field in, as a starter or a substitute who came on.
 On a career-history line, the game's own figure for the season, all competitions together (0 on
 a loan year's parent-club line); elsewhere counted from our own matches.
-Synonyms: `apps`.
 {% enddocs %}
 
 {% docs games_started %}
@@ -14,7 +13,7 @@ Matches the player started (a place in the XI).
 {% enddocs %}
 
 {% docs is_starter %}
-The player started: a place in the XI (`pos_order` up to `var('starters')`).
+The player started: a place in the XI (`lineup_order` up to `var('starters')`).
 Synonyms: `started`.
 {% enddocs %}
 
@@ -26,7 +25,6 @@ Synonyms: `appeared`.
 
 {% docs lineup_order %}
 The player's place on the team sheet: 1-11 the starters, 12 and up the bench.
-Synonyms: `pos_order`.
 {% enddocs %}
 
 {% docs minutes %}
@@ -70,7 +68,7 @@ moves slightly with every import.
 The player's average match rating over the matches he appeared in, to two decimals. On a
 career-history line it is the game's own figure (NULL with no appearances); on a scrapbook
 entry, the profile's.
-Synonyms: `avg_rating`, `fact_player_season.rating`, `site_player_career.rating`.
+Synonyms: `fact_player_season.rating`, `site_player_career.rating`.
 {% enddocs %}
 
 {% docs is_player_of_match %}
@@ -94,12 +92,10 @@ Assists.
 
 {% docs passes %}
 Passes attempted.
-Synonyms: `opp_passes` → `opponent_passes`.
 {% enddocs %}
 
 {% docs passes_completed %}
 Passes completed.
-Synonyms: `opp_passes_completed` → `opponent_passes_completed`.
 {% enddocs %}
 
 {% docs key_passes %}
@@ -108,17 +104,14 @@ Key passes.
 
 {% docs tackles %}
 Tackles attempted.
-Synonyms: `opp_tackles` → `opponent_tackles`.
 {% enddocs %}
 
 {% docs tackles_won %}
 Tackles won.
-Synonyms: `opp_tackles_won` → `opponent_tackles_won`.
 {% enddocs %}
 
 {% docs interceptions %}
 Interceptions.
-Synonyms: `opp_interceptions` → `opponent_interceptions`.
 {% enddocs %}
 
 {% docs headers %}
@@ -131,7 +124,6 @@ Headers won.
 
 {% docs crosses %}
 Crosses attempted.
-Synonyms: `opp_crosses` → `opponent_crosses`.
 {% enddocs %}
 
 {% docs crosses_completed %}
@@ -152,12 +144,10 @@ Mistakes that led to a goal.
 
 {% docs shots %}
 Shots.
-Synonyms: `opp_shots` → `opponent_shots`.
 {% enddocs %}
 
 {% docs shots_on_target %}
 Shots on target.
-Synonyms: `opp_shots_on_target` → `opponent_shots_on_target`.
 {% enddocs %}
 
 {% docs yellows %}

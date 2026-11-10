@@ -1,7 +1,7 @@
 -- The managed team's matches with detail (int.our_matches), keyed match_id,
 -- from its side: season (by the career's rollover day), venue, opponent, the
 -- final score, result and points (fact_team_match), formation, attendance,
--- the stage, and each side's team stats (our_ / opp_).
+-- the stage, and each side's team stats (our_ / opponent_).
 --
 -- stage_type: League or Group for a league or group stage; for a knockout
 -- stage, Qualifying where it comes before the competition's group stage in a
@@ -9,8 +9,9 @@
 -- stage (a friendly). stage is the game's own label: a league stage's name,
 -- 'Group ' and the group's letter (its place among the stage's groups), or
 -- the stage and round names. matchday counts from 1 in a league or group,
--- leg is set in a two-legged tie, tie_gf / tie_ga are its aggregate once both
--- legs are played and went_through says whether we won a decided tie.
+-- leg is set in a two-legged tie, tie_goals_for / tie_goals_against are its
+-- aggregate once both legs are played and went_through says whether we won a
+-- decided tie.
 with career as (
     select * from {{ ref('stg_career') }}
 ),
@@ -77,11 +78,11 @@ select
     ours.competition,
     sides.venue,
     opponents.name as opponent,
-    sides.opponent_tid as opp_tid,
-    sides.goals_for as gf,
-    sides.goals_against as ga,
+    sides.opponent_tid,
+    sides.goals_for,
+    sides.goals_against,
     sides.result,
-    sides.points as pts,
+    sides.points,
     sides.formation,
     ours.attendance,
     case stages.stage_format
@@ -118,7 +119,7 @@ select
                         then tie_rows.goals_a
                     else tie_rows.goals_b
                 end
-    end as tie_gf,
+    end as tie_goals_for,
     case
         when tie_rows.legs = 2 and tie_rows.legs_played = 2
             then
@@ -128,7 +129,7 @@ select
                         then tie_rows.goals_b
                     else tie_rows.goals_a
                 end
-    end as tie_ga,
+    end as tie_goals_against,
     case
         when stages.stage_format = 'knockout' and tie_rows.is_decided
             then tie_rows.winner_tid = sides.team_tid
@@ -138,7 +139,7 @@ select
     sides.pens_against,
     {% for stat in var('team_match_stats') %}
     sides.{{ stat }} as our_{{ stat }},
-    against.{{ stat }} as opp_{{ stat }}{% if not loop.last %},{% endif %}
+    against.{{ stat }} as opponent_{{ stat }}{% if not loop.last %},{% endif %}
     {% endfor %}
 from {{ ref('int_our_matches') }} as ours
 cross join career

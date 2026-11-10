@@ -41,7 +41,7 @@ ORDER BY tot.goals DESC LIMIT 5;
 ### Which database object to attach?
 * **`site-data/fm-<career>-mart.duckdb`** — the `mart` **tables** only, plus the
   `fact_player_snapshot` view. Attach it under any name (`AS m`). It holds:
-  * **Dimensions**: `dim_person` (name, dob, `capital_eligible`, `origin_club_tid`),
+  * **Dimensions**: `dim_person` (name, birth_date, `capital_eligible`, `origin_club_tid`),
     `dim_club`, `dim_team`, `dim_competition`, `dim_match`, `dim_stage`, `dim_round`,
     `dim_nation`, `dim_position` (position → unit), `dim_role`, `dim_award`.
   * **Facts**: `fact_player_match` (stats, `rating`, `rating_adj`, `role`, `position`),

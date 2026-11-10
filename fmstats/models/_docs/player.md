@@ -123,7 +123,6 @@ Synonyms: `value_in_trusted_band`.
 
 {% docs n_value_estimated %}
 How many of the players summed into `value` have only an estimate.
-Synonyms: `n_value_est`.
 {% enddocs %}
 
 {% docs n_owned %}
@@ -197,7 +196,6 @@ ability. The only form in which ability leaves the store.
 His Level %ile at the position in that division: the share of the players listing the position
 whose team is in the division and whose ability is below his, of the `n_players` others, 0-100
 rounded to a whole number. NULL with no one to compare.
-Synonyms: `lvl`.
 {% enddocs %}
 
 {% docs development %}
@@ -227,7 +225,6 @@ Synonyms: `hg_association`.
 {% docs home_grown_basis %}
 Why he is home-grown at the club: `academy` (an academy product of ours), `youth-origin` (his
 origin club is ours), `clock` (the months); NULL if he isn't.
-Synonyms: `hg_basis`.
 {% enddocs %}
 
 {% docs months_club %}

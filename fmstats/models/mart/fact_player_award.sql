@@ -1,6 +1,6 @@
 -- Each player's place in a World Best XI pool, keyed (award_id, person_id,
 -- entry_date), with the scrapbook entry that earned it: his profile as of
--- entry_date (club, competition, apps, goals, assists, average rating).
+-- entry_date (club, competition, appearances, goals, assists, average rating).
 -- world_best_xi: each season's pool (var('world_best_xi_lists'), one list per
 -- season) as the latest snapshot holding it has it; a pool fills and changes
 -- while its season is played, and is_final marks one whose season has ended.
@@ -92,10 +92,10 @@ select
     pools.loan_club_tid,
     pools.competition,
     pools.age,
-    pools.apps,
+    pools.apps as appearances,
     pools.goals,
     pools.assists,
-    pools.avg_rating
+    pools.avg_rating as average_rating
 from pools
 left join {{ ref('int_persons') }} as persons
     on

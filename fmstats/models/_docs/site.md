@@ -104,17 +104,14 @@ The managed team's home matches with an attendance in the season (friendlies' 0 
 
 {% docs average_attendance %}
 The average home crowd in the season, rounded to a whole number.
-Synonyms: `avg_att`.
 {% enddocs %}
 
 {% docs min_attendance %}
 The smallest home crowd in the season.
-Synonyms: `min_att`.
 {% enddocs %}
 
 {% docs max_attendance %}
 The largest home crowd in the season.
-Synonyms: `max_att`.
 {% enddocs %}
 
 {% docs is_through %}
@@ -130,12 +127,10 @@ The most players the A-list holds (`var('registration')`, a house rule).
 {% docs home_grown_min %}
 The fewest home-grown players the squad must have (trained in the nation); 0 below the top
 `hg_tiers` tiers (`var('registration')`, a house rule).
-Synonyms: `hg_min`.
 {% enddocs %}
 
 {% docs home_grown_club_min %}
 The fewest players trained at the club the squad must have; 0 below the top `hg_tiers` tiers.
-Synonyms: `hg_club_min`.
 {% enddocs %}
 
 {% docs b_list_under_age %}

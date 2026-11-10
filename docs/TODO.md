@@ -51,7 +51,7 @@ Live traps, each of which has produced numbers that looked fine and were not:
 - **Joining a per-(season, phase) dimension on (season, club_tid) fans every fact out by the
   snapshot count.** Frem's 19 home games read as 95.
 - **`any_value(x ORDER BY y)` does not order in DuckDB.** `max_by(x, y)` does.
-- **`mart.club_attendance` is our-matches-only** — read `n_games` before trusting `avg_att`.
+- **`mart.club_attendance` is our-matches-only** — read `n_games` before trusting `average_attendance`.
 - **A tid is a slot, not a person** — check `DISTINCT dob` per tid before telling a story
   about one ([`parser/person_info.md`](parser/person_info.md)).
 

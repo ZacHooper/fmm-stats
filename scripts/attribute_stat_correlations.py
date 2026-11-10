@@ -110,7 +110,7 @@ def build(db, min_minutes, competition=None, who="us", positions="played"):
     side = US if who == "us" else NOT_OURS
     comp = ("AND c.name ILIKE '" + competition.replace("'", "''") + "'") if competition else ""
     f = db.q(f"""SELECT s.person_id, s.season, SUM(s.minutes) mins, {agg},
-                        SUM(s.avg_rating * s.apps) / SUM(s.apps) rating
+                        SUM(s.average_rating * s.appearances) / SUM(s.appearances) rating
                  FROM {SEASONS_FROM} AND {side} {comp}
                  GROUP BY s.person_id, s.season""")
 

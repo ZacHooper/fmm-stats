@@ -174,18 +174,18 @@ SELECT name, position, age, level_league, level_global, Pace, Movement, Position
 FROM frame WHERE team_tid = getvariable('opp') ORDER BY level_league DESC LIMIT 8;
 
 -- ── 6. head-to-head, one row per match, from our side ──
-SELECT match_date, season, competition, venue, gf || '-' || ga AS score, result,
-       our_shots || '-' || opp_shots AS shots,
-       our_shots_on_target || '-' || opp_shots_on_target AS on_target,
+SELECT match_date, season, competition, venue, goals_for || '-' || goals_against AS score, result,
+       our_shots || '-' || opponent_shots AS shots,
+       our_shots_on_target || '-' || opponent_shots_on_target AS on_target,
        round(100.0 * our_passes_completed / nullif(our_passes, 0)) || '-' ||
-       round(100.0 * opp_passes_completed / nullif(opp_passes, 0)) AS pass_pct
-FROM site.matches WHERE opp_tid = getvariable('opp') ORDER BY match_date;
+       round(100.0 * opponent_passes_completed / nullif(opponent_passes, 0)) AS pass_pct
+FROM site.matches WHERE opponent_tid = getvariable('opp') ORDER BY match_date;
 
 SELECT coalesce(venue, 'all') AS venue, count(*) AS p,
        count(*) FILTER (WHERE result = 'W') AS w, count(*) FILTER (WHERE result = 'D') AS d,
-       count(*) FILTER (WHERE result = 'L') AS l, sum(gf) AS gf, sum(ga) AS ga,
-       round(avg(pts), 2) AS ppg
-FROM site.matches WHERE opp_tid = getvariable('opp') AND stage_type IS NOT NULL
+       count(*) FILTER (WHERE result = 'L') AS l, sum(goals_for) AS gf, sum(goals_against) AS ga,
+       round(avg(points), 2) AS ppg
+FROM site.matches WHERE opponent_tid = getvariable('opp') AND stage_type IS NOT NULL
 GROUP BY ROLLUP (venue) ORDER BY venue;
 
 -- ── 7. who has actually hurt us (output, not quality), and whether he is still there ──
@@ -650,8 +650,8 @@ and it is cheap — the FT screen already has everything needed.
   friendly):
   ```sql
   SELECT count(*) AS games, round(avg(our_shots), 1) AS shots,
-         round(avg(our_shots_on_target), 1) AS on_target, round(avg(gf), 2) AS goals,
-         round(100.0 * sum(gf) / sum(our_shots), 1) AS conversion_pct,
+         round(avg(our_shots_on_target), 1) AS on_target, round(avg(goals_for), 2) AS goals,
+         round(100.0 * sum(goals_for) / sum(our_shots), 1) AS conversion_pct,
          round(avg(our_passes), 0) AS passes,
          round(100.0 * sum(our_passes_completed) / sum(our_passes), 1) AS pass_pct
   FROM site.matches WHERE season = 2028 AND stage_type IS NOT NULL;

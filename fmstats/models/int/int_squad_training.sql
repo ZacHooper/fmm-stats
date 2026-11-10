@@ -28,16 +28,16 @@ squad as (
         squad.person_id,
         squad.loaned_to_club_tid,
         squad.is_loan_in,
-        people.dob,
+        people.birth_date,
         players.club_tid,
         players.joined_date,
         {{ season_start(
-            season_of('people.dob + interval ' ~ var('home_grown_window_ages')[0]
-                ~ ' year')
+            season_of('people.birth_date + interval '
+                ~ var('home_grown_window_ages')[0] ~ ' year')
         ) }} as window_from,
         {{ season_end(
-            season_of('people.dob + interval ' ~ var('home_grown_window_ages')[1]
-                ~ ' year')
+            season_of('people.birth_date + interval '
+                ~ var('home_grown_window_ages')[1] ~ ' year')
         ) }} as window_to
     from {{ ref('int_our_squad') }} as squad
     cross join career
@@ -49,7 +49,7 @@ squad as (
         on
             squad.snapshot_date = players.snapshot_date
             and squad.person_id = players.person_id
-    where people.dob is not null
+    where people.birth_date is not null
 ),
 
 season_lines as (

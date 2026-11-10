@@ -140,7 +140,6 @@ Synonyms: `moved_by`.
 
 {% docs birth_date %}
 The person's date of birth, as the save stores it; part of `person_id`.
-Synonyms: `dob`.
 {% enddocs %}
 
 {% docs contract_start_date %}

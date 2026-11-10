@@ -116,9 +116,9 @@ erDiagram
         int club_key FK
         int competition_key FK
         int season FK
-        int apps
+        int appearances
         int goals
-        float avg_rating
+        float average_rating
     }
     fact_player_award {
         int person_key FK
@@ -194,7 +194,7 @@ Keys are natural: a person is `person_id` (`<tid>-<dob>`), a snapshot `snapshot_
 
 | Table | Grain | Notes |
 |---|---|---|
-| `dim_person` | `person_id` | name (latest), dob, origin club, and static physical constants (height, weight, ethnicity, footedness, preferred squad number) |
+| `dim_person` | `person_id` | name (latest), birth_date, origin club, and static physical constants (height, weight, ethnicity, footedness, preferred squad number) |
 | `fact_player_valuation` | `person_id`, `snapshot_date` | volatile snapshot-grain metrics: `value` (stated or estimated), `value_is_estimated`, `value_in_trusted_band`, `reputation`, `current_reputation`, `world_reputation` |
 | `fact_player_state_scd` | `person_id`, `valid_from` | SCD Type 2 intervals for ratings, team affiliation, training, and contract state; `valid_to` marks the end of unchanged interval |
 | `fact_player_snapshot` | `person_id`, `snapshot_date` | consumer view joining `fact_player_valuation` to `fact_player_state_scd` over `snapshot_date BETWEEN valid_from AND valid_to` |

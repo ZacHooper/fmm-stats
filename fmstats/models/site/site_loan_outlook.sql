@@ -4,7 +4,7 @@
 -- picked at (familiarity var('loan_outlook').min_familiarity or more), in each
 -- division of the loan ladder (site.loan_clubs) and at each club in it whose
 -- formation starts someone there:
---   lvl, n   his Level %ile in that division at the position: the share of
+--   level, n his Level %ile in that division at the position: the share of
 --            the players listing it whose team is in the division and whose
 --            ability is below his, of the n of them other than him
 --   rank     his place among the club's naturals players at the position (the
@@ -236,7 +236,7 @@ select
     levels.ladder_rank,
     case
         when levels.n > 0 then round_even(100.0 * levels.below / levels.n, 0)
-    end as lvl,
+    end as level,  -- noqa: RF04
     levels.n,
     hosts.club_tid,
     hosts.rank,

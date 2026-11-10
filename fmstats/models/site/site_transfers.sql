@@ -57,7 +57,7 @@ select
         when month(dated.when_date) between 6 and 9 then 'summer'
         else 'winter'
     end as transfer_window,
-    {{ age_on('people.dob',
+    {{ age_on('people.birth_date',
         'coalesce(dated.when_date, make_date(cast(dated.season as integer), 6, 30))') }}
         as age,
     dated.transfer_type,

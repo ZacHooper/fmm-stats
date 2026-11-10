@@ -48,7 +48,7 @@ squad, leaving 22):
 SET VARIABLE season = 2022;
 -- §1 the players who featured: 10+ competitive appearances for the first team
 CREATE OR REPLACE TEMP TABLE sq AS
-SELECT mp.person_id, p.name, p.dob, count(*) AS apps, sum(mp.goals) AS goals,
+SELECT mp.person_id, p.name, p.birth_date, count(*) AS apps, sum(mp.goals) AS goals,
        sum(mp.assists) AS assists, round(avg(mp.rating), 2) AS avg_rating
 FROM site.match_players mp JOIN mart.dim_person p USING (person_id)
 WHERE mp.season = getvariable('season') AND mp.competition <> 'Friendly'
@@ -57,7 +57,7 @@ SELECT * FROM sq ORDER BY apps DESC;
 ```
 
 ## 2. Names
-`mart.dim_person` holds every person any snapshot has seen, retired or not, with `name`, `dob`,
+`mart.dim_person` holds every person any snapshot has seen, retired or not, with `name`, `birth_date`,
 `first_seen_date` and `last_seen_date` — the recipes join it on `person_id`.
 
 ## 3. Determine current status
@@ -130,7 +130,7 @@ kind of is the crux of this artifact"). It's a season-by-season club/fee/apps/go
 rating table, **worldwide**, not scoped to our club:
 ```sql
 SELECT f.season, t.name AS team, n.name AS nation, f.fee_type, f.fee_gbp,
-       f.apps, f.goals, f.assists, f.rating
+       f.appearances, f.goals, f.assists, f.rating
 FROM mart.fact_player_season f
 JOIN mart.dim_person p USING (person_id)
 LEFT JOIN mart.dim_team t USING (team_tid)
@@ -183,21 +183,21 @@ GROUP BY sm.person_id, p.name HAVING bool_and(sm.is_loan_in);
   -- §6 the league campaign, and the crowd
   SELECT competition, count(*) AS p, count(*) FILTER (WHERE result = 'W') AS w,
          count(*) FILTER (WHERE result = 'D') AS d, count(*) FILTER (WHERE result = 'L') AS l,
-         sum(gf) AS gf, sum(ga) AS ga
+         sum(goals_for) AS gf, sum(goals_against) AS ga
   FROM site.matches WHERE season = getvariable('season') AND stage_type = 'League' GROUP BY 1;
   SELECT * FROM site.attendance ORDER BY season;
   -- cup run: every cup match of the season, and cup-match counts across every season
-  SELECT match_date, competition, stage, venue, opponent, gf || '-' || ga AS score, result, went_through
+  SELECT match_date, competition, stage, venue, opponent, goals_for || '-' || goals_against AS score, result, went_through
   FROM site.matches
   WHERE season = getvariable('season') AND stage_type IN ('Knockout', 'Qualifying', 'Group')
   ORDER BY match_date;
   SELECT season, competition, count(*) AS matches FROM site.matches
   WHERE stage_type IN ('Knockout', 'Qualifying', 'Group') GROUP BY ALL ORDER BY competition, season;
   -- the promotion trail: our league, season by season
-  SELECT season, any_value(competition) AS league, count(*) AS p, sum(pts) AS pts
+  SELECT season, any_value(competition) AS league, count(*) AS p, sum(points) AS pts
   FROM site.matches WHERE stage_type = 'League' GROUP BY season ORDER BY season;
   -- notable signings that season
-  SELECT p.name, extract(year FROM age(coalesce(t.move_date, make_date(t.season::INT - 1, 7, 1)), p.dob)) AS age,
+  SELECT p.name, extract(year FROM age(coalesce(t.move_date, make_date(t.season::INT - 1, 7, 1)), p.birth_date)) AS age,
          c.name AS from_club, t.fee_gbp, t.fee_type, t.move_date
   FROM mart.fact_transfer t JOIN mart.dim_person p USING (person_id)
   LEFT JOIN mart.dim_club c ON c.club_tid = t.from_club_tid
