@@ -119,10 +119,10 @@ SELECT competition, count(*) AS games,
 FROM site.matches WHERE season = getvariable('season')
 GROUP BY competition ORDER BY games DESC;
 
--- FORMATIONS (competitive games; stage_kind is NULL for a friendly)
+-- FORMATIONS (competitive games; stage_type is NULL for a friendly)
 SELECT formation, count(*) AS games, sum(gf) AS scored, sum(ga) AS conceded,
        round(avg(pts), 2) AS ppg
-FROM site.matches WHERE season = getvariable('season') AND stage_kind IS NOT NULL
+FROM site.matches WHERE season = getvariable('season') AND stage_type IS NOT NULL
 GROUP BY formation ORDER BY games DESC;
 
 -- THE SHAPE OF THE SEASON: league form either side of the winter window (guardrail 8)
@@ -130,7 +130,7 @@ SELECT CASE WHEN month(match_date) >= 7 THEN '1 before winter' ELSE '2 after win
        count(*) AS p, count(*) FILTER (WHERE result = 'W') AS w,
        count(*) FILTER (WHERE result = 'D') AS d, count(*) FILTER (WHERE result = 'L') AS l,
        sum(gf) AS gf, sum(ga) AS ga, sum(pts) AS pts
-FROM site.matches WHERE season = getvariable('season') AND stage_kind = 'League'
+FROM site.matches WHERE season = getvariable('season') AND stage_type = 'League'
 GROUP BY 1 ORDER BY 1;
 
 -- FINAL TABLE (mart.standings; the league's own season label is the start year)
@@ -138,7 +138,7 @@ SELECT s.stage_index, s.position, t.name, s.played, s.won, s.drawn, s.lost,
        s.goals_for, s.goals_against, s.points
 FROM mart.standings s JOIN mart.dim_team t USING (team_tid)
 WHERE s.cid = (SELECT dm.cid FROM site.matches sm JOIN mart.dim_match dm USING (match_id)
-               WHERE sm.season = getvariable('season') AND sm.stage_kind = 'League' LIMIT 1)
+               WHERE sm.season = getvariable('season') AND sm.stage_type = 'League' LIMIT 1)
   AND s.competition_season = getvariable('season') - 1 AND s.is_latest
 ORDER BY s.stage_index, s.position;
 
@@ -151,7 +151,7 @@ SELECT f.role, p.name, count(*) AS starts, round(avg(f.rating), 2) AS avg_rating
 FROM mart.fact_player_match f
 JOIN site.matches m USING (match_id)
 JOIN mart.dim_person p USING (person_id)
-WHERE m.season = getvariable('season') AND m.stage_kind IS NOT NULL
+WHERE m.season = getvariable('season') AND m.stage_type IS NOT NULL
   AND f.team_tid = getvariable('us') AND f.started
 GROUP BY f.role, f.person_id, p.name HAVING count(*) >= 10
 ORDER BY f.role, avg_rating_adj DESC;
@@ -296,7 +296,7 @@ wrong and the per-nation tables can't be trusted.
   snapshots for a move the history has no line for yet.
 - **Fee:** read from the selling club's career-history row, in £ (`fee_gbp`). `transfer_type`
   is `permanent` (a fee above 0) or `free` (0: a free, a Bosman, a contract that ran out);
-  `fee_kind` says which.
+  `fee_type` says which.
 - **`season`:** the campaign the player moves FOR. **A June signing belongs to the next
   season's market**, so the 26/27 market runs June 2026 to May 2027.
 - **Window** is the move date's month (June–September summer), else the first snapshot that

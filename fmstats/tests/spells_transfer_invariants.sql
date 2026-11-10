@@ -11,7 +11,7 @@ with transfers as (
 
 unreadable as (
     select
-        count(*) filter (where fee_kind = 'unknown') * 1.0
+        count(*) filter (where fee_type = 'unknown') * 1.0
         / nullif(count(*), 0) as unknown_share
     from transfers
     where transfer_type is distinct from 'graduation'
@@ -27,11 +27,11 @@ where
     <> coalesce(transfer_type = 'graduation', false)
 union all
 select
-    'fee_gbp NULL disagrees with fee_kind' as "check",  -- noqa: RF04
+    'fee_gbp NULL disagrees with fee_type' as "check",  -- noqa: RF04
     person_id,
     to_line_index
 from transfers
-where (fee_gbp is null) <> (fee_kind = 'unknown')
+where (fee_gbp is null) <> (fee_type = 'unknown')
 union all
 select
     'transfer_type disagrees with the fee' as "check",  -- noqa: RF04

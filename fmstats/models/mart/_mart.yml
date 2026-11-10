@@ -327,7 +327,7 @@ models:
         description: 'The stage''s name from its rules. {{ doc("name") }}'
       - name: stage_code
         description: '{{ doc("stage_code") }}'
-      - name: stage_type
+      - name: stage_type_code
         description: '{{ doc("stage_type_code") }}'
       - name: stage_teams
         description: '{{ doc("stage_teams") }}'
@@ -1391,7 +1391,7 @@ models:
       - name: team_tid
         description: 'The team the line names (a youth side''s tid for an academy line); NULL on a
           line with no club, the game''s Free agent. {{ doc("team_tid") }}'
-      - name: fee_kind
+      - name: fee_type
         description: '{{ doc("fee_type") }}'
       - name: fee_gbp
         description: '{{ doc("fee_gbp") }}'
@@ -1650,7 +1650,7 @@ models:
         description: '{{ doc("transfer_type") }}'
       - name: fee_gbp
         description: '{{ doc("fee_gbp") }}'
-      - name: fee_kind
+      - name: fee_type
         description: '{{ doc("fee_type") }}'
       - name: is_from_snapshot
         description: '{{ doc("is_from_snapshot") }}'

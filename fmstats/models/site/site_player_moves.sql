@@ -1,9 +1,9 @@
 -- The dated moves the development chart marks, one row per move, keyed
 -- (person_id, move_type, move_date):
 --   transfer  a move between clubs (fact_transfer) with a known date: the date
---             his record says he joined; fee_type 'fee' for a fee paid, 'free'
---             for a free move, 'none' for a graduation from a youth side,
---             'unknown' where the history's fee code is not understood
+--             his record says he joined; move_fee_type 'fee' for a fee paid,
+--             'free' for a free move, 'none' for a graduation from a youth
+--             side, 'unknown' where the history's fee code is not understood
 --   internal  a move between our first team and reserve side: the first
 --             snapshot on the new team
 -- from_club_tid and to_club_tid are clubs for a transfer (from_club_tid NULL
@@ -31,7 +31,7 @@ transfers as (
             when 'free' then 'free'
             when 'graduation' then 'none'
             else 'unknown'
-        end as fee_type,
+        end as move_fee_type,
         fee_gbp
     from {{ ref('fact_transfer') }}
     where move_date is not null
@@ -44,7 +44,7 @@ internal as (
         steps.previous_team_tid as from_club_tid,
         steps.team_tid as to_club_tid,
         'internal' as move_type,
-        'none' as fee_type,
+        'none' as move_fee_type,
         cast(null as bigint) as fee_gbp
     from (
         select

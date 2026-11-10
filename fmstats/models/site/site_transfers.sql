@@ -61,7 +61,7 @@ select
         'coalesce(dated.when_date, make_date(cast(dated.season as integer), 6, 30))') }}
         as age,
     dated.transfer_type,
-    dated.fee_kind,
+    dated.fee_type,
     dated.fee_gbp,
     dated.from_club_tid,
     from_clubs.club as from_club,

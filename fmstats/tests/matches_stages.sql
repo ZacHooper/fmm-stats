@@ -33,7 +33,7 @@ where
             and matches.competition_season = staged.competition_season
     )
     and (
-        ours.stage_kind is null
+        ours.stage_type is null
         or coalesce(ours.stage, '') = ''
         or (rounds.legs = 2 and ours.leg is null)
     )

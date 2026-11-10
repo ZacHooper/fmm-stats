@@ -129,7 +129,7 @@ This is the section that makes the retrospective worth reading (the user's own s
 kind of is the crux of this artifact"). It's a season-by-season club/fee/apps/goals/assists/
 rating table, **worldwide**, not scoped to our club:
 ```sql
-SELECT f.season, t.name AS team, n.name AS nation, f.fee_kind, f.fee_gbp,
+SELECT f.season, t.name AS team, n.name AS nation, f.fee_type, f.fee_gbp,
        f.apps, f.goals, f.assists, f.rating
 FROM mart.fact_player_season f
 JOIN mart.dim_person p USING (person_id)
@@ -184,21 +184,21 @@ GROUP BY sm.person_id, p.name HAVING bool_and(sm.is_loan_in);
   SELECT competition, count(*) AS p, count(*) FILTER (WHERE result = 'W') AS w,
          count(*) FILTER (WHERE result = 'D') AS d, count(*) FILTER (WHERE result = 'L') AS l,
          sum(gf) AS gf, sum(ga) AS ga
-  FROM site.matches WHERE season = getvariable('season') AND stage_kind = 'League' GROUP BY 1;
+  FROM site.matches WHERE season = getvariable('season') AND stage_type = 'League' GROUP BY 1;
   SELECT * FROM site.attendance ORDER BY season;
   -- cup run: every cup match of the season, and cup-match counts across every season
   SELECT match_date, competition, stage, venue, opponent, gf || '-' || ga AS score, result, went_through
   FROM site.matches
-  WHERE season = getvariable('season') AND stage_kind IN ('Knockout', 'Qualifying', 'Group')
+  WHERE season = getvariable('season') AND stage_type IN ('Knockout', 'Qualifying', 'Group')
   ORDER BY match_date;
   SELECT season, competition, count(*) AS matches FROM site.matches
-  WHERE stage_kind IN ('Knockout', 'Qualifying', 'Group') GROUP BY ALL ORDER BY competition, season;
+  WHERE stage_type IN ('Knockout', 'Qualifying', 'Group') GROUP BY ALL ORDER BY competition, season;
   -- the promotion trail: our league, season by season
   SELECT season, any_value(competition) AS league, count(*) AS p, sum(pts) AS pts
-  FROM site.matches WHERE stage_kind = 'League' GROUP BY season ORDER BY season;
+  FROM site.matches WHERE stage_type = 'League' GROUP BY season ORDER BY season;
   -- notable signings that season
   SELECT p.name, extract(year FROM age(coalesce(t.move_date, make_date(t.season::INT - 1, 7, 1)), p.dob)) AS age,
-         c.name AS from_club, t.fee_gbp, t.fee_kind, t.move_date
+         c.name AS from_club, t.fee_gbp, t.fee_type, t.move_date
   FROM mart.fact_transfer t JOIN mart.dim_person p USING (person_id)
   LEFT JOIN mart.dim_club c ON c.club_tid = t.from_club_tid
   WHERE t.to_club_tid = (SELECT club_tid FROM site.our_teams WHERE is_managed)

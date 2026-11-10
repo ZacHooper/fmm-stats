@@ -95,7 +95,6 @@ The stage's format: `knockout`, `league` or `group` (`var('stage_formats')`).
 
 {% docs stage_type_code %}
 The stage's type as its rules code it: 0 knockout, 1 league, 2 groups, 6 a play-off feeder.
-Synonyms: `dim_stage.stage_type`.
 {% enddocs %}
 
 {% docs stage_code %}
@@ -124,7 +123,6 @@ The stage is its competition season's last, whose outcome decides the winner.
 The kind of stage a match is in, for the match list: `League` or `Group`; for a knockout stage,
 `Qualifying` where it comes before the group stage of a competition with no league stage, else
 `Knockout`; NULL for a match in no stage (a friendly).
-Synonyms: `stage_kind`.
 {% enddocs %}
 
 {% docs stage %}

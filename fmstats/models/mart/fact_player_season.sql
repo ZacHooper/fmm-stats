@@ -13,7 +13,7 @@ select
     tid,
     season,
     club_tid as team_tid,
-    fee_kind,
+    fee_kind as fee_type,
     fee_gbp,
     apps,
     goals,

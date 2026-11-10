@@ -360,12 +360,12 @@ def main():
         spells.setdefault(str(tid_of[r["person_id"]]), []).append(
             [r["spell_type"], r["club_tid"], day(r["from_date"]), day(r["to_date"])])
     for r in s.rows("""SELECT person_id, move_date, from_club_tid, to_club_tid, move_type,
-                              fee_type, fee_gbp
+                              move_fee_type, fee_gbp
                        FROM site.player_moves WHERE person_id IN (SELECT unnest(?))
                        ORDER BY person_id, move_date, to_club_tid""", [cur]):
         moves.setdefault(str(tid_of[r["person_id"]]), []).append(
             [day(r["move_date"]), r["from_club_tid"], r["to_club_tid"], r["move_type"],
-             r["fee_type"], num(r["fee_gbp"])])
+             r["move_fee_type"], num(r["fee_gbp"])])
     ever = [pid for (pid,) in con.execute(
         "SELECT DISTINCT person_id FROM site.squad").fetchall() if pid in tid_of]
     for r in s.rows("""SELECT person_id, season, club, fee_label, apps, goals, assists, rating
@@ -401,6 +401,8 @@ def main():
                "result", "pts", "formation", "attendance", "stage_kind", "stage", "matchday",
                "leg", "tie_gf", "tie_ga", "went_through", "extra_time", "pens_for",
                "pens_against"] + [f"{side}_{st}" for st in stats for side in ("our", "opp")]
+    # the API keeps its keys; each names the site.matches column it reads
+    mrename = {"date": "match_date", "stage_kind": "stage_type"}
     matches = s.rows("SELECT * FROM site.matches ORDER BY season, match_date, opp_tid")
     pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
                "goals", "assists", "minutes", "started", "potm", "position", "passA", "passC",
@@ -452,7 +454,7 @@ def main():
             r[k] = None if r[k] is None else float(r[k])
     emit("matches.json", {
         "match_fields": mfields,
-        "matches": rowify(matches, mfields, {"date": "match_date"}),
+        "matches": rowify(matches, mfields, mrename),
         "player_fields": pfields,
         "player_rows": rowify(apps, pfields, prename),
         "opponent_player_fields": ofields,
@@ -693,7 +695,8 @@ def main():
     deal_fields = ["tid", "name", "age", "season", "date", "window", "type", "fee_kind", "fee",
                    "from_tid", "from_club", "from_nation", "to_tid", "to_club", "to_nation"]
     deal_rename = {"date": "move_date", "window": "transfer_window", "type": "transfer_type",
-                   "fee": "fee_gbp", "from_tid": "from_club_tid", "to_tid": "to_club_tid"}
+                   "fee_kind": "fee_type", "fee": "fee_gbp", "from_tid": "from_club_tid",
+                   "to_tid": "to_club_tid"}
     ours_fields = deal_fields + ["direction"]
     ours = s.rows("""SELECT * FROM site.transfers WHERE direction IS NOT NULL AND in_career
                      ORDER BY season, move_date NULLS LAST, name""")
