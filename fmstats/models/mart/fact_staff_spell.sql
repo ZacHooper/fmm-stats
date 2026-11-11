@@ -7,8 +7,8 @@ select
     first_seen_date,
     team_tid,
     club_tid,
-    role,
-    manager_candidates,
+    role as staff_role,
+    manager_candidates as n_manager_candidates,
     last_seen_date,
     ended_by_date,
     ended_by_date is null as is_current

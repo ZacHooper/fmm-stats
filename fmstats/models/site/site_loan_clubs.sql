@@ -17,7 +17,7 @@ with managers as (
         on
             spells.person_id = staff.person_id
             and snapshots.snapshot_date = staff.snapshot_date
-    where spells.role = 'manager'
+    where spells.staff_role = 'manager'
 )
 
 select

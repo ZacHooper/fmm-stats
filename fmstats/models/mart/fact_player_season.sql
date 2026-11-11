@@ -18,7 +18,7 @@ select
     apps as appearances,
     goals,
     assists,
-    rating,
+    rating as average_rating,
     yellows,
     reds,
     last_seen_date

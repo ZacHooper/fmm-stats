@@ -66,7 +66,8 @@ PROFILE_EXTRA_FIELDS = [
     "big_match", "injury_prone", "versatility", "set_pieces", "penalty",
     "work_rate", "flair"]
 PROFILE_FIELDS = ALL_PLAYER_FIELDS + PROFILE_EXTRA_FIELDS
-PROFILE_COLS = PROFILE_EXTRA_FIELDS
+# the site.players column each profile key reads
+PROFILE_COLS = ["nation" if c == "nationality" else c for c in PROFILE_EXTRA_FIELDS]
 
 
 def jdefault(o):
@@ -262,12 +263,12 @@ def main():
         "SELECT cid, name FROM site.leagues WHERE snapshot_date = ? "
         "AND ladder_rank IS NOT NULL ORDER BY ladder_rank", [d])]
     clubs = s.rows("""SELECT team_tid, name, league_cid, league_name, nation, reputation,
-                             squad_size, shirt_colours
+                             n_players, shirt_colours
                       FROM site.clubs WHERE snapshot_date = ? AND is_listed
                       ORDER BY team_tid""", [d])
     listed_leagues = {c["league_cid"] for c in clubs}
-    leagues = [r for r in s.rows("""SELECT cid, name, nation, reputation, member_count,
-                                           skill_index, rated
+    leagues = [r for r in s.rows("""SELECT cid, name, nation, reputation, n_members,
+                                           skill_index, n_rated
                                     FROM site.leagues
                                     WHERE snapshot_date = ? AND name IS NOT NULL
                                     ORDER BY reputation DESC NULLS LAST, cid""", [d])
@@ -283,7 +284,7 @@ def main():
 
     # ------------------------------------------------------------ players
     players = s.rows("SELECT * FROM site.players WHERE snapshot_date = ? ORDER BY tid", [d])
-    squad = s.rows("""SELECT q.person_id, p.tid, q.status, q.is_loan_in,
+    squad = s.rows("""SELECT q.person_id, p.tid, q.squad_status, q.is_loan_in,
                              q.loaned_to_club_tid
                       FROM site.squad q
                       JOIN site.players p USING (snapshot_date, person_id)
@@ -296,12 +297,12 @@ def main():
     emit("core.json", {
         "attrs": attrs,
         "fields": PLAYER_FIELDS,
-        "clubs": [[c["team_tid"], c["name"], c["league_cid"], c["squad_size"], c["nation"],
-                   c["reputation"], c["shirt_colours"]] for c in clubs if c["squad_size"] > 0],
-        "clubs_without_players": sum(1 for c in clubs if c["squad_size"] == 0),
+        "clubs": [[c["team_tid"], c["name"], c["league_cid"], c["n_players"], c["nation"],
+                   c["reputation"], c["shirt_colours"]] for c in clubs if c["n_players"] > 0],
+        "clubs_without_players": sum(1 for c in clubs if c["n_players"] == 0),
         "club_fields": ["tid", "name", "league_cid", "players", "nation", "reputation", "shirt"],
-        "leagues": [[r["cid"], r["name"], r["nation"], r["reputation"], r["member_count"],
-                     None if r["skill_index"] is None else float(r["skill_index"]), r["rated"]]
+        "leagues": [[r["cid"], r["name"], r["nation"], r["reputation"], r["n_members"],
+                     None if r["skill_index"] is None else float(r["skill_index"]), r["n_rated"]]
                     for r in leagues],
         "league_fields": ["cid", "name", "nation", "reputation", "clubs", "skill_idx", "rated"],
         "tactics": tactics,
@@ -311,7 +312,7 @@ def main():
         "ours": {
             "clubs": our_tids,
             "managed_tid": managed, "reserve_tid": reserve,
-            "status": {str(q["tid"]): q["status"] for q in squad},
+            "status": {str(q["tid"]): q["squad_status"] for q in squad},
             "loaned_in": [q["tid"] for q in squad if q["is_loan_in"]],
             "squad_tids": [q["tid"] for q in squad],
             "origin": {str(q["tid"]): by_pid[q["person_id"]]["origin_club"]
@@ -354,11 +355,11 @@ def main():
                         ORDER BY person_id, snapshot_date""", [cur]):
         traj.setdefault(str(tid_of[r["person_id"]]), []).append(
             [r["season"], day(r["snapshot_date"]), [num(r[x]) for x in attrs]])
-    for r in s.rows("""SELECT person_id, spell_type, club_tid, from_date, to_date
+    for r in s.rows("""SELECT person_id, spell_type, team_tid, from_date, to_date
                        FROM site.player_spells WHERE person_id IN (SELECT unnest(?))
-                       ORDER BY person_id, from_date, spell_type, club_tid""", [cur]):
+                       ORDER BY person_id, from_date, spell_type, team_tid""", [cur]):
         spells.setdefault(str(tid_of[r["person_id"]]), []).append(
-            [r["spell_type"], r["club_tid"], day(r["from_date"]), day(r["to_date"])])
+            [r["spell_type"], r["team_tid"], day(r["from_date"]), day(r["to_date"])])
     for r in s.rows("""SELECT person_id, move_date, from_club_tid, to_club_tid, move_type,
                               move_fee_type, fee_gbp
                        FROM site.player_moves WHERE person_id IN (SELECT unnest(?))
@@ -368,13 +369,15 @@ def main():
              r["move_fee_type"], num(r["fee_gbp"])])
     ever = [pid for (pid,) in con.execute(
         "SELECT DISTINCT person_id FROM site.squad").fetchall() if pid in tid_of]
-    for r in s.rows("""SELECT person_id, season, club, fee_label, appearances, goals, assists, rating
+    for r in s.rows("""SELECT person_id, season, club, fee_label, appearances, goals, assists,
+                              average_rating
                        FROM site.player_career WHERE person_id IN (SELECT unnest(?))
                        ORDER BY person_id, line_index""", [ever]):
         chist.setdefault(str(tid_of[r["person_id"]]), []).append({
             "end_year": r["season"], "club": r["club"], "fee": r["fee_label"],
             "apps": r["appearances"], "goals": r["goals"], "assists": r["assists"],
-            "rating": None if r["rating"] is None else round(float(r["rating"]), 2)})
+            "rating": None if r["average_rating"] is None
+            else round(float(r["average_rating"]), 2)})
     emit("squad.json", {
         "attrs": attrs, "trajectories": dict(sorted(traj.items(), key=lambda kv: int(kv[0]))),
         "career_history": dict(sorted(chist.items(), key=lambda kv: int(kv[0]))),
@@ -436,7 +439,9 @@ def main():
     opponents = "SELECT DISTINCT opponent_tid FROM site.matches"
     manager_fields = ["name", "formation_preferred", "formation_attacking",
                       "formation_defensive", "style"]
-    managers = {str(r["team_tid"]): [r[k] for k in manager_fields] for r in s.rows(
+    manager_cols = ["name", "formation_preferred_name", "formation_attacking_name",
+                    "formation_defensive_name", "style"]
+    managers = {str(r["team_tid"]): [r[k] for k in manager_cols] for r in s.rows(
         f"SELECT * FROM site.club_managers WHERE team_tid IN ({opponents}) ORDER BY team_tid")}
     squads = {}
     for r in s.rows(f"""SELECT team_tid, tid FROM site.team_squads
@@ -501,16 +506,16 @@ def main():
     loans = {}
     for r in s.rows("""SELECT * FROM site.loan_outlook WHERE snapshot_date = ?
                        ORDER BY person_id, familiarity DESC, position, ladder_rank,
-                                club_tid""", [d]):
+                                team_tid""", [d]):
         if r["person_id"] not in tid_of:
             continue
         entry = loans.setdefault(str(tid_of[r["person_id"]]),
                                  {"loaned_to": r["loaned_to_club_tid"], "positions": {}})
         rows = entry["positions"].setdefault(r["position"], [])
         if not rows or rows[-1][0] != r["league_cid"]:
-            rows.append([r["league_cid"], pct(r["level"]), r["n"], []])
-        if r["club_tid"] is not None:
-            rows[-1][3].append([r["club_tid"], r["rank"], r["slots"], pct(r["line"])])
+            rows.append([r["league_cid"], pct(r["level"]), r["n_players"], []])
+        if r["team_tid"] is not None:
+            rows[-1][3].append([r["team_tid"], r["rank"], r["slots"], pct(r["line"])])
     emit("loans.json", {
         "snapshot": {"season": season, "phase": phase, "min_familiarity": min_fam},
         "ladder": [{"cid": c, "name": n} for c, n in loan_ladder],
@@ -668,7 +673,7 @@ def main():
         "leagues": {str(r["cid"]): {"tier": tiers.get(r["cid"]), **lg_hist[r["cid"]]}
                     for r in leagues if r["cid"] in lg_hist},
         "clubs": {str(c["team_tid"]): club_hist[c["team_tid"]]["reputation"]
-                  for c in clubs if c["squad_size"] > 0 and c["team_tid"] in club_hist},
+                  for c in clubs if c["n_players"] > 0 and c["team_tid"] in club_hist},
         "nations": {n["name"]: nation_hist[n["name"]] for n in nations
                     if n["name"] in nation_hist},
     }

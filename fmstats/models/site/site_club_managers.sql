@@ -5,9 +5,9 @@ select
     spells.team_tid,
     spells.person_id,
     persons.name,
-    staff.formation_preferred_name as formation_preferred,
-    staff.formation_attacking_name as formation_attacking,
-    staff.formation_defensive_name as formation_defensive,
+    staff.formation_preferred_name,
+    staff.formation_attacking_name,
+    staff.formation_defensive_name,
     staff.style
 from {{ ref('fact_staff_spell') }} as spells
 inner join {{ ref('fact_staff_snapshot') }} as staff
@@ -16,4 +16,4 @@ inner join {{ ref('fact_staff_snapshot') }} as staff
         and staff.is_current
 left join {{ ref('dim_person') }} as persons
     on spells.person_id = persons.person_id
-where spells.role = 'manager' and spells.is_current
+where spells.staff_role = 'manager' and spells.is_current

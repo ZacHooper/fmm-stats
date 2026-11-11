@@ -10,7 +10,7 @@ with career as (
 ),
 
 qualified_roles as (
-    select facts.role
+    select facts.rating_role as role
     from {{ ref('fact_player_match') }} as facts
     inner join career
         on facts.team_tid = career.managed_club_tid
@@ -20,9 +20,9 @@ qualified_roles as (
         on matches.cid = competitions.cid
     where
         facts.is_starter
-        and facts.role is not null
+        and facts.rating_role is not null
         and competitions.type is distinct from 'friendly'
-    group by facts.role
+    group by facts.rating_role
     having
         count(*) >= {{ var('rating_adj_min_starts') }}
         and stddev_samp(facts.rating) > 0
@@ -33,12 +33,12 @@ player_lines as (
         facts.match_id,
         facts.player_tid,
         facts.position,
-        facts.role,
+        facts.rating_role as role,
         facts.is_starter,
         facts.rating,
         facts.rating_adj,
         matches.rating as recorded_rating,
-        facts.role in (select qualified_roles.role from qualified_roles)
+        facts.rating_role in (select qualified_roles.role from qualified_roles)
             as role_qualifies
     from {{ ref('fact_player_match') }} as facts
     inner join {{ ref('int_player_matches') }} as matches

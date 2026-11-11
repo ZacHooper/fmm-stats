@@ -128,7 +128,7 @@ SELECT g.team_tid, coalesce(s.formation_preferred_name, '4-2-3-1'),
        met.match_date
 FROM grp g
 LEFT JOIN mart.fact_staff_spell sp
-       ON sp.team_tid = g.team_tid AND sp.role = 'manager' AND sp.is_current
+       ON sp.team_tid = g.team_tid AND sp.staff_role = 'manager' AND sp.is_current
 LEFT JOIN mart.fact_staff_snapshot s ON s.person_id = sp.person_id AND s.is_current
 LEFT JOIN met ON met.team_tid = g.team_tid
 LEFT JOIN listed ON listed.xi = met.xi;

@@ -54,7 +54,7 @@ SELECT p.name AS manager, s.formation_preferred_name AS preferred,
 FROM mart.fact_staff_spell sp
 JOIN mart.fact_staff_snapshot s ON s.person_id = sp.person_id AND s.is_current
 JOIN mart.dim_person p ON p.person_id = sp.person_id
-WHERE sp.team_tid = 337 AND sp.role = 'manager' AND sp.is_current;
+WHERE sp.team_tid = 337 AND sp.staff_role = 'manager' AND sp.is_current;
 ```
 
 **The scout itself** — set `opp` (and `our_formation` if the manager has changed shape) and run the
@@ -69,7 +69,7 @@ SET VARIABLE opp_formation = coalesce((
     SELECT s.formation_preferred_name
     FROM mart.fact_staff_spell sp
     JOIN mart.fact_staff_snapshot s ON s.person_id = sp.person_id AND s.is_current
-    WHERE sp.team_tid = getvariable('opp') AND sp.role = 'manager' AND sp.is_current),
+    WHERE sp.team_tid = getvariable('opp') AND sp.staff_role = 'manager' AND sp.is_current),
     '4-2-3-1');
 
 -- ── 1. the frame: both current first-team squads, each player at the position he has
@@ -597,12 +597,12 @@ Everything is parameterised off the active career:
   latest *imported* save, which can be behind where the user is — use it as the starting point and
   let the user's live position win where they differ:
   ```sql
-  SELECT s.stage_index, s.position, t.name, s.played, s.won, s.drawn, s.lost,
+  SELECT s.stage_index, s.table_position, t.name, s.played, s.won, s.drawn, s.lost,
          s.goal_difference, s.points, s.through_date
   FROM mart.standings s JOIN mart.dim_team t USING (team_tid)
   WHERE s.cid = 2 AND s.is_latest
     AND s.competition_season = (SELECT max(competition_season) FROM mart.standings WHERE cid = 2)
-  ORDER BY s.stage_index, s.position;
+  ORDER BY s.stage_index, s.table_position;
   ```
   (cid 2 is the 3F Superliga; a later `stage_index` is the championship/relegation split.) The
   quality gap measures attributes, blind to results, form or depth holding up over a season. Don't

@@ -7,9 +7,9 @@
 --             the first snapshot; to the run's last snapshot, NULL while it
 --             runs on the newest
 --   loan_out  a loan of ours with dates (fact_loan_spell: Player Progress),
---             club_tid the borrowing club
+--             team_tid the borrowing club
 --   loan_in   a loan to us: the snapshots our squad lists him (NULL to while
---             it does on the newest), club_tid the parent club
+--             it does on the newest), team_tid the parent club
 --   injured   an injury (fact_injury_spell), no club
 with career as (
     select * from {{ ref('stg_career') }}
@@ -55,7 +55,7 @@ at_club as (
     select
         person_id,
         'at_club' as spell_type,
-        any_value(team_tid) as club_tid,
+        any_value(team_tid) as team_tid,
         coalesce(
             arg_min(
                 case
@@ -80,7 +80,7 @@ loans_out as (
     select
         loans.person_id,
         'loan_out' as spell_type,
-        loans.borrowing_club_tid as club_tid,
+        loans.borrowing_club_tid as team_tid,
         loans.start_date as from_date,
         loans.end_date as to_date
     from {{ ref('fact_loan_spell') }} as loans
@@ -93,7 +93,7 @@ loans_in as (
     select
         loans.person_id,
         'loan_in' as spell_type,
-        loans.parent_club_tid as club_tid,
+        loans.parent_club_tid as team_tid,
         loans.first_seen_date as from_date,
         case
             when
@@ -114,7 +114,7 @@ injuries as (
     select
         person_id,
         'injured' as spell_type,
-        cast(null as integer) as club_tid,
+        cast(null as integer) as team_tid,
         start_date as from_date,
         end_date as to_date
     from {{ ref('fact_injury_spell') }}

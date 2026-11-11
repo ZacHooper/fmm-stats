@@ -1,5 +1,5 @@
 {{ config(materialized='view') }}
--- Each knockout tie: its two teams (team_a the home side of the first leg),
+-- Each knockout tie: its two teams (home and away: the first leg's sides),
 -- the aggregate, the last leg's shoot-out, how it was decided and the winner,
 -- once all its legs are played. A view over int_ties, not stored.
 select
@@ -12,12 +12,12 @@ select
     legs_played,
     first_match_date,
     last_match_date,
-    team_a_tid,
-    team_b_tid,
-    goals_a,
-    goals_b,
-    pens_a,
-    pens_b,
+    team_a_tid as home_team_tid,
+    team_b_tid as away_team_tid,
+    goals_a as home_goals,
+    goals_b as away_goals,
+    pens_a as home_pens,
+    pens_b as away_pens,
     decided_by,
     is_decided,
     winner_tid

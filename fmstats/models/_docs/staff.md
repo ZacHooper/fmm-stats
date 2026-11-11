@@ -119,11 +119,9 @@ names it).
 The staff member's job on the team: `manager` or `staff`. The save names no job: the manager is
 the staff member with a staff record on the team's books whom its staff array doesn't list (the
 highest home reputation where more than one isn't), everyone else `staff`.
-Synonyms: `fact_staff_spell.role`.
 {% enddocs %}
 
 {% docs n_manager_candidates %}
 How many staff members on the team's books its staff array doesn't list, of whom the manager is
 picked.
-Synonyms: `manager_candidates`.
 {% enddocs %}

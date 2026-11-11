@@ -187,7 +187,7 @@ next), since the runs cannot be told apart.
 
 **Staff.** A club's staff array lists its coaches, not its manager: the manager is the person
 with a staff record on a team's books whom its array does not list, the higher home reputation
-where two are not (`manager_candidates`). It names the same manager as the old
+where two are not (`n_manager_candidates`). It names the same manager as the old
 `mart.club_managers` on every snapshot of the gate stores.
 
 **Seasons from dates** use the career's rollover day, which the loader now records in the store

@@ -13,7 +13,7 @@ select
     matches.opponent_tid,
     matches.pos_order as lineup_order,
     matches.position,
-    ratings.role,
+    ratings.role as rating_role,
     matches.started as is_starter,
     matches.appeared as has_appeared,
     matches.is_player_of_match,

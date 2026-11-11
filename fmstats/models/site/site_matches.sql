@@ -107,7 +107,7 @@ select
     end as stage,  -- noqa: RF04
     case
         when stages.stage_format in ('league', 'group')
-            then matches.matchday + 1
+            then matches.matchday_index + 1
     end as matchday,
     case when rounds.legs = 2 then matches.leg end as leg,
     case
@@ -115,9 +115,9 @@ select
             then
                 case
                     when
-                        tie_rows.team_a_tid = sides.team_tid
-                        then tie_rows.goals_a
-                    else tie_rows.goals_b
+                        tie_rows.home_team_tid = sides.team_tid
+                        then tie_rows.home_goals
+                    else tie_rows.away_goals
                 end
     end as tie_goals_for,
     case
@@ -125,9 +125,9 @@ select
             then
                 case
                     when
-                        tie_rows.team_a_tid = sides.team_tid
-                        then tie_rows.goals_b
-                    else tie_rows.goals_a
+                        tie_rows.home_team_tid = sides.team_tid
+                        then tie_rows.away_goals
+                    else tie_rows.home_goals
                 end
     end as tie_goals_against,
     case

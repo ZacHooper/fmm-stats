@@ -22,7 +22,6 @@ that record's slot. A youth side has no record; where a career line names one, i
 `var('youth_tid_base')` minus its club's tid (Frem 346 -> 65189). Never above
 `var('match_id_tid_base')` - 1 (tested on `dim_match`). A club's tid is its first team's, so a
 club is a team too.
-Synonyms: `site_loan_outlook.club_tid`, `site_player_spells.club_tid`.
 {% enddocs %}
 
 {% docs club_tid %}

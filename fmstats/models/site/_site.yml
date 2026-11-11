@@ -87,7 +87,7 @@ models:
         description: 'The team''s, 1-10,000. {{ doc("reputation") }}'
       - name: shirt_colours
         description: '{{ doc("shirt_colours") }}'
-      - name: squad_size
+      - name: n_players
         description: '{{ doc("n_players") }}'
       - name: is_listed
         description: '{{ doc("is_listed") }}'
@@ -112,11 +112,11 @@ models:
         description: 'The league''s, 0-200. {{ doc("reputation") }}'
       - name: tier
         description: '{{ doc("tier") }}'
-      - name: member_count
+      - name: n_members
         description: '{{ doc("n_members") }}'
       - name: skill_index
         description: '{{ doc("skill_index") }}'
-      - name: rated
+      - name: n_rated
         description: '{{ doc("n_rated") }}'
       - name: ladder_rank
         description: '{{ doc("ladder_rank") }}'
@@ -203,7 +203,7 @@ models:
         description: '{{ doc("origin_club") }}'
       - name: is_capital_eligible
         description: '{{ doc("is_capital_eligible") }}'
-      - name: nationality
+      - name: nation
         description: '{{ doc("nation") }}'
       - name: foot_left
         description: '{{ doc("foot_left") }}'
@@ -279,7 +279,7 @@ models:
         description: '{{ doc("snapshot_date") }}'
       - name: person_id
         description: '{{ doc("person_id") }}'
-      - name: status
+      - name: squad_status
         description: '{{ doc("squad_status") }}'
       - name: is_loan_in
         description: '{{ doc("is_loan_in") }}'
@@ -294,7 +294,7 @@ models:
         description: '{{ doc("person_id") }}'
       - name: spell_type
         description: '{{ doc("spell_type") }}'
-      - name: club_tid
+      - name: team_tid
         description: 'The team of an at_club spell (first team and reserves are two), the borrowing
           club of a loan out, the parent club of a loan in; NULL for an injury.
           {{ doc("team_tid") }}'
@@ -350,8 +350,8 @@ models:
         description: 'Goals CONCEDED on a goalkeeper''s line. {{ doc("goals") }}'
       - name: assists
         description: '{{ doc("assists") }}'
-      - name: rating
-        description: 'The game''s average rating for the season (see fact_player_season.rating).
+      - name: average_rating
+        description: 'The game''s average rating for the season (see fact_player_season.average_rating).
           {{ doc("average_rating") }}'
   - name: site_matches
     description: The managed team's matches with detail, from its side.
@@ -597,11 +597,11 @@ models:
         description: 'The manager. {{ doc("person_id") }}'
       - name: name
         description: 'The manager''s name. {{ doc("name") }}'
-      - name: formation_preferred
+      - name: formation_preferred_name
         description: 'The name of his preferred formation. {{ doc("formation") }}'
-      - name: formation_attacking
+      - name: formation_attacking_name
         description: 'The name of his attacking formation. {{ doc("formation") }}'
-      - name: formation_defensive
+      - name: formation_defensive_name
         description: 'The name of his defensive formation. {{ doc("formation") }}'
       - name: style
         description: '{{ doc("style") }}'
@@ -865,11 +865,11 @@ models:
       his position, or one with no club where no club in the division does.
     data_tests:
       - unique_combination:
-          arguments: {columns: [snapshot_date, person_id, position, league_cid, club_tid]}
-          config: {where: "club_tid is not null"}
+          arguments: {columns: [snapshot_date, person_id, position, league_cid, team_tid]}
+          config: {where: "team_tid is not null"}
       - unique_combination:
           arguments: {columns: [snapshot_date, person_id, position, league_cid]}
-          config: {where: "club_tid is null"}
+          config: {where: "team_tid is null"}
     columns:
       - name: snapshot_date
         description: '{{ doc("snapshot_date") }}'
@@ -888,9 +888,9 @@ models:
         description: 'The division''s place on the loan ladder. {{ doc("ladder_rank") }}'
       - name: level
         description: '{{ doc("level") }}'
-      - name: n
+      - name: n_players
         description: '{{ doc("n_players") }}'
-      - name: club_tid
+      - name: team_tid
         description: 'A club in the division whose formation starts someone at the position: a team
           tid (site.loan_clubs), NULL where no club in the division does. {{ doc("team_tid") }}'
       - name: rank
@@ -912,7 +912,7 @@ models:
         description: '{{ doc("value_now") }}'
       - name: horizon_age
         description: 'The age the forecast is for (var(''forecast'').horizons). {{ doc("age") }}'
-      - name: n
+      - name: n_players
         description: '{{ doc("n_players") }}'
       - name: p25
         description: '{{ doc("p25") }}'
@@ -931,7 +931,7 @@ models:
     columns:
       - name: age
         description: 'His age at the start of the year measured. {{ doc("age") }}'
-      - name: n
+      - name: n_pairs
         description: '{{ doc("n_pairs") }}'
       - name: p25
         description: '{{ doc("p25") }}'

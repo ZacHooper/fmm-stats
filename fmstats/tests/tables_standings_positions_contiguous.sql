@@ -6,10 +6,10 @@ select
     competition_season,
     stage_index,
     stage_key,
-    matchday,
+    matchday_index,
     count(*) as teams,
-    min(position) as first_position,
-    max(position) as last_position
+    min(table_position) as first_position,
+    max(table_position) as last_position
 from {{ ref('mart_standings') }}
-group by cid, competition_season, stage_index, stage_key, matchday
-having min(position) <> 1 or max(position) <> count(*)
+group by cid, competition_season, stage_index, stage_key, matchday_index
+having min(table_position) <> 1 or max(table_position) <> count(*)

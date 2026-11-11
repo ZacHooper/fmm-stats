@@ -78,7 +78,7 @@ are the strict ones.
 
 ## Analysis rules
 - **The exact XI on the day is not in the save, but each manager's preferences are.**
-  `mart.fact_staff_snapshot` (via `mart.fact_staff_spell`, `role = 'manager' AND is_current`)
+  `mart.fact_staff_snapshot` (via `mart.fact_staff_spell`, `staff_role = 'manager' AND is_current`)
   carries each manager's preferred / attacking / defensive formation and a derived **Style**
   (Attacking / Normal / Defensive; [`docs/parser/staff.md`](docs/parser/staff.md)).
   Use it as the default for a scout report without asking first; the in-game scout's read (this

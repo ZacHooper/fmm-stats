@@ -1,12 +1,13 @@
 -- Where each player we own would get games on loan, keyed (snapshot_date,
--- person_id, position, league_cid, club_tid), club_tid NULL in a division
+-- person_id, position, league_cid, team_tid), team_tid NULL in a division
 -- where no club starts anyone at the position: for every position he can be
 -- picked at (familiarity var('loan_outlook').min_familiarity or more), in each
 -- division of the loan ladder (site.loan_clubs) and at each club in it whose
 -- formation starts someone there:
---   level, n his Level %ile in that division at the position: the share of
---            the players listing it whose team is in the division and whose
---            ability is below his, of the n of them other than him
+--   level, n_players  his Level %ile in that division at the position: the
+--            share of the players listing it whose team is in the division and
+--            whose ability is below his, of the n_players of them other than
+--            him
 --   rank     his place among the club's naturals players at the position (the
 --            players its squads list with that familiarity), 1 first choice
 --   slots    how many start there in the club's formation (site.loan_clubs)
@@ -239,8 +240,8 @@ select
     case
         when levels.n > 0 then round_even(100.0 * levels.below / levels.n, 0)
     end as level,  -- noqa: RF04
-    levels.n,
-    hosts.club_tid,
+    levels.n as n_players,
+    hosts.club_tid as team_tid,
     hosts.rank,
     hosts.slots,
     case

@@ -11,7 +11,7 @@ with career as (
 
 base as (
     select
-        facts.role,
+        facts.rating_role as role,
         facts.rating,
         facts.rating_adj
     from {{ ref('fact_player_match') }} as facts
@@ -23,7 +23,7 @@ base as (
         on matches.cid = competitions.cid
     where
         facts.is_starter
-        and facts.role is not null
+        and facts.rating_role is not null
         and competitions.type is distinct from 'friendly'
 ),
 

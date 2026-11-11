@@ -40,7 +40,7 @@ yearly as (
 
 select
     age_now as age,
-    count(*) as n,
+    count(*) as n_pairs,
     quantile_cont(delta, 0.25) as p25,
     median(delta) as median,
     avg(delta) as mean,

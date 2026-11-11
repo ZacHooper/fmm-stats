@@ -23,7 +23,7 @@ select
     career_lines.appearances,
     career_lines.goals,
     career_lines.assists,
-    career_lines.rating
+    career_lines.average_rating
 from {{ ref('fact_player_season') }} as career_lines
 left join {{ ref('dim_team') }} as teams
     on career_lines.team_tid = teams.team_tid

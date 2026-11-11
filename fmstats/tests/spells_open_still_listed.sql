@@ -17,7 +17,7 @@ select
     'open team spell not on newest snapshot' as "check",  -- noqa: RF04
     open_spells.person_id,
     open_spells.spell_type,
-    open_spells.club_tid,
+    open_spells.team_tid,
     open_spells.from_date
 from open_spells
 cross join latest
@@ -29,14 +29,14 @@ where
         where
             players.person_id = open_spells.person_id
             and players.snapshot_date = latest.snapshot_date
-            and players.team_tid = open_spells.club_tid
+            and players.team_tid = open_spells.team_tid
     )
 union all
 select
     'open loan-in not in current squad' as "check",  -- noqa: RF04
     open_spells.person_id,
     open_spells.spell_type,
-    open_spells.club_tid,
+    open_spells.team_tid,
     open_spells.from_date
 from open_spells
 where
@@ -49,5 +49,5 @@ where
             and squads.is_current
             and squads.is_managed_club
             and squads.is_loan_in
-            and squads.record_club_tid = open_spells.club_tid
+            and squads.record_club_tid = open_spells.team_tid
     )

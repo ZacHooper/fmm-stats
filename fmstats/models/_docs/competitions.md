@@ -27,7 +27,6 @@ The competition this one is a part of (Spanish Second Division B1-B4 -> B); NULL
 The competition's division tier, from 0 (the top), as stored: parallel divisions share a tier.
 100 on a non-league competition and on most reserve leagues, 255 on one; use `tier` for a
 league's tier from 1.
-Synonyms: `dim_competition.level`.
 {% enddocs %}
 
 {% docs tier %}
@@ -76,12 +75,10 @@ ability number leaves the view.
 
 {% docs n_members %}
 The teams whose league is this one on the snapshot (int.team_leagues).
-Synonyms: `member_count`.
 {% enddocs %}
 
 {% docs n_rated %}
 The league's players with an ability, the ones `skill_index` averages.
-Synonyms: `rated`.
 {% enddocs %}
 
 {% docs n_teams %}
@@ -147,7 +144,6 @@ is finished (the latest snapshot holding it), NULL until then.
 The team's place in a table: on a standings row, after that matchday (ranked on points, goal
 difference, goals scored, then `team_tid`; the save's further tie-breakers are not read); on an
 outcome, its place at its latest matchday in the stage it reached, NULL for a knockout stage.
-Synonyms: `mart_standings.position`.
 {% enddocs %}
 
 {% docs is_winner %}
@@ -158,7 +154,6 @@ knockout, the last round's tie. NULL until the save decides it.
 {% docs played %}
 Matches played. On a standings row, the team's matches through that matchday; on a
 participation, its played matches in the competition season (scheduled ones not counted).
-Synonyms: `matches_played`.
 {% enddocs %}
 
 {% docs won %}
