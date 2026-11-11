@@ -775,11 +775,12 @@ def main():
     # The world record as it stood: every paid move that beat every fee before it, in order.
     records = rowify(s.rows("""
         SELECT * FROM (
-            SELECT *, max(fee_gbp) OVER (ORDER BY season, move_date NULLS FIRST, fee_gbp
+            SELECT *, max(fee_gbp) OVER (ORDER BY season, move_date NULLS FIRST, fee_gbp,
+                                                  person_id, to_line_index
                                          ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev
             FROM site.transfers WHERE transfer_type = 'permanent' AND fee_gbp > 0)
         WHERE prev IS NULL OR fee_gbp > prev
-        ORDER BY season, move_date NULLS FIRST"""), deal_fields, deal_rename)
+        ORDER BY season, move_date NULLS FIRST, fee_gbp, person_id, to_line_index"""), deal_fields, deal_rename)
     emit("transfers.json", {
         "home_nation": home,
         "deal_fields": deal_fields,

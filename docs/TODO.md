@@ -479,20 +479,6 @@ an ordinary average negated, so a youth-team line may store its rating that way.
 against a youth player's in-game history screen before reading these as ratings;
 `stg_player_history_seasons` passes them through. (0xFFFF, the save's "none", reads NULL.)
 
-### Scrapbook loan club: 0xFFFF is not NULLed
-`mart.fact_player_award.loan_club_tid` reads 65535 on 999 of its 1,000 rows on Frem: a scrapbook
-entry stores `0xFFFF` for "not on loan" (`docs/parser/player_lists.md`), and
-`stg_scrapbook_entries` passes it through where every other stg model reads `var('no_id16')` as
-NULL. Fix there with `nullif`, check nothing reads the sentinel (`int.scrapbook_entries`), and
-drop the callout on the column in `_mart.yml`.
-
-### World transfer record: a tie breaks by scan order
-`scripts/export_data.py`'s record progression (`transfers.json` `records`) orders by season,
-move date and fee only, so two moves tied on all three (2009, no move date, £150,000: Seamus
-Coleman and John Akinde) are taken in whatever order `fact_transfer` was built, and a rebuild
-with no change can swap which one sets the record. Add a final key (`person_id`) to the window's
-`ORDER BY` and the outer one.
-
 ### 18. Rebuild the weight-set method on team results
 ([`agent-context/role-weight-methods.md`](agent-context/role-weight-methods.md), "What the match
 data says"). `scripts/derive_weight_set.py` fits blocks from per-90 output on 12-26 players a

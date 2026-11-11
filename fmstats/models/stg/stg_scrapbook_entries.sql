@@ -14,7 +14,7 @@ select
     last_name,
     competition,
     club_tid,
-    loan_club_tid,
+    nullif(loan_club_tid, {{ var('no_id16') }}) as loan_club_tid,
     age,
     role,
     {% for attribute in var('attr_order') %}
