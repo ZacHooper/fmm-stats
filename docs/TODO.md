@@ -77,7 +77,7 @@ A second career, **Truro City**, is on **FMM27**; FMM22 support stays, with
 `tests/assert_identical.py` as the gate on every change. The working record, with progress,
 phases, decisions and every learning so far, is
 **[`plans/2026-11-11-fmm27-migration.html`](plans/2026-11-11-fmm27-migration.html)**. Read it
-to resume. Now: `extract.py` runs end to end on `truro-2026-07-25`. The reference half and the
+to resume. Now: `extract.py` runs end to end on `truro-2026-07-25` and `truro-2026-08-08`. The reference half and the
 career half read with FMM27 declarations where the layout changed (`tables_for(mm)` picks
 each by `save_format`): contracts, player progress, training, player lists (132 lists), the
 archive (bare frames), world fixtures (95 B) and competition rounds; our matches (5,676 +
@@ -99,8 +99,7 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
   Forward on; the two new roles are the Wide Centre-Back and the Inverted Full-Back
   ([training](parser/training.md#evidence)). A centre-back's and a full-back's focus role on
   screen pin the codes; then an FMM27 role seed.
-- **Fixtures' tail and the player lists' season numbers** need a save with league fixtures
-  and played competitive matches.
+- **The player lists' season numbers** (tail +114) need a save after a season ends.
 - **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;
   `match_slots` is not located (nothing reads it).
 - **Then the store**: load the FMM27 JSON (`stg` handles the FMM27 shapes by `summary.json`'s
