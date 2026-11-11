@@ -1,6 +1,8 @@
-# Your own settings (careers, storage, deploy URL, play style). Template: fmm.example.toml.
+# Your own settings (careers, storage, deploy URL, play style; template: fmm.example.toml) and
+# notes (CAREER.md, plus career-notes/<key>.md for each career).
 fmm.toml
 CAREER.md
+career-notes/
 # Your own career's known-answer dbt tests (facts about your save). dbt reads this folder
 # when it exists; see fmstats/AGENTS.md.
 fmstats/known_answers/

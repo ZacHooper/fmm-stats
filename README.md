@@ -114,8 +114,9 @@ The repo is built to be worked on, and asked questions, by coding agents.
   `scout-opponent`, `season-outlook`, `preseason-squad-review`, `fm-season-review`,
   `where-are-they-now`, `attribute-profiles`, `import-fm-saves`. They were written around the author's own career, so they work best as
   templates; the data model they query is general.
-- **`CAREER.md`** (optional, gitignored): write your own notes about the career you're playing
-  (your tactic, house rules, what's happened so far). `AGENTS.md` tells agents to read it.
+- **`CAREER.md`** and **`career-notes/<career>.md`** (optional, gitignored): your own notes.
+  `CAREER.md` holds what goes for every career; `career-notes/<key>.md` holds one career's
+  (your tactic, house rules, what's happened so far). `AGENTS.md` tells agents to read both.
 - **[`site/API.md`](site/API.md)** is published with the web app, for agents that read your
   deployed site's JSON rather than the database.
 
