@@ -156,6 +156,7 @@ from .player_attributes import (
 from .matches import (
     EVENT_TYPE,
     MATCHES_TABLE,
+    MATCHES_TABLE_FMM27,
     MatchTableError,
     check_against_fixtures,
     locate_matches,
@@ -243,7 +244,7 @@ TABLES_BY_FORMAT = {
             "competitions": COMP_TABLE_FMM27, "nations": NATIONS_TABLE_FMM27,
             "stadiums": STADIUMS_TABLE_FMM27, "rule_files": RULE_FILES_TABLE_FMM27,
             "player_lists": PLAYER_LISTS_TABLE_FMM27, "comp_rules": COMP_RULES_TABLE_FMM27,
-            "fixtures": FIXTURES_TABLE_FMM27},
+            "fixtures": FIXTURES_TABLE_FMM27, "matches": MATCHES_TABLE_FMM27},
 }
 
 

@@ -80,13 +80,17 @@ phases, decisions and every learning so far, is
 to resume. Now: `extract.py` runs end to end on `truro-2026-07-25`. The reference half and the
 career half read with FMM27 declarations where the layout changed (`tables_for(mm)` picks
 each by `save_format`): contracts, player progress, training, player lists (132 lists), the
-archive (bare frames), world fixtures (95 B) and competition rounds. Open, in order:
-- **Our matches**: one row on the save, 70 B player slots; the row length needs a save with
-  two or more matches, the slot's stats a match ratings screen
-  ([matches](parser/matches.md#layout)).
-- **Screens for the career tables**: a Contract screen, the Training page, an injured
-  player's profile, a Scrapbook Profile, the Fixtures/Results screen (each table doc's
-  "Evidence: FMM27" names it).
+archive (bare frames), world fixtures (95 B) and competition rounds; our matches (5,676 +
+17 n B rows, 70 B player slots with each player's xG), contracts and training are checked
+against screens on `truro-2026-08-08`. Open, in order:
+- **Screens for the career tables**: an injured player's profile, a Scrapbook Profile, the
+  Fixtures/Results screen, a Best Eleven, the league rules (each table doc's Evidence names it).
+- **Match slot bytes not placed**: assists, mistakes and mistakes leading to a goal (a match
+  with a non-zero one, and its ratings screen), possession and team rating; event types
+  `17`, `18`, `27`, `29` ([matches](parser/matches.md#layout)).
+- **FMM27 role codes**: training's `focus_role` differs from `seeds/roles.csv` from Inside
+  Forward on; two roles are new ([training](parser/training.md#evidence)). An FMM27 role seed
+  needs a defender's and a wide player's focus role on screen.
 - **Fixtures' tail and the player lists' season numbers** need a save with league fixtures
   and played competitive matches.
 - **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;

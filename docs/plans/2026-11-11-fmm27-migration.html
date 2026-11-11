@@ -268,9 +268,21 @@ unread bytes) and <strong>132 lists</strong>, a second set of 66 all unused, pro
 168 members, every one unpacking to its declared size. <code>fix_man</code>'s fixtures are 95 bytes
 (opener <code>0x1f</code>), the comp members' header 53 bytes; one stageless member
 (<code>eng_national_north_south</code>).</li>
-<li><strong>Not read yet</strong>: our matches (one row: a 10-byte head, 70-byte player slots, 1,648-byte
-team blocks; the row length needs a save with two or more matches), <code>comp_man.dat</code>,
-match_slots (nothing reads it), the fixtures' tail.</li>
+<li><strong>Not read yet</strong>: <code>comp_man.dat</code>, match_slots (nothing reads it), the fixtures' tail.</li>
+<li><strong>truro-2026-08-08</strong> (a league match and two friendlies played):
+<ul>
+<li><strong>nations</strong>: each national team carries a world-ranking history,
+<code>[u16 n][n × u16]</code> after its 17-byte body, empty until the first ranking update. The walk
+broke on it at Algeria; one entry per ranked team on 08-08, equal to the current ranking.</li>
+<li><strong>matches</strong> read (<code>MATCHES_TABLE_FMM27</code>): rows of 5,676 + 17 n bytes, a 5,665-byte
+body with a 1,441-byte tail. The 80-byte team head holds passes, crosses, fouls, headers won, offsides,
+corners, clear-cut chances and the manager's tid; the 70-byte slot holds each player's
+<strong>xG × 100</strong> at +63 (Maidenhead's sum 27 = the screen's 0.27; Truro's 217 against 2.18).
+Event codes are new: 01 goal, 24 assist, 26 yellow, 2f clear-cut chance.</li>
+<li><strong>contracts</strong> and <strong>training</strong> agree with Club Squad - Contract and Individual
+Training. Training's role codes are not FMM22's (two roles are new); the attribute codes are.</li>
+<li>Evidence: <code>tests/test_screens_fmm27_evidence.py</code>, <code>tests/test_nations_fmm27_ranking.py</code>.</li>
+</ul></li>
 <li>Gates: suite green, FMM22 IDENTICAL, Frem's audit PASS. Evidence:
 <code>tests/test_career_fmm27_evidence.py</code>. Screens still to capture are listed in each table doc's
 "Evidence: FMM27".</li>

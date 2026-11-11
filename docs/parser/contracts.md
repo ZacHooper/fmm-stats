@@ -37,8 +37,32 @@ Bucaspor; 33,127 slots used on Frem). Every wage is below 65,536, so the upper h
 ## Evidence
 
 `truro-2026-07-25`: the frame, Ronaldo's row and the walk are tested by
-`tests/test_career_fmm27_evidence.py`. Pending: a Contract screen for Truro's squad, to tie
-the wage and expiry to what the game shows on FMM27.
+`tests/test_career_fmm27_evidence.py`.
+
+`truro-2026-08-08`, Club Squad - Contract and a player's contract card. Tested by
+`tests/test_screens_fmm27_evidence.py`.
+
+![Club Squad - Contract: Stone £62K 6/2027 ... Harvey £62K 5/2028](img/contracts-fmm27-1.jpg)
+![Caleb Roberts's contract: Plymouth, £78K p/a, expiry 30/6/2028, on loan to Truro](img/contracts-fmm27-2.jpg)
+
+| on screen | parsed | £ a year (`wage_units` × 520) |
+|---|---|---|
+| Aidan Stone £62K, 6/2027 | 7422: `wage_units` 120, expiry 2027-06-30 | 62,400 |
+| Christian Oxlade-Chamberlain £44K, 6/2027 | 8438: 85 | 44,200 |
+| Ryan Law £47K, 6/2027 | 8821: 90 | 46,800 |
+| Tom Harrison £39K, 6/2027 | 9445: 75 | 39,000 |
+| Shaun Donnellan £52K, 6/2027 | 6983: 100 | 52,000 |
+| Jack Nunn £39K, 6/2027 | 37343: 75 | 39,000 |
+| Lirak Hasani £41.5K, 6/2027 | 9274: 80 | 41,600 |
+| Will Dean £47K, 6/2029 | 9081: 90, expiry 2029-06-30 | 46,800 |
+| Ben Starkie £31K, 6/2027 | 4353: 60 | 31,200 |
+| Tyler Harvey £62K, 5/2028 | 8003: 120, expiry 2028-05-30 | 62,400 |
+| Caleb Roberts £78K, 30/6/2028 (on loan from Plymouth) | 29941: 150, expiry 2028-06-30 | 78,000 |
+
+The screen rounds to the nearest £0.5K below £50K (41,600 shows £41.5K) and to the nearest
+£1K above (62,400 shows £62K). A loanee's row is his parent club's contract; the loan's own
+terms (0%, 27/7/2026 to 24/6/2027) are not in this table. Omar Bogle (6588) reads 110,
+£57,200, as his scrapbook entry says.
 
 ### FMM22
 
