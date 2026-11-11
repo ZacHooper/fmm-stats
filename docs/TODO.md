@@ -100,9 +100,9 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
   `match_slots` is not located (nothing reads it).
 
 ### 2. Load an FMM27 save into the store
-Both Truro saves load and build: 537 of 538 dbt tests pass on a scratch store of
-`truro-2026-07-25` + `truro-2026-08-08`. FMM27's xG, goals conceded, fouls and managers, and
-its assist, yellow-card, error and clear-cut-chance events reach the marts and the site (xG,
+`fm-truro.duckdb` builds from all three Truro saves (in `seeds/manifest.csv`): 543 of 544 dbt
+tests pass, and Truro's site data is published. FMM27's xG, goals conceded, fouls and
+managers, and its assist, yellow-card, error and clear-cut-chance events reach the marts and the site (xG,
 clear-cut chances and goals conceded per player and per side, scorer–assister partnerships,
 one site holding every career with Frem archived); the career's first
 day (`start` in `fmm.toml`) bounds the match check; the signing rule is the career's
@@ -121,14 +121,13 @@ day (`start` in `fmm.toml`) bounds the match check; the signing rule is the care
    Herre-DM house rule to whichever club is managed, so Truro's Squad page shows A/B lists
    and home-grown quotas the career doesn't play by. Make the rule set career-specific
    (`fmm.toml`, as the signing rule is), with none as an option.
-5. **Then**: build `fm-truro.duckdb` from every Truro save (`scripts/rebuild.py`), refresh
-   `seeds/manifest.csv`, and export and publish Truro's site data
-   (`export_data.py --career truro --upload`). Frem's published files are archived under
-   `site-data/api/frem/` as last exported; re-export them from the full Frem store
-   (`--career frem --upload`) to give the archive the goals list and the new index links. Try a refit of the
-   attribute decoder with Truro's scrapbook rows to see how far the data so far goes (Frem's
-   coefficients score about as well on Truro unrefitted, Passing the weakest at 38%); a
-   proper refit needs more seasons.
+5. **The Frem archive's goals list.** Frem's site data is archived under `site-data/api/frem/`
+   as it was last exported (the 2030-09-14 snapshot), so its matches carry no goals list and
+   the Partnerships tab stays hidden there. A re-export from the full Frem store
+   (`export_data.py --career frem --upload`) adds it.
+6. **A decoder refit.** Try a refit of the attribute decoder with Truro's scrapbook rows to
+   see how far the data so far goes (Frem's coefficients score about as well on Truro
+   unrefitted, Passing the weakest at 38%); a proper refit needs more seasons.
 
 The store reads neither `comp_stages` nor `comp_honours` on either version (results come
 from the fixture list, stage names from the rule files and competition rounds), so
