@@ -95,6 +95,8 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
 - **Match bytes not placed**: possession and team rating; event types `17`, `18`, `29`
   ([matches](parser/matches.md#layout)). A ratings screen with a non-zero Mis/MiG would
   confirm `mistakes`/`mistGoal` against the game (placed from the `27` events).
+- **The first FMM27 own goal**: its event type (FMM22's is `02`), and whether it carries an
+  assist event and a slot `assists`, and for whom.
 - **FMM27 role codes**: training's `focus_role` differs from `seeds/roles.csv` from Inside
   Forward on; the two new roles are the Wide Centre-Back and the Inverted Full-Back
   ([training](parser/training.md#evidence)). A centre-back's and a full-back's focus role on

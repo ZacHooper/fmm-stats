@@ -102,7 +102,19 @@ def main():
         if e["type_byte"] == 0x24:
             assists[e["tid"]] = assists.get(e["tid"], 0) + 1
     check(assists == {int(t): v for t, v in mx["screen_assists"].items()},
-          "the Ass column is each player's assist events: Law 1, everyone else 0")
+          "the screen's Ass column (Law 1) is also each player's assist events")
+    for r in ms:
+        ev = {}
+        for e in r["events"]:
+            if e["type_byte"] == 0x24:
+                ev[e["tid"]] = ev.get(e["tid"], 0) + 1
+        slots = [p for side in ("home_xi", "away_xi") for p in r[side]]
+        check(all(p["assists"] == ev.get(p["tid"], 0) for p in slots),
+              f"row {r['offset']}: slot assists = assist events on all {len(slots)} slots")
+    gks = {p["tid"]: p["conceded"] for side in ("home_xi", "away_xi") for p in m[side]
+           if p["posOrder"] == 1}
+    check(gks == {int(t): v for t, v in mx["conceded"].items()},
+          "goalkeepers' conceded: Stone 0, Collins 1 (the score 1-0)")
     row0 = next(r for r in ms if r["offset"] == mx["errors_row0"]["row"])
     erred = {p["tid"] for side in ("home_xi", "away_xi") for p in row0[side] if p["mistGoal"]}
     check(erred == set(mx["errors_row0"]["tids"])

@@ -275,9 +275,10 @@ unread bytes) and <strong>132 lists</strong>, a second set of 66 all unused, pro
 <code>[u16 n][n × u16]</code> after its 17-byte body, empty until the first ranking update. The walk
 broke on it at Algeria; one entry per ranked team on 08-08, equal to the current ranking.</li>
 <li><strong>matches</strong> read (<code>MATCHES_TABLE_FMM27</code>): rows of 5,676 + 17 n bytes, a 5,665-byte
-body with a 1,441-byte tail. The 80-byte team head holds passes, crosses, fouls, headers won, offsides,
-corners, clear-cut chances and the manager's tid; the 70-byte slot holds each player's
-<strong>xG × 100</strong> at +63 (Maidenhead's sum 27 = the screen's 0.27; Truro's 217 against 2.18).
+body with a 1,441-byte tail. The 77-byte team head (FMM22's) holds passes, crosses, fouls, headers won,
+offsides, corners, clear-cut chances and the manager's tid; the 70-byte slot is FMM22's with a sub-on time
+inserted after subOff and four bytes appended, so it keeps <strong>assists</strong> at +0 and holds each player's
+<strong>xG × 100</strong> at +66 (Maidenhead's sum 27 = the screen's 0.27; Truro's 217 against 2.18).
 Event codes are new: 01 goal, 24 assist, 26 yellow, 2f clear-cut chance.</li>
 <li><strong>contracts</strong> and <strong>training</strong> agree with Club Squad - Contract and Individual
 Training. Training's role codes are not FMM22's (two roles are new); the attribute codes are.</li>

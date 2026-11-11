@@ -264,10 +264,10 @@ BODY_HEAD_FMM27 = Record("match_body_head_fmm27", 78, [
     Field(67, 11, UNKNOWN, RAW),
 ])
 
-# The side's own counters, as the match stats screen shows them. Shots, shots on target,
-# tackles won and yellow cards on that screen are sums of the player slots; headers won is
-# both a counter here and the slots' sum.
-TEAM_HEAD_FMM27 = Record("match_team_head_fmm27", 80, [
+# The side's own counters, as the match stats screen shows them: FMM22's 77-byte team head,
+# with these placed on FMM27. Shots, shots on target, tackles won and yellow cards on that
+# screen are sums of the player slots; headers won is both a counter here and the slots' sum.
+TEAM_HEAD_FMM27 = Record("match_team_head_fmm27", 77, [
     Field(0,  4, UNKNOWN, RAW),
     Field(4,  1, "corners", U8),
     Field(5,  1, "clear_cut_chances", U8),
@@ -287,48 +287,46 @@ TEAM_HEAD_FMM27 = Record("match_team_head_fmm27", 80, [
     Field(73, 1, "crosses_attempted", U8),
     Field(74, 1, UNKNOWN, RAW),
     Field(75, 1, "crosses_completed", U8),
-    Field(76, 3, UNKNOWN, RAW),
-    Field(79, 1, "goals_against", U8, note="= the other team block's goals"),
+    Field(76, 1, UNKNOWN, RAW),
 ])
 
-# FMM22's slot with its first three bytes (assists and two near-always-zero bytes) removed,
-# a u32 inserted after the substitution minutes, and seven bytes appended: condition to
-# subOff sit 3 bytes earlier than FMM22's, mistakes onward 1 byte later (-3 + 4). With no
-# assists byte, a player's assists are his `24` events: no slot byte reads 1 for each of the
-# five players with one. `subOn_time` is when a substitute came on, in match time units of
-# about 245-257 a minute; players brought on together share one value. `xg_x100` is the
-# player's expected goals x 100: Maidenhead's slots sum to 27 (the screen's 0.27), Truro's
-# to 217 (the screen's 2.18: the screen sums unrounded values). `yellow` is set on a booked
-# player, whose +6 then reads 7.
+# FMM22's slot with a u32 inserted after the substitution minutes and four bytes appended:
+# every field up to `subOff` (+21) at FMM22's offset, every one from `mistakes` 4 later.
+# `assists` equals the player's `24` events on all 116 slots of truro-2026-08-08; `conceded`
+# is a goalkeeper's goals against (Lavercombe 2 at Wigan). `subOn_time` is when a substitute
+# came on, in match time units of about 245-257 a minute; players brought on together share
+# one value. `xg_x100` is expected goals x 100: Maidenhead's slots sum to 27 (the screen's
+# 0.27), Truro's to 217 (the screen's 2.18: the screen sums unrounded values).
 _STATS_FMM27 = {
-    0: "condition", 1: "crossA", 2: "crossC", 5: "dribbles", 7: "goals", 8: "headA",
-    9: "headW", 13: "intercept", 16: "subOn", 17: "sentOff", 18: "subOff",
-    23: "mistakes", 24: "mistGoal", 26: "passA", 27: "passC", 28: "keyPass", 33: "rating", 36: "shotA", 37: "shotO",
-    42: "posOrder", 49: "tackA", 50: "tackW", 54: "yellow",
+    0: "assists", 2: "conceded", 3: "condition", 4: "crossA", 5: "crossC", 8: "dribbles",
+    10: "goals", 11: "headA", 12: "headW", 16: "intercept", 19: "subOn", 20: "sentOff",
+    21: "subOff", 26: "mistakes", 27: "mistGoal", 29: "passA", 30: "passC", 31: "keyPass",
+    36: "rating", 39: "shotA", 40: "shotO", 45: "posOrder", 52: "tackA", 53: "tackW",
+    57: "yellow",
 }
 PLAYER_SLOT_FMM27 = Record("match_player_slot_fmm27", 70, [
     *[Field(off, 1, name, U8) for off, name in _STATS_FMM27.items()],
-    Field(29, 2, "sid", HEX2, note="2 bytes here -- the PERSON record's sid is 4"),
-    Field(43, 4, "tid", U32, note="0xffffffff = unused slot"),
-    Field(19, 4, "subOn_time", U32, note="0xffffffff on a starter"),
-    Field(63, 2, "xg_x100", U16, note="expected goals x 100"),
-    Field(3,  2, UNKNOWN, RAW),
-    Field(6,  1, UNKNOWN, RAW, note="7 on a booked player"),
-    Field(10, 3, UNKNOWN, RAW),
-    Field(14, 2, UNKNOWN, RAW),
-    Field(25, 1, UNKNOWN, RAW, note="20 on every slot read"),
-    Field(31, 2, UNKNOWN, RAW),
+    Field(22, 4, "subOn_time", U32, note="0xffffffff on a starter"),
+    Field(32, 2, "sid", HEX2, note="2 bytes here -- the PERSON record's sid is 4"),
+    Field(46, 4, "tid", U32, note="0xffffffff = unused slot"),
+    Field(66, 2, "xg_x100", U16, note="expected goals x 100"),
+    Field(1,  1, UNKNOWN, RAW),
+    Field(6,  2, UNKNOWN, RAW),
+    Field(9,  1, UNKNOWN, RAW, note="7 on a booked player"),
+    Field(13, 3, UNKNOWN, RAW),
+    Field(17, 2, UNKNOWN, RAW),
+    Field(28, 1, UNKNOWN, RAW, note="20 on every slot read"),
     Field(34, 2, UNKNOWN, RAW),
-    Field(38, 4, UNKNOWN, RAW),
-    Field(47, 2, UNKNOWN, RAW),
-    Field(51, 3, UNKNOWN, RAW, note="+51 reads the side: 0 home, 1 away"),
-    Field(55, 8, UNKNOWN, RAW, note="two u32, ffffffff on every slot read"),
-    Field(65, 2, UNKNOWN, RAW, note="u16; non-zero on players with key passes"),
-    Field(67, 3, UNKNOWN, RAW),
+    Field(37, 2, UNKNOWN, RAW),
+    Field(41, 4, UNKNOWN, RAW),
+    Field(50, 2, UNKNOWN, RAW),
+    Field(54, 3, UNKNOWN, RAW, note="+54 reads the side: 0 home, 1 away"),
+    Field(58, 8, UNKNOWN, RAW, note="two u32, ffffffff on every slot read"),
+    Field(68, 2, UNKNOWN, RAW, note="u16; non-zero on players with key passes"),
 ])
 
-TEAM_TAIL_FMM27 = Record("match_team_tail_fmm27", 168, [
-    Field(0, 168, UNKNOWN, RAW),
+TEAM_TAIL_FMM27 = Record("match_team_tail_fmm27", 171, [
+    Field(0, 171, UNKNOWN, RAW),
 ])
 
 MATCH_TAIL_FMM27 = Record("match_tail_fmm27", 1441, [

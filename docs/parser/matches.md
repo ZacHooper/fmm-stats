@@ -24,7 +24,7 @@ the three rows start at 61,604,420 (12 events), 61,610,300 (6) and 61,616,078 (9
 |---|---|---|
 | +0 | 78 | body head: our side, the match header again, attendance, Player of the Match |
 | +78 | 50 × 17 | the event list again, in 50 preallocated slots |
-| +928 | 2 × 1,648 | the team blocks, home then away: `[80 B team head][20 × 70 B player slot][168 B team tail]` |
+| +928 | 2 × 1,648 | the team blocks, home then away: `[77 B team head][20 × 70 B player slot][171 B team tail]` |
 | +4,224 | 1,441 | the tail: our side's kick-off formation (the marker `76 b9 f4 07` at `+33`, the formation string at `+37`, the kick-off positions at `+69`) |
 
 **Head, 10 bytes**: FMM22's 8, then `year` u16 at `+8`.
@@ -45,7 +45,7 @@ the three rows start at 61,604,420 (12 events), 61,610,300 (6) and 61,616,078 (9
 **Body head, 78 bytes**: FMM22's, except that `+11` (`header_year`) and `+13` both read the
 year where FMM22 has the day and the year. Attendance at `+15`, Player of the Match at `+63`.
 
-**Team head, 80 bytes.** The side's own counters, as the stats screen shows them:
+**Team head, 77 bytes** (FMM22's length). The side's own counters, as the stats screen shows them:
 
 | offset | field | type | meaning |
 |---|---|---|---|
@@ -63,40 +63,46 @@ year where FMM22 has the day and the year. Attendance at `+15`, Player of the Ma
 | +71 | `passes_completed` | u16 | |
 | +73 | `crosses_attempted` | u8 | |
 | +75 | `crosses_completed` | u8 | |
-| +79 | `goals_against` | u8 | = the other block's `goals` |
 
 Shots, shots on target, tackles won and yellow cards on the stats screen are sums of the
 player slots. Possession and the team rating are not placed.
 
-**Player slot, 70 bytes.** FMM22's slot with its first three bytes removed (`assists` and two
-bytes that are 0 on almost every FMM22 slot), four inserted after the substitution minutes
-and seven appended (62 − 3 + 4 + 7 = 70). So condition to `subOff` sit 3 bytes earlier than
-FMM22's and `mistakes` onward 1 byte later. There is no assists byte.
+**Player slot, 70 bytes.** FMM22's slot with a u32 inserted after the substitution minutes
+and four bytes appended (62 + 4 + 4): every field up to `subOff` at FMM22's offset, every one
+from `mistakes` on 4 later.
 
 | offset | field | | offset | field |
 |---|---|---|---|---|
-| +0 | `condition` | | +27 | `passC` |
-| +1 | `crossA` | | +28 | `keyPass` |
-| +2 | `crossC` | | +29 | `sid`, 2 bytes |
-| +5 | `dribbles` | | +33 | `rating`, a whole number |
-| +6 | | | +36 | `shotA` |
-| +7 | `goals` | | +37 | `shotO` |
-| +8 | `headA` | | +42 | `posOrder` |
-| +9 | `headW` | | +43 | `tid`, u32 |
-| +13 | `intercept` | | +49 | `tackA` |
-| +16 | `subOn`, `ff` = not | | +50 | `tackW` |
-| +17 | `sentOff`, `ff` = not | | +54 | `yellow` |
-| +18 | `subOff`, `ff` = not | | +63 | `xg_x100`, u16: expected goals × 100 |
-| +19 | `subOn_time`, u32: when the substitute came on; `ffffffff` on a starter | | | |
-| +23 | `mistakes` | | | |
-| +24 | `mistGoal`, mistakes leading to a goal | | | |
-| +26 | `passA` | | | |
+| +0 | `assists` | | +29 | `passA` |
+| +2 | `conceded`: a goalkeeper's goals against | | +30 | `passC` |
+| +3 | `condition` | | +31 | `keyPass` |
+| +4 | `crossA` | | +32 | `sid`, 2 bytes |
+| +5 | `crossC` | | +36 | `rating`, a whole number |
+| +8 | `dribbles` | | +39 | `shotA` |
+| +9 | | | +40 | `shotO` |
+| +10 | `goals` | | +45 | `posOrder` |
+| +11 | `headA` | | +46 | `tid`, u32 |
+| +12 | `headW` | | +52 | `tackA` |
+| +16 | `intercept` | | +53 | `tackW` |
+| +19 | `subOn`, `ff` = not | | +57 | `yellow` |
+| +20 | `sentOff`, `ff` = not | | +66 | `xg_x100`, u16: expected goals × 100 |
+| +21 | `subOff`, `ff` = not | | | |
+| +22 | `subOn_time`, u32: when the substitute came on; `ffffffff` on a starter | | | |
+| +26 | `mistakes` | | | |
+| +27 | `mistGoal`, mistakes leading to a goal | | | |
 
-`subOn_time` runs at about 245–257 units a minute (Bell on at 46', 11,888; Tweedy and
-Greenslade together at 72', 18,212 each). `+6` reads 7 on a booked player; `+51` reads the side (0 home, 1 away); `+65` is a u16 that is non-zero on players
-with key passes. **A player's assists are his `24` events**: no slot byte reads 1 for each of
-the five players with an assist event across the three rows (Law, Starkie, Jephcott, Murray,
-Walsh), and the ratings screen's Ass column (Law 1, everyone else 0) is their count.
+`assists` equals the player's assist (`24`) events on all 116 used slots of the three rows,
+and the ratings screen's Ass column (Law 1). `conceded` is each starting goalkeeper's
+goals against on all six sides: Stone 0 twice, Collins 1, Lavercombe 2, Whitworth 1, Jones 1. `subOn_time` runs at
+about 245–257 units a minute (Bell on at 46', 11,888; Tweedy and Greenslade together at 72',
+18,212 each). `+9` reads 7 on a booked player; `+54` reads the side (0 home, 1 away); `+68` is
+a u16 that is non-zero on players with key passes.
+
+> **Dead end:** framing the team head as 80 bytes. Everything read right (each slot's fields
+> matched the screens) except that the first three bytes of every slot fell into the end of
+> the slot before it, and the first slot's into the team head, so `assists` looked missing
+> and the first goalkeeper's `conceded` looked like a team `goals_against`. FMM22's 77-byte
+> head and FMM22's slot offsets are the frame.
 
 **How it is found**: as on FMM22, from a formation marker in a row whose body repeats its head;
 FMM27's body repeats home, away and the year (`_LAYOUT_FMM27`).
@@ -237,7 +243,7 @@ the declared count, no row before row 0 and none after the last.
 | Headers Won 18 / 23 | +55 `12` / `17` | `headers_won` |
 | offsides 8 / 3, corners 8 / 4 | +68 `08` / `03`, +4 `08` / `04` | `offsides`, `corners` |
 | Shots 17 / 7, on target 7 / 5, Tackles Won 6 / 9, yellow 1 / 2 | the slots | sums of `shotA`, `shotO`, `tackW`, `yellow` |
-| xG 2.18 / 0.27 | slot +63, e.g. Bogle `68 00` | `xg_x100`: Truro's slots sum to 217, Maidenhead's to 27 |
+| xG 2.18 / 0.27 | slot +66, e.g. Bogle `68 00` | `xg_x100`: Truro's slots sum to 217, Maidenhead's to 27 |
 
 No f32 in the body reads 2.18 or 0.27, and no team field holds 218 or 27: the screen's team
 xG is the slots' sum, and Truro's 2.18 against 2.17 is the screen summing values the slots
@@ -249,9 +255,9 @@ Harrison 1, 0.26.
 ![Maidenhead ratings](img/matches-fmm27-5.jpg)
 ![Maidenhead substitutes](img/matches-fmm27-6.jpg)
 
-Law's line, `49 09 02 bd 0e 05 00 00 04 02 … 14 48 3c 05 bf 12 00 00 08 00 00 02 00 …`:
-condition 73 (+0), crosses 9/2 (+1, +2), dribbles 5 (+5), headers 4/2 (+8, +9), passes 72/60
-(+26, +27), key passes 5 (+28), rating 8 (+33), shots 2/0 (+36, +37). All 32 players who
+Law's line, `01 00 00 49 09 02 bd 0e 05 00 00 04 02 …`: assists 1 (+0), condition 73 (+3),
+crosses 9/2 (+4, +5), dribbles 5 (+8), headers 4/2 (+11, +12), passes 72/60 (+29, +30), key
+passes 5 (+31), rating 8 (+36), shots 2/0 (+39, +40). All 32 players who
 played match their line on every placed column; the test pins each.
 
 ![Match events: Odeniran 9', Starkie 17' (Law), Abbott 45+3', Nunn 89'](img/matches-fmm27-7.jpg)
