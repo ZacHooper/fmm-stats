@@ -8,7 +8,7 @@ are welcome, especially decodes that work on careers other than the two it was b
   site JSON — they are drawn from the game's database. `.gitignore` covers them; please don't
   force them in, and don't paste large extracts into issues either.
 - **No game assets.** No logos, artwork or files from the game itself.
-- Keep your own settings in `fmm.toml` and `CAREER.md` (both gitignored), not in code.
+- Keep your own settings in `fmm.toml`, `CAREER.md` and `career-notes/` (all gitignored), not in code.
 
 ## Setup
 ```bash

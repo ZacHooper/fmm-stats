@@ -29,14 +29,17 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import archive as A
+from .save_header import FMM27, save_format
 from ..core import (
-    FOURCC, INT, PAD, RAW, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
+    FOURCC, INT, PAD, RAW, STRING, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
     TaggedRecord, TaggedSchemaError, TaggedTableDef, TaggedTableError)
 
 __all__ = [
     "COMP_RULES_TABLE",
+    "COMP_RULES_TABLE_FMM27",
     "FILE",
     "HEADER",
+    "HEADER_FMM27",
     "NAME_REF",
     "ROUND",
     "STAGE",
@@ -60,6 +63,19 @@ HEADER = Record("comp_rules_header", 54, [
     Field(30, 18, UNKNOWN, RAW),
     Field(48, 2,  "base_year", U16, note="2000 on every member"),
     Field(50, 4,  "n_fields", U32, note="declared count of top-level tagged fields"),
+])
+
+# FMM27, all 156 members of truro-2026-07-25: one byte shorter. The u32 FMM22 holds at +37
+# is gone and the season's start year is stored twice.
+HEADER_FMM27 = Record("comp_rules_header_fmm27", 53, [
+    Field(0,  6,  UNKNOWN, PAD, note="member header [03][01]['tad.'] (fixtures.MEMBER_HEADER)"),
+    Field(6,  2,  UNKNOWN, PAD, note="constant 0x0209 on every member"),
+    Field(8,  12, UNKNOWN, RAW),
+    Field(20, 2,  "season_year", U16, note="start year of the current season"),
+    Field(22, 2,  UNKNOWN, RAW, note="= season_year on the members measured"),
+    Field(24, 23, UNKNOWN, RAW),
+    Field(47, 2,  "base_year", U16, note="2000 on every member"),
+    Field(49, 4,  "n_fields", U32, note="declared count of top-level tagged fields"),
 ])
 
 
@@ -156,19 +172,25 @@ FILE = TaggedRecord("comp_rules_file", [
 # ...and FMM27's rule files (both Truro saves) add these, unread like the rest.
 ROUND.unread += ('cdes', 'tmor', 'serr', 'dat3', 'brsr')
 STAGE.unread += ('gtct', 'cdes', 'cprs', 'lwpZ', 'lgto', 'pfco', 'gsfp', 'lpfd', 'DeTp', 'pfcp',
-                 'cfrn', 'cfrx', 'cfss', 'petw', 'mnsc', 'adf2', 'cfpn', 'fxri', 'ccro', 'lpfc')
+                 'cfrn', 'cfrx', 'cfss', 'petw', 'mnsc', 'adf2', 'cfpn', 'fxri', 'ccro', 'lpfc',
+                 'SRni')
 FILE.unread += ('mxNH', 'hssd', 'AmmS', 'cuni', 'ipdt', 'Ueit', 'SqsT', 'yctt', 'ctyc', 'rtyc',
                 'ycpc', 'rttt', 'ctrc', 'rfpc', 'uTpT', 'StHs', 'yogs', 'OtRq', 'SPnc', 'cFcF',
                 'RtOT', 'AOTd', 'bpmf', 'btil', 'cPcF', 'FrDt', 'ktsr', 'dyom', 'mont', 'DaOr',
                 'prmL', 'Lgsd', 'InOr', 'DBVR', 'rPtF', 'Dbfr', 'haQl', 'FAsc', 'ocfh', 'PLgn')
 
 
-def locate_comp_rules(blob: Any) -> List[Tuple[int, int]]:
-    """[(first field, declared field count)] -- a member's one tagged block, after its
-    header; [] for a member too short to hold the header."""
-    if len(blob) < HEADER.span:
-        return []
-    return [(HEADER.span, HEADER.read(blob, 0)["n_fields"])]
+def _locator(header: Record):
+    def locate(blob: Any) -> List[Tuple[int, int]]:
+        """[(first field, declared field count)] -- a member's one tagged block, after its
+        header; [] for a member too short to hold the header."""
+        if len(blob) < header.span:
+            return []
+        return [(header.span, header.read(blob, 0)["n_fields"])]
+    return locate
+
+
+locate_comp_rules = _locator(HEADER)
 
 
 COMP_RULES_TABLE = TaggedTableDef(
@@ -179,11 +201,37 @@ COMP_RULES_TABLE = TaggedTableDef(
     header=HEADER,
 )
 
+# FMM27: a member configured without a stage list (truro-2026-07-25's 150990,
+# `eng_national_north_south`, the National League North and South's umbrella file).
+STAGELESS_FILE = TaggedRecord("comp_rules_stageless_file", [
+    Tag("file", "file", STRING, required=True),
+], unread=tuple(t for t in FILE.unread if t != "file"),
+    note="a competition configured without a stage list")
 
-def scrape(blob: Any) -> List[Tuple[Optional[str], int, Any]]:
+
+def _schema_fmm27(block: Any) -> TaggedRecord:
+    return FILE if any(t == "stgs" for t, _, _ in block.fields) else STAGELESS_FILE
+
+
+COMP_RULES_TABLE_FMM27 = TaggedTableDef(
+    name="comp_rules",
+    member="comp_<uid>.dat",
+    locator=_locator(HEADER_FMM27),
+    schema=_schema_fmm27,
+    header=HEADER_FMM27,
+)
+
+
+def comp_rules_table(mm: Any) -> TaggedTableDef:
+    """The declaration this save's version reads its members with."""
+    return COMP_RULES_TABLE_FMM27 if save_format(mm) == FMM27 else COMP_RULES_TABLE
+
+
+def scrape(blob: Any, table: TaggedTableDef = COMP_RULES_TABLE
+           ) -> List[Tuple[Optional[str], int, Any]]:
     """The member's top-level tagged fields -- exactly as many as its header declares;
     raises TaggedTableError otherwise."""
-    blocks = COMP_RULES_TABLE.blocks(blob)
+    blocks = table.blocks(blob)
     return blocks[0].fields if blocks else []
 
 
@@ -193,6 +241,8 @@ def stage_rows(uid: int, fields: List) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     if not fields:                  # a stub member: loaded, not configured, declares nothing
         return rows
+    if all(tag != "stgs" for tag, _, _ in fields):
+        return rows                 # configured without a stage list, as rule_files' stageless
     try:
         stages = FILE.read(fields)["stages"]
     except TaggedSchemaError as e:
@@ -217,6 +267,7 @@ def competition_rounds(mm: Any) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     members = sorted((int(m.group(1)), name) for name in ents
                      if (m := MEMBER_PATTERN.match(name)))
+    table = comp_rules_table(mm)
     for uid, name in members:
-        rows.extend(stage_rows(uid, scrape(A.read_member(mm, ents[name]))))
+        rows.extend(stage_rows(uid, scrape(A.read_member(mm, ents[name]), table)))
     return rows

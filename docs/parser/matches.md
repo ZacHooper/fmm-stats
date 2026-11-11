@@ -2,11 +2,112 @@
 
 Our clubs' matches this season, each one in full: the match report, the stats, every
 player's line and our tactic. A table of variable-length rows framed by a bare `[count u8]`,
-at ~55.7 MB, holding the managed club's and its reserve side's matches in the order they were
-played. 70 rows on `frem-2030-06-22` (50 Frem, 20 reserves). The game empties it on the
-career's rollover day. Every other club's results are in [fixtures](fixtures.md).
+holding the managed club's and its reserve side's matches in the order they were played: at
+60,844,241 on `truro-2026-07-25` (one row), at 61,604,419 on `truro-2026-08-08` (three rows),
+at ~55.7 MB on Frem (70 rows on `frem-2030-06-22`, 50 Frem, 20 reserves). FMM27 reads with
+`MATCHES_TABLE_FMM27`. The game empties it on the career's rollover day. Every other club's results are in [fixtures](fixtures.md).
 
 ## Layout
+
+```
+header  [count u8]                      matches in the table
+row     [head, 10 B]                    home, away, competition, day, year
+        [n u8][n × event, 17 B]         the match's events
+        [body, 5,665 B]                 everything else, fixed width
+```
+
+A row is `5,676 + 17 n` bytes, and the next row starts where it ends: on `truro-2026-08-08`
+the three rows start at 61,604,420 (12 events), 61,610,300 (6) and 61,616,078 (9), 5,880 and
+5,778 bytes apart. The body:
+
+| body offset | span | block |
+|---|---|---|
+| +0 | 78 | body head: our side, the match header again, attendance, Player of the Match |
+| +78 | 50 × 17 | the event list again, in 50 preallocated slots |
+| +928 | 2 × 1,648 | the team blocks, home then away: `[77 B team head][20 × 70 B player slot][171 B team tail]` |
+| +4,224 | 1,441 | the tail: our side's kick-off formation (the marker `76 b9 f4 07` at `+33`, the formation string at `+37`, the kick-off positions at `+69`) |
+
+**Head, 10 bytes**: FMM22's 8, then `year` u16 at `+8`.
+
+**Event, 17 bytes**: FMM22's record. The type codes differ:
+
+| `type_byte` | meaning | evidence |
+|---|---|---|
+| `01` | goal | Starkie 17' |
+| `24` | the goal's assist, at the goal's minute | Law |
+| `26` | yellow card | Odeniran 9', Abbott 45+3', Nunn 89' |
+| `27` | an error leading to a goal, at the minute the other side scores | Lavercombe 71' and Carragher 81' at Wigan: the only two slots with `mistakes` and `mistGoal` 1 |
+| `2f` | a clear-cut chance; a scored one is followed by its goal at the same minute | one per chance in the team head's count, on all six sides; at Wigan both goals were chances (`2f` then `01`), against Maidenhead none of the three was |
+| `17`, `18`, `29` | unnamed | `17` and `18` come with a goal, `29` after Greenslade's chance against Darlington |
+
+`b0` is the event player's slot index, `posOrder − 1`.
+
+**Body head, 78 bytes**: FMM22's, except that `+11` (`header_year`) and `+13` both read the
+year where FMM22 has the day and the year. Attendance at `+15`, Player of the Match at `+63`.
+
+**Team head, 77 bytes** (FMM22's length). The side's own counters, as the stats screen shows them:
+
+| offset | field | type | meaning |
+|---|---|---|---|
+| +4 | `corners` | u8 | |
+| +5 | `clear_cut_chances` | u8 | |
+| +6 | | 22 | `ff` throughout on every row read |
+| +28 | `fouls` | u8 | |
+| +29 | `fouls_against` | u8 | = the other block's `fouls` |
+| +30 | `positions` | 11 × 2 | the side's eleven positions at full time, in `posOrder` order |
+| +52 | `goals` | u8 | |
+| +55 | `headers_won` | u8 | also the slots' sum |
+| +62 | `manager_tid` | u32 | the side's manager, a staff tid |
+| +68 | `offsides` | u8 | |
+| +69 | `passes_attempted` | u16 | |
+| +71 | `passes_completed` | u16 | |
+| +73 | `crosses_attempted` | u8 | |
+| +75 | `crosses_completed` | u8 | |
+
+Shots, shots on target, tackles won and yellow cards on the stats screen are sums of the
+player slots. Possession and the team rating are not placed.
+
+**Player slot, 70 bytes.** FMM22's slot with a u32 inserted after the substitution minutes
+and four bytes appended (62 + 4 + 4): every field up to `subOff` at FMM22's offset, every one
+from `mistakes` on 4 later.
+
+| offset | field | | offset | field |
+|---|---|---|---|---|
+| +0 | `assists` | | +29 | `passA` |
+| +2 | `conceded`: a goalkeeper's goals against | | +30 | `passC` |
+| +3 | `condition` | | +31 | `keyPass` |
+| +4 | `crossA` | | +32 | `sid`, 2 bytes |
+| +5 | `crossC` | | +36 | `rating`, a whole number |
+| +8 | `dribbles` | | +39 | `shotA` |
+| +9 | | | +40 | `shotO` |
+| +10 | `goals` | | +45 | `posOrder` |
+| +11 | `headA` | | +46 | `tid`, u32 |
+| +12 | `headW` | | +52 | `tackA` |
+| +16 | `intercept` | | +53 | `tackW` |
+| +19 | `subOn`, `ff` = not | | +57 | `yellow` |
+| +20 | `sentOff`, `ff` = not | | +66 | `xg_x100`, u16: expected goals × 100 |
+| +21 | `subOff`, `ff` = not | | | |
+| +22 | `subOn_time`, u32: when the substitute came on; `ffffffff` on a starter | | | |
+| +26 | `mistakes` | | | |
+| +27 | `mistGoal`, mistakes leading to a goal | | | |
+
+`assists` equals the player's assist (`24`) events on all 116 used slots of the three rows,
+and the ratings screen's Ass column (Law 1). `conceded` is each starting goalkeeper's
+goals against on all six sides: Stone 0 twice, Collins 1, Lavercombe 2, Whitworth 1, Jones 1. `subOn_time` runs at
+about 245–257 units a minute (Bell on at 46', 11,888; Tweedy and Greenslade together at 72',
+18,212 each). `+9` reads 7 on a booked player; `+54` reads the side (0 home, 1 away); `+68` is
+a u16 that is non-zero on players with key passes.
+
+> **Dead end:** framing the team head as 80 bytes. Everything read right (each slot's fields
+> matched the screens) except that the first three bytes of every slot fell into the end of
+> the slot before it, and the first slot's into the team head, so `assists` looked missing
+> and the first goalkeeper's `conceded` looked like a team `goals_against`. FMM22's 77-byte
+> head and FMM22's slot offsets are the frame.
+
+**How it is found**: as on FMM22, from a formation marker in a row whose body repeats its head;
+FMM27's body repeats home, away and the year (`_LAYOUT_FMM27`).
+
+### FMM22
 
 ```
 header  [count u8]                      matches in the table
@@ -117,6 +218,57 @@ byte in front of row 0 is the count. `scrape_matches` then requires the walk to 
 the declared count, no row before row 0 and none after the last.
 
 ## Evidence
+
+`truro-2026-08-08`, Truro 1-0 Maidenhead United, Enterprise National League South, 8 August
+2026. The row starts at byte 61,616,078: `35 0c 32 09 4b 01 db 00 ea 07 | 09` = home 3125
+(Truro), away 2354 (Maidenhead), competition 331, day 219, 2026, nine events. Tested by
+`tests/test_screens_fmm27_evidence.py`.
+
+![Summary: Truro 1-0 MHU, Enterprise South, att 1,689, Ben Starkie 17](img/matches-fmm27-1.jpg)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Ben Starkie 17 | event `08 01 10 00 00 01 11 00 00` | type `01` goal, minute 16 + 1, home, tid 4353 |
+| Attendance: 1,689 | body head +15 `99 06 00 00` | `attendance` 1689 |
+| Saturday 8 Aug 2026 | head `db 00 ea 07` | day 219 of 2026 |
+
+![Stats: Team Rating 7.1/6.6, Shots 17/7, xG 2.18/0.27, Passes 514/427 of 579/496](img/matches-fmm27-2.jpg)
+
+| on screen (Truro / Maidenhead) | raw bytes | parsed |
+|---|---|---|
+| Passes Attempted 579 / 496 | team head +69 `43 02` / `f0 01` | `passes_attempted` |
+| Passes Completed 514 / 427 | +71 `02 02` / `ab 01` | `passes_completed` |
+| Crosses Attempted 22 / 39, Completed 6 / 7 | +73 `16`/`27`, +75 `06`/`07` | `crosses_attempted`, `crosses_completed` |
+| Fouls 12 / 10 | +28 `0c` / `0a` | `fouls` |
+| Headers Won 18 / 23 | +55 `12` / `17` | `headers_won` |
+| offsides 8 / 3, corners 8 / 4 | +68 `08` / `03`, +4 `08` / `04` | `offsides`, `corners` |
+| Shots 17 / 7, on target 7 / 5, Tackles Won 6 / 9, yellow 1 / 2 | the slots | sums of `shotA`, `shotO`, `tackW`, `yellow` |
+| xG 2.18 / 0.27 | slot +66, e.g. Bogle `68 00` | `xg_x100`: Truro's slots sum to 217, Maidenhead's to 27 |
+
+No f32 in the body reads 2.18 or 0.27, and no team field holds 218 or 27: the screen's team
+xG is the slots' sum, and Truro's 2.18 against 2.17 is the screen summing values the slots
+store rounded. Each player's xG sits where his shots are: Bogle 5 shots, 1.04; Starkie 3, 0.60;
+Harrison 1, 0.26.
+
+![Truro ratings: Stone ... Bogle, with PaA PaC Key Ass TaA TaW Int HeA HeW CrA CrC Dri Mis MiG ShA ShO Con](img/matches-fmm27-3.jpg)
+![Truro substitutes: Kinsey-Wellings, Bell, Roberts, Tweedy, Greenslade](img/matches-fmm27-4.jpg)
+![Maidenhead ratings](img/matches-fmm27-5.jpg)
+![Maidenhead substitutes](img/matches-fmm27-6.jpg)
+
+Law's line, `01 00 00 49 09 02 bd 0e 05 00 00 04 02 …`: assists 1 (+0), condition 73 (+3),
+crosses 9/2 (+4, +5), dribbles 5 (+8), headers 4/2 (+11, +12), passes 72/60 (+29, +30), key
+passes 5 (+31), rating 8 (+36), shots 2/0 (+39, +40). All 32 players who
+played match their line on every placed column; the test pins each.
+
+![Match events: Odeniran 9', Starkie 17' (Law), Abbott 45+3', Nunn 89'](img/matches-fmm27-7.jpg)
+
+The nine events in stored order: Odeniran's booking (`26`, minute 8), Starkie's goal (`01`),
+an unnamed `17` for Starkie at the same minute, Law's assist (`24`), Starkie's clear-cut
+chance (`2f`, 27), Abbott's booking (44 + 3), Bogle's chance (57), Nunn's booking (88) and
+Tweedy's chance (89 + 2). Truro's three `2f` events are the stats screen's three clear-cut
+chances (team head +5).
+
+### FMM22
 
 `frem-2030-06-22`, Vejle 2-4 Frem, 3F Superliga, 23 September 2029. The row starts at byte
 55,840,931: `8c 04 5a 01 02 00 09 01 | 08` = home 1164 (Vejle), away 346 (Frem), cid 2, day

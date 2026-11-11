@@ -98,7 +98,7 @@ def test_framing():
     buf, first = build()
     broken = bytearray(buf)
     o = first + len(region({})) // 2                  # somewhere in the middle
-    k = broken.index(PL.EMPTY_TAIL_MARK, o) - PL._MARK_AT     # the start of an unused entry
+    k = broken.index(PL.EMPTY_TAIL_MARK, o) - PL._FMM22.mark_at     # the start of an unused entry
     struct.pack_into("<I", broken, k, 4000)            # a string longer than any
     try:
         PL.scrape_player_lists(bytes(broken))

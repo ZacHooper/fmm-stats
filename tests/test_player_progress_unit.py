@@ -29,7 +29,7 @@ def row(tid, day, year, status=0):
 
 
 def pool(rows, total=ROWS):
-    body = list(rows) + [PP._EMPTY] * (total - len(rows))
+    body = list(rows) + [PP._empty(PP.EMPTY_YEAR)] * (total - len(rows))
     return HEADER + FILLER + b"".join(body) + b"\x00" * 8192
 
 

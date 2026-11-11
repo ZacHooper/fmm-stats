@@ -72,6 +72,22 @@ record at byte 8,622,923), and Joe Whittaker, the head physio (tid 38349):
 | Yetton `27/7/1985`, Whittaker `7/9/1999` | the person records | `dob` 1985-07-27, 1999-09-07 |
 | Whittaker, a physio: no formation, no reputation | person `id2` `ff ff ff ff` | no staff record, as for a physio on FMM22 |
 
+`truro-2026-08-08`, Ángel Alcalde, a coach at Atlético Pamplona with a Gold Badge (tid 29623,
+`id2` 5443). Tested by `tests/test_screens_fmm27_evidence.py`.
+
+![Alcalde, Staff Profile: Gold Badge, Reputation 4 stars, 9/3/1979, Formation 4-1-2-2-1, Specialism Youth, Aptitude Natural, three trainable player traits](img/staff-fmm27-3.jpg)
+
+| on screen | parsed |
+|---|---|
+| `9/3/1979`, Spanish, Atlético Pamplona | person `dob` 1979-03-09, `nationality_id` 170 (Spain), `club_tid` 907 |
+| Formation `4-1-2-2-1` | `formation_preferred` 2 → catalog "4-1-2-2-1" |
+| Reputation 4 stars (Yetton's 1) | `world_reputation` 5100 (Yetton 1120) |
+| Gold Badge, Specialism Youth, Trainable Player Traits | not placed |
+
+FMM27 shows the reputation as stars where FMM22 named a tier; two profiles do not fix the
+star bands. The badge, the specialism and the trainable traits (Likes To Round Keeper,
+Winds Up Opponents, Plays with Feet, each Basic) are not in the staff record's named fields.
+
 ### FMM22
 
 The seven Danish Superliga managers' profiles of 25 Nov 2024, against `frem-2024-11-22`:

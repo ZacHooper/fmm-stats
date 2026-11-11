@@ -295,3 +295,34 @@ competition's uid (147 on Frem, 149 on Bucaspor). Decompressed sizes in bytes:
 > snapshots, not from any one save.
 
 What is open in the members is in TODO, "Archive members and framing not yet read".
+
+### FMM27
+
+`truro-2026-07-25` (69,883,057 bytes) stores the same archive **without length prefixes**:
+168 members as bare zstd frames from 69,357,132, the 13 constant bytes ending right before
+member 0, and a 9-byte directory header (`02 01 'fmf.' 08 00 00`, no size) at 69,881,010
+whose frame runs to EOF. The directory is FMM22's, its offsets counting from member 0's
+first byte and `stored` the frames' own size: the 168 entries tile the 523,878 bytes up to
+the header. `fix_man` is 1,219,757 bytes unpacked (499 friendlies, 95-byte records:
+[fixtures](fixtures.md)); the comp members have a 53-byte header ([comp_rules](comp_rules.md));
+`comp_man` does not read with FMM22's declarations (the audit's PAD check fails on its stage
+grid). `tests/test_career_fmm27_evidence.py` checks the extent and every member's size.
+
+The career half on `truro-2026-07-25`, in file order:
+
+| from | table | notes |
+|---|---|---|
+| 29,539,097 | [contract grid](contracts.md) | 83 B, capacity 81,465, 44,960 used; four `ff` bytes added to the frame |
+| 36,300,713 | unnamed 25 B table | `[tid u32][u16][date][date]…`, after the grid |
+| ~37.95M | transfer band | 143 B rows |
+| 40,459,247 | [name id-tables](names.md) | surnames, first names, nicknames; FMM22's locators |
+| 43,991,857 | [history](history.md) | 452,090 rows declared |
+| 51,225,299 | [club_records](club_records.md) | 1,087 clubs |
+| 52,553,450 | [player progress](player_progress.md) | 62,400 × 70 B; template year 2025 |
+| 57,955,530 | [training](training.md) | count 44,960, 61 B rows |
+| 60,844,241 | [our matches](matches.md) | one row; 70 B player slots, not read yet |
+| 66,236,284 | [player lists](player_lists.md) | 132 lists, 192 B tails |
+| 69,357,106 | the archive | bare frames, to EOF |
+
+History and club_records locate with FMM22's locators and the audit raises nothing on them,
+but no FMM27 screen has checked them yet. `match_slots` is not located on FMM27.

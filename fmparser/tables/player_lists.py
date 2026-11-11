@@ -80,14 +80,18 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..core import F32, Field, PString, RAW, Record, TableDef, U8, U16, U32, UNKNOWN
 from ..save import cache_key as _cache_key
 from .player_attributes import POSITIONS
+from .save_header import FMM27, save_format
 
 __all__ = [
     "ATTRIBUTES",
     "CLUB_LISTS",
     "ENTRY_TAIL",
     "LISTS",
+    "ENTRY_TAIL_FMM27",
     "PLAYER_LISTS_TABLE",
+    "PLAYER_LISTS_TABLE_FMM27",
     "PLAYER_LIST_TRAILERS_TABLE",
+    "PLAYER_LIST_TRAILERS_TABLE_FMM27",
     "TRAILER",
     "locate_player_lists",
     "player_lists_table_spans",
@@ -95,6 +99,7 @@ __all__ = [
 ]
 
 LISTS = 66                                   # lists in the region, on every save
+LISTS_FMM27 = 132                            # FMM27: a second 66, all unused on Truro
 PER_LIST = 100                               # entries per list
 CLUB_LISTS = range(31, 62)                   # our club's squad, one list per season
 NO_CLUB = 0xFFFF
@@ -102,8 +107,7 @@ NO_PLAYER = 0xFFFFFFFF                     # an unused entry
 STRINGS = ("full_name", "first_name", "last_name", "string_3", "last_name_2", "club",
            "string_6", "competition")
 EMPTY_TAIL_MARK = b"\x14\x01\x00\x0a\x00"    # at tail +121 of an unused entry
-_MARK_AT = 32 + 121                          # from an unused entry's start
-_EMPTY_ENTRY = 200
+EMPTY_TAIL_MARK_FMM27 = b"\x00\x01\x00\x0a\x00"   # at tail +123
 _MAX_STRING = 100
 
 # The attributes at their index in the 36-byte block at tail +28.
@@ -191,16 +195,59 @@ def _tail_fields() -> List[Field]:
 
 ENTRY_TAIL = Record("player_scrapbook_entry", 168, _tail_fields())
 
+
+def _tail_fields_fmm27() -> List[Field]:
+    """FMM22's tail to +108; then caps and international goals are u16, everything after
+    them sits two bytes later, and the unread end is 68 bytes, not 46."""
+    return [f for f in _tail_fields() if f.offset < 108] + [
+        Field(108, 2, "caps", U16, note="international caps, at the entry's date"),
+        Field(110, 2, "intl_goals", U16),
+        Field(112, 1, "u21_caps", U8),
+        Field(113, 1, "u21_goals", U8),
+        Field(114, 1, "apps", U8, note="the season to the entry's date: competitive, "
+                                       "first team"),
+        Field(115, 1, "goals", U8),
+        Field(116, 1, "conceded", U8, note="goalkeepers only"),
+        Field(117, 1, "assists", U8),
+        Field(118, 1, "yellows", U8),
+        Field(119, 3, UNKNOWN, RAW),
+        Field(122, 1, "foot_left", U8),
+        Field(123, 1, "foot_right", U8),
+        Field(124, 68, UNKNOWN, RAW),
+    ]
+
+
+ENTRY_TAIL_FMM27 = Record("player_scrapbook_entry_fmm27", 192, _tail_fields_fmm27())
+
 TRAILER = Record("player_list_trailer", 14, [
     Field(0, 1, UNKNOWN, RAW),
     Field(1, 2, "season", U16, note="end year of the list's season; 0xffff = in progress"),
     Field(3, 11, UNKNOWN, RAW),
 ])
 
+
+class _Layout:
+    """One version's entry: its tail, and where an unused entry's template mark sits."""
+
+    def __init__(self, tail: Record, mark: bytes, mark_at: int):
+        self.tail = tail
+        self.mark = mark
+        self.mark_at = len(STRINGS) * 4 + mark_at      # from an unused entry's start
+        self.empty_entry = len(STRINGS) * 4 + tail.span
+
+
+_FMM22 = _Layout(ENTRY_TAIL, EMPTY_TAIL_MARK, 121)
+_FMM27 = _Layout(ENTRY_TAIL_FMM27, EMPTY_TAIL_MARK_FMM27, 123)
+
+
+def _layout(mm: Any) -> _Layout:
+    return _FMM27 if save_format(mm) == FMM27 else _FMM22
+
+
 _CACHE: Dict[Any, Optional[List[Tuple[int, int]]]] = {}
 
 
-def _entry_end(mm: Any, o: int) -> Optional[int]:
+def _entry_end(mm: Any, o: int, lay: _Layout) -> Optional[int]:
     for _ in range(len(STRINGS)):
         if o + 4 > len(mm):
             return None
@@ -208,14 +255,14 @@ def _entry_end(mm: Any, o: int) -> Optional[int]:
         if n > _MAX_STRING:
             return None
         o += 4 + n
-    o += ENTRY_TAIL.span
+    o += lay.tail.span
     return o if o <= len(mm) else None
 
 
-def _list_end(mm: Any, start: int) -> Optional[int]:
+def _list_end(mm: Any, start: int, lay: _Layout) -> Optional[int]:
     o = start
     for _ in range(PER_LIST):
-        o = _entry_end(mm, o)
+        o = _entry_end(mm, o, lay)
         if o is None:
             return None
     o += TRAILER.span
@@ -241,29 +288,29 @@ def _string_starts(mm: Any, end: int, k: int) -> List[int]:
     return out
 
 
-def _list_before(mm: Any, start: int) -> Optional[int]:
+def _list_before(mm: Any, start: int, lay: _Layout) -> Optional[int]:
     """The start of the list whose trailer ends at `start`, or None when no list does."""
     ends = [start - TRAILER.span]
     for _ in range(PER_LIST):
         nxt = set()
         for e in ends:
-            nxt.update(_string_starts(mm, e - ENTRY_TAIL.span, len(STRINGS)))
+            nxt.update(_string_starts(mm, e - lay.tail.span, len(STRINGS)))
         ends = list(nxt)
         if not ends:
             return None
-    fits = [p for p in ends if _list_end(mm, p) == start]
+    fits = [p for p in ends if _list_end(mm, p, lay) == start]
     return fits[0] if len(fits) == 1 else None
 
 
-def _empty_list(mm: Any) -> Optional[int]:
+def _empty_list(mm: Any, lay: _Layout) -> Optional[int]:
     """The start of the first list whose 100 entries are all unused."""
-    gap = _EMPTY_ENTRY
-    for m in re.finditer(re.escape(EMPTY_TAIL_MARK), mm):
+    gap = lay.empty_entry
+    for m in re.finditer(re.escape(lay.mark), mm):
         h = m.start()
-        if mm[h - gap:h - gap + 5] == EMPTY_TAIL_MARK:
+        if mm[h - gap:h - gap + 5] == lay.mark:
             continue                                 # not the first entry of its run
-        if all(mm[h + gap * k:h + gap * k + 5] == EMPTY_TAIL_MARK for k in range(PER_LIST)):
-            return h - _MARK_AT
+        if all(mm[h + gap * k:h + gap * k + 5] == lay.mark for k in range(PER_LIST)):
+            return h - lay.mark_at
     return None
 
 
@@ -273,13 +320,14 @@ def locate_player_lists(mm: Any) -> Optional[List[Tuple[int, int]]]:
     if key in _CACHE:
         return _CACHE[key]
     res = None
-    anchor = _empty_list(mm)
+    lay = _layout(mm)
+    anchor = _empty_list(mm, lay)
     if anchor is not None:
         first = anchor
-        while (prev := _list_before(mm, first)) is not None:
+        while (prev := _list_before(mm, first, lay)) is not None:
             first = prev
         starts, o = [], first
-        while (end := _list_end(mm, o)) is not None:
+        while (end := _list_end(mm, o, lay)) is not None:
             starts.append(o)
             o = end
         res = [(s, PER_LIST) for s in starts]
@@ -291,16 +339,22 @@ def _locate_trailers(mm: Any) -> Optional[List[Tuple[int, int]]]:
     runs = locate_player_lists(mm)
     if not runs:
         return None
-    return [(_list_end(mm, s) - TRAILER.span, 1) for s, _ in runs]
+    lay = _layout(mm)
+    return [(_list_end(mm, s, lay) - TRAILER.span, 1) for s, _ in runs]
 
 
-PLAYER_LISTS_TABLE = TableDef(
-    name="player_lists",
-    segments=tuple(PString(s, allow_empty=True, max_len=_MAX_STRING) for s in STRINGS)
-    + (ENTRY_TAIL,),
-    locator=locate_player_lists,
-    include_offset=True,
-)
+def _lists_table(name: str, tail: Record) -> TableDef:
+    return TableDef(
+        name=name,
+        segments=tuple(PString(s, allow_empty=True, max_len=_MAX_STRING) for s in STRINGS)
+        + (tail,),
+        locator=locate_player_lists,
+        include_offset=True,
+    )
+
+
+PLAYER_LISTS_TABLE = _lists_table("player_lists", ENTRY_TAIL)
+PLAYER_LISTS_TABLE_FMM27 = _lists_table("player_lists", ENTRY_TAIL_FMM27)
 
 PLAYER_LIST_TRAILERS_TABLE = TableDef(
     name="player_list_trailers",
@@ -308,25 +362,29 @@ PLAYER_LIST_TRAILERS_TABLE = TableDef(
     locator=_locate_trailers,
     include_offset=True,
 )
+PLAYER_LIST_TRAILERS_TABLE_FMM27 = PLAYER_LIST_TRAILERS_TABLE
 
 
 def player_lists_table_spans(mm: Any) -> List[Tuple[int, int]]:
     """One span per list, its trailer included."""
-    return [(s, _list_end(mm, s)) for s, _ in (locate_player_lists(mm) or [])]
+    lay = _layout(mm)
+    return [(s, _list_end(mm, s, lay)) for s, _ in (locate_player_lists(mm) or [])]
 
 
 def scrape_player_lists(mm: Any) -> List[Dict[str, Any]]:
-    """[{index, offset, season, entries}] for the 66 lists; `entries` holds the used ones,
-    each with its `slot` in the list. Raises `ValueError` if the region does not read as 66
-    lists of 100 entries."""
+    """[{index, offset, season, entries}] for the 66 lists (FMM27 132); `entries` holds the
+    used ones, each with its `slot` in the list. Raises `ValueError` if the region does not
+    read as that many lists of 100 entries."""
+    fmm27 = save_format(mm) == FMM27
+    lists = LISTS_FMM27 if fmm27 else LISTS
     runs = locate_player_lists(mm)
-    if not runs or len(runs) != LISTS:
-        raise ValueError(f"player_lists: {len(runs or [])} lists located, not {LISTS}")
-    rows = PLAYER_LISTS_TABLE.scrape(mm)
+    if not runs or len(runs) != lists:
+        raise ValueError(f"player_lists: {len(runs or [])} lists located, not {lists}")
+    rows = (PLAYER_LISTS_TABLE_FMM27 if fmm27 else PLAYER_LISTS_TABLE).scrape(mm)
     trailers = PLAYER_LIST_TRAILERS_TABLE.scrape(mm)
-    if len(rows) != LISTS * PER_LIST or len(trailers) != LISTS:
+    if len(rows) != lists * PER_LIST or len(trailers) != lists:
         raise ValueError(f"player_lists: read {len(rows)} entries and {len(trailers)} "
-                         f"trailers, not {LISTS * PER_LIST} and {LISTS}")
+                         f"trailers, not {lists * PER_LIST} and {lists}")
     out = []
     for i, ((start, _), tr) in enumerate(zip(runs, trailers)):
         entries = []

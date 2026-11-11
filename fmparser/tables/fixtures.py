@@ -9,12 +9,15 @@ from typing import Any, Dict, List, Tuple
 from ..core import archive as A
 from ..core import Field, PAD, RAW, Record, TableDef, U8, U16, U32, UNKNOWN
 from ..core.primitives import u16 as _u16, ymd_from as _ymd_from
+from .save_header import FMM27, save_format
 
 __all__ = [
     "DAY_BASE",
     "DAY_MASK",
     "FIXTURE",
     "FIXTURES_TABLE",
+    "FIXTURES_TABLE_FMM27",
+    "FIXTURE_FMM27",
     "MEMBER",
     "MEMBER_HEADER",
     "NO_REFEREE",
@@ -88,26 +91,70 @@ NO_ROUND = 0xFF           # +78 when the match belongs to no matchday (friendlie
 NO_REFEREE = 0xFFFFFFFF   # +72 when the fixture has no referee
 
 
-def segments(blob: Any) -> List[Tuple[int, int]]:
+# FMM27: 95 bytes, opener 0x1f. The goals block is FMM22's; two bytes come in before +30,
+# so the stage key, venue, clubs and dates sit two later. The tail from +63 is one byte
+# longer than FMM22's: the season year, the referee and the stage, stage-round and matchday
+# bytes sit two EARLIER than FMM22's (truro-2026-08-08: league fixtures read season 2026,
+# matchday 0 on the opening day and 1 where a second matchday is played; friendlies read
+# 0 and 0xff). The rest of the tail is unread.
+STRIDE_FMM27 = 95
+OPENER_FMM27 = 0x1F
+
+FIXTURE_FMM27 = Record("world_fixture_fmm27", STRIDE_FMM27, [
+    Field(0,  1, UNKNOWN, PAD),
+    Field(1,  1, "opener", U8, note="always 0x1f"),
+    Field(2,  4, UNKNOWN, PAD),
+    Field(6,  1, "home_goals", U8, note="home score after 90 minutes; 0xFF = unplayed"),
+    Field(7,  1, "home_extra_goals", U8, note="0xFF = no extra time"),
+    Field(8,  1, "home_pens", U8, note="0xFF = none"),
+    Field(9,  2, UNKNOWN, RAW),
+    Field(11, 1, "away_goals", U8, note="away score after 90 minutes; 0xFF = unplayed"),
+    Field(12, 1, "away_extra_goals", U8),
+    Field(13, 1, "away_pens", U8),
+    Field(14, 2, UNKNOWN, RAW),
+    Field(16, 17, UNKNOWN, RAW),
+    Field(33, 4, "stage_key", U32),
+    Field(37, 2, "stadium_id", U16),
+    Field(39, 4, UNKNOWN, RAW),
+    Field(43, 4, "home_tid", U32),
+    Field(47, 2, UNKNOWN, RAW),
+    Field(49, 4, "away_tid", U32),
+    Field(53, 2, UNKNOWN, RAW),
+    Field(55, 2, "day_raw", U16),
+    Field(57, 2, "year", U16),
+    Field(59, 2, "day2_raw", U16),
+    Field(61, 2, "year2", U16, note="1900 on every friendly"),
+    Field(63, 1, UNKNOWN, RAW),
+    Field(64, 2, "season_year", U16, note="the campaign's start year; 0 on friendlies"),
+    Field(66, 4, UNKNOWN, RAW),
+    Field(70, 4, "referee_tid", U32, note="the referee's tid; 0xffffffff = none"),
+    Field(74, 1, "stage_attr_76", U8, note="stage index within the competition (FMM22 +76)"),
+    Field(75, 1, "stage_attr_77", U8, note="index within the stage (FMM22 +77)"),
+    Field(76, 1, "round", U8, note="matchday within the competition; 255 = none"),
+    Field(77, 18, UNKNOWN, RAW),
+])
+
+
+def segments(blob: Any, stride: int = STRIDE, opener: int = OPENER) -> List[Tuple[int, int]]:
     """[(start, count)] for each grid in the member, from the member's own structure."""
     hits = []
     i = MEMBER_HEADER
     n = len(blob)
-    while i + STRIDE <= n:
-        if blob[i + 1] == OPENER and blob[i + 2:i + 6] == b"\xff\xff\xff\xff":
+    while i + stride <= n:
+        if blob[i + 1] == opener and blob[i + 2:i + 6] == b"\xff\xff\xff\xff":
             hits.append(i)
-            i += STRIDE
+            i += stride
         else:
             i += 1
     if not hits:
         return []
     out, start, prev = [], hits[0], hits[0]
     for h in hits[1:]:
-        if h - prev != STRIDE:
-            out.append((start, (prev - start) // STRIDE + 1))
+        if h - prev != stride:
+            out.append((start, (prev - start) // stride + 1))
             start = h
         prev = h
-    out.append((start, (prev - start) // STRIDE + 1))
+    out.append((start, (prev - start) // stride + 1))
     return out
 
 
@@ -167,6 +214,39 @@ FIXTURES_TABLE = TableDef(
 )
 
 
+def _process_fixture_fmm27(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
+    out = {k: None if r[k] == 0xFF else r[k] for k in (
+        "home_goals", "away_goals", "home_extra_goals", "away_extra_goals", "home_pens",
+        "away_pens")}
+    return {
+        "home_tid": r["home_tid"],
+        "away_tid": r["away_tid"],
+        "date": _ymd_from(r["year"], (r["day_raw"] & DAY_MASK) - DAY_BASE),
+        "year": r["year"],
+        **out,
+        "stage_key": r["stage_key"],
+        "stadium_id": r["stadium_id"],
+        "round": None if r["round"] == NO_ROUND else r["round"],
+        "referee_tid": None if r["referee_tid"] == NO_REFEREE else r["referee_tid"],
+        "season_year": None if r["season_year"] == 0 else r["season_year"],
+        "stage_index": None if r["stage_attr_76"] == 0xFF else r["stage_attr_76"],
+        "round_index": None if r["stage_attr_77"] == 0xFF else r["stage_attr_77"],
+    }
+
+
+FIXTURES_TABLE_FMM27 = TableDef(
+    name="fixtures",
+    member=MEMBER,
+    segments=(FIXTURE_FMM27,),
+    locator=lambda blob: segments(blob, STRIDE_FMM27, OPENER_FMM27),
+    fields=("home_tid", "away_tid", "day_raw", "year", "home_goals", "away_goals",
+            "home_extra_goals", "away_extra_goals", "home_pens", "away_pens", "stage_key",
+            "stadium_id", "round", "referee_tid", "season_year", "stage_attr_76",
+            "stage_attr_77"),
+    post_process=_process_fixture_fmm27,
+)
+
+
 def read_fixture(blob: Any, o: int) -> Dict[str, Any]:
     """Decode one fixture record with normalized fields."""
     r = FIXTURE.read(blob, o)
@@ -181,6 +261,8 @@ def scrape(blob: Any) -> List[Dict[str, Any]]:
 
 def fixtures(mm: Any) -> List[Dict[str, Any]]:
     """Every match in the save's fixture list (member fix_man.dat)."""
+    if save_format(mm) == FMM27:
+        return FIXTURES_TABLE_FMM27.scrape(A.extract(mm, MEMBER))
     return scrape(A.extract(mm, MEMBER))
 
 

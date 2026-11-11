@@ -77,11 +77,34 @@ A second career, **Truro City**, is on **FMM27**; FMM22 support stays, with
 `tests/assert_identical.py` as the gate on every change. The working record, with progress,
 phases, decisions and every learning so far, is
 **[`plans/2026-11-11-fmm27-migration.html`](plans/2026-11-11-fmm27-migration.html)**. Read it
-to resume. Now: the header and the whole reference half, person_info to stadiums, read on
-FMM27 (`tables_for(mm)` picks each table's declaration by `save_format`), rule_files reads,
-and `extract.py` runs to player_lists, skipping the career-half tables it can't locate. Next:
-the career half in file order (contracts, match slots, player progress, training, matches,
-player lists, the archive), each documented with its in-game evidence in the same change.
+to resume. Now: `extract.py` runs end to end on `truro-2026-07-25` and `truro-2026-08-08`. The reference half and the
+career half read with FMM27 declarations where the layout changed (`tables_for(mm)` picks
+each by `save_format`): contracts, player progress, training, player lists (132 lists), the
+archive (bare frames), world fixtures (95 B) and competition rounds; our matches (5,676 +
+17 n B rows, 70 B player slots with each player's xG), contracts, training, player progress,
+player lists, fixtures (with the tail's season, referee, stage and matchday) and the league
+rules are checked against screens on `truro-2026-08-08`. Open, in order:
+- **Not placed from the 8 August screens**: an injury's name and length (Rooney's damaged
+  cruciate ligaments, about 9 months); a staff member's badge, specialism and trainable
+  traits (Alcalde, Gold Badge); the star bands for staff reputation; whether lists 66–131
+  are women's (the Best Eleven screen has a Male switch).
+- **The match table starts on the career's first day**: Truro's career began on 22 July 2026
+  (`truro-2026-07-22`), after two pre-season friendlies the game had already played, so the
+  table holds 3 of the fixture list's 5 games on `truro-2026-08-08`. In the career's first
+  season `check_against_fixtures` needs that day, not the rollover, as its lower bound.
+- **Match bytes not placed**: possession and team rating; event types `17`, `18`, `29`
+  ([matches](parser/matches.md#layout)). A ratings screen with a non-zero Mis/MiG would
+  confirm `mistakes`/`mistGoal` against the game (placed from the `27` events).
+- **FMM27 role codes**: training's `focus_role` differs from `seeds/roles.csv` from Inside
+  Forward on; the two new roles are the Wide Centre-Back and the Inverted Full-Back
+  ([training](parser/training.md#evidence)). A centre-back's and a full-back's focus role on
+  screen pin the codes; then an FMM27 role seed.
+- **The player lists' season numbers** (tail +114) need a save after a season ends.
+- **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;
+  `match_slots` is not located (nothing reads it).
+- **Then the store**: load the FMM27 JSON (`stg` handles the FMM27 shapes by `summary.json`'s
+  `save_format`), `staff_roles.json` into raw, and the managed club's manager
+  (`mart.club_managers`).
 
 ---
 

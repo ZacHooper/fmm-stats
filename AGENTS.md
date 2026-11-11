@@ -8,12 +8,15 @@ store and a static web app. Read-only: nothing is ever written back to a save. T
 [`.claude/skills/get-started/SKILL.md`](.claude/skills/get-started/SKILL.md), whatever agent you
 are. It takes them from a save file to their stats site, and they don't need to code.
 
-**Before anything else, read the user's own files if they exist** (both are gitignored):
+**Before anything else, read the user's own files if they exist** (all are gitignored):
 - **`fmm.toml`** — their careers (managed club tid, rollover day, rating method), storage, site
   URL and **play-style switches**. Template: [`fmm.example.toml`](fmm.example.toml). The
   switches change how you must answer — see [Play style](#play-style-set-in-fmmtoml).
-- **`CAREER.md`** — their notes on the career they are playing: the club, the tactic, house
-  rules, what has happened so far. Treat it as the user's standing instructions.
+- **`CAREER.md`** — their notes that hold across careers: which careers exist, which they are
+  playing, how they play. Treat it as the user's standing instructions.
+- **`career-notes/<career>.md`** — one career's notes: the club, the tactic, house rules, what
+  has happened so far. Read the career you are working on (the `[careers] default` in
+  `fmm.toml` unless told otherwise). Also the user's standing instructions.
 
 ## The three parts
 
@@ -74,7 +77,8 @@ are the strict ones.
   [`docs/agent-context/report-trait-lines.md`](docs/agent-context/report-trait-lines.md). Quote
   a hidden number only when asked.
 - **House rules** (self-imposed constraints the game doesn't model, like the Danish squad
-  registration rules in the web app) are described in `CAREER.md` when the user plays with them.
+  registration rules in the web app) are described in the career's `career-notes/<career>.md`
+  when the user plays with them.
 
 ## Analysis rules
 - **The exact XI on the day is not in the save, but each manager's preferences are.**

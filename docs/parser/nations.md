@@ -17,7 +17,8 @@ record  [uid u32][id u16][name][nationality][code]       NATION_HEAD, the string
         [continent u16][capital u16][stadium u16]         NATION_TAIL
         [7 B]                                             NATION_INFO_FMM27
         [u8 n][n × (language_id u16, proficiency u8)]     languages
-        [u8 flag][19 B][u8 n][n × f32][11 B] if flag      the men's team, then the women's
+        [u8 flag][17 B][u16 n][n × u16]                   the men's team, then the women's:
+        [u8 n][n × f32][11 B] if flag                     ranking history, coefficients
 ```
 
 The head, tail and team fields were checked against screens on FMM22 (Evidence, FMM22); on
@@ -39,20 +40,20 @@ continents' frame, and the nation ids from in-game screens agree (Evidence).
 | +6 | | u8 | unnamed | |
 | `languages` | | `[u8 n][n × (language_id u16, proficiency u8)]` | languages spoken, proficiency 0–100 → [languages](languages.md) | England: English 100; Tanzania: Swahili 90, English 25 |
 | men's team | `has_men_team` | u8 | the team follows when 1 | 1 on all 251 |
-| team (19 B) +0 | | 8 B | four colours | |
+| team (17 B) +0 | | 8 B | four colours | |
 | +8 | `game_importance` | u8 | name from fmm-editor | |
 | +9 | `rival_nation_id` | u16 | `0xFFFF` = none | Denmark → Sweden, England → Scotland, Sweden → Norway (FMM22) |
 | +11 | | u8 | unnamed | |
 | +12 | `is_ranked` | u8 | | Denmark 1 (FMM22) |
 | +13 | `world_ranking` | u16 | current world ranking | Denmark 22nd (Team Information, FMM22) |
 | +15 | `ranking_points` | u16 | world ranking points | Denmark 1,699 (FMM22) |
-| +17 | | u16 | unnamed | |
+| `ranking_history` | | `[u16 n][n × u16]` | the world ranking at each ranking update the save has seen; empty at the start of a game | Algeria `[29]` men, `[74]` women on `truro-2026-08-08`; `[]` on 07-25 |
 | `coefficients` | | `[u8 n][n × f32]` | continental coefficients by season, oldest first; 11 entries | Coefficients screen (Evidence, FMM22) |
 | team end | | 11 B | unnamed | |
 | women's team | `has_women_team`, then the same | | keys prefixed `women_` | 1 on all 251 |
 
 `core.Conditional` reads each team only when its flag says so. The men's team keeps FMM22's
-keys (`world_ranking`, `ranking_points`, `coefficients`).
+keys (`world_ranking`, `ranking_points`, `ranking_history`, `coefficients`).
 
 | nation | men | women |
 |---|---|---|
@@ -95,6 +96,14 @@ record  [uid u32][id u16][name][nationality][code]       names terminated 00
 ff`, uid 765, id 139. The person table's ids from in-game screens agree: 163 Ireland
 (Donnellan, En-Neyah), 43 Tanzania (Starkie). Tested by
 `tests/test_reference_fmm27_evidence.py`.
+
+**The ranking history**, `truro-2026-07-25` against `truro-2026-08-08`. On 07-25 every team's
+history is empty: the two bytes after `ranking_points` read `00 00`. By 08-08 one ranking update
+has run. Algeria (record 0, at byte 14,752,586) then reads, from record +74, `01 1d 00 28 06
+01 00 1d 00 06 …`: ranked, 29th, 1,576 points, a history of one entry, 29, then the coefficient
+count 6. Its women's team at +132 reads `01 4a 00 26 05 01 00 4a 00`, so 74th, 1,318 points and
+a history of `[74]`. Across the save, 211 men's and 205 women's teams have one entry, and each
+equals that team's current world ranking. Tested by `tests/test_nations_fmm27_ranking.py`.
 
 ### FMM22
 
@@ -172,5 +181,5 @@ Tested by `tests/test_world_evidence.py`.
 `output/<label>/nations.json`, `{id: nation}` with each record's byte `offset`. The loader
 splits it into `raw.nations`, `raw.nation_ranking_history`, `raw.nation_coefficients` and
 `raw.nation_languages`. On FMM27 each nation carries `state_of_development`, `region_id`,
-`has_men_team`, `has_women_team` and the women's team's fields (`women_world_ranking`, …), and
-no `ranking_history`.
+`has_men_team`, `has_women_team` and the women's team's fields (`women_world_ranking`,
+`women_ranking_history`, …).

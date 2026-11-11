@@ -12,7 +12,8 @@ from .player_progress import (PLAYER_PROGRESS_TABLE, locate_player_progress,
                               scrape_player_progress)
 from .training import (LOAN_STATUS, TRAINING_TABLE, locate_training, scrape_unknown_39,
                        scrape_training, training_table_spans)
-from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LIST_TRAILERS_TABLE,
+from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LISTS_TABLE_FMM27,
+                           PLAYER_LIST_TRAILERS_TABLE,
                            locate_player_lists, player_lists_table_spans,
                            scrape_player_lists)
 from .club_records import (CLUB_RECORDS_TABLE, club_records_table_spans, locate_club_records,
@@ -30,6 +31,7 @@ from .contracts import (
 )
 from .comp_rules import (
     COMP_RULES_TABLE,
+    COMP_RULES_TABLE_FMM27,
     HEADER as COMP_RULES_HEADER,
     competition_rounds,
     locate_comp_rules,
@@ -53,6 +55,7 @@ from .fixtures import (
     DAY_MASK as FIXTURE_DAY_MASK,
     FIXTURE,
     FIXTURES_TABLE,
+    FIXTURES_TABLE_FMM27,
     MEMBER as FIXTURES_MEMBER,
     MEMBER_HEADER as FIXTURES_MEMBER_HEADER,
     NO_ROUND as FIXTURE_NO_ROUND,
@@ -153,6 +156,7 @@ from .player_attributes import (
 from .matches import (
     EVENT_TYPE,
     MATCHES_TABLE,
+    MATCHES_TABLE_FMM27,
     MatchTableError,
     check_against_fixtures,
     locate_matches,
@@ -238,7 +242,9 @@ TABLES_BY_FORMAT = {
             "player_attributes": PLAYER_ATTRIBUTES_TABLE_FMM27,
             "round_names": ROUNDS_TABLE_FMM27, "clubs": CLUB_TABLE_FMM27,
             "competitions": COMP_TABLE_FMM27, "nations": NATIONS_TABLE_FMM27,
-            "stadiums": STADIUMS_TABLE_FMM27, "rule_files": RULE_FILES_TABLE_FMM27},
+            "stadiums": STADIUMS_TABLE_FMM27, "rule_files": RULE_FILES_TABLE_FMM27,
+            "player_lists": PLAYER_LISTS_TABLE_FMM27, "comp_rules": COMP_RULES_TABLE_FMM27,
+            "fixtures": FIXTURES_TABLE_FMM27, "matches": MATCHES_TABLE_FMM27},
 }
 
 

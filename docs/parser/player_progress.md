@@ -2,11 +2,15 @@
 
 The Player Progress graph: one row per tracked player per week, with the graph's skill
 lines and a status bitfield (injured, on loan, and the graph's event markers). A fixed pool
-of 62,400 rows of 70 bytes at ~48 MB, the same size on every save of both careers, with no
-count in front of it. The players tracked are the managed club's first team and reserves,
-from their first week at the club: 38 on `frem-2030-06-22`, exactly the two squad arrays.
+of 62,400 rows of 70 bytes at ~52.5 MB, the same size on every save of all three careers,
+with no count in front of it. The players tracked are the managed club's first team and
+reserves, from their first week at the club: 25 on `truro-2026-07-25` (one row each, the
+save's own week), 38 on `frem-2030-06-22`, exactly the two squad arrays. The row is the same
+on both versions; the unused-row template's year differs (Layout, FMM22).
 
 ## Layout
+
+The lines and status bits were read off Player Progress graphs on FMM22 (Evidence, FMM22).
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
@@ -20,7 +24,7 @@ from their first week at the club: 38 on `frem-2030-06-22`, exactly the two squa
 | +16 | `status` | u16 | bitfield (below) | |
 | +18 | | u16 | 0 on every used row | |
 | +20 | `day` | u16 | day of the year, 0-based | |
-| +22 | `year` | u16 | `0x07E4` (2020) on an unused row | |
+| +22 | `year` | u16 | `0x07E9` (2025) on an unused row: the year before the game's first season | |
 | +24 | | 23 × u16 | 1–20 or `0xFFFF`: 17 filled for an outfield player, 6 for a goalkeeper; unread | |
 
 `status` bits:
@@ -33,11 +37,32 @@ from their first week at the club: 38 on `frem-2030-06-22`, exactly the two squa
 | 2 | 4 | not identified (1 row) | |
 
 An unused row is one fixed template: tid, lines, day and the +24 block all `0xFF`, +18 zero,
-year `0x07E4`. `locate_player_progress` finds two of them in a row, then walks both ways
-while each row is unused or dated (+18 zero, a day of the year, a year from 2020 to the year
-after the save's date). The walk must come out at 62,400 rows.
+the template year. `locate_player_progress` finds two of them in a row, then walks both ways
+while each row is unused or dated (+18 zero, a day of the year, a year from the template's to
+the year after the save's date). The walk must come out at 62,400 rows: at 52,553,450 on
+`truro-2026-07-25`. `truro-2026-07-22` holds no used row.
+
+### FMM22
+
+The template year is `0x07E4` (2020), so the locator takes the template year by format.
 
 ## Evidence
+
+`truro-2026-07-25`: two rows carry injury bits, Jack Stretton (9271) and Dan Rooney (8501),
+both status 1. Tested by `tests/test_career_fmm27_evidence.py`.
+
+`truro-2026-08-08`, Rooney's Player Match Eligibility. Tested by
+`tests/test_screens_fmm27_evidence.py`.
+
+![Dan Rooney: Unavailable due to injury, Damaged cruciate ligaments (About 9 months), Inj](img/player_progress-fmm27-1.jpg)
+
+Rooney's rows read status 1 in every week from 25 July to 8 August: the injury bits, as on
+FMM22. Stretton's read 1 on 25 July, 2 on 1 August and 0 on 8 August, the day he was a
+named substitute against Maidenhead ([matches](matches.md#evidence)). The injury's name and
+length are not in this table, nor in the player record's unavailability list (that list is
+the database's bans); where the running game keeps them is not found.
+
+### FMM22
 
 `frem-2030-06-22`. Gustav Ullits' Player Progress, 2029/30:
 

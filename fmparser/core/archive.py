@@ -54,6 +54,14 @@ DEPENDENCY. zstd is not in the standard library before Python 3.14, so this modu
 `zstandard` (a project dependency, so `uv sync` / `uv run` install it); every other fmparser
 module is stdlib + numpy. The import error names the command.
 
+FMM27 stores the same archive without the length prefixes: every member is bare zstd frames
+back to back, member 0 starting on the first magic (the 13 constant bytes end right before
+it), and the directory's header is 9 bytes, `02 01 'fmf.' 08 00 00`, with no size, its frame
+running to EOF. Directory offsets count from member 0's first byte and `stored` is the frames'
+own size, so in both versions an entry is the bytes `[start + offset, + stored)`. `locate`
+tells the two apart by where the opening header sits: 26 bytes before the first magic when
+the frames are bare, 30 when they are prefixed.
+
 UNKNOWNS, carried rather than guessed:
   * the two u64s that end each directory entry are 0xFFFFFFF1886E0900 on every entry of
     every save measured. Constant, so NOT a per-member timestamp. Unnamed.
@@ -78,9 +86,12 @@ ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 MEMBER_HEADER = b"\x03\x01tad."      # '.dat', on the DECOMPRESSED payload of every member
 RECORD_HEADER = b"\x02\x01fmf."      # '.fmf', on the archive's and the directory's headers
 RECORD_HEADER_LEN = 13               # [kind][01][ext 4][08][00][00][u32]
+BARE_HEADER_LEN = 9                  # FMM27: [kind][01][ext 4][08][00][00]
+_BARE_HEADER_AT = 26                 # FMM27: the opening header, before the first magic
 
-_LOCATE_CACHE = {}                   # save.cache_key -> (first_prefix, dir_header, dir_frame)
+_LOCATE_CACHE = {}                   # save.cache_key -> (members_start, dir_header, dir_frame)
 _DIR_CACHE = {}                      # save.cache_key -> (archive_name, [Entry, ...])
+_BARE_CACHE = {}                     # save.cache_key -> the members are bare frames (FMM27)
 
 # Upper bound for decompressing the DIRECTORY member, which is the one member whose unpacked
 # size nothing declares in advance (it is the thing that declares everyone else's). Measured:
@@ -136,8 +147,9 @@ class Entry(tuple):
 def locate(mm):
     """(members_start, directory_header, directory_frame) for this save's archive.
 
-    `members_start` is the 4-byte length prefix of member 0; `directory_frame` runs to the
-    last byte of the file. Raises ArchiveError if the save carries no archive.
+    `members_start` is the 4-byte length prefix of member 0 (FMM27: its first frame);
+    `directory_frame` runs to the last byte of the file. Raises ArchiveError if the save
+    carries no archive.
 
     Located by the FIRST zstd magic in the file and validated by walking the chain: the
     walk must land on a `.fmf` record header followed by the final frame. No offset and no
@@ -152,6 +164,10 @@ def locate(mm):
     first = mm.find(ZSTD_MAGIC)
     if first == -1 or first < 4:
         raise ArchiveError("no zstd frame in this save")
+    _BARE_CACHE[key] = _is_bare(mm, first)
+    if _BARE_CACHE[key]:
+        _LOCATE_CACHE[key] = _locate_bare(mm, first)
+        return _LOCATE_CACHE[key]
     start = first - 4
     off, n = start, len(mm)
     while off < n - RECORD_HEADER_LEN:
@@ -171,6 +187,41 @@ def locate(mm):
                            f"does not end on EOF ({n})")
     _LOCATE_CACHE[key] = (start, off, dir_frame)
     return _LOCATE_CACHE[key]
+
+
+def _is_bare(mm, first):
+    """True when the members are bare frames (FMM27): the opening header 26 bytes before
+    the first magic."""
+    at = first - _BARE_HEADER_AT
+    return at >= 0 and mm[at:at + 6] == RECORD_HEADER
+
+
+def _bare(mm):
+    """True when this save's members are bare frames; `locate` decides it."""
+    from ..save import cache_key as _ck
+    locate(mm)
+    return _BARE_CACHE[_ck(mm)]
+
+
+def _locate_bare(mm, first):
+    """FMM27: the directory is the last `.fmf` header followed by a zstd frame. Its extent
+    is checked by `directory`: the entries must tile the members up to that header."""
+    hdr = mm.rfind(RECORD_HEADER, first)
+    if hdr == -1 or mm[hdr + BARE_HEADER_LEN:hdr + BARE_HEADER_LEN + 4] != ZSTD_MAGIC:
+        raise ArchiveError("no directory header followed by a zstd frame")
+    return (first, hdr, hdr + BARE_HEADER_LEN)
+
+
+def _frames(dec, data, limit):
+    """Decompress back-to-back zstd frames, each bounded by `limit`."""
+    out = []
+    while data:
+        obj = dec.decompressobj()
+        out.append(obj.decompress(data))
+        if len(out[-1]) > limit:
+            raise ArchiveError(f"a frame unpacked past {limit} B")
+        data = obj.unused_data
+    return b"".join(out)
 
 
 def _strings_reader(buf):
@@ -223,6 +274,9 @@ def directory(mm):
     left = len(buf) - tell()
     if left > 8:
         raise ArchiveError(f"directory declared {count} entries but left {left} bytes")
+    start, dir_header, _ = locate(mm)
+    if _bare(mm) and max(e.offset + e.stored for e in ents) != dir_header - start:
+        raise ArchiveError("the directory's entries do not end on its header")
     _DIR_CACHE[key] = (name, ents)
     return _DIR_CACHE[key]
 
@@ -249,6 +303,9 @@ def read_member(mm, entry):
     start, _, _ = locate(mm)
     dec = _zstd().ZstdDecompressor()
     base, end, out = start + entry.offset, start + entry.offset + entry.stored, []
+    if _bare(mm):
+        out.append(_frames(dec, mm[base:end], entry.unpacked))
+        base = end
     off = base
     while off < end:
         stored = int.from_bytes(mm[off:off + 4], "little")

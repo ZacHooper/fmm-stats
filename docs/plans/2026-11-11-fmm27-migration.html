@@ -254,6 +254,49 @@ deterministic-version entry.</li>
 </div>
 
 <div class="finding">
+<span class="tag ok">phases 3–4 · the career half and the archive · 2026-11-11</span>
+<strong><code>extract.py</code> runs end to end on <code>truro-2026-07-25</code>.</strong>
+<ul>
+<li><strong>contracts</strong>: FMM22's 83-byte record; the frame gains four <code>ff</code> bytes before the
+capacity (81,465). <code>wage_units</code> is a u32 on both versions: Ronaldo's 139,139 overflows a u16.</li>
+<li><strong>player_progress</strong>: unchanged, but the unused-row template's year is 2025 (FMM22 2020),
+the year before the game's first season. 25 rows, Stretton and Rooney injured.</li>
+<li><strong>training</strong>: unchanged; it only failed because the progress pool did not locate.</li>
+<li><strong>player_lists</strong>: 192-byte tails (caps and international goals widen to u16, then 18 more
+unread bytes) and <strong>132 lists</strong>, a second set of 66 all unused, probably women's.</li>
+<li><strong>the archive</strong>: bare zstd frames with no length prefixes, a 9-byte directory header.
+168 members, every one unpacking to its declared size. <code>fix_man</code>'s fixtures are 95 bytes
+(opener <code>0x1f</code>), the comp members' header 53 bytes; one stageless member
+(<code>eng_national_north_south</code>).</li>
+<li><strong>Not read yet</strong>: <code>comp_man.dat</code>, match_slots (nothing reads it), the fixtures' tail.</li>
+<li><strong>truro-2026-08-08</strong> (a league match and two friendlies played):
+<ul>
+<li><strong>nations</strong>: each national team carries a world-ranking history,
+<code>[u16 n][n × u16]</code> after its 17-byte body, empty until the first ranking update. The walk
+broke on it at Algeria; one entry per ranked team on 08-08, equal to the current ranking.</li>
+<li><strong>matches</strong> read (<code>MATCHES_TABLE_FMM27</code>): rows of 5,676 + 17 n bytes, a 5,665-byte
+body with a 1,441-byte tail. The 77-byte team head (FMM22's) holds passes, crosses, fouls, headers won,
+offsides, corners, clear-cut chances and the manager's tid; the 70-byte slot is FMM22's with a sub-on time
+inserted after subOff and four bytes appended, so it keeps <strong>assists</strong> at +0 and holds each player's
+<strong>xG × 100</strong> at +66 (Maidenhead's sum 27 = the screen's 0.27; Truro's 217 against 2.18).
+Event codes are new: 01 goal, 24 assist, 26 yellow, 2f clear-cut chance.</li>
+<li><strong>contracts</strong> and <strong>training</strong> agree with Club Squad - Contract and Individual
+Training. Training's role codes are not FMM22's (two roles are new); the attribute codes are.</li>
+<li><strong>fixtures</strong>: the tail's season year (+64), referee (+70), stage index (+74), index within the
+stage (+75) and matchday (+76) sit two bytes earlier than FMM22's. Club Fixtures matches all five played games.</li>
+<li><strong>comp_rules</strong>: the league's rules screen is its stage tags <code>pwin</code>, <code>pdrw</code>,
+<code>ntms</code>/<code>nrds</code>, <code>prmr</code>, <code>tppr</code>, <code>relr</code>, <code>sort</code>, <code>fxds</code>.
+<strong>player_progress</strong>, <strong>player_lists</strong> (Bogle's profile, the Best Eleven) and <strong>staff</strong>
+(Alcalde) agree with their screens.</li>
+<li>Evidence: <code>tests/test_screens_fmm27_evidence.py</code>, <code>tests/test_nations_fmm27_ranking.py</code>.</li>
+</ul></li>
+<li>Gates: suite green, FMM22 IDENTICAL, Frem's audit PASS. Evidence:
+<code>tests/test_career_fmm27_evidence.py</code>. Screens still to capture are listed in each table doc's
+"Evidence: FMM27".</li>
+</ul>
+</div>
+
+<div class="finding">
 <span class="tag ok">phase 3 · competitions → stadiums done · 2026-11-11</span>
 <strong>The whole reference half reads on FMM27; <code>extract.py</code> now stops at rule_files.</strong>
 <ul>

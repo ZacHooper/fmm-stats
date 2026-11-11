@@ -50,6 +50,7 @@ SKIP_DIRS = {".venv", ".git", "output", "site/api", "node_modules", "fmstats/tar
 ALLOWLIST = (
     "fmm.toml",
     "CAREER.md",
+    "career-notes/",
     "site/api/",
     "output/",
     "fmstats/known_answers/",

@@ -250,7 +250,7 @@ def _tagged_coverage(mm):
     report = {}
     for name, ent in ARCH.members(mm).items():
         if CRU.MEMBER_PATTERN.match(name):
-            CRU.COMP_RULES_TABLE.coverage(ARCH.read_member(mm, ent), report)
+            CRU.comp_rules_table(mm).coverage(ARCH.read_member(mm, ent), report)
     return _print_tagged(report)
 
 

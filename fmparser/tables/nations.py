@@ -75,6 +75,7 @@ NATION_TEAM = Record("nation_team", 23, (
 _RANKING = Record("nation_ranking", 2, (Field(0, 2, "ranking", U16),), is_head=True)
 _COEFFICIENT = Record("nation_coefficient", 4, (Field(0, 4, "coefficient", F32),),
                       is_head=True)
+_RANKING = Record("nation_ranking", 2, (Field(0, 2, "world_ranking", U16),), is_head=True)
 LANGUAGE_SKILL = Record("language_skill", 3, (
     Field(0, 2, "language_id", U16),
     Field(2, 1, "proficiency", U8, note="0..100: how well the nation speaks it"),
@@ -161,10 +162,10 @@ NATION_INFO_FMM27 = Record("nation_info_fmm27", 7, (
 
 def _team(sex: str, prefix: str) -> Conditional:
     """FMM27's national team for `sex` (fmm-editor's `NationalTeam`): `[u8 present]`, then,
-    when present, 19 bytes, the coefficients and 11 bytes. The men's team keeps FMM22's keys
-    (its single team is the men's); the women's are prefixed."""
+    when present, 17 bytes, the world-ranking history, the coefficients and 11 bytes. The men's
+    team keeps FMM22's keys (its single team is the men's); the women's are prefixed."""
     flag = Record(f"nation_{sex}_flag", 1, (Field(0, 1, f"has_{sex}_team", U8),), is_head=True)
-    body = Record(f"nation_{sex}_team", 19, (
+    body = Record(f"nation_{sex}_team", 17, (
         Field(0, 8, UNKNOWN, RAW, note="four colours"),
         Field(8, 1, f"{prefix}game_importance", U8, note="fmm-editor's name"),
         Field(9, 2, f"{prefix}rival_nation_id", U16, note="0xffff = none"),
@@ -172,11 +173,13 @@ def _team(sex: str, prefix: str) -> Conditional:
         Field(12, 1, f"{prefix}is_ranked", U8),
         Field(13, 2, f"{prefix}world_ranking", U16),
         Field(15, 2, f"{prefix}ranking_points", U16),
-        Field(17, 2, UNKNOWN, U16),
     ), is_head=True)
+    # One u16 per ranking update the save has seen: empty at the start of a game, and each
+    # entry equals the world ranking at that update.
+    history = CountedList(f"{prefix}ranking_history", U16, _RANKING, scalar=True, max_count=4096)
     end = Record(f"nation_{sex}_team_end", 11, (Field(0, 11, UNKNOWN, RAW),), is_head=True)
     coeff = CountedList(f"{prefix}coefficients", U8, _COEFFICIENT, scalar=True, max_count=32)
-    return Conditional(f"{sex}_team", flag, (body, coeff, end),
+    return Conditional(f"{sex}_team", flag, (body, history, coeff, end),
                        present=lambda head: head[f"has_{sex}_team"] == 1)
 
 
@@ -195,6 +198,7 @@ def _nation_fmm27(row: Dict[str, Any], offset: int) -> Dict[str, Any]:
         out[f"{prefix}is_ranked"] = bool(row[f"{prefix}is_ranked"])
         out[f"{prefix}world_ranking"] = row[f"{prefix}world_ranking"]
         out[f"{prefix}ranking_points"] = row[f"{prefix}ranking_points"]
+        out[f"{prefix}ranking_history"] = list(row[f"{prefix}ranking_history"])
         out[f"{prefix}coefficients"] = [round(c, 4) for c in row[f"{prefix}coefficients"]]
     out["languages"] = row["languages"]
     return out

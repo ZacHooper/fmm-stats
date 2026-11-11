@@ -1,0 +1,1199 @@
+{
+ "save": "truro-2026-08-08.fms",
+ "note": "Truro 1-0 Maidenhead United, Enterprise National League South, 8 Aug 2026: summary, stats, both ratings screens and match events (docs/parser/img/matches-fmm27-*.jpg); Club Squad - Contract and Caleb Roberts's contract (contracts-fmm27-*); Individual Training and two training reports (training-fmm27-*). Second batch: Club Fixtures (fixtures-fmm27-1), the league's rules (comp_rules-fmm27-*), Rooney's eligibility (player_progress-fmm27-1), Bogle's Player Profile and the All-Time Manager's Best Eleven (player_lists-fmm27-*), Alcalde's Staff Profile (staff-fmm27-3).",
+ "matches": {
+  "row0": 61604420,
+  "count": 3,
+  "rows": [
+   61604420,
+   61610300,
+   61616078
+  ],
+  "body_span": 5665,
+  "raw": [
+   [
+    61616078,
+    "35 0c 32 09 4b 01 db 00 ea 07 09",
+    "head: 3125 v 2354, comp 331, day 219, 2026; 9 events"
+   ],
+   [
+    61616242,
+    "35 0c 32 09 4b 01 01 35 0c 32 09 ea 07 ea 07 99 06 00 00",
+    "body head: club, opponent, comp, home flag, home, away, year x2, attendance 1,689"
+   ],
+   [
+    61616305,
+    "75 22 00 00",
+    "Player of the Match: Law (8821)"
+   ],
+   [
+    61617170,
+    "04 f0 0a 00 08 03 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 0c 0a 01 00 04 08 84 00 04 02 04 02 08 02 10 02 10 02 10 02 40 02 40 02 01 2b 00 12 00 00 e9 0b f6 0b 9f af 00 00 4e 04 08 43 02 02 02 16 00 06 00",
+    "Truro's team head"
+   ],
+   [
+    61618818,
+    "0d e9 0b 00 04 00 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 0a 0c 01 00 04 08 04 02 04 02 84 00 10 02 10 02 10 08 90 00 40 02 40 02 00 2a 00 17 00 00 0a 0b f3 0a b1 0b 00 00 d6 00 03 f0 01 ab 01 27 00 07 00",
+    "Maidenhead's team head"
+   ],
+   [
+    61617387,
+    "01 00 00 49 09 02 bd 0e 05 00 00 04 02 bd 0e 00 03 02 ff ff ff ff ff ff ff ff 00 00 14 48 3c 05 bf 12 00 00 08 00 00 02 00 14 00 00 00 03 75 22 00 00 84 1c 00 00 00 dd 05 00 ff ff ff ff ff ff ff ff 06 00 46 00",
+    "Law's player slot: assists 1 at +0, condition 73 at +3"
+   ]
+  ],
+  "match": {
+   "date": "2026-08-08",
+   "comp_id": 331,
+   "home_tid": 3125,
+   "away_tid": 2354,
+   "score": [
+    1,
+    0
+   ],
+   "attendance": 1689,
+   "player_of_match": 8821,
+   "formation": "4-1-2-1-2",
+   "home_positions": [
+    "GK",
+    "DR",
+    "DL",
+    "DC",
+    "DC",
+    "DMC",
+    "MC",
+    "MC",
+    "MC",
+    "FC",
+    "FC"
+   ]
+  },
+  "team_head": {
+   "home": {
+    "corners": 8,
+    "clear_cut_chances": 3,
+    "offsides": 8,
+    "fouls": 12,
+    "headers_won": 18,
+    "passes_attempted": 579,
+    "passes_completed": 514,
+    "crosses_attempted": 22,
+    "crosses_completed": 6,
+    "manager_tid": 44959
+   },
+   "away": {
+    "corners": 4,
+    "clear_cut_chances": 0,
+    "offsides": 3,
+    "fouls": 10,
+    "headers_won": 23,
+    "passes_attempted": 496,
+    "passes_completed": 427,
+    "crosses_attempted": 39,
+    "crosses_completed": 7
+   }
+  },
+  "screen_sums": {
+   "home": {
+    "shotA": 17,
+    "shotO": 7,
+    "tackW": 6,
+    "yellow": 1
+   },
+   "away": {
+    "shotA": 7,
+    "shotO": 5,
+    "tackW": 9,
+    "yellow": 2
+   }
+  },
+  "xg": {
+   "screen": [
+    2.18,
+    0.27
+   ],
+   "slot_sum_x100": [
+    217,
+    27
+   ]
+  },
+  "events": [
+   [
+    38,
+    8,
+    0,
+    1,
+    38938
+   ],
+   [
+    1,
+    16,
+    0,
+    0,
+    4353
+   ],
+   [
+    23,
+    16,
+    0,
+    0,
+    4353
+   ],
+   [
+    36,
+    16,
+    0,
+    0,
+    8821
+   ],
+   [
+    47,
+    27,
+    0,
+    0,
+    4353
+   ],
+   [
+    38,
+    44,
+    3,
+    1,
+    28085
+   ],
+   [
+    47,
+    57,
+    0,
+    0,
+    6588
+   ],
+   [
+    38,
+    88,
+    0,
+    0,
+    37343
+   ],
+   [
+    47,
+    89,
+    2,
+    0,
+    29649
+   ]
+  ],
+  "slot_columns": [
+   "passA",
+   "passC",
+   "keyPass",
+   "tackA",
+   "tackW",
+   "intercept",
+   "headA",
+   "headW",
+   "crossA",
+   "crossC",
+   "dribbles",
+   "shotA",
+   "shotO",
+   "condition",
+   "rating",
+   "mistakes",
+   "mistGoal",
+   "assists"
+  ],
+  "home": {
+   "7422 Stone": [
+    27,
+    19,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    97,
+    7,
+    0,
+    0,
+    0
+   ],
+   "8438 Oxlade-Chamberlain": [
+    27,
+    25,
+    2,
+    0,
+    0,
+    2,
+    5,
+    2,
+    1,
+    1,
+    5,
+    0,
+    0,
+    85,
+    7,
+    0,
+    0,
+    0
+   ],
+   "8821 Law": [
+    72,
+    60,
+    5,
+    0,
+    0,
+    3,
+    4,
+    2,
+    9,
+    2,
+    5,
+    2,
+    0,
+    73,
+    8,
+    0,
+    0,
+    1
+   ],
+   "9445 Harrison": [
+    42,
+    36,
+    0,
+    0,
+    0,
+    6,
+    6,
+    3,
+    0,
+    0,
+    0,
+    1,
+    0,
+    81,
+    7,
+    0,
+    0,
+    0
+   ],
+   "6983 Donnellan": [
+    42,
+    39,
+    0,
+    0,
+    0,
+    4,
+    3,
+    3,
+    1,
+    0,
+    0,
+    1,
+    0,
+    79,
+    7,
+    0,
+    0,
+    0
+   ],
+   "37343 Nunn": [
+    67,
+    65,
+    0,
+    3,
+    2,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    73,
+    7,
+    0,
+    0,
+    0
+   ],
+   "9274 Hasani": [
+    48,
+    44,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    1,
+    0,
+    1,
+    2,
+    0,
+    80,
+    7,
+    0,
+    0,
+    0
+   ],
+   "9081 Dean": [
+    62,
+    60,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    84,
+    7,
+    0,
+    0,
+    0
+   ],
+   "4353 Starkie": [
+    55,
+    46,
+    2,
+    0,
+    0,
+    0,
+    2,
+    1,
+    1,
+    1,
+    1,
+    3,
+    2,
+    74,
+    8,
+    0,
+    0,
+    0
+   ],
+   "8003 Harvey": [
+    30,
+    28,
+    3,
+    0,
+    0,
+    0,
+    6,
+    2,
+    1,
+    1,
+    1,
+    0,
+    0,
+    87,
+    7,
+    0,
+    0,
+    0
+   ],
+   "6588 Bogle": [
+    42,
+    35,
+    2,
+    0,
+    0,
+    1,
+    7,
+    1,
+    0,
+    0,
+    1,
+    5,
+    3,
+    82,
+    7,
+    0,
+    0,
+    0
+   ],
+   "29417 Kinsey-Wellings": [
+    6,
+    6,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    100,
+    7,
+    0,
+    0,
+    0
+   ],
+   "25434 Bell": [
+    18,
+    15,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    2,
+    1,
+    0,
+    0,
+    0,
+    87,
+    7,
+    0,
+    0,
+    0
+   ],
+   "29941 Roberts": [
+    19,
+    16,
+    1,
+    1,
+    1,
+    1,
+    2,
+    0,
+    1,
+    0,
+    1,
+    1,
+    1,
+    90,
+    7,
+    0,
+    0,
+    0
+   ],
+   "29649 Tweedy": [
+    11,
+    11,
+    1,
+    1,
+    1,
+    0,
+    3,
+    1,
+    4,
+    0,
+    1,
+    0,
+    0,
+    96,
+    7,
+    0,
+    0,
+    0
+   ],
+   "25700 Greenslade": [
+    11,
+    9,
+    2,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    2,
+    1,
+    98,
+    7,
+    0,
+    0,
+    0
+   ]
+  },
+  "away": {
+   "9597 Collins": [
+    30,
+    28,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    92,
+    8,
+    0,
+    0,
+    0
+   ],
+   "29720 Cochrane": [
+    63,
+    57,
+    0,
+    1,
+    0,
+    6,
+    2,
+    2,
+    7,
+    0,
+    0,
+    0,
+    0,
+    78,
+    7,
+    0,
+    0,
+    0
+   ],
+   "28085 Abbott": [
+    39,
+    29,
+    0,
+    2,
+    2,
+    6,
+    8,
+    7,
+    0,
+    0,
+    0,
+    0,
+    0,
+    71,
+    7,
+    0,
+    0,
+    0
+   ],
+   "38938 Odeniran": [
+    27,
+    24,
+    0,
+    2,
+    2,
+    2,
+    5,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    82,
+    6,
+    0,
+    0,
+    0
+   ],
+   "30725 Ragguette": [
+    59,
+    54,
+    1,
+    2,
+    1,
+    2,
+    5,
+    3,
+    8,
+    3,
+    0,
+    2,
+    1,
+    75,
+    7,
+    0,
+    0,
+    0
+   ],
+   "28738 Welch": [
+    24,
+    20,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    86,
+    6,
+    0,
+    0,
+    0
+   ],
+   "8730 N'Guessan": [
+    28,
+    24,
+    1,
+    0,
+    0,
+    1,
+    2,
+    1,
+    0,
+    0,
+    0,
+    1,
+    1,
+    85,
+    7,
+    0,
+    0,
+    0
+   ],
+   "8980 Mitchell-Lawson": [
+    66,
+    54,
+    2,
+    2,
+    0,
+    1,
+    1,
+    1,
+    7,
+    1,
+    2,
+    2,
+    1,
+    71,
+    6,
+    0,
+    0,
+    0
+   ],
+   "26798 Nkrumah": [
+    59,
+    52,
+    2,
+    4,
+    2,
+    1,
+    3,
+    1,
+    10,
+    2,
+    2,
+    1,
+    1,
+    72,
+    6,
+    0,
+    0,
+    0
+   ],
+   "8274 Umerah": [
+    35,
+    27,
+    1,
+    0,
+    0,
+    0,
+    4,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    80,
+    6,
+    0,
+    0,
+    0
+   ],
+   "42598 Pendlebury": [
+    11,
+    10,
+    1,
+    0,
+    0,
+    0,
+    4,
+    2,
+    2,
+    1,
+    0,
+    0,
+    0,
+    91,
+    6,
+    0,
+    0,
+    0
+   ],
+   "6727 Robinson": [
+    9,
+    7,
+    1,
+    0,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    92,
+    7,
+    0,
+    0,
+    0
+   ],
+   "9238 Coley": [
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    81,
+    7,
+    0,
+    0,
+    0
+   ],
+   "8795 Hall": [
+    12,
+    12,
+    0,
+    0,
+    0,
+    1,
+    2,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    92,
+    7,
+    0,
+    0,
+    0
+   ],
+   "21458 Clerima": [
+    10,
+    8,
+    0,
+    1,
+    1,
+    1,
+    2,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    98,
+    7,
+    0,
+    0,
+    0
+   ],
+   "27872 Johnson": [
+    23,
+    20,
+    0,
+    0,
+    0,
+    1,
+    3,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    88,
+    7,
+    0,
+    0,
+    0
+   ]
+  },
+  "subs_on": {
+   "25434": 46,
+   "29941": 61,
+   "29649": 72
+  },
+  "screen_assists": {
+   "8821": 1
+  },
+  "errors_row0": {
+   "row": 61604420,
+   "tids": [
+    8350,
+    9519
+   ]
+  },
+  "conceded": {
+   "7422": 0,
+   "9597": 1
+  }
+ },
+ "contracts": {
+  "wage_units_x": 520,
+  "rows": {
+   "7422": [
+    "Aidan Stone",
+    120,
+    "2027-06-30",
+    "£62K",
+    "6/2027"
+   ],
+   "8438": [
+    "Christian Oxlade-Chamberlain",
+    85,
+    "2027-06-30",
+    "£44K",
+    "6/2027"
+   ],
+   "8821": [
+    "Ryan Law",
+    90,
+    "2027-06-30",
+    "£47K",
+    "6/2027"
+   ],
+   "9445": [
+    "Tom Harrison",
+    75,
+    "2027-06-30",
+    "£39K",
+    "6/2027"
+   ],
+   "6983": [
+    "Shaun Donnellan",
+    100,
+    "2027-06-30",
+    "£52K",
+    "6/2027"
+   ],
+   "37343": [
+    "Jack Nunn",
+    75,
+    "2027-06-30",
+    "£39K",
+    "6/2027"
+   ],
+   "9274": [
+    "Lirak Hasani",
+    80,
+    "2027-06-30",
+    "£41.5K",
+    "6/2027"
+   ],
+   "9081": [
+    "Will Dean",
+    90,
+    "2029-06-30",
+    "£47K",
+    "6/2029"
+   ],
+   "4353": [
+    "Ben Starkie",
+    60,
+    "2027-06-30",
+    "£31K",
+    "6/2027"
+   ],
+   "8003": [
+    "Tyler Harvey",
+    120,
+    "2028-05-30",
+    "£62K",
+    "5/2028"
+   ],
+   "29941": [
+    "Caleb Roberts",
+    150,
+    "2028-06-30",
+    "£78K",
+    "30/6/2028"
+   ]
+  }
+ },
+ "training": {
+  "rows": {
+   "8003": [
+    "Harvey",
+    "Target Forward",
+    "Movement",
+    20,
+    13,
+    2
+   ],
+   "25700": [
+    "Greenslade",
+    "Poacher",
+    "Shooting",
+    19,
+    4,
+    2
+   ],
+   "9271": [
+    "Stretton",
+    "Target Forward",
+    "Movement",
+    20,
+    13,
+    2
+   ],
+   "8820": [
+    "Jephcott",
+    "Attacking Mid.",
+    "Movement",
+    33,
+    13,
+    2
+   ],
+   "6588": [
+    "Bogle",
+    "Pressing Fwd.",
+    "Movement",
+    24,
+    13,
+    2
+   ],
+   "29649": [
+    "Tweedy",
+    "Inside Forward",
+    "Movement",
+    13,
+    13,
+    2
+   ],
+   "4353": [
+    "Starkie",
+    "Shadow Str.",
+    "Movement",
+    27,
+    13,
+    2
+   ],
+   "29941": [
+    "Roberts",
+    "Central Mid.",
+    "Creativity",
+    14,
+    11,
+    2
+   ],
+   "8934": [
+    "En-Neyah",
+    "Central Mid.",
+    "Passing",
+    14,
+    3,
+    2
+   ]
+  }
+ },
+ "fixtures": {
+  "rows": [
+   [
+    "2026-07-11",
+    3125,
+    5164,
+    2,
+    0,
+    164
+   ],
+   [
+    "2026-07-18",
+    367,
+    3125,
+    3,
+    1,
+    164
+   ],
+   [
+    "2026-07-25",
+    404,
+    3125,
+    2,
+    1,
+    164
+   ],
+   [
+    "2026-08-01",
+    3125,
+    3761,
+    1,
+    0,
+    164
+   ],
+   [
+    "2026-08-08",
+    3125,
+    2354,
+    1,
+    0,
+    38
+   ]
+  ],
+  "league": {
+   "season_year": 2026,
+   "round": 0,
+   "stage_index": 0,
+   "round_index": null,
+   "referee_tid": 39392,
+   "stadium_id": 11983
+  },
+  "raw": [
+   102481,
+   "ff ea 07 ff ff ff ff e0 99 00 00 00 ff 00",
+   "Truro v Maidenhead's tail: season 2026, referee 39392, stage 0, matchday 0"
+  ]
+ },
+ "comp_rules": {
+  "member": "comp_5123055.dat",
+  "raw": [
+   [
+    1670,
+    "6e 69 77 70 01 11 03",
+    "pwin 3: Points For Win"
+   ],
+   [
+    1663,
+    "77 72 64 70 01 11 01",
+    "pdrw 1: Points For Draw"
+   ],
+   [
+    1909,
+    "74 72 6f 73 01 0b 04 00 00 00 01 11 00 01 11 01 01 11 02 01 11 03",
+    "sort [0, 1, 2, 3]: Goal Difference, Goals Scored, Games Won, Results Between Teams"
+   ]
+  ],
+  "league": {
+   "ntms": 24,
+   "nrds": 2,
+   "pwin": 3,
+   "pdrw": 1,
+   "prmr.nrpl": 1,
+   "tppr.nrpl": 6,
+   "relr.nrpl": 4,
+   "sort": [
+    0,
+    1,
+    2,
+    3
+   ]
+  }
+ },
+ "player_progress": {
+  "8501": {
+   "2026-07-25": 1,
+   "2026-08-01": 1,
+   "2026-08-08": 1
+  },
+  "9271": {
+   "2026-07-25": 1,
+   "2026-08-01": 2,
+   "2026-08-08": 0
+  }
+ },
+ "player_lists": {
+  "bogle": {
+   "tid": 6588,
+   "entries": [
+    [
+     63,
+     0
+    ],
+    [
+     31,
+     13
+    ]
+   ],
+   "role": 24,
+   "pos_amc": 15,
+   "pos_st": 20,
+   "foot_left": 20,
+   "foot_right": 10,
+   "wage": 1100,
+   "attrs": {
+    "aerial": 11,
+    "crossing": 7,
+    "dribbling": 8,
+    "passing": 9,
+    "shooting": 9,
+    "tackling": 5,
+    "technique": 12,
+    "aggression": 15,
+    "creativity": 8,
+    "decisions": 8,
+    "leadership": 8,
+    "movement": 9,
+    "positioning": 8,
+    "teamwork": 11,
+    "pace": 11,
+    "stamina": 13,
+    "strength": 13
+   }
+  },
+  "best_eleven": {
+   "list": 63,
+   "tids": {
+    "7422": "Stone",
+    "6983": "Donnellan",
+    "9445": "Harrison",
+    "29417": "Kinsey-Wellings",
+    "25434": "Bell",
+    "8821": "Law",
+    "8501": "Rooney",
+    "9274": "Hasani",
+    "8820": "Jephcott",
+    "8003": "Harvey",
+    "6588": "Bogle"
+   }
+  }
+ },
+ "staff": {
+  "alcalde": {
+   "tid": 29623,
+   "id2": 5443,
+   "dob": "1979-03-09",
+   "nationality_id": 170,
+   "club_tid": 907,
+   "formation_preferred": 2,
+   "formation": "4-1-2-2-1",
+   "world_reputation": 5100
+  }
+ }
+}
