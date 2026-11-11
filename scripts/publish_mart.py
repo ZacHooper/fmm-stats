@@ -121,9 +121,9 @@ def build(src_path, dest):
             scd.set_pieces, scd.penalty, scd.work_rate, scd.flair,
             scd.adaptability, scd.ambition, scd.determination, scd.loyalty, scd.pressure,
             scd.professionalism, scd.sportsmanship, scd.temperament,
-            scd.pos_gk, scd.pos_sw, scd.pos_dl, scd.pos_dc, scd.pos_dr, scd.pos_dmc,
-            scd.pos_ml, scd.pos_mc, scd.pos_mr, scd.pos_aml, scd.pos_amc, scd.pos_amr,
-            scd.pos_st, scd.pos_dml, scd.pos_dmr,
+            scd.familiarity_gk, scd.familiarity_sw, scd.familiarity_dl, scd.familiarity_dc, scd.familiarity_dr, scd.familiarity_dmc,
+            scd.familiarity_ml, scd.familiarity_mc, scd.familiarity_mr, scd.familiarity_aml, scd.familiarity_amc, scd.familiarity_amr,
+            scd.familiarity_st, scd.familiarity_dml, scd.familiarity_dmr,
             positions.positions,
             val.snapshot_date = max(val.snapshot_date) over () as is_current
         FROM mart.fact_player_valuation val
@@ -140,7 +140,7 @@ def build(src_path, dest):
                         scd.team_tid,
                         scd.ca,
                         unnest(['GK', 'SW', 'DL', 'DC', 'DR', 'DMC', 'ML', 'MC', 'MR', 'AML', 'AMC', 'AMR', 'ST', 'DML', 'DMR']) AS position,
-                        unnest([scd.pos_gk, scd.pos_sw, scd.pos_dl, scd.pos_dc, scd.pos_dr, scd.pos_dmc, scd.pos_ml, scd.pos_mc, scd.pos_mr, scd.pos_aml, scd.pos_amc, scd.pos_amr, scd.pos_st, scd.pos_dml, scd.pos_dmr]) AS familiarity
+                        unnest([scd.familiarity_gk, scd.familiarity_sw, scd.familiarity_dl, scd.familiarity_dc, scd.familiarity_dr, scd.familiarity_dmc, scd.familiarity_ml, scd.familiarity_mc, scd.familiarity_mr, scd.familiarity_aml, scd.familiarity_amc, scd.familiarity_amr, scd.familiarity_st, scd.familiarity_dml, scd.familiarity_dmr]) AS familiarity
                     FROM mart.fact_player_valuation val
                     JOIN mart.fact_player_state_scd scd
                       ON val.person_id = scd.person_id

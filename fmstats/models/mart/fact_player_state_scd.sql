@@ -47,7 +47,8 @@ with player_state as (
         ratings.{{ column }},
         {% endfor %}
         {% for position in var('positions') %}
-        ratings.pos_{{ position | lower }},
+        ratings.pos_{{ position | lower }}
+            as familiarity_{{ position | lower }},
         {% endfor %}
         -- Hash of all non-temporal state columns to detect true state changes
         md5(concat_ws('||',
@@ -167,7 +168,7 @@ intervals as (
         first({{ column }}) as {{ column }},
         {% endfor %}
         {% for position in var('positions') %}
-        first(pos_{{ position | lower }}) as pos_{{ position | lower }}{% if not loop.last %},{% endif %}
+        first(familiarity_{{ position | lower }}) as familiarity_{{ position | lower }}{% if not loop.last %},{% endif %}
         {% endfor %}
     from runs
     group by person_id, run_id
@@ -216,7 +217,7 @@ select
     {{ column }},
     {% endfor %}
     {% for position in var('positions') %}
-    pos_{{ position | lower }}{% if not loop.last %},{% endif %}
+    familiarity_{{ position | lower }}{% if not loop.last %},{% endif %}
     {% endfor %}
 from intervals
 order by person_id, valid_from

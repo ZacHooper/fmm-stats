@@ -181,7 +181,6 @@ The order positions are listed in, back to front.
 
 {% docs familiarity %}
 How familiar he is with a position, 1-20 (20 natural); 0 or no entry where he can't play it.
-Synonyms: `pos_*` → `familiarity_*`.
 {% enddocs %}
 
 {% docs positions %}
