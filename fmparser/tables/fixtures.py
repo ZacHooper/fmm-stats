@@ -91,10 +91,12 @@ NO_ROUND = 0xFF           # +78 when the match belongs to no matchday (friendlie
 NO_REFEREE = 0xFFFFFFFF   # +72 when the fixture has no referee
 
 
-# FMM27 (truro-2026-07-25, 499 fixtures, all friendlies): 95 bytes, opener 0x1f. The
-# goals block is FMM22's; two bytes come in before +30, so the stage key, venue, clubs and
-# dates sit two later. The tail from +63 is one byte longer than FMM22's and unread: a
-# save with league fixtures is needed to place the season, referee, round and stage bytes.
+# FMM27: 95 bytes, opener 0x1f. The goals block is FMM22's; two bytes come in before +30,
+# so the stage key, venue, clubs and dates sit two later. The tail from +63 is one byte
+# longer than FMM22's: the season year, the referee and the stage, stage-round and matchday
+# bytes sit two EARLIER than FMM22's (truro-2026-08-08: league fixtures read season 2026,
+# matchday 0 on the opening day and 1 where a second matchday is played; friendlies read
+# 0 and 0xff). The rest of the tail is unread.
 STRIDE_FMM27 = 95
 OPENER_FMM27 = 0x1F
 
@@ -122,7 +124,14 @@ FIXTURE_FMM27 = Record("world_fixture_fmm27", STRIDE_FMM27, [
     Field(57, 2, "year", U16),
     Field(59, 2, "day2_raw", U16),
     Field(61, 2, "year2", U16, note="1900 on every friendly"),
-    Field(63, 32, UNKNOWN, RAW),
+    Field(63, 1, UNKNOWN, RAW),
+    Field(64, 2, "season_year", U16, note="the campaign's start year; 0 on friendlies"),
+    Field(66, 4, UNKNOWN, RAW),
+    Field(70, 4, "referee_tid", U32, note="the referee's tid; 0xffffffff = none"),
+    Field(74, 1, "stage_attr_76", U8, note="stage index within the competition (FMM22 +76)"),
+    Field(75, 1, "stage_attr_77", U8, note="index within the stage (FMM22 +77)"),
+    Field(76, 1, "round", U8, note="matchday within the competition; 255 = none"),
+    Field(77, 18, UNKNOWN, RAW),
 ])
 
 
@@ -217,6 +226,11 @@ def _process_fixture_fmm27(r: Dict[str, Any], offset: int) -> Dict[str, Any]:
         **out,
         "stage_key": r["stage_key"],
         "stadium_id": r["stadium_id"],
+        "round": None if r["round"] == NO_ROUND else r["round"],
+        "referee_tid": None if r["referee_tid"] == NO_REFEREE else r["referee_tid"],
+        "season_year": None if r["season_year"] == 0 else r["season_year"],
+        "stage_index": None if r["stage_attr_76"] == 0xFF else r["stage_attr_76"],
+        "round_index": None if r["stage_attr_77"] == 0xFF else r["stage_attr_77"],
     }
 
 
@@ -227,7 +241,8 @@ FIXTURES_TABLE_FMM27 = TableDef(
     locator=lambda blob: segments(blob, STRIDE_FMM27, OPENER_FMM27),
     fields=("home_tid", "away_tid", "day_raw", "year", "home_goals", "away_goals",
             "home_extra_goals", "away_extra_goals", "home_pens", "away_pens", "stage_key",
-            "stadium_id"),
+            "stadium_id", "round", "referee_tid", "season_year", "stage_attr_76",
+            "stage_attr_77"),
     post_process=_process_fixture_fmm27,
 )
 

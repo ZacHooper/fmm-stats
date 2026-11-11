@@ -49,8 +49,18 @@ The template year is `0x07E4` (2020), so the locator takes the template year by 
 ## Evidence
 
 `truro-2026-07-25`: two rows carry injury bits, Jack Stretton (9271) and Dan Rooney (8501),
-both status 1. Tested by `tests/test_career_fmm27_evidence.py`. Pending: their profile or the
-squad's injury list, to tie the bits to the screen on FMM27.
+both status 1. Tested by `tests/test_career_fmm27_evidence.py`.
+
+`truro-2026-08-08`, Rooney's Player Match Eligibility. Tested by
+`tests/test_screens_fmm27_evidence.py`.
+
+![Dan Rooney: Unavailable due to injury, Damaged cruciate ligaments (About 9 months), Inj](img/player_progress-fmm27-1.jpg)
+
+Rooney's rows read status 1 in every week from 25 July to 8 August: the injury bits, as on
+FMM22. Stretton's read 1 on 25 July, 2 on 1 August and 0 on 8 August, the day he was a
+named substitute against Maidenhead ([matches](matches.md#evidence)). The injury's name and
+length are not in this table, nor in the player record's unavailability list (that list is
+the database's bans); where the running game keeps them is not found.
 
 ### FMM22
 

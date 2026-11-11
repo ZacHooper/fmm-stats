@@ -12,8 +12,8 @@ record is read in full (Layout, FMM22).
 
 Offsets from the record's first byte. The goals block is FMM22's; two bytes come in before
 `+30`, so everything from the stage key to the dates sits two later than on FMM22. The tail
-from `+63` is one byte longer than FMM22's and unread: the season, referee, round and stage
-bytes need a save with league fixtures to place, so the output carries only the fields below.
+from `+63` is one byte longer than FMM22's; the season year, the referee and the stage and
+matchday bytes sit two **earlier** than FMM22's. The rest of the tail is unread.
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
@@ -30,6 +30,11 @@ bytes need a save with league fixtures to place, so the output carries only the 
 | +55 | `day_raw` | u16 | day of the year **1-based** in the low 9 bits | 25 July = the [match](matches.md) row's date |
 | +57 | `year` | u16 | the match's year | |
 | +59, +61 | `day2_raw`, `year2` | u16 | a second date; 1 Jan 1900 on every friendly | |
+| +64 | `season_year` | u16 | the campaign's start year; 0 on friendlies | Truro v Maidenhead 2026, in "2026/27 Season" |
+| +70 | `referee_tid` | u32 | the referee; `ffffffff` = none (every friendly) | 39392 on Truro v Maidenhead, an English person with no club |
+| +74 | `stage_index` (`stage_attr_76`) | u8 | the stage within the competition; `ff` on friendlies | 0, the league phase, on every league fixture |
+| +75 | `round_index` (`stage_attr_77`) | u8 | the index within the stage; `ff` = none | 0–7 across eight cup groups (stage keys 179–186) |
+| +76 | `round` | u8 | matchday within the competition; `ff` = none | 0 on the opening day (8 August), 1 where a league has played twice |
 
 **How it is found.** `segments` scans the decompressed member for the opener `[u8][0x1f]
 [ff ff ff ff]` and splits the hits into runs of exact 95-byte steps.
@@ -79,7 +84,23 @@ exactly (`count × 92`). The grids are walked in file order.
 `truro-2026-07-25`, Truro's three friendlies: 2-0 at home to 5164 at stadium 11983 (Truro's)
 on 11 July, 1-3 at 367 on 18 July, 1-2 at 404 on 25 July; the last is also the
 [match](matches.md) row the save holds. Tested by `tests/test_career_fmm27_evidence.py`.
-Pending: Truro's Fixtures/Results screen.
+
+`truro-2026-08-08`, Club Fixtures. Tested by `tests/test_screens_fmm27_evidence.py`.
+
+![Club Fixtures, 2026/27: Hereford H 2-0, Peterborough A 3-1, Wigan A 2-1, Darlington H 1-0, Maidenhead H 1-0, then Chelmsford A on 15 Aug](img/fixtures-fmm27-1.jpg)
+
+| on screen | parsed |
+|---|---|
+| 11 Jul 26, Hereford H, 2-0, Friendly | 3125 v 5164, 2-0, stadium 11983, stage 164 |
+| 18 Jul 26, Peterborough A, 3-1 | 367 v 3125, 3-1, stage 164 |
+| 25 Jul 26, Wigan A, 2-1 | 404 v 3125, 2-1, stage 164 |
+| 1 Aug 26, Darlington H, 1-0 | 3125 v 3761, 1-0, stage 164 |
+| 8 Aug 26, Maidenhead H, 1-0, Enterprise South | 3125 v 2354, 1-0, stage 38, `season_year` 2026, `round` 0, `stage_index` 0, `referee_tid` 39392 |
+| 15 Aug 26, Chelmsford A, and the rest of the list | not in the table: it holds played fixtures only |
+
+The Maidenhead fixture's tail from +63: `ff ea 07 ff ff ff ff e0 99 00 00 00 ff 00 ff …`. The
+[match table](matches.md) holds the last three of the five (25 July on); the two earlier
+friendlies were played before the career's first save.
 
 ### FMM22
 

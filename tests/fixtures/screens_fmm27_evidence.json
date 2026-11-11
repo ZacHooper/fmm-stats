@@ -1,6 +1,6 @@
 {
  "save": "truro-2026-08-08.fms",
- "note": "Truro 1-0 Maidenhead United, Enterprise National League South, 8 Aug 2026: summary, stats, both ratings screens and match events (docs/parser/img/matches-fmm27-*.jpg); Club Squad - Contract and Caleb Roberts's contract (contracts-fmm27-*); Individual Training and two training reports (training-fmm27-*).",
+ "note": "Truro 1-0 Maidenhead United, Enterprise National League South, 8 Aug 2026: summary, stats, both ratings screens and match events (docs/parser/img/matches-fmm27-*.jpg); Club Squad - Contract and Caleb Roberts's contract (contracts-fmm27-*); Individual Training and two training reports (training-fmm27-*). Second batch: Club Fixtures (fixtures-fmm27-1), the league's rules (comp_rules-fmm27-*), Rooney's eligibility (player_progress-fmm27-1), Bogle's Player Profile and the All-Time Manager's Best Eleven (player_lists-fmm27-*), Alcalde's Staff Profile (staff-fmm27-3).",
  "matches": {
   "row0": 61604420,
   "count": 3,
@@ -909,6 +909,178 @@
     3,
     2
    ]
+  }
+ },
+ "fixtures": {
+  "rows": [
+   [
+    "2026-07-11",
+    3125,
+    5164,
+    2,
+    0,
+    164
+   ],
+   [
+    "2026-07-18",
+    367,
+    3125,
+    3,
+    1,
+    164
+   ],
+   [
+    "2026-07-25",
+    404,
+    3125,
+    2,
+    1,
+    164
+   ],
+   [
+    "2026-08-01",
+    3125,
+    3761,
+    1,
+    0,
+    164
+   ],
+   [
+    "2026-08-08",
+    3125,
+    2354,
+    1,
+    0,
+    38
+   ]
+  ],
+  "league": {
+   "season_year": 2026,
+   "round": 0,
+   "stage_index": 0,
+   "round_index": null,
+   "referee_tid": 39392,
+   "stadium_id": 11983
+  },
+  "raw": [
+   102481,
+   "ff ea 07 ff ff ff ff e0 99 00 00 00 ff 00",
+   "Truro v Maidenhead's tail: season 2026, referee 39392, stage 0, matchday 0"
+  ]
+ },
+ "comp_rules": {
+  "member": "comp_5123055.dat",
+  "raw": [
+   [
+    1670,
+    "6e 69 77 70 01 11 03",
+    "pwin 3: Points For Win"
+   ],
+   [
+    1663,
+    "77 72 64 70 01 11 01",
+    "pdrw 1: Points For Draw"
+   ],
+   [
+    1909,
+    "74 72 6f 73 01 0b 04 00 00 00 01 11 00 01 11 01 01 11 02 01 11 03",
+    "sort [0, 1, 2, 3]: Goal Difference, Goals Scored, Games Won, Results Between Teams"
+   ]
+  ],
+  "league": {
+   "ntms": 24,
+   "nrds": 2,
+   "pwin": 3,
+   "pdrw": 1,
+   "prmr.nrpl": 1,
+   "tppr.nrpl": 6,
+   "relr.nrpl": 4,
+   "sort": [
+    0,
+    1,
+    2,
+    3
+   ]
+  }
+ },
+ "player_progress": {
+  "8501": {
+   "2026-07-25": 1,
+   "2026-08-01": 1,
+   "2026-08-08": 1
+  },
+  "9271": {
+   "2026-07-25": 1,
+   "2026-08-01": 2,
+   "2026-08-08": 0
+  }
+ },
+ "player_lists": {
+  "bogle": {
+   "tid": 6588,
+   "entries": [
+    [
+     63,
+     0
+    ],
+    [
+     31,
+     13
+    ]
+   ],
+   "role": 24,
+   "pos_amc": 15,
+   "pos_st": 20,
+   "foot_left": 20,
+   "foot_right": 10,
+   "wage": 1100,
+   "attrs": {
+    "aerial": 11,
+    "crossing": 7,
+    "dribbling": 8,
+    "passing": 9,
+    "shooting": 9,
+    "tackling": 5,
+    "technique": 12,
+    "aggression": 15,
+    "creativity": 8,
+    "decisions": 8,
+    "leadership": 8,
+    "movement": 9,
+    "positioning": 8,
+    "teamwork": 11,
+    "pace": 11,
+    "stamina": 13,
+    "strength": 13
+   }
+  },
+  "best_eleven": {
+   "list": 63,
+   "tids": {
+    "7422": "Stone",
+    "6983": "Donnellan",
+    "9445": "Harrison",
+    "29417": "Kinsey-Wellings",
+    "25434": "Bell",
+    "8821": "Law",
+    "8501": "Rooney",
+    "9274": "Hasani",
+    "8820": "Jephcott",
+    "8003": "Harvey",
+    "6588": "Bogle"
+   }
+  }
+ },
+ "staff": {
+  "alcalde": {
+   "tid": 29623,
+   "id2": 5443,
+   "dob": "1979-03-09",
+   "nationality_id": 170,
+   "club_tid": 907,
+   "formation_preferred": 2,
+   "formation": "4-1-2-2-1",
+   "world_reputation": 5100
   }
  }
 }

@@ -281,6 +281,12 @@ corners, clear-cut chances and the manager's tid; the 70-byte slot holds each pl
 Event codes are new: 01 goal, 24 assist, 26 yellow, 2f clear-cut chance.</li>
 <li><strong>contracts</strong> and <strong>training</strong> agree with Club Squad - Contract and Individual
 Training. Training's role codes are not FMM22's (two roles are new); the attribute codes are.</li>
+<li><strong>fixtures</strong>: the tail's season year (+64), referee (+70), stage index (+74), index within the
+stage (+75) and matchday (+76) sit two bytes earlier than FMM22's. Club Fixtures matches all five played games.</li>
+<li><strong>comp_rules</strong>: the league's rules screen is its stage tags <code>pwin</code>, <code>pdrw</code>,
+<code>ntms</code>/<code>nrds</code>, <code>prmr</code>, <code>tppr</code>, <code>relr</code>, <code>sort</code>, <code>fxds</code>.
+<strong>player_progress</strong>, <strong>player_lists</strong> (Bogle's profile, the Best Eleven) and <strong>staff</strong>
+(Alcalde) agree with their screens.</li>
 <li>Evidence: <code>tests/test_screens_fmm27_evidence.py</code>, <code>tests/test_nations_fmm27_ranking.py</code>.</li>
 </ul></li>
 <li>Gates: suite green, FMM22 IDENTICAL, Frem's audit PASS. Evidence:

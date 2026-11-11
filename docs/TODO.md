@@ -81,10 +81,16 @@ to resume. Now: `extract.py` runs end to end on `truro-2026-07-25`. The referenc
 career half read with FMM27 declarations where the layout changed (`tables_for(mm)` picks
 each by `save_format`): contracts, player progress, training, player lists (132 lists), the
 archive (bare frames), world fixtures (95 B) and competition rounds; our matches (5,676 +
-17 n B rows, 70 B player slots with each player's xG), contracts and training are checked
-against screens on `truro-2026-08-08`. Open, in order:
-- **Screens for the career tables**: an injured player's profile, a Scrapbook Profile, the
-  Fixtures/Results screen, a Best Eleven, the league rules (each table doc's Evidence names it).
+17 n B rows, 70 B player slots with each player's xG), contracts, training, player progress,
+player lists, fixtures (with the tail's season, referee, stage and matchday) and the league
+rules are checked against screens on `truro-2026-08-08`. Open, in order:
+- **Not placed from the 8 August screens**: an injury's name and length (Rooney's damaged
+  cruciate ligaments, about 9 months); a staff member's badge, specialism and trainable
+  traits (Alcalde, Gold Badge); the star bands for staff reputation; whether lists 66–131
+  are women's (the Best Eleven screen has a Male switch).
+- **The match table holds fewer matches than the fixture list** on FMM27: 3 of Truro's 5 on
+  `truro-2026-08-08` (25 July on). `check_against_fixtures` needs the career's first day,
+  not the rollover, as its lower bound for Truro.
 - **Match slot bytes not placed**: assists, mistakes and mistakes leading to a goal (a match
   with a non-zero one, and its ratings screen), possession and team rating; event types
   `17`, `18`, `27`, `29` ([matches](parser/matches.md#layout)).

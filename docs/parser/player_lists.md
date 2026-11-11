@@ -89,8 +89,33 @@ then:
 ## Evidence
 
 `truro-2026-07-25`: Omar Bogle's entry (list 63, slot 0) and Harry Kane's (list 62) are tested
-by `tests/test_career_fmm27_evidence.py`. Pending: a Scrapbook Profile, and a save later in
-the season to see the season numbers non-zero.
+by `tests/test_career_fmm27_evidence.py`. Pending: a save later in the season to see the
+season numbers non-zero.
+
+`truro-2026-08-08`, Omar Bogle's Player Profile and the All-Time Manager's Best Eleven.
+Tested by `tests/test_screens_fmm27_evidence.py`.
+
+![Omar Bogle, Player Profile: 33 yrs, 26/7/1993, £55K, £57K, 30/6/2027, Pressing Forward, Aerial 11 ... Strength 13, Left](img/player_lists-fmm27-1.jpg)
+
+Bogle has two entries: list 63 slot 0 (19 July, the career's first day, age 32) and list 31
+slot 13 (1 August, age 33). Both carry the profile's seventeen attributes exactly: Aerial 11,
+Crossing 7, Dribbling 8, Passing 9, Shooting 9, Tackling 5, Technique 12, Aggression 15,
+Creativity 8, Decisions 8, Leadership 8, Movement 9, Positioning 8, Teamwork 11, Pace 11,
+Stamina 13, Strength 13. Role 24 is "Pressing Forward" (FMM27's role codes,
+[training](training.md#evidence)); position ratings AMC 15 and ST 20 are "Attacking Midfielder
+(Centre), Striker"; `foot_left` 20 and `foot_right` 10 are "Left". `wage` 1,100 is £ a week:
+× 52 = £57,200, the profile's £57K. `value` is the entry's own day's (53,820 on 1 August; the
+profile shows today's £55K), and so are `form_*` (1 August: `ff ff 7 6 6`, the first three of
+the profile's 7-6-6-7-7) and `avg_rating`.
+
+![All-Time Manager's Best Eleven, initial selection from start of career: Stone; Kinsey-Wellings, Harrison, Donnellan; Law, Bell; Hasani, Rooney; Jephcott; Bogle, Harvey](img/player_lists-fmm27-2.jpg)
+
+Every one of the eleven is in list 63, Truro's 26 as of 19 July: lists 63 and 65 are the
+Manager's Best Eleven - All-Time pool on FMM27 too. List 31, the first season's
+Manager's Best Eleven, fills by 1 August with 27 entries, loanee Caleb Roberts (Plymouth)
+and Louie Cayless (Exeter) among them. The screen's **Male** button sits beside All-Time:
+a men's/women's switch, which fits lists 66–131 being women's football's, unproven until a
+women's selection is read.
 
 ### FMM22
 

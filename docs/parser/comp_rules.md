@@ -97,8 +97,28 @@ members of frem-2030-06-22; later years on competitions whose next edition is se
 ## Evidence
 
 `truro-2026-07-25`: all 156 members unpack and read to their declared field counts, and the
-345 rows are tested by `tests/test_career_fmm27_evidence.py`. Pending: a rules screen for the
-Enterprise National League South (331) to check the FMM27 stage list against.
+345 rows are tested by `tests/test_career_fmm27_evidence.py`.
+
+`truro-2026-08-08`, the Enterprise National League South's rules (competition 331, uid
+5123055, member `comp_5123055.dat`, file `eng_national_south_region`). Tested by
+`tests/test_screens_fmm27_evidence.py`.
+
+![Rules: Dates 8th August 2026 - 24th April 2027; Points 3/1; 46 games; sorting; promotion; play-off; relegation](img/comp_rules-fmm27-1.jpg)
+![Rules, scrolled: Relegation, Bottom 4 teams are relegated to Regional Premier Divs](img/comp_rules-fmm27-2.jpg)
+
+Two stages: the league phase (index 0, 24 teams) and the play-off (index 1, 6 teams, three
+rounds). The screen is the league stage's tags, all unread by the parser (above):
+
+| on screen | raw bytes (member offset) | tag |
+|---|---|---|
+| Points For Win: 3 | 1,670 `6e 69 77 70 01 11 03` | `pwin` 3 |
+| Points For Draw: 1 | 1,663 `77 72 64 70 01 11 01` | `pdrw` 1 |
+| 46 games (teams play each other twice) | 206 `… 01 11 18`, 236 `… 01 11 02` | `ntms` 24, `nrds` 2 |
+| Goal Difference, Goals Scored, Games Won, Results Between Teams | 1,909 `74 72 6f 73 01 0b 04 00 00 00 01 11 00 01 11 01 01 11 02 01 11 03` | `sort` `[0, 1, 2, 3]`, FMM22's codes |
+| Top team wins promotion to Enterprise National | 1,677 | `prmr` `{nrpl 1, mnpl 1, mxpl 2, comp 109201, mnpc 4}` |
+| Teams placed 2nd-7th qualify for Playoff | 1,735 | `tppr` `{nrpl 6, nmsn {stgn 21}, stag 1}`: the next six go to stage 1, the play-off |
+| Bottom 4 teams are relegated to Regional Premier Divs | 1,796 | `relr` `{nrpl 4, comp 158186}` |
+| 8th August 2026 - 24th April 2027 | `fxds` | `{dyow 7, dyom 12, mont 8}` and `{dyow 7, dyom 28, mont 4}`: the Saturday on or before 12 August and 28 April |
 
 ### FMM22
 
