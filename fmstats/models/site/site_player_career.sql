@@ -12,13 +12,13 @@ select
     career_lines.team_tid,
     coalesce(teams.name, youth_clubs.name, '#' || career_lines.team_tid)
         as club,
-    career_lines.fee_kind,
+    career_lines.fee_type,
     career_lines.fee_gbp,
-    case career_lines.fee_kind
+    case career_lines.fee_type
         when 'fee' then '£' || format('{:,}', career_lines.fee_gbp)
         when 'contract_ended' then 'contract ended'
         when 'unknown' then null
-        else career_lines.fee_kind
+        else career_lines.fee_type
     end as fee_label,
     career_lines.apps,
     career_lines.goals,

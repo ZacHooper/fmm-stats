@@ -319,7 +319,7 @@ models:
           {{ doc("to_club_tid") }}'
       - name: move_type
         description: '{{ doc("move_type") }}'
-      - name: fee_type
+      - name: move_fee_type
         description: '{{ doc("move_fee_type") }}'
       - name: fee_gbp
         description: '{{ doc("fee_gbp") }}'
@@ -338,7 +338,7 @@ models:
         description: 'The team the line names; NULL on a line with no club. {{ doc("team_tid") }}'
       - name: club
         description: '{{ doc("club") }}'
-      - name: fee_kind
+      - name: fee_type
         description: '{{ doc("fee_type") }}'
       - name: fee_gbp
         description: '{{ doc("fee_gbp") }}'
@@ -384,7 +384,7 @@ models:
         description: 'Ours, as the match table stores it. {{ doc("formation") }}'
       - name: attendance
         description: '{{ doc("attendance") }}'
-      - name: stage_kind
+      - name: stage_type
         description: '{{ doc("stage_type") }}'
       - name: stage
         description: '{{ doc("stage") }}'
@@ -687,7 +687,7 @@ models:
           {{ doc("age") }}'
       - name: transfer_type
         description: '{{ doc("transfer_type") }}'
-      - name: fee_kind
+      - name: fee_type
         description: '{{ doc("fee_type") }}'
       - name: fee_gbp
         description: '{{ doc("fee_gbp") }}'

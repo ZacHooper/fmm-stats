@@ -188,7 +188,7 @@ h2h AS (
     SELECT opp_tid AS team_tid, count(*) AS p, count(*) FILTER (WHERE result = 'W') AS w,
            count(*) FILTER (WHERE result = 'D') AS d, count(*) FILTER (WHERE result = 'L') AS l,
            sum(gf) AS gf, sum(ga) AS ga
-    FROM site.matches WHERE stage_kind IS NOT NULL GROUP BY 1
+    FROM site.matches WHERE stage_type IS NOT NULL GROUP BY 1
 ),
 u AS (SELECT * FROM units)
 SELECT t.name, sh.formation, sh.lined_up, sh.lined_up_on, team.n AS rated, round(team.q, 1) AS level,
@@ -312,7 +312,7 @@ WITH tot AS (
 SELECT p.name, tot.position, tot.g, tot.a, tot.mins,
        round(100.0 * tot.g / sum(tot.g) OVER (), 1) AS goal_share,
        round(100.0 * tot.mins / (SELECT 90 * count(*) FROM site.matches
-                                 WHERE season = 2028 AND stage_kind IS NOT NULL), 1) AS min_pct
+                                 WHERE season = 2028 AND stage_type IS NOT NULL), 1) AS min_pct
 FROM tot JOIN mart.dim_person p USING (person_id)
 WHERE tot.g + tot.a > 0 ORDER BY tot.g DESC, tot.a DESC;
 ```
@@ -341,13 +341,13 @@ handle a congested run.
 
 Minutes come from **`site.match_players`** (one row per appearance for the first team — an unused
 substitute has no row, so nothing drags the averages toward a flat 6.00) and the team's game count
-from `site.matches` (`stage_kind IS NULL` is a friendly). Guard for the 0-games case first —
-`SELECT count(*) FROM site.matches WHERE season = <S> AND stage_kind IS NOT NULL`; at 0, skip 3b
+from `site.matches` (`stage_type IS NULL` is a friendly). Guard for the 0-games case first —
+`SELECT count(*) FROM site.matches WHERE season = <S> AND stage_type IS NOT NULL`; at 0, skip 3b
 and give the fixture-rotation flags (3a) only. Otherwise:
 ```sql
 -- minutes load: every current first-team player, with age and Stamina
 WITH games AS (
-    SELECT count(*) AS n FROM site.matches WHERE season = 2028 AND stage_kind IS NOT NULL
+    SELECT count(*) AS n FROM site.matches WHERE season = 2028 AND stage_type IS NOT NULL
 ),
 load AS (
     SELECT person_id, count(*) AS apps, count(*) FILTER (WHERE started) AS starts,

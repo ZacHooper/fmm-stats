@@ -30,7 +30,7 @@ select
     transfers.was_free_agent,
     transfers.transfer_type,
     transfers.fee_gbp,
-    transfers.fee_kind,
+    transfers.fee_kind as fee_type,
     transfers.is_from_snapshot,
     ended.first_seen_date as ended_contract_first_seen_date,
     started.first_seen_date as new_contract_first_seen_date

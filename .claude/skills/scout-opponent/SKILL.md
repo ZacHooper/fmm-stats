@@ -185,7 +185,7 @@ SELECT coalesce(venue, 'all') AS venue, count(*) AS p,
        count(*) FILTER (WHERE result = 'W') AS w, count(*) FILTER (WHERE result = 'D') AS d,
        count(*) FILTER (WHERE result = 'L') AS l, sum(gf) AS gf, sum(ga) AS ga,
        round(avg(pts), 2) AS ppg
-FROM site.matches WHERE opp_tid = getvariable('opp') AND stage_kind IS NOT NULL
+FROM site.matches WHERE opp_tid = getvariable('opp') AND stage_type IS NOT NULL
 GROUP BY ROLLUP (venue) ORDER BY venue;
 
 -- ── 7. who has actually hurt us (output, not quality), and whether he is still there ──
@@ -646,7 +646,7 @@ screen for a fixture that was scouted, **grade the briefing explicitly**: which 
 did not, and which were right for the wrong reason. This is where the durable learning comes from,
 and it is cheap — the FT screen already has everything needed.
 
-- Anchor the match against the **season baseline**, not against feel (`stage_kind IS NULL` is a
+- Anchor the match against the **season baseline**, not against feel (`stage_type IS NULL` is a
   friendly):
   ```sql
   SELECT count(*) AS games, round(avg(our_shots), 1) AS shots,
@@ -654,7 +654,7 @@ and it is cheap — the FT screen already has everything needed.
          round(100.0 * sum(gf) / sum(our_shots), 1) AS conversion_pct,
          round(avg(our_passes), 0) AS passes,
          round(100.0 * sum(our_passes_completed) / sum(our_passes), 1) AS pass_pct
-  FROM site.matches WHERE season = 2028 AND stage_kind IS NOT NULL;
+  FROM site.matches WHERE season = 2028 AND stage_type IS NOT NULL;
   ```
 - **The FT stat screen lists starters and substitutes separately** — scroll before totalling, or a
   starters-only count gets compared against the store's full-match figures. That error manufactured a

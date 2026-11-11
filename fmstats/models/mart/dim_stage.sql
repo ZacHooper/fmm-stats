@@ -8,7 +8,7 @@ select
     stage_format,
     name,
     stage_code,
-    stage_type,
+    stage_type as stage_type_code,
     stage_teams,
     n_groups,
     is_final_stage

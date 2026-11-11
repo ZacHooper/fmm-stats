@@ -3,7 +3,7 @@
 -- final score, result and points (fact_team_match), formation, attendance,
 -- the stage, and each side's team stats (our_ / opp_).
 --
--- stage_kind: League or Group for a league or group stage; for a knockout
+-- stage_type: League or Group for a league or group stage; for a knockout
 -- stage, Qualifying where it comes before the competition's group stage in a
 -- competition with no league stage, else Knockout; NULL for a match in no
 -- stage (a friendly). stage is the game's own label: a league stage's name,
@@ -96,7 +96,7 @@ select
                         then 'Qualifying'
                     else 'Knockout'
                 end
-    end as stage_kind,
+    end as stage_type,
     case stages.stage_format
         when 'league' then stages.name
         when

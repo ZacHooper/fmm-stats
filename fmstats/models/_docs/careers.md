@@ -5,14 +5,12 @@ The fee code on a career-history line, decoded: `fee` (a fee, `fee_gbp`), `free`
 stayed on a free: a Bosman where the next line is another club), `loan` (on the borrowing club's
 line), `contract_ended` (the contract ran out), `unknown` (a code not understood, as on an
 academy's line). On a transfer, the selling club's line's code.
-Synonyms: `fee_kind`.
 {% enddocs %}
 
 {% docs move_fee_type %}
 How a dated move on the development chart was paid for: `fee` (a permanent transfer with a fee),
 `free` (a free move), `none` (a graduation, or an internal move between our teams), `unknown`
 (the history's fee code is not understood).
-Synonyms: `site_player_moves.fee_type`.
 {% enddocs %}
 
 {% docs fee_label %}

@@ -169,7 +169,7 @@ def transfers(con, season, nation):
                          round(sum(fee_gbp) FILTER (WHERE from_nation = '{nation}'
                                AND to_nation IS DISTINCT FROM '{nation}') / 1e6, 2) AS exports_m
                   FROM mv""", f"{nation.upper()}: MARKET TOTALS")
-    show(con, """SELECT name, age, from_club, to_club, move_date, transfer_type, fee_kind, fee_m
+    show(con, """SELECT name, age, from_club, to_club, move_date, transfer_type, fee_type, fee_m
                  FROM mv
                  WHERE from_club_tid IN (SELECT club_tid FROM site.our_teams)
                     OR to_club_tid IN (SELECT club_tid FROM site.our_teams)
