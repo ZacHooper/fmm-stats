@@ -150,6 +150,17 @@ Mistakes.
 Mistakes that led to a goal.
 {% enddocs %}
 
+{% docs xg %}
+Expected goals: the chances' worth in goals, as the match screen shows it (the player's
+stored value, rounded to two decimals; a side's xG is its players' sum). FMM27 only: NULL on
+an FMM22 match, which stores none.
+{% enddocs %}
+
+{% docs goals_conceded %}
+The goals a goalkeeper let in while on the pitch, as his match line stores them (0 for an
+outfield player). FMM27 only: NULL on an FMM22 match.
+{% enddocs %}
+
 {% docs shots %}
 Shots.
 Synonyms: `opp_shots` → `opponent_shots`.

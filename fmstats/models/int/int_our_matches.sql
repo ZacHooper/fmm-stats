@@ -3,7 +3,8 @@
 -- cid is the competition the match table names; match_id is the same key as
 -- int_world_matches'. formation is the managed side's (is_home: the home
 -- side); the team stats are each side's, and so are the corners, clear-cut
--- chances and offsides the team head stores.
+-- chances and offsides the team head stores, and on FMM27 its fouls and
+-- manager (NULL on FMM22).
 select
     {{ match_id('match_date', 'home_team_tid', 'away_team_tid') }} as match_id,
     match_date,
@@ -25,6 +26,8 @@ select
     {{ side }}_corners,
     {{ side }}_clear_cut_chances,
     {{ side }}_offsides,
+    {{ side }}_fouls,
+    {{ side }}_manager_tid,
     {% endfor %}
     snapshot_date as source_snapshot_date
 from {{ ref('stg_matches') }}

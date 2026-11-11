@@ -88,10 +88,6 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
   cruciate ligaments, about 9 months); a staff member's badge, specialism and trainable
   traits (Alcalde, Gold Badge); the star bands for staff reputation; whether lists 66–131
   are women's (the Best Eleven screen has a Male switch).
-- **The match table starts on the career's first day**: Truro's career began on 22 July 2026
-  (`truro-2026-07-22`), after two pre-season friendlies the game had already played, so the
-  table holds 3 of the fixture list's 5 games on `truro-2026-08-08`. In the career's first
-  season `check_against_fixtures` needs that day, not the rollover, as its lower bound.
 - **Match bytes not placed**: possession and team rating; event types `17`, `18`, `29`
   ([matches](parser/matches.md#layout)). A ratings screen with a non-zero Mis/MiG would
   confirm `mistakes`/`mistGoal` against the game (placed from the `27` events).
@@ -102,9 +98,34 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
 - **The player lists' season numbers** (tail +114) need a save after a season ends.
 - **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;
   `match_slots` is not located (nothing reads it).
-- **Then the store**: load the FMM27 JSON (`stg` handles the FMM27 shapes by `summary.json`'s
-  `save_format`), `staff_roles.json` into raw, and the managed club's manager
-  (`mart.club_managers`).
+
+### 2. Load an FMM27 save into the store
+Both Truro saves load and build: 537 of 538 dbt tests pass on a scratch store of
+`truro-2026-07-25` + `truro-2026-08-08`. FMM27's xG, goals conceded, fouls and managers, and
+its assist, yellow-card, error and clear-cut-chance events reach the marts; the career's first
+day (`start` in `fmm.toml`) bounds the match check; the signing rule is the career's
+`eligible_origin_clubs` in `fmm.toml`. Open, in order:
+
+1. **Roles** (`spells_training_focus_named`, the one failing test). `seeds/roles.csv` is
+   FMM22's codes; an FMM27 role seed waits on a centre-back's and a full-back's focus role on
+   screen ([Parser — FMM27](#1-extract-an-fmm27-save-end-to-end)). Key the seed by game
+   (`stg.snapshots.save_format`).
+2. **A weight set for Truro.** No `rating_method` for the 4-1-2-1-2: hand-build one now,
+   derive it from match data once a season is played (`scripts/derive_weight_set.py`).
+3. **Staff roles and our manager**: `staff_roles.json` into raw (both versions write it);
+   the managed club's manager in `site.club_managers`. FMM27's team head names each side's
+   manager (`int.our_matches.home_manager_tid`), a check on it.
+4. **Show the new match data on the site**: xG per player and team, assists and scorer–
+   assister pairs (`fact_match_event`), goals conceded.
+5. **Then**: build `fm-truro.duckdb` from every Truro save (`scripts/rebuild.py`), refresh
+   `seeds/manifest.csv`, and export and publish Truro's site data. Try a refit of the
+   attribute decoder with Truro's scrapbook rows to see how far the data so far goes (Frem's
+   coefficients score about as well on Truro unrefitted, Passing the weakest at 38%); a
+   proper refit needs more seasons.
+
+The store reads neither `comp_stages` nor `comp_honours` on either version (results come
+from the fixture list, stage names from the rule files and competition rounds), so
+`comp_man.dat` is a parser gap the store does not feel.
 
 ---
 

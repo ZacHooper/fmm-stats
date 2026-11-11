@@ -54,7 +54,7 @@ of date. `confidence` is always `'exact'` now — the link is a stored pointer (
 player's attribute record), not a positional guess, so **origin club can be trusted outright** and
 the old high/medium/low tiering is gone. Consumers: **`pages/9_Recruitment.py`** (the
 Athletic-Bilbao strategy — players whose youth club is in `raw.eligible_origin_clubs`, seeded
-from `seeds/eligible_origin_clubs.csv`; 575 eligible in the newest frem snapshot),
+from the career's `eligible_origin_clubs` in `fmm.toml`; 575 eligible in the newest frem snapshot),
 `db.eligibility_frame()`, `pages/2_Squad_Tool.py` bio, and `db.player_loan_spells()` source (2),
 which reads `fee = 'loan'` rows to recover loan spells across a player's whole career. Decode
 details: [`docs/parser/history.md`](../parser/history.md).

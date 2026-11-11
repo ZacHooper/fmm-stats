@@ -4,7 +4,8 @@
 -- match's date and teams are on dim_match (match_id).
 -- rating_adj is the rating restated for the position played
 -- (int_player_match_ratings); is_player_of_match is the game's own pick, one
--- player per match.
+-- player per match. xg and goals_conceded are FMM27's, NULL on an FMM22
+-- match.
 select
     matches.match_id,
     matches.player_tid,
@@ -41,7 +42,9 @@ select
     matches.shots,
     matches.shots_on_target,
     matches.condition,
-    matches.yellows
+    matches.yellows,
+    matches.xg,
+    matches.goals_conceded
 from {{ ref('int_player_matches') }} as matches
 left join {{ ref('int_player_match_ratings') }} as ratings
     on

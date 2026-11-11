@@ -34,7 +34,12 @@ import pandas as pd     # bulk-insert path in _insert(); see its docstring for w
 from fmparser.model import ATTR_ORDER
 import careers
 import fmconfig
-from fmparser.tables.matches import EVENT_TYPE, check_against_fixtures
+from fmparser.tables.matches import EVENT_TYPE as _EVENT_TYPE_FMM22, EVENT_TYPE_FMM27, check_against_fixtures
+
+# One code -> name map serves both games: FMM27's event codes add to FMM22's and give none
+# of them another name, so a store holding saves of both versions labels every event alike.
+assert all(_EVENT_TYPE_FMM22.get(c, n) == n for c, n in EVENT_TYPE_FMM27.items())
+EVENT_TYPE = {**_EVENT_TYPE_FMM22, **EVENT_TYPE_FMM27}
 
 # ---------------------------------------------------------------------------
 # schema
@@ -54,6 +59,13 @@ _XI = ["posOrder", "tid", "rating", "goals", "assists", "passA", "passC", "keyPa
 # the counts each side's team head stores (fmparser/tables/matches.py TEAM_HEAD), inlined
 # onto matches as home_* / away_*
 _TH_KEYS = ["corners", "clear_cut_chances", "offsides"]
+# what only FMM27's team head stores (fmparser/tables/matches.py TEAM_HEAD_FMM27); NULL on
+# an FMM22 match. Its passes, crosses and headers won equal the sums of the side's player
+# slots, which team_stats already carries.
+_TH_KEYS_FMM27 = ["fouls", "manager_tid"]      # manager_tid: a u32, so BIGINT
+# the fields only FMM27's player slot stores (PLAYER_SLOT_FMM27); NULL on an FMM22 match.
+# subOn_time is a u32 (0xffffffff on a starter), so its column is BIGINT.
+_XI_FMM27 = ["conceded", "subOn_time", "xg_x100"]
 
 # The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
 # store cannot drift from the record. See fmparser/tables/player_attributes.py HIDDEN_OFFSETS and
@@ -206,7 +218,9 @@ DDL = [
         source_dir VARCHAR NOT NULL,
         save_path VARCHAR,
         loaded_at TIMESTAMP NOT NULL,
-        row_counts JSON
+        row_counts JSON,
+        -- the game the save came from, as summary.json names it ('fmm22', 'fmm27')
+        save_format VARCHAR
     )""",
 
     # natural key: (season, phase, tid)
@@ -450,7 +464,9 @@ DDL = [
         away_tackles INTEGER, away_tackles_won INTEGER, away_crosses INTEGER,
         away_interceptions INTEGER,
         home_corners INTEGER, home_clear_cut_chances INTEGER, home_offsides INTEGER,
-        away_corners INTEGER, away_clear_cut_chances INTEGER, away_offsides INTEGER
+        away_corners INTEGER, away_clear_cut_chances INTEGER, away_offsides INTEGER,
+        home_fouls INTEGER, home_manager_tid BIGINT,
+        away_fouls INTEGER, away_manager_tid BIGINT
     )""",
 
     # natural key: (season, phase, anchor, seq)
@@ -474,6 +490,9 @@ DDL = [
         condition INTEGER, subOn INTEGER, subOff INTEGER, yellow INTEGER,
         -- the minute the player was sent off; 255 when he was not
         sentOff INTEGER,
+        -- FMM27 only (NULL on FMM22): a goalkeeper's goals against, when a substitute came
+        -- on (0xffffffff on a starter; about 250 units a minute) and expected goals x 100
+        conceded INTEGER, subOn_time BIGINT, xg_x100 INTEGER,
         -- a STARTER's full-time position ('DR','DMC','AML',...), from his side's team
         -- head: both sides. NULL for substitutes.
         position VARCHAR
@@ -562,11 +581,11 @@ DDL = [
         line_3 INTEGER, line_4 INTEGER, line_5 INTEGER
     )""",
 
-    # GLOBAL config (not per-label): the set of club TIDs whose YOUTH products are eligible
-    # under the Athletic-Bilbao origin strategy (e.g. Danish Capital Region). Seeded from
-    # seeds/eligible_origin_clubs.csv; curate freely. Join on player_history.origin_club_tid.
+    # GLOBAL config (not per-label): the career's signing rule, the club TIDs whose YOUTH
+    # products count as local, each with its region. Seeded from the career's
+    # `eligible_origin_clubs` in fmm.toml (seed_eligible_origin_clubs); empty with no rule.
     """CREATE TABLE IF NOT EXISTS raw.eligible_origin_clubs (
-        club_tid INTEGER NOT NULL, club_name VARCHAR, region VARCHAR
+        club_tid INTEGER NOT NULL, region VARCHAR
     )""",
 
     # GLOBAL reference table (not per-label). One row per (method, role, attribute).
@@ -1081,7 +1100,7 @@ def load_core(con, d, season, phase):
                "home_flag", "home_tid", "away_tid", "attendance", "score_home",
                "score_away", "star_home", "star_away", "formation", "player_of_match"]
               + [f"home_{k}" for k in _TS_KEYS] + [f"away_{k}" for k in _TS_KEYS]
-              + [f"{side}_{k}" for side in ("home", "away") for k in _TH_KEYS])
+              + [f"{side}_{k}" for side in ("home", "away") for k in _TH_KEYS + _TH_KEYS_FMM27])
     ev_cols = ["season", "phase", "anchor", "seq", "minute", "added", "min_display",
                "tid", "type", "type_byte", "b0", "side"]
     # `position` is not in _XI: that list mirrors the player slot's own fields, and a
@@ -1090,7 +1109,7 @@ def load_core(con, d, season, phase):
     mps_cols = (["season", "phase", "anchor", "side", "tid", "team_tid",
                  "opponent_tid", "date", "competition", "pos_order", "rating"]
                 + [f for f in _XI if f not in ("posOrder", "tid", "rating")]
-                + ["position"])
+                + ["position"] + _XI_FMM27)
     m_rows, ev_rows, mps_rows = [], [], []
     for m, comp in zip(season_matches, labels):
         anchor = _int(m.get("offset"))
@@ -1107,7 +1126,7 @@ def load_core(con, d, season, phase):
             _int(m.get("player_of_match")),
             *[_num(h.get(k)) for k in _TS_KEYS], *[_num(a.get(k)) for k in _TS_KEYS],
             *[_int(((m.get("team_head") or {}).get(side) or {}).get(k))
-              for side in ("home", "away") for k in _TH_KEYS],
+              for side in ("home", "away") for k in _TH_KEYS + _TH_KEYS_FMM27],
         ))
         for i, e in enumerate(m.get("events") or []):
             minute, added = _int(e.get("minute")) + 1, _int(e.get("added"))
@@ -1130,6 +1149,7 @@ def load_core(con, d, season, phase):
                     _int(x.get("posOrder")), _int(x.get("rating")),
                     *[_int(x.get(f)) for f in _XI if f not in ("posOrder", "tid", "rating")],
                     position,
+                    *[_int(x.get(f)) for f in _XI_FMM27],
                 ))
     counts["matches"] = _insert(con, "matches", m_cols, m_rows)
     counts["match_events"] = _insert(con, "match_events", ev_cols, ev_rows)
@@ -1314,7 +1334,7 @@ def resolve_season_phase(label, d, career, override=(None, None)):
 def check_matches(d, career):
     """The match table against the world fixture list: the same games, our two clubs'
     fixtures played since the career's last rollover on or before the save date (the game
-    empties the table that day). This is what tells an empty table after the rollover from a
+    empties the table that day), and not before the career's first day. This is what tells an empty table after the rollover from a
     table the locator missed. Raises `MatchTableError`; no fixture list, no check."""
     path = os.path.join(d, "world_fixtures.json")
     world = _load_json(path) if os.path.exists(path) else []
@@ -1327,6 +1347,11 @@ def check_matches(d, career):
     if since > until:
         prev_ro = getattr(career, "rollover_for", lambda y: career.rollover)(year - 1)
         since = f"{year - 1}-{prev_ro[0]:02d}-{prev_ro[1]:02d}"
+    start = getattr(career, "start", None)
+    if start:
+        # the day before the career's first: the check's lower bound is exclusive
+        before = (datetime.date.fromisoformat(start) - datetime.timedelta(days=1)).isoformat()
+        since = max(since, before)
     check_against_fixtures(_matches(d), world, (career.managed_tid, career.reserve_tid),
                            since, until)
 
@@ -1361,10 +1386,11 @@ def load_label(con, d, include, career, override=(None, None)):
         # which is a local build artefact rather than part of the recipe.
         con.execute(
             "INSERT INTO raw.extracts (season, phase, label, source_dir, save_path, "
-            "loaded_at, row_counts) VALUES (?,?,?,?,?,?,?)",
+            "loaded_at, row_counts, save_format) VALUES (?,?,?,?,?,?,?,?)",
             [season, phase, label, os.path.abspath(d),
              os.path.basename(summ.get("save") or "") or None,
-             datetime.datetime.now(), json.dumps(counts)])
+             datetime.datetime.now(), json.dumps(counts),
+             summ.get("save_format") or "fmm22"])
         con.execute("COMMIT")
     except Exception:
         con.execute("ROLLBACK")
@@ -1543,9 +1569,20 @@ _MIGRATIONS = [
     # is re-extracted (scripts/rebuild.py), not --refresh-only.
     "ALTER TABLE raw.world_fixtures RENAME COLUMN seq_id TO stadium_id",
     "ALTER TABLE raw.world_fixtures ADD COLUMN IF NOT EXISTS referee_tid INTEGER",
-] + [f"ALTER TABLE raw.matches ADD COLUMN IF NOT EXISTS {side}_{k} INTEGER"
-     for side in ("home", "away") for k in _TH_KEYS] + [
+] + [f"ALTER TABLE raw.matches ADD COLUMN IF NOT EXISTS {side}_{k} "
+    f"{'BIGINT' if k == 'manager_tid' else 'INTEGER'}"
+     for side in ("home", "away") for k in _TH_KEYS + _TH_KEYS_FMM27] + [
     "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS sentOff INTEGER",
+    # 2026-11-11: FMM27's player slot adds a goalkeeper's goals against, the substitute's
+    # time on and expected goals (docs/parser/matches.md)
+    "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS conceded INTEGER",
+    "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS subOn_time BIGINT",
+    "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS xg_x100 INTEGER",
+    # 2026-11-11: the game each save came from; a store loaded before is all FMM22
+    "ALTER TABLE raw.extracts ADD COLUMN IF NOT EXISTS save_format VARCHAR",
+    "UPDATE raw.extracts SET save_format = 'fmm22' WHERE save_format IS NULL",
+    # 2026-11-11: the signing rule comes from fmm.toml, which names no club names
+    "ALTER TABLE raw.eligible_origin_clubs DROP COLUMN IF EXISTS club_name",
 ]
 
 
@@ -1646,26 +1683,16 @@ def seed_role_weights(con):
         "SELECT method, role, attribute, category, weight FROM read_csv_auto(?)", [path])
 
 
-def seed_eligible_origin_clubs(con):
-    """(Re)seed the Athletic-Bilbao eligible-origin-club list from
-    seeds/eligible_origin_clubs.csv (replace). Curate that CSV to define which clubs'
-    youth products count as eligible (e.g. Danish Capital Region)."""
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
-                        "eligible_origin_clubs.csv")
-    if not os.path.exists(path):
-        print(f"  ! eligible_origin_clubs seed missing at {path}; skipping")
-        return
-    rows = []
-    with open(path, encoding="utf-8") as fh:
-        reader = csv.reader(r for r in fh if r.strip() and not r.lstrip().startswith("#"))
-        header = next(reader, None)                 # skip the column header
-        for r in reader:
-            if len(r) >= 1 and _int(r[0]) is not None:
-                rows.append((_int(r[0]), r[1] if len(r) > 1 else None,
-                             r[2] if len(r) > 2 else None))
+def seed_eligible_origin_clubs(con, career=None):
+    """(Re)seed raw.eligible_origin_clubs from the career's signing rule (fmm.toml's
+    `eligible_origin_clubs`, region -> club tids): replaced on every load and --refresh-only,
+    so an unlocked county reaches the store without a re-import. Empty for a career with no
+    rule, or with no career (an empty-schema build)."""
     con.execute("DELETE FROM raw.eligible_origin_clubs")
-    con.executemany("INSERT INTO raw.eligible_origin_clubs "
-                    "(club_tid, club_name, region) VALUES (?,?,?)", rows)
+    rows = list(getattr(career, "eligible_origin_clubs", ()) or ())
+    if rows:
+        con.executemany("INSERT INTO raw.eligible_origin_clubs (club_tid, region) "
+                        "VALUES (?,?)", rows)
 
 
 def seed_reference(con):
@@ -1682,7 +1709,8 @@ def seed_reference(con):
 
 def seed_event_types(con):
     """(Re)seed raw.event_types, the byte -> name map the mart labels match events with,
-    from the parser's own table (fmparser.tables.matches.EVENT_TYPE). Replaced wholesale on
+    from the parser's own tables (fmparser.tables.matches.EVENT_TYPE and EVENT_TYPE_FMM27,
+    merged above). Replaced wholesale on
     every load and --refresh-only, so naming a byte reaches the store without a re-extract."""
     con.execute("CREATE TABLE IF NOT EXISTS raw.event_types "
                 "(code INTEGER PRIMARY KEY, name VARCHAR NOT NULL)")
@@ -1740,6 +1768,7 @@ def seed_career(con, key=None):
         print(f"  ! career {key!r} is not a registered career (fmm.toml); "
               f"career keys left unset")
         return
+    seed_eligible_origin_clubs(con, car)
     for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
                  ("career_managed_tid", str(car.managed_tid)),
                  ("career_rollover", "{:02d}-{:02d}".format(*car.rollover)),
@@ -1992,7 +2021,6 @@ def main():
             reset_schema(con)
         create_schema(con)
         seed_role_weights(con)
-        seed_eligible_origin_clubs(con)
         seed_reference(con)
         seed_config_bundle(con)
         print(f"loading into {args.db}")

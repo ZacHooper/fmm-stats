@@ -42,6 +42,13 @@ class Career:
     rollover: tuple = (6, 30)
     # per-year (year, (month, day)) overrides when a career's rollover date drifts
     rollovers: tuple = ()
+    # the career's first in-game day (ISO). A new career can open after the game has already
+    # played some of the club's fixtures (Truro's two pre-season friendlies); the match table
+    # holds only games from this day on.
+    start: str | None = None
+    # the career's signing rule, if it plays one: (club tid, region) for every club whose
+    # youth products count as local. Empty = no rule.
+    eligible_origin_clubs: tuple = ()
 
     def rollover_for(self, year: int) -> tuple[int, int]:
         for y, ro in self.rollovers:
@@ -84,6 +91,10 @@ def _from_config(key: str, t: dict) -> Career:
         rating_method=t.get("rating_method"),
         rollover=pair(t.get("rollover", (6, 30))),
         rollovers=tuple(sorted((int(y), pair(v)) for y, v in t.get("rollovers", {}).items())),
+        start=str(t["start"]) if t.get("start") is not None else None,
+        eligible_origin_clubs=tuple(
+            (int(tid), str(region))
+            for region, tids in t.get("eligible_origin_clubs", {}).items() for tid in tids),
     )
 
 

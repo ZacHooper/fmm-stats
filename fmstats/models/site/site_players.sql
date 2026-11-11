@@ -6,8 +6,8 @@
 -- show) and:
 --   origin_club_tid    the club he came out of, and origin_club its name
 --                      (dim_person: an academy counts for its club)
---   capital_eligible   that club is on the capital-region signing list
---                      (seeds/eligible_origin_clubs.csv); NULL with no origin
+--   capital_eligible   that club is on the career's signing list
+--                      (fmm.toml's eligible_origin_clubs); NULL with no origin
 --   development        how far he is from his ceiling, as a word: ability
 --                      against potential, in var('site_development_bands')
 --   positions          each position his record lists, by code: his
