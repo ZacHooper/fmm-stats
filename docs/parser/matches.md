@@ -68,9 +68,10 @@ year where FMM22 has the day and the year. Attendance at `+15`, Player of the Ma
 Shots, shots on target, tackles won and yellow cards on the stats screen are sums of the
 player slots. Possession and the team rating are not placed.
 
-**Player slot, 70 bytes.** FMM22's one-byte stats in FMM22's order: the run from condition to
-the substitution minutes starts 3 bytes earlier, everything from mistakes on 1 byte later, and
-`xg_x100` is new. There is no assists byte.
+**Player slot, 70 bytes.** FMM22's slot with its first three bytes removed (`assists` and two
+bytes that are 0 on almost every FMM22 slot), four inserted after the substitution minutes
+and seven appended (62 − 3 + 4 + 7 = 70). So condition to `subOff` sit 3 bytes earlier than
+FMM22's and `mistakes` onward 1 byte later. There is no assists byte.
 
 | offset | field | | offset | field |
 |---|---|---|---|---|
@@ -86,12 +87,13 @@ the substitution minutes starts 3 bytes earlier, everything from mistakes on 1 b
 | +16 | `subOn`, `ff` = not | | +50 | `tackW` |
 | +17 | `sentOff`, `ff` = not | | +54 | `yellow` |
 | +18 | `subOff`, `ff` = not | | +63 | `xg_x100`, u16: expected goals × 100 |
+| +19 | `subOn_time`, u32: when the substitute came on; `ffffffff` on a starter | | | |
 | +23 | `mistakes` | | | |
 | +24 | `mistGoal`, mistakes leading to a goal | | | |
 | +26 | `passA` | | | |
 
-`+6` reads 7 on a booked player; `+19` is `ffffffff` on a starter and a value of its own on a
-substitute; `+51` reads the side (0 home, 1 away); `+65` is a u16 that is non-zero on players
+`subOn_time` runs at about 245–257 units a minute (Bell on at 46', 11,888; Tweedy and
+Greenslade together at 72', 18,212 each). `+6` reads 7 on a booked player; `+51` reads the side (0 home, 1 away); `+65` is a u16 that is non-zero on players
 with key passes. **A player's assists are his `24` events**: no slot byte reads 1 for each of
 the five players with an assist event across the three rows (Law, Starkie, Jephcott, Murray,
 Walsh), and the ratings screen's Ass column (Law 1, everyone else 0) is their count.

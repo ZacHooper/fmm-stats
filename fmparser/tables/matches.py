@@ -291,10 +291,12 @@ TEAM_HEAD_FMM27 = Record("match_team_head_fmm27", 80, [
     Field(79, 1, "goals_against", U8, note="= the other team block's goals"),
 ])
 
-# FMM22's one-byte stats in FMM22's order, but the run from condition to the substitution
-# minutes starts 3 bytes earlier and everything from mistakes on 1 byte later. There is no
-# assists byte: no slot byte reads 1 for each of the five players with an assist event, so
-# a player's assists are his `24` events. `xg_x100` is the
+# FMM22's slot with its first three bytes (assists and two near-always-zero bytes) removed,
+# a u32 inserted after the substitution minutes, and seven bytes appended: condition to
+# subOff sit 3 bytes earlier than FMM22's, mistakes onward 1 byte later (-3 + 4). With no
+# assists byte, a player's assists are his `24` events: no slot byte reads 1 for each of the
+# five players with one. `subOn_time` is when a substitute came on, in match time units of
+# about 245-257 a minute; players brought on together share one value. `xg_x100` is the
 # player's expected goals x 100: Maidenhead's slots sum to 27 (the screen's 0.27), Truro's
 # to 217 (the screen's 2.18: the screen sums unrounded values). `yellow` is set on a booked
 # player, whose +6 then reads 7.
@@ -308,12 +310,12 @@ PLAYER_SLOT_FMM27 = Record("match_player_slot_fmm27", 70, [
     *[Field(off, 1, name, U8) for off, name in _STATS_FMM27.items()],
     Field(29, 2, "sid", HEX2, note="2 bytes here -- the PERSON record's sid is 4"),
     Field(43, 4, "tid", U32, note="0xffffffff = unused slot"),
+    Field(19, 4, "subOn_time", U32, note="0xffffffff on a starter"),
     Field(63, 2, "xg_x100", U16, note="expected goals x 100"),
     Field(3,  2, UNKNOWN, RAW),
     Field(6,  1, UNKNOWN, RAW, note="7 on a booked player"),
     Field(10, 3, UNKNOWN, RAW),
     Field(14, 2, UNKNOWN, RAW),
-    Field(19, 4, UNKNOWN, RAW, note="ffffffff on a starter; a substitute's own value"),
     Field(25, 1, UNKNOWN, RAW, note="20 on every slot read"),
     Field(31, 2, UNKNOWN, RAW),
     Field(34, 2, UNKNOWN, RAW),
