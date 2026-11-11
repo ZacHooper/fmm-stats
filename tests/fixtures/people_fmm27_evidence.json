@@ -1,0 +1,22 @@
+{
+ "_about": "Values read off in-game screens of truro-2026-07-25 (FMM27; docs/parser/img/person_info-fmm27-*.jpg), the raw bytes behind them, and what the parser must make of them. Guarded by tests/test_people_fmm27_evidence.py; the layout is in docs/parser/person_info.md.",
+ "save": "truro-2026-07-25.fms",
+ "count": 44960,
+ "raw": [
+  [1286620, "cb 00 d2 07 2b 00 01 00 8b 00", "Starkie: dob 23/7/2002, Tanzanian, one other nationality (139)"],
+  [1286640, "06 00 00 00 00 00", "Starkie: 6 caps / 0 goals as i16, u21 0/0"],
+  [1593964, "21 01 cc 07 a3 00 01 00 8b 00", "Donnellan: dob 16/10/1996, Irish, one other nationality (139)"],
+  [1593984, "00 00 00 00 08 01", "Donnellan: 0 caps, 8 U21 caps / 1 U21 goal"],
+  [1802149, "a1 00 d0 07 a3 00 02 00 1d 00 96 00", "En-Neyah: dob 10/6/2000, Irish, two other nationalities (29, 150)"]
+ ],
+ "persons": {
+  "4353": {"name": "Ben Starkie", "dob": "2002-07-23", "nationality_id": 43, "other_nationality_ids": [139],
+           "international_caps": 6, "international_goals": 0, "club_tid": 3125,
+           "default_languages": {"7": 10}, "other_languages": {"53": 10}, "relationships": 0},
+  "6983": {"name": "Shaun Donnellan", "dob": "1996-10-16", "nationality_id": 163, "other_nationality_ids": [139],
+           "u21_caps": 8, "u21_goals": 1, "club_tid": 3125},
+  "8934": {"name": "Yassine En-Neyah", "dob": "2000-06-10", "nationality_id": 163, "other_nationality_ids": [29, 150],
+           "club_tid": 3125, "default_languages": {"7": 10}, "other_languages": {"1": 5, "14": 5, "113": 9},
+           "relationships": 0}
+ }
+}

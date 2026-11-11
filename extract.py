@@ -312,6 +312,7 @@ def summary(label: str, save: str, header: Dict[str, Any], out: Dict[str, Any]):
         "label": label,
         "save": os.path.abspath(save),
         "save_date": header["date"], "save_title": header["title"],
+        "save_format": header["format"],
         "competitions": {str(c): n for c, n
                          in sorted(Counter(m["comp_id"] for m in matches).items())},
         "counts": {"matches": len(matches), "players": len(players),
@@ -343,8 +344,8 @@ def main():
     mm = s.mm
     header = HDR.read_save_header(mm)
     if header["date"] is None:
-        raise SystemExit("the save's header title has no readable date, so the snapshot "
-                         "cannot be placed; is this an FMM22 save?")
+        raise SystemExit("the save's header has no readable date, so the snapshot cannot be "
+                         f"placed (header format: {HDR.save_format(mm) or 'not recognised'})")
     label = args.label or os.path.splitext(os.path.basename(args.save))[0]
     dest = os.path.join(args.out, label)
     os.makedirs(dest, exist_ok=True)
@@ -353,7 +354,7 @@ def main():
         with open(os.path.join(dest, name), "w", newline="") as f:
             json.dump(obj, f, ensure_ascii=False, indent=indent)
 
-    cursor, previous = HDR.SAVE_HEADER.span, "the save header"
+    cursor, previous = HDR.save_header_end(mm), "the save header"
     out: Dict[str, Any] = {}
     for step in steps(args.no_archive):
         span = located(step, mm)

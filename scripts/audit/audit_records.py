@@ -136,6 +136,9 @@ def _stride(name, offsets, claimed):
 def _extent(name, ids):
     """A keyed table should be contiguous in its own id space."""
     ids = sorted(ids)
+    if not ids:
+        print(f"  EXTENT   {name}: not located, no rows to measure  CHECK")
+        return False
     lo, hi = ids[0], ids[-1]
     missing = sorted(set(range(lo, hi + 1)) - set(ids))
     ok = not missing and lo == 0
@@ -168,7 +171,7 @@ def _padding(mm):
         members = {}
     values = collections.defaultdict(collections.Counter)    # (record, field) -> values
     count = collections.Counter()
-    for table in _all_tables.TABLES.values():
+    for table in _all_tables.tables_for(mm).values():
         for buf in _table_sources(mm, table, members):
             for rec, off in record_instances(buf, table):
                 count[rec.name] += 1
@@ -295,10 +298,14 @@ def main():
         ok &= _padding(mm)
 
         print("\ntagged records (archive comp_<uid>.dat) -- tag coverage:")
+        from fmparser.core import archive as ARCH
         try:
             ok &= _tagged_coverage(mm)
         except ImportError as e:
             print(f"  SKIP: {e} (uv sync)")
+        except ARCH.ArchiveError as e:
+            print(f"  FAIL: the archive does not read: {e}")
+            ok = False
 
         print("\ntagged records (data dictionary rule files) -- tag coverage + tiling:")
         ok &= _dictionary_coverage(mm)
