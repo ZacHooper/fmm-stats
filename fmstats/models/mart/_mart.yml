@@ -1544,9 +1544,7 @@ models:
         description: 'His club on the entry''s date (the owning club where he is on loan).
           {{ doc("club_tid") }}'
       - name: loan_club_tid
-        description: '**Data bug:** reads 65535 (0xFFFF, the entry''s "not on loan") instead of NULL
-          on 999 of 1,000 rows on frem: stg_scrapbook_entries passes the sentinel through (TODO
-          "Scrapbook loan club: 0xFFFF is not NULLed"). {{ doc("loan_club_tid") }}'
+        description: '{{ doc("loan_club_tid") }}'
       - name: competition
         description: 'The competition the scrapbook profile names. {{ doc("competition") }}'
       - name: age

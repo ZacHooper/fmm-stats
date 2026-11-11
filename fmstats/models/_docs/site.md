@@ -162,5 +162,5 @@ holders' attributes), not read off a Scrapbook Profile or the Training page.
 
 {% docs loan_club_tid %}
 The club the player was on loan at on the scrapbook entry's date (the entry's club marker is
-`[parent][loan club]`).
+`[parent][loan club]`); NULL when he was not on loan.
 {% enddocs %}
