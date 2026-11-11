@@ -127,25 +127,28 @@ builds raw → `site` end to end: 513 dbt tests pass and 4 fail. The plan, in or
 6. **Roles** (`spells_training_focus_named`, 626 rows). `seeds/roles.csv` is FMM22's codes;
    an FMM27 role seed waits on a centre-back's and a full-back's focus role on screen
    ([Parser — FMM27](#1-extract-an-fmm27-save-end-to-end)). Key the seed by game.
-7. **Career seeds keyed by career** (`origins_capital_eligibility`).
+7. **A career's signing rule lives in `fmm.toml`** (`origins_capital_eligibility`).
    `seeds/eligible_origin_clubs.csv` is Frem's capital-region rule in FMM22 tids; on an FMM27
-   save those tids are other clubs. Key it by career, and add Truro's South West counties if
-   the site is to check that rule (where Truro's list lives — a public seed or the private
-   config — is the user's call; the career notes are private).
-8. **Academy origins** (`origins_academy_decode`). No FMM27 person's origin is an academy tid
-   (`youth_tid_base` minus a team tid): every origin is a real team. Find how FMM27 records a
-   youth-academy origin, or show the career has none yet, before gating the test by version.
+   save those tids are other clubs. Move the rule into the career's `fmm.toml` entry as a list
+   of eligible origin-club tids; Truro's is every Cornish and Devon club now, widening as the
+   club climbs the pyramid. Frem keeps its list; a career with none has no rule.
+8. **Origins from the first career row** (`origins_academy_decode`). No FMM27 person's
+   origin is an academy tid yet: Truro is in its first season, so there are no regens, and
+   the first row of every player's history is a real club. Use that row's club as the origin,
+   and let the "no academies" check pass on a career with no regens.
 9. **A weight set for Truro.** No `rating_method` for the 4-1-2-1-2: hand-build one now,
    derive it from match data once a season is played (`scripts/derive_weight_set.py`).
 10. **Staff roles and our manager**: `staff_roles.json` into raw (both versions write it);
     the managed club's manager in `site.club_managers`.
 11. **Then**: rebuild `fm-truro.duckdb` from every Truro save (`scripts/rebuild.py`), refresh
-    `seeds/manifest.csv`, refit the attribute decoder with Truro's scrapbook rows (Frem's
-    coefficients score about as well on Truro unrefitted, Passing the weakest at 38%), and
-    export and publish Truro's site data.
+    `seeds/manifest.csv`, and export and publish Truro's site data. Try a refit of the
+    attribute decoder with Truro's scrapbook rows to see how far the data so far goes (Frem's
+    coefficients score about as well on Truro unrefitted, Passing the weakest at 38%); a
+    proper refit needs more seasons.
 
-`comp_man.dat` (competition stages and honours) is the parser's one parity gap that the store
-feels: honours and outcomes stay thin on FMM27 until it reads.
+The store reads neither `comp_stages` nor `comp_honours` on either version (results come
+from the fixture list, stage names from the rule files and competition rounds), so
+`comp_man.dat` is a parser gap the store does not feel.
 
 ---
 
