@@ -5,7 +5,9 @@ This file is how to change it: the feedback loop, how a table is found, how a re
 and the method for decoding something new. The reference lives elsewhere:
 
 - **one doc per table**, [`docs/parser/`](../docs/parser/): layout, evidence from an in-game
-  screen, quirks, output. Read the table's doc before changing its module.
+  screen, quirks, output. Read the table's doc before changing its module. Each section
+  leads with the latest game version (FMM27) and closes with a `### FMM22` subsection on
+  how the older version differs.
 - **the whole file**, [`docs/parser/savefile-map.md`](../docs/parser/savefile-map.md): every
   table in file order, the gaps, the tables nothing reads yet, the archive at the tail.
 

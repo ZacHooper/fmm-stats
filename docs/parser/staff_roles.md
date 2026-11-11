@@ -3,23 +3,23 @@
 A member of staff's role record: his **Specialism** and **Aptitude**, as the Staff Profile
 shows them. Three tables, one per role (coaches, scouts, physios), stored straight after
 [staff](staff.md) and before [officials](officials.md), each count-framed,
-`[>= 8 × ff][count u32]`, with `id == slot index`. The same 7-byte record on FMM22 and
-FMM27 (fmm-editor's FMM26 `Coach`):
+`[>= 8 × ff][count u32]`, with `id == slot index`. The same 7-byte record on FMM27 and
+FMM22 (fmm-editor's FMM26 `Coach`):
 
-| | Frem | Bucaspor | Truro (FMM27) |
+| | Truro (FMM27) | Frem (FMM22) | Bucaspor (FMM22) |
 |---|---|---|---|
-| coaches | 1,971 | 2,603 | 2,841 |
-| scouts | 560 | 560 | 772 |
-| physios | 816 | 796 | 1,157 |
+| coaches | 2,841 | 1,971 | 2,603 |
+| scouts | 772 | 560 | 560 |
+| physios | 1,157 | 816 | 796 |
 
 ## Layout
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
 | +0 | `id` | u32 | equals the slot index | every row, three careers |
-| +4 | `specialism` | u8 | a code per role: coach 1 General; physio 2 Prevention. Coaches use 1–7, scouts 1–4, physios 1–2 | two Staff Profiles |
+| +4 | `specialism` | u8 | a code per role: coach 1 General; physio 2 Prevention. Coaches use 1–7, scouts 1–4, physios 1–2 | two Staff Profiles (FMM27) |
 | +5 | | u8 | unnamed, 1–3; 1 on both Bronze Badge profiles, so probably the badge | two profiles, both Bronze |
-| +6 | `aptitude` | u8 | 1 Poor, 3 Natural (2 not yet seen on screen); 255 on the user | two Staff Profiles |
+| +6 | `aptitude` | u8 | 1 Poor, 3 Natural (2 not yet seen on screen); 255 on the user | two Staff Profiles (FMM27) |
 
 **The link is the person's.** The [person record](person_info.md) holds `coach_row`,
 `scout_row` and `physio_row` (FMM22 also `official_row`), `0xffffffff` when he has none.

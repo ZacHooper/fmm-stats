@@ -1,20 +1,29 @@
 # player_attributes  ([`fmparser/tables/player_attributes.py`](../../fmparser/tables/player_attributes.py))
 
 Every player's attributes, position ratings, feet, reputations, shirt number, height and
-weight, and the head of his career-history chain. A count-framed table of fixed 78-byte
-records, `[8 × 0xFF][count u32]`, between 3.8 and 6.6 MB, with `sid == slot index`. The
-count is a fixed pool per career: 26,505 on Frem, 26,292 on Bucaspor. A person reaches his
-record through `sid` ([person_info](person_info.md) +60). The [staff](staff.md) table
-follows directly after it. On FMM27 the records are variable-length (Layout: FMM27).
+weight, the head of his career-history chain and, on FMM27, the spells he cannot play (bans,
+ineligibility). A count-framed table, `[8 × 0xFF][count u32]`, framed between 3.8 and 6.6 MB,
+with `sid == slot index`. The count is a fixed pool per career: 36,344 on Truro (FMM27); on
+FMM22 26,505 on Frem, 26,292 on Bucaspor. A person reaches his record through `sid`
+([person_info](person_info.md) +60). The [staff](staff.md) table follows directly after it.
 
-## Layout: FMM22
+Each record is a 78-byte head and a counted list of 19-byte unavailabilities, so rows are
+82 bytes plus 19 per item. FMM22's record is the head alone, a fixed 78 bytes (Layout, FMM22).
+
+## Layout
+
+```
+record  [78-byte head][n u32][n × 19-byte unavailability]
+```
 
 Offsets from the record start. The code names the attribute bytes relative to `P` = +42,
-the first position byte (`P-34` = +8).
+the first position byte (`P-34` = +8). The head's fields were checked against screens on
+FMM22 (Evidence, FMM22); on FMM27 `sid == slot` holds on all 36,344 records of both
+Truro saves, and the walk ends exactly on the staff frame.
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
-| +0 | `sid` | u32 (hex) | equals the slot index | all 26,505 slots |
+| +0 | `sid` | u32 (hex) | equals the slot index | every slot: 26,505 on Frem, 36,344 on each Truro save |
 | +4 | `history_head` | u32 | the first row of his chain in the [history](history.md) pool; `0xFFFFFFFF` = none (558 players) | Adingra's chain is his Player History screen |
 | +8 … +41 | 34 attribute bytes | u8 | 18 stored as plain 1–20, 16 in a wrapped 0–255 encoding (the `_src` fields) | below |
 | +42 | `positions` | 15 × u8 | rating 1–20 per position, in `POSITIONS` order (GK SW DL DC DR DMC ML MC MR AML AMC AMR ST DML DMR); the parse keeps values above 1 | Adingra's pitch (below) |
@@ -30,6 +39,7 @@ the first position byte (`P-34` = +8).
 | +73 | `preferred_squad_number` | u8 | | |
 | +74 | `height_cm` | u16 | | goalkeepers average 188 cm, outfield players 181 |
 | +76 | `weight_kg` | u16 | | 78 kg and 72 kg |
+| +78 | `unavailability` | `[u32 n][n × 19 B]` | spells the player cannot play: bans, ineligibility | 36,320 records hold 0, 24 hold 1; the Player Match Eligibility screens below |
 
 The 34 attribute bytes:
 
@@ -45,20 +55,6 @@ parsing: [`docs/ca-weighting.md`](../ca-weighting.md) and
 [`docs/attribute-model.md`](../attribute-model.md). The exact screen values of our own
 players are in [player_lists](player_lists.md).
 
-## Layout: FMM27
-
-`nyongrand/fmm-editor`'s FMM26 `Player` is FMM22's 78 bytes and a u32 (`Unknown2`), always 0
-in its pre-game database. In an FMM27 save that u32 is a count:
-
-```
-record  [FMM22's 78 bytes][n u32][n × 19-byte unavailability]
-```
-
-| offset | field | type | meaning | how we know |
-|---|---|---|---|---|
-| +0..+77 | as FMM22 | | | `sid == slot` on all 36,344 records of both Truro saves |
-| +78 | `unavailability` | `[u32 n][n × 19 B]` | spells the player cannot play: bans, ineligibility, injuries | 36,320 records hold 0, 24 hold 1; the Player Match Eligibility screens below |
-
 One unavailability (`UNAVAILABILITY`):
 
 | offset | field | type | meaning | how we know |
@@ -70,8 +66,7 @@ One unavailability (`UNAVAILABILITY`):
 | +15 | | i32 | unnamed; −1 on all but one | |
 
 Walked this way the table ends exactly on the [staff](staff.md) frame (8,530,559 on
-`truro-2026-07-25`); read at 78 or 82 bytes a record it drifts at record 361, the first
-with an item. The 24 are the world's players already out when the database starts: Christian
+`truro-2026-07-25`). The 24 are the world's players already out when the database starts: Christian
 Eriksen and Daley Blind (25 Jan 1972 → 27 Jan 2073), Mario Vušković, Reiss Nelson, Joachim
 Andersen, Joshua King and eighteen more.
 
@@ -87,7 +82,14 @@ Andersen, Joshua King and eighteen more.
 > **Quirk:** `club_uid` is a club **uid**, not a tid and not a competition: 1013 is Feyenoord's
 > uid, competition cid 1013 is SAFA KwaZulu Natal Division 2 and no competition has uid 1013.
 
-## Evidence: FMM27
+### FMM22
+
+The record is the 78-byte head alone, with no unavailability list: a fixed stride of 78.
+`nyongrand/fmm-editor`'s FMM26 `Player` is the head and a u32 (`Unknown2`), always 0 in its
+pre-game database; in an FMM27 save that u32 is the list's count. Read at 78 or 82 bytes a
+record, an FMM27 table drifts at record 361, the first with an item.
+
+## Evidence
 
 `truro-2026-07-25`, the Player Match Eligibility screens of three of the 24:
 
@@ -105,7 +107,7 @@ Both end dates are the screen's to the day, which also fixes the month as 0-base
 November, `08` September). Vušković's Selection line, "Has been given a leave of absence", is
 not in this list. Tested by `tests/test_reference_fmm27_evidence.py`.
 
-## Evidence: FMM22
+### FMM22
 
 `frem-2030-06-22`. Simon Adingra (sid 0x5122), record at byte 5,587,980:
 

@@ -513,8 +513,9 @@ checks on the new declaration before moving to the next table.</li>
 <li><strong>Document it in the same change (evidence as we go).</strong> The screenshot that
 confirmed the fields goes into the table's doc as its FMM27 evidence:
   <ul>
-  <li>a <em>Layout: FMM27</em> section beside the FMM22 one, with each departure from FMM22
-  (and from fmm-editor's FMM26) called out;</li>
+  <li>the doc leads with FMM27: <em>Layout</em> and <em>Evidence</em> describe the FMM27 record
+  in full, each closing with an <em>FMM22</em> subsection on how the older version (and
+  fmm-editor's FMM26) differs;</li>
   <li>the screenshot in <code>docs/parser/img/&lt;table&gt;-fmm27-N.png</code>, resized to ~1000 px;</li>
   <li>an <em>on screen → raw bytes → parsed</em> table for the rows the screenshot shows;</li>
   <li>an evidence test (<code>tests/test_*_evidence.py</code>) pinning the bytes as well as the
@@ -674,7 +675,7 @@ arrives, as long as FMM26 declares itself the same way.</p>
 </tbody>
 </table>
 <p class="sub">Checked: +149 = 4 (Training, ★) and +150 = 3 (Youth, ½★), FMM22's reading and
-scale. The record's values are tabled in <code>clubs.md</code>, Evidence: FMM27.</p>
+scale. The record's values are tabled in <code>clubs.md</code>, Evidence.</p>
 
 <h3>person_info (Phase 3, first table) — in the parser, see <code>docs/parser/person_info.md</code></h3>
 <p>Frame <code>[FF ×8][u32 44,960][01]</code> at 751,982; record 0 at 751,987. The record is
