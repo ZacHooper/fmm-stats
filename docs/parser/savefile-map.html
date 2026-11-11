@@ -251,6 +251,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <p>The save ends in a zstd archive: a chain of <code>[u32 stored][zstd frame]</code> members and a directory that names them, ending on the file's last byte. Every member opens <code>[03][01]['tad.']</code> (<code>.dat</code> reversed). Decompressed sizes on <code>frem-2026-06-11</code>, 6.58 MB in all from 1.30 MB stored:</p>
   <div class="bars" id="archBars"></div>
   <p style="font-size:14px;color:var(--muted)">The archive is current state: <code>fix_man</code> is a two-calendar-year window and the rules are this season's. A 2026 save knows nothing of 2021. History comes from keeping snapshots.</p>
+  <p style="font-size:14px;color:var(--muted)">FMM27 stores the same archive without the length prefixes: bare zstd frames back to back, and a 9-byte directory header with no size, its frame running to EOF (168 members on <code>truro-2026-07-25</code>). The markdown map has the FMM27 career-half offsets.</p>
 </section>
 
 <section aria-labelledby="h-repro">

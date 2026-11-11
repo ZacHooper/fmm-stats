@@ -1,11 +1,18 @@
 # match_slots  ([`fmparser/tables/match_slots.py`](../../fmparser/tables/match_slots.py))
 
 A preallocated table of 25-byte slots, a few hundred of which hold a recent result between
-two other clubs. What the game uses it for is not known. 3,975 slots on every Frem save and
+two other clubs. What the game uses it for is not known. Not located on FMM27 (Layout); 3,975 slots on every Frem save and
 3,943 on Bucaspor, at ~37.8–40.6 MB (it drifts). Not extracted: nothing in the store reads it.
 The complete results list is [fixtures](fixtures.md).
 
 ## Layout
+
+The trailer `87 01 ff ff` does not occur on `truro-2026-07-25`, and the bytes before the
+surname table are not a slot table. Nothing in the store reads match_slots, so it is left
+unlocated. Right after the contract grid is a different 25-byte table: a u32 tid, a u16, two
+dates (`[day u16][year u16]`), unnamed.
+
+### FMM22
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
@@ -31,6 +38,10 @@ more than any other; `locate` takes the longest run on that class, bridging gaps
 40 slots. The slot count is the extent, and it never changes within a career.
 
 ## Evidence
+
+No FMM27 evidence yet: the table is not read on FMM27 (Layout).
+
+### FMM22
 
 No screen shows this table. The evidence is the [fixtures](fixtures.md) list: every match
 slot joined to it on the two clubs and the day (174 of 178 on `frem-2030-06-22`) agrees on

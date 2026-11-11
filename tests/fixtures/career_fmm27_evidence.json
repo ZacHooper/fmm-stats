@@ -1,0 +1,141 @@
+{
+ "_about": "Evidence for the FMM27 career half on truro-2026-07-25: contracts, player progress, training, player lists and the archive (fixtures, competition rounds). tests/test_career_fmm27_evidence.py reads it.",
+ "save": "truro-2026-07-25.fms",
+ "walks": {
+  "contracts": {
+   "base": 29539118,
+   "capacity": 81465,
+   "used": 44960,
+   "current": 36270
+  },
+  "player_progress": {
+   "base": 52553450,
+   "rows": 62400,
+   "used": 25
+  },
+  "training": {
+   "base": 57955534,
+   "count": 44960
+  },
+  "player_lists": {
+   "lists": 132,
+   "first": 66236284,
+   "used": {
+    "62": 100,
+    "63": 26,
+    "64": 100,
+    "65": 26
+   }
+  },
+  "archive": {
+   "members_start": 69357132,
+   "directory_header": 69881010,
+   "members": 168
+  },
+  "fixtures": 499,
+  "competition_rounds": 345
+ },
+ "raw": [
+  [
+   29539097,
+   "12 12 12 12 12 12 12 12 12 12 12 ff ff ff ff 39 3e 01 00 ff ff",
+   "contract grid frame: 11 x 0x12, ffffffff, capacity 81,465, ffff"
+  ],
+  [
+   29629422,
+   "40 04 00 00 01 83 1f 02 00 00 00 00 00",
+   "Ronaldo's contract (tid 1088): marker 01, wage_units 139,139 as a u32"
+  ],
+  [
+   52553450,
+   "bc 19 00 00 0c 00 0a 00 ff ff 09 00 08 00 09 00 00 00 00 00 cd 00 ea 07 07 00 08 00 0b 00 09 00 09 00 05 00 0c 00 0f 00 08 00 08 00 08 00 09 00 08 00 0b 00 0b 00 0d 00 0d 00 ff ff ff ff ff ff ff ff ff ff ff ff",
+   "player progress row 0: the unused template, year 0x07E9"
+  ],
+  [
+   57955530,
+   "a0 af 00 00",
+   "training count 44,960"
+  ],
+  [
+   58357402,
+   "bc 19 00 00 b1 ee ab 01 11 e0 ab 00 00 30 a7 00 00 00 00 00 00 02 00 18 00 00 00 0d 00 40 02 55 00 41 00 a5 00 87 00 41 00 00 00 00 00 00 00 00 00 cb 00 b3 07 00 00 ea 07 00 00 ea 07",
+   "Bogle's training row (tid 6588): focus role 24 at +23, contracted 87 at +37"
+  ],
+  [
+   69357106,
+   "02 01 66 6d 66 2e 08 00 00 77 fe 07 00 00 00 00 00 11 00 00 00 00 00 00 00 03 28 b5 2f fd",
+   "archive opening header and 13 constant bytes, then member 0's bare zstd frame"
+  ],
+  [
+   69881010,
+   "02 01 66 6d 66 2e 08 00 00 28 b5 2f fd",
+   "the directory's 9-byte header, then its frame"
+  ]
+ ],
+ "contracts": {
+  "1088": 139139,
+  "23979": 350000
+ },
+ "injured": [
+  8501,
+  9271
+ ],
+ "progress_week": "2026-07-25",
+ "training": {
+  "6588": {
+   "focus_role": 24,
+   "contracted": 135
+  }
+ },
+ "scrapbook": {
+  "bogle": {
+   "full_name": "Omar Bogle",
+   "club": "Truro",
+   "competition": "Enterprise South",
+   "player_tid": 6588,
+   "club_tid": 3125,
+   "role": 24,
+   "pos_st": 20,
+   "attr_pace": 11,
+   "value": 52338,
+   "wage": 1100
+  },
+  "kane": {
+   "full_name": "Harry Kane",
+   "club": "FC Bayern",
+   "player_tid": 6634,
+   "caps": 121,
+   "intl_goals": 85,
+   "u21_caps": 14,
+   "u21_goals": 8,
+   "foot_left": 16,
+   "foot_right": 20
+  }
+ },
+ "truro_fixtures": [
+  {
+   "date": "2026-07-11",
+   "home_tid": 3125,
+   "away_tid": 5164,
+   "home_goals": 2,
+   "away_goals": 0,
+   "stadium_id": 11983
+  },
+  {
+   "date": "2026-07-18",
+   "home_tid": 367,
+   "away_tid": 3125,
+   "home_goals": 3,
+   "away_goals": 1,
+   "stadium_id": 72
+  },
+  {
+   "date": "2026-07-25",
+   "home_tid": 404,
+   "away_tid": 3125,
+   "home_goals": 2,
+   "away_goals": 1,
+   "stadium_id": 104
+  }
+ ]
+}

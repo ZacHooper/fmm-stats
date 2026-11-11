@@ -77,11 +77,23 @@ A second career, **Truro City**, is on **FMM27**; FMM22 support stays, with
 `tests/assert_identical.py` as the gate on every change. The working record, with progress,
 phases, decisions and every learning so far, is
 **[`plans/2026-11-11-fmm27-migration.html`](plans/2026-11-11-fmm27-migration.html)**. Read it
-to resume. Now: the header and the whole reference half, person_info to stadiums, read on
-FMM27 (`tables_for(mm)` picks each table's declaration by `save_format`), rule_files reads,
-and `extract.py` runs to player_lists, skipping the career-half tables it can't locate. Next:
-the career half in file order (contracts, match slots, player progress, training, matches,
-player lists, the archive), each documented with its in-game evidence in the same change.
+to resume. Now: `extract.py` runs end to end on `truro-2026-07-25`. The reference half and the
+career half read with FMM27 declarations where the layout changed (`tables_for(mm)` picks
+each by `save_format`): contracts, player progress, training, player lists (132 lists), the
+archive (bare frames), world fixtures (95 B) and competition rounds. Open, in order:
+- **Our matches**: one row on the save, 70 B player slots; the row length needs a save with
+  two or more matches, the slot's stats a match ratings screen
+  ([matches](parser/matches.md#layout)).
+- **Screens for the career tables**: a Contract screen, the Training page, an injured
+  player's profile, a Scrapbook Profile, the Fixtures/Results screen (each table doc's
+  "Evidence: FMM27" names it).
+- **Fixtures' tail and the player lists' season numbers** need a save with league fixtures
+  and played competitive matches.
+- **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;
+  `match_slots` is not located (nothing reads it).
+- **Then the store**: load the FMM27 JSON (`stg` handles the FMM27 shapes by `summary.json`'s
+  `save_format`), `staff_roles.json` into raw, and the managed club's manager
+  (`mart.club_managers`).
 
 ---
 

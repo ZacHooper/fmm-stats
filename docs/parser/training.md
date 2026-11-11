@@ -1,12 +1,16 @@
 # training  ([`fmparser/tables/training.py`](../../fmparser/tables/training.py))
 
 Every player's training focus (role, position, attribute, intensity), plus a contract flag
-and an unnamed byte at +39 (`unknown_39`; it is not the squad status). One fixed 61-byte row per person, `[count u32][rows]`, ~0.76 MB
-after the [player_progress](player_progress.md) pool. The count is the person count, the
-same as [person_info](person_info.md)'s (32,966 on Frem, 34,312 on Bucaspor), and row k
-belongs to tid k.
+and an unnamed byte at +39 (`unknown_39`; it is not the squad status). One fixed 61-byte row per person, `[count u32][rows]`, ~1.03 MB
+after the [player_progress](player_progress.md) pool (57,955,534 on `truro-2026-07-25`). The
+count is the person count, the same as [person_info](person_info.md)'s (44,960 on Truro), and
+row k belongs to tid k: 36,250 player rows on Truro. The row is the same on both versions.
 
 ## Layout
+
+The fields were read off Training screens on FMM22 (Evidence, FMM22). On FMM27 every field
+reads where FMM22 has it (Evidence); that the role and attribute codes mean the same is not
+yet checked on an FMM27 screen.
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
@@ -26,7 +30,19 @@ belongs to tid k.
 | +39 | `unknown_39` | u8 | unnamed: **not** the squad status (Quirks). 171 on most of Frem's squad; 164, 136 and 125 on others | the Transfer Status screen |
 | +40 | | 21 B | unnamed; from +49, three `[day-of-year u16][year u16]` dates | |
 
+### FMM22
+
+The same row. The count is 32,966 on Frem and 34,312 on Bucaspor, and the table sits
+758,222 bytes after the progress pool on every Frem save.
+
 ## Evidence
+
+`truro-2026-07-25`: Omar Bogle (6588) has intensity 2, focus role 24, attribute focus 13,
+Focus Pos ST and `contracted` `87`; his scrapbook entry's role is also 24
+([player_lists](player_lists.md)). Staff rows (Stewart Yetton, 2832) have role `ffff`.
+Tested by `tests/test_career_fmm27_evidence.py`. Pending: the Club Squad > Training page.
+
+### FMM22
 
 `frem-2030-06-22`. Simon Adingra's Training Report; his row (tid 26552) at byte 54,923,658:
 

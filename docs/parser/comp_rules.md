@@ -3,8 +3,9 @@
 Each loaded competition's structure: its stages (league phase, championship and relegation
 groups, group stage, knockout) and each knockout stage's rounds, with teams and legs. One
 archive member per loaded competition, `comp_<uid>.dat`, named by the competition's
-**uid** ([competitions](competitions.md)): 147 on every Frem save, 149 on Bucaspor's. A
-member is a 54-byte header and one block in the save's tagged format, declared per tag.
+**uid** ([competitions](competitions.md)): 156 on `truro-2026-07-25` (147 on every Frem save,
+149 on Bucaspor's). A member is a 53-byte header (FMM22 54) and one block in the save's tagged
+format, declared per tag.
 
 The same declarations read the data dictionary's 453 competition rule files
 ([rule_files](rule_files.md)): a configured member is a copy of the rule file it names.
@@ -12,7 +13,7 @@ The same declarations read the data dictionary's 453 competition rule files
 ## Layout
 
 ```
-member  [54-byte header][n_fields tagged fields][binary state, not read]
+member  [53-byte header][n_fields tagged fields][binary state, not read]
 FILE    stgs: [STAGE, …]                                  + ~160 unread top-level tags
 STAGE   id (code), indx, type, ntms, stnm, ngps, rnds: [ROUND, …]
 ROUND   stnm, ntms, nmlg
@@ -23,11 +24,16 @@ specified once, in `fmparser/core/types.py` above `read_tree`. The block reads t
 declared field count and ends on the trailer `XSvC EdBr EdDt SubF` (`SubF` the source folder);
 the bytes after it are runtime state.
 
-**Header** (`HEADER`): +6 `d9 01` on every member; +20 `season_year`, the season's start year
-(2029 on 68 members of frem-2030-06-22; later years on competitions whose next edition is set
-up, 0 on 44); +48 `base_year` 2000 on all; +50 `n_fields`, the declared top-level field count.
-74 members declare **0 fields**: the competition is loaded but its rules are not set up (a
-stub; 44 of them have `season_year` 0).
+**Header** (`HEADER_FMM27`): +6 `09 02` on every member; +20 `season_year`, the season's start
+year, and the same year again at +22; +47 `base_year` 2000 on all; +49 `n_fields`, the
+declared top-level field count. A member declaring **0 fields** is a stub: the competition is
+loaded but its rules are not set up. One member, `eng_national_north_south` (150990, the
+umbrella over the National League North and South), is configured without a stage list and
+reads with `STAGELESS_FILE`; like a stub, it gives no rows. `competition_rounds` gives 345 rows
+on `truro-2026-07-25`.
+
+The tags below, their meanings and the screens were read on FMM22 (Evidence); FMM27's blocks
+read with the same schemas plus the tags FMM27 adds (`SRni` on stages, listed unread).
 
 | tag | field | meaning | how we know |
 |---|---|---|---|
@@ -81,7 +87,20 @@ Seen but not on a screen: 6 (Belgium's Championship Group and European Places Pl
 Bundesliga `[0, 14, 1, 3, 5]`, Belgium's `[2, 0, 1, 13, 5]` (and `[6, 2, 0, 1, 13, 5]` on its
 play-off stages).
 
+### FMM22
+
+**Header** (`HEADER`), 54 bytes: +6 `d9 01` on every member; +20 `season_year` (2029 on 68
+members of frem-2030-06-22; later years on competitions whose next edition is set up, 0 on
+44), not repeated; a u32 at +37 that FMM27 does not have; +48 `base_year` 2000; +50
+`n_fields`. 74 members declare 0 fields (44 of them with `season_year` 0).
+
 ## Evidence
+
+`truro-2026-07-25`: all 156 members unpack and read to their declared field counts, and the
+345 rows are tested by `tests/test_career_fmm27_evidence.py`. Pending: a rules screen for the
+Enterprise National League South (331) to check the FMM27 stage list against.
+
+### FMM22
 
 `frem-2030-06-22`. **`comp_6.dat`, the 3F Superliga** (uid 6). Header:
 

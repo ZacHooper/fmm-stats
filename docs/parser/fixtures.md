@@ -1,15 +1,44 @@
 # fixtures  ([`fmparser/tables/fixtures.py`](../../fmparser/tables/fixtures.py))
 
 Every result in the loaded world, every club, for this calendar year and the last: the
-Fixtures/Results screens of every club and competition. 92-byte records in the save's zstd
+Fixtures/Results screens of every club and competition. Fixed-width records in the save's zstd
 archive, member `fix_man.dat` ([savefile map](savefile-map.md#the-archive) has the
-container), stored as one grid per calendar year, the current year first. 26,627 records on
-`frem-2030-06-22` (7,915 for 2030, 18,712 for 2029), across both careers' clubs and national
-sides alike. Our own clubs' matches in full detail are [matches](matches.md).
+container), stored as one grid per calendar year, the current year first. 499 records on
+`truro-2026-07-25`, all July 2026 friendlies. Our own clubs' matches in full detail are
+[matches](matches.md). FMM27's record is 95 bytes and only partly placed; FMM22's 92-byte
+record is read in full (Layout, FMM22).
 
 ## Layout
 
-Offsets from the record's first byte.
+Offsets from the record's first byte. The goals block is FMM22's; two bytes come in before
+`+30`, so everything from the stage key to the dates sits two later than on FMM22. The tail
+from `+63` is one byte longer than FMM22's and unread: the season, referee, round and stage
+bytes need a save with league fixtures to place, so the output carries only the fields below.
+
+| offset | field | type | meaning | how we know |
+|---|---|---|---|---|
+| +1 | `opener` | u8 | always `0x1f` | the locator keys on it |
+| +2 | | 4 | `ff ff ff ff` | the locator keys on it |
+| +6 | `home_goals` | u8 | home score after 90 minutes; `ff` = unplayed | Truro's three friendlies |
+| +7, +8 | `home_extra_goals`, `home_pens` | u8 | `ff` = none | |
+| +11 | `away_goals` | u8 | away score after 90 minutes | |
+| +12, +13 | `away_extra_goals`, `away_pens` | u8 | | |
+| +33 | `stage_key` | u32 | the stage (164 on every friendly) | |
+| +37 | `stadium_id` | u16 | the venue's stadium id | 11983, Truro's, for its home friendly |
+| +43 | `home_tid` | u32 | home club | |
+| +49 | `away_tid` | u32 | away club | |
+| +55 | `day_raw` | u16 | day of the year **1-based** in the low 9 bits | 25 July = the [match](matches.md) row's date |
+| +57 | `year` | u16 | the match's year | |
+| +59, +61 | `day2_raw`, `year2` | u16 | a second date; 1 Jan 1900 on every friendly | |
+
+**How it is found.** `segments` scans the decompressed member for the opener `[u8][0x1f]
+[ff ff ff ff]` and splits the hits into runs of exact 95-byte steps.
+
+### FMM22
+
+92-byte records, opener `0x14`: 26,627 on `frem-2030-06-22` (7,915 for 2030, 18,712 for
+2029), across both careers' clubs and national sides alike. Offsets from the record's first
+byte.
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
@@ -46,6 +75,13 @@ The rest (+0, +9, +14..30, +37, +45, +51, +61, +68..71, +79..82, +84..91) is dec
 exactly (`count × 92`). The grids are walked in file order.
 
 ## Evidence
+
+`truro-2026-07-25`, Truro's three friendlies: 2-0 at home to 5164 at stadium 11983 (Truro's)
+on 11 July, 1-3 at 367 on 18 July, 1-2 at 404 on 25 July; the last is also the
+[match](matches.md) row the save holds. Tested by `tests/test_career_fmm27_evidence.py`.
+Pending: Truro's Fixtures/Results screen.
+
+### FMM22
 
 `frem-2030-06-22`, the Vejle 2-4 Frem report ([matches](matches.md),
 `img/matches-1.png`). The fixture sits at offset 1,963,665 of the decompressed `fix_man.dat`:

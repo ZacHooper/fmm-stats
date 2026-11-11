@@ -14,6 +14,7 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
+from .save_header import FMM27, save_format
 from ..core import DATE, Field, PAD, RAW, Record, U16, U32, U8, UNKNOWN, TableDef, table_spans
 
 __all__ = [
@@ -33,8 +34,8 @@ CONTRACT_RECORD = 83
 CONTRACT = Record("contract", CONTRACT_STRIDE, [
     Field(0,  4, "tid",                  U32, note="== the slot index"),
     Field(4,  1, "marker",               U8,  note="bit 0 = active contract (1, 3, 17, 21); even = lapsed"),
-    Field(5,  2, "wage_units",           U16),
-    Field(7,  6, UNKNOWN,                PAD),
+    Field(5,  4, "wage_units",           U32, note="over 65,535 on two FMM27 contracts (Ronaldo's 139,139)"),
+    Field(9,  4, UNKNOWN,                PAD),
     Field(13, 4, "expiry",               DATE, note="some Danish deals expire 31 Dec -- keep the DAY"),
     Field(15, 2, "expiry_year",          U16,  alias=True),
     Field(17, 19, UNKNOWN,               RAW),
@@ -52,14 +53,16 @@ _CONTRACTS_CACHE: Dict[Any, Optional[Tuple[int, int]]] = {}
 def locate_contracts(mm: Any) -> Optional[Tuple[int, int]]:
     """(base, declared_count) for the 83-byte contract grid, or None.
 
-    Anchored on the `b'\\x12' * 11` delimiter preceding slot capacity at `base0 - 6`.
-    Verified by slot 0 (tid 0) and slot 1 (tid 1).
+    Anchored on the `b'\\x12' * 11` delimiter preceding slot capacity at `base0 - 6`; FMM27
+    puts four `ff` bytes between the delimiter and the capacity. Verified by slot 0 (tid 0) and
+    slot 1 (tid 1).
     """
     key = _cache_key(mm)
     if key in _CONTRACTS_CACHE:
         return _CONTRACTS_CACHE[key]
 
     marker = b"\x12" * 11
+    gap = 4 if save_format(mm) == FMM27 else 0
     pos = 15_000_000
     n = len(mm)
     end = min(n, 45_000_000)
@@ -69,7 +72,7 @@ def locate_contracts(mm: Any) -> Optional[Tuple[int, int]]:
         if idx == -1:
             break
         pos = idx + 1
-        base0 = idx + 17
+        base0 = idx + 17 + gap
         if base0 + CONTRACT_STRIDE * 2 > n:
             continue
         if mm[base0:base0 + 4] == b"\x00\x00\x00\x00" and mm[base0 + CONTRACT_STRIDE:base0 + CONTRACT_STRIDE + 4] == b"\x01\x00\x00\x00":

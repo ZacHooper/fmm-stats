@@ -1,25 +1,46 @@
 # contracts  ([`fmparser/tables/contracts.py`](../../fmparser/tables/contracts.py))
 
 Every person's contract: wage, expiry, start date and an active flag. A preallocated grid of
-fixed 83-byte slots, one per tid (`tid == slot index`), at ~29 MB. In front of slot 0 sit 11
-bytes of `0x12`, then the grid's capacity as a u32 at `base − 6` (59,632 on Frem, 60,765 on
-Bucaspor) and two more bytes. The capacity is not a headcount: slots are filled from tid 0
-and the walk stops at the first slot whose tid isn't its index (33,127 used on Frem).
+fixed 83-byte slots, one per tid (`tid == slot index`), at ~29.5 MB. In front of slot 0 sit 11
+bytes of `0x12`, four `ff`, then the grid's capacity as a u32 at `base − 6` (81,465 on Truro)
+and two more bytes. The capacity is not a headcount: slots are filled from tid 0 and the walk
+stops at the first slot whose tid isn't its index (44,960 used on Truro, one per person,
+36,270 of them current). The record is the same on both versions; the frame differs (Layout,
+FMM22).
 
 ## Layout
+
+The fields were checked against Contract screens on FMM22 (Evidence, FMM22). On FMM27 the
+walk holds on every used slot of `truro-2026-07-25`.
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
 | +0 | `tid` | u32 | equals the slot index | the walk's invariant |
 | +4 | `marker` | u8 | bit 0 set = a current contract (1, 3, 17, 21) | all 38 contracts on Frem's two Contract screens read 1 |
-| +5 | `wage_units` | u16 | the weekly wage in units of £10: `× 10` is £/week, `× 520` is £/year | the Contract screens (below) |
-| +7 | | 6 B | unnamed | |
-| +13 | `expiry` | date `[day-of-year u16, 0-based][year u16]` | the day the contract ends | the Expiry column, 38 of 38 |
+| +5 | `wage_units` | u32 | the weekly wage in units of £10: `× 10` is £/week, `× 520` is £/year. Two contracts need more than a u16: Cristiano Ronaldo (tid 1088) 139,139 (£1.39M a week) and "Gianni Bianchi" (tid 23979, the same club) 350,000 | the Contract screens (FMM22) |
+| +9 | | 4 B | unnamed | |
+| +13 | `expiry` | date `[day-of-year u16, 0-based][year u16]` | the day the contract ends | the Expiry column, 38 of 38 (FMM22) |
 | +17 | | 19 B | unnamed | |
-| +36 | `start_date` | date | when the contract began | Adingra's equals his `joined_date` |
+| +36 | `start_date` | date | when the contract began | Adingra's equals his `joined_date` (FMM22) |
 | +40 | | 43 B | unnamed | |
 
+**How it is found.** `locate_contracts` looks for the `0x12` run whose slots 0 and 1 hold
+tids 0 and 1. The first `0x12` runs in the career half are the formation records
+(`76 b9 f4 07` and a formation string), which that check passes over.
+
+### FMM22
+
+No `ff` bytes in the frame: `[11 × 12][capacity u32][ff ff]` (59,632 on Frem, 60,765 on
+Bucaspor; 33,127 slots used on Frem). Every wage is below 65,536, so the upper half of
+`wage_units` reads 0.
+
 ## Evidence
+
+`truro-2026-07-25`: the frame, Ronaldo's row and the walk are tested by
+`tests/test_career_fmm27_evidence.py`. Pending: a Contract screen for Truro's squad, to tie
+the wage and expiry to what the game shows on FMM27.
+
+### FMM22
 
 `frem-2030-06-22`, Club Squad → Contract for the first team and the reserves. Every row, 38
 of 38, has wage `× 520` within 2.4% of the screen's rounded £ figure and the screen's
@@ -60,7 +81,8 @@ His scrapbook entry ([player_lists](player_lists.md)) stores the same wage in po
 > moves with the year), but a few hundred end on 29–31 May or 30–31 December. Keep the full
 > date; never assume 30 June.
 
-> **Quirk:** the grid runs past the person table. Slots 32,966 to 33,126 (161 of them) hold
+> **Quirk:** on FMM22 the grid runs past the person table (on Truro it stops at the person
+> count, 44,960). Slots 32,966 to 33,126 (161 of them) hold
 > tids no person has, with no wage and both dates 1 Jan 2021 (the career's "no date"), on
 > every Frem save. They are part of the walk, not people. Tids in this range do turn up in
 > match stats: 58 of them (32,967–33,066) play for 14 reserve sides on this save, the

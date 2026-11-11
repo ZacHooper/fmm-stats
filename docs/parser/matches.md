@@ -2,11 +2,31 @@
 
 Our clubs' matches this season, each one in full: the match report, the stats, every
 player's line and our tactic. A table of variable-length rows framed by a bare `[count u8]`,
-at ~55.7 MB, holding the managed club's and its reserve side's matches in the order they were
-played. 70 rows on `frem-2030-06-22` (50 Frem, 20 reserves). The game empties it on the
+holding the managed club's and its reserve side's matches in the order they were played: at
+60,844,241 on `truro-2026-07-25` (one row), at ~55.7 MB on Frem (70 rows on `frem-2030-06-22`,
+50 Frem, 20 reserves). **Not read on FMM27 yet** (Layout); the full layout is FMM22's. The game empties it on the
 career's rollover day. Every other club's results are in [fixtures](fixtures.md).
 
 ## Layout
+
+Not read on FMM27: `locate_matches` finds no row and `matches.json` is empty.
+`truro-2026-07-25` holds one row: Truro's 1-2 friendly at club 404 on 25 July, count byte
+`01` at 60,844,241. What is known:
+
+- **The head is 10 bytes**: home, away, competition, day, then the **year** (FMM22 8).
+- **Events are FMM22's 17 bytes**, and the body opens with the 78-byte body head and the 50
+  event slots (body `+78` to `+928`). The body head's `+11` and `+13` both read the year
+  where FMM22 has the day and the year; attendance (1,038) is still at `+15`.
+- **Player slots are 70 bytes** (FMM22 62), with posOrder at `+42` and the tid at `+43`. A
+  team block is an 80-byte head (FMM22's fields where checked: positions at `+30`), 20 slots
+  and a 168-byte tail, 1,648 in all (FMM22 1,363), so the tail starts at body `+4,224` and
+  the formation marker sits at its `+33`, as on FMM22.
+- **The row's length is not proven.** The tail holds the formation, the coordinate grid and
+  the eleven 8-byte rows, but with one row there is no second head to end it on. A save with
+  two or more matches settles it; the stats inside a 70-byte slot need a match's player
+  ratings screen.
+
+### FMM22
 
 ```
 header  [count u8]                      matches in the table
@@ -117,6 +137,10 @@ byte in front of row 0 is the count. `scrape_matches` then requires the walk to 
 the declared count, no row before row 0 and none after the last.
 
 ## Evidence
+
+No FMM27 evidence yet: the table is not read on FMM27 (Layout).
+
+### FMM22
 
 `frem-2030-06-22`, Vejle 2-4 Frem, 3F Superliga, 23 September 2029. The row starts at byte
 55,840,931: `8c 04 5a 01 02 00 09 01 | 08` = home 1164 (Vejle), away 346 (Frem), cid 2, day

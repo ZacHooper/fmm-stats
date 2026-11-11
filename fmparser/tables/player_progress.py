@@ -18,7 +18,7 @@ every save of both careers -- with no count in front of it:
                           goalkeeper; unread
 
 An unused row is one fixed template (tid, lines, day and the +24 block all 0xff; year
-0x07E4). The players tracked are the managed club's squad and reserves (35 on
+0x07E4 on FMM22, 0x07E9 on FMM27: the year before the game's first season). The players tracked are the managed club's squad and reserves (35 on
 frem-2027-06-15), back to their first week at the club. A week is usually one row; a few are
 two to four, in slots anywhere in the pool (the game recycles rows), and the copies can
 disagree on the status bits and the lines. `scrape_player_progress` hands every used row over
@@ -33,7 +33,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import Field, PAD, RAW, Record, TableDef, U16, U32, UNKNOWN
 from ..save import cache_key as _cache_key
-from .save_header import read_save_header
+from .save_header import FMM27, read_save_header, save_format
 
 __all__ = [
     "PLAYER_PROGRESS_TABLE",
@@ -46,6 +46,7 @@ __all__ = [
 ROWS = 62_400                    # rows in the pool, on every save
 NO_PLAYER = 0xFFFFFFFF
 EMPTY_YEAR = 0x07E4
+EMPTY_YEAR_FMM27 = 0x07E9
 NO_LINE = 0xFFFF
 LINES = tuple(f"line_{i}" for i in range(6))
 
@@ -60,25 +61,29 @@ PROGRESS_ROW = Record("player_progress_row", 70, [
     Field(16, 2, "status", U16, note="bitfield: 3 injured, 16 off-season, 32 on loan"),
     Field(18, 2, UNKNOWN, PAD),
     Field(20, 2, "day", U16, note="day-of-year, 0-based"),
-    Field(22, 2, "year", U16, note="0x07E4 on an unused row"),
+    Field(22, 2, "year", U16, note="0x07E4 (FMM27 0x07E9) on an unused row"),
     Field(24, 46, UNKNOWN, RAW),
 ])
 
 _STRIDE = PROGRESS_ROW.span
-_EMPTY = (b"\xff" * 16 + b"\x00" * 4 + b"\xff\xff" + EMPTY_YEAR.to_bytes(2, "little")
-          + b"\xff" * 46)
 _CACHE: Dict[Any, Optional[Tuple[int, int]]] = {}
 
 
-def _is_row(mm: Any, o: int, last_year: int) -> bool:
+def _empty(empty_year: int) -> bytes:
+    """The unused-row template."""
+    return (b"\xff" * 16 + b"\x00" * 4 + b"\xff\xff" + empty_year.to_bytes(2, "little")
+            + b"\xff" * 46)
+
+
+def _is_row(mm: Any, o: int, empty: bytes, empty_year: int, last_year: int) -> bool:
     if o < 0 or o + _STRIDE > len(mm):
         return False
     row = mm[o:o + _STRIDE]
-    if row == _EMPTY:
+    if row == empty:
         return True
     zero, day, year = int.from_bytes(row[18:20], "little"), \
         int.from_bytes(row[20:22], "little"), int.from_bytes(row[22:24], "little")
-    return zero == 0 and day <= 365 and EMPTY_YEAR <= year <= last_year
+    return zero == 0 and day <= 365 and empty_year <= year <= last_year
 
 
 def locate_player_progress(mm: Any) -> Optional[Tuple[int, int]]:
@@ -87,15 +92,17 @@ def locate_player_progress(mm: Any) -> Optional[Tuple[int, int]]:
     if key in _CACHE:
         return _CACHE[key]
     res = None
-    seed = mm.find(_EMPTY * 2)
+    empty_year = EMPTY_YEAR_FMM27 if save_format(mm) == FMM27 else EMPTY_YEAR
+    empty = _empty(empty_year)
+    seed = mm.find(empty * 2)
     date = read_save_header(mm)["date"]
     if seed >= 0 and date:
         last_year = int(date[:4]) + 1
         lo = seed
-        while _is_row(mm, lo - _STRIDE, last_year):
+        while _is_row(mm, lo - _STRIDE, empty, empty_year, last_year):
             lo -= _STRIDE
         hi = seed
-        while _is_row(mm, hi, last_year):
+        while _is_row(mm, hi, empty, empty_year, last_year):
             hi += _STRIDE
         if (hi - lo) // _STRIDE == ROWS:
             res = (lo, ROWS)

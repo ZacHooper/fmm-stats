@@ -254,6 +254,30 @@ deterministic-version entry.</li>
 </div>
 
 <div class="finding">
+<span class="tag ok">phases 3–4 · the career half and the archive · 2026-11-11</span>
+<strong><code>extract.py</code> runs end to end on <code>truro-2026-07-25</code>.</strong>
+<ul>
+<li><strong>contracts</strong>: FMM22's 83-byte record; the frame gains four <code>ff</code> bytes before the
+capacity (81,465). <code>wage_units</code> is a u32 on both versions: Ronaldo's 139,139 overflows a u16.</li>
+<li><strong>player_progress</strong>: unchanged, but the unused-row template's year is 2025 (FMM22 2020),
+the year before the game's first season. 25 rows, Stretton and Rooney injured.</li>
+<li><strong>training</strong>: unchanged; it only failed because the progress pool did not locate.</li>
+<li><strong>player_lists</strong>: 192-byte tails (caps and international goals widen to u16, then 18 more
+unread bytes) and <strong>132 lists</strong>, a second set of 66 all unused, probably women's.</li>
+<li><strong>the archive</strong>: bare zstd frames with no length prefixes, a 9-byte directory header.
+168 members, every one unpacking to its declared size. <code>fix_man</code>'s fixtures are 95 bytes
+(opener <code>0x1f</code>), the comp members' header 53 bytes; one stageless member
+(<code>eng_national_north_south</code>).</li>
+<li><strong>Not read yet</strong>: our matches (one row: a 10-byte head, 70-byte player slots, 1,648-byte
+team blocks; the row length needs a save with two or more matches), <code>comp_man.dat</code>,
+match_slots (nothing reads it), the fixtures' tail.</li>
+<li>Gates: suite green, FMM22 IDENTICAL, Frem's audit PASS. Evidence:
+<code>tests/test_career_fmm27_evidence.py</code>. Screens still to capture are listed in each table doc's
+"Evidence: FMM27".</li>
+</ul>
+</div>
+
+<div class="finding">
 <span class="tag ok">phase 3 · competitions → stadiums done · 2026-11-11</span>
 <strong>The whole reference half reads on FMM27; <code>extract.py</code> now stops at rule_files.</strong>
 <ul>
