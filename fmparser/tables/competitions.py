@@ -30,8 +30,11 @@ from .clubs import NAME_END, after_frame, clubs_end
 COMP_TYPES = {0: "league", 1: "league", 2: "cup", 8: "reserve_league", 9: "friendly"}
 def locate_competitions(mm: Any) -> Optional[Tuple[int, int]]:
     """(record 0, declared count): the frame right after the club table, whose record 0 is
-    cid 0."""
-    loc = after_frame(mm, clubs_end(mm), 2)
+    cid 0. None if the club table before it does not locate."""
+    end = clubs_end(mm)
+    if end is None:
+        return None
+    loc = after_frame(mm, end, 2)
     if loc is None or int.from_bytes(mm[loc[0]:loc[0] + 2], "little") != 0:
         return None
     return loc

@@ -113,7 +113,7 @@ def claims(mm, n):
     # (`fmparser.tables.table_spans`). Tables read from an archive member, not the save, are
     # covered by the archive container below.
     import fmparser.tables as T
-    for name, table in T.TABLES.items():
+    for name, table in T.tables_for(mm).items():
         if getattr(table, "member", None):
             continue                                   # read from an archive member
         try:
@@ -127,16 +127,16 @@ def claims(mm, n):
         start = ARCH.locate(mm)[0]
         measured("archive (zstd container)", [(start, n)])
         names = list(ARCH.members(mm))
-        parsed = {m for t in T.TABLES.values() if getattr(t, "member", None)
+        parsed = {m for t in T.tables_for(mm).values() if getattr(t, "member", None)
                   for m in ARCH.member_names(t.member, names)}
         print(f"  ~ archive: {len(parsed)} of {len(names)} members have a table "
-              f"({', '.join(sorted({t.member for t in T.TABLES.values() if getattr(t, 'member', None)}))}); "
+              f"({', '.join(sorted({t.member for t in T.tables_for(mm).values() if getattr(t, 'member', None)}))}); "
               f"the container is claimed whole", file=sys.stderr)
     except Exception as exc:
         print(f"  ! archive failed: {exc}", file=sys.stderr)
 
     from fmparser.tables import save_header as HDR
-    measured("tables.save_header", [(0, HDR.SAVE_HEADER.span)])
+    measured("tables.save_header", [(0, HDR.save_header_end(mm))])
     declared("reference.name_table", 0, 520_000)
     return out
 

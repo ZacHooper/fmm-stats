@@ -70,6 +70,20 @@ Live traps, each of which has produced numbers that looked fine and were not:
 
 ---
 
+## Parser — FMM27 saves
+
+### 1. Extract an FMM27 save end to end
+A second career, **Truro City**, is on **FMM27**; FMM22 support stays, with
+`tests/assert_identical.py` as the gate on every change. The working record, with progress,
+phases, decisions and every learning so far, is
+**[`plans/2026-11-11-fmm27-migration.html`](plans/2026-11-11-fmm27-migration.html)**. Read it
+to resume. Now: the header and person_info read on FMM27 (`tables_for(mm)` picks each
+table's declaration by `save_format`), and `extract.py` stops at clubs. Next: staff →
+officials → round_names → clubs, in file order, each documented with its in-game evidence in
+the same change.
+
+---
+
 ## Parser — coverage: every byte processed
 
 On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1% unclaimed**

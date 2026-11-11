@@ -7,7 +7,7 @@ TAGGED format, where each field carries its own
 tag and type code (`read_tree`, below).
 """
 import struct
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 class _Unknown:
@@ -216,6 +216,51 @@ class Struct:
             else:
                 out.update(seg.read(mm, pos))
             pos += seg.span
+        return out
+
+
+class Conditional:
+    """A record followed by a second one only when the first's values say so: `[head][tail?]`.
+
+    A segment of a `TableDef` row, like `CountedList`: the row's own bytes decide its length,
+    so no tuned bound is involved. `present(head_values) -> bool` is called on the head's
+    emitted fields (FMM27 person_info: a 2-byte tail follows the head's i32 only when that
+    i32 is -1). Returns the head's fields and, when present, the tail's.
+    """
+    __slots__ = ("name", "head", "tail", "present")
+
+    def __init__(self, name: str, head: Any, tail: Any, present: Callable[[Dict[str, Any]], bool]):
+        self.name = name
+        self.head = head
+        self.tail = tail
+        self.present = present
+
+    def __repr__(self) -> str:
+        return f"Conditional({self.name!r}, {self.head.name}, {self.tail.name})"
+
+    def _has_tail(self, mm: Any, offset: int) -> Tuple[Dict[str, Any], bool]:
+        head = self.head.read(mm, offset)
+        return head, bool(self.present(head))
+
+    def read(self, mm: Any, offset: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
+        """`(fields, next_offset)`, or None when it overruns `limit`."""
+        end = offset + self.head.span
+        if end > limit:
+            return None
+        out, has_tail = self._has_tail(mm, offset)
+        if has_tail:
+            if end + self.tail.span > limit:
+                return None
+            out.update(self.tail.read(mm, end))
+            end += self.tail.span
+        return out, end
+
+    def instances(self, mm: Any, offset: int) -> List[Tuple[Any, int]]:
+        """The packed records this segment holds at `offset`, for the record audit."""
+        _, has_tail = self._has_tail(mm, offset)
+        out = [(self.head, offset)]
+        if has_tail:
+            out.append((self.tail, offset + self.head.span))
         return out
 
 

@@ -126,8 +126,11 @@ TRAINING_TABLE = TableDef(
 
 
 def training_table_spans(mm: Any) -> List[Tuple[int, int]]:
-    """The byte span of the table, count included."""
-    (start, end), = table_spans(mm, TRAINING_TABLE, include_count_header=False)
+    """The byte span of the table, count included; empty if the table does not locate."""
+    spans = table_spans(mm, TRAINING_TABLE, include_count_header=False)
+    if not spans:
+        return []
+    (start, end), = spans
     return [(start - 4, end)]
 
 

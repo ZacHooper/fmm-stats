@@ -72,6 +72,7 @@ from .types import (
     U16,
     U32,
     UNKNOWN,
+    Conditional,
     CountedList,
     FixedList,
     Struct,
@@ -117,6 +118,7 @@ __all__ = [
     "CountedList",
     "FixedList",
     "Struct",
+    "Conditional",
     "TreeError",
     "read_tree",
     # Schema

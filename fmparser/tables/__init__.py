@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """The savefile table registry: every table definition, by name (`TABLES`), and where each
 sits in a save (`table_spans`, `first_record`). The engine is `fmparser/core/table.py`."""
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import LinkedTableDef, TaggedTableDef
+from .save_header import FMM22, FMM27, save_format
 from .cities import CITIES_TABLE, CITY, CITY_RECORD, cities_table_spans, scrape_cities
 from .clubs import CLUB_TABLE, locate_clubs, scrape_clubs
 from .history import HISTORY_TABLE, locate_history, scrape_history
@@ -134,6 +135,7 @@ from .person_info import (
     PERSON_FIELDS,
     PERSON_INFO,
     PERSON_INFO_TABLE,
+    PERSON_INFO_TABLE_FMM27,
     locate_person_info,
     person_info_table_spans,
     scrape_person_info,
@@ -218,6 +220,19 @@ TABLES = {
     "surnames": SURNAMES_TABLE,
 }
 
+# The declarations each game version reads with. A table with no declaration of its own for
+# a version is read with FMM22's: that is a claim to test, not a decode (the FMM27 plan
+# lists which tables are confirmed).
+TABLES_BY_FORMAT = {
+    FMM22: TABLES,
+    FMM27: {**TABLES, "person_info": PERSON_INFO_TABLE_FMM27},
+}
+
+
+def tables_for(mm: Any) -> Dict[str, Any]:
+    """The registry for this save's declared format; FMM22's for a version with none."""
+    return TABLES_BY_FORMAT.get(save_format(mm), TABLES)
+
 
 
 def table_spans(mm: Any, name: str) -> List[Tuple[int, int]]:
@@ -228,7 +243,7 @@ def table_spans(mm: Any, name: str) -> List[Tuple[int, int]]:
     own = globals().get(f"{name}_table_spans")
     if own is not None:
         return own(mm)
-    table = TABLES[name]
+    table = tables_for(mm)[name]
     if isinstance(table, TaggedTableDef):
         return [(b.start - 4, b.end) for b in table.blocks(mm)]
     return table.spans(mm)
@@ -237,7 +252,7 @@ def table_spans(mm: Any, name: str) -> List[Tuple[int, int]]:
 def first_record(mm: Any, name: str) -> Optional[int]:
     """The offset of a registered table's first record, behind its frame; None when the
     table is not located (an empty match table)."""
-    table = TABLES[name]
+    table = tables_for(mm)[name]
     if isinstance(table, LinkedTableDef):
         loc = table.locator(mm)
         return loc[0] if loc else None
@@ -251,6 +266,8 @@ def first_record(mm: Any, name: str) -> Optional[int]:
 __all__ = [
     # Engine
     "TABLES",
+    "TABLES_BY_FORMAT",
+    "tables_for",
     "first_record",
     "table_spans",
     # History

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FMM27 save format — investigation &amp; parser plan</title>
+<style>
+  :root {
+    --ink: #1b1f23; --sub: #57606a; --line: #d8dee4; --bg: #fff;
+    --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700; --accent: #0969da;
+    --code-bg: #f6f8fa;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         color: var(--ink); max-width: 920px; margin: 2.5rem auto; padding: 0 1.5rem; line-height: 1.55; }
+  h1 { font-size: 1.6rem; border-bottom: 2px solid var(--ink); padding-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.4rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.6rem; color: var(--ink); }
+  p, li { color: #24292f; }
+  .sub { color: var(--sub); font-size: .95rem; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+                background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto;
+        font-size: .82rem; border: 1px solid var(--line); }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .45rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.ok { color: var(--ok); font-weight: 600; }
+  td.bad { color: var(--bad); font-weight: 600; }
+  td.warn { color: var(--warn); font-weight: 600; }
+  .tag { display: inline-block; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+         letter-spacing: .03em; border-radius: 3px; padding: .1em .5em; margin-right: .4em; }
+  .tag.ok   { background: #dafbe1; color: var(--ok); }
+  .tag.bad  { background: #ffebe9; color: var(--bad); }
+  .tag.warn { background: #fff8c5; color: var(--warn); }
+  .tag.info { background: #ddf4ff; color: var(--accent); }
+  .finding { border-left: 4px solid var(--accent); background: #f6f8fa; padding: .8rem 1rem;
+             margin: 1rem 0; border-radius: 0 6px 6px 0; }
+  .finding.bad { border-left-color: var(--bad); }
+  .question { border: 1px solid var(--line); border-left: 4px solid var(--warn); background: #fffbe8;
+              padding: .8rem 1rem; margin: .8rem 0; border-radius: 0 6px 6px 0; }
+  .phase { border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: 1rem 0; }
+  .phase h3 { margin-top: 0; }
+  ol.phases > li { margin-bottom: .3rem; }
+  footer { margin-top: 3rem; color: var(--sub); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+
+<h1>FMM27 save format: investigation &amp; parser plan</h1>
+<p class="sub">Truro City career · <span class="mono">fmm_save_1.fms</span> and
+<span class="mono">fmm_save_2.fms</span> (game slot names; archived as <span class="mono">~/fm-saves/truro/</span>, ~70 MB each) · written by game client
+<span class="mono">27.0.0 / fmm27-rel-staging</span> · drafted 2026-11-11, paths and decisions revised 2026-11-11</p>
+
+<table>
+<thead><tr><th>save</th><th>path (<code>&lt;saves_dir&gt;/truro/</code>)</th><th>in-game date</th><th>written</th></tr></thead>
+<tbody>
+<tr><td>save_2</td><td><code>truro-2026-07-22.fms</code> (slot <code>fmm_save_2</code>)</td><td>the <strong>22nd</strong> (earlier)</td><td>05:43</td></tr>
+<tr><td>save_1</td><td><code>truro-2026-07-25.fms</code> (slot <code>fmm_save_1</code>)</td><td>the <strong>25th</strong> (later)</td><td>07:03</td></tr>
+</tbody>
+</table>
+<p class="sub">Both saves are from the same Truro City career (user-confirmed), three in-game days
+apart. The parser should still <em>show</em> that on its own (Phase 0). FMM22 regression saves:
+<code>~/fm-saves/frem/</code> and <code>~/fm-saves/bucaspor/</code>. All four
+<code>assert_identical.py</code> fixtures are present here, including
+<code>frem-2021-06-27.fms</code>.</p>
+
+<div class="finding">
+<span class="tag info">taking over?</span>
+<strong>Start here.</strong> This plan is the working record for FMM27 support; <code>docs/TODO.md</code>
+("Parser — FMM27 saves") points at it. Read <code>fmparser/AGENTS.md</code> for the method, then
+the <em>Progress</em> boxes below and the <em>Learnings &amp; leads</em> section at the bottom. The
+saves are not in git: they are in <code>&lt;saves_dir&gt;/truro/</code> on the machine that made
+this, so copy them from there (or ask the user) before running anything. Keep this file current:
+update the progress boxes and learnings as you go, and delete the TODO entry when the plan closes.
+</div>
+
+<h2>Goal</h2>
+<p>Get <code>extract.py</code> running cleanly end-to-end against the Truro FMM27 saves. Every
+table should end up in one of three states: <strong>confirmed unchanged</strong> and reading
+correctly, <strong>re-located and re-declared</strong> for the new layout, or <strong>explicitly
+flagged new/removed</strong> and parked out of scope. Throughout, the existing FMM22 saves
+(Frem, Bucaspor) must keep extracting byte-identically — <code>tests/assert_identical.py</code>
+is the regression gate for that.</p>
+
+<h2>What we already know</h2>
+<p>Rather than guess, I ran the parser directly against both saves before writing this plan.</p>
+
+<div class="finding bad">
+<span class="tag bad">blocks everything</span>
+<strong>The header format changed completely.</strong> <code>extract.py</code> exits immediately:
+<pre><code>the save's header title has no readable date, so the snapshot cannot be placed; is this an FMM22 save?</code></pre>
+FMM22's header is a fixed 250-byte NUL-padded string,
+<code>"&lt;d/m/yy&gt; - &lt;manager&gt; (&lt;nickname&gt;)"</code>. A hex dump of the first
+~500 bytes of both Truro saves shows something structurally different — not a drifted offset,
+a different encoding:
+<pre><code>0a00 0000 "Truro City"   (u32 length-prefixed string)
+05 00 0000 "Truro"        (another pstring)
+05 00 0000 "Truro"        (another pstring)
+... binary fields ...
+10 00 0000 "27.0.0-d+2495469"      (pstring: build version)
+11 00 0000 "fmm27-rel-staging"     (pstring: channel)
+0e 00 0000 "27.0.0+2495469"        (pstring: a second version string)
+11 00 0000 "fmm27-rel-staging"     (pstring: channel, again)
+... more binary fields, including what look like 4-byte timestamp-shaped values ...</code></pre>
+This is the same shape as <code>core.primitives.pstring</code> (u32-length-prefixed strings)
+already used elsewhere in the parser — just not previously used for the header. No plain-text
+date is visible the way FMM22's was; the field that identifies the snapshot has moved and must
+be re-found.
+</div>
+
+<div class="finding">
+<span class="tag info">walked further</span>
+<strong>The header, byte-by-byte (identical on both saves, confirmed with a clean
+<code>xxd</code> dump, offsets below are from <code>fmm_save_1.fms</code>):</strong>
+<pre><code>0x00  pstring[10]  "Truro City"
+0x0e  pstring[5]   "Truro"
+0x17  pstring[5]   "Truro"
+0x20  u32 3,125 ; u32 8,325,039 ; three u32 zero ; two u32 0xFFFFFFFF ; a handful more u32s
+0x5e  pstring[16]  "27.0.0-d+2495469"      (build version)
+0x72  pstring[17]  "fmm27-rel-staging"     (channel)
+0x87  -- one stray 0x00 byte --
+0x88  pstring[14]  "27.0.0+2495469"        (build version, no "-d" suffix, 2nd copy)
+0x9a  pstring[17]  "fmm27-rel-staging"     (channel, 2nd copy)
+0xaf  u32 27,000,034 ; u32 27,000,034 (repeated) ; a few more u32s
+0xc1  pstring[17]  "fmm27-rel-staging"     (channel, 3rd copy)
+0xd4  pstring[14]  "27.0.0+2495469"        (build version, 3rd copy)
+0xe2  u16/u32-ish run: 5, 139, 167, 170, 150, 145          <- maybe 1 count + 5 values?
+0xf8  u32 62 ; 8 zero bytes
+0x100 a run of ~45 4-byte values shaped like timestamps (e.g. 0x773dde1c),
+      one roughly every 4 bytes -- NOT yet matched to the save's actual date</code></pre>
+The version/channel pair repeats <strong>three times</strong> with two slightly different
+version strings (once with a <code>-d</code> suffix, twice without) — plausibly debug build /
+release build / "latest known" fields, not confirmed. No plain <code>d/m/yy</code> text and
+nothing in the first ~0x100 bytes obviously resolves to the save's in-game date yet. The run of
+timestamp-shaped values starting at 0x100 is the most likely candidate, but could equally be the
+start of an adjacent table rather than still part of the header — <strong>not resolved, this is
+the concrete next step for Phase 1</strong> (diff save_1 vs save_2 byte-for-byte here: the two
+saves are three in-game days apart, the 22nd and the 25th, so whichever bytes move are state, not
+build metadata).
+</div>
+
+<div class="finding bad">
+<span class="tag bad">confirmed on both saves</span>
+<strong>Bypassing the header gate and probing every registered table locator directly gives an
+identical pattern on both saves</strong> — this is a real format difference, not file-specific
+noise:
+</div>
+
+<table>
+<thead><tr><th>table</th><th>status</th><th>locator shape</th><th>note</th></tr></thead>
+<tbody>
+<tr><td>player_attributes</td><td class="ok">found</td><td>A</td><td>reference chain, survives</td></tr>
+<tr><td>cities</td><td class="ok">found</td><td>A</td><td></td></tr>
+<tr><td>currencies</td><td class="ok">found</td><td>A</td><td></td></tr>
+<tr><td>languages</td><td class="ok">found</td><td>A</td><td></td></tr>
+<tr><td>rule_files</td><td class="ok">found</td><td>A</td><td>tagged data dictionary — tagged records likely more resilient to field additions</td></tr>
+<tr><td>surnames / first_names / nicknames</td><td class="ok">found</td><td>C</td><td></td></tr>
+<tr><td>history</td><td class="ok">found</td><td>B</td><td>linked-list pool</td></tr>
+<tr><td>club_records</td><td class="ok">found</td><td>A/C</td><td></td></tr>
+<tr><td>person_info</td><td class="bad">not found</td><td>A</td><td></td></tr>
+<tr><td>staff</td><td class="bad">not found</td><td>C</td><td>prime suspect: FM27 likely widened this record</td></tr>
+<tr><td>round_names</td><td class="bad">not found</td><td>A</td><td></td></tr>
+<tr><td>clubs</td><td class="bad">not found</td><td>A</td><td></td></tr>
+<tr><td>competitions</td><td class="warn">errors (IndexError)</td><td>A</td><td>locator raises instead of returning "not found" — needs hardening regardless</td></tr>
+<tr><td>nations</td><td class="bad">not found</td><td>A</td><td></td></tr>
+<tr><td>stadiums</td><td class="bad">not found</td><td>A</td><td></td></tr>
+<tr><td>contracts</td><td class="bad">not found</td><td>C</td><td>career half</td></tr>
+<tr><td>player_progress</td><td class="bad">not found</td><td>C</td><td>career half</td></tr>
+<tr><td>training</td><td class="bad">not found</td><td>A</td><td>career half</td></tr>
+<tr><td>matches</td><td class="bad">not found</td><td>A</td><td>career half — this is the one with the played matches</td></tr>
+<tr><td>player_lists / trailers</td><td class="bad">not found</td><td>E</td><td>career half</td></tr>
+<tr><td>the zstd archive</td><td class="bad">ArchiveError</td><td>D</td><td><code>frame at 69,331,477 declares 50,331,648 bytes, past EOF</code> — its own directory/footer changed shape</td></tr>
+</tbody>
+</table>
+
+<p>Roughly half the "game database" reference tables still locate correctly, unchanged. The
+tables that broke form two clusters: the early <strong>person → staff → clubs → competitions →
+nations → stadiums</strong> chain, and <strong>the entire career half</strong> (contracts,
+player progress, training, matches, player lists) plus the archive. The untouched tables
+(cities, currencies, languages, name id-tables, rule files, history) are exactly the ones whose
+own record shape has no obvious reason to have changed for FM27's new features.</p>
+
+<div class="finding">
+<span class="tag info">quantified</span>
+<strong>The tables that still work cover ~24% of the file by bytes (16.9 MB / 69.8 MB), and the
+data in them is sane</strong> — not a lucky false-positive lock onto noise:
+<table>
+<thead><tr><th>table</th><th>rows read</th><th>sanity check</th></tr></thead>
+<tbody>
+<tr><td>player_attributes</td><td>25,332</td><td>same order of magnitude as Frem's 26,505</td></tr>
+<tr><td>history</td><td>452,090</td><td>plausible reserved-pool size</td></tr>
+<tr><td>cities</td><td>7,747</td><td>smaller than Frem's 10,956 — likely a different world-DB edition, not a mis-parse</td></tr>
+<tr><td>currencies</td><td>173</td><td><strong>identical</strong> to the FMM22 count</td></tr>
+<tr><td>languages</td><td>126</td><td>close to FMM22's 124</td></tr>
+<tr><td>rule_files</td><td>782 spans</td><td>tagged records — tagged tables look more resilient to field additions than packed ones</td></tr>
+<tr><td>club_records</td><td>498 team-records, 0 league history</td><td>consistent with an early-career save (no completed seasons yet)</td></tr>
+</tbody>
+</table>
+This means the "game database" half that doesn't carry career-specific state survived FM27
+untouched; everything broken clusters exactly where new features would land.
+</div>
+
+<div class="finding">
+<span class="tag warn">baseline: re-capture</span>
+<strong>The first baseline was taken on a different machine and doesn't hold here.</strong>
+There, <code>tests/run_tests.py</code> gave 32 passed, 2 failed, 7 skipped (a missing Bucaspor save
+and no local store), and <code>assert_identical.py</code> couldn't run because
+<code>frem-2021-06-27.fms</code> was missing. This machine has all four oracle fixtures
+(<code>frem-2021-06-27</code>, <code>frem-2023-07-02</code>, <code>frem-2026-06-11</code>,
+<code>bucaspor-2023-04-01</code>) plus built <code>fm-frem</code>/<code>fm-buca</code> stores. So both
+gates should run in full. Phase 0 re-captures the baseline here.
+</div>
+
+<h2>Root-cause hypotheses — to test, not conclusions</h2>
+<ol>
+<li><strong>Header:</strong> moved from a fixed 250 B text title to a tagged/length-prefixed
+record carrying several pstrings (club name, manager name(s), build version, channel) plus
+binary fields, one of which is presumably the in-game date in a new encoding.</li>
+<li><strong>Person/staff records likely grew or reordered</strong> (new attributes, roles, or
+UI data shipped with FM27). Several tables located as "the previous table's end" would break
+even if their <em>own</em> shape is unchanged, once an upstream table's stride shifts the start
+address they're searched from.</li>
+<li><strong>Career-half tables are "reserved space"</strong> — fixed-capacity pools sized when
+the career was created (<code>docs/parser/savefile-map.md</code> calls this out explicitly for
+contracts, player progress, match slots, player lists). A new game version plausibly resized
+these pools or widened their row shape, breaking the <code>id == slot index</code> / stride
+invariants the current walks assert.</li>
+<li><strong>The archive's directory format changed</strong> independently of the rest — a
+different footer, compressor settings, or member-record width.</li>
+</ol>
+
+<h2>Plan</h2>
+
+<div class="finding">
+<span class="tag ok">phase 0 done · 2026-11-11</span>
+<strong>Done on branch <code>fmm27/phase-0</code> (merged with Phase 1 in one PR).</strong>
+<ul>
+<li><strong>Baseline:</strong> <code>run_tests.py</code> 40 passed, 0 failed, 1 skipped. Fresh
+oracle recorded at <code>d5a957f</code> (4 saves, 108 files).</li>
+<li><strong>competitions hardened:</strong> <code>clubs_end</code> returns None when the club
+table doesn't locate, and <code>locate_competitions</code> passes it on as "not found". Both Truro
+saves now return None. FMM22 extract is IDENTICAL.</li>
+<li><strong>Same career, from the bytes:</strong> the strings and build fields are identical. Of
+the 25,042 player ids in both saves, 98.7–99.0% have identical <code>pa</code>, feet, CA and
+attributes. The 1.3% <code>pa</code> drift over three days needs explaining before
+player_attributes counts as confirmed.</li>
+<li><strong>Date found (early Phase 1):</strong> <code>ymd</code> at <code>0x3c</code> gives
+2026-07-25 in save_1 and 2026-07-22 in save_2. Only <code>0x3c</code>, <code>0x43–44</code> and
+<code>0x4f–50</code> differ before 0x100. From 0x100 on almost every byte differs, so the
+"timestamp-shaped run" was a wrong lead.</li>
+<li><strong>TODO:</strong> a "Parser — FMM27 saves" section with the migration entry and the
+deterministic-version entry.</li>
+</ul>
+</div>
+
+<div class="finding">
+<span class="tag ok">phase 3 · person_info done · 2026-11-11</span>
+<strong>The first broken table is re-declared, in the parser, and documented with evidence.</strong>
+<ul>
+<li><code>PERSON_INFO_TABLE_FMM27</code> (<code>fmparser/tables/person_info.py</code>) is
+fmm-editor's FMM26 <code>People</code> record. All 44,960 records hold <code>tid == slot</code> on both
+saves, and the walk ends on player_attributes' frame.</li>
+<li>New generic segment <code>core.Conditional</code> for <code>[head][tail only if head says so]</code>,
+with audit support through an <code>instances</code> hook.</li>
+<li>Version dispatch is built: <code>fmparser.tables.TABLES_BY_FORMAT</code> /
+<code>tables_for(mm)</code>, and <code>person_table(mm)</code> in the module. <code>extract.py</code>,
+<code>audit_records.py</code> and <code>audit_coverage.py</code> all read through it.</li>
+<li><code>summary.json</code> carries <code>save_format</code>. The FMM22 oracle was re-recorded for
+that one key; every other FMM22 file is byte-identical, which also proves the generic
+<code>_record_end</code> rewrite.</li>
+<li>Evidence: four screenshots (<code>docs/parser/img/person_info-fmm27-*.jpg</code>), a bytes → parsed
+table in <code>person_info.md</code>, and <code>tests/test_people_fmm27_evidence.py</code> (broken on
+purpose once; both the bytes check and the value check caught it).</li>
+<li>The audits now survive FMM27: a missing table reports CHECK, and an unreadable archive
+FAILs instead of crashing. FMM22's record audit still PASSes.</li>
+<li><strong>Next:</strong> staff → officials → round_names → clubs, starting at player_attributes'
+end (8,384,727 on the 25th). Each starts from fmm-editor's FMM26 parser
+(<code>CoachParser</code>/<code>NonPlayerParser</code>, <code>OfficialParser</code>,
+<code>ClubParser</code>).</li>
+</ul>
+</div>
+
+<div class="finding">
+<span class="tag ok">phase 2 done · 2026-11-11</span>
+<strong>The authoritative survey: every registered table on both Truro saves, against
+frem-2026-06-11.</strong> Both Truro saves give the same result. Offsets below are
+<code>truro-2026-07-25</code>; the 22nd differs only by drift (~100 KB).
+<table>
+<thead><tr><th>table</th><th>Frem (FMM22)</th><th>Truro (FMM27)</th><th>reading</th></tr></thead>
+<tbody>
+<tr><td>person_info</td><td>0.57–3.99 M · 32,966</td><td class="bad">not found</td><td>should sit in the unclaimed 0.52–5.55 M</td></tr>
+<tr><td>player_attributes</td><td>3.99–6.06 M · 26,505</td><td class="ok">5.55–8.38 M · 36,344, full</td><td>a <strong>bigger world</strong>: +37% rows</td></tr>
+<tr><td>staff → officials → round_names → clubs → competitions → nations → stadiums</td><td>6.06–13.47 M (7.41 MB)</td><td class="bad">none found</td><td>should fill the unclaimed 8.385–15.952 M (7.57 MB)</td></tr>
+<tr><td>cities</td><td>13.47–13.69 M · 10,956</td><td class="ok">15.95–16.11 M · 7,747, full</td><td></td></tr>
+<tr><td>currencies / languages</td><td>173 / 124</td><td class="ok">173 / 126, full</td><td></td></tr>
+<tr><td>rule_files (tagged)</td><td>16.75 M · 667 blocks</td><td class="ok">22.92 M · 782 blocks</td><td>Frem: 2.8 MB from languages to rule_files; Truro: <strong>6.4 MB</strong>. New content?</td></tr>
+<tr><td>contracts</td><td>29.17–34.12 M</td><td class="bad">not found</td><td>should be in the unclaimed 27.09–40.46 M (13.4 MB)</td></tr>
+<tr><td>match_slots</td><td>40.04–40.14 M · 3,975</td><td class="bad">not found</td><td>the same region</td></tr>
+<tr><td>surnames / first_names / nicknames</td><td>32,148 / 19,128 / 9,480</td><td class="ok">47,403 / 29,901 / 10,164, full</td><td></td></tr>
+<tr><td>history (linked)</td><td>pool 265,423</td><td class="ok">43.99 M · pool 452,090, forest holds (in-degree ≤ 1, heads = ends)</td><td></td></tr>
+<tr><td>club_records</td><td>1,057</td><td class="ok">51.23–52.35 M · 1,087, full</td><td></td></tr>
+<tr><td>player_progress, training</td><td>48.35–55.49 M</td><td class="bad">not found</td><td>should be in 52.35–56.92 M (only 13.9% dense, grid-shaped)</td></tr>
+<tr><td>matches, player_lists, trailers</td><td>55.88–62.63 M</td><td class="bad">not found</td><td>should be in 57.96–63.65 M (78.8% dense)</td></tr>
+<tr><td>archive</td><td>62.64–63.93 M, 159 members</td><td class="bad">ArchiveError</td><td>the only compressed region is 69,357,568–EOF (512 KB); the "frame" is read at 69,357,128, just before it</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The file order is unchanged.</strong> Every table that reads sits in FMM22's order,
+just later and bigger. Every broken table has an unclaimed region of the right size in the right
+place. That makes Phase 3 a re-framing job, not a search.</li>
+<li><strong>Coverage:</strong> 29.8% padding, 24.2% read, 0.7% declared, <strong>45.3%
+unclaimed</strong>. Frem is about 19% unclaimed.</li>
+<li><strong>Fixed along the way:</strong> <code>training_table_spans</code> crashed when the table
+didn't locate (same class as <code>competitions</code>), and <code>audit_coverage.py</code> claimed a
+fixed 250-byte header (now <code>save_header_end</code>). FMM22 is still IDENTICAL.</li>
+<li>Reproduce with the scratch probe (each table's locator, declared vs read, spans), or with
+<code>scripts/audit/entropy_profile.py</code> and <code>audit_coverage.py</code> on the saves.</li>
+</ul>
+</div>
+
+<div class="finding">
+<span class="tag ok">phase 1 done · 2026-11-11</span>
+<strong>The FMM27 header reads, and <code>extract.py</code> runs past it.</strong> It now stops
+at the clubs step (<code>ClubTableError</code>), which is Phase 3.
+<ul>
+<li><code>save_format()</code> tells FMM22 from FMM27 by shape. <code>FMM27_HEADER</code> is
+declared as a <code>TableDef</code> of pstrings plus three fixed blocks.
+<code>read_save_header()</code> returns the same dict for both formats. <code>extract.py</code>
+starts its cursor at <code>save_header_end()</code>.</li>
+<li>The 64-byte stamp after the names: <code>date</code> at +28 (<code>ymd</code>),
+<code>written_at</code> at +35 (Unix time; 05:43:32 and 07:03:35, the files' write times), and
+the local hour/minute at +47/+48. +0 is u32 3,125, possibly the managed club's tid.</li>
+<li>There's no manager name in the FMM27 header, so <code>title</code> is the club name.</li>
+<li>Documented in <code>docs/parser/save_header.md</code>, with unit tests in
+<code>tests/test_save_header_unit.py</code>. FMM22 is IDENTICAL; the suite is 40 passed, 0
+failed, 1 skipped.</li>
+<li><strong>Open:</strong> confirm July 2026 in the game; tell the two "Truro" strings apart;
+prove where the header ends.</li>
+</ul>
+</div>
+
+<div class="phase">
+<h3>Phase 0 — groundwork</h3>
+<ul>
+<li>Capture a clean baseline on this machine: <code>uv run python tests/run_tests.py</code> and
+<code>uv run python tests/assert_identical.py</code> against the FMM22 saves in
+<code>~/fm-saves/frem/</code> and <code>~/fm-saves/bucaspor/</code>, before touching any
+<code>fmparser/core</code> code. Nothing in this effort may move those outputs.</li>
+<li>Harden the <code>competitions</code> locator so it returns "not found" instead of raising
+<code>IndexError</code>. This helps FMM22 too (a no-op on its output, which
+<code>assert_identical.py</code> proves) and stops the Phase 2 survey crashing.</li>
+<li>Show from the bytes that save_1 and save_2 are one career (club name, manager, matching
+person/club ids in the tables that already read), not just take it as known.</li>
+<li>Until the header reads, keep working against the raw <code>Save</code>/<code>mm</code>
+directly in scratch scripts (as this session did) rather than through <code>extract.py</code>,
+which currently refuses to run at all.</li>
+<li>Open a <code>docs/TODO.md</code> entry for the duration — this is open, multi-session work,
+and the project's own rule is "if it isn't in TODO, it isn't open."</li>
+</ul>
+</div>
+
+<div class="phase">
+<h3>Phase 1 — decode the new header</h3>
+<p>Doesn't unblock any table structurally, but unblocks running <code>extract.py</code> at all,
+and recovers the one field every snapshot is identified by: the date.</p>
+<ul>
+<li><strong>Done:</strong> walked the header as alternating pstrings/u32s up to offset 0x100 —
+club name, three repeats of build version + channel, five small counts, then a run of
+timestamp-shaped 4-byte values starting at 0x100 that isn't yet matched to anything (see the
+finding above).</li>
+<li><strong>Next, find the date by its known encoding first.</strong> The parser already has a
+4-byte <code>DATE</code> type (<code>fmparser/core/types.py</code>). Decode every 4-byte offset
+from 0x20 to ~0x200 as a <code>DATE</code> and list the plausible ones. The right field reads as
+the <strong>22nd</strong> in save_2 and the <strong>25th</strong> in save_1.</li>
+<li><strong>Then confirm by diffing.</strong> Diff save_1 against save_2 byte-for-byte over the same
+range. They're the same career three in-game days apart, so the date field must be among the bytes
+that change, and build metadata must not.</li>
+<li><strong>Version detection, minimal for now:</strong> FMM22 starts with ASCII
+<code>d/m/yy</code> text and FMM27 starts with a u32 length followed by the club name. That's enough
+to tell <em>these two</em> apart, so the header reader dispatches on it.</li>
+<li><strong>Open a TODO for deterministic version identification.</strong> The shape check above
+can't tell FMM26 from FMM27, because both probably use the pstring header. The real answer is to
+read the version the save declares about itself: the build string (<code>27.0.0+…</code>) or the
+<code>27,000,034</code> u32 at 0xaf, which looks like an encoded version number. Then map it to a
+declared format. Not needed to ship FMM27 support; needed before a third version.</li>
+<li>Decode it as a sequence of <code>pstring</code>s followed by binary fields, using the
+existing <code>core.primitives</code>/<code>core.types</code> readers — no new primitive should
+be needed, just a new <code>Record</code> declaration.</li>
+<li>Add a new header reader that returns the same shape extract.py already expects
+(<code>{title, date, manager, nickname}</code>), so nothing downstream has to change.</li>
+<li>Pin the date against ground truth: the continue-game date shown in the FM27 client for these
+saves.</li>
+</ul>
+</div>
+
+<div class="phase">
+<h3>Phase 2 — formalise the table-status survey</h3>
+<ul>
+<li>Run <code>scripts/audit/entropy_profile.py</code> and
+<code>scripts/audit/audit_coverage.py</code> against both Truro saves (bypassing the header gate
+the same way) to get the authoritative map: filler vs record-shaped vs compressed regions.</li>
+<li>Extend today's quick probe into a complete matrix covering every table in
+<code>fmparser/tables/__init__.py</code>'s <code>TABLES</code>, not just the ones checked so
+far.</li>
+<li>Only once there are real findings — not guesses — write them up under
+<code>docs/agent-context/</code>, the project's point-in-time findings store.</li>
+</ul>
+</div>
+
+<div class="phase">
+<h3>Phase 3 — re-locate each broken table, in file order</h3>
+<p>Order: person_info → staff → the three small 7 B tables + officials + round_names → clubs →
+competitions → nations → stadiums → contracts → player_progress → training → matches →
+player_lists/trailers. Fixing each one narrows the search window for the next.</p>
+<div class="finding">
+<span class="tag info">first reference</span>
+<strong>Start each broken table from <code>nyongrand/fmm-editor</code>'s FMM26 layout.</strong>
+Our table docs already record where FMM22 differs from FMM26. FMM27 is far more likely to resemble
+FMM26 than FMM22, so for person_info, staff, clubs, competitions, nations and stadiums, compare the
+FMM26 record against the FM27 bytes <em>before</em> any blind search. Every field that matches
+still needs the usual confirmation (<code>id == slot index</code> plus ground truth). The editor is
+a lead, not proof.
+</div>
+<ol>
+<li>Bound the region using still-working neighbours as anchors (e.g. the broken
+clubs/competitions/nations/stadiums span is bounded below by <code>player_attributes</code>'
+end and above by <code>cities</code>' start, both of which still locate correctly).</li>
+<li>Apply the method <code>fmparser/AGENTS.md</code> already prescribes: entropy-profile the
+window, find <code>[&gt;= 8 FF][count]</code> frame candidates, accept a candidate only by
+<code>id == slot index</code> holding on every declared record — never a tuned offset.</li>
+<li>If the record stride changed, declare the new bytes as <code>UNKNOWN</code>/<code>RAW</code>
+first. Get the walk passing its own invariant (dense, no gaps, right count) before naming a
+single new field.</li>
+<li>Name fields from ground truth in the live FM27 client (squad screens, staff list, training
+page, the match list) exactly as the existing method requires — never from a guess.</li>
+<li>Run <code>scripts/audit/audit_records.py</code>'s STRIDE / COVERAGE / EXTENT / PADDING
+checks on the new declaration before moving to the next table.</li>
+<li><strong>Document it in the same change (evidence as we go).</strong> The screenshot that
+confirmed the fields goes into the table's doc as its FMM27 evidence:
+  <ul>
+  <li>a <em>Layout: FMM27</em> section beside the FMM22 one, with each departure from FMM22
+  (and from fmm-editor's FMM26) called out;</li>
+  <li>the screenshot in <code>docs/parser/img/&lt;table&gt;-fmm27-N.png</code>, resized to ~1000 px;</li>
+  <li>an <em>on screen → raw bytes → parsed</em> table for the rows the screenshot shows;</li>
+  <li>an evidence test (<code>tests/test_*_evidence.py</code>) pinning the bytes as well as the
+  parsed value;</li>
+  <li>the plan's Learnings section and the TODO entry updated, leads promoted to confirmed or
+  dropped.</li>
+  </ul>
+A table isn't "done" until its doc is. That makes Phase 7 a check rather than a write-up.</li>
+</ol>
+<div class="finding">
+<span class="tag warn">"found" ≠ "correct"</span>
+<strong>The tables that still locate are only <em>located</em>, not yet confirmed as reading
+correctly.</strong> Row counts are rough checks. FM27 could keep a stride but reorder or repurpose
+fields (<code>player_attributes</code> is the obvious risk). Because every declared record reads
+<em>every</em> byte, a mislabelled field still shows up in the output as a value that's wrong. So
+each one is checked by comparing a few rows against an in-game screen: one player's attribute page,
+one city, one name. Only then does it move to <strong>confirmed unchanged</strong>.
+</div>
+</div>
+
+<div class="phase">
+<h3>Phase 4 — the archive</h3>
+<ul>
+<li>Re-derive <code>core/archive.py</code>'s directory parsing independently of the rest of the
+file. The error (<code>frame at 69,331,477 declares 50,331,648 bytes, past EOF</code>) means the
+current directory-offset math is reading a wrong length or wrong offset — check whether the
+directory itself moved, or whether its per-member record (name/offset/length) changed width.</li>
+<li>Clue: 50,331,648 is exactly 48 MiB (<code>0x3000000</code>). A round number like that is more
+likely a capacity or decompressed-size field being read as a frame length than random bytes. Check
+the zstd frame header's own content-size field and the member record width first.</li>
+</ul>
+</div>
+
+<div class="phase">
+<h3>Phase 5 — new sections, not just moved ones</h3>
+<ul>
+<li>Once every currently-known table re-locates, run <code>audit_coverage.py</code> over the
+whole file to find bytes no table claims, and compare against the old savefile-map's
+"UNIDENTIFIED" spans.</li>
+<li>Some of those gaps may now be explained by genuinely new FM27 features rather than a moved
+old table — those need their own new table definitions, not a forced fit into an existing
+one.</li>
+</ul>
+</div>
+
+<div class="phase">
+<h3>Phase 6 — version dispatch design <span class="tag warn">needs a decision</span></h3>
+<p>The parser currently has no concept of a game-client version — only career-agnosticism. We
+need to decide how it tells an FMM22 save from an FMM27 save and picks the right table
+declarations for each, without blurring the existing "parser is career-agnostic" boundary rule
+(version is a different axis to career, but still needs a named concept passed down rather than
+guessed per table). Identification is done: <code>save_format()</code> reads the declared
+<code>fmm&lt;NN&gt;</code>, defaulting to FMM22. What's left is how a table picks its declaration
+(locator + records) from that value, decided once the first broken table is re-declared.</p>
+</div>
+
+<div class="phase">
+<h3>Phase 7 — regression + documentation</h3>
+<ul>
+<li>Check, don't write: every table doc should already have its FMM27 layout and evidence from
+Phase 3. Sweep for any that don't, and update <code>savefile-map.md</code> with an FMM27 column
+or companion map.</li>
+<li>Re-run <code>tests/assert_identical.py</code> on the FMM22 saves to prove zero regression;
+add the Truro saves as new fixtures once the extract is stable.</li>
+<li>Delete the TODO entry from Phase 0 once this closes, per the project's own rule.</li>
+</ul>
+</div>
+
+<h2>Decisions</h2>
+<div class="question"><span class="tag ok">resolved</span><strong>Dual-version support:</strong>
+yes — FMM22 (Frem, Bucaspor) keeps working; FMM27 is added as a second supported format. Phase 6
+(version dispatch) is in scope, not optional.</div>
+<div class="question"><span class="tag ok">resolved</span><strong>Ground truth access:</strong>
+the user has the FM27 client open on the Truro saves and will screenshot a specific screen on
+request as each phase needs one.</div>
+<div class="question"><span class="tag ok">resolved</span><strong>Priority:</strong> header/date
+first — the minimum to get <code>extract.py</code> running and the snapshot placed in a career —
+then work outward table by table, rather than blocking any load until everything re-locates.</div>
+<div class="question"><span class="tag ok">resolved · built</span><strong>Version detection:</strong>
+a save that declares a version is that version; one that declares none is FMM22.
+<code>save_format()</code> returns the first <code>fmm&lt;NN&gt;-</code> length-prefixed string in
+the first 0x200 bytes (FMM27's channel). Checked on all 62 local FMM22 saves (all
+<code>fmm22</code>, all dated) and both Truro saves (<code>fmm27</code>). A declared version with
+no reader, e.g. <code>fmm26</code>, is reported by name and dates nothing. The old TODO for this
+is closed.</div>
+<div class="question"><span class="tag ok">resolved · built</span><strong>Layout per version:</strong>
+each table has one declaration per game version, and the save's declared format picks it while
+parsing (<code>tables_for(mm)</code>). A table with no FMM27 declaration yet is read with FMM22's,
+which is a claim to test, not a decode.</div>
+<div class="question"><span class="tag ok">resolved · built</span><strong>The extract mirrors the save
+("E is E"):</strong> each version's JSON uses that version's own fields. A key keeps its name where
+the meaning is the same, whatever the width (caps: u8 → i16, same key), and a real structural
+difference gets its own key (<code>other_nationality_ids</code> list vs
+<code>second_nationality_id</code>). No back-filling of old keys, no nulls for absent ones.
+<code>summary.json</code> records <code>save_format</code>. Downstream (<code>stg</code>) merges the shapes,
+and since each career has its own store, only the shared dbt models see both.</div>
+<div class="question"><span class="tag ok">resolved</span><strong>Evidence as we go:</strong>
+the in-game screenshot that confirms a decode is also its documentation. Every table lands in one
+change with its decode, its doc's FMM27 layout, the screenshot (<code>docs/parser/img/</code>), an
+on-screen → raw bytes → parsed table, and an evidence test. <code>save_header.md</code> is the
+template.</div>
+<div class="question"><span class="tag ok">resolved</span><strong>The two saves:</strong> same
+Truro career. save_2 = the 22nd, save_1 = the 25th. Still to be shown from the bytes in Phase 0.</div>
+<div class="question"><span class="tag ok">resolved</span><strong>Reference layouts:</strong>
+<code>nyongrand/fmm-editor</code>'s FMM26 records are the first lead for every broken table.</div>
+
+<h2>Learnings &amp; leads — reference</h2>
+<p class="sub">Collected as we go. Each line says whether it is <strong>confirmed</strong> (ground
+truth or a proof) or a <strong>lead</strong> (a hypothesis to test).</p>
+
+<h3>Header (Phase 1)</h3>
+<table>
+<thead><tr><th>finding</th><th>status</th><th>where / evidence</th></tr></thead>
+<tbody>
+<tr><td>In-game date: <code>[day u16][year u16]</code> at stamp +28 (0x3c)</td><td class="ok">confirmed</td><td>Load Game screen: 25th / 22nd Jul 2026</td></tr>
+<tr><td>Write time: Unix u32 at stamp +35 (0x43); local hour/minute u8 at +47/+48</td><td class="ok">confirmed</td><td>Load Game "Last Saved Today 07:03 / 05:43"</td></tr>
+<tr><td>The header has no manager name and no slot title; the game shows date + last-saved time only</td><td class="ok">confirmed</td><td>Load Game screen; manager is "Mr Manager" on Club Information</td></tr>
+<tr><td>u32 <strong>3,125</strong> at stamp +0 (0x20) is the managed club's tid</td><td class="warn">strong lead</td><td>28 people in the FMM27 person table have <code>club_tid</code> 3,125: the Truro squad (Bogle, Oxlade-Chamberlain, Hasani…) plus staff incl. "Mr Manager". Confirm when the club table names tid 3,125 "Truro City"</td></tr>
+<tr><td><code>name_2</code>/<code>name_3</code> ("Truro" ×2) are the short name and the nickname, in some order</td><td class="warn">lead</td><td>tell apart via the club record once it reads</td></tr>
+<tr><td>A men's/women's career flag exists somewhere (the <code>Men</code> tag on Load Game)</td><td class="warn">lead</td><td>stamp +4..+27 (<code>af 07 7f 00</code>, then zeros, then 8 × FF) is unexplained</td></tr>
+<tr><td>Where the header ends: 0xe6 on is <code>[u16 5][5 × 3 B]</code>-shaped, then <code>3e 00 00 00</code> at 0xfa</td><td class="warn">lead</td><td>from 0x100 nearly every byte differs between saves, so not header fields</td></tr>
+<tr><td>FMM22 also has a write-time Unix u32, at offset 263 just past its 250-byte title</td><td class="warn">lead</td><td>frem-2026-06-11: 0x6a708805; bucaspor-2023-04-01: 0x6a500161</td></tr>
+</tbody>
+</table>
+
+<h3>Version identification (TODO entry 2)</h3>
+<table>
+<thead><tr><th>signal</th><th>where (Truro)</th><th>reading</th></tr></thead>
+<tbody>
+<tr><td>channel pstring <code>fmm27-rel-staging</code></td><td>0x74, 0x9c, 0xbf</td><td>the product names its own version: the most direct signal</td></tr>
+<tr><td>build pstrings <code>27.0.0-d+2495469</code>, <code>27.0.0+2495469</code> ×2</td><td>0x60, 0x8a, 0xd4</td><td>major.minor.patch + build number</td></tr>
+<tr><td>u32 <strong>27,000,034</strong></td><td>stamp +50, +54; 0xb1, 0xb5</td><td>looks like <code>major × 10⁶ + n</code>; the 34 isn't explained yet</td></tr>
+<tr><td>u16 <strong>2,706</strong>, <strong>2,700</strong>, then <strong>2,026</strong></td><td>0xb9, 0xbb, 0xbd</td><td>likely database versions (the FMM21 obb names its DB folder <code>2111</code>), then the start year</td></tr>
+<tr><td>FMM22 declares none of these</td><td>—</td><td>no version string or 22,xxx,xxx / 22xx value near its header on Frem or Bucaspor</td></tr>
+</tbody>
+</table>
+<p><strong>Rule that follows:</strong> a save that declares a version is that version; one that
+declares none and has the 250-byte text title is FMM22. That stays deterministic when FMM26
+arrives, as long as FMM26 declares itself the same way.</p>
+
+<h3>Club Information screen, ground truth for Phase 3 (clubs)</h3>
+<p class="sub">Screenshot: <code>docs/parser/img/clubs-fmm27-1.jpg</code>, taken on save_1 (Sat 25th Jul 2026).</p>
+<table>
+<tbody>
+<tr><th>Full name</th><td>Truro City</td></tr>
+<tr><th>Stadium · capacity</th><td>Truro City Stadium · 4,100</td></tr>
+<tr><th>Status</th><td>Professional</td></tr>
+<tr><th>Manager</th><td>Mr Manager</td></tr>
+<tr><th>League</th><td>Enterprise National League South</td></tr>
+<tr><th>Continental competition</th><td>—</td></tr>
+<tr><th>Training facilities</th><td>Basic (1 star)</td></tr>
+<tr><th>Youth facilities</th><td>Poor (½ star)</td></tr>
+<tr><th>Financial state</th><td>Okay</td></tr>
+<tr><th>Reputation</th><td>1½ stars (badge card)</td></tr>
+<tr><th>Kits</th><td>Home red/black stripes, Away white, Third light blue (Kappa, sponsor "Paul Robinson")</td></tr>
+<tr><th>Nation</th><td>England</td></tr>
+</tbody>
+</table>
+<p class="sub">FMM22's <code>clubs.md</code> notes fmm-editor swaps Training and Youth facilities
+(+149/+150). Check that again on FMM27, using the different star counts here (1 vs ½).</p>
+
+<h3>person_info (Phase 3, first table) — in the parser, see <code>docs/parser/person_info.md</code></h3>
+<p>Frame <code>[FF ×8][u32 44,960][01]</code> at 751,982; record 0 at 751,987. The record is
+<strong>fmm-editor's FMM26 <code>People</code> layout</strong>. Walked with it, <strong>44,960 / 44,960
+records hold <code>tid == slot</code> on both saves</strong>, and the walk ends exactly on
+player_attributes' frame (count 36,344). Scratch walker:
+<code>&lt;scratchpad&gt;/person27.py</code>; the layout below is enough to rebuild it.</p>
+<table>
+<thead><tr><th>FMM27 offset</th><th>field</th><th>vs FMM22</th></tr></thead>
+<tbody>
+<tr><td>+0..+23</td><td>tid, uid, first/last/common name id, dob</td><td>same</td></tr>
+<tr><td>+24</td><td>nationality u16</td><td>same</td></tr>
+<tr><td>+26</td><td><strong>other-nationality count u16, then k × u16 nation id</strong></td><td>FMM22: a single <code>second_nationality_id</code>. k = 0 / 1 / 2 on 34,378 / 9,296 / 1,286 people</td></tr>
+<tr><td>+28+2k</td><td>ethnicity u8, 4 B unknown, type_flag u8, unknown_date</td><td>same order, shifted by 2k</td></tr>
+<tr><td>+38+2k</td><td><strong>caps i16, goals i16</strong>, u21 caps u8, u21 goals u8</td><td>FMM22: all four u8 (fmm-editor already notes this difference)</td></tr>
+<tr><td>+44+2k</td><td>club_tid, joined_date, 2 B, 8 personality, sid, id2</td><td>same order</td></tr>
+<tr><td>+68+2k</td><td>3 × u32 (<code>ff ff ff ff</code> on most), u8</td><td>FMM22's <code>PERSON_MID</code> holds one more u32 here</td></tr>
+<tr><td></td><td><strong>u8, i32, then an i16 only when that i32 is −1</strong></td><td>new. 7 B on 8,148 people, 5 B on 36,812; the variant fmm-editor reads by peeking. Meaning unknown</td></tr>
+<tr><td></td><td><strong>two u8-counted language lists</strong> (default, other) of <code>[u16 id][u8 level]</code></td><td>FMM22: one list</td></tr>
+<tr><td></td><td>u16-counted relationships, 8 B each</td><td>same; there's no trailing byte (fmm-editor reads a <code>Unknown21</code>)</td></tr>
+</tbody>
+</table>
+<p class="sub">Person 0: nationality 158, one other (117), caps 72, goals 1, u21 5/1, no club, joined
+2026-05-31. Ground truth still needed: a player profile screen (nationalities, caps/goals, DOB,
+personality line).</p>
+
+<h3>Other leads from Phase 3</h3>
+<table>
+<thead><tr><th>finding</th><th>status</th><th>evidence</th></tr></thead>
+<tbody>
+<tr><td>Nation ids: 163 = Ireland, 43 = Tanzania; 139 = England</td><td class="ok">163, 43 confirmed</td><td>player screens; 139 is 20 of 28 at Truro</td></tr>
+<tr><td>Language level 9 is shown as "Fluent" (FMM22 notes said Fluent was 7–8), 10 Natural, 5 Good</td><td class="ok">confirmed</td><td>En-Neyah, Player Personal</td></tr>
+<tr><td>The relationship list is still the Favoured Club / Favoured People list</td><td class="ok">confirmed</td><td>"None / None" ↔ 0 entries (two players)</td></tr>
+<tr><td><code>unknown_date</code> may be the last birthday</td><td class="warn">lead</td><td>Starkie: 2026-07-23 = birthday, save 2026-07-25</td></tr>
+<tr><td>FMM27 has <strong>women's football</strong>: the data dictionary holds <code>wmn_eur</code>, <code>wmn_asi</code>, <code>wmn_nam</code>… blocks</td><td class="warn">lead</td><td><code>audit_records.py</code> on Truro: "bare block 'wmn_eur' is not a nation's rules"; ties to the <code>Men</code> tag on Load Game</td></tr>
+<tr><td>rule_files: two group headers don't read (<code>declares 8,655,361 files</code>) on FMM27</td><td class="warn">to fix</td><td><code>audit_records.py</code> on Truro; rule_files still "locates" but isn't confirmed</td></tr>
+<tr><td>player_attributes' stride (78) still holds: 100% of gaps are multiples of 78</td><td class="ok">measured</td><td><code>audit_records.py</code> STRIDE. The 1.3% <code>pa</code> drift lead remains</td></tr>
+</tbody>
+</table>
+
+<h3>Tables (Phases 0, 2, 3)</h3>
+<table>
+<thead><tr><th>finding</th><th>status</th></tr></thead>
+<tbody>
+<tr><td>save_1 and save_2 are one career: identical strings and builds; ~99% of the 25,042 shared player ids have identical attributes, feet and CA</td><td class="ok">confirmed</td></tr>
+<tr><td>1.3% of shared players' <code>pa</code> differs over three in-game days, so the FMM22 attribute layout may be partly wrong for FMM27</td><td class="warn">lead</td></tr>
+<tr><td><code>clubs_end</code> raised on a missing club table, which crashed <code>competitions</code>; it now reports "not found"</td><td class="ok">fixed</td></tr>
+<tr><td>After the header, <code>extract.py</code> writes browse_names and attribute_records, empty persons/staff/round_names, then stops at clubs</td><td class="ok">confirmed</td></tr>
+</tbody>
+</table>
+
+<footer>Drafted from a live probe of <span class="mono">fmm_save_1.fms</span> and
+<span class="mono">fmm_save_2.fms</span> against the current <span class="mono">fmparser</span>
+table registry — not from documentation alone. Re-verify any offset or status here against the
+code before acting on it if time has passed.</footer>
+
+</body>
+</html>

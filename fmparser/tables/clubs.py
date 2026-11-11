@@ -164,11 +164,13 @@ def scrape_clubs(mm: Any) -> Dict[int, Dict[str, Any]]:
 _CLUBS_END_CACHE: Dict[Any, int] = {}
 
 
-def clubs_end(mm: Any) -> int:
-    """Where the club table ends -- and the competition table's frame begins."""
+def clubs_end(mm: Any) -> Optional[int]:
+    """Where the club table ends -- and the competition table's frame begins. None if the
+    club table does not locate."""
     key = _cache_key(mm)
     if key not in _CLUBS_END_CACHE:
-        _CLUBS_END_CACHE[key] = CLUB_TABLE.spans(mm)[0][1]
+        spans = CLUB_TABLE.spans(mm)
+        _CLUBS_END_CACHE[key] = spans[0][1] if spans else None
     return _CLUBS_END_CACHE[key]
 
 

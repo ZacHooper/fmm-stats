@@ -212,8 +212,11 @@ def table_spans(mm: Any, table: TableDef, include_count_header: bool = True) -> 
 
 
 def _segment_instances(mm: Any, seg: Any, pos: int) -> List[Tuple[Record, int]]:
-    """The packed records one list segment at `pos` holds, recursing into Struct items."""
+    """The packed records one list segment at `pos` holds, recursing into Struct items. A
+    segment that knows its own records (`Conditional`) lists them through `instances`."""
     from .types import KIND_WIDTH, CountedList, FixedList, Struct
+    if hasattr(seg, "instances"):
+        return seg.instances(mm, pos)
     if isinstance(seg, CountedList):
         cw = KIND_WIDTH[seg.count]
         n = int.from_bytes(mm[pos:pos + cw], "little")
