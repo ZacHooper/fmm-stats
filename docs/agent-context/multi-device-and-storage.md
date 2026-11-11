@@ -14,7 +14,7 @@ code + seeds reproduce it exactly, so it is never committed, never synced, and n
 
 | Tier | Holds | Where |
 |---|---|---|
-| Code + build inputs | source, `seeds/` (role_weights, eligible_origin_clubs, config_bundle, **manifest**) | git (private GitHub) |
+| Code + build inputs | source, `seeds/` (role_weights, config_bundle, **manifest**) | git (private GitHub) |
 | Archive + live state | `.fms.gz` saves, shortlist, saved scouts | Cloudflare R2 (`r2:fmm-stats`) |
 | Derived | `fm-*.duckdb`, `output/`, `site/` | local only |
 

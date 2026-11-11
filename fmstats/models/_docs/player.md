@@ -66,8 +66,9 @@ The season of his origin line (see `origin_team_tid`).
 {% enddocs %}
 
 {% docs is_capital_eligible %}
-His origin club is on the capital-region signing list (`seeds/eligible_origin_clubs.csv`, a
-house rule); false with no origin club (`site.players`: NULL with none).
+His origin club is on the career's signing list (`eligible_origin_clubs` in `fmm.toml`, a
+house rule: Frem's Copenhagen region, Truro's open counties); false with no origin club or no
+rule (`site.players`: NULL with no origin club). The name is Frem's; the rule is any career's.
 Synonyms: `capital_eligible`.
 {% enddocs %}
 

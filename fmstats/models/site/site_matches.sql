@@ -7,6 +7,8 @@
 -- stage, Qualifying where it comes before the competition's group stage in a
 -- competition with no league stage, else Knockout; NULL for a match in no
 -- stage (a friendly). stage is the game's own label: a league stage's name,
+-- or the competition's short name where the stage has none (an English
+-- league: 'Enterprise South' on the Club Fixtures screen),
 -- 'Group ' and the group's letter (its place among the stage's groups), or
 -- the stage and round names. matchday counts from 1 in a league or group,
 -- leg is set in a two-legged tie, tie_gf / tie_ga are its aggregate once both
@@ -98,7 +100,7 @@ select
                 end
     end as stage_kind,
     case stages.stage_format
-        when 'league' then stages.name
+        when 'league' then coalesce(stages.name, competitions.short_name)
         when
             'group'
             then 'Group ' || chr(64 + cast(groups.group_number as integer))
@@ -154,6 +156,8 @@ inner join {{ ref('dim_match') }} as matches
     on ours.match_id = matches.match_id
 left join {{ ref('dim_team') }} as opponents
     on sides.opponent_tid = opponents.team_tid
+left join {{ ref('dim_competition') }} as competitions
+    on matches.cid = competitions.cid
 left join stages
     on
         matches.cid = stages.cid

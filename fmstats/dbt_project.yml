@@ -88,6 +88,9 @@ vars:
   # (Las Palmas C, Cartagena B), not a first team (int_teams).
   b_team: {club_type: 0, team_type: b_team}
   club_lists: [31, 61]        # first and last scrapbook list holding our squad
+  # The Manager's Best Eleven - All-Time pool's current copy: a new career's squad is here
+  # from its first day, before the season's list is written.
+  club_all_time_list: 63
   # The World Best XI pools (fact_player_award): one scrapbook list per season, first and
   # last; and the All-Time pool's current copy (64 holds it as of last season's end).
   world_best_xi_lists: [0, 30]

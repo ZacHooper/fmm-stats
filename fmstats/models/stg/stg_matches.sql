@@ -2,7 +2,9 @@
 -- offset in the save, its key. is_home says the managed side played at home.
 -- star_home / star_away and player_of_match are person tids. corners,
 -- clear_cut_chances and offsides are each side's counts as the team head
--- stores them.
+-- stores them. fouls and manager_tid (the side's manager, a staff tid) are
+-- FMM27's and NULL on an FMM22 match.
+{%- set no_id32 = var('no_id32') %}
 select
     cast(phase as date) as snapshot_date,
     anchor,
@@ -32,6 +34,9 @@ select
     {{ side }}_interceptions,
     {{ side }}_corners,
     {{ side }}_clear_cut_chances,
-    {{ side }}_offsides{% if not loop.last %},{% endif %}
+    {{ side }}_offsides,
+    {{ side }}_fouls,
+    nullif({{ side }}_manager_tid, {{ no_id32 }}) as {{ side }}_manager_tid
+    {%- if not loop.last %},{% endif %}
     {% endfor %}
 from {{ source('raw', 'matches') }}

@@ -4,7 +4,10 @@
 -- off, dismissal_minute for a player not sent off (the slot's own record of a
 -- sending-off, second yellows included). position is a starter's full-time
 -- place in his side's XI, NULL for substitutes, in the positions' codes
--- (var('match_position_codes')).
+-- (var('match_position_codes')). goals_conceded (a goalkeeper's goals
+-- against), sub_on_time (when a substitute came on, in the game's clock units,
+-- about 250 a minute; NULL for a starter) and xg (expected goals) are FMM27's
+-- and NULL on an FMM22 match.
 select
     cast(phase as date) as snapshot_date,
     anchor,
@@ -43,5 +46,8 @@ select
         when '{{ code }}' then '{{ position }}'
         {% endfor %}
         else position
-    end as position
+    end as position,
+    conceded as goals_conceded,
+    nullif(subon_time, {{ var('no_id32') }}) as sub_on_time,
+    cast(xg_x100 / 100.0 as decimal(5, 2)) as xg
 from {{ source('raw', 'match_player_stats') }}

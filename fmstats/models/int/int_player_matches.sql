@@ -12,6 +12,7 @@
 -- full-time place in his side's XI, NULL for substitutes. is_player_of_match
 -- is the game's own Player of the Match (int_our_matches.player_of_match).
 -- person_id is NULL for a player the snapshot holds no person record for.
+-- xg and goals_conceded are FMM27's, NULL on an FMM22 match.
 {%- set minutes = var('match_minutes') %}
 
 with lines as (
@@ -104,6 +105,8 @@ select
     placed.shots_on_target,
     placed.condition,
     placed.yellows,
+    placed.xg,
+    placed.goals_conceded,
     placed.snapshot_date as source_snapshot_date
 from placed
 left join {{ ref('int_person_snapshots') }} as persons

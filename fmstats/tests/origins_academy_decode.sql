@@ -9,7 +9,10 @@
 --                     complement of
 --   not resolved      an academy origin's club is not the academy tid itself
 --   no club           an academy origin's club is a club the save holds
---   no academies      somebody came out of an academy at all
+--   no academies      somebody came out of an academy at all, once the store
+--                     holds a season after the career's first: an FMM27
+--                     database names no academy as anyone's origin, so a new
+--                     career has none until its first regens
 -- One row per offending tid or person.
 {% set base = var('youth_tid_base') %}
 with people as (
@@ -84,8 +87,13 @@ select
     'no academies' as check_name,
     null as tid,
     null as person_id
-where not exists (
-    select 1 as found
-    from people
-    where people.origin_youth_team_tid is not null
-)
+where
+    not exists (
+        select 1 as found
+        from people
+        where people.origin_youth_team_tid is not null
+    )
+    and (
+        select max(snapshots.season) > min(snapshots.season) as is_later
+        from {{ ref('stg_snapshots') }} as snapshots
+    )

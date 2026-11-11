@@ -100,51 +100,28 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
   `match_slots` is not located (nothing reads it).
 
 ### 2. Load an FMM27 save into the store
-A trial load of `truro-2026-08-08` into a scratch store, with the match check skipped,
-builds raw → `site` end to end: 513 dbt tests pass and 4 fail. The plan, in order:
+Both Truro saves load and build: 537 of 538 dbt tests pass on a scratch store of
+`truro-2026-07-25` + `truro-2026-08-08`. FMM27's xG, goals conceded, fouls and managers, and
+its assist, yellow-card, error and clear-cut-chance events reach the marts; the career's first
+day (`start` in `fmm.toml`) bounds the match check; the signing rule is the career's
+`eligible_origin_clubs` in `fmm.toml`. Open, in order:
 
-1. **The match check's lower bound.** Truro's career began on 22 July 2026, after two
-   pre-season friendlies the game had already played, so the table holds 3 of the fixture
-   list's 5 games on `truro-2026-08-08`, and the check refuses `truro-2026-07-25`. Give a
-   career its first day in `fmm.toml` (`start = 2026-07-22`); the check's lower bound is the
-   later of that and the last rollover.
-2. **The save's version in the store.** Carry `summary.json`'s `save_format` into
-   `raw.extracts` and `stg.snapshots`, so `stg` decodes each version's codes (the house rule:
-   codes are decoded in `stg`).
-3. **Event codes per version.** `raw.event_types` is FMM22's: on FMM27 `0x24` assist,
-   `0x26` yellow, `0x27` error leading to goal and `0x2f` clear-cut chance load as `?24` …,
-   and `0x29` reads `disallowed_goal`, which is FMM22's meaning, not FMM27's. Seed the codes
-   with a `game` column from `EVENT_TYPE` / `EVENT_TYPE_FMM27`. Then assists reach
-   `fact_match_event`, and the scorer–assister pairs come with them.
-4. **FMM27's new match fields.** The loader drops them: each player's `xg_x100`,
-   `subOn_time` and `conceded`; each team's `fouls`, `headers_won`, passes and crosses
-   attempted/completed, and `manager_tid`. raw → `stg` → `fact_player_match` /
-   `fact_team_match`, NULL on FMM22.
-5. **Fixture stage and matchday** (`matches_stages`). The 8 August league match reads
-   `round` 0, `stage_index` 0 in the fixture list, while the league's rules give stage 1,
-   so `site.matches` carries no stage name and matchday 0 for Matchday 1. Settle each
-   number's base against the Club Fixtures and rules screens, in the parser or in `stg`.
-6. **Roles** (`spells_training_focus_named`, 626 rows). `seeds/roles.csv` is FMM22's codes;
-   an FMM27 role seed waits on a centre-back's and a full-back's focus role on screen
-   ([Parser — FMM27](#1-extract-an-fmm27-save-end-to-end)). Key the seed by game.
-7. **A career's signing rule lives in `fmm.toml`** (`origins_capital_eligibility`).
-   `seeds/eligible_origin_clubs.csv` is Frem's capital-region rule in FMM22 tids; on an FMM27
-   save those tids are other clubs. Move the rule into the career's `fmm.toml` entry as a list
-   of eligible origin-club tids; Truro's is every Cornish and Devon club now, widening as the
-   club climbs the pyramid. Frem keeps its list; a career with none has no rule.
-8. **Origins from the first career row** (`origins_academy_decode`). No FMM27 person's
-   origin is an academy tid yet: Truro is in its first season, so there are no regens, and
-   the first row of every player's history is a real club. Use that row's club as the origin,
-   and let the "no academies" check pass on a career with no regens.
-9. **A weight set for Truro.** No `rating_method` for the 4-1-2-1-2: hand-build one now,
+1. **Roles** (`spells_training_focus_named`, the one failing test). `seeds/roles.csv` is
+   FMM22's codes; an FMM27 role seed waits on a centre-back's and a full-back's focus role on
+   screen ([Parser — FMM27](#1-extract-an-fmm27-save-end-to-end)). Key the seed by game
+   (`stg.snapshots.save_format`).
+2. **A weight set for Truro.** No `rating_method` for the 4-1-2-1-2: hand-build one now,
    derive it from match data once a season is played (`scripts/derive_weight_set.py`).
-10. **Staff roles and our manager**: `staff_roles.json` into raw (both versions write it);
-    the managed club's manager in `site.club_managers`.
-11. **Then**: rebuild `fm-truro.duckdb` from every Truro save (`scripts/rebuild.py`), refresh
-    `seeds/manifest.csv`, and export and publish Truro's site data. Try a refit of the
-    attribute decoder with Truro's scrapbook rows to see how far the data so far goes (Frem's
-    coefficients score about as well on Truro unrefitted, Passing the weakest at 38%); a
-    proper refit needs more seasons.
+3. **Staff roles and our manager**: `staff_roles.json` into raw (both versions write it);
+   the managed club's manager in `site.club_managers`. FMM27's team head names each side's
+   manager (`int.our_matches.home_manager_tid`), a check on it.
+4. **Show the new match data on the site**: xG per player and team, assists and scorer–
+   assister pairs (`fact_match_event`), goals conceded.
+5. **Then**: build `fm-truro.duckdb` from every Truro save (`scripts/rebuild.py`), refresh
+   `seeds/manifest.csv`, and export and publish Truro's site data. Try a refit of the
+   attribute decoder with Truro's scrapbook rows to see how far the data so far goes (Frem's
+   coefficients score about as well on Truro unrefitted, Passing the weakest at 38%); a
+   proper refit needs more seasons.
 
 The store reads neither `comp_stages` nor `comp_honours` on either version (results come
 from the fixture list, stage names from the rule files and competition rounds), so

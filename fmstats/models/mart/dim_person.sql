@@ -11,8 +11,9 @@
 -- origin_youth_team_tid naming the academy (Frem's "Frem Yth" 65189), so a
 -- club's own products are origin_club_tid = that club. A line at a club the
 -- save holds no record for keeps its tid as the club. capital_eligible is
--- whether origin_club_tid is on the capital-region signing list
--- (seeds/eligible_origin_clubs.csv), false for a person with no origin club.
+-- whether origin_club_tid is on the career's signing list
+-- (stg_eligible_origin_clubs, from fmm.toml), false for a person with no
+-- origin club or a career with no rule.
 -- Everything that changes is on the snapshot facts.
 with origins as (
     select
