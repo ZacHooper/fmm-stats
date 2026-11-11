@@ -60,7 +60,6 @@ shoot-out; NULL for a match not yet played. On a tie, the last leg's.
 
 {% docs has_extra_time %}
 The match went to extra time (`decided_by` `ET` or `pens`).
-Synonyms: `extra_time`.
 {% enddocs %}
 
 {% docs score_display %}
@@ -150,7 +149,6 @@ The event type's name from the loader's seed (`goal`, `own_goal`, `penalty`, `re
 {% docs is_appearance_ending %}
 The event ends the player's match (a sending-off, `var('sending_off_events')`): his minutes stop
 at it.
-Synonyms: `ends_appearance`.
 {% enddocs %}
 
 {% docs is_shootout %}

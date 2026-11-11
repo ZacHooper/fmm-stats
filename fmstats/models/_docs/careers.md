@@ -51,7 +51,6 @@ line's.
 
 {% docs is_free_agent_signing %}
 He had no club on `moved_after_date`; NULL where the move has no snapshot bounds.
-Synonyms: `was_free_agent`.
 {% enddocs %}
 
 {% docs direction %}
@@ -67,7 +66,6 @@ first snapshot showing him at the new club; `undated` where neither is known.
 {% docs is_in_career %}
 The move's season falls inside the career (a `site.snapshots` season). Earlier rows are the
 history the save keeps for players still in it.
-Synonyms: `in_career`.
 {% enddocs %}
 
 {% docs borrowing_club_tid %}

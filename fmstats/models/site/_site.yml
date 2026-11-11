@@ -201,7 +201,7 @@ models:
         description: '{{ doc("origin_club_tid") }}'
       - name: origin_club
         description: '{{ doc("origin_club") }}'
-      - name: capital_eligible
+      - name: is_capital_eligible
         description: '{{ doc("is_capital_eligible") }}'
       - name: nationality
         description: '{{ doc("nation") }}'
@@ -398,9 +398,9 @@ models:
       - name: tie_goals_against
         description: 'Their aggregate in a two-legged tie, once both legs are played; NULL
           otherwise. {{ doc("goals_against") }}'
-      - name: went_through
+      - name: is_through
         description: '{{ doc("is_through") }}'
-      - name: extra_time
+      - name: has_extra_time
         description: '{{ doc("has_extra_time") }}'
       - name: pens_for
         description: '{{ doc("pens_for") }}'
@@ -469,7 +469,7 @@ models:
         description: '{{ doc("assists") }}'
       - name: minutes
         description: '{{ doc("minutes") }}'
-      - name: started
+      - name: is_starter
         description: '{{ doc("is_starter") }}'
       - name: is_player_of_match_award
         description: '{{ doc("is_player_of_match_award") }}'
@@ -536,7 +536,7 @@ models:
         description: '{{ doc("assists") }}'
       - name: minutes
         description: '{{ doc("minutes") }}'
-      - name: started
+      - name: is_starter
         description: '{{ doc("is_starter") }}'
       - name: is_player_of_match_award
         description: '{{ doc("is_player_of_match_award") }}'
@@ -676,7 +676,7 @@ models:
       - name: season
         description: 'The season he moved FOR: a June signing belongs to the next season''s market.
           {{ doc("season") }}'
-      - name: in_career
+      - name: is_in_career
         description: '{{ doc("is_in_career") }}'
       - name: move_date
         description: '{{ doc("move_date") }}'
@@ -744,13 +744,13 @@ models:
         description: '{{ doc("birth_date") }}'
       - name: age
         description: 'On the snapshot''s date. {{ doc("age") }}'
-      - name: b_list
+      - name: is_b_list
         description: '{{ doc("is_b_list") }}'
-      - name: hg_club
+      - name: is_home_grown_club
         description: '{{ doc("is_home_grown_club") }}'
       - name: home_grown_basis
         description: '{{ doc("home_grown_basis") }}'
-      - name: hg_association
+      - name: is_home_grown_association
         description: '{{ doc("is_home_grown_association") }}'
       - name: months_club
         description: '{{ doc("months_club") }}'
@@ -758,13 +758,13 @@ models:
         description: '{{ doc("months_to_go") }}'
       - name: hg_eta
         description: '{{ doc("home_grown_date") }}'
-      - name: window_open
+      - name: is_window_open
         description: '{{ doc("is_window_open") }}'
       - name: origin_club
         description: '{{ doc("origin_club") }}'
       - name: origin_nation
         description: '{{ doc("origin_nation") }}'
-      - name: via_academy
+      - name: is_academy_product
         description: '{{ doc("is_academy_product") }}'
   - name: site_nations
     description: Every ranked nation on every snapshot.
@@ -787,7 +787,7 @@ models:
         description: '{{ doc("coefficient_history") }}'
       - name: coefficient_season
         description: '{{ doc("coefficient_season") }}'
-      - name: coefficient_is_live
+      - name: is_coefficient_live
         description: '{{ doc("is_coefficient_live") }}'
       - name: is_uefa
         description: '{{ doc("is_uefa") }}'

@@ -1,13 +1,13 @@
 -- Every rated player on every snapshot, keyed (snapshot_date, person_id): the
 -- row the web app shows for him. His tid and name on the snapshot, the team
--- his record names, his value where the save holds one (value_is_estimated
+-- his record names, his value where the save holds one (is_value_estimated
 -- false: our own squad), wage and contract expiry, the 23 attributes, the
 -- profile (bio, reputation, personality, the attributes the game does not
 -- show) and:
 --   origin_club_tid    the club he came out of, and origin_club its name
 --                      (dim_person: an academy counts for its club)
---   capital_eligible   that club is on the capital-region signing list
---                      (seeds/eligible_origin_clubs.csv); NULL with no origin
+--   is_capital_eligible  that club is on the capital-region signing list
+--                        (seeds/eligible_origin_clubs.csv); NULL with no origin
 --   development        how far he is from his ceiling, as a word: ability
 --                      against potential, in var('site_development_bands')
 --   positions          each position his record lists, by code: his
@@ -24,7 +24,7 @@ select
     info.name,
     players.team_tid,
     people.birth_date,
-    case when not players.value_is_estimated then players.value end as value,
+    case when not players.is_value_estimated then players.value end as value,
     players.wage_gbp,
     players.contract_expiry,
     {% for attribute in var('attr_order') %}
@@ -35,7 +35,7 @@ select
     people.weight_kg,
     people.origin_club_tid,
     origin.name as origin_club,
-    people.capital_eligible,
+    people.is_capital_eligible,
     nations.name as nationality,
     people.foot_left,
     people.foot_right,

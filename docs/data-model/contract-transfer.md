@@ -171,7 +171,7 @@ says; Frederik Balslev's £1K to Hvidovre is right (a loan with an option to buy
 
 A free agent whose contract ran out in June and who signs in July is labelled by the game with
 the season just ended, and the history often has no Free-agent line for the gap:
-`from_club_tid` is then the club whose contract ran out and `was_free_agent` says the snapshot
+`from_club_tid` is then the club whose contract ran out and `is_free_agent_signing` says the snapshot
 before the move showed him without a club.
 
 **Loans.** The game can remove a loan year's 0-app parent line once the season ends (it keeps

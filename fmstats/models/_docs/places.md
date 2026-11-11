@@ -197,7 +197,6 @@ such move is on record.
 {% docs is_coefficient_live %}
 The nation's coefficient history changes somewhere in the store. Some never do (every African
 nation's): those are the game's starting values, which it doesn't update.
-Synonyms: `coefficient_is_live`.
 {% enddocs %}
 
 {% docs is_uefa %}

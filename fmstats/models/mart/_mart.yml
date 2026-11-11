@@ -477,7 +477,7 @@ models:
         description: '{{ doc("event_type_code") }}'
       - name: event_type
         description: '{{ doc("event_type") }}'
-      - name: ends_appearance
+      - name: is_appearance_ending
         description: '{{ doc("is_appearance_ending") }}'
       - name: is_shootout
         description: '{{ doc("is_shootout") }}'
@@ -499,7 +499,7 @@ models:
         description: '{{ doc("last_minute") }}'
   - name: fact_player_match
     description: >
-      Each player's line in our own matches, both sides: started, appeared, minutes with extra time,
+      Each player's line in our own matches, both sides: is_starter, has_appeared, minutes with extra time,
       full-time position, raw rating, position-adjusted rating (rating_adj), role, the game's
       Player of the Match, and match performance stats.
     data_tests:
@@ -540,9 +540,9 @@ models:
         description: '{{ doc("position") }}'
       - name: role
         description: '{{ doc("rating_role") }}'
-      - name: started
+      - name: is_starter
         description: '{{ doc("is_starter") }}'
-      - name: appeared
+      - name: has_appeared
         description: '{{ doc("has_appeared") }}'
       - name: is_player_of_match
         description: '{{ doc("is_player_of_match") }}'
@@ -800,7 +800,7 @@ models:
   - name: dim_person
     description: >
       Every person in any snapshot: name, date of birth, origin club, origin academy
-      (origin_youth_team_tid), capital_eligible flag, and season of the oldest career line.
+      (origin_youth_team_tid), is_capital_eligible flag, and season of the oldest career line.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id]}}
     columns:
@@ -832,7 +832,7 @@ models:
         description: '{{ doc("origin_youth_team_tid") }}'
       - name: origin_season
         description: '{{ doc("origin_season") }}'
-      - name: capital_eligible
+      - name: is_capital_eligible
         description: '{{ doc("is_capital_eligible") }}'
       - name: first_seen_date
         description: '{{ doc("first_seen_date") }}'
@@ -857,9 +857,9 @@ models:
         description: '{{ doc("tid") }}'
       - name: value
         description: '{{ doc("value_gbp") }}'
-      - name: value_is_estimated
+      - name: is_value_estimated
         description: '{{ doc("is_value_estimated") }}'
-      - name: value_in_trusted_band
+      - name: is_value_in_trusted_band
         description: '{{ doc("is_value_in_trusted_band") }}'
       - name: reputation
         description: 'His home reputation. {{ doc("reputation") }}'
@@ -906,7 +906,7 @@ models:
         description: '{{ doc("pa") }}'
       - name: squad_number
         description: '{{ doc("squad_number") }}'
-      - name: international_retired
+      - name: is_international_retired
         description: '{{ doc("is_international_retired") }}'
       - name: international_caps
         description: '{{ doc("international_caps") }}'
@@ -986,7 +986,7 @@ models:
         description: '{{ doc("communication") }}'
       - name: Throwing
         description: '{{ doc("throwing") }}'
-      - name: attributes_are_estimated
+      - name: has_estimated_attributes
         description: '{{ doc("has_estimated_attributes") }}'
       - name: jumping
         description: '{{ doc("jumping") }}'
@@ -1107,7 +1107,7 @@ models:
         description: '{{ doc("world_reputation") }}'
       - name: squad_number
         description: '{{ doc("squad_number") }}'
-      - name: international_retired
+      - name: is_international_retired
         description: '{{ doc("is_international_retired") }}'
       - name: international_caps
         description: '{{ doc("international_caps") }}'
@@ -1121,9 +1121,9 @@ models:
         description: '{{ doc("joined_date") }}'
       - name: value
         description: '{{ doc("value_gbp") }}'
-      - name: value_is_estimated
+      - name: is_value_estimated
         description: '{{ doc("is_value_estimated") }}'
-      - name: value_in_trusted_band
+      - name: is_value_in_trusted_band
         description: '{{ doc("is_value_in_trusted_band") }}'
       - name: scrapbook_entry_date
         description: '{{ doc("scrapbook_entry_date") }}'
@@ -1195,7 +1195,7 @@ models:
         description: '{{ doc("communication") }}'
       - name: Throwing
         description: '{{ doc("throwing") }}'
-      - name: attributes_are_estimated
+      - name: has_estimated_attributes
         description: '{{ doc("has_estimated_attributes") }}'
       - name: jumping
         description: '{{ doc("jumping") }}'
@@ -1644,7 +1644,7 @@ models:
         description: '{{ doc("moved_by_date") }}'
       - name: move_date
         description: '{{ doc("move_date") }}'
-      - name: was_free_agent
+      - name: is_free_agent_signing
         description: '{{ doc("is_free_agent_signing") }}'
       - name: transfer_type
         description: '{{ doc("transfer_type") }}'

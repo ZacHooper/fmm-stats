@@ -6,7 +6,7 @@
 -- club is from_club_tid). Club level: first team <-> reserves is no move,
 -- and which team he joins is on fact_player_snapshot. moved_after / moved_by
 -- bound a move made while the store was watching, and move_date is the day he
--- joined where the save gives it; was_free_agent, that he had no club on
+-- joined where the save gives it; is_free_agent_signing, that he had no club on
 -- moved_after. The two contracts a bounded move ends and
 -- starts are named by their first_seen_date (fact_contract).
 with transfers as (
@@ -27,7 +27,7 @@ select
     transfers.moved_after,
     transfers.moved_by,
     transfers.move_date,
-    transfers.was_free_agent,
+    transfers.was_free_agent as is_free_agent_signing,
     transfers.transfer_type,
     transfers.fee_gbp,
     transfers.fee_kind as fee_type,

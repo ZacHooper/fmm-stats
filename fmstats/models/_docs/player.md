@@ -68,7 +68,6 @@ The season of his origin line (see `origin_team_tid`).
 {% docs is_capital_eligible %}
 His origin club is on the capital-region signing list (`seeds/eligible_origin_clubs.csv`, a
 house rule); false with no origin club (`site.players`: NULL with none).
-Synonyms: `capital_eligible`.
 {% enddocs %}
 
 {% docs is_goalkeeper %}
@@ -90,7 +89,6 @@ Potential ability, as stored (up to 200). Hidden under the immersion rule, as `c
 
 {% docs is_international_retired %}
 His record's international-retirement flag.
-Synonyms: `international_retired`.
 {% enddocs %}
 
 {% docs international_caps %}
@@ -112,13 +110,11 @@ U21 international goals.
 {% docs is_value_estimated %}
 `value` is the model's estimate, the save stating none for him (he is not in our squad, or his
 scrapbook entry is stale).
-Synonyms: `value_is_estimated`.
 {% enddocs %}
 
 {% docs is_value_in_trusted_band %}
 The estimated value lies in `var('value_trusted_band')`, where the model held to ~1.5x in
 validation; NULL for a stated value.
-Synonyms: `value_in_trusted_band`.
 {% enddocs %}
 
 {% docs n_value_estimated %}
@@ -206,19 +202,16 @@ whose share of his potential his ability reaches (`At his ceiling`, `Nearly ther
 {% docs is_b_list %}
 He goes on the B-list: born after the new year the rules take the B-list age on
 (`b_list_age_date`, a house rule).
-Synonyms: `b_list`.
 {% enddocs %}
 
 {% docs is_home_grown_club %}
 Trained at the club (a house rule): he came out of it (an academy product, or his origin club
 is ours), or he has `var('home_grown_months')` months with us in his window.
-Synonyms: `hg_club`.
 {% enddocs %}
 
 {% docs is_home_grown_association %}
 Trained in our nation (a house rule): home-grown at the club, or his origin club is of our
 nation, or he has the months at another club of it.
-Synonyms: `hg_association`.
 {% enddocs %}
 
 {% docs home_grown_basis %}
@@ -237,12 +230,10 @@ The months he still lacks for `var('home_grown_months')`, to one decimal; NULL o
 {% docs is_window_open %}
 His home-grown window (from the season he turns 15 to the end of the season he turns 22) has
 not closed.
-Synonyms: `window_open`.
 {% enddocs %}
 
 {% docs is_academy_product %}
 His origin line is a youth side (`origin_youth_team_tid` is set).
-Synonyms: `via_academy`.
 {% enddocs %}
 
 {% docs origin_club %}

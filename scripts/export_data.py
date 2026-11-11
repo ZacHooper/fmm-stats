@@ -179,7 +179,7 @@ def player_row(r, attrs, profile=False):
            num(r["squad_number"]), num(r["height_cm"]), num(r["weight_kg"])]
     if profile:
         row += [num(r["origin_club_tid"]),
-                None if r["capital_eligible"] is None else bool(r["capital_eligible"])]
+                None if r["is_capital_eligible"] is None else bool(r["is_capital_eligible"])]
         row += [day(r[c]) if c == "joined_date" else num(r[c]) for c in PROFILE_COLS]
     return row
 
@@ -317,7 +317,7 @@ def main():
             "origin": {str(q["tid"]): by_pid[q["person_id"]]["origin_club"]
                        for q in squad if by_pid[q["person_id"]].get("origin_club")},
             "capital_eligible": sorted(q["tid"] for q in squad
-                                       if by_pid[q["person_id"]]["capital_eligible"]),
+                                       if by_pid[q["person_id"]]["is_capital_eligible"]),
             "development": {str(q["tid"]): by_pid[q["person_id"]]["development"]
                             for q in squad if by_pid[q["person_id"]]["development"]},
             "profile_fields": PROFILE_EXTRA_FIELDS,
@@ -405,13 +405,15 @@ def main():
     mrename = {"date": "match_date", "opp_tid": "opponent_tid", "gf": "goals_for",
                "ga": "goals_against", "pts": "points", "stage_kind": "stage_type",
                "tie_gf": "tie_goals_for", "tie_ga": "tie_goals_against",
+               "went_through": "is_through", "extra_time": "has_extra_time",
                **{f"opp_{st}": f"opponent_{st}" for st in stats}}
     matches = s.rows("SELECT * FROM site.matches ORDER BY season, match_date, opponent_tid")
     pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
                "goals", "assists", "minutes", "started", "potm", "position", "passA", "passC",
                "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
                "dribbles", "shotA", "shotO", "mistakes", "yellow"]
-    prename = {"date": "match_date", "potm": "is_player_of_match_award", "passA": "passes", "passC": "passes_completed",
+    prename = {"date": "match_date", "started": "is_starter", "potm": "is_player_of_match_award",
+               "passA": "passes", "passC": "passes_completed",
                "keyPass": "key_passes", "tackA": "tackles", "tackW": "tackles_won",
                "intercept": "interceptions", "headA": "headers", "headW": "headers_won",
                "crossA": "crosses", "crossC": "crosses_completed", "shotA": "shots",
@@ -565,12 +567,12 @@ def main():
         "rules": ({**rules[0], "u21_on": day(rules[0]["u21_on"])} if rules else None),
         "fields": reg_fields,
         "players": sorted(
-            [[tid_of[r["person_id"]], num(r["age"]), bool(r["b_list"]), bool(r["hg_club"]),
-              r["home_grown_basis"], bool(r["hg_association"]),
+            [[tid_of[r["person_id"]], num(r["age"]), bool(r["is_b_list"]), bool(r["is_home_grown_club"]),
+              r["home_grown_basis"], bool(r["is_home_grown_association"]),
               None if r["months_club"] is None else float(r["months_club"]),
               None if r["months_to_go"] is None else float(r["months_to_go"]),
-              day(r["hg_eta"]), bool(r["window_open"]), r["origin_club"], r["origin_nation"],
-              bool(r["via_academy"])]
+              day(r["hg_eta"]), bool(r["is_window_open"]), r["origin_club"], r["origin_nation"],
+              bool(r["is_academy_product"])]
              for r in reg if r["person_id"] in tid_of]),
         "note": "Squad registration is a self-imposed rule — FMM22 does not model it. "
                 "Home-grown status is derived from origin club, career history and observed "
@@ -586,7 +588,7 @@ def main():
                 # end year of the newest completed one, `live` whether the game updates them
                 "seasons": [num(round(float(v), 3)) for v in r["coefficient_history"] or []]
                 if any(r["coefficient_history"] or []) else None,
-                "season": r["coefficient_season"], "live": bool(r["coefficient_is_live"]),
+                "season": r["coefficient_season"], "live": bool(r["is_coefficient_live"]),
                 # the UEFA association ranking: members only, on the five newest seasons
                 "uefa": bool(r["is_uefa"]), "uefa_rank": r["uefa_rank"],
                 "rival": r["rival"]}
@@ -704,12 +706,12 @@ def main():
                    "fee_kind": "fee_type", "fee": "fee_gbp", "from_tid": "from_club_tid",
                    "to_tid": "to_club_tid"}
     ours_fields = deal_fields + ["direction"]
-    ours = s.rows("""SELECT * FROM site.transfers WHERE direction IS NOT NULL AND in_career
+    ours = s.rows("""SELECT * FROM site.transfers WHERE direction IS NOT NULL AND is_in_career
                      ORDER BY season, move_date NULLS LAST, name""")
     home = s.scalar("""SELECT n.name FROM mart.dim_club c JOIN mart.dim_nation n USING (nation_id)
                        WHERE c.club_tid = ?""", [managed])
     markets = {}
-    for (yr,) in s.con.execute("SELECT DISTINCT season FROM site.transfers WHERE in_career "
+    for (yr,) in s.con.execute("SELECT DISTINCT season FROM site.transfers WHERE is_in_career "
                                "ORDER BY season").fetchall():
         mv = f"(SELECT * FROM site.transfers WHERE season = {int(yr)} AND transfer_type IN ('permanent', 'free'))"
         tot = s.rows(f"""SELECT count(*) AS n,

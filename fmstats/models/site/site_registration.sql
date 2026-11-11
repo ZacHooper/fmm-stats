@@ -1,19 +1,20 @@
 -- Each player in our squad on each snapshot as the registration page reads
 -- him, keyed (snapshot_date, person_id) (a house rule:
 -- docs/danish-registration-rules.md):
---   b_list          born after the new year the rules take the B-list age on
---   hg_club         trained at the club: he came out of it (an academy
+--   is_b_list       born after the new year the rules take the B-list age on
+--   is_home_grown_club  trained at the club: he came out of it (an academy
 --                   product, or his origin club is ours), or he has
 --                   var('home_grown_months') months with us in his window
 --                   (int.squad_training); home_grown_basis says which
 --                   (academy / youth-origin / clock)
---   hg_association  trained in our nation: hg_club, or his origin club is of
---                   our nation, or he has the months at another club of it
+--   is_home_grown_association  trained in our nation: is_home_grown_club, or
+--                   his origin club is of our nation, or he has the months at
+--                   another club of it
 --   months_club, months_to_go, hg_eta   his months with us, how many he
 --                   lacks, and the day he reaches them if he stays, where that
 --                   lies inside his window
---   window_open     his window has not closed
---   origin_club, origin_nation, via_academy   where he came from
+--   is_window_open  his window has not closed
+--   origin_club, origin_nation, is_academy_product   where he came from
 {% set months = var('home_grown_months') %}
 with career as (
     select * from {{ ref('stg_career') }}
@@ -51,7 +52,7 @@ players as (
         people.birth_date,
         snapshot_players.age,
         people.origin_club_tid,
-        people.origin_youth_team_tid is not null as via_academy,
+        people.origin_youth_team_tid is not null as is_academy_product,
         origins.name as origin_club,
         origin_nations.name as origin_nation,
         origins.nation_id = (select our_nation.nation_id from our_nation)
@@ -94,10 +95,11 @@ select
         - {{ var('registration').b_list_under_age }},
         1,
         1
-    ) as b_list,
-    coalesce(origin_is_ours, false) or months_club >= {{ months }} as hg_club,
+    ) as is_b_list,
+    coalesce(origin_is_ours, false) or months_club >= {{ months }}
+        as is_home_grown_club,
     case
-        when origin_is_ours and via_academy then 'academy'
+        when origin_is_ours and is_academy_product then 'academy'
         when origin_is_ours then 'youth-origin'
         when months_club >= {{ months }} then 'clock'
     end as home_grown_basis,
@@ -106,7 +108,7 @@ select
         or months_club >= {{ months }}
         or coalesce(origin_is_domestic, false)
         or months_domestic >= {{ months }}
-    ) as hg_association,
+    ) as is_home_grown_association,
     months_club,
     case
         when
@@ -129,8 +131,8 @@ select
                     as integer
                 )
     end as hg_eta,
-    snapshot_date <= window_to as window_open,
+    snapshot_date <= window_to as is_window_open,
     origin_club,
     origin_nation,
-    via_academy
+    is_academy_product
 from players

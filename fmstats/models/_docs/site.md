@@ -117,7 +117,6 @@ The largest home crowd in the season.
 {% docs is_through %}
 We won the knockout tie the match belongs to, once it is decided; NULL outside a knockout stage
 or before it is decided.
-Synonyms: `went_through`.
 {% enddocs %}
 
 {% docs a_list_max %}

@@ -2,7 +2,7 @@
 -- (person_id, to_line_index):
 --   season         the campaign he moved FOR — a June signing belongs to the
 --                  next season's market
---   in_career      the season falls inside the career (a site.snapshots
+--   is_in_career   the season falls inside the career (a site.snapshots
 --                  season); earlier rows are the pre-career history the save
 --                  keeps for players still in it, which only the record
 --                  progression reads
@@ -50,7 +50,7 @@ select
     people.tid,
     people.name,
     dated.season,
-    dated.season in (select seasons.season from seasons) as in_career,
+    dated.season in (select seasons.season from seasons) as is_in_career,
     dated.move_date,
     case
         when dated.when_date is null then 'undated'

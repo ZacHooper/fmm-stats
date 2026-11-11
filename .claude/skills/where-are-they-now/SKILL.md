@@ -176,7 +176,7 @@ GROUP BY sm.person_id, p.name HAVING bool_and(sm.is_loan_in);
   recipe (cup-match counts across every season gauge the depth of a run: a two-legged tie near the
   end inflates the count, so 7–8 cup matches against 2–3 in a normal year is very likely a run to
   the final rounds — worth naming, and worth checking whether it's the deepest in the club's
-  history; `went_through` says how each tie ended). Run it in the same session as §1, which sets
+  history; `is_through` says how each tie ended). Run it in the same session as §1, which sets
   `season`. Read the trail off the per-season league
   names, which is what shows a multi-year climb one step at a time:
   ```sql
@@ -187,7 +187,7 @@ GROUP BY sm.person_id, p.name HAVING bool_and(sm.is_loan_in);
   FROM site.matches WHERE season = getvariable('season') AND stage_type = 'League' GROUP BY 1;
   SELECT * FROM site.attendance ORDER BY season;
   -- cup run: every cup match of the season, and cup-match counts across every season
-  SELECT match_date, competition, stage, venue, opponent, goals_for || '-' || goals_against AS score, result, went_through
+  SELECT match_date, competition, stage, venue, opponent, goals_for || '-' || goals_against AS score, result, is_through
   FROM site.matches
   WHERE season = getvariable('season') AND stage_type IN ('Knockout', 'Qualifying', 'Group')
   ORDER BY match_date;

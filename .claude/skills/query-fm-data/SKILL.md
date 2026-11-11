@@ -16,16 +16,16 @@ ATTACH 's3://fmm-stats/site-data/fm-frem-mart.duckdb' AS m (READ_ONLY);
 
 -- "who was our top scorer in 23/24" — AGGREGATE FIRST, NAME SECOND:
 --   * mart.fact_player_match is one row per player per match (unused subs included, so
---     filter `appeared`), with goals, assists, minutes, rating, rating_adj.
+--     filter `has_appeared`), with goals, assists, minutes, rating, rating_adj.
 --   * a campaign runs from the career's rollover day (Frem: 30 June) — dim_match has the
 --     date and the competition's own season label, not our campaign.
 --   * 346 is Frem's first team (fmm.toml). dim_person resolves names.
 WITH tot AS (
   SELECT f.person_id,
          SUM(f.goals) AS goals,
-         COUNT(*) FILTER (WHERE f.appeared) AS apps,
-         ROUND(AVG(f.rating) FILTER (WHERE f.appeared), 2) AS avg_rating,
-         ROUND(AVG(f.rating_adj) FILTER (WHERE f.started), 2) AS avg_rating_adj
+         COUNT(*) FILTER (WHERE f.has_appeared) AS apps,
+         ROUND(AVG(f.rating) FILTER (WHERE f.has_appeared), 2) AS avg_rating,
+         ROUND(AVG(f.rating_adj) FILTER (WHERE f.is_starter), 2) AS avg_rating_adj
   FROM m.mart.fact_player_match f
   JOIN m.mart.dim_match d USING (match_id)
   WHERE d.match_date BETWEEN DATE '2023-06-30' AND DATE '2024-06-29'
@@ -41,7 +41,7 @@ ORDER BY tot.goals DESC LIMIT 5;
 ### Which database object to attach?
 * **`site-data/fm-<career>-mart.duckdb`** — the `mart` **tables** only, plus the
   `fact_player_snapshot` view. Attach it under any name (`AS m`). It holds:
-  * **Dimensions**: `dim_person` (name, birth_date, `capital_eligible`, `origin_club_tid`),
+  * **Dimensions**: `dim_person` (name, birth_date, `is_capital_eligible`, `origin_club_tid`),
     `dim_club`, `dim_team`, `dim_competition`, `dim_match`, `dim_stage`, `dim_round`,
     `dim_nation`, `dim_position` (position → unit), `dim_role`, `dim_award`.
   * **Facts**: `fact_player_match` (stats, `rating`, `rating_adj`, `role`, `position`),
@@ -102,7 +102,7 @@ other name loses every view.
      `fact_player_snapshot.positions` (and `site.players.positions`):
      `CROSS JOIN unnest(f.positions) AS u(p)` then `p.position`, `p.familiarity`,
      `p.level_league`.
-   * `capital_eligible` (Capital region signing rule) is directly on **`mart.dim_person`**.
+   * `is_capital_eligible` (Capital region signing rule) is directly on **`mart.dim_person`**.
    * An opponent manager's preferred / attacking / defensive formation and Style:
      `mart.fact_staff_spell` (`role = 'manager' AND is_current AND team_tid = <opp>`) joined
      to `mart.fact_staff_snapshot` (`is_current`) on `person_id`.

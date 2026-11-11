@@ -84,7 +84,7 @@ erDiagram
         int match_key FK
         int player_key FK
         int team_key FK "the side he played for that day"
-        bool started
+        bool is_starter
         string position_played
         int minutes
         int goals
@@ -149,8 +149,8 @@ mismatch is investigated on the events side and never overwrites the score.
   `match_id` only, and `dim_match` tests that every tid stays below 10⁵.
 - **`fact_player_match.minutes`** runs from kick-off, or the minute a player came on, to the
   minute he went off, was sent off or the match ended: 90, or 120 when the match went to extra
-  time or penalties. A dismissal is in the events only (`dim_event_type.ends_appearance`).
-  Stoppage time is not counted. `started` is a place in the XI, `appeared` a start or a
+  time or penalties. A dismissal is in the events only (`dim_event_type.is_appearance_ending`).
+  Stoppage time is not counted. `is_starter` is a place in the XI, `has_appeared` a start or a
   substitution on. `position` uses `dim_position`'s codes (the match table's `FC` is `ST`).
 - **`fact_match_event`** reads each event's side from the save: `player_team_tid` is the
   player's team and `team_tid` the side the event counts for, the other side for an own goal

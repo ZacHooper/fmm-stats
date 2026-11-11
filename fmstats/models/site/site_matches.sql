@@ -10,7 +10,7 @@
 -- 'Group ' and the group's letter (its place among the stage's groups), or
 -- the stage and round names. matchday counts from 1 in a league or group,
 -- leg is set in a two-legged tie, tie_goals_for / tie_goals_against are its
--- aggregate once both legs are played and went_through says whether we won a
+-- aggregate once both legs are played and is_through says whether we won a
 -- decided tie.
 with career as (
     select * from {{ ref('stg_career') }}
@@ -133,8 +133,8 @@ select
     case
         when stages.stage_format = 'knockout' and tie_rows.is_decided
             then tie_rows.winner_tid = sides.team_tid
-    end as went_through,
-    matches.decided_by in ('ET', 'pens') as extra_time,
+    end as is_through,
+    matches.decided_by in ('ET', 'pens') as has_extra_time,
     sides.pens_for,
     sides.pens_against,
     {% for stat in var('team_match_stats') %}

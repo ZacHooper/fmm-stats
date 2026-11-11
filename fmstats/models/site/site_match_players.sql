@@ -20,7 +20,7 @@ select
     matches.goals,
     matches.assists,
     matches.minutes,
-    matches.started,
+    matches.is_starter,
     matches.is_player_of_match
     and coalesce(competitions.type <> 'friendly', true)
     as is_player_of_match_award,
@@ -52,4 +52,4 @@ inner join {{ ref('int_our_matches') }} as ours
 left join {{ ref('dim_competition') }} as competitions
     on match_dims.cid = competitions.cid
 cross join {{ ref('stg_career') }} as career
-where matches.appeared and matches.person_id is not null
+where matches.has_appeared and matches.person_id is not null

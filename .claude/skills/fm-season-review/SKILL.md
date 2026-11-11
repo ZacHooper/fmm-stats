@@ -56,14 +56,14 @@ rather than working around it.
 **2. Appeared ≠ named in the squad**
 **[REQUEST]** "Who had the best average rating?"
 **[BAD]** *Averages `rating` over every `fact_player_match` row for the player.*
-**[GOOD]** *Filters `appeared` (or uses `site.match_players`, which holds appearances only).*
+**[GOOD]** *Filters `has_appeared` (or uses `site.match_players`, which holds appearances only).*
 **[WHY]** An unused substitute still gets a row, carrying a **flat rating of 6.00** — 110 such
 rows in Frem's 2024. Averaging them in drags every figure toward 6 and lets a pure benchwarmer
 clear a "minimum games" filter. Mikkel Bruhn reads 6.66 unfiltered against 7.25 for the 20 games
 he actually played.
 
 **3. The Starter Filtering Rule (positional analysis only)**
-**[GOOD]** *For UNIT breakdowns, filter `started` and require ~10 starts.*
+**[GOOD]** *For UNIT breakdowns, filter `is_starter` and require ~10 starts.*
 **[WHY]** Sub appearances distort average ratings and defensive/passing volume. Positional
 analysis evaluates pure starters. This is narrower than rule 2 — awards use appearances, units use
 starts.
@@ -153,7 +153,7 @@ FROM mart.fact_player_match f
 JOIN site.matches m USING (match_id)
 JOIN mart.dim_person p USING (person_id)
 WHERE m.season = getvariable('season') AND m.stage_type IS NOT NULL
-  AND f.team_tid = getvariable('us') AND f.started
+  AND f.team_tid = getvariable('us') AND f.is_starter
 GROUP BY f.role, f.person_id, p.name HAVING count(*) >= 10
 ORDER BY f.role, avg_rating_adj DESC;
 
@@ -161,9 +161,9 @@ ORDER BY f.role, avg_rating_adj DESC;
 CREATE OR REPLACE TEMP TABLE awards AS
 SELECT mp.person_id, p.name,
        extract(year FROM age(make_date(getvariable('season'), 6, 30), p.birth_date)) AS age,
-       count(*) AS games, count(*) FILTER (WHERE mp.started) AS starts,
+       count(*) AS games, count(*) FILTER (WHERE mp.is_starter) AS starts,
        sum(mp.minutes) AS minutes, round(avg(mp.rating), 2) AS avg_rating,
-       round(avg(mp.rating_adj) FILTER (WHERE mp.started), 2) AS avg_rating_adj,
+       round(avg(mp.rating_adj) FILTER (WHERE mp.is_starter), 2) AS avg_rating_adj,
        sum(mp.goals) AS goals, sum(mp.assists) AS assists, sum(mp.key_passes) AS key_passes,
        sum(mp.headers_won) AS headers_won, sum(mp.dribbles) AS dribbles,
        sum(mp.passes_completed) AS passes_completed, sum(mp.shots) AS shots,
@@ -200,7 +200,7 @@ WITH ends AS (
     FROM site.snapshots WHERE season = getvariable('season')
 ),
 tot AS (
-    SELECT f.person_id, f.snapshot_date, f.age, f.attributes_are_estimated,
+    SELECT f.person_id, f.snapshot_date, f.age, f.has_estimated_attributes,
            Aerial + Crossing + Dribbling + Shooting + Passing + Tackling + Technique
            + Aggression + Creativity + Decisions + Leadership + Movement + Positioning
            + Teamwork + Pace + Stamina + Strength + Agility + Handling + Kicking + Reflexes
@@ -216,7 +216,7 @@ FROM tot a
 JOIN tot b ON b.person_id = a.person_id AND b.snapshot_date > a.snapshot_date
 JOIN mart.dim_person p ON p.person_id = a.person_id
 LEFT JOIN awards aw ON aw.person_id = a.person_id
-WHERE NOT a.attributes_are_estimated AND NOT b.attributes_are_estimated
+WHERE NOT a.has_estimated_attributes AND NOT b.has_estimated_attributes
 ORDER BY growth DESC LIMIT 5;
 
 -- GROWTH SINCE JOINING (top 5 of the current squad): first vs latest exact read while ours.
@@ -229,7 +229,7 @@ WITH ours AS (
            + Communication + Throwing AS total
     FROM mart.squad_membership sm
     JOIN mart.fact_player_snapshot f USING (person_id, snapshot_date)
-    WHERE sm.is_managed_club AND NOT f.attributes_are_estimated
+    WHERE sm.is_managed_club AND NOT f.has_estimated_attributes
 )
 SELECT p.name, arg_min(age, snapshot_date) AS age_first, arg_max(age, snapshot_date) AS age_now,
        arg_max(total, snapshot_date) - arg_min(total, snapshot_date) AS growth,

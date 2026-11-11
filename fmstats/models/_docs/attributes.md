@@ -9,31 +9,31 @@ Aerial, 1-20: stated by a fresh scrapbook entry, else a closed form over heading
 
 {% docs crossing %}
 Crossing, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
 {% docs dribbling %}
 Dribbling, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
 {% docs shooting %}
 Shooting, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
 {% docs passing %}
 Passing, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
 {% docs tackling %}
 Tackling, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
@@ -47,13 +47,13 @@ Aggression, 1-20: read from the attribute record, exact for every player.
 
 {% docs creativity %}
 Creativity, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
 {% docs decisions %}
 Decisions, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
@@ -63,13 +63,13 @@ Leadership, 1-20: read from the attribute record, exact for every player.
 
 {% docs movement %}
 Movement, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
 {% docs positioning %}
 Positioning, 1-20. Where no fresh scrapbook entry states it (everyone outside our squad), it is
-decoded from the attribute record (`attributes_are_estimated`; docs/attribute-model.md), and can
+decoded from the attribute record (`has_estimated_attributes`; docs/attribute-model.md), and can
 be off by one or more.
 {% enddocs %}
 
@@ -97,31 +97,31 @@ Agility, 1-20: read from the attribute record, exact for every player.
 {% docs handling %}
 Handling, 1-20, a goalkeeping attribute (an outfield player sits at the floor). Where no fresh
 scrapbook entry states it (everyone outside our squad), it is decoded from the attribute record
-(`attributes_are_estimated`; docs/attribute-model.md), and can be off by one or more.
+(`has_estimated_attributes`; docs/attribute-model.md), and can be off by one or more.
 {% enddocs %}
 
 {% docs kicking %}
 Kicking, 1-20, a goalkeeping attribute (an outfield player sits at the floor). Where no fresh
 scrapbook entry states it (everyone outside our squad), it is decoded from the attribute record
-(`attributes_are_estimated`; docs/attribute-model.md), and can be off by one or more.
+(`has_estimated_attributes`; docs/attribute-model.md), and can be off by one or more.
 {% enddocs %}
 
 {% docs reflexes %}
 Reflexes, 1-20, a goalkeeping attribute (an outfield player sits at the floor). Where no fresh
 scrapbook entry states it (everyone outside our squad), it is decoded from the attribute record
-(`attributes_are_estimated`; docs/attribute-model.md), and can be off by one or more.
+(`has_estimated_attributes`; docs/attribute-model.md), and can be off by one or more.
 {% enddocs %}
 
 {% docs communication %}
 Communication, 1-20, a goalkeeping attribute (an outfield player sits at the floor). Where no
 fresh scrapbook entry states it (everyone outside our squad), it is decoded from the attribute
-record (`attributes_are_estimated`; docs/attribute-model.md), and can be off by one or more.
+record (`has_estimated_attributes`; docs/attribute-model.md), and can be off by one or more.
 {% enddocs %}
 
 {% docs throwing %}
 Throwing, 1-20, a goalkeeping attribute (an outfield player sits at the floor). Where no fresh
 scrapbook entry states it (everyone outside our squad), it is decoded from the attribute record
-(`attributes_are_estimated`; docs/attribute-model.md), and can be off by one or more.
+(`has_estimated_attributes`; docs/attribute-model.md), and can be off by one or more.
 {% enddocs %}
 
 {% docs jumping %}
@@ -213,5 +213,4 @@ personality word, not the number).
 {% docs has_estimated_attributes %}
 His decodable attributes are decoded, not stated: they are all stated (a fresh scrapbook entry)
 or none are. The seven plain attributes and Teamwork are exact either way.
-Synonyms: `attributes_are_estimated`.
 {% enddocs %}

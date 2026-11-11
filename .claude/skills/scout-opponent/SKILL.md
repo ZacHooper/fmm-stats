@@ -84,13 +84,13 @@ WITH squad AS (
 played AS (
     SELECT f.team_tid, f.person_id, mode(f.position) AS played_as
     FROM mart.fact_player_match f JOIN mart.dim_match m USING (match_id)
-    WHERE f.started AND f.team_tid IN (getvariable('us'), getvariable('opp'))
+    WHERE f.is_starter AND f.team_tid IN (getvariable('us'), getvariable('opp'))
       AND m.match_date > (SELECT max(match_date) FROM mart.dim_match WHERE has_detail)
                          - INTERVAL 1 YEAR
     GROUP BY ALL
 ),
 pos AS (
-    SELECT s.team_tid, s.person_id, s.is_loan_in, f.age, f.attributes_are_estimated,
+    SELECT s.team_tid, s.person_id, s.is_loan_in, f.age, f.has_estimated_attributes,
            p.position, p.familiarity, p.level_league, p.level_global,
            f.Pace, f.Movement, f.Positioning, f.Aerial, f.Strength, f.Tackling,
            f.Passing, f.Technique, f.Creativity, f.Decisions, f.Shooting, f.Stamina,
@@ -191,10 +191,10 @@ GROUP BY ROLLUP (venue) ORDER BY venue;
 -- ── 7. who has actually hurt us (output, not quality), and whether he is still there ──
 WITH prod AS (
     SELECT f.person_id, mode(f.position) AS played_as,  -- his usual full-time position vs us
-           count(*) FILTER (WHERE f.appeared) AS apps, sum(f.goals) AS goals,
+           count(*) FILTER (WHERE f.has_appeared) AS apps, sum(f.goals) AS goals,
            sum(f.assists) AS assists, sum(f.key_passes) AS key_passes, sum(f.shots) AS shots,
            sum(f.shots_on_target) AS on_target,
-           round(avg(f.rating) FILTER (WHERE f.appeared), 2) AS avg_rating,
+           round(avg(f.rating) FILTER (WHERE f.has_appeared), 2) AS avg_rating,
            count(*) FILTER (WHERE f.is_player_of_match) AS potm,
            max(m.match_date) AS last_played
     FROM mart.fact_player_match f
@@ -235,7 +235,7 @@ xi AS (
     JOIN mart.fact_player_match f USING (match_id)
     JOIN mart.dim_position dp USING (position)
     LEFT JOIN mart.dim_person p USING (person_id)
-    WHERE f.team_tid = getvariable('opp') AND f.started
+    WHERE f.team_tid = getvariable('opp') AND f.is_starter
 ),
 shapes AS (   -- the formation whose slots are exactly these eleven positions
     SELECT formation, list_sort(list(position)) AS slots
@@ -796,7 +796,7 @@ SELECT mp.season, mp.position, count(*) AS starts,
        round(avg(mp.mistakes), 2) AS mistakes_pg
 FROM site.match_players mp
 JOIN mart.dim_person p USING (person_id)
-WHERE p.name = 'Tochi Chukwuani' AND mp.started
+WHERE p.name = 'Tochi Chukwuani' AND mp.is_starter
 GROUP BY ALL HAVING count(*) >= 5
 ORDER BY mp.season, starts DESC;
 ```
@@ -866,7 +866,7 @@ name.
 - **Opponent player names ARE resolved** for every club → **use real names** alongside position +
   percentile.
 - **Opponent attributes are model estimates (±1)** for technical/mental (Pace/physicals are exact;
-  `attributes_are_estimated` on `fact_player_snapshot` says which rows are modelled). Treat as
+  `has_estimated_attributes` on `fact_player_snapshot` says which rows are modelled). Treat as
   directional, not precise.
 - **Don't assert loan status in prose from a flag alone** — check `mart.fact_loan_spell`.
 - **Check how stale the snapshot is against the fixture date, and say so.** The latest snapshot is
