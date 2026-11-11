@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..save import cache_key as _cache_key
 from ..core import Field, Record, U16, U32, U8, UNKNOWN
 from ..core import TableDef
-from .player_attributes import locate_player_attributes
+from .player_attributes import player_attributes_end
 
 __all__ = [
     "FORMATION_SLOTS",
@@ -156,10 +156,9 @@ def locate_staff(mm: Any) -> Optional[Tuple[int, int]]:
     if key in _STAFF_CACHE:
         return _STAFF_CACHE[key]
 
-    pa_info = locate_player_attributes(mm)
-    if pa_info:
-        pa_base, pa_count = pa_info
-        base = pa_base + pa_count * 78 + 12
+    pa_end = player_attributes_end(mm)
+    if pa_end is not None:
+        base = pa_end + 12
         if base + 4 <= len(mm):
             count = int.from_bytes(mm[base - 4:base], "little")
             if 0 < count < 1_000_000 and base + count * STAFF_STRIDE <= len(mm):

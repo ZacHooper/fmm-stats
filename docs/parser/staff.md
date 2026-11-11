@@ -3,16 +3,23 @@
 Every staff member's coaching attributes, reputations and a manager's three formations
 (preferred, attacking, defensive). A count-framed table of fixed 39-byte records,
 `[8 × 0xFF][count u32]`, directly after [player_attributes](player_attributes.md), with
-`id2 == slot index`. The count is a fixed pool per career: 4,642 on Frem, 5,697 on Bucaspor.
-A person reaches his record through `id2` ([person_info](person_info.md) +64). The module
-also reads the formation catalog (`formation_catalog`), the 21 shapes the formation fields
-index.
+`id2 == slot index`. The count is a fixed pool per career: 6,212 on Truro (FMM27); on FMM22
+4,642 on Frem, 5,697 on Bucaspor. A person reaches his record through `id2`
+([person_info](person_info.md) +64). The module also reads the formation catalog
+(`formation_catalog`), the 21 shapes the formation fields index. The record is the same on
+both versions (fmm-editor's FMM26 `NonPlayer` is 39 bytes too); the catalog's order differs
+(Layout, FMM22).
 
 ## Layout
 
+The fields were checked against managers' profiles on FMM22 (Evidence, FMM22). On FMM27
+`id2 == slot` holds on all 6,212 records of both Truro saves, every field sits in the same
+range with the same median as on Frem (`formation_*` up to 20, the catalog's last index), and
+Yetton's formation and reputation match his profile (Evidence).
+
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
-| +0 | `id2` | u32 | equals the slot index | all 4,642 slots |
+| +0 | `id2` | u32 | equals the slot index | every slot: 4,642 on Frem, 6,212 on each Truro save |
 | +4 | `ca`, `pa` | 2 × u16 | ability; never shown (the immersion rule) | |
 | +8 | `home_reputation` | u16 | | |
 | +10 | `current_reputation` | u16 | | |
@@ -20,7 +27,7 @@ index.
 | +14 | `attacking_intent` | u8 | hidden 1–20; sets the profile's Style: ≤ 7 Defensive, 8–13 Normal, ≥ 14 Attacking (`style`) | fourteen managers, both band edges |
 | +15 | `financial_control` | u8 | 1–20 | seven managers |
 | +16 | `outfield_coaching` | u8 | | |
-| +17 | `goalkeeping_coaching` | u8 | 1–20, but 51–99 on 43 records, carried as stored (Quirks) | |
+| +17 | `goalkeeping_coaching` | u8 | 1–20, but 51–99 on 43 records of `frem-2030-06-22`, carried as stored (Quirks) | |
 | +19 | `discipline` | u8 | | |
 | +21 | `judging_ability` | u8 | | |
 | +22 | `judging_potential` | u8 | | |
@@ -29,15 +36,43 @@ index.
 | +29 | `tactical_knowledge` | u8 | | |
 | +30 | `youth_coaching` | u8 | | |
 | +18, +20, +24, +26, +27, +28 | `hidden_s18` … `hidden_s28` | u8 | hidden 1–20, not identified; `hidden_s27` reads 1–4 on 96% of staff, the most distinctive of the six | |
-| +31 | `formation_preferred` | u8 | index into the formation catalog (0 = 4-4-2, 5 = 4-2-3-1, 17 = 5-2-1-2) | seven managers |
+| +31 | `formation_preferred` | u8 | index into its own save's formation catalog (FMM27: 2 = 4-1-2-2-1, 6 = 4-2-3-1, 13 = 4-4-2) | seven managers (FMM22); Yetton (FMM27) |
 | +32 | `formation_attacking` | u8 | | |
 | +33 | `formation_defensive` | u8 | | |
 | +34 | | 5 × u8 | unnamed; values 0–19, near-unique per person, identical across saves | |
 
 The formation catalog: 21 templates of 1,262 bytes, found by the marker `76 b9 f4 07` (the
-name is ASCII at +20 of each). `formations.json` lists the names in catalog order.
+name is ASCII at +20 of each). `formations.json` lists the names in catalog order. On FMM27
+the order is alphabetical (0 3-4-3, 2 4-1-2-2-1, 6 4-2-3-1, 13 4-4-2, …), so a formation
+index means something only against its own save's catalog, as `formations.json` provides.
+
+The locator starts from player_attributes' last record (`player_attributes_end`), not from
+`count × 78`, so it finds the end of FMM27's variable-length player_attributes table.
+
+The profile's Specialism and Aptitude are not in this record: they are in the
+[staff role](staff_roles.md) tables that follow it, reached from the person record.
+
+### FMM22
+
+The same 39-byte record. The formation catalog holds the same 21 shapes in another order:
+0 4-4-2, 5 4-2-3-1, 17 5-2-1-2.
 
 ## Evidence
+
+`truro-2026-07-25`. Stewart Yetton, Truro's assistant manager (tid 2832, `id2` 2368, staff
+record at byte 8,622,923), and Joe Whittaker, the head physio (tid 38349):
+
+![Yetton, Staff Profile: Reputation 1 star, 27/7/1985, Formation 4-1-2-2-1, Specialism General, Aptitude Natural](img/staff-fmm27-2.jpg)
+![Whittaker, Staff Profile: Head Physio, 7/9/1999, Specialism Prevention, Aptitude Poor](img/staff-fmm27-1.jpg)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Yetton `Formation 4-1-2-2-1` | +31 `02 02 02` | `formation_preferred` 2 → catalog "4-1-2-2-1" (attacking and defensive the same) |
+| Yetton Reputation ★ | +12 `60 04` | `world_reputation` 1120 → Regional (under 3,000) |
+| Yetton `27/7/1985`, Whittaker `7/9/1999` | the person records | `dob` 1985-07-27, 1999-09-07 |
+| Whittaker, a physio: no formation, no reputation | person `id2` `ff ff ff ff` | no staff record, as for a physio on FMM22 |
+
+### FMM22
 
 The seven Danish Superliga managers' profiles of 25 Nov 2024, against `frem-2024-11-22`:
 preferred formation, reputation tier and all ten coaching attributes exact for 7 of 7, and

@@ -50,6 +50,11 @@ configure a competition with no stage list read with `STAGELESS_COMP`.
 A nation's `_comps` file carries `retm`, a list of team-count rules (`TEAM_RULE`), each
 naming a competition by uid and, on 18% of them, its number of teams. `team_counts()` reads
 them: 190 competitions, among them 3F Superliga (uid 6) and 3. Division, both 12.
+
+FMM27 (782 rule files on Truro) has no `SubF` anywhere: a nation's files carry `PLgn`, an
+unnamed 0/1, in its place. It adds the continents' rule files, men's and women's (`afr`,
+`wmn_afr`, ... `wmn_sam`), stored bare like a merged `<nat>_rules`, and a few tags per
+schema. `rule_files_table(mm)` picks the declaration; `schema_for_fmm27` the schema.
 """
 from typing import Any, Dict, List, Tuple
 
@@ -57,6 +62,7 @@ from ..core import (
     FOURCC, INT, STRING, AnyOf, ListOf, Nested, Tag, TaggedBlock, TaggedRecord,
     TaggedTableDef, scan_tagged_blocks)
 from ..save import cache_key
+from .save_header import FMM27, save_format
 from . import comp_rules as CR
 
 __all__ = [
@@ -141,6 +147,52 @@ STAGELESS_COMP = TaggedRecord("rule_file_stageless_comp", _head("wal_cymru"),
     note="a competition configured without a stage list (wal_cymru, wal_cymru_main)")
 
 
+# ---- FMM27 ----------------------------------------------------------------------------------
+# FMM22's schemas with `PLgn` where `SubF` was, and the tags FMM27 adds, observed across
+# both Truro saves, unread like the rest.
+
+def _head_fmm27(kind: str) -> List[Tag]:
+    return [
+        Tag("file", "file", STRING, required=True, note=f"source name, '{kind}'"),
+        Tag("PLgn", "plgn", INT, note="unnamed: 0 on 246 files, 1 on 57; absent on one"),
+        Tag("ftye", "file_type", INT, required=True),
+    ]
+
+
+TEAM_RULE_FMM27 = TaggedRecord("rule_file_team_rule_fmm27", TEAM_RULE.tags,
+                               unread=TEAM_RULE.unread + ('FBkt', 'ReTT', 'DbSt', 'DbEd', 'ifmh'))
+
+NATION_COMPS_FMM27 = TaggedRecord("rule_file_nation_comps_fmm27", _head_fmm27("<nat>_comps") + [
+    Tag("retm", "team_rules", ListOf(TEAM_RULE_FMM27), note="team-count rules; team_counts()"),
+], unread=NATION_COMPS.unread)
+
+NATION_RESERVE_COMPS_FMM27 = TaggedRecord(
+    "rule_file_nation_reserve_comps_fmm27", _head_fmm27("<nat>_reserve_comps"),
+    unread=NATION_RESERVE_COMPS.unread)
+
+NATION_RULES_FMM27 = TaggedRecord("rule_file_nation_rules_fmm27", _head_fmm27("<nat>_rules") + [
+    Tag("retm", "team_rules", ListOf(TEAM_RULE_FMM27), note="the merged copy of _comps' retm"),
+], unread=NATION_RULES.unread + ('fxry', 'ngid', 'ngiv'))
+
+CONTINENT_RULES_FMM27 = TaggedRecord("rule_file_continent_rules_fmm27", _head_fmm27("afr") + [
+    Tag("retm", "team_rules", ListOf(TEAM_RULE_FMM27)),
+], unread=_TRAILER + (
+    'cmps', 'cnti', 'natl', 'gpnl', 'tems', 'type', 'updy', 'year', 'dsrl', 'fxrl', 'fxry',
+    'hlps', 'sswn', 'COwl', 'DRiH', 'InyL', 'SaEC', 'USfy', 'UsCf', 'qPcC', 'yNqC', 'fles',
+    'TCPB', 'dvlv', 'dfdl'),
+    note="a continent's rules, men's and women's (afr, wmn_afr, ...), new in FMM27")
+
+STAGELESS_COMP_FMM27 = TaggedRecord(
+    "rule_file_stageless_comp_fmm27", [Tag("file", "file", STRING, required=True),
+                                       Tag("ftye", "file_type", INT, required=True)],
+    unread=STAGELESS_COMP.unread + (
+        'PLgn', 'tems', 'Cdpc', 'ACfl', 'ind1', 'ftac', 'ldos', 'vlys', 'btfo', 'typz', 'PrSt',
+        'MxBT', 'btld', 'mxNH', 'fnrg', 'rkli', 'sfst', 'mcld', 'apmn', 'lgfx', 'cmps', 'cuni',
+        'vwon', 'rqgp', 'nelt', 'ssif', 'NoMd', 'nscc', 'extc', 'RTiC', 'MtGr', 'mgqm', 'RDCA',
+        'ktsr', 'Dotc'),
+    note="a competition configured without a stage list, and no source folder")
+
+
 # ---- locating ------------------------------------------------------------------------------
 _TAG_COMP = b"pmoc"         # `comp` as stored (reversed)
 _CLUSTER_GAP = 500_000      # two `comp` tags this far apart start a new cluster
@@ -220,16 +272,43 @@ RULE_FILES_TABLE = TaggedTableDef(
     schema=schema_for,
 )
 
+_NATION_FMM27 = (("_reserve_comps", NATION_RESERVE_COMPS_FMM27), ("_comps", NATION_COMPS_FMM27),
+                 ("_rules", NATION_RULES_FMM27))
+
+
+def schema_for_fmm27(block: TaggedBlock) -> TaggedRecord:
+    """The declared schema an FMM27 rule file reads with."""
+    if "stgs" in block.top_tags:
+        return CR.FILE
+    name = block.get("file") or ""
+    for suffix, rec in _NATION_FMM27:
+        if name.endswith(suffix):
+            return rec
+    return CONTINENT_RULES_FMM27 if "PLgn" in block.top_tags else STAGELESS_COMP_FMM27
+
+
+RULE_FILES_TABLE_FMM27 = TaggedTableDef(
+    name="rule_files",
+    locator=locate_rule_files,
+    schema=schema_for_fmm27,
+)
+
+
+def rule_files_table(mm: Any) -> TaggedTableDef:
+    """The rule files' declaration for this save's format."""
+    return RULE_FILES_TABLE_FMM27 if save_format(mm) == FMM27 else RULE_FILES_TABLE
+
 
 # ---- what the rule files give ----------------------------------------------------------------
 def team_counts(mm: Any) -> Dict[int, int]:
     """{competition uid: teams} from every nation's `_comps` team-count rules -- the rules
     that name a competition and carry `ntms`, with `nxss` 0."""
     out: Dict[int, int] = {}
-    for b in RULE_FILES_TABLE.blocks(mm):
-        if schema_for(b) is not NATION_COMPS:
+    table = rule_files_table(mm)
+    for b in table.blocks(mm):
+        if table.schema_for(b) not in (NATION_COMPS, NATION_COMPS_FMM27):
             continue
-        for rule in RULE_FILES_TABLE.read(b)["team_rules"] or []:
+        for rule in table.read(b)["team_rules"] or []:
             if rule["comp_uid"] is not None and rule["teams"] is not None and not rule["nxss"]:
                 out[rule["comp_uid"]] = rule["teams"]
     return out
@@ -244,13 +323,15 @@ def is_bare(mm: Any, block: TaggedBlock) -> bool:
 def framing_problems(mm: Any) -> List[str]:
     """Where the region breaks the layout in the docstring: a group whose count k is not the
     number of container files that follow, or a bare block that is not a `<nat>_rules`."""
-    files = RULE_FILES_TABLE.blocks(mm)
+    table = rule_files_table(mm)
+    files = table.blocks(mm)
     problems: List[str] = []
     i = 0
     while i < len(files):
         b = files[i]
         if is_bare(mm, b):
-            if not (b.get("file") or "").endswith("_rules"):
+            if (not (b.get("file") or "").endswith("_rules")
+                    and table.schema_for(b) is not CONTINENT_RULES_FMM27):
                 problems.append(f"bare block {b.get('file')!r} @ {b.start} is not a nation's rules")
             i += 1
             continue

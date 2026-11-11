@@ -153,6 +153,15 @@ FILE = TaggedRecord("comp_rules_file", [
     'aPaW', 'eDpM', 'mtfl', '#20aac028', 'ycov', 'LRSR', 'CrCb', 'oqtc', 'rUqT', 'mssf'),
     note="the member's top-level fields; the trailer is XSvC EdBr EdDt SubF")
 
+# ...and FMM27's rule files (both Truro saves) add these, unread like the rest.
+ROUND.unread += ('cdes', 'tmor', 'serr', 'dat3', 'brsr')
+STAGE.unread += ('gtct', 'cdes', 'cprs', 'lwpZ', 'lgto', 'pfco', 'gsfp', 'lpfd', 'DeTp', 'pfcp',
+                 'cfrn', 'cfrx', 'cfss', 'petw', 'mnsc', 'adf2', 'cfpn', 'fxri', 'ccro', 'lpfc')
+FILE.unread += ('mxNH', 'hssd', 'AmmS', 'cuni', 'ipdt', 'Ueit', 'SqsT', 'yctt', 'ctyc', 'rtyc',
+                'ycpc', 'rttt', 'ctrc', 'rfpc', 'uTpT', 'StHs', 'yogs', 'OtRq', 'SPnc', 'cFcF',
+                'RtOT', 'AOTd', 'bpmf', 'btil', 'cPcF', 'FrDt', 'ktsr', 'dyom', 'mont', 'DaOr',
+                'prmL', 'Lgsd', 'InOr', 'DBVR', 'rPtF', 'Dbfr', 'haQl', 'FAsc', 'ocfh', 'PLgn')
+
 
 def locate_comp_rules(blob: Any) -> List[Tuple[int, int]]:
     """[(first field, declared field count)] -- a member's one tagged block, after its

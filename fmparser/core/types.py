@@ -49,17 +49,20 @@ VARIABLE_KINDS = frozenset({RAW, PAD})
 
 
 class PString:
-    """Length-prefixed string primitive: `[len u32][bytes (encoding)][\\0?]`.
+    """Length-prefixed string primitive: `[len u32][bytes (encoding)][terminator?]`.
 
-    Manages reading length-prefixed strings with optional null-terminators and
-    character decoding fallbacks.
+    Manages reading length-prefixed strings with an optional terminator byte and
+    character decoding fallbacks. The terminator is a fixed byte the record writes after
+    the string: 0x00 on FMM22, 0xFF on FMM27.
     """
-    __slots__ = ("name", "null_terminated", "allow_empty", "encoding", "fallback_encoding", "max_len")
+    __slots__ = ("name", "null_terminated", "terminator", "allow_empty", "encoding",
+                 "fallback_encoding", "max_len")
 
     def __init__(
         self,
         name: str,
         null_terminated: bool = False,
+        terminator: int = 0,
         allow_empty: bool = False,
         encoding: str = "utf-8",
         fallback_encoding: str = "latin-1",
@@ -67,6 +70,7 @@ class PString:
     ):
         self.name = name
         self.null_terminated = null_terminated
+        self.terminator = terminator
         self.allow_empty = allow_empty
         self.encoding = encoding
         self.fallback_encoding = fallback_encoding
@@ -76,6 +80,8 @@ class PString:
         flags = []
         if self.null_terminated:
             flags.append("null_terminated=True")
+        if self.terminator:
+            flags.append(f"terminator={self.terminator:#04x}")
         if self.allow_empty:
             flags.append("allow_empty=True")
         if self.encoding != "utf-8":
@@ -98,7 +104,7 @@ class PString:
         total_len = 4 + slen + term_len
         if offset + total_len > limit:
             return None
-        if self.null_terminated and mm[offset + 4 + slen] != 0:
+        if self.null_terminated and mm[offset + 4 + slen] != self.terminator:
             return None
 
         raw = bytes(mm[offset + 4:offset + 4 + slen])
@@ -225,18 +231,20 @@ class Conditional:
     A segment of a `TableDef` row, like `CountedList`: the row's own bytes decide its length,
     so no tuned bound is involved. `present(head_values) -> bool` is called on the head's
     emitted fields (FMM27 person_info: a 2-byte tail follows the head's i32 only when that
-    i32 is -1). Returns the head's fields and, when present, the tail's.
+    i32 is -1). The tail is one record, or a tuple of segments (records and `CountedList`s:
+    FMM27's national teams). Returns the head's fields and, when present, the tail's.
     """
     __slots__ = ("name", "head", "tail", "present")
 
     def __init__(self, name: str, head: Any, tail: Any, present: Callable[[Dict[str, Any]], bool]):
         self.name = name
         self.head = head
-        self.tail = tail
+        self.tail = tail if isinstance(tail, tuple) else (tail,)
         self.present = present
 
     def __repr__(self) -> str:
-        return f"Conditional({self.name!r}, {self.head.name}, {self.tail.name})"
+        return (f"Conditional({self.name!r}, {self.head.name}, "
+                f"{'+'.join(seg.name for seg in self.tail)})")
 
     def _has_tail(self, mm: Any, offset: int) -> Tuple[Dict[str, Any], bool]:
         head = self.head.read(mm, offset)
@@ -249,10 +257,18 @@ class Conditional:
             return None
         out, has_tail = self._has_tail(mm, offset)
         if has_tail:
-            if end + self.tail.span > limit:
-                return None
-            out.update(self.tail.read(mm, end))
-            end += self.tail.span
+            for seg in self.tail:
+                if isinstance(seg, CountedList):
+                    res = seg.read(mm, end, limit)
+                    if res is None:
+                        return None
+                    part, end = res
+                    out.update(part)
+                else:
+                    if end + seg.span > limit:
+                        return None
+                    out.update(seg.read(mm, end))
+                    end += seg.span
         return out, end
 
     def instances(self, mm: Any, offset: int) -> List[Tuple[Any, int]]:
@@ -260,7 +276,16 @@ class Conditional:
         _, has_tail = self._has_tail(mm, offset)
         out = [(self.head, offset)]
         if has_tail:
-            out.append((self.tail, offset + self.head.span))
+            at = offset + self.head.span
+            for seg in self.tail:
+                if isinstance(seg, CountedList):
+                    cw = KIND_WIDTH[seg.count]
+                    n = int.from_bytes(mm[at:at + cw], "little")
+                    out.extend((seg.item, at + cw + i * seg.item.span) for i in range(n))
+                    at += cw + n * seg.item.span
+                else:
+                    out.append((seg, at))
+                    at += seg.span
         return out
 
 

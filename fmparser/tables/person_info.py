@@ -6,8 +6,9 @@ then the records in tid order from 0 -- a career-constant pool, walked by declar
 `tid == slot index` as the invariant. Each record:
 
   [68 B head]                                   PERSON_INFO: identity, club, personality
-  [17 B]                                        PERSON_MID: four u32 ids (0xffffffff = none)
-                                                and a 0/1 flag, unnamed
+  [17 B]                                        PERSON_MID: his rows in the coach, scout,
+                                                physio and officials tables (0xffffffff =
+                                                none), and a 0/1 flag, unnamed
   [u8 n][n x (language_id u16, level u8)]       languages; level 0..10 (255 on 7%)
   [u16 m][m x 8 B]                              relationships: a club (kind 1) or a person
                                                 (kind 3) this person is linked to
@@ -18,7 +19,8 @@ FMM27 stores fmm-editor's FMM26 `People` record (44,960 on Truro), framed the sa
   [u16 k][k x nation u16]                       other nationalities (FMM22: one slot)
   [42 B]                                        PERSON_REST_FMM27: as FMM22's head from
                                                 ethnicity on, but caps and goals are i16
-  [13 B]                                        PERSON_MID_FMM27: three u32 ids and a u8
+  [13 B]                                        PERSON_MID_FMM27: coach, scout and physio
+                                                rows (no officials row), and a u8
   [5 B][2 B only if its i32 is -1]              PERSON_FLAG_FMM27, unnamed
   [u8 n][n x 3 B], [u8 n][n x 3 B]              default and other languages
   [u16 m][m x 8 B]                              relationships: the favoured clubs and people
@@ -44,6 +46,7 @@ __all__ = [
     "PERSON_INFO_TABLE_FMM27",
     "PERSON_LANGUAGE",
     "PERSON_MID",
+    "person_role_rows",
     "RELATIONSHIP",
     "locate_person_info",
     "person_table",
@@ -107,11 +110,13 @@ INFO_LAYOUT = PERSON_INFO
 INFO_HEAD = PERSON_INFO.span
 
 # Bytes +68..+84, between the head and the language list.
+# A member of staff's rows in the role tables (tables/staff_roles.py) and the officials
+# table; 0xffffffff on everyone else. Each row is pointed at by at most one person.
 PERSON_MID = Record("person_mid", 17, (
-    Field(0, 4, UNKNOWN, U32),       # four ids, 0xffffffff on 94-98% of people
-    Field(4, 4, UNKNOWN, U32),
-    Field(8, 4, UNKNOWN, U32),
-    Field(12, 4, UNKNOWN, U32),
+    Field(0, 4, "coach_row", U32),
+    Field(4, 4, "scout_row", U32),
+    Field(8, 4, "physio_row", U32),
+    Field(12, 4, "official_row", U32),
     Field(16, 1, UNKNOWN, U8),       # 0 / 1
 ), is_head=True)
 
@@ -245,9 +250,9 @@ PERSON_REST_FMM27 = Record("person_rest_fmm27", 42, (
 ), is_head=True)
 
 PERSON_MID_FMM27 = Record("person_mid_fmm27", 13, (
-    Field(0, 4, UNKNOWN, U32),       # three ids, 0xffffffff on most people
-    Field(4, 4, UNKNOWN, U32),
-    Field(8, 4, UNKNOWN, U32),
+    Field(0, 4, "coach_row", U32),   # as FMM22's, without the officials row
+    Field(4, 4, "scout_row", U32),
+    Field(8, 4, "physio_row", U32),
     Field(12, 1, UNKNOWN, U8),
 ), is_head=True)
 
@@ -318,3 +323,15 @@ def scrape_person_info(mm: Any) -> Dict[int, Dict[str, Any]]:
 
 
 scrape_players = scrape_person_info
+
+_ROLE_ROWS = (("coaches", "coach_row"), ("scouts", "scout_row"), ("physios", "physio_row"))
+
+
+def person_role_rows(mm: Any) -> Dict[str, Dict[int, int]]:
+    """{role: {row: tid}}: who each coach, scout and physio row belongs to."""
+    out: Dict[str, Dict[int, int]] = {role: {} for role, _ in _ROLE_ROWS}
+    for r in person_table(mm).scrape(mm):
+        for role, field in _ROLE_ROWS:
+            if r[field] != 0xFFFFFFFF:
+                out[role][r[field]] = r["tid"]
+    return out

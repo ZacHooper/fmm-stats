@@ -232,7 +232,7 @@ def _print_tagged(report):
 def _dictionary_coverage(mm):
     """Every rule file of the tagged data dictionary against its declared schema, plus the
     share of the dictionary's span the rule files read."""
-    ok = _print_tagged(RF.RULE_FILES_TABLE.coverage(mm))
+    ok = _print_tagged(RF.rule_files_table(mm).coverage(mm))
     t = RF.tiling(mm)
     framing = RF.framing_problems(mm)
     ok &= not t["other_blocks"] and not framing
@@ -280,7 +280,11 @@ def main():
 
         print("measured against the save:")
         attrs = scrape_player_attributes(mm)
-        ok &= _stride("player_attribute", [v["offset"] for v in attrs.values()], A.RECORD)
+        if A.player_attributes_table(mm).is_fixed_stride:
+            ok &= _stride("player_attribute", [v["offset"] for v in attrs.values()], A.RECORD)
+        else:       # FMM27: variable-length rows, so no stride; the sids must be dense from 0
+            ok &= _extent("player_attribute",
+                          [int.from_bytes(bytes.fromhex(s), "little") for s in attrs])
         # info_head has no stride to check: variable-length records, only the head is declared
         info = scrape_person_info(mm)
         sa = ST.scrape_staff_attributes(

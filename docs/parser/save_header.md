@@ -1,26 +1,16 @@
 # save_header  ([`fmparser/tables/save_header.py`](../../fmparser/tables/save_header.py))
 
 The save slot's header, at offset 0: the only table with a fixed offset, and the first step
-`extract.py` runs. FMM22 and FMM27 store it differently. `save_format` returns the version
-the save declares: the first `fmm<NN>-` length-prefixed string in its first 0x200 bytes (FMM27's
-channel, `fmm27-rel-staging`). FMM22 declares no version anywhere near its header, so a save
-that declares none is FMM22; a declared version with no reader (`fmm26`) reads no date, and
-`extract.py` stops naming it. `read_save_header` returns the same
-`{title, date, manager, nickname}` for both. `save_header_end` is where the
-first table may start, which `extract.py` uses as its starting cursor.
+`extract.py` runs. On FMM27 it is length-prefixed strings around fixed blocks, among them the
+in-game date; FMM22 stores a single title string instead (Layout, FMM22). `save_format`
+returns the version the save declares: the first `fmm<NN>-` length-prefixed string in its
+first 0x200 bytes (FMM27's channel, `fmm27-rel-staging`). FMM22 declares no version anywhere
+near its header, so a save that declares none is FMM22; a declared version with no reader
+(`fmm26`) reads no date, and `extract.py` stops naming it. `read_save_header` returns the same
+`{title, date, manager, nickname}` for both. `save_header_end` is where the first table may
+start, which `extract.py` uses as its starting cursor.
 
-## Layout: FMM22
-
-| offset | width | field | meaning | how we know |
-|---|---|---|---|---|
-| 0 | 250 | `title` | `"<d/m/yy> - <manager> (<club nickname>)"`, UTF-8, NUL-padded | read on every save; matches the Load Game screen (below) |
-
-`read_save_header` splits the title with `^(\d{1,2})/(\d{1,2})/(\d{2}) - (.*) \(([^()]*)\)$`
-into `date` (ISO, year `2000 + yy`), `manager` and `nickname`. When the title doesn't match
-that pattern, or the date isn't a real calendar date, those three are `None` and `title` is
-still returned.
-
-## Layout: FMM27
+## Layout
 
 Length-prefixed strings (`[len u32][bytes]`) around fixed blocks. Offsets are from the
 Truro City saves; the blocks follow the strings, so they move with the club name's length.
@@ -60,20 +50,23 @@ FMM27 declares its version three more ways, unread so far: the build strings
 The FMM27 header carries no manager name, so `manager` and `nickname` are `None` and `title` is
 the club name.
 
+### FMM22
+
+The header is one string:
+
+| offset | width | field | meaning | how we know |
+|---|---|---|---|---|
+| 0 | 250 | `title` | `"<d/m/yy> - <manager> (<club nickname>)"`, UTF-8, NUL-padded | read on every save; matches the Load Game screen (below) |
+
+`read_save_header` splits the title with `^(\d{1,2})/(\d{1,2})/(\d{2}) - (.*) \(([^()]*)\)$`
+into `date` (ISO, year `2000 + yy`), `manager` and `nickname`. When the title doesn't match
+that pattern, or the date isn't a real calendar date, those three are `None` and `title` is
+still returned.
+
 ## Evidence
 
-FMM22: `frem-2030-06-22`, Load Game screen. The highlighted row is the slot this file came from:
-
-![Load Game: 22/6/30 (#2), Mr Manager, Frem](img/save_header-1.png)
-
-| on screen | raw bytes @ 0 | parsed |
-|---|---|---|
-| `22/6/30` | `32 32 2f 36 2f 33 30` | `date` = `2030-06-22` |
-| `Mr Manager` | `… 20 2d 20 4d 72 20 4d 61 6e 61 67 65 72` (` - Mr Manager`) | `manager` = `Mr Manager` |
-| `Frem` | `20 28 46 72 65 6d 29 00 …` (` (Frem)` then NULs) | `nickname` = `Frem` |
-
-FMM27: the Truro City saves, Load Game screen. The game lists a save by the in-game date and
-the time it was last saved; it shows no manager or nickname, and the header holds none.
+The Truro City saves, Load Game screen. The game lists a save by the in-game date and the time
+it was last saved; it shows no manager or nickname, and the header holds none.
 
 ![Load Game: Truro City, 25th Jul 2026 (fmm_save_1, 07:03) and 22nd Jul 2026 (fmm_save_2, 05:43)](img/save_header-2.jpg)
 
@@ -87,16 +80,28 @@ The `Men` tag beside the club name (FMM27 has men's and women's careers) is not 
 Tested by `tests/test_world_evidence.py` (needs the save) and, without a save,
 `tests/test_save_header_unit.py`.
 
-## Quirks
+### FMM22
 
-> **Quirk:** the slot label (`(Auto)`, `(#2)`) isn't in the title. Several saves can carry the
-> same title (the screenshot shows three `22/6/30` slots), so a save's file name, not its
-> title, is what tells two of them apart. Name files `<career>-<YYYY-MM-DD>[-<tag>].fms`.
+`frem-2030-06-22`, Load Game screen. The highlighted row is the slot this file came from:
+
+![Load Game: 22/6/30 (#2), Mr Manager, Frem](img/save_header-1.png)
+
+| on screen | raw bytes @ 0 | parsed |
+|---|---|---|
+| `22/6/30` | `32 32 2f 36 2f 33 30` | `date` = `2030-06-22` |
+| `Mr Manager` | `… 20 2d 20 4d 72 20 4d 61 6e 61 67 65 72` (` - Mr Manager`) | `manager` = `Mr Manager` |
+| `Frem` | `20 28 46 72 65 6d 29 00 …` (` (Frem)` then NULs) | `nickname` = `Frem` |
+
+## Quirks
 
 > **Decision:** the header date is the snapshot's identity (`phase`), never the date of the
 > last match: a player often plays on for weeks past the last fixture before saving. Which campaign it
 > belongs to is the career's rollover rule, applied by the loader (`careers.campaign`), never
 > by the parser.
+
+> **Quirk:** on FMM22, the slot label (`(Auto)`, `(#2)`) isn't in the title. Several saves can
+> carry the same title (the screenshot shows three `22/6/30` slots), so a save's file name, not
+> its title, is what tells two of them apart. Name files `<career>-<YYYY-MM-DD>[-<tag>].fms`.
 
 ## Output
 

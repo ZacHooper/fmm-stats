@@ -254,6 +254,81 @@ deterministic-version entry.</li>
 </div>
 
 <div class="finding">
+<span class="tag ok">phase 3 · competitions → stadiums done · 2026-11-11</span>
+<strong>The whole reference half reads on FMM27; <code>extract.py</code> now stops at rule_files.</strong>
+<ul>
+<li><strong>competitions</strong>: FMM22's record, <code>ff</code> after the names, and a 22-byte tail with
+<strong><code>is_women</code></strong> (1 on exactly the 133 women's competitions). 1,706 slots, 1,701 named.
+331 is Enterprise National League South (both Club Information screens).</li>
+<li><strong>nations</strong>: fmm-editor's FMM26 <code>Nation</code> exactly: languages moved up, no ranking
+history, and a <strong>men's and a women's national team</strong>, each behind a flag.
+<code>core.Conditional</code> now takes a sequence of segments as its tail. 251 nations;
+<strong>139 is England</strong> (confirmed), 163 Ireland, 43 Tanzania.</li>
+<li><strong>stadiums</strong>: three names (name, sponsor-free name, name again <code>ff</code>) and 3 bytes.
+12,509 stadiums. FMM22's locator keyed on the constant 15,987; FMM27's chains from the nations'
+end. Truro City Stadium 4,100 and Plainmoor 6,200, as on screen.</li>
+<li>The unavailability i32 at +11 is a <strong>club uid</strong> (Nelson's 1013 is Feyenoord), not a
+competition.</li>
+<li>Gates: suite green, FMM22 IDENTICAL, Frem's record audit PASS; on Truro the record audit
+fails only on rule_files and the archive. Evidence: <code>tests/test_reference_fmm27_evidence.py</code>
+now covers the chain from player_attributes to stadiums.</li>
+<li><strong>rule_files</strong>, kept minimal (little of it is decoded on FMM22 and little is used):
+FMM27 variants of the schemas with <code>PLgn</code> where <code>SubF</code> was, a schema for the
+continents' men's and women's rule files, and FMM27's new tags listed unread.
+<code>team_counts()</code> reads 256. Two groups frame differently (small <code>ourc</code>/<code>inuc</code>
+containers inside them); the audit still flags those, documented as a lead in <code>rule_files.md</code>.</li>
+<li><strong>Next:</strong> the career half. <code>extract.py</code> now runs to player_lists, skipping what it
+can't locate: contracts, match_slots, player_progress, training, matches, then player_lists and the
+archive.</li>
+</ul>
+</div>
+
+<div class="finding">
+<span class="tag ok">phase 3 · player_attributes → clubs done · 2026-11-11</span>
+<strong>Five more tables read on both Truro saves; <code>extract.py</code> now stops at competitions.</strong>
+<ul>
+<li><strong>player_attributes was misframed.</strong> FMM27's record is fmm-editor's FMM26 <code>Player</code>:
+FMM22's 78 bytes, then a u32 that is a <em>count</em> of 19-byte <strong>unavailabilities</strong> (injuries,
+conditions, bans). 24 players hold one (Eriksen and Blind: heart conditions, 1972 → 2073; Vušković: his
+doping ban to the day). The table is 456 bytes longer than <code>36,344 × 78</code>; the old 78-byte
+read drifted from record 361 on. <code>PLAYER_ATTRIBUTES_TABLE_FMM27</code>; <code>sid == slot</code> on all
+36,344, the walk ends on staff's frame.</li>
+<li><strong>staff</strong> and <strong>officials</strong> are unchanged (39 B and 99 B, as fmm-editor's
+<code>NonPlayer</code> and <code>Official</code>): 6,212 and 671 records, dense ids, every field in FMM22's
+range. Only their locators changed: staff starts from <code>player_attributes_end</code>; officials from
+round names' record 0.</li>
+<li><strong>New on both versions: the staff role tables.</strong> The three 7-byte tables between staff
+and officials are coaches, scouts and physios: <code>[id][specialism][1 B][aptitude]</code>, the
+Staff Profile's Specialism and Aptitude, which FMM22 always had and nothing read. The person
+record's unnamed u32s are the link (<code>coach_row</code>, <code>scout_row</code>,
+<code>physio_row</code>; FMM22 also <code>official_row</code>): every row pointed at once at most.
+<code>tables/staff_roles.py</code>, <code>staff_roles.json</code> (a new file on FMM22 too; oracle
+re-recorded for it, every other file unchanged), <code>docs/parser/staff_roles.md</code>.</li>
+<li><strong>round_names</strong>: three strings a record (name, short, plural), each followed by a
+terminator byte that is <code>ff</code> on FMM27 (<code>00</code> on FMM22). <code>PString</code> gained
+<code>terminator=</code>. 288 records; one empty plural is data.</li>
+<li><strong>clubs</strong>: five names (adds a three-letter name and an <code>alt_code</code>), FMM22's 167-byte
+trailer, fmm-editor's flag + 68 bytes (<code>Conditional</code> again), a 127-byte closing block and
+<strong>no tail list</strong>. 9,830 / 9,830 <code>tid == slot</code>, and the walk ends on competitions'
+frame. <strong>tid 3,125 is Truro City</strong>, read against the Club Information screen (facilities,
+status, flag, kits, reputation).</li>
+<li>Dispatch: <code>player_attributes_table</code>, <code>round_names_table</code>, <code>club_table</code>, all
+registered in <code>TABLES_BY_FORMAT[FMM27]</code>. FMM22's extract is IDENTICAL; the record audit
+measures FMM27's variable-length player rows by extent (dense sids), not stride.</li>
+<li>Evidence: <code>tests/test_reference_fmm27_evidence.py</code> (walks, raw bytes, Truro's record,
+the unavailabilities; broken on purpose once) and the FMM27 sections of <code>player_attributes.md</code>,
+<code>staff.md</code>, <code>officials.md</code>, <code>rounds.md</code>, <code>clubs.md</code>.</li>
+<li>Ground truth added after the first pass: Torquay United's Club Information and Staff
+screens, Yetton's and Whittaker's Staff Profiles, and the Eligibility screens of Eriksen,
+Vušković and Nelson (all in the table docs and the evidence test).</li>
+<li><strong>Then:</strong> competitions (frame at 14,540,346, count 1,706) → nations → stadiums. Expect the
+same <code>ff</code> terminators after names (fmm-editor's <code>Competition</code>, <code>Nation</code>,
+<code>Stadium</code> all read <code>Terminator</code> bytes). Truro's <code>league_id</code> 331 must read
+"Enterprise National League South" and <code>stadium_id</code> 11983 "Truro City Stadium", 4,100.</li>
+</ul>
+</div>
+
+<div class="finding">
 <span class="tag ok">phase 3 · person_info done · 2026-11-11</span>
 <strong>The first broken table is re-declared, in the parser, and documented with evidence.</strong>
 <ul>
@@ -438,8 +513,9 @@ checks on the new declaration before moving to the next table.</li>
 <li><strong>Document it in the same change (evidence as we go).</strong> The screenshot that
 confirmed the fields goes into the table's doc as its FMM27 evidence:
   <ul>
-  <li>a <em>Layout: FMM27</em> section beside the FMM22 one, with each departure from FMM22
-  (and from fmm-editor's FMM26) called out;</li>
+  <li>the doc leads with FMM27: <em>Layout</em> and <em>Evidence</em> describe the FMM27 record
+  in full, each closing with an <em>FMM22</em> subsection on how the older version (and
+  fmm-editor's FMM26) differs;</li>
   <li>the screenshot in <code>docs/parser/img/&lt;table&gt;-fmm27-N.png</code>, resized to ~1000 px;</li>
   <li>an <em>on screen → raw bytes → parsed</em> table for the rows the screenshot shows;</li>
   <li>an evidence test (<code>tests/test_*_evidence.py</code>) pinning the bytes as well as the
@@ -557,8 +633,8 @@ truth or a proof) or a <strong>lead</strong> (a hypothesis to test).</p>
 <tr><td>In-game date: <code>[day u16][year u16]</code> at stamp +28 (0x3c)</td><td class="ok">confirmed</td><td>Load Game screen: 25th / 22nd Jul 2026</td></tr>
 <tr><td>Write time: Unix u32 at stamp +35 (0x43); local hour/minute u8 at +47/+48</td><td class="ok">confirmed</td><td>Load Game "Last Saved Today 07:03 / 05:43"</td></tr>
 <tr><td>The header has no manager name and no slot title; the game shows date + last-saved time only</td><td class="ok">confirmed</td><td>Load Game screen; manager is "Mr Manager" on Club Information</td></tr>
-<tr><td>u32 <strong>3,125</strong> at stamp +0 (0x20) is the managed club's tid</td><td class="warn">strong lead</td><td>28 people in the FMM27 person table have <code>club_tid</code> 3,125: the Truro squad (Bogle, Oxlade-Chamberlain, Hasani…) plus staff incl. "Mr Manager". Confirm when the club table names tid 3,125 "Truro City"</td></tr>
-<tr><td><code>name_2</code>/<code>name_3</code> ("Truro" ×2) are the short name and the nickname, in some order</td><td class="warn">lead</td><td>tell apart via the club record once it reads</td></tr>
+<tr><td>u32 <strong>3,125</strong> at stamp +0 (0x20) is the managed club's tid</td><td class="ok">confirmed</td><td>the club table's tid 3,125 is Truro City, read against the Club Information screen; 28 people point at it</td></tr>
+<tr><td><code>name_2</code>/<code>name_3</code> ("Truro" ×2) are the club's <code>short</code> and <code>code</code> (both "Truro" in its record)</td><td class="warn">lead</td><td>the record's other names (TRU, TCFC) aren't in the header; a club whose short and code differ would tell them apart</td></tr>
 <tr><td>A men's/women's career flag exists somewhere (the <code>Men</code> tag on Load Game)</td><td class="warn">lead</td><td>stamp +4..+27 (<code>af 07 7f 00</code>, then zeros, then 8 × FF) is unexplained</td></tr>
 <tr><td>Where the header ends: 0xe6 on is <code>[u16 5][5 × 3 B]</code>-shaped, then <code>3e 00 00 00</code> at 0xfa</td><td class="warn">lead</td><td>from 0x100 nearly every byte differs between saves, so not header fields</td></tr>
 <tr><td>FMM22 also has a write-time Unix u32, at offset 263 just past its 250-byte title</td><td class="warn">lead</td><td>frem-2026-06-11: 0x6a708805; bucaspor-2023-04-01: 0x6a500161</td></tr>
@@ -598,8 +674,8 @@ arrives, as long as FMM26 declares itself the same way.</p>
 <tr><th>Nation</th><td>England</td></tr>
 </tbody>
 </table>
-<p class="sub">FMM22's <code>clubs.md</code> notes fmm-editor swaps Training and Youth facilities
-(+149/+150). Check that again on FMM27, using the different star counts here (1 vs ½).</p>
+<p class="sub">Checked: +149 = 4 (Training, ★) and +150 = 3 (Youth, ½★), FMM22's reading and
+scale. The record's values are tabled in <code>clubs.md</code>, Evidence.</p>
 
 <h3>person_info (Phase 3, first table) — in the parser, see <code>docs/parser/person_info.md</code></h3>
 <p>Frame <code>[FF ×8][u32 44,960][01]</code> at 751,982; record 0 at 751,987. The record is
@@ -636,7 +712,17 @@ personality line).</p>
 <tr><td><code>unknown_date</code> may be the last birthday</td><td class="warn">lead</td><td>Starkie: 2026-07-23 = birthday, save 2026-07-25</td></tr>
 <tr><td>FMM27 has <strong>women's football</strong>: the data dictionary holds <code>wmn_eur</code>, <code>wmn_asi</code>, <code>wmn_nam</code>… blocks</td><td class="warn">lead</td><td><code>audit_records.py</code> on Truro: "bare block 'wmn_eur' is not a nation's rules"; ties to the <code>Men</code> tag on Load Game</td></tr>
 <tr><td>rule_files: two group headers don't read (<code>declares 8,655,361 files</code>) on FMM27</td><td class="warn">to fix</td><td><code>audit_records.py</code> on Truro; rule_files still "locates" but isn't confirmed</td></tr>
-<tr><td>player_attributes' stride (78) still holds: 100% of gaps are multiples of 78</td><td class="ok">measured</td><td><code>audit_records.py</code> STRIDE. The 1.3% <code>pa</code> drift lead remains</td></tr>
+<tr><td>player_attributes' stride (78) still holds</td><td class="bad">wrong</td><td>measured along a 78-byte walk that was itself misframed. The rows are 82 B + 19 per unavailability; read correctly, <code>sid == slot</code> on all 36,344</td></tr>
+<tr><td>Unavailability end dates are the screen's to the day; the month is 0-based</td><td class="ok">confirmed</td><td>Vušković "Global ban until 15/11/2026", Nelson "Ineligible under competition rules until 12/9/2026" (Player Match Eligibility)</td></tr>
+<tr><td>Unavailability type 11 is a ban or ineligibility; the i32 at +11 is the <code>club_uid</code> it applies at, −1 none (global)</td><td class="ok">confirmed</td><td>5 of the 6 set are the player's own club's uid (Nelson 1013 = Feyenoord); cid / uid 1013 is no competition of his</td></tr>
+<tr><td>Type 14's 10 bytes are <strong>not</strong> dates: Eriksen's and Blind's items are byte-identical, month 0, "years" 1972 / 2073; as <code>[u16][u8][u16]</code> ×2 they read (25, 0, 1972), (27, 0, 2073)</td><td class="warn">lead</td><td>more likely ids or codes. Eriksen's screen shows "Virus (About 7 months)", which must come from the running game's injuries (not located on FMM27). Types 1, 5, 8, 10 unread</td></tr>
+<tr><td>An AI club's manager is missing from its staff list (as FMM22); the <strong>user's is in it</strong></td><td class="ok">confirmed</td><td>Torquay: the five on its Staff screen, not Jimmy Ball; Truro: Mr Manager listed. <code>mart.club_managers</code> needs the managed club special-cased on FMM27</td></tr>
+<tr><td>FMM27's formation catalog: the same 21 shapes, in a different (alphabetical) order</td><td class="ok">confirmed</td><td>Yetton's index 2 is "4-1-2-2-1", as his Staff Profile shows</td></tr>
+<tr><td>Staff Specialism / Aptitude are the staff role tables' +4 / +6, reached from the person record's role pointers, on both versions</td><td class="ok">confirmed</td><td>Yetton coach row 868: 1 General, 3 Natural; Whittaker physio row 943: 2 Prevention, 1 Poor. +5 (1 on both Bronze Badges) is likely the badge</td></tr>
+<tr><td>Club +126 of the closing block is <code>gender</code> (fmm-editor), 1 on 1,354 clubs: women's sides under the men's names</td><td class="warn">lead</td><td>"Proven Girls Football Club" among them; confirm in game</td></tr>
+<tr><td>Club closing block +125 = 5 on Truro only</td><td class="warn">lead</td><td>the managed club; meaning unknown</td></tr>
+<tr><td>Officials: +27 u16 + <code>null_year</code> (+29) are one date, null = day 0 of 1900</td><td class="warn">lead</td><td>one official reads day 181 of 2026; an FMM22 rename for its own change</td></tr>
+<tr><td>Strings in FMM27 records end in <code>ff</code> where FMM22's end in <code>00</code></td><td class="ok">confirmed</td><td>rounds (864 of 864), clubs' long and short names (all 9,830)</td></tr>
 </tbody>
 </table>
 
@@ -645,9 +731,11 @@ personality line).</p>
 <thead><tr><th>finding</th><th>status</th></tr></thead>
 <tbody>
 <tr><td>save_1 and save_2 are one career: identical strings and builds; ~99% of the 25,042 shared player ids have identical attributes, feet and CA</td><td class="ok">confirmed</td></tr>
-<tr><td>1.3% of shared players' <code>pa</code> differs over three in-game days, so the FMM22 attribute layout may be partly wrong for FMM27</td><td class="warn">lead</td></tr>
+<tr><td>1.3% of shared players' <code>pa</code> differs over three in-game days</td><td class="ok">explained</td></tr>
+<tr><td>It was the misframed player table. Read correctly, <code>pa</code> differs on 0 of 36,344; <code>ca</code> on 0.53%, squad numbers on 1.07%, history heads on 0.38%</td><td class="ok">measured</td></tr>
 <tr><td><code>clubs_end</code> raised on a missing club table, which crashed <code>competitions</code>; it now reports "not found"</td><td class="ok">fixed</td></tr>
-<tr><td>After the header, <code>extract.py</code> writes browse_names and attribute_records, empty persons/staff/round_names, then stops at clubs</td><td class="ok">confirmed</td></tr>
+<tr><td>After the header, <code>extract.py</code> writes browse_names and attribute_records, empty persons/staff/round_names, then stops at clubs</td><td class="ok">superseded</td></tr>
+<tr><td>It now writes persons, attribute_records, staff_records, round_names and clubs, then stops at competitions (<code>CompTableError</code>: 1 of 1,706)</td><td class="ok">confirmed</td></tr>
 </tbody>
 </table>
 
