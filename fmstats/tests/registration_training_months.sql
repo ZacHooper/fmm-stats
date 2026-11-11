@@ -14,10 +14,10 @@ windows as (
     select
         people.person_id,
         {{ season_start(
-            season_of('people.dob + interval ' ~ ages[0] ~ ' year')
+            season_of('people.birth_date + interval ' ~ ages[0] ~ ' year')
         ) }} as window_from,
         {{ season_end(
-            season_of('people.dob + interval ' ~ ages[1] ~ ' year')
+            season_of('people.birth_date + interval ' ~ ages[1] ~ ' year')
         ) }} as window_to
     from {{ ref('dim_person') }} as people
     cross join career

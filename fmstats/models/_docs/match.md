@@ -14,7 +14,6 @@ Synonyms: `team_b_tid` → `away_team_tid`.
 
 {% docs opponent_tid %}
 The other side in the match, relative to the row's `team_tid`.
-Synonyms: `opp_tid`.
 {% enddocs %}
 
 {% docs venue %}
@@ -26,12 +25,12 @@ neutral-ground final still has one of each).
 Goals the row's side scored: in a match, the final score after extra time where there was any
 (shoot-out goals are `pens_for`); in a standings row, the total over its matches so far; in a
 tie, the aggregate of the final scores.
-Synonyms: `gf`, `tie_gf` → `tie_goals_for`, `goals_a` → `home_goals`.
+Synonyms: `goals_a` → `home_goals`.
 {% enddocs %}
 
 {% docs goals_against %}
 Goals the row's side conceded, counted as `goals_for` is.
-Synonyms: `ga`, `tie_ga` → `tie_goals_against`, `goals_b` → `away_goals`.
+Synonyms: `goals_b` → `away_goals`.
 {% enddocs %}
 
 {% docs pens_for %}
@@ -52,7 +51,6 @@ result: a match drawn after extra time is `D`. NULL for a match not yet played.
 {% docs points %}
 League points: from a match, 3 for a win, 1 for a draw, 0 for a loss on the final score (NULL
 before it is played); in a standings row, the total so far. No deduction is read.
-Synonyms: `pts`.
 {% enddocs %}
 
 {% docs decided_by %}

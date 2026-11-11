@@ -1,21 +1,22 @@
--- Each player's season in each competition he played in for each team, in
--- our own matches (both sides), keyed (season, player_tid, team_tid, cid):
--- summed from int.player_matches. season is the campaign the match was played
--- in (the season of the snapshot it was read from; the match table is emptied
--- at the rollover). avg_rating is over the matches he appeared in. person_id
--- is NULL for a placeholder player with no person record (reserve matches
--- fill out a side with them). A mid-season transfer gives a row per team;
--- friendlies are a competition like any other (dim_competition.type).
+-- Each player's season in each competition he played in for each team, in our
+-- own matches (both sides), keyed (season, player_tid, team_tid, cid): summed
+-- from int.player_matches. season is the campaign the match was played in (the
+-- season of the snapshot it was read from; the match table is emptied at the
+-- rollover). average_rating is over the matches he appeared in. person_id is
+-- NULL for a placeholder player with no person record (reserve matches fill out
+-- a side with them). A mid-season transfer gives a row per team; friendlies are
+-- a competition like any other (dim_competition.type).
 select
     snapshots.season,
     played.player_tid,
     played.team_tid,
     ours.cid,
     any_value(played.person_id) as person_id,
-    count(*) filter (where played.appeared) as apps,
+    count(*) filter (where played.appeared) as appearances,
     count(*) filter (where played.started) as games_started,
     sum(played.minutes) as minutes,
-    round(avg(played.rating) filter (where played.appeared), 2) as avg_rating,
+    round(avg(played.rating) filter (where played.appeared), 2)
+        as average_rating,
     sum(played.goals) as goals,
     sum(played.assists) as assists,
     sum(played.key_passes) as key_passes,

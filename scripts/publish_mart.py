@@ -77,9 +77,9 @@ def build(src_path, dest):
             scd.tid,
             scd.team_tid,
             scd.club_tid,
-            date_diff('year', person.dob, val.snapshot_date) -
-                case when (month(val.snapshot_date) < month(person.dob))
-                     or (month(val.snapshot_date) = month(person.dob) and day(val.snapshot_date) < day(person.dob))
+            date_diff('year', person.birth_date, val.snapshot_date) -
+                case when (month(val.snapshot_date) < month(person.birth_date))
+                     or (month(val.snapshot_date) = month(person.birth_date) and day(val.snapshot_date) < day(person.birth_date))
                      then 1 else 0 end as age,
             scd.nationality_id,
             scd.second_nationality_id,

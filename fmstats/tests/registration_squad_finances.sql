@@ -42,4 +42,4 @@ select
     null as snapshot_date,
     null as person_id
 from {{ ref('site_finances') }}
-having sum(n_value_est) >= 0.25 * sum(n_owned)
+having sum(n_value_estimated) >= 0.25 * sum(n_owned)

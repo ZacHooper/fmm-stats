@@ -106,7 +106,7 @@ Exclude goalkeepers (`fact_player_snapshot.is_goalkeeper`) — `world_review.py`
 ## SQL template (parts 1–2)
 Set `season`, save it to a file and run it with the runner in
 [`query-fm-data`](../query-fm-data/SKILL.md) (~1 min). For every game, for the story:
-`SELECT match_date, competition, stage, venue, opponent, gf, ga, result, formation FROM
+`SELECT match_date, competition, stage, venue, opponent, goals_for, goals_against, result, formation FROM
 site.matches WHERE season = 2027 ORDER BY match_date`.
 ```sql
 SET VARIABLE season = 2027;          -- END-YEAR (26/27 -> 2027) — see guardrail 0
@@ -115,13 +115,14 @@ SET VARIABLE us = (SELECT team_tid FROM site.our_teams WHERE is_managed);
 -- 1. RESULTS BY COMPETITION (site.matches: the managed first team, one row per match)
 SELECT competition, count(*) AS games,
        count(*) FILTER (WHERE result = 'W') AS w, count(*) FILTER (WHERE result = 'D') AS d,
-       count(*) FILTER (WHERE result = 'L') AS l, sum(gf) AS gf, sum(ga) AS ga
+       count(*) FILTER (WHERE result = 'L') AS l, sum(goals_for) AS gf,
+       sum(goals_against) AS ga
 FROM site.matches WHERE season = getvariable('season')
 GROUP BY competition ORDER BY games DESC;
 
 -- FORMATIONS (competitive games; stage_type is NULL for a friendly)
-SELECT formation, count(*) AS games, sum(gf) AS scored, sum(ga) AS conceded,
-       round(avg(pts), 2) AS ppg
+SELECT formation, count(*) AS games, sum(goals_for) AS scored, sum(goals_against) AS conceded,
+       round(avg(points), 2) AS ppg
 FROM site.matches WHERE season = getvariable('season') AND stage_type IS NOT NULL
 GROUP BY formation ORDER BY games DESC;
 
@@ -129,7 +130,7 @@ GROUP BY formation ORDER BY games DESC;
 SELECT CASE WHEN month(match_date) >= 7 THEN '1 before winter' ELSE '2 after winter' END AS half,
        count(*) AS p, count(*) FILTER (WHERE result = 'W') AS w,
        count(*) FILTER (WHERE result = 'D') AS d, count(*) FILTER (WHERE result = 'L') AS l,
-       sum(gf) AS gf, sum(ga) AS ga, sum(pts) AS pts
+       sum(goals_for) AS gf, sum(goals_against) AS ga, sum(points) AS pts
 FROM site.matches WHERE season = getvariable('season') AND stage_type = 'League'
 GROUP BY 1 ORDER BY 1;
 
@@ -159,7 +160,7 @@ ORDER BY f.role, avg_rating_adj DESC;
 -- 3. AWARDS — appeared-only (rule 2): site.match_players holds appearances only
 CREATE OR REPLACE TEMP TABLE awards AS
 SELECT mp.person_id, p.name,
-       extract(year FROM age(make_date(getvariable('season'), 6, 30), p.dob)) AS age,
+       extract(year FROM age(make_date(getvariable('season'), 6, 30), p.birth_date)) AS age,
        count(*) AS games, count(*) FILTER (WHERE mp.started) AS starts,
        sum(mp.minutes) AS minutes, round(avg(mp.rating), 2) AS avg_rating,
        round(avg(mp.rating_adj) FILTER (WHERE mp.started), 2) AS avg_rating_adj,
@@ -171,7 +172,7 @@ SELECT mp.person_id, p.name,
 FROM site.match_players mp
 JOIN mart.dim_person p USING (person_id)
 WHERE mp.season = getvariable('season') AND mp.competition <> 'Friendly'
-GROUP BY mp.person_id, p.name, p.dob HAVING count(*) > 3;
+GROUP BY mp.person_id, p.name, p.birth_date HAVING count(*) > 3;
 
 -- Player of the Season / Young Player: POSITION-ADJUSTED rating (rule 7), 10+ starts;
 -- the raw average beside it is the number the manager saw in-game

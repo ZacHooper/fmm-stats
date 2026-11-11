@@ -29,7 +29,7 @@ from_seasons as (
         season,
         team_tid,
         cid,
-        sum(apps) as apps,
+        sum(appearances) as apps,
         sum(games_started) as games_started,
         sum(minutes) as minutes_played,
         sum(goals) as goals,

@@ -185,9 +185,9 @@ FROM xi GROUP BY ALL;
 
 WITH team AS (SELECT team_tid, avg(level_global) AS q, count(*) AS n FROM xi GROUP BY 1),
 h2h AS (
-    SELECT opp_tid AS team_tid, count(*) AS p, count(*) FILTER (WHERE result = 'W') AS w,
+    SELECT opponent_tid AS team_tid, count(*) AS p, count(*) FILTER (WHERE result = 'W') AS w,
            count(*) FILTER (WHERE result = 'D') AS d, count(*) FILTER (WHERE result = 'L') AS l,
-           sum(gf) AS gf, sum(ga) AS ga
+           sum(goals_for) AS gf, sum(goals_against) AS ga
     FROM site.matches WHERE stage_type IS NOT NULL GROUP BY 1
 ),
 u AS (SELECT * FROM units)

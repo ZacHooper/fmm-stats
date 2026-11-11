@@ -3,7 +3,7 @@
 -- reputation, tier (the save's level, 1 the top), member_count (the teams in
 -- it) and two derived fields:
 --
--- skill_idx: the league's average player ability, scaled 0-100 between the
+-- skill_index: the league's average player ability, scaled 0-100 between the
 -- weakest and strongest league on the snapshot, where at least
 -- var('site_skill_min_players') players are rated (`rated`). An index, so no
 -- ability number leaves the view.
@@ -45,7 +45,7 @@ scaled as (
             100.0 * (mean_ability - min(mean_ability) over w)
             / nullif(max(mean_ability) over w - min(mean_ability) over w, 0),
             1
-        ) as skill_idx
+        ) as skill_index
     from rated
     window w as (partition by snapshot_date)
 ),
@@ -118,7 +118,7 @@ select
     leagues.reputation,
     leagues.tier,
     leagues.member_count,
-    scaled.skill_idx,
+    scaled.skill_index,
     scaled.rated,
     ladder.ladder_rank
 from leagues

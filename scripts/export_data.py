@@ -171,7 +171,7 @@ def pct(v):
 def player_row(r, attrs, profile=False):
     """One player as the app's positional row (PLAYER_FIELDS, then
     ALL_PLAYER_FIELDS' two and PROFILE_EXTRA_FIELDS with `profile`)."""
-    row = [r["tid"], r["name"], r["team_tid"], day(r["dob"]), num(r["value"]),
+    row = [r["tid"], r["name"], r["team_tid"], day(r["birth_date"]), num(r["value"]),
            num(r["wage_gbp"]), day(r["contract_expiry"]),
            [num(r[a]) for a in attrs],
            [[p["position"], p["familiarity"], pct(p["level_league"]), pct(p["level_global"])]
@@ -267,7 +267,7 @@ def main():
                       ORDER BY team_tid""", [d])
     listed_leagues = {c["league_cid"] for c in clubs}
     leagues = [r for r in s.rows("""SELECT cid, name, nation, reputation, member_count,
-                                           skill_idx, rated
+                                           skill_index, rated
                                     FROM site.leagues
                                     WHERE snapshot_date = ? AND name IS NOT NULL
                                     ORDER BY reputation DESC NULLS LAST, cid""", [d])
@@ -301,7 +301,7 @@ def main():
         "clubs_without_players": sum(1 for c in clubs if c["squad_size"] == 0),
         "club_fields": ["tid", "name", "league_cid", "players", "nation", "reputation", "shirt"],
         "leagues": [[r["cid"], r["name"], r["nation"], r["reputation"], r["member_count"],
-                     None if r["skill_idx"] is None else float(r["skill_idx"]), r["rated"]]
+                     None if r["skill_index"] is None else float(r["skill_index"]), r["rated"]]
                     for r in leagues],
         "league_fields": ["cid", "name", "nation", "reputation", "clubs", "skill_idx", "rated"],
         "tactics": tactics,
@@ -368,12 +368,12 @@ def main():
              r["move_fee_type"], num(r["fee_gbp"])])
     ever = [pid for (pid,) in con.execute(
         "SELECT DISTINCT person_id FROM site.squad").fetchall() if pid in tid_of]
-    for r in s.rows("""SELECT person_id, season, club, fee_label, apps, goals, assists, rating
+    for r in s.rows("""SELECT person_id, season, club, fee_label, appearances, goals, assists, rating
                        FROM site.player_career WHERE person_id IN (SELECT unnest(?))
                        ORDER BY person_id, line_index""", [ever]):
         chist.setdefault(str(tid_of[r["person_id"]]), []).append({
             "end_year": r["season"], "club": r["club"], "fee": r["fee_label"],
-            "apps": r["apps"], "goals": r["goals"], "assists": r["assists"],
+            "apps": r["appearances"], "goals": r["goals"], "assists": r["assists"],
             "rating": None if r["rating"] is None else round(float(r["rating"]), 2)})
     emit("squad.json", {
         "attrs": attrs, "trajectories": dict(sorted(traj.items(), key=lambda kv: int(kv[0]))),
@@ -402,8 +402,11 @@ def main():
                "leg", "tie_gf", "tie_ga", "went_through", "extra_time", "pens_for",
                "pens_against"] + [f"{side}_{st}" for st in stats for side in ("our", "opp")]
     # the API keeps its keys; each names the site.matches column it reads
-    mrename = {"date": "match_date", "stage_kind": "stage_type"}
-    matches = s.rows("SELECT * FROM site.matches ORDER BY season, match_date, opp_tid")
+    mrename = {"date": "match_date", "opp_tid": "opponent_tid", "gf": "goals_for",
+               "ga": "goals_against", "pts": "points", "stage_kind": "stage_type",
+               "tie_gf": "tie_goals_for", "tie_ga": "tie_goals_against",
+               **{f"opp_{st}": f"opponent_{st}" for st in stats}}
+    matches = s.rows("SELECT * FROM site.matches ORDER BY season, match_date, opponent_tid")
     pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
                "goals", "assists", "minutes", "started", "potm", "position", "passA", "passC",
                "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
@@ -428,7 +431,7 @@ def main():
            WHERE person_id IN (SELECT person_id FROM site.match_players
                                UNION SELECT person_id FROM site.opponent_match_players)
            GROUP BY person_id""")}
-    opponents = "SELECT DISTINCT opp_tid FROM site.matches"
+    opponents = "SELECT DISTINCT opponent_tid FROM site.matches"
     manager_fields = ["name", "formation_preferred", "formation_attacking",
                       "formation_defensive", "style"]
     managers = {str(r["team_tid"]): [r[k] for k in manager_fields] for r in s.rows(
@@ -467,9 +470,10 @@ def main():
         "formation_slots": slots,
         "attendance_fields": att_fields,
         "attendance": rowify(s.rows("SELECT * FROM site.attendance ORDER BY season"),
-                             att_fields),
+                             att_fields, {"avg_att": "average_attendance",
+                                          "max_att": "max_attendance"}),
         "finance_fields": fin_fields,
-        "finances": rowify(fin, fin_fields),
+        "finances": rowify(fin, fin_fields, {"n_value_est": "n_value_estimated"}),
         "league_finish_fields": finish_fields,
         "league_finishes": rowify(s.rows("SELECT * FROM site.league_finishes "
                                          "ORDER BY season, competition"), finish_fields),
@@ -502,7 +506,7 @@ def main():
                                  {"loaned_to": r["loaned_to_club_tid"], "positions": {}})
         rows = entry["positions"].setdefault(r["position"], [])
         if not rows or rows[-1][0] != r["league_cid"]:
-            rows.append([r["league_cid"], pct(r["lvl"]), r["n"], []])
+            rows.append([r["league_cid"], pct(r["level"]), r["n"], []])
         if r["club_tid"] is not None:
             rows[-1][3].append([r["club_tid"], r["rank"], r["slots"], pct(r["line"])])
     emit("loans.json", {
@@ -548,7 +552,8 @@ def main():
                 "coarsely outside our own squad to forecast honestly. " + IMMERSION})
 
     # ------------------------------------------------------------ registration.json
-    rules = s.rows("""SELECT tier, league_name, a_list_max, hg_min, hg_club_min, b_list_under_age,
+    rules = s.rows("""SELECT tier, league_name, a_list_max, home_grown_min AS hg_min,
+                             home_grown_club_min AS hg_club_min, b_list_under_age,
                              min_matchday_age, nation, u21_on
                       FROM site.registration_rules WHERE snapshot_date = ?""", [d])
     reg_fields = ["tid", "age", "b_list", "hg_club", "hg_basis", "hg_association",
@@ -561,7 +566,7 @@ def main():
         "fields": reg_fields,
         "players": sorted(
             [[tid_of[r["person_id"]], num(r["age"]), bool(r["b_list"]), bool(r["hg_club"]),
-              r["hg_basis"], bool(r["hg_association"]),
+              r["home_grown_basis"], bool(r["hg_association"]),
               None if r["months_club"] is None else float(r["months_club"]),
               None if r["months_to_go"] is None else float(r["months_to_go"]),
               day(r["hg_eta"]), bool(r["window_open"]), r["origin_club"], r["origin_nation"],
@@ -644,7 +649,8 @@ def main():
         return {k: {f: rle(v) for f, v in per.items()} for k, per in acc.items()}
 
     flt = lambda dp: (lambda v: None if v is None else num(round(float(v), dp)))  # noqa: E731
-    lg_hist = series("SELECT snapshot_date, cid, reputation, skill_idx FROM site.leagues",
+    lg_hist = series("SELECT snapshot_date, cid, reputation, skill_index AS skill_idx "
+                     "FROM site.leagues",
                      "cid", {"reputation": num, "skill_idx": flt(1)})
     tiers = {r["cid"]: r["tier"] for r in s.rows(
         "SELECT cid, tier FROM site.leagues WHERE snapshot_date = ?", [d])}

@@ -210,7 +210,7 @@ FROM tot ORDER BY goals DESC;
 ```
 
 Related: `mart.player_seasons` is one row per (player, season, **club**, **competition**), so a
-league campaign and a cup run are separate rows. Sum them, and re-weight `avg_rating` by apps
+league campaign and a cup run are separate rows. Sum them, and re-weight `average_rating` by appearances
 rather than averaging the averages.
 
 **`mart.squad_on(d)` is a macro and macros do not cross an `ATTACH`** — its body looks for

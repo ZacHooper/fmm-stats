@@ -92,7 +92,7 @@ models:
       - name: is_listed
         description: '{{ doc("is_listed") }}'
   - name: site_leagues
-    description: Every league on every snapshot, with skill_idx and the comparison ladder.
+    description: Every league on every snapshot, with skill_index and the comparison ladder.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, cid]}}
       - unique_combination: {arguments: {columns: [snapshot_date, ladder_rank]},
@@ -114,7 +114,7 @@ models:
         description: '{{ doc("tier") }}'
       - name: member_count
         description: '{{ doc("n_members") }}'
-      - name: skill_idx
+      - name: skill_index
         description: '{{ doc("skill_index") }}'
       - name: rated
         description: '{{ doc("n_rated") }}'
@@ -136,7 +136,7 @@ models:
         description: 'His name on the snapshot. {{ doc("name") }}'
       - name: team_tid
         description: 'The team his record names. {{ doc("team_tid") }}'
-      - name: dob
+      - name: birth_date
         description: '{{ doc("birth_date") }}'
       - name: value
         description: 'Only a stated value: NULL where it would be an estimate.
@@ -344,7 +344,7 @@ models:
         description: '{{ doc("fee_gbp") }}'
       - name: fee_label
         description: '{{ doc("fee_label") }}'
-      - name: apps
+      - name: appearances
         description: '{{ doc("appearances") }}'
       - name: goals
         description: 'Goals CONCEDED on a goalkeeper''s line. {{ doc("goals") }}'
@@ -370,15 +370,15 @@ models:
         description: '{{ doc("venue") }}'
       - name: opponent
         description: '{{ doc("opponent") }}'
-      - name: opp_tid
+      - name: opponent_tid
         description: 'The opposing team. {{ doc("opponent_tid") }}'
-      - name: gf
+      - name: goals_for
         description: 'Ours, the final score. {{ doc("goals_for") }}'
-      - name: ga
+      - name: goals_against
         description: 'Theirs, the final score. {{ doc("goals_against") }}'
       - name: result
         description: 'Ours. {{ doc("result") }}'
-      - name: pts
+      - name: points
         description: 'Our points from the match. {{ doc("points") }}'
       - name: formation
         description: 'Ours, as the match table stores it. {{ doc("formation") }}'
@@ -392,10 +392,10 @@ models:
         description: 'From 1 in a league or group stage; NULL otherwise. {{ doc("matchday") }}'
       - name: leg
         description: 'Set only in a two-legged tie. {{ doc("leg") }}'
-      - name: tie_gf
+      - name: tie_goals_for
         description: 'Our aggregate in a two-legged tie, once both legs are played; NULL otherwise.
           {{ doc("goals_for") }}'
-      - name: tie_ga
+      - name: tie_goals_against
         description: 'Their aggregate in a two-legged tie, once both legs are played; NULL
           otherwise. {{ doc("goals_against") }}'
       - name: went_through
@@ -408,35 +408,35 @@ models:
         description: '{{ doc("pens_against") }}'
       - name: our_shots
         description: '{{ doc("shots") }}'
-      - name: opp_shots
+      - name: opponent_shots
         description: '{{ doc("shots") }}'
       - name: our_shots_on_target
         description: '{{ doc("shots_on_target") }}'
-      - name: opp_shots_on_target
+      - name: opponent_shots_on_target
         description: '{{ doc("shots_on_target") }}'
       - name: our_passes
         description: '{{ doc("passes") }}'
-      - name: opp_passes
+      - name: opponent_passes
         description: '{{ doc("passes") }}'
       - name: our_passes_completed
         description: '{{ doc("passes_completed") }}'
-      - name: opp_passes_completed
+      - name: opponent_passes_completed
         description: '{{ doc("passes_completed") }}'
       - name: our_tackles
         description: '{{ doc("tackles") }}'
-      - name: opp_tackles
+      - name: opponent_tackles
         description: '{{ doc("tackles") }}'
       - name: our_tackles_won
         description: '{{ doc("tackles_won") }}'
-      - name: opp_tackles_won
+      - name: opponent_tackles_won
         description: '{{ doc("tackles_won") }}'
       - name: our_crosses
         description: '{{ doc("crosses") }}'
-      - name: opp_crosses
+      - name: opponent_crosses
         description: '{{ doc("crosses") }}'
       - name: our_interceptions
         description: '{{ doc("interceptions") }}'
-      - name: opp_interceptions
+      - name: opponent_interceptions
         description: '{{ doc("interceptions") }}'
   - name: site_match_players
     description: Each appearance for the managed (senior) team in a match with detail.
@@ -614,11 +614,11 @@ models:
         description: '{{ doc("season") }}'
       - name: n_games
         description: '{{ doc("n_games") }}'
-      - name: avg_att
+      - name: average_attendance
         description: '{{ doc("average_attendance") }}'
-      - name: min_att
+      - name: min_attendance
         description: '{{ doc("min_attendance") }}'
-      - name: max_att
+      - name: max_attendance
         description: '{{ doc("max_attendance") }}'
   - name: site_league_finishes
     description: Where the managed team finished each league season (live table place while running).
@@ -656,7 +656,7 @@ models:
         description: '{{ doc("n_loan_in") }}'
       - name: value_gbp
         description: 'Summed over the players we own. {{ doc("value_gbp") }}'
-      - name: n_value_est
+      - name: n_value_estimated
         description: '{{ doc("n_value_estimated") }}'
       - name: wage_gbp
         description: 'Summed over the players we own. {{ doc("wage_gbp") }}'
@@ -721,9 +721,9 @@ models:
         description: 'The nation of the managed team''s league. {{ doc("nation") }}'
       - name: a_list_max
         description: '{{ doc("a_list_max") }}'
-      - name: hg_min
+      - name: home_grown_min
         description: '{{ doc("home_grown_min") }}'
-      - name: hg_club_min
+      - name: home_grown_club_min
         description: '{{ doc("home_grown_club_min") }}'
       - name: b_list_under_age
         description: '{{ doc("b_list_under_age") }}'
@@ -740,7 +740,7 @@ models:
         description: '{{ doc("snapshot_date") }}'
       - name: person_id
         description: '{{ doc("person_id") }}'
-      - name: dob
+      - name: birth_date
         description: '{{ doc("birth_date") }}'
       - name: age
         description: 'On the snapshot''s date. {{ doc("age") }}'
@@ -748,7 +748,7 @@ models:
         description: '{{ doc("is_b_list") }}'
       - name: hg_club
         description: '{{ doc("is_home_grown_club") }}'
-      - name: hg_basis
+      - name: home_grown_basis
         description: '{{ doc("home_grown_basis") }}'
       - name: hg_association
         description: '{{ doc("is_home_grown_association") }}'
@@ -886,7 +886,7 @@ models:
         description: '{{ doc("league_cid") }}'
       - name: ladder_rank
         description: 'The division''s place on the loan ladder. {{ doc("ladder_rank") }}'
-      - name: lvl
+      - name: level
         description: '{{ doc("level") }}'
       - name: n
         description: '{{ doc("n_players") }}'

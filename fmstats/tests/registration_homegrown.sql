@@ -2,7 +2,8 @@
 --   null flag        hg_club, hg_association and b_list are never NULL (a
 --                    missing origin or birth date reads as 'no')
 --   not nested       club-trained implies association-trained
---   basis mismatch   hg_basis names a basis exactly when he is club-trained
+--   basis mismatch   home_grown_basis names a basis exactly when he is
+--                    club-trained
 --   b-list by age    b_list is the fixed-date test: born after u21_on less
 --                    the B-list age (site_registration_rules, the page's
 --                    own statement of the rule), so a player who turns 21
@@ -38,7 +39,7 @@ select
     snapshot_date,
     person_id
 from registration
-where hg_club is distinct from (hg_basis is not null)
+where hg_club is distinct from (home_grown_basis is not null)
 union all
 select
     'b-list by age' as check_name,
@@ -48,7 +49,7 @@ from registration
 where
     u21_on is not null
     and b_list is distinct from coalesce(
-        dob > cast(u21_on - to_years(b_list_under_age) as date), false
+        birth_date > cast(u21_on - to_years(b_list_under_age) as date), false
     )
 union all
 select

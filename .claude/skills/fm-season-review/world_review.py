@@ -124,7 +124,7 @@ def transfers(con, season, nation):
     CREATE OR REPLACE TEMP TABLE mv AS
     SELECT t.*, p.name,
            extract(year FROM age(coalesce(t.move_date, t.moved_by, DATE '{season}-06-30'),
-                                 p.dob)) AS age,
+                                 p.birth_date)) AS age,
            round(t.fee_gbp / 1e6, 2) AS fee_m,
            fc.club AS from_club, tc.club AS to_club,
            fc.nation AS from_nation, tc.nation AS to_nation,
@@ -348,8 +348,8 @@ def domestic(con, season, last, nation, lo, hi):
                    AND l.nation IN ('{nation}', 'England', 'Germany', 'Spain', 'Italy', 'France')),
     gk AS (SELECT person_id FROM mart.fact_player_snapshot
            WHERE snapshot_date = DATE '{last}' AND is_goalkeeper)
-    SELECT top.league_name, p.name, extract(year FROM age(DATE '{season}-06-30', p.dob)) AS age,
-           t.name AS club, s.apps, s.goals
+    SELECT top.league_name, p.name, extract(year FROM age(DATE '{season}-06-30', p.birth_date)) AS age,
+           t.name AS club, s.appearances, s.goals
     FROM mart.fact_player_season s
     JOIN top USING (team_tid)
     JOIN mart.dim_person p USING (person_id)

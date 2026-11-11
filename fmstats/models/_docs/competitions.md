@@ -72,7 +72,6 @@ each league of its nation with a lower reputation, highest first. NULL outside t
 The league's average player ability, scaled 0-100 between the weakest and strongest league on
 the snapshot; NULL with fewer than `var('site_skill_min_players')` rated players. An index, so no
 ability number leaves the view.
-Synonyms: `skill_idx`.
 {% enddocs %}
 
 {% docs n_members %}

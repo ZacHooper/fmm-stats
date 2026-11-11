@@ -3,9 +3,9 @@
 select
     season,
     count(*) as n_games,
-    cast(round(avg(attendance)) as integer) as avg_att,
-    min(attendance) as min_att,
-    max(attendance) as max_att
+    cast(round(avg(attendance)) as integer) as average_attendance,
+    min(attendance) as min_attendance,
+    max(attendance) as max_attendance
 from {{ ref('site_matches') }}
 where venue = 'H' and attendance > 0
 group by season

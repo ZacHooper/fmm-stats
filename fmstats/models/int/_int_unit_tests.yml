@@ -1103,7 +1103,7 @@ unit_tests:
           - {snapshot_date: '2026-08-29', season: 2027}
       - input: ref('dim_person')
         rows:
-          - {person_id: p, dob: '2005-01-01'}
+          - {person_id: p, birth_date: '2005-01-01'}
       - input: ref('fact_player_snapshot')
         rows:
           - {snapshot_date: '2026-08-29', person_id: p, club_tid: 346, joined_date: '2026-07-15'}

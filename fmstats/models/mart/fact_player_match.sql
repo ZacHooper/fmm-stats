@@ -11,7 +11,7 @@ select
     matches.person_id,
     matches.team_tid,
     matches.opponent_tid,
-    matches.pos_order,
+    matches.pos_order as lineup_order,
     matches.position,
     ratings.role,
     matches.started,

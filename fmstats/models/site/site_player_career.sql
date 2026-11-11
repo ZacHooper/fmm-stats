@@ -20,7 +20,7 @@ select
         when 'unknown' then null
         else career_lines.fee_type
     end as fee_label,
-    career_lines.apps,
+    career_lines.appearances,
     career_lines.goals,
     career_lines.assists,
     career_lines.rating

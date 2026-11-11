@@ -534,7 +534,7 @@ models:
         description: 'The player''s side. {{ doc("team_tid") }}'
       - name: opponent_tid
         description: '{{ doc("opponent_tid") }}'
-      - name: pos_order
+      - name: lineup_order
         description: '{{ doc("lineup_order") }}'
       - name: position
         description: '{{ doc("position") }}'
@@ -808,7 +808,7 @@ models:
         description: '{{ doc("person_id") }}'
       - name: tid
         description: 'His tid on the latest snapshot holding him. {{ doc("tid") }}'
-      - name: dob
+      - name: birth_date
         description: '{{ doc("birth_date") }}'
       - name: name
         description: 'His name, the latest the store holds. {{ doc("name") }}'
@@ -1395,7 +1395,7 @@ models:
         description: '{{ doc("fee_type") }}'
       - name: fee_gbp
         description: '{{ doc("fee_gbp") }}'
-      - name: apps
+      - name: appearances
         description: 'The game''s own figure for the season, all competitions together.
           {{ doc("appearances") }}'
       - name: goals
@@ -1439,13 +1439,13 @@ models:
         description: '{{ doc("cid") }}'
       - name: person_id
         description: 'NULL for a placeholder player with no person record. {{ doc("person_id") }}'
-      - name: apps
+      - name: appearances
         description: 'Counted from our own matches. {{ doc("appearances") }}'
       - name: games_started
         description: '{{ doc("games_started") }}'
       - name: minutes
         description: 'Summed over his matches. {{ doc("minutes") }}'
-      - name: avg_rating
+      - name: average_rating
         description: 'Over the matches he appeared in. {{ doc("average_rating") }}'
       - name: goals
         description: '{{ doc("goals") }}'
@@ -1546,13 +1546,13 @@ models:
       - name: age
         description: 'As the entry stores it, which can lag a birthday by a day or two.
           {{ doc("age") }}'
-      - name: apps
+      - name: appearances
         description: 'On the scrapbook entry''s date. {{ doc("appearances") }}'
       - name: goals
         description: 'On the scrapbook entry''s date. {{ doc("goals") }}'
       - name: assists
         description: 'On the scrapbook entry''s date. {{ doc("assists") }}'
-      - name: avg_rating
+      - name: average_rating
         description: 'On the scrapbook entry''s date. {{ doc("average_rating") }}'
   - name: fact_contract
     description: >
