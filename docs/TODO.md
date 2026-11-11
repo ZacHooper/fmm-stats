@@ -102,7 +102,9 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
 ### 2. Load an FMM27 save into the store
 Both Truro saves load and build: 537 of 538 dbt tests pass on a scratch store of
 `truro-2026-07-25` + `truro-2026-08-08`. FMM27's xG, goals conceded, fouls and managers, and
-its assist, yellow-card, error and clear-cut-chance events reach the marts; the career's first
+its assist, yellow-card, error and clear-cut-chance events reach the marts and the site (xG,
+clear-cut chances and goals conceded per player and per side, scorer–assister partnerships,
+one site holding every career with Frem archived); the career's first
 day (`start` in `fmm.toml`) bounds the match check; the signing rule is the career's
 `eligible_origin_clubs` in `fmm.toml`. Open, in order:
 
@@ -115,10 +117,15 @@ day (`start` in `fmm.toml`) bounds the match check; the signing rule is the care
 3. **Staff roles and our manager**: `staff_roles.json` into raw (both versions write it);
    the managed club's manager in `site.club_managers`. FMM27's team head names each side's
    manager (`int.our_matches.home_manager_tid`), a check on it.
-4. **Show the new match data on the site**: xG per player and team, assists and scorer–
-   assister pairs (`fact_match_event`), goals conceded.
+4. **Squad registration is Danish for every career.** `site.registration_rules` applies the
+   Herre-DM house rule to whichever club is managed, so Truro's Squad page shows A/B lists
+   and home-grown quotas the career doesn't play by. Make the rule set career-specific
+   (`fmm.toml`, as the signing rule is), with none as an option.
 5. **Then**: build `fm-truro.duckdb` from every Truro save (`scripts/rebuild.py`), refresh
-   `seeds/manifest.csv`, and export and publish Truro's site data. Try a refit of the
+   `seeds/manifest.csv`, and export and publish Truro's site data
+   (`export_data.py --career truro --upload`). Frem's published files are archived under
+   `site-data/api/frem/` as last exported; re-export them from the full Frem store
+   (`--career frem --upload`) to give the archive the goals list and the new index links. Try a refit of the
    attribute decoder with Truro's scrapbook rows to see how far the data so far goes (Frem's
    coefficients score about as well on Truro unrefitted, Passing the weakest at 38%); a
    proper refit needs more seasons.

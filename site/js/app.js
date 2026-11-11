@@ -1,9 +1,10 @@
 /**
  * Router + shell. One page, hash routes, no build step.
  *
- * The tactic and snapshot selectors live in the header rather than inside a view, because they
- * change the meaning of every number on every screen — every rating in the app is recomputed
- * from attributes x the selected weight-set, so switching tactic re-renders the current view.
+ * The career, tactic and snapshot selectors live in the header rather than inside a view,
+ * because they change the meaning of every number on every screen — every rating in the app is
+ * recomputed from attributes x the selected weight-set, so switching tactic re-renders the
+ * current view, and switching career reloads the page onto that career's export.
  */
 import * as D from "./data.js";
 import { el, clear, toast } from "./ui.js";
@@ -62,8 +63,20 @@ function buildChrome() {
   document.getElementById("clubname").textContent = ix.career.name;
   const div = D.S.leagues.get(D.ourLeagueCid())?.name;
   document.getElementById("snapline").textContent =
-    `${div ? div + " · " : ""}${ix.snapshot.season} · ${ix.snapshot.phase}`;
+    `${div ? div + " · " : ""}${ix.snapshot.season} · ${ix.snapshot.phase}`
+    + (D.S.careerArchived ? " · archived" : "");
   document.title = `${ix.career.name} · ${div || "squad"}`;
+
+  // Career selector: only when the site offers more than one. An archived career is shown as it
+  // was last exported, so its name says so.
+  const csel = document.getElementById("careersel");
+  clear(csel);
+  csel.hidden = D.S.careers.length < 2;
+  for (const c of D.S.careers) {
+    csel.append(el("option", { value: c.key, text: c.archived ? `${c.name} (archived)` : c.name,
+      selected: c.key === D.S.career }));
+  }
+  csel.addEventListener("change", (e) => D.switchCareer(e.target.value));
 
   const tabs = document.getElementById("tabs");
   clear(tabs);
@@ -78,11 +91,11 @@ function buildChrome() {
   }
   tsel.addEventListener("change", (e) => {
     D.S.method = e.target.value;
-    localStorage.setItem("fm:method", D.S.method);
+    D.lsCareerSet("fm:method", D.S.method);
     toast(`Ratings recomputed for ${D.S.method}`);
     render();
   });
-  const saved = localStorage.getItem("fm:method");
+  const saved = D.lsCareerGet("fm:method");
   if (saved && D.S.tactics[saved]) { D.S.method = saved; tsel.value = saved; }
 
   // Snapshot selector: the export is one snapshot, so this points out that switching needs a
@@ -113,24 +126,32 @@ function buildChrome() {
     clear(main()).append(el("div.card", {}, [
       el("b", { text: "Couldn't load the data" }),
       el("p.note", { text: String(e.message || e) }),
-      el("p.note", { text: "Run: uv run python scripts/export_data.py" }),
+      el("p.note", { text: "Run: uv run python scripts/export_data.py [--career <key>]" }),
     ]));
     return;
   }
   buildChrome();
   addEventListener("hashchange", render);
   render();
+  warmCopy();
 })();
 
+/** Ask the worker to refresh this device's copy of the shown career (online only). */
+function warmCopy() {
+  if (!("serviceWorker" in navigator) || !navigator.onLine) return;
+  navigator.serviceWorker.ready
+    .then((reg) => reg.active?.postMessage({ type: "warm", career: D.S.career }))
+    .catch(() => { /* no offline copy on this browser */ });
+}
+
 /** Keep a copy on this device (site/sw.js) so the app, every-player file included, works with no
- *  connection. Each online load asks the worker to refresh that copy; offline, say the data is
- *  the copy, since the shortlist and registration windows can't be saved until reconnected. */
+ *  connection. Each online load asks the worker to refresh that copy (warmCopy, once the career
+ *  is known); offline, say the data is the copy, since the shortlist and registration windows
+ *  can't be saved until reconnected. */
 function offline() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").then(async () => {
-      const reg = await navigator.serviceWorker.ready;
-      if (navigator.onLine) reg.active?.postMessage({ type: "warm" });
-    }).catch((e) => console.warn("offline copy unavailable:", e));
+    navigator.serviceWorker.register("sw.js")
+      .catch((e) => console.warn("offline copy unavailable:", e));
   }
   const say = () => toast(navigator.onLine ? "Back online"
     : "Offline — showing this device's saved copy. Shortlist edits wait for a connection.", !navigator.onLine);

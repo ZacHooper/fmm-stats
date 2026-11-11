@@ -28,7 +28,8 @@ import * as W from "./regwindows.js";
 
 const A = "A", B = "B", OUT = "-";
 const LIST_LABEL = { A: "A-list", B: "B-list", "-": "Unregistered" };
-const PLAN_KEY = /^fm:registration:(\d{4}):(.+)$/;
+// fm:registration:<season>:<phase>@<career>; one with no career predates the career split
+const PLAN_KEY = /^fm:registration:(\d{4}):([^@]+)(?:@([a-z0-9_]+))?$/;
 
 /**
  * Everything registration contributes to the Squad page, or null when this export has no
@@ -58,8 +59,8 @@ export async function registrationKit({ squadRows, redraw }) {
 
   // ---- the plan ------------------------------------------------------------------
   const snap = D.S.index.snapshot;
-  const KEY = `fm:registration:${snap.season}:${snap.phase}`;
-  let plan = load(KEY);
+  const KEY = D.careerKey(`fm:registration:${snap.season}:${snap.phase}`);
+  let plan = load(KEY) || (D.S.careerArchived ? load(`fm:registration:${snap.season}:${snap.phase}`) : null);
   if (!plan) {
     const prev = previousPlan(KEY);
     plan = {};
@@ -566,15 +567,16 @@ const load = (key) => {
 const save = (key, plan) => {
   try { localStorage.setItem(key, JSON.stringify(plan)); } catch { /* private mode */ }
 };
-/** The newest plan this browser holds for a snapshot before `key`, or null. Plan keys are
- *  `fm:registration:<season>:<phase>` and both parts sort as strings. */
+/** The newest plan this browser holds for this career for a snapshot before `key`, or null.
+ *  Plan keys are `fm:registration:<season>:<phase>@<career>` and both parts sort as strings;
+ *  an archived career also reads the keys written before careers were split (no career). */
 function previousPlan(key) {
   const [, season, phase] = PLAN_KEY.exec(key) || [];
   let best = null;
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const m = PLAN_KEY.exec(localStorage.key(i) || "");
-      if (!m) continue;
+      if (!m || (m[3] ? m[3] !== D.S.career : !D.S.careerArchived)) continue;
       const ord = `${m[1]}:${m[2]}`;
       if (ord >= `${season}:${phase}`) continue;
       if (!best || ord > best.ord) best = { ord, k: localStorage.key(i) };

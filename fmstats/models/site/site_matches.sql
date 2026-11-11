@@ -1,7 +1,7 @@
 -- The managed team's matches with detail (int.our_matches), keyed match_id,
 -- from its side: season (by the career's rollover day), venue, opponent, the
 -- final score, result and points (fact_team_match), formation, attendance,
--- the stage, and each side's team stats (our_ / opp_).
+-- the stage, and each side's xG (FMM27 only) and team stats (our_ / opp_).
 --
 -- stage_kind: League or Group for a league or group stage; for a knockout
 -- stage, Qualifying where it comes before the competition's group stage in a
@@ -138,6 +138,8 @@ select
     matches.decided_by in ('ET', 'pens') as extra_time,
     sides.pens_for,
     sides.pens_against,
+    sides.xg as our_xg,
+    against.xg as opp_xg,
     {% for stat in var('team_match_stats') %}
     sides.{{ stat }} as our_{{ stat }},
     against.{{ stat }} as opp_{{ stat }}{% if not loop.last %},{% endif %}

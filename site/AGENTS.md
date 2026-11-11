@@ -5,9 +5,15 @@ published with the app; this file is not (`.assetsignore`).
 
 ## The web app (one UI for phone and desktop)
 `site/` is a static single-page app served by a Cloudflare Worker with static assets. No build
-step: plain ES modules. Its data is not in git: `scripts/export_data.py` writes `site/api/*.json`
-locally (what `python -m http.server -d site` previews) and `--upload` puts it in R2, where
-`site-worker/index.js` serves it. Its sections: **Squad** (one configurable
+step: plain ES modules. Its data is not in git: `scripts/export_data.py` writes
+`site/api/<career>/*.json` locally (what `python -m http.server -d site` previews) and `--upload`
+puts it in R2, where `site-worker/index.js` serves it. **One site, several careers**:
+`api/careers.json` (`[site] careers` in fmm.toml) lists them, the header's switcher picks one
+(`?career=` in the URL, else the last opened, else the default) and reloads onto it; an archived
+career (`active = false`) is shown as last exported. `data.js` reads every file through `api()`,
+a Worker state call through `stateUrl()` (shortlist and registration windows are per career),
+and a browser-stored plan or pick that names players by tid through `lsCareerGet`/`lsCareerSet`,
+because a tid means a different player in another save. Its sections: **Squad** (one configurable
 table merging the squad list, Development + projections, Player Stats and Registration — the
 A/B lists as a column, the quotas as one hover/tap card, saved windows under the table; see
 below), **Builder**, **Recruitment** (search + shortlist + the capital rule), **Matches**,
@@ -28,8 +34,12 @@ meeting with its line-up and who hurt us at both ends.
 `clubName`) and a band across the club sheet and a player's sheet, in his club's (`shirtStyle`).
 They mark identity only: never colour a number, a bar or a row with them, because a club in
 red or green would read as the site's bad or good.
-**Offline**: `sw.js` caches every file here plus `/api/all`, network first — a new file under
-`site/` must be added to its `SHELL` list (`tests/test_site_offline.py` checks). See [`docs/DEPLOY.md`](../docs/DEPLOY.md#offline).
+**FMM27-only match data** (xG, clear-cut chances, goals conceded, fouls, who assisted whom) is
+null on an FMM22 match: `D.statOffered` hides those stats for a career with none, the Matches
+page's Partnerships tab shows only when a goal has an assister, and Team stats drops a row no
+match records. **Offline**: `sw.js` caches every file here plus the open career's data files and
+`/api/<career>/all`, network first — a new file under `site/` must be added to its `SHELL` list,
+a new export file to its `DATA` list (`tests/test_site_offline.py` checks). See [`docs/DEPLOY.md`](../docs/DEPLOY.md#offline).
 Read [`docs/DEPLOY.md`](../docs/DEPLOY.md) before touching the deploy.
 
 ### Squad registration is a HOUSE RULE, not something the save models

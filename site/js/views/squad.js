@@ -354,7 +354,7 @@ export async function view() {
     "Personality": PERSONALITY.map(([k]) => `pers:${k}`),
     "Hidden": HIDDEN.map(([k]) => `hid:${k}`),
     "Physical": ["height", "weight", "attr:Pace", "attr:Stamina", "attr:Strength", "attr:Agility"],
-    ...Object.fromEntries(Object.entries(D.STAT_PRESETS).map(([k, v]) => [k, v.map((s) => `stat:${s}`)])),
+    ...Object.fromEntries(Object.entries(D.statPresets()).map(([k, v]) => [k, v.map((s) => `stat:${s}`)])),
   };
 
   // ---- filters that sit above the table

@@ -110,7 +110,7 @@ const flatSlots = (name) => {
 
 function loadState() {
   let s = {};
-  try { s = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch { s = {}; }
+  try { s = JSON.parse(D.lsCareerGet(LS_KEY) || "{}"); } catch { s = {}; }
   return {
     formation: FORMATIONS[s.formation] ? s.formation : Object.keys(FORMATIONS)[0],
     xi: s.xi && typeof s.xi === "object" ? { ...s.xi } : {},
@@ -119,7 +119,7 @@ function loadState() {
 }
 const saveState = (s) => {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ formation: s.formation, xi: s.xi, shortlist: s.shortlist }));
+    D.lsCareerSet(LS_KEY, JSON.stringify({ formation: s.formation, xi: s.xi, shortlist: s.shortlist }));
   } catch { /* private browsing — the XI just won't survive a reload */ }
 };
 

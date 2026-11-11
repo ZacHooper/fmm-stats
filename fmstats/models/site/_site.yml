@@ -14,6 +14,8 @@ models:
         description: 'The snapshot''s season. {{ doc("season") }}'
       - name: label
         description: '{{ doc("label") }}'
+      - name: save_format
+        description: '{{ doc("save_format") }}'
       - name: is_latest
         description: '{{ doc("is_latest") }}'
   - name: site_config
@@ -406,6 +408,10 @@ models:
         description: '{{ doc("pens_for") }}'
       - name: pens_against
         description: '{{ doc("pens_against") }}'
+      - name: our_xg
+        description: '{{ doc("xg") }}'
+      - name: opp_xg
+        description: '{{ doc("xg") }}'
       - name: our_shots
         description: '{{ doc("shots") }}'
       - name: opp_shots
@@ -438,6 +444,54 @@ models:
         description: '{{ doc("interceptions") }}'
       - name: opp_interceptions
         description: '{{ doc("interceptions") }}'
+      - name: our_clear_cut_chances
+        description: '{{ doc("clear_cut_chances") }}'
+      - name: opp_clear_cut_chances
+        description: '{{ doc("clear_cut_chances") }}'
+      - name: our_corners
+        description: '{{ doc("corners") }}'
+      - name: opp_corners
+        description: '{{ doc("corners") }}'
+      - name: our_offsides
+        description: '{{ doc("offsides") }}'
+      - name: opp_offsides
+        description: '{{ doc("offsides") }}'
+      - name: our_fouls
+        description: '{{ doc("fouls") }}'
+      - name: opp_fouls
+        description: '{{ doc("fouls") }}'
+  - name: site_goals
+    description: Each goal in the managed (senior) team's matches with detail, both sides', with its assister.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_id, event_index]}}
+    columns:
+      - name: match_id
+        description: '{{ doc("match_id") }}'
+      - name: event_index
+        description: '{{ doc("event_index") }}'
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: match_date
+        description: '{{ doc("match_date") }}'
+      - name: competition
+        description: 'The match table''s name for the competition. {{ doc("competition") }}'
+      - name: minute
+        description: '{{ doc("minute") }}'
+      - name: added_minutes
+        description: '{{ doc("added_minutes") }}'
+      - name: event_type
+        description: '{{ doc("event_type") }}'
+      - name: tid
+        description: 'The scorer (for an own goal, the player who put it in his own net). {{ doc("tid") }}'
+      - name: person_id
+        description: 'The scorer; NULL where the snapshot holds no person record for him. {{ doc("person_id") }}'
+      - name: team_tid
+        description: 'The side the goal counts for. {{ doc("team_tid") }}'
+      - name: assist_tid
+        description: '{{ doc("assist_tid") }}'
+      - name: assist_person_id
+        description: 'The goal''s assister; NULL where there is none or the snapshot holds no person
+          record for him. {{ doc("person_id") }}'
   - name: site_match_players
     description: Each appearance for the managed (senior) team in a match with detail.
     data_tests:
@@ -505,6 +559,14 @@ models:
         description: '{{ doc("mistakes") }}'
       - name: yellows
         description: '{{ doc("yellows") }}'
+      - name: xg
+        description: '{{ doc("xg") }}'
+      - name: goals_conceded
+        description: '{{ doc("goals_conceded") }}'
+      - name: clear_cut_chances
+        description: '{{ doc("clear_cut_chances") }}'
+      - name: clear_cut_scored
+        description: '{{ doc("clear_cut_scored") }}'
   - name: site_opponent_match_players
     description: Each appearance against the managed (senior) team in a match with detail.
     data_tests:
@@ -572,6 +634,14 @@ models:
         description: '{{ doc("mistakes") }}'
       - name: yellows
         description: '{{ doc("yellows") }}'
+      - name: xg
+        description: '{{ doc("xg") }}'
+      - name: goals_conceded
+        description: '{{ doc("goals_conceded") }}'
+      - name: clear_cut_chances
+        description: '{{ doc("clear_cut_chances") }}'
+      - name: clear_cut_scored
+        description: '{{ doc("clear_cut_scored") }}'
   - name: site_team_squads
     description: Every team's current squad, from the squad arrays.
     data_tests:

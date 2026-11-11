@@ -8,10 +8,17 @@
  *
  * Routing: Cloudflare serves a matching static asset FIRST and only invokes this script when
  * nothing matches. The app's code (HTML, JS, CSS, guides) is static assets, deployed from git.
- * The DATA is not: `site/api/` is excluded from the assets (`site/.assetsignore`), so
- * `/api/<name>.json` reaches here and is read from R2 (`site-data/api/<name>.json`, uploaded by
- * `scripts/export_data.py --upload`). That keeps the save-derived data out of git, and lets a
- * code-only push (or a preview build of a branch) deploy without touching the data.
+ * The DATA is not: `site/api/` is excluded from the assets (`site/.assetsignore`), so the data
+ * paths reach here and are read from R2, where `scripts/export_data.py --upload` puts them.
+ * That keeps the save-derived data out of git, and lets a code-only push (or a preview build of
+ * a branch) deploy without touching the data.
+ *
+ * One site, several careers. Each career's files live under its key:
+ *   /api/careers.json            site-data/api/careers.json   the careers offered, the default
+ *   /api/<career>/<name>.json    site-data/api/<career>/<name>.json
+ *   /api/<career>/all            site-data/api/<career>/all.json, filterable (allPlayers)
+ * The career-less paths an older page or agent knows (`/api/<name>.json`, `/api/all`) answer
+ * for the default career in careers.json.
  * `not_found_handling` is "none" because the app is hash-routed (`#/squad`), so every real path
  * is a real file and an SPA rewrite would swallow these endpoints.
  *
@@ -20,9 +27,12 @@
  *   FM_SHORTLIST_TOKEN  secret; set in the dashboard or `wrangler secret put`. Never in config.
  */
 
-const ALL_KEY = "site-data/all.json";
 const API_PREFIX = "site-data/api/";
-const API_FILE = /^\/api\/([a-z_]+\.json)$/;
+const CAREERS_KEY = `${API_PREFIX}careers.json`;
+const CAREER = /^[a-z0-9_]+$/;
+const CAREER_FILE = /^\/api\/([a-z0-9_]+)\/([a-z_]+\.json)$/;
+const CAREER_ALL = /^\/api\/([a-z0-9_]+)\/all$/;
+const LEGACY_FILE = /^\/api\/([a-z_]+\.json)$/;
 const SHORTLIST_PREFIX = "state/shortlist/";
 const REGISTRATION_PREFIX = "state/registrations/";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
@@ -33,16 +43,39 @@ const json = (body, status = 200, extra = {}) =>
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/api/all") return allPlayers(request, env);
-    const file = API_FILE.exec(url.pathname);
-    if (file) return dataFile(request, env, file[1]);
-    if (url.pathname === "/api/shortlist") return shortlist(request, env);
-    if (url.pathname === "/api/registrations") return registrations(request, env);
+    const p = url.pathname;
+    if (p === "/api/careers.json") return dataFile(request, env, CAREERS_KEY);
+    let m = CAREER_FILE.exec(p);
+    if (m) return dataFile(request, env, `${API_PREFIX}${m[1]}/${m[2]}`);
+    m = CAREER_ALL.exec(p);
+    if (m) return allPlayers(request, env, `${API_PREFIX}${m[1]}/all.json`);
+    if (p === "/api/shortlist") return shortlist(request, env);
+    if (p === "/api/registrations") return registrations(request, env);
+    if (p === "/api/all") return allPlayers(request, env, `${API_PREFIX}${await defaultCareer(env)}/all.json`);
+    m = LEGACY_FILE.exec(p);
+    if (m) return dataFile(request, env, `${API_PREFIX}${await defaultCareer(env)}/${m[1]}`);
     // Not an asset and not an endpoint. Let the asset handler produce the 404 so the response
     // matches everything else on the host.
     return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: "not found" }, 404);
   },
 };
+
+/** The career the career-less paths answer for: careers.json's default. */
+async function defaultCareer(env) {
+  const obj = await env.FM_STATE.get(CAREERS_KEY);
+  const key = obj ? (await obj.json().catch(() => ({}))).default : null;
+  return typeof key === "string" && CAREER.test(key) ? key : "_none";
+}
+
+/** The career a state request (shortlist, registrations) is for: `?career=<key>` keeps each
+ *  career's entries under its own prefix, since a tid means a different player in another save.
+ *  Without one, the entries at the prefix's root, where a single-career site keeps them. */
+function statePrefix(request, base) {
+  const career = new URL(request.url).searchParams.get("career");
+  if (career == null || career === "") return { prefix: base };
+  if (!CAREER.test(career)) return { error: "career must be a career key" };
+  return { prefix: `${base}${career}/` };
+}
 
 /**
  * Every player in the save (~4 MB). Streamed from R2 rather than committed: it rewrites
@@ -58,14 +91,14 @@ export default {
  * Deliberately narrow (two whitelisted equality filters on indexed columns, not a query
  * language) rather than accepting arbitrary SQL/JS from the caller.
  */
-async function allPlayers(request, env) {
+async function allPlayers(request, env, key) {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return json({ error: `${request.method} not supported` }, 405);
   }
-  const obj = await env.FM_STATE.get(ALL_KEY);
+  const obj = await env.FM_STATE.get(key);
   if (!obj) {
     return json({
-      error: `${ALL_KEY} is not in the bucket — run: `
+      error: `${key} is not in the bucket — run: `
         + "uv run python scripts/export_data.py --upload",
     }, 404);
   }
@@ -107,17 +140,17 @@ async function allPlayers(request, env) {
 /**
  * One exported data file (`index.json`, `core.json`, ...) from R2. Same caching as /api/all:
  * the file only changes when a snapshot is exported, so a conditional request costs a 304.
- * The name is matched against API_FILE, so only flat `<name>.json` keys under the prefix are
- * reachable.
+ * The key is built from a path the routes matched (a career key and a flat `<name>.json`), so
+ * nothing outside site-data/api/ is reachable.
  */
-async function dataFile(request, env, name) {
+async function dataFile(request, env, key) {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return json({ error: `${request.method} not supported` }, 405);
   }
-  const obj = await env.FM_STATE.get(API_PREFIX + name);
+  const obj = await env.FM_STATE.get(key);
   if (!obj) {
     return json({
-      error: `${API_PREFIX}${name} is not in the bucket — run: `
+      error: `${key} is not in the bucket — run: `
         + "uv run python scripts/export_data.py --upload",
     }, 404);
   }
@@ -171,12 +204,15 @@ async function shortlist(request, env) {
       error: env.FM_SHORTLIST_TOKEN ? "bad token" : "FM_SHORTLIST_TOKEN is not configured",
     }, 401);
   }
+  const { prefix, error } = statePrefix(request, SHORTLIST_PREFIX);
+  if (error) return json({ error }, 400);
 
   if (request.method === "GET") {
     const out = [];
     let cursor;
     do {
-      const page = await env.FM_STATE.list({ prefix: SHORTLIST_PREFIX, cursor, limit: 1000 });
+      // delimiter: this prefix's own entries, not another career's folder under it
+      const page = await env.FM_STATE.list({ prefix, delimiter: "/", cursor, limit: 1000 });
       for (const o of page.objects) {
         const body = await env.FM_STATE.get(o.key);
         if (!body) continue;
@@ -213,7 +249,7 @@ async function shortlist(request, env) {
       source: String(payload?.source ?? "phone").slice(0, 32),
       added_at: new Date().toISOString().slice(0, 19),
     };
-    await env.FM_STATE.put(`${SHORTLIST_PREFIX}${id}.json`, JSON.stringify(rec, null, 1), {
+    await env.FM_STATE.put(`${prefix}${id}.json`, JSON.stringify(rec, null, 1), {
       httpMetadata: { contentType: "application/json" },
     });
     return json({ ok: true, entry: rec }, 201);
@@ -222,7 +258,7 @@ async function shortlist(request, env) {
   if (request.method === "DELETE") {
     const id = new URL(request.url).searchParams.get("id") ?? "";
     if (!/^\d+$/.test(id)) return json({ error: "id must be the numeric entry id" }, 400);
-    await env.FM_STATE.delete(`${SHORTLIST_PREFIX}${id}.json`);
+    await env.FM_STATE.delete(`${prefix}${id}.json`);
     return json({ ok: true, deleted: id });
   }
   return json({ error: `${request.method} not supported` }, 405);
@@ -257,12 +293,14 @@ async function registrations(request, env) {
     }, 401);
   }
   const id = new URL(request.url).searchParams.get("id") ?? "";
+  const { prefix, error } = statePrefix(request, REGISTRATION_PREFIX);
+  if (error) return json({ error }, 400);
 
   if (request.method === "GET") {
     const out = [];
     let cursor;
     do {
-      const page = await env.FM_STATE.list({ prefix: REGISTRATION_PREFIX, cursor, limit: 1000 });
+      const page = await env.FM_STATE.list({ prefix, delimiter: "/", cursor, limit: 1000 });
       for (const o of page.objects) {
         const body = await env.FM_STATE.get(o.key);
         if (!body) continue;
@@ -290,14 +328,14 @@ async function registrations(request, env) {
     }
     const rec = cleanRegistration(id, payload);
     if (!rec.players.length) return json({ error: "players is required" }, 400);
-    await env.FM_STATE.put(`${REGISTRATION_PREFIX}${id}.json`, JSON.stringify(rec, null, 1), {
+    await env.FM_STATE.put(`${prefix}${id}.json`, JSON.stringify(rec, null, 1), {
       httpMetadata: { contentType: "application/json" },
     });
     return json({ ok: true, entry: rec });
   }
 
   if (request.method === "DELETE") {
-    await env.FM_STATE.delete(`${REGISTRATION_PREFIX}${id}.json`);
+    await env.FM_STATE.delete(`${prefix}${id}.json`);
     return json({ ok: true, deleted: id });
   }
   return json({ error: `${request.method} not supported` }, 405);

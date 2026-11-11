@@ -39,7 +39,11 @@ select
     matches.shots,
     matches.shots_on_target,
     matches.mistakes,
-    matches.yellows
+    matches.yellows,
+    matches.xg,
+    matches.goals_conceded,
+    matches.clear_cut_chances,
+    matches.clear_cut_scored
 from {{ ref('fact_player_match') }} as matches
 inner join {{ ref('site_our_teams') }} as teams
     on

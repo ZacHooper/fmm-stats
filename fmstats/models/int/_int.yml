@@ -266,6 +266,11 @@ models:
       The events of our own matches once each, with period and the side each counts for.
     data_tests:
       - unique_combination: {arguments: {columns: [match_id, event_index]}}
+  - name: int_goal_assists
+    description: >
+      Each assisted goal in our own matches (FMM27) with its assister.
+    data_tests:
+      - unique_combination: {arguments: {columns: [match_id, event_index]}}
   - name: int_player_matches
     description: >
       Each player's line in our own matches once, with minutes that count extra time and a sending-off.

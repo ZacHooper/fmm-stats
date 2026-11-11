@@ -39,11 +39,14 @@ step with the schema the way a copy in this repo would:
 
 `<SITE>` is **`https://fmm-stats.zac-g-hooper.workers.dev`** (override with the `FM_SITE`
 environment variable). It's a Worker with static assets, not a Pages project — so the dynamic
-endpoints are `/api/all` and `/api/shortlist`, served by `site-worker/index.js`.
+endpoints are `/api/all` and `/api/shortlist`, served by `site-worker/index.js`. The site holds
+several careers: `api/careers.json` lists them, the career-less paths answer for its `default`,
+and another career's files are under `api/<career>/` (`api/<career>/index.json`,
+`/api/<career>/all`).
 
 For a local check with no deployment, `uv run python -m http.server -d site 8000` serves the same
-files at `http://localhost:8000` (both Functions are absent, so `/api/all` falls back to
-`site/api/all.json` on disk).
+files at `http://localhost:8000` from `site/api/<career>/` (the Worker is absent, so use the
+`api/<career>/…` paths, and `/api/<career>/all` falls back to `site/api/<career>/all.json`).
 
 ## The two things that trip agents up
 

@@ -176,7 +176,7 @@ cd fmstats && FM_DUCKDB=../fm-<key>.duckdb uv run dbt test --profiles-dir .
 uv run python tests/run_tests.py                          # parser/unit tests (most need saves)
 uv run python tests/test_boundary.py
 
-uv run python scripts/export_data.py [--upload]           # -> site/api/*.json [-> R2]
+uv run python scripts/export_data.py [--career <key>] [--upload]  # -> site/api/<key>/ [-> R2]
 uv run python -m http.server -d site 8000                 # preview
 uv run python scripts/publish_duckdb.py --upload          # compacted store -> R2, for remote SQL
 ```

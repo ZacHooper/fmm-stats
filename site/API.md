@@ -1,9 +1,15 @@
 # Querying this site as an agent
 
-This is a **Football Manager Mobile 2022 career**, exported from parsed save files. Everything
-here is static JSON plus two endpoints. You need no credentials to read.
+This is a **Football Manager Mobile career** (FMM22 or FMM27 saves), exported from parsed save
+files. Everything here is static JSON plus two endpoints. You need no credentials to read.
 
-Fetch **`api/index.json` first, always.** It names the career, the snapshot, the division ladder,
+**One site, several careers.** [`api/careers.json`](api/careers.json) lists them (`key`, `name`,
+`archived`) and names the `default`. Each career's files sit under its key —
+`api/<career>/index.json`, `api/<career>/core.json`, …, and `/api/<career>/all` — and the paths
+below without a career (`api/index.json`, `/api/all`) answer for the default career. An archived
+career is no longer played: its files are as they were last exported.
+
+Fetch **`api/index.json` first, always** (or `api/<career>/index.json`). It names the career, the snapshot, the division ladder,
 every other file, and the caveats that change what an honest answer looks like. Nothing below is
 worth trusting if it contradicts that file — this document describes the shape, `index.json`
 describes the current contents.
@@ -98,7 +104,7 @@ from the base URL of this doc.
 | [`api/squad.json`](api/squad.json) | 177 KB (19 KB gz) | our squad's attributes at **every** snapshot (growth) + career history + each player's `spells` (at a club / on loan here / out on loan / injured, with dates; a loan's host club is the career-history row with `fee` = `loan` for that season) and `moves` (transfers with fees), keyed by tid, fields in `spell_fields` / `move_fields` |
 | [`api/forecast.json`](api/forecast.json) | small | the attribute-forecast lookup: given a player's current value of an attribute and his age, what players like him actually had at 21/24. A LEVEL model, not a growth-rate one — a starting attribute like Technique does not predict how fast another attribute grows (+0.000 R² beyond current value), so don't use one attribute to forecast a different one |
 | [`api/loans.json`](api/loans.json) | 44 KB (8 KB gz) | the loan outlook for every owned player: per natural position (familiarity 15+) and per division from ours down to 3. Division, his Level %ile there and, per club, his rank among its natural players at the position, how many start in its manager's preferred formation, and the starter line. Read its `note` and `*_fields` |
-| [`api/matches.json`](api/matches.json) | 1 MB (171 KB gz) | every parsed match + every per-player-per-match row, ours (`player_rows`) and the opposition's (`opponent_player_rows`, with each starter's full-time position); each opponent manager's formations and Style (`managers`); every opponent's current squad (`team_squads`); each formation's slots (`formation_slots`) |
+| [`api/matches.json`](api/matches.json) | 1 MB (171 KB gz) | every parsed match + every per-player-per-match row, ours (`player_rows`) and the opposition's (`opponent_player_rows`, with each starter's full-time position); each opponent manager's formations and Style (`managers`); every opponent's current squad (`team_squads`); each formation's slots (`formation_slots`); every goal in those matches, both sides', with its assister where the save records one (`goals`, fields in `goal_fields`). FMM27 saves add each player's `xg`, `conceded` (a goalkeeper's goals against), `ccc` / `cccScored` (clear-cut chances, and those he scored from) and each side's `our_xg` / `opp_xg` and `our_fouls` / `opp_fouls`; on an FMM22 match they are null |
 | [`/api/all`](api/all) | 1.3 MB gz (full); a few KB filtered | **every player in the save** (~23,800), full attributes. Add `?club=<tid>[,<tid>...]` and/or `?tid=<tid>[,<tid>...]` to get back only those players instead of the whole file — the response keeps the same shape (`attrs`/`fields`/`players`/`note`) plus `count` and `filtered_by`. Use `clubs.json` first to find the tid, then `/api/all?club=<tid>` for that club's full attributes. |
 
 ## Columnar format — the main gotcha

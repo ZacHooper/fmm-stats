@@ -16,7 +16,8 @@ data from R2 and handles the endpoints files can't do.
 **Code and data ship separately.** No save-derived data is in git.
 
 ```
-DATA  laptop:  import save -> export_data.py --upload -> R2: site-data/api/*.json, site-data/all.json
+DATA  laptop:  import save -> export_data.py --upload -> R2: site-data/api/<career>/*.json,
+                                                           site-data/api/careers.json
 CODE  git push (site/, site-worker/)  -> Cloudflare Workers Builds -> production (main)
                                                                    -> preview URL (other branches)
 ```
@@ -33,9 +34,18 @@ CODE  git push (site/, site-worker/)  -> Cloudflare Workers Builds -> production
   git build deploy.
 
 **Routing.** Cloudflare serves a matching static asset *first* and only invokes the Worker when
-nothing matches. `site/api/` is not deployed, so `/api/<name>.json` reaches
-`site-worker/index.js`, which reads `site-data/api/<name>.json` from R2. `/api/all`,
-`/api/shortlist` and `/api/registrations` (saved registration windows) are Worker endpoints too.
+nothing matches. `site/api/` is not deployed, so `/api/<career>/<name>.json` reaches
+`site-worker/index.js`, which reads `site-data/api/<career>/<name>.json` from R2, and
+`/api/careers.json` reads `site-data/api/careers.json`. `/api/<career>/all`, `/api/shortlist`
+and `/api/registrations` (saved registration windows) are Worker endpoints too; the last two
+take `?career=<key>` and keep each career's entries under `state/<kind>/<career>/`. The
+career-less `/api/<name>.json` and `/api/all` answer for careers.json's default career.
+
+**Several careers.** `[site] careers` in `fmm.toml` lists the careers the site offers, in the
+header's switcher order, and `[careers] default` is the one it opens on; a career with
+`active = false` shows as archived. Each `export_data.py --career <key> --upload` replaces only
+that career's folder (and careers.json), so an archived career stays as it was last exported.
+To archive a career, set `active = false` and stop exporting it; its last export stays live.
 `not_found_handling` is `"none"` on purpose: the app is hash-routed (`#/squad`), so every real
 path is a real file, and an SPA rewrite would return `index.html` for the API paths instead of
 letting them through.
@@ -64,8 +74,8 @@ a store until something rebuilds it, so run
 re-export, and compare: a no-op change to the data path must produce no difference.
 
 ```bash
-cp -r site/api /tmp/before && uv run python scripts/export_data.py
-uv run python scripts/diff_exports.py /tmp/before site/api
+cp -r site/api/<career> /tmp/before && uv run python scripts/export_data.py --career <career>
+uv run python scripts/diff_exports.py /tmp/before site/api/<career>
 ```
 
 **None of it is in git.** The data is drawn from the game's database, so it is the user's to
@@ -73,15 +83,15 @@ publish or not, and it rewrites wholesale on every import. It lives in R2 (`site
 
 | File | Size (gzip) | Where | When it's fetched |
 |---|---|---|---|
-| `api/core.json` | 92 KB | git | on boot — our clubs + the whole division ladder |
-| `api/clubs.json` | 66 KB | git | resolving a club name/tid outside the ladder |
-| `api/matches.json` | 19 KB | git | Matches / History / any match column |
-| `api/transfers.json` | 16 KB | git | History (signings, sales, the season ledger) / World › Transfers |
-| `api/squad.json` | 8 KB | git | growth trajectories + career history |
-| `api/loans.json` | 8 KB | git | a player profile's Loan outlook (owned players) |
-| `api/registration.json` | 1 KB | git | the A/B lists + derived home-grown status |
-| `api/index.json` | 1 KB | git | manifest |
-| `api/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
+| `api/<career>/core.json` | 92 KB | git | on boot — our clubs + the whole division ladder |
+| `api/<career>/clubs.json` | 66 KB | git | resolving a club name/tid outside the ladder |
+| `api/<career>/matches.json` | 19 KB | git | Matches / History / any match column |
+| `api/<career>/transfers.json` | 16 KB | git | History (signings, sales, the season ledger) / World › Transfers |
+| `api/<career>/squad.json` | 8 KB | git | growth trajectories + career history |
+| `api/<career>/loans.json` | 8 KB | git | a player profile's Loan outlook (owned players) |
+| `api/<career>/registration.json` | 1 KB | git | the A/B lists + derived home-grown status |
+| `api/<career>/index.json` | 1 KB | git | manifest |
+| `api/<career>/all.json` | 1.3 MB | **R2** | "load every player"; `?club=`/`?tid=` filters the same file server-side to a few KB |
 | `fm-<career>.duckdb` (raw `ca`/`pa` included) | ~34 MB | **R2** | `site-data/fm-<career>.duckdb` — a remote agent `ATTACH`es this over DuckDB's native S3 protocol (R2 creds) and runs arbitrary SQL across `site.*`, `mart.*`, and `raw.*` |
 
 ## One-time setup
@@ -155,10 +165,11 @@ Other flags: `--season/--phase` to pin an older snapshot, `--method` for the def
 ## Offline
 
 `site/sw.js` (a service worker, registered by `app.js`) keeps a copy of the whole app on each
-device — every file in `site/` plus the every-player file from `/api/all` — so it works with no
+device — every file in `site/`, plus the open career's data files and its every-player file
+from `/api/<career>/all` (each career opened online is kept) — so it works with no
 connection, global search and player profiles included. It is **network first**: online, each
 request goes to the server and its answer replaces the cached copy, so a new import shows up on
-the next online visit with no cache version to bump. Offline, the copy answers, `/api/all?tid=`
+the next online visit with no cache version to bump. Offline, the copy answers, `/api/<career>/all?tid=`
 is filtered from the cached file, and a toast says so. Shortlist and registration-window
 **writes** still need a connection; a shortlist seen online can still be read.
 
@@ -227,9 +238,9 @@ Preview locally before pushing:
 uv run python -m http.server -d site 8000     # http://localhost:8000
 ```
 
-The local export in `site/api/` is served off disk, so the app works with your latest export.
-Everything works except the Worker endpoints, so the shortlist shows "offline" and global search
-falls back to `site/api/all.json`.
+The local export in `site/api/` (`site/api/careers.json` and a folder per career) is served off
+disk, so the app works with your latest export. Everything works except the Worker endpoints, so
+the shortlist shows "offline" and global search falls back to `site/api/<career>/all.json`.
 
 ## What is still dashboard-only
 

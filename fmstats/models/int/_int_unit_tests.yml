@@ -474,6 +474,9 @@ unit_tests:
           - {match_id: 2, decided_by: '90'}
       - input: ref('int_person_snapshots')
         rows: []
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2025-06-01', save_format: fmm22}
     expect:
       rows:
         - {match_id: 1, player_tid: 100, started: true, appeared: true, minutes: 120}
@@ -481,6 +484,74 @@ unit_tests:
         - {match_id: 1, player_tid: 102, started: true, appeared: true, minutes: 60}
         - {match_id: 1, player_tid: 103, started: false, appeared: false, minutes: 0}
         - {match_id: 2, player_tid: 100, started: true, appeared: true, minutes: 70}
+  - name: player_matches_clear_cut_chances
+    description: >
+      On FMM27 a player's clear-cut chances are the clear-cut-chance events naming him, and he
+      scored from one when his own goal follows it in the same minute; a player with none has 0.
+      On FMM22, which writes no such events, both are NULL.
+    model: int_player_matches
+    given:
+      - input: ref('int_our_matches')
+        rows:
+          - {match_id: 1, match_date: '2026-08-01', home_team_tid: 1, away_team_tid: 2, anchor: 10, source_snapshot_date: '2026-08-08'}
+          - {match_id: 2, match_date: '2025-03-01', home_team_tid: 1, away_team_tid: 2, anchor: 11, source_snapshot_date: '2025-06-01'}
+      - input: ref('stg_match_player_stats')
+        rows:
+          - {snapshot_date: '2026-08-08', anchor: 10, player_tid: 100, team_tid: 1, pos_order: 9}
+          - {snapshot_date: '2026-08-08', anchor: 10, player_tid: 101, team_tid: 1, pos_order: 10}
+          - {snapshot_date: '2026-08-08', anchor: 10, player_tid: 102, team_tid: 1, pos_order: 11}
+          - {snapshot_date: '2025-06-01', anchor: 11, player_tid: 100, team_tid: 1, pos_order: 9}
+      - input: ref('int_match_events')
+        rows:
+          - {match_id: 1, event_index: 0, player_tid: 100, minute: 20, event_type_code: 47, event_type: clear_cut_chance}
+          - {match_id: 1, event_index: 1, player_tid: 101, minute: 40, event_type_code: 47, event_type: clear_cut_chance}
+          - {match_id: 1, event_index: 2, player_tid: 101, minute: 40, event_type_code: 1, event_type: goal}
+          - {match_id: 1, event_index: 3, player_tid: 100, minute: 70, event_type_code: 1, event_type: goal}
+      - input: ref('int_event_types')
+        rows:
+          - {code: 1, ends_appearance: false, scores_for: for}
+          - {code: 47, ends_appearance: false, scores_for: null}
+      - input: ref('int_matches')
+        rows:
+          - {match_id: 1, decided_by: '90'}
+          - {match_id: 2, decided_by: '90'}
+      - input: ref('int_person_snapshots')
+        rows: []
+      - input: ref('stg_snapshots')
+        rows:
+          - {snapshot_date: '2026-08-08', save_format: fmm27}
+          - {snapshot_date: '2025-06-01', save_format: fmm22}
+    expect:
+      rows:
+        - {match_id: 1, player_tid: 100, clear_cut_chances: 1, clear_cut_scored: 0}
+        - {match_id: 1, player_tid: 101, clear_cut_chances: 1, clear_cut_scored: 1}
+        - {match_id: 1, player_tid: 102, clear_cut_chances: 0, clear_cut_scored: 0}
+        - {match_id: 2, player_tid: 100, clear_cut_chances: null, clear_cut_scored: null}
+  - name: goal_assists_pair_each_assist_with_its_goal
+    description: >
+      An assist belongs to its side's latest earlier goal, past an unnamed event between them and
+      past the other side's goals; an unassisted goal and an own goal get no row.
+    model: int_goal_assists
+    given:
+      - input: ref('int_match_events')
+        rows:
+          - {match_id: 1, event_index: 0, player_tid: 100, player_team_tid: 1, event_type_code: 1, event_type: goal}
+          - {match_id: 1, event_index: 1, player_tid: 101, player_team_tid: 1, event_type_code: 36, event_type: assist}
+          - {match_id: 1, event_index: 2, player_tid: 200, player_team_tid: 2, event_type_code: 1, event_type: goal}
+          - {match_id: 1, event_index: 3, player_tid: 200, player_team_tid: 2, event_type_code: 24, event_type: null}
+          - {match_id: 1, event_index: 4, player_tid: 201, player_team_tid: 2, event_type_code: 36, event_type: assist}
+          - {match_id: 1, event_index: 5, player_tid: 102, player_team_tid: 1, event_type_code: 1, event_type: goal}
+          - {match_id: 1, event_index: 6, player_tid: 202, player_team_tid: 2, event_type_code: 2, event_type: own_goal}
+      - input: ref('int_event_types')
+        rows:
+          - {code: 1, scores_for: for}
+          - {code: 2, scores_for: against}
+          - {code: 24, scores_for: null}
+          - {code: 36, scores_for: null}
+    expect:
+      rows:
+        - {match_id: 1, event_index: 0, assist_tid: 101}
+        - {match_id: 1, event_index: 2, assist_tid: 201}
   - name: match_events_period_and_credited_side
     description: >
       An event's period is the one its minute falls in, stoppage time staying in the period it

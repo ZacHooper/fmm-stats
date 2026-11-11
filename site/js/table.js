@@ -711,10 +711,12 @@ export function metricColumns(D, { agg = null, role = null } = {}) {
   }
   if (agg) {
     const order = ["Apps", "Starts", "Sub", "Min", "Min/gm", "Goals", "Assists",
-      "G+A", "Key passes", "Pass att", "Tackle att", "Shot att", "Interceptions", "Dribbles"];
-    const per = Object.keys(D.STAT_DEFS).filter((k) => /\/90$/.test(k));
-    const pg = Object.keys(D.STAT_DEFS).filter((k) => /\/gm$/.test(k));
-    const pct = Object.keys(D.STAT_DEFS).filter((k) => /%$/.test(k));
+      "G+A", "xG", "G−xG", "CCC", "Key passes", "Pass att", "Tackle att", "Shot att",
+      "Interceptions", "Dribbles"].filter(D.statOffered);
+    const offered = Object.keys(D.STAT_DEFS).filter(D.statOffered);
+    const per = offered.filter((k) => /\/90$|\/shot$/.test(k));
+    const pg = offered.filter((k) => /\/gm$/.test(k));
+    const pct = offered.filter((k) => /%$/.test(k));
     const put = (names, group) => names.forEach((n) => {
       cat[`stat:${n}`] = {
         label: n, group, align: "num", dp: D.statDp(n),

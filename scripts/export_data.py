@@ -5,6 +5,13 @@
     uv run python scripts/export_data.py --snapshot 2028-05-09
     uv run python scripts/export_data.py --season 2028 --phase 2028-05-09
     uv run python scripts/export_data.py --upload             # and push it to R2 (the Worker serves it)
+    uv run python scripts/export_data.py --career frem        # another career, into its own folder
+
+One site, several careers: each career's files go to `site/api/<career>/` (R2:
+`site-data/api/<career>/`), and `site/api/careers.json` lists the careers the site offers —
+`[site] careers` in fmm.toml, in that order, each marked archived when its career is not
+`active` — with `[careers] default` as the one it opens on. Exporting one career leaves the
+others' files alone, so an archived career stays viewable as last exported.
 
 Design: ship DATA, not rendered answers. The app computes ratings itself, because a role
 rating is just `SUM(attribute x weight)` and the whole weight table is 5 KB — so shipping
@@ -19,15 +26,16 @@ and the ability itself is dropped. `check_immersion()` proves no raw-ability key
 
 Three files by size, because the budget is a phone on cellular:
 
-  api/core.json   ~150 KB   our clubs + every club in the division ladder, full attributes.
+  core.json       ~150 KB   our clubs + every club in the division ladder, full attributes.
                             Loaded on boot; covers squad, compare, recruitment, the profile.
-  api/all.json    ~3.9 MB   EVERY player in the save. Lazy — only fetched when you search
+  all.json        ~3.9 MB   EVERY player in the save. Lazy — only fetched when you search
                             outside the ladder. **Goes to R2, never to git**: it rewrites
                             wholesale each import and minified JSON deltas badly.
   the rest        ~200 KB   squad detail, the loan outlook, matches. Small, committed.
 """
 import argparse
 import datetime
+import decimal
 import gzip
 import json
 import os
@@ -70,6 +78,8 @@ PROFILE_COLS = PROFILE_EXTRA_FIELDS
 
 
 def jdefault(o):
+    if isinstance(o, decimal.Decimal):
+        return float(o)
     if isinstance(o, datetime.datetime):
         return o.isoformat()
     if isinstance(o, datetime.date):
@@ -111,27 +121,42 @@ def check_immersion(paths):
     return bad
 
 
-def upload(out, names):
-    """rclone the export to R2: all.json to site-data/, the rest to site-data/api/. Runs only
-    after the immersion check passed, so a leaking export never reaches the bucket.
-    Returns 0 on success."""
+def upload(out, names, career):
+    """rclone the export to R2 (`site-data/api/<career>/`) and the career list beside it
+    (`site-data/api/careers.json`). Runs only after the immersion check passed, so a leaking
+    export never reaches the bucket. Returns 0 on success."""
     remote = fmconfig.require_r2_remote()
     if shutil.which("rclone") is None:
         print("  ! rclone not installed — nothing uploaded")
         return 1
-    rest = [n for n in names if n != "all.json"]
-    steps = [["rclone", "copy", out, f"{remote}/site-data/api/"]
-             + [x for n in rest for x in ("--include", n)]]
-    if "all.json" in names:
-        steps.append(["rclone", "copyto", os.path.join(out, "all.json"),
-                      f"{remote}/site-data/all.json"])
+    steps = [["rclone", "copy", out, f"{remote}/site-data/api/{career}/"]
+             + [x for n in names for x in ("--include", n)],
+             ["rclone", "copyto", os.path.join(os.path.dirname(out), "careers.json"),
+              f"{remote}/site-data/api/careers.json"]]
     for cmd in steps:
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             print(f"  ! upload failed: {(r.stderr or '').strip()[:200]}")
             return 1
-    print(f"  uploaded {len(names)} file(s) to {remote}/site-data/")
+    print(f"  uploaded {len(names) + 1} file(s) to {remote}/site-data/api/")
     return 0
+
+
+def site_careers(current):
+    """careers.json: the careers the site offers (`[site] careers`, else just this one), each
+    with its name and whether it is archived (`active = false`), and the one it opens on."""
+    import careers as C
+    keys = fmconfig.site_careers() or [current.key]
+    if current.key not in keys:
+        keys = keys + [current.key]
+    listed = []
+    for k in keys:
+        c = C.CAREERS.get(k)
+        if c is None:
+            raise SystemExit(f"[site] careers names {k!r}, which is not a career in fmm.toml")
+        listed.append({"key": k, "name": c.name, "archived": not c.active})
+    default = fmconfig.default_career()
+    return {"default": default if default in keys else keys[0], "careers": listed}
 
 
 class Site:
@@ -204,18 +229,19 @@ def main():
     ap.add_argument("--snapshot", help="the snapshot date to export (default: the newest)")
     ap.add_argument("--season", type=int, help="snapshot season")
     ap.add_argument("--phase", help="snapshot phase (date)")
-    ap.add_argument("--out", default=os.path.join(REPO, "site", "api"))
+    ap.add_argument("--out", help="the career's folder (default: site/api/<career>); "
+                                  "careers.json is written to its parent")
     ap.add_argument("--method", help="default weight-set (the app can switch client-side)")
     ap.add_argument("--upload", "--upload-all", dest="upload", action="store_true",
                     help="after a clean export, rclone every file to R2, where the Worker "
-                         "serves it (site-data/api/*.json, site-data/all.json)")
+                         "serves it (site-data/api/<career>/*.json, site-data/api/careers.json)")
     ap.add_argument("--skip-all", action="store_true", help="skip the every-player file")
     ap.add_argument("--no-check", action="store_true")
     a = ap.parse_args()
 
-    out = os.path.abspath(a.out)
     import careers as C
     car = C.resolve_career(a.career or C.DEFAULT_CAREER)
+    out = os.path.abspath(a.out or os.path.join(REPO, "site", "api", car.key))
     store = os.environ.get("FM_DUCKDB") or os.path.join(REPO, car.db)
     con, used = _open_readonly(store, tag="export")
     if used != os.path.abspath(store):
@@ -405,15 +431,23 @@ def main():
     pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
                "goals", "assists", "minutes", "started", "potm", "position", "passA", "passC",
                "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
-               "dribbles", "shotA", "shotO", "mistakes", "yellow"]
+               "dribbles", "shotA", "shotO", "mistakes", "yellow", "xg", "conceded", "ccc",
+               "cccScored"]
     prename = {"date": "match_date", "potm": "is_player_of_match_award", "passA": "passes", "passC": "passes_completed",
                "keyPass": "key_passes", "tackA": "tackles", "tackW": "tackles_won",
                "intercept": "interceptions", "headA": "headers", "headW": "headers_won",
                "crossA": "crosses", "crossC": "crosses_completed", "shotA": "shots",
-               "shotO": "shots_on_target", "yellow": "yellows"}
+               "shotO": "shots_on_target", "yellow": "yellows", "conceded": "goals_conceded",
+               "ccc": "clear_cut_chances", "cccScored": "clear_cut_scored"}
     apps = s.rows("SELECT * FROM site.match_players ORDER BY season, match_date, tid")
     for r in apps:
         r["rating_adj"] = None if r["rating_adj"] is None else round(r["rating_adj"], 2)
+    # Every goal in those matches, both sides', with its assister where the save records one
+    # (FMM27): the scorer-assister partnerships are built from it in the browser.
+    gfields = ["season", "date", "competition", "minute", "added", "kind", "tid", "team_tid",
+               "assist_tid"]
+    grename = {"date": "match_date", "added": "added_minutes", "kind": "event_type"}
+    goals = s.rows("SELECT * FROM site.goals ORDER BY match_date, match_id, event_index")
     # The opposition's lines in the same matches, for the club sheet: how a club lined up
     # against us and who hurt us. Same fields as ours, plus the team they played for.
     ofields = ["team_tid"] + pfields
@@ -457,6 +491,8 @@ def main():
         "player_rows": rowify(apps, pfields, prename),
         "opponent_player_fields": ofields,
         "opponent_player_rows": rowify(opp_apps, ofields, prename),
+        "goal_fields": gfields,
+        "goals": rowify(goals, gfields, grename),
         "player_names": {str(t): names[p] for t, p in sorted(
             {(r["tid"], r["person_id"]) for r in apps + opp_apps}) if names.get(p)},
         "manager_fields": manager_fields,
@@ -473,7 +509,10 @@ def main():
                                          "ORDER BY season, competition"), finish_fields),
         "note": "Only the managed club's matches are richly parsed, so these are our records. "
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
-                "season runs, so an early game may be absent from a late save."})
+                "season runs, so an early game may be absent from a late save. xg, conceded "
+                "(a goalkeeper's goals against), ccc / cccScored (clear-cut chances, and those "
+                "he scored from) and a goal's assist_tid are recorded by FMM27 saves only: "
+                "null on an FMM22 match."})
 
     # ------------------------------------------------------------ loans.json
     min_fam = int(cfg["min_familiarity"])
@@ -759,15 +798,19 @@ def main():
                 "covers only players still in it. Loans are not transfers. " + IMMERSION})
 
     # ------------------------------------------------------------ index.json
-    files = {k: f"{SITE_URL}/api/{k}.json" for k in
+    api = f"{SITE_URL}/api/{car.key}"
+    files = {k: f"{api}/{k}.json" for k in
              ("core", "clubs", "squad", "forecast", "loans", "matches", "registration",
               "world", "transfers")}
-    files["all_players"] = f"{SITE_URL}/api/all"
+    files["all_players"] = f"{api}/all"
     files["database"] = f"s3://fmm-stats/site-data/fm-{car.key}.duckdb"
     emit("index.json", {
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "career": {"key": car.key, "name": car.name, "managed_tid": managed,
-                   "reserve_tid": reserve},
+                   "reserve_tid": reserve, "archived": not car.active,
+                   "save_format": s.scalar("SELECT save_format FROM site.snapshots "
+                                           "WHERE snapshot_date = ?", [d])},
+        "careers": f"{SITE_URL}/api/careers.json",
         "snapshot": {"season": season, "phase": phase, "default_method": method,
                      "min_familiarity": int(cfg["min_familiarity"])},
         "snapshots": [{"season": r["season"], "phase": day(r["snapshot_date"]),
@@ -798,8 +841,11 @@ def main():
                 print(f"  {f}: key {k!r}")
             return 1
         print("  immersion check: no raw-ability key in any exported file ✓")
+    careers_path = os.path.join(os.path.dirname(out), "careers.json")
+    write_json(careers_path, site_careers(car))
+    print(f"  careers.json -> {careers_path}")
     if a.upload:
-        if upload(out, [n for n, _b, _g in written]):
+        if upload(out, [n for n, _b, _g in written], car.key):
             return 1
     con.close()
     print(f"done: {len(written)} endpoints exported in {time.time() - t0:.1f}s")
