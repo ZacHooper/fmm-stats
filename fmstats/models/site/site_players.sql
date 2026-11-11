@@ -24,9 +24,10 @@ select
     info.name,
     players.team_tid,
     people.birth_date,
-    case when not players.is_value_estimated then players.value end as value,
+    case when not players.is_value_estimated then players.value_gbp end
+        as value_gbp,
     players.wage_gbp,
-    players.contract_expiry,
+    players.contract_expiry_date,
     {% for attribute in var('attr_order') %}
     players."{{ attribute }}",
     {% endfor %}

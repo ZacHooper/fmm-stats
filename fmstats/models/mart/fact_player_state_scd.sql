@@ -1,6 +1,6 @@
--- Core player state captured as a Slowly Changing Dimension (SCD Type 2),
--- keyed (person_id, valid_from). Each row represents an interval during which
--- a player's team, contract, and ratings remained unchanged.
+-- Core player state captured as a Slowly Changing Dimension (SCD Type 2), keyed
+-- (person_id, valid_from_date). Each row represents an interval during which a
+-- player's team, contract, and ratings remained unchanged.
 with player_state as (
     select
         info.person_id,
@@ -23,8 +23,8 @@ with player_state as (
         info.joined_date,
         info.scrapbook_entry_date,
         info.wage_gbp,
-        info.contract_start,
-        info.contract_expiry,
+        info.contract_start as contract_start_date,
+        info.contract_expiry as contract_expiry_date,
         case
             when info.club_tid is null then 'free_agent'
             when info.contract_expiry >= info.snapshot_date then 'contracted'
@@ -127,8 +127,8 @@ intervals as (
     select
         person_id,
         run_id,
-        min(snapshot_date) as valid_from,
-        max(snapshot_date) as valid_to,
+        min(snapshot_date) as valid_from_date,
+        max(snapshot_date) as valid_to_date,
         max(snapshot_date) = max(max(snapshot_date)) over () as is_current,
         first(tid) as tid,
         first(team_tid) as team_tid,
@@ -148,8 +148,8 @@ intervals as (
         first(joined_date) as joined_date,
         first(scrapbook_entry_date) as scrapbook_entry_date,
         first(wage_gbp) as wage_gbp,
-        first(contract_start) as contract_start,
-        first(contract_expiry) as contract_expiry,
+        first(contract_start_date) as contract_start_date,
+        first(contract_expiry_date) as contract_expiry_date,
         first(contract_status) as contract_status,
         first(is_contracted) as is_contracted,
         first(unknown_39) as unknown_39,
@@ -176,8 +176,8 @@ intervals as (
 
 select
     person_id,
-    valid_from,
-    valid_to,
+    valid_from_date,
+    valid_to_date,
     is_current,
     tid,
     team_tid,
@@ -197,8 +197,8 @@ select
     joined_date,
     scrapbook_entry_date,
     wage_gbp,
-    contract_start,
-    contract_expiry,
+    contract_start_date,
+    contract_expiry_date,
     contract_status,
     is_contracted,
     unknown_39,
@@ -220,4 +220,4 @@ select
     familiarity_{{ position | lower }}{% if not loop.last %},{% endif %}
     {% endfor %}
 from intervals
-order by person_id, valid_from
+order by person_id, valid_from_date

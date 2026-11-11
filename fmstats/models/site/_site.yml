@@ -138,12 +138,12 @@ models:
         description: 'The team his record names. {{ doc("team_tid") }}'
       - name: birth_date
         description: '{{ doc("birth_date") }}'
-      - name: value
+      - name: value_gbp
         description: 'Only a stated value: NULL where it would be an estimate.
           {{ doc("value_gbp") }}'
       - name: wage_gbp
         description: '{{ doc("wage_gbp") }}'
-      - name: contract_expiry
+      - name: contract_expiry_date
         description: '{{ doc("contract_expiry_date") }}'
       - name: Aerial
         description: '{{ doc("aerial") }}'
@@ -729,7 +729,7 @@ models:
         description: '{{ doc("b_list_under_age") }}'
       - name: min_matchday_age
         description: '{{ doc("min_matchday_age") }}'
-      - name: u21_on
+      - name: b_list_age_date
         description: '{{ doc("b_list_age_date") }}'
   - name: site_registration
     description: Each player in our squad as the registration page reads him.
@@ -756,7 +756,7 @@ models:
         description: '{{ doc("months_club") }}'
       - name: months_to_go
         description: '{{ doc("months_to_go") }}'
-      - name: hg_eta
+      - name: home_grown_date
         description: '{{ doc("home_grown_date") }}'
       - name: is_window_open
         description: '{{ doc("is_window_open") }}'

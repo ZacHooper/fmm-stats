@@ -5,16 +5,17 @@
 --   not nested       club-trained implies association-trained
 --   basis mismatch   home_grown_basis names a basis exactly when he is
 --                    club-trained
---   b-list by age    is_b_list is the fixed-date test: born after u21_on less
---                    the B-list age (site_registration_rules, the page's
---                    own statement of the rule), so a player who turns 21
---                    during the season stays on it all season
+--   b-list by age    is_b_list is the fixed-date test: born after
+--                    b_list_age_date less the B-list age
+--                    (site_registration_rules, the page's own statement of
+--                    the rule), so a player who turns 21 during the season
+--                    stays on it all season
 --   empty group      a store with a squad has club-trained and B-list players
 -- One row per offending player and snapshot, plus one per empty group.
 with registration as (
     select
         registration.*,
-        rules.u21_on,
+        rules.b_list_age_date,
         rules.b_list_under_age
     from {{ ref('site_registration') }} as registration
     left join {{ ref('site_registration_rules') }} as rules
@@ -51,9 +52,11 @@ select
     person_id
 from registration
 where
-    u21_on is not null
+    b_list_age_date is not null
     and is_b_list is distinct from coalesce(
-        birth_date > cast(u21_on - to_years(b_list_under_age) as date), false
+        birth_date
+        > cast(b_list_age_date - to_years(b_list_under_age) as date),
+        false
     )
 union all
 select

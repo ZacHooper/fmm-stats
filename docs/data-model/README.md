@@ -79,7 +79,7 @@ date).
 
 - **Changing things are periodic snapshots or SCD Type 2 intervals**:
   - High-churn continuous metrics (e.g. transfer valuation, reputation) are periodic snapshots keyed by save date.
-  - Slower-moving attributes, contracts, and registrations use SCD Type 2 intervals (`valid_from`, `valid_to`) to avoid data duplication across snapshots.
+  - Slower-moving attributes, contracts, and registrations use SCD Type 2 intervals (`valid_from_date`, `valid_to_date`) to avoid data duplication across snapshots.
 - **Things with a lifespan are spells** (contracts, loans, injuries, staff, call-ups).
 - **One source per fact, the rest are checks**: scores come from the world fixture list, and
   events, the save's records, honours and league history check what we derive.

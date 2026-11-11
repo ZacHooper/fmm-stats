@@ -8,7 +8,7 @@ with owned as (
     select
         squad.snapshot_date,
         squad.person_id,
-        players.value,
+        players.value_gbp,
         players.wage_gbp
     from {{ ref('site_squad') }} as squad
     left join {{ ref('fact_player_snapshot') }} as players
@@ -29,13 +29,13 @@ where finances.snapshot_date is null
 union all
 select
     case
-        when owned.value is null then 'owned player unvalued'
+        when owned.value_gbp is null then 'owned player unvalued'
         else 'owned player unwaged'
     end as check_name,
     owned.snapshot_date,
     owned.person_id
 from owned
-where owned.value is null or owned.wage_gbp is null
+where owned.value_gbp is null or owned.wage_gbp is null
 union all
 select
     'value mostly estimated' as check_name,

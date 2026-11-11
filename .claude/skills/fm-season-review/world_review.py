@@ -123,13 +123,13 @@ def transfers(con, season, nation):
     con.execute(f"""
     CREATE OR REPLACE TEMP TABLE mv AS
     SELECT t.*, p.name,
-           extract(year FROM age(coalesce(t.move_date, t.moved_by, DATE '{season}-06-30'),
+           extract(year FROM age(coalesce(t.move_date, t.moved_by_date, DATE '{season}-06-30'),
                                  p.birth_date)) AS age,
            round(t.fee_gbp / 1e6, 2) AS fee_m,
            fc.club AS from_club, tc.club AS to_club,
            fc.nation AS from_nation, tc.nation AS to_nation,
-           CASE WHEN coalesce(t.move_date, t.moved_by) IS NULL THEN 'undated'
-                WHEN month(coalesce(t.move_date, t.moved_by)) BETWEEN 6 AND 9 THEN 'summer'
+           CASE WHEN coalesce(t.move_date, t.moved_by_date) IS NULL THEN 'undated'
+                WHEN month(coalesce(t.move_date, t.moved_by_date)) BETWEEN 6 AND 9 THEN 'summer'
                 ELSE 'winter' END AS transfer_window
     FROM mart.fact_transfer t
     JOIN mart.dim_person p USING (person_id)

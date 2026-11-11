@@ -48,13 +48,11 @@ The newest row of its series: on `site.snapshots` the store's newest snapshot; o
 
 {% docs valid_from_date %}
 The first snapshot of the SCD interval: the state on this row holds from this snapshot.
-Synonyms: `valid_from`.
 {% enddocs %}
 
 {% docs valid_to_date %}
 The last snapshot of the SCD interval: the state holds through this snapshot (inclusive); the
 next interval starts on the following snapshot.
-Synonyms: `valid_to`.
 {% enddocs %}
 
 {% docs start_date %}
@@ -129,13 +127,11 @@ between our first team and reserves (`site.player_moves`) is dated by its first 
 {% docs moved_after_date %}
 For a move made while the store was watching: the last snapshot showing the player at his old
 club (or without one). The move lies after it. NULL for a move the history shows from before.
-Synonyms: `moved_after`.
 {% enddocs %}
 
 {% docs moved_by_date %}
 For a move made while the store was watching: the first snapshot showing the player at the
 buying club. The move lies on or before it. NULL for a move the history shows from before.
-Synonyms: `moved_by`.
 {% enddocs %}
 
 {% docs birth_date %}
@@ -145,12 +141,10 @@ The person's date of birth, as the save stores it; part of `person_id`.
 {% docs contract_start_date %}
 The start date of the player's current contract, as stored (the day it was signed). NULL with
 no contract.
-Synonyms: `contract_start`.
 {% enddocs %}
 
 {% docs contract_expiry_date %}
 The expiry date of the player's current contract, as stored. NULL with no contract.
-Synonyms: `contract_expiry`.
 {% enddocs %}
 
 {% docs signed_date %}
@@ -173,11 +167,9 @@ The contract's expiry date as stored; read on its first (`first_expiry_date`) an
 {% docs b_list_age_date %}
 The date the B-list age is taken on: 1 January of the year before the season's end year, the
 last new year before the season's second calendar year (`var('registration')`, a house rule).
-Synonyms: `u21_on`.
 {% enddocs %}
 
 {% docs home_grown_date %}
 The day he reaches `var('home_grown_months')` months with us if he stays, where that lies inside
 his home-grown window; NULL when he already has them or would run out of window first.
-Synonyms: `hg_eta`.
 {% enddocs %}

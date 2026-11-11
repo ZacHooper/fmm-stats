@@ -855,7 +855,7 @@ models:
         description: '{{ doc("snapshot_date") }}'
       - name: tid
         description: '{{ doc("tid") }}'
-      - name: value
+      - name: value_gbp
         description: '{{ doc("value_gbp") }}'
       - name: is_value_estimated
         description: '{{ doc("is_value_estimated") }}'
@@ -869,9 +869,9 @@ models:
         description: '{{ doc("world_reputation") }}'
   - name: fact_player_state_scd
     description: >
-      Player state as an SCD Type 2 table (valid_from, valid_to): attributes, club, contract, caps.
+      Player state as an SCD Type 2 table (valid_from_date, valid_to_date): attributes, club, contract, caps.
     data_tests:
-      - unique_combination: {arguments: {columns: [person_id, valid_from]}}
+      - unique_combination: {arguments: {columns: [person_id, valid_from_date]}}
       - relationship_combination:
           arguments:
             columns: [person_id]
@@ -880,9 +880,9 @@ models:
     columns:
       - name: person_id
         description: '{{ doc("person_id") }}'
-      - name: valid_from
+      - name: valid_from_date
         description: '{{ doc("valid_from_date") }}'
-      - name: valid_to
+      - name: valid_to_date
         description: '{{ doc("valid_to_date") }}'
       - name: is_current
         description: 'The interval runs to the newest snapshot. {{ doc("is_current") }}'
@@ -922,9 +922,9 @@ models:
         description: '{{ doc("scrapbook_entry_date") }}'
       - name: wage_gbp
         description: '{{ doc("wage_gbp") }}'
-      - name: contract_start
+      - name: contract_start_date
         description: '{{ doc("contract_start_date") }}'
-      - name: contract_expiry
+      - name: contract_expiry_date
         description: '{{ doc("contract_expiry_date") }}'
       - name: contract_status
         description: '{{ doc("contract_status") }}'
@@ -1119,7 +1119,7 @@ models:
         description: '{{ doc("u21_goals") }}'
       - name: joined_date
         description: '{{ doc("joined_date") }}'
-      - name: value
+      - name: value_gbp
         description: '{{ doc("value_gbp") }}'
       - name: is_value_estimated
         description: '{{ doc("is_value_estimated") }}'
@@ -1129,9 +1129,9 @@ models:
         description: '{{ doc("scrapbook_entry_date") }}'
       - name: wage_gbp
         description: '{{ doc("wage_gbp") }}'
-      - name: contract_start
+      - name: contract_start_date
         description: '{{ doc("contract_start_date") }}'
-      - name: contract_expiry
+      - name: contract_expiry_date
         description: '{{ doc("contract_expiry_date") }}'
       - name: contract_status
         description: '{{ doc("contract_status") }}'
@@ -1638,9 +1638,9 @@ models:
         description: '{{ doc("to_club_tid") }}'
       - name: season
         description: '{{ doc("season") }}'
-      - name: moved_after
+      - name: moved_after_date
         description: '{{ doc("moved_after_date") }}'
-      - name: moved_by
+      - name: moved_by_date
         description: '{{ doc("moved_by_date") }}'
       - name: move_date
         description: '{{ doc("move_date") }}'

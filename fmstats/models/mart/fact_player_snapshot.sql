@@ -18,8 +18,8 @@ with listed as (
     inner join {{ ref('fact_player_state_scd') }} as scd
         on
             val.person_id = scd.person_id
-            and val.snapshot_date >= scd.valid_from
-            and val.snapshot_date <= scd.valid_to
+            and val.snapshot_date >= scd.valid_from_date
+            and val.snapshot_date <= scd.valid_to_date
     where scd.familiarity_{{ position | lower }} > 0
     {% if not loop.last %}union all{% endif %}
     {% endfor %}
@@ -105,13 +105,13 @@ select
     scd.u21_caps,
     scd.u21_goals,
     scd.joined_date,
-    val.value,
+    val.value_gbp,
     val.is_value_estimated,
     val.is_value_in_trusted_band,
     scd.scrapbook_entry_date,
     scd.wage_gbp,
-    scd.contract_start,
-    scd.contract_expiry,
+    scd.contract_start_date,
+    scd.contract_expiry_date,
     scd.contract_status,
     scd.is_contracted,
     scd.unknown_39,
@@ -138,8 +138,8 @@ from {{ ref('fact_player_valuation') }} as val
 inner join {{ ref('fact_player_state_scd') }} as scd
     on
         val.person_id = scd.person_id
-        and val.snapshot_date >= scd.valid_from
-        and val.snapshot_date <= scd.valid_to
+        and val.snapshot_date >= scd.valid_from_date
+        and val.snapshot_date <= scd.valid_to_date
 inner join {{ ref('stg_persons') }} as person
     on
         val.snapshot_date = person.snapshot_date

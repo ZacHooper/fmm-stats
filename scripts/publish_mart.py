@@ -39,7 +39,7 @@ def build(src_path, dest):
     con.execute("CREATE SCHEMA mart")
 
     TABLE_SORT_KEYS = {
-        'fact_player_state_scd': 'person_id, valid_from',
+        'fact_player_state_scd': 'person_id, valid_from_date',
         'fact_player_valuation': 'person_id, snapshot_date',
         'fact_player_match': 'match_id, player_tid',
         'fact_stadium_snapshot': 'stadium_id, snapshot_date',
@@ -97,13 +97,13 @@ def build(src_path, dest):
             scd.u21_caps,
             scd.u21_goals,
             scd.joined_date,
-            val.value,
+            val.value_gbp,
             val.is_value_estimated,
             val.is_value_in_trusted_band,
             scd.scrapbook_entry_date,
             scd.wage_gbp,
-            scd.contract_start,
-            scd.contract_expiry,
+            scd.contract_start_date,
+            scd.contract_expiry_date,
             scd.contract_status,
             scd.is_contracted,
             scd.unknown_39,
@@ -129,8 +129,8 @@ def build(src_path, dest):
         FROM mart.fact_player_valuation val
         JOIN mart.fact_player_state_scd scd
           ON val.person_id = scd.person_id
-         AND val.snapshot_date >= scd.valid_from
-         AND val.snapshot_date <= scd.valid_to
+         AND val.snapshot_date >= scd.valid_from_date
+         AND val.snapshot_date <= scd.valid_to_date
         LEFT JOIN (
             WITH listed AS (
                 SELECT * FROM (
@@ -144,8 +144,8 @@ def build(src_path, dest):
                     FROM mart.fact_player_valuation val
                     JOIN mart.fact_player_state_scd scd
                       ON val.person_id = scd.person_id
-                     AND val.snapshot_date >= scd.valid_from
-                     AND val.snapshot_date <= scd.valid_to
+                     AND val.snapshot_date >= scd.valid_from_date
+                     AND val.snapshot_date <= scd.valid_to_date
                 )
                 WHERE familiarity > 0
             ),

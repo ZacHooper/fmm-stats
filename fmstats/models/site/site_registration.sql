@@ -10,9 +10,9 @@
 --   is_home_grown_association  trained in our nation: is_home_grown_club, or
 --                   his origin club is of our nation, or he has the months at
 --                   another club of it
---   months_club, months_to_go, hg_eta   his months with us, how many he
---                   lacks, and the day he reaches them if he stays, where that
---                   lies inside his window
+--   months_club, months_to_go, home_grown_date   his months with us, how
+--                   many he lacks, and the day he reaches them if he stays,
+--                   where that lies inside his window
 --   is_window_open  his window has not closed
 --   origin_club, origin_nation, is_academy_product   where he came from
 {% set months = var('home_grown_months') %}
@@ -130,7 +130,7 @@ select
                     ({{ months }} - months_club) * {{ var('days_in_month') }}
                     as integer
                 )
-    end as hg_eta,
+    end as home_grown_date,
     snapshot_date <= window_to as is_window_open,
     origin_club,
     origin_nation,

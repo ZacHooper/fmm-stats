@@ -1,14 +1,14 @@
--- Every permanent move between clubs, and every graduation from a club's
--- youth side into its senior side, keyed (person_id, to_line_index): from the
--- career history, and the club on the newest snapshot for a move the history
--- has no line for yet (int.transfers for the rules). from_club_tid is NULL
--- for a free agent signed; youth_team_tid names the academy a move left (its
--- club is from_club_tid). Club level: first team <-> reserves is no move,
--- and which team he joins is on fact_player_snapshot. moved_after / moved_by
+-- Every permanent move between clubs, and every graduation from a club's youth
+-- side into its senior side, keyed (person_id, to_line_index): from the career
+-- history, and the club on the newest snapshot for a move the history has no
+-- line for yet (int.transfers for the rules). from_club_tid is NULL for a free
+-- agent signed; youth_team_tid names the academy a move left (its club is
+-- from_club_tid). Club level: first team <-> reserves is no move, and which
+-- team he joins is on fact_player_snapshot. moved_after_date / moved_by_date
 -- bound a move made while the store was watching, and move_date is the day he
 -- joined where the save gives it; is_free_agent_signing, that he had no club on
--- moved_after. The two contracts a bounded move ends and
--- starts are named by their first_seen_date (fact_contract).
+-- moved_after_date. The two contracts a bounded move ends and starts are named
+-- by their first_seen_date (fact_contract).
 with transfers as (
     select * from {{ ref('int_transfers') }}
 ),
@@ -24,8 +24,8 @@ select
     transfers.youth_team_tid,
     transfers.to_club_tid,
     transfers.season,
-    transfers.moved_after,
-    transfers.moved_by,
+    transfers.moved_after as moved_after_date,
+    transfers.moved_by as moved_by_date,
     transfers.move_date,
     transfers.was_free_agent as is_free_agent_signing,
     transfers.transfer_type,
