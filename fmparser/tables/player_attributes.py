@@ -3,11 +3,16 @@
 
 Preallocated 78-byte fixed-stride table located between 3.8 MB and 6.6 MB.
 Count-framed by `[8x 0xFF][u32 count]` preceding record 0.
+
+FMM27 appends a u32-counted list of 19-byte unavailabilities (injuries, medical conditions,
+bans) to each record, so its rows are 82 bytes plus 19 per item.
 """
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..save import cache_key as _cache_key
-from ..core import DATE, Field, HEX4, PAD, RAW, Record, U16, U32, U8, UNKNOWN, TableDef
+from ..core import (CountedList, DATE, Field, HEX4, I32, PAD, RAW, Record, U16, U32, U8,
+                    UNKNOWN, TableDef, table_spans)
+from .save_header import FMM27, save_format
 
 # Global attribute records byte range window (3.8 MB to 6.6 MB across careers)
 ATTR_LO, ATTR_HI = 3_800_000, 6_600_000
@@ -18,10 +23,14 @@ __all__ = [
     "PLAIN_OFFSETS",
     "PLAYER",
     "PLAYER_ATTRIBUTES_TABLE",
+    "PLAYER_ATTRIBUTES_TABLE_FMM27",
+    "UNAVAILABILITY",
     "POSITIONS",
     "RECORD",
     "SRC_OFFSETS",
     "locate_player_attributes",
+    "player_attributes_end",
+    "player_attributes_table",
     "scrape_player_attributes",
 ]
 
@@ -192,6 +201,8 @@ def _process_player_attribute(rec: Dict[str, Any], offset: int) -> Dict[str, Any
         "leadership_src": rec["leadership_src"],
         "agility_src": rec["agility_src"],
     }
+    if "unavailability" in rec:
+        out["unavailability"] = rec["unavailability"]
     return out
 
 
@@ -204,9 +215,47 @@ PLAYER_ATTRIBUTES_TABLE = TableDef(
 )
 
 
+# FMM27: one unavailability, a spell the player cannot play. Start and end are each
+# [day u16][month u8, 0-based][year u16] -- except on type 14, whose 10 bytes are not dates
+# (docs/parser/player_attributes.md, Quirks).
+UNAVAILABILITY = Record("player_unavailability", 19, [
+    Field(0,  1, "type",        U8, note="11 a ban or ineligibility; 14 on Eriksen and Blind"),
+    Field(1,  2, "start_day",   U16),
+    Field(3,  1, "start_month", U8, note="0-based"),
+    Field(4,  2, "start_year",  U16),
+    Field(6,  2, "end_day",     U16),
+    Field(8,  1, "end_month",   U8, note="0-based"),
+    Field(9,  2, "end_year",    U16),
+    Field(11, 4, "club_uid",    I32, note="the club it applies at; -1 on a global ban"),
+    Field(15, 4, UNKNOWN,       I32, note="-1 on all but one"),
+])
+
+# FMM27's record opens with FMM22's 78 bytes, as the head of a variable-length row.
+PLAYER_FMM27 = Record("player_attribute_fmm27", RECORD, PLAYER.fields, is_head=True)
+
+PLAYER_ATTRIBUTES_TABLE_FMM27 = TableDef(
+    name="player_attributes",
+    segments=(PLAYER_FMM27, CountedList("unavailability", U32, UNAVAILABILITY, max_count=64)),
+    locator=locate_player_attributes,
+    include_offset=True,
+    post_process=_process_player_attribute,
+)
+
+
+def player_attributes_table(mm: Any) -> TableDef:
+    """The player attribute table's declaration for this save's format."""
+    return PLAYER_ATTRIBUTES_TABLE_FMM27 if save_format(mm) == FMM27 else PLAYER_ATTRIBUTES_TABLE
+
+
+def player_attributes_end(mm: Any) -> Optional[int]:
+    """Where the table's last record ends (the next table's frame), or None."""
+    spans = table_spans(mm, player_attributes_table(mm), include_count_header=False)
+    return spans[0][1] if spans else None
+
+
 def scrape_player_attributes(mm: Any) -> Dict[str, Dict[str, Any]]:
     """{sid: record} for every player attribute record in the save."""
-    return PLAYER_ATTRIBUTES_TABLE.id_map(mm, key_field="sid")
+    return player_attributes_table(mm).id_map(mm, key_field="sid")
 
 
 def record_for(mm: Any, tid: int) -> Optional[Dict[str, Any]]:
@@ -216,5 +265,5 @@ def record_for(mm: Any, tid: int) -> Optional[Dict[str, Any]]:
     person = scrape_person_info(mm).get(tid)
     if person is None:
         return None
-    return PLAYER_ATTRIBUTES_TABLE.id_map(mm, key_field="sid").get(person["sid"])
+    return player_attributes_table(mm).id_map(mm, key_field="sid").get(person["sid"])
 

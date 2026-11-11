@@ -7,7 +7,7 @@ The names the game gives a competition's stages, rounds and legs: "Third Round",
 competitions' rules point here by id (`tables/comp_rules.py`); the table holds no
 competition itself.
 
-## Layout
+## Layout: FMM22
 
 ```
 header  [8 × ff][count u32 = 273]
@@ -28,10 +28,33 @@ Replay, 3 First Leg, 4 Second Leg, 8 Third Round, 17 Quarter Final, 18 Semi Fina
 73 Group Stage, 76–91 Group A–P, 108 Championship Group, 149–152 First–Fourth Qualifying
 Round, 164/165 First/Second Knockout Round, 236 Preliminary Phase.
 
-**How it is found.** Record 0 is `id 1, len 6, "Replay\0"`; `locate_rounds` finds that
-signature and requires at least 8 `ff` in front of the count.
+**How it is found.** Record 0 is `id 1, len 6, "Replay"` and its terminator byte;
+`locate_rounds` finds that signature (either version's terminator) and requires at least 8
+`ff` in front of the count.
 
-## Evidence
+## Layout: FMM27
+
+288 records on both Truro saves. Each holds three strings, each followed by a terminator
+byte, as fmm-editor's FMM26 records store a name and its `Terminator`:
+
+```
+record  [id u32][name][ff][short_name][ff][plural_name][ff][next u16]      string = [len u32][bytes]
+```
+
+| field | example | |
+|---|---|---|
+| `name` | First Leg, First Round, Knock-out Playoff | |
+| `short_name` | Leg 1, 1st Rnd, Knock-out Playoff | |
+| `plural_name` | First Legs, First Round, Knock-out Playoffs | empty on one record (2000049558 Fourth Placed Teams) |
+| `next` | | `k + 1` on 287 of 288; `ffff` on the last |
+
+The terminator is `ff` on all 864 strings. This also reads FMM22's trailer: `[01 00 00 00]
+[20][00]` twice is two one-space strings, `00`-terminated, where FMM27 has the short and
+plural names; the FMM22 declaration keeps its `flag1..4` names, so its extract is unchanged.
+An empty string is data (`[00 00 00 00][ff]`), so all three allow it: a walk that refused it
+stopped at record 270.
+
+## Evidence: FMM22
 
 `frem-2030-06-22`, the Vejle 2-4 Frem report ([matches](matches.md), `img/matches-1.png`)
 reads "3F Superliga / Preliminary Phase". The fixture's `stage_index` is 0; the Superliga's
@@ -73,5 +96,5 @@ and the leg are not in this table: the letter is the group's place among its sta
 
 ## Output
 
-`output/<label>/round_names.json`: `[{id, name}]`, sorted by id. Loads into
-`raw.round_names`.
+`output/<label>/round_names.json`: `[{id, name}]`, sorted by id; on FMM27
+`[{id, name, short_name, plural_name}]`. Loads into `raw.round_names`.

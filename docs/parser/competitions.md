@@ -11,7 +11,7 @@ roll of honour use), and **`uid`**, the database id. The archive names each comp
 member by uid (`comp_<uid>.dat`, [comp_rules](comp_rules.md)), and the data dictionary's rule
 files refer to competitions by uid too ([rule_files](rule_files.md)).
 
-## Layout
+## Layout: FMM22
 
 ```
 header   [>= 8 × ff][count u16 = 1,372]
@@ -59,7 +59,32 @@ European International League divisions their nations, the Scottish Cup 13 empty
 not a qualification list in general: the European Champions Cup and the Superliga have none.
 The entries' count is read as a u32; bytes +1..+3 are zero on every slot.
 
-## Evidence
+## Layout: FMM27
+
+`COMP_TABLE_FMM27`: 1,706 slots on both Truro saves (1,701 named), `cid == slot` on every one,
+and the walk ends on the [nations](nations.md) frame. FMM22's record, except:
+
+- the long and short names are followed by `ff` (FMM22: `00`), as on [clubs](clubs.md);
+- the 21-byte holders tail is **22 bytes**: +18 as FMM22 (1–5), +19 **`is_women`**
+  (fmm-editor's `IsWomen`; FMM22 stores 0 there), then two zero bytes where FMM22 has one.
+  `is_women` is 1 on exactly the 133 women's competitions (Barclays Women's Super League,
+  NWSL, the Women's FA Cup, the FIFA Women's World Cup, …).
+
+The holders still resolve as club uids (Enterprise National League South: Worthing,
+Hornchurch, Torquay United), and so do all 1,182 entrant-list refs.
+
+## Evidence: FMM27
+
+`truro-2026-07-25`. Both Club Information screens ([clubs](clubs.md), `img/clubs-fmm27-1.jpg`
+and `-2.jpg`) read League Competition `Enterprise National League South`; both clubs'
+`league_id` is 331, and record 331, at byte 14,580,277, is
+
+`4b 01 | ef 2b 4e 00 | 20 00 00 00 "Enterprise National League South" ff …`
+
+cid 331, uid 5,123,055, a 32-byte name: short `Enterprise South`, code `NLS`, nation 139
+(England), level 5. Tested by `tests/test_reference_fmm27_evidence.py`.
+
+## Evidence: FMM22
 
 `frem-2030-06-22`. The 3F Superliga record, cid 2, at byte 12,587,413:
 
@@ -117,4 +142,4 @@ NordicBet Liga 97 > 2. Division 80 > 3. Division 63 > Denmark's Series 33).
 nation_id, reputation, level, parent_cid}}` for the 1,272 named slots (blanks left out;
 `nation_id` and `parent_cid` null for `ffff`). Loads into `raw.competitions`. Not extracted:
 `continent`, the colours, the entrant list (read with `comp_refs(mm, cid)`) and the holders
-tail.
+tail. On FMM27 each competition also carries `is_women`.

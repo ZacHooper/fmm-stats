@@ -6,7 +6,7 @@ U21 national teams, all stored club-shaped. It follows the round-name table dire
 declaration with `tid == slot index`. 11,331 slots on Frem; the count differs by career
 (12,278 on Bucaspor). Variable-length records, so there is no stride.
 
-## Layout
+## Layout: FMM22
 
 A record is the segments of `CLUB_TABLE`, in this order:
 
@@ -44,7 +44,33 @@ A record is the segments of `CLUB_TABLE`, in this order:
 `scrape_clubs` derives three fields: `league_cid` (`league_id` when `other_division` is
 `0xFFFF` and the id is real), `country` (= `based_id`), and drops empty squad/staff slots.
 
-## Evidence
+## Layout: FMM27
+
+`CLUB_TABLE_FMM27`, 9,830 slots on both Truro saves, `tid == slot` on every one and the walk
+ending on the competitions' frame. Where it departs from FMM22:
+
+| segment | FMM27 | vs FMM22 | how we know |
+|---|---|---|---|
+| names | `name` `ff`, `short` `ff`, `code`, `three_letter_name`, `alt_code` | **five strings**; FMM22 has the first three. The terminator after the first two is `ff` on every club (FMM22: `00`, `ff` only after an empty name) | Truro City / Truro / Truro / TRU / TCFC. `code` holds what FMM22's does (Parkgt, MDU, PTFC; FMM22 FCK, GHBK); `alt_code` is empty on most clubs (TCFC, PC, MDST) |
+| `CLUB_TRAILER` | 167 B | same | the Club Information screen, below |
+| `flag_68` | u8, then 68 B **only when it is 1** (`core.Conditional`) | new; fmm-editor's `Unknown4Flag` | set on 1,088 clubs; the walk lands only this way |
+| `block_167` … `squad` | | same | |
+| `CLUB_STAFF_FMM27` (127 B) | FMM22's 49 named bytes, 76 unnamed, then +125 u8, +126 `gender` u8 | **4 B longer, and no `tail` list** after it | read as `[u16 m][m × 9 B]`, the walk breaks at the slot after Truro, whose +125 reads 5 |
+
+> **Lead:** `gender` (+126, fmm-editor's last field) is 1 on 1,354 clubs whose names are
+> those of men's clubs and nations as well as "Proven Girls Football Club": FMM27's women's
+> sides, by the names. Unconfirmed in game.
+
+> **Lead:** +125 is 5 on Truro (the managed club) and 0 on every other club.
+
+> **Quirk:** an AI club's manager is missing from its staff list, as on FMM22, but the
+> **user's is in it**: Torquay's list holds its five backroom staff and not Jimmy Ball, while
+> Truro's holds Stewart Yetton, Joe Whittaker and Mr Manager (tid 44959). `mart.club_managers`
+> (the staff member missing from the list) finds no manager for the managed club; the header's
+> club tid names that club, and the person who is its manager is the one to special-case
+> downstream.
+
+## Evidence: FMM22
 
 `frem-2030-06-22`. Frem's Club Information screen; Frem's record starts at byte 6,501,332, its
 trailer at 6,501,378.
@@ -91,6 +117,44 @@ is which (see Quirks):
 | Home red/white stripes, Away green; no third kit | kits 0, 1 | `kits[0]` white/`#c81028`, `kits[1]` black/`#009830`; `kits[2]` is the black-and-white default Frem also carries |
 
 Tested by `tests/test_world_evidence.py`.
+
+## Evidence: FMM27
+
+`truro-2026-07-25`. Truro City's Club Information screen; the record (tid 3,125) starts at
+byte 10,710,904, its trailer at 10,710,961, `CLUB_STANDING` at 10,711,141:
+
+![Truro City: Truro City Stadium, 4,100, Professional, Mr Manager, Enterprise National League South, Training Basic, Youth Poor](img/clubs-fmm27-1.jpg)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Full Name `Truro City` | `@10,710,912 0a 00 00 00 "Truro City" ff` | `name`; then `short` Truro, `code` Truro, `three_letter_name` TRU, `alt_code` TCFC |
+| England flag on the card | trailer +0 `8b 00`, +2 `8b 00` | `based_id` = `nation_id` = 139: England, as the person table suggested |
+| Status `Professional` | +148 `01` | `status` 1 |
+| Training `Basic` ★, Youth `Poor` ½★ | +149 `04`, +150 `03` | `academy` 4, `facilities` 3: FMM22's scale, ⌊value / 2⌋ / 2 stars |
+| Home red/black, Away white, Third light blue | kits 0, 1, 2 | `kits[0]` `#c82028`/`#080808`, `kits[1]` `#988058`/`#f8f8f8`, `kits[2]` `#205090`/`#70a0c8` |
+| card stars ★½ | `CLUB_STANDING` +1 `f0 0a` | `reputation` 2800 |
+| `Enterprise National League South` | +158 `4b 01` | `league_id` 331: [competition](competitions.md) 331 is Enterprise National League South |
+| `Truro City Stadium`, 4,100 | +163 `cf 2e` | `stadium_id` 11983: [stadium](stadiums.md) 11983 is Truro City Stadium, capacity 4,100 |
+
+This settles tid 3,125 as Truro City, the club 28 people point at.
+
+Torquay United (tid 395, record at 9,121,810, trailer at 9,121,869), an AI club in the same
+league:
+
+![Torquay United: Plainmoor, 6,200, Professional, Jimmy Ball, Enterprise National League South, Training and Youth Adequate](img/clubs-fmm27-2.jpg)
+![Torquay United, Staff: Darren Way, Kenny Griffiths, Heiko Plischke; Michael MacNeill; Regan Miles](img/clubs-fmm27-3.jpg)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Status `Professional`, Training `Adequate` ★★, Youth `Adequate` ★★ | +148 `01 09 08` | `status` 1, `academy` 9, `facilities` 8 |
+| `Enterprise National League South` (Truro's league) | +158 `4b 01` | `league_id` 331, as Truro |
+| `Plainmoor`, 6,200 | +163 `5f 00` | `stadium_id` 95: Plainmoor, capacity 6,200 |
+| card stars ★½ | `CLUB_STANDING` +1 `ac 0d` | `reputation` 3500 |
+| Staff: coaches Way, Griffiths, Plischke; scout MacNeill; physio Miles | `CLUB_STAFF_FMM27` at 9,122,236: `be 09 00 00` `d9 0a 00 00` `b7 86 00 00` … | `staff` [2494, 2777, 34487, 7705, 32643], the five on screen |
+| Manager `Jimmy Ball` | tid 2519, `club_tid` 395, absent from the list | the AI manager is the staff member missing from the list |
+
+Tested by
+`tests/test_reference_fmm27_evidence.py`.
 
 ## Quirks
 
@@ -151,4 +215,5 @@ Tested by `tests/test_world_evidence.py`.
 
 `output/<label>/clubs.json`, `{tid: club}`. The loader splits it into `raw.clubs` (tid and
 name), `raw.club_details` (the trailer), `raw.club_squad`, `raw.club_staff` and
-`raw.club_affiliates`.
+`raw.club_affiliates`. On FMM27 each club also carries `code`, `three_letter_name`,
+`alt_code` and `gender`.

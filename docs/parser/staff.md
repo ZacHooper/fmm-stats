@@ -37,7 +37,35 @@ index.
 The formation catalog: 21 templates of 1,262 bytes, found by the marker `76 b9 f4 07` (the
 name is ASCII at +20 of each). `formations.json` lists the names in catalog order.
 
-## Evidence
+**FMM27** stores the same 39-byte record (fmm-editor's FMM26 `NonPlayer` is 39 bytes too):
+6,212 records on both Truro saves, `id2 == slot` on all of them, and every field in the same
+range with the same median as on Frem (`formation_*` up to 20, the catalog's last index). The
+locator starts from player_attributes' last record (`player_attributes_end`), not from
+`count × 78`, so it finds FMM27's variable-length table's end too.
+
+FMM27's formation catalog holds the same 21 shapes in a **different order** (alphabetical:
+0 3-4-3, 2 4-1-2-2-1, 6 4-2-3-1, 13 4-4-2, …), so a formation index means something only
+against its own save's catalog, as `formations.json` already provides.
+
+The profile's Specialism and Aptitude are not in this record: they are in the
+[staff role](staff_roles.md) tables that follow it, reached from the person record.
+
+## Evidence: FMM27
+
+`truro-2026-07-25`. Stewart Yetton, Truro's assistant manager (tid 2832, `id2` 2368, staff
+record at byte 8,622,923), and Joe Whittaker, the head physio (tid 38349):
+
+![Yetton, Staff Profile: Reputation 1 star, 27/7/1985, Formation 4-1-2-2-1, Specialism General, Aptitude Natural](img/staff-fmm27-2.jpg)
+![Whittaker, Staff Profile: Head Physio, 7/9/1999, Specialism Prevention, Aptitude Poor](img/staff-fmm27-1.jpg)
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Yetton `Formation 4-1-2-2-1` | +31 `02 02 02` | `formation_preferred` 2 → catalog "4-1-2-2-1" (attacking and defensive the same) |
+| Yetton Reputation ★ | +12 `60 04` | `world_reputation` 1120 → Regional (under 3,000) |
+| Yetton `27/7/1985`, Whittaker `7/9/1999` | the person records | `dob` 1985-07-27, 1999-09-07 |
+| Whittaker, a physio: no formation, no reputation | person `id2` `ff ff ff ff` | no staff record, as for a physio on FMM22 |
+
+## Evidence: FMM22
 
 The seven Danish Superliga managers' profiles of 25 Nov 2024, against `frem-2024-11-22`:
 preferred formation, reputation tier and all ten coaching attributes exact for 7 of 7, and

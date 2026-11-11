@@ -4,14 +4,18 @@
 It follows the round-name table directly: `[0xFF x 6][count u32]`, then the records in tid
 order, walked by declaration with `tid == slot index` (CLUB_TABLE). Slots 0.. are national
 teams, stored club-shaped. `scrape_clubs` reports every club's whole record.
+
+FMM27 (9,830 slots on Truro) stores five names, a flagged 68-byte block, and a 127-byte
+closing block with no `tail` list (CLUB_TABLE_FMM27; `club_table(mm)` picks the declaration).
 """
 from typing import Any, Dict, Optional, Tuple
 
 from ..core import primitives as P
-from ..core import (CountedList, Field, I32, PAD, PString, RAW, Record, TableDef, U8, U16,
-                    U32, UNKNOWN)
+from ..core import (Conditional, CountedList, Field, I32, PAD, PString, RAW, Record, TableDef,
+                    U8, U16, U32, UNKNOWN)
 from ..save import cache_key as _cache_key
-from .rounds import ROUNDS_TABLE
+from .rounds import rounds_end
+from .save_header import FMM27, save_format
 
 
 def after_frame(mm: Any, end: int, width: int) -> Optional[Tuple[int, int]]:
@@ -31,8 +35,8 @@ class ClubTableError(Exception):
 def locate_clubs(mm: Any) -> Optional[Tuple[int, int]]:
     """(record 0, declared count): the frame right after the round-name table, whose record 0
     is tid 0."""
-    spans = ROUNDS_TABLE.spans(mm)
-    loc = after_frame(mm, spans[-1][1], 4) if spans else None
+    end = rounds_end(mm)
+    loc = after_frame(mm, end, 4) if end is not None else None
     if loc is None or P.u32(mm, loc[0]) != 0:
         return None
     return loc
@@ -138,6 +142,57 @@ CLUB_TABLE = TableDef(
     invariant=lambda rec, slot: rec["tid"] == slot,
 )
 
+# FMM27: the flag fmm-editor's FMM26 `Club` reads as `Unknown4Flag`, and the 68 bytes that
+# follow it only when it is set (1,088 of Truro's 9,830 clubs).
+CLUB_FLAG_FMM27 = Record("club_flag_fmm27", 1, (Field(0, 1, "flag_68", U8),), is_head=True)
+CLUB_FLAG_BLOCK_FMM27 = Record("club_flag_block_fmm27", 68, (Field(0, 68, UNKNOWN, RAW),),
+                               is_head=True)
+
+# FMM27's closing block: FMM22's staff block, four bytes longer.
+CLUB_STAFF_FMM27 = Record("club_staff_fmm27", 127, (
+    *(Field(4 * i, 4, f"staff_{i}", U32) for i in range(11)),
+    Field(44, 4, "main_club_tid", U32),
+    Field(48, 1, "club_type", U8),
+    Field(49, 76, UNKNOWN, RAW),
+    Field(125, 1, UNKNOWN, U8, note="5 on the managed club (Truro), 0 on every other"),
+    Field(126, 1, "gender", U8, note="fmm-editor's name; 1 on 1,354 clubs, women's sides "
+                                     "by their names (unconfirmed in-game)"),
+), is_head=True)
+
+# `[tid u32][uid i32]`, five names (NAME_END after long and short; then the six-letter code,
+# the three-letter name and a second code, empty on most clubs), FMM22's 167-byte trailer, the
+# flag and its 68 bytes, `[u32 8][8 B]`, 23 bytes, the affiliates, the squad, and the
+# closing block.
+CLUB_TABLE_FMM27 = TableDef(
+    name="clubs",
+    segments=(
+        CLUB_HEAD,
+        PString("name", allow_empty=True),
+        NAME_END,
+        PString("short", allow_empty=True),
+        NAME_END,
+        PString("code", allow_empty=True),
+        PString("three_letter_name", allow_empty=True),
+        PString("alt_code", allow_empty=True),
+        CLUB_TRAILER,
+        Conditional("flag_68", CLUB_FLAG_FMM27, CLUB_FLAG_BLOCK_FMM27,
+                    present=lambda head: head["flag_68"] == 1),
+        CountedList("block_167", U32, _BYTE, scalar=True, max_count=64),
+        CLUB_STANDING,
+        CountedList("affiliates", U16, AFFILIATE, max_count=64),
+        CountedList("squad", U16, _TID, scalar=True, max_count=64),
+        CLUB_STAFF_FMM27,
+    ),
+    locator=locate_clubs,
+    invariant=lambda rec, slot: rec["tid"] == slot,
+)
+
+
+def club_table(mm: Any) -> TableDef:
+    """The club table's declaration for this save's format."""
+    return CLUB_TABLE_FMM27 if save_format(mm) == FMM27 else CLUB_TABLE
+
+
 _CLUB_ROWS_CACHE: Dict[Any, list] = {}
 
 
@@ -148,7 +203,7 @@ def _club_rows(mm: Any) -> list:
         loc = locate_clubs(mm)
         if loc is None:
             raise ClubTableError("club table not found after the round-name table")
-        rows = CLUB_TABLE.scrape(mm)
+        rows = club_table(mm).scrape(mm)
         if len(rows) != loc[1]:
             raise ClubTableError(f"club table walk read {len(rows)} of {loc[1]} declared "
                                  f"slots (record 0 at {loc[0]})")
@@ -169,7 +224,7 @@ def clubs_end(mm: Any) -> Optional[int]:
     club table does not locate."""
     key = _cache_key(mm)
     if key not in _CLUBS_END_CACHE:
-        spans = CLUB_TABLE.spans(mm)
+        spans = club_table(mm).spans(mm)
         _CLUBS_END_CACHE[key] = spans[0][1] if spans else None
     return _CLUBS_END_CACHE[key]
 
@@ -207,4 +262,6 @@ def _club(row):
         "staff": [t for t in (row[f"staff_{i}"] for i in range(11)) if t not in _NO_ID],
         "main_club_tid": main if 0 < main < 70000 else None,
         "club_type": row["club_type"],
+        **({k: row[k] for k in ("code", "three_letter_name", "alt_code", "gender")}
+           if "gender" in row else {}),
     }

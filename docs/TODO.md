@@ -77,10 +77,11 @@ A second career, **Truro City**, is on **FMM27**; FMM22 support stays, with
 `tests/assert_identical.py` as the gate on every change. The working record, with progress,
 phases, decisions and every learning so far, is
 **[`plans/2026-11-11-fmm27-migration.html`](plans/2026-11-11-fmm27-migration.html)**. Read it
-to resume. Now: the header and person_info read on FMM27 (`tables_for(mm)` picks each
-table's declaration by `save_format`), and `extract.py` stops at clubs. Next: staff →
-officials → round_names → clubs, in file order, each documented with its in-game evidence in
-the same change.
+to resume. Now: the header and the whole reference half, person_info to stadiums, read on
+FMM27 (`tables_for(mm)` picks each table's declaration by `save_format`), rule_files reads,
+and `extract.py` runs to player_lists, skipping the career-half tables it can't locate. Next:
+the career half in file order (contracts, match slots, player progress, training, matches,
+player lists, the archive), each documented with its in-game evidence in the same change.
 
 ---
 
@@ -181,9 +182,13 @@ the week's attribute values?). Named, the table could give every squad player's 
 development, not just injuries and loans.
 
 ### 5. Reference-half tables not yet read
-- The unnamed count-framed tables ([savefile map](parser/savefile-map.md)): the three 7-byte
-  index tables after the staff table, the 807 awards (club-shaped records with a longer
-  trailer) and the 888-row 7-byte list between currencies and languages.
+- The unnamed count-framed tables ([savefile map](parser/savefile-map.md)): the 807 awards
+  (club-shaped records with a longer trailer) and the 888-row 7-byte list between currencies
+  and languages.
+- **Staff Specialism and Aptitude** are extracted (`staff_roles.json`,
+  [staff_roles](parser/staff_roles.md)) but not loaded: add them to `raw` and the staff
+  marts, and name the remaining specialism codes, aptitude 2 and the badge byte from Staff
+  Profiles.
 - **`audit_table_headers.py --confirm` fails the nickname id-table on every save**: its check
   reads the last declared slot as in use, and that slot is an empty `ffffffff`. A tooling
   bug, not the data's: check the last *used* slot.

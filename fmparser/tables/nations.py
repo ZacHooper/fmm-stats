@@ -17,12 +17,22 @@ records in id order from 0, and walked by declaration. Each record:
 
 The walk ends exactly at the continent table's own count frame, on every save of both
 careers. The invariant is `id == slot index`.
+
+FMM27 (251 on Truro) stores fmm-editor's FMM26 `Nation`: the names terminated 0xFF, no
+ranking history, and after the languages a men's and a women's national team, each behind a
+presence flag (NATIONS_TABLE_FMM27; `nations_table(mm)` picks the declaration):
+
+  [uid u32][id u16], the three names, NATION_TAIL     as FMM22
+  [7 B]                                               NATION_INFO_FMM27
+  [u8 n][n x (language_id u16, proficiency u8)]       languages
+  [u8 flag][19 B][u8 n][n x f32][11 B] if flag        the men's team, then the women's
 """
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..core import (CountedList, F32, Field, PAD, PString, RAW, Record, TableDef, U8, U16, U32,
-                    UNKNOWN, table_spans)
+from ..core import (Conditional, CountedList, F32, Field, PAD, PString, RAW, Record, TableDef,
+                    U8, U16, U32, UNKNOWN, table_spans)
+from .save_header import FMM27, save_format
 from ..save import cache_key as _cache_key
 
 __all__ = [
@@ -85,9 +95,12 @@ def locate_nations(mm: Any) -> Optional[Tuple[int, int]]:
     if key in _NATIONS_CACHE:
         return _NATIONS_CACHE[key]
     res = None
-    pos = mm.find(struct.pack("<IHI", 5, 0, 7) + b"Algeria\x00")
-    if pos >= 10 and mm[pos - 10:pos - 2] == b"\xff" * 8:
-        res = (pos, struct.unpack_from("<H", mm, pos - 2)[0])
+    sig = struct.pack("<IHI", 5, 0, 7) + b"Algeria"
+    pos = mm.find(sig)
+    while pos != -1 and res is None:
+        if pos >= 10 and mm[pos - 10:pos - 2] == b"\xff" * 8:
+            res = (pos, struct.unpack_from("<H", mm, pos - 2)[0])
+        pos = mm.find(sig, pos + 1)
     _NATIONS_CACHE[key] = res
     return res
 
@@ -136,11 +149,86 @@ NATIONS_TABLE = TableDef(
 )
 
 
+# FMM27: fmm-editor's `StateOfDevelopment`, two unnamed values, `Region`, one more byte.
+NATION_INFO_FMM27 = Record("nation_info_fmm27", 7, (
+    Field(0, 1, "state_of_development", U8, note="fmm-editor's name"),
+    Field(1, 1, UNKNOWN, U8),
+    Field(2, 2, UNKNOWN, U16),
+    Field(4, 2, "region_id", U16, note="fmm-editor's `Region`"),
+    Field(6, 1, UNKNOWN, U8),
+), is_head=True)
+
+
+def _team(sex: str, prefix: str) -> Conditional:
+    """FMM27's national team for `sex` (fmm-editor's `NationalTeam`): `[u8 present]`, then,
+    when present, 19 bytes, the coefficients and 11 bytes. The men's team keeps FMM22's keys
+    (its single team is the men's); the women's are prefixed."""
+    flag = Record(f"nation_{sex}_flag", 1, (Field(0, 1, f"has_{sex}_team", U8),), is_head=True)
+    body = Record(f"nation_{sex}_team", 19, (
+        Field(0, 8, UNKNOWN, RAW, note="four colours"),
+        Field(8, 1, f"{prefix}game_importance", U8, note="fmm-editor's name"),
+        Field(9, 2, f"{prefix}rival_nation_id", U16, note="0xffff = none"),
+        Field(11, 1, UNKNOWN, U8),
+        Field(12, 1, f"{prefix}is_ranked", U8),
+        Field(13, 2, f"{prefix}world_ranking", U16),
+        Field(15, 2, f"{prefix}ranking_points", U16),
+        Field(17, 2, UNKNOWN, U16),
+    ), is_head=True)
+    end = Record(f"nation_{sex}_team_end", 11, (Field(0, 11, UNKNOWN, RAW),), is_head=True)
+    coeff = CountedList(f"{prefix}coefficients", U8, _COEFFICIENT, scalar=True, max_count=32)
+    return Conditional(f"{sex}_team", flag, (body, coeff, end),
+                       present=lambda head: head[f"has_{sex}_team"] == 1)
+
+
+def _nation_fmm27(row: Dict[str, Any], offset: int) -> Dict[str, Any]:
+    out = {k: row[k] for k in ("id", "uid", "name", "nationality", "code", "continent_id",
+                               "capital_city_id", "national_stadium_id")}
+    out["offset"] = offset
+    out["state_of_development"] = row["state_of_development"]
+    out["region_id"] = row["region_id"]
+    for prefix, sex in (("", "men"), ("women_", "women")):
+        out[f"has_{sex}_team"] = bool(row[f"has_{sex}_team"])
+        if not row[f"has_{sex}_team"]:
+            continue
+        rival = row[f"{prefix}rival_nation_id"]
+        out[f"{prefix}rival_nation_id"] = rival if 0 < rival <= 4096 else None
+        out[f"{prefix}is_ranked"] = bool(row[f"{prefix}is_ranked"])
+        out[f"{prefix}world_ranking"] = row[f"{prefix}world_ranking"]
+        out[f"{prefix}ranking_points"] = row[f"{prefix}ranking_points"]
+        out[f"{prefix}coefficients"] = [round(c, 4) for c in row[f"{prefix}coefficients"]]
+    out["languages"] = row["languages"]
+    return out
+
+
+NATIONS_TABLE_FMM27 = TableDef(
+    name="nations",
+    segments=(
+        NATION_HEAD,
+        PString("name", null_terminated=True, terminator=0xFF),
+        PString("nationality", null_terminated=True, terminator=0xFF),
+        PString("code", null_terminated=False),
+        NATION_TAIL,
+        NATION_INFO_FMM27,
+        CountedList("languages", U8, LANGUAGE_SKILL, max_count=32),
+        _team("men", ""),
+        _team("women", "women_"),
+    ),
+    locator=locate_nations,
+    invariant=lambda row, i: row["id"] == i,
+    post_process=_nation_fmm27,
+)
+
+
+def nations_table(mm: Any) -> TableDef:
+    """The nation table's declaration for this save's format."""
+    return NATIONS_TABLE_FMM27 if save_format(mm) == FMM27 else NATIONS_TABLE
+
+
 def scrape_nations(mm: Any) -> Dict[int, Dict[str, Any]]:
     """{nation_id: record} for every nation in the save."""
-    return {r["id"]: r for r in NATIONS_TABLE.scrape(mm)}
+    return {r["id"]: r for r in nations_table(mm).scrape(mm)}
 
 
 def nations_table_spans(mm: Any) -> List[Tuple[int, int]]:
     """[(start, end)] covering the nations table, count frame included."""
-    return table_spans(mm, NATIONS_TABLE)
+    return table_spans(mm, nations_table(mm))

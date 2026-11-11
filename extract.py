@@ -142,10 +142,11 @@ def read_staff_records(mm) -> Files:
 
 def read_round_names(mm) -> Files:
     """The game's stage/round/leg name catalog; a competition's rules name their rounds
-    from it."""
-    names = ROUNDS.round_names_map(mm) if ROUNDS.locate_rounds(mm) is not None else {}
-    return {"round_names.json": ([{"id": i, "name": n} for i, n in sorted(names.items())],
-                                 None)}
+    from it. FMM27 also stores a short and a plural name for each."""
+    rows = ROUNDS.scrape_rounds(mm) if ROUNDS.locate_rounds(mm) is not None else []
+    keys = ("id", "name", "short_name", "plural_name")
+    return {"round_names.json": (sorted(({k: r[k] for k in keys if k in r} for r in rows),
+                                        key=lambda r: r["id"]), None)}
 
 
 def read_clubs(mm) -> Files:
@@ -261,6 +262,8 @@ def steps(no_archive: bool = False):
         Step("person_info", registered("person_info"), read_persons),
         Step("player_attributes", registered("player_attributes"), read_attribute_records),
         Step("staff", registered("staff"), read_staff_records),
+        Step("staff roles", registered("coaches", "scouts", "physios"),
+             one("staff_roles.json", T.scrape_staff_roles)),
         Step("round_names", registered("round_names"), read_round_names),
         Step("clubs", registered("clubs"), read_clubs),
         Step("competitions", registered("competitions"),

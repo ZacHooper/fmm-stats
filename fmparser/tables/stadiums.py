@@ -2,14 +2,21 @@
 """`stadiums` — the Stadiums table (~15,987 records).
 
 Located in the reference block around ~12.8 MB count-framed by `[8x 0xFF][u16 count = 15987]`.
+
+FMM27 (12,509 on Truro) stores three names -- the name, its sponsor-free form and the name
+again, the last terminated 0xFF -- and three more bytes (STADIUMS_TABLE_FMM27). Its frame is
+found from the nations table's end: the first `[>= 8 x 0xFF][count u16]` whose records 0
+and 1 have ids 0 and 1.
 """
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core import primitives as P
 from ..save import cache_key as _cache_key
-from ..core import Field, Record, U16, U32, PString
+from ..core import Field, Record, U8, U16, U32, PString, UNKNOWN
 from ..core import TableDef
+from .nations import nations_table_spans
+from .save_header import FMM27, save_format
 
 __all__ = [
     "STADIUM_HEAD",
@@ -81,6 +88,9 @@ def locate_stadiums(mm: Any) -> Optional[Tuple[int, int]]:
     key = _cache_key(mm)
     if key in _STADIUMS_CACHE:
         return _STADIUMS_CACHE[key]
+    if save_format(mm) == FMM27:
+        _STADIUMS_CACHE[key] = _locate_fmm27(mm)
+        return _STADIUMS_CACHE[key]
 
     pat = b"\xff" * 8 + struct.pack("<H", 15987)
     pos = 0
@@ -129,6 +139,71 @@ STADIUMS_TABLE = TableDef(
 STADIUMS_CATALOG = STADIUMS_TABLE
 
 
+_SEARCH_FMM27 = 1_000_000      # bytes after the nations table to look for the frame
+
+
+def _locate_fmm27(mm: Any) -> Optional[Tuple[int, int]]:
+    """(record 0, count): the first count frame after the nations table whose first two
+    records are ids 0 and 1, walked by the FMM27 declaration."""
+    spans = nations_table_spans(mm)
+    if not spans:
+        return None
+    lo = spans[0][1]
+    hi = min(len(mm), lo + _SEARCH_FMM27)
+    pos = mm.find(b"\xff" * 8, lo, hi)
+    while pos != -1:
+        end = pos + 8
+        while end < hi and mm[end] == 0xFF:
+            end += 1
+        base = end + 2
+        if base + STADIUM_HEAD.span <= hi and P.u32(mm, base) == 0:
+            count = P.u16(mm, end)
+            nxt = _record_end_fmm27(mm, base, hi)
+            if count > 1 and nxt is not None and P.u32(mm, nxt) == 1:
+                return base, count
+        pos = mm.find(b"\xff" * 8, end, hi)
+    return None
+
+
+STADIUM_TAIL_FMM27 = Record("stadium_tail_fmm27", 3, (
+    Field(0, 1, UNKNOWN, U8, note="255 on 12,271, 0 on 238"),
+    Field(1, 1, UNKNOWN, U8, note="a bitfield shape: 0, 1-4, 64-67, 128-132"),
+    Field(2, 1, UNKNOWN, U8, note="0, 1 or 8"),
+), is_head=True)
+
+STADIUMS_TABLE_FMM27 = TableDef(
+    name="stadiums",
+    segments=(
+        STADIUM_HEAD,
+        PString("name"),
+        PString("alt_name"),          # the sponsor-free name (Vitality -> Bournemouth Stadium)
+        PString("name_3", null_terminated=True, terminator=0xFF),
+        STADIUM_TAIL_FMM27,
+    ),
+    locator=locate_stadiums,
+    include_offset=True,
+    invariant=lambda rec, slot: rec["id"] == slot,
+)
+
+
+def _record_end_fmm27(mm: Any, base: int, limit: int) -> Optional[int]:
+    pos = base + STADIUM_HEAD.span
+    for seg in STADIUMS_TABLE_FMM27.segments[1:]:
+        if isinstance(seg, Record):
+            pos += seg.span
+            continue
+        res = seg.read(mm, pos, limit)
+        if res is None:
+            return None
+        pos = res[1]
+    return pos
+
+
+def stadiums_table(mm: Any) -> TableDef:
+    """The stadium table's declaration for this save's format."""
+    return STADIUMS_TABLE_FMM27 if save_format(mm) == FMM27 else STADIUMS_TABLE
+
+
 def scrape_stadiums(mm: Any) -> Dict[int, Dict[str, Any]]:
     """{stadium_id: record} for every stadium in the save."""
-    return STADIUMS_TABLE.id_map(mm, key_field="id")
+    return stadiums_table(mm).id_map(mm, key_field="id")

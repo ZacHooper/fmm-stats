@@ -36,7 +36,8 @@ A record is a 68-byte head, 17 bytes, then two counted lists:
 | +52 | `adaptability` … `temperament` | 8 × u8 | personality, 1–20, in this order: adaptability, ambition, determination, loyalty, pressure, professionalism, sportsmanship, temperament | seven managers' profiles, byte for byte (`tests/test_staff_records.py`) |
 | +60 | `sid` | u32 (hex) | → the [player_attributes](player_attributes.md) slot; `ffffffff` = not a player | |
 | +64 | `id2` | u32 | → the [staff](staff.md) slot; `0xFFFFFFFF` = not staff | |
-| +68 | | 4 × u32 + u8 | unnamed; the ids are `0xFFFFFFFF` on 94–98% of people | |
+| +68 | `coach_row`, `scout_row`, `physio_row`, `official_row` | 4 × u32 | a member of staff's rows in the [staff role](staff_roles.md) tables and [officials](officials.md); `0xFFFFFFFF` = none (94–98% of people) | every pointer in range, no row pointed at twice: 1,969 / 558 / 816 / 622 on Frem, the tables' counts |
+| +84 | | u8 | unnamed, 0 / 1 | |
 | +85 | `languages` | `[u8 n][n × (language_id u16, level u8)]` | → [languages](languages.md); level 0–10, `255` on 4% of entries | Player Personal (below) |
 | | `relationships` | `[u16 m][m × 8 B]` | clubs and people this person is linked to (below) | Lund Jensen's favoured club and person |
 
@@ -60,7 +61,7 @@ of other nationalities:
 | +38+2k | `international_caps`, `international_goals` | **i16, i16** | FMM22: u8, u8 | Starkie `6 caps / 0 goals` |
 | +42+2k | `u21_caps`, `u21_goals` | u8, u8 | same | Donnellan `8 U21 caps / 1 U21 goal` |
 | +44+2k | `club_tid` … `id2` | as FMM22 +42..+67 | same | 28 people at Truro's tid 3,125 |
-| +68+2k | | 3 × u32 + u8 | FMM22 has 4 × u32 + u8 here | |
+| +68+2k | `coach_row`, `scout_row`, `physio_row`, then a u8 | 3 × u32 + u8 | **no `official_row`** (FMM27's official record holds the person's tid) | every row of the three role tables pointed at exactly once; Yetton's and Whittaker's Staff Profiles ([staff_roles](staff_roles.md)) |
 | | | u8, i32, then 2 B **only when the i32 is −1** (`core.Conditional`) | new | 7 B on 8,148 people, 5 B on 36,812; the walk lands on the next table only this way |
 | | `default_languages` | `[u8 n][n × (language_id u16, level u8)]` | **FMM22: one list** | Starkie: English; En-Neyah: English |
 | | `other_languages` | the same | new | Starkie: Swahili; En-Neyah: Irish, Arabic, Italian |
@@ -131,8 +132,8 @@ at 1,593,944), Yassine En-Neyah (tid 8934, at 1,802,129):
 | En-Neyah English (Natural), Irish (Fluent), Arabic (Good), Italian (Good) | default English 10; other Arabic 5, Italian 5, Irish 9 | the screen sorts by level: Fluent is 9 here |
 | Favoured Club / People `None` (both) | `00 00` | no relationships |
 
-That makes nation 163 Ireland and 43 Tanzania; 139 is almost certainly England (the home
-nation of 20 of the 28 at Truro). Tested by `tests/test_people_fmm27_evidence.py`.
+That makes nation 163 Ireland and 43 Tanzania; the [nation table](nations.md) names all
+three, and 139 England. Tested by `tests/test_people_fmm27_evidence.py`.
 
 ## Quirks
 

@@ -64,6 +64,28 @@ equals the containers that follow and that every bare file is a `_rules`: none o
 > fixed window. The pad is slack: the first file opens ~66 bytes before the cluster's first
 > `comp`, the last closes ~170 bytes after its last.
 
+## Layout: FMM27
+
+782 rule files on both Truro saves, read with FMM27 variants of the same schemas
+(`RULE_FILES_TABLE_FMM27`, `schema_for_fmm27`). Kept to what `team_counts()` needs; the rest
+is carried unread, as on FMM22.
+
+- **No `SubF` anywhere.** A nation's three files carry `PLgn` in its place: an unnamed int,
+  0 on 246 files and 1 on 57, absent on one `_reserve_comps`.
+- **Continents' rule files, men's and women's**: `afr`, `wmn_afr`, `asi`, `wmn_asi`,
+  `wmn_eur`, `nam`, `wmn_nam`, `oce`, `wmn_oce`, `sam`, `wmn_sam`, stored bare like a merged
+  `<nat>_rules` (`CONTINENT_RULES_FMM27`). A file with neither a nation suffix nor `PLgn`
+  reads as a stageless competition (`STAGELESS_COMP_FMM27`).
+- **New tags** on every schema (team rules: `FBkt`, `ReTT`, `DbSt`, `DbEd`, `ifmh`; the
+  competition files' stage and round lists: `cdes`, `gtct`, `tmor`, …), listed unread.
+- `team_counts()` gives 256 competitions. Like FMM22's 190 (70 resolve), most rules name a
+  uid that is not in the competition table: 97 of the 256 resolve.
+
+> **Lead:** two groups don't frame as FMM22's do: FMM27 puts small 2-field tagless containers
+> (`ourc`, `inuc`) inside a group, ahead of its rule files, so `framing_problems` reads a
+> wrong count (`declares 8,655,361 files`), and `tiling` counts their 587 bytes as unread
+> blocks. The audit FAILs on both; not worth decoding while nothing uses the region.
+
 ## Evidence
 
 `frem-2030-06-22`. Denmark's group is `dan_rules` (bare), then `dan_comps`, `dan_reserve_comps`,

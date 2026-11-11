@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..save import cache_key as _cache_key
 from ..core import PAD, RAW, Field, Record, U16, U32, U8, UNKNOWN
 from ..core import TableDef
+from .rounds import locate_rounds
 
 __all__ = [
     "OFFICIAL",
@@ -57,11 +58,11 @@ def locate_officials(mm: Any) -> Optional[Tuple[int, int]]:
     if key in _OFFICIALS_CACHE:
         return _OFFICIALS_CACHE[key]
 
-    sig = struct.pack("<I", 1) + struct.pack("<I", 6) + b"Replay\x00"
-    pos = mm.find(sig)
-    if pos == -1:
+    rounds = locate_rounds(mm)
+    if rounds is None:
         _OFFICIALS_CACHE[key] = None
         return None
+    pos = rounds[0]
 
     # Step back past the 0xFF sentinel preceding rounds to the end of officials
     k = pos - 4

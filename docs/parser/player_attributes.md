@@ -5,9 +5,9 @@ weight, and the head of his career-history chain. A count-framed table of fixed 
 records, `[8 × 0xFF][count u32]`, between 3.8 and 6.6 MB, with `sid == slot index`. The
 count is a fixed pool per career: 26,505 on Frem, 26,292 on Bucaspor. A person reaches his
 record through `sid` ([person_info](person_info.md) +60). The [staff](staff.md) table
-follows directly after it.
+follows directly after it. On FMM27 the records are variable-length (Layout: FMM27).
 
-## Layout
+## Layout: FMM22
 
 Offsets from the record start. The code names the attribute bytes relative to `P` = +42,
 the first position byte (`P-34` = +8).
@@ -45,7 +45,67 @@ parsing: [`docs/ca-weighting.md`](../ca-weighting.md) and
 [`docs/attribute-model.md`](../attribute-model.md). The exact screen values of our own
 players are in [player_lists](player_lists.md).
 
-## Evidence
+## Layout: FMM27
+
+`nyongrand/fmm-editor`'s FMM26 `Player` is FMM22's 78 bytes and a u32 (`Unknown2`), always 0
+in its pre-game database. In an FMM27 save that u32 is a count:
+
+```
+record  [FMM22's 78 bytes][n u32][n × 19-byte unavailability]
+```
+
+| offset | field | type | meaning | how we know |
+|---|---|---|---|---|
+| +0..+77 | as FMM22 | | | `sid == slot` on all 36,344 records of both Truro saves |
+| +78 | `unavailability` | `[u32 n][n × 19 B]` | spells the player cannot play: bans, ineligibility, injuries | 36,320 records hold 0, 24 hold 1; the Player Match Eligibility screens below |
+
+One unavailability (`UNAVAILABILITY`):
+
+| offset | field | type | meaning | how we know |
+|---|---|---|---|---|
+| +0 | `type` | u8 | the kind: 11 a ban or an ineligibility; 14 on Eriksen and Blind | Vušković and Nelson 11 (Suspensions, Selection) |
+| +1 | `start_day`, `start_month`, `start_year` | u16, u8 (0-based), u16 | from | Vušković 15 Nov 2022 |
+| +6 | `end_day`, `end_month`, `end_year` | u16, u8 (0-based), u16 | until: the date the screen gives | Vušković "until 15/11/2026", Nelson "until 12/9/2026" |
+| +11 | `club_uid` | i32 | the club it applies at, by uid; −1 none (a global ban) | the player's own club on 5 of the 6 set: Nelson 1013 = Feyenoord, Biton, Homawoo, King, Ba; Olatunji's is SK Beveren, not his club now |
+| +15 | | i32 | unnamed; −1 on all but one | |
+
+Walked this way the table ends exactly on the [staff](staff.md) frame (8,530,559 on
+`truro-2026-07-25`); read at 78 or 82 bytes a record it drifts at record 361, the first
+with an item. The 24 are the world's players already out when the database starts: Christian
+Eriksen and Daley Blind (25 Jan 1972 → 27 Jan 2073), Mario Vušković, Reiss Nelson, Joachim
+Andersen, Joshua King and eighteen more.
+
+> **Quirk:** the 10 bytes after `type` are two dates on 22 of the 24 items (every year
+> 2022–2027) but **not on type 14**: Eriksen's and Blind's items are byte-identical, with a
+> zero month and "years" 1972 and 2073. Read as `[u16][u8][u16]` twice they are (25, 0,
+> 1972) and (27, 0, 2073), more likely ids or codes than a span; the date fields carry the
+> bytes as stored, and on type 14 they are not dates. Eriksen's screen shows Injuries "Virus
+> (About 7 months)", so the illness and its length come from elsewhere (the running game's
+> injuries are not located on FMM27 yet). Types 1, 5, 8 and 10 are not yet read against a
+> screen; Truro's own players carry none.
+
+> **Quirk:** `club_uid` is a club **uid**, not a tid and not a competition: 1013 is Feyenoord's
+> uid, competition cid 1013 is SAFA KwaZulu Natal Division 2 and no competition has uid 1013.
+
+## Evidence: FMM27
+
+`truro-2026-07-25`, the Player Match Eligibility screens of three of the 24:
+
+![Vušković: Suspensions, Global ban until 15/11/2026 (Misconduct)](img/player_attributes-fmm27-2.jpg)
+![Reiss Nelson: Selection, Ineligible under competition rules until 12/9/2026](img/player_attributes-fmm27-3.jpg)
+![Eriksen: Injuries, Virus (About 7 months)](img/player_attributes-fmm27-1.jpg)
+
+| on screen | raw bytes (+78, the list) | parsed |
+|---|---|---|
+| Vušković (sid 2312, at 5,739,498): `Global ban until 15/11/2026 (Misconduct)` | `01 00 00 00` `0b` `0f 00 0a e6 07` `0f 00 0a ea 07` `ff ff ff ff` `ff ff ff ff` | type 11, 15 Nov 2022 → **15 Nov 2026**, −1 (global) |
+| Nelson (sid 3366, at 5,826,021): `Ineligible under competition rules until 12/9/2026` | `01 00 00 00` `0b` `0a 00 0a e9 07` `0c 00 08 ea 07` `f5 03 00 00` `ff ff ff ff` | type 11, 10 Nov 2025 → **12 Sep 2026**, `club_uid` 1013 (Feyenoord) |
+| Eriksen (sid 2484, at 5,753,621): `Virus (About 7 months)` | `01 00 00 00` `0e` `19 00 00 b4 07` `1b 00 00 19 08` `ff ff ff ff` `ff ff ff ff` | type 14; the payload is not two dates (Quirks) |
+
+Both end dates are the screen's to the day, which also fixes the month as 0-based (`0a` is
+November, `08` September). Vušković's Selection line, "Has been given a leave of absence", is
+not in this list. Tested by `tests/test_reference_fmm27_evidence.py`.
+
+## Evidence: FMM22
 
 `frem-2030-06-22`. Simon Adingra (sid 0x5122), record at byte 5,587,980:
 
@@ -113,3 +173,4 @@ Tested by `tests/test_people_evidence.py`.
 
 `output/<label>/attribute_records.json`, one row per record in table order (`positions` as
 `{position: rating}`, feet as `foot_left`/`foot_right`), loaded into `raw.attribute_records`.
+On FMM27 each row also carries `unavailability`, the list as stored (`[]` on most).

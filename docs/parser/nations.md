@@ -6,7 +6,7 @@ A count-framed table of 251 variable-length records in the reference block (~12.
 `[8 × 0xFF][count u16 = 251]`, in id order from 0, walked by declaration with
 `id == slot index`. The walk ends exactly on the continent table's own count frame.
 
-## Layout
+## Layout: FMM22
 
 | segment | field | type | meaning | how we know |
 |---|---|---|---|---|
@@ -31,7 +31,39 @@ A count-framed table of 251 variable-length records in the reference block (~12.
 `scrape_nations` turns `rival_nation_id` outside 1–4096 into `None`, `is_ranked` into a bool,
 and rounds coefficients to 4 places.
 
-## Evidence
+## Layout: FMM27
+
+`NATIONS_TABLE_FMM27`: fmm-editor's FMM26 `Nation`, field for field. 251 nations on both
+Truro saves, `id == slot`, the walk ending on the continents' frame.
+
+| part | type | vs FMM22 | how we know |
+|---|---|---|---|
+| `uid`, `id`, `name`, `nationality`, `code` | as FMM22 | the two names end `ff` (FMM22: `00`) | Algeria … Netherlands Antilles |
+| `continent_id`, `capital_city_id`, `national_stadium_id` | 3 × u16 | same | |
+| `state_of_development`, 1 B, 2 B, `region_id`, 1 B | 7 B (`NATION_INFO_FMM27`) | new; names from fmm-editor | |
+| `languages` | `[u8 n][n × (language_id u16, proficiency u8)]` | moved up: FMM22 has it near the end | England: English 100; Tanzania: Swahili 90, English 25 |
+| men's team | `[u8 has_men_team]`, then 19 B, `[u8 n][n × f32]`, 11 B | FMM22's single team, its fields in a different order; **no ranking history** | `world_ranking`, `ranking_points`, `coefficients` keep FMM22's keys |
+| women's team | the same, keys prefixed `women_` | new | |
+
+The 19 bytes: four colours (8 B), `game_importance`, `rival_nation_id` u16, 1 B,
+`is_ranked`, `world_ranking` u16, `ranking_points` u16, 2 B. Both teams are present on all
+251 nations (both flags 1), and `core.Conditional` reads each team only when its flag says so.
+
+| nation | men | women |
+|---|---|---|
+| England (139) | 4th, 1,922 points | 4th, 2,027 |
+| Algeria (0) | 29th, 1,576 | 74th, 1,318 |
+| Ireland (163) | 55th, 1,441 | 21st, 1,769 |
+
+## Evidence: FMM27
+
+`truro-2026-07-25`. The England flag on both Club Information cards ([clubs](clubs.md)) is
+`based_id` 139; record 139, at byte 14,760,519, is `fd 02 00 00 8b 00 07 00 00 00 "England"
+ff`, uid 765, id 139. The person table's ids from in-game screens agree: 163 Ireland
+(Donnellan, En-Neyah), 43 Tanzania (Starkie). Tested by
+`tests/test_reference_fmm27_evidence.py`.
+
+## Evidence: FMM22
 
 `frem-2030-06-22`, League Standards → Coefficients. Denmark's record starts at byte
 12,759,310; its coefficient list at 12,759,427:
@@ -106,4 +138,6 @@ Tested by `tests/test_world_evidence.py`.
 
 `output/<label>/nations.json`, `{id: nation}` with each record's byte `offset`. The loader
 splits it into `raw.nations`, `raw.nation_ranking_history`, `raw.nation_coefficients` and
-`raw.nation_languages`.
+`raw.nation_languages`. On FMM27 each nation carries `state_of_development`, `region_id`,
+`has_men_team`, `has_women_team` and the women's team's fields (`women_world_ranking`, …), and
+no `ranking_history`.

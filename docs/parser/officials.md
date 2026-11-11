@@ -27,9 +27,17 @@ name, date of birth and nationality. Not extracted.
 | +31 | `competitions_raw` | 16 × u32 | the leagues he referees, by competition **uid**, packed from the front; `ffffffff` fills the rest | 1,103 of 1,332 entries are a loaded competition's uid |
 | +95 | `day_of_year`, `year` | 2 × u16 | a date: in 2029 or 2030 for 365 officials, day 0 of 2021 for the other 257 (unverified: the last match he took?) | |
 
-**How it is found.** From the end of the [rounds](rounds.md) signature, step back over the
-`ff` run to the end of this table. The last record's `slot_id` gives the count, and the
+**How it is found.** From [rounds](rounds.md)' record 0 (`locate_rounds`), step back over
+the `ff` run to the end of this table. The last record's `slot_id` gives the count, and the
 `count u32` in front of record 0 must declare the same number.
+
+**FMM27** stores the same 99-byte record (fmm-editor's FMM26 `Official` is 99 bytes): 671
+records on both Truro saves, `slot_id` dense, `uid` and `pressure` equal to the person
+record's on 671 of 671, the six attributes 1–20.
+
+> **Lead:** `null_year` (+29) is the year of a date whose day is +27 (a u16 inside the
+> unnamed 5 bytes): one Truro official reads day 181 of 2026, all 670 others day 0 of 1900.
+> Rename it in its own change (officials are not extracted, so the extract is unaffected).
 
 ## Evidence
 

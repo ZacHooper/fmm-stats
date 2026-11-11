@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..core import LinkedTableDef, TaggedTableDef
 from .save_header import FMM22, FMM27, save_format
 from .cities import CITIES_TABLE, CITY, CITY_RECORD, cities_table_spans, scrape_cities
-from .clubs import CLUB_TABLE, locate_clubs, scrape_clubs
+from .clubs import CLUB_TABLE, CLUB_TABLE_FMM27, locate_clubs, scrape_clubs
 from .history import HISTORY_TABLE, locate_history, scrape_history
 from .player_progress import (PLAYER_PROGRESS_TABLE, locate_player_progress,
                               scrape_player_progress)
@@ -17,7 +17,7 @@ from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LIST_TRAILERS_TABLE,
                            scrape_player_lists)
 from .club_records import (CLUB_RECORDS_TABLE, club_records_table_spans, locate_club_records,
                            scrape_club_records)
-from .competitions import COMP_TABLE, comp_refs, locate_competitions, scrape_competitions
+from .competitions import COMP_TABLE, COMP_TABLE_FMM27, comp_refs, locate_competitions, scrape_competitions
 from .contracts import (
     CONTRACT,
     CONTRACT_DETAIL,
@@ -38,6 +38,7 @@ from .comp_rules import (
 )
 from .rule_files import (
     RULE_FILES_TABLE,
+    RULE_FILES_TABLE_FMM27,
     locate_rule_files,
     team_counts as rule_file_team_counts,
 )
@@ -119,6 +120,7 @@ from .names import (
     walk_browse_bounds,
 )
 from .nations import (
+    NATIONS_TABLE_FMM27,
     NATION_HEAD,
     NATION_TAIL,
     NATIONS_TABLE,
@@ -143,6 +145,7 @@ from .person_info import (
 )
 from .player_attributes import (
     PLAYER_ATTRIBUTES_TABLE,
+    PLAYER_ATTRIBUTES_TABLE_FMM27,
     locate_player_attributes,
     record_for,
     scrape_player_attributes,
@@ -161,6 +164,7 @@ from .rounds import (
     ROUND_TRAILER,
     ROUND_TRAILER_WIDTH,
     ROUNDS_TABLE,
+    ROUNDS_TABLE_FMM27,
     round_names_map,
     scrape_rounds,
 )
@@ -168,9 +172,11 @@ from .stadiums import (
     STADIUM_HEAD,
     STADIUM_HEADER,
     STADIUMS_TABLE,
+    STADIUMS_TABLE_FMM27,
     locate_stadiums,
     scrape_stadiums,
 )
+from .staff_roles import COACHES_TABLE, PHYSIOS_TABLE, SCOUTS_TABLE, scrape_staff_roles
 from .staff import (
     FORMATION_SLOTS,
     HIDDEN_OFFSETS,
@@ -217,6 +223,9 @@ TABLES = {
     "round_names": ROUNDS_TABLE,
     "stadiums": STADIUMS_TABLE,
     "staff": STAFF_TABLE,
+    "coaches": COACHES_TABLE,
+    "scouts": SCOUTS_TABLE,
+    "physios": PHYSIOS_TABLE,
     "surnames": SURNAMES_TABLE,
 }
 
@@ -225,7 +234,11 @@ TABLES = {
 # lists which tables are confirmed).
 TABLES_BY_FORMAT = {
     FMM22: TABLES,
-    FMM27: {**TABLES, "person_info": PERSON_INFO_TABLE_FMM27},
+    FMM27: {**TABLES, "person_info": PERSON_INFO_TABLE_FMM27,
+            "player_attributes": PLAYER_ATTRIBUTES_TABLE_FMM27,
+            "round_names": ROUNDS_TABLE_FMM27, "clubs": CLUB_TABLE_FMM27,
+            "competitions": COMP_TABLE_FMM27, "nations": NATIONS_TABLE_FMM27,
+            "stadiums": STADIUMS_TABLE_FMM27, "rule_files": RULE_FILES_TABLE_FMM27},
 }
 
 
@@ -427,5 +440,6 @@ __all__ = [
     "formation_catalog",
     "reputation_tier",
     "scrape_staff_attributes",
+    "scrape_staff_roles",
     "style",
 ]

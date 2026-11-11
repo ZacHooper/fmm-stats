@@ -4,7 +4,7 @@ Every stadium: its capacity, expansion capacity and city. A count-framed table o
 variable-length records in the reference block (~12.8 MB), `[8 × 0xFF][count u16 = 15987]`
 and then record 0, whose `id` is 0. The count is the same in both careers.
 
-## Layout
+## Layout: FMM22
 
 | offset | width | field | meaning | how we know |
 |---|---|---|---|---|
@@ -15,7 +15,34 @@ and then record 0, whose `id` is 0. The count is the same in both careers.
 | 14 | 4 | `expansion_capacity` | u32, the most the ground can be expanded to | |
 | 18 | 4 + n + 1 | `name` | `[len u32][utf-8][00]`: the name is NUL-terminated as well as length-prefixed | |
 
-## Evidence
+## Layout: FMM27
+
+`STADIUMS_TABLE_FMM27`: 12,509 stadiums on both Truro saves, `id == slot`, the walk ending on
+the [cities](cities.md) frame. The same 18-byte head, then:
+
+| field | type | meaning | how we know |
+|---|---|---|---|
+| `name` | `[len u32][utf-8]` | the name | Truro City Stadium, Plainmoor (Club Information) |
+| `alt_name` | `[len u32][utf-8]` | the sponsor-free name; equals `name` on 12,273 | Vitality Stadium → Bournemouth Stadium, Cegeka Arena → KRC Genk Arena, CEPAC Vélodrome → Stade Vélodrome |
+| `name_3` | `[len u32][utf-8][ff]` | equals `name` on all 12,509 | |
+| | 3 × u8 | unnamed: 255 on 12,271 and 0 on 238; a bitfield shape (0, 1–4, 64–67, 128–132); 0, 1 or 8 | fmm-editor reads three unknown bytes after its terminator |
+
+**How it is found.** FMM22's locator looks for the count 15,987, a constant of the FMM22
+database. FMM27's chains from the [nations](nations.md) table's end: the first count frame
+whose records 0 and 1 hold ids 0 and 1.
+
+## Evidence: FMM27
+
+`truro-2026-07-25`, the two Club Information screens ([clubs](clubs.md)):
+
+| on screen | raw bytes | parsed |
+|---|---|---|
+| Truro City Stadium, capacity 4,100 | @15,898,536 `cf 2e 00 00 | 7f 47 3b 77 | b5 0e | 04 10 00 00 | 07 1c 00 00` | id 11983 (Truro's `stadium_id`), city 3765, `capacity` 4,100, expansion 7,175 |
+| Plainmoor, capacity 6,200 | @14,786,034 `5f 00 00 00 | d7 02 00 00 | 53 03 | 38 18 00 00 | 40 1f 00 00` | id 95 (Torquay's), `capacity` 6,200, expansion 8,000 |
+
+Tested by `tests/test_reference_fmm27_evidence.py`.
+
+## Evidence: FMM22
 
 `frem-2030-06-22`, Frem's Club Information screen. Stadium 181's record is at byte 12,783,119:
 
@@ -46,4 +73,4 @@ Cardiff City's screen agrees as well: stadium 4261 `Cardiff City Stadium`, capac
 ## Output
 
 `output/<label>/stadiums.json`, `{id: stadium}` with each record's byte `offset`, loaded into
-`raw.stadiums`.
+`raw.stadiums`. On FMM27 each stadium also carries `alt_name` and `name_3`.

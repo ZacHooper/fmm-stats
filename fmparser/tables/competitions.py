@@ -4,6 +4,9 @@
 It follows the club table directly: `[>= 8 x 0xFF][count u16]`, then the records in cid
 order, walked by declaration with `cid == slot index` (COMP_TABLE). 100 slots are blank:
 empty names, a placeholder uid. docs/parser/competitions.md is the reference.
+
+FMM27 (1,706 slots on Truro) ends each record one byte later, and flags its women's
+competitions (COMP_TABLE_FMM27; `comp_table(mm)` picks the declaration).
 """
 from typing import Any, Dict, Optional, Tuple
 
@@ -11,6 +14,7 @@ from ..core import (CountedList, Field, PAD, PString, RAW, Record, TableDef, U8,
                     UNKNOWN)
 from ..save import cache_key as _cache_key
 from .clubs import NAME_END, after_frame, clubs_end
+from .save_header import FMM27, save_format
 
 # `type_id` (the byte immediately after the 3 name strings) is the REAL field; it is carried
 # raw on every competition record and is what code should branch on (`type_id in (0, 1)` for a round-robin league).
@@ -107,6 +111,43 @@ COMP_TABLE = TableDef(
 )
 
 
+# FMM27's tail: FMM22's to +18, then `is_women` (fmm-editor's `IsWomen`) where FMM22 always
+# stores 0, and two zero bytes where FMM22 has one.
+COMP_HISTORY_TAIL_FMM27 = Record("comp_history_tail_fmm27", 22, (
+    Field(0,  4, UNKNOWN, RAW),
+    Field(4,  4, UNKNOWN, RAW),
+    Field(8,  4, UNKNOWN, RAW),
+    Field(12, 2, "season_0", U16),
+    Field(14, 2, "season_1", U16),
+    Field(16, 2, "season_2", U16),
+    Field(18, 1, UNKNOWN, U8, note="1-5, as FMM22's +18"),
+    Field(19, 1, "is_women", U8, note="1 on the 133 women's competitions"),
+    Field(20, 2, UNKNOWN, PAD),
+), is_head=True)
+
+COMP_TABLE_FMM27 = TableDef(
+    name="competitions",
+    segments=(
+        COMP_HEAD,
+        PString("name", allow_empty=True),
+        NAME_END,
+        PString("short", allow_empty=True),
+        NAME_END,
+        PString("code", allow_empty=True),
+        COMP_TRAILER,
+        CountedList("refs", U32, COMP_REF_ENTRY, max_count=4096),
+        COMP_HISTORY_TAIL_FMM27,
+    ),
+    locator=locate_competitions,
+    invariant=lambda rec, slot: rec["cid"] == slot,
+)
+
+
+def comp_table(mm: Any) -> TableDef:
+    """The competition table's declaration for this save's format."""
+    return COMP_TABLE_FMM27 if save_format(mm) == FMM27 else COMP_TABLE
+
+
 def _comp(row):
     """The competition dict for a named slot."""
     nation, parent = row["nation"], row["parent_cid"]
@@ -114,7 +155,8 @@ def _comp(row):
             "code": row["code"], "type": COMP_TYPES.get(row["type"], f"type_{row['type']}"),
             "type_id": row["type"], "nation_id": None if nation == 0xFFFF else nation,
             "reputation": row["reputation"], "level": row["level"],
-            "parent_cid": None if parent == 0xFFFF else parent}
+            "parent_cid": None if parent == 0xFFFF else parent,
+            **({"is_women": row["is_women"]} if "is_women" in row else {})}
 
 
 class CompTableError(Exception):
@@ -133,7 +175,7 @@ def _comp_rows(mm: Any) -> list:
         loc = locate_competitions(mm)
         if loc is None:
             raise CompTableError("competition table not found after the club table")
-        rows = COMP_TABLE.scrape(mm)
+        rows = comp_table(mm).scrape(mm)
         if len(rows) != loc[1]:
             raise CompTableError(f"competition table walk read {len(rows)} of {loc[1]} "
                                  f"declared slots (record 0 at {loc[0]})")
