@@ -232,11 +232,13 @@ ROW_FIXED = MATCH_HEAD.span + 1 + BODY_SPAN            # a row is ROW_FIXED + 17
 # tail's +33. A row is 5,676 + 17 n bytes.
 #
 # The event record is FMM22's, its type codes are not: 01 goal, 24 the goal's assist (same
-# minute), 26 yellow card, 2f a clear-cut chance (one per chance in the team head's count,
-# scored or not). 17, 18, 27 and 29 are unnamed; each sits beside a goal or a chance. `b0` is
+# minute), 26 yellow card, 27 an error leading to a goal (at the minute the other side
+# scores; its player's slot reads 1 in `mistakes` and `mistGoal`), 2f a clear-cut chance (one
+# per chance in the team head's count; a scored one is followed by its goal at the same
+# minute). 17, 18 and 29 are unnamed: 17 and 18 come with a goal, 29 after a chance. `b0` is
 # the event player's slot index (posOrder - 1).
 EVENT_TYPE_FMM27 = {0x01: "goal", 0x24: "assist", 0x26: "yellow_card",
-                    0x2F: "clear_cut_chance"}
+                    0x27: "error_leading_to_goal", 0x2F: "clear_cut_chance"}
 
 MATCH_HEAD_FMM27 = Record("match_head_fmm27", 10, [
     Field(0, 2, "home_tid", U16),
@@ -290,14 +292,16 @@ TEAM_HEAD_FMM27 = Record("match_team_head_fmm27", 80, [
 ])
 
 # FMM22's one-byte stats in FMM22's order, but the run from condition to the substitution
-# minutes starts 3 bytes earlier and everything from passes on 1 byte later. `xg_x100` is the
+# minutes starts 3 bytes earlier and everything from mistakes on 1 byte later. There is no
+# assists byte: no slot byte reads 1 for each of the five players with an assist event, so
+# a player's assists are his `24` events. `xg_x100` is the
 # player's expected goals x 100: Maidenhead's slots sum to 27 (the screen's 0.27), Truro's
 # to 217 (the screen's 2.18: the screen sums unrounded values). `yellow` is set on a booked
 # player, whose +6 then reads 7.
 _STATS_FMM27 = {
     0: "condition", 1: "crossA", 2: "crossC", 5: "dribbles", 7: "goals", 8: "headA",
     9: "headW", 13: "intercept", 16: "subOn", 17: "sentOff", 18: "subOff",
-    26: "passA", 27: "passC", 28: "keyPass", 33: "rating", 36: "shotA", 37: "shotO",
+    23: "mistakes", 24: "mistGoal", 26: "passA", 27: "passC", 28: "keyPass", 33: "rating", 36: "shotA", 37: "shotO",
     42: "posOrder", 49: "tackA", 50: "tackW", 54: "yellow",
 }
 PLAYER_SLOT_FMM27 = Record("match_player_slot_fmm27", 70, [
@@ -310,7 +314,7 @@ PLAYER_SLOT_FMM27 = Record("match_player_slot_fmm27", 70, [
     Field(10, 3, UNKNOWN, RAW),
     Field(14, 2, UNKNOWN, RAW),
     Field(19, 4, UNKNOWN, RAW, note="ffffffff on a starter; a substitute's own value"),
-    Field(23, 3, UNKNOWN, RAW),
+    Field(25, 1, UNKNOWN, RAW, note="20 on every slot read"),
     Field(31, 2, UNKNOWN, RAW),
     Field(34, 2, UNKNOWN, RAW),
     Field(38, 4, UNKNOWN, RAW),

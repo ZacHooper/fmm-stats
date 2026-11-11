@@ -88,15 +88,17 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
   cruciate ligaments, about 9 months); a staff member's badge, specialism and trainable
   traits (Alcalde, Gold Badge); the star bands for staff reputation; whether lists 66–131
   are women's (the Best Eleven screen has a Male switch).
-- **The match table holds fewer matches than the fixture list** on FMM27: 3 of Truro's 5 on
-  `truro-2026-08-08` (25 July on). `check_against_fixtures` needs the career's first day,
-  not the rollover, as its lower bound for Truro.
-- **Match slot bytes not placed**: assists, mistakes and mistakes leading to a goal (a match
-  with a non-zero one, and its ratings screen), possession and team rating; event types
-  `17`, `18`, `27`, `29` ([matches](parser/matches.md#layout)).
+- **The match table starts on the career's first day**: Truro's career began on 22 July 2026
+  (`truro-2026-07-22`), after two pre-season friendlies the game had already played, so the
+  table holds 3 of the fixture list's 5 games on `truro-2026-08-08`. In the career's first
+  season `check_against_fixtures` needs that day, not the rollover, as its lower bound.
+- **Match bytes not placed**: possession and team rating; event types `17`, `18`, `29`
+  ([matches](parser/matches.md#layout)). A ratings screen with a non-zero Mis/MiG would
+  confirm `mistakes`/`mistGoal` against the game (placed from the `27` events).
 - **FMM27 role codes**: training's `focus_role` differs from `seeds/roles.csv` from Inside
-  Forward on; two roles are new ([training](parser/training.md#evidence)). An FMM27 role seed
-  needs a defender's and a wide player's focus role on screen.
+  Forward on; the two new roles are the Wide Centre-Back and the Inverted Full-Back
+  ([training](parser/training.md#evidence)). A centre-back's and a full-back's focus role on
+  screen pin the codes; then an FMM27 role seed.
 - **Fixtures' tail and the player lists' season numbers** need a save with league fixtures
   and played competitive matches.
 - **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;

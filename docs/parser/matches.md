@@ -36,8 +36,9 @@ the three rows start at 61,604,420 (12 events), 61,610,300 (6) and 61,616,078 (9
 | `01` | goal | Starkie 17' |
 | `24` | the goal's assist, at the goal's minute | Law |
 | `26` | yellow card | Odeniran 9', Abbott 45+3', Nunn 89' |
-| `2f` | a clear-cut chance, scored or not | one per chance in the team head's count, on all six sides |
-| `17`, `18`, `27`, `29` | unnamed | each sits beside a goal or a chance |
+| `27` | an error leading to a goal, at the minute the other side scores | Lavercombe 71' and Carragher 81' at Wigan: the only two slots with `mistakes` and `mistGoal` 1 |
+| `2f` | a clear-cut chance; a scored one is followed by its goal at the same minute | one per chance in the team head's count, on all six sides; at Wigan both goals were chances (`2f` then `01`), against Maidenhead none of the three was |
+| `17`, `18`, `29` | unnamed | `17` and `18` come with a goal, `29` after Greenslade's chance against Darlington |
 
 `b0` is the event player's slot index, `posOrder − 1`.
 
@@ -68,8 +69,8 @@ Shots, shots on target, tackles won and yellow cards on the stats screen are sum
 player slots. Possession and the team rating are not placed.
 
 **Player slot, 70 bytes.** FMM22's one-byte stats in FMM22's order: the run from condition to
-the substitution minutes starts 3 bytes earlier, everything from passes on 1 byte later, and
-`xg_x100` is new.
+the substitution minutes starts 3 bytes earlier, everything from mistakes on 1 byte later, and
+`xg_x100` is new. There is no assists byte.
 
 | offset | field | | offset | field |
 |---|---|---|---|---|
@@ -85,12 +86,15 @@ the substitution minutes starts 3 bytes earlier, everything from passes on 1 byt
 | +16 | `subOn`, `ff` = not | | +50 | `tackW` |
 | +17 | `sentOff`, `ff` = not | | +54 | `yellow` |
 | +18 | `subOff`, `ff` = not | | +63 | `xg_x100`, u16: expected goals × 100 |
+| +23 | `mistakes` | | | |
+| +24 | `mistGoal`, mistakes leading to a goal | | | |
 | +26 | `passA` | | | |
 
 `+6` reads 7 on a booked player; `+19` is `ffffffff` on a starter and a value of its own on a
 substitute; `+51` reads the side (0 home, 1 away); `+65` is a u16 that is non-zero on players
-with key passes. Assists, mistakes and mistakes leading to a goal are not placed: on the one
-competitive row they are 0 everywhere but Law's assist, and no slot byte reads it.
+with key passes. **A player's assists are his `24` events**: no slot byte reads 1 for each of
+the five players with an assist event across the three rows (Law, Starkie, Jephcott, Murray,
+Walsh), and the ratings screen's Ass column (Law 1, everyone else 0) is their count.
 
 **How it is found**: as on FMM22, from a formation marker in a row whose body repeats its head;
 FMM27's body repeats home, away and the year (`_LAYOUT_FMM27`).

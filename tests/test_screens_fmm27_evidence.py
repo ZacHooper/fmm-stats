@@ -97,6 +97,20 @@ def main():
     for tid, minute in mx["subs_on"].items():
         check(home[int(tid)]["subOn"] == minute, f"sub {tid} on at {minute}'")
 
+    assists = {}
+    for e in m["events"]:
+        if e["type_byte"] == 0x24:
+            assists[e["tid"]] = assists.get(e["tid"], 0) + 1
+    check(assists == {int(t): v for t, v in mx["screen_assists"].items()},
+          "the Ass column is each player's assist events: Law 1, everyone else 0")
+    row0 = next(r for r in ms if r["offset"] == mx["errors_row0"]["row"])
+    erred = {p["tid"] for side in ("home_xi", "away_xi") for p in row0[side] if p["mistGoal"]}
+    check(erred == set(mx["errors_row0"]["tids"])
+          and all(p["mistakes"] >= p["mistGoal"] for side in ("home_xi", "away_xi")
+                  for p in row0[side]),
+          "Wigan friendly: the players with a mistake leading to a goal are the two 27 events "
+          "(Lavercombe, Carragher)")
+
     print("\nTHE MATCH EVENTS")
     got = [[e["type_byte"], e["minute"], e["added"], e["side"], e["tid"]] for e in m["events"]]
     check(got == mx["events"], "9 events: three bookings, the goal and its assist, three "

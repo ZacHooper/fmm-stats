@@ -65,8 +65,11 @@ Every row shows Normal intensity: `intensity` 2. **The attribute codes are FMM22
 Against `seeds/roles.csv` (FMM22) each is one higher from Inside Forward to Shadow Striker
 (FMM22 12 IF, 13 CM, 18 Poacher, 19 TF, 23 PF, 26 SS) and Attacking Midfielder is two higher
 (31 → 33): FMM27 has a role before Inside Forward and another between Shadow Striker and
-Attacking Midfielder that FMM22 lacks. Which roles those are needs a screen of a defender's
-or a wide player's focus role, and an FMM27 role seed.
+Attacking Midfielder that FMM22 lacks. FMM27's two new roles are the **Wide Centre-Back** and
+the **Inverted Full-Back**; by FMM22's order the first sits among the defenders' codes (5–7)
+and the second among 28–31. Will Dean's 32 is then FMM22's Defensive Midfielder (30), which
+fits his D/DM C. Pinning each code needs a centre-back's and a full-back's focus role on
+screen, then an FMM27 role seed.
 
 ### FMM22
 
