@@ -20,10 +20,10 @@ jobs:
       - name: Layer boundaries
         run: uv run python tests/test_boundary.py
       # Every mart/site column points at a shared doc block (fmstats/models/_docs/), built into an
-      # empty store so no data is needed. Listed synonyms are reported, not failed, until the
-      # docs overhaul's phase 4 renames them and this runs with --strict.
+      # empty store so no data is needed. --strict: a column named as a block's listed synonym
+      # fails too, so each concept keeps one name.
       - name: Column definitions
-        run: uv run python scripts/check_dbt_docs.py --empty-store
+        run: uv run python scripts/check_dbt_docs.py --empty-store --strict
       - name: Worker syntax
         run: node --check site-worker/index.js
       # Every repo path and relative link in the docs must resolve. Non-blocking until the docs

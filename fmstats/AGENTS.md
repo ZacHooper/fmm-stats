@@ -33,8 +33,10 @@ The raw tables (written by the loader) are the extract. `fmstats/` turns them in
 - **Every `mart` and `site` column points at a shared doc block** in `models/_docs/` (one file
   per family, a block named for the canonical column name):
   `description: '<one sentence for this model, if any> {{ doc("club_tid") }}'`. A new column
-  reuses its concept's block or adds one; a name that drifts from its block goes on the block's
-  `Synonyms:` line. `uv run python scripts/check_dbt_docs.py --empty-store` checks it (CI).
+  reuses its concept's block, named as the block or a role on it (`<role>_<block>`), or adds a
+  block. A block's `Synonyms:` line lists a name still to be renamed:
+  `uv run python scripts/check_dbt_docs.py --empty-store --strict` checks it in CI, so a column
+  that uses a listed synonym fails.
 - **Lint and format with sqlfluff** (`.sqlfluff`: lower-case keywords, trailing commas,
   explicit aliases, 80 columns): `uv run python scripts/lint_sql.py` (`--fix` to apply). It lints
   against an empty store it builds, so no data is needed.

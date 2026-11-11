@@ -76,9 +76,9 @@ that get it there. Each phase is a brief an agent can pick up cold. Written 2026
   <tr><td><a href="#p1">1. Player quick start</a></td><td><span class="tag done">done</span></td><td>—</td><td>#192</td></tr>
   <tr><td><a href="#p2">2. Parser: one doc per table</a></td><td><span class="tag done">done</span></td><td>0</td><td>world: done, #195; people: done, #197; matches: done, #203, #204; competitions: done, #206; cleanup (the leftover parser docs harvested and deleted): done, #208</td></tr>
   <tr><td><a href="#p3">3. Stats: column definitions</a></td><td><span class="tag ready">in progress</span></td><td>0</td><td>in review, #210 (<code>claude/wizardly-edison-0hlfgh</code>)</td></tr>
-  <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag ready">in progress</span></td><td>3</td><td><code>claude/phase-4-pr0-data-bugs</code></td></tr>
+  <tr><td><a href="#p4">4. Stats: renames</a></td><td><span class="tag done">done</span></td><td>3</td><td>data bugs #213; taken names #214; abbreviations #215; familiarity #216; flags #217; dates and money #218; collisions and the rest #219; strict CI #220</td></tr>
   <tr><td><a href="#p5">5. Stats: overview and modelling note</a></td><td><span class="tag blocked">waits</span></td><td>3</td><td></td></tr>
-  <tr><td><a href="#p6">6. Site and skills</a></td><td><span class="tag blocked">waits</span></td><td>1, 4</td><td></td></tr>
+  <tr><td><a href="#p6">6. Site and skills</a></td><td><span class="tag ready">ready</span></td><td>1, 4</td><td></td></tr>
   <tr><td><a href="#p7">7. Delete the rest</a></td><td><span class="tag blocked">waits</span></td><td>2, 5, 6</td><td></td></tr>
   <tr><td><a href="#p8">8. Cut the public repo</a></td><td><span class="tag blocked">waits</span></td><td>7</td><td></td></tr>
 </table>
@@ -423,6 +423,15 @@ be different concepts (a flag, not a count): writing the block decides it.</p>
   counts), <code>played</code> vs <code>appearances</code> (a team's vs a player's).</dd>
   <dt>Done when</dt><dd><code>check_dbt_docs.py --strict</code> passes (no column uses a synonym), and CI
   runs it with <code>--strict</code>.</dd>
+  <dt>Status</dt><dd>Done, one PR per group, stacked in this order: the two data bugs phase 3 found
+  (#213), names already taken (#214), abbreviations (#215), <code>pos_*</code> →
+  <code>familiarity_*</code> (#216), flags (#217), dates and money (#218), the collisions, home/away,
+  counts and the rest (#219), and CI on <code>--strict</code> (#220). 98 renames over 138 columns; no
+  block lists a synonym now. The API's JSON keys did not change: <code>scripts/export_data.py</code>
+  maps each to its new column, and the export is byte-identical (renaming the keys is phase 6).
+  <code>mart_tie_results</code>' home/away columns took four new blocks (<code>home_goals</code>,
+  <code>away_goals</code>, <code>home_pens</code>, <code>away_pens</code>), since a fixed side is not
+  a role on the row-relative <code>goals_for</code>.</dd>
 </dl>
 </div>
 
