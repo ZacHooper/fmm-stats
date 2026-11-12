@@ -54,9 +54,13 @@ seven u16 start 70 bytes after the previous block's date (block 0: 10 bytes into
   screen, and not condition (Greenslade 20 at 76%, Colwell 16 at 100%). It orders the arrows
   exactly: 20, Greenslade, green arrow straight up; 16-17 (Bell, Colwell, Dean, Donnellan,
   Harrison) green, up and right; 12-13 (En-Neyah, Harvey, Hasani) yellow, flat; 11 (Bogle)
-  orange, down and right. Where the bands split between 13 and 16 is not yet seen.
+  orange, down and right. On Dorking Wanderers' squad the same day: 15-17 green, 12-14 yellow, 11 orange (Francomb),
+and Dillon Grass's red arrow reads 7. So green from 15, yellow 12-14, orange 10-11, red at 7.
+
+![Dorking Wanderers, Club Squad, 25 Jul 2026: morale arrows](../img/player_block-fmm27-3.png)
 
 ![Truro City, Club Squad, 25 Jul 2026: Form column](../img/player_block-fmm27-1.png)
+![Truro City, Club Squad, 25 Jul 2026 (the same screen, inbox read)](../img/player_block-fmm27-4.png)
 ![Lewis Colwell, Player Contract, 25 Jul 2026: Interested Clubs Salisbury, Oxford City](../img/player_block-fmm27-2.png)
 
 ### Next
@@ -65,7 +69,7 @@ seven u16 start 70 bytes after the previous block's date (block 0: 10 bytes into
    own length rule), with `interested_clubs` and `form` named.
 2. Decode the rich row: line a dozen up by their dates and find the counted lists inside.
 2. Walk all 26,505 / 36,344 blocks and prove the landing on the next count, on both games.
-3. Pin morale's bands: a squad with a 14, a 15 and a red arrow.
+3. Pin where orange ends and red begins (8 and 9 not yet seen).
 
 ## Evidence that would help
 
