@@ -83,7 +83,8 @@ notes. The status column names the `core` table that reads it
 | 55,884,748 | 56,178,674 | 0.29 MB | **[our matches](matches.md)** — `[count u8 = 57]`, then one row per match: `[home, away, cid, day][n u8][n x 17 B events][5,093 B body]` -- the body repeats the head from our side, then 50 event slots, two team blocks (`[77 B][20 x 62 B player slots][46 B]`, our score at +52) and our tactic (formation string, 11 starting positions, per-starter items, a coordinate grid) | **resets every July**; appends in-season | Shape A (u8 count, row length from its event count) | `MATCHES_TABLE` |
 | 56,178,674 | 56,178,684 | 10 B | five u16 nation ids, unread | — | — | — |
 | 56,178,684 | 56,310,550 | 0.13 MB | **[person stamps](person_stamps.md)** — `[01][01][count u32 = 32,965]` (the person count less one), then 4 B per person: `[knowledge u8][day u16][year offset u8]` | rewritten as the career goes on | Shape A | `PERSON_STAMPS_TABLE` |
-| 56,310,550 | 56,313,477 | 2,927 B | **UNIDENTIFIED** | — | — | — |
+| 56,310,550 | 56,312,470 | 1,920 B | **[saved tactics](saved_tactics.md)** — a 60 B block and 6 counted person entries (unread), then `[u16 30]` × 59 B tactics: the user's tactics, a role per position and a name | rewritten as the user saves tactics | count-framed | `SAVED_TACTICS_TABLE` |
+| 56,312,470 | 56,313,476 | 1,006 B | **[club seasons](club_seasons.md)** — `[u8 k]` then 50 slots: the managed club's league line (position, W/L/D, goals, points) and cups, season by season | **grows** a season a year | count + fixed pool | `CLUB_SEASONS_TABLE` |
 | 56,313,477 | 56,314,027 | **550 B** | `0xFF` run, 550 bytes on every Frem save. It is not the end of our matches: the match table ends 134,803 B earlier | — | — | — |
 | 56,314,027 | — | 65 B/entry | **league titles** — `[u8][cid u16][tid u16][year u16]` + 58 B of `ff`, one entry per league title our club has won: Frem's read 1147 / 2021, 4 / 2022, 3 / 2023 (and 2 / 2028 on `frem-2030-06-22`), each the cid and season of a first place in [club_records](club_records.md)' league history (that save doesn't list its 2029 first place yet). The first entry's leading byte is the entry count (2, 3, 3, 3, 4 on the five Frem saves), the others' is `01`. Unnamed: whether cups or the manager's other clubs land here is unknown | **grows** by one entry a title | Shape A (u8 count) | struct |
 | ~56,314,300 | ~61,253,092 | 4.94 MB | **UNIDENTIFIED** (`00` 29% / `ff` 53% / other 18%). One small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` / `Res Group 1`), so the structure below starts earlier than its first EMPTY slot | — | — | — |
@@ -341,6 +342,7 @@ The career half on `truro-2026-07-25`, in file order:
 | 60,698,094 | [award history](award_history.md), [team history](team_history.md) | 1,124 editions, 0 teams; then ~43 KB unread to our matches |
 | 60,844,241 | [our matches](matches.md) | one row; 70 B player slots, not read yet |
 | 60,850,122 | [person stamps](person_stamps.md) | `[01][01][44,959]`, 4 B per person, straight after our matches |
+| 61,030,325 | [saved tactics](saved_tactics.md), [club seasons](club_seasons.md) | the user's 5 tactics, then the 50-slot season pool (one season so far) |
 | 66,236,284 | [player lists](player_lists.md) | 132 lists, 192 B tails |
 | 69,357,106 | the archive | bare frames, to EOF |
 

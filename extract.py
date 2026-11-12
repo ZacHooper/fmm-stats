@@ -45,6 +45,7 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     matches.json                 this season's matches as stored
     person_stamps.json           a dated 4-byte row per person
     saved_tactics.json           the user's saved tactics: name and a role per position
+    club_seasons.json            the managed club's league line and cups, season by season
     player_scrapbook.json        every scrapbook entry of the 66 player lists
     world_fixtures.json          the archive's world fixture list
     competition_rounds.json      the archive's competition stage/round structures
@@ -325,6 +326,8 @@ def steps(no_archive: bool = False):
              per_person("person_stamps.json", T.scrape_person_stamps)),
         Step("saved_tactics", registered("saved_tactics"),
              one("saved_tactics.json", T.scrape_saved_tactics, 1)),
+        Step("club_seasons", registered("club_seasons"),
+             one("club_seasons.json", T.scrape_club_seasons, 1)),
         Step("player_lists", registered("player_lists", "player_list_trailers"),
              read_scrapbook),
         Step("archive", archive_span, read_archive(no_archive)),

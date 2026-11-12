@@ -168,11 +168,13 @@ Phase 2 read two tables and found what the other two regions hold:
   with [awards](parser/awards.md) they give a season's honours for every league, and each
   entry's stored name ids settle the tid-reuse problem in #14.
 - **Phase 3 leads, not tables yet** (offsets on truro-2026-08-08):
-  - **After the person stamps (61.8–67.0 M, 5.2 MB): tactics.** Formation strings ("5-2-1-2",
-    "4-4-2 Diamond") each behind ten position bytes, apparently one tactic per club, with a
-    short header (`01 02 02 00 …`, then a float-looking `00 80 d1 f0`). On FMM22 the same
-    region opens the same way. If it is every club's current tactic, it is the opponent's
-    real shape for a scout report, better than the manager's preferred formation.
+  - **After the person stamps (61.8–67.0 M, 5.2 MB):** the first ~2 KB are now read: the
+    user's [saved tactics](parser/saved_tactics.md) and the managed club's
+    [season record](parser/club_seasons.md) (both games). Not every club's tactic, as first
+    guessed. Open there: the 60-byte block and the counted 14-byte person entries in front
+    of the tactics (set-piece takers?), the tactics' `flag`, the cup runs' two u16s, and
+    the ~5.2 MB after the season pool. A screenshot of Truro's "4-1-2-1-2" tactic roles
+    pins FMM27's role codes (the "FMM27 role codes" item above).
   - **Nicknames → history (2.1 MB):** dense small numbers for ~2 MB, then 1,020 inline-named
     records about 55 B apart ("Mark Smith", "Phillip Foose", "Cecilia Tenconi", a u16 2026 or
     2007 after the names), FMM27 only. Unnamed: try the person table's newest tids and the
