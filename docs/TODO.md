@@ -368,17 +368,31 @@ Bytes the parser reads but cannot name yet.
   halves of the FourCCs at +70/+74); the competition rules header (+8..19, +26..29 an f32,
   +30..47).
 
-### 10a. Every player's current-season stats by competition type (minor)
-The Player History screen's "This Season" panel splits the current season into Non
-Competitive / League / Cup / Continental / International, each with Pld, Gls, Ast, Yel, Red,
-PoM and average rating, for ANY player -- so the save holds it per player, in a region not yet
-identified. We have nothing like it: `mart.player_seasons` is built from our own match
-reports, so it covers only games Frem played in, and no friendlies, internationals or PoM.
-Use: proper league records (top scorers, cards, player of the match) for every league, not
-just the games we watched. Find it with a screenshot and a save from the SAME in-game day:
-Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, League 4 apps /
-1 yel / 7.00, Continental 2 apps / 7.50 -- take a second player with different numbers to
-rule out coincidence, then search for the values next to his tid.
+### 10a. Every club's and player's current-season stats, xG included
+The game shows season stats for clubs and players we never played, so the save holds them
+per club and per player, in a region not yet identified. We have nothing like it:
+`mart.player_seasons` and our xG come from our own match reports, so they cover only games
+we played in. Use: xG in every league table and xG top-scorer lists for every league, plus
+proper league records (cards, player of the match), not just the games we watched.
+
+What the screens show:
+- **FMM27, Team and Player Statistics** (league screen, xG / xDiff / Goals;
+  `parser/img/league-stats-fmm27-1.png`, `-2.png`, 24 Oct 2026, National League South):
+  Truro xG 25.67 / 29 goals, Dagenham & Redbridge 16.51 / 23, Totton 17.00 / 22; Harvey
+  Greenslade 5.03 / 8, Omar Bogle 6.42 / 5, Tayo Singerr (Totton) 1.49 / 5. xDiff is goals
+  less xG (29 − 25.67 = +3.33), so only xG and goals need finding.
+- **FMM22, Player History "This Season"**: Non Competitive / League / Cup / Continental /
+  International, each with Pld, Gls, Ast, Yel, Red, PoM and average rating, for any player.
+  Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, League 4 apps
+  / 1 yel / 7.00, Continental 2 apps / 7.50.
+
+To find it: a save from the SAME in-game day as the screenshots (the 24 Oct ones have no
+save; take new screenshots on the day of the next save). Search near each tid for the goals
+and for xG as an f32 (25.67) or a scaled int (2,567 / 257). Use two players or clubs with
+different numbers to rule out coincidence. First suspects on FMM27: the block after the
+transfer band, counted by the player count (36,344) with variable-length rows
+([the plan](plans/2026-11-12-unknown-regions.html), Phase 2), and the club records' "this
+season" blocks ([club_records](parser/club_records.md)) for the club totals.
 
 ### 11. Read the season rollover from the game, not from config
 A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
