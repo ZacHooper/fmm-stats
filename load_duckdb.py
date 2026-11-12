@@ -1719,7 +1719,8 @@ def seed_event_types(con):
                     sorted(EVENT_TYPE.items()))
 
 
-# The game's codes, named, and the value model's coefficients: seeds/<file> -> raw.<table>, replaced on every load and
+# The game's codes, named, the value model's coefficients and the squad-registration rule sets:
+# seeds/<file> -> raw.<table>, replaced on every load and
 # --refresh-only, so naming a code reaches a store with no re-extract. fmstats/mart.py
 # renders mart.roles and mart.training_attributes from the same files.
 CODE_SEEDS = (("roles", "roles.csv", "id INTEGER, name VARCHAR, inferred BOOLEAN"),
@@ -1727,12 +1728,19 @@ CODE_SEEDS = (("roles", "roles.csv", "id INTEGER, name VARCHAR, inferred BOOLEAN
                "code INTEGER, abbrev VARCHAR"),
               ("positions", "positions.csv",
                "code VARCHAR, unit VARCHAR, display_order INTEGER"),
-              ("value_model", "value_model.csv", "term VARCHAR, coefficient DOUBLE"))
+              ("value_model", "value_model.csv", "term VARCHAR, coefficient DOUBLE"),
+              ("registration_rules", "registration_rules.csv",
+               "rule_set VARCHAR, tier_from INTEGER, tier_to INTEGER, league_label VARCHAR, "
+               "list_max INTEGER, list_label VARCHAR, free_label VARCHAR, "
+               "free_under_age INTEGER, free_born_from VARCHAR, free_gk BOOLEAN, "
+               "hg_min INTEGER, hg_club_min INTEGER, hg_nations VARCHAR, "
+               "matchday_subs INTEGER, matchday_hg_min INTEGER, matchday_loan_max INTEGER, "
+               "loan_max_per_club INTEGER, min_matchday_age INTEGER"))
 
 
 def seed_codes(con):
-    """(Re)seed raw.roles, raw.training_attributes, raw.positions and raw.value_model from
-    seeds/."""
+    """(Re)seed raw.roles, raw.training_attributes, raw.positions, raw.value_model and
+    raw.registration_rules from seeds/."""
     seeds = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds")
     for table, name, cols in CODE_SEEDS:
         types = ", ".join(f"'{c.split()[0]}': '{c.split()[1]}'" for c in cols.split(", "))
@@ -1754,7 +1762,8 @@ def store_career(con):
 def seed_career(con, key=None):
     """Record which career this store holds in raw.app_config: `career_key`,
     `career_rating_method`, `career_managed_tid`, the club we manage, and
-    `career_rollover`, the day ('MM-DD') its new season starts.
+    `career_rollover`, the day ('MM-DD') its new season starts, and `career_registration`,
+    the squad-registration rule set it plays (seeds/registration_rules.csv, or 'none').
 
     fmstats reads the store, never fmparser, so the loader, which may read both, writes down
     the career facts the mart needs: the tactic we play (the save does not carry it) and our
@@ -1772,6 +1781,7 @@ def seed_career(con, key=None):
     for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
                  ("career_managed_tid", str(car.managed_tid)),
                  ("career_rollover", "{:02d}-{:02d}".format(*car.rollover)),
+                 ("career_registration", car.registration),
                  ("immersion_hide_ability", str(fmconfig.hide_ability()).lower())):
         con.execute("DELETE FROM raw.app_config WHERE key = ?", [k])
         if v is not None:

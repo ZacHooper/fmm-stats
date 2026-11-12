@@ -777,7 +777,9 @@ models:
       - name: direction
         description: '{{ doc("direction") }}'
   - name: site_registration_rules
-    description: The registration rules that apply to us on each snapshot.
+    description: >
+      The registration rules that apply to us on each snapshot: the row of the career's rule
+      set for the managed league's tier.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date]}}
     columns:
@@ -789,18 +791,73 @@ models:
         description: 'The name of the managed team''s league. {{ doc("name") }}'
       - name: nation
         description: 'The nation of the managed team''s league. {{ doc("nation") }}'
+      - name: tier_from
+        description: '{{ doc("tier_from") }}'
+      - name: league_label
+        description: '{{ doc("league_label") }}'
       - name: a_list_max
         description: '{{ doc("a_list_max") }}'
+      - name: list_label
+        description: '{{ doc("list_label") }}'
+      - name: free_label
+        description: '{{ doc("free_label") }}'
+      - name: is_goalkeeper_free
+        description: '{{ doc("is_goalkeeper_free") }}'
       - name: hg_min
         description: '{{ doc("home_grown_min") }}'
       - name: hg_club_min
         description: '{{ doc("home_grown_club_min") }}'
       - name: b_list_under_age
         description: '{{ doc("b_list_under_age") }}'
+      - name: matchday_subs
+        description: '{{ doc("matchday_subs") }}'
+      - name: matchday_home_grown_min
+        description: '{{ doc("matchday_home_grown_min") }}'
+      - name: matchday_loan_max
+        description: '{{ doc("matchday_loan_max") }}'
+      - name: loan_max_per_club
+        description: '{{ doc("loan_max_per_club") }}'
       - name: min_matchday_age
         description: '{{ doc("min_matchday_age") }}'
       - name: u21_on
         description: '{{ doc("b_list_age_date") }}'
+  - name: site_registration_rule_set
+    description: >
+      Every tier's row of the career's squad-registration rule set, for the Squad page's
+      "Count as" picker.
+    data_tests:
+      - unique_combination: {arguments: {columns: [tier_from]}}
+    columns:
+      - name: tier_from
+        description: '{{ doc("tier_from") }}'
+      - name: league_label
+        description: '{{ doc("league_label") }}'
+      - name: tier_to
+        description: '{{ doc("tier_to") }}'
+      - name: a_list_max
+        description: '{{ doc("a_list_max") }}'
+      - name: list_label
+        description: '{{ doc("list_label") }}'
+      - name: free_label
+        description: '{{ doc("free_label") }}'
+      - name: is_goalkeeper_free
+        description: '{{ doc("is_goalkeeper_free") }}'
+      - name: b_list_under_age
+        description: '{{ doc("b_list_under_age") }}'
+      - name: hg_min
+        description: '{{ doc("home_grown_min") }}'
+      - name: hg_club_min
+        description: '{{ doc("home_grown_club_min") }}'
+      - name: matchday_subs
+        description: '{{ doc("matchday_subs") }}'
+      - name: matchday_home_grown_min
+        description: '{{ doc("matchday_home_grown_min") }}'
+      - name: matchday_loan_max
+        description: '{{ doc("matchday_loan_max") }}'
+      - name: loan_max_per_club
+        description: '{{ doc("loan_max_per_club") }}'
+      - name: min_matchday_age
+        description: '{{ doc("min_matchday_age") }}'
   - name: site_registration
     description: Each player in our squad as the registration page reads him.
     data_tests:

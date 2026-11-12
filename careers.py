@@ -49,6 +49,9 @@ class Career:
     # the career's signing rule, if it plays one: (club tid, region) for every club whose
     # youth products count as local. Empty = no rule.
     eligible_origin_clubs: tuple = ()
+    # the squad-registration house rule it plays: a rule set in seeds/registration_rules.csv
+    # ("denmark", "england"), or "none". The managed league's tier picks the row.
+    registration: str = "denmark"
 
     def rollover_for(self, year: int) -> tuple[int, int]:
         for y, ro in self.rollovers:
@@ -95,6 +98,7 @@ def _from_config(key: str, t: dict) -> Career:
         eligible_origin_clubs=tuple(
             (int(tid), str(region))
             for region, tids in t.get("eligible_origin_clubs", {}).items() for tid in tids),
+        registration=str(t.get("registration", "denmark")),
     )
 
 

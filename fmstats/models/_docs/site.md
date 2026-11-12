@@ -124,26 +124,74 @@ Synonyms: `went_through`.
 {% enddocs %}
 
 {% docs a_list_max %}
-The most players the A-list holds (`var('registration')`, a house rule).
+The most players the registration list holds (the A-list, the EFL's squad list); NULL for no cap
+(the career's rule set, seeds/registration_rules.csv, a house rule).
+{% enddocs %}
+
+{% docs tier_from %}
+The highest tier (the lowest number) a rule set's row covers; with `tier_to`, the range of league
+tiers it applies to (seeds/registration_rules.csv).
+{% enddocs %}
+
+{% docs tier_to %}
+The lowest tier (the highest number) a rule set's row covers (seeds/registration_rules.csv).
+{% enddocs %}
+
+{% docs league_label %}
+The rule set's own name for the leagues its row covers, e.g. "League Two" (the Squad page's
+"Count as" picker).
+{% enddocs %}
+
+{% docs list_label %}
+What the rule set calls the capped registration list: "A-list", "Squad list".
+{% enddocs %}
+
+{% docs free_label %}
+What the rule set calls the players who do not count against the cap: "B-list", "Exempt" (the
+EFL's under-21s and, in Leagues One and Two, goalkeepers).
+{% enddocs %}
+
+{% docs is_goalkeeper_free %}
+Goalkeepers of any age need not be on the registration list, as in EFL Leagues One and Two.
+Synonyms: `free_gk`.
+{% enddocs %}
+
+{% docs matchday_subs %}
+The most substitutes a matchday squad names.
+{% enddocs %}
+
+{% docs matchday_home_grown_min %}
+The fewest home-grown players a matchday squad must name; NULL for no minimum.
+{% enddocs %}
+
+{% docs matchday_loan_max %}
+The most players on loan in a matchday squad may name; NULL for no limit.
+{% enddocs %}
+
+{% docs loan_max_per_club %}
+The most players the club may hold on loan from any one club; NULL for no limit.
 {% enddocs %}
 
 {% docs home_grown_min %}
-The fewest home-grown players the squad must have (trained in the nation); 0 below the top
-`hg_tiers` tiers (`var('registration')`, a house rule).
+The fewest home-grown players the registration list must hold (trained at the club or in a
+home-grown nation); 0 where the rule set's tier has none (seeds/registration_rules.csv, a house
+rule).
 Synonyms: `hg_min`.
 {% enddocs %}
 
 {% docs home_grown_club_min %}
-The fewest players trained at the club the squad must have; 0 below the top `hg_tiers` tiers.
+The fewest players trained at the club itself the registration list must hold; 0 where the rule
+set's tier has none.
 Synonyms: `hg_club_min`.
 {% enddocs %}
 
 {% docs b_list_under_age %}
-A player under this age on `b_list_age_date` goes on the B-list (`var('registration')`).
+A player under this age on `b_list_age_date` need not be on the registration list (the B-list, the
+EFL's under-21s; the career's rule set).
 {% enddocs %}
 
 {% docs min_matchday_age %}
-The youngest age allowed on a matchday squad (`var('registration')`).
+The youngest age allowed on a matchday squad; NULL where the rule set names none.
 {% enddocs %}
 
 {% docs entry_name %}

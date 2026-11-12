@@ -27,6 +27,10 @@ rollover = [6, 30]
 # The role-weight set your squad is rated with (seeds/role_weights.csv, column `method`).
 rating_method = "frem_minmax_4231"
 # active = false                # keep the saves, stop rebuilding this career's store
+# The squad-registration house rule the Squad page counts your squad against: a rule set in
+# seeds/registration_rules.csv ("denmark", "england"), or "none" to hide it. Your league's
+# tier picks the row, so a promotion switches the rules. Default "denmark".
+# registration = "england"
 
 # A signing rule, if you play one (a house rule the game doesn't model): the clubs whose youth
 # products count as local, by region. The site marks each player's origin against it.

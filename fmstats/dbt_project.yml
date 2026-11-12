@@ -198,8 +198,8 @@ vars:
   value_trusted_band: [1000000, 1000000000]
   # The web app's marts (models/site). A league's skill_idx needs this many rated players.
   site_skill_min_players: 20
-  # Squad registration, a house rule (docs/danish-registration-rules.md; int_squad_training,
-  # site_registration). The home-grown window runs from the season a player turns the first
+  # Squad registration, a house rule (the rule sets are seeds/registration_rules.csv;
+  # int_squad_training, site_registration). The home-grown window runs from the season a player turns the first
   # age to the end of the season he turns the second; a month is days_in_month days.
   home_grown_window_ages: [15, 22]
   home_grown_months: 36
@@ -236,12 +236,6 @@ vars:
   # over ages growth_ages, pairs of snapshots gap_days apart (site_age_curve too).
   forecast: {horizons: [21, 24], ages: [15, 24], min_players: 30, growth_ages: [16, 22],
              gap_days: [350, 380], fixed_below: 0.1, decoded_floor: 0.02, max_ratio: 2}
-  # The registration rules for the managed club's league: the A-list cap, the home-grown
-  # minimums (overall, and trained at the club) that bind in the top hg_tiers tiers, the
-  # B-list age (under it at the last new year before the season's second calendar year) and
-  # the youngest age on a matchday squad.
-  registration: {a_list_max: 25, hg_min: 8, hg_club_min: 4, hg_tiers: 2,
-                 b_list_under_age: 21, min_matchday_age: 16}
   # A competition's groups start within this many days of each other (site_matches' group
   # letter).
   site_group_draw_days: 3

@@ -4,15 +4,21 @@
  * me the B-list" is a column filter), the quotas are one KPI card, and the saved windows sit
  * under the table.
  *
- * The Danish rulebook (docs/danish-registration-rules.md) caps the A-list at 25 and, in the top
- * two tiers, requires 8 home-grown players on it of whom at least 4 were trained at the club
- * itself; the B-list takes an unlimited number of players who were under 21 at the last new
- * year, and does not touch the cap. None of that exists in the save.
+ * The rules are the career's rule set (seeds/registration_rules.csv, `registration` in fmm.toml)
+ * for the managed league's tier, so a promotion switches them. Every set has the same shape: a
+ * capped list (Denmark's A-list of 25, the EFL's squad list of 22; no cap in the National League)
+ * with home-grown minimums counted on it, and a free list beside it that does not touch the cap
+ * (Denmark's B-list, the EFL's under-21s), for players under an age on a fixed date and, in
+ * Leagues One and Two, every goalkeeper. In the code A is the capped list and B the free one,
+ * whatever the rule set calls them. None of that exists in the save.
  *
- * The B-list is free, so the obvious move is to park every U21 on it — but the home-grown
- * minimums are counted on the A-LIST, and most home-grown players are young. Leaving a
- * club-trained 21-year-old on the B-list to save a slot can cost a home-grown credit and shrink
- * the A-list by one, which is the trade the card's colour shows while you make it.
+ * The free list is free, so the obvious move is to park every youngster on it — but the
+ * home-grown minimums are counted on the CAPPED list, and most home-grown players are young.
+ * Leaving a club-trained 21-year-old off it to save a slot can cost a home-grown credit and
+ * shrink the cap by one, which is the trade the card's colour shows while you make it.
+ *
+ * "Count as" on the card recounts the plan against another tier of the same rule set (a club in
+ * the National League South planning for League Two), remembered per device and career.
  *
  * The assignment is per-device state (localStorage, keyed by snapshot). It is a plan, not a fact
  * about the save — nothing here is written back. A snapshot with no plan of its own starts from
@@ -27,7 +33,7 @@ import { el, bar, pill, DASH, toast, sheet } from "./ui.js";
 import * as W from "./regwindows.js";
 
 const A = "A", B = "B", OUT = "-";
-const LIST_LABEL = { A: "A-list", B: "B-list", "-": "Unregistered" };
+const COUNT_AS_KEY = "fm:registration:countas";
 // fm:registration:<season>:<phase>@<career>; one with no career predates the career split
 const PLAN_KEY = /^fm:registration:(\d{4}):([^@]+)(?:@([a-z0-9_]+))?$/;
 
@@ -40,7 +46,22 @@ export async function registrationKit({ squadRows, redraw }) {
   const R = await D.loadRegistration();
   if (!R || !R.rules || !R.players?.length) return null;
 
-  const rules = R.rules;
+  const base = R.rules;
+  // "Count as": the current league's rules, or another tier's row of the same rule set. The
+  // league's own name and the snapshot's dates stay; the quotas are the chosen row's.
+  const choices = [{ key: "current", label: `Current league (${base.league_name})`, rules: base },
+    ...(R.ruleSet || []).filter((r) => r.tier_from !== base.tier_from).map((r) => ({
+      key: String(r.tier_from), label: r.league_label,
+      rules: { ...base, ...r, tier: r.tier_from, league_name: r.league_label, counted: true },
+    }))];
+  let choice = choices.find((c) => c.key === D.lsCareerGet(COUNT_AS_KEY)) || choices[0];
+  let rules = choice.rules;
+  const listLabel = (l) => (l === A ? rules.list_label || "A-list"
+    : l === B ? rules.free_label || "B-list" : "Unregistered");
+  const isGK = (r) => posOf(r) === "GK";
+  // May he go on the free list under `rr`: under its age on its date, or a keeper where
+  // goalkeepers are free.
+  const free = (r, rr = rules) => !!(r.h.b_list || (rr.free_gk && isGK(r)));
   const reg = new Map();
   for (const row of R.players) {
     const o = {};
@@ -66,9 +87,9 @@ export async function registrationKit({ squadRows, redraw }) {
     plan = {};
     for (const r of rows) {
       const l = prev?.[r.tid];
-      // Carried forward: still here keeps his list, unless he has aged out of the B-list —
+      // Carried forward: still here keeps his list, unless he has aged out of the free list —
       // then he is unregistered, which the card flags as a decision to make.
-      if (l != null) plan[r.tid] = l === B && !r.h.b_list ? OUT : l;
+      if (l != null) plan[r.tid] = l === B && !free(r, base) ? OUT : l;
       else plan[r.tid] = r.h.b_list ? B : (prev ? OUT : A);
     }
     save(KEY, plan);
@@ -101,9 +122,10 @@ export async function registrationKit({ squadRows, redraw }) {
   });
 
   function drawCard() {
-    const t = tally(rows, plan, rules);
+    const t = tally(rows, plan, rules, free);
     const loanIn = rows.filter((r) => r.loanedIn).length;
-    const overCap = Math.max(0, t.a - t.cap);
+    const overCap = t.cap == null ? 0 : Math.max(0, t.a - t.cap);
+    const LA = listLabel(A), LB = listLabel(B);
     const hgShort = rules.hg_min && (t.hgCounted < rules.hg_min || t.club < rules.hg_club_min);
     const cls = overCap ? "bad" : (t.missing || t.out || hgShort) ? "warn" : "good";
     card.className = `kpi pop ${cls}${open ? " open" : ""}`;
@@ -113,42 +135,70 @@ export async function registrationKit({ squadRows, redraw }) {
       el(`td.num${c ? "." + c : ""}`, { text: String(value) }),
     ]);
     const unreg = rows.filter((r) => plan[r.tid] === OUT);
-    const swappable = rows.filter((r) => plan[r.tid] === A && r.h.b_list).length;
+    const swappable = rows.filter((r) => plan[r.tid] === A && free(r)).length;
     const notes = [
-      overCap ? `<b>${overCap} over the A-list cap</b> — move someone to the B-list or leave `
+      overCap ? `<b>${overCap} over the ${LA} cap</b> — move someone to ${LB} or leave `
         + "him unregistered." : null,
       t.missing ? `<b>${t.missing} home-grown place${t.missing === 1 ? "" : "s"} short</b> — `
-        + `the A-list is reduced to ${t.cap}. No fine, you simply register fewer players.` : null,
+        + `the ${LA} is reduced to ${t.cap}. No fine, you simply register fewer players.` : null,
       unreg.length ? `<b>Unregistered, can't play:</b> `
         + unreg.map((r) => `${r.player.name} (${r.age ?? "?"})`).join(" · ") : null,
       unreg.length && swappable ? `A slot can be freed without losing anyone — <b>${swappable}</b> `
-        + `on the A-list ${swappable === 1 ? "is" : "are"} B-list eligible.` : null,
+        + `on the ${LA} ${swappable === 1 ? "is" : "are"} free to move to ${LB}.` : null,
+      rules.matchday_loan_max != null && loanIn > rules.matchday_loan_max
+        ? `${loanIn} on loan in — at most <b>${rules.matchday_loan_max}</b> in a matchday squad.`
+        : null,
     ].filter(Boolean);
+    const cap = (n) => (n == null ? "no cap" : String(n));
+    const hgRule = rules.hg_min
+      ? `including ${rules.hg_min} home grown${rules.hg_club_min
+        ? ` of whom ${rules.hg_club_min} trained here` : ""}`
+      : "no home-grown requirement";
+    const freeRule = `${LB} unlimited: under ${rules.b_list_under_age} on ${rules.u21_on}`
+      + (rules.free_gk ? ", and every goalkeeper" : "");
+    const matchday = [
+      rules.matchday_subs != null ? `${rules.matchday_subs} subs` : null,
+      rules.matchday_hg_min != null ? `at least ${rules.matchday_hg_min} home grown` : null,
+      rules.matchday_loan_max != null ? `at most ${rules.matchday_loan_max} on loan` : null,
+    ].filter(Boolean);
+    const picker = choices.length > 1 ? el("label.prow", {}, ["Count as ",
+      el("select.btn", {
+        onchange: (e) => {
+          choice = choices.find((c) => c.key === e.target.value) || choices[0];
+          rules = choice.rules;
+          D.lsCareerSet(COUNT_AS_KEY, choice.key);
+          repaint();
+        },
+      }, choices.map((c) => el("option", { value: c.key, text: c.label, selected: c === choice })))]) : null;
 
     card.replaceChildren(
       el("b", { text: String(rows.length) }),
-      el("span", { text: `Squad · A ${t.a}/${t.cap}` }),
+      el("span", { text: `Squad · ${t.cap == null ? `${t.a} listed`
+        : rules.list_label && rules.list_label !== "A-list" ? `${t.a}/${t.cap} listed`
+          : `A ${t.a}/${t.cap}`}`
+        + (rules.counted ? ` · as ${rules.league_name}` : "") }),
       el("div.popwrap", {}, [el("div.popbody", {}, [
         el("table.poptable", {}, [el("tbody", {}, [
           line("Owned", rows.length - loanIn),
           line("On loan in", loanIn),
-          line(t.missing ? `A-list (${t.cap} allowed)` : "A-list", `${t.a} / ${rules.a_list_max}`,
+          line(t.missing ? `${LA} (${t.cap} allowed)` : LA,
+            rules.a_list_max == null ? t.a : `${t.a} / ${rules.a_list_max}`,
             overCap ? "bad" : null),
-          rules.hg_min ? line("Home grown on A", `${t.hgCounted} / ${rules.hg_min}`,
-            t.hgCounted >= rules.hg_min ? "good" : "bad") : null,
-          rules.hg_min ? line("…of them club-trained", `${t.club} / ${rules.hg_club_min}`,
+          rules.hg_min ? line(`Home grown on ${LA}`, `${t.hgCounted} / ${rules.hg_min}`,
+            t.hgCounted >= rules.hg_min ? "good" : "bad")
+            : line(`Home grown on ${LA}`, t.club + t.assoc),
+          rules.hg_club_min ? line("…of them club-trained", `${t.club} / ${rules.hg_club_min}`,
             t.club >= rules.hg_club_min ? "good" : "bad") : null,
-          line("B-list", t.b),
+          line(LB, t.b),
           line("Unregistered", t.out, t.out ? "warn" : null),
         ])]),
         ...notes.map((html) => el("p.note", { html })),
+        picker,
         el("p.note", {
-          html: `${rules.league_name} · tier ${rules.tier}. ` + (rules.hg_min
-            ? `A-list ${rules.a_list_max}, including ${rules.hg_min} home grown of whom `
-              + `${rules.hg_club_min} trained here; B-list unlimited, under `
-              + `${rules.b_list_under_age} on ${rules.u21_on}. `
-            : `A-list ${rules.a_list_max}, no home-grown requirement; B-list unlimited, under `
-              + `${rules.b_list_under_age} on ${rules.u21_on}. `)
+          html: `${rules.league_name} · tier ${rules.tier}`
+            + (rules.counted ? ` (counted as; we play in ${base.league_name})` : "") + ". "
+            + `${LA} ${cap(rules.a_list_max)}, ${hgRule}; ${freeRule}. `
+            + (matchday.length ? `Matchday: ${matchday.join(", ")}. ` : "")
             + `Set lists in the <b>List</b> column (Registration preset). `
             + `<a href="guides/registration.md">How it is derived</a>.`,
         }),
@@ -167,10 +217,11 @@ export async function registrationKit({ squadRows, redraw }) {
     const buttons = [[A, "A"], [B, "B"], [OUT, "—"]].map(([v, label]) => el(
       `button${plan[r.tid] === v ? ".on" : ""}`, {
         text: label,
-        disabled: v === B && !r.h.b_list,
-        title: v === B && !r.h.b_list
-          ? `Not B-list eligible — he was 21 or older on ${rules.u21_on}`
-          : `Put ${r.player.name} on the ${v === OUT ? "no" : v} list`,
+        disabled: v === B && !free(r),
+        title: v === B && !free(r)
+          ? `Not free to go on ${listLabel(B)} — he was ${rules.b_list_under_age} or older on `
+            + rules.u21_on
+          : `Put ${r.player.name} on ${v === OUT ? "no list" : listLabel(v)}`,
         onclick: () => {
           setList(r.tid, v);
           for (const [i, b] of buttons.entries()) b.classList.toggle("on", [A, B, OUT][i] === v);
@@ -181,7 +232,7 @@ export async function registrationKit({ squadRows, redraw }) {
   };
 
   // "Home grown" is the rulebook's UMBRELLA term — it covers both trained-here and trained-at-
-  // another-Danish-club, and the quota counts them together. So the column asks the plainer
+  // another-club-of-the-association, and the quota counts them together. So the column asks the plainer
   // question of WHERE he trained and leaves "home grown" to the card, where the quota lives.
   const hgLabel = (r) => (!r.h ? null : r.h.hg_club ? "Us"
     : r.h.hg_association ? (r.h.origin_nation || "Association") : "—");
@@ -195,17 +246,19 @@ export async function registrationKit({ squadRows, redraw }) {
   const columns = {
     list: {
       label: "List", group: "Registration",
-      help: "A-list (capped, needs the home-grown minimums), B-list (unlimited, U21 only), or "
+      help: `${listLabel(A)} (capped, needs the home-grown minimums), ${listLabel(B)} (unlimited, `
+        + `under ${rules.b_list_under_age} only${rules.free_gk ? ", and goalkeepers" : ""}), or `
         + "unregistered. Your plan, kept on this device — the save has no such thing.",
       sort: (r) => (r.h ? ({ A: 0, B: 1, "-": 2 })[plan[r.tid]] : null),
       render: listCell,
       filterType: "set",
-      filterValue: (r) => (r.h ? LIST_LABEL[plan[r.tid]] : null),
+      filterValue: (r) => (r.h ? listLabel(plan[r.tid]) : null),
     },
     hg: {
       label: "Trained at", group: "Registration",
-      help: "Both count as HOME GROWN toward the 8. 'Us' also counts toward the 4 who must be "
-        + "trained at the club itself; a Danish club does not.",
+      help: `Both count as HOME GROWN toward the ${rules.hg_min || "home-grown count"}.`
+        + (rules.hg_club_min ? ` 'Us' also counts toward the ${rules.hg_club_min} who must be `
+          + "trained at the club itself; another club of the association does not." : ""),
       sort: (r) => (!r.h ? null : r.h.hg_club ? 2 : r.h.hg_association ? 1 : 0),
       render: hgCell,
       filterType: "set",
@@ -236,8 +289,9 @@ export async function registrationKit({ squadRows, redraw }) {
       filterType: "none",
     },
     blist: {
-      label: "B-list", group: "Registration",
-      help: `Under 21 on ${rules.u21_on} — the fixed date the rule uses, so a player who turns 21 in the autumn keeps his place all season`,
+      label: base.free_label || "B-list", group: "Registration",
+      help: `Under ${base.b_list_under_age} on ${base.u21_on} — the fixed date the rule uses, so `
+        + `a player who turns ${base.b_list_under_age} in the autumn keeps his place all season`,
       sort: (r) => (r.h ? (r.h.b_list ? 1 : 0) : null),
       render: (r) => (!r.h ? null : r.h.b_list ? pill("Eligible", "good") : el("span.dim", { text: DASH })),
       filterType: "set",
@@ -260,21 +314,23 @@ export async function registrationKit({ squadRows, redraw }) {
   // squad; a saved window is frozen, names and all, so it still reads correctly once the players
   // on it have left.
 
+  // A saved window is what was registered in the league we play in, so it is counted against
+  // the current league's rules whatever "Count as" shows.
   function record(id, note) {
-    const t = tally(rows, plan, rules);
+    const t = tally(rows, plan, base, free);
     return {
       id,
       snapshot: { season: snap.season, phase: snap.phase },
-      league: rules.league_name ? `${rules.league_name} · tier ${rules.tier}` : undefined,
+      league: base.league_name ? `${base.league_name} · tier ${base.tier}` : undefined,
       note: note || undefined,
       summary: {
-        a: t.a, b: t.b, out: t.out, cap: t.cap, a_list_max: rules.a_list_max,
-        hg_counted: t.hgCounted, hg_min: rules.hg_min, club: t.club, hg_club_min: rules.hg_club_min,
+        a: t.a, b: t.b, out: t.out, cap: t.cap, a_list_max: base.a_list_max,
+        hg_counted: t.hgCounted, hg_min: base.hg_min, club: t.club, hg_club_min: base.hg_club_min,
       },
       players: rows.map((r) => ({
         tid: r.tid, name: r.player.name, list: plan[r.tid], age: r.age, pos: posOf(r),
         hg: r.h.hg_club ? "club" : r.h.hg_association ? "association" : null,
-        b_list: !!r.h.b_list, loaned_in: !!r.loanedIn,
+        b_list: free(r, base), loaned_in: !!r.loanedIn,
       })),
     };
   }
@@ -302,7 +358,7 @@ export async function registrationKit({ squadRows, redraw }) {
     winSel.addEventListener("change", check);
     yearIn.addEventListener("input", check);
     check();
-    const t = tally(rows, plan, rules);
+    const t = tally(rows, plan, base, free);
     let back;
     const go = el("button.btn", {
       text: "Save",
@@ -321,7 +377,8 @@ export async function registrationKit({ squadRows, redraw }) {
     });
     back = sheet("Save registration for a window", [
       el("p.note", {
-        text: `${t.a} on the A-list, ${t.b} on the B-list, ${t.out} unregistered — `
+        text: `${t.a} on the ${listLabel(A)}, ${t.b} on the ${listLabel(B)}, ${t.out} `
+          + "unregistered — "
           + `saved exactly as the lists stand in the Squad table.`,
       }),
       el("div.prow", {}, [winSel, yearIn]),
@@ -391,7 +448,7 @@ export async function registrationKit({ squadRows, redraw }) {
       joined: rows.filter((r) => !then.has(r.tid)),
       moved: rows.filter((r) => then.has(r.tid) && then.get(r.tid).list !== plan[r.tid])
         .map((r) => ({ r, from: then.get(r.tid).list, to: plan[r.tid] })),
-      agedOut: rows.filter((r) => then.get(r.tid)?.list === B && !r.h.b_list),
+      agedOut: rows.filter((r) => then.get(r.tid)?.list === B && !free(r, base)),
     };
   }
 
@@ -401,7 +458,7 @@ export async function registrationKit({ squadRows, redraw }) {
     for (const r of rows) {
       let l = then.get(r.tid);
       if (l == null) { fresh++; l = r.h.b_list ? B : OUT; }
-      else if (l === B && !r.h.b_list) { agedOut++; l = OUT; }
+      else if (l === B && !free(r, base)) { agedOut++; l = OUT; }
       plan[r.tid] = l;
     }
     save(KEY, plan);
@@ -410,7 +467,7 @@ export async function registrationKit({ squadRows, redraw }) {
     toast([`Loaded ${W.windowLabel(rec.id)}`,
       gone ? `${gone} since left` : null,
       fresh ? `${fresh} new to place` : null,
-      agedOut ? `${agedOut} aged out of the B-list — now unregistered` : null,
+      agedOut ? `${agedOut} aged out of the ${listLabel(B)} — now unregistered` : null,
     ].filter(Boolean).join(" · "));
   }
 
@@ -446,7 +503,8 @@ export async function registrationKit({ squadRows, redraw }) {
           + names(c.joined, (r) => r.player.name),
       }) : null,
       c.agedOut.length ? el("p.note", {
-        html: `<b>Aged out of the B-list</b> (${c.agedOut.length}) — need an A-list place now: `
+        html: `<b>Aged out of the ${listLabel(B)}</b> (${c.agedOut.length}) — need a place on the `
+          + `${listLabel(A)} now: `
           + names(c.agedOut, (r) => r.player.name),
       }) : null,
       // Grouped by transition: one line per "A → B", not one arrow per player, so a plan that
@@ -457,7 +515,7 @@ export async function registrationKit({ squadRows, redraw }) {
       }, new Map())].map(([k, ms]) => {
         const [from, to] = k.split(">");
         return el("p.note", {
-          html: `<b>${LIST_LABEL[from]} → ${LIST_LABEL[to]} in the current plan</b> (${ms.length}): `
+          html: `<b>${listLabel(from)} → ${listLabel(to)} in the current plan</b> (${ms.length}): `
             + names(ms, (m) => m.r.player.name),
         });
       }),
@@ -466,12 +524,12 @@ export async function registrationKit({ squadRows, redraw }) {
     let back;
     back = sheet(`Registration · ${W.windowLabel(rec.id)}`, [
       el("div.kpis", {}, [
-        kpi("A-list", `${s.a ?? DASH} / ${s.a_list_max ?? rules.a_list_max}`),
-        s.hg_min ? kpi("Home grown on A", `${s.hg_counted} / ${s.hg_min}`,
+        kpi(listLabel(A), s.a_list_max == null ? `${s.a ?? DASH}` : `${s.a ?? DASH} / ${s.a_list_max}`),
+        s.hg_min ? kpi("Home grown", `${s.hg_counted} / ${s.hg_min}`,
           s.hg_counted >= s.hg_min ? "good" : "bad") : null,
         s.hg_min ? kpi("…club-trained", `${s.club} / ${s.hg_club_min}`,
           s.club >= s.hg_club_min ? "good" : "bad") : null,
-        kpi("B-list", String(s.b ?? DASH)),
+        kpi(listLabel(B), String(s.b ?? DASH)),
         kpi("Unregistered", String(s.out ?? DASH), s.out ? "warn" : "good"),
       ].filter(Boolean)),
       el("p.note", {
@@ -485,7 +543,7 @@ export async function registrationKit({ squadRows, redraw }) {
         el("button.btn", {
           text: "Load into plan",
           title: "Set the lists from this window: players still here keep their list, new players "
-            + "get the default, and anyone who has aged out of the B-list is flagged",
+            + `get the default, and anyone who has aged out of the ${listLabel(B)} is flagged`,
           onclick: () => {
             if (!confirm(`Replace the current plan with ${W.windowLabel(rec.id)}'s lists?`)) return;
             applyWindow(rec);
@@ -517,8 +575,8 @@ export async function registrationKit({ squadRows, redraw }) {
       el("h3", { text: "Since then" }),
       ...(changes.length ? changes
         : [el("p.note", { text: "Nothing has changed — the current plan matches this window." })]),
-      block("A-list", listOf(A)),
-      block("B-list", listOf(B)),
+      block(listLabel(A), listOf(A)),
+      block(listLabel(B), listOf(B)),
       block("Unregistered", listOf(OUT)),
     ], { wide: true });
   }
@@ -544,10 +602,14 @@ export function hgCredit(club, association, rules) {
   return c + Math.min(association, rules.hg_min - c, rules.hg_min - rules.hg_club_min);
 }
 
-function tally(rows, plan, rules) {
+/** The plan's counts under `rules`. A player on the free list who is not free under these rules
+ *  (a keeper, counted where goalkeepers are not free) counts on the capped list. No cap: `cap`
+ *  is null. */
+function tally(rows, plan, rules, free) {
   let a = 0, b = 0, out = 0, club = 0, assoc = 0;
   for (const r of rows) {
-    const l = plan[r.tid];
+    let l = plan[r.tid];
+    if (l === B && !free(r, rules)) l = A;
     if (l === A) {
       a++;
       if (r.h.hg_club) club++;
@@ -556,8 +618,9 @@ function tally(rows, plan, rules) {
     else out++;
   }
   const hgCounted = rules.hg_min ? hgCredit(club, assoc, rules) : 0;
-  const missing = Math.max(0, rules.hg_min - hgCounted);
-  return { a, b, out, club, assoc, hgCounted, missing, cap: rules.a_list_max - missing };
+  const missing = Math.max(0, (rules.hg_min || 0) - hgCounted);
+  return { a, b, out, club, assoc, hgCounted, missing,
+    cap: rules.a_list_max == null ? null : rules.a_list_max - missing };
 }
 
 // --------------------------------------------------------------------------- plumbing

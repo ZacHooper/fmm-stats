@@ -1,9 +1,30 @@
 # Guide — registering the squad
 
-**The save does not model any of this.** FMM22 has no A-list, no B-list and no home-grown
-requirement. This is a self-imposed restriction: the Danish Herre-DM registration rules
-(`docs/danish-registration-rules.md` in the repo) applied to the squad, so that squad building
-has the constraint a real Superliga manager works under.
+**The save does not model any of this.** The game has no squad list, no B-list and no home-grown
+requirement. This is a self-imposed restriction: a real league's registration rules applied to
+the squad, so that squad building has the constraint a real manager works under.
+
+**Which rules.** Each career names a rule set (`registration` in `fmm.toml`; the sets are
+`seeds/registration_rules.csv` in the repo): `denmark`, the Herre-DM rules
+(`docs/danish-registration-rules.md`), `england`, the EFL and National League rules
+(`docs/english-registration-rules.md`), or `none`. The managed league's tier picks the row, so a
+promotion switches the rules with nothing to do. Every set has the same shape, which the app
+draws with the set's own words: a **capped list** (Denmark's A-list, the EFL's squad list) with
+the home-grown minimums counted on it, and a **free list** beside it that does not touch the cap
+(Denmark's B-list; England's "Exempt": the under-21s and, in Leagues One and Two, every
+goalkeeper). `api/registration.json`'s `rules` carries the labels; the export keys keep the
+Danish names (`a_list_max`, `b_list`) for both.
+
+**Count as.** The Squad card's picker recounts the same plan against another tier's row of the
+career's rule set: a club in the National League South can see its squad counted as a League
+Two squad list (22 over-21s, 8 home grown) before it gets there. The choice is kept per device
+and career; saved windows are always counted against the league actually played in.
+
+The rest of this guide is written for the Danish set, the one with the most moving parts (the
+club-trained minimum). The English set differs in three ways: home grown means trained at **any
+club in England or Wales** (no club-trained minimum, so the "Us" and association columns count
+the same), the under-21 cut-off is born on or after 1 January 21 years before the season's first
+year, and League One and Two goalkeepers are free.
 
 Everything below is therefore DERIVED. Say so when you report on it — a player is "home grown
 on our reading of the save", not "home grown" as a fact the game asserts.
@@ -111,8 +132,10 @@ and read is not counted twice.
 
 ## Reading it over the API
 
-`api/registration.json` — `rules` (the tier's rule set, plus the `u21_on` date) and `players`,
-positional rows named by `fields`:
+`api/registration.json` — `rules` (the career's rule set's row for our tier, with its labels,
+matchday limits and the `u21_on` date; null when the rule set has no row for the tier or the
+career plays none), `ruleSet` (every tier's row, for Count as) and `players`, positional rows
+named by `fields`:
 
 ```
 tid, age, b_list, hg_club, hg_basis, hg_association, months_club, months_to_go,
