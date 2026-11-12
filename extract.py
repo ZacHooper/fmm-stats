@@ -29,6 +29,7 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
                                  nation unions, named rivalries, each nation's regions
     id_list.json                 an unread id list between the currencies and languages
     person_index.json            a short row per person: his loan slot, one unread pointer
+    club_rows.json               a row per club, in tid order: its transfer budget
     competition_team_counts.json each nation's team-count rules
     formations.json              the formation catalog the staff records index
     contracts.json               the contract grid
@@ -314,7 +315,7 @@ def steps(no_archive: bool = False):
         Step("person_index", registered("person_index"),
              per_person("person_index.json", T.scrape_person_index)),
         Step("staff_rows", registered("staff_rows"), walked(T.scrape_staff_rows)),
-        Step("club_rows", registered("club_rows"), walked(T.scrape_club_rows)),
+        Step("club_rows", registered("club_rows"), one("club_rows.json", T.scrape_club_rows)),
         Step("rule_files", registered("rule_files"), read_team_counts),
         Step("formation catalog", ST.formation_catalog_span,
              one("formations.json", ST.formation_catalog, 1)),

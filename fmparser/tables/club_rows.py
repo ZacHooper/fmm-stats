@@ -11,7 +11,9 @@ The walk ends exactly on a u16 equal to the player-attribute count (26,505 on Fr
 on Truro), the count in front of the per-player block that follows. That landing, on every
 save of both games, is the table's extent proof.
 
-What the row holds is open. Each FMM22 row carries 12 bytes at +36, all `ff` on most clubs
+The row's first u32 is the club's **transfer budget** in pounds: Truro's reads 10,000 on
+truro-2026-07-25, the Club Finances screen's "Transfer Budget £10,000" that day (Frem reads
+1,030,284 on frem-2026-06-11). The rest of the row is open. Each FMM22 row carries 12 bytes at +36, all `ff` on most clubs
 and small numbers (0-6) on others. The extra block is set for 232 clubs on frem-2021-06-27,
 growing to 474 by frem-2030-06-22, and for 1,088 to 1,298 on Truro. On FMM22 it holds an f32
 at +5 that neighbouring clubs of one nation share (1.45 on four Albanian clubs, 7.17 on
@@ -21,22 +23,25 @@ the shape of a ranking or coefficient table, not yet matched to a screen.
 import struct
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..core import CountedList, Field, Record, TableDef, RAW, U8, UNKNOWN
+from ..core import CountedList, Field, Record, TableDef, RAW, U8, U32, UNKNOWN
 from ..save import cache_key as _cache_key
 from .save_header import FMM27, save_format
 
 __all__ = ["CLUB_ROW", "CLUB_ROW_FMM27", "CLUB_ROW_EXTRA", "CLUB_ROW_EXTRA_FMM27",
-           "CLUB_ROWS_TABLE", "CLUB_ROWS_TABLE_FMM27", "club_rows_table_spans",
+           "CLUB_ROWS_TABLE", "CLUB_ROWS_TABLE_FMM27", "club_rows_extra_count", "club_rows_table_spans",
            "locate_club_rows", "scrape_club_rows"]
 
 CLUB_ROW = Record("club_row", 50, (
-    Field(0,  36, UNKNOWN, RAW, note="mostly 0"),
+    Field(0,  4,  "transfer_budget", U32, note="pounds, as the Club Finances screen shows it"),
+    Field(4,  32, UNKNOWN, RAW, note="mostly 0"),
     Field(36, 12, UNKNOWN, RAW, note="all ff on most clubs; 12 small numbers on others"),
     Field(48, 2,  UNKNOWN, RAW, note="0 on most clubs"),
 ), is_head=True)
 
 CLUB_ROW_FMM27 = Record("club_row_fmm27", 131, (
-    Field(0,   117, UNKNOWN, RAW, note="mostly 0"),
+    Field(0,   4,   "transfer_budget", U32, note="pounds: Truro's 10,000 is the Club Finances "
+                                               "screen's £10,000 on truro-2026-07-25"),
+    Field(4,   113, UNKNOWN, RAW, note="mostly 0"),
     Field(117, 12,  UNKNOWN, RAW, note="all ff on most clubs"),
     Field(129, 2,   UNKNOWN, RAW, note="0 on most clubs"),
 ), is_head=True)
@@ -95,6 +100,10 @@ def locate_club_rows(mm: Any) -> Optional[Tuple[int, int]]:
     return res[:2] if res else None
 
 
+def _post(rec: Dict[str, Any], off: int) -> Dict[str, Any]:
+    return {"transfer_budget": rec["transfer_budget"]}
+
+
 def club_rows_table_spans(mm: Any) -> List[Tuple[int, int]]:
     """The rows, their u16 count included."""
     if locate_club_rows(mm) is None:
@@ -106,15 +115,28 @@ def club_rows_table_spans(mm: Any) -> List[Tuple[int, int]]:
 CLUB_ROWS_TABLE = TableDef(
     name="club_rows",
     segments=(CLUB_ROW, CountedList("extra", U8, CLUB_ROW_EXTRA, max_count=1)),
-    locator=locate_club_rows)
+    locator=locate_club_rows, post_process=_post)
 CLUB_ROWS_TABLE_FMM27 = TableDef(
     name="club_rows",
     segments=(CLUB_ROW_FMM27, CountedList("extra", U8, CLUB_ROW_EXTRA_FMM27, max_count=1)),
-    locator=locate_club_rows)
+    locator=locate_club_rows, post_process=_post)
+
+
+def club_rows_extra_count(mm: Any) -> int:
+    """How many clubs carry the extra block."""
+    row, extra = _parts(mm)
+    base, count = locate_club_rows(mm)
+    pos, n = base, 0
+    for _ in range(count):
+        k = mm[pos + row.span]
+        n += k
+        pos += row.span + 1 + k * extra.span
+    return n
 
 
 def scrape_club_rows(mm: Any) -> List[Dict[str, Any]]:
-    """Every row, row k for club tid k. Raises `ValueError` when not located."""
+    """Every row, row k for club tid k: its transfer budget. Raises `ValueError` when not
+    located."""
     loc = locate_club_rows(mm)
     if loc is None:
         raise ValueError("club_rows: no club count after the staff rows that lands on the "

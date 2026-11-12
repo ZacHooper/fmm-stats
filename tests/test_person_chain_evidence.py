@@ -62,10 +62,14 @@ def check_save(name, fx):
     check(cr == (want["base"], want["count"]), f"club rows at {want['base']:,}, {want['count']:,}")
     rows = club_rows.scrape_club_rows(mm)
     check(len(rows) == want["count"], f"club rows read {want['count']:,} rows")
-    extra = sum(1 for r in rows if r["extra"])
+    extra = club_rows.club_rows_extra_count(mm)
     check(extra == want["extra"], f"{want['extra']:,} club rows carry the extra block")
     check(len(staff_rows.scrape_staff_rows(mm)) == fx["staff_rows"]["count"],
           "staff rows read their count")
+
+    for tid, want in fx.get("club_values", {}).items():
+        for k, v in want.items():
+            check(rows[int(tid)][k] == v, f"club {tid} {k} = {v:,}")
 
     print(" CHAIN")
     pi = person_index.locate_person_index(mm)

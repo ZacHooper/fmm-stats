@@ -1,8 +1,9 @@
 # club_rows  ([`fmparser/tables/club_rows.py`](../../fmparser/tables/club_rows.py))
 
 **One row per club**, straight after the [staff rows](staff_rows.md): the third link of the
-chain from the languages to the [rule files](rule_files.md). Its extent is proved; no field
-is named yet, so `extract.py` walks it and writes no file.
+chain from the languages to the [rule files](rule_files.md). Its extent is proved and one field
+is named, the club's **transfer budget**; `extract.py` writes it to `club_rows.json`, one row
+per club in tid order.
 
 | | Truro (FMM27) | Frem (FMM22) | Bucaspor (FMM22) |
 |---|---|---|---|
@@ -16,7 +17,8 @@ is named yet, so `extract.py` walks it and writes no file.
 
 | FMM27 | FMM22 | type | what is seen |
 |---|---|---|---|
-| +0 | +0 | 117 / 36 B | mostly 0 |
+| +0 | +0 | u32 `transfer_budget` | pounds, as the Club Finances screen shows it |
+| +4 | +4 | 113 / 32 B | mostly 0 |
 | +117 | +36 | 12 B | all `ff` on most clubs; twelve small numbers (0–6) on others |
 | +129 | +48 | 2 B | 0 on most clubs |
 | +131 | +50 | u8 `n` | 0 or 1: how many extra blocks follow |
@@ -40,9 +42,17 @@ the [player-attribute](player_attributes.md) count: 26,505 on Frem, 26,292 on Bu
 
 ## Evidence
 
+`truro-2026-07-25`, Truro City (tid 3125): the row's first u32 is `10 27 00 00`, 10,000, and
+the Club Finances screen that day reads **Transfer Budget £10,000**. Frem reads 1,030,284 on
+frem-2026-06-11. Nothing else on the screen is in the row: no u32 reads the wage budget or wage
+total, a year or a week (£1.01M / £1.03M), and no byte reads 50 (profit retention), and
+the affiliate (Helston Athletic) is the [club record](clubs.md)'s `affiliates` list.
+
+![Truro City, Club Finances, 25 Jul 2026: Transfer Budget £10,000](img/club_rows-fmm27-1.png)
+
 [`tests/test_person_chain_evidence.py`](../../tests/test_person_chain_evidence.py): start,
-count and extra-block count on four saves of both games, and the landing on the
-player-attribute count. A walk with a 65-byte extra block finds nothing.
+count and extra-block count on five saves of both games, the transfer budget on
+truro-2026-07-25, and the landing on the player-attribute count. A walk with a 65-byte extra block finds nothing.
 
 ### FMM22
 
