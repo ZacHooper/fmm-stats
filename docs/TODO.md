@@ -153,17 +153,24 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
   table holds one edition); find the xG and season stats (#10a). A save before and after a
   scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
   only save diffs across a derby match can name them.
-Phase 2, in progress:
-- **The [loan pool](parser/loans.md) is read** (the plan's "25-byte table"): every loan in
-  the world, found by `person_index.loan_slot`, on all eight saves. Open: **load it** into
-  `raw` and use it for loan spells for every club (today's `mart.fact_loan_spell` comes from
-  the progress bit, our squad only, loans out only); name `pct` and the u32 at +17 from a
-  loan screen. The 1.48 MB after it, to the transfer band, is unread.
+Phase 2 read two tables and found what the other two regions hold:
+- **The [loan pool](parser/loans.md)** (the plan's "25-byte table"): every loan in the world,
+  found by `person_index.loan_slot`. **Load it** into `raw` and build loan spells for every
+  club from it (today's `mart.fact_loan_spell` comes from the progress bit: our squad, loans
+  out only); name `pct` and the u32 at +17 from a loan screen. The 1.48 MB after it, to the
+  transfer band, is unread.
+- **[Last transfers](parser/last_transfers.md)** (the plan's "per-player block"): each
+  player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and
+  a destination for every move in the world, which the band (emptied every July) can't give.
+  The 1.32 MB after it, to the name id-tables, is unread.
+- **Competition record books** (club records → player progress): layout started, see #3.
+- **The dated queue before the archive** is the game's scheduled events. On FMM22, type 9 is
+  a transfer going through on that day (all 41 on frem-2026-06-11 are agreed transfers).
+  FMM27 stores the region differently (149 KB, with a long run of u16 0, 1, 2 …): decode
+  there before writing a table.
 - **The contract grid's span ends 89 bytes short on frem-2030-06-22**: the loan pool's
   header sits 89 bytes past it there, and right after the span on every other save. Check
   the grid's last slots on that save.
-- **Competition record books** (club records → player progress): see #3. Then the
-  per-player block after the transfer band and the dated queue before the archive.
 
 ### 3. The unclaimed regions of the career half
 - **54.21–59.27 M** (5.1 MB) — around our match region. Unexamined. One populated

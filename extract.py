@@ -33,6 +33,7 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     formations.json              the formation catalog the staff records index
     contracts.json               the contract grid
     loans.json                   every loan in the world: player, loan club, dates
+    last_transfers.json          each player's latest transfer: fee and buying club
     name_ids.json                the first-name, surname and nickname id-tables
     history.json                 the career-history pool
     club_records.json, player_records.json, club_league_history.json
@@ -304,6 +305,8 @@ def steps(no_archive: bool = False):
         Step("contracts", registered("contracts"),
              one("contracts.json", contracts.scrape_contracts)),
         Step("loans", registered("loans"), one("loans.json", T.scrape_loans)),
+        Step("last_transfers", registered("last_transfers"),
+             one("last_transfers.json", T.scrape_last_transfers)),
         Step("name id-tables", registered("surnames", "first_names", "nicknames"),
              one("name_ids.json", NM.scrape_name_ids)),
         Step("history", registered("history"), read_history),

@@ -229,6 +229,16 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <div class="eyebrow"><span class="pill p2">2</span> live tables · need save diffs and screens</div>
       <h3>Regions with a clear record shape but no meaning yet</h3>
     </header>
+    <div class="callout">
+      <span class="k">Progress, 12 Nov</span>
+      <p>Two tables read on both games and extracted, with evidence tests on eight saves:</p>
+      <ul>
+        <li><b>Loans</b> (the 25-byte table): a pool of 6,243 / 6,637 slots, one per loan in the world — player, loan club, start, end, a percentage and an option. Every player on loan points at his slot from the per-person rows; the 11 Frem players progress marks as out on loan are exactly the loans out of Frem.</li>
+        <li><b>Last transfers</b> (the per-player block): one 30-byte row per player, his latest transfer since the career began — fee and buying club — kept across rollovers. On Truro every filled row matches an accepted bid in the transfer band (Rrahmani, 8.8 M to Ipswich).</li>
+      </ul>
+      <p><b>Leads, not tables yet:</b> the competition record books (cid 0 is the Belgian Pro League's: 21-byte match rows with a holder club, then 24-byte player rows; the per-competition block sizes are not found); the dated queue is the game's scheduled events, where on FMM22 type 9 is a transfer going through on that day, but FMM27 stores it differently.</p>
+      <p><b>Outstanding:</b> load loans and last transfers into the store; the ~1.5 MB after the loans and ~1.3 MB after the last transfers; name the loan percentage and option amount from a loan screen.</p>
+    </div>
 
     <div class="item">
       <h3>The 25-byte table <span class="where">contract grid → transfer band · 1.67 MB</span></h3>

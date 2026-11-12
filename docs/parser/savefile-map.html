@@ -315,7 +315,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     [34120896, 34276977, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,243 slots × 25 B, 2,312 loans: the player, the club he is on loan at, start, end, a percentage and an option. Every player on loan points at his slot."],
     [34276977, 35438751, "unknown", "Unidentified", null, "", "", "1.16 MB in front of the transfer band."],
     [35438751, 38405582, "seasonal", "Seasonal transfer band", "#band", "Shape A", "hdr", "[u32 65,000][u32 count = 20,747][2 B], then 20,747 × 143 B transfer-negotiation rows: every bid, and the accepted one with its fee and contract terms. Its collapse is the file's July shrink."],
-    [38404968, 40042185, "unknown", "Unidentified", null, "", "", "00 34% / ff 33% / other 32%."],
+    [38405582, 39200736, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "26,505 × 30 B, one per player attribute record: each player's latest transfer (fee, buying club), 10,323 filled. Survives the July rollover."],
+    [39200736, 40042185, "unknown", "Unidentified", null, "", "", "0.84 MB before the match-slot table."],
     [40042185, 40141560, "reserved", "Match-slot table", "match_slots.md", "Shape C", "MATCH_SLOTS_TABLE", "3,975 × 25 B: two clubs and a score, no venue. The 3,975 is a capacity: slots are reused."],
     [40141778, 40656146, "database", "Surname id-table", "names.md", "Shape C", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
     [40656158, 40962206, "database", "First-name id-table", "names.md", "Shape C", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
@@ -336,7 +337,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     [56314300, 61253092, "unknown", "Unidentified", null, "", "", "00 29% / ff 53% / other 18%. One small player-list block sits at 56,336,372, so the structure below starts earlier than its first empty slot."],
     [61253092, 62631642, "reserved", "Player lists", "player_lists.md", "Shape E", "PLAYER_LISTS_TABLE", "66 lists of [100 scrapbook entries][14 B trailer]. Lists 0–30 world (100 players a season), 31–61 our squad per season, 62–65 two copies of a world/club pair. Filled season by season."],
     [61896648, 62002727, "reserved", "Our club's squad lists (31–61)", "player_lists.md", "", "player_scrapbook.json", "The managed squad, one list per season.", true],
-    [62631781, 62635766, "unknown", "Unnamed dated table", null, "Shape C", "struct", "14 B units [u32 FFFFFFFF][u16 9][u16 day-of-year][u16 year][u32 ?], dates a fortnight ahead of the save."],
+    [62631781, 62635766, "unknown", "Unnamed dated table", null, "Shape C", "struct", "Scheduled events: 14 B units [u32 FFFFFFFF][u16 type][day-of-year][year][u32 tid], dates a fortnight ahead of the save. Type 9 is a transfer going through on that day."],
     [62635766, 63936873, "grows", "sicomps archive", "#h-arch", "Shape D", "archive.locate", "159 zstd members and a directory, 6.58 MB decompressed: fixtures, comp_stages, comp_honours, 147 × comp_<uid>.dat. Grows with the career."]
   ];
 
@@ -503,7 +504,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   var gaps = [
     ["56.31–61.25 MB", 4.94, 0.9, "between the league-titles table and the player lists"],
     ["34.28–35.44 MB", 1.16, 0.59, "after the loans, in front of the transfer band; real bytes not re-measured"],
-    ["38.40–40.04 MB", 1.64, 0.53, "between the transfer band and the match-slot table"],
+    ["39.20–40.04 MB", 0.84, 0.53, "between the last transfers and the match-slot table; real bytes not re-measured"],
     ["14.44–16.75 MB", 2.31, 0.48, "after the per-person rows: counted blocks with no 0xFF in front; real bytes not re-measured"],
     ["20.02–29.17 MB", 9.15, 0.3, "94% 0xFF: padding, not a target"],
     ["41.11–42.63 MB", 1.52, 0.27, "82% zero, mostly padding"],
