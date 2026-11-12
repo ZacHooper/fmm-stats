@@ -138,11 +138,20 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1%
 
 ### 2a. FMM27: the twelve unread regions
 **[`plans/2026-11-12-unknown-regions.html`](plans/2026-11-12-unknown-regions.html)** triages
-the ~17.7 MB no table claims on the Truro saves, region by region, with the leads measured so
-far and a phased order. Strongest leads: a chain of counted tables after languages (44,960 ×
-15 B, one per person, then 6,212 × 12 B, one per staff member), a 44,959 × 4 B table right
-after our matches, and a block counted by the player count (36,344) after the transfer band.
-Read the plan to resume; the FMM22 regions below are the same tables on the older game.
+the regions no table claimed on the Truro saves, with the leads measured and a phased order.
+Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](parser/unions.md),
+[derbies](parser/derbies.md), [regions](parser/regions.md), [id_list](parser/id_list.md),
+[person_index](parser/person_index.md), [person_stamps](parser/person_stamps.md); evidence
+`tests/test_world_lists_evidence.py`). Open from Phase 1, in order:
+- **The staff-counted block after the per-person rows** (`[count u32 = staff count]`, then
+  more counted blocks to the rule files): find its row width on both games (12 B fits FMM27
+  only), then walk on. `person_index.row_a` points into a table of about 3,010 rows on Truro.
+- **Load the awards** into `raw` and a mart of award winners. Each entry stores the winner's
+  name ids as they were, which settles the tid-reuse problem in #14 for these awards.
+- **Name from screens**: an award's entry order and its unnamed body bytes (an Awards screen
+  with three placed names); the derby bytes at +8 and +9 (a club's rivals screen); the
+  stamps' `level` (a scouted player before and after a report).
+Then Phase 2 of the plan.
 
 ### 3. The unclaimed regions of the career half
 - **54.21–59.27 M** (5.1 MB) — around our match region. Unexamined. One populated
@@ -162,8 +171,8 @@ Read the plan to resume; the FMM22 regions below are the same tables on the olde
   rows near the end of `bucaspor-2022-06-19` whose index reads 0. Capture the Transfers screen
   into `docs/parser/img/` as the evidence record. Then a parser table, an extract step and a
   raw table ("Raw mirrors the save, one table per table").
-- **13.96–16.68 M** — 85% filler. It opens with a u32 equal to the person count (32,966 /
-  34,312) and 14-byte units: walk it as a per-person table and see where it ends.
+- **14.44–16.75 M** (frem-2026-06-11) — after the [per-person rows](parser/person_index.md):
+  counted blocks with no `0xFF` frame, the first counted by the staff table. #2a.
 - A **league-titles table** at ~56.3 M behind a 550-byte `0xFF` run, 0.13 MB after our
   matches ([savefile map](parser/savefile-map.md)): `[u8][cid u16][tid u16][year u16]` per
   65-byte entry, one per league title Frem has won, the first byte the entry count. Name it:
@@ -236,9 +245,7 @@ the week's attribute values?). Named, the table could give every squad player's 
 development, not just injuries and loans.
 
 ### 5. Reference-half tables not yet read
-- The unnamed count-framed tables ([savefile map](parser/savefile-map.md)): the 807 awards
-  (club-shaped records with a longer trailer) and the 888-row 7-byte list between currencies
-  and languages.
+- What the [id list](parser/id_list.md)'s ids name (888 on FMM22, 924 on FMM27).
 - **Staff Specialism and Aptitude** are extracted (`staff_roles.json`,
   [staff_roles](parser/staff_roles.md)) but not loaded: add them to `raw` and the staff
   marts, and name the remaining specialism codes, aptitude 2 and the badge byte from Staff
@@ -246,7 +253,7 @@ development, not just injuries and loans.
 - **`audit_table_headers.py --confirm` fails the nickname id-table on every save**: its check
   reads the last declared slot as in use, and that slot is an empty `ffffffff`. A tooling
   bug, not the data's: check the last *used* slot.
-- The **Region** table, the unnamed bytes of the nation record (`NATION_TEAM`, `NATION_END`),
+- The unnamed bytes of the nation record (`NATION_TEAM`, `NATION_END`),
   and the ~7-entry
   **continent** table right after the nations (`[uid u32][Name][01][CodeName][Demonym][01]`,
   Africa..South America at ids 0–5, `World` at 6).

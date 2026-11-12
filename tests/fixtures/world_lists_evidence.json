@@ -1,0 +1,179 @@
+{
+ "_about": "The tables between the cities and the currencies (awards, nation unions, derbies, regions), the id list before the languages, the per-person rows after them, and the per-person stamps after our matches, on one save of each game: where each walk starts, how many rows it reads, the raw bytes behind a few rows, and what the parser makes of them. Guarded by tests/test_world_lists_evidence.py; layouts in docs/parser/{awards,unions,derbies,regions,id_list,person_index,person_stamps}.md.",
+ "saves": {
+  "frem-2026-06-11.fms": {
+   "walks": {
+    "awards": {
+     "base": 13690908,
+     "count": 807
+    },
+    "unions": {
+     "base": 13833155,
+     "count": 6
+    },
+    "derbies": {
+     "base": 13833350,
+     "count": 1377
+    },
+    "regions": {
+     "base": 13898508,
+     "count": 2467
+    },
+    "id_list": {
+     "base": 13969910,
+     "count": 888
+    },
+    "person_index": {
+     "base": 13979802,
+     "count": 32966
+    },
+    "person_stamps": {
+     "base": 56178690,
+     "count": 32965
+    }
+   },
+   "raw": [
+    [
+     13690908,
+     "00 00 00 00 07 90 01 00 16 00 00 00 46 6f 6f 74 62 61 6c 6c 65 72 20 6f 66 20 74 68 65 20 59 65 61 72",
+     "award 0: id 0, uid, 'Footballer of the Year'"
+    ],
+    [
+     13833350,
+     "00 00 00 00 b9 79 02 00 0a 00 00 00 4d 65 72 73 65 79 73 69 64 65",
+     "derby 0: id 0, uid, 'Merseyside'"
+    ],
+    [
+     13898508,
+     "00 00 a4 63 02 00 0a 00 00 00 53 6f 75 74 68 2d 45 61 73 74",
+     "region 0: id 0, uid, 'South-East'"
+    ],
+    [
+     56178684,
+     "01 01 c5 80 00 00 01 b4 00 04",
+     "person_stamps: [01][01][count], row 0"
+    ]
+   ],
+   "award_0": {
+    "name": "Footballer of the Year",
+    "long_name": "World Footballer of the Year",
+    "continent_id": 65535,
+    "nation_id": 65535,
+    "cid": 65535,
+    "last_day": 323,
+    "last_year": 2025,
+    "entry_0": {
+     "person_tid": 21330,
+     "club_tid": 1000,
+     "year": 2025,
+     "score": 5690,
+     "first_name_id": 9,
+     "last_name_id": 3596,
+     "common_name_id": 1525
+    }
+   },
+   "derby_0": {
+    "name": "Merseyside",
+    "club_a_tid": 448,
+    "club_b_tid": 471,
+    "clubs": [
+     "Everton",
+     "Liverpool"
+    ]
+   },
+   "region_0": {
+    "name": "South-East",
+    "nation_id": 139,
+    "nation": "England"
+   },
+   "managed_tid": 346
+  },
+  "truro-2026-08-08.fms": {
+   "walks": {
+    "awards": {
+     "base": 16121870,
+     "count": 1123
+    },
+    "unions": {
+     "base": 16321487,
+     "count": 6
+    },
+    "derbies": {
+     "base": 16321712,
+     "count": 1681
+    },
+    "regions": {
+     "base": 16400569,
+     "count": 2532
+    },
+    "id_list": {
+     "base": 16473697,
+     "count": 924
+    },
+    "person_index": {
+     "base": 16483893,
+     "count": 44960
+    },
+    "person_stamps": {
+     "base": 61621913,
+     "count": 44959
+    }
+   },
+   "raw": [
+    [
+     16121870,
+     "00 00 00 00 07 90 01 00 16 00 00 00 46 6f 6f 74 62 61 6c 6c 65 72 20 6f 66 20 74 68 65 20 59 65 61 72",
+     "award 0: id 0, uid, 'Footballer of the Year'"
+    ],
+    [
+     16321712,
+     "00 00 00 00 b9 79 02 00 0a 00 00 00 4d 65 72 73 65 79 73 69 64 65",
+     "derby 0: id 0, uid, 'Merseyside'"
+    ],
+    [
+     16400569,
+     "00 00 a4 63 02 00 0a 00 00 00 53 6f 75 74 68 2d 45 61 73 74",
+     "region 0: id 0, uid, 'South-East'"
+    ],
+    [
+     61621907,
+     "01 01 9f af 00 00 03 cb 00 00",
+     "person_stamps: [01][01][count], row 0"
+    ]
+   ],
+   "award_0": {
+    "name": "Footballer of the Year",
+    "long_name": "World Footballer of the Year",
+    "continent_id": 65535,
+    "nation_id": 65535,
+    "cid": 65535,
+    "last_day": 350,
+    "last_year": 2025,
+    "entry_0": {
+     "person_tid": 21612,
+     "club_tid": 492,
+     "year": 2025,
+     "score": 50,
+     "first_name_id": 8479,
+     "last_name_id": 17146,
+     "common_name_id": 4294967295
+    }
+   },
+   "derby_0": {
+    "name": "Merseyside",
+    "club_a_tid": 328,
+    "club_b_tid": 350,
+    "clubs": [
+     "Everton",
+     "Liverpool"
+    ]
+   },
+   "region_0": {
+    "name": "South-East",
+    "nation_id": 139,
+    "nation": "England"
+   },
+   "managed_tid": 3125
+  }
+ }
+}
