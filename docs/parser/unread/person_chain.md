@@ -50,8 +50,11 @@ seven u16 start 70 bytes after the previous block's date (block 0: 10 bytes into
   recent last, `ff` for no match. Against the Club Squad screen, all ten players shown agree:
   Bogle 7-6-6, Donnellan 8-6-7, Greenslade 7-7-8, Harvey 8-6, Hasani 6-6, Dean 7-7,
   Harrison 7-7, Bell 7, En-Neyah 7, and Colwell (no matches) all `ff`.
-- **The first of the six (10-20) is not condition**: Greenslade reads 20 at 76%, Colwell 16
-  at 100%. Open.
+- **The first of the six (10-20) is morale**, the arrow beside each name on the Club Squad
+  screen, and not condition (Greenslade 20 at 76%, Colwell 16 at 100%). It orders the arrows
+  exactly: 20, Greenslade, green arrow straight up; 16-17 (Bell, Colwell, Dean, Donnellan,
+  Harrison) green, up and right; 12-13 (En-Neyah, Harvey, Hasani) yellow, flat; 11 (Bogle)
+  orange, down and right. Where the bands split between 13 and 16 is not yet seen.
 
 ![Truro City, Club Squad, 25 Jul 2026: Form column](../img/player_block-fmm27-1.png)
 ![Lewis Colwell, Player Contract, 25 Jul 2026: Interested Clubs Salisbury, Oxford City](../img/player_block-fmm27-2.png)
@@ -62,7 +65,7 @@ seven u16 start 70 bytes after the previous block's date (block 0: 10 bytes into
    own length rule), with `interested_clubs` and `form` named.
 2. Decode the rich row: line a dozen up by their dates and find the counted lists inside.
 2. Walk all 26,505 / 36,344 blocks and prove the landing on the next count, on both games.
-3. Name the first of the six u8 (10-20): diff two Truro saves.
+3. Pin morale's bands: a squad with a 14, a 15 and a red arrow.
 
 ## Evidence that would help
 
