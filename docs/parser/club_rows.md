@@ -46,7 +46,10 @@ the [player-attribute](player_attributes.md) count: 26,505 on Frem, 26,292 on Bu
 the Club Finances screen that day reads **Transfer Budget £10,000**. Frem reads 1,030,284 on
 frem-2026-06-11. Nothing else on the screen is in the row: no u32 reads the wage budget or wage
 total, a year or a week (£1.01M / £1.03M), and no byte reads 50 (profit retention), and
-the affiliate (Helston Athletic) is the [club record](clubs.md)'s `affiliates` list.
+the affiliate (Helston Athletic) is the [club record](clubs.md)'s `affiliates` list. Nor is
+the wage budget in contract units (`wage_units`, £10 a week: 1,933-1,952 for £1.01M a year) in
+this row or in Truro's club record. The row's only other non-zero early value is a u16 at
++9, 762 on Truro, unexplained.
 
 ![Truro City, Club Finances, 25 Jul 2026: Transfer Budget £10,000](img/club_rows-fmm27-1.png)
 

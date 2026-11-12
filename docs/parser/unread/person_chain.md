@@ -36,12 +36,33 @@ rows end. Described from frem-2026-06-11 (FMM22).
   with dates in 2025 and 2026 (`e9 07`, `ea 07`), club-sized u16s and runs of `ff`, which looks
   like contract or transfer state. Its layout is not worked out, and it is what stops the walk.
 
+### Confirmed on truro-2026-07-25 (FMM27)
+
+On FMM27 every block holds exactly one `01 00 d0 07` date: 36,344 of them for 36,344 players,
+none closer than 119 bytes and none further than 175, so block k is attribute record k. The
+seven u16 start 70 bytes after the previous block's date (block 0: 10 bytes into the block).
+
+- **The seven u16 are the clubs interested in him** (`ffff` = empty). Lewis Colwell's block
+  names Salisbury and Oxford City; his Player Contract screen lists exactly those two under
+  **Interested Clubs**. 1,385 players have at least one. Some name their own club (Haaland,
+  Saka, Kimmich): not yet explained.
+- **The five u8 after the first of the six are his Form**, the last five match ratings, most
+  recent last, `ff` for no match. Against the Club Squad screen, all ten players shown agree:
+  Bogle 7-6-6, Donnellan 8-6-7, Greenslade 7-7-8, Harvey 8-6, Hasani 6-6, Dean 7-7,
+  Harrison 7-7, Bell 7, En-Neyah 7, and Colwell (no matches) all `ff`.
+- **The first of the six (10-20) is not condition**: Greenslade reads 20 at 76%, Colwell 16
+  at 100%. Open.
+
+![Truro City, Club Squad, 25 Jul 2026: Form column](../img/player_block-fmm27-1.png)
+![Lewis Colwell, Player Contract, 25 Jul 2026: Interested Clubs Salisbury, Oxford City](../img/player_block-fmm27-2.png)
+
 ### Next
 
-1. Decode the rich row: line a dozen up by their dates and find the counted lists inside.
+1. Read the FMM27 blocks as a table (the date anchors them; the walk still needs each block's
+   own length rule), with `interested_clubs` and `form` named.
+2. Decode the rich row: line a dozen up by their dates and find the counted lists inside.
 2. Walk all 26,505 / 36,344 blocks and prove the landing on the next count, on both games.
-3. Name the six u8 values: line the managed club's players up against a Player Profile
-   (form? the last six match ratings?), and diff two Truro saves.
+3. Name the first of the six u8 (10-20): diff two Truro saves.
 
 ## Evidence that would help
 
