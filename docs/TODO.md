@@ -148,9 +148,10 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
   only), then walk on. `person_index.row_a` points into a table of about 3,010 rows on Truro.
 - **Load the awards** into `raw` and a mart of award winners. Each entry stores the winner's
   name ids as they were, which settles the tid-reuse problem in #14 for these awards.
-- **Name from screens**: an award's entry order and its unnamed body bytes (an Awards screen
-  with three placed names); the derby bytes at +8 and +9 (a club's rivals screen); the
-  stamps' `level` (a scouted player before and after a report).
+- **Name from a save on a screen's day**: the stamps' `level` is the user's knowledge of a
+  player (three profiles agree); confirm with a level-0 player and a scout report. Where
+  the monthly awards' month-by-month history is stored (the awards table holds one
+  edition). The derby bytes at +8 and +9 have no screen, so only save diffs can name them.
 Then Phase 2 of the plan.
 
 ### 3. The unclaimed regions of the career half
@@ -377,7 +378,7 @@ proper league records (cards, player of the match), not just the games we watche
 
 What the screens show:
 - **FMM27, Team and Player Statistics** (league screen, xG / xDiff / Goals;
-  `parser/img/league-stats-fmm27-1.png`, `-2.png`, 24 Oct 2026, National League South):
+  `parser/img/league-stats-fmm27-1.jpg`, `-2.jpg`, 24 Oct 2026, National League South):
   Truro xG 25.67 / 29 goals, Dagenham & Redbridge 16.51 / 23, Totton 17.00 / 22; Harvey
   Greenslade 5.03 / 8, Omar Bogle 6.42 / 5, Tayo Singerr (Totton) 1.49 / 5. xDiff is goals
   less xG (29 − 25.67 = +3.33), so only xG and goals need finding.

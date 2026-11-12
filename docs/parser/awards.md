@@ -57,27 +57,49 @@ record 0 has id 0. The walk must read the declared count with `id == slot` throu
 
 ## Evidence
 
-No in-game screen yet. The evidence is structural and cross-table, on frem-2026-06-11 and
-truro-2026-08-08 (`tests/test_world_lists_evidence.py`): both walks read every declared
-award with id equal to its slot and the right terminator after every name, a fixed three
-entries per award, and end on the unions' frame. Every filled entry names a person; the
-competition and nation fields name what the award's own name says.
+Structural and cross-table, on frem-2026-06-11 and truro-2026-08-08
+(`tests/test_world_lists_evidence.py`): both walks read every declared award with id equal
+to its slot and the right terminator after every name, a fixed three entries per award, and
+end on the unions' frame. Every filled entry names a person; the competition and nation
+fields name what the award's own name says.
+
+The award screens, taken on 24 Oct 2026 (the save read is truro-2026-08-08; these three
+awards had not changed in between):
+
+![International Awards, Footballer of the Year: 1st Dembélé (PSG), 2nd Yamal (Barcelona), 3rd Mbappé (R. Madrid); 2025](img/awards-fmm27-1.jpg)
+![Premier League Top Goalscorer: 1st Haaland 27, 2nd Thiago 22, 3rd Semenyo 17; 2026](img/awards-fmm27-2.jpg)
+![National League South awards: Player of the Month Tom Tweedy, Manager of the Month Mr Manager, Top Goalscorer Brad Dolaghan (Worthing)](img/awards-fmm27-3.jpg)
+![National League South Player of the Month: 1st Tweedy, 2nd Bogle; September Tweedy, August Bingham](img/awards-fmm27-4.jpg)
+
+| on screen | stored (truro-2026-08-08) |
+|---|---|
+| Footballer of the Year: 1st Dembélé PSG, 2nd Yamal Barcelona, 3rd Mbappé R. Madrid, season 2025 | award 0 entries 0–2: Dembélé / PSG / 2025 / 50, Yamal / Barcelona / 39, Mbappé / R. Madrid / 34 |
+| Premier League Top Goalscorer: Haaland 27, Thiago 22, Semenyo 17, season 2026 | award 210: the same three, `score` 27, 22, 17, `year` 2026 |
+| National League South Top Goalscorer: Brad Dolaghan, Worthing | award 499 entry 0: Dolaghan / Worthing / 23 |
+
+So the entries are the **placings, 1st to 3rd**, `year` is the season the screen shows, and
+on a Top Goalscorer `score` is goals. A voted award's score is not shown on screen.
 
 ## Quirks
 
 > **Quirk:** the three entries are the latest edition only, not three years of history. A
 > season's winners are kept by keeping that season's snapshot.
 
-> **Quirk:** the entries are not always in score order. "English Players' Player of the
-> Year" on frem-2026-06-11 stores 753, 751, 760. Whether the order is the placing or
-> something else needs the award screen.
+> **Quirk:** the entries are the placings, but not always in score order: "English
+> Players' Player of the Year" on frem-2026-06-11 stores 753, 751, 760 for 1st to 3rd. On a
+> voted award the score is not what decides the placing.
+
+> **Lead:** a monthly award's screen lists every month of the season (Player of the Month:
+> September Tom Tweedy, August Rakish Bingham), but the table holds one edition. The month
+> history is stored somewhere else; a save from the screen's day finds it.
 
 > **Quirk:** a winner's name ids are stored because his tid is a slot. On FMM22, 39 of 563
 > filled entries' names differ from the person who holds the tid now, which is what a
 > retired winner whose slot went to a newgen looks like.
 
-> **Lead:** the Awards screen for one award with three placed names would name the entry
-> order and the unnamed body bytes (+6, +7, +15 look like the award's kind and frequency).
+> **Lead:** the unnamed body bytes (+6, +7, +15) look like the award's kind and
+> frequency: National League South has Player of the Month, Manager of the Month and Team of
+> the Week, and an annual Top Goalscorer.
 
 ## Output
 

@@ -35,7 +35,8 @@ Liverpool, on both games. No screen yet.
 ## Quirks
 
 > **Lead:** the three u16s at +9 change as a career goes on. Diff a derby across Frem saves
-> before and after the two clubs meet, and compare with the club's rivals screen.
+> before and after the two clubs meet. The game shows derbies on no screen found so far, so
+> the saves are the only evidence there will be.
 
 ## Output
 

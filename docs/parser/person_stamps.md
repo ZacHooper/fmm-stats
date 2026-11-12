@@ -26,6 +26,20 @@ the player lists. On FMM22 five u16 nation ids sit just in front, unread.
 
 ## Evidence
 
+`level` is how much of a player the user knows. Three Player Profiles taken on 24 Oct 2026,
+against the stamps on truro-2026-08-08 (the levels may have moved in between; a save from the
+screens' day pins them):
+
+![Gwion Edwards, Exeter: Crossing, Passing, Technique, Creativity, Movement, Positioning shown as dashes](img/person_stamps-fmm27-1.jpg)
+![Luca Woodhouse, Exeter: eight attributes shown as dashes](img/person_stamps-fmm27-2.jpg)
+![Jack Fitzwater, Notts Co: every attribute shown](img/person_stamps-fmm27-3.jpg)
+
+| player | `level` on 8 Aug | attributes hidden on 24 Oct |
+|---|---|---|
+| Jack Fitzwater | 3 | 0 of 18 |
+| Gwion Edwards | 2 | 6 |
+| Luca Woodhouse | 1 | 8 |
+
 Structural and cross-table (`tests/test_world_lists_evidence.py`): the count is the person
 count less one on every save; every player of the managed club reads `level` 3 (26 at
 Frem, 25 at Truro); the one person with no row, the last tid, is non-playing staff at the
@@ -33,9 +47,9 @@ managed club who joined on the career's first day: the user's own manager.
 
 ## Quirks
 
-> **Lead:** `level` and the date read like the user's knowledge of a person and when it was
-> last refreshed. Staff of our own club can be 0 or 1. A scouted player's level before and
-> after a scout report would test it.
+> **Lead:** a level-0 player should show every attribute hidden (Berwick Rangers' Calum
+> Antell, Wycombe's Luke Kenny, Accrington's Aidan McAdams), and a scout report should raise
+> a player's level. Whether the date is when the knowledge was last refreshed is open.
 
 ## Output
 
