@@ -68,8 +68,11 @@ Against `seeds/roles.csv` (FMM22) each is one higher from Inside Forward to Shad
 Attacking Midfielder that FMM22 lacks. FMM27's two new roles are the **Wide Centre-Back** and
 the **Inverted Full-Back**; by FMM22's order the first sits among the defenders' codes (5–7)
 and the second among 28–31. Will Dean's 32 is then FMM22's Defensive Midfielder (30), which
-fits his D/DM C. Pinning each code needs a centre-back's and a full-back's focus role on
-screen, then an FMM27 role seed.
+fits his D/DM C. The Tactics – Formation screens behind [tactic history](tactic_history.md)
+add Wing-Back 4 and Central Defender 5 (FMM22's, unchanged), Ball Winning Midfielder 16,
+Advanced Playmaker 18 and Advanced Forward 22 (each FMM22's plus one), and agree on Poacher
+19, Target Forward 20, Pressing Forward 24 and Central Midfielder 14. Still to pin: a
+full-back's code and where the two new roles sit; then an FMM27 role seed.
 
 ### FMM22
 

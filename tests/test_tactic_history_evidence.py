@@ -4,7 +4,8 @@ Evidence for `tactic_history` (`fmparser/tables/tactic_history.py`, docs/parser/
 
 On every save found among the eight below the records are found from the person stamps' end
 and every one reads (an ff after each role, a printable NUL-padded name, a flag of 0 or 1).
-They grow as a career is played (1, 5, 15 on Truro's three saves) and stop at 30 (both late
+On truro-2026-07-22 and -25 the last record is, slot for slot, the Tactics - Formation
+screen (SCREEN below), which pins FMM27's role codes. They grow as a career is played (1, 5, 15 on Truro's three saves) and stop at 30 (both late
 Frem saves). On truro-2026-08-08 the last record is named after the formation every match
 report of ours carries, 4-1-2-1-2, and its back four reads Full-Back, Full-Back, Central
 Defender, Central Defender (3, 3, 5, 5) for the DR, DL, DC, DC the reports list first. On
@@ -32,6 +33,12 @@ COUNTS = {"frem-2021-06-27.fms": 1, "frem-2026-06-11.fms": 30, "frem-2030-06-22.
           "bucaspor-2023-04-01.fms": 12, "truro-2026-07-22.fms": 1, "truro-2026-07-25.fms": 5,
           "truro-2026-08-08.fms": 15}
 
+# The Tactics - Formation screen on each save, its Squad list after the GK
+# (docs/parser/img/tactic_history-fmm27-5.jpg and -1.jpg): CD CD CD WB WB BWM AP AP P TF,
+# and WB WB CD CD BWM CM CM AP PF AF.
+SCREEN = {"truro-2026-07-22.fms": ("5-2-1-2", [5, 5, 5, 4, 4, 16, 18, 18, 19, 20]),
+          "truro-2026-07-25.fms": ("4-1-2-1-2", [4, 4, 5, 5, 16, 14, 14, 18, 24, 22])}
+
 failures = []
 
 
@@ -56,6 +63,9 @@ def check_save(name):
         check(formations == {"4-1-2-1-2"} and rows[-1]["name"] == "4-1-2-1-2",
               "the last record is 4-1-2-1-2, our match formation")
         check(rows[-1]["roles"][:4] == [3, 3, 5, 5], "its back four: Full-Back x2, Central Defender x2")
+    if name in SCREEN:
+        check(rows[-1]["name"] == SCREEN[name][0] and rows[-1]["roles"] == SCREEN[name][1],
+              f"last record = the Formation screen: {SCREEN[name][0]} {SCREEN[name][1]}")
     if name == "frem-2026-06-11.fms":
         t = [r for r in rows if r["name"] == "4-1-4-1"]
         check(t and t[0]["roles"] == [3, 3, 5, 5, 30, 8, 9, 32, 16, 19],

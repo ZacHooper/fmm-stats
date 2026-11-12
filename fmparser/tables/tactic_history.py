@@ -21,9 +21,12 @@ roles of the user's 4-1-2-1-2 with small changes between them, and the last reco
 4-1-2-1-2: a history of setups, roughly one per formation picked plus snapshots as roles
 change. On Frem, full at 30, the last record is not the formation Frem's matches use.
 
-Truro's 4-1-2-1-2 holds 3, 3, 5, 5 for its DR, DL, DC, DC (Full-Back, Full-Back, Central
-Defender, Central Defender, codes FMM27 keeps from FMM22); the midfield and attack codes are
-FMM27's own, not yet pinned to a screen. The formation's positions are not in the record.
+The last record is the current tactic: on truro-2026-07-22 and -25 it is, slot for slot,
+the Tactics - Formation screen, the slots in the order of the screen's Squad list. FMM27's
+codes from those screens: Goalkeeper 0, Wing-Back 4, Central Defender 5, Central Midfielder
+14, Ball Winning Midfielder 16, Advanced Playmaker 18, Poacher 19, Target Forward 20,
+Advanced Forward 22, Pressing Forward 24. The formation's positions and the team
+instructions are not in the record.
 
 **How it is found.** At the person stamps' end, skip the 60-byte block and the counted
 14-byte entries; the u16 there counts the records. The locator refuses it unless every

@@ -91,10 +91,11 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
 - **Match bytes not placed**: possession and team rating; event types `17`, `18`, `29`
   ([matches](parser/matches.md#layout)). A ratings screen with a non-zero Mis/MiG would
   confirm `mistakes`/`mistGoal` against the game (placed from the `27` events).
-- **FMM27 role codes**: training's `focus_role` differs from `seeds/roles.csv` from Inside
-  Forward on; the two new roles are the Wide Centre-Back and the Inverted Full-Back
-  ([training](parser/training.md#evidence)). A centre-back's and a full-back's focus role on
-  screen pin the codes; then an FMM27 role seed.
+- **FMM27 role codes**: pinned so far from Focus Role and Tactics – Formation screens
+  ([training](parser/training.md), [tactic history](parser/tactic_history.md)): 0 G, 4 WB,
+  5 CD, 14 CM, 16 BWM, 18 AP, 19 P, 20 TF, 22 AF, 24 PF, every one FMM22's or FMM22's + 1
+  from Inside Forward on. Still to pin: a full-back's code and where the Wide Centre-Back and
+  Inverted Full-Back sit. Then an FMM27 role seed.
 - **The player lists' season numbers** (tail +114) need a save after a season ends.
 - **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;
   `match_slots` is not located (nothing reads it).
@@ -174,8 +175,8 @@ Phase 2 read two tables and found what the other two regions hold:
     guessed. Open there: the 60-byte block and the counted 14-byte person entries in front
     of the tactic history (set-piece takers?), what adds a tactic-history record and its `flag`, the cup runs' two u16s. After the seasons: a `00`, 550 `ff` and the managed club's
     [titles](parser/club_titles.md) (read), then `[01][club][first season]` and empty
-    11/12-byte slots with nothing filled on any save, then ~5.2 MB unread. A screenshot of Truro's current tactic roles
-    pins FMM27's role codes (the "FMM27 role codes" item above).
+    11/12-byte slots with nothing filled on any save, then ~5.2 MB unread. Team instructions (mentality, passing, …) are not in the
+    tactic history; the Tactics screens of 22 and 25 Jul are saved as evidence for when they are found.
   - **Nicknames → history (2.1 MB):** dense small numbers for ~2 MB, then 1,020 inline-named
     records about 55 B apart ("Mark Smith", "Phillip Foose", "Cecilia Tenconi", a u16 2026 or
     2007 after the names), FMM27 only. Unnamed: try the person table's newest tids and the

@@ -51,13 +51,35 @@ reads.
 
 ## Evidence
 
-`tests/test_tactic_history_evidence.py`, eight saves of both games: every record reads, the
-count grows 1, 5, 15 over Truro's first weeks and is 30 on both late Frem saves. On
-truro-2026-08-08 the last record is named 4-1-2-1-2, the formation all our match reports
-carry, and its first four roles are 3, 3, 5, 5 (Full-Back, Full-Back, Central Defender,
-Central Defender) for the DR, DL, DC, DC the reports list first. On frem-2026-06-11 the
+**The last record is the current tactic.** The Tactics – Formation screen on each of two
+saves, against that save's last record (`tests/test_tactic_history_evidence.py`). The slots
+follow the screen's Squad list, top to bottom after the goalkeeper:
+
+![22 Jul: 5-2-1-2, DC CD Matthews, DC CD Donnellan, DC CD Dean, WBR WB Bell, WBL WB Law, MC BWM Nunn, MC AP Palfrey, AMC AP En-Neyah, FC P Bogle, FC TF Harvey](img/tactic_history-fmm27-5.jpg)
+![25 Jul: 4-1-2-1-2, DR WB Bell, DL WB Riley-Lowe, DC CD x2, DMC BWM Nunn, MC CM x2, AMC AP Tweedy, FC PF Bogle, FC AF Harvey](img/tactic_history-fmm27-1.jpg)
+
+| save | on screen (Squad list, after the GK) | last record |
+|---|---|---|
+| truro-2026-07-22 | CD, CD, CD, WB, WB, BWM, AP, AP, P (Bogle), TF (Harvey) | "5-2-1-2": 5, 5, 5, 4, 4, 16, 18, 18, 19, 20 |
+| truro-2026-07-25 | WB, WB, CD, CD, BWM, CM, CM, AP, PF (Bogle), AF (Harvey) | "4-1-2-1-2": 4, 4, 5, 5, 16, 14, 14, 18, 24, 22 |
+
+So on FMM27: Goalkeeper 0, Wing-Back 4, Central Defender 5, Central Midfielder 14, Ball
+Winning Midfielder 16, Advanced Playmaker 18, Poacher 19, Target Forward 20, Advanced Forward
+22, Pressing Forward 24. Poacher, Target Forward, Pressing Forward and Central Midfielder
+agree with the codes [training](training.md)'s Focus Role screens pinned; the rest fit its
+rule (FMM22's code, plus one from Inside Forward on). The goalkeeper's role is 0 (G).
+
+The team instructions on the same screens (Shape, Defence, Attack: mentality Balanced on
+22 Jul and Control on 25 Jul, passing Mixed then Short, and so on, images
+`tactic_history-fmm27-2` to `-4` and `-6` to `-8`) are not in these records: the block is
+byte-identical on the two saves apart from the records.
+
+Across saves: every record reads, the count grows 1, 5, 15 over Truro's first weeks and is
+30 on both late Frem saves. On truro-2026-08-08 the last record is named 4-1-2-1-2, the
+formation all our match reports carry, and its first four roles are 3, 3, 5, 5 (Full-Back,
+Full-Back, Central Defender, Central Defender) for the DR, DL, DC, DC the reports list first. On frem-2026-06-11 the
 "4-1-4-1" reads Full-Back ×2, Central Defender ×2, Defensive Midfielder, Wide Midfielder,
-Winger, Roaming Playmaker, Box to Box Midfielder, Target Forward. No screen yet.
+Winger, Roaming Playmaker, Box to Box Midfielder, Target Forward.
 
 ## Quirks
 
@@ -65,8 +87,10 @@ Winger, Roaming Playmaker, Box to Box Midfielder, Target Forward. No screen yet.
 > Truro; the growth with play, the cap at 30 and the game-given "uber tactic" name say
 > otherwise.
 
-> **Lead:** a screenshot of Truro's current tactic with the role at each position would pin
-> FMM27's role codes in one go (TODO, "FMM27 role codes").
+> **Lead:** the team instructions (mentality, width, tempo, creative freedom, the defence
+> and attack settings). Not in this block; [our matches](matches.md)' 1,441-byte tail holds
+> the kick-off positions, and its first 33 bytes change from match to match. A Tactics screen
+> taken on a match day, with a save straight after, would place them.
 
 > **Lead:** what adds a record. Two saves either side of a single change (a new formation
 > picked, or one role changed) would say.
