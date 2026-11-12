@@ -172,8 +172,9 @@ Phase 2 read two tables and found what the other two regions hold:
     user's [saved tactics](parser/saved_tactics.md) and the managed club's
     [season record](parser/club_seasons.md) (both games). Not every club's tactic, as first
     guessed. Open there: the 60-byte block and the counted 14-byte person entries in front
-    of the tactics (set-piece takers?), the tactics' `flag`, the cup runs' two u16s, and
-    the ~5.2 MB after the season pool. A screenshot of Truro's "4-1-2-1-2" tactic roles
+    of the tactics (set-piece takers?), the tactics' `flag`, the cup runs' two u16s. After the seasons: a `00`, 550 `ff` and the managed club's
+    [titles](parser/club_titles.md) (read), then `[01][club][first season]` and empty
+    11/12-byte slots with nothing filled on any save, then ~5.2 MB unread. A screenshot of Truro's "4-1-2-1-2" tactic roles
     pins FMM27's role codes (the "FMM27 role codes" item above).
   - **Nicknames → history (2.1 MB):** dense small numbers for ~2 MB, then 1,020 inline-named
     records about 55 B apart ("Mark Smith", "Phillip Foose", "Cecilia Tenconi", a u16 2026 or

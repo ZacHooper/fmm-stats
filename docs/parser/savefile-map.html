@@ -280,7 +280,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   var CLASSES = {
     database: { label: "Game database",       color: "--c-static",   desc: "The world as it ships. Full from the start: values change (attributes, reputations, training focus), rows don't. Walk it by its declared count; the count is exact." },
     reserved: { label: "Reserved space",      color: "--c-pool",     desc: "A block of fixed size set aside when the career starts and filled as you play. Some overwrite their oldest rows once full. The count is a capacity: on an early save much of it is empty slots, not missing data." },
-    grows:    { label: "Grows",               color: "--c-grid",     desc: "Gets bigger as the career goes on, and is never cleared. Club records gain 212 B each time a club plays in a new league, league titles one entry per title, the archive with each season's competitions." },
+    grows:    { label: "Grows",               color: "--c-grid",     desc: "Gets bigger as the career goes on, and is never cleared. Club records gain 212 B each time a club plays in a new league, club titles a year per title, the archive with each season's competitions." },
     seasonal: { label: "Resets every July",   color: "--c-seasonal", desc: "Fills up over the season and is emptied on rollover day. A late-June save each year is the only way to keep a season's transfers or matches." },
     unknown:  { label: "Not yet understood",  color: "--c-unknown" },
     filler:   { label: "Padding",             color: "--c-filler" }
@@ -336,8 +336,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     [56310550, 56312470, "database", "Saved tactics", "saved_tactics.md", "Shape A", "SAVED_TACTICS_TABLE", "The user's 30 saved tactics: a role per position and a name, behind a 60 B block and 6 person entries."],
     [56312470, 56313476, "grows", "Club seasons", "club_seasons.md", "Shape A", "CLUB_SEASONS_TABLE", "The managed club's league line and cups, season by season, in a 50-slot pool."],
     [56313477, 56314027, "filler", "0xFF run, 550 B", null, "", "", "550 bytes on every Frem save. Not the end of our matches."],
-    [56314027, 56314300, "grows", "League titles", null, "Shape A", "struct", "[u8][cid u16][tid u16][year u16] + 58 B of ff, one 65 B entry per league title our club has won. Grows by one entry a title."],
-    [56314300, 61253092, "unknown", "Unidentified", null, "", "", "00 29% / ff 53% / other 18%. One small player-list block sits at 56,336,372, so the structure below starts earlier than its first empty slot."],
+    [56314027, 56316108, "grows", "Club titles", "club_titles.md", "Shape A", "CLUB_TITLES_TABLE", "32 slots × 65 B: each competition the managed club has won, with its years (3 so far)."],
+    [56316108, 61253092, "unknown", "Unidentified", null, "", "", "00 29% / ff 53% / other 18%. Opens with [01][club][first season] and empty 11-byte slots. One small player-list block sits at 56,336,372."],
     [61253092, 62631642, "reserved", "Player lists", "player_lists.md", "Shape E", "PLAYER_LISTS_TABLE", "66 lists of [100 scrapbook entries][14 B trailer]. Lists 0–30 world (100 players a season), 31–61 our squad per season, 62–65 two copies of a world/club pair. Filled season by season."],
     [61896648, 62002727, "reserved", "Our club's squad lists (31–61)", "player_lists.md", "", "player_scrapbook.json", "The managed squad, one list per season.", true],
     [62631781, 62635766, "unknown", "Unnamed dated table", null, "Shape C", "struct", "Scheduled events: 14 B units [u32 FFFFFFFF][u16 type][day-of-year][year][u32 tid], dates a fortnight ahead of the save. Type 9 is a transfer going through on that day."],
@@ -505,7 +505,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   ], 2541720);
 
   var gaps = [
-    ["56.31–61.25 MB", 4.94, 0.9, "between the league-titles table and the player lists"],
+    ["56.32–61.25 MB", 4.94, 0.9, "between the club titles and the player lists"],
     ["34.28–35.44 MB", 1.16, 0.59, "after the loans, in front of the transfer band; real bytes not re-measured"],
     ["39.20–40.04 MB", 0.84, 0.53, "between the last transfers and the match-slot table; real bytes not re-measured"],
     ["14.44–16.75 MB", 2.31, 0.48, "after the per-person rows: counted blocks with no 0xFF in front; real bytes not re-measured"],
