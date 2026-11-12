@@ -157,59 +157,39 @@ Phase 2 read two tables and found what the other two regions hold:
 - **The [loan pool](parser/loans.md)** (the plan's "25-byte table"): every loan in the world,
   found by `person_index.loan_slot`. **Load it** into `raw` and build loan spells for every
   club from it (today's `mart.fact_loan_spell` comes from the progress bit: our squad, loans
-  out only); name `option` and the u32 at +17 from a loan card with an option to buy. The 1.48 MB after it, to the
-  transfer band, is unread.
+  out only); name `option` and the u32 at +17 from a loan card with an option to buy.
 - **[Last transfers](parser/last_transfers.md)** (the plan's "per-player block"): each
   player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and
   a destination for every move in the world, which the band (emptied every July) can't give.
-  The 1.32 MB after it, to the name id-tables, is unread.
 - **Phase 3: [award history](parser/award_history.md) and [team history](parser/team_history.md)**
   (the plan's "training → our matches" region): every edition of every award, monthly
   ones month by month, and every Team of the Week / Year picked, both games. **Load them**:
   with [awards](parser/awards.md) they give a season's honours for every league, and each
   entry's stored name ids settle the tid-reuse problem in #14.
-- **Phase 3 leads, not tables yet** (offsets on truro-2026-08-08):
-  - **After the person stamps (61.8–67.0 M, 5.2 MB):** the first ~2 KB are now read: the
-    user's [tactic history](parser/tactic_history.md) and the managed club's
-    [season record](parser/club_seasons.md) (both games). Not every club's tactic, as first
-    guessed. Open there: the 60-byte block and the counted 14-byte person entries in front
-    of the tactic history (set-piece takers?), what adds a tactic-history record and its `flag`, the cup runs' two u16s. After the seasons: a `00`, 550 `ff` and the managed club's
-    [titles](parser/club_titles.md) (read), then `[01][club][first season]` and empty
-    11/12-byte slots with nothing filled on any save, then ~5.2 MB unread. Team instructions (mentality, passing, …) are not in the
-    tactic history; the Tactics screens of 22 and 25 Jul are saved as evidence for when they are found.
-  - **Nicknames → history (2.1 MB):** dense small numbers for ~2 MB, then 1,020 inline-named
-    records about 55 B apart ("Mark Smith", "Phillip Foose", "Cecilia Tenconi", a u16 2026 or
-    2007 after the names), FMM27 only. Unnamed: try the person table's newest tids and the
-    women's competitions.
-  - **Rule files → contract grid (2.4 MB):** 73 six-byte slots `[ffffffff][u16 1]`, then
-    blocks carrying season years (`ea 07 eb 07` = 2026, 2027) and dates: possibly each
-    competition's current-season state.
-  - **Between the team history and our matches:** 0.3–43 KB, `00 19 00 00 00 ff ff 00 01 00
-    <year> 00 01 0d ff …`.
-- **Competition record books** (club records → player progress): layout started, see #3.
-- **The dated queue before the archive** is the game's scheduled events. On FMM22, type 9 is
-  a transfer going through on that day (all 41 on frem-2026-06-11 are agreed transfers).
-  FMM27 stores the region differently (149 KB, with a long run of u16 0, 1, 2 …): decode
-  there before writing a table.
+- **Unread regions with leads**: each has a page in
+  [`parser/unread/`](parser/unread/README.md) with its offsets on both games, the bytes seen,
+  what was tried and the next step: the [per-person chain](parser/unread/person_chain.md)
+  (next: the staff block's width on FMM22), [after the loans](parser/unread/after_loans.md),
+  [after the last transfers](parser/unread/after_last_transfers.md) (FMM27's match-slot table
+  is probably here), [competition record books](parser/unread/record_books.md),
+  [scheduled events](parser/unread/scheduled_events.md),
+  [named records](parser/unread/named_records.md),
+  [season-year blocks](parser/unread/season_blocks.md), the
+  [user's club block](parser/unread/club_block.md) (set pieces / captain?),
+  [before our matches](parser/unread/before_matches.md) and the
+  [progress → training padding](parser/unread/progress_padding.md). Team instructions
+  (mentality, passing, …) are not found; the Tactics screens of 22 and 25 Jul are saved as
+  evidence ([tactic history](parser/tactic_history.md)).
 - **The contract grid's span ends 89 bytes short on frem-2030-06-22**: the loan pool's
   header sits 89 bytes past it there, and right after the span on every other save. Check
   the grid's last slots on that save.
 
 ### 3. The unclaimed regions of the career half
-- **54.21–59.27 M** (5.1 MB) — around our match region. Unexamined. One populated
-  player-list block sits in this stretch on older saves (`Jeppe Corfitzen` at 56,336,372 on
-  `frem-2026-06-11`), so start with #4's structure.
-- **53.99–54.14 M** — straight after the training table (0.16 MB). Unexamined.
-- **Straight after the club-records table** (48.17 M on `frem-2026-06-11`): the
-  competitions' record books. `[count u32]` = 162 on every Frem save (176 on Truro, as a u16
-  followed by different bytes), then cid 0's book: the Belgian Pro League A, whose first
-  rows name Anderlecht, Club Brugge, Genk, Charleroi. A row is 21 bytes, `[holder club u16]
-  [f32 value][season u16][day u16][u16][ffff][u8][club u16][opp u16][for u8][against u8]`
-  (71, 87 … read like points totals; one row is Genk's 4-0 away win), the club records' team
-  row without its cid and with the holder in front. After 16 such rows come 24-byte rows
-  (a 22-byte player row plus the holder), then a long run of 21-byte empty rows. The book's
-  row counts and where one competition's book ends are not found yet: try the club
-  records' 12 + 12 + 12 + 12 blocks per competition before anything else.
+- **After the club titles, to the player lists** (4.94 MB on `frem-2026-06-11`):
+  [parser/unread/club_block.md](parser/unread/club_block.md). One populated player-list block
+  sits in it (`Jeppe Corfitzen` at 56,336,372), so start with #4's structure.
+- **Straight after the club-records table**: the competitions' record books, layout
+  started: [parser/unread/record_books.md](parser/unread/record_books.md).
 - **The transfer band: read the rest of the row** (35.4–38.4 M,
   [savefile map](parser/savefile-map.md#the-transfer-band)). Count-framed and decoded on paper:
   every bid of the season, the accepted one with its fee and contract terms. Open: the kind

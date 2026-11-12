@@ -195,7 +195,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <section aria-labelledby="h-ledger">
   <h2 id="h-ledger">Every region</h2>
-  <p class="lede" style="font-size:14px">Shape A–E are the locator shapes in <a href="https://github.com/ZacHooper/fmm-stats/blob/main/fmparser/AGENTS.md#finding-a-table-the-locator-shapes">fmparser/AGENTS.md</a>. Upper-case names are the <code>core</code> tables that read the region. Named regions link to their table doc.</p>
+  <p class="lede" style="font-size:14px">Shape A–E are the locator shapes in <a href="https://github.com/ZacHooper/fmm-stats/blob/main/fmparser/AGENTS.md#finding-a-table-the-locator-shapes">fmparser/AGENTS.md</a>. Upper-case names are the <code>core</code> tables that read the region. Named regions link to their table doc; an unread region links to a page of what is known about it so far (<a href="https://github.com/ZacHooper/fmm-stats/blob/main/docs/parser/unread/README.md">all unread regions</a>).</p>
   <div class="ledger" id="ledger">
     <div class="row head"><span>start → end</span><span style="text-align:right">size</span><span>what</span></div>
   </div>
@@ -307,40 +307,40 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     [13969910, 13976126, "database", "Id list", "id_list.md", "Shape A", "ID_LIST_TABLE", "888 × 7 B ([id u32][00 00 00]), ends on the languages' frame; what the ids name is unread."],
     [13976136, 13978480, "database", "Languages", "languages.md", "Shape A", "LANGUAGES_TABLE", "124 records."],
     [13979798, 14441326, "database", "Per-person rows", "person_index.md", "Shape A", "PERSON_INDEX_TABLE", "[count u32 = 32,966], no 0xFF frame, then 14 B per person: two row numbers into tables not read yet. Ends exactly on a u32 equal to the staff count."],
-    [14441326, 16752549, "unknown", "Unidentified", null, "", "", "A chain of counted blocks continuing the per-person rows, the first counted by the staff table (4,642); its row width is not proved yet."],
+    [14441326, 16752549, "unknown", "Unidentified", "unread/person_chain.md", "", "", "A chain of counted blocks continuing the per-person rows, the first counted by the staff table (4,642); its row width is not proved yet."],
     [16752549, 20021621, "database", "Rule files (tagged data dictionary)", "rule_files.md", "Shape A", "RULE_FILES_TABLE", "667 count-framed rule files ([u32 n][n tagged fields]), 99.2% of the span. The 27 KB between them is per-save state, undecoded."],
-    [20021621, 29171689, "filler", "Filler", null, "", "", "94% 0xFF, 2% 00. Not a research target."],
+    [20021621, 29171689, "filler", "Filler", "unread/season_blocks.md", "", "", "94% 0xFF, 2% 00. Not a research target."],
     [29171689, 31907618, "reserved", "Contract grid", "contracts.md", "Shape C", "CONTRACT_TABLE", "Dense 83-byte records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table). Stable all career."],
     [31907618, 34120896, "reserved", "Contract grid, empty slots", "contracts.md", "Shape C", "CONTRACT_TABLE", "The rest of the grid's capacity (59,632 × 83 B), slots not yet used."],
     [34120896, 34276977, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,243 slots × 25 B, 2,312 loans: the player, the club he is on loan at, start, end, a percentage and an option. Every player on loan points at his slot."],
-    [34276977, 35438751, "unknown", "Unidentified", null, "", "", "1.16 MB in front of the transfer band."],
+    [34276977, 35438751, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.16 MB in front of the transfer band."],
     [35438751, 38405582, "seasonal", "Seasonal transfer band", "#band", "Shape A", "hdr", "[u32 65,000][u32 count = 20,747][2 B], then 20,747 × 143 B transfer-negotiation rows: every bid, and the accepted one with its fee and contract terms. Its collapse is the file's July shrink."],
     [38405582, 39200736, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "26,505 × 30 B, one per player attribute record: each player's latest transfer (fee, buying club), 10,323 filled. Survives the July rollover."],
-    [39200736, 40042185, "unknown", "Unidentified", null, "", "", "0.84 MB before the match-slot table."],
+    [39200736, 40042185, "unknown", "Unidentified", "unread/after_last_transfers.md", "", "", "0.84 MB before the match-slot table."],
     [40042185, 40141560, "reserved", "Match-slot table", "match_slots.md", "Shape C", "MATCH_SLOTS_TABLE", "3,975 × 25 B: two clubs and a score, no venue. The 3,975 is a capacity: slots are reused."],
     [40141778, 40656146, "database", "Surname id-table", "names.md", "Shape C", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
     [40656158, 40962206, "database", "First-name id-table", "names.md", "Shape C", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
     [40962218, 41113898, "database", "Nickname id-table", "names.md", "Shape C", "NICKNAMES_TABLE", "9,480 × 16 B."],
-    [41113898, 42630093, "unknown", "Unidentified", null, "", "", "82% zero, mostly padding."],
+    [41113898, 42630093, "unknown", "Unidentified", "unread/named_records.md", "", "", "82% zero, mostly padding."],
     [42630093, 46876865, "reserved", "Career-history pool", "history.md", "Shape B", "HISTORY_TABLE", "[count u32] + 265,423 records × 16 B ([stats][club, fee, next], one season line each): a pointer forest. The count is a capacity fixed at career creation."],
     [46876865, 48166114, "grows", "Club records", "club_records.md", "Shape A", "CLUB_RECORDS_TABLE", "[count u16] (1,057 clubs Frem), then per club [tid u16][n u8][n × 212 B league history][Team/Player Records]. Grows 212 B per new league a club plays in."],
-    [48166114, 48353064, "unknown", "Unidentified", null, "", "", "[count u32] = 162 on every save, variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows. The same size on every save of a career."],
+    [48166114, 48353064, "unknown", "Unidentified", "unread/record_books.md", "", "", "[count u32] = 162 on every save, variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows. The same size on every save of a career."],
     [48353064, 52721064, "reserved", "Player progress", "player_progress.md", "Shape C", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same count on every save: [tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16], usually one row per player per week. Rows recycled."],
-    [52721064, 53479282, "unknown", "Unidentified", null, "", "", "All 00 and ff. The training table sits exactly 758,222 B after the progress pool on every Frem save."],
+    [52721064, 53479282, "unknown", "Unidentified", "unread/progress_padding.md", "", "", "All 00 and ff. The training table sits exactly 758,222 B after the progress pool on every Frem save."],
     [53479282, 55490212, "database", "Training", "training.md", "Shape A", "TRAINING_TABLE", "[count u32 = 32,966][32,966 × 61 B], row k = person tid k: intensity, Focus Role, attribute focus, Focus Pos, contracted flag, squad status. Rewritten as focus changes."],
     [55490212, 55615704, "grows", "Award history", "award_history.md", "Shape A", "AWARD_HISTORY_TABLE", "1,364 editions × 92 B: every edition of every award, 1st to 3rd (person, name ids, club, score)."],
     [55615704, 55882728, "grows", "Team history", "team_history.md", "Shape A", "TEAM_HISTORY_TABLE", "845 teams × 316 B: every Team of the Week / Year picked, 11 players with ratings."],
-    [55882728, 55884748, "unknown", "Unidentified", null, "", "", "2,020 bytes before our matches."],
+    [55882728, 55884748, "unknown", "Unidentified", "unread/before_matches.md", "", "", "2,020 bytes before our matches."],
     [55884748, 56178674, "seasonal", "Our matches", "matches.md", "Shape A", "MATCHES_TABLE", "[count u8 = 57], then one row per match: [home, away, cid, day][n u8][n × 17 B events][5,093 B body] with both team blocks and our tactic. Emptied on the rollover day."],
     [56178684, 56310550, "database", "Person stamps", "person_stamps.md", "Shape A", "PERSON_STAMPS_TABLE", "[01][01][count = 32,965] (persons less one), then [knowledge u8][day u16][year offset u8] per person, behind five unread u16 nation ids."],
     [56310550, 56312470, "database", "Tactic history", "tactic_history.md", "Shape A", "TACTIC_HISTORY_TABLE", "30 tactic setups the game recorded for the user (a role per position; a formation or \"uber tactic\" name), capped at 30, behind a 60 B block and 6 person entries."],
     [56312470, 56313476, "grows", "Club seasons", "club_seasons.md", "Shape A", "CLUB_SEASONS_TABLE", "The managed club's league line and cups, season by season, in a 50-slot pool."],
     [56313477, 56314027, "filler", "0xFF run, 550 B", null, "", "", "550 bytes on every Frem save. Not the end of our matches."],
     [56314027, 56316108, "grows", "Club titles", "club_titles.md", "Shape A", "CLUB_TITLES_TABLE", "32 slots × 65 B: each competition the managed club has won, with its years (3 so far)."],
-    [56316108, 61253092, "unknown", "Unidentified", null, "", "", "00 29% / ff 53% / other 18%. Opens with [01][club][first season] and empty 11-byte slots. One small player-list block sits at 56,336,372."],
+    [56316108, 61253092, "unknown", "Unidentified", "unread/club_block.md", "", "", "00 29% / ff 53% / other 18%. Opens with [01][club][first season] and empty 11-byte slots. One small player-list block sits at 56,336,372."],
     [61253092, 62631642, "reserved", "Player lists", "player_lists.md", "Shape E", "PLAYER_LISTS_TABLE", "66 lists of [100 scrapbook entries][14 B trailer]. Lists 0–30 world (100 players a season), 31–61 our squad per season, 62–65 two copies of a world/club pair. Filled season by season."],
     [61896648, 62002727, "reserved", "Our club's squad lists (31–61)", "player_lists.md", "", "player_scrapbook.json", "The managed squad, one list per season.", true],
-    [62631781, 62635766, "unknown", "Unnamed dated table", null, "Shape C", "struct", "Scheduled events: 14 B units [u32 FFFFFFFF][u16 type][day-of-year][year][u32 tid], dates a fortnight ahead of the save. Type 9 is a transfer going through on that day."],
+    [62631781, 62635766, "unknown", "Unnamed dated table", "unread/scheduled_events.md", "Shape C", "struct", "Scheduled events: 14 B units [u32 FFFFFFFF][u16 type][day-of-year][year][u32 tid], dates a fortnight ahead of the save. Type 9 is a transfer going through on that day."],
     [62635766, 63936873, "grows", "sicomps archive", "#h-arch", "Shape D", "archive.locate", "159 zstd members and a directory, 6.58 MB decompressed: fixtures, comp_stages, comp_honours, 147 × comp_<uid>.dat. Grows with the career."]
   ];
 
