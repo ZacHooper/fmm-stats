@@ -167,6 +167,21 @@ Phase 2 read two tables and found what the other two regions hold:
   ones month by month, and every Team of the Week / Year picked, both games. **Load them**:
   with [awards](parser/awards.md) they give a season's honours for every league, and each
   entry's stored name ids settle the tid-reuse problem in #14.
+- **Phase 3 leads, not tables yet** (offsets on truro-2026-08-08):
+  - **After the person stamps (61.8–67.0 M, 5.2 MB): tactics.** Formation strings ("5-2-1-2",
+    "4-4-2 Diamond") each behind ten position bytes, apparently one tactic per club, with a
+    short header (`01 02 02 00 …`, then a float-looking `00 80 d1 f0`). On FMM22 the same
+    region opens the same way. If it is every club's current tactic, it is the opponent's
+    real shape for a scout report, better than the manager's preferred formation.
+  - **Nicknames → history (2.1 MB):** dense small numbers for ~2 MB, then 1,020 inline-named
+    records about 55 B apart ("Mark Smith", "Phillip Foose", "Cecilia Tenconi", a u16 2026 or
+    2007 after the names), FMM27 only. Unnamed: try the person table's newest tids and the
+    women's competitions.
+  - **Rule files → contract grid (2.4 MB):** 73 six-byte slots `[ffffffff][u16 1]`, then
+    blocks carrying season years (`ea 07 eb 07` = 2026, 2027) and dates: possibly each
+    competition's current-season state.
+  - **Between the team history and our matches:** 0.3–43 KB, `00 19 00 00 00 ff ff 00 01 00
+    <year> 00 01 0d ff …`.
 - **Competition record books** (club records → player progress): layout started, see #3.
 - **The dated queue before the archive** is the game's scheduled events. On FMM22, type 9 is
   a transfer going through on that day (all 41 on frem-2026-06-11 are agreed transfers).
