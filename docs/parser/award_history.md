@@ -1,8 +1,18 @@
 # award_history  ([`fmparser/tables/award_history.py`](../../fmparser/tables/award_history.py))
 
-**Every edition of every award**, the 1st to 3rd placed: the "Season / Winner" list on an
-award's screen, and monthly awards month by month. [awards](awards.md) holds each award's
-latest edition only; this holds them all. Straight after [training](training.md).
+**Past editions of every award**, the 1st to 3rd placed: the "Season / Winner" list on an
+award's screen. An annual award keeps **every year** since the database's first; a weekly
+or monthly award keeps **only the current season**, week by week or month by month.
+[awards](awards.md) holds each award's latest edition only.
+
+| | annual award, editions | weekly / monthly award, editions |
+|---|---|---|
+| frem-2026-06-11 | up to 6 (2020, then 2021–2025) | 2025/26 only: up to 36 weeks, 10 months |
+| frem-2030-06-22 | up to 10 | 2029/30 only |
+
+A weekly or monthly award the career has never decided (24 monthly awards on Frem, for
+leagues the game does not run) keeps one placeholder edition from the database, dated
+1 January 2021. Straight after [training](training.md).
 
 | | editions |
 |---|---|

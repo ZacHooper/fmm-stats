@@ -40,8 +40,8 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
                                  Club History, per club
     player_progress.json         the weekly Player Progress table
     training.json                the Training page, every player
-    award_history.json           every edition of every award, 1st to 3rd
-    team_history.json            every Team of the Week / Year / Dream Team picked
+    award_history.json           past editions of every award, 1st to 3rd
+    team_history.json            season teams by year; this season's Teams of the Week
     matches.json                 this season's matches as stored
     person_stamps.json           a dated 4-byte row per person
     tactic_history.json           the user's tactic history: name and a role per position

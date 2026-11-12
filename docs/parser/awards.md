@@ -89,8 +89,9 @@ on a Top Goalscorer `score` is goals. A voted award's score is not shown on scre
 > Players' Player of the Year" on frem-2026-06-11 stores 753, 751, 760 for 1st to 3rd. On a
 > voted award the score is not what decides the placing.
 
-> **Quirk:** this table holds one edition per award. Every edition, monthly awards month by
-> month, is the [award history](award_history.md).
+> **Quirk:** this table holds one edition per award. Past editions are the
+> [award history](award_history.md): every year of an annual award, the current season's
+> weeks or months of a weekly or monthly one.
 
 > **Quirk:** a winner's name ids are stored because his tid is a slot. On FMM22, 39 of 563
 > filled entries' names differ from the person who holds the tid now, which is what a

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""`team_history` — every team-of-the-period the game has picked: Team of the Week, Team of
+"""`team_history` — the teams-of-the-period the game has picked (every year of a season team,
+only the current season's Teams of the Week, though the game shows just the latest): Team of the Week, Team of
 the Year, Squad of the Season, Dream Team, Players' Select, Best XI.
 
 Straight after the award history (`award_history.py`):

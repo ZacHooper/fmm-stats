@@ -1,8 +1,16 @@
 # team_history  ([`fmparser/tables/team_history.py`](../../fmparser/tables/team_history.py))
 
-**Every team-of-the-period the game has picked**: Team of the Week, Team of the Year, Squad
+**The teams-of-the-period the game has picked**: Team of the Week, Team of the Year, Squad
 of the Season, Dream Team, Players' Select, Best XI, All-Star XI. Straight after the
 [award history](award_history.md).
+
+**How far back.** A season team (Team of the Year, Dream Team …) keeps every year: 2 per
+award on frem-2023-07-02, 5 on frem-2026-06-11, 9 on frem-2030-06-22. A **Team of the Week
+keeps only the current season**, every week of it (27–42 per league), though the game shows
+just the latest: frem-2026-06-11 holds 2025/26's weeks and none from 2024/25. Last season's
+weeks outlast the July rollover for a while (frem-2023-07-02 still holds 2022/23's) and are
+replaced as the new season plays. Only 16–19 leagues have a Team of the Week stored (the
+Spanish, English and others), not every league.
 
 | | teams |
 |---|---|

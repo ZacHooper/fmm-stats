@@ -9,6 +9,9 @@ club resolves (club ffffffff: none), and each award's latest edition names the s
 Footballer of the Year 2025 is Dembélé, Yamal, Mbappé, as on the International Awards
 screen (docs/parser/img/awards-fmm27-1.jpg).
 
+Both keep one season of the weekly and monthly awards (frem-2026-06-11: every Team of the
+Week and Player of the Month is 2025/26's) and every year of the annual ones.
+
 team_history: every team names a team award (Team of the Week / Year, Squad of the Season,
 Dream Team, Players' Select, Best XI, All-Star XI), every picked player and club resolves, ratings are
 6.0-10.0, and a day-one save has none.
@@ -75,6 +78,20 @@ def check_save(name):
     check(all(p["person_tid"] in persons and (p["club_tid"] in clubs or p["club_tid"] == NONE)
               and 6.0 <= p["rating"] <= 10.0
               for p in picked), f"all {len(picked):,} picked players resolve, ratings 6-10")
+    if name == "frem-2026-06-11.fms":
+        weeks = [t["date"] for t in teams if "Week" in awards[t["award_id"]]["long_name"]]
+        check(weeks and all("2025-07-01" <= d <= "2026-06-30" for d in weeks),
+              f"all {len(weeks)} Teams of the Week are 2025/26's: one season kept")
+        years = {}
+        for t in teams:
+            if not any(w in awards[t["award_id"]]["long_name"] for w in ("Week",)):
+                years.setdefault(t["award_id"], set()).add(t["date"][:4])
+        check(max(len(v) for v in years.values()) >= 5, "season teams keep several years")
+        monthly = [e["date"] for e in hist if "Month" in awards[e["award_id"]]["long_name"]
+                   and e["date"] != "2021-01-01"]
+        check(monthly and all("2025-07-01" <= d <= "2026-06-30" for d in monthly),
+              f"all {len(monthly)} monthly editions the career decided are 2025/26's "
+              "(the rest: 24 database placeholders dated 2021-01-01)")
     if name == "truro-2026-08-08.fms":
         wf = [e for e in hist if e["award_id"] == 0 and e["date"] == "2025-01-01"]
         check([p["person_tid"] for p in wf[0]["places"]] == [21612, 33234, 21609]

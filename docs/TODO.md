@@ -162,8 +162,9 @@ Phase 2 read two tables and found what the other two regions hold:
   player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and
   a destination for every move in the world, which the band (emptied every July) can't give.
 - **Phase 3: [award history](parser/award_history.md) and [team history](parser/team_history.md)**
-  (the plan's "training → our matches" region): every edition of every award, monthly
-  ones month by month, and every Team of the Week / Year picked, both games. **Load them**:
+  (the plan's "training → our matches" region): every year of an annual award and of a
+  season team, and the current season's weekly and monthly awards and Teams of the Week,
+  both games. **Load them**:
   with [awards](parser/awards.md) they give a season's honours for every league, and each
   entry's stored name ids settle the tid-reuse problem in #14.
 - **Unread regions with leads**: each has a page in

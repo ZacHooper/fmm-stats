@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""`award_history` — every edition of every award: the date, and the 1st to 3rd placed.
+"""`award_history` — past editions of every award: the date, and the 1st to 3rd placed.
 
 The awards table (`awards.py`) holds each award's latest edition; this holds them all, the
-"Season / Winner" list on an award's screen, monthly awards month by month. It sits
+"Season / Winner" list on an award's screen: every year of an annual award, and only the
+current season of a weekly or monthly one (week by week, month by month). It sits
 straight after the training table:
 
     [count u32]                            807 on day one, 1,364 on frem-2026-06-11
