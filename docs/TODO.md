@@ -144,9 +144,10 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
 [derbies](parser/derbies.md), [regions](parser/regions.md), [id_list](parser/id_list.md),
 [person_index](parser/person_index.md), [person_stamps](parser/person_stamps.md); evidence
 `tests/test_world_lists_evidence.py`). Open from Phase 1, in order:
-- **The per-player blocks** after the [club rows](parser/club_rows.md), the chain's fourth
-  link (counted by the player-attribute count): decode the rich rows (dated, about one in 20)
-  that stop the walk, then prove the landing on both games
+- **[player_status](parser/player_status.md)** (FMM27): each player's interested clubs,
+  morale and form, read and checked on screen. **Load it** (interest in our players, the
+  squad's morale and form on the site); name its event record (a transfer or contract
+  event?). **FMM22's walk** of the same blocks is not proved
   ([what is known](parser/unread/person_chain.md)). Then name a field of the
   [staff rows](parser/staff_rows.md) (managers' points and games?) and the
   [club rows](parser/club_rows.md) (a nation-shared f32 and ranking-like u32s).
@@ -173,7 +174,7 @@ Phase 2 read two tables and found what the other two regions hold:
 - **Unread regions with leads**: each has a page in
   [`parser/unread/`](parser/unread/README.md) with its offsets on both games, the bytes seen,
   what was tried and the next step: the [per-person chain](parser/unread/person_chain.md)
-  (next: the per-player blocks' rich rows), [after the loans](parser/unread/after_loans.md),
+  (next: the FMM22 per-player blocks), [after the loans](parser/unread/after_loans.md),
   [after the last transfers](parser/unread/after_last_transfers.md) (FMM27's match-slot table
   is probably here), [competition record books](parser/unread/record_books.md),
   [scheduled events](parser/unread/scheduled_events.md),
@@ -204,7 +205,7 @@ Phase 2 read two tables and found what the other two regions hold:
   into `docs/parser/img/` as the evidence record. Then a parser table, an extract step and a
   raw table ("Raw mirrors the save, one table per table").
 - **15.08–16.75 M** (frem-2026-06-11) — after the [club rows](parser/club_rows.md): one
-  variable-length block per player. #2a.
+  variable-length block per player, read on FMM27 as [player_status](parser/player_status.md). #2a.
 - A **league-titles table** at ~56.3 M behind a 550-byte `0xFF` run, 0.13 MB after our
   matches ([savefile map](parser/savefile-map.md)): `[u8][cid u16][tid u16][year u16]` per
   65-byte entry, one per league title Frem has won, the first byte the entry count. Name it:

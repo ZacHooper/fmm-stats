@@ -206,6 +206,8 @@ from .id_list import ID_LIST_TABLE, scrape_id_list
 from .person_index import PERSON_INDEX_TABLE, PERSON_INDEX_TABLE_FMM27, scrape_person_index
 from .person_stamps import PERSON_STAMPS_TABLE, scrape_person_stamps
 from .staff_rows import STAFF_ROWS_TABLE, scrape_staff_rows, staff_rows_table_spans
+from .player_status import (PLAYER_STATUS_TABLE, player_status_table_spans,
+                            scrape_player_status)
 from .club_rows import (CLUB_ROWS_TABLE, CLUB_ROWS_TABLE_FMM27, club_rows_table_spans,
                         scrape_club_rows)
 from .loans import LOANS_TABLE, loans_table_spans, scrape_loans
@@ -284,7 +286,7 @@ TABLES_BY_FORMAT = {
             "awards": AWARDS_TABLE_FMM27, "unions": UNIONS_TABLE_FMM27,
             "derbies": DERBIES_TABLE_FMM27, "regions": REGIONS_TABLE_FMM27,
             "person_index": PERSON_INDEX_TABLE_FMM27,
-            "club_rows": CLUB_ROWS_TABLE_FMM27},
+            "club_rows": CLUB_ROWS_TABLE_FMM27, "player_status": PLAYER_STATUS_TABLE},
 }
 
 
@@ -346,6 +348,7 @@ __all__ = [
     "scrape_person_index",
     "scrape_staff_rows",
     "scrape_club_rows",
+    "scrape_player_status",
     "scrape_person_stamps",
     "scrape_regions",
     "scrape_unions",

@@ -3,7 +3,7 @@
 | | from | to | size | still unread |
 |---|---|---|---|---|
 | FMM22 (frem-2026-06-11) | 14,441,326 | 16,752,549 | 2.31 MB | 15,083,143 → 16,752,549, 1.67 MB |
-| FMM27 (truro-2026-08-08) | 17,158,293 | 22,951,767 | 5.79 MB | 18,593,817 → 22,951,767, 4.36 MB |
+| FMM27 (truro-2026-08-08) | 17,158,293 | 22,951,767 | 5.79 MB | 22,931,350 → 22,951,767, 20 KB |
 
 A chain of counted blocks with no `0xFF` frames, which is why frame searches found nothing
 here. Each block is one row per entity of a table we already read, and each walk lands
@@ -14,11 +14,13 @@ exactly on the next block's count:
 | 1 | u32 = persons | 14 / 15 B | [person_index](../person_index.md) |
 | 2 | u16 = staff | 8 B | [staff_rows](../staff_rows.md) |
 | 3 | u16 = clubs | 51 / 132 B, + 66 / 68 B when flagged | [club_rows](../club_rows.md) |
-| 4 | u16 = players (attribute records) | variable | **not read** (below) |
+| 4 | u32 = players (attribute records) | variable | [player_status](../player_status.md) on FMM27; **not read on FMM22** (below) |
+| 5 | u16 (1,706 on Truro) | 4 B, all `ff` so far | not read; then ~13.6 KB to the rule files |
 
-## Link 4: one block per player
+## Link 4 on FMM22: one block per player
 
-Counted by the player-attribute count (26,505 on Frem, 36,344 on Truro), from where the club
+On FMM27 this link is read: [player_status](../player_status.md) (interested clubs, morale,
+form). On FMM22 it is counted by the player-attribute count (26,505 on Frem, 36,344 on Truro), from where the club
 rows end. Described from frem-2026-06-11 (FMM22).
 
 ### Known
@@ -36,45 +38,23 @@ rows end. Described from frem-2026-06-11 (FMM22).
   with dates in 2025 and 2026 (`e9 07`, `ea 07`), club-sized u16s and runs of `ff`, which looks
   like contract or transfer state. Its layout is not worked out, and it is what stops the walk.
 
-### Confirmed on truro-2026-07-25 (FMM27)
+### Read on FMM27
 
-On FMM27 every block holds exactly one `01 00 d0 07` date: 36,344 of them for 36,344 players,
-none closer than 119 bytes and none further than 175, so block k is attribute record k. The
-seven u16 start 70 bytes after the previous block's date (block 0: 10 bytes into the block).
-
-- **The seven u16 are the clubs interested in him** (`ffff` = empty). Lewis Colwell's block
-  names Salisbury and Oxford City; his Player Contract screen lists exactly those two under
-  **Interested Clubs**. 1,385 players have at least one. Some name their own club (Haaland,
-  Saka, Kimmich): not yet explained.
-- **The five u8 after the first of the six are his Form**, the last five match ratings, most
-  recent last, `ff` for no match. Against the Club Squad screen, all ten players shown agree:
-  Bogle 7-6-6, Donnellan 8-6-7, Greenslade 7-7-8, Harvey 8-6, Hasani 6-6, Dean 7-7,
-  Harrison 7-7, Bell 7, En-Neyah 7, and Colwell (no matches) all `ff`.
-- **The first of the six (10-20) is morale**, the arrow beside each name on the Club Squad
-  screen, and not condition (Greenslade 20 at 76%, Colwell 16 at 100%). It orders the arrows
-  exactly: 20, Greenslade, green arrow straight up; 16-17 (Bell, Colwell, Dean, Donnellan,
-  Harrison) green, up and right; 12-13 (En-Neyah, Harvey, Hasani) yellow, flat; 11 (Bogle)
-  orange, down and right. On Dorking Wanderers' squad the same day: 15-17 green, 12-14 yellow, 11 orange (Francomb),
-and Dillon Grass's red arrow reads 7. So green from 15, yellow 12-14, orange 10-11, red at 7.
-
-![Dorking Wanderers, Club Squad, 25 Jul 2026: morale arrows](../img/player_block-fmm27-3.png)
-
-![Truro City, Club Squad, 25 Jul 2026: Form column](../img/player_block-fmm27-1.png)
-![Truro City, Club Squad, 25 Jul 2026 (the same screen, inbox read)](../img/player_block-fmm27-4.png)
-![Lewis Colwell, Player Contract, 25 Jul 2026: Interested Clubs Salisbury, Oxford City](../img/player_block-fmm27-2.png)
+The FMM27 block is read by [player_status](../player_status.md), with its evidence. Its
+fields name the FMM22 ones: the seven u16 after the head are interested clubs, the six u8
+after them morale then form.
 
 ### Next
 
-1. Read the FMM27 blocks as a table (the date anchors them; the walk still needs each block's
-   own length rule), with `interested_clubs` and `form` named.
-2. Decode the rich row: line a dozen up by their dates and find the counted lists inside.
-2. Walk all 26,505 / 36,344 blocks and prove the landing on the next count, on both games.
-3. Pin where orange ends and red begins (8 and 9 not yet seen).
+1. FMM22: settle where a block starts (the first block reads 7 bytes longer than the item
+   rule says), decode the rich rows, then prove the walk on all five FMM22 saves.
+2. FMM27: name the event record (a transfer or contract event?) and link 5's 1,706 slots.
 
 ## Evidence that would help
 
-A save from the same day as a squad screen (form, morale, ratings), and the same player's
-profile in two saves either side of a match.
+For the FMM27 event record: a save on the same day as a Player Contract screen showing a
+transfer offer or a contract being negotiated. For FMM22: a Frem save and its squad screen,
+to pin the blocks' order before the walk.
 
 ## Tried
 

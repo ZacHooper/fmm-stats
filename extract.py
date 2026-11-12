@@ -30,6 +30,8 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     id_list.json                 an unread id list between the currencies and languages
     person_index.json            a short row per person: his loan slot, one unread pointer
     club_rows.json               a row per club, in tid order: its transfer budget
+    player_status.json           FMM27: per player (attribute-record order) the clubs
+                                 interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules
     formations.json              the formation catalog the staff records index
     contracts.json               the contract grid
@@ -275,6 +277,16 @@ def one(file: str, scrape: Callable[[Any], Any],
     return lambda mm: {file: (scrape(mm), indent)}
 
 
+def read_player_status(mm) -> Files:
+    """FMM27 only: the FMM22 walk is not proved, so an FMM22 save writes no file. Block k is
+    attribute record k, so each row carries that record's sid."""
+    if T.save_format(mm) != T.FMM27:
+        return {}
+    sids = list(PA.scrape_player_attributes(mm))
+    rows = [{"sid": sid, **r} for sid, r in zip(sids, T.scrape_player_status(mm), strict=True)]
+    return {"player_status.json": (rows, None)}
+
+
 def walked(scrape: Callable[[Any], Any]) -> Callable[[Any], Files]:
     """The read for a table walked for its extent while no field of it is named: the walk
     must succeed, and nothing is written."""
@@ -316,6 +328,7 @@ def steps(no_archive: bool = False):
              per_person("person_index.json", T.scrape_person_index)),
         Step("staff_rows", registered("staff_rows"), walked(T.scrape_staff_rows)),
         Step("club_rows", registered("club_rows"), one("club_rows.json", T.scrape_club_rows)),
+        Step("player_status", registered("player_status"), read_player_status),
         Step("rule_files", registered("rule_files"), read_team_counts),
         Step("formation catalog", ST.formation_catalog_span,
              one("formations.json", ST.formation_catalog, 1)),

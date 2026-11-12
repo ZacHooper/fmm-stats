@@ -331,8 +331,10 @@ currencies' frame. Then the [id list](id_list.md) (924 × 7 B) to the languages,
 [per-person rows](person_index.md) from 16,468,667: 44,960 × 15 B, ending on the staff count
 (6,212). The chain goes on as on FMM22: [staff rows](staff_rows.md) (6,212 × 8 B), then
 [club rows](club_rows.md) (9,830 × 132 B, plus 68 B on the clubs that carry the extra block),
-ending on the player-attribute count (36,344) in front of the unread per-player blocks
-(4.36 MB on truro-2026-08-08; [what is known](unread/person_chain.md)).
+ending on the player-attribute count (36,344): [player_status](player_status.md), one block
+per player (interested clubs, morale, form; 4.34 MB on truro-2026-08-08), then a u16-counted
+list of 1,706 four-byte slots and ~13.6 KB unread before the rule files
+([what is known](unread/person_chain.md)).
 
 The career half on `truro-2026-07-25`, in file order:
 
