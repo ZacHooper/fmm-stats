@@ -94,6 +94,46 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   </div>
 </header>
 
+<section aria-labelledby="h-status">
+  <h2 id="h-status">Status, 12 Nov: done, open, next</h2>
+  <p>Phases 1–3 are worked through. Seventeen tables are now read on both games, extracted, documented in <code>docs/parser/</code> and checked by evidence tests on eight saves (PR #228). Unread content on an FMM27 save fell from ~17.7 MB to ~15.6 MB. Nothing new is loaded into the store yet.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>region</th><th>now read as</th><th>left open there</th></tr></thead>
+    <tbody>
+      <tr><td><b>Cities → currencies</b></td><td>awards, nation unions, derbies, regions</td><td>award body bytes; derby bytes +8/+9 (no screen shows derbies)</td></tr>
+      <tr><td><b>Currencies → languages</b></td><td>id list (extent only)</td><td>what the ids name</td></tr>
+      <tr><td><b>Languages → rule files</b></td><td>per-person rows (with each person's loan slot)</td><td>the staff-counted block after them and the blocks up to the rule files; the rows' second pointer</td></tr>
+      <tr><td><b>Contract grid → transfer band</b></td><td>loans (every loan in the world)</td><td>the option amount; ~1.5 MB after the pool</td></tr>
+      <tr><td><b>Transfer band → surnames</b></td><td>last transfers (each player's latest fee and buyer)</td><td>~1.3 MB after them; FMM27's match-slot table, probably here</td></tr>
+      <tr><td><b>Club records → player progress</b></td><td>— (lead)</td><td>competition record books: row shape known, block sizes not</td></tr>
+      <tr><td><b>Training → our matches</b></td><td>award history, team history</td><td>a few hundred bytes to 43 KB before our matches</td></tr>
+      <tr><td><b>Our matches → player lists</b></td><td>person stamps (knowledge 0–3), tactic history, club seasons, club titles</td><td>the 60 B block and person entries before the tactic history; the tactic flag; cup-run bytes; ~5 MB after the titles</td></tr>
+      <tr><td><b>Player lists → archive</b></td><td>— (lead)</td><td>scheduled events: type 9 is a transfer due that day on FMM22; FMM27's layout differs</td></tr>
+      <tr><td><b>Nicknames → history</b>, <b>rule files → contract grid</b></td><td>— (leads)</td><td>1,020 inline-named records (FMM27); 73 six-byte slots then blocks with season years</td></tr>
+      <tr><td><b>Player progress → training</b></td><td>—</td><td>prove it is padding (Phase 4)</td></tr>
+    </tbody>
+  </table></div>
+  <div class="cols">
+    <div class="callout"><span class="k">Next, parser only</span>
+      <ul>
+        <li>Finish the per-person chain after languages (~5.8 MB): the staff-counted block first.</li>
+        <li>Find FMM27's match-slot table in the 1.3 MB after the last transfers; walk the 1.5 MB after the loans.</li>
+        <li>Competition record books: try the club records' 12 + 12 + 12 + 12 blocks per competition.</li>
+        <li>Scheduled events on FMM27, then one table for both games.</li>
+        <li>The named records and the season-year blocks; Phase 4's padding proof.</li>
+        <li>Small: the contract grid's span on frem-2030-06-22 (89 bytes short), the id list's ids.</li>
+      </ul></div>
+    <div class="callout warn"><span class="k">Needs saves from the user</span>
+      <ul>
+        <li>A save on the same day as screenshots: xG and season stats for every club and player (TODO #10a); pins the award, knowledge and monthly-award screens to bytes; and, with a Tactics screen on a match day, the team instructions.</li>
+        <li>A save before and after a scout report: proves <code>knowledge</code> moves.</li>
+        <li>A Formation screen with a full-back: the last FMM27 role codes to pin (10 are pinned).</li>
+        <li>The first Truro save after a season ends: the player lists' season numbers and FMM27's rollover.</li>
+      </ul></div>
+  </div>
+  <p class="ev">Outside this plan: loading the new tables into the store (awards and their history, loans, last transfers, club seasons and titles) so they reach the site.</p>
+</section>
+
 <section aria-labelledby="h-basics">
   <h2 id="h-basics">What you need to know first</h2>
   <div class="cols">
@@ -178,10 +218,10 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <p><b>Outstanding:</b></p>
       <ul>
         <li>The staff-counted block after the per-person rows, and the counted blocks after it up to the rule files.</li>
-        <li>A save taken on the same day as screenshots (none was possible on 24–26 Oct): pins the award and knowledge screens to bytes, and finds the monthly awards' month-by-month history, which the awards table does not hold.</li>
+        <li>A save taken on the same day as screenshots (none was possible on 24–26 Oct): pins the award and knowledge screens to bytes. (The monthly awards' history turned up in Phase 3: the award history table.)</li>
         <li>A save before and after a scout report, to see <code>knowledge</code> move.</li>
         <li>The derby bytes at +8 and +9: no screen shows derbies, so only save diffs across a derby can name them.</li>
-        <li>The id list's ids, and what the per-person rows' two pointers point at.</li>
+        <li>The id list's ids, and the per-person rows' second pointer (the first is the loan slot, found in Phase 2).</li>
         <li>Loading the awards into the store.</li>
       </ul>
     </div>
@@ -237,7 +277,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <li><b>Last transfers</b> (the per-player block): one 30-byte row per player, his latest transfer since the career began — fee and buying club — kept across rollovers. On Truro every filled row matches an accepted bid in the transfer band (Rrahmani, 8.8 M to Ipswich).</li>
       </ul>
       <p><b>Leads, not tables yet:</b> the competition record books (cid 0 is the Belgian Pro League's: 21-byte match rows with a holder club, then 24-byte player rows; the per-competition block sizes are not found); the dated queue is the game's scheduled events, where on FMM22 type 9 is a transfer going through on that day, but FMM27 stores it differently.</p>
-      <p><b>Outstanding:</b> load loans and last transfers into the store; the ~1.5 MB after the loans and ~1.3 MB after the last transfers; name the loan percentage and option amount from a loan screen.</p>
+      <p><b>Outstanding:</b> load loans and last transfers into the store; the ~1.5 MB after the loans and ~1.3 MB after the last transfers; the loan option amount. (The percentage is the loan club's wage contribution, confirmed in Phase 3 from Caleb Roberts's contract card.)</p>
     </div>
 
     <div class="item">
@@ -285,7 +325,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="callout">
       <span class="k">Progress, 12 Nov</span>
       <p><b>Read:</b> the training → our matches region is two tables, on both games. <b>Award history</b>: every edition of every award, 1st to 3rd, monthly awards month by month; each award's latest edition matches the awards table on all eight saves. <b>Team history</b>: every Team of the Week / Year, Dream Team and Best XI picked, eleven players with ratings. Also: Caleb Roberts's existing contract card confirms the loan percentage is the loan club's wage contribution (now <code>wage_pct</code>).</p>
-      <p><b>Then the tactics region:</b> its head is a <b>tactic history</b>: tactic setups the game recorded for the user, a role for every position, named after a formation or "uber tactic", growing with play and capped at 30 (first read as saved tactics; the user has none on Truro). Truro's last record is its 4-1-2-1-2, full-backs and centre-backs where the match reports put them. Then and the managed club's <b>season record</b> and its <b>titles</b> (league line and cups per season; Frem's 2025/26 line equals the fixture list exactly: 32 played, 14-11-7, 44-27, 53 points). It is not every club's tactic, as first guessed. The ~5.2 MB after them is still unread.</p><p><b>Leads:</b> nicknames → history ends in 1,020 inline-named records (FMM27 only); rule files → contract grid holds 73 six-byte slots, then blocks with season years. Details in TODO.</p>
+      <p><b>Then the tactics region:</b> its head is a <b>tactic history</b>: tactic setups the game recorded for the user, a role for every position, named after a formation or "uber tactic", growing with play and capped at 30 (first read as saved tactics; the user has none on Truro). The last record is the current tactic: on 22 and 25 Jul it matches the Tactics – Formation screen slot for slot, which pins ten FMM27 role codes. Then the managed club's <b>season record</b> and its <b>titles</b> (league line and cups per season; Frem's 2025/26 line equals the fixture list exactly: 32 played, 14-11-7, 44-27, 53 points). It is not every club's tactic, as first guessed. The ~5.2 MB after them is still unread.</p><p><b>Leads:</b> nicknames → history ends in 1,020 inline-named records (FMM27 only); rule files → contract grid holds 73 six-byte slots, then blocks with season years. Details in TODO.</p>
     </div>
     <ul>
       <li><b>The rest of our matches → player lists (5.2 MB).</b> On FMM22 this stretch holds the league-titles table and a player-list block; look for both first. Repeating 72- and 16-byte patterns; about half the bytes change in two weeks.</li>
