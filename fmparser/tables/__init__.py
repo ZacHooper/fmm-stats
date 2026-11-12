@@ -209,6 +209,7 @@ from .loans import LOANS_TABLE, loans_table_spans, scrape_loans
 from .award_history import (AWARD_HISTORY_TABLE, award_history_table_spans,
                             scrape_award_history)
 from .team_history import TEAM_HISTORY_TABLE, scrape_team_history, team_history_table_spans
+from .saved_tactics import SAVED_TACTICS_TABLE, saved_tactics_table_spans, scrape_saved_tactics
 from .last_transfers import (LAST_TRANSFERS_TABLE, last_transfers_table_spans,
                              scrape_last_transfers)
 
@@ -224,6 +225,7 @@ TABLES = {
     "loans": LOANS_TABLE,
     "award_history": AWARD_HISTORY_TABLE,
     "team_history": TEAM_HISTORY_TABLE,
+    "saved_tactics": SAVED_TACTICS_TABLE,
     "last_transfers": LAST_TRANSFERS_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
@@ -322,6 +324,8 @@ __all__ = [
     "award_history_table_spans",
     "scrape_team_history",
     "team_history_table_spans",
+    "scrape_saved_tactics",
+    "saved_tactics_table_spans",
     "scrape_last_transfers",
     "last_transfers_table_spans",
     "loans_table_spans",
