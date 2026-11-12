@@ -83,7 +83,7 @@ notes. The status column names the `core` table that reads it
 | 55,884,748 | 56,178,674 | 0.29 MB | **[our matches](matches.md)** — `[count u8 = 57]`, then one row per match: `[home, away, cid, day][n u8][n x 17 B events][5,093 B body]` -- the body repeats the head from our side, then 50 event slots, two team blocks (`[77 B][20 x 62 B player slots][46 B]`, our score at +52) and our tactic (formation string, 11 starting positions, per-starter items, a coordinate grid) | **resets every July**; appends in-season | Shape A (u8 count, row length from its event count) | `MATCHES_TABLE` |
 | 56,178,674 | 56,178,684 | 10 B | five u16 nation ids, unread | — | — | — |
 | 56,178,684 | 56,310,550 | 0.13 MB | **[person stamps](person_stamps.md)** — `[01][01][count u32 = 32,965]` (the person count less one), then 4 B per person: `[knowledge u8][day u16][year offset u8]` | rewritten as the career goes on | Shape A | `PERSON_STAMPS_TABLE` |
-| 56,310,550 | 56,312,470 | 1,920 B | **[saved tactics](saved_tactics.md)** — a 60 B block and 6 counted person entries (unread), then `[u16 30]` × 59 B tactics: the user's tactics, a role per position and a name | rewritten as the user saves tactics | count-framed | `SAVED_TACTICS_TABLE` |
+| 56,310,550 | 56,312,470 | 1,920 B | **[tactic history](tactic_history.md)** — a 60 B block and 6 counted person entries (unread), then `[u16 30]` × 59 B records: tactic setups the game has recorded for the user (a role per position, a formation or "uber tactic" name), capped at 30 | grows with play, to 30 | count-framed | `TACTIC_HISTORY_TABLE` |
 | 56,312,470 | 56,313,476 | 1,006 B | **[club seasons](club_seasons.md)** — `[u8 k]` then 50 slots: the managed club's league line (position, W/L/D, goals, points) and cups, season by season | **grows** a season a year | count + fixed pool | `CLUB_SEASONS_TABLE` |
 | 56,313,477 | 56,314,027 | **550 B** | `0xFF` run, 550 bytes on every Frem save. It is not the end of our matches: the match table ends 134,803 B earlier | — | — | — |
 | 56,314,027 | 56,316,108 | 2,081 B | **[club titles](club_titles.md)** — `[u8 count = 3]`, then 32 slots of 65 B: `[cid][club][30 × year][n_years]`, one per competition the managed club has won (3. Division 2021, 2. Division 2022, NordicBet Liga 2023) | **grows** by a year a title | count + fixed pool | `CLUB_TITLES_TABLE` |
@@ -342,7 +342,7 @@ The career half on `truro-2026-07-25`, in file order:
 | 60,698,094 | [award history](award_history.md), [team history](team_history.md) | 1,124 editions, 0 teams; then ~43 KB unread to our matches |
 | 60,844,241 | [our matches](matches.md) | one row; 70 B player slots, not read yet |
 | 60,850,122 | [person stamps](person_stamps.md) | `[01][01][44,959]`, 4 B per person, straight after our matches |
-| 61,030,325 | [saved tactics](saved_tactics.md), [club seasons](club_seasons.md), [club titles](club_titles.md) | the user's 5 tactics, the 50-slot season pool (one season so far), then a `00`, 550 `ff` and the 32-slot titles pool (none yet) |
+| 61,030,325 | [tactic history](tactic_history.md), [club seasons](club_seasons.md), [club titles](club_titles.md) | 5 tactic-history records, the 50-slot season pool (one season so far), then a `00`, 550 `ff` and the 32-slot titles pool (none yet) |
 | 66,236,284 | [player lists](player_lists.md) | 132 lists, 192 B tails |
 | 69,357,106 | the archive | bare frames, to EOF |
 

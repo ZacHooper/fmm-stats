@@ -2,7 +2,7 @@
 """`club_seasons` — the managed club's record, season by season: its league line (position,
 played, won, lost, drawn, goals, points) and the cups it played.
 
-Straight after the saved tactics (`saved_tactics.py`), in a pool of 50 slots:
+Straight after the tactic history (`tactic_history.py`), in a pool of 50 slots:
 
     [u8 k]                        seasons stored, less one: the last is the season in progress
     k + 1 seasons, each:
@@ -23,7 +23,7 @@ A cup run names the cup (Sydbank Pokalen, EURO Cup, European Champions Cup on Fr
 u16s not yet read; the second is a round-name id ("Second Round", "Quarter Final") on most
 runs but not all.
 
-**How it is found.** The byte after the saved tactics is `k`; the locator walks the k + 1
+**How it is found.** The byte after the tactic history is `k`; the locator walks the k + 1
 seasons and accepts them only if every one names the same club and the rest of the 50 slots
 are `EMPTY`.
 """
@@ -105,9 +105,9 @@ def locate_club_seasons(mm: Any) -> Optional[Tuple[int, int]]:
     key = _cache_key(mm)
     if key in _CACHE:
         return _CACHE[key]
-    from .saved_tactics import saved_tactics_table_spans
+    from .tactic_history import tactic_history_table_spans
     res = None
-    spans = saved_tactics_table_spans(mm)
+    spans = tactic_history_table_spans(mm)
     if spans:
         at = spans[0][1]
         count = mm[at] + 1
@@ -150,7 +150,7 @@ def scrape_club_seasons(mm: Any) -> List[Dict[str, Any]]:
     """Every stored season, oldest first. Raises `ValueError` when not located."""
     loc = locate_club_seasons(mm)
     if loc is None:
-        raise ValueError("club_seasons: the pool after the saved tactics does not read")
+        raise ValueError("club_seasons: the pool after the tactic history does not read")
     rows = CLUB_SEASONS_TABLE.scrape(mm)
     if len(rows) != loc[1]:
         raise ValueError(f"club_seasons: walk read {len(rows)} of {loc[1]} seasons")

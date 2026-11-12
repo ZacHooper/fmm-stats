@@ -2,7 +2,7 @@
 """
 Evidence for `club_seasons` and `club_titles` (docs/parser/club_seasons.md, club_titles.md).
 
-On every save found among the eight below: the pool is found after the saved tactics, every
+On every save found among the eight below: the pool is found after the tactic history, every
 stored season names the managed club, and points = 3 x won + drawn on every league line.
 On frem-2026-06-11 the 2025/26 line is checked against the world fixture list (both league
 stages, 22 + 10 games): 32 played, 14 won, 7 lost, 11 drawn, 44-27, 53 points. Frem's four

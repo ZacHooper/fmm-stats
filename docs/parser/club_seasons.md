@@ -2,7 +2,7 @@
 
 **The managed club's record, season by season**: the league line (league, position, played,
 won, lost, drawn, goals, points) and the cups it played. Straight after the
-[saved tactics](saved_tactics.md), in a pool of 50 slots. The last stored season is the one
+[tactic history](tactic_history.md), in a pool of 50 slots. The last stored season is the one
 in progress.
 
 | | seasons |
@@ -45,7 +45,7 @@ Cup, European Champions Cup on Frem; the Turkish Cup on Bucaspor) and two u16s n
 The second is a [round name](rounds.md) id on most runs ("Second Round", "Quarter Final")
 but not on all ("Third Placed Teams" for a EURO Cup), so it is left unnamed.
 
-**How it is found.** The byte after the saved tactics is `k`; the locator walks the k + 1
+**How it is found.** The byte after the tactic history is `k`; the locator walks the k + 1
 seasons and accepts them only if every one names the same club and the rest of the 50 slots
 are empty.
 

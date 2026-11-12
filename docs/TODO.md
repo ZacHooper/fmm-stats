@@ -169,12 +169,12 @@ Phase 2 read two tables and found what the other two regions hold:
   entry's stored name ids settle the tid-reuse problem in #14.
 - **Phase 3 leads, not tables yet** (offsets on truro-2026-08-08):
   - **After the person stamps (61.8–67.0 M, 5.2 MB):** the first ~2 KB are now read: the
-    user's [saved tactics](parser/saved_tactics.md) and the managed club's
+    user's [tactic history](parser/tactic_history.md) and the managed club's
     [season record](parser/club_seasons.md) (both games). Not every club's tactic, as first
     guessed. Open there: the 60-byte block and the counted 14-byte person entries in front
-    of the tactics (set-piece takers?), the tactics' `flag`, the cup runs' two u16s. After the seasons: a `00`, 550 `ff` and the managed club's
+    of the tactic history (set-piece takers?), what adds a tactic-history record and its `flag`, the cup runs' two u16s. After the seasons: a `00`, 550 `ff` and the managed club's
     [titles](parser/club_titles.md) (read), then `[01][club][first season]` and empty
-    11/12-byte slots with nothing filled on any save, then ~5.2 MB unread. A screenshot of Truro's "4-1-2-1-2" tactic roles
+    11/12-byte slots with nothing filled on any save, then ~5.2 MB unread. A screenshot of Truro's current tactic roles
     pins FMM27's role codes (the "FMM27 role codes" item above).
   - **Nicknames → history (2.1 MB):** dense small numbers for ~2 MB, then 1,020 inline-named
     records about 55 B apart ("Mark Smith", "Phillip Foose", "Cecilia Tenconi", a u16 2026 or

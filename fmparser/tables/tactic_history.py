@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""`saved_tactics` — the user's saved tactics: a name, and a role for every position.
+"""`tactic_history` — tactic setups the game has recorded for the user: a name, and a role
+for every position. Not tactics the user saved (the Truro career has none).
 
 Straight after the person stamps (`person_stamps.py`), in a block that belongs to the
 user's club:
@@ -7,19 +8,26 @@ user's club:
     60 B                                  unread (a money-sized u64 at +40)
     [u32 n][n x 14 B]                     n people, each [tid u32] + 10 bytes, unread:
                                           6 on frem-2026-06-11, 3 on Bucaspor, 0 on Truro
-    [u16 count][count x 59 B]             the saved tactics: 1 on a day-one save,
-                                          15 on truro-2026-08-08, 30 on frem-2026-06-11
+    [u16 count][count x 59 B]             the records: 1 on a career's first save, 5 then
+                                          15 as Truro's first weeks are played, 30 on both
+                                          frem-2026-06-11 and frem-2030-06-22 (a cap)
 
-A tactic is `[gk_role u8][ff]`, then ten `[role u8][u8][ff]` slots for the outfield
-positions in the formation's own order, then the name the user gave it (26 bytes,
-NUL-padded, "4-1-2-1-2", "uber tactic") and a flag byte, 0 or 1. Truro's "4-1-2-1-2" holds
-3, 3, 5, 5 for its DR, DL, DC, DC (Full-Back, Full-Back, Central Defender, Central
-Defender, codes FMM27 keeps from FMM22); the midfield and attack codes are FMM27's own, not
-yet pinned to a screen. The formation's positions are not in the record.
+A record is `[gk_role u8][ff]`, then ten `[role u8][u8][ff]` slots for the outfield
+positions in the formation's own order, then a 26-byte NUL-padded name and a flag byte, 0
+or 1. Most names are formations (one record for each of 5-2-1-2, 4-4-2 Diamond, 5-1-2-2,
+4-2-4, 4-1-2-1-2 on Truro); the rest are "uber tactic", in both careers, so a name the game
+gives rather than one a user typed. On truro-2026-08-08 the "uber tactic" records carry the
+roles of the user's 4-1-2-1-2 with small changes between them, and the last record is that
+4-1-2-1-2: a history of setups, roughly one per formation picked plus snapshots as roles
+change. On Frem, full at 30, the last record is not the formation Frem's matches use.
+
+Truro's 4-1-2-1-2 holds 3, 3, 5, 5 for its DR, DL, DC, DC (Full-Back, Full-Back, Central
+Defender, Central Defender, codes FMM27 keeps from FMM22); the midfield and attack codes are
+FMM27's own, not yet pinned to a screen. The formation's positions are not in the record.
 
 **How it is found.** At the person stamps' end, skip the 60-byte block and the counted
-14-byte entries; the u16 there counts the tactics. The locator refuses it unless every
-tactic reads: an `ff` after the goalkeeper's role and after every slot, a printable name
+14-byte entries; the u16 there counts the records. The locator refuses it unless every
+record reads: an `ff` after the goalkeeper's role and after every slot, a printable name
 padded with NULs, a flag of 0 or 1.
 """
 import struct
@@ -28,8 +36,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..core import Field, FixedList, Record, TableDef, RAW, U8, UNKNOWN
 from ..save import cache_key as _cache_key
 
-__all__ = ["ROLE_SLOT", "SAVED_TACTIC", "SAVED_TACTICS_TABLE", "locate_saved_tactics",
-           "saved_tactics_table_spans", "scrape_saved_tactics"]
+__all__ = ["ROLE_SLOT", "TACTIC_RECORD", "TACTIC_HISTORY_TABLE", "locate_tactic_history",
+           "tactic_history_table_spans", "scrape_tactic_history"]
 
 PREFIX = 60          # the unread block in front of the counted entries
 PERSON_ENTRY = 14    # [tid u32] + 10 bytes, unread
@@ -46,11 +54,11 @@ TACTIC_HEAD = Record("tactic_head", 2, (
 ), is_head=True)
 
 TACTIC_TAIL = Record("tactic_tail", 27, (
-    Field(0,  26, "name", RAW, note="the name the user gave it, NUL-padded"),
+    Field(0,  26, "name", RAW, note="NUL-padded: a formation ('4-1-2-1-2') or 'uber tactic'"),
     Field(26, 1, "flag", U8, note="0 or 1"),
 ), is_head=True)
 
-SAVED_TACTIC = (TACTIC_HEAD, FixedList("roles", ROLE_SLOT, 10), TACTIC_TAIL)
+TACTIC_RECORD = (TACTIC_HEAD, FixedList("roles", ROLE_SLOT, 10), TACTIC_TAIL)
 STRIDE = TACTIC_HEAD.span + 10 * ROLE_SLOT.span + TACTIC_TAIL.span
 
 _CACHE: Dict[Any, Optional[Tuple[int, int]]] = {}
@@ -66,7 +74,7 @@ def _valid(rec: bytes) -> bool:
     return rec[58] in (0, 1)
 
 
-def locate_saved_tactics(mm: Any) -> Optional[Tuple[int, int]]:
+def locate_tactic_history(mm: Any) -> Optional[Tuple[int, int]]:
     """(tactic 0, count), or None when the block after the person stamps doesn't read."""
     key = _cache_key(mm)
     if key in _CACHE:
@@ -89,9 +97,9 @@ def locate_saved_tactics(mm: Any) -> Optional[Tuple[int, int]]:
     return res
 
 
-def saved_tactics_table_spans(mm: Any) -> List[Tuple[int, int]]:
+def tactic_history_table_spans(mm: Any) -> List[Tuple[int, int]]:
     """The tactics, their u16 count included."""
-    loc = locate_saved_tactics(mm)
+    loc = locate_tactic_history(mm)
     return [(loc[0] - 2, loc[0] + loc[1] * STRIDE)] if loc else []
 
 
@@ -102,16 +110,16 @@ def _post(rec: Dict[str, Any], off: int) -> Dict[str, Any]:
             "flag": rec["flag"]}
 
 
-SAVED_TACTICS_TABLE = TableDef(name="saved_tactics", segments=SAVED_TACTIC,
-                               locator=locate_saved_tactics, post_process=_post)
+TACTIC_HISTORY_TABLE = TableDef(name="tactic_history", segments=TACTIC_RECORD,
+                               locator=locate_tactic_history, post_process=_post)
 
 
-def scrape_saved_tactics(mm: Any) -> List[Dict[str, Any]]:
-    """Every saved tactic, in stored order. Raises `ValueError` when not located."""
-    loc = locate_saved_tactics(mm)
+def scrape_tactic_history(mm: Any) -> List[Dict[str, Any]]:
+    """Every record, in stored order. Raises `ValueError` when not located."""
+    loc = locate_tactic_history(mm)
     if loc is None:
-        raise ValueError("saved_tactics: the block after the person stamps does not read")
-    rows = SAVED_TACTICS_TABLE.scrape(mm)
+        raise ValueError("tactic_history: the block after the person stamps does not read")
+    rows = TACTIC_HISTORY_TABLE.scrape(mm)
     if len(rows) != loc[1]:
-        raise ValueError(f"saved_tactics: walk read {len(rows)} of {loc[1]} declared")
+        raise ValueError(f"tactic_history: walk read {len(rows)} of {loc[1]} declared")
     return rows
