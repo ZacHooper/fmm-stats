@@ -206,6 +206,9 @@ from .id_list import ID_LIST_TABLE, scrape_id_list
 from .person_index import PERSON_INDEX_TABLE, PERSON_INDEX_TABLE_FMM27, scrape_person_index
 from .person_stamps import PERSON_STAMPS_TABLE, scrape_person_stamps
 from .loans import LOANS_TABLE, loans_table_spans, scrape_loans
+from .award_history import (AWARD_HISTORY_TABLE, award_history_table_spans,
+                            scrape_award_history)
+from .team_history import TEAM_HISTORY_TABLE, scrape_team_history, team_history_table_spans
 from .last_transfers import (LAST_TRANSFERS_TABLE, last_transfers_table_spans,
                              scrape_last_transfers)
 
@@ -219,6 +222,8 @@ TABLES = {
     "person_index": PERSON_INDEX_TABLE,
     "person_stamps": PERSON_STAMPS_TABLE,
     "loans": LOANS_TABLE,
+    "award_history": AWARD_HISTORY_TABLE,
+    "team_history": TEAM_HISTORY_TABLE,
     "last_transfers": LAST_TRANSFERS_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
@@ -313,6 +318,10 @@ __all__ = [
     "scrape_derbies",
     "scrape_id_list",
     "scrape_loans",
+    "scrape_award_history",
+    "award_history_table_spans",
+    "scrape_team_history",
+    "team_history_table_spans",
     "scrape_last_transfers",
     "last_transfers_table_spans",
     "loans_table_spans",

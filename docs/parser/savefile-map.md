@@ -77,7 +77,9 @@ notes. The status column names the `core` table that reads it
 | 48,353,064 | 52,721,064 | 4.37 MB | **[player progress](player_progress.md)** — 62,400 rows × 70 B (the same count on every save): `[tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16]`, usually one row per player per week, a few weeks two to four; the Player Progress page, injured / on-loan bits | **reserved space**: oldest rows overwritten once full | Shape C (seeded from unused rows, walked both ways) | `PLAYER_PROGRESS_TABLE` |
 | 52,721,064 | 53,479,282 | 0.76 MB | **UNIDENTIFIED**, mostly zero; the training table sits exactly 758,222 B after the progress pool on every Frem save | — | — | — |
 | 53,479,282 | 55,490,212 | 2.01 MB | **[training](training.md)** — `[count u32 = 32,966][32,966 × 61 B]`, row k = person tid k (`ffffffff` unused, role `ffff` on staff): intensity `+21`, Focus Role `+23`, attribute focus `+27`, Focus Pos `+29/+30` as the match slot pair, `contracted` `+37` (`87` under contract) and squad status `+39`; the Club Squad > Training page | game database; rewritten as focus changes | Shape A (count-framed, `tid == row`) | `TRAINING_TABLE` |
-| 55,490,212 | 55,884,748 | 0.39 MB | **UNIDENTIFIED**; ends in a sorted run of 430 u32 tids behind `ff` filler, then 73 bytes | — | — | — |
+| 55,490,212 | 55,615,704 | 0.13 MB | **[award history](award_history.md)** — `[count u32 = 1,364]`, 92 B editions: `[award_id][day][year]` + 1st to 3rd (person, name ids, club, score). Every edition of every award | **grows** by an edition per award decided | count-framed | `AWARD_HISTORY_TABLE` |
+| 55,615,704 | 55,882,728 | 0.27 MB | **[team history](team_history.md)** — `[count u32 = 845]`, 316 B teams: `[award_id][day][year]` + 11 × (person, name ids, club, rating). Every Team of the Week / Year picked | **grows** | count-framed | `TEAM_HISTORY_TABLE` |
+| 55,882,728 | 55,884,748 | 2,020 B | **UNIDENTIFIED**, before our matches | — | — | — |
 | 55,884,748 | 56,178,674 | 0.29 MB | **[our matches](matches.md)** — `[count u8 = 57]`, then one row per match: `[home, away, cid, day][n u8][n x 17 B events][5,093 B body]` -- the body repeats the head from our side, then 50 event slots, two team blocks (`[77 B][20 x 62 B player slots][46 B]`, our score at +52) and our tactic (formation string, 11 starting positions, per-starter items, a coordinate grid) | **resets every July**; appends in-season | Shape A (u8 count, row length from its event count) | `MATCHES_TABLE` |
 | 56,178,674 | 56,178,684 | 10 B | five u16 nation ids, unread | — | — | — |
 | 56,178,684 | 56,310,550 | 0.13 MB | **[person stamps](person_stamps.md)** — `[01][01][count u32 = 32,965]` (the person count less one), then 4 B per person: `[knowledge u8][day u16][year offset u8]` | rewritten as the career goes on | Shape A | `PERSON_STAMPS_TABLE` |
@@ -172,7 +174,6 @@ Size alone misleads; the filler fraction matters more.
 | 39.20 – 40.04M | 0.84 MB | — | not re-measured | between the [last transfers](last_transfers.md) and the match-slot table |
 | 14.44 – 16.75M | 2.31 MB | — | not re-measured | after the [per-person rows](person_index.md): a chain of counted blocks with no `0xFF` in front, which is why a frame search found none. The first is counted by the staff table |
 | 41.11 – 42.63M | 1.52 MB | 18% | 0.27 MB | 82% zero, mostly padding |
-| 55.49 – 55.88M | 0.39 MB | 33% | 0.13 MB | after the training table; ends in a sorted run of tids |
 | 52.72 – 53.48M | 0.76 MB | 0% | 0 | all `00` and `ff` |
 | 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`: padding, not a target |
 
@@ -337,6 +338,7 @@ The career half on `truro-2026-07-25`, in file order:
 | 51,225,299 | [club_records](club_records.md) | 1,087 clubs |
 | 52,553,450 | [player progress](player_progress.md) | 62,400 × 70 B; template year 2025 |
 | 57,955,530 | [training](training.md) | count 44,960, 61 B rows |
+| 60,698,094 | [award history](award_history.md), [team history](team_history.md) | 1,124 editions, 0 teams; then ~43 KB unread to our matches |
 | 60,844,241 | [our matches](matches.md) | one row; 70 B player slots, not read yet |
 | 60,850,122 | [person stamps](person_stamps.md) | `[01][01][44,959]`, 4 B per person, straight after our matches |
 | 66,236,284 | [player lists](player_lists.md) | 132 lists, 192 B tails |

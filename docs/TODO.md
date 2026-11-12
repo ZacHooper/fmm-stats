@@ -149,8 +149,7 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
 - **Load the awards** into `raw` and a mart of award winners. Each entry stores the winner's
   name ids as they were, which settles the tid-reuse problem in #14 for these awards.
 - **Needs a save from a screen's day** (none possible on 24-26 Oct): pin the award and
-  knowledge screens to bytes; find the monthly awards' month-by-month history (the awards
-  table holds one edition); find the xG and season stats (#10a). A save before and after a
+  knowledge screens to bytes; find the xG and season stats (#10a). A save before and after a
   scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
   only save diffs across a derby match can name them.
 Phase 2 read two tables and found what the other two regions hold:
@@ -163,6 +162,11 @@ Phase 2 read two tables and found what the other two regions hold:
   player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and
   a destination for every move in the world, which the band (emptied every July) can't give.
   The 1.32 MB after it, to the name id-tables, is unread.
+- **Phase 3: [award history](parser/award_history.md) and [team history](parser/team_history.md)**
+  (the plan's "training → our matches" region): every edition of every award, monthly
+  ones month by month, and every Team of the Week / Year picked, both games. **Load them**:
+  with [awards](parser/awards.md) they give a season's honours for every league, and each
+  entry's stored name ids settle the tid-reuse problem in #14.
 - **Competition record books** (club records → player progress): layout started, see #3.
 - **The dated queue before the archive** is the game's scheduled events. On FMM22, type 9 is
   a transfer going through on that day (all 41 on frem-2026-06-11 are agreed transfers).
