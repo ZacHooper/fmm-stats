@@ -34,10 +34,10 @@ USED = {"frem-2021-06-27.fms": 1962, "frem-2026-06-11.fms": 2312, "truro-2026-08
 SLOT0 = {
     "frem-2026-06-11.fms": ("2f 28 00 00 58 01 b3 00 e9 07 b3 00 ea 07 64 01 00 00 00 00 00 00 00 00 00",
                             {"slot": 0, "tid": 10287, "club_tid": 344, "start": "2025-06-29",
-                             "end": "2026-06-29", "pct": 100, "option": 0}),
+                             "end": "2026-06-29", "wage_pct": 100, "option": 0}),
     "truro-2026-08-08.fms": ("aa 02 00 00 4f 01 c7 00 ea 07 96 00 eb 07 64 01 00 ff ff ff ff ff ff ff ff",
                              {"slot": 0, "tid": 682, "club_tid": 335, "start": "2026-07-19",
-                              "end": "2027-05-31", "pct": 100, "option": 0}),
+                              "end": "2027-05-31", "wage_pct": 100, "option": 0}),
 }
 FREM, FREM_RESERVES = 346, 7296
 
@@ -81,6 +81,11 @@ def check_save(name):
         hexstr, want = SLOT0[name]
         check(bytes(mm[base:base + 25]) == bytes.fromhex(hexstr.replace(" ", "")), "slot 0 bytes")
         check(rows[0] == want, f"slot 0 reads {want}")
+    if name == "truro-2026-08-08.fms":
+        rob = [r for r in rows if r["tid"] == 29941]
+        check(rob == [{"slot": 2514, "tid": 29941, "club_tid": 3125, "start": "2026-07-27",
+                       "end": "2027-06-24", "wage_pct": 0, "option": 0}],
+              "Caleb Roberts's card: Loan 0% (£0) - Truro, 27/7/2026 - 24/6/2027")
     if name == "frem-2026-06-11.fms":
         latest = {}
         for r in scrape_player_progress(mm):

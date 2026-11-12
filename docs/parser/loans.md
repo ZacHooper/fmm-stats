@@ -1,7 +1,7 @@
 # loans  ([`fmparser/tables/loans.py`](../../fmparser/tables/loans.py))
 
 **Every loan in the world**: the player, the club he is on loan at, the start and end dates,
-a percentage and an option. A pool of 25-byte slots after the [contract grid](contracts.md);
+the share of his wage the loan club pays, and an option. A pool of 25-byte slots after the [contract grid](contracts.md);
 a player on loan points at his slot from the [per-person rows](person_index.md)
 (`loan_slot`). His parent club is his own `club_tid` in the [person table](person_info.md).
 
@@ -23,8 +23,8 @@ a player on loan points at his slot from the [per-person rows](person_index.md)
 | +4 | `club_tid` | u16 | the club he is on loan at | the four slots naming Frem are players loaned to Frem (below) |
 | +6 | `start` | `[day u16][year u16]` | | |
 | +10 | `end` | `[day u16][year u16]` | the season's end on most loans | every Frem loan on frem-2026-06-11 ends 29 June 2026 |
-| +14 | `pct` | u8 | 0–100 in steps of 10 or 20; probably the share of wages the loan club pays | |
-| +15 | | u8 | 1 on every slot | |
+| +14 | `wage_pct` | u8 | the share of his wage the loan club pays, 0–100 | Caleb Roberts's contract card, below |
+| +15 | | u8 | 1 on every slot | Roberts's card has the clause "Can be recalled"; one card can't tie it to this byte |
 | +16 | `option` | u8 | 1 on about a third of loans | |
 | +17 | | u32 | with `option` 1, money-sized (1,656 to 75,000,000): probably the fee to buy. With 0, either 0 or a number like 1,508,051 that is not money | the transfer band holds the same numbers on loan bids |
 | +21 | | 4 B | 0 on FMM22; 0 or `ffffffff` on FMM27 | |
@@ -50,12 +50,23 @@ Holbæk, Hobro, Roskilde, …). The four slots whose `club_tid` is Frem are the 
 loaned in, from Granada and the Midtjylland, Nordsjælland and Brøndby reserves; progress
 does not mark them, as it marks loans out only.
 
-No in-game screen yet.
+`truro-2026-08-08`, Caleb Roberts's contract card (from the [contracts](contracts.md)
+evidence):
+
+![Caleb Roberts's contract: Plymouth, £78K p/a; Loan 0% (£0 (p/a)) - Truro, 27/7/2026 - 24/6/2027](img/contracts-fmm27-2.jpg)
+
+| on screen | slot 2,514 bytes | parsed |
+|---|---|---|
+| Loan … Truro | `35 0c` at +4 | `club_tid` 3125 |
+| 27/7/2026 – 24/6/2027 | `cf 00 ea 07 ae 00 eb 07` | `start` 2026-07-27, `end` 2027-06-24 |
+| 0% (£0 (p/a)) | `00` at +14 | `wage_pct` 0 |
+
+The u32 at +17 reads 10,000 on his slot, with `option` 0.
 
 ## Quirks
 
-> **Lead:** `pct` and the u32 at +17. A loan's screen (the Loan tab of a player out on loan,
-> or the loan offer) would show the wage split and any option to buy.
+> **Lead:** `option` and the u32 at +17. A contract card for a loan with an option to buy
+> would name both.
 
 > **Quirk:** the pool covers the whole world, not just our club: this is where a "who is
 > on loan where" view for every league can come from, which the progress bit (our squad
@@ -63,5 +74,5 @@ No in-game screen yet.
 
 ## Output
 
-`output/<label>/loans.json`: `[{slot, tid, club_tid, start, end, pct, option}]` for every
+`output/<label>/loans.json`: `[{slot, tid, club_tid, start, end, wage_pct, option}]` for every
 used slot, in slot order. Not loaded yet.

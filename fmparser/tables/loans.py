@@ -6,7 +6,7 @@ A pool of 25-byte slots after the contract grid, `[u16 0][u32 capacity]` in fron
     capacity     6,243 on every FMM22 save (Frem and Bucaspor), 6,637 on Truro
     used         1,962 on frem-2021-06-27, 2,312 on frem-2026-06-11, 3,010 on truro-2026-08-08
 
-A used slot is one loan, `[tid u32][club u16][start][end][pct][1][flag][u32][u32]`; its
+A used slot is one loan, `[tid u32][club u16][start][end][wage_pct][1][flag][u32][u32]`; its
 person points back at it with `person_index.loan_slot`, and every used slot is pointed at by
 exactly the person it names. An empty slot is always the same 25 bytes (`EMPTY`). The parent
 club is the person's own `club_tid`; `club_tid` here is the club he is on loan at.
@@ -35,9 +35,9 @@ LOAN = Record("loan", 25, (
     Field(4,  2, "club_tid", U16, note="the club he is on loan at"),
     Field(6,  4, "start", DATE),
     Field(10, 4, "end", DATE, note="the season's end on most loans"),
-    Field(14, 1, "pct", U8, note="0-100 in steps of 10 or 20; probably the share of wages "
-                                 "the loan club pays"),
-    Field(15, 1, UNKNOWN, U8, note="1 on every slot"),
+    Field(14, 1, "wage_pct", U8, note="the share of his wage the loan club pays, 0-100: the "
+                                      "contract card's 'Loan 0% (£0 (p/a))'"),
+    Field(15, 1, UNKNOWN, U8, note="1 on every slot (Roberts's card says 'Can be recalled')"),
     Field(16, 1, "option", U8, note="1 on a third of loans; the u32 after it is then "
                                     "money-sized (1,656 to 75,000,000)"),
     Field(17, 4, UNKNOWN, U32, note="with option 0: 0, or numbers like 1,508,051 that the "

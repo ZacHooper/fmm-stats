@@ -157,7 +157,7 @@ Phase 2 read two tables and found what the other two regions hold:
 - **The [loan pool](parser/loans.md)** (the plan's "25-byte table"): every loan in the world,
   found by `person_index.loan_slot`. **Load it** into `raw` and build loan spells for every
   club from it (today's `mart.fact_loan_spell` comes from the progress bit: our squad, loans
-  out only); name `pct` and the u32 at +17 from a loan screen. The 1.48 MB after it, to the
+  out only); name `option` and the u32 at +17 from a loan card with an option to buy. The 1.48 MB after it, to the
   transfer band, is unread.
 - **[Last transfers](parser/last_transfers.md)** (the plan's "per-player block"): each
   player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and

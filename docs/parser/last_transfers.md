@@ -55,6 +55,10 @@ on that save: the deal is agreed). No in-game screen yet.
 > Rrahmani's row is there before he has moved, so probably on agreement; a save after a
 > deal falls through would show whether the row is cleared.
 
+> **Lead:** the game's "against his old club" match flavour may read this table. The row
+> holds the buying club, not the seller, so the old club itself would come from the player's
+> [career history](history.md); this row says when and for how much he last moved.
+
 ## Output
 
 `output/<label>/last_transfers.json`: `[{row, fee, club_tid, tid, as_of}]` for every filled
