@@ -28,7 +28,7 @@ k (`player_status.json` carries that record's `sid`):
 | +34 | `has_event` | u8 | 1 when an event record follows |
 | +35 | | 0 / 22 / 46 B | the event record (below) |
 | then | | `[n u8][n × 5 B]` | items: `[0][a][0][b][c]`, a mostly 22–40 |
-| then | | 83 B | a u32, 15 B, a date reading 1 Jan 2000 on every block, 60 B |
+| then | | 83 B | a u32, 15 B, a date (+19) unset on every block, a byte, a second date (+24), 55 B |
 
 A plain block is 119 bytes, plus 5 per item: 35,494 of 36,344 on 25 July.
 
@@ -47,8 +47,15 @@ yellow, flat 12–14; orange 10–11; red 7.
 
 `locate_player_status`: where the club rows end, a u32 equal to the player-attribute count;
 each block's length follows from `has_event`, the event's byte +21 and the item count, and
-**every block's tail must hold the 1 Jan 2000 date at its fixed place**, so a misread length
-fails on the block where it happens. The walk must end before the rule files on a u16 `n`
+**every block's tail must hold a date at its fixed place**, so a misread length fails on the
+block where it happens.
+
+**The tail's dates.** Dates in the save are `[u16 day of year][u16 year]` (person_info's
+birth dates). The first, at tail +19, reads `01 00 d0 07`, day 1 of 2000, on every block
+measured: a date field the game has not set. The second, at +24, reads day 0 of 2026 (unset)
+on most blocks, and on 8 Aug 2026 holds a day in late August or early September for ~400
+players, followed by `04` and a u16 where the rest have `ff`: an expected return date
+(injury? suspension?), not yet checked on a screen. The walk must end before the rule files on a u16 `n`
 followed by `n` 4-byte slots (1,706, all `ff`, on the three Truro saves), the next link.
 
 > **Quirk: where a block starts.** The rows of this link start four bytes after its count

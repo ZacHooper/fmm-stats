@@ -20,7 +20,7 @@ exactly on the next block's count:
 ## Link 4 on FMM22: one block per player
 
 On FMM27 this link is read: [player_status](../player_status.md) (interested clubs, morale,
-form). On FMM22 it is counted by the player-attribute count (26,505 on Frem, 36,344 on Truro), from where the club
+form). On FMM22 it is counted by the player-attribute count (26,505 on Frem), from where the club
 rows end. Described from frem-2026-06-11 (FMM22).
 
 ### Known

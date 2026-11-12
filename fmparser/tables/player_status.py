@@ -10,9 +10,12 @@ the clubs interested in him, his morale and his form. FMM27 only so far.
       83 B   STATUS_TAIL   a u32, then a date reading 1 Jan 2000 on every block, then 60 B
 
 The walk ends exactly on a u16 n followed by n 4-byte slots (1,706, all `ff` on the three
-Truro saves), then more of the chain up to the rule files. Every block's tail date reads
-`01 00 d0 07`, which the locator checks on each block: a walk that misreads one length
-fails there, not at the end.
+Truro saves), then more of the chain up to the rule files. The tail holds a date at +19,
+`[u16 day of year][u16 year]` like every date in the save; it reads day 1 of 2000
+(`01 00 d0 07`, unset) on every block measured, and the locator checks each block holds a
+date there, so a walk that misreads one length fails on that block, not at the end. The
+tail's next date (+24) is unset as day 0 of the season's year, and set on ~400 players on
+8 Aug 2026 to a day in late Aug/early Sep, followed by `04` and a u16: a return date?
 
 **Interested clubs.** Seven u16 club tids, `ffff` empty. Lewis Colwell's block on
 truro-2026-07-25 names Salisbury and Oxford City, the two clubs his Player Contract screen
@@ -45,7 +48,6 @@ __all__ = ["STATUS_HEAD", "MORALE", "FORM_SLOT", "STATUS_FLAGS", "CLUB_SLOT", "S
            "PLAYER_STATUS_TABLE", "locate_player_status", "player_status_table_spans",
            "scrape_player_status"]
 
-NULL_DATE = b"\x01\x00\xd0\x07"
 NONE16 = 0xFFFF
 NO_MATCH = 0xFF
 
@@ -103,8 +105,12 @@ STATUS_ITEM = Record("player_status_item", 5, (
 STATUS_TAIL = Record("player_status_tail", 83, (
     Field(0, 4, UNKNOWN, U32, note="0 to millions; 18,225 on two Truro players"),
     Field(4, 15, UNKNOWN, RAW, note="mostly 0"),
-    Field(19, 4, UNKNOWN, DATE, note="1 Jan 2000 (01 00 d0 07) on every block measured"),
-    Field(23, 60, UNKNOWN, RAW, note="a byte, a 2026 date, then dates reading 1971 and zeros"),
+    Field(19, 4, UNKNOWN, DATE, note="unset (day 1 of 2000) on every block measured"),
+    Field(23, 1, UNKNOWN, U8, note="2-7, mostly 6 or 7"),
+    Field(24, 4, UNKNOWN, RAW, note="[u16 day][u16 year]: day 0 = unset; late Aug/Sep on "
+                                    "~400 players on 8 Aug 2026"),
+    Field(28, 5, UNKNOWN, RAW, note="ff; 04 and a u16 where the date before is set"),
+    Field(33, 50, UNKNOWN, RAW, note="dates reading 1971 (cc 00 b3 07) and zeros"),
 ))
 
 
@@ -135,15 +141,21 @@ EVENT_AT = STATUS_HEAD.span + 7 * CLUB_SLOT.span + MORALE.span + 5 + STATUS_FLAG
 _CACHE: Dict[Any, Optional[Tuple[int, int, int]]] = {}
 
 
+def _is_date(b: bytes) -> bool:
+    """A `[u16 day of year][u16 year]` date: day 1-366."""
+    day, year = struct.unpack("<HH", b)
+    return 1 <= day <= 366 and 1900 <= year <= 2200
+
+
 def _block_end(mm: Any, pos: int) -> Optional[int]:
-    """Where the block at `pos` ends, or None when its tail date is not 1 Jan 2000."""
+    """Where the block at `pos` ends, or None when its tail does not hold a date at +19."""
     p = pos + EVENT_AT
     if mm[p - 1]:
         if mm[p - 1] != 1:
             return None
         p += STATUS_EVENT_LONG.span if mm[p + 21] == 1 else STATUS_EVENT.span
     p += 1 + mm[p] * STATUS_ITEM.span
-    if mm[p + 19:p + 23] != NULL_DATE:
+    if not _is_date(mm[p + 19:p + 23]):
         return None
     return p + STATUS_TAIL.span
 
