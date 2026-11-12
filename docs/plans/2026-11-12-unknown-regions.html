@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- The plan for naming the unread regions of an FMM27 save. Open in a browser. -->
+<title>Unknown Regions Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column, the save map's palette and type; a triage table up top, then phases as ordered cards, each region a hypothesis → test → done-when block. */
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --fg: #17202c; --muted: #5b6676; --line: #dde1e8; --accent: #0d7c9c;
+  --c-static: #3a6cd4; --c-pool: #7d55cc; --c-grid: #158f7c; --c-seasonal: #d75a2b; --c-state: #b58a0f; --c-unknown: #c43d3d; --c-filler: #8d97a5;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f141b; --surface: #161d27; --fg: #e4e9f0; --muted: #94a0b0; --line: #2a3442; --accent: #4fc0de;
+  --c-static: #6b97f0; --c-pool: #a786ec; --c-grid: #3cc2ab; --c-seasonal: #f08257; --c-state: #e0b43a; --c-unknown: #ef6a6a; --c-filler: #6b7686; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f141b; --surface: #161d27; --fg: #e4e9f0; --muted: #94a0b0; --line: #2a3442; --accent: #4fc0de;
+  --c-static: #6b97f0; --c-pool: #a786ec; --c-grid: #3cc2ab; --c-seasonal: #f08257; --c-state: #e0b43a; --c-unknown: #ef6a6a; --c-filler: #6b7686; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 32px 64px; display: flex; flex-direction: column; gap: 44px; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 4.6vw, 42px); font-weight: 800; line-height: 1.08; }
+h2 { font-size: 23px; font-weight: 700; }
+h3 { font-size: 16.5px; font-weight: 700; }
+p, li { max-width: 72ch; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.lede { color: var(--muted); font-size: 16px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 28px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.facts b { color: var(--fg); font-weight: 600; }
+
+.tablewrap { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.tablewrap table { min-width: 860px; }
+th, td { text-align: left; padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+thead th { border-top: 0; font: 600 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--bg); white-space: nowrap; }
+td.n { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.r { text-align: right; }
+td b { font-weight: 600; }
+.pill { display: inline-block; font: 600 11px var(--mono); padding: 2px 7px; border-radius: 4px; color: #fff; white-space: nowrap; }
+.p1 { background: var(--c-grid); } .p2 { background: var(--c-static); } .p3 { background: var(--c-pool); } .p4 { background: var(--c-filler); }
+.beh { font: 11.5px var(--mono); padding: 1px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.beh.live { border-color: var(--c-seasonal); color: var(--c-seasonal); }
+
+.phase { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.phase > header { display: flex; flex-direction: column; gap: 6px; }
+.phase > header .eyebrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.item { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.item h3 { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.item h3 .where { font: 500 12.5px var(--mono); color: var(--muted); }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 20px; }
+.grid3 > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 14px; }
+.grid3 .k { font: 600 11px var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.ev { font-size: 13.5px; color: var(--muted); }
+.ev code { color: var(--fg); }
+
+.callout { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+.callout .k { font: 600 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.callout.warn .k { color: var(--c-seasonal); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.steps { counter-reset: s; list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+.steps li::before { content: counter(s); font: 600 12px var(--mono); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:14px">
+  <div class="eyebrow">fmm-stats · parser plan · drafted 2026-11-12</div>
+  <h1>Naming the unknown regions of an FMM27 save</h1>
+  <p class="lede">A Football Manager Mobile 2027 save is 70 MB. The parser reads most of it, but twelve stretches between known tables hold about 17.7 MB that nothing reads yet. This plan says what each one probably is, how to find out, and in what order, so anyone can pick up a region without having been part of the work so far.</p>
+  <div class="facts">
+    <span>saves <b>truro-2026-07-22 · 07-25 · 08-08</b></span>
+    <span>unread <b>12 regions · ~17.7 MB</b></span>
+    <span>companion <b><a href="https://claude.ai/artifact/Dk29z8VBXVByiKjzYYpZih" target="_blank" rel="noopener">FMM save file map</a></b></span>
+  </div>
+</header>
+
+<section aria-labelledby="h-basics">
+  <h2 id="h-basics">What you need to know first</h2>
+  <div class="cols">
+    <div class="callout">
+      <span class="k">How a save is laid out</span>
+      <p>The file is a run of tables, one after another, always in the same order. The first 27 MB is the game's world database (people, clubs, competitions); after that comes the running career (contracts, transfers, matches, history), and a compressed archive closes the file. Tables are separated by runs of padding bytes, <code>ff</code> or <code>00</code>.</p>
+    </div>
+    <div class="callout">
+      <span class="k">How a table is usually found</span>
+      <p>Most tables start with a number saying how many records follow, and every record has the same width. Read the number, step that many records, and you should land exactly on the next table's padding. When you do, the table is found <i>and</i> its end is proved. Some tables instead are fixed grids of empty slots, linked lists, or records whose lengths chain into each other.</p>
+    </div>
+    <div class="callout">
+      <span class="k">What "named" means here</span>
+      <p>A region is done when its start and end are proved by the bytes themselves, every byte is either a named field or declared unknown, and at least one field is matched to something the game shows on screen. A guess that fits one save is a lead, not a result.</p>
+    </div>
+  </div>
+  <p class="ev">Words used below: a <b>tid</b> is a person's or club's id, which is also its row number in the person or club table. <b>Stride</b> is a record's width in bytes. <b>Live</b> means the bytes change between saves a few days apart; <b>static</b> means they don't.</p>
+</section>
+
+<section aria-labelledby="h-triage">
+  <h2 id="h-triage">The twelve regions, triaged</h2>
+  <p>Measured on all three Truro saves. Offsets are from <code>truro-2026-08-08</code>; they drift between saves, so find a region by the tables either side of it, never by its number. "Same bytes" compares the region on 25 July with 8 August, aligned at its start.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>region (between)</th><th>size</th><th>across saves</th><th>same bytes</th><th>strongest lead</th><th>FMM22 has</th><th>phase</th></tr></thead>
+    <tbody>
+      <tr><td><b>Currencies → languages</b></td><td class="n r">6 KB</td><td><span class="beh">fixed</span></td><td class="n r">100%</td><td>Count 924, then 7-byte rows with ascending ids</td><td>888-row list, same place</td><td><span class="pill p1">1</span></td></tr>
+      <tr><td><b>Cities → currencies</b> (awards)</td><td class="n r">347 KB</td><td><span class="beh">fixed</span></td><td class="n r">100%</td><td>Count 1,123; opens "Footballer of the Year"</td><td>807 awards, unread</td><td><span class="pill p1">1</span></td></tr>
+      <tr><td><b>Languages → rule files</b></td><td class="n r">6.47 MB</td><td><span class="beh live">grows</span></td><td class="n r">52%</td><td>A chain of counted tables: 44,960 × 15 B (one per person), then 6,212 × 12 B (one per staff member), then more</td><td>2.77 MB, opens with the person count</td><td><span class="pill p1">1</span></td></tr>
+      <tr><td><b>Our matches → player lists</b></td><td class="n r">5.39 MB</td><td><span class="beh live">grows</span></td><td class="n r">53%</td><td>Opens with 44,959 × 4 B (one per person); 5.2 MB after that</td><td>League titles at its start</td><td><span class="pill p1">1</span> / <span class="pill p3">3</span></td></tr>
+      <tr><td><b>Contract grid → transfer band</b></td><td class="n r">1.67 MB</td><td><span class="beh live">grows</span></td><td class="n r">46%</td><td>25-byte rows <code>[tid][u16][date][date]…</code>, ~66,800 of them</td><td>not seen</td><td><span class="pill p2">2</span></td></tr>
+      <tr><td><b>Transfer band → surnames</b></td><td class="n r">2.41 MB</td><td><span class="beh live">fixed size</span></td><td class="n r">57%</td><td>Opens with 36,344, the player count; no single stride fits, so rows vary in length</td><td>match slots sat near here</td><td><span class="pill p2">2</span></td></tr>
+      <tr><td><b>Club records → player progress</b></td><td class="n r">203 KB</td><td><span class="beh">fixed size</span></td><td class="n r">96%</td><td>Count 176, rows built from 21-byte match records</td><td>count 162, same shape</td><td><span class="pill p2">2</span></td></tr>
+      <tr><td><b>Player lists → archive</b></td><td class="n r">149 KB</td><td><span class="beh live">grows</span></td><td class="n r">54%</td><td>42-byte rows carrying dates just after the save</td><td>a 14-byte dated table</td><td><span class="pill p2">2</span></td></tr>
+      <tr><td><b>Rule files → contract grid</b></td><td class="n r">2.43 MB</td><td><span class="beh live">fixed size</span></td><td class="n r">76%</td><td>87% padding; 6-byte <code>ffffffff 01 00</code> units, repeating every 48 B</td><td>9.15 MB of padding</td><td><span class="pill p3">3</span></td></tr>
+      <tr><td><b>Nicknames → history</b></td><td class="n r">2.14 MB</td><td><span class="beh">fixed size</span></td><td class="n r">94%</td><td>95% zero; near its end, counts of 3,125 (Truro's own tid) and 10,000</td><td>1.52 MB, 82% zero</td><td><span class="pill p3">3</span></td></tr>
+      <tr><td><b>Training → our matches</b></td><td class="n r">107–146 KB</td><td><span class="beh live">shrinks</span></td><td class="n r">98%</td><td>92-byte rows; shrank 39 KB while our matches grew</td><td>0.39 MB, ends in a sorted list of tids</td><td><span class="pill p3">3</span></td></tr>
+      <tr><td><b>Player progress → training</b></td><td class="n r">1.03 MB</td><td><span class="beh">fixed</span></td><td class="n r">100%</td><td>Every byte zero, on all three saves</td><td>758 KB of 00/ff</td><td><span class="pill p4">4</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="ev">The two leads marked "one per person" and "one per staff member" are the strongest results so far: the count in front equals the size of a table we already read, and stepping that many records lands exactly on the next count. They still need the checks in Phase 1 before they count as found.</p>
+</section>
+
+<section aria-labelledby="h-loop">
+  <h2 id="h-loop">The loop for every region</h2>
+  <p>Same steps each time. Each step is cheap; skipping one is how a wrong reading gets in.</p>
+  <ol class="steps">
+    <li><span><b>Profile it.</b> Run <code>scripts/audit/entropy_profile.py</code> over the region. Padding reads under 1.5 bits a byte, records 2–6, text 6–7.5. Skip padded stretches; start where the records are.</span></li>
+    <li><span><b>Look in front of the first record.</b> A count there that equals a table we know (44,960 people, 36,344 players, 6,212 staff, 9,830 clubs, 1,706 competitions) tells you what the rows are about before you read one.</span></li>
+    <li><span><b>Prove the width and the end.</b> Find the stride at which columns agree, then check count × stride lands on the next frame. If row k holds k, or holds tid k, check it on every row.</span></li>
+    <li><span><b>Diff the saves.</b> Compare 22 July, 25 July and 8 August. Which rows changed, and does the change match something that happened in game between those dates (a signing, an injury, a match)?</span></li>
+    <li><span><b>Match it to a screen.</b> Pick a few rows, find the person or club, open the matching in-game screen and pin what it shows to the bytes in an evidence test (<code>tests/test_*_evidence.py</code>).</span></li>
+    <li><span><b>Check the other game.</b> Find the same table in an FMM22 Frem save. A reading that holds on one save of one game is a hypothesis. FMM22's extract must stay byte-identical (<code>tests/assert_identical.py</code>).</span></li>
+    <li><span><b>Hook it up.</b> A parser table with its own locator, then an <code>extract.py</code> step. Update the table doc in <code>docs/parser/</code>, the save map and the TODO.</span></li>
+  </ol>
+</section>
+
+<section aria-labelledby="h-phases">
+  <h2 id="h-phases">The phases</h2>
+
+  <div class="phase">
+    <header>
+      <div class="eyebrow"><span class="pill p4">0</span> groundwork · before any region</div>
+      <h3>Saves, screens and a recon script</h3>
+    </header>
+    <ul>
+      <li><b>Turn this plan's measurements into a tool</b>: a new <code>gap_recon.py</code> in <code>scripts/audit/</code> that lists every region no table claims, with its size on each save, fill, entropy, best stride, counts in front, and "same bytes" between saves. Every table above came from a one-off version of that script; make it repeatable.</li>
+      <li><b>Write FMM27's gap list into <code>docs/parser/savefile-map.md</code></b>, which today lists only where each FMM27 table starts.</li>
+      <li><b>Keep saving.</b> Diffs need more saves. Most useful next: one a day or two apart around a signing, one just after an injury, one in late June, and one just after the season rollover. Name them by the save's in-game date as usual.</li>
+      <li><b>Capture the screens in the list at the end of this page</b> as you play, into <code>docs/parser/img/</code>.</li>
+    </ul>
+    <p class="ev">Done when the recon script reproduces the triage table above from the saves, and the map's FMM27 section lists every region.</p>
+  </div>
+
+  <div class="phase">
+    <header>
+      <div class="eyebrow"><span class="pill p1">1</span> quick wins · counted, mostly static</div>
+      <h3>Tables whose count we can already check</h3>
+    </header>
+
+    <div class="item">
+      <h3>The 7-byte list <span class="where">currencies → languages · 6 KB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>Count 924, then <code>[u16 id][00 00 00][ff ff]</code>-shaped rows, ids rising by 1 from 1. FMM22 has 888 rows in the same place.</div>
+        <div><span class="k">Test</span>Read all 924; check ids are dense or note the gaps. Look for a table with ~924 or ~888 entries the ids could point into (regions, continents, kit sets).</div>
+        <div><span class="k">Done when</span>Both games' lists walk exactly to languages, and the id is matched to something, or the list is declared an unread index.</div>
+      </div>
+    </div>
+
+    <div class="item">
+      <h3>Awards <span class="where">cities → currencies · 347 KB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>Count 1,123 (FMM22: 807), records shaped like club records with three names each, "Footballer of the Year" first. Static across saves, so it's the award definitions, not who won.</div>
+        <div><span class="k">Test</span>Walk 1,123 records to the currencies' padding. Read each award's names, its competition or nation, and any year or holder fields.</div>
+        <div><span class="k">Done when</span>Every award walks on both games and one is matched to the in-game awards screen. Then look for who <i>won</i> each award elsewhere: a live table that points at these ids.</div>
+      </div>
+    </div>
+
+    <div class="item">
+      <h3>The per-person chain <span class="where">languages → rule files · 6.47 MB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>Proved so far: <code>[44,960][44,960 × 15 B]</code> lands on <code>[6,212][6,212 × 12 B]</code>. After that come smaller counted blocks (2, 76) and one large block of 131,328 counted rows, then the rule files. The region grows a little between saves (+23 KB over 17 days) and half its bytes change.</div>
+        <div><span class="k">Test</span>Prove the first two links on all three saves and on FMM22 (whose region opens with its own person count). Then walk on link by link, each count proved by landing on the next. Diff the 15 B rows of people whose state changed between saves (signed, injured, transfer-listed).</div>
+        <div><span class="k">Done when</span>The chain walks from languages to the rule files with no leftover bytes, and at least the person and staff blocks have one field matched to a screen.</div>
+      </div>
+      <p class="ev">This is the largest region with real content and the first link is already one-per-person, so it is the most likely to yield readable per-player state. The remaining links were found by a greedy search and are unproven.</p>
+    </div>
+
+    <div class="item">
+      <h3>The 4-byte per-person table <span class="where">our matches → player lists · first 180 KB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>Right after our matches: two bytes, then count 44,959 and 44,959 rows of 4 bytes, columns agreeing 98%. One fewer than the person count.</div>
+        <div><span class="k">Test</span>Check whether row k is person k (try the managed team's players). Diff across saves: which rows change, and for whom.</div>
+        <div><span class="k">Done when</span>It walks on all saves and one value is matched to a screen. The 5.2 MB after it moves to Phase 3.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <header>
+      <div class="eyebrow"><span class="pill p2">2</span> live tables · need save diffs and screens</div>
+      <h3>Regions with a clear record shape but no meaning yet</h3>
+    </header>
+
+    <div class="item">
+      <h3>The 25-byte table <span class="where">contract grid → transfer band · 1.67 MB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>Stride 25 confirmed. Rows open with a tid and carry two dates a season apart (e.g. day 199 of 2026 and day 150 of 2027). Half the bytes change in two weeks and it grows (+24 KB). Live, career-wide, dated by season.</div>
+        <div><span class="k">Hypotheses</span>Contract offers or clauses, loan deals, scouting assignments, or player promises. Two dates a season apart look like "from / until".</div>
+        <div><span class="k">Test</span>Resolve the tid on the first hundred rows. If they are players at many clubs, check them against loan lists and scout reports on screen. Find its true start and the row count.</div>
+      </div>
+    </div>
+
+    <div class="item">
+      <h3>The per-player block <span class="where">transfer band → surnames · 2.41 MB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>Opens with 36,344, exactly the player-attributes count. 2.41 MB / 36,344 is ~66 B a player, but no single stride fits, so rows vary like the player-attributes table (a fixed part plus a counted list). Its size held to within 4 KB across saves while half the bytes changed.</div>
+        <div><span class="k">Hypotheses</span>Per-player match form or season stats (FMM22's match slots sat near here and aren't found on FMM27), or per-player history of the current season.</div>
+        <div><span class="k">Test</span>Try "fixed head + u8/u16/u32 count × fixed item", as player attributes was solved. Pick a player who played a match between two saves and diff his row.</div>
+      </div>
+    </div>
+
+    <div class="item">
+      <h3>Competition record books <span class="where">club records → player progress · 203 KB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>Count 176 (FMM22: 162 on every save), variable rows carrying 21-byte match records shaped like the club records' best-win entries. Same size on all three saves.</div>
+        <div><span class="k">Hypotheses</span>Each competition's record book: biggest win, highest attendance, record scorer. 176 and 162 would be the number of competitions with records.</div>
+        <div><span class="k">Test</span>Walk it the way club records are walked (a tid or cid, a count, fixed blocks). Match one row to a competition's Records screen.</div>
+      </div>
+    </div>
+
+    <div class="item">
+      <h3>The dated queue <span class="where">player lists → archive · 149 KB</span></h3>
+      <div class="grid3">
+        <div><span class="k">Lead</span>42-byte rows; the first dates fall after each save (day 207, the day after the 25 July save; day 231, eleven days after 8 August). FMM22 has a 14-byte dated table in the same place, its dates up to a fortnight ahead.</div>
+        <div><span class="k">Hypotheses</span>Scheduled future events: inbox items due, contract talks, scouting reports, board meetings.</div>
+        <div><span class="k">Test</span>Diff consecutive saves: rows whose date has passed should disappear. Compare with what turned up in the inbox between the two saves.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <header>
+      <div class="eyebrow"><span class="pill p3">3</span> the big unknowns · after phases 1–2</div>
+      <h3>Large or mostly empty regions with weak leads</h3>
+    </header>
+    <ul>
+      <li><b>The rest of our matches → player lists (5.2 MB).</b> On FMM22 this stretch holds the league-titles table and a player-list block; look for both first. Repeating 72- and 16-byte patterns; about half the bytes change in two weeks.</li>
+      <li><b>Rule files → contract grid (2.43 MB).</b> Mostly <code>ff</code> with 6-byte <code>ffffffff 01 00</code> units, but a quarter of the bytes changed in two weeks, so it isn't plain padding. A fixed grid that fills as the career goes on is the likeliest reading; find a filled slot and read its neighbours.</li>
+      <li><b>Nicknames → history (2.14 MB).</b> 95% zero, but its last ~170 KB holds counts of 3,125 (Truro's own tid) and 10,000. Start from those and read backward.</li>
+      <li><b>Training → our matches (107–146 KB).</b> 92-byte rows. It shrank by 39 KB while our matches grew, which suggests our-matches' real start, or a table that hands over space to it. Check this before reading the rows.</li>
+    </ul>
+    <p class="ev">Done for each when it is either read into a table or proved padding on every save (Phase 4's test).</p>
+  </div>
+
+  <div class="phase">
+    <header>
+      <div class="eyebrow"><span class="pill p4">4</span> close out</div>
+      <h3>Prove what is padding, and say so</h3>
+    </header>
+    <ul>
+      <li><b>Player progress → training (1.03 MB)</b> is all zero on every save. Confirm it stays zero on later saves (a late-season one especially), then mark it padding in the map so nobody spends time on it again. Same for FMM22's 758 KB.</li>
+      <li><b>The 552 bytes between the header and the name list</b>: a run of u32s ending in the name count. Small; read it if a header field is ever missing.</li>
+      <li>Re-run the coverage audit and update the "not yet understood" total on the save map.</li>
+    </ul>
+  </div>
+</section>
+
+<section aria-labelledby="h-screens">
+  <h2 id="h-screens">Screens to capture while playing</h2>
+  <p>Each screen is ground truth for one region. A screen with a total or a count is worth more than one without.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>screen</th><th>for</th><th>what to note</th></tr></thead>
+    <tbody>
+      <tr><td><b>Awards / honours list</b></td><td>Awards</td><td>Award names and the competition or nation each belongs to; who won last season</td></tr>
+      <tr><td><b>A competition's Records</b></td><td>Competition record books</td><td>Biggest win, record attendance, record scorer, with dates</td></tr>
+      <tr><td><b>Inbox, two saves a few days apart</b></td><td>Dated queue</td><td>What arrived, and on which date</td></tr>
+      <tr><td><b>Loans in and out; scouting assignments</b></td><td>25-byte table</td><td>Players, clubs, start and end dates</td></tr>
+      <tr><td><b>A player's profile before and after a match he played</b></td><td>Per-player block, per-person chain</td><td>Form, season stats, morale, condition, anything that moved</td></tr>
+      <tr><td><b>Injury list, transfer list, squad status</b></td><td>Per-person chain, 4-byte table</td><td>Who is injured, listed, unhappy or wanted</td></tr>
+      <tr><td><b>League history / trophy cabinet</b></td><td>Our matches → player lists</td><td>Titles won, by season</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="h-rules">
+  <h2 id="h-rules">Rules that keep the readings honest</h2>
+  <div class="cols">
+    <div class="callout warn"><span class="k">Never validate a field by joining on it</span><p>A check that matches rows <i>on</i> the date and then reports "the dates agree" can't fail. Join on an id or a score and let the field under test come out as the answer.</p></div>
+    <div class="callout warn"><span class="k">Prove the end, not just the fields</span><p>Fields that match a screen say nothing about the bytes you didn't read. A table is found when the walk lands exactly on the next one, on every save.</p></div>
+    <div class="callout warn"><span class="k">No tuned constants</span><p>A table bounded by "stop after 50 misses" or a plausibility window returns a short table that looks right. Bound it by its own count or invariant.</p></div>
+    <div class="callout warn"><span class="k">Two saves agreeing prove little</span><p>A "constant" needs a third save, and a reading on Truro needs the FMM22 Frem saves too. Frem's five seasons of saves are the best test of anything that grows.</p></div>
+  </div>
+</section>
+
+<footer>
+  <span>Measured on <code>truro-2026-07-22</code>, <code>truro-2026-07-25</code> and <code>truro-2026-08-08</code> (FMM27) with each table's own walk, the transfer band's frame, column-agreement stride tests and byte diffs aligned at each region's start. FMM22 comparisons from <code>docs/parser/savefile-map.md</code>.</span>
+  <span>Repo copy: <code>docs/plans/2026-11-12-unknown-regions.html</code>. Open items also listed in <code>docs/TODO.md</code>.</span>
+</footer>
+</div>
+</body>
+</html>

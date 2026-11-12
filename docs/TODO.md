@@ -136,6 +136,14 @@ from the fixture list, stage names from the rule files and competition rounds), 
 On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1% unclaimed**
 (`audit_coverage.py`). The gaps, largest first, with what is known about each:
 
+### 2a. FMM27: the twelve unread regions
+**[`plans/2026-11-12-unknown-regions.html`](plans/2026-11-12-unknown-regions.html)** triages
+the ~17.7 MB no table claims on the Truro saves, region by region, with the leads measured so
+far and a phased order. Strongest leads: a chain of counted tables after languages (44,960 ×
+15 B, one per person, then 6,212 × 12 B, one per staff member), a 44,959 × 4 B table right
+after our matches, and a block counted by the player count (36,344) after the transfer band.
+Read the plan to resume; the FMM22 regions below are the same tables on the older game.
+
 ### 3. The unclaimed regions of the career half
 - **54.21–59.27 M** (5.1 MB) — around our match region. Unexamined. One populated
   player-list block sits in this stretch on older saves (`Jeppe Corfitzen` at 56,336,372 on
