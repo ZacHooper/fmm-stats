@@ -1,0 +1,30 @@
+{
+  "saves": {
+    "frem-2026-06-11.fms": {
+      "staff_rows": {"base": 14441328, "count": 4642},
+      "club_rows": {"base": 14478466, "count": 11331, "extra": 406},
+      "players": 26505,
+      "raw": [[14478456, "a8 01 00 00 00 43 00 20 43 2c",
+               "the last staff row (the user's), then the club count 11,331"]]
+    },
+    "frem-2021-06-27.fms": {
+      "staff_rows": {"base": 14413846, "count": 4642},
+      "club_rows": {"base": 14450984, "count": 11331, "extra": 232},
+      "players": null,
+      "raw": []
+    },
+    "bucaspor-2023-04-01.fms": {
+      "staff_rows": {"base": 15183224, "count": 5697},
+      "club_rows": {"base": 15228802, "count": 12278, "extra": 314},
+      "players": null,
+      "raw": []
+    },
+    "truro-2026-08-08.fms": {
+      "staff_rows": {"base": 17158295, "count": 6212},
+      "club_rows": {"base": 17207993, "count": 9830, "extra": 1298},
+      "players": 36344,
+      "raw": [[17207983, "03 00 03 00 01 03 00 01 66 26",
+               "the last staff row, then the club count 9,830"]]
+    }
+  }
+}

@@ -205,6 +205,9 @@ from .regions import REGIONS_TABLE, REGIONS_TABLE_FMM27, scrape_regions
 from .id_list import ID_LIST_TABLE, scrape_id_list
 from .person_index import PERSON_INDEX_TABLE, PERSON_INDEX_TABLE_FMM27, scrape_person_index
 from .person_stamps import PERSON_STAMPS_TABLE, scrape_person_stamps
+from .staff_rows import STAFF_ROWS_TABLE, scrape_staff_rows, staff_rows_table_spans
+from .club_rows import (CLUB_ROWS_TABLE, CLUB_ROWS_TABLE_FMM27, club_rows_table_spans,
+                        scrape_club_rows)
 from .loans import LOANS_TABLE, loans_table_spans, scrape_loans
 from .award_history import (AWARD_HISTORY_TABLE, award_history_table_spans,
                             scrape_award_history)
@@ -223,6 +226,8 @@ TABLES = {
     "regions": REGIONS_TABLE,
     "id_list": ID_LIST_TABLE,
     "person_index": PERSON_INDEX_TABLE,
+    "staff_rows": STAFF_ROWS_TABLE,
+    "club_rows": CLUB_ROWS_TABLE,
     "person_stamps": PERSON_STAMPS_TABLE,
     "loans": LOANS_TABLE,
     "award_history": AWARD_HISTORY_TABLE,
@@ -278,7 +283,8 @@ TABLES_BY_FORMAT = {
             "fixtures": FIXTURES_TABLE_FMM27, "matches": MATCHES_TABLE_FMM27,
             "awards": AWARDS_TABLE_FMM27, "unions": UNIONS_TABLE_FMM27,
             "derbies": DERBIES_TABLE_FMM27, "regions": REGIONS_TABLE_FMM27,
-            "person_index": PERSON_INDEX_TABLE_FMM27},
+            "person_index": PERSON_INDEX_TABLE_FMM27,
+            "club_rows": CLUB_ROWS_TABLE_FMM27},
 }
 
 
@@ -338,6 +344,8 @@ __all__ = [
     "last_transfers_table_spans",
     "loans_table_spans",
     "scrape_person_index",
+    "scrape_staff_rows",
+    "scrape_club_rows",
     "scrape_person_stamps",
     "scrape_regions",
     "scrape_unions",

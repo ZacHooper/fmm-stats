@@ -96,13 +96,13 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <section aria-labelledby="h-status">
   <h2 id="h-status">Status, 12 Nov: done, open, next</h2>
-  <p>Phases 1–3 are worked through. Seventeen tables are now read on both games, extracted, documented in <code>docs/parser/</code> and checked by evidence tests on eight saves (PR #228). Unread content on an FMM27 save fell from ~17.7 MB to ~15.6 MB. Nothing new is loaded into the store yet.</p>
+  <p>Phases 1–3 are worked through. Seventeen tables are now read on both games, extracted, documented in <code>docs/parser/</code> and checked by evidence tests on eight saves (PR #228). Unread content on an FMM27 save fell from ~17.7 MB to ~15.6 MB. Since then, two more links of the per-person chain are walked on both games (staff rows and club rows, extent only), a further 1.4 MB on Truro. Nothing new is loaded into the store yet.</p>
   <div class="tablewrap"><table>
     <thead><tr><th>region</th><th>now read as</th><th>left open there</th></tr></thead>
     <tbody>
       <tr><td><b>Cities → currencies</b></td><td>awards, nation unions, derbies, regions</td><td>award body bytes; derby bytes +8/+9 (no screen shows derbies)</td></tr>
       <tr><td><b>Currencies → languages</b></td><td>id list (extent only)</td><td>what the ids name</td></tr>
-      <tr><td><b>Languages → rule files</b></td><td>per-person rows (with each person's loan slot)</td><td>the staff-counted block after them and the blocks up to the rule files; the rows' second pointer</td></tr>
+      <tr><td><b>Languages → rule files</b></td><td>per-person rows (with each person's loan slot), staff rows, club rows (extent only)</td><td>the per-player blocks after the club rows (1.67 MB FMM22, 4.36 MB FMM27); the staff and club rows' fields; the per-person rows' second pointer</td></tr>
       <tr><td><b>Contract grid → transfer band</b></td><td>loans (every loan in the world)</td><td>the option amount; ~1.5 MB after the pool</td></tr>
       <tr><td><b>Transfer band → surnames</b></td><td>last transfers (each player's latest fee and buyer)</td><td>~1.3 MB after them; FMM27's match-slot table, probably here</td></tr>
       <tr><td><b>Club records → player progress</b></td><td>— (lead)</td><td>competition record books: row shape known, block sizes not</td></tr>
@@ -116,7 +116,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <div class="cols">
     <div class="callout"><span class="k">Next, parser only</span>
       <ul>
-        <li>Finish the per-person chain after languages (~5.8 MB): the staff-counted block first.</li>
+        <li>Per-person chain: links 2 and 3 are read (staff rows, club rows, both games). Next, the per-player blocks: decode the dated "rich" rows that stop the walk, then prove the landing.</li>
         <li>Find FMM27's match-slot table in the 1.3 MB after the last transfers; walk the 1.5 MB after the loans.</li>
         <li>Competition record books: try the club records' 12 + 12 + 12 + 12 blocks per competition.</li>
         <li>Scheduled events on FMM27, then one table for both games.</li>

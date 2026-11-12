@@ -274,6 +274,15 @@ def one(file: str, scrape: Callable[[Any], Any],
     return lambda mm: {file: (scrape(mm), indent)}
 
 
+def walked(scrape: Callable[[Any], Any]) -> Callable[[Any], Files]:
+    """The read for a table walked for its extent while no field of it is named: the walk
+    must succeed, and nothing is written."""
+    def read(mm):
+        scrape(mm)
+        return {}
+    return read
+
+
 def steps(no_archive: bool = False):
     """Every table extract reads, in the order the save stores them."""
     return [
@@ -304,6 +313,8 @@ def steps(no_archive: bool = False):
              one("languages.json", lambda mm: by_key(languages.scrape_languages(mm)), 1)),
         Step("person_index", registered("person_index"),
              per_person("person_index.json", T.scrape_person_index)),
+        Step("staff_rows", registered("staff_rows"), walked(T.scrape_staff_rows)),
+        Step("club_rows", registered("club_rows"), walked(T.scrape_club_rows)),
         Step("rule_files", registered("rule_files"), read_team_counts),
         Step("formation catalog", ST.formation_catalog_span,
              one("formations.json", ST.formation_catalog, 1)),

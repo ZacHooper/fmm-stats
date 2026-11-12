@@ -12,7 +12,7 @@ the [save file map](../savefile-map.md); the order the regions are worked is the
 
 | region (between) | FMM22 | FMM27 | what it probably is | page |
 |---|---|---|---|---|
-| per-person rows → rule files | 2.31 MB | 5.79 MB | a chain of counted per-entity blocks | [person_chain](person_chain.md) |
+| club rows → rule files | 1.67 MB | 4.36 MB | one variable-length block per player, the chain's fourth link | [person_chain](person_chain.md) |
 | rule files → contract grid | 9.15 MB | 2.43 MB | FMM22 padding; FMM27 a slot pool, then season-year blocks | [season_blocks](season_blocks.md) |
 | loans → transfer band | 1.16 MB | 1.50 MB | not known | [after_loans](after_loans.md) |
 | last transfers → surnames | 0.94 MB | 1.32 MB | FMM22 holds the match-slot table here; FMM27's not found | [after_last_transfers](after_last_transfers.md) |

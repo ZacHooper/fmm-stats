@@ -59,7 +59,9 @@ notes. The status column names the `core` table that reads it
 | 13,969,910 | 13,976,126 | 6,216 B | **[id list](id_list.md)** — 888 × 7 B (`[id u32][00 00 00]`, ids ascending with gaps), ends on the languages' frame; what the ids name is unread | game database | Shape A | `ID_LIST_TABLE` |
 | 13,976,136 | ~13,978,480 | 0.002 MB | **[languages](languages.md)** — 124 ✓ | game database | Shape A | `LANGUAGES_TABLE` |
 | 13,979,798 | 14,441,326 | 0.46 MB | **[per-person rows](person_index.md)** — `[count u32 = 32,966]` with no `0xFF` frame, then 32,966 × 14 B, row k = person tid k: two row numbers into tables not read yet. Ends exactly on a u32 equal to the staff count | game database | Shape A (lands on the staff count) | `PERSON_INDEX_TABLE` |
-| 14,441,326 | 16,752,549 | 2.31 MB | **UNIDENTIFIED** ([what is known](unread/person_chain.md)) — a chain of counted blocks continuing the per-person rows: first `[count u32 = 4,642]`, one per staff member, whose row width is not proved yet | — | — | — |
+| 14,441,326 | 14,478,464 | 0.04 MB | **[staff rows](staff_rows.md)** — `[count u16 = 4,642]` with no `0xFF` frame, then 4,642 × 8 B, row k = staff id2 k; no field named yet. Ends exactly on a u16 equal to the club count | game state (managers' rows change) | Shape A (lands on the club count) | `STAFF_ROWS_TABLE` |
+| 14,478,464 | 15,083,143 | 0.60 MB | **[club rows](club_rows.md)** — `[count u16 = 11,331]`, then per club 51 B, plus a 66 B block on 406 clubs (a nation-shared f32 and ranking-like u32s); no field named yet. Ends exactly on a u16 equal to the player-attribute count | game state | Shape A (lands on the player count) | `CLUB_ROWS_TABLE` |
+| 15,083,143 | 16,752,549 | 1.67 MB | **UNIDENTIFIED** ([what is known](unread/person_chain.md)) — `[count u16 = 26,505]`, one variable-length block per player: a plain 59-byte row with counted 5-byte items, and richer rows with 2025/26 dates that stop the walk | — | — | — |
 | 16,752,549 | 20,021,621 | 3.27 MB | **[rule files](rule_files.md)** — the tagged data dictionary: 667 count-framed rule files (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | game database; the gaps between rule files change | Shape A | `RULE_FILES_TABLE`; `team_counts` → `competition_team_counts.json` |
 | 20,021,621 | 29,171,689 | **9.15 MB** | **FILLER — 94% `0xFF`, 2% `00`.** Not a research target on FMM22; FMM27's smaller version holds slots and season-year blocks ([what is known](unread/season_blocks.md)) | — | — | — |
 | **29,171,689** | **31,907,618** | **2.74 MB** | **[contract grid](contracts.md)** — dense **83-byte** records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table) | **reserved space**: room for 59,632 slots, one per person, rewritten in place | Shape C | `CONTRACT_TABLE` |
@@ -176,7 +178,7 @@ Size alone misleads; the filler fraction matters more.
 | 56.32 – 61.25M | 4.94 MB | 18% | ~0.9 MB | between the [club titles](club_titles.md) and the player lists |
 | 34.28 – 35.44M | 1.16 MB | — | not re-measured | after the [loans](loans.md), in front of the transfer band |
 | 39.20 – 40.04M | 0.84 MB | — | not re-measured | between the [last transfers](last_transfers.md) and the match-slot table |
-| 14.44 – 16.75M | 2.31 MB | — | not re-measured | after the [per-person rows](person_index.md): a chain of counted blocks with no `0xFF` in front, which is why a frame search found none. The first is counted by the staff table |
+| 15.08 – 16.75M | 1.67 MB | — | not re-measured | after the [club rows](club_rows.md): one variable-length block per player ([what is known](unread/person_chain.md)) |
 | 41.11 – 42.63M | 1.52 MB | 18% | 0.27 MB | 82% zero, mostly padding |
 | 52.72 – 53.48M | 0.76 MB | 0% | 0 | all `00` and `ff` |
 | 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`: padding, not a target |
@@ -327,7 +329,10 @@ The reference half keeps FMM22's order. Between the cities and the currencies on
 [derbies](derbies.md) (1,681) and [regions](regions.md) (2,532), whose walk ends on the
 currencies' frame. Then the [id list](id_list.md) (924 × 7 B) to the languages, and the
 [per-person rows](person_index.md) from 16,468,667: 44,960 × 15 B, ending on the staff count
-(6,212).
+(6,212). The chain goes on as on FMM22: [staff rows](staff_rows.md) (6,212 × 8 B), then
+[club rows](club_rows.md) (9,830 × 132 B, plus 68 B on the clubs that carry the extra block),
+ending on the player-attribute count (36,344) in front of the unread per-player blocks
+(4.36 MB on truro-2026-08-08; [what is known](unread/person_chain.md)).
 
 The career half on `truro-2026-07-25`, in file order:
 
