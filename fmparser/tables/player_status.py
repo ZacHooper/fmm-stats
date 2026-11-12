@@ -5,7 +5,7 @@ the clubs interested in him, his morale and his form. FMM27 only so far.
     [count u32 = the player-attribute count]   36,344 on Truro
     per block, block k = attribute record k:
       35 B   head, 7 interested-club slots, morale, form (the last five ratings), flags
-      22 / 46 B            STATUS_EVENT, only where the head's last byte is 1 (below)
+      n x 22 / 46 B        STATUS_EVENT, as many as the head's last byte says (below)
       [n u8][n x 5 B]      STATUS_ITEM
       83 B   STATUS_TAIL   a u32, then a date reading 1 Jan 2000 on every block, then 60 B
 
@@ -70,7 +70,7 @@ FORM_SLOT = Record("player_status_form", 1, (
 
 STATUS_FLAGS = Record("player_status_flags", 9, (
     Field(0, 8, UNKNOWN, RAW, note="ff on every block measured"),
-    Field(8, 1, "has_event", U8, note="1 when STATUS_EVENT follows"),
+    Field(8, 1, "event_count", U8, note="how many event records follow (0-2 seen)"),
 ), is_head=True)
 
 STATUS_EVENT = Record("player_status_event", 22, (
@@ -114,27 +114,37 @@ STATUS_TAIL = Record("player_status_tail", 83, (
 ))
 
 
-class Event:
-    """The optional event record: none, or 22 / 46 bytes as its byte +21 says."""
-    name = "event"
+MAX_EVENTS = 16
 
-    def _record(self, mm: Any, offset: int) -> Optional[Record]:
-        if not mm[offset - 1]:
-            return None
-        return STATUS_EVENT_LONG if mm[offset + 21] == 1 else STATUS_EVENT
 
-    def read(self, mm: Any, offset: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
-        rec = self._record(mm, offset)
-        end = offset + (rec.span if rec else 0)
-        return (None, end) if end > limit else ({}, end)
+def _event(mm: Any, offset: int) -> Record:
+    """An event record at `offset`: 46 bytes when its byte +21 is 1, else 22."""
+    return STATUS_EVENT_LONG if mm[offset + 21] == 1 else STATUS_EVENT
+
+
+class Events:
+    """The event records: `event_count` (the byte in front) of them, each 22 or 46 bytes as
+    its own byte +21 says."""
+    name = "events"
 
     def instances(self, mm: Any, offset: int) -> List[Tuple[Record, int]]:
-        rec = self._record(mm, offset)
-        return [(rec, offset)] if rec else []
+        out, p = [], offset
+        for _ in range(min(mm[offset - 1], MAX_EVENTS)):
+            rec = _event(mm, p)
+            out.append((rec, p))
+            p += rec.span
+        return out
+
+    def read(self, mm: Any, offset: int, limit: int) -> Optional[Tuple[Dict[str, Any], int]]:
+        if mm[offset - 1] > MAX_EVENTS:
+            return None
+        recs = self.instances(mm, offset)
+        end = recs[-1][1] + recs[-1][0].span if recs else offset
+        return (None, end) if end > limit else ({}, end)
 
 
 SEGMENTS = (STATUS_HEAD, FixedList("interested", CLUB_SLOT, 7), MORALE,
-            FixedList("form", FORM_SLOT, 5), STATUS_FLAGS, Event(),
+            FixedList("form", FORM_SLOT, 5), STATUS_FLAGS, Events(),
             CountedList("items", U8, STATUS_ITEM, max_count=16), STATUS_TAIL)
 EVENT_AT = STATUS_HEAD.span + 7 * CLUB_SLOT.span + MORALE.span + 5 + STATUS_FLAGS.span
 
@@ -142,18 +152,21 @@ _CACHE: Dict[Any, Optional[Tuple[int, int, int]]] = {}
 
 
 def _is_date(b: bytes) -> bool:
-    """A `[u16 day of year][u16 year]` date: day 1-366."""
-    day, year = struct.unpack("<HH", b)
-    return 1 <= day <= 366 and 1900 <= year <= 2200
+    """`[u16][u16 year]`: the year half only. The first half is 1 (with year 2000) on every
+    summer block, and 825 with 2026 on one block of truro-2026-11-16, so it is not a plain
+    day of the year."""
+    _, year = struct.unpack("<HH", b)
+    return 1900 <= year <= 2200
 
 
 def _block_end(mm: Any, pos: int) -> Optional[int]:
     """Where the block at `pos` ends, or None when its tail does not hold a date at +19."""
     p = pos + EVENT_AT
-    if mm[p - 1]:
-        if mm[p - 1] != 1:
-            return None
-        p += STATUS_EVENT_LONG.span if mm[p + 21] == 1 else STATUS_EVENT.span
+    n = mm[p - 1]
+    if n > MAX_EVENTS:
+        return None
+    for _ in range(n):
+        p += _event(mm, p).span
     p += 1 + mm[p] * STATUS_ITEM.span
     if not _is_date(mm[p + 19:p + 23]):
         return None

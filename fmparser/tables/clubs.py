@@ -149,14 +149,26 @@ CLUB_FLAG_BLOCK_FMM27 = Record("club_flag_block_fmm27", 68, (Field(0, 68, UNKNOW
                                is_head=True)
 
 # FMM27's closing block: FMM22's staff block, four bytes longer.
-CLUB_STAFF_FMM27 = Record("club_staff_fmm27", 127, (
+CLUB_STAFF_FMM27 = Record("club_staff_fmm27", 123, (
     *(Field(4 * i, 4, f"staff_{i}", U32) for i in range(11)),
     Field(44, 4, "main_club_tid", U32),
     Field(48, 1, "club_type", U8),
-    Field(49, 76, UNKNOWN, RAW),
-    Field(125, 1, UNKNOWN, U8, note="5 on the managed club (Truro), 0 on every other"),
-    Field(126, 1, "gender", U8, note="fmm-editor's name; 1 on 1,354 clubs, women's sides "
-                                     "by their names (unconfirmed in-game)"),
+    Field(49, 74, UNKNOWN, RAW),
+), is_head=True)
+
+# A counted list of 9-byte periods after the staff block: empty on every club of the summer
+# Truro saves (Jul-Aug 2026); on truro-2026-11-16 KF Tirana holds four, each
+# `[2 B][u16 2026][2 B][u16 2026][u8 1]`: two dates three days apart and a flag.
+CLUB_PERIOD_FMM27 = Record("club_period_fmm27", 9, (
+    Field(0, 4, UNKNOWN, RAW, note="a date: [u8][u8][u16 year]"),
+    Field(4, 4, UNKNOWN, RAW, note="a second date, three days on in the four seen"),
+    Field(8, 1, UNKNOWN, U8, note="1 in the four seen"),
+))
+
+CLUB_END_FMM27 = Record("club_end_fmm27", 2, (
+    Field(0, 1, UNKNOWN, U8, note="5 on the managed club (Truro), 0 on every other"),
+    Field(1, 1, "gender", U8, note="fmm-editor's name; 1 on 1,354 clubs, women's sides "
+                                   "by their names (unconfirmed in-game)"),
 ), is_head=True)
 
 # `[tid u32][uid i32]`, five names (NAME_END after long and short; then the six-letter code,
@@ -182,6 +194,8 @@ CLUB_TABLE_FMM27 = TableDef(
         CountedList("affiliates", U16, AFFILIATE, max_count=64),
         CountedList("squad", U16, _TID, scalar=True, max_count=64),
         CLUB_STAFF_FMM27,
+        CountedList("periods", U16, CLUB_PERIOD_FMM27, max_count=256),
+        CLUB_END_FMM27,
     ),
     locator=locate_clubs,
     invariant=lambda rec, slot: rec["tid"] == slot,

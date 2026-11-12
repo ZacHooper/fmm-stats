@@ -64,6 +64,13 @@ offsets.
 > club tid names that club, and the person who is its manager is the one to special-case
 > downstream.
 
+
+**FMM27: a counted list of periods.** The staff block (123 bytes) is followed by
+`[u16 n][n × 9 B]`, then two bytes (5 on the managed club, then `gender`). Empty on every club
+of the summer Truro saves; on truro-2026-11-16, 1,088 clubs hold 1 to 21 entries, each two
+`[2 B][u16 2026]` values three days apart and a byte 1 (KF Tirana: four). What they record is
+open. Before this was read the club walk stopped at tid 53 on the November save.
+
 ### FMM22
 
 `CLUB_TABLE`. Where it departs from FMM27:

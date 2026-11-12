@@ -9,9 +9,9 @@ writes no `player_status.json`.
 | | Truro (FMM27) |
 |---|---|
 | blocks (= player attribute records) | 36,344 |
-| span | 4.33 MB (22 Jul) → 4.34 MB (8 Aug) |
+| span | 4.33 MB (22 Jul) → 4.34 MB (8 Aug) → read on 16 Nov too |
 | with an interested club | 798 (22 Jul), 1,385 (25 Jul), 1,023 (8 Aug) |
-| with an event record | 27, 34, 68 |
+| with an event record | 27, 34, 68 (summer); 597 event records on 16 Nov |
 
 ## Layout
 
@@ -25,8 +25,8 @@ k (`player_status.json` carries that record's `sid`):
 | +20 | `morale` | u8 | 1–20, the Club Squad screen's arrow |
 | +21 | `form` | 5 × u8 | the last five match ratings, most recent last; `ff` = no match (`null`) |
 | +26 | | 8 B | `ff` on every block measured |
-| +34 | `has_event` | u8 | 1 when an event record follows |
-| +35 | | 0 / 22 / 46 B | the event record (below) |
+| +34 | `event_count` | u8 | how many event records follow: 0 or 1 in the summer, up to 2 on 16 Nov |
+| +35 | | n × 22 / 46 B | the event records (below) |
 | then | | `[n u8][n × 5 B]` | items: `[0][a][0][b][c]`, a mostly 22–40 |
 | then | | 83 B | a u32, 15 B, a date (+19) unset on every block, a byte, a second date (+24), 55 B |
 
@@ -51,8 +51,9 @@ each block's length follows from `has_event`, the event's byte +21 and the item 
 block where it happens.
 
 **The tail's dates.** Dates in the save are `[u16 day of year][u16 year]` (person_info's
-birth dates). The first, at tail +19, reads `01 00 d0 07`, day 1 of 2000, on every block
-measured: a date field the game has not set. The second, at +24, reads day 0 of 2026 (unset)
+birth dates). The field at tail +19 reads `01 00 d0 07`, day 1 of 2000, on every summer
+block: a field the game has not set. On truro-2026-11-16 one block reads `39 03 ea 07`
+(825, 2026), not a day of the year, so the locator checks only its year half. The second, at +24, reads day 0 of 2026 (unset)
 on most blocks, and on 8 Aug 2026 holds a day in late August or early September for ~400
 players, followed by `04` and a u16 where the rest have `ff`: an expected return date
 (injury? suspension?), not yet checked on a screen. The walk must end before the rule files on a u16 `n`

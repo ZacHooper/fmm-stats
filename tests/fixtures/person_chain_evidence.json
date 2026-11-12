@@ -172,6 +172,19 @@
           }
         }
       }
+    },
+    "truro-2026-11-16.fms": {
+      "staff_rows": {
+        "base": 17255725,
+        "count": 6212
+      },
+      "club_rows": {
+        "base": 17305423,
+        "count": 9830,
+        "extra": 1611
+      },
+      "players": 36344,
+      "raw": []
     }
   }
 }
