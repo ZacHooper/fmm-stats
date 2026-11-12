@@ -24,16 +24,29 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     clubs.json, competitions.json, nations.json, stadiums.json, cities.json,
     currencies.json, languages.json
                                  reference tables, whole (every slot the save declares)
+    awards.json                  every award, with its latest edition's three entries
+    unions.json, derbies.json, regions.json
+                                 nation unions, named rivalries, each nation's regions
+    id_list.json                 an unread id list between the currencies and languages
+    person_index.json            a short row per person: his loan slot, one unread pointer
     competition_team_counts.json each nation's team-count rules
     formations.json              the formation catalog the staff records index
     contracts.json               the contract grid
+    loans.json                   every loan in the world: player, loan club, dates
+    last_transfers.json          each player's latest transfer: fee and buying club
     name_ids.json                the first-name, surname and nickname id-tables
     history.json                 the career-history pool
     club_records.json, player_records.json, club_league_history.json
                                  Club History, per club
     player_progress.json         the weekly Player Progress table
     training.json                the Training page, every player
+    award_history.json           past editions of every award, 1st to 3rd
+    team_history.json            season teams by year; this season's Teams of the Week
     matches.json                 this season's matches as stored
+    person_stamps.json           a dated 4-byte row per person
+    tactic_history.json           the user's tactic history: name and a role per position
+    club_seasons.json            the managed club's league line and cups, season by season
+    club_titles.json             the managed club's titles: competition and years
     player_scrapbook.json        every scrapbook entry of the 66 player lists
     world_fixtures.json          the archive's world fixture list
     competition_rounds.json      the archive's competition stage/round structures
@@ -249,6 +262,12 @@ def read_archive(no_archive: bool) -> Callable[[Any], Files]:
     return read
 
 
+def per_person(file: str, scrape: Callable[[Any], Any]) -> Callable[[Any], Files]:
+    """The read for a table stored as one row per person in tid order: each row as stored,
+    with its tid in front."""
+    return lambda mm: {file: ([{"tid": k, **row} for k, row in enumerate(scrape(mm))], None)}
+
+
 def one(file: str, scrape: Callable[[Any], Any],
         indent: Optional[int] = None) -> Callable[[Any], Files]:
     """The read for a table that dumps as `scrape` returns it, to one file."""
@@ -274,22 +293,44 @@ def steps(no_archive: bool = False):
              one("stadiums.json", lambda mm: by_key(stadiums.scrape_stadiums(mm)))),
         Step("cities", registered("cities"),
              one("cities.json", lambda mm: by_key(cities.scrape_cities(mm)))),
+        Step("awards", registered("awards"), one("awards.json", T.scrape_awards, 1)),
+        Step("unions", registered("unions"), one("unions.json", T.scrape_unions, 1)),
+        Step("derbies", registered("derbies"), one("derbies.json", T.scrape_derbies, 1)),
+        Step("regions", registered("regions"), one("regions.json", T.scrape_regions, 1)),
         Step("currencies", registered("currencies"),
              one("currencies.json", lambda mm: by_key(currencies.scrape_currencies(mm)), 1)),
+        Step("id_list", registered("id_list"), one("id_list.json", T.scrape_id_list)),
         Step("languages", registered("languages"),
              one("languages.json", lambda mm: by_key(languages.scrape_languages(mm)), 1)),
+        Step("person_index", registered("person_index"),
+             per_person("person_index.json", T.scrape_person_index)),
         Step("rule_files", registered("rule_files"), read_team_counts),
         Step("formation catalog", ST.formation_catalog_span,
              one("formations.json", ST.formation_catalog, 1)),
         Step("contracts", registered("contracts"),
              one("contracts.json", contracts.scrape_contracts)),
+        Step("loans", registered("loans"), one("loans.json", T.scrape_loans)),
+        Step("last_transfers", registered("last_transfers"),
+             one("last_transfers.json", T.scrape_last_transfers)),
         Step("name id-tables", registered("surnames", "first_names", "nicknames"),
              one("name_ids.json", NM.scrape_name_ids)),
         Step("history", registered("history"), read_history),
         Step("club_records", registered("club_records"), read_club_records),
         Step("player_progress", registered("player_progress"), read_player_progress),
         Step("training", registered("training"), read_training),
+        Step("award_history", registered("award_history"),
+             one("award_history.json", T.scrape_award_history, 1)),
+        Step("team_history", registered("team_history"),
+             one("team_history.json", T.scrape_team_history, 1)),
         Step("matches", registered("matches"), one("matches.json", MT.scrape_matches, 1)),
+        Step("person_stamps", registered("person_stamps"),
+             per_person("person_stamps.json", T.scrape_person_stamps)),
+        Step("tactic_history", registered("tactic_history"),
+             one("tactic_history.json", T.scrape_tactic_history, 1)),
+        Step("club_seasons", registered("club_seasons"),
+             one("club_seasons.json", T.scrape_club_seasons, 1)),
+        Step("club_titles", registered("club_titles"),
+             one("club_titles.json", T.scrape_club_titles, 1)),
         Step("player_lists", registered("player_lists", "player_list_trailers"),
              read_scrapbook),
         Step("archive", archive_span, read_archive(no_archive)),

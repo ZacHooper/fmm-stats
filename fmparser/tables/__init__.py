@@ -198,8 +198,39 @@ from .staff import (
     style,
 )
 
+from .awards import AWARDS_TABLE, AWARDS_TABLE_FMM27, scrape_awards
+from .unions import UNIONS_TABLE, UNIONS_TABLE_FMM27, scrape_unions
+from .derbies import DERBIES_TABLE, DERBIES_TABLE_FMM27, scrape_derbies
+from .regions import REGIONS_TABLE, REGIONS_TABLE_FMM27, scrape_regions
+from .id_list import ID_LIST_TABLE, scrape_id_list
+from .person_index import PERSON_INDEX_TABLE, PERSON_INDEX_TABLE_FMM27, scrape_person_index
+from .person_stamps import PERSON_STAMPS_TABLE, scrape_person_stamps
+from .loans import LOANS_TABLE, loans_table_spans, scrape_loans
+from .award_history import (AWARD_HISTORY_TABLE, award_history_table_spans,
+                            scrape_award_history)
+from .team_history import TEAM_HISTORY_TABLE, scrape_team_history, team_history_table_spans
+from .tactic_history import TACTIC_HISTORY_TABLE, tactic_history_table_spans, scrape_tactic_history
+from .club_seasons import CLUB_SEASONS_TABLE, club_seasons_table_spans, scrape_club_seasons
+from .club_titles import CLUB_TITLES_TABLE, club_titles_table_spans, scrape_club_titles
+from .last_transfers import (LAST_TRANSFERS_TABLE, last_transfers_table_spans,
+                             scrape_last_transfers)
+
 TABLES = {
     "cities": CITIES_TABLE,
+    "awards": AWARDS_TABLE,
+    "unions": UNIONS_TABLE,
+    "derbies": DERBIES_TABLE,
+    "regions": REGIONS_TABLE,
+    "id_list": ID_LIST_TABLE,
+    "person_index": PERSON_INDEX_TABLE,
+    "person_stamps": PERSON_STAMPS_TABLE,
+    "loans": LOANS_TABLE,
+    "award_history": AWARD_HISTORY_TABLE,
+    "team_history": TEAM_HISTORY_TABLE,
+    "tactic_history": TACTIC_HISTORY_TABLE,
+    "club_seasons": CLUB_SEASONS_TABLE,
+    "club_titles": CLUB_TITLES_TABLE,
+    "last_transfers": LAST_TRANSFERS_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
     "history": HISTORY_TABLE,
@@ -244,7 +275,10 @@ TABLES_BY_FORMAT = {
             "competitions": COMP_TABLE_FMM27, "nations": NATIONS_TABLE_FMM27,
             "stadiums": STADIUMS_TABLE_FMM27, "rule_files": RULE_FILES_TABLE_FMM27,
             "player_lists": PLAYER_LISTS_TABLE_FMM27, "comp_rules": COMP_RULES_TABLE_FMM27,
-            "fixtures": FIXTURES_TABLE_FMM27, "matches": MATCHES_TABLE_FMM27},
+            "fixtures": FIXTURES_TABLE_FMM27, "matches": MATCHES_TABLE_FMM27,
+            "awards": AWARDS_TABLE_FMM27, "unions": UNIONS_TABLE_FMM27,
+            "derbies": DERBIES_TABLE_FMM27, "regions": REGIONS_TABLE_FMM27,
+            "person_index": PERSON_INDEX_TABLE_FMM27},
 }
 
 
@@ -286,6 +320,27 @@ __all__ = [
     # Engine
     "TABLES",
     "TABLES_BY_FORMAT",
+    "scrape_awards",
+    "scrape_derbies",
+    "scrape_id_list",
+    "scrape_loans",
+    "scrape_award_history",
+    "award_history_table_spans",
+    "scrape_team_history",
+    "team_history_table_spans",
+    "scrape_tactic_history",
+    "tactic_history_table_spans",
+    "scrape_club_seasons",
+    "club_seasons_table_spans",
+    "scrape_club_titles",
+    "club_titles_table_spans",
+    "scrape_last_transfers",
+    "last_transfers_table_spans",
+    "loans_table_spans",
+    "scrape_person_index",
+    "scrape_person_stamps",
+    "scrape_regions",
+    "scrape_unions",
     "tables_for",
     "first_record",
     "table_spans",

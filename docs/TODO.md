@@ -91,10 +91,11 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
 - **Match bytes not placed**: possession and team rating; event types `17`, `18`, `29`
   ([matches](parser/matches.md#layout)). A ratings screen with a non-zero Mis/MiG would
   confirm `mistakes`/`mistGoal` against the game (placed from the `27` events).
-- **FMM27 role codes**: training's `focus_role` differs from `seeds/roles.csv` from Inside
-  Forward on; the two new roles are the Wide Centre-Back and the Inverted Full-Back
-  ([training](parser/training.md#evidence)). A centre-back's and a full-back's focus role on
-  screen pin the codes; then an FMM27 role seed.
+- **FMM27 role codes**: pinned so far from Focus Role and Tactics – Formation screens
+  ([training](parser/training.md), [tactic history](parser/tactic_history.md)): 0 G, 4 WB,
+  5 CD, 14 CM, 16 BWM, 18 AP, 19 P, 20 TF, 22 AF, 24 PF, every one FMM22's or FMM22's + 1
+  from Inside Forward on. Still to pin: a full-back's code and where the Wide Centre-Back and
+  Inverted Full-Back sit. Then an FMM27 role seed.
 - **The player lists' season numbers** (tail +114) need a save after a season ends.
 - **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;
   `match_slots` is not located (nothing reads it).
@@ -136,15 +137,60 @@ from the fixture list, stage names from the rule files and competition rounds), 
 On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1% unclaimed**
 (`audit_coverage.py`). The gaps, largest first, with what is known about each:
 
+### 2a. FMM27: the twelve unread regions
+**[`plans/2026-11-12-unknown-regions.html`](plans/2026-11-12-unknown-regions.html)** triages
+the regions no table claimed on the Truro saves, with the leads measured and a phased order.
+Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](parser/unions.md),
+[derbies](parser/derbies.md), [regions](parser/regions.md), [id_list](parser/id_list.md),
+[person_index](parser/person_index.md), [person_stamps](parser/person_stamps.md); evidence
+`tests/test_world_lists_evidence.py`). Open from Phase 1, in order:
+- **The staff-counted block after the per-person rows** (`[count u32 = staff count]`, then
+  more counted blocks to the rule files): find its row width on both games (12 B fits FMM27
+  only), then walk on. `person_index.row_a` points into a table of about 3,010 rows on Truro.
+- **Load the awards** into `raw` and a mart of award winners. Each entry stores the winner's
+  name ids as they were, which settles the tid-reuse problem in #14 for these awards.
+- **Needs a save from a screen's day** (none possible on 24-26 Oct): pin the award and
+  knowledge screens to bytes; find the xG and season stats (#10a). A save before and after a
+  scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
+  only save diffs across a derby match can name them.
+Phase 2 read two tables and found what the other two regions hold:
+- **The [loan pool](parser/loans.md)** (the plan's "25-byte table"): every loan in the world,
+  found by `person_index.loan_slot`. **Load it** into `raw` and build loan spells for every
+  club from it (today's `mart.fact_loan_spell` comes from the progress bit: our squad, loans
+  out only); name `option` and the u32 at +17 from a loan card with an option to buy.
+- **[Last transfers](parser/last_transfers.md)** (the plan's "per-player block"): each
+  player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and
+  a destination for every move in the world, which the band (emptied every July) can't give.
+- **Phase 3: [award history](parser/award_history.md) and [team history](parser/team_history.md)**
+  (the plan's "training → our matches" region): every year of an annual award and of a
+  season team, and the current season's weekly and monthly awards and Teams of the Week,
+  both games. **Load them**:
+  with [awards](parser/awards.md) they give a season's honours for every league, and each
+  entry's stored name ids settle the tid-reuse problem in #14.
+- **Unread regions with leads**: each has a page in
+  [`parser/unread/`](parser/unread/README.md) with its offsets on both games, the bytes seen,
+  what was tried and the next step: the [per-person chain](parser/unread/person_chain.md)
+  (next: the staff block's width on FMM22), [after the loans](parser/unread/after_loans.md),
+  [after the last transfers](parser/unread/after_last_transfers.md) (FMM27's match-slot table
+  is probably here), [competition record books](parser/unread/record_books.md),
+  [scheduled events](parser/unread/scheduled_events.md),
+  [named records](parser/unread/named_records.md),
+  [season-year blocks](parser/unread/season_blocks.md), the
+  [user's club block](parser/unread/club_block.md) (set pieces / captain?),
+  [before our matches](parser/unread/before_matches.md) and the
+  [progress → training padding](parser/unread/progress_padding.md). Team instructions
+  (mentality, passing, …) are not found; the Tactics screens of 22 and 25 Jul are saved as
+  evidence ([tactic history](parser/tactic_history.md)).
+- **The contract grid's span ends 89 bytes short on frem-2030-06-22**: the loan pool's
+  header sits 89 bytes past it there, and right after the span on every other save. Check
+  the grid's last slots on that save.
+
 ### 3. The unclaimed regions of the career half
-- **54.21–59.27 M** (5.1 MB) — around our match region. Unexamined. One populated
-  player-list block sits in this stretch on older saves (`Jeppe Corfitzen` at 56,336,372 on
-  `frem-2026-06-11`), so start with #4's structure.
-- **53.99–54.14 M** — straight after the training table (0.16 MB). Unexamined.
-- **Straight after the club-records table** (46.66 M on `frem-2027-08-08`): `[count u32]` =
-  162 on every save, then variable-length rows carrying 21-byte matches shaped like the club
-  team records (`[f32 value][year][day]…[club][opp][for][against]`). Likely the competitions'
-  own record books. Walk it from its count, as the club records were.
+- **After the club titles, to the player lists** (4.94 MB on `frem-2026-06-11`):
+  [parser/unread/club_block.md](parser/unread/club_block.md). One populated player-list block
+  sits in it (`Jeppe Corfitzen` at 56,336,372), so start with #4's structure.
+- **Straight after the club-records table**: the competitions' record books, layout
+  started: [parser/unread/record_books.md](parser/unread/record_books.md).
 - **The transfer band: read the rest of the row** (35.4–38.4 M,
   [savefile map](parser/savefile-map.md#the-transfer-band)). Count-framed and decoded on paper:
   every bid of the season, the accepted one with its fee and contract terms. Open: the kind
@@ -154,8 +200,8 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1%
   rows near the end of `bucaspor-2022-06-19` whose index reads 0. Capture the Transfers screen
   into `docs/parser/img/` as the evidence record. Then a parser table, an extract step and a
   raw table ("Raw mirrors the save, one table per table").
-- **13.96–16.68 M** — 85% filler. It opens with a u32 equal to the person count (32,966 /
-  34,312) and 14-byte units: walk it as a per-person table and see where it ends.
+- **14.44–16.75 M** (frem-2026-06-11) — after the [per-person rows](parser/person_index.md):
+  counted blocks with no `0xFF` frame, the first counted by the staff table. #2a.
 - A **league-titles table** at ~56.3 M behind a 550-byte `0xFF` run, 0.13 MB after our
   matches ([savefile map](parser/savefile-map.md)): `[u8][cid u16][tid u16][year u16]` per
   65-byte entry, one per league title Frem has won, the first byte the entry count. Name it:
@@ -228,9 +274,7 @@ the week's attribute values?). Named, the table could give every squad player's 
 development, not just injuries and loans.
 
 ### 5. Reference-half tables not yet read
-- The unnamed count-framed tables ([savefile map](parser/savefile-map.md)): the 807 awards
-  (club-shaped records with a longer trailer) and the 888-row 7-byte list between currencies
-  and languages.
+- What the [id list](parser/id_list.md)'s ids name (888 on FMM22, 924 on FMM27).
 - **Staff Specialism and Aptitude** are extracted (`staff_roles.json`,
   [staff_roles](parser/staff_roles.md)) but not loaded: add them to `raw` and the staff
   marts, and name the remaining specialism codes, aptitude 2 and the badge byte from Staff
@@ -238,7 +282,7 @@ development, not just injuries and loans.
 - **`audit_table_headers.py --confirm` fails the nickname id-table on every save**: its check
   reads the last declared slot as in use, and that slot is an empty `ffffffff`. A tooling
   bug, not the data's: check the last *used* slot.
-- The **Region** table, the unnamed bytes of the nation record (`NATION_TEAM`, `NATION_END`),
+- The unnamed bytes of the nation record (`NATION_TEAM`, `NATION_END`),
   and the ~7-entry
   **continent** table right after the nations (`[uid u32][Name][01][CodeName][Demonym][01]`,
   Africa..South America at ids 0–5, `World` at 6).
@@ -353,17 +397,31 @@ Bytes the parser reads but cannot name yet.
   halves of the FourCCs at +70/+74); the competition rules header (+8..19, +26..29 an f32,
   +30..47).
 
-### 10a. Every player's current-season stats by competition type (minor)
-The Player History screen's "This Season" panel splits the current season into Non
-Competitive / League / Cup / Continental / International, each with Pld, Gls, Ast, Yel, Red,
-PoM and average rating, for ANY player -- so the save holds it per player, in a region not yet
-identified. We have nothing like it: `mart.player_seasons` is built from our own match
-reports, so it covers only games Frem played in, and no friendlies, internationals or PoM.
-Use: proper league records (top scorers, cards, player of the match) for every league, not
-just the games we watched. Find it with a screenshot and a save from the SAME in-game day:
-Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, League 4 apps /
-1 yel / 7.00, Continental 2 apps / 7.50 -- take a second player with different numbers to
-rule out coincidence, then search for the values next to his tid.
+### 10a. Every club's and player's current-season stats, xG included
+The game shows season stats for clubs and players we never played, so the save holds them
+per club and per player, in a region not yet identified. We have nothing like it:
+`mart.player_seasons` and our xG come from our own match reports, so they cover only games
+we played in. Use: xG in every league table and xG top-scorer lists for every league, plus
+proper league records (cards, player of the match), not just the games we watched.
+
+What the screens show:
+- **FMM27, Team and Player Statistics** (league screen, xG / xDiff / Goals;
+  `parser/img/league-stats-fmm27-1.jpg`, `-2.jpg`, 24 Oct 2026, National League South):
+  Truro xG 25.67 / 29 goals, Dagenham & Redbridge 16.51 / 23, Totton 17.00 / 22; Harvey
+  Greenslade 5.03 / 8, Omar Bogle 6.42 / 5, Tayo Singerr (Totton) 1.49 / 5. xDiff is goals
+  less xG (29 − 25.67 = +3.33), so only xG and goals need finding.
+- **FMM22, Player History "This Season"**: Non Competitive / League / Cup / Continental /
+  International, each with Pld, Gls, Ast, Yel, Red, PoM and average rating, for any player.
+  Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, League 4 apps
+  / 1 yel / 7.00, Continental 2 apps / 7.50.
+
+To find it: a save from the SAME in-game day as the screenshots (the 24 Oct ones have no
+save; take new screenshots on the day of the next save). Search near each tid for the goals
+and for xG as an f32 (25.67) or a scaled int (2,567 / 257). Use two players or clubs with
+different numbers to rule out coincidence. First suspects on FMM27: the block after the
+transfer band, counted by the player count (36,344) with variable-length rows
+([the plan](plans/2026-11-12-unknown-regions.html), Phase 2), and the club records' "this
+season" blocks ([club_records](parser/club_records.md)) for the club totals.
 
 ### 11. Read the season rollover from the game, not from config
 A save's campaign depends on the day its career's new season starts: Denmark 30 June, Turkey
