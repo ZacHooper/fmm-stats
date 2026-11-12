@@ -120,7 +120,8 @@ day (`start` in `fmm.toml`) bounds the match check; the signing rule is the care
 4. **Squad registration is Danish for every career.** `site.registration_rules` applies the
    Herre-DM house rule to whichever club is managed, so Truro's Squad page shows A/B lists
    and home-grown quotas the career doesn't play by. Make the rule set career-specific
-   (`fmm.toml`, as the signing rule is), with none as an option.
+   (`fmm.toml`, as the signing rule is), with none as an option. Plan and handoff:
+   [`plans/2026-11-12-registration-rule-sets.md`](plans/2026-11-12-registration-rule-sets.md).
 5. **The Frem archive's goals list.** Frem's site data is archived under `site-data/api/frem/`
    as it was last exported (the 2030-09-14 snapshot), so its matches carry no goals list and
    the Partnerships tab stays hidden there. A re-export from the full Frem store
