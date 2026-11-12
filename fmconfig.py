@@ -71,6 +71,13 @@ def site_url() -> str:
     return (_get("site", "url", "FM_SITE_URL", "") or "").rstrip("/")
 
 
+def site_careers() -> list[str]:
+    """`[site] careers`: the careers the web app offers, in its switcher's order. Empty when
+    unset: the export then lists only the career it is exporting."""
+    v = _get("site", "careers", None, []) or []
+    return [str(k) for k in v]
+
+
 # --------------------------------------------------------------------------- play style
 def hide_ability() -> bool:
     """Immersion: never surface the raw current/potential ability number.

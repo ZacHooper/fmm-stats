@@ -89,6 +89,11 @@ The snapshot's label, the save's file name without its extension
 (`<career>-<YYYY-MM-DD>[-<tag>]`).
 {% enddocs %}
 
+{% docs save_format %}
+The game version that wrote the save: `fmm22` (Football Manager Mobile 2022) or `fmm27`
+(Football Manager Mobile 2027), as the parser reads it from the file.
+{% enddocs %}
+
 {% docs through_date %}
 The latest match date the standings row's totals include.
 {% enddocs %}

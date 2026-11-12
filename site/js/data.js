@@ -14,6 +14,9 @@
  */
 
 export const S = {          // everything loaded, one place
+  career: null,             // the career shown: its key, and whether it is archived
+  careerArchived: false,
+  careers: [],              // api/careers.json: every career the site offers
   index: null, core: null, squad: null, loans: null, matches: null, registration: null,
   forecast: null, world: null,
   all: null,                // lazy: every player in the save, fetched from R2 on demand
@@ -42,6 +45,60 @@ const j = async (url) => {
   if (!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
   return r.json();
 };
+
+// ------------------------------------------------------------------------- careers
+// One site, several careers: api/careers.json lists them, and each career's export sits in
+// api/<career>/. The career shown is `?career=` in the URL, else the one this browser last
+// opened, else careers.json's default. Switching reloads the page, so nothing from one career's
+// save (a tid means a different player in another save) leaks into the other's.
+const CAREER_LS = "fm:career";
+
+/** A path in the shown career's export: `api/<career>/<name>`. */
+export const api = (name) => `api/${S.career}/${name}`;
+
+/** A browser-storage key for the shown career: plans and picks name players by tid, so each
+ *  career keeps its own. */
+export const careerKey = (k) => `${k}@${S.career}`;
+
+/** Read a per-career setting. A key written before the site held several careers has no
+ *  career on it; it was written while the career now archived was the one played, so an
+ *  archived career falls back to it. */
+export function lsCareerGet(k) {
+  try {
+    const v = localStorage.getItem(careerKey(k));
+    return v != null ? v : (S.careerArchived ? localStorage.getItem(k) : null);
+  } catch { return null; }
+}
+export function lsCareerSet(k, v) {
+  try { localStorage.setItem(careerKey(k), v); } catch { /* private browsing */ }
+}
+
+/** A Worker state endpoint (`/api/shortlist`, `/api/registrations`) for the shown career. */
+export function stateUrl(path, params = {}) {
+  const q = new URLSearchParams({ career: S.career, ...params });
+  return `${path}?${q}`;
+}
+
+/** Open another career: remembered for the next visit, and the page reloads onto it. */
+export function switchCareer(key) {
+  try { localStorage.setItem(CAREER_LS, key); } catch { /* private browsing */ }
+  const url = new URL(location.href);
+  url.searchParams.set("career", key);
+  url.hash = "";
+  location.href = url.href;
+}
+
+async function pickCareer() {
+  const listed = await j("api/careers.json");
+  S.careers = listed.careers || [];
+  const known = (k) => k && S.careers.some((c) => c.key === k);
+  let saved = null;
+  try { saved = localStorage.getItem(CAREER_LS); } catch { /* private browsing */ }
+  const asked = new URLSearchParams(location.search).get("career");
+  S.career = [asked, saved, listed.default, S.careers[0]?.key].find(known);
+  if (!S.career) throw new Error("api/careers.json lists no career");
+  S.careerArchived = !!S.careers.find((c) => c.key === S.career).archived;
+}
 
 function mkPlayer(row, fields, attrNames) {
   // core.json rows stop at `weight` (index 11); all.json's ALL_PLAYER_FIELDS adds origin/capital
@@ -75,8 +132,9 @@ function mkPlayer(row, fields, attrNames) {
 }
 
 export async function boot() {
-  S.index = await j("api/index.json");
-  const core = await j("api/core.json");
+  await pickCareer();
+  S.index = await j(api("index.json"));
+  const core = await j(api("core.json"));
   S.core = core;
   S.attrs = core.attrs;
   S.tactics = core.tactics;
@@ -121,21 +179,21 @@ export async function boot() {
 
 /** Squad detail (growth trajectories + career history) — small, so loaded eagerly on demand. */
 export async function loadSquad() {
-  if (!S.squad) S.squad = await j("api/squad.json");
+  if (!S.squad) S.squad = await j(api("squad.json"));
   return S.squad;
 }
 /** The loan outlook for owned players (see api/loans.json's note). Rendered server-side
  *  because it orders players by ability; only the profile sheet asks for it. `.catch` so an
  *  older export without the file degrades to "unavailable" instead of breaking the sheet. */
 export async function loadLoans() {
-  if (!S.loans) S.loans = await j("api/loans.json").catch(() => ({ error: "not in this export" }));
+  if (!S.loans) S.loans = await j(api("loans.json")).catch(() => ({ error: "not in this export" }));
   return S.loans;
 }
 /** Squad registration: the derived home-grown status and the rule set for our tier. Small,
  *  and only the Squad page (registration columns) asks for it. */
 export async function loadRegistration() {
   if (!S.registration) {
-    S.registration = await j("api/registration.json").catch(() => null);
+    S.registration = await j(api("registration.json")).catch(() => null);
   }
   return S.registration;
 }
@@ -144,26 +202,28 @@ export async function loadRegistration() {
  *  export missing the file degrades instead of breaking the page. */
 export async function loadForecast() {
   if (!S.forecast) {
-    S.forecast = await j("api/forecast.json").catch(() => null);
+    S.forecast = await j(api("forecast.json")).catch(() => null);
   }
   return S.forecast;
 }
 /** Nations + map places for the World page. Small, and only that page asks for it. */
 export async function loadWorld() {
   if (!S.world) {
-    S.world = await j("api/world.json").catch(() => null);
+    S.world = await j(api("world.json")).catch(() => null);
   }
   return S.world;
 }
 /** Transfers (api/transfers.json): our own moves in full, the world market summarised per
  *  season, and the world record progression. Loaded by History and World only. */
 export async function loadTransfers() {
-  if (S.transfers === undefined) S.transfers = await j("api/transfers.json").catch(() => null);
+  if (S.transfers === undefined) S.transfers = await j(api("transfers.json")).catch(() => null);
   return S.transfers;
 }
 export async function loadMatches() {
   if (!S.matches) {
-    S.matches = await j("api/matches.json");
+    S.matches = await j(api("matches.json"));
+    const xi = (S.matches.player_fields || []).indexOf("xg");
+    S.matchesHave27 = xi >= 0 && (S.matches.player_rows || []).some((r) => r[xi] != null);
     buildMatchAgg();
     S.matchNames = new Map(Object.entries(S.matches.player_names || {}).map(([k, v]) => [+k, v]));
   }
@@ -191,14 +251,13 @@ export function hasProfile(tid) {
  */
 export async function loadAll(onProgress) {
   if (S.all) return S.all;
-  const url = S.index.files.all_players || "/api/all";
   onProgress?.("fetching every player in the save (~1.3 MB)…");
   let data;
   try {
-    data = await j(url);
+    data = await j(api("all"));
   } catch (e) {
-    // Local preview has no Function runtime in front of it; fall back to the file on disk.
-    data = await j("api/all.json").catch(() => { throw e; });
+    // Local preview has no Worker in front of it; fall back to the file on disk.
+    data = await j(api("all.json")).catch(() => { throw e; });
   }
   // Overwrite, don't skip: all.json's row is a strict superset of core.json's (it carries the
   // profile tail — reputation/personality/hidden attributes — that core.json deliberately
@@ -230,7 +289,7 @@ export async function loadPlayersByTid(tids) {
   const need = [...new Set(tids)].filter((t) => t != null && !S.players.has(t));
   if (!need.length) return;
   try {
-    const data = await j(`/api/all?tid=${need.join(",")}`);
+    const data = await j(`${api("all")}?tid=${need.join(",")}`);
     for (const row of data.players) {
       if (!S.players.has(row[0])) S.players.set(row[0], mkPlayer(row, data.fields, data.attrs));
     }
@@ -254,7 +313,7 @@ export async function loadProfile(tid) {
   const existing = S.players.get(tid);
   if (existing?.profileLoaded) return existing;
   try {
-    const data = await j(`/api/all?tid=${tid}`);
+    const data = await j(`${api("all")}?tid=${tid}`);
     const row = data.players.find((r) => r[0] === tid);
     if (!row) return existing || null;
     const p = mkPlayer(row, data.fields, data.attrs);
@@ -276,7 +335,7 @@ export async function loadShortlist() {
   const token = localStorage.getItem(SHORTLIST_TOKEN_KEY) || "";
   if (!token) return [];
   try {
-    const r = await fetch("/api/shortlist", { headers: { "x-fm-token": token } });
+    const r = await fetch(stateUrl("/api/shortlist"), { headers: { "x-fm-token": token } });
     if (!r.ok) return [];
     const d = await r.json();
     return d.entries || [];
@@ -545,6 +604,19 @@ export function pointsRemaining(p, toAge = 24) {
 export const MATCH_SUMS = ["goals", "assists", "passA", "passC", "keyPass", "tackA", "tackW",
   "intercept", "headA", "headW", "crossA", "crossC", "dribbles", "shotA", "shotO",
   "mistakes", "yellow", "potm"];
+// What only an FMM27 save records (null on an FMM22 match line): summed over the lines that
+// carry them, against those lines' own minutes, appearances, goals and shots (the `*27` sums),
+// so a career spanning both versions rates xG over the matches that have it.
+const SUMS_27 = ["xg", "ccc", "cccScored", "conceded"];
+/** The stats only FMM27 saves record. A career with none of them (an FMM22 career) doesn't
+ *  offer them: a column of dashes says nothing. */
+export const FMM27_STATS = new Set(["xG", "G−xG", "CCC", "xG/90", "CCC/90", "Conceded/90",
+  "xG/shot", "CCC conv %"]);
+export const hasFmm27Stats = () => !!S.matchesHave27;
+export const statOffered = (name) => !FMM27_STATS.has(name) || hasFmm27Stats();
+/** STAT_PRESETS less what this career doesn't record. */
+export const statPresets = () => Object.fromEntries(Object.entries(STAT_PRESETS)
+  .map(([k, v]) => [k, v.filter(statOffered)]));
 
 /** Display name -> how to derive it. Mirrors db.MATCH_STAT_DEFS so the column vocabulary is
  *  the same one the Streamlit pages use; a second vocabulary would be a second product. */
@@ -554,6 +626,9 @@ export const STAT_DEFS = {
   "Rating": (a) => a.rating,
   "Rating (adj)": (a) => a.ratingAdj,
   "Goals": (a) => a.goals, "Assists": (a) => a.assists, "G+A": (a) => a.goals + a.assists,
+  "xG": (a) => (a.apps27 ? a.xg : null),
+  "G−xG": (a) => (a.apps27 ? a.goals27 - a.xg : null),
+  "CCC": (a) => (a.apps27 ? a.ccc : null),
   "POTM": (a) => a.potm,
   "Key passes": (a) => a.keyPass, "Pass att": (a) => a.passA, "Tackle att": (a) => a.tackA,
   "Shot att": (a) => a.shotA, "Interceptions": (a) => a.intercept, "Dribbles": (a) => a.dribbles,
@@ -567,6 +642,8 @@ export const STAT_DEFS = {
   "Crosses/90": (a) => per90(a, "crossA"), "Dribbles/90": (a) => per90(a, "dribbles"),
   "SoT/90": (a) => per90(a, "shotO"), "Mistakes/90": (a) => per90(a, "mistakes"),
   "Yellows/90": (a) => per90(a, "yellow"),
+  "xG/90": (a) => per90of27(a, "xg"), "CCC/90": (a) => per90of27(a, "ccc"),
+  "Conceded/90": (a) => per90of27(a, "conceded"),
   "G/gm": (a) => perGm(a, "goals"), "A/gm": (a) => perGm(a, "assists"),
   "G+A/gm": (a) => a.apps ? (a.goals + a.assists) / a.apps : null,
   "KeyP/gm": (a) => perGm(a, "keyPass"), "Passes/gm": (a) => perGm(a, "passA"),
@@ -579,6 +656,8 @@ export const STAT_DEFS = {
   "Pass %": (a) => rate(a.passC, a.passA), "Tackle %": (a) => rate(a.tackW, a.tackA),
   "Header %": (a) => rate(a.headW, a.headA), "Cross %": (a) => rate(a.crossC, a.crossA),
   "Shot acc %": (a) => rate(a.shotO, a.shotA), "Conversion %": (a) => rate(a.goals, a.shotA),
+  "CCC conv %": (a) => (a.apps27 ? rate(a.cccScored, a.ccc) : null),
+  "xG/shot": (a) => (a.shots27 ? a.xg / a.shots27 : null),
 };
 /** What a match stat means, in words — the column tooltip's definition. Rates are spelt out
  *  from their base ("Int/90" -> "Interceptions per 90 minutes played"), so a new /90 or /gm stat
@@ -589,7 +668,8 @@ const STAT_BASE = {
   Int: "Interceptions", HeadW: "Headers won", Shots: "Shots", SoT: "Shots on target",
   DefAct: "Defensive actions (tackles won + interceptions + headers won)",
   Crosses: "Crosses attempted", Dribbles: "Dribbles", Mistakes: "Mistakes", Yellows: "Yellow cards",
-  Min: "Minutes",
+  Min: "Minutes", xG: "Expected goals (FMM27 saves)", CCC: "Clear-cut chances (FMM27 saves)",
+  Conceded: "Goals conceded while in goal (FMM27 saves)",
 };
 const STAT_WORDS = {
   "Apps": "Appearances, starts and substitute appearances together",
@@ -604,6 +684,11 @@ const STAT_WORDS = {
   "Cross %": "Crosses completed, as a share of crosses attempted",
   "Shot acc %": "Shots on target, as a share of all shots",
   "Conversion %": "Goals, as a share of all shots",
+  "xG": "Expected goals: what his chances were worth, as the match screen adds them up (FMM27 saves)",
+  "G−xG": "Goals minus expected goals: above 0, he scored more than his chances were worth (FMM27 saves)",
+  "CCC": "Clear-cut chances he had (FMM27 saves)",
+  "CCC conv %": "Clear-cut chances he scored from, as a share of those he had (FMM27 saves)",
+  "xG/shot": "Expected goals per shot: how good a chance he shoots from, on average (FMM27 saves)",
 };
 export function statHelp(name) {
   if (STAT_WORDS[name]) return STAT_WORDS[name];
@@ -616,12 +701,13 @@ export function statHelp(name) {
  *  a game, and one decimal would blur 0.14 and 0.06 into the same 0.1; counts, minutes and
  *  percentages whole. */
 export function statDp(name) {
-  if (name === "Rating" || name === "Rating (adj)") return 2;
+  if (name === "Rating" || name === "Rating (adj)" || name === "xG" || name === "G−xG"
+    || name === "xG/shot") return 2;
   if (name === "Min/gm") return 0;
   return /\/(90|gm)$/.test(name) ? 2 : 0;
 }
 /** Stats where less is better: a rise against a player's norm is bad news, not good. */
-const LOWER_BETTER = /^(Mistakes|Yellows)\//;
+const LOWER_BETTER = /^(Mistakes|Yellows|Conceded)\//;
 export const lowerIsBetter = (name) => LOWER_BETTER.test(name);
 
 /** A position's unit — the split the Squad page's Unit filter and the Matches page's unit chips use. */
@@ -637,18 +723,26 @@ export const UNIT_STATS = {
   Midfield: ["KeyP/90", "Passes/90", "Pass %", "DefAct/90"],
   Attack: ["G/90", "A/90", "Shots/90", "KeyP/90"],
 };
+/** UNIT_STATS, with the FMM27 measure of the unit's job up front where the career records it:
+ *  a forward's xG, a goalkeeper's goals conceded. */
+export function unitStats(unit) {
+  const extra = { Attack: ["xG/90"], GK: ["Conceded/90"] }[unit] || [];
+  return [...extra.filter(statOffered), ...UNIT_STATS[unit]];
+}
 const per90 = (a, k) => (a.min ? (90 * a[k]) / a.min : null);
 const perGm = (a, k) => (a.apps ? a[k] / a.apps : null);
+const per90of27 = (a, k) => (a.min27 ? (90 * a[k]) / a.min27 : null);
 const rate = (n, d) => (d ? (100 * n) / d : null);
 
 // Rates are per 90 minutes rather than per game: a game counts a 15-minute cameo the same as a
 // full match, so per game understates every substitute. The per-game columns stay pickable.
 export const STAT_PRESETS = {
-  "Forward": ["G/90", "A/90", "Shots/90", "Shot acc %", "Conversion %", "SoT/90", "KeyP/90", "Dribbles/90"],
+  "Forward": ["G/90", "xG/90", "G−xG", "A/90", "Shots/90", "Shot acc %", "Conversion %", "xG/shot",
+    "CCC/90", "CCC conv %", "SoT/90", "KeyP/90", "Dribbles/90"],
   "Winger": ["G/90", "A/90", "KeyP/90", "Crosses/90", "Cross %", "Dribbles/90", "Shots/90", "Shot acc %"],
   "Midfielder": ["Passes/90", "Pass %", "KeyP/90", "A/90", "Tackles/90", "TackW/90", "Int/90", "DefAct/90"],
   "Defender": ["TackW/90", "Tackle %", "Int/90", "HeadW/90", "Header %", "DefAct/90", "Pass %", "Mistakes/90"],
-  "Goalkeeper": ["Pass %", "Passes/90", "Mistakes/90", "Yellows/90"],
+  "Goalkeeper": ["Conceded/90", "Pass %", "Passes/90", "Mistakes/90", "Yellows/90"],
   "Playing time": ["Apps", "Starts", "Sub", "Min", "Min/gm", "Rating", "Rating (adj)"],
 };
 
@@ -684,8 +778,10 @@ export function aggregate(rows) {
   for (const r of rows) {
     let a = out.get(r.tid);
     if (!a) {
-      a = { tid: r.tid, apps: 0, starts: 0, min: 0, _rsum: 0, _rn: 0, _asum: 0, _an: 0 };
+      a = { tid: r.tid, apps: 0, starts: 0, min: 0, _rsum: 0, _rn: 0, _asum: 0, _an: 0,
+        apps27: 0, min27: 0, goals27: 0, shots27: 0 };
       for (const k of MATCH_SUMS) a[k] = 0;
+      for (const k of SUMS_27) a[k] = 0;
       out.set(r.tid, a);
     }
     a.apps++;
@@ -694,6 +790,10 @@ export function aggregate(rows) {
     if (r.rating != null) { a._rsum += r.rating; a._rn++; }
     if (r.rating_adj != null) { a._asum += r.rating_adj; a._an++; }
     for (const k of MATCH_SUMS) a[k] += r[k] || 0;
+    if (r.xg != null) {
+      a.apps27++; a.min27 += r.minutes || 0; a.goals27 += r.goals || 0; a.shots27 += r.shotA || 0;
+      for (const k of SUMS_27) a[k] += r[k] || 0;
+    }
   }
   for (const a of out.values()) {
     a.rating = a._rn ? a._rsum / a._rn : null;

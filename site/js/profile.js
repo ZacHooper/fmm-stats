@@ -188,11 +188,15 @@ function bioBlock(p) {
 const STAT_GROUPS = [
   ["Output", ["Apps", "Starts", "Min", "Rating", "Goals", "Assists", "G/90", "A/90"]],
   ["On the ball", ["KeyP/90", "Pass %", "Shot acc %", "Conversion %"]],
+  // FMM27 saves only: the group is dropped for a career that doesn't record them
+  ["Chances", ["xG", "xG/90", "G−xG", "CCC", "CCC conv %"]],
   ["Defending", ["Tackle %", "Header %", "Int/90", "Mistakes/90"]],
 ];
 function statBlock(agg) {
   if (!agg) return el("p.note", { text: "No parsed match data for this player — only the managed club's matches are richly parsed." });
-  return el("div", {}, STAT_GROUPS.map(([title, names]) => el("div.statgrp", {}, [
+  const groups = STAT_GROUPS.map(([title, names]) => [title, names.filter(D.statOffered)])
+    .filter(([, names]) => names.length);
+  return el("div", {}, groups.map(([title, names]) => el("div.statgrp", {}, [
     el("span.dim", { text: title }),
     el("div.kpis.sm", {}, names.map((s) => {
       const v = D.statValue(s, agg);
@@ -200,6 +204,36 @@ function statBlock(agg) {
         el("span", { text: s })]);
     })),
   ])));
+}
+
+/** Who sets him up and whom he sets up: his assisted goals for us in competitive matches, from
+ *  the match events (matches.json `goals`; FMM27 saves record the assister). Null when there
+ *  are none, so an FMM22 career shows nothing. */
+function partnersBlock(tid) {
+  const M = D.S.matches;
+  const f = M?.goal_fields || [];
+  const ix = Object.fromEntries(f.map((n, i) => [n, i]));
+  if (ix.assist_tid == null) return null;
+  const ourTid = D.S.index.career.managed_tid;
+  const by = new Map(), to = new Map();
+  for (const g of M.goals || []) {
+    if (g[ix.team_tid] !== ourTid || g[ix.kind] === "own_goal" || g[ix.assist_tid] == null
+      || D.isFriendly(g[ix.competition])) continue;
+    if (g[ix.tid] === tid) by.set(g[ix.assist_tid], (by.get(g[ix.assist_tid]) || 0) + 1);
+    if (g[ix.assist_tid] === tid) to.set(g[ix.tid], (to.get(g[ix.tid]) || 0) + 1);
+  }
+  if (!by.size && !to.size) return null;
+  const list = (m) => [...m].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${D.matchName(t)} ${n}`)
+    .join(" · ") || DASH;
+  return el("div", {}, [
+    el("h4", { text: "Partnerships" }),
+    el("table.kv", {}, [el("tbody", {}, [
+      el("tr", {}, [el("th", { text: "Set up by" }), el("td", { text: list(by) })]),
+      el("tr", {}, [el("th", { text: "Set up" }), el("td", { text: list(to) })]),
+    ])]),
+    el("p.note", { text: "His goals for us by who assisted them, and the goals he assisted by who "
+      + "scored, in competitive matches (FMM27 saves record the assister)." }),
+  ]);
 }
 
 /**
@@ -587,13 +621,13 @@ export function openProfile(tid, { role = null } = {}) {
     const lbl = (y) => `${y - 1}/${String(y).slice(2)}`;
     const unit = D.unitOf(roles[0]?.pos || "MC");
     const STATS_KEY = `fm:fit:stats:${unit}`;
-    const RATES = Object.keys(D.STAT_DEFS).filter((k) => /\/90$|%$/.test(k));
+    const RATES = Object.keys(D.STAT_DEFS).filter((k) => /\/90$|%$/.test(k) && D.statOffered(k));
     const stats = (() => {
       try {
         const v = JSON.parse(pref(STATS_KEY, "null"));
-        if (Array.isArray(v)) return v.filter((k) => D.STAT_DEFS[k]);
+        if (Array.isArray(v)) return v.filter((k) => D.STAT_DEFS[k] && D.statOffered(k));
       } catch { /* fall through */ }
-      return D.UNIT_STATS[unit];
+      return D.unitStats(unit);
     })();
     const setStats = (list) => { setPref(STATS_KEY, JSON.stringify(list)); redraw(); };
     const controls = el("div.prow.fitseason", {}, [
@@ -685,6 +719,7 @@ export function openProfile(tid, { role = null } = {}) {
       statBlock(D.S.matchAgg?.get(tid)),
       el("h4", { text: "By position" }), positionRecord(),
       splitBlock(tid),
+      partnersBlock(tid),
     );
     // Drawn straight away once matches are loaded, so the By position controls don't flash a
     // loading line each time they redraw the tab.
@@ -723,7 +758,7 @@ function shortlistButton(p, shown) {
     btn.disabled = true;
     btn.textContent = "Adding…";
     try {
-      const r = await fetch("/api/shortlist", {
+      const r = await fetch(D.stateUrl("/api/shortlist"), {
         method: "POST",
         headers: { "x-fm-token": token, "content-type": "application/json" },
         body: JSON.stringify({

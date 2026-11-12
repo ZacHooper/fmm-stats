@@ -53,3 +53,7 @@ saves_dir = "~/fm-saves"        # raw saves, one folder per career: <saves_dir>/
 [site]
 # Where your web app is deployed (see docs/DEPLOY.md). Leave unset for local use only.
 # url = "https://my-fmm-stats.example.workers.dev"
+# The careers the web app offers, in its switcher's order; it opens on [careers] default. A
+# career with `active = false` shows as archived, as it was last exported. Unset: just the
+# career being exported.
+# careers = ["mycareer", "oldcareer"]

@@ -2,8 +2,9 @@
 -- about is always in team_tid: venue H or A, goals for and against (the final
 -- score, after extra time where there was any), the shoot-out, result on the
 -- final score (a shoot-out decides a tie, not the result) and points. For a
--- match of ours with detail (int.our_matches), the side's team stats and, on
--- the managed side, its formation; NULL for every other match.
+-- match of ours with detail (int.our_matches), the side's team stats, its xG
+-- (its players' sum, FMM27 only) and, on the managed side, its formation;
+-- NULL for every other match.
 with sides as (
     select
         match_id,
@@ -32,6 +33,15 @@ with sides as (
         away_pens as pens_for,
         home_pens as pens_against
     from {{ ref('int_matches') }}
+),
+
+side_xg as (
+    select
+        match_id,
+        team_tid,
+        sum(xg) as xg
+    from {{ ref('int_player_matches') }}
+    group by match_id, team_tid
 )
 
 select
@@ -49,6 +59,7 @@ select
     case
         when (sides.venue = 'H') = ours.is_home then ours.formation
     end as formation,
+    side_xg.xg,
     {% for stat in var('team_match_stats') %}
     case
         when sides.venue = 'H' then ours.home_{{ stat }}
@@ -58,3 +69,7 @@ select
 from sides
 left join {{ ref('int_our_matches') }} as ours
     on sides.match_id = ours.match_id
+left join side_xg
+    on
+        sides.match_id = side_xg.match_id
+        and sides.team_tid = side_xg.team_tid

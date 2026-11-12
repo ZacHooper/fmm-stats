@@ -47,10 +47,10 @@ export function guessWindow(phase) {
 }
 
 function readLocal() {
-  try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || "{}") || {}; } catch { return {}; }
+  try { return JSON.parse(D.lsCareerGet(LOCAL_KEY) || "{}") || {}; } catch { return {}; }
 }
 function writeLocal(map) {
-  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(map)); } catch { /* private mode */ }
+  D.lsCareerSet(LOCAL_KEY, JSON.stringify(map));
 }
 
 /** Every saved window, newest first. `error` is set when R2 was asked and did not answer —
@@ -63,7 +63,7 @@ export async function list() {
   let error = null;
   if (tok()) {
     try {
-      const r = await fetch(API, { headers: { "x-fm-token": tok() }, cache: "no-cache" });
+      const r = await fetch(D.stateUrl(API), { headers: { "x-fm-token": tok() }, cache: "no-cache" });
       const d = await r.json();
       if (!r.ok) error = d.error || `HTTP ${r.status}`;
       else for (const rec of d.entries || []) byId.set(rec.id, { ...rec, where: "r2" });
@@ -78,7 +78,7 @@ export async function list() {
 export async function put(rec) {
   if (tok()) {
     try {
-      const r = await fetch(`${API}?id=${encodeURIComponent(rec.id)}`, {
+      const r = await fetch(D.stateUrl(API, { id: rec.id }), {
         method: "PUT",
         headers: { "x-fm-token": tok(), "content-type": "application/json" },
         body: JSON.stringify(rec),
@@ -108,7 +108,7 @@ export async function put(rec) {
 
 export async function remove(rec) {
   if (rec.where === "r2") {
-    const r = await fetch(`${API}?id=${encodeURIComponent(rec.id)}`, {
+    const r = await fetch(D.stateUrl(API, { id: rec.id }), {
       method: "DELETE", headers: { "x-fm-token": tok() },
     });
     if (!r.ok) {

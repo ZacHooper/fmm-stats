@@ -63,7 +63,7 @@ async function shortlistPanel() {
         note: q("#sl-note").value.trim(), source: "phone",
       };
       try {
-        const r = await fetch(API, {
+        const r = await fetch(D.stateUrl(API), {
           method: "POST",
           headers: { "x-fm-token": tok(), "content-type": "application/json" },
           body: JSON.stringify(body),
@@ -112,7 +112,7 @@ async function shortlistPanel() {
             text: "remove",
             onclick: async () => {
               if (!confirm(`Remove ${e2.name}?`)) return;
-              const r = await fetch(`${API}?id=${encodeURIComponent(e2.id)}`,
+              const r = await fetch(D.stateUrl(API, { id: e2.id }),
                 { method: "DELETE", headers: { "x-fm-token": tok() } });
               if (!r.ok) return toast("Delete failed", true);
               toast("Removed"); load();
@@ -128,7 +128,7 @@ async function shortlistPanel() {
     if (!tok()) { status.textContent = "no token"; drawList(); return; }
     status.textContent = "loading…";
     try {
-      const r = await fetch(API, { headers: { "x-fm-token": tok() } });
+      const r = await fetch(D.stateUrl(API), { headers: { "x-fm-token": tok() } });
       const d = await r.json();
       if (!r.ok) { status.textContent = d.error || `HTTP ${r.status}`; return; }
       rows = d.entries || [];

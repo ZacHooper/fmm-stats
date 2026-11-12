@@ -7,6 +7,7 @@
  *   Results     what happened?             every match, under its season
  *   Splits      where do we do well?       ONE table, split by season/competition/phase/round/...
  *   Opponents   who are our bogey teams?   head to head
+ *   Partnerships who sets up whom?         scorer-assister pairs (FMM27 saves record them)
  *   Team stats  how do we play?            ours against theirs, per match
  *
  * Everything is computed in the browser from `matches.json`, which ships the raw per-match and
@@ -29,8 +30,15 @@ const TABS = [
   ["results", "Results"],
   ["splits", "Splits"],
   ["opponents", "Opponents"],
+  ["partners", "Partnerships"],
   ["stats", "Team stats"],
 ];
+// Team-stat names as the Team stats tab shows them (the rest: underscores to spaces).
+const STAT_LABEL = { xg: "xG", clear_cut_chances: "clear-cut chances",
+  shots_on_target: "shots on target", passes_completed: "passes completed",
+  tackles_won: "tackles won" };
+// Team stats where more is worse: the bar's colour flips, so green is always our edge.
+const TEAM_LOWER_BETTER = new Set(["offsides", "fouls"]);
 const LS_TAB = "fm:matches:tab";
 const LS_MINMIN = "fm:matches:minmin";
 const LS_NORM = "fm:matches:norm";
@@ -61,6 +69,14 @@ export async function view() {
   }
   const f = M.match_fields;
   const all = M.matches.map((r) => Object.fromEntries(f.map((n, i) => [n, r[i]])));
+  const hasXg = all.some((m) => m.our_xg != null);
+  // Every goal in these matches, both sides'. A goal belongs to its match by date: we play at
+  // most one match a day. Only FMM27 saves record who assisted.
+  const gf = M.goal_fields || [];
+  const goals = (M.goals || []).map((r) => Object.fromEntries(gf.map((n, i) => [n, r[i]])));
+  const hasAssists = goals.some((g) => g.assist_tid != null);
+  const ourTid = D.S.index.career.managed_tid;
+  const tabs = TABS.filter(([k]) => k !== "partners" || hasAssists);
   const comp = (m) => m.competition || "?";
   const isFriendly = (m) => D.isFriendly(m.competition);
 
@@ -210,8 +226,8 @@ export async function view() {
   const panel = el("div");
   out.append(el("div.tbar", {}, filters), kpiRow, tabRow, panel);
 
-  const known = (t) => TABS.some(([k]) => k === t);
-  let tab = [params().get("tab"), lsGet(LS_TAB)].find(known) || TABS[0][0];
+  const known = (t) => tabs.some(([k]) => k === t);
+  let tab = [params().get("tab"), lsGet(LS_TAB)].find(known) || tabs[0][0];
   function show(t) {
     tab = t; lsSet(LS_TAB, t); setParams({ tab: t });
     draw();
@@ -227,11 +243,11 @@ export async function view() {
     ])));
     const ms = filtered();
     drawKpis(ms);
-    tabRow.replaceChildren(...TABS.map(([k, label]) => el(`button.chip${k === tab ? ".on" : ""}`, {
+    tabRow.replaceChildren(...tabs.map(([k, label]) => el(`button.chip${k === tab ? ".on" : ""}`, {
       text: label, role: "tab", "aria-selected": k === tab ? "true" : "false",
       onclick: () => show(k),
     })));
-    const PANELS = { overview, players, results, splits, opponents, stats };
+    const PANELS = { overview, players, results, splits, opponents, partners, stats };
     panel.replaceChildren(PANELS[tab](ms));
   }
 
@@ -486,7 +502,7 @@ export async function view() {
       } }) : null]));
     box.append(playerTable({
       key: "matchgrid", rows, catalogue: cat,
-      presets: Object.fromEntries(Object.entries(D.STAT_PRESETS).map(([k, v]) => [k, v.map((s) => `stat:${s}`)])),
+      presets: Object.fromEntries(Object.entries(D.statPresets()).map(([k, v]) => [k, v.map((s) => `stat:${s}`)])),
       sticky: ["player"],
       defaults: ["pos", "stat:Apps", "stat:Starts", "stat:Min", "stat:Rating (adj)", "stat:Goals",
         "stat:Assists", "stat:Pass %", "stat:Tackle %"],
@@ -513,6 +529,7 @@ export async function view() {
     const rows = [];
     let season = null;
     const bySeason = new Map();
+    const cols = hasXg ? 9 : 8;
     for (const m of ms) {
       const o = bySeason.get(m.season) || { w: 0, d: 0, l: 0, pts: 0, p: 0 };
       o.p++; o.pts += m.pts || 0;
@@ -523,7 +540,7 @@ export async function view() {
       if (m.season !== season) {
         season = m.season;
         const o = bySeason.get(season);
-        rows.push(el("tr.grp", {}, [el("td", { colspan: 8 }, [
+        rows.push(el("tr.grp", {}, [el("td", { colspan: cols }, [
           el("b", { text: `${season - 1}/${String(season).slice(2)}` }),
           el("span.dim", { text: ` · ${o.p} played · ${o.w}-${o.d}-${o.l} · ${num(o.pts / o.p, 2)} pts/gm` }),
         ])]));
@@ -535,16 +552,20 @@ export async function view() {
         el("td", { text: m.venue }),
         el("td.name", {}, [clubLink(m)]),
         el("td.num", { text: scoreText(m), title: scoreTitle(m) }),
+        ...(hasXg ? [el("td.num.dim", { text: m.our_xg == null ? DASH
+          : `${num(m.our_xg, 1)}–${num(m.opp_xg, 1)}` })] : []),
         el("td", {}, [pill(m.result, RES[m.result] || "flat")]),
         el("td", { text: m.formation || DASH }),
       ]));
     }
     return el("div.scroll", {}, [el("table", {}, [
-      el("thead", {}, [el("tr", {}, ["Date", "Competition", "Stage", "H/A", "Opponent", "Score", "", "Started in"]
-        .map((h, i) => el(`th${i === 5 ? ".num" : ""}`, {
-          text: h, title: i === 7 ? "Our kick-off shape — the slots as they stood at kick-off" : null,
+      el("thead", {}, [el("tr", {}, ["Date", "Competition", "Stage", "H/A", "Opponent", "Score",
+        ...(hasXg ? ["xG"] : []), "", "Started in"]
+        .map((h) => el(`th${h === "Score" || h === "xG" ? ".num" : ""}`, {
+          text: h, title: h === "Started in" ? "Our kick-off shape — the slots as they stood at kick-off"
+            : h === "xG" ? "Expected goals, ours–theirs: what the chances were worth" : null,
         })))]),
-      el("tbody", {}, rows.length ? rows : [el("tr", {}, [el("td.empty", { colspan: 8, text: "No matches in this filter." })])]),
+      el("tbody", {}, rows.length ? rows : [el("tr", {}, [el("td.empty", { colspan: cols, text: "No matches in this filter." })])]),
     ])]);
   }
 
@@ -608,11 +629,64 @@ export async function view() {
     ]);
   }
 
+  // ---------------------------------------------------------------- Partnerships
+  // Who sets up whom: each assisted goal of ours in the filtered matches, as an assister-scorer
+  // pair, with each player's own totals beside it — the creators, and who they find.
+  function partners(ms) {
+    const dates = new Set(ms.map((m) => String(m.date).slice(0, 10)));
+    const ours = goals.filter((g) => dates.has(String(g.date).slice(0, 10))
+      && g.team_tid === ourTid && g.kind !== "own_goal");
+    const pairs = new Map(), made = new Map(), scored = new Map();
+    let assisted = 0;
+    for (const g of ours) {
+      scored.set(g.tid, (scored.get(g.tid) || 0) + 1);
+      if (g.assist_tid == null) continue;
+      assisted++;
+      made.set(g.assist_tid, (made.get(g.assist_tid) || 0) + 1);
+      const k = `${g.assist_tid}>${g.tid}`;
+      const o = pairs.get(k) || { from: g.assist_tid, to: g.tid, n: 0, last: null };
+      o.n++; o.last = String(g.date).slice(0, 10);
+      pairs.set(k, o);
+    }
+    if (!assisted) return el("p.note", { text: "No assisted goals in this filter." });
+    const who = (tid) => el("a", { href: "#", text: D.matchName(tid),
+      onclick: (e) => { e.preventDefault(); openPlayer(tid); } });
+    const rows = [...pairs.values()].sort((a, b) => b.n - a.n || (b.last > a.last ? 1 : -1));
+    return el("div", {}, [
+      el("div.kpis", {}, [
+        kpi("Goals", ours.length), kpi("Assisted", assisted),
+        kpi("Partnerships", pairs.size),
+        kpi("Creators", made.size),
+      ]),
+      el("div.scroll.fit", {}, [el("table", {}, [
+        el("thead", {}, [el("tr", {}, [
+          el("th", { text: "Assister" }), el("th", { text: "Scorer" }),
+          el("th.num", { text: "Goals", title: "Goals the assister set up for the scorer" }),
+          el("th.num", { text: "Of his assists", title: "The pair's goals, as a share of the assister's assists" }),
+          el("th.num", { text: "Of his goals", title: "The pair's goals, as a share of the scorer's goals" }),
+          el("th", { text: "Last" }),
+        ])]),
+        el("tbody", {}, rows.map((r) => el("tr", {}, [
+          el("td.name", {}, [who(r.from)]), el("td.name", {}, [who(r.to)]),
+          el("td.num", { text: r.n }),
+          el("td.num", { text: `${Math.round((100 * r.n) / made.get(r.from))}%` }),
+          el("td.num", { text: `${Math.round((100 * r.n) / scored.get(r.to))}%` }),
+          el("td.dim", { text: r.last }),
+        ]))),
+      ])]),
+      el("p.note", { text: "Our goals in the filtered matches with the game's assist, from the match "
+        + "events (FMM27 saves record who assisted; an FMM22 match's goals have none). Own goals "
+        + "for us are left out." }),
+    ]);
+  }
+
   // ---------------------------------------------------------------- Team stats
   function stats(ms) {
     const names = f.filter((n) => n.startsWith("our_")).map((n) => n.slice(4));
     if (!names.length) return el("p.note", { text: "No team stats in this export." });
-    const rows = names.map((s) => ({ s, us: avg(ms, `our_${s}`), them: avg(ms, `opp_${s}`) }));
+    // A stat no match in the filter records (xG and fouls before FMM27) is left out.
+    const rows = names.map((s) => ({ s, us: avg(ms, `our_${s}`), them: avg(ms, `opp_${s}`) }))
+      .filter((r) => r.us != null || r.them != null);
     return el("div", {}, [
       el("div.scroll.fit", {}, [el("table.edge", {}, [
         el("thead", {}, [el("tr", {}, [
@@ -624,19 +698,21 @@ export async function view() {
           const share = edge == null || !Math.max(us, them) ? 0 : edge / Math.max(us, them);
           const w = Math.min(50, Math.abs(share) * 100);
           return el("tr", {}, [
-            el("td", { text: s.replace(/_/g, " ") }),
-            el("td.num", { text: us == null ? DASH : num(us, 1) }),
+            el("td", { text: STAT_LABEL[s] || s.replace(/_/g, " ") }),
+            el("td.num", { text: us == null ? DASH : num(us, s === "xg" ? 2 : 1) }),
             el("td.edgecol", { title: edge == null ? "" : `${edge >= 0 ? "+" : ""}${num(edge, 1)} per match` }, [
-              el("span.edgetrack", {}, [el(`span.edgebar.${edge >= 0 ? "good" : "bad"}`, {
+              el("span.edgetrack", {}, [el(`span.edgebar.${(edge >= 0) !== TEAM_LOWER_BETTER.has(s) ? "good" : "bad"}`, {
                 style: `width:${w.toFixed(1)}%;${edge >= 0 ? "left:50%" : `left:${(50 - w).toFixed(1)}%`}`,
               })]),
             ]),
-            el("td", { text: them == null ? DASH : num(them, 1) }),
+            el("td", { text: them == null ? DASH : num(them, s === "xg" ? 2 : 1) }),
           ]);
         })),
       ])]),
-      el("p.note", { text: "Averages per match over the filtered set. The bar is our edge as a share "
-        + "of the larger side: right and green where we out-do them, left and red where they out-do us." }),
+      el("p.note", { text: "Averages per match over the filtered set. The bar is the difference as a "
+        + "share of the larger side, right where we have more and left where they do; green is our "
+        + "edge and red theirs (fewer offsides and fouls is the edge). xG and fouls are recorded by "
+        + "FMM27 saves only." }),
     ]);
   }
 

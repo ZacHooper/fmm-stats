@@ -131,8 +131,10 @@ vars:
   match_id_tid_base: 100000
   # The team stats the match table holds per side (stg_matches home_ / away_), carried onto
   # fact_team_match for our matches.
+  # Each side's team stats in our own matches, as the match row stores them (fouls only on
+  # FMM27, NULL on an FMM22 match).
   team_match_stats: [shots, shots_on_target, passes, passes_completed, tackles, tackles_won,
-                     crosses, interceptions]
+                     crosses, interceptions, clear_cut_chances, corners, offsides, fouls]
   # The role a position's match ratings are compared within (int_player_match_ratings).
   # A role's match ratings are restated (rating_adj) only once the managed team has this many
   # competitive starts in it: below that the z-score is noise, or undefined (one keeper

@@ -2,9 +2,8 @@
 -- grows through a season, so a match's row is the latest snapshot holding it.
 -- cid is the competition the match table names; match_id is the same key as
 -- int_world_matches'. formation is the managed side's (is_home: the home
--- side); the team stats are each side's, and so are the corners, clear-cut
--- chances and offsides the team head stores, and on FMM27 its fouls and
--- manager (NULL on FMM22).
+-- side); the team stats (var('team_match_stats')) are each side's, and so is
+-- its manager on FMM27 (NULL on FMM22).
 select
     {{ match_id('match_date', 'home_team_tid', 'away_team_tid') }} as match_id,
     match_date,
@@ -23,10 +22,6 @@ select
     {% for stat in var('team_match_stats') %}
     {{ side }}_{{ stat }},
     {% endfor %}
-    {{ side }}_corners,
-    {{ side }}_clear_cut_chances,
-    {{ side }}_offsides,
-    {{ side }}_fouls,
     {{ side }}_manager_tid,
     {% endfor %}
     snapshot_date as source_snapshot_date

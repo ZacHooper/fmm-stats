@@ -12,7 +12,9 @@
 -- full-time place in his side's XI, NULL for substitutes. is_player_of_match
 -- is the game's own Player of the Match (int_our_matches.player_of_match).
 -- person_id is NULL for a player the snapshot holds no person record for.
--- xg and goals_conceded are FMM27's, NULL on an FMM22 match.
+-- xg and goals_conceded are FMM27's, NULL on an FMM22 match, and so are
+-- clear_cut_chances (the clear-cut-chance events naming him) and
+-- clear_cut_scored (those followed by his own goal in the same minute).
 {%- set minutes = var('match_minutes') %}
 
 with lines as (
@@ -37,6 +39,32 @@ sent_off as (
         on events.event_type_code = event_kinds.code
     where event_kinds.ends_appearance
     group by all
+),
+
+chances as (
+    select
+        chances.match_id,
+        chances.player_tid,
+        count(distinct chances.event_index) as clear_cut_chances,
+        count(
+            distinct case
+                when goals.event_index is not null then chances.event_index
+            end
+        ) as clear_cut_scored
+    from {{ ref('int_match_events') }} as chances
+    left join {{ ref('int_match_events') }} as goals
+        on
+            chances.match_id = goals.match_id
+            and chances.player_tid = goals.player_tid
+            and chances.minute = goals.minute
+            and chances.event_index < goals.event_index
+            and goals.event_type_code in (
+                select event_kinds.code
+                from {{ ref('int_event_types') }} as event_kinds
+                where event_kinds.scores_for = 'for'
+            )
+    where chances.event_type = 'clear_cut_chance'
+    group by chances.match_id, chances.player_tid
 ),
 
 placed as (
@@ -107,8 +135,22 @@ select
     placed.yellows,
     placed.xg,
     placed.goals_conceded,
+    case
+        when snapshots.save_format = 'fmm27'
+            then coalesce(chances.clear_cut_chances, 0)
+    end as clear_cut_chances,
+    case
+        when snapshots.save_format = 'fmm27'
+            then coalesce(chances.clear_cut_scored, 0)
+    end as clear_cut_scored,
     placed.snapshot_date as source_snapshot_date
 from placed
+inner join {{ ref('stg_snapshots') }} as snapshots
+    on placed.snapshot_date = snapshots.snapshot_date
+left join chances
+    on
+        placed.match_id = chances.match_id
+        and placed.player_tid = chances.player_tid
 left join {{ ref('int_person_snapshots') }} as persons
     on
         placed.snapshot_date = persons.snapshot_date
