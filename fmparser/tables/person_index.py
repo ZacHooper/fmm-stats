@@ -8,10 +8,10 @@ The walk ends exactly on the staff count (4,642 / 6,212): the staff block that f
 counted by the staff table, so the next table is per staff member. That landing is the
 table's extent proof; `locate_person_index` refuses a frame that doesn't make it.
 
-Each row holds two u16 row numbers into tables not read yet (`ffff` for most people):
-`row_a` is set for 2,312 people on frem-2026-06-11 (distinct, up to 2,589: a pool with gaps)
-and 3,010 on truro-2026-08-08 (exactly 0-3,009); `row_b` for 36 and 27. Who holds them is
-not tied to one club or nation. The rest is unnamed.
+Each row holds two u16 row numbers (`ffff` for most people). `loan_slot` is the person's
+slot in the loan pool (`loans.py`): set for every player on loan, 2,312 on frem-2026-06-11
+and 3,010 on truro-2026-08-08, and the slot holds his tid. `row_b` is set for about 30
+people and points into a table not read yet. The rest is unnamed.
 
 FMM27's row is FMM22's with one byte inserted at +2 (always 0) and two `ff` bytes appended.
 """
@@ -36,7 +36,7 @@ __all__ = [
 PERSON_INDEX = Record("person_index", 14, (
     Field(0, 1, UNKNOWN, U8, note="0, 1 or 3"),
     Field(1, 1, UNKNOWN, U8, note="0 or 1"),
-    Field(2, 2, "row_a", U16, note="a row in a table not read yet; ffff for most people"),
+    Field(2, 2, "loan_slot", U16, note="his slot in the loan pool; ffff when not on loan"),
     Field(4, 2, "row_b", U16, note="a row in a table not read yet; set for ~30 people"),
     Field(6, 2, UNKNOWN, U16, note="ffff, or 0 where row_b is set"),
     Field(8, 1, UNKNOWN, U8, note="0, 1, 2 or 32"),
@@ -47,7 +47,7 @@ PERSON_INDEX_FMM27 = Record("person_index_fmm27", 15, (
     Field(0,  1, UNKNOWN, U8, note="0, 1 or 3"),
     Field(1,  1, UNKNOWN, U8, note="0 or 1"),
     Field(2,  1, UNKNOWN, U8, note="0 on every row measured; not in FMM22"),
-    Field(3,  2, "row_a", U16, note="a row in a table not read yet; ffff for most people"),
+    Field(3,  2, "loan_slot", U16, note="his slot in the loan pool; ffff when not on loan"),
     Field(5,  2, "row_b", U16, note="a row in a table not read yet; set for ~30 people"),
     Field(7,  2, UNKNOWN, U16, note="ffff, or 0 where row_b is set"),
     Field(9,  1, UNKNOWN, U8, note="0, 1 or 8"),

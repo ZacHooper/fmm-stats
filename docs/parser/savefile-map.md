@@ -60,7 +60,9 @@ notes. The status column names the `core` table that reads it
 | 16,752,549 | 20,021,621 | 3.27 MB | **[rule files](rule_files.md)** — the tagged data dictionary: 667 count-framed rule files (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | game database; the gaps between rule files change | Shape A | `RULE_FILES_TABLE`; `team_counts` → `competition_team_counts.json` |
 | 20,021,621 | 29,171,689 | **9.15 MB** | **FILLER — 94% `0xFF`, 2% `00`.** Not a research target | — | — | — |
 | **29,171,689** | **31,907,618** | **2.74 MB** | **[contract grid](contracts.md)** — dense **83-byte** records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table) | **reserved space**: room for 59,632 slots, one per person, rewritten in place | Shape C | `CONTRACT_TABLE` |
-| 31,907,618 | 35,439,434 | 3.53 MB | **UNIDENTIFIED** (`00` 53% / `ff` 31% / other 17%) | — | — | — |
+| 31,907,618 | 34,120,896 | 2.21 MB | the contract grid's empty slots, up to its capacity (59,632 × 83 B) | reserved space | Shape C | `CONTRACT_TABLE` |
+| 34,120,896 | 34,276,977 | 0.16 MB | **[loans](loans.md)** — `[u16 0][u32 capacity = 6,243]`, then 25 B slots: `[tid][loan club u16][start][end][pct][1][option][u32][4 B]`, 2,312 used. Every player on loan points at his slot (`person_index.loan_slot`) | **reserved space**: slots filled and emptied as loans start and end | found by its back-links | `LOANS_TABLE` |
+| 34,276,977 | 35,438,751 | 1.16 MB | **UNIDENTIFIED** | — | — | — |
 | **35,438,751** | **38,405,582** | **2.97 MB** | **[seasonal transfer band](#the-transfer-band)** — `[u32 65,000][u32 count = 20,747][2 B]`, then 20,747 × 143 B transfer-negotiation rows, row k holding k at +109: every bid, and the accepted one with its fee and contract terms. The rows fill the whole span | **resets every July**; the span's collapse IS the file's July shrink | Shape A | hdr (no parser table) |
 | 38,404,968 | 40,042,185 | 1.64 MB | **UNIDENTIFIED** (`00` 34% / `ff` 33% / other 32%) | — | — | — |
 | 40,042,185 | 40,141,560 | 99,375 B | **[match-slot table](match_slots.md)** — 3,975 × 25 B, two clubs and a score, no venue | **reserved space**: slots reused | Shape C | `MATCH_SLOTS_TABLE` |
@@ -165,7 +167,7 @@ Size alone misleads; the filler fraction matters more.
 |---|---|---|---|---|
 | 0.57 – 3.99M | 3.42 MB | 45% | 1.55 MB | the person table ([person_info](person_info.md)); the records are walked, the bytes inside them are partly unnamed |
 | 56.31 – 61.25M | 4.94 MB | 18% | ~0.9 MB | between the league-titles table and the player lists |
-| 31.91 – 35.44M | 3.53 MB | 17% | 0.59 MB | in front of the transfer band |
+| 34.28 – 35.44M | 1.16 MB | — | not re-measured | after the [loans](loans.md), in front of the transfer band |
 | 38.40 – 40.04M | 1.64 MB | 32% | 0.53 MB | between the transfer band and the match-slot table |
 | 14.44 – 16.75M | 2.31 MB | — | not re-measured | after the [per-person rows](person_index.md): a chain of counted blocks with no `0xFF` in front, which is why a frame search found none. The first is counted by the staff table |
 | 41.11 – 42.63M | 1.52 MB | 18% | 0.27 MB | 82% zero, mostly padding |
@@ -326,7 +328,7 @@ The career half on `truro-2026-07-25`, in file order:
 | from | table | notes |
 |---|---|---|
 | 29,539,097 | [contract grid](contracts.md) | 83 B, capacity 81,465, 44,960 used; four `ff` bytes added to the frame |
-| 36,300,713 | unnamed 25 B table | `[tid u32][u16][date][date]…`, after the grid |
+| 36,300,713 | [loans](loans.md) | 6,637 × 25 B slots, 2,513 loans; then ~1.48 MB unread to the transfer band |
 | ~37.95M | transfer band | 143 B rows |
 | 40,459,247 | [name id-tables](names.md) | surnames, first names, nicknames; FMM22's locators |
 | 43,991,857 | [history](history.md) | 452,090 rows declared |

@@ -311,7 +311,9 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     [16752549, 20021621, "database", "Rule files (tagged data dictionary)", "rule_files.md", "Shape A", "RULE_FILES_TABLE", "667 count-framed rule files ([u32 n][n tagged fields]), 99.2% of the span. The 27 KB between them is per-save state, undecoded."],
     [20021621, 29171689, "filler", "Filler", null, "", "", "94% 0xFF, 2% 00. Not a research target."],
     [29171689, 31907618, "reserved", "Contract grid", "contracts.md", "Shape C", "CONTRACT_TABLE", "Dense 83-byte records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table). Stable all career."],
-    [31907618, 35438751, "unknown", "Unidentified", null, "", "", "00 53% / ff 31% / other 17%."],
+    [31907618, 34120896, "reserved", "Contract grid, empty slots", "contracts.md", "Shape C", "CONTRACT_TABLE", "The rest of the grid's capacity (59,632 × 83 B), slots not yet used."],
+    [34120896, 34276977, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,243 slots × 25 B, 2,312 loans: the player, the club he is on loan at, start, end, a percentage and an option. Every player on loan points at his slot."],
+    [34276977, 35438751, "unknown", "Unidentified", null, "", "", "1.16 MB in front of the transfer band."],
     [35438751, 38405582, "seasonal", "Seasonal transfer band", "#band", "Shape A", "hdr", "[u32 65,000][u32 count = 20,747][2 B], then 20,747 × 143 B transfer-negotiation rows: every bid, and the accepted one with its fee and contract terms. Its collapse is the file's July shrink."],
     [38404968, 40042185, "unknown", "Unidentified", null, "", "", "00 34% / ff 33% / other 32%."],
     [40042185, 40141560, "reserved", "Match-slot table", "match_slots.md", "Shape C", "MATCH_SLOTS_TABLE", "3,975 × 25 B: two clubs and a score, no venue. The 3,975 is a capacity: slots are reused."],
@@ -500,7 +502,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
   var gaps = [
     ["56.31–61.25 MB", 4.94, 0.9, "between the league-titles table and the player lists"],
-    ["31.91–35.44 MB", 3.53, 0.59, "in front of the transfer band"],
+    ["34.28–35.44 MB", 1.16, 0.59, "after the loans, in front of the transfer band; real bytes not re-measured"],
     ["38.40–40.04 MB", 1.64, 0.53, "between the transfer band and the match-slot table"],
     ["14.44–16.75 MB", 2.31, 0.48, "after the per-person rows: counted blocks with no 0xFF in front; real bytes not re-measured"],
     ["20.02–29.17 MB", 9.15, 0.3, "94% 0xFF: padding, not a target"],

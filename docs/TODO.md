@@ -153,17 +153,33 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
   table holds one edition); find the xG and season stats (#10a). A save before and after a
   scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
   only save diffs across a derby match can name them.
-Then Phase 2 of the plan.
+Phase 2, in progress:
+- **The [loan pool](parser/loans.md) is read** (the plan's "25-byte table"): every loan in
+  the world, found by `person_index.loan_slot`, on all eight saves. Open: **load it** into
+  `raw` and use it for loan spells for every club (today's `mart.fact_loan_spell` comes from
+  the progress bit, our squad only, loans out only); name `pct` and the u32 at +17 from a
+  loan screen. The 1.48 MB after it, to the transfer band, is unread.
+- **The contract grid's span ends 89 bytes short on frem-2030-06-22**: the loan pool's
+  header sits 89 bytes past it there, and right after the span on every other save. Check
+  the grid's last slots on that save.
+- **Competition record books** (club records → player progress): see #3. Then the
+  per-player block after the transfer band and the dated queue before the archive.
 
 ### 3. The unclaimed regions of the career half
 - **54.21–59.27 M** (5.1 MB) — around our match region. Unexamined. One populated
   player-list block sits in this stretch on older saves (`Jeppe Corfitzen` at 56,336,372 on
   `frem-2026-06-11`), so start with #4's structure.
 - **53.99–54.14 M** — straight after the training table (0.16 MB). Unexamined.
-- **Straight after the club-records table** (46.66 M on `frem-2027-08-08`): `[count u32]` =
-  162 on every save, then variable-length rows carrying 21-byte matches shaped like the club
-  team records (`[f32 value][year][day]…[club][opp][for][against]`). Likely the competitions'
-  own record books. Walk it from its count, as the club records were.
+- **Straight after the club-records table** (48.17 M on `frem-2026-06-11`): the
+  competitions' record books. `[count u32]` = 162 on every Frem save (176 on Truro, as a u16
+  followed by different bytes), then cid 0's book: the Belgian Pro League A, whose first
+  rows name Anderlecht, Club Brugge, Genk, Charleroi. A row is 21 bytes, `[holder club u16]
+  [f32 value][season u16][day u16][u16][ffff][u8][club u16][opp u16][for u8][against u8]`
+  (71, 87 … read like points totals; one row is Genk's 4-0 away win), the club records' team
+  row without its cid and with the holder in front. After 16 such rows come 24-byte rows
+  (a 22-byte player row plus the holder), then a long run of 21-byte empty rows. The book's
+  row counts and where one competition's book ends are not found yet: try the club
+  records' 12 + 12 + 12 + 12 blocks per competition before anything else.
 - **The transfer band: read the rest of the row** (35.4–38.4 M,
   [savefile map](parser/savefile-map.md#the-transfer-band)). Count-framed and decoded on paper:
   every bid of the season, the accepted one with its fee and contract terms. Open: the kind
