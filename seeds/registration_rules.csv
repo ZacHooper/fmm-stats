@@ -1,0 +1,7 @@
+rule_set,tier_from,tier_to,league_label,list_max,list_label,free_label,free_under_age,free_born_from,free_gk,hg_min,hg_club_min,hg_nations,matchday_subs,matchday_hg_min,matchday_loan_max,loan_max_per_club,min_matchday_age
+denmark,1,2,Superliga / 1. Division,25,A-list,B-list,21,01-02,false,8,4,,,,,,16
+denmark,3,4,2. / 3. Division,25,A-list,B-list,21,01-02,false,0,0,,,,,,16
+england,3,3,League One,22,Squad list,Exempt,21,01-01,true,8,0,England|Wales,7,7,5,4,
+england,4,4,League Two,22,Squad list,Exempt,21,01-01,true,8,0,England|Wales,7,7,5,4,
+england,5,5,National League,,Squad list,Exempt,21,01-01,false,0,0,England|Wales,7,,5,,
+england,6,6,National League North / South,,Squad list,Exempt,21,01-01,false,0,0,England|Wales,5,,5,,

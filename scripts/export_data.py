@@ -585,16 +585,33 @@ def main():
                 "coarsely outside our own squad to forecast honestly. " + IMMERSION})
 
     # ------------------------------------------------------------ registration.json
+    # The rules that apply on this snapshot (the career's rule set, the row for our league's
+    # tier), and every tier's row of the rule set, which the Squad page's "Count as" picker
+    # recounts the plan against. None / [] for a career with no rule set.
+    def rule_row(r):
+        return {**{k: r[k] for k in r if k not in ("is_goalkeeper_free",
+                                                     "matchday_home_grown_min")},
+                "free_gk": bool(r["is_goalkeeper_free"]),
+                "matchday_hg_min": r["matchday_home_grown_min"]}
     rules = s.rows("""SELECT tier, league_name, a_list_max, hg_min, hg_club_min, b_list_under_age,
-                             min_matchday_age, nation, u21_on
+                             min_matchday_age, nation, u21_on, tier_from, league_label,
+                             list_label, free_label, is_goalkeeper_free, matchday_subs,
+                             matchday_home_grown_min, matchday_loan_max, loan_max_per_club
                       FROM site.registration_rules WHERE snapshot_date = ?""", [d])
+    rule_set = [rule_row(r) for r in s.rows(
+        """SELECT tier_from, tier_to, league_label, a_list_max, hg_min, hg_club_min,
+                  b_list_under_age, min_matchday_age, list_label, free_label,
+                  is_goalkeeper_free, matchday_subs, matchday_home_grown_min,
+                  matchday_loan_max, loan_max_per_club
+           FROM site.registration_rule_set ORDER BY tier_from""")]
     reg_fields = ["tid", "age", "b_list", "hg_club", "hg_basis", "hg_association",
                   "months_club", "months_to_go", "hg_eta", "window_open", "origin_club",
                   "origin_nation", "via_academy"]
     reg = s.rows("SELECT * FROM site.registration WHERE snapshot_date = ?", [d])
     emit("registration.json", {
         "snapshot": {"season": season, "phase": phase},
-        "rules": ({**rules[0], "u21_on": day(rules[0]["u21_on"])} if rules else None),
+        "rules": ({**rule_row(rules[0]), "u21_on": day(rules[0]["u21_on"])} if rules else None),
+        "ruleSet": rule_set,
         "fields": reg_fields,
         "players": sorted(
             [[tid_of[r["person_id"]], num(r["age"]), bool(r["b_list"]), bool(r["hg_club"]),
@@ -604,9 +621,10 @@ def main():
               day(r["hg_eta"]), bool(r["window_open"]), r["origin_club"], r["origin_nation"],
               bool(r["via_academy"])]
              for r in reg if r["person_id"] in tid_of]),
-        "note": "Squad registration is a self-imposed rule — FMM22 does not model it. "
-                "Home-grown status is derived from origin club, career history and observed "
-                "spells; see docs/danish-registration-rules.md."})
+        "note": "Squad registration is a self-imposed rule — the game does not model it. "
+                "The rules are the career's rule set (seeds/registration_rules.csv) for the "
+                "managed league's tier. Home-grown status is derived from origin club, career "
+                "history and observed spells; see site/guides/registration.md."})
 
     # ------------------------------------------------------------ world.json
     our_nation = s.scalar("SELECT nation FROM site.clubs WHERE snapshot_date = ? "

@@ -311,7 +311,7 @@ is queryable, which covers questions the JSON files above don't shape an answer 
 For a structured job, fetch the guide and follow it:
 
 - [`guides/scout.md`](guides/scout.md) — scout an opponent for an upcoming match.
-- [`guides/registration.md`](guides/registration.md) — the squad-registration house rule (A/B lists, home grown). FMM models none of it; every
+- [`guides/registration.md`](guides/registration.md) — the squad-registration house rule (the career's rule set: the capped and free lists, home grown). FMM models none of it; every
   field is derived, so report it as "home grown on our reading of the save".
 
 ## Deriving the common things

@@ -9,7 +9,9 @@
 --                    during the season stays on it all season
 --   empty group      a store with a squad has club-trained and B-list players;
 --                    club-trained only once it holds a season after the
---                    career's first (a new career's squad came from elsewhere)
+--                    career's first (a new career's squad came from elsewhere),
+--                    B-list only under a rule set (site_registration_rules has
+--                    a row)
 -- One row per offending player and snapshot, plus one per empty group.
 with registration as (
     select
@@ -73,6 +75,12 @@ where
         else counts.n_b_list
     end = 0
     and exists (select 1 as found from {{ ref('stg_snapshots') }})
+    and (
+        group_names.group_name != 'b-list'
+        or exists (
+            select 1 as found from {{ ref('site_registration_rules') }}
+        )
+    )
     and (
         group_names.group_name != 'club-trained'
         or (

@@ -43,12 +43,20 @@ a new export file to its `DATA` list (`tests/test_site_offline.py` checks). See 
 Read [`docs/DEPLOY.md`](../docs/DEPLOY.md) before touching the deploy.
 
 ### Squad registration is a HOUSE RULE, not something the save models
-This is the author's own rule for a Danish career, built into the app as an example of a
-self-imposed constraint. A career in another country would want its own rules, or none.
-FMM22 has no A-list, no B-list and no home-grown requirement. The Squad page's registration
-columns and card (`site/js/registration.js`) enforce the Danish Herre-DM rules ([`docs/danish-registration-rules.md`](../docs/danish-registration-rules.md))
-on ourselves: a 25-man A-list needing 8 home grown of whom 4 club-trained (tiers 1–2 only), plus
-an unlimited B-list for players under 21 at the last new year. Home-grown status is **derived** —
+A self-imposed constraint the game has no notion of: no squad list, no B-list, no home-grown
+requirement. Each career names a **rule set** (`registration` in `fmm.toml`: `denmark`, the
+default, `england`, or `none`); the sets are rows of `seeds/registration_rules.csv`, one per
+range of league tiers, and the managed league's tier picks the row
+(`site.registration_rules`), so a promotion switches the rules. `denmark` is the Herre-DM rules
+([`docs/danish-registration-rules.md`](../docs/danish-registration-rules.md)): a 25-man A-list
+needing 8 home grown of whom 4 club-trained (tiers 1–2 only), plus an unlimited B-list for players
+under 21 at the last new year. `england` is the EFL and National League rules
+([`docs/english-registration-rules.md`](../docs/english-registration-rules.md)): a 22-man squad
+list with 8 home grown (FA or FAW clubs) in Leagues One and Two, under-21s and goalkeepers exempt,
+no cap below. The Squad page's registration columns and card (`site/js/registration.js`) take
+their labels and quotas from the rules; in the code A is the capped list and B the free one.
+The card's **Count as** picker recounts the plan against another tier of the same rule set
+(`site.registration_rule_set`, `ruleSet` in `registration.json`). Home-grown status is **derived** —
 never report it as a fact the game asserts. The data layer is `site.registration` and
 `site.registration_rules` (`fmstats/models/site/`); the derivation and its two
 deliberate departures from a literal reading are in

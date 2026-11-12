@@ -271,6 +271,13 @@ models:
     data_tests:
       - rows_match_source: {arguments: {table: value_model}}
       - unique_combination: {arguments: {columns: [term]}}
+  - name: stg_registration_rules
+    description: >
+      The squad-registration rule sets, one row per rule set and tier range, from
+      seeds/registration_rules.csv.
+    data_tests:
+      - rows_match_source: {arguments: {table: registration_rules}}
+      - unique_combination: {arguments: {columns: [rule_set, tier_from]}}
   - name: stg_training_attributes
     description: The Training page Attr codes, from seeds/training_attributes.csv.
     data_tests:

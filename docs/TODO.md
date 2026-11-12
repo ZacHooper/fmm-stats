@@ -117,15 +117,11 @@ day (`start` in `fmm.toml`) bounds the match check; the signing rule is the care
 3. **Staff roles and our manager**: `staff_roles.json` into raw (both versions write it);
    the managed club's manager in `site.club_managers`. FMM27's team head names each side's
    manager (`int.our_matches.home_manager_tid`), a check on it.
-4. **Squad registration is Danish for every career.** `site.registration_rules` applies the
-   Herre-DM house rule to whichever club is managed, so Truro's Squad page shows A/B lists
-   and home-grown quotas the career doesn't play by. Make the rule set career-specific
-   (`fmm.toml`, as the signing rule is), with none as an option.
-5. **The Frem archive's goals list.** Frem's site data is archived under `site-data/api/frem/`
+4. **The Frem archive's goals list.** Frem's site data is archived under `site-data/api/frem/`
    as it was last exported (the 2030-09-14 snapshot), so its matches carry no goals list and
    the Partnerships tab stays hidden there. A re-export from the full Frem store
    (`export_data.py --career frem --upload`) adds it.
-6. **A decoder refit.** Try a refit of the attribute decoder with Truro's scrapbook rows to
+5. **A decoder refit.** Try a refit of the attribute decoder with Truro's scrapbook rows to
    see how far the data so far goes (Frem's coefficients score about as well on Truro
    unrefitted, Passing the weakest at 38%); a proper refit needs more seasons.
 

@@ -51,3 +51,4 @@ sources:
       - name: training_attributes
       - name: positions
       - name: value_model
+      - name: registration_rules

@@ -1,14 +1,19 @@
 -- Each player in our squad on each snapshot as the registration page reads
--- him, keyed (snapshot_date, person_id) (a house rule:
--- docs/danish-registration-rules.md):
---   b_list          born after the new year the rules take the B-list age on
+-- him, keyed (snapshot_date, person_id), under the career's rule set
+-- (stg_career.registration_rule_set, stg_registration_rules; a house rule:
+-- docs/danish-registration-rules.md, docs/english-registration-rules.md):
+--   b_list          free of the list cap by age: born on or after the rule
+--                   set's free_born_from day of the season's first calendar
+--                   year less free_under_age (false with no rule set)
 --   hg_club         trained at the club: he came out of it (an academy
 --                   product, or his origin club is ours), or he has
 --                   var('home_grown_months') months with us in his window
 --                   (int.squad_training); hg_basis says which (academy /
 --                   youth-origin / clock)
---   hg_association  trained in our nation: hg_club, or his origin club is of
---                   our nation, or he has the months at another club of it
+--   hg_association  trained in a home-grown nation (the rule set's
+--                   hg_nations, else the managed club's own): hg_club, or his
+--                   origin club is of one, or he has the months at another
+--                   club of one
 --   months_club, months_to_go, hg_eta   his months with us, how many he
 --                   lacks, and the day he reaches them if he stays, where that
 --                   lies inside his window
@@ -19,9 +24,28 @@ with career as (
     select * from {{ ref('stg_career') }}
 ),
 
-our_nation as (
+-- The rule set's free-list age and cut-off and its home-grown nations, the
+-- same on each of its rows (registration_rule_sets tests it).
+rule_set as (
+    select
+        any_value(rules.free_under_age) as free_under_age,
+        any_value(rules.free_born_from) as free_born_from,
+        any_value(rules.hg_nations) as hg_nations
+    from {{ ref('stg_registration_rules') }} as rules
+    inner join career on rules.rule_set = career.registration_rule_set
+),
+
+hg_nations as (
+    select nations.nation_id from {{ ref('dim_nation') }} as nations
+    where
+        list_contains(
+            string_split((select rule_set.hg_nations from rule_set), '|'),
+            nations.name
+        )
+    union all
     select clubs.nation_id from {{ ref('dim_club') }} as clubs
     inner join career on clubs.club_tid = career.managed_club_tid
+    where (select rule_set.hg_nations from rule_set) is null
 ),
 
 training as (
@@ -34,7 +58,7 @@ training as (
         max(training.months) filter (
             where
             training.club_tid <> career.managed_club_tid
-            and clubs.nation_id = (select our_nation.nation_id from our_nation)
+            and clubs.nation_id in (select hg_nations.nation_id from hg_nations)
         ) as months_domestic
     from {{ ref('int_squad_training') }} as training
     cross join career
@@ -54,7 +78,7 @@ players as (
         people.origin_youth_team_tid is not null as via_academy,
         origins.name as origin_club,
         origin_nations.name as origin_nation,
-        origins.nation_id = (select our_nation.nation_id from our_nation)
+        origins.nation_id in (select hg_nations.nation_id from hg_nations)
             as origin_is_domestic,
         people.origin_club_tid = career.managed_club_tid as origin_is_ours,
         coalesce(training.months_club, 0) as months_club,
@@ -88,13 +112,17 @@ select
     person_id,
     dob,
     age,
-    dob > make_date(
+    coalesce(dob >= make_date(
         cast(season as integer)
         - 1
-        - {{ var('registration').b_list_under_age }},
-        1,
-        1
-    ) as b_list,
+        - (select rule_set.free_under_age from rule_set),
+        cast(split_part(
+            (select rule_set.free_born_from from rule_set), '-', 1
+        ) as integer),
+        cast(split_part(
+            (select rule_set.free_born_from from rule_set), '-', 2
+        ) as integer)
+    ), false) as b_list,
     coalesce(origin_is_ours, false) or months_club >= {{ months }} as hg_club,
     case
         when origin_is_ours and via_academy then 'academy'

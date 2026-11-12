@@ -177,8 +177,10 @@ The contract's expiry date as stored; read on its first (`first_expiry_date`) an
 {% enddocs %}
 
 {% docs b_list_age_date %}
-The date the B-list age is taken on: 1 January of the year before the season's end year, the
-last new year before the season's second calendar year (`var('registration')`, a house rule).
+The last day a player must be under the free-list age on (the B-list, the EFL's under-21s): the
+day before a player born on the rule set's cut-off would turn it. Denmark: the last new year
+before the season's second calendar year; England: 31 December, so the under-21s are those born
+on or after 1 January 21 years before the season's first year (a house rule).
 Synonyms: `u21_on`.
 {% enddocs %}
 
