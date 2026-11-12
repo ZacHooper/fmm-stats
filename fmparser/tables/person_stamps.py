@@ -7,10 +7,13 @@
 The last tid has no row: on every save measured it is non-playing staff at the managed club
 who joined on the career's first day, which is the user's own manager.
 
-Each row is `[u8 level][u16 day][u8 year offset]`, a date counted from 1 January of the
+Each row is `[u8 knowledge][u16 day][u8 year offset]`, a date counted from 1 January of the
 save's database year (2021 on FMM22, 2026 on FMM27): day 203 with offset 0 is 22 July, the
 first day of both careers, and most rows hold it. Rows that moved on hold the last rollover
-(day 180, offset 4 = 29 June 2025 on frem-2026-06-11). `level` is 0-3, and 3 on every
+(day 180, offset 4 = 29 June 2025 on frem-2026-06-11).
+
+`knowledge` is how much of the person the user knows, 0-3: a Player Profile hides every
+attribute at 0 (Calum Antell, Berwick), 8 of 18 at 1, 6 at 2, none at 3. It is 3 on every
 player of the managed club on every save measured; staff there can be 0 or 1.
 
 The table sits after our matches, and on FMM22 behind five u16 nation ids that are not read.
@@ -32,7 +35,7 @@ __all__ = [
 ]
 
 PERSON_STAMP = Record("person_stamp", 4, (
-    Field(0, 1, "level", U8, note="0-3; 3 on every player of the managed club"),
+    Field(0, 1, "knowledge", U8, note="0-3: 0 hides every attribute, 3 none"),
     Field(1, 2, "day", U16, note="day of year"),
     Field(3, 1, "year_offset", U8, note="years after the database year (2021 / 2026)"),
 ))

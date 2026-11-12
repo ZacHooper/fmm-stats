@@ -148,10 +148,11 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
   only), then walk on. `person_index.row_a` points into a table of about 3,010 rows on Truro.
 - **Load the awards** into `raw` and a mart of award winners. Each entry stores the winner's
   name ids as they were, which settles the tid-reuse problem in #14 for these awards.
-- **Name from a save on a screen's day**: the stamps' `level` is the user's knowledge of a
-  player (three profiles agree); confirm with a level-0 player and a scout report. Where
-  the monthly awards' month-by-month history is stored (the awards table holds one
-  edition). The derby bytes at +8 and +9 have no screen, so only save diffs can name them.
+- **Needs a save from a screen's day** (none possible on 24-26 Oct): pin the award and
+  knowledge screens to bytes; find the monthly awards' month-by-month history (the awards
+  table holds one edition); find the xG and season stats (#10a). A save before and after a
+  scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
+  only save diffs across a derby match can name them.
 Then Phase 2 of the plan.
 
 ### 3. The unclaimed regions of the career half

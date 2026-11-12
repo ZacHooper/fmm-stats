@@ -16,7 +16,7 @@ tables we already trust, joining on an id and letting the field under test come 
   - every derby club is a club or ffffffff; derby 0 is Everton v Liverpool;
   - every region's nation is a nation, and 99% of cities with a region sit in its nation
     (the rest are Spanish cities in "Pays Basque", a French region);
-  - every player of the managed club has stamp level 3 (its staff need not).
+  - every player of the managed club has stamp knowledge 3 (its staff need not).
 
     uv run python tests/test_world_lists_evidence.py
 """
@@ -137,8 +137,8 @@ def check_save(name, fx):
     squad = [t for t, p in persons.items()
              if p["club_tid"] == fx["managed_tid"] and p["sid"] != "ffffffff"]
     stamps = rows["person_stamps"]
-    check(squad and all(stamps[t]["level"] == 3 for t in squad),
-          f"stamp level 3 on all {len(squad)} of the managed club's players")
+    check(squad and all(stamps[t]["knowledge"] == 3 for t in squad),
+          f"stamp knowledge 3 on all {len(squad)} of the managed club's players")
     last = max(persons)
     check(persons[last]["sid"] == "ffffffff" and persons[last]["club_tid"] == fx["managed_tid"],
           f"the one person with no stamp, tid {last}, is non-playing staff at the managed club")

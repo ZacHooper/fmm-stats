@@ -327,7 +327,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     [53479282, 55490212, "database", "Training", "training.md", "Shape A", "TRAINING_TABLE", "[count u32 = 32,966][32,966 × 61 B], row k = person tid k: intensity, Focus Role, attribute focus, Focus Pos, contracted flag, squad status. Rewritten as focus changes."],
     [55490212, 55884748, "unknown", "Unidentified", null, "", "", "Ends in a sorted run of 430 u32 tids behind ff filler, then 73 bytes."],
     [55884748, 56178674, "seasonal", "Our matches", "matches.md", "Shape A", "MATCHES_TABLE", "[count u8 = 57], then one row per match: [home, away, cid, day][n u8][n × 17 B events][5,093 B body] with both team blocks and our tactic. Emptied on the rollover day."],
-    [56178684, 56310550, "database", "Person stamps", "person_stamps.md", "Shape A", "PERSON_STAMPS_TABLE", "[01][01][count = 32,965] (persons less one), then [level u8][day u16][year offset u8] per person, behind five unread u16 nation ids."],
+    [56178684, 56310550, "database", "Person stamps", "person_stamps.md", "Shape A", "PERSON_STAMPS_TABLE", "[01][01][count = 32,965] (persons less one), then [knowledge u8][day u16][year offset u8] per person, behind five unread u16 nation ids."],
     [56310550, 56313477, "unknown", "Unidentified", null, "", "", "2,927 bytes."],
     [56313477, 56314027, "filler", "0xFF run, 550 B", null, "", "", "550 bytes on every Frem save. Not the end of our matches."],
     [56314027, 56314300, "grows", "League titles", null, "Shape A", "struct", "[u8][cid u16][tid u16][year u16] + 58 B of ff, one 65 B entry per league title our club has won. Grows by one entry a title."],

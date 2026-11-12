@@ -13,7 +13,7 @@ A **dated 4-byte row per person**, after [our matches](matches.md) and before th
 
 | offset | field | type | meaning | how we know |
 |---|---|---|---|---|
-| +0 | `level` | u8 | 0–3 | 3 on every player of the managed club, every save |
+| +0 | `knowledge` | u8 | how much of the person the user knows, 0–3 | four Player Profiles; 3 on every player of the managed club, every save |
 | +1 | `day` | u16 | day of year | |
 | +3 | `year_offset` | u8 | years after the database year: 2021 on FMM22, 2026 on FMM27 | |
 
@@ -26,32 +26,33 @@ the player lists. On FMM22 five u16 nation ids sit just in front, unread.
 
 ## Evidence
 
-`level` is how much of a player the user knows. Three Player Profiles taken on 24 Oct 2026,
-against the stamps on truro-2026-08-08 (the levels may have moved in between; a save from the
-screens' day pins them):
+`knowledge` is how much of a player the user knows. Four Player Profiles taken on 24–26 Oct
+2026, against the stamps on truro-2026-08-08 (the values may have moved in between; a save
+from the screens' day pins them):
 
 ![Gwion Edwards, Exeter: Crossing, Passing, Technique, Creativity, Movement, Positioning shown as dashes](img/person_stamps-fmm27-1.jpg)
 ![Luca Woodhouse, Exeter: eight attributes shown as dashes](img/person_stamps-fmm27-2.jpg)
 ![Jack Fitzwater, Notts Co: every attribute shown](img/person_stamps-fmm27-3.jpg)
+![Calum Antell, Berwick: every attribute shown as a dash](img/person_stamps-fmm27-4.jpg)
 
-| player | `level` on 8 Aug | attributes hidden on 24 Oct |
+| player | `knowledge` on 8 Aug | attributes hidden on 24–26 Oct |
 |---|---|---|
 | Jack Fitzwater | 3 | 0 of 18 |
 | Gwion Edwards | 2 | 6 |
 | Luca Woodhouse | 1 | 8 |
+| Calum Antell (tid 3611) | 0 | all 18 |
 
 Structural and cross-table (`tests/test_world_lists_evidence.py`): the count is the person
-count less one on every save; every player of the managed club reads `level` 3 (26 at
+count less one on every save; every player of the managed club reads `knowledge` 3 (26 at
 Frem, 25 at Truro); the one person with no row, the last tid, is non-playing staff at the
 managed club who joined on the career's first day: the user's own manager.
 
 ## Quirks
 
-> **Lead:** a level-0 player should show every attribute hidden (Berwick Rangers' Calum
-> Antell, Wycombe's Luke Kenny, Accrington's Aidan McAdams), and a scout report should raise
-> a player's level. Whether the date is when the knowledge was last refreshed is open.
+> **Lead:** a scout report should raise a player's `knowledge`; a save before and after one
+> confirms it. Whether the date is when the knowledge was last refreshed is open.
 
 ## Output
 
-`output/<label>/person_stamps.json`: `[{tid, level, day, year_offset}]` in tid order. Not
+`output/<label>/person_stamps.json`: `[{tid, knowledge, day, year_offset}]` in tid order. Not
 loaded.

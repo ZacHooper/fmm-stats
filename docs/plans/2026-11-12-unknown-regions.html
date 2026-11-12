@@ -174,7 +174,16 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     </header>
     <div class="callout">
       <span class="k">Progress, 12 Nov</span>
-      <p>Seven tables read on both games and extracted: the "awards" region turned out to be four tables (awards with their latest winners, six nation unions, 1,681 derbies, 2,532 regions); the 7-byte list (extent proved, meaning open); the per-person rows (44,960 × 15 B, ending on the staff count); and the per-person stamps after our matches (a level and a date per person). About 1.2 MB more of an FMM27 save is now read. Still open here: the staff-counted block after the per-person rows, and screens to name the unnamed bytes. Details in each table's doc under <code>docs/parser/</code>.</p>
+      <p>Seven tables read on both games and extracted: the "awards" region is four tables (awards with their latest 1st–3rd placings, six nation unions, 1,681 derbies, 2,532 regions); the 7-byte list (extent proved, meaning open); the per-person rows (44,960 × 15 B, ending on the staff count); and the per-person stamps after our matches, whose first byte is the user's <b>knowledge</b> of a person, 0–3, confirmed on four Player Profiles (0 hides all 18 attributes, 3 none). About 1.2 MB more of an FMM27 save is read.</p>
+      <p><b>Outstanding:</b></p>
+      <ul>
+        <li>The staff-counted block after the per-person rows, and the counted blocks after it up to the rule files.</li>
+        <li>A save taken on the same day as screenshots (none was possible on 24–26 Oct): pins the award and knowledge screens to bytes, and finds the monthly awards' month-by-month history, which the awards table does not hold.</li>
+        <li>A save before and after a scout report, to see <code>knowledge</code> move.</li>
+        <li>The derby bytes at +8 and +9: no screen shows derbies, so only save diffs across a derby can name them.</li>
+        <li>The id list's ids, and what the per-person rows' two pointers point at.</li>
+        <li>Loading the awards into the store.</li>
+      </ul>
     </div>
 
     <div class="item">
