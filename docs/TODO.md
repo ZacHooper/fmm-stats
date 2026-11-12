@@ -164,6 +164,33 @@ On `frem-2027-08-08` (61.7 MB): 38.3% filler, 41.7% read, 0.8% declared, **19.1%
 
 Numbers drift per save; re-run `audit_coverage.py` before starting on one.
 
+### 3a. The post-match hub: per-player offsides and the Player Analysis (FMM27)
+The Post-Match Hub's **Player Analysis** panel names four (player, stat, value) lines, two good
+and two bad, and among them are stats the match record does not hold per player: **offsides**
+("Harvey, T — 5 Offsides") and **saves made** ("Lavercombe, D — 0/1"). The match row has only
+the side's offside total (team head +68). On the three Truro matches of `truro-2026-08-08`, no
+player-slot byte (all 70, named or not) sums to a side's offsides, and no match event does (8
+Truro offsides against Maidenhead and 9 events in the match, none of them offsides; the unnamed
+`0x17`/`0x18` sit beside a goal, and `b0` is the player's index in the line-up, not a count).
+The game shows the hub after the match, so the lines are stored somewhere: most likely with the
+hub's inbox item, as a small report, not as a per-player stat.
+
+**Needs a save from a new game**: the career has moved past the screenshot's match (Farnham 1-2
+Truro, Enterprise South, 6 Oct 2026: Roberts 4 key passes, Harvey 2 goals, Harvey 5 offsides,
+Lavercombe 0/1 saves made). On a new game:
+1. Play one match, screenshot the Post-Match Hub (both pages), save while the hub is still in
+   the inbox: save A.
+2. Delete or read the hub message, or play on a day, and save again: save B.
+3. Search save A for the four lines together: each player's tid (u32) or slot index near its
+   value, the four close together; check save B loses them. Then find the record's frame (an
+   inbox table, count-framed or an archive member) and whether it keeps every past match's hub
+   or only the newest.
+4. If it holds them all, a parser table for it, and per-player offsides and saves made into
+   the match facts where it has them.
+
+The in-game screenshot to start from is in the conversation of 2026-11-12; capture a fresh one
+into `docs/parser/img/` with save A.
+
 ### 4. Player lists: what is still unread
 `tables/player_lists.py` reads all 66 lists, identified against the game's screens on
 `frem-2027-06-15`: 0–30 the World Best XI pool of each season, 31–61 the Manager's Best
