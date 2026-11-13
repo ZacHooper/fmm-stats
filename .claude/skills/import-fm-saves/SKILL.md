@@ -150,6 +150,7 @@ check against a screenshot.
    `seeds/manifest.csv` (the rebuild recipe — without it another machine can't reproduce this
    snapshot). Full detail in `docs/DEPLOY.md`'s "Refreshing after an import":
    ```bash
+   uv run python scripts/config_sync.py check                        # fmm.toml == the bucket's? (else pull/push, then --refresh-only)
    cp -r site/api /tmp/site-api-before                               # keep the last export to diff
    uv run python scripts/export_manifest.py                          # refresh the rebuild recipe
    uv run python scripts/export_data.py --upload                     # -> site/api/*.json -> R2 (the live app's data)
@@ -161,6 +162,10 @@ check against a screenshot.
    # load_duckdb.py, so an import leaves both stale until these run.
    git add seeds/manifest.csv && git commit -m "manifest: <snapshot>" && git push
    ```
+   Every `--upload` refuses when the local `fmm.toml` differs from the bucket's
+   `config/fmm.toml`, or the store was seeded from a different one
+   (`scripts/config_sync.py`). Fix the config; never reach for `--skip-config-check`
+   to get past it.
    The data goes live the moment `export_data.py --upload` finishes: the Worker reads it from R2,
    so there is no deploy and no data commit (`site/api/` is gitignored). The export is
    deterministic, so `uv run python scripts/diff_exports.py /tmp/site-api-before site/api`

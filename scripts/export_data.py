@@ -237,6 +237,9 @@ def main():
                          "serves it (site-data/api/<career>/*.json, site-data/api/careers.json)")
     ap.add_argument("--skip-all", action="store_true", help="skip the every-player file")
     ap.add_argument("--no-check", action="store_true")
+    ap.add_argument("--skip-config-check", action="store_true",
+                    help="publish even when fmm.toml differs from the bucket's or the store "
+                         "was seeded from another fmm.toml (scripts/config_sync.py)")
     a = ap.parse_args()
 
     import careers as C
@@ -246,6 +249,11 @@ def main():
     con, used = _open_readonly(store, tag="export")
     if used != os.path.abspath(store):
         print(f"(live store is locked — exporting from a copy at {used})")
+    if not a.skip_config_check:
+        import config_sync
+        if a.upload:
+            config_sync.require_config_in_sync()
+        config_sync.require_store_matches_config(con, car, store)
     from fmparser.model import ATTR_ORDER
     attrs = list(ATTR_ORDER)
 

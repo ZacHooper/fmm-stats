@@ -152,6 +152,11 @@ Nothing derived is in git, and nothing drawn from the game's database is either.
 - **Saves live in `<saves_dir>/<career>/`** (`[storage] saves_dir`, default `~/fm-saves`), raw
   for parsing plus a verified `.gz` beside each (`scripts/archive_save.py`). Decompress first:
   `extract.py` must only ever see raw bytes.
+- **Your config's canonical copy is in the bucket** (`<r2_remote>/config/`: `fmm.toml`,
+  `CAREER.md`, `career-notes/`, known answers). `scripts/config_sync.py pull` fetches it (cloud
+  sessions do on start), `push` after editing `fmm.toml`. Every publish (`--upload`) refuses a
+  local `fmm.toml` that differs from it, or a store seeded from another one: pull, then
+  `load_duckdb.py --refresh-only --career <key>`.
 - **Live state is one object per entry** (`state/<kind>/<id>.json`), because object stores have
   no append: adds are collision-free and sync is a plain union.
 
@@ -176,6 +181,7 @@ cd fmstats && FM_DUCKDB=../fm-<key>.duckdb uv run dbt test --profiles-dir .
 uv run python tests/run_tests.py                          # parser/unit tests (most need saves)
 uv run python tests/test_boundary.py
 
+uv run python scripts/config_sync.py pull                 # canonical fmm.toml + notes from R2
 uv run python scripts/export_data.py [--career <key>] [--upload]  # -> site/api/<key>/ [-> R2]
 uv run python -m http.server -d site 8000                 # preview
 uv run python scripts/publish_duckdb.py --upload          # compacted store -> R2, for remote SQL
