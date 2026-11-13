@@ -263,6 +263,41 @@ DDL = [
         position INTEGER, teams INTEGER
     )""",
 
+    # The game's awards (fmparser/tables/awards.py), one row per award: its names and what
+    # it is for (a competition, a nation, a continent; NULL-sentinels as stored). The
+    # editions are award_places and award_team_places; the awards table's own three entries
+    # are the latest edition, which award_places already holds.
+    # natural key: (season, phase, award_id)
+    """CREATE TABLE IF NOT EXISTS raw.awards (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, award_id INTEGER NOT NULL,
+        uid BIGINT, name VARCHAR, long_name VARCHAR, continent_id INTEGER,
+        nation_id INTEGER, cid INTEGER, last_day INTEGER, last_year INTEGER
+    )""",
+
+    # Every stored edition of every award, its 1st to 3rd places (fmparser/tables/
+    # award_history.py): the person's tid and name ids as they were, his club then, and the
+    # score (votes, or goals on a Top Goalscorer). An unfilled place is stored all-ff and
+    # kept. A weekly or monthly award keeps only the current season's editions, so a
+    # season's weeks are kept by keeping that season's snapshots.
+    # natural key: (season, phase, award_id, edition_date, place)
+    """CREATE TABLE IF NOT EXISTS raw.award_places (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, award_id INTEGER NOT NULL,
+        edition_date VARCHAR NOT NULL, place INTEGER NOT NULL, person_tid BIGINT,
+        first_name_id BIGINT, last_name_id BIGINT, common_name_id BIGINT,
+        club_tid BIGINT, score BIGINT
+    )""",
+
+    # Every stored team of the period (Team of the Week, Team of the Year, Dream Team ...;
+    # fmparser/tables/team_history.py): its 11 players in stored order, each with his tid
+    # and name ids as they were, his club then and his rating.
+    # natural key: (season, phase, award_id, edition_date, slot)
+    """CREATE TABLE IF NOT EXISTS raw.award_team_places (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, award_id INTEGER NOT NULL,
+        edition_date VARCHAR NOT NULL, slot INTEGER NOT NULL, person_tid BIGINT,
+        first_name_id BIGINT, last_name_id BIGINT, common_name_id BIGINT,
+        club_tid BIGINT, rating DOUBLE
+    )""",
+
     # The Training page, one row per player: focus role and position, attribute focus and
     # intensity, and the row's contract flag and unnamed +39 byte as stored
     # (fmparser.tables.training). Every player in the world, not just ours.
@@ -984,6 +1019,39 @@ def load_core(con, d, season, phase):
             con, "club_league_history",
             ["season", "phase", "club_tid", "cid", "year", "position", "teams"], rows)
 
+    # --- awards: the catalogue, each edition's places, the teams of the period ---------
+    aw_path = os.path.join(d, "awards.json")
+    if os.path.exists(aw_path):
+        rows = [(season, phase, _int(v["id"]), _int(v.get("uid")), v.get("name"),
+                 v.get("long_name"), _int(v.get("continent_id")), _int(v.get("nation_id")),
+                 _int(v.get("cid")), _int(v.get("last_day")), _int(v.get("last_year")))
+                for v in _load_json(aw_path)]
+        counts["awards"] = _insert(
+            con, "awards",
+            ["season", "phase", "award_id", "uid", "name", "long_name", "continent_id",
+             "nation_id", "cid", "last_day", "last_year"], rows)
+    _NAME_COLS = ("person_tid", "first_name_id", "last_name_id", "common_name_id", "club_tid")
+    ah_path = os.path.join(d, "award_history.json")
+    if os.path.exists(ah_path):
+        rows = [(season, phase, _int(e["award_id"]), e["date"], place,
+                 *(_int(p.get(c)) for c in _NAME_COLS), _int(p.get("score")))
+                for e in _load_json(ah_path)
+                for place, p in enumerate(e["places"], start=1)]
+        counts["award_places"] = _insert(
+            con, "award_places",
+            ["season", "phase", "award_id", "edition_date", "place", *_NAME_COLS, "score"],
+            rows)
+    th_path = os.path.join(d, "team_history.json")
+    if os.path.exists(th_path):
+        rows = [(season, phase, _int(e["award_id"]), e["date"], slot,
+                 *(_int(p.get(c)) for c in _NAME_COLS), p.get("rating"))
+                for e in _load_json(th_path)
+                for slot, p in enumerate(e["players"], start=1)]
+        counts["award_team_places"] = _insert(
+            con, "award_team_places",
+            ["season", "phase", "award_id", "edition_date", "slot", *_NAME_COLS, "rating"],
+            rows)
+
     tr_path = os.path.join(d, "training.json")
     if os.path.exists(tr_path):
         rows = [(season, phase, _int(v.get("tid")), _int(v.get("intensity")),
@@ -1287,7 +1355,8 @@ def _clear_group(con, group, season, phase):
                   "nation_coefficients", "nation_languages",
                   "club_affiliates", "competitions", "competition_team_counts", "matches",
                   "match_events", "match_player_stats", "club_records", "player_records",
-                  "club_league_history", "training", "contracts"):
+                  "club_league_history", "awards", "award_places", "award_team_places",
+                  "training", "contracts"):
             _delete(con, t, season, phase)
     elif group == "world":
         for tbl in ("world_fixtures", "competition_rounds", "round_names"):

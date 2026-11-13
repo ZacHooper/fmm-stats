@@ -32,6 +32,9 @@ sources:
       - name: club_staff
       - name: club_affiliates
       - name: club_league_history
+      - name: awards
+      - name: award_places
+      - name: award_team_places
       - name: club_records
       - name: player_records
       - name: competitions

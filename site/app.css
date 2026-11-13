@@ -30,6 +30,7 @@ header.top{position:sticky;top:0;z-index:30;background:var(--card);
 .brand{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .brand b{font-size:16px}
 .brand .sub{color:var(--dim);font-size:12.5px}
+.hsub{color:var(--dim);font-size:12px;line-height:1.2}
 .ctrls{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
 .ctrls select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);
   border-radius:7px;background:var(--bg);color:var(--ink);max-width:46vw}
