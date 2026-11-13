@@ -2,8 +2,8 @@
 """
 Row-for-row comparison of one table or view across two DuckDB stores.
 
-The gate for every data-layers step (`docs/plans/2026-10-01-data-layers.md`): build a store
-from `main`, build one from the branch, and compare the tables the change touches.
+The gate for a change to the data path: build a store from `main`, build one from the
+branch, and compare the tables the change touches.
 
     uv run python scripts/audit/diff_stores.py OLD.duckdb NEW.duckdb \\
         --table mart.clubs --key season,phase,tid

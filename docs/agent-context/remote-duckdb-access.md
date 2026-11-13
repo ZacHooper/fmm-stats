@@ -187,5 +187,4 @@ enforced by scrubbing the *data* in the published copy instead of trying to gate
    the sandbox's network policy is stricter than this one was — re-verify rather than assume the
    old fix still applies.
 
-See also: [Multi-device and storage](multi-device-and-storage.md) for the three-tier storage
-model this extends, and `docs/DEPLOY.md` for the full deploy runbook.
+See also: the storage tiers in [`AGENTS.md`](../../AGENTS.md#where-things-live), which this extends, and `docs/DEPLOY.md` for the full deploy runbook.

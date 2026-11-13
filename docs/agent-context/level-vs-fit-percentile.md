@@ -32,4 +32,4 @@ Squad Tool, and Team pages (both our standouts and opponent key players).
   Sørensen GK (90/73), Grønne/Sundstrup DC (88/75). Find a role that fits them.
 
 CA↔frem_counter eff correlate only ~0.58, so Level adds real signal. CA is 100% populated across the
-division. See [[role-weight-methods]], [[etl-duckdb-dashboard]].
+division. See [[role-weight-methods]].

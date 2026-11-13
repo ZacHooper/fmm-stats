@@ -21,7 +21,7 @@ It FAILS when:
 - two columns of one name use different blocks (a listed synonym aside);
 - a column's name is not its block's name, nor a role on it (`<role>_<block>`, or
   `<block>_<qualifier>`), nor a listed synonym of it;
-- a name breaks the naming convention (docs/plans/2026-11-07-docs-overhaul.html#naming) and is
+- a name breaks the naming convention (fmstats/AGENTS.md, column naming convention) and is
   not a listed synonym: an abbreviation (CONVENTION_ABBREVIATIONS), a `_a`/`_b` side, `_kind`
   for a category, money (a block in money.md) without `_gbp`; with a catalog, a BOOLEAN column
   not named `is_*`/`has_*` and a DATE column not named `*_date`. A block's own name must keep

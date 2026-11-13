@@ -24,7 +24,7 @@ also keeps history but is scoped to ~58 own-squad players. Joining the growth ta
 (1,242 of 24,081) — join to the full store instead, or derive age from `dob` + `phase_date`.
 
 **2. Only 8 attributes are real save-wide; 15 are model-estimated.** From
-`fmparser/attributes.py::EXACT_SINGLE` (+ Teamwork, computed from two exact bytes):
+`exact_attributes` in `fmstats/dbt_project.yml` (+ Teamwork, computed from two exact bytes):
 
 | Exact for every player | Estimated for everyone outside our club |
 |---|---|
@@ -210,5 +210,4 @@ filter returned two departed centre-backs as our two best.
   high volume, near-worst accuracy) and 0.75 dribbles/90 despite Dribbling 16. Ratings reward
   involvement; check the completion rate and the per-90 of the player's *best* attribute.
 
-See [[level-vs-fit-percentile]], [player_progress](../parser/player_progress.md) (loans), [[etl-duckdb-dashboard]],
-[[remote-duckdb-access]], [[match-rating-position-bias]].
+See [[level-vs-fit-percentile]], [player_progress](../parser/player_progress.md) (loans), [[remote-duckdb-access]], [[match-rating-position-bias]].

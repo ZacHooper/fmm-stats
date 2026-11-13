@@ -288,8 +288,8 @@ def main():
         print(f"FAILED ({len(failed)}): {', '.join(failed)}")
         return 1
     if not a.dry_run:
-        print("\nverify before trusting it — the cheap ground-truth checks are in "
-              "docs/agent-context/etl-duckdb-dashboard.md")
+        print("\nverify before trusting it — run the dbt tests: "
+              "`cd fmstats && FM_DUCKDB=<store> uv run dbt test --profiles-dir .`")
     return 0
 
 

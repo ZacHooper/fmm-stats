@@ -21,8 +21,7 @@ uv run python scripts/attribute_stat_correlations.py --who opponents --min-minut
 
 Or explore it interactively in **[The Attribute Lab](https://claude.ai/code/artifact/bae40c5f-a50a-485b-b4be-3d2735e2a5f5)**,
 which also carries a workbench for rebuilding a role's attribute weights from this evidence
-(`scripts/export_attribute_lab.py` builds its data; `scripts/import_weight_set.py` brings a
-weight-set back into the store).
+(a weight set now comes from `scripts/derive_weight_set.py`).
 
 **All 23 attributes are covered as of 2026-09-12**, and there is now a GK unit. Two rules make
 that safe; figures below that predate the re-run do not reflect them.
@@ -291,8 +290,7 @@ and **every position mapping to it vanished from the ratings**: the first derive
 AML and AMR flat, and the squad's 13 AMLs and 10 AMRs had no fit rows at all, so the depth chart
 read "no player rated here" for two positions we are deep in.
 
-Fixed in both `fmstats/mart.py` (`PLAYER_ROLE_RATINGS`) and `load_duckdb.py`
-(`v_player_ratings`) — `combos` is now every method x every role from `position_role_map`. Existing
+Fixed in the rating model (now `fmstats/models/int/int_player_ratings.sql`) — `combos` is now every method x every role from `position_role_map`. Existing
 methods all carry all ten roles, so the change is a no-op for them; `git diff site/api` after an
 export is the check.
 

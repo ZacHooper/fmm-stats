@@ -58,9 +58,8 @@ their labels and quotas from the rules; in the code A is the capped list and B t
 The card's **Count as** picker recounts the plan against another tier of the same rule set
 (`site.registration_rule_set`, `ruleSet` in `registration.json`). Home-grown status is **derived** —
 never report it as a fact the game asserts. The data layer is `site.registration` and
-`site.registration_rules` (`fmstats/models/site/`); the derivation and its two
+`site.registration_rules` (`fmstats/models/site/`); the derivation and its
 deliberate departures from a literal reading are in
-[`docs/agent-context/homegrown-derivation.md`](../docs/agent-context/homegrown-derivation.md) and
 [`guides/registration.md`](guides/registration.md). The A/B plan itself lives in
 browser localStorage — it is a plan, not save data, and nothing writes it back. A plan can be
 **saved against a transfer window** (`site/js/regwindows.js` → `/api/registrations` →

@@ -3,7 +3,7 @@
 -- youth side a career line names. A club's youth side has no record of its
 -- own; its tid is the u16 complement of its club's, var('youth_tid_base')
 -- minus the club tid (Frem 346 -> "Frem Yth" 65189, FCK 344 -> 65191;
--- mart.youth_clubs, docs/agent-context/homegrown-derivation.md). Club tids
+-- mart.youth_clubs, site/guides/registration.md). Club tids
 -- and their complements never overlap, so a tid is a team or an academy,
 -- never both. A line tid that is neither (a club the save holds no record
 -- for) is not here.

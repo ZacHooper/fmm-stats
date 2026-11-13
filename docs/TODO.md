@@ -577,11 +577,15 @@ before they're coded.
 
 ## Docs
 
-### 22. Audit and clean up the docs
-Many docs describe code that no longer exists (~95 dead file references across 37 docs on
-2026-11-06). The plan, with a brief per phase and a destination for every doc, is
-[`plans/2026-11-07-docs-overhaul.html`](plans/2026-11-07-docs-overhaul.html) (open it in a browser; each phase is a brief an agent can pick up). Do it before the fresh
-public repo is cut.
+### 22. Finish the docs clean-up
+Every cited path resolves now (`scripts/check_docs.py`, blocking in CI). Still to decide: the
+three analysis notes the skills lean on, written in the Frem / FMM22 era and partly about code
+that is gone (the pre-dbt Python marts, `fmq.py`, the old `raw.*` tables):
+`docs/agent-context/attribute-stat-correlations.md` (the attribute-profiles skill's baseline),
+`docs/agent-context/player-analysis-methods.md` (scout-opponent cites it) and
+`docs/fmm-tactic-blueprints.md` (scout-opponent, season-outlook, fm-season-review and
+`scripts/derive_weight_set.py` cite it). Keep what still holds, in the skill that uses it, and
+delete the rest. Do it before the fresh public repo is cut.
 
 ### 25. Finish making the project career-agnostic for other players
 The README, `AGENTS.md`, `fmm.toml` and the R2-served site data are done. Still personal:

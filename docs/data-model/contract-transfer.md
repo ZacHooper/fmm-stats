@@ -150,7 +150,7 @@ until the season ends, so the club on the newest snapshot closes each history.
 
 **Graduations.** A club's youth side has no club record; its tid is the u16 complement of its
 club's (`65535 - club_tid`: Frem 346 → "Frem Yth" 65189, FCK 344 → 65191; `mart.youth_clubs`,
-[`homegrown-derivation.md`](../agent-context/homegrown-derivation.md)), and it appears on its
+[the registration guide](../../site/guides/registration.md)), and it appears on its
 products' first line with a fee code not understood. A youth line counts for its club
 (`youth_team_tid` keeps the academy). The move from it into the club's own senior side is a
 **graduation** (`transfer_type = 'graduation'`, no fee, from and to club the same). On Frem A

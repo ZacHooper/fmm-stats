@@ -120,7 +120,7 @@ against the code. The ones to read before particular work:
 - **attributes:** [`docs/ca-weighting.md`](docs/ca-weighting.md) (how each displayed attribute
   is recovered, the per-position CA weights, the 94.8% label ceiling) and
   [`docs/attribute-model.md`](docs/attribute-model.md) (the entangled-attribute decoder).
-- **storage and devices:** [`multi-device-and-storage`](docs/agent-context/multi-device-and-storage.md).
+- **storage and deploy:** [`docs/DEPLOY.md`](docs/DEPLOY.md) and [Where things live](#where-things-live).
 
 ## Toolchain
 - **Everything runs under uv**: `uv sync` to set up, then `uv run python …`. Python 3.13+.
