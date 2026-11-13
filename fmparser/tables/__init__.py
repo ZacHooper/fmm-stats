@@ -243,6 +243,7 @@ TABLES = {
     "tactic_history": TACTIC_HISTORY_TABLE,
     "club_seasons": CLUB_SEASONS_TABLE,
     "club_titles": CLUB_TITLES_TABLE,
+    "player_achievements": PLAYER_ACHIEVEMENTS_TABLE,
     "last_transfers": LAST_TRANSFERS_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
@@ -294,8 +295,7 @@ TABLES_BY_FORMAT = {
             "person_index": PERSON_INDEX_TABLE_FMM27,
             "club_rows": CLUB_ROWS_TABLE_FMM27, "player_status": PLAYER_STATUS_TABLE,
             "player_form": PLAYER_FORM_TABLE,
-            "player_ability_scales": PLAYER_ABILITY_SCALES_TABLE,
-            "player_achievements": PLAYER_ACHIEVEMENTS_TABLE},
+            "player_ability_scales": PLAYER_ABILITY_SCALES_TABLE},
 }
 
 

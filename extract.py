@@ -34,7 +34,7 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
                                  competitive match
     player_ability_scales.json   FMM27: per player (tid order) his ability on his league's
                                  scale and, if young, his youth international rating
-    player_achievements.json     FMM27: the Player Achievements screen, a row per
+    player_achievements.json     the Player Achievements screen, a row per
                                  achievement (finals won and lost, Manager Sacked, awards)
     player_status.json           FMM27: per player (attribute-record order) the clubs
                                  interested in him, his morale and his form
@@ -290,13 +290,6 @@ def read_player_form(mm) -> Files:
     return {"player_form.json": (T.scrape_player_form(mm), None)}
 
 
-def read_player_achievements(mm) -> Files:
-    """FMM27 only, as player_form: every player's achievements, in the order they happened."""
-    if T.save_format(mm) != T.FMM27:
-        return {}
-    return {"player_achievements.json": (T.scrape_player_achievements(mm), None)}
-
-
 def read_player_ability_scales(mm) -> Files:
     """FMM27 only, as player_form: each player's league_ability, by tid."""
     if T.save_format(mm) != T.FMM27:
@@ -387,7 +380,7 @@ def steps(no_archive: bool = False):
         Step("player_ability_scales", registered("player_ability_scales"),
              read_player_ability_scales),
         Step("player_achievements", registered("player_achievements"),
-             read_player_achievements),
+             one("player_achievements.json", T.scrape_player_achievements, None)),
         Step("player_lists", registered("player_lists", "player_list_trailers"),
              read_scrapbook),
         Step("archive", archive_span, read_archive(no_archive)),

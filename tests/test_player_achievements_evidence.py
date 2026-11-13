@@ -6,8 +6,7 @@ truro-2026-11-16.
 `tests/fixtures/player_achievements_evidence.json` holds seven players' screens, line by
 line (newest first). Checked:
 
-  - the table locates on every Truro save and reads its used rows; FMM22 saves do not
-    locate it;
+  - the table locates on every sample save, FMM22 too, and reads every used slot;
   - row 0's raw bytes (Guirassy's African Footballer of the Year);
   - each player's rows, followed from his first by `next_row`, are his screen's lines in
     reverse: the kind (Winner / Runner-Up / Manager Sacked / an award, by the award's name)
@@ -26,7 +25,7 @@ sys.path.insert(0, ROOT)
 from tests.harness import find_save, sample_saves, skip  # noqa: E402
 
 from fmparser.save import Save  # noqa: E402
-from fmparser.tables import player_achievements as PA, save_format, tables_for, FMM27  # noqa: E402
+from fmparser.tables import player_achievements as PA, tables_for  # noqa: E402
 
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "player_achievements_evidence.json")
 
@@ -55,7 +54,7 @@ def main():
     print(fx["save"])
     rows = PA.scrape_player_achievements(mm)
     check(len(rows) == fx["rows"], f"{fx['rows']} rows read")
-    base = PA.locate_player_achievements(mm)[0]
+    base = PA.locate_player_achievements(mm)[0][0]
     check(mm[base:base + 24].hex(" ") == fx["row0_bytes"], "row 0's bytes")
     clubs = {c["tid"]: c["short"] for c in tables_for(mm)["clubs"].scrape(mm)}
     awards = {a["id"]: a for a in tables_for(mm)["awards"].scrape(mm)}
@@ -84,11 +83,9 @@ def main():
         mm = Save(path).mm
         loc = PA.locate_player_achievements(mm)
         name = os.path.basename(path)
-        if save_format(mm) == FMM27:
-            check(loc is not None and len(PA.scrape_player_achievements(mm)) == loc[1],
-                  f"{name}: located, {loc[1] if loc else '-'} rows")
-        else:
-            check(loc is None, f"{name}: FMM22, not located")
+        rows = PA.scrape_player_achievements(mm) if loc is not None else None
+        check(rows is not None and len(rows) == len(loc), f"{name}: located, "
+              f"{len(rows) if rows is not None else '-'} rows")
 
     if failures:
         print(f"\n{len(failures)} failure(s)")
