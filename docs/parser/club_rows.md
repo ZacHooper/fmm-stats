@@ -38,10 +38,17 @@ The count of clubs carrying the block grows over a career on both games.
 00 01 02`: Slough 2-0, Ebbsfleet 1-0, Billericay 6-0, Bristol Rovers 3-2, Folkestone 1-0,
 Herne Bay 1-2, and `matches_played` 25 (23 in the match table and the two friendlies before
 the career began). Each summer save adds the new games on the right (2, 3, 5 matches on
-22 Jul, 25 Jul, 8 Aug). Against the world fixture list, `matches_played` equals every club's
-played fixtures on the four Truro saves, and the six results agree for 98% of clubs; the rest
-are shoot-out games, where the pair is the shoot-out score on most (29 of 1,689 clubs on
-16 Nov unexplained). On FMM22, whose fixture list spans two seasons, 80-86% agree.
+22 Jul, 25 Jul, 8 Aug).
+
+- **Order:** the club's own goals first, home or away (3,190 away wins and defeats on 16 Nov,
+  none reversed), oldest result first.
+- **Which score:** after extra time. On FMM27 a match level at the end and settled by a
+  shoot-out stores the shoot-out score (1-1, pens 4-2 → `04 02`); a second leg won on
+  penalties after a 3-2 keeps the 3-2. FMM22 stores the match score.
+- **Checked:** against the world fixture list, `recent_scores` agrees for every club on the
+  four Truro saves and four FMM22 saves (FMM22's list lacks some lower leagues, so there the
+  stored six end with the club's listed games), and `matches_played` equals every club's
+  played fixtures on the Truro saves.
 
 These twelve bytes were first taken for the team instructions; they are not.
 

@@ -16,12 +16,15 @@ truro-2026-07-25, the Club Finances screen's "Transfer Budget £10,000" that day
 1,030,284 on frem-2026-06-11).
 
 **Recent results.** Twelve bytes (+117 FMM27, +36 FMM22) hold the club's last six results,
-`[goals for][goals against]` each, oldest first, `ff ff` for none; a u8 ten bytes earlier
-counts the season's matches, friendlies included. On truro-2026-11-16 Truro's read 2-0, 1-0,
-6-0, 3-2, 1-0, 1-2 (Slough to Herne Bay) and 25 matches. Against the world fixture list the
-count is exact for every club on the four Truro saves and the six results for 98%; the rest
-are shoot-out games, where the pair is the shoot-out score on most and not yet explained on
-29 clubs of 1,689. On FMM22 (whose fixture list spans two seasons) 80-86% agree. The rest of
+`[goals for][goals against]` each, the club's own goals first whether home or away, oldest
+first, `ff ff` for none; a u8 ten bytes earlier counts the season's matches, friendlies
+included. On truro-2026-11-16 Truro's read 2-0, 1-0, 6-0, 3-2, 1-0, 1-2 (Slough to Herne
+Bay) and 25 matches. A result is the score after extra time; on FMM27 a match level at the
+end and settled by a shoot-out stores the shoot-out score instead (a second leg won on
+penalties after a 3-2 keeps the 3-2), FMM22 the match score. Against the world fixture list
+both fields agree for every club on the four Truro saves, and the results for every club on
+four FMM22 saves (whose fixture list lacks some lower leagues, so there the stored six end
+with the club's listed games). The rest of
 the row is open.
 
 The extra block is set for 232 clubs on frem-2021-06-27,
@@ -46,8 +49,9 @@ CLUB_ROW = Record("club_row", 50, (
     Field(4,  22, UNKNOWN, RAW, note="mostly 0"),
     Field(26, 1,  "matches_played", U8, note="this season's matches, friendlies included"),
     Field(27, 9,  UNKNOWN, RAW, note="mostly 0"),
-    Field(36, 12, "recent_scores", RAW, note="the last six results, [goals for][against] each, "
-                                             "oldest first; ff ff = no match"),
+    Field(36, 12, "recent_scores", RAW, note="the last six results, [own goals][against] each, "
+                                             "oldest first; ff ff = no match; after extra "
+                                             "time, never the shoot-out"),
     Field(48, 2,  UNKNOWN, RAW, note="0 on most clubs"),
 ), is_head=True)
 
@@ -58,8 +62,9 @@ CLUB_ROW_FMM27 = Record("club_row_fmm27", 131, (
     Field(107, 1,   "matches_played", U8, note="this season's matches, friendlies included: "
                                               "every club's played fixtures, four Truro saves"),
     Field(108, 9,   UNKNOWN, RAW, note="mostly 0"),
-    Field(117, 12,  "recent_scores", RAW, note="the last six results, [goals for][against] "
-                                               "each, oldest first; ff ff = no match"),
+    Field(117, 12,  "recent_scores", RAW, note="the last six results, [own goals][against] "
+                                               "each, oldest first; ff ff = no match; the "
+                                               "shoot-out score when a level match had one"),
     Field(129, 2,   UNKNOWN, RAW, note="0 on most clubs"),
 ), is_head=True)
 
