@@ -22,12 +22,16 @@ read, and is not needed to read the whole table.
     32   "Manager Sacked" (Jarrod Bowen, West Ham)
     128  an award (`award_id`): Player of the Month, Footballer of the Year
 
-FMM22's careers, five seasons long, add kinds not yet seen on FMM27's first: 4 (the league
-won: Frem's squads in 2021-23), 8 (promoted: the same), 16 (relegated), 64 and 512 (not
-yet checked on a screen).
+FMM22's careers, run longer, show the rest (frem-2030-06-30):
 
-The screen's category (World, Continental, Domestic, Major, Minor, Adverse) and season are
-not stored; nor is a date.
+    4    a league won ("3F Superliga Winner")
+    8    promoted ("Promoted from NordicBet Liga")
+    16   relegated ("Relegated from 3F Superliga")
+    64   "Club Bankrupt"
+    512  "Global Team of the Year" (no competition, no award id)
+
+The screen's category (World, Continental, Domestic, Major, Minor, Adverse) and the season's
+format ("2029/30" for a club, "2030" for a national team) are not stored; nor is a date.
 
 **How it is found.** Between the club titles and the player lists, the one u32 100,000 whose
 100,000 slots read as a log: every used slot's tid a person, its year byte 1970 + 50 to
@@ -50,7 +54,8 @@ EMPTY = bytes([0]) + b"\xff" * 4 + b"\x00" * 4 + b"\xff" * 14 + b"\x00"
 NONE16, NONE32 = 0xFFFF, 0xFFFFFFFF
 HEADER = struct.pack("<I", CAPACITY)
 KINDS = {1: "runner_up", 2: "winner", 4: "league_won", 8: "promoted", 16: "relegated",
-         32: "manager_sacked", 128: "award"}
+         32: "manager_sacked", 64: "club_bankrupt", 128: "award",
+         512: "global_team_of_the_year"}
 
 ACHIEVEMENT = Record("player_achievement", 24, (
     Field(0,  1, "year", U8, note="years since 1970: 56 is 2026"),

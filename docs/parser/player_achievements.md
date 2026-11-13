@@ -32,7 +32,7 @@ an id and the person tids are unsorted. An empty slot is
 |---|---|---|---|
 | +0 | `year` | u8 | years since 1970, the season's first year: `38` = 2026, shown "2026" on a one-off and "2026/27" on an award. 50–56 across the FMM22 saves (2020–2026) |
 | +1 | `tid` | u32 | the player |
-| +5 | `kind` | u32 | 1, 2, 4, 8, 16, 32, 64, 128 or 512 (below) |
+| +5 | `kind` | u32 | one bit: 1, 2, 4, 8, 16, 32, 64, 128 or 512 (below) |
 | +9 | `cid` | u16 | the competition; `ffff` for an award with none (African Footballer of the Year) |
 | +11 | | 2 B | `ffff` on every row |
 | +13 | `club_tid` | u16 | his club at the time, not now |
@@ -49,16 +49,24 @@ an id and the person tids are unsorted. An empty slot is
 | 32 | 629 | "Manager Sacked" (Adverse) | Jarrod Bowen: West Ham, whose manager went from Nuno Espírito Santo to Steven Schumacher. A row for every squad player of 21 clubs, 11 of them with a manager first seen on this save |
 | 128 | 175 | the award's name (Domestic; Continental for Guirassy's African Footballer of the Year, season 2026/27) | Jack Wint's three rows are the screen's three lines, in order (Young Player, Player, Young Player of the Month, Kidderminster); Tom Tweedy and Harvey Greenslade one each (Player of the Month, Truro) |
 
-FMM22 adds kinds the first FMM27 season has not reached (frem-2026-06-11):
+FMM22's longer careers show the rest, screen-checked on frem-2030-06-30:
 
-| kind | rows | reading | evidence, not yet screen-checked |
+| kind | `kind_name` | screen text | checked |
 |---|---|---|---|
-| 4 | 2,291 | league won | Frem's squads in the 3. Division 2021, 2. Division 2022 and NordicBet Liga 2023, the [club titles](club_titles.md) |
-| 8 | 5,242 | promoted | the same three Frem squads; leagues only |
-| 16 | 10,505 | relegated | leagues only; Daniel S. Jørgensen with Europa, Spanish Federation Second Group 5, 2025 |
-| 64 | 837 | ? | leagues only, mostly third and fourth tiers; Eupen's squad, Belgian Pro League A 2023 |
-| 512 | 41 | ? | no competition, no award; about ten a year at big clubs (Maignan at Milan 2023 and 2024, Salah at Liverpool 2021, 2022, 2024) |
-| 32 | 11,400 | "Manager Sacked" on FMM27 | here also on national teams after a tournament (Maignan, France, World Cup 2022) |
+| 4 | `league_won` | "3F Superliga Winner" (Major) | Anton Pedersen, Frem 2028/29 and 2029/30; Mattias Jakobsen, FC København 2022/23 |
+| 8 | `promoted` | "Promoted from NordicBet Liga" | Victor Jensen, Viborg FF 2025/26; Pedersen, Frem 2023/24 |
+| 16 | `relegated` | "Relegated from 3F Superliga" (Adverse) | Jensen, Viborg FF 2027/28 and Eibar 2028/29; Pedersen, Karlslunde 2021/22 |
+| 64 | `club_bankrupt` | "Club Bankrupt" (Adverse) | Jensen, Eibar 2028/29; Jakobsen, Fortuna Düsseldorf 2027/28 |
+| 512 | `global_team_of_the_year` | "Global Team of the Year" (World) | Alisson, Liverpool 2027/28 and 2028/29; no competition and no award id |
+| 32 | `manager_sacked` | "Manager Sacked" | on national teams too: Jakobsen, Denmark 2030; Alisson, Brazil 2022, 2023, 2026, 2027 |
+
+The season shows as "2029/30" for a club and "2030" for a national team; both are the
+same `year` byte. Pedersen's thirteen lines and Jensen's and Jakobsen's lists are the
+evidence test's second save.
+
+![Jensen: Club Bankrupt, relegated, promoted](img/player_achievements-fmm22-1.png)
+![Jakobsen: Manager Sacked with Denmark, Club Bankrupt](img/player_achievements-fmm22-2.png)
+![Alisson: Global Team of the Year](img/player_achievements-fmm22-3.png)
 
 Wint is 1st in `award_history` three times and 2nd once, and has three rows: a row is a
 win, not a placing. The screen's category (World, Continental, Domestic, Major, Minor,
@@ -75,5 +83,6 @@ follow from the kind and the competition. No date is stored.
 
 - Where a player's first row is found: something per person must point at the head of his
   chain. Not needed to read the table, which is read whole.
-- Whether past seasons' achievements stay here after the rollover.
-- FMM22: the block after the club titles is not mapped, so the table is not located there.
+- What sits after the slots on frem-2030-06-30 (53 bytes naming Frem's ground).
+- Frem's own titles hit the 100,000 capacity in no save yet (54,291 by 2030): what the game
+  does when it is full is unknown.
