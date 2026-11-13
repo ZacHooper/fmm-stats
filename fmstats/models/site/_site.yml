@@ -295,6 +295,14 @@ models:
         description: '{{ doc("is_loan_in") }}'
       - name: loaned_to_club_tid
         description: '{{ doc("loaned_to_club_tid") }}'
+      - name: loan_parent_club_tid
+        description: 'The loan''s parent club, on a loan either way. {{ doc("parent_club_tid") }}'
+      - name: loan_start_date
+        description: 'The current loan''s start. {{ doc("start_date") }}'
+      - name: loan_end_date
+        description: 'The current loan''s agreed end. {{ doc("end_date") }}'
+      - name: loan_wage_pct
+        description: '{{ doc("wage_pct") }}'
   - name: site_player_spells
     description: Where each player was, as dated spells.
     data_tests:
@@ -776,6 +784,8 @@ models:
         description: '{{ doc("n_value_estimated") }}'
       - name: wage_gbp
         description: 'Summed over the players we own. {{ doc("wage_gbp") }}'
+      - name: wage_paid_gbp
+        description: '{{ doc("wage_paid_gbp") }}'
   - name: site_transfers
     description: Every transfer, named, aged and placed by window, nation and our direction.
     data_tests:

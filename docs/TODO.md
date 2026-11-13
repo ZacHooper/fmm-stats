@@ -163,10 +163,9 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
   scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
   only save diffs across a derby match can name them.
 Phase 2 read two tables and found what the other two regions hold:
-- **The [loan pool](parser/loans.md)** (the plan's "25-byte table"): every loan in the world,
-  found by `person_index.loan_slot`. **Load it** into `raw` and build loan spells for every
-  club from it (today's `mart.fact_loan_spell` comes from the progress bit: our squad, loans
-  out only); name `option` and the u32 at +17 from a loan card with an option to buy.
+- **The [loan pool](parser/loans.md)**: name `option` and the u32 at +17 from a loan card
+  with an option to buy (loaded as `has_option`, read as an option to buy); and +15, 1 on every
+  slot.
 - **[Last transfers](parser/last_transfers.md)** (the plan's "per-player block"): each
   player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and
   a destination for every move in the world, which the band (emptied every July) can't give.

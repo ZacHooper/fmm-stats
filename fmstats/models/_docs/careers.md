@@ -85,6 +85,33 @@ The club that owns him while he is on loan: his record's club where a snapshot l
 else the best of the rules in int.loan_spells.
 {% enddocs %}
 
+{% docs is_dated_by_pool %}
+The loan's start and end are the loan pool's agreed dates, to the day; false where they come
+from Player Progress weeks or are NULL.
+{% enddocs %}
+
+{% docs ended_early_by_date %}
+The first snapshot after the loan pool last held the loan, where that is before its agreed end:
+the loan ended between the two (recalled, cut short, or turned into a transfer). NULL for a loan
+that ran to its end or is still running.
+{% enddocs %}
+
+{% docs wage_pct %}
+The share of his wage the borrowing club pays, 0 to 100, as the loan pool stores it (the
+contract card's "Loan 50%"); the parent club pays the rest. NULL for a loan no snapshot's pool
+holds.
+{% enddocs %}
+
+{% docs wage_paid_gbp %}
+The yearly wages we pay: our own players' wages less the share a borrowing club pays on a loan
+out, plus our share on a loan in (`wage_pct`, from the loan pool).
+{% enddocs %}
+
+{% docs has_option %}
+The loan carries an option flag in the loan pool (about a third of loans). Read as an option to
+buy; not yet tied to a contract card.
+{% enddocs %}
+
 {% docs has_line %}
 The loan has a loan line in his career history; false for a loan only a squad listing shows
 (a loan made this season).

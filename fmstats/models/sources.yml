@@ -12,6 +12,7 @@ sources:
       - name: name_strings
       - name: name_ids
       - name: contracts
+      - name: loans
       - name: training
       - name: clubs
       - name: club_squad

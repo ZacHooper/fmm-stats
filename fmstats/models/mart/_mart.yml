@@ -1777,7 +1777,7 @@ models:
   - name: fact_loan_spell
     description: >
       Every loan, per player, season and borrowing club: parent club, borrowing team, the
-      snapshots listing him there, real dates for our own loans out.
+      agreed dates and wage share from the loan pool, the snapshots listing him there.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, season, borrowing_club_tid]}}
       - relationship_combination:
@@ -1800,6 +1800,16 @@ models:
         description: '{{ doc("start_date") }}'
       - name: end_date
         description: '{{ doc("end_date") }}'
+      - name: is_dated_by_pool
+        description: '{{ doc("is_dated_by_pool") }}'
+      - name: ended_early_by_date
+        description: '{{ doc("ended_early_by_date") }}'
+      - name: wage_pct
+        description: '{{ doc("wage_pct") }}'
+        data_tests:
+          - in_range: {arguments: {min_value: 0, max_value: 100}}
+      - name: has_option
+        description: '{{ doc("has_option") }}'
       - name: first_seen_date
         description: '{{ doc("first_seen_date") }}'
       - name: last_seen_date

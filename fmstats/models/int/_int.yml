@@ -355,8 +355,8 @@ models:
           - accepted_values: {arguments: {values: [permanent, free, graduation]}}
   - name: int_loan_spells
     description: >
-      Every loan the career histories and the squads show, per player, season and borrowing
-      club; real dates for our own loans out.
+      Every loan the loan pool, the career histories and the squads show, per player, season
+      and borrowing club; the pool's agreed dates and wage share.
     data_tests:
       - unique_combination: {arguments: {columns: [person_id, season, borrowing_club_tid]}}
   - name: int_staff_spells

@@ -464,6 +464,7 @@ export function openProfile(tid, { role = null } = {}) {
     el("div.figs", {}, [
       shown ? fig(`${shown.role} rating`, num(shown.eff), `${D.S.method}, familiarity-adjusted`) : null,
       fig("Value", money(p.value)), fig("Wage/yr", money(p.wage)), fig("Contract", monthYear(p.expiry)),
+      ...loanFigs(tid, p, loanedIn),
       origin ? fig("Origin", origin, D.S.ours.capital_eligible?.includes(tid)
         ? "Eligible under the capital-region rule" : "Outside the capital region") : null,
     ]),
@@ -789,6 +790,25 @@ export function openProfile(tid, { role = null } = {}) {
   }
 
   sheet(`${p.name}${a ? ` · ${a}` : ""}`, body, { wide: true, band: shirtStyle(p.clubTid, D.S) });
+}
+
+const fmtDay = (iso) => new Date(iso).toLocaleDateString("en-GB",
+  { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+// A loan either way, from the loan pool: when it ends, and the share of his wage we pay
+// (the borrowing club pays wage_pct of it, his parent club the rest).
+function loanFigs(tid, p, loanedIn) {
+  const row = D.S.ours.loans?.[String(tid)];
+  if (!row) return [];
+  const L = Object.fromEntries(D.S.ours.loan_fields.map((f, i) => [f, row[i]]));
+  const other = D.S.clubs.get(L.club_tid)?.name || `#${L.club_tid}`;
+  const share = L.wage_pct == null ? null : (loanedIn ? L.wage_pct : 100 - L.wage_pct);
+  return [
+    fig("Loan ends", fmtDay(L.end), `${loanedIn ? "From" : "At"} ${other} since ${fmtDay(L.start)}`),
+    share == null ? null : fig("We pay/yr", `${money(p.wage * share / 100)} (${share}%)`,
+      loanedIn ? `${other} pays the other ${100 - share}% of his wage`
+               : `${other} pays ${L.wage_pct}% of his wage`),
+  ];
 }
 
 const fig = (label, value, title) => el("span.fig", { title }, [el("span.dim", { text: label }), el("b", { text: String(value) })]);

@@ -310,7 +310,8 @@ def main():
     # ------------------------------------------------------------ players
     players = s.rows("SELECT * FROM site.players WHERE snapshot_date = ? ORDER BY tid", [d])
     squad = s.rows("""SELECT q.person_id, p.tid, q.status, q.is_loan_in,
-                             q.loaned_to_club_tid
+                             q.loaned_to_club_tid, q.loan_parent_club_tid,
+                             q.loan_start_date, q.loan_end_date, q.loan_wage_pct
                       FROM site.squad q
                       JOIN site.players p USING (snapshot_date, person_id)
                       WHERE q.snapshot_date = ? ORDER BY p.tid""", [d])
@@ -339,6 +340,14 @@ def main():
             "managed_tid": managed, "reserve_tid": reserve,
             "status": {str(q["tid"]): q["status"] for q in squad},
             "loaned_in": [q["tid"] for q in squad if q["is_loan_in"]],
+            # a loan either way, from the loan pool: the other club (the parent on a loan
+            # in, the borrower on a loan out), the agreed dates, the borrower's wage share
+            "loan_fields": ["club_tid", "start", "end", "wage_pct"],
+            "loans": {str(q["tid"]): [q["loan_parent_club_tid"] if q["is_loan_in"]
+                                      else q["loaned_to_club_tid"],
+                                      day(q["loan_start_date"]), day(q["loan_end_date"]),
+                                      q["loan_wage_pct"]]
+                      for q in squad if q["loan_start_date"] is not None},
             "squad_tids": [q["tid"] for q in squad],
             "origin": {str(q["tid"]): by_pid[q["person_id"]]["origin_club"]
                        for q in squad if by_pid[q["person_id"]].get("origin_club")},
@@ -496,11 +505,11 @@ def main():
     finish_fields = ["season", "competition", "final_position", "table_position",
                      "stage_name", "stage_teams", "n_teams"]
     fin_fields = ["season", "phase", "n_owned", "n_loan_in", "value_gbp", "n_value_est",
-                  "wage_gbp"]
+                  "wage_gbp", "wage_paid_gbp"]
     fin = s.rows("SELECT *, snapshot_date AS phase FROM site.finances ORDER BY snapshot_date")
     for r in fin:
         r["phase"] = day(r["phase"])
-        for k in ("value_gbp", "wage_gbp"):
+        for k in ("value_gbp", "wage_gbp", "wage_paid_gbp"):
             r[k] = None if r[k] is None else float(r[k])
     emit("matches.json", {
         "match_fields": mfields,

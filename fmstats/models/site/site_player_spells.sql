@@ -6,10 +6,13 @@
 --             between the run's first snapshot and the one before it, else
 --             the first snapshot; to the run's last snapshot, NULL while it
 --             runs on the newest
---   loan_out  a loan of ours with dates (fact_loan_spell: Player Progress),
---             club_tid the borrowing club
---   loan_in   a loan to us: the snapshots our squad lists him (NULL to while
---             it does on the newest), club_tid the parent club
+--   loan_out  a loan of ours with dates (fact_loan_spell: the loan pool,
+--             else Player Progress), club_tid the borrowing club
+--   loan_in   a loan to us: from its start in the loan pool, else the first
+--             snapshot our squad lists him; club_tid the parent club
+-- A loan's to_date is its agreed end once that has passed by the newest
+-- snapshot, the snapshot that found it gone where it ended early, and NULL
+-- while it runs.
 --   injured   an injury (fact_injury_spell), no club
 with career as (
     select * from {{ ref('stg_career') }}
@@ -77,12 +80,22 @@ at_club as (
 ),
 
 loans_out as (
-    select
+    -- a loan of several seasons is one row per season, the same spell
+    select distinct
         loans.person_id,
         'loan_out' as spell_type,
         loans.borrowing_club_tid as club_tid,
         loans.start_date as from_date,
-        loans.end_date as to_date
+        case
+            when loans.ended_early_by_date is not null
+                then loans.ended_early_by_date
+            when
+                loans.end_date <= (
+                    select max(latest.snapshot_date) as latest_date
+                    from snapshots as latest
+                )
+                then loans.end_date
+        end as to_date
     from {{ ref('fact_loan_spell') }} as loans
     inner join career
         on loans.parent_club_tid = career.managed_club_tid
@@ -90,14 +103,23 @@ loans_out as (
 ),
 
 loans_in as (
-    select
+    select distinct
         loans.person_id,
         'loan_in' as spell_type,
         loans.parent_club_tid as club_tid,
-        loans.first_seen_date as from_date,
+        coalesce(loans.start_date, loans.first_seen_date) as from_date,
         case
+            when loans.ended_early_by_date is not null
+                then loans.ended_early_by_date
             when
-                loans.last_seen_date
+                loans.end_date <= (
+                    select max(latest.snapshot_date) as latest_date
+                    from snapshots as latest
+                )
+                then loans.end_date
+            when
+                loans.end_date is null
+                and loans.last_seen_date
                 < (
                     select max(latest.snapshot_date) as latest_date
                     from snapshots as latest
@@ -107,7 +129,7 @@ loans_in as (
     from {{ ref('fact_loan_spell') }} as loans
     inner join career
         on loans.borrowing_club_tid = career.managed_club_tid
-    where loans.first_seen_date is not null
+    where coalesce(loans.start_date, loans.first_seen_date) is not null
 ),
 
 injuries as (

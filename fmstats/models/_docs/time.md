@@ -59,13 +59,15 @@ Synonyms: `valid_to`.
 
 {% docs start_date %}
 The first day of the spell. For an injury, its first injured week in Player Progress, so the
-true start lies within a week of it. For a loan, its first week flagged on loan, and only for a
-loan out of the club we manage; NULL for every other loan (the save gives no loan dates).
+true start lies within a week of it. For a loan, the agreed start in the loan pool, to the day,
+wherever a snapshot's pool holds the loan (any club's); else, for a loan out of the club we
+manage, its first week flagged on loan; else NULL.
 {% enddocs %}
 
 {% docs end_date %}
-The last day of the spell: an injury's last injured week, a loan of ours' last week flagged on
-loan (NULL otherwise). The true end lies within a week of it.
+The last day of the spell: an injury's last injured week (the true end lies within a week of
+it); a loan's agreed end in the loan pool, else a loan of ours' last week flagged on loan
+(NULL otherwise). A loan can end before its agreed end: see `ended_early_by_date`.
 {% enddocs %}
 
 {% docs from_date %}

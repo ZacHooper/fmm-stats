@@ -75,4 +75,15 @@ The u32 at +17 reads 10,000 on his slot, with `option` 0.
 ## Output
 
 `output/<label>/loans.json`: `[{slot, tid, club_tid, start, end, wage_pct, option}]` for every
-used slot, in slot order. Not loaded yet.
+used slot, in slot order. Loaded as `raw.loans` → `stg.loans` → `int.loan_spells` →
+`mart.fact_loan_spell` (agreed dates, `wage_pct`, `has_option`, `ended_early_by_date`), and on
+the site as each current loan's end and our wage share on the player sheet
+(`site.squad`, `core.ours.loans`) and the wage bill we pay (`site.finances.wage_paid_gbp`).
+
+A loan made in the game is in the pool from its start day until it ends: on every save after
+day one no slot starts after the save's date (the latest start is the save's own day on
+frem-2030-06-30), and Tom Dean's loan to Truro (19 July to 1 January) is in the
+truro-2026-07-22 pool and gone from the 25 July one, which is how the store dates a loan cut
+short (`ended_early_by_date`). The day-one database is the exception: 1,839 of
+frem-2021-06-27's 1,962 loans start later (the coming season's, up to March 2022), and a few
+loans on every database start years back (Truro: one from 2006).
