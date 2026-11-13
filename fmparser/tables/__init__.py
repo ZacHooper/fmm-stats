@@ -209,6 +209,9 @@ from .staff_rows import STAFF_ROWS_TABLE, scrape_staff_rows, staff_rows_table_sp
 from .player_form import PLAYER_FORM_TABLE, player_form_table_spans, scrape_player_form
 from .player_achievements import (PLAYER_ACHIEVEMENTS_TABLE, player_achievements_table_spans,
                                   scrape_player_achievements)
+from .player_season_stats import (PLAYER_SEASON_STATS_TABLE,
+                                  player_season_stats_table_spans,
+                                  scrape_player_season_stats)
 from .player_ability_scales import (PLAYER_ABILITY_SCALES_TABLE,
                                     player_ability_scales_table_spans,
                                     scrape_player_ability_scales)
@@ -244,6 +247,7 @@ TABLES = {
     "club_seasons": CLUB_SEASONS_TABLE,
     "club_titles": CLUB_TITLES_TABLE,
     "player_achievements": PLAYER_ACHIEVEMENTS_TABLE,
+    "player_season_stats": PLAYER_SEASON_STATS_TABLE,
     "last_transfers": LAST_TRANSFERS_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
@@ -361,6 +365,7 @@ __all__ = [
     "scrape_player_form",
     "scrape_player_ability_scales",
     "scrape_player_achievements",
+    "scrape_player_season_stats",
     "scrape_person_stamps",
     "scrape_regions",
     "scrape_unions",

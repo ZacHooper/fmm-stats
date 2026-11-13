@@ -489,7 +489,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [42470054, 43228514, "database", "Surname id-table", "names.md", "fixed grid", "SURNAMES_TABLE", "FMM22's locator.", false, false],
         [43228513, 43706942, "database", "First-name id-table", "names.md", "fixed grid", "FIRST_NAMES_TABLE", "FMM22's locator.", false, false],
         [43706941, 43869578, "database", "Nickname id-table", "names.md", "fixed grid", "NICKNAMES_TABLE", "FMM22's locator.", false, false],
-        [43869578, 46029088, "unknown", "Unidentified", "unread/named_records.md", "", "", "2.16 MB, 82% zero (96% on 25 Jul): it is filling as the season goes, 1.6 MB of it no longer near-empty. What fills it is not read.", false, false],
+        [43869578, 45832154, "seasonal", "Player season stats", "player_season_stats.md", "fixed grid", "PLAYER_SEASON_STATS_TABLE", "Six blocks (club season, league, cup, continental, non-competitive, international) of one 9 B row per player-attribute record: apps, goals, assists, conceded, rating total, yellows, reds, PoM. The Player History screen's This Season panel, every player in the world: 92,461 rows with data (10,021 on 25 Jul). Clears at the season's end. New: read 13 Nov.", false, false],
+        [45832154, 46029088, "unknown", "Unidentified", "player_season_stats.md#what-follows-unread", "", "", "197 KB after the season stats: 1,020 inline-named records (people the database does not ship), then counts of 3,125 and 10,000.", false, false],
         [46029088, 53262532, "reserved", "Career-history pool", "history.md", "linked list", "HISTORY_TABLE", "[count u32] + 452,090 × 16 B (FMM22 Frem: 265,423). The forest check passes; no screen has checked it yet.", false, true],
         [53262532, 54387579, "grows", "Club records", "club_records.md", "count in front", "CLUB_RECORDS_TABLE", "[u16 1,087] clubs, 12,778 record entries (532 on 25 Jul). FMM22's locator; the audit raises nothing, no screen check yet.", false, false],
         [54387579, 54590671, "unknown", "Unidentified", "unread/record_books.md", "", "", "00 26% / ff 67%. FMM22 has its 162-count record table here.", false, false],
@@ -515,10 +516,10 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [71769958, 72985749, "grows", "sicomps archive", "#h-arch", "archive member", "archive.locate", "168 bare zstd frames and a directory, 6.60 MB decompressed (4.57 MB on 25 Jul). No length prefixes.", false, true]
       ],
       gaps: [
-        ["43.87–46.03 MB", 2.16, 1.61, "82% zero, filling: 0.17 MB real on 25 Jul"],
         ["36.68–38.13 MB", 1.45, 1.45, "after the loans, in front of the transfer band"],
         ["41.15–42.47 MB", 1.32, 0.82, "after the last transfers, before the surname id-table"],
         ["27.33–29.76 MB", 2.42, 0.40, "78% 0xFF, after the rule files"],
+        ["45.83–46.03 MB", 0.20, 0.19, "inline-named records, after the season stats"],
         ["71.61–71.77 MB", 0.16, 0.16, "before the archive; opens with a date"],
         ["54.39–54.59 MB", 0.20, 0.12, "55% 0xFF, between the club records and player progress"],
         ["62.94 MB", 0.01, 0.01, "between the team history and our matches"],
@@ -583,7 +584,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [40141778, 40656146, "database", "Surname id-table", "names.md", "fixed grid", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
         [40656158, 40962206, "database", "First-name id-table", "names.md", "fixed grid", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
         [40962218, 41113898, "database", "Nickname id-table", "names.md", "fixed grid", "NICKNAMES_TABLE", "9,480 × 16 B."],
-        [41113898, 42630093, "unknown", "Unidentified", "unread/named_records.md", "", "", "82% zero, mostly padding."],
+        [41113898, 42545168, "seasonal", "Player season stats", "player_season_stats.md", "fixed grid", "PLAYER_SEASON_STATS_TABLE", "Six blocks of a 9 B row per player-attribute record (26,505): the Player History screen's This Season panel, league / cup / continental / non-competitive / international and the season line. 65,874 rows with data. New: read 13 Nov on FMM27, the same here."],
+        [42545168, 42630093, "unknown", "Unidentified", "player_season_stats.md#what-follows-unread", "", "", "85 KB after the season stats: rows of two u32 and a u16 nation id."],
         [42630093, 46876865, "reserved", "Career-history pool", "history.md", "linked list", "HISTORY_TABLE", "[count u32] + 265,423 records × 16 B ([stats][club, fee, next], one season line each): a pointer forest. The count is a capacity fixed at career creation."],
         [46876865, 48166114, "grows", "Club records", "club_records.md", "count in front", "CLUB_RECORDS_TABLE", "[count u16] (1,057 clubs Frem), then per club [tid u16][n u8][n × 212 B league history][Team/Player Records]. Grows 212 B per new league a club plays in."],
         [48166114, 48353064, "unknown", "Unidentified", "unread/record_books.md", "", "", "[count u32] = 162 on every save, variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows. The same size on every save of a career."],
@@ -611,7 +613,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         ["39.20–40.04 MB", 0.84, 0.53, "after the last transfers; real bytes not re-measured"],
         ["15.08–16.75 MB", 1.67, 0.48, "after the club rows: one variable-length block per player; real bytes not re-measured"],
         ["20.02–29.17 MB", 9.15, 0.3, "94% 0xFF: padding, not a target"],
-        ["41.11–42.63 MB", 1.52, 0.27, "82% zero, mostly padding"],
+        ["42.55–42.63 MB", 0.08, 0.08, "after the season stats: two u32 and a nation id per row"],
 
         ["52.72–53.48 MB", 0.76, 0, "all 00 and ff"]
       ],

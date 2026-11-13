@@ -75,7 +75,8 @@ notes. The status column names the `core` table that reads it
 | 40,141,778 | 40,656,146 | 0.51 MB | **[surname id-table](names.md)** — 32,148 slots, 28,625 used | game database | Shape C | `SURNAMES_TABLE` |
 | 40,656,158 | 40,962,206 | 0.31 MB | **[first-name id-table](names.md)** — 19,128 slots, 15,367 used | game database | Shape C | `FIRST_NAMES_TABLE` |
 | 40,962,218 | 41,113,898 | **0.15 MB** | **[nickname id-table](names.md)** — 9,480 × 16 B | game database | Shape C | `NICKNAMES_TABLE` |
-| 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED** ([what is known](unread/named_records.md)), 82% zero — mostly padding | — | — | — |
+| 41,113,898 | 42,545,168 | 1.43 MB | **[player season stats](player_season_stats.md)**: the Player History screen's This Season panel, six blocks (league, cup, continental, …) of a 9 B row per player-attribute record | **resets at the season's end**, nation by nation | Shape C (a grid by player) | `PLAYER_SEASON_STATS_TABLE` |
+| 42,545,168 | 42,630,105 | 85 KB | **UNIDENTIFIED** ([what is known](player_season_stats.md#what-follows-unread)) | — | — | — |
 | 42,630,093 | 46,876,865 | 4.25 MB | **[career-history pool](history.md)** — `[count u32]` + 265,423 records × 16 B (`[stats][club, fee, next]`, one season line each), pointer forest | **reserved space**: filled as players play seasons | Shape B | `HISTORY_TABLE` |
 | 46,876,865 | 48,166,114 | 1.29 MB | **[club-records](club_records.md)** — `[count u16]` (1,057 clubs Frem, 1,060 Bucaspor), then per club `[tid u16][n u8][n × 212 B league history][Team/Player Records, overall + this season: 4 × 12 slots of 21 / 22 B]` | **grows** 212 B per new league a club plays in | Shape A, record blocks C | `CLUB_RECORDS_TABLE` |
 | 48,166,114 | 48,353,064 | 0.19 MB | **UNIDENTIFIED** ([what is known](unread/record_books.md)) — `[count u32]` = 162 on every save and variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows (TODO, "The unclaimed regions of the career half"); the same size on every save of a career | — | — | — |
@@ -345,7 +346,8 @@ The career half on `truro-2026-11-16` (33 matches into the season), in file orde
 | 38,133,604 | transfer band | `[u32 65,000][u32 13,449][2 B]`, 143 B rows: 1.92 MB |
 | 40,056,821 | [last transfers](last_transfers.md) | 36,344 × 30 B, 793 filled |
 | 42,470,066 | [name id-tables](names.md) | surnames, first names, nicknames; FMM22's locators |
-| 46,029,092 | [history](history.md) | 452,090 rows declared; the 2.16 MB in front is 82% zero (96% on 25 Jul) |
+| 43,869,578 | [player season stats](player_season_stats.md) | six blocks × 36,344 × 9 B, 92,461 rows with data; then 197 KB unread |
+| 46,029,092 | [history](history.md) | 452,090 rows declared |
 | 53,262,534 | [club_records](club_records.md) | 1,087 clubs |
 | 54,590,685 | [player progress](player_progress.md) | 62,400 × 70 B, 539 used; template year 2025 |
 | 59,992,765 | [training](training.md) | count 44,960, 61 B rows |

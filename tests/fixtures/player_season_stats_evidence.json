@@ -1,0 +1,41 @@
+{
+  "save": "truro-2026-11-16.fms",
+  "players": {
+    "6588": {
+      "name": "Omar Bogle",
+      "sid": "fc0a0000",
+      "rows": ["13 09 04 00 87 00 01 00 01", "0e 07 04 00 65 00 00 00 01",
+               "05 02 00 00 22 00 01 00 00", "00 00 00 00 00 00 00 00 00",
+               "04 01 00 00 1a 00 01 00 00", "00 00 00 00 00 00 00 00 00"],
+      "screen": {
+        "club_season":     {"apps": 19, "goals": 9, "assists": 4, "yellows": 1, "reds": 0, "av_r": "7.10"},
+        "non_competitive": {"apps": 4, "goals": 1, "assists": 0, "yellows": 1, "reds": 0, "player_of_match": 0, "av_r": "6.50"},
+        "league":          {"apps": 14, "goals": 7, "assists": 4, "yellows": 0, "reds": 0, "player_of_match": 1, "av_r": "7.21"},
+        "cup":             {"apps": 5, "goals": 2, "assists": 0, "yellows": 1, "reds": 0, "player_of_match": 0, "av_r": "6.80"},
+        "continental":     {"apps": 0},
+        "international":   {"apps": 0}
+      }
+    },
+    "4353": {
+      "name": "Ben Starkie",
+      "sid": "0b030000",
+      "rows": ["0c 04 01 00 55 00 00 00 01", "09 03 01 00 41 00 00 00 01",
+               "03 01 00 00 14 00 00 00 00", "00 00 00 00 00 00 00 00 00",
+               "02 00 02 00 0e 00 01 00 00", "02 00 00 00 0c 00 00 00 00"],
+      "screen": {
+        "club_season":     {"apps": 12, "goals": 4, "assists": 1, "yellows": 0, "reds": 0, "av_r": "7.08"},
+        "non_competitive": {"apps": 2, "goals": 0, "assists": 2, "yellows": 1, "reds": 0, "player_of_match": 0, "av_r": "7.00"},
+        "league":          {"apps": 9, "goals": 3, "assists": 1, "yellows": 0, "reds": 0, "player_of_match": 1, "av_r": "7.22"},
+        "cup":             {"apps": 3, "goals": 1, "assists": 0, "yellows": 0, "reds": 0, "player_of_match": 0, "av_r": "6.66"},
+        "continental":     {"apps": 0},
+        "international":   {"apps": 2, "goals": 0, "assists": 0, "yellows": 0, "reds": 0, "player_of_match": 0, "av_r": "6.00"}
+      }
+    }
+  },
+  "sent_off": {
+    "note": "Jahrel McKoy, sent off in the 59th minute of a reserves match (English Reserves Group 11, 21 Oct 2026), our match table",
+    "sid": "f7760000",
+    "block": "non_competitive",
+    "row": "09 00 01 00 3b 00 00 01 00"
+  }
+}
