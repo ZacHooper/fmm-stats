@@ -21,7 +21,7 @@ drifts between saves, so find it by that table, never by its number.
 | 7 | 2,632,424 | `[u32 cap][cap × 32 B]` | cap 2,841 / 5,682; 0–71 used | a slot pool sized by the coach count | [coach_slots](coach_slots.md) |
 | 8 | 2,814,252 | `[3 B][u16 n][n × 10 B]` | 1,157 | one row per physio, all empty | [physio_rows](physio_rows.md) |
 | 9 | 2,825,827 | 787 × 104 B, no count | 772 with data | one row per scout, and 15 spare | [scout_rows](scout_rows.md) |
-| 10 | 2,907,675 | `[u32 100,000][100,000 × 24 B]` then `[u8 0]` | 0 / 1 / 1 / 887 used | a growing slot pool | [slot_pool](slot_pool.md) |
+| 10 | 2,907,675 | `[u32 100,000][100,000 × 24 B]` then `[u8 0]` | 0 / 1 / 1 / 887 used | **player achievements** (screen-checked) | [player_achievements](player_achievements.md) |
 
 Per save (rows of 4 / 5 / 7 used / 10 used): 22 Jul 0 / 36,343 / 0 of 5,682 / 0; 25 Jul
 0 / 36,343 / 0 of 2,841 / 1; 8 Aug 27 / 36,343 / 55 of 2,841 / 1; 16 Nov 548 / 36,345 / 71 of
