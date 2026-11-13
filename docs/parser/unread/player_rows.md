@@ -17,7 +17,7 @@ The rows run tid 401 to 44,958 and are 2.6 MB, the block's biggest table.
 |---|---|---|
 | +0 | u32 | the player's tid, ascending |
 | +4 | 4 × u32 | four player-table indexes (0–36,202); each column is a **random permutation** of the players |
-| +20 | u16 | 0–190; changes slowly (86% unchanged over 17 days, 40% over three months) |
+| +20 | u16 | **ability on the player's league's scale**: within a league it tracks current ability (median r = 0.95 over 100 leagues; 0.954 in Truro's, 595 players), across leagues not at all (r = -0.04). Moves when ability moves (r = 0.75 between 8 Aug and 16 Nov). 0–190 |
 | +22 | u16 | set only on young players: every player aged 21 or under, part of the 22-year-olds, nobody older (born 18 Jul 2004 or later; 12,063 players on 16 Nov); 20–118; `ffff` otherwise |
 | +24 | 6 × u32 | `ffff…` on 28,856 players, 100 on 7,389 (the whole Truro squad and its league), a few other values (74, 93, 57: percentages?) |
 | +48 | 6 × u32 | two player-table indexes, two 100s, then two indexes again |
@@ -27,8 +27,17 @@ The rows run tid 401 to 44,958 and are 2.6 MB, the block's biggest table.
   reputation, age, height and club all rise as often as they fall); and they reshuffle
   almost completely between saves (under 1% unchanged in 17 days). Engine working state,
   most likely: random pairings the game draws each day.
-- **The u16 at +20** correlates with nothing read so far (ability, reputation, age, morale,
-  caps, height all |r| < 0.05) and is not the Club Squad screen's condition.
+- **The u16 at +20** looked unrelated to ability over the whole world (|r| < 0.05), because each
+  league has its own scale: within one league it is ability, r = 0.95. In Truro's squad
+  it rose for exactly the players whose ability rose between 8 Aug and 16 Nov (Greenslade
+  52→59, Tweedy 60→66, Matthews 42→45) and stayed for the rest. A league-relative rating:
+  close to what the site's Level %ile computes, and a candidate for the stars a profile
+  shows. Derived from ability, so presentation should treat it as the Level %ile is
+  treated (`[immersion]`).
+- **+22** (young players only) is not days to the next birthday (r = 0.002), not a growth
+  allowance (its change between saves does not follow ability's, r = 0.02; Tweedy's fell
+  90→22 as he improved, Matthews's rose 66→75), and not potential on the league's scale
+  (median r = 0.38).
 
 ## Examples (truro-2026-11-16): whole rows
 
@@ -87,11 +96,13 @@ stands in.)
 
 1. +22: what young-player number this is. Not ability or potential (|r| < 0.04). A screen
    that shows a number for youngsters only (development? a youth rating?) is the lead.
-2. Diff the +20 number over a match: a save before and after a game, for the players who
-   played.
+2. Pin +20's scale: what makes 100 (the league's best?) and whether it is the profile's
+   star rating.
 3. Table 6's one person (Kimika Forbes, tid 37304): what puts that row in a list of its own.
 
 ## Evidence that would help
 
-A save the day before a match and one the day after; and any screen that shows a number per
-player that drifts slowly (sharpness? happiness?).
+For +20: a player's star rating (ability) on his profile, for a few players of one league,
+with the save the same day. For +22: any screen giving youngsters (21 and under) a number.
+Not the Individual Training screen's progress bar (the training table's fields are 2 and
+84 on all nine players shown there).
