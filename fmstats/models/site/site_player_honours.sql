@@ -2,7 +2,10 @@
 -- keyed (person_id, award_id, edition_date): the award, the period it is for
 -- (period_label: 'September 2026' for a monthly award, the edition's date for
 -- a weekly one, the year an annual award's screen shows), his place (1st to
--- 3rd; NULL on a team pick), his club then, and the score or rating. Manager
+-- 3rd; NULL on a team pick), his club then, and the score or rating.
+-- award_scope: who gives it, short ('Enterprise South', 'Premier League'): the
+-- competition's short name, else the nation's, else what the full name adds to
+-- the short one ('World', 'South American'). Manager
 -- awards are left out: they go to staff, not players.
 with honours as (
     select
@@ -33,6 +36,11 @@ select
     honours.award_id,
     awards.name as award_name,
     awards.short_name,
+    coalesce(
+        competitions.short_name,
+        nations.name,
+        nullif(trim(replace(awards.name, awards.short_name, '')), '')
+    ) as award_scope,
     awards.award_type,
     awards.award_period,
     honours.season,
@@ -51,6 +59,10 @@ select
 from honours
 inner join {{ ref('dim_award') }} as awards
     on honours.award_id = awards.award_id
+left join {{ ref('dim_competition') }} as competitions
+    on awards.cid = competitions.cid
+left join {{ ref('dim_nation') }} as nations
+    on awards.nation_id = nations.nation_id
 left join {{ ref('dim_club') }} as clubs
     on honours.club_tid = clubs.club_tid
 where honours.person_id is not null and awards.award_type != 'manager'

@@ -404,18 +404,21 @@ def main():
     # Honours: every award place and team-of-the-period pick, newest first. place is 1-3 on
     # an award, null on a team pick (rating then the rating that earned it).
     honours = {}
-    for r in s.rows("""SELECT person_id, award_name, short_name, award_type, award_period,
+    for r in s.rows("""SELECT person_id, award_name, short_name, award_scope, award_type,
+                              award_period,
                               period_label, edition_date, place, club_tid, score,
                               selection_rating
                        FROM site.player_honours WHERE person_id IN (SELECT unnest(?))
                        ORDER BY person_id, edition_date DESC, award_name""", [ever]):
         honours.setdefault(str(tid_of[r["person_id"]]), []).append(
-            [day(r["edition_date"]), r["award_name"], r["short_name"], r["award_type"],
+            [day(r["edition_date"]), r["award_name"], r["short_name"], r["award_scope"],
+             r["award_type"],
              r["award_period"], r["period_label"], r["place"], r["club_tid"],
              num(r["score"]), num(r["selection_rating"])])
     emit("squad.json", {
         "attrs": attrs,
-        "honour_fields": ["date", "award", "short_name", "type", "period", "period_label",
+        "honour_fields": ["date", "award", "short_name", "scope", "type", "period",
+                          "period_label",
                           "place", "club_tid", "score", "rating"],
         "honours": dict(sorted(honours.items(), key=lambda kv: int(kv[0]))), "trajectories": dict(sorted(traj.items(), key=lambda kv: int(kv[0]))),
         "career_history": dict(sorted(chist.items(), key=lambda kv: int(kv[0]))),

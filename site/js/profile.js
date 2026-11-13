@@ -320,7 +320,8 @@ function honoursBlock(rows) {
         .map((h, i) => el(`th${i === 4 ? ".num" : ""}`, { text: h })))]),
       el("tbody", {}, rows.map((h) => el("tr", {}, [
         el("td", { text: h.period_label ?? DASH }),
-        el("td", { text: h.short_name || h.award, title: h.award }),
+        el("td", { title: h.award }, [el("div", { text: h.short_name || h.award }),
+          h.scope ? el("div.hsub", { text: h.scope }) : null]),
         el("td", {}, [h.place ? pill(PLACE[h.place], h.place === 1 ? "good" : "flat")
           : el("span.dim", { text: "picked" })]),
         el("td", {}, [clubName(h.club_tid, D.S)]),

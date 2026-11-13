@@ -378,6 +378,8 @@ models:
         description: 'The award''s name in full. {{ doc("name") }}'
       - name: short_name
         description: '{{ doc("short_name") }}'
+      - name: award_scope
+        description: '{{ doc("award_scope") }}'
       - name: award_type
         description: '{{ doc("award_type") }}'
       - name: award_period

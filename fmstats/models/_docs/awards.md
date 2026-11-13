@@ -40,3 +40,9 @@ The rating that earned a player his place in a team of the period, 6.0 to 10.0, 
 The period an award edition is for, as the award screen names it: the month on a monthly award
 ('September 2026'), the edition's date on a weekly one, the year on an annual one.
 {% enddocs %}
+
+{% docs award_scope %}
+Who gives an award, in short: its competition's short name ('Enterprise South', 'Premier
+League'), else its nation's, else what its full name adds to the short one ('World', 'South
+American').
+{% enddocs %}
