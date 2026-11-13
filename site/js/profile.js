@@ -189,7 +189,7 @@ const STAT_GROUPS = [
   ["Output", ["Apps", "Starts", "Min", "Rating", "Goals", "Assists", "G/90", "A/90"]],
   ["On the ball", ["KeyP/90", "Pass %", "Shot acc %", "Conversion %"]],
   // FMM27 saves only: the group is dropped for a career that doesn't record them
-  ["Chances", ["xG", "xG/90", "G−xG", "xA", "xA/90", "A−xA", "xG+xA", "xG+xA/90", "CCC", "CCC conv %"]],
+  ["Chances", ["xG", "xG/90", "G−xG", "xA", "xA/90", "A−xA", "xG+xA", "xG+xA/90", "G+A−(xG+xA)", "G+A−(xG+xA)/90", "CCC", "CCC conv %"]],
   ["Defending", ["Tackle %", "Header %", "Int/90", "Mistakes/90"]],
 ];
 function statBlock(agg) {

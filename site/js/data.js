@@ -611,7 +611,7 @@ const SUMS_27 = ["xg", "xa", "ccc", "cccScored", "conceded"];
 /** The stats only FMM27 saves record. A career with none of them (an FMM22 career) doesn't
  *  offer them: a column of dashes says nothing. */
 export const FMM27_STATS = new Set(["xG", "G−xG", "xA", "A−xA", "xG+xA", "CCC", "xG/90",
-  "xA/90", "xG+xA/90", "CCC/90", "Conceded/90", "xG/shot", "CCC conv %"]);
+  "xA/90", "xG+xA/90", "G+A−(xG+xA)", "G+A−(xG+xA)/90", "CCC/90", "Conceded/90", "xG/shot", "CCC conv %"]);
 export const hasFmm27Stats = () => !!S.matchesHave27;
 export const statOffered = (name) => !FMM27_STATS.has(name) || hasFmm27Stats();
 /** STAT_PRESETS less what this career doesn't record. */
@@ -631,6 +631,7 @@ export const STAT_DEFS = {
   "xA": (a) => (a.apps27 ? a.xa : null),
   "A−xA": (a) => (a.apps27 ? a.assists27 - a.xa : null),
   "xG+xA": (a) => (a.apps27 ? a.xg + a.xa : null),
+  "G+A−(xG+xA)": (a) => (a.apps27 ? a.goals27 + a.assists27 - a.xg - a.xa : null),
   "CCC": (a) => (a.apps27 ? a.ccc : null),
   "POTM": (a) => a.potm,
   "Key passes": (a) => a.keyPass, "Pass att": (a) => a.passA, "Tackle att": (a) => a.tackA,
@@ -646,7 +647,9 @@ export const STAT_DEFS = {
   "SoT/90": (a) => per90(a, "shotO"), "Mistakes/90": (a) => per90(a, "mistakes"),
   "Yellows/90": (a) => per90(a, "yellow"),
   "xG/90": (a) => per90of27(a, "xg"), "xA/90": (a) => per90of27(a, "xa"),
-  "xG+xA/90": (a) => (a.min27 ? (90 * (a.xg + a.xa)) / a.min27 : null), "CCC/90": (a) => per90of27(a, "ccc"),
+  "xG+xA/90": (a) => (a.min27 ? (90 * (a.xg + a.xa)) / a.min27 : null),
+  "G+A−(xG+xA)/90": (a) => (a.min27
+    ? (90 * (a.goals27 + a.assists27 - a.xg - a.xa)) / a.min27 : null), "CCC/90": (a) => per90of27(a, "ccc"),
   "Conceded/90": (a) => per90of27(a, "conceded"),
   "G/gm": (a) => perGm(a, "goals"), "A/gm": (a) => perGm(a, "assists"),
   "G+A/gm": (a) => a.apps ? (a.goals + a.assists) / a.apps : null,
@@ -674,6 +677,7 @@ const STAT_BASE = {
   Crosses: "Crosses attempted", Dribbles: "Dribbles", Mistakes: "Mistakes", Yellows: "Yellow cards",
   Min: "Minutes", xG: "Expected goals (FMM27 saves)", xA: "Expected assists (FMM27 saves)",
   "xG+xA": "Expected goals + expected assists (FMM27 saves)",
+  "G+A−(xG+xA)": "Goals + assists above expected goals + expected assists (FMM27 saves)",
   CCC: "Clear-cut chances (FMM27 saves)",
   Conceded: "Goals conceded while in goal (FMM27 saves)",
 };
@@ -694,6 +698,7 @@ const STAT_WORDS = {
   "G−xG": "Goals minus expected goals: above 0, he scored more than his chances were worth (FMM27 saves)",
   "xA": "Expected assists: what the chances he set up were worth, the game's xA (FMM27 saves)",
   "xG+xA": "Expected goals plus expected assists: his total expected goal involvement (FMM27 saves)",
+  "G+A−(xG+xA)": "Goals + assists minus expected goals + expected assists: above 0, he and his team-mates turned his chances into more than they were worth (FMM27 saves)",
   "A−xA": "Assists minus expected assists, the game's xDiff: above 0, team-mates finished his chances better than expected (FMM27 saves)",
   "CCC": "Clear-cut chances he had (FMM27 saves)",
   "CCC conv %": "Clear-cut chances he scored from, as a share of those he had (FMM27 saves)",
@@ -711,7 +716,8 @@ export function statHelp(name) {
  *  percentages whole. */
 export function statDp(name) {
   if (name === "Rating" || name === "Rating (adj)" || name === "xG" || name === "G−xG"
-    || name === "xA" || name === "A−xA" || name === "xG+xA" || name === "xG/shot") return 2;
+    || name === "xA" || name === "A−xA" || name === "xG+xA" || name === "G+A−(xG+xA)"
+    || name === "xG/shot") return 2;
   if (name === "Min/gm") return 0;
   return /\/(90|gm)$/.test(name) ? 2 : 0;
 }

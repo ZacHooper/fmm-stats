@@ -711,7 +711,7 @@ export function metricColumns(D, { agg = null, role = null } = {}) {
   }
   if (agg) {
     const order = ["Apps", "Starts", "Sub", "Min", "Min/gm", "Goals", "Assists",
-      "G+A", "xG", "G−xG", "xA", "A−xA", "xG+xA", "CCC", "Key passes", "Pass att", "Tackle att", "Shot att",
+      "G+A", "xG", "G−xG", "xA", "A−xA", "xG+xA", "G+A−(xG+xA)", "CCC", "Key passes", "Pass att", "Tackle att", "Shot att",
       "Interceptions", "Dribbles"].filter(D.statOffered);
     const offered = Object.keys(D.STAT_DEFS).filter(D.statOffered);
     const per = offered.filter((k) => /\/90$|\/shot$/.test(k));
