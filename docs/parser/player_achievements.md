@@ -12,7 +12,12 @@ achievement, every player's in one log.
 | 16 Nov | 887 (866 players) |
 
 FMM22: none on frem-2021-06-27 (the career's first day), 16,520 on frem-2023-07-02, 36,653 on
-frem-2026-06-11, 11,407 on bucaspor-2023-04-01. Nothing is cleared at the rollover: the
+frem-2026-06-11, 54,291 on frem-2030-06-30, 11,407 on bucaspor-2023-04-01.
+
+What follows the slots varies: one `00` on every save but frem-2030-06-30, where 53 bytes
+name Frem's ground (`08 ffffffff`, "Valby Idrætspark", "Valby Stadion", `ffff`, two u32
+100,000), unread. So the table is found by its own header between the club titles and the
+player lists, not by counting back from the lists. Nothing is cleared at the rollover: the
 2026 Frem save still holds 2021's rows.
 
 A capacity, not a count: 100,000 on every save. Rows fill from the front in the order the

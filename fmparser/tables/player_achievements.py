@@ -29,9 +29,11 @@ yet checked on a screen).
 The screen's category (World, Continental, Domestic, Major, Minor, Adverse) and season are
 not stored; nor is a date.
 
-**How it is found.** One byte before the first player list, the 100,000 slots end; the u32
-in front of them must be 100,000, every used slot's tid a person, its year byte 1970 + 50
-to 1970 + 99, and every `next_row` a used row of the same player, none reached twice.
+**How it is found.** Between the club titles and the player lists, the one u32 100,000 whose
+100,000 slots read as a log: every used slot's tid a person, its year byte 1970 + 50 to
+1970 + 99, and every `next_row` a used row of the same player, none reached twice. What
+follows the slots varies: one `00` on most saves, 53 bytes naming Frem's stadium on
+frem-2030-06-30.
 """
 import struct
 from typing import Any, Dict, List, Optional, Tuple
@@ -46,6 +48,7 @@ __all__ = ["ACHIEVEMENT", "KINDS", "PLAYER_ACHIEVEMENTS_TABLE", "locate_player_a
 CAPACITY = 100_000
 EMPTY = bytes([0]) + b"\xff" * 4 + b"\x00" * 4 + b"\xff" * 14 + b"\x00"
 NONE16, NONE32 = 0xFFFF, 0xFFFFFFFF
+HEADER = struct.pack("<I", CAPACITY)
 KINDS = {1: "runner_up", 2: "winner", 4: "league_won", 8: "promoted", 16: "relegated",
          32: "manager_sacked", 128: "award"}
 
@@ -69,6 +72,9 @@ def _check(mm: Any, base: int) -> Optional[List[int]]:
     """The used rows if the slots at `base` hold a valid log, else None."""
     from .person_info import locate_person_info
     persons = (locate_person_info(mm) or (0, 0))[1]
+    last = base + (CAPACITY - 1) * W
+    if mm[last:last + W] != EMPTY and not 50 <= mm[last] < 100:
+        return None
     used, tids = [], {}
     for k in range(CAPACITY):
         o = base + k * W
@@ -101,20 +107,27 @@ def locate_player_achievements(mm: Any) -> Optional[Tuple[int, int]]:
 
 
 def _locate(mm: Any) -> Optional[Tuple[int, List[int]]]:
-    """(slot 0, the used slots' indices), or None."""
-    res = None
-    if save_format(mm) in (FMM22, FMM27):
-        from .player_lists import locate_player_lists
-        lists = locate_player_lists(mm)
-        if lists:
-            end = lists[0][0] - 1
-            base = end - CAPACITY * W
-            if (base >= 4 and mm[end] == 0
-                    and struct.unpack_from("<I", mm, base - 4)[0] == CAPACITY):
-                used = _check(mm, base)
-                if used is not None:
-                    res = (base, used)
-    return res
+    """(slot 0, the used slots' indices), or None: the one u32 100,000 between the club
+    titles and the player lists whose 100,000 slots read as a log and end before the
+    lists."""
+    if save_format(mm) not in (FMM22, FMM27):
+        return None
+    from .club_titles import club_titles_table_spans
+    from .player_lists import locate_player_lists
+    titles, lists = club_titles_table_spans(mm), locate_player_lists(mm)
+    if not titles or not lists:
+        return None
+    lo, hi = titles[0][1], lists[0][0]
+    found = []
+    i = mm.find(HEADER, lo, hi)
+    while i >= 0:
+        base = i + 4
+        if base + CAPACITY * W <= hi:
+            used = _check(mm, base)
+            if used is not None:
+                found.append((base, used))
+        i = mm.find(HEADER, i + 1, hi)
+    return found[0] if len(found) == 1 else None
 
 
 def player_achievements_table_spans(mm: Any) -> List[Tuple[int, int]]:
