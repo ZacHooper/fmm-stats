@@ -32,6 +32,8 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     club_rows.json               a row per club, in tid order: its transfer budget
     player_form.json             FMM27: the Player Form page, a line per squad player per
                                  competitive match
+    player_rows.json             FMM27: per player (tid order) his ability on his league's
+                                 scale
     player_status.json           FMM27: per player (attribute-record order) the clubs
                                  interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules
@@ -286,6 +288,13 @@ def read_player_form(mm) -> Files:
     return {"player_form.json": (T.scrape_player_form(mm), None)}
 
 
+def read_player_rows(mm) -> Files:
+    """FMM27 only, as player_form: each player's league_ability, by tid."""
+    if T.save_format(mm) != T.FMM27:
+        return {}
+    return {"player_rows.json": (T.scrape_player_rows(mm), None)}
+
+
 def read_player_status(mm) -> Files:
     """FMM27 only: the FMM22 walk is not proved, so an FMM22 save writes no file. Block k is
     attribute record k, so each row carries that record's sid."""
@@ -366,6 +375,7 @@ def steps(no_archive: bool = False):
         Step("club_titles", registered("club_titles"),
              one("club_titles.json", T.scrape_club_titles, 1)),
         Step("player_form", registered("player_form"), read_player_form),
+        Step("player_rows", registered("player_rows"), read_player_rows),
         Step("player_lists", registered("player_lists", "player_list_trailers"),
              read_scrapbook),
         Step("archive", archive_span, read_archive(no_archive)),

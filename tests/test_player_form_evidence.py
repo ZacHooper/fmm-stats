@@ -24,7 +24,11 @@ sys.path.insert(0, ROOT)
 from tests.harness import find_save, skip  # noqa: E402
 
 from fmparser.save import Save  # noqa: E402
-from fmparser.tables import player_form, tables_for  # noqa: E402
+import statistics  # noqa: E402
+
+from fmparser.tables import clubs as CL, player_form, player_rows, tables_for  # noqa: E402
+from fmparser.tables.person_info import scrape_person_info  # noqa: E402
+from fmparser.tables.player_attributes import scrape_player_attributes  # noqa: E402
 from fmparser.tables import matches as MT  # noqa: E402
 
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "player_form_evidence.json")
@@ -91,10 +95,38 @@ def main():
     check(total > 300 and agree == total,
           f"rated lines agree with the match table: {agree} of {total}")
 
+    print(" PLAYER ROWS: league_ability")
+    rows = {r["tid"]: r["league_ability"] for r in player_rows.scrape_player_rows(mm)}
+    check(len(rows) == player_rows.locate_player_rows(mm)[1], f"{len(rows):,} rows read")
+    cr = fx["coach_report"]
+    by_star = {}
+    for tid, star in cr["stars"].items():
+        by_star.setdefault(star, []).append(rows[int(tid)])
+    stars = sorted(by_star)
+    check(all(max(by_star[a]) < min(by_star[b]) for a, b in zip(stars, stars[1:])),
+          f"the Coach Report's ability stars order by league_ability: "
+          f"{ {k: sorted(v) for k, v in by_star.items()} }")
+    # within a league, league_ability is current ability (joined on tid -> sid; the field
+    # under test comes out)
+    persons, attrs = scrape_person_info(mm), scrape_player_attributes(mm)
+    clubs_league = {t: c.get("league_cid") for t, c in CL.scrape_clubs(mm).items()}
+    leagues = {}
+    for tid, v in rows.items():
+        p = persons.get(tid)
+        a = attrs.get(p["sid"]) if p else None
+        if a:
+            leagues.setdefault(clubs_league.get(p["club_tid"]), []).append((v, a["ca"]))
+    rs = [statistics.correlation([x for x, _ in l], [y for _, y in l]) for l in leagues.values()
+          if len(l) >= 100 and len({x for x, _ in l}) > 3]
+    check(len(rs) > 50 and statistics.median(rs) > 0.9,
+          f"within a league it tracks ability: median r {statistics.median(rs):.3f} "
+          f"over {len(rs)} leagues")
+
     fmm22 = find_save("frem-2026-06-11.fms")
     if fmm22:
-        check(player_form.locate_player_form(Save(fmm22).mm) is None,
-              "frem-2026-06-11 (FMM22): not located")
+        check(player_form.locate_player_form(Save(fmm22).mm) is None
+              and player_rows.locate_player_rows(Save(fmm22).mm) is None,
+              "frem-2026-06-11 (FMM22): neither located")
 
     print(f"\n{'FAIL' if failures else 'PASS'}: {len(failures)} failure(s)")
     return 1 if failures else 0

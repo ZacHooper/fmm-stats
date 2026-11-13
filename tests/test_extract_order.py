@@ -37,7 +37,7 @@ def check(path):
         print(f"  not located: {', '.join(absent)}")
     # every table but the match table is in every save; the match table is empty only
     # between the rollover and the first match. player_status is read on FMM27 only.
-    allowed = {"matches"} | ({"player_status", "player_form"}
+    allowed = {"matches"} | ({"player_status", "player_form", "player_rows"}
                              if HDR.save_format(mm) != HDR.FMM27 else set())
     ok &= set(absent) <= allowed
     return ok

@@ -16,8 +16,8 @@ drifts between saves, so find it by that table, never by its number.
 | 2 | 601 | `[u8 n][50 × 6 B]` | 0 used | empty on every save | [end_pools](end_pools.md) |
 | 3 | 902 | `[u8 n][50 × 7 B]` | 0 used | empty on every save | [end_pools](end_pools.md) |
 | 4 | 1,253 | `[u16 n][n × 26 B]` then `[u8 0]` | 0 / 0 / 27 / 548 | **read**: the Player Form page | [player_form](../player_form.md) |
-| 5 | 15,504 | `[u32 n][n × 72 B]` | 36,343 / 36,345 | one row per player, by tid | [player_rows](player_rows.md) |
-| 6 | 2,632,348 | `[u32 n][n × 72 B]` | 1 | the same row shape, one person | [player_rows](player_rows.md) |
+| 5 | 15,504 | `[u32 n][n × 72 B]` | 36,343 / 36,345 | **read**: ability on the league's scale, working state | [player_rows](../player_rows.md) |
+| 6 | 2,632,348 | `[u32 n][n × 72 B]` | 1 | the same row shape, one person | [player_rows](../player_rows.md) |
 | 7 | 2,632,424 | `[u32 cap][cap × 32 B]` | cap 2,841 / 5,682; 0–71 used | a slot pool sized by the coach count | [coach_slots](coach_slots.md) |
 | 8 | 2,814,252 | `[3 B][u16 n][n × 10 B]` | 1,157 | one row per physio, all empty | [physio_rows](physio_rows.md) |
 | 9 | 2,825,827 | 787 × 104 B, no count | 772 with data | one row per scout, and 15 spare | [scout_rows](scout_rows.md) |
@@ -42,7 +42,7 @@ used one naming Frem (346) and 2021, then an `ff` run; after that the periods di
 
 ## Next
 
-1. Table 4 is read ([player_form](../player_form.md)). Turn the rest of the FMM27 chain into a table module (`end_block` locator, nine record declarations,
+1. Tables 4 and 5 are read ([player_form](../player_form.md), [player_rows](../player_rows.md)). Turn the rest of the FMM27 chain into a table module (`end_block` locator, nine record declarations,
    fields `UNKNOWN`), so the save map counts the 5.3 MB as read.
 2. Name fields table by table (each page's Next).
 3. Map FMM22's version.

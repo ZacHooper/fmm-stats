@@ -1,6 +1,9 @@
-# One 72-byte row per player (block tables 5 and 6)
+# player_rows  ([`fmparser/tables/player_rows.py`](../../fmparser/tables/player_rows.py))
 
-Part of [the block after the club titles](end_block.md). FMM27, at block offset 15,504 on
+**One 72-byte row per player**: his ability on his league's scale (`league_ability`) and
+engine working state. FMM27 only; `extract.py` writes `player_rows.json` (tid,
+league_ability). Tables 5 and 6 of [the block after the club titles](unread/end_block.md),
+straight after the [player form](player_form.md) lines. FMM27, at block offset 15,504 on
 truro-2026-11-16: `[u32 n][n × 72 B]`, ascending by tid; then table 6, `[u32 1][1 × 72 B]`,
 the same shape for one more person.
 
@@ -17,7 +20,7 @@ The rows run tid 401 to 44,958 and are 2.6 MB, the block's biggest table.
 |---|---|---|
 | +0 | u32 | the player's tid, ascending |
 | +4 | 4 × u32 | four player-table indexes (0–36,202); each column is a **random permutation** of the players |
-| +20 | u16 | **ability on the player's league's scale**: within a league it tracks current ability (median r = 0.95 over 100 leagues; 0.954 in Truro's, 595 players), across leagues not at all (r = -0.04). Moves when ability moves (r = 0.75 between 8 Aug and 16 Nov). 0–190 |
+| +20 | u16 `league_ability` | **ability on the player's league's scale**: within a league it tracks current ability (median r = 0.95 over 100 leagues; 0.954 in Truro's, 595 players), across leagues not at all (r = -0.04). Moves when ability moves (r = 0.75 between 8 Aug and 16 Nov). 0–190 |
 | +22 | u16 | set only on young players: every player aged 21 or under, part of the 22-year-olds, nobody older (born 18 Jul 2004 or later; 12,063 players on 16 Nov); 20–118; `ffff` otherwise |
 | +24 | 6 × u32 | `ffff…` on 28,856 players, 100 on 7,389 (the whole Truro squad and its league), a few other values (74, 93, 57: percentages?) |
 | +48 | 6 × u32 | two player-table indexes, two 100s, then two indexes again |
@@ -84,6 +87,31 @@ stands in.)
 | Jet Dyer | Dagenham & Redbridge | 32 | **38** | 100 × 6 | 100/100 |
 | Essa Jadama | Dover | 27 | **55** | 100 × 6 | 100/100 |
 | Jaye Long | Slough | 33 | **66** | 100 × 6 | 100/100 |
+
+**Against the Coach Report** (16 Nov): the ability stars of the players still at Truro order
+exactly by `league_ability`: 3.5 stars at 59, 61, 65, 71 and 74; 2.5 stars at 53 and 53;
+Josiah Aboh, the mid-season youth intake, half a star at 35. Potential stars do not order by
++22 (Nunn 83 shows 4 stars, Kinsey-Wellings 87 shows 3.5).
+
+![Truro City, Club Squad - Coach Report, 16 Nov 2026](img/player_rows-fmm27-1.webp)
+
+**+22 over four saves.** Unchanged for every young player from 22 to 25 Jul; 70% unchanged
+from 25 Jul to 8 Aug; nearly all changed by 16 Nov, up and down. Not tied to the club having
+played. A birthday in between pulls it down on average (-31 against -16) but not cleanly:
+Tweedy (born 15 Sep) 92, 92, 90, 22; Matthews 66, 66, 66, 75; Nunn 76, 76, 76, 83;
+Kinsey-Wellings 79, 79, 79, 87; Love-Holmes 61, 61, 61, 37. Updated in batches, on a schedule
+not yet found. Aboh, the youth intake, has two of +24's six slots and +56/+60 empty.
+
+## How it is found
+
+`locate_player_rows`: where the Player Form lines end, a `00`, the u32 count, then the rows;
+the form table is located only when every row's tid rises. Evidence in
+[`tests/test_player_form_evidence.py`](../../tests/test_player_form_evidence.py): the Coach
+Report's star order and the within-league check (median r > 0.9).
+
+### FMM22
+
+Not located: FMM22's block after the club titles has no 72-byte row per player.
 
 ## Tried
 
