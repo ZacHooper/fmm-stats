@@ -610,8 +610,8 @@ export const MATCH_SUMS = ["goals", "assists", "passA", "passC", "keyPass", "tac
 const SUMS_27 = ["xg", "xa", "ccc", "cccScored", "conceded"];
 /** The stats only FMM27 saves record. A career with none of them (an FMM22 career) doesn't
  *  offer them: a column of dashes says nothing. */
-export const FMM27_STATS = new Set(["xG", "G−xG", "xA", "A−xA", "CCC", "xG/90", "xA/90",
-  "CCC/90", "Conceded/90", "xG/shot", "CCC conv %"]);
+export const FMM27_STATS = new Set(["xG", "G−xG", "xA", "A−xA", "xG+xA", "CCC", "xG/90",
+  "xA/90", "xG+xA/90", "CCC/90", "Conceded/90", "xG/shot", "CCC conv %"]);
 export const hasFmm27Stats = () => !!S.matchesHave27;
 export const statOffered = (name) => !FMM27_STATS.has(name) || hasFmm27Stats();
 /** STAT_PRESETS less what this career doesn't record. */
@@ -630,6 +630,7 @@ export const STAT_DEFS = {
   "G−xG": (a) => (a.apps27 ? a.goals27 - a.xg : null),
   "xA": (a) => (a.apps27 ? a.xa : null),
   "A−xA": (a) => (a.apps27 ? a.assists27 - a.xa : null),
+  "xG+xA": (a) => (a.apps27 ? a.xg + a.xa : null),
   "CCC": (a) => (a.apps27 ? a.ccc : null),
   "POTM": (a) => a.potm,
   "Key passes": (a) => a.keyPass, "Pass att": (a) => a.passA, "Tackle att": (a) => a.tackA,
@@ -644,7 +645,8 @@ export const STAT_DEFS = {
   "Crosses/90": (a) => per90(a, "crossA"), "Dribbles/90": (a) => per90(a, "dribbles"),
   "SoT/90": (a) => per90(a, "shotO"), "Mistakes/90": (a) => per90(a, "mistakes"),
   "Yellows/90": (a) => per90(a, "yellow"),
-  "xG/90": (a) => per90of27(a, "xg"), "xA/90": (a) => per90of27(a, "xa"), "CCC/90": (a) => per90of27(a, "ccc"),
+  "xG/90": (a) => per90of27(a, "xg"), "xA/90": (a) => per90of27(a, "xa"),
+  "xG+xA/90": (a) => (a.min27 ? (90 * (a.xg + a.xa)) / a.min27 : null), "CCC/90": (a) => per90of27(a, "ccc"),
   "Conceded/90": (a) => per90of27(a, "conceded"),
   "G/gm": (a) => perGm(a, "goals"), "A/gm": (a) => perGm(a, "assists"),
   "G+A/gm": (a) => a.apps ? (a.goals + a.assists) / a.apps : null,
@@ -671,6 +673,7 @@ const STAT_BASE = {
   DefAct: "Defensive actions (tackles won + interceptions + headers won)",
   Crosses: "Crosses attempted", Dribbles: "Dribbles", Mistakes: "Mistakes", Yellows: "Yellow cards",
   Min: "Minutes", xG: "Expected goals (FMM27 saves)", xA: "Expected assists (FMM27 saves)",
+  "xG+xA": "Expected goals + expected assists (FMM27 saves)",
   CCC: "Clear-cut chances (FMM27 saves)",
   Conceded: "Goals conceded while in goal (FMM27 saves)",
 };
@@ -690,6 +693,7 @@ const STAT_WORDS = {
   "xG": "Expected goals: what his chances were worth, as the match screen adds them up (FMM27 saves)",
   "G−xG": "Goals minus expected goals: above 0, he scored more than his chances were worth (FMM27 saves)",
   "xA": "Expected assists: what the chances he set up were worth, the game's xA (FMM27 saves)",
+  "xG+xA": "Expected goals plus expected assists: his total expected goal involvement (FMM27 saves)",
   "A−xA": "Assists minus expected assists, the game's xDiff: above 0, team-mates finished his chances better than expected (FMM27 saves)",
   "CCC": "Clear-cut chances he had (FMM27 saves)",
   "CCC conv %": "Clear-cut chances he scored from, as a share of those he had (FMM27 saves)",
@@ -707,7 +711,7 @@ export function statHelp(name) {
  *  percentages whole. */
 export function statDp(name) {
   if (name === "Rating" || name === "Rating (adj)" || name === "xG" || name === "G−xG"
-    || name === "xA" || name === "A−xA" || name === "xG/shot") return 2;
+    || name === "xA" || name === "A−xA" || name === "xG+xA" || name === "xG/shot") return 2;
   if (name === "Min/gm") return 0;
   return /\/(90|gm)$/.test(name) ? 2 : 0;
 }
@@ -744,7 +748,7 @@ const rate = (n, d) => (d ? (100 * n) / d : null);
 export const STAT_PRESETS = {
   "Forward": ["G/90", "xG/90", "G−xG", "A/90", "Shots/90", "Shot acc %", "Conversion %", "xG/shot",
     "CCC/90", "CCC conv %", "SoT/90", "KeyP/90", "Dribbles/90"],
-  "Winger": ["G/90", "A/90", "xA/90", "KeyP/90", "Crosses/90", "Cross %", "Dribbles/90", "Shots/90", "Shot acc %"],
+  "Winger": ["G/90", "A/90", "xA/90", "xG+xA/90", "KeyP/90", "Crosses/90", "Cross %", "Dribbles/90", "Shots/90", "Shot acc %"],
   "Midfielder": ["Passes/90", "Pass %", "KeyP/90", "A/90", "xA/90", "Tackles/90", "TackW/90", "Int/90", "DefAct/90"],
   "Defender": ["TackW/90", "Tackle %", "Int/90", "HeadW/90", "Header %", "DefAct/90", "Pass %", "Mistakes/90"],
   "Goalkeeper": ["Conceded/90", "Pass %", "Passes/90", "Mistakes/90", "Yellows/90"],
