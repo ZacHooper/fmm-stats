@@ -17,8 +17,12 @@ frem-2026-06-11, 54,291 on frem-2030-06-30, 11,407 on bucaspor-2023-04-01.
 What follows the slots varies: one `00` on every save but frem-2030-06-30, where 53 bytes
 name Frem's ground (`08 ffffffff`, "Valby Idrætspark", "Valby Stadion", `ffff`, two u32
 100,000), unread. So the table is found by its own header between the club titles and the
-player lists, not by counting back from the lists. Nothing is cleared at the rollover: the
-2026 Frem save still holds 2021's rows.
+player lists, not by counting back from the lists. History is kept: the
+2026 Frem save still holds 2021's rows. **A retired player's rows are freed**, and their
+slots reused: across Frem's 2030 rollover (frem-2030-06-22 → -06-30) 281 players lose
+every row they had (1,178 rows) and no one loses only some; 270 of them are without a club
+on 06-30 and all are 32–39, so retirement. The person record stays (279 of 281 keep their
+uid and birth date). 71 of 237 new rows sit in a freed slot.
 
 A capacity, not a count: 100,000 on every save. Rows fill from the front in the order the
 achievements happen (the July super cups first, then the monthly awards), and a freed slot
@@ -84,5 +88,6 @@ follow from the kind and the competition. No date is stored.
 - Where a player's first row is found: something per person must point at the head of his
   chain. Not needed to read the table, which is read whole.
 - What sits after the slots on frem-2030-06-30 (53 bytes naming Frem's ground).
-- Frem's own titles hit the 100,000 capacity in no save yet (54,291 by 2030): what the game
-  does when it is full is unknown.
+- No save has reached the 100,000 capacity (55,232 at most, frem-2030-06-22): freeing
+  retired players' rows keeps the log well short of it so far.
+- Kind 256 is never seen (all ten local saves): a bit the game has, not yet earned.
